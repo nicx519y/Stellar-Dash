@@ -1,0 +1,85 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build-bootloader",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "bootloader",
+            ],
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "build-application",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "application",
+            ],
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "build-all",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "all",
+            ],
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "flash-bootloader",
+            "type": "shell",
+            "command": "make flash-bootloader",
+            "group": "build",
+            "problemMatcher": ["$gcc"],
+            "dependsOn": ["build-bootloader"]
+        },
+        {
+            "label": "flash-application",
+            "type": "shell",
+            "command": "make flash-application",
+            "group": "build",
+            "problemMatcher": ["$gcc"],
+            "dependsOn": ["build-application"]
+        },
+        {
+            "label": "flash-web-resources",
+            "type": "shell",
+            "command": "make flash-web-resources",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": "build",
+            "dependsOn": []
+        },
+        {
+            "label": "flash-all",
+            "type": "shell",
+            "command": "make flash-all",
+            "group": "build",
+            "problemMatcher": ["$gcc"],
+            "dependsOn": ["build-all"]
+        },
+        {
+            "label": "clean",
+            "type": "shell",
+            "command": "make clean",
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        }
+    
+    ]
+}
