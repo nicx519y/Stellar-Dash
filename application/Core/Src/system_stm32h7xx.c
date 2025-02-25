@@ -204,24 +204,23 @@ void SystemInit (void)
  __IO uint32_t tmpreg;
 #endif /* DATA_IN_D2_SRAM */
 
-  /* FPU settings ------------------------------------------------------------*/
+  /* FPU settings */
   #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
-    SCB->CPACR |= ((3UL << (10*2))|(3UL << (11*2)));  /* set CP10 and CP11 Full Access */
+    SCB->CPACR |= ((3UL << 20U)|(3UL << 22U));  /* set CP10 and CP11 Full Access */
   #endif
-  /* Reset the RCC clock configuration to the default reset state ------------*/
 
-   /* Increasing the CPU frequency */
-  if(FLASH_LATENCY_DEFAULT  > (READ_BIT((FLASH->ACR), FLASH_ACR_LATENCY)))
-  {
-    /* Program the new number of wait states to the LATENCY bits in the FLASH_ACR register */
-    MODIFY_REG(FLASH->ACR, FLASH_ACR_LATENCY, (uint32_t)(FLASH_LATENCY_DEFAULT));
-  }
-
+  /* Reset the RCC clock configuration to the default reset state */
   /* Set HSION bit */
   RCC->CR |= RCC_CR_HSION;
 
   /* Reset CFGR register */
   RCC->CFGR = 0x00000000;
+
+  /* Reset all other clock */
+  RCC->CR = 0x00000001;
+
+  /* 默认情况下，所有 RAM 区域都是不可执行的 */
+  /* 需要显式配置 MPU 才能从 RAM 执行代码 */
 
   /* Reset HSEON, HSECSSON, CSION, HSI48ON, CSIKERON, PLL1ON, PLL2ON and PLL3ON bits */
   RCC->CR &= 0xEAF6ED7FU;

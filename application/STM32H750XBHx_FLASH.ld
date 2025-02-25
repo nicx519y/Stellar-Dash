@@ -73,11 +73,13 @@ FLASH (rx)      : ORIGIN = 0x90000000, LENGTH = 8192K
 SECTIONS
 {
   /* 向量表必须在 Flash */
+  _sivector = LOADADDR(.isr_vector);
   .isr_vector :
   {
     . = ALIGN(4);
     KEEP(*(.isr_vector))
     . = ALIGN(4);
+    _evector = .;           /* 添加向量表结束标记 */
   } >RAM AT>FLASH
 
   /* Reset_Handler 必须在 Flash */
@@ -90,6 +92,7 @@ SECTIONS
   } >FLASH
 
   /* 其他代码在 RAM */
+  _sitext = LOADADDR(.text);
   .text :
   {
     . = ALIGN(4);
@@ -106,41 +109,57 @@ SECTIONS
   } >RAM AT> FLASH
 
   /* Constant data goes into FLASH */
+  _sirodata = LOADADDR(.rodata);
   .rodata :
   {
     . = ALIGN(4);
+    _srodata = .;
     *(.rodata)         /* .rodata sections (constants, strings, etc.) */
     *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
     . = ALIGN(4);
+    _erodata = .;
+  } >RAM AT> FLASH
+  
+  /* ARM exception tables */
+  .ARM.extab :
+  {
+    __extab_start = .;
+    *(.ARM.extab* .gnu.linkonce.armextab.*)
+    __extab_end = .;
   } >RAM AT>FLASH
 
-  .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >RAM AT>FLASH
-  .ARM : {
+  .ARM.exidx :
+  {
     __exidx_start = .;
-    *(.ARM.exidx*)
+    *(.ARM.exidx* .gnu.linkonce.armexidx.*)
     __exidx_end = .;
   } >RAM AT>FLASH
 
+  _sipreinit_array = LOADADDR(.preinit_array);
   .preinit_array     :
   {
     PROVIDE_HIDDEN (__preinit_array_start = .);
     KEEP (*(.preinit_array*))
     PROVIDE_HIDDEN (__preinit_array_end = .);
-  } >FLASH
+  } >RAM AT> FLASH
+
+  _siinit_array = LOADADDR(.init_array);
   .init_array :
   {
     PROVIDE_HIDDEN (__init_array_start = .);
     KEEP (*(SORT(.init_array.*)))
     KEEP (*(.init_array*))
     PROVIDE_HIDDEN (__init_array_end = .);
-  } >FLASH
+  } >RAM AT> FLASH
+
+  _sifini_array = LOADADDR(.fini_array);
   .fini_array :
   {
     PROVIDE_HIDDEN (__fini_array_start = .);
     KEEP (*(SORT(.fini_array.*)))
     KEEP (*(.fini_array*))
     PROVIDE_HIDDEN (__fini_array_end = .);
-  } >FLASH
+  } >RAM AT> FLASH
 
   /* used by the startup to initialize data */
   _sidata = LOADADDR(.data);

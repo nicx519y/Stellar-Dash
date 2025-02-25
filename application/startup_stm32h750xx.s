@@ -57,92 +57,166 @@ defined in linker script */
     .section  .text.boot.Reset_Handler,"ax",%progbits
     .weak  Reset_Handler
     .type  Reset_Handler, %function
+
+/* 先定义拷贝函数 */
+copy_section:
+    cmp     r1, r2          /* 比较当前地址和结束地址 */
+    ittt    lo              /* if r1 < r2 */
+    ldrlo   r3, [r0], #4    /* 从源地址读取4字节并递增源地址 */
+    strlo   r3, [r1], #4    /* 写入目标地址并递增目标地址 */
+    blo     copy_section    /* 继续循环 */
+    bx      lr              /* 返回 */
+
 Reset_Handler:
-  ldr   sp, =_estack      /* set stack pointer */
+    ldr   sp, =_estack      /* set stack pointer */
 
-  /********** 点亮LED start **********/
-  /* 使能 GPIOC 时钟 */
-  ldr r0, =0x58024540     /* RCC_AHB4ENR */
-  ldr r1, [r0]            /* 读取当前值 */
-  orr r1, r1, #(1 << 2)   /* 设置 GPIOC 时钟使能位 */
-  str r1, [r0]            /* 写回 */
-  
-  /* 等待时钟稳定 */
-  dsb
-  isb
-  
-  /* 配置 GPIOC13 为输出 */
-  ldr r0, =0x58020800     /* GPIOC 基地址 */
-  
-  /* 设置 MODER13[1:0] = 01 (输出模式) */
-  ldr r1, [r0, #0x00]     /* 读取 MODER */
-  bic r1, r1, #(3 << 26)  /* 清除 PC13 的 MODER 位 */
-  orr r1, r1, #(1 << 26)  /* 设置为输出模式 */
-  str r1, [r0, #0x00]     /* 写回 MODER */
-  
-  /* 设置 OTYPER13 = 0 (推挽输出) */
-  ldr r1, [r0, #0x04]     /* 读取 OTYPER */
-  bic r1, r1, #(1 << 13)  /* 设置为推挽输出 */
-  str r1, [r0, #0x04]     /* 写回 OTYPER */
-  
-  /* 设置 OSPEEDR13[1:0] = 00 (低速) */
-  ldr r1, [r0, #0x08]     /* 读取 OSPEEDR */
-  bic r1, r1, #(3 << 26)  /* 设置为低速 */
-  str r1, [r0, #0x08]     /* 写回 OSPEEDR */
-  
-  /* 设置 PUPDR13[1:0] = 00 (无上下拉) */
-  ldr r1, [r0, #0x0C]     /* 读取 PUPDR */
-  bic r1, r1, #(3 << 26)  /* 设置为无上下拉 */
-  str r1, [r0, #0x0C]     /* 写回 PUPDR */
-  
-  /* 设置输出低电平 (LED 亮) */
-  mov r1, #(1 << (13 + 16))  /* BSRR 高 16 位写 1 表示输出低电平 */
-  str r1, [r0, #0x18]        /* 写入 BSRR */
+    /********** 点亮LED start **********/
+    /* 使能 GPIOC 时钟 */
+    ldr r0, =0x58024540     /* RCC_AHB4ENR */
+    ldr r1, [r0]            /* 读取当前值 */
+    orr r1, r1, #(1 << 2)   /* 设置 GPIOC 时钟使能位 */
+    str r1, [r0]            /* 写回 */
+    
+    /* 等待时钟稳定 */
+    dsb
+    isb
+    
+    /* 配置 GPIOC13 为输出 */
+    ldr r0, =0x58020800     /* GPIOC 基地址 */
+    
+    /* 设置 MODER13[1:0] = 01 (输出模式) */
+    ldr r1, [r0, #0x00]     /* 读取 MODER */
+    bic r1, r1, #(3 << 26)  /* 清除 PC13 的 MODER 位 */
+    orr r1, r1, #(1 << 26)  /* 设置为输出模式 */
+    str r1, [r0, #0x00]     /* 写回 MODER */
+    
+    /* 设置 OTYPER13 = 0 (推挽输出) */
+    ldr r1, [r0, #0x04]     /* 读取 OTYPER */
+    bic r1, r1, #(1 << 13)  /* 设置为推挽输出 */
+    str r1, [r0, #0x04]     /* 写回 OTYPER */
+    
+    /* 设置 OSPEEDR13[1:0] = 00 (低速) */
+    ldr r1, [r0, #0x08]     /* 读取 OSPEEDR */
+    bic r1, r1, #(3 << 26)  /* 设置为低速 */
+    str r1, [r0, #0x08]     /* 写回 OSPEEDR */
+    
+    /* 设置 PUPDR13[1:0] = 00 (无上下拉) */
+    ldr r1, [r0, #0x0C]     /* 读取 PUPDR */
+    bic r1, r1, #(3 << 26)  /* 设置为无上下拉 */
+    str r1, [r0, #0x0C]     /* 写回 PUPDR */
+    
+    /* 设置输出低电平 (LED 亮) */
+    mov r1, #(1 << (13 + 16))  /* BSRR 高 16 位写 1 表示输出低电平 */
+    str r1, [r0, #0x18]        /* 写入 BSRR */
 
-  /********** 点亮LED end **********/
+    /* 配置 MPU */
+    /* 禁用 MPU */
+    ldr r0, =0xE000ED94     /* MPU_CTRL */
+    mov r1, #0
+    str r1, [r0]            /* 禁用 MPU */
 
-/* Call the clock system initialization function.*/
-  bl  SystemInit
+    /* 配置 RAM 区域 */
+    ldr r0, =0xE000ED98     /* MPU_RNR */
+    mov r1, #0              /* Region 0 */
+    str r1, [r0]
 
+    ldr r0, =0xE000ED9C     /* MPU_RBAR */
+    ldr r1, =0x24000000     /* RAM 基地址 */
+    str r1, [r0]
 
+    /* 配置 RASR */
+    ldr r1, =0x00000000     /* 清零 */
+    orr r1, #(0b011 << 24)  /* AP = 011 (Full Access) */
+    orr r1, #(1 << 17)      /* C = 1 (Cacheable) */
+    orr r1, #(1 << 16)      /* B = 1 (Bufferable) */
+    orr r1, #(11 << 1)      /* SIZE = 11 (512KB) */
+    orr r1, #1              /* ENABLE = 1 */
+    ldr r0, =0xE000EDA0     /* MPU_RASR */
+    str r1, [r0]
 
+    /* 启用 MPU */
+    ldr r0, =0xE000ED94     /* MPU_CTRL */
+    mov r1, #5              /* Enable MPU + Default Memory Map for privileged access */
+    str r1, [r0]
 
+    /* 数据同步屏障 */
+    dsb
+    isb
 
-/* Copy the data segment initializers from flash to SRAM */
-  ldr r0, =_sdata
-  ldr r1, =_edata
-  ldr r2, =_sidata
-  movs r3, #0
-  b LoopCopyDataInit
+    /* 拷贝向量表 */
+    ldr r0, =_sivector      /* Flash 中的源地址 */
+    ldr r1, =g_pfnVectors   /* RAM 中的目标地址 */
+    ldr r2, =_evector       /* 结束地址 */
+    bl  copy_section
 
-CopyDataInit:
-  ldr r4, [r2, r3]
-  str r4, [r0, r3]
-  adds r3, r3, #4
+    /* 拷贝代码段 */
+    ldr r0, =_sitext        /* Flash 中的源地址 */
+    ldr r1, =_stext         /* RAM 中的目标地址 */
+    ldr r2, =_etext         /* 结束地址 */
+    bl  copy_section
 
-LoopCopyDataInit:
-  adds r4, r0, r3
-  cmp r4, r1
-  bcc CopyDataInit
-/* Zero fill the bss segment. */
-  ldr r2, =_sbss
-  ldr r4, =_ebss
-  movs r3, #0
-  b LoopFillZerobss
+    /* 拷贝常量段 */
+    ldr r0, =_sirodata      /* Flash 中的源地址 */
+    ldr r1, =_srodata       /* RAM 中的目标地址 */
+    ldr r2, =_erodata       /* 结束地址 */
+    bl  copy_section
 
-FillZerobss:
-  str  r3, [r2]
-  adds r2, r2, #4
+    /* 拷贝 ARM.extab */
+    ldr r0, =__extab_start  /* Flash 中的源地址 */
+    ldr r1, =__extab_start  /* RAM 中的目标地址 */
+    ldr r2, =__extab_end    /* 结束地址 */
+    bl  copy_section
 
-LoopFillZerobss:
-  cmp r2, r4
-  bcc FillZerobss
+    /* 拷贝 ARM.exidx */
+    ldr r0, =__exidx_start  /* Flash 中的源地址 */
+    ldr r1, =__exidx_start  /* RAM 中的目标地址 */
+    ldr r2, =__exidx_end    /* 结束地址 */
+    bl  copy_section
 
-/* Call static constructors */
+    /* 拷贝 preinit_array */
+    ldr r0, =_sipreinit_array
+    ldr r1, =__preinit_array_start
+    ldr r2, =__preinit_array_end
+    bl  copy_section
+
+    /* 拷贝 init_array */
+    ldr r0, =_siinit_array
+    ldr r1, =__init_array_start
+    ldr r2, =__init_array_end
+    bl  copy_section
+
+    /* 拷贝 fini_array */
+    ldr r0, =_sifini_array
+    ldr r1, =__fini_array_start
+    ldr r2, =__fini_array_end
+    bl  copy_section
+
+    /* 拷贝数据段 */
+    ldr r0, =_sidata        /* Flash 中的源地址 */
+    ldr r1, =_sdata         /* RAM 中的目标地址 */
+    ldr r2, =_edata         /* 结束地址 */
+    bl  copy_section
+
+    /* 清零 BSS 段 */
+    ldr r2, =_sbss
+    ldr r4, =_ebss
+    movs r3, #0
+bss_loop:
+    cmp r2, r4
+    ittt    lt
+    strlt   r3, [r2], #4    /* 写入0并递增地址 */
+    addlt   r2, #4
+    blt     bss_loop
+
+    /* 调用系统初始化 */
+    bl  SystemInit
+
+    /* 调用 C++ 构造函数 */
     bl __libc_init_array
-/* Call the application's entry point.*/
-  bl  main
-  bx  lr
+
+    /* 跳转到 main */
+    ldr r0, =main           /* 获取 main 在 RAM 中的地址 */
+    bx  r0                  /* 直接跳转，不用 bl */
 .size  Reset_Handler, .-Reset_Handler
 
 /**
