@@ -70,6 +70,28 @@ copy_section:
 Reset_Handler:
     ldr   sp, =_estack      /* set stack pointer */
 
+    /* 先清零 BSS 段 */
+    ldr r2, =_sbss          /* BSS 段起始地址 */
+    ldr r4, =_ebss          /* BSS 段结束地址 */
+    movs r3, #0             /* 用于清零的值 */
+bss_loop:
+    cmp r2, r4              /* 比较当前地址和结束地址 */
+    itt lt                  /* if r2 < r4 */
+    strlt r3, [r2], #4      /* 写入0并递增地址 */
+    blt bss_loop            /* 继续循环 */
+
+    /* 拷贝数据段 */
+    ldr r0, =_sidata        /* Flash 中的源地址 */
+    ldr r1, =_sdata         /* RAM 中的目标地址 */
+    ldr r2, =_edata         /* 结束地址 */
+    bl  copy_section
+
+    /* 拷贝常量段 */
+    ldr r0, =_sirodata      /* Flash 中的源地址 */
+    ldr r1, =_srodata       /* RAM 中的目标地址 */
+    ldr r2, =_erodata       /* 结束地址 */
+    bl  copy_section
+
     /********** 点亮LED start **********/
     /* 使能 GPIOC 时钟 */
     ldr r0, =0x58024540     /* RCC_AHB4ENR */
@@ -149,16 +171,16 @@ Reset_Handler:
     ldr r2, =_evector       /* 结束地址 */
     bl  copy_section
 
+    /* 重定位向量表 */
+    ldr r0, =g_pfnVectors   /* RAM 中的向量表地址 */
+    ldr r1, =0xE000ED08     /* SCB->VTOR 的地址 */
+    str r0, [r1]            /* 设置 VTOR  */
+
+
     /* 拷贝代码段 */
     ldr r0, =_sitext        /* Flash 中的源地址 */
     ldr r1, =_stext         /* RAM 中的目标地址 */
     ldr r2, =_etext         /* 结束地址 */
-    bl  copy_section
-
-    /* 拷贝常量段 */
-    ldr r0, =_sirodata      /* Flash 中的源地址 */
-    ldr r1, =_srodata       /* RAM 中的目标地址 */
-    ldr r2, =_erodata       /* 结束地址 */
     bl  copy_section
 
     /* 拷贝 ARM.extab */
@@ -191,22 +213,9 @@ Reset_Handler:
     ldr r2, =__fini_array_end
     bl  copy_section
 
-    /* 拷贝数据段 */
-    ldr r0, =_sidata        /* Flash 中的源地址 */
-    ldr r1, =_sdata         /* RAM 中的目标地址 */
-    ldr r2, =_edata         /* 结束地址 */
-    bl  copy_section
-
-    /* 清零 BSS 段 */
-    ldr r2, =_sbss
-    ldr r4, =_ebss
-    movs r3, #0
-bss_loop:
-    cmp r2, r4
-    ittt    lt
-    strlt   r3, [r2], #4    /* 写入0并递增地址 */
-    addlt   r2, #4
-    blt     bss_loop
+     /* 内存屏障 */
+    dsb
+    isb
 
     /* 调用系统初始化 */
     bl  SystemInit

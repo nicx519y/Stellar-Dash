@@ -18,9 +18,9 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "usb_otg_hs.h"
 #include "usart.h"
-#include "board_cfg.h"
+#include <stdio.h>
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -43,6 +43,11 @@
 
 /* Private variables ---------------------------------------------------------*/
 HCD_HandleTypeDef hhcd_USB_OTG_HS;
+
+/* 测试各个段 */
+const uint32_t rodata_test = 0x12345678;        // .rodata 段
+uint32_t data_test = 0x87654321;                // .data 段
+uint32_t bss_test;                              // .bss 段
 
 /* USER CODE BEGIN PV */
 
@@ -68,31 +73,32 @@ void UserLEDClose(void);
   */
 int main(void)
 {
+    PeriphCommonClock_Config();
+    // 使能中断
+    __enable_irq(); 
 
-    /* USER CODE BEGIN 1 */
-    UserLEDClose();
-    /* USER CODE END 1 */
-
-    /* MPU Configuration--------------------------------------------------------*/
-    // MPU_Config();
-
-    /* MCU Configuration--------------------------------------------------------*/
-
-    /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
     HAL_Init();
 
-    /* USER CODE BEGIN Init */
-
-    /* USER CODE END Init */
-
-    /* USER CODE BEGIN SysInit */
-
-    /* USER CODE END SysInit */
-
-    /* Initialize all configured peripherals */
-    /* USER CODE BEGIN 2 */
+    // printf("main\r\n");
+    /* USER CODE BEGIN 1 */
+    HAL_Delay(1000);
+    UserLEDClose();
     USART1_Init();
-    APP_DBG("USART1_Init success\r\n");
+    /* 测试各个段 */
+    printf("rodata_test (should be 0x12345678): 0x%08X\r\n", rodata_test);
+    printf("data_test (should be 0x87654321): 0x%08X\r\n", data_test);
+    printf("bss_test (should be 0): 0x%08X\r\n", bss_test);
+    
+    // // 修改并再次检查
+    data_test = 0x11223344;
+    bss_test = 0x44332211;
+    printf("data_test after modify: 0x%08X\r\n", data_test);
+    printf("bss_test after modify: 0x%08X\r\n", bss_test);
+    
+    /* USER CODE END 1 */
+
+    
+    printf("USART1_Init success\r\n");
 
     /* USER CODE END 2 */
 
@@ -208,7 +214,7 @@ void PeriphCommonClock_Config(void)
 void Error_Handler(void)
 {
     /* USER CODE BEGIN Error_Handler_Debug */
-    APP_ERR("Error_Handler...\r\n");
+    printf("Error_Handler...\r\n");
     /* User can add his own implementation to report the HAL error return state */
     __disable_irq();
     while (1)
