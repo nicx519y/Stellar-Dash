@@ -16,7 +16,7 @@
 **
 **  Target      : STMicroelectronics STM32
 **
-**  Distribution: The file is distributed “as is,” without any warranty
+**  Distribution: The file is distributed "as is," without any warranty
 **                of any kind.
 **
 *****************************************************************************
@@ -72,30 +72,38 @@ FLASH (rx)      : ORIGIN = 0x90000000, LENGTH = 8192K
 /* Define output sections */
 SECTIONS
 {
-  /* The startup code goes first into FLASH */
+  /* 向量表必须在 Flash */
   .isr_vector :
   {
     . = ALIGN(4);
-    KEEP(*(.isr_vector)) /* Startup code */
+    KEEP(*(.isr_vector))
+    . = ALIGN(4);
+  } >RAM AT>FLASH
+
+  /* Reset_Handler 必须在 Flash */
+  .text.boot :
+  {
+    . = ALIGN(4);
+    *(.text.boot.Reset_Handler)  /* 把Reset_Handler 放在 Flash */
+    *(.text.startup)
     . = ALIGN(4);
   } >FLASH
 
-  /* The program code and other data goes into FLASH */
+  /* 其他代码在 RAM */
   .text :
   {
     . = ALIGN(4);
-    *(.text)           /* .text sections (code) */
-    *(.text*)          /* .text* sections (code) */
-    *(.glue_7)         /* glue arm to thumb code */
-    *(.glue_7t)        /* glue thumb to arm code */
+    _stext = .;
+    *(.text)           
+    *(.text.*)         /* 这里不会匹配已经放置的 .text.boot.Reset_Handler */
+    *(.glue_7)
+    *(.glue_7t)
     *(.eh_frame)
-
     KEEP (*(.init))
     KEEP (*(.fini))
-
     . = ALIGN(4);
-    _etext = .;        /* define a global symbols at end of code */
-  } >FLASH
+    _etext = .;
+  } >RAM AT> FLASH
 
   /* Constant data goes into FLASH */
   .rodata :
@@ -104,14 +112,14 @@ SECTIONS
     *(.rodata)         /* .rodata sections (constants, strings, etc.) */
     *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
     . = ALIGN(4);
-  } >FLASH
+  } >RAM AT>FLASH
 
-  .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >FLASH
+  .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >RAM AT>FLASH
   .ARM : {
     __exidx_start = .;
     *(.ARM.exidx*)
     __exidx_end = .;
-  } >FLASH
+  } >RAM AT>FLASH
 
   .preinit_array     :
   {

@@ -54,14 +54,52 @@ defined in linker script */
  * @retval : None
 */
 
-    .section  .text.Reset_Handler
-  .weak  Reset_Handler
-  .type  Reset_Handler, %function
+    .section  .text.boot.Reset_Handler,"ax",%progbits
+    .weak  Reset_Handler
+    .type  Reset_Handler, %function
 Reset_Handler:
   ldr   sp, =_estack      /* set stack pointer */
 
-/****************************  用户LED初始化  ************************* */
-  bl  UserLEDInit
+  /********** 点亮LED start **********/
+  /* 使能 GPIOC 时钟 */
+  ldr r0, =0x58024540     /* RCC_AHB4ENR */
+  ldr r1, [r0]            /* 读取当前值 */
+  orr r1, r1, #(1 << 2)   /* 设置 GPIOC 时钟使能位 */
+  str r1, [r0]            /* 写回 */
+  
+  /* 等待时钟稳定 */
+  dsb
+  isb
+  
+  /* 配置 GPIOC13 为输出 */
+  ldr r0, =0x58020800     /* GPIOC 基地址 */
+  
+  /* 设置 MODER13[1:0] = 01 (输出模式) */
+  ldr r1, [r0, #0x00]     /* 读取 MODER */
+  bic r1, r1, #(3 << 26)  /* 清除 PC13 的 MODER 位 */
+  orr r1, r1, #(1 << 26)  /* 设置为输出模式 */
+  str r1, [r0, #0x00]     /* 写回 MODER */
+  
+  /* 设置 OTYPER13 = 0 (推挽输出) */
+  ldr r1, [r0, #0x04]     /* 读取 OTYPER */
+  bic r1, r1, #(1 << 13)  /* 设置为推挽输出 */
+  str r1, [r0, #0x04]     /* 写回 OTYPER */
+  
+  /* 设置 OSPEEDR13[1:0] = 00 (低速) */
+  ldr r1, [r0, #0x08]     /* 读取 OSPEEDR */
+  bic r1, r1, #(3 << 26)  /* 设置为低速 */
+  str r1, [r0, #0x08]     /* 写回 OSPEEDR */
+  
+  /* 设置 PUPDR13[1:0] = 00 (无上下拉) */
+  ldr r1, [r0, #0x0C]     /* 读取 PUPDR */
+  bic r1, r1, #(3 << 26)  /* 设置为无上下拉 */
+  str r1, [r0, #0x0C]     /* 写回 PUPDR */
+  
+  /* 设置输出低电平 (LED 亮) */
+  mov r1, #(1 << (13 + 16))  /* BSRR 高 16 位写 1 表示输出低电平 */
+  str r1, [r0, #0x18]        /* 写入 BSRR */
+
+  /********** 点亮LED end **********/
 
 /* Call the clock system initialization function.*/
   bl  SystemInit
