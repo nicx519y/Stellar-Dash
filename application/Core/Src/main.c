@@ -15,33 +15,13 @@
   *
   ******************************************************************************
   */
-/* USER CODE END Header */
-/* Includes ------------------------------------------------------------------*/
+
 #include "main.h"
 #include "usart.h"
-#include <stdio.h>
+#include "board_cfg.h"
+#include "qspi-w25q64.h"
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
 
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
 HCD_HandleTypeDef hhcd_USB_OTG_HS;
 
 /* 测试各个段 */
@@ -49,23 +29,12 @@ const uint32_t rodata_test = 0x12345678;        // .rodata 段
 uint32_t data_test = 0x87654321;                // .data 段
 uint32_t bss_test;                              // .bss 段
 
-/* USER CODE BEGIN PV */
 
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 void PeriphCommonClock_Config(void);
 void UserLEDClose(void);
 
-/* USER CODE BEGIN PFP */
 
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
 
 /**
   * @brief  The application entry point.
@@ -83,27 +52,25 @@ int main(void)
     /* USER CODE BEGIN 1 */
     HAL_Delay(1000);
     UserLEDClose();
+
+    QSPI_W25Qxx_ExitMemoryMappedMode();
+
     USART1_Init();
+    APP_DBG("USART1_Init success\r\n");
     /* 测试各个段 */
-    printf("rodata_test (should be 0x12345678): 0x%08X\r\n", rodata_test);
-    printf("data_test (should be 0x87654321): 0x%08X\r\n", data_test);
-    printf("bss_test (should be 0): 0x%08X\r\n", bss_test);
+    APP_DBG("rodata_test (should be 0x12345678): 0x%08X\r\n", rodata_test);
+    APP_DBG("data_test (should be 0x87654321): 0x%08X\r\n", data_test);
+    APP_DBG("bss_test (should be 0): 0x%08X\r\n", bss_test);
     
     // // 修改并再次检查
     data_test = 0x11223344;
     bss_test = 0x44332211;
-    printf("data_test after modify: 0x%08X\r\n", data_test);
-    printf("bss_test after modify: 0x%08X\r\n", bss_test);
+    APP_DBG("data_test after modify: 0x%08X\r\n", data_test);
+    APP_DBG("bss_test after modify: 0x%08X\r\n", bss_test);
     
-    /* USER CODE END 1 */
+    QSPI_W25Qxx_ReadBuffer((uint8_t *)data_test, 0x00000000, 4);
+    APP_DBG("data_test after read: 0x%08X\r\n", data_test);
 
-    
-    printf("USART1_Init success\r\n");
-
-    /* USER CODE END 2 */
-
-    /* Infinite loop */
-    /* USER CODE BEGIN WHILE */
     while (1)
     {
         /* USER CODE END WHILE */
