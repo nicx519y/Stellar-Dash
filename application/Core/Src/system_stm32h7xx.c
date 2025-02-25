@@ -149,6 +149,32 @@
   uint32_t SystemD2Clock = 64000000;
   const  uint8_t D1CorePrescTable[16] = {0, 0, 0, 0, 1, 2, 3, 4, 1, 2, 3, 4, 6, 7, 8, 9};
 
+
+void UserLEDInit(void)
+{
+    // 使能 GPIO 时钟
+    RCC->AHB4ENR |= RCC_AHB4ENR_GPIOCEN;
+    
+    // 等待时钟稳定
+    __DSB();
+
+    // 设置 PC13 为输出模式
+    GPIOC->MODER &= ~(3U << (13 * 2));  // 清除原来的模式位
+    GPIOC->MODER |= (1U << (13 * 2));   // 设置为输出模式
+
+    // 设置为推挽输出
+    GPIOC->OTYPER &= ~(1U << 13);
+
+    // 设置为低速
+    GPIOC->OSPEEDR &= ~(3U << (13 * 2));
+
+    // 设置为无上拉下拉
+    GPIOC->PUPDR &= ~(3U << (13 * 2));
+    
+    // 直接输出低电平 (LED 亮)
+    GPIOC->BSRR = (1U << (13 + 16));  // 写入高16位来清零对应位
+}
+
 /**
   * @}
   */

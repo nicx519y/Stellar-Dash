@@ -229,16 +229,15 @@ clean:
 # flash
 #######################################
   
-flash:
+flash: $(BUILD_DIR)/$(TARGET).hex
 	openocd \
 	-d0 \
 	-f Openocd_Script/ST-LINK-QSPIFLASH.cfg \
 	-c init \
 	-c halt \
-	-c "reset halt" \
-	-c "flash info 0" \
-	-c "flash erase_sector 0 0 last" \
-	-c "program $(BUILD_DIR)/$(TARGET).elf verify" \
+	-c "reset init" \
+	-c "flash write_image erase $(BUILD_DIR)/$(TARGET).hex 0x00000000" \
+	-c "flash verify_image $(BUILD_DIR)/$(TARGET).hex 0x00000000" \
 	-c "reset run" \
 	-c shutdown 
 

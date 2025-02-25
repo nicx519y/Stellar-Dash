@@ -230,7 +230,7 @@ clean:
 # flash
 #######################################
 
-flash:
+flash: $(BUILD_DIR)/$(TARGET).elf
 	openocd \
 	-d0 \
 	-f Openocd_Script/ST-LINK-FLASH.cfg \

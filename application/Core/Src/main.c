@@ -20,7 +20,7 @@
 #include "main.h"
 #include "usb_otg_hs.h"
 #include "usart.h"
-
+#include "board_cfg.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -91,7 +91,7 @@ int main(void)
   /* Initialize all configured peripherals */
   /* USER CODE BEGIN 2 */
   USART1_Init();
-  printf("USART1_Init success\r\n");
+  APP_DBG("USART1_Init success\r\n");
 
   /* USER CODE END 2 */
 

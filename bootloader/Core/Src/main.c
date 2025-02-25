@@ -24,7 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "usart.h"
 #include "qspi-w25q64.h"
-
+#include "board_cfg.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -53,6 +53,7 @@ HCD_HandleTypeDef hhcd_USB_OTG_HS;
 void SystemClock_Config(void);
 void PeriphCommonClock_Config(void);
 static void MPU_Config(void);
+void JumpToApplication(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -98,7 +99,7 @@ int main(void)
   USART1_Init();
   printf("QSPI_W25Qxx_Init success\r\n");
 
-  QSPI_W25Qxx_Test(0x000000);
+  // QSPI_W25Qxx_Test(0x000000);
   
   if(QSPI_W25Qxx_EnterMemoryMappedMode() != QSPI_W25Qxx_OK)
   {
@@ -107,7 +108,12 @@ int main(void)
 
   printf("QSPI_W25Qxx_EnterMemoryMappedMode success\r\n");
 
-  
+  uint32_t jump_address = *(__IO uint32_t*)(W25Qxx_Mem_Addr + 4);
+  uint32_t app_stack = *(__IO uint32_t*)W25Qxx_Mem_Addr;
+
+  printf("jump_address: 0x%08X, app_stack: 0x%08X\r\n", jump_address, app_stack);
+
+  JumpToApplication();
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -238,6 +244,21 @@ void MPU_Config(void)
   MPU_InitStruct.IsBufferable = MPU_ACCESS_NOT_BUFFERABLE;
 
   HAL_MPU_ConfigRegion(&MPU_InitStruct);
+
+  /* 配置 QSPI Flash 区域 */
+  MPU_InitStruct.Enable = MPU_REGION_ENABLE;
+  MPU_InitStruct.Number = MPU_REGION_NUMBER1;
+  MPU_InitStruct.BaseAddress = 0x90000000;
+  MPU_InitStruct.Size = MPU_REGION_SIZE_8MB;
+  MPU_InitStruct.SubRegionDisable = 0x00;
+  MPU_InitStruct.TypeExtField = MPU_TEX_LEVEL0;
+  MPU_InitStruct.AccessPermission = MPU_REGION_FULL_ACCESS;
+  MPU_InitStruct.DisableExec = MPU_INSTRUCTION_ACCESS_ENABLE;  // 允许执行
+  MPU_InitStruct.IsShareable = MPU_ACCESS_NOT_SHAREABLE;
+  MPU_InitStruct.IsCacheable = MPU_ACCESS_NOT_CACHEABLE;
+  MPU_InitStruct.IsBufferable = MPU_ACCESS_NOT_BUFFERABLE;
+  HAL_MPU_ConfigRegion(&MPU_InitStruct);
+
   /* Enables the MPU */
   HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
 
@@ -257,6 +278,115 @@ void Error_Handler(void)
   }
   /* USER CODE END Error_Handler_Debug */
 }
+
+
+
+void JumpToApplication(void)
+{
+
+    
+
+    uint32_t jump_address = *(__IO uint32_t*)(W25Qxx_Mem_Addr + 4);
+    uint32_t app_stack = *(__IO uint32_t*)W25Qxx_Mem_Addr;
+    
+    BOOT_DBG("App Stack address: 0x%08X, App Stack value: 0x%08X", W25Qxx_Mem_Addr, *(__IO uint32_t*)W25Qxx_Mem_Addr);
+    BOOT_DBG("Jump Address: 0x%08X, Jump Address value: 0x%08X", W25Qxx_Mem_Addr + 4, *(__IO uint32_t*)(W25Qxx_Mem_Addr + 4));
+
+    // 验证栈指针和跳转地址
+    if ((app_stack & 0xFF000000) != 0x20000000) {
+        BOOT_ERR("Invalid stack pointer: 0x%08X", app_stack);
+        return;
+    } else {
+        BOOT_DBG("Valid stack pointer: 0x%08X", app_stack);
+    }
+
+    if ((jump_address & 0xFF000000) != 0x90000000) {
+        BOOT_ERR("Invalid jump address: 0x%08X", jump_address);
+        return;
+    } else {
+        BOOT_DBG("Valid jump address: 0x%08X", jump_address);
+    }
+
+    // 先验证一下目标地址的内容
+    uint16_t* code_ptr = (uint16_t*)(jump_address & ~1UL);
+    BOOT_DBG("First instructions at target:");
+    for(int i = 0; i < 4; i++) {
+        BOOT_DBG("  Instruction %d: 0x%04X", i, code_ptr[i]);
+    }
+
+
+    /****************************  跳转前准备  ************************* */
+    SysTick->CTRL = 0;		                        // 关闭SysTick
+    SysTick->LOAD = 0;		                        // 清零重载
+    SysTick->VAL = 0;			                        // 清零计数
+
+    __set_CONTROL(0); //priviage mode 
+    __disable_irq(); //disable interrupt
+    __set_PRIMASK(1);
+
+    /* 禁用缓存 */
+    // SCB_DisableICache();
+    // SCB_DisableDCache();
+
+    // 关闭所有中断
+    __disable_irq();
+    BOOT_DBG("Interrupts disabled");
+
+    // 清除所有中断
+    for(int i = 0; i < 8; i++) {
+        NVIC->ICER[i] = 0xFFFFFFFF;
+        NVIC->ICPR[i] = 0xFFFFFFFF;
+    }
+    BOOT_DBG("NVIC cleared");
+
+    HAL_MPU_Disable();
+
+    // 设置向量表
+    SCB->VTOR = W25Qxx_Mem_Addr;
+    BOOT_DBG("VTOR set to: 0x%08X", SCB->VTOR);
+    
+    // 验证向量表设置是否生效
+    BOOT_DBG("SCB->VTOR after set: 0x%08X", SCB->VTOR);
+    BOOT_DBG("Stack Pointer from vector: 0x%08X", *(__IO uint32_t*)SCB->VTOR);
+    BOOT_DBG("Reset Handler from vector: 0x%08X", *(__IO uint32_t*)(SCB->VTOR + 4));
+
+    // 设置主堆栈指针
+    __set_MSP(app_stack);
+    BOOT_DBG("MSP set to: 0x%08X", __get_MSP());
+
+    // 清除缓存
+    // SCB_CleanInvalidateDCache();
+    // SCB_InvalidateICache();
+    // BOOT_DBG("Cache cleared");
+
+    // 内存屏障
+    __DSB();
+    __ISB();
+    BOOT_DBG("Memory barriers executed");
+
+    // 确保跳转地址是 Thumb 模式
+    jump_address |= 0x1;
+    BOOT_DBG("Final jump address (with Thumb bit): 0x%08X", jump_address);
+
+    // 使用函数指针跳转
+    typedef void (*pFunction)(void);
+    pFunction app_reset_handler = (pFunction)jump_address;
+
+    BOOT_DBG("About to jump...");
+    BOOT_DBG("Last debug message before jump!");
+    
+    // 最后一次内存屏障
+    __DSB();
+    __ISB();
+    
+    // 跳转
+    app_reset_handler();
+
+    // 不应该到达这里
+    BOOT_ERR("Jump failed!");
+    while(1);
+}
+
 
 #ifdef  USE_FULL_ASSERT
 /**
