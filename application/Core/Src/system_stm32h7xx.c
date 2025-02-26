@@ -149,32 +149,6 @@
   uint32_t SystemD2Clock = 64000000;
   const  uint8_t D1CorePrescTable[16] = {0, 0, 0, 0, 1, 2, 3, 4, 1, 2, 3, 4, 6, 7, 8, 9};
 
-
-void UserLEDInit(void)
-{
-    // 使能 GPIO 时钟
-    RCC->AHB4ENR |= RCC_AHB4ENR_GPIOCEN;
-    
-    // 等待时钟稳定
-    __DSB();
-
-    // 设置 PC13 为输出模式
-    GPIOC->MODER &= ~(3U << (13 * 2));  // 清除原来的模式位
-    GPIOC->MODER |= (1U << (13 * 2));   // 设置为输出模式
-
-    // 设置为推挽输出
-    GPIOC->OTYPER &= ~(1U << 13);
-
-    // 设置为低速
-    GPIOC->OSPEEDR &= ~(3U << (13 * 2));
-
-    // 设置为无上拉下拉
-    GPIOC->PUPDR &= ~(3U << (13 * 2));
-    
-    // 直接输出低电平 (LED 亮)
-    GPIOC->BSRR = (1U << (13 + 16));  // 写入高16位来清零对应位
-}
-
 /**
   * @}
   */
@@ -191,6 +165,21 @@ void UserLEDInit(void)
   * @{
   */
 
+void UserLEDInit(void)
+{
+    // 使能 GPIO 时钟
+    RCC->AHB4ENR |= RCC_AHB4ENR_GPIOCEN;
+    
+    // 等待时钟稳定
+    __DSB();
+
+    GPIOC->MODER &= ~(3U << (13 * 2));
+    GPIOC->MODER |= (1U << (13 * 2));
+    // 翻转 user LED 状态
+    GPIOC->ODR ^= GPIO_PIN_13;
+    
+}
+
 /**
   * @brief  Setup the microcontroller system
   *         Initialize the FPU setting and  vector table location
@@ -198,29 +187,43 @@ void UserLEDInit(void)
   * @param  None
   * @retval None
   */
+
 void SystemInit (void)
 {
+
+  // // 使能 GPIO 时钟
+  //   RCC->AHB4ENR |= RCC_AHB4ENR_GPIOCEN;
+    
+  //   // 等待时钟稳定
+  //   __DSB();
+
+  //   GPIOC->MODER &= ~(3U << (13 * 2));
+  //   GPIOC->MODER |= (1U << (13 * 2));
+  //   // 翻转 user LED 状态
+  //   GPIOC->ODR ^= GPIO_PIN_13;
+    
 #if defined (DATA_IN_D2_SRAM)
  __IO uint32_t tmpreg;
 #endif /* DATA_IN_D2_SRAM */
 
-  /* FPU settings */
+  /* FPU settings ------------------------------------------------------------*/
   #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
-    SCB->CPACR |= ((3UL << 20U)|(3UL << 22U));  /* set CP10 and CP11 Full Access */
+    SCB->CPACR |= ((3UL << (10*2))|(3UL << (11*2)));  /* set CP10 and CP11 Full Access */
   #endif
+  /* Reset the RCC clock configuration to the default reset state ------------*/
 
-  /* Reset the RCC clock configuration to the default reset state */
+   /* Increasing the CPU frequency */
+  if(FLASH_LATENCY_DEFAULT  > (READ_BIT((FLASH->ACR), FLASH_ACR_LATENCY)))
+  {
+    /* Program the new number of wait states to the LATENCY bits in the FLASH_ACR register */
+    MODIFY_REG(FLASH->ACR, FLASH_ACR_LATENCY, (uint32_t)(FLASH_LATENCY_DEFAULT));
+  }
+
   /* Set HSION bit */
   RCC->CR |= RCC_CR_HSION;
 
   /* Reset CFGR register */
   RCC->CFGR = 0x00000000;
-
-  /* Reset all other clock */
-  RCC->CR = 0x00000001;
-
-  /* 默认情况下，所有 RAM 区域都是不可执行的 */
-  /* 需要显式配置 MPU 才能从 RAM 执行代码 */
 
   /* Reset HSEON, HSECSSON, CSION, HSI48ON, CSIKERON, PLL1ON, PLL2ON and PLL3ON bits */
   RCC->CR &= 0xEAF6ED7FU;

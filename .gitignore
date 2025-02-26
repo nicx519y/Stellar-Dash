@@ -1,11 +1,10 @@
 /build
 
 # 环境变量
-/www/.env
-/www/.env.local
-/www/.env.development.local
-/www/.env.test.local
-/www/.env.production.local
+/www/build
+/www/.next
+/www/node_modules
+/www/next-env.d.ts
 
 # 日志
 *.log

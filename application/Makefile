@@ -34,64 +34,139 @@ BUILD_DIR = build
 ######################################
 # source
 ######################################
-# C sources
-C_SOURCES =  \
-Core/Src/main.c \
-Core/Src/gpio.c \
-Core/Src/adc.c \
-Core/Src/dma.c \
-Core/Src/tim.c \
-Core/Src/usb_otg_hs.c \
-Core/Src/stm32h7xx_it.c \
-Core/Src/stm32h7xx_hal_msp.c \
-USB_DEVICE/App/usb_device.c \
-USB_DEVICE/App/usbd_desc.c \
-USB_DEVICE/App/usbd_cdc_if.c \
-USB_DEVICE/Target/usbd_conf.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd_ex.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_ll_usb.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc_ex.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash_ex.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_gpio.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_hsem.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_dma.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_dma_ex.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_mdma.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pwr.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pwr_ex.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_cortex.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2c.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2c_ex.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_exti.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_adc.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_adc_ex.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_tim_ex.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart_ex.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_hcd.c \
-Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_qspi.c \
-Drivers/USART/usart.c \
-Drivers/QSPI-W25Q64/qspi-w25q64.c \
-Core/Src/system_stm32h7xx.c \
-Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c \
-Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c \
-Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c \
-Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c \
-Core/Src/sysmem.c \
-Core/Src/syscalls.c  
+# 源文件目录
+C_SOURCE_DIRS = \
+Core/Src \
+Drivers/STM32H7xx_HAL_Driver/Src \
+Drivers/QSPI-W25Q64 \
+Drivers/USART \
+Drivers/LED \
+Drivers/USB \
+Drivers/ADC \
+Drivers/PWM-WS2812B \
+Drivers/GPIO-BTN \
+Libs/tinyusb/src \
+Libs/tinyusb/src/device \
+Libs/tinyusb/src/host \
+Libs/tinyusb/src/common \
+Libs/tinyusb/lib/networking \
+Libs/tinyusb/src/portable/synopsys/dwc2 \
+Libs/tinyusb/src/class/net \
+Libs/rndis \
+Libs/stm32_mw_lwip/src/apps \
+Libs/stm32_mw_lwip/src/core \
+Libs/stm32_mw_lwip/src/netif \
+Libs/stm32_mw_lwip/src/core/ipv4 \
+Libs/cJSON \
+USB_DEVICE/App \
+USB_DEVICE/Target \
+Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src \
+Middlewares/ST/STM32_USB_Device_Library/Core/Src
+
+# C++ 源文件目录
+CPP_SOURCE_DIRS = \
+Cpp_Core/Src \
+Cpp_Core/Src/drivers/net \
+Cpp_Core/Src/drivers/xinput \
+Cpp_Core/Src/configs \
+Cpp_Core/Src/gamepad \
+Cpp_Core/Src/states \
+Cpp_Core/Src/adc_btns \
+Cpp_Core/Src/gpio_btns \
+Cpp_Core/Src/leds \
+Libs/CRC32/src \
+Libs/httpd
+
+# 自动查找源文件
+C_SOURCES = $(foreach dir,$(C_SOURCE_DIRS),$(wildcard $(dir)/*.c))
+CPP_SOURCES = $(foreach dir,$(CPP_SOURCE_DIRS),$(wildcard $(dir)/*.cpp))
 
 # ASM sources
 ASM_SOURCES =  \
 startup_stm32h750xx.s
 
+# 额外的源文件
+C_SOURCES += \
+Libs/stm32_mw_lwip/src/apps/http/httpd.c \
+Libs/httpd/fs.c \
+Libs/httpd/fsdata.c
+
 # ASM sources
 ASMM_SOURCES = 
 
+# 基本头文件路径
+C_INCLUDES = \
+-ICore/Inc \
+-IDrivers/STM32H7xx_HAL_Driver/Inc \
+-IDrivers/STM32H7xx_HAL_Driver/Inc/Legacy \
+-IDrivers/CMSIS/Device/ST/STM32H7xx/Include \
+-IDrivers/CMSIS/Include \
+$(CPP_INCLUDES)
+
+# 添加 application 特定的包含路径
+C_INCLUDES += \
+-ICpp_Core/Inc \
+-ICpp_Core/Inc/configs \
+-ICpp_Core/Inc/drivers \
+-ICpp_Core/Inc/gamepad \
+-ICpp_Core/Inc/states \
+-ICpp_Core/Inc/leds \
+-ICpp_Core/Inc/enums \
+-ICpp_Core/Inc/constants \
+-IDrivers \
+-IDrivers/QSPI-W25Q64 \
+-IDrivers/USART \
+-IDrivers/LED \
+-IDrivers/USB \
+-IDrivers/ADC \
+-IDrivers/PWM-WS2812B \
+-IDrivers/GPIO-BTN \
+-ILibs/httpd \
+-ILibs/tinyusb/hw \
+-ILibs/tinyusb/src \
+-ILibs/tinyusb/src/device \
+-ILibs/tinyusb/src/host \
+-ILibs/tinyusb/src/common \
+-ILibs/tinyusb/lib/networking \
+-ILibs/tinyusb/src/portable/synopsys/dwc2 \
+-ILibs/tinyusb/src/class/net \
+-ILibs/rndis \
+-ILibs/stm32_mw_lwip/src/apps \
+-ILibs/stm32_mw_lwip/src/core \
+-ILibs/stm32_mw_lwip/src/netif \
+-ILibs/stm32_mw_lwip/src/core/ipv4 \
+-ILibs/stm32_mw_lwip/src/include \
+-ILibs/stm32_mw_lwip/system \
+-ILibs/lwip-port \
+-ILibs/cJSON \
+-IUSB_DEVICE/App \
+-IUSB_DEVICE/Target \
+-IMiddlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc \
+-IMiddlewares/ST/STM32_USB_Device_Library/Core/Inc
+
+# C++ 编译器设置
+CXX = $(PREFIX)g++
+CXXFLAGS = $(MCU) $(C_DEFS) $(C_INCLUDES) $(OPT)
+CXXFLAGS += -Wall -fdata-sections -ffunction-sections
+CXXFLAGS += -fno-exceptions -fno-rtti  # 禁用异常和RTTI以减小代码大小
+CXXFLAGS += -std=c++17  # 使用 C++17 标准
+
+ifeq ($(DEBUG), 1)
+CXXFLAGS += -g -gdwarf-2
+endif
+
+# 生成依赖信息
+CXXFLAGS += -MMD -MP -MF"$(@:%.o=%.d)"
+
+# 目标文件
+OBJECTS = $(addprefix $(BUILD_DIR)/,$(notdir $(C_SOURCES:.c=.o)))
+vpath %.c $(sort $(dir $(C_SOURCES)))
+# C++ 目标文件
+OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(CPP_SOURCES:.cpp=.o)))
+vpath %.cpp $(sort $(dir $(CPP_SOURCES)))
+# 汇编目标文件
+OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(ASM_SOURCES:.s=.o)))
+vpath %.s $(sort $(dir $(ASM_SOURCES)))
 
 #######################################
 # binaries
@@ -137,23 +212,6 @@ C_DEFS =  \
 -DUSE_HAL_DRIVER \
 -DSTM32H750xx
 
-
-# AS includes
-AS_INCLUDES = 
-
-# C includes
-C_INCLUDES =  \
--ICore/Inc \
--IUSB_DEVICE/App \
--IUSB_DEVICE/Target \
--IDrivers/STM32H7xx_HAL_Driver/Inc \
--IDrivers/STM32H7xx_HAL_Driver/Inc/Legacy \
--IMiddlewares/ST/STM32_USB_Device_Library/Core/Inc \
--IMiddlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc \
--IDrivers/CMSIS/Device/ST/STM32H7xx/Include \
--IDrivers/CMSIS/Include \
--IDrivers/USART \
--IDrivers/QSPI-W25Q64
 
 
 # compile gcc flags

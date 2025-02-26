@@ -1,0 +1,273 @@
+{
+  "version": 1,
+  "defaultProfileId": "profile-1736445195390",
+  "isCalibrateCompleted": false,
+  "numProfilesMax": 16,
+  "profiles": [
+    {
+      "id": "profile-1733715985965",
+      "name": "NewProfile111",
+      "keysConfig": {
+        "invertXAxis": false,
+        "invertYAxis": false,
+        "fourWayMode": false,
+        "socdMode": "SOCD_MODE_NEUTRAL",
+        "inputMode": "XINPUT",
+        "keyMapping": {
+          "L1": [
+            13
+          ],
+          "R1": [
+            15
+          ],
+          "L2": [
+            14
+          ],
+          "R2": [
+            16
+          ],
+          "DPAD_UP": [
+            0,
+            7
+          ],
+          "DPAD_DOWN": [
+            4
+          ],
+          "DPAD_LEFT": [
+            5
+          ],
+          "DPAD_RIGHT": [
+            6
+          ],
+          "L3": [
+            1
+          ],
+          "R3": [
+            2
+          ],
+          "B1": [
+            8
+          ],
+          "B2": [
+            11
+          ],
+          "B3": [
+            9
+          ],
+          "B4": [
+            12
+          ],
+          "S1": [
+            17
+          ],
+          "S2": [
+            18
+          ],
+          "A1": [
+            19
+          ]
+        }
+      },
+      "ledsConfigs": {
+        "ledEnabled": false,
+        "ledsEffectStyle": "STATIC",
+        "ledColors": [
+          "#000000",
+          "#000000",
+          "#000000"
+        ],
+        "ledBrightness": 0
+      },
+      "triggerConfigs": {
+        "isAllBtnsConfiguring": true,
+        "triggerConfigs": [
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0.4,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "profile-1736445195390",
+      "name": "New Profile",
+      "keysConfig": {
+        "invertXAxis": false,
+        "invertYAxis": false,
+        "fourWayMode": false,
+        "socdMode": "SOCD_MODE_NEUTRAL",
+        "inputMode": "XINPUT",
+        "keyMapping": {}
+      },
+      "ledsConfigs": {
+        "ledEnabled": false,
+        "ledsEffectStyle": "BREATHING",
+        "ledColors": [
+          "#000000",
+          "#0C24C9",
+          "#3A9611"
+        ],
+        "ledBrightness": 90
+      },
+      "triggerConfigs": {
+        "isAllBtnsConfiguring": true,
+        "triggerConfigs": []
+      }
+    }
+  ],
+  "hotkeys": [
+    {
+      "key": 0,
+      "action": "WebConfigMode",
+      "isLocked": true
+    },
+    {
+      "key": 12,
+      "action": "LedsEffectStylePrev",
+      "isLocked": false
+    },
+    {
+      "key": 14,
+      "action": "LedsEnableSwitch",
+      "isLocked": false
+    },
+    {
+      "key": 10,
+      "action": "LedsEnableSwitch",
+      "isLocked": false
+    },
+    {
+      "key": 7,
+      "action": "LedsBrightnessUp",
+      "isLocked": false
+    },
+    {
+      "key": 3,
+      "action": "LedsBrightnessDown",
+      "isLocked": false
+    },
+    {
+      "key": -1,
+      "action": "LedsBrightnessDown",
+      "isLocked": false
+    },
+    {
+      "key": -1,
+      "action": "None",
+      "isLocked": false
+    },
+    {
+      "key": 1,
+      "action": "LedsEnableSwitch",
+      "isLocked": false
+    },
+    {
+      "key": 4,
+      "action": "None",
+      "isLocked": false
+    },
+    {
+      "key": 16,
+      "action": "NSwitchMode",
+      "isLocked": false
+    }
+  ]
+}

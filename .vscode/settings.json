@@ -5,6 +5,7 @@
         "board_cfg.h": "c",
         "qspi-w25q64.h": "c",
         "stm32h7xx_hal.h": "c",
-        "stm32h7xx_hal_conf.h": "c"
+        "stm32h7xx_hal_conf.h": "c",
+        "dma.h": "c"
     }
 }
