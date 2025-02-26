@@ -70,6 +70,7 @@ int main(void)
     
     QSPI_W25Qxx_ReadBuffer((uint8_t *)data_test, 0x00000000, 4);
     APP_DBG("data_test after read: 0x%08X\r\n", data_test);
+    
 
     while (1)
     {
