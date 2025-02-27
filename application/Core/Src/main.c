@@ -45,12 +45,17 @@ void floatTest(void);
   */
 int main(void)
 {
+    /************************************************ 系统初始化 ************************************************* */
     // 使能中断
     __enable_irq(); 
     enableFPU(); // 使能FPU
     HAL_Init();
     HAL_Delay(200); // 延时200ms 等待时钟稳定，并且验证时钟配置是否正确 中断是否可用
     UserLEDClose(); // 关闭LED 表示已经进入main函数
+
+    SCB_EnableDCache(); // 使能数据缓存
+    SCB_EnableICache(); // 使能指令缓存
+
     QSPI_W25Qxx_ExitMemoryMappedMode(); // 退出内存映射模式，qspi-flash可以正常读写
     board_init(); // 初始化板子 时钟 串口 WS2812B 等
     dataSectionTest(); // 测试各个段，测试堆内存
