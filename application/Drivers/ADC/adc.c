@@ -21,6 +21,7 @@
 
 #include "adc.h"
 #include "constant.hpp"
+#include "board_cfg.h"
 
 /* USER CODE BEGIN 0 */
 
@@ -160,12 +161,12 @@ void MX_ADC1_Init(void)
     /* USER CODE BEGIN ADC1_Init 2 */
 
     if(!__HAL_RCC_ADC12_IS_CLK_ENABLED()) {
-        printf("ADC12 Clock not enabled!\n");
+        APP_ERR("ADC12 Clock not enabled!");
     }
 
     // 检查 DMA 时钟
     if(!__HAL_RCC_DMA1_IS_CLK_ENABLED()) {
-        printf("DMA1 Clock not enabled!\n");
+        APP_ERR("DMA1 Clock not enabled!");
     }
 
     /* USER CODE END ADC1_Init 2 */
@@ -261,15 +262,15 @@ void MX_ADC2_Init(void)
     /* USER CODE BEGIN ADC2_Init 2 */
 
     if(!__HAL_RCC_ADC12_IS_CLK_ENABLED()) {
-        printf("ADC12 Clock not enabled for ADC2!\n");
+        APP_ERR("ADC12 Clock not enabled for ADC2!");
     }
     
     // 检查 ADC2 状态
-    printf("ADC2 State after init: 0x%x\n", HAL_ADC_GetState(&hadc2));
+    APP_DBG("ADC2 State after init: 0x%x", HAL_ADC_GetState(&hadc2));
 
     // 检查 DMA 时钟
     if(!__HAL_RCC_DMA1_IS_CLK_ENABLED()) {
-        printf("DMA1 Clock not enabled!\n");
+        APP_ERR("DMA1 Clock not enabled for ADC2!");
     }
 
     /* USER CODE END ADC2_Init 2 */
@@ -353,11 +354,11 @@ void MX_ADC3_Init(void)
 
     // 检查 ADC3 时钟
     if(!__HAL_RCC_ADC3_IS_CLK_ENABLED()) {
-        printf("ADC3 Clock not enabled!\n");
+        APP_ERR("ADC3 Clock not enabled!");
     }
     
     if(!__HAL_RCC_BDMA_IS_CLK_ENABLED()) {
-        printf("BDMA Clock not enabled!\n");
+        APP_ERR("BDMA Clock not enabled!");
     }
     
     /* USER CODE BEGIN ADC3_Init 1 */
@@ -485,7 +486,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
 
         /* ADC2 DMA Init */
         /* ADC2 Init */
-        printf("Configuring ADC2 DMA...\n");
+        APP_DBG("Configuring ADC2 DMA...");
         
         hdma_adc2.Instance = DMA1_Stream1;
         hdma_adc2.Init.Request = DMA_REQUEST_ADC2;
@@ -499,7 +500,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
         hdma_adc2.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
         if (HAL_DMA_Init(&hdma_adc2) != HAL_OK)
         {
-            printf("ADC2 DMA Init failed!\n");
+            APP_ERR("ADC2 DMA Init failed!");
             Error_Handler();
         }
 
@@ -513,7 +514,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
         // HAL_NVIC_SetPriority(ADC_IRQn, 0, 0);
         // HAL_NVIC_EnableIRQ(ADC_IRQn);
         
-        printf("ADC2 DMA configured successfully\n");
+        APP_DBG("ADC2 DMA configured successfully");
     } 
     else if (adcHandle->Instance == ADC3)
     {

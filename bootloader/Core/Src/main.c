@@ -70,48 +70,13 @@ void JumpToApplication(void);
 int main(void)
 {
 
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-
-  /* MPU Configuration--------------------------------------------------------*/
   MPU_Config();
 
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
-  /* USER CODE BEGIN 2 */
-
-  /* USER CODE END 2 */
 
   QSPI_W25Qxx_Init();
   USART1_Init();
-  printf("QSPI_W25Qxx_Init success\r\n");
-
-  // QSPI_W25Qxx_Test(0x000000);
-  
-  if(QSPI_W25Qxx_EnterMemoryMappedMode() != QSPI_W25Qxx_OK)
-  {
-    printf("QSPI_W25Qxx_EnterMemoryMappedMode failed\r\n");
-  }
-
-  printf("QSPI_W25Qxx_EnterMemoryMappedMode success\r\n");
-
-  uint32_t jump_address = *(__IO uint32_t*)(W25Qxx_Mem_Addr + 4);
-  uint32_t app_stack = *(__IO uint32_t*)W25Qxx_Mem_Addr;
-
-  printf("jump_address: 0x%08X, app_stack: 0x%08X\r\n", jump_address, app_stack);
+  BOOT_DBG("QSPI_W25Qxx_Init success\r\n");
 
   JumpToApplication();
 
@@ -283,8 +248,13 @@ void Error_Handler(void)
 
 void JumpToApplication(void)
 {
+    // 进入内存映射模式
+    if(QSPI_W25Qxx_EnterMemoryMappedMode() != QSPI_W25Qxx_OK)
+    {
+      BOOT_ERR("QSPI_W25Qxx_EnterMemoryMappedMode failed\r\n");
+    }
 
-    
+    BOOT_DBG("QSPI_W25Qxx_EnterMemoryMappedMode success\r\n");
 
     uint32_t jump_address = *(__IO uint32_t*)(W25Qxx_Mem_Addr + 4);
     uint32_t app_stack = *(__IO uint32_t*)W25Qxx_Mem_Addr;

@@ -4,7 +4,6 @@
 #include "board_cfg.h"
 #include "main_state_machine.hpp"
 // #include "fsdata.h"
-#include "led.h"
 #include "qspi-w25q64.h"
 #include "message_center.hpp"
 #include "adc.h"
@@ -12,15 +11,7 @@
 extern "C" {
     int cpp_main(void) 
     {   
-        board_init();
-        APP_DBG("cpp_main: board_init success.");
-
-        LED1_ON;
-        APP_DBG("cpp_main: LED1_ON success.");
         
-        // Test FPU Status
-        uint32_t fpscr = __get_FPSCR();
-        APP_DBG("cpp_main: FPSCR = 0x%08lx", fpscr);
 
         // 注册ADC消息
         MC.registerMessage(MessageId::DMA_ADC_CONV_CPLT);

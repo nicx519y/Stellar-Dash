@@ -53,10 +53,10 @@
 ENTRY(Reset_Handler)
 
 /* Highest address of the user mode stack */
-_estack = ORIGIN(DTCMRAM) + LENGTH(DTCMRAM);    /* end of RAM */
+_estack = ORIGIN(DTCMRAM) + LENGTH(DTCMRAM);    /* end of DTCMRAM */
 /* Generate a link error if heap and stack don't fit into RAM */
-_Min_Heap_Size = 0x200;      /* required amount of heap  */
-_Min_Stack_Size = 0x400; /* required amount of stack */
+_Min_Heap_Size = 0x8000;      /* 32KB 堆 */
+_Min_Stack_Size = 0x2000;     /* 8KB 栈 */
 
 /* Specify the memory areas */
 MEMORY
@@ -197,14 +197,21 @@ SECTIONS
   ._user_heap_stack :
   {
     . = ALIGN(8);
-    PROVIDE ( end = . );
-    PROVIDE ( _end = . );
-    . = . + _Min_Heap_Size;
-    . = . + _Min_Stack_Size;
+    PROVIDE ( end = . );        /* C 标准库（如 newlib）用它来确定堆的起始位置 */
+    PROVIDE ( _end = . );       /* 某些嵌入式系统用它来初始化堆管理器 */ 
+    . = . + _Min_Heap_Size;     /* 堆大小 */
+    . = . + _Min_Stack_Size;    /* 栈大小 */
     . = ALIGN(8);
-  } >RAM
+  } >DTCMRAM
 
   
+  ._RAM_D2_Area :
+  {
+      . = ALIGN(32);
+      *(.DMA_Section)         /* RAM_D2 area section */
+      *(.DMA_Section*)        /* RAM_D2 area section */
+      . = ALIGN(32);
+  } >RAM_D2
 
   /* Remove information from the standard libraries */
   /DISCARD/ :

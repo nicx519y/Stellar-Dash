@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "device/usbd.h"
+#include "board_cfg.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -89,8 +90,64 @@ void NMI_Handler(void)
   */
 void HardFault_Handler(void)
 {
-  printf("HardFault_Handler!\n");
-  while(1);
+    // 获取 MSP 和 PSP
+    uint32_t msp = __get_MSP();
+    uint32_t psp = __get_PSP();
+    
+    // 获取故障状态寄存器
+    volatile uint32_t cfsr = SCB->CFSR;    // Configurable Fault Status Register
+    volatile uint32_t hfsr = SCB->HFSR;    // HardFault Status Register
+    volatile uint32_t dfsr = SCB->DFSR;    // Debug Fault Status Register
+    volatile uint32_t mmfar = SCB->MMFAR;  // MemManage Fault Address Register
+    volatile uint32_t bfar = SCB->BFAR;    // BusFault Address Register
+    
+    // 获取 FPU 状态
+    uint32_t fpscr = __get_FPSCR();
+    uint32_t cpacr = SCB->CPACR;  // Coprocessor Access Control Register
+
+    // 获取调用栈信息
+    uint32_t *stack;
+    if (__get_CONTROL() & 0x02) {    // 使用 CMSIS 函数替代直接访问寄存器
+        stack = (uint32_t *)psp;
+    } else {
+        stack = (uint32_t *)msp;
+    }
+
+    // 打印调试信息
+    APP_DBG("\r\n[HardFault]");
+    APP_DBG("MSP: 0x%08lX", msp);
+    APP_DBG("PSP: 0x%08lX", psp);
+    APP_DBG("CFSR: 0x%08lX", cfsr);
+    APP_DBG("HFSR: 0x%08lX", hfsr);
+    APP_DBG("DFSR: 0x%08lX", dfsr);
+    APP_DBG("MMFAR: 0x%08lX", mmfar);
+    APP_DBG("BFAR: 0x%08lX", bfar);
+    APP_DBG("FPSCR: 0x%08lX", fpscr);
+    APP_DBG("CPACR: 0x%08lX", cpacr);
+    APP_DBG("CONTROL: 0x%08lX", __get_CONTROL());
+
+    // 打印调用栈
+    APP_DBG("\r\nCall Stack:");
+    APP_DBG("R0:  0x%08lX", stack[0]);
+    APP_DBG("R1:  0x%08lX", stack[1]);
+    APP_DBG("R2:  0x%08lX", stack[2]);
+    APP_DBG("R3:  0x%08lX", stack[3]);
+    APP_DBG("R12: 0x%08lX", stack[4]);
+    APP_DBG("LR:  0x%08lX", stack[5]);
+    APP_DBG("PC:  0x%08lX", stack[6]);
+    APP_DBG("PSR: 0x%08lX", stack[7]);
+
+    // 解析 CFSR
+    if (cfsr & (1 << 0))  APP_DBG("MMFSR: Instruction access violation");
+    if (cfsr & (1 << 1))  APP_DBG("MMFSR: Data access violation");
+    if (cfsr & (1 << 16)) APP_DBG("BFSR: Instruction bus error");
+    if (cfsr & (1 << 17)) APP_DBG("BFSR: Precise data bus error");
+    if (cfsr & (1 << 24)) APP_DBG("UFSR: Undefined instruction");
+    if (cfsr & (1 << 25)) APP_DBG("UFSR: Invalid state");
+    if (cfsr & (1 << 26)) APP_DBG("UFSR: Invalid PC");
+    if (cfsr & (1 << 27)) APP_DBG("UFSR: No coprocessor");
+
+    while(1);
 }
 
 /**

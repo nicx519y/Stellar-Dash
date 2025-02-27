@@ -35,6 +35,11 @@
 
 #define SYSTEM_CLOCK_FREQ      480000000
 
+#define __FPU_PRESENT          1 // 启用FPU
+#define __FPU_USED             1 // 启用FPU
+#define FPU_FPDSCR_RMode_Msk   (0x3 << 22) // 清除舍入模式位 [23:22]
+#define FPU_FPDSCR_RMode_RN    (0x0 << 22) // 舍入模式为 Round to Nearest (RN)
+
 /* Debug print configuration */
 #define APPLICATION_DEBUG_PRINT  1   // 设置为 0 可以关闭所有调试打印
 
@@ -42,6 +47,12 @@
     #define APP_DBG(fmt, ...) printf("[APP] " fmt "\r\n", ##__VA_ARGS__)
 #else
     #define APP_DBG(fmt, ...) ((void)0)
+#endif
+
+#if APPLICATION_DEBUG_PRINT
+    #define APP_ERR(fmt, ...) printf("[APP][ERROR] " fmt "\r\n", ##__VA_ARGS__)
+#else
+    #define APP_ERR(fmt, ...) ((void)0)
 #endif
 
 static inline void board_stm32h7_post_init(void)

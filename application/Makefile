@@ -149,6 +149,7 @@ CXX = $(PREFIX)g++
 CXXFLAGS = $(MCU) $(C_DEFS) $(C_INCLUDES) $(OPT)
 CXXFLAGS += -Wall -fdata-sections -ffunction-sections
 CXXFLAGS += -fno-exceptions -fno-rtti  # 禁用异常和RTTI以减小代码大小
+CXXFLAGS += -mfpu=fpv5-d16 -mfloat-abi=hard # 启用FPU
 CXXFLAGS += -std=c++17  # 使用 C++17 标准
 
 ifeq ($(DEBUG), 1)
@@ -218,6 +219,8 @@ C_DEFS =  \
 ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
 
 CFLAGS += $(MCU) $(C_DEFS) $(C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
+CFLAGS += -mfpu=fpv5-d16 -mfloat-abi=hard # 启用FPU
+CFLAGS += -u _printf_float   # 启用浮点数打印
 
 ifeq ($(DEBUG), 1)
 CFLAGS += -g -gdwarf-2
@@ -237,7 +240,8 @@ LDSCRIPT = STM32H750XBHx_FLASH.ld
 # libraries
 LIBS = -lc -lm -lnosys 
 LIBDIR = 
-LDFLAGS = $(MCU) -specs=nano.specs -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(TARGET).map,--cref -Wl,--gc-sections
+LDFLAGS = $(MCU) -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(TARGET).map,--cref -Wl,--gc-sections
+LDFLAGS += --specs=nosys.specs --specs=nano.specs -u _printf_float
 
 # default action: build all
 all: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin

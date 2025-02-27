@@ -1,4 +1,5 @@
 #include "pwm-ws2812b.h"
+#include "board_cfg.h"
 
 
 /* WS2812B data protocol
@@ -28,7 +29,7 @@ static uint8_t LED_Colors[NUM_LED * 3];
 
 static uint8_t LED_Brightness[NUM_LED];
 
-static __attribute__((section("._RAM_D1_Area"))) uint32_t DMA_LED_Buffer[DMA_BUFFER_LEN];
+static __attribute__((section(".DMA_Section"))) uint32_t DMA_LED_Buffer[DMA_BUFFER_LEN];
 
 void clearDCache(void *addr, uint32_t size)
 {
@@ -42,7 +43,7 @@ void LEDDataToDMABuffer(const uint16_t start, const uint16_t length)
 {
 	// 检查缓冲区对齐
     if(((uint32_t)DMA_LED_Buffer & 0x1F) != 0) {
-        printf("Error: DMA buffer not 32-byte aligned\n");
+        APP_ERR("pwm-ws2812b: Error: DMA buffer not 32-byte aligned");
         return;
     }
 	if(start + length > NUM_LED) {
@@ -52,7 +53,7 @@ void LEDDataToDMABuffer(const uint16_t start, const uint16_t length)
 	uint16_t i, j, k;
 	uint16_t len = (start + length) * 3;
 	
-	// printf("LEDDataToDMABuffer start: %d, length: %d\n", start, length);
+	// printf("LEDDataToDMABuffer start: %d, length: %d", start, length);
 
 	for(j = start * 3; j < len; j += 3)
     {
@@ -74,16 +75,16 @@ void LEDDataToDMABuffer(const uint16_t start, const uint16_t length)
         }
     }
 
-	// printf("LEDDataToDMABuffer end: %d, length: %d\n", start, length);
+	// printf("LEDDataToDMABuffer end: %d, length: %d", start, length);
 
 	clearDCache(DMA_LED_Buffer, sizeof(DMA_LED_Buffer));
 
-	// printf("LEDDataToDMABuffer SCB_CleanInvalidateDCache_by_Addr end: %d, length: %d\n", start, length);
+	// printf("LEDDataToDMABuffer SCB_CleanInvalidateDCache_by_Addr end: %d, length: %d", start, length);
 }
 
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
-	// printf("PWM-WS2812B-PulseFinished...\r\n");
+	// printf("PWM-WS2812B-PulseFinished...\r");
 
 	uint16_t start = DMA_BUFFER_LEN / 2 / 24 / NUM_LEDs_PER_ADC_BUTTON;
 
@@ -98,7 +99,7 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 
 void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
 {
-	// printf("PWM-WS2812B-PulseFinishedHalfCplt...\r\n");
+	// printf("PWM-WS2812B-PulseFinishedHalfCplt...\r");
 
 	uint16_t length = DMA_BUFFER_LEN / 2 / 24 / NUM_LEDs_PER_ADC_BUTTON;
 
@@ -108,13 +109,13 @@ void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
 
 void HAL_TIM_ErrorCallback(TIM_HandleTypeDef *htim)
 {
-	printf("PWM-WS2812B-ErrorCallback...\r\n");
+	APP_ERR("PWM-WS2812B-ErrorCallback...\r");
 }
 
 void WS2812B_Init(void)
 {
 	if(WS2812B_IsInitialized) {
-		printf("WS2812B_Init already initialized\n");
+		APP_DBG("WS2812B_Init already initialized");
 		return;
 	}
 
@@ -128,26 +129,26 @@ void WS2812B_Init(void)
 
 	WS2812B_IsInitialized = true;
 
-	printf("WS2812B_Init start...\n");
+	APP_DBG("WS2812B_Init start...");
 
 	memset(DMA_LED_Buffer, 0, DMA_BUFFER_LEN * sizeof(uint32_t)); // 清空DMA缓冲区
 
-	printf("WS2812B_Init memset DMA_LED_Buffer end...\n");
+	APP_DBG("WS2812B_Init memset DMA_LED_Buffer end...");
 
 	memset(&LED_Brightness, LED_DEFAULT_BRIGHTNESS, sizeof(LED_Brightness)); // 设置LED亮度
 
-	printf("WS2812B_Init memset LED_Brightness end...\n");
+	APP_DBG("WS2812B_Init memset LED_Brightness end...");
 
 	LEDDataToDMABuffer(0, NUM_LED);
 
-	printf("WS2812B_Init LEDDataToDMABuffer end...\n");
+	APP_DBG("WS2812B_Init LEDDataToDMABuffer end...");
 
 	if(HAL_TIM_Base_GetState(&htim4) != HAL_TIM_STATE_READY) {
-		printf("WS2812B_Init MX_TIM4_Init start...\n");
+		APP_DBG("WS2812B_Init MX_TIM4_Init start...");
 		MX_TIM4_Init();
 	}
 
-	printf("WS2812B_Init end...\n");
+	APP_DBG("WS2812B_Init end...");
 }
 
 WS2812B_StateTypeDef WS2812B_Start()
@@ -163,10 +164,10 @@ WS2812B_StateTypeDef WS2812B_Start()
 
 	if(state == HAL_OK) {
 		WS2812B_State = WS2812B_RUNNING;
-		printf("WS2812B_Start success\n");
+		APP_DBG("WS2812B_Start success");
 	} else {
 		WS2812B_State = WS2812B_ERROR;
-		printf("WS2812B_Start failure\n");
+		APP_ERR("WS2812B_Start failure");
 	}
 	return WS2812B_State;
 }
@@ -297,7 +298,7 @@ void WS2812B_Test()
 	WS2812B_SetLEDColor(14, 242, 177, 18);
 	WS2812B_Start();
 
-	printf("Hex: %x\n", RGBToHex(r, g, b));
+	APP_DBG("Hex: %x", RGBToHex(r, g, b));
 }	
 
 
