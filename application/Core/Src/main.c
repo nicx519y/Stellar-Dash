@@ -32,10 +32,7 @@ void floatTest(void);
 #endif
 
 void UserLEDClose(void);
-
-#if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
 void enableFPU(void);
-#endif
 
 /**
   * @brief  The application entry point.
@@ -46,9 +43,7 @@ int main(void)
     /************************************************ 系统初始化 ************************************************* */
     // 使能中断
     __enable_irq(); 
-#if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
     enableFPU(); // 使能FPU
-#endif
     HAL_Init();
     HAL_Delay(200); // 延时200ms 等待时钟稳定，并且验证时钟配置是否正确 中断是否可用
     UserLEDClose(); // 关闭LED 表示已经进入main函数
@@ -102,7 +97,6 @@ void UserLEDClose(void)
     GPIOC->BSRR = (1U << 13); 
 }
 
-#if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
 void enableFPU(void)
 {
     // 启用 CP10 和 CP11 完全访问
@@ -118,7 +112,6 @@ void enableFPU(void)
     __DSB();
     __ISB();
 }
-#endif
 
 #if SYSTEM_CHECK_ENABLE == 1
 void dataSectionTest(void)

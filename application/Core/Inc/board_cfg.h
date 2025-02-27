@@ -37,8 +37,6 @@
 
 #define SYSTEM_CHECK_ENABLE    0 // 使能缓存检查
 
-#define __FPU_PRESENT          1 // 启用FPU
-#define __FPU_USED             1 // 启用FPU
 #define FPU_FPDSCR_RMode_Msk   (0x3 << 22) // 清除舍入模式位 [23:22]
 #define FPU_FPDSCR_RMode_RN    (0x0 << 22) // 舍入模式为 Round to Nearest (RN)
 
