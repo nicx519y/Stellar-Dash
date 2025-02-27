@@ -22,22 +22,20 @@
 #include "qspi-w25q64.h"
 #include "bsp/board_api.h"
 
-
-HCD_HandleTypeDef hhcd_USB_OTG_HS;
-
+#if SYSTEM_CHECK_ENABLE == 1
 /* 测试各个段 */
 const uint32_t rodata_test = 0x12345678;        // .rodata 段
 uint32_t data_test = 0x87654321;                // .data 段
 uint32_t bss_test;                              // .bss 段
-
-
-void SystemClock_Config(void);
-void PeriphCommonClock_Config(void);
-void UserLEDClose(void);
 void dataSectionTest(void);
-void enableFPU(void);
-void floatTest(void);
+void floatTest(void);                       
+#endif
 
+void UserLEDClose(void);
+
+#if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
+void enableFPU(void);
+#endif
 
 /**
   * @brief  The application entry point.
@@ -48,7 +46,9 @@ int main(void)
     /************************************************ 系统初始化 ************************************************* */
     // 使能中断
     __enable_irq(); 
+#if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
     enableFPU(); // 使能FPU
+#endif
     HAL_Init();
     HAL_Delay(200); // 延时200ms 等待时钟稳定，并且验证时钟配置是否正确 中断是否可用
     UserLEDClose(); // 关闭LED 表示已经进入main函数
@@ -57,9 +57,12 @@ int main(void)
     SCB_EnableICache(); // 使能指令缓存
 
     QSPI_W25Qxx_ExitMemoryMappedMode(); // 退出内存映射模式，qspi-flash可以正常读写
-    board_init(); // 初始化板子 时钟 串口 WS2812B 等
+    board_init(); // 初始化板子 时钟 串口 WS2812B 等    
+
+#if SYSTEM_CHECK_ENABLE == 1
     dataSectionTest(); // 测试各个段，测试堆内存
     floatTest(); // 测试FPU 是否能打印浮点数
+#endif
 
     while (1);
 }
@@ -99,6 +102,25 @@ void UserLEDClose(void)
     GPIOC->BSRR = (1U << 13); 
 }
 
+#if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
+void enableFPU(void)
+{
+    // 启用 CP10 和 CP11 完全访问
+    SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));
+    
+    // 设置 FPSCR
+    uint32_t fpscr = __get_FPSCR();
+    // 设置舍入模式为 Round to Nearest (RN)
+    fpscr &= ~FPU_FPDSCR_RMode_Msk;  // 清除舍入模式位 [23:22]
+    fpscr |= FPU_FPDSCR_RMode_RN;   // 设置为 RN 模式 (0b00)
+    __set_FPSCR(fpscr);
+    
+    __DSB();
+    __ISB();
+}
+#endif
+
+#if SYSTEM_CHECK_ENABLE == 1
 void dataSectionTest(void)
 {
      /* 测试各个段 */
@@ -115,6 +137,12 @@ void dataSectionTest(void)
     // 测试flash读
     QSPI_W25Qxx_ReadBuffer((uint8_t *)data_test, 0x00000000, 4);
     APP_DBG("data_test after read: 0x%08X", data_test);
+
+    // 测试栈
+    APP_DBG("Testing stack memory...");
+    uint32_t stack_test[100];
+    memset(stack_test, 0x55, sizeof(stack_test));
+    APP_DBG("Stack test: 0x%08X", stack_test[99]);
 
     // 测试堆内存
     APP_DBG("Testing heap memory...");
@@ -152,26 +180,11 @@ void dataSectionTest(void)
     }
     APP_DBG("Maximum single allocation: %u bytes", size/2);
 }
+#endif
 
-void enableFPU(void)
-{
-    #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
-        // 启用 CP10 和 CP11 完全访问
-        SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));
-        
-        // 设置 FPSCR
-        uint32_t fpscr = __get_FPSCR();
-        // 设置舍入模式为 Round to Nearest (RN)
-        fpscr &= ~FPU_FPDSCR_RMode_Msk;  // 清除舍入模式位 [23:22]
-        fpscr |= FPU_FPDSCR_RMode_RN;   // 设置为 RN 模式 (0b00)
-        __set_FPSCR(fpscr);
-        
-        __DSB();
-        __ISB();
-        
-    #endif
-}
 
+
+#if SYSTEM_CHECK_ENABLE == 1    
 void floatTest(void)
 {
     APP_DBG("FPU test start...");
@@ -192,6 +205,8 @@ void floatTest(void)
     APP_DBG("a = %f, b = %f, c = %f", a, b, c);
 
 }
+#endif
+
 #ifdef  USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
