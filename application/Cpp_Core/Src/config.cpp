@@ -1,11 +1,13 @@
 #include "config.hpp"
 #include "qspi-w25q64.h"
-#include "constant.hpp"
 #include "cJSON.h"
 #include "utils.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "board_cfg.h"
+
+#define CONFIG_ADDR_QSPI (CONFIG_ADDR & 0x0FFFFFFF)
 
 void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bool isEnabled)
 {
@@ -69,11 +71,11 @@ bool ConfigUtils::load(Config& config)
 
     if(fjResult == true && config.version == CONFIG_VERSION) { // 版本号一致
         uint32_t ver = config.version;
-        printf("Config Version: %d.%d.%d\n", (ver>>16) & 0xff, (ver>>8) & 0xff, ver & 0xff);
+        APP_DBG("Config Version: %d.%d.%d", (ver>>16) & 0xff, (ver>>8) & 0xff, ver & 0xff);
         return true;
     } else {
 
-        printf("init config, version: %d.%d.%d\n", (CONFIG_VERSION>>16) & 0xff, (CONFIG_VERSION>>8) & 0xff, CONFIG_VERSION & 0xff);
+        APP_DBG("init config, version: %d.%d.%d", (CONFIG_VERSION>>16) & 0xff, (CONFIG_VERSION>>8) & 0xff, CONFIG_VERSION & 0xff);
         // 设置基础配置
         config.version = CONFIG_VERSION;
         config.bootMode = BOOT_MODE_WEB_CONFIG;
@@ -108,15 +110,16 @@ bool ConfigUtils::load(Config& config)
 
 bool ConfigUtils::save(Config& config)
 {
-    printf("ConfigUtils::save begin\n");
+    APP_DBG("ConfigUtils::save begin");
+
 
     // 写入配置数据
-    int8_t result = QSPI_W25Qxx_WriteBuffer((uint8_t*)&config, CONFIG_ADDR, sizeof(Config));
+    int8_t result = QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)&config, CONFIG_ADDR_QSPI, sizeof(Config));
     if(result == QSPI_W25Qxx_OK) {
-        printf("ConfigUtils::save - success.\n");
+        APP_DBG("ConfigUtils::save - success.");
         return true;
     } else {
-        printf("ConfigUtils::save - Write failure.\n");
+        APP_ERR("ConfigUtils::save - Write failure.");
         return false;
     }
 }
@@ -130,9 +133,9 @@ bool ConfigUtils::save(Config& config)
  */
 bool ConfigUtils::reset(Config& config)
 {
-    int8_t result = QSPI_W25Qxx_BufferErase(CONFIG_ADDR, 64*1024);
+    int8_t result = QSPI_W25Qxx_BufferErase(CONFIG_ADDR_QSPI, 64*1024);
     if(result != QSPI_W25Qxx_OK) {
-        printf("ConfigUtils::reset - block erase failure.\n");
+        APP_ERR("ConfigUtils::reset - block erase failure.");
         return false;
     }
     return ConfigUtils::load(config);
@@ -148,14 +151,14 @@ bool ConfigUtils::reset(Config& config)
 bool ConfigUtils::fromStorage(Config& config)
 {
     int8_t result;
-    printf("ConfigUtils::fromStorage begin.\n");
+    APP_DBG("ConfigUtils::fromStorage begin.");
     
-    result = QSPI_W25Qxx_ReadBuffer((uint8_t*)&config, CONFIG_ADDR, sizeof(Config));
+    result = QSPI_W25Qxx_ReadBuffer((uint8_t*)&config, CONFIG_ADDR_QSPI, sizeof(Config));
     if(result == QSPI_W25Qxx_OK) {
-        printf("ConfigUtils::fromStorage - success.\n");
+        APP_DBG("ConfigUtils::fromStorage - success.");
         return true;
     } else {
-        printf("ConfigUtils::fromStorage - Read failure.\n");
+        APP_ERR("ConfigUtils::fromStorage - Read failure.");
         return false;
     }
 }

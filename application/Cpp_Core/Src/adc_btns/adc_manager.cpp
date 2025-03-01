@@ -1,5 +1,6 @@
 #include "adc_btns/adc_manager.hpp"
 #include <algorithm>  // 为 std::sort
+#include "board_cfg.h"
 
 // 内存图
 /*
@@ -23,24 +24,29 @@
 
 
 // 定义静态 ADC DMA 缓冲区
-__attribute__((section("._RAM_D1_Area"))) uint32_t ADCManager::ADC1_Values[NUM_ADC1_BUTTONS];
-__attribute__((section("._RAM_D1_Area"))) uint32_t ADCManager::ADC2_Values[NUM_ADC2_BUTTONS];
+__attribute__((section(".DMA_Section"))) uint32_t ADCManager::ADC1_Values[NUM_ADC1_BUTTONS];
+__attribute__((section(".DMA_Section"))) uint32_t ADCManager::ADC2_Values[NUM_ADC2_BUTTONS];
 // ADC3 BDMA 只能访问 _RAM_D3_Area 区域
-__attribute__((section("._RAM_D3_Area"))) uint32_t ADCManager::ADC3_Values[NUM_ADC3_BUTTONS];
+__attribute__((section(".BDMA_Section"))) uint32_t ADCManager::ADC3_Values[NUM_ADC3_BUTTONS];
 
+#define ADC_VALUES_MAPPING_ADDR_QSPI (ADC_VALUES_MAPPING_ADDR & 0x0FFFFFFF)
+
+const uint8_t ADC1_BUTTONS_MAPPING[NUM_ADC1_BUTTONS] = ADC1_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN;
+const uint8_t ADC2_BUTTONS_MAPPING[NUM_ADC2_BUTTONS] = ADC2_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN;
+const uint8_t ADC3_BUTTONS_MAPPING[NUM_ADC3_BUTTONS] = ADC3_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN;
 
 ADCManager::ADCManager() {
     
     // 读取整个存储结构
-    QSPI_W25Qxx_ReadBuffer((uint8_t*)&store, ADC_VALUES_MAPPING_ADDR, sizeof(ADCValuesMappingStore));
+    QSPI_W25Qxx_ReadBuffer((uint8_t*)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore));
     
-    printf("ADCValuesMappingUtils version: 0x%x\n", store.version);
+    APP_DBG("ADCValuesMappingUtils version: 0x%x", store.version);
     printf("ADC_MAPPING_VERSION == version: %d\n", ADC_MAPPING_VERSION == store.version);
     
     // 如果版本号不匹配，初始化整个存储
     if(store.version != ADC_MAPPING_VERSION) {
         // 擦除64K
-        QSPI_W25Qxx_BufferErase(ADC_VALUES_MAPPING_ADDR, 64*1024);
+        QSPI_W25Qxx_BufferErase(ADC_VALUES_MAPPING_ADDR_QSPI, 64*1024);
         
         // 初始化存储结构
         memset(&store, 0, sizeof(ADCValuesMappingStore));
@@ -49,11 +55,12 @@ ADCManager::ADCManager() {
         strcpy(store.defaultId, "");
         
         // 写入初始化后的存储结构
-        QSPI_W25Qxx_WriteBuffer((uint8_t*)&store, ADC_VALUES_MAPPING_ADDR, sizeof(ADCValuesMappingStore));
+        QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore));
     }
 
     // 注册消息
-    MC.registerMessage(MessageId::ADC_SAMPLING_STATS_COMPLETE);
+    MC.registerMessage(MessageId::DMA_ADC_CONV_CPLT);           // DMA ADC 转换完成消息
+    MC.registerMessage(MessageId::ADC_SAMPLING_STATS_COMPLETE); // ADC 采样统计完成消息
 
     this->samplingCountMax = 1000; // 采样次数 默认1000次
     this->samplingRateEnabled = false; // 采样率统计是否开启 默认关闭
@@ -83,15 +90,21 @@ ADCManager::ADCManager() {
         [](const ADCButtonValueInfo& a, const ADCButtonValueInfo& b) {
             return a.virtualPin < b.virtualPin;
         });
+
+    
 }
 
 ADCManager::~ADCManager() {
     this->stopADCSamping();
+
+    // 取消注册ADC消息
+    MC.unregisterMessage(MessageId::DMA_ADC_CONV_CPLT);
+    MC.unregisterMessage(MessageId::ADC_SAMPLING_STATS_COMPLETE);
 }
 
 // 保存整个存储结构到Flash
 int8_t ADCManager::saveStore() {
-    return QSPI_W25Qxx_WriteBuffer((uint8_t*)&store, ADC_VALUES_MAPPING_ADDR, sizeof(ADCValuesMappingStore));
+    return QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore));
 }
 
 /**
@@ -366,38 +379,38 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
 
     // 校准 ADC1
     if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
-        ADC_DEBUG_PRINT("ADC1 calibration failed\n");
+        APP_ERR("ADC1 calibration failed\n");
         return ADCBtnsError::ADC1_CALIB_FAILED;
     }
 
     // 校准 ADC2
     if (HAL_ADCEx_Calibration_Start(&hadc2, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
-        ADC_DEBUG_PRINT("ADC2 calibration failed\n");
+        APP_ERR("ADC2 calibration failed\n");
         return ADCBtnsError::ADC2_CALIB_FAILED;
     }
 
     // 校准 ADC3
     if (HAL_ADCEx_Calibration_Start(&hadc3, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
-        ADC_DEBUG_PRINT("ADC3 calibration failed\n");
+        APP_ERR("ADC3 calibration failed\n");
         return ADCBtnsError::ADC3_CALIB_FAILED;
     }
 
     // 启动 ADC1
     if (HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&ADC1_Values[0], NUM_ADC1_BUTTONS) != HAL_OK) {
-        ADC_DEBUG_PRINT("ADC1 DMA start failed\n");
+        APP_ERR("ADC1 DMA start failed\n");
         return ADCBtnsError::DMA1_START_FAILED;
     }
 
     // 启动 ADC2
     if (HAL_ADC_Start_DMA(&hadc2, (uint32_t*)&ADC2_Values[0], NUM_ADC2_BUTTONS) != HAL_OK) {
-        ADC_DEBUG_PRINT("ADC2 DMA start failed\n");
+        APP_ERR("ADC2 DMA start failed\n");
         HAL_ADC_Stop_DMA(&hadc1);  // 清理已启动的 ADC1
         return ADCBtnsError::DMA2_START_FAILED;
     }
 
     // 启动 ADC3
     if (HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&ADC3_Values[0], NUM_ADC3_BUTTONS) != HAL_OK) {
-        ADC_DEBUG_PRINT("ADC3 DMA start failed\n");
+        APP_ERR("ADC3 DMA start failed\n");
         HAL_ADC_Stop_DMA(&hadc1);  // 清理已启动的 ADC
         HAL_ADC_Stop_DMA(&hadc2);
         return ADCBtnsError::DMA3_START_FAILED;
@@ -413,7 +426,7 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
         samplingADCInfo = findADCButtonVirtualPin(virtualPin);
     
         if(samplingADCInfo.first == -1) {
-            ADC_DEBUG_PRINT("Invalid button index\n");
+            APP_ERR("Invalid button index\n");
             return ADCBtnsError::INVALID_PARAMS;
         }
 
@@ -438,7 +451,7 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
         MC.subscribe(MessageId::DMA_ADC_CONV_CPLT, messageHandler);
     }
 
-    ADC_DEBUG_PRINT("All ADCs started successfully\n");
+    APP_DBG("All ADCs started successfully\n");
     return ADCBtnsError::SUCCESS;
 }
 
@@ -527,9 +540,23 @@ std::pair<uint8_t, uint8_t> ADCManager::findADCButtonVirtualPin(uint8_t virtualP
     return {-1, -1};  // 如果没找到，默认返回 ADC1
 }
 
+// ADC转换完成回调
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
+    MC.publish(MessageId::DMA_ADC_CONV_CPLT, hadc);
+}
 
-
-
+// ADC错误回调
+void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
+{
+    uint32_t error = HAL_ADC_GetError(hadc);
+    APP_DBG("ADC Error: Instance=0x%p", (void*)hadc->Instance);
+    APP_DBG("State=0x%x", HAL_ADC_GetState(hadc));
+    APP_DBG("Error flags: 0x%lx", error);
+    
+    if (error & HAL_ADC_ERROR_INTERNAL) APP_DBG("- Internal error");
+    if (error & HAL_ADC_ERROR_OVR) APP_DBG("- Overrun error");
+    if (error & HAL_ADC_ERROR_DMA) APP_DBG("- DMA transfer error");
+}
 
 
 

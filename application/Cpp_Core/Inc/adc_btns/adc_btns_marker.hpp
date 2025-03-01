@@ -3,12 +3,12 @@
 
 #include <stdio.h>
 #include "stm32h7xx.h"
-#include "constant.hpp"
 #include "adc_manager.hpp"
 #include "storagemanager.hpp"
 #include "adc.h"
 #include "message_center.hpp"
 #include "adc_btns_error.hpp"
+#include "board_cfg.h"
 #include <functional>
 
 #define MAX_NUM_TMP_MARKING 200

@@ -2,8 +2,7 @@
 #include "config.hpp"
 #include "stm32h750xx.h"
 #include <stdio.h>
-#include "constant.hpp"
-
+#include "board_cfg.h"
 
 void Storage::initConfig() {
 	printf("================== Storage::init begin ==========================\n");

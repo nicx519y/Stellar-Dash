@@ -1,12 +1,10 @@
 {
     "files.associations": {
-        "usart.h": "c",
-        "main.h": "c",
-        "board_cfg.h": "c",
-        "qspi-w25q64.h": "c",
+        "gpio-btn.h": "c",
         "stm32h7xx_hal.h": "c",
-        "stm32h7xx_hal_conf.h": "c",
-        "dma.h": "c",
-        "cstdint": "c"
+        "board_cfg.h": "c",
+        "main.h": "c",
+        "algorithm": "cpp",
+        "utils.h": "c"
     }
 }

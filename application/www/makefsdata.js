@@ -245,7 +245,7 @@ function makeAllFileData(buffers) {
 
 function makefsdata() {
 	let fsdata = '';
-	fsdata += '#include "constant.hpp"\n';
+	fsdata += '#include "board_cfg.h"\n';
 	fsdata += '#include "fsdata.h"\n';
 	fsdata += '#include "qspi-w25q64.h"\n';
 	fsdata += '#include <stdbool.h>\n';

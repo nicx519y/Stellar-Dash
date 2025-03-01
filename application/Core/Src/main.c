@@ -51,13 +51,30 @@ int main(void)
     SCB_EnableDCache(); // 使能数据缓存
     SCB_EnableICache(); // 使能指令缓存
 
-    QSPI_W25Qxx_ExitMemoryMappedMode(); // 退出内存映射模式，qspi-flash可以正常读写
-    board_init(); // 初始化板子 时钟 串口 WS2812B 等    
+    // board_init(); // 初始化板子 时钟 串口 WS2812B 等  
+
+    USART1_Init(); // USART for debug
+
+    if(QSPI_W25Qxx_ExitMemoryMappedMode() != QSPI_W25Qxx_OK) {
+        APP_ERR("QSPI_W25Qxx_ExitMemoryMappedMode failed");
+    } else {
+        APP_DBG("QSPI_W25Qxx_ExitMemoryMappedMode success");
+    }
+
+    uint8_t data[13] = "Hello, World!";
+    uint8_t read_data[13];
+    QSPI_W25Qxx_WriteBuffer(data, 0x00300000, 13);
+    QSPI_W25Qxx_ReadBuffer(read_data, 0x00300000, 13);
+    APP_DBG("read_data: %s", read_data);
+
+    // QSPI_W25Qxx_Test(0x00000000); // 测试qspi-flash 是否能正常读写  
 
 #if SYSTEM_CHECK_ENABLE == 1
     dataSectionTest(); // 测试各个段，测试堆内存
     floatTest(); // 测试FPU 是否能打印浮点数
 #endif
+
+    // cpp_main();
 
     while (1);
 }

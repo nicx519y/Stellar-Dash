@@ -24,21 +24,27 @@
  * This file is part of the TinyUSB stack.
  */
 
-#ifndef BOARD_H_
-#define BOARD_H_
+#ifndef __BOARD_H__
+#define __BOARD_H__
+
+#include "stm32h7xx_hal_rcc.h"
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
-#include "stm32h7xx_hal_rcc.h"
 
 #define SYSTEM_CLOCK_FREQ      480000000
 
 #define SYSTEM_CHECK_ENABLE    0 // 使能缓存检查
 
-#define FPU_FPDSCR_RMode_Msk   (0x3 << 22) // 清除舍入模式位 [23:22]
-#define FPU_FPDSCR_RMode_RN    (0x0 << 22) // 舍入模式为 Round to Nearest (RN)
+#ifndef FPU_FPDSCR_RMode_Msk
+    #define FPU_FPDSCR_RMode_Msk   (0x3 << 22) // 清除舍入模式位 [23:22]
+#endif
+
+#ifndef FPU_FPDSCR_RMode_RN
+    #define FPU_FPDSCR_RMode_RN    (0x0 << 22) // 舍入模式为 Round to Nearest (RN)  
+#endif
 
 /* Debug print configuration */
 #define APPLICATION_DEBUG_PRINT  1   // 设置为 0 可以关闭所有调试打印
@@ -55,13 +61,80 @@
     #define APP_ERR(fmt, ...) ((void)0)
 #endif
 
-static inline void board_stm32h7_post_init(void)
-{
-  // For this board does nothing
-}
+
+extern uint32_t WEB_RESOURCES_FLASH_START;
+extern uint32_t ADC_VALUES_MAPPING_FLASH_START;
+extern uint32_t CONFIG_FLASH_START;
+
+#define FIRMWARE_VERSION                    (uint32_t)0x010000  //固件版本
+#define CONFIG_VERSION                      (uint32_t)0x000100  //配置版本 三位版本号 0x aa bb cc
+#define ADC_MAPPING_VERSION                 (uint32_t)0x000001  //ADC值映射表版本
+
+#define WEB_RESOURCES_ADDR                  WEB_RESOURCES_FLASH_START       // 网页资源地址 memory map 地址 qspi flash 0x90100000 定义在 STM32H750XBHx_FLASH.ld 中
+#define ADC_VALUES_MAPPING_ADDR             ADC_VALUES_MAPPING_FLASH_START  // ADC值映射表地址  qspi flash 0x00200000 定义在 STM32H750XBHx_FLASH.ld 中
+#define CONFIG_ADDR                         CONFIG_FLASH_START              // 配置数据地址  qspi flash 0x00300000 定义在 STM32H750XBHx_FLASH.ld 中
+
+#define NUM_ADC_VALUES_MAPPING              8               // 最大8个映射 ADC按钮映射表用于值查找
+#define MAX_ADC_VALUES_LENGTH               40              // 每个映射最大40个值 ADC按钮映射表用于值查找
+#define MAX_NUM_MARKING_VALUE               100             // 每个step最大采集值个数
+#define TIME_ADC_INIT                       1000            // ADC初始化时间，时间越长初始化越准确
+#define NUM_WINDOW_SIZE                     8               // 校准滑动窗口大小
+
+#define NUM_PROFILES                        16
+#define NUM_ADC                             3               // 3个ADC
+#define NUM_ADC1_BUTTONS                    6
+#define NUM_ADC2_BUTTONS                    6
+#define NUM_ADC3_BUTTONS                    5
+#define NUM_ADC_BUTTONS                     (NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS + NUM_ADC3_BUTTONS)
+
+#define READ_BTNS_INTERVAL                  50            // 检查按钮状态间隔 us
+#define ENABLED_DYNAMIC_CALIBRATION         1               //是否启用动态校准
+#define DYNAMIC_CALIBRATION_INTERVAL        (5 * 1000000)            // 动态校准间隔 5s
+
+
+#define NUM_GPIO_BUTTONS            4               //GPIO按钮数量
+#define GPIO_BUTTONS_DEBOUNCE       50             //去抖动延迟(us) 
+
+
+
+
+#define HAS_LED                                   1             //是否有LED
+#define NUM_LED	                    (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) //LED数量
+
+#define NUM_LEDs_PER_ADC_BUTTON     1              //每个按钮多少个LED
+#define LEDS_BRIGHTNESS_RADIO       0.3             //默认led 亮度系数 会以实际亮度乘以这个系数
+#define LEDS_ANIMATION_CYCLE        6000            //LED 动画长度
+#define LEDS_ANIMATION_INTERVAL         80          //LED 动画间隔，影响性能和效果 ms
+
+#define LED_ENABLE_SWITCH_PIN        GPIO_PIN_12    // 灯效开关引脚
+#define LED_ENABLE_SWITCH_PORT       GPIOC           // 灯效开关端口
+
+#define NUM_GAMEPAD_HOTKEYS                 (uint8_t)11   // 快捷键数量
+
+// GPIO 按钮定义结构体
+struct gpio_pin_def {
+    GPIO_TypeDef* port;
+    uint16_t pin;
+    uint8_t virtualPin;
+};
+
+#define ADC1_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {1, 8, 9, 6, 0, 5}
+#define ADC2_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {2, 3, 7, 4, 14, 11}
+#define ADC3_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {13, 15, 16, 10, 12}
+
+#define GPIO_BUTTONS_MAPPING_VIRTUALPIN {17, 18, 19, 20}
+#define GPIO_BUTTONS_MAPPING_PORT {GPIOC, GPIOC, GPIOC, GPIOC}
+#define GPIO_BUTTONS_MAPPING_PIN {GPIO_PIN_6, GPIO_PIN_7, GPIO_PIN_8, GPIO_PIN_9}
+
+
+
+// Hall 按钮映射表 DMA to virtualPin，virtualPin 是按钮在所有按钮中的序号
+
+
+
 
 #ifdef __cplusplus
  }
 #endif
 
-#endif
+#endif // __BOARD_H__

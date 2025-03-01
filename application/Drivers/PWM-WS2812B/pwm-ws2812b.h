@@ -12,8 +12,7 @@ extern "C" {
 #include <stdint.h>
 #include <math.h>
 #include <string.h>
-#include "constant.hpp"
-
+#include "board_cfg.h"
 /**
   * @brief  WS2812B Status structures definition
   */

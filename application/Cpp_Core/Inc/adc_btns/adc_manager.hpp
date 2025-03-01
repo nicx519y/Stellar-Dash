@@ -10,12 +10,12 @@
 #include <array>
 #include "stm32h7xx.h"
 #include "stm32h750xx.h"
-#include "constant.hpp"
 #include "adc_btns_error.hpp"
 #include "cJSON.h"
 #include "adc.h"
 #include "message_center.hpp"
 #include <algorithm>  // 为 std::sort
+#include "board_cfg.h"
 
 struct ADCValuesMapping {
     char id[16];                                            // 映射ID

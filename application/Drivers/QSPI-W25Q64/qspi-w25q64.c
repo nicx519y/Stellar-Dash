@@ -175,7 +175,7 @@ int8_t QSPI_W25Qxx_Init(void)
 	}
 	else
 	{
-		printf("W25Q64 ERROR!!!!!  ID:%X\r\n", (unsigned int)Device_ID);
+		QSPI_W25Qxx_DBG("W25Q64 ERROR!!!!!  ID:%X", (unsigned int)Device_ID);
 		return W25Qxx_ERROR_INIT;
 	}
 }
@@ -303,57 +303,19 @@ uint32_t QSPI_W25Qxx_ReadID(void)
 	// 发送指令
 	if (HAL_QSPI_Command(&hqspi, &s_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) 
 	{
-		printf("HAL_QSPI_Command failure! \r\n");
+		QSPI_W25Qxx_DBG("HAL_QSPI_Command failure! ");
 //		return W25Qxx_ERROR_INIT;		// 如果发送失败，返回错误信息
 	}
 	// 接收数据
 	if (HAL_QSPI_Receive(&hqspi, QSPI_ReceiveBuff, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) 
 	{
-		printf("HAL_QSPI_Receive failure!\r\n");
+		QSPI_W25Qxx_DBG("HAL_QSPI_Receive failure!");
 //		return W25Qxx_ERROR_TRANSMIT;  // 如果接收失败，返回错误信息
 	}
 	// 将得到的数据组合成ID
 	W25Qxx_ID = (QSPI_ReceiveBuff[0] << 16) | (QSPI_ReceiveBuff[1] << 8 ) | QSPI_ReceiveBuff[2];
 
 	return W25Qxx_ID; // 返回ID
-}
-
-/**
- * @brief 
- * 将QSPI设置为内存映射模式。
- * 设置为内存映射模式时，只能读，不能写！！！
- * 
- * @return int8_t 
- * QSPI_W25Qxx_OK - 写使能成功，W25Qxx_ERROR_WriteEnable - 写使能失败
- */
-int8_t QSPI_W25Qxx_EnterMemoryMappedMode(void)
-{
-	if(xip_enabled) {
-		return QSPI_W25Qxx_OK;
-	}
-
-	QSPI_CommandTypeDef      s_command;
-	QSPI_MemoryMappedTypeDef s_mem_mapped_cfg;
-
-	s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
-	s_command.AddressSize       = QSPI_ADDRESS_24_BITS;
-	s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
-	s_command.DdrMode           = QSPI_DDR_MODE_DISABLE;
-	s_command.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
-	s_command.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
-	s_command.AddressMode       = QSPI_ADDRESS_4_LINES;
-	s_command.DataMode          = QSPI_DATA_4_LINES;
-	s_command.DummyCycles       = 6;
-	s_command.Instruction       = W25Qxx_CMD_FastReadQuad_IO;
-	
-	s_mem_mapped_cfg.TimeOutActivation = QSPI_TIMEOUT_COUNTER_DISABLE;
-	s_mem_mapped_cfg.TimeOutPeriod     = 0;
-
-	// 添加调试信息
-	printf("QSPI CR: 0x%08X\n", QUADSPI->CR);
-	printf("QSPI DCR: 0x%08X\n", QUADSPI->DCR);
-	
-	return HAL_QSPI_MemoryMapped(&hqspi, &s_command, &s_mem_mapped_cfg);
 }
 
 /**
@@ -442,16 +404,19 @@ int8_t QSPI_W25Qxx_SectorErase(uint32_t SectorAddress)
 	// 发送写使能
 	if (QSPI_W25Qxx_WriteEnable() != QSPI_W25Qxx_OK)
 	{
+		QSPI_W25Qxx_ERR("QSPI_W25Qxx_SectorErase: QSPI_W25Qxx_WriteEnable failure!");
 		return W25Qxx_ERROR_WriteEnable;		// 写使能失败
 	}
 	// 发出擦除命令
 	if (HAL_QSPI_Command(&hqspi, &s_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
 	{
+		QSPI_W25Qxx_ERR("QSPI_W25Qxx_SectorErase: HAL_QSPI_Command failure!");
 		return W25Qxx_ERROR_Erase;				// 擦除失败
 	}
 	// 使用自动轮询标志位，等待擦除的结束 
 	if (QSPI_W25Qxx_AutoPollingMemReady() != QSPI_W25Qxx_OK)
 	{
+		QSPI_W25Qxx_ERR("QSPI_W25Qxx_SectorErase: QSPI_W25Qxx_AutoPollingMemReady failure!");
 		return W25Qxx_ERROR_AUTOPOLLING;		// 轮询等待无响应
 	}
 	return QSPI_W25Qxx_OK; // 擦除成功
@@ -700,13 +665,14 @@ int8_t QSPI_W25Qxx_WriteBuffer(uint8_t* pBuffer, uint32_t WriteAddr, uint32_t Nu
 	uint32_t start_sector = WriteAddr & ~(W25Qxx_SECTOR_SIZE - 1);
 	uint32_t end_sector = (WriteAddr + NumByteToWrite - 1) & ~(W25Qxx_SECTOR_SIZE - 1);
 
-	printf("start_sector: 0x%x\n, WriteAddr: 0x%x\n", start_sector, WriteAddr);
-	printf("end_sector: 0x%x\n", end_sector);
+	QSPI_W25Qxx_DBG("start_sector: 0x%x, WriteAddr: 0x%x", start_sector, WriteAddr);
+	QSPI_W25Qxx_DBG("end_sector: 0x%x", end_sector);
 	
 	// 擦除所需的扇区
 	for(uint32_t sector = start_sector; sector <= end_sector; sector += W25Qxx_SECTOR_SIZE) {
-		printf("Erasing sector at address 0x%X\n", (unsigned int)sector);
+		QSPI_W25Qxx_DBG("Erasing sector at address 0x%X", (unsigned int)sector);
 		if((status = QSPI_W25Qxx_SectorErase(sector)) != QSPI_W25Qxx_OK) {
+			QSPI_W25Qxx_ERR("QSPI_W25Qxx_SectorErase failed, status: %d", status);
 			return status;
 		}
 	}
@@ -726,11 +692,13 @@ int8_t QSPI_W25Qxx_WriteBuffer(uint8_t* pBuffer, uint32_t WriteAddr, uint32_t Nu
 		// 写使能
 		if (QSPI_W25Qxx_WriteEnable() != QSPI_W25Qxx_OK) {
 			status = W25Qxx_ERROR_WriteEnable;
+			QSPI_W25Qxx_ERR("QSPI_W25Qxx_WriteEnable failed, status: %d", status);
 			return status;
 		}
 
 		// 写入数据
 		if((status = QSPI_W25Qxx_WritePage(write_data, current_addr, current_size)) != QSPI_W25Qxx_OK) {
+			QSPI_W25Qxx_ERR("QSPI_W25Qxx_WritePage failed, status: %d", status);
 			return status;
 		}
 
@@ -792,6 +760,38 @@ int8_t QSPI_W25Qxx_ReadBuffer(uint8_t* pBuffer, uint32_t ReadAddr, uint32_t NumB
 	return status;
 }
 
+int8_t QSPI_W25Qxx_WriteBuffer_WithXIPOrNot(uint8_t* pData, uint32_t WriteAddr, uint32_t NumByteToWrite)
+{
+	bool is_xip = xip_enabled;
+	if(is_xip == true) {
+		QSPI_W25Qxx_ExitMemoryMappedMode();
+	}
+
+	bool result = QSPI_W25Qxx_WriteBuffer(pData, WriteAddr, NumByteToWrite);
+	
+	if(is_xip == true) {
+		QSPI_W25Qxx_EnterMemoryMappedMode();
+	}
+
+	return result;
+}
+
+int8_t QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(uint8_t* pBuffer, uint32_t ReadAddr, uint32_t NumByteToRead)
+{
+	bool is_xip = xip_enabled;
+	if(is_xip == true) {
+		QSPI_W25Qxx_ExitMemoryMappedMode();
+	}
+
+	bool result = QSPI_W25Qxx_ReadBuffer(pBuffer, ReadAddr, NumByteToRead);	
+
+	if(is_xip == true) {	
+		QSPI_W25Qxx_EnterMemoryMappedMode();
+	}
+
+	return result;
+}
+
 // 添加测试函数
 int8_t QSPI_W25Qxx_Test(uint32_t test_addr)
 {
@@ -800,7 +800,7 @@ int8_t QSPI_W25Qxx_Test(uint32_t test_addr)
 	uint8_t read_buf[256];
 	const uint32_t test_size = 256;
 	
-	printf("\r\nStarting QSPI Flash R/W test...\r\n");
+	QSPI_W25Qxx_DBG("Starting QSPI Flash R/W test...");
 	
 	// 准备测试数据
 	for(uint32_t i = 0; i < test_size; i++) {
@@ -808,29 +808,29 @@ int8_t QSPI_W25Qxx_Test(uint32_t test_addr)
 	}
 	
 	// 写入测试数据
-	printf("Writing test data to address 0x%08X...\r\n", (unsigned int)test_addr);
+	QSPI_W25Qxx_DBG("Writing test data to address 0x%08X...", (unsigned int)test_addr);
 	status = QSPI_W25Qxx_WriteBuffer(write_buf, test_addr, test_size);
 	if(status != QSPI_W25Qxx_OK) {
-		printf("Write test failed! Error code: %d\r\n", status);
+		QSPI_W25Qxx_ERR("Write test failed! Error code: %d", status);
 		return status;
 	}
-	printf("Write test data completed.\r\n");
+	QSPI_W25Qxx_DBG("Write test data completed.");
 	
 	// 读取测试数据
-	printf("Reading test data from address 0x%08X...\r\n", (unsigned int)test_addr);
+	QSPI_W25Qxx_DBG("Reading test data from address 0x%08X...", (unsigned int)test_addr);
 	status = QSPI_W25Qxx_ReadBuffer(read_buf, test_addr, test_size);
 	if(status != QSPI_W25Qxx_OK) {
-		printf("Read test failed! Error code: %d\r\n", status);
+		QSPI_W25Qxx_ERR("Read test failed! Error code: %d", status);
 		return status;
 	}
-	printf("Read test data completed.\r\n");
+	QSPI_W25Qxx_DBG("Read test data completed.");
 	
 	// 验证数据
-	printf("Verifying test data...\r\n");
+	QSPI_W25Qxx_DBG("Verifying test data...");
 	bool verify_ok = true;
 	for(uint32_t i = 0; i < test_size; i++) {
 		if(read_buf[i] != write_buf[i]) {
-			printf("Data mismatch at offset %d: wrote 0x%02X, read 0x%02X\r\n", 
+			QSPI_W25Qxx_ERR("Data mismatch at offset %d: wrote 0x%02X, read 0x%02X", 
 				   (int)i, write_buf[i], read_buf[i]);
 			verify_ok = false;
 			break;
@@ -838,10 +838,10 @@ int8_t QSPI_W25Qxx_Test(uint32_t test_addr)
 	}
 	
 	if(verify_ok) {
-		printf("QSPI Flash R/W test passed!\r\n");
+		QSPI_W25Qxx_DBG("QSPI Flash R/W test passed!");
 		return QSPI_W25Qxx_OK;
 	} else {
-		printf("QSPI Flash R/W test failed!\r\n");
+		QSPI_W25Qxx_ERR("QSPI Flash R/W test failed!");
 		return W25Qxx_ERROR_TRANSMIT;
 	}
 }
@@ -854,13 +854,62 @@ int8_t QSPI_W25Qxx_ExitMemoryMappedMode(void)
 	}
 
 	if(HAL_QSPI_Abort(&hqspi) != HAL_OK) {
-		printf("Exit XIP mode failed!\n");
+		QSPI_W25Qxx_ERR("Exit XIP mode failed!");
 		return W25Qxx_ERROR_MemoryMapped;
 	}
 
 	xip_enabled = false;
-	printf("Exit XIP mode success.\n");
+	QSPI_W25Qxx_DBG("Exit XIP mode success.");
 	return QSPI_W25Qxx_OK;
+}
+
+/**
+ * @brief 
+ * 将QSPI设置为内存映射模式。
+ * 设置为内存映射模式时，只能读，不能写！！！
+ * 
+ * @return int8_t 
+ * QSPI_W25Qxx_OK - 写使能成功，W25Qxx_ERROR_WriteEnable - 写使能失败
+ */
+int8_t QSPI_W25Qxx_EnterMemoryMappedMode(void)
+{
+	if(xip_enabled) {
+		return QSPI_W25Qxx_OK;
+	}
+
+	QSPI_CommandTypeDef      s_command;
+	QSPI_MemoryMappedTypeDef s_mem_mapped_cfg;
+
+	s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
+	s_command.AddressSize       = QSPI_ADDRESS_24_BITS;
+	s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
+	s_command.DdrMode           = QSPI_DDR_MODE_DISABLE;
+	s_command.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
+	s_command.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
+	s_command.AddressMode       = QSPI_ADDRESS_4_LINES;
+	s_command.DataMode          = QSPI_DATA_4_LINES;
+	s_command.DummyCycles       = 6;
+	s_command.Instruction       = W25Qxx_CMD_FastReadQuad_IO;
+	
+	s_mem_mapped_cfg.TimeOutActivation = QSPI_TIMEOUT_COUNTER_DISABLE;
+	s_mem_mapped_cfg.TimeOutPeriod     = 0;
+
+	// 添加调试信息
+	QSPI_W25Qxx_DBG("QSPI CR: 0x%08X", QUADSPI->CR);
+	QSPI_W25Qxx_DBG("QSPI DCR: 0x%08X", QUADSPI->DCR);
+	
+	return HAL_QSPI_MemoryMapped(&hqspi, &s_command, &s_mem_mapped_cfg);
+}
+
+/**
+ * @brief 
+ * 判断是否处于内存映射模式。
+ * 
+ * @return bool 
+ */
+bool QSPI_W25Qxx_IsMemoryMappedMode(void)
+{
+	return xip_enabled;
 }
 
 //	实验平台：反客STM32H750XBH6核心板 （型号：FK750M4-XBH6）
@@ -874,14 +923,14 @@ int8_t QSPI_W25Qxx_WriteString(char* string, uint32_t ReadAddr)
 	uint8_t sizeBuffer[] = { (size>>24)&0xff, (size>>16)&0xff, (size>>8)&0xff, size&0xff };
 	result = QSPI_W25Qxx_WriteBuffer(sizeBuffer, ReadAddr, sizeof(&sizeBuffer));	// 吸入len
 	if(result != QSPI_W25Qxx_OK) {
-		printf("QSPI_W25Qxx_WriteString write size failure. error: %d\n", result);
+		QSPI_W25Qxx_ERR("QSPI_W25Qxx_WriteString write size failure. error: %d", result);
 		return result;
 	} else {
-		printf("QSPI_W25Qxx_WriteString write size success. size: %d, 0x%02x%02x%02x%02x\n", size, sizeBuffer[0], sizeBuffer[1], sizeBuffer[2], sizeBuffer[3]);
+		QSPI_W25Qxx_DBG("QSPI_W25Qxx_WriteString write size success. size: %d, 0x%02x%02x%02x%02x", size, sizeBuffer[0], sizeBuffer[1], sizeBuffer[2], sizeBuffer[3]);
 	}
 	result = QSPI_W25Qxx_WriteBuffer((uint8_t*)string, ReadAddr+sizeof(&sizeBuffer), size);
 	if(result != QSPI_W25Qxx_OK) {
-		printf("QSPI_W25Qxx_WriteString write content failure. error: %d\n", result);
+		QSPI_W25Qxx_ERR("QSPI_W25Qxx_WriteString write content failure. error: %d", result);
 		return result;
 	} else {
 		return QSPI_W25Qxx_OK;
@@ -895,15 +944,15 @@ int8_t QSPI_W25Qxx_ReadString(char* buffer, uint32_t ReadAddr)
 	uint32_t size;
 	result = QSPI_W25Qxx_ReadBuffer(sizeBuffer, ReadAddr, sizeof(&sizeBuffer));
 	if(result != QSPI_W25Qxx_OK) {
-		printf("QSPI_W25Qxx_ReadString read size failure. error: %d\n", result);
+		QSPI_W25Qxx_ERR("QSPI_W25Qxx_ReadString read size failure. error: %d", result);
 		return result;
 	}
 	
 	size = ((uint32_t)sizeBuffer[0]<<24|(uint32_t)sizeBuffer[1]<<16|(uint32_t)sizeBuffer[2]<<8|(uint32_t)sizeBuffer[3]);
 
-	// printf("QSPI_W25Qxx_ReadString read size %x, %x, %x, %x, %x\n", (uint32_t)size, sizeBuffer[0], sizeBuffer[1], sizeBuffer[2], sizeBuffer[3]);
+	// QSPI_W25Qxx_DBG("QSPI_W25Qxx_ReadString read size %x, %x, %x, %x, %x", (uint32_t)size, sizeBuffer[0], sizeBuffer[1], sizeBuffer[2], sizeBuffer[3]);
 
-	printf("QSPI_W25Qxx_ReadString read size: %d, 0x%08x, 0x%02x%02x%02x%02x\n", size, size, sizeBuffer[0], sizeBuffer[1], sizeBuffer[2], sizeBuffer[3]);
+	QSPI_W25Qxx_DBG("QSPI_W25Qxx_ReadString read size: %d, 0x%08x, 0x%02x%02x%02x%02x", size, size, sizeBuffer[0], sizeBuffer[1], sizeBuffer[2], sizeBuffer[3]);
 
 	if(size == 0xffffffff) {
 		return -1;
@@ -911,7 +960,7 @@ int8_t QSPI_W25Qxx_ReadString(char* buffer, uint32_t ReadAddr)
 
 	result = QSPI_W25Qxx_ReadBuffer(buffer, ReadAddr + sizeof(uint32_t), size);
 	if(result != QSPI_W25Qxx_OK) {
-		printf("QSPI_W25Qxx_ReadString read content failure. error: %d\n", result);
+		QSPI_W25Qxx_ERR("QSPI_W25Qxx_ReadString read content failure. error: %d", result);
 		return result;
 	} else {
 		return QSPI_W25Qxx_OK;
@@ -942,6 +991,7 @@ int8_t QSPI_W25Qxx_BufferErase(uint32_t StartAddr, uint32_t Size)
     // 写使能
     result = QSPI_W25Qxx_WriteEnable();
     if(result != QSPI_W25Qxx_OK) {
+        QSPI_W25Qxx_ERR("QSPI_W25Qxx_BufferErase write enable failure. error: %d", result);
         return result;
     }
 
@@ -971,6 +1021,7 @@ int8_t QSPI_W25Qxx_BufferErase(uint32_t StartAddr, uint32_t Size)
         else {
             result = QSPI_W25Qxx_SectorErase(CurrentAddr);
             if(result != QSPI_W25Qxx_OK) {
+                QSPI_W25Qxx_ERR("QSPI_W25Qxx_BufferErase sector erase failure. error: %d", result);
                 return result;
             }
             CurrentAddr += 4*1024;

@@ -1,6 +1,6 @@
-#include "constant.hpp"
 #include "fsdata.h"
 #include "qspi-w25q64.h"
+#include "board_cfg.h"
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>

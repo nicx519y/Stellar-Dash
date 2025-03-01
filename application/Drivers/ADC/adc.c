@@ -20,7 +20,6 @@
 /* Includes ------------------------------------------------------------------*/
 
 #include "adc.h"
-#include "constant.hpp"
 #include "board_cfg.h"
 
 /* USER CODE BEGIN 0 */

@@ -1,4 +1,5 @@
 #include "adc_btns/adc_btns_marker.hpp"
+#include "board_cfg.h"
 
 
 /**
@@ -135,7 +136,7 @@ void ADCBtnsMarker::markingFinish() {
     step_info.is_marking = false;
 
     if(err != ADCBtnsError::SUCCESS) {
-        printf("ADCBtnsMarker: markingFinish - mark save failed. err: %d\n", err);
+        APP_ERR("ADCBtnsMarker: markingFinish - mark save failed. err: %d", err);
         return;
     }
 

@@ -9,9 +9,6 @@ void WebConfigState::setup() {
     // - 启动Web服务器
     // - 初始化配置参数
     // - 设置回调函数等
-    getFSRoot();
-    printf("================== getFSRoot success. =======================\n");
-
     InputMode inputMode = InputMode::INPUT_MODE_CONFIG;
     DRIVER_MANAGER.setup(inputMode);      
     ConfigType configType = ConfigType::CONFIG_TYPE_WEB;

@@ -1,12 +1,25 @@
 #ifndef __QSPI_W25Q64_H
 #define __QSPI_W25Q64_H
 
+#include <stdbool.h>
 #include "stm32h7xx_hal.h"
 #include "usart.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define QSPI_W25Qxx_DEBUG 1
+
+#if QSPI_W25Qxx_DEBUG
+    #define QSPI_W25Qxx_DBG(fmt, ...) printf("[QSPI_W25Qxx] " fmt "\r\n", ##__VA_ARGS__)
+    #define QSPI_W25Qxx_ERR(fmt, ...) printf("[QSPI_W25Qxx_ERR] " fmt "\r\n", ##__VA_ARGS__)
+#else
+    #define QSPI_W25Qxx_DBG(fmt, ...) ((void)0)
+    #define QSPI_W25Qxx_ERR(fmt, ...) ((void)0)
+#endif
+
+
 
 /*----------------------------------------------- 命名参数宏 -------------------------------------------*/
 
@@ -83,20 +96,23 @@ extern "C" {
 
 extern QSPI_HandleTypeDef hqspi;
 void MX_QUADSPI_Init(void);
-int8_t	QSPI_W25Qxx_Init(void);						// W25Qxx初始化
-int8_t 	QSPI_W25Qxx_Reset(void);					// 复位器件
+int8_t QSPI_W25Qxx_Init(void);						// W25Qxx初始化
+int8_t QSPI_W25Qxx_Reset(void);					// 复位器件
 uint32_t QSPI_W25Qxx_ReadID(void);					// 读取器件ID
-int8_t 	QSPI_W25Qxx_MemoryMappedMode(void);		// 进入内存映射模式
+int8_t QSPI_W25Qxx_MemoryMappedMode(void);		// 进入内存映射模式
 	
-int8_t 	QSPI_W25Qxx_SectorErase(uint32_t SectorAddress);		// 扇区擦除，4K字节， 参考擦除时间 45ms
-int8_t 	QSPI_W25Qxx_BlockErase_32K (uint32_t SectorAddress);	// 块擦除，  32K字节，参考擦除时间 120ms
-int8_t 	QSPI_W25Qxx_BlockErase_64K (uint32_t SectorAddress);	// 块擦除，  64K字节，参考擦除时间 150ms，实际使用建议使用64K擦除，擦除的时间最快
-int8_t 	QSPI_W25Qxx_ChipErase (void);                         // 整片擦除，参考擦除时间 20S
+int8_t QSPI_W25Qxx_SectorErase(uint32_t SectorAddress);		// 扇区擦除，4K字节， 参考擦除时间 45ms
+int8_t QSPI_W25Qxx_BlockErase_32K (uint32_t SectorAddress);	// 块擦除，  32K字节，参考擦除时间 120ms
+int8_t QSPI_W25Qxx_BlockErase_64K (uint32_t SectorAddress);	// 块擦除，  64K字节，参考擦除时间 150ms，实际使用建议使用64K擦除，擦除的时间最快
+int8_t QSPI_W25Qxx_ChipErase (void);                         // 整片擦除，参考擦除时间 20S
 
-int8_t	QSPI_W25Qxx_WritePage(uint8_t* pBuffer, uint32_t WriteAddr, uint16_t NumByteToWrite);	// 按页写入，最大256字节
+int8_t QSPI_W25Qxx_WritePage(uint8_t* pBuffer, uint32_t WriteAddr, uint16_t NumByteToWrite);	// 按页写入，最大256字节
 
-int8_t	QSPI_W25Qxx_WriteBuffer(uint8_t* pData, uint32_t WriteAddr, uint32_t Size);				// 写入数据，最大不能超过flash芯片的大小
-int8_t 	QSPI_W25Qxx_ReadBuffer(uint8_t* pBuffer, uint32_t ReadAddr, uint32_t NumByteToRead);	// 读取数据，最大不能超过flash芯片的大小
+int8_t QSPI_W25Qxx_WriteBuffer(uint8_t* pBuffer, uint32_t WriteAddr, uint32_t NumByteToWrite);				// 写入数据，最大不能超过flash芯片的大小
+int8_t QSPI_W25Qxx_ReadBuffer(uint8_t* pBuffer, uint32_t ReadAddr, uint32_t NumByteToRead);	// 读取数据，最大不能超过flash芯片的大小
+
+int8_t QSPI_W25Qxx_WriteBuffer_WithXIPOrNot(uint8_t* pData, uint32_t WriteAddr, uint32_t NumByteToWrite);
+int8_t QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(uint8_t* pBuffer, uint32_t ReadAddr, uint32_t NumByteToRead);
 
 int8_t QSPI_W25Qxx_WriteString(char* string, uint32_t ReadAddr);
 int8_t QSPI_W25Qxx_ReadString(char* buffer, uint32_t ReadAddr);
@@ -104,8 +120,9 @@ int8_t QSPI_W25Qxx_ReadString(char* buffer, uint32_t ReadAddr);
 int8_t QSPI_W25Qxx_Test(uint32_t test_addr);  // 修改测试函数声明，添加地址参数
 int8_t QSPI_W25Qxx_BufferErase(uint32_t StartAddr, uint32_t Size);  // 添加缓冲区擦除函数声明
 
-int8_t QSPI_W25Qxx_ExitMemoryMappedMode(void); // 退出内存映射模式
 int8_t QSPI_W25Qxx_EnterMemoryMappedMode(void); // 进入内存映射模式
+int8_t QSPI_W25Qxx_ExitMemoryMappedMode(void);  // 退出内存映射模式
+bool QSPI_W25Qxx_IsMemoryMappedMode(void);       // 判断是否处于内存映射模式
 
 #ifdef __cplusplus
 }

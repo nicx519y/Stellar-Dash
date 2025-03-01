@@ -1,4 +1,5 @@
 #include "adc_btns/adc_btns_worker.hpp"
+#include "board_cfg.h"
 
 
 ADCBtnsWorker::ADCBtnsWorker()
@@ -17,6 +18,8 @@ ADCBtnsWorker::ADCBtnsWorker()
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
         buttonPtrs[i] = new ADCBtn();  // 动态分配新对象
     }
+
+    MC.registerMessage(MessageId::ADC_BTNS_STATE_CHANGED);
 }
 
 ADCBtnsWorker::~ADCBtnsWorker() {
@@ -27,6 +30,8 @@ ADCBtnsWorker::~ADCBtnsWorker() {
             buttonPtrs[i] = nullptr;
         }
     }
+
+    MC.unregisterMessage(MessageId::ADC_BTNS_STATE_CHANGED);
 }
 
 
@@ -80,7 +85,7 @@ ADCBtnsError ADCBtnsWorker::setup() {
 
     ADC_MANAGER.startADCSamping();
 
-    ADC_DEBUG_PRINT("ADCBtnsWorker::setup success. startADCSamping\n");
+    APP_DBG("ADCBtnsWorker::setup success. startADCSamping\n");
 
     return ADCBtnsError::SUCCESS;
 }
@@ -124,11 +129,9 @@ uint32_t ADCBtnsWorker::read() {
         if(event != ButtonEvent::NONE) {
             handleButtonState(btn, currentIndex, adcValue, event);
             
-            #ifdef DEBUG_ADC
-            ADC_DEBUG_PRINT("Button %d state: %d, event: %d, index: %d\n", 
+            APP_DBG("Button %d state: %d, event: %d, index: %d\n", 
                 i, static_cast<int>(btn->state), 
                 static_cast<int>(event), currentIndex);
-            #endif
         }
     }
 

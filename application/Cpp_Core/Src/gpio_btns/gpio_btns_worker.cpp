@@ -1,9 +1,10 @@
 #include "gpio_btns/gpio_btns_worker.hpp"
 
+
 GPIOBtnsWorker::GPIOBtnsWorker() {
     // 初始化按钮状态
     for(uint8_t i = 0; i < NUM_GPIO_BUTTONS; i++) {
-        buttonStates[i].virtualPin = GPIO_BUTTONS_MAPPING[i].virtualPin;
+        buttonStates[i].virtualPin = gpio_btns_mapping[i].virtualPin;
         buttonStates[i].state = GPIO_Btn_IsPressed(i) ? ButtonState::PRESSED : ButtonState::RELEASED;
         buttonStates[i].lastStateTime = 0;
         buttonStates[i].debounceTime = GPIO_BUTTONS_DEBOUNCE;

@@ -3,14 +3,12 @@
 
 #include <stdio.h>
 #include "stm32h7xx.h"
-#include "constant.hpp"
 #include "storagemanager.hpp"
 #include "message_center.hpp"
 #include "gpio-btn.h"
 #include "micro_timer.hpp"
 #include <array>
 #include <algorithm>
-
 
 class GPIOBtnsWorker {
     public:

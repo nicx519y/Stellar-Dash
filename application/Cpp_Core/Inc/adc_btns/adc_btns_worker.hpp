@@ -3,7 +3,6 @@
 
 #include <stdio.h>
 #include "stm32h7xx.h"
-#include "constant.hpp"
 #include "storagemanager.hpp"
 #include "adc.h"
 #include "message_center.hpp"
@@ -12,6 +11,8 @@
 #include "utils.h"
 #include "adc_manager.hpp"
 #include "micro_timer.hpp"
+#include "board_cfg.h"
+
 #define NUM_MAPPING_INDEX_WINDOW_SIZE 32
 // 错误码定义
 enum class ADCBtnsWorkerError {

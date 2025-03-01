@@ -1,5 +1,6 @@
 #include "configs/webconfig.hpp"
-
+#include "qspi-w25q64.h"
+#include "board_cfg.h"
 
 extern "C" struct fsdata_file file__index_html[];
 
@@ -31,6 +32,8 @@ static uint32_t rebootTick = 0;  // 用于存储重启时间点
 static bool needReboot = false;  // 是否需要重启的标志
 
 void WebConfig::setup() {
+    // 进入内存映射模式，web resource文件需要使用内存映射模式
+    QSPI_W25Qxx_EnterMemoryMappedMode();
     rndis_init();
 }
 
@@ -43,6 +46,7 @@ void WebConfig::loop() {
         NVIC_SystemReset();
     }
 }
+
 
 enum class HttpStatusCode
 {
@@ -921,7 +925,7 @@ std::string apiUpdateProfile() {
     }
 
     // 保存配置
-    if(!Storage::getInstance().saveConfig()) {
+    if(!STORAGE_MANAGER.saveConfig()) {
         cJSON_Delete(params);
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to save configuration");
     }
@@ -1017,7 +1021,7 @@ std::string apiCreateProfile() {
     }
 
     // 保存配置
-    if(!Storage::getInstance().saveConfig()) {
+    if(!STORAGE_MANAGER.saveConfig()) {
         cJSON_Delete(params);
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to save configuration");
     }
@@ -1139,7 +1143,7 @@ std::string apiDeleteProfile() {
     }
 
     // 保存配置
-    if(!Storage::getInstance().saveConfig()) {
+    if(!STORAGE_MANAGER.saveConfig()) {
         cJSON_Delete(params);
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to save configuration");
     }
@@ -1227,7 +1231,7 @@ std::string apiSwitchDefaultProfile() {
     strcpy(config.defaultProfileId, targetProfile->id);
 
     // 保存配置
-    if(!Storage::getInstance().saveConfig()) {
+    if(!STORAGE_MANAGER.saveConfig()) {
         cJSON_Delete(params);
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to save configuration");
     }
@@ -1355,7 +1359,7 @@ std::string apiUpdateHotkeysConfig() {
     }
 
     // 保存配置
-    if(!Storage::getInstance().saveConfig()) {
+    if(!STORAGE_MANAGER.saveConfig()) {
         cJSON_Delete(params);
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to save configuration");
     }
@@ -2023,3 +2027,5 @@ void fs_close_custom(struct fs_file *file)
         file->pextension = NULL;
     }
 }
+
+

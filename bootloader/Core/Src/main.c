@@ -74,8 +74,9 @@ int main(void)
 
   HAL_Init();
 
-  QSPI_W25Qxx_Init();
   USART1_Init();
+  QSPI_W25Qxx_Init();
+  QSPI_W25Qxx_Test(0x00300000);
   BOOT_DBG("QSPI_W25Qxx_Init success\r\n");
 
   JumpToApplication();

@@ -8,7 +8,6 @@
 #include "dma.h"
 #include "bdma.h"
 #include "pwm-ws2812b.h"
-#include "constant.hpp"
 #include "utils.h"
 
 UART_HandleTypeDef UartHandle;
@@ -49,8 +48,8 @@ void board_init(void)
     NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
-    USART1_Init(); // USART for debug
-    APP_DBG("board init: USART1_Init success.");
+    // USART1_Init(); // USART for debug
+    // APP_DBG("board init: USART1_Init success.");
 
     // 验证时钟配置
     APP_DBG("board init: SYSCLK: %lu", HAL_RCC_GetSysClockFreq());

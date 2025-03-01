@@ -11,7 +11,6 @@
 #include "states/base_state.hpp"
 #include "states/webconfig_state.hpp"
 #include "tim.h"
-#include "constant.hpp"
 #include "adc_btns/adc_btns_worker.hpp"
 #include "gpio_btns/gpio_btns_worker.hpp"
 #include "utils.h"

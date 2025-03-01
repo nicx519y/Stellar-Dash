@@ -6,9 +6,9 @@
 #include "utils.h"
 #include "enums.hpp"
 #include "types.hpp"
-#include "constant.hpp"
 #include "config.hpp"
 #include "leds/gradient_color.hpp"
+#include "board_cfg.h"
 
 class LEDsManager {
     public:

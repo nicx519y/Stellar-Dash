@@ -3,9 +3,9 @@
 
 #include <string.h>
 #include "enums.hpp"
-#include "constant.hpp"
 #include "stm32h750xx.h"
 #include "stm32h7xx_hal.h"
+#include "board_cfg.h"
 
 #ifdef __cplusplus
 extern "C" {
