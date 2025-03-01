@@ -48,8 +48,8 @@ void board_init(void)
     NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
-    // USART1_Init(); // USART for debug
-    // APP_DBG("board init: USART1_Init success.");
+    USART1_Init(); // USART for debug
+    APP_DBG("board init: USART1_Init success.");
 
     // 验证时钟配置
     APP_DBG("board init: SYSCLK: %lu", HAL_RCC_GetSysClockFreq());
@@ -57,12 +57,11 @@ void board_init(void)
     APP_DBG("board init: PCLK1: %lu", HAL_RCC_GetPCLK1Freq());
     APP_DBG("board init: PCLK2: %lu", HAL_RCC_GetPCLK2Freq());
 
+    QSPI_W25Qxx_Init(); // 初始化QSPI Flash不执行 因为bootloader已经初始化
+    APP_DBG("board init: QSPI_W25Qxx_Init success.");
+
     MX_TIM2_Init(); // 8000频率定时器 并开启中断模式
     APP_DBG("board init: MX_TIM2_Init success.");
-
-    // QSPI_W25Qxx_Init(); // 初始化QSPI Flash不执行 因为bootloader已经初始化
-
-    // printf("================== QSPI_W25Qxx_Init success. =======================\n");
 
     USB_init();
 
