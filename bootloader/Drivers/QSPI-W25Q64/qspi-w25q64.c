@@ -850,14 +850,51 @@ int8_t QSPI_W25Qxx_Test(uint32_t test_addr)
 int8_t QSPI_W25Qxx_ExitMemoryMappedMode(void)
 {
 	if(!xip_enabled) {
+		QSPI_W25Qxx_DBG("Already in XIP mode");
 		return QSPI_W25Qxx_OK;
 	}
 
+	QSPI_W25Qxx_DBG("Exiting XIP mode start...");
+
+	/* 中止当前QSPI操作 */
 	if(HAL_QSPI_Abort(&hqspi) != HAL_OK) {
 		QSPI_W25Qxx_ERR("Exit XIP mode failed!");
 		return W25Qxx_ERROR_MemoryMapped;
 	}
-
+	
+	/* 重置QSPI控制器配置 */
+	QSPI_CommandTypeDef s_command;
+	memset(&s_command, 0, sizeof(s_command));
+	
+	/* 发送复位使能命令 */
+	s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
+	s_command.Instruction       = W25Qxx_CMD_EnableReset;
+	s_command.AddressMode       = QSPI_ADDRESS_NONE;
+	s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
+	s_command.DataMode          = QSPI_DATA_NONE;
+	s_command.DummyCycles       = 0;
+	s_command.DdrMode           = QSPI_DDR_MODE_DISABLE;
+	s_command.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
+	s_command.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
+	
+	if (HAL_QSPI_Command(&hqspi, &s_command, HAL_QSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+		QSPI_W25Qxx_ERR("Reset enable failed");
+		return W25Qxx_ERROR_TRANSMIT;
+	}
+	
+	/* 发送复位命令 */
+	s_command.Instruction = W25Qxx_CMD_ResetDevice;
+	if (HAL_QSPI_Command(&hqspi, &s_command, HAL_QSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+		QSPI_W25Qxx_ERR("Reset device failed");
+		return W25Qxx_ERROR_TRANSMIT;
+	}
+	
+	/* 等待复位完成 */
+	HAL_Delay(5);
+	
+	/* 重新初始化QSPI控制器 */
+	// 可以调用您的QSPI初始化函数，或者在这里添加必要的初始化代码
+	
 	xip_enabled = false;
 	QSPI_W25Qxx_DBG("Exit XIP mode success.");
 	return QSPI_W25Qxx_OK;
@@ -874,8 +911,11 @@ int8_t QSPI_W25Qxx_ExitMemoryMappedMode(void)
 int8_t QSPI_W25Qxx_EnterMemoryMappedMode(void)
 {
 	if(xip_enabled) {
+		QSPI_W25Qxx_DBG("Already in XIP mode");
 		return QSPI_W25Qxx_OK;
 	}
+
+	xip_enabled = true;
 
 	QSPI_CommandTypeDef      s_command;
 	QSPI_MemoryMappedTypeDef s_mem_mapped_cfg;

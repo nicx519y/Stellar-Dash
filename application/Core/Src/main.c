@@ -57,7 +57,6 @@ int main(void)
     dataSectionTest(); // 测试各个段，测试堆内存
     floatTest(); // 测试FPU 是否能打印浮点数
 #endif
-
     cpp_main();
 
     while (1);
