@@ -32,8 +32,6 @@ static uint32_t rebootTick = 0;  // 用于存储重启时间点
 static bool needReboot = false;  // 是否需要重启的标志
 
 void WebConfig::setup() {
-    // 进入内存映射模式，web resource文件需要使用内存映射模式
-    QSPI_W25Qxx_EnterMemoryMappedMode();
     rndis_init();
 }
 
@@ -1967,14 +1965,14 @@ static const std::pair<const char*, HandlerFuncStatusCodePtr> handlerFuncsWithSt
 
 int fs_open_custom(struct fs_file *file, const char *name)
 {
-    // printf("fs_open_custom: %s\n", name);
+    // APP_DBG("fs_open_custom: %s", name);
 
     // 处理API请求
     for (const auto& handlerFunc : handlerFuncs)
     {
         if (strcmp(handlerFunc.first, name) == 0)
         {
-            // printf("handlerFunc.first: %s  name: %s result: %d\n", handlerFunc.first, name, strcmp(handlerFunc.first, name));
+            // APP_DBG("handlerFunc.first: %s  name: %s result: %d", handlerFunc.first, name, strcmp(handlerFunc.first, name));
             return set_file_data(file, handlerFunc.second());
         }
     }

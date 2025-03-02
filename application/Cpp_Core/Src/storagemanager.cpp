@@ -5,7 +5,7 @@
 #include "board_cfg.h"
 
 void Storage::initConfig() {
-	printf("================== Storage::init begin ==========================\n");
+	APP_DBG("Storage::init begin.");
 	ConfigUtils::load(config);
 	// ConfigUtils::reset(config);
 }
@@ -35,7 +35,7 @@ GamepadProfile* Storage::getGamepadProfile(char* id) {
 
 bool Storage::resetConfig()
 {
-	printf("================== Storage::resettings begin ==========================\n");
+	APP_DBG("Storage::resettings begin.");
 	return ConfigUtils::reset(config);
 	// NVIC_SystemReset();				//reboot
 }

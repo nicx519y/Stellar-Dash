@@ -55,8 +55,8 @@ ENTRY(Reset_Handler)
 /* Highest address of the user mode stack */
 _estack = ORIGIN(DTCMRAM) + LENGTH(DTCMRAM);    /* end of DTCMRAM */
 /* Generate a link error if heap and stack don't fit into RAM */
-_Min_Heap_Size = 0x8000;      /* 32KB 堆 */
-_Min_Stack_Size = 0x2000;     /* 8KB 栈 */
+_Min_Heap_Size = 0x400;      /* 32KB 堆 */
+_Min_Stack_Size = 0x200;     /* 8KB 栈 */
 
 /* Specify the memory areas */
 MEMORY
@@ -66,7 +66,7 @@ RAM (xrw)      : ORIGIN = 0x24000000, LENGTH = 512K
 RAM_D2 (xrw)      : ORIGIN = 0x30000000, LENGTH = 288K
 RAM_D3 (xrw)      : ORIGIN = 0x38000000, LENGTH = 64K
 ITCMRAM (xrw)      : ORIGIN = 0x00000000, LENGTH = 64K
-FLASH (rx)      : ORIGIN = 0x90000000, LENGTH = 1024K
+FLASH (rx)      : ORIGIN = 0x90000000, LENGTH = 2048K
 WEB_RESOURCES_FLASH (rx)      : ORIGIN = 0x90200000, LENGTH = 1024K
 ADC_VALUES_MAPPING_FLASH (rx)      : ORIGIN = 0x90300000, LENGTH = 1024K
 CONFIG_FLASH (rx)      : ORIGIN = 0x90400000, LENGTH = 1024K
@@ -82,8 +82,9 @@ SECTIONS
     . = ALIGN(4);
     KEEP(*(.isr_vector))
     . = ALIGN(4);
+    
     _evector = .;           /* 添加向量表结束标记 */
-  } >RAM AT>FLASH
+  } >ITCMRAM AT>FLASH
 
   /* Reset_Handler 必须在 Flash */
   .text.boot :

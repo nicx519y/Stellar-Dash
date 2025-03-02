@@ -60,6 +60,8 @@ void board_init(void)
     QSPI_W25Qxx_Init(); // 初始化QSPI Flash不执行 因为bootloader已经初始化
     APP_DBG("board init: QSPI_W25Qxx_Init success.");
 
+    // QSPI_W25Qxx_Test(0x00500000);
+
     MX_TIM2_Init(); // 8000频率定时器 并开启中断模式
     APP_DBG("board init: MX_TIM2_Init success.");
 

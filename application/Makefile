@@ -31,6 +31,9 @@ OPT = -Og
 # Build path
 BUILD_DIR = build
 
+# Web Resources Path
+WEB_RESOURCES_DIR = Libs/httpd/ex_fsdata.bin
+
 ######################################
 # source
 ######################################
@@ -299,6 +302,23 @@ flash: $(BUILD_DIR)/$(TARGET).hex
 	-c "flash verify_image $(BUILD_DIR)/$(TARGET).hex 0x00000000" \
 	-c "reset run" \
 	-c shutdown 
+
+#######################################
+# flash web resources
+#######################################
+
+flash-web-resources: $(WEB_RESOURCES_DIR)
+	openocd \
+	-d0 \
+	-f Openocd_Script/ST-LINK-QSPIFLASH.cfg \
+	-c init \
+	-c halt \
+	-c "reset halt" \
+	-c "flash write_image erase $(WEB_RESOURCES_DIR) 0x90200000" \
+	-c "flash verify_image $(WEB_RESOURCES_DIR) 0x90200000" \
+	-c "reset run" \
+	-c shutdown 
+
 
 # 添加调试目标，用于打印变量
 debug:

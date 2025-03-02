@@ -31,7 +31,7 @@ void MainStateMachine::setup()
                 state.loop();
             }
 
-            break;
+            break; 
         case BootMode::BOOT_MODE_INPUT:
 
             /*** 初始化ADC按钮 & LED test begin ***/

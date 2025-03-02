@@ -156,6 +156,25 @@ bss_loop:
     ldr r0, =0xE000EDA0     /* MPU_RASR */
     str r1, [r0]
 
+    /* 配置 ITCMRAM 区域 */
+    ldr r0, =0xE000ED98     /* MPU_RNR */
+    mov r1, #1              /* Region 1 */
+    str r1, [r0]
+
+    ldr r0, =0xE000ED9C     /* MPU_RBAR */
+    ldr r1, =0x00000000     /* ITCMRAM 基地址 */
+    str r1, [r0]
+
+    /* 配置 RASR 使 ITCMRAM 可执行 */
+    ldr r1, =0x00000000     /* 清零 */
+    orr r1, #(0b011 << 24)  /* AP = 011 (Full Access) */
+    orr r1, #(1 << 17)      /* C = 1 (Cacheable) */
+    orr r1, #(1 << 16)      /* B = 1 (Bufferable) */
+    orr r1, #(7 << 1)       /* SIZE = 7 (64KB) */
+    orr r1, #1              /* ENABLE = 1 */
+    ldr r0, =0xE000EDA0     /* MPU_RASR */
+    str r1, [r0]
+
     /* 启用 MPU */
     ldr r0, =0xE000ED94     /* MPU_CTRL */
     mov r1, #5              /* Enable MPU + Default Memory Map for privileged access */

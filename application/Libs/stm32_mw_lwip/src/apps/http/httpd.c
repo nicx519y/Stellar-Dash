@@ -112,6 +112,8 @@
 #include <stdlib.h> /* atoi */
 #include <stdio.h>
 
+#include "board_cfg.h"
+
 #if LWIP_TCP && LWIP_CALLBACK_API
 
 /** Minimum length for a valid HTTP/0.9 request: "GET /\r\n" -> 7 bytes */
@@ -2199,7 +2201,7 @@ http_continue(void *connection)
 static err_t
 http_parse_request(struct pbuf *inp, struct http_state *hs, struct altcp_pcb *pcb)
 {
-  // printf("================http_parse_request: inp=%p hs=%p pcb=%p ====================  \n", (void *)inp, (void *)hs, (void *)pcb);
+  APP_DBG("http_parse_request: start, inp=%p, hs=%p, pcb=%p", (void *)inp, (void *)hs, (void *)pcb);
   char *data;
   char *crlf;
   u16_t data_len;
@@ -2369,6 +2371,7 @@ http_parse_request(struct pbuf *inp, struct http_state *hs, struct altcp_pcb *pc
           else
 #endif /* LWIP_HTTPD_SUPPORT_POST */
           {
+            APP_DBG("http_parse_request: return url %s", uri);
             return http_find_file(hs, uri, is_09);
           }
         }
@@ -2514,11 +2517,13 @@ http_find_file(struct http_state *hs, const char *uri, int is_09)
       }
       LWIP_DEBUGF(HTTPD_DEBUG | LWIP_DBG_TRACE, ("Looking for %s...\n", file_name));
       err = fs_open(&hs->file_handle, file_name);
+      APP_DBG("http_find_file: fs_open: %s, err: %d", file_name, err);
       if (err == ERR_OK)
       {
         uri = file_name;
 
         file = &hs->file_handle;
+        // APP_DBG("http_find_file: file: %s", file->data);
         LWIP_DEBUGF(HTTPD_DEBUG | LWIP_DBG_TRACE, ("Opened.\n"));
 #if LWIP_HTTPD_SSI
         tag_check = httpd_default_filenames[loop].shtml;
@@ -2594,6 +2599,7 @@ http_find_file(struct http_state *hs, const char *uri, int is_09)
     file = http_get_404_file(hs, &uri);
   }
   // printf("http_find_file 3: file=%p\n", file);
+  APP_DBG("http_find_file 3: file=%p", file);
   err_t error = http_init_file(hs, file, is_09, uri, tag_check, params);
   // printf("http_find_file 4: error=%d\n", error);
   return error;
@@ -2615,6 +2621,7 @@ static err_t
 http_init_file(struct http_state *hs, struct fs_file *file, int is_09, const char *uri,
                u8_t tag_check, char *params)
 {
+  APP_DBG("http_init_file: start file=%p", file);
 #if !LWIP_HTTPD_SUPPORT_V09
   LWIP_UNUSED_ARG(is_09);
 #endif
@@ -2741,6 +2748,7 @@ http_init_file(struct http_state *hs, struct fs_file *file, int is_09, const cha
     }
   }
 #endif /* LWIP_HTTPD_SUPPORT_11_KEEPALIVE */
+  APP_DBG("http_init_file: end file=%p", file);
   return ERR_OK;
 }
 
@@ -2852,7 +2860,7 @@ http_poll(void *arg, struct altcp_pcb *pcb)
 static err_t
 http_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t err)
 {
-  // printf("================http_recv: pcb=%p pbuf=%p err=%s ====================\n", (void *)pcb, (void *)p, lwip_strerr(err));
+  APP_DBG("http_recv: start, pcb=%p, pbuf=%p, err=%s", (void *)pcb, (void *)p, lwip_strerr(err));
   struct http_state *hs = (struct http_state *)arg;
   LWIP_DEBUGF(HTTPD_DEBUG | LWIP_DBG_TRACE, ("http_recv: pcb=%p pbuf=%p err=%s\n", (void *)pcb,
                                              (void *)p, lwip_strerr(err)));
@@ -2908,6 +2916,7 @@ http_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t err)
     if (hs->handle == NULL)
     {
       err_t parsed = http_parse_request(p, hs, pcb);
+      APP_DBG("http_recv: parsed=%d", parsed);
       LWIP_ASSERT("http_parse_request: unexpected return value", parsed == ERR_OK || parsed == ERR_INPROGRESS || parsed == ERR_ARG || parsed == ERR_USE);
 #if LWIP_HTTPD_SUPPORT_REQUESTLIST
       if (parsed != ERR_INPROGRESS)
@@ -2916,6 +2925,7 @@ http_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t err)
         if (hs->req != NULL)
         {
           pbuf_free(hs->req);
+          APP_DBG("http_recv: hs->req freed");
           hs->req = NULL;
         }
       }

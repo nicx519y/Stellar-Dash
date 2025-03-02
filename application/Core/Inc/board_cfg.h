@@ -27,7 +27,7 @@
 #ifndef __BOARD_H__
 #define __BOARD_H__
 
-#include "stm32h7xx_hal_rcc.h"
+#include "stm32h750xx.h"
 
 #ifdef __cplusplus
  extern "C" {
@@ -62,17 +62,13 @@
 #endif
 
 
-extern uint32_t WEB_RESOURCES_FLASH_START;
-extern uint32_t ADC_VALUES_MAPPING_FLASH_START;
-extern uint32_t CONFIG_FLASH_START;
-
 #define FIRMWARE_VERSION                    (uint32_t)0x010000  //固件版本
 #define CONFIG_VERSION                      (uint32_t)0x000100  //配置版本 三位版本号 0x aa bb cc
 #define ADC_MAPPING_VERSION                 (uint32_t)0x000001  //ADC值映射表版本
 
-#define WEB_RESOURCES_ADDR                  WEB_RESOURCES_FLASH_START       // 网页资源地址 memory map 地址 qspi flash 0x90100000 定义在 STM32H750XBHx_FLASH.ld 中
-#define ADC_VALUES_MAPPING_ADDR             ADC_VALUES_MAPPING_FLASH_START  // ADC值映射表地址  qspi flash 0x00200000 定义在 STM32H750XBHx_FLASH.ld 中
-#define CONFIG_ADDR                         CONFIG_FLASH_START              // 配置数据地址  qspi flash 0x00300000 定义在 STM32H750XBHx_FLASH.ld 中
+#define WEB_RESOURCES_ADDR                  0x90200000       // 网页资源地址 memory map 地址 qspi flash 0x90100000 定义在 STM32H750XBHx_FLASH.ld 中
+#define ADC_VALUES_MAPPING_ADDR             0x90300000  // ADC值映射表地址  qspi flash 0x00200000 定义在 STM32H750XBHx_FLASH.ld 中
+#define CONFIG_ADDR                         0x90400000  // 配置数据地址  qspi flash 0x00300000 定义在 STM32H750XBHx_FLASH.ld 中
 
 #define NUM_ADC_VALUES_MAPPING              8               // 最大8个映射 ADC按钮映射表用于值查找
 #define MAX_ADC_VALUES_LENGTH               40              // 每个映射最大40个值 ADC按钮映射表用于值查找

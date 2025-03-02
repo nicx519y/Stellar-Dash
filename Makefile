@@ -12,6 +12,10 @@ flash-application: FORCE
 	@echo "Flashing application..."
 	$(MAKE) -C application flash
 
+flash-web-resources: FORCE
+	@echo "Flashing web resources..."
+	$(MAKE) -C application flash-web-resources
+
 flash-bootloader: FORCE
 	@echo "Flashing bootloader..."
 	$(MAKE) -C bootloader flash

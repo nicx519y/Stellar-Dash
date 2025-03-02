@@ -5,6 +5,7 @@
         "board_cfg.h": "c",
         "main.h": "c",
         "algorithm": "cpp",
-        "utils.h": "c"
+        "utils.h": "c",
+        "qspi-w25q64.h": "c"
     }
 }

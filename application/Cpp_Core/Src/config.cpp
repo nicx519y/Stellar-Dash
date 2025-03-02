@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include "board_cfg.h"
 
-#define CONFIG_ADDR_QSPI (CONFIG_ADDR & 0x0FFFFFFF)
+#define CONFIG_ADDR_ORIGIN (CONFIG_ADDR & 0x00FFFFFF)
 
 void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bool isEnabled)
 {
@@ -114,7 +114,7 @@ bool ConfigUtils::save(Config& config)
 
 
     // 写入配置数据
-    int8_t result = QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)&config, CONFIG_ADDR_QSPI, sizeof(Config));
+    int8_t result = QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)&config, CONFIG_ADDR_ORIGIN, sizeof(Config));
     if(result == QSPI_W25Qxx_OK) {
         APP_DBG("ConfigUtils::save - success.");
         return true;
@@ -133,7 +133,7 @@ bool ConfigUtils::save(Config& config)
  */
 bool ConfigUtils::reset(Config& config)
 {
-    int8_t result = QSPI_W25Qxx_BufferErase(CONFIG_ADDR_QSPI, 64*1024);
+    int8_t result = QSPI_W25Qxx_BufferErase(CONFIG_ADDR_ORIGIN, 64*1024);
     if(result != QSPI_W25Qxx_OK) {
         APP_ERR("ConfigUtils::reset - block erase failure.");
         return false;
@@ -151,9 +151,9 @@ bool ConfigUtils::reset(Config& config)
 bool ConfigUtils::fromStorage(Config& config)
 {
     int8_t result;
-    APP_DBG("ConfigUtils::fromStorage begin.");
+    APP_DBG("ConfigUtils::fromStorage begin. CONFIG_ADDR_ORIGIN: %p", (void*)CONFIG_ADDR_ORIGIN);
     
-    result = QSPI_W25Qxx_ReadBuffer((uint8_t*)&config, CONFIG_ADDR_QSPI, sizeof(Config));
+    result = QSPI_W25Qxx_ReadBuffer_WithXIPOrNot((uint8_t*)&config, CONFIG_ADDR_ORIGIN, sizeof(Config));
     if(result == QSPI_W25Qxx_OK) {
         APP_DBG("ConfigUtils::fromStorage - success.");
         return true;

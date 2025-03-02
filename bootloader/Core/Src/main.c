@@ -71,9 +71,7 @@ int main(void)
 {
 
   MPU_Config();
-
   HAL_Init();
-
   USART1_Init();
   QSPI_W25Qxx_Init();
   BOOT_DBG("QSPI_W25Qxx_Init success\r\n");

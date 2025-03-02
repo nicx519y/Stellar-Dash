@@ -1,7 +1,6 @@
 #include "cpp_main.hpp"
 #include <stdio.h>
 #include "bsp/board_api.h"
-#include "board_cfg.h"
 #include "main_state_machine.hpp"
 // #include "fsdata.h"
 #include "qspi-w25q64.h"
