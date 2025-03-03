@@ -119,9 +119,6 @@ static void update_file_pointers(void) {
 const struct fsdata_file * getFSRoot(void)
 {
     if(fsdata_inited == false) {
-
-        QSPI_W25Qxx_EnterMemoryMappedMode();
-
         uint32_t len;
         uint32_t addr;
         uint32_t size;
