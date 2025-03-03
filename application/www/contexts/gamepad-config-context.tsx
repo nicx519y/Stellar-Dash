@@ -430,6 +430,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (!data) {
                 return Promise.reject(new Error("Failed to create mapping"));
             }
+            setMappingList(data.mappingList);
+            setDefaultMappingId(data.defaultMappingId);
             setError(null);
             return Promise.resolve();
         } catch (err) {
@@ -454,6 +456,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (!data) {
                 return Promise.reject(new Error("Failed to delete mapping"));
             }
+            setMappingList(data.mappingList);
+            setDefaultMappingId(data.defaultMappingId);
             setError(null);
             return Promise.resolve();
         } catch (err) {

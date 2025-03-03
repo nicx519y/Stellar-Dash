@@ -61,11 +61,11 @@ _Min_Stack_Size = 0x200;     /* 8KB 栈 */
 /* Specify the memory areas */
 MEMORY
 {
+ITCMRAM (xrw)                 : ORIGIN = 0x00000000, LENGTH = 64K
 DTCMRAM (xrw)                 : ORIGIN = 0x20000000, LENGTH = 128K
 RAM (xrw)                     : ORIGIN = 0x24000000, LENGTH = 512K
 RAM_D2 (xrw)                  : ORIGIN = 0x30000000, LENGTH = 288K
 RAM_D3 (xrw)                  : ORIGIN = 0x38000000, LENGTH = 64K
-ITCMRAM (xrw)                 : ORIGIN = 0x00000000, LENGTH = 64K
 FLASH (rx)                    : ORIGIN = 0x90000000, LENGTH = 2048K
 WEB_RESOURCES_FLASH (rx)      : ORIGIN = 0x90200000, LENGTH = 1024K
 ADC_VALUES_MAPPING_FLASH (rx) : ORIGIN = 0x90300000, LENGTH = 1024K

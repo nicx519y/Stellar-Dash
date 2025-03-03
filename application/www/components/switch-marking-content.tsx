@@ -282,7 +282,6 @@ export function SwitchMarkingContent() {
         if (result) {
             await createMapping(result.name, parseInt(result.length), parseFloat(result.step));
             nextActiveMappingIdRef.current = result.id;
-            await fetchMappingList();
         }
     }
 
@@ -326,7 +325,6 @@ export function SwitchMarkingContent() {
 
         if (confirmed) {
             await deleteMapping(activeMapping?.id ?? '');
-            await fetchMappingList();
         }
     }
 

@@ -187,6 +187,7 @@ ADCBtnsError ADCManager::createADCMapping(const char* name, size_t length, float
     ADCValuesMapping& newMapping = store.mapping[store.num];
     memset(&newMapping, 0, sizeof(ADCValuesMapping));
     snprintf(newMapping.id, sizeof(newMapping.id), "%s-%d", name, HAL_GetTick());
+    snprintf(newMapping.name, sizeof(newMapping.name), "%s", name);
     newMapping.length = length;
     newMapping.step = step;
     newMapping.samplingNoise = 0;
