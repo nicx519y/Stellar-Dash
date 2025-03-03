@@ -1420,6 +1420,8 @@ cJSON* buildMappingListJSON() {
     // 获取轴体映射名称列表
     std::vector<ADCValuesMapping*> mappingList = ADC_MANAGER.getMappingList();
 
+    APP_DBG("buildMappingListJSON: mappingList size: %d", mappingList.size());
+
     cJSON* listJSON = cJSON_CreateArray();
     for(ADCValuesMapping* mapping : mappingList) {
         cJSON* itemJSON = cJSON_CreateObject();
@@ -1427,6 +1429,9 @@ cJSON* buildMappingListJSON() {
         cJSON_AddStringToObject(itemJSON, "name", mapping->name);
         cJSON_AddItemToArray(listJSON, itemJSON);
     }
+
+    APP_DBG("buildMappingListJSON: listJSON size: %d", cJSON_GetArraySize(listJSON));
+
     return listJSON;
 }
 
@@ -1447,14 +1452,16 @@ cJSON* buildMappingListJSON() {
  * }
  */
 std::string apiMSGetList() {
+    APP_DBG("apiMSGetList: start");
+
     cJSON* dataJSON = cJSON_CreateObject();
     // 添加映射列表到响应数据
     cJSON_AddItemToObject(dataJSON, "mappingList", buildMappingListJSON());
+
     cJSON_AddItemToObject(dataJSON, "defaultMappingId", cJSON_CreateString(ADC_MANAGER.getDefaultMapping().c_str()));
     
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
-
     return response;
 }
 

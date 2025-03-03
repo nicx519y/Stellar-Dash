@@ -68,11 +68,8 @@ class ADCManager {
             return instance;
         }
 
-        ADCBtnsError setup();
-        ADCBtnsError deinit();
-
         // 获取映射索引
-        int8_t findMappingIndex(const char* const id) const;
+        int8_t findMappingById(const char* const id) const;
 
         // 获取映射
         const ADCValuesMapping* getMapping(const char* const id) const;
@@ -102,7 +99,7 @@ class ADCManager {
         ADCBtnsError setDefaultMapping(const char* id);
 
         // 获取默认映射
-        const std::string& getDefaultMapping() const;
+        std::string getDefaultMapping() const;
 
         // 开始采样
         ADCBtnsError startADCSamping(bool enableSamplingRate = false, 

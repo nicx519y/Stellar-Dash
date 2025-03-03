@@ -38,15 +38,16 @@ const uint8_t ADC3_BUTTONS_MAPPING[NUM_ADC3_BUTTONS] = ADC3_BUTTONS_MAPPING_DMA_
 ADCManager::ADCManager() {
     
     // 读取整个存储结构
-    QSPI_W25Qxx_ReadBuffer((uint8_t*)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore));
+    QSPI_W25Qxx_ReadBuffer_WithXIPOrNot((uint8_t*)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore));
     
     APP_DBG("ADCValuesMappingUtils version: 0x%x", store.version);
-    printf("ADC_MAPPING_VERSION == version: %d\n", ADC_MAPPING_VERSION == store.version);
+    APP_DBG("ADC_MAPPING_VERSION == version: %d", ADC_MAPPING_VERSION == store.version);
     
     // 如果版本号不匹配，初始化整个存储
     if(store.version != ADC_MAPPING_VERSION) {
+        APP_DBG("ADCValuesMappingUtils version is not match, version: 0x%x", store.version);
         // 擦除64K
-        QSPI_W25Qxx_BufferErase(ADC_VALUES_MAPPING_ADDR_QSPI, 64*1024);
+        // QSPI_W25Qxx_BufferErase(ADC_VALUES_MAPPING_ADDR_QSPI, 64*1024);
         
         // 初始化存储结构
         memset(&store, 0, sizeof(ADCValuesMappingStore));
@@ -55,8 +56,13 @@ ADCManager::ADCManager() {
         strcpy(store.defaultId, "");
         
         // 写入初始化后的存储结构
-        QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore));
+        if(QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore)) != QSPI_W25Qxx_OK) {
+            APP_ERR("ADCValuesMappingUtils init failed");
+        } else {
+            APP_DBG("ADCValuesMappingUtils init success");
+        }
     }
+    
 
     // 注册消息
     MC.registerMessage(MessageId::DMA_ADC_CONV_CPLT);           // DMA ADC 转换完成消息
@@ -85,13 +91,13 @@ ADCManager::ADCManager() {
         this->ADCBufferInfoList[k].virtualPin = ADC3_BUTTONS_MAPPING[k - NUM_ADC1_BUTTONS - NUM_ADC2_BUTTONS];
     }
 
+
     // 使用 std::sort 按 virtualPin 排序
     std::sort(this->ADCBufferInfoList.begin(), this->ADCBufferInfoList.end(), 
         [](const ADCButtonValueInfo& a, const ADCButtonValueInfo& b) {
             return a.virtualPin < b.virtualPin;
         });
 
-    
 }
 
 ADCManager::~ADCManager() {
@@ -112,7 +118,7 @@ int8_t ADCManager::saveStore() {
  * @param id 映射ID
  * @return 映射ID的索引
  */
-int8_t ADCManager::findMappingIndex(const char* const id) const {
+int8_t ADCManager::findMappingById(const char* const id) const {
     if (!id) return -1;
     
     // 遍历映射数据，检查名称
@@ -134,7 +140,7 @@ ADCBtnsError ADCManager::removeADCMapping(const char* id) {
     if (!id) return ADCBtnsError::INVALID_PARAMS;
     
     // 查找要删除的映射索引
-    int8_t targetIdx = findMappingIndex(id);
+    int8_t targetIdx = findMappingById(id);
     if(targetIdx == -1) return ADCBtnsError::MAPPING_NOT_FOUND;
 
     // 如果只有一个映射，则不能删除
@@ -206,7 +212,7 @@ ADCBtnsError ADCManager::createADCMapping(const char* name, size_t length, float
 ADCBtnsError ADCManager::renameADCMapping(const char* id, const char* name) {
     if (!id || !name) return ADCBtnsError::INVALID_PARAMS;
     
-    int idx = findMappingIndex(id);
+    int idx = findMappingById(id);
     if(idx == -1) return ADCBtnsError::MAPPING_NOT_FOUND;
     
     snprintf(store.mapping[idx].name, sizeof(store.mapping[idx].name), "%s", name);
@@ -225,7 +231,7 @@ ADCBtnsError ADCManager::updateADCMapping(const char* id, const ADCValuesMapping
     if (map.length == 0 || map.length > MAX_ADC_VALUES_LENGTH) return ADCBtnsError::INVALID_PARAMS;
     
 
-    int idx = findMappingIndex(id);
+    int idx = findMappingById(id);
     if(idx == -1) return ADCBtnsError::MAPPING_NOT_FOUND;
 
     // printf("ADCValuesMappingUtils: update - begin update mapping.\n");
@@ -251,7 +257,7 @@ ADCBtnsError ADCManager::updateADCMapping(const char* id, const ADCValuesMapping
 ADCBtnsError ADCManager::setDefaultMapping(const char* id) {
     if (!id) return ADCBtnsError::INVALID_PARAMS;
     
-    uint8_t idx = findMappingIndex(id);
+    uint8_t idx = findMappingById(id);
     if(idx == -1) return ADCBtnsError::MAPPING_NOT_FOUND;
     
     snprintf(store.defaultId, sizeof(store.defaultId), "%s", id);
@@ -280,13 +286,15 @@ ADCBtnsError ADCManager::setDefaultMapping(const char* id) {
  * @brief 获取默认映射名称
  * @return 默认映射名称
  */
-const std::string& ADCManager::getDefaultMapping() const {
+std::string ADCManager::getDefaultMapping() const {
     // 如果映射数量为0，则返回空字符串
-    if(store.num == 0) return "";
+    if(store.num == 0) return std::string("");
     // 如果默认映射名称未设置，则返回第一个映射名称
     if(store.defaultId[0] == '\0') {
+        APP_DBG("ADCManager: getDefaultMapping defaultId is empty, return first mapping id.");
         return std::string(store.mapping[0].id);
     };
+    APP_DBG("ADCManager: getDefaultMapping defaultId: %s", store.defaultId);
     return std::string(store.defaultId);
 }
 
@@ -299,7 +307,7 @@ const ADCValuesMapping* ADCManager::getMapping(const char* const id) const {
     if (!id) return nullptr;
 
     // 查找映射
-    int8_t idx = findMappingIndex(id);
+    int8_t idx = findMappingById(id);
     if(idx == -1) return nullptr;
     
     return &store.mapping[idx];
@@ -320,7 +328,7 @@ ADCBtnsError ADCManager::markMapping(const char* const id,
                                    const uint16_t samplingFrequency) {
     if (!id || !values || samplingNoise == 0 || samplingFrequency == 0) return ADCBtnsError::INVALID_PARAMS;
     
-    int idx = findMappingIndex(id);
+    int idx = findMappingById(id);
     if(idx == -1) return ADCBtnsError::MAPPING_NOT_FOUND;
 
     ADCValuesMapping& mapping = store.mapping[idx];
@@ -549,9 +557,9 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
 {
     uint32_t error = HAL_ADC_GetError(hadc);
-    APP_DBG("ADC Error: Instance=0x%p", (void*)hadc->Instance);
-    APP_DBG("State=0x%x", HAL_ADC_GetState(hadc));
-    APP_DBG("Error flags: 0x%lx", error);
+    APP_ERR("ADC Error: Instance=0x%p", (void*)hadc->Instance);
+    APP_ERR("State=0x%x", HAL_ADC_GetState(hadc));
+    APP_ERR("Error flags: 0x%lx", error);
     
     if (error & HAL_ADC_ERROR_INTERNAL) APP_DBG("- Internal error");
     if (error & HAL_ADC_ERROR_OVR) APP_DBG("- Overrun error");
