@@ -1,6 +1,7 @@
 #include "states/webconfig_state.hpp"
 #include "adc_btns/adc_btns_marker.hpp"
 #include "pwm-ws2812b.h"
+#include "qspi-w25q64.h"
 
 void WebConfigState::setup() {
     // TODO: 初始化Web配置状态
@@ -14,6 +15,9 @@ void WebConfigState::setup() {
     CONFIG_MANAGER.setup(configType);
     tud_init(TUD_OPT_RHPORT); // 初始化TinyUSB
     inputDriver = DRIVER_MANAGER.getDriver();
+
+    // 设置QSPI为内存映射模式，方便访问Websources
+    QSPI_W25Qxx_EnterMemoryMappedMode();
 
     isRunning = true;
 }

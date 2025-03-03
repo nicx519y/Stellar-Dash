@@ -378,20 +378,22 @@ export function SwitchMarkingContent() {
             value: "delete",
             label: "Delete",
             icon: <LuTrash />,
-            onClick: deleteMappingClick
+            onClick: deleteMappingClick,
+            disabled: activeMappingId === "" || activeMappingId === null,
         },
         {
             value: "rename",
             label: "Rename",
             icon: <LuPencil />,
             onClick: renameMappingClick,
+            disabled: activeMappingId === "" || activeMappingId === null,
         },
         {
             value: "set_default",
             label: "Set Default",
             icon: <LuStar />,
             onClick: setDefaultMappingClick,
-            disabled: activeMappingId === defaultMappingId,
+            disabled: activeMappingId === defaultMappingId || activeMappingId === "" || activeMappingId === null,
         }
     ];
 

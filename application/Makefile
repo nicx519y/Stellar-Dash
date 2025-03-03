@@ -307,16 +307,16 @@ flash: $(BUILD_DIR)/$(TARGET).hex
 # flash web resources
 #######################################
 
-flash-web-resources: $(WEB_RESOURCES_DIR)
+flash-web-resources:
 	openocd \
 	-d0 \
 	-f Openocd_Script/ST-LINK-QSPIFLASH.cfg \
 	-c init \
 	-c halt \
-	-c "reset halt" \
+	-c "reset init" \
 	-c "flash write_image erase $(WEB_RESOURCES_DIR) 0x90200000" \
 	-c "flash verify_image $(WEB_RESOURCES_DIR) 0x90200000" \
-	-c "reset run" \
+	-c reset \
 	-c shutdown 
 
 
