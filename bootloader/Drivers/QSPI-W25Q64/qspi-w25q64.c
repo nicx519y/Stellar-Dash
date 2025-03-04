@@ -240,9 +240,9 @@ int8_t QSPI_W25Qxx_Reset(void)
 	s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;   	// 1线指令模式
 	s_command.AddressMode 		= QSPI_ADDRESS_NONE;   			// 无地址模式
 	s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE; 	// 无交替字节 
-	s_command.DdrMode           = QSPI_DDR_MODE_DISABLE;     	// 禁止DDR模式
+	s_command.DdrMode           	= QSPI_DDR_MODE_DISABLE;     	// 禁止DDR模式
 	s_command.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY; 	// DDR模式中数据延迟，这里用不到
-	s_command.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;	 	// 每次传输数据都发送指令
+	s_command.SIOOMode          	= QSPI_SIOO_INST_EVERY_CMD;	 	// 每次传输数据都发送指令
 	s_command.DataMode 			= QSPI_DATA_NONE;       		// 无数据模式	
 	s_command.DummyCycles 		= 0;                     		// 空周期个数
 	s_command.Instruction 		= W25Qxx_CMD_EnableReset;      	// 执行复位使能命令
@@ -729,35 +729,33 @@ int8_t QSPI_W25Qxx_WriteBuffer(uint8_t* pBuffer, uint32_t WriteAddr, uint32_t Nu
  */
 int8_t QSPI_W25Qxx_ReadBuffer(uint8_t* pBuffer, uint32_t ReadAddr, uint32_t NumByteToRead)
 {
-	int8_t status;
+    QSPI_CommandTypeDef s_command;
+    
+    /* 使用标准的单线读取命令 */
+    s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;    // 1线指令
+    s_command.Instruction       = 0x03;                       // Read Data (Standard Read)
+    s_command.AddressMode      = QSPI_ADDRESS_1_LINE;        // 1线地址
+    s_command.AddressSize      = QSPI_ADDRESS_24_BITS;
+    s_command.Address         = ReadAddr;
+    s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
+    s_command.DataMode         = QSPI_DATA_1_LINE;           // 1线数据
+    s_command.DummyCycles      = 0;                          // 标准读取不需要dummy cycles
+    s_command.NbData          = NumByteToRead;
+    s_command.DdrMode         = QSPI_DDR_MODE_DISABLE;
+    s_command.DdrHoldHalfCycle = QSPI_DDR_HHC_ANALOG_DELAY;
+    s_command.SIOOMode        = QSPI_SIOO_INST_EVERY_CMD;
 
-	QSPI_CommandTypeDef s_command;
-	
-	s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
-	s_command.AddressSize       = QSPI_ADDRESS_24_BITS;
-	s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
-	s_command.DdrMode           = QSPI_DDR_MODE_DISABLE;
-	s_command.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
-	s_command.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
-	s_command.AddressMode       = QSPI_ADDRESS_4_LINES;
-	s_command.DataMode          = QSPI_DATA_4_LINES;
-	s_command.DummyCycles       = 6;
-	s_command.NbData           = NumByteToRead;
-	s_command.Address          = ReadAddr;
-	s_command.Instruction      = W25Qxx_CMD_FastReadQuad_IO;
-	
-	if (HAL_QSPI_Command(&hqspi, &s_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
-		status = W25Qxx_ERROR_TRANSMIT;
-		return status;
-	}
+    /* 发送读取命令 */
+    if (HAL_QSPI_Command(&hqspi, &s_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+        return W25Qxx_ERROR_TRANSMIT;
+    }
 
-	if (HAL_QSPI_Receive(&hqspi, pBuffer, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
-		status = W25Qxx_ERROR_TRANSMIT;
-		return status;
-	}
+    /* 接收数据 */
+    if (HAL_QSPI_Receive(&hqspi, pBuffer, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+        return W25Qxx_ERROR_TRANSMIT;
+    }
 
-	status = QSPI_W25Qxx_OK;
-	return status;
+    return QSPI_W25Qxx_OK;
 }
 
 int8_t QSPI_W25Qxx_WriteBuffer_WithXIPOrNot(uint8_t* pData, uint32_t WriteAddr, uint32_t NumByteToWrite)
@@ -849,10 +847,10 @@ int8_t QSPI_W25Qxx_Test(uint32_t test_addr)
 // 添加退出XIP模式的函数
 int8_t QSPI_W25Qxx_ExitMemoryMappedMode(void)
 {
-	if(!xip_enabled) {
-		QSPI_W25Qxx_DBG("Already in XIP mode");
-		return QSPI_W25Qxx_OK;
-	}
+	// if(!xip_enabled) {
+	// 	QSPI_W25Qxx_DBG("Already not in XIP mode");
+	// 	return QSPI_W25Qxx_OK;
+	// }
 
 	QSPI_W25Qxx_DBG("Exiting XIP mode start...");
 

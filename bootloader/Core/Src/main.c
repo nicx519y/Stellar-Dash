@@ -72,10 +72,30 @@ int main(void)
   MPU_Config();
   HAL_Init();
   USART1_Init();
-  QSPI_W25Qxx_Init();
+  if(QSPI_W25Qxx_Init() != QSPI_W25Qxx_OK) {
+    BOOT_ERR("QSPI_W25Qxx_Init failed\r\n");
+    return -1;
+  }
   BOOT_DBG("QSPI_W25Qxx_Init success\r\n");
 
-  JumpToApplication();
+  uint8_t test_data[128] = {0};
+  uint8_t test_size = 128;
+  // 准备测试数据
+	for(uint8_t i = 0; i < test_size; i++) {
+		test_data[i] = i & 0xFF;
+	}
+  QSPI_W25Qxx_WriteBuffer((uint8_t*)test_data, 0x00500000, sizeof(test_data));
+
+  uint8_t read_data[128] = {0};
+
+  QSPI_W25Qxx_ReadBuffer((uint8_t*)read_data, 0x00500000, sizeof(read_data));
+
+  for(uint8_t i = 0; i < test_size; i++) {
+    BOOT_DBG("read_data[%d] = %d", i, read_data[i]);
+  }
+
+
+  // JumpToApplication();
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */

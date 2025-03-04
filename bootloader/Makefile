@@ -61,6 +61,7 @@ Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2c.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2c_ex.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_exti.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_qspi.c \
+Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_mdma.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart_ex.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_hcd.c \

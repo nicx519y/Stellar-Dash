@@ -58,6 +58,8 @@ extern "C" {
 #define W25Qxx_CMD_PageProgram           0x02  // 标准页编程指令
 #define W25Qxx_CMD_QuadPageProgram       0x32  // 四线页编程指令
 
+// W25Q64 指令集
+#define W25Qxx_CMD_FastRead              0x0B    /* Fast Read Data */
 
 /*----------------------------------------------- 引脚配置宏 ------------------------------------------*/
 
