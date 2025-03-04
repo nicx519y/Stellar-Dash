@@ -78,24 +78,10 @@ int main(void)
   }
   BOOT_DBG("QSPI_W25Qxx_Init success\r\n");
 
-  uint8_t test_data[128] = {0};
-  uint8_t test_size = 128;
-  // 准备测试数据
-	for(uint8_t i = 0; i < test_size; i++) {
-		test_data[i] = i & 0xFF;
-	}
-  QSPI_W25Qxx_WriteBuffer((uint8_t*)test_data, 0x00500000, sizeof(test_data));
-
-  uint8_t read_data[128] = {0};
-
-  QSPI_W25Qxx_ReadBuffer((uint8_t*)read_data, 0x00500000, sizeof(read_data));
-
-  for(uint8_t i = 0; i < test_size; i++) {
-    BOOT_DBG("read_data[%d] = %d", i, read_data[i]);
-  }
+  // QSPI_W25Qxx_Test(0x00500000);
 
 
-  // JumpToApplication();
+  JumpToApplication();
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */

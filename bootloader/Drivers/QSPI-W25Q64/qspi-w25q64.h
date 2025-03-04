@@ -61,6 +61,11 @@ extern "C" {
 // W25Q64 指令集
 #define W25Qxx_CMD_FastRead              0x0B    /* Fast Read Data */
 
+// 添加状态寄存器2命令定义
+#define W25Qxx_CMD_ReadStatus_REG2    0x35    // 读状态寄存器2
+#define W25Qxx_CMD_WriteStatus_REG2   0x31    // 写状态寄存器2
+#define W25Qxx_Status_REG2_QE         0x02    // 状态寄存器2的QE位（bit 1）
+
 /*----------------------------------------------- 引脚配置宏 ------------------------------------------*/
 
 #define  QUADSPI_CLK_PIN							GPIO_PIN_10								// QUADSPI_CLK 引脚
@@ -125,6 +130,8 @@ int8_t QSPI_W25Qxx_BufferErase(uint32_t StartAddr, uint32_t Size);  // 添加缓
 int8_t QSPI_W25Qxx_EnterMemoryMappedMode(void); // 进入内存映射模式
 int8_t QSPI_W25Qxx_ExitMemoryMappedMode(void);  // 退出内存映射模式
 bool QSPI_W25Qxx_IsMemoryMappedMode(void);       // 判断是否处于内存映射模式
+
+int8_t QSPI_W25Qxx_QuadEnable(void);
 
 #ifdef __cplusplus
 }

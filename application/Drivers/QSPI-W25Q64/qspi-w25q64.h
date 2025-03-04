@@ -58,6 +58,13 @@ extern "C" {
 #define W25Qxx_CMD_PageProgram           0x02  // 标准页编程指令
 #define W25Qxx_CMD_QuadPageProgram       0x32  // 四线页编程指令
 
+// W25Q64 指令集
+#define W25Qxx_CMD_FastRead              0x0B    /* Fast Read Data */
+
+// 添加状态寄存器2命令定义
+#define W25Qxx_CMD_ReadStatus_REG2    0x35    // 读状态寄存器2
+#define W25Qxx_CMD_WriteStatus_REG2   0x31    // 写状态寄存器2
+#define W25Qxx_Status_REG2_QE         0x02    // 状态寄存器2的QE位（bit 1）
 
 /*----------------------------------------------- 引脚配置宏 ------------------------------------------*/
 
@@ -108,7 +115,7 @@ int8_t QSPI_W25Qxx_ChipErase (void);                         // 整片擦除，�
 
 int8_t QSPI_W25Qxx_WritePage(uint8_t* pBuffer, uint32_t WriteAddr, uint16_t NumByteToWrite);	// 按页写入，最大256字节
 
-int8_t QSPI_W25Qxx_WriteBuffer_WithXIPOrNot(uint8_t* pData, uint32_t WriteAddr, uint32_t NumByteToWrite);				// 写入数据，最大不能超过flash芯片的大小
+int8_t QSPI_W25Qxx_WriteBuffer(uint8_t* pBuffer, uint32_t WriteAddr, uint32_t NumByteToWrite);				// 写入数据，最大不能超过flash芯片的大小
 int8_t QSPI_W25Qxx_ReadBuffer(uint8_t* pBuffer, uint32_t ReadAddr, uint32_t NumByteToRead);	// 读取数据，最大不能超过flash芯片的大小
 
 int8_t QSPI_W25Qxx_WriteBuffer_WithXIPOrNot(uint8_t* pData, uint32_t WriteAddr, uint32_t NumByteToWrite);
@@ -123,6 +130,8 @@ int8_t QSPI_W25Qxx_BufferErase(uint32_t StartAddr, uint32_t Size);  // 添加缓
 int8_t QSPI_W25Qxx_EnterMemoryMappedMode(void); // 进入内存映射模式
 int8_t QSPI_W25Qxx_ExitMemoryMappedMode(void);  // 退出内存映射模式
 bool QSPI_W25Qxx_IsMemoryMappedMode(void);       // 判断是否处于内存映射模式
+
+int8_t QSPI_W25Qxx_QuadEnable(void);
 
 #ifdef __cplusplus
 }

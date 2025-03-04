@@ -137,18 +137,15 @@ void MX_QUADSPI_Init(void)
 
 	hqspi.Instance 					= QUADSPI;							// QSPI外设
 
-	/*本例程选择 HCLK 作为QSPI的内核时钟，速度为240M，再经过2分频得到120M驱动时钟，
-	  关于 QSPI内核时钟 的设置，请参考 main.c文件里的 SystemClock_Config 函数*/
-	// 需要注意的是，当使用内存映射模式时，这里的分频系数不能设置为0！！否则会读取错误
-	hqspi.Init.ClockPrescaler 		= 1;								// 主频为480，在QUASPI频率为240的情况下，需要设置ClockPrescaler项为6（至少为6）。
-	hqspi.Init.FifoThreshold 		= 32;								// FIFO阈值
-	hqspi.Init.SampleShifting		= QSPI_SAMPLE_SHIFTING_HALFCYCLE;	// 半个CLK周期之后进行采样
-	hqspi.Init.FlashSize 			= 22;								// flash大小，FLASH 中的字节数 = 2^[FSIZE+1]，核心板采用是8M字节的W25Q64，这里设置为22
-	hqspi.Init.ChipSelectHighTime 	= QSPI_CS_HIGH_TIME_1_CYCLE;		// 片选保持高电平的时间
-	hqspi.Init.ClockMode 			= QSPI_CLOCK_MODE_3;				// 模式3
-	hqspi.Init.FlashID 				= QSPI_FLASH_ID_1;					// 使用QSPI1
-	hqspi.Init.DualFlash 			= QSPI_DUALFLASH_DISABLE;			// 禁止双闪存模式
-
+	/* QSPI 时钟和时序配置 */
+	hqspi.Init.ClockPrescaler     = 4;    // 240MHz / (4+1) = 48MHz
+	hqspi.Init.FifoThreshold      = 4;    // 降低FIFO阈值，提高稳定性
+	hqspi.Init.SampleShifting     = QSPI_SAMPLE_SHIFTING_NONE;  // 尝试不使用半周期采样
+	hqspi.Init.FlashSize          = 22;
+	hqspi.Init.ChipSelectHighTime = QSPI_CS_HIGH_TIME_4_CYCLE;  // 增加片选保持时间
+	hqspi.Init.ClockMode          = QSPI_CLOCK_MODE_3;          // 回到时钟模式3
+	hqspi.Init.FlashID           = QSPI_FLASH_ID_1;
+	hqspi.Init.DualFlash         = QSPI_DUALFLASH_DISABLE;
 
 	HAL_QSPI_Init(&hqspi); // 初始化配置
 
@@ -163,21 +160,26 @@ void MX_QUADSPI_Init(void)
  */
 int8_t QSPI_W25Qxx_Init(void)
 {
-	uint32_t Device_ID;
-	
-	MX_QUADSPI_Init();
-	QSPI_W25Qxx_Reset();
-	Device_ID = QSPI_W25Qxx_ReadID();
-	
-	if(Device_ID == W25Qxx_FLASH_ID)
-	{	
-		return QSPI_W25Qxx_OK;
-	}
-	else
-	{
-		QSPI_W25Qxx_DBG("W25Q64 ERROR!!!!!  ID:%X", (unsigned int)Device_ID);
-		return W25Qxx_ERROR_INIT;
-	}
+    uint32_t Device_ID;
+    
+    MX_QUADSPI_Init();
+    QSPI_W25Qxx_Reset();
+    Device_ID = QSPI_W25Qxx_ReadID();
+    
+    if(Device_ID == W25Qxx_FLASH_ID)
+    {   
+        // 启用Quad模式
+        if (QSPI_W25Qxx_QuadEnable() != QSPI_W25Qxx_OK) {
+            QSPI_W25Qxx_DBG("Quad Enable failed!");
+            return W25Qxx_ERROR_INIT;
+        }
+        return QSPI_W25Qxx_OK;
+    }
+    else
+    {
+        QSPI_W25Qxx_DBG("W25Q64 ERROR!!!!!  ID:%X", (unsigned int)Device_ID);
+        return W25Qxx_ERROR_INIT;
+    }
 }
 
 /**
@@ -731,27 +733,32 @@ int8_t QSPI_W25Qxx_ReadBuffer(uint8_t* pBuffer, uint32_t ReadAddr, uint32_t NumB
 {
     QSPI_CommandTypeDef s_command;
     
-    /* 使用标准的单线读取命令 */
+    /* 使用 Fast Read Quad Output 命令配置 */
     s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;    // 1线指令
-    s_command.Instruction       = 0x03;                       // Read Data (Standard Read)
+    s_command.Instruction       = 0x6B;                       // Fast Read Quad Output
     s_command.AddressMode      = QSPI_ADDRESS_1_LINE;        // 1线地址
     s_command.AddressSize      = QSPI_ADDRESS_24_BITS;
     s_command.Address         = ReadAddr;
-    s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
-    s_command.DataMode         = QSPI_DATA_1_LINE;           // 1线数据
-    s_command.DummyCycles      = 0;                          // 标准读取不需要dummy cycles
+    s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE; // 无交替字节
+    s_command.DataMode         = QSPI_DATA_4_LINES;          // 4线数据输出
+    s_command.DummyCycles      = 8;                          // 8个dummy cycles
     s_command.NbData          = NumByteToRead;
     s_command.DdrMode         = QSPI_DDR_MODE_DISABLE;
     s_command.DdrHoldHalfCycle = QSPI_DDR_HHC_ANALOG_DELAY;
     s_command.SIOOMode        = QSPI_SIOO_INST_EVERY_CMD;
 
-    /* 发送读取命令 */
+    // 添加调试信息
+    QSPI_W25Qxx_DBG("Reading with Quad Output: Addr=0x%08X, Size=%d", ReadAddr, NumByteToRead);
+
+    // 发送读取命令
     if (HAL_QSPI_Command(&hqspi, &s_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+        QSPI_W25Qxx_ERR("Command failed");
         return W25Qxx_ERROR_TRANSMIT;
     }
 
-    /* 接收数据 */
+    // 接收数据
     if (HAL_QSPI_Receive(&hqspi, pBuffer, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+        QSPI_W25Qxx_ERR("Receive failed");
         return W25Qxx_ERROR_TRANSMIT;
     }
 
@@ -1080,6 +1087,65 @@ int8_t QSPI_W25Qxx_BufferErase(uint32_t StartAddr, uint32_t Size)
 
     result = QSPI_W25Qxx_OK;
 	return result;
+}
+
+// 添加 Quad Enable 功能
+int8_t QSPI_W25Qxx_QuadEnable(void)
+{
+    QSPI_CommandTypeDef s_command;
+    uint8_t reg;
+    
+    // 读取状态寄存器2
+    s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
+    s_command.Instruction       = W25Qxx_CMD_ReadStatus_REG2;
+    s_command.AddressMode       = QSPI_ADDRESS_NONE;
+    s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
+    s_command.DataMode         = QSPI_DATA_1_LINE;
+    s_command.DummyCycles      = 0;
+    s_command.NbData          = 1;
+    s_command.DdrMode         = QSPI_DDR_MODE_DISABLE;
+    s_command.DdrHoldHalfCycle = QSPI_DDR_HHC_ANALOG_DELAY;
+    s_command.SIOOMode        = QSPI_SIOO_INST_EVERY_CMD;
+
+    if (HAL_QSPI_Command(&hqspi, &s_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+        return W25Qxx_ERROR_TRANSMIT;
+    }
+
+    if (HAL_QSPI_Receive(&hqspi, &reg, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+        return W25Qxx_ERROR_TRANSMIT;
+    }
+
+    // 如果QE位已经设置，直接返回
+    if (reg & W25Qxx_Status_REG2_QE) {
+        return QSPI_W25Qxx_OK;
+    }
+
+    // 设置QE位
+    reg |= W25Qxx_Status_REG2_QE;
+
+    // 写使能
+    if (QSPI_W25Qxx_WriteEnable() != QSPI_W25Qxx_OK) {
+        return W25Qxx_ERROR_WriteEnable;
+    }
+
+    // 写状态寄存器2
+    s_command.Instruction = W25Qxx_CMD_WriteStatus_REG2;
+    s_command.DataMode   = QSPI_DATA_1_LINE;
+
+    if (HAL_QSPI_Command(&hqspi, &s_command, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+        return W25Qxx_ERROR_TRANSMIT;
+    }
+
+    if (HAL_QSPI_Transmit(&hqspi, &reg, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK) {
+        return W25Qxx_ERROR_TRANSMIT;
+    }
+
+    // 等待写入完成
+    if (QSPI_W25Qxx_AutoPollingMemReady() != QSPI_W25Qxx_OK) {
+        return W25Qxx_ERROR_AUTOPOLLING;
+    }
+
+    return QSPI_W25Qxx_OK;
 }
 
 
