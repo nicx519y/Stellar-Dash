@@ -132,6 +132,30 @@ class ADCManager {
             SCB_CleanInvalidateDCache_by_Addr(info.buffer, info.size);
             return info.buffer[indexInfo.second];
         }
+
+        inline void ADCValuesTestPrint() {
+            SCB_CleanInvalidateDCache_by_Addr(adcBufferInfo[0].buffer, adcBufferInfo[0].size);
+            SCB_CleanInvalidateDCache_by_Addr(adcBufferInfo[1].buffer, adcBufferInfo[1].size);
+            SCB_CleanInvalidateDCache_by_Addr(adcBufferInfo[2].buffer, adcBufferInfo[2].size);
+            printf("%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", 
+                adcBufferInfo[0].buffer[0],
+                adcBufferInfo[0].buffer[1],
+                adcBufferInfo[0].buffer[2],
+                adcBufferInfo[0].buffer[3],
+                adcBufferInfo[0].buffer[4],
+                adcBufferInfo[0].buffer[5],
+                adcBufferInfo[1].buffer[0],
+                adcBufferInfo[1].buffer[1],
+                adcBufferInfo[1].buffer[2],
+                adcBufferInfo[1].buffer[3],
+                adcBufferInfo[1].buffer[4],
+                adcBufferInfo[1].buffer[5],
+                adcBufferInfo[2].buffer[0],
+                adcBufferInfo[2].buffer[1],
+                adcBufferInfo[2].buffer[2],
+                adcBufferInfo[2].buffer[3],
+                adcBufferInfo[2].buffer[4]);
+        }
         
 
     private:

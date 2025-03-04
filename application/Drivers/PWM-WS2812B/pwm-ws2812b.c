@@ -12,12 +12,23 @@
 |-------------------------------------------
 */
 
+// #define HIGH_CCR_CODE 183 // 1/240 * 183 = 0.76us; 1/240 * (300 - 183) = 0.49us;
+// #define LOW_CCR_CODE 83 // 1/240 * 83 = 0.35us; 1/240 * (300 - 83) = 0.90us;
+// #define DMA_BUFFER_LEN (((NUM_LED % 2 == 0) ? (NUM_LED + 4) : (NUM_LED + 5)) * 24) * NUM_LEDs_PER_ADC_BUTTON //RES = 4 * 24 * 300 * 1/240 = 120us > 50us
 
-#define DMA_BUFFER_LEN (((NUM_LED % 2 == 0) ? (NUM_LED + 4) : (NUM_LED + 5)) * 24) * NUM_LEDs_PER_ADC_BUTTON //RES >= 4 * 24 * 300 * 1/240 = 120us
+/* WS2812B-Mini-V3J data protocol
+|-------------------------------------------|
+|T0H | 220ns ~ 380ns
+|T1H | 580ns ~ 1us
+|T0L | 580ns ~ 1us
+|T1L | 580ns ~ 1us
+|RES | above 280us |
+|-------------------------------------------
+*/
 
-#define HIGH_CCR_CODE 183 // 1/240 * 183 = 0.76us; 1/240 * (300 - 183) = 0.49us;
-
-#define LOW_CCR_CODE 83 // 1/240 * 83 = 0.35us; 1/240 * (300 - 83) = 0.90us;
+#define HIGH_CCR_CODE 140 // 1/240MHz * 140 = 583.3ns (T1H); 1/240MHz * (300-140) = 666.7ns (T1L)
+#define LOW_CCR_CODE   60 // 1/240MHz * 60 = 250ns (T0H); 1/240MHz * (300-60) = 1000ns (T0L)
+#define DMA_BUFFER_LEN (((NUM_LED % 2 == 0) ? (NUM_LED + 10) : (NUM_LED + 11)) * 24) * NUM_LEDs_PER_ADC_BUTTON //RES = 10 * 24 * 300 * 1/240 = 300us > 280us
 
 #define LED_DEFAULT_BRIGHTNESS 128
 
@@ -84,7 +95,7 @@ void LEDDataToDMABuffer(const uint16_t start, const uint16_t length)
 
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
-	// printf("PWM-WS2812B-PulseFinished...\r");
+	// APP_DBG("PWM-WS2812B-PulseFinished...");
 
 	uint16_t start = DMA_BUFFER_LEN / 2 / 24 / NUM_LEDs_PER_ADC_BUTTON;
 
@@ -99,7 +110,7 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 
 void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
 {
-	// printf("PWM-WS2812B-PulseFinishedHalfCplt...\r");
+	// APP_DBG("PWM-WS2812B-PulseFinishedHalfCplt...");
 
 	uint16_t length = DMA_BUFFER_LEN / 2 / 24 / NUM_LEDs_PER_ADC_BUTTON;
 
@@ -109,7 +120,7 @@ void HAL_TIM_PWM_PulseFinishedHalfCpltCallback(TIM_HandleTypeDef *htim)
 
 void HAL_TIM_ErrorCallback(TIM_HandleTypeDef *htim)
 {
-	APP_ERR("PWM-WS2812B-ErrorCallback...\r");
+	APP_ERR("PWM-WS2812B-ErrorCallback...");
 }
 
 void WS2812B_Init(void)
@@ -291,11 +302,8 @@ void WS2812B_Test()
 	uint8_t b = 176;
 
 	WS2812B_Init();
-	WS2812B_SetAllLEDBrightness(20);
+	WS2812B_SetAllLEDBrightness(50);
 	WS2812B_SetAllLEDColor(r, g, b);
-	WS2812B_SetLEDColor(255, 0, 0, 20);
-	WS2812B_SetLEDColor(235, 103, 198, 19);
-	WS2812B_SetLEDColor(14, 242, 177, 18);
 	WS2812B_Start();
 
 	APP_DBG("Hex: %x", RGBToHex(r, g, b));
