@@ -38,12 +38,14 @@
 |                  64|             8.5  |      68|    48 |  2754 |
 |                 128|             8.5  |      50|    28 |  1377 |
 |                  64|            16.5  |      56|    38 |  1872 |
+|                 128|             2.5  |      58|    42 |  2127 |
+|                 128|             8.5  |      52|    28 |  1377 |
 |--------------------|------------------|--------|-------|-------|
 */
 
-#define ADC_OVERSAMPLE_RATIO               32         //ADC过采样倍数
-#define ADC_OVERSAMPLE_RIGHT_BIT_SHIFT     ADC_RIGHTBITSHIFT_5 //ADC过采样右移位数
-#define ADC_SAMPLE_TIME                    ADC_SAMPLETIME_32CYCLES_5       //ADC采样时间
+#define ADC_OVERSAMPLE_RATIO               128         //ADC过采样倍数
+#define ADC_OVERSAMPLE_RIGHT_BIT_SHIFT     ADC_RIGHTBITSHIFT_7 //ADC过采样右移位数
+#define ADC_SAMPLE_TIME                    ADC_SAMPLETIME_2CYCLES_5       //ADC采样时间
 
 
 void ADC_Clock_Init(void)
