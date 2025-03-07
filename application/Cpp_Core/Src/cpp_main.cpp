@@ -12,14 +12,14 @@ extern "C" {
     int cpp_main(void) 
     {   
         
-        // MAIN_STATE_MACHINE.setup();
-
         WS2812B_Test();
+        MAIN_STATE_MACHINE.setup();
 
-        ADC_MANAGER.startADCSamping();
-        while(1) {
-            ADC_MANAGER.ADCValuesTestPrint();
-        }
+
+        // ADC_MANAGER.startADCSamping();
+        // while(1) {
+        //     ADC_MANAGER.ADCValuesTestPrint();
+        // }
 
         return 0;
     }

@@ -2014,13 +2014,13 @@ tcp_arg(struct tcp_pcb *pcb, void *arg)
 void
 tcp_recv(struct tcp_pcb *pcb, tcp_recv_fn recv)
 {
-  APP_DBG("tcp_recv: start, pcb=%p, recv=%p", (void *)pcb, (void *)recv);
+  // APP_DBG("tcp_recv: start, pcb=%p, recv=%p", (void *)pcb, (void *)recv);
   LWIP_ASSERT_CORE_LOCKED();
   if (pcb != NULL) {
     LWIP_ASSERT("invalid socket state for recv callback", pcb->state != LISTEN);
     pcb->recv = recv;
   }
-  APP_DBG("tcp_recv: end, pcb=%p, recv=%p", (void *)pcb, (void *)recv);
+  // APP_DBG("tcp_recv: end, pcb=%p, recv=%p", (void *)pcb, (void *)recv);
 }
 
 /**

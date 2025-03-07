@@ -24,6 +24,23 @@
 
 /* USER CODE BEGIN 0 */
 
+/*
+|--------------------|------------------|--------|-------|-------|
+|OVERSAMPLE_RATIO    |ADC_SAMPLE_TIME   |NOISE   |CROSS  |FREQ   |
+|--------------------|------------------|--------|-------|-------|
+|                  64|            32.5  |      46|    24 |  1142 |
+|                  32|            32.5  |      60|    44 |  2283 |
+|                  32|            64.5  |      48|    26 |  1282 |
+|                  16|           387.5  |      28|    15 |   473 |
+|                   4|           387.5  |      58|    40 |  1890 |
+|                   2|           387.5  |      78|    43 |  3787 |
+|                  64|            16.5  |      54|    39 |  1872 |
+|                  64|             8.5  |      68|    48 |  2754 |
+|                 128|             8.5  |      50|    28 |  1377 |
+|                  64|            16.5  |      56|    38 |  1872 |
+|--------------------|------------------|--------|-------|-------|
+*/
+
 #define ADC_OVERSAMPLE_RATIO               32         //ADC过采样倍数
 #define ADC_OVERSAMPLE_RIGHT_BIT_SHIFT     ADC_RIGHTBITSHIFT_5 //ADC过采样右移位数
 #define ADC_SAMPLE_TIME                    ADC_SAMPLETIME_32CYCLES_5       //ADC采样时间
@@ -44,7 +61,7 @@ void ADC_Clock_Init(void)
     PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_3;
     PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOMEDIUM;
     PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
-    PeriphClkInitStruct.AdcClockSelection = RCC_ADCCLKSOURCE_PLL3;
+    PeriphClkInitStruct.AdcClockSelection = RCC_ADCCLKSOURCE_PLL3;  // ADC时钟频率 HSE: 24MHz，ADC时钟频率 = HSE / PLL3.PLL3M * PLL3.PLL3N / PLL3.PLL3R = 24MHz / 2 * 15 / 5 = 36MHz
     if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
     {
         Error_Handler();
@@ -109,7 +126,7 @@ void MX_ADC1_Init(void)
      */
     sConfig.Channel = ADC_CHANNEL_2;
     sConfig.Rank = ADC_REGULAR_RANK_1;
-    sConfig.SamplingTime = ADC_SAMPLETIME_32CYCLES_5;
+    sConfig.SamplingTime = ADC_SAMPLE_TIME;
     sConfig.SingleDiff = ADC_SINGLE_ENDED;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;
@@ -211,7 +228,7 @@ void MX_ADC2_Init(void)
      */
     sConfig.Channel = ADC_CHANNEL_2;
     sConfig.Rank = ADC_REGULAR_RANK_1;
-    sConfig.SamplingTime = ADC_SAMPLETIME_32CYCLES_5;
+    sConfig.SamplingTime = ADC_SAMPLE_TIME;
     sConfig.SingleDiff = ADC_SINGLE_ENDED;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;
@@ -311,7 +328,7 @@ void MX_ADC3_Init(void)
      */
     sConfig.Channel = ADC_CHANNEL_4;
     sConfig.Rank = ADC_REGULAR_RANK_1;
-    sConfig.SamplingTime = ADC_SAMPLETIME_32CYCLES_5;
+    sConfig.SamplingTime = ADC_SAMPLE_TIME;
     sConfig.SingleDiff = ADC_SINGLE_ENDED;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;

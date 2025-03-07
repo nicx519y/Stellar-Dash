@@ -1,5 +1,6 @@
+#include <numeric>   // 为 std::accumulate
+#include <algorithm> // 为 std::sort
 #include "adc_btns/adc_manager.hpp"
-#include <algorithm>  // 为 std::sort
 #include "board_cfg.h"
 
 // 内存图
@@ -71,7 +72,7 @@ ADCManager::ADCManager() {
     this->samplingCountMax = 1000; // 采样次数 默认1000次
     this->samplingRateEnabled = false; // 采样率统计是否开启 默认关闭
     this->ADCButtonStats = {0}; // 采样统计信息
-    this->samplingADCInfo = std::make_pair(0, 0); // 采样ADC信息
+    this->samplingADCInfo = ADCIndexInfo{0, 0}; // 采样ADC信息
     this->adcBufferInfo[0] = {ADC1_Values, sizeof(ADC1_Values), ADC1_BUTTONS_MAPPING, NUM_ADC1_BUTTONS}; // ADC1缓存信息
     this->adcBufferInfo[1] = {ADC2_Values, sizeof(ADC2_Values), ADC2_BUTTONS_MAPPING, NUM_ADC2_BUTTONS}; // ADC2缓存信息    
     this->adcBufferInfo[2] = {ADC3_Values, sizeof(ADC3_Values), ADC3_BUTTONS_MAPPING, NUM_ADC3_BUTTONS}; // ADC3缓存信息
@@ -359,7 +360,7 @@ ADCBtnsError ADCManager::markMapping(const char* const id,
     if (err != ADCBtnsError::SUCCESS) {
         memcpy(mapping.originalValues, oldOriginValues, sizeof(mapping.originalValues));
         free(oldOriginValues);
-        printf("ADCValuesMappingUtils: mark - update mapping failed. err: %d\n", err);
+        APP_ERR("ADCValuesMappingUtils: mark - update mapping failed. err: %d", err);
         return err;
     }
     
@@ -432,24 +433,23 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
         if(samplingCountMax > 0) {
             this->samplingCountMax = samplingCountMax;
         }
-        samplingADCInfo = findADCButtonVirtualPin(virtualPin);
+        this->samplingADCInfo = findADCButtonVirtualPin(virtualPin);
     
-        if(samplingADCInfo.first == -1) {
+        if(this->samplingADCInfo.ADCIndex == -1) {
             APP_ERR("Invalid button index\n");
             return ADCBtnsError::INVALID_PARAMS;
         }
 
-        // 初始化ADCButtonStats
-        ADCButtonStats = {
-            .adcIndex = samplingADCInfo.first,
-            .samplingFreq = 0,
-            .averageValue = 0,
-            .count = 0,
-            .minValue = UINT32_MAX,
-            .maxValue = 0,
-            .startTime = HAL_GetTick(),
-            .endTime = 0
-        };
+        ADCButtonStats.adcIndex = this->samplingADCInfo.ADCIndex;
+        ADCButtonStats.startTime = HAL_GetTick();
+        ADCButtonStats.endTime = 0;
+        ADCButtonStats.count = 0;
+        ADCButtonStats.averageValue = 0;
+        ADCButtonStats.samplingFreq = 0;
+        ADCButtonStats.values.clear();
+        ADCButtonStats.values.resize(this->samplingCountMax);
+        ADCButtonStats.diffValues.clear();
+        ADCButtonStats.diffValues.resize(this->samplingCountMax);
 
         // 注册ADC转换完成回调
         messageHandler = [this](const void* data) {
@@ -458,6 +458,8 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
             }
         };
         MC.subscribe(MessageId::DMA_ADC_CONV_CPLT, messageHandler);
+
+        APP_DBG("All ADCs started sampling successfully\n");
     }
 
     APP_DBG("All ADCs started successfully\n");
@@ -497,56 +499,71 @@ void ADCManager::handleADCStats(ADC_HandleTypeDef *hadc) {
                         (hadc->Instance == ADC3) ? 2 : 3;
     
     // 如果采样ADC索引不匹配，则返回，此处只处理采样ADC索引对应的ADC
-    if(!samplingRateEnabled || adcIndex != samplingADCInfo.first) return;
-    
+    if(!samplingRateEnabled || adcIndex != this->samplingADCInfo.ADCIndex) return;
+
     // 处理数据...
     const auto& info = adcBufferInfo[adcIndex];
     SCB_CleanInvalidateDCache_by_Addr(info.buffer, info.size);
     
-    uint32_t value = info.buffer[samplingADCInfo.second];
+    uint32_t value = info.buffer[this->samplingADCInfo.indexInDMA];
+
 
     if(value == 0) return;
-
-    ADCButtonStats.count++;
-    ADCButtonStats.averageValue += value;
-    ADCButtonStats.minValue = std::min(ADCButtonStats.minValue, value);
-    ADCButtonStats.maxValue = std::max(ADCButtonStats.maxValue, value);
+    ADCButtonStats.values[ADCButtonStats.count] = value; // 保存当前值
+    ADCButtonStats.count++;                          // 计数器加1
 
     if(ADCButtonStats.count >= samplingCountMax) {
-        ADCButtonStats.averageValue /= ADCButtonStats.count;
+
         uint32_t t = HAL_GetTick();
-        uint32_t duration = t - ADCButtonStats.startTime;
-        ADCButtonStats.samplingFreq = (uint32_t)(ADCButtonStats.count * 1000 / duration);
+        ADCButtonStats.samplingFreq = (uint32_t)(ADCButtonStats.count * 1000 / (t - ADCButtonStats.startTime));
         ADCButtonStats.endTime = t;
+
+        ADCButtonStats.averageValue = std::accumulate(ADCButtonStats.values.begin(), ADCButtonStats.values.end(), 0) / ADCButtonStats.count;
+
+        for(uint32_t i = 0; i < ADCButtonStats.count; i++) {
+            ADCButtonStats.diffValues[i] = abs((int32_t)ADCButtonStats.averageValue - (int32_t)ADCButtonStats.values[i]);
+        }
+
+        ADCButtonStats.noiseValue = std::accumulate(ADCButtonStats.diffValues.begin(), ADCButtonStats.diffValues.end(), 0) / ADCButtonStats.count * 2;
+
+        uint32_t crossCount = 0;
+        for(uint32_t i = 0; i < ADCButtonStats.count; i++) {
+            if(ADCButtonStats.diffValues[i] > ADCButtonStats.noiseValue * 2) {
+                APP_DBG("diff: %d, index: %d", ADCButtonStats.diffValues[i], i);
+                crossCount++;
+            }
+        }
+
+        APP_DBG("avg: %d, noise: %d, freq: %d, cross: %d", ADCButtonStats.averageValue, ADCButtonStats.noiseValue, ADCButtonStats.samplingFreq, crossCount);
 
         MC.publish(MessageId::ADC_SAMPLING_STATS_COMPLETE, &ADCButtonStats);
     }
 }
 
 // 根据按钮索引查找对应的ADC索引
-std::pair<uint8_t, uint8_t> ADCManager::findADCButtonVirtualPin(uint8_t virtualPin) {
+ADCIndexInfo ADCManager::findADCButtonVirtualPin(uint8_t virtualPin) {
     // 检查 ADC1
-    for(uint8_t i = 0; i < NUM_ADC1_BUTTONS; i++) {
+    for(uint8_t i = 0; i < NUM_ADC1_BUTTONS; i++) { 
         if(ADC1_BUTTONS_MAPPING[i] == virtualPin) {
-            return {0, i};  // 返回 ADC1 的索引
+            return ADCIndexInfo{0, int8_t(i)};  // 返回 ADC1 的索引
         }
     }
 
     // 检查 ADC2
     for(uint8_t i = 0; i < NUM_ADC2_BUTTONS; i++) {
         if(ADC2_BUTTONS_MAPPING[i] == virtualPin) {
-            return {1, i};  // 返回 ADC2 的索引
+            return ADCIndexInfo{1, int8_t(i)};  // 返回 ADC2 的索引
         }
     }
     
     // 检查 ADC3
     for(uint8_t i = 0; i < NUM_ADC3_BUTTONS; i++) {
         if(ADC3_BUTTONS_MAPPING[i] == virtualPin) {
-            return {2, i};  // 返回 ADC3 的索引
+            return ADCIndexInfo{2, int8_t(i)};  // 返回 ADC3 的索引
         }
     }
     
-    return {-1, -1};  // 如果没找到，默认返回 ADC1
+    return ADCIndexInfo{-1, -1};  // 如果没找到，默认返回 ADC1
 }
 
 // ADC转换完成回调

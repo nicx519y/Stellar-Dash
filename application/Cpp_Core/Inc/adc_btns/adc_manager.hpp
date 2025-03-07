@@ -48,15 +48,21 @@ struct ADCChannelStats {
     uint32_t samplingFreq;  // 采样频率
     uint32_t averageValue;  // 采样均值
     uint32_t count;         // 采样次数
-    uint32_t minValue;      // 最小值
-    uint32_t maxValue;      // 最大值
     uint32_t startTime;     // 开始时间
     uint32_t endTime;       // 结束时间
+    uint32_t noiseValue;    // 噪声值
+    std::vector<uint32_t> values;
+    std::vector<uint32_t> diffValues;
 };
 
 struct ADCButtonValueInfo {
     uint8_t virtualPin;
     uint32_t* valuePtr;
+};
+
+struct ADCIndexInfo {
+    int8_t ADCIndex;
+    int8_t indexInDMA;
 };
 
 class ADCManager {
@@ -125,12 +131,12 @@ class ADCManager {
          */
         inline const uint32_t readADCValue(uint8_t virtualPin) {
             auto indexInfo = findADCButtonVirtualPin(virtualPin);  // 现在可以直接调用静态函数
-            if(indexInfo.first == -1) {
+            if(indexInfo.ADCIndex == -1) {
                 return 0;
             }
-            const auto& info = adcBufferInfo[indexInfo.first];
+            const auto& info = adcBufferInfo[indexInfo.ADCIndex];
             SCB_CleanInvalidateDCache_by_Addr(info.buffer, info.size);
-            return info.buffer[indexInfo.second];
+            return info.buffer[indexInfo.indexInDMA];
         }
 
         inline void ADCValuesTestPrint() {
@@ -175,11 +181,11 @@ class ADCManager {
         ADCChannelStats ADCButtonStats;
         bool samplingRateEnabled;
         uint32_t samplingCountMax;
-        std::pair<uint8_t, uint8_t> samplingADCInfo;
+        ADCIndexInfo samplingADCInfo;
 
         void handleADCStats(ADC_HandleTypeDef *hadc);
         int8_t saveStore();
-        std::pair<uint8_t, uint8_t> findADCButtonVirtualPin(uint8_t virtualPin);
+        ADCIndexInfo findADCButtonVirtualPin(uint8_t virtualPin);
 
         // 添加 const 修饰符
         ADCBtnsError loadMapping(const char* const id) const;

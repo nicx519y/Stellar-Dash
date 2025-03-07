@@ -113,7 +113,7 @@ void ADCBtnsMarker::stepFinish(const ADCChannelStats* const stats) {
     // 计算平均值，double_t精度更高，round四舍五入
     step_info.values[step_info.index] = stats->averageValue;
     tmpSamplingFrequency += stats->samplingFreq; // 记录采样频率，单位Hz
-    tmpSamplingNoise += (stats->maxValue - stats->minValue); // 记录采样噪声
+    tmpSamplingNoise += stats->noiseValue; // 记录采样噪声
     step_info.index ++;
 
 }

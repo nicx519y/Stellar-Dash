@@ -302,7 +302,7 @@ void WS2812B_Test()
 	uint8_t b = 176;
 
 	WS2812B_Init();
-	WS2812B_SetAllLEDBrightness(50);
+	WS2812B_SetAllLEDBrightness(30);
 	WS2812B_SetAllLEDColor(r, g, b);
 	WS2812B_Start();
 
