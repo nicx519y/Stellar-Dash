@@ -1,6 +1,6 @@
 #include "adc_btns/adc_btns_marker.hpp"
 #include "board_cfg.h"
-
+#include <numeric>
 
 /**
  * @brief 构造函数
@@ -10,8 +10,6 @@
 
 ADCBtnsMarker::ADCBtnsMarker() {
     memset(&step_info, 0, sizeof(step_info));
-    tmpSamplingFrequency = 0;
-    tmpSamplingNoise = 0;
 }
 
 /**
@@ -49,18 +47,21 @@ ADCBtnsError ADCBtnsMarker::setup(const char* const id) {
     // 初始化步进信息
     snprintf(step_info.id, sizeof(step_info.id), "%s", id);
     snprintf(step_info.mapping_name, sizeof(step_info.mapping_name), "%s", mapping->name);
-    step_info.index = 0;
+    step_info.index = -1;
     step_info.length = mapping->length;
     step_info.step = mapping->step;
-    memset(step_info.values, 0, sizeof(step_info.values));
+    
+    step_info.values.clear();
+    step_info.values.resize(step_info.length);
+    step_info.noise_values.clear();
+    step_info.noise_values.resize(step_info.length);
+    step_info.frequency_values.clear();
+    step_info.frequency_values.resize(step_info.length);
+    
+
     step_info.is_marking = true;
     step_info.is_completed = false;
     step_info.is_sampling = false;
-    step_info.sampling_noise = 0;
-    step_info.sampling_frequency = 0;
-
-    tmpSamplingFrequency = 0;
-    tmpSamplingNoise = 0;
 
 
     // 订阅ADC转换完成回调
@@ -90,7 +91,9 @@ ADCBtnsError ADCBtnsMarker::step() {
         return ADCBtnsError::ALREADY_SAMPLING;
     }
 
-    if(step_info.index >= step_info.length) {
+    APP_DBG("ADCBtnsMarker: step - index: %d, length: %d", step_info.index, step_info.length);
+
+    if(step_info.index >= step_info.length - 1) {
         markingFinish();
         return ADCBtnsError::SUCCESS;
     }
@@ -110,12 +113,15 @@ void ADCBtnsMarker::stepFinish(const ADCChannelStats* const stats) {
     ADC_MANAGER.stopADCSamping();
 
     step_info.is_sampling = false;
-    // 计算平均值，double_t精度更高，round四舍五入
-    step_info.values[step_info.index] = stats->averageValue;
-    tmpSamplingFrequency += stats->samplingFreq; // 记录采样频率，单位Hz
-    tmpSamplingNoise += stats->noiseValue; // 记录采样噪声
     step_info.index ++;
+    // 计算平均值，double_t精度更高，round四舍五入
+    step_info.values.at(step_info.index) = stats->averageValue;
+    step_info.noise_values.at(step_info.index) = stats->noiseValue;
+    step_info.frequency_values.at(step_info.index) = stats->samplingFreq;
 
+    APP_DBG("ADCBtnsMarker: stepFinish - index: %d, value: %d, Frequency: %d, Noise: %d", step_info.index, step_info.values.at(step_info.index), step_info.frequency_values.at(step_info.index), step_info.noise_values.at(step_info.index));
+
+    
 }
 
 /**
@@ -124,27 +130,22 @@ void ADCBtnsMarker::stepFinish(const ADCChannelStats* const stats) {
  */
 
 void ADCBtnsMarker::markingFinish() {
-    tmpSamplingFrequency /= step_info.length; // 记录平均采样频率，单位Hz
-    tmpSamplingNoise /= step_info.length; // 记录平均采样噪声，单位mV
 
-    ADCBtnsError err = ADC_MANAGER.markMapping(step_info.id, step_info.values, tmpSamplingNoise, tmpSamplingFrequency);
-
-    step_info.sampling_frequency = tmpSamplingFrequency;
-    step_info.sampling_noise = tmpSamplingNoise;
     step_info.is_completed = true;
     step_info.is_sampling = false;
     step_info.is_marking = false;
+
+    ADCBtnsError err = ADC_MANAGER.markMapping(step_info.id, 
+        step_info.values.data(), 
+        std::accumulate(step_info.noise_values.begin(), step_info.noise_values.end(), (uint32_t)0) / step_info.length, 
+        std::accumulate(step_info.frequency_values.begin(), step_info.frequency_values.end(), (uint32_t)0) / step_info.length);
+
 
     if(err != ADCBtnsError::SUCCESS) {
         APP_ERR("ADCBtnsMarker: markingFinish - mark save failed. err: %d", err);
         return;
     }
 
-}
-
-
-const uint32_t* ADCBtnsMarker::getCurrentMarkingValues() const {
-    return step_info.values;
 }
 
 /**
@@ -161,13 +162,13 @@ cJSON* ADCBtnsMarker::getStepInfoJSON() const {
     cJSON_AddBoolToObject(json, "is_marking", step_info.is_marking);
     cJSON_AddBoolToObject(json, "is_completed", step_info.is_completed);
     cJSON_AddBoolToObject(json, "is_sampling", step_info.is_sampling);
-    cJSON_AddNumberToObject(json, "sampling_noise", step_info.sampling_noise);
-    cJSON_AddNumberToObject(json, "sampling_frequency", step_info.sampling_frequency);
+    cJSON_AddNumberToObject(json, "sampling_noise", std::accumulate(step_info.noise_values.begin(), step_info.noise_values.end(), (uint32_t)0) / (step_info.index + 1));
+    cJSON_AddNumberToObject(json, "sampling_frequency", std::accumulate(step_info.frequency_values.begin(), step_info.frequency_values.end(), (uint32_t)0) / (step_info.index + 1));
 
 
     cJSON* valuesJSON = cJSON_CreateArray();
     for(uint8_t i = 0; i < step_info.length; i++) {
-        cJSON_AddItemToArray(valuesJSON, cJSON_CreateNumber(step_info.values[i]));
+        cJSON_AddItemToArray(valuesJSON, cJSON_CreateNumber(step_info.values.at(i)));
     }
     cJSON_AddItemToObject(json, "values", valuesJSON);
 

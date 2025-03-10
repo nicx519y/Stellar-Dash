@@ -45,7 +45,7 @@
 
 #define ADC_OVERSAMPLE_RATIO               128         //ADC过采样倍数
 #define ADC_OVERSAMPLE_RIGHT_BIT_SHIFT     ADC_RIGHTBITSHIFT_7 //ADC过采样右移位数
-#define ADC_SAMPLE_TIME                    ADC_SAMPLETIME_2CYCLES_5       //ADC采样时间
+#define ADC_SAMPLE_TIME                    ADC_SAMPLETIME_64CYCLES_5       //ADC采样时间
 
 
 void ADC_Clock_Init(void)

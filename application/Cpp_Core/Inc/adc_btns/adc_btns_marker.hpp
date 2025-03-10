@@ -19,10 +19,10 @@ struct StepInfo {
     char mapping_name[16];
     float_t step;
     uint8_t length;
-    uint8_t index;
-    uint32_t values[MAX_ADC_VALUES_LENGTH];
-    uint16_t sampling_noise;
-    uint16_t sampling_frequency;
+    int16_t index;
+    std::vector<uint32_t> values;
+    std::vector<uint16_t> noise_values;
+    std::vector<uint16_t> frequency_values;
     bool is_marking;
     bool is_completed;
     bool is_sampling;
@@ -40,7 +40,6 @@ class ADCBtnsMarker {
         ADCBtnsError step();
         
         void reset();
-        const uint32_t* getCurrentMarkingValues() const;
         
         const StepInfo& getStepInfo() const { return step_info; }
         cJSON* getStepInfoJSON() const;
@@ -53,8 +52,6 @@ class ADCBtnsMarker {
         void stepFinish(const ADCChannelStats* const stats);
         void markingFinish();
         std::function<void(const void*)> messageHandler;
-        uint16_t tmpSamplingNoise;
-        uint16_t tmpSamplingFrequency;
 };
 
 #define ADC_BTNS_MARKER ADCBtnsMarker::getInstance()

@@ -1864,23 +1864,18 @@ std::string apiMSMarkMappingStop() {
  * }
  */
 std::string apiMSMarkMappingStep() {
-    // printf("apiMSMarkMappingStep start.\n");
     
     // 执行标记步进
     ADCBtnsError error = ADC_BTNS_MARKER.step();
-    // printf("apiMSMarkMappingStep error: %d\n", error);
     if(error != ADCBtnsError::SUCCESS) {
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to perform marking step");
     }
-    // printf("apiMSMarkMappingStep success.\n");
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON* statusJSON = ADC_BTNS_MARKER.getStepInfoJSON();
     cJSON_AddItemToObject(dataJSON, "status", statusJSON);
-    // printf("apiMSMarkMappingStep status:\n");
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
-    // printf("apiMSMarkMappingStep response: %s\n", response.c_str());
     return response;
 }
 

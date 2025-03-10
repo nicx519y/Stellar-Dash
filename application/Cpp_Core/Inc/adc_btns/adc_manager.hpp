@@ -143,7 +143,7 @@ class ADCManager {
             SCB_CleanInvalidateDCache_by_Addr(adcBufferInfo[0].buffer, adcBufferInfo[0].size);
             SCB_CleanInvalidateDCache_by_Addr(adcBufferInfo[1].buffer, adcBufferInfo[1].size);
             SCB_CleanInvalidateDCache_by_Addr(adcBufferInfo[2].buffer, adcBufferInfo[2].size);
-            printf("%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", 
+            APP_DBG("%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", 
                 adcBufferInfo[0].buffer[0],
                 adcBufferInfo[0].buffer[1],
                 adcBufferInfo[0].buffer[2],

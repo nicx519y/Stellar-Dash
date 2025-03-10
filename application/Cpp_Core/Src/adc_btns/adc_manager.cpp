@@ -529,7 +529,6 @@ void ADCManager::handleADCStats(ADC_HandleTypeDef *hadc) {
         uint32_t crossCount = 0;
         for(uint32_t i = 0; i < ADCButtonStats.count; i++) {
             if(ADCButtonStats.diffValues[i] > ADCButtonStats.noiseValue * 2) {
-                APP_DBG("diff: %d, index: %d", ADCButtonStats.diffValues[i], i);
                 crossCount++;
             }
         }
