@@ -3,13 +3,15 @@
 // TIM2 的时钟频率是 240MHz
 #define TIM2_CLOCK_FREQ 240000000
 // TIM2 的预分频值 (PSC + 1)
-#define TIM2_PRESCALER 24
+#define TIM2_PRESCALER 239        // 240分频，使得时钟变为1MHz
 // TIM2 的计数周期 (ARR + 1)
-#define TIM2_PERIOD 100
+#define TIM2_PERIOD 125          // 改为125，这样每个溢出正好是125us
 
-// 简化计算（因为每个tick正好是0.1us）
-#define TICKS_TO_US(ticks) ((ticks) / 10)
-#define US_TO_TICKS(us) ((us) * 10)
+// 时间转换
+#define TICKS_TO_US(ticks) ((ticks) * 125 / 125)  // 保持1:1关系
+#define US_TO_TICKS(us) ((us) * 125 / 125)        // 保持1:1关系
+
+
 
 MicrosTimer::MicrosTimer() : overflowCount(0) {
     // TIM2 已在 MX_TIM2_Init() 中初始化并启动
@@ -29,9 +31,8 @@ uint32_t MicrosTimer::micros() {
     
     __enable_irq();
     
-    // 计算总微秒数
-    uint32_t total_ticks = overflow * TIM2_PERIOD + count;
-    return TICKS_TO_US(total_ticks);
+    // 现在每个溢出正好是125us
+    return (overflow * 125) + (count * 125 / TIM2_PERIOD);
 }
 
 void MicrosTimer::reset() {

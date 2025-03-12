@@ -12,7 +12,7 @@ extern "C" {
     int cpp_main(void) 
     {   
         
-        WS2812B_Test();
+        // WS2812B_Test();
         MAIN_STATE_MACHINE.setup();
 
 

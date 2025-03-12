@@ -6,6 +6,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <functional>
+#include "board_cfg.h"
 
 template<typename T>
 class RingBufferSlidingWindow {
@@ -49,16 +50,10 @@ public:
             return T();
         }
 
-        // 使用浮点数来提高精度
-        float sum = 0.0f;
-        
-        for (size_t i = 0; i < validDataCount; ++i) {
-            size_t index = (currentIndex - i + windowSize) % windowSize;
-            sum += buffer[index];
-        }
-        
-        // 四舍五入后返回
-        return static_cast<T>(sum / validDataCount + 0.5f);
+        // 使用更大的数据类型来计算总和，避免溢出
+        int64_t sum = std::accumulate(buffer.begin(), buffer.begin() + validDataCount, int64_t(0));
+
+        return static_cast<T>(sum / validDataCount);
     }
 
     T getMinValue() const {
@@ -92,6 +87,20 @@ public:
     // 获取当前缓冲区中的有效数据量
     size_t getValidDataCount() const {
         return validDataCount;
+    }
+
+    // 打印窗口中所有有效值，从最新到最旧的顺序
+    void printAllValues() const {
+        if (validDataCount == 0) {
+            APP_DBG("Ring buffer is empty");
+            return;
+        }
+
+        APP_DBG("Ring buffer values (newest to oldest):");
+        for (size_t i = 0; i < validDataCount; i++) {
+            T value = getHistoryAt(i);
+            APP_DBG("[%d]: %d", i, value);
+        }
     }
 
     // 定义一个结构体来存储违规点的信息

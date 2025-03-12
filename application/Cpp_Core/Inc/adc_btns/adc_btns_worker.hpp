@@ -45,7 +45,10 @@ class ADCBtnsWorker {
         ADCBtnsWorker();
         ~ADCBtnsWorker();
 
+        #if ENABLED_DYNAMIC_CALIBRATION == 1
+        // 动态校准
         void dynamicCalibration();
+        #endif
 
     private:
 
@@ -85,16 +88,23 @@ class ADCBtnsWorker {
 
             #if ENABLED_DYNAMIC_CALIBRATION == 1
             bool needCalibration = false;
+            RingBufferSlidingWindow<uint16_t> topValueWindow{NUM_MAPPING_INDEX_WINDOW_SIZE};  // 最小值滑动窗口
+            RingBufferSlidingWindow<uint16_t> bottomValueWindow{NUM_MAPPING_INDEX_WINDOW_SIZE};   // 最大值滑动窗口
+            uint16_t limitValue = 0;  // 限制值
             #endif
 
         } ADCBtn;
 
+        
+
         // 获取按钮事件
         ButtonEvent getButtonEvent(ADCBtn* btn, const uint8_t currentIndex, const uint16_t currentValue);
         // 处理状态转换
-        void handleButtonState(ADCBtn* btn, const uint8_t currentIndex, const uint16_t currentValue, const ButtonEvent event);
+        void handleButtonState(ADCBtn* btn, const ButtonEvent event);
 
         void updateButtonMapping(uint16_t* mapping, uint16_t firstValue, uint16_t lastValue);
+        void initButtonMapping(ADCBtn* btn, const uint16_t releaseValue);
+
         uint8_t searchIndexInMapping(const uint8_t buttonIndex, const uint16_t value);
 
         ADCBtn* buttonPtrs[NUM_ADC_BUTTONS];
@@ -102,16 +112,6 @@ class ADCBtnsWorker {
         const ADCValuesMapping* mapping;
         bool buttonTriggerStatusChanged = false;
         
-        uint32_t lastWorkTime = 0;
-
-        #if ENABLED_DYNAMIC_CALIBRATION == 1    
-        uint32_t lastCalibrationTime = 0;
-        // 使用滑动窗口平滑更新
-        RingBufferSlidingWindow<uint16_t> firstValueWindow;  // 最小值滑动窗口
-        RingBufferSlidingWindow<uint16_t> lastValueWindow;   // 最大值滑动窗口
-        RingBufferSlidingWindow<uint16_t> travelValueWindow; // 过渡值滑动窗口
-        #endif
-
 };
 
 #define ADC_BTNS_WORKER ADCBtnsWorker::getInstance()

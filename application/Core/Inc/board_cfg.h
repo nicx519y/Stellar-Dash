@@ -47,7 +47,7 @@
 #endif
 
 /* Debug print configuration */
-#define APPLICATION_DEBUG_PRINT  0   // 设置为 0 可以关闭所有调试打印
+#define APPLICATION_DEBUG_PRINT  1   // 设置为 0 可以关闭所有调试打印
 
 #if APPLICATION_DEBUG_PRINT
     #define APP_DBG(fmt, ...) printf("[APP] " fmt "\r\n", ##__VA_ARGS__)
@@ -82,10 +82,11 @@
 #define NUM_ADC2_BUTTONS                    6
 #define NUM_ADC3_BUTTONS                    5
 #define NUM_ADC_BUTTONS                     (NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS + NUM_ADC3_BUTTONS)
+#define MIN_ADC_TOP_DEADZONE                0.1             // 默认ADC顶部死区最小值
 
-#define READ_BTNS_INTERVAL                  50            // 检查按钮状态间隔 us
+#define READ_BTNS_INTERVAL                  300            // 检查按钮状态间隔 us
 #define ENABLED_DYNAMIC_CALIBRATION         1               //是否启用动态校准
-#define DYNAMIC_CALIBRATION_INTERVAL        (5 * 1000000)            // 动态校准间隔 5s
+#define DYNAMIC_CALIBRATION_INTERVAL        500000          // 动态校准间隔 500ms
 
 
 #define NUM_GPIO_BUTTONS            4               //GPIO按钮数量
@@ -98,9 +99,9 @@
 #define NUM_LED	                    (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) //LED数量
 
 #define NUM_LEDs_PER_ADC_BUTTON     1              //每个按钮多少个LED
-#define LEDS_BRIGHTNESS_RADIO       0.3             //默认led 亮度系数 会以实际亮度乘以这个系数
+#define LEDS_BRIGHTNESS_RATIO       0.2             //默认led 亮度系数 会以实际亮度乘以这个系数
 #define LEDS_ANIMATION_CYCLE        6000            //LED 动画长度
-#define LEDS_ANIMATION_INTERVAL         80          //LED 动画间隔，影响性能和效果 ms
+#define LEDS_ANIMATION_INTERVAL         300          //LED 动画间隔，影响性能和效果 us
 
 #define LED_ENABLE_SWITCH_PIN        GPIO_PIN_12    // 灯效开关引脚
 #define LED_ENABLE_SWITCH_PORT       GPIOC           // 灯效开关端口
@@ -134,3 +135,5 @@ struct gpio_pin_def {
 #endif
 
 #endif // __BOARD_H__
+
+

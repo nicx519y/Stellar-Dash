@@ -16,7 +16,7 @@ void LEDsManager::setup()
     WS2812B_Start();
 
     // 设置初始亮度
-    brightness = (uint8_t)(opts->ledBrightness * LEDS_BRIGHTNESS_RADIO * 255 / 100); // 转换百分比到0-255
+    brightness = (uint8_t)((float_t)(opts->ledBrightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0); // 转换百分比到0-255
     WS2812B_SetAllLEDBrightness(brightness);
 
     // 转换颜色

@@ -15,8 +15,8 @@ void MainStateMachine::setup()
     APP_DBG("Storage initConfig success.");
 
     // BootMode bootMode = Storage::getInstance().config.bootMode;
-    BootMode bootMode = BootMode::BOOT_MODE_WEB_CONFIG;
-    // BootMode bootMode = BootMode::BOOT_MODE_INPUT;
+    // BootMode bootMode = BootMode::BOOT_MODE_WEB_CONFIG;
+    BootMode bootMode = BootMode::BOOT_MODE_INPUT;
     APP_DBG("BootMode: %d", bootMode);
 
     workTime = MICROS_TIMER.micros();
@@ -41,31 +41,33 @@ void MainStateMachine::setup()
             GAMEPAD.setup();
 
             #if HAS_LED == 1
-                LEDS_MANAGER.setup();
+            LEDS_MANAGER.setup();
             #endif
 
             workTime = MICROS_TIMER.micros();
             calibrationTime = MICROS_TIMER.micros();
             ledAnimationTime = MICROS_TIMER.micros();
 
+            HAL_Delay(500); 
+
             while(1) {
                 if(MICROS_TIMER.checkInterval(READ_BTNS_INTERVAL, workTime)) {
                     virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
-                    GAMEPAD.read(virtualPinMask);
+                    // GAMEPAD.read(virtualPinMask);
                     // driver.process(GAMEPAD); // xinput 处理游戏手柄数据，将按键数据映射到xinput协议 形成 report 数据，然后通过 usb 发送出去
                 }
 
                 tud_task();
 
-                #if ENABLED_DYNAMIC_CALIBRATION == 1
-                if(MICROS_TIMER.checkInterval(DYNAMIC_CALIBRATION_INTERVAL, calibrationTime)) {
-                    ADC_BTNS_WORKER.dynamicCalibration();
+                #if HAS_LED == 1
+                if(MICROS_TIMER.checkInterval(LEDS_ANIMATION_INTERVAL, ledAnimationTime)) {
+                    LEDS_MANAGER.loop(virtualPinMask);
                 }
                 #endif
 
-                #if HAS_LED == 1
-                if(MICROS_TIMER.checkInterval(LEDS_ANIMATION_INTERVAL * 1000, workTime)) {
-                    LEDS_MANAGER.loop(virtualPinMask);
+                #if ENABLED_DYNAMIC_CALIBRATION == 1
+                if(MICROS_TIMER.checkInterval(DYNAMIC_CALIBRATION_INTERVAL, calibrationTime)) {
+                    ADC_BTNS_WORKER.dynamicCalibration();
                 }
                 #endif
 
