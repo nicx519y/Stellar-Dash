@@ -16,16 +16,31 @@ public:
         : windowSize(windowSize)
         , currentIndex(0)
         , validDataCount(0)
+        , cachedAverage(T())
     {
         buffer.resize(windowSize);
     }
 
     // 添加新数据
-    void push(T value) {
-        buffer[currentIndex] = value;
-        currentIndex = (currentIndex + 1) % windowSize;
-        if (validDataCount < windowSize) {
-            validDataCount++;
+    void push(T value, size_t multiplier = 1) {
+        for (size_t i = 0; i < multiplier; ++i) {
+            buffer[currentIndex] = value;
+            currentIndex = (currentIndex + 1) % windowSize;
+            if (validDataCount < windowSize) {
+                validDataCount++;
+            }
+        }
+        // 更新缓存的平均值
+        updateCachedAverage();
+    }
+
+    // 更新缓存的平均值
+    void updateCachedAverage() {
+        if (validDataCount == 0) {
+            cachedAverage = T();
+        } else {
+            int64_t sum = std::accumulate(buffer.begin(), buffer.begin() + validDataCount, int64_t(0));
+            cachedAverage = static_cast<T>(sum / validDataCount);
         }
     }
 
@@ -46,14 +61,7 @@ public:
 
     // 计算窗口内平均值
     T getAverageValue() const {
-        if (validDataCount == 0) {
-            return T();
-        }
-
-        // 使用更大的数据类型来计算总和，避免溢出
-        int64_t sum = std::accumulate(buffer.begin(), buffer.begin() + validDataCount, int64_t(0));
-
-        return static_cast<T>(sum / validDataCount);
+        return cachedAverage;
     }
 
     T getMinValue() const {
@@ -152,6 +160,7 @@ private:
     size_t windowSize;            // 窗口大小
     size_t currentIndex;          // 当前索引位置
     size_t validDataCount;        // 有效数据量
+    T cachedAverage;              // 缓存的平均值
 };
 
 #endif // RING_BUFFER_SLIDING_WINDOW_HPP

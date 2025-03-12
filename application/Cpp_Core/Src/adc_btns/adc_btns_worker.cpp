@@ -168,11 +168,6 @@ void ADCBtnsWorker::dynamicCalibration() {
             const uint16_t bottomValue = btn->bottomValueWindow.getAverageValue();
             const uint16_t topValue = btn->topValueWindow.getAverageValue();
 
-            // APP_DBG("print bottomValueWindow");
-            // btn->bottomValueWindow.printAllValues();
-            // APP_DBG("print topValueWindow");
-            // btn->topValueWindow.printAllValues();
-
             APP_DBG("Dynamic calibration start. button %d, bottomValue: %d, topValue: %d", btn->virtualPin, bottomValue, topValue);
             updateButtonMapping(btn->valueMapping, bottomValue, topValue);
             btn->needCalibration = false;
@@ -318,7 +313,12 @@ ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint
                     btn->lastStateIndex = currentIndex;
 
                     #if ENABLED_DYNAMIC_CALIBRATION == 1
-                    btn->topValueWindow.push(btn->limitValue);
+                    // 如果btn->limitValue < btn->topValueWindow.getAverageValue，则以2倍率push，否则以1倍率push。小优先
+                    if(btn->limitValue < btn->topValueWindow.getAverageValue()) {
+                        btn->topValueWindow.push(btn->limitValue, 2);
+                    } else {
+                        btn->topValueWindow.push(btn->limitValue);
+                    }
                     // btn->topValueWindow.printAllValues();
                     APP_DBG("limitValue: %d, topValueWindow.getAverageValue: %d", btn->limitValue, btn->topValueWindow.getAverageValue());
                     btn->limitValue = 0; // 重置限制值，用于下次校准，此时是按下，重置为0
@@ -346,7 +346,12 @@ ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint
                     btn->lastStateIndex = currentIndex;
 
                     #if ENABLED_DYNAMIC_CALIBRATION == 1
-                    btn->bottomValueWindow.push(btn->limitValue);   
+                    // 如果btn->limitValue > btn->bottomValueWindow.getAverageValue，则以2倍率push，否则以1倍率push。大优先
+                    if(btn->limitValue > btn->bottomValueWindow.getAverageValue()) {
+                        btn->bottomValueWindow.push(btn->limitValue, 2);
+                    } else {
+                        btn->bottomValueWindow.push(btn->limitValue);
+                    }
                     // btn->bottomValueWindow.printAllValues();
                     APP_DBG("limitValue: %d, bottomValueWindow.getAverageValue: %d", btn->limitValue, btn->bottomValueWindow.getAverageValue());
                     btn->limitValue = UINT16_MAX; // 重置限制值，用于下次校准，此时是释放，重置为最大值
