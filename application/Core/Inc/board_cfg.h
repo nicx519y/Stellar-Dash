@@ -83,6 +83,7 @@
 #define NUM_ADC3_BUTTONS                    5
 #define NUM_ADC_BUTTONS                     (NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS + NUM_ADC3_BUTTONS)
 #define MIN_ADC_TOP_DEADZONE                0.1             // 默认ADC顶部死区最小值
+#define MIN_VALUE_DIFF_RATIO                0.8             // 最小值差值比例 按键动态校准的过程中，如果bottom - top的值差 不能小于原mapping的值差*MIN_VALUE_DIFF_RATIO
 
 #define READ_BTNS_INTERVAL                  300            // 检查按钮状态间隔 us
 #define ENABLED_DYNAMIC_CALIBRATION         1               //是否启用动态校准

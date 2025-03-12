@@ -47,6 +47,9 @@ ADCBtnsError ADCBtnsWorker::setup() {
     }
 
     this->mapping = mapping;
+
+    // 计算最小值差值
+    minValueDiff = (uint16_t)((float_t)(this->mapping->originalValues[0] - this->mapping->originalValues[this->mapping->length - 1]) * MIN_VALUE_DIFF_RATIO);
     
     // 初始化按钮配置
     for(uint8_t i = 0; i < adcBtnInfos.size(); i++) {
@@ -165,8 +168,8 @@ void ADCBtnsWorker::dynamicCalibration() {
         ADCBtn* const btn = buttonPtrs[i];
         if(btn && btn->needCalibration) {
             
-            const uint16_t bottomValue = btn->bottomValueWindow.getAverageValue();
             const uint16_t topValue = btn->topValueWindow.getAverageValue();
+            const uint16_t bottomValue = std::max<uint16_t>(btn->bottomValueWindow.getAverageValue(), static_cast<uint16_t>(topValue + minValueDiff));
 
             APP_DBG("Dynamic calibration start. button %d, bottomValue: %d, topValue: %d", btn->virtualPin, bottomValue, topValue);
             updateButtonMapping(btn->valueMapping, bottomValue, topValue);

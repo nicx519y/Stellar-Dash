@@ -109,9 +109,9 @@ class ADCBtnsWorker {
 
         ADCBtn* buttonPtrs[NUM_ADC_BUTTONS];
         uint32_t virtualPinMask = 0x0;  // 虚拟引脚掩码
+        uint16_t minValueDiff;
         const ADCValuesMapping* mapping;
         bool buttonTriggerStatusChanged = false;
-        
 };
 
 #define ADC_BTNS_WORKER ADCBtnsWorker::getInstance()
