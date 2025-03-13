@@ -2,6 +2,7 @@
 #include <algorithm> // 为 std::sort
 #include "adc_btns/adc_manager.hpp"
 #include "board_cfg.h"
+#include "micro_timer.hpp"
 
 // 内存图
 /*
@@ -411,12 +412,16 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
         return ADCBtnsError::DMA1_START_FAILED;
     }
 
+    MICROS_TIMER.delayMicros(READ_BTNS_INTERVAL); // 等待一个轮询周期，均摊延时
+
     // 启动 ADC2
     if (HAL_ADC_Start_DMA(&hadc2, (uint32_t*)&ADC2_Values[0], NUM_ADC2_BUTTONS) != HAL_OK) {
         APP_ERR("ADC2 DMA start failed\n");
         HAL_ADC_Stop_DMA(&hadc1);  // 清理已启动的 ADC1
         return ADCBtnsError::DMA2_START_FAILED;
     }
+
+    MICROS_TIMER.delayMicros(READ_BTNS_INTERVAL); // 等待一个轮询周期，均摊延时
 
     // 启动 ADC3
     if (HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&ADC3_Values[0], NUM_ADC3_BUTTONS) != HAL_OK) {

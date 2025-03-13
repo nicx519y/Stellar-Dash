@@ -26,22 +26,12 @@ class GPIOBtnsWorker {
         GPIOBtnsWorker();
 
     private:
-
         // 按钮状态枚举
         enum class ButtonState {
             RELEASED,       // 完全释放状态
             RELEASING,      // 正在释放过程中
             PRESSED,        // 完全按下状态
             PRESSING,       // 正在按下过程中
-        };
-
-        // 按钮事件枚举
-        enum class ButtonEvent {
-            NONE,
-            PRESS_START,    // 开始按下
-            PRESS_COMPLETE, // 按下完成
-            RELEASE_START,  // 开始释放
-            RELEASE_COMPLETE// 释放完成
         };
 
         typedef struct {
@@ -52,10 +42,15 @@ class GPIOBtnsWorker {
             bool lastRawState;           // 上一次的原始状态
         } GPIOBtn;
 
+        // 按钮初始化回调函数
+        static GPIOBtnsWorker* instance_;
+        static void initCallback(uint8_t virtualPin, bool isPressed, uint8_t idx);
+        static void readCallback(uint8_t virtualPin, bool isPressed, uint8_t idx);
+        
         std::array<GPIOBtn, NUM_GPIO_BUTTONS> buttonStates;
         uint32_t virtualPinMask = 0x0;  // 虚拟引脚掩码
         bool buttonStateChanged = false;
-        
+        uint8_t currentInitIndex = 0;    // 当前初始化的按钮索引
 };
 
 #define GPIO_BTNS_WORKER GPIOBtnsWorker::getInstance()

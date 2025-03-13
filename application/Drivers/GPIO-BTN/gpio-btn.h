@@ -22,8 +22,8 @@ const struct gpio_pin_def gpio_btns_mapping[NUM_GPIO_BUTTONS] = {
 
 
 
-void GPIO_Btn_Init(void);
-bool GPIO_Btn_IsPressed(uint8_t idx);
+void GPIO_Btns_Init(void);
+void GPIO_Btns_Iterate( void (*callback)(uint8_t virtualPin, bool isPressed, uint8_t idx) );
 
 #ifdef __cplusplus
 }

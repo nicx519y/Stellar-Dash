@@ -34,8 +34,6 @@ void MainStateMachine::setup()
             break; 
         case BootMode::BOOT_MODE_INPUT:
 
-            /*** 初始化ADC按钮 & LED test begin ***/
-            
             ADC_BTNS_WORKER.setup();
             GPIO_BTNS_WORKER.setup();
             GAMEPAD.setup();
@@ -52,7 +50,9 @@ void MainStateMachine::setup()
 
             while(1) {
                 if(MICROS_TIMER.checkInterval(READ_BTNS_INTERVAL, workTime)) {
+
                     virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
+                    
                     // GAMEPAD.read(virtualPinMask);
                     // driver.process(GAMEPAD); // xinput 处理游戏手柄数据，将按键数据映射到xinput协议 形成 report 数据，然后通过 usb 发送出去
                 }

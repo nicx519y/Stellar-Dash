@@ -91,7 +91,7 @@
 
 
 #define NUM_GPIO_BUTTONS            4               //GPIO按钮数量
-#define GPIO_BUTTONS_DEBOUNCE       50             //去抖动延迟(us) 
+#define GPIO_BUTTONS_DEBOUNCE       1000             //去抖动延迟(us)  1ms
 
 
 
@@ -120,9 +120,7 @@ struct gpio_pin_def {
 #define ADC2_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {2, 3, 7, 4, 14, 11}
 #define ADC3_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {13, 15, 16, 10, 12}
 
-#define GPIO_BUTTONS_MAPPING_VIRTUALPIN {17, 18, 19, 20}
-#define GPIO_BUTTONS_MAPPING_PORT {GPIOC, GPIOC, GPIOC, GPIOC}
-#define GPIO_BUTTONS_MAPPING_PIN {GPIO_PIN_6, GPIO_PIN_7, GPIO_PIN_8, GPIO_PIN_9}
+
 
 
 

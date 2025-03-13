@@ -3,14 +3,14 @@
 
 
 
-void GPIO_Btn_Init()
+void GPIO_Btns_Init()
 {
     // 时钟已在gpio.c种使能
     GPIO_InitTypeDef GPIO_Init;
 
     GPIO_Init.Mode = GPIO_MODE_INPUT;
-    GPIO_Init.Pull = GPIO_PULLDOWN;
-    GPIO_Init.Speed = GPIO_SPEED_FREQ_HIGH;
+    GPIO_Init.Pull = GPIO_PULLUP;
+    GPIO_Init.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
 
     for(uint8_t i = 0; i < NUM_GPIO_BUTTONS; i++) {
         GPIO_Init.Pin = gpio_btns_mapping[i].pin;
@@ -18,12 +18,13 @@ void GPIO_Btn_Init()
     }
 }
 
-bool GPIO_Btn_IsPressed(uint8_t virtualPin) {
+void GPIO_Btns_Iterate( void (*callback)(uint8_t virtualPin, bool isPressed, uint8_t idx) ) {
     for(uint8_t i = 0; i < NUM_GPIO_BUTTONS; i++) {
-        if(gpio_btns_mapping[i].virtualPin == virtualPin) {
-            return HAL_GPIO_ReadPin(gpio_btns_mapping[i].port, gpio_btns_mapping[i].pin) == GPIO_PIN_RESET;
-        }
+        callback(gpio_btns_mapping[i].virtualPin, 
+                HAL_GPIO_ReadPin(gpio_btns_mapping[i].port, gpio_btns_mapping[i].pin) == GPIO_PIN_RESET, 
+                i);
     }
-    return false;
 }
+
+
 
