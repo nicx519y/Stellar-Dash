@@ -42,11 +42,11 @@ void MainStateMachine::setup()
             LEDS_MANAGER.setup();
             #endif
 
+            HAL_Delay(500);  // 等待500ms，确保所有外设都初始化完成，ADC 和 GPIO 都稳定
+
             workTime = MICROS_TIMER.micros();
             calibrationTime = MICROS_TIMER.micros();
             ledAnimationTime = MICROS_TIMER.micros();
-
-            HAL_Delay(500); 
 
             while(1) {
                 if(MICROS_TIMER.checkInterval(READ_BTNS_INTERVAL, workTime)) {
