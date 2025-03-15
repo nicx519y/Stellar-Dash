@@ -13,8 +13,7 @@ enum STORAGE_ERROR_NO {
 enum BootMode
 {
     BOOT_MODE_WEB_CONFIG                = 1,
-    BOOT_MODE_ADC_BTNS_CALIBRATING      = 2,
-    BOOT_MODE_INPUT                     = 3,
+    BOOT_MODE_INPUT                     = 2,
 };
 
 enum ConfigType
@@ -61,6 +60,7 @@ enum LEDEffect
 {
     STATIC              = 0,        //静态 恒亮
     BREATHING           = 1,        //呼吸
+    NUM_EFFECTS         = 2,        //效果总数
 };
 
 enum GamepadHotkey

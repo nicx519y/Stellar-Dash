@@ -32,6 +32,10 @@ GamepadProfile* Storage::getGamepadProfile(char* id) {
 	return nullptr;
 }
 
+void Storage::setBootMode(BootMode bootMode) {
+	config.bootMode = bootMode;
+	saveConfig();
+}
 
 bool Storage::resetConfig()
 {

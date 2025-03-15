@@ -16,10 +16,13 @@ extern "C" {
         MAIN_STATE_MACHINE.setup();
 
 
-        // ADC_MANAGER.startADCSamping();
+        // DRIVER_MANAGER.setup(InputMode::INPUT_MODE_XINPUT);
+        // GPDriver* inputDriver = DRIVER_MANAGER.getDriver();
+        // tud_init(TUD_OPT_RHPORT); // 初始化TinyUSB
         // while(1) {
-        //     ADC_MANAGER.ADCValuesTestPrint();
+        //     tud_task();
         // }
+        
 
         return 0;
     }

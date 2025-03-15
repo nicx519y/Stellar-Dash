@@ -8,6 +8,8 @@ LEDsManager::LEDsManager()
 void LEDsManager::setup()
 {
     if(!opts->ledEnabled) {
+        WS2812B_SetAllLEDBrightness(0);
+        WS2812B_SetAllLEDColor(0, 0, 0);
         WS2812B_Stop();
         return;
     }
@@ -95,4 +97,41 @@ void LEDsManager::deinit()
     HAL_Delay(50); // 等待最后一帧发送完成
     WS2812B_Stop();
 }
+
+void LEDsManager::effectStyleNext() {
+    opts->ledEffect = static_cast<LEDEffect>((opts->ledEffect + 1) % LEDEffect::NUM_EFFECTS);
+    STORAGE_MANAGER.saveConfig();
+    deinit();
+    setup();
+}
+
+void LEDsManager::effectStylePrev() {
+    opts->ledEffect = static_cast<LEDEffect>((opts->ledEffect - 1 + LEDEffect::NUM_EFFECTS) % LEDEffect::NUM_EFFECTS);
+    STORAGE_MANAGER.saveConfig();
+    deinit();
+    setup();
+}   
+
+void LEDsManager::brightnessUp() {
+    opts->ledBrightness += 10; // 增加10%
+    STORAGE_MANAGER.saveConfig();
+    brightness = (uint8_t)((float_t)(opts->ledBrightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
+    WS2812B_SetAllLEDBrightness(brightness);
+}
+
+void LEDsManager::brightnessDown() {
+    opts->ledBrightness -= 10; // 减少10%
+    STORAGE_MANAGER.saveConfig();
+    brightness = (uint8_t)((float_t)(opts->ledBrightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
+    WS2812B_SetAllLEDBrightness(brightness);
+}
+
+void LEDsManager::enableSwitch() {
+    opts->ledEnabled = !opts->ledEnabled;
+    STORAGE_MANAGER.saveConfig();
+    deinit();
+    setup();
+}
+
+
 

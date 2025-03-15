@@ -22,18 +22,22 @@ class LEDsManager {
         void setup();
         void loop(uint32_t virtualPinMask);
         void deinit();
+        void effectStyleNext();
+        void effectStylePrev();
+        void brightnessUp();
+        void brightnessDown();
+        void enableSwitch();
     private:
         LEDsManager();
         uint32_t t;
         GradientColor gtc;
-        const LEDProfile* opts;
+        LEDProfile* opts;
         RGBColor frontColor;
         RGBColor backgroundColor1;
         RGBColor backgroundColor2;
         uint8_t brightness;
         uint32_t lastBreathTime = 0;
         uint8_t breathBrightness = 0;
-        bool breathIncreasing = true;
 };
 
 #define LEDS_MANAGER LEDsManager::getInstance()

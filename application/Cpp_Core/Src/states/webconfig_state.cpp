@@ -4,6 +4,9 @@
 #include "qspi-w25q64.h"
 
 void WebConfigState::setup() {
+
+    APP_DBG("WebConfigState::setup");
+
     // TODO: 初始化Web配置状态
     // 例如：
     // - 启动Web服务器

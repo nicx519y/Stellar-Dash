@@ -76,11 +76,11 @@ typedef struct
 typedef struct
 {
     bool ledEnabled;
-    LEDEffect ledEffect;
-    uint32_t ledColor1;
-    uint32_t ledColor2;
-    uint32_t ledColor3;
-    uint8_t ledBrightness;
+    LEDEffect ledEffect;   
+    uint32_t ledColor1;    // 0x000000-0xFFFFFF
+    uint32_t ledColor2;    // 0x000000-0xFFFFFF
+    uint32_t ledColor3;    // 0x000000-0xFFFFFF
+    uint8_t ledBrightness; // 0-100
 } LEDProfile;
 
 typedef struct

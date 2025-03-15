@@ -34,6 +34,8 @@ class Gamepad {
         void read(Mask_t values);
         void clearState();
 
+        void setInputMode(InputMode inputMode);
+
         /**
          * @brief Check for a button press. Used by `pressed[Button]` helper methods.
          */

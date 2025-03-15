@@ -142,4 +142,8 @@ void Gamepad::clearState()
 	state.rt = 0;
 }
 
+void Gamepad::setInputMode(InputMode inputMode) {
+    options->keysConfig.inputMode = inputMode;
+	STORAGE_MANAGER.saveConfig();
+}
 
