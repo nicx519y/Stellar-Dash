@@ -41,14 +41,14 @@ typedef struct
 
 typedef struct
 {
-    int32_t         virtualPin;         // 虚拟pin 实质上是在所有buttons之内的序号
+    int32_t         virtualPin;         // 虚拟pin
     GamepadHotkey   action;             // 快键功能
     bool            isLocked;           // 是否锁定
 } GamepadHotkeyEntry;
 
 typedef struct
 {
-    uint32_t    virtualPin;             // 虚拟pin 实质上是在所有buttons之内的序号
+    uint32_t    virtualPin;             // 虚拟pin
     float_t     maxDistance;            // 最大行程 单位毫米
 } ADCButton;
 

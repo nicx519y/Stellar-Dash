@@ -1,57 +1,63 @@
 #include "hotkeys_manager.hpp"
 
+HotkeysManager::HotkeysManager(HotkeysManager const&) {
+    GamepadHotkeyEntry* hotkeys = STORAGE_MANAGER.getGamepadHotkeyEntry();
+}
 
 HotkeysManager::~HotkeysManager() {
 }
 
-void HotkeysManager::setup() {
+void HotkeysManager::runVirtualPinMask(uint32_t virtualPinMask) {
+    for (int i = 0; i < NUM_GAMEPAD_HOTKEYS; i++) {
+        if ( hotkeys[i]->virtualPin >= 0 && (uint32_t)(1U << hotkeys[i]->virtualPin | FN_BUTTON_VIRTUAL_PIN) == virtualPinMask) {
+            runAction(hotkeys[i]->action);
+            break;
+        }
+    }
 }
 
-void HotkeysManager::loop() {
-}
-
-void HotkeysManager::LEDsEffectStyleNext() {
-    LEDS_MANAGER.effectStyleNext();
-}
-
-void HotkeysManager::LEDsEffectStylePrev() {
-    LEDS_MANAGER.effectStylePrev();
-}
-
-void HotkeysManager::LEDsBrightnessUp() {
-    LEDS_MANAGER.brightnessUp();
-}
-
-void HotkeysManager::LEDsBrightnessDown() {
-    LEDS_MANAGER.brightnessDown();
-}
-
-void HotkeysManager::LEDsEnableSwitch() {
-    LEDS_MANAGER.enableSwitch();
-}
-
-void HotkeysManager::setInputWebConfig() {
-    STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_WEB_CONFIG);
-    NVIC_SystemReset();
-}
-
-
-void HotkeysManager::InputModeXInput() {
-    STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
-    GAMEPAD.setInputMode(InputMode::INPUT_MODE_XINPUT);
-    NVIC_SystemReset();
-}
-
-void HotkeysManager::InputModePS4() {
-    STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
-    GAMEPAD.setInputMode(InputMode::INPUT_MODE_PS4);
-    NVIC_SystemReset();
-}
-
-void HotkeysManager::InputModeSwitch() {
-    STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
-    GAMEPAD.setInputMode(InputMode::INPUT_MODE_SWITCH);
-    NVIC_SystemReset();
+void HotkeysManager::runAction(GamepadHotkey hotkeyAction) {
+    switch (hotkeyAction) {
+        case GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT:
+            LEDS_MANAGER.effectStyleNext();
+            break;
+        case GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_PREV:
+            LEDS_MANAGER.effectStylePrev();
+            break;
+        case GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP:
+            LEDS_MANAGER.brightnessUp();
+            break;
+        case GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_DOWN:
+            LEDS_MANAGER.brightnessDown();
+            break;
+        case GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH:
+            LEDS_MANAGER.enableSwitch();
+            break;
+        case GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG:
+            STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_WEB_CONFIG);
+            NVIC_SystemReset();
+            break;
+        case GamepadHotkey::HOTKEY_INPUT_MODE_XINPUT:
+            STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
+            GAMEPAD.setInputMode(InputMode::INPUT_MODE_XINPUT);
+            NVIC_SystemReset();
+            break;
+        case GamepadHotkey::HOTKEY_INPUT_MODE_PS4:
+            STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
+            GAMEPAD.setInputMode(InputMode::INPUT_MODE_PS4);
+            NVIC_SystemReset();
+            break;
+        case GamepadHotkey::HOTKEY_INPUT_MODE_SWITCH:
+            STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
+            GAMEPAD.setInputMode(InputMode::INPUT_MODE_SWITCH);
+            NVIC_SystemReset();
+            break;
+        case GamepadHotkey::HOTKEY_SYSTEM_REBOOT:
+            NVIC_SystemReset();
+            break;
+        default:
+            break;
+    }
 }
 
 

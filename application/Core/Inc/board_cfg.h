@@ -93,8 +93,7 @@
 #define NUM_GPIO_BUTTONS            4               //GPIO按钮数量
 #define GPIO_BUTTONS_DEBOUNCE       1000             //去抖动延迟(us)  1ms
 
-
-
+#define FN_BUTTON_VIRTUAL_PIN       (1U << 19)
 
 #define HAS_LED                                   1             //是否有LED
 #define NUM_LED	                    (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) //LED数量

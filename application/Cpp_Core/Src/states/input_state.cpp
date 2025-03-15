@@ -3,6 +3,7 @@
 #include "gpio_btns/gpio_btns_worker.hpp"
 #include "gamepad.hpp"
 #include "leds/leds_manager.hpp"
+#include "hotkeys_manager.hpp"
 
 void InputState::setup() {
 
@@ -32,11 +33,17 @@ void InputState::setup() {
 }
 
 void InputState::loop() { 
+
     if(MICROS_TIMER.checkInterval(READ_BTNS_INTERVAL, workTime)) {
         virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
-        GAMEPAD.read(virtualPinMask);
-        inputDriver->process(&GAMEPAD);  // xinput 处理游戏手柄数据，将按键数据映射到xinput协议 形成 report 数据，然后通过 usb 发送出去
+        if(virtualPinMask & FN_BUTTON_VIRTUAL_PIN) { // 如果按下了 FN 键，则执行快捷键
+            HOTKEYS_MANAGER.runVirtualPinMask(virtualPinMask);
+        } else { // 否则，处理游戏手柄数据
+            GAMEPAD.read(virtualPinMask);
+            inputDriver->process(&GAMEPAD);  // xinput 处理游戏手柄数据，将按键数据映射到xinput协议 形成 report 数据，然后通过 usb 发送出去
+        }
     }
+
     tud_task();
 
     #if HAS_LED == 1

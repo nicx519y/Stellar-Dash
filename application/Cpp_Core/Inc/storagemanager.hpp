@@ -26,6 +26,9 @@ public:
 	GamepadProfile* getDefaultGamepadProfile() {
 		return getGamepadProfile(config.defaultProfileId);
 	}
+	GamepadHotkeyEntry* getGamepadHotkeyEntry() {
+		return config.hotkeys;
+	}
 
 	void setBootMode(BootMode bootMode);
 

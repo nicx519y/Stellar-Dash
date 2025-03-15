@@ -40,7 +40,7 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
     profile.keysConfig.keyButtonA2 = 1 << 15;
     profile.keysConfig.keyButtonS1 = 1 << 17;
     profile.keysConfig.keyButtonS2 = 1 << 18;
-    profile.keysConfig.keyButtonFn = 1 << 19;
+    profile.keysConfig.keyButtonFn = FN_BUTTON_VIRTUAL_PIN;
 
     // 设置triggerConfigs 
     profile.triggerConfigs.isAllBtnsConfiguring = true;

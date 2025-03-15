@@ -7,7 +7,7 @@
 #include "gamepad.hpp"
 class HotkeysManager {
     public:
-        HotkeysManager(HotkeysManager const&) = delete;
+        HotkeysManager(HotkeysManager const&);
         void operator=(HotkeysManager const&) = delete;
 
         static HotkeysManager& getInstance() {
@@ -15,24 +15,15 @@ class HotkeysManager {
             return instance;
         }
 
-        void setup();
-        void loop();
-
         ~HotkeysManager();
 
-        void LEDsEffectStyleNext() {}
-        void LEDsEffectStylePrev();
-        void LEDsBrightnessUp();
-        void LEDsBrightnessDown();
-        void LEDsEnableSwitch();
-        void setInputWebConfig();
-        void InputModeXInput();
-        void InputModePS4();
-        void InputModeSwitch();
-        void SystemReboot();
+        void runVirtualPinMask(uint32_t virtualPinMask);
 
     private:
         HotkeysManager() = default;
+        GamepadHotkeyEntry *hotkeys[NUM_GAMEPAD_HOTKEYS];
+
+        void runAction(GamepadHotkey hotkeyAction);
 };
 
 #define HOTKEYS_MANAGER HotkeysManager::getInstance()
