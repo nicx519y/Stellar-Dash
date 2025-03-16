@@ -7,6 +7,7 @@
 void Storage::initConfig() {
 	APP_DBG("Storage::init begin.");
 	ConfigUtils::load(config);
+	// APP_DBG("Storage::initConfig - hotkeys: %d", config.hotkeys[0].virtualPin);
 	// ConfigUtils::reset(config);
 }
 

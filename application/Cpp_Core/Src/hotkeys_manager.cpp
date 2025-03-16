@@ -1,7 +1,6 @@
 #include "hotkeys_manager.hpp"
 
-HotkeysManager::HotkeysManager(HotkeysManager const&) {
-    GamepadHotkeyEntry* hotkeys = STORAGE_MANAGER.getGamepadHotkeyEntry();
+HotkeysManager::HotkeysManager() : hotkeys(STORAGE_MANAGER.getGamepadHotkeyEntry()) {
 }
 
 HotkeysManager::~HotkeysManager() {
@@ -9,8 +8,12 @@ HotkeysManager::~HotkeysManager() {
 
 void HotkeysManager::runVirtualPinMask(uint32_t virtualPinMask) {
     for (int i = 0; i < NUM_GAMEPAD_HOTKEYS; i++) {
-        if ( hotkeys[i]->virtualPin >= 0 && (uint32_t)(1U << hotkeys[i]->virtualPin | FN_BUTTON_VIRTUAL_PIN) == virtualPinMask) {
-            runAction(hotkeys[i]->action);
+        // APP_DBG("hotkeys[i]->virtualPin: %d, i: %d", hotkeys[i].virtualPin, i);
+        // printBinary("(uint32_t)(hotkeys[i].virtualPin): ", (uint32_t)(hotkeys[i].virtualPin));
+        // printBinary("(uint32_t)(1U << hotkeys[i].virtualPin | FN_BUTTON_VIRTUAL_PIN): ", (uint32_t)(1U << hotkeys[i].virtualPin | FN_BUTTON_VIRTUAL_PIN));
+        // printBinary("virtualPinMask: ", virtualPinMask);
+        if ( hotkeys[i].virtualPin >= 0 && (uint32_t)(1U << hotkeys[i].virtualPin | FN_BUTTON_VIRTUAL_PIN) == virtualPinMask) {
+            runAction(hotkeys[i].action);
             break;
         }
     }

@@ -147,3 +147,10 @@ void Gamepad::setInputMode(InputMode inputMode) {
 	STORAGE_MANAGER.saveConfig();
 }
 
+void Gamepad::setSOCDMode(SOCDMode socdMode) {
+    options->keysConfig.socdMode = socdMode;
+	STORAGE_MANAGER.saveConfig();
+}
+
+
+

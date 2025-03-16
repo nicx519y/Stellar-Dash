@@ -1,5 +1,5 @@
 #include "leds/leds_manager.hpp"
-
+#include <algorithm>
 LEDsManager::LEDsManager()
 {
     opts = &STORAGE_MANAGER.getDefaultGamepadProfile()->ledsConfigs;
@@ -113,17 +113,25 @@ void LEDsManager::effectStylePrev() {
 }   
 
 void LEDsManager::brightnessUp() {
-    opts->ledBrightness += 10; // 增加10%
-    STORAGE_MANAGER.saveConfig();
-    brightness = (uint8_t)((float_t)(opts->ledBrightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
-    WS2812B_SetAllLEDBrightness(brightness);
+    if(opts->ledBrightness == 100) {
+        return;
+    } else {
+        opts->ledBrightness = std::min((int)opts->ledBrightness + 10, 100); // 增加10%
+        STORAGE_MANAGER.saveConfig();
+        brightness = (uint8_t)((float_t)(opts->ledBrightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
+        WS2812B_SetAllLEDBrightness(brightness);
+    }
 }
 
 void LEDsManager::brightnessDown() {
-    opts->ledBrightness -= 10; // 减少10%
-    STORAGE_MANAGER.saveConfig();
-    brightness = (uint8_t)((float_t)(opts->ledBrightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
-    WS2812B_SetAllLEDBrightness(brightness);
+    if(opts->ledBrightness == 0) {
+        return;
+    } else {
+        opts->ledBrightness = std::max((int)opts->ledBrightness - 10, 0); // 减少10%
+        STORAGE_MANAGER.saveConfig();
+        brightness = (uint8_t)((float_t)(opts->ledBrightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
+        WS2812B_SetAllLEDBrightness(brightness);
+    }
 }
 
 void LEDsManager::enableSwitch() {

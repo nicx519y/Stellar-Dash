@@ -36,7 +36,9 @@ void InputState::loop() {
 
     if(MICROS_TIMER.checkInterval(READ_BTNS_INTERVAL, workTime)) {
         virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
-        if(virtualPinMask & FN_BUTTON_VIRTUAL_PIN) { // 如果按下了 FN 键，则执行快捷键
+        // printBinary("virtualPinMask: ",virtualPinMask);
+        // printBinary("FN_BUTTON_VIRTUAL_PIN: ",FN_BUTTON_VIRTUAL_PIN);
+        if(virtualPinMask & FN_BUTTON_VIRTUAL_PIN && virtualPinMask != FN_BUTTON_VIRTUAL_PIN) { // 如果按下了 FN 键并且不只是 FN 键，则执行快捷键
             HOTKEYS_MANAGER.runVirtualPinMask(virtualPinMask);
         } else { // 否则，处理游戏手柄数据
             GAMEPAD.read(virtualPinMask);

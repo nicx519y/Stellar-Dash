@@ -17,7 +17,7 @@ class MainStateMachine {
         void setup();
 
     private:
-        MainStateMachine();
+        MainStateMachine() = default;
         BaseState* state = nullptr;
 
 };

@@ -31,6 +31,9 @@ public:
 	}
 
 	void setBootMode(BootMode bootMode);
+	BootMode getBootMode() {
+		return config.bootMode;
+	}
 
 private:
 	Storage() {}  // 私有构造函数

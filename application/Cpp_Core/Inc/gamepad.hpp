@@ -35,6 +35,8 @@ class Gamepad {
         void clearState();
 
         void setInputMode(InputMode inputMode);
+        void setSOCDMode(SOCDMode socdMode);
+        const GamepadProfile* getOptions() const { return options; }
 
         /**
          * @brief Check for a button press. Used by `pressed[Button]` helper methods.
@@ -76,12 +78,6 @@ class Gamepad {
         inline bool __attribute__((always_inline)) pressedA1()    { return pressedButton(GAMEPAD_MASK_A1); }
         inline bool __attribute__((always_inline)) pressedA2()    { return pressedButton(GAMEPAD_MASK_A2); }
         
-
-        const GamepadProfile* getOptions() const { return options; }
-
-        void setInputMode(InputMode inputMode) { options->keysConfig.inputMode = inputMode; }
-        void setSOCDMode(SOCDMode socdMode) { options->keysConfig.socdMode = socdMode; }
-
         GamepadState rawState;
         GamepadState state;
         GamepadButtonMapping *mapDpadUp;

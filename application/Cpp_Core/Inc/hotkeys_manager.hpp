@@ -5,9 +5,10 @@
 #include "leds/leds_manager.hpp"
 #include "storagemanager.hpp"
 #include "gamepad.hpp"
+#include "board_cfg.h"
 class HotkeysManager {
     public:
-        HotkeysManager(HotkeysManager const&);
+        HotkeysManager(HotkeysManager const&) = delete;
         void operator=(HotkeysManager const&) = delete;
 
         static HotkeysManager& getInstance() {
@@ -15,13 +16,14 @@ class HotkeysManager {
             return instance;
         }
 
-        ~HotkeysManager();
+        
 
         void runVirtualPinMask(uint32_t virtualPinMask);
 
     private:
-        HotkeysManager() = default;
-        GamepadHotkeyEntry *hotkeys[NUM_GAMEPAD_HOTKEYS];
+        HotkeysManager();
+        ~HotkeysManager();
+        GamepadHotkeyEntry* hotkeys;
 
         void runAction(GamepadHotkey hotkeyAction);
 };

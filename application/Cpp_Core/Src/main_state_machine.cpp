@@ -1,18 +1,12 @@
 #include "main_state_machine.hpp"
 
-MainStateMachine::MainStateMachine()
-{
-
-}
-
 void MainStateMachine::setup()
 {
     APP_DBG("MainStateMachine::setup");
     STORAGE_MANAGER.initConfig();
     APP_DBG("Storage initConfig success.");
 
-    // BootMode bootMode = Storage::getInstance().config.bootMode;
-    BootMode bootMode = BootMode::BOOT_MODE_WEB_CONFIG;
+    BootMode bootMode = STORAGE_MANAGER.getBootMode();
     APP_DBG("BootMode: %d", bootMode);
 
     switch(bootMode) {
