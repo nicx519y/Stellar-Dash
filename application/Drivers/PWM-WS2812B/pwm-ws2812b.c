@@ -130,13 +130,17 @@ void WS2812B_Init(void)
 		return;
 	}
 
-	// 初始化灯效开关引脚
-	GPIO_InitTypeDef GPIO_InitStruct = {0};
-	GPIO_InitStruct.Pin = LED_ENABLE_SWITCH_PIN;
-	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-	GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-	HAL_GPIO_Init(LED_ENABLE_SWITCH_PORT, &GPIO_InitStruct);
+	// 初始化灯效开关引脚 （开关引脚在GPIOC12 但是测试无效，原因待查）
+	// GPIO_InitTypeDef GPIO_InitStruct = {0};
+	// GPIO_InitStruct.Pin = GPIO_PIN_12;
+	// GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	// GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+	// GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+	// HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+	// HAL_Delay(100);
+	// HAL_GPIO_WritePin(GPIOC, GPIO_PIN_12, GPIO_PIN_RESET);
+	// HAL_Delay(100);
+	// APP_DBG("WS2812B_Init PC12: %d", HAL_GPIO_ReadPin(LED_ENABLE_SWITCH_PORT, LED_ENABLE_SWITCH_PIN));
 
 	WS2812B_IsInitialized = true;
 
@@ -169,7 +173,7 @@ WS2812B_StateTypeDef WS2812B_Start()
 	}
 
 	// 打开灯效开关
-	HAL_GPIO_WritePin(LED_ENABLE_SWITCH_PORT, LED_ENABLE_SWITCH_PIN, GPIO_PIN_SET);
+	// HAL_GPIO_WritePin(LED_ENABLE_SWITCH_PORT, LED_ENABLE_SWITCH_PIN, GPIO_PIN_SET);
 
 	HAL_StatusTypeDef state = HAL_TIM_PWM_Start_DMA(&htim4, TIM_CHANNEL_1, (uint32_t *)&DMA_LED_Buffer, DMA_BUFFER_LEN);
 
@@ -190,7 +194,7 @@ WS2812B_StateTypeDef WS2812B_Stop()
     }
 
 	// 关闭灯效开关
-	HAL_GPIO_WritePin(LED_ENABLE_SWITCH_PORT, LED_ENABLE_SWITCH_PIN, GPIO_PIN_RESET);
+	// HAL_GPIO_WritePin(LED_ENABLE_SWITCH_PORT, LED_ENABLE_SWITCH_PIN, GPIO_PIN_RESET);
 
     HAL_StatusTypeDef state = HAL_TIM_PWM_Stop_DMA(&htim4, TIM_CHANNEL_1);
 

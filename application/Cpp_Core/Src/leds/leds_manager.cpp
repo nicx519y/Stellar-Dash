@@ -7,38 +7,37 @@ LEDsManager::LEDsManager()
 
 void LEDsManager::setup()
 {
-    if(!opts->ledEnabled) {
-        WS2812B_SetAllLEDBrightness(0);
-        WS2812B_SetAllLEDColor(0, 0, 0);
-        WS2812B_Stop();
-        return;
-    }
 
     WS2812B_Init();
     WS2812B_Start();
 
-    // 设置初始亮度
-    brightness = (uint8_t)((float_t)(opts->ledBrightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0); // 转换百分比到0-255
-    WS2812B_SetAllLEDBrightness(brightness);
+    if(!opts->ledEnabled) {
+        WS2812B_SetAllLEDBrightness(0);
+        WS2812B_SetAllLEDColor(0, 0, 0);
+    } else {
+        // 设置初始亮度
+        brightness = (uint8_t)((float_t)(opts->ledBrightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0); // 转换百分比到0-255
+        WS2812B_SetAllLEDBrightness(brightness);
 
-    // 转换颜色
-    frontColor = hexToRGB(opts->ledColor1);
-    backgroundColor1 = hexToRGB(opts->ledColor2);
-    backgroundColor2 = hexToRGB(opts->ledColor3);
+        // 转换颜色
+        frontColor = hexToRGB(opts->ledColor1);
+        backgroundColor1 = hexToRGB(opts->ledColor2);
+        backgroundColor2 = hexToRGB(opts->ledColor3);
 
-    // 根据效果设置初始状态
-    switch(opts->ledEffect) {
-        case LEDEffect::BREATHING:
-            // 设置渐变：从 backgroundColor1 到 backgroundColor2
-            // 亮度从 brightness 渐变到 0 再到 brightness
-            gtc.setup(backgroundColor1, backgroundColor2, brightness, 0, LEDS_ANIMATION_CYCLE);
-            break;
-            
-        case LEDEffect::STATIC:
-        default:
-            // 静态效果使用 backgroundColor1
-            WS2812B_SetAllLEDColor(backgroundColor1.r, backgroundColor1.g, backgroundColor1.b);
-            break;
+        // 根据效果设置初始状态
+        switch(opts->ledEffect) {
+            case LEDEffect::BREATHING:
+                // 设置渐变：从 backgroundColor1 到 backgroundColor2
+                // 亮度从 brightness 渐变到 0 再到 brightness
+                gtc.setup(backgroundColor1, backgroundColor2, brightness, 0, LEDS_ANIMATION_CYCLE);
+                break;
+                
+            case LEDEffect::STATIC:
+            default:
+                // 静态效果使用 backgroundColor1
+                WS2812B_SetAllLEDColor(backgroundColor1.r, backgroundColor1.g, backgroundColor1.b);
+                break;
+        }
     }
 }
 

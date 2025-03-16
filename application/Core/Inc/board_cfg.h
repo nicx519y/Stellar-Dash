@@ -47,7 +47,7 @@
 #endif
 
 /* Debug print configuration */
-#define APPLICATION_DEBUG_PRINT  1   // 设置为 0 可以关闭所有调试打印
+#define APPLICATION_DEBUG_PRINT  0   // 设置为 0 可以关闭所有调试打印
 
 #if APPLICATION_DEBUG_PRINT
     #define APP_DBG(fmt, ...) printf("[APP] " fmt "\r\n", ##__VA_ARGS__)
@@ -103,8 +103,8 @@
 #define LEDS_ANIMATION_CYCLE        6000            //LED 动画长度
 #define LEDS_ANIMATION_INTERVAL         300          //LED 动画间隔，影响性能和效果 us
 
-#define LED_ENABLE_SWITCH_PIN        GPIO_PIN_12    // 灯效开关引脚
-#define LED_ENABLE_SWITCH_PORT       GPIOC           // 灯效开关端口
+// #define LED_ENABLE_SWITCH_PIN        GPIO_PIN_12    // 灯效开关引脚
+// #define LED_ENABLE_SWITCH_PORT       GPIOC           // 灯效开关端口
 
 #define NUM_GAMEPAD_HOTKEYS                 (uint8_t)11   // 快捷键数量
 

@@ -35,15 +35,21 @@ void InputState::setup() {
 void InputState::loop() { 
 
     if(MICROS_TIMER.checkInterval(READ_BTNS_INTERVAL, workTime)) {
+
+        ADC_MANAGER.ADCValuesTestPrint();
+
         virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
-        // printBinary("virtualPinMask: ",virtualPinMask);
-        // printBinary("FN_BUTTON_VIRTUAL_PIN: ",FN_BUTTON_VIRTUAL_PIN);
-        if(virtualPinMask & FN_BUTTON_VIRTUAL_PIN && virtualPinMask != FN_BUTTON_VIRTUAL_PIN) { // 如果按下了 FN 键并且不只是 FN 键，则执行快捷键
-            HOTKEYS_MANAGER.runVirtualPinMask(virtualPinMask);
+
+        // APP_DBG("lastVirtualPinMask & virtualPinMask == FN_BUTTON_VIRTUAL_PIN: %d, lastVirtualPinMask != FN_BUTTON_VIRTUAL_PIN: %d", (lastVirtualPinMask & virtualPinMask == FN_BUTTON_VIRTUAL_PIN), (lastVirtualPinMask != FN_BUTTON_VIRTUAL_PIN));
+        if(((lastVirtualPinMask & virtualPinMask) == FN_BUTTON_VIRTUAL_PIN) && (lastVirtualPinMask != FN_BUTTON_VIRTUAL_PIN)) { // 如果按下了 FN 键并且不只是 FN 键，并且click了其他键，则执行快捷键
+            APP_DBG("InputState::loop - HOTKEYS_MANAGER.runVirtualPinMask - lastVirtualPinMask: %d, virtualPinMask: %d", lastVirtualPinMask, virtualPinMask);
+            HOTKEYS_MANAGER.runVirtualPinMask(lastVirtualPinMask);
         } else { // 否则，处理游戏手柄数据
             GAMEPAD.read(virtualPinMask);
             inputDriver->process(&GAMEPAD);  // xinput 处理游戏手柄数据，将按键数据映射到xinput协议 形成 report 数据，然后通过 usb 发送出去
         }
+
+        lastVirtualPinMask = virtualPinMask;
     }
 
     tud_task();
@@ -59,6 +65,8 @@ void InputState::loop() {
         ADC_BTNS_WORKER.dynamicCalibration();
     }
     #endif
+
+    
 }
 
 void InputState::reset() {

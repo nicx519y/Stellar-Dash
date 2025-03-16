@@ -31,6 +31,7 @@ class InputState : public BaseState {
         uint32_t calibrationTime = 0;
         uint32_t ledAnimationTime = 0;
         uint32_t virtualPinMask = 0x0;
+        uint32_t lastVirtualPinMask = 0x0;
 };
 
 // 定义一个宏方便使用
