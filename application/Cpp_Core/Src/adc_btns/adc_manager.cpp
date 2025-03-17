@@ -31,6 +31,8 @@ __attribute__((section(".DMA_Section"))) uint32_t ADCManager::ADC2_Values[NUM_AD
 // ADC3 BDMA 只能访问 _RAM_D3_Area 区域
 __attribute__((section(".BDMA_Section"))) uint32_t ADCManager::ADC3_Values[NUM_ADC3_BUTTONS];
 
+uint32_t ADCManager::ADC_Values_Result[NUM_ADC_BUTTONS];
+
 #define ADC_VALUES_MAPPING_ADDR_QSPI (ADC_VALUES_MAPPING_ADDR & 0x0FFFFFFF)
 
 const uint8_t ADC1_BUTTONS_MAPPING[NUM_ADC1_BUTTONS] = ADC1_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN;
@@ -99,6 +101,7 @@ ADCManager::ADCManager() {
         [](const ADCButtonValueInfo& a, const ADCButtonValueInfo& b) {
             return a.virtualPin < b.virtualPin;
         });
+
 
 }
 
@@ -387,6 +390,7 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
     memset(ADC1_Values, 0, sizeof(ADC1_Values)); // DMA缓存清零  
     memset(ADC2_Values, 0, sizeof(ADC2_Values)); // DMA缓存清零  
     memset(ADC3_Values, 0, sizeof(ADC3_Values)); // DMA缓存清零
+    memset(ADC_Values_Result, 0, sizeof(ADC_Values_Result)); // DMA缓存清零
 
     // 校准 ADC1
     if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
@@ -412,7 +416,7 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
         return ADCBtnsError::DMA1_START_FAILED;
     }
 
-    MICROS_TIMER.delayMicros(READ_BTNS_INTERVAL); // 等待一个轮询周期，均摊延时
+    // MICROS_TIMER.delayMicros(READ_BTNS_INTERVAL); // 等待一个轮询周期，均摊延时
 
     // 启动 ADC2
     if (HAL_ADC_Start_DMA(&hadc2, (uint32_t*)&ADC2_Values[0], NUM_ADC2_BUTTONS) != HAL_OK) {
@@ -421,7 +425,7 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
         return ADCBtnsError::DMA2_START_FAILED;
     }
 
-    MICROS_TIMER.delayMicros(READ_BTNS_INTERVAL); // 等待一个轮询周期，均摊延时
+    // MICROS_TIMER.delayMicros(READ_BTNS_INTERVAL); // 等待一个轮询周期，均摊延时
 
     // 启动 ADC3
     if (HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&ADC3_Values[0], NUM_ADC3_BUTTONS) != HAL_OK) {
@@ -503,6 +507,28 @@ void ADCManager::handleADCStats(ADC_HandleTypeDef *hadc) {
                         (hadc->Instance == ADC2) ? 1 : 
                         (hadc->Instance == ADC3) ? 2 : 3;
     
+
+    /******* 差分base电压 *******/
+    uint32_t baseV = ADC2_Values[1];
+    
+    if(adcIndex == 0) {
+        for(uint8_t i = 0; i < NUM_ADC1_BUTTONS; i++) {
+            ADC1_Values[i] -= baseV;
+        }
+    } else if(adcIndex == 1) {
+        for(uint8_t i = 0; i < NUM_ADC2_BUTTONS; i++) {
+            if(i != 1) { // baseV
+                ADC2_Values[i] -= baseV;
+            }
+        }
+    } else if(adcIndex == 2) {
+        for(uint8_t i = 0; i < NUM_ADC3_BUTTONS; i++) {
+            ADC3_Values[i] -= baseV;
+        }
+    }
+
+    /******* 差分base电压 *******/
+
     // 如果采样ADC索引不匹配，则返回，此处只处理采样ADC索引对应的ADC
     if(!samplingRateEnabled || adcIndex != this->samplingADCInfo.ADCIndex) return;
 

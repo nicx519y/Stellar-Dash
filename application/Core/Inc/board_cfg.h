@@ -123,6 +123,7 @@ struct gpio_pin_def {
 
 
 
+
 // Hall 按钮映射表 DMA to virtualPin，virtualPin 是按钮在所有按钮中的序号
 
 

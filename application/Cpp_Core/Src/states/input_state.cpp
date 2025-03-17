@@ -14,7 +14,6 @@ void InputState::setup() {
     inputDriver = DRIVER_MANAGER.getDriver();
 
     tud_init(TUD_OPT_RHPORT); // 初始化TinyUSB
-
     ADC_BTNS_WORKER.setup();
     GPIO_BTNS_WORKER.setup();
     GAMEPAD.setup();
@@ -22,8 +21,6 @@ void InputState::setup() {
     #if HAS_LED == 1
     LEDS_MANAGER.setup();
     #endif
-
-    HAL_Delay(500);  // 等待500ms，确保所有外设都初始化完成，ADC 和 GPIO 都稳定
 
     workTime = MICROS_TIMER.micros();
     calibrationTime = MICROS_TIMER.micros();
@@ -36,13 +33,13 @@ void InputState::loop() {
 
     if(MICROS_TIMER.checkInterval(READ_BTNS_INTERVAL, workTime)) {
 
-        ADC_MANAGER.ADCValuesTestPrint();
+
+        // ADC_MANAGER.ADCValuesTestPrint();
+        // HAL_Delay(1); // 延迟100ms，避免异常
 
         virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
 
-        // APP_DBG("lastVirtualPinMask & virtualPinMask == FN_BUTTON_VIRTUAL_PIN: %d, lastVirtualPinMask != FN_BUTTON_VIRTUAL_PIN: %d", (lastVirtualPinMask & virtualPinMask == FN_BUTTON_VIRTUAL_PIN), (lastVirtualPinMask != FN_BUTTON_VIRTUAL_PIN));
         if(((lastVirtualPinMask & virtualPinMask) == FN_BUTTON_VIRTUAL_PIN) && (lastVirtualPinMask != FN_BUTTON_VIRTUAL_PIN)) { // 如果按下了 FN 键并且不只是 FN 键，并且click了其他键，则执行快捷键
-            APP_DBG("InputState::loop - HOTKEYS_MANAGER.runVirtualPinMask - lastVirtualPinMask: %d, virtualPinMask: %d", lastVirtualPinMask, virtualPinMask);
             HOTKEYS_MANAGER.runVirtualPinMask(lastVirtualPinMask);
         } else { // 否则，处理游戏手柄数据
             GAMEPAD.read(virtualPinMask);
@@ -65,8 +62,6 @@ void InputState::loop() {
         ADC_BTNS_WORKER.dynamicCalibration();
     }
     #endif
-
-    
 }
 
 void InputState::reset() {

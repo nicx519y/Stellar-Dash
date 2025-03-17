@@ -162,9 +162,15 @@ uint32_t ADCBtnsWorker::read() {
         if(adcValue == 0 || adcValue > UINT16_MAX) {
             continue;
         }
+        
 
         if(!btn->initCompleted) {
+
             initButtonMapping(btn, adcValue);
+            if(i == 0) {
+                APP_DBG("ADC_BTNS_WORKER::initButtonMapping: first %d, last: %d", btn->valueMapping[0], btn->valueMapping[this->mapping->length - 1]);
+            }
+
             btn->initCompleted = true;
             continue;
         }
@@ -255,12 +261,14 @@ void ADCBtnsWorker::updateButtonMapping(uint16_t* mapping, uint16_t bottomValue,
  * @param releaseValue 释放值
  */
 void ADCBtnsWorker::initButtonMapping(ADCBtn* btn, const uint16_t releaseValue) {
-    if (!btn || !mapping) {
+    if (!btn || !mapping || releaseValue == 0) {
         return;
     }
 
     // 计算差值：当前释放值与原始映射末尾值的差
     const int32_t offset = (int32_t)releaseValue - (int32_t)mapping->originalValues[mapping->length - 1];
+
+    APP_DBG("ADC_BTNS_WORKER::initButtonMapping - offset: %d, releaseValue: %d", offset, releaseValue);
 
     // 对每个值进行平移
     for (size_t i = 0; i < mapping->length; i++) {

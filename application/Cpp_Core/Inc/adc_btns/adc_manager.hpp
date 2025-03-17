@@ -115,52 +115,32 @@ class ADCManager {
         // 停止采样
         void stopADCSamping();
 
-        // 读取ADC值 按virtualPin排序
+        /**
+         * @brief 读取ADC值 按virtualPin排序
+         * 值要减去ADC_BASE_V 基准电压
+         * @return 按virtualPin排序的ADC值
+         */
         inline const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& readADCValues() const
         {
             for(uint8_t i = 0; i < NUM_ADC; i++) {
                 SCB_CleanInvalidateDCache_by_Addr(adcBufferInfo[i].buffer, adcBufferInfo[i].size);
             }
+
             return ADCBufferInfoList;
         }
 
-        /**
-         * @brief 读取指定按钮的ADC值
-         * @param virtualPin 虚拟按钮索引
-         * @return 指定按钮的ADC值
-         */
-        inline const uint32_t readADCValue(uint8_t virtualPin) {
-            auto indexInfo = findADCButtonVirtualPin(virtualPin);  // 现在可以直接调用静态函数
-            if(indexInfo.ADCIndex == -1) {
-                return 0;
-            }
-            const auto& info = adcBufferInfo[indexInfo.ADCIndex];
-            SCB_CleanInvalidateDCache_by_Addr(info.buffer, info.size);
-            return info.buffer[indexInfo.indexInDMA];
-        }
-
         inline void ADCValuesTestPrint() {
-            SCB_CleanInvalidateDCache_by_Addr(adcBufferInfo[0].buffer, adcBufferInfo[0].size);
-            SCB_CleanInvalidateDCache_by_Addr(adcBufferInfo[1].buffer, adcBufferInfo[1].size);
-            SCB_CleanInvalidateDCache_by_Addr(adcBufferInfo[2].buffer, adcBufferInfo[2].size);
-            printf("%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", 
-                adcBufferInfo[0].buffer[0],
-                adcBufferInfo[0].buffer[1],
-                adcBufferInfo[0].buffer[2],
-                adcBufferInfo[0].buffer[3],
-                adcBufferInfo[0].buffer[4], //
-                adcBufferInfo[0].buffer[5],
-                adcBufferInfo[1].buffer[0],
-                adcBufferInfo[1].buffer[1],
-                adcBufferInfo[1].buffer[2],
-                adcBufferInfo[1].buffer[3],
-                adcBufferInfo[1].buffer[4], //
-                adcBufferInfo[1].buffer[5],
-                adcBufferInfo[2].buffer[0],
-                adcBufferInfo[2].buffer[1],
-                adcBufferInfo[2].buffer[2],
-                adcBufferInfo[2].buffer[3],
-                adcBufferInfo[2].buffer[4]);
+            const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& adcValues = readADCValues();
+
+            // const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& adcValues = rawADCBufferInfoList;
+
+            for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++){
+                printf("%d", *adcValues[i].valuePtr);
+                if(i != NUM_ADC_BUTTONS - 1){
+                    printf(", ");
+                }
+            }
+            printf("\n");
         }
         
 
@@ -172,6 +152,7 @@ class ADCManager {
         static __attribute__((section("._RAM_D1_Area"))) uint32_t ADC1_Values[NUM_ADC1_BUTTONS];
         static __attribute__((section("._RAM_D1_Area"))) uint32_t ADC2_Values[NUM_ADC2_BUTTONS];
         static __attribute__((section("._RAM_D3_Area"))) uint32_t ADC3_Values[NUM_ADC3_BUTTONS];
+        static uint32_t ADC_Values_Result[NUM_ADC_BUTTONS];
 
         MessageHandler messageHandler;
 
