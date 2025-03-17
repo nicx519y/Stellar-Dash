@@ -16,8 +16,7 @@ void LEDsManager::setup()
         WS2812B_SetAllLEDColor(0, 0, 0);
     } else {
         // 设置初始亮度
-        brightness = (uint8_t)((float_t)(opts->ledBrightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0); // 转换百分比到0-255
-        WS2812B_SetAllLEDBrightness(brightness);
+        setBrightness(opts->ledBrightness);
 
         // 转换颜色
         frontColor = hexToRGB(opts->ledColor1);
@@ -28,8 +27,8 @@ void LEDsManager::setup()
         switch(opts->ledEffect) {
             case LEDEffect::BREATHING:
                 // 设置渐变：从 backgroundColor1 到 backgroundColor2
-                // 亮度从 brightness 渐变到 0 再到 brightness
-                gtc.setup(backgroundColor1, backgroundColor2, brightness, 0, LEDS_ANIMATION_CYCLE);
+                // 亮度从 brightness 渐变到 0 再到 100
+                gtc.setup(backgroundColor1, backgroundColor2, 100, 0, LEDS_ANIMATION_CYCLE);
                 break;
                 
             case LEDEffect::STATIC:
@@ -70,7 +69,7 @@ void LEDsManager::loop(uint32_t virtualPinMask)
             );
             WS2812B_SetLEDBrightnessByMask(
                 brightness,
-                currentState.brightness,
+                static_cast<uint8_t>(static_cast<float_t>(currentState.brightness) / 100.0 * static_cast<float_t>(brightness)),
                 virtualPinMask
             );
             break;
@@ -117,8 +116,7 @@ void LEDsManager::brightnessUp() {
     } else {
         opts->ledBrightness = std::min((int)opts->ledBrightness + 10, 100); // 增加10%
         STORAGE_MANAGER.saveConfig();
-        brightness = (uint8_t)((float_t)(opts->ledBrightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
-        WS2812B_SetAllLEDBrightness(brightness);
+        setBrightness(opts->ledBrightness);
     }
 }
 
@@ -128,8 +126,7 @@ void LEDsManager::brightnessDown() {
     } else {
         opts->ledBrightness = std::max((int)opts->ledBrightness - 10, 0); // 减少10%
         STORAGE_MANAGER.saveConfig();
-        brightness = (uint8_t)((float_t)(opts->ledBrightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
-        WS2812B_SetAllLEDBrightness(brightness);
+        setBrightness(opts->ledBrightness);
     }
 }
 
@@ -139,6 +136,12 @@ void LEDsManager::enableSwitch() {
     deinit();
     setup();
 }
+
+void LEDsManager::setBrightness(uint8_t brightness) {
+    this->brightness = (uint8_t)((float_t)(brightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
+    WS2812B_SetAllLEDBrightness(brightness);
+}
+
 
 
 

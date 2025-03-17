@@ -33,10 +33,6 @@ void InputState::loop() {
 
     if(MICROS_TIMER.checkInterval(READ_BTNS_INTERVAL, workTime)) {
 
-
-        // ADC_MANAGER.ADCValuesTestPrint();
-        // HAL_Delay(1); // 延迟100ms，避免异常
-
         virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
 
         if(((lastVirtualPinMask & virtualPinMask) == FN_BUTTON_VIRTUAL_PIN) && (lastVirtualPinMask != FN_BUTTON_VIRTUAL_PIN)) { // 如果按下了 FN 键并且不只是 FN 键，并且click了其他键，则执行快捷键

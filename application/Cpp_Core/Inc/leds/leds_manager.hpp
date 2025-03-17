@@ -27,6 +27,7 @@ class LEDsManager {
         void brightnessUp();
         void brightnessDown();
         void enableSwitch();
+        void setBrightness(uint8_t brightness);
     private:
         LEDsManager();
         uint32_t t;
