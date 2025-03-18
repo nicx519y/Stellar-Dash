@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "inputMode": "XINPUT",
+  "inputMode": "PS4",
   "defaultProfileId": "profile-1736445195390",
   "isCalibrateCompleted": false,
   "numProfilesMax": 16,
@@ -194,10 +194,26 @@
         "invertYAxis": false,
         "fourWayMode": false,
         "socdMode": "SOCD_MODE_NEUTRAL",
-        "keyMapping": {}
+        "keyMapping": {
+          "DPAD_UP": [
+            15
+          ],
+          "DPAD_DOWN": [
+            16
+          ],
+          "DPAD_LEFT": [
+            12
+          ],
+          "DPAD_RIGHT": [
+            11
+          ],
+          "L1": [
+            9
+          ]
+        }
       },
       "ledsConfigs": {
-        "ledEnabled": false,
+        "ledEnabled": true,
         "ledsEffectStyle": "BREATHING",
         "ledColors": [
           "#000000",

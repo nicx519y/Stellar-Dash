@@ -65,7 +65,7 @@ const nextConfig: NextConfig = {
     async rewrites() {
         return [
             {
-                source: '/input-mode',
+                source: '/input-mode',  
                 destination: '/',
             },
             {

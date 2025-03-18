@@ -23,6 +23,8 @@ export function InputModeSettingContent() {
                 orientation="vertical"
                 align="center"
                 w="550px"
+                variant={"outline"}
+                colorPalette={"green"}
                 onValueChange={(detail) => {
                     updateGlobalConfig({ inputMode: detail.value as Platform });
                 }}
