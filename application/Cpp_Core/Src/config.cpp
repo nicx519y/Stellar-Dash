@@ -17,7 +17,6 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
     profile.enabled = isEnabled;
 
     // 设置keysConfig
-    profile.keysConfig.inputMode = InputMode::INPUT_MODE_XINPUT;
     profile.keysConfig.socdMode = SOCDMode::SOCD_MODE_NEUTRAL;
     profile.keysConfig.fourWayMode = false;
     profile.keysConfig.invertXAxis = false;
@@ -79,6 +78,7 @@ bool ConfigUtils::load(Config& config)
         // 设置基础配置
         config.version = CONFIG_VERSION;
         config.bootMode = BOOT_MODE_WEB_CONFIG;
+        config.inputMode = InputMode::INPUT_MODE_XINPUT;
         strcpy(config.defaultProfileId, "profile-0");
         config.numProfilesMax = NUM_PROFILES;
 

@@ -13,7 +13,6 @@ extern "C" {
 
 typedef struct
 {
-    InputMode inputMode;
     SOCDMode socdMode;
     bool fourWayMode;
     bool invertXAxis;
@@ -97,6 +96,7 @@ typedef struct
 {
     uint32_t version;
     BootMode bootMode;
+    InputMode inputMode;
     char defaultProfileId[16];
     uint8_t numProfilesMax;
     GamepadProfile profiles[NUM_PROFILES];

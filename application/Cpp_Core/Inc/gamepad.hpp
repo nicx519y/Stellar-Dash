@@ -34,7 +34,10 @@ class Gamepad {
         void read(Mask_t values);
         void clearState();
 
-        void setInputMode(InputMode inputMode);
+        inline void setInputMode(InputMode inputMode) {
+            STORAGE_MANAGER.setInputMode(inputMode);
+        }
+
         void setSOCDMode(SOCDMode socdMode);
         const GamepadProfile* getOptions() const { return options; }
 
@@ -103,8 +106,8 @@ class Gamepad {
         // These are special to SOCD
         inline static const SOCDMode resolveSOCDMode(const GamepadProfile& options) {
             return (options.keysConfig.socdMode == SOCD_MODE_BYPASS &&
-                    (options.keysConfig.inputMode == INPUT_MODE_SWITCH ||
-                    options.keysConfig.inputMode == INPUT_MODE_PS4)) ?
+                    (STORAGE_MANAGER.getInputMode() == INPUT_MODE_SWITCH ||
+                    STORAGE_MANAGER.getInputMode() == INPUT_MODE_PS4)) ?
                 SOCD_MODE_NEUTRAL : options.keysConfig.socdMode;
         };
     

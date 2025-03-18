@@ -9,7 +9,13 @@ void InputState::setup() {
 
     APP_DBG("InputState::setup");
 
-    InputMode inputMode = InputMode::INPUT_MODE_XINPUT;
+    InputMode inputMode = STORAGE_MANAGER.getInputMode();
+
+    if(inputMode == InputMode::INPUT_MODE_CONFIG) {
+        APP_ERR("InputState::setup error - inputMode: INPUT_MODE_CONFIG, not supported for input state");
+        return;
+    }
+
     DRIVER_MANAGER.setup(inputMode);
     inputDriver = DRIVER_MANAGER.getDriver();
 

@@ -8,8 +8,9 @@ import { LEDsSettingContent } from "@/components/leds-setting-content";
 import { RapidTriggerContent } from "@/components/rapid-trigger-content";
 import { FirmwareContent } from '@/components/firmware-content';
 import { SwitchMarkingContent } from '@/components/switch-marking-content';
+import { InputModeSettingContent } from '@/components/input-mode-content';
 
-export type Route = '' | 'keys' | 'hotkeys' | 'leds' | 'rapid-trigger' | 'switch-marking' | 'firmware';
+export type Route = '' | 'input-mode' | 'keys' | 'hotkeys' | 'leds' | 'rapid-trigger' | 'switch-marking' | 'firmware';
 
 interface RouterState {
     currentRoute: Route;
@@ -29,19 +30,21 @@ export function Router() {
 
     useEffect(() => {
         const handlePopState = () => {
-            const path = window.location.pathname.slice(1) || 'keys';
+            const path = window.location.pathname.slice(1) || 'input-mode';
             setRoute(path as Route);
         };
 
         window.addEventListener('popstate', handlePopState);
         
-        const initialPath = window.location.pathname.slice(1) || 'keys';
+        const initialPath = window.location.pathname.slice(1) || 'input-mode';
         setRoute(initialPath as Route);
 
         return () => window.removeEventListener('popstate', handlePopState);
     }, [setRoute]);
 
     switch (currentRoute) {
+        case 'input-mode':
+            return <InputModeSettingContent />;
         case 'hotkeys':
             return <HotkeysSettingContent />;
         case 'leds':

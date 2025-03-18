@@ -4,7 +4,7 @@ import { useRouterStore } from './router';
 import { Flex, Center, Box, Tabs } from '@chakra-ui/react';
 import { ProfileSelect } from '@/components/profile-select';
 import { useLanguage } from "@/contexts/language-context";
-import { LuKeyboard, LuRocket, LuLightbulb, LuKeyRound, LuCpu, LuChartSpline,   } from 'react-icons/lu';
+import { LuKeyboard, LuRocket, LuLightbulb, LuKeyRound, LuCpu, LuChartSpline, LuGamepad } from 'react-icons/lu';
 import type { Route } from './router';
 import { navigationEvents } from '@/lib/event-manager';
 
@@ -13,6 +13,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
     const { currentRoute, setRoute } = useRouterStore();
 
     const tabs = [
+        { id: 'input-mode' as Route, label: t.SETTINGS_TAB_INPUT_MODE, icon: LuGamepad },
         { id: 'keys' as Route, label: t.SETTINGS_TAB_KEYS, icon: LuKeyboard },
         { id: 'leds' as Route, label: t.SETTINGS_TAB_LEDS, icon: LuLightbulb },
         { id: 'rapid-trigger' as Route, label: t.SETTINGS_TAB_RAPID_TRIGGER, icon: LuRocket },

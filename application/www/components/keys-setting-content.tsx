@@ -23,9 +23,6 @@ import {
     GameSocdMode,
     GameSocdModeList,
     GameSocdModeLabelMap,
-    Platform,
-    PlatformList,
-    PlatformLabelMap,
     GameControllerButton,
     KEYS_SETTINGS_INTERACTIVE_IDS,
 } from "@/types/gamepad-config";
@@ -41,11 +38,10 @@ import { useColorMode } from "./ui/color-mode";
 
 export function KeysSettingContent() {
 
-    const { defaultProfile, updateProfileDetails, resetProfileDetails } = useGamepadConfig();
+    const { defaultProfile, updateProfileDetails, resetProfileDetails, globalConfig } = useGamepadConfig();
     const [_isDirty, setIsDirty] = useUnsavedChangesWarning();  
     const { t } = useLanguage();
 
-    const [inputMode, setInputMode] = useState<Platform>(Platform.XINPUT);
     const [socdMode, setSocdMode] = useState<GameSocdMode>(GameSocdMode.SOCD_MODE_UP_PRIORITY);
     const [invertXAxis, setInvertXAxis] = useState<boolean>(false);
     const [invertYAxis, setInvertYAxis] = useState<boolean>(false);
@@ -56,7 +52,6 @@ export function KeysSettingContent() {
     const { colorMode } = useColorMode();
 
     useEffect(() => {
-        setInputMode(defaultProfile.keysConfig?.inputMode ?? Platform.XINPUT);
         setSocdMode(defaultProfile.keysConfig?.socdMode ?? GameSocdMode.SOCD_MODE_UP_PRIORITY);
         setInvertXAxis(defaultProfile.keysConfig?.invertXAxis ?? false);
         setInvertYAxis(defaultProfile.keysConfig?.invertYAxis ?? false);
@@ -91,7 +86,6 @@ export function KeysSettingContent() {
                 invertYAxis: invertYAxis,
                 fourWayMode: fourWayMode,
                 socdMode: socdMode,
-                inputMode: inputMode,
                 keyMapping: keyMapping,
             },
         }
@@ -119,33 +113,6 @@ export function KeysSettingContent() {
                             </Fieldset.HelperText>
                             <Fieldset.Content position={"relative"} paddingTop={"30px"}  >
 
-                                {/* Input Mode Choice */}
-                                <RadioCardRoot
-                                    colorPalette={"green"}
-                                    size={"sm"}
-                                    variant={colorMode === "dark" ? "surface" : "outline"}
-                                    value={inputMode?.toString() ?? Platform.XINPUT.toString()}
-                                    onValueChange={(detail) => {
-                                        setInputMode(detail.value as Platform);
-                                        setIsDirty?.(true);
-                                    }}
-                                >
-                                    <RadioCardLabel>{t.SETTINGS_KEYS_INPUT_MODE_TITLE}</RadioCardLabel>
-                                    <SimpleGrid gap={1} columns={5} >
-                                        {PlatformList.map((platform, index) => (
-                                            // <Tooltip key={index} content={t.SETTINGS_KEYS_PLATFORM_MODE_TOOLTIP} >
-                                                <RadioCardItem
-                                                    fontSize={"xs"}
-                                                    indicator={false}
-                                                    key={index}
-                                                    value={platform.toString()}
-                                                    label={PlatformLabelMap.get(platform as Platform)?.label ?? ""}
-                                                />
-                                            // </Tooltip>
-                                        ))}
-                                    </SimpleGrid>
-                                </RadioCardRoot>
-
                                 {/* Key Mapping */}
                                 <Stack direction={"column"} gap={4} >
                                     <Fieldset.Legend fontSize={"sm"} >{t.SETTINGS_KEYS_MAPPING_TITLE}</Fieldset.Legend>
@@ -165,7 +132,7 @@ export function KeysSettingContent() {
                                     <KeymappingFieldset
                                         autoSwitch={autoSwitch}
                                         inputKey={inputKey}
-                                        inputMode={inputMode}
+                                        inputMode={globalConfig.inputMode}
                                         keyMapping={keyMapping}
                                         changeKeyMappingHandler={(key, hitboxButtons) => {
                                             setHitboxButtons(key, hitboxButtons);
@@ -173,8 +140,6 @@ export function KeysSettingContent() {
                                         }}
                                     />
                                 </Stack>
-
-                                
 
 
                                 {/* SOCD Mode Choice */}

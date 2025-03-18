@@ -62,7 +62,7 @@ export const PlatformList = Object.values(Platform);
 
 export const PlatformLabelMap = new Map<Platform, { label: string, description: string }>([
     [Platform.XINPUT, { 
-        label: "Xbox", 
+        label: "XInput", 
         description: "Xbox controller" 
     }],
     [Platform.PS4, { 
@@ -74,6 +74,10 @@ export const PlatformLabelMap = new Map<Platform, { label: string, description: 
         description: "Nintendo Switch controller" 
     }],
 ]);
+
+export interface GlobalConfig {
+    inputMode: Platform;
+}
 
 export enum GameControllerButton {
     DPAD_UP = "DPAD_UP",
@@ -311,6 +315,7 @@ export type GPIOButton = {
 
 export interface GamepadConfig {
     version?: number;
+    inputMode?: Platform;
     defaultProfileId?: string;
     isCalibrateCompleted?: boolean;
     numProfilesMax?: number;
@@ -495,6 +500,7 @@ export const UI_TEXT = {
     SETTINGS_SWITCH_MARKING_UNSAVED_CHANGES_WARNING_MESSAGE: "You have uncompleted switch marking. If you leave without saving, the switch marking data will be lost.",
 
     // Settings Layout
+    SETTINGS_TAB_INPUT_MODE: "Input Mode",
     SETTINGS_TAB_KEYS: "Keys Setting",
     SETTINGS_TAB_LEDS: "LEDs Setting",
     SETTINGS_TAB_RAPID_TRIGGER: "Rapid Trigger",
@@ -691,6 +697,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_SWITCH_MARKING_UNSAVED_CHANGES_WARNING_MESSAGE: "您有未完成的磁轴标记。如果离开而不保存，磁轴标记数据将会丢失。",
 
     // Settings Layout
+    SETTINGS_TAB_INPUT_MODE: "输入模式",
     SETTINGS_TAB_KEYS: "按键设置",
     SETTINGS_TAB_LEDS: "LED设置",
     SETTINGS_TAB_RAPID_TRIGGER: "快速触发",

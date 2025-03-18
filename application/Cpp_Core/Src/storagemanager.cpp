@@ -35,7 +35,6 @@ GamepadProfile* Storage::getGamepadProfile(char* id) {
 
 void Storage::setBootMode(BootMode bootMode) {
 	config.bootMode = bootMode;
-	saveConfig();
 }
 
 bool Storage::resetConfig()
@@ -43,6 +42,10 @@ bool Storage::resetConfig()
 	APP_DBG("Storage::resettings begin.");
 	return ConfigUtils::reset(config);
 	// NVIC_SystemReset();				//reboot
+}
+
+void Storage::setInputMode(InputMode inputMode) {
+	config.inputMode = inputMode;
 }
 
 

@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { GameProfile, 
         LedsEffectStyle, 
         Platform, GameSocdMode, 
-        GameControllerButton, Hotkey, RapidTriggerConfig, GameProfileList } from '@/types/gamepad-config';
+        GameControllerButton, Hotkey, RapidTriggerConfig, GameProfileList, GlobalConfig } from '@/types/gamepad-config';
 import { StepInfo, ADCValuesMapping } from '@/types/adc';
 
 interface GamepadConfigContextType {
@@ -13,6 +13,9 @@ interface GamepadConfigContextType {
     profileList: GameProfileList;
     defaultProfile: GameProfile;
     hotkeysConfig: Hotkey[];
+    globalConfig: GlobalConfig;
+    fetchGlobalConfig: () => Promise<void>;
+    updateGlobalConfig: (globalConfig: GlobalConfig) => Promise<void>;
     fetchDefaultProfile: () => Promise<void>;
     fetchProfileList: () => Promise<void>;
     fetchHotkeysConfig: () => Promise<void>;
@@ -98,6 +101,7 @@ const processResponse = async (response: Response, setError: (error: string | nu
  * @returns 
  */
 export function GamepadConfigProvider({ children }: { children: React.ReactNode }) {
+    const [globalConfig, setGlobalConfig] = useState<GlobalConfig>({ inputMode: Platform.XINPUT });
     const [profileList, setProfileList] = useState<GameProfileList>({ defaultId: "", maxNumProfiles: 0, items: [] });
     const [defaultProfile, setDefaultProfile] = useState<GameProfile>({ id: "", name: "" });
     const [isLoading, setIsLoading] = useState(true);
@@ -126,6 +130,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     }, [jsReady]);
 
     useEffect(() => {
+        fetchGlobalConfig();
         fetchProfileList();
         fetchHotkeysConfig();
     }, []);
@@ -634,6 +639,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const renameMapping = async (id: string, name: string): Promise<void> => {
         try {
+            setIsLoading(true);
             const response = await fetch('/api/ms-rename-mapping', {
                 method: 'POST',
                 headers: {
@@ -652,6 +658,55 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to rename mapping"));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const fetchGlobalConfig = async (): Promise<void> => {
+        try {
+            setIsLoading(true);
+            const response = await fetch('/api/global-config', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            const data = await processResponse(response, setError);
+            if (!data) {
+                return Promise.reject(new Error("Failed to fetch global config"));
+            }
+            setGlobalConfig(data.globalConfig);
+            return Promise.resolve();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred');
+            return Promise.reject(new Error("Failed to fetch global config"));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const updateGlobalConfig = async (globalConfig: GlobalConfig): Promise<void> => {
+        try {
+            setIsLoading(true);
+            const response = await fetch('/api/update-global-config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ globalConfig }),
+            });
+            const data = await processResponse(response, setError);
+            if (!data) {
+                return Promise.reject(new Error("Failed to update global config"));
+            }
+            setGlobalConfig(data.globalConfig);
+            return Promise.resolve();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred');
+            return Promise.reject(new Error("Failed to update global config"));
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -659,12 +714,15 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         <GamepadConfigContext.Provider value={{
             contextJsReady,
             setContextJsReady,
+            globalConfig,
             profileList,
             defaultProfile,
             hotkeysConfig,
             fetchDefaultProfile,
             fetchProfileList,
             fetchHotkeysConfig,
+            fetchGlobalConfig,
+            updateGlobalConfig,
             updateProfileDetails,
             resetProfileDetails,
             createProfile,

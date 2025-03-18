@@ -34,21 +34,26 @@ void HotkeysManager::runAction(GamepadHotkey hotkeyAction) {
             break;
         case GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG:
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_WEB_CONFIG);
+            STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_CONFIG);
+            STORAGE_MANAGER.saveConfig();
             NVIC_SystemReset();
             break;
         case GamepadHotkey::HOTKEY_INPUT_MODE_XINPUT:
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
-            GAMEPAD.setInputMode(InputMode::INPUT_MODE_XINPUT);
+            STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_XINPUT);
+            STORAGE_MANAGER.saveConfig();
             NVIC_SystemReset();
             break;
         case GamepadHotkey::HOTKEY_INPUT_MODE_PS4:
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
-            GAMEPAD.setInputMode(InputMode::INPUT_MODE_PS4);
+            STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_PS4);
+            STORAGE_MANAGER.saveConfig();
             NVIC_SystemReset();
             break;
         case GamepadHotkey::HOTKEY_INPUT_MODE_SWITCH:
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
-            GAMEPAD.setInputMode(InputMode::INPUT_MODE_SWITCH);
+            STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_SWITCH);
+            STORAGE_MANAGER.saveConfig();
             NVIC_SystemReset();
             break;
         case GamepadHotkey::HOTKEY_SYSTEM_REBOOT:

@@ -12,13 +12,8 @@ export async function POST(request: Request) {
 
         const config = await getConfig();
 
-        if(config.profiles.length <= 1) {
-            return NextResponse.json({ errNo: 1, errorMessage: 'At least one profile is required' });
-        }
-
-
         if (!config.profiles || config.profiles.length <= 1) {
-            return NextResponse.json({ errNo: 1, errorMessage: 'Profile not found' });
+            return NextResponse.json({ errNo: 1, errorMessage: 'At least one profile is required' });
         }
 
         config.profiles = config.profiles.filter((p: GameProfile) => p.id !== profileId);

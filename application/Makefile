@@ -71,6 +71,7 @@ CPP_SOURCE_DIRS = \
 Cpp_Core/Src \
 Cpp_Core/Src/drivers/net \
 Cpp_Core/Src/drivers/xinput \
+Cpp_Core/Src/drivers/switch \
 Cpp_Core/Src/configs \
 Cpp_Core/Src/gamepad \
 Cpp_Core/Src/states \

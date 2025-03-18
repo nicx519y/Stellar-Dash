@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "inputMode": "XINPUT",
   "defaultProfileId": "profile-1736445195390",
   "isCalibrateCompleted": false,
   "numProfilesMax": 16,
@@ -12,7 +13,6 @@
         "invertYAxis": false,
         "fourWayMode": false,
         "socdMode": "SOCD_MODE_NEUTRAL",
-        "inputMode": "XINPUT",
         "keyMapping": {
           "L1": [
             13
@@ -194,7 +194,6 @@
         "invertYAxis": false,
         "fourWayMode": false,
         "socdMode": "SOCD_MODE_NEUTRAL",
-        "inputMode": "XINPUT",
         "keyMapping": {}
       },
       "ledsConfigs": {

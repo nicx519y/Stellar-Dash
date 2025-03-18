@@ -13,7 +13,8 @@ extern "C" struct fsdata_file file__index_html[];
 using namespace std;
 
 // 处理SPA文件，这些url都指向index.html
-const static char* spaPaths[] = { 
+const static char* spaPaths[] = {
+    "/input-mode",
     "/keys",
     "/leds",
     "/rapid-trigger",
@@ -299,22 +300,6 @@ cJSON* buildProfileJSON(GamepadProfile* profile) {
     cJSON_AddBoolToObject(keysConfigJSON, "invertYAxis", profile->keysConfig.invertYAxis);
     cJSON_AddBoolToObject(keysConfigJSON, "fourWayMode", profile->keysConfig.fourWayMode);
 
-
-    switch(profile->keysConfig.inputMode) {
-        case InputMode::INPUT_MODE_XINPUT:
-            cJSON_AddStringToObject(keysConfigJSON, "inputMode", "XINPUT");
-            break;
-        case InputMode::INPUT_MODE_PS4:
-            cJSON_AddStringToObject(keysConfigJSON, "inputMode", "PS4");
-            break;
-        case InputMode::INPUT_MODE_SWITCH:
-            cJSON_AddStringToObject(keysConfigJSON, "inputMode", "SWITCH");
-            break;
-        default:
-            cJSON_AddStringToObject(keysConfigJSON, "inputMode", "XINPUT");
-            break;
-    }
-
     switch(profile->keysConfig.socdMode) {
         case SOCDMode::SOCD_MODE_NEUTRAL:
             cJSON_AddStringToObject(keysConfigJSON, "socdMode", "SOCD_MODE_NEUTRAL");
@@ -539,7 +524,6 @@ std::string apiGetProfileList() {
  *              "invertYAxis": false,
  *              "fourWayMode": false,
  *              "socdMode": "SOCD_MODE_NEUTRAL",
- *              "inputMode": "XINPUT",
  *              "keyMapping": {}    
  *          },
  *          "ledsConfigs": {
@@ -707,7 +691,6 @@ std::string apiGetHotkeysConfig() {
  *                  "invertYAxis": false,
  *                  "fourWayMode": false,
  *                  "socdMode": "SOCD_MODE_NEUTRAL",
- *                  "inputMode": "XINPUT",
  *                  "keyMapping": {}    
  *              },
  *              "ledsConfigs": {
@@ -807,17 +790,7 @@ std::string apiUpdateProfile() {
                 targetProfile->keysConfig.socdMode = SOCDMode::SOCD_MODE_NEUTRAL;
             }
         }
-        if((item = cJSON_GetObjectItem(keysConfig, "inputMode"))) {
-            if(strcmp(item->valuestring, "XINPUT") == 0) {
-                targetProfile->keysConfig.inputMode = InputMode::INPUT_MODE_XINPUT;
-            } else if(strcmp(item->valuestring, "PS4") == 0) {
-                targetProfile->keysConfig.inputMode = InputMode::INPUT_MODE_PS4;
-            } else if(strcmp(item->valuestring, "SWITCH") == 0) {
-                targetProfile->keysConfig.inputMode = InputMode::INPUT_MODE_SWITCH;
-            } else {
-                targetProfile->keysConfig.inputMode = InputMode::INPUT_MODE_XINPUT;
-            }
-        }
+      
 
         // 更新按键映射
         cJSON* keyMapping = cJSON_GetObjectItem(keysConfig, "keyMapping");                                          
@@ -1929,12 +1902,132 @@ std::string apiMSGetMapping() {
     return response;
 }
 
+/**
+ * @brief 获取全局配置
+ * @return std::string 
+ * {
+ *      "errNo": 0,
+ *      "data": {
+ *          "globalConfig": {
+ *              "inputMode": "XINPUT"
+ *          }
+ *      }
+ * }
+ */
+std::string apiGetGlobalConfig() {
+    Config& config = Storage::getInstance().config;
+    
+    // 创建返回数据结构
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON* globalConfigJSON = cJSON_CreateObject();
+    
+    // 添加inputMode
+    switch(config.inputMode) {
+        case InputMode::INPUT_MODE_XINPUT:
+            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "XINPUT");
+            break;
+        case InputMode::INPUT_MODE_PS4:
+            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "PS4");
+            break;
+        case InputMode::INPUT_MODE_SWITCH:
+            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "SWITCH");
+            break;
+        default:
+            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "XINPUT");
+            break;
+    }
+    
+    // 构建返回结构
+    cJSON_AddItemToObject(dataJSON, "globalConfig", globalConfigJSON);
+    
+    // 生成返回字符串
+    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    
+    return response;
+}
+
+/**
+ * @brief 更新全局配置
+ * @return std::string 
+ * {
+ *      "errNo": 0,
+ *      "data": {
+ *          "globalConfig": {
+ *              "inputMode": "XINPUT"
+ *          }
+ *      }
+ * }
+ */
+std::string apiUpdateGlobalConfig() {
+    Config& config = Storage::getInstance().config;
+    cJSON* params = get_post_data();
+    
+    if(!params) {
+        return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Invalid parameters");
+    }
+
+    // 更新inputMode
+    cJSON* globalConfig = cJSON_GetObjectItem(params, "globalConfig");
+    if(globalConfig) {
+        cJSON* inputModeItem = cJSON_GetObjectItem(globalConfig, "inputMode");
+        if(inputModeItem && cJSON_IsString(inputModeItem)) {
+            if(strcmp(inputModeItem->valuestring, "XINPUT") == 0) {
+                config.inputMode = InputMode::INPUT_MODE_XINPUT;
+            } else if(strcmp(inputModeItem->valuestring, "PS4") == 0) {
+                config.inputMode = InputMode::INPUT_MODE_PS4;
+            } else if(strcmp(inputModeItem->valuestring, "SWITCH") == 0) {
+                config.inputMode = InputMode::INPUT_MODE_SWITCH;
+            } else {
+                config.inputMode = InputMode::INPUT_MODE_XINPUT;
+            }
+        }
+    }
+
+    // 保存配置
+    if(!STORAGE_MANAGER.saveConfig()) {
+        cJSON_Delete(params);
+        return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to save configuration");
+    }
+
+    // 创建返回数据结构
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON* globalConfigJSON = cJSON_CreateObject();
+    
+    // 添加inputMode
+    switch(config.inputMode) {
+        case InputMode::INPUT_MODE_XINPUT:
+            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "XINPUT");
+            break;
+        case InputMode::INPUT_MODE_PS4:
+            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "PS4");
+            break;
+        case InputMode::INPUT_MODE_SWITCH:
+            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "SWITCH");
+            break;
+        default:
+            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "XINPUT");
+            break;
+    }
+    
+    // 构建返回结构
+    cJSON_AddItemToObject(dataJSON, "globalConfig", globalConfigJSON);
+    
+    // 生成返回字符串
+    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    
+    cJSON_Delete(params);
+    
+    return response;
+}
+
 /*============================================ apis end =================================================*/
 
 
 typedef std::string (*HandlerFuncPtr)();
 static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
 {
+    { "/api/global-config", apiGetGlobalConfig },
+    { "/api/update-global-config", apiUpdateGlobalConfig },
     { "/api/profile-list",  apiGetProfileList },
     { "/api/default-profile",  apiGetDefaultProfile },
     { "/api/hotkeys-config", apiGetHotkeysConfig },    

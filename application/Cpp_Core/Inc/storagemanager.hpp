@@ -22,6 +22,10 @@ public:
 	void initConfig();
 	bool saveConfig();
 	bool resetConfig();
+	void setInputMode(InputMode inputMode);
+	const InputMode getInputMode() {
+		return config.inputMode;
+	}
 	GamepadProfile* getGamepadProfile(char* id);
 	GamepadProfile* getDefaultGamepadProfile() {
 		return getGamepadProfile(config.defaultProfileId);
