@@ -55,6 +55,7 @@ Libs/tinyusb/src/common \
 Libs/tinyusb/lib/networking \
 Libs/tinyusb/src/portable/synopsys/dwc2 \
 Libs/tinyusb/src/class/net \
+Libs/tinyusb/src/class/hid \
 Libs/rndis \
 Libs/stm32_mw_lwip/src/apps \
 Libs/stm32_mw_lwip/src/core \
