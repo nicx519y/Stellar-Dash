@@ -1374,6 +1374,7 @@ std::string apiReboot() {
     cJSON_AddStringToObject(dataJSON, "message", "System is rebooting");
     
     STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
+    STORAGE_MANAGER.saveConfig();
 
     // 设置延迟重启时间
     rebootTick = HAL_GetTick() + rebootDelayMs;
