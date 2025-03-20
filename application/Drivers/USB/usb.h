@@ -5,7 +5,13 @@
 extern "C" {
 #endif
 
-void USB_init();
+#include "stm32h7xx_hal.h"
+
+void USB_clock_init(void);
+void USB_DEVICE_init(void);
+void USB_HOST_Init(void);
+void USB_HOST_StatusCheck(void);
+void USB_HOST_Reset(void);
 
 #ifdef __cplusplus
 }

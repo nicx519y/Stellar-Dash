@@ -61,11 +61,8 @@ Libs/stm32_mw_lwip/src/apps \
 Libs/stm32_mw_lwip/src/core \
 Libs/stm32_mw_lwip/src/netif \
 Libs/stm32_mw_lwip/src/core/ipv4 \
-Libs/cJSON \
-USB_DEVICE/App \
-USB_DEVICE/Target \
-Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src \
-Middlewares/ST/STM32_USB_Device_Library/Core/Src
+Libs/cJSON 
+
 
 # C++ 源文件目录
 CPP_SOURCE_DIRS = \
@@ -134,6 +131,7 @@ C_INCLUDES += \
 -ILibs/tinyusb/src/common \
 -ILibs/tinyusb/lib/networking \
 -ILibs/tinyusb/src/portable/synopsys/dwc2 \
+-ILibs/tinyusb/src/portable/st/stm32_fsdev \
 -ILibs/tinyusb/src/class/net \
 -ILibs/rndis \
 -ILibs/stm32_mw_lwip/src/apps \
@@ -143,11 +141,8 @@ C_INCLUDES += \
 -ILibs/stm32_mw_lwip/src/include \
 -ILibs/stm32_mw_lwip/system \
 -ILibs/lwip-port \
--ILibs/cJSON \
--IUSB_DEVICE/App \
--IUSB_DEVICE/Target \
--IMiddlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc \
--IMiddlewares/ST/STM32_USB_Device_Library/Core/Inc
+-ILibs/cJSON 
+
 
 # C++ 编译器设置
 CXX = $(PREFIX)g++

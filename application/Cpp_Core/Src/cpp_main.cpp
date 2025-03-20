@@ -7,6 +7,7 @@
 #include "pwm-ws2812b.h"
 #include "message_center.hpp"
 #include "adc.h"
+#include "tusb.h"
 
 extern "C" {
     int cpp_main(void) 
@@ -28,4 +29,13 @@ extern "C" {
     }
 }
 
+/**
+ * 重写tusb_time_millis_api和tusb_time_delay_ms_api for STM32
+ */
+uint32_t tusb_time_millis_api(void) {
+    return HAL_GetTick();
+}
 
+void tusb_time_delay_ms_api(uint32_t ms) {
+    HAL_Delay(ms);
+}

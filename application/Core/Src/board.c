@@ -65,7 +65,12 @@ void board_init(void)
     MX_TIM2_Init(); // 8000频率定时器 并开启中断模式
     APP_DBG("board init: MX_TIM2_Init success.");
 
-    USB_init();
+    USB_clock_init();
+
+    USB_DEVICE_init();
+
+    /* Initialize USB Host */
+    USB_HOST_Init();
 
     APP_DBG("board init: USB_init success.");
 

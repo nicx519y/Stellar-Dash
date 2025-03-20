@@ -6,7 +6,8 @@ void MainStateMachine::setup()
     STORAGE_MANAGER.initConfig();
     APP_DBG("Storage initConfig success.");
 
-    BootMode bootMode = STORAGE_MANAGER.getBootMode();
+    // BootMode bootMode = STORAGE_MANAGER.getBootMode();
+    BootMode bootMode = BOOT_MODE_WEB_CONFIG;
     APP_DBG("BootMode: %d", bootMode);
 
     switch(bootMode) {

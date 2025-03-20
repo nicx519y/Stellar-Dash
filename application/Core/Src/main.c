@@ -53,13 +53,15 @@ int main(void)
 
     board_init(); // 初始化板子 时钟 W25Q64 串口 WS2812B 等
 
+    
+
 #if SYSTEM_CHECK_ENABLE == 1
     dataSectionTest(); // 测试各个段，测试堆内存
     floatTest(); // 测试FPU 是否能打印浮点数
 #endif
     cpp_main();
 
-    while (1);
+
 }
 
 
@@ -216,3 +218,4 @@ void assert_failed(uint8_t *file, uint32_t line)
     /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
+
