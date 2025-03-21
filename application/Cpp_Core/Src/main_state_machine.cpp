@@ -8,6 +8,7 @@ void MainStateMachine::setup()
 
     // BootMode bootMode = STORAGE_MANAGER.getBootMode();
     BootMode bootMode = BOOT_MODE_INPUT;
+    // BootMode bootMode = BOOT_MODE_WEB_CONFIG;
     APP_DBG("BootMode: %d", bootMode);
 
     switch(bootMode) {
