@@ -24,11 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   name: Adafruit Feather nRF52840 Sense
-   url: https://www.adafruit.com/product/4516
-*/
-
 #ifndef BOARD_H_
 #define BOARD_H_
 

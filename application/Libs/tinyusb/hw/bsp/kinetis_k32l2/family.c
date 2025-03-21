@@ -25,10 +25,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   manufacturer: NXP
-*/
-
 #include "fsl_gpio.h"
 #include "fsl_port.h"
 #include "fsl_clock.h"

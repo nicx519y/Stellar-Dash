@@ -172,8 +172,8 @@ static void enum_done_processing(void)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  (void) rh_init;
+void dcd_init(uint8_t rhport)
+{
   ESP_LOGV(TAG, "DCD init - Start");
 
   // A. Disconnect
@@ -211,7 +211,6 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
                  USB_DISCONNINTMSK_M; // host most only
 
   dcd_connect(rhport);
-  return true;
 }
 
 void dcd_set_address(uint8_t rhport, uint8_t dev_addr)

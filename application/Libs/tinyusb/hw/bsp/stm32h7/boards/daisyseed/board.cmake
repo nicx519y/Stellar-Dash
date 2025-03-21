@@ -8,5 +8,8 @@ function(update_board TARGET)
     STM32H750xx
     HSE_VALUE=16000000
     CORE_CM7
+    # default to PORT 0
+    BOARD_TUD_RHPORT=0
+    BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
     )
 endfunction()

@@ -24,10 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   manufacturer: WCH
-*/
-
 #include "stdio.h"
 #include "debug_uart.h"
 

@@ -24,11 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   name: Adafruit Feather ESP32S2
-   url: https://www.adafruit.com/product/5000
-*/
-
 #ifndef BOARD_H_
 #define BOARD_H_
 

@@ -104,10 +104,9 @@ TU_ATTR_ALWAYS_INLINE static inline void CleanInValidateCache(uint32_t *addr, in
 //------------------------------------------------------------------
 
 // Initialize controller to device mode
-bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  (void) rh_init;
+void dcd_init (uint8_t rhport)
+{
   dcd_connect(rhport);
-  return true;
 }
 
 // Enable device interrupt

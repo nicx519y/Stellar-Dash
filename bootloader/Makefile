@@ -40,10 +40,6 @@ Core/Src/main.c \
 Core/Src/gpio.c \
 Core/Src/stm32h7xx_it.c \
 Core/Src/stm32h7xx_hal_msp.c \
-USB_DEVICE/App/usb_device.c \
-USB_DEVICE/App/usbd_desc.c \
-USB_DEVICE/App/usbd_cdc_if.c \
-USB_DEVICE/Target/usbd_conf.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd_ex.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_rcc.c \
@@ -68,12 +64,9 @@ Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_hcd.c \
 Drivers/USART/usart.c \
 Drivers/QSPI-W25Q64/qspi-w25q64.c \
 Core/Src/system_stm32h7xx.c \
-Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c \
-Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c \
-Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c \
-Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c \
 Core/Src/sysmem.c \
 Core/Src/syscalls.c  
+
 
 # ASM sources
 ASM_SOURCES =  \
@@ -134,16 +127,13 @@ AS_INCLUDES =
 # C includes
 C_INCLUDES =  \
 -ICore/Inc \
--IUSB_DEVICE/App \
--IUSB_DEVICE/Target \
 -IDrivers/STM32H7xx_HAL_Driver/Inc \
 -IDrivers/STM32H7xx_HAL_Driver/Inc/Legacy \
--IMiddlewares/ST/STM32_USB_Device_Library/Core/Inc \
--IMiddlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc \
 -IDrivers/CMSIS/Device/ST/STM32H7xx/Include \
 -IDrivers/CMSIS/Include \
 -IDrivers/QSPI-W25Q64 \
--IDrivers/USART \
+-IDrivers/USART
+
 
 
 # compile gcc flags

@@ -24,10 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   name: Kuiic
-   url: https://github.com/nxf58843/kuiic
-*/
 
 #ifndef BOARD_H_
 #define BOARD_H_

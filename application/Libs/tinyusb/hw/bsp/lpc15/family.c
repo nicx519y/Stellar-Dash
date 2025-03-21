@@ -24,10 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   manufacturer: NXP
-*/
-
 #ifdef __GNUC__
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wstrict-prototypes"

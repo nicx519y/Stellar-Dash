@@ -1,8 +1,3 @@
-/* metadata:
-   name: SAMG55 Xplained Pro
-   url: https://www.microchip.com/DevelopmentTools/ProductDetails/ATSAMG55-XPRO
-*/
-
 #ifndef BOARD_H
 #define BOARD_H
 

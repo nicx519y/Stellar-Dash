@@ -3,6 +3,7 @@
 
 #include "base_state.hpp"
 #include "drivermanager.hpp"
+#include "board_cfg.h"
 
 class InputState : public BaseState {
     public:

@@ -24,10 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   manufacturer: Raspberry Pi
-*/
-
 #include "bsp/board_api.h"
 #include "board.h"
 

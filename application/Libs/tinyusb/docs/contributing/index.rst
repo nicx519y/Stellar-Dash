@@ -19,4 +19,5 @@ Index
    :maxdepth: 2
 
    code_of_conduct
+   structure
    porting

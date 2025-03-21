@@ -24,11 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   name: Adafruit PyBadge
-   url: https://www.adafruit.com/product/4200
-*/
-
 #ifndef BOARD_H_
 #define BOARD_H_
 

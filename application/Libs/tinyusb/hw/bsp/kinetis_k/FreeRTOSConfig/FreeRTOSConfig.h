@@ -129,6 +129,8 @@
         }\
       }\
     } while(0)
+#else
+  #define configASSERT( x )
 #endif
 
 /* FreeRTOS hooks to NVIC vectors */

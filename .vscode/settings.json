@@ -62,6 +62,8 @@
         "cinttypes": "cpp",
         "typeinfo": "cpp",
         "stdio.h": "c",
-        "board_api.h": "c"
+        "board_api.h": "c",
+        "tusb_option.h": "c",
+        "tusb_config.h": "c"
     }
 }

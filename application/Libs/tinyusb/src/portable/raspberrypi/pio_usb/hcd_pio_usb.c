@@ -55,9 +55,8 @@ bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void *cfg_param) {
   return true;
 }
 
-bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+bool hcd_init(uint8_t rhport) {
   (void) rhport;
-  (void) rh_init;
 
   // To run USB SOF interrupt in core1, call this init in core1
   pio_usb_host_init(&pio_host_cfg);

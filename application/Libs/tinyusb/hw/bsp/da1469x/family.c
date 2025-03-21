@@ -24,10 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   manufacturer: Renesas
-*/
-
 #include "bsp/board_api.h"
 #include "board.h"
 #include <hal/hal_gpio.h>

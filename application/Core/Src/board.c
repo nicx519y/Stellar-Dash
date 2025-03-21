@@ -67,10 +67,10 @@ void board_init(void)
 
     USB_clock_init();
 
-    USB_DEVICE_init();
+    USB_Device_Init();
 
     /* Initialize USB Host */
-    USB_HOST_Init();
+    // USB_Host_Init();
 
     APP_DBG("board init: USB_init success.");
 

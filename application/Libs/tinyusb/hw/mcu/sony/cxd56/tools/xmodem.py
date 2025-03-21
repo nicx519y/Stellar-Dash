@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 '''
 ===============================
  XMODEM file transfer protocol

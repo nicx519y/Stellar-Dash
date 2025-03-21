@@ -24,10 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   manufacturer: STMicroelectronics
-*/
-
 #include "stm32f1xx_hal.h"
 #include "bsp/board_api.h"
 #include "board.h"

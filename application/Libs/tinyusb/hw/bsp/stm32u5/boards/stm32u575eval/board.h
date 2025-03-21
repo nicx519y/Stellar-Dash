@@ -25,11 +25,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   name: STM32 U575 Eval
-   url: https://www.st.com/en/evaluation-tools/stm32u575i-ev.html
-*/
-
 #ifndef BOARD_H_
 #define BOARD_H_
 

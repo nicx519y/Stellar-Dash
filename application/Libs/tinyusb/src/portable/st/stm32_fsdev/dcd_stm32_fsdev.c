@@ -40,7 +40,6 @@
  * F102, F103                      512 byte buffer; no internal D+ pull-up (maybe many more changes?)
  * F302xB/C, F303xB/C, F373        512 byte buffer; no internal D+ pull-up
  * F302x6/8, F302xD/E2, F303xD/E  1024 byte buffer; no internal D+ pull-up
- * C0                             2048 byte buffer; 32-bit bus; host mode
  * G0                             2048 byte buffer; 32-bit bus; host mode
  * G4                             1024 byte buffer
  * H5                             2048 byte buffer; 32-bit bus; host mode
@@ -185,8 +184,7 @@ TU_ATTR_ALWAYS_INLINE static inline xfer_ctl_t *xfer_ctl_ptr(uint8_t epnum, uint
 //--------------------------------------------------------------------+
 // Controller API
 //--------------------------------------------------------------------+
-bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
-  (void) rh_init;
+void dcd_init(uint8_t rhport) {
   // Follow the RM mentions to use a special ordering of PDWN and FRES
   for (volatile uint32_t i = 0; i < 200; i++) { // should be a few us
     asm("NOP");
@@ -225,8 +223,6 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   // Enable pull-up if supported
   dcd_connect(rhport);
-
-  return true;
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en) {

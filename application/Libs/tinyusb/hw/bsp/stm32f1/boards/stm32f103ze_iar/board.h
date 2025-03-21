@@ -24,11 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   name: IAR STM32 F103ze starter kit
-   url: n/a
-*/
-
 #ifndef BOARD_H_
 #define BOARD_H_
 

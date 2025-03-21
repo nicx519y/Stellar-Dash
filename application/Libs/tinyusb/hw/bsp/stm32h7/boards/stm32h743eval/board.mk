@@ -1,17 +1,16 @@
-MCU_VARIANT = stm32h743xx
 CFLAGS += -DSTM32H743xx -DHSE_VALUE=25000000
 
-RHPORT_SPEED = OPT_MODE_FULL_SPEED OPT_MODE_HIGH_SPEED
-RHPORT_DEVICE ?= 1
-RHPORT_HOST ?= 0
+# Default is Highspeed port
+PORT ?= 1
+SPEED ?= high
 
-LD_FILE_GCC = $(FAMILY_PATH)/linker/${MCU_VARIANT}_flash.ld
+# GCC
+SRC_S_GCC += $(ST_CMSIS)/Source/Templates/gcc/startup_stm32h743xx.s
+LD_FILE_GCC = $(FAMILY_PATH)/linker/stm32h743xx_flash.ld
 
-SRC_C += \
-  ${ST_MFXSTM32L152}/mfxstm32l152.c \
-  ${ST_MFXSTM32L152}/mfxstm32l152_reg.c \
-
-INC += $(TOP)/${ST_MFXSTM32L152}
+# IAR
+SRC_S_IAR += $(ST_CMSIS)/Source/Templates/iar/startup_stm32h743xx.s
+LD_FILE_IAR = $(ST_CMSIS)/Source/Templates/iar/linker/stm32h743xx_flash.icf
 
 # For flash-jlink target
 JLINK_DEVICE = stm32h743xi

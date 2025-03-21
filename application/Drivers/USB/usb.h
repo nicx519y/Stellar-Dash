@@ -8,10 +8,9 @@ extern "C" {
 #include "stm32h7xx_hal.h"
 
 void USB_clock_init(void);
-void USB_DEVICE_init(void);
-void USB_HOST_Init(void);
-void USB_HOST_StatusCheck(void);
-void USB_HOST_Reset(void);
+void USB_Device_Init(void);
+// void USB_Host_Init(void);
+
 
 #ifdef __cplusplus
 }

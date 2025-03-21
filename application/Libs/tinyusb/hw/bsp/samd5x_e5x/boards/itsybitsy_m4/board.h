@@ -24,11 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   name: Adafruit ItsyBitsy M4
-   url: https://www.adafruit.com/product/3800
-*/
-
 #ifndef BOARD_H_
 #define BOARD_H_
 

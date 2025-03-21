@@ -78,9 +78,9 @@ static void bus_reset(void)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+void dcd_init (uint8_t rhport)
+{
   (void) rhport;
-  (void) rh_init;
 
   // Reset to get in a clean state.
   USB->DEVICE.CTRLA.bit.SWRST = true;
@@ -102,8 +102,6 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   USB->DEVICE.INTFLAG.reg |= USB->DEVICE.INTFLAG.reg; // clear pending
   USB->DEVICE.INTENSET.reg = /* USB_DEVICE_INTENSET_SOF | */ USB_DEVICE_INTENSET_EORST;
-
-  return true;
 }
 
 #if CFG_TUSB_MCU == OPT_MCU_SAMD51 || CFG_TUSB_MCU == OPT_MCU_SAME5X
@@ -335,7 +333,7 @@ void dcd_edpt_clear_stall (uint8_t rhport, uint8_t ep_addr)
 //--------------------------------------------------------------------+
 // Interrupt Handler
 //--------------------------------------------------------------------+
-static void maybe_transfer_complete(void) {
+void maybe_transfer_complete(void) {
   uint32_t epints = USB->DEVICE.EPINTSMRY.reg;
 
   for (uint8_t epnum = 0; epnum < USB_EPT_NUM; epnum++) {

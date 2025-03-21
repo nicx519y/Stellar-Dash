@@ -25,9 +25,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   manufacturer: STMicroelectronics
-*/
 
 // Suppress warning caused by mcu driver
 #ifdef __GNUC__
@@ -58,9 +55,7 @@ void USB_DRD_FS_IRQHandler(void) {
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM
 //--------------------------------------------------------------------+
-#ifdef UART_DEV
 UART_HandleTypeDef UartHandle;
-#endif
 
 void board_init(void) {
   HAL_Init(); // required for HAL_RCC_Osc TODO check with freeRTOS
@@ -83,6 +78,8 @@ void board_init(void) {
   #ifdef __HAL_RCC_GPIOI_CLK_ENABLE
   __HAL_RCC_GPIOI_CLK_ENABLE();
   #endif
+
+  UART_CLK_EN();
 
   #if CFG_TUSB_OS == OPT_OS_NONE
   // 1ms tick timer
@@ -114,8 +111,6 @@ void board_init(void) {
   HAL_GPIO_Init(BUTTON_PORT, &GPIO_InitStruct);
 
   #ifdef UART_DEV
-  UART_CLK_EN();
-
   // UART
   GPIO_InitStruct.Pin = UART_TX_PIN | UART_RX_PIN;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -194,6 +189,7 @@ int board_uart_write(void const* buf, int len) {
   #else
   (void) buf;
   (void) len;
+  (void) UartHandle;
   return 0;
   #endif
 }

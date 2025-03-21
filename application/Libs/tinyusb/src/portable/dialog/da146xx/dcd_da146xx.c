@@ -804,16 +804,15 @@ static void handle_ep0_nak(void)
 /*------------------------------------------------------------------*/
 /* Controller API
  *------------------------------------------------------------------*/
-bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+void dcd_init(uint8_t rhport)
+{
   (void) rhport;
-  (void) rh_init;
 
   _dcd.init_called = true;
-  if (_dcd.vbus_present) {
+  if (_dcd.vbus_present)
+  {
     dcd_connect(rhport);
   }
-
-  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)
@@ -896,7 +895,6 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_in_isr(void)
   return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) != 0;
 }
 
-void tusb_vbus_changed(bool present);
 void tusb_vbus_changed(bool present)
 {
   if (present && !_dcd.vbus_present)

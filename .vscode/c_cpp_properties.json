@@ -5,25 +5,20 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/application/Core/Inc",
+                "${workspaceFolder}/application/Cpp_Core/Inc",
                 "${workspaceFolder}/application/Drivers/STM32H7xx_HAL_Driver/Inc",
                 "${workspaceFolder}/application/Drivers/STM32H7xx_HAL_Driver/Inc/Legacy",
                 "${workspaceFolder}/application/Drivers/CMSIS/Device/ST/STM32H7xx/Include",
                 "${workspaceFolder}/application/Drivers/CMSIS/Include",
-                "${workspaceFolder}/application/USB_DEVICE/App",
-                "${workspaceFolder}/application/USB_DEVICE/Target",
-                "${workspaceFolder}/application/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc",
-                "${workspaceFolder}/application/Middlewares/ST/STM32_USB_Device_Library/Core/Inc",
-                
+                "${workspaceFolder}/application/Libs/tinyusb/src",
+                "${workspaceFolder}/application/Libs/tinyusb/src/common",
+                "${workspaceFolder}/application/Libs/tinyusb/src/portable",
                 "${workspaceFolder}/bootloader/Core/Inc",
                 "${workspaceFolder}/bootloader/Drivers/STM32H7xx_HAL_Driver/Inc",
                 "${workspaceFolder}/bootloader/Drivers/STM32H7xx_HAL_Driver/Inc/Legacy",
                 "${workspaceFolder}/bootloader/Drivers/CMSIS/Device/ST/STM32H7xx/Include",
-                "${workspaceFolder}/bootloader/Drivers/CMSIS/Include",
-                "${workspaceFolder}/bootloader/USB_DEVICE/App",
-                "${workspaceFolder}/bootloader/USB_DEVICE/Target",
-                "${workspaceFolder}/bootloader/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc",
-                "${workspaceFolder}/bootloader/Middlewares/ST/STM32_USB_Device_Library/Core/Inc"
-
+                "${workspaceFolder}/bootloader/Drivers/CMSIS/Include"
+                
             ],
             "defines": [
                 "USE_HAL_DRIVER",

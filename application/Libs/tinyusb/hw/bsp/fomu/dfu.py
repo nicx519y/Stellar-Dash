@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python
 
 # Written by Antonio Galea - 2010/11/18
 # Updated for DFU 1.1 by Sean Cross - 2020/03/31

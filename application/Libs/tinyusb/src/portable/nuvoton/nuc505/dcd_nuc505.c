@@ -279,9 +279,9 @@ static const uint32_t enabled_irqs = USBD_GINTEN_USBIEN_Msk | \
   NUC505 TinyUSB API driver implementation
 */
 
-bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
+void dcd_init(uint8_t rhport)
+{
   (void) rhport;
-  (void) rh_init;
 
   /* configure interrupts in their initial state; BUSINTEN and CEPINTEN will be subsequently and dynamically re-written as needed */
   USBD->GINTEN = enabled_irqs;
@@ -291,8 +291,6 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   bus_reset();
 
   usb_attach();
-
-  return true;
 }
 
 void dcd_int_enable(uint8_t rhport)

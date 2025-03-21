@@ -24,11 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   name: MSP432E401Y LaunchPad
-   url: https://www.ti.com/tool/MSP-EXP432E401Y
-*/
-
 #ifndef BOARD_H_
 #define BOARD_H_
 

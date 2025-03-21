@@ -23,10 +23,6 @@
  *
  */
 
-/* metadata:
-   manufacturer: Microchip
-*/
-
 #include "sam.h"
 
 // Suppress warning caused by mcu driver

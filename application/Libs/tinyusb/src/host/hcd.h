@@ -53,21 +53,26 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-typedef enum {
+typedef enum
+{
   HCD_EVENT_DEVICE_ATTACH,
   HCD_EVENT_DEVICE_REMOVE,
   HCD_EVENT_XFER_COMPLETE,
 
-  USBH_EVENT_FUNC_CALL, // Not an HCD event
+  // Not an HCD event, just a convenient way to defer ISR function
+  USBH_EVENT_FUNC_CALL,
+
   HCD_EVENT_COUNT
 } hcd_eventid_t;
 
-typedef struct {
+typedef struct
+{
   uint8_t rhport;
   uint8_t event_id;
   uint8_t dev_addr;
 
-  union {
+  union
+  {
     // Attach, Remove
     struct {
       uint8_t hub_addr;
@@ -88,9 +93,11 @@ typedef struct {
       void* param;
     }func_call;
   };
+
 } hcd_event_t;
 
-typedef struct {
+typedef struct
+{
   uint8_t rhport;
   uint8_t hub_addr;
   uint8_t hub_port;
@@ -103,15 +110,15 @@ typedef struct {
 
 // clean/flush data cache: write cache -> memory.
 // Required before an DMA TX transfer to make sure data is in memory
-bool hcd_dcache_clean(void const* addr, uint32_t data_size);
+bool hcd_dcache_clean(void const* addr, uint32_t data_size) TU_ATTR_WEAK;
 
 // invalidate data cache: mark cache as invalid, next read will read from memory
 // Required BOTH before and after an DMA RX transfer
-bool hcd_dcache_invalidate(void const* addr, uint32_t data_size);
+bool hcd_dcache_invalidate(void const* addr, uint32_t data_size) TU_ATTR_WEAK;
 
 // clean and invalidate data cache
 // Required before an DMA transfer where memory is both read/write by DMA
-bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size);
+bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size) TU_ATTR_WEAK;
 
 //--------------------------------------------------------------------+
 // Controller API
@@ -121,7 +128,7 @@ bool hcd_dcache_clean_invalidate(void const* addr, uint32_t data_size);
 bool hcd_configure(uint8_t rhport, uint32_t cfg_id, const void* cfg_param);
 
 // Initialize controller to host mode
-bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init);
+bool hcd_init(uint8_t rhport);
 
 // De-initialize controller
 bool hcd_deinit(uint8_t rhport);

@@ -300,18 +300,17 @@ void TIM2_IRQHandler(void)
   /* USER CODE END TIM2_IRQn 1 */
 }
 
+extern HCD_HandleTypeDef hhcd_USB_OTG_HS;
 /**
   * @brief This function handles USB On The Go HS global interrupt.
   */
 void OTG_HS_IRQHandler(void)
 {
-  /* USER CODE BEGIN OTG_HS_IRQn 0 */
+  APP_DBG("OTG_HS_IRQHandler");
 
-  /* USER CODE END OTG_HS_IRQn 0 */
-  // HAL_HCD_IRQHandler();
-  /* USER CODE BEGIN OTG_HS_IRQn 1 */
-
-  /* USER CODE END OTG_HS_IRQn 1 */
+  HAL_HCD_IRQHandler(&hhcd_USB_OTG_HS);
+  
+  APP_DBG("OTG_HS_IRQHandler process done");
 }
 
 /**
@@ -319,13 +318,7 @@ void OTG_HS_IRQHandler(void)
   */
 void OTG_FS_IRQHandler(void)
 {
-  /* USER CODE BEGIN OTG_FS_IRQn 0 */
-  tud_int_handler(BOARD_TUD_RHPORT);
-  /* USER CODE END OTG_FS_IRQn 0 */
-  // HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
-  /* USER CODE BEGIN OTG_FS_IRQn 1 */
-
-  /* USER CODE END OTG_FS_IRQn 1 */
+  tud_int_handler(0);
 }
 
 /* USER CODE BEGIN 1 */
@@ -343,3 +336,5 @@ void BDMA_Channel0_IRQHandler(void)
   /* USER CODE END BDMA_Channel0_IRQn 1 */
 }
 /* USER CODE END 1 */
+
+

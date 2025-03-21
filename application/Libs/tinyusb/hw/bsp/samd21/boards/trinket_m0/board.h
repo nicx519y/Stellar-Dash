@@ -23,11 +23,6 @@
  *
  */
 
-/* metadata:
-   name: Adafruit Trinket M0
-   url: https://www.adafruit.com/product/3500
-*/
-
 #pragma once
 
 // LED

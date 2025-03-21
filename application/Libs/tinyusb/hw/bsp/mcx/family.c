@@ -24,10 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   manufacturer: NXP
-*/
-
 #include "bsp/board_api.h"
 #include "fsl_device_registers.h"
 #include "fsl_gpio.h"
@@ -38,22 +34,38 @@
 #include "clock_config.h"
 
 //--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM
+//--------------------------------------------------------------------+
+
+#ifdef BOARD_TUD_RHPORT
+  #define PORT_SUPPORT_DEVICE(_n)  (BOARD_TUD_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_DEVICE(_n)  0
+#endif
+
+#ifdef BOARD_TUH_RHPORT
+  #define PORT_SUPPORT_HOST(_n)    (BOARD_TUH_RHPORT == _n)
+#else
+  #define PORT_SUPPORT_HOST(_n)    0
+#endif
+
+//--------------------------------------------------------------------+
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 
 #if CFG_TUSB_MCU == OPT_MCU_MCXN9
 void USB0_FS_IRQHandler(void) {
-  tusb_int_handler(0, true);
+  tud_int_handler(0);
 }
 
 void USB1_HS_IRQHandler(void) {
-  tusb_int_handler(1, true);
+  tud_int_handler(1);
 }
 
 #elif CFG_TUSB_MCU == OPT_MCU_MCXA15
 
 void USB0_IRQHandler(void) {
-  tusb_int_handler(0, true);
+  tud_int_handler(0);
 }
 
 #endif
@@ -121,7 +133,7 @@ void board_init(void) {
   // USB VBUS
   /* PORT0 PIN22 configured as USB0_VBUS */
 
-#if defined(BOARD_TUD_RHPORT) && BOARD_TUD_RHPORT == 0
+#if PORT_SUPPORT_DEVICE(0)
   // Port0 is Full Speed
 
   #if CFG_TUSB_MCU == OPT_MCU_MCXA15
@@ -135,7 +147,7 @@ void board_init(void) {
   CLOCK_EnableUsbfsClock();
 #endif
 
-#if defined(BOARD_TUD_RHPORT) && BOARD_TUD_RHPORT == 1 && (CFG_TUSB_MCU == OPT_MCU_MCXN9)
+#if PORT_SUPPORT_DEVICE(1) && (CFG_TUSB_MCU == OPT_MCU_MCXN9)
   // Port1 is High Speed
 
   // Power

@@ -39,7 +39,16 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-typedef struct {
+
+typedef struct
+{
+  uint8_t buffer[4];
+  uint8_t index;
+  uint8_t total;
+}midid_stream_t;
+
+typedef struct
+{
   uint8_t itf_num;
   uint8_t ep_in;
   uint8_t ep_out;
@@ -47,8 +56,8 @@ typedef struct {
   // For Stream read()/write() API
   // Messages are always 4 bytes long, queue them for reading and writing so the
   // callers can use the Stream interface with single-byte read/write calls.
-  midi_driver_stream_t stream_write;
-  midi_driver_stream_t stream_read;
+  midid_stream_t stream_write;
+  midid_stream_t stream_read;
 
   /*------------- From this point, data is not cleared by bus reset -------------*/
   // FIFO
@@ -61,36 +70,36 @@ typedef struct {
   osal_mutex_def_t rx_ff_mutex;
   osal_mutex_def_t tx_ff_mutex;
   #endif
+
+  // Endpoint Transfer buffer
+  CFG_TUSB_MEM_ALIGN uint8_t epout_buf[CFG_TUD_MIDI_EP_BUFSIZE];
+  CFG_TUSB_MEM_ALIGN uint8_t epin_buf[CFG_TUD_MIDI_EP_BUFSIZE];
+
 } midid_interface_t;
 
 #define ITF_MEM_RESET_SIZE   offsetof(midid_interface_t, rx_ff)
 
-// Endpoint Transfer buffer
-CFG_TUD_MEM_SECTION static struct {
-  TUD_EPBUF_DEF(epin, CFG_TUD_MIDI_EP_BUFSIZE);
-  TUD_EPBUF_DEF(epout, CFG_TUD_MIDI_EP_BUFSIZE);
-} _midid_epbuf[CFG_TUD_MIDI];
-
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static midid_interface_t _midid_itf[CFG_TUD_MIDI];
+CFG_TUD_MEM_SECTION midid_interface_t _midid_itf[CFG_TUD_MIDI];
 
-bool tud_midi_n_mounted (uint8_t itf) {
+bool tud_midi_n_mounted (uint8_t itf)
+{
   midid_interface_t* midi = &_midid_itf[itf];
   return midi->ep_in && midi->ep_out;
 }
 
-static void _prep_out_transaction(uint8_t idx) {
-  const uint8_t rhport = 0;
-  midid_interface_t* p_midi = &_midid_itf[idx];
+static void _prep_out_transaction (midid_interface_t* p_midi)
+{
+  uint8_t const rhport = 0;
   uint16_t available = tu_fifo_remaining(&p_midi->rx_ff);
 
   // Prepare for incoming data but only allow what we can store in the ring buffer.
   // TODO Actually we can still carry out the transfer, keeping count of received bytes
   // and slowly move it to the FIFO when read().
   // This pre-check reduces endpoint claiming
-  TU_VERIFY(available >= CFG_TUD_MIDI_EP_BUFSIZE, );
+  TU_VERIFY(available >= sizeof(p_midi->epout_buf), );
 
   // claim endpoint
   TU_VERIFY(usbd_edpt_claim(rhport, p_midi->ep_out), );
@@ -98,8 +107,8 @@ static void _prep_out_transaction(uint8_t idx) {
   // fifo can be changed before endpoint is claimed
   available = tu_fifo_remaining(&p_midi->rx_ff);
 
-  if ( available >= CFG_TUD_MIDI_EP_BUFSIZE )  {
-    usbd_edpt_xfer(rhport, p_midi->ep_out, _midid_epbuf[idx].epout, CFG_TUD_MIDI_EP_BUFSIZE);
+  if ( available >= sizeof(p_midi->epout_buf) )  {
+    usbd_edpt_xfer(rhport, p_midi->ep_out, p_midi->epout_buf, sizeof(p_midi->epout_buf));
   }else
   {
     // Release endpoint since we don't make any transfer
@@ -115,7 +124,7 @@ uint32_t tud_midi_n_available(uint8_t itf, uint8_t cable_num)
   (void) cable_num;
 
   midid_interface_t* midi = &_midid_itf[itf];
-  const midi_driver_stream_t* stream = &midi->stream_read;
+  midid_stream_t const* stream = &midi->stream_read;
 
   // when using with packet API stream total & index are both zero
   return tu_fifo_count(&midi->rx_ff) + (uint8_t) (stream->total - stream->index);
@@ -129,7 +138,7 @@ uint32_t tud_midi_n_stream_read(uint8_t itf, uint8_t cable_num, void* buffer, ui
   uint8_t* buf8 = (uint8_t*) buffer;
 
   midid_interface_t* midi = &_midid_itf[itf];
-  midi_driver_stream_t* stream = &midi->stream_read;
+  midid_stream_t* stream = &midi->stream_read;
 
   uint32_t total_read = 0;
   while( bufsize )
@@ -196,8 +205,8 @@ bool tud_midi_n_packet_read (uint8_t itf, uint8_t packet[4])
   midid_interface_t* midi = &_midid_itf[itf];
   TU_VERIFY(midi->ep_out);
 
-  const uint32_t num_read = tu_fifo_read_n(&midi->rx_ff, packet, 4);
-  _prep_out_transaction(itf);
+  uint32_t const num_read = tu_fifo_read_n(&midi->rx_ff, packet, 4);
+  _prep_out_transaction(midi);
   return (num_read == 4);
 }
 
@@ -205,47 +214,48 @@ bool tud_midi_n_packet_read (uint8_t itf, uint8_t packet[4])
 // WRITE API
 //--------------------------------------------------------------------+
 
-static uint32_t write_flush(uint8_t idx) {
-  midid_interface_t* midi = &_midid_itf[idx];
+static uint32_t write_flush(midid_interface_t* midi)
+{
+  // No data to send
+  if ( !tu_fifo_count(&midi->tx_ff) ) return 0;
 
-  if (!tu_fifo_count(&midi->tx_ff)) {
-    return 0; // No data to send
-  }
-
-  const uint8_t rhport = 0;
+  uint8_t const rhport = 0;
 
   // skip if previous transfer not complete
   TU_VERIFY( usbd_edpt_claim(rhport, midi->ep_in), 0 );
 
-  uint16_t count = tu_fifo_read_n(&midi->tx_ff, _midid_epbuf[idx].epin, CFG_TUD_MIDI_EP_BUFSIZE);
+  uint16_t count = tu_fifo_read_n(&midi->tx_ff, midi->epin_buf, CFG_TUD_MIDI_EP_BUFSIZE);
 
-  if (count) {
-    TU_ASSERT( usbd_edpt_xfer(rhport, midi->ep_in, _midid_epbuf[idx].epin, count), 0 );
+  if (count)
+  {
+    TU_ASSERT( usbd_edpt_xfer(rhport, midi->ep_in, midi->epin_buf, count), 0 );
     return count;
-  }else {
+  }else
+  {
     // Release endpoint since we don't make any transfer
     usbd_edpt_release(rhport, midi->ep_in);
     return 0;
   }
 }
 
-uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, const uint8_t* buffer, uint32_t bufsize)
+uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, uint8_t const* buffer, uint32_t bufsize)
 {
   midid_interface_t* midi = &_midid_itf[itf];
   TU_VERIFY(midi->ep_in, 0);
 
-  midi_driver_stream_t* stream = &midi->stream_write;
+  midid_stream_t* stream = &midi->stream_write;
 
   uint32_t i = 0;
   while ( (i < bufsize) && (tu_fifo_remaining(&midi->tx_ff) >= 4) )
   {
-    const uint8_t data = buffer[i];
+    uint8_t const data = buffer[i];
     i++;
 
     if ( stream->index == 0 )
     {
       //------------- New event packet -------------//
-      const uint8_t msg = data >> 4;
+
+      uint8_t const msg = data >> 4;
 
       stream->index = 2;
       stream->buffer[1] = data;
@@ -330,11 +340,9 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, const uint8_t* 
     if ( stream->index == stream->total )
     {
       // zeroes unused bytes
-      for (uint8_t idx = stream->total; idx < 4; idx++) {
-        stream->buffer[idx] = 0;
-      }
+      for(uint8_t idx = stream->total; idx < 4; idx++) stream->buffer[idx] = 0;
 
-      const uint16_t count = tu_fifo_write_n(&midi->tx_ff, stream->buffer, 4);
+      uint16_t const count = tu_fifo_write_n(&midi->tx_ff, stream->buffer, 4);
 
       // complete current event packet, reset stream
       stream->index = stream->total = 0;
@@ -344,21 +352,20 @@ uint32_t tud_midi_n_stream_write(uint8_t itf, uint8_t cable_num, const uint8_t* 
     }
   }
 
-  write_flush(itf);
+  write_flush(midi);
 
   return i;
 }
 
-bool tud_midi_n_packet_write (uint8_t itf, const uint8_t packet[4]) {
+bool tud_midi_n_packet_write (uint8_t itf, uint8_t const packet[4])
+{
   midid_interface_t* midi = &_midid_itf[itf];
   TU_VERIFY(midi->ep_in);
 
-  if (tu_fifo_remaining(&midi->tx_ff) < 4) {
-    return false;
-  }
+  if (tu_fifo_remaining(&midi->tx_ff) < 4) return false;
 
   tu_fifo_write_n(&midi->tx_ff, packet, 4);
-  write_flush(itf);
+  write_flush(midi);
 
   return true;
 }
@@ -422,26 +429,26 @@ void midid_reset(uint8_t rhport)
   }
 }
 
-uint16_t midid_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint16_t max_len) {
-  uint16_t drv_len = 0;
-  uint8_t const * p_desc = (uint8_t const *)desc_itf;
+uint16_t midid_open(uint8_t rhport, tusb_desc_interface_t const * desc_itf, uint16_t max_len)
+{
+  // 1st Interface is Audio Control v1
+  TU_VERIFY(TUSB_CLASS_AUDIO               == desc_itf->bInterfaceClass    &&
+            AUDIO_SUBCLASS_CONTROL         == desc_itf->bInterfaceSubClass &&
+            AUDIO_FUNC_PROTOCOL_CODE_UNDEF == desc_itf->bInterfaceProtocol, 0);
 
-  // 1st Interface is Audio Control v1 (optional)
-  if (TUSB_CLASS_AUDIO               == desc_itf->bInterfaceClass    &&
-      AUDIO_SUBCLASS_CONTROL         == desc_itf->bInterfaceSubClass &&
-      AUDIO_FUNC_PROTOCOL_CODE_UNDEF == desc_itf->bInterfaceProtocol) {
-    drv_len = tu_desc_len(desc_itf);
-    p_desc = tu_desc_next(desc_itf);
-    // Skip Class Specific descriptors
-    while (TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) && drv_len <= max_len) {
-      drv_len += tu_desc_len(p_desc);
-      p_desc   = tu_desc_next(p_desc);
-    }
+  uint16_t drv_len = tu_desc_len(desc_itf);
+  uint8_t const * p_desc = tu_desc_next(desc_itf);
+
+  // Skip Class Specific descriptors
+  while ( TUSB_DESC_CS_INTERFACE == tu_desc_type(p_desc) && drv_len <= max_len )
+  {
+    drv_len += tu_desc_len(p_desc);
+    p_desc   = tu_desc_next(p_desc);
   }
 
   // 2nd Interface is MIDI Streaming
   TU_VERIFY(TUSB_DESC_INTERFACE == tu_desc_type(p_desc), 0);
-  const tusb_desc_interface_t* desc_midi = (const tusb_desc_interface_t*) p_desc;
+  tusb_desc_interface_t const * desc_midi = (tusb_desc_interface_t const *) p_desc;
 
   TU_VERIFY(TUSB_CLASS_AUDIO               == desc_midi->bInterfaceClass    &&
             AUDIO_SUBCLASS_MIDI_STREAMING  == desc_midi->bInterfaceSubClass &&
@@ -449,10 +456,11 @@ uint16_t midid_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint1
 
   // Find available interface
   midid_interface_t * p_midi = NULL;
-  uint8_t idx;
-  for(idx=0; idx<CFG_TUD_MIDI; idx++) {
-    if ( _midid_itf[idx].ep_in == 0 && _midid_itf[idx].ep_out == 0 ) {
-      p_midi = &_midid_itf[idx];
+  for(uint8_t i=0; i<CFG_TUD_MIDI; i++)
+  {
+    if ( _midid_itf[i].ep_in == 0 && _midid_itf[i].ep_out == 0 )
+    {
+      p_midi = &_midid_itf[i];
       break;
     }
   }
@@ -471,8 +479,8 @@ uint16_t midid_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint1
   {
     if ( TUSB_DESC_ENDPOINT == tu_desc_type(p_desc) )
     {
-      TU_ASSERT(usbd_edpt_open(rhport, (const tusb_desc_endpoint_t*) p_desc), 0);
-      uint8_t ep_addr = ((const tusb_desc_endpoint_t*) p_desc)->bEndpointAddress;
+      TU_ASSERT(usbd_edpt_open(rhport, (tusb_desc_endpoint_t const *) p_desc), 0);
+      uint8_t ep_addr = ((tusb_desc_endpoint_t const *) p_desc)->bEndpointAddress;
 
       if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN)
       {
@@ -493,7 +501,7 @@ uint16_t midid_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint1
   }
 
   // Prepare for incoming data
-  _prep_out_transaction(idx);
+  _prep_out_transaction(p_midi);
 
   return drv_len;
 }
@@ -501,9 +509,14 @@ uint16_t midid_open(uint8_t rhport, const tusb_desc_interface_t* desc_itf, uint1
 // Invoked when a control transfer occurred on an interface of this class
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
-bool midid_control_xfer_cb(uint8_t rhport, uint8_t stage, const tusb_control_request_t* request) {
-  (void) rhport; (void) stage; (void) request;
-  return false; // driver doesn't support any request yet
+bool midid_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
+{
+  (void) rhport;
+  (void) stage;
+  (void) request;
+
+  // driver doesn't support any request yet
+  return false;
 }
 
 bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
@@ -511,37 +524,40 @@ bool midid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32
   (void) result;
   (void) rhport;
 
-  uint8_t idx;
+  uint8_t itf;
   midid_interface_t* p_midi;
 
   // Identify which interface to use
-  for (idx = 0; idx < CFG_TUD_MIDI; idx++) {
-    p_midi = &_midid_itf[idx];
-    if ((ep_addr == p_midi->ep_out) || (ep_addr == p_midi->ep_in)) {
-      break;
-    }
+  for (itf = 0; itf < CFG_TUD_MIDI; itf++)
+  {
+    p_midi = &_midid_itf[itf];
+    if ( ( ep_addr == p_midi->ep_out ) || ( ep_addr == p_midi->ep_in ) ) break;
   }
-  TU_ASSERT(idx < CFG_TUD_MIDI);
+  TU_ASSERT(itf < CFG_TUD_MIDI);
 
   // receive new data
-  if (ep_addr == p_midi->ep_out) {
-    tu_fifo_write_n(&p_midi->rx_ff, _midid_epbuf[idx].epout, (uint16_t)xferred_bytes);
+  if ( ep_addr == p_midi->ep_out )
+  {
+    tu_fifo_write_n(&p_midi->rx_ff, p_midi->epout_buf, (uint16_t) xferred_bytes);
 
     // invoke receive callback if available
-    if (tud_midi_rx_cb) {
-      tud_midi_rx_cb(idx);
-    }
+    if (tud_midi_rx_cb) tud_midi_rx_cb(itf);
 
     // prepare for next
     // TODO for now ep_out is not used by public API therefore there is no race condition,
     // and does not need to claim like ep_in
-    _prep_out_transaction(idx);
-  } else if (ep_addr == p_midi->ep_in) {
-    if (0 == write_flush(idx)) {
+    _prep_out_transaction(p_midi);
+  }
+  else if ( ep_addr == p_midi->ep_in )
+  {
+    if (0 == write_flush(p_midi))
+    {
       // If there is no data left, a ZLP should be sent if
       // xferred_bytes is multiple of EP size and not zero
-      if (!tu_fifo_count(&p_midi->tx_ff) && xferred_bytes && (0 == (xferred_bytes % CFG_TUD_MIDI_EP_BUFSIZE))) {
-        if (usbd_edpt_claim(rhport, p_midi->ep_in)) {
+      if ( !tu_fifo_count(&p_midi->tx_ff) && xferred_bytes && (0 == (xferred_bytes % CFG_TUD_MIDI_EP_BUFSIZE)) )
+      {
+        if ( usbd_edpt_claim(rhport, p_midi->ep_in) )
+        {
           usbd_edpt_xfer(rhport, p_midi->ep_in, NULL, 0);
         }
       }

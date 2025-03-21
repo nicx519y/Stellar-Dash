@@ -24,11 +24,6 @@
  * This file is part of the TinyUSB stack.
  */
 
-/* metadata:
-   name: SAME54 Xplained Pro
-   url: https://www.microchip.com/DevelopmentTools/ProductDetails/ATSAME54-XPRO
-*/
-
 #ifndef BOARD_H_
 #define BOARD_H_
 

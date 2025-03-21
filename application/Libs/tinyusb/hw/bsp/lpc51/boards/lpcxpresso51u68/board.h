@@ -1,8 +1,3 @@
-/* metadata:
-   name: LPCXpresso51u68
-   url: https://www.nxp.com/products/processors-and-microcontrollers/arm-microcontrollers/general-purpose-mcus/lpcxpresso51u68-for-the-lpc51u68-mcus:OM40005
-*/
-
 #ifndef BOARD_H
 #define BOARD_H
 
