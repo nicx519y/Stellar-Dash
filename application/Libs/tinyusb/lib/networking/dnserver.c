@@ -28,7 +28,6 @@
  */
 
 #include "dnserver.h"
-#include "lwip/udp.h"
 
 #define DNS_MAX_HOST_NAME_LEN 128
 

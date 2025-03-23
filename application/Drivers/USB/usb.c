@@ -1,7 +1,7 @@
 #include "usb.h"
 #include "tusb.h"
 #include "stm32h7xx_hal.h"
-
+#include "board_cfg.h"
 
 void USB_clock_init() {
     /**
@@ -124,6 +124,41 @@ void USB_Device_Init() {
     board_stm32h7_post_init();
     #endif // rhport = 1
 
+}
+
+void USB_Host_Init() {
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
+
+    PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USB;
+    PeriphClkInitStruct.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;
+    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    HAL_PWREx_EnableUSBVoltageDetector();
+
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    /**USB_OTG_HS GPIO Configuration
+     PB15     ------> USB_OTG_HS_DP
+    PB14     ------> USB_OTG_HS_DM
+    */
+    GPIO_InitStruct.Pin = GPIO_PIN_15 | GPIO_PIN_14;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    GPIO_InitStruct.Alternate = GPIO_AF12_OTG2_FS;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    /* USB_OTG_HS clock enable */
+    __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
+
+    /* USB_OTG_HS interrupt Init */
+    HAL_NVIC_SetPriority(OTG_HS_IRQn, 2, 0);
+    HAL_NVIC_EnableIRQ(OTG_HS_IRQn);
+    /* USER CODE BEGIN USB_OTG_HS_MspInit 1 */
+    USB_DBG("USB_OTG_HS_MspInit");
 }
 
 

@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "device/usbd.h"
 #include "board_cfg.h"
+#include "usbh.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -306,11 +307,8 @@ extern HCD_HandleTypeDef hhcd_USB_OTG_HS;
   */
 void OTG_HS_IRQHandler(void)
 {
-  APP_DBG("OTG_HS_IRQHandler");
-
-  HAL_HCD_IRQHandler(&hhcd_USB_OTG_HS);
-  
-  APP_DBG("OTG_HS_IRQHandler process done");
+  USB_DBG("OTG_HS_IRQHandler");
+  tuh_int_handler(1);
 }
 
 /**

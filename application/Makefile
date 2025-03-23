@@ -50,6 +50,7 @@ Drivers/PWM-WS2812B \
 Drivers/GPIO-BTN \
 Libs/tinyusb/src \
 Libs/tinyusb/src/device \
+Libs/tinyusb/src/host \
 Libs/tinyusb/src/common \
 Libs/tinyusb/lib/networking \
 Libs/tinyusb/src/portable/synopsys/dwc2 \
@@ -61,7 +62,6 @@ Libs/stm32_mw_lwip/src/core \
 Libs/stm32_mw_lwip/src/netif \
 Libs/stm32_mw_lwip/src/core/ipv4 \
 Libs/cJSON 
-# Libs/tinyusb/src/host \
 
 
 # C++ 源文件目录
@@ -127,6 +127,7 @@ C_INCLUDES += \
 -ILibs/tinyusb/hw \
 -ILibs/tinyusb/src \
 -ILibs/tinyusb/src/device \
+-ILibs/tinyusb/src/host \
 -ILibs/tinyusb/src/common \
 -ILibs/tinyusb/lib/networking \
 -ILibs/tinyusb/src/portable/synopsys/dwc2 \
@@ -141,7 +142,6 @@ C_INCLUDES += \
 -ILibs/stm32_mw_lwip/system \
 -ILibs/lwip-port \
 -ILibs/cJSON 
-# -ILibs/tinyusb/src/host \
 
 
 # C++ 编译器设置

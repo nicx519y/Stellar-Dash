@@ -70,7 +70,7 @@ void board_init(void)
     USB_Device_Init();
 
     /* Initialize USB Host */
-    // USB_Host_Init();
+    USB_Host_Init();
 
     APP_DBG("board init: USB_init success.");
 

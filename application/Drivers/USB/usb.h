@@ -9,7 +9,8 @@ extern "C" {
 
 void USB_clock_init(void);
 void USB_Device_Init(void);
-// void USB_Host_Init(void);
+void USB_Host_Init(void);
+
 
 
 #ifdef __cplusplus
