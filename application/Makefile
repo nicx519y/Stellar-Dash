@@ -63,7 +63,6 @@ Libs/stm32_mw_lwip/src/netif \
 Libs/stm32_mw_lwip/src/core/ipv4 \
 Libs/cJSON 
 
-
 # C++ 源文件目录
 CPP_SOURCE_DIRS = \
 Cpp_Core/Src \
@@ -142,7 +141,6 @@ C_INCLUDES += \
 -ILibs/stm32_mw_lwip/system \
 -ILibs/lwip-port \
 -ILibs/cJSON 
-
 
 # C++ 编译器设置
 CXX = $(PREFIX)g++

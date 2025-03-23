@@ -882,7 +882,6 @@ static bool handle_channel_in_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t h
     if (channel->hcsplt_bm.split_en) {
       if (!channel->hcsplt_bm.split_compl) {
         // start split is ACK --> do complete split
-        channel->hcintmsk |= HCINT_NYET;
         channel->hcsplt_bm.split_compl = 1;
         channel_send_in_token(dwc2, channel);
       } else {
@@ -937,10 +936,6 @@ static bool handle_channel_out_slave(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t 
       // retry complete split
       channel->hcsplt_bm.split_compl = 1;
       channel->hcchar |= HCCHAR_CHENA;
-    } else {
-      edpt->do_ping = 1;
-      channel_xfer_out_wrapup(dwc2, ch_id);
-      channel_disable(dwc2, channel);
     }
   } else if (hcint & (HCINT_NAK | HCINT_XACT_ERR)) {
     // clean up transfer so far, disable and start again later
@@ -1111,11 +1106,7 @@ static bool handle_channel_out_dma(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hc
       }
     } else if (hcint & HCINT_ACK) {
       xfer->err_count = 0;
-      if (channel->hcsplt_bm.split_en && !channel->hcsplt_bm.split_compl) {
-        // start split is ACK --> do complete split
-        channel->hcsplt_bm.split_compl = 1;
-        channel->hcchar |= HCCHAR_CHENA;
-      }
+      channel->hcintmsk &= ~HCINT_ACK;
     }
   } else if (hcint & HCINT_ACK) {
     xfer->err_count = 0;
@@ -1295,6 +1286,12 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
   // TU_LOG1_HEX(gintsts);
 
+  if (gintsts & GINTSTS_DISCINT) {
+       // ... 其他代码
+       monitor_device_disconnect_event(rhport);
+       // ... 其他代码
+   }
+
   if (gintsts & GINTSTS_CONIDSTSCHNG) {
     // Connector ID status change
     dwc2->gintsts = GINTSTS_CONIDSTSCHNG;
@@ -1355,6 +1352,9 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     }
   }
 #endif
+
+  // 随时调用检查当前设备状态
+  usb_host_monitor_check_stale_devices();
 }
 
 #endif

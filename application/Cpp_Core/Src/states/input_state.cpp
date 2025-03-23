@@ -5,8 +5,8 @@
 #include "leds/leds_manager.hpp"
 #include "hotkeys_manager.hpp"
 #include "usb.h" // 包含USB相关函数
-#include "usb_otg.h"
 #include "usbh.h"
+#include "usb_host_monitor.h"
 
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t idx) {
     APP_DBG("tuh_hid_umount_cb");
@@ -44,6 +44,7 @@ void InputState::setup() {
     /*************** 初始化USB start ************ */
     APP_DBG("tuh_init start");
     tuh_init(TUH_OPT_RHPORT);
+    usb_host_monitor_init();
     APP_DBG("tuh_init done");
     
     // 初始化TinyUSB设备栈
@@ -81,6 +82,7 @@ void InputState::loop() {
     // 处理USB任务
     tud_task(); // 设备模式任务
     tuh_task(); // 主机模式任务
+    usb_host_monitor_task(); // 主机监控任务
 
     // #if HAS_LED == 1
     // if(MICROS_TIMER.checkInterval(LEDS_ANIMATION_INTERVAL, ledAnimationTime)) {
