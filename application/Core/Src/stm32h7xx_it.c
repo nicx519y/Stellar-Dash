@@ -307,7 +307,6 @@ extern HCD_HandleTypeDef hhcd_USB_OTG_HS;
   */
 void OTG_HS_IRQHandler(void)
 {
-  USB_DBG("OTG_HS_IRQHandler");
   tuh_int_handler(1);
 }
 

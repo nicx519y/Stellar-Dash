@@ -8,6 +8,14 @@
 #include "usb_otg.h"
 #include "usbh.h"
 
+void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t idx) {
+    APP_DBG("tuh_hid_umount_cb");
+}
+
+void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, uint8_t const *report, uint16_t len) {
+    APP_DBG("tuh_hid_mount_cb");
+}
+
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, uint8_t const *report, uint16_t len) {
     APP_DBG("tuh_hid_report_received_cb");
 }
