@@ -152,7 +152,6 @@ void PS4Driver::initializeAux() {
     ps4AuthDriver = nullptr;
     
     InputModeAuthType authType = InputModeAuthType::INPUT_MODE_AUTH_TYPE_USB; 
-    controllerType = PS4ControllerType::PS4_ARCADESTICK; // TODO: 需要根据实际情况修改 标识是识别为 PS4控制器 还是 DualShock4
 
     if ( controllerType == PS4ControllerType::PS4_CONTROLLER ) {
         ps4AuthDriver = new PS4Auth(authType);

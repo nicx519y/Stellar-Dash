@@ -283,6 +283,7 @@ void ADCBtnsWorker::initButtonMapping(ADCBtn* btn, const uint16_t releaseValue) 
 
     }
 
+    #if ENABLED_DYNAMIC_CALIBRATION == 1
     // 初始化滑动窗口
     btn->bottomValueWindow.clear();
     btn->topValueWindow.clear();
@@ -290,7 +291,7 @@ void ADCBtnsWorker::initButtonMapping(ADCBtn* btn, const uint16_t releaseValue) 
 
     btn->bottomValueWindow.push(btn->valueMapping[0]);
     btn->topValueWindow.push(btn->valueMapping[mapping->length - 1]);
-
+    #endif
 }
 
 /**

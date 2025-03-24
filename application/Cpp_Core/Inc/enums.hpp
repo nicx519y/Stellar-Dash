@@ -26,6 +26,7 @@ enum InputMode
 {
     INPUT_MODE_XINPUT = 0,
     INPUT_MODE_PS4,
+    INPUT_MODE_PS5,
     INPUT_MODE_SWITCH,
     INPUT_MODE_CONFIG = 255,
 };
