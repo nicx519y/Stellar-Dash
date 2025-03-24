@@ -1,6 +1,5 @@
 #include "drivers/xinput/XInputAuth.hpp"
 #include "drivers/xinput/XInputAuthUSBListener.hpp"
-// #include "peripheralmanager.h"
 
 void XInputAuth::initialize() {
     if ( available() ) {
@@ -17,7 +16,7 @@ void XInputAuth::initialize() {
 }
 
 bool XInputAuth::available() {
-    // return PeripheralManager::getInstance().isUSBEnabled(0);
+    return true;
 }
 
 void XInputAuth::process() {

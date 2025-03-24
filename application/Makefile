@@ -69,6 +69,8 @@ Cpp_Core/Src \
 Cpp_Core/Src/drivers/net \
 Cpp_Core/Src/drivers/xinput \
 Cpp_Core/Src/drivers/switch \
+Cpp_Core/Src/drivers/psclassic \
+Cpp_Core/Src/drivers/ps4 \
 Cpp_Core/Src/configs \
 Cpp_Core/Src/gamepad \
 Cpp_Core/Src/states \
@@ -140,7 +142,9 @@ C_INCLUDES += \
 -ILibs/stm32_mw_lwip/src/include \
 -ILibs/stm32_mw_lwip/system \
 -ILibs/lwip-port \
--ILibs/cJSON 
+-ILibs/cJSON \
+-ILibs/CRC32/src \
+-ILibs/mbedtls/include 
 
 # C++ 编译器设置
 CXX = $(PREFIX)g++

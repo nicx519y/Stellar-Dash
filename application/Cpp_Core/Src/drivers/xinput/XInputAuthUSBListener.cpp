@@ -1,6 +1,5 @@
 #include "stm32h7xx_hal.h"
 #include "drivers/xinput/XInputAuthUSBListener.hpp"
-// #include "peripheralmanager.h"
 #include "usbhostmanager.hpp"
 #include "drivers/shared/xinput_host.hpp"
 #include "drivers/xinput/XInputDescriptors.hpp"
@@ -33,29 +32,28 @@ void XInputAuthUSBListener::setup() {
 }
 
 bool XInputAuthUSBListener::xinputh_vendor_report(tusb_dir_t dir, uint8_t request, uint16_t value, uint16_t length, uint8_t * buf, uintptr_t user_data){
-    // const tusb_control_request_t xfer_ctrl_req = {
-    //         .bmRequestType_bit {
-    //             .recipient = TUSB_REQ_RCPT_INTERFACE,
-    //             .type = TUSB_REQ_TYPE_VENDOR,
-    //             .direction = dir,
-    //         },
-    //         .bRequest = request,
-    //         .wValue = value,
-    //         .wIndex = TU_U16(0x01, 0x03),
-    //         .wLength = length
-    // };
+    const tusb_control_request_t xfer_ctrl_req = {
+            .bmRequestType_bit {
+                .recipient = TUSB_REQ_RCPT_INTERFACE,
+                .type = TUSB_REQ_TYPE_VENDOR,
+                .direction = dir,
+            },
+            .bRequest = request,
+            .wValue = value,
+            .wIndex = TU_U16(0x01, 0x03),
+            .wLength = length
+    };
 
-    // tuh_xfer_t xfer = {
-    //     .daddr       = xinput_dev_addr,
-    //     .ep_addr     = 0,
-    //     .setup       = &xfer_ctrl_req,
-    //     .buffer      = buf,
-    //     .complete_cb = NULL,
-    //     .user_data   = user_data,
-    // };
+    tuh_xfer_t xfer = {
+        .daddr       = xinput_dev_addr,
+        .ep_addr     = 0,
+        .setup       = &xfer_ctrl_req,
+        .buffer      = buf,
+        .complete_cb = NULL,
+        .user_data   = user_data,
+    };
 
-    // return tuh_control_xfer(&xfer);
-    return true;
+    return tuh_control_xfer(&xfer);
 }
 
 void XInputAuthUSBListener::xmount(uint8_t dev_addr, uint8_t instance, uint8_t controllerType, uint8_t subtype) {

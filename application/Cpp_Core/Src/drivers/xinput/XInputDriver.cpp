@@ -4,7 +4,8 @@
  */
 
 #include "drivers/xinput/XInputDriver.hpp"
-
+#include "drivers/shared/driverhelper.hpp"
+#include "storagemanager.hpp"
 
 #define USB_SETUP_DEVICE_TO_HOST 0x80
 #define USB_SETUP_HOST_TO_DEVICE 0x00
@@ -153,17 +154,13 @@ void XInputDriver::initialize() {
 }
 
 void XInputDriver::initializeAux() {
-	xAuthDriver = nullptr; 
+	xAuthDriver = nullptr;
 	// AUTH DRIVER NON-FUNCTIONAL FOR NOW
-	GamepadProfile* gamepadProfile = Storage::getInstance().getDefaultGamepadProfile();
-	
-	// if ( gamepadOptions.xinputAuthType == InputModeAuthType::INPUT_MODE_AUTH_TYPE_USB )  {
-	// 	xAuthDriver = new XInputAuth();
-	// 	if ( xAuthDriver->available() ) {
-	// 		xAuthDriver->initialize();
-    //         xinputAuthData = xAuthDriver->getAuthData();
-	// 	}
-    // }
+	xAuthDriver = new XInputAuth();
+	if ( xAuthDriver->available() ) {
+		xAuthDriver->initialize();
+		xinputAuthData = xAuthDriver->getAuthData();
+	}
 }
 
 USBListener * XInputDriver::get_usb_auth_listener() {
@@ -178,6 +175,9 @@ bool XInputDriver::getAuthEnabled() {
 }
 
 void XInputDriver::process(Gamepad * gamepad) {
+	// processedGamepad 用于处理手柄的player led 和 震动反馈，hitbox不需要
+	// Gamepad * processedGamepad = Storage::getInstance().GetProcessedGamepad();
+
 	xinputReport.buttons1 = 0
 		| (gamepad->pressedUp()    ? XBOX_MASK_UP    : 0)
 		| (gamepad->pressedDown()  ? XBOX_MASK_DOWN  : 0)
@@ -204,8 +204,16 @@ void XInputDriver::process(Gamepad * gamepad) {
 	xinputReport.rx = static_cast<int16_t>(gamepad->state.rx) + INT16_MIN;
 	xinputReport.ry = static_cast<int16_t>(~gamepad->state.ry) + INT16_MIN;
 
-	xinputReport.lt = gamepad->pressedL2() ? 0xFF : 0;
-	xinputReport.rt = gamepad->pressedR2() ? 0xFF : 0;
+	// if (gamepad->hasAnalogTriggers)
+	// {
+	// 	xinputReport.lt = gamepad->pressedL2() ? 0xFF : gamepad->state.lt;
+	// 	xinputReport.rt = gamepad->pressedR2() ? 0xFF : gamepad->state.rt;
+	// }
+	// else
+	// {
+		xinputReport.lt = gamepad->pressedL2() ? 0xFF : 0;
+		xinputReport.rt = gamepad->pressedR2() ? 0xFF : 0;
+	// }
 
 	// compare against previous report and send new
 	if ( memcmp(last_report, &xinputReport, sizeof(XInputReport)) != 0) {
@@ -227,9 +235,9 @@ void XInputDriver::process(Gamepad * gamepad) {
 		usbd_edpt_xfer(0, endpoint_out, xinput_out_buffer, XINPUT_OUT_SIZE); 		 // Retrieve report buffer
 		usbd_edpt_release(0, endpoint_out);									 // Release control of OUT endpoint
 	}
-	
-	// Gamepad * processedGamepad = Storage::getInstance().GetProcessedGamepad();
-	// //---------------
+
+	// 以下是player led 和  震动反馈的处理逻辑，hitbox不需要
+	//---------------
 	// if (memcmp(xinput_out_buffer, featureBuffer, XINPUT_OUT_SIZE) != 0) { // check if new write to xinput_out_buffer from xinput_xfer_callback
 	// 	memcpy(featureBuffer, xinput_out_buffer, XINPUT_OUT_SIZE);
 	// 	switch (featureBuffer[0]) {

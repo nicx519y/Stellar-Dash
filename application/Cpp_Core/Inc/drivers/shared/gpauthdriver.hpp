@@ -4,13 +4,13 @@
 #include "enums.hpp"
 #include "usblistener.hpp"
 
-typedef enum {
+typedef enum GPAuthState {
     auth_idle_state = 0,
     send_auth_console_to_dongle = 1,
     send_auth_dongle_to_console = 2,
     wait_auth_console_to_dongle = 3,
     wait_auth_dongle_to_console = 4,
-} GPAuthState;
+} ;
 
 class GPAuthDriver {
 public:
