@@ -10,6 +10,24 @@ extern "C" struct fsdata_file file__index_html[];
 
 #define LWIP_HTTPD_RESPONSE_MAX_PAYLOAD_LEN (1024 * 16)
 
+// 定义全局静态映射表，将InputMode映射到对应的字符串
+static const std::map<InputMode, const char*> INPUT_MODE_STRINGS = {
+    {InputMode::INPUT_MODE_XINPUT, "XINPUT"},
+    {InputMode::INPUT_MODE_PS4, "PS4"},
+    {InputMode::INPUT_MODE_PS5, "PS5"},
+    {InputMode::INPUT_MODE_SWITCH, "SWITCH"}
+    // 可以轻松添加更多映射
+};
+
+// 从INPUT_MODE_STRINGS自动生成反向映射
+static const std::map<std::string, InputMode> STRING_TO_INPUT_MODE = [](){
+    std::map<std::string, InputMode> reverse_map;
+    for(const auto& pair : INPUT_MODE_STRINGS) {
+        reverse_map[pair.second] = pair.first;
+    }
+    return reverse_map;
+}();
+
 using namespace std;
 
 // 处理SPA文件，这些url都指向index.html
@@ -1922,21 +1940,13 @@ std::string apiGetGlobalConfig() {
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON* globalConfigJSON = cJSON_CreateObject();
     
-    // 添加inputMode
-    switch(config.inputMode) {
-        case InputMode::INPUT_MODE_XINPUT:
-            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "XINPUT");
-            break;
-        case InputMode::INPUT_MODE_PS4:
-            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "PS4");
-            break;
-        case InputMode::INPUT_MODE_SWITCH:
-            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "SWITCH");
-            break;
-        default:
-            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "XINPUT");
-            break;
+    // 使用全局映射表获取输入模式字符串
+    const char* modeStr = "XINPUT"; // 默认值
+    auto it = INPUT_MODE_STRINGS.find(config.inputMode);
+    if (it != INPUT_MODE_STRINGS.end()) {
+        modeStr = it->second;
     }
+    cJSON_AddStringToObject(globalConfigJSON, "inputMode", modeStr);
     
     // 构建返回结构
     cJSON_AddItemToObject(dataJSON, "globalConfig", globalConfigJSON);
@@ -1972,14 +1982,13 @@ std::string apiUpdateGlobalConfig() {
     if(globalConfig) {
         cJSON* inputModeItem = cJSON_GetObjectItem(globalConfig, "inputMode");
         if(inputModeItem && cJSON_IsString(inputModeItem)) {
-            if(strcmp(inputModeItem->valuestring, "XINPUT") == 0) {
-                config.inputMode = InputMode::INPUT_MODE_XINPUT;
-            } else if(strcmp(inputModeItem->valuestring, "PS4") == 0) {
-                config.inputMode = InputMode::INPUT_MODE_PS4;
-            } else if(strcmp(inputModeItem->valuestring, "SWITCH") == 0) {
-                config.inputMode = InputMode::INPUT_MODE_SWITCH;
+            // 使用反向映射表查找对应的InputMode枚举值
+            std::string modeStr = inputModeItem->valuestring;
+            auto it = STRING_TO_INPUT_MODE.find(modeStr);
+            if (it != STRING_TO_INPUT_MODE.end()) {
+                config.inputMode = it->second;
             } else {
-                config.inputMode = InputMode::INPUT_MODE_XINPUT;
+                config.inputMode = InputMode::INPUT_MODE_XINPUT; // 默认值
             }
         }
     }
@@ -1994,21 +2003,13 @@ std::string apiUpdateGlobalConfig() {
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON* globalConfigJSON = cJSON_CreateObject();
     
-    // 添加inputMode
-    switch(config.inputMode) {
-        case InputMode::INPUT_MODE_XINPUT:
-            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "XINPUT");
-            break;
-        case InputMode::INPUT_MODE_PS4:
-            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "PS4");
-            break;
-        case InputMode::INPUT_MODE_SWITCH:
-            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "SWITCH");
-            break;
-        default:
-            cJSON_AddStringToObject(globalConfigJSON, "inputMode", "XINPUT");
-            break;
+    // 使用全局映射表获取输入模式字符串
+    const char* modeStr = "XINPUT"; // 默认值
+    auto it = INPUT_MODE_STRINGS.find(config.inputMode);
+    if (it != INPUT_MODE_STRINGS.end()) {
+        modeStr = it->second;
     }
+    cJSON_AddStringToObject(globalConfigJSON, "inputMode", modeStr);
     
     // 构建返回结构
     cJSON_AddItemToObject(dataJSON, "globalConfig", globalConfigJSON);

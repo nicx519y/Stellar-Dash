@@ -5,6 +5,8 @@
 #include "CRC32.hpp"
 // #include "peripheralmanager.h"
 #include "usbhostmanager.hpp"
+#include "board_cfg.h"
+#include "stm32h7xx.h"
 
 static const uint8_t output_0xf3[] = { 0x0, 0x38, 0x38, 0, 0, 0, 0 };
 
@@ -16,57 +18,77 @@ void PS4AuthUSBListener::setup() {
 }
 
 void PS4AuthUSBListener::process() {
-    if ( awaiting_cb == true || ps4AuthData == nullptr )
+    if ( awaiting_cb == true || ps4AuthData == nullptr ) {
+        static uint32_t last_log_time = 0;
+        uint32_t current_time = HAL_GetTick();
+        if (current_time - last_log_time > 1000) {
+            USB_DBG("PS4Auth: 等待回调或认证数据为空");
+            last_log_time = current_time;
+        }
         return;
+    }
+
+    static PS4State last_state = PS4State::no_nonce;
+    if (dongle_state != last_state) {
+        USB_DBG("PS4Auth: 状态转换 %d -> %d", last_state, dongle_state);
+        last_state = dongle_state;
+    }
 
     switch ( dongle_state ) {
         case PS4State::no_nonce:
-            // Once Console is ready with the nonce, begin!
             if ( ps4AuthData->passthrough_state == GPAuthState::send_auth_console_to_dongle ) {
+                USB_DBG("PS4Auth: 主机准备发送认证数据，重置认证");
                 memcpy(report_buffer, output_0xf3, sizeof(output_0xf3));
                 host_get_report(PS4AuthReport::PS4_RESET_AUTH, report_buffer, sizeof(output_0xf3));
             }
             break;
         case PS4State::receiving_nonce:
-            report_buffer[0] = PS4AuthReport::PS4_SET_AUTH_PAYLOAD; // [0xF0, ID, Page, 0, nonce(54 or 32 with 0 padding), CRC32 of data]
+            USB_DBG("PS4Auth: 接收随机数 ID: %d, 页码: %d", ps4AuthData->nonce_id, nonce_page);
+            report_buffer[0] = PS4AuthReport::PS4_SET_AUTH_PAYLOAD;
             report_buffer[1] = ps4AuthData->nonce_id;
             report_buffer[2] = nonce_page;
             report_buffer[3] = 0;
             if ( nonce_page == 4 ) {
-                noncelen = 32; // from 4 to 64 - 24 - 4
+                noncelen = 32;
+                USB_DBG("PS4Auth: 处理最后一页随机数，长度: %d", noncelen);
                 memcpy(&report_buffer[4], &ps4AuthData->ps4_auth_buffer[nonce_page*56], noncelen);
-                memset(&report_buffer[4+noncelen], 0, 24); // zero padding  
+                memset(&report_buffer[4+noncelen], 0, 24);
             } else {
                 noncelen = 56;
+                USB_DBG("PS4Auth: 处理随机数页 %d，长度: %d", nonce_page, noncelen);
                 memcpy(&report_buffer[4], &ps4AuthData->ps4_auth_buffer[nonce_page*56], noncelen);
             }
             nonce_page++;
             crc32 = CRC32::calculate(report_buffer, 60);
             memcpy(&report_buffer[60], &crc32, sizeof(uint32_t));
+            USB_DBG("PS4Auth: 发送随机数数据，CRC32: 0x%08X", crc32);
             host_set_report(PS4AuthReport::PS4_SET_AUTH_PAYLOAD, report_buffer, 64);
             break;
         case PS4State::signed_nonce_ready:
+            USB_DBG("PS4Auth: 查询签名状态，随机数ID: %d", ps4AuthData->nonce_id);
             report_buffer[0] = PS4AuthReport::PS4_GET_SIGNING_STATE;
             report_buffer[1] = ps4AuthData->nonce_id;
             memset(&report_buffer[2], 0, 14);
             host_get_report(PS4AuthReport::PS4_GET_SIGNING_STATE, report_buffer, 16);
             break;
         case PS4State::sending_nonce:
+            USB_DBG("PS4Auth: 发送签名随机数块 %d/%d", nonce_chunk, 19);
             report_buffer[0] = PS4AuthReport::PS4_GET_SIGNATURE_NONCE;
-            report_buffer[1] = ps4AuthData->nonce_id;    // nonce_id
-            report_buffer[2] = nonce_chunk; // next_part
-            memset(&report_buffer[3], 0, 61); // zero rest of memory
-            nonce_chunk++; // Nonce Part is reset during callback
+            report_buffer[1] = ps4AuthData->nonce_id;
+            report_buffer[2] = nonce_chunk;
+            memset(&report_buffer[3], 0, 61);
+            nonce_chunk++;
             host_get_report(PS4AuthReport::PS4_GET_SIGNATURE_NONCE, report_buffer, 64);
             break;
         default:
+            USB_DBG("PS4Auth: 未知状态 %d", dongle_state);
             break;
     };
 }
 
 void PS4AuthUSBListener::resetHostData() {
-    nonce_page = 0; // no nonce yet
-    nonce_chunk = 0; // which part of the nonce are we getting from send?
+    nonce_page = 0;
+    nonce_chunk = 0;
     awaiting_cb = false;
     dongle_state = PS4State::no_nonce;
 }
@@ -82,12 +104,10 @@ bool PS4AuthUSBListener::host_set_report(uint8_t report_id, void* report, uint16
 }
 
 void PS4AuthUSBListener::mount(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len) {
-    // Prevent Magic-X double mount
     if ( ps4AuthData->dongle_ready == true ) {
         return;
     }
 
-    // Only a PS4 interface has vendor IDs F0, F1, F2, and F3
     tuh_hid_report_info_t report_info[4];
     uint8_t report_count = tuh_hid_parse_report_descriptor(report_info, 4, desc_report, desc_len);
     bool isPS4Dongle = false;
@@ -105,7 +125,6 @@ void PS4AuthUSBListener::mount(uint8_t dev_addr, uint8_t instance, uint8_t const
     ps_instance = instance;
     ps4AuthData->dongle_ready = true;
 
-    // Reset as soon as its connected
     memset(report_buffer, 0, PS4_ENDPOINT_SIZE);
     report_buffer[0] = PS4AuthReport::PS4_DEFINITION;
     host_get_report(PS4AuthReport::PS4_DEFINITION, report_buffer, 48);
@@ -124,6 +143,9 @@ void PS4AuthUSBListener::unmount(uint8_t dev_addr) {
 }
 
 void PS4AuthUSBListener::set_report_complete(uint8_t dev_addr, uint8_t instance, uint8_t report_id, uint8_t report_type, uint16_t len) {
+
+    USB_DBG("PS4AuthUSBListener::set_report_complete - dev_addr: %d, instance: %d, report_id: %d, report_type: %d, len: %d", dev_addr, instance, report_id, report_type, len);
+
     if ( ps4AuthData->dongle_ready == false ||
         (dev_addr != ps_dev_addr) || (instance != ps_instance) ) {
         return;
@@ -143,6 +165,8 @@ void PS4AuthUSBListener::set_report_complete(uint8_t dev_addr, uint8_t instance,
 }
 
 void PS4AuthUSBListener::get_report_complete(uint8_t dev_addr, uint8_t instance, uint8_t report_id, uint8_t report_type, uint16_t len) {
+
+    USB_DBG("PS4AuthUSBListener::get_report_complete - dev_addr: %d, instance: %d, report_id: %d, report_type: %d, len: %d", dev_addr, instance, report_id, report_type, len);
     if ( ps4AuthData->dongle_ready == false || 
         (dev_addr != ps_dev_addr) || (instance != ps_instance) ) {
         return;
@@ -157,15 +181,14 @@ void PS4AuthUSBListener::get_report_complete(uint8_t dev_addr, uint8_t instance,
             dongle_state = PS4State::receiving_nonce;
             break;
         case PS4AuthReport::PS4_GET_SIGNING_STATE:
-            if (report_buffer[2] == 0) // 0 = ready, 1 = error in signing, 16 = not ready
+            if (report_buffer[2] == 0)
                 dongle_state = PS4State::sending_nonce;
             break;
         case PS4AuthReport::PS4_GET_SIGNATURE_NONCE:
-            // probably should mutex lock
             memcpy(&ps4AuthData->ps4_auth_buffer[(nonce_chunk-1)*56], &report_buffer[4], 56);
             if (nonce_chunk == 19) {
                 nonce_chunk = 0;
-                dongle_state = PS4State::no_nonce; // something we don't support
+                dongle_state = PS4State::no_nonce;
                 ps4AuthData->passthrough_state = GPAuthState::send_auth_dongle_to_console;
             }
             break;

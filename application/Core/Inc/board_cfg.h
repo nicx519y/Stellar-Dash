@@ -97,7 +97,7 @@
 #define MIN_VALUE_DIFF_RATIO                0.8             // 最小值差值比例 按键动态校准的过程中，如果bottom - top的值差 不能小于原mapping的值差*MIN_VALUE_DIFF_RATIO
 
 #define READ_BTNS_INTERVAL                  300            // 检查按钮状态间隔 us
-#define ENABLED_DYNAMIC_CALIBRATION         1               //是否启用动态校准
+#define ENABLED_DYNAMIC_CALIBRATION         0               //是否启用动态校准
 #define DYNAMIC_CALIBRATION_INTERVAL        500000          // 动态校准间隔 500ms
 
 

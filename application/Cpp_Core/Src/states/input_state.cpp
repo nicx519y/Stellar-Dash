@@ -4,41 +4,20 @@
 #include "gamepad.hpp"
 #include "leds/leds_manager.hpp"
 #include "hotkeys_manager.hpp"
-#include "usb.h" // 包含USB相关函数
+#include "usb.h"
 #include "usbh.h"
 #include "usb_host_monitor.h"
 #include "usblistener.hpp"
 #include "usbhostmanager.hpp"
 #include "gpdriver.hpp"
 
-// void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t idx) {
-//     APP_DBG("tuh_hid_umount_cb");
-// }
-
-// void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, uint8_t const *report, uint16_t len) {
-//     APP_DBG("tuh_hid_mount_cb");
-// }
-
-// void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, uint8_t const *report, uint16_t len) {
-//     APP_DBG("tuh_hid_report_received_cb");
-// }
-
 void InputState::setup() {
     APP_DBG("InputState::setup");
     
-    
-
-    /*************** 初始化USB start ************ */
-    // APP_DBG("tuh_init start");
-    // tuh_init(TUH_OPT_RHPORT);
-    // usb_host_monitor_init();
-    // APP_DBG("tuh_init done");
-    
-    
     /**************** 初始化USB end ******************* */
 
-    // InputMode inputMode = STORAGE_MANAGER.getInputMode();
-    InputMode inputMode = InputMode::INPUT_MODE_PS5; // TODO: 需要根据实际情况修改 
+    InputMode inputMode = STORAGE_MANAGER.getInputMode();
+    // InputMode inputMode = InputMode::INPUT_MODE_PS5; // TODO: 需要根据实际情况修改 
     // InputMode inputMode = InputMode::INPUT_MODE_XINPUT;
     APP_DBG("InputState::setup inputMode: %d", inputMode);
     if(inputMode == InputMode::INPUT_MODE_CONFIG) {
@@ -92,7 +71,7 @@ void InputState::loop() {
             HOTKEYS_MANAGER.runVirtualPinMask(lastVirtualPinMask);
         } else { // 否则，处理游戏手柄数据
             GAMEPAD.read(virtualPinMask);
-            inputDriver->process(&GAMEPAD);  // xinput 处理游戏手柄数据，将按键数据映射到xinput协议 形成 report 数据，然后通过 usb 发送出去
+            inputDriver->process(&GAMEPAD);  // 处理游戏手柄数据，将按键数据映射到xinput协议 形成 report 数据，然后通过 usb 发送出去
         }
 
         lastVirtualPinMask = virtualPinMask;

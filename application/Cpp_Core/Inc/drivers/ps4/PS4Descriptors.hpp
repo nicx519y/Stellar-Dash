@@ -10,12 +10,12 @@
 #define PS4_ENDPOINT_SIZE 64
 
 // Mayflash
-//#define PS4_VENDOR_ID       0x33df
-//#define PS4_PRODUCT_ID      0x0011
+#define PS4_VENDOR_ID       0x33df
+#define PS4_PRODUCT_ID      0x0011
 
 // Razer Panthera
-#define PS4_VENDOR_ID         0x1532
-#define PS4_PRODUCT_ID        0x0401
+// #define PS4_VENDOR_ID         0x1532
+// #define PS4_PRODUCT_ID        0x0401
 
 // Madcatz Fightstick Alpha PS4
 //#define PS4_VENDOR_ID       0x0738

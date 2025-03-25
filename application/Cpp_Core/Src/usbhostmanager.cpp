@@ -11,6 +11,7 @@ void USBHostManager::start() {
     tuh_init(BOARD_TUH_RHPORT);
     HAL_Delay(10);
     tuh_ready = true;
+    APP_DBG("USBHostManager::start - tuh_ready: %d", tuh_ready);
 }
 
 // Shut down the USB bus if we are running USB right now

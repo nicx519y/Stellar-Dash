@@ -30,7 +30,7 @@ static constexpr uint8_t output_0x02[] = {
 };
 
 // Controller descriptor (byte[4] = 0x00 for ps4, 0x07 for ps5)
-static constexpr uint8_t output_0x03[] = {
+static uint8_t output_0x03[] = {
     0x21, 0x27, 0x04, 0xcf, 0x00, 0x2c, 0x56,
     0x08, 0x00, 0x3d, 0x00, 0xe8, 0x03, 0x04, 0x00,
     0xff, 0x7f, 0x0d, 0x0d, 0x00, 0x00, 0x00, 0x00,
@@ -65,26 +65,30 @@ static constexpr uint8_t output_0xf3[] = {
 void PS4Driver::initialize() {
     // Gamepad * gamepad = Storage::getInstance().GetGamepad();
     // const GamepadOptions & options = gamepad->getOptions();
-    APP_DBG("PS4Driver::initialize");
     // set up device descriptor IDs depending on mode
     uint8_t descSize = sizeof(ps4_device_descriptor);
     memcpy(deviceDescriptor, &ps4_device_descriptor, descSize);
 
     memset(&ps4Features, 0, sizeof(ps4Features));
 
-    bool isDeviceEmulated = true; // TODO: 需要根据实际情况修改 标识是识别为 PS4控制器 还是 DualShock4
+    // bool isDeviceEmulated = false; 
 
-    if (!isDeviceEmulated) {
-        deviceDescriptor[8] = LSB(PS4_VENDOR_ID);
-        deviceDescriptor[9] = MSB(PS4_VENDOR_ID);
-        deviceDescriptor[10] = LSB(PS4_PRODUCT_ID);
-        deviceDescriptor[11] = MSB(PS4_PRODUCT_ID);
-    } else {
-        deviceDescriptor[8] = LSB(DS4_VENDOR_ID);
-        deviceDescriptor[9] = MSB(DS4_VENDOR_ID);
-        deviceDescriptor[10] = LSB(DS4_PRODUCT_ID);
-        deviceDescriptor[11] = MSB(DS4_PRODUCT_ID);
-    }
+    // if (!isDeviceEmulated) {
+    deviceDescriptor[8] = LSB(PS4_VENDOR_ID);
+    deviceDescriptor[9] = MSB(PS4_VENDOR_ID);       
+    deviceDescriptor[10] = LSB(PS4_PRODUCT_ID);
+    deviceDescriptor[11] = MSB(PS4_PRODUCT_ID);
+    // } else {
+    //     deviceDescriptor[8] = LSB(DS4_VENDOR_ID);
+    //     deviceDescriptor[9] = MSB(DS4_VENDOR_ID);
+    //     deviceDescriptor[10] = LSB(DS4_PRODUCT_ID);
+    //     deviceDescriptor[11] = MSB(DS4_PRODUCT_ID);
+    // }
+
+    // deviceDescriptor[8] = LSB(DS5_VENDOR_ID);
+    // deviceDescriptor[9] = MSB(DS5_VENDOR_ID);
+    // deviceDescriptor[10] = LSB(DS5_PRODUCT_ID);
+    // deviceDescriptor[11] = MSB(DS5_PRODUCT_ID);
 
     // init feature data
     touchpadData.p1.unpressed = 1;
@@ -146,6 +150,7 @@ void PS4Driver::initialize() {
     last_report_timer = HAL_GetTick();
     cur_nonce_id = 1; // PS4 Auth
     cur_nonce_chunk = 0;
+
 }
 
 void PS4Driver::initializeAux() {
@@ -161,6 +166,7 @@ void PS4Driver::initializeAux() {
     }
     // If authentication driver is set AND auth driver can load (usb enabled, i2c enabled, keys loaded, etc.)
     if ( ps4AuthDriver != nullptr && ps4AuthDriver->available() ) {
+        APP_DBG("PS4Driver::initializeAux - ps4AuthDriver->initialize");
         ps4AuthDriver->initialize();
         ps4AuthData = ps4AuthDriver->getAuthData();
         authsent = false;
@@ -216,6 +222,15 @@ void PS4Driver::process(Gamepad * gamepad) {
     // if the touchpad is pressed (note A2 vs. S1 choice above), emulate one finger of the touchpad
     touchpadData.p1.unpressed = ps4Report.button_touchpad ? 0 : 1;
     ps4Report.touchpad_active = ps4Report.button_touchpad ? 0x01 : 0x00;
+
+    // 设置触摸板位置 粗略临时设置
+    touchpadData.p1.set_x(PS4_TP_X_MAX / 2);
+    touchpadData.p1.set_y(PS4_TP_Y_MAX / 2);
+    touchpadData.p1.unpressed = gamepad->pressedA2() ? 0 : 1;
+    touchpadData.p2.set_x(PS4_TP_X_MAX / 2);
+    touchpadData.p2.set_y(PS4_TP_Y_MAX / 2);
+    touchpadData.p2.unpressed = 0;
+
     // if (ps4Report.button_touchpad) {
     //     // make the assumption that since touchpad button is already being pressed, 
     //     // the first touch position is in use and no other "touches" will be present
@@ -242,24 +257,24 @@ void PS4Driver::process(Gamepad * gamepad) {
     //     }
     // }
     // check if any of the points are recently touched, rather than still being touched
-    // if (!pointOneTouched && !touchpadData.p1.unpressed) {
-    //     touchCounter = (touchCounter < PS4_TP_MAX_COUNT ? touchCounter+1 : 0);
+    if (!pointOneTouched && !touchpadData.p1.unpressed) {
+        touchCounter = (touchCounter < PS4_TP_MAX_COUNT ? touchCounter+1 : 0);
 
-    //     touchpadData.p1.counter = touchCounter;
+        touchpadData.p1.counter = touchCounter;
 
-    //     pointOneTouched = true;
-    // } else if (pointOneTouched && touchpadData.p1.unpressed) {
-    //     pointOneTouched = false;
-    // }
-    // if (!pointTwoTouched && !touchpadData.p2.unpressed) {
-    //     touchCounter = (touchCounter < PS4_TP_MAX_COUNT ? touchCounter+1 : 0);
+        pointOneTouched = true;
+    } else if (pointOneTouched && touchpadData.p1.unpressed) {
+        pointOneTouched = false;
+    }
+    if (!pointTwoTouched && !touchpadData.p2.unpressed) {
+        touchCounter = (touchCounter < PS4_TP_MAX_COUNT ? touchCounter+1 : 0);
     
-    //     touchpadData.p2.counter = touchCounter;
+        touchpadData.p2.counter = touchCounter;
     
-    //     pointTwoTouched = true;
-    // } else if (pointTwoTouched && touchpadData.p2.unpressed) {
-    //     pointTwoTouched = false;
-    // }
+        pointTwoTouched = true;
+    } else if (pointTwoTouched && touchpadData.p2.unpressed) {
+        pointTwoTouched = false;
+    }
     ps4Report.touchpad_data = touchpadData;
 
     // if (gamepad->auxState.sensors.accelerometer.enabled) {
@@ -367,6 +382,8 @@ USBListener * PS4Driver::get_usb_auth_listener() {
 
 // tud_hid_get_report_cb
 uint16_t PS4Driver::get_report(uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer, uint16_t reqlen) {
+    APP_DBG("PS4Driver::get_report - report_id: %d, report_type: %d, reqlen: %d", report_id, report_type, reqlen);
+
     if ( report_type != HID_REPORT_TYPE_FEATURE ) {
         memcpy(buffer, &ps4Report, sizeof(ps4Report));
         return sizeof(ps4Report);
@@ -396,6 +413,9 @@ uint16_t PS4Driver::get_report(uint8_t report_id, hid_report_type_t report_type,
             responseLen = std::max(static_cast<size_t>(reqlen), sizeof(output_0x03));
             memcpy(buffer, output_0x03, responseLen);
             buffer[4] = (uint8_t)controllerType; // Change controller type in definition
+
+            APP_DBG("PS4Driver::get_report - controllerType: %d", controllerType);
+
             return responseLen;
         case PS4AuthReport::PS4_GET_MAC_ADDRESS:
             if (reqlen < sizeof(output_0x12)) {
@@ -459,6 +479,9 @@ uint16_t PS4Driver::get_report(uint8_t report_id, hid_report_type_t report_type,
 
 // Only PS4 does anything with set report
 void PS4Driver::set_report(uint8_t report_id, hid_report_type_t report_type, uint8_t const *buffer, uint16_t bufsize) {
+
+    APP_DBG("PS4Driver::set_report - report_id: %d, report_type: %d, bufsize: %d", report_id, report_type, bufsize);
+
     if (( report_type != HID_REPORT_TYPE_FEATURE ) && ( report_type != HID_REPORT_TYPE_OUTPUT ))
         return;
 
@@ -468,9 +491,7 @@ void PS4Driver::set_report(uint8_t report_id, hid_report_type_t report_type, uin
         }
     } else if (report_type == HID_REPORT_TYPE_FEATURE) {
         if (report_id == PS4AuthReport::PS4_SET_HOST_MAC) {
-            // 
         } else if (report_id == PS4AuthReport::PS4_SET_USB_BT_CONTROL) {
-            // 
         } else if (report_id == PS4AuthReport::PS4_SET_AUTH_PAYLOAD) {
             uint8_t sendBuffer[64];
             uint8_t nonce_id;
@@ -494,6 +515,7 @@ void PS4Driver::set_report(uint8_t report_id, hid_report_type_t report_type, uin
                 memcpy(&ps4AuthData->ps4_auth_buffer[nonce_page*56], &sendBuffer[4], 32);
                 ps4AuthData->nonce_id = nonce_id;
                 ps4AuthData->passthrough_state = GPAuthState::send_auth_console_to_dongle;
+                APP_DBG("认证状态更新: send_auth_console_to_dongle");
             } else {                    // Nonce page 0-3 : 56 bytes
                 memcpy(&ps4AuthData->ps4_auth_buffer[nonce_page*56], &sendBuffer[4], 56);
             }
