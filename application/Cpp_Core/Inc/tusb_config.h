@@ -40,6 +40,7 @@ extern "C"
 // 同时启用 Device 和 Host 功能
 #define CFG_TUD_ENABLED 1                      // 启用USB设备功能
 #define CFG_TUH_ENABLED 1                      // 启用USB主机功能
+#define CFG_TUH_XINPUT 1                       // 启用XInput主机功能
 
 #define CFG_TUSB_MCU OPT_MCU_STM32H7          // 定义使用的MCU为STM32H7系列
 #define BOARD_DEVICE_RHPORT_NUM 1              // 设备模式使用的USB端口号，1通常表示USB OTG HS端口

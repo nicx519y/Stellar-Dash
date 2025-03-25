@@ -41,4 +41,6 @@ private:
     bool core1Ready;
 };
 
+#define USB_HOST_MANAGER USBHostManager::getInstance()
+
 #endif

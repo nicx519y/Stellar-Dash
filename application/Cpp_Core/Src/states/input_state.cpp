@@ -7,6 +7,9 @@
 #include "usb.h" // 包含USB相关函数
 #include "usbh.h"
 #include "usb_host_monitor.h"
+#include "usblistener.hpp"
+#include "usbhostmanager.hpp"
+#include "gpdriver.hpp"
 
 // void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t idx) {
 //     APP_DBG("tuh_hid_umount_cb");
@@ -16,15 +19,27 @@
 //     APP_DBG("tuh_hid_mount_cb");
 // }
 
-void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, uint8_t const *report, uint16_t len) {
-    APP_DBG("tuh_hid_report_received_cb");
-}
+// void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, uint8_t const *report, uint16_t len) {
+//     APP_DBG("tuh_hid_report_received_cb");
+// }
 
 void InputState::setup() {
     APP_DBG("InputState::setup");
     
+    
+
+    /*************** 初始化USB start ************ */
+    // APP_DBG("tuh_init start");
+    // tuh_init(TUH_OPT_RHPORT);
+    // usb_host_monitor_init();
+    // APP_DBG("tuh_init done");
+    
+    
+    /**************** 初始化USB end ******************* */
+
     // InputMode inputMode = STORAGE_MANAGER.getInputMode();
-    InputMode inputMode = InputMode::INPUT_MODE_PS4; // TODO: 需要根据实际情况修改 
+    InputMode inputMode = InputMode::INPUT_MODE_PS5; // TODO: 需要根据实际情况修改 
+    // InputMode inputMode = InputMode::INPUT_MODE_XINPUT;
     APP_DBG("InputState::setup inputMode: %d", inputMode);
     if(inputMode == InputMode::INPUT_MODE_CONFIG) {
         APP_ERR("InputState::setup error - inputMode: INPUT_MODE_CONFIG, not supported for input state");
@@ -33,6 +48,24 @@ void InputState::setup() {
     
     DRIVER_MANAGER.setup(inputMode);
     inputDriver = DRIVER_MANAGER.getDriver();
+    if ( inputDriver != nullptr ) {
+		inputDriver->initializeAux();
+        APP_DBG("InputState::setup inputDriver->initializeAux() done");
+		// Check if we have a USB listener
+		USBListener * listener = inputDriver->get_usb_auth_listener();
+		if (listener != nullptr) {
+			APP_DBG("InputState::setup listener: %p", listener);
+			USB_HOST_MANAGER.pushListener(listener);
+		}
+	}
+
+    // 初始化USB主机
+    USB_HOST_MANAGER.start();
+
+    // 初始化TinyUSB设备栈
+    APP_DBG("tud_init start");  
+    tud_init(TUD_OPT_RHPORT);
+    APP_DBG("tud_init done");
 
     ADC_BTNS_WORKER.setup();
     GPIO_BTNS_WORKER.setup();
@@ -41,20 +74,6 @@ void InputState::setup() {
     #if HAS_LED == 1
     LEDS_MANAGER.setup();
     #endif
-
-    /*************** 初始化USB start ************ */
-    APP_DBG("tuh_init start");
-    tuh_init(TUH_OPT_RHPORT);
-    usb_host_monitor_init();
-    APP_DBG("tuh_init done");
-    
-    // 初始化TinyUSB设备栈
-    APP_DBG("tud_init start");  
-    tud_init(TUD_OPT_RHPORT);
-    APP_DBG("tud_init done");
-    
-    
-    /**************** 初始化USB end ******************* */
 
     workTime = MICROS_TIMER.micros();
     calibrationTime = MICROS_TIMER.micros();
@@ -82,8 +101,8 @@ void InputState::loop() {
 
     // 处理USB任务
     tud_task(); // 设备模式任务
-    tuh_task(); // 主机模式任务
-    usb_host_monitor_task(); // 主机监控任务
+    USB_HOST_MANAGER.process();
+    inputDriver->processAux();
 
     #if HAS_LED == 1
     if(MICROS_TIMER.checkInterval(LEDS_ANIMATION_INTERVAL, ledAnimationTime)) {

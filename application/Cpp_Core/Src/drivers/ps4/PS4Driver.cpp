@@ -65,7 +65,7 @@ static constexpr uint8_t output_0xf3[] = {
 void PS4Driver::initialize() {
     // Gamepad * gamepad = Storage::getInstance().GetGamepad();
     // const GamepadOptions & options = gamepad->getOptions();
-
+    APP_DBG("PS4Driver::initialize");
     // set up device descriptor IDs depending on mode
     uint8_t descSize = sizeof(ps4_device_descriptor);
     memcpy(deviceDescriptor, &ps4_device_descriptor, descSize);

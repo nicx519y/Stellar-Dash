@@ -23,8 +23,9 @@
  *
  */
 
-#include "drivers/xbone/XBOneDescriptors.h"
-#include "drivers/shared/xgip_protocol.h"
+#include "drivers/xbone/XBOneDescriptors.hpp"
+#include "drivers/shared/xgip_protocol.hpp"
+#include <cstring>
 
 // Default Constructor
 XGIPProtocol::XGIPProtocol() {

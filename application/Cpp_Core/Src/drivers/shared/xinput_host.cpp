@@ -27,11 +27,11 @@
 
 #if (CFG_TUH_ENABLED && CFG_TUH_XINPUT)
 
-#include "hardware/structs/usb.h"
+// #include "hardware/structs/usb.h"
 
 #include "host/usbh.h"
 #include "host/usbh_pvt.h"
-#include "drivers/shared/xinput_host.h"
+#include "drivers/shared/xinput_host.hpp"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
