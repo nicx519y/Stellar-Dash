@@ -50,6 +50,12 @@ void HotkeysManager::runAction(GamepadHotkey hotkeyAction) {
             STORAGE_MANAGER.saveConfig();
             NVIC_SystemReset();
             break;
+        case GamepadHotkey::HOTKEY_INPUT_MODE_PS5:
+            STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
+            STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_PS5);
+            STORAGE_MANAGER.saveConfig();
+            NVIC_SystemReset();
+            break;
         case GamepadHotkey::HOTKEY_INPUT_MODE_SWITCH:
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
             STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_SWITCH);

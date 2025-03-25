@@ -28,6 +28,31 @@ static const std::map<std::string, InputMode> STRING_TO_INPUT_MODE = [](){
     return reverse_map;
 }();
 
+// 定义GamepadHotkey字符串到枚举的映射表
+static const std::map<std::string, GamepadHotkey> STRING_TO_GAMEPAD_HOTKEY = {
+    {"WebConfigMode", GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG},
+    {"NSwitchMode", GamepadHotkey::HOTKEY_INPUT_MODE_SWITCH},
+    {"XInputMode", GamepadHotkey::HOTKEY_INPUT_MODE_XINPUT},
+    {"PS4Mode", GamepadHotkey::HOTKEY_INPUT_MODE_PS4},
+    {"PS5Mode", GamepadHotkey::HOTKEY_INPUT_MODE_PS5},
+    {"LedsEffectStyleNext", GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT},
+    {"LedsEffectStylePrev", GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_PREV},
+    {"LedsBrightnessUp", GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP},
+    {"LedsBrightnessDown", GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_DOWN},
+    {"LedsEnableSwitch", GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH},
+    {"CalibrationMode", GamepadHotkey::HOTKEY_CALIBRATION_MODE},
+    {"SystemReboot", GamepadHotkey::HOTKEY_SYSTEM_REBOOT}
+};
+
+// 从STRING_TO_GAMEPAD_HOTKEY自动生成反向映射
+static const std::map<GamepadHotkey, const char*> GAMEPAD_HOTKEY_TO_STRING = [](){
+    std::map<GamepadHotkey, const char*> reverse_map;
+    for(const auto& pair : STRING_TO_GAMEPAD_HOTKEY) {
+        reverse_map[pair.second] = pair.first.c_str();
+    }
+    return reverse_map;
+}();
+
 using namespace std;
 
 // 处理SPA文件，这些url都指向index.html
@@ -433,43 +458,11 @@ cJSON* buildHotkeysConfigJSON(Config& config) {
         cJSON* hotkeyJSON = cJSON_CreateObject();
         
         // 添加快捷键动作(转换为字符串)
-        switch(config.hotkeys[i].action) {
-            case GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG:
-                cJSON_AddStringToObject(hotkeyJSON, "action", "WebConfigMode");
-                break;
-            case GamepadHotkey::HOTKEY_INPUT_MODE_SWITCH:
-                cJSON_AddStringToObject(hotkeyJSON, "action", "NSwitchMode");
-                break;
-            case GamepadHotkey::HOTKEY_INPUT_MODE_XINPUT:
-                cJSON_AddStringToObject(hotkeyJSON, "action", "XInputMode");
-                break;
-            case GamepadHotkey::HOTKEY_INPUT_MODE_PS4:
-                cJSON_AddStringToObject(hotkeyJSON, "action", "PS4Mode");
-                break;
-            case GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT:
-                cJSON_AddStringToObject(hotkeyJSON, "action", "LedsEffectStyleNext");
-                break;
-            case GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_PREV:
-                cJSON_AddStringToObject(hotkeyJSON, "action", "LedsEffectStylePrev");
-                break;
-            case GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP:
-                cJSON_AddStringToObject(hotkeyJSON, "action", "LedsBrightnessUp");
-                break;
-            case GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_DOWN:
-                cJSON_AddStringToObject(hotkeyJSON, "action", "LedsBrightnessDown");
-                break;
-            case GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH:
-                cJSON_AddStringToObject(hotkeyJSON, "action", "LedsEnableSwitch");
-                break;
-            case GamepadHotkey::HOTKEY_CALIBRATION_MODE:
-                cJSON_AddStringToObject(hotkeyJSON, "action", "CalibrationMode");
-                break;
-            case GamepadHotkey::HOTKEY_SYSTEM_REBOOT:
-                cJSON_AddStringToObject(hotkeyJSON, "action", "SystemReboot");
-                break;
-            default:
-                cJSON_AddStringToObject(hotkeyJSON, "action", "None");
-                break;
+        auto it = GAMEPAD_HOTKEY_TO_STRING.find(config.hotkeys[i].action);
+        if (it != GAMEPAD_HOTKEY_TO_STRING.end()) {
+            cJSON_AddStringToObject(hotkeyJSON, "action", it->second);
+        } else {
+            cJSON_AddStringToObject(hotkeyJSON, "action", "None");
         }
 
         // 添加快捷键序号
@@ -1320,28 +1313,9 @@ std::string apiUpdateHotkeysConfig() {
 
         // 根据字符串设置动作
         const char* actionStr = actionItem->valuestring;
-        if(strcmp(actionStr, "WebConfigMode") == 0) {
-            config.hotkeys[i].action = GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG;
-        } else if(strcmp(actionStr, "NSwitchMode") == 0) {
-            config.hotkeys[i].action = GamepadHotkey::HOTKEY_INPUT_MODE_SWITCH;
-        } else if(strcmp(actionStr, "XInputMode") == 0) {
-            config.hotkeys[i].action = GamepadHotkey::HOTKEY_INPUT_MODE_XINPUT;
-        } else if(strcmp(actionStr, "PS4Mode") == 0) {
-            config.hotkeys[i].action = GamepadHotkey::HOTKEY_INPUT_MODE_PS4;
-        } else if(strcmp(actionStr, "LedsEffectStyleNext") == 0) {
-            config.hotkeys[i].action = GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT;
-        } else if(strcmp(actionStr, "LedsEffectStylePrev") == 0) {
-            config.hotkeys[i].action = GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_PREV;
-        } else if(strcmp(actionStr, "LedsBrightnessUp") == 0) {
-            config.hotkeys[i].action = GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP;
-        } else if(strcmp(actionStr, "LedsBrightnessDown") == 0) {
-            config.hotkeys[i].action = GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_DOWN;
-        } else if(strcmp(actionStr, "LedsEnableSwitch") == 0) {
-            config.hotkeys[i].action = GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH;
-        } else if(strcmp(actionStr, "CalibrationMode") == 0) {
-            config.hotkeys[i].action = GamepadHotkey::HOTKEY_CALIBRATION_MODE;
-        } else if(strcmp(actionStr, "SystemReboot") == 0) {
-            config.hotkeys[i].action = GamepadHotkey::HOTKEY_SYSTEM_REBOOT;
+        auto it = STRING_TO_GAMEPAD_HOTKEY.find(actionStr);
+        if (it != STRING_TO_GAMEPAD_HOTKEY.end()) {
+            config.hotkeys[i].action = it->second;
         } else {
             config.hotkeys[i].action = GamepadHotkey::HOTKEY_NONE;
         }
