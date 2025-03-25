@@ -76,6 +76,7 @@ enum GamepadHotkey
     HOTKEY_INPUT_MODE_WEBCONFIG,        // 切换到web配置模式
     HOTKEY_INPUT_MODE_XINPUT,           // 切换到XInput模式
     HOTKEY_INPUT_MODE_PS4,              // 切换到PS4模式
+    HOTKEY_INPUT_MODE_PS5,              // 切换到PS5模式
     HOTKEY_INPUT_MODE_SWITCH,           // 切换到Switch模式
     HOTKEY_SYSTEM_REBOOT,               // 重启系统
 };

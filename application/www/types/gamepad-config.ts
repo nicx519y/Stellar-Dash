@@ -55,6 +55,7 @@ export const RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 
 export enum Platform {
     XINPUT = "XINPUT",
     PS4 = "PS4",
+    PS5 = "PS5",
     SWITCH = "SWITCH",
 }
 
@@ -62,12 +63,16 @@ export const PlatformList = Object.values(Platform);
 
 export const PlatformLabelMap = new Map<Platform, { label: string, description: string }>([
     [Platform.XINPUT, { 
-        label: "XInput", 
-        description: "Xbox controller" 
+        label: "XInput | Win", 
+        description: "Xbox/Windows controller" 
     }],
     [Platform.PS4, { 
         label: "PlayStation 4", 
         description: "PlayStation 4 controller" 
+    }],
+    [Platform.PS5, { 
+        label: "PlayStation 5", 
+        description: "PlayStation 5 controller" 
     }],
     [Platform.SWITCH, { 
         label: "Nintendo Switch", 
@@ -216,8 +221,8 @@ export enum HotkeyAction {
     WebConfigMode = "WebConfigMode",
     XInputMode = "XInputMode",
     PS4Mode = "PS4Mode",
+    PS5Mode = "PS5Mode",
     NSwitchMode = "NSwitchMode",
-    SystemReboot = "SystemReboot",
 }
 
 export const HotkeyActionList = Object.values(HotkeyAction);
@@ -259,13 +264,13 @@ export const HotkeyActionLabelMap = new Map<HotkeyAction, { label: string, descr
         label: "PS4 Mode", 
         description: "Switch to PS4 mode" 
     }],
+    [HotkeyAction.PS5Mode, { 
+        label: "PS5 Mode", 
+        description: "Switch to PS5 mode" 
+    }],
     [HotkeyAction.NSwitchMode, { 
         label: "Nintendo Switch Mode", 
         description: "Switch to Nintendo Switch mode" 
-    }],
-    [HotkeyAction.SystemReboot, { 
-        label: "System Reboot", 
-        description: "Reboot the system" 
     }],
 ]);
 
@@ -540,6 +545,7 @@ export const UI_TEXT = {
     HOTKEY_ACTION_CALIBRATION_MODE: "Calibration Mode",
     HOTKEY_ACTION_XINPUT_MODE: "XInput Mode",
     HOTKEY_ACTION_PS4_MODE: "PlayStation 4 Mode",
+    HOTKEY_ACTION_PS5_MODE: "PlayStation 5 Mode",
     HOTKEY_ACTION_NSWITCH_MODE: "Nintendo Switch Mode",
     HOTKEY_ACTION_SYSTEM_REBOOT: "System Reboot",
 } as const;
@@ -737,6 +743,7 @@ export const UI_TEXT_ZH = {
     HOTKEY_ACTION_CALIBRATION_MODE: "按键校准模式",
     HOTKEY_ACTION_XINPUT_MODE: "XInput模式",
     HOTKEY_ACTION_PS4_MODE: "PlayStation 4模式",
+    HOTKEY_ACTION_PS5_MODE: "PlayStation 5模式",
     HOTKEY_ACTION_NSWITCH_MODE: "Nintendo Switch模式",
     HOTKEY_ACTION_SYSTEM_REBOOT: "系统重启",
 } as const;

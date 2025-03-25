@@ -59,10 +59,10 @@ export default function HotkeysField(
                 return t.HOTKEY_ACTION_XINPUT_MODE;
             case HotkeyAction.PS4Mode:
                 return t.HOTKEY_ACTION_PS4_MODE;
+            case HotkeyAction.PS5Mode:
+                return t.HOTKEY_ACTION_PS5_MODE;
             case HotkeyAction.NSwitchMode:
                 return t.HOTKEY_ACTION_NSWITCH_MODE;
-            case HotkeyAction.SystemReboot:
-                return t.HOTKEY_ACTION_SYSTEM_REBOOT;
             default:
                 return action;
         }
