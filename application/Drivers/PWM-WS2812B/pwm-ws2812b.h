@@ -23,6 +23,10 @@ typedef enum
   WS2812B_ERROR        = 0x02
 } WS2812B_StateTypeDef;
 
+// 灯效开关引脚
+#define WS2812B_ENABLE_SWITCH_PORT GPIOC
+#define WS2812B_ENABLE_SWITCH_PIN GPIO_PIN_12
+
 void WS2812B_Init(void);
 
 void WS2812B_SetAllLEDBrightness(const uint8_t brightness);

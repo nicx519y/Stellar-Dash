@@ -97,7 +97,7 @@
 #define MIN_VALUE_DIFF_RATIO                0.8             // 最小值差值比例 按键动态校准的过程中，如果bottom - top的值差 不能小于原mapping的值差*MIN_VALUE_DIFF_RATIO
 
 #define READ_BTNS_INTERVAL                  300            // 检查按钮状态间隔 us
-#define ENABLED_DYNAMIC_CALIBRATION         0               //是否启用动态校准
+#define ENABLED_DYNAMIC_CALIBRATION         1               //是否启用动态校准
 #define DYNAMIC_CALIBRATION_INTERVAL        500000          // 动态校准间隔 500ms
 
 
@@ -126,18 +126,34 @@ struct gpio_pin_def {
     uint8_t virtualPin;
 };
 
-#define ADC1_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {1, 8, 9, 6, 0, 5}
-#define ADC2_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {2, 3, 7, 4, 14, 11}
-#define ADC3_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {13, 15, 16, 10, 12}
-
-
-
-
-
-
 // Hall 按钮映射表 DMA to virtualPin，virtualPin 是按钮在所有按钮中的序号
 
-
+/**ADC1 GPIO Configuration
+PF11     ------> ADC1_INP2 -----> 2
+PA6     ------> ADC1_INP3  -----> 7
+PC4     ------> ADC1_INP4  -----> 4
+PF12     ------> ADC1_INP6 -----> 0
+PA7     ------> ADC1_INP7  -----> 5
+PC5     ------> ADC1_INP8  -----> 6
+*/
+#define ADC1_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {2, 7, 4, 0, 5, 6}
+/**ADC2 GPIO Configuration
+PF13     ------> ADC2_INP2 -----> 1
+PF14     ------> ADC2_INP6 -----> 3
+PC1     ------> ADC2_INP11 -----> 13
+PC2     ------> ADC2_INP12 -----> 11
+PC3     ------> ADC2_INP13 -----> 8
+PA2     ------> ADC2_INP14 -----> 9
+*/
+#define ADC2_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {1, 3, 13, 11, 8, 9}
+/**ADC3 GPIO Configuration
+PF5     ------> ADC3_INP4  -----> 15
+PF3     ------> ADC3_INP5  -----> 16
+PF4     ------> ADC3_INP9  -----> 14
+PH2     ------> ADC3_INP13 -----> 12
+PH3     ------> ADC3_INP14 -----> 10
+*/
+#define ADC3_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {15, 16, 14, 12, 10}
 
 
 #ifdef __cplusplus

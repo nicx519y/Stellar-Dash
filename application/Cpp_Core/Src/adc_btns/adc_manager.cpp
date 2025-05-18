@@ -507,28 +507,6 @@ void ADCManager::handleADCStats(ADC_HandleTypeDef *hadc) {
                         (hadc->Instance == ADC2) ? 1 : 
                         (hadc->Instance == ADC3) ? 2 : 3;
     
-
-    /******* 差分base电压 *******/
-    uint32_t baseV = ADC2_Values[1];
-    
-    if(adcIndex == 0) {
-        for(uint8_t i = 0; i < NUM_ADC1_BUTTONS; i++) {
-            ADC1_Values[i] -= baseV;
-        }
-    } else if(adcIndex == 1) {
-        for(uint8_t i = 0; i < NUM_ADC2_BUTTONS; i++) {
-            if(i != 1) { // baseV
-                ADC2_Values[i] -= baseV;
-            }
-        }
-    } else if(adcIndex == 2) {
-        for(uint8_t i = 0; i < NUM_ADC3_BUTTONS; i++) {
-            ADC3_Values[i] -= baseV;
-        }
-    }
-
-    /******* 差分base电压 *******/
-
     // 如果采样ADC索引不匹配，则返回，此处只处理采样ADC索引对应的ADC
     if(!samplingRateEnabled || adcIndex != this->samplingADCInfo.ADCIndex) return;
 
@@ -537,7 +515,6 @@ void ADCManager::handleADCStats(ADC_HandleTypeDef *hadc) {
     SCB_CleanInvalidateDCache_by_Addr(info.buffer, info.size);
     
     uint32_t value = info.buffer[this->samplingADCInfo.indexInDMA];
-
 
     if(value == 0) return;
     ADCButtonStats.values[ADCButtonStats.count] = value; // 保存当前值
@@ -556,6 +533,7 @@ void ADCManager::handleADCStats(ADC_HandleTypeDef *hadc) {
         }
 
         ADCButtonStats.noiseValue = std::accumulate(ADCButtonStats.diffValues.begin(), ADCButtonStats.diffValues.end(), 0) / ADCButtonStats.count * 2;
+        // ADCButtonStats.noiseValue = 100;
 
         uint32_t crossCount = 0;
         for(uint32_t i = 0; i < ADCButtonStats.count; i++) {

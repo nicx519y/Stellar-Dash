@@ -43,8 +43,8 @@
 |--------------------|------------------|--------|-------|-------|
 */
 
-#define ADC_OVERSAMPLE_RATIO               256         //ADC过采样倍数
-#define ADC_OVERSAMPLE_RIGHT_BIT_SHIFT     ADC_RIGHTBITSHIFT_8 //ADC过采样右移位数
+#define ADC_OVERSAMPLE_RATIO               16         //ADC过采样倍数
+#define ADC_OVERSAMPLE_RIGHT_BIT_SHIFT     ADC_RIGHTBITSHIFT_4 //ADC过采样右移位数
 #define ADC_SAMPLE_TIME                    ADC_SAMPLETIME_64CYCLES_5       //ADC采样时间
 
 
@@ -154,21 +154,21 @@ void MX_ADC1_Init(void)
         Error_Handler();
     }
 
-    sConfig.Channel = ADC_CHANNEL_5;
+    sConfig.Channel = ADC_CHANNEL_6;
     sConfig.Rank = ADC_REGULAR_RANK_4;
     if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
     {
         Error_Handler();
     }
 
-    sConfig.Channel = ADC_CHANNEL_6;
+    sConfig.Channel = ADC_CHANNEL_7;
     sConfig.Rank = ADC_REGULAR_RANK_5;
     if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
     {
         Error_Handler();
     }
 
-    sConfig.Channel = ADC_CHANNEL_7;
+    sConfig.Channel = ADC_CHANNEL_8;
     sConfig.Rank = ADC_REGULAR_RANK_6;
     if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
     {
@@ -249,28 +249,28 @@ void MX_ADC2_Init(void)
         Error_Handler();
     }
 
-    sConfig.Channel = ADC_CHANNEL_8;
+    sConfig.Channel = ADC_CHANNEL_11;
     sConfig.Rank = ADC_REGULAR_RANK_3;
     if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
     {
         Error_Handler();
     }
 
-    sConfig.Channel = ADC_CHANNEL_9;
+    sConfig.Channel = ADC_CHANNEL_12;
     sConfig.Rank = ADC_REGULAR_RANK_4;
     if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
     {
         Error_Handler();
     }
 
-    sConfig.Channel = ADC_CHANNEL_10;
+    sConfig.Channel = ADC_CHANNEL_13;
     sConfig.Rank = ADC_REGULAR_RANK_5;
     if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
     {
         Error_Handler();
     }
     
-    sConfig.Channel = ADC_CHANNEL_11;
+    sConfig.Channel = ADC_CHANNEL_14;
     sConfig.Rank = ADC_REGULAR_RANK_6;
     if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
     {
@@ -356,14 +356,14 @@ void MX_ADC3_Init(void)
         Error_Handler();
     }
 
-    sConfig.Channel = ADC_CHANNEL_12;
+    sConfig.Channel = ADC_CHANNEL_13;
     sConfig.Rank = ADC_REGULAR_RANK_4;
     if (HAL_ADC_ConfigChannel(&hadc3, &sConfig) != HAL_OK)
     {
         Error_Handler();
     }
 
-    sConfig.Channel = ADC_CHANNEL_13;
+    sConfig.Channel = ADC_CHANNEL_14;
     sConfig.Rank = ADC_REGULAR_RANK_5;
     if (HAL_ADC_ConfigChannel(&hadc3, &sConfig) != HAL_OK)
     {
@@ -409,27 +409,21 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
 
         __HAL_RCC_GPIOA_CLK_ENABLE();
         __HAL_RCC_GPIOC_CLK_ENABLE();
-        __HAL_RCC_GPIOB_CLK_ENABLE();
         __HAL_RCC_GPIOF_CLK_ENABLE();
         /**ADC1 GPIO Configuration
         PF11     ------> ADC1_INP2
         PA6     ------> ADC1_INP3
         PC4     ------> ADC1_INP4
-        PB1     ------> ADC1_INP5
         PF12     ------> ADC1_INP6
         PA7     ------> ADC1_INP7
+        PC5     ------> ADC1_INP8
         */
         GPIO_InitStruct.Pin = GPIO_PIN_6 | GPIO_PIN_7;
         GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
         GPIO_InitStruct.Pull = GPIO_NOPULL;
         HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-        GPIO_InitStruct.Pin = GPIO_PIN_1;
-        GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-        GPIO_InitStruct.Pull = GPIO_NOPULL;
-        HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-        GPIO_InitStruct.Pin = GPIO_PIN_4;
+        GPIO_InitStruct.Pin = GPIO_PIN_4 | GPIO_PIN_5;
         GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
         GPIO_InitStruct.Pull = GPIO_NOPULL;
         HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
@@ -476,23 +470,24 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
             __HAL_RCC_ADC12_CLK_ENABLE();
         }
 
-        __HAL_RCC_GPIOB_CLK_ENABLE();
+        __HAL_RCC_GPIOA_CLK_ENABLE();
         __HAL_RCC_GPIOC_CLK_ENABLE();
         __HAL_RCC_GPIOF_CLK_ENABLE();
         /**ADC2 GPIO Configuration
         PF13     ------> ADC2_INP2
         PF14     ------> ADC2_INP6
-        PC5     ------> ADC2_INP8
-        PB0     ------> ADC2_INP9
-        PC0     ------> ADC2_INP10
         PC1     ------> ADC2_INP11
+        PC2     ------> ADC2_INP12
+        PC3     ------> ADC2_INP13
+        PA2     ------> ADC2_INP14
         */
-        GPIO_InitStruct.Pin = GPIO_PIN_0;
+
+        GPIO_InitStruct.Pin = GPIO_PIN_2;
         GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
         GPIO_InitStruct.Pull = GPIO_NOPULL;
-        HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+        HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-        GPIO_InitStruct.Pin = GPIO_PIN_1 | GPIO_PIN_5;
+        GPIO_InitStruct.Pin = GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3;
         GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
         GPIO_InitStruct.Pull = GPIO_NOPULL;
         HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
@@ -542,23 +537,17 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
         /* ADC3 clock enable */
         __HAL_RCC_ADC3_CLK_ENABLE();
 
-        __HAL_RCC_GPIOC_CLK_ENABLE();
         __HAL_RCC_GPIOH_CLK_ENABLE();
         __HAL_RCC_GPIOF_CLK_ENABLE();
         /**ADC3 GPIO Configuration
         PF5     ------> ADC3_INP4
         PF3     ------> ADC3_INP5
         PF4     ------> ADC3_INP9
-        PC2     ------> ADC3_INP12
         PH2     ------> ADC3_INP13
+        PH3     ------> ADC3_INP14
         */
 
-        GPIO_InitStruct.Pin = GPIO_PIN_2;
-        GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-        GPIO_InitStruct.Pull = GPIO_NOPULL;
-        HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-        GPIO_InitStruct.Pin = GPIO_PIN_2;
+        GPIO_InitStruct.Pin = GPIO_PIN_2 | GPIO_PIN_3;
         GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
         GPIO_InitStruct.Pull = GPIO_NOPULL;
         HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
@@ -597,11 +586,9 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
 
 void HAL_ADC_MspDeInit(ADC_HandleTypeDef *adcHandle)
 {
-
     if (adcHandle->Instance == ADC1)
     {
         /* USER CODE BEGIN ADC1_MspDeInit 0 */
-
         /* USER CODE END ADC1_MspDeInit 0 */
         /* Peripheral clock disable */
         HAL_RCC_ADC12_CLK_ENABLED--;
@@ -614,29 +601,22 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef *adcHandle)
         PF11     ------> ADC1_INP2
         PA6     ------> ADC1_INP3
         PC4     ------> ADC1_INP4
-        PB1     ------> ADC1_INP5
+        PC5     ------> ADC1_INP5
         PF12     ------> ADC1_INP6
         PA7     ------> ADC1_INP7
         */
-
         HAL_GPIO_DeInit(GPIOA, GPIO_PIN_6 | GPIO_PIN_7);
-
-        HAL_GPIO_DeInit(GPIOC, GPIO_PIN_4);
-
-        HAL_GPIO_DeInit(GPIOB, GPIO_PIN_1);
-
+        HAL_GPIO_DeInit(GPIOC, GPIO_PIN_4 | GPIO_PIN_5);
         HAL_GPIO_DeInit(GPIOF, GPIO_PIN_11 | GPIO_PIN_12);
 
         /* ADC1 DMA DeInit */
         HAL_DMA_DeInit(adcHandle->DMA_Handle);
         /* USER CODE BEGIN ADC1_MspDeInit 1 */
-
         /* USER CODE END ADC1_MspDeInit 1 */
     }
     else if (adcHandle->Instance == ADC2)
     {
         /* USER CODE BEGIN ADC2_MspDeInit 0 */
-
         /* USER CODE END ADC2_MspDeInit 0 */
         /* Peripheral clock disable */
         HAL_RCC_ADC12_CLK_ENABLED--;
@@ -648,27 +628,23 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef *adcHandle)
         /**ADC2 GPIO Configuration
         PF13     ------> ADC2_INP2
         PF14     ------> ADC2_INP6
-        PC5     ------> ADC2_INP8
-        PB0     ------> ADC2_INP9
-        PC0     ------> ADC2_INP10
         PC1     ------> ADC2_INP11
+        PC2     ------> ADC2_INP12
+        PC3     ------> ADC2_INP13
+        PA2     ------> ADC2_INP14
         */
-        HAL_GPIO_DeInit(GPIOB, GPIO_PIN_0);
-
-        HAL_GPIO_DeInit(GPIOC, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_5);
-
+        HAL_GPIO_DeInit(GPIOA, GPIO_PIN_2);
+        HAL_GPIO_DeInit(GPIOC, GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3);
         HAL_GPIO_DeInit(GPIOF, GPIO_PIN_13 | GPIO_PIN_14);
 
         /* ADC2 DMA DeInit */
         HAL_DMA_DeInit(adcHandle->DMA_Handle);
         /* USER CODE BEGIN ADC2_MspDeInit 1 */
-
         /* USER CODE END ADC2_MspDeInit 1 */
     } 
     else if (adcHandle->Instance == ADC3)
     {
         /* USER CODE BEGIN ADC3_MspDeInit 0 */
-
         /* USER CODE END ADC3_MspDeInit 0 */
         /* Peripheral clock disable */
         __HAL_RCC_ADC3_CLK_DISABLE();
@@ -677,20 +653,15 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef *adcHandle)
         PF5     ------> ADC3_INP4
         PF3     ------> ADC3_INP5
         PF4     ------> ADC3_INP9
-        PC2     ------> ADC3_INP12
         PH2     ------> ADC3_INP13
+        PH3     ------> ADC3_INP14
         */
-
-        HAL_GPIO_DeInit(GPIOC, GPIO_PIN_2);
-
-        HAL_GPIO_DeInit(GPIOH, GPIO_PIN_2);
-
+        HAL_GPIO_DeInit(GPIOH, GPIO_PIN_2 | GPIO_PIN_3);
         HAL_GPIO_DeInit(GPIOF, GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5);
 
         /* ADC3 DMA DeInit */
         HAL_DMA_DeInit(adcHandle->DMA_Handle);
         /* USER CODE BEGIN ADC3_MspDeInit 1 */
-
         /* USER CODE END ADC3_MspDeInit 1 */
     }
 }

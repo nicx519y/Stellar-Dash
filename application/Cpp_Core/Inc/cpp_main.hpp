@@ -3,4 +3,6 @@
 
 #include "main.h"
 
+void adc_test(void);
+
 #endif /* __INC_CPP_MAIN_H_ */
