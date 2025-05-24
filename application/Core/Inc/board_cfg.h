@@ -96,7 +96,7 @@
 #define MIN_ADC_TOP_DEADZONE                0.1             // 默认ADC顶部死区最小值
 #define MIN_VALUE_DIFF_RATIO                0.8             // 最小值差值比例 按键动态校准的过程中，如果bottom - top的值差 不能小于原mapping的值差*MIN_VALUE_DIFF_RATIO
 
-#define READ_BTNS_INTERVAL                  300            // 检查按钮状态间隔 us
+#define READ_BTNS_INTERVAL                  200            // 检查按钮状态间隔 us
 #define ENABLED_DYNAMIC_CALIBRATION         1               //是否启用动态校准
 #define DYNAMIC_CALIBRATION_INTERVAL        500000          // 动态校准间隔 500ms
 
@@ -110,9 +110,9 @@
 #define NUM_LED	                    (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) //LED数量
 
 #define NUM_LEDs_PER_ADC_BUTTON     1              //每个按钮多少个LED
-#define LEDS_BRIGHTNESS_RATIO       0.2             //默认led 亮度系数 会以实际亮度乘以这个系数
+#define LEDS_BRIGHTNESS_RATIO       0.8             //默认led 亮度系数 会以实际亮度乘以这个系数
 #define LEDS_ANIMATION_CYCLE        6000            //LED 动画长度 ms
-#define LEDS_ANIMATION_INTERVAL         16000          //LED 动画间隔，影响性能和效果 us
+#define LEDS_ANIMATION_INTERVAL         2000          //LED 动画间隔，影响性能和效果 us
 
 // #define LED_ENABLE_SWITCH_PIN        GPIO_PIN_12    // 灯效开关引脚
 // #define LED_ENABLE_SWITCH_PORT       GPIOC           // 灯效开关端口
