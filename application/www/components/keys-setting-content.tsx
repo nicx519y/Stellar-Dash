@@ -198,8 +198,6 @@ export function KeysSettingContent() {
                                                 checked={invertYAxis}
                                                 onCheckedChange={() => {
                                                     setInvertYAxis(!invertYAxis);
-                                                    // invertYAxis = !invertYAxis;
-                                                    // defaultProfile.keysConfig?.invertYAxis = !invertYAxis;
                                                     setIsDirty?.(true);
                                                 }}
                                             >
@@ -217,10 +215,6 @@ export function KeysSettingContent() {
 
                                     </VStack>
                                 </Fieldset.Content>
-
-
-
-
                             </Fieldset.Root>
                         </Card.Body>
 

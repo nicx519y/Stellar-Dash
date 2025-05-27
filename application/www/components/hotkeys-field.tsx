@@ -88,9 +88,8 @@ export default function HotkeysField(
     }
 
     return (
-        <Flex padding={"2px"} width={"450px"} >
+        <Flex padding={"2px"} width={"680px"} >
             <HStack 
-                width="130px" 
                 pl="2" 
                 pr="2" 
                 flex={1}  
@@ -120,7 +119,7 @@ export default function HotkeysField(
                 collection={hotkeyCollection}
                 value={[value.action ?? HotkeyAction.None]}
                 onValueChange={e => onValueChange({ ...value, action: e.value[0] as HotkeyAction })}
-                width="240px"
+                width="340px"
                 disabled={disabled}
             >
 

@@ -6,6 +6,7 @@ import {
     Stack,
     Fieldset,
     Text,
+    Card,
 } from "@chakra-ui/react";
 import { useEffect, useState, useMemo } from "react";
 import {
@@ -80,23 +81,26 @@ export function HotkeysSettingContent() {
     };
 
     return (
-        <Flex direction="row" width="1700px" padding="18px">
-            <Center width="100%" flex={1}>
+        <Flex direction="row" width={"100%"} height={"100%"} padding="18px">
+            <Center flex={1}>
                 <Hitbox
                     interactiveIds={HOTKEYS_SETTINGS_INTERACTIVE_IDS}
                     onClick={handleHitboxClick}
                 />
             </Center>
-            <Center width="700px">
-                <Fieldset.Root>
-                    <Stack direction="column" gap={4}>
-                        <Fieldset.Legend fontSize="2rem" color="green.600">
-                            {t.SETTINGS_HOTKEYS_TITLE}
-                        </Fieldset.Legend>
-                        <Fieldset.HelperText fontSize="smaller" opacity={0.75} >
-                            <Text whiteSpace="pre-wrap" >{t.SETTINGS_HOTKEYS_HELPER_TEXT}</Text>
-                        </Fieldset.HelperText>
-                        <Fieldset.Content pt="30px" >
+            <Center  >
+                <Card.Root w="778px" h="100%" >
+                    <Card.Header>
+                        <Card.Title fontSize={"md"}  >
+                            <Text fontSize={"32px"} fontWeight={"normal"} color={"green.600"} >{t.SETTINGS_HOTKEYS_TITLE}</Text>
+                        </Card.Title>
+                        <Card.Description fontSize={"sm"} pt={4} pb={4} whiteSpace="pre-wrap"  >
+                            {t.SETTINGS_HOTKEYS_HELPER_TEXT}
+                        </Card.Description>
+                    </Card.Header>
+                    <Card.Body>
+                    <Fieldset.Root  >
+                        <Fieldset.Content >
                             <Stack gap={4}>
                                 {Array.from({ length: DEFAULT_NUM_HOTKEYS_MAX }, (_, i) => (
                                     <HotkeysField
@@ -112,16 +116,20 @@ export function HotkeysSettingContent() {
                                     />
                                 ))}
 
-                                <ContentActionButtons
-                                    resetLabel={t.BUTTON_RESET}
-                                    saveLabel={t.BUTTON_SAVE}
-                                    resetHandler={fetchHotkeysConfig}
-                                    saveHandler={saveHotkeysConfigHandler}
-                                />
+                                
                             </Stack>
                         </Fieldset.Content>
-                    </Stack>
-                </Fieldset.Root>
+                        </Fieldset.Root>
+                    </Card.Body>
+                    <Card.Footer justifyContent={"flex-start"} >
+                        <ContentActionButtons
+                            resetLabel={t.BUTTON_RESET}
+                            saveLabel={t.BUTTON_SAVE}
+                            resetHandler={fetchHotkeysConfig}
+                            saveHandler={saveHotkeysConfigHandler}
+                        />
+                    </Card.Footer>
+                </Card.Root>
             </Center>
         </Flex>
     );
