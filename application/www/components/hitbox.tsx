@@ -256,7 +256,7 @@ export default function Hitbox(props: {
         // 更新按钮颜色
         circleRefs.current.forEach((circle, index) => {
             if (circle) {
-                circle.setAttribute('fill', colorListRef.current[index].toString('css'));
+                circle.setAttribute('fill', colorListRef.current[index].toString('hex'));
             }
         });
 

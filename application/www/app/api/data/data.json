@@ -9,7 +9,7 @@
       "id": "profile-1733715985965",
       "name": "NewProfile111",
       "keysConfig": {
-        "invertXAxis": false,
+        "invertXAxis": true,
         "invertYAxis": false,
         "fourWayMode": false,
         "socdMode": "SOCD_MODE_NEUTRAL",
@@ -69,17 +69,17 @@
         }
       },
       "ledsConfigs": {
-        "ledEnabled": false,
+        "ledEnabled": true,
         "ledsEffectStyle": "STATIC",
         "ledColors": [
-          "#000000",
-          "#000000",
+          "#75FA07",
+          "#342FD4",
           "#000000"
         ],
-        "ledBrightness": 0
+        "ledBrightness": 92
       },
       "triggerConfigs": {
-        "isAllBtnsConfiguring": true,
+        "isAllBtnsConfiguring": false,
         "triggerConfigs": [
           {
             "topDeadzone": 0.4,
@@ -149,7 +149,7 @@
           },
           {
             "topDeadzone": 0.4,
-            "bottomDeadzone": 0,
+            "bottomDeadzone": 0.7,
             "pressAccuracy": 0,
             "releaseAccuracy": 0
           },

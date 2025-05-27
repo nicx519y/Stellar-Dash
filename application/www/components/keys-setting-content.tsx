@@ -185,7 +185,7 @@ export function KeysSettingContent() {
                                             <Switch
                                                 colorPalette={"green"}
                                                 checked={invertXAxis}
-                                                onChange={() => {
+                                                onCheckedChange={() => {
                                                     setInvertXAxis(!invertXAxis);
                                                     setIsDirty?.(true);
                                                 }}
@@ -196,7 +196,7 @@ export function KeysSettingContent() {
                                             <Switch
                                                 colorPalette={"green"}
                                                 checked={invertYAxis}
-                                                onChange={() => {
+                                                onCheckedChange={() => {
                                                     setInvertYAxis(!invertYAxis);
                                                     // invertYAxis = !invertYAxis;
                                                     // defaultProfile.keysConfig?.invertYAxis = !invertYAxis;

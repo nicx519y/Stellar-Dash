@@ -19,7 +19,7 @@ export function ColorModeSwitcher() {
             colorPalette="green"
             size={"lg"}
             checked={myColorMode === 'dark' ? true : false}
-            onChange={() => toggleColorMode()}
+            onCheckedChange={() => toggleColorMode()}
             trackLabel={{
                 on: (
                     <Icon color="yellow.200">

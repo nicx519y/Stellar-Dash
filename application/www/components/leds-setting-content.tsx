@@ -14,26 +14,19 @@ import {
     Text,
     Color,
     Card,
+    Portal,
+    For,
+    getColorChannels,
 } from "@chakra-ui/react";
 
-import { Field } from "@/components/ui/field"
-import { Slider } from "@/components/ui/slider"
-import { Switch } from "@/components/ui/switch"
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import {
     RadioCardItem,
     RadioCardRoot,
-} from "@/components/ui/radio-card"
+} from "@/components/ui/radio-card";
 
-import {
-    ColorPickerArea,
-    ColorPickerContent,
-    ColorPickerControl,
-    ColorPickerInput,
-    ColorPickerLabel,
-    ColorPickerRoot,
-    ColorPickerSliders,
-    ColorPickerTrigger,
-} from "@/components/ui/color-picker"
+import { ColorPicker } from "@chakra-ui/react";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -43,7 +36,7 @@ import {
     LedsEffectStyleLabelMap,
     LEDS_SETTINGS_INTERACTIVE_IDS,
 } from "@/types/gamepad-config";
-import { LuSunDim, LuActivity } from "react-icons/lu";
+import { LuSunDim, LuActivity, LuCheck } from "react-icons/lu";
 import Hitbox from "./hitbox";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
@@ -90,7 +83,11 @@ export function LEDsSettingContent() {
             setLedBrightness(ledsConfigs.ledBrightness ?? 75);
             setLedEnabled(ledsConfigs.ledEnabled ?? true);
             setIsDirty?.(false);
+
         }
+
+        
+        
     }, [defaultProfile]);
 
     // Save the profile details
@@ -134,6 +131,8 @@ export function LEDsSettingContent() {
         t.SETTINGS_LEDS_BACK_COLOR2
     ];
 
+    const swatches = ["red", "blue", "green"];
+
     return (
         <>
             <Flex direction="row" width={"100%"} height={"100%"} padding={"18px"}  >
@@ -145,9 +144,9 @@ export function LEDsSettingContent() {
                         hasLeds={true}
                         hasText={false}
                         colorEnabled={ledEnabled}
-                        frontColor={GamePadColor.fromString(color1.toString('css'))}
-                        backColor1={GamePadColor.fromString(color2.toString('css'))}
-                        backColor2={GamePadColor.fromString(color3.toString('css'))}
+                        frontColor={GamePadColor.fromString(color1.toString('hex'))}
+                        backColor1={GamePadColor.fromString(color2.toString('hex'))}
+                        backColor2={GamePadColor.fromString(color3.toString('hex'))}
                         effectStyle={ledsEffectStyle}
                         brightness={ledBrightness}
                         interactiveIds={LEDS_SETTINGS_INTERACTIVE_IDS}
@@ -170,9 +169,9 @@ export function LEDsSettingContent() {
                                     <Fieldset.Content  >
                                         <VStack gap={8} alignItems={"flex-start"} >
                                             {/* LED Effect Style */}
-                                            
+
                                                 <Switch colorPalette={"green"} checked={ledEnabled}
-                                                    onChange={() => {
+                                                    onCheckedChange={() => {
                                                         setLedEnabled(!ledEnabled);
                                                         setIsDirty?.(true);
                                                     }} >{t.SETTINGS_LEDS_ENABLE_LABEL}</Switch>
@@ -211,65 +210,83 @@ export function LEDsSettingContent() {
                                                 </RadioCardRoot>
 
                                                 {/* LED Colors */}
-                                                <Field>
-                                                    <Text fontSize={"sm"} opacity={!ledEnabled ? "0.25" : "0.85"} >{t.SETTINGS_LEDS_COLORS_LABEL}</Text>
+                                                <VStack gap={4} alignItems={"flex-start"} >
                                                     {Array.from({ length: 3 }).map((_, index) => (
-                                                        <ColorPickerRoot
-                                                            key={index}
-                                                            value={
+                                                        <ColorPicker.Root key={index} 
+                                                            value={ 
                                                                 index === 0 ? color1 :
-                                                                    index === 1 ? color2 :
-                                                                        index === 2 ? color3 :
-                                                                            defaultFrontColor
-                                                            }
-                                                            maxW="200px"
-                                                            disabled={colorPickerDisabled(index)}
+                                                                        index === 1 ? color2 :
+                                                                            index === 2 ? color3 :
+                                                            parseColor(color1.toString('hex')) } 
+                                                            
                                                             onValueChange={(e) => {
                                                                 setIsDirty?.(true);
                                                                 const hex = e.value;
+                                                                console.log("hex: ", hex);
                                                                 if (index === 0) setColor1(hex);
                                                                 if (index === 1) setColor2(hex);
                                                                 if (index === 2) setColor3(hex);
                                                             }}
-                                                        >
-                                                            <ColorPickerLabel opacity={colorPickerDisabled(index) ? "0.35" : "0.85"} >{colorLabels[index]}</ColorPickerLabel>
-                                                            <ColorPickerControl >
-                                                                <ColorPickerInput colorPalette={"green"} fontSize={"sm"} />
-                                                                <ColorPickerTrigger />
-                                                            </ColorPickerControl>
-                                                            <ColorPickerContent>
-                                                                <ColorPickerArea />
-                                                                <HStack>
-                                                                    <ColorPickerSliders />
-                                                                </HStack>
-                                                            </ColorPickerContent>
-                                                        </ColorPickerRoot>
+
+                                                            maxW="200px"
+                                                            disabled={colorPickerDisabled(index)}
+                                                            >
+                                                            <ColorPicker.Label> {colorLabels[index]} </ColorPicker.Label>
+                                                            <ColorPicker.HiddenInput />
+                                                            <ColorPicker.Control>
+                                                                <ColorPicker.Input />
+                                                                <ColorPicker.Trigger />
+                                                            </ColorPicker.Control>
+                                                            <Portal>
+                                                                <ColorPicker.Positioner>
+                                                                    <ColorPicker.Content>
+                                                                    <ColorPicker.Area />
+                                                                    <HStack>
+                                                                        <ColorPicker.EyeDropper size="sm" variant="outline" />
+                                                                        <ColorPicker.ChannelSlider channel="hue" />
+                                                                    </HStack>
+                                                                    <ColorPicker.SwatchGroup>
+                                                                        {swatches.map((item) => (
+                                                                        <ColorPicker.SwatchTrigger key={item} value={item}>
+                                                                            <ColorPicker.Swatch value={item} boxSize="4.5">
+                                                                                <ColorPicker.SwatchIndicator>
+                                                                                    <LuCheck />
+                                                                                </ColorPicker.SwatchIndicator>
+                                                                            </ColorPicker.Swatch>
+                                                                        </ColorPicker.SwatchTrigger>
+                                                                        ))}
+                                                                    </ColorPicker.SwatchGroup>
+                                                                    </ColorPicker.Content>
+                                                                </ColorPicker.Positioner>
+                                                            </Portal>
+                                                        </ColorPicker.Root>
                                                     ))}
-                                                </Field>
-
+                                                </VStack>
                                                 {/* LED Brightness */}
-                                                <Text fontSize={"sm"} opacity={!ledEnabled ? "0.35" : "0.85"} >
-                                                    {t.SETTINGS_LEDS_BRIGHTNESS_LABEL}: {ledBrightness}
-                                                </Text>
-                                                <Slider
-                                                    size={"md"}
-                                                    colorPalette={"green"}
-                                                    width={"300px"}
-                                                    value={[ledBrightness]}
-                                                    onValueChange={(e) => {
-                                                        setLedBrightness(e.value[0]);
-                                                        setIsDirty?.(true);
-                                                    }}
-                                                    disabled={!ledEnabled}
-                                                    marks={[
-                                                        { value: 0, label: "0" },
-                                                        { value: 25, label: "25" },
-                                                        { value: 50, label: "50" },
-                                                        { value: 75, label: "75" },
-                                                        { value: 100, label: "100" },
-                                                    ]}
-                                                />
-
+                                                <VStack gap={2} alignItems={"flex-start"} >
+                                                    <Text fontSize={"sm"} opacity={!ledEnabled ? "0.35" : "0.85"} >
+                                                        {t.SETTINGS_LEDS_BRIGHTNESS_LABEL}
+                                                    </Text>
+                                                    <Slider
+                                                        size={"md"}
+                                                        colorPalette={"green"}
+                                                        width={"300px"}
+                                                        value={[ledBrightness]}
+                                                        onValueChange={(e) => {
+                                                            setLedBrightness(e.value[0]);
+                                                            setIsDirty?.(true);
+                                                        }}
+                                                        disabled={!ledEnabled}
+                                                        marks={[
+                                                            { value: 0, label: "0" },
+                                                            { value: 25, label: "25" },
+                                                            { value: 50, label: "50" },
+                                                            { value: 75, label: "75" },
+                                                            { value: 100, label: "100" },
+                                                        ]}
+                                                    />
+                                 
+                                                </VStack>
 
                                            
                                         </VStack>

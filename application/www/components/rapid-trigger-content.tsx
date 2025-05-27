@@ -197,7 +197,7 @@ export function RapidTriggerContent() {
                                     <Fieldset.Content  >
                                         <VStack gap={8} alignItems={"flex-start"} >
                                             <Switch colorPalette={"green"} checked={isAllBtnsConfiguring}
-                                                onChange={() => {
+                                                onCheckedChange={() => {
                                                     switchAllBtnsConfiging(!isAllBtnsConfiguring);
                                                     setIsDirty?.(true);
                                                 }}
