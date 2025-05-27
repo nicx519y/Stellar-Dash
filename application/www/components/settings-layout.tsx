@@ -2,7 +2,6 @@
 
 import { useRouterStore } from './router';
 import { Flex, Center, Box, Tabs } from '@chakra-ui/react';
-import { ProfileSelect } from '@/components/profile-select';
 import { useLanguage } from "@/contexts/language-context";
 import { LuKeyboard, LuRocket, LuLightbulb, LuKeyRound, LuCpu, LuChartSpline, LuGamepad } from 'react-icons/lu';
 import type { Route } from './router';
@@ -30,7 +29,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
     };
 
     return (
-        <Flex direction="column" height="100%" flex={1}>
+        <Flex direction="column" height="100%" flex={1} >
             <Tabs.Root
                 defaultValue={currentRoute}
                 value={currentRoute}
@@ -58,10 +57,10 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
             </Tabs.Root>
             
             <Flex direction="column" flex={1} height="100%">
-                <Center pt={4} height="50px">
+                {/* <Center pt={4} height="50px">
                     {['keys', 'leds', 'rapid-trigger'].includes(currentRoute) && <ProfileSelect />}
-                </Center>
-                <Center pt={4} flex={1}>
+                </Center> */}
+                <Center flex={1}>
                     {children}
                 </Center>
             </Flex>

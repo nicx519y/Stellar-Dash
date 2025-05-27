@@ -10,9 +10,11 @@ import {
     HStack,
     RadioCardLabel,
     Text,
+    Card,
+    VStack,
 } from "@chakra-ui/react";
 import KeymappingFieldset from "@/components/keymapping-fieldset";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import {
     RadioCardItem,
@@ -35,16 +37,16 @@ import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
 import { ContentActionButtons } from "@/components/content-action-buttons";
 import { useColorMode } from "./ui/color-mode";
-
+import { ProfileSelect } from "@/components/profile-select";
 export function KeysSettingContent() {
 
     const { defaultProfile, updateProfileDetails, resetProfileDetails, globalConfig } = useGamepadConfig();
-    const [_isDirty, setIsDirty] = useUnsavedChangesWarning();  
+    const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
     const { t } = useLanguage();
 
     const [socdMode, setSocdMode] = useState<GameSocdMode>(GameSocdMode.SOCD_MODE_UP_PRIORITY);
-    const [invertXAxis, setInvertXAxis] = useState<boolean>(false);
-    const [invertYAxis, setInvertYAxis] = useState<boolean>(false);
+    const [invertXAxis, setInvertXAxis] = useState<boolean>(true);
+    const [invertYAxis, setInvertYAxis] = useState<boolean>(true);
     const [fourWayMode, setFourWayMode] = useState<boolean>(false);
     const [keyMapping, setKeyMapping] = useState<{ [key in GameControllerButton]?: number[] }>({});
     const [autoSwitch, setAutoSwitch] = useState<boolean>(true);
@@ -52,15 +54,17 @@ export function KeysSettingContent() {
     const { colorMode } = useColorMode();
 
     useEffect(() => {
-        setSocdMode(defaultProfile.keysConfig?.socdMode ?? GameSocdMode.SOCD_MODE_UP_PRIORITY);
-        setInvertXAxis(defaultProfile.keysConfig?.invertXAxis ?? false);
-        setInvertYAxis(defaultProfile.keysConfig?.invertYAxis ?? false);
-        setFourWayMode(defaultProfile.keysConfig?.fourWayMode ?? false);
-        setKeyMapping(defaultProfile.keysConfig?.keyMapping ?? {});
-        setIsDirty?.(false); // reset the unsaved changes warning 
+        if (defaultProfile.keysConfig) {
+            setSocdMode(defaultProfile.keysConfig?.socdMode ?? GameSocdMode.SOCD_MODE_UP_PRIORITY);
+            setInvertXAxis(defaultProfile.keysConfig?.invertXAxis ?? false);
+            setInvertYAxis(defaultProfile.keysConfig?.invertYAxis ?? false);
+            setFourWayMode(defaultProfile.keysConfig?.fourWayMode ?? false);
+            setKeyMapping(defaultProfile.keysConfig?.keyMapping ?? {});
+            setIsDirty?.(false); // reset the unsaved changes warning 
+        }
     }, [defaultProfile]);
 
-
+    
     /**
  * set key mapping
      * @param key - game controller button
@@ -95,103 +99,113 @@ export function KeysSettingContent() {
 
     return (
         <>
-            <Flex direction="row" width={"1700px"} padding={"18px"} >
+       
+            <Flex direction="row" width={"100%"} height={"100%"} padding={"18px"} >
+                <Center >
+                    <ProfileSelect />
+                </Center>
                 <Center flex={1}  >
-                    <Hitbox 
+                    <Hitbox
                         onClick={hitboxButtonClick}
-                        interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS} 
+                        interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
                     />
                 </Center>
-                <Center width={"700px"}  >
-                    <Fieldset.Root>
-                        <Stack direction={"column"} gap={4} >
-                            <Fieldset.Legend fontSize={"2rem"} color={"green.600"} >
-                                {t.SETTINGS_KEYS_TITLE}
-                            </Fieldset.Legend>
-                            <Fieldset.HelperText fontSize={"smaller"} opacity={0.75}   >
-                                <Text whiteSpace="pre-wrap" >{t.SETTINGS_KEYS_HELPER_TEXT}</Text>
-                            </Fieldset.HelperText>
-                            <Fieldset.Content position={"relative"} paddingTop={"30px"}  >
-
-                                {/* Key Mapping */}
-                                <Stack direction={"column"} gap={4} >
-                                    <Fieldset.Legend fontSize={"sm"} >{t.SETTINGS_KEYS_MAPPING_TITLE}</Fieldset.Legend>
-                                    <HStack gap={1} >
-                                        <SegmentedControl
-                                            size={"xs"}
-                                            defaultValue={autoSwitch ? t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL : t.SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL}
-                                            items={[t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL, t.SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL]}
-                                            onValueChange={(detail) => setAutoSwitch(detail.value === t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL)}
-                                        />
-                                        <ToggleTip content={t.TOOLTIP_AUTO_SWITCH}  >
-                                            <Button size="xs" variant="ghost">
-                                                <LuInfo />
-                                            </Button>
-                                        </ToggleTip>
-                                    </HStack>
-                                    <KeymappingFieldset
-                                        autoSwitch={autoSwitch}
-                                        inputKey={inputKey}
-                                        inputMode={globalConfig.inputMode}
-                                        keyMapping={keyMapping}
-                                        changeKeyMappingHandler={(key, hitboxButtons) => {
-                                            setHitboxButtons(key, hitboxButtons);
-                                            setIsDirty?.(true);
-                                        }}
-                                    />
-                                </Stack>
-
-
-                                {/* SOCD Mode Choice */}
-                                <RadioCardRoot
-                                    colorPalette={"green"}
-                                    size={"sm"}
-                                    variant={colorMode === "dark" ? "surface" : "outline"}
-                                    value={socdMode?.toString() ?? GameSocdMode.SOCD_MODE_UP_PRIORITY.toString()}
-                                    onValueChange={(detail) => {
-                                        setSocdMode(detail.value as GameSocdMode);
-                                        setIsDirty?.(true);
-                                    }}
-                                >
-                                    <RadioCardLabel>{t.SETTINGS_KEYS_SOCD_MODE_TITLE}</RadioCardLabel>
-                                    <SimpleGrid gap={1} columns={5} >
-                                        {GameSocdModeList.map((socdMode, index) => (
-                                            // <Tooltip key={index} content={t.SETTINGS_KEYS_SOCD_MODE_TOOLTIP} >
-                                                <RadioCardItem
-                                                    fontSize={"xs"}
-                                                    indicator={false}
-                                                    key={index}
-                                                    value={socdMode.toString()}
-                                                    label={GameSocdModeLabelMap.get(socdMode as GameSocdMode)?.label ?? ""}
+                <Center>
+                    <Card.Root w="778px" h="100%" >
+                        <Card.Header>
+                            <Card.Title fontSize={"md"}  >
+                                <Text fontSize={"32px"} fontWeight={"normal"} color={"green.600"} >{t.SETTINGS_KEYS_TITLE}</Text>
+                            </Card.Title>
+                            <Card.Description fontSize={"sm"} pt={4} pb={4} whiteSpace="pre-wrap"  >
+                                {t.SETTINGS_KEYS_HELPER_TEXT}
+                            </Card.Description>
+                        </Card.Header>
+                        <Card.Body>
+                            <Fieldset.Root  >
+                                <Fieldset.Content >
+                                    <VStack gap={8} alignItems={"flex-start"} >
+                                        {/* Key Mapping */}
+                                        <Stack direction={"column"}>
+                                            <Fieldset.Legend fontSize={"sm"} fontWeight={"bold"} >{t.SETTINGS_KEYS_MAPPING_TITLE}</Fieldset.Legend>
+                                            <HStack gap={1} >
+                                                <SegmentedControl
+                                                    size={"xs"}
+                                                    defaultValue={autoSwitch ? t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL : t.SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL}
+                                                    items={[t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL, t.SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL]}
+                                                    onValueChange={(detail) => setAutoSwitch(detail.value === t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL)}
                                                 />
-                                            // </Tooltip>
-                                        ))}
-                                    </SimpleGrid>
-                                </RadioCardRoot>
+                                                <ToggleTip content={t.TOOLTIP_AUTO_SWITCH}  >
+                                                    <Button size="xs" variant="ghost">
+                                                        <LuInfo />
+                                                    </Button>
+                                                </ToggleTip>
+                                            </HStack>
+                                            <KeymappingFieldset
+                                                autoSwitch={autoSwitch}
+                                                inputKey={inputKey}
+                                                inputMode={globalConfig.inputMode}
+                                                keyMapping={keyMapping}
+                                                changeKeyMappingHandler={(key, hitboxButtons) => {
+                                                    setHitboxButtons(key, hitboxButtons);
+                                                    setIsDirty?.(true);
+                                                }}
+                                            />
+                                        </Stack>
 
-                                {/* Invert Axis Choice & Invert Y Axis Choice & FourWay Mode Choice */}
-                                <HStack gap={5} mt={4} >
-                                    <Switch 
-                                        colorPalette={"green"} 
-                                        checked={invertXAxis} 
-                                        onChange={() => {
-                                            setInvertXAxis(!invertXAxis);
-                                            setIsDirty?.(true);
-                                        }}
-                                    >
-                                        {t.SETTINGS_KEYS_INVERT_X_AXIS}
-                                    </Switch>
-                                    <Switch 
-                                        colorPalette={"green"} 
-                                        checked={invertYAxis} 
-                                        onChange={() => {
-                                            setInvertYAxis(!invertYAxis);
-                                            setIsDirty?.(true);
-                                        }}
-                                    >
-                                        {t.SETTINGS_KEYS_INVERT_Y_AXIS}
-                                    </Switch>
-                                    {/* <Switch colorPalette={"green"} checked={fourWayMode} onChange={() => setFourWayMode(!fourWayMode)} >
+
+                                        {/* SOCD Mode Choice */}
+                                        <RadioCardRoot
+                                            colorPalette={"green"}
+                                            size={"sm"}
+                                            variant={colorMode === "dark" ? "surface" : "outline"}
+                                            value={socdMode?.toString() ?? GameSocdMode.SOCD_MODE_UP_PRIORITY.toString()}
+                                            onValueChange={(detail) => {
+                                                setSocdMode(detail.value as GameSocdMode);
+                                                setIsDirty?.(true);
+                                            }}
+                                        >
+                                            <RadioCardLabel fontWeight={"bold"} >{t.SETTINGS_KEYS_SOCD_MODE_TITLE}</RadioCardLabel>
+                                            <SimpleGrid gap={1} columns={5} >
+                                                {GameSocdModeList.map((socdMode, index) => (
+                                                    // <Tooltip key={index} content={t.SETTINGS_KEYS_SOCD_MODE_TOOLTIP} >
+                                                    <RadioCardItem
+                                                        fontSize={"xs"}
+                                                        indicator={false}
+                                                        key={index}
+                                                        value={socdMode.toString()}
+                                                        label={GameSocdModeLabelMap.get(socdMode as GameSocdMode)?.label ?? ""}
+                                                    />
+                                                    // </Tooltip>
+                                                ))}
+                                            </SimpleGrid>
+                                        </RadioCardRoot>
+                                        
+                                        {/* Invert Axis Choice & Invert Y Axis Choice & FourWay Mode Choice */}
+                                        <HStack gap={5}>
+                                            <Switch
+                                                colorPalette={"green"}
+                                                checked={invertXAxis}
+                                                onChange={() => {
+                                                    setInvertXAxis(!invertXAxis);
+                                                    setIsDirty?.(true);
+                                                }}
+                                            >
+                                                {t.SETTINGS_KEYS_INVERT_X_AXIS}
+                                            </Switch>
+
+                                            <Switch
+                                                colorPalette={"green"}
+                                                checked={invertYAxis}
+                                                onChange={() => {
+                                                    setInvertYAxis(!invertYAxis);
+                                                    // invertYAxis = !invertYAxis;
+                                                    // defaultProfile.keysConfig?.invertYAxis = !invertYAxis;
+                                                    setIsDirty?.(true);
+                                                }}
+                                            >
+                                                {t.SETTINGS_KEYS_INVERT_Y_AXIS}
+                                            </Switch>
+                                            {/* <Switch colorPalette={"green"} checked={fourWayMode} onChange={() => setFourWayMode(!fourWayMode)} >
                                         {t.SETTINGS_KEYS_FOURWAY_MODE}
                                     </Switch>  
                                     <ToggleTip content={t.SETTINGS_KEYS_FOURWAY_MODE_TOOLTIP} >
@@ -199,19 +213,27 @@ export function KeysSettingContent() {
                                             <LuInfo />
                                         </Button>
                                     </ToggleTip> */}
-                                </HStack>
+                                        </HStack>  
 
-                            </Fieldset.Content>
+                                    </VStack>
+                                </Fieldset.Content>
 
+
+
+
+                            </Fieldset.Root>
+                        </Card.Body>
+
+                        <Card.Footer justifyContent={"flex-start"} >
                             <ContentActionButtons
                                 resetLabel={t.BUTTON_RESET}
                                 saveLabel={t.BUTTON_SAVE}
                                 resetHandler={resetProfileDetails}
                                 saveHandler={saveProfileDetailHandler}
                             />
+                        </Card.Footer>
 
-                        </Stack>
-                    </Fieldset.Root>
+                    </Card.Root>
                 </Center>
             </Flex>
         </>

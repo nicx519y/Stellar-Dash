@@ -397,11 +397,11 @@ export function SwitchMarkingContent() {
 
     return (
         <>
-            <Flex direction={"column"} height={"100%"} width={"1700px"} >
+            <Flex direction={"column"} height={"100%"} width={"1700px"} padding={"30px"} >
                 <VStack width={"100%"} >
                     <Center width={"100%"} >
                         <Stack direction="row" gap={2} alignItems="center">
-                            <SegmentedControl size="sm" value={activeMappingId} items={itemsConfig} onValueChange={(detail) => activeMappingChange(detail.value)} />
+                            <SegmentedControl size="sm" value={activeMappingId} items={itemsConfig} onValueChange={(detail) => activeMappingChange(detail?.value ?? "")} />
                             <MenuRoot size="md">
                                 <MenuTrigger asChild>
                                     <IconButton

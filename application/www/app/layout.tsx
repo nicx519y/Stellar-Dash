@@ -4,7 +4,7 @@ import { Provider } from "@/components/ui/provider"
 import StyledComponentsRegistry from '@/lib/registry'
 import { SettingsLayout } from '@/components/settings-layout'
 import { GamepadConfigProvider, useGamepadConfig } from '@/contexts/gamepad-config-context'
-import { Flex, Center, Text, HStack } from '@chakra-ui/react'
+import { Flex, HStack } from '@chakra-ui/react'
 import { toaster, Toaster } from "@/components/ui/toaster"
 import { LoadingModal } from "@/components/ui/loading-modal"
 import { useState, useEffect } from 'react'
@@ -78,11 +78,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 <SettingsLayout>
                     {children}
                 </SettingsLayout>
-                <Center as="footer" height="40px" borderTop="1px solid" borderColor="rgba(0, 150, 255, 0.15)">
+                {/* <Center as="footer" height="40px" borderTop="1px solid" borderColor="rgba(0, 150, 255, 0.15)">
                     <Text fontSize="sm" color="gray.500">
                         © 2024 Hitbox Web Config. All rights reserved.
                     </Text>
-                </Center>
+                </Center> */}
             </Flex>
             <Toaster />
             <LoadingModal isOpen={showLoading} />

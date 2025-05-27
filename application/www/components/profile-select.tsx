@@ -2,28 +2,15 @@
 
 import { PROFILE_NAME_MAX_LENGTH } from "@/types/gamepad-config";
 import { useMemo } from "react";
+import {  Button, Card, HStack, VStack } from "@chakra-ui/react";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
     IconButton,
-    Stack,
     createListCollection,
 } from "@chakra-ui/react"
 
-import {
-    MenuContent,
-    MenuItem,
-    MenuRoot,
-    MenuTrigger,
-} from "@/components/ui/menu"
 
-import {
-    SelectContent,
-    SelectItem,
-    SelectRoot,
-    SelectTrigger,
-    SelectValueText,
-} from "@/components/ui/select"
-
-import { LuTrash, LuPlus, LuPencil, LuMenu } from "react-icons/lu"
+import { LuTrash, LuPlus, LuPencil } from "react-icons/lu"
 import { openConfirm } from '@/components/dialog-confirm';
 import { openForm } from '@/components/dialog-form';
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
@@ -174,66 +161,62 @@ export function ProfileSelect() {
             icon: <LuPlus />,
             onClick: createProfileClick
         },
+        
+        {
+            value: "delete",
+            label: t.PROFILE_SELECT_DELETE_BUTTON,
+            icon: <LuTrash />,
+            onClick: deleteProfileClick
+        },
+
         {
             value: "rename",
             label: t.PROFILE_SELECT_RENAME_BUTTON,
             icon: <LuPencil />,
             onClick: renameProfileClick
         },
-        {
-            value: "delete",
-            label: t.PROFILE_SELECT_DELETE_BUTTON,
-            icon: <LuTrash />,
-            onClick: deleteProfileClick
-        }
     ]
 
+
     return (
-        <>
-            { // 如果 profileList 存在且 profileList.items 的长度大于 0，则显示选择器
-                profileList && profileList.items.length > 0 && (
-                    <Stack direction="row" gap={2} alignItems="center">
-                        <SelectRoot
-                            size="sm"
-                            width="200px"
-                            collection={profilesCollection}
-                            value={[defaultProfile?.id ?? ""]}
-                            onValueChange={e => onDefaultProfileChange(e.value[0])}
-                        >
-                            <SelectTrigger bg="bg.muted"  >
-                                <SelectValueText opacity={0.75}  />
-                            </SelectTrigger>
-                            <SelectContent fontSize="xs" >
-                                {profilesCollection.items.map((item) => (
-                                    <SelectItem key={item.value} item={item} >
-                                        {item.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </SelectRoot>
-                        <MenuRoot>
-                            <MenuTrigger asChild>
-                                <IconButton
-                                    aria-label={t.PROFILE_SELECT_MENU_BUTTON}
-                                    variant="ghost"
-                                    size="sm"
-                                >
-                                    <LuMenu />
+        <Card.Root w="100%" h="100%" >
+            <Card.Header >
+                <Card.Title fontSize={"md"} >{t.PROFILE_SELECT_TITLE}</Card.Title>
+            </Card.Header>
+            <Card.Body>
+                <VStack  gap={2} >
+                    
+                    {
+                        profilesCollection.items.map((item) => (
+                            <Button 
+                                key={item.value} 
+                                w="180px" 
+                                size="sm" 
+                                variant={defaultProfile?.id === item.value ? "subtle" : "ghost" } 
+                                colorPalette={defaultProfile?.id === item.value ? "green" : "gray"} 
+                                onClick={() => defaultProfile?.id !== item.value && onDefaultProfileChange(item.value)}
+                                justifyContent="flex-start" 
+                            >
+                                {item.label}
+                            </Button>
+                        ))
+                    }
+                </VStack>
+            </Card.Body>
+            <Card.Footer >
+                <HStack w="100%" gap={1} justifyContent={"flex-end"} >
+                    {
+                        menuItems.map((item) => (
+                            <Tooltip key={item.value} content={item.label} >
+                                <IconButton key={item.value} w="32px" size="xs" variant="ghost" colorPalette="green" onClick={item.onClick}  >
+                                    {item.icon}
                                 </IconButton>
-                            </MenuTrigger>
-                            <MenuContent  >
-                                {
-                                    menuItems.map((item) => (
-                                        <MenuItem key={item.value} value={item.value} onClick={item.onClick}>
-                                            {item.icon} {item.label}
-                                        </MenuItem>
-                                    ))
-                                }
-                            </MenuContent>
-                        </MenuRoot>
-                    </Stack>
-                )
-            }
-        </>
+                            </Tooltip>
+                        ))
+                    }
+                </HStack>
+            </Card.Footer>
+        </Card.Root>
+        
     )
 }

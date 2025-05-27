@@ -1,7 +1,7 @@
 {
   "version": 1,
   "inputMode": "XINPUT",
-  "defaultProfileId": "profile-1736445195390",
+  "defaultProfileId": "profile-1733715985965",
   "isCalibrateCompleted": false,
   "numProfilesMax": 16,
   "profiles": [
@@ -190,8 +190,8 @@
       "id": "profile-1736445195390",
       "name": "New Profile",
       "keysConfig": {
-        "invertXAxis": false,
-        "invertYAxis": false,
+        "invertXAxis": true,
+        "invertYAxis": true,
         "fourWayMode": false,
         "socdMode": "SOCD_MODE_NEUTRAL",
         "keyMapping": {
@@ -224,7 +224,110 @@
       },
       "triggerConfigs": {
         "isAllBtnsConfiguring": true,
-        "triggerConfigs": []
+        "triggerConfigs": [
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          },
+          {
+            "topDeadzone": 0,
+            "bottomDeadzone": 0,
+            "pressAccuracy": 0,
+            "releaseAccuracy": 0
+          }
+        ]
       }
     }
   ],

@@ -9,8 +9,9 @@ import { useColorMode } from "./ui/color-mode";
 import { GamePadColor } from "@/types/gamepad-color";
 
 const StyledSvg = styled.svg`
-  width: 800px;
-  height: 650px;
+  width: 828.82px;
+  height: 548.1px;
+  padding:20px;
   position: relative;
 `;
 
@@ -283,7 +284,7 @@ export default function Hitbox(props: {
                 onMouseUp={handleClick}
             >
                 <title>hitbox</title>
-                <StyledFrame x="0.36" y="0.36" width="787.82" height="507.1" rx="10" />
+                <StyledFrame x="0.36" y="0.36" width="787.82" height="507.1" rx="10"  />
 
 
                 {/* 渲染按钮外框 */}

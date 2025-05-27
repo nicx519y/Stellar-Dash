@@ -429,6 +429,7 @@ export const UI_TEXT = {
     VALIDATION_PROFILE_NAME_ALREADY_EXISTS: "Profile name already exists",
     VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "Profile name cannot contain special characters",
     
+
     // Keys Settings
     SETTINGS_KEYS_TITLE: "KEYS SETTINGS",
     SETTINGS_KEYS_HELPER_TEXT: `- Input Mode: The input mode of the game controller.\n- Key Mapping: The mapping relationship between the Hitbox buttons and the Game Controller buttons.`,
@@ -451,6 +452,7 @@ export const UI_TEXT = {
     SETTINGS_HOTKEYS_HELPER_TEXT: `Configure up to ${DEFAULT_NUM_HOTKEYS_MAX} hotkeys for quick access to various functions.\n- Click on the hotkey field and press the desired key on the hitbox to bind the hotkey.\n- Choice the hotkey action from the dropdown list.\n- Locked hotkeys are used for web configuration mode because this function is required.`,
 
     // Profile Select
+    PROFILE_SELECT_TITLE: "Profile Select",
     PROFILE_SELECT_CREATE_BUTTON: "Create New Profile",
     PROFILE_SELECT_RENAME_BUTTON: "Rename Profile",
     PROFILE_SELECT_DELETE_BUTTON: "Delete Profile",
@@ -648,6 +650,7 @@ export const UI_TEXT_ZH = {
     
 
     // 配置选择
+    PROFILE_SELECT_TITLE: "配置选择",
     PROFILE_SELECT_CREATE_BUTTON: "创建新配置",
     PROFILE_SELECT_RENAME_BUTTON: "重命名配置",
     PROFILE_SELECT_DELETE_BUTTON: "删除配置",

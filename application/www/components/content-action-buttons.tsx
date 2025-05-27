@@ -17,11 +17,11 @@ export function ContentActionButtons(
     const { rebootSystem } = useGamepadConfig();
     const { resetLabel, saveLabel, resetHandler, saveHandler } = props;
     return (
-        <Stack direction="row" gap={4} justifyContent="flex-start" padding="32px 0px">
+        <Stack direction="row" gap={4}>
             <Button
                 colorPalette="teal"
                 variant="surface"
-                size="lg"
+                size="md"
                 width="140px"
                 onClick={resetHandler}
             >
@@ -29,7 +29,7 @@ export function ContentActionButtons(
             </Button>
             <Button
                 colorPalette="green"
-                size="lg"
+                size="md"
                 width="140px"
                 onClick={saveHandler}
             >
@@ -38,7 +38,7 @@ export function ContentActionButtons(
             <Button
                 colorPalette="blue"
                 variant="surface"
-                size={"lg"}
+                size="md"
                 width={"180px"}
                 onClick={async () => {
                     const confirmed = await openRebootConfirmDialog({
