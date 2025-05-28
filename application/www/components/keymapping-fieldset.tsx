@@ -89,6 +89,7 @@ export default function KeymappingFieldset(
         switch(inputMode) {
             case Platform.XINPUT: return XInputButtonMap;
             case Platform.PS4: return PS4ButtonMap;
+            case Platform.PS5: return PS4ButtonMap;
             case Platform.SWITCH: return SwitchButtonMap;
             default: return new Map<GameControllerButton, string>();
         }

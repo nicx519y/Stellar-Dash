@@ -333,6 +333,8 @@ export interface GamepadConfig {
 export enum LedsEffectStyle {
     STATIC = "STATIC",
     BREATHING = "BREATHING",
+    STAR = "STAR",
+    LAYOUT = "LAYOUT"
     // WAVE = "WAVE",
 }
 
@@ -348,6 +350,8 @@ export const LedsEffectStyleList = Object.values(LedsEffectStyle);
 export const LedsEffectStyleLabelMap = new Map<LedsEffectStyle, { label: string, description: string, icon: string, hasBackColor2: boolean }>([
     [LedsEffectStyle.STATIC, { label: "Static", description: "Static color", icon: "sun-dim", hasBackColor2: false }],
     [LedsEffectStyle.BREATHING, { label: "Breathing", description: "Breathing color", icon: "activity", hasBackColor2: true }],
+    [LedsEffectStyle.STAR, { label: "Star", description: "Star effect", icon: "star", hasBackColor2: false }],
+    [LedsEffectStyle.LAYOUT, { label: "Layout", description: "Layout effect", icon: "layout", hasBackColor2: false }],
 ]);
 
 export const ledColorsLabel = [ "Front Color", "Back Color 1", "Back Color 2" ];
@@ -392,6 +396,7 @@ export const UI_TEXT = {
     SETTINGS_LEDS_ENABLE_LABEL: "Enable LEDs",
     SETTINGS_LEDS_EFFECT_LABEL: "LED Effect Style",
     SETTINGS_LEDS_BRIGHTNESS_LABEL: "LED Brightness",
+    SETTINGS_LEDS_ANIMATION_SPEED_LABEL: "Animation Speed",
     SETTINGS_LEDS_COLOR_FRONT_LABEL: "Front Color",
     SETTINGS_LEDS_COLOR_BACK1_LABEL: "Back Color 1",
     SETTINGS_LEDS_COLOR_BACK2_LABEL: "Back Color 2",
@@ -432,7 +437,7 @@ export const UI_TEXT = {
 
     // Keys Settings
     SETTINGS_KEYS_TITLE: "KEYS SETTINGS",
-    SETTINGS_KEYS_HELPER_TEXT: `- Input Mode: The input mode of the game controller.\n- Key Mapping: The mapping relationship between the Hitbox buttons and the Game Controller buttons.`,
+    SETTINGS_KEYS_HELPER_TEXT: `Set the mapping between Hitbox buttons and game controller buttons.\n- Select a configuration box below, then press a Hitbox button on the left to bind it.\n- Multiple key mappings can be set. Each controller button can be mapped to multiple Hitbox buttons.`,
 
     // Switch Marking Settings
     SETTINGS_SWITCH_MARKING_TITLE: "NEW SWITCH MARKINGS",
@@ -443,7 +448,7 @@ export const UI_TEXT = {
     SETTINGS_LEDS_HELPER_TEXT: "The LED effect style, colors, and brightness can be customized here.\n- Static: The LEDs are always on with the same color.\n- Breathing: The LEDs breath with the two colors.\n- Front Color: The color of the LEDs when the button is pressed.\n- back Color: The color of the LEDs based on the effect.",
 
     // Rapid Trigger Settings
-    SETTINGS_RAPID_TRIGGER_TITLE: "RAPID TRIGGER SETTINGS",
+    SETTINGS_RAPID_TRIGGER_TITLE: "BUTTONS TRAVEL",
     SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "The rapid trigger settings can be customized here.\n- Top Deadzone: The distance from the top of the trigger to the deadzone.\n- Bottom Deadzone: The distance from the bottom of the trigger to the deadzone.\n- Press Accuracy: The accuracy of the trigger when pressed.\n- Release Accuracy: The accuracy of the trigger when released.",
     SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL: "Configure all buttons at once",
 
@@ -510,7 +515,7 @@ export const UI_TEXT = {
     SETTINGS_TAB_INPUT_MODE: "Input Mode",
     SETTINGS_TAB_KEYS: "Keys Setting",
     SETTINGS_TAB_LEDS: "LEDs Setting",
-    SETTINGS_TAB_RAPID_TRIGGER: "Rapid Trigger",
+    SETTINGS_TAB_RAPID_TRIGGER: "Buttons Travel",
     SETTINGS_TAB_HOTKEYS: "Hotkeys Setting",
     SETTINGS_TAB_SWITCH_MARKING: "Switch Marking",
     SETTINGS_TAB_FIRMWARE: "Firmware",
@@ -527,6 +532,10 @@ export const UI_TEXT = {
     SETTINGS_LEDS_STATIC_DESC: "Static color",
     SETTINGS_LEDS_BREATHING_LABEL: "Breathing",
     SETTINGS_LEDS_BREATHING_DESC: "Breathing color",
+    SETTINGS_LEDS_STAR_LABEL: "Star",
+    SETTINGS_LEDS_STAR_DESC: "Star effect",
+    SETTINGS_LEDS_LAYOUT_LABEL: "Layout",
+    SETTINGS_LEDS_LAYOUT_DESC: "Layout effect",
     SETTINGS_LEDS_COLORS_LABEL: "LED Colors",
     SETTINGS_LEDS_FRONT_COLOR: "Front Color",
     SETTINGS_LEDS_BACK_COLOR1: "Back Color 1",
@@ -590,6 +599,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_LEDS_ENABLE_LABEL: "启用LED",
     SETTINGS_LEDS_EFFECT_LABEL: "LED效果样式",
     SETTINGS_LEDS_BRIGHTNESS_LABEL: "LED亮度",
+    SETTINGS_LEDS_ANIMATION_SPEED_LABEL: "动画速度",
     SETTINGS_LEDS_COLOR_FRONT_LABEL: "前置颜色",
     SETTINGS_LEDS_COLOR_BACK1_LABEL: "背景颜色1",
     SETTINGS_LEDS_COLOR_BACK2_LABEL: "背景颜色2",
@@ -629,7 +639,7 @@ export const UI_TEXT_ZH = {
     
     // 按键设置
     SETTINGS_KEYS_TITLE: "按键设置",
-    SETTINGS_KEYS_HELPER_TEXT: `- 输入模式：游戏控制器的输入模式\n- 按键映射：Hitbox按键与游戏控制器按键的映射关系`,
+    SETTINGS_KEYS_HELPER_TEXT: `- 设置hitbox按键和游戏控制器按键的映射关系，选中下面的配置框，然后按左侧hitbox按键即可绑定 \n- 可以设置多个按键映射，每个控制器按键映射可以设置多个hitbox按键`,
 
     // 磁轴标记设置
     SETTINGS_SWITCH_MARKING_TITLE: "新磁轴标记",
@@ -640,7 +650,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_LEDS_HELPER_TEXT: "可以在这里自定义LED效果样式、颜色和亮度。\n- 静态：LED始终以相同颜色亮起\n- 呼吸：LED在两种颜色之间呼吸\n- 前置颜色：按键按下时的LED颜色\n- 背景颜色：基于效果的LED颜色",
     
     // 快速触发设置
-    SETTINGS_RAPID_TRIGGER_TITLE: "快速触发设置",
+    SETTINGS_RAPID_TRIGGER_TITLE: "按键行程",
     SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "可以在这里自定义快速触发设置。\n- 顶部死区：扳机顶部到死区的距离\n- 底部死区：扳机底部到死区的距离\n- 按下精度：扳机按下时的精度\n- 释放精度：扳机释放时的精度",
     SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL: "同时配置所有按键",
     
@@ -709,7 +719,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_TAB_INPUT_MODE: "输入模式",
     SETTINGS_TAB_KEYS: "按键设置",
     SETTINGS_TAB_LEDS: "LED设置",
-    SETTINGS_TAB_RAPID_TRIGGER: "快速触发",
+    SETTINGS_TAB_RAPID_TRIGGER: "按键行程",
     SETTINGS_TAB_HOTKEYS: "热键设置",
     SETTINGS_TAB_SWITCH_MARKING: "磁轴标记",
     SETTINGS_TAB_FIRMWARE: "固件",
@@ -726,6 +736,10 @@ export const UI_TEXT_ZH = {
     SETTINGS_LEDS_STATIC_DESC: "固定颜色",
     SETTINGS_LEDS_BREATHING_LABEL: "呼吸",
     SETTINGS_LEDS_BREATHING_DESC: "呼吸效果",
+    SETTINGS_LEDS_STAR_LABEL: "星光",
+    SETTINGS_LEDS_STAR_DESC: "星光效果",
+    SETTINGS_LEDS_LAYOUT_LABEL: "布局",
+    SETTINGS_LEDS_LAYOUT_DESC: "布局效果",
     SETTINGS_LEDS_COLORS_LABEL: "LED颜色",
     SETTINGS_LEDS_FRONT_COLOR: "前置颜色",
     SETTINGS_LEDS_BACK_COLOR1: "背景颜色1",

@@ -192,7 +192,7 @@ export function ProfileSelect() {
                                 key={item.value} 
                                 w="180px" 
                                 size="sm" 
-                                variant={defaultProfile?.id === item.value ? "subtle" : "ghost" } 
+                                variant={defaultProfile?.id === item.value ? "solid" : "ghost" } 
                                 colorPalette={defaultProfile?.id === item.value ? "green" : "gray"} 
                                 onClick={() => defaultProfile?.id !== item.value && onDefaultProfileChange(item.value)}
                                 justifyContent="flex-start" 

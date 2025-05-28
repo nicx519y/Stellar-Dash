@@ -36,7 +36,7 @@ import {
     LedsEffectStyleLabelMap,
     LEDS_SETTINGS_INTERACTIVE_IDS,
 } from "@/types/gamepad-config";
-import { LuSunDim, LuActivity, LuCheck } from "react-icons/lu";
+import { LuSunDim, LuActivity, LuCheck, LuStar, LuSparkles, LuComponent } from "react-icons/lu";
 import Hitbox from "./hitbox";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
@@ -65,13 +65,10 @@ export function LEDsSettingContent() {
     const [color2, setColor2] = useState<Color>(defaultFrontColor);
     const [color3, setColor3] = useState<Color>(defaultFrontColor);
     const [ledBrightness, setLedBrightness] = useState<number>(75);
+    const [ledAnimationSpeed, setLedAnimationSpeed] = useState<number>(75);
     const [ledEnabled, setLedEnabled] = useState<boolean>(true);
 
-    const iconMap: Record<string, JSX.Element> = {
-        'sun-dim': <LuSunDim />,
-        'activity': <LuActivity />
-    };
-
+    
     // Initialize the state with the default profile details
     useEffect(() => {
         const ledsConfigs = defaultProfile.ledsConfigs;
@@ -110,6 +107,13 @@ export function LEDsSettingContent() {
         return (index == 2 && !(LedsEffectStyleLabelMap.get(ledsEffectStyle)?.hasBackColor2 ?? false)) || !ledEnabled;
     }
 
+    const iconMap: Record<string, JSX.Element> = {
+        'sun-dim': <LuSunDim />,
+        'activity': <LuActivity />,
+        'star': <LuSparkles />,
+        'layout': <LuComponent  />
+    };
+
     const effectStyleLabelMap = new Map<LedsEffectStyle, { label: string, description: string, icon: string, hasBackColor2: boolean }>([
         [LedsEffectStyle.STATIC, {
             label: t.SETTINGS_LEDS_STATIC_LABEL,
@@ -122,6 +126,18 @@ export function LEDsSettingContent() {
             description: t.SETTINGS_LEDS_BREATHING_DESC,
             icon: "activity",
             hasBackColor2: true
+        }],
+        [LedsEffectStyle.STAR, {
+            label: t.SETTINGS_LEDS_STAR_LABEL,
+            description: t.SETTINGS_LEDS_STAR_DESC,
+            icon: "star",
+            hasBackColor2: false
+        }],
+        [LedsEffectStyle.LAYOUT, {
+            label: t.SETTINGS_LEDS_LAYOUT_LABEL,
+            description: t.SETTINGS_LEDS_LAYOUT_DESC,
+            icon: "layout",
+            hasBackColor2: false
         }],
     ]);
 
@@ -177,6 +193,8 @@ export function LEDsSettingContent() {
                                                     }} >{t.SETTINGS_LEDS_ENABLE_LABEL}</Switch>
                                                 {/* LED Effect Style */}
                                                 <RadioCardRoot
+                                                    align="center"
+                                                    justify="center"
                                                     colorPalette={ledEnabled ? "green" : "gray"}
                                                     size={"sm"}
                                                     variant={colorMode === "dark" ? "surface" : "outline"}
@@ -188,10 +206,11 @@ export function LEDsSettingContent() {
                                                     disabled={!ledEnabled}
                                                 >
                                                     <RadioCardLabel>{t.SETTINGS_LEDS_EFFECT_STYLE_CHOICE}</RadioCardLabel>
-                                                    <SimpleGrid gap={1} columns={5} >
+                                                    <HStack gap={1} >
                                                         {LedsEffectStyleList.map((style, index) => (
                                                             // <Tooltip key={index} content={effectStyleLabelMap.get(style)?.description ?? ""} >
                                                             <RadioCardItem
+                                                                w="140px"
                                                                 fontSize={"xs"}
                                                                 indicator={false}
                                                                 key={index}
@@ -206,11 +225,11 @@ export function LEDsSettingContent() {
                                                             />
                                                             // </Tooltip>
                                                         ))}
-                                                    </SimpleGrid>
+                                                    </HStack>
                                                 </RadioCardRoot>
 
                                                 {/* LED Colors */}
-                                                <VStack gap={4} alignItems={"flex-start"} >
+                                                <HStack gap={4} alignItems={"flex-start"} >
                                                     {Array.from({ length: 3 }).map((_, index) => (
                                                         <ColorPicker.Root key={index} 
                                                             value={ 
@@ -261,7 +280,7 @@ export function LEDsSettingContent() {
                                                             </Portal>
                                                         </ColorPicker.Root>
                                                     ))}
-                                                </VStack>
+                                                </HStack>
                                                 {/* LED Brightness */}
                                                 <VStack gap={2} alignItems={"flex-start"} >
                                                     <Text fontSize={"sm"} opacity={!ledEnabled ? "0.35" : "0.85"} >
@@ -270,7 +289,7 @@ export function LEDsSettingContent() {
                                                     <Slider
                                                         size={"md"}
                                                         colorPalette={"green"}
-                                                        width={"300px"}
+                                                        width={"580px"}
                                                         value={[ledBrightness]}
                                                         onValueChange={(e) => {
                                                             setLedBrightness(e.value[0]);
@@ -287,7 +306,31 @@ export function LEDsSettingContent() {
                                                     />
                                  
                                                 </VStack>
-
+                                                
+                                                <VStack gap={2} alignItems={"flex-start"} >
+                                                    <Text fontSize={"sm"} opacity={!ledEnabled ? "0.35" : "0.85"} >
+                                                        {t.SETTINGS_LEDS_ANIMATION_SPEED_LABEL}
+                                                    </Text>
+                                                    <Slider
+                                                        size={"md"}
+                                                        colorPalette={"green"}
+                                                        width={"580px"}
+                                                        value={[ledAnimationSpeed]}
+                                                        onValueChange={(e) => {
+                                                            setLedAnimationSpeed(e.value[0]);
+                                                            setIsDirty?.(true);
+                                                        }}
+                                                        disabled={!ledEnabled || ledsEffectStyle == LedsEffectStyle.STATIC}
+                                                        marks={[
+                                                            { value: 0, label: "0" },
+                                                            { value: 25, label: "25" },
+                                                            { value: 50, label: "50" },
+                                                            { value: 75, label: "75" },
+                                                            { value: 100, label: "100" },
+                                                        ]}
+                                                    />
+                                 
+                                                </VStack>
                                            
                                         </VStack>
                                     </Fieldset.Content>

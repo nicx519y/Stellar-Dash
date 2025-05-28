@@ -24,7 +24,7 @@ export function InputModeSettingContent() {
                 orientation="vertical"
                 align="center"
                 w="750px"
-                variant={"outline"}
+                variant={"solid"}
                 colorPalette={"green"}
                 onValueChange={(detail) => {
                     updateGlobalConfig({ inputMode: detail.value as Platform });
@@ -32,11 +32,11 @@ export function InputModeSettingContent() {
             >
                 <HStack w="100%" justifyContent="center" >
                     {Array.from(PlatformLabelMap.entries()).map(([platform, { label }]) => (
-                        <RadioCard.Item key={platform} value={platform}>
+                        <RadioCard.Item key={platform} value={platform} >
                             <RadioCard.ItemHiddenInput />
                             <RadioCard.ItemControl>
                                 <Center h="70px" >
-                                    <Icon fontSize={platformIcons.get(platform as Platform)?.size} color="fg.muted">
+                                    <Icon fontSize={platformIcons.get(platform as Platform)?.size} color={globalConfig.inputMode === platform ? "white" : "fg.muted"}>
                                         {platformIcons.get(platform as Platform)?.icon}
                                     </Icon>
                                 </Center>
