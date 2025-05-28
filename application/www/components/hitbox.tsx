@@ -7,6 +7,7 @@ import styled from "styled-components";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useColorMode } from "./ui/color-mode";
 import { GamePadColor } from "@/types/gamepad-color";
+import { ledAnimations } from "@/components/hitbox-animation";
 
 const StyledSvg = styled.svg`
   width: 828.82px;
@@ -116,6 +117,7 @@ export default function Hitbox(props: {
     effectStyle?: LedsEffectStyle,
     interactiveIds?: number[],
     highlightIds?: number[],
+    animationSpeed?: number,
 }) {
 
     const [hasLeds, _setHasLeds] = useState(props.hasLeds ?? false);
@@ -127,6 +129,7 @@ export default function Hitbox(props: {
     const backColor2Ref = useRef(props.backColor2?.clone() ?? GamePadColor.fromString("#000000"));
     const defaultBackColorRef = useRef(colorMode === 'light' ? GamePadColor.fromString("#ffffff") : GamePadColor.fromString("#000000"));
     const brightnessRef = useRef(props.brightness ?? 100);
+    const animationSpeedRef = useRef(props.animationSpeed ?? 1);
     const colorEnabledRef = useRef(props.colorEnabled ?? false);
     const effectStyleRef = useRef(props.effectStyle ?? LedsEffectStyle.STATIC);
     const pressedButtonListRef = useRef(Array(btnLen).fill(-1));
@@ -202,6 +205,10 @@ export default function Hitbox(props: {
     }, [props.brightness]);
 
     useEffect(() => {
+        animationSpeedRef.current = props.animationSpeed ?? 1;
+    }, [props.animationSpeed]);
+
+    useEffect(() => {
         effectStyleRef.current = props.effectStyle ?? LedsEffectStyle.STATIC;
     }, [props.effectStyle]);
 
@@ -223,40 +230,35 @@ export default function Hitbox(props: {
 
     // leds 颜色动画
     const animate = () => {
-        
         const now = new Date().getTime();
         const deltaTime = now - timerRef.current;
-        const progress = deltaTime % LEDS_ANIMATION_CYCLE / LEDS_ANIMATION_CYCLE;
+        const cycle = LEDS_ANIMATION_CYCLE / animationSpeedRef.current;
+        const progress = (deltaTime % cycle) / cycle;
 
-        // 更新颜色列表
+        const algorithm = ledAnimations[effectStyleRef.current];
+
         for (let i = 0; i < btnLen; i++) {
+            const color = algorithm({
+                index: i,
+                progress,
+                pressed: pressedButtonListRef.current[i] === 1,
+                colorEnabled: colorEnabledRef.current,
+                frontColor: frontColorRef.current,
+                backColor1: backColor1Ref.current,
+                backColor2: backColor2Ref.current,
+                defaultBackColor: defaultBackColorRef.current,
+                effectStyle: effectStyleRef.current,
+                brightness: brightnessRef.current,
+                btnLen,
+            });
 
-            if(colorEnabledRef.current) {
-                if (1 === pressedButtonListRef.current[i] && colorEnabledRef.current) {
-                    colorListRef.current[i].setValue(frontColorRef.current as GamePadColor);
-                } else {
-                    if (effectStyleRef.current === LedsEffectStyle.BREATHING) {
-                        const t = Math.sin(progress * Math.PI);
-                        lerpColor(colorListRef.current[i], backColor1Ref.current, backColor2Ref.current, t);
-                    } else if (effectStyleRef.current === LedsEffectStyle.STATIC) {
-                        colorListRef.current[i].setValue(backColor1Ref.current);
-                    }
-                }
-            } else {
-                colorListRef.current[i].setValue(defaultBackColorRef.current as GamePadColor);
-            }
-            
-            // 设置透明度
-            const a = brightnessRef.current / 100;
-
-            colorListRef.current[i].setChannelValue('alpha', a * colorListRef.current[i].getChannelValue('alpha'));
-
+            colorListRef.current[i].setValue(color);
         }
 
         // 更新按钮颜色
         circleRefs.current.forEach((circle, index) => {
             if (circle) {
-                circle.setAttribute('fill', colorListRef.current[index].toString('hex'));
+                circle.setAttribute('fill', colorListRef.current[index].toString('css'));
             }
         });
 

@@ -65,7 +65,7 @@ export function LEDsSettingContent() {
     const [color2, setColor2] = useState<Color>(defaultFrontColor);
     const [color3, setColor3] = useState<Color>(defaultFrontColor);
     const [ledBrightness, setLedBrightness] = useState<number>(75);
-    const [ledAnimationSpeed, setLedAnimationSpeed] = useState<number>(75);
+    const [ledAnimationSpeed, setLedAnimationSpeed] = useState<number>(1);
     const [ledEnabled, setLedEnabled] = useState<boolean>(true);
 
     
@@ -165,6 +165,7 @@ export function LEDsSettingContent() {
                         backColor2={GamePadColor.fromString(color3.toString('hex'))}
                         effectStyle={ledsEffectStyle}
                         brightness={ledBrightness}
+                        animationSpeed={ledAnimationSpeed}
                         interactiveIds={LEDS_SETTINGS_INTERACTIVE_IDS}
                     />
                 </Center>
@@ -241,7 +242,6 @@ export function LEDsSettingContent() {
                                                             onValueChange={(e) => {
                                                                 setIsDirty?.(true);
                                                                 const hex = e.value;
-                                                                console.log("hex: ", hex);
                                                                 if (index === 0) setColor1(hex);
                                                                 if (index === 1) setColor2(hex);
                                                                 if (index === 2) setColor3(hex);
@@ -316,17 +316,20 @@ export function LEDsSettingContent() {
                                                         colorPalette={"green"}
                                                         width={"580px"}
                                                         value={[ledAnimationSpeed]}
+                                                        min={1}
+                                                        max={5}
+                                                        step={1}
                                                         onValueChange={(e) => {
                                                             setLedAnimationSpeed(e.value[0]);
                                                             setIsDirty?.(true);
                                                         }}
                                                         disabled={!ledEnabled || ledsEffectStyle == LedsEffectStyle.STATIC}
                                                         marks={[
-                                                            { value: 0, label: "0" },
-                                                            { value: 25, label: "25" },
-                                                            { value: 50, label: "50" },
-                                                            { value: 75, label: "75" },
-                                                            { value: 100, label: "100" },
+                                                            { value: 1, label: "1x" },
+                                                            { value: 2, label: "2x" },
+                                                            { value: 3, label: "3x" },
+                                                            { value: 4, label: "4x" },
+                                                            { value: 5, label: "5x" },
                                                         ]}
                                                     />
                                  

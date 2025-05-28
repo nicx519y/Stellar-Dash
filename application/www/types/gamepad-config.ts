@@ -1,6 +1,8 @@
 export const NUM_PROFILES_MAX = 8;
 // LEDS animation cycle in milliseconds 
-export const LEDS_ANIMATION_CYCLE = 6000;
+export const LEDS_ANIMATION_CYCLE = 10000;
+// LEDS animation speed
+export const LEDS_ANIMATION_SPEED = 3;
 // LEDS animation step in milliseconds
 export const LEDS_ANIMATION_STEP = 80;
 // Default number of hotkeys max
