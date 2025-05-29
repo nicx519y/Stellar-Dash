@@ -18,6 +18,7 @@ export type LedAnimationParams = {
 		rippleActive?: boolean;
 		rippleCenterIndex?: number | null;
 		rippleProgress?: number;
+		ripples?: Array<{ centerIndex: number, progress: number }>;
 		[key: string]: any;
 	};
 	// 预留：按钮位置等
@@ -224,24 +225,24 @@ export const rippleAnimation: LedAnimationAlgorithm = (params) => {
 		color.setChannelValue('alpha', brightness / 100 * color.getChannelValue('alpha'));
 		return color;
 	}
-	if (!global?.rippleActive || global.rippleCenterIndex == null || global.rippleProgress == null) {
-		const color = backColor1.clone();
-		color.setChannelValue('alpha', brightness / 100 * color.getChannelValue('alpha'));
-		return color;
-	}
-	const centerIdx = global.rippleCenterIndex;
-	const rippleProgress = global.rippleProgress;
-	const centerX = HITBOX_BTN_POS_LIST[centerIdx]?.x ?? 0;
-	const centerY = HITBOX_BTN_POS_LIST[centerIdx]?.y ?? 0;
-	const btnX = HITBOX_BTN_POS_LIST[index]?.x ?? 0;
-	const btnY = HITBOX_BTN_POS_LIST[index]?.y ?? 0;
-	const maxDist = Math.max(...HITBOX_BTN_POS_LIST.map(btn => Math.hypot(btn.x - centerX, btn.y - centerY)));
-	const rippleRadius = rippleProgress * maxDist * 1.1;
-	const rippleWidth = 60;
-	const dist = Math.hypot(btnX - centerX, btnY - centerY);
+	const ripples = global?.ripples as Array<{ centerIndex: number, progress: number }> | undefined;
 	let t = 0;
-	if (Math.abs(rippleRadius - dist) < rippleWidth) {
-		t = Math.cos((Math.abs(rippleRadius - dist) / rippleWidth) * Math.PI / 2);
+	if (ripples && ripples.length > 0) {
+		for (const ripple of ripples) {
+			const { centerIndex, progress } = ripple;
+			const centerX = HITBOX_BTN_POS_LIST[centerIndex]?.x ?? 0;
+			const centerY = HITBOX_BTN_POS_LIST[centerIndex]?.y ?? 0;
+			const btnX = HITBOX_BTN_POS_LIST[index]?.x ?? 0;
+			const btnY = HITBOX_BTN_POS_LIST[index]?.y ?? 0;
+			const maxDist = Math.max(...HITBOX_BTN_POS_LIST.map(btn => Math.hypot(btn.x - centerX, btn.y - centerY)));
+			const rippleRadius = progress * maxDist * 1.1;
+			const rippleWidth = 60;
+			const dist = Math.hypot(btnX - centerX, btnY - centerY);
+			if (Math.abs(rippleRadius - dist) < rippleWidth) {
+				const tt = Math.cos((Math.abs(rippleRadius - dist) / rippleWidth) * Math.PI / 2);
+				t = Math.max(t, tt);
+			}
+		}
 	}
 	const result = new GamePadColor();
 	lerpColor(result, backColor1, backColor2, t);

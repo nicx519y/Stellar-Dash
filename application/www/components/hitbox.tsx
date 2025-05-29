@@ -142,7 +142,9 @@ export default function Hitbox(props: {
     const animationFrameRef = useRef<number>();
     const timerRef = useRef<number>(0);
 
-
+    // leds 颜色动画
+    // ripple 列表
+    const ripplesRef = useRef<{ centerIndex: number, startTime: number }[]>([]);
 
     const handleClick = (event: React.MouseEvent<SVGElement>) => {
         const target = event.target as SVGElement;
@@ -238,21 +240,28 @@ export default function Hitbox(props: {
         const algorithm = ledAnimations[effectStyleRef.current];
 
         // ripple 动画全局参数
-        let rippleActive = false;
-        let rippleCenterIndex: number | null = null;
-        let rippleProgress = 0;
-        // 检查是否有按钮被按下
-        const pressedIdx = pressedButtonListRef.current.findIndex(v => v === 1);
-        if (effectStyleRef.current === LedsEffectStyle.RIPPLE && pressedIdx !== -1) {
-            rippleActive = true;
-            rippleCenterIndex = pressedIdx;
-            // rippleProgress: 按钮按下后从0~1循环
-            rippleProgress = progress;
+        // 检查新按下的按钮，push ripple
+        if (effectStyleRef.current === LedsEffectStyle.RIPPLE) {
+            pressedButtonListRef.current.forEach((v, idx) => {
+                if (v === 1) {
+                    // 检查是否已存在同 centerIndex 的 ripple
+                    if (!ripplesRef.current.some(r => r.centerIndex === idx)) {
+                        ripplesRef.current.push({ centerIndex: idx, startTime: now });
+                    }
+                }
+            });
+        } else {
+            ripplesRef.current = [];
         }
+        // 计算每个 ripple 的 progress，超时自动移除
+        const rippleDuration = 1000; // ms, 一次水波纹持续时间
+        ripplesRef.current = ripplesRef.current.filter(r => (now - r.startTime) < rippleDuration);
+        const ripples = ripplesRef.current.map(r => ({
+            centerIndex: r.centerIndex,
+            progress: Math.min(1, (now - r.startTime) / rippleDuration)
+        }));
         const global = {
-            rippleActive,
-            rippleCenterIndex,
-            rippleProgress,
+            ripples,
         };
 
         for (let i = 0; i < btnLen; i++) {
