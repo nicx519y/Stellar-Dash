@@ -337,8 +337,8 @@ export enum LedsEffectStyle {
     STATIC = "STATIC",
     BREATHING = "BREATHING",
     STAR = "STAR",
-    LAYOUT = "LAYOUT"
-    // WAVE = "WAVE",
+    FLOWING = "FLOWING",
+    RIPPLE = "RIPPLE",
 }
 
 export type RapidTriggerConfig = {
@@ -348,14 +348,6 @@ export type RapidTriggerConfig = {
     releaseAccuracy: number;
 }
 
-export const LedsEffectStyleList = Object.values(LedsEffectStyle);
-
-export const LedsEffectStyleLabelMap = new Map<LedsEffectStyle, { label: string, description: string, icon: string, hasBackColor2: boolean }>([
-    [LedsEffectStyle.STATIC, { label: "Static", description: "Static color", icon: "sun-dim", hasBackColor2: false }],
-    [LedsEffectStyle.BREATHING, { label: "Breathing", description: "Breathing color", icon: "activity", hasBackColor2: true }],
-    [LedsEffectStyle.STAR, { label: "Star", description: "Star effect", icon: "star", hasBackColor2: true }],
-    [LedsEffectStyle.LAYOUT, { label: "Layout", description: "Layout effect", icon: "layout", hasBackColor2: false }],
-]);
 
 export const ledColorsLabel = [ "Front Color", "Back Color 1", "Back Color 2" ];
 
@@ -537,8 +529,10 @@ export const UI_TEXT = {
     SETTINGS_LEDS_BREATHING_DESC: "Breathing color",
     SETTINGS_LEDS_STAR_LABEL: "Star",
     SETTINGS_LEDS_STAR_DESC: "Star effect",
-    SETTINGS_LEDS_LAYOUT_LABEL: "Layout",
-    SETTINGS_LEDS_LAYOUT_DESC: "Layout effect",
+    SETTINGS_LEDS_FLOWING_LABEL: "Flowing",
+    SETTINGS_LEDS_FLOWING_DESC: "Flowing effect",
+    SETTINGS_LEDS_RIPPLE_LABEL: "Ripple",
+    SETTINGS_LEDS_RIPPLE_DESC: "Ripple effect",
     SETTINGS_LEDS_COLORS_LABEL: "LED Colors",
     SETTINGS_LEDS_FRONT_COLOR: "Front Color",
     SETTINGS_LEDS_BACK_COLOR1: "Back Color 1",
@@ -741,8 +735,10 @@ export const UI_TEXT_ZH = {
     SETTINGS_LEDS_BREATHING_DESC: "呼吸效果",
     SETTINGS_LEDS_STAR_LABEL: "星光",
     SETTINGS_LEDS_STAR_DESC: "星光效果",
-    SETTINGS_LEDS_LAYOUT_LABEL: "布局",
-    SETTINGS_LEDS_LAYOUT_DESC: "布局效果",
+    SETTINGS_LEDS_FLOWING_LABEL: "流光",
+    SETTINGS_LEDS_FLOWING_DESC: "流动效果",
+    SETTINGS_LEDS_RIPPLE_LABEL: "涟漪",
+    SETTINGS_LEDS_RIPPLE_DESC: "涟漪效果",
     SETTINGS_LEDS_COLORS_LABEL: "LED颜色",
     SETTINGS_LEDS_FRONT_COLOR: "前置颜色",
     SETTINGS_LEDS_BACK_COLOR1: "背景颜色1",

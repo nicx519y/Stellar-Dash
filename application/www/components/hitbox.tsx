@@ -237,6 +237,24 @@ export default function Hitbox(props: {
 
         const algorithm = ledAnimations[effectStyleRef.current];
 
+        // ripple 动画全局参数
+        let rippleActive = false;
+        let rippleCenterIndex: number | null = null;
+        let rippleProgress = 0;
+        // 检查是否有按钮被按下
+        const pressedIdx = pressedButtonListRef.current.findIndex(v => v === 1);
+        if (effectStyleRef.current === LedsEffectStyle.RIPPLE && pressedIdx !== -1) {
+            rippleActive = true;
+            rippleCenterIndex = pressedIdx;
+            // rippleProgress: 按钮按下后从0~1循环
+            rippleProgress = progress;
+        }
+        const global = {
+            rippleActive,
+            rippleCenterIndex,
+            rippleProgress,
+        };
+
         for (let i = 0; i < btnLen; i++) {
             const color = algorithm({
                 index: i,
@@ -250,6 +268,7 @@ export default function Hitbox(props: {
                 effectStyle: effectStyleRef.current,
                 brightness: brightnessRef.current,
                 btnLen,
+                global,
             });
 
             colorListRef.current[i].setValue(color);

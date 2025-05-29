@@ -70,7 +70,7 @@
       },
       "ledsConfigs": {
         "ledEnabled": true,
-        "ledsEffectStyle": "STAR",
+        "ledsEffectStyle": "FLOWING",
         "ledColors": [
           "#75FA07",
           "#E000BF",

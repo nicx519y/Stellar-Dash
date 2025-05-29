@@ -32,11 +32,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
     GameProfile,
     LedsEffectStyle,
-    LedsEffectStyleList,
-    LedsEffectStyleLabelMap,
     LEDS_SETTINGS_INTERACTIVE_IDS,
 } from "@/types/gamepad-config";
-import { LuSunDim, LuActivity, LuCheck, LuStar, LuSparkles, LuComponent } from "react-icons/lu";
+import { LuSunDim, LuActivity, LuCheck, LuStar, LuSparkles, LuComponent, LuWaves, LuTarget } from "react-icons/lu";
 import Hitbox from "./hitbox";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
@@ -107,14 +105,15 @@ export function LEDsSettingContent() {
     }
 
     const colorPickerDisabled = (index: number) => {
-        return (index == 2 && !(LedsEffectStyleLabelMap.get(ledsEffectStyle)?.hasBackColor2 ?? false)) || !ledEnabled;
+        return (index == 2 && !(effectStyleLabelMap.get(ledsEffectStyle)?.hasBackColor2 ?? false)) || !ledEnabled;
     }
 
     const iconMap: Record<string, JSX.Element> = {
         'sun-dim': <LuSunDim />,
         'activity': <LuActivity />,
         'star': <LuSparkles />,
-        'layout': <LuComponent  />
+        'flowing': <LuWaves  />,
+        'ripple': <LuTarget  />,
     };
 
     const effectStyleLabelMap = new Map<LedsEffectStyle, { label: string, description: string, icon: string, hasBackColor2: boolean }>([
@@ -134,13 +133,19 @@ export function LEDsSettingContent() {
             label: t.SETTINGS_LEDS_STAR_LABEL,
             description: t.SETTINGS_LEDS_STAR_DESC,
             icon: "star",
-            hasBackColor2: false
+            hasBackColor2: true
         }],
-        [LedsEffectStyle.LAYOUT, {
-            label: t.SETTINGS_LEDS_LAYOUT_LABEL,
-            description: t.SETTINGS_LEDS_LAYOUT_DESC,
-            icon: "layout",
-            hasBackColor2: false
+        [LedsEffectStyle.FLOWING, {
+            label: t.SETTINGS_LEDS_FLOWING_LABEL,
+            description: t.SETTINGS_LEDS_FLOWING_DESC,
+            icon: "flowing",
+            hasBackColor2: true
+        }],
+        [LedsEffectStyle.RIPPLE, {
+            label: t.SETTINGS_LEDS_RIPPLE_LABEL,
+            description: t.SETTINGS_LEDS_RIPPLE_DESC,
+            icon: "ripple",
+            hasBackColor2: true
         }],
     ]);
 
@@ -211,7 +216,7 @@ export function LEDsSettingContent() {
                                                 >
                                                     <RadioCardLabel>{t.SETTINGS_LEDS_EFFECT_STYLE_CHOICE}</RadioCardLabel>
                                                     <HStack gap={1} >
-                                                        {LedsEffectStyleList.map((style, index) => (
+                                                        {Array.from(effectStyleLabelMap.entries()).map(([style, label], index) => (
                                                             // <Tooltip key={index} content={effectStyleLabelMap.get(style)?.description ?? ""} >
                                                             <RadioCardItem
                                                                 w="140px"

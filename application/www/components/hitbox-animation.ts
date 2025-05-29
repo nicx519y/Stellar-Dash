@@ -1,5 +1,5 @@
 import { GamePadColor } from "@/types/gamepad-color";
-import { LedsEffectStyle } from "@/types/gamepad-config";
+import { LedsEffectStyle, HITBOX_BTN_POS_LIST } from "@/types/gamepad-config";
 
 export type LedAnimationParams = {
 	index: number;
@@ -13,6 +13,13 @@ export type LedAnimationParams = {
 	effectStyle: LedsEffectStyle;
 	brightness: number;
 	btnLen: number;
+	// 全局动画参数
+	global?: {
+		rippleActive?: boolean;
+		rippleCenterIndex?: number | null;
+		rippleProgress?: number;
+		[key: string]: any;
+	};
 	// 预留：按钮位置等
 };
 
@@ -162,12 +169,90 @@ export const starAnimation: LedAnimationAlgorithm = ({
 	return result;
 };
 
-// 占位动画算法，后续可替换为实际实现
-export const layoutAnimation: LedAnimationAlgorithm = staticAnimation;
+export const flowingAnimation: LedAnimationAlgorithm = ({
+	index,
+	progress,
+	backColor1,
+	backColor2,
+	brightness,
+	colorEnabled,
+	pressed,
+	frontColor,
+	defaultBackColor,
+	btnLen
+}) => {
+	// 颜色未启用，返回默认色
+	if (!colorEnabled) {
+		return defaultBackColor.clone();
+	}
+	// 按下时返回前景色
+	if (pressed) {
+		const color = frontColor.clone();
+		color.setChannelValue('alpha', brightness / 100 * color.getChannelValue('alpha'));
+		return color;
+	}
+	// 流光参数
+	const minX = Math.min(...HITBOX_BTN_POS_LIST.map(btn => btn.x)) - 100; // 流光中心范围扩大，保证边缘按钮完整渐变
+	const maxX = Math.max(...HITBOX_BTN_POS_LIST.map(btn => btn.x)) + 100; // 流光中心范围扩大，保证边缘按钮完整渐变
+	const bandWidth = 80; // 光带宽度，可调整
+	// 当前流光中心位置
+	const centerX = minX + (maxX - minX) * progress * 1.6;
+	const btnX = HITBOX_BTN_POS_LIST[index]?.x ?? minX;
+	// 计算距离中心的归一化距离
+	const dist = Math.abs(btnX - centerX);
+	let t = 0;
+	if (dist < bandWidth) {
+		// 距中心越近越亮，边缘渐隐
+		t = Math.cos((dist / bandWidth) * Math.PI / 2); // 0~1
+	}
+	// 渐变色
+	const result = new GamePadColor();
+	lerpColor(result, backColor1, backColor2, t);
+	result.setChannelValue('alpha', brightness / 100 * result.getChannelValue('alpha'));
+	return result;
+};
+
+export const rippleAnimation: LedAnimationAlgorithm = (params) => {
+	const {
+		index, pressed, colorEnabled, frontColor, backColor1, backColor2, defaultBackColor, brightness, btnLen, global
+	} = params;
+	if (!colorEnabled) {
+		return defaultBackColor.clone();
+	}
+	if (pressed) {
+		const color = frontColor.clone();
+		color.setChannelValue('alpha', brightness / 100 * color.getChannelValue('alpha'));
+		return color;
+	}
+	if (!global?.rippleActive || global.rippleCenterIndex == null || global.rippleProgress == null) {
+		const color = backColor1.clone();
+		color.setChannelValue('alpha', brightness / 100 * color.getChannelValue('alpha'));
+		return color;
+	}
+	const centerIdx = global.rippleCenterIndex;
+	const rippleProgress = global.rippleProgress;
+	const centerX = HITBOX_BTN_POS_LIST[centerIdx]?.x ?? 0;
+	const centerY = HITBOX_BTN_POS_LIST[centerIdx]?.y ?? 0;
+	const btnX = HITBOX_BTN_POS_LIST[index]?.x ?? 0;
+	const btnY = HITBOX_BTN_POS_LIST[index]?.y ?? 0;
+	const maxDist = Math.max(...HITBOX_BTN_POS_LIST.map(btn => Math.hypot(btn.x - centerX, btn.y - centerY)));
+	const rippleRadius = rippleProgress * maxDist * 1.1;
+	const rippleWidth = 60;
+	const dist = Math.hypot(btnX - centerX, btnY - centerY);
+	let t = 0;
+	if (Math.abs(rippleRadius - dist) < rippleWidth) {
+		t = Math.cos((Math.abs(rippleRadius - dist) / rippleWidth) * Math.PI / 2);
+	}
+	const result = new GamePadColor();
+	lerpColor(result, backColor1, backColor2, t);
+	result.setChannelValue('alpha', brightness / 100 * result.getChannelValue('alpha'));
+	return result;
+};
 
 export const ledAnimations: Record<LedsEffectStyle, LedAnimationAlgorithm> = {
 	[LedsEffectStyle.STATIC]: staticAnimation,
 	[LedsEffectStyle.BREATHING]: breathingAnimation,
 	[LedsEffectStyle.STAR]: starAnimation,
-	[LedsEffectStyle.LAYOUT]: layoutAnimation,
+	[LedsEffectStyle.FLOWING]: flowingAnimation,
+	[LedsEffectStyle.RIPPLE]: rippleAnimation,
 }; 
