@@ -133,6 +133,7 @@ export default function Hitbox(props: {
     const colorEnabledRef = useRef(props.colorEnabled ?? false);
     const effectStyleRef = useRef(props.effectStyle ?? LedsEffectStyle.STATIC);
     const pressedButtonListRef = useRef(Array(btnLen).fill(-1));
+    const prevPressedButtonListRef = useRef(Array(btnLen).fill(-1));
 
     const { contextJsReady, setContextJsReady } = useGamepadConfig();
 
@@ -242,9 +243,8 @@ export default function Hitbox(props: {
         let global: any = {};
 
         if (effectStyleRef.current === LedsEffectStyle.RIPPLE) {
-            // ripple 相关逻辑
             pressedButtonListRef.current.forEach((v, idx) => {
-                if (v === 1) {
+                if (v === 1 && prevPressedButtonListRef.current[idx] !== 1) {
                     ripplesRef.current.push({ centerIndex: idx, startTime: now });
                 }
             });
@@ -282,6 +282,8 @@ export default function Hitbox(props: {
                 circle.setAttribute('fill', colorListRef.current[index].toString('css'));
             }
         });
+
+        prevPressedButtonListRef.current = pressedButtonListRef.current.slice();
 
         animationFrameRef.current = requestAnimationFrame(animate);
     };
