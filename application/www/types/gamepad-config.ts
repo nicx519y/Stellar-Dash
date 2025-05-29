@@ -306,6 +306,7 @@ export interface GameProfile {
         ledsEffectStyle: LedsEffectStyle;
         ledColors: string[];
         ledBrightness: number;
+        ledAnimationSpeed: number;
     };
 }
 

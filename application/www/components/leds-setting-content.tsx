@@ -72,12 +72,14 @@ export function LEDsSettingContent() {
     // Initialize the state with the default profile details
     useEffect(() => {
         const ledsConfigs = defaultProfile.ledsConfigs;
+        console.log("ledsConfigs: ", ledsConfigs);
         if (ledsConfigs) {
             setLedsEffectStyle(ledsConfigs.ledsEffectStyle ?? LedsEffectStyle.STATIC);
             setColor1(parseColor(ledsConfigs.ledColors?.[0] ?? defaultFrontColor.toString('css')));
             setColor2(parseColor(ledsConfigs.ledColors?.[1] ?? defaultFrontColor.toString('css')));
             setColor3(parseColor(ledsConfigs.ledColors?.[2] ?? defaultFrontColor.toString('css')));
             setLedBrightness(ledsConfigs.ledBrightness ?? 75);
+            setLedAnimationSpeed(ledsConfigs.ledAnimationSpeed ?? 1);
             setLedEnabled(ledsConfigs.ledEnabled ?? true);
             setIsDirty?.(false);
 
@@ -96,6 +98,7 @@ export function LEDsSettingContent() {
                 ledsEffectStyle: ledsEffectStyle,
                 ledColors: [color1.toString('hex'), color2.toString('hex'), color3.toString('hex')],
                 ledBrightness: ledBrightness,
+                ledAnimationSpeed: ledAnimationSpeed,
             }
         }
 

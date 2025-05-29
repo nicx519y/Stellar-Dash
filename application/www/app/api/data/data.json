@@ -76,7 +76,8 @@
           "#9CC5FF",
           "#B81616"
         ],
-        "ledBrightness": 88
+        "ledBrightness": 88,
+        "ledAnimationSpeed": 5
       },
       "triggerConfigs": {
         "isAllBtnsConfiguring": true,

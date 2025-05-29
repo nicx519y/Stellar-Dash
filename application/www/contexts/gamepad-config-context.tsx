@@ -70,6 +70,7 @@ const converProfileDetails = (profile: any) => {
             ledsEffectStyle: profile.ledsConfigs?.ledsEffectStyle as LedsEffectStyle ?? LedsEffectStyle.STATIC,
             ledColors: profile.ledsConfigs?.ledColors as string[] ?? ["#000000", "#000000", "#000000"],
             ledBrightness: profile.ledsConfigs?.ledBrightness as number ?? 100,
+            ledAnimationSpeed: profile.ledsConfigs?.ledAnimationSpeed as number ?? 1,
         },
         hotkeys: profile.hotkeys as Hotkey[] ?? [],
         triggerConfigs: profile.triggerConfigs as { [key: number]: RapidTriggerConfig } ?? {},
