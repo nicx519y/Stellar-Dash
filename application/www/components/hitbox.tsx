@@ -179,7 +179,7 @@ export default function Hitbox(props: {
             colorListRef.current[i] = backColor1Ref.current.clone();
         }
     }, []);
-    
+
     useEffect(() => {
         defaultBackColorRef.current = colorMode === 'light' ? GamePadColor.fromString("#ffffff") : GamePadColor.fromString("#000000");
     }, [colorMode]);
@@ -240,21 +240,18 @@ export default function Hitbox(props: {
         const algorithm = ledAnimations[effectStyleRef.current];
 
         // ripple 动画全局参数
-        // 检查新按下的按钮，push ripple
+        // 检查新按下的按钮，push ripple（不去重）
         if (effectStyleRef.current === LedsEffectStyle.RIPPLE) {
             pressedButtonListRef.current.forEach((v, idx) => {
                 if (v === 1) {
-                    // 检查是否已存在同 centerIndex 的 ripple
-                    if (!ripplesRef.current.some(r => r.centerIndex === idx)) {
-                        ripplesRef.current.push({ centerIndex: idx, startTime: now });
-                    }
+                    ripplesRef.current.push({ centerIndex: idx, startTime: now });
                 }
             });
         } else {
             ripplesRef.current = [];
         }
-        // 计算每个 ripple 的 progress，超时自动移除
-        const rippleDuration = 1000; // ms, 一次水波纹持续时间
+        // 动画速度受 animationSpeed 控制
+        const rippleDuration = 3000 / animationSpeedRef.current; // ms
         ripplesRef.current = ripplesRef.current.filter(r => (now - r.startTime) < rippleDuration);
         const ripples = ripplesRef.current.map(r => ({
             centerIndex: r.centerIndex,
@@ -314,24 +311,24 @@ export default function Hitbox(props: {
                 onMouseUp={handleClick}
             >
                 <title>hitbox</title>
-                <StyledFrame x="0.36" y="0.36" width="787.82" height="507.1" rx="10"  />
+                <StyledFrame x="0.36" y="0.36" width="787.82" height="507.1" rx="10" />
 
 
                 {/* 渲染按钮外框 */}
                 {btnPosList.map((item, index) => {
                     const radius = item.r + btnFrameRadiusDistance;
-                        return (
-                            <StyledCircle
-                                id={`btn-${index}`}
-                                key={index}
-                                cx={item.x}
-                                cy={item.y}
-                                r={radius}
-                                $interactive={false}
-                                $highlight={false}
-                                $fillNone={true}
-                            />
-                        )
+                    return (
+                        <StyledCircle
+                            id={`btn-${index}`}
+                            key={index}
+                            cx={item.x}
+                            cy={item.y}
+                            r={radius}
+                            $interactive={false}
+                            $highlight={false}
+                            $fillNone={true}
+                        />
+                    )
                 })}
 
                 {/* 渲染按钮 */}

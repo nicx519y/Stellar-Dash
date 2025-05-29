@@ -236,7 +236,7 @@ export const rippleAnimation: LedAnimationAlgorithm = (params) => {
 			const btnY = HITBOX_BTN_POS_LIST[index]?.y ?? 0;
 			const maxDist = Math.max(...HITBOX_BTN_POS_LIST.map(btn => Math.hypot(btn.x - centerX, btn.y - centerY)));
 			const rippleRadius = progress * maxDist * 1.1;
-			const rippleWidth = 60;
+			const rippleWidth = 80;
 			const dist = Math.hypot(btnX - centerX, btnY - centerY);
 			if (Math.abs(rippleRadius - dist) < rippleWidth) {
 				const tt = Math.cos((Math.abs(rippleRadius - dist) / rippleWidth) * Math.PI / 2);
