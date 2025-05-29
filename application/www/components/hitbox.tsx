@@ -239,27 +239,23 @@ export default function Hitbox(props: {
 
         const algorithm = ledAnimations[effectStyleRef.current];
 
-        // ripple 动画全局参数
-        // 检查新按下的按钮，push ripple（不去重）
+        let global: any = {};
+
         if (effectStyleRef.current === LedsEffectStyle.RIPPLE) {
+            // ripple 相关逻辑
             pressedButtonListRef.current.forEach((v, idx) => {
                 if (v === 1) {
                     ripplesRef.current.push({ centerIndex: idx, startTime: now });
                 }
             });
-        } else {
-            ripplesRef.current = [];
+            const rippleDuration = 3000 / animationSpeedRef.current; // ms
+            ripplesRef.current = ripplesRef.current.filter(r => (now - r.startTime) < rippleDuration);
+            const ripples = ripplesRef.current.map(r => ({
+                centerIndex: r.centerIndex,
+                progress: Math.min(1, (now - r.startTime) / rippleDuration)
+            }));
+            global = { ripples };
         }
-        // 动画速度受 animationSpeed 控制
-        const rippleDuration = 3000 / animationSpeedRef.current; // ms
-        ripplesRef.current = ripplesRef.current.filter(r => (now - r.startTime) < rippleDuration);
-        const ripples = ripplesRef.current.map(r => ({
-            centerIndex: r.centerIndex,
-            progress: Math.min(1, (now - r.startTime) / rippleDuration)
-        }));
-        const global = {
-            ripples,
-        };
 
         for (let i = 0; i < btnLen; i++) {
             const color = algorithm({
