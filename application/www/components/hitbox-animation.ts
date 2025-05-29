@@ -25,10 +25,18 @@ function lerpColor(
 	colorB: GamePadColor,
 	t: number
 ) {
-	out.setChannelValue('red', colorA.getChannelValue('red') * (1 - t) + colorB.getChannelValue('red') * t);
-	out.setChannelValue('green', colorA.getChannelValue('green') * (1 - t) + colorB.getChannelValue('green') * t);
-	out.setChannelValue('blue', colorA.getChannelValue('blue') * (1 - t) + colorB.getChannelValue('blue') * t);
-	out.setChannelValue('alpha', colorA.getChannelValue('alpha') * (1 - t) + colorB.getChannelValue('alpha') * t);
+	// 确保 t 在 0-1 范围内
+	t = Math.max(0, Math.min(1, t));
+	
+	// 克隆输入颜色，避免修改原始颜色
+	const a = colorA.clone();
+	const b = colorB.clone();
+	
+	// 计算每个通道的插值
+	out.setChannelValue('red', Math.round(a.getChannelValue('red') * (1 - t) + b.getChannelValue('red') * t));
+	out.setChannelValue('green', Math.round(a.getChannelValue('green') * (1 - t) + b.getChannelValue('green') * t));
+	out.setChannelValue('blue', Math.round(a.getChannelValue('blue') * (1 - t) + b.getChannelValue('blue') * t));
+	out.setChannelValue('alpha', Math.round(a.getChannelValue('alpha') * (1 - t) + b.getChannelValue('alpha') * t));
 }
 
 export const staticAnimation: LedAnimationAlgorithm = ({
@@ -61,8 +69,100 @@ export const breathingAnimation: LedAnimationAlgorithm = ({
 	return color;
 };
 
+// 用于存储当前闪烁的按钮
+let currentStarButtons1: number[] = [];
+let currentStarButtons2: number[] = [];
+let isFirstHalf = true; // 用于跟踪是否在周期的前半段
+
+// 随机选择不重复的按钮
+function selectRandomButtons(total: number, count: number, exclude: number[]): number[] {
+	const available = Array.from({length: total}, (_, i) => i)
+		.filter(i => !exclude.includes(i));
+	
+	const result: number[] = [];
+	for (let i = 0; i < count && available.length > 0; i++) {
+		const randomIndex = Math.floor(Math.random() * available.length);
+		result.push(available[randomIndex]);
+		available.splice(randomIndex, 1);
+	}
+	return result;
+}
+
+export const starAnimation: LedAnimationAlgorithm = ({	
+	index,
+	pressed, 
+	colorEnabled, 
+	frontColor, 
+	backColor1, 
+	backColor2, 
+	defaultBackColor, 
+	progress, 
+	brightness,
+	btnLen
+}) => {
+	// 如果颜色未启用，返回默认背景色
+	if (!colorEnabled) {
+		return defaultBackColor.clone();
+	}
+
+	// 如果按钮被按下，返回前景色
+	if (pressed) {
+		const color = frontColor.clone();
+		color.setChannelValue('alpha', brightness / 100 * color.getChannelValue('alpha'));
+		return color;
+	}
+
+	// 加快动画速度4倍
+	const fastProgress = (progress * 2) % 1;
+
+	// 在周期的中点（0.5）更新闪烁按钮
+	const currentHalf = fastProgress < 0.5;
+	if (currentHalf !== isFirstHalf) {
+		if (currentHalf) { // 开始新的周期
+			// 随机选择2-3个按钮，确保与上一组不同
+			const numStars = Math.floor(Math.random() * 2) + 2; // 2-3个
+			// 更新第一组按钮
+			currentStarButtons1 = selectRandomButtons(btnLen, numStars, [...currentStarButtons1, ...currentStarButtons2]);
+		} else { // 在周期中点更新第二组按钮
+			const numStars = Math.floor(Math.random() * 2) + 2;
+			currentStarButtons2 = selectRandomButtons(btnLen, numStars, [...currentStarButtons1, ...currentStarButtons2]);
+		}
+		isFirstHalf = currentHalf;
+	}
+
+	// 如果当前按钮不在任何闪烁列表中，返回backColor1
+	if (!currentStarButtons1.includes(index) && !currentStarButtons2.includes(index)) {
+		const color = backColor1.clone();
+		color.setChannelValue('alpha', brightness / 100 * color.getChannelValue('alpha'));
+		return color;
+	}
+
+	// 计算渐变进度
+	let fadeInOut = 0;
+	
+	// 第一组按钮的渐变
+	if (currentStarButtons1.includes(index)) {
+		// 第一组使用0-0.5的周期
+		const cycleProgress = fastProgress * 2;
+		fadeInOut = Math.sin(cycleProgress * Math.PI / 2);
+	}
+	
+	// 第二组按钮的渐变（错开半个周期）
+	if (currentStarButtons2.includes(index)) {
+		// 第二组使用0.5-1的周期，确保值在0-1范围内
+		const cycleProgress = ((fastProgress + 0.5) % 1) * 2;
+		fadeInOut = Math.sin(cycleProgress * Math.PI / 2);
+	}
+
+	// 在backColor1和backColor2之间进行渐变
+	const result = new GamePadColor();
+	lerpColor(result, backColor1.clone(), backColor2.clone(), fadeInOut);
+	result.setChannelValue('alpha', brightness / 100 * result.getChannelValue('alpha'));
+	
+	return result;
+};
+
 // 占位动画算法，后续可替换为实际实现
-export const starAnimation: LedAnimationAlgorithm = staticAnimation;
 export const layoutAnimation: LedAnimationAlgorithm = staticAnimation;
 
 export const ledAnimations: Record<LedsEffectStyle, LedAnimationAlgorithm> = {

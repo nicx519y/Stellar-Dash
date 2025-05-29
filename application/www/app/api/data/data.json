@@ -70,14 +70,14 @@
       },
       "ledsConfigs": {
         "ledEnabled": true,
-        "ledsEffectStyle": "BREATHING",
+        "ledsEffectStyle": "STAR",
         "ledColors": [
           "#75FA07",
-          "#9CC5FF",
-          "#B81616"
+          "#E000BF",
+          "#DDFF00"
         ],
-        "ledBrightness": 88,
-        "ledAnimationSpeed": 5
+        "ledBrightness": 100,
+        "ledAnimationSpeed": 3
       },
       "triggerConfigs": {
         "isAllBtnsConfiguring": true,

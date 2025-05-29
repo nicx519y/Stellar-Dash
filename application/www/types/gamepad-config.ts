@@ -353,7 +353,7 @@ export const LedsEffectStyleList = Object.values(LedsEffectStyle);
 export const LedsEffectStyleLabelMap = new Map<LedsEffectStyle, { label: string, description: string, icon: string, hasBackColor2: boolean }>([
     [LedsEffectStyle.STATIC, { label: "Static", description: "Static color", icon: "sun-dim", hasBackColor2: false }],
     [LedsEffectStyle.BREATHING, { label: "Breathing", description: "Breathing color", icon: "activity", hasBackColor2: true }],
-    [LedsEffectStyle.STAR, { label: "Star", description: "Star effect", icon: "star", hasBackColor2: false }],
+    [LedsEffectStyle.STAR, { label: "Star", description: "Star effect", icon: "star", hasBackColor2: true }],
     [LedsEffectStyle.LAYOUT, { label: "Layout", description: "Layout effect", icon: "layout", hasBackColor2: false }],
 ]);
 
