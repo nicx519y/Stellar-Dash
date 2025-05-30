@@ -3,6 +3,7 @@ import { openConfirm as openRebootConfirmDialog } from "@/components/dialog-conf
 import { openDialog as openRebootDialog } from "@/components/dialog-cannot-close";
 import { useLanguage } from "@/contexts/language-context";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { LuGamepad2 } from "react-icons/lu";
 
 
 export function ContentActionButtons(
@@ -40,9 +41,9 @@ export function ContentActionButtons(
             </Button>
             <Button
                 colorPalette="blue"
-                variant="surface"
+                variant="solid"
                 size="md"
-                width={"300px"}
+                width={"340px"}
                 onClick={async () => {
                     const confirmed = await openRebootConfirmDialog({
                         title: t.DIALOG_REBOOT_CONFIRM_TITLE,
@@ -61,6 +62,7 @@ export function ContentActionButtons(
                     }
                 }}
             >
+                <LuGamepad2 />
                 {t.BUTTON_REBOOT_WITH_SAVING}
             </Button>
         </Stack>
