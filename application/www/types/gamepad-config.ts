@@ -357,7 +357,7 @@ export const UI_TEXT = {
     // Common Button Labels
     BUTTON_RESET: "Reset",
     BUTTON_SAVE: "Save",
-    BUTTON_REBOOT_WITH_SAVING: "Reboot With Switching to Game Mode",
+    BUTTON_REBOOT_WITH_SAVING: "Switching to Game Mode With Saving",
     BUTTON_CANCEL: "Cancel",
     BUTTON_SUBMIT: "Submit",
     BUTTON_CONFIRM: "Confirm",
