@@ -221,7 +221,7 @@ export function LEDsSettingContent() {
                                                 >
                                                     <RadioCardLabel>{t.SETTINGS_LEDS_EFFECT_STYLE_CHOICE}</RadioCardLabel>
                                                     <SimpleGrid columns={6} gap={1} >
-                                                        {Array.from(effectStyleLabelMap.entries()).map(([style, label], index) => (
+                                                        {Array.from(effectStyleLabelMap.entries()).map(([style], index) => (
                                                             // <Tooltip key={index} content={effectStyleLabelMap.get(style)?.description ?? ""} >
                                                             <RadioCardItem
                                                                 w="120px"

@@ -14,7 +14,7 @@ import {
     VStack,
 } from "@chakra-ui/react";
 import KeymappingFieldset from "@/components/keymapping-fieldset";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import {
     RadioCardItem,

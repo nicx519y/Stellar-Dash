@@ -78,19 +78,7 @@ const btnFrameRadiusDistance = 3;
 
 const btnLen = btnPosList.length;
 
-const lerpColor = (targetColor: GamePadColor, color1: GamePadColor, color2: GamePadColor, t: number) => {
 
-    const r = Math.round(color1.getChannelValue('red') + (color2.getChannelValue('red') - color1.getChannelValue('red')) * t);
-    const g = Math.round(color1.getChannelValue('green') + (color2.getChannelValue('green') - color1.getChannelValue('green')) * t);
-    const b = Math.round(color1.getChannelValue('blue') + (color2.getChannelValue('blue') - color1.getChannelValue('blue')) * t);
-    const a = Math.round(color1.getChannelValue('alpha') + (color2.getChannelValue('alpha') - color1.getChannelValue('alpha')) * t);
-
-    targetColor.setChannelValue('red', r);
-    targetColor.setChannelValue('green', g);
-    targetColor.setChannelValue('blue', b);
-    targetColor.setChannelValue('alpha', a);
-
-};
 
 
 
@@ -179,7 +167,7 @@ export default function Hitbox(props: {
         for (let i = 0; i < btnLen; i++) {
             colorListRef.current[i] = backColor1Ref.current.clone();
         }
-    }, []);
+    }, [setContextJsReady]);
 
     useEffect(() => {
         defaultBackColorRef.current = colorMode === 'light' ? GamePadColor.fromString("#ffffff") : GamePadColor.fromString("#000000");
@@ -228,7 +216,7 @@ export default function Hitbox(props: {
             stopAnimation();
             timerRef.current = 0;
         };
-    }, []);
+    }, [hasLeds]);
 
 
     // leds 颜色动画
@@ -241,7 +229,10 @@ export default function Hitbox(props: {
         console.log(effectStyleRef.current);
         const algorithm = ledAnimations[effectStyleRef.current];
 
-        let global: any = {};
+        let global: {
+            ripples?: Array<{ centerIndex: number, progress: number }>;
+            [key: string]: unknown;
+        } = {};
 
         if (effectStyleRef.current === LedsEffectStyle.RIPPLE) {
             pressedButtonListRef.current.forEach((v, idx) => {
@@ -270,7 +261,6 @@ export default function Hitbox(props: {
                 defaultBackColor: defaultBackColorRef.current,
                 effectStyle: effectStyleRef.current,
                 brightness: brightnessRef.current,
-                btnLen,
                 global,
             });
 

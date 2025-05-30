@@ -12,14 +12,13 @@ export type LedAnimationParams = {
 	defaultBackColor: GamePadColor;
 	effectStyle: LedsEffectStyle;
 	brightness: number;
-	btnLen: number;
 	// 全局动画参数
 	global?: {
 		rippleActive?: boolean;
 		rippleCenterIndex?: number | null;
 		rippleProgress?: number;
 		ripples?: Array<{ centerIndex: number, progress: number }>;
-		[key: string]: any;
+		[key: string]: unknown;
 	};
 	// 预留：按钮位置等
 };
@@ -106,7 +105,6 @@ export const starAnimation: LedAnimationAlgorithm = ({
 	defaultBackColor, 
 	progress, 
 	brightness,
-	btnLen
 }) => {
 	// 如果颜色未启用，返回默认背景色
 	if (!colorEnabled) {
@@ -122,6 +120,7 @@ export const starAnimation: LedAnimationAlgorithm = ({
 
 	// 加快动画速度4倍
 	const fastProgress = (progress * 2) % 1;
+	const btnLen = HITBOX_BTN_POS_LIST.length;
 
 	// 在周期的中点（0.5）更新闪烁按钮
 	const currentHalf = fastProgress < 0.5;
@@ -180,7 +179,6 @@ export const flowingAnimation: LedAnimationAlgorithm = ({
 	pressed,
 	frontColor,
 	defaultBackColor,
-	btnLen
 }) => {
 	// 颜色未启用，返回默认色
 	if (!colorEnabled) {
@@ -215,7 +213,7 @@ export const flowingAnimation: LedAnimationAlgorithm = ({
 
 export const rippleAnimation: LedAnimationAlgorithm = (params) => {
 	const {
-		index, pressed, colorEnabled, frontColor, backColor1, backColor2, defaultBackColor, brightness, btnLen, global
+		index, pressed, colorEnabled, frontColor, backColor1, backColor2, defaultBackColor, brightness, global
 	} = params;
 	if (!colorEnabled) {
 		return defaultBackColor.clone();
@@ -251,7 +249,7 @@ export const rippleAnimation: LedAnimationAlgorithm = (params) => {
 };
 
 // 用于记录雨暴动画的状态
-let transformPassedPositions: Set<number> = new Set();
+const transformPassedPositions: Set<number> = new Set();
 let transformCycleCount = 0;
 let lastTransformProgress = 0;
 
@@ -265,7 +263,6 @@ export const transformAnimation: LedAnimationAlgorithm = ({
 	pressed,
 	frontColor,
 	defaultBackColor,
-	btnLen
 }) => {
 	// 颜色未启用，返回默认色
 	if (!colorEnabled) {

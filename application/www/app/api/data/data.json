@@ -70,14 +70,14 @@
       },
       "ledsConfigs": {
         "ledEnabled": true,
-        "ledsEffectStyle": "RIPPLE",
+        "ledsEffectStyle": "TRANSFORM",
         "ledColors": [
           "#75FA07",
           "#E000BF",
           "#000000"
         ],
         "ledBrightness": 100,
-        "ledAnimationSpeed": 2
+        "ledAnimationSpeed": 3
       },
       "triggerConfigs": {
         "isAllBtnsConfiguring": true,
