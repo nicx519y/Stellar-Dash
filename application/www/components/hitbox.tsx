@@ -238,6 +238,7 @@ export default function Hitbox(props: {
         const cycle = LEDS_ANIMATION_CYCLE / animationSpeedRef.current;
         const progress = (deltaTime % cycle) / cycle;
 
+        console.log(effectStyleRef.current);
         const algorithm = ledAnimations[effectStyleRef.current];
 
         let global: any = {};

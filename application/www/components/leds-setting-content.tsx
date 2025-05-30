@@ -15,8 +15,6 @@ import {
     Color,
     Card,
     Portal,
-    For,
-    getColorChannels,
 } from "@chakra-ui/react";
 
 import { Slider } from "@/components/ui/slider";
@@ -34,7 +32,7 @@ import {
     LedsEffectStyle,
     LEDS_SETTINGS_INTERACTIVE_IDS,
 } from "@/types/gamepad-config";
-import { LuSunDim, LuActivity, LuCheck, LuStar, LuSparkles, LuComponent, LuWaves, LuTarget } from "react-icons/lu";
+import { LuSunDim, LuActivity, LuCheck, LuSparkles, LuWaves, LuTarget, LuCloudSunRain } from "react-icons/lu";
 import Hitbox from "./hitbox";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
@@ -114,6 +112,7 @@ export function LEDsSettingContent() {
         'star': <LuSparkles />,
         'flowing': <LuWaves  />,
         'ripple': <LuTarget  />,
+        'transform': <LuCloudSunRain  />,
     };
 
     const effectStyleLabelMap = new Map<LedsEffectStyle, { label: string, description: string, icon: string, hasBackColor2: boolean }>([
@@ -145,6 +144,12 @@ export function LEDsSettingContent() {
             label: t.SETTINGS_LEDS_RIPPLE_LABEL,
             description: t.SETTINGS_LEDS_RIPPLE_DESC,
             icon: "ripple",
+            hasBackColor2: true
+        }],
+        [LedsEffectStyle.TRANSFORM, {
+            label: t.SETTINGS_LEDS_TRANSFORM_LABEL,
+            description: t.SETTINGS_LEDS_TRANSFORM_DESC,
+            icon: "transform",
             hasBackColor2: true
         }],
     ]);
@@ -192,7 +197,7 @@ export function LEDsSettingContent() {
                                 <Stack direction={"column"} >
 
                                     <Fieldset.Content  >
-                                        <VStack gap={8} alignItems={"flex-start"} >
+                                        <VStack gap={8} alignItems={"flex-start"}  >
                                             {/* LED Effect Style */}
 
                                                 <Switch colorPalette={"green"} checked={ledEnabled}
@@ -215,11 +220,11 @@ export function LEDsSettingContent() {
                                                     disabled={!ledEnabled}
                                                 >
                                                     <RadioCardLabel>{t.SETTINGS_LEDS_EFFECT_STYLE_CHOICE}</RadioCardLabel>
-                                                    <HStack gap={1} >
+                                                    <SimpleGrid columns={6} gap={1} >
                                                         {Array.from(effectStyleLabelMap.entries()).map(([style, label], index) => (
                                                             // <Tooltip key={index} content={effectStyleLabelMap.get(style)?.description ?? ""} >
                                                             <RadioCardItem
-                                                                w="140px"
+                                                                w="120px"
                                                                 fontSize={"xs"}
                                                                 indicator={false}
                                                                 key={index}
@@ -234,7 +239,7 @@ export function LEDsSettingContent() {
                                                             />
                                                             // </Tooltip>
                                                         ))}
-                                                    </HStack>
+                                                    </SimpleGrid>
                                                 </RadioCardRoot>
 
                                                 {/* LED Colors */}
@@ -350,6 +355,7 @@ export function LEDsSettingContent() {
                         </Card.Body>
                         <Card.Footer justifyContent={"flex-start"} >
                             <ContentActionButtons
+                                isDirty={_isDirty}
                                 resetLabel={t.BUTTON_RESET}
                                 saveLabel={t.BUTTON_SAVE}
                                 resetHandler={resetProfileDetails}

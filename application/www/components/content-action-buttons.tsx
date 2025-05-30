@@ -9,13 +9,14 @@ export function ContentActionButtons(
     props: {
         resetLabel: string;
         saveLabel: string;
+        isDirty: boolean;
         resetHandler: () => Promise<void>;
         saveHandler: () => Promise<void>;
     }
 ) {
     const { t } = useLanguage();
     const { rebootSystem } = useGamepadConfig();
-    const { resetLabel, saveLabel, resetHandler, saveHandler } = props;
+    const { resetLabel, saveLabel, resetHandler, saveHandler, isDirty } = props;
     return (
         <Stack direction="row" gap={4}>
             <Button
@@ -24,6 +25,7 @@ export function ContentActionButtons(
                 size="md"
                 width="140px"
                 onClick={resetHandler}
+                disabled={!isDirty}
             >
                 {resetLabel}
             </Button>
@@ -32,6 +34,7 @@ export function ContentActionButtons(
                 size="md"
                 width="140px"
                 onClick={saveHandler}
+                disabled={!isDirty}
             >
                 {saveLabel}
             </Button>
@@ -39,7 +42,7 @@ export function ContentActionButtons(
                 colorPalette="blue"
                 variant="surface"
                 size="md"
-                width={"180px"}
+                width={"300px"}
                 onClick={async () => {
                     const confirmed = await openRebootConfirmDialog({
                         title: t.DIALOG_REBOOT_CONFIRM_TITLE,

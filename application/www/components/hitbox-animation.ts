@@ -250,10 +250,81 @@ export const rippleAnimation: LedAnimationAlgorithm = (params) => {
 	return result;
 };
 
+// 用于记录雨暴动画的状态
+let transformPassedPositions: Set<number> = new Set();
+let transformCycleCount = 0;
+let lastTransformProgress = 0;
+
+export const transformAnimation: LedAnimationAlgorithm = ({
+	index,
+	progress,
+	backColor1,
+	backColor2,
+	brightness,
+	colorEnabled,
+	pressed,
+	frontColor,
+	defaultBackColor,
+	btnLen
+}) => {
+	// 颜色未启用，返回默认色
+	if (!colorEnabled) {
+		return defaultBackColor.clone();
+	}
+	// 按下时返回前景色
+	if (pressed) {
+		const color = frontColor.clone();
+		color.setChannelValue('alpha', brightness / 100 * color.getChannelValue('alpha'));
+		return color;
+	}
+	
+	// 检测新的动画周期开始
+	if (progress < lastTransformProgress && lastTransformProgress > 0.8) {
+		transformCycleCount++;
+		transformPassedPositions.clear();
+	}
+	lastTransformProgress = progress;
+	
+	// 流光参数
+	const minX = Math.min(...HITBOX_BTN_POS_LIST.map(btn => btn.x)) - 100;
+	const maxX = Math.max(...HITBOX_BTN_POS_LIST.map(btn => btn.x)) + 100;
+	const bandWidth = 80;
+	const centerX = minX + (maxX - minX) * progress * 1.6;
+	const btnX = HITBOX_BTN_POS_LIST[index]?.x ?? minX;
+	const dist = Math.abs(btnX - centerX);
+	
+	// 记录流光已经经过的按钮
+	if (centerX > btnX + bandWidth / 2) {
+		transformPassedPositions.add(index);
+	}
+	
+	// 确定按钮的基础颜色（根据经过次数决定）
+	const hasBeenPassed = transformPassedPositions.has(index);
+	const totalPasses = transformCycleCount + (hasBeenPassed ? 1 : 0);
+	const isOddPasses = totalPasses % 2 === 1;
+	const baseColor = isOddPasses ? backColor2 : backColor1;
+	const glowColor = isOddPasses ? backColor1 : backColor2;
+	
+	let color: GamePadColor;
+	if (dist < bandWidth) {
+		// 在光带范围内，从基础颜色渐变到发光颜色
+		const t = Math.cos((dist / bandWidth) * Math.PI / 2);
+		color = new GamePadColor();
+		lerpColor(color, baseColor, glowColor, t);
+	} else {
+		// 超出光带范围，使用基础颜色
+		color = baseColor.clone();
+	}
+	
+	color.setChannelValue('alpha', brightness / 100 * color.getChannelValue('alpha'));
+	return color;
+};
+
 export const ledAnimations: Record<LedsEffectStyle, LedAnimationAlgorithm> = {
 	[LedsEffectStyle.STATIC]: staticAnimation,
 	[LedsEffectStyle.BREATHING]: breathingAnimation,
 	[LedsEffectStyle.STAR]: starAnimation,
 	[LedsEffectStyle.FLOWING]: flowingAnimation,
 	[LedsEffectStyle.RIPPLE]: rippleAnimation,
+	[LedsEffectStyle.TRANSFORM]: transformAnimation,
 }; 

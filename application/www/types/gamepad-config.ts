@@ -339,6 +339,7 @@ export enum LedsEffectStyle {
     STAR = "STAR",
     FLOWING = "FLOWING",
     RIPPLE = "RIPPLE",
+    TRANSFORM = "TRANSFORM",
 }
 
 export type RapidTriggerConfig = {
@@ -356,7 +357,7 @@ export const UI_TEXT = {
     // Common Button Labels
     BUTTON_RESET: "Reset",
     BUTTON_SAVE: "Save",
-    BUTTON_REBOOT_WITH_SAVING: "Reboot With Saving",
+    BUTTON_REBOOT_WITH_SAVING: "Reboot With Switching to Game Mode",
     BUTTON_CANCEL: "Cancel",
     BUTTON_SUBMIT: "Submit",
     BUTTON_CONFIRM: "Confirm",
@@ -440,7 +441,7 @@ export const UI_TEXT = {
 
     // LEDs Settings
     SETTINGS_LEDS_TITLE: "LEDS SETTINGS",
-    SETTINGS_LEDS_HELPER_TEXT: "The LED effect style, colors, and brightness can be customized here.\n- Static: The LEDs are always on with the same color.\n- Breathing: The LEDs breath with the two colors.\n- Front Color: The color of the LEDs when the button is pressed.\n- back Color: The color of the LEDs based on the effect.",
+    SETTINGS_LEDS_HELPER_TEXT: "The LED effect style, colors, and brightness can be customized here.\n- Front Color: The color of the LEDs when the button is pressed.\n- back Color: The color of the LEDs based on the effect.",
 
     // Rapid Trigger Settings
     SETTINGS_RAPID_TRIGGER_TITLE: "BUTTONS TRAVEL",
@@ -522,7 +523,7 @@ export const UI_TEXT = {
     SETTINGS_KEYS_SOCD_MODE_TOOLTIP: "SOCD Mode: Select the SOCD (Simultaneous Opposing Cardinal Directions) handling mode",
 
     // LEDs Settings
-    SETTINGS_LEDS_EFFECT_STYLE_CHOICE: "LED Effect Style Choice",
+    SETTINGS_LEDS_EFFECT_STYLE_CHOICE: "LED Effect Style",
     SETTINGS_LEDS_STATIC_LABEL: "Static",
     SETTINGS_LEDS_STATIC_DESC: "Static color",
     SETTINGS_LEDS_BREATHING_LABEL: "Breathing",
@@ -533,6 +534,8 @@ export const UI_TEXT = {
     SETTINGS_LEDS_FLOWING_DESC: "Flowing effect",
     SETTINGS_LEDS_RIPPLE_LABEL: "Ripple",
     SETTINGS_LEDS_RIPPLE_DESC: "Ripple effect",
+    SETTINGS_LEDS_TRANSFORM_LABEL: "Transform",
+    SETTINGS_LEDS_TRANSFORM_DESC: "Transform effect",
     SETTINGS_LEDS_COLORS_LABEL: "LED Colors",
     SETTINGS_LEDS_FRONT_COLOR: "Front Color",
     SETTINGS_LEDS_BACK_COLOR1: "Back Color 1",
@@ -562,7 +565,7 @@ export const UI_TEXT_ZH = {
     // 通用按钮文案
     BUTTON_RESET: "重置",
     BUTTON_SAVE: "保存",
-    BUTTON_REBOOT_WITH_SAVING: "保存并重启",
+    BUTTON_REBOOT_WITH_SAVING: "保存并切换成游戏模式",
     BUTTON_CANCEL: "取消",
     BUTTON_SUBMIT: "确定",
     BUTTON_CONFIRM: "确认",
@@ -644,7 +647,7 @@ export const UI_TEXT_ZH = {
     
     // LED设置
     SETTINGS_LEDS_TITLE: "LED设置",
-    SETTINGS_LEDS_HELPER_TEXT: "可以在这里自定义LED效果样式、颜色和亮度。\n- 静态：LED始终以相同颜色亮起\n- 呼吸：LED在两种颜色之间呼吸\n- 前置颜色：按键按下时的LED颜色\n- 背景颜色：基于效果的LED颜色",
+    SETTINGS_LEDS_HELPER_TEXT: "可以在这里自定义LED效果样式、颜色和亮度。\n- 前置颜色：按键按下时的LED颜色\n- 背景颜色：基于效果的LED颜色",
     
     // 快速触发设置
     SETTINGS_RAPID_TRIGGER_TITLE: "按键行程",
@@ -728,7 +731,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_KEYS_SOCD_MODE_TOOLTIP: "SOCD模式：选择SOCD(同时按下相对方向键)处理模式",
 
     // LEDs Settings
-    SETTINGS_LEDS_EFFECT_STYLE_CHOICE: "LED效果样式选择",
+    SETTINGS_LEDS_EFFECT_STYLE_CHOICE: "LED效果样式",
     SETTINGS_LEDS_STATIC_LABEL: "静态",
     SETTINGS_LEDS_STATIC_DESC: "固定颜色",
     SETTINGS_LEDS_BREATHING_LABEL: "呼吸",
@@ -739,6 +742,8 @@ export const UI_TEXT_ZH = {
     SETTINGS_LEDS_FLOWING_DESC: "流动效果",
     SETTINGS_LEDS_RIPPLE_LABEL: "涟漪",
     SETTINGS_LEDS_RIPPLE_DESC: "涟漪效果",
+    SETTINGS_LEDS_TRANSFORM_LABEL: "质变",
+    SETTINGS_LEDS_TRANSFORM_DESC: "质变效果",
     SETTINGS_LEDS_COLORS_LABEL: "LED颜色",
     SETTINGS_LEDS_FRONT_COLOR: "前置颜色",
     SETTINGS_LEDS_BACK_COLOR1: "背景颜色1",

@@ -301,6 +301,7 @@ export function RapidTriggerContent() {
                         </Card.Body>
                         <Card.Footer justifyContent={"flex-start"} >
                             <ContentActionButtons
+                                isDirty={_isDirty}
                                 resetLabel={t.BUTTON_RESET}
                                 saveLabel={t.BUTTON_SAVE}
                                 resetHandler={resetProfileDetails}
