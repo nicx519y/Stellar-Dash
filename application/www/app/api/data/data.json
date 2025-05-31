@@ -70,7 +70,7 @@
       },
       "ledsConfigs": {
         "ledEnabled": true,
-        "ledsEffectStyle": "TRANSFORM",
+        "ledsEffectStyle": "RIPPLE",
         "ledColors": [
           "#75FA07",
           "#E000BF",

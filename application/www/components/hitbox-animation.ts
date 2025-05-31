@@ -193,17 +193,22 @@ export const flowingAnimation: LedAnimationAlgorithm = ({
 	// 流光参数
 	const minX = Math.min(...HITBOX_BTN_POS_LIST.map(btn => btn.x)) - 100; // 流光中心范围扩大，保证边缘按钮完整渐变
 	const maxX = Math.max(...HITBOX_BTN_POS_LIST.map(btn => btn.x)) + 100; // 流光中心范围扩大，保证边缘按钮完整渐变
-	const bandWidth = 80; // 光带宽度，可调整
+	const bandWidth = 140; // 光带宽度，可调整
 	// 当前流光中心位置
 	const centerX = minX + (maxX - minX) * progress * 1.6;
 	const btnX = HITBOX_BTN_POS_LIST[index]?.x ?? minX;
 	// 计算距离中心的归一化距离
 	const dist = Math.abs(btnX - centerX);
+	
+	// 使用更平滑的渐变算法，避免闪烁
 	let t = 0;
-	if (dist < bandWidth) {
-		// 距中心越近越亮，边缘渐隐
-		t = Math.cos((dist / bandWidth) * Math.PI / 2); // 0~1
+	if (dist <= bandWidth) {
+		// 使用平滑的渐变函数，确保在边界处没有突变
+		const normalizedDist = dist / bandWidth; // 0~1
+		// 使用 smoothstep 函数创建更平滑的过渡
+		t = 1 - (normalizedDist * normalizedDist * (3 - 2 * normalizedDist));
 	}
+	
 	// 渐变色
 	const result = new GamePadColor();
 	lerpColor(result, backColor1, backColor2, t);
@@ -285,32 +290,43 @@ export const transformAnimation: LedAnimationAlgorithm = ({
 	// 流光参数
 	const minX = Math.min(...HITBOX_BTN_POS_LIST.map(btn => btn.x)) - 100;
 	const maxX = Math.max(...HITBOX_BTN_POS_LIST.map(btn => btn.x)) + 100;
-	const bandWidth = 80;
+	const bandWidth = 140;
 	const centerX = minX + (maxX - minX) * progress * 1.6;
 	const btnX = HITBOX_BTN_POS_LIST[index]?.x ?? minX;
-	const dist = Math.abs(btnX - centerX);
 	
 	// 记录流光已经经过的按钮
 	if (centerX > btnX + bandWidth / 2) {
 		transformPassedPositions.add(index);
 	}
 	
-	// 确定按钮的基础颜色（根据经过次数决定）
+	// 计算该按钮被经过的总次数
 	const hasBeenPassed = transformPassedPositions.has(index);
 	const totalPasses = transformCycleCount + (hasBeenPassed ? 1 : 0);
 	const isOddPasses = totalPasses % 2 === 1;
-	const baseColor = isOddPasses ? backColor2 : backColor1;
-	const glowColor = isOddPasses ? backColor1 : backColor2;
+	
+	// 确定该按钮当前应该显示的基础颜色（经过后永久改变）
+	const buttonBaseColor = isOddPasses ? backColor2 : backColor1;
+	const buttonAltColor = isOddPasses ? backColor1 : backColor2;
+	
+	// 计算渐变区域
+	const leftEdge = centerX - bandWidth / 2;
+	const rightEdge = centerX + bandWidth / 2;
 	
 	let color: GamePadColor;
-	if (dist < bandWidth) {
-		// 在光带范围内，从基础颜色渐变到发光颜色
-		const t = Math.cos((dist / bandWidth) * Math.PI / 2);
-		color = new GamePadColor();
-		lerpColor(color, baseColor, glowColor, t);
+	
+	if (btnX < leftEdge) {
+		// 左侧区域：使用该按钮的基础颜色
+		color = buttonBaseColor.clone();
+	} else if (btnX > rightEdge) {
+		// 右侧区域：使用该按钮的基础颜色
+		color = buttonBaseColor.clone();
 	} else {
-		// 超出光带范围，使用基础颜色
-		color = baseColor.clone();
+		// 渐变区域：从基础颜色渐变到替代颜色
+		const t = (btnX - leftEdge) / bandWidth; // 0~1
+		// 使用 smoothstep 函数创建更平滑的过渡
+		const smoothT = t * t * (3 - 2 * t);
+		color = new GamePadColor();
+		lerpColor(color, buttonAltColor, buttonBaseColor, smoothT);
 	}
 	
 	color.setChannelValue('alpha', brightness / 100 * color.getChannelValue('alpha'));
