@@ -17,14 +17,13 @@ import {
     Portal,
 } from "@chakra-ui/react";
 
-import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import {
     RadioCardItem,
     RadioCardRoot,
 } from "@/components/ui/radio-card";
 
-import { ColorPicker } from "@chakra-ui/react";
+import { ColorPicker, Slider } from "@chakra-ui/react";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -336,58 +335,91 @@ export function LEDsSettingContent() {
                                                     ))}
                                                 </HStack>
                                                 {/* LED Brightness */}
-                                                <VStack gap={2} alignItems={"flex-start"} >
-                                                    <Text fontSize={"sm"} opacity={!ledEnabled ? "0.35" : "0.85"} >
-                                                        {t.SETTINGS_LEDS_BRIGHTNESS_LABEL}
-                                                    </Text>
-                                                    <Slider
-                                                        size={"md"}
-                                                        colorPalette={"green"}
-                                                        width={"580px"}
-                                                        value={[ledBrightness]}
-                                                        onValueChange={(e) => {
-                                                            setLedBrightness(e.value[0]);
-                                                            setIsDirty?.(true);
-                                                        }}
-                                                        disabled={!ledEnabled}
-                                                        marks={[
+
+                                                <Slider.Root 
+                                                    width="580px" 
+                                                    min={0}
+                                                    max={100}
+                                                    step={1}
+                                                    colorPalette={"green"}
+                                                    disabled={!ledEnabled}
+                                                    value={[ledBrightness]}
+                                                    onValueChange={(e) => {
+                                                        setLedBrightness(e.value[0]);
+                                                        setIsDirty?.(true);
+                                                    }}
+                                                    
+                                                >
+                                                    <HStack justifyContent={"space-between"} >
+                                                        <Slider.Label>{t.SETTINGS_LEDS_BRIGHTNESS_LABEL}</Slider.Label>
+                                                        <Slider.ValueText />
+                                                    </HStack>
+                                                    <Slider.Control>
+                                                        <Slider.Track>
+                                                            <Slider.Range />
+                                                        </Slider.Track>
+                                                        <Slider.Thumb index={0} >
+                                                            <Slider.DraggingIndicator
+                                                                layerStyle="fill.solid"
+                                                                top="6"
+                                                                rounded="sm"
+                                                                px="1.5"
+                                                            >
+                                                                <Slider.ValueText />
+                                                            </Slider.DraggingIndicator>
+                                                        </Slider.Thumb>
+                                                        <Slider.Marks marks={[
                                                             { value: 0, label: "0" },
                                                             { value: 25, label: "25" },
                                                             { value: 50, label: "50" },
                                                             { value: 75, label: "75" },
                                                             { value: 100, label: "100" },
-                                                        ]}
-                                                    />
-                                 
-                                                </VStack>
+                                                        ]} />
+                                                    </Slider.Control>
+                                                </Slider.Root>
                                                 
-                                                <VStack gap={2} alignItems={"flex-start"} >
-                                                    <Text fontSize={"sm"} opacity={!ledEnabled ? "0.35" : "0.85"} >
-                                                        {t.SETTINGS_LEDS_ANIMATION_SPEED_LABEL}
-                                                    </Text>
-                                                    <Slider
-                                                        size={"md"}
-                                                        colorPalette={"green"}
-                                                        width={"580px"}
-                                                        value={[ledAnimationSpeed]}
-                                                        min={1}
-                                                        max={5}
-                                                        step={1}
-                                                        onValueChange={(e) => {
-                                                            setLedAnimationSpeed(e.value[0]);
-                                                            setIsDirty?.(true);
-                                                        }}
-                                                        disabled={!ledEnabled || ledsEffectStyle == LedsEffectStyle.STATIC}
-                                                        marks={[
+                                                {/* LED Animation Speed */}
+                                                <Slider.Root 
+                                                    width="580px" 
+                                                    min={1}
+                                                    max={5}
+                                                    step={1}
+                                                    colorPalette={"green"}
+                                                    disabled={!ledEnabled || ledsEffectStyle == LedsEffectStyle.STATIC}
+                                                    value={[ledAnimationSpeed]}
+                                                    onValueChange={(e) => {
+                                                        setLedAnimationSpeed(e.value[0]);
+                                                        setIsDirty?.(true);
+                                                    }}
+                                                    
+                                                >
+                                                    <HStack justifyContent={"space-between"} >
+                                                        <Slider.Label>{t.SETTINGS_LEDS_ANIMATION_SPEED_LABEL}</Slider.Label>
+                                                        <Slider.ValueText />
+                                                    </HStack>
+                                                    <Slider.Control>
+                                                        <Slider.Track>
+                                                            <Slider.Range />
+                                                        </Slider.Track>
+                                                        <Slider.Thumb index={0} >
+                                                            <Slider.DraggingIndicator
+                                                                layerStyle="fill.solid"
+                                                                top="6"
+                                                                rounded="sm"
+                                                                px="1.5"
+                                                            >
+                                                                <Slider.ValueText />
+                                                            </Slider.DraggingIndicator>
+                                                        </Slider.Thumb>
+                                                        <Slider.Marks marks={[
                                                             { value: 1, label: "1x" },
                                                             { value: 2, label: "2x" },
                                                             { value: 3, label: "3x" },
                                                             { value: 4, label: "4x" },
                                                             { value: 5, label: "5x" },
-                                                        ]}
-                                                    />
-                                 
-                                                </VStack>
+                                                        ]} />
+                                                    </Slider.Control>
+                                                </Slider.Root>
                                            
                                         </VStack>
                                     </Fieldset.Content>
