@@ -83,106 +83,106 @@
         "isAllBtnsConfiguring": true,
         "triggerConfigs": [
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           },
           {
-            "topDeadzone": 0.4,
-            "bottomDeadzone": 0.1,
+            "topDeadzone": 0.3,
+            "bottomDeadzone": 0.16,
             "pressAccuracy": 0.1,
-            "releaseAccuracy": 0.1
+            "releaseAccuracy": 0.17
           }
         ]
       }

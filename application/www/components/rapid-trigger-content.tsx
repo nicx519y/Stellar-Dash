@@ -10,8 +10,9 @@ import {
     Table,
     Card,
     VStack,
+    HStack,
 } from "@chakra-ui/react";
-import { Slider } from "@/components/ui/slider";
+import { Slider } from "@chakra-ui/react"
 import { Switch } from "@/components/ui/switch";
 import { useEffect, useState } from "react";
 import { RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS, RapidTriggerConfig } from "@/types/gamepad-config";
@@ -218,40 +219,69 @@ export function RapidTriggerContent() {
 
                                             {/* Sliders */}
                                             {[
-                                                { key: 'topDeadzone', label: t.SETTINGS_RAPID_TRIGGER_TOP_DEADZONE_LABEL },
-                                                { key: 'bottomDeadzone', label: t.SETTINGS_RAPID_TRIGGER_BOTTOM_DEADZONE_LABEL },
-                                                { key: 'pressAccuracy', label: t.SETTINGS_RAPID_TRIGGER_PRESS_ACCURACY_LABEL },
-                                                { key: 'releaseAccuracy', label: t.SETTINGS_RAPID_TRIGGER_RELEASE_ACCURACY_LABEL },
-                                            ].map(({ key, label }) => (
-                                                    <Slider
-                                                        key={key}
-                                                        label={label}
-                                                        value={[isAllBtnsConfiguring ? allBtnsConfig[key as keyof RapidTriggerConfig] : getCurrentConfig()[key as keyof TriggerConfig]]}
-                                                        colorPalette={"green"}
-                                                        min={0}
-                                                        max={1}
-                                                        step={0.1}
-                                                        onValueChange={(details) => {
-                                                            if (isAllBtnsConfiguring) {
-                                                                updateAllBtnsConfig(key as keyof RapidTriggerConfig, details.value[0]);
-                                                            } else {
-                                                                updateConfig(key as keyof TriggerConfig, details.value[0]);
-                                                            }
-                                                            setIsDirty?.(true);
-                                                        }}
-                                                        disabled={selectedButton === null && !isAllBtnsConfiguring}
-                                                        width={"680px"}
-                                                        marks={[
-                                                            { value: 0, label: '0' },
-                                                            { value: 0.2, label: '0.2' },
-                                                            { value: 0.4, label: '0.4' },
-                                                            { value: 0.6, label: '0.6' },
-                                                            { value: 0.8, label: '0.8' },
-                                                            { value: 1, label: '1' },
-                                                        ]}
-                                                    />
+                                                { key: 'topDeadzone', label: t.SETTINGS_RAPID_TRIGGER_TOP_DEADZONE_LABEL, min: 0, max: 1, step: 0.1, decimalPlaces: 1 },
+                                                { key: 'pressAccuracy', label: t.SETTINGS_RAPID_TRIGGER_PRESS_ACCURACY_LABEL, min: 0.1, max: 1, step: 0.1, decimalPlaces: 1 },
+                                                { key: 'bottomDeadzone', label: t.SETTINGS_RAPID_TRIGGER_BOTTOM_DEADZONE_LABEL, min: 0, max: 1, step: 0.01, decimalPlaces: 2 },
+                                                { key: 'releaseAccuracy', label: t.SETTINGS_RAPID_TRIGGER_RELEASE_ACCURACY_LABEL, min: 0.01, max: 1, step: 0.01, decimalPlaces: 2 },
+                                            ].map(({ key, label, min, max, step, decimalPlaces }) => (
 
+
+                                                <Slider.Root 
+                                                    key={key}
+                                                    width="680px" 
+                                                    min={0}
+                                                    max={max}
+                                                    step={step}
+                                                    colorPalette={"green"}
+                                                    disabled={selectedButton === null && !isAllBtnsConfiguring}
+                                                    value={[isAllBtnsConfiguring ? allBtnsConfig[key as keyof RapidTriggerConfig] : getCurrentConfig()[key as keyof TriggerConfig]]}
+                                                    onValueChange={(details) => {
+                                                        let v = 0;
+                                                        if (details.value[0] < min) {
+                                                            v = min;
+                                                        } else if (details.value[0] > max) {
+                                                            v = max;
+                                                        } else {
+                                                            v = details.value[0];
+                                                        }
+                                                        if (isAllBtnsConfiguring) {
+                                                            updateAllBtnsConfig(key as keyof RapidTriggerConfig, v);
+                                                        } else {
+                                                        updateConfig(key as keyof TriggerConfig, v);
+                                                        }
+                                                        setIsDirty?.(true);
+                                                        
+                                                    }}
+                                                >
+                                                    <HStack justifyContent={"space-between"} >
+                                                        <Slider.Label>{label}</Slider.Label>
+                                                        <Slider.ValueText />
+                                                    </HStack>
+                                                    <Slider.Control>
+                                                        <Slider.Track>
+                                                            <Slider.Range />
+                                                        </Slider.Track>
+                                                        <Slider.Thumb index={0} >
+                                                            <Slider.DraggingIndicator
+                                                                layerStyle="fill.solid"
+                                                                top="6"
+                                                                rounded="sm"
+                                                                px="1.5"
+                                                            >
+                                                                <Slider.ValueText />
+                                                            </Slider.DraggingIndicator>
+                                                        </Slider.Thumb>
+                                                        <Slider.Marks marks={Array.from({ length: Math.floor(max / 0.2) + 1 }, (_, i) => ({ 
+                                                            value: i * 0.2, 
+                                                            label: (i * 0.2).toFixed(decimalPlaces) 
+                                                        }))} />
+                                                    </Slider.Control>
+                                                </Slider.Root>
+
+                                                    
                                             ))}
+
+                                            
 
                                             <DialogRoot lazyMount placement={"center"} unmountOnExit={true} >
                                                 <DialogTrigger asChild >
