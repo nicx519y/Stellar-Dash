@@ -27,6 +27,7 @@ struct LedAnimationParams {
     RGBColor defaultBackColor;      // 默认背景色
     LEDEffect effectStyle;          // 效果样式
     uint8_t brightness;             // 亮度
+    uint8_t animationSpeed;         // 动画速度 (1-5)
     
     // 全局动画参数
     struct {

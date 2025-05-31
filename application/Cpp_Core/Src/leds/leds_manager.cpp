@@ -33,27 +33,15 @@ void LEDsManager::setup()
         backgroundColor1 = hexToRGB(opts->ledColor2);
         backgroundColor2 = hexToRGB(opts->ledColor3);
         defaultBackColor = {0, 0, 0}; // 黑色作为默认背景色
+        brightness = opts->ledBrightness;
 
         // 初始化动画
         animationStartTime = HAL_GetTick();
-        
-        frontColor.r = 255;
-        frontColor.g = 0;
-        frontColor.b = 0;
-
-        backgroundColor1.r = 0;
-        backgroundColor1.g = 255;
-        backgroundColor1.b = 0;
-
-        backgroundColor2.r = 0;
-        backgroundColor2.g = 0;
-        backgroundColor2.b = 255;
-
-        brightness = 50;
 
         // 对于静态效果，直接设置颜色
         if (opts->ledEffect == LEDEffect::STATIC) {
             WS2812B_SetAllLEDColor(backgroundColor1.r, backgroundColor1.g, backgroundColor1.b);
+            WS2812B_SetAllLEDBrightness(opts->ledBrightness);
         }
     }
 }
@@ -89,6 +77,7 @@ void LEDsManager::loop(uint32_t virtualPinMask)
     params.defaultBackColor = defaultBackColor;
     params.effectStyle = opts->ledEffect;
     params.brightness = brightness;
+    params.animationSpeed = opts->ledAnimationSpeed;
     params.progress = progress;
     
     // 设置涟漪参数
@@ -97,7 +86,8 @@ void LEDsManager::loop(uint32_t virtualPinMask)
         params.global.rippleCenters[i] = ripples[i].centerIndex;
         uint32_t now = HAL_GetTick();
         uint32_t elapsed = now - ripples[i].startTime;
-        const uint32_t rippleDuration = 3000; // 3秒
+        // 涟漪持续时间根据动画速度调整（与 TypeScript 版本保持一致）
+        const uint32_t rippleDuration = 3000 / opts->ledAnimationSpeed; // 毫秒
         params.global.rippleProgress[i] = (float)elapsed / rippleDuration;
         if (params.global.rippleProgress[i] > 1.0f) {
             params.global.rippleProgress[i] = 1.0f;
@@ -149,7 +139,8 @@ void LEDsManager::updateRipples()
     }
     
     uint32_t now = HAL_GetTick();
-    const uint32_t rippleDuration = 3000; // 3秒
+    // 涟漪持续时间根据动画速度调整（与 TypeScript 版本保持一致）
+    const uint32_t rippleDuration = 3000 / opts->ledAnimationSpeed; // 毫秒
     
     // 移除过期的涟漪
     uint8_t newCount = 0;
@@ -168,7 +159,14 @@ float LEDsManager::getAnimationProgress()
 {
     uint32_t now = HAL_GetTick();
     uint32_t elapsed = now - animationStartTime;
-    float progress = (float)(elapsed % LEDS_ANIMATION_CYCLE) / LEDS_ANIMATION_CYCLE;
+    
+    // 应用动画速度倍数
+    float speedMultiplier = (float)opts->ledAnimationSpeed;
+    float progress = (float)(elapsed % LEDS_ANIMATION_CYCLE) / LEDS_ANIMATION_CYCLE * speedMultiplier;
+    
+    // 确保进度值在 0.0-1.0 范围内循环
+    progress = fmodf(progress, 1.0f);
+    
     return progress;
 }
 
@@ -249,6 +247,7 @@ void LEDsManager::testAnimation(LEDEffect effect, float progress, uint32_t butto
     params.defaultBackColor = defaultBackColor;
     params.effectStyle = effect;
     params.brightness = brightness;
+    params.animationSpeed = opts->ledAnimationSpeed;
     params.progress = progress;
     
     // 如果是涟漪效果，设置一个测试涟漪

@@ -173,7 +173,7 @@ RGBColor starAnimation(const LedAnimationParams& params) {
         return color;
     }
     
-    // 加快动画速度2倍
+    // 星光动画本身使用2倍速度（与 TypeScript 版本保持一致）
     float fastProgress = fmodf(params.progress * 2.0f, 1.0f);
     
     // 在周期的中点更新闪烁按钮
@@ -255,12 +255,6 @@ RGBColor flowingAnimation(const LedAnimationParams& params) {
     // 确保边界值已计算
     calculateBoundaries();
     
-    // 添加调试输出（只对第一个按钮输出，避免过多信息）
-    if (params.index == 0) {
-        APP_DBG("flowingAnimation - progress: %.3f, cachedMinX: %.1f, cachedMaxX: %.1f", 
-            params.progress, cachedMinX, cachedMaxX);
-    }
-    
     float bandWidth = 80.0f;
     
     // 当前流光中心位置
@@ -275,24 +269,11 @@ RGBColor flowingAnimation(const LedAnimationParams& params) {
         t = cosf((dist / bandWidth) * M_PI / 2.0f);
     }
     
-    // 添加更多调试输出
-    if (params.index == 0) {
-        APP_DBG("flowingAnimation - centerX: %.1f, btnX: %.1f, dist: %.1f, t: %.3f", 
-            centerX, btnX, dist, t);
-        APP_DBG("flowingAnimation - backColor1: %d,%d,%d, backColor2: %d,%d,%d", 
-            params.backColor1.r, params.backColor1.g, params.backColor1.b,
-            params.backColor2.r, params.backColor2.g, params.backColor2.b);
-    }
     
     RGBColor result = lerpColor(params.backColor1, params.backColor2, t);
     result.r = (uint8_t)(result.r * params.brightness / 100);
     result.g = (uint8_t)(result.g * params.brightness / 100);
     result.b = (uint8_t)(result.b * params.brightness / 100);
-    
-    if (params.index == 0) {
-        APP_DBG("flowingAnimation - final result: %d,%d,%d (brightness: %d)", 
-            result.r, result.g, result.b, params.brightness);
-    }
     
     return result;
 }
@@ -358,6 +339,10 @@ RGBColor transformAnimation(const LedAnimationParams& params) {
         return params.defaultBackColor;
     }
     
+    // APP_DBG("fontColor: %d, %d, %d\n", params.frontColor.r, params.frontColor.g, params.frontColor.b);
+    // APP_DBG("backColor1: %d, %d, %d\n", params.backColor1.r, params.backColor1.g, params.backColor1.b);
+    // APP_DBG("backColor2: %d, %d, %d\n", params.backColor2.r, params.backColor2.g, params.backColor2.b);
+
     if (params.pressed) {
         RGBColor color = params.frontColor;
         color.r = (uint8_t)(color.r * params.brightness / 100);
