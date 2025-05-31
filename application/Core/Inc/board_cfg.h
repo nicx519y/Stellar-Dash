@@ -74,7 +74,7 @@
 
 
 #define FIRMWARE_VERSION                    (uint32_t)0x010000  //固件版本
-#define CONFIG_VERSION                      (uint32_t)0x000001  //配置版本 三位版本号 0x aa bb cc
+#define CONFIG_VERSION                      (uint32_t)0x000002  //配置版本 三位版本号 0x aa bb cc
 #define ADC_MAPPING_VERSION                 (uint32_t)0x000001  //ADC值映射表版本
 
 #define WEB_RESOURCES_ADDR                  0x90200000       // 网页资源地址 memory map 地址 qspi flash 0x90100000 定义在 STM32H750XBHx_FLASH.ld 中

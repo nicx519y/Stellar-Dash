@@ -8,6 +8,7 @@
 #include "types.hpp"
 #include "config.hpp"
 #include "leds/gradient_color.hpp"
+#include "leds/led_animation.hpp"
 #include "board_cfg.h"
 
 class LEDsManager {
@@ -28,6 +29,10 @@ class LEDsManager {
         void brightnessDown();
         void enableSwitch();
         void setBrightness(uint8_t brightness);
+        
+        // 测试函数
+        void testAnimation(LEDEffect effect, float progress = 0.5f, uint32_t buttonMask = 0);
+        void previewAnimation(LEDEffect effect, uint32_t duration = 5000);
     private:
         LEDsManager();
         uint32_t t;
@@ -36,9 +41,21 @@ class LEDsManager {
         RGBColor frontColor;
         RGBColor backgroundColor1;
         RGBColor backgroundColor2;
+        RGBColor defaultBackColor;
         uint8_t brightness;
         uint32_t lastBreathTime = 0;
         uint8_t breathBrightness = 0;
+        
+        // 新增动画系统相关成员
+        uint32_t animationStartTime;
+        uint32_t lastButtonState;
+        Ripple ripples[5];
+        uint8_t rippleCount;
+        
+        // 动画处理函数
+        void processButtonPress(uint32_t virtualPinMask);
+        void updateRipples();
+        float getAnimationProgress();
 };
 
 #define LEDS_MANAGER LEDsManager::getInstance()

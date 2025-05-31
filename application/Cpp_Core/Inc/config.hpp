@@ -80,6 +80,7 @@ typedef struct
     uint32_t ledColor2;    // 0x000000-0xFFFFFF
     uint32_t ledColor3;    // 0x000000-0xFFFFFF
     uint8_t ledBrightness; // 0-100
+    uint8_t ledAnimationSpeed;      // 1-5
 } LEDProfile;
 
 typedef struct

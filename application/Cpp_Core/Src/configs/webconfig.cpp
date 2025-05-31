@@ -395,9 +395,20 @@ cJSON* buildProfileJSON(GamepadProfile* profile) {
         case LEDEffect::STATIC:
             cJSON_AddStringToObject(ledsConfigJSON, "ledsEffectStyle", "STATIC");
             break;
-
         case LEDEffect::BREATHING:
             cJSON_AddStringToObject(ledsConfigJSON, "ledsEffectStyle", "BREATHING");
+            break;
+        case LEDEffect::STAR:
+            cJSON_AddStringToObject(ledsConfigJSON, "ledsEffectStyle", "STAR");
+            break;
+        case LEDEffect::FLOWING:
+            cJSON_AddStringToObject(ledsConfigJSON, "ledsEffectStyle", "FLOWING");
+            break;
+        case LEDEffect::RIPPLE:
+            cJSON_AddStringToObject(ledsConfigJSON, "ledsEffectStyle", "RIPPLE");
+            break;
+        case LEDEffect::TRANSFORM:
+            cJSON_AddStringToObject(ledsConfigJSON, "ledsEffectStyle", "TRANSFORM");
             break;
         default:
             cJSON_AddStringToObject(ledsConfigJSON, "ledsEffectStyle", "STATIC");
@@ -415,6 +426,7 @@ cJSON* buildProfileJSON(GamepadProfile* profile) {
     
     cJSON_AddItemToObject(ledsConfigJSON, "ledColors", ledColorsJSON);
     cJSON_AddNumberToObject(ledsConfigJSON, "ledBrightness", profile->ledsConfigs.ledBrightness);
+    cJSON_AddNumberToObject(ledsConfigJSON, "ledAnimationSpeed", profile->ledsConfigs.ledAnimationSpeed);
 
 
     // 触发器配置
@@ -596,7 +608,7 @@ std::string apiGetDefaultProfile() {
     // 生成返回字符串
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
 
-    // printf("apiGetDefaultProfile response: %s\n", response.c_str());
+    printf("apiGetDefaultProfile response: %s\n", response.c_str());
     return response;
 }
 
@@ -862,6 +874,16 @@ std::string apiUpdateProfile() {
                 targetProfile->ledsConfigs.ledEffect = LEDEffect::STATIC;
             } else if(strcmp(item->valuestring, "BREATHING") == 0) {
                 targetProfile->ledsConfigs.ledEffect = LEDEffect::BREATHING;
+            } else if(strcmp(item->valuestring, "STAR") == 0) {
+                targetProfile->ledsConfigs.ledEffect = LEDEffect::STAR;
+            } else if(strcmp(item->valuestring, "FLOWING") == 0) {
+                targetProfile->ledsConfigs.ledEffect = LEDEffect::FLOWING;
+            } else if(strcmp(item->valuestring, "RIPPLE") == 0) {
+                targetProfile->ledsConfigs.ledEffect = LEDEffect::RIPPLE;
+            } else if(strcmp(item->valuestring, "TRANSFORM") == 0) {
+                targetProfile->ledsConfigs.ledEffect = LEDEffect::TRANSFORM;
+            } else {
+                targetProfile->ledsConfigs.ledEffect = LEDEffect::STATIC;
             }
         }
 
@@ -876,9 +898,13 @@ std::string apiUpdateProfile() {
         if((item = cJSON_GetObjectItem(ledsConfig, "ledBrightness"))) {
             targetProfile->ledsConfigs.ledBrightness = item->valueint;
         }
+
+        if((item = cJSON_GetObjectItem(ledsConfig, "ledAnimationSpeed"))) { 
+            targetProfile->ledsConfigs.ledAnimationSpeed = item->valueint;
+        }
     }
 
-    // 更新触发器配置
+    // 更新按键行程配置
     cJSON* triggerConfigs = cJSON_GetObjectItem(details, "triggerConfigs");
     if(triggerConfigs) {
         cJSON* isAllBtnsConfiguring = cJSON_GetObjectItem(triggerConfigs, "isAllBtnsConfiguring");

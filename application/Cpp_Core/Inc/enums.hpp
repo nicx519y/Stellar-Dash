@@ -61,7 +61,11 @@ enum LEDEffect
 {
     STATIC              = 0,        //静态 恒亮
     BREATHING           = 1,        //呼吸
-    NUM_EFFECTS         = 2,        //效果总数
+    STAR                = 2,        //星光闪烁
+    FLOWING             = 3,        //流光
+    RIPPLE              = 4,        //涟漪
+    TRANSFORM           = 5,        //变换
+    NUM_EFFECTS         = 6,        //效果总数
 };
 
 enum GamepadHotkey

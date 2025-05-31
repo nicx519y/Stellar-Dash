@@ -61,6 +61,7 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
     profile.ledsConfigs.ledColor2 = 0x0000ff;
     profile.ledsConfigs.ledColor3 = 0x000000;
     profile.ledsConfigs.ledBrightness = 100;
+    profile.ledsConfigs.ledAnimationSpeed = 3;
 }
 
 bool ConfigUtils::load(Config& config)

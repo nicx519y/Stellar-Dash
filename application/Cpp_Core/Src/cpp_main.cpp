@@ -10,23 +10,12 @@
 #include "tusb.h"
 #include "adc_btns/adc_manager.hpp"
 #include "micro_timer.hpp"
+#include "leds/leds_manager.hpp"
 
 extern "C" {
     int cpp_main(void) 
     {   
         MAIN_STATE_MACHINE.setup();
-
-
-        // DRIVER_MANAGER.setup(InputMode::INPUT_MODE_XINPUT);
-        // GPDriver* inputDriver = DRIVER_MANAGER.getDriver();
-        // tud_init(TUD_OPT_RHPORT); // 初始化TinyUSB
-        // while(1) {
-        //     tud_task();
-        // }
-        
-        // adc_test();
-
-        
 
         return 0;
     }

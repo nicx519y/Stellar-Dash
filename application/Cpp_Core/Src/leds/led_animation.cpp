@@ -1,0 +1,431 @@
+#include "leds/led_animation.hpp"
+#include "board_cfg.h"
+#include <random>
+#include <cstring>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+// 按钮位置数组定义 (从TypeScript移植，调整为实际硬件数量)
+const ButtonPosition HITBOX_BTN_POS_LIST[NUM_LED] = {
+    { 376.2f, 379.8f, 36.0f },      // 0
+    { 299.52f, 352.44f, 28.63f },   // 1
+    { 452.88f, 352.44f, 28.63f },   // 2
+    { 523.00f, 328.44f, 28.63f },   // 3
+    { 304.97f, 182.0f, 28.63f },    // 4
+    { 239.31f, 170.56f, 28.63f },   // 5
+    { 359.52f, 220.35f, 28.63f },   // 6
+    { 330.43f, 120.46f, 28.63f },   // 7
+    { 435.24f, 226.76f, 28.63f },   // 8
+    { 404.82f, 163.22f, 28.63f },   // 9
+    { 398.52f, 92.67f, 28.63f },    // 10
+    { 493.2f, 186.48f, 28.63f },    // 11
+    { 462.78f, 122.94f, 28.63f },   // 12
+    { 559.8f, 162.36f, 28.63f },    // 13
+    { 529.43f, 98.67f, 28.63f },    // 14
+    { 630.36f, 156.06f, 28.63f },   // 15
+    { 599.94f, 92.52f, 28.63f },    // 16
+    { 184.03f, 46.03f, 11.37f },    // 17
+    { 140.02f, 46.03f, 11.37f },    // 18
+    { 96.01f, 46.03f, 11.37f },     // 19
+    { 51.99f, 46.03f, 11.37f }      // 20
+};
+
+// 全局变量用于动画状态
+static uint8_t currentStarButtons1[5] = {0};
+static uint8_t currentStarButtons2[5] = {0};
+static uint8_t starButtons1Count = 0;
+static uint8_t starButtons2Count = 0;
+static bool isFirstHalf = true;
+
+static Ripple ripples[5];
+static uint8_t rippleCount = 0;
+
+static uint8_t transformPassedPositions[NUM_LED] = {0}; // 0: 未经过, 1: 已经过
+static uint32_t transformCycleCount = 0;
+static float lastTransformProgress = 0.0f;
+
+// 缓存的边界值，避免每帧重复计算
+static float cachedMinX = 0.0f;
+static float cachedMaxX = 0.0f;
+static bool boundariesCalculated = false;
+
+// 计算按钮X坐标边界的函数
+static void calculateBoundaries() {
+    if (!boundariesCalculated) {
+        cachedMinX = HITBOX_BTN_POS_LIST[0].x;
+        cachedMaxX = HITBOX_BTN_POS_LIST[0].x;
+        
+        // 遍历所有按钮位置找到最小和最大X坐标
+        for (uint8_t i = 1; i < NUM_LED; i++) {
+            if (HITBOX_BTN_POS_LIST[i].x < cachedMinX) {
+                cachedMinX = HITBOX_BTN_POS_LIST[i].x;
+            }
+            if (HITBOX_BTN_POS_LIST[i].x > cachedMaxX) {
+                cachedMaxX = HITBOX_BTN_POS_LIST[i].x;
+            }
+        }
+        
+        // 添加缓冲区
+        cachedMinX -= 100.0f;
+        cachedMaxX += 100.0f;
+        
+        boundariesCalculated = true;
+    }
+}
+
+// 颜色插值函数
+RGBColor lerpColor(const RGBColor& colorA, const RGBColor& colorB, float t) {
+    t = fmaxf(0.0f, fminf(1.0f, t)); // 确保t在0-1范围内
+    
+    RGBColor result;
+    result.r = (uint8_t)(colorA.r * (1.0f - t) + colorB.r * t);
+    result.g = (uint8_t)(colorA.g * (1.0f - t) + colorB.g * t);
+    result.b = (uint8_t)(colorA.b * (1.0f - t) + colorB.b * t);
+    
+    return result;
+}
+
+// 随机选择不重复的按钮
+static uint8_t selectRandomButtons(uint8_t total, uint8_t count, uint8_t* exclude, uint8_t excludeCount, uint8_t* result) {
+    uint8_t available[NUM_LED];
+    uint8_t availableCount = 0;
+    
+    // 生成可用按钮列表
+    for (uint8_t i = 0; i < total; i++) {
+        bool isExcluded = false;
+        for (uint8_t j = 0; j < excludeCount; j++) {
+            if (exclude[j] == i) {
+                isExcluded = true;
+                break;
+            }
+        }
+        if (!isExcluded) {
+            available[availableCount++] = i;
+        }
+    }
+    
+    // 随机选择
+    uint8_t actualCount = (count < availableCount) ? count : availableCount;
+    for (uint8_t i = 0; i < actualCount && availableCount > 0; i++) {
+        uint8_t randomIndex = rand() % availableCount;
+        result[i] = available[randomIndex];
+        
+        // 移除已选择的按钮
+        for (uint8_t j = randomIndex; j < availableCount - 1; j++) {
+            available[j] = available[j + 1];
+        }
+        availableCount--;
+    }
+    
+    return actualCount;
+}
+
+// 静态动画
+RGBColor staticAnimation(const LedAnimationParams& params) {
+    RGBColor color = params.colorEnabled
+        ? (params.pressed ? params.frontColor : params.backColor1)
+        : params.defaultBackColor;
+    
+    // 应用亮度
+    color.r = (uint8_t)(color.r * params.brightness / 100);
+    color.g = (uint8_t)(color.g * params.brightness / 100);
+    color.b = (uint8_t)(color.b * params.brightness / 100);
+    
+    return color;
+}
+
+// 呼吸动画
+RGBColor breathingAnimation(const LedAnimationParams& params) {
+    RGBColor color;
+    
+    if (params.colorEnabled) {
+        if (params.pressed) {
+            color = params.frontColor;
+        } else {
+            float t = sinf(params.progress * M_PI);
+            color = lerpColor(params.backColor1, params.backColor2, t);
+        }
+    } else {
+        color = params.defaultBackColor;
+    }
+    
+    // 应用亮度
+    color.r = (uint8_t)(color.r * params.brightness / 100);
+    color.g = (uint8_t)(color.g * params.brightness / 100);
+    color.b = (uint8_t)(color.b * params.brightness / 100);
+    
+    return color;
+}
+
+// 星光闪烁动画
+RGBColor starAnimation(const LedAnimationParams& params) {
+    if (!params.colorEnabled) {
+        return params.defaultBackColor;
+    }
+    
+    if (params.pressed) {
+        RGBColor color = params.frontColor;
+        color.r = (uint8_t)(color.r * params.brightness / 100);
+        color.g = (uint8_t)(color.g * params.brightness / 100);
+        color.b = (uint8_t)(color.b * params.brightness / 100);
+        return color;
+    }
+    
+    // 加快动画速度2倍
+    float fastProgress = fmodf(params.progress * 2.0f, 1.0f);
+    
+    // 在周期的中点更新闪烁按钮
+    bool currentHalf = fastProgress < 0.5f;
+    if (currentHalf != isFirstHalf) {
+        uint8_t exclude[10];
+        uint8_t excludeCount = starButtons1Count + starButtons2Count;
+        memcpy(exclude, currentStarButtons1, starButtons1Count);
+        memcpy(exclude + starButtons1Count, currentStarButtons2, starButtons2Count);
+        
+        if (currentHalf) { // 开始新的周期
+            uint8_t numStars = 2 + (rand() % 2); // 2-3个
+            starButtons1Count = selectRandomButtons(NUM_LED, numStars, exclude, excludeCount, currentStarButtons1);
+        } else { // 在周期中点更新第二组按钮
+            uint8_t numStars = 2 + (rand() % 2);
+            starButtons2Count = selectRandomButtons(NUM_LED, numStars, exclude, excludeCount, currentStarButtons2);
+        }
+        isFirstHalf = currentHalf;
+    }
+    
+    // 检查当前按钮是否在闪烁列表中
+    bool inGroup1 = false, inGroup2 = false;
+    for (uint8_t i = 0; i < starButtons1Count; i++) {
+        if (currentStarButtons1[i] == params.index) {
+            inGroup1 = true;
+            break;
+        }
+    }
+    for (uint8_t i = 0; i < starButtons2Count; i++) {
+        if (currentStarButtons2[i] == params.index) {
+            inGroup2 = true;
+            break;
+        }
+    }
+    
+    if (!inGroup1 && !inGroup2) {
+        RGBColor color = params.backColor1;
+        color.r = (uint8_t)(color.r * params.brightness / 100);
+        color.g = (uint8_t)(color.g * params.brightness / 100);
+        color.b = (uint8_t)(color.b * params.brightness / 100);
+        return color;
+    }
+    
+    // 计算渐变进度
+    float fadeInOut = 0.0f;
+    
+    if (inGroup1) {
+        float cycleProgress = fastProgress * 2.0f;
+        fadeInOut = sinf(cycleProgress * M_PI / 2.0f);
+    }
+    
+    if (inGroup2) {
+        float cycleProgress = fmodf(fastProgress + 0.5f, 1.0f) * 2.0f;
+        fadeInOut = sinf(cycleProgress * M_PI / 2.0f);
+    }
+    
+    RGBColor result = lerpColor(params.backColor1, params.backColor2, fadeInOut);
+    result.r = (uint8_t)(result.r * params.brightness / 100);
+    result.g = (uint8_t)(result.g * params.brightness / 100);
+    result.b = (uint8_t)(result.b * params.brightness / 100);
+    
+    return result;
+}
+
+// 流光动画
+RGBColor flowingAnimation(const LedAnimationParams& params) {
+    if (!params.colorEnabled) {
+        return params.defaultBackColor;
+    }
+    
+    if (params.pressed) {
+        RGBColor color = params.frontColor;
+        color.r = (uint8_t)(color.r * params.brightness / 100);
+        color.g = (uint8_t)(color.g * params.brightness / 100);
+        color.b = (uint8_t)(color.b * params.brightness / 100);
+        return color;
+    }
+    
+    // 确保边界值已计算
+    calculateBoundaries();
+    
+    // 添加调试输出（只对第一个按钮输出，避免过多信息）
+    if (params.index == 0) {
+        APP_DBG("flowingAnimation - progress: %.3f, cachedMinX: %.1f, cachedMaxX: %.1f", 
+            params.progress, cachedMinX, cachedMaxX);
+    }
+    
+    float bandWidth = 80.0f;
+    
+    // 当前流光中心位置
+    float centerX = cachedMinX + (cachedMaxX - cachedMinX) * params.progress * 1.6f;
+    float btnX = HITBOX_BTN_POS_LIST[params.index].x;
+    
+    // 计算距离中心的归一化距离
+    float dist = fabsf(btnX - centerX);
+    float t = 0.0f;
+    
+    if (dist < bandWidth) {
+        t = cosf((dist / bandWidth) * M_PI / 2.0f);
+    }
+    
+    // 添加更多调试输出
+    if (params.index == 0) {
+        APP_DBG("flowingAnimation - centerX: %.1f, btnX: %.1f, dist: %.1f, t: %.3f", 
+            centerX, btnX, dist, t);
+        APP_DBG("flowingAnimation - backColor1: %d,%d,%d, backColor2: %d,%d,%d", 
+            params.backColor1.r, params.backColor1.g, params.backColor1.b,
+            params.backColor2.r, params.backColor2.g, params.backColor2.b);
+    }
+    
+    RGBColor result = lerpColor(params.backColor1, params.backColor2, t);
+    result.r = (uint8_t)(result.r * params.brightness / 100);
+    result.g = (uint8_t)(result.g * params.brightness / 100);
+    result.b = (uint8_t)(result.b * params.brightness / 100);
+    
+    if (params.index == 0) {
+        APP_DBG("flowingAnimation - final result: %d,%d,%d (brightness: %d)", 
+            result.r, result.g, result.b, params.brightness);
+    }
+    
+    return result;
+}
+
+// 涟漪动画
+RGBColor rippleAnimation(const LedAnimationParams& params) {
+    if (!params.colorEnabled) {
+        return params.defaultBackColor;
+    }
+    
+    if (params.pressed) {
+        RGBColor color = params.frontColor;
+        color.r = (uint8_t)(color.r * params.brightness / 100);
+        color.g = (uint8_t)(color.g * params.brightness / 100);
+        color.b = (uint8_t)(color.b * params.brightness / 100);
+        return color;
+    }
+    
+    float t = 0.0f;
+    
+    // 处理涟漪效果
+    for (uint8_t i = 0; i < params.global.rippleCount && i < 5; i++) {
+        uint8_t centerIndex = params.global.rippleCenters[i];
+        float progress = params.global.rippleProgress[i];
+        
+        float centerX = HITBOX_BTN_POS_LIST[centerIndex].x;
+        float centerY = HITBOX_BTN_POS_LIST[centerIndex].y;
+        float btnX = HITBOX_BTN_POS_LIST[params.index].x;
+        float btnY = HITBOX_BTN_POS_LIST[params.index].y;
+        
+        // 计算最大距离
+        float maxDist = 0.0f;
+        for (uint8_t j = 0; j < NUM_LED; j++) {
+            float dx = HITBOX_BTN_POS_LIST[j].x - centerX;
+            float dy = HITBOX_BTN_POS_LIST[j].y - centerY;
+            float dist = sqrtf(dx * dx + dy * dy);
+            if (dist > maxDist) maxDist = dist;
+        }
+        
+        float rippleRadius = progress * maxDist * 1.1f;
+        float rippleWidth = 80.0f;
+        float dx = btnX - centerX;
+        float dy = btnY - centerY;
+        float dist = sqrtf(dx * dx + dy * dy);
+        
+        if (fabsf(rippleRadius - dist) < rippleWidth) {
+            float tt = cosf((fabsf(rippleRadius - dist) / rippleWidth) * M_PI / 2.0f);
+            t = fmaxf(t, tt);
+        }
+    }
+    
+    RGBColor result = lerpColor(params.backColor1, params.backColor2, t);
+    result.r = (uint8_t)(result.r * params.brightness / 100);
+    result.g = (uint8_t)(result.g * params.brightness / 100);
+    result.b = (uint8_t)(result.b * params.brightness / 100);
+    
+    return result;
+}
+
+// 变换动画
+RGBColor transformAnimation(const LedAnimationParams& params) {
+    if (!params.colorEnabled) {
+        return params.defaultBackColor;
+    }
+    
+    if (params.pressed) {
+        RGBColor color = params.frontColor;
+        color.r = (uint8_t)(color.r * params.brightness / 100);
+        color.g = (uint8_t)(color.g * params.brightness / 100);
+        color.b = (uint8_t)(color.b * params.brightness / 100);
+        return color;
+    }
+    
+    // 检测新的动画周期开始
+    if (params.progress < lastTransformProgress && lastTransformProgress > 0.8f) {
+        transformCycleCount++;
+        memset(transformPassedPositions, 0, sizeof(transformPassedPositions));
+    }
+    lastTransformProgress = params.progress;
+    
+    // 确保边界值已计算
+    calculateBoundaries();
+    
+    float bandWidth = 80.0f;
+    float centerX = cachedMinX + (cachedMaxX - cachedMinX) * params.progress * 1.6f;
+    float btnX = HITBOX_BTN_POS_LIST[params.index].x;
+    float dist = fabsf(btnX - centerX);
+    
+    // 记录流光已经经过的按钮
+    if (centerX > btnX + bandWidth / 2.0f) {
+        transformPassedPositions[params.index] = 1;
+    }
+    
+    // 确定按钮的基础颜色
+    bool hasBeenPassed = transformPassedPositions[params.index] == 1;
+    uint32_t totalPasses = transformCycleCount + (hasBeenPassed ? 1 : 0);
+    bool isOddPasses = (totalPasses % 2) == 1;
+    RGBColor baseColor = isOddPasses ? params.backColor2 : params.backColor1;
+    RGBColor glowColor = isOddPasses ? params.backColor1 : params.backColor2;
+    
+    RGBColor color;
+    if (dist < bandWidth) {
+        // 在光带范围内，从基础颜色渐变到发光颜色
+        float t = cosf((dist / bandWidth) * M_PI / 2.0f);
+        color = lerpColor(baseColor, glowColor, t);
+    } else {
+        // 超出光带范围，使用基础颜色
+        color = baseColor;
+    }
+    
+    color.r = (uint8_t)(color.r * params.brightness / 100);
+    color.g = (uint8_t)(color.g * params.brightness / 100);
+    color.b = (uint8_t)(color.b * params.brightness / 100);
+    
+    return color;
+}
+
+// 获取动画算法函数
+LedAnimationAlgorithm getLedAnimation(LEDEffect effect) {
+    switch (effect) {
+        case LEDEffect::STATIC:
+            return staticAnimation;
+        case LEDEffect::BREATHING:
+            return breathingAnimation;
+        case LEDEffect::STAR:
+            return starAnimation;
+        case LEDEffect::FLOWING:
+            return flowingAnimation;
+        case LEDEffect::RIPPLE:
+            return rippleAnimation;
+        case LEDEffect::TRANSFORM:
+            return transformAnimation;
+        default:
+            return staticAnimation;
+    }
+} 
