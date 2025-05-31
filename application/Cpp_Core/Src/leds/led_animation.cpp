@@ -255,7 +255,8 @@ RGBColor flowingAnimation(const LedAnimationParams& params) {
     // 确保边界值已计算
     calculateBoundaries();
     
-    float bandWidth = 80.0f;
+    // 流光参数
+    float bandWidth = 140.0f; // 光带宽度，与TypeScript版本保持一致
     
     // 当前流光中心位置
     float centerX = cachedMinX + (cachedMaxX - cachedMinX) * params.progress * 1.6f;
@@ -263,13 +264,17 @@ RGBColor flowingAnimation(const LedAnimationParams& params) {
     
     // 计算距离中心的归一化距离
     float dist = fabsf(btnX - centerX);
-    float t = 0.0f;
     
-    if (dist < bandWidth) {
-        t = cosf((dist / bandWidth) * M_PI / 2.0f);
+    // 使用更平滑的渐变算法，避免闪烁
+    float t = 0.0f;
+    if (dist <= bandWidth) {
+        // 使用平滑的渐变函数，确保在边界处没有突变
+        float normalizedDist = dist / bandWidth; // 0~1
+        // 使用 smoothstep 函数创建更平滑的过渡
+        t = 1.0f - (normalizedDist * normalizedDist * (3.0f - 2.0f * normalizedDist));
     }
     
-    
+    // 渐变色
     RGBColor result = lerpColor(params.backColor1, params.backColor2, t);
     result.r = (uint8_t)(result.r * params.brightness / 100);
     result.g = (uint8_t)(result.g * params.brightness / 100);
@@ -339,10 +344,6 @@ RGBColor transformAnimation(const LedAnimationParams& params) {
         return params.defaultBackColor;
     }
     
-    // APP_DBG("fontColor: %d, %d, %d\n", params.frontColor.r, params.frontColor.g, params.frontColor.b);
-    // APP_DBG("backColor1: %d, %d, %d\n", params.backColor1.r, params.backColor1.g, params.backColor1.b);
-    // APP_DBG("backColor2: %d, %d, %d\n", params.backColor2.r, params.backColor2.g, params.backColor2.b);
-
     if (params.pressed) {
         RGBColor color = params.frontColor;
         color.r = (uint8_t)(color.r * params.brightness / 100);
@@ -361,31 +362,43 @@ RGBColor transformAnimation(const LedAnimationParams& params) {
     // 确保边界值已计算
     calculateBoundaries();
     
-    float bandWidth = 80.0f;
+    // 流光参数
+    float bandWidth = 140.0f;
     float centerX = cachedMinX + (cachedMaxX - cachedMinX) * params.progress * 1.6f;
     float btnX = HITBOX_BTN_POS_LIST[params.index].x;
-    float dist = fabsf(btnX - centerX);
     
     // 记录流光已经经过的按钮
     if (centerX > btnX + bandWidth / 2.0f) {
         transformPassedPositions[params.index] = 1;
     }
     
-    // 确定按钮的基础颜色
+    // 计算该按钮被经过的总次数
     bool hasBeenPassed = transformPassedPositions[params.index] == 1;
     uint32_t totalPasses = transformCycleCount + (hasBeenPassed ? 1 : 0);
     bool isOddPasses = (totalPasses % 2) == 1;
-    RGBColor baseColor = isOddPasses ? params.backColor2 : params.backColor1;
-    RGBColor glowColor = isOddPasses ? params.backColor1 : params.backColor2;
+    
+    // 确定该按钮当前应该显示的基础颜色（经过后永久改变）
+    RGBColor buttonBaseColor = isOddPasses ? params.backColor2 : params.backColor1;
+    RGBColor buttonAltColor = isOddPasses ? params.backColor1 : params.backColor2;
+    
+    // 计算渐变区域
+    float leftEdge = centerX - bandWidth / 2.0f;
+    float rightEdge = centerX + bandWidth / 2.0f;
     
     RGBColor color;
-    if (dist < bandWidth) {
-        // 在光带范围内，从基础颜色渐变到发光颜色
-        float t = cosf((dist / bandWidth) * M_PI / 2.0f);
-        color = lerpColor(baseColor, glowColor, t);
+    
+    if (btnX < leftEdge) {
+        // 左侧区域：使用该按钮的基础颜色
+        color = buttonBaseColor;
+    } else if (btnX > rightEdge) {
+        // 右侧区域：使用该按钮的基础颜色
+        color = buttonBaseColor;
     } else {
-        // 超出光带范围，使用基础颜色
-        color = baseColor;
+        // 渐变区域：从替代颜色渐变到基础颜色
+        float t = (btnX - leftEdge) / bandWidth; // 0~1
+        // 使用 smoothstep 函数创建更平滑的过渡
+        float smoothT = t * t * (3.0f - 2.0f * t);
+        color = lerpColor(buttonAltColor, buttonBaseColor, smoothT);
     }
     
     color.r = (uint8_t)(color.r * params.brightness / 100);
