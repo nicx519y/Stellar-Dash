@@ -41,6 +41,7 @@ import { useColorMode } from "./ui/color-mode";
 import { ContentActionButtons } from "@/components/content-action-buttons";
 import { GamePadColor } from "@/types/gamepad-color";
 import { ProfileSelect } from "./profile-select";
+import { ColorQueueManager } from "@/components/color-queue-manager";
 
 export function LEDsSettingContent() {
     const { t } = useLanguage();
@@ -63,8 +64,47 @@ export function LEDsSettingContent() {
     const [ledBrightness, setLedBrightness] = useState<number>(75);
     const [ledAnimationSpeed, setLedAnimationSpeed] = useState<number>(1);
     const [ledEnabled, setLedEnabled] = useState<boolean>(true);
-
     
+    // 颜色队列状态
+    const [colorSwatches, setColorSwatches] = useState<string[]>(ColorQueueManager.getColorQueue());
+    
+    // 临时存储当前选择的颜色，用于在关闭时更新队列
+    const [tempSelectedColors, setTempSelectedColors] = useState<{[key: number]: string}>({});
+
+    // 处理颜色变化的函数（仅更新颜色状态，不更新队列）
+    const handleColorChange = (colorIndex: number, newColor: Color) => {
+        setIsDirty?.(true);
+        const hexColor = newColor.toString('hex');
+        
+        // 更新颜色状态
+        if (colorIndex === 0) setColor1(newColor);
+        if (colorIndex === 1) setColor2(newColor);
+        if (colorIndex === 2) setColor3(newColor);
+        
+        // 临时存储选择的颜色
+        setTempSelectedColors(prev => ({
+            ...prev,
+            [colorIndex]: hexColor
+        }));
+    };
+    
+    // 处理 ColorPicker 关闭事件
+    const handleColorPickerClose = (colorIndex: number) => {
+        const selectedColor = tempSelectedColors[colorIndex];
+        if (selectedColor) {
+            // 更新颜色队列
+            const updatedQueue = ColorQueueManager.updateColorQueue(selectedColor);
+            setColorSwatches(updatedQueue);
+            
+            // 清除临时存储的颜色
+            setTempSelectedColors(prev => {
+                const newTemp = { ...prev };
+                delete newTemp[colorIndex];
+                return newTemp;
+            });
+        }
+    };
+
     // Initialize the state with the default profile details
     useEffect(() => {
         const ledsConfigs = defaultProfile.ledsConfigs;
@@ -160,8 +200,6 @@ export function LEDsSettingContent() {
         t.SETTINGS_LEDS_BACK_COLOR2
     ];
 
-    const swatches = ["red", "blue", "green"];
-
     return (
         <>
             <Flex direction="row" width={"100%"} height={"100%"} padding={"18px"}  >
@@ -253,11 +291,14 @@ export function LEDsSettingContent() {
                                                             parseColor(color1.toString('hex')) } 
                                                             
                                                             onValueChange={(e) => {
-                                                                setIsDirty?.(true);
-                                                                const hex = e.value;
-                                                                if (index === 0) setColor1(hex);
-                                                                if (index === 1) setColor2(hex);
-                                                                if (index === 2) setColor3(hex);
+                                                                handleColorChange(index, e.value);
+                                                            }}
+                                                            
+                                                            onOpenChange={(details) => {
+                                                                // 当 ColorPicker 关闭时更新颜色队列
+                                                                if (!details.open) {
+                                                                    handleColorPickerClose(index);
+                                                                }
                                                             }}
 
                                                             maxW="200px"
@@ -277,10 +318,10 @@ export function LEDsSettingContent() {
                                                                         <ColorPicker.EyeDropper size="sm" variant="outline" />
                                                                         <ColorPicker.ChannelSlider channel="hue" />
                                                                     </HStack>
-                                                                    <ColorPicker.SwatchGroup>
-                                                                        {swatches.map((item) => (
+                                                                    <ColorPicker.SwatchGroup gap={.5} p={0.5} >
+                                                                        {colorSwatches.map((item) => (
                                                                         <ColorPicker.SwatchTrigger key={item} value={item}>
-                                                                            <ColorPicker.Swatch value={item} boxSize="4.5">
+                                                                            <ColorPicker.Swatch value={item} boxSize="5">
                                                                                 <ColorPicker.SwatchIndicator>
                                                                                     <LuCheck />
                                                                                 </ColorPicker.SwatchIndicator>
