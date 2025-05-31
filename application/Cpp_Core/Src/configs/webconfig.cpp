@@ -343,26 +343,7 @@ cJSON* buildProfileJSON(GamepadProfile* profile) {
     cJSON_AddBoolToObject(keysConfigJSON, "invertYAxis", profile->keysConfig.invertYAxis);
     cJSON_AddBoolToObject(keysConfigJSON, "fourWayMode", profile->keysConfig.fourWayMode);
 
-    switch(profile->keysConfig.socdMode) {
-        case SOCDMode::SOCD_MODE_NEUTRAL:
-            cJSON_AddStringToObject(keysConfigJSON, "socdMode", "SOCD_MODE_NEUTRAL");
-            break;
-        case SOCDMode::SOCD_MODE_UP_PRIORITY:
-            cJSON_AddStringToObject(keysConfigJSON, "socdMode", "SOCD_MODE_UP_PRIORITY");
-            break;
-        case SOCDMode::SOCD_MODE_SECOND_INPUT_PRIORITY:
-            cJSON_AddStringToObject(keysConfigJSON, "socdMode", "SOCD_MODE_SECOND_INPUT_PRIORITY");
-            break;
-        case SOCDMode::SOCD_MODE_FIRST_INPUT_PRIORITY:
-            cJSON_AddStringToObject(keysConfigJSON, "socdMode", "SOCD_MODE_FIRST_INPUT_PRIORITY");
-            break;
-        case SOCDMode::SOCD_MODE_BYPASS:
-            cJSON_AddStringToObject(keysConfigJSON, "socdMode", "SOCD_MODE_BYPASS");
-            break;
-        default:
-            cJSON_AddStringToObject(keysConfigJSON, "socdMode", "SOCD_MODE_NEUTRAL");
-            break;
-    }   
+    cJSON_AddNumberToObject(keysConfigJSON, "socdMode", profile->keysConfig.socdMode);
 
     // 按键映射
     cJSON* keyMappingJSON = cJSON_CreateObject();
@@ -391,29 +372,8 @@ cJSON* buildProfileJSON(GamepadProfile* profile) {
     // LED配置
     cJSON* ledsConfigJSON = cJSON_CreateObject();
     cJSON_AddBoolToObject(ledsConfigJSON, "ledEnabled", profile->ledsConfigs.ledEnabled);
-    switch(profile->ledsConfigs.ledEffect) {
-        case LEDEffect::STATIC:
-            cJSON_AddStringToObject(ledsConfigJSON, "ledsEffectStyle", "STATIC");
-            break;
-        case LEDEffect::BREATHING:
-            cJSON_AddStringToObject(ledsConfigJSON, "ledsEffectStyle", "BREATHING");
-            break;
-        case LEDEffect::STAR:
-            cJSON_AddStringToObject(ledsConfigJSON, "ledsEffectStyle", "STAR");
-            break;
-        case LEDEffect::FLOWING:
-            cJSON_AddStringToObject(ledsConfigJSON, "ledsEffectStyle", "FLOWING");
-            break;
-        case LEDEffect::RIPPLE:
-            cJSON_AddStringToObject(ledsConfigJSON, "ledsEffectStyle", "RIPPLE");
-            break;
-        case LEDEffect::TRANSFORM:
-            cJSON_AddStringToObject(ledsConfigJSON, "ledsEffectStyle", "TRANSFORM");
-            break;
-        default:
-            cJSON_AddStringToObject(ledsConfigJSON, "ledsEffectStyle", "STATIC");
-            break;
-    }
+    cJSON_AddNumberToObject(ledsConfigJSON, "ledsEffectStyle", static_cast<int>(profile->ledsConfigs.ledEffect));
+    
     // LED颜色数组
     cJSON* ledColorsJSON = cJSON_CreateArray();
     char colorStr[8];
@@ -798,23 +758,13 @@ std::string apiUpdateProfile() {
         if((item = cJSON_GetObjectItem(keysConfig, "fourWayMode"))) {
             targetProfile->keysConfig.fourWayMode = item->type == cJSON_True;
         }
-        if((item = cJSON_GetObjectItem(keysConfig, "socdMode"))) {
-            if(strcmp(item->valuestring, "SOCD_MODE_NEUTRAL") == 0) {
-                targetProfile->keysConfig.socdMode = SOCDMode::SOCD_MODE_NEUTRAL;
-            } else if(strcmp(item->valuestring, "SOCD_MODE_UP_PRIORITY") == 0) {
-                targetProfile->keysConfig.socdMode = SOCDMode::SOCD_MODE_UP_PRIORITY;
-            } else if(strcmp(item->valuestring, "SOCD_MODE_SECOND_INPUT_PRIORITY") == 0) {
-                targetProfile->keysConfig.socdMode = SOCDMode::SOCD_MODE_SECOND_INPUT_PRIORITY;
-            } else if(strcmp(item->valuestring, "SOCD_MODE_FIRST_INPUT_PRIORITY") == 0) {
-                targetProfile->keysConfig.socdMode = SOCDMode::SOCD_MODE_FIRST_INPUT_PRIORITY;
-            } else if(strcmp(item->valuestring, "SOCD_MODE_BYPASS") == 0) {
-                targetProfile->keysConfig.socdMode = SOCDMode::SOCD_MODE_BYPASS;
-            } else {
-                targetProfile->keysConfig.socdMode = SOCDMode::SOCD_MODE_NEUTRAL;
-            }
+        if((item = cJSON_GetObjectItem(keysConfig, "socdMode")) 
+            && item->type == cJSON_Number 
+            && item->valueint >= 0 
+            && item->valueint < SOCDMode::NUM_SOCD_MODES) {
+            targetProfile->keysConfig.socdMode = static_cast<SOCDMode>(item->valueint);
         }
       
-
         // 更新按键映射
         cJSON* keyMapping = cJSON_GetObjectItem(keysConfig, "keyMapping");                                          
         if(keyMapping) {
@@ -869,22 +819,11 @@ std::string apiUpdateProfile() {
         }
         
         // 解析LED效
-        if((item = cJSON_GetObjectItem(ledsConfig, "ledsEffectStyle"))) {
-            if(strcmp(item->valuestring, "STATIC") == 0) {
-                targetProfile->ledsConfigs.ledEffect = LEDEffect::STATIC;
-            } else if(strcmp(item->valuestring, "BREATHING") == 0) {
-                targetProfile->ledsConfigs.ledEffect = LEDEffect::BREATHING;
-            } else if(strcmp(item->valuestring, "STAR") == 0) {
-                targetProfile->ledsConfigs.ledEffect = LEDEffect::STAR;
-            } else if(strcmp(item->valuestring, "FLOWING") == 0) {
-                targetProfile->ledsConfigs.ledEffect = LEDEffect::FLOWING;
-            } else if(strcmp(item->valuestring, "RIPPLE") == 0) {
-                targetProfile->ledsConfigs.ledEffect = LEDEffect::RIPPLE;
-            } else if(strcmp(item->valuestring, "TRANSFORM") == 0) {
-                targetProfile->ledsConfigs.ledEffect = LEDEffect::TRANSFORM;
-            } else {
-                targetProfile->ledsConfigs.ledEffect = LEDEffect::STATIC;
-            }
+        if((item = cJSON_GetObjectItem(ledsConfig, "ledsEffectStyle")) 
+            && item->type == cJSON_Number 
+            && item->valueint >= 0 
+            && item->valueint < LEDEffect::NUM_EFFECTS) {
+            targetProfile->ledsConfigs.ledEffect = static_cast<LEDEffect>(item->valueint);
         }
 
         // 解析LED颜色

@@ -251,7 +251,7 @@ export function LEDsSettingContent() {
                                                     variant={colorMode === "dark" ? "surface" : "outline"}
                                                     value={ledsEffectStyle?.toString() ?? LedsEffectStyle.STATIC.toString()}
                                                     onValueChange={(detail) => {
-                                                        setLedsEffectStyle(detail.value as LedsEffectStyle);
+                                                        setLedsEffectStyle(parseInt(detail.value ?? "0") as LedsEffectStyle);
                                                         setIsDirty?.(true);
                                                     }}
                                                     disabled={!ledEnabled}

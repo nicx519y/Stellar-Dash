@@ -23,7 +23,6 @@ import {
 import {
     GameProfile,
     GameSocdMode,
-    GameSocdModeList,
     GameSocdModeLabelMap,
     GameControllerButton,
     KEYS_SETTINGS_INTERACTIVE_IDS,
@@ -44,7 +43,7 @@ export function KeysSettingContent() {
     const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
     const { t } = useLanguage();
 
-    const [socdMode, setSocdMode] = useState<GameSocdMode>(GameSocdMode.SOCD_MODE_UP_PRIORITY);
+    const [socdMode, setSocdMode] = useState<GameSocdMode>(GameSocdMode.SOCD_MODE_NEUTRAL);
     const [invertXAxis, setInvertXAxis] = useState<boolean>(true);
     const [invertYAxis, setInvertYAxis] = useState<boolean>(true);
     const [fourWayMode, setFourWayMode] = useState<boolean>(false);
@@ -160,20 +159,20 @@ export function KeysSettingContent() {
                                             variant={colorMode === "dark" ? "surface" : "outline"}
                                             value={socdMode?.toString() ?? GameSocdMode.SOCD_MODE_UP_PRIORITY.toString()}
                                             onValueChange={(detail) => {
-                                                setSocdMode(detail.value as GameSocdMode);
+                                                setSocdMode(parseInt(detail.value ?? GameSocdMode.SOCD_MODE_NEUTRAL.toString()) as GameSocdMode);
                                                 setIsDirty?.(true);
                                             }}
                                         >
-                                            <RadioCardLabel fontWeight={"bold"} >{t.SETTINGS_KEYS_SOCD_MODE_TITLE}</RadioCardLabel>
+                                            <RadioCardLabel>{t.SETTINGS_KEYS_SOCD_MODE_TITLE}</RadioCardLabel>
                                             <SimpleGrid gap={1} columns={5} >
-                                                {GameSocdModeList.map((socdMode, index) => (
+                                                {Array.from({ length: GameSocdMode.SOCD_MODE_NUM_MODES }, (_, index) => (
                                                     // <Tooltip key={index} content={t.SETTINGS_KEYS_SOCD_MODE_TOOLTIP} >
                                                     <RadioCardItem
                                                         fontSize={"xs"}
                                                         indicator={false}
                                                         key={index}
-                                                        value={socdMode.toString()}
-                                                        label={GameSocdModeLabelMap.get(socdMode as GameSocdMode)?.label ?? ""}
+                                                        value={index.toString()}
+                                                        label={GameSocdModeLabelMap.get(index as GameSocdMode)?.label ?? ""}
                                                     />
                                                     // </Tooltip>
                                                 ))}

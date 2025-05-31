@@ -12,7 +12,7 @@
         "invertXAxis": true,
         "invertYAxis": false,
         "fourWayMode": false,
-        "socdMode": "SOCD_MODE_NEUTRAL",
+        "socdMode": 1,
         "keyMapping": {
           "L1": [
             13
@@ -70,7 +70,7 @@
       },
       "ledsConfigs": {
         "ledEnabled": true,
-        "ledsEffectStyle": "RIPPLE",
+        "ledsEffectStyle": 2,
         "ledColors": [
           "#75FA07",
           "#E000BF",
@@ -194,7 +194,7 @@
         "invertXAxis": true,
         "invertYAxis": true,
         "fourWayMode": false,
-        "socdMode": "SOCD_MODE_NEUTRAL",
+        "socdMode": 0,
         "keyMapping": {
           "DPAD_UP": [
             15
@@ -215,7 +215,7 @@
       },
       "ledsConfigs": {
         "ledEnabled": true,
-        "ledsEffectStyle": "BREATHING",
+        "ledsEffectStyle": 1,
         "ledColors": [
           "#000000",
           "#0C24C9",
