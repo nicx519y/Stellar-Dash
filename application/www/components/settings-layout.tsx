@@ -3,7 +3,7 @@
 import { useRouterStore } from './router';
 import { Flex, Center, Box, Tabs } from '@chakra-ui/react';
 import { useLanguage } from "@/contexts/language-context";
-import { LuKeyboard, LuRocket, LuLightbulb, LuKeyRound, LuCpu, LuChartSpline, LuGamepad } from 'react-icons/lu';
+import { LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuChartSpline, LuGamepad } from 'react-icons/lu';
 import type { Route } from './router';
 import { navigationEvents } from '@/lib/event-manager';
 
@@ -12,11 +12,10 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
     const { currentRoute, setRoute } = useRouterStore();
 
     const tabs = [
-        { id: 'input-mode' as Route, label: t.SETTINGS_TAB_INPUT_MODE, icon: LuGamepad },
+        { id: 'global' as Route, label: t.SETTINGS_TAB_GLOBAL, icon: LuGamepad },
         { id: 'keys' as Route, label: t.SETTINGS_TAB_KEYS, icon: LuKeyboard },
         { id: 'leds' as Route, label: t.SETTINGS_TAB_LEDS, icon: LuLightbulb },
-        { id: 'rapid-trigger' as Route, label: t.SETTINGS_TAB_RAPID_TRIGGER, icon: LuRocket },
-        { id: 'hotkeys' as Route, label: t.SETTINGS_TAB_HOTKEYS, icon: LuKeyRound },
+        { id: 'buttons-travel' as Route, label: t.SETTINGS_TAB_BUTTONS_TRAVEL, icon: LuRocket },
         { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
         { id: 'firmware' as Route, label: t.SETTINGS_TAB_FIRMWARE, icon: LuCpu },
     ];
@@ -57,9 +56,6 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
             </Tabs.Root>
             
             <Flex direction="column" flex={1} height="100%">
-                {/* <Center pt={4} height="50px">
-                    {['keys', 'leds', 'rapid-trigger'].includes(currentRoute) && <ProfileSelect />}
-                </Center> */}
                 <Center flex={1}>
                     {children}
                 </Center>

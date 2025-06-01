@@ -384,7 +384,15 @@ export const UI_TEXT = {
     PROFILE_DELETE_CONFIRM_MESSAGE: "Deleting this profile can not be undone or reverted. Are you sure you want to delete this profile?",
     PROFILE_NAME_LABEL: "Profile Name",
     PROFILE_NAME_PLACEHOLDER: "Enter profile name",
-    
+
+    // Calibration
+    AUTO_CALIBRATION_TITLE: "Auto Calibration",
+    CALIBRATION_HELPER_TEXT: "calibration is the process of finding the optimal button travel for the gamepad. It is a process of finding the optimal button travel for the gamepad.",
+    CALIBRATION_START_BUTTON: "Start Calibration",
+    CALIBRATION_STOP_BUTTON: "Stop Calibration",
+    CALIBRATION_CLEAR_DATA_BUTTON: "Clear Data",
+    CALIBRATION_CLEAR_DATA_DIALOG_TITLE: "Clear Calibration Data",
+    CALIBRATION_CLEAR_DATA_DIALOG_MESSAGE: "Clearing the calibration data will delete all the calibration data. It will need to be calibrated again. Are you sure you want to clear the calibration data?",
     // Settings Labels
     SETTINGS_SOCD_LABEL: "SOCD Mode",
     SETTINGS_PLATFORM_LABEL: "Platform",
@@ -429,6 +437,8 @@ export const UI_TEXT = {
     VALIDATION_PROFILE_NAME_ALREADY_EXISTS: "Profile name already exists",
     VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "Profile name cannot contain special characters",
     
+    // Input Mode Settings
+    INPUT_MODE_TITLE: "Input Mode",
 
     // Keys Settings
     SETTINGS_KEYS_TITLE: "KEYS SETTINGS",
@@ -507,11 +517,10 @@ export const UI_TEXT = {
     SETTINGS_SWITCH_MARKING_UNSAVED_CHANGES_WARNING_MESSAGE: "You have uncompleted switch marking. If you leave without saving, the switch marking data will be lost.",
 
     // Settings Layout
-    SETTINGS_TAB_INPUT_MODE: "Input Mode",
+    SETTINGS_TAB_GLOBAL: "Global Setting",
     SETTINGS_TAB_KEYS: "Keys Setting",
     SETTINGS_TAB_LEDS: "LEDs Setting",
-    SETTINGS_TAB_RAPID_TRIGGER: "Buttons Travel",
-    SETTINGS_TAB_HOTKEYS: "Hotkeys Setting",
+    SETTINGS_TAB_BUTTONS_TRAVEL: "Buttons Travel",
     SETTINGS_TAB_SWITCH_MARKING: "Switch Marking",
     SETTINGS_TAB_FIRMWARE: "Firmware",
 
@@ -592,6 +601,15 @@ export const UI_TEXT_ZH = {
     PROFILE_NAME_LABEL: "配置名称",
     PROFILE_NAME_PLACEHOLDER: "请输入配置名称",
     
+    // 校准
+    AUTO_CALIBRATION_TITLE: "自动磁轴校准",
+    CALIBRATION_HELPER_TEXT: "磁轴校准是找到控制器最佳按键行程的过程。它是找到控制器最佳按键行程的过程。",
+    CALIBRATION_START_BUTTON: "开始校准",
+    CALIBRATION_STOP_BUTTON: "停止校准",
+    CALIBRATION_CLEAR_DATA_BUTTON: "清除数据",
+    CALIBRATION_CLEAR_DATA_DIALOG_TITLE: "清除校准数据",
+    CALIBRATION_CLEAR_DATA_DIALOG_MESSAGE: "清除校准数据后将无法恢复，需要重新校准，是否确认清除？",
+
     // 设置标签
     SETTINGS_SOCD_LABEL: "SOCD模式",
     SETTINGS_PLATFORM_LABEL: "平台",
@@ -636,6 +654,9 @@ export const UI_TEXT_ZH = {
     VALIDATION_PROFILE_NAME_ALREADY_EXISTS: "配置名称已存在",
     VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "配置名称不能包含特殊字符",
     
+    // 输入模式
+    INPUT_MODE_TITLE: "输入模式",
+
     // 按键设置
     SETTINGS_KEYS_TITLE: "按键设置",
     SETTINGS_KEYS_HELPER_TEXT: `设置hitbox按键和游戏控制器按键的映射关系。\n- 选中下面的配置框，然后按左侧hitbox按键即可绑定 \n- 可以设置多个按键映射，每个控制器按键映射可以设置多个hitbox按键`,
@@ -715,11 +736,10 @@ export const UI_TEXT_ZH = {
     SETTINGS_SWITCH_MARKING_UNSAVED_CHANGES_WARNING_MESSAGE: "您有未完成的磁轴标记。如果离开而不保存，磁轴标记数据将会丢失。",
 
     // Settings Layout
-    SETTINGS_TAB_INPUT_MODE: "输入模式",
+    SETTINGS_TAB_GLOBAL: "全局设置",
     SETTINGS_TAB_KEYS: "按键设置",
     SETTINGS_TAB_LEDS: "LED设置",
-    SETTINGS_TAB_RAPID_TRIGGER: "按键行程",
-    SETTINGS_TAB_HOTKEYS: "热键设置",
+    SETTINGS_TAB_BUTTONS_TRAVEL: "按键行程",
     SETTINGS_TAB_SWITCH_MARKING: "磁轴标记",
     SETTINGS_TAB_FIRMWARE: "固件",
 

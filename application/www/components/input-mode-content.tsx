@@ -2,51 +2,55 @@
 
 import { PlatformLabelMap, Platform } from '@/types/gamepad-config';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
-import { Center, HStack, Icon, RadioCard } from '@chakra-ui/react';
+import { Card, Center, HStack, Icon, RadioCard, VStack } from '@chakra-ui/react';
 import { BsXbox } from "react-icons/bs";
 import { SiNintendoswitch, SiPlaystation4, SiPlaystation5   } from "react-icons/si";
+import { useLanguage } from '@/contexts/language-context';
 
 
 export function InputModeSettingContent() {
     const { globalConfig, updateGlobalConfig } = useGamepadConfig();
+    const { t } = useLanguage();
 
     const platformIcons = new Map<Platform, { icon: React.ReactNode, size: string }>([
-        [Platform.XINPUT, { icon: <BsXbox />, size: "4xl" }],
-        [Platform.PS4, { icon: <SiPlaystation4 />, size: "6xl" }],
-        [Platform.PS5, { icon: <SiPlaystation5 />, size: "6xl" }],
-        [Platform.SWITCH, { icon: <SiNintendoswitch />, size: "4xl" }],
+        [Platform.XINPUT, { icon: <BsXbox />, size: "3xl" }],
+        [Platform.PS4, { icon: <SiPlaystation4 />, size: "3xl" }],
+        [Platform.PS5, { icon: <SiPlaystation5 />, size: "3xl" }],
+        [Platform.SWITCH, { icon: <SiNintendoswitch />, size: "3xl" }],
     ]);
 
     return (
-        <Center w="100%" >
+        <Card.Root w="100%" h="100%" >
+            <Card.Header >
+                <Card.Title fontSize={"md"} >{t.INPUT_MODE_TITLE}</Card.Title>
+            </Card.Header>
+            <Card.Body>
             <RadioCard.Root 
                 value={globalConfig.inputMode} 
-                orientation="vertical"
+                orientation="horizontal"
                 align="center"
-                w="750px"
                 variant={"solid"}
                 colorPalette={"green"}
                 onValueChange={(detail) => {
                     updateGlobalConfig({ inputMode: detail.value as Platform });
                 }}
             >
-                <HStack w="100%" justifyContent="center" >
+                <VStack w="180px" justifyContent="start" gap={2} >
                     {Array.from(PlatformLabelMap.entries()).map(([platform, { label }]) => (
-                        <RadioCard.Item key={platform} value={platform} >
+                        <RadioCard.Item key={platform} value={platform} w="100%" >
                             <RadioCard.ItemHiddenInput />
                             <RadioCard.ItemControl>
-                                <Center h="70px" >
-                                    <Icon fontSize={platformIcons.get(platform as Platform)?.size} color={globalConfig.inputMode === platform ? "white" : "fg.muted"}>
-                                        {platformIcons.get(platform as Platform)?.icon}
-                                    </Icon>
-                                </Center>
-                                <RadioCard.ItemText>{label}</RadioCard.ItemText>
+                                <Icon fontSize={platformIcons.get(platform as Platform)?.size} color={globalConfig.inputMode === platform ? "white" : "fg.muted"}>
+                                    {platformIcons.get(platform as Platform)?.icon}
+                                </Icon>
+                                <RadioCard.ItemText fontSize={"xs"} textAlign={"left"} >{label}</RadioCard.ItemText>
                             </RadioCard.ItemControl>
                         </RadioCard.Item>
                     ))}
-                </HStack>
+                </VStack>
             </RadioCard.Root>
-        </Center>
+            </Card.Body>
+        </Card.Root>
     );
 }
 

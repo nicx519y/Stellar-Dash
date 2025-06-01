@@ -57,11 +57,10 @@ using namespace std;
 
 // 处理SPA文件，这些url都指向index.html
 const static char* spaPaths[] = {
-    "/input-mode",
+    "/global",
     "/keys",
     "/leds",
-    "/rapid-trigger",
-    "/hotkeys",
+    "/buttons-travel",
     "/switch-marking",
     "/firmware"
 };

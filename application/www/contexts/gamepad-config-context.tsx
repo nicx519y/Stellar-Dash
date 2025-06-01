@@ -45,6 +45,7 @@ interface GamepadConfigContextType {
     stepMarking: () => Promise<void>;
     fetchMarkingStatus: () => Promise<void>;
     renameMapping: (id: string, name: string) => Promise<void>;
+    deleteCalibrationData: () => Promise<void>;
 }
 
 const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
@@ -711,6 +712,29 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
+    const deleteCalibrationData = async (): Promise<void> => {
+        try {
+            setIsLoading(true);
+            const response = await fetch('/api/delete-calibration-data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            const data = await processResponse(response, setError);
+            if (!data) {
+                return Promise.reject(new Error("Failed to delete calibration data"));
+            }
+            setError(null);
+            return Promise.resolve();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred');
+            return Promise.reject(new Error("Failed to delete calibration data"));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <GamepadConfigContext.Provider value={{
             contextJsReady,
@@ -750,6 +774,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             stopMarking,
             stepMarking,
             renameMapping,
+            deleteCalibrationData,
         }}>
             {children}
         </GamepadConfigContext.Provider>

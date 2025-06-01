@@ -47,7 +47,7 @@ const defaultTriggerConfig: TriggerConfig = {
     releaseAccuracy: 0
 };
 
-export function RapidTriggerContent() {
+export function ButtonsTravelContent() {
     const { defaultProfile, updateProfileDetails, resetProfileDetails } = useGamepadConfig();
     const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
     const { t } = useLanguage();
@@ -72,7 +72,6 @@ export function RapidTriggerContent() {
         setAllBtnsConfig(triggerConfigs.triggerConfigs?.[0] ?? defaultTriggerConfig);
         setIsDirty?.(false);
     }, [defaultProfile]);
-
 
     useEffect(() => {
         if (isAllBtnsConfiguring) {

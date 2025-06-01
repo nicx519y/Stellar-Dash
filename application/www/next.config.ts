@@ -65,7 +65,7 @@ const nextConfig: NextConfig = {
     async rewrites() {
         return [
             {
-                source: '/input-mode',  
+                source: '/global',  
                 destination: '/',
             },
             {
@@ -73,15 +73,11 @@ const nextConfig: NextConfig = {
                 destination: '/',
             },
             {
-                source: '/hotkeys',
-                destination: '/',
-            },
-            {
                 source: '/leds',
                 destination: '/',
             },
             {
-                source: '/rapid-trigger',
+                source: '/buttons-travel',
                 destination: '/',
             },
             {
