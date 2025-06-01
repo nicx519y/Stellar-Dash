@@ -10,9 +10,6 @@ import {
     Box,
     HStack,
     Button,
-    Strong,
-    Portal,
-    HoverCard,
     Switch,
 } from "@chakra-ui/react";
 import { useEffect, useState, useMemo } from "react";
@@ -30,7 +27,6 @@ import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
 import { ContentActionButtons } from "@/components/content-action-buttons";
 import { InputModeSettingContent } from "./input-mode-content";
-import { openForm } from "./dialog-form";
 import { openConfirm } from "./dialog-confirm";
 
 export function GlobalSettingContent() {

@@ -15,9 +15,9 @@ import {
     Color,
     Card,
     Portal,
+    Switch,
 } from "@chakra-ui/react";
 
-import { Switch } from "@/components/ui/switch";
 import {
     RadioCardItem,
     RadioCardRoot,
@@ -237,11 +237,17 @@ export function LEDsSettingContent() {
                                         <VStack gap={8} alignItems={"flex-start"}  >
                                             {/* LED Effect Style */}
 
-                                                <Switch colorPalette={"green"} checked={ledEnabled}
+                                                <Switch.Root colorPalette={"green"} checked={ledEnabled}
                                                     onCheckedChange={() => {
                                                         setLedEnabled(!ledEnabled);
                                                         setIsDirty?.(true);
-                                                    }} >{t.SETTINGS_LEDS_ENABLE_LABEL}</Switch>
+                                                    }} >
+                                                    <Switch.HiddenInput />
+                                                    <Switch.Control>
+                                                        <Switch.Thumb />
+                                                    </Switch.Control>
+                                                    <Switch.Label>{t.SETTINGS_LEDS_ENABLE_LABEL}</Switch.Label>
+                                                </Switch.Root>
                                                 {/* LED Effect Style */}
                                                 <RadioCardRoot
                                                     align="center"

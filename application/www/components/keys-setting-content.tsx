@@ -12,10 +12,10 @@ import {
     Text,
     Card,
     VStack,
+    Switch,
 } from "@chakra-ui/react";
 import KeymappingFieldset from "@/components/keymapping-fieldset";
 import { useEffect, useState } from "react";
-import { Switch } from "@/components/ui/switch";
 import {
     RadioCardItem,
     RadioCardRoot,
@@ -181,7 +181,7 @@ export function KeysSettingContent() {
                                         
                                         {/* Invert Axis Choice & Invert Y Axis Choice & FourWay Mode Choice */}
                                         <HStack gap={5}>
-                                            <Switch
+                                            <Switch.Root
                                                 colorPalette={"green"}
                                                 checked={invertXAxis}
                                                 onCheckedChange={() => {
@@ -189,10 +189,14 @@ export function KeysSettingContent() {
                                                     setIsDirty?.(true);
                                                 }}
                                             >
-                                                {t.SETTINGS_KEYS_INVERT_X_AXIS}
-                                            </Switch>
+                                                <Switch.HiddenInput />
+                                                <Switch.Control>
+                                                    <Switch.Thumb />
+                                                </Switch.Control>
+                                                <Switch.Label>{t.SETTINGS_KEYS_INVERT_X_AXIS}</Switch.Label>
+                                            </Switch.Root>
 
-                                            <Switch
+                                            <Switch.Root
                                                 colorPalette={"green"}
                                                 checked={invertYAxis}
                                                 onCheckedChange={() => {
@@ -200,8 +204,12 @@ export function KeysSettingContent() {
                                                     setIsDirty?.(true);
                                                 }}
                                             >
-                                                {t.SETTINGS_KEYS_INVERT_Y_AXIS}
-                                            </Switch>
+                                                <Switch.HiddenInput />
+                                                <Switch.Control>
+                                                    <Switch.Thumb />
+                                                </Switch.Control>
+                                                <Switch.Label>{t.SETTINGS_KEYS_INVERT_Y_AXIS}</Switch.Label>
+                                            </Switch.Root>
                                             {/* <Switch colorPalette={"green"} checked={fourWayMode} onChange={() => setFourWayMode(!fourWayMode)} >
                                         {t.SETTINGS_KEYS_FOURWAY_MODE}
                                     </Switch>  

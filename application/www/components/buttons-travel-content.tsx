@@ -11,9 +11,9 @@ import {
     Card,
     VStack,
     HStack,
+    Switch,
 } from "@chakra-ui/react";
 import { Slider } from "@chakra-ui/react"
-import { Switch } from "@/components/ui/switch";
 import { useEffect, useState } from "react";
 import { RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS, RapidTriggerConfig } from "@/types/gamepad-config";
 import Hitbox from "@/components/hitbox";
@@ -195,14 +195,20 @@ export function ButtonsTravelContent() {
 
                                     <Fieldset.Content  >
                                         <VStack gap={8} alignItems={"flex-start"} >
-                                            <Switch colorPalette={"green"} checked={isAllBtnsConfiguring}
+                                            <Switch.Root colorPalette={"green"} checked={isAllBtnsConfiguring}
                                                 onCheckedChange={() => {
                                                     switchAllBtnsConfiging(!isAllBtnsConfiguring);
                                                     setIsDirty?.(true);
                                                 }}
                                             >
-                                                <Text fontSize={"sm"} opacity={0.75} >{t.SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL}</Text>
-                                            </Switch>
+                                                <Switch.HiddenInput />
+                                                <Switch.Control>
+                                                    <Switch.Thumb />
+                                                </Switch.Control>
+                                                <Switch.Label>
+                                                    <Text fontSize={"sm"} opacity={0.75} >{t.SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL}</Text>
+                                                </Switch.Label>
+                                            </Switch.Root>
 
                                             <Text opacity={!isAllBtnsConfiguring ? "0.75" : "0.25"} fontSize={"sm"} >
                                                 {(selectedButton !== null && !isAllBtnsConfiguring) ?

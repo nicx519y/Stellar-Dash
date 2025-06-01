@@ -9,7 +9,7 @@
       "id": "profile-1733715985965",
       "name": "NewProfile111",
       "keysConfig": {
-        "invertXAxis": true,
+        "invertXAxis": false,
         "invertYAxis": false,
         "fourWayMode": false,
         "socdMode": 1,

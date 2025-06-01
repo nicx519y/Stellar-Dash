@@ -13,10 +13,10 @@ export function InputModeSettingContent() {
     const { t } = useLanguage();
 
     const platformIcons = new Map<Platform, { icon: React.ReactNode, size: string }>([
-        [Platform.XINPUT, { icon: <BsXbox />, size: "3xl" }],
+        [Platform.XINPUT, { icon: <BsXbox />, size: "2xl" }],
         [Platform.PS4, { icon: <SiPlaystation4 />, size: "3xl" }],
         [Platform.PS5, { icon: <SiPlaystation5 />, size: "3xl" }],
-        [Platform.SWITCH, { icon: <SiNintendoswitch />, size: "3xl" }],
+        [Platform.SWITCH, { icon: <SiNintendoswitch />, size: "2xl" }],
     ]);
 
     return (
@@ -40,7 +40,7 @@ export function InputModeSettingContent() {
                         <RadioCard.Item key={platform} value={platform} w="100%" >
                             <RadioCard.ItemHiddenInput />
                             <RadioCard.ItemControl>
-                                <Icon fontSize={platformIcons.get(platform as Platform)?.size} color={globalConfig.inputMode === platform ? "white" : "fg.muted"}>
+                                <Icon w="35px" fontSize={platformIcons.get(platform as Platform)?.size} color={globalConfig.inputMode === platform ? "white" : "fg.muted"}>
                                     {platformIcons.get(platform as Platform)?.icon}
                                 </Icon>
                                 <RadioCard.ItemText fontSize={"xs"} textAlign={"left"} >{label}</RadioCard.ItemText>
