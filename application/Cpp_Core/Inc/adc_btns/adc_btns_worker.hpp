@@ -73,15 +73,24 @@ class ADCBtnsWorker {
             // 按钮配置
             uint32_t virtualPin = 0;    // 虚拟引脚
             uint8_t pressAccuracyIndex = 0;   // 按下精度 转换成mapping索引数量
-            uint8_t releaseAccuracyIndex = 0; // 释放精度 转换成mapping索引数量
+            uint8_t releaseAccuracyIndex = 0; // 释放精度 转换成mapping索引数量 (0.1mm精度)
             uint8_t topDeadzoneIndex = 0;     // 顶部死区 转换成mapping索引值
-            uint8_t bottomDeadzoneIndex = 0;  // 底部死区 转换成mapping索引值
+            uint8_t bottomDeadzoneIndex = 0;  // 底部死区 转换成mapping索引值 (0.1mm精度)
+            
+            // 高精度配置 (0.01mm精度)
+            uint8_t highPrecisionReleaseAccuracyIndex = 0; // 高精度释放精度索引
+            uint8_t highPrecisionBottomDeadzoneIndex = 0;  // 高精度底部死区索引
 
             // 校准参数
             bool initCompleted = false;     // 初始化完成
             uint8_t lastTriggerIndex = 0;  // 上一次触发索引
 
-            uint16_t valueMapping[MAX_ADC_VALUES_LENGTH] = {0};           // 值映射
+            uint16_t valueMapping[MAX_ADC_VALUES_LENGTH] = {0};           // 值映射 (0.1mm精度)
+            
+            // 高精度映射表 - 用于抬起行程前半段的精确检测
+            uint16_t highPrecisionMapping[MAX_ADC_VALUES_LENGTH * 10] = {0}; // 高精度值映射 (0.01mm精度)
+            uint16_t highPrecisionLength = 0;                                // 高精度映射表长度 (前半段行程)
+            uint8_t halfwayIndex = 0;                                        // 中点索引 (完全按下到弹起一半的位置)
 
             ButtonState state = ButtonState::RELEASED;  // 当前状态
             uint8_t lastStateIndex = 0;                // 进入当前状态时的索引值
@@ -106,6 +115,11 @@ class ADCBtnsWorker {
         void initButtonMapping(ADCBtn* btn, const uint16_t releaseValue);
 
         uint8_t searchIndexInMapping(const uint8_t buttonIndex, const uint16_t value);
+        
+        // 高精度映射表相关函数
+        void initHighPrecisionMapping(ADCBtn* btn);
+        uint8_t searchIndexInHighPrecisionMapping(ADCBtn* btn, const uint16_t value);
+        bool isInHighPrecisionRange(ADCBtn* btn, const uint8_t currentIndex);
 
         ADCBtn* buttonPtrs[NUM_ADC_BUTTONS];
         uint32_t virtualPinMask = 0x0;  // 虚拟引脚掩码

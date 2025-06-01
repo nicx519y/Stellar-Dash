@@ -101,9 +101,30 @@ ADCBtnsError ADCBtnsWorker::setup() {
         // 初始化按钮配置 默认triggerConfig是按照ADCButtonValueInfo的virtualPin排序的
         buttonPtrs[i]->virtualPin = adcBtnInfo.virtualPin;
         buttonPtrs[i]->pressAccuracyIndex = (uint8_t)(triggerConfig->pressAccuracy / this->mapping->step);
-        buttonPtrs[i]->releaseAccuracyIndex = (uint8_t)(triggerConfig->releaseAccuracy / this->mapping->step);
+        
+        // 对于releaseAccuracyIndex，确保至少为1，避免在后半段无法触发释放
+        float_t releaseAccuracyFloat = triggerConfig->releaseAccuracy / this->mapping->step;
+        buttonPtrs[i]->releaseAccuracyIndex = (uint8_t)std::max(1.0f, releaseAccuracyFloat);
+        
         buttonPtrs[i]->topDeadzoneIndex = (uint8_t)(this->mapping->length - 1 - topDeadzoon / this->mapping->step);
-        buttonPtrs[i]->bottomDeadzoneIndex = (uint8_t)(triggerConfig->bottomDeadzone / this->mapping->step);
+        
+        // 对于bottomDeadzoneIndex，也确保合理的值
+        float_t bottomDeadzoneFloat = triggerConfig->bottomDeadzone / this->mapping->step;
+        buttonPtrs[i]->bottomDeadzoneIndex = (uint8_t)bottomDeadzoneFloat;
+
+        // 计算高精度配置 (基于0.01mm精度，即mapping->step/10)
+        float_t highPrecisionStep = this->mapping->step / 10.0f;
+        buttonPtrs[i]->highPrecisionReleaseAccuracyIndex = (uint8_t)std::max(1.0f, triggerConfig->releaseAccuracy / highPrecisionStep);
+        buttonPtrs[i]->highPrecisionBottomDeadzoneIndex = (uint8_t)(triggerConfig->bottomDeadzone / highPrecisionStep);
+
+        APP_DBG("Button %d config: releaseAccuracy=%.2f, bottomDeadzone=%.2f, step=%.2f", 
+                i, triggerConfig->releaseAccuracy, triggerConfig->bottomDeadzone, this->mapping->step);
+        APP_DBG("Button %d raw calculations: releaseAccuracyFloat=%.2f, bottomDeadzoneFloat=%.2f", 
+                i, releaseAccuracyFloat, bottomDeadzoneFloat);
+        APP_DBG("Button %d indexes: releaseAccuracyIndex=%d, bottomDeadzoneIndex=%d", 
+                i, buttonPtrs[i]->releaseAccuracyIndex, buttonPtrs[i]->bottomDeadzoneIndex);
+        APP_DBG("Button %d high precision indexes: releaseAccuracyIndex=%d, bottomDeadzoneIndex=%d", 
+                i, buttonPtrs[i]->highPrecisionReleaseAccuracyIndex, buttonPtrs[i]->highPrecisionBottomDeadzoneIndex);
 
         #if ENABLED_DYNAMIC_CALIBRATION == 1
         buttonPtrs[i]->bottomValueWindow = RingBufferSlidingWindow<uint16_t>(NUM_MAPPING_INDEX_WINDOW_SIZE);
@@ -253,6 +274,15 @@ void ADCBtnsWorker::updateButtonMapping(uint16_t* mapping, uint16_t bottomValue,
         // 确保值在uint16_t范围内
         mapping[i] = (uint16_t)std::max<int32_t>(0, std::min<int32_t>(UINT16_MAX, newValue));
     }
+    
+    // 更新对应按钮的高精度映射表
+    for (uint8_t btnIndex = 0; btnIndex < NUM_ADC_BUTTONS; btnIndex++) {
+        ADCBtn* btn = buttonPtrs[btnIndex];
+        if (btn && btn->valueMapping == mapping) {
+            initHighPrecisionMapping(btn);
+            break;
+        }
+    }
 }
 
 /**
@@ -292,6 +322,9 @@ void ADCBtnsWorker::initButtonMapping(ADCBtn* btn, const uint16_t releaseValue) 
     btn->bottomValueWindow.push(btn->valueMapping[0]);
     btn->topValueWindow.push(btn->valueMapping[mapping->length - 1]);
     #endif
+    
+    // 初始化高精度映射表
+    initHighPrecisionMapping(btn);
 }
 
 /**
@@ -388,7 +421,54 @@ ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint
 
             if(currentIndex > btn->lastStateIndex) {
                 indexDiff = currentIndex - btn->lastStateIndex;
-                if(indexDiff >= btn->releaseAccuracyIndex && currentIndex > btn->bottomDeadzoneIndex) {
+                bool shouldRelease = false;
+                
+                // 根据当前位置选择合适的精度进行释放判断
+                if (isInHighPrecisionRange(btn, currentIndex)) {
+                    // 当前在高精度范围内（前半段），使用高精度检测
+                    uint8_t highPrecisionIndex = searchIndexInHighPrecisionMapping(btn, currentValue);
+                    uint8_t highPrecisionLastIndex = (btn->lastStateIndex <= btn->halfwayIndex) ? 
+                                                    (btn->lastStateIndex * 10) : (btn->halfwayIndex * 10 - 1);
+                    
+                    if (highPrecisionIndex > highPrecisionLastIndex) {
+                        uint8_t highPrecisionDiff = highPrecisionIndex - highPrecisionLastIndex;
+                        
+                        // 使用高精度释放精度和死区判断
+                        if (highPrecisionDiff >= btn->highPrecisionReleaseAccuracyIndex && 
+                            highPrecisionIndex > btn->highPrecisionBottomDeadzoneIndex) {
+                            shouldRelease = true;
+                            APP_DBG("High precision release detected: button %d, highPrecisionIndex: %d, diff: %d", 
+                                    btn->virtualPin, highPrecisionIndex, highPrecisionDiff);
+                        }
+                    }
+                } else {
+                    // 当前在后半段，需要考虑跨边界情况
+                    float_t totalMovement = 0.0f;
+                    
+                    if (btn->lastStateIndex <= btn->halfwayIndex) {
+                        // 跨边界情况：lastStateIndex在前半段，currentIndex在后半段
+                        // 计算从lastStateIndex到边界的高精度移动距离
+                        float_t frontHalfMovement = (btn->halfwayIndex - btn->lastStateIndex) * 10 * (this->mapping->step / 10.0f);
+                        // 计算从边界到currentIndex的常规移动距离
+                        float_t backHalfMovement = (currentIndex - btn->halfwayIndex) * this->mapping->step;
+                        totalMovement = frontHalfMovement + backHalfMovement;
+                        
+                        APP_DBG("Cross-boundary release check: button %d, frontHalf=%.2f, backHalf=%.2f, total=%.2f", 
+                                btn->virtualPin, frontHalfMovement, backHalfMovement, totalMovement);
+                    } else {
+                        // 都在后半段，使用常规计算
+                        totalMovement = indexDiff * this->mapping->step;
+                    }
+                    
+                    // 使用配置的releaseAccuracy进行判断（物理距离）
+                    if (totalMovement >= btn->releaseAccuracyIndex * this->mapping->step && currentIndex > btn->bottomDeadzoneIndex) {
+                        shouldRelease = true;
+                        APP_DBG("Standard precision release detected: button %d, totalMovement=%.2f, required=%.2f", 
+                                btn->virtualPin, totalMovement, btn->releaseAccuracyIndex * this->mapping->step);
+                    }
+                }
+                
+                if (shouldRelease) {
                     btn->lastStateIndex = currentIndex;
 
                     #if ENABLED_DYNAMIC_CALIBRATION == 1
@@ -453,4 +533,129 @@ void ADCBtnsWorker::handleButtonState(ADCBtn* btn, const ButtonEvent event) {
         default:
             break;
     }
+}
+
+/**
+ * 初始化高精度映射表
+ * 为按键抬起行程的前半段（完全按下到弹起一半）生成0.01mm精度的插值映射表
+ * @param btn 按钮指针
+ */
+void ADCBtnsWorker::initHighPrecisionMapping(ADCBtn* btn) {
+    if (!btn || !mapping || mapping->length == 0) {
+        return;
+    }
+
+    // 计算中点索引（完全按下到弹起一半的位置）
+    btn->halfwayIndex = mapping->length / 2;
+    
+    // 确保halfwayIndex不为0，避免除零错误
+    if (btn->halfwayIndex == 0) {
+        btn->halfwayIndex = 1;
+    }
+    
+    // 高精度映射表长度为前半段的10倍精度
+    uint16_t calculatedLength = btn->halfwayIndex * 10;
+    
+    // 边界检查：确保不超过数组大小
+    btn->highPrecisionLength = (calculatedLength > MAX_ADC_VALUES_LENGTH * 10) ? 
+                               MAX_ADC_VALUES_LENGTH * 10 : calculatedLength;
+    
+    // 确保高精度长度至少为1
+    if (btn->highPrecisionLength == 0) {
+        btn->highPrecisionLength = 1;
+    }
+    
+    // 为前半段行程生成10倍精度的插值映射表
+    for (uint16_t i = 0; i < btn->highPrecisionLength; i++) {
+        // 计算在原始映射表中的相对位置
+        float_t relativePos = (btn->highPrecisionLength > 1) ? 
+                             (float_t)i / (btn->highPrecisionLength - 1) : 0.0f;
+        float_t originalIndex = relativePos * (btn->halfwayIndex - 1);
+        
+        // 获取插值的两个端点
+        uint8_t lowerIndex = (uint8_t)originalIndex;
+        uint8_t upperIndex = lowerIndex + 1;
+        
+        // 边界检查
+        if (upperIndex >= btn->halfwayIndex) {
+            upperIndex = btn->halfwayIndex - 1;
+            lowerIndex = upperIndex;
+        }
+        
+        // 确保索引在有效范围内
+        if (lowerIndex >= mapping->length) lowerIndex = mapping->length - 1;
+        if (upperIndex >= mapping->length) upperIndex = mapping->length - 1;
+        
+        // 线性插值
+        float_t fraction = originalIndex - lowerIndex;
+        uint16_t lowerValue = btn->valueMapping[lowerIndex];
+        uint16_t upperValue = btn->valueMapping[upperIndex];
+        
+        btn->highPrecisionMapping[i] = (uint16_t)(lowerValue + fraction * (upperValue - lowerValue));
+    }
+    
+    APP_DBG("ADC_BTNS_WORKER::initHighPrecisionMapping - button %d, halfwayIndex: %d, highPrecisionLength: %d", 
+            btn->virtualPin, btn->halfwayIndex, btn->highPrecisionLength);
+}
+
+/**
+ * 在高精度映射表中搜索索引
+ * @param btn 按钮指针
+ * @param value ADC输入值
+ * @return 返回在高精度映射表中的索引位置
+ */
+uint8_t ADCBtnsWorker::searchIndexInHighPrecisionMapping(ADCBtn* btn, const uint16_t value) {
+    if (!btn || btn->highPrecisionLength == 0) {
+        return 0;
+    }
+
+    const uint16_t doubleNoise = this->mapping->samplingNoise * 2;
+
+    // 处理边界情况
+    if (btn->highPrecisionLength < 2) {
+        return 0;
+    }
+    
+    if (value >= btn->highPrecisionMapping[1]) {
+        return 0;
+    }
+    if (value < btn->highPrecisionMapping[btn->highPrecisionLength - 2] + doubleNoise) {
+        return btn->highPrecisionLength - 1;
+    }
+
+    // 二分查找区间
+    uint16_t left = 1;
+    uint16_t right = btn->highPrecisionLength - 2;
+
+    while (left <= right) {
+        uint16_t mid = (left + right) / 2;
+        
+        // 检查当前区间
+        if (value >= btn->highPrecisionMapping[mid] && value < btn->highPrecisionMapping[mid - 1]) {
+            return (uint8_t)std::min<uint16_t>(mid, 255); // 确保返回值在uint8_t范围内
+        }
+        
+        if (value >= btn->highPrecisionMapping[mid]) {
+            right = mid - 1;
+        } else {
+            left = mid + 1;
+        }
+    }
+
+    return 0;
+}
+
+/**
+ * 判断当前索引是否在高精度检测范围内（前半段行程）
+ * @param btn 按钮指针
+ * @param currentIndex 当前在常规映射表中的索引
+ * @return true表示在高精度范围内，false表示不在
+ */
+bool ADCBtnsWorker::isInHighPrecisionRange(ADCBtn* btn, const uint8_t currentIndex) {
+    if (!btn) {
+        return false;
+    }
+    
+    // 如果当前索引在前半段行程内（从完全按下到弹起一半），则使用高精度检测
+    return currentIndex <= btn->halfwayIndex;
 }
