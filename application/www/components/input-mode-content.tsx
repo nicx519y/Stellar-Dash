@@ -37,12 +37,14 @@ export function InputModeSettingContent() {
             >
                 <VStack w="180px" justifyContent="start" gap={2} >
                     {Array.from(PlatformLabelMap.entries()).map(([platform, { label }]) => (
-                        <RadioCard.Item key={platform} value={platform} w="100%" >
+                        <RadioCard.Item key={platform} value={platform} w="100%"   >
                             <RadioCard.ItemHiddenInput />
                             <RadioCard.ItemControl>
-                                <Icon w="35px" fontSize={platformIcons.get(platform as Platform)?.size} color={globalConfig.inputMode === platform ? "white" : "fg.muted"}>
-                                    {platformIcons.get(platform as Platform)?.icon}
-                                </Icon>
+                                <Center w="35px" h="35px" >
+                                    <Icon fontSize={platformIcons.get(platform as Platform)?.size} color={globalConfig.inputMode === platform ? "white" : "fg.muted"}>
+                                        {platformIcons.get(platform as Platform)?.icon}
+                                    </Icon>
+                                </Center>
                                 <RadioCard.ItemText fontSize={"xs"} textAlign={"left"} >{label}</RadioCard.ItemText>
                             </RadioCard.ItemControl>
                         </RadioCard.Item>
