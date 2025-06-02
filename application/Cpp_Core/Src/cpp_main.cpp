@@ -17,10 +17,10 @@ extern "C" {
     int cpp_main(void) 
     {   
         // 注释掉原有的状态机启动，用于手动校准测试
-        // MAIN_STATE_MACHINE.setup();
+        MAIN_STATE_MACHINE.setup();
 
         // 手动校准测试
-        manual_calibration_test();
+        // manual_calibration_test();
 
         return 0;
     }
@@ -108,7 +108,7 @@ void manual_calibration_test(void) {
         // 每秒更新一次状态
         uint32_t now = HAL_GetTick();
         if (now - last_status_update > 1000) {
-            print_calibration_status();
+            // print_calibration_status();
             last_status_update = now;
             
             // 检查是否全部完成

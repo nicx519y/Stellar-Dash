@@ -241,10 +241,6 @@ ADCBtnsError ADCCalibrationManager::addSample(uint8_t buttonIndex, uint16_t adcV
     // 验证采样值
     ADCBtnsError validateResult = validateSample(buttonIndex, adcValue);
     if (validateResult != ADCBtnsError::SUCCESS) {
-        // 验证失败，清空缓冲区重新开始
-        if(buttonIndex == 0){
-            APP_DBG("Sample validation failed for button %d, restarting sampling", buttonIndex);
-        }
         clearSampleBuffer(buttonIndex);
         return validateResult;
     }
@@ -264,9 +260,9 @@ ADCBtnsError ADCCalibrationManager::addSample(uint8_t buttonIndex, uint16_t adcV
     // 更新采样时间
     state.lastSampleTime = HAL_GetTick();
     
-    if(buttonIndex == 0){
-        APP_DBG("Button %d sample %d: %d (range: %d-%d)", buttonIndex, state.sampleCount, adcValue, state.minSample, state.maxSample);
-    }
+    // if(buttonIndex == 0){
+    //     APP_DBG("Button %d sample %d: %d (range: %d-%d)", buttonIndex, state.sampleCount, adcValue, state.minSample, state.maxSample);
+    // }
     
     // 检查是否收集完所有采样
     if (state.sampleCount >= REQUIRED_SAMPLES) {
@@ -293,9 +289,9 @@ ADCBtnsError ADCCalibrationManager::validateSample(uint8_t buttonIndex, uint16_t
     uint16_t expectedValue = (state.phase == CalibrationPhase::BOTTOM_SAMPLING) ? 
                             state.expectedBottomValue : state.expectedTopValue;
     
-    if(buttonIndex == 0){
-        APP_DBG("Button %d expected value: %d, adcValue: %d, tolerance: %d", buttonIndex, expectedValue, adcValue, state.toleranceRange);
-    }
+    // if(buttonIndex == 0){
+    //     APP_DBG("Button %d expected value: %d, adcValue: %d, tolerance: %d", buttonIndex, expectedValue, adcValue, state.toleranceRange);
+    // }
 
     // 检查值是否在期望范围内
     if (abs((int32_t)adcValue - (int32_t)expectedValue) > state.toleranceRange) {
@@ -350,8 +346,8 @@ ADCBtnsError ADCCalibrationManager::finalizeSampling(uint8_t buttonIndex) {
     if (state.phase == CalibrationPhase::TOP_SAMPLING) {
         // 完成顶部值采样（按键释放状态）
         state.topValue = averageValue;
-        APP_DBG("Button %d top value calibrated (RELEASED): %d (samples: %d, range: %d-%d)", 
-                buttonIndex, averageValue, state.sampleCount, state.minSample, state.maxSample);
+        APP_DBG("Button %d top value calibrated (RELEASED): %d (samples: %d, range: %d-%d, expected: %d)", 
+                buttonIndex, averageValue, state.sampleCount, state.minSample, state.maxSample, state.expectedTopValue);
         
         // 进入底部值采样阶段（按键按下状态）
         setButtonPhase(buttonIndex, CalibrationPhase::BOTTOM_SAMPLING);
@@ -363,8 +359,8 @@ ADCBtnsError ADCCalibrationManager::finalizeSampling(uint8_t buttonIndex) {
     } else if (state.phase == CalibrationPhase::BOTTOM_SAMPLING) {
         // 完成底部值采样（按键按下状态）
         state.bottomValue = averageValue;
-        APP_DBG("Button %d bottom value calibrated (PRESSED): %d (samples: %d, range: %d-%d)", 
-                buttonIndex, averageValue, state.sampleCount, state.minSample, state.maxSample);
+        APP_DBG("Button %d bottom value calibrated (PRESSED): %d (samples: %d, range: %d-%d, expected: %d)", 
+                buttonIndex, averageValue, state.sampleCount, state.minSample, state.maxSample, state.expectedBottomValue);
         
         // 校准完成，标记需要保存到Flash（延迟保存）
         state.isCalibrated = true;

@@ -45,7 +45,7 @@ struct ButtonCalibrationState {
     // 校准配置
     uint16_t expectedBottomValue = 0;                      // 期望的底部值（来自originValues）
     uint16_t expectedTopValue = 0;                         // 期望的顶部值（来自originValues）
-    uint16_t toleranceRange = 5000;                          // 容差范围
+    uint16_t toleranceRange = 3000;                          // 容差范围
     uint16_t stabilityThreshold = 200;                      // 稳定性阈值
     
     // 时间管理（每个按键独立管理）
