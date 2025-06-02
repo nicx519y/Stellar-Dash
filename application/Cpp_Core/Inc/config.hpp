@@ -102,6 +102,7 @@ typedef struct
     uint8_t numProfilesMax;
     GamepadProfile profiles[NUM_PROFILES];
     GamepadHotkeyEntry hotkeys[NUM_GAMEPAD_HOTKEYS];
+    bool autoCalibrationEnabled;
 } Config;
 
 namespace ConfigUtils {

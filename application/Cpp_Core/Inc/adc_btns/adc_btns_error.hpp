@@ -39,6 +39,11 @@ enum class ADCBtnsError {
     CALIBRATION_NOT_STARTED = -31, // 标定未开始
     CALIBRATION_INVALID_DATA = -32,// 标定数据无效
     CALIBRATION_FAILED = -33,      // 标定失败
+    CALIBRATION_VALUES_NOT_FOUND = -34, // 校准值未找到
+    CALIBRATION_VALUES_INVALID = -35,   // 校准值无效
+    CALIBRATION_SAMPLE_OUT_OF_RANGE = -36, // 采样值超出范围
+    CALIBRATION_SAMPLE_UNSTABLE = -37,     // 采样值不稳定
+    CALIBRATION_TIMEOUT = -38,             // 校准超时
 
     // 标记相关错误 (-40 ~ -49)
     ALREADY_MARKING = -40,        // 正在标记中

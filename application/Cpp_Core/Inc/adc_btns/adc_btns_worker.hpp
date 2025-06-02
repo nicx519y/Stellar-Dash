@@ -52,6 +52,10 @@ class ADCBtnsWorker {
 
     private:
 
+        // 校准保存延迟常量 (毫秒)
+        static constexpr uint32_t CALIBRATION_SAVE_DELAY_MS = 5000;  // 5秒后保存
+        static constexpr uint32_t MIN_CALIBRATION_INTERVAL_MS = 1000; // 最小校准间隔1秒
+
         // 按钮状态枚举
         enum class ButtonState {
             RELEASED,       // 完全释放状态
@@ -97,6 +101,9 @@ class ADCBtnsWorker {
 
             #if ENABLED_DYNAMIC_CALIBRATION == 1
             bool needCalibration = false;
+            bool needSaveCalibration = false;          // 需要保存校准值到存储
+            uint32_t lastCalibrationTime = 0;         // 上次校准时间
+            uint32_t lastSaveTime = 0;                // 上次保存时间
             RingBufferSlidingWindow<uint16_t> topValueWindow{NUM_MAPPING_INDEX_WINDOW_SIZE};  // 最小值滑动窗口
             RingBufferSlidingWindow<uint16_t> bottomValueWindow{NUM_MAPPING_INDEX_WINDOW_SIZE};   // 最大值滑动窗口
             uint16_t limitValue = 0;  // 限制值
@@ -113,6 +120,7 @@ class ADCBtnsWorker {
 
         void updateButtonMapping(uint16_t* mapping, uint16_t firstValue, uint16_t lastValue);
         void initButtonMapping(ADCBtn* btn, const uint16_t releaseValue);
+        void initButtonMappingWithCalibration(ADCBtn* btn, uint16_t topValue, uint16_t bottomValue);
 
         uint8_t searchIndexInMapping(const uint8_t buttonIndex, const uint16_t value);
         
@@ -120,6 +128,12 @@ class ADCBtnsWorker {
         void initHighPrecisionMapping(ADCBtn* btn);
         uint8_t searchIndexInHighPrecisionMapping(ADCBtn* btn, const uint16_t value);
         bool isInHighPrecisionRange(ADCBtn* btn, const uint8_t currentIndex);
+
+        #if ENABLED_DYNAMIC_CALIBRATION == 1
+        // 校准保存相关方法
+        void saveCalibrationValues();
+        bool shouldSaveCalibration(ADCBtn* btn, uint32_t currentTime);
+        #endif
 
         ADCBtn* buttonPtrs[NUM_ADC_BUTTONS];
         uint32_t virtualPinMask = 0x0;  // 虚拟引脚掩码

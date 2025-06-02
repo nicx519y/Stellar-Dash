@@ -25,6 +25,18 @@ struct ADCValuesMapping {
     uint16_t samplingNoise;                                 // 噪声阈值
     uint16_t samplingFrequency;                             // 采样频率
     uint32_t originalValues[MAX_ADC_VALUES_LENGTH];         // 采集原始值
+    
+    // 自动校准值：每个按键的初始值(完全按下)和末尾值(完全释放)
+    struct {
+        uint16_t topValue;      // 完全按下时的值(初始值)
+        uint16_t bottomValue;   // 完全释放时的值(末尾值)
+    } autoCalibrationValues[NUM_ADC_BUTTONS];
+    
+    // 手动校准值：每个按键的初始值(完全按下)和末尾值(完全释放)
+    struct {
+        uint16_t topValue;      // 完全按下时的值(初始值)
+        uint16_t bottomValue;   // 完全释放时的值(末尾值)
+    } manualCalibrationValues[NUM_ADC_BUTTONS];
 };
 
 struct ADCValuesMappingStore {
@@ -106,6 +118,12 @@ class ADCManager {
 
         // 获取默认映射
         std::string getDefaultMapping() const;
+
+        // 获取校准值
+        ADCBtnsError getCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCalibration, uint16_t& topValue, uint16_t& bottomValue) const;
+        
+        // 设置校准值
+        ADCBtnsError setCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCalibration, uint16_t topValue, uint16_t bottomValue);
 
         // 开始采样
         ADCBtnsError startADCSamping(bool enableSamplingRate = false, 

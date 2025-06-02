@@ -82,6 +82,9 @@ ADCBtnsError ADCBtnsWorker::setup() {
 
     this->mapping = mapping;
 
+    // 获取校准模式配置
+    bool isAutoCalibrationEnabled = STORAGE_MANAGER.config.autoCalibrationEnabled;
+
     // 计算最小值差值
     minValueDiff = (uint16_t)((float_t)(this->mapping->originalValues[0] - this->mapping->originalValues[this->mapping->length - 1]) * MIN_VALUE_DIFF_RATIO);
     
@@ -117,34 +120,48 @@ ADCBtnsError ADCBtnsWorker::setup() {
         buttonPtrs[i]->highPrecisionReleaseAccuracyIndex = (uint8_t)std::max(1.0f, triggerConfig->releaseAccuracy / highPrecisionStep);
         buttonPtrs[i]->highPrecisionBottomDeadzoneIndex = (uint8_t)(triggerConfig->bottomDeadzone / highPrecisionStep);
 
-        APP_DBG("Button %d config: releaseAccuracy=%.2f, bottomDeadzone=%.2f, step=%.2f", 
-                i, triggerConfig->releaseAccuracy, triggerConfig->bottomDeadzone, this->mapping->step);
-        APP_DBG("Button %d raw calculations: releaseAccuracyFloat=%.2f, bottomDeadzoneFloat=%.2f", 
-                i, releaseAccuracyFloat, bottomDeadzoneFloat);
-        APP_DBG("Button %d indexes: releaseAccuracyIndex=%d, bottomDeadzoneIndex=%d", 
-                i, buttonPtrs[i]->releaseAccuracyIndex, buttonPtrs[i]->bottomDeadzoneIndex);
-        APP_DBG("Button %d high precision indexes: releaseAccuracyIndex=%d, bottomDeadzoneIndex=%d", 
-                i, buttonPtrs[i]->highPrecisionReleaseAccuracyIndex, buttonPtrs[i]->highPrecisionBottomDeadzoneIndex);
+        // 根据校准模式初始化按键映射
+        uint16_t topValue, bottomValue;
+        ADCBtnsError calibrationResult = ADC_MANAGER.getCalibrationValues(id.c_str(), i, isAutoCalibrationEnabled, topValue, bottomValue);
+        
+        if(calibrationResult == ADCBtnsError::SUCCESS && topValue != 0 && bottomValue != 0) {
+            // 使用存储的校准值初始化映射
+            APP_DBG("Using %s calibration values for button %d: top=%d, bottom=%d", 
+                    isAutoCalibrationEnabled ? "auto" : "manual", i, topValue, bottomValue);
+            initButtonMappingWithCalibration(buttonPtrs[i], topValue, bottomValue);
+        } else {
+            // 如果没有校准值，使用默认的偏移初始化方式
+            APP_DBG("No calibration values found for button %d, using default offset initialization", i);
+            // 这里需要等待第一次ADC读取来初始化
+            buttonPtrs[i]->initCompleted = false;
+        }
 
         #if ENABLED_DYNAMIC_CALIBRATION == 1
-        buttonPtrs[i]->bottomValueWindow = RingBufferSlidingWindow<uint16_t>(NUM_MAPPING_INDEX_WINDOW_SIZE);
-        buttonPtrs[i]->topValueWindow = RingBufferSlidingWindow<uint16_t>(NUM_MAPPING_INDEX_WINDOW_SIZE);
-        buttonPtrs[i]->limitValue = UINT16_MAX;
-        buttonPtrs[i]->needCalibration = false;
-
+        // 只有在自动校准模式下才启用动态校准
+        if(isAutoCalibrationEnabled) {
+            buttonPtrs[i]->bottomValueWindow = RingBufferSlidingWindow<uint16_t>(NUM_MAPPING_INDEX_WINDOW_SIZE);
+            buttonPtrs[i]->topValueWindow = RingBufferSlidingWindow<uint16_t>(NUM_MAPPING_INDEX_WINDOW_SIZE);
+            buttonPtrs[i]->limitValue = UINT16_MAX;
+            buttonPtrs[i]->needCalibration = false;
+            buttonPtrs[i]->needSaveCalibration = false;
+            buttonPtrs[i]->lastCalibrationTime = 0;
+            buttonPtrs[i]->lastSaveTime = 0;
+        }
         #endif
-        // 校准参数
-        buttonPtrs[i]->initCompleted = false;
+        
         // 初始化状态
         buttonPtrs[i]->lastStateIndex = 0;
 
-        memset(buttonPtrs[i]->valueMapping, 0, this->mapping->length * sizeof(uint16_t));
-
+        // 如果没有使用校准值初始化，则清空映射数组
+        if(calibrationResult != ADCBtnsError::SUCCESS || topValue == 0 || bottomValue == 0) {
+            memset(buttonPtrs[i]->valueMapping, 0, this->mapping->length * sizeof(uint16_t));
+        }
     }
 
     ADC_MANAGER.startADCSamping();
 
-    APP_DBG("ADCBtnsWorker::setup success. startADCSamping");
+    APP_DBG("ADCBtnsWorker::setup success. Calibration mode: %s", 
+            isAutoCalibrationEnabled ? "Auto" : "Manual");
 
     return ADCBtnsError::SUCCESS;
 }
@@ -224,19 +241,92 @@ uint32_t ADCBtnsWorker::read() {
  * 动态校准
  */
 void ADCBtnsWorker::dynamicCalibration() {
+    // 只有在自动校准模式下才进行动态校准
+    if (!STORAGE_MANAGER.config.autoCalibrationEnabled) {
+        return;
+    }
+    
+    uint32_t currentTime = HAL_GetTick();
+    bool hasCalibrationUpdate = false;
     
     for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
         ADCBtn* const btn = buttonPtrs[i];
         if(btn && btn->needCalibration) {
             
+            // 检查是否满足最小校准间隔
+            if (currentTime - btn->lastCalibrationTime < MIN_CALIBRATION_INTERVAL_MS) {
+                continue;
+            }
+            
             const uint16_t topValue = btn->topValueWindow.getAverageValue();
             const uint16_t bottomValue = std::max<uint16_t>(btn->bottomValueWindow.getAverageValue(), static_cast<uint16_t>(topValue + minValueDiff));
 
             APP_DBG("Dynamic calibration start. button %d, bottomValue: %d, topValue: %d", btn->virtualPin, bottomValue, topValue);
+            
+            // 更新按钮映射
             updateButtonMapping(btn->valueMapping, bottomValue, topValue);
+            
+            // 标记需要保存，但不立即保存
+            btn->needSaveCalibration = true;
+            btn->lastCalibrationTime = currentTime;
             btn->needCalibration = false;
+            hasCalibrationUpdate = true;
+            
+            APP_DBG("Auto calibration updated for button %d: top=%d, bottom=%d (save pending)", i, topValue, bottomValue);
         }
     }
+    
+    // 检查是否需要保存校准值到存储
+    if (hasCalibrationUpdate) {
+        saveCalibrationValues();
+    }
+}
+
+/**
+ * 保存校准值到存储
+ * 使用延迟保存机制，减少Flash写入频率
+ */
+void ADCBtnsWorker::saveCalibrationValues() {
+    std::string mappingId = ADC_MANAGER.getDefaultMapping();
+    if (mappingId.empty()) {
+        return;
+    }
+    
+    uint32_t currentTime = HAL_GetTick();
+    
+    for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        ADCBtn* const btn = buttonPtrs[i];
+        if(btn && btn->needSaveCalibration && shouldSaveCalibration(btn, currentTime)) {
+            
+            const uint16_t topValue = btn->topValueWindow.getAverageValue();
+            const uint16_t bottomValue = std::max<uint16_t>(btn->bottomValueWindow.getAverageValue(), static_cast<uint16_t>(topValue + minValueDiff));
+            
+            // 保存自动校准值到存储
+            ADCBtnsError saveResult = ADC_MANAGER.setCalibrationValues(mappingId.c_str(), i, true, topValue, bottomValue);
+            if (saveResult == ADCBtnsError::SUCCESS) {
+                APP_DBG("Auto calibration values saved to storage for button %d: top=%d, bottom=%d", i, topValue, bottomValue);
+                btn->needSaveCalibration = false;
+                btn->lastSaveTime = currentTime;
+            } else {
+                APP_DBG("Failed to save auto calibration values for button %d", i);
+            }
+        }
+    }
+}
+
+/**
+ * 判断是否应该保存校准值
+ * @param btn 按钮指针
+ * @param currentTime 当前时间
+ * @return true表示应该保存，false表示不应该保存
+ */
+bool ADCBtnsWorker::shouldSaveCalibration(ADCBtn* btn, uint32_t currentTime) {
+    if (!btn || !btn->needSaveCalibration) {
+        return false;
+    }
+    
+    // 检查是否达到保存延迟时间
+    return (currentTime - btn->lastCalibrationTime) >= CALIBRATION_SAVE_DELAY_MS;
 }
 
 #endif
@@ -325,6 +415,53 @@ void ADCBtnsWorker::initButtonMapping(ADCBtn* btn, const uint16_t releaseValue) 
     
     // 初始化高精度映射表
     initHighPrecisionMapping(btn);
+}
+
+/**
+ * 使用校准值初始化按钮映射
+ * @param btn 按钮指针
+ * @param topValue 完全按下时的校准值
+ * @param bottomValue 完全释放时的校准值
+ */
+void ADCBtnsWorker::initButtonMappingWithCalibration(ADCBtn* btn, uint16_t topValue, uint16_t bottomValue) {
+    if (!btn || !mapping || topValue == bottomValue) {
+        return;
+    }
+
+    // 确保topValue < bottomValue (完全按下的值应该小于完全释放的值)
+    if (topValue > bottomValue) {
+        uint16_t temp = topValue;
+        topValue = bottomValue;
+        bottomValue = temp;
+        APP_DBG("ADC_BTNS_WORKER::initButtonMappingWithCalibration - Swapped values: top=%d, bottom=%d", topValue, bottomValue);
+    }
+
+    // 使用校准值更新按钮映射
+    updateButtonMapping(btn->valueMapping, bottomValue, topValue);
+
+    #if ENABLED_DYNAMIC_CALIBRATION == 1
+    // 如果启用了动态校准，初始化滑动窗口
+    if (STORAGE_MANAGER.config.autoCalibrationEnabled) {
+        btn->bottomValueWindow.clear();
+        btn->topValueWindow.clear();
+        btn->limitValue = UINT16_MAX;
+
+        btn->bottomValueWindow.push(bottomValue);
+        btn->topValueWindow.push(topValue);
+        btn->needSaveCalibration = false;
+        btn->lastCalibrationTime = 0;
+        btn->lastSaveTime = 0;
+    }
+    #endif
+    
+    // 初始化高精度映射表
+    initHighPrecisionMapping(btn);
+    
+    // 标记初始化完成
+    btn->initCompleted = true;
+    
+    APP_DBG("ADC_BTNS_WORKER::initButtonMappingWithCalibration - Button %d initialized with calibration: top=%d, bottom=%d", 
+            btn->virtualPin, topValue, bottomValue);
 }
 
 /**

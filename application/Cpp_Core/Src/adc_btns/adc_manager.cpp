@@ -40,7 +40,7 @@ const uint8_t ADC2_BUTTONS_MAPPING[NUM_ADC2_BUTTONS] = ADC2_BUTTONS_MAPPING_DMA_
 const uint8_t ADC3_BUTTONS_MAPPING[NUM_ADC3_BUTTONS] = ADC3_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN;
 
 ADCManager::ADCManager() {
-    
+    APP_DBG("ADCManager constructor");
     // 读取整个存储结构
     QSPI_W25Qxx_ReadBuffer_WithXIPOrNot((uint8_t*)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore));
     
@@ -67,6 +67,7 @@ ADCManager::ADCManager() {
         }
     }
     
+    APP_DBG("ADCManager init: store version - %d, num - %d, defaultId - %s", store.version, store.num, store.defaultId);
 
     // 注册消息
     MC.registerMessage(MessageId::DMA_ADC_CONV_CPLT);           // DMA ADC 转换完成消息
@@ -319,6 +320,79 @@ const ADCValuesMapping* ADCManager::getMapping(const char* const id) const {
     return &store.mapping[idx];
 }
 
+/**
+ * @brief 获取校准值
+ * @param mappingId 映射ID
+ * @param buttonIndex 按钮索引
+ * @param isAutoCalibration 是否为自动校准
+ * @param topValue 返回的顶部值(完全按下)
+ * @param bottomValue 返回的底部值(完全释放)
+ * @return 错误码
+ */
+ADCBtnsError ADCManager::getCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCalibration, uint16_t& topValue, uint16_t& bottomValue) const {
+    if (!mappingId || buttonIndex >= NUM_ADC_BUTTONS) {
+        return ADCBtnsError::INVALID_PARAMS;
+    }
+    
+    int8_t idx = findMappingById(mappingId);
+    if (idx == -1) {
+        return ADCBtnsError::MAPPING_NOT_FOUND;
+    }
+    
+    const ADCValuesMapping& mapping = store.mapping[idx];
+    
+    if (isAutoCalibration) {
+        topValue = mapping.autoCalibrationValues[buttonIndex].topValue;
+        bottomValue = mapping.autoCalibrationValues[buttonIndex].bottomValue;
+    } else {
+        topValue = mapping.manualCalibrationValues[buttonIndex].topValue;
+        bottomValue = mapping.manualCalibrationValues[buttonIndex].bottomValue;
+    }
+    
+    // 检查校准值是否有效
+    if (topValue == 0 && bottomValue == 0) {
+        return ADCBtnsError::CALIBRATION_VALUES_NOT_FOUND;
+    }
+    
+    return ADCBtnsError::SUCCESS;
+}
+
+/**
+ * @brief 设置校准值
+ * @param mappingId 映射ID
+ * @param buttonIndex 按钮索引
+ * @param isAutoCalibration 是否为自动校准
+ * @param topValue 顶部值(完全按下)
+ * @param bottomValue 底部值(完全释放)
+ * @return 错误码
+ */
+ADCBtnsError ADCManager::setCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCalibration, uint16_t topValue, uint16_t bottomValue) {
+    if (!mappingId || buttonIndex >= NUM_ADC_BUTTONS) {
+        return ADCBtnsError::INVALID_PARAMS;
+    }
+    
+    int8_t idx = findMappingById(mappingId);
+    if (idx == -1) {
+        return ADCBtnsError::MAPPING_NOT_FOUND;
+    }
+    
+    ADCValuesMapping& mapping = store.mapping[idx];
+    
+    if (isAutoCalibration) {
+        mapping.autoCalibrationValues[buttonIndex].topValue = topValue;
+        mapping.autoCalibrationValues[buttonIndex].bottomValue = bottomValue;
+    } else {
+        mapping.manualCalibrationValues[buttonIndex].topValue = topValue;
+        mapping.manualCalibrationValues[buttonIndex].bottomValue = bottomValue;
+    }
+    
+    // 保存到存储
+    if (saveStore() != QSPI_W25Qxx_OK) {
+        return ADCBtnsError::MAPPING_UPDATE_FAILED;
+    }
+    
+    return ADCBtnsError::SUCCESS;
+}
 
 // 参数验证辅助函数
 bool validateMarkParams(const char* id, uint32_t* values, uint8_t length) {
