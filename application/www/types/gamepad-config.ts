@@ -696,8 +696,8 @@ export const UI_TEXT_ZH = {
     SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL: "同时配置所有按键",
     
     // 热键设置
-    SETTINGS_HOTKEYS_TITLE: "热键设置",
-    SETTINGS_HOTKEYS_HELPER_TEXT: `最多可以配置${DEFAULT_NUM_HOTKEYS_MAX}个热键来快速访问各种功能。\n- 点击热键区域并在hitbox上按下想要绑定的按键\n- 从下拉列表中选择热键动作\n- 锁定的热键用于网页配置模式，因为这个功能是必需的`,
+    SETTINGS_HOTKEYS_TITLE: "快捷键设置",
+    SETTINGS_HOTKEYS_HELPER_TEXT: `最多可以配置${DEFAULT_NUM_HOTKEYS_MAX}个快捷键来快速访问各种功能。\n- 点击快捷键区域并在左侧hitbox上按下想要绑定的按键\n- 从下拉列表中选择快捷键动作\n- 锁定的快捷键用于网页配置模式，因为这个功能是必需的`,
     
 
     // 配置选择

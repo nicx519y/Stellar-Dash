@@ -75,7 +75,7 @@
           "#E000BF",
           "#000000"
         ],
-        "ledBrightness": 96,
+        "ledBrightness": 100,
         "ledAnimationSpeed": 3
       },
       "triggerConfigs": {
