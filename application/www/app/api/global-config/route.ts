@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getConfig } from '../data/store';
-import { getAutoCalibrationEnabled, getCalibrationStatus } from '../data/calibration_store';
+import { getCalibrationStatus } from '../data/calibration_store';
 
 export async function GET() {
     const config = await getConfig();
@@ -12,7 +12,6 @@ export async function GET() {
     }
     
     // 获取校准相关状态
-    const autoCalibrationEnabled = await getAutoCalibrationEnabled();
     const calibrationStatus = await getCalibrationStatus();
     
     return NextResponse.json({
@@ -20,7 +19,7 @@ export async function GET() {
         data: {
             globalConfig: {
                 inputMode: config.inputMode,
-                autoCalibrationEnabled: autoCalibrationEnabled,
+                autoCalibrationEnabled: config.autoCalibrationEnabled ?? false,
                 manualCalibrationActive: calibrationStatus.isActive,
             },
         },

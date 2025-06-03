@@ -1,6 +1,6 @@
 import { PlatformList } from "@/types/gamepad-config";
 import { getConfig, updateConfig } from "@/app/api/data/store";
-import { setAutoCalibrationEnabled, getCalibrationStatus } from "../data/calibration_store";
+import { getCalibrationStatus } from "../data/calibration_store";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -21,20 +21,21 @@ export async function POST(request: NextRequest) {
     
     // 更新校准模式配置
     if (typeof autoCalibrationEnabled === 'boolean') {
-        await setAutoCalibrationEnabled(autoCalibrationEnabled);
+        await updateConfig({ autoCalibrationEnabled });
     }
     
     // 获取最新的校准状态
     const calibrationStatus = await getCalibrationStatus();
     const config = await getConfig();
     const currentInputMode = config.inputMode;
+    const currentAutoCalibrationEnabled = config.autoCalibrationEnabled;
 
     return NextResponse.json({
         errNo: 0,
         data: {
             globalConfig: { 
                 inputMode: currentInputMode,
-                autoCalibrationEnabled: autoCalibrationEnabled ?? true,
+                autoCalibrationEnabled: currentAutoCalibrationEnabled ?? true,
                 manualCalibrationActive: calibrationStatus.isActive,
             },
         },

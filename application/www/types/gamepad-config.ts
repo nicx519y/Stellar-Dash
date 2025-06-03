@@ -328,12 +328,12 @@ export interface GamepadConfig {
     version?: number;
     inputMode?: Platform;
     defaultProfileId?: string;
-    isCalibrateCompleted?: boolean;
     numProfilesMax?: number;
     ADCButtons?: ADCButton[];
     GPIOButtons?: GPIOButton[];
     profiles?: GameProfile[];
     hotkeys?: Hotkey[];
+    autoCalibrationEnabled?: boolean;
 }
 
 export enum LedsEffectStyle {

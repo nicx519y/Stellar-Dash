@@ -4,14 +4,10 @@ import { CalibrationStatus, CalibrationButtonStatus } from '@/contexts/gamepad-c
 
 const calibrationDataFilePath = path.join(process.cwd(), 'app/api/data/calibration_data.json');
 
-interface CalibrationData extends CalibrationStatus {
-    autoCalibrationEnabled: boolean;
-}
-
 /**
  * 读取校准数据
  */
-async function readCalibrationData(): Promise<CalibrationData> {
+async function readCalibrationData(): Promise<CalibrationStatus> {
     try {
         const data = await fs.readFile(calibrationDataFilePath, 'utf8');
         return JSON.parse(data);
@@ -24,14 +20,14 @@ async function readCalibrationData(): Promise<CalibrationData> {
 /**
  * 写入校准数据
  */
-async function writeCalibrationData(data: CalibrationData): Promise<void> {
+async function writeCalibrationData(data: CalibrationStatus): Promise<void> {
     await fs.writeFile(calibrationDataFilePath, JSON.stringify(data, null, 2), 'utf8');
 }
 
 /**
  * 获取默认校准数据
  */
-function getDefaultCalibrationData(): CalibrationData {
+function getDefaultCalibrationData(): CalibrationStatus {
     const buttons: CalibrationButtonStatus[] = [];
     for (let i = 0; i < 8; i++) {
         buttons.push({
@@ -49,7 +45,6 @@ function getDefaultCalibrationData(): CalibrationData {
         uncalibratedCount: 8,
         activeCalibrationCount: 0,
         allCalibrated: false,
-        autoCalibrationEnabled: true,
         buttons
     };
 }
@@ -95,23 +90,6 @@ export async function getCalibrationStatus(): Promise<CalibrationStatus> {
         allCalibrated: stats.allCalibrated,
         buttons: data.buttons
     };
-}
-
-/**
- * 获取自动校准开关状态
- */
-export async function getAutoCalibrationEnabled(): Promise<boolean> {
-    const data = await readCalibrationData();
-    return data.autoCalibrationEnabled;
-}
-
-/**
- * 设置自动校准开关状态
- */
-export async function setAutoCalibrationEnabled(enabled: boolean): Promise<void> {
-    const data = await readCalibrationData();
-    data.autoCalibrationEnabled = enabled;
-    await writeCalibrationData(data);
 }
 
 /**

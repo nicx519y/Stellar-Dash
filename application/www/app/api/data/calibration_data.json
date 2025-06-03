@@ -1,25 +1,24 @@
 {
   "isActive": false,
-  "uncalibratedCount": 17,
+  "uncalibratedCount": 5,
   "activeCalibrationCount": 0,
   "allCalibrated": false,
-  "autoCalibrationEnabled": false,
   "buttons": [
     {
       "index": 0,
-      "phase": "IDLE",
-      "isCalibrated": false,
-      "topValue": 0,
-      "bottomValue": 0,
-      "ledColor": "RED"
+      "phase": "COMPLETED",
+      "isCalibrated": true,
+      "topValue": 3226,
+      "bottomValue": 406,
+      "ledColor": "GREEN"
     },
     {
       "index": 1,
-      "phase": "IDLE",
-      "isCalibrated": false,
-      "topValue": 0,
-      "bottomValue": 0,
-      "ledColor": "RED"
+      "phase": "COMPLETED",
+      "isCalibrated": true,
+      "topValue": 3492,
+      "bottomValue": 566,
+      "ledColor": "GREEN"
     },
     {
       "index": 2,
@@ -31,33 +30,33 @@
     },
     {
       "index": 3,
-      "phase": "IDLE",
-      "isCalibrated": false,
-      "topValue": 0,
-      "bottomValue": 0,
-      "ledColor": "RED"
+      "phase": "COMPLETED",
+      "isCalibrated": true,
+      "topValue": 3327,
+      "bottomValue": 542,
+      "ledColor": "GREEN"
     },
     {
       "index": 4,
-      "phase": "IDLE",
-      "isCalibrated": false,
-      "topValue": 0,
-      "bottomValue": 0,
-      "ledColor": "RED"
+      "phase": "COMPLETED",
+      "isCalibrated": true,
+      "topValue": 3037,
+      "bottomValue": 455,
+      "ledColor": "GREEN"
     },
     {
       "index": 5,
-      "phase": "IDLE",
-      "isCalibrated": false,
-      "topValue": 0,
-      "bottomValue": 0,
-      "ledColor": "RED"
+      "phase": "COMPLETED",
+      "isCalibrated": true,
+      "topValue": 3703,
+      "bottomValue": 593,
+      "ledColor": "GREEN"
     },
     {
       "index": 6,
       "phase": "IDLE",
       "isCalibrated": false,
-      "topValue": 0,
+      "topValue": 3220,
       "bottomValue": 0,
       "ledColor": "RED"
     },
@@ -71,35 +70,35 @@
     },
     {
       "index": 8,
-      "phase": "IDLE",
-      "isCalibrated": false,
-      "topValue": 0,
-      "bottomValue": 0,
-      "ledColor": "RED"
+      "phase": "COMPLETED",
+      "isCalibrated": true,
+      "topValue": 3761,
+      "bottomValue": 498,
+      "ledColor": "GREEN"
     },
     {
       "index": 9,
-      "phase": "IDLE",
-      "isCalibrated": false,
-      "topValue": 0,
-      "bottomValue": 0,
-      "ledColor": "RED"
+      "phase": "COMPLETED",
+      "isCalibrated": true,
+      "topValue": 3088,
+      "bottomValue": 276,
+      "ledColor": "GREEN"
     },
     {
       "index": 10,
-      "phase": "IDLE",
-      "isCalibrated": false,
-      "topValue": 0,
-      "bottomValue": 0,
-      "ledColor": "RED"
+      "phase": "COMPLETED",
+      "isCalibrated": true,
+      "topValue": 3736,
+      "bottomValue": 452,
+      "ledColor": "GREEN"
     },
     {
       "index": 11,
-      "phase": "IDLE",
-      "isCalibrated": false,
-      "topValue": 0,
-      "bottomValue": 0,
-      "ledColor": "RED"
+      "phase": "COMPLETED",
+      "isCalibrated": true,
+      "topValue": 3416,
+      "bottomValue": 346,
+      "ledColor": "GREEN"
     },
     {
       "index": 12,
@@ -111,19 +110,19 @@
     },
     {
       "index": 13,
-      "phase": "IDLE",
-      "isCalibrated": false,
-      "topValue": 0,
-      "bottomValue": 0,
-      "ledColor": "RED"
+      "phase": "COMPLETED",
+      "isCalibrated": true,
+      "topValue": 3787,
+      "bottomValue": 566,
+      "ledColor": "GREEN"
     },
     {
       "index": 14,
-      "phase": "IDLE",
-      "isCalibrated": false,
-      "topValue": 0,
-      "bottomValue": 0,
-      "ledColor": "RED"
+      "phase": "COMPLETED",
+      "isCalibrated": true,
+      "topValue": 3530,
+      "bottomValue": 375,
+      "ledColor": "GREEN"
     },
     {
       "index": 15,
@@ -135,11 +134,11 @@
     },
     {
       "index": 16,
-      "phase": "IDLE",
-      "isCalibrated": false,
-      "topValue": 0,
-      "bottomValue": 0,
-      "ledColor": "RED"
+      "phase": "COMPLETED",
+      "isCalibrated": true,
+      "topValue": 3996,
+      "bottomValue": 118,
+      "ledColor": "GREEN"
     }
   ]
 }

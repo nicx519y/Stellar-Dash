@@ -2,17 +2,16 @@
   "version": 1,
   "inputMode": "XINPUT",
   "defaultProfileId": "profile-1733715985965",
-  "isCalibrateCompleted": false,
   "numProfilesMax": 16,
   "profiles": [
     {
       "id": "profile-1733715985965",
       "name": "NewProfile111",
       "keysConfig": {
-        "invertXAxis": false,
+        "invertXAxis": true,
         "invertYAxis": false,
         "fourWayMode": false,
-        "socdMode": 1,
+        "socdMode": 0,
         "keyMapping": {
           "L1": [
             13
@@ -388,5 +387,6 @@
       "action": "NSwitchMode",
       "isLocked": false
     }
-  ]
+  ],
+  "autoCalibrationEnabled": false
 }
