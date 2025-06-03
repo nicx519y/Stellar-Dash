@@ -15,7 +15,7 @@ async function readCalibrationData(): Promise<CalibrationData> {
     try {
         const data = await fs.readFile(calibrationDataFilePath, 'utf8');
         return JSON.parse(data);
-    } catch (error) {
+    } catch {
         // 如果文件不存在，返回默认数据
         return getDefaultCalibrationData();
     }
@@ -252,11 +252,8 @@ export async function updateCalibrationProgress(): Promise<CalibrationStatus> {
     data.activeCalibrationCount = stats.activeCalibrationCount;
     data.allCalibrated = stats.allCalibrated;
     
-    // 如果所有按钮都校准完成，停止校准
-    if (data.allCalibrated) {
-        data.isActive = false;
-        data.activeCalibrationCount = 0;
-    }
+    // 移除自动关闭逻辑 - 即使所有按钮都校准完成，也保持校准状态激活
+    // 只有用户手动调用停止接口才会关闭校准模式
     
     await writeCalibrationData(data);
     

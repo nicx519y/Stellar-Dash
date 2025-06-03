@@ -208,13 +208,17 @@ export function LEDsSettingContent() {
                 <Center flex={1}  >
                     <Hitbox
                         hasText={false}
-                        colorEnabled={ledEnabled}
-                        frontColor={GamePadColor.fromString(color1.toString('hex'))}
-                        backColor1={GamePadColor.fromString(color2.toString('hex'))}
-                        backColor2={GamePadColor.fromString(color3.toString('hex'))}
-                        effectStyle={ledsEffectStyle}
-                        brightness={ledBrightness}
-                        animationSpeed={ledAnimationSpeed}
+                        ledsConfig={{
+                            ledsEnabled: ledEnabled,
+                            effectStyle: ledsEffectStyle,
+                            colors: [
+                                GamePadColor.fromString(color1.toString('hex')),
+                                GamePadColor.fromString(color2.toString('hex')),
+                                GamePadColor.fromString(color3.toString('hex'))
+                            ],
+                            brightness: ledBrightness,
+                            animationSpeed: ledAnimationSpeed,
+                        }}
                         interactiveIds={LEDS_SETTINGS_INTERACTIVE_IDS}
                     />
                 </Center>

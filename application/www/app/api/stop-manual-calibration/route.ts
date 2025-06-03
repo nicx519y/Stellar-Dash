@@ -12,7 +12,7 @@ export async function POST() {
                 calibrationStatus: calibrationStatus,
             },
         });
-    } catch (error) {
+    } catch {
         return NextResponse.json({
             errNo: 1,
             errorMessage: 'Failed to stop manual calibration',

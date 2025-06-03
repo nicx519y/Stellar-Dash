@@ -2109,6 +2109,10 @@ std::string apiGetCalibrationStatus() {
     cJSON_AddNumberToObject(statusJSON, "activeCalibrationCount", ADC_CALIBRATION_MANAGER.getActiveCalibrationButtonCount());
     cJSON_AddBoolToObject(statusJSON, "allCalibrated", ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated());
     
+    // 注意：即使所有按钮都校准完成，也不自动关闭校准模式
+    // 只有用户手动调用停止校准接口才会关闭校准模式
+    // 这样设计是为了让用户有机会确认校准结果
+    
     // 添加每个按钮的详细状态
     cJSON* buttonsArray = cJSON_CreateArray();
     

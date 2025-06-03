@@ -1,6 +1,6 @@
 {
   "isActive": false,
-  "uncalibratedCount": 8,
+  "uncalibratedCount": 17,
   "activeCalibrationCount": 0,
   "allCalibrated": false,
   "autoCalibrationEnabled": false,
@@ -63,6 +63,78 @@
     },
     {
       "index": 7,
+      "phase": "IDLE",
+      "isCalibrated": false,
+      "topValue": 0,
+      "bottomValue": 0,
+      "ledColor": "RED"
+    },
+    {
+      "index": 8,
+      "phase": "IDLE",
+      "isCalibrated": false,
+      "topValue": 0,
+      "bottomValue": 0,
+      "ledColor": "RED"
+    },
+    {
+      "index": 9,
+      "phase": "IDLE",
+      "isCalibrated": false,
+      "topValue": 0,
+      "bottomValue": 0,
+      "ledColor": "RED"
+    },
+    {
+      "index": 10,
+      "phase": "IDLE",
+      "isCalibrated": false,
+      "topValue": 0,
+      "bottomValue": 0,
+      "ledColor": "RED"
+    },
+    {
+      "index": 11,
+      "phase": "IDLE",
+      "isCalibrated": false,
+      "topValue": 0,
+      "bottomValue": 0,
+      "ledColor": "RED"
+    },
+    {
+      "index": 12,
+      "phase": "IDLE",
+      "isCalibrated": false,
+      "topValue": 0,
+      "bottomValue": 0,
+      "ledColor": "RED"
+    },
+    {
+      "index": 13,
+      "phase": "IDLE",
+      "isCalibrated": false,
+      "topValue": 0,
+      "bottomValue": 0,
+      "ledColor": "RED"
+    },
+    {
+      "index": 14,
+      "phase": "IDLE",
+      "isCalibrated": false,
+      "topValue": 0,
+      "bottomValue": 0,
+      "ledColor": "RED"
+    },
+    {
+      "index": 15,
+      "phase": "IDLE",
+      "isCalibrated": false,
+      "topValue": 0,
+      "bottomValue": 0,
+      "ledColor": "RED"
+    },
+    {
+      "index": 16,
       "phase": "IDLE",
       "isCalibrated": false,
       "topValue": 0,

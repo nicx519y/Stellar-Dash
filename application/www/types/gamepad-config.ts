@@ -1,3 +1,5 @@
+import { GamePadColor } from "./gamepad-color";
+
 export const NUM_PROFILES_MAX = 8;
 // LEDS animation cycle in milliseconds 
 export const LEDS_ANIMATION_CYCLE = 10000;
@@ -343,6 +345,14 @@ export enum LedsEffectStyle {
     TRANSFORM = 5,
 }
 
+export interface LedsEffectStyleConfig {
+    ledsEnabled: boolean;
+    effectStyle: LedsEffectStyle;
+    colors: GamePadColor[];
+    brightness: number;
+    animationSpeed: number;
+}
+
 export type RapidTriggerConfig = {
     topDeadzone: number;
     bottomDeadzone: number;
@@ -396,6 +406,9 @@ export const UI_TEXT = {
     CALIBRATION_CLEAR_DATA_BUTTON: "Clear Data",
     CALIBRATION_CLEAR_DATA_DIALOG_TITLE: "Clear Calibration Data",
     CALIBRATION_CLEAR_DATA_DIALOG_MESSAGE: "Clearing the calibration data will delete all the calibration data. It will need to be calibrated again. Are you sure you want to clear the calibration data?",
+    CALIBRATION_COMPLETION_DIALOG_TITLE: "Calibration Completed",
+    CALIBRATION_COMPLETION_DIALOG_MESSAGE: "All buttons have been calibrated. Do you want to end the calibration mode? If you want to calibrate again, please clear the calibration data first.",
+
     // Settings Labels
     SETTINGS_SOCD_LABEL: "SOCD Mode",
     SETTINGS_PLATFORM_LABEL: "Platform",
@@ -555,6 +568,8 @@ export const UI_TEXT = {
     // Unsaved Changes Warning
     UNSAVED_CHANGES_WARNING_TITLE: "Are you sure?",
     UNSAVED_CHANGES_WARNING_MESSAGE: "You have unsaved changes. If you leave without saving, your changes will be lost.",
+    CALIBRATION_MODE_WARNING_TITLE: "Calibration in Progress",
+    CALIBRATION_MODE_WARNING_MESSAGE: "Calibration is in progress. You must stop calibration before leaving this page.",
 
     // Hotkeys Actions
     HOTKEY_ACTION_NONE: "None",
@@ -613,6 +628,8 @@ export const UI_TEXT_ZH = {
     CALIBRATION_CLEAR_DATA_BUTTON: "清除数据",
     CALIBRATION_CLEAR_DATA_DIALOG_TITLE: "清除校准数据",
     CALIBRATION_CLEAR_DATA_DIALOG_MESSAGE: "清除校准数据后将无法恢复，需要重新校准，是否确认清除？",
+    CALIBRATION_COMPLETION_DIALOG_TITLE: "校准完成",
+    CALIBRATION_COMPLETION_DIALOG_MESSAGE: "所有按键已校准完成，是否要结束校准模式？如果需要重新校准，请先清除校准数据",
 
     // 设置标签
     SETTINGS_SOCD_LABEL: "SOCD模式",
@@ -775,6 +792,8 @@ export const UI_TEXT_ZH = {
     // Unsaved Changes Warning
     UNSAVED_CHANGES_WARNING_TITLE: "确认离开?",
     UNSAVED_CHANGES_WARNING_MESSAGE: "您有未保存的更改。如果离开而不保存，您的更改将会丢失。",
+    CALIBRATION_MODE_WARNING_TITLE: "校准进行中",
+    CALIBRATION_MODE_WARNING_MESSAGE: "校准正在进行中。在离开此页面之前，您必须停止校准。",
 
     // Hotkeys Actions
     HOTKEY_ACTION_NONE: "无",

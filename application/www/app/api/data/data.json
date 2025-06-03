@@ -70,13 +70,13 @@
       },
       "ledsConfigs": {
         "ledEnabled": true,
-        "ledsEffectStyle": 2,
+        "ledsEffectStyle": 5,
         "ledColors": [
           "#75FA07",
           "#E000BF",
           "#000000"
         ],
-        "ledBrightness": 100,
+        "ledBrightness": 96,
         "ledAnimationSpeed": 3
       },
       "triggerConfigs": {

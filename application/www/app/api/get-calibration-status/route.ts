@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCalibrationStatus, updateCalibrationProgress } from '../data/calibration_store';
+import { updateCalibrationProgress } from '@/app/api/data/calibration_store';
 
 export async function GET() {
     try {
@@ -12,7 +12,7 @@ export async function GET() {
                 calibrationStatus: calibrationStatus,
             },
         });
-    } catch (error) {
+    } catch {
         return NextResponse.json({
             errNo: 1,
             errorMessage: 'Failed to fetch calibration status',

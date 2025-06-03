@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from "react";
-import { HITBOX_BTN_POS_LIST, LEDS_ANIMATION_CYCLE, LedsEffectStyle } from "@/types/gamepad-config";
+import { HITBOX_BTN_POS_LIST, LEDS_ANIMATION_CYCLE, LedsEffectStyle, LedsEffectStyleConfig } from "@/types/gamepad-config";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
@@ -78,46 +78,37 @@ const btnFrameRadiusDistance = 3;
 
 const btnLen = btnPosList.length;
 
-
-
-
-
 /**
  * Hitbox
  * @param props 
  * onClick: (id: number) => void - 点击事件
- * colorEnabled: boolean - 是否用颜色
- * color1: string - 默认颜色
- * color2: string - 呼吸颜色
- * brightness: number - 亮度
- * interactiveIds: number[] - 可交互按钮id列表  
+ * hasText?: boolean - 是否显示文字
+ * ledsConfig?: LedsEffectStyleConfig - LED配置
+ * interactiveIds?: number[] - 可交互按钮id列表  
+ * highlightIds?: number[] - 高亮按钮id列表
+ * buttonsColorList?: GamePadColor[] - 按钮颜色列表，用于批量设置按钮颜色（优先级高于LED配置）
  * @returns 
  */
 export default function Hitbox(props: {
     onClick?: (id: number) => void,
     hasText?: boolean,
-    colorEnabled?: boolean,
-    frontColor?: GamePadColor,
-    backColor1?: GamePadColor,
-    backColor2?: GamePadColor,
-    brightness?: number,
-    effectStyle?: LedsEffectStyle,
+    ledsConfig?: LedsEffectStyleConfig,
     interactiveIds?: number[],
     highlightIds?: number[],
-    animationSpeed?: number,
+    buttonsColorList?: GamePadColor[],
 }) {
 
     const [hasText, _setHasText] = useState(props.hasText ?? true);
 
     const { colorMode } = useColorMode()
-    const frontColorRef = useRef(props.frontColor?.clone() ?? GamePadColor.fromString("#ffffff"));
-    const backColor1Ref = useRef(props.backColor1?.clone() ?? GamePadColor.fromString("#000000"));
-    const backColor2Ref = useRef(props.backColor2?.clone() ?? GamePadColor.fromString("#000000"));
+    const frontColorRef = useRef(props.ledsConfig?.colors[0]?.clone() ?? GamePadColor.fromString("#ffffff"));
+    const backColor1Ref = useRef(props.ledsConfig?.colors[1]?.clone() ?? GamePadColor.fromString("#000000"));
+    const backColor2Ref = useRef(props.ledsConfig?.colors[2]?.clone() ?? GamePadColor.fromString("#000000"));
     const defaultBackColorRef = useRef(colorMode === 'light' ? GamePadColor.fromString("#ffffff") : GamePadColor.fromString("#000000"));
-    const brightnessRef = useRef(props.brightness ?? 100);
-    const animationSpeedRef = useRef(props.animationSpeed ?? 1);
-    const colorEnabledRef = useRef(props.colorEnabled ?? false);
-    const effectStyleRef = useRef(props.effectStyle ?? LedsEffectStyle.STATIC);
+    const brightnessRef = useRef(props.ledsConfig?.brightness ?? 100);
+    const animationSpeedRef = useRef(props.ledsConfig?.animationSpeed ?? 1);
+    const colorEnabledRef = useRef(props.ledsConfig?.ledsEnabled ?? false);
+    const effectStyleRef = useRef(props.ledsConfig?.effectStyle ?? LedsEffectStyle.STATIC);
     const pressedButtonListRef = useRef(Array(btnLen).fill(-1));
     const prevPressedButtonListRef = useRef(Array(btnLen).fill(-1));
 
@@ -172,42 +163,45 @@ export default function Hitbox(props: {
     }, [colorMode]);
 
     useEffect(() => {
-        if (props.frontColor) {
-            frontColorRef.current.setValue(props.frontColor);
+        if (props.ledsConfig?.colors[0]) {
+            frontColorRef.current.setValue(props.ledsConfig.colors[0]);
         }
-    }, [props.frontColor]);
+    }, [props.ledsConfig?.colors[0]]);
 
     useEffect(() => {
-        if (props.backColor1) {
-            backColor1Ref.current.setValue(props.backColor1);
+        if (props.ledsConfig?.colors[1]) {
+            backColor1Ref.current.setValue(props.ledsConfig.colors[1]);
         }
-    }, [props.backColor1]);
+    }, [props.ledsConfig?.colors[1]]);
 
     useEffect(() => {
-        if (props.backColor2) {
-            backColor2Ref.current.setValue(props.backColor2);
+        if (props.ledsConfig?.colors[2]) {
+            backColor2Ref.current.setValue(props.ledsConfig.colors[2]);
         }
-    }, [props.backColor2]);
+    }, [props.ledsConfig?.colors[2]]);
 
     useEffect(() => {
-        brightnessRef.current = props.brightness ?? 100;
-    }, [props.brightness]);
+        brightnessRef.current = props.ledsConfig?.brightness ?? 100;
+    }, [props.ledsConfig?.brightness]);
 
     useEffect(() => {
-        animationSpeedRef.current = props.animationSpeed ?? 1;
-    }, [props.animationSpeed]);
+        animationSpeedRef.current = props.ledsConfig?.animationSpeed ?? 1;
+    }, [props.ledsConfig?.animationSpeed]);
 
     useEffect(() => {
-        effectStyleRef.current = props.effectStyle ?? LedsEffectStyle.STATIC;
-    }, [props.effectStyle]);
+        effectStyleRef.current = props.ledsConfig?.effectStyle ?? LedsEffectStyle.STATIC;
+    }, [props.ledsConfig?.effectStyle]);
 
     useEffect(() => {
-        colorEnabledRef.current = props.colorEnabled ?? true;
-    }, [props.colorEnabled]);
+        colorEnabledRef.current = props.ledsConfig?.ledsEnabled ?? true;
+    }, [props.ledsConfig?.ledsEnabled]);
 
     useEffect(() => {
-        if (props.colorEnabled) {
+        if (props.ledsConfig?.ledsEnabled) {
             startAnimation();
+        } else if (props.buttonsColorList && props.buttonsColorList.length > 0) {
+            // 如果有自定义颜色列表，启动自定义颜色渲染
+            startCustomColorAnimation();
         } else {
             stopAnimation();
             clearButtonsColor();
@@ -217,8 +211,57 @@ export default function Hitbox(props: {
             stopAnimation();
             timerRef.current = 0;
         };
-    }, [props.colorEnabled]);
+    }, [props.ledsConfig?.ledsEnabled]);
 
+    // 当 buttonsColorList 变化时，处理自定义颜色渲染
+    useEffect(() => {
+        if (props.buttonsColorList && props.buttonsColorList.length > 0) {
+            // 停止 LED 动画，启动自定义颜色渲染
+            stopAnimation();
+            startCustomColorAnimation();
+        } else if (props.ledsConfig?.ledsEnabled) {
+            // 恢复 LED 动画
+            startAnimation();
+        } else {
+            stopAnimation();
+            clearButtonsColor();
+        }
+    }, [props.buttonsColorList]);
+
+    /**
+     * 自定义颜色动画渲染
+     */
+    const animateCustomColors = () => {
+        if (props.buttonsColorList && props.buttonsColorList.length > 0) {
+            updateButtonsWithCustomColors(props.buttonsColorList);
+        }
+        
+        // 继续下一帧渲染
+        animationFrameRef.current = requestAnimationFrame(animateCustomColors);
+    };
+
+    /**
+     * 启动自定义颜色动画
+     */
+    const startCustomColorAnimation = () => {
+        if (!animationFrameRef.current) {
+            animationFrameRef.current = requestAnimationFrame(animateCustomColors);
+        }
+    };
+
+    /**
+     * 使用自定义颜色列表更新按钮颜色
+     */
+    const updateButtonsWithCustomColors = (colorList: GamePadColor[]) => {
+        circleRefs.current.forEach((circle, index) => {
+            if (circle && index < colorList.length && colorList[index]) {
+                circle.setAttribute('fill', colorList[index].toString('css'));
+            } else if (circle) {
+                // 如果没有提供颜色，使用默认背景色
+                circle.setAttribute('fill', defaultBackColorRef.current.toString('css'));
+            }
+        });
+    };
 
     // leds 颜色动画
     const animate = () => {
@@ -227,7 +270,6 @@ export default function Hitbox(props: {
         const cycle = LEDS_ANIMATION_CYCLE / animationSpeedRef.current;
         const progress = (deltaTime % cycle) / cycle;
 
-        console.log(effectStyleRef.current);
         const algorithm = ledAnimations[effectStyleRef.current];
 
         let global: {
