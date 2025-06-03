@@ -83,7 +83,9 @@ export const PlatformLabelMap = new Map<Platform, { label: string, description: 
 ]);
 
 export interface GlobalConfig {
-    inputMode: Platform;
+    inputMode?: Platform;
+    autoCalibrationEnabled?: boolean;
+    manualCalibrationActive?: boolean;
 }
 
 export enum GameControllerButton {
@@ -387,6 +389,7 @@ export const UI_TEXT = {
 
     // Calibration
     AUTO_CALIBRATION_TITLE: "Auto Calibration",
+    MANUAL_CALIBRATION_TITLE: "Manual Calibration",
     CALIBRATION_HELPER_TEXT: "calibration is the process of finding the optimal button travel for the gamepad. It is a process of finding the optimal button travel for the gamepad.",
     CALIBRATION_START_BUTTON: "Start Calibration",
     CALIBRATION_STOP_BUTTON: "Stop Calibration",
@@ -603,6 +606,7 @@ export const UI_TEXT_ZH = {
     
     // 校准
     AUTO_CALIBRATION_TITLE: "自动磁轴校准",
+    MANUAL_CALIBRATION_TITLE: "手动磁轴校准",
     CALIBRATION_HELPER_TEXT: "磁轴校准是找到控制器最佳按键行程的过程。它是找到控制器最佳按键行程的过程。",
     CALIBRATION_START_BUTTON: "开始校准",
     CALIBRATION_STOP_BUTTON: "停止校准",

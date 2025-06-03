@@ -95,7 +95,6 @@ const btnLen = btnPosList.length;
  */
 export default function Hitbox(props: {
     onClick?: (id: number) => void,
-    hasLeds?: boolean,
     hasText?: boolean,
     colorEnabled?: boolean,
     frontColor?: GamePadColor,
@@ -108,7 +107,6 @@ export default function Hitbox(props: {
     animationSpeed?: number,
 }) {
 
-    const [hasLeds, _setHasLeds] = useState(props.hasLeds ?? false);
     const [hasText, _setHasText] = useState(props.hasText ?? true);
 
     const { colorMode } = useColorMode()
@@ -208,15 +206,18 @@ export default function Hitbox(props: {
     }, [props.colorEnabled]);
 
     useEffect(() => {
-        if (hasLeds) {
+        if (props.colorEnabled) {
             startAnimation();
+        } else {
+            stopAnimation();
+            clearButtonsColor();
         }
         // 清理函数
         return () => {
             stopAnimation();
             timerRef.current = 0;
         };
-    }, [hasLeds]);
+    }, [props.colorEnabled]);
 
 
     // leds 颜色动画
@@ -292,6 +293,14 @@ export default function Hitbox(props: {
             animationFrameRef.current = undefined;
         }
     };
+
+    const clearButtonsColor = () => {
+        circleRefs.current.forEach((circle) => {
+            if (circle) {
+                circle.setAttribute('fill', defaultBackColorRef.current.toString('css'));
+            }
+        });
+    }
 
     return (
         <Box display={contextJsReady ? "block" : "none"} >

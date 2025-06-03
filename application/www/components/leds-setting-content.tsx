@@ -207,7 +207,6 @@ export function LEDsSettingContent() {
                 </Center>
                 <Center flex={1}  >
                     <Hitbox
-                        hasLeds={true}
                         hasText={false}
                         colorEnabled={ledEnabled}
                         frontColor={GamePadColor.fromString(color1.toString('hex'))}

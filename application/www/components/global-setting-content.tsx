@@ -31,8 +31,19 @@ import { openConfirm } from "./dialog-confirm";
 
 export function GlobalSettingContent() {
     const { t } = useLanguage();
-    const { hotkeysConfig, updateHotkeysConfig, fetchHotkeysConfig, deleteCalibrationData } = useGamepadConfig();
-    const [autoCalibration, setAutoCalibration] = useState<boolean>(false);
+    const { 
+        hotkeysConfig, 
+        updateHotkeysConfig, 
+        fetchHotkeysConfig, 
+        clearManualCalibrationData,
+        calibrationStatus,
+        startManualCalibration,
+        stopManualCalibration,
+        // fetchCalibrationStatus,
+        globalConfig,
+        updateGlobalConfig,
+    } = useGamepadConfig();
+
     const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
 
     const [hotkeys, setHotkeys] = useState<Hotkey[]>([]);
@@ -98,14 +109,26 @@ export function GlobalSettingContent() {
         }
     };
 
-    const onDeleteCalibrationConfirm = async () => {
-        return await deleteCalibrationData();
+    const onDeleteCalibrationConfirm = () => {
+        return clearManualCalibrationData();
+    }
+
+    const onStartManualCalibration = () => {
+        startManualCalibration();
+    }
+
+    const onEndManualCalibration = () => {
+        stopManualCalibration();
+    }
+
+    const switchAutoCalibration = () => {
+        updateGlobalConfig({ autoCalibrationEnabled: !globalConfig.autoCalibrationEnabled });
     }
 
     return (
         <Flex direction="row" width={"100%"} height={"100%"} padding="18px">
             <Center>
-                <InputModeSettingContent />
+                <InputModeSettingContent disabled={calibrationStatus.isActive} />
             </Center>
             <Center flex={1} >
                 <Center padding="80px 30px" position="relative"   >
@@ -114,30 +137,43 @@ export function GlobalSettingContent() {
                             <Card.Body p="10px" >
                                 <Flex direction="row" gap={2} w="500px" >
                                     <Center>
-                                        <Switch.Root colorPalette={"green"} checked={autoCalibration}
-                                            onCheckedChange={() => {
-                                                setAutoCalibration(!autoCalibration);
-                                            }} >
+                                        <Switch.Root colorPalette={"green"} checked={globalConfig.autoCalibrationEnabled}
+                                            onCheckedChange={switchAutoCalibration} >
                                             <Switch.HiddenInput />
                                             <Switch.Control>
                                                 <Switch.Thumb />
                                             </Switch.Control>
-                                            <Switch.Label >{t.AUTO_CALIBRATION_TITLE}</Switch.Label>
+                                            <Switch.Label >{globalConfig.autoCalibrationEnabled ? t.AUTO_CALIBRATION_TITLE : t.MANUAL_CALIBRATION_TITLE}</Switch.Label>
                                         </Switch.Root>
                                     </Center>
                                     <HStack flex={1} justifyContent="flex-end" >
-                                        <Button colorPalette={"green"} size={"xs"} w="130px"  >{t.CALIBRATION_START_BUTTON}</Button>
-                                        <Button colorPalette={"red"} size={"xs"} w="130px" variant="surface" onClick={deleteCalibrationDataClick} >{t.CALIBRATION_CLEAR_DATA_BUTTON}</Button>
+                                        <Button
+                                            disabled={globalConfig.autoCalibrationEnabled}
+                                            colorPalette={calibrationStatus.isActive ? "blue" : "green"} size={"xs"} w="130px" 
+                                            onClick={calibrationStatus.isActive ? onEndManualCalibration : onStartManualCalibration}  >
+                                                { calibrationStatus.isActive ? t.CALIBRATION_STOP_BUTTON : t.CALIBRATION_START_BUTTON}
+                                        </Button>
+                                        <Button 
+                                            disabled={globalConfig.autoCalibrationEnabled}
+                                            colorPalette={"red"} size={"xs"} w="130px" variant="surface" 
+                                            onClick={deleteCalibrationDataClick} >
+                                                {t.CALIBRATION_CLEAR_DATA_BUTTON}
+                                        </Button>
                                     </HStack>
                                 </Flex>
 
                             </Card.Body>
                         </Card.Root>
                     </Box>
-                    <Hitbox
-                        interactiveIds={HOTKEYS_SETTINGS_INTERACTIVE_IDS}
-                        onClick={handleHitboxClick}
-                    />
+                    {!calibrationStatus.isActive && (
+                        <Hitbox
+                            interactiveIds={HOTKEYS_SETTINGS_INTERACTIVE_IDS}
+                            onClick={handleHitboxClick}
+                        />
+                    )}
+                    {calibrationStatus.isActive && (
+                        <Hitbox />
+                    )}
                 </Center>
             </Center>
             <Center>
@@ -164,18 +200,19 @@ export function GlobalSettingContent() {
                                             }}
                                             isActive={i === activeHotkeyIndex}
                                             onFieldClick={(index) => setActiveHotkeyIndex(index)}
-                                            disabled={hotkeys[i]?.isLocked ?? false}
+                                            disabled={(hotkeys[i]?.isLocked || calibrationStatus.isActive) ?? false}
                                         />
                                     ))}
 
 
-                                </Stack>
+                                </Stack> 
                             </Fieldset.Content>
                         </Fieldset.Root>
                     </Card.Body>
                     <Card.Footer justifyContent={"flex-start"} >
                         <ContentActionButtons
                             isDirty={_isDirty}
+                            disabled={calibrationStatus.isActive}
                             resetLabel={t.BUTTON_RESET}
                             saveLabel={t.BUTTON_SAVE}
                             resetHandler={fetchHotkeysConfig}

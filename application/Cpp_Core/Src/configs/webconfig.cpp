@@ -1,6 +1,7 @@
 #include "configs/webconfig.hpp"
 #include "qspi-w25q64.h"
 #include "board_cfg.h"
+#include "adc_btns/adc_calibration.hpp"
 
 extern "C" struct fsdata_file file__index_html[];
 
@@ -1868,7 +1869,9 @@ std::string apiMSGetMapping() {
  *      "errNo": 0,
  *      "data": {
  *          "globalConfig": {
- *              "inputMode": "XINPUT"
+ *              "inputMode": "XINPUT",
+ *              "autoCalibrationEnabled": true,
+ *              "manualCalibrationActive": false
  *          }
  *      }
  * }
@@ -1888,6 +1891,12 @@ std::string apiGetGlobalConfig() {
     }
     cJSON_AddStringToObject(globalConfigJSON, "inputMode", modeStr);
     
+    // 添加自动校准模式状态
+    cJSON_AddBoolToObject(globalConfigJSON, "autoCalibrationEnabled", config.autoCalibrationEnabled);
+    
+    // 添加手动校准状态
+    cJSON_AddBoolToObject(globalConfigJSON, "manualCalibrationActive", ADC_CALIBRATION_MANAGER.isCalibrationActive());
+    
     // 构建返回结构
     cJSON_AddItemToObject(dataJSON, "globalConfig", globalConfigJSON);
     
@@ -1904,7 +1913,9 @@ std::string apiGetGlobalConfig() {
  *      "errNo": 0,
  *      "data": {
  *          "globalConfig": {
- *              "inputMode": "XINPUT"
+ *              "inputMode": "XINPUT",
+ *              "autoCalibrationEnabled": true,
+ *              "manualCalibrationActive": false
  *          }
  *      }
  * }
@@ -1917,9 +1928,10 @@ std::string apiUpdateGlobalConfig() {
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Invalid parameters");
     }
 
-    // 更新inputMode
+    // 更新全局配置
     cJSON* globalConfig = cJSON_GetObjectItem(params, "globalConfig");
     if(globalConfig) {
+        // 更新输入模式
         cJSON* inputModeItem = cJSON_GetObjectItem(globalConfig, "inputMode");
         if(inputModeItem && cJSON_IsString(inputModeItem)) {
             // 使用反向映射表查找对应的InputMode枚举值
@@ -1930,6 +1942,12 @@ std::string apiUpdateGlobalConfig() {
             } else {
                 config.inputMode = InputMode::INPUT_MODE_XINPUT; // 默认值
             }
+        }
+        
+        // 更新自动校准模式
+        cJSON* autoCalibrationItem = cJSON_GetObjectItem(globalConfig, "autoCalibrationEnabled");
+        if(autoCalibrationItem) {
+            config.autoCalibrationEnabled = cJSON_IsTrue(autoCalibrationItem);
         }
     }
 
@@ -1951,6 +1969,12 @@ std::string apiUpdateGlobalConfig() {
     }
     cJSON_AddStringToObject(globalConfigJSON, "inputMode", modeStr);
     
+    // 添加自动校准模式状态
+    cJSON_AddBoolToObject(globalConfigJSON, "autoCalibrationEnabled", config.autoCalibrationEnabled);
+    
+    // 添加手动校准状态
+    cJSON_AddBoolToObject(globalConfigJSON, "manualCalibrationActive", ADC_CALIBRATION_MANAGER.isCalibrationActive());
+    
     // 构建返回结构
     cJSON_AddItemToObject(dataJSON, "globalConfig", globalConfigJSON);
     
@@ -1958,6 +1982,225 @@ std::string apiUpdateGlobalConfig() {
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
     
     cJSON_Delete(params);
+    
+    return response;
+}
+
+/**
+ * @brief 开始手动校准
+ * @return std::string 
+ * {
+ *      "errNo": 0,
+ *      "data": {
+ *          "message": "Manual calibration started",
+ *          "calibrationStatus": {
+ *              "isActive": true,
+ *              "uncalibratedCount": 8,
+ *              "activeCalibrationCount": 8,
+ *              "allCalibrated": false
+ *          }
+ *      }
+ * }
+ */
+std::string apiStartManualCalibration() {
+    // 开始手动校准
+    ADCBtnsError error = ADC_CALIBRATION_MANAGER.startManualCalibration();
+    if(error != ADCBtnsError::SUCCESS) {
+        return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to start manual calibration");
+    }
+    
+    // 创建响应数据
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(dataJSON, "message", "Manual calibration started");
+    
+    // 添加校准状态信息
+    cJSON* statusJSON = cJSON_CreateObject();
+    cJSON_AddBoolToObject(statusJSON, "isActive", ADC_CALIBRATION_MANAGER.isCalibrationActive());
+    cJSON_AddNumberToObject(statusJSON, "uncalibratedCount", ADC_CALIBRATION_MANAGER.getUncalibratedButtonCount());
+    cJSON_AddNumberToObject(statusJSON, "activeCalibrationCount", ADC_CALIBRATION_MANAGER.getActiveCalibrationButtonCount());
+    cJSON_AddBoolToObject(statusJSON, "allCalibrated", ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated());
+    
+    cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
+    
+    // 获取标准格式的响应
+    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    
+    return response;
+}
+
+/**
+ * @brief 结束手动校准
+ * @return std::string 
+ * {
+ *      "errNo": 0,
+ *      "data": {
+ *          "message": "Manual calibration stopped",
+ *          "calibrationStatus": {
+ *              "isActive": false,
+ *              "uncalibratedCount": 3,
+ *              "activeCalibrationCount": 0,
+ *              "allCalibrated": false
+ *          }
+ *      }
+ * }
+ */
+std::string apiStopManualCalibration() {
+    // 停止手动校准
+    ADCBtnsError error = ADC_CALIBRATION_MANAGER.stopCalibration();
+    if(error != ADCBtnsError::SUCCESS) {
+        return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to stop manual calibration");
+    }
+    
+    // 创建响应数据
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(dataJSON, "message", "Manual calibration stopped");
+    
+    // 添加校准状态信息
+    cJSON* statusJSON = cJSON_CreateObject();
+    cJSON_AddBoolToObject(statusJSON, "isActive", ADC_CALIBRATION_MANAGER.isCalibrationActive());
+    cJSON_AddNumberToObject(statusJSON, "uncalibratedCount", ADC_CALIBRATION_MANAGER.getUncalibratedButtonCount());
+    cJSON_AddNumberToObject(statusJSON, "activeCalibrationCount", ADC_CALIBRATION_MANAGER.getActiveCalibrationButtonCount());
+    cJSON_AddBoolToObject(statusJSON, "allCalibrated", ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated());
+    
+    cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
+    
+    // 获取标准格式的响应
+    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    
+    return response;
+}
+
+/**
+ * @brief 获取校准状态
+ * @return std::string 
+ * {
+ *      "errNo": 0,
+ *      "data": {
+ *          "calibrationStatus": {
+ *              "isActive": true,
+ *              "uncalibratedCount": 3,
+ *              "activeCalibrationCount": 8,
+ *              "allCalibrated": false,
+ *              "buttons": [
+ *                  {
+ *                      "index": 0,
+ *                      "phase": "TOP_SAMPLING",
+ *                      "sampleCount": 5,
+ *                      "isCalibrated": false,
+ *                      "topValue": 0,
+ *                      "bottomValue": 0,
+ *                      "expectedTopValue": 3900,
+ *                      "expectedBottomValue": 100,
+ *                      "ledColor": "CYAN"
+ *                  }
+ *              ]
+ *          }
+ *      }
+ * }
+ */
+std::string apiGetCalibrationStatus() {
+    // 创建响应数据
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON* statusJSON = cJSON_CreateObject();
+    
+    // 添加总体校准状态
+    cJSON_AddBoolToObject(statusJSON, "isActive", ADC_CALIBRATION_MANAGER.isCalibrationActive());
+    cJSON_AddNumberToObject(statusJSON, "uncalibratedCount", ADC_CALIBRATION_MANAGER.getUncalibratedButtonCount());
+    cJSON_AddNumberToObject(statusJSON, "activeCalibrationCount", ADC_CALIBRATION_MANAGER.getActiveCalibrationButtonCount());
+    cJSON_AddBoolToObject(statusJSON, "allCalibrated", ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated());
+    
+    // 添加每个按钮的详细状态
+    cJSON* buttonsArray = cJSON_CreateArray();
+    
+    for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        cJSON* buttonJSON = cJSON_CreateObject();
+        
+        cJSON_AddNumberToObject(buttonJSON, "index", i);
+        
+        // 获取校准阶段
+        CalibrationPhase phase = ADC_CALIBRATION_MANAGER.getButtonPhase(i);
+        const char* phaseStr = "IDLE";
+        switch(phase) {
+            case CalibrationPhase::IDLE: phaseStr = "IDLE"; break;
+            case CalibrationPhase::TOP_SAMPLING: phaseStr = "TOP_SAMPLING"; break;
+            case CalibrationPhase::BOTTOM_SAMPLING: phaseStr = "BOTTOM_SAMPLING"; break;
+            case CalibrationPhase::COMPLETED: phaseStr = "COMPLETED"; break;
+            case CalibrationPhase::ERROR: phaseStr = "ERROR"; break;
+        }
+        cJSON_AddStringToObject(buttonJSON, "phase", phaseStr);
+        
+        // 获取校准状态
+        cJSON_AddBoolToObject(buttonJSON, "isCalibrated", ADC_CALIBRATION_MANAGER.isButtonCalibrated(i));
+        
+        // 获取校准值
+        uint16_t topValue = 0, bottomValue = 0;
+        ADC_CALIBRATION_MANAGER.getCalibrationValues(i, topValue, bottomValue);
+        cJSON_AddNumberToObject(buttonJSON, "topValue", topValue);
+        cJSON_AddNumberToObject(buttonJSON, "bottomValue", bottomValue);
+        
+        // 获取LED颜色
+        CalibrationLEDColor ledColor = ADC_CALIBRATION_MANAGER.getButtonLEDColor(i);
+        const char* colorStr = "OFF";
+        switch(ledColor) {
+            case CalibrationLEDColor::OFF: colorStr = "OFF"; break;
+            case CalibrationLEDColor::RED: colorStr = "RED"; break;
+            case CalibrationLEDColor::CYAN: colorStr = "CYAN"; break;
+            case CalibrationLEDColor::DARK_BLUE: colorStr = "DARK_BLUE"; break;
+            case CalibrationLEDColor::GREEN: colorStr = "GREEN"; break;
+            case CalibrationLEDColor::YELLOW: colorStr = "YELLOW"; break;
+        }
+        cJSON_AddStringToObject(buttonJSON, "ledColor", colorStr);
+        
+        cJSON_AddItemToArray(buttonsArray, buttonJSON);
+    }
+    
+    cJSON_AddItemToObject(statusJSON, "buttons", buttonsArray);
+    cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
+    
+    // 获取标准格式的响应
+    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    
+    return response;
+}
+
+/**
+ * @brief 清除手动校准数据
+ * @return std::string 
+ * {
+ *      "errNo": 0,
+ *      "data": {
+ *          "message": "Manual calibration data cleared successfully",
+ *          "calibrationStatus": {
+ *              "isActive": false,
+ *              "uncalibratedCount": 8,
+ *              "activeCalibrationCount": 0,
+ *              "allCalibrated": false
+ *          }
+ *      }
+ * }
+ */
+std::string apiClearManualCalibrationData() {
+    // 清除所有手动校准数据
+    ADCBtnsError error = ADC_CALIBRATION_MANAGER.resetAllCalibration();
+    if(error != ADCBtnsError::SUCCESS) {
+        return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to clear manual calibration data");
+    }
+    
+    // 创建响应数据
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(dataJSON, "message", "Manual calibration data cleared successfully");
+    
+    // 添加清除后的校准状态信息
+    cJSON* statusJSON = cJSON_CreateObject();
+    cJSON_AddBoolToObject(statusJSON, "isActive", ADC_CALIBRATION_MANAGER.isCalibrationActive());
+    cJSON_AddNumberToObject(statusJSON, "uncalibratedCount", ADC_CALIBRATION_MANAGER.getUncalibratedButtonCount());
+    cJSON_AddNumberToObject(statusJSON, "activeCalibrationCount", ADC_CALIBRATION_MANAGER.getActiveCalibrationButtonCount());
+    cJSON_AddBoolToObject(statusJSON, "allCalibrated", ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated());
+    
+    cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
+    
+    // 获取标准格式的响应
+    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
     
     return response;
 }
@@ -1990,6 +2233,10 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/ms-mark-mapping-stop", apiMSMarkMappingStop },    // 停止标记
     { "/api/ms-mark-mapping-step", apiMSMarkMappingStep },    // 标记步进
     { "/api/ms-get-mapping", apiMSGetMapping },              // 获取轴体映射
+    { "/api/start-manual-calibration", apiStartManualCalibration }, // 开始手动校准
+    { "/api/stop-manual-calibration", apiStopManualCalibration },   // 结束手动校准
+    { "/api/get-calibration-status", apiGetCalibrationStatus },     // 获取校准状态
+    { "/api/clear-manual-calibration-data", apiClearManualCalibrationData }, // 清除手动校准数据
 #if !defined(NDEBUG)
     // { "/api/echo", echo },
 #endif

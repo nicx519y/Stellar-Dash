@@ -2,13 +2,15 @@
 
 import { PlatformLabelMap, Platform } from '@/types/gamepad-config';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
-import { Card, Center, HStack, Icon, RadioCard, VStack } from '@chakra-ui/react';
+import { Card, Center, Icon, RadioCard, VStack } from '@chakra-ui/react';
 import { BsXbox } from "react-icons/bs";
 import { SiNintendoswitch, SiPlaystation4, SiPlaystation5   } from "react-icons/si";
 import { useLanguage } from '@/contexts/language-context';
 
 
-export function InputModeSettingContent() {
+export function InputModeSettingContent(props: {
+        disabled?: boolean,
+    }) {
     const { globalConfig, updateGlobalConfig } = useGamepadConfig();
     const { t } = useLanguage();
 
@@ -37,7 +39,7 @@ export function InputModeSettingContent() {
             >
                 <VStack w="180px" justifyContent="start" gap={2} >
                     {Array.from(PlatformLabelMap.entries()).map(([platform, { label }]) => (
-                        <RadioCard.Item key={platform} value={platform} w="100%"   >
+                        <RadioCard.Item key={platform} value={platform} w="100%" disabled={props.disabled}   >
                             <RadioCard.ItemHiddenInput />
                             <RadioCard.ItemControl>
                                 <Center w="35px" h="35px" >

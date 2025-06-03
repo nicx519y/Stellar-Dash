@@ -1,28 +1,42 @@
 import { PlatformList } from "@/types/gamepad-config";
-import { updateConfig } from "@/app/api/data/store";
+import { getConfig, updateConfig } from "@/app/api/data/store";
+import { setAutoCalibrationEnabled, getCalibrationStatus } from "../data/calibration_store";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
     const { globalConfig } = await request.json();
 
-    const { inputMode } = globalConfig;
+    const { inputMode, autoCalibrationEnabled } = globalConfig;
 
-    if (!inputMode) {
-        return NextResponse.json({ error: "Input mode is required" }, { status: 400 });
+    if(inputMode) {
+        const inputModeList = PlatformList;
+
+        if (!inputModeList.includes(inputMode)) {
+            return NextResponse.json({ error: "Invalid input mode" }, { status: 400 });
+        }
+        
+        // 更新基础配置
+        await updateConfig({ inputMode });
     }
     
-    const inputModeList = PlatformList;
-
-    if (!inputModeList.includes(inputMode)) {
-        return NextResponse.json({ error: "Invalid input mode" }, { status: 400 });
+    // 更新校准模式配置
+    if (typeof autoCalibrationEnabled === 'boolean') {
+        await setAutoCalibrationEnabled(autoCalibrationEnabled);
     }
     
-    await updateConfig(globalConfig);
+    // 获取最新的校准状态
+    const calibrationStatus = await getCalibrationStatus();
+    const config = await getConfig();
+    const currentInputMode = config.inputMode;
 
     return NextResponse.json({
         errNo: 0,
         data: {
-            globalConfig: { inputMode },
+            globalConfig: { 
+                inputMode: currentInputMode,
+                autoCalibrationEnabled: autoCalibrationEnabled ?? true,
+                manualCalibrationActive: calibrationStatus.isActive,
+            },
         },
     });
 }

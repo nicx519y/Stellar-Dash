@@ -8,6 +8,7 @@ import { LuGamepad2 } from "react-icons/lu";
 
 export function ContentActionButtons(
     props: {
+        disabled?: boolean,
         resetLabel: string;
         saveLabel: string;
         isDirty: boolean;
@@ -26,7 +27,7 @@ export function ContentActionButtons(
                 size="md"
                 width="140px"
                 onClick={resetHandler}
-                disabled={!isDirty}
+                disabled={!isDirty || props.disabled}
             >
                 {resetLabel}
             </Button>
@@ -35,11 +36,12 @@ export function ContentActionButtons(
                 size="md"
                 width="140px"
                 onClick={saveHandler}
-                disabled={!isDirty}
+                disabled={!isDirty || props.disabled}
             >
                 {saveLabel}
             </Button>
             <Button
+                disabled={props.disabled}
                 colorPalette="blue"
                 variant="solid"
                 size="md"

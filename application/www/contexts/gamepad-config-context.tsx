@@ -7,6 +7,24 @@ import { GameProfile,
         GameControllerButton, Hotkey, RapidTriggerConfig, GameProfileList, GlobalConfig } from '@/types/gamepad-config';
 import { StepInfo, ADCValuesMapping } from '@/types/adc';
 
+// 校准状态类型定义
+export interface CalibrationButtonStatus {
+    index: number;
+    phase: 'IDLE' | 'TOP_SAMPLING' | 'BOTTOM_SAMPLING' | 'COMPLETED' | 'ERROR';
+    isCalibrated: boolean;
+    topValue: number;
+    bottomValue: number;
+    ledColor: 'OFF' | 'RED' | 'CYAN' | 'DARK_BLUE' | 'GREEN' | 'YELLOW';
+}
+
+export interface CalibrationStatus {
+    isActive: boolean;
+    uncalibratedCount: number;
+    activeCalibrationCount: number;
+    allCalibrated: boolean;
+    buttons: CalibrationButtonStatus[];
+}
+
 interface GamepadConfigContextType {
     contextJsReady: boolean;
     setContextJsReady: (ready: boolean) => void;
@@ -29,6 +47,12 @@ interface GamepadConfigContextType {
     error: string | null;
     setError: (error: string | null) => void;
     rebootSystem: () => Promise<void>;
+    // 校准相关
+    calibrationStatus: CalibrationStatus;
+    startManualCalibration: () => Promise<void>;
+    stopManualCalibration: () => Promise<void>;
+    fetchCalibrationStatus: () => Promise<void>;
+    clearManualCalibrationData: () => Promise<void>;
     // ADC Mapping 相关
     defaultMappingId: string;
     markingStatus: StepInfo;
@@ -45,7 +69,6 @@ interface GamepadConfigContextType {
     stepMarking: () => Promise<void>;
     fetchMarkingStatus: () => Promise<void>;
     renameMapping: (id: string, name: string) => Promise<void>;
-    deleteCalibrationData: () => Promise<void>;
 }
 
 const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
@@ -110,6 +133,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [error, setError] = useState<string | null>(null);
     const [hotkeysConfig, setHotkeysConfig] = useState<Hotkey[]>([]);
     const [jsReady, setJsReady] = useState(false);
+    const [calibrationStatus, setCalibrationStatus] = useState<CalibrationStatus>({
+        isActive: false,
+        uncalibratedCount: 0,
+        activeCalibrationCount: 0,
+        allCalibrated: false,
+        buttons: []
+    });
     const [defaultMappingId, setDefaultMappingId] = useState<string>("");
     const [mappingList, setMappingList] = useState<{ id: string, name: string }[]>([]);
     const [markingStatus, setMarkingStatus] = useState<StepInfo>({
@@ -712,10 +742,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const deleteCalibrationData = async (): Promise<void> => {
+    const startManualCalibration = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/delete-calibration-data', {
+            const response = await fetch('/api/start-manual-calibration', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -723,13 +753,83 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             });
             const data = await processResponse(response, setError);
             if (!data) {
-                return Promise.reject(new Error("Failed to delete calibration data"));
+                return Promise.reject(new Error("Failed to start manual calibration"));
             }
+            setCalibrationStatus(data.calibrationStatus);
             setError(null);
             return Promise.resolve();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to delete calibration data"));
+            return Promise.reject(new Error("Failed to start manual calibration"));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const stopManualCalibration = async (): Promise<void> => {
+        try {
+            setIsLoading(true);
+            const response = await fetch('/api/stop-manual-calibration', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            const data = await processResponse(response, setError);
+            if (!data) {
+                return Promise.reject(new Error("Failed to stop manual calibration"));
+            }
+            setCalibrationStatus(data.calibrationStatus);
+            setError(null);
+            return Promise.resolve();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred');
+            return Promise.reject(new Error("Failed to stop manual calibration"));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const fetchCalibrationStatus = async (): Promise<void> => {
+        try {
+            const response = await fetch('/api/get-calibration-status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            const data = await processResponse(response, setError);
+            if (!data) {
+                return Promise.reject(new Error("Failed to fetch calibration status"));
+            }
+            setCalibrationStatus(data.calibrationStatus);
+            setError(null);
+            return Promise.resolve();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred');
+            return Promise.reject(new Error("Failed to fetch calibration status"));
+        }
+    };
+
+    const clearManualCalibrationData = async (): Promise<void> => {
+        try {
+            setIsLoading(true);
+            const response = await fetch('/api/clear-manual-calibration-data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            const data = await processResponse(response, setError);
+            if (!data) {
+                return Promise.reject(new Error("Failed to clear manual calibration data"));
+            }
+            setCalibrationStatus(data.calibrationStatus);
+            setError(null);
+            return Promise.resolve();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred');
+            return Promise.reject(new Error("Failed to clear manual calibration data"));
         } finally {
             setIsLoading(false);
         }
@@ -758,6 +858,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             error,
             setError,
             rebootSystem,
+            // 校准相关
+            calibrationStatus,
+            startManualCalibration,
+            stopManualCalibration,
+            fetchCalibrationStatus,
+            clearManualCalibrationData,
             // ADC Mapping 相关
             defaultMappingId: defaultMappingId,
             markingStatus,
@@ -774,7 +880,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             stopMarking,
             stepMarking,
             renameMapping,
-            deleteCalibrationData,
         }}>
             {children}
         </GamepadConfigContext.Provider>
