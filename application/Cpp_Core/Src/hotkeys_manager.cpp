@@ -38,17 +38,17 @@ void HotkeysManager::runAction(GamepadHotkey hotkeyAction) {
             STORAGE_MANAGER.saveConfig();
             NVIC_SystemReset();
             break;
-        case GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION_START:
-            STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_CALIBRATION);
-            STORAGE_MANAGER.saveConfig();
-            break;
-        case GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION_STOP:
-            STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
-            STORAGE_MANAGER.saveConfig();
-            break;
-        case GamepadHotkey::HOTKEY_CLEAR_CALIBRATION_DATA:
-            ADC_CALIBRATION_MANAGER.resetAllCalibration();
-            break;
+        // case GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION_START:
+        //     STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_CALIBRATION);
+        //     STORAGE_MANAGER.saveConfig();
+        //     break;
+        // case GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION_STOP:
+        //     STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
+        //     STORAGE_MANAGER.saveConfig();
+        //     break;
+        // case GamepadHotkey::HOTKEY_CLEAR_CALIBRATION_DATA:
+        //     ADC_CALIBRATION_MANAGER.resetAllCalibration();
+        //     break;
         case GamepadHotkey::HOTKEY_INPUT_MODE_XINPUT:
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
             STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_XINPUT);
