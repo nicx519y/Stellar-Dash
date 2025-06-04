@@ -122,13 +122,15 @@ int set_file_data_with_status_code(fs_file* file, const DataAndStatusCode& dataA
     }
 
     returnData.clear();
-    returnData.append("HTTP/1.0 ");
+    returnData.append("HTTP/1.1 ");
     returnData.append(statusCodeStr);
     returnData.append("\r\n");
     returnData.append(
         "Server: Ionix-HitBox \r\n"
         "Content-Type: application/json\r\n"
         "Access-Control-Allow-Origin: *\r\n"
+        "Connection: keep-alive\r\n"
+        "Keep-Alive: timeout=5, max=100\r\n"
         "Content-Length: "
     );
     returnData.append(std::to_string(dataAndStatusCode.data.length()));
@@ -140,7 +142,7 @@ int set_file_data_with_status_code(fs_file* file, const DataAndStatusCode& dataA
     file->data = returnData.c_str();
     file->len = returnData.size();
     file->index = file->len;
-    file->http_header_included = file->http_header_included;
+    file->http_header_included = 1;
     file->pextension = NULL;
 
     return 1;

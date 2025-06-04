@@ -7,6 +7,35 @@ import { GameProfile,
         GameControllerButton, Hotkey, RapidTriggerConfig, GameProfileList, GlobalConfig } from '@/types/gamepad-config';
 import { StepInfo, ADCValuesMapping } from '@/types/adc';
 
+// 创建自定义fetch函数来支持Keep-Alive
+const createFetchWithKeepAlive = () => {
+    // 配置选项
+    const defaultOptions: RequestInit = {
+        keepalive: true,
+        headers: {
+            'Content-Type': 'application/json',
+            'Connection': 'keep-alive'
+        }
+    };
+
+    return async (url: string, options: RequestInit = {}): Promise<Response> => {
+        // 合并默认选项和传入的选项
+        const mergedOptions: RequestInit = {
+            ...defaultOptions,
+            ...options,
+            headers: {
+                ...defaultOptions.headers,
+                ...options.headers
+            }
+        };
+
+        return fetch(url, mergedOptions);
+    };
+};
+
+// 创建全局的fetch实例
+const fetchWithKeepAlive = createFetchWithKeepAlive();
+
 // 校准状态类型定义
 export interface CalibrationButtonStatus {
     index: number;
@@ -180,11 +209,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const fetchDefaultProfile = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/default-profile', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithKeepAlive('/api/default-profile', {
+                method: 'GET'
             });
             const data = await processResponse(response, setError);
             if (!data) {
@@ -203,11 +229,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const fetchProfileList = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/profile-list', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithKeepAlive('/api/profile-list', {
+                method: 'GET'
             }); 
             const data = await processResponse(response, setError);
             if (!data) {
@@ -226,11 +249,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const fetchHotkeysConfig = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/hotkeys-config', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithKeepAlive('/api/hotkeys-config', {
+                method: 'GET'
             });
             const data = await processResponse(response, setError);
             if (!data) {
@@ -249,11 +269,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const updateProfileDetails = async (profileId: string, profileDetails: GameProfile): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/update-profile', {
+            const response = await fetchWithKeepAlive('/api/update-profile', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({ profileId, profileDetails }),
             });
 
@@ -285,11 +302,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const createProfile = async (profileName: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/create-profile', {
+            const response = await fetchWithKeepAlive('/api/create-profile', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({ profileName }),
             });
 
@@ -311,11 +325,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const deleteProfile = async (profileId: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/delete-profile', {
+            const response = await fetchWithKeepAlive('/api/delete-profile', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({ profileId }),
             });
 
@@ -337,11 +348,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const switchProfile = async (profileId: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/switch-default-profile', {
+            const response = await fetchWithKeepAlive('/api/switch-default-profile', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({ profileId }),
             });
             const data = await processResponse(response, setError);
@@ -362,11 +370,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const updateHotkeysConfig = async (hotkeysConfig: Hotkey[]): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/update-hotkeys-config', {
+            const response = await fetchWithKeepAlive('/api/update-hotkeys-config', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({ hotkeysConfig }),
             });
             const data = await processResponse(response, setError);
@@ -387,7 +392,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const rebootSystem = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/reboot', {
+            const response = await fetchWithKeepAlive('/api/reboot', {
                 method: 'POST',
             });
 
@@ -408,11 +413,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const fetchMappingList = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/ms-get-list', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithKeepAlive('/api/ms-get-list', {
+                method: 'GET'
             });
             const data = await processResponse(response, setError);
             if (!data) {
@@ -433,11 +435,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const fetchDefaultMapping = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/ms-get-default', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithKeepAlive('/api/ms-get-default', {
+                method: 'GET'
             });
             const data = await processResponse(response, setError);
             if (!data) {
@@ -456,11 +455,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const createMapping = async (name: string, length: number, step: number): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/ms-create-mapping', {
+            const response = await fetchWithKeepAlive('/api/ms-create-mapping', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({ name, length, step }),
             });
             const data = await processResponse(response, setError);
@@ -482,11 +478,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const deleteMapping = async (id: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/ms-delete-mapping', {
+            const response = await fetchWithKeepAlive('/api/ms-delete-mapping', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({ id }),
             });
             const data = await processResponse(response, setError);
@@ -508,11 +501,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const updateDefaultMapping = async (id: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/ms-set-default', {
+            const response = await fetchWithKeepAlive('/api/ms-set-default', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({ id }),
             });
             const data = await processResponse(response, setError);
@@ -533,11 +523,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const startMarking = async (id: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/ms-mark-mapping-start', {
+            const response = await fetchWithKeepAlive('/api/ms-mark-mapping-start', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({ id }),
             });
             const data = await processResponse(response, setError);
@@ -562,11 +549,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const stopMarking = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/ms-mark-mapping-stop', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithKeepAlive('/api/ms-mark-mapping-stop', {
+                method: 'GET'
             });
             const data = await processResponse(response, setError);
             if (!data) {
@@ -590,11 +574,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const stepMarking = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/ms-mark-mapping-step', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithKeepAlive('/api/ms-mark-mapping-step', {
+                method: 'GET'
             });
             const data = await processResponse(response, setError);
             if (!data) {
@@ -617,11 +598,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const fetchMarkingStatus = async (): Promise<void> => {
         try {
-            const response = await fetch('/api/ms-get-mark-status', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithKeepAlive('/api/ms-get-mark-status', {
+                method: 'GET'
             });
             const data = await processResponse(response, setError);
             if (!data) {
@@ -643,11 +621,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const fetchActiveMapping = async (id: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/ms-get-mapping', {
+            const response = await fetchWithKeepAlive('/api/ms-get-mapping', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({ id }),
             });
 
@@ -672,11 +647,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const renameMapping = async (id: string, name: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/ms-rename-mapping', {
+            const response = await fetchWithKeepAlive('/api/ms-rename-mapping', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({ id, name }),
             });
             const data = await processResponse(response, setError);
@@ -698,11 +670,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const fetchGlobalConfig = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/global-config', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithKeepAlive('/api/global-config', {
+                method: 'GET'
             });
             const data = await processResponse(response, setError);
             if (!data) {
@@ -721,11 +690,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const updateGlobalConfig = async (globalConfig: GlobalConfig): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/update-global-config', {
+            const response = await fetchWithKeepAlive('/api/update-global-config', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({ globalConfig }),
             });
             const data = await processResponse(response, setError);
@@ -745,11 +711,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const startManualCalibration = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/start-manual-calibration', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithKeepAlive('/api/start-manual-calibration', {
+                method: 'GET'
             });
             const data = await processResponse(response, setError);
             if (!data) {
@@ -769,11 +732,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const stopManualCalibration = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/stop-manual-calibration', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithKeepAlive('/api/stop-manual-calibration', {
+                method: 'GET'
             });
             const data = await processResponse(response, setError);
             if (!data) {
@@ -792,11 +752,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const fetchCalibrationStatus = async (): Promise<void> => {
         try {
-            const response = await fetch('/api/get-calibration-status', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithKeepAlive('/api/get-calibration-status', {
+                method: 'GET'
             });
             const data = await processResponse(response, setError);
             if (!data) {
@@ -814,11 +771,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const clearManualCalibrationData = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetch('/api/clear-manual-calibration-data', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithKeepAlive('/api/clear-manual-calibration-data', {
+                method: 'GET'
             });
             const data = await processResponse(response, setError);
             if (!data) {
