@@ -11,6 +11,8 @@ import {
     HStack,
     Button,
     Switch,
+    Popover,
+    Portal,
 } from "@chakra-ui/react";
 import { useEffect, useState, useMemo } from "react";
 import {
@@ -33,10 +35,10 @@ import { useNavigationBlocker } from '@/hooks/use-navigation-blocker';
 
 export function GlobalSettingContent() {
     const { t } = useLanguage();
-    const { 
-        hotkeysConfig, 
-        updateHotkeysConfig, 
-        fetchHotkeysConfig, 
+    const {
+        hotkeysConfig,
+        updateHotkeysConfig,
+        fetchHotkeysConfig,
         clearManualCalibrationData,
         calibrationStatus,
         startManualCalibration,
@@ -50,6 +52,7 @@ export function GlobalSettingContent() {
 
     const [hotkeys, setHotkeys] = useState<Hotkey[]>([]);
     const [activeHotkeyIndex, setActiveHotkeyIndex] = useState<number>(0);
+    const [calibrationTipOpen, setCalibrationTipOpen] = useState<boolean>(false);
     const [hasShownCompletionDialog, setHasShownCompletionDialog] = useState<boolean>(false);
 
     // 添加校准模式检查
@@ -83,7 +86,7 @@ export function GlobalSettingContent() {
             'YELLOW': GamePadColor.fromString('#FFFF00'),   // 黄色 - 校准出错
         };
 
-        const colors = calibrationStatus.buttons.map(button => 
+        const colors = calibrationStatus.buttons.map(button =>
             colorMap[button.ledColor] || GamePadColor.fromString('#808080') // 默认灰色
         );
 
@@ -122,12 +125,12 @@ export function GlobalSettingContent() {
 
     // 检测校准完成状态，显示确认对话框
     useEffect(() => {
-        if (calibrationStatus.isActive && 
-            calibrationStatus.allCalibrated && 
+        if (calibrationStatus.isActive &&
+            calibrationStatus.allCalibrated &&
             !hasShownCompletionDialog) {
-            
+
             setHasShownCompletionDialog(true);
-            
+
             showCompletionDialog();
         }
     }, [calibrationStatus.isActive, calibrationStatus.allCalibrated, hasShownCompletionDialog, stopManualCalibration]);
@@ -224,9 +227,9 @@ export function GlobalSettingContent() {
                             <Card.Body p="10px" >
                                 <Flex direction="row" gap={2} w="500px" >
                                     <Center>
-                                        <Switch.Root 
+                                        <Switch.Root
                                             disabled={calibrationStatus.isActive}
-                                            colorPalette={"green"} 
+                                            colorPalette={"green"}
                                             checked={globalConfig.autoCalibrationEnabled}
                                             onCheckedChange={switchAutoCalibration} >
                                             <Switch.HiddenInput />
@@ -237,21 +240,40 @@ export function GlobalSettingContent() {
                                         </Switch.Root>
                                     </Center>
                                     <HStack flex={1} justifyContent="flex-end" >
+                                        <Popover.Root open={calibrationTipOpen} >
+                                            <Popover.Trigger asChild>
+                                                <Button
+                                                    disabled={globalConfig.autoCalibrationEnabled}
+                                                    colorPalette={calibrationStatus.isActive ? "blue" : "green"}
+                                                    size="xs"
+                                                    w="130px"
+                                                    onMouseEnter={!calibrationStatus.isActive ? () => setCalibrationTipOpen(true) : undefined}
+                                                    onMouseLeave={!calibrationStatus.isActive ? () => setCalibrationTipOpen(false) : undefined}
+                                                    onClick={calibrationStatus.isActive ? onEndManualCalibration : onStartManualCalibration}
+                                                >
+                                                    {calibrationStatus.isActive ? t.CALIBRATION_STOP_BUTTON : t.CALIBRATION_START_BUTTON}
+                                                </Button>
+                                            </Popover.Trigger>
+                                            <Portal>
+                                                <Popover.Positioner>
+                                                    <Popover.Content>
+                                                        <Popover.Arrow />
+                                                        <Popover.Body>
+                                                            <Text fontSize={"xs"} whiteSpace="pre-wrap" >{t.CALIBRATION_TIP_MESSAGE}</Text>
+                                                        </Popover.Body>
+                                                    </Popover.Content>
+                                                </Popover.Positioner>
+                                            </Portal>
+                                        </Popover.Root>
+
                                         <Button
-                                            disabled={globalConfig.autoCalibrationEnabled}
-                                            colorPalette={calibrationStatus.isActive ? "blue" : "green"} size={"xs"} w="130px" 
-                                            onClick={calibrationStatus.isActive ? onEndManualCalibration : onStartManualCalibration}  >
-                                                { calibrationStatus.isActive ? t.CALIBRATION_STOP_BUTTON : t.CALIBRATION_START_BUTTON}
-                                        </Button>
-                                        <Button 
                                             disabled={globalConfig.autoCalibrationEnabled || calibrationStatus.isActive}
-                                            colorPalette={"red"} size={"xs"} w="130px" variant="surface" 
+                                            colorPalette={"red"} size={"xs"} w="130px" variant="surface"
                                             onClick={deleteCalibrationDataClick} >
-                                                {t.CALIBRATION_CLEAR_DATA_BUTTON}
+                                            {t.CALIBRATION_CLEAR_DATA_BUTTON}
                                         </Button>
                                     </HStack>
                                 </Flex>
-
                             </Card.Body>
                         </Card.Root>
                     </Box>
@@ -262,7 +284,7 @@ export function GlobalSettingContent() {
                         />
                     )}
                     {calibrationStatus.isActive && (
-                        <Hitbox 
+                        <Hitbox
                             hasText={false}
                             buttonsColorList={calibrationButtonColors}
                         />
@@ -298,7 +320,7 @@ export function GlobalSettingContent() {
                                     ))}
 
 
-                                </Stack> 
+                                </Stack>
                             </Fieldset.Content>
                         </Fieldset.Root>
                     </Card.Body>

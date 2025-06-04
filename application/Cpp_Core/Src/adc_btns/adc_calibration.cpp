@@ -51,13 +51,13 @@ ADCBtnsError ADCCalibrationManager::startManualCalibration() {
         }
     }
     
-    if (uncalibratedCount == 0) {
-        // 所有按键都已校准
-        calibrationActive = false;
-        APP_DBG("All buttons are already calibrated");
-        updateAllLEDs();
-        return ADCBtnsError::SUCCESS;
-    }
+    // if (uncalibratedCount == 0) {
+    //     // 所有按键都已校准
+    //     calibrationActive = false;
+    //     APP_DBG("All buttons are already calibrated");
+    //     updateAllLEDs();
+    //     return ADCBtnsError::SUCCESS;
+    // }
     
     // 更新所有LED状态
     updateAllLEDs();
@@ -410,17 +410,15 @@ void ADCCalibrationManager::checkCalibrationCompletion() {
     }
     
     if (allCompleted && calibrationActive) {
-        calibrationActive = false;
-        
+        // 不自动退出校准状态，只做数据保存和LED更新
+        // calibrationActive = false; // 注释掉或删除
         // 批量保存所有待保存的校准数据
         ADCBtnsError saveResult = saveAllPendingCalibration();
         if (saveResult != ADCBtnsError::SUCCESS) {
             APP_ERR("Failed to save some calibration data to Flash, error: %d", static_cast<int>(saveResult));
         }
-        
         // 打印所有按键校准完成的详细汇总信息
         printAllCalibrationResults();
-        
         // 更新最终LED状态
         for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
             if (buttonStates[i].isCalibrated) {
@@ -430,6 +428,7 @@ void ADCCalibrationManager::checkCalibrationCompletion() {
             }
         }
         updateAllLEDs();
+        // 保持 calibrationActive = true，前端可检测到 isActive==true && allCalibrated==true
     }
 }
 

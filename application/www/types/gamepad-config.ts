@@ -570,6 +570,7 @@ export const UI_TEXT = {
     UNSAVED_CHANGES_WARNING_MESSAGE: "You have unsaved changes. If you leave without saving, your changes will be lost.",
     CALIBRATION_MODE_WARNING_TITLE: "Calibration in Progress",
     CALIBRATION_MODE_WARNING_MESSAGE: "Calibration is in progress. You must stop calibration before leaving this page.",
+    CALIBRATION_TIP_MESSAGE: "The buttons on the device that are blue are the buttons to be calibrated. Press the blue button until the LED light turns green, then the calibration is complete. When all buttons are calibrated, click the [Stop Calibration] button to end the calibration mode.",
 
     // Hotkeys Actions
     HOTKEY_ACTION_NONE: "None",
@@ -794,6 +795,7 @@ export const UI_TEXT_ZH = {
     UNSAVED_CHANGES_WARNING_MESSAGE: "您有未保存的更改。如果离开而不保存，您的更改将会丢失。",
     CALIBRATION_MODE_WARNING_TITLE: "校准进行中",
     CALIBRATION_MODE_WARNING_MESSAGE: "校准正在进行中。在离开此页面之前，您必须停止校准。",
+    CALIBRATION_TIP_MESSAGE: "设备上深蓝色的按钮代表待校准的按钮，把深蓝色的按钮按压到底，直到按钮上的LED灯变成绿色，则校准完成。所有按键校准完成后，点击[结束校准]按钮结束校准模式。",
 
     // Hotkeys Actions
     HOTKEY_ACTION_NONE: "无",
