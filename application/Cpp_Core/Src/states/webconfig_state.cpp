@@ -1,5 +1,5 @@
 #include "states/webconfig_state.hpp"
-#include "adc_btns/adc_btns_marker.hpp"
+#include "adc_btns/adc_calibration.hpp"
 #include "pwm-ws2812b.h"
 #include "qspi-w25q64.h"
 
@@ -27,6 +27,7 @@ void WebConfigState::setup() {
 
 void WebConfigState::loop() {
     if(isRunning) {
+        ADC_CALIBRATION_MANAGER.processCalibration(); // 处理校准逻辑
         CONFIG_MANAGER.loop();
     }
 }

@@ -45,8 +45,8 @@ struct ButtonCalibrationState {
     // 校准配置
     uint16_t expectedBottomValue = 0;                      // 期望的底部值（来自originValues）
     uint16_t expectedTopValue = 0;                         // 期望的顶部值（来自originValues）
-    uint16_t toleranceRange = 3000;                          // 容差范围
-    uint16_t stabilityThreshold = 200;                      // 稳定性阈值
+    uint16_t toleranceRange = ADC_CALIBRATION_MANAGER_TOLERANCE_RANGE;                          // 容差范围
+    uint16_t stabilityThreshold = ADC_CALIBRATION_MANAGER_STABILITY_THRESHOLD;                      // 稳定性阈值
     
     // 时间管理（每个按键独立管理）
     uint32_t lastSampleTime = 0;                          // 上次采样时间
@@ -113,8 +113,8 @@ private:
     std::array<ButtonCalibrationState, NUM_ADC_BUTTONS> buttonStates; // 按键校准状态
     
     // 校准常量
-    static constexpr uint8_t REQUIRED_SAMPLES = 100;      // 需要的采样数量
-    static constexpr uint32_t SAMPLE_INTERVAL_MS = 10;    // 采样间隔（毫秒）
+    static constexpr uint8_t REQUIRED_SAMPLES = ADC_CALIBRATION_MANAGER_REQUIRED_SAMPLES;      // 需要的采样数量
+    static constexpr uint32_t SAMPLE_INTERVAL_MS = ADC_CALIBRATION_MANAGER_SAMPLE_INTERVAL_MS;    // 采样间隔（毫秒）
     
     // 私有方法
     void initializeButtonStates();                         // 初始化按键状态

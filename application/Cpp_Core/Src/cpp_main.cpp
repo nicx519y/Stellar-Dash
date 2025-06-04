@@ -77,7 +77,6 @@ void manual_calibration_test(void) {
     
     // 初始化ADC管理器
     ADCManager::getInstance().startADCSamping(false);
-    
     // 等待3秒
     HAL_Delay(1000);
     

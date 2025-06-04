@@ -45,10 +45,8 @@ class ADCBtnsWorker {
         ADCBtnsWorker();
         ~ADCBtnsWorker();
 
-        #if ENABLED_DYNAMIC_CALIBRATION == 1
         // 动态校准
         void dynamicCalibration();
-        #endif
 
     private:
 
@@ -73,33 +71,23 @@ class ADCBtnsWorker {
             RELEASE_COMPLETE// 释放完成
         };
 
-        typedef struct {
-            // 按钮配置
-            uint32_t virtualPin = 0;    // 虚拟引脚
-            uint8_t pressAccuracyIndex = 0;   // 按下精度 转换成mapping索引数量
-            uint8_t releaseAccuracyIndex = 0; // 释放精度 转换成mapping索引数量 (0.1mm精度)
-            uint8_t topDeadzoneIndex = 0;     // 顶部死区 转换成mapping索引值
-            uint8_t bottomDeadzoneIndex = 0;  // 底部死区 转换成mapping索引值 (0.1mm精度)
-            
-            // 高精度配置 (0.01mm精度)
-            uint8_t highPrecisionReleaseAccuracyIndex = 0; // 高精度释放精度索引
-            uint8_t highPrecisionBottomDeadzoneIndex = 0;  // 高精度底部死区索引
+        // 按钮结构体
+        struct ADCBtn {
+            uint8_t virtualPin;  // 虚拟引脚
+            uint8_t pressAccuracyIndex;  // 按下精度索引
+            uint8_t releaseAccuracyIndex;  // 释放精度索引
+            uint8_t topDeadzoneIndex;  // 顶部死区索引
+            uint8_t bottomDeadzoneIndex;  // 底部死区索引
+            uint8_t highPrecisionReleaseAccuracyIndex;  // 高精度释放精度索引
+            uint8_t highPrecisionBottomDeadzoneIndex;  // 高精度底部死区索引
+            uint8_t lastStateIndex;  // 上次状态索引
+            uint8_t halfwayIndex;  // 中点索引
+            uint16_t highPrecisionLength;  // 高精度映射表长度
+            uint16_t highPrecisionMapping[MAX_ADC_VALUES_LENGTH * 10];  // 高精度映射表
+            uint16_t valueMapping[MAX_ADC_VALUES_LENGTH];  // 值映射表
+            ButtonState state;  // 按钮状态
+            bool initCompleted;  // 初始化完成标志
 
-            // 校准参数
-            bool initCompleted = false;     // 初始化完成
-            uint8_t lastTriggerIndex = 0;  // 上一次触发索引
-
-            uint16_t valueMapping[MAX_ADC_VALUES_LENGTH] = {0};           // 值映射 (0.1mm精度)
-            
-            // 高精度映射表 - 用于抬起行程前半段的精确检测
-            uint16_t highPrecisionMapping[MAX_ADC_VALUES_LENGTH * 10] = {0}; // 高精度值映射 (0.01mm精度)
-            uint16_t highPrecisionLength = 0;                                // 高精度映射表长度 (前半段行程)
-            uint8_t halfwayIndex = 0;                                        // 中点索引 (完全按下到弹起一半的位置)
-
-            ButtonState state = ButtonState::RELEASED;  // 当前状态
-            uint8_t lastStateIndex = 0;                // 进入当前状态时的索引值
-
-            #if ENABLED_DYNAMIC_CALIBRATION == 1
             bool needCalibration = false;
             bool needSaveCalibration = false;          // 需要保存校准值到存储
             uint32_t lastCalibrationTime = 0;         // 上次校准时间
@@ -107,11 +95,7 @@ class ADCBtnsWorker {
             RingBufferSlidingWindow<uint16_t> topValueWindow{NUM_MAPPING_INDEX_WINDOW_SIZE};  // 最小值滑动窗口
             RingBufferSlidingWindow<uint16_t> bottomValueWindow{NUM_MAPPING_INDEX_WINDOW_SIZE};   // 最大值滑动窗口
             uint16_t limitValue = 0;  // 限制值
-            #endif
-
-        } ADCBtn;
-
-        
+        };
 
         // 获取按钮事件
         ButtonEvent getButtonEvent(ADCBtn* btn, const uint8_t currentIndex, const uint16_t currentValue);
@@ -129,11 +113,9 @@ class ADCBtnsWorker {
         uint8_t searchIndexInHighPrecisionMapping(ADCBtn* btn, const uint16_t value);
         bool isInHighPrecisionRange(ADCBtn* btn, const uint8_t currentIndex);
 
-        #if ENABLED_DYNAMIC_CALIBRATION == 1
         // 校准保存相关方法
         void saveCalibrationValues();
         bool shouldSaveCalibration(ADCBtn* btn, uint32_t currentTime);
-        #endif
 
         ADCBtn* buttonPtrs[NUM_ADC_BUTTONS];
         uint32_t virtualPinMask = 0x0;  // 虚拟引脚掩码

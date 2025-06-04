@@ -97,7 +97,6 @@
 #define MIN_VALUE_DIFF_RATIO                0.8             // 最小值差值比例 按键动态校准的过程中，如果bottom - top的值差 不能小于原mapping的值差*MIN_VALUE_DIFF_RATIO
 
 #define READ_BTNS_INTERVAL                  200            // 检查按钮状态间隔 us
-#define ENABLED_DYNAMIC_CALIBRATION         1               //是否启用动态校准
 #define DYNAMIC_CALIBRATION_INTERVAL        500000          // 动态校准间隔 500ms
 
 
@@ -155,6 +154,10 @@ PH3     ------> ADC3_INP14 -----> 10
 */
 #define ADC3_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {15, 16, 14, 12, 10}
 
+#define ADC_CALIBRATION_MANAGER_REQUIRED_SAMPLES 100 // 校准管理器需要的采样数量
+#define ADC_CALIBRATION_MANAGER_SAMPLE_INTERVAL_MS 1 // 校准管理器采样间隔（毫秒）
+#define ADC_CALIBRATION_MANAGER_TOLERANCE_RANGE 5000 // 校准管理器容忍范围
+#define ADC_CALIBRATION_MANAGER_STABILITY_THRESHOLD 200 // 校准管理器稳定性阈值
 
 #ifdef __cplusplus
  }

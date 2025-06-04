@@ -746,7 +746,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         try {
             setIsLoading(true);
             const response = await fetch('/api/start-manual-calibration', {
-                method: 'POST',
+                method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                 },
@@ -770,7 +770,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         try {
             setIsLoading(true);
             const response = await fetch('/api/stop-manual-calibration', {
-                method: 'POST',
+                method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                 },
@@ -793,7 +793,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const fetchCalibrationStatus = async (): Promise<void> => {
         try {
             const response = await fetch('/api/get-calibration-status', {
-                method: 'POST',
+                method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                 },
@@ -815,7 +815,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         try {
             setIsLoading(true);
             const response = await fetch('/api/clear-manual-calibration-data', {
-                method: 'POST',
+                method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                 },

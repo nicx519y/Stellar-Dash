@@ -6,6 +6,8 @@
 #include "storagemanager.hpp"
 #include "gamepad.hpp"
 #include "board_cfg.h"
+#include "adc_btns/adc_calibration.hpp"
+
 class HotkeysManager {
     public:
         HotkeysManager(HotkeysManager const&) = delete;

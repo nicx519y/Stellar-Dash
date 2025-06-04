@@ -14,6 +14,7 @@ enum BootMode
 {
     BOOT_MODE_WEB_CONFIG                = 1,
     BOOT_MODE_INPUT                     = 2,
+    BOOT_MODE_CALIBRATION               = 3,
 };
 
 enum ConfigType
@@ -79,6 +80,9 @@ enum GamepadHotkey
     HOTKEY_LEDS_ENABLE_SWITCH,          // 切换LED 开关
     HOTKEY_CALIBRATION_MODE,            // 切换到校准模式
     HOTKEY_INPUT_MODE_WEBCONFIG,        // 切换到web配置模式
+    HOTKEY_INPUT_MODE_CALIBRATION_START,      // 开始校准
+    HOTKEY_INPUT_MODE_CALIBRATION_STOP,       // 关闭校准
+    HOTKEY_CLEAR_CALIBRATION_DATA,            // 清除校准数据
     HOTKEY_INPUT_MODE_XINPUT,           // 切换到XInput模式
     HOTKEY_INPUT_MODE_PS4,              // 切换到PS4模式
     HOTKEY_INPUT_MODE_PS5,              // 切换到PS5模式

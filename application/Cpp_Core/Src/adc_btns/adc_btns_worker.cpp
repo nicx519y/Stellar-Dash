@@ -136,7 +136,6 @@ ADCBtnsError ADCBtnsWorker::setup() {
             buttonPtrs[i]->initCompleted = false;
         }
 
-        #if ENABLED_DYNAMIC_CALIBRATION == 1
         // 只有在自动校准模式下才启用动态校准
         if(isAutoCalibrationEnabled) {
             buttonPtrs[i]->bottomValueWindow = RingBufferSlidingWindow<uint16_t>(NUM_MAPPING_INDEX_WINDOW_SIZE);
@@ -147,7 +146,6 @@ ADCBtnsError ADCBtnsWorker::setup() {
             buttonPtrs[i]->lastCalibrationTime = 0;
             buttonPtrs[i]->lastSaveTime = 0;
         }
-        #endif
         
         // 初始化状态
         buttonPtrs[i]->lastStateIndex = 0;
@@ -168,14 +166,17 @@ ADCBtnsError ADCBtnsWorker::setup() {
 
 ADCBtnsError ADCBtnsWorker::deinit() {
     ADC_MANAGER.stopADCSamping();
-    #if ENABLED_DYNAMIC_CALIBRATION == 1
-    for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-        ADCBtn* const btn = buttonPtrs[i];
-        
-        btn->bottomValueWindow.clear();
-        btn->topValueWindow.clear();
+    
+    // 只有在自动校准模式下才清理滑动窗口
+    if (STORAGE_MANAGER.config.autoCalibrationEnabled) {
+        for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+            ADCBtn* const btn = buttonPtrs[i];
+            
+            btn->bottomValueWindow.clear();
+            btn->topValueWindow.clear();
+        }
     }
-    #endif
+    
     return ADCBtnsError::SUCCESS;
 }
 
@@ -236,7 +237,6 @@ uint32_t ADCBtnsWorker::read() {
     return this->virtualPinMask;
 }
 
-#if ENABLED_DYNAMIC_CALIBRATION == 1
 /**
  * 动态校准
  */
@@ -329,8 +329,6 @@ bool ADCBtnsWorker::shouldSaveCalibration(ADCBtn* btn, uint32_t currentTime) {
     return (currentTime - btn->lastCalibrationTime) >= CALIBRATION_SAVE_DELAY_MS;
 }
 
-#endif
-
 /**
  * 更新按钮映射
  * @param mapping uint16_t数组指针，用于存储映射值
@@ -400,18 +398,17 @@ void ADCBtnsWorker::initButtonMapping(ADCBtn* btn, const uint16_t releaseValue) 
         
         // 更新映射值
         btn->valueMapping[i] = (uint16_t)newValue;
-
     }
 
-    #if ENABLED_DYNAMIC_CALIBRATION == 1
-    // 初始化滑动窗口
-    btn->bottomValueWindow.clear();
-    btn->topValueWindow.clear();
-    btn->limitValue = UINT16_MAX;
+    // 只有在自动校准模式下才初始化滑动窗口
+    if (STORAGE_MANAGER.config.autoCalibrationEnabled) {
+        btn->bottomValueWindow.clear();
+        btn->topValueWindow.clear();
+        btn->limitValue = UINT16_MAX;
 
-    btn->bottomValueWindow.push(btn->valueMapping[0]);
-    btn->topValueWindow.push(btn->valueMapping[mapping->length - 1]);
-    #endif
+        btn->bottomValueWindow.push(btn->valueMapping[0]);
+        btn->topValueWindow.push(btn->valueMapping[mapping->length - 1]);
+    }
     
     // 初始化高精度映射表
     initHighPrecisionMapping(btn);
@@ -439,8 +436,7 @@ void ADCBtnsWorker::initButtonMappingWithCalibration(ADCBtn* btn, uint16_t topVa
     // 使用校准值更新按钮映射
     updateButtonMapping(btn->valueMapping, bottomValue, topValue);
 
-    #if ENABLED_DYNAMIC_CALIBRATION == 1
-    // 如果启用了动态校准，初始化滑动窗口
+    // 只有在自动校准模式下才初始化滑动窗口
     if (STORAGE_MANAGER.config.autoCalibrationEnabled) {
         btn->bottomValueWindow.clear();
         btn->topValueWindow.clear();
@@ -452,7 +448,6 @@ void ADCBtnsWorker::initButtonMappingWithCalibration(ADCBtn* btn, uint16_t topVa
         btn->lastCalibrationTime = 0;
         btn->lastSaveTime = 0;
     }
-    #endif
     
     // 初始化高精度映射表
     initHighPrecisionMapping(btn);
@@ -508,8 +503,6 @@ uint8_t ADCBtnsWorker::searchIndexInMapping(const uint8_t buttonIndex, const uin
     return 0;
 }
 
-
-
 // 状态转换处理函数
 ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint8_t currentIndex, const uint16_t currentValue) {
     uint8_t indexDiff;
@@ -517,29 +510,29 @@ ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint
     switch(btn->state) {
         case ButtonState::RELEASED:
 
-            #if ENABLED_DYNAMIC_CALIBRATION == 1
-            if(currentValue < btn->limitValue) { // 抬起时，记录最小值
+            // 只有在自动校准模式下才记录最小值
+            if(STORAGE_MANAGER.config.autoCalibrationEnabled && currentValue < btn->limitValue) {
                 btn->limitValue = currentValue;
             }
-            #endif
 
             if(currentIndex < btn->lastStateIndex) {
                 indexDiff = btn->lastStateIndex - currentIndex;
                 if(indexDiff >= btn->pressAccuracyIndex && currentIndex < btn->topDeadzoneIndex) {
                     btn->lastStateIndex = currentIndex;
 
-                    #if ENABLED_DYNAMIC_CALIBRATION == 1
-                    // 如果btn->limitValue < btn->topValueWindow.getAverageValue，则以2倍率push，否则以1倍率push。小优先
-                    if(btn->limitValue < btn->topValueWindow.getAverageValue()) {
-                        btn->topValueWindow.push(btn->limitValue, 2);
-                    } else {
-                        btn->topValueWindow.push(btn->limitValue);
+                    // 只有在自动校准模式下才更新滑动窗口
+                    if(STORAGE_MANAGER.config.autoCalibrationEnabled) {
+                        // 如果btn->limitValue < btn->topValueWindow.getAverageValue，则以2倍率push，否则以1倍率push。小优先
+                        if(btn->limitValue < btn->topValueWindow.getAverageValue()) {
+                            btn->topValueWindow.push(btn->limitValue, 2);
+                        } else {
+                            btn->topValueWindow.push(btn->limitValue);
+                        }
+                        // btn->topValueWindow.printAllValues();
+                        APP_DBG("limitValue: %d, topValueWindow.getAverageValue: %d", btn->limitValue, btn->topValueWindow.getAverageValue());
+                        btn->limitValue = 0; // 重置限制值，用于下次校准，此时是按下，重置为0
+                        btn->needCalibration = true;
                     }
-                    // btn->topValueWindow.printAllValues();
-                    APP_DBG("limitValue: %d, topValueWindow.getAverageValue: %d", btn->limitValue, btn->topValueWindow.getAverageValue());
-                    btn->limitValue = 0; // 重置限制值，用于下次校准，此时是按下，重置为0
-                    btn->needCalibration = true;
-                    #endif
 
                     return ButtonEvent::PRESS_COMPLETE;
                 }
@@ -550,11 +543,10 @@ ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint
 
         case ButtonState::PRESSED:
 
-            #if ENABLED_DYNAMIC_CALIBRATION == 1
-            if(currentValue > btn->limitValue) { // 按下时，记录最大值
+            // 只有在自动校准模式下才记录最大值
+            if(STORAGE_MANAGER.config.autoCalibrationEnabled && currentValue > btn->limitValue) {
                 btn->limitValue = currentValue;
             }
-            #endif
 
             if(currentIndex > btn->lastStateIndex) {
                 indexDiff = currentIndex - btn->lastStateIndex;
@@ -608,18 +600,19 @@ ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint
                 if (shouldRelease) {
                     btn->lastStateIndex = currentIndex;
 
-                    #if ENABLED_DYNAMIC_CALIBRATION == 1
-                    // 如果btn->limitValue > btn->bottomValueWindow.getAverageValue，则以2倍率push，否则以1倍率push。大优先
-                    if(btn->limitValue > btn->bottomValueWindow.getAverageValue()) {
-                        btn->bottomValueWindow.push(btn->limitValue, 2);
-                    } else {
-                        btn->bottomValueWindow.push(btn->limitValue);
+                    // 只有在自动校准模式下才更新滑动窗口
+                    if(STORAGE_MANAGER.config.autoCalibrationEnabled) {
+                        // 如果btn->limitValue > btn->bottomValueWindow.getAverageValue，则以2倍率push，否则以1倍率push。大优先
+                        if(btn->limitValue > btn->bottomValueWindow.getAverageValue()) {
+                            btn->bottomValueWindow.push(btn->limitValue, 2);
+                        } else {
+                            btn->bottomValueWindow.push(btn->limitValue);
+                        }
+                        // btn->bottomValueWindow.printAllValues();
+                        APP_DBG("limitValue: %d, bottomValueWindow.getAverageValue: %d", btn->limitValue, btn->bottomValueWindow.getAverageValue());
+                        btn->limitValue = UINT16_MAX; // 重置限制值，用于下次校准，此时是释放，重置为最大值
+                        btn->needCalibration = true;
                     }
-                    // btn->bottomValueWindow.printAllValues();
-                    APP_DBG("limitValue: %d, bottomValueWindow.getAverageValue: %d", btn->limitValue, btn->bottomValueWindow.getAverageValue());
-                    btn->limitValue = UINT16_MAX; // 重置限制值，用于下次校准，此时是释放，重置为最大值
-                    btn->needCalibration = true;
-                    #endif
 
                     return ButtonEvent::RELEASE_COMPLETE;
                 }

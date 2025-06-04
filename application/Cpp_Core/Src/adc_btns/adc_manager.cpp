@@ -116,6 +116,7 @@ ADCManager::~ADCManager() {
 
 // 保存整个存储结构到Flash
 int8_t ADCManager::saveStore() {
+    APP_DBG("ADCManager: saveStore - begin save store to flash.");
     return QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore));
 }
 

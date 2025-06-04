@@ -1,5 +1,5 @@
 #include "main_state_machine.hpp"
-
+#include "states/calibration_state.hpp"
 void MainStateMachine::setup()
 {
     APP_DBG("MainStateMachine::setup");
@@ -18,6 +18,9 @@ void MainStateMachine::setup()
             break;
         case BootMode::BOOT_MODE_INPUT:
             state = &INPUT_STATE;
+            break;
+        case BootMode::BOOT_MODE_CALIBRATION:
+            state = &CALIBRATION_STATE;
             break;
     }
 

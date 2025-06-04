@@ -77,18 +77,14 @@ ADCBtnsError ADCCalibrationManager::stopCalibration() {
     
     calibrationActive = false;
     
-    // 更新所有LED状态
+    // 结束校准时关闭所有LED
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-        if (buttonStates[i].isCalibrated) {
-            setButtonLEDColor(i, CalibrationLEDColor::GREEN);
-        } else {
-            setButtonLEDColor(i, CalibrationLEDColor::RED);
-        }
+        setButtonLEDColor(i, CalibrationLEDColor::OFF);
     }
     
     updateAllLEDs();
     
-    APP_DBG("Manual calibration stopped");
+    APP_DBG("Manual calibration stopped, all LEDs OFF");
     
     return ADCBtnsError::SUCCESS;
 }
@@ -137,7 +133,7 @@ ADCBtnsError ADCCalibrationManager::resetAllCalibration() {
         state.lastSampleTime = 0;
         
         clearSampleBuffer(i);
-        setButtonLEDColor(i, CalibrationLEDColor::RED);
+        setButtonLEDColor(i, CalibrationLEDColor::OFF);
         updateButtonLED(i, state.ledColor);
     }
     
@@ -161,6 +157,9 @@ void ADCCalibrationManager::processCalibration() {
     if (!calibrationActive) {
         return;
     }
+    
+    // APP_DBG("processCalibration: active=%d, time=%d", calibrationActive, HAL_GetTick());
+
     
     // 获取所有ADC值
     const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& adcValues = ADC_MANAGER.readADCValues();
@@ -260,10 +259,6 @@ ADCBtnsError ADCCalibrationManager::addSample(uint8_t buttonIndex, uint16_t adcV
     // 更新采样时间
     state.lastSampleTime = HAL_GetTick();
     
-    // if(buttonIndex == 0){
-    //     APP_DBG("Button %d sample %d: %d (range: %d-%d)", buttonIndex, state.sampleCount, adcValue, state.minSample, state.maxSample);
-    // }
-    
     // 检查是否收集完所有采样
     if (state.sampleCount >= REQUIRED_SAMPLES) {
         // 检查稳定性
@@ -290,7 +285,7 @@ ADCBtnsError ADCCalibrationManager::validateSample(uint8_t buttonIndex, uint16_t
                             state.expectedBottomValue : state.expectedTopValue;
     
     // if(buttonIndex == 0){
-    //     APP_DBG("Button %d expected value: %d, adcValue: %d, tolerance: %d", buttonIndex, expectedValue, adcValue, state.toleranceRange);
+    // APP_DBG("Button %d expected value: %d, adcValue: %d, tolerance: %d", buttonIndex, expectedValue, adcValue, state.toleranceRange);
     // }
 
     // 检查值是否在期望范围内
@@ -346,8 +341,8 @@ ADCBtnsError ADCCalibrationManager::finalizeSampling(uint8_t buttonIndex) {
     if (state.phase == CalibrationPhase::TOP_SAMPLING) {
         // 完成顶部值采样（按键释放状态）
         state.topValue = averageValue;
-        APP_DBG("Button %d top value calibrated (RELEASED): %d (samples: %d, range: %d-%d, expected: %d)", 
-                buttonIndex, averageValue, state.sampleCount, state.minSample, state.maxSample, state.expectedTopValue);
+        // APP_DBG("Button %d top value calibrated (RELEASED): %d (samples: %d, range: %d-%d, expected: %d)", 
+        //         buttonIndex, averageValue, state.sampleCount, state.minSample, state.maxSample, state.expectedTopValue);
         
         // 进入底部值采样阶段（按键按下状态）
         setButtonPhase(buttonIndex, CalibrationPhase::BOTTOM_SAMPLING);
@@ -362,9 +357,9 @@ ADCBtnsError ADCCalibrationManager::finalizeSampling(uint8_t buttonIndex) {
         APP_DBG("Button %d bottom value calibrated (PRESSED): %d (samples: %d, range: %d-%d, expected: %d)", 
                 buttonIndex, averageValue, state.sampleCount, state.minSample, state.maxSample, state.expectedBottomValue);
         
-        // 校准完成，标记需要保存到Flash（延迟保存）
+        // 校准完成，立即保存到Flash
         state.isCalibrated = true;
-        markCalibrationForSave(buttonIndex);
+        saveCalibrationValues(buttonIndex);
         setButtonPhase(buttonIndex, CalibrationPhase::COMPLETED);
         setButtonLEDColor(buttonIndex, CalibrationLEDColor::GREEN);
         updateButtonLED(buttonIndex, CalibrationLEDColor::GREEN);
@@ -493,7 +488,7 @@ void ADCCalibrationManager::initializeButtonStates() {
             if (mapping) {
                 state.expectedTopValue = mapping->originalValues[mapping->length - 1];      // 释放状态
                 state.expectedBottomValue = mapping->originalValues[0];                     // 按下状态
-                APP_DBG("initializeButtonStates Button %d expected top value: %d, bottom value: %d", i, state.expectedTopValue, state.expectedBottomValue);
+                // APP_DBG("initializeButtonStates Button %d expected top value: %d, bottom value: %d", i, state.expectedTopValue, state.expectedBottomValue);
             }
         }
     }
@@ -523,7 +518,7 @@ bool ADCCalibrationManager::loadExistingCalibration() {
             state.ledColor = CalibrationLEDColor::GREEN;
             hasAnyCalibration = true;
             
-            APP_DBG("Loaded existing calibration for button %d: top=%d, bottom=%d", i, topValue, bottomValue);
+            // APP_DBG("Loaded existing calibration for button %d: top=%d, bottom=%d", i, topValue, bottomValue);
         }
     }
     
