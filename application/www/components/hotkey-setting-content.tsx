@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
     Stack,
     Fieldset,
@@ -79,6 +79,15 @@ export function HotkeySettingContent({
     const [hotkeys, setHotkeys] = useState<Hotkey[]>([]);
     const [internalActiveIndex, setInternalActiveIndex] = useState<number>(0);
 
+    // 使用 ref 存储最新的事件处理函数
+    const handleDeviceButtonEventRef = useRef<((buttonEvent: ButtonEvent) => void) | null>(null);
+    
+    // 使用 ref 存储 buttonMonitorProps
+    const buttonMonitorPropsRef = useRef<ButtonMonitorProps | undefined>(buttonMonitorProps);
+    
+    // 使用 ref 标记是否已绑定事件
+    const isEventBoundRef = useRef<boolean>(false);
+
     // 使用外部提供的活跃索引，否则使用内部状态
     const activeHotkeyIndex = externalActiveIndex !== undefined ? externalActiveIndex : internalActiveIndex;
     const setActiveHotkeyIndex = onActiveHotkeyIndexChange || setInternalActiveIndex;
@@ -147,32 +156,71 @@ export function HotkeySettingContent({
         };
     }, [activeHotkeyIndex, hotkeys, updateHotkey]);
 
-    // 处理设备按键事件
+    // 处理设备按键事件 - 存储到ref中
     const handleDeviceButtonEvent = useCallback((buttonEvent: ButtonEvent) => {
+        console.log('handleDeviceButtonEvent called:', {
+            type: buttonEvent.type,
+            buttonIndex: buttonEvent.buttonIndex,
+            timestamp: Date.now()
+        });
+        
         // 只处理按键按下事件，并且只在启用监控时
-        if (buttonEvent.type === 'button-press' && isButtonMonitoringEnabled && !disabled && !calibrationStatus.isActive) {
-            updateHotkey(activeHotkeyIndex, { 
-                ...hotkeys[activeHotkeyIndex], 
-                key: buttonEvent.buttonIndex 
+        if (buttonEvent.type === 'button-press' && 
+            isButtonMonitoringEnabled && 
+            !disabled && 
+            !calibrationStatus.isActive) {
+            
+            console.log('Processing button press for hotkey binding:', {
+                activeIndex: activeHotkeyIndex,
+                buttonIndex: buttonEvent.buttonIndex
             });
             
-            // 显示成功提示
-            toaster.create({
-                title: "设备按键绑定成功",
-                description: `按键 ${buttonEvent.buttonIndex} 已绑定到热键 ${activeHotkeyIndex + 1}`,
-                type: "success",
-                duration: 2000,
+            // 获取当前热键设置并更新
+            const currentHotkey = hotkeys[activeHotkeyIndex] || { key: -1, action: HotkeyAction.None, isLocked: false };
+            updateHotkey(activeHotkeyIndex, { 
+                ...currentHotkey,
+                key: buttonEvent.buttonIndex
             });
+            
         }
-    }, [activeHotkeyIndex, hotkeys, updateHotkey, isButtonMonitoringEnabled, disabled, calibrationStatus.isActive]);
+    }, [isButtonMonitoringEnabled, disabled, calibrationStatus.isActive, activeHotkeyIndex, hotkeys, updateHotkey]);
 
-    // 监听设备按键事件（通过buttonMonitorProps）
+    // 将最新的事件处理函数存储到ref
     useEffect(() => {
-        if (buttonMonitorProps && isButtonMonitoringEnabled) {
-            buttonMonitorProps.addEventListener(handleDeviceButtonEvent);
-            return () => buttonMonitorProps.removeEventListener(handleDeviceButtonEvent);
+        handleDeviceButtonEventRef.current = handleDeviceButtonEvent;
+    }, [handleDeviceButtonEvent]);
+
+    // 创建稳定的事件wrapper函数，用于绑定
+    const stableEventWrapper = useCallback((buttonEvent: ButtonEvent) => {
+        if (handleDeviceButtonEventRef.current) {
+            handleDeviceButtonEventRef.current(buttonEvent);
         }
-    }, [buttonMonitorProps, isButtonMonitoringEnabled, handleDeviceButtonEvent]);
+    }, []);
+
+    // 事件绑定管理：只绑定一次，不重复绑定
+    useEffect(() => {
+        // 更新ref
+        buttonMonitorPropsRef.current = buttonMonitorProps;
+        
+        // 只在还未绑定且props存在时绑定
+        if (buttonMonitorProps && !isEventBoundRef.current) {
+            console.log('Binding event listener');
+            buttonMonitorProps.addEventListener(stableEventWrapper);
+            isEventBoundRef.current = true;
+        }
+    }, [buttonMonitorProps, stableEventWrapper]);
+    
+    // 组件卸载时清理
+    useEffect(() => {
+        return () => {
+            const props = buttonMonitorPropsRef.current;
+            if (props && isEventBoundRef.current) {
+                console.log('Unbinding event listener on unmount');
+                props.removeEventListener(stableEventWrapper);
+                isEventBoundRef.current = false;
+            }
+        };
+    }, [stableEventWrapper]);
 
     // 处理监控开关变化
     const handleMonitoringToggle = useCallback(async (enabled: boolean) => {

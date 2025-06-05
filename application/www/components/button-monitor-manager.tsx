@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { ButtonStates } from "@/contexts/gamepad-config-context";
 
@@ -166,7 +166,12 @@ export function ButtonMonitorManager({
             if (!isMountedRef.current) return;
 
             console.log('Button states received:', states);
-            setLastButtonStates(states);
+            
+            // 只在按键状态真正发生变化时才更新 lastButtonStates
+            if (states.triggerMask !== previousTriggerMask) {
+                setLastButtonStates(states);
+            }
+            
             analyzeButtonChanges(states);
             onButtonStatesChange?.(states);
         } catch (error) {
@@ -176,7 +181,7 @@ export function ButtonMonitorManager({
             console.error('Failed to poll button states:', errorObj);
             onError?.(errorObj);
         }
-    }, [localMonitoringActive, getButtonStates, analyzeButtonChanges, onButtonStatesChange, onError]);
+    }, [localMonitoringActive, getButtonStates, analyzeButtonChanges, onButtonStatesChange, onError, previousTriggerMask]);
 
     // 开始轮询
     const startPolling = useCallback(() => {
@@ -286,19 +291,27 @@ export function ButtonMonitorManager({
         };
     }, []); // 移除依赖项，只在组件卸载时执行一次
 
+    // 使用 useMemo 稳定传给 children 的 props 对象
+    const stableProps = useMemo(() => ({
+        isMonitoring: localMonitoringActive,
+        isPolling,
+        lastButtonStates,
+        startMonitoring: handleStartMonitoring,
+        stopMonitoring: handleStopMonitoring,
+        addEventListener,
+        removeEventListener,
+    }), [
+        localMonitoringActive,
+        isPolling,
+        handleStartMonitoring,
+        handleStopMonitoring,
+    ]);
+
     // 如果有子组件，渲染子组件
     if (children) {
         return (
             <>
-                {children({
-                    isMonitoring: localMonitoringActive,
-                    isPolling,
-                    lastButtonStates,
-                    startMonitoring: handleStartMonitoring,
-                    stopMonitoring: handleStopMonitoring,
-                    addEventListener,
-                    removeEventListener,
-                })}
+                {children(stableProps)}
             </>
         );
     }
