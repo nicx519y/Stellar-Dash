@@ -54,6 +54,14 @@ export interface CalibrationStatus {
     buttons: CalibrationButtonStatus[];
 }
 
+// 按键状态类型定义
+export interface ButtonStates {
+    triggerMask: number;
+    triggerBinary: string;
+    totalButtons: number;
+    timestamp: number;
+}
+
 interface GamepadConfigContextType {
     contextJsReady: boolean;
     setContextJsReady: (ready: boolean) => void;
@@ -98,6 +106,11 @@ interface GamepadConfigContextType {
     stepMarking: () => Promise<void>;
     fetchMarkingStatus: () => Promise<void>;
     renameMapping: (id: string, name: string) => Promise<void>;
+    // 按键监控相关
+    buttonMonitoringActive: boolean;
+    startButtonMonitoring: () => Promise<void>;
+    stopButtonMonitoring: () => Promise<void>;
+    getButtonStates: () => Promise<ButtonStates>;
 }
 
 const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
@@ -185,6 +198,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         is_completed: false
     });
     const [activeMapping, setActiveMapping] = useState<ADCValuesMapping | null>(null);
+    const [buttonMonitoringActive, setButtonMonitoringActive] = useState<boolean>(false);
 
     const contextJsReady = useMemo(() => {
         return jsReady;
@@ -789,6 +803,70 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
+    const startButtonMonitoring = async (): Promise<void> => {
+        try {
+            setIsLoading(true);
+            const response = await fetchWithKeepAlive('/api/start-button-monitoring', {
+                method: 'GET'
+            });
+            const data = await processResponse(response, setError);
+            if (!data) {
+                return Promise.reject(new Error("Failed to start button monitoring"));
+            }
+            setButtonMonitoringActive(data.isActive ?? true);
+            setError(null);
+            return Promise.resolve();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred');
+            return Promise.reject(new Error("Failed to start button monitoring"));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const stopButtonMonitoring = async (): Promise<void> => {
+        try {
+            setIsLoading(true);
+            const response = await fetchWithKeepAlive('/api/stop-button-monitoring', {
+                method: 'GET'
+            });
+            const data = await processResponse(response, setError);
+            if (!data) {
+                return Promise.reject(new Error("Failed to stop button monitoring"));
+            }
+            setButtonMonitoringActive(data.isActive ?? false);
+            setError(null);
+            return Promise.resolve();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred');
+            return Promise.reject(new Error("Failed to stop button monitoring"));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const getButtonStates = async (): Promise<ButtonStates> => {
+        try {
+            const response = await fetchWithKeepAlive('/api/get-button-states', {
+                method: 'GET'
+            });
+            const data = await processResponse(response, setError);
+            if (!data) {
+                return Promise.reject(new Error("Failed to get button states"));
+            }
+            setError(null);
+            return Promise.resolve({
+                triggerMask: data.triggerMask ?? 0,
+                triggerBinary: data.triggerBinary ?? "",
+                totalButtons: data.totalButtons ?? 0,
+                timestamp: data.timestamp ?? 0
+            });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred');
+            return Promise.reject(new Error("Failed to get button states"));
+        }
+    };
+
     return (
         <GamepadConfigContext.Provider value={{
             contextJsReady,
@@ -834,6 +912,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             stopMarking,
             stepMarking,
             renameMapping,
+            // 按键监控相关
+            buttonMonitoringActive: buttonMonitoringActive,
+            startButtonMonitoring,
+            stopButtonMonitoring,
+            getButtonStates,
         }}>
             {children}
         </GamepadConfigContext.Provider>

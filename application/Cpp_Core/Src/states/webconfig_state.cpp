@@ -2,6 +2,7 @@
 #include "adc_btns/adc_calibration.hpp"
 #include "pwm-ws2812b.h"
 #include "qspi-w25q64.h"
+#include "configs/webconfig_btns_manager.hpp"
 
 void WebConfigState::setup() {
 
@@ -29,6 +30,9 @@ void WebConfigState::loop() {
     if(isRunning) {
         ADC_CALIBRATION_MANAGER.processCalibration(); // 处理校准逻辑
         CONFIG_MANAGER.loop();
+        
+        // 实时更新按键状态并生成事件（在主循环中调用）
+        WebConfigBtnsManager::getInstance().update();
     }
 }
 
