@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
     Stack,
     Fieldset,
@@ -22,12 +22,13 @@ import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
 import { ContentActionButtons } from "@/components/content-action-buttons";
 import { ButtonEvent } from "./button-monitor-manager";
+import type { ButtonStates } from "@/contexts/gamepad-config-context";
 
 // 按键监控管理器 Props 类型
 interface ButtonMonitorProps {
     isMonitoring: boolean;
     isPolling: boolean;
-    lastButtonStates?: any;
+    lastButtonStates?: ButtonStates;
     startMonitoring: () => Promise<void>;
     stopMonitoring: () => Promise<void>;
     addEventListener: (listener: (event: ButtonEvent) => void) => void;
@@ -219,11 +220,6 @@ export function HotkeySettingContent({
                 </Card.Title>
                 <Card.Description fontSize="sm" pt={4} pb={4} whiteSpace="pre-wrap">
                     {t.SETTINGS_HOTKEYS_HELPER_TEXT}
-                    {onButtonMonitoringToggle && (
-                        <Text fontSize="sm" pt={2} color="blue.600">
-                            💡 启用设备按键监控后，可以直接按下设备上的按键来绑定热键
-                        </Text>
-                    )}
                 </Card.Description>
                 
                 {/* 设备按键监控控制 */}
@@ -232,7 +228,7 @@ export function HotkeySettingContent({
                         <HStack gap={2}>
                             <Switch.Root
                                 disabled={disabled || calibrationStatus.isActive}
-                                colorPalette="blue"
+                                colorPalette="green"
                                 checked={isButtonMonitoringEnabled}
                                 onCheckedChange={(details) => handleMonitoringToggle(details.checked)}
                             >
@@ -241,7 +237,7 @@ export function HotkeySettingContent({
                                     <Switch.Thumb />
                                 </Switch.Control>
                                 <Switch.Label fontSize="sm">
-                                    设备按键监控 {isButtonMonitoringEnabled ? '(已启用)' : '(已禁用)'}
+                                    {t.SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE}
                                 </Switch.Label>
                             </Switch.Root>
                         </HStack>

@@ -363,7 +363,7 @@
       "isLocked": false
     },
     {
-      "key": -1,
+      "key": 11,
       "action": "LedsBrightnessDown",
       "isLocked": false
     },

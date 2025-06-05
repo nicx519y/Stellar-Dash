@@ -18,7 +18,7 @@ import {
 } from "@/types/gamepad-config";
 import Hitbox from "@/components/hitbox";
 import { HotkeySettingContent } from "./hotkey-setting-content";
-import { ButtonMonitorManager, ButtonEvent } from "./button-monitor-manager";
+import { ButtonMonitorManager } from "./button-monitor-manager";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
@@ -39,7 +39,7 @@ export function GlobalSettingContent() {
         updateGlobalConfig,
     } = useGamepadConfig();
 
-    const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
+    const [_isDirty] = useUnsavedChangesWarning();
 
     // 管理活跃的热键索引
     const [activeHotkeyIndex, setActiveHotkeyIndex] = useState<number>(0);

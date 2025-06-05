@@ -7,7 +7,7 @@ interface ButtonMonitoringState {
 }
 
 // 全局状态
-let buttonState: ButtonMonitoringState = {
+const buttonState: ButtonMonitoringState = {
     isActive: false,
     triggerMask: 0,
     totalButtons: 8, // 假设8个按键

@@ -69,6 +69,13 @@ export function ButtonMonitorManager({
     const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
     const eventListenersRef = useRef<Set<ButtonEventListener>>(new Set());
     const isMountedRef = useRef(true);
+    const isManualOperationRef = useRef(false); // 跟踪是否为手动操作
+
+    // 确保组件挂载时 isMountedRef 为 true
+    useEffect(() => {
+        isMountedRef.current = true;
+        console.log('Component mounted, isMountedRef set to true');
+    }, []);
 
     // 事件发布器
     const emitButtonEvent = useCallback((event: ButtonEvent) => {
@@ -140,15 +147,25 @@ export function ButtonMonitorManager({
 
     // 轮询函数
     const pollButtonStates = useCallback(async () => {
+        console.log('pollButtonStates called:', {
+            isMounted: isMountedRef.current,
+            localMonitoringActive
+        });
+        
         if (!isMountedRef.current || !localMonitoringActive) {
+            console.log('pollButtonStates aborted:', {
+                reason: !isMountedRef.current ? 'not mounted' : 'monitoring not active'
+            });
             return;
         }
 
         try {
+            console.log('Fetching button states...');
             const states = await getButtonStates();
             
             if (!isMountedRef.current) return;
 
+            console.log('Button states received:', states);
             setLastButtonStates(states);
             analyzeButtonChanges(states);
             onButtonStatesChange?.(states);
@@ -163,12 +180,23 @@ export function ButtonMonitorManager({
 
     // 开始轮询
     const startPolling = useCallback(() => {
+        console.log('startPolling called:', {
+            hasTimer: !!pollingTimerRef.current,
+            localMonitoringActive,
+            pollingInterval
+        });
+        
         if (pollingTimerRef.current || !localMonitoringActive) {
+            console.log('startPolling aborted:', {
+                reason: pollingTimerRef.current ? 'already has timer' : 'monitoring not active'
+            });
             return;
         }
 
+        console.log('Starting polling timer...');
         setIsPolling(true);
         pollingTimerRef.current = setInterval(pollButtonStates, pollingInterval);
+        console.log('Polling timer started, interval ID:', pollingTimerRef.current);
     }, [localMonitoringActive, pollButtonStates, pollingInterval]);
 
     // 停止轮询
@@ -183,8 +211,9 @@ export function ButtonMonitorManager({
     // 开始监控
     const handleStartMonitoring = useCallback(async () => {
         try {
+            isManualOperationRef.current = true; // 标记为手动操作
+            setLocalMonitoringActive(true); // 先设置本地状态
             await startButtonMonitoring();
-            setLocalMonitoringActive(true); // 立即设置本地状态
             onMonitoringStateChange?.(true);
         } catch (error) {
             setLocalMonitoringActive(false); // 出错时重置
@@ -192,14 +221,17 @@ export function ButtonMonitorManager({
             console.error('Failed to start button monitoring:', errorObj);
             onError?.(errorObj);
             throw errorObj;
+        } finally {
+            isManualOperationRef.current = false; // 重置标记
         }
     }, [startButtonMonitoring, onMonitoringStateChange, onError]);
 
     // 停止监控
     const handleStopMonitoring = useCallback(async () => {
         try {
+            isManualOperationRef.current = true; // 标记为手动操作
+            setLocalMonitoringActive(false); // 先设置本地状态
             stopPolling();
-            setLocalMonitoringActive(false); // 立即设置本地状态
             await stopButtonMonitoring();
             setPreviousTriggerMask(0);
             setLastButtonStates(undefined);
@@ -209,21 +241,28 @@ export function ButtonMonitorManager({
             console.error('Failed to stop button monitoring:', errorObj);
             onError?.(errorObj);
             throw errorObj;
+        } finally {
+            isManualOperationRef.current = false; // 重置标记
         }
     }, [stopButtonMonitoring, stopPolling, onMonitoringStateChange, onError]);
 
     // 监听本地监控状态变化，控制轮询
     useEffect(() => {
+        console.log('Local monitoring state changed:', localMonitoringActive);
         if (localMonitoringActive) {
+            console.log('Attempting to start polling...');
             startPolling();
         } else {
+            console.log('Stopping polling...');
             stopPolling();
         }
     }, [localMonitoringActive, startPolling, stopPolling]);
 
-    // 同步context状态到本地状态
+    // 同步context状态到本地状态，但避免在手动操作期间同步
     useEffect(() => {
-        setLocalMonitoringActive(buttonMonitoringActive);
+        if (!isManualOperationRef.current) {
+            setLocalMonitoringActive(buttonMonitoringActive);
+        }
     }, [buttonMonitoringActive]);
 
     // 自动开始监控

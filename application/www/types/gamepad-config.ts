@@ -475,7 +475,8 @@ export const UI_TEXT = {
 
     // Hotkeys Settings
     SETTINGS_HOTKEYS_TITLE: "HOTKEYS SETTINGS",
-    SETTINGS_HOTKEYS_HELPER_TEXT: `Configure up to ${DEFAULT_NUM_HOTKEYS_MAX} hotkeys for quick access to various functions.\n- Click on the hotkey field and press the desired key on the hitbox to bind the hotkey.\n- Choice the hotkey action from the dropdown list.\n- Locked hotkeys are used for web configuration mode because this function is required.`,
+    SETTINGS_HOTKEYS_HELPER_TEXT: `Configure up to ${DEFAULT_NUM_HOTKEYS_MAX} hotkeys for quick access to various functions.\n- Click on the hotkey field and press the desired key on the hitbox to bind the hotkey.\n- Choice the hotkey action from the dropdown list.\n- Locked hotkeys are used for web configuration mode because this function is required.\n- Enable device button monitoring to bind hotkeys by pressing the buttons on the device.`,
+    SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "Device Button Monitoring",
 
     // Profile Select
     PROFILE_SELECT_TITLE: "Profile Select",
@@ -698,7 +699,8 @@ export const UI_TEXT_ZH = {
     
     // 热键设置
     SETTINGS_HOTKEYS_TITLE: "快捷键设置",
-    SETTINGS_HOTKEYS_HELPER_TEXT: `最多可以配置${DEFAULT_NUM_HOTKEYS_MAX}个快捷键来快速访问各种功能。\n- 点击快捷键区域并在左侧hitbox上按下想要绑定的按键\n- 从下拉列表中选择快捷键动作\n- 锁定的快捷键用于网页配置模式，因为这个功能是必需的`,
+    SETTINGS_HOTKEYS_HELPER_TEXT: `最多可以配置${DEFAULT_NUM_HOTKEYS_MAX}个快捷键来快速访问各种功能。\n- 点击快捷键区域并在左侧hitbox上按下想要绑定的按键\n- 从下拉列表中选择快捷键动作\n- 锁定的快捷键用于网页配置模式，因为这个功能是必需的\n- 启用设备按键监控后，可以直接按下设备上的按键来绑定热键`,
+    SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "设备按键监控",
     
 
     // 配置选择
@@ -811,5 +813,6 @@ export const UI_TEXT_ZH = {
     HOTKEY_ACTION_PS5_MODE: "PlayStation 5模式",
     HOTKEY_ACTION_NSWITCH_MODE: "Nintendo Switch模式",
     HOTKEY_ACTION_SYSTEM_REBOOT: "系统重启",
+    
 } as const;
 
