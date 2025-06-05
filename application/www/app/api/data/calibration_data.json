@@ -1,6 +1,6 @@
 {
   "isActive": false,
-  "uncalibratedCount": 5,
+  "uncalibratedCount": 3,
   "activeCalibrationCount": 0,
   "allCalibrated": false,
   "buttons": [
@@ -54,11 +54,11 @@
     },
     {
       "index": 6,
-      "phase": "IDLE",
-      "isCalibrated": false,
-      "topValue": 3220,
-      "bottomValue": 0,
-      "ledColor": "RED"
+      "phase": "COMPLETED",
+      "isCalibrated": true,
+      "topValue": 3118,
+      "bottomValue": 230,
+      "ledColor": "GREEN"
     },
     {
       "index": 7,
@@ -104,7 +104,7 @@
       "index": 12,
       "phase": "IDLE",
       "isCalibrated": false,
-      "topValue": 0,
+      "topValue": 3826,
       "bottomValue": 0,
       "ledColor": "RED"
     },
@@ -126,11 +126,11 @@
     },
     {
       "index": 15,
-      "phase": "IDLE",
-      "isCalibrated": false,
-      "topValue": 0,
-      "bottomValue": 0,
-      "ledColor": "RED"
+      "phase": "COMPLETED",
+      "isCalibrated": true,
+      "topValue": 3606,
+      "bottomValue": 157,
+      "ledColor": "GREEN"
     },
     {
       "index": 16,
