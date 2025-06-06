@@ -6,9 +6,6 @@ import {
     Fieldset,
     Text,
     Card,
-    Box,
-    HStack,
-    Switch,
 } from "@chakra-ui/react";
 import {
     HotkeyAction,
@@ -178,6 +175,8 @@ export function HotkeySettingContent({
         }
     }, [hotkeys, activeHotkeyIndex, setActiveHotkeyIndex]);
 
+    
+
     // 监听外部点击事件（从Hitbox组件）
     useEffect(() => {
         const handleHitboxClick = (event: CustomEvent) => {
@@ -226,6 +225,22 @@ export function HotkeySettingContent({
         }
     };
 
+    /**
+     * 组件挂载时，如果组件未禁用，则开启按键监控,
+     * 组件卸载时，关闭按键监控
+     * 
+     */
+    useEffect(() => {
+        if (!disabled) {
+            handleButtonMonitoringToggle(true);
+        } else {
+            handleButtonMonitoringToggle(false);
+        }
+        return () => {
+            handleButtonMonitoringToggle(false);
+        };
+    }, [disabled]);
+
     return (
         <Card.Root w={width} h={height}>
             <Card.Header>
@@ -238,27 +253,6 @@ export function HotkeySettingContent({
                     {t.SETTINGS_HOTKEYS_HELPER_TEXT}
                 </Card.Description>
                 
-                {/* 设备按键监控控制 */}
-                {onButtonMonitoringToggle && (
-                    <Box pt={2}>
-                        <HStack gap={2}>
-                            <Switch.Root
-                                disabled={disabled || calibrationStatus.isActive}
-                                colorPalette="green"
-                                checked={isButtonMonitoringEnabled}
-                                onCheckedChange={(details) => handleButtonMonitoringToggle(details.checked)}
-                            >
-                                <Switch.HiddenInput />
-                                <Switch.Control>
-                                    <Switch.Thumb />
-                                </Switch.Control>
-                                <Switch.Label fontSize="sm">
-                                    {t.SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE}
-                                </Switch.Label>
-                            </Switch.Root>
-                        </HStack>
-                    </Box>
-                )}
             </Card.Header>
 
             <Card.Body>

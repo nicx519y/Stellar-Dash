@@ -61,8 +61,6 @@ export function KeysSettingContent() {
     const [autoSwitch, setAutoSwitch] = useState<boolean>(true);
     const [inputKey, setInputKey] = useState<number>(-1);
 
-    // 按键监控状态
-    const [isButtonMonitoringEnabled, setIsButtonMonitoringEnabled] = useState<boolean>(false);
 
     // 使用新的按键监控 hook
     const buttonMonitor = useButtonMonitor({
@@ -85,22 +83,11 @@ export function KeysSettingContent() {
 
     // 处理监控状态切换
     useEffect(() => {
-        const handleActualMonitoringToggle = async () => {
-            try {
-                if (isButtonMonitoringEnabled) {
-                    await buttonMonitor.startMonitoring();
-                } else {
-                    await buttonMonitor.stopMonitoring();
-                }
-            } catch (error) {
-                console.error('监控状态切换失败:', error);
-                // 重置开关状态
-                setIsButtonMonitoringEnabled(!isButtonMonitoringEnabled);
-            }
+        buttonMonitor.startMonitoring();
+        return () => {
+            buttonMonitor.stopMonitoring();
         };
-
-        handleActualMonitoringToggle();
-    }, [isButtonMonitoringEnabled, buttonMonitor]);
+    }, []);
 
     // 监听设备按键事件
     useEffect(() => {
@@ -148,10 +135,7 @@ export function KeysSettingContent() {
         setInputKey(keyId);
     }
 
-    // 处理监控开关变化
-    const handleMonitoringToggle = async (enabled: boolean) => {
-        setIsButtonMonitoringEnabled(enabled);
-    };
+
 
     const saveProfileDetailHandler = (): Promise<void> => {
         const newProfile: GameProfile = {
@@ -209,18 +193,7 @@ export function KeysSettingContent() {
                                                 </Button>
                                             </ToggleTip>
                                         </HStack>
-                                        <Switch.Root
-                                            colorPalette={"green"}
-                                            size="sm"
-                                            checked={isButtonMonitoringEnabled}
-                                            onCheckedChange={(details) => handleMonitoringToggle(details.checked)}
-                                        >
-                                            <Switch.HiddenInput />
-                                            <Switch.Control>
-                                                <Switch.Thumb />
-                                            </Switch.Control>
-                                            <Switch.Label>{t.SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE}</Switch.Label>
-                                        </Switch.Root>
+                                        
                                         <KeymappingFieldset
                                             autoSwitch={autoSwitch}
                                             inputKey={inputKey}
