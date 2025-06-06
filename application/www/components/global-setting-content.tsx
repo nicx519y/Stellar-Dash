@@ -18,7 +18,6 @@ import {
 } from "@/types/gamepad-config";
 import Hitbox from "@/components/hitbox";
 import { HotkeySettingContent } from "./hotkey-setting-content";
-import { ButtonMonitorManager } from "./button-monitor-manager";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
@@ -26,6 +25,7 @@ import { InputModeSettingContent } from "./input-mode-content";
 import { openConfirm } from "@/components/dialog-confirm";
 import { GamePadColor } from "@/types/gamepad-color";
 import { useNavigationBlocker } from '@/hooks/use-navigation-blocker';
+import React from "react";
 
 export function GlobalSettingContent() {
     const { t } = useLanguage();
@@ -249,25 +249,13 @@ export function GlobalSettingContent() {
                 </Center>
             </Center>
             <Center>
-                <ButtonMonitorManager
-                    autoStart={false}
-                    pollingInterval={500}
-                    autoStopOnUnmount={true}
-                    onError={(error) => {
-                        console.error('按键监控错误:', error);
-                    }}
-                >
-                    {(buttonMonitorProps) => (
-                        <HotkeySettingContent
-                            disabled={calibrationStatus.isActive}
-                            activeHotkeyIndex={activeHotkeyIndex}
-                            onActiveHotkeyIndexChange={setActiveHotkeyIndex}
-                            isButtonMonitoringEnabled={isButtonMonitoringEnabled}
-                            onButtonMonitoringToggle={setIsButtonMonitoringEnabled}
-                            buttonMonitorProps={buttonMonitorProps}
-                        />
-                    )}
-                </ButtonMonitorManager>
+                <HotkeySettingContent
+                    disabled={calibrationStatus.isActive}
+                    activeHotkeyIndex={activeHotkeyIndex}
+                    onActiveHotkeyIndexChange={setActiveHotkeyIndex}
+                    isButtonMonitoringEnabled={isButtonMonitoringEnabled}
+                    onButtonMonitoringToggle={setIsButtonMonitoringEnabled}
+                />
             </Center>
         </Flex>
     );

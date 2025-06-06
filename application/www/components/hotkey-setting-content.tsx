@@ -21,19 +21,8 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
 import { ContentActionButtons } from "@/components/content-action-buttons";
-import { ButtonEvent } from "./button-monitor-manager";
-import type { ButtonStates } from "@/contexts/gamepad-config-context";
-
-// 按键监控管理器 Props 类型
-interface ButtonMonitorProps {
-    isMonitoring: boolean;
-    isPolling: boolean;
-    lastButtonStates?: ButtonStates;
-    startMonitoring: () => Promise<void>;
-    stopMonitoring: () => Promise<void>;
-    addEventListener: (listener: (event: ButtonEvent) => void) => void;
-    removeEventListener: (listener: (event: ButtonEvent) => void) => void;
-}
+import { ButtonEvent } from "@/components/button-monitor-manager";
+import { useButtonMonitor } from "@/hooks/use-button-monitor";
 
 interface HotkeySettingContentProps {
     /** 是否禁用组件（例如在校准模式下） */
@@ -52,8 +41,6 @@ interface HotkeySettingContentProps {
     isButtonMonitoringEnabled?: boolean;
     /** 按键监控开关回调 */
     onButtonMonitoringToggle?: (enabled: boolean) => void;
-    /** 按键监控管理器属性 */
-    buttonMonitorProps?: ButtonMonitorProps;
 }
 
 export function HotkeySettingContent({
@@ -65,7 +52,6 @@ export function HotkeySettingContent({
     height = "100%",
     isButtonMonitoringEnabled = false,
     onButtonMonitoringToggle,
-    buttonMonitorProps,
 }: HotkeySettingContentProps) {
     const { t } = useLanguage();
     const {
@@ -79,18 +65,30 @@ export function HotkeySettingContent({
     const [hotkeys, setHotkeys] = useState<Hotkey[]>([]);
     const [internalActiveIndex, setInternalActiveIndex] = useState<number>(0);
 
-    // 使用 ref 存储最新的事件处理函数
-    const handleDeviceButtonEventRef = useRef<((buttonEvent: ButtonEvent) => void) | null>(null);
-    
-    // 使用 ref 存储 buttonMonitorProps
-    const buttonMonitorPropsRef = useRef<ButtonMonitorProps | undefined>(buttonMonitorProps);
-    
-    // 使用 ref 标记是否已绑定事件
-    const isEventBoundRef = useRef<boolean>(false);
+    // 使用 ref 存储最新的状态，避免事件监听器重复创建
+    const hotkeysRef = useRef<Hotkey[]>([]);
+    const activeHotkeyIndexRef = useRef<number>(0);
+
+    // 使用新的按键监控 hook
+    const buttonMonitor = useButtonMonitor({
+        pollingInterval: 500,
+        onError: (error) => {
+            console.error('按键监控错误:', error);
+        },
+    });
 
     // 使用外部提供的活跃索引，否则使用内部状态
     const activeHotkeyIndex = externalActiveIndex !== undefined ? externalActiveIndex : internalActiveIndex;
     const setActiveHotkeyIndex = onActiveHotkeyIndexChange || setInternalActiveIndex;
+
+    // 更新 ref 中的状态
+    useEffect(() => {
+        hotkeysRef.current = hotkeys;
+    }, [hotkeys]);
+
+    useEffect(() => {
+        activeHotkeyIndexRef.current = activeHotkeyIndex;
+    }, [activeHotkeyIndex]);
 
     // 从 gamepadConfig 加载 hotkeys 配置
     useEffect(() => {
@@ -100,11 +98,12 @@ export function HotkeySettingContent({
         setIsDirty?.(false);
     }, [hotkeysConfig, setIsDirty]);
 
+
     // 更新单个热键
     const updateHotkey = useCallback((index: number, hotkey: Hotkey) => {
         if (index < 0 || index >= DEFAULT_NUM_HOTKEYS_MAX) return;
 
-        const keys = hotkeys.map(h => h.key);
+        const keys = hotkeysRef.current.map(h => h.key);
         const keyIndex = keys.indexOf(hotkey.key);
         
         // 如果热键已经被绑定到其他位置，显示错误提示
@@ -117,14 +116,57 @@ export function HotkeySettingContent({
             return;
         }
 
-        const newHotkeys = hotkeys.slice();
+        const newHotkeys = hotkeysRef.current.slice();
         newHotkeys[index] = hotkey;
         setHotkeys(newHotkeys);
         setIsDirty?.(true);
 
         // 调用外部回调
         onHotkeyUpdate?.(index, hotkey);
-    }, [hotkeys, t, setIsDirty, onHotkeyUpdate]);
+    }, [t, setIsDirty, onHotkeyUpdate]);
+
+    // 监听设备按键事件 - 移除会频繁变化的依赖项
+    useEffect(() => {
+        const handleDeviceButtonEvent = (event: CustomEvent<ButtonEvent>) => {
+            const buttonEvent = event.detail;
+            
+            console.log('Hotkey handleDeviceButtonEvent called:', {
+                type: buttonEvent.type,
+                buttonIndex: buttonEvent.buttonIndex,
+                timestamp: Date.now()
+            });
+            
+            // 只处理按键按下事件，并且只在启用监控时
+            if (buttonEvent.type === 'button-press' && 
+                isButtonMonitoringEnabled && 
+                !disabled && 
+                !calibrationStatus.isActive) {
+                
+                const currentActiveIndex = activeHotkeyIndexRef.current;
+                const currentHotkeys = hotkeysRef.current;
+                
+                console.log('Processing button press for hotkey binding:', {
+                    activeIndex: currentActiveIndex,
+                    buttonIndex: buttonEvent.buttonIndex
+                });
+                
+                // 获取当前热键设置并更新
+                const currentHotkey = currentHotkeys[currentActiveIndex] || { key: -1, action: HotkeyAction.None, isLocked: false };
+                updateHotkey(currentActiveIndex, { 
+                    ...currentHotkey,
+                    key: buttonEvent.buttonIndex
+                });
+            }
+        };
+
+        // 添加事件监听器
+        window.addEventListener('device-button-event', handleDeviceButtonEvent as EventListener);
+
+        // 清理函数
+        return () => {
+            window.removeEventListener('device-button-event', handleDeviceButtonEvent as EventListener);
+        };
+    }, [isButtonMonitoringEnabled, disabled, calibrationStatus.isActive, updateHotkey]);
 
     // 自动选择下一个可用的热键索引（如果当前的被锁定）
     useEffect(() => {
@@ -156,92 +198,6 @@ export function HotkeySettingContent({
         };
     }, [activeHotkeyIndex, hotkeys, updateHotkey]);
 
-    // 处理设备按键事件 - 存储到ref中
-    const handleDeviceButtonEvent = useCallback((buttonEvent: ButtonEvent) => {
-        console.log('handleDeviceButtonEvent called:', {
-            type: buttonEvent.type,
-            buttonIndex: buttonEvent.buttonIndex,
-            timestamp: Date.now()
-        });
-        
-        // 只处理按键按下事件，并且只在启用监控时
-        if (buttonEvent.type === 'button-press' && 
-            isButtonMonitoringEnabled && 
-            !disabled && 
-            !calibrationStatus.isActive) {
-            
-            console.log('Processing button press for hotkey binding:', {
-                activeIndex: activeHotkeyIndex,
-                buttonIndex: buttonEvent.buttonIndex
-            });
-            
-            // 获取当前热键设置并更新
-            const currentHotkey = hotkeys[activeHotkeyIndex] || { key: -1, action: HotkeyAction.None, isLocked: false };
-            updateHotkey(activeHotkeyIndex, { 
-                ...currentHotkey,
-                key: buttonEvent.buttonIndex
-            });
-            
-        }
-    }, [isButtonMonitoringEnabled, disabled, calibrationStatus.isActive, activeHotkeyIndex, hotkeys, updateHotkey]);
-
-    // 将最新的事件处理函数存储到ref
-    useEffect(() => {
-        handleDeviceButtonEventRef.current = handleDeviceButtonEvent;
-    }, [handleDeviceButtonEvent]);
-
-    // 创建稳定的事件wrapper函数，用于绑定
-    const stableEventWrapper = useCallback((buttonEvent: ButtonEvent) => {
-        if (handleDeviceButtonEventRef.current) {
-            handleDeviceButtonEventRef.current(buttonEvent);
-        }
-    }, []);
-
-    // 事件绑定管理：只绑定一次，不重复绑定
-    useEffect(() => {
-        // 更新ref
-        buttonMonitorPropsRef.current = buttonMonitorProps;
-        
-        // 只在还未绑定且props存在时绑定
-        if (buttonMonitorProps && !isEventBoundRef.current) {
-            console.log('Binding event listener');
-            buttonMonitorProps.addEventListener(stableEventWrapper);
-            isEventBoundRef.current = true;
-        }
-    }, [buttonMonitorProps, stableEventWrapper]);
-    
-    // 组件卸载时清理
-    useEffect(() => {
-        return () => {
-            const props = buttonMonitorPropsRef.current;
-            if (props && isEventBoundRef.current) {
-                console.log('Unbinding event listener on unmount');
-                props.removeEventListener(stableEventWrapper);
-                isEventBoundRef.current = false;
-            }
-        };
-    }, [stableEventWrapper]);
-
-    // 处理监控开关变化
-    const handleMonitoringToggle = useCallback(async (enabled: boolean) => {
-        if (buttonMonitorProps) {
-            try {
-                if (enabled && !buttonMonitorProps.isMonitoring && !disabled && !calibrationStatus.isActive) {
-                    await buttonMonitorProps.startMonitoring();
-                } else if (!enabled && buttonMonitorProps.isMonitoring) {
-                    await buttonMonitorProps.stopMonitoring();
-                }
-                onButtonMonitoringToggle?.(enabled);
-            } catch (error) {
-                console.error('监控状态切换失败:', error);
-                // 重置开关状态
-                onButtonMonitoringToggle?.(!enabled);
-            }
-        } else {
-            onButtonMonitoringToggle?.(enabled);
-        }
-    }, [buttonMonitorProps, disabled, calibrationStatus.isActive, onButtonMonitoringToggle]);
-
     // 保存热键配置
     const saveHotkeysConfigHandler = async () => {
         if (!hotkeysConfig) return;
@@ -256,6 +212,18 @@ export function HotkeySettingContent({
     // 重置热键配置
     const resetHotkeysConfigHandler = async () => {
         await fetchHotkeysConfig();
+    };
+
+    const handleButtonMonitoringToggle = async (checked: boolean) => {
+        if (checked) {
+            await buttonMonitor.startMonitoring();
+            console.log('Button monitoring started');
+            onButtonMonitoringToggle?.(true);
+        } else {
+            await buttonMonitor.stopMonitoring();
+            console.log('Button monitoring stopped');
+            onButtonMonitoringToggle?.(false);
+        }
     };
 
     return (
@@ -278,7 +246,7 @@ export function HotkeySettingContent({
                                 disabled={disabled || calibrationStatus.isActive}
                                 colorPalette="green"
                                 checked={isButtonMonitoringEnabled}
-                                onCheckedChange={(details) => handleMonitoringToggle(details.checked)}
+                                onCheckedChange={(details) => handleButtonMonitoringToggle(details.checked)}
                             >
                                 <Switch.HiddenInput />
                                 <Switch.Control>
