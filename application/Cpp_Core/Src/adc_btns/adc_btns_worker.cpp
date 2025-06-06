@@ -201,7 +201,6 @@ uint32_t ADCBtnsWorker::read() {
         if(adcValue == 0 || adcValue > UINT16_MAX) {
             continue;
         }
-        
 
         if(!btn->initCompleted) {
 
@@ -222,10 +221,6 @@ uint32_t ADCBtnsWorker::read() {
         // 处理状态转换
         if(event != ButtonEvent::NONE) {
             handleButtonState(btn, event);
-            
-            APP_DBG("Button %d state: %d, event: %d, index: %d", 
-                i, static_cast<int>(btn->state), 
-                static_cast<int>(event), currentIndex);
         }
     }
 
@@ -566,8 +561,6 @@ ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint
                         if (highPrecisionDiff >= btn->highPrecisionReleaseAccuracyIndex && 
                             highPrecisionIndex > btn->highPrecisionBottomDeadzoneIndex) {
                             shouldRelease = true;
-                            APP_DBG("High precision release detected: button %d, highPrecisionIndex: %d, diff: %d", 
-                                    btn->virtualPin, highPrecisionIndex, highPrecisionDiff);
                         }
                     }
                 } else {
@@ -582,8 +575,6 @@ ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint
                         float_t backHalfMovement = (currentIndex - btn->halfwayIndex) * this->mapping->step;
                         totalMovement = frontHalfMovement + backHalfMovement;
                         
-                        APP_DBG("Cross-boundary release check: button %d, frontHalf=%.2f, backHalf=%.2f, total=%.2f", 
-                                btn->virtualPin, frontHalfMovement, backHalfMovement, totalMovement);
                     } else {
                         // 都在后半段，使用常规计算
                         totalMovement = indexDiff * this->mapping->step;
@@ -592,8 +583,6 @@ ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint
                     // 使用配置的releaseAccuracy进行判断（物理距离）
                     if (totalMovement >= btn->releaseAccuracyIndex * this->mapping->step && currentIndex > btn->bottomDeadzoneIndex) {
                         shouldRelease = true;
-                        APP_DBG("Standard precision release detected: button %d, totalMovement=%.2f, required=%.2f", 
-                                btn->virtualPin, totalMovement, btn->releaseAccuracyIndex * this->mapping->step);
                     }
                 }
                 
@@ -646,7 +635,6 @@ void ADCBtnsWorker::handleButtonState(ADCBtn* btn, const ButtonEvent event) {
     switch(event) {
         case ButtonEvent::PRESS_COMPLETE:
             btn->state = ButtonState::PRESSED;
-            APP_DBG("PRESS_COMPLETE: %d", btn->virtualPin);
             buttonTriggerStatusChanged = true;
             this->virtualPinMask |= (1U << btn->virtualPin);
 
@@ -654,7 +642,6 @@ void ADCBtnsWorker::handleButtonState(ADCBtn* btn, const ButtonEvent event) {
 
         case ButtonEvent::RELEASE_COMPLETE:
             btn->state = ButtonState::RELEASED;
-            APP_DBG("RELEASE_COMPLETE: %d", btn->virtualPin);
             buttonTriggerStatusChanged = true;
             this->virtualPinMask &= ~(1U << btn->virtualPin);
 
@@ -724,8 +711,6 @@ void ADCBtnsWorker::initHighPrecisionMapping(ADCBtn* btn) {
         btn->highPrecisionMapping[i] = (uint16_t)(lowerValue + fraction * (upperValue - lowerValue));
     }
     
-    APP_DBG("ADC_BTNS_WORKER::initHighPrecisionMapping - button %d, halfwayIndex: %d, highPrecisionLength: %d", 
-            btn->virtualPin, btn->halfwayIndex, btn->highPrecisionLength);
 }
 
 /**

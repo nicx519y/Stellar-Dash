@@ -208,7 +208,8 @@ void LEDsManager::brightnessUp() {
             STORAGE_MANAGER.saveConfig();
         }
         
-        setBrightness(opts->ledBrightness);
+        deinit();
+        setup();
     }
 }
 
@@ -223,7 +224,8 @@ void LEDsManager::brightnessDown() {
             STORAGE_MANAGER.saveConfig();
         }
         
-        setBrightness(opts->ledBrightness);
+        deinit();
+        setup();
     }
 }
 

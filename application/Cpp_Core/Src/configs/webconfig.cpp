@@ -2443,8 +2443,9 @@ std::string apiPushLedsConfig() {
             tempLedsConfig.ledAnimationSpeed);
 
     // 通过WebConfigLedsManager应用预览配置
-    WebConfigLedsManager& webLedsManager = WebConfigLedsManager::getInstance();
-    webLedsManager.applyPreviewConfig(tempLedsConfig);
+    WEBCONFIG_LEDS_MANAGER.applyPreviewConfig(tempLedsConfig);
+    // 通过WebConfigBtnsManager启动按键工作器
+    WEBCONFIG_BTNS_MANAGER.startButtonWorkers();
     
     cJSON_Delete(postParams);
     
@@ -2469,8 +2470,8 @@ std::string apiPushLedsConfig() {
  * }
  */
 std::string apiClearLedsPreview() {
-    WebConfigLedsManager& webLedsManager = WebConfigLedsManager::getInstance();
-    webLedsManager.clearPreviewConfig();
+    WEBCONFIG_LEDS_MANAGER.clearPreviewConfig();
+    WEBCONFIG_BTNS_MANAGER.stopButtonWorkers();
     
     // 返回成功响应
     cJSON* dataJSON = cJSON_CreateObject();

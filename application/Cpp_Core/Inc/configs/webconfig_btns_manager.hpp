@@ -34,3 +34,5 @@ private:
     uint32_t triggerMask; // 按键触发掩码（本周期内从0->1的按键）
     bool isWorkerActive; // 按键工作器活跃状态
 }; 
+
+#define WEBCONFIG_BTNS_MANAGER WebConfigBtnsManager::getInstance()

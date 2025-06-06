@@ -50,6 +50,7 @@ void WebConfigBtnsManager::cleanupButtonWorkers() {
 
 void WebConfigBtnsManager::startButtonWorkers() {
     if (!isWorkerActive) {
+        APP_DBG("WebConfigBtnsManager::startButtonWorkers - starting button workers");
         setupButtonWorkers();
         isWorkerActive = true;
     }
@@ -85,7 +86,8 @@ void WebConfigBtnsManager::update() {
     
     // 读取GPIO按键状态  
     uint32_t gpioBtnMask = GPIO_BTNS_WORKER.read();
-    
+
+
     // 更新ADC按键状态（索引 0 到 NUM_ADC_BUTTONS-1）
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
         // ADC按键的虚拟引脚从0开始

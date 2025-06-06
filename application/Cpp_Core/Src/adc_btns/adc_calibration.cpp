@@ -98,33 +98,6 @@ ADCBtnsError ADCCalibrationManager::stopCalibration() {
 }
 
 /**
- * 重置单个按键校准
- */
-ADCBtnsError ADCCalibrationManager::resetButtonCalibration(uint8_t buttonIndex) {
-    if (buttonIndex >= NUM_ADC_BUTTONS) {
-        return ADCBtnsError::INVALID_PARAMS;
-    }
-    
-    ButtonCalibrationState& state = buttonStates[buttonIndex];
-    state.phase = CalibrationPhase::IDLE;
-    state.isCalibrated = false;
-    state.sampleCount = 0;
-    state.minSample = UINT16_MAX;
-    state.maxSample = 0;
-    state.bottomValue = 0;
-    state.topValue = 0;
-    state.lastSampleTime = 0;
-    
-    clearSampleBuffer(buttonIndex);
-    setButtonLEDColor(buttonIndex, CalibrationLEDColor::RED);
-    updateButtonLED(buttonIndex, state.ledColor);
-    
-    APP_DBG("Button %d calibration reset (memory only, Flash will be cleared on save)", buttonIndex);
-    
-    return ADCBtnsError::SUCCESS;
-}
-
-/**
  * 重置所有按键校准
  */
 ADCBtnsError ADCCalibrationManager::resetAllCalibration() {
@@ -694,6 +667,9 @@ void ADCCalibrationManager::updateButtonLED(uint8_t buttonIndex, CalibrationLEDC
  * 更新所有LED
  */
 void ADCCalibrationManager::updateAllLEDs() {
+
+    WS2812B_SetAllLEDColor(0, 0, 0);
+
     // 更新每个按键的LED
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
         updateButtonLED(i, buttonStates[i].ledColor);
@@ -708,62 +684,6 @@ void ADCCalibrationManager::updateAllLEDs() {
     } else {
         APP_ERR("WS2812B not running, LED update skipped");
     }
-}
-
-/**
- * LED测试函数 - 循环显示所有颜色以验证LED工作状态
- */
-void ADCCalibrationManager::testAllLEDs() {
-    APP_DBG("Starting LED test for all buttons");
-    
-    // 确保WS2812B初始化
-    static bool ws2812b_test_initialized = false;
-    if (!ws2812b_test_initialized) {
-        WS2812B_Init();
-        if (WS2812B_Start() != WS2812B_RUNNING) {
-            APP_ERR("Failed to start WS2812B for LED test");
-            return;
-        }
-        ws2812b_test_initialized = true;
-    }
-    
-    const CalibrationLEDColor test_colors[] = {
-        CalibrationLEDColor::RED,
-        CalibrationLEDColor::CYAN,
-        CalibrationLEDColor::DARK_BLUE,
-        CalibrationLEDColor::GREEN, 
-        CalibrationLEDColor::YELLOW,
-        CalibrationLEDColor::OFF
-    };
-    
-    const char* color_names[] = {
-        "RED", "CYAN", "DARK_BLUE", "GREEN", "YELLOW", "OFF"
-    };
-    
-    // 为每种颜色测试所有LED
-    for (uint8_t color_idx = 0; color_idx < 6; color_idx++) {
-        
-        // 设置所有按键为当前测试颜色
-        for (uint8_t btn = 0; btn < NUM_ADC_BUTTONS; btn++) {
-            updateButtonLED(btn, test_colors[color_idx]);
-        }
-        
-        // 更新DMA缓冲区
-        if (WS2812B_GetState() == WS2812B_RUNNING) {
-            LEDDataToDMABuffer(0, NUM_ADC_BUTTONS);
-        }
-        
-        // 等待500ms观察效果
-        HAL_Delay(500);
-    }
-    
-    // 恢复所有LED为关闭状态
-    for (uint8_t btn = 0; btn < NUM_ADC_BUTTONS; btn++) {
-        updateButtonLED(btn, CalibrationLEDColor::OFF);
-    }
-    LEDDataToDMABuffer(0, NUM_ADC_BUTTONS);
-    
-    APP_DBG("LED test completed");
 }
 
 /**

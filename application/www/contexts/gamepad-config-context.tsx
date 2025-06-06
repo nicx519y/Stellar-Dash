@@ -864,7 +864,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (!data) {
                 return Promise.reject(new Error("Failed to get button states"));
             }
-            return data.data as ButtonStates;
+            return Promise.resolve(data as ButtonStates);
         } catch (error) {
             console.error('获取按键状态失败:', error);
             setError(error instanceof Error ? error.message : '获取按键状态失败');

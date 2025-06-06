@@ -49,3 +49,5 @@ private:
     LEDProfile previewConfig;   // 预览配置
     uint32_t lastButtonMask;    // 上次按键状态，用于动画更新
 }; 
+
+#define WEBCONFIG_LEDS_MANAGER WebConfigLedsManager::getInstance()

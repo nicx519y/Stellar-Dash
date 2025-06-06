@@ -75,7 +75,6 @@ public:
     // 校准控制
     ADCBtnsError startManualCalibration();                 // 开始手动校准
     ADCBtnsError stopCalibration();                        // 停止校准
-    ADCBtnsError resetButtonCalibration(uint8_t buttonIndex); // 重置单个按键校准
     ADCBtnsError resetAllCalibration();                    // 重置所有按键校准
     
     // 校准处理

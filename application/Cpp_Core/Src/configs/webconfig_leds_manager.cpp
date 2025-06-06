@@ -76,18 +76,32 @@ void WebConfigLedsManager::update(uint32_t buttonMask) {
     
     // 检查按键状态是否发生变化
     bool buttonsChanged = (buttonMask != lastButtonMask);
-    lastButtonMask = buttonMask;
+    
+    // 添加基础状态调试
+    if (buttonsChanged) {
+        APP_DBG("WebConfigLedsManager::update - Button state changed: 0x%08lX -> 0x%08lX", lastButtonMask, buttonMask);
+        APP_DBG("WebConfigLedsManager::update - Current effect: %d", previewConfig.ledEffect);
+        APP_DBG("WebConfigLedsManager::update - LED enabled: %s", previewConfig.ledEnabled ? "true" : "false");
+    }
     
     // 通过LEDsManager更新LED效果
-    // 注意：LEDsManager::loop 会自动处理动画更新
     LEDsManager& ledsManager = LEDsManager::getInstance();
     ledsManager.loop(buttonMask);
     
-    // 可选：为特定效果添加额外的更新逻辑
-    if (buttonsChanged && previewConfig.ledEffect == LEDEffect::RIPPLE) {
-        // 涟漪效果在按键变化时可能需要特殊处理
-        APP_DBG("WebConfigLedsManager::update - Button state changed for ripple effect: 0x%08lX", buttonMask);
+    // 为涟漪效果提供详细的调试信息
+    if (previewConfig.ledEffect == LEDEffect::RIPPLE) {
+        if (buttonsChanged) {
+            // 检测新按下的按钮
+            uint32_t newPressed = buttonMask & ~lastButtonMask;
+            uint32_t newReleased = lastButtonMask & ~buttonMask;
+
+        }
+        
+
     }
+    
+    // 更新最后的按键状态
+    lastButtonMask = buttonMask;
 }
 
 std::string WebConfigLedsManager::toJSON() const {
