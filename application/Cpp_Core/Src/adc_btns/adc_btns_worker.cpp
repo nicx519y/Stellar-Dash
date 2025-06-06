@@ -165,7 +165,7 @@ ADCBtnsError ADCBtnsWorker::setup() {
 }
 
 ADCBtnsError ADCBtnsWorker::deinit() {
-    ADC_MANAGER.stopADCSamping();
+    // ADC_MANAGER.stopADCSamping();
     
     // 只有在自动校准模式下才清理滑动窗口
     if (STORAGE_MANAGER.config.autoCalibrationEnabled) {

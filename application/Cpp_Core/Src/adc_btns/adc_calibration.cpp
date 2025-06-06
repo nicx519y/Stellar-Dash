@@ -35,7 +35,11 @@ ADCBtnsError ADCCalibrationManager::startManualCalibration() {
     loadExistingCalibration();
     
     calibrationActive = true;
-    
+    completionCheckExecuted = false; // 重置完成检查标志
+
+    // 启动ADC采样
+    ADC_MANAGER.startADCSamping(false);
+
     // 同时启动所有未校准按键的校准
     uint8_t uncalibratedCount = 0;
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
@@ -76,7 +80,11 @@ ADCBtnsError ADCCalibrationManager::stopCalibration() {
     }
     
     calibrationActive = false;
+    completionCheckExecuted = false; // 重置完成检查标志
     
+    // 停止ADC采样
+    // ADC_MANAGER.stopADCSamping();
+
     // 结束校准时关闭所有LED
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
         setButtonLEDColor(i, CalibrationLEDColor::OFF);
@@ -157,9 +165,6 @@ void ADCCalibrationManager::processCalibration() {
     if (!calibrationActive) {
         return;
     }
-    
-    // APP_DBG("processCalibration: active=%d, time=%d", calibrationActive, HAL_GetTick());
-
     
     // 获取所有ADC值
     const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& adcValues = ADC_MANAGER.readADCValues();
@@ -285,7 +290,7 @@ ADCBtnsError ADCCalibrationManager::validateSample(uint8_t buttonIndex, uint16_t
                             state.expectedBottomValue : state.expectedTopValue;
     
     // if(buttonIndex == 0){
-    // APP_DBG("Button %d expected value: %d, adcValue: %d, tolerance: %d", buttonIndex, expectedValue, adcValue, state.toleranceRange);
+    //     APP_DBG("Button %d expected value: %d, adcValue: %d, tolerance: %d", buttonIndex, expectedValue, adcValue, state.toleranceRange);
     // }
 
     // 检查值是否在期望范围内
@@ -409,7 +414,12 @@ void ADCCalibrationManager::checkCalibrationCompletion() {
         }
     }
     
-    if (allCompleted && calibrationActive) {
+    // 只有在状态发生变化时才执行昂贵的操作
+    if (allCompleted && calibrationActive && !completionCheckExecuted) {
+        completionCheckExecuted = true; // 标记已执行，防止重复执行
+        
+        APP_DBG("All buttons calibration completed, executing completion check once");
+        
         // 不自动退出校准状态，只做数据保存和LED更新
         // calibrationActive = false; // 注释掉或删除
         // 批量保存所有待保存的校准数据
@@ -418,7 +428,7 @@ void ADCCalibrationManager::checkCalibrationCompletion() {
             APP_ERR("Failed to save some calibration data to Flash, error: %d", static_cast<int>(saveResult));
         }
         // 打印所有按键校准完成的详细汇总信息
-        printAllCalibrationResults();
+        // printAllCalibrationResults();
         // 更新最终LED状态
         for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
             if (buttonStates[i].isCalibrated) {
@@ -429,6 +439,9 @@ void ADCCalibrationManager::checkCalibrationCompletion() {
         }
         updateAllLEDs();
         // 保持 calibrationActive = true，前端可检测到 isActive==true && allCalibrated==true
+    } else if (!allCompleted && completionCheckExecuted) {
+        // 如果之前已完成但现在又有按键变为未完成状态，重置标志
+        completionCheckExecuted = false;
     }
 }
 

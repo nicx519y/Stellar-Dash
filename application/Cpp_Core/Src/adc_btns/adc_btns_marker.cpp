@@ -19,7 +19,7 @@ void ADCBtnsMarker::reset() {
 
     memset(&step_info, 0, sizeof(step_info));
     
-    ADC_MANAGER.stopADCSamping();
+    // ADC_MANAGER.stopADCSamping();
 
     // 取消订阅ADC转换完成回调
     if (messageHandler) {
@@ -110,7 +110,7 @@ ADCBtnsError ADCBtnsMarker::step() {
  */
 void ADCBtnsMarker::stepFinish(const ADCChannelStats* const stats) {
 
-    ADC_MANAGER.stopADCSamping();
+    // ADC_MANAGER.stopADCSamping();
 
     step_info.is_sampling = false;
     step_info.index ++;

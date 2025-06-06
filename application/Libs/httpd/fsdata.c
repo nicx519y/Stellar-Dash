@@ -26,18 +26,18 @@
 // 文件数据指针
 static uint8_t* data__fonts_icomoon_ttf = NULL;
 static uint8_t* data__index_html = NULL;
-static uint8_t* data___next_static_js_app_layout_d0684f4425200969_js = NULL;
-static uint8_t* data___next_static_js_app_page_2ce43d8bac36799c_js = NULL;
+static uint8_t* data___next_static_js_app_layout_10d403a6a917aaa5_js = NULL;
+static uint8_t* data___next_static_js_app_page_d6f85d0ba0fc69dd_js = NULL;
 static uint8_t* data___next_static_js_app__not_found_page_74cc9060c45c4b1e_js = NULL;
-static uint8_t* data___next_static_js_main_app_69c0511cb6603f2a_js = NULL;
+static uint8_t* data___next_static_js_main_app_967b622ad6c69df8_js = NULL;
 
 // 文件大小常量
 #define SIZE__FONTS_ICOMOON_TTF 1437
-#define SIZE__INDEX_HTML 24703
-#define SIZE___NEXT_STATIC_JS_APP_LAYOUT_D0684F4425200969_JS 281491
-#define SIZE___NEXT_STATIC_JS_APP_PAGE_2CE43D8BAC36799C_JS 203925
+#define SIZE__INDEX_HTML 24701
+#define SIZE___NEXT_STATIC_JS_APP_LAYOUT_10D403A6A917AAA5_JS 280516
+#define SIZE___NEXT_STATIC_JS_APP_PAGE_D6F85D0BA0FC69DD_JS 202959
 #define SIZE___NEXT_STATIC_JS_APP__NOT_FOUND_PAGE_74CC9060C45C4B1E_JS 1041
-#define SIZE___NEXT_STATIC_JS_MAIN_APP_69C0511CB6603F2A_JS 98899
+#define SIZE___NEXT_STATIC_JS_MAIN_APP_967B622AD6C69DF8_JS 98671
 
 static bool fsdata_inited = false;
 
@@ -57,35 +57,35 @@ struct fsdata_file file__index_html[] = {{
     FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT
 }};
 
-struct fsdata_file file___next_static_js_app_layout_d0684f4425200969_js[] = {{
+struct fsdata_file file___next_static_js_app_layout_10d403a6a917aaa5_js[] = {{
     file__index_html,
     NULL,  // 将在运行时设置
     NULL,  // 将在运行时设置
-    SIZE___NEXT_STATIC_JS_APP_LAYOUT_D0684F4425200969_JS - 48,
+    SIZE___NEXT_STATIC_JS_APP_LAYOUT_10D403A6A917AAA5_JS - 48,
     FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT
 }};
 
-struct fsdata_file file___next_static_js_app_page_2ce43d8bac36799c_js[] = {{
-    file___next_static_js_app_layout_d0684f4425200969_js,
+struct fsdata_file file___next_static_js_app_page_d6f85d0ba0fc69dd_js[] = {{
+    file___next_static_js_app_layout_10d403a6a917aaa5_js,
     NULL,  // 将在运行时设置
     NULL,  // 将在运行时设置
-    SIZE___NEXT_STATIC_JS_APP_PAGE_2CE43D8BAC36799C_JS - 48,
+    SIZE___NEXT_STATIC_JS_APP_PAGE_D6F85D0BA0FC69DD_JS - 48,
     FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT
 }};
 
 struct fsdata_file file___next_static_js_app__not_found_page_74cc9060c45c4b1e_js[] = {{
-    file___next_static_js_app_page_2ce43d8bac36799c_js,
+    file___next_static_js_app_page_d6f85d0ba0fc69dd_js,
     NULL,  // 将在运行时设置
     NULL,  // 将在运行时设置
     SIZE___NEXT_STATIC_JS_APP__NOT_FOUND_PAGE_74CC9060C45C4B1E_JS - 60,
     FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT
 }};
 
-struct fsdata_file file___next_static_js_main_app_69c0511cb6603f2a_js[] = {{
+struct fsdata_file file___next_static_js_main_app_967b622ad6c69df8_js[] = {{
     file___next_static_js_app__not_found_page_74cc9060c45c4b1e_js,
     NULL,  // 将在运行时设置
     NULL,  // 将在运行时设置
-    SIZE___NEXT_STATIC_JS_MAIN_APP_69C0511CB6603F2A_JS - 48,
+    SIZE___NEXT_STATIC_JS_MAIN_APP_967B622AD6C69DF8_JS - 48,
     FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT
 }};
 
@@ -99,20 +99,20 @@ static void update_file_pointers(void) {
     ((struct fsdata_file *)file__index_html)->data = data__index_html + 12;
 
     // 更新undefined的指针
-    ((struct fsdata_file *)file___next_static_js_app_layout_d0684f4425200969_js)->name = data___next_static_js_app_layout_d0684f4425200969_js;
-    ((struct fsdata_file *)file___next_static_js_app_layout_d0684f4425200969_js)->data = data___next_static_js_app_layout_d0684f4425200969_js + 48;
+    ((struct fsdata_file *)file___next_static_js_app_layout_10d403a6a917aaa5_js)->name = data___next_static_js_app_layout_10d403a6a917aaa5_js;
+    ((struct fsdata_file *)file___next_static_js_app_layout_10d403a6a917aaa5_js)->data = data___next_static_js_app_layout_10d403a6a917aaa5_js + 48;
 
     // 更新undefined的指针
-    ((struct fsdata_file *)file___next_static_js_app_page_2ce43d8bac36799c_js)->name = data___next_static_js_app_page_2ce43d8bac36799c_js;
-    ((struct fsdata_file *)file___next_static_js_app_page_2ce43d8bac36799c_js)->data = data___next_static_js_app_page_2ce43d8bac36799c_js + 48;
+    ((struct fsdata_file *)file___next_static_js_app_page_d6f85d0ba0fc69dd_js)->name = data___next_static_js_app_page_d6f85d0ba0fc69dd_js;
+    ((struct fsdata_file *)file___next_static_js_app_page_d6f85d0ba0fc69dd_js)->data = data___next_static_js_app_page_d6f85d0ba0fc69dd_js + 48;
 
     // 更新undefined的指针
     ((struct fsdata_file *)file___next_static_js_app__not_found_page_74cc9060c45c4b1e_js)->name = data___next_static_js_app__not_found_page_74cc9060c45c4b1e_js;
     ((struct fsdata_file *)file___next_static_js_app__not_found_page_74cc9060c45c4b1e_js)->data = data___next_static_js_app__not_found_page_74cc9060c45c4b1e_js + 60;
 
     // 更新undefined的指针
-    ((struct fsdata_file *)file___next_static_js_main_app_69c0511cb6603f2a_js)->name = data___next_static_js_main_app_69c0511cb6603f2a_js;
-    ((struct fsdata_file *)file___next_static_js_main_app_69c0511cb6603f2a_js)->data = data___next_static_js_main_app_69c0511cb6603f2a_js + 48;
+    ((struct fsdata_file *)file___next_static_js_main_app_967b622ad6c69df8_js)->name = data___next_static_js_main_app_967b622ad6c69df8_js;
+    ((struct fsdata_file *)file___next_static_js_main_app_967b622ad6c69df8_js)->data = data___next_static_js_main_app_967b622ad6c69df8_js + 48;
 
 }
 
@@ -137,11 +137,11 @@ const struct fsdata_file * getFSRoot(void)
         addr += size;
 
         size = read_uint32_be(base_ptr + 12);
-        data___next_static_js_app_layout_d0684f4425200969_js = (uint8_t*)addr;
+        data___next_static_js_app_layout_10d403a6a917aaa5_js = (uint8_t*)addr;
         addr += size;
 
         size = read_uint32_be(base_ptr + 16);
-        data___next_static_js_app_page_2ce43d8bac36799c_js = (uint8_t*)addr;
+        data___next_static_js_app_page_d6f85d0ba0fc69dd_js = (uint8_t*)addr;
         addr += size;
 
         size = read_uint32_be(base_ptr + 20);
@@ -149,7 +149,7 @@ const struct fsdata_file * getFSRoot(void)
         addr += size;
 
         size = read_uint32_be(base_ptr + 24);
-        data___next_static_js_main_app_69c0511cb6603f2a_js = (uint8_t*)addr;
+        data___next_static_js_main_app_967b622ad6c69df8_js = (uint8_t*)addr;
         addr += size;
 
 
@@ -159,7 +159,7 @@ const struct fsdata_file * getFSRoot(void)
         fsdata_inited = true;
     }
 
-    return file___next_static_js_main_app_69c0511cb6603f2a_js;
+    return file___next_static_js_main_app_967b622ad6c69df8_js;
 }
 
 const uint8_t numfiles = 6;

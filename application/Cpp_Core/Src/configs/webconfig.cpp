@@ -2008,8 +2008,6 @@ std::string apiUpdateGlobalConfig() {
 std::string apiStartManualCalibration() {
     // 开始手动校准
     // 初始化ADC管理器
-    ADCManager::getInstance().startADCSamping(false);
-    HAL_Delay(10);
     ADCBtnsError error = ADC_CALIBRATION_MANAGER.startManualCalibration();
     if(error != ADCBtnsError::SUCCESS) {
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to start manual calibration");
@@ -2053,7 +2051,7 @@ std::string apiStartManualCalibration() {
 std::string apiStopManualCalibration() {
     // 停止手动校准
     ADCBtnsError error = ADC_CALIBRATION_MANAGER.stopCalibration();
-    ADCManager::getInstance().stopADCSamping();
+    
     if(error != ADCBtnsError::SUCCESS) {
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to stop manual calibration");
     }

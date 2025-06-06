@@ -110,6 +110,7 @@ public:
 private:
     // 校准状态
     bool calibrationActive = false;                        // 校准是否激活
+    bool completionCheckExecuted = false;                  // 是否已执行完成检查（防止重复执行）
     std::array<ButtonCalibrationState, NUM_ADC_BUTTONS> buttonStates; // 按键校准状态
     
     // 校准常量
