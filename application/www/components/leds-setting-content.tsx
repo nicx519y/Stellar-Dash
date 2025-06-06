@@ -46,7 +46,7 @@ export function LEDsSettingContent() {
     const { t } = useLanguage();
 
     const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
-    const { defaultProfile, updateProfileDetails, resetProfileDetails } = useGamepadConfig();
+    const { defaultProfile, updateProfileDetails, resetProfileDetails, pushLedsConfig, clearLedsPreview } = useGamepadConfig();
     const { colorMode } = useColorMode();
     const defaultFrontColor = useMemo(() => {
         if (colorMode === "dark") {
@@ -199,6 +199,27 @@ export function LEDsSettingContent() {
         t.SETTINGS_LEDS_BACK_COLOR2
     ];
 
+    const previewLedsEffectHandler = () => {
+        const config = {
+            ledEnabled: ledEnabled,
+            ledsEffectStyle: ledsEffectStyle,
+            ledColors: [color1.toString('hex'), color2.toString('hex'), color3.toString('hex')],
+            ledBrightness: ledBrightness,
+            ledAnimationSpeed: ledAnimationSpeed,
+        }
+        pushLedsConfig(config);
+    }
+
+    useEffect(() => {
+        previewLedsEffectHandler();
+    }, [ledsEffectStyle, ledEnabled]);
+
+    useEffect(() => {
+        return () => {
+            clearLedsPreview();
+        }
+    }, []);
+
     return (
         <>
             <Flex direction="row" width={"100%"} height={"100%"} padding={"18px"}  >
@@ -244,7 +265,9 @@ export function LEDsSettingContent() {
                                                     onCheckedChange={() => {
                                                         setLedEnabled(!ledEnabled);
                                                         setIsDirty?.(true);
-                                                    }} >
+                                                    }}
+
+                                                    >
                                                     <Switch.HiddenInput />
                                                     <Switch.Control>
                                                         <Switch.Thumb />
@@ -300,6 +323,10 @@ export function LEDsSettingContent() {
                                                             
                                                             onValueChange={(e) => {
                                                                 handleColorChange(index, e.value);
+                                                            }}
+
+                                                            onValueChangeEnd={() => {
+                                                                previewLedsEffectHandler();
                                                             }}
                                                             
                                                             onOpenChange={(details) => {
@@ -357,7 +384,10 @@ export function LEDsSettingContent() {
                                                         setLedBrightness(e.value[0]);
                                                         setIsDirty?.(true);
                                                     }}
-                                                    
+
+                                                    onValueChangeEnd={() => {
+                                                        previewLedsEffectHandler();
+                                                    }}
                                                 >
                                                     <HStack justifyContent={"space-between"} >
                                                         <Slider.Label>{t.SETTINGS_LEDS_BRIGHTNESS_LABEL}</Slider.Label>
@@ -399,6 +429,10 @@ export function LEDsSettingContent() {
                                                     onValueChange={(e) => {
                                                         setLedAnimationSpeed(e.value[0]);
                                                         setIsDirty?.(true);
+                                                    }}
+
+                                                    onValueChangeEnd={() => {
+                                                        previewLedsEffectHandler();
                                                     }}
                                                     
                                                 >

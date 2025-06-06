@@ -7,6 +7,7 @@
 LEDsManager::LEDsManager()
 {
     opts = &STORAGE_MANAGER.getDefaultGamepadProfile()->ledsConfigs;
+    usingTemporaryConfig = false;
     animationStartTime = 0;
     lastButtonState = 0;
     rippleCount = 0;
@@ -28,12 +29,8 @@ void LEDsManager::setup()
         // 设置初始亮度
         setBrightness(opts->ledBrightness);
 
-        // 转换颜色
-        frontColor = hexToRGB(opts->ledColor1);
-        backgroundColor1 = hexToRGB(opts->ledColor2);
-        backgroundColor2 = hexToRGB(opts->ledColor3);
-        defaultBackColor = {0, 0, 0}; // 黑色作为默认背景色
-        brightness = opts->ledBrightness;
+        // 更新颜色配置
+        updateColorsFromConfig();
 
         // 初始化动画
         animationStartTime = HAL_GetTick();
@@ -178,14 +175,24 @@ void LEDsManager::deinit()
 
 void LEDsManager::effectStyleNext() {
     opts->ledEffect = static_cast<LEDEffect>((opts->ledEffect + 1) % LEDEffect::NUM_EFFECTS);
-    STORAGE_MANAGER.saveConfig();
+    
+    // 只有在使用默认配置时才保存到存储
+    if (!usingTemporaryConfig) {
+        STORAGE_MANAGER.saveConfig();
+    }
+    
     deinit();
     setup();
 }
 
 void LEDsManager::effectStylePrev() {
     opts->ledEffect = static_cast<LEDEffect>((opts->ledEffect - 1 + LEDEffect::NUM_EFFECTS) % LEDEffect::NUM_EFFECTS);
-    STORAGE_MANAGER.saveConfig();
+    
+    // 只有在使用默认配置时才保存到存储
+    if (!usingTemporaryConfig) {
+        STORAGE_MANAGER.saveConfig();
+    }
+    
     deinit();
     setup();
 }   
@@ -195,7 +202,12 @@ void LEDsManager::brightnessUp() {
         return;
     } else {
         opts->ledBrightness = std::min((int)opts->ledBrightness + 10, 100); // 增加10%
-        STORAGE_MANAGER.saveConfig();
+        
+        // 只有在使用默认配置时才保存到存储
+        if (!usingTemporaryConfig) {
+            STORAGE_MANAGER.saveConfig();
+        }
+        
         setBrightness(opts->ledBrightness);
     }
 }
@@ -205,14 +217,24 @@ void LEDsManager::brightnessDown() {
         return;
     } else {
         opts->ledBrightness = std::max((int)opts->ledBrightness - 10, 0); // 减少10%
-        STORAGE_MANAGER.saveConfig();
+        
+        // 只有在使用默认配置时才保存到存储
+        if (!usingTemporaryConfig) {
+            STORAGE_MANAGER.saveConfig();
+        }
+        
         setBrightness(opts->ledBrightness);
     }
 }
 
 void LEDsManager::enableSwitch() {
     opts->ledEnabled = !opts->ledEnabled;
-    STORAGE_MANAGER.saveConfig();
+    
+    // 只有在使用默认配置时才保存到存储
+    if (!usingTemporaryConfig) {
+        STORAGE_MANAGER.saveConfig();
+    }
+    
     deinit();
     setup();
 }
@@ -303,6 +325,57 @@ void LEDsManager::previewAnimation(LEDEffect effect, uint32_t duration)
             buttonMask = 0; // 释放按钮
         }
     }
+}
+
+/**
+ * @brief 设置临时配置进行预览
+ * @param tempConfig 临时LED配置
+ */
+void LEDsManager::setTemporaryConfig(const LEDProfile& tempConfig)
+{
+    temporaryConfig = tempConfig;
+    opts = &temporaryConfig;
+    usingTemporaryConfig = true;
+    
+    // 重新初始化以应用新配置
+    deinit();
+    setup();
+}
+
+/**
+ * @brief 恢复使用默认存储配置
+ */
+void LEDsManager::restoreDefaultConfig()
+{
+    if (usingTemporaryConfig) {
+        usingTemporaryConfig = false;
+        opts = &STORAGE_MANAGER.getDefaultGamepadProfile()->ledsConfigs;
+        
+        // 重新初始化以应用默认配置
+        deinit();
+        setup();
+    }
+}
+
+/**
+ * @brief 检查是否正在使用临时配置
+ * @return true 如果正在使用临时配置
+ */
+bool LEDsManager::isUsingTemporaryConfig() const
+{
+    return usingTemporaryConfig;
+}
+
+/**
+ * @brief 从当前配置更新颜色值
+ */
+void LEDsManager::updateColorsFromConfig()
+{
+    frontColor = hexToRGB(opts->ledColor1);
+    backgroundColor1 = hexToRGB(opts->ledColor2);
+    backgroundColor2 = hexToRGB(opts->ledColor3);
+    defaultBackColor = {0, 0, 0}; // 黑色作为默认背景色
+    brightness = opts->ledBrightness;
 }
 
 

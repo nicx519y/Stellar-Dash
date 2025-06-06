@@ -62,6 +62,14 @@ export interface ButtonStates {
     timestamp: number;
 }
 
+export interface LEDsConfig {
+    ledEnabled: boolean;
+    ledsEffectStyle: number;
+    ledColors: string[];
+    ledBrightness: number;
+    ledAnimationSpeed: number;
+}
+
 interface GamepadConfigContextType {
     contextJsReady: boolean;
     setContextJsReady: (ready: boolean) => void;
@@ -111,6 +119,9 @@ interface GamepadConfigContextType {
     startButtonMonitoring: () => Promise<void>;
     stopButtonMonitoring: () => Promise<void>;
     getButtonStates: () => Promise<ButtonStates>;
+    // LED 配置相关
+    pushLedsConfig: (ledsConfig: LEDsConfig) => Promise<void>;
+    clearLedsPreview: () => Promise<void>;
 }
 
 const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
@@ -846,26 +857,64 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     };
 
     const getButtonStates = async (): Promise<ButtonStates> => {
+        setError(null);
         try {
-            const response = await fetchWithKeepAlive('/api/get-button-states', {
-                method: 'GET'
-            });
+            const response = await fetchWithKeepAlive('/api/get-button-states');
             const data = await processResponse(response, setError);
             if (!data) {
                 return Promise.reject(new Error("Failed to get button states"));
             }
-            setError(null);
-            return Promise.resolve({
-                triggerMask: data.triggerMask ?? 0,
-                triggerBinary: data.triggerBinary ?? "",
-                totalButtons: data.totalButtons ?? 0,
-                timestamp: data.timestamp ?? 0
-            });
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to get button states"));
+            return data.data as ButtonStates;
+        } catch (error) {
+            console.error('获取按键状态失败:', error);
+            setError(error instanceof Error ? error.message : '获取按键状态失败');
+            throw error;
         }
     };
+
+    // LED 配置相关
+    const pushLedsConfig = async (ledsConfig: LEDsConfig): Promise<void> => {
+        setError(null);
+        // setIsLoading(true);
+        try {
+            const response = await fetchWithKeepAlive('/api/push-leds-config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(ledsConfig),
+            });
+            const data = await processResponse(response, setError);
+            if (!data) {
+                return Promise.reject(new Error("Failed to push LED configuration"));
+            }
+            return Promise.resolve();
+        } catch (error) {
+            setError(error instanceof Error ? error.message : 'An error occurred');
+            return Promise.reject(new Error("Failed to push LED configuration"));
+        } finally {
+            // setIsLoading(false);
+        }
+    };
+
+    const clearLedsPreview = async (): Promise<void> => {
+        setError(null);
+        try {
+            const response = await fetchWithKeepAlive('/api/clear-leds-preview', {
+                method: 'GET'
+            });
+            const data = await processResponse(response, setError);
+            if (!data) {
+                return Promise.reject(new Error("Failed to clear LED preview"));
+            }
+            return Promise.resolve();
+        } catch (error) {
+            setError(error instanceof Error ? error.message : 'An error occurred');
+            return Promise.reject(new Error("Failed to clear LED preview"));
+        }
+    };
+    
+    
 
     return (
         <GamepadConfigContext.Provider value={{
@@ -917,6 +966,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             startButtonMonitoring,
             stopButtonMonitoring,
             getButtonStates,
+            // LED 配置相关
+            pushLedsConfig: pushLedsConfig,
+            clearLedsPreview: clearLedsPreview,
         }}>
             {children}
         </GamepadConfigContext.Provider>

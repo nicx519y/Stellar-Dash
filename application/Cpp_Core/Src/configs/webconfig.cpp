@@ -3,6 +3,8 @@
 #include "board_cfg.h"
 #include "adc_btns/adc_calibration.hpp"
 #include "configs/webconfig_btns_manager.hpp"
+#include "leds/leds_manager.hpp"
+#include "configs/webconfig_leds_manager.hpp"
 
 extern "C" struct fsdata_file file__index_html[];
 
@@ -2345,12 +2347,143 @@ std::string apiGetButtonStates() {
 }
 
 
+
+
+/**
+ * @brief 推送前端 LED 配置到后端硬件
+ * POST 请求体格式：
+ * {
+ *     "ledEnabled": true,
+ *     "ledsEffectStyle": 2,
+ *     "ledColors": ["#ff0000", "#00ff00", "#0000ff"],
+ *     "ledBrightness": 75,
+ *     "ledAnimationSpeed": 3
+ * }
+ * @return std::string 
+ * {
+ *      "errNo": 0,
+ *      "data": {
+ *          "message": "LED configuration applied successfully"
+ *      }
+ * }
+ */
+std::string apiPushLedsConfig() {
+    cJSON* postParams = get_post_data();
+    if (!postParams) {
+        return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Invalid JSON data");
+    }
+
+    // 获取当前默认配置文件作为基础
+    const GamepadProfile* currentProfile = STORAGE_MANAGER.getDefaultGamepadProfile();
+    if (!currentProfile) {
+        cJSON_Delete(postParams);
+        return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to get current profile");
+    }
+
+    // 创建临时的LED配置，基于当前配置
+    LEDProfile tempLedsConfig = currentProfile->ledsConfigs;
+    
+    // 解析前端传来的配置参数
+    cJSON* item;
+    
+    // LED 启用状态
+    if ((item = cJSON_GetObjectItem(postParams, "ledEnabled"))) {
+        tempLedsConfig.ledEnabled = cJSON_IsTrue(item);
+    }
+    
+    // LED 特效类型
+    if ((item = cJSON_GetObjectItem(postParams, "ledsEffectStyle")) 
+        && cJSON_IsNumber(item) 
+        && item->valueint >= 0 
+        && item->valueint < LEDEffect::NUM_EFFECTS) {
+        tempLedsConfig.ledEffect = static_cast<LEDEffect>(item->valueint);
+    }
+    
+    // LED 亮度
+    if ((item = cJSON_GetObjectItem(postParams, "ledBrightness")) 
+        && cJSON_IsNumber(item)
+        && item->valueint >= 0 
+        && item->valueint <= 100) {
+        tempLedsConfig.ledBrightness = item->valueint;
+    }
+    
+    // LED 动画速度
+    if ((item = cJSON_GetObjectItem(postParams, "ledAnimationSpeed")) 
+        && cJSON_IsNumber(item)
+        && item->valueint >= 1 
+        && item->valueint <= 5) {
+        tempLedsConfig.ledAnimationSpeed = item->valueint;
+    }
+    
+    // LED 颜色数组
+    cJSON* ledColors = cJSON_GetObjectItem(postParams, "ledColors");
+    if (ledColors && cJSON_IsArray(ledColors) && cJSON_GetArraySize(ledColors) >= 3) {
+        cJSON* color1 = cJSON_GetArrayItem(ledColors, 0);
+        cJSON* color2 = cJSON_GetArrayItem(ledColors, 1);
+        cJSON* color3 = cJSON_GetArrayItem(ledColors, 2);
+        
+        if (color1 && cJSON_IsString(color1)) {
+            sscanf(color1->valuestring, "#%lx", &tempLedsConfig.ledColor1);
+        }
+        if (color2 && cJSON_IsString(color2)) {
+            sscanf(color2->valuestring, "#%lx", &tempLedsConfig.ledColor2);
+        }
+        if (color3 && cJSON_IsString(color3)) {
+            sscanf(color3->valuestring, "#%lx", &tempLedsConfig.ledColor3);
+        }
+    }
+    
+    APP_DBG("tempLedsConfig: %d, %d, %ld, %ld, %ld, %d, %d", 
+            tempLedsConfig.ledEnabled, 
+            tempLedsConfig.ledEffect, 
+            tempLedsConfig.ledColor1, 
+            tempLedsConfig.ledColor2, 
+            tempLedsConfig.ledColor3,
+            tempLedsConfig.ledBrightness,
+            tempLedsConfig.ledAnimationSpeed);
+
+    // 通过WebConfigLedsManager应用预览配置
+    WebConfigLedsManager& webLedsManager = WebConfigLedsManager::getInstance();
+    webLedsManager.applyPreviewConfig(tempLedsConfig);
+    
+    cJSON_Delete(postParams);
+    
+    // 返回成功响应
+    cJSON* dataJSON = cJSON_CreateObject();
+    if (dataJSON) {
+        cJSON_AddStringToObject(dataJSON, "message", "LED configuration applied successfully for preview");
+    }
+    
+    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    return response;
+}
+
+/**
+ * @brief 清除LED预览模式，恢复默认配置
+ * @return std::string 
+ * {
+ *      "errNo": 0,
+ *      "data": {
+ *          "message": "LED preview mode cleared successfully"
+ *      }
+ * }
+ */
+std::string apiClearLedsPreview() {
+    WebConfigLedsManager& webLedsManager = WebConfigLedsManager::getInstance();
+    webLedsManager.clearPreviewConfig();
+    
+    // 返回成功响应
+    cJSON* dataJSON = cJSON_CreateObject();
+    if (dataJSON) {
+        cJSON_AddStringToObject(dataJSON, "message", "LED preview mode cleared successfully");
+    }
+    
+    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    return response;
+}
+
 /*============================================ apis end ====================================================*/
 
-// 按键管理函数声明
-std::string apiStartButtonMonitoring();
-std::string apiStopButtonMonitoring();
-std::string apiGetButtonStates();
 
 typedef std::string (*HandlerFuncPtr)();
 static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
@@ -2384,6 +2517,8 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/start-button-monitoring", apiStartButtonMonitoring },   // 开启按键功能
     { "/api/stop-button-monitoring", apiStopButtonMonitoring },     // 关闭按键功能
     { "/api/get-button-states", apiGetButtonStates },               // 轮询获取按键状态
+    { "/api/push-leds-config", apiPushLedsConfig },                 // 推送 LED 配置
+    { "/api/clear-leds-preview", apiClearLedsPreview },             // 清除 LED 预览模式
 #if !defined(NDEBUG)
     // { "/api/echo", echo },
 #endif
@@ -2458,6 +2593,3 @@ void fs_close_custom(struct fs_file *file)
         file->pextension = NULL;
     }
 }
-
-
-

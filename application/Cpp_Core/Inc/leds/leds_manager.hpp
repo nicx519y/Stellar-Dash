@@ -30,6 +30,11 @@ class LEDsManager {
         void enableSwitch();
         void setBrightness(uint8_t brightness);
         
+        // 配置管理函数
+        void setTemporaryConfig(const LEDProfile& tempConfig);
+        void restoreDefaultConfig();
+        bool isUsingTemporaryConfig() const;
+        
         // 测试函数
         void testAnimation(LEDEffect effect, float progress = 0.5f, uint32_t buttonMask = 0);
         void previewAnimation(LEDEffect effect, uint32_t duration = 5000);
@@ -38,6 +43,8 @@ class LEDsManager {
         uint32_t t;
         GradientColor gtc;
         LEDProfile* opts;
+        LEDProfile temporaryConfig;  // 临时配置存储
+        bool usingTemporaryConfig;   // 是否正在使用临时配置
         RGBColor frontColor;
         RGBColor backgroundColor1;
         RGBColor backgroundColor2;
@@ -56,6 +63,9 @@ class LEDsManager {
         void processButtonPress(uint32_t virtualPinMask);
         void updateRipples();
         float getAnimationProgress();
+        
+        // 内部配置管理
+        void updateColorsFromConfig();
 };
 
 #define LEDS_MANAGER LEDsManager::getInstance()

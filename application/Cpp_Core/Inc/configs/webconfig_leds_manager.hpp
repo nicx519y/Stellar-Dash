@@ -1,23 +1,51 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include "types.hpp"
+#include "config.hpp"
 
-struct LedsConfig {
-    uint8_t brightness;
-    uint32_t color;
-    uint8_t effect;
-    // 可扩展更多LED参数
-};
-
+/**
+ * @brief Web配置模式下的LED预览管理器
+ * 用于在webconfig模式下实时预览LED效果，不保存到存储
+ */
 class WebConfigLedsManager {
 public:
     static WebConfigLedsManager& getInstance();
 
-    void applyLedsConfig(const LedsConfig& config);
-    void update(); // 刷新LED效果
-    std::string toJSON() const; // 可选，返回当前LED状态
+    /**
+     * @brief 应用LED预览配置
+     * @param config LED配置（来自前端apiPushLedsConfig请求）
+     */
+    void applyPreviewConfig(const LEDProfile& config);
+    
+    /**
+     * @brief 清除预览配置，恢复默认配置
+     */
+    void clearPreviewConfig();
+    
+    /**
+     * @brief 检查是否正在预览
+     * @return true 如果正在预览模式
+     */
+    bool isInPreviewMode() const;
+    
+    /**
+     * @brief 更新LED效果（在主循环中调用）
+     * @param buttonMask 当前按键状态掩码，用于交互式效果
+     */
+    void update(uint32_t buttonMask = 0);
+    
+    /**
+     * @brief 获取当前LED配置的JSON表示
+     * @return JSON字符串
+     */
+    std::string toJSON() const;
 
 private:
     WebConfigLedsManager();
-    LedsConfig currentConfig;
+    ~WebConfigLedsManager();
+    
+    bool previewMode;           // 是否在预览模式
+    LEDProfile previewConfig;   // 预览配置
+    uint32_t lastButtonMask;    // 上次按键状态，用于动画更新
 }; 

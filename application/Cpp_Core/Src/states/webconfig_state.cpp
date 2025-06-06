@@ -3,6 +3,9 @@
 #include "pwm-ws2812b.h"
 #include "qspi-w25q64.h"
 #include "configs/webconfig_btns_manager.hpp"
+#include "configs/webconfig_leds_manager.hpp"
+#include "leds/leds_manager.hpp"
+
 
 void WebConfigState::setup() {
 
@@ -23,6 +26,9 @@ void WebConfigState::setup() {
     // 设置QSPI为内存映射模式，方便访问Websources
     QSPI_W25Qxx_EnterMemoryMappedMode();
 
+    // 初始化LED管理器
+    LEDS_MANAGER.setup();
+
     isRunning = true;
 }
 
@@ -32,10 +38,33 @@ void WebConfigState::loop() {
         CONFIG_MANAGER.loop();
         
         // 实时更新按键状态并生成事件（在主循环中调用）
-        WebConfigBtnsManager::getInstance().update();
+        WebConfigBtnsManager& btnsManager = WebConfigBtnsManager::getInstance();
+        btnsManager.update();
+        
+        // 获取当前按键状态用于LED预览效果
+        std::vector<bool> buttonStates = btnsManager.getButtonStates();
+        uint32_t buttonMask = 0;
+        for (size_t i = 0; i < buttonStates.size() && i < 32; i++) {
+            if (buttonStates[i]) {
+                buttonMask |= (1U << i);
+            }
+        }
+        
+        // 更新LED预览效果
+        WebConfigLedsManager& webLedsManager = WebConfigLedsManager::getInstance();
+        webLedsManager.update(buttonMask);
+        
+        // // 如果没有在预览模式，正常运行LED管理器
+        // if (!webLedsManager.isInPreviewMode()) {
+        //     LEDS_MANAGER.loop(buttonMask);
+        // }
     }
 }
 
 void WebConfigState::reset() {
     isRunning = false;
+    
+    // 清除LED预览模式，恢复默认配置
+    WebConfigLedsManager& webLedsManager = WebConfigLedsManager::getInstance();
+    webLedsManager.clearPreviewConfig();
 }
