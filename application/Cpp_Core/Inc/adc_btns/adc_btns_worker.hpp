@@ -14,6 +14,8 @@
 #include "board_cfg.h"
 
 #define NUM_MAPPING_INDEX_WINDOW_SIZE 32
+
+
 // 错误码定义
 enum class ADCBtnsWorkerError {
     SUCCESS = 0,
@@ -28,6 +30,7 @@ enum class ADCBtnsWorkerError {
     NOT_STARTED = -9,           // DMA未启动
     BUTTON_CONFIG_ERROR = -10   // 按钮配置错误
 };
+
 
 class ADCBtnsWorker {
     public:
@@ -74,20 +77,21 @@ class ADCBtnsWorker {
         // 按钮结构体
         struct ADCBtn {
             uint8_t virtualPin;  // 虚拟引脚
-            uint8_t pressAccuracyIndex;  // 按下精度索引
-            uint8_t releaseAccuracyIndex;  // 释放精度索引
-            uint8_t topDeadzoneIndex;  // 顶部死区索引
-            uint8_t bottomDeadzoneIndex;  // 底部死区索引
-            uint8_t highPrecisionReleaseAccuracyIndex;  // 高精度释放精度索引
-            uint8_t highPrecisionBottomDeadzoneIndex;  // 高精度底部死区索引
-            uint8_t lastStateIndex;  // 上次状态索引
-            uint8_t halfwayIndex;  // 中点索引
-            uint16_t highPrecisionLength;  // 高精度映射表长度
-            uint16_t highPrecisionMapping[MAX_ADC_VALUES_LENGTH * 10];  // 高精度映射表
-            uint16_t valueMapping[MAX_ADC_VALUES_LENGTH];  // 值映射表
+            uint16_t valueMapping[MAX_ADC_VALUES_LENGTH];  // 当前使用的校准后映射值
+            uint16_t calibratedMapping[MAX_ADC_VALUES_LENGTH];      // 根据校准值生成的完整映射
             ButtonState state;  // 按钮状态
             bool initCompleted;  // 初始化完成标志
 
+            // 新的基于距离和ADC值的字段
+            float lastTravelDistance = 0.0f;    // 上次行程距离（mm）
+            uint16_t lastAdcValue = 0;           // 上次ADC值
+            float pressAccuracyMm = 0.0f;        // 按下精度（mm）
+            float releaseAccuracyMm = 0.0f;      // 释放精度（mm）
+            float highPrecisionReleaseAccuracyMm = 0.0f; // 高精度释放精度（mm）
+            float topDeadzoneMm = 0.0f;          // 顶部死区（mm）
+            float bottomDeadzoneMm = 0.0f;       // 底部死区（mm）
+            float halfwayDistanceMm = 0.0f;      // 中点距离（mm），用于高精度判断
+            uint16_t triggerValue = 0;            // 触发值
             bool needCalibration = false;
             bool needSaveCalibration = false;          // 需要保存校准值到存储
             uint32_t lastCalibrationTime = 0;         // 上次校准时间
@@ -98,24 +102,31 @@ class ADCBtnsWorker {
         };
 
         // 获取按钮事件
-        ButtonEvent getButtonEvent(ADCBtn* btn, const uint8_t currentIndex, const uint16_t currentValue);
+        ButtonEvent getButtonEvent(ADCBtn* btn, const uint16_t currentValue);
         // 处理状态转换
         void handleButtonState(ADCBtn* btn, const ButtonEvent event);
 
-        void updateButtonMapping(uint16_t* mapping, uint16_t firstValue, uint16_t lastValue);
         void initButtonMapping(ADCBtn* btn, const uint16_t releaseValue);
-        void initButtonMappingWithCalibration(ADCBtn* btn, uint16_t topValue, uint16_t bottomValue);
 
-        uint8_t searchIndexInMapping(const uint8_t buttonIndex, const uint16_t value);
+        // 新的基于距离和ADC值换算的核心方法
+        float getDistanceByValue(ADCBtn* btn, const uint16_t adcValue);
+        uint16_t getValueByDistance(ADCBtn* btn, const uint16_t baseAdcValue, const float distanceMm);
+        float getCurrentPressAccuracy(ADCBtn* btn, const float currentDistance);
+        float getCurrentReleaseAccuracy(ADCBtn* btn, const float currentDistance);
+        void updateLimitValue(ADCBtn* btn, const uint16_t currentValue);
+        void resetLimitValue(ADCBtn* btn, const uint16_t currentValue);
         
-        // 高精度映射表相关函数
-        void initHighPrecisionMapping(ADCBtn* btn);
-        uint8_t searchIndexInHighPrecisionMapping(ADCBtn* btn, const uint16_t value);
-        bool isInHighPrecisionRange(ADCBtn* btn, const uint8_t currentIndex);
-
         // 校准保存相关方法
         void saveCalibrationValues();
         bool shouldSaveCalibration(ADCBtn* btn, uint32_t currentTime);
+
+        /**
+         * 根据校准值生成完整的校准后映射
+         * @param btn 按钮指针
+         * @param topValue 完全释放时的校准值（较小的ADC值）
+         * @param bottomValue 完全按下时的校准值（较大的ADC值）
+         */
+        void generateCalibratedMapping(ADCBtn* btn, uint16_t topValue, uint16_t bottomValue);
 
         ADCBtn* buttonPtrs[NUM_ADC_BUTTONS];
         uint32_t virtualPinMask = 0x0;  // 虚拟引脚掩码

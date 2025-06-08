@@ -85,15 +85,15 @@ ADCBtnsError ADCBtnsWorker::setup() {
     // 获取校准模式配置
     bool isAutoCalibrationEnabled = STORAGE_MANAGER.config.autoCalibrationEnabled;
 
-    // 计算最小值差值
+    // 计算最小值差值 - 使用原始映射计算
     minValueDiff = (uint16_t)((float_t)(this->mapping->originalValues[0] - this->mapping->originalValues[this->mapping->length - 1]) * MIN_VALUE_DIFF_RATIO);
     
     // 初始化按钮配置
     for(uint8_t i = 0; i < adcBtnInfos.size(); i++) {
         const ADCButtonValueInfo& adcBtnInfo = adcBtnInfos[i];
-        const uint8_t virtualPin = adcBtnInfo.virtualPin;
 
         RapidTriggerProfile* triggerConfig = &profile->triggerConfigs.triggerConfigs[i];
+
         float_t topDeadzoon = triggerConfig->topDeadzone;
 
         // 如果顶部死区小于最小值，则设置为最小值
@@ -101,46 +101,46 @@ ADCBtnsError ADCBtnsWorker::setup() {
             topDeadzoon = MIN_ADC_TOP_DEADZONE;
         }
 
-        // 初始化按钮配置 默认triggerConfig是按照ADCButtonValueInfo的virtualPin排序的
-        buttonPtrs[i]->virtualPin = adcBtnInfo.virtualPin;
-        buttonPtrs[i]->pressAccuracyIndex = (uint8_t)(triggerConfig->pressAccuracy / this->mapping->step);
-        
-        // 对于releaseAccuracyIndex，确保至少为1，避免在后半段无法触发释放
-        float_t releaseAccuracyFloat = triggerConfig->releaseAccuracy / this->mapping->step;
-        buttonPtrs[i]->releaseAccuracyIndex = (uint8_t)std::max(1.0f, releaseAccuracyFloat);
-        
-        buttonPtrs[i]->topDeadzoneIndex = (uint8_t)(this->mapping->length - 1 - topDeadzoon / this->mapping->step);
-        
-        // 对于bottomDeadzoneIndex，也确保合理的值
-        float_t bottomDeadzoneFloat = triggerConfig->bottomDeadzone / this->mapping->step;
-        buttonPtrs[i]->bottomDeadzoneIndex = (uint8_t)bottomDeadzoneFloat;
+        float_t bottomDeadzone = triggerConfig->bottomDeadzone;
+        // 如果底部死区小于最小值，则设置为最小值
+        if(bottomDeadzone < MIN_ADC_BOTTOM_DEADZONE) {
+            bottomDeadzone = MIN_ADC_BOTTOM_DEADZONE;
+        }
 
-        // 计算高精度配置 (基于0.01mm精度，即mapping->step/10)
-        float_t highPrecisionStep = this->mapping->step / 10.0f;
-        buttonPtrs[i]->highPrecisionReleaseAccuracyIndex = (uint8_t)std::max(1.0f, triggerConfig->releaseAccuracy / highPrecisionStep);
-        buttonPtrs[i]->highPrecisionBottomDeadzoneIndex = (uint8_t)(triggerConfig->bottomDeadzone / highPrecisionStep);
+        // 初始化按钮配置，改为基于距离的配置
+        buttonPtrs[i]->virtualPin = adcBtnInfo.virtualPin;
+        buttonPtrs[i]->pressAccuracyMm = triggerConfig->pressAccuracy;
+        // 弹起精度 在行程前端使用高精度，后端使用低精度，低精度最小为0.1f
+        buttonPtrs[i]->releaseAccuracyMm = std::max<float_t>(triggerConfig->releaseAccuracy, MIN_ADC_RELEASE_ACCURACY);
+        buttonPtrs[i]->highPrecisionReleaseAccuracyMm = triggerConfig->releaseAccuracy; // 默认与释放精度相同
+        buttonPtrs[i]->topDeadzoneMm = topDeadzoon;
+        buttonPtrs[i]->bottomDeadzoneMm = bottomDeadzone;
+        
+        // 计算中点距离（用于高精度判断）
+        float totalTravelMm = (this->mapping->length - 1) * this->mapping->step;
+        buttonPtrs[i]->halfwayDistanceMm = totalTravelMm / 2.0f;
 
         // 根据校准模式初始化按键映射
         uint16_t topValue, bottomValue;
         ADCBtnsError calibrationResult = ADC_MANAGER.getCalibrationValues(id.c_str(), i, isAutoCalibrationEnabled, topValue, bottomValue);
         
         if(calibrationResult == ADCBtnsError::SUCCESS && topValue != 0 && bottomValue != 0) {
-            // 使用存储的校准值初始化映射
-            APP_DBG("Using %s calibration values for button %d: top=%d, bottom=%d", 
-                    isAutoCalibrationEnabled ? "auto" : "manual", i, topValue, bottomValue);
-            initButtonMappingWithCalibration(buttonPtrs[i], topValue, bottomValue);
+            // 使用校准值生成完整的校准后映射
+            generateCalibratedMapping(buttonPtrs[i], topValue, bottomValue);
+            buttonPtrs[i]->initCompleted = true;
         } else {
-            // 如果没有校准值，使用默认的偏移初始化方式
-            APP_DBG("No calibration values found for button %d, using default offset initialization", i);
             // 这里需要等待第一次ADC读取来初始化
             buttonPtrs[i]->initCompleted = false;
+            // 清空映射数组
+            memset(buttonPtrs[i]->valueMapping, 0, this->mapping->length * sizeof(uint16_t));
+            memset(buttonPtrs[i]->calibratedMapping, 0, this->mapping->length * sizeof(uint16_t));
         }
 
         // 只有在自动校准模式下才启用动态校准
         if(isAutoCalibrationEnabled) {
             buttonPtrs[i]->bottomValueWindow = RingBufferSlidingWindow<uint16_t>(NUM_MAPPING_INDEX_WINDOW_SIZE);
             buttonPtrs[i]->topValueWindow = RingBufferSlidingWindow<uint16_t>(NUM_MAPPING_INDEX_WINDOW_SIZE);
-            buttonPtrs[i]->limitValue = UINT16_MAX;
+            buttonPtrs[i]->limitValue = UINT16_MAX; // 初始状态为释放，记录最小值
             buttonPtrs[i]->needCalibration = false;
             buttonPtrs[i]->needSaveCalibration = false;
             buttonPtrs[i]->lastCalibrationTime = 0;
@@ -148,18 +148,12 @@ ADCBtnsError ADCBtnsWorker::setup() {
         }
         
         // 初始化状态
-        buttonPtrs[i]->lastStateIndex = 0;
-
-        // 如果没有使用校准值初始化，则清空映射数组
-        if(calibrationResult != ADCBtnsError::SUCCESS || topValue == 0 || bottomValue == 0) {
-            memset(buttonPtrs[i]->valueMapping, 0, this->mapping->length * sizeof(uint16_t));
-        }
+        buttonPtrs[i]->lastTravelDistance = 0.0f;
+        buttonPtrs[i]->lastAdcValue = 0;
+        buttonPtrs[i]->state = ButtonState::RELEASED;  // 明确设置初始状态为释放
     }
 
     ADC_MANAGER.startADCSamping();
-
-    APP_DBG("ADCBtnsWorker::setup success. Calibration mode: %s", 
-            isAutoCalibrationEnabled ? "Auto" : "Manual");
 
     return ADCBtnsError::SUCCESS;
 }
@@ -205,19 +199,15 @@ uint32_t ADCBtnsWorker::read() {
         if(!btn->initCompleted) {
 
             initButtonMapping(btn, adcValue);
-            if(i == 0) {
-                APP_DBG("ADC_BTNS_WORKER::initButtonMapping: first %d, last: %d", btn->valueMapping[0], btn->valueMapping[this->mapping->length - 1]);
-            }
 
             btn->initCompleted = true;
             continue;
         }
         
-        const uint8_t currentIndex = this->searchIndexInMapping(i, adcValue);
+        // 获取按钮事件（新算法直接基于ADC值）
+        const ButtonEvent event = getButtonEvent(btn, adcValue);
         
-        // 获取按钮事件
-        const ButtonEvent event = getButtonEvent(btn, currentIndex, adcValue);
-        
+
         // 处理状态转换
         if(event != ButtonEvent::NONE) {
             handleButtonState(btn, event);
@@ -253,13 +243,18 @@ void ADCBtnsWorker::dynamicCalibration() {
                 continue;
             }
             
-            const uint16_t topValue = btn->topValueWindow.getAverageValue();
-            const uint16_t bottomValue = std::max<uint16_t>(btn->bottomValueWindow.getAverageValue(), static_cast<uint16_t>(topValue + minValueDiff));
-
-            APP_DBG("Dynamic calibration start. button %d, bottomValue: %d, topValue: %d", btn->virtualPin, bottomValue, topValue);
+            // topValueWindow实际存储的是按下过程中的最小值（按下值）
+            // bottomValueWindow实际存储的是释放过程中的最大值（释放值）
+            const uint16_t pressedValue = btn->topValueWindow.getAverageValue();    // 完全按下时的值（较大）
+            const uint16_t releasedValue = btn->bottomValueWindow.getAverageValue(); // 完全释放时的值（较小）
             
-            // 更新按钮映射
-            updateButtonMapping(btn->valueMapping, bottomValue, topValue);
+            // 确保释放值小于按下值，并保持最小差值
+            const uint16_t topValue = releasedValue;  // 释放值（较小）
+            const uint16_t bottomValue = std::max<uint16_t>(pressedValue, static_cast<uint16_t>(releasedValue + minValueDiff)); // 按下值（较大）
+
+            
+            // 使用新的校准值生成完整的校准后映射
+            generateCalibratedMapping(btn, topValue, bottomValue);
             
             // 标记需要保存，但不立即保存
             btn->needSaveCalibration = true;
@@ -267,7 +262,6 @@ void ADCBtnsWorker::dynamicCalibration() {
             btn->needCalibration = false;
             hasCalibrationUpdate = true;
             
-            APP_DBG("Auto calibration updated for button %d: top=%d, bottom=%d (save pending)", i, topValue, bottomValue);
         }
     }
     
@@ -293,17 +287,20 @@ void ADCBtnsWorker::saveCalibrationValues() {
         ADCBtn* const btn = buttonPtrs[i];
         if(btn && btn->needSaveCalibration && shouldSaveCalibration(btn, currentTime)) {
             
-            const uint16_t topValue = btn->topValueWindow.getAverageValue();
-            const uint16_t bottomValue = std::max<uint16_t>(btn->bottomValueWindow.getAverageValue(), static_cast<uint16_t>(topValue + minValueDiff));
+            // topValueWindow实际存储的是按下过程中的最小值（按下值）
+            // bottomValueWindow实际存储的是释放过程中的最大值（释放值）
+            const uint16_t pressedValue = btn->topValueWindow.getAverageValue();    // 完全按下时的值（较大）
+            const uint16_t releasedValue = btn->bottomValueWindow.getAverageValue(); // 完全释放时的值（较小）
+            
+            // 确保释放值小于按下值，并保持最小差值
+            const uint16_t topValue = releasedValue;  // 释放值（较小）
+            const uint16_t bottomValue = std::max<uint16_t>(pressedValue, static_cast<uint16_t>(releasedValue + minValueDiff)); // 按下值（较大）
             
             // 保存自动校准值到存储
             ADCBtnsError saveResult = ADC_MANAGER.setCalibrationValues(mappingId.c_str(), i, true, topValue, bottomValue);
             if (saveResult == ADCBtnsError::SUCCESS) {
-                APP_DBG("Auto calibration values saved to storage for button %d: top=%d, bottom=%d", i, topValue, bottomValue);
                 btn->needSaveCalibration = false;
                 btn->lastSaveTime = currentTime;
-            } else {
-                APP_DBG("Failed to save auto calibration values for button %d", i);
             }
         }
     }
@@ -325,50 +322,6 @@ bool ADCBtnsWorker::shouldSaveCalibration(ADCBtn* btn, uint32_t currentTime) {
 }
 
 /**
- * 更新按钮映射
- * @param mapping uint16_t数组指针，用于存储映射值
- * @param firstValue 新的起始值
- * @param lastValue 新的结束值
- */
-void ADCBtnsWorker::updateButtonMapping(uint16_t* mapping, uint16_t bottomValue, uint16_t topValue) {
-    if (!mapping || !this->mapping || bottomValue == topValue) {
-        return;
-    }
-
-    // 计算原始范围和新范围
-    int32_t oldRange = (int32_t)this->mapping->originalValues[this->mapping->length - 1] - 
-                      (int32_t)this->mapping->originalValues[0];
-    int32_t newRange = (int32_t)topValue - (int32_t)bottomValue;
-
-    // 防止除零
-    if (oldRange == 0) {
-        return;
-    }
-
-    // 对每个值进行线性映射
-    for (size_t i = 0; i < this->mapping->length; i++) {
-        // 计算原始值在原范围内的相对位置 (0.0 到 1.0)
-        double relativePosition = ((double)((int32_t)this->mapping->originalValues[i] - 
-                                         (int32_t)this->mapping->originalValues[0])) / oldRange;
-        
-        // 使用相对位置计算新范围内的值
-        int32_t newValue = bottomValue + (int32_t)(relativePosition * newRange + 0.5);
-        
-        // 确保值在uint16_t范围内
-        mapping[i] = (uint16_t)std::max<int32_t>(0, std::min<int32_t>(UINT16_MAX, newValue));
-    }
-    
-    // 更新对应按钮的高精度映射表
-    for (uint8_t btnIndex = 0; btnIndex < NUM_ADC_BUTTONS; btnIndex++) {
-        ADCBtn* btn = buttonPtrs[btnIndex];
-        if (btn && btn->valueMapping == mapping) {
-            initHighPrecisionMapping(btn);
-            break;
-        }
-    }
-}
-
-/**
  * 初始化按钮映射
  * @param btn 按钮指针
  * @param releaseValue 释放值
@@ -381,9 +334,7 @@ void ADCBtnsWorker::initButtonMapping(ADCBtn* btn, const uint16_t releaseValue) 
     // 计算差值：当前释放值与原始映射末尾值的差
     const int32_t offset = (int32_t)releaseValue - (int32_t)mapping->originalValues[mapping->length - 1];
 
-    APP_DBG("ADC_BTNS_WORKER::initButtonMapping - offset: %d, releaseValue: %d", offset, releaseValue);
-
-    // 对每个值进行平移
+    // 对每个值进行平移，生成校准后的映射
     for (size_t i = 0; i < mapping->length; i++) {
         // 使用int32_t避免uint16_t相加减可能的溢出
         int32_t newValue = (int32_t)mapping->originalValues[i] + offset;
@@ -391,231 +342,376 @@ void ADCBtnsWorker::initButtonMapping(ADCBtn* btn, const uint16_t releaseValue) 
         // 确保值在uint16_t范围内
         newValue = newValue < 0 ? 0 : (newValue > UINT16_MAX ? UINT16_MAX : newValue);
         
-        // 更新映射值
-        btn->valueMapping[i] = (uint16_t)newValue;
+        // 更新校准后的映射
+        btn->calibratedMapping[i] = (uint16_t)newValue;
     }
+    
+    // 将校准后的映射复制到当前使用的映射
+    memcpy(btn->valueMapping, btn->calibratedMapping, mapping->length * sizeof(uint16_t));
 
     // 只有在自动校准模式下才初始化滑动窗口
     if (STORAGE_MANAGER.config.autoCalibrationEnabled) {
         btn->bottomValueWindow.clear();
         btn->topValueWindow.clear();
-        btn->limitValue = UINT16_MAX;
+        btn->limitValue = UINT16_MAX; // 初始状态为释放，需要记录最小值，所以初始化为最大值
 
         btn->bottomValueWindow.push(btn->valueMapping[0]);
         btn->topValueWindow.push(btn->valueMapping[mapping->length - 1]);
+    } else {
+        // 非自动校准模式下也需要初始化limitValue
+        btn->limitValue = UINT16_MAX; // 初始状态为释放，需要记录最小值，所以初始化为最大值
     }
-    
-    // 初始化高精度映射表
-    initHighPrecisionMapping(btn);
 }
 
 /**
- * 使用校准值初始化按钮映射
+ * 根据校准值生成完整的校准后映射
  * @param btn 按钮指针
- * @param topValue 完全按下时的校准值
- * @param bottomValue 完全释放时的校准值
+ * @param topValue 完全释放时的校准值（较小的ADC值）
+ * @param bottomValue 完全按下时的校准值（较大的ADC值）
  */
-void ADCBtnsWorker::initButtonMappingWithCalibration(ADCBtn* btn, uint16_t topValue, uint16_t bottomValue) {
+void ADCBtnsWorker::generateCalibratedMapping(ADCBtn* btn, uint16_t topValue, uint16_t bottomValue) {
     if (!btn || !mapping || topValue == bottomValue) {
         return;
     }
 
-    // 确保topValue < bottomValue (完全按下的值应该小于完全释放的值)
+    // 确保topValue < bottomValue (完全释放的值应该小于完全按下的值)
     if (topValue > bottomValue) {
         uint16_t temp = topValue;
         topValue = bottomValue;
         bottomValue = temp;
-        APP_DBG("ADC_BTNS_WORKER::initButtonMappingWithCalibration - Swapped values: top=%d, bottom=%d", topValue, bottomValue);
     }
 
-    // 使用校准值更新按钮映射
-    updateButtonMapping(btn->valueMapping, bottomValue, topValue);
+    // 计算原始范围和新范围
+    int32_t oldRange = (int32_t)this->mapping->originalValues[0] - 
+                      (int32_t)this->mapping->originalValues[this->mapping->length - 1];
 
+    // 防止除零
+    if (oldRange == 0) {
+        return;
+    }
+
+    // 对每个值进行线性映射，生成完整的校准后映射
+    for (size_t i = 0; i < this->mapping->length; i++) {
+        // 计算原始值在原范围内的相对位置 (0.0 到 1.0)
+        double relativePosition = ((double)((int32_t)this->mapping->originalValues[i] - 
+                                         (int32_t)this->mapping->originalValues[0])) / oldRange;
+
+        int32_t newValue = bottomValue + (int32_t)(relativePosition * (bottomValue - topValue) + 0.5);
+        
+        // 确保值在uint16_t范围内
+        btn->calibratedMapping[i] = (uint16_t)std::max<int32_t>(0, std::min<int32_t>(UINT16_MAX, newValue));
+
+    }
+    
+    // 将校准后的映射复制到当前使用的映射
+    memcpy(btn->valueMapping, btn->calibratedMapping, this->mapping->length * sizeof(uint16_t));
+    
     // 只有在自动校准模式下才初始化滑动窗口
     if (STORAGE_MANAGER.config.autoCalibrationEnabled) {
         btn->bottomValueWindow.clear();
         btn->topValueWindow.clear();
-        btn->limitValue = UINT16_MAX;
+        btn->limitValue = UINT16_MAX; // 初始状态为释放，需要记录最小值，所以初始化为最大值
 
-        btn->bottomValueWindow.push(bottomValue);
-        btn->topValueWindow.push(topValue);
-        btn->needSaveCalibration = false;
-        btn->lastCalibrationTime = 0;
-        btn->lastSaveTime = 0;
+        btn->bottomValueWindow.push(btn->valueMapping[0]);
+        btn->topValueWindow.push(btn->valueMapping[mapping->length - 1]);
+    } else {
+        // 非自动校准模式下也需要初始化limitValue
+        btn->limitValue = UINT16_MAX; // 初始状态为释放，需要记录最小值，所以初始化为最大值
     }
-    
-    // 初始化高精度映射表
-    initHighPrecisionMapping(btn);
-    
-    // 标记初始化完成
-    btn->initCompleted = true;
-    
-    APP_DBG("ADC_BTNS_WORKER::initButtonMappingWithCalibration - Button %d initialized with calibration: top=%d, bottom=%d", 
-            btn->virtualPin, topValue, bottomValue);
-}
-
-/**
- * 根据当前搜索按钮值在映射数组中的位置，返回索引
- * @param buttonIndex 按钮索引
- * @param value ADC输入值
- * @return 返回在映射数组中的索引位置（最大值为 length-2）
- */
-uint8_t ADCBtnsWorker::searchIndexInMapping(const uint8_t buttonIndex, const uint16_t value) {
-    ADCBtn* btn = buttonPtrs[buttonIndex];
-    if(!btn || !mapping) {
-        return 0;
-    }
-
-    const uint16_t doubleNoise = this->mapping->samplingNoise * 2;
-
-    // 处理边界情况
-    if(value >= btn->valueMapping[1]) {  // 如果大于等于索引1的值
-        return 0;
-    }
-    if(value < btn->valueMapping[mapping->length - 2] + doubleNoise) { // 如果小于倒数第二个值 加入噪声 为了防止误判
-        return mapping->length - 1;
-    }
-
-    // 二分查找区间
-    uint8_t left = 1;
-    uint8_t right = mapping->length - 2;
-
-    while(left <= right) {
-        uint8_t mid = (left + right) / 2;
-        
-        // 检查当前区间
-        if(value >= btn->valueMapping[mid] && value < btn->valueMapping[mid - 1]) {
-            return mid;
-        }
-        
-        if(value >= btn->valueMapping[mid]) {
-            right = mid - 1;
-        } else {
-            left = mid + 1;
-        }
-    }
-
-    return 0;
 }
 
 // 状态转换处理函数
-ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint8_t currentIndex, const uint16_t currentValue) {
-    uint8_t indexDiff;
+ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint16_t currentValue) {
+    if (!btn || !btn->initCompleted) {
+        return ButtonEvent::NONE;
+    }
+
+    // 获取当前行程距离
+    float currentDistance = getDistanceByValue(btn, currentValue);
+    float maxTravelDistance = (this->mapping->length - 1) * this->mapping->step;
+
+    updateLimitValue(btn, currentValue);
 
     switch(btn->state) {
         case ButtonState::RELEASED:
 
-            // 只有在自动校准模式下才记录最小值
-            if(STORAGE_MANAGER.config.autoCalibrationEnabled && currentValue < btn->limitValue) {
-                btn->limitValue = currentValue;
-            }
+            // 判断当前值相对于基准值的变化是否达到阈值
+            if (currentValue >= btn->triggerValue && currentDistance <= maxTravelDistance - btn->topDeadzoneMm) {
 
-            if(currentIndex < btn->lastStateIndex) {
-                indexDiff = btn->lastStateIndex - currentIndex;
-                if(indexDiff >= btn->pressAccuracyIndex && currentIndex < btn->topDeadzoneIndex) {
-                    btn->lastStateIndex = currentIndex;
-
-                    // 只有在自动校准模式下才更新滑动窗口
-                    if(STORAGE_MANAGER.config.autoCalibrationEnabled) {
-                        // 如果btn->limitValue < btn->topValueWindow.getAverageValue，则以2倍率push，否则以1倍率push。小优先
-                        if(btn->limitValue < btn->topValueWindow.getAverageValue()) {
-                            btn->topValueWindow.push(btn->limitValue, 2);
-                        } else {
-                            btn->topValueWindow.push(btn->limitValue);
-                        }
-                        // btn->topValueWindow.printAllValues();
-                        APP_DBG("limitValue: %d, topValueWindow.getAverageValue: %d", btn->limitValue, btn->topValueWindow.getAverageValue());
-                        btn->limitValue = 0; // 重置限制值，用于下次校准，此时是按下，重置为0
-                        btn->needCalibration = true;
+                // 只有在自动校准模式下才更新滑动窗口
+                if(STORAGE_MANAGER.config.autoCalibrationEnabled) {
+                    if(btn->limitValue < btn->topValueWindow.getAverageValue()) {
+                        btn->topValueWindow.push(btn->limitValue, 2);
+                    } else {
+                        btn->topValueWindow.push(btn->limitValue);
                     }
-
-                    return ButtonEvent::PRESS_COMPLETE;
+                    btn->needCalibration = true;
                 }
-            } else {
-                btn->lastStateIndex = currentIndex;
+
+                resetLimitValue(btn, currentValue);
+
+                return ButtonEvent::PRESS_COMPLETE;
             }
+            
+            btn->lastTravelDistance = currentDistance;
+            btn->lastAdcValue = currentValue;
             break;
 
         case ButtonState::PRESSED:
 
-            // 只有在自动校准模式下才记录最大值
-            if(STORAGE_MANAGER.config.autoCalibrationEnabled && currentValue > btn->limitValue) {
-                btn->limitValue = currentValue;
-            }
+            // 判断当前值相对于基准值的变化是否达到阈值
+            if (currentValue <= btn->triggerValue && currentDistance >= btn->bottomDeadzoneMm) {
 
-            if(currentIndex > btn->lastStateIndex) {
-                indexDiff = currentIndex - btn->lastStateIndex;
-                bool shouldRelease = false;
-                
-                // 根据当前位置选择合适的精度进行释放判断
-                if (isInHighPrecisionRange(btn, currentIndex)) {
-                    // 当前在高精度范围内（前半段），使用高精度检测
-                    uint8_t highPrecisionIndex = searchIndexInHighPrecisionMapping(btn, currentValue);
-                    uint8_t highPrecisionLastIndex = (btn->lastStateIndex <= btn->halfwayIndex) ? 
-                                                    (btn->lastStateIndex * 10) : (btn->halfwayIndex * 10 - 1);
-                    
-                    if (highPrecisionIndex > highPrecisionLastIndex) {
-                        uint8_t highPrecisionDiff = highPrecisionIndex - highPrecisionLastIndex;
-                        
-                        // 使用高精度释放精度和死区判断
-                        if (highPrecisionDiff >= btn->highPrecisionReleaseAccuracyIndex && 
-                            highPrecisionIndex > btn->highPrecisionBottomDeadzoneIndex) {
-                            shouldRelease = true;
-                        }
-                    }
-                } else {
-                    // 当前在后半段，需要考虑跨边界情况
-                    float_t totalMovement = 0.0f;
-                    
-                    if (btn->lastStateIndex <= btn->halfwayIndex) {
-                        // 跨边界情况：lastStateIndex在前半段，currentIndex在后半段
-                        // 计算从lastStateIndex到边界的高精度移动距离
-                        float_t frontHalfMovement = (btn->halfwayIndex - btn->lastStateIndex) * 10 * (this->mapping->step / 10.0f);
-                        // 计算从边界到currentIndex的常规移动距离
-                        float_t backHalfMovement = (currentIndex - btn->halfwayIndex) * this->mapping->step;
-                        totalMovement = frontHalfMovement + backHalfMovement;
-                        
+                // 只有在自动校准模式下才更新滑动窗口
+                if(STORAGE_MANAGER.config.autoCalibrationEnabled) {
+                    if(btn->limitValue > btn->bottomValueWindow.getAverageValue()) {
+                        btn->bottomValueWindow.push(btn->limitValue, 2);
                     } else {
-                        // 都在后半段，使用常规计算
-                        totalMovement = indexDiff * this->mapping->step;
+                        btn->bottomValueWindow.push(btn->limitValue);
                     }
-                    
-                    // 使用配置的releaseAccuracy进行判断（物理距离）
-                    if (totalMovement >= btn->releaseAccuracyIndex * this->mapping->step && currentIndex > btn->bottomDeadzoneIndex) {
-                        shouldRelease = true;
-                    }
+                    btn->needCalibration = true;
                 }
                 
-                if (shouldRelease) {
-                    btn->lastStateIndex = currentIndex;
+                resetLimitValue(btn, currentValue);
 
-                    // 只有在自动校准模式下才更新滑动窗口
-                    if(STORAGE_MANAGER.config.autoCalibrationEnabled) {
-                        // 如果btn->limitValue > btn->bottomValueWindow.getAverageValue，则以2倍率push，否则以1倍率push。大优先
-                        if(btn->limitValue > btn->bottomValueWindow.getAverageValue()) {
-                            btn->bottomValueWindow.push(btn->limitValue, 2);
-                        } else {
-                            btn->bottomValueWindow.push(btn->limitValue);
-                        }
-                        // btn->bottomValueWindow.printAllValues();
-                        APP_DBG("limitValue: %d, bottomValueWindow.getAverageValue: %d", btn->limitValue, btn->bottomValueWindow.getAverageValue());
-                        btn->limitValue = UINT16_MAX; // 重置限制值，用于下次校准，此时是释放，重置为最大值
-                        btn->needCalibration = true;
-                    }
-
-                    return ButtonEvent::RELEASE_COMPLETE;
-                }
-            } else {
-                btn->lastStateIndex = currentIndex;
+                return ButtonEvent::RELEASE_COMPLETE;
             }
+            
+            btn->lastTravelDistance = currentDistance;
+            btn->lastAdcValue = currentValue;
             break;
 
         default:
-            btn->lastStateIndex = currentIndex;
+            btn->lastTravelDistance = currentDistance;
+            btn->lastAdcValue = currentValue;
             break;
     }
     
     return ButtonEvent::NONE;
+}
+
+/**
+ * 在没有触发时，更新limitValue和triggerValue
+ */
+void ADCBtnsWorker::updateLimitValue(ADCBtn* btn, const uint16_t currentValue) {
+    uint16_t noise = this->mapping->samplingNoise;
+    if(btn->state == ButtonState::RELEASED) {
+        if(currentValue + noise < btn->limitValue) {
+            btn->limitValue = currentValue + noise;
+            float currentDistance = getDistanceByValue(btn, currentValue);
+            float currentPressAccuracy = getCurrentPressAccuracy(btn, currentDistance);
+            float startDistance = getDistanceByValue(btn, btn->limitValue);
+            float endDistance = startDistance - currentPressAccuracy;
+            uint16_t endAdcValue = getValueByDistance(btn, btn->limitValue, -currentPressAccuracy);
+            btn->triggerValue = endAdcValue;
+        }
+    } else if(btn->state == ButtonState::PRESSED) {
+        if(currentValue - noise > btn->limitValue) {
+            btn->limitValue = currentValue - noise;
+            float currentDistance = getDistanceByValue(btn, currentValue);
+            float currentReleaseAccuracy = getCurrentReleaseAccuracy(btn, currentDistance);
+            float startDistance = getDistanceByValue(btn, btn->limitValue);
+            float endDistance = startDistance + currentReleaseAccuracy;
+            uint16_t endAdcValue = getValueByDistance(btn, btn->limitValue, currentReleaseAccuracy);
+            btn->triggerValue = endAdcValue;
+        }
+    }
+}
+
+/**
+ * 在触发时，重置limitValue和triggerValue
+ */
+void ADCBtnsWorker::resetLimitValue(ADCBtn* btn, const uint16_t currentValue) {
+    uint16_t noise = this->mapping->samplingNoise;
+    if(btn->state == ButtonState::RELEASED) {
+        btn->limitValue = currentValue - noise;
+        float currentDistance = getDistanceByValue(btn, currentValue);
+        float currentPressAccuracy = getCurrentPressAccuracy(btn, currentDistance);
+        float startDistance = getDistanceByValue(btn, btn->limitValue);
+        float endDistance = startDistance - currentPressAccuracy;
+        uint16_t endAdcValue = getValueByDistance(btn, btn->limitValue, -currentPressAccuracy);
+        btn->triggerValue = endAdcValue;
+    } else if(btn->state == ButtonState::PRESSED) {
+        btn->limitValue = currentValue + noise;
+        float currentDistance = getDistanceByValue(btn, currentValue);
+        float currentReleaseAccuracy = getCurrentReleaseAccuracy(btn, currentDistance);
+        float startDistance = getDistanceByValue(btn, btn->limitValue);
+        float endDistance = startDistance + currentReleaseAccuracy;
+        uint16_t endAdcValue = getValueByDistance(btn, btn->limitValue, currentReleaseAccuracy);
+        btn->triggerValue = endAdcValue;
+    }
+}
+
+/**
+ * 根据ADC值计算对应的行程距离
+ * @param btn 按钮指针
+ * @param adcValue ADC值
+ * @return 对应的行程距离（mm）
+ */
+float ADCBtnsWorker::getDistanceByValue(ADCBtn* btn, const uint16_t adcValue) {
+    if (!btn || !mapping || mapping->length == 0) {
+        return 0.0f;
+    }
+
+    // 处理边界情况
+    // valueMapping[0] 是最大值（完全按下位置，距离为0）
+    if (adcValue >= btn->valueMapping[0]) {
+        return 0.0f; // 完全按下位置
+    }
+    // valueMapping[length-1] 是最小值（完全释放位置，距离最大）
+    if (adcValue <= btn->valueMapping[mapping->length - 1]) {
+        float maxDistance = (mapping->length - 1) * this->mapping->step;
+        return maxDistance; // 完全释放位置
+    }
+
+    // 在映射表中查找最接近的两个点进行线性插值
+    // 映射表是从大到小排列的
+    for (uint8_t i = 0; i < mapping->length - 1; i++) {
+        if (adcValue <= btn->valueMapping[i] && adcValue >= btn->valueMapping[i + 1]) {
+            // 线性插值计算距离
+            uint16_t upperValue = btn->valueMapping[i];     // 较大的ADC值
+            uint16_t lowerValue = btn->valueMapping[i + 1]; // 较小的ADC值
+            float upperDistance = i * this->mapping->step;       // 较小的距离
+            float lowerDistance = (i + 1) * this->mapping->step; // 较大的距离
+            
+            if (upperValue == lowerValue) {
+                return upperDistance;
+            }
+            
+            float ratio = (float)(upperValue - adcValue) / (upperValue - lowerValue);
+            float result = upperDistance + ratio * (lowerDistance - upperDistance);
+            
+            return result;
+        }
+    }
+
+    return 0.0f;
+}
+
+/**
+ * 根据行程距离计算对应的ADC值
+ * @param btn 按钮指针
+ * @param baseAdcValue 基准ADC值（起始点）
+ * @param distanceMm 要移动的行程距离（mm），正值表示向释放方向移动，负值表示向按下方向移动
+ * @return 移动指定距离后的目标ADC值
+ */
+uint16_t ADCBtnsWorker::getValueByDistance(ADCBtn* btn, const uint16_t baseAdcValue, const float distanceMm) {
+    if (!btn || !mapping || mapping->length == 0) {
+        return baseAdcValue;
+    }
+
+    // 首先获取基准ADC值对应的距离
+    float baseDistance = getDistanceByValue(btn, baseAdcValue);
+    // 计算目标距离
+    float targetDistance = baseDistance + distanceMm;
+
+    // 获取最大距离
+    float maxDistance = (mapping->length - 1) * this->mapping->step;
+
+    // 处理超出边界的情况 - 使用外推而不是直接返回边界值
+    if (targetDistance < 0) {
+        // 向按下方向超出边界，使用前两个点进行外推
+        if (mapping->length >= 2) {
+            uint16_t value0 = btn->valueMapping[0];     // 距离0对应的ADC值
+            uint16_t value1 = btn->valueMapping[1];     // 距离step对应的ADC值
+            float step = this->mapping->step;
+            
+            // 线性外推：value = value0 + (targetDistance - 0) * (value1 - value0) / step
+            float extrapolatedValue = value0 + (targetDistance / step) * (value1 - value0);
+            
+            // 确保结果在合理范围内
+            if (extrapolatedValue > UINT16_MAX) extrapolatedValue = UINT16_MAX;
+            if (extrapolatedValue < 0) extrapolatedValue = 0;
+            
+            return (uint16_t)extrapolatedValue;
+        } else {
+            return btn->valueMapping[0];
+        }
+    }
+    
+    if (targetDistance > maxDistance) {
+        // 向释放方向超出边界，使用最后两个点进行外推
+        if (mapping->length >= 2) {
+            uint16_t valueLast = btn->valueMapping[mapping->length - 1];     // 最大距离对应的ADC值
+            uint16_t valueSecondLast = btn->valueMapping[mapping->length - 2]; // 倒数第二个距离对应的ADC值
+            float step = this->mapping->step;
+            
+            // 线性外推
+            float extrapolatedValue = valueLast + ((targetDistance - maxDistance) / step) * (valueLast - valueSecondLast);
+            
+            // 确保结果在合理范围内
+            if (extrapolatedValue > UINT16_MAX) extrapolatedValue = UINT16_MAX;
+            if (extrapolatedValue < 0) extrapolatedValue = 0;
+            
+            return (uint16_t)extrapolatedValue;
+        } else {
+            return btn->valueMapping[mapping->length - 1];
+        }
+    }
+    
+    // 处理正常范围内的情况
+    if (targetDistance <= 0) {
+        return btn->valueMapping[0]; // 完全按下位置，最大ADC值
+    }
+    if (targetDistance >= maxDistance) {
+        return btn->valueMapping[mapping->length - 1]; // 完全释放位置，最小ADC值
+    }
+
+    // 计算在映射表中的位置
+    float indexFloat = targetDistance / this->mapping->step;
+    uint8_t lowerIndex = (uint8_t)indexFloat;
+    uint8_t upperIndex = lowerIndex + 1;
+
+    // 边界检查
+    if (upperIndex >= mapping->length) {
+        return btn->valueMapping[mapping->length - 1];
+    }
+
+    // 线性插值 - 映射表是从大到小排列的
+    float fraction = indexFloat - lowerIndex;
+    uint16_t upperValue = btn->valueMapping[lowerIndex];   // 距离小，ADC值大
+    uint16_t lowerValue = btn->valueMapping[upperIndex];   // 距离大，ADC值小
+    
+    uint16_t result = (uint16_t)(upperValue - fraction * (upperValue - lowerValue));
+    
+
+    return result;
+}
+
+/**
+ * 获取当前位置下的按下精度
+ * @param btn 按钮指针
+ * @param currentDistance 当前行程距离（mm）
+ * @return 当前应使用的按下精度（mm）
+ */
+float ADCBtnsWorker::getCurrentPressAccuracy(ADCBtn* btn, const float currentDistance) {
+    if (!btn) {
+        return 0.1f; // 默认精度
+    }
+
+    // 目前简单返回配置的按下精度，后续可根据需要添加动态精度逻辑
+    return btn->pressAccuracyMm;
+}
+
+/**
+ * 获取当前位置下的弹起精度
+ * @param btn 按钮指针  
+ * @param currentDistance 当前行程距离（mm）
+ * @return 当前应使用的弹起精度（mm）
+ */
+float ADCBtnsWorker::getCurrentReleaseAccuracy(ADCBtn* btn, const float currentDistance) {
+    if (!btn) {
+        return 0.1f; // 默认精度
+    }
+
+
+    // 如果在前半段行程内，使用高精度弹起精度
+    if (currentDistance <= btn->halfwayDistanceMm) {
+        return btn->highPrecisionReleaseAccuracyMm;
+    }
+    
+    // 后半段使用常规弹起精度
+    return btn->releaseAccuracyMm;
 }
 
 /**
@@ -650,127 +746,4 @@ void ADCBtnsWorker::handleButtonState(ADCBtn* btn, const ButtonEvent event) {
         default:
             break;
     }
-}
-
-/**
- * 初始化高精度映射表
- * 为按键抬起行程的前半段（完全按下到弹起一半）生成0.01mm精度的插值映射表
- * @param btn 按钮指针
- */
-void ADCBtnsWorker::initHighPrecisionMapping(ADCBtn* btn) {
-    if (!btn || !mapping || mapping->length == 0) {
-        return;
-    }
-
-    // 计算中点索引（完全按下到弹起一半的位置）
-    btn->halfwayIndex = mapping->length / 2;
-    
-    // 确保halfwayIndex不为0，避免除零错误
-    if (btn->halfwayIndex == 0) {
-        btn->halfwayIndex = 1;
-    }
-    
-    // 高精度映射表长度为前半段的10倍精度
-    uint16_t calculatedLength = btn->halfwayIndex * 10;
-    
-    // 边界检查：确保不超过数组大小
-    btn->highPrecisionLength = (calculatedLength > MAX_ADC_VALUES_LENGTH * 10) ? 
-                               MAX_ADC_VALUES_LENGTH * 10 : calculatedLength;
-    
-    // 确保高精度长度至少为1
-    if (btn->highPrecisionLength == 0) {
-        btn->highPrecisionLength = 1;
-    }
-    
-    // 为前半段行程生成10倍精度的插值映射表
-    for (uint16_t i = 0; i < btn->highPrecisionLength; i++) {
-        // 计算在原始映射表中的相对位置
-        float_t relativePos = (btn->highPrecisionLength > 1) ? 
-                             (float_t)i / (btn->highPrecisionLength - 1) : 0.0f;
-        float_t originalIndex = relativePos * (btn->halfwayIndex - 1);
-        
-        // 获取插值的两个端点
-        uint8_t lowerIndex = (uint8_t)originalIndex;
-        uint8_t upperIndex = lowerIndex + 1;
-        
-        // 边界检查
-        if (upperIndex >= btn->halfwayIndex) {
-            upperIndex = btn->halfwayIndex - 1;
-            lowerIndex = upperIndex;
-        }
-        
-        // 确保索引在有效范围内
-        if (lowerIndex >= mapping->length) lowerIndex = mapping->length - 1;
-        if (upperIndex >= mapping->length) upperIndex = mapping->length - 1;
-        
-        // 线性插值
-        float_t fraction = originalIndex - lowerIndex;
-        uint16_t lowerValue = btn->valueMapping[lowerIndex];
-        uint16_t upperValue = btn->valueMapping[upperIndex];
-        
-        btn->highPrecisionMapping[i] = (uint16_t)(lowerValue + fraction * (upperValue - lowerValue));
-    }
-    
-}
-
-/**
- * 在高精度映射表中搜索索引
- * @param btn 按钮指针
- * @param value ADC输入值
- * @return 返回在高精度映射表中的索引位置
- */
-uint8_t ADCBtnsWorker::searchIndexInHighPrecisionMapping(ADCBtn* btn, const uint16_t value) {
-    if (!btn || btn->highPrecisionLength == 0) {
-        return 0;
-    }
-
-    const uint16_t doubleNoise = this->mapping->samplingNoise * 2;
-
-    // 处理边界情况
-    if (btn->highPrecisionLength < 2) {
-        return 0;
-    }
-    
-    if (value >= btn->highPrecisionMapping[1]) {
-        return 0;
-    }
-    if (value < btn->highPrecisionMapping[btn->highPrecisionLength - 2] + doubleNoise) {
-        return btn->highPrecisionLength - 1;
-    }
-
-    // 二分查找区间
-    uint16_t left = 1;
-    uint16_t right = btn->highPrecisionLength - 2;
-
-    while (left <= right) {
-        uint16_t mid = (left + right) / 2;
-        
-        // 检查当前区间
-        if (value >= btn->highPrecisionMapping[mid] && value < btn->highPrecisionMapping[mid - 1]) {
-            return (uint8_t)std::min<uint16_t>(mid, 255); // 确保返回值在uint8_t范围内
-        }
-        
-        if (value >= btn->highPrecisionMapping[mid]) {
-            right = mid - 1;
-        } else {
-            left = mid + 1;
-        }
-    }
-
-    return 0;
-}
-
-/**
- * 判断当前索引是否在高精度检测范围内（前半段行程）
- * @param btn 按钮指针
- * @param currentIndex 当前在常规映射表中的索引
- * @return true表示在高精度范围内，false表示不在
- */
-bool ADCBtnsWorker::isInHighPrecisionRange(ADCBtn* btn, const uint8_t currentIndex) {
-    if (!btn) {
-        return false;
-    }
-    
-    // 如果当前索引在前半段行程内（从完全按下到弹起一半），则使用高精度检测
-    return currentIndex <= btn->halfwayIndex;
 }
