@@ -96,17 +96,15 @@ void HotkeysManager::runAction(GamepadHotkey hotkeyAction) {
             STORAGE_MANAGER.saveConfig();
             NVIC_SystemReset();
             break;
-        // case GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION_START:
-        //     STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_CALIBRATION);
-        //     STORAGE_MANAGER.saveConfig();
-        //     break;
-        // case GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION_STOP:
-        //     STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
-        //     STORAGE_MANAGER.saveConfig();
-        //     break;
-        // case GamepadHotkey::HOTKEY_CLEAR_CALIBRATION_DATA:
-        //     ADC_CALIBRATION_MANAGER.resetAllCalibration();
-        //     break;
+        case GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION_TOGGLE:
+            BootMode bootMode = STORAGE_MANAGER.getBootMode() == BootMode::BOOT_MODE_CALIBRATION ? BootMode::BOOT_MODE_INPUT : BootMode::BOOT_MODE_CALIBRATION;
+            STORAGE_MANAGER.setBootMode(bootMode);
+            STORAGE_MANAGER.saveConfig();
+            if (bootMode == BootMode::BOOT_MODE_CALIBRATION) { // 如果切换到校准模式，则重置所有校准数据
+                ADC_CALIBRATION_MANAGER.resetAllCalibration();
+            }
+            NVIC_SystemReset();
+            break;
         case GamepadHotkey::HOTKEY_INPUT_MODE_XINPUT:
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
             STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_XINPUT);

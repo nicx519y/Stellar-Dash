@@ -53,8 +53,8 @@ export default function HotkeysField(
                 return t.HOTKEY_ACTION_LEDS_BRIGHTNESS_UP;
             case HotkeyAction.LedsBrightnessDown:
                 return t.HOTKEY_ACTION_LEDS_BRIGHTNESS_DOWN;
-            // case HotkeyAction.CalibrationMode:
-            //     return t.HOTKEY_ACTION_CALIBRATION_MODE;
+            case HotkeyAction.CalibrationModeToggle:
+                return t.HOTKEY_ACTION_CALIBRATION_MODE_TOGGLE;
             case HotkeyAction.XInputMode:
                 return t.HOTKEY_ACTION_XINPUT_MODE;
             case HotkeyAction.PS4Mode:

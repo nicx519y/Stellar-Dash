@@ -333,62 +333,68 @@
   ],
   "hotkeys": [
     {
-      "key": 0,
+      "key": 19,
       "action": "WebConfigMode",
-      "isLocked": true
-    },
-    {
-      "key": 12,
-      "action": "LedsEffectStylePrev",
-      "isLocked": false,
+      "isLocked": true,
       "isHold": true
     },
     {
-      "key": 14,
-      "action": "LedsEnableSwitch",
-      "isLocked": false,
+      "key": 18,
+      "action": "CalibrationModeToggle",
+      "isLocked": true,
       "isHold": true
-    },
-    {
-      "key": 10,
-      "action": "LedsEnableSwitch",
-      "isLocked": false,
-      "isHold": true
-    },
-    {
-      "key": 7,
-      "action": "LedsBrightnessUp",
-      "isLocked": false
-    },
-    {
-      "key": 3,
-      "action": "LedsBrightnessDown",
-      "isLocked": false,
-      "isHold": true
-    },
-    {
-      "key": 11,
-      "action": "LedsBrightnessDown",
-      "isLocked": false
-    },
-    {
-      "key": 13,
-      "action": "None",
-      "isLocked": false
-    },
-    {
-      "key": 1,
-      "action": "LedsEnableSwitch",
-      "isLocked": false
-    },
-    {
-      "key": 4,
-      "action": "LedsBrightnessUp",
-      "isLocked": false
     },
     {
       "key": 16,
-      "action": "NSwitchMode",
+      "action": "LedsEffectStyleNext",
+      "isLocked": false,
+      "isHold": false
+    },
+    {
+      "key": -1,
+      "action": "None",
+      "isLocked": false,
+      "isHold": false
+    },
+    {
+      "key": -1,
+      "action": "None",
+      "isLocked": false,
+      "isHold": false
+    },
+    {
+      "key": -1,
+      "action": "None",
+      "isLocked": false,
+      "isHold": false
+    },
+    {
+      "key": -1,
+      "action": "None",
+      "isLocked": false,
+      "isHold": false
+    },
+    {
+      "key": -1,
+      "action": "None",
+      "isLocked": false,
+      "isHold": false
+    },
+    {
+      "key": -1,
+      "action": "None",
+      "isLocked": false,
+      "isHold": false
+    },
+    {
+      "key": -1,
+      "action": "None",
+      "isLocked": false,
+      "isHold": false
+    },
+    {
+      "key": -1,
+      "action": "None",
       "isLocked": false,
       "isHold": false
     }

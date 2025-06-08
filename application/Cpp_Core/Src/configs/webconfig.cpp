@@ -44,7 +44,7 @@ static const std::map<std::string, GamepadHotkey> STRING_TO_GAMEPAD_HOTKEY = {
     {"LedsBrightnessUp", GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP},
     {"LedsBrightnessDown", GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_DOWN},
     {"LedsEnableSwitch", GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH},
-    {"CalibrationMode", GamepadHotkey::HOTKEY_CALIBRATION_MODE},
+    {"CalibrationModeToggle", GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION_TOGGLE},
     {"SystemReboot", GamepadHotkey::HOTKEY_SYSTEM_REBOOT}
 };
 
