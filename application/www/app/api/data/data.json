@@ -340,17 +340,20 @@
     {
       "key": 12,
       "action": "LedsEffectStylePrev",
-      "isLocked": false
+      "isLocked": false,
+      "isHold": true
     },
     {
       "key": 14,
       "action": "LedsEnableSwitch",
-      "isLocked": false
+      "isLocked": false,
+      "isHold": true
     },
     {
       "key": 10,
       "action": "LedsEnableSwitch",
-      "isLocked": false
+      "isLocked": false,
+      "isHold": true
     },
     {
       "key": 7,
@@ -360,7 +363,8 @@
     {
       "key": 3,
       "action": "LedsBrightnessDown",
-      "isLocked": false
+      "isLocked": false,
+      "isHold": true
     },
     {
       "key": 11,
@@ -368,7 +372,7 @@
       "isLocked": false
     },
     {
-      "key": -1,
+      "key": 13,
       "action": "None",
       "isLocked": false
     },
@@ -379,13 +383,14 @@
     },
     {
       "key": 4,
-      "action": "None",
+      "action": "LedsBrightnessUp",
       "isLocked": false
     },
     {
       "key": 16,
       "action": "NSwitchMode",
-      "isLocked": false
+      "isLocked": false,
+      "isHold": false
     }
   ],
   "autoCalibrationEnabled": false

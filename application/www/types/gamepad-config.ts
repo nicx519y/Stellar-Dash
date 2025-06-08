@@ -283,6 +283,7 @@ export type Hotkey = {
     key: number,
     action: HotkeyAction,
     isLocked?: boolean,
+    isHold?: boolean,
 }
 
 export interface KeysConfig {
@@ -587,6 +588,9 @@ export const UI_TEXT = {
     HOTKEY_ACTION_PS5_MODE: "PlayStation 5 Mode",
     HOTKEY_ACTION_NSWITCH_MODE: "Nintendo Switch Mode",
     HOTKEY_ACTION_SYSTEM_REBOOT: "System Reboot",
+
+    HOTKEY_TRIGGER_HOLD: "Hold",
+    HOTKEY_TRIGGER_CLICK: "Click",
 } as const;
 
 export const UI_TEXT_ZH = {
@@ -813,6 +817,9 @@ export const UI_TEXT_ZH = {
     HOTKEY_ACTION_PS5_MODE: "PlayStation 5模式",
     HOTKEY_ACTION_NSWITCH_MODE: "Nintendo Switch模式",
     HOTKEY_ACTION_SYSTEM_REBOOT: "系统重启",
+
+    HOTKEY_TRIGGER_HOLD: "长按",
+    HOTKEY_TRIGGER_CLICK: "短按",
     
 } as const;
 

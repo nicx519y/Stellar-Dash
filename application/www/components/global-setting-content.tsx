@@ -36,7 +36,7 @@ export function GlobalSettingContent() {
         stopManualCalibration,
         fetchCalibrationStatus,
         globalConfig,
-        updateGlobalConfig,
+        // updateGlobalConfig,
     } = useGamepadConfig();
 
     const [_isDirty] = useUnsavedChangesWarning();
@@ -145,9 +145,9 @@ export function GlobalSettingContent() {
         stopManualCalibration();
     }
 
-    const switchAutoCalibration = () => {
-        updateGlobalConfig({ autoCalibrationEnabled: !globalConfig.autoCalibrationEnabled });
-    }
+    // const switchAutoCalibration = () => {
+    //     updateGlobalConfig({ autoCalibrationEnabled: !globalConfig.autoCalibrationEnabled });
+    // }
 
     // 弹窗询问用户是否关闭校准模式
     const showCompletionDialog = async () => {
@@ -182,8 +182,9 @@ export function GlobalSettingContent() {
                     <Box position="absolute" top="0px" >
                         <Card.Root w="100%" h="100%" >
                             <Card.Body p="10px" >
-                                <Flex direction="row" gap={2} w="500px" >
-                                    <Center>
+                                <Flex direction="row" gap={2} w="268px" >
+                                    {/* 隐藏自动校准入口 */}
+                                    {/* <Center>
                                         <Switch.Root
                                             disabled={calibrationStatus.isActive}
                                             colorPalette={"green"}
@@ -195,7 +196,7 @@ export function GlobalSettingContent() {
                                             </Switch.Control>
                                             <Switch.Label >{globalConfig.autoCalibrationEnabled ? t.AUTO_CALIBRATION_TITLE : t.MANUAL_CALIBRATION_TITLE}</Switch.Label>
                                         </Switch.Root>
-                                    </Center>
+                                    </Center> */}
                                     <HStack flex={1} justifyContent="flex-end" >
                                         <Popover.Root open={calibrationTipOpen} >
                                             <Popover.Trigger asChild>

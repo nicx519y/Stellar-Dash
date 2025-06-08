@@ -90,7 +90,7 @@ export function HotkeySettingContent({
     // 从 gamepadConfig 加载 hotkeys 配置
     useEffect(() => {
         setHotkeys(Array.from({ length: DEFAULT_NUM_HOTKEYS_MAX }, (_, i) => {
-            return hotkeysConfig?.[i] ?? { key: -1, action: HotkeyAction.None, isLocked: false };
+            return hotkeysConfig?.[i] ?? { key: -1, action: HotkeyAction.None, isLocked: false, isHold: false };
         }));
         setIsDirty?.(false);
     }, [hotkeysConfig, setIsDirty]);
@@ -148,7 +148,7 @@ export function HotkeySettingContent({
                 });
                 
                 // 获取当前热键设置并更新
-                const currentHotkey = currentHotkeys[currentActiveIndex] || { key: -1, action: HotkeyAction.None, isLocked: false };
+                const currentHotkey = currentHotkeys[currentActiveIndex] || { key: -1, action: HotkeyAction.None, isHold: false, isLocked: false };
                 updateHotkey(currentActiveIndex, { 
                     ...currentHotkey,
                     key: buttonEvent.buttonIndex
@@ -263,7 +263,7 @@ export function HotkeySettingContent({
                                 <HotkeysField
                                     key={i}
                                     index={i}
-                                    value={hotkeys[i] ?? { key: -1, action: HotkeyAction.None }}
+                                    value={hotkeys[i] ?? { key: -1, action: HotkeyAction.None, isHold: false, isLocked: false }}
                                     onValueChange={(changeDetail) => {
                                         updateHotkey(i, changeDetail);
                                     }}
@@ -300,7 +300,7 @@ export function useHotkeyManager() {
     // 初始化热键状态
     useEffect(() => {
         setHotkeys(Array.from({ length: DEFAULT_NUM_HOTKEYS_MAX }, (_, i) => {
-            return hotkeysConfig?.[i] ?? { key: -1, action: HotkeyAction.None, isLocked: false };
+            return hotkeysConfig?.[i] ?? { key: -1, action: HotkeyAction.None, isLocked: false, isHold: false };
         }));
     }, [hotkeysConfig]);
 

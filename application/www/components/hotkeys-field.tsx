@@ -71,12 +71,18 @@ export default function HotkeysField(
     /**
      * 创建热键选择列表
      */
-    const hotkeyCollection = useMemo(() => {
+    const hotkeyActionCollection = useMemo(() => {
         return createListCollection({
             items: HotkeyActionList.map(action => ({
                 value: action,
                 label: getHotkeyActionLabel(action)
             }))
+        });
+    }, [t]);
+
+    const hotkeyTriggerCollection = useMemo(() => {
+        return createListCollection({
+            items: [{ value: "hold", label: t.HOTKEY_TRIGGER_HOLD }, { value: "click", label: t.HOTKEY_TRIGGER_CLICK }]
         });
     }, [t]);
 
@@ -88,7 +94,7 @@ export default function HotkeysField(
     }
 
     return (
-        <Flex padding={"2px"} width={"680px"} >
+        <Flex padding={"2px"} width={"680px"} gap={1} >
             <HStack 
                 pl="2" 
                 pr="2" 
@@ -96,7 +102,6 @@ export default function HotkeysField(
                 border={".5px solid"}
                 borderColor={isActive ? "green.500" : colorMode === "dark" ? "gray.800" : "gray.400"} 
                 borderRadius="sm" 
-                mr="1" 
                 cursor={disabled ? "not-allowed" : "pointer"}
                 onClick={() => (!disabled) && onFieldClick?.(index)}
                 opacity={!isActive ? (disabled ? 0.55 : 1) : 1}
@@ -116,10 +121,10 @@ export default function HotkeysField(
             <SelectRoot
                 variant="outline"
                 size="sm"
-                collection={hotkeyCollection}
+                collection={hotkeyActionCollection}
                 value={[value.action ?? HotkeyAction.None]}
                 onValueChange={e => onValueChange({ ...value, action: e.value[0] as HotkeyAction })}
-                width="340px"
+                width="260px"
                 disabled={disabled}
             >
 
@@ -127,11 +132,29 @@ export default function HotkeysField(
                     < SelectValueText placeholder={UI_TEXT.SELECT_VALUE_TEXT_PLACEHOLDER} />
                 </SelectTrigger>
                 <SelectContent fontSize="xs"  >
-                    {hotkeyCollection.items.map((item) => (
+                    {hotkeyActionCollection.items.map((item) => (
                         <SelectItem key={item.value} item={item}  >
                             {item.label}
                         </SelectItem>
                     ))}
+                </SelectContent>
+            </SelectRoot>
+
+            <SelectRoot
+                variant="outline"
+                size="sm"
+                collection={hotkeyTriggerCollection}
+                value={[value.isHold ? "hold" : "click"]}
+                onValueChange={e => onValueChange({ ...value, isHold: e.value[0] === "hold" })}
+                width="150px"
+                disabled={disabled}
+            >
+                <SelectTrigger bg="bg.muted" opacity={0.75} >
+                    < SelectValueText placeholder={UI_TEXT.SELECT_VALUE_TEXT_PLACEHOLDER} />
+                </SelectTrigger>
+                <SelectContent fontSize="xs"  >
+                    <SelectItem item={{ value: "click", label: t.HOTKEY_TRIGGER_CLICK }} >{t.HOTKEY_TRIGGER_CLICK}</SelectItem>
+                    <SelectItem item={{ value: "hold", label: t.HOTKEY_TRIGGER_HOLD }} >{t.HOTKEY_TRIGGER_HOLD}</SelectItem>
                 </SelectContent>
             </SelectRoot>
         </Flex>

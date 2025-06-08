@@ -445,6 +445,9 @@ cJSON* buildHotkeysConfigJSON(Config& config) {
         // 添加快捷键序号
         cJSON_AddNumberToObject(hotkeyJSON, "key", config.hotkeys[i].virtualPin);
 
+        // 添加是否长按
+        cJSON_AddBoolToObject(hotkeyJSON, "isHold", config.hotkeys[i].isHold);
+
         // 添加锁定状态
         cJSON_AddBoolToObject(hotkeyJSON, "isLocked", config.hotkeys[i].isLocked);
         
@@ -1278,9 +1281,10 @@ std::string apiUpdateHotkeysConfig() {
             config.hotkeys[i].isLocked = cJSON_IsTrue(isLockedItem);
         }
 
-        // 如果快捷键被锁定，则不允许修改
-        if(config.hotkeys[i].isLocked) {
-            continue;
+        // 获取是否长按
+        cJSON* isHoldItem = cJSON_GetObjectItem(hotkeyItem, "isHold");
+        if(isHoldItem) {
+            config.hotkeys[i].isHold = cJSON_IsTrue(isHoldItem);
         }
 
         // 根据字符串设置动作

@@ -82,6 +82,7 @@ bool ConfigUtils::load(Config& config)
         config.inputMode = InputMode::INPUT_MODE_XINPUT;
         strcpy(config.defaultProfileId, "profile-0");
         config.numProfilesMax = NUM_PROFILES;
+        config.autoCalibrationEnabled = false; // 默认关闭自动校准
 
         // 设置profiles
         for(uint8_t k = 0; k < NUM_PROFILES; k++) {
@@ -96,11 +97,13 @@ bool ConfigUtils::load(Config& config)
             if(m == 0) { // 第一个快捷键锁定, 锁定为webconfig
                 config.hotkeys[m].isLocked = true;
                 config.hotkeys[m].action = GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG;
-                config.hotkeys[m].virtualPin = 0;
+                config.hotkeys[m].isHold = true;
+                config.hotkeys[m].virtualPin = 19;
             } else { // 其他快捷键不锁定
                 config.hotkeys[m].isLocked = false;
                 config.hotkeys[m].action = GamepadHotkey::HOTKEY_NONE;
                 config.hotkeys[m].virtualPin = -1;
+                config.hotkeys[m].isHold = false;
             }
         }
 

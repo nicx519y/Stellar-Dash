@@ -20,22 +20,23 @@ let simulationCounter = 0;
 function generateSimulatedButtonStates(): number {
     simulationCounter++;
     
-    // 每5次调用模拟一次按键触发
-    if (simulationCounter % 5 === 0) {
-        // 随机生成1-3个按键的触发
-        const numTriggers = Math.floor(Math.random() * 3) + 1;
-        let triggerMask = 0;
+    // // 每5次调用模拟一次按键触发
+    // if (simulationCounter % 5 === 0) {
+    //     // 随机生成1-3个按键的触发
+    //     const numTriggers = Math.floor(Math.random() * 3) + 1;
+    //     let triggerMask = 0;
         
-        for (let i = 0; i < numTriggers; i++) {
-            const buttonIndex = Math.floor(Math.random() * buttonState.totalButtons);
-            triggerMask |= (1 << buttonIndex);
-        }
+    //     for (let i = 0; i < numTriggers; i++) {
+    //         const buttonIndex = Math.floor(Math.random() * buttonState.totalButtons);
+    //         triggerMask |= (1 << buttonIndex);
+    //     }
         
-        return triggerMask;
-    } else {
-        // 大部分时间没有按键触发
-        return 0;
-    }
+    //     return triggerMask;
+    // } else {
+    //     // 大部分时间没有按键触发
+    //     return 0;
+    // }
+    return 0;
 }
 
 // 将数字转换为二进制字符串

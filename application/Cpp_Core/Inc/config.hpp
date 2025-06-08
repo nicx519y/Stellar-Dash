@@ -42,6 +42,7 @@ typedef struct
 {
     int32_t         virtualPin;         // 虚拟pin
     GamepadHotkey   action;             // 快键功能
+    bool            isHold;             // 是否长按
     bool            isLocked;           // 是否锁定
 } GamepadHotkeyEntry;
 
