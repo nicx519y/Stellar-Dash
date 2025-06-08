@@ -8,7 +8,6 @@ import {
     Box,
     HStack,
     Button,
-    Switch,
     Popover,
     Portal,
 } from "@chakra-ui/react";

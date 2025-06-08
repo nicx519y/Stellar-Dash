@@ -74,7 +74,7 @@
 
 
 #define FIRMWARE_VERSION                    (uint32_t)0x010000  //固件版本
-#define CONFIG_VERSION                      (uint32_t)0x000002  //配置版本 三位版本号 0x aa bb cc
+#define CONFIG_VERSION                      (uint32_t)0x000005  //配置版本 三位版本号 0x aa bb cc
 #define ADC_MAPPING_VERSION                 (uint32_t)0x000001  //ADC值映射表版本
 
 #define WEB_RESOURCES_ADDR                  0x90200000       // 网页资源地址 memory map 地址 qspi flash 0x90100000 定义在 STM32H750XBHx_FLASH.ld 中
@@ -119,6 +119,7 @@
 // #define LED_ENABLE_SWITCH_PORT       GPIOC           // 灯效开关端口
 
 #define NUM_GAMEPAD_HOTKEYS                 (uint8_t)11   // 快捷键数量
+#define HOLD_THRESHOLD_MS                   1000             // 长按阈值 1000ms
 
 // GPIO 按钮定义结构体
 struct gpio_pin_def {

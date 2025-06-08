@@ -2,6 +2,10 @@
 
 
 HotkeysManager::HotkeysManager() : hotkeys(STORAGE_MANAGER.getGamepadHotkeyEntry()) {
+    // 初始化所有热键状态
+    for (int i = 0; i < NUM_GAMEPAD_HOTKEYS; i++) {
+        resetHotkeyState(i);
+    }
 }
 
 HotkeysManager::~HotkeysManager() {
@@ -14,6 +18,60 @@ void HotkeysManager::runVirtualPinMask(uint32_t virtualPinMask) {
             break;
         }
     }
+}
+
+void HotkeysManager::updateHotkeyState(uint32_t currentVirtualPinMask, uint32_t lastVirtualPinMask) {
+    uint64_t currentTime = MICROS_TIMER.micros() / 1000; // 转换为毫秒
+    
+    for (int i = 0; i < NUM_GAMEPAD_HOTKEYS; i++) {
+        if (hotkeys[i].virtualPin < 0) continue; // 跳过未配置的热键
+        
+        bool currentPressed = isHotkeyPressed(currentVirtualPinMask, i);
+        bool lastPressed = isHotkeyPressed(lastVirtualPinMask, i);
+        
+        // 检测按键按下
+        if (currentPressed && !lastPressed) {
+            hotkeyStates[i].isPressed = true;
+            hotkeyStates[i].hasTriggered = false;
+            hotkeyStates[i].pressStartTime = currentTime;
+        }
+        // 检测按键释放
+        else if (!currentPressed && lastPressed) {
+            if (hotkeyStates[i].isPressed && !hotkeyStates[i].hasTriggered) {
+                // 按键释放且未触发过，检查是否为click
+                if (!hotkeys[i].isHold) {
+                    // 配置为click模式，直接触发
+                    runAction(hotkeys[i].action);
+                }
+            }
+            resetHotkeyState(i);
+        }
+        // 检测长按
+        else if (currentPressed && hotkeyStates[i].isPressed && !hotkeyStates[i].hasTriggered) {
+            if (hotkeys[i].isHold && (currentTime - hotkeyStates[i].pressStartTime) >= HOLD_THRESHOLD_MS) {
+                // 配置为hold模式且达到长按时间，触发
+                runAction(hotkeys[i].action);
+                hotkeyStates[i].hasTriggered = true;
+            }
+        }
+    }
+}
+
+bool HotkeysManager::isHotkeyPressed(uint32_t virtualPinMask, int hotkeyIndex) {
+    if (hotkeyIndex < 0 || hotkeyIndex >= NUM_GAMEPAD_HOTKEYS) return false;
+    if (hotkeys[hotkeyIndex].virtualPin < 0) return false;
+    
+    // 检查是否同时按下了FN键和对应的热键
+    uint32_t expectedMask = (1U << hotkeys[hotkeyIndex].virtualPin) | FN_BUTTON_VIRTUAL_PIN;
+    return (virtualPinMask & expectedMask) == expectedMask;
+}
+
+void HotkeysManager::resetHotkeyState(int index) {
+    if (index < 0 || index >= NUM_GAMEPAD_HOTKEYS) return;
+    
+    hotkeyStates[index].isPressed = false;
+    hotkeyStates[index].hasTriggered = false;
+    hotkeyStates[index].pressStartTime = 0;
 }
 
 void HotkeysManager::runAction(GamepadHotkey hotkeyAction) {

@@ -7,6 +7,7 @@
 #include "gamepad.hpp"
 #include "board_cfg.h"
 #include "adc_btns/adc_calibration.hpp"
+#include "micro_timer.hpp"
 
 class HotkeysManager {
     public:
@@ -18,16 +19,26 @@ class HotkeysManager {
             return instance;
         }
 
-        
-
         void runVirtualPinMask(uint32_t virtualPinMask);
+        void updateHotkeyState(uint32_t currentVirtualPinMask, uint32_t lastVirtualPinMask);
 
     private:
         HotkeysManager();
         ~HotkeysManager();
         GamepadHotkeyEntry* hotkeys;
 
+        // Hold状态跟踪
+        struct HotkeyState {
+            bool isPressed;
+            bool hasTriggered;
+            uint64_t pressStartTime;
+        };
+        
+        HotkeyState hotkeyStates[NUM_GAMEPAD_HOTKEYS];
+
         void runAction(GamepadHotkey hotkeyAction);
+        void resetHotkeyState(int index);
+        bool isHotkeyPressed(uint32_t virtualPinMask, int hotkeyIndex);
 };
 
 #define HOTKEYS_MANAGER HotkeysManager::getInstance()

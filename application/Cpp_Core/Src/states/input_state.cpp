@@ -67,11 +67,13 @@ void InputState::loop() {
 
         virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
 
-        if(((lastVirtualPinMask & virtualPinMask) == FN_BUTTON_VIRTUAL_PIN) && (lastVirtualPinMask != FN_BUTTON_VIRTUAL_PIN)) { // 如果按下了 FN 键并且不只是 FN 键，并且click了其他键，则执行快捷键
-            HOTKEYS_MANAGER.runVirtualPinMask(lastVirtualPinMask);
-        } else if((virtualPinMask & FN_BUTTON_VIRTUAL_PIN) == 0) { // 如果按下了 FN 键，则不处理游戏手柄数据
+        // 只有在没有按下FN键时才处理游戏手柄数据
+        if((virtualPinMask & FN_BUTTON_VIRTUAL_PIN) == 0) {
             GAMEPAD.read(virtualPinMask);
             inputDriver->process(&GAMEPAD);  // 处理游戏手柄数据，将按键数据映射到xinput协议 形成 report 数据，然后通过 usb 发送出去
+        } else {
+            // 更新热键状态，处理hold和click逻辑
+            HOTKEYS_MANAGER.updateHotkeyState(virtualPinMask, lastVirtualPinMask);
         }
 
         lastVirtualPinMask = virtualPinMask;
@@ -89,11 +91,11 @@ void InputState::loop() {
     }
     #endif
 
-    if(STORAGE_MANAGER.config.autoCalibrationEnabled) {
-        if(MICROS_TIMER.checkInterval(DYNAMIC_CALIBRATION_INTERVAL, calibrationTime)) {
-            ADC_BTNS_WORKER.dynamicCalibration();
-        }
-    }
+    // if(STORAGE_MANAGER.config.autoCalibrationEnabled) {
+    //     if(MICROS_TIMER.checkInterval(DYNAMIC_CALIBRATION_INTERVAL, calibrationTime)) {
+    //         ADC_BTNS_WORKER.dynamicCalibration();
+    //     }
+    // }
 }
 
 void InputState::reset() {
