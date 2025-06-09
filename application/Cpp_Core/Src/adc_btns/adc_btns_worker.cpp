@@ -158,6 +158,104 @@ ADCBtnsError ADCBtnsWorker::setup() {
     return ADCBtnsError::SUCCESS;
 }
 
+/**
+ * 使用外部配置初始化ADC按键工作器（用于WebConfig等模式）
+ * @param externalConfigs 外部配置数组，长度必须为NUM_ADC_BUTTONS
+ * @return ADCBtnsError 初始化结果
+ */
+ADCBtnsError ADCBtnsWorker::setup(const ExternalADCButtonConfig* externalConfigs) {
+    if (!externalConfigs) {
+        return ADCBtnsError::INVALID_PARAMS;
+    }
+    
+    std::string id = ADC_MANAGER.getDefaultMapping();
+    if(id.empty()) {
+        return ADCBtnsError::MAPPING_NOT_FOUND;
+    }
+
+    const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& adcBtnInfos = ADC_MANAGER.readADCValues();
+    const ADCValuesMapping* mapping = ADC_MANAGER.getMapping(id.c_str());
+
+    if(mapping == nullptr) {
+        return ADCBtnsError::MAPPING_NOT_FOUND;
+    }
+
+    this->mapping = mapping;
+
+    // 获取校准模式配置
+    bool isAutoCalibrationEnabled = STORAGE_MANAGER.config.autoCalibrationEnabled;
+
+    // 计算最小值差值 - 使用原始映射计算
+    minValueDiff = (uint16_t)((float)(this->mapping->originalValues[0] - this->mapping->originalValues[this->mapping->length - 1]) * MIN_VALUE_DIFF_RATIO);
+    
+    // 使用外部配置初始化按钮配置
+    for(uint8_t i = 0; i < adcBtnInfos.size(); i++) {
+        const ADCButtonValueInfo& adcBtnInfo = adcBtnInfos[i];
+        const ExternalADCButtonConfig& extConfig = externalConfigs[i];
+
+        float topDeadzone = extConfig.topDeadzone;
+        // 如果顶部死区小于最小值，则设置为最小值
+        if(topDeadzone < MIN_ADC_TOP_DEADZONE) {
+            topDeadzone = MIN_ADC_TOP_DEADZONE;
+        }
+
+        float bottomDeadzone = extConfig.bottomDeadzone;
+        // 如果底部死区小于最小值，则设置为最小值
+        if(bottomDeadzone < MIN_ADC_BOTTOM_DEADZONE) {
+            bottomDeadzone = MIN_ADC_BOTTOM_DEADZONE;
+        }
+
+        // 初始化按钮配置，使用外部传入的配置
+        buttonPtrs[i]->virtualPin = adcBtnInfo.virtualPin;
+        buttonPtrs[i]->pressAccuracyMm = extConfig.pressAccuracy;
+        // 弹起精度 在行程前端使用高精度，后端使用低精度，低精度最小为0.1f
+        buttonPtrs[i]->releaseAccuracyMm = std::max<float>(extConfig.releaseAccuracy, MIN_ADC_RELEASE_ACCURACY);
+        buttonPtrs[i]->highPrecisionReleaseAccuracyMm = extConfig.releaseAccuracy; // 默认与释放精度相同
+        buttonPtrs[i]->topDeadzoneMm = topDeadzone;
+        buttonPtrs[i]->bottomDeadzoneMm = bottomDeadzone;
+        
+        // 计算中点距离（用于高精度判断）
+        float totalTravelMm = (this->mapping->length - 1) * this->mapping->step;
+        buttonPtrs[i]->halfwayDistanceMm = totalTravelMm / 2.0f;
+
+        // 根据校准模式初始化按键映射
+        uint16_t topValue, bottomValue;
+        ADCBtnsError calibrationResult = ADC_MANAGER.getCalibrationValues(id.c_str(), i, isAutoCalibrationEnabled, topValue, bottomValue);
+        
+        if(calibrationResult == ADCBtnsError::SUCCESS && topValue != 0 && bottomValue != 0) {
+            // 使用校准值生成完整的校准后映射
+            generateCalibratedMapping(buttonPtrs[i], topValue, bottomValue);
+            buttonPtrs[i]->initCompleted = true;
+        } else {
+            // 这里需要等待第一次ADC读取来初始化
+            buttonPtrs[i]->initCompleted = false;
+            // 清空映射数组
+            memset(buttonPtrs[i]->valueMapping, 0, this->mapping->length * sizeof(uint16_t));
+            memset(buttonPtrs[i]->calibratedMapping, 0, this->mapping->length * sizeof(uint16_t));
+        }
+
+        // 只有在自动校准模式下才启用动态校准
+        if(isAutoCalibrationEnabled) {
+            buttonPtrs[i]->bottomValueWindow = RingBufferSlidingWindow<uint16_t>(NUM_MAPPING_INDEX_WINDOW_SIZE);
+            buttonPtrs[i]->topValueWindow = RingBufferSlidingWindow<uint16_t>(NUM_MAPPING_INDEX_WINDOW_SIZE);
+            buttonPtrs[i]->limitValue = UINT16_MAX; // 初始状态为释放，记录最小值
+            buttonPtrs[i]->needCalibration = false;
+            buttonPtrs[i]->needSaveCalibration = false;
+            buttonPtrs[i]->lastCalibrationTime = 0;
+            buttonPtrs[i]->lastSaveTime = 0;
+        }
+        
+        // 初始化状态
+        buttonPtrs[i]->lastTravelDistance = 0.0f;
+        buttonPtrs[i]->lastAdcValue = 0;
+        buttonPtrs[i]->state = ButtonState::RELEASED;  // 明确设置初始状态为释放
+    }
+
+    ADC_MANAGER.startADCSamping();
+
+    return ADCBtnsError::SUCCESS;
+}
+
 ADCBtnsError ADCBtnsWorker::deinit() {
     // ADC_MANAGER.stopADCSamping();
     

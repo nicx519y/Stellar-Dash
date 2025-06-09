@@ -15,6 +15,13 @@
 
 #define NUM_MAPPING_INDEX_WINDOW_SIZE 32
 
+// 外部ADC按键配置结构（用于WebConfig等模式）
+struct ExternalADCButtonConfig {
+    float pressAccuracy;      // 按下精度（mm）
+    float releaseAccuracy;    // 释放精度（mm）
+    float topDeadzone;        // 顶部死区（mm）
+    float bottomDeadzone;     // 底部死区（mm）
+};
 
 // 错误码定义
 enum class ADCBtnsWorkerError {
@@ -42,6 +49,14 @@ class ADCBtnsWorker {
             return instance;
         }
         ADCBtnsError setup();
+        
+        /**
+         * @brief 使用外部配置初始化ADC按键工作器（用于WebConfig等模式）
+         * @param externalConfigs 外部配置数组，长度必须为NUM_ADC_BUTTONS
+         * @return ADCBtnsError 初始化结果
+         */
+        ADCBtnsError setup(const ExternalADCButtonConfig* externalConfigs);
+        
         uint32_t read();
 
         ADCBtnsError deinit();

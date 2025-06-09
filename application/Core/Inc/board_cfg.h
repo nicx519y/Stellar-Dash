@@ -101,6 +101,12 @@
 #define READ_BTNS_INTERVAL                  200            // 检查按钮状态间隔 us
 #define DYNAMIC_CALIBRATION_INTERVAL        500000          // 动态校准间隔 500ms
 
+// ========== WebConfig模式ADC按键专用配置宏定义 ==========
+#define WEBCONFIG_ADC_DEFAULT_PRESS_ACCURACY     1.0f      // WebConfig模式下默认按下精度（mm 设置为1 防止误触
+#define WEBCONFIG_ADC_DEFAULT_RELEASE_ACCURACY   0.2f      // WebConfig模式下默认释放精度（mm）
+#define WEBCONFIG_ADC_DEFAULT_TOP_DEADZONE       0.2f       // WebConfig模式下默认顶部死区（mm） - 更小
+#define WEBCONFIG_ADC_DEFAULT_BOTTOM_DEADZONE    0.2f       // WebConfig模式下默认底部死区（mm）
+#define WEBCONFIG_ADC_DEFAULT_HIGH_SENSITIVITY   false       // WebConfig模式下默认启用高敏感度
 
 #define NUM_GPIO_BUTTONS            4               //GPIO按钮数量
 #define GPIO_BUTTONS_DEBOUNCE       1000             //去抖动延迟(us)  1ms

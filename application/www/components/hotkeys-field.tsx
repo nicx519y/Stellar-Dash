@@ -110,7 +110,7 @@ export default function HotkeysField(
             >
                 <Tag colorPalette={isActive ? "green" : "gray"} >{`Fn`}</Tag>
                 <Text>{` + `}</Text>
-                {value.key !== undefined && value.key >= 0 &&
+                {value.key !== undefined && value.key >= 0 && value.key !== 20 && // 20 是Fn键的虚拟引脚
                     <Tag 
                         closable={isActive} 
                         colorPalette={isActive ? "green" : "gray"} 

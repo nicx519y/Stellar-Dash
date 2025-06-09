@@ -4,6 +4,8 @@
 #include "storagemanager.hpp"
 #include "micro_timer.hpp"
 
+// 定义静态成员变量
+uint32_t CalibrationState::rebootTime = 0;
 
 void CalibrationState::allCalibrationCompletedCallback(uint8_t totalButtons, uint8_t successCount, uint8_t failedCount) {
     ADC_CALIBRATION_MANAGER.stopCalibration();

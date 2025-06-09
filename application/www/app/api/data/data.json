@@ -345,7 +345,7 @@
       "isHold": true
     },
     {
-      "key": 16,
+      "key": -1,
       "action": "LedsEffectStyleNext",
       "isLocked": false,
       "isHold": false

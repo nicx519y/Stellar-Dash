@@ -3,6 +3,7 @@
 #include "adc_btns/adc_btns_worker.hpp"
 #include "gpio_btns/gpio_btns_worker.hpp"
 #include "board_cfg.h"
+#include "storagemanager.hpp"
 
 WebConfigBtnsManager& WebConfigBtnsManager::getInstance() {
     static WebConfigBtnsManager instance;
@@ -20,6 +21,10 @@ WebConfigBtnsManager::WebConfigBtnsManager() {
     // 初始化工作器活跃状态
     isWorkerActive = false;
     
+    // 初始化ADC按键WebConfig配置
+    adcButtonConfigs.resize(NUM_ADC_BUTTONS);
+    resetADCButtonsConfig(); // 设置默认配置
+    
     // 初始化按键工作器
     setupButtonWorkers();
     isWorkerActive = true;  // 默认启动状态
@@ -31,10 +36,22 @@ WebConfigBtnsManager::~WebConfigBtnsManager() {
 }
 
 void WebConfigBtnsManager::setupButtonWorkers() {
-    // 设置ADC按键工作器
-    ADCBtnsError adcResult = ADC_BTNS_WORKER.setup();
+    // WebConfig模式下一律使用外部配置
+    // 转换WebConfig配置为外部配置格式
+    ExternalADCButtonConfig externalConfigs[NUM_ADC_BUTTONS];
+    for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        const WebConfigADCButtonConfig& webConfig = adcButtonConfigs[i];
+        externalConfigs[i].pressAccuracy = webConfig.pressAccuracy;
+        externalConfigs[i].releaseAccuracy = webConfig.releaseAccuracy;
+        externalConfigs[i].topDeadzone = webConfig.topDeadzone;
+        externalConfigs[i].bottomDeadzone = webConfig.bottomDeadzone;
+    }
+    
+    ADCBtnsError adcResult = ADC_BTNS_WORKER.setup(externalConfigs);
+    APP_DBG("WebConfigBtnsManager::setupButtonWorkers - Using WebConfig external configurations");
+    
     if (adcResult != ADCBtnsError::SUCCESS) {
-        // TODO: 添加错误处理日志
+        APP_ERR("WebConfigBtnsManager::setupButtonWorkers - ADC setup failed with error: %d", (int)adcResult);
     }
     
     // 设置GPIO按键工作器
@@ -87,7 +104,6 @@ void WebConfigBtnsManager::update() {
     // 读取GPIO按键状态  
     uint32_t gpioBtnMask = GPIO_BTNS_WORKER.read();
 
-
     // 更新ADC按键状态（索引 0 到 NUM_ADC_BUTTONS-1）
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
         // ADC按键的虚拟引脚从0开始
@@ -138,36 +154,190 @@ std::vector<bool> WebConfigBtnsManager::getButtonStates() const {
     return btnStates;
 }
 
-std::string WebConfigBtnsManager::toJSON() const {
-    cJSON* root = cJSON_CreateObject();
-    cJSON* adcButtons = cJSON_CreateArray();
-    cJSON* gpioButtons = cJSON_CreateArray();
+// ========== ADC按键WebConfig模式专用配置接口实现 ==========
+
+bool WebConfigBtnsManager::setADCButtonConfig(uint8_t buttonIndex, const WebConfigADCButtonConfig& config) {
+    if (buttonIndex >= NUM_ADC_BUTTONS) {
+        APP_ERR("WebConfigBtnsManager::setADCButtonConfig - Invalid button index: %d", buttonIndex);
+        return false;
+    }
     
-    // 添加ADC按键状态
+    // 直接设置配置，不进行范围验证
+    adcButtonConfigs[buttonIndex] = config;
+    
+    APP_DBG("WebConfigBtnsManager::setADCButtonConfig - Button %d config updated: "
+            "pressAccuracy=%.3f, releaseAccuracy=%.3f, topDeadzone=%.3f, bottomDeadzone=%.3f, highSensitivity=%s",
+            buttonIndex, config.pressAccuracy, config.releaseAccuracy, 
+            config.topDeadzone, config.bottomDeadzone,
+            config.enableHighSensitivity ? "true" : "false");
+    
+    // 如果工作器处于活跃状态，重新初始化以应用新配置
+    if (isWorkerActive) {
+        // 重新初始化ADC工作器以应用新配置
+        ADC_BTNS_WORKER.deinit();
+        setupButtonWorkers();
+    }
+    
+    return true;
+}
+
+WebConfigADCButtonConfig WebConfigBtnsManager::getADCButtonConfig(uint8_t buttonIndex) const {
+    if (buttonIndex >= NUM_ADC_BUTTONS) {
+        APP_ERR("WebConfigBtnsManager::getADCButtonConfig - Invalid button index: %d", buttonIndex);
+        return WebConfigADCButtonConfig(); // 返回默认配置
+    }
+    
+    return adcButtonConfigs[buttonIndex];
+}
+
+void WebConfigBtnsManager::setAllADCButtonsConfig(const WebConfigADCButtonConfig& config) {
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-        cJSON* btnObj = cJSON_CreateObject();
-        cJSON_AddNumberToObject(btnObj, "index", i);
-        cJSON_AddBoolToObject(btnObj, "pressed", btnStates[i]);
-        cJSON_AddStringToObject(btnObj, "type", "adc");
-        cJSON_AddItemToArray(adcButtons, btnObj);
+        adcButtonConfigs[i] = config;
     }
     
-    // 添加GPIO按键状态
-    for (uint8_t i = 0; i < NUM_GPIO_BUTTONS; i++) {
-        cJSON* btnObj = cJSON_CreateObject();
-        cJSON_AddNumberToObject(btnObj, "index", i);
-        cJSON_AddBoolToObject(btnObj, "pressed", btnStates[NUM_ADC_BUTTONS + i]);
-        cJSON_AddStringToObject(btnObj, "type", "gpio");
-        cJSON_AddItemToArray(gpioButtons, btnObj);
+    APP_DBG("WebConfigBtnsManager::setAllADCButtonsConfig - All ADC buttons config updated: "
+            "pressAccuracy=%.3f, releaseAccuracy=%.3f, topDeadzone=%.3f, bottomDeadzone=%.3f, highSensitivity=%s",
+            config.pressAccuracy, config.releaseAccuracy, 
+            config.topDeadzone, config.bottomDeadzone,
+            config.enableHighSensitivity ? "true" : "false");
+    
+    // 如果工作器处于活跃状态，重新初始化以应用新配置
+    if (isWorkerActive) {
+        // 重新初始化ADC工作器以应用新配置
+        ADC_BTNS_WORKER.deinit();
+        setupButtonWorkers();
+    }
+}
+
+void WebConfigBtnsManager::resetADCButtonsConfig() {
+    WebConfigADCButtonConfig defaultConfig; // 使用宏定义的默认值
+    
+    for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        adcButtonConfigs[i] = defaultConfig;
     }
     
-    cJSON_AddItemToObject(root, "adcButtons", adcButtons);
-    cJSON_AddItemToObject(root, "gpioButtons", gpioButtons);
-    cJSON_AddNumberToObject(root, "totalButtons", NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS);
+    APP_DBG("WebConfigBtnsManager::resetADCButtonsConfig - All ADC buttons reset to default config: "
+            "pressAccuracy=%.3f, releaseAccuracy=%.3f, topDeadzone=%.3f, bottomDeadzone=%.3f",
+            defaultConfig.pressAccuracy, defaultConfig.releaseAccuracy,
+            defaultConfig.topDeadzone, defaultConfig.bottomDeadzone);
+    
+    // 如果工作器处于活跃状态，重新初始化以应用新配置
+    if (isWorkerActive) {
+        // 重新初始化ADC工作器以应用新配置
+        ADC_BTNS_WORKER.deinit();
+        setupButtonWorkers();
+    }
+}
+
+std::string WebConfigBtnsManager::getADCConfigJSON() const {
+    cJSON* root = cJSON_CreateObject();
+    if (!root) {
+        return "{}";
+    }
+    
+    cJSON* buttonsArray = cJSON_CreateArray();
+    if (!buttonsArray) {
+        cJSON_Delete(root);
+        return "{}";
+    }
+    
+    // 为每个ADC按键创建配置对象
+    for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        const WebConfigADCButtonConfig& config = adcButtonConfigs[i];
+        
+        cJSON* buttonObj = cJSON_CreateObject();
+        if (buttonObj) {
+            cJSON_AddNumberToObject(buttonObj, "index", i);
+            cJSON_AddNumberToObject(buttonObj, "pressAccuracy", config.pressAccuracy);
+            cJSON_AddNumberToObject(buttonObj, "releaseAccuracy", config.releaseAccuracy);
+            cJSON_AddNumberToObject(buttonObj, "topDeadzone", config.topDeadzone);
+            cJSON_AddNumberToObject(buttonObj, "bottomDeadzone", config.bottomDeadzone);
+            cJSON_AddBoolToObject(buttonObj, "enableHighSensitivity", config.enableHighSensitivity);
+            
+            cJSON_AddItemToArray(buttonsArray, buttonObj);
+        }
+    }
+    
+    cJSON_AddItemToObject(root, "adcButtons", buttonsArray);
+    cJSON_AddNumberToObject(root, "totalADCButtons", NUM_ADC_BUTTONS);
     
     char* str = cJSON_PrintUnformatted(root);
-    std::string result(str);
+    std::string result;
+    if (str) {
+        result = str;
+        free(str);
+    } else {
+        result = "{}";
+    }
+    
     cJSON_Delete(root);
-    free(str);
     return result;
-} 
+}
+
+bool WebConfigBtnsManager::setADCConfigFromJSON(const std::string& jsonStr) {
+    cJSON* root = cJSON_Parse(jsonStr.c_str());
+    if (!root) {
+        APP_ERR("WebConfigBtnsManager::setADCConfigFromJSON - Invalid JSON format");
+        return false;
+    }
+    
+    cJSON* buttonsArray = cJSON_GetObjectItem(root, "adcButtons");
+    if (!buttonsArray || !cJSON_IsArray(buttonsArray)) {
+        APP_ERR("WebConfigBtnsManager::setADCConfigFromJSON - Missing or invalid 'adcButtons' array");
+        cJSON_Delete(root);
+        return false;
+    }
+    
+    int arraySize = cJSON_GetArraySize(buttonsArray);
+    bool success = true;
+    
+    for (int i = 0; i < arraySize && i < NUM_ADC_BUTTONS; i++) {
+        cJSON* buttonObj = cJSON_GetArrayItem(buttonsArray, i);
+        if (!buttonObj) continue;
+        
+        // 获取按键索引
+        cJSON* indexItem = cJSON_GetObjectItem(buttonObj, "index");
+        if (!indexItem || !cJSON_IsNumber(indexItem)) continue;
+        
+        uint8_t buttonIndex = (uint8_t)indexItem->valueint;
+        if (buttonIndex >= NUM_ADC_BUTTONS) continue;
+        
+        // 解析配置参数，使用当前配置作为默认值
+        WebConfigADCButtonConfig config = adcButtonConfigs[buttonIndex];
+        
+        cJSON* item;
+        if ((item = cJSON_GetObjectItem(buttonObj, "pressAccuracy")) && cJSON_IsNumber(item)) {
+            config.pressAccuracy = (float)item->valuedouble;
+        }
+        if ((item = cJSON_GetObjectItem(buttonObj, "releaseAccuracy")) && cJSON_IsNumber(item)) {
+            config.releaseAccuracy = (float)item->valuedouble;
+        }
+        if ((item = cJSON_GetObjectItem(buttonObj, "topDeadzone")) && cJSON_IsNumber(item)) {
+            config.topDeadzone = (float)item->valuedouble;
+        }
+        if ((item = cJSON_GetObjectItem(buttonObj, "bottomDeadzone")) && cJSON_IsNumber(item)) {
+            config.bottomDeadzone = (float)item->valuedouble;
+        }
+        if ((item = cJSON_GetObjectItem(buttonObj, "enableHighSensitivity")) && cJSON_IsBool(item)) {
+            config.enableHighSensitivity = cJSON_IsTrue(item);
+        }
+        
+        // 应用配置（不再进行范围验证）
+        if (!setADCButtonConfig(buttonIndex, config)) {
+            success = false;
+        }
+    }
+    
+    cJSON_Delete(root);
+    
+    if (success) {
+        APP_DBG("WebConfigBtnsManager::setADCConfigFromJSON - ADC config updated from JSON successfully");
+    } else {
+        APP_ERR("WebConfigBtnsManager::setADCConfigFromJSON - Some ADC config updates failed");
+    }
+    
+    return success;
+}
+
+// ========== WebConfig模式专用方法实现 ==========
+// 注意：新的实现方式不再需要修改Profile配置，而是直接传入外部配置到ADC工作器 
