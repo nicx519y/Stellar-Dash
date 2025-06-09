@@ -101,7 +101,7 @@ bool ConfigUtils::load(Config& config)
                 config.hotkeys[m].virtualPin = 19;
             } else if(m == 1) { // 第二个快捷键锁定, 锁定为校准模式
                 config.hotkeys[m].isLocked = true;
-                config.hotkeys[m].action = GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION_TOGGLE;
+                config.hotkeys[m].action = GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION;
                 config.hotkeys[m].isHold = true;
                 config.hotkeys[m].virtualPin = 18;
             } else { // 其他快捷键不锁定

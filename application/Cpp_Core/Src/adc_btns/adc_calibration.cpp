@@ -342,6 +342,9 @@ ADCBtnsError ADCCalibrationManager::finalizeSampling(uint8_t buttonIndex) {
         setButtonLEDColor(buttonIndex, CalibrationLEDColor::GREEN);
         updateButtonLED(buttonIndex, CalibrationLEDColor::GREEN);
         
+        // 触发单个按键校准完成回调
+        triggerCalibrationCompletedCallback(buttonIndex);
+        
         // 打印单个按键完成的详细校准信息
         printButtonCalibrationCompleted(buttonIndex);
     }
@@ -411,6 +414,10 @@ void ADCCalibrationManager::checkCalibrationCompletion() {
             }
         }
         updateAllLEDs();
+        
+        // 触发所有校准完成回调
+        triggerAllCalibrationCompletedCallback();
+        
         // 保持 calibrationActive = true，前端可检测到 isActive==true && allCalibrated==true
     } else if (!allCompleted && completionCheckExecuted) {
         // 如果之前已完成但现在又有按键变为未完成状态，重置标志
@@ -962,4 +969,67 @@ uint8_t ADCCalibrationManager::getPendingCalibrationCount() const {
         }
     }
     return count;
+}
+
+// ==================== 回调函数相关方法 ====================
+
+/**
+ * 设置单个按键校准完成回调函数
+ */
+void ADCCalibrationManager::setCalibrationCompletedCallback(CalibrationCompletedCallback callback) {
+    onCalibrationCompleted = callback;
+    APP_DBG("Calibration completed callback set");
+}
+
+/**
+ * 设置所有按键校准完成回调函数
+ */
+void ADCCalibrationManager::setAllCalibrationCompletedCallback(AllCalibrationCompletedCallback callback) {
+    onAllCalibrationCompleted = callback;
+    APP_DBG("All calibration completed callback set");
+}
+
+/**
+ * 清除所有回调函数
+ */
+void ADCCalibrationManager::clearCallbacks() {
+    onCalibrationCompleted = nullptr;
+    onAllCalibrationCompleted = nullptr;
+    APP_DBG("All calibration callbacks cleared");
+}
+
+/**
+ * 触发单个按键校准完成回调
+ */
+void ADCCalibrationManager::triggerCalibrationCompletedCallback(uint8_t buttonIndex) {
+    if (onCalibrationCompleted && buttonIndex < NUM_ADC_BUTTONS) {
+        const ButtonCalibrationState& state = buttonStates[buttonIndex];
+        if (state.isCalibrated) {
+            onCalibrationCompleted(buttonIndex, state.topValue, state.bottomValue);
+            APP_DBG("Calibration completed callback triggered for button %d", buttonIndex);
+        }
+    }
+}
+
+/**
+ * 触发所有按键校准完成回调
+ */
+void ADCCalibrationManager::triggerAllCalibrationCompletedCallback() {
+    if (onAllCalibrationCompleted) {
+        // 统计校准结果
+        uint8_t successCount = 0;
+        uint8_t failedCount = 0;
+        
+        for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+            if (buttonStates[i].isCalibrated) {
+                successCount++;
+            } else if (buttonStates[i].phase == CalibrationPhase::ERROR) {
+                failedCount++;
+            }
+        }
+        
+        onAllCalibrationCompleted(NUM_ADC_BUTTONS, successCount, failedCount);
+        APP_DBG("All calibration completed callback triggered: total=%d, success=%d, failed=%d", 
+                NUM_ADC_BUTTONS, successCount, failedCount);
+    }
 }

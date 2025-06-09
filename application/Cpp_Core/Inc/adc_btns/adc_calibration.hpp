@@ -3,8 +3,13 @@
 
 #include <cstdint>
 #include <array>
+#include <functional>
 #include "adc_btns_error.hpp"
 #include "board_cfg.h"
+
+// 回调函数类型定义
+using CalibrationCompletedCallback = std::function<void(uint8_t buttonIndex, uint16_t topValue, uint16_t bottomValue)>;
+using AllCalibrationCompletedCallback = std::function<void(uint8_t totalButtons, uint8_t successCount, uint8_t failedCount)>;
 
 // LED颜色枚举
 enum class CalibrationLEDColor {
@@ -81,6 +86,11 @@ public:
     void processCalibration();                             // 处理校准逻辑（主循环调用）
     ADCBtnsError addSample(uint8_t buttonIndex, uint16_t adcValue); // 添加采样值
     
+    // 回调函数设置
+    void setCalibrationCompletedCallback(CalibrationCompletedCallback callback);
+    void setAllCalibrationCompletedCallback(AllCalibrationCompletedCallback callback);
+    void clearCallbacks();                                 // 清除所有回调函数
+    
     // 状态查询
     bool isCalibrationActive() const { return calibrationActive; }
     CalibrationPhase getButtonPhase(uint8_t buttonIndex) const;
@@ -104,13 +114,17 @@ public:
     
     // 调试和监控
     void printAllCalibrationResults();                    // 打印所有按键校准完成的汇总信息
-    void testAllLEDs();                                    // 测试所有LED显示效果
+    void testAllLEDs66();                                    // 测试所有LED显示效果
 
 private:
     // 校准状态
     bool calibrationActive = false;                        // 校准是否激活
     bool completionCheckExecuted = false;                  // 是否已执行完成检查（防止重复执行）
     std::array<ButtonCalibrationState, NUM_ADC_BUTTONS> buttonStates; // 按键校准状态
+    
+    // 回调函数
+    CalibrationCompletedCallback onCalibrationCompleted = nullptr;
+    AllCalibrationCompletedCallback onAllCalibrationCompleted = nullptr;
     
     // 校准常量
     static constexpr uint8_t REQUIRED_SAMPLES = ADC_CALIBRATION_MANAGER_REQUIRED_SAMPLES;      // 需要的采样数量
@@ -131,6 +145,10 @@ private:
     void processButtonCalibration(uint8_t buttonIndex);   // 处理单个按键校准
     bool shouldSampleButton(uint8_t buttonIndex) const;   // 判断是否应该对按键采样
     void printButtonCalibrationCompleted(uint8_t buttonIndex); // 打印单个按键校准完成信息
+    
+    // 回调触发方法
+    void triggerCalibrationCompletedCallback(uint8_t buttonIndex);
+    void triggerAllCalibrationCompletedCallback();
     
     // Flash存储优化相关方法
     ADCBtnsError clearAllCalibrationFromFlash();          // 批量清除Flash中的校准数据

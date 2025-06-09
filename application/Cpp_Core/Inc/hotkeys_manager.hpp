@@ -39,6 +39,7 @@ class HotkeysManager {
         void runAction(GamepadHotkey hotkeyAction);
         void resetHotkeyState(int index);
         bool isHotkeyPressed(uint32_t virtualPinMask, int hotkeyIndex);
+        void rebootSystem();
 };
 
 #define HOTKEYS_MANAGER HotkeysManager::getInstance()

@@ -23,11 +23,14 @@ public:
     // 如果达到间隔则返回true并更新时间戳，否则返回false
     bool checkInterval(uint32_t interval_us, uint32_t& lastTime);
 
+
     // 重置计时器
     void reset();
 
     // 延时指定微秒
     void delayMicros(uint32_t us);
+
+    
 
 private:
     MicrosTimer();  // 私有构造函数

@@ -94,48 +94,55 @@ void HotkeysManager::runAction(GamepadHotkey hotkeyAction) {
         case GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG:
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_WEB_CONFIG);
             STORAGE_MANAGER.saveConfig();
-            NVIC_SystemReset();
+            rebootSystem();
             break;
-        case GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION_TOGGLE:
-            BootMode bootMode = STORAGE_MANAGER.getBootMode() == BootMode::BOOT_MODE_CALIBRATION ? BootMode::BOOT_MODE_INPUT : BootMode::BOOT_MODE_CALIBRATION;
-            STORAGE_MANAGER.setBootMode(bootMode);
+        case GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION:
+            STORAGE_MANAGER.setBootMode(STORAGE_MANAGER.getBootMode() == BootMode::BOOT_MODE_CALIBRATION ? BootMode::BOOT_MODE_INPUT : BootMode::BOOT_MODE_CALIBRATION);
             STORAGE_MANAGER.saveConfig();
-            if (bootMode == BootMode::BOOT_MODE_CALIBRATION) { // 如果切换到校准模式，则重置所有校准数据
+            if (STORAGE_MANAGER.getBootMode() == BootMode::BOOT_MODE_CALIBRATION) { // 如果切换到校准模式，则重置所有校准数据
                 ADC_CALIBRATION_MANAGER.resetAllCalibration();
             }
-            NVIC_SystemReset();
+            rebootSystem();
             break;
         case GamepadHotkey::HOTKEY_INPUT_MODE_XINPUT:
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
             STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_XINPUT);
             STORAGE_MANAGER.saveConfig();
-            NVIC_SystemReset();
+            rebootSystem();
             break;
         case GamepadHotkey::HOTKEY_INPUT_MODE_PS4:
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
             STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_PS4);
             STORAGE_MANAGER.saveConfig();
-            NVIC_SystemReset();
+            rebootSystem();
             break;
         case GamepadHotkey::HOTKEY_INPUT_MODE_PS5:
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
             STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_PS5);
             STORAGE_MANAGER.saveConfig();
-            NVIC_SystemReset();
+            rebootSystem();
             break;
         case GamepadHotkey::HOTKEY_INPUT_MODE_SWITCH:
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
             STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_SWITCH);
             STORAGE_MANAGER.saveConfig();
-            NVIC_SystemReset();
+            rebootSystem();
             break;
         case GamepadHotkey::HOTKEY_SYSTEM_REBOOT:
-            NVIC_SystemReset();
+            rebootSystem();
             break;
         default:
             break;
     }
 }
+
+void HotkeysManager::rebootSystem() {
+    WS2812B_Stop();
+    NVIC_SystemReset();
+}
+
+
+
 
 
 

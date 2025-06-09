@@ -80,7 +80,7 @@ enum GamepadHotkey
     HOTKEY_LEDS_ENABLE_SWITCH,          // 切换LED 开关
     HOTKEY_CALIBRATION_MODE,            // 切换到校准模式
     HOTKEY_INPUT_MODE_WEBCONFIG,        // 切换到web配置模式
-    HOTKEY_INPUT_MODE_CALIBRATION_TOGGLE,      // 打开和关闭校准模式
+    HOTKEY_INPUT_MODE_CALIBRATION,      // 切换到校准模式
     HOTKEY_INPUT_MODE_XINPUT,           // 切换到XInput模式
     HOTKEY_INPUT_MODE_PS4,              // 切换到PS4模式
     HOTKEY_INPUT_MODE_PS5,              // 切换到PS5模式

@@ -222,7 +222,7 @@ export enum HotkeyAction {
     LedsBrightnessUp = "LedsBrightnessUp",
     LedsBrightnessDown = "LedsBrightnessDown",
     LedsEnableSwitch = "LedsEnableSwitch",
-    CalibrationModeToggle = "CalibrationModeToggle",
+    CalibrationMode = "CalibrationMode",
     WebConfigMode = "WebConfigMode",
     XInputMode = "XInputMode",
     PS4Mode = "PS4Mode",
@@ -261,8 +261,8 @@ export const HotkeyActionLabelMap = new Map<HotkeyAction, { label: string, descr
         label: "Web Config Mode", 
         description: "Enter web configuration mode" 
     }],
-    [HotkeyAction.CalibrationModeToggle, { 
-        label: "Calibration Mode Toggle", 
+    [HotkeyAction.CalibrationMode, { 
+        label: "Calibration Mode", 
         description: "Toggle calibration mode" 
     }],
     [HotkeyAction.XInputMode, { 
@@ -586,7 +586,7 @@ export const UI_TEXT = {
     HOTKEY_ACTION_LEDS_EFFECT_PREV: "LEDs Effect Previous",
     HOTKEY_ACTION_LEDS_BRIGHTNESS_UP: "LEDs Brightness Up",
     HOTKEY_ACTION_LEDS_BRIGHTNESS_DOWN: "LEDs Brightness Down",
-    HOTKEY_ACTION_CALIBRATION_MODE_TOGGLE: "Calibration Mode On/Off",
+    HOTKEY_ACTION_CALIBRATION_MODE: "Calibration Mode",
     HOTKEY_ACTION_XINPUT_MODE: "XInput Mode",
     HOTKEY_ACTION_PS4_MODE: "PlayStation 4 Mode",
     HOTKEY_ACTION_PS5_MODE: "PlayStation 5 Mode",
@@ -815,7 +815,7 @@ export const UI_TEXT_ZH = {
     HOTKEY_ACTION_LEDS_EFFECT_PREV: "上一个LED效果",
     HOTKEY_ACTION_LEDS_BRIGHTNESS_UP: "LED亮度增加",
     HOTKEY_ACTION_LEDS_BRIGHTNESS_DOWN: "LED亮度减少",
-    HOTKEY_ACTION_CALIBRATION_MODE_TOGGLE: "启动/关闭校准模式",
+    HOTKEY_ACTION_CALIBRATION_MODE: "校准模式",
     HOTKEY_ACTION_XINPUT_MODE: "XInput模式",
     HOTKEY_ACTION_PS4_MODE: "PlayStation 4模式",
     HOTKEY_ACTION_PS5_MODE: "PlayStation 5模式",

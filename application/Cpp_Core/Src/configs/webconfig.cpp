@@ -44,7 +44,7 @@ static const std::map<std::string, GamepadHotkey> STRING_TO_GAMEPAD_HOTKEY = {
     {"LedsBrightnessUp", GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP},
     {"LedsBrightnessDown", GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_DOWN},
     {"LedsEnableSwitch", GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH},
-    {"CalibrationModeToggle", GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION_TOGGLE},
+    {"CalibrationMode", GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION},
     {"SystemReboot", GamepadHotkey::HOTKEY_SYSTEM_REBOOT}
 };
 
@@ -1047,7 +1047,6 @@ std::string apiDeleteProfile() {
     GamepadProfile* targetProfile = nullptr;
     uint8_t numEnabledProfiles = 0;
     uint8_t targetIndex = 0;
-    uint8_t nextTargetIndex = 0;
 
     for(uint8_t i = 0; i < NUM_PROFILES; i++) {
         if(config.profiles[i].enabled) {
