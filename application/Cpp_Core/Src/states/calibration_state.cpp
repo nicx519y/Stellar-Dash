@@ -20,6 +20,7 @@ void CalibrationState::setup() {
     ADC_CALIBRATION_MANAGER.startManualCalibration();
     ADC_CALIBRATION_MANAGER.setAllCalibrationCompletedCallback(allCalibrationCompletedCallback);
     isRunning = true;
+    rebootTime = 0;
 }
 
 void CalibrationState::loop() {
@@ -36,6 +37,7 @@ void CalibrationState::loop() {
 
 void CalibrationState::reset() {
     isRunning = false;
+    rebootTime = 0;
     // 可根据需要添加退出校准模式的处理逻辑
 } 
 
