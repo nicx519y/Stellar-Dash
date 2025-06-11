@@ -24,6 +24,7 @@
 #include "usart.h"
 #include "qspi-w25q64.h"
 #include "board_cfg.h"
+#include "dual_slot_config.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -72,14 +73,79 @@ int main(void)
   MPU_Config();
   HAL_Init();
   USART1_Init();
+  
+  // 初始化QSPI Flash
   if(QSPI_W25Qxx_Init() != QSPI_W25Qxx_OK) {
     BOOT_ERR("QSPI_W25Qxx_Init failed\r\n");
     return -1;
   }
   BOOT_DBG("QSPI_W25Qxx_Init success\r\n");
 
-  // QSPI_W25Qxx_Test(0x00500000);
+  // 初始化双槽升级系统
+  if(DualSlot_Init() != 0) {
+    BOOT_ERR("DualSlot_Init failed, using legacy mode\r\n");
+  }
 
+  // 双槽测试功能（仅用于开发测试）
+#if DUAL_SLOT_TEST_ENABLE
+  if(DualSlot_IsEnabled()) {
+    BOOT_DBG("=== Dual Slot Test Mode Enabled ===");
+    
+#if DUAL_SLOT_FORCE_SLOT_A
+    BOOT_DBG("Force switching to Slot A");
+    if(DualSlot_SetCurrentSlot(SLOT_A) == 0) {
+      BOOT_DBG("Successfully switched to Slot A");
+    } else {
+      BOOT_ERR("Failed to switch to Slot A");
+    }
+#elif DUAL_SLOT_FORCE_SLOT_B
+    BOOT_DBG("Force switching to Slot B");
+    if(DualSlot_SetCurrentSlot(SLOT_B) == 0) {
+      BOOT_DBG("Successfully switched to Slot B");
+    } else {
+      BOOT_ERR("Failed to switch to Slot B");
+    }
+#endif
+
+    // 输出槽信息
+    slot_info_t slot_info_a, slot_info_b;
+    if(DualSlot_GetSlotInfo(SLOT_A, &slot_info_a) == 0) {
+      BOOT_DBG("Slot A Info:");
+      BOOT_DBG("  Base: 0x%08X, App: 0x%08X, Size: %d KB", 
+               slot_info_a.base_address, 
+               slot_info_a.application_address,
+               slot_info_a.application_size / 1024);
+      BOOT_DBG("  WebRes: 0x%08X, ADC: 0x%08X", 
+               slot_info_a.webresources_address,
+               slot_info_a.adc_mapping_address);
+    }
+    
+    if(DualSlot_GetSlotInfo(SLOT_B, &slot_info_b) == 0) {
+      BOOT_DBG("Slot B Info:");
+      BOOT_DBG("  Base: 0x%08X, App: 0x%08X, Size: %d KB", 
+               slot_info_b.base_address, 
+               slot_info_b.application_address,
+               slot_info_b.application_size / 1024);
+      BOOT_DBG("  WebRes: 0x%08X, ADC: 0x%08X", 
+               slot_info_b.webresources_address,
+               slot_info_b.adc_mapping_address);
+    }
+    
+    BOOT_DBG("=== End of Dual Slot Test ===");
+  }
+#endif
+
+  // 输出当前配置信息
+  if(DualSlot_IsEnabled()) {
+    uint8_t current_slot = DualSlot_GetCurrentSlot();
+    uint32_t app_address = DualSlot_GetSlotApplicationAddress(current_slot);
+    BOOT_DBG("Dual slot enabled - Current: Slot %c, Address: 0x%08X", 
+             (current_slot == SLOT_A) ? 'A' : 'B', app_address);
+  } else {
+    BOOT_DBG("Dual slot disabled - Legacy mode, Address: 0x%08X", W25Qxx_Mem_Addr);
+  }
+
+  // QSPI_W25Qxx_Test(0x00500000);
 
   JumpToApplication();
 
@@ -259,11 +325,39 @@ void JumpToApplication(void)
 
     BOOT_DBG("QSPI_W25Qxx_EnterMemoryMappedMode success\r\n");
 
-    uint32_t jump_address = *(__IO uint32_t*)(W25Qxx_Mem_Addr + 4);
-    uint32_t app_stack = *(__IO uint32_t*)W25Qxx_Mem_Addr;
+    // 获取应用程序地址（支持双槽或单槽模式）
+    uint32_t app_base_address;
+    if(DualSlot_IsEnabled()) {
+        // 双槽模式：获取当前槽的地址
+        uint8_t current_slot = DualSlot_GetCurrentSlot();
+        app_base_address = DualSlot_GetSlotApplicationAddress(current_slot);
+        BOOT_DBG("Dual slot mode: Using Slot %c", (current_slot == SLOT_A) ? 'A' : 'B');
+        
+        // 验证当前槽的有效性
+        if(DualSlot_ValidateSlot(current_slot) != 0) {
+            BOOT_ERR("Current slot %c is invalid, trying to switch", 
+                     (current_slot == SLOT_A) ? 'A' : 'B');
+            
+            // 尝试切换到另一个槽
+            if(DualSlot_SwitchSlot() == 0) {
+                current_slot = DualSlot_GetCurrentSlot();
+                app_base_address = DualSlot_GetSlotApplicationAddress(current_slot);
+                BOOT_DBG("Switched to Slot %c", (current_slot == SLOT_A) ? 'A' : 'B');
+            } else {
+                BOOT_ERR("Failed to switch slot, using current address anyway");
+            }
+        }
+    } else {
+        // 单槽模式：使用兼容地址（原来的逻辑）
+        app_base_address = DualSlot_GetLegacyApplicationAddress();
+        BOOT_DBG("Legacy single slot mode");
+    }
+
+    uint32_t jump_address = *(__IO uint32_t*)(app_base_address + 4);
+    uint32_t app_stack = *(__IO uint32_t*)app_base_address;
     
-    BOOT_DBG("App Stack address: 0x%08X, App Stack value: 0x%08X", W25Qxx_Mem_Addr, *(__IO uint32_t*)W25Qxx_Mem_Addr);
-    BOOT_DBG("Jump Address: 0x%08X, Jump Address value: 0x%08X", W25Qxx_Mem_Addr + 4, *(__IO uint32_t*)(W25Qxx_Mem_Addr + 4));
+    BOOT_DBG("App Stack address: 0x%08X, App Stack value: 0x%08X", app_base_address, *(__IO uint32_t*)app_base_address);
+    BOOT_DBG("Jump Address: 0x%08X, Jump Address value: 0x%08X", app_base_address + 4, *(__IO uint32_t*)(app_base_address + 4));
 
     // 验证栈指针和跳转地址
     if ((app_stack & 0xFF000000) != 0x20000000) {
@@ -315,7 +409,7 @@ void JumpToApplication(void)
     HAL_MPU_Disable();
 
     // 设置向量表
-    SCB->VTOR = W25Qxx_Mem_Addr;
+    SCB->VTOR = app_base_address;
     BOOT_DBG("VTOR set to: 0x%08X", SCB->VTOR);
     
     // 验证向量表设置是否生效
