@@ -223,8 +223,9 @@ void PeriphCommonClock_Config(void)
  */
 uint32_t get_current_slot_base_address(void)
 {
-    // 获取当前函数的地址
-    uint32_t current_address = (uint32_t)get_current_slot_base_address;
+    // 使用链接器定义的Flash起始地址符号
+    extern uint32_t _flash_start;  // 链接器脚本中定义的Flash起始地址
+    uint32_t flash_start_address = (uint32_t)&_flash_start;
     
     // 双槽地址范围定义
     #define SLOT_A_BASE         0x90000000   // 槽A起始地址
@@ -232,16 +233,32 @@ uint32_t get_current_slot_base_address(void)
     #define SLOT_B_BASE         0x902B0000   // 槽B起始地址
     #define SLOT_B_END          0x9055FFFF   // 槽B结束地址
     
-    // 判断当前代码在哪个槽中运行
-    if (current_address >= SLOT_A_BASE && current_address <= SLOT_A_END) {
-        // 当前运行在槽A
+    // 判断Flash起始地址在哪个槽范围内
+    if (flash_start_address >= SLOT_A_BASE && flash_start_address <= SLOT_A_END) {
+        // 当前固件在槽A
+        APP_DBG("Current slot: A (Flash start: 0x%08X)", flash_start_address);
         return SLOT_A_BASE;
-    } else if (current_address >= SLOT_B_BASE && current_address <= SLOT_B_END) {
-        // 当前运行在槽B  
+    } else if (flash_start_address >= SLOT_B_BASE && flash_start_address <= SLOT_B_END) {
+        // 当前固件在槽B
+        APP_DBG("Current slot: B (Flash start: 0x%08X)", flash_start_address);
         return SLOT_B_BASE;
     } else {
-        // 未知地址，返回默认槽A地址
-        APP_ERR("Unknown slot address: 0x%08X, using default Slot A", current_address);
-        return SLOT_A_BASE;
+        // 未知地址，根据地址值智能判断
+        if (flash_start_address == 0x90000000) {
+            APP_DBG("Detected Slot A by exact match (0x%08X)", flash_start_address);
+            return SLOT_A_BASE;
+        } else if (flash_start_address == 0x902B0000) {
+            APP_DBG("Detected Slot B by exact match (0x%08X)", flash_start_address);
+            return SLOT_B_BASE;
+        } else {
+            // 如果都不匹配，根据地址大小判断更可能的槽
+            if (flash_start_address < 0x90200000) {
+                APP_DBG("Flash address 0x%08X < 0x90200000, assuming Slot A", flash_start_address);
+                return SLOT_A_BASE;
+            } else {
+                APP_DBG("Flash address 0x%08X >= 0x90200000, assuming Slot B", flash_start_address);
+                return SLOT_B_BASE;
+            }
+        }
     }
 }

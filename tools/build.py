@@ -392,7 +392,41 @@ class BuildTool:
             
         # 如果Makefile不可用，使用手动OpenOCD配置
         return self._flash_using_openocd(slot)
-    
+
+    def flash_web_resources(self, slot: str) -> bool:
+        """烧录Web Resources到指定槽"""
+        print("=" * 50)
+        print(f"烧录 Web Resources 到槽 {slot}")
+        print("=" * 50)
+        
+        # 检查Web Resources文件是否存在
+        web_resources_file = self.application_dir / "Libs" / "httpd" / "ex_fsdata.bin"
+        if not web_resources_file.exists():
+            print(f"错误: Web Resources文件不存在: {web_resources_file}")
+            return False
+            
+        # 获取槽配置
+        if slot not in self.slot_config:
+            print(f"错误: 未知槽 {slot}")
+            return False
+            
+        slot_cfg = self.slot_config[slot]
+        webres_address = slot_cfg["webres_address"]
+        
+        # 计算物理地址（去掉0x90000000的内存映射基址）
+        physical_address = hex(int(webres_address, 16) - 0x90000000)
+        
+        print(f"Web Resources文件: {web_resources_file}")
+        print(f"目标地址: {webres_address} (物理地址: {physical_address})")
+        
+        # 首先尝试使用Makefile方式
+        makefile_result = self._flash_web_resources_using_makefile(slot, webres_address, physical_address)
+        if makefile_result:
+            return True
+            
+        # 如果失败，使用OpenOCD方式
+        return self._flash_web_resources_using_openocd(slot, webres_address, physical_address)
+        
     def _flash_using_makefile(self, slot: str) -> bool:
         """使用Makefile的flash目标进行烧录"""
         try:
@@ -539,6 +573,67 @@ class BuildTool:
             print(f"OpenOCD烧录异常: {e}")
             return False
 
+    def _flash_web_resources_using_makefile(self, slot: str, webres_address: str, physical_address: str) -> bool:
+        """使用Makefile方式烧录Web Resources"""
+        try:
+            # 使用自定义的OpenOCD命令，不依赖Makefile的固定地址
+            web_resources_file = self.application_dir / "Libs" / "httpd" / "ex_fsdata.bin"
+            
+            # 确保路径格式正确（Windows兼容性）
+            web_resources_path = str(web_resources_file).replace('\\', '/')
+            
+            # **重要修改：直接使用内存映射地址，不进行物理地址转换**
+            # 因为STM32H7的QSPI Flash映射可能不是简单的线性映射
+            memory_mapped_address = webres_address
+            
+            # 构建OpenOCD命令
+            cmd = [
+                "openocd",
+                "-d0", 
+                "-f", "Openocd_Script/ST-LINK-QSPIFLASH.cfg",
+                "-c", "init",
+                "-c", "halt",
+                "-c", "reset init",
+                "-c", f"flash write_image erase \"{web_resources_path}\" {memory_mapped_address}",
+                "-c", f"flash verify_image \"{web_resources_path}\" {memory_mapped_address}",
+                "-c", "reset",
+                "-c", "shutdown"
+            ]
+            
+            print(f"执行命令: {' '.join(cmd)}")
+            print(f"Web Resources文件路径: {web_resources_path}")
+            print(f"使用内存映射地址: {memory_mapped_address}")
+            
+            result = subprocess.run(
+                cmd,
+                cwd=self.application_dir,
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            
+            if result.returncode == 0:
+                print(f"✓ Web Resources烧录成功到槽{slot}")
+                if "wrote" in result.stdout:
+                    for line in result.stdout.split('\n'):
+                        if "wrote" in line:
+                            print(f"  {line.strip()}")
+                return True
+            else:
+                print(f"Web Resources烧录失败:")
+                print(f"stdout: {result.stdout}")
+                print(f"stderr: {result.stderr}")
+                return False
+                
+        except Exception as e:
+            print(f"Web Resources烧录异常: {e}")
+            return False
+    
+    def _flash_web_resources_using_openocd(self, slot: str, webres_address: str, physical_address: str) -> bool:
+        """使用原生OpenOCD方式烧录Web Resources（备用方案）"""
+        # 与_flash_web_resources_using_makefile相同的实现
+        return self._flash_web_resources_using_makefile(slot, webres_address, physical_address)
+
     def show_status(self):
         """显示构建状态"""
         print("=" * 50)
@@ -567,6 +662,54 @@ class BuildTool:
         for slot in ["A", "B"]:
             slot_elf = build_dir / f"application_slot_{slot}.elf"
             print(f"  Application 槽{slot} ELF: {'✅' if slot_elf.exists() else '❌'} {slot_elf}")
+            
+        # 检查Web Resources文件
+        web_resources_file = self.application_dir / "Libs" / "httpd" / "ex_fsdata.bin"
+        print(f"  Web Resources: {'✅' if web_resources_file.exists() else '❌'} {web_resources_file}")
+        
+        # 显示槽地址配置
+        print("\n槽地址配置:")
+        for slot, config in self.slot_config.items():
+            print(f"  槽{slot}:")
+            print(f"    Application: {config['address']}")
+            print(f"    WebResources: {config['webres_address']}")
+            print(f"    ADC Mapping: {config['adc_address']}")
+
+    def build_and_flash_complete_slot(self, slot: str) -> bool:
+        """构建并烧录完整槽（Application + Web Resources）"""
+        print("=" * 60)
+        print(f"构建并烧录完整槽 {slot}")
+        print("=" * 60)
+        
+        # 1. 构建Application
+        print("1/3 构建Application...")
+        build_success = self.build_application(slot)
+        if not build_success:
+            print("❌ Application构建失败，停止操作")
+            return False
+            
+        # 2. 烧录Application  
+        print("\n2/3 烧录Application...")
+        app_flash_success = self.flash_application(slot)
+        if not app_flash_success:
+            print("❌ Application烧录失败，停止操作")
+            return False
+            
+        # 3. 烧录Web Resources
+        print("\n3/3 烧录Web Resources...")
+        web_flash_success = self.flash_web_resources(slot)
+        if not web_flash_success:
+            print("❌ Web Resources烧录失败")
+            return False
+            
+        print(f"\n✅ 完整槽 {slot} 构建并烧录成功！")
+        print("槽内容:")
+        slot_cfg = self.slot_config[slot]
+        print(f"  - Application: {slot_cfg['address']}")
+        print(f"  - WebResources: {slot_cfg['webres_address']}")
+        print(f"  - ADC Mapping: {slot_cfg['adc_address']}")
+        
+        return True
 
 def main():
     parser = argparse.ArgumentParser(
@@ -579,8 +722,14 @@ def main():
   %(prog)s build app B                   # 构建application槽B
   %(prog)s build app A -j8               # 使用8个并行任务构建
   %(prog)s flash bootloader              # 烧录bootloader
-  %(prog)s flash app                     # 烧录最新的application
   %(prog)s flash app A                   # 烧录application槽A
+  %(prog)s flash app B                   # 烧录application槽B
+  %(prog)s flash web A                   # 烧录Web Resources到槽A
+  %(prog)s flash web B                   # 烧录Web Resources到槽B
+  %(prog)s flash all A                   # 烧录application和Web Resources到槽A
+  %(prog)s flash all B                   # 烧录application和Web Resources到槽B
+  %(prog)s deploy A                      # 一键构建并烧录完整槽A
+  %(prog)s deploy B                      # 一键构建并烧录完整槽B
   %(prog)s status                        # 显示构建状态
   %(prog)s config jobs 8                 # 设置默认并行任务数为8
         """
@@ -601,8 +750,14 @@ def main():
     
     # flash 命令
     flash_parser = subparsers.add_parser("flash", help="烧录固件")
-    flash_parser.add_argument("target", choices=["bootloader", "app"], help="烧录目标")
-    flash_parser.add_argument("slot", nargs="?", choices=["A", "B"], help="Application槽选择")
+    flash_parser.add_argument("target", choices=["bootloader", "app", "web", "all"], help="烧录目标")
+    flash_parser.add_argument("slot", nargs="?", choices=["A", "B"], help="槽选择 (app/web/all时必须)")
+    
+    # deploy 命令 - 一键构建并烧录
+    deploy_parser = subparsers.add_parser("deploy", help="一键构建并烧录完整槽")
+    deploy_parser.add_argument("slot", choices=["A", "B"], help="目标槽")
+    deploy_parser.add_argument("-j", "--jobs", type=int, metavar="N", 
+                              help="并行编译任务数 (覆盖全局设置)")
     
     # status 命令
     subparsers.add_parser("status", help="显示构建状态")
@@ -644,7 +799,41 @@ def main():
             if args.target == "bootloader":
                 success = tool.flash_bootloader()
             elif args.target == "app":
+                if not args.slot:
+                    print("错误: 烧录application时必须指定槽 (A 或 B)")
+                    return 1
                 success = tool.flash_application(args.slot)
+            elif args.target == "web":
+                if not args.slot:
+                    print("错误: 烧录Web Resources时必须指定槽 (A 或 B)")
+                    return 1
+                success = tool.flash_web_resources(args.slot)
+            elif args.target == "all":
+                if not args.slot:
+                    print("错误: 烧录完整固件时必须指定槽 (A 或 B)")
+                    return 1
+                print("=" * 50)
+                print(f"烧录完整固件到槽 {args.slot}")
+                print("=" * 50)
+                # 先烧录Application
+                print("1/2 烧录Application...")
+                app_success = tool.flash_application(args.slot)
+                if not app_success:
+                    print("❌ Application烧录失败，停止操作")
+                    return 1
+                    
+                print("\n2/2 烧录Web Resources...")
+                web_success = tool.flash_web_resources(args.slot)
+                if not web_success:
+                    print("❌ Web Resources烧录失败")
+                    return 1
+                    
+                print(f"\n✅ 完整固件烧录成功到槽 {args.slot}")
+                success = True
+            return 0 if success else 1
+            
+        elif args.command == "deploy":
+            success = tool.build_and_flash_complete_slot(args.slot)
             return 0 if success else 1
             
         elif args.command == "status":

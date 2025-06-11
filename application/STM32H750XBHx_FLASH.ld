@@ -69,6 +69,9 @@ RAM_D3 (xrw)                  : ORIGIN = 0x38000000, LENGTH = 64K
 FLASH (rx)                    : ORIGIN = 0x90040000, LENGTH = 2048K
 }
 
+/* Define Flash起始地址符号供代码使用 */
+_flash_start = ORIGIN(FLASH);
+
 /* Define output sections */
 SECTIONS
 {
