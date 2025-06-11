@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include "board_cfg.h"
 
-#define CONFIG_ADDR_ORIGIN (CONFIG_ADDR & 0x00FFFFFF)
+#define CONFIG_ADDR_ORIGIN  CONFIG_ADDR
 
 void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bool isEnabled)
 {

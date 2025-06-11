@@ -77,9 +77,23 @@
 #define CONFIG_VERSION                      (uint32_t)0x000007  //配置版本 三位版本号 0x aa bb cc
 #define ADC_MAPPING_VERSION                 (uint32_t)0x000001  //ADC值映射表版本
 
-#define WEB_RESOURCES_ADDR                  0x90200000       // 网页资源地址 memory map 地址 qspi flash 0x90100000 定义在 STM32H750XBHx_FLASH.ld 中
-#define ADC_VALUES_MAPPING_ADDR             0x90300000  // ADC值映射表地址  qspi flash 0x00200000 定义在 STM32H750XBHx_FLASH.ld 中
-#define CONFIG_ADDR                         0x90400000  // 配置数据地址  qspi flash 0x00300000 定义在 STM32H750XBHx_FLASH.ld 中
+// 双槽地址偏移定义（相对于槽基地址的偏移）
+#define WEB_RESOURCES_OFFSET                0x00100000      // WebResources偏移 +1MB
+#define ADC_VALUES_MAPPING_OFFSET           0x00280000      // ADC值映射表偏移 +2.5MB  
+
+// 用户配置区固定地址（独立于槽，两个槽共享）
+#define CONFIG_ADDR                         0x00560000      // 用户配置区固定地址
+
+// 动态地址获取函数声明（需要在相应的.c文件中实现）
+uint32_t get_current_slot_base_address(void);
+
+// 动态地址宏定义（基于当前槽基地址）
+#define WEB_RESOURCES_ADDR                  (get_current_slot_base_address() + WEB_RESOURCES_OFFSET)
+#define ADC_VALUES_MAPPING_ADDR             (get_current_slot_base_address() + ADC_VALUES_MAPPING_OFFSET)
+
+// 兼容性：如果需要编译时确定的地址，可以使用默认槽A地址
+#define WEB_RESOURCES_ADDR_STATIC           (0x90000000 + WEB_RESOURCES_OFFSET)       // 0x90100000
+#define ADC_VALUES_MAPPING_ADDR_STATIC      (0x90000000 + ADC_VALUES_MAPPING_OFFSET)  // 0x90280000
 
 #define NUM_ADC_VALUES_MAPPING              8               // 最大8个映射 ADC按钮映射表用于值查找
 #define MAX_ADC_VALUES_LENGTH               40              // 每个映射最大40个值 ADC按钮映射表用于值查找

@@ -32,18 +32,19 @@
 
 ### 外部Flash (8MB) 布局
 ```
-地址范围                大小        用途
-0x90000000-0x9003FFFF   256KB      Bootloader备用区域
-0x90040000-0x9043FFFF   4MB        槽A (Application + WebResources + ADC Mapping)
-  ├─ 0x90040000-0x9013FFFF  1MB     Application A
-  ├─ 0x90140000-0x902BFFFF  1.5MB   WebResources A  
-  └─ 0x902C0000-0x902DFFFF  128KB   ADC Mapping A
-0x90440000-0x9083FFFF   4MB        槽B (Application + WebResources + ADC Mapping)
-  ├─ 0x90440000-0x9053FFFF  1MB     Application B
-  ├─ 0x90540000-0x906BFFFF  1.5MB   WebResources B
-  └─ 0x906C0000-0x906DFFFF  128KB   ADC Mapping B
-0x90840000-0x9084FFFF   64KB       用户配置区 (Config)
-0x90850000-0x9085FFFF   64KB       元数据区 (Firmware Metadata)
+物理地址范围                内存映射地址                大小        用途
+0x00000000-0x002AFFFF     0x90000000-0x902AFFFF     2.625MB     槽A
+  0x00000000-0x000FFFFF   0x90000000-0x900FFFFF     1MB         - Application A
+  0x00100000-0x0027FFFF   0x90100000-0x9027FFFF     1.5MB       - WebResources A
+  0x00280000-0x0029FFFF   0x90280000-0x9029FFFF     128KB       - ADC Mapping A
+
+0x002B0000-0x0055FFFF     0x902B0000-0x9055FFFF     2.625MB     槽B
+  0x002B0000-0x003AFFFF   0x902B0000-0x903AFFFF     1MB         - Application B
+  0x003B0000-0x0052FFFF   0x903B0000-0x9052FFFF     1.5MB       - WebResources B
+  0x00530000-0x0054FFFF   0x90530000-0x9054FFFF     128KB       - ADC Mapping B
+
+0x00560000-0x0056FFFF     0x90560000-0x9056FFFF     64KB        用户配置区 (共享)
+0x00570000-0x0057FFFF     0x90570000-0x9057FFFF     64KB        元数据区 (bootloader用)
 ```
 
 ## 测试步骤

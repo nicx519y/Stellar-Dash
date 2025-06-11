@@ -215,3 +215,33 @@ void PeriphCommonClock_Config(void)
         Error_Handler();
     }
 }
+
+/**
+ * @brief 获取当前槽的基地址
+ * @note 通过检查当前代码运行的地址来判断处于哪个槽
+ * @retval 当前槽的基地址 (0x90000000 for 槽A, 0x902B0000 for 槽B)
+ */
+uint32_t get_current_slot_base_address(void)
+{
+    // 获取当前函数的地址
+    uint32_t current_address = (uint32_t)get_current_slot_base_address;
+    
+    // 双槽地址范围定义
+    #define SLOT_A_BASE         0x90000000   // 槽A起始地址
+    #define SLOT_A_END          0x902AFFFF   // 槽A结束地址  
+    #define SLOT_B_BASE         0x902B0000   // 槽B起始地址
+    #define SLOT_B_END          0x9055FFFF   // 槽B结束地址
+    
+    // 判断当前代码在哪个槽中运行
+    if (current_address >= SLOT_A_BASE && current_address <= SLOT_A_END) {
+        // 当前运行在槽A
+        return SLOT_A_BASE;
+    } else if (current_address >= SLOT_B_BASE && current_address <= SLOT_B_END) {
+        // 当前运行在槽B  
+        return SLOT_B_BASE;
+    } else {
+        // 未知地址，返回默认槽A地址
+        APP_ERR("Unknown slot address: 0x%08X, using default Slot A", current_address);
+        return SLOT_A_BASE;
+    }
+}
