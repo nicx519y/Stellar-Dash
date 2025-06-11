@@ -26,36 +26,35 @@ extern "C" {
 // 外部Flash基地址 (通过QSPI内存映射)
 #define EXTERNAL_FLASH_BASE             0x90000000
 
-// 存储区域地址定义
-#define BOOTLOADER_BACKUP_BASE          (EXTERNAL_FLASH_BASE + 0x00000000)    // 0x90000000
-#define BOOTLOADER_BACKUP_SIZE          (256 * 1024)                          // 256KB
+// W25Q64容量限制
+#define W25Q64_TOTAL_SIZE               (8 * 1024 * 1024)    // 8MB
 
-// 槽A地址定义
-#define SLOT_A_BASE                     (EXTERNAL_FLASH_BASE + 0x00040000)    // 0x90040000
-#define SLOT_A_APPLICATION_BASE         (SLOT_A_BASE + 0x00000000)            // 0x90040000
+// 槽A地址定义 - 从0x00000000开始，共2.625MB
+#define SLOT_A_BASE                     (EXTERNAL_FLASH_BASE + 0x00000000)    // 0x90000000
+#define SLOT_A_APPLICATION_BASE         (SLOT_A_BASE + 0x00000000)            // 0x90000000
 #define SLOT_A_APPLICATION_SIZE         (1 * 1024 * 1024)                     // 1MB
-#define SLOT_A_WEBRESOURCES_BASE        (SLOT_A_BASE + 0x00100000)            // 0x90140000
+#define SLOT_A_WEBRESOURCES_BASE        (SLOT_A_BASE + 0x00100000)            // 0x90100000
 #define SLOT_A_WEBRESOURCES_SIZE        (1536 * 1024)                         // 1.5MB
-#define SLOT_A_ADC_MAPPING_BASE         (SLOT_A_BASE + 0x00280000)            // 0x902C0000
+#define SLOT_A_ADC_MAPPING_BASE         (SLOT_A_BASE + 0x00280000)            // 0x90280000
 #define SLOT_A_ADC_MAPPING_SIZE         (128 * 1024)                          // 128KB
 #define SLOT_A_TOTAL_SIZE               (SLOT_A_APPLICATION_SIZE + SLOT_A_WEBRESOURCES_SIZE + SLOT_A_ADC_MAPPING_SIZE)
 
-// 槽B地址定义
-#define SLOT_B_BASE                     (EXTERNAL_FLASH_BASE + 0x00440000)    // 0x90440000
-#define SLOT_B_APPLICATION_BASE         (SLOT_B_BASE + 0x00000000)            // 0x90440000
+// 槽B地址定义 - 从0x002B0000开始，共2.625MB
+#define SLOT_B_BASE                     (EXTERNAL_FLASH_BASE + 0x002B0000)    // 0x902B0000
+#define SLOT_B_APPLICATION_BASE         (SLOT_B_BASE + 0x00000000)            // 0x902B0000
 #define SLOT_B_APPLICATION_SIZE         (1 * 1024 * 1024)                     // 1MB
-#define SLOT_B_WEBRESOURCES_BASE        (SLOT_B_BASE + 0x00100000)            // 0x90540000
+#define SLOT_B_WEBRESOURCES_BASE        (SLOT_B_BASE + 0x00100000)            // 0x903B0000
 #define SLOT_B_WEBRESOURCES_SIZE        (1536 * 1024)                         // 1.5MB
-#define SLOT_B_ADC_MAPPING_BASE         (SLOT_B_BASE + 0x00280000)            // 0x906C0000
+#define SLOT_B_ADC_MAPPING_BASE         (SLOT_B_BASE + 0x00280000)            // 0x90530000
 #define SLOT_B_ADC_MAPPING_SIZE         (128 * 1024)                          // 128KB
 #define SLOT_B_TOTAL_SIZE               (SLOT_B_APPLICATION_SIZE + SLOT_B_WEBRESOURCES_SIZE + SLOT_B_ADC_MAPPING_SIZE)
 
-// 用户配置区
-#define USER_CONFIG_BASE                (EXTERNAL_FLASH_BASE + 0x00840000)    // 0x90840000
+// 用户配置区 - 从0x00560000开始
+#define USER_CONFIG_BASE                (EXTERNAL_FLASH_BASE + 0x00560000)    // 0x90560000
 #define USER_CONFIG_SIZE                (64 * 1024)                           // 64KB
 
-// 元数据区
-#define FIRMWARE_METADATA_BASE          (EXTERNAL_FLASH_BASE + 0x00850000)    // 0x90850000
+// 元数据区 - 从0x00570000开始
+#define FIRMWARE_METADATA_BASE          (EXTERNAL_FLASH_BASE + 0x00570000)    // 0x90570000
 #define FIRMWARE_METADATA_SIZE          (64 * 1024)                           // 64KB
 
 /* ================================ 数据结构定义 ================================ */

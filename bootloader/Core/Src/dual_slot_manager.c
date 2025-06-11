@@ -237,9 +237,12 @@ int8_t DualSlot_LoadMetadata(firmware_metadata_t* metadata)
     // 计算Flash中的元数据地址（相对于Flash基地址）
     uint32_t flash_address = FIRMWARE_METADATA_BASE - EXTERNAL_FLASH_BASE;
     
+    BOOT_DBG("Reading metadata from Flash address: 0x%08X (absolute: 0x%08X)", 
+             flash_address, FIRMWARE_METADATA_BASE);
+    
     // 从Flash读取元数据
     int8_t result = QSPI_W25Qxx_ReadBuffer((uint8_t*)metadata, flash_address, sizeof(firmware_metadata_t));
-    
+
     // 恢复内存映射模式
     if (was_mapped) {
         QSPI_W25Qxx_EnterMemoryMappedMode();

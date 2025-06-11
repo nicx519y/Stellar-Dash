@@ -1,0 +1,11 @@
+{
+  "gcc_path": "",
+  "openocd_path": "openocd",
+  "openocd_interface": "stlink",
+  "openocd_target": "stm32h7x",
+  "last_build": {
+    "bootloader": "成功",
+    "application": "槽A 成功"
+  },
+  "parallel_jobs": 16
+}

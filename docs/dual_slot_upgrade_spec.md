@@ -58,19 +58,17 @@ typedef struct {
 外部Flash (8MB) 存储布局：
 
 ```
-地址范围                大小        用途
-0x00000000-0x0003FFFF   256KB      Bootloader备用区域
-0x00040000-0x0043FFFF   4MB        槽A (Application + WebResources + ADC Mapping)
-  ├─ 0x00040000-0x0013FFFF  1MB     Application A
-  ├─ 0x00140000-0x002BFFFF  1.5MB   WebResources A  
-  └─ 0x002C0000-0x002DFFFF  128KB   ADC Mapping A
-0x00440000-0x0083FFFF   4MB        槽B (Application + WebResources + ADC Mapping)
-  ├─ 0x00440000-0x0053FFFF  1MB     Application B
-  ├─ 0x00540000-0x006BFFFF  1.5MB   WebResources B
-  └─ 0x006C0000-0x006DFFFF  128KB   ADC Mapping B
-0x00840000-0x0084FFFF   64KB       用户配置区 (Config)
-0x00850000-0x0085FFFF   64KB       元数据区 (Firmware Metadata)
-0x00860000-0x007FFFFF   剩余       保留区域
+地址范围                         大小              用途
+0x00000000-0x002AFFFF          2.625MB (2688KB) 槽A
+  0x00000000-0x000FFFFF        1MB (1024KB)     - Application A
+  0x00100000-0x0027FFFF        1.5MB (1536KB)   - WebResources A
+  0x00280000-0x0029FFFF        128KB            - ADC Mapping A
+0x002B0000-0x0055FFFF          2.625MB (2688KB) 槽B
+  0x002B0000-0x003AFFFF        1MB (1024KB)     - Application B
+  0x003B0000-0x0052FFFF        1.5MB (1536KB)   - WebResources B
+  0x00530000-0x0054FFFF        128KB            - ADC Mapping B
+0x00560000-0x0056FFFF          64KB             用户配置区
+0x00570000-0x0057FFFF          64KB             元数据区
 ```
 
 **内部Flash布局：**
@@ -112,4 +110,58 @@ typedef struct {
 - **CRC校验**：所有固件和元数据都需要CRC校验
 - **原子操作**：元数据更新必须是原子性的
 - **回滚机制**：支持自动回滚到上一个稳定版本
-- **防砖机制**：确保任何情况下都有可用的固件版本 
+- **防砖机制**：确保任何情况下都有可用的固件版本
+
+## 升级包分发策略
+
+### 方案3：智能下载系统（采用方案）
+
+#### 核心思想
+- **发版策略**：每次发版同时构建槽A和槽B两个固件包
+- **服务器存储**：服务器同时存储两个版本的固件包
+- **客户端请求**：设备在请求升级时上报当前槽信息
+- **智能分发**：服务器根据设备当前状态返回对应的升级包
+
+#### 实现细节
+
+**1. 固件包命名规范**
+```
+firmware_v1.2.3_slot_A.bin    # 槽A版本
+firmware_v1.2.3_slot_B.bin    # 槽B版本
+```
+
+**2. 设备状态上报API**
+```http
+GET /api/upgrade/check HTTP/1.1
+{
+    "device_id": "STM32H750_001",
+    "current_version": "1.2.2",
+    "current_slot": "A",
+    "target_slot": "B",
+    "hardware_version": "v2.1"
+}
+```
+
+**3. 服务器响应**
+```http
+HTTP/1.1 200 OK
+{
+    "upgrade_available": true,
+    "latest_version": "1.2.3",
+    "download_url": "/firmware/download/v1.2.3/slot_B",
+    "file_size": 1048576,
+    "file_hash": "sha256:abc123...",
+    "release_notes": "Bug fixes and improvements"
+}
+```
+
+**4. 构建工具集成**
+- 自动化构建脚本同时生成两个槽的固件
+- CI/CD流水线自动上传到服务器对应目录
+- 版本管理与槽选择解耦
+
+#### 优势
+- **用户体验简单**：用户无需了解槽概念
+- **服务器逻辑清晰**：根据设备状态智能选择固件
+- **维护成本低**：服务器只需要简单的路由逻辑
+- **扩展性好**：可以支持更复杂的升级策略 

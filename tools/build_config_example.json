@@ -1,0 +1,46 @@
+{
+  "_comment": "STM32 H7xx 双槽构建工具配置文件示例",
+  "_comment2": "复制此文件为 build_config.json 并修改相关路径",
+  
+  "gcc_path": "D:/Program Files/GNU Arm Embedded Toolchain/10 2021.10/bin",
+  "openocd_path": "D:/Program Files/OpenOCD/bin/openocd.exe",
+  "openocd_interface": "stlink",
+  "openocd_target": "stm32h7x",
+  "parallel_jobs": 8,
+  
+  "last_build": {
+    "bootloader": null,
+    "application": null
+  },
+  
+  "_compilation_settings": {
+    "_comment": "编译相关设置说明",
+    "parallel_jobs_desc": "并行编译任务数，建议设置为CPU核心数的70-80%",
+    "parallel_jobs_range": "1-32，过高可能导致系统卡顿，过低影响编译速度",
+    "parallel_jobs_auto": "如果不设置，将自动检测为CPU核心数*0.8，最少2个，最多16个"
+  },
+  
+  "_paths_examples": {
+    "_comment": "以下是常见的工具链路径示例",
+    "gcc_windows_default": "C:/Program Files (x86)/GNU Arm Embedded Toolchain/10 2021.10/bin",
+    "gcc_windows_custom": "D:/ARM_GCC/10.3-2021.10/bin",
+    "openocd_windows": "C:/OpenOCD/bin/openocd.exe",
+    "openocd_linux": "/usr/bin/openocd",
+    "openocd_mac": "/opt/homebrew/bin/openocd"
+  },
+  
+  "_targets": {
+    "_comment": "支持的OpenOCD目标配置",
+    "stm32h7": "stm32h7x",
+    "stm32h750": "stm32h7x",
+    "stm32h743": "stm32h7x"
+  },
+  
+  "_interfaces": {
+    "_comment": "支持的调试器接口",
+    "st_link_v2": "stlink",
+    "st_link_v3": "stlink", 
+    "j_link": "jlink",
+    "cmsis_dap": "cmsis-dap"
+  }
+} 
