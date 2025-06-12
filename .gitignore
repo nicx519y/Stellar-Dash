@@ -12,5 +12,7 @@
 
 application/build
 bootloader/build
+releases/
+tools/__pycache__/
 
 

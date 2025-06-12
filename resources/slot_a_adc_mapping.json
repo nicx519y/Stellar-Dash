@@ -1,0 +1,387 @@
+{
+  "version": "0x00000001",
+  "num": 2,
+  "default_id": "磁王-4464",
+  "mappings": [
+    {
+      "id": " 万磁王-4464",
+      "name": " 万磁王",
+      "length": 36,
+      "step": 0.10000000149011612,
+      "sampling_noise": 21,
+      "sampling_frequency": 2566,
+      "original_values": [
+        56230,
+        55457,
+        53842,
+        52496,
+        51202,
+        50068,
+        48968,
+        47938,
+        47050,
+        46230,
+        45416,
+        44745,
+        44083,
+        43452,
+        42849,
+        42294,
+        41823,
+        41326,
+        40916,
+        40503,
+        40125,
+        39762,
+        39440,
+        39140,
+        38848,
+        38568,
+        38301,
+        38062,
+        37835,
+        37624,
+        37408,
+        37230,
+        37027,
+        36861,
+        36700,
+        36589,
+        0,
+        0,
+        0,
+        0
+      ],
+      "auto_calibration_values": [
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        }
+      ],
+      "manual_calibration_values": [
+        {
+          "top_value": 36665,
+          "bottom_value": 56103
+        },
+        {
+          "top_value": 36655,
+          "bottom_value": 56430
+        },
+        {
+          "top_value": 36530,
+          "bottom_value": 55257
+        },
+        {
+          "top_value": 36707,
+          "bottom_value": 55190
+        },
+        {
+          "top_value": 36609,
+          "bottom_value": 55546
+        },
+        {
+          "top_value": 36586,
+          "bottom_value": 55313
+        },
+        {
+          "top_value": 36645,
+          "bottom_value": 55560
+        },
+        {
+          "top_value": 36582,
+          "bottom_value": 55591
+        },
+        {
+          "top_value": 36478,
+          "bottom_value": 55500
+        },
+        {
+          "top_value": 36369,
+          "bottom_value": 55157
+        },
+        {
+          "top_value": 36110,
+          "bottom_value": 53871
+        },
+        {
+          "top_value": 36284,
+          "bottom_value": 54879
+        },
+        {
+          "top_value": 36304,
+          "bottom_value": 55730
+        },
+        {
+          "top_value": 36591,
+          "bottom_value": 55228
+        },
+        {
+          "top_value": 36426,
+          "bottom_value": 55408
+        },
+        {
+          "top_value": 36197,
+          "bottom_value": 55637
+        },
+        {
+          "top_value": 36459,
+          "bottom_value": 55632
+        }
+      ]
+    },
+    {
+      "id": "test-31124",
+      "name": "test",
+      "length": 5,
+      "step": 0.10000000149011612,
+      "sampling_noise": 25,
+      "sampling_frequency": 2565,
+      "original_values": [
+        32697,
+        32697,
+        32702,
+        32696,
+        32699,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "auto_calibration_values": [
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        }
+      ],
+      "manual_calibration_values": [
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        }
+      ]
+    }
+  ]
+}
