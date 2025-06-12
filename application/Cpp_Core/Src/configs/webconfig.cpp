@@ -1807,7 +1807,7 @@ std::string apiMSMarkMappingStop() {
  * }
  */
 std::string apiMSMarkMappingStep() {
-    
+    APP_DBG("apiMSMarkMappingStep start.\n");
     // 执行标记步进
     ADCBtnsError error = ADC_BTNS_MARKER.step();
     if(error != ADCBtnsError::SUCCESS) {
@@ -1819,6 +1819,7 @@ std::string apiMSMarkMappingStep() {
     cJSON_AddItemToObject(dataJSON, "status", statusJSON);
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    APP_DBG("apiMSMarkMappingStep response: %s\n", response.c_str());
     return response;
 }
 

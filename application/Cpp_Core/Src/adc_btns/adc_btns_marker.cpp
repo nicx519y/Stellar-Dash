@@ -110,7 +110,7 @@ ADCBtnsError ADCBtnsMarker::step() {
  */
 void ADCBtnsMarker::stepFinish(const ADCChannelStats* const stats) {
 
-    // ADC_MANAGER.stopADCSamping();
+    ADC_MANAGER.stopADCSamping();
 
     step_info.is_sampling = false;
     step_info.index ++;
