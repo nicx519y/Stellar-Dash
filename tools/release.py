@@ -391,33 +391,27 @@ class ReleaseManager:
             print(f"\n构建槽{slot}失败: {e}")
             raise
 
-    def extract_adc_mapping_with_tool(self, progress=None):
-        """使用extract_adc_mapping.py提取ADC映射"""
+    def copy_adc_mapping_from_resources(self, out_dir, progress=None):
+        """从resources目录复制ADC映射文件"""
         if progress:
-            progress.update("提取ADC映射...")
+            progress.update("复制ADC映射...")
         else:
-            print("正在提取ADC映射...")
+            print("正在复制ADC映射...")
         
-        try:
-            result = self.run_cmd([sys.executable, str(self.tools_dir/'extract_adc_mapping.py')], 
-                                cwd=self.tools_dir, check=False)
-            
-            # 检查是否生成了目标文件
-            adc_file = self.tools_dir / 'slot_a_adc_mapping.bin'
-            if not adc_file.exists():
-                print(f"\nADC映射提取可能失败，未找到文件: {adc_file}")
-                print("STDOUT:")
-                print(result.stdout)
-                print("STDERR:")
-                print(result.stderr)
-                raise FileNotFoundError(f"未找到ADC映射文件: {adc_file}")
-            
-            if not progress:
-                print(f"成功提取ADC映射: {adc_file}")
-            return adc_file
-        except Exception as e:
-            print(f"\nADC映射提取失败: {e}")
-            raise
+        # 从resources目录查找ADC映射文件
+        adc_source = self.resources_dir / "slot_a_adc_mapping.bin"
+        
+        if not adc_source.exists():
+            raise FileNotFoundError(f"未找到ADC映射文件: {adc_source}")
+        
+        # 复制到输出目录
+        adc_dest = out_dir / "slot_a_adc_mapping.bin"
+        shutil.copy2(adc_source, adc_dest)
+        
+        if not progress:
+            print(f"成功复制ADC映射: {adc_source} -> {adc_dest}")
+        
+        return adc_dest
 
     def copy_webresources_for_auto(self, out_dir, progress=None):
         """复制WebResources文件"""
@@ -491,17 +485,8 @@ class ReleaseManager:
             # 1. 构建Application
             hex_file = self.build_app_with_build_py(slot, progress)
             
-            # 2. 提取ADC映射（只在槽A时提取，槽B复用）
-            if slot == 'A':
-                adc_file = self.extract_adc_mapping_with_tool(progress)
-            else:
-                progress.update("复用槽A的ADC映射...")
-                # 槽B复用槽A的ADC映射
-                adc_source = self.tools_dir / 'slot_a_adc_mapping.bin'
-                if not adc_source.exists():
-                    raise FileNotFoundError("槽A的ADC映射文件不存在，请先生成槽A")
-                adc_file = out_dir / 'slot_a_adc_mapping.bin'
-                shutil.copy2(adc_source, adc_file)
+            # 2. 复制ADC映射
+            adc_file = self.copy_adc_mapping_from_resources(out_dir, progress)
             
             # 3. 复制WebResources
             web_file = self.copy_webresources_for_auto(out_dir, progress)
