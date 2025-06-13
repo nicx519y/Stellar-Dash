@@ -142,29 +142,63 @@ Content-Type: multipart/form-data
 ```
 
 **请求参数:**
-- `name` (必需): 固件名称
-- `version` (必需): 版本号
+- `version` (必需): 版本号，必须是三位版本号格式（如：1.0.0）
 - `desc` (可选): 描述信息
 - `slotA` (文件): 槽A固件包
 - `slotB` (文件): 槽B固件包
 
-**注意:** 至少需要上传一个槽的固件包
+**注意:** 
+- 至少需要上传一个槽的固件包
+- 版本号必须是x.y.z格式（如：1.0.0）
+- 不允许上传已存在的版本号
+- 固件名称会自动生成为"HBox固件 {版本号}"
 
-**响应:**
+**成功响应:**
 ```json
 {
   "success": true,
   "message": "固件上传成功",
   "data": {
     "id": "abc123...",
-    "name": "HBox主控固件",
+    "name": "HBox固件 1.0.0",
     "version": "1.0.0",
-    "desc": "修复了网络连接问题",
+    "desc": "描述信息",
     "createTime": "2024-12-01T10:30:00.000Z",
     "updateTime": "2024-12-01T10:30:00.000Z",
-    "slotA": { ... },
-    "slotB": { ... }
+    "slotA": {
+      "originalName": "hbox_firmware_1.0.0_a_20241201_143022.zip",
+      "filename": "1733050200000_hbox_firmware_1.0.0_a_20241201_143022.zip",
+      "filePath": "1733050200000_hbox_firmware_1.0.0_a_20241201_143022.zip",
+      "fileSize": 2458123,
+      "downloadUrl": "http://localhost:3000/downloads/1733050200000_hbox_firmware_1.0.0_a_20241201_143022.zip",
+      "uploadTime": "2024-12-01T10:30:00.000Z",
+      "hash": "sha256_hash_value..."
+    },
+    "slotB": {
+      "originalName": "hbox_firmware_1.0.0_b_20241201_143022.zip",
+      "filename": "1733050200001_hbox_firmware_1.0.0_b_20241201_143022.zip",
+      "filePath": "1733050200001_hbox_firmware_1.0.0_b_20241201_143022.zip",
+      "fileSize": 2458456,
+      "downloadUrl": "http://localhost:3000/downloads/1733050200001_hbox_firmware_1.0.0_b_20241201_143022.zip",
+      "uploadTime": "2024-12-01T10:30:00.000Z",
+      "hash": "sha256_hash_value..."
+    }
   }
+}
+```
+
+**错误响应:**
+```json
+{
+  "success": false,
+  "message": "版本号格式错误，必须是三位版本号格式（如：1.0.0）"
+}
+```
+
+```json
+{
+  "success": false,
+  "message": "版本号 1.0.0 已存在，不允许重复上传"
 }
 ```
 
@@ -286,7 +320,6 @@ GET /downloads/:filename
 ```bash
 # 上传槽A和槽B固件包
 curl -X POST http://localhost:3000/api/firmwares/upload \
-  -F "name=HBox主控固件" \
   -F "version=1.0.0" \
   -F "desc=修复了网络连接问题" \
   -F "slotA=@hbox_firmware_1.0.0_a_20241201_143022.zip" \
@@ -294,7 +327,6 @@ curl -X POST http://localhost:3000/api/firmwares/upload \
 
 # 只上传槽A固件包
 curl -X POST http://localhost:3000/api/firmwares/upload \
-  -F "name=测试固件" \
   -F "version=1.0.1" \
   -F "slotA=@test_firmware.zip"
 ```

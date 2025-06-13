@@ -15,5 +15,6 @@ bootloader/build
 releases/
 tools/__pycache__
 server/node_modules
+server/uploads
 
 

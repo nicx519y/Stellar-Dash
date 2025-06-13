@@ -1,0 +1,31 @@
+{
+  "firmwares": [
+    {
+      "name": "HBox固件 0.0.1",
+      "version": "0.0.1",
+      "desc": "第一次上传",
+      "slotA": {
+        "originalName": "hbox_firmware_0.0.1_a_20250613_160910.zip",
+        "filename": "1749811295440_hbox_firmware_0.0.1_a_20250613_160910.zip",
+        "filePath": "1749811295440_hbox_firmware_0.0.1_a_20250613_160910.zip",
+        "fileSize": 861072,
+        "downloadUrl": "http://localhost:3000/downloads/1749811295440_hbox_firmware_0.0.1_a_20250613_160910.zip",
+        "uploadTime": "2025-06-13T10:41:35.446Z",
+        "hash": "e52a365f16711735da5fffd40dc49335baabd007cdaab732d7806a71bdeda7c7"
+      },
+      "slotB": {
+        "originalName": "hbox_firmware_0.0.1_b_20250613_160910.zip",
+        "filename": "1749811295443_hbox_firmware_0.0.1_b_20250613_160910.zip",
+        "filePath": "1749811295443_hbox_firmware_0.0.1_b_20250613_160910.zip",
+        "fileSize": 861085,
+        "downloadUrl": "http://localhost:3000/downloads/1749811295443_hbox_firmware_0.0.1_b_20250613_160910.zip",
+        "uploadTime": "2025-06-13T10:41:35.454Z",
+        "hash": "29df08a5e12172dec3e3949b9b6ff780b0dbb5d9fa29354e778bf84ba055bdbc"
+      },
+      "id": "a60f6e8bd4bf2a134a7c2bcf4bc4436f",
+      "createTime": "2025-06-13T10:41:35.462Z",
+      "updateTime": "2025-06-13T10:41:35.462Z"
+    }
+  ],
+  "lastUpdate": "2025-06-13T10:41:35.462Z"
+}

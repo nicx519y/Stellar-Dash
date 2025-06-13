@@ -23,6 +23,7 @@ import argparse
 import re
 import locale
 import time
+import requests
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, NamedTuple, Tuple, Any
@@ -749,6 +750,331 @@ class ReleaseManager:
                 print("\n操作已取消")
                 return None
 
+    # ==================== 上传功能 ====================
+    
+    def parse_package_info(self, package_path: str) -> Optional[Dict]:
+        """从包名解析版本和槽位信息"""
+        package_file = Path(package_path)
+        package_name = package_file.name
+        
+        # 解析包名格式: hbox_firmware_{version}_{slot}_{timestamp}.zip
+        pattern = r'hbox_firmware_(.+)_([ab])_(\d{8}_\d{6})\.zip'
+        match = re.match(pattern, package_name)
+        
+        if not match:
+            return None
+        
+        version, slot, timestamp = match.groups()
+        
+        return {
+            'version': version,
+            'slot': slot.upper(),
+            'timestamp': timestamp,
+            'filename': package_name
+        }
+    
+    def upload_firmware_to_server(self, slot_a_path: str = None, slot_b_path: str = None, 
+                                 server_url: str = "http://localhost:3000", 
+                                 desc: str = None) -> bool:
+        """上传固件包到服务器"""
+        
+        if not slot_a_path and not slot_b_path:
+            print("错误: 至少需要指定一个槽的固件包")
+            return False
+        
+        # 解析包信息
+        package_info = None
+        if slot_a_path:
+            package_info = self.parse_package_info(slot_a_path)
+            if not package_info:
+                print(f"错误: 无法解析包名格式: {slot_a_path}")
+                return False
+        elif slot_b_path:
+            package_info = self.parse_package_info(slot_b_path)
+            if not package_info:
+                print(f"错误: 无法解析包名格式: {slot_b_path}")
+                return False
+        
+        version = package_info['version']
+        if not desc:
+            desc = f"自动上传的固件包，版本 {version}"
+        
+        print("=" * 60)
+        print("上传固件包到服务器")
+        print("=" * 60)
+        print(f"服务器地址: {server_url}")
+        print(f"版本号: {version}")
+        print(f"描述: {desc}")
+        
+        # 检查文件是否存在
+        files_to_upload = {}
+        if slot_a_path:
+            slot_a_file = Path(slot_a_path)
+            if not slot_a_file.exists():
+                print(f"错误: 槽A文件不存在: {slot_a_path}")
+                return False
+            files_to_upload['slotA'] = (slot_a_file.name, open(slot_a_file, 'rb'), 'application/zip')
+            print(f"槽A包: {slot_a_file.name} ({slot_a_file.stat().st_size / 1024 / 1024:.1f} MB)")
+        
+        if slot_b_path:
+            slot_b_file = Path(slot_b_path)
+            if not slot_b_file.exists():
+                print(f"错误: 槽B文件不存在: {slot_b_path}")
+                return False
+            files_to_upload['slotB'] = (slot_b_file.name, open(slot_b_file, 'rb'), 'application/zip')
+            print(f"槽B包: {slot_b_file.name} ({slot_b_file.stat().st_size / 1024 / 1024:.1f} MB)")
+        
+        print()
+        
+        try:
+            # 准备上传数据
+            form_data = {
+                'version': version,
+                'desc': desc
+            }
+            
+            upload_url = f"{server_url}/api/firmwares/upload"
+            print(f"正在上传到: {upload_url}")
+            
+            # 发送POST请求
+            response = requests.post(
+                upload_url,
+                data=form_data,
+                files=files_to_upload,
+                timeout=300,  # 5分钟超时
+                proxies={'http': None, 'https': None} if 'localhost' in server_url or '127.0.0.1' in server_url else None
+            )
+            
+            # 关闭文件句柄
+            for file_tuple in files_to_upload.values():
+                file_tuple[1].close()
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    print("✓ 上传成功!")
+                    print(f"固件ID: {result['data']['id']}")
+                    print(f"创建时间: {result['data']['createTime']}")
+                    
+                    # 显示下载链接
+                    data = result['data']
+                    if 'slotA' in data and data['slotA']:
+                        print(f"槽A下载链接: {data['slotA']['downloadUrl']}")
+                    if 'slotB' in data and data['slotB']:
+                        print(f"槽B下载链接: {data['slotB']['downloadUrl']}")
+                    
+                    return True
+                else:
+                    print(f"✗ 上传失败: {result.get('message', '未知错误')}")
+                    return False
+            else:
+                print(f"✗ 上传失败: HTTP {response.status_code}")
+                try:
+                    error_info = response.json()
+                    print(f"错误信息: {error_info.get('message', response.text)}")
+                except:
+                    print(f"响应内容: {response.text}")
+                return False
+                
+        except requests.exceptions.ConnectionError:
+            print("✗ 连接失败: 无法连接到服务器")
+            print("请确保服务器已启动并且地址正确")
+            return False
+        except requests.exceptions.Timeout:
+            print("✗ 上传超时: 请检查网络连接和文件大小")
+            return False
+        except Exception as e:
+            print(f"✗ 上传异常: {e}")
+            return False
+        finally:
+            # 确保文件句柄被关闭
+            for file_tuple in files_to_upload.values():
+                try:
+                    file_tuple[1].close()
+                except:
+                    pass
+    
+    def upload_latest_packages(self, version: str = None, server_url: str = "http://localhost:3000", 
+                             desc: str = None) -> bool:
+        """上传最新的双槽包到服务器"""
+        
+        # 如果指定了版本，查找该版本的包
+        if version:
+            packages = self.list_available_packages()
+            slot_a_path = None
+            slot_b_path = None
+            
+            for package in packages:
+                info = self.parse_package_info(str(package))
+                if info and info['version'] == version:
+                    if info['slot'] == 'A':
+                        slot_a_path = str(package)
+                    elif info['slot'] == 'B':
+                        slot_b_path = str(package)
+            
+            if not slot_a_path and not slot_b_path:
+                print(f"错误: 未找到版本 {version} 的固件包")
+                return False
+        else:
+            # 查找最新的包
+            packages = self.list_available_packages()
+            if not packages:
+                print("错误: 没有可用的固件包")
+                return False
+            
+            # 按时间排序，找最新的
+            latest_packages = {}
+            for package in packages:
+                info = self.parse_package_info(str(package))
+                if info:
+                    key = f"{info['version']}_{info['timestamp']}"
+                    if key not in latest_packages:
+                        latest_packages[key] = {}
+                    latest_packages[key][info['slot']] = str(package)
+            
+            if not latest_packages:
+                print("错误: 没有有效的固件包")
+                return False
+            
+            # 选择最新的版本
+            latest_key = sorted(latest_packages.keys())[-1]
+            latest_set = latest_packages[latest_key]
+            
+            slot_a_path = latest_set.get('A')
+            slot_b_path = latest_set.get('B')
+            
+            if not slot_a_path and not slot_b_path:
+                print("错误: 最新版本没有可用的固件包")
+                return False
+            
+            # 从最新包解析版本信息
+            if slot_a_path:
+                info = self.parse_package_info(slot_a_path)
+                version = info['version']
+            elif slot_b_path:
+                info = self.parse_package_info(slot_b_path)
+                version = info['version']
+        
+        print(f"准备上传版本 {version} 的固件包:")
+        if slot_a_path:
+            print(f"  槽A: {Path(slot_a_path).name}")
+        if slot_b_path:
+            print(f"  槽B: {Path(slot_b_path).name}")
+        
+        return self.upload_firmware_to_server(
+            slot_a_path=slot_a_path,
+            slot_b_path=slot_b_path,
+            server_url=server_url,
+            desc=desc
+        )
+
+    # ==================== 固件删除功能 ====================
+    
+    def delete_firmware_from_server(self, firmware_id: str, server_url: str = "http://localhost:3000") -> bool:
+        """从服务器删除指定ID的固件"""
+        
+        print("=" * 60)
+        print("删除服务器固件")
+        print("=" * 60)
+        print(f"服务器地址: {server_url}")
+        print(f"固件ID: {firmware_id}")
+        print()
+        
+        try:
+            # 先查询固件信息
+            query_url = f"{server_url}/api/firmwares/{firmware_id}"
+            print(f"正在查询固件信息: {query_url}")
+            
+            response = requests.get(
+                query_url,
+                timeout=30,
+                proxies={'http': None, 'https': None} if 'localhost' in server_url or '127.0.0.1' in server_url else None
+            )
+            
+            if response.status_code == 404:
+                print(f"✗ 固件不存在: ID {firmware_id}")
+                return False
+            elif response.status_code != 200:
+                print(f"✗ 查询固件信息失败: HTTP {response.status_code}")
+                return False
+            
+            # 解析固件信息
+            result = response.json()
+            if not result.get('success'):
+                print(f"✗ 查询固件信息失败: {result.get('message', '未知错误')}")
+                return False
+            
+            firmware = result['data']
+            print(f"找到固件: {firmware['name']} v{firmware['version']}")
+            
+            # 显示要删除的内容
+            slots_info = []
+            if firmware.get('slotA'):
+                slots_info.append(f"槽A ({firmware['slotA']['originalName']})")
+            if firmware.get('slotB'):
+                slots_info.append(f"槽B ({firmware['slotB']['originalName']})")
+            
+            if slots_info:
+                print(f"包含: {', '.join(slots_info)}")
+            
+            print(f"创建时间: {firmware['createTime']}")
+            print()
+            
+            # 确认删除
+            confirm = input("确认删除此固件？这个操作不可恢复！(y/N): ").strip().lower()
+            if confirm not in ['y', 'yes', '是']:
+                print("操作已取消")
+                return False
+            
+            print()
+            
+            # 执行删除
+            delete_url = f"{server_url}/api/firmwares/{firmware_id}"
+            print(f"正在删除: {delete_url}")
+            
+            response = requests.delete(
+                delete_url,
+                timeout=30,
+                proxies={'http': None, 'https': None} if 'localhost' in server_url or '127.0.0.1' in server_url else None
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    deleted_info = result['data']
+                    print("✓ 删除成功!")
+                    print(f"已删除固件: {deleted_info['name']} v{deleted_info['version']}")
+                    print(f"固件ID: {deleted_info['id']}")
+                    return True
+                else:
+                    print(f"✗ 删除失败: {result.get('message', '未知错误')}")
+                    return False
+            elif response.status_code == 404:
+                print(f"✗ 固件不存在: ID {firmware_id}")
+                return False
+            else:
+                print(f"✗ 删除失败: HTTP {response.status_code}")
+                try:
+                    error_info = response.json()
+                    print(f"错误信息: {error_info.get('message', response.text)}")
+                except:
+                    print(f"响应内容: {response.text}")
+                return False
+                
+        except requests.exceptions.ConnectionError:
+            print("✗ 连接失败: 无法连接到服务器")
+            print("请确保服务器已启动并且地址正确")
+            return False
+        except requests.exceptions.Timeout:
+            print("✗ 操作超时: 请检查网络连接")
+            return False
+        except KeyboardInterrupt:
+            print("\n操作已取消")
+            return False
+        except Exception as e:
+            print(f"✗ 删除异常: {e}")
+            return False
+
 def main():
     parser = argparse.ArgumentParser(
         description="STM32 HBox Release 管理工具 - 集成打包和刷写功能",
@@ -799,6 +1125,29 @@ def main():
   交互式选择并刷写:
     python release.py flash
 
+上传固件包到服务器:
+  上传最新版本的双槽包:
+    python release.py upload
+  
+  上传指定版本的双槽包:
+    python release.py upload --version 1.0.0
+  
+  上传到指定服务器:
+    python release.py upload --server http://192.168.1.100:3000
+  
+  指定固件描述:
+    python release.py upload --version 1.0.0 --desc "修复网络连接问题"
+  
+  上传指定的固件包:
+    python release.py upload --slot-a hbox_firmware_1.0.0_a_20250613_112625.zip --slot-b hbox_firmware_1.0.0_b_20250613_112625.zip
+
+删除服务器固件:
+  删除指定ID的固件:
+    python release.py delete abc123def456...
+  
+  删除指定服务器上的固件:
+    python release.py delete abc123def456... --server http://192.168.1.100:3000
+
 支持的组件:
   application   - 应用程序固件
   webresources  - Web界面资源
@@ -834,6 +1183,19 @@ def main():
     flash_parser.add_argument("--components", nargs="+", 
                             choices=["application", "webresources", "adc_mapping"],
                             help="要刷写的组件（可选，默认刷写所有组件）")
+    
+    # 上传命令
+    upload_parser = subparsers.add_parser('upload', help='上传固件包到服务器')
+    upload_parser.add_argument("--version", help="指定版本号（可选）")
+    upload_parser.add_argument("--server", help="指定服务器地址（可选）")
+    upload_parser.add_argument("--desc", help="指定固件描述（可选）")
+    upload_parser.add_argument("--slot-a", help="指定槽A的固件包路径（可选）")
+    upload_parser.add_argument("--slot-b", help="指定槽B的固件包路径（可选）")
+    
+    # 删除命令
+    delete_parser = subparsers.add_parser('delete', help='删除服务器固件')
+    delete_parser.add_argument("firmware_id", help="要删除的固件ID")
+    delete_parser.add_argument("--server", help="指定服务器地址（可选）")
     
     args = parser.parse_args()
     
@@ -902,6 +1264,46 @@ def main():
                 return 0
             else:
                 print("\n✗ Release包刷写失败")
+                return 1
+        
+        elif args.command == 'upload':
+            # 上传固件包到服务器
+            if args.slot_a or args.slot_b:
+                # 使用指定的固件包上传
+                if manager.upload_firmware_to_server(
+                    slot_a_path=args.slot_a,
+                    slot_b_path=args.slot_b,
+                    server_url=args.server or "http://localhost:3000",
+                    desc=args.desc
+                ):
+                    print("\n✓ 固件包上传成功")
+                    return 0
+                else:
+                    print("\n✗ 固件包上传失败")
+                    return 1
+            else:
+                # 上传指定版本或最新版本的双槽包
+                if manager.upload_latest_packages(
+                    version=args.version,
+                    server_url=args.server or "http://localhost:3000",
+                    desc=args.desc
+                ):
+                    print("\n✓ 固件包上传成功")
+                    return 0
+                else:
+                    print("\n✗ 固件包上传失败")
+                    return 1
+        
+        elif args.command == 'delete':
+            # 删除服务器固件
+            firmware_id = args.firmware_id
+            server_url = args.server or "http://localhost:3000"
+            
+            if manager.delete_firmware_from_server(firmware_id, server_url):
+                print("\n✓ 固件删除成功")
+                return 0
+            else:
+                print("\n✗ 固件删除失败")
                 return 1
         
         else:

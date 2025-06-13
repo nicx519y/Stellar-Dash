@@ -241,13 +241,31 @@ app.post('/api/firmwares/upload', upload.fields([
     { name: 'slotB', maxCount: 1 }
 ]), async (req, res) => {
     try {
-        const { name, version, desc } = req.body;
+        const { version, desc } = req.body;
         
-        // 验证必需字段
-        if (!name || !version) {
+        // 验证版本号
+        if (!version) {
             return res.status(400).json({
                 success: false,
-                message: '固件名和版本号是必需的'
+                message: '版本号是必需的'
+            });
+        }
+
+        // 验证版本号格式：必须是x.y.z格式
+        const versionPattern = /^\d+\.\d+\.\d+$/;
+        if (!versionPattern.test(version.trim())) {
+            return res.status(400).json({
+                success: false,
+                message: '版本号格式错误，必须是三位版本号格式（如：1.0.0）'
+            });
+        }
+
+        // 检查版本号是否已存在
+        const existingFirmware = storage_manager.getFirmwares().find(f => f.version === version.trim());
+        if (existingFirmware) {
+            return res.status(409).json({
+                success: false,
+                message: `版本号 ${version.trim()} 已存在，不允许重复上传`
             });
         }
 
@@ -261,7 +279,7 @@ app.post('/api/firmwares/upload', upload.fields([
 
         // 构建固件对象
         const firmware = {
-            name: name.trim(),
+            name: `HBox固件 ${version.trim()}`, // 自动生成名称
             version: version.trim(),
             desc: desc ? desc.trim() : '',
             slotA: null,

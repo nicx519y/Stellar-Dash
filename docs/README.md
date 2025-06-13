@@ -350,6 +350,9 @@ python tools/release.py list --time-sorted
 
 # 验证发版包完整性
 python tools/release.py verify package.zip
+
+# 刷写release包
+python tools/release.py flash 0.0.1_a
 ```
 
 **支持的组件：**
@@ -380,7 +383,54 @@ python tools/release.py verify package.zip
 6. 恢复原始链接脚本
 ```
 
-**注意事项：**
+#### release包上传命令
+
+```bash
+# 上传最新版本的双槽包
+python release.py upload
+
+# 上传指定版本的双槽包（版本号必须是x.y.z格式）
+python release.py upload --version 1.0.0
+
+# 上传到指定服务器
+python release.py upload --server http://192.168.1.100:3000
+
+# 自定义描述信息
+python release.py upload --version 1.0.0 --desc "修复网络连接问题"
+
+# 上传指定的固件包文件（可只上传一个槽）
+python release.py upload --slot-a releases/hbox_firmware_1.0.0_a_20250613_160910.zip
+
+# 上传双槽包文件
+python release.py upload \
+  --slot-a releases/hbox_firmware_1.0.0_a_20250613_160910.zip \
+  --slot-b releases/hbox_firmware_1.0.0_b_20250613_160910.zip
+```
+
+**上传要求和限制：**
+- **版本号格式**：必须是三位版本号格式（如：1.0.0、2.1.3），不支持1.0或1.0.0.1等格式
+- **版本唯一性**：不允许上传已存在的版本号，每个版本只能上传一次
+- **文件要求**：至少需要上传一个槽（A或B）的固件包，支持.zip格式
+- **自动命名**：固件名称会自动生成为"HBox固件 {版本号}"，无需手动指定
+- **文件大小**：单个文件最大50MB
+
+**常见错误处理：**
+```bash
+# 错误：版本号格式不正确
+✗ 上传失败: 版本号格式错误，必须是三位版本号格式（如：1.0.0）
+
+# 错误：版本号重复
+✗ 上传失败: 版本号 1.0.0 已存在，不允许重复上传
+
+# 错误：未指定文件
+✗ 上传失败: 至少需要上传一个槽的固件包
+
+# 错误：服务器连接失败
+✗ 连接失败: 无法连接到服务器
+请确保服务器已启动并且地址正确
+```
+
+**发版包生成注意事项：**
 - 确保所有依赖工具（build.py, extract_adc_mapping.py）能正常运行
 - ADC mapping只在处理slot A时提取一次，slot B复用相同数据
 - 如果单个槽构建失败，不会影响其他槽的构建
