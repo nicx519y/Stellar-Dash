@@ -227,8 +227,8 @@ python tools/release.py auto
 
 **生成结果：**
 - 输出目录：`releases/`
-- 文件格式：`hbox_firmware_slot_a_v1_0_0_YYYYMMDD_HHMMSS.zip`
-- 文件格式：`hbox_firmware_slot_b_v1_0_0_YYYYMMDD_HHMMSS.zip`
+- 文件格式：`hbox_firmware_1.0.0_a_YYYYMMDD_HHMMSS.zip`
+- 文件格式：`hbox_firmware_1.0.0_b_YYYYMMDD_HHMMSS.zip`
 
 **每个包包含：**
 1. `application_slot_x.hex` - 应用程序固件
@@ -289,7 +289,7 @@ python tools/release.py auto
    └─ 包含所有组件的地址、大小、校验和信息
 
 4. 打包成 ZIP 格式的 release 包
-   └─ 文件名格式: hbox_firmware_slot_x_v1_0_0_YYYYMMDD_HHMMSS.zip
+   └─ 文件名格式: hbox_firmware_1.0.0_x_YYYYMMDD_HHMMSS.zip
 ```
 
 **进度展示：**
@@ -299,7 +299,7 @@ python tools/release.py auto
 [██████████████████████████████████████████████████] 100.0% (6/6) 移动到releases目录...
 完成! 总耗时: 15.2秒
 
-[OK] 生成release包: releases/hbox_firmware_slot_a_v1_0_0_20241201_143022.zip
+[OK] 生成release包: releases/hbox_firmware_1.0.0_a_20241201_143022.zip
      包大小: 2,458,123 字节
 ```
 
@@ -691,7 +691,7 @@ git pull
 python tools/release.py auto --version 1.0.0
 
 # 3. 验证发版包
-python tools/release.py verify releases/hbox_firmware_slot_a_v1_0_0_*.zip
+python tools/release.py verify releases/hbox_firmware_1.0.0_a_*.zip
 
 # 4. 部署分发
 # 上传到服务器或分发给客户

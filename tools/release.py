@@ -505,7 +505,7 @@ class ReleaseManager:
             
             # 6. 打包并移动到releases目录
             progress.update("移动到releases目录...")
-            package_name = f'hbox_firmware_slot_{slot.lower()}_v{version.replace(".", "_")}_{build_timestamp}.zip'
+            package_name = f'hbox_firmware_{version}_{slot.lower()}_{build_timestamp}.zip'
             temp_package_path = out_dir / package_name
             final_package_path = self.releases_dir / package_name
             
@@ -778,19 +778,23 @@ def main():
 
 刷写release包:
   直接使用包名刷写:
-    python release.py flash hbox_firmware_slot_a_v1_0_0_20250613_112625.zip
+    python release.py flash hbox_firmware_1.0.0_a_20250613_112625.zip
   
   使用部分包名（模糊匹配）:
-    python release.py flash slot_a_v1_0_0
+    python release.py flash 0.0.1_a    # 匹配版本0.0.1的槽A包
+    python release.py flash 1.2.3_b    # 匹配版本1.2.3的槽B包
+    python release.py flash 2.0_a      # 匹配版本2.0.x的槽A包
+    python release.py flash _a_         # 匹配任意版本的槽A包
+    python release.py flash 20250613   # 匹配特定日期的包
   
   使用完整路径刷写:
     python release.py flash ../releases/package.zip
   
   刷写到指定槽位:
-    python release.py flash slot_a_v1_0_0 --slot A
+    python release.py flash 0.0.1_a --slot A
   
   只刷写特定组件:
-    python release.py flash slot_a_v1_0_0 --components application webresources
+    python release.py flash 0.0.1_a --components application webresources
   
   交互式选择并刷写:
     python release.py flash
@@ -884,8 +888,8 @@ def main():
                 if not package_path:
                     print(f"错误: 找不到Release包: {package_input}")
                     print("提示: 你可以使用以下方式指定包:")
-                    print("  - 直接使用包名: hbox_firmware_slot_a_v1_0_0_20250613_112625.zip")
-                    print("  - 使用部分包名: slot_a_v1_0_0")
+                    print("  - 直接使用包名: hbox_firmware_1.0.0_a_20250613_112625.zip")
+                    print("  - 使用部分包名: 0.0.1_a, 1.2.3_b, 2.0_a, _a_, 20250613")
                     print("  - 使用相对路径: ../releases/package.zip")
                     print("  - 使用绝对路径: /path/to/package.zip")
                     print("\n可用的包:")

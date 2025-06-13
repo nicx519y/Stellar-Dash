@@ -13,6 +13,7 @@
 application/build
 bootloader/build
 releases/
-tools/__pycache__/
+tools/__pycache__
+server/node_modules
 
 
