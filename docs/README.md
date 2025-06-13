@@ -236,6 +236,62 @@ python tools/release.py auto
 3. `slot_a_adc_mapping.bin` - ADC通道映射数据
 4. `manifest.json` - 包元数据
 
+**每个文件的生成方式：**
+
+1. **application_slot_x.hex** - 应用程序固件
+   - **生成工具**: `tools/build.py`
+   - **生成命令**: `python tools/build.py build app A` (槽A) 或 `python tools/build.py build app B` (槽B)
+   - **源文件位置**: `application/` 目录下的所有源代码
+   - **输出位置**: `application/build/application_slot_A.hex` 或 `application/build/application_slot_B.hex`
+   - **地址映射**: 
+     - 槽A: 0x90000000 (1MB空间)
+     - 槽B: 0x902B0000 (1MB空间，自动重新编译以适配地址)
+   - **特殊处理**: 槽B需要修改链接脚本地址并重新编译
+
+2. **webresources.bin** - Web界面资源
+   - **生成方式**: 直接复制现有文件
+   - **源文件查找顺序**:
+     1. `resources/webresources.bin` (优先)
+     2. `application/Libs/httpd/ex_fsdata.bin` (备选)
+   - **地址映射**:
+     - 槽A: 0x90100000 (1.5MB空间)
+     - 槽B: 0x903B0000 (1.5MB空间)
+   - **说明**: 包含Web界面的HTML、CSS、JS等静态资源文件
+
+3. **slot_a_adc_mapping.bin** - ADC通道映射数据
+   - **生成方式**: 直接从resources目录复制
+   - **源文件**: `resources/slot_a_adc_mapping.bin`
+   - **地址映射**:
+     - 槽A: 0x90280000 (128KB空间)
+     - 槽B: 0x90530000 (128KB空间)
+   - **数据结构**: 包含ADC通道映射、校准数据等信息
+   - **说明**: 两个槽使用相同的ADC映射数据
+
+4. **manifest.json** - 包元数据
+   - **生成工具**: `tools/release.py` 自动生成
+   - **生成时机**: 打包时根据实际文件信息动态生成
+   - **包含信息**:
+     - 版本号、槽位、构建时间
+     - 每个组件的文件名、地址、大小、SHA256校验和
+   - **用途**: 用于包完整性验证和刷写时的地址映射
+
+**文件生成流程总览：**
+```
+1. 调用 build.py 构建 Application HEX 文件
+   ├─ 槽A: 使用默认地址 0x90000000
+   └─ 槽B: 修改链接脚本到 0x902B0000 并重新编译
+
+2. 从 resources/ 目录复制 WebResources 和 ADC Mapping
+   ├─ webresources.bin: Web界面静态资源
+   └─ slot_a_adc_mapping.bin: ADC校准映射数据
+
+3. 自动生成 manifest.json 元数据文件
+   └─ 包含所有组件的地址、大小、校验和信息
+
+4. 打包成 ZIP 格式的 release 包
+   └─ 文件名格式: hbox_firmware_slot_x_v1_0_0_YYYYMMDD_HHMMSS.zip
+```
+
 **进度展示：**
 工具会显示详细的进度条和步骤信息：
 ```
