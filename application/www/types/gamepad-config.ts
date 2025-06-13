@@ -483,6 +483,15 @@ export const UI_TEXT = {
     SETTINGS_HOTKEYS_HELPER_TEXT: `Configure up to ${DEFAULT_NUM_HOTKEYS_MAX} hotkeys for quick access to various functions.\n- Click on the hotkey field and press the desired key on the hitbox to bind the hotkey.\n- Choice the hotkey action from the dropdown list.\n- Locked hotkeys are used for web configuration mode because this function is required.\n- Enable device button monitoring to bind hotkeys by pressing the buttons on the device.`,
     SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "Device Button Monitoring",
 
+    // Firmware Settings
+    SETTINGS_FIRMWARE_TITLE: "FIRMWARE UPDATE",
+    SETTINGS_FIRMWARE_CURRENT_VERSION_LABEL: "Current Version: ",
+    SETTINGS_FIRMWARE_LATEST_VERSION_LABEL: "Latest Firmware Version: ",
+    SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE: "Please click the button to update the firmware, it will take a few minutes, please do not disconnect the device.",
+    SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE: "The firmware has been updated successfully.",
+    SETTINGS_FIRMWARE_UPDATE_FAILED_MESSAGE: "The firmware update failed. Please click the button to try again.",
+    SETTINGS_FIRMWARE_UPDATING_MESSAGE: "Updating firmware... Please do not disconnect the device.",
+
     // Profile Select
     PROFILE_SELECT_TITLE: "Profile Select",
     PROFILE_SELECT_CREATE_BUTTON: "Create New Profile",
@@ -709,7 +718,15 @@ export const UI_TEXT_ZH = {
     SETTINGS_HOTKEYS_TITLE: "快捷键设置",
     SETTINGS_HOTKEYS_HELPER_TEXT: `最多可以配置${DEFAULT_NUM_HOTKEYS_MAX}个快捷键来快速访问各种功能。\n- 点击快捷键区域并在左侧hitbox上按下想要绑定的按键\n- 从下拉列表中选择快捷键动作\n- 锁定的快捷键用于网页配置模式，因为这个功能是必需的\n- 启用设备按键监控后，可以直接按下设备上的按键来绑定热键`,
     SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "设备按键监控",
-    
+
+    // 固件更新
+    SETTINGS_FIRMWARE_TITLE: "设备固件更新",
+    SETTINGS_FIRMWARE_CURRENT_VERSION_LABEL: "当前固件版本: ",
+    SETTINGS_FIRMWARE_LATEST_VERSION_LABEL: "最新固件版本: ",
+    SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE: "请点击按钮更新固件，过程需要几分钟时间，不要断开设备连接",
+    SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE: "固件更新成功",
+    SETTINGS_FIRMWARE_UPDATE_FAILED_MESSAGE: "固件更新失败，请点击按钮重试",
+    SETTINGS_FIRMWARE_UPDATING_MESSAGE: "固件更新中...请不要断开设备连接",
 
     // 配置选择
     PROFILE_SELECT_TITLE: "配置选择",

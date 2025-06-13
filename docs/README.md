@@ -748,3 +748,647 @@ python tools/release.py verify releases/hbox_firmware_1.0.0_a_*.zip
 ```
 
 这套工具链为STM32 HBox双槽升级系统提供了完整的开发、构建、测试和发版解决方案，确保固件升级的可靠性和一致性。 
+
+---
+
+## Web界面固件升级过程设计
+
+### 升级架构概述
+
+Web界面固件升级采用前端主导的升级流程，通过设备本地API和远程固件服务器协同完成升级过程：
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Web 界面      │    │   STM32 设备    │    │  固件服务器     │
+│                 │    │                 │    │                 │
+├─────────────────┤    ├─────────────────┤    ├─────────────────┤
+│ 1. 检查更新     │◄──►│ 设备元数据      │    │ 版本检查        │
+│ 2. 下载固件     │    │ HTTP API        │◄──►│ 固件包分发      │
+│ 3. 分片传输     │◄──►│ 分片接收写入    │    │ CDN分发         │
+│ 4. 进度展示     │    │ Flash写入       │    │                 │
+│ 5. 状态反馈     │    │ 状态反馈        │    │                 │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+### 第一阶段：更新检查流程
+
+#### 1.1 获取设备信息
+
+Web界面首先从设备获取当前的设备ID和固件元数据：
+
+```typescript
+// 1. 获取设备元数据
+const deviceResponse = await fetch('/api/firmware-metadata');
+const { device_id, firmware } = deviceResponse.data;
+
+// 设备元数据包含：
+{
+  device_id: "1234567890",           // 唯一设备标识
+  firmware: {
+    version: "1.0.0",               // 当前版本
+    slot: "A",                      // 当前运行槽位
+    build_date: "2024-12-08 14:30:22",
+    components: [                   // 组件信息
+      {
+        name: "application",
+        address: "0x90000000",
+        size: 1048576,
+        sha256: "abc123..."
+      }
+      // ...其他组件
+    ]
+  }
+}
+```
+
+#### 1.2 检查更新可用性
+
+使用设备信息向固件服务器查询更新：
+
+```typescript
+// 2. 向固件服务器检查更新
+const updateCheckUrl = `${FIRMWARE_SERVER}/api/firmware-check-update`;
+const updateResponse = await fetch(updateCheckUrl, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    device_id: device_id,
+    current_version: firmware.version,
+    current_slot: firmware.slot,
+    hardware_platform: firmware.hardware?.platform || "STM32H750XBH6",
+    device_capabilities: {
+      dual_slot: true,
+      max_package_size: 8388608,    // 8MB
+      supported_components: ["application", "webresources", "adc_mapping"]
+    }
+  })
+});
+
+// 服务器返回更新信息：
+{
+  errNo: 0,
+  data: {
+    has_update: true,
+    current_version: "1.0.0",
+    latest_version: "1.0.1", 
+    target_slot: "B",               // 推荐升级到的槽位
+    update_required: false,         // 是否强制更新
+    update_package: {
+      version: "1.0.1",
+      slot: "B",
+      download_url: "https://cdn.example.com/firmware/hbox_firmware_1.0.1_b.zip",
+      file_size: 2458123,
+      checksums: {
+        md5: "5d41402abc4b2a76b9719d911017c592",
+        sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      components: [
+        {
+          name: "application",
+          target_address: "0x902B0000",    // 槽B地址
+          size: 1048576
+        },
+        {
+          name: "webresources", 
+          target_address: "0x903B0000",    // 槽B WebResources地址
+          size: 1572864
+        },
+        {
+          name: "adc_mapping",
+          target_address: "0x90530000",    // 槽B ADC Mapping地址
+          size: 131072
+        }
+      ],
+      change_log: [
+        "修复了LED灯在连接电源时不工作的问题",
+        "性能改进，设备更加稳定",
+        "LED效果更加美观"
+      ]
+    },
+    compatibility: {
+      is_compatible: true,
+      blocked_reasons: []             // 阻止升级的原因
+    }
+  }
+}
+```
+
+#### 1.3 升级兼容性检查
+
+```typescript
+// 3. 本地兼容性验证
+function validateUpdateCompatibility(currentFirmware, updatePackage) {
+  const checks = {
+    slot_available: updatePackage.slot !== currentFirmware.slot,
+    package_size: updatePackage.file_size <= 8388608, // 8MB限制
+    components_compatible: updatePackage.components.every(comp => 
+      currentFirmware.packageCompatibility.supportedComponents.includes(comp.name)
+    ),
+    address_valid: updatePackage.components.every(comp => 
+      isValidSlotAddress(comp.target_address, updatePackage.slot)
+    )
+  };
+  
+  return {
+    can_upgrade: Object.values(checks).every(Boolean),
+    checks
+  };
+}
+```
+
+### 第二阶段：固件升级执行流程
+
+用户点击"开始升级"按钮后，启动升级流程：
+
+#### 2.1 固件包下载 (进度 0% - 30%)
+
+```typescript
+async function downloadFirmwarePackage(downloadUrl, onProgress) {
+  const response = await fetch(downloadUrl);
+  const contentLength = parseInt(response.headers.get('content-length'), 10);
+  
+  const reader = response.body.getReader();
+  const chunks = [];
+  let receivedLength = 0;
+  
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    chunks.push(value);
+    receivedLength += value.length;
+    
+    // 下载进度占总进度的30%
+    const downloadProgress = (receivedLength / contentLength) * 30;
+    onProgress({
+      stage: 'downloading',
+      progress: downloadProgress,
+      message: `正在下载固件包... ${formatFileSize(receivedLength)}/${formatFileSize(contentLength)}`
+    });
+  }
+  
+  // 合并所有数据块
+  const packageData = new Uint8Array(receivedLength);
+  let position = 0;
+  for (const chunk of chunks) {
+    packageData.set(chunk, position);
+    position += chunk.length;
+  }
+  
+  return packageData;
+}
+```
+
+#### 2.2 包解压和验证 (进度 30% - 35%)
+
+```typescript
+async function extractAndValidatePackage(packageData, expectedChecksums) {
+  // 在浏览器内存中解压ZIP包
+  const zip = await JSZip.loadAsync(packageData);
+  
+  // 验证包完整性
+  const packageHash = await crypto.subtle.digest('SHA-256', packageData);
+  const packageSha256 = Array.from(new Uint8Array(packageHash))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  if (packageSha256 !== expectedChecksums.sha256) {
+    throw new Error('固件包校验失败，请重新下载');
+  }
+  
+  // 提取manifest.json
+  const manifestFile = zip.file('manifest.json');
+  if (!manifestFile) {
+    throw new Error('固件包格式错误：缺少manifest.json');
+  }
+  
+  const manifest = JSON.parse(await manifestFile.async('text'));
+  
+  // 提取所有组件文件
+  const components = {};
+  for (const component of manifest.components) {
+    const file = zip.file(component.file);
+    if (!file) {
+      throw new Error(`固件包格式错误：缺少组件文件 ${component.file}`);
+    }
+    
+    const data = await file.async('uint8array');
+    
+    // 验证组件校验和
+    const componentHash = await crypto.subtle.digest('SHA-256', data);
+    const componentSha256 = Array.from(new Uint8Array(componentHash))
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    if (componentSha256 !== component.sha256) {
+      throw new Error(`组件 ${component.name} 校验失败`);
+    }
+    
+    components[component.name] = {
+      data: data,
+      info: component
+    };
+  }
+  
+  return { manifest, components };
+}
+```
+
+#### 2.3 分片传输和写入 (进度 35% - 100%)
+
+```typescript
+async function uploadFirmwareToDevice(manifest, components, onProgress) {
+  const CHUNK_SIZE = 4096; // 4KB分片大小，适应STM32内存限制
+  let totalBytes = 0;
+  let transferredBytes = 0;
+  
+  // 计算总传输字节数
+  Object.values(components).forEach(comp => {
+    totalBytes += comp.data.length;
+  });
+  
+  // 1. 开始升级会话
+  const sessionResponse = await fetch('/api/firmware-upgrade', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'start_session',
+      manifest: manifest,
+      total_size: totalBytes
+    })
+  });
+  
+  if (sessionResponse.data.errNo !== 0) {
+    throw new Error(`升级会话启动失败: ${sessionResponse.data.errorMessage}`);
+  }
+  
+  const sessionId = sessionResponse.data.session_id;
+  
+  try {
+    // 2. 按组件顺序传输
+    for (const [componentName, component] of Object.entries(components)) {
+      onProgress({
+        stage: 'uploading',
+        progress: 35 + (transferredBytes / totalBytes) * 65,
+        message: `正在传输 ${componentName}...`,
+        current_component: componentName
+      });
+      
+      // 分片传输单个组件
+      const componentData = component.data;
+      const totalChunks = Math.ceil(componentData.length / CHUNK_SIZE);
+      
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        const start = chunkIndex * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, componentData.length);
+        const chunkData = componentData.slice(start, end);
+        
+        // 转换为Base64传输
+        const base64Chunk = btoa(String.fromCharCode(...chunkData));
+        
+        const chunkResponse = await fetch('/api/firmware-upgrade/chunk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: sessionId,
+            component_name: componentName,
+            chunk_index: chunkIndex,
+            total_chunks: totalChunks,
+            target_address: component.info.address,
+            data: base64Chunk,
+            checksum: await calculateChunkChecksum(chunkData)
+          })
+        });
+        
+        if (chunkResponse.data.errNo !== 0) {
+          throw new Error(`传输失败: ${chunkResponse.data.errorMessage}`);
+        }
+        
+        transferredBytes += chunkData.length;
+        
+        // 更新进度
+        onProgress({
+          stage: 'uploading',
+          progress: 35 + (transferredBytes / totalBytes) * 65,
+          message: `正在传输 ${componentName}... ${chunkIndex + 1}/${totalChunks}`,
+          current_component: componentName,
+          chunk_progress: (chunkIndex + 1) / totalChunks
+        });
+        
+        // 避免过快传输导致设备缓冲区溢出
+        await sleep(10);
+      }
+    }
+    
+    // 3. 完成升级
+    const completeResponse = await fetch('/api/firmware-upgrade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'complete_session',
+        session_id: sessionId
+      })
+    });
+    
+    if (completeResponse.data.errNo !== 0) {
+      throw new Error(`升级完成失败: ${completeResponse.data.errorMessage}`);
+    }
+    
+    onProgress({
+      stage: 'completed',
+      progress: 100,
+      message: '固件升级成功完成！'
+    });
+    
+    return completeResponse.data;
+    
+  } catch (error) {
+    // 出错时清理会话
+    await fetch('/api/firmware-upgrade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'abort_session',
+        session_id: sessionId
+      })
+    });
+    throw error;
+  }
+}
+```
+
+### 第三阶段：设备端处理流程
+
+#### 3.1 升级会话管理
+
+```c
+// 设备端升级会话状态
+typedef struct {
+    char session_id[32];
+    uint32_t total_size;
+    uint32_t received_size;
+    char target_slot;               // 'A' or 'B'
+    uint32_t current_address;
+    bool is_active;
+    uint32_t timeout;
+    FirmwareManifest manifest;
+} UpgradeSession;
+
+// HTTP API: /api/firmware-upgrade
+// POST body: {"action": "start_session", "manifest": {...}, "total_size": 12345}
+int handle_start_upgrade_session(const char* json_body) {
+    UpgradeSession* session = &g_upgrade_session;
+    
+    // 解析请求
+    cJSON* json = cJSON_Parse(json_body);
+    cJSON* manifest_json = cJSON_GetObjectItem(json, "manifest");
+    uint32_t total_size = cJSON_GetObjectItem(json, "total_size")->valueint;
+    
+    // 验证槽位可用性
+    char target_slot = cJSON_GetObjectItem(manifest_json, "slot")->valuestring[0];
+    if (target_slot == get_current_slot()) {
+        return error_response("不能向当前运行槽位升级");
+    }
+    
+    // 初始化会话
+    generate_session_id(session->session_id);
+    session->total_size = total_size;
+    session->received_size = 0;
+    session->target_slot = target_slot;
+    session->is_active = true;
+    session->timeout = HAL_GetTick() + UPGRADE_TIMEOUT_MS;
+    
+    // 解析并验证manifest
+    if (parse_manifest(manifest_json, &session->manifest) != 0) {
+        return error_response("Manifest解析失败");
+    }
+    
+    // 擦除目标槽位Flash
+    if (erase_target_slot_flash(target_slot) != 0) {
+        return error_response("Flash擦除失败");
+    }
+    
+    return success_response_with_session_id(session->session_id);
+}
+```
+
+#### 3.2 分片接收和写入
+
+```c
+// HTTP API: /api/firmware-upgrade/chunk
+// POST body: {"session_id": "...", "component_name": "application", 
+//             "chunk_index": 0, "data": "base64...", "target_address": "0x90000000"}
+int handle_firmware_chunk(const char* json_body) {
+    cJSON* json = cJSON_Parse(json_body);
+    
+    // 验证会话
+    const char* session_id = cJSON_GetObjectItem(json, "session_id")->valuestring;
+    if (!validate_session(session_id)) {
+        return error_response("无效的升级会话");
+    }
+    
+    // 解析分片数据
+    const char* component_name = cJSON_GetObjectItem(json, "component_name")->valuestring;
+    uint32_t chunk_index = cJSON_GetObjectItem(json, "chunk_index")->valueint;
+    const char* base64_data = cJSON_GetObjectItem(json, "data")->valuestring;
+    uint32_t target_address = strtoul(cJSON_GetObjectItem(json, "target_address")->valuestring, NULL, 16);
+    
+    // Base64解码
+    uint8_t chunk_data[CHUNK_SIZE];
+    size_t decoded_size = base64_decode(base64_data, chunk_data, sizeof(chunk_data));
+    
+    // 验证地址范围
+    if (!is_valid_slot_address(target_address, g_upgrade_session.target_slot)) {
+        return error_response("无效的目标地址");
+    }
+    
+    // 写入Flash
+    uint32_t flash_address = convert_to_physical_address(target_address);
+    if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_FLASHWORD, flash_address, 
+                          (uint64_t*)chunk_data, decoded_size/8) != HAL_OK) {
+        return error_response("Flash写入失败");
+    }
+    
+    // 立即验证写入
+    if (memcmp((void*)flash_address, chunk_data, decoded_size) != 0) {
+        return error_response("Flash写入验证失败");
+    }
+    
+    // 更新进度
+    g_upgrade_session.received_size += decoded_size;
+    g_upgrade_session.current_address = flash_address + decoded_size;
+    
+    return success_response_with_progress(g_upgrade_session.received_size, 
+                                        g_upgrade_session.total_size);
+}
+```
+
+#### 3.3 升级完成处理
+
+```c
+// HTTP API: /api/firmware-upgrade  
+// POST body: {"action": "complete_session", "session_id": "..."}
+int handle_complete_upgrade(const char* json_body) {
+    cJSON* json = cJSON_Parse(json_body);
+    const char* session_id = cJSON_GetObjectItem(json, "session_id")->valuestring;
+    
+    if (!validate_session(session_id)) {
+        return error_response("无效的升级会话");
+    }
+    
+    // 验证接收完整性
+    if (g_upgrade_session.received_size != g_upgrade_session.total_size) {
+        return error_response("数据接收不完整");
+    }
+    
+    // 验证固件完整性（可选，通过校验和）
+    if (verify_firmware_integrity(&g_upgrade_session.manifest) != 0) {
+        return error_response("固件完整性验证失败");
+    }
+    
+    // 标记新槽位为可启动
+    if (mark_slot_bootable(g_upgrade_session.target_slot) != 0) {
+        return error_response("槽位标记失败");
+    }
+    
+    // 清理会话
+    clear_upgrade_session();
+    
+    return success_response("固件升级成功完成，重启后将从新槽位启动");
+}
+```
+
+### 错误处理和状态管理
+
+#### 4.1 Web界面状态机
+
+```typescript
+type UpgradeState = 
+  | 'idle'
+  | 'checking_update'
+  | 'update_available'
+  | 'downloading'
+  | 'extracting'
+  | 'uploading'
+  | 'completed'
+  | 'failed';
+
+interface UpgradeStatus {
+  state: UpgradeState;
+  progress: number;        // 0-100
+  message: string;
+  error?: string;
+  current_component?: string;
+  chunk_progress?: number;
+}
+
+class FirmwareUpgradeManager {
+  private state: UpgradeState = 'idle';
+  private status: UpgradeStatus;
+  
+  async checkForUpdate() {
+    this.setState('checking_update', { progress: 0, message: '正在检查更新...' });
+    
+    try {
+      const deviceInfo = await this.getDeviceInfo();
+      const updateInfo = await this.checkUpdateFromServer(deviceInfo);
+      
+      if (updateInfo.has_update) {
+        this.setState('update_available', { 
+          progress: 0, 
+          message: `发现新版本 ${updateInfo.latest_version}`,
+          updateInfo 
+        });
+      } else {
+        this.setState('idle', { progress: 100, message: '已是最新版本' });
+      }
+    } catch (error) {
+      this.setState('failed', { progress: 0, message: '检查更新失败', error: error.message });
+    }
+  }
+  
+  async startUpgrade(updateInfo) {
+    try {
+      // 下载阶段
+      this.setState('downloading', { progress: 0, message: '开始下载固件包...' });
+      const packageData = await this.downloadPackage(updateInfo.download_url, (progress) => {
+        this.updateProgress('downloading', progress, '正在下载固件包...');
+      });
+      
+      // 解压阶段
+      this.setState('extracting', { progress: 30, message: '正在解压固件包...' });
+      const { manifest, components } = await this.extractPackage(packageData, updateInfo.checksums);
+      
+      // 上传阶段
+      this.setState('uploading', { progress: 35, message: '开始传输固件...' });
+      await this.uploadToDevice(manifest, components, (status) => {
+        this.updateProgress('uploading', status.progress, status.message, {
+          current_component: status.current_component,
+          chunk_progress: status.chunk_progress
+        });
+      });
+      
+      // 完成
+      this.setState('completed', { progress: 100, message: '固件升级成功完成！' });
+      
+    } catch (error) {
+      this.setState('failed', { progress: 0, message: '升级失败', error: error.message });
+    }
+  }
+  
+  private setState(state: UpgradeState, status: Partial<UpgradeStatus>) {
+    this.state = state;
+    this.status = { ...this.status, state, ...status };
+    this.notifyStatusChange(this.status);
+  }
+}
+```
+
+#### 4.2 常见错误类型和处理
+
+```typescript
+// 常见升级错误类型
+enum UpgradeErrorType {
+  NETWORK_ERROR = 'network_error',           // 网络连接错误
+  DOWNLOAD_FAILED = 'download_failed',       // 下载失败
+  PACKAGE_CORRUPT = 'package_corrupt',       // 包损坏
+  INCOMPATIBLE = 'incompatible',             // 不兼容
+  DEVICE_BUSY = 'device_busy',               // 设备忙
+  FLASH_ERROR = 'flash_error',               // Flash写入错误
+  VERIFICATION_FAILED = 'verification_failed', // 验证失败
+  TIMEOUT = 'timeout'                        // 超时
+}
+
+// 错误恢复策略
+const ERROR_RECOVERY_STRATEGIES = {
+  [UpgradeErrorType.NETWORK_ERROR]: {
+    retryable: true,
+    max_retries: 3,
+    message: '网络连接失败，正在重试...'
+  },
+  [UpgradeErrorType.DOWNLOAD_FAILED]: {
+    retryable: true,
+    max_retries: 2,
+    message: '下载失败，正在重试...'
+  },
+  [UpgradeErrorType.PACKAGE_CORRUPT]: {
+    retryable: true,
+    max_retries: 1,
+    message: '固件包损坏，正在重新下载...'
+  },
+  [UpgradeErrorType.FLASH_ERROR]: {
+    retryable: false,
+    message: 'Flash写入错误，请检查设备状态'
+  }
+};
+```
+
+### 升级流程总结
+
+整个Web界面固件升级流程确保了：
+
+1. **安全性**: 多重校验确保固件完整性
+2. **可靠性**: 分片传输适应设备内存限制
+3. **用户体验**: 详细进度展示和错误处理
+4. **兼容性**: 智能槽位选择和地址映射
+5. **恢复能力**: 升级失败时的自动回滚机制
+
+通过这套设计，用户可以在Web界面中安全、便捷地完成STM32 HBox的固件升级，同时保持系统的高可用性和数据安全。 

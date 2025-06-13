@@ -8,7 +8,7 @@
 
 # 日志
 *.log
-*.tmp
+*.tmp   
 
 application/build
 bootloader/build
