@@ -47,6 +47,253 @@ class ProgressBar:
         if self.current_step == self.total_steps:
             print(f"\n完成! 总耗时: {elapsed:.1f}秒")
 
+class ReleaseFlasher:
+    """Release包刷写器"""
+    
+    def __init__(self, project_root: Path):
+        self.project_root = project_root
+        self.tools_dir = project_root / "tools"
+        self.application_dir = project_root / "application"  # 添加application目录
+        self.openocd_configs_dir = self.tools_dir / "openocd_configs"
+        self.temp_dir = None
+        
+        # OpenOCD配置文件 - 使用tools目录下的配置
+        self.openocd_config = self.openocd_configs_dir / "ST-LINK-QSPIFLASH.cfg"
+        
+        # 槽地址映射
+        self.slot_addresses = {
+            'A': {
+                'application': '0x90000000',
+                'webresources': '0x90100000',
+                'adc_mapping': '0x90280000'
+            },
+            'B': {
+                'application': '0x902B0000',
+                'webresources': '0x903B0000',
+                'adc_mapping': '0x90530000'
+            }
+        }
+    
+    def extract_release_package(self, package_path: str) -> Tuple[Dict, Path]:
+        """解压release包并返回manifest和临时目录"""
+        package_file = Path(package_path)
+        if not package_file.exists():
+            raise FileNotFoundError(f"Release包不存在: {package_path}")
+        
+        # 创建临时目录
+        self.temp_dir = Path(tempfile.mkdtemp(prefix="release_flash_"))
+        print(f"解压到临时目录: {self.temp_dir}")
+        
+        try:
+            # 解压ZIP文件
+            with zipfile.ZipFile(package_file, 'r') as zf:
+                zf.extractall(self.temp_dir)
+            
+            # 读取manifest
+            manifest_file = self.temp_dir / "manifest.json"
+            if not manifest_file.exists():
+                raise FileNotFoundError("Release包中缺少manifest.json文件")
+            
+            with open(manifest_file, 'r', encoding='utf-8') as f:
+                manifest = json.load(f)
+            
+            print(f"成功解压Release包: {package_file.name}")
+            print(f"版本: {manifest.get('version', 'Unknown')}")
+            print(f"槽位: {manifest.get('slot', 'Unknown')}")
+            print(f"组件数量: {len(manifest.get('components', []))}")
+            
+            return manifest, self.temp_dir
+            
+        except Exception as e:
+            self.cleanup_temp_dir()
+            raise Exception(f"解压Release包失败: {e}")
+    
+    def cleanup_temp_dir(self):
+        """清理临时目录"""
+        if self.temp_dir and self.temp_dir.exists():
+            try:
+                shutil.rmtree(self.temp_dir)
+                print(f"已清理临时目录: {self.temp_dir}")
+            except Exception as e:
+                print(f"清理临时目录失败: {e}")
+            finally:
+                self.temp_dir = None
+    
+    def flash_component(self, component_file: Path, target_address: str, component_name: str) -> bool:
+        """刷写单个组件"""
+        if not component_file.exists():
+            print(f"错误: 组件文件不存在: {component_file}")
+            return False
+        
+        if not self.openocd_config.exists():
+            print(f"错误: OpenOCD配置文件不存在: {self.openocd_config}")
+            return False
+        
+        print(f"正在刷写 {component_name}: {component_file.name} -> {target_address}")
+        
+        # 根据文件类型确定偏移地址
+        # HEX文件包含地址信息，使用0x00000000偏移
+        # BIN文件需要指定目标地址
+        if component_file.suffix.lower() == '.hex':
+            flash_offset = "0x00000000"
+        else:
+            flash_offset = target_address
+        
+        # 构建OpenOCD命令 - 使用tools目录下的配置
+        # 组件文件使用绝对路径，但转换为正斜杠格式
+        component_path = str(component_file).replace('\\', '/')
+        
+        cmd = [
+            "openocd",
+            "-d0",
+            "-f", "openocd_configs/ST-LINK-QSPIFLASH.cfg",  # 相对于tools目录的路径
+            "-c", "init",
+            "-c", "halt",
+            "-c", "reset init",
+            "-c", f"flash write_image erase {component_path} {flash_offset}",
+            "-c", f"flash verify_image {component_path} {flash_offset}",
+            "-c", "reset run",
+            "-c", "shutdown"
+        ]
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=self.tools_dir,  # 在tools目录下运行
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            
+            if result.returncode == 0:
+                # 从输出中提取写入信息
+                wrote_info = ""
+                if result.stdout and "wrote" in result.stdout:
+                    for line in result.stdout.split('\n'):
+                        if "wrote" in line and "bytes" in line:
+                            # 提取写入的字节数信息
+                            wrote_info = f" ({line.strip().split()[-2]} {line.strip().split()[-1]})"
+                            break
+                
+                print(f"✓ {component_name} 刷写成功{wrote_info}")
+                return True
+            else:
+                print(f"✗ {component_name} 刷写失败")
+                # 只在失败时显示关键错误信息
+                if result.stderr:
+                    error_lines = result.stderr.split('\n')
+                    for line in error_lines:
+                        if any(keyword in line.lower() for keyword in ['error:', 'failed', 'timeout', 'not found']):
+                            print(f"  错误: {line.strip()}")
+                            break
+                return False
+                
+        except subprocess.TimeoutExpired:
+            print(f"✗ {component_name} 刷写超时")
+            return False
+        except FileNotFoundError:
+            print(f"✗ 未找到OpenOCD工具，请确保已安装并在PATH中")
+            return False
+        except Exception as e:
+            print(f"✗ {component_name} 刷写异常: {e}")
+            return False
+    
+    def flash_release_package(self, package_path: str, target_slot: str = None, 
+                            components: List[str] = None) -> bool:
+        """刷写完整的release包"""
+        print("=" * 60)
+        print("STM32 HBox Release包刷写工具")
+        print("=" * 60)
+        
+        try:
+            # 解压release包
+            manifest, temp_dir = self.extract_release_package(package_path)
+            
+            # 确定目标槽位
+            package_slot = manifest.get('slot', 'A')
+            if target_slot:
+                if target_slot != package_slot:
+                    print(f"警告: 指定槽位 {target_slot} 与包槽位 {package_slot} 不匹配")
+                    print(f"将使用指定槽位 {target_slot} 的地址映射")
+                final_slot = target_slot
+            else:
+                final_slot = package_slot
+            
+            print(f"目标槽位: {final_slot}")
+            
+            # 获取槽位地址映射
+            if final_slot not in self.slot_addresses:
+                raise ValueError(f"不支持的槽位: {final_slot}")
+            
+            slot_config = self.slot_addresses[final_slot]
+            
+            # 获取要刷写的组件
+            available_components = manifest.get('components', [])
+            if not available_components:
+                raise ValueError("Release包中没有组件")
+            
+            # 过滤要刷写的组件
+            if components:
+                # 用户指定了特定组件
+                components_to_flash = []
+                for comp in available_components:
+                    if comp['name'] in components:
+                        components_to_flash.append(comp)
+                
+                if not components_to_flash:
+                    raise ValueError(f"指定的组件不存在: {components}")
+                    
+                missing_components = set(components) - {c['name'] for c in components_to_flash}
+                if missing_components:
+                    print(f"警告: 以下组件在包中不存在: {missing_components}")
+            else:
+                # 刷写所有组件
+                components_to_flash = available_components
+            
+            print(f"将刷写 {len(components_to_flash)} 个组件")
+            print()
+            
+            # 逐个刷写组件
+            success_count = 0
+            failed_components = []
+            
+            for comp in components_to_flash:
+                comp_name = comp['name']
+                comp_file = comp['file']
+                
+                # 检查组件地址映射
+                if comp_name not in slot_config:
+                    print(f"警告: 未知组件类型 {comp_name}，跳过")
+                    continue
+                
+                target_address = slot_config[comp_name]
+                component_path = temp_dir / comp_file
+                
+                if self.flash_component(component_path, target_address, comp_name):
+                    success_count += 1
+                else:
+                    failed_components.append(comp_name)
+            
+            # 显示结果
+            print("\n" + "=" * 60)
+            print("刷写完成")
+            print("=" * 60)
+            print(f"成功: {success_count}/{len(components_to_flash)} 个组件")
+            
+            if failed_components:
+                print(f"失败的组件: {', '.join(failed_components)}")
+                return False
+            else:
+                print("✓ 所有组件刷写成功!")
+                return True
+                
+        except Exception as e:
+            print(f"刷写失败: {e}")
+            return False
+        finally:
+            # 清理临时目录
+            self.cleanup_temp_dir()
+
 class ReleaseManager:
     """Release管理器 - 集成打包和刷写功能"""
     
@@ -78,6 +325,9 @@ class ReleaseManager:
         
         # 创建目录
         self.ensure_directories()
+        
+        # 初始化刷写器
+        self.flasher = ReleaseFlasher(self.project_root)
     
     def ensure_directories(self):
         """确保必要目录存在"""
@@ -432,6 +682,88 @@ class ReleaseManager:
             print(f"✗ 验证失败: {e}")
             return False
 
+    # ==================== 刷写功能 ====================
+    
+    def resolve_package_path(self, package_input: str) -> Optional[str]:
+        """智能解析包路径，支持包名或完整路径"""
+        package_path = Path(package_input)
+        
+        # 如果是绝对路径或相对路径且文件存在，直接返回
+        if package_path.exists():
+            return str(package_path.resolve())
+        
+        # 如果只是包名，在releases目录中查找
+        if not package_path.is_absolute() and '/' not in package_input and '\\' not in package_input:
+            # 这是一个包名，在releases目录中查找
+            releases_path = self.releases_dir / package_input
+            if releases_path.exists():
+                return str(releases_path)
+            
+            # 如果没有.zip后缀，尝试添加
+            if not package_input.endswith('.zip'):
+                releases_path_with_zip = self.releases_dir / (package_input + '.zip')
+                if releases_path_with_zip.exists():
+                    return str(releases_path_with_zip)
+            
+            # 模糊匹配：查找包含该名称的包
+            available_packages = self.list_available_packages()
+            matching_packages = [p for p in available_packages if package_input.lower() in p.name.lower()]
+            
+            if len(matching_packages) == 1:
+                print(f"找到匹配的包: {matching_packages[0].name}")
+                return str(matching_packages[0])
+            elif len(matching_packages) > 1:
+                print(f"找到多个匹配的包:")
+                for i, pkg in enumerate(matching_packages, 1):
+                    print(f"  {i}. {pkg.name}")
+                print(f"请使用更具体的包名")
+                return None
+        
+        # 如果是相对路径但文件不存在，尝试相对于releases目录
+        if not package_path.is_absolute():
+            releases_relative_path = self.releases_dir / package_input
+            if releases_relative_path.exists():
+                return str(releases_relative_path)
+        
+        return None
+    
+    def flash_release_package(self, package_path: str, target_slot: str = None, 
+                            components: List[str] = None) -> bool:
+        """刷写release包"""
+        return self.flasher.flash_release_package(package_path, target_slot, components)
+    
+    def select_release_package(self) -> Optional[str]:
+        """交互式选择release包"""
+        packages = self.list_available_packages()
+        if not packages:
+            print("没有可用的release包")
+            return None
+        
+        print("\n可用的release包:")
+        for i, package in enumerate(packages, 1):
+            stat = package.stat()
+            size_mb = stat.st_size / (1024 * 1024)
+            mtime = datetime.fromtimestamp(stat.st_mtime)
+            print(f"{i:2d}. {package.name}")
+            print(f"     大小: {size_mb:.1f} MB, 时间: {mtime.strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        while True:
+            try:
+                choice = input(f"\n请选择要刷写的包 (1-{len(packages)}, 或按Enter取消): ").strip()
+                if not choice:
+                    return None
+                
+                index = int(choice) - 1
+                if 0 <= index < len(packages):
+                    return str(packages[index])
+                else:
+                    print(f"请输入1到{len(packages)}之间的数字")
+            except ValueError:
+                print("请输入有效的数字")
+            except KeyboardInterrupt:
+                print("\n操作已取消")
+                return None
+
 def main():
     parser = argparse.ArgumentParser(
         description="STM32 HBox Release 管理工具 - 集成打包和刷写功能",
@@ -458,6 +790,25 @@ def main():
   
   验证发版包:
     python release.py verify package.zip
+
+刷写release包:
+  直接使用包名刷写:
+    python release.py flash hbox_firmware_slot_a_v1_0_0_20250613_112625.zip
+  
+  使用部分包名（模糊匹配）:
+    python release.py flash slot_a_v1_0_0
+  
+  使用完整路径刷写:
+    python release.py flash ../releases/package.zip
+  
+  刷写到指定槽位:
+    python release.py flash slot_a_v1_0_0 --slot A
+  
+  只刷写特定组件:
+    python release.py flash slot_a_v1_0_0 --components application webresources
+  
+  交互式选择并刷写:
+    python release.py flash
 
 支持的组件:
   application   - 应用程序固件
@@ -486,6 +837,14 @@ def main():
     # 验证发版包命令
     verify_parser = subparsers.add_parser('verify', help='验证发版包')
     verify_parser.add_argument("package", help="要验证的发版包路径")
+    
+    # 刷写发版包命令
+    flash_parser = subparsers.add_parser('flash', help='刷写release包')
+    flash_parser.add_argument("package", nargs="?", help="要刷写的release包路径（可选，不指定则交互式选择）")
+    flash_parser.add_argument("--slot", choices=["A", "B"], help="目标槽位（可选，默认使用包中指定的槽位）")
+    flash_parser.add_argument("--components", nargs="+", 
+                            choices=["application", "webresources", "adc_mapping"],
+                            help="要刷写的组件（可选，默认刷写所有组件）")
     
     args = parser.parse_args()
     
@@ -522,6 +881,38 @@ def main():
             if manager.verify_release_package(args.package):
                 return 0
             else:
+                return 1
+        
+        elif args.command == 'flash':
+            # 刷写release包
+            package_input = args.package
+            
+            # 如果没有指定包，交互式选择
+            if not package_input:
+                package_path = manager.select_release_package()
+                if not package_path:
+                    print("未选择release包")
+                    return 1
+            else:
+                # 智能解析包路径
+                package_path = manager.resolve_package_path(package_input)
+                if not package_path:
+                    print(f"错误: 找不到Release包: {package_input}")
+                    print("提示: 你可以使用以下方式指定包:")
+                    print("  - 直接使用包名: hbox_firmware_slot_a_v1_0_0_20250613_112625.zip")
+                    print("  - 使用部分包名: slot_a_v1_0_0")
+                    print("  - 使用相对路径: ../releases/package.zip")
+                    print("  - 使用绝对路径: /path/to/package.zip")
+                    print("\n可用的包:")
+                    manager.list_releases()
+                    return 1
+            
+            # 刷写包
+            if manager.flash_release_package(package_path, args.slot, args.components):
+                print("\n✓ Release包刷写成功")
+                return 0
+            else:
+                print("\n✗ Release包刷写失败")
                 return 1
         
         else:

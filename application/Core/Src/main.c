@@ -58,8 +58,7 @@ int main(void)
     dataSectionTest(); // 测试各个段，测试堆内存
     floatTest(); // 测试FPU 是否能打印浮点数
 #endif
-    APP_DBG("main start... test 111 release pkg.\r\n");
-    // cpp_main();
+    cpp_main();
     while (1);
 
 

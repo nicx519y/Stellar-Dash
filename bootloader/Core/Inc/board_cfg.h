@@ -6,8 +6,8 @@
 
 // 双槽测试控制（仅用于开发测试）
 #define DUAL_SLOT_TEST_ENABLE           1       // 设置为1启用双槽测试功能
-#define DUAL_SLOT_FORCE_SLOT_A          1       // 强制使用槽A（测试用）
-#define DUAL_SLOT_FORCE_SLOT_B          0       // 强制使用槽B（测试用）
+#define DUAL_SLOT_FORCE_SLOT_A          0       // 强制使用槽A（测试用）
+#define DUAL_SLOT_FORCE_SLOT_B          1       // 强制使用槽B（测试用）
 
 // 调试输出宏
 #if BOOTLOADER_DEBUG
