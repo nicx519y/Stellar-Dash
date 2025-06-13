@@ -145,9 +145,10 @@ class ReleasePackager:
             cmd = [
                 "openocd",
                 "-f", "interface/stlink.cfg",
-                "-f", "target/stm32h7x.cfg",
+                "-f", str(self.application_dir / "Openocd_Script" / "ST-LINK-QSPIFLASH.cfg"),
                 "-c", "init",
-                "-c", f"dump_image {temp_file} {address:#x} {size}",
+                "-c", "reset halt",
+                "-c", f"dump_image {temp_file} 0x{address:08X} {size}",
                 "-c", "exit"
             ]
             
@@ -217,7 +218,7 @@ class ReleasePackager:
     
     def extract_from_build_output(self) -> Dict[str, bytes]:
         """从构建输出提取数据 - 强制重新编译"""
-        print("重新编译并提取数据...")
+        print("强制重新编译并提取数据...")
         
         components = {}
         
@@ -318,51 +319,38 @@ class ReleasePackager:
                     if elf_file.exists():
                         print(f"找到ELF文件: {elf_file}")
                         
-                        # 为槽B重新生成正确地址的HEX文件
-                        if slot == "B":
-                            print(f"为槽B重新生成HEX文件，目标地址: 0x{slot_config.application_address:08X}")
-                            
-                            # 使用objcopy生成指定地址的HEX文件
-                            temp_hex = self.application_dir / "build" / f"application_slot_{slot}.hex"
-                            cmd_hex = [
-                                "arm-none-eabi-objcopy",
-                                "-O", "ihex",
-                                "--change-addresses", f"{slot_config.application_address - 0x30000000:#x}",  # 地址偏移调整
-                                str(elf_file),
-                                str(temp_hex)
-                            ]
-                            
-                            result_hex = subprocess.run(cmd_hex, capture_output=True, text=True)
-                            
-                            if result_hex.returncode == 0 and temp_hex.exists():
-                                with open(temp_hex, 'rb') as f:
-                                    app_data = f.read()
-                                print(f"✓ 槽{slot} Application HEX文件重新生成成功: {len(app_data)} 字节")
-                                
-                                # 验证HEX文件地址
-                                with open(temp_hex, 'r') as f:
-                                    first_lines = [f.readline().strip() for _ in range(5)]
-                                print(f"槽{slot} HEX文件前5行:")
-                                for i, line in enumerate(first_lines):
-                                    print(f"  {line}")
-                                
-                                return app_data
-                            else:
-                                print(f"✗ 重新生成槽{slot} HEX文件失败: {result_hex.stderr}")
-                        else:
-                            # 槽A使用标准生成的HEX文件
-                            possible_hex_outputs = [
-                                self.application_dir / "build" / "application.hex",
-                                self.application_dir / "build" / "STM32H750XBHx.hex"
-                            ]
-                            
-                            for hex_file in possible_hex_outputs:
-                                if hex_file.exists():
-                                    with open(hex_file, 'rb') as f:
-                                        app_data = f.read()
-                                    print(f"✓ 槽{slot} Application编译成功: {len(app_data)} 字节 (HEX格式)")
-                                    return app_data
+                        # 为所有槽重新生成正确地址的HEX文件
+                        print(f"为槽{slot}重新生成HEX文件，目标地址: 0x{slot_config.application_address:08X}")
                         
+                        # 使用objcopy生成指定地址的HEX文件
+                        temp_hex = self.application_dir / "build" / f"application_slot_{slot}.hex"
+                        
+                        # 方法1：尝试使用LMA地址生成HEX文件
+                        cmd_hex = [
+                            "arm-none-eabi-objcopy",
+                            "-O", "ihex",
+                            "--change-section-vma", "*+0",  # 保持VMA不变
+                            str(elf_file),
+                            str(temp_hex)
+                        ]
+                        
+                        result_hex = subprocess.run(cmd_hex, capture_output=True, text=True)
+                        
+                        if result_hex.returncode == 0 and temp_hex.exists():
+                            with open(temp_hex, 'rb') as f:
+                                app_data = f.read()
+                            print(f"✓ 槽{slot} Application HEX文件重新生成成功: {len(app_data)} 字节")
+                            
+                            # 验证HEX文件地址
+                            with open(temp_hex, 'r') as f:
+                                first_lines = [f.readline().strip() for _ in range(5)]
+                            print(f"槽{slot} HEX文件前5行:")
+                            for i, line in enumerate(first_lines):
+                                print(f"  {line}")
+                            
+                            return app_data
+                        else:
+                            print(f"✗ 重新生成槽{slot} HEX文件失败: {result_hex.stderr}")
                         break
                 
                 # 如果以上方法都失败，查找任何.hex文件
@@ -474,22 +462,12 @@ class ReleasePackager:
         slot_config = self.slot_configs[slot]
         release_components = []
         
-        # 处理Application组件
-        if slot == "A":
-            # 槽A直接使用原始数据
-            if "application" in source_components:
-                app_data = source_components["application"]
-                print(f"  ✓ 槽A使用原始Application数据")
-            else:
-                print(f"  ✗ 缺少Application数据")
-                return None
-        else:
-            # 槽B总是重新编译Application以确保地址正确
-            print(f"  ⚠ 槽B需要重新编译Application以适配地址空间...")
-            app_data = self.build_application_for_slot("B")
-            if not app_data:
-                print(f"  ✗ 槽B Application编译失败")
-                return None
+        # 处理Application组件 - 所有槽都重新编译以确保正确的地址
+        print(f"  ⚠ 槽{slot}重新编译Application以适配地址空间...")
+        app_data = self.build_application_for_slot(slot)
+        if not app_data:
+            print(f"  ✗ 槽{slot} Application编译失败")
+            return None
         
         # 检查Application大小并填充
         if len(app_data) > slot_config.application_size:
@@ -562,24 +540,6 @@ class ReleasePackager:
             metadata=metadata
         )
     
-    def _get_slot_specific_application(self, slot: str) -> Optional[bytes]:
-        """获取槽特定的Application二进制"""
-        # 尝试多种可能的槽特定文件（build.py生成的）
-        slot_files_to_try = [
-            self.application_dir / "build" / f"application_slot_{slot}.hex",
-            self.application_dir / "build" / f"application_slot_{slot}.bin"
-        ]
-        
-        for slot_file in slot_files_to_try:
-            if slot_file.exists():
-                with open(slot_file, 'rb') as f:
-                    data = f.read()
-                print(f"✓ 找到槽{slot}特定文件: {slot_file} ({len(data)} 字节)")
-                return data
-        
-        print(f"✗ 未找到槽{slot}特定文件")
-        return None
-    
     def save_release_package(self, package: ReleasePackage, package_type: str = "complete") -> str:
         """保存发版包到文件"""
         # 创建发版包文件名
@@ -594,9 +554,16 @@ class ReleasePackager:
             
             # 保存各组件文件
             for component in package.components:
-                comp_file = temp_path / f"{component.name}.bin"
-                with open(comp_file, 'wb') as f:
-                    f.write(component.data)
+                if component.name == "application":
+                    # Application保存为HEX格式，适合外部Flash
+                    comp_file = temp_path / f"{component.name}.hex"
+                    with open(comp_file, 'wb') as f:
+                        f.write(component.data)
+                else:
+                    # 其他组件保存为BIN格式
+                    comp_file = temp_path / f"{component.name}.bin"
+                    with open(comp_file, 'wb') as f:
+                        f.write(component.data)
             
             # 保存元数据
             manifest = {
@@ -609,7 +576,7 @@ class ReleasePackager:
                 "components": [
                     {
                         "name": comp.name,
-                        "file": f"{comp.name}.bin",
+                        "file": f"{comp.name}.hex" if comp.name == "application" else f"{comp.name}.bin",
                         "address": f"0x{comp.address:08X}",
                         "size": comp.size,
                         "checksum": comp.checksum
@@ -625,6 +592,9 @@ class ReleasePackager:
             
             # 创建刷写脚本
             self._create_flash_scripts(temp_path, package)
+            
+            # 创建自包含的OpenOCD配置文件
+            self._create_self_contained_config(temp_path)
             
             # 创建README
             self._create_package_readme(temp_path, package)
@@ -645,42 +615,50 @@ class ReleasePackager:
         """创建刷写脚本"""
         slot_config = self.slot_configs[package.slot]
         
-        # OpenOCD脚本
+        # OpenOCD脚本 - 使用与build.py完全一致的命令序列
         openocd_script = output_dir / "flash_with_openocd.cfg"
-        with open(openocd_script, 'w') as f:
+        with open(openocd_script, 'w', encoding='utf-8') as f:
             f.write(f"# OpenOCD刷写脚本 - 槽{package.slot}\n")
-            f.write("# 使用方法: openocd -f interface/stlink.cfg -f target/stm32h7x.cfg -f flash_with_openocd.cfg\n\n")
+            f.write("# 使用方法: openocd -d0 -f openocd_config/ST-LINK-QSPIFLASH.cfg -f flash_with_openocd.cfg\n\n")
             f.write("init\n")
-            f.write("reset halt\n\n")
+            f.write("halt\n")
+            f.write("reset init\n\n")
             
             for component in package.components:
-                f.write(f"# 刷写 {component.name} 到 0x{component.address:08X}\n")
-                f.write(f"flash write_image erase {component.name}.bin 0x{component.address:08X}\n")
-                f.write(f"verify_image {component.name}.bin 0x{component.address:08X}\n\n")
+                if component.name == "application":
+                    # Application使用HEX格式，与build.py保持一致
+                    f.write(f"# 刷写 {component.name} (HEX格式)\n")
+                    f.write(f"flash write_image erase {component.name}.hex 0x{component.address:08X}\n")
+                    f.write(f"flash verify_image {component.name}.hex 0x{component.address:08X}\n\n")
+                else:
+                    # 其他组件使用BIN格式，使用内存映射地址
+                    f.write(f"# 刷写 {component.name} 到 0x{component.address:08X}\n")
+                    f.write(f"flash write_image erase {component.name}.bin 0x{component.address:08X}\n")
+                    f.write(f"flash verify_image {component.name}.bin 0x{component.address:08X}\n\n")
             
             f.write("reset run\n")
-            f.write("exit\n")
+            f.write("shutdown\n")
         
-        # 批处理脚本
+        # 批处理脚本 - 添加-d0参数
         batch_script = output_dir / "flash.bat"
-        with open(batch_script, 'w') as f:
+        with open(batch_script, 'w', encoding='utf-8') as f:
             f.write("@echo off\n")
             f.write(f"echo 刷写HBox固件到槽{package.slot}\n")
             f.write("echo.\n")
             f.write("echo 请确保设备已连接ST-Link调试器\n")
             f.write("pause\n\n")
-            f.write("openocd -f interface/stlink.cfg -f target/stm32h7x.cfg -f flash_with_openocd.cfg\n")
+            f.write("openocd -d0 -f openocd_config/ST-LINK-QSPIFLASH.cfg -f flash_with_openocd.cfg\n")
             f.write("pause\n")
         
-        # Shell脚本
+        # Shell脚本 - 添加-d0参数
         shell_script = output_dir / "flash.sh"
-        with open(shell_script, 'w') as f:
+        with open(shell_script, 'w', encoding='utf-8') as f:
             f.write("#!/bin/bash\n")
             f.write(f"echo \"刷写HBox固件到槽{package.slot}\"\n")
             f.write("echo\n")
             f.write("echo \"请确保设备已连接ST-Link调试器\"\n")
             f.write("read -p \"按回车继续...\"\n\n")
-            f.write("openocd -f interface/stlink.cfg -f target/stm32h7x.cfg -f flash_with_openocd.cfg\n")
+            f.write("openocd -d0 -f openocd_config/ST-LINK-QSPIFLASH.cfg -f flash_with_openocd.cfg\n")
         
         # 设置执行权限
         try:
@@ -719,7 +697,7 @@ class ReleasePackager:
             f.write(f"```\n\n")
             f.write(f"### 手动刷写\n")
             f.write(f"```bash\n")
-            f.write(f"openocd -f interface/stlink.cfg -f target/stm32h7x.cfg -f flash_with_openocd.cfg\n")
+            f.write(f"openocd -f openocd_config/ST-LINK-QSPIFLASH.cfg -f flash_with_openocd.cfg\n")
             f.write(f"```\n\n")
             
             f.write(f"## 注意事项\n\n")
@@ -895,6 +873,328 @@ class ReleasePackager:
             print(f"  大小: {size_mb:.1f} MB")
             print(f"  创建时间: {mtime.strftime('%Y-%m-%d %H:%M:%S')}")
             print()
+    
+    def flash_release_package(self, package_file: str, verify_before_flash: bool = True) -> bool:
+        """自动解压发版包并刷写到设备"""
+        print(f"准备刷写发版包: {package_file}")
+        
+        package_path = Path(package_file)
+        if not package_path.exists():
+            print(f"错误: 发版包文件不存在: {package_file}")
+            return False
+        
+        # 验证发版包（可选）
+        if verify_before_flash:
+            print("验证发版包完整性...")
+            if not self.verify_release_package(package_file):
+                print("发版包验证失败，中止刷写")
+                return False
+            print("✓ 发版包验证通过")
+        
+        # 创建临时目录解压发版包
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            
+            try:
+                # 解压发版包
+                print("解压发版包...")
+                with zipfile.ZipFile(package_path, 'r') as zf:
+                    zf.extractall(temp_path)
+                
+                # 读取manifest获取发版包信息
+                manifest_file = temp_path / "manifest.json"
+                if not manifest_file.exists():
+                    print("错误: 发版包缺少manifest.json文件")
+                    return False
+                
+                with open(manifest_file, 'r', encoding='utf-8') as f:
+                    manifest = json.load(f)
+                
+                package_info = manifest["package_info"]
+                components = manifest["components"]
+                
+                print(f"发版包信息:")
+                print(f"  版本: {package_info['version']}")
+                print(f"  槽: {package_info['slot']}")
+                print(f"  构建日期: {package_info['build_date']}")
+                print(f"  组件数量: {len(components)}")
+                
+                # 检查OpenOCD连接
+                print("\n检查设备连接...")
+                if not self._check_openocd_connection():
+                    print("错误: 无法连接到设备，请检查ST-Link连接")
+                    return False
+                print("✓ 设备连接正常")
+                
+                # 执行刷写
+                print(f"\n开始刷写到槽{package_info['slot']}...")
+                print("-" * 40)
+                
+                # 切换到解压目录
+                original_cwd = os.getcwd()
+                
+                try:
+                    # 检查是否有自包含配置文件
+                    openocd_cfg = temp_path / "flash_with_openocd.cfg"
+                    openocd_config_dir = temp_path / "openocd_config"
+                    temp_script_file = None  # 初始化变量
+                    
+                    if openocd_cfg.exists() and openocd_config_dir.exists():
+                        # 使用发版包自带的自包含配置文件，在发版包目录运行
+                        print("使用发版包自带的自包含配置文件")
+                        os.chdir(temp_path)
+                        cmd = [
+                            "openocd",
+                            "-d0",
+                            "-f", "openocd_config/ST-LINK-QSPIFLASH.cfg",
+                            "-f", "flash_with_openocd.cfg"
+                        ]
+                    else:
+                        # 备用方案：使用与build.py完全一致的命令格式
+                        print("备用方案：使用与build.py一致的配置文件")
+                        os.chdir(self.application_dir)
+                        
+                        # 创建临时脚本 - 使用与build.py一致的命令序列
+                        temp_script_content = []
+                        temp_script_content.append("init")
+                        temp_script_content.append("halt")
+                        temp_script_content.append("reset init")
+                        temp_script_content.append("")
+                        
+                        for comp in components:
+                            comp_file = temp_path / comp["file"]
+                            comp_file_posix = str(comp_file).replace('\\', '/')
+                            address = comp["address"]
+                            
+                            if comp["name"] == "application":
+                                # Application使用HEX格式，与build.py保持一致
+                                temp_script_content.append(f"# 刷写 {comp['name']} (HEX格式)")
+                                temp_script_content.append(f"flash write_image erase \"{comp_file_posix}\" {address}")
+                                temp_script_content.append(f"flash verify_image \"{comp_file_posix}\" {address}")
+                            else:
+                                # 其他组件使用BIN格式，使用内存映射地址
+                                temp_script_content.append(f"# 刷写 {comp['name']} 到 {address}")
+                                temp_script_content.append(f"flash write_image erase \"{comp_file_posix}\" {address}")
+                                temp_script_content.append(f"flash verify_image \"{comp_file_posix}\" {address}")
+                            temp_script_content.append("")
+                        
+                        temp_script_content.append("reset run")
+                        temp_script_content.append("shutdown")
+                        
+                        temp_script_file = self.application_dir / "temp_flash_script.cfg"
+                        with open(temp_script_file, 'w', encoding='utf-8') as f:
+                            f.write('\n'.join(temp_script_content))
+                        
+                        cmd = [
+                            "openocd",
+                            "-d0",
+                            "-f", "Openocd_Script/ST-LINK-QSPIFLASH.cfg",
+                            "-f", "temp_flash_script.cfg"
+                        ]
+                    
+                    print(f"执行刷写命令: {' '.join(cmd[:4])}...")
+                    
+                    # 执行OpenOCD刷写
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=300,  # 5分钟超时
+                        encoding='utf-8',
+                        errors='ignore'
+                    )
+                    
+                    # 清理临时文件（如果有的话）
+                    try:
+                        temp_script_file = self.application_dir / "temp_flash_script.cfg"
+                        if temp_script_file.exists():
+                            temp_script_file.unlink()
+                    except:
+                        pass
+                    
+                    # 检查刷写结果
+                    if result.returncode == 0:
+                        print("✓ 刷写完成!")
+                        
+                        # 检查输出中的关键信息
+                        success_indicators = [
+                            "** Verified OK **",
+                            "verified OK",
+                            "Programming Finished"
+                        ]
+                        
+                        if any(indicator in result.stdout for indicator in success_indicators):
+                            print("✓ 刷写验证通过")
+                        
+                        # 显示刷写的组件信息
+                        print("\n刷写的组件:")
+                        for comp in components:
+                            print(f"  ✓ {comp['name']}: {comp['address']} ({comp['size']} 字节)")
+                        
+                        return True
+                    else:
+                        print("✗ 刷写失败!")
+                        print(f"返回码: {result.returncode}")
+                        if result.stderr:
+                            print("错误输出:")
+                            print(result.stderr[:6000])  # 增加错误输出长度以查看完整刷写过程
+                        if result.stdout:
+                            print("标准输出:")
+                            print(result.stdout[:6000])  # 增加标准输出长度以查看完整刷写过程
+                        return False
+                        
+                except subprocess.TimeoutExpired:
+                    print("✗ 刷写超时")
+                    return False
+                except Exception as e:
+                    print(f"✗ 刷写异常: {e}")
+                    return False
+                finally:
+                    # 恢复工作目录
+                    os.chdir(original_cwd)
+                    
+            except zipfile.BadZipFile:
+                print("错误: 无效的ZIP文件")
+                return False
+            except Exception as e:
+                print(f"错误: 解压发版包失败: {e}")
+                return False
+    
+    def _check_openocd_connection(self) -> bool:
+        """检查OpenOCD设备连接"""
+        try:
+            cmd = [
+                "openocd",
+                "-f", "interface/stlink.cfg",
+                "-f", str(self.application_dir / "Openocd_Script" / "ST-LINK-QSPIFLASH.cfg"),
+                "-c", "init",
+                "-c", "reset halt", 
+                "-c", "exit"
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                encoding='utf-8',
+                errors='ignore'
+            )
+            
+            # 检查是否成功连接 - 更新检测逻辑
+            success_indicators = [
+                "target halted",
+                "cortex-m7",
+                "processor detected",
+                "halted due to debug-request",
+                "stlink"
+            ]
+            
+            # 合并标准输出和错误输出进行检查
+            output_text = (result.stdout + result.stderr).lower()
+            connection_success = any(indicator in output_text for indicator in success_indicators)
+            
+            # 即使返回码不为0，如果有成功指示器也认为连接成功
+            # 因为OpenOCD可能会有警告但仍然成功连接
+            if connection_success:
+                print(f"✓ 检测到设备连接成功")
+                
+                # 提取并显示设备信息
+                lines = result.stdout.split('\n')
+                for line in lines:
+                    if "STLINK" in line and "VID:PID" in line:
+                        print(f"  ST-Link: {line.strip()}")
+                    elif "processor detected" in line.lower():
+                        print(f"  处理器: {line.strip()}")
+                    elif "target halted" in line.lower() and "debug-request" in line.lower():
+                        print(f"  状态: 设备已停机，准备刷写")
+                        
+                return True
+            else:
+                print(f"✗ 设备连接失败")
+                print(f"返回码: {result.returncode}")
+                if result.stdout:
+                    print(f"标准输出（前500字符）:")
+                    print(result.stdout[:500])
+                if result.stderr:
+                    print(f"错误输出（前500字符）:")
+                    print(result.stderr[:500])
+                return False
+                    
+        except subprocess.TimeoutExpired:
+            print("设备连接检查超时")
+            return False
+        except FileNotFoundError:
+            print("未找到OpenOCD，请确保已安装")
+            return False
+        except Exception as e:
+            print(f"检查设备连接时异常: {e}")
+            return False
+    
+    def flash_latest_release(self, slot: str = None, verify_before_flash: bool = True) -> bool:
+        """刷写最新的发版包"""
+        print("查找最新发版包...")
+        
+        if not self.releases_dir.exists():
+            print("错误: 发版目录不存在")
+            return False
+        
+        # 查找发版包文件
+        release_files = list(self.releases_dir.glob("*.zip"))
+        if not release_files:
+            print("错误: 未找到任何发版包")
+            return False
+        
+        # 根据槽过滤
+        if slot:
+            slot_files = [f for f in release_files if f"_slot_{slot.lower()}_" in f.name]
+            if not slot_files:
+                print(f"错误: 未找到槽{slot}的发版包")
+                return False
+            release_files = slot_files
+        
+        # 按修改时间排序，获取最新的
+        latest_file = max(release_files, key=lambda x: x.stat().st_mtime)
+        
+        print(f"选择最新发版包: {latest_file.name}")
+        
+        return self.flash_release_package(str(latest_file), verify_before_flash)
+
+    def _create_self_contained_config(self, output_dir: Path):
+        """创建自包含的OpenOCD配置文件"""
+        # 创建openocd_config目录
+        config_dir = output_dir / "openocd_config"
+        config_dir.mkdir(exist_ok=True)
+        
+        # 复制必要的配置文件
+        source_config_dir = self.application_dir / "Openocd_Script"
+        
+        config_files = ["ST-LINK-QSPIFLASH.cfg", "stlink.cfg", "stm32h7x.cfg"]
+        for config_file in config_files:
+            source_file = source_config_dir / config_file
+            if source_file.exists():
+                shutil.copy2(source_file, config_dir / config_file)
+        
+        # 修改ST-LINK-QSPIFLASH.cfg中的路径引用为自包含
+        main_config = config_dir / "ST-LINK-QSPIFLASH.cfg"
+        if main_config.exists():
+            with open(main_config, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 修改路径引用
+            content = content.replace(
+                "source [find Openocd_Script/stlink.cfg]",
+                "source [find openocd_config/stlink.cfg]"
+            )
+            content = content.replace(
+                "source [find Openocd_Script/stm32h7x.cfg]",
+                "source [find openocd_config/stm32h7x.cfg]"
+            )
+            
+            with open(main_config, 'w', encoding='utf-8') as f:
+                f.write(content)
+        
+        print("✓ 创建自包含配置文件")
 
 def main():
     parser = argparse.ArgumentParser(
@@ -914,6 +1214,13 @@ def main():
   验证发版包:
     python release_packager.py --verify package.zip
   
+  刷写指定发版包:
+    python release_packager.py --flash package.zip
+  
+  刷写最新发版包:
+    python release_packager.py --flash-latest
+    python release_packager.py --flash-latest --slot A
+  
   列出发版包:
     python release_packager.py --list
 
@@ -930,6 +1237,14 @@ def main():
                         help="从构建输出提取数据")
     parser.add_argument("--verify", metavar="PACKAGE_FILE",
                         help="验证发版包")
+    parser.add_argument("--flash", metavar="PACKAGE_FILE",
+                        help="刷写指定发版包")
+    parser.add_argument("--flash-latest", action="store_true",
+                        help="刷写最新发版包")
+    parser.add_argument("--slot", choices=["A", "B"],
+                        help="指定槽（用于--flash-latest）")
+    parser.add_argument("--no-verify", action="store_true",
+                        help="刷写前跳过发版包验证")
     parser.add_argument("--list", action="store_true",
                         help="列出所有发版包")
     
@@ -942,6 +1257,14 @@ def main():
             packager.list_releases()
         elif args.verify:
             packager.verify_release_package(args.verify)
+        elif args.flash:
+            verify_before_flash = not args.no_verify
+            success = packager.flash_release_package(args.flash, verify_before_flash)
+            return 0 if success else 1
+        elif args.flash_latest:
+            verify_before_flash = not args.no_verify
+            success = packager.flash_latest_release(args.slot, verify_before_flash)
+            return 0 if success else 1
         elif args.extract_from_device:
             if not args.version:
                 print("错误: 请指定版本号 --version")

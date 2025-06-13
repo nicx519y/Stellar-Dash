@@ -11,6 +11,7 @@
 - [发版阶段：打包和分发](#发版阶段打包和分发)
 - [工具详细说明](#工具详细说明)
 - [故障排除](#故障排除)
+- [自动生成双槽Release固件包工具](#自动生成双槽Release固件包工具)
 
 ## 双槽升级架构原理
 
@@ -238,97 +239,6 @@ application/build/
 └── application_slot_B.hex      # 槽B HEX文件
 ```
 
-## 发版阶段：打包和分发
-
-### 发版前准备
-
-#### 1. 提取ADC Mapping数据
-
-```bash
-# 从设备提取ADC校准数据
-python tools/extract_adc_mapping.py --json
-
-# 输出文件：
-# resources/slot_a_adc_mapping.bin     # 二进制数据
-# resources/slot_a_adc_mapping.json    # 解析数据
-```
-
-#### 2. 确保最新代码
-
-```bash
-# 确保代码是最新的
-git pull
-git status
-
-# 构建最新Application
-python tools/build.py build app A -j8
-```
-
-### 发版打包命令
-
-#### 从构建输出创建发版包 (推荐)
-
-```bash
-# 强制重新编译并打包，确保最新代码
-python tools/release_packager.py --extract-from-build --version 1.0.0
-
-# 指定有意义的版本号
-python tools/release_packager.py --extract-from-build --version 2.1.3
-```
-
-#### 从Flash转储创建发版包
-
-```bash
-# 先创建Flash转储
-# (通过OpenOCD或其他工具)
-
-# 从转储文件打包
-python tools/release_packager.py --extract-from-dump flash_dump.bin --version 1.0.1
-```
-
-#### 从设备直接创建发版包
-
-```bash
-# 直接从连接的设备提取并打包
-python tools/release_packager.py --extract-from-device --version 1.0.2
-```
-
-### 发版包验证
-
-```bash
-# 验证发版包完整性
-python tools/release_packager.py --verify releases/hbox_firmware_slot_a_v1.0.0_*.zip
-
-# 列出所有发版包
-python tools/release_packager.py --list
-```
-
-### 发版包产出物
-
-发版命令执行后，在`releases/`目录生成：
-
-```
-releases/
-├── hbox_firmware_slot_a_v1.0.0_20241212_143025_complete.zip  # 槽A发版包
-└── hbox_firmware_slot_b_v1.0.0_20241212_143045_complete.zip  # 槽B发版包
-```
-
-#### 发版包内容结构
-
-每个ZIP文件包含：
-
-```
-发版包解压后内容:
-├── application.bin             # Application固件 (1MB)
-├── webresources.bin           # Web资源文件 (1.5MB)  
-├── adc_mapping.bin            # ADC校准数据 (128KB)
-├── manifest.json              # 发版清单和元数据
-├── flash_with_openocd.cfg     # OpenOCD刷写配置
-├── flash.bat                  # Windows刷写脚本
-├── flash.sh                   # Linux/macOS刷写脚本
-└── README.md                  # 发版包使用说明
-```
-
 #### manifest.json 元数据
 
 ```json
@@ -474,6 +384,8 @@ typedef struct {
 - **双槽包生成**: 一次命令生成槽A和槽B两个完整发版包
 - **地址重映射**: 槽B自动重新编译以适配不同地址空间
 - **完整性保证**: SHA256校验确保数据完整性
+- **自动刷写**: 直接从发版包解压并刷写到设备
+- **智能设备检测**: 自动检查OpenOCD连接和设备状态
 
 #### 槽B特殊处理
 
@@ -486,6 +398,83 @@ typedef struct {
 5. 生成正确地址的HEX文件
 6. 恢复原始链接脚本
 ```
+
+## 自动生成双槽Release固件包工具
+
+### 工具位置
+
+- 路径：`tools/auto_release_packager.py`
+- 依赖：自动调用 `build.py`、`extract_adc_mapping.py`，无需手动干预
+
+### 使用方法
+
+#### 命令行一键生成
+
+```bash
+# 进入项目根目录
+cd /path/to/STM32_HBox_Git
+
+# 生成release包（推荐，自动生成A/B两个包）
+python tools/auto_release_packager.py 1.0.0
+```
+
+- 其中 `1.0.0` 为版本号，可自定义
+- 也可直接运行后按提示输入版本号
+
+#### 生成结果
+
+- 会自动构建最新的 Application（A/B）
+- 自动提取 ADC Mapping
+- 自动复制 WebResources
+- 自动生成 manifest.json
+- 最终在 `tools` 目录的上级目录下生成：
+  - `hbox_firmware_slot_a_v1_0_0_YYYYMMDD_HHMMSS.zip`
+  - `hbox_firmware_slot_b_v1_0_0_YYYYMMDD_HHMMSS.zip`
+
+#### 包内内容
+
+每个zip包包含：
+- `application_slot_A.hex` 或 `application_slot_B.hex`  （Application固件）
+- `webresources.bin`  （Web资源）
+- `slot_a_adc_mapping.bin`  （ADC映射数据）
+- `manifest.json`  （元数据，含各文件地址/大小/sha256等）
+
+#### manifest.json 示例
+
+```json
+{
+  "version": "1.0.0",
+  "slot": "A",
+  "build_date": "2024-06-13 12:34:56",
+  "components": [
+    {
+      "name": "application",
+      "file": "application_slot_A.hex",
+      "address": "0x90000000",
+      "size": 123456,
+      "sha256": "..."
+    },
+    {
+      "name": "webresources",
+      "file": "webresources.bin",
+      "address": "0x90100000",
+      "size": 65432,
+      "sha256": "..."
+    },
+    {
+      "name": "adc_mapping",
+      "file": "slot_a_adc_mapping.bin",
+      "address": "0x90280000",
+      "size": 131072,
+      "sha256": "..."
+    }
+  ]
+}
+```
+
+### 注意事项
+- 需保证 `build.py`、`extract_adc_mapping.py`、web资源等文件可用
+- 生成的release包可直接用于客户现场刷写或升级分发
 
 ## 故障排除
 
@@ -612,7 +601,10 @@ python tools/release_packager.py --extract-from-build --version 1.0.0
 # 4. 验证发版包
 python tools/release_packager.py --verify releases/hbox_firmware_slot_a_v1.0.0_*.zip
 
-# 5. 部署分发
+# 5. 测试刷写（可选）
+python tools/release_packager.py --flash-latest --slot A
+
+# 6. 部署分发
 # 上传到服务器或分发给客户
 ```
 
