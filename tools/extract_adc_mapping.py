@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-ADC Mapping 数据提取工具
+STM32 HBox ADC Mapping 数据提取工具
 
-从槽A的外部Flash中提取ADC Mapping数据并生成bin文件
-存储位置：槽A ADC Mapping区域 (0x00280000, 128KB)
-输出：resources/slot_a_adc_mapping.bin
+从STM32设备或Flash转储文件中提取ADC通道映射数据
+支持从设备直接读取或从转储文件解析
 """
 
 import struct
 import os
 import sys
-from typing import List, Tuple, NamedTuple
+import subprocess
+from typing import List, Tuple, NamedTuple, Optional
 from pathlib import Path
 
 # 常量定义
@@ -71,7 +72,6 @@ class ADCMappingExtractor:
             print("请确保设备已连接并且可以通过调试器访问")
             
             # 尝试使用OpenOCD读取内存
-            import subprocess
             try:
                 # 构建OpenOCD命令来读取内存
                 cmd = [
@@ -298,13 +298,14 @@ class ADCMappingExtractor:
         return aligned_size
     
     def save_binary_data(self, data: bytes, filename: str = "slot_a_adc_mapping.bin"):
-        """保存二进制数据到文件"""
-        output_path = self.resources_dir / filename
+        """保存原始二进制数据"""
+        # 保存到tools目录，以便release.py工具能找到
+        output_path = self.workspace_root / "tools" / filename
         
         try:
             with open(output_path, 'wb') as f:
                 f.write(data)
-            print(f"ADC Mapping数据已保存到: {output_path}")
+            print(f"ADC Mapping已保存到: {output_path}")
             print(f"文件大小: {len(data)} 字节")
             return True
             
@@ -502,12 +503,12 @@ def main():
         success = extractor.extract_and_save("device", save_json=save_json)
     
     if success:
-        print("\n✅ 提取完成!")
-        print(f"输出文件: {extractor.resources_dir}/slot_a_adc_mapping.bin")
+        print("\n[OK] 提取完成!")
+        print(f"输出文件: {extractor.workspace_root}/tools/slot_a_adc_mapping.bin")
         if save_json:
             print(f"JSON文件: {extractor.resources_dir}/slot_a_adc_mapping.json")
     else:
-        print("\n❌ 提取失败!")
+        print("\n[ERROR] 提取失败!")
         sys.exit(1)
 
 if __name__ == "__main__":

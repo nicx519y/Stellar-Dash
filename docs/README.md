@@ -4,14 +4,30 @@
 
 ## 目录
 
+- [项目结构](#项目结构)
 - [双槽升级架构原理](#双槽升级架构原理)
 - [内存布局设计](#内存布局设计)
+- [工具详细说明](#工具详细说明)
 - [环境准备](#环境准备)
 - [开发阶段：编译和烧录](#开发阶段编译和烧录)
 - [发版阶段：打包和分发](#发版阶段打包和分发)
-- [工具详细说明](#工具详细说明)
 - [故障排除](#故障排除)
-- [自动生成双槽Release固件包工具](#自动生成双槽Release固件包工具)
+
+## 项目结构
+
+```
+HBox_Git/
+├── application/           # 应用程序代码
+├── bootloader/           # 引导程序代码
+├── resources/            # 资源文件
+├── tools/               # 构建和打包工具
+│   ├── openocd_configs/ # OpenOCD配置文件
+│   ├── build.py         # 主构建脚本
+│   ├── extract_adc_mapping.py # ADC数据提取
+│   └── release.py       # Release管理工具（集成打包和刷写）
+├── releases/            # 生成的固件包输出目录
+└── README.md
+```
 
 ## 双槽升级架构原理
 
@@ -70,12 +86,251 @@ STM32 HBox采用双槽（Slot A/B）固件升级架构，确保系统升级的�
 总使用: 5.5MB，剩余: 2.5MB (预留扩展)
 ```
 
+### 双槽升级流程
+
+1. 系统启动时从Slot A运行
+2. 收到升级包时写入Slot B
+3. 验证Slot B完整性
+4. 切换启动标志到Slot B
+5. 重启后从Slot B运行
+6. 如果Slot B运行异常，自动回退到Slot A
+
 ### 内存映射特点
 
 - **独立地址空间**: 每个槽有完全独立的地址空间，避免冲突
 - **对称设计**: 槽A和槽B布局完全对称，便于管理
 - **预留空间**: 2.5MB预留空间用于未来功能扩展
 - **配置隔离**: 用户配置和元数据独立存储
+
+## 工具详细说明
+
+### 1. build.py - 构建工具
+位置：`tools/build.py`
+
+用于构建bootloader和application的工具。
+
+**使用方法：**
+```bash
+# 构建bootloader
+python tools/build.py build bootloader
+
+# 构建application (slot A)
+python tools/build.py build app A
+
+# 构建application (slot B)  
+python tools/build.py build app B
+```
+
+#### 核心功能
+- **智能链接脚本修改**: 自动修改地址适配不同槽
+- **多线程并行编译**: 支持2-16个并行任务，大幅提升编译速度
+- **自动备份恢复**: 构建过程自动备份和恢复配置文件
+- **构建状态跟踪**: 完整的构建历史和状态管理
+
+#### 使用示例
+
+```bash
+# 查看详细状态
+python tools/build.py status
+
+输出示例:
+构建状态
+==================================================
+项目根目录: E:\Works\STM32\HBox_Git
+GCC路径: D:/Program Files/GNU Arm Embedded Toolchain/10 2021.10/bin
+OpenOCD: openocd
+CPU核心数: 12
+并行编译任务数: 8
+
+最近构建状态:
+  Bootloader: 成功
+  Application: 槽A 成功
+
+构建文件状态:
+  Bootloader ELF: ✅ E:\Works\STM32\HBox_Git\bootloader\build\bootloader.elf
+  Application 槽A ELF: ✅ E:\Works\STM32\HBox_Git\application\build\application_slot_A.elf
+  Application 槽B ELF: ❌ E:\Works\STM32\HBox_Git\application\build\application_slot_B.elf
+```
+
+### 2. extract_adc_mapping.py - ADC映射提取工具
+位置：`tools/extract_adc_mapping.py`
+
+从应用程序中提取ADC通道映射数据。
+
+**使用方法：**
+```bash
+python tools/extract_adc_mapping.py
+```
+
+#### 功能说明
+- **从设备提取**: 通过OpenOCD直接读取设备内存
+- **数据解析**: 完整解析ADC映射结构和校准数据
+- **多格式输出**: 支持二进制和JSON格式输出
+
+#### 数据结构
+
+```c
+// ADC映射数据结构
+typedef struct {
+    uint32_t version;                    // 版本号
+    uint8_t num;                        // 映射数量
+    char defaultId[16];                 // 默认映射ID
+    struct {
+        char id[16];                    // 映射ID
+        char name[16];                  // 映射名称
+        uint64_t length;               // 映射长度
+        float step;                    // 步长
+        uint16_t samplingNoise;        // 噪声阈值
+        uint16_t samplingFreq;         // 采样频率
+        uint16_t originalValues[40];   // 原始值数组
+        ADCCalibrationValues autoCalibValues[17];   // 自动校准值
+        ADCCalibrationValues manualCalibValues[17]; // 手动校准值
+    } mappings[8];                     // 最多8个映射
+} ADCValuesMappingStore;
+```
+
+### 3. release.py - Release 管理工具
+位置：`tools/release.py`
+
+**功能：**
+集成了发版打包和管理功能的统一工具：
+- 自动构建双槽release包（集成原auto_release_packager功能）
+- 支持槽A和槽B的完整管理
+- 包含版本管理、元数据和完整性校验
+- 完整的SHA256校验和错误处理
+
+**依赖：**
+- Python 3.6+
+- build.py和extract_adc_mapping.py工具
+
+#### 自动构建双槽release包功能
+
+**使用方法：**
+```bash
+# 自动构建并打包（推荐，自动生成A/B两个包）
+python tools/release.py auto --version 1.0.0
+
+# 交互式输入版本号
+python tools/release.py auto
+```
+
+**功能特性：**
+- **自动调用构建工具**：自动调用build.py构建slot A和slot B的application
+- **自动提取数据**：自动调用extract_adc_mapping.py生成ADC mapping文件
+- **自动复制资源**：自动复制webresources文件
+- **双槽支持**：一次命令生成槽A和槽B两个完整发版包
+- **地址重映射**：槽B自动重新编译以适配不同地址空间
+- **进度显示**：实时显示构建进度和耗时统计
+- **完整性保证**：自动生成包含地址、大小、校验和的manifest.json元数据文件
+- **自动打包**：将以上四个文件打包成zip格式的release包
+- **自动保存**：自动保存到`/releases`目录
+
+**生成结果：**
+- 输出目录：`releases/`
+- 文件格式：`hbox_firmware_slot_a_v1_0_0_YYYYMMDD_HHMMSS.zip`
+- 文件格式：`hbox_firmware_slot_b_v1_0_0_YYYYMMDD_HHMMSS.zip`
+
+**每个包包含：**
+1. `application_slot_x.hex` - 应用程序固件
+2. `webresources.bin` - Web界面资源
+3. `slot_a_adc_mapping.bin` - ADC通道映射数据
+4. `manifest.json` - 包元数据
+
+**进度展示：**
+工具会显示详细的进度条和步骤信息：
+```
+=== 开始生成槽A release包 ===
+[██████████████████████████████████████████████████] 100.0% (6/6) 移动到releases目录...
+完成! 总耗时: 15.2秒
+
+[OK] 生成release包: releases/hbox_firmware_slot_a_v1_0_0_20241201_143022.zip
+     包大小: 2,458,123 字节
+```
+
+**manifest.json示例：**
+```json
+{
+  "version": "1.0.0",
+  "slot": "A",
+  "build_date": "2024-12-01 14:30:22",
+  "components": [
+    {
+      "name": "application",
+      "file": "application_slot_a.hex",
+      "address": "0x90000000",
+      "size": 524288,
+      "sha256": "abc123..."
+    },
+    {
+      "name": "webresources", 
+      "file": "webresources.bin",
+      "address": "0x90100000",
+      "size": 1048576,
+      "sha256": "def456..."
+    },
+    {
+      "name": "adc_mapping",
+      "file": "slot_a_adc_mapping.bin", 
+      "address": "0x90280000",
+      "size": 4096,
+      "sha256": "ghi789..."
+    }
+  ]
+}
+```
+
+#### 发版包管理功能
+
+**使用方法：**
+```bash
+# 列出可用的release包
+python tools/release.py list
+
+# 详细列出release包信息
+python tools/release.py list --verbose
+
+# 按时间倒序列出所有包名
+python tools/release.py list --time-sorted
+
+# 验证发版包完整性
+python tools/release.py verify package.zip
+```
+
+**支持的组件：**
+- `application` - 应用程序固件
+- `webresources` - Web界面资源  
+- `adc_mapping` - ADC通道映射数据
+
+**支持的槽位：**
+- `A` - 主槽 (0x90000000起始)
+- `B` - 备用槽 (0x902B0000起始)
+
+#### 核心特性
+- **强制重新编译**: 发版时总是重新编译，确保使用最新代码
+- **双槽包生成**: 一次命令生成槽A和槽B两个完整发版包
+- **地址重映射**: 槽B自动重新编译以适配不同地址空间
+- **完整性保证**: SHA256校验确保数据完整性
+- **智能设备检测**: 自动检查工具依赖和文件状态
+
+#### 槽B特殊处理
+
+```bash
+槽B处理流程:
+1. 备份原始链接脚本 STM32H750XBHx_FLASH.ld
+2. 修改FLASH地址: 0x90000000 → 0x902B0000  
+3. 清理构建目录
+4. 重新编译Application
+5. 生成正确地址的HEX文件
+6. 恢复原始链接脚本
+```
+
+**注意事项：**
+- 确保所有依赖工具（build.py, extract_adc_mapping.py）能正常运行
+- ADC mapping只在处理slot A时提取一次，slot B复用相同数据
+- 如果单个槽构建失败，不会影响其他槽的构建
+- 生成的包会自动保存到项目根目录的`releases/`文件夹
+- 包含完整的进度展示和错误处理机制
+- 槽B发版包会自动重新编译Application以适配槽B地址空间
 
 ## 环境准备
 
@@ -109,20 +364,6 @@ cp tools/build_config_example.json tools/build_config.json
 ```
 
 ## 开发阶段：编译和烧录
-
-### 项目结构
-
-```
-STM32_HBox_Git/
-├── bootloader/                 # Bootloader源代码
-├── application/                # Application源代码
-├── tools/                      # 开发工具链
-│   ├── build.py               # 主构建脚本
-│   ├── build.bat/.sh          # 平台wrapper
-│   ├── extract_adc_mapping.py # ADC数据提取
-│   └── release_packager.py    # 发版打包
-└── resources/                 # 资源文件
-```
 
 ### 开发时编译命令
 
@@ -239,242 +480,40 @@ application/build/
 └── application_slot_B.hex      # 槽B HEX文件
 ```
 
-#### manifest.json 元数据
+## 发版阶段：打包和分发
+
+### manifest.json 元数据
 
 ```json
 {
-  "package_info": {
-    "version": "1.0.0",
-    "build_date": "20241212_143025", 
-    "slot": "A",
-    "package_type": "complete"
-  },
+  "version": "1.0.0",
+  "slot": "A",
+  "build_date": "2024-12-01 14:30:22",
   "components": [
     {
       "name": "application",
-      "file": "application.bin",
+      "file": "application_slot_a.hex",
       "address": "0x90000000",      // 槽A地址
       "size": 1048576,
-      "checksum": "sha256_hash..."
+      "sha256": "sha256_hash..."
     },
     {
       "name": "webresources", 
       "file": "webresources.bin",
       "address": "0x90100000",      // 槽A WebResources地址
       "size": 1572864,
-      "checksum": "sha256_hash..."
+      "sha256": "sha256_hash..."
     },
     {
       "name": "adc_mapping",
-      "file": "adc_mapping.bin", 
+      "file": "slot_a_adc_mapping.bin", 
       "address": "0x90280000",      // 槽A ADC Mapping地址
       "size": 131072,
-      "checksum": "sha256_hash..."
-    }
-  ],
-  "metadata": {
-    "firmware_version": "0x010000",
-    "config_version": "0x000007", 
-    "adc_mapping_version": "0x000001",
-    "build_timestamp": "2024-12-12T14:30:25",
-    "git_commit": "a1b2c3d4...",
-    "extraction_method": "build"
-  }
-}
-```
-
-### 发版包部署使用
-
-#### 客户现场刷写
-
-解压发版包后：
-
-```bash
-# Windows用户
-双击运行 flash.bat
-
-# Linux/macOS用户  
-chmod +x flash.sh
-./flash.sh
-
-# 手动刷写
-openocd -f interface/stlink.cfg -f target/stm32h7x.cfg -f flash_with_openocd.cfg
-```
-
-#### 服务器分发
-
-```bash
-# 上传到固件服务器
-scp releases/hbox_firmware_slot_*.zip firmware-server:/releases/
-
-# 通过HTTP API分发
-curl -X POST firmware-server/api/upload \
-     -F "slot_a=@hbox_firmware_slot_a_v1.0.0_*.zip" \
-     -F "slot_b=@hbox_firmware_slot_b_v1.0.0_*.zip"
-```
-
-## 工具详细说明
-
-### build.py - 主构建工具
-
-#### 核心功能
-- **智能链接脚本修改**: 自动修改地址适配不同槽
-- **多线程并行编译**: 支持2-16个并行任务，大幅提升编译速度
-- **自动备份恢复**: 构建过程自动备份和恢复配置文件
-- **构建状态跟踪**: 完整的构建历史和状态管理
-
-#### 使用示例
-
-```bash
-# 查看详细状态
-python tools/build.py status
-
-输出示例:
-构建状态
-==================================================
-项目根目录: E:\Works\STM32\HBox_Git
-GCC路径: D:/Program Files/GNU Arm Embedded Toolchain/10 2021.10/bin
-OpenOCD: openocd
-CPU核心数: 12
-并行编译任务数: 8
-
-最近构建状态:
-  Bootloader: 成功
-  Application: 槽A 成功
-
-构建文件状态:
-  Bootloader ELF: ✅ E:\Works\STM32\HBox_Git\bootloader\build\bootloader.elf
-  Application 槽A ELF: ✅ E:\Works\STM32\HBox_Git\application\build\application_slot_A.elf
-  Application 槽B ELF: ❌ E:\Works\STM32\HBox_Git\application\build\application_slot_B.elf
-```
-
-### extract_adc_mapping.py - ADC数据提取
-
-#### 功能说明
-- **从设备提取**: 通过OpenOCD直接读取设备内存
-- **数据解析**: 完整解析ADC映射结构和校准数据
-- **多格式输出**: 支持二进制和JSON格式输出
-
-#### 数据结构
-
-```c
-// ADC映射数据结构
-typedef struct {
-    uint32_t version;                    // 版本号
-    uint8_t num;                        // 映射数量
-    char defaultId[16];                 // 默认映射ID
-    struct {
-        char id[16];                    // 映射ID
-        char name[16];                  // 映射名称
-        uint64_t length;               // 映射长度
-        float step;                    // 步长
-        uint16_t samplingNoise;        // 噪声阈值
-        uint16_t samplingFreq;         // 采样频率
-        uint16_t originalValues[40];   // 原始值数组
-        ADCCalibrationValues autoCalibValues[17];   // 自动校准值
-        ADCCalibrationValues manualCalibValues[17]; // 手动校准值
-    } mappings[8];                     // 最多8个映射
-} ADCValuesMappingStore;
-```
-
-### release_packager.py - 发版打包工具
-
-#### 核心特性
-- **强制重新编译**: 发版时总是重新编译，确保使用最新代码
-- **双槽包生成**: 一次命令生成槽A和槽B两个完整发版包
-- **地址重映射**: 槽B自动重新编译以适配不同地址空间
-- **完整性保证**: SHA256校验确保数据完整性
-- **自动刷写**: 直接从发版包解压并刷写到设备
-- **智能设备检测**: 自动检查OpenOCD连接和设备状态
-
-#### 槽B特殊处理
-
-```bash
-槽B处理流程:
-1. 备份原始链接脚本 STM32H750XBHx_FLASH.ld
-2. 修改FLASH地址: 0x90000000 → 0x902B0000  
-3. 清理构建目录
-4. 重新编译Application
-5. 生成正确地址的HEX文件
-6. 恢复原始链接脚本
-```
-
-## 自动生成双槽Release固件包工具
-
-### 工具位置
-
-- 路径：`tools/auto_release_packager.py`
-- 依赖：自动调用 `build.py`、`extract_adc_mapping.py`，无需手动干预
-
-### 使用方法
-
-#### 命令行一键生成
-
-```bash
-# 进入项目根目录
-cd /path/to/STM32_HBox_Git
-
-# 生成release包（推荐，自动生成A/B两个包）
-python tools/auto_release_packager.py 1.0.0
-```
-
-- 其中 `1.0.0` 为版本号，可自定义
-- 也可直接运行后按提示输入版本号
-
-#### 生成结果
-
-- 会自动构建最新的 Application（A/B）
-- 自动提取 ADC Mapping
-- 自动复制 WebResources
-- 自动生成 manifest.json
-- 最终在 `tools` 目录的上级目录下生成：
-  - `hbox_firmware_slot_a_v1_0_0_YYYYMMDD_HHMMSS.zip`
-  - `hbox_firmware_slot_b_v1_0_0_YYYYMMDD_HHMMSS.zip`
-
-#### 包内内容
-
-每个zip包包含：
-- `application_slot_A.hex` 或 `application_slot_B.hex`  （Application固件）
-- `webresources.bin`  （Web资源）
-- `slot_a_adc_mapping.bin`  （ADC映射数据）
-- `manifest.json`  （元数据，含各文件地址/大小/sha256等）
-
-#### manifest.json 示例
-
-```json
-{
-  "version": "1.0.0",
-  "slot": "A",
-  "build_date": "2024-06-13 12:34:56",
-  "components": [
-    {
-      "name": "application",
-      "file": "application_slot_A.hex",
-      "address": "0x90000000",
-      "size": 123456,
-      "sha256": "..."
-    },
-    {
-      "name": "webresources",
-      "file": "webresources.bin",
-      "address": "0x90100000",
-      "size": 65432,
-      "sha256": "..."
-    },
-    {
-      "name": "adc_mapping",
-      "file": "slot_a_adc_mapping.bin",
-      "address": "0x90280000",
-      "size": 131072,
-      "sha256": "..."
+      "sha256": "sha256_hash..."
     }
   ]
 }
 ```
-
-### 注意事项
-- 需保证 `build.py`、`extract_adc_mapping.py`、web资源等文件可用
-- 生成的release包可直接用于客户现场刷写或升级分发
 
 ## 故障排除
 
@@ -592,19 +631,13 @@ python tools/build.py flash app B
 git checkout release-v1.0.0
 git pull
 
-# 2. 提取ADC数据
-python tools/extract_adc_mapping.py --json
+# 2. 自动构建双槽发版包
+python tools/release.py auto --version 1.0.0
 
-# 3. 创建发版包 (强制重新编译)
-python tools/release_packager.py --extract-from-build --version 1.0.0
+# 3. 验证发版包
+python tools/release.py verify releases/hbox_firmware_slot_a_v1_0_0_*.zip
 
-# 4. 验证发版包
-python tools/release_packager.py --verify releases/hbox_firmware_slot_a_v1.0.0_*.zip
-
-# 5. 测试刷写（可选）
-python tools/release_packager.py --flash-latest --slot A
-
-# 6. 部署分发
+# 4. 部署分发
 # 上传到服务器或分发给客户
 ```
 
