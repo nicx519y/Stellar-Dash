@@ -288,7 +288,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [firmwareInfo, setFirmwareInfo] = useState<DeviceFirmwareInfo | null>(null);
     const [firmwareUpdateInfo, setFirmwareUpdateInfo] = useState<FirmwareUpdateCheckResponse | null>(null);
     const [firmwareServerHost, setFirmwareServerHostState] = useState<string>(FIRMWARE_SERVER_CONFIG.defaultHost);
-    const [firmwarePackage, setFirmwarePackage] = useState<FirmwarePackage | null>(null);
     const [upgradeSession, setUpgradeSession] = useState<FirmwareUpgradeSession | null>(null);
     const [upgradeConfig, setUpgradeConfigState] = useState<FirmwareUpgradeConfig>({
         chunkSize: 4096, // 4KB默认分片大小
@@ -1001,7 +1000,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     
     const fetchFirmwareMetadata = async (): Promise<void> => {
         try {
-            setIsLoading(true);
+            // setIsLoading(true);
             const response = await fetchWithKeepAlive('/api/firmware-metadata', {
                 method: 'GET'
             });
@@ -1015,16 +1014,16 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             });
             return Promise.resolve();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to fetch firmware metadata"));
         } finally {
-            setIsLoading(false);
+            // setIsLoading(false);
         }
     };
 
     const checkFirmwareUpdate = async (currentVersion: string, customServerHost?: string): Promise<void> => {
         try {
-            setIsLoading(true);
+            // setIsLoading(true);
             
             // 使用传入的服务器地址、状态中的地址或默认配置
             const serverHost = customServerHost || firmwareServerHost || FIRMWARE_SERVER_CONFIG.defaultHost;
@@ -1057,15 +1056,15 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             
             // 设置更新信息
             setFirmwareUpdateInfo(responseData.data);
-            setError(null);
+            // setError(null);
             return Promise.resolve();
             
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Firmware update check failed';
-            setError(errorMessage);
+            // setError(errorMessage);
             return Promise.reject(new Error(errorMessage));
         } finally {
-            setIsLoading(false);
+            // setIsLoading(false);
         }
     };
 

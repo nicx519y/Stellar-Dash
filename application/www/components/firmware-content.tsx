@@ -6,22 +6,24 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { FirmwarePackage } from "@/types/types";
 
 enum UpdateStatus {
-    NoUpdate = 0,
-    UpdateAvailable = 1,
-    Updating = 2,
-    UpdateFailed = 3,
-    UpdateSuccess = 4,
+    Idle = 0,
+    NoUpdate = 1,
+    UpdateAvailable = 2,
+    Updating = 3,
+    UpdateFailed = 4,
+    UpdateSuccess = 5,
 }
 
 enum ProgressPercent {
     Downloading = 0.4,
-    Uploading = 0.6,
+    Uploading = 0.58,
 }
 
 export function FirmwareContent() {
     const { t } = useLanguage();
+    const [ isLoading, setIsLoading ] = useState(true);
     const [ _updateProgress, _setUpdateProgress ] = useState(0);
-    const [ updateStatus, setUpdateStatus ] = useState(UpdateStatus.NoUpdate);
+    const [ updateStatus, setUpdateStatus ] = useState(UpdateStatus.Idle);
     const { firmwareInfo, fetchFirmwareMetadata, firmwareUpdateInfo, checkFirmwareUpdate, downloadFirmwarePackage, uploadFirmwareToDevice } = useGamepadConfig();
     const currentVersion = useMemo(() => firmwareInfo?.firmware?.version || "0.0.0", [firmwareInfo]);
     const latestVersion = useMemo(() => firmwareUpdateInfo?.latestVersion? firmwareUpdateInfo.latestVersion : firmwareInfo?.firmware?.version || "0.0.0", [firmwareUpdateInfo, firmwareInfo]);
@@ -39,8 +41,25 @@ export function FirmwareContent() {
 
     useEffect(() => {
         if(firmwareUpdateInfo) {
-            console.log('firmwareUpdateInfo: ', firmwareUpdateInfo);
-            setUpdateStatus(firmwareUpdateInfo.updateAvailable? UpdateStatus.UpdateAvailable: UpdateStatus.NoUpdate);
+            setIsLoading(false);
+
+            // 如果正在更新，则根据固件更新信息判断更新状态
+            if(updateStatus === UpdateStatus.Updating) {
+                if(firmwareUpdateInfo.updateAvailable) {
+                    setUpdateStatus(UpdateStatus.UpdateFailed);
+                } else {
+                    setUpdateStatus(UpdateStatus.UpdateSuccess);
+                }
+            }
+
+            // 如果处于空闲状态，则根据固件更新信息判断更新状态
+            if(updateStatus === UpdateStatus.Idle) {
+                if(firmwareUpdateInfo.updateAvailable) {
+                    setUpdateStatus(UpdateStatus.UpdateAvailable);
+                } else {
+                    setUpdateStatus(UpdateStatus.NoUpdate);
+                }
+            }
         }
     }, [firmwareUpdateInfo]);
 
@@ -73,14 +92,27 @@ export function FirmwareContent() {
                 console.log('progress: ', progress);
                 if(progress.stage === 'uploading') {
                     _setUpdateProgress(nowProgress + progress.progress * ProgressPercent.Uploading);
-                } else if(progress.stage === 'uploadcompleted') {
+                } else if(progress.stage === 'uploadcompleted') { // 上传完成，等待设备重启，重启完成后，设置固件更新状态为成功
                     _setUpdateProgress(nowProgress + progress.progress * ProgressPercent.Uploading);
-                    setUpdateStatus(UpdateStatus.UpdateSuccess);
+                    setTimeout(() => { // 等待2秒后，检查固件更新状态, 此时固件已经上传到设备，设备正在重启
+                        checkUpdateStatusLoop();
+                    }, 2000);
                 } else if(progress.stage === 'failed') {
                     setUpdateStatus(UpdateStatus.UpdateFailed);
                 }
             });
 
+        }
+    }
+
+    const checkUpdateStatusLoop = async () => {
+        try {
+            await fetchFirmwareMetadata();
+        } catch (error) {
+            // 如果请求失败，则2秒后重试
+            setTimeout(() => {
+                checkUpdateStatusLoop();
+            }, 2000);
         }
     }
 
@@ -107,7 +139,8 @@ export function FirmwareContent() {
                     }
                 `}
             </style>
-            <VStack>
+
+            <VStack visibility={isLoading ? "hidden" : "visible"} >
                 <Center width="140px" height="140px"  >
                 {updateStatus === UpdateStatus.NoUpdate && (
                     <Icon color="green.600" >
@@ -120,8 +153,8 @@ export function FirmwareContent() {
                     </Icon>
                 )}
                 {updateStatus === UpdateStatus.UpdateFailed && (
-                    <Icon color="red" >
-                        <CiCircleRemove size="140px" className="bounce-icon"  />
+                    <Icon color="red" cursor="pointer" className="bounce-icon" onClick={upgradeFirmware}>
+                        <CiCircleRemove size="140px"  />
                     </Icon>
                 )}
                 {updateStatus === UpdateStatus.UpdateSuccess && (
