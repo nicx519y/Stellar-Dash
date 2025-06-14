@@ -18,6 +18,7 @@
     "@types/jszip": "^3.4.0",
     "chart.js": "^4.4.7",
     "compression": "^1.7.5",
+    "formdata-node": "^6.0.3",
     "jszip": "^3.10.1",
     "next": "^15.0.3",
     "react": "^18.3.1",

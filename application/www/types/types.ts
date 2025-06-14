@@ -1,4 +1,3 @@
-
 // 固件元数据类型定义
 export interface FirmwareComponent {
     name: string;
@@ -6,7 +5,8 @@ export interface FirmwareComponent {
     address: string;
     size: number;
     sha256: string;
-    status: 'active' | 'inactive' | 'corrupted';
+    status?: 'active' | 'inactive' | 'corrupted';
+    data?: Uint8Array; // 组件数据
 }
 
 export interface FirmwareMetadata {
@@ -101,15 +101,6 @@ export interface FirmwarePackageDownloadProgress {
     total_bytes?: number;
 }
 
-export interface FirmwareComponent {
-    name: string;
-    file: string;
-    address: string;
-    size: number;
-    sha256: string;
-    data?: Uint8Array; // 组件数据
-}
-
 export interface FirmwareManifest {
     version: string;
     slot: string;
@@ -124,16 +115,17 @@ export interface FirmwarePackage {
 }
 
 export interface FirmwareUpgradeConfig {
-    chunkSize: number; // 分片大小，默认4KB
+    chunkSize: number; // 分片大小，必须是4KB(4096字节)的倍数，建议范围: 4KB-16KB
     maxRetries: number; // 最大重试次数
     timeout: number; // 超时时间(ms)
 }
 
 export interface FirmwareUpgradeSession {
     sessionId: string;
-    isActive: boolean;
-    progress: FirmwarePackageDownloadProgress;
-    config: FirmwareUpgradeConfig;
+    status: 'uploading' | 'completed' | 'failed';
+    progress: number; // 0-100
+    currentComponent: string | null;
+    error: string | null;
 }
 
 export interface ChunkTransferRequest {
@@ -141,9 +133,11 @@ export interface ChunkTransferRequest {
     component_name: string;
     chunk_index: number;
     total_chunks: number;
-    target_address: string;
-    data: string; // Base64编码的数据
-    checksum: string;
+    target_address: string;        // 精确的写入地址（十六进制字符串）
+    chunk_size: number;           // 当前chunk的实际大小（字节）
+    chunk_offset: number;         // 在组件内的偏移量（字节）
+    data: string;                 // Base64编码的数据
+    checksum: string;             // SHA256校验和
 }
 
 export interface ChunkTransferResponse {

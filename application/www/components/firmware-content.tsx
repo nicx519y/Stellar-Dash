@@ -3,6 +3,7 @@ import { AbsoluteCenter, Badge, Box, Card, Center, Icon, List, ProgressCircle, T
 import { useEffect, useMemo, useState } from "react";
 import { CiCircleCheck, CiCircleRemove, CiSaveUp1 } from "react-icons/ci";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { FirmwarePackage } from "@/types/types";
 
 enum UpdateStatus {
     NoUpdate = 0,
@@ -12,11 +13,16 @@ enum UpdateStatus {
     UpdateSuccess = 4,
 }
 
+enum ProgressPercent {
+    Downloading = 0.4,
+    Uploading = 0.6,
+}
+
 export function FirmwareContent() {
     const { t } = useLanguage();
-    const [_updateProgress, _setUpdateProgress] = useState(0);
-    const [updateStatus, setUpdateStatus] = useState(UpdateStatus.NoUpdate);
-    const { firmwareInfo, fetchFirmwareMetadata, firmwareUpdateInfo, checkFirmwareUpdate, downloadFirmwarePackage } = useGamepadConfig();
+    const [ _updateProgress, _setUpdateProgress ] = useState(0);
+    const [ updateStatus, setUpdateStatus ] = useState(UpdateStatus.NoUpdate);
+    const { firmwareInfo, fetchFirmwareMetadata, firmwareUpdateInfo, checkFirmwareUpdate, downloadFirmwarePackage, uploadFirmwareToDevice } = useGamepadConfig();
     const currentVersion = useMemo(() => firmwareInfo?.firmware?.version || "0.0.0", [firmwareInfo]);
     const latestVersion = useMemo(() => firmwareUpdateInfo?.latestVersion? firmwareUpdateInfo.latestVersion : firmwareInfo?.firmware?.version || "0.0.0", [firmwareUpdateInfo, firmwareInfo]);
     const latestFirmwareUpdateLog = useMemo(() => firmwareUpdateInfo?.latestFirmware?.desc.split("\n") || [], [firmwareUpdateInfo]);
@@ -26,36 +32,59 @@ export function FirmwareContent() {
     }, []);
 
     useEffect(() => {
-        if (firmwareInfo && firmwareInfo.firmware && firmwareInfo.firmware.version != '') {
-            checkFirmwareUpdate(firmwareInfo.firmware.version);
-        } else {
-            checkFirmwareUpdate("0.0.0");
+        if(firmwareInfo && firmwareInfo.firmware) {
+           checkFirmwareUpdate(firmwareInfo.firmware.version ? firmwareInfo.firmware.version : "0.0.0");
         }
     }, [firmwareInfo]);
 
     useEffect(() => {
-        if (firmwareUpdateInfo && firmwareUpdateInfo.updateAvailable) {
-            setUpdateStatus(UpdateStatus.UpdateAvailable);
-        } else if (firmwareUpdateInfo && !firmwareUpdateInfo.updateAvailable) {
-            setUpdateStatus(UpdateStatus.NoUpdate);
+        if(firmwareUpdateInfo) {
+            console.log('firmwareUpdateInfo: ', firmwareUpdateInfo);
+            setUpdateStatus(firmwareUpdateInfo.updateAvailable? UpdateStatus.UpdateAvailable: UpdateStatus.NoUpdate);
         }
     }, [firmwareUpdateInfo]);
 
-    const downloadFirmware = () => {
+
+    const upgradeFirmware = async () => {
         if (firmwareUpdateInfo && firmwareUpdateInfo.updateAvailable) {
-
+            // 获取当前固件的槽位，如果当前固件是A槽位，则下载B槽位的固件，反之亦然
             const slot = firmwareInfo?.firmware?.slot == 'A' ? 'slotB' : 'slotA';
-
             console.log('Begin to downloadFirmware url: ', firmwareUpdateInfo?.latestFirmware?.[slot]?.downloadUrl);
-
             setUpdateStatus(UpdateStatus.Updating);
 
-            downloadFirmwarePackage(firmwareUpdateInfo?.latestFirmware?.[slot]?.downloadUrl, (progress) => {
+            // 下载并解压固件包
+            const firmwarePackage: FirmwarePackage = await downloadFirmwarePackage(firmwareUpdateInfo?.latestFirmware?.[slot]?.downloadUrl, (progress) => {
                 console.log('progress: ', progress);
-                _setUpdateProgress(progress.progress);
+                if(progress.stage === 'downloading') {
+                    _setUpdateProgress(progress.progress * ProgressPercent.Downloading);
+                } else if(progress.stage === 'extracting') {
+                    _setUpdateProgress(progress.progress * ProgressPercent.Downloading);
+                } else if(progress.stage === 'downcompleted') {
+                    _setUpdateProgress(progress.progress * ProgressPercent.Downloading);
+                } else if(progress.stage === 'failed') {
+                    setUpdateStatus(UpdateStatus.UpdateFailed);
+                }
             });
+
+            const nowProgress = ProgressPercent.Downloading * 100;
+
+            // 上传固件包到设备
+            await uploadFirmwareToDevice(firmwarePackage, (progress) => {
+                console.log('progress: ', progress);
+                if(progress.stage === 'uploading') {
+                    _setUpdateProgress(nowProgress + progress.progress * ProgressPercent.Uploading);
+                } else if(progress.stage === 'uploadcompleted') {
+                    _setUpdateProgress(nowProgress + progress.progress * ProgressPercent.Uploading);
+                    setUpdateStatus(UpdateStatus.UpdateSuccess);
+                } else if(progress.stage === 'failed') {
+                    setUpdateStatus(UpdateStatus.UpdateFailed);
+                }
+            });
+
         }
     }
+
+    
 
     return (
         <Center p="18px">
@@ -86,7 +115,7 @@ export function FirmwareContent() {
                     </Icon>
                 )}
                 {updateStatus === UpdateStatus.UpdateAvailable && (
-                    <Icon color="yellow" cursor="pointer" className="bounce-icon" onClick={downloadFirmware}>
+                    <Icon color="yellow" cursor="pointer" className="bounce-icon" onClick={upgradeFirmware}>
                         <CiSaveUp1 size="150px"  />
                     </Icon>
                 )}
