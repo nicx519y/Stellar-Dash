@@ -11,7 +11,7 @@ export async function GET() {
         
         const firmwareMetadata = {
             // 基本版本信息 (来自manifest.json)
-            version: "1.0.0",
+            version: "1.0.1",
             slot: "A", // 当前运行的槽位
             build_date: "2024-12-08 14:30:22",
             // 组件信息 (来自manifest.json的components数组)

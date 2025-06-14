@@ -1262,14 +1262,11 @@ int handle_complete_upgrade(const char* json_body) {
 
 ```typescript
 type UpgradeState = 
-  | 'idle'
-  | 'checking_update'
-  | 'update_available'
-  | 'downloading'
-  | 'extracting'
-  | 'uploading'
-  | 'completed'
-  | 'failed';
+    NoUpdate = 0,
+    UpdateAvailable = 1,
+    Updating = 2,
+    UpdateFailed = 3,
+    UpdateSuccess = 4,
 
 interface UpgradeStatus {
   state: UpgradeState;

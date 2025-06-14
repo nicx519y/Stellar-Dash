@@ -1,11 +1,12 @@
 import { useLanguage } from "@/contexts/language-context";
 import { AbsoluteCenter, Badge, Box, Card, Center, Icon, List, ProgressCircle, Text, VStack } from "@chakra-ui/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CiCircleCheck, CiCircleRemove, CiSaveUp1 } from "react-icons/ci";
+import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 
 enum UpdateStatus {
     NoUpdate = 0,
-    HasUpdate = 1,
+    UpdateAvailable = 1,
     Updating = 2,
     UpdateFailed = 3,
     UpdateSuccess = 4,
@@ -13,10 +14,32 @@ enum UpdateStatus {
 
 export function FirmwareContent() {
     const { t } = useLanguage();
-    const [currentVersion, setCurrentVersion] = useState("v1.0.0");
-    const [latestVersion, setLatestVersion] = useState("v1.0.1");
     const [updateProgress, setUpdateProgress] = useState(0);
-    const [updateStatus, setUpdateStatus] = useState(UpdateStatus.UpdateSuccess);
+    const [updateStatus, setUpdateStatus] = useState(UpdateStatus.NoUpdate);
+    const { firmwareInfo, fetchFirmwareMetadata, firmwareUpdateInfo, checkFirmwareUpdate } = useGamepadConfig();
+    const currentVersion = useMemo(() => firmwareInfo?.firmware?.version || "0.0.0", [firmwareInfo]);
+    const latestVersion = useMemo(() => firmwareUpdateInfo?.latestVersion? firmwareUpdateInfo.latestVersion : firmwareInfo?.firmware?.version || "0.0.0", [firmwareUpdateInfo, firmwareInfo]);
+    const latestFirmwareUpdateLog = useMemo(() => firmwareUpdateInfo?.latestFirmware?.desc.split("\n") || [], [firmwareUpdateInfo]);
+
+    useEffect(() => {
+        fetchFirmwareMetadata();
+    }, []);
+
+    useEffect(() => {
+        if (firmwareInfo && firmwareInfo.firmware && firmwareInfo.firmware.version != '') {
+            checkFirmwareUpdate(firmwareInfo.firmware.version);
+        } else {
+            checkFirmwareUpdate("0.0.0");
+        }
+    }, [firmwareInfo]);
+
+    useEffect(() => {
+        if (firmwareUpdateInfo && firmwareUpdateInfo.updateAvailable) {
+            setUpdateStatus(UpdateStatus.UpdateAvailable);
+        } else if (firmwareUpdateInfo && !firmwareUpdateInfo.updateAvailable) {
+            setUpdateStatus(UpdateStatus.NoUpdate);
+        }
+    }, [firmwareUpdateInfo]);
 
     return (
         <Center p="18px">
@@ -46,7 +69,7 @@ export function FirmwareContent() {
                         <CiCircleCheck size="140px"  />
                     </Icon>
                 )}
-                {updateStatus === UpdateStatus.HasUpdate && (
+                {updateStatus === UpdateStatus.UpdateAvailable && (
                     <Icon color="yellow" cursor="pointer" className="bounce-icon">
                         <CiSaveUp1 size="150px"  />
                     </Icon>
@@ -79,16 +102,17 @@ export function FirmwareContent() {
                 </Text>
                 <Box pt=".5rem" width="300px" >
                     <Text fontSize=".9rem" textAlign="center">
-                        {t.SETTINGS_FIRMWARE_CURRENT_VERSION_LABEL}<Badge colorPalette="green" fontSize=".9rem" >v1.0.0</Badge><br />
-                        {t.SETTINGS_FIRMWARE_LATEST_VERSION_LABEL}<Badge colorPalette="yellow" fontSize=".9rem" >v1.0.1</Badge><br />
+                        {t.SETTINGS_FIRMWARE_CURRENT_VERSION_LABEL}<Badge colorPalette="green" fontSize=".9rem" >v{currentVersion}</Badge><br />
+                        {t.SETTINGS_FIRMWARE_LATEST_VERSION_LABEL}<Badge colorPalette="yellow" fontSize=".9rem" >v{latestVersion}</Badge><br />
                     </Text>
                 </Box>
                 <Box pt=".5rem" pb="1rem" width="300px" height="90px" >
                     <Text fontSize=".9rem" textAlign="center">
-                        { updateStatus === UpdateStatus.Updating ? t.SETTINGS_FIRMWARE_UPDATING_MESSAGE 
+                        { updateStatus === UpdateStatus.NoUpdate ? t.SETTINGS_FIRMWARE_NO_UPDATE_MESSAGE
+                        : updateStatus === UpdateStatus.Updating ? t.SETTINGS_FIRMWARE_UPDATING_MESSAGE 
                         : updateStatus === UpdateStatus.UpdateFailed ? t.SETTINGS_FIRMWARE_UPDATE_FAILED_MESSAGE
                         : updateStatus === UpdateStatus.UpdateSuccess ? t.SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE
-                        : updateStatus === UpdateStatus.HasUpdate ? t.SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE : "" }
+                        : updateStatus === UpdateStatus.UpdateAvailable ? t.SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE : "" }
                     </Text>
                 </Box>
                 <Card.Root width="400px" height="200px" display={updateStatus === UpdateStatus.NoUpdate ? "none" : "block"} >
@@ -101,28 +125,15 @@ export function FirmwareContent() {
                             listStyle="decimal" 
                             color="GrayText"
                         >
-                        <List.Item as="li"  >
-                            <Text >
-                                Fixed bug, LED light is not working when the device is connected to the power supply.
-                            </Text>
-                        </List.Item>
-                        <List.Item>
-                            <Text >
-                                Performance improvement, the device is more stable.
-                            </Text>
-                        </List.Item>
-                        <List.Item>
-                            <Text >
-                                LEDs Effect is more beautiful.
-                            </Text>
-                        </List.Item>
-                        <List.Item>
-                            <Text  >
-                                Fixed bug, LED light is not working when the device is connected to the power supply.
-                            </Text>
-                        </List.Item>
-                    </List.Root>
-                </Card.Body>
+                            {latestFirmwareUpdateLog.map((log, index) => (
+                                <List.Item as="li"  key={index} >
+                                    <Text >
+                                        {log}
+                                    </Text>
+                                </List.Item>
+                            ))}
+                        </List.Root>
+                    </Card.Body>
                 </Card.Root>
             </VStack>
         </Center>

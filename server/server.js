@@ -203,6 +203,58 @@ function calculateFileHash(filePath) {
     }
 }
 
+// 版本号比较工具函数
+function compareVersions(version1, version2) {
+    /**
+     * 比较两个版本号
+     * @param {string} version1 - 第一个版本号 (如 "1.0.0")
+     * @param {string} version2 - 第二个版本号 (如 "1.0.1")
+     * @returns {number} - 返回 -1 (version1 < version2), 0 (相等), 1 (version1 > version2)
+     */
+    const v1Parts = version1.split('.').map(Number);
+    const v2Parts = version2.split('.').map(Number);
+    
+    // 确保版本号都是三位数
+    while (v1Parts.length < 3) v1Parts.push(0);
+    while (v2Parts.length < 3) v2Parts.push(0);
+    
+    for (let i = 0; i < 3; i++) {
+        if (v1Parts[i] < v2Parts[i]) return -1;
+        if (v1Parts[i] > v2Parts[i]) return 1;
+    }
+    
+    return 0;
+}
+
+function isValidVersion(version) {
+    /**
+     * 验证版本号格式是否正确
+     * @param {string} version - 版本号字符串
+     * @returns {boolean} - 是否为有效的三位版本号格式
+     */
+    const versionPattern = /^\d+\.\d+\.\d+$/;
+    return versionPattern.test(version);
+}
+
+function findNewerFirmwares(currentVersion, firmwares) {
+    /**
+     * 查找比当前版本更新的固件
+     * @param {string} currentVersion - 当前设备版本号
+     * @param {Array} firmwares - 固件列表
+     * @returns {Array} - 更新的固件列表，按版本号降序排列
+     */
+    if (!isValidVersion(currentVersion)) {
+        return [];
+    }
+    
+    return firmwares
+        .filter(firmware => {
+            return isValidVersion(firmware.version) && 
+                   compareVersions(firmware.version, currentVersion) > 0;
+        })
+        .sort((a, b) => compareVersions(b.version, a.version)); // 降序排列，最新版本在前
+}
+
 // ==================== API 路由 ====================
 
 // 健康检查
@@ -235,7 +287,93 @@ app.get('/api/firmwares', (req, res) => {
     }
 });
 
-// 2. 固件包上传
+// 2. 检查固件更新
+app.post('/api/firmware-check-update', (req, res) => {
+    try {
+        const { currentVersion } = req.body;
+        
+        // 验证当前版本号参数
+        if (!currentVersion) {
+            return res.status(400).json({
+                success: false,
+                message: 'current version is required',
+                errNo: 1,
+                errorMessage: 'current version is required'
+            });
+        }
+
+        // 验证版本号格式
+        if (!isValidVersion(currentVersion.trim())) {
+            return res.status(400).json({
+                success: false,
+                message: 'version format error, must be three-digit version format (e.g. 1.0.0)',
+                errNo: 1,
+                errorMessage: 'version format error, must be three-digit version format (e.g. 1.0.0)'
+            });
+        }
+
+        // 获取所有固件
+        const allFirmwares = storage_manager.getFirmwares();
+        
+        // 查找更新的固件
+        const newerFirmwares = findNewerFirmwares(currentVersion.trim(), allFirmwares);
+        
+        // 构建响应数据
+        const updateAvailable = newerFirmwares.length > 0;
+        const latestFirmware = updateAvailable ? newerFirmwares[0] : null;
+        
+        const responseData = {
+            currentVersion: currentVersion.trim(),
+            updateAvailable: updateAvailable,
+            updateCount: newerFirmwares.length,
+            checkTime: new Date().toISOString()
+        };
+
+        if (updateAvailable) {
+            responseData.latestVersion = latestFirmware.version;
+            responseData.latestFirmware = {
+                id: latestFirmware.id,
+                name: latestFirmware.name,
+                version: latestFirmware.version,
+                desc: latestFirmware.desc,
+                createTime: latestFirmware.createTime,
+                updateTime: latestFirmware.updateTime,
+                slotA: latestFirmware.slotA,
+                slotB: latestFirmware.slotB
+            };
+            responseData.availableUpdates = newerFirmwares.map(firmware => ({
+                id: firmware.id,
+                name: firmware.name,
+                version: firmware.version,
+                desc: firmware.desc,
+                createTime: firmware.createTime
+            }));
+        }
+
+        res.json({
+            success: true,
+            errNo: 0,
+            data: responseData,
+            message: updateAvailable ? 
+                `found ${newerFirmwares.length} updates, latest version: ${latestFirmware.version}` : 
+                'current version is the latest'
+        });
+
+        console.log(`Firmware update check: current version ${currentVersion.trim()}, ${updateAvailable ? `found ${newerFirmwares.length} updates` : 'no updates'}`);
+
+    } catch (error) {
+        console.error('Firmware update check failed:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Firmware update check failed',
+            errNo: 1,
+            errorMessage: 'Firmware update check failed: ' + error.message,
+            error: error.message
+        });
+    }
+});
+
+// 3. 固件包上传
 app.post('/api/firmwares/upload', upload.fields([
     { name: 'slotA', maxCount: 1 },
     { name: 'slotB', maxCount: 1 }
@@ -256,7 +394,7 @@ app.post('/api/firmwares/upload', upload.fields([
         if (!versionPattern.test(version.trim())) {
             return res.status(400).json({
                 success: false,
-                message: '版本号格式错误，必须是三位版本号格式（如：1.0.0）'
+                message: 'version format error, must be three-digit version format (e.g. 1.0.0)'
             });
         }
 
@@ -265,7 +403,7 @@ app.post('/api/firmwares/upload', upload.fields([
         if (existingFirmware) {
             return res.status(409).json({
                 success: false,
-                message: `版本号 ${version.trim()} 已存在，不允许重复上传`
+                message: `version ${version.trim()} already exists, not allowed to upload again`
             });
         }
 
@@ -273,13 +411,13 @@ app.post('/api/firmwares/upload', upload.fields([
         if (!req.files || (!req.files.slotA && !req.files.slotB)) {
             return res.status(400).json({
                 success: false,
-                message: '至少需要上传一个槽的固件包'
+                message: 'at least one slot of firmware package is required'
             });
         }
 
         // 构建固件对象
         const firmware = {
-            name: `HBox固件 ${version.trim()}`, // 自动生成名称
+            name: `HBox firmware ${version.trim()}`, // 自动生成名称
             version: version.trim(),
             desc: desc ? desc.trim() : '',
             slotA: null,
@@ -318,28 +456,28 @@ app.post('/api/firmwares/upload', upload.fields([
         if (storage_manager.addFirmware(firmware)) {
             res.json({
                 success: true,
-                message: '固件上传成功',
+                message: 'firmware uploaded successfully',
                 data: firmware
             });
-            console.log(`固件上传成功: ${firmware.name} v${firmware.version}`);
+            console.log(`Firmware uploaded successfully: ${firmware.name} v${firmware.version}`);
         } else {
             res.status(500).json({
                 success: false,
-                message: '保存固件信息失败'
+                message: 'failed to save firmware information'
             });
         }
 
     } catch (error) {
-        console.error('固件上传失败:', error);
+        console.error('Firmware upload failed:', error);
         res.status(500).json({
             success: false,
-            message: '固件上传失败',
+            message: 'Firmware upload failed',
             error: error.message
         });
     }
 });
 
-// 3. 固件包删除
+// 4. 固件包删除
 app.delete('/api/firmwares/:id', (req, res) => {
     try {
         const { id } = req.params;
@@ -349,7 +487,7 @@ app.delete('/api/firmwares/:id', (req, res) => {
         if (!firmware) {
             return res.status(404).json({
                 success: false,
-                message: '固件不存在'
+                message: 'firmware not found'
             });
         }
 
@@ -357,28 +495,28 @@ app.delete('/api/firmwares/:id', (req, res) => {
         if (storage_manager.deleteFirmware(id)) {
             res.json({
                 success: true,
-                message: '固件删除成功',
+                message: 'firmware deleted successfully',
                 data: { id, name: firmware.name, version: firmware.version }
             });
-            console.log(`固件删除成功: ${firmware.name} v${firmware.version}`);
+            console.log(`Firmware deleted successfully: ${firmware.name} v${firmware.version}`);
         } else {
             res.status(500).json({
                 success: false,
-                message: '删除固件失败'
+                message: 'failed to delete firmware'
             });
         }
 
     } catch (error) {
-        console.error('固件删除失败:', error);
+        console.error('Firmware deletion failed:', error);
         res.status(500).json({
             success: false,
-            message: '固件删除失败',
+            message: 'Firmware deletion failed',
             error: error.message
         });
     }
 });
 
-// 4. 获取单个固件详情
+// 5. 获取单个固件详情
 app.get('/api/firmwares/:id', (req, res) => {
     try {
         const { id } = req.params;
@@ -387,7 +525,7 @@ app.get('/api/firmwares/:id', (req, res) => {
         if (!firmware) {
             return res.status(404).json({
                 success: false,
-                message: '固件不存在'
+                message: 'firmware not found'
             });
         }
 
@@ -397,16 +535,16 @@ app.get('/api/firmwares/:id', (req, res) => {
         });
 
     } catch (error) {
-        console.error('获取固件详情失败:', error);
+        console.error('Failed to get firmware details:', error);
         res.status(500).json({
             success: false,
-            message: '获取固件详情失败',
+            message: 'Failed to get firmware details',
             error: error.message
         });
     }
 });
 
-// 5. 更新固件信息
+// 6. 更新固件信息
 app.put('/api/firmwares/:id', (req, res) => {
     try {
         const { id } = req.params;
@@ -417,7 +555,7 @@ app.put('/api/firmwares/:id', (req, res) => {
         if (!firmware) {
             return res.status(404).json({
                 success: false,
-                message: '固件不存在'
+                message: 'firmware not found'
             });
         }
 
@@ -432,22 +570,22 @@ app.put('/api/firmwares/:id', (req, res) => {
             const updatedFirmware = storage_manager.findFirmware(id);
             res.json({
                 success: true,
-                message: '固件信息更新成功',
+                message: 'firmware information updated successfully',
                 data: updatedFirmware
             });
-            console.log(`固件信息更新成功: ${updatedFirmware.name} v${updatedFirmware.version}`);
+            console.log(`Firmware information updated successfully: ${updatedFirmware.name} v${updatedFirmware.version}`);
         } else {
             res.status(500).json({
                 success: false,
-                message: '更新固件信息失败'
+                message: 'failed to update firmware information'
             });
         }
 
     } catch (error) {
-        console.error('固件信息更新失败:', error);
+        console.error('Firmware information update failed:', error);
         res.status(500).json({
             success: false,
-            message: '固件信息更新失败',
+            message: 'Firmware information update failed',
             error: error.message
         });
     }
@@ -459,7 +597,7 @@ app.use((error, req, res, next) => {
         if (error.code === 'LIMIT_FILE_SIZE') {
             return res.status(400).json({
                 success: false,
-                message: `文件大小不能超过 ${config.maxFileSize / (1024 * 1024)}MB`
+                message: `file size cannot exceed ${config.maxFileSize / (1024 * 1024)}MB`
             });
         }
     }
@@ -467,7 +605,7 @@ app.use((error, req, res, next) => {
     console.error('服务器错误:', error);
     res.status(500).json({
         success: false,
-        message: '服务器内部错误',
+        message: 'Server internal error',
         error: error.message
     });
 });
@@ -476,19 +614,19 @@ app.use((error, req, res, next) => {
 app.use((req, res) => {
     res.status(404).json({
         success: false,
-        message: '接口不存在',
+        message: 'API not found',
         path: req.path
     });
 });
 
 // 优雅关闭处理
 process.on('SIGINT', () => {
-    console.log('\n收到中断信号，正在关闭服务器...');
+    console.log('\nReceived interrupt signal, shutting down server...');
     process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-    console.log('\n收到终止信号，正在关闭服务器...');
+    console.log('\nReceived termination signal, shutting down server...');
     process.exit(0);
 });
 
@@ -506,6 +644,7 @@ app.listen(PORT, () => {
     console.log('可用接口:');
     console.log('  GET    /health                 - 健康检查');
     console.log('  GET    /api/firmwares          - 获取固件列表');
+    console.log('  POST   /api/firmware-check-update - 检查固件更新');
     console.log('  POST   /api/firmwares/upload   - 上传固件包');
     console.log('  GET    /api/firmwares/:id      - 获取固件详情');
     console.log('  PUT    /api/firmwares/:id      - 更新固件信息');

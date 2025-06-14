@@ -82,43 +82,43 @@ export function validateManifest(manifest: ReleasePackageManifest): {
     
     // 检查必需字段
     if (!manifest.version) {
-        errors.push('缺少版本信息');
+        errors.push('version is required');
     }
     
     if (!manifest.slot || !['A', 'B'].includes(manifest.slot)) {
-        errors.push('无效的槽位信息');
+        errors.push('invalid slot information');
     }
     
     if (!manifest.build_date) {
-        errors.push('缺少构建日期');
+        errors.push('build_date is required');
     }
     
     if (!manifest.components || !Array.isArray(manifest.components)) {
-        errors.push('缺少组件信息');
+        errors.push('components is required');
     } else {
         // 检查每个组件
         manifest.components.forEach((component, index) => {
             if (!component.name) {
-                errors.push(`组件${index + 1}缺少名称`);
+                errors.push(`component ${index + 1} name is required`);
             }
             if (!component.file) {
-                errors.push(`组件${index + 1}缺少文件名`);
+                errors.push(`component ${index + 1} file is required`);
             }
             if (!component.address) {
-                errors.push(`组件${index + 1}缺少地址信息`);
+                errors.push(`component ${index + 1} address is required`);
             }
             if (!component.size || component.size <= 0) {
-                errors.push(`组件${index + 1}大小无效`);
+                errors.push(`component ${index + 1} size is invalid`);
             }
             if (!component.sha256) {
-                errors.push(`组件${index + 1}缺少校验和`);
+                errors.push(`component ${index + 1} sha256 is required`);
             }
         });
         
         // 检查必需组件
         const componentNames = manifest.components.map(c => c.name);
         if (!componentNames.includes('application')) {
-            errors.push('缺少必需的application组件');
+            errors.push('application component is required');
         }
     }
     
@@ -206,15 +206,15 @@ export function formatBuildDate(buildDate: string): string {
 export function getSlotStatusDescription(slotInfo: SlotInfo): string {
     switch (slotInfo.status) {
         case 'active':
-            return `运行中 (${slotInfo.version})`;
+            return `running (${slotInfo.version})`;
         case 'inactive':
-            return `待机 (${slotInfo.version})`;
+            return `standby (${slotInfo.version})`;
         case 'corrupted':
-            return '已损坏';
+            return 'corrupted';
         case 'empty':
-            return '空闲';
+            return 'empty';
         default:
-            return '未知状态';
+            return 'unknown status';
     }
 }
 
@@ -257,11 +257,11 @@ export function generateFirmwareSummary(metadata: FirmwareMetadata): {
     const componentCount = metadata.components.length;
     
     const summary = [
-        `版本: ${metadata.version}`,
-        `槽位: ${metadata.slot}`,
-        `组件: ${componentCount}个`,
-        `总大小: ${formatFileSize(totalSize)}`,
-        `构建时间: ${formatBuildDate(metadata.build_date)}`
+        `version: ${metadata.version}`,
+        `slot: ${metadata.slot}`,
+        `components: ${componentCount}`,
+        `total size: ${formatFileSize(totalSize)}`,
+        `build date: ${formatBuildDate(metadata.build_date)}`
     ].join(', ');
     
     return {

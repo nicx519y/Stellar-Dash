@@ -6,6 +6,49 @@ import { GameProfile,
         Platform, GameSocdMode, 
         GameControllerButton, Hotkey, RapidTriggerConfig, GameProfileList, GlobalConfig } from '@/types/gamepad-config';
 import { StepInfo, ADCValuesMapping } from '@/types/adc';
+import { ButtonStates, CalibrationStatus, DeviceFirmwareInfo, LEDsConfig } from '@/types/types';
+
+// 固件服务器配置
+const FIRMWARE_SERVER_CONFIG = {
+    // 默认固件服务器地址，可通过环境变量覆盖
+    defaultHost: process.env.NEXT_PUBLIC_FIRMWARE_SERVER_HOST || 'http://localhost:3000',
+    // API 端点
+    endpoints: {
+        checkUpdate: '/api/firmware-check-update'
+    }
+};
+
+// 固件更新检查相关类型定义
+export interface FirmwareUpdateCheckRequest {
+    currentVersion: string;
+}
+
+export interface FirmwareUpdateInfo {
+    id: string;
+    name: string;
+    version: string;
+    desc: string;
+    createTime: string;
+}
+
+export interface FirmwareUpdateCheckResponse {
+    currentVersion: string;
+    updateAvailable: boolean;
+    updateCount: number;
+    checkTime: string;
+    latestVersion?: string;
+    latestFirmware?: {
+        id: string;
+        name: string;
+        version: string;
+        desc: string;
+        createTime: string;
+        updateTime: string;
+        slotA?: any;
+        slotB?: any;
+    };
+    availableUpdates?: FirmwareUpdateInfo[];
+}
 
 // 创建自定义fetch函数来支持Keep-Alive
 const createFetchWithKeepAlive = () => {
@@ -36,39 +79,6 @@ const createFetchWithKeepAlive = () => {
 // 创建全局的fetch实例
 const fetchWithKeepAlive = createFetchWithKeepAlive();
 
-// 校准状态类型定义
-export interface CalibrationButtonStatus {
-    index: number;
-    phase: 'IDLE' | 'TOP_SAMPLING' | 'BOTTOM_SAMPLING' | 'COMPLETED' | 'ERROR';
-    isCalibrated: boolean;
-    topValue: number;
-    bottomValue: number;
-    ledColor: 'OFF' | 'RED' | 'CYAN' | 'DARK_BLUE' | 'GREEN' | 'YELLOW';
-}
-
-export interface CalibrationStatus {
-    isActive: boolean;
-    uncalibratedCount: number;
-    activeCalibrationCount: number;
-    allCalibrated: boolean;
-    buttons: CalibrationButtonStatus[];
-}
-
-// 按键状态类型定义
-export interface ButtonStates {
-    triggerMask: number;
-    triggerBinary: string;
-    totalButtons: number;
-    timestamp: number;
-}
-
-export interface LEDsConfig {
-    ledEnabled: boolean;
-    ledsEffectStyle: number;
-    ledColors: string[];
-    ledBrightness: number;
-    ledAnimationSpeed: number;
-}
 
 interface GamepadConfigContextType {
     contextJsReady: boolean;
@@ -122,6 +132,14 @@ interface GamepadConfigContextType {
     // LED 配置相关
     pushLedsConfig: (ledsConfig: LEDsConfig) => Promise<void>;
     clearLedsPreview: () => Promise<void>;
+    // 固件元数据相关
+    firmwareInfo: DeviceFirmwareInfo | null;
+    fetchFirmwareMetadata: () => Promise<void>;
+    // 固件更新检查相关
+    firmwareUpdateInfo: FirmwareUpdateCheckResponse | null;
+    checkFirmwareUpdate: (currentVersion: string, customServerHost?: string) => Promise<void>;
+    setFirmwareServerHost: (host: string) => void;
+    getFirmwareServerHost: () => string;
 }
 
 const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
@@ -210,6 +228,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     });
     const [activeMapping, setActiveMapping] = useState<ADCValuesMapping | null>(null);
     const [buttonMonitoringActive, setButtonMonitoringActive] = useState<boolean>(false);
+    const [firmwareInfo, setFirmwareInfo] = useState<DeviceFirmwareInfo | null>(null);
+    const [firmwareUpdateInfo, setFirmwareUpdateInfo] = useState<FirmwareUpdateCheckResponse | null>(null);
+    const [firmwareServerHost, setFirmwareServerHostState] = useState<string>(FIRMWARE_SERVER_CONFIG.defaultHost);
 
     const contextJsReady = useMemo(() => {
         return jsReady;
@@ -914,7 +935,83 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
     
-    
+    const fetchFirmwareMetadata = async (): Promise<void> => {
+        try {
+            setIsLoading(true);
+            const response = await fetchWithKeepAlive('/api/firmware-metadata', {
+                method: 'GET'
+            });
+            const data = await processResponse(response, setError);
+            if (!data) {
+                return Promise.reject(new Error("Failed to fetch firmware metadata"));
+            }
+            setFirmwareInfo({
+                device_id: data.device_id,
+                firmware: data.firmware
+            });
+            return Promise.resolve();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred');
+            return Promise.reject(new Error("Failed to fetch firmware metadata"));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const checkFirmwareUpdate = async (currentVersion: string, customServerHost?: string): Promise<void> => {
+        try {
+            setIsLoading(true);
+            
+            // 使用传入的服务器地址、状态中的地址或默认配置
+            const serverHost = customServerHost || firmwareServerHost || FIRMWARE_SERVER_CONFIG.defaultHost;
+            const updateCheckUrl = `${serverHost}${FIRMWARE_SERVER_CONFIG.endpoints.checkUpdate}`;
+            
+            // 构建请求数据
+            const requestData: FirmwareUpdateCheckRequest = {
+                currentVersion: currentVersion.trim()
+            };
+            
+            // 直接请求固件服务器
+            const response = await fetch(updateCheckUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestData),
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Firmware Server Error: ${response.status} ${response.statusText}`);
+            }
+            
+            const responseData = await response.json();
+            
+            // 检查服务器返回的错误
+            if (responseData.errNo && responseData.errNo !== 0) {
+                throw new Error(responseData.errorMessage || 'Firmware update check failed');
+            }
+            
+            // 设置更新信息
+            setFirmwareUpdateInfo(responseData.data);
+            setError(null);
+            return Promise.resolve();
+            
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Firmware update check failed';
+            setError(errorMessage);
+            return Promise.reject(new Error(errorMessage));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const setFirmwareServerHost = (host: string): void => {
+        setFirmwareServerHostState(host);
+    };
+
+    const getFirmwareServerHost = (): string => {
+        return firmwareServerHost;
+    };
 
     return (
         <GamepadConfigContext.Provider value={{
@@ -969,6 +1066,14 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             // LED 配置相关
             pushLedsConfig: pushLedsConfig,
             clearLedsPreview: clearLedsPreview,
+            // 固件元数据相关
+            firmwareInfo,
+            fetchFirmwareMetadata,
+            // 固件更新检查相关
+            firmwareUpdateInfo,
+            checkFirmwareUpdate,
+            setFirmwareServerHost,
+            getFirmwareServerHost,
         }}>
             {children}
         </GamepadConfigContext.Provider>
