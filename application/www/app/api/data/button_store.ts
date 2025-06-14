@@ -14,11 +14,11 @@ const buttonState: ButtonMonitoringState = {
     lastUpdateTime: Date.now(),
 };
 
-let simulationCounter = 0;
+let _simulationCounter = 0;
 
 // 生成模拟的按键触发数据
 function generateSimulatedButtonStates(): number {
-    simulationCounter++;
+    _simulationCounter++;
     
     // // 每5次调用模拟一次按键触发
     // if (simulationCounter % 5 === 0) {

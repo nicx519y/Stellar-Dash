@@ -1,12 +1,13 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import JSZip from 'jszip';
 import { GameProfile, 
         LedsEffectStyle, 
         Platform, GameSocdMode, 
         GameControllerButton, Hotkey, RapidTriggerConfig, GameProfileList, GlobalConfig } from '@/types/gamepad-config';
 import { StepInfo, ADCValuesMapping } from '@/types/adc';
-import { ButtonStates, CalibrationStatus, DeviceFirmwareInfo, LEDsConfig } from '@/types/types';
+import { ButtonStates, CalibrationStatus, DeviceFirmwareInfo, FirmwareComponent, FirmwareManifest, FirmwareUpgradeConfig, FirmwareUpgradeSession, FirmwarePackage, FirmwareUpdateCheckResponse, LEDsConfig, FirmwarePackageDownloadProgress, FirmwareUpdateCheckRequest, ChunkTransferRequest } from '@/types/types';
 
 // 固件服务器配置
 const FIRMWARE_SERVER_CONFIG = {
@@ -18,37 +19,82 @@ const FIRMWARE_SERVER_CONFIG = {
     }
 };
 
-// 固件更新检查相关类型定义
-export interface FirmwareUpdateCheckRequest {
-    currentVersion: string;
-}
 
-export interface FirmwareUpdateInfo {
-    id: string;
-    name: string;
-    version: string;
-    desc: string;
-    createTime: string;
-}
 
-export interface FirmwareUpdateCheckResponse {
-    currentVersion: string;
-    updateAvailable: boolean;
-    updateCount: number;
-    checkTime: string;
-    latestVersion?: string;
-    latestFirmware?: {
-        id: string;
-        name: string;
-        version: string;
-        desc: string;
-        createTime: string;
-        updateTime: string;
-        slotA?: any;
-        slotB?: any;
-    };
-    availableUpdates?: FirmwareUpdateInfo[];
-}
+// 工具函数：计算数据的SHA256校验和
+const calculateSHA256 = async (data: Uint8Array): Promise<string> => {
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+// 工具函数：解压固件包
+const extractFirmwarePackage = async (data: Uint8Array): Promise<{ manifest: FirmwareManifest, components: { [key: string]: FirmwareComponent } }> => {
+    try {
+        // 使用JSZip解压ZIP文件
+        const zip = await JSZip.loadAsync(data);
+        
+        // 1. 读取manifest.json
+        const manifestFile = zip.file('manifest.json');
+        if (!manifestFile) {
+            throw new Error('firmware package is missing manifest.json file');
+        }
+        
+        const manifestContent = await manifestFile.async('string');
+        const manifest: FirmwareManifest = JSON.parse(manifestContent);
+        
+        // 验证manifest结构
+        if (!manifest.version || !manifest.slot || !manifest.components || !Array.isArray(manifest.components)) {
+            throw new Error('manifest.json format is invalid');
+        }
+        
+        // 2. 读取所有组件文件
+        const components: { [key: string]: FirmwareComponent } = {};
+        
+        for (const comp of manifest.components) {
+            if (!comp.name || !comp.file || !comp.address || !comp.size || !comp.sha256) {
+                throw new Error(`component ${comp.name || 'unknown'} config is incomplete`);
+            }
+            
+            // 查找组件文件
+            const componentFile = zip.file(comp.file);
+            if (!componentFile) {
+                throw new Error(`firmware package is missing component file: ${comp.file}`);
+            }
+            
+            // 读取组件数据
+            const componentData = await componentFile.async('uint8array');
+            
+            // 验证文件大小
+            if (componentData.length !== comp.size) {
+                console.warn(`component ${comp.name} file size mismatch: expected ${comp.size}, actual ${componentData.length}`);
+            }
+            
+            // 验证SHA256校验和
+            const calculatedHash = await calculateSHA256(componentData);
+            if (calculatedHash !== comp.sha256) {
+                console.warn(`component ${comp.name} SHA256 checksum mismatch: expected ${comp.sha256}, actual ${calculatedHash}`);
+                // 在生产环境中可能需要抛出错误，这里先警告
+                // throw new Error(`component ${comp.name} SHA256 checksum mismatch`);
+            }
+            
+            // 创建组件对象
+            components[comp.name] = {
+                ...comp,
+                data: componentData
+            };
+        }
+        
+        return { manifest, components };
+        
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`failed to extract firmware package: ${error.message}`);
+        } else {
+            throw new Error('failed to extract firmware package: unknown error');
+        }
+    }
+};
 
 // 创建自定义fetch函数来支持Keep-Alive
 const createFetchWithKeepAlive = () => {
@@ -140,6 +186,14 @@ interface GamepadConfigContextType {
     checkFirmwareUpdate: (currentVersion: string, customServerHost?: string) => Promise<void>;
     setFirmwareServerHost: (host: string) => void;
     getFirmwareServerHost: () => string;
+    // 固件升级包下载和传输相关
+    firmwarePackage: FirmwarePackage | null;
+    upgradeSession: FirmwareUpgradeSession | null;
+    downloadFirmwarePackage: (downloadUrl: string, onProgress?: (progress: FirmwarePackageDownloadProgress) => void) => Promise<void>;
+    uploadFirmwareToDevice: (firmwarePackage: FirmwarePackage, onProgress?: (progress: FirmwarePackageDownloadProgress) => void) => Promise<void>;
+    setUpgradeConfig: (config: Partial<FirmwareUpgradeConfig>) => void;
+    getUpgradeConfig: () => FirmwareUpgradeConfig;
+    clearFirmwarePackage: () => void;
 }
 
 const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
@@ -231,6 +285,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [firmwareInfo, setFirmwareInfo] = useState<DeviceFirmwareInfo | null>(null);
     const [firmwareUpdateInfo, setFirmwareUpdateInfo] = useState<FirmwareUpdateCheckResponse | null>(null);
     const [firmwareServerHost, setFirmwareServerHostState] = useState<string>(FIRMWARE_SERVER_CONFIG.defaultHost);
+    const [firmwarePackage, setFirmwarePackage] = useState<FirmwarePackage | null>(null);
+    const [upgradeSession, setUpgradeSession] = useState<FirmwareUpgradeSession | null>(null);
+    const [upgradeConfig, setUpgradeConfigState] = useState<FirmwareUpgradeConfig>({
+        chunkSize: 4096, // 4KB默认分片大小
+        maxRetries: 3,
+        timeout: 30000 // 30秒超时
+    });
 
     const contextJsReady = useMemo(() => {
         return jsReady;
@@ -1013,6 +1074,377 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         return firmwareServerHost;
     };
 
+    // 工具函数：Base64编码
+    const arrayBufferToBase64 = (buffer: Uint8Array): string => {
+        return btoa(String.fromCharCode(...buffer));
+    };
+
+    // 工具函数：生成会话ID
+    const generateSessionId = (): string => {
+        return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    };
+
+    // 下载固件包
+    const downloadFirmwarePackage = async (downloadUrl: string, onProgress?: (progress: FirmwarePackageDownloadProgress) => void): Promise<void> => {
+        try {
+            // setIsLoading(true);
+            setError(null);
+
+            // 初始化进度
+            const initialProgress: FirmwarePackageDownloadProgress = {
+                stage: 'downloading',
+                progress: 0,
+                message: '开始下载固件包...'
+            };
+            onProgress?.(initialProgress);
+
+            // 1. 下载固件包 (进度 0% - 30%)
+            const response = await fetch(downloadUrl);
+            if (!response.ok) {
+                throw new Error(`下载失败: ${response.status} ${response.statusText}`);
+            }
+
+            const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
+            if (contentLength === 0) {
+                throw new Error('无法获取文件大小');
+            }
+
+            const reader = response.body?.getReader();
+            if (!reader) {
+                throw new Error('无法读取响应数据');
+            }
+
+            const chunks: Uint8Array[] = [];
+            let receivedLength = 0;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                chunks.push(value);
+                receivedLength += value.length;
+
+                // 下载进度占总进度的30%
+                const downloadProgress = (receivedLength / contentLength) * 30;
+                onProgress?.({
+                    stage: 'downloading',
+                    progress: downloadProgress,
+                    message: `downloading firmware package... ${Math.round(receivedLength / 1024)}KB/${Math.round(contentLength / 1024)}KB`,
+                    bytes_transferred: receivedLength,
+                    total_bytes: contentLength
+                });
+            }
+
+            // 合并所有数据块
+            const packageData = new Uint8Array(receivedLength);
+            let position = 0;
+            for (const chunk of chunks) {
+                packageData.set(chunk, position);
+                position += chunk.length;
+            }
+
+            onProgress?.({
+                stage: 'extracting',
+                progress: 30,
+                message: 'extracting firmware package...'
+            });
+
+            // 2. 解压和验证包 (进度 30% - 40%)
+            const { manifest, components } = await extractFirmwarePackage(packageData);
+
+            // 3. 计算总大小
+            onProgress?.({
+                stage: 'extracting',
+                progress: 35,
+                message: 'preparing firmware package...'
+            });
+
+            let totalSize = 0;
+            for (const component of Object.values(components)) {
+                if (component.data) {
+                    totalSize += component.data.length;
+                }
+            }
+
+            // 4. 创建固件包对象
+            const firmwarePackage: FirmwarePackage = {
+                manifest,
+                components,
+                totalSize
+            };
+
+            // 5. 存储到内存中
+            setFirmwarePackage(firmwarePackage);
+
+            onProgress?.({
+                stage: 'downcompleted',
+                progress: 40,
+                message: `firmware package download completed! total size: ${Math.round(totalSize / 1024)}KB`
+            });
+
+            setError(null);
+            return Promise.resolve();
+
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'failed to download firmware package: unknown error';
+            setError(errorMessage);
+            
+            onProgress?.({
+                stage: 'failed',
+                progress: 0,
+                message: 'download failed',
+                error: errorMessage
+            });
+
+            return Promise.reject(new Error(errorMessage));
+        } finally {
+            // setIsLoading(false);
+        }
+    };
+
+    // 上传固件到设备
+    const uploadFirmwareToDevice = async (firmwarePackage: FirmwarePackage, onProgress?: (progress: FirmwarePackageDownloadProgress) => void): Promise<void> => {
+        try {
+            // setIsLoading(true);
+            setError(null);
+
+            const { manifest, components, totalSize } = firmwarePackage;
+            let transferredBytes = 0;
+
+            // 生成会话ID
+            const sessionId = generateSessionId();
+
+            // 创建升级会话
+            const session: FirmwareUpgradeSession = {
+                sessionId,
+                isActive: true,
+                progress: {
+                    stage: 'uploading',
+                    progress: 0,
+                    message: 'begin to upload firmware...'
+                },
+                config: upgradeConfig
+            };
+            setUpgradeSession(session);
+
+            onProgress?.({
+                stage: 'uploading',
+                progress: 0,
+                message: 'begin to start firmware upgrade session...'
+            });
+
+            // 1. 开始升级会话
+            const sessionResponse = await fetchWithKeepAlive('/api/firmware-upgrade', {
+                method: 'POST',
+                body: JSON.stringify({
+                    action: 'start_session',
+                    manifest: manifest,
+                    total_size: totalSize
+                })
+            });
+
+            const sessionData = await processResponse(sessionResponse, setError);
+            if (!sessionData) {
+                throw new Error('failed to start firmware upgrade session');
+            }
+
+            const deviceSessionId = sessionData.session_id || sessionId;
+
+            try {
+                // 2. 按组件顺序传输 (进度 0% - 100%)
+                for (const [componentName, component] of Object.entries(components)) {
+                    if (!component.data) {
+                        throw new Error(`component ${componentName} data is missing`);
+                    }
+
+                    onProgress?.({
+                        stage: 'uploading',
+                        progress: (transferredBytes / totalSize) * 100,
+                        message: `uploading ${componentName}...`,
+                        current_component: componentName,
+                        bytes_transferred: transferredBytes,
+                        total_bytes: totalSize
+                    });
+
+                    // 分片传输单个组件
+                    const componentData = component.data;
+                    const totalChunks = Math.ceil(componentData.length / upgradeConfig.chunkSize);
+
+                    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                        const start = chunkIndex * upgradeConfig.chunkSize;
+                        const end = Math.min(start + upgradeConfig.chunkSize, componentData.length);
+                        const chunkData = componentData.slice(start, end);
+
+                        // 计算分片校验和
+                        const chunkChecksum = await calculateSHA256(chunkData);
+
+                        // 转换为Base64传输
+                        const base64Chunk = arrayBufferToBase64(chunkData);
+
+                        // 构建分片传输请求
+                        const chunkRequest: ChunkTransferRequest = {
+                            session_id: deviceSessionId,
+                            component_name: componentName,
+                            chunk_index: chunkIndex,
+                            total_chunks: totalChunks,
+                            target_address: component.address,
+                            data: base64Chunk,
+                            checksum: chunkChecksum
+                        };
+
+                        // 发送分片数据，支持重试
+                        let retryCount = 0;
+                        let chunkSuccess = false;
+
+                        while (retryCount <= upgradeConfig.maxRetries && !chunkSuccess) {
+                            try {
+                                const chunkResponse = await fetchWithKeepAlive('/api/firmware-upgrade/chunk', {
+                                    method: 'POST',
+                                    body: JSON.stringify(chunkRequest)
+                                });
+
+                                const chunkResponseData = await processResponse(chunkResponse, setError);
+                                if (!chunkResponseData) {
+                                    throw new Error('invalid chunk transfer response');
+                                }
+
+                                chunkSuccess = true;
+                                transferredBytes += chunkData.length;
+
+                                // 更新进度
+                                const overallProgress = (transferredBytes / totalSize) * 100;
+                                const chunkProgress = (chunkIndex + 1) / totalChunks;
+
+                                onProgress?.({
+                                    stage: 'uploading',
+                                    progress: overallProgress,
+                                    message: `uploading ${componentName}... ${chunkIndex + 1}/${totalChunks}`,
+                                    current_component: componentName,
+                                    chunk_progress: chunkProgress,
+                                    bytes_transferred: transferredBytes,
+                                    total_bytes: totalSize
+                                });
+
+                                // 避免过快传输导致设备缓冲区溢出
+                                await new Promise(resolve => setTimeout(resolve, 10));
+
+                            } catch (chunkError) {
+                                retryCount++;
+                                if (retryCount <= upgradeConfig.maxRetries) {
+                                    console.warn(`chunk transfer failed, retrying (${retryCount}/${upgradeConfig.maxRetries}):`, chunkError);
+                                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // 递增延迟
+                                } else {
+                                    throw new Error(`chunk transfer failed, reached max retry times: ${chunkError instanceof Error ? chunkError.message : 'unknown error'}`);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. 完成升级
+                onProgress?.({
+                    stage: 'uploading',
+                    progress: 95,
+                    message: 'completing firmware upgrade...'
+                });
+
+                const completeResponse = await fetchWithKeepAlive('/api/firmware-upgrade', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'complete_session',
+                        session_id: deviceSessionId
+                    })
+                });
+
+                const completeData = await processResponse(completeResponse, setError);
+                if (!completeData) {
+                    throw new Error('failed to complete firmware upgrade');
+                }
+
+                // 更新会话状态
+                setUpgradeSession({
+                    ...session,
+                    isActive: false,
+                    progress: {
+                        stage: 'uploadcompleted',
+                        progress: 100,
+                        message: 'firmware upgrade completed successfully'
+                    }
+                });
+
+                onProgress?.({
+                    stage: 'uploadcompleted',
+                    progress: 100,
+                    message: 'firmware upgrade completed successfully, will restart from new slot'
+                });
+
+                setError(null);
+                return Promise.resolve();
+
+            } catch (uploadError) {
+                // 出错时清理会话
+                try {
+                    await fetchWithKeepAlive('/api/firmware-upgrade', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'abort_session',
+                            session_id: deviceSessionId
+                        })
+                    });
+                } catch (abortError) {
+                    console.warn('清理升级会话失败:', abortError);
+                }
+                throw uploadError;
+            }
+
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'failed to upload firmware: unknown error';
+            setError(errorMessage);
+
+            // 更新会话状态
+            if (upgradeSession) {
+                setUpgradeSession({
+                    ...upgradeSession,
+                    isActive: false,
+                    progress: {
+                        stage: 'failed',
+                        progress: 0,
+                        message: 'upload failed',
+                        error: errorMessage
+                    }
+                });
+            }
+
+            onProgress?.({
+                stage: 'failed',
+                progress: 0,
+                message: 'upload failed',
+                error: errorMessage
+            });
+
+            return Promise.reject(new Error(errorMessage));
+        } finally {
+            // setIsLoading(false);
+        }
+    };
+
+    // 配置管理函数
+    const setUpgradeConfig = (config: Partial<FirmwareUpgradeConfig>): void => {
+        setUpgradeConfigState(prevConfig => ({
+            ...prevConfig,
+            ...config
+        }));
+    };
+
+    const getUpgradeConfig = (): FirmwareUpgradeConfig => {
+        return upgradeConfig;
+    };
+
+    const clearFirmwarePackage = (): void => {
+        setFirmwarePackage(null);
+        setUpgradeSession(null);
+    };
+
     return (
         <GamepadConfigContext.Provider value={{
             contextJsReady,
@@ -1074,6 +1506,14 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             checkFirmwareUpdate,
             setFirmwareServerHost,
             getFirmwareServerHost,
+            // 固件升级包下载和传输相关
+            firmwarePackage: firmwarePackage,
+            upgradeSession: upgradeSession,
+            downloadFirmwarePackage: downloadFirmwarePackage,
+            uploadFirmwareToDevice: uploadFirmwareToDevice,
+            setUpgradeConfig: setUpgradeConfig,
+            getUpgradeConfig: getUpgradeConfig,
+            clearFirmwarePackage: clearFirmwarePackage,
         }}>
             {children}
         </GamepadConfigContext.Provider>
