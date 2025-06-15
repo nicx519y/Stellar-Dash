@@ -34,8 +34,11 @@ export function FirmwareContent() {
     }, []);
 
     useEffect(() => {
+        console.log('firmwareInfo changed: ', firmwareInfo);
         if(firmwareInfo && firmwareInfo.firmware) {
            checkFirmwareUpdate(firmwareInfo.firmware.version ? firmwareInfo.firmware.version : "0.0.0");
+        } else {
+            console.log('firmwareInfo is null');
         }
     }, [firmwareInfo]);
 
@@ -67,7 +70,7 @@ export function FirmwareContent() {
     const upgradeFirmware = async () => {
         if (firmwareUpdateInfo && firmwareUpdateInfo.updateAvailable) {
             // 获取当前固件的槽位，如果当前固件是A槽位，则下载B槽位的固件，反之亦然
-            const slot = firmwareInfo?.firmware?.slot == 'A' ? 'slotB' : 'slotA';
+            const slot = firmwareInfo?.firmware?.currentSlot == 'A' ? 'slotB' : 'slotA';
             console.log('Begin to downloadFirmware url: ', firmwareUpdateInfo?.latestFirmware?.[slot]?.downloadUrl);
             setUpdateStatus(UpdateStatus.Updating);
 

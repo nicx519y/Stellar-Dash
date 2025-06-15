@@ -2,22 +2,22 @@
 export interface FirmwareComponent {
     name: string;
     file: string;
-    address: string;
+    active: boolean;
+    address: number;
     size: number;
     sha256: string;
-    status?: 'active' | 'inactive' | 'corrupted';
     data?: Uint8Array; // 组件数据
 }
 
 export interface FirmwareMetadata {
     version: string;
-    slot: string;
-    build_date: string;
+    currentSlot: string;
+    targetSlot: string;
+    buildDate: string;
     components: FirmwareComponent[];
 }
 
 export interface DeviceFirmwareInfo {
-    device_id: string;
     firmware: FirmwareMetadata;
 }
 

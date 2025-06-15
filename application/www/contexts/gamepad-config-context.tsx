@@ -1009,8 +1009,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 return Promise.reject(new Error("Failed to fetch firmware metadata"));
             }
             setFirmwareInfo({
-                device_id: data.device_id,
-                firmware: data.firmware
+                firmware: data
             });
             return Promise.resolve();
         } catch (err) {
@@ -1275,8 +1274,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 let baseAddress: number;
                 try {
                     // 处理各种地址格式：0x08000000, 08000000, 0X08000000
-                    const addressStr = component.address.toLowerCase().replace(/^0x/, '');
-                    baseAddress = parseInt(addressStr, 16);
+                    baseAddress = component.address;
                     if (isNaN(baseAddress)) {
                         throw new Error(`Invalid address format: ${component.address}`);
                     }
