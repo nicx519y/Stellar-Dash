@@ -22,6 +22,7 @@
 #include "stm32h7xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -95,10 +96,10 @@ void HardFault_Handler(void)
   {
     /* USER CODE BEGIN W1_HardFault_IRQn 0 */
     printf("[BOOT ERROR] HardFault occurred!\r\n");
-    printf("[BOOT ERROR] HFSR: 0x%08X\r\n", SCB->HFSR);
-    printf("[BOOT ERROR] CFSR: 0x%08X\r\n", SCB->CFSR);
-    printf("[BOOT ERROR] MMFAR: 0x%08X\r\n", SCB->MMFAR);
-    printf("[BOOT ERROR] BFAR: 0x%08X\r\n", SCB->BFAR);
+    printf("[BOOT ERROR] HFSR: 0x%08lX\r\n", (unsigned long)SCB->HFSR);
+    printf("[BOOT ERROR] CFSR: 0x%08lX\r\n", (unsigned long)SCB->CFSR);
+    printf("[BOOT ERROR] MMFAR: 0x%08lX\r\n", (unsigned long)SCB->MMFAR);
+    printf("[BOOT ERROR] BFAR: 0x%08lX\r\n", (unsigned long)SCB->BFAR);
     while(1);
     /* USER CODE END W1_HardFault_IRQn 0 */
   }

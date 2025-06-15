@@ -731,6 +731,8 @@ int8_t QSPI_W25Qxx_WriteBuffer(uint8_t* pBuffer, uint32_t WriteAddr, uint32_t Nu
  */
 int8_t QSPI_W25Qxx_ReadBuffer(uint8_t* pBuffer, uint32_t ReadAddr, uint32_t NumByteToRead)
 {
+    ReadAddr &= 0x00FFFFFF;
+
     QSPI_CommandTypeDef s_command;
     
     /* 使用 Fast Read Quad Output 命令配置 */

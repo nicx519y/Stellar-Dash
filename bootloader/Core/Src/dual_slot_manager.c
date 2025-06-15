@@ -1,58 +1,25 @@
-/**
- * @file dual_slot_manager.c
- * @brief 双槽升级管理模块实现
- * @author STM32 Project
- * @date 2025
- */
-
 #include "dual_slot_config.h"
 #include "qspi-w25q64.h"
 #include "board_cfg.h"
 #include <string.h>
+#include <stdio.h>
+#include <stdarg.h>
 
-/* ================================ 全局变量 ================================ */
+/* ================================ 私有变量 ================================ */
 
-// 全局固件元数据
-firmware_metadata_t g_firmware_metadata = {0};
-
-// 默认元数据（用于初始化）
-static const firmware_metadata_t default_metadata = {
-    .magic_number = FIRMWARE_METADATA_MAGIC,
-    .current_version = 0x01000000,  // 版本 1.0.0.0
-    
-    .slot_a_version = 0x01000000,
-    .slot_a_address = SLOT_A_APPLICATION_BASE,
-    .slot_a_size = SLOT_A_APPLICATION_SIZE,
-    .slot_a_valid = 0,
-    .slot_a_crc_valid = 0,
-    .slot_a_crc32 = 0,
-    
-    .slot_b_version = 0x00000000,
-    .slot_b_address = SLOT_B_APPLICATION_BASE,
-    .slot_b_size = SLOT_B_APPLICATION_SIZE,
-    .slot_b_valid = 0,
-    .slot_b_crc_valid = 0,
-    .slot_b_crc32 = 0,
-    
-    .current_slot = SLOT_A,
-    .upgrade_slot = SLOT_B,
-    .boot_count = 0,
-    .rollback_enabled = 1,
-    
-    .boot_timestamp = 0,
-    .upgrade_timestamp = 0,
-    .metadata_crc32 = 0  // 在保存时计算
-};
+static FirmwareMetadata g_current_metadata;
+static bool g_metadata_loaded = false;
 
 /* ================================ 私有函数声明 ================================ */
 
-static uint32_t calculate_metadata_crc32(const firmware_metadata_t* metadata);
-static bool validate_metadata(const firmware_metadata_t* metadata);
-static void init_default_metadata(void);
+static uint32_t calculate_crc32_skip_field(const uint8_t* data, size_t length, size_t skip_offset, size_t skip_size);
+static FirmwareValidationResult validate_metadata(const FirmwareMetadata* metadata);
+static void init_default_metadata(FirmwareMetadata* metadata);
+static void print_debug_info(const char* format, ...);
 
-/* ================================ CRC32计算 ================================ */
+/* ================================ CRC32计算函数 ================================ */
 
-// CRC32表
+// 标准CRC32查找表 (IEEE 802.3)
 static const uint32_t crc32_table[256] = {
     0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA, 0x076DC419, 0x706AF48F,
     0xE963A535, 0x9E6495A3, 0x0EDB8832, 0x79DCB8A4, 0xE0D5E91E, 0x97D2D988,
@@ -99,207 +66,172 @@ static const uint32_t crc32_table[256] = {
     0xB40BBE37, 0xC30C8EA1, 0x5A05DF1B, 0x2D02EF8D
 };
 
-/**
- * @brief 计算CRC32校验值
- * @param data 数据指针
- * @param length 数据长度
- * @return CRC32校验值
- */
-uint32_t DualSlot_CalculateCRC32(const uint8_t* data, uint32_t length)
-{
+static uint32_t calculate_crc32_skip_field(const uint8_t* data, size_t length, size_t skip_offset, size_t skip_size) {
     uint32_t crc = 0xFFFFFFFF;
     
-    for (uint32_t i = 0; i < length; i++) {
+    for (size_t i = 0; i < length; i++) {
+        // 跳过指定区域（CRC32字段本身）
+        if (i >= skip_offset && i < skip_offset + skip_size) {
+            continue;
+        }
         crc = crc32_table[(crc ^ data[i]) & 0xFF] ^ (crc >> 8);
     }
     
     return crc ^ 0xFFFFFFFF;
 }
 
-/**
- * @brief 计算元数据CRC32（不包含crc字段本身）
- * @param metadata 元数据指针
- * @return CRC32校验值
- */
-static uint32_t calculate_metadata_crc32(const firmware_metadata_t* metadata)
-{
-    // 计算CRC时排除最后的CRC字段
-    uint32_t size = sizeof(firmware_metadata_t) - sizeof(uint32_t);
-    return DualSlot_CalculateCRC32((const uint8_t*)metadata, size);
-}
+/* ================================ 元数据验证函数 ================================ */
 
-/**
- * @brief 验证元数据的有效性
- * @param metadata 元数据指针
- * @return true=有效, false=无效
- */
-static bool validate_metadata(const firmware_metadata_t* metadata)
-{
-    // 检查魔术数字
-    if (metadata->magic_number != FIRMWARE_METADATA_MAGIC) {
-        BOOT_ERR("Invalid magic number: 0x%08X", metadata->magic_number);
-        return false;
+static FirmwareValidationResult validate_metadata(const FirmwareMetadata* metadata) {
+    if (!metadata) {
+        return FIRMWARE_CORRUPTED;
     }
     
-    // 验证CRC
-    uint32_t calculated_crc = calculate_metadata_crc32(metadata);
+    // 1. 验证魔术数字
+    if (metadata->magic != FIRMWARE_MAGIC) {
+        print_debug_info("Metadata validation failed: Invalid magic number (0x%08X != 0x%08X)", 
+                         metadata->magic, FIRMWARE_MAGIC);
+        return FIRMWARE_INVALID_MAGIC;
+    }
+    
+    // 2. 验证元数据版本兼容性
+    if (metadata->metadata_version_major != METADATA_VERSION_MAJOR) {
+        print_debug_info("Metadata validation failed: Version incompatible (%d.%d != %d.%d)", 
+                         metadata->metadata_version_major, metadata->metadata_version_minor,
+                         METADATA_VERSION_MAJOR, METADATA_VERSION_MINOR);
+        return FIRMWARE_INVALID_VERSION;
+    }
+    
+    // 3. 验证设备兼容性
+    if (strncmp(metadata->device_model, DEVICE_MODEL_STRING, sizeof(metadata->device_model)) != 0) {
+        print_debug_info("Metadata validation failed: Device model mismatch (%s != %s)", 
+                         metadata->device_model, DEVICE_MODEL_STRING);
+        return FIRMWARE_INVALID_DEVICE;
+    }
+    
+    // 4. 验证硬件版本兼容性
+    if (metadata->hardware_version > HARDWARE_VERSION) {
+        print_debug_info("Metadata validation failed: Hardware version too high (0x%08X > 0x%08X)", 
+                         metadata->hardware_version, HARDWARE_VERSION);
+        return FIRMWARE_INVALID_DEVICE;
+    }
+    
+    // 5. 验证bootloader版本要求
+    if (metadata->bootloader_min_version > BOOTLOADER_VERSION) {
+        print_debug_info("Metadata validation failed: Bootloader version too high (0x%08X > 0x%08X)", 
+                         metadata->bootloader_min_version, BOOTLOADER_VERSION);
+        return FIRMWARE_INVALID_VERSION;
+    }
+    
+    // 6. 验证元数据大小
+    if (metadata->metadata_size != METADATA_STRUCT_SIZE) {
+        print_debug_info("Metadata validation failed: Size mismatch (%d != %d)", 
+                         metadata->metadata_size, METADATA_STRUCT_SIZE);
+        return FIRMWARE_INVALID_VERSION;
+    }
+    
+    // 7. 验证CRC32校验和
+    size_t crc_offset = offsetof(FirmwareMetadata, metadata_crc32);
+    uint32_t calculated_crc = calculate_crc32_skip_field((const uint8_t*)metadata, 
+                                                       METADATA_STRUCT_SIZE, 
+                                                       crc_offset, 
+                                                       sizeof(uint32_t));
+    
     if (calculated_crc != metadata->metadata_crc32) {
-        BOOT_ERR("Metadata CRC mismatch: calculated=0x%08X, stored=0x%08X", 
-                 calculated_crc, metadata->metadata_crc32);
-        return false;
+        print_debug_info("Metadata validation failed: CRC32 error (0x%08X != 0x%08X)", 
+                         calculated_crc, metadata->metadata_crc32);
+        return FIRMWARE_INVALID_CRC;
     }
     
-    // 验证槽地址
-    if (metadata->slot_a_address != SLOT_A_APPLICATION_BASE ||
-        metadata->slot_b_address != SLOT_B_APPLICATION_BASE) {
-        BOOT_ERR("Invalid slot addresses: A=0x%08X, B=0x%08X", 
-                 metadata->slot_a_address, metadata->slot_b_address);
-        return false;
+    // 8. 验证组件数量合理性
+    if (metadata->component_count > FIRMWARE_COMPONENT_COUNT) {
+        print_debug_info("Metadata validation failed: Too many components (%d > %d)", 
+                         metadata->component_count, FIRMWARE_COMPONENT_COUNT);
+        return FIRMWARE_CORRUPTED;
     }
     
-    // 验证当前槽
-    if (metadata->current_slot != SLOT_A && metadata->current_slot != SLOT_B) {
-        BOOT_ERR("Invalid current slot: %d", metadata->current_slot);
-        return false;
-    }
+    print_debug_info("Metadata validation successful: Version=%s, Slot=%d, Components=%d", 
+                     metadata->firmware_version, metadata->target_slot, metadata->component_count);
     
-    return true;
+    return FIRMWARE_VALID;
 }
 
-/**
- * @brief 初始化默认元数据
- */
-static void init_default_metadata(void)
-{
-    memcpy(&g_firmware_metadata, &default_metadata, sizeof(firmware_metadata_t));
-    g_firmware_metadata.metadata_crc32 = calculate_metadata_crc32(&g_firmware_metadata);
+/* ================================ 默认元数据初始化 ================================ */
+
+static void init_default_metadata(FirmwareMetadata* metadata) {
+    memset(metadata, 0, sizeof(FirmwareMetadata));
     
-    BOOT_DBG("Initialized default metadata");
-    BOOT_DBG("Current slot: %s", g_firmware_metadata.current_slot == SLOT_A ? "A" : "B");
-    BOOT_DBG("Upgrade slot: %s", g_firmware_metadata.upgrade_slot == SLOT_A ? "A" : "B");
+    // 设置安全字段
+    metadata->magic = FIRMWARE_MAGIC;
+    metadata->metadata_version_major = METADATA_VERSION_MAJOR;
+    metadata->metadata_version_minor = METADATA_VERSION_MINOR;
+    metadata->metadata_size = METADATA_STRUCT_SIZE;
+    
+    // 设置固件信息
+    strncpy(metadata->firmware_version, "0.0.1", sizeof(metadata->firmware_version) - 1);
+    metadata->target_slot = (uint8_t)SLOT_A;  // 转换FirmwareSlot到uint8_t
+    strncpy(metadata->build_date, "2024-12-08 00:00:00", sizeof(metadata->build_date) - 1);
+    metadata->build_timestamp = 0;
+    
+    // 设置设备兼容性
+    strncpy(metadata->device_model, DEVICE_MODEL_STRING, sizeof(metadata->device_model) - 1);
+    metadata->hardware_version = HARDWARE_VERSION;
+    metadata->bootloader_min_version = BOOTLOADER_VERSION;
+    
+    // 设置默认组件
+    metadata->component_count = 1;
+    
+    // Application组件
+    strncpy(metadata->components[0].name, "application", sizeof(metadata->components[0].name) - 1);
+    strncpy(metadata->components[0].file, "application_slot_a.hex", sizeof(metadata->components[0].file) - 1);
+    metadata->components[0].address = SLOT_A_APPLICATION_ADDR;
+    metadata->components[0].size = 1048576;
+    metadata->components[0].active = true;
+    
+    // 计算CRC32校验和
+    size_t crc_offset = offsetof(FirmwareMetadata, metadata_crc32);
+    metadata->metadata_crc32 = calculate_crc32_skip_field((const uint8_t*)metadata, 
+                                                       METADATA_STRUCT_SIZE, 
+                                                       crc_offset, 
+                                                       sizeof(uint32_t));
+}
+
+/* ================================ 调试输出函数 ================================ */
+
+static void print_debug_info(const char* format, ...) {
+    char buffer[256];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    
+    // 直接输出调试信息
+    printf("[BOOT DEBUG] %s\r\n", buffer);
 }
 
 /* ================================ 公共函数实现 ================================ */
 
-/**
- * @brief 双槽系统初始化
- * @return 0=成功, <0=失败
- */
-int8_t DualSlot_Init(void)
-{
-    BOOT_DBG("Dual slot system initializing...");
-    
-    if (!DualSlot_IsEnabled()) {
-        BOOT_DBG("Dual slot disabled, using legacy mode");
-        return 0;
-    }
-    
-    // 尝试从Flash加载元数据
-    if (DualSlot_LoadMetadata(&g_firmware_metadata) != 0) {
-        BOOT_DBG("Failed to load metadata, initializing default");
-        init_default_metadata();
-        
-        // 保存默认元数据到Flash
-        if (DualSlot_SaveMetadata(&g_firmware_metadata) != 0) {
-            BOOT_ERR("Failed to save default metadata");
-            return -1;
-        }
-    }
-    
-    BOOT_DBG("Dual slot system initialized successfully");
-    BOOT_DBG("Current slot: %s (version: 0x%08X)", 
-             g_firmware_metadata.current_slot == SLOT_A ? "A" : "B",
-             g_firmware_metadata.current_version);
-    
-    return 0;
-}
-
-/**
- * @brief 从Flash加载元数据
- * @param metadata 元数据缓冲区
- * @return 0=成功, <0=失败
- */
-int8_t DualSlot_LoadMetadata(firmware_metadata_t* metadata)
-{
+int8_t DualSlot_LoadMetadata(FirmwareMetadata* metadata) {
     if (!metadata) {
         return -1;
     }
-    
-    // 退出内存映射模式以便读取
-    bool was_mapped = QSPI_W25Qxx_IsMemoryMappedMode();
-    if (was_mapped) {
-        if (QSPI_W25Qxx_ExitMemoryMappedMode() != QSPI_W25Qxx_OK) {
-            BOOT_ERR("Failed to exit memory mapped mode");
-            return -2;
-        }
-    }
-    
-    // 计算Flash中的元数据地址（相对于Flash基地址）
-    uint32_t flash_address = FIRMWARE_METADATA_BASE - EXTERNAL_FLASH_BASE;
-    
-    BOOT_DBG("Reading metadata from Flash address: 0x%08X (absolute: 0x%08X)", 
-             flash_address, FIRMWARE_METADATA_BASE);
-    
-    // 从Flash读取元数据
-    int8_t result = QSPI_W25Qxx_ReadBuffer((uint8_t*)metadata, flash_address, sizeof(firmware_metadata_t));
-
-    // 恢复内存映射模式
-    if (was_mapped) {
-        QSPI_W25Qxx_EnterMemoryMappedMode();
-    }
-    
-    if (result != QSPI_W25Qxx_OK) {
-        BOOT_ERR("Failed to read metadata from Flash");
-        return -3;
-    }
-    
-    // 验证元数据
-    if (!validate_metadata(metadata)) {
-        BOOT_ERR("Metadata validation failed");
-        return -4;
-    }
-    
-    BOOT_DBG("Metadata loaded successfully");
-    return 0;
-}
-
-/**
- * @brief 保存元数据到Flash
- * @param metadata 元数据
- * @return 0=成功, <0=失败
- */
-int8_t DualSlot_SaveMetadata(const firmware_metadata_t* metadata)
-{
-    if (!metadata) {
-        return -1;
-    }
-    
-    // 计算并更新CRC
-    firmware_metadata_t temp_metadata;
-    memcpy(&temp_metadata, metadata, sizeof(firmware_metadata_t));
-    temp_metadata.metadata_crc32 = calculate_metadata_crc32(&temp_metadata);
     
     // 退出内存映射模式
     bool was_mapped = QSPI_W25Qxx_IsMemoryMappedMode();
     if (was_mapped) {
         if (QSPI_W25Qxx_ExitMemoryMappedMode() != QSPI_W25Qxx_OK) {
-            BOOT_ERR("Failed to exit memory mapped mode");
+            print_debug_info("Failed to exit memory mapped mode");
             return -2;
         }
     }
     
-    // 计算Flash中的元数据地址
+    // 从Flash读取元数据
     uint32_t flash_address = FIRMWARE_METADATA_BASE - EXTERNAL_FLASH_BASE;
-    
-    // 擦除元数据扇区
-    if (QSPI_W25Qxx_SectorErase(flash_address) != QSPI_W25Qxx_OK) {
-        BOOT_ERR("Failed to erase metadata sector");
-        if (was_mapped) QSPI_W25Qxx_EnterMemoryMappedMode();
-        return -3;
-    }
-    
-    // 写入元数据
-    int8_t result = QSPI_W25Qxx_WriteBuffer((uint8_t*)&temp_metadata, flash_address, sizeof(firmware_metadata_t));
+    int8_t result = QSPI_W25Qxx_ReadBuffer(
+        (uint8_t*)metadata, 
+        flash_address,
+        METADATA_STRUCT_SIZE
+    );
     
     // 恢复内存映射模式
     if (was_mapped) {
@@ -307,204 +239,254 @@ int8_t DualSlot_SaveMetadata(const firmware_metadata_t* metadata)
     }
     
     if (result != QSPI_W25Qxx_OK) {
-        BOOT_ERR("Failed to write metadata to Flash");
-        return -4;
-    }
-    
-    BOOT_DBG("Metadata saved successfully");
-    return 0;
-}
-
-/**
- * @brief 获取指定槽的信息
- * @param slot 槽编号 (SLOT_A 或 SLOT_B)
- * @param slot_info 槽信息结构体指针
- * @return 0=成功, <0=失败
- */
-int8_t DualSlot_GetSlotInfo(uint8_t slot, slot_info_t* slot_info)
-{
-    if (!slot_info || (slot != SLOT_A && slot != SLOT_B)) {
-        return -1;
-    }
-    
-    if (slot == SLOT_A) {
-        slot_info->base_address = SLOT_A_BASE;
-        slot_info->application_address = SLOT_A_APPLICATION_BASE;
-        slot_info->application_size = SLOT_A_APPLICATION_SIZE;
-        slot_info->webresources_address = SLOT_A_WEBRESOURCES_BASE;
-        slot_info->webresources_size = SLOT_A_WEBRESOURCES_SIZE;
-        slot_info->adc_mapping_address = SLOT_A_ADC_MAPPING_BASE;
-        slot_info->adc_mapping_size = SLOT_A_ADC_MAPPING_SIZE;
-        slot_info->total_size = SLOT_A_TOTAL_SIZE;
-    } else {
-        slot_info->base_address = SLOT_B_BASE;
-        slot_info->application_address = SLOT_B_APPLICATION_BASE;
-        slot_info->application_size = SLOT_B_APPLICATION_SIZE;
-        slot_info->webresources_address = SLOT_B_WEBRESOURCES_BASE;
-        slot_info->webresources_size = SLOT_B_WEBRESOURCES_SIZE;
-        slot_info->adc_mapping_address = SLOT_B_ADC_MAPPING_BASE;
-        slot_info->adc_mapping_size = SLOT_B_ADC_MAPPING_SIZE;
-        slot_info->total_size = SLOT_B_TOTAL_SIZE;
-    }
-    
-    return 0;
-}
-
-/**
- * @brief 获取指定槽的Application地址
- * @param slot 槽编号 (SLOT_A 或 SLOT_B)
- * @return Application地址，失败返回0
- */
-uint32_t DualSlot_GetSlotApplicationAddress(uint8_t slot)
-{
-    if (slot == SLOT_A) {
-        return SLOT_A_APPLICATION_BASE;
-    } else if (slot == SLOT_B) {
-        return SLOT_B_APPLICATION_BASE;
-    }
-    return 0;
-}
-
-/**
- * @brief 获取当前运行的槽
- * @return SLOT_A 或 SLOT_B
- */
-uint8_t DualSlot_GetCurrentSlot(void)
-{
-    if (!DualSlot_IsEnabled()) {
-        return SLOT_A; // 默认返回槽A用于兼容
-    }
-    return g_firmware_metadata.current_slot;
-}
-
-/**
- * @brief 获取升级目标槽
- * @return SLOT_A 或 SLOT_B
- */
-uint8_t DualSlot_GetUpgradeSlot(void)
-{
-    if (!DualSlot_IsEnabled()) {
-        return SLOT_A; // 默认返回槽A用于兼容
-    }
-    return g_firmware_metadata.upgrade_slot;
-}
-
-/**
- * @brief 设置当前运行的槽
- * @param slot 槽编号 (SLOT_A 或 SLOT_B)
- * @return 0=成功, <0=失败
- */
-int8_t DualSlot_SetCurrentSlot(uint8_t slot)
-{
-    if (!DualSlot_IsEnabled()) {
-        return 0; // 禁用状态下忽略设置
-    }
-    
-    if (slot != SLOT_A && slot != SLOT_B) {
-        return -1;
-    }
-    
-    g_firmware_metadata.current_slot = slot;
-    g_firmware_metadata.upgrade_slot = (slot == SLOT_A) ? SLOT_B : SLOT_A;
-    
-    // 保存到Flash
-    return DualSlot_SaveMetadata(&g_firmware_metadata);
-}
-
-/**
- * @brief 验证指定槽的固件完整性
- * @param slot 槽编号 (SLOT_A 或 SLOT_B)
- * @return 0=有效, <0=无效
- */
-int8_t DualSlot_ValidateSlot(uint8_t slot)
-{
-    if (slot != SLOT_A && slot != SLOT_B) {
-        return -1;
-    }
-    
-    // 检查槽是否标记为有效
-    if (slot == SLOT_A) {
-        if (!g_firmware_metadata.slot_a_valid) {
-            BOOT_DBG("Slot A marked as invalid");
-            return -2;
-        }
-    } else {
-        if (!g_firmware_metadata.slot_b_valid) {
-            BOOT_DBG("Slot B marked as invalid");
-            return -2;
-        }
-    }
-    
-    // 获取槽地址
-    uint32_t app_address = DualSlot_GetSlotApplicationAddress(slot);
-    if (app_address == 0) {
+        print_debug_info("Failed to read metadata from Flash: %d", result);
         return -3;
     }
     
-    // 检查向量表的有效性
-    uint32_t stack_ptr = *(__IO uint32_t*)app_address;
-    uint32_t reset_handler = *(__IO uint32_t*)(app_address + 4);
+    // 添加调试输出：显示读取到的原始数据
+    print_debug_info("Raw metadata first 128 bytes:");
+    uint8_t* raw_data = (uint8_t*)metadata;
+    for (int i = 0; i < 128; i += 16) {
+        printf("[BOOT DEBUG] %04X: ", i);
+        for (int j = 0; j < 16 && (i + j) < 128; j++) {
+            printf("%02X ", raw_data[i + j]);
+        }
+        printf("\r\n");
+    }
     
-    // 验证栈指针 (应该指向RAM区域)
-    if ((stack_ptr & 0xFF000000) != 0x20000000) {
-        BOOT_DBG("Slot %c: Invalid stack pointer: 0x%08X", 
-                 (slot == SLOT_A) ? 'A' : 'B', stack_ptr);
+    // 显示结构体字段偏移信息
+    print_debug_info("=== C Structure Field Offsets ===");
+    print_debug_info("magic: %d", offsetof(FirmwareMetadata, magic));
+    print_debug_info("metadata_version_major: %d", offsetof(FirmwareMetadata, metadata_version_major));
+    print_debug_info("metadata_version_minor: %d", offsetof(FirmwareMetadata, metadata_version_minor));
+    print_debug_info("metadata_size: %d", offsetof(FirmwareMetadata, metadata_size));
+    print_debug_info("metadata_crc32: %d", offsetof(FirmwareMetadata, metadata_crc32));
+    print_debug_info("firmware_version: %d", offsetof(FirmwareMetadata, firmware_version));
+    print_debug_info("target_slot: %d", offsetof(FirmwareMetadata, target_slot));
+    print_debug_info("build_date: %d", offsetof(FirmwareMetadata, build_date));
+    print_debug_info("build_timestamp: %d", offsetof(FirmwareMetadata, build_timestamp));
+    print_debug_info("device_model: %d", offsetof(FirmwareMetadata, device_model));
+    print_debug_info("hardware_version: %d", offsetof(FirmwareMetadata, hardware_version));
+    print_debug_info("bootloader_min_version: %d", offsetof(FirmwareMetadata, bootloader_min_version));
+    print_debug_info("component_count: %d", offsetof(FirmwareMetadata, component_count));
+    print_debug_info("components: %d", offsetof(FirmwareMetadata, components));
+    print_debug_info("Total structure size: %d", sizeof(FirmwareMetadata));
+    print_debug_info("================================");
+    
+    // 特别检查设备型号字段的位置和内容
+    size_t device_model_offset = offsetof(FirmwareMetadata, device_model);
+    print_debug_info("Device model offset: %d", device_model_offset);
+    print_debug_info("Device model raw bytes:");
+    printf("[BOOT DEBUG] ");
+    for (int i = 0; i < 32; i++) {
+        printf("%02X ", raw_data[device_model_offset + i]);
+    }
+    printf("\r\n");
+    
+    print_debug_info("Device model as string: '%s'", metadata->device_model);
+    print_debug_info("Expected device model: '%s'", DEVICE_MODEL_STRING);
+    
+    // 验证元数据完整性
+    FirmwareValidationResult validation = validate_metadata(metadata);
+    if (validation != FIRMWARE_VALID) {
+        print_debug_info("Metadata validation failed: %d", validation);
+        // 初始化默认元数据
+        init_default_metadata(metadata);
         return -4;
     }
     
-    // 验证Reset Handler地址 (应该指向Flash区域，且为Thumb模式)
-    if ((reset_handler & 0xFF000000) != 0x90000000 || !(reset_handler & 0x1)) {
-        BOOT_DBG("Slot %c: Invalid reset handler: 0x%08X", 
-                 (slot == SLOT_A) ? 'A' : 'B', reset_handler);
-        return -5;
-    }
+    // 保存到全局变量
+    memcpy(&g_current_metadata, metadata, sizeof(FirmwareMetadata));
+    g_metadata_loaded = true;
     
-    BOOT_DBG("Slot %c validation passed", (slot == SLOT_A) ? 'A' : 'B');
+    print_debug_info("Metadata loaded successfully: Version=%s, Slot=%d", 
+                     metadata->firmware_version, metadata->target_slot);
+    
     return 0;
 }
 
-/**
- * @brief 切换到另一个槽
- * @return 0=成功, <0=失败
- */
-int8_t DualSlot_SwitchSlot(void)
-{
-    if (!DualSlot_IsEnabled()) {
-        return 0; // 禁用状态下忽略切换
-    }
-    
-    uint8_t new_slot = (g_firmware_metadata.current_slot == SLOT_A) ? SLOT_B : SLOT_A;
-    
-    // 验证目标槽
-    if (DualSlot_ValidateSlot(new_slot) != 0) {
-        BOOT_ERR("Target slot %c is invalid", (new_slot == SLOT_A) ? 'A' : 'B');
+int8_t DualSlot_SaveMetadata(const FirmwareMetadata* metadata) {
+    if (!metadata) {
         return -1;
     }
     
-    // 切换槽
-    return DualSlot_SetCurrentSlot(new_slot);
-}
-
-/**
- * @brief 检查双槽功能是否启用
- * @return true=启用, false=禁用
- */
-bool DualSlot_IsEnabled(void)
-{
-    return DUAL_SLOT_ENABLE == 1;
-}
-
-/**
- * @brief 获取兼容模式的Application地址（原有接口）
- * @return Application地址
- */
-uint32_t DualSlot_GetLegacyApplicationAddress(void)
-{
-    if (!DualSlot_IsEnabled()) {
-        // 禁用双槽时，使用原来的固定地址
-        return EXTERNAL_FLASH_BASE; // 0x90000000，与原来的 W25Qxx_Mem_Addr 相同
+    // 验证元数据
+    FirmwareValidationResult validation = validate_metadata(metadata);
+    if (validation != FIRMWARE_VALID) {
+        print_debug_info("Failed to save metadata: Validation failed (%d)", validation);
+        return -2;
     }
     
-    // 启用双槽时，返回当前槽的地址
-    return DualSlot_GetSlotApplicationAddress(DualSlot_GetCurrentSlot());
+    // 退出内存映射模式
+    bool was_mapped = QSPI_W25Qxx_IsMemoryMappedMode();
+    if (was_mapped) {
+        if (QSPI_W25Qxx_ExitMemoryMappedMode() != QSPI_W25Qxx_OK) {
+            return -3;
+        }
+    }
+    
+    // 擦除元数据扇区
+    uint32_t flash_address = FIRMWARE_METADATA_BASE - EXTERNAL_FLASH_BASE;
+    if (QSPI_W25Qxx_SectorErase(flash_address) != QSPI_W25Qxx_OK) {
+        if (was_mapped) QSPI_W25Qxx_EnterMemoryMappedMode();
+        return -4;
+    }
+    
+    // 写入元数据到Flash
+    int8_t result = QSPI_W25Qxx_WriteBuffer(
+        (uint8_t*)metadata,
+        flash_address,
+        METADATA_STRUCT_SIZE
+    );
+    
+    // 恢复内存映射模式
+    if (was_mapped) {
+        QSPI_W25Qxx_EnterMemoryMappedMode();
+    }
+    
+    if (result == QSPI_W25Qxx_OK) {
+        // 更新全局变量
+        memcpy(&g_current_metadata, metadata, sizeof(FirmwareMetadata));
+        g_metadata_loaded = true;
+        print_debug_info("Metadata saved successfully");
+    }
+    
+    return result;
+}
+
+FirmwareValidationResult DualSlot_ValidateMetadata(const FirmwareMetadata* metadata) {
+    return validate_metadata(metadata);
+}
+
+FirmwareSlot DualSlot_GetActiveSlot(void) {
+    if (!g_metadata_loaded) {
+        // 尝试加载元数据
+        if (DualSlot_LoadMetadata(&g_current_metadata) != 0) {
+            return SLOT_A; // 默认返回槽A
+        }
+    }
+    
+    return (FirmwareSlot)g_current_metadata.target_slot;  // 从uint8_t转换为FirmwareSlot
+}
+
+int8_t DualSlot_SetActiveSlot(FirmwareSlot slot) {
+    if (slot != SLOT_A && slot != SLOT_B) {
+        return -1;
+    }
+    
+    if (!g_metadata_loaded) {
+        if (DualSlot_LoadMetadata(&g_current_metadata) != 0) {
+            init_default_metadata(&g_current_metadata);
+        }
+    }
+    
+    g_current_metadata.target_slot = (uint8_t)slot;  // 从FirmwareSlot转换为uint8_t
+    
+    // 重新计算CRC32
+    size_t crc_offset = offsetof(FirmwareMetadata, metadata_crc32);
+    g_current_metadata.metadata_crc32 = calculate_crc32_skip_field((const uint8_t*)&g_current_metadata, 
+                                                                  METADATA_STRUCT_SIZE, 
+                                                                  crc_offset, 
+                                                                  sizeof(uint32_t));
+    
+    return DualSlot_SaveMetadata(&g_current_metadata);
+}
+
+uint32_t DualSlot_GetSlotAddress(const char* component_name, FirmwareSlot slot) {
+    if (!component_name) {
+        return 0;
+    }
+    
+    if (slot == SLOT_A) {
+        if (strcmp(component_name, "application") == 0) {
+            return SLOT_A_APPLICATION_ADDR;
+        } else if (strcmp(component_name, "webresources") == 0) {
+            return SLOT_A_WEBRESOURCES_ADDR;
+        } else if (strcmp(component_name, "adc_mapping") == 0) {
+            return SLOT_A_ADC_MAPPING_ADDR;
+        }
+    } else if (slot == SLOT_B) {
+        if (strcmp(component_name, "application") == 0) {
+            return SLOT_B_APPLICATION_ADDR;
+        } else if (strcmp(component_name, "webresources") == 0) {
+            return SLOT_B_WEBRESOURCES_ADDR;
+        } else if (strcmp(component_name, "adc_mapping") == 0) {
+            return SLOT_B_ADC_MAPPING_ADDR;
+        }
+    }
+    
+    return 0;
+}
+
+void DualSlot_JumpToApplication(FirmwareSlot slot) {
+    uint32_t app_address = DualSlot_GetSlotAddress("application", slot);
+    if (app_address == 0) {
+        print_debug_info("Invalid application address for slot: %d", slot);
+        return;
+    }
+    
+    print_debug_info("Jumping to application: Slot=%d, Address=0x%08X", slot, app_address);
+    
+    // 检查应用程序是否存在（检查栈指针是否有效）
+    uint32_t* app_vector = (uint32_t*)app_address;
+    uint32_t stack_pointer = app_vector[0];
+    uint32_t reset_handler = app_vector[1];
+    
+    // 简单的有效性检查
+    if ((stack_pointer & 0xFFF00000) != 0x20000000 || // 栈指针应该在SRAM区域
+        (reset_handler & 0xFF000000) != 0x90000000) {  // 复位向量应该在Flash区域
+        print_debug_info("Invalid application: SP=0x%08X, PC=0x%08X", stack_pointer, reset_handler);
+        return;
+    }
+    
+    // 禁用中断
+    __disable_irq();
+    
+    // 设置栈指针
+    __set_MSP(stack_pointer);
+    
+    // 跳转到应用程序
+    void (*app_reset_handler)(void) = (void (*)(void))reset_handler;
+    app_reset_handler();
+}
+
+bool DualSlot_IsSlotValid(FirmwareSlot slot) {
+    uint32_t app_address = DualSlot_GetSlotAddress("application", slot);
+    if (app_address == 0) {
+        return false;
+    }
+    
+    // 检查应用程序向量表
+    uint32_t* app_vector = (uint32_t*)app_address;
+    uint32_t stack_pointer = app_vector[0];
+    uint32_t reset_handler = app_vector[1];
+    
+    // 简单的有效性检查
+    return ((stack_pointer & 0xFFF00000) == 0x20000000) && 
+           ((reset_handler & 0xFF000000) == 0x90000000);
+}
+
+void DualSlot_PrintMetadata(const FirmwareMetadata* metadata) {
+    if (!metadata) {
+        print_debug_info("Metadata is null");
+        return;
+    }
+    
+    print_debug_info("=== Firmware Metadata Information ===");
+    print_debug_info("Magic Number: 0x%08X", metadata->magic);
+    print_debug_info("Metadata Version: %d.%d", metadata->metadata_version_major, metadata->metadata_version_minor);
+    print_debug_info("Firmware Version: %s", metadata->firmware_version);
+    print_debug_info("Target Slot: %d", metadata->target_slot);
+    print_debug_info("Build Date: %s", metadata->build_date);
+    print_debug_info("Device Model: %s", metadata->device_model);
+    print_debug_info("Hardware Version: 0x%08X", metadata->hardware_version);
+    print_debug_info("Component Count: %d", metadata->component_count);
+    print_debug_info("CRC32: 0x%08X", metadata->metadata_crc32);
+    
+    for (uint32_t i = 0; i < metadata->component_count && i < FIRMWARE_COMPONENT_COUNT; i++) {
+        const FirmwareComponent* comp = &metadata->components[i];
+        print_debug_info("Component[%d]: %s, Address=0x%08X, Size=%d, Active=%d", 
+                         i, comp->name, comp->address, comp->size, comp->active);
+    }
+    print_debug_info("=====================================");
 } 

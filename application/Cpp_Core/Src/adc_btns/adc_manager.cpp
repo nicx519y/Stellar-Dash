@@ -302,7 +302,6 @@ std::string ADCManager::getDefaultMapping() const {
         APP_DBG("ADCManager: getDefaultMapping defaultId is empty, return first mapping id.");
         return std::string(store.mapping[0].id);
     };
-    APP_DBG("ADCManager: getDefaultMapping defaultId: %s", store.defaultId);
     return std::string(store.defaultId);
 }
 

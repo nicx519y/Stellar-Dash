@@ -5,6 +5,10 @@
 #include "configs/webconfig_btns_manager.hpp"
 #include "leds/leds_manager.hpp"
 #include "configs/webconfig_leds_manager.hpp"
+#include "firmware/firmware_manager.hpp"
+#include <cctype>
+#include <cstring>
+#include <cstdlib>
 
 extern "C" struct fsdata_file file__index_html[];
 
@@ -2487,6 +2491,753 @@ std::string apiClearLedsPreview() {
     return response;
 }
 
+/**
+ * @brief 获取固件元数据信息
+ * @return std::string 
+ * {
+ *      "errNo": 0,
+ *      "data": {
+ *          "currentSlot": "A",
+ *          "targetSlot": "B", 
+ *          "bootCount": 123,
+ *          "lastUpgradeTimestamp": 1234567890,
+ *          "slotAComponents": [...],
+ *          "slotBComponents": [...]
+ *      }
+ * }
+ */
+std::string apiFirmwareMetadata() {
+    FirmwareManager* manager = FirmwareManager::GetInstance();
+    if (!manager) {
+        cJSON* dataJSON = cJSON_CreateObject();
+        if (dataJSON) {
+            cJSON_AddStringToObject(dataJSON, "error", "Firmware manager not initialized");
+        }
+        return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
+    }
+
+    const FirmwareMetadata* metadata = manager->GetCurrentMetadata();
+    if (!metadata) {
+        cJSON* dataJSON = cJSON_CreateObject();
+        if (dataJSON) {
+            cJSON_AddStringToObject(dataJSON, "error", "Failed to get firmware metadata");
+        }
+        return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
+    }
+
+    cJSON* dataJSON = cJSON_CreateObject();
+    if (dataJSON) {
+        // 当前槽位信息
+        cJSON_AddStringToObject(dataJSON, "currentSlot", 
+            metadata->target_slot == FIRMWARE_SLOT_A ? "A" : "B");
+        cJSON_AddStringToObject(dataJSON, "targetSlot", 
+            manager->GetTargetUpgradeSlot() == FIRMWARE_SLOT_A ? "A" : "B");
+        cJSON_AddStringToObject(dataJSON, "version", metadata->firmware_version);
+        cJSON_AddStringToObject(dataJSON, "buildDate", metadata->build_date);
+        
+        // 组件信息
+        cJSON* componentsArray = cJSON_CreateArray();
+        if (componentsArray) {
+            for (uint32_t i = 0; i < metadata->component_count; i++) {
+                cJSON* componentObj = cJSON_CreateObject();
+                if (componentObj) {
+                    cJSON_AddStringToObject(componentObj, "name", metadata->components[i].name);
+                    cJSON_AddStringToObject(componentObj, "file", metadata->components[i].file);
+                    cJSON_AddNumberToObject(componentObj, "address", metadata->components[i].address);
+                    cJSON_AddNumberToObject(componentObj, "size", metadata->components[i].size);
+                    cJSON_AddStringToObject(componentObj, "sha256", metadata->components[i].sha256);
+                    cJSON_AddBoolToObject(componentObj, "active", metadata->components[i].active);
+                    cJSON_AddItemToArray(componentsArray, componentObj);
+                }
+            }
+            cJSON_AddItemToObject(dataJSON, "components", componentsArray);
+        }
+    }
+
+    return get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+}
+
+/**
+ * @brief Base64解码函数
+ */
+static const char base64_chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static inline bool is_base64(unsigned char c) {
+    return (isalnum(c) || (c == '+') || (c == '/'));
+}
+
+uint8_t* base64_decode(const char* encoded_string, size_t* out_len) {
+    size_t in_len = strlen(encoded_string);
+    size_t i = 0;
+    size_t in = 0;
+    unsigned char char_array_4[4], char_array_3[3];
+    
+    // 计算输出长度
+    *out_len = in_len / 4 * 3;
+    if (encoded_string[in_len - 1] == '=') (*out_len)--;
+    if (encoded_string[in_len - 2] == '=') (*out_len)--;
+    
+    uint8_t* ret = (uint8_t*)malloc(*out_len);
+    if (!ret) return nullptr;
+    
+    size_t pos = 0;
+    
+    while (in_len-- && (encoded_string[in] != '=') && is_base64(encoded_string[in])) {
+        char_array_4[i++] = encoded_string[in]; in++;
+        if (i == 4) {
+            for (i = 0; i < 4; i++) {
+                char_array_4[i] = strchr(base64_chars, char_array_4[i]) - base64_chars;
+            }
+            
+            char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+            char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+            char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+            
+            for (i = 0; (i < 3); i++) {
+                if (pos < *out_len) ret[pos++] = char_array_3[i];
+            }
+            i = 0;
+        }
+    }
+    
+    if (i) {
+        for (size_t j = i; j < 4; j++) {
+            char_array_4[j] = 0;
+        }
+        
+        for (size_t j = 0; j < 4; j++) {
+            char_array_4[j] = strchr(base64_chars, char_array_4[j]) - base64_chars;
+        }
+        
+        char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+        char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+        char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+        
+        for (size_t j = 0; (j < i - 1); j++) {
+            if (pos < *out_len) ret[pos++] = char_array_3[j];
+        }
+    }
+    
+    return ret;
+}
+
+/**
+ * @brief 解析multipart/form-data中的JSON元数据
+ */
+cJSON* parse_multipart_json_metadata() {
+    // 在multipart数据中查找JSON元数据
+    // 简化实现：假设元数据在payload开头以特定格式存在
+    
+    // 查找 "metadata=" 标记
+    const char* metadata_start = strstr(http_post_payload, "\"metadata\"");
+    if (!metadata_start) {
+        return nullptr;
+    }
+    
+    // 查找JSON开始位置
+    const char* json_start = strchr(metadata_start, '{');
+    if (!json_start) {
+        return nullptr;
+    }
+    
+    // 查找JSON结束位置（简化处理，查找下一个换行符或表单边界）
+    const char* json_end = strstr(json_start, "\r\n");
+    if (!json_end) {
+        json_end = strstr(json_start, "\n");
+    }
+    if (!json_end) {
+        json_end = json_start + strlen(json_start);
+    }
+    
+    // 提取JSON字符串
+    size_t json_len = json_end - json_start;
+    char* json_str = (char*)malloc(json_len + 1);
+    if (!json_str) {
+        return nullptr;
+    }
+    
+    strncpy(json_str, json_start, json_len);
+    json_str[json_len] = '\0';
+    
+    // 解析JSON
+    cJSON* json = cJSON_Parse(json_str);
+    free(json_str);
+    
+    return json;
+}
+
+/**
+ * @brief 从multipart数据中提取二进制数据
+ */
+uint8_t* extract_multipart_binary_data(size_t* data_len) {
+    *data_len = 0;
+    
+    // 查找二进制数据边界标记
+    const char* boundary_start = strstr(http_post_payload, "Content-Type: application/octet-stream");
+    if (!boundary_start) {
+        return nullptr;
+    }
+    
+    // 查找数据开始位置（跳过HTTP头）
+    const char* data_start = strstr(boundary_start, "\r\n\r\n");
+    if (!data_start) {
+        data_start = strstr(boundary_start, "\n\n");
+        if (data_start) {
+            data_start += 2;
+        }
+    } else {
+        data_start += 4;
+    }
+    
+    if (!data_start) {
+        return nullptr;
+    }
+    
+    // 查找数据结束位置（下一个边界）
+    const char* data_end = strstr(data_start, "\r\n--");
+    if (!data_end) {
+        data_end = strstr(data_start, "\n--");
+    }
+    if (!data_end) {
+        // 如果没找到边界，使用payload结束位置
+        data_end = http_post_payload + http_post_payload_len;
+    }
+    
+    *data_len = data_end - data_start;
+    
+    // 分配内存并复制数据
+    uint8_t* binary_data = (uint8_t*)malloc(*data_len);
+    if (!binary_data) {
+        *data_len = 0;
+        return nullptr;
+    }
+    
+    memcpy(binary_data, data_start, *data_len);
+    return binary_data;
+}
+
+/**
+ * @brief 固件升级会话管理
+ * @return std::string 
+ * POST /api/firmware-upgrade
+ * 支持的action: create, complete, abort, status
+ */
+std::string apiFirmwareUpgrade() {
+    cJSON* postParams = get_post_data();
+    if (!postParams) {
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Invalid JSON data");
+        return response;
+    }
+
+    FirmwareManager* manager = FirmwareManager::GetInstance();
+    if (!manager) {
+        cJSON_Delete(postParams);
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Failed to get firmware manager instance");
+        return response;
+    }
+
+    cJSON* actionItem = cJSON_GetObjectItem(postParams, "action");
+    cJSON* sessionIdItem = cJSON_GetObjectItem(postParams, "session_id");
+    
+    if (!actionItem || !cJSON_IsString(actionItem) || 
+        !sessionIdItem || !cJSON_IsString(sessionIdItem)) {
+        cJSON_Delete(postParams);
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Missing required parameters");
+        return response;
+    }
+
+    const char* action = cJSON_GetStringValue(actionItem);
+    const char* sessionId = cJSON_GetStringValue(sessionIdItem);
+
+    cJSON* dataJSON = cJSON_CreateObject();
+    bool success = false;
+    
+    if (strcmp(action, "create") == 0) {
+        // 创建升级会话
+        cJSON* manifestItem = cJSON_GetObjectItem(postParams, "manifest");
+        if (!manifestItem) {
+            cJSON_Delete(postParams);
+            cJSON_AddStringToObject(dataJSON, "error", "Manifest required for create action");
+            std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
+            return response;
+        }
+        
+        // 解析manifest到FirmwareMetadata结构
+        FirmwareMetadata manifest = {0};
+        
+        // 解析版本
+        cJSON* versionItem = cJSON_GetObjectItem(manifestItem, "version");
+        if (versionItem && cJSON_IsString(versionItem)) {
+            strncpy(manifest.firmware_version, cJSON_GetStringValue(versionItem), sizeof(manifest.firmware_version) - 1);
+        }
+        
+        // 解析槽位
+        cJSON* slotItem = cJSON_GetObjectItem(manifestItem, "slot");
+        if (slotItem && cJSON_IsString(slotItem)) {
+            const char* slotStr = cJSON_GetStringValue(slotItem);
+            if (strcmp(slotStr, "A") == 0) {
+                manifest.target_slot = FIRMWARE_SLOT_A;
+            } else if (strcmp(slotStr, "B") == 0) {
+                manifest.target_slot = FIRMWARE_SLOT_B;
+            } else {
+                manifest.target_slot = FIRMWARE_SLOT_A; // 默认槽位
+            }
+        }
+        
+        // 解析构建日期
+        cJSON* buildDateItem = cJSON_GetObjectItem(manifestItem, "build_date");
+        if (buildDateItem && cJSON_IsString(buildDateItem)) {
+            strncpy(manifest.build_date, cJSON_GetStringValue(buildDateItem), sizeof(manifest.build_date) - 1);
+        }
+        
+        // 解析组件
+        cJSON* componentsItem = cJSON_GetObjectItem(manifestItem, "components");
+        if (componentsItem && cJSON_IsArray(componentsItem)) {
+            int componentCount = cJSON_GetArraySize(componentsItem);
+            manifest.component_count = (componentCount > FIRMWARE_COMPONENT_COUNT) ? FIRMWARE_COMPONENT_COUNT : componentCount;
+            
+            for (int i = 0; i < manifest.component_count; i++) {
+                cJSON* compItem = cJSON_GetArrayItem(componentsItem, i);
+                if (compItem) {
+                    FirmwareComponent* comp = &manifest.components[i];
+                    
+                    cJSON* nameItem = cJSON_GetObjectItem(compItem, "name");
+                    if (nameItem && cJSON_IsString(nameItem)) {
+                        strncpy(comp->name, cJSON_GetStringValue(nameItem), sizeof(comp->name) - 1);
+                    }
+                    
+                    cJSON* fileItem = cJSON_GetObjectItem(compItem, "file");
+                    if (fileItem && cJSON_IsString(fileItem)) {
+                        strncpy(comp->file, cJSON_GetStringValue(fileItem), sizeof(comp->file) - 1);
+                    }
+                    
+                    cJSON* addressItem = cJSON_GetObjectItem(compItem, "address");
+                    if (addressItem && cJSON_IsNumber(addressItem)) {
+                        comp->address = (uint32_t)cJSON_GetNumberValue(addressItem);
+                    }
+                    
+                    cJSON* sizeItem = cJSON_GetObjectItem(compItem, "size");
+                    if (sizeItem && cJSON_IsNumber(sizeItem)) {
+                        comp->size = (uint32_t)cJSON_GetNumberValue(sizeItem);
+                    }
+                    
+                    cJSON* sha256Item = cJSON_GetObjectItem(compItem, "sha256");
+                    if (sha256Item && cJSON_IsString(sha256Item)) {
+                        strncpy(comp->sha256, cJSON_GetStringValue(sha256Item), sizeof(comp->sha256) - 1);
+                    }
+                    
+                    cJSON* activeItem = cJSON_GetObjectItem(compItem, "active");
+                    if (activeItem && cJSON_IsBool(activeItem)) {
+                        comp->active = cJSON_IsTrue(activeItem);
+                    }
+                }
+            }
+        }
+        
+        success = manager->CreateUpgradeSession(sessionId, &manifest);
+        cJSON_AddBoolToObject(dataJSON, "success", success);
+        cJSON_AddStringToObject(dataJSON, "session_id", sessionId);
+        
+    } else if (strcmp(action, "complete") == 0) {
+        // 完成升级会话
+        success = manager->CompleteUpgradeSession(sessionId);
+        cJSON_AddBoolToObject(dataJSON, "success", success);
+        if (success) {
+            cJSON_AddStringToObject(dataJSON, "message", "Firmware upgrade completed successfully. System will restart in 2 seconds.");
+        }
+        
+    } else if (strcmp(action, "abort") == 0) {
+        // 中止升级会话
+        success = manager->AbortUpgradeSession(sessionId);
+        cJSON_AddBoolToObject(dataJSON, "success", success);
+        if (success) {
+            cJSON_AddStringToObject(dataJSON, "message", "Upgrade session aborted successfully");
+        }
+        
+    } else if (strcmp(action, "status") == 0) {
+        // 获取升级状态
+        const UpgradeSession* session = manager->GetUpgradeSession(sessionId);
+        if (session) {
+            success = true;
+            cJSON_AddStringToObject(dataJSON, "session_id", session->session_id);
+            
+            // 将枚举转换为字符串
+            const char* statusStr = "unknown";
+            switch (session->status) {
+                case UPGRADE_STATUS_IDLE: statusStr = "idle"; break;
+                case UPGRADE_STATUS_ACTIVE: statusStr = "active"; break;
+                case UPGRADE_STATUS_COMPLETED: statusStr = "completed"; break;
+                case UPGRADE_STATUS_ABORTED: statusStr = "aborted"; break;
+                case UPGRADE_STATUS_FAILED: statusStr = "failed"; break;
+            }
+            cJSON_AddStringToObject(dataJSON, "status", statusStr);
+            cJSON_AddNumberToObject(dataJSON, "progress", session->total_progress);
+            cJSON_AddNumberToObject(dataJSON, "created_at", session->created_at);
+            
+            // 组件进度信息
+            cJSON* componentsArray = cJSON_CreateArray();
+            for (uint32_t i = 0; i < session->component_count; i++) {
+                const ComponentUpgradeData* compData = &session->components[i];
+                cJSON* compObj = cJSON_CreateObject();
+                cJSON_AddStringToObject(compObj, "name", compData->component_name);
+                cJSON_AddNumberToObject(compObj, "total_chunks", compData->total_chunks);
+                cJSON_AddNumberToObject(compObj, "received_chunks", compData->received_chunks);
+                cJSON_AddNumberToObject(compObj, "total_size", compData->total_size);
+                cJSON_AddNumberToObject(compObj, "received_size", compData->received_size);
+                cJSON_AddBoolToObject(compObj, "completed", compData->completed);
+                cJSON_AddItemToArray(componentsArray, compObj);
+            }
+            cJSON_AddItemToObject(dataJSON, "components", componentsArray);
+        } else {
+            cJSON_AddStringToObject(dataJSON, "error", "Session not found");
+        }
+        
+    } else {
+        cJSON_Delete(postParams);
+        cJSON_AddStringToObject(dataJSON, "error", "Invalid action");
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
+        return response;
+    }
+
+    cJSON_Delete(postParams);
+    std::string response = get_response_temp(success ? STORAGE_ERROR_NO::ACTION_SUCCESS : STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
+    return response;
+}
+
+/**
+ * @brief 处理固件分片上传
+ * @return std::string 
+ * POST /api/firmware-upgrade/chunk
+ * 支持multipart/form-data格式，包含JSON元数据和二进制数据
+ */
+std::string apiFirmwareChunk() {
+    FirmwareManager* manager = FirmwareManager::GetInstance();
+    if (!manager) {
+        cJSON* dataJSON = cJSON_CreateObject();
+        cJSON_AddStringToObject(dataJSON, "error", "Firmware manager not initialized");
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
+        return response;
+    }
+
+    // 尝试解析multipart数据中的JSON元数据
+    cJSON* metadataJSON = parse_multipart_json_metadata();
+    if (!metadataJSON) {
+        // 如果不是multipart，尝试作为纯JSON解析
+        metadataJSON = get_post_data();
+    }
+    
+    if (!metadataJSON) {
+        cJSON* dataJSON = cJSON_CreateObject();
+        cJSON_AddStringToObject(dataJSON, "error", "Invalid request data");
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
+        return response;
+    }
+
+    // 解析必要字段
+    cJSON* sessionIdItem = cJSON_GetObjectItem(metadataJSON, "session_id");
+    cJSON* componentNameItem = cJSON_GetObjectItem(metadataJSON, "component_name");
+    cJSON* chunkIndexItem = cJSON_GetObjectItem(metadataJSON, "chunk_index");
+    cJSON* totalChunksItem = cJSON_GetObjectItem(metadataJSON, "total_chunks");
+    cJSON* chunkSizeItem = cJSON_GetObjectItem(metadataJSON, "chunk_size");
+    cJSON* chunkOffsetItem = cJSON_GetObjectItem(metadataJSON, "chunk_offset");
+    cJSON* targetAddressItem = cJSON_GetObjectItem(metadataJSON, "target_address");
+    cJSON* checksumItem = cJSON_GetObjectItem(metadataJSON, "checksum");
+
+    if (!sessionIdItem || !cJSON_IsString(sessionIdItem) ||
+        !componentNameItem || !cJSON_IsString(componentNameItem) ||
+        !chunkIndexItem || !cJSON_IsNumber(chunkIndexItem) ||
+        !totalChunksItem || !cJSON_IsNumber(totalChunksItem) ||
+        !chunkSizeItem || !cJSON_IsNumber(chunkSizeItem) ||
+        !chunkOffsetItem || !cJSON_IsNumber(chunkOffsetItem) ||
+        !checksumItem || !cJSON_IsString(checksumItem)) {
+        
+        cJSON_Delete(metadataJSON);
+        cJSON* dataJSON = cJSON_CreateObject();
+        cJSON_AddStringToObject(dataJSON, "error", "Missing or invalid parameters");
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
+        return response;
+    }
+
+    // 构建ChunkData结构
+    ChunkData chunk = {0};
+    chunk.chunk_index = (uint32_t)cJSON_GetNumberValue(chunkIndexItem);
+    chunk.total_chunks = (uint32_t)cJSON_GetNumberValue(totalChunksItem);
+    chunk.chunk_size = (uint32_t)cJSON_GetNumberValue(chunkSizeItem);
+    chunk.chunk_offset = (uint32_t)cJSON_GetNumberValue(chunkOffsetItem);
+    strncpy(chunk.checksum, cJSON_GetStringValue(checksumItem), sizeof(chunk.checksum) - 1);
+
+    // 解析目标地址（支持字符串格式的十六进制地址）
+    if (targetAddressItem) {
+        if (cJSON_IsString(targetAddressItem)) {
+            const char* addrStr = cJSON_GetStringValue(targetAddressItem);
+            if (strncmp(addrStr, "0x", 2) == 0 || strncmp(addrStr, "0X", 2) == 0) {
+                chunk.target_address = strtoul(addrStr, nullptr, 16);
+            } else {
+                chunk.target_address = strtoul(addrStr, nullptr, 10);
+            }
+        } else if (cJSON_IsNumber(targetAddressItem)) {
+            chunk.target_address = (uint32_t)cJSON_GetNumberValue(targetAddressItem);
+        }
+    }
+
+    // 获取二进制数据
+    uint8_t* binaryData = nullptr;
+    size_t binaryDataLen = 0;
+    bool needFreeData = false;
+
+    // 首先尝试从multipart数据中提取二进制数据
+    binaryData = extract_multipart_binary_data(&binaryDataLen);
+    if (binaryData) {
+        needFreeData = true;
+    } else {
+        // 如果没有找到二进制数据，尝试从JSON中获取Base64编码的数据
+        cJSON* dataItem = cJSON_GetObjectItem(metadataJSON, "data");
+        if (dataItem && cJSON_IsString(dataItem)) {
+            const char* base64Data = cJSON_GetStringValue(dataItem);
+            binaryData = base64_decode(base64Data, &binaryDataLen);
+            if (binaryData) {
+                needFreeData = true;
+            }
+        }
+    }
+
+    if (!binaryData || binaryDataLen == 0) {
+        cJSON_Delete(metadataJSON);
+        cJSON* dataJSON = cJSON_CreateObject();
+        cJSON_AddStringToObject(dataJSON, "error", "No binary data found");
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
+        return response;
+    }
+
+    // 验证数据大小
+    if (binaryDataLen != chunk.chunk_size) {
+        chunk.chunk_size = binaryDataLen; // 使用实际数据大小
+    }
+
+    chunk.data = binaryData;
+
+    // 处理固件分片
+    bool success = manager->ProcessFirmwareChunk(
+        cJSON_GetStringValue(sessionIdItem),
+        cJSON_GetStringValue(componentNameItem),
+        &chunk
+    );
+
+    // 清理资源
+    if (needFreeData && binaryData) {
+        free(binaryData);
+    }
+    cJSON_Delete(metadataJSON);
+
+    // 构建响应
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddBoolToObject(dataJSON, "success", success);
+    cJSON_AddNumberToObject(dataJSON, "chunk_index", chunk.chunk_index);
+    
+    if (success) {
+        uint32_t progress = manager->GetUpgradeProgress(cJSON_GetStringValue(sessionIdItem));
+        cJSON_AddNumberToObject(dataJSON, "progress", progress);
+    }
+
+    std::string response = get_response_temp(success ? STORAGE_ERROR_NO::ACTION_SUCCESS : STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
+    return response;
+        
+}
+
+/**
+ * @brief 完成固件升级会话
+ * @return std::string 
+ * POST /api/firmware-upgrade-complete
+ * {
+ *      "sessionId": "session_12345_abcd"
+ * }
+ * 
+ * Response:
+ * {
+ *      "errNo": 0,
+ *      "data": {
+ *          "message": "Firmware upgrade completed successfully. System will restart in 2 seconds."
+ *      }
+ * }
+ */
+std::string apiFirmwareUpgradeComplete() {
+    cJSON* postParams = get_post_data();
+    if (!postParams) {
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Invalid JSON data");
+        return response;
+    }
+
+    FirmwareManager* manager = FirmwareManager::GetInstance();
+    if (!manager) {
+        cJSON_Delete(postParams);
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Failed to get firmware manager instance");
+        return response;
+    }
+
+    cJSON* sessionIdItem = cJSON_GetObjectItem(postParams, "sessionId");
+    if (!sessionIdItem || !cJSON_IsString(sessionIdItem)) {
+        cJSON_Delete(postParams);
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Missing session ID");
+        return response;
+    }
+    
+    const char* sessionId = cJSON_GetStringValue(sessionIdItem);
+    
+    // 完成升级会话
+    bool success = manager->CompleteUpgradeSession(sessionId);
+    
+    cJSON_Delete(postParams);
+
+    if (!success) {
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Failed to complete upgrade session");
+        return response;
+    }
+
+    // 返回成功响应
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(dataJSON, "message", "Firmware upgrade completed successfully. System will restart in 2 seconds.");
+    
+    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    return response;
+}
+
+/**
+ * @brief 中止固件升级会话
+ * @return std::string 
+ * POST /api/firmware-upgrade-abort
+ * {
+ *      "sessionId": "session_12345_abcd"
+ * }
+ * 
+ * Response:
+ * {
+ *      "errNo": 0,
+ *      "data": {
+ *          "message": "Firmware upgrade session aborted successfully"
+ *      }
+ * }
+ */
+std::string apiFirmwareUpgradeAbort() {
+    cJSON* postParams = get_post_data();
+    if (!postParams) {
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Invalid JSON data");
+        return response;
+    }
+
+    FirmwareManager* manager = FirmwareManager::GetInstance();
+    if (!manager) {
+        cJSON_Delete(postParams);
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Failed to get firmware manager instance");
+        return response;
+    }
+
+    cJSON* sessionIdItem = cJSON_GetObjectItem(postParams, "sessionId");
+    if (!sessionIdItem || !cJSON_IsString(sessionIdItem)) {
+        cJSON_Delete(postParams);
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Missing session ID");
+        return response;
+    }
+    
+    const char* sessionId = cJSON_GetStringValue(sessionIdItem);
+    
+    // 中止升级会话
+    bool success = manager->AbortUpgradeSession(sessionId);
+    
+    cJSON_Delete(postParams);
+
+    if (!success) {
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Failed to abort upgrade session");
+        return response;
+    }
+
+    // 返回成功响应
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(dataJSON, "message", "Firmware upgrade session aborted successfully");
+    
+    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    return response;
+
+}
+
+/**
+ * @brief 获取固件升级会话状态
+ * @return std::string 
+ * POST /api/firmware-upgrade-status
+ * {
+ *      "sessionId": "session_12345_abcd"
+ * }
+ * 
+ * Response:
+ * {
+ *      "errNo": 0,
+ *      "data": {
+ *          "status": "completed"
+ *      }
+ * }
+ */
+std::string apiFirmwareUpgradeStatus() {
+    cJSON* postParams = get_post_data();
+    if (!postParams) {
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Invalid JSON data");
+        return response;
+    }
+
+    FirmwareManager* manager = FirmwareManager::GetInstance();
+    if (!manager) {
+        cJSON_Delete(postParams);
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Failed to get firmware manager instance");
+        return response;
+    }
+
+    cJSON* sessionIdItem = cJSON_GetObjectItem(postParams, "sessionId");
+    if (!sessionIdItem || !cJSON_IsString(sessionIdItem)) {
+        cJSON_Delete(postParams);
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Missing session ID");
+        return response;
+    }
+
+    std::string sessionId = sessionIdItem->valuestring;
+
+    // 获取固件升级会话状态
+    const UpgradeSession* session = manager->GetUpgradeSession(sessionId.c_str());
+    if (!session) {
+        cJSON_Delete(postParams);
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Session not found");
+        return response;
+    }
+
+    cJSON* dataJSON = cJSON_CreateObject();
+    
+    // 将枚举转换为字符串
+    const char* statusStr = "unknown";
+    switch (session->status) {
+        case UPGRADE_STATUS_IDLE: statusStr = "idle"; break;
+        case UPGRADE_STATUS_ACTIVE: statusStr = "active"; break;
+        case UPGRADE_STATUS_COMPLETED: statusStr = "completed"; break;
+        case UPGRADE_STATUS_ABORTED: statusStr = "aborted"; break;
+        case UPGRADE_STATUS_FAILED: statusStr = "failed"; break;
+    }
+    cJSON_AddStringToObject(dataJSON, "status", statusStr);
+
+    cJSON_Delete(postParams);
+    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    return response;
+}
 /*============================================ apis end ====================================================*/
 
 
@@ -2524,6 +3275,12 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/get-button-states", apiGetButtonStates },               // 轮询获取按键状态
     { "/api/push-leds-config", apiPushLedsConfig },                 // 推送 LED 配置
     { "/api/clear-leds-preview", apiClearLedsPreview },             // 清除 LED 预览模式
+    { "/api/firmware-metadata", apiFirmwareMetadata },               // 获取固件元数据信息
+    { "/api/firmware-upgrade", apiFirmwareUpgrade },                 // 固件升级会话管理
+    { "/api/firmware-upgrade-status", apiFirmwareUpgradeStatus },     // 获取固件升级会话状态
+    { "/api/firmware-upgrade/chunk", apiFirmwareChunk },             // 处理固件分片上传
+    { "/api/firmware-upgrade-complete", apiFirmwareUpgradeComplete }, // 完成固件升级会话
+    { "/api/firmware-upgrade-abort", apiFirmwareUpgradeAbort },       // 中止固件升级会话
 #if !defined(NDEBUG)
     // { "/api/echo", echo },
 #endif

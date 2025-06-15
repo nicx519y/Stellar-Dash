@@ -661,6 +661,9 @@ int8_t QSPI_W25Qxx_WritePage(uint8_t* pBuffer, uint32_t WriteAddr, uint16_t NumB
  */
 int8_t QSPI_W25Qxx_WriteBuffer(uint8_t* pBuffer, uint32_t WriteAddr, uint32_t NumByteToWrite)
 {   
+
+	WriteAddr &= 0x00FFFFFF;
+
 	int8_t status;
 
 	// 计算需要擦除的扇区范围
@@ -731,6 +734,9 @@ int8_t QSPI_W25Qxx_WriteBuffer(uint8_t* pBuffer, uint32_t WriteAddr, uint32_t Nu
  */
 int8_t QSPI_W25Qxx_ReadBuffer(uint8_t* pBuffer, uint32_t ReadAddr, uint32_t NumByteToRead)
 {
+
+	ReadAddr &= 0x00FFFFFF;
+
     QSPI_CommandTypeDef s_command;
     
     /* 使用 Fast Read Quad Output 命令配置 */
@@ -1021,6 +1027,9 @@ int8_t QSPI_W25Qxx_ReadString(char* buffer, uint32_t ReadAddr)
  */
 int8_t QSPI_W25Qxx_BufferErase(uint32_t StartAddr, uint32_t Size)
 {
+
+	StartAddr &= 0x00FFFFFF;
+
     int8_t result;
     uint32_t EndAddr;  // 结束地址
     uint32_t CurrentAddr;  // 当前地址

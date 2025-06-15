@@ -588,38 +588,187 @@ application/build/
 
 ## 发版阶段：打包和分发
 
-### manifest.json 元数据
+### 固件元数据结构
+
+STM32 HBox使用安全的二进制元数据结构，包含完整的校验和兼容性验证：
+
+#### 元数据结构定义
+
+```c
+typedef struct {
+    // === 安全校验区域 ===
+    uint32_t magic;                     // 魔术数字 0x48424F58 ("HBOX")
+    uint32_t metadata_version_major;    // 元数据结构版本号
+    uint32_t metadata_version_minor;
+    uint32_t metadata_size;             // 元数据总大小
+    uint32_t metadata_crc32;            // 元数据CRC32校验（不包括此字段本身）
+    
+    // === 固件信息区域 ===
+    char firmware_version[32];          // 固件版本号
+    FirmwareSlot target_slot;           // 目标槽位
+    char build_date[32];                // 构建日期
+    uint32_t build_timestamp;           // 构建时间戳
+    
+    // === 设备兼容性区域 ===
+    char device_model[32];              // 设备型号 "STM32H750_HBOX"
+    uint32_t hardware_version;          // 硬件版本
+    uint32_t bootloader_min_version;    // 最低bootloader版本要求
+    
+    // === 组件信息区域 ===
+    uint32_t component_count;           // 组件数量
+    FirmwareComponent components[3];    // 固件组件数组
+    
+    // === 安全签名区域 ===
+    uint8_t firmware_hash[32];          // 整个固件包的SHA256哈希
+    uint8_t signature[64];              // 数字签名（预留，可选）
+    uint32_t signature_algorithm;       // 签名算法标识
+    
+    // === 预留区域 ===
+    uint8_t reserved[64];               // 预留空间，用于未来扩展
+} FirmwareMetadata;
+```
+
+#### 组件信息结构
+
+```c
+typedef struct {
+    char name[32];              // 组件名称
+    char file[64];              // 文件名
+    uint32_t address;           // 目标地址
+    uint32_t size;              // 组件大小
+    char sha256[65];            // SHA256校验和
+    bool active;                // 是否激活
+} FirmwareComponent;
+```
+
+#### 元数据安全特性
+
+1. **魔术数字验证**: 0x48424F58 ("HBOX") 确保元数据有效性
+2. **CRC32校验**: 保证元数据完整性，防止数据损坏
+3. **版本兼容性**: 检查元数据结构版本、硬件版本、bootloader版本
+4. **设备兼容性**: 验证设备型号匹配
+5. **组件校验**: 每个组件都有独立的SHA256校验和
+6. **数字签名**: 预留签名字段，支持未来的安全升级
+
+#### 元数据生成过程
+
+Python工具`release.py`会自动生成符合C结构体的二进制元数据：
+
+```python
+def create_metadata_binary(version, slot, build_date, components):
+    """生成与C结构体完全对齐的元数据二进制"""
+    
+    # 创建元数据结构
+    metadata = bytearray(588)  # FirmwareMetadata总大小
+    
+    # === 安全校验区域 ===
+    struct.pack_into('<I', metadata, 0, 0x48424F58)      # magic
+    struct.pack_into('<I', metadata, 4, 1)               # version_major
+    struct.pack_into('<I', metadata, 8, 0)               # version_minor  
+    struct.pack_into('<I', metadata, 12, 588)            # metadata_size
+    # CRC32字段稍后计算
+    
+    # === 固件信息区域 ===
+    version_bytes = version.encode('utf-8')[:31]
+    metadata[20:20+len(version_bytes)] = version_bytes    # firmware_version
+    
+    slot_value = 0 if slot.upper() == 'A' else 1
+    struct.pack_into('<I', metadata, 52, slot_value)     # target_slot
+    
+    build_date_bytes = build_date.encode('utf-8')[:31]
+    metadata[56:56+len(build_date_bytes)] = build_date_bytes  # build_date
+    
+    timestamp = int(time.time())
+    struct.pack_into('<I', metadata, 88, timestamp)      # build_timestamp
+    
+    # === 设备兼容性区域 ===
+    device_model = "STM32H750_HBOX".encode('utf-8')
+    metadata[92:92+len(device_model)] = device_model     # device_model
+    
+    struct.pack_into('<I', metadata, 124, 0x00010000)   # hardware_version
+    struct.pack_into('<I', metadata, 128, 0x00010000)   # bootloader_min_version
+    
+    # === 组件信息区域 ===
+    struct.pack_into('<I', metadata, 132, len(components))  # component_count
+    
+    # 写入组件信息（每个组件172字节）
+    for i, comp in enumerate(components):
+        offset = 136 + i * 172
+        
+        name_bytes = comp['name'].encode('utf-8')[:31]
+        metadata[offset:offset+len(name_bytes)] = name_bytes
+        
+        file_bytes = comp['file'].encode('utf-8')[:63]
+        metadata[offset+32:offset+32+len(file_bytes)] = file_bytes
+        
+        struct.pack_into('<I', metadata, offset+96, comp['address'])
+        struct.pack_into('<I', metadata, offset+100, comp['size'])
+        
+        sha256_bytes = comp['sha256'].encode('utf-8')[:64]
+        metadata[offset+104:offset+104+len(sha256_bytes)] = sha256_bytes
+        
+        metadata[offset+169] = 1  # active = true
+    
+    # 计算并设置CRC32校验和（跳过CRC字段本身）
+    crc_data = metadata[:16] + metadata[20:]  # 跳过CRC32字段
+    crc32_value = calculate_crc32(crc_data)
+    struct.pack_into('<I', metadata, 16, crc32_value)
+    
+    return bytes(metadata)
+```
+
+#### manifest.json (仅用于发版包管理)
+
+发版包中仍包含manifest.json用于包管理和Web界面显示，但实际的固件元数据使用二进制格式：
 
 ```json
 {
   "version": "1.0.0",
-  "slot": "A",
-  "build_date": "2024-12-01 14:30:22",
+  "slot": "A", 
+  "build_date": "2024-12-08 14:30:22",
+  "device_model": "STM32H750_HBOX",
+  "hardware_version": "1.0.0",
+  "bootloader_min_version": "1.0.0",
   "components": [
     {
       "name": "application",
       "file": "application_slot_a.hex",
-      "address": "0x90000000",      // 槽A地址
+      "address": "0x90000000",
       "size": 1048576,
-      "sha256": "sha256_hash..."
+      "sha256": "abc123..."
     },
     {
       "name": "webresources", 
       "file": "webresources.bin",
-      "address": "0x90100000",      // 槽A WebResources地址
+      "address": "0x90100000",
       "size": 1572864,
-      "sha256": "sha256_hash..."
+      "sha256": "def456..."
     },
     {
       "name": "adc_mapping",
       "file": "slot_a_adc_mapping.bin", 
-      "address": "0x90280000",      // 槽A ADC Mapping地址
+      "address": "0x90280000",
       "size": 131072,
-      "sha256": "sha256_hash..."
+      "sha256": "ghi789..."
     }
-  ]
+  ],
+  "metadata_binary": "firmware_metadata.bin"
 }
 ```
+
+#### 元数据验证流程
+
+1. **Bootloader验证**: 启动时验证元数据魔术数字、CRC32、设备兼容性
+2. **固件管理器验证**: 运行时验证元数据完整性和组件校验和
+3. **升级时验证**: 接收新固件时验证所有安全字段
+4. **Web界面验证**: 显示前验证元数据格式和内容
+
+#### 元数据存储位置
+
+- **Flash地址**: 0x90570000 (虚拟地址) / 0x570000 (物理地址)
+- **存储大小**: 64KB (0x10000)
+- **实际使用**: 588字节 (FirmwareMetadata结构体大小)
+- **预留空间**: 剩余空间用于未来扩展
 
 ## 故障排除
 
@@ -781,22 +930,63 @@ Web界面首先从设备获取当前的设备ID和固件元数据：
 const deviceResponse = await fetch('/api/firmware-metadata');
 const { device_id, firmware } = deviceResponse.data;
 
-// 设备元数据包含：
+// 设备元数据包含完整的安全元数据结构：
 {
-  device_id: "1234567890",           // 唯一设备标识
+  device_id: "STM32H750_HBOX_001",   // 唯一设备标识
   firmware: {
-    version: "1.0.0",               // 当前版本
-    slot: "A",                      // 当前运行槽位
+    // === 基本信息 ===
+    magic: "0x48424F58",             // 魔术数字 "HBOX"
+    version: "1.0.0",                // 固件版本号
+    slot: "A",                       // 当前运行槽位
     build_date: "2024-12-08 14:30:22",
-    components: [                   // 组件信息
+    build_timestamp: 1733123456,     // 构建时间戳
+    
+    // === 设备兼容性信息 ===
+    device_model: "STM32H750_HBOX",  // 设备型号
+    hardware_version: "1.0.0",       // 硬件版本
+    bootloader_min_version: "1.0.0", // 最低bootloader版本
+    
+    // === 元数据完整性 ===
+    metadata_version: "1.0",         // 元数据结构版本
+    metadata_size: 588,              // 元数据总大小
+    metadata_crc32: "0x12345678",    // CRC32校验和
+    
+    // === 组件信息 ===
+    component_count: 3,              // 组件数量
+    components: [
       {
         name: "application",
+        file: "application_slot_a.hex",
         address: "0x90000000",
         size: 1048576,
-        sha256: "abc123..."
+        sha256: "abc123...",
+        active: true
+      },
+      {
+        name: "webresources",
+        file: "webresources.bin", 
+        address: "0x90100000",
+        size: 1572864,
+        sha256: "def456...",
+        active: true
+      },
+      {
+        name: "adc_mapping",
+        file: "slot_a_adc_mapping.bin",
+        address: "0x90280000", 
+        size: 131072,
+        sha256: "ghi789...",
+        active: true
       }
-      // ...其他组件
-    ]
+    ],
+    
+    // === 安全信息 ===
+    firmware_hash: "xyz789...",      // 整个固件包SHA256
+    signature_algorithm: 0,          // 签名算法（预留）
+    
+    // === 验证状态 ===
+    validation_result: "FIRMWARE_VALID",  // 元数据验证结果
+    integrity_verified: true         // 完整性验证状态
   }
 }
 ```
@@ -1122,14 +1312,14 @@ async function uploadFirmwareToDevice(manifest, components, onProgress) {
 ```c
 // 设备端升级会话状态
 typedef struct {
-    char session_id[32];
+    char session_id[64];            // 会话ID
     uint32_t total_size;
     uint32_t received_size;
-    char target_slot;               // 'A' or 'B'
+    FirmwareSlot target_slot;       // 目标槽位
     uint32_t current_address;
     bool is_active;
     uint32_t timeout;
-    FirmwareManifest manifest;
+    FirmwareMetadata manifest;      // 使用安全元数据结构
 } UpgradeSession;
 
 // HTTP API: /api/firmware-upgrade
@@ -1142,10 +1332,35 @@ int handle_start_upgrade_session(const char* json_body) {
     cJSON* manifest_json = cJSON_GetObjectItem(json, "manifest");
     uint32_t total_size = cJSON_GetObjectItem(json, "total_size")->valueint;
     
+    // 解析并验证安全元数据
+    FirmwareMetadata temp_metadata;
+    if (parse_secure_manifest(manifest_json, &temp_metadata) != 0) {
+        return error_response("安全元数据解析失败");
+    }
+    
+    // 验证元数据完整性和兼容性
+    FirmwareValidationResult validation = DualSlot_ValidateMetadata(&temp_metadata);
+    if (validation != FIRMWARE_VALID) {
+        return error_response_with_code("元数据验证失败", validation);
+    }
+    
     // 验证槽位可用性
-    char target_slot = cJSON_GetObjectItem(manifest_json, "slot")->valuestring[0];
-    if (target_slot == get_current_slot()) {
+    FirmwareSlot target_slot = temp_metadata.target_slot;
+    if (target_slot == DualSlot_GetActiveSlot()) {
         return error_response("不能向当前运行槽位升级");
+    }
+    
+    // 验证设备兼容性
+    if (strcmp(temp_metadata.device_model, DEVICE_MODEL_STRING) != 0) {
+        return error_response("设备型号不匹配");
+    }
+    
+    if (temp_metadata.hardware_version > HARDWARE_VERSION) {
+        return error_response("硬件版本不兼容");
+    }
+    
+    if (temp_metadata.bootloader_min_version > BOOTLOADER_VERSION) {
+        return error_response("需要更新Bootloader");
     }
     
     // 初始化会话
@@ -1155,14 +1370,10 @@ int handle_start_upgrade_session(const char* json_body) {
     session->target_slot = target_slot;
     session->is_active = true;
     session->timeout = HAL_GetTick() + UPGRADE_TIMEOUT_MS;
-    
-    // 解析并验证manifest
-    if (parse_manifest(manifest_json, &session->manifest) != 0) {
-        return error_response("Manifest解析失败");
-    }
+    session->manifest = temp_metadata;
     
     // 擦除目标槽位Flash
-    if (erase_target_slot_flash(target_slot) != 0) {
+    if (!EraseSlotFlash(target_slot)) {
         return error_response("Flash擦除失败");
     }
     
@@ -1239,20 +1450,41 @@ int handle_complete_upgrade(const char* json_body) {
         return error_response("数据接收不完整");
     }
     
-    // 验证固件完整性（可选，通过校验和）
-    if (verify_firmware_integrity(&g_upgrade_session.manifest) != 0) {
+    // 使用固件管理器完成升级会话
+    FirmwareManager* fm = FirmwareManager::GetInstance();
+    if (!fm->CompleteUpgradeSession(session_id)) {
+        return error_response("升级会话完成失败");
+    }
+    
+    // 验证固件完整性和安全性
+    FirmwareSlot target_slot = g_upgrade_session.target_slot;
+    if (!fm->VerifyFirmwareIntegrity(target_slot)) {
         return error_response("固件完整性验证失败");
     }
     
+    // 验证元数据完整性
+    FirmwareValidationResult validation = DualSlot_ValidateMetadata(&g_upgrade_session.manifest);
+    if (validation != FIRMWARE_VALID) {
+        return error_response_with_validation("元数据验证失败", validation);
+    }
+    
+    // 保存新的安全元数据到Flash
+    if (DualSlot_SaveMetadata(&g_upgrade_session.manifest) != 0) {
+        return error_response("元数据保存失败");
+    }
+    
     // 标记新槽位为可启动
-    if (mark_slot_bootable(g_upgrade_session.target_slot) != 0) {
-        return error_response("槽位标记失败");
+    if (DualSlot_SetActiveSlot(target_slot) != 0) {
+        return error_response("槽位切换失败");
     }
     
     // 清理会话
     clear_upgrade_session();
     
-    return success_response("固件升级成功完成，重启后将从新槽位启动");
+    // 调度系统重启（延迟2秒）
+    fm->ScheduleSystemRestart();
+    
+    return success_response("固件升级成功完成，系统将在2秒后重启并从新槽位启动");
 }
 ```
 
@@ -1382,10 +1614,47 @@ const ERROR_RECOVERY_STRATEGIES = {
 
 整个Web界面固件升级流程确保了：
 
-1. **安全性**: 多重校验确保固件完整性
-2. **可靠性**: 分片传输适应设备内存限制
-3. **用户体验**: 详细进度展示和错误处理
-4. **兼容性**: 智能槽位选择和地址映射
-5. **恢复能力**: 升级失败时的自动回滚机制
+#### 安全性保障
+1. **多重校验机制**: 
+   - 魔术数字验证 (0x48424F58 "HBOX")
+   - CRC32元数据完整性校验
+   - SHA256组件级校验和验证
+   - 设备兼容性验证
+2. **版本兼容性检查**:
+   - 元数据结构版本验证
+   - 硬件版本兼容性检查
+   - Bootloader最低版本要求验证
+3. **设备身份验证**:
+   - 设备型号匹配验证
+   - 唯一设备ID识别
+4. **数字签名支持**: 预留签名字段，支持未来的安全升级
 
-通过这套设计，用户可以在Web界面中安全、便捷地完成STM32 HBox的固件升级，同时保持系统的高可用性和数据安全。 
+#### 可靠性保障
+1. **分片传输**: 4KB分片大小适应STM32内存限制
+2. **实时验证**: 每个分片写入后立即验证
+3. **会话管理**: 30分钟超时保护，防止僵尸会话
+4. **原子操作**: 升级失败时自动回滚，不影响当前运行槽位
+5. **Flash擦除验证**: 写入前确保目标区域已正确擦除
+
+#### 用户体验优化
+1. **详细进度展示**: 
+   - 下载进度 (0-30%)
+   - 解压验证 (30-35%)
+   - 分片传输 (35-100%)
+2. **组件级进度**: 显示当前传输的组件和分片进度
+3. **错误恢复策略**: 网络错误自动重试，包损坏重新下载
+4. **状态反馈**: 实时显示升级状态和错误信息
+
+#### 兼容性保障
+1. **智能槽位选择**: 自动选择非当前运行的槽位进行升级
+2. **地址映射**: 自动处理槽A/B的地址空间映射
+3. **组件兼容性**: 验证设备支持的组件类型
+4. **向后兼容**: 支持旧版本元数据格式的平滑升级
+
+#### 系统集成特性
+1. **Bootloader集成**: 与双槽Bootloader完全兼容
+2. **固件管理器集成**: 使用统一的固件管理API
+3. **Web界面集成**: 提供完整的Web升级界面
+4. **服务器集成**: 支持远程固件服务器和CDN分发
+
+通过这套完整的安全升级系统，STM32 HBox实现了企业级的固件升级可靠性和安全性，确保设备在升级过程中的高可用性和数据安全。 

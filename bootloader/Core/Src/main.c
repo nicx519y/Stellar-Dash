@@ -21,6 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
 #include "usart.h"
 #include "qspi-w25q64.h"
 #include "board_cfg.h"
@@ -80,70 +81,6 @@ int main(void)
     return -1;
   }
   BOOT_DBG("QSPI_W25Qxx_Init success\r\n");
-
-  // 初始化双槽升级系统
-  if(DualSlot_Init() != 0) {
-    BOOT_ERR("DualSlot_Init failed, using legacy mode\r\n");
-  }
-
-  // 双槽测试功能（仅用于开发测试）
-#if DUAL_SLOT_TEST_ENABLE
-  if(DualSlot_IsEnabled()) {
-    BOOT_DBG("=== Dual Slot Test Mode Enabled ===");
-    
-#if DUAL_SLOT_FORCE_SLOT_A
-    BOOT_DBG("Force switching to Slot A");
-    if(DualSlot_SetCurrentSlot(SLOT_A) == 0) {
-      BOOT_DBG("Successfully switched to Slot A");
-    } else {
-      BOOT_ERR("Failed to switch to Slot A");
-    }
-#elif DUAL_SLOT_FORCE_SLOT_B
-    BOOT_DBG("Force switching to Slot B");
-    if(DualSlot_SetCurrentSlot(SLOT_B) == 0) {
-      BOOT_DBG("Successfully switched to Slot B");
-    } else {
-      BOOT_ERR("Failed to switch to Slot B");
-    }
-#endif
-
-    // 输出槽信息
-    slot_info_t slot_info_a, slot_info_b;
-    if(DualSlot_GetSlotInfo(SLOT_A, &slot_info_a) == 0) {
-      BOOT_DBG("Slot A Info:");
-      BOOT_DBG("  Base: 0x%08X, App: 0x%08X, Size: %d KB", 
-               slot_info_a.base_address, 
-               slot_info_a.application_address,
-               slot_info_a.application_size / 1024);
-      BOOT_DBG("  WebRes: 0x%08X, ADC: 0x%08X", 
-               slot_info_a.webresources_address,
-               slot_info_a.adc_mapping_address);
-    }
-    
-    if(DualSlot_GetSlotInfo(SLOT_B, &slot_info_b) == 0) {
-      BOOT_DBG("Slot B Info:");
-      BOOT_DBG("  Base: 0x%08X, App: 0x%08X, Size: %d KB", 
-               slot_info_b.base_address, 
-               slot_info_b.application_address,
-               slot_info_b.application_size / 1024);
-      BOOT_DBG("  WebRes: 0x%08X, ADC: 0x%08X", 
-               slot_info_b.webresources_address,
-               slot_info_b.adc_mapping_address);
-    }
-    
-    BOOT_DBG("=== End of Dual Slot Test ===");
-  }
-#endif
-
-  // 输出当前配置信息
-  if(DualSlot_IsEnabled()) {
-    uint8_t current_slot = DualSlot_GetCurrentSlot();
-    uint32_t app_address = DualSlot_GetSlotApplicationAddress(current_slot);
-    BOOT_DBG("Dual slot enabled - Current: Slot %c, Address: 0x%08X", 
-             (current_slot == SLOT_A) ? 'A' : 'B', app_address);
-  } else {
-    BOOT_DBG("Dual slot disabled - Legacy mode, Address: 0x%08X", W25Qxx_Mem_Addr);
-  }
 
   // QSPI_W25Qxx_Test(0x00500000);
 
@@ -317,141 +254,208 @@ void Error_Handler(void)
 
 void JumpToApplication(void)
 {
+    BOOT_DBG("=== Starting Application Jump Process ===");
+    
     // 进入内存映射模式
     if(QSPI_W25Qxx_EnterMemoryMappedMode() != QSPI_W25Qxx_OK)
     {
-      BOOT_ERR("QSPI_W25Qxx_EnterMemoryMappedMode failed\r\n");
+        BOOT_ERR("QSPI_W25Qxx_EnterMemoryMappedMode failed");
+        return;
     }
+    BOOT_DBG("QSPI Flash memory mapped mode enabled");
 
-    BOOT_DBG("QSPI_W25Qxx_EnterMemoryMappedMode success\r\n");
-
-    // 获取应用程序地址（支持双槽或单槽模式）
-    uint32_t app_base_address;
-    if(DualSlot_IsEnabled()) {
-        // 双槽模式：获取当前槽的地址
-        uint8_t current_slot = DualSlot_GetCurrentSlot();
-        app_base_address = DualSlot_GetSlotApplicationAddress(current_slot);
-        BOOT_DBG("Dual slot mode: Using Slot %c", (current_slot == SLOT_A) ? 'A' : 'B');
-        
-        // 验证当前槽的有效性
-        if(DualSlot_ValidateSlot(current_slot) != 0) {
-            BOOT_ERR("Current slot %c is invalid, trying to switch", 
-                     (current_slot == SLOT_A) ? 'A' : 'B');
-            
-            // 尝试切换到另一个槽
-            if(DualSlot_SwitchSlot() == 0) {
-                current_slot = DualSlot_GetCurrentSlot();
-                app_base_address = DualSlot_GetSlotApplicationAddress(current_slot);
-                BOOT_DBG("Switched to Slot %c", (current_slot == SLOT_A) ? 'A' : 'B');
-            } else {
-                BOOT_ERR("Failed to switch slot, using current address anyway");
-            }
-        }
-    } else {
-        // 单槽模式：使用兼容地址（原来的逻辑）
-        app_base_address = DualSlot_GetLegacyApplicationAddress();
-        BOOT_DBG("Legacy single slot mode");
-    }
-
-    uint32_t jump_address = *(__IO uint32_t*)(app_base_address + 4);
-    uint32_t app_stack = *(__IO uint32_t*)app_base_address;
+    // 加载并验证元数据
+    FirmwareMetadata metadata;
+    int8_t load_result = DualSlot_LoadMetadata(&metadata);
     
-    BOOT_DBG("App Stack address: 0x%08X, App Stack value: 0x%08X", app_base_address, *(__IO uint32_t*)app_base_address);
-    BOOT_DBG("Jump Address: 0x%08X, Jump Address value: 0x%08X", app_base_address + 4, *(__IO uint32_t*)(app_base_address + 4));
-
-    // 验证栈指针和跳转地址
-    if ((app_stack & 0xFF000000) != 0x20000000) {
-        BOOT_ERR("Invalid stack pointer: 0x%08X", app_stack);
-        return;
-    } else {
-        BOOT_DBG("Valid stack pointer: 0x%08X", app_stack);
+    if (load_result != 0) {
+        BOOT_ERR("Metadata loading failed: %d", load_result);
+        BOOT_ERR("Using default slot A for startup");
+        
+        // 使用默认地址
+        uint32_t app_base_address = DualSlot_GetSlotAddress("application", SLOT_A);
+        if (app_base_address == 0) {
+            BOOT_ERR("Cannot get application address for slot A");
+            return;
+        }
+        
+        // 验证槽位有效性
+        if (!DualSlot_IsSlotValid(SLOT_A)) {
+            BOOT_ERR("Slot A is invalid, cannot start");
+            return;
+        }
+        
+        BOOT_DBG("Using default address: 0x%08lX", (unsigned long)app_base_address);
+        
+        // 直接跳转到默认地址
+        goto perform_jump;
     }
+    
+    // 打印元数据信息
+    BOOT_DBG("=== Firmware Metadata Information ===");
+    BOOT_DBG("Magic Number: 0x%08lX", (unsigned long)metadata.magic);
+    BOOT_DBG("Metadata Version: %lu.%lu", (unsigned long)metadata.metadata_version_major, (unsigned long)metadata.metadata_version_minor);
+    BOOT_DBG("Firmware Version: %s", metadata.firmware_version);
+    BOOT_DBG("Target Slot: %s", (metadata.target_slot == SLOT_A) ? "A" : "B");
+    BOOT_DBG("Build Date: %s", metadata.build_date);
+    BOOT_DBG("Device Model: %s", metadata.device_model);
+    BOOT_DBG("Hardware Version: 0x%08lX", (unsigned long)metadata.hardware_version);
+    BOOT_DBG("Component Count: %lu", (unsigned long)metadata.component_count);
+    BOOT_DBG("CRC32: 0x%08lX", (unsigned long)metadata.metadata_crc32);
+    
+    // 打印组件信息
+    for (uint32_t i = 0; i < metadata.component_count && i < FIRMWARE_COMPONENT_COUNT; i++) {
+        const FirmwareComponent* comp = &metadata.components[i];
+        BOOT_DBG("Component[%lu]: %s, Address=0x%08lX, Size=%lu, Active=%s", 
+                 (unsigned long)i, comp->name, (unsigned long)comp->address, (unsigned long)comp->size, comp->active ? "Yes" : "No");
+    }
+    BOOT_DBG("=====================================");
+    
+    // 获取目标槽位
+    FirmwareSlot target_slot = (FirmwareSlot)metadata.target_slot;
+    BOOT_DBG("Target Slot: %s", (target_slot == SLOT_A) ? "A" : "B");
+    
+    // 验证目标槽位有效性
+    if (!DualSlot_IsSlotValid(target_slot)) {
+        BOOT_ERR("Target slot %s is invalid, trying to switch to backup slot", 
+                 (target_slot == SLOT_A) ? "A" : "B");
+        
+        // 尝试使用另一个槽位
+        FirmwareSlot backup_slot = (target_slot == SLOT_A) ? SLOT_B : SLOT_A;
+        if (DualSlot_IsSlotValid(backup_slot)) {
+            target_slot = backup_slot;
+            BOOT_DBG("Switched to backup slot %s", (target_slot == SLOT_A) ? "A" : "B");
+        } else {
+            BOOT_ERR("Backup slot %s is also invalid, cannot start", 
+                     (backup_slot == SLOT_A) ? "A" : "B");
+            return;
+        }
+    }
+    
+    // 获取应用程序地址
+    uint32_t app_base_address = DualSlot_GetSlotAddress("application", target_slot);
+    if (app_base_address == 0) {
+        BOOT_ERR("Cannot get application address for slot %s", 
+                 (target_slot == SLOT_A) ? "A" : "B");
+        return;
+    }
+    
+    BOOT_DBG("Final slot %s, application base address: 0x%08lX", 
+             (target_slot == SLOT_A) ? "A" : "B", (unsigned long)app_base_address);
 
+perform_jump:
+    // 读取向量表
+    uint32_t app_stack = *(__IO uint32_t*)app_base_address;
+    uint32_t jump_address = *(__IO uint32_t*)(app_base_address + 4);
+    
+    BOOT_DBG("Vector Table Information:");
+    BOOT_DBG("  Stack Pointer (SP): 0x%08lX", (unsigned long)app_stack);
+    BOOT_DBG("  Reset Vector (PC): 0x%08lX", (unsigned long)jump_address);
+
+    // 验证栈指针有效性
+    if ((app_stack & 0xFFF00000) != 0x20000000) {
+        BOOT_ERR("Invalid stack pointer: 0x%08lX (should be in 0x20xxxxxx range)", (unsigned long)app_stack);
+        return;
+    }
+    BOOT_DBG("Stack pointer validation passed");
+
+    // 验证跳转地址有效性
     if ((jump_address & 0xFF000000) != 0x90000000) {
-        BOOT_ERR("Invalid jump address: 0x%08X", jump_address);
+        BOOT_ERR("Invalid jump address: 0x%08lX (should be in 0x90xxxxxx range)", (unsigned long)jump_address);
         return;
-    } else {
-        BOOT_DBG("Valid jump address: 0x%08X", jump_address);
     }
+    BOOT_DBG("Jump address validation passed");
 
-    // 先验证一下目标地址的内容
+    // 检查目标代码的前几条指令
     uint16_t* code_ptr = (uint16_t*)(jump_address & ~1UL);
-    BOOT_DBG("First instructions at target:");
+    BOOT_DBG("First 4 instructions at target address:");
     for(int i = 0; i < 4; i++) {
-        BOOT_DBG("  Instruction %d: 0x%04X", i, code_ptr[i]);
+        BOOT_DBG("  [%d]: 0x%04X", i, code_ptr[i]);
     }
 
+    // 验证是否为有效的ARM Thumb指令
+    uint16_t first_instruction = code_ptr[0];
+    if (first_instruction == 0x0000 || first_instruction == 0xFFFF) {
+        BOOT_ERR("Target address contains invalid instruction: 0x%04X", first_instruction);
+        return;
+    }
+    BOOT_DBG("Target code validation passed");
 
     /****************************  跳转前准备  ************************* */
-    SysTick->CTRL = 0;		                        // 关闭SysTick
-    SysTick->LOAD = 0;		                        // 清零重载
-    SysTick->VAL = 0;			                        // 清零计数
+    BOOT_DBG("Starting pre-jump preparation...");
+    
+    // 关闭SysTick
+    SysTick->CTRL = 0;
+    SysTick->LOAD = 0;
+    SysTick->VAL = 0;
+    BOOT_DBG("SysTick disabled");
 
-    __set_CONTROL(0); //priviage mode 
-    __disable_irq(); //disable interrupt
-    __set_PRIMASK(1);
-
-    /* 禁用缓存 */
-    // SCB_DisableICache();
-    // SCB_DisableDCache();
-
-    // 关闭所有中断
+    // 设置特权模式并禁用中断
+    __set_CONTROL(0);
     __disable_irq();
-    BOOT_DBG("Interrupts disabled");
+    __set_PRIMASK(1);
+    BOOT_DBG("Interrupts disabled, entered privileged mode");
 
     // 清除所有中断
     for(int i = 0; i < 8; i++) {
         NVIC->ICER[i] = 0xFFFFFFFF;
         NVIC->ICPR[i] = 0xFFFFFFFF;
     }
-    BOOT_DBG("NVIC cleared");
+    BOOT_DBG("NVIC interrupts cleared");
 
+    // 禁用MPU
     HAL_MPU_Disable();
+    BOOT_DBG("MPU disabled");
 
     // 设置向量表
     SCB->VTOR = app_base_address;
-    BOOT_DBG("VTOR set to: 0x%08X", SCB->VTOR);
+    BOOT_DBG("Vector table base address set to: 0x%08lX", (unsigned long)SCB->VTOR);
     
-    // 验证向量表设置是否生效
-    BOOT_DBG("SCB->VTOR after set: 0x%08X", SCB->VTOR);
-    BOOT_DBG("Stack Pointer from vector: 0x%08X", *(__IO uint32_t*)SCB->VTOR);
-    BOOT_DBG("Reset Handler from vector: 0x%08X", *(__IO uint32_t*)(SCB->VTOR + 4));
+    // 验证向量表设置
+    if (SCB->VTOR != app_base_address) {
+        BOOT_ERR("Vector table setup failed: Expected=0x%08lX, Actual=0x%08lX", 
+                 (unsigned long)app_base_address, (unsigned long)SCB->VTOR);
+        return;
+    }
 
     // 设置主堆栈指针
     __set_MSP(app_stack);
-    BOOT_DBG("MSP set to: 0x%08X", __get_MSP());
+    uint32_t current_msp = __get_MSP();
+    if (current_msp != app_stack) {
+        BOOT_ERR("Stack pointer setup failed: Expected=0x%08lX, Actual=0x%08lX", 
+                 (unsigned long)app_stack, (unsigned long)current_msp);
+        return;
+    }
+    BOOT_DBG("Main stack pointer set to: 0x%08lX", (unsigned long)current_msp);
 
-    // 清除缓存
-    // SCB_CleanInvalidateDCache();
-    // SCB_InvalidateICache();
-    // BOOT_DBG("Cache cleared");
-
-    // 内存屏障
+    // 内存屏障确保所有操作完成
     __DSB();
     __ISB();
     BOOT_DBG("Memory barriers executed");
 
-    // 确保跳转地址是 Thumb 模式
+    // 确保跳转地址包含Thumb位
     jump_address |= 0x1;
-    BOOT_DBG("Final jump address (with Thumb bit): 0x%08X", jump_address);
+    BOOT_DBG("Final jump address (with Thumb bit): 0x%08lX", (unsigned long)jump_address);
 
-    // 使用函数指针跳转
+    // 创建函数指针
     typedef void (*pFunction)(void);
     pFunction app_reset_handler = (pFunction)jump_address;
 
-    BOOT_DBG("About to jump...");
-    BOOT_DBG("Last debug message before jump!");
+    BOOT_DBG("=== Ready to Jump to Application ===");
+    BOOT_DBG("Jumping now...");
     
     // 最后一次内存屏障
     __DSB();
     __ISB();
     
-    // 跳转
+    // 跳转到应用程序
     app_reset_handler();
 
     // 不应该到达这里
-    BOOT_ERR("Jump failed!");
-    while(1);
+    BOOT_ERR("Jump failed! Program should not return here");
+    while(1) {
+        // 无限循环，表示跳转失败
+    }
 }
 
 

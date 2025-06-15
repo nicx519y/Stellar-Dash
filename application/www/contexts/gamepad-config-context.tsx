@@ -1076,11 +1076,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         return firmwareServerHost;
     };
 
-    // 工具函数：Base64编码
-    const arrayBufferToBase64 = (buffer: Uint8Array): string => {
-        return btoa(String.fromCharCode(...buffer));
-    };
-
     // 工具函数：生成会话ID
     const generateSessionId = (): string => {
         return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -1248,7 +1243,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 message: 'Starting to upload firmware package...'
             });
 
-            let totalProgress = 0;
             const componentNames = Object.keys(firmwarePackage.components);
             const totalComponents = componentNames.length;
 

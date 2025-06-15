@@ -24,9 +24,211 @@ import re
 import locale
 import time
 import requests
+import zlib
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, NamedTuple, Tuple, Any
+
+# 元数据结构常量（与C代码保持一致）
+FIRMWARE_MAGIC = 0x48424F58  # "HBOX"
+METADATA_VERSION_MAJOR = 1
+METADATA_VERSION_MINOR = 0
+DEVICE_MODEL_STRING = "STM32H750_HBOX"
+BOOTLOADER_VERSION = 0x00010000  # 1.0.0
+HARDWARE_VERSION = 0x00010000    # 1.0.0
+
+# 结构体大小常量（与C结构体对齐）
+COMPONENT_SIZE = 170  # FirmwareComponent packed结构体大小: 32+64+4+4+65+1 = 170字节
+FIRMWARE_COMPONENT_COUNT = 3
+METADATA_SIZE = 807   # FirmwareMetadata总大小: 20+32+1+32+4+32+4+4+4+(170*3)+32+64+4+64 = 807字节
+
+def calculate_crc32(data, skip_offset=None, skip_size=None):
+    """计算CRC32校验和，可以跳过指定区域"""
+    if skip_offset is None:
+        return zlib.crc32(data) & 0xffffffff
+    
+    # 跳过指定区域计算CRC32
+    before_skip = data[:skip_offset]
+    after_skip = data[skip_offset + skip_size:]
+    
+    crc = zlib.crc32(before_skip) & 0xffffffff
+    crc = zlib.crc32(after_skip, crc) & 0xffffffff
+    return crc
+
+def create_metadata_binary(version, slot, build_date, components):
+    """创建与C结构体对齐的元数据二进制数据"""
+    
+    print(f"创建元数据二进制: 版本={version}, 槽位={slot}, 组件数={len(components)}")
+    
+    # 准备二进制数据缓冲区
+    metadata_buffer = bytearray(METADATA_SIZE)
+    offset = 0
+    
+    # === 安全校验区域 ===
+    # magic (uint32_t)
+    struct.pack_into('<I', metadata_buffer, offset, FIRMWARE_MAGIC)
+    offset += 4
+    
+    # metadata_version_major (uint32_t)
+    struct.pack_into('<I', metadata_buffer, offset, METADATA_VERSION_MAJOR)
+    offset += 4
+    
+    # metadata_version_minor (uint32_t)
+    struct.pack_into('<I', metadata_buffer, offset, METADATA_VERSION_MINOR)
+    offset += 4
+    
+    # metadata_size (uint32_t)
+    struct.pack_into('<I', metadata_buffer, offset, METADATA_SIZE)
+    offset += 4
+    
+    # metadata_crc32 (uint32_t) - 先填0，最后计算
+    crc32_offset = offset
+    struct.pack_into('<I', metadata_buffer, offset, 0)
+    offset += 4
+    
+    # === 固件信息区域 ===
+    # firmware_version (char[32])
+    version_bytes = version.encode('utf-8')[:31]
+    metadata_buffer[offset:offset+len(version_bytes)] = version_bytes
+    offset += 32
+    
+    # target_slot (uint8_t) - 1字节，无padding
+    slot_value = 0 if slot.upper() == 'A' else 1
+    struct.pack_into('<B', metadata_buffer, offset, slot_value)
+    offset += 1
+    
+    # build_date (char[32]) - 紧接着target_slot，无padding
+    build_date_bytes = build_date.encode('utf-8')[:31]
+    metadata_buffer[offset:offset+len(build_date_bytes)] = build_date_bytes
+    offset += 32
+    
+    # build_timestamp (uint32_t)
+    timestamp = int(time.time())
+    struct.pack_into('<I', metadata_buffer, offset, timestamp)
+    offset += 4
+    
+    # === 设备兼容性区域 ===
+    # device_model (char[32])
+    device_model_bytes = DEVICE_MODEL_STRING.encode('utf-8')[:31]
+    metadata_buffer[offset:offset+len(device_model_bytes)] = device_model_bytes
+    offset += 32
+    
+    # hardware_version (uint32_t)
+    struct.pack_into('<I', metadata_buffer, offset, HARDWARE_VERSION)
+    offset += 4
+    
+    # bootloader_min_version (uint32_t)
+    struct.pack_into('<I', metadata_buffer, offset, BOOTLOADER_VERSION)
+    offset += 4
+    
+    # === 组件信息区域 ===
+    # component_count (uint32_t)
+    struct.pack_into('<I', metadata_buffer, offset, len(components))
+    offset += 4
+    
+    # components array - 每个组件170字节，无padding（因为使用__attribute__((packed))）
+    for i in range(FIRMWARE_COMPONENT_COUNT):
+        component_start = offset
+        
+        if i < len(components):
+            comp = components[i]
+            
+            # name (char[32])
+            name_bytes = comp['name'].encode('utf-8')[:31]
+            metadata_buffer[offset:offset+len(name_bytes)] = name_bytes
+            offset += 32
+            
+            # file (char[64])
+            file_bytes = comp['file'].encode('utf-8')[:63]
+            metadata_buffer[offset:offset+len(file_bytes)] = file_bytes
+            offset += 64
+            
+            # address (uint32_t)
+            address = int(comp['address'], 16) if isinstance(comp['address'], str) else comp['address']
+            struct.pack_into('<I', metadata_buffer, offset, address)
+            offset += 4
+            
+            # size (uint32_t)
+            struct.pack_into('<I', metadata_buffer, offset, comp['size'])
+            offset += 4
+            
+            # sha256 (char[65])
+            sha256_bytes = comp['sha256'].encode('utf-8')[:64]
+            metadata_buffer[offset:offset+len(sha256_bytes)] = sha256_bytes
+            offset += 65
+            
+            # active (bool/uint8_t)
+            struct.pack_into('<B', metadata_buffer, offset, 1 if comp.get('active', True) else 0)
+            offset += 1
+            
+        else:
+            # 未使用的组件槽位填充为0
+            offset += 32 + 64 + 4 + 4 + 65 + 1  # 170字节
+        
+        # 确保每个组件占用170字节（包括编译器padding）
+        # 但由于使用了__attribute__((packed))，实际上是170字节
+        component_actual_size = 32 + 64 + 4 + 4 + 65 + 1  # 170字节
+        component_end = component_start + component_actual_size
+        if offset < component_end:
+            offset = component_end
+    
+    # === 安全签名区域 ===
+    # firmware_hash (uint8_t[32]) - 预留，填充为0
+    offset += 32
+    
+    # signature (uint8_t[64]) - 预留，填充为0
+    offset += 64
+    
+    # signature_algorithm (uint32_t) - 预留，填充为0
+    struct.pack_into('<I', metadata_buffer, offset, 0)
+    offset += 4
+    
+    # === 预留区域 ===
+    # reserved (uint8_t[64]) - 填充为0
+    offset += 64
+    
+    # 验证总大小
+    if offset != METADATA_SIZE:
+        print(f"警告: 元数据大小不匹配! 期望={METADATA_SIZE}, 实际={offset}")
+        # 调整缓冲区大小以匹配实际计算的大小
+        if offset < METADATA_SIZE:
+            # 如果计算的大小小于期望大小，保持原大小（已经用0填充）
+            pass
+        else:
+            # 如果计算的大小大于期望大小，截断到期望大小
+            metadata_buffer = metadata_buffer[:METADATA_SIZE]
+    
+    # 计算并设置CRC32校验和（跳过CRC字段本身）
+    crc32_value = calculate_crc32(metadata_buffer, crc32_offset, 4)
+    struct.pack_into('<I', metadata_buffer, crc32_offset, crc32_value)
+    
+    # 添加调试输出，显示关键字段的偏移
+    print(f"Python字段偏移计算:")
+    print(f"  - magic: 0")
+    print(f"  - metadata_version_major: 4")
+    print(f"  - metadata_version_minor: 8") 
+    print(f"  - metadata_size: 12")
+    print(f"  - metadata_crc32: 16")
+    print(f"  - firmware_version: 20")
+    print(f"  - target_slot: 52 (1字节)")
+    print(f"  - build_date: 53")
+    print(f"  - build_timestamp: 85")
+    print(f"  - device_model: 89")
+    print(f"  - hardware_version: 121")
+    print(f"  - bootloader_min_version: 125")
+    print(f"  - component_count: 129")
+    print(f"  - components[0]: 133")
+    
+    print(f"元数据生成完成:")
+    print(f"  - 魔数: 0x{FIRMWARE_MAGIC:08X}")
+    print(f"  - 版本: {version}")
+    print(f"  - 槽位: {slot}")
+    print(f"  - 设备型号: {DEVICE_MODEL_STRING}")
+    print(f"  - 组件数量: {len(components)}")
+    print(f"  - CRC32: 0x{crc32_value:08X}")
+    print(f"  - 总大小: {len(metadata_buffer)} 字节")
+    
+    return bytes(metadata_buffer)
 
 class ProgressBar:
     """简单的进度条显示"""
@@ -74,6 +276,9 @@ class ReleaseFlasher:
                 'adc_mapping': '0x90530000'
             }
         }
+        
+        # 元数据地址
+        self.metadata_address = '0x90570000'
     
     def extract_release_package(self, package_path: str) -> Tuple[Dict, Path]:
         """解压release包并返回manifest和临时目录"""
@@ -119,6 +324,17 @@ class ReleaseFlasher:
                 print(f"清理临时目录失败: {e}")
             finally:
                 self.temp_dir = None
+    
+    def get_slot_address(self, component_name: str, slot: str) -> str:
+        """根据组件名和槽位获取地址"""
+        slot = slot.upper()
+        if slot not in self.slot_addresses:
+            raise ValueError(f"不支持的槽位: {slot}")
+        
+        if component_name not in self.slot_addresses[slot]:
+            raise ValueError(f"槽位{slot}不支持组件: {component_name}")
+        
+        return self.slot_addresses[slot][component_name]
     
     def flash_component(self, component_file: Path, target_address: str, component_name: str) -> bool:
         """刷写单个组件"""
@@ -201,92 +417,98 @@ class ReleaseFlasher:
     
     def flash_release_package(self, package_path: str, target_slot: str = None, 
                             components: List[str] = None) -> bool:
-        """刷写完整的release包"""
-        print("=" * 60)
-        print("STM32 HBox Release包刷写工具")
-        print("=" * 60)
-        
+        """刷写release包到设备"""
         try:
             # 解压release包
             manifest, temp_dir = self.extract_release_package(package_path)
             
             # 确定目标槽位
-            package_slot = manifest.get('slot', 'A')
-            if target_slot:
-                if target_slot != package_slot:
-                    print(f"警告: 指定槽位 {target_slot} 与包槽位 {package_slot} 不匹配")
-                    print(f"将使用指定槽位 {target_slot} 的地址映射")
-                final_slot = target_slot
+            if target_slot is None:
+                target_slot = manifest.get('slot', 'A').upper()
+            
+            print(f"开始刷写release包: {Path(package_path).name}")
+            print(f"目标槽位: {target_slot}")
+            
+            # 确定要刷写的组件 - 处理components为列表的情况
+            manifest_components = manifest.get('components', [])
+            if isinstance(manifest_components, list):
+                # components是列表格式，转换为字典格式以便后续处理
+                components_dict = {}
+                for comp in manifest_components:
+                    components_dict[comp['name']] = comp
+                available_components = list(components_dict.keys())
             else:
-                final_slot = package_slot
+                # components是字典格式（旧格式兼容）
+                components_dict = manifest_components
+                available_components = list(components_dict.keys())
             
-            print(f"目标槽位: {final_slot}")
-            
-            # 获取槽位地址映射
-            if final_slot not in self.slot_addresses:
-                raise ValueError(f"不支持的槽位: {final_slot}")
-            
-            slot_config = self.slot_addresses[final_slot]
-            
-            # 获取要刷写的组件
-            available_components = manifest.get('components', [])
-            if not available_components:
-                raise ValueError("Release包中没有组件")
-            
-            # 过滤要刷写的组件
-            if components:
-                # 用户指定了特定组件
-                components_to_flash = []
-                for comp in available_components:
-                    if comp['name'] in components:
-                        components_to_flash.append(comp)
-                
-                if not components_to_flash:
-                    raise ValueError(f"指定的组件不存在: {components}")
-                    
-                missing_components = set(components) - {c['name'] for c in components_to_flash}
-                if missing_components:
-                    print(f"警告: 以下组件在包中不存在: {missing_components}")
+            if components is None:
+                components = available_components
             else:
-                # 刷写所有组件
-                components_to_flash = available_components
+                # 验证指定的组件是否存在
+                invalid_components = [c for c in components if c not in available_components]
+                if invalid_components:
+                    print(f"错误: 指定的组件不存在: {invalid_components}")
+                    print(f"可用组件: {available_components}")
+                    return False
             
-            print(f"将刷写 {len(components_to_flash)} 个组件")
-            print()
+            print(f"将刷写组件: {components}")
             
-            # 逐个刷写组件
+            # 刷写各个组件
             success_count = 0
-            failed_components = []
+            total_count = len(components)
             
-            for comp in components_to_flash:
-                comp_name = comp['name']
-                comp_file = comp['file']
+            for component_name in components:
+                component_info = components_dict[component_name]
+                component_file = temp_dir / component_info['file']
                 
-                # 检查组件地址映射
-                if comp_name not in slot_config:
-                    print(f"警告: 未知组件类型 {comp_name}，跳过")
-                    continue
+                # 根据目标槽位调整地址
+                target_address = self.get_slot_address(component_name, target_slot)
                 
-                target_address = slot_config[comp_name]
-                component_path = temp_dir / comp_file
+                print(f"\n[{success_count + 1}/{total_count}] 刷写组件: {component_name}")
                 
-                if self.flash_component(component_path, target_address, comp_name):
+                if self.flash_component(component_file, target_address, component_name):
                     success_count += 1
                 else:
-                    failed_components.append(comp_name)
+                    print(f"组件 {component_name} 刷写失败")
+                    return False
             
-            # 显示结果
-            print("\n" + "=" * 60)
-            print("刷写完成")
-            print("=" * 60)
-            print(f"成功: {success_count}/{len(components_to_flash)} 个组件")
+            # 生成并刷写元数据
+            print(f"\n[{success_count + 1}/{total_count + 1}] 生成并刷写元数据...")
             
-            if failed_components:
-                print(f"失败的组件: {', '.join(failed_components)}")
-                return False
-            else:
-                print("✓ 所有组件刷写成功!")
+            # 使用新的create_metadata_binary函数
+            components_list = []
+            for comp_name in components:
+                comp_info = components_dict[comp_name]
+                components_list.append({
+                    'name': comp_name,
+                    'file': comp_info['file'],
+                    'address': self.get_slot_address(comp_name, target_slot),
+                    'size': comp_info['size'],
+                    'sha256': comp_info['sha256'],
+                    'active': True
+                })
+            
+            # 生成元数据二进制
+            metadata_binary = create_metadata_binary(
+                version=manifest.get('version', '1.0.0'),
+                slot=target_slot,
+                build_date=manifest.get('build_date', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+                components=components_list
+            )
+            
+            # 写入临时文件
+            metadata_file = temp_dir / "metadata.bin"
+            with open(metadata_file, 'wb') as f:
+                f.write(metadata_binary)
+            
+            # 刷写元数据
+            if self.flash_metadata(metadata_file):
+                print(f"✓ 所有组件和元数据刷写成功!")
                 return True
+            else:
+                print(f"✗ 元数据刷写失败")
+                return False
                 
         except Exception as e:
             print(f"刷写失败: {e}")
@@ -294,6 +516,76 @@ class ReleaseFlasher:
         finally:
             # 清理临时目录
             self.cleanup_temp_dir()
+
+    def flash_metadata(self, metadata_file: Path) -> bool:
+        """刷写元数据到Flash"""
+        if not metadata_file.exists():
+            print(f"错误: 元数据文件不存在: {metadata_file}")
+            return False
+        
+        if not self.openocd_config.exists():
+            print(f"错误: OpenOCD配置文件不存在: {self.openocd_config}")
+            return False
+        
+        # 元数据地址转换：从虚拟地址转换为QSPI Flash物理偏移
+        # 虚拟地址: 0x90570000
+        # 物理偏移: 0x90570000 - 0x90000000 = 0x570000
+        metadata_physical_address = "0x570000"
+        
+        print(f"正在刷写元数据: {metadata_file.name} -> {self.metadata_address} (物理偏移: {metadata_physical_address})")
+        
+        # 构建OpenOCD命令 - 使用物理偏移地址
+        metadata_path = str(metadata_file).replace('\\', '/')
+        
+        cmd = [
+            "openocd",
+            "-d0",
+            "-f", "openocd_configs/ST-LINK-QSPIFLASH.cfg",
+            "-c", "init",
+            "-c", "halt",
+            "-c", "reset init",
+            "-c", f"flash write_image erase {metadata_path} {self.metadata_address}",
+            "-c", f"flash verify_image {metadata_path} {self.metadata_address}",
+            "-c", "reset run",
+            "-c", "shutdown"
+        ]
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=self.tools_dir,
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            
+            if result.returncode == 0:
+                # 从输出中提取写入信息
+                wrote_info = ""
+                if result.stdout and "wrote" in result.stdout:
+                    for line in result.stdout.split('\n'):
+                        if "wrote" in line and "bytes" in line:
+                            wrote_info = f" ({line.strip().split()[-2]} {line.strip().split()[-1]})"
+                            break
+                
+                print(f"✓ 元数据刷写成功{wrote_info}")
+                return True
+            else:
+                print(f"✗ 元数据刷写失败")
+                if result.stderr:
+                    error_lines = result.stderr.split('\n')
+                    for line in error_lines:
+                        if any(keyword in line.lower() for keyword in ['error:', 'failed', 'timeout', 'not found']):
+                            print(f"  错误: {line.strip()}")
+                            break
+                return False
+                
+        except subprocess.TimeoutExpired:
+            print(f"✗ 元数据刷写超时")
+            return False
+        except Exception as e:
+            print(f"✗ 元数据刷写异常: {e}")
+            return False
 
 class ReleaseManager:
     """Release管理器 - 集成打包和刷写功能"""

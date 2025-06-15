@@ -108,7 +108,7 @@ export function FirmwareContent() {
     const checkUpdateStatusLoop = async () => {
         try {
             await fetchFirmwareMetadata();
-        } catch (error) {
+        } catch {
             // 如果请求失败，则2秒后重试
             setTimeout(() => {
                 checkUpdateStatusLoop();
