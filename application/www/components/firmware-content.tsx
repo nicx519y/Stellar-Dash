@@ -27,7 +27,7 @@ export function FirmwareContent() {
     const { firmwareInfo, fetchFirmwareMetadata, firmwareUpdateInfo, checkFirmwareUpdate, downloadFirmwarePackage, uploadFirmwareToDevice } = useGamepadConfig();
     const currentVersion = useMemo(() => firmwareInfo?.firmware?.version || "0.0.0", [firmwareInfo]);
     const latestVersion = useMemo(() => firmwareUpdateInfo?.latestVersion? firmwareUpdateInfo.latestVersion : firmwareInfo?.firmware?.version || "0.0.0", [firmwareUpdateInfo, firmwareInfo]);
-    const latestFirmwareUpdateLog = useMemo(() => firmwareUpdateInfo?.latestFirmware?.desc.split("\n") || [], [firmwareUpdateInfo]);
+    const latestFirmwareUpdateLog = useMemo(() => firmwareUpdateInfo?.latestFirmware?.desc.split(/\n+/) || [], [firmwareUpdateInfo]);
 
     useEffect(() => {
         fetchFirmwareMetadata();
