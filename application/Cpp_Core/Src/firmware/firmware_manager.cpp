@@ -21,7 +21,7 @@ FirmwareManager* FirmwareManager::instance = nullptr;
 static const char DEVICE_ID[] = "STM32H750_HBOX_001";
 
 // CRC32计算函数（如果没有硬件CRC，使用软件实现）
-static uint32_t calculate_crc32(const uint8_t* data, size_t length, uint32_t offset = 0) {
+static uint32_t calculate_crc32(const uint8_t* data, size_t length, uint32_t initial_crc = 0xFFFFFFFF) {
     // 使用STM32硬件CRC或软件CRC32实现
     #ifdef USE_HARDWARE_CRC
         // 使用STM32硬件CRC计算
@@ -74,8 +74,8 @@ static uint32_t calculate_crc32(const uint8_t* data, size_t length, uint32_t off
             0xB40BBE37, 0xC30C8EA1, 0x5A05DF1B, 0x2D02EF8D
         };
         
-        uint32_t crc = 0xFFFFFFFF;
-        for (size_t i = offset; i < length; i++) {
+        uint32_t crc = initial_crc;
+        for (size_t i = 0; i < length; i++) {
             crc = crc32_table[(crc ^ data[i]) & 0xFF] ^ (crc >> 8);
         }
         return crc ^ 0xFFFFFFFF;
@@ -119,19 +119,16 @@ static FirmwareValidationResult validate_firmware_metadata(const FirmwareMetadat
     }
     
     // 7. 验证CRC32校验和（跳过CRC字段本身）
-    uint32_t calculated_crc = 0;
-    
-    // 计算CRC32，跳过metadata_crc32字段
     const uint8_t* data = (const uint8_t*)metadata;
     size_t crc_field_offset = offsetof(FirmwareMetadata, metadata_crc32);
     
     // 计算CRC字段之前的数据
-    calculated_crc = calculate_crc32(data, crc_field_offset);
+    uint32_t calculated_crc = calculate_crc32(data, crc_field_offset);
     
-    // 计算CRC字段之后的数据
+    // 计算CRC字段之后的数据，传递前面的CRC作为初始值
     size_t after_crc_offset = crc_field_offset + sizeof(uint32_t);
     size_t remaining_size = sizeof(FirmwareMetadata) - after_crc_offset;
-    calculated_crc = calculate_crc32(data + after_crc_offset, remaining_size, calculated_crc);
+    calculated_crc = calculate_crc32(data + after_crc_offset, remaining_size, calculated_crc ^ 0xFFFFFFFF);
     
     if (calculated_crc != metadata->metadata_crc32) {
         return FIRMWARE_INVALID_CRC;
@@ -163,15 +160,11 @@ static uint32_t generate_metadata_crc32(FirmwareMetadata* metadata) {
 FirmwareManager::FirmwareManager() 
     : metadata_loaded(false), current_session(nullptr), session_active(false) {
     memset(&current_metadata, 0, sizeof(current_metadata));
+    
     // 尝试从Flash加载元数据
-    if (!LoadMetadataFromFlash()) {
-        // 如果加载失败，使用默认元数据并保存
-        if (!SaveMetadataToFlash()) {
-            APP_ERR("FirmwareManager::Initialize: Failed to save default metadata");
-        }
+    if (LoadMetadataFromFlash()) {
         metadata_loaded = true;
     }
-    
 }
 
 FirmwareManager* FirmwareManager::GetInstance() {
@@ -240,14 +233,7 @@ void FirmwareManager::InitializeDefaultMetadata() {
 }
 
 bool FirmwareManager::LoadMetadataFromFlash() {
-    // 退出内存映射模式
-    bool was_mapped = QSPI_W25Qxx_IsMemoryMappedMode();
-    if (was_mapped) {
-        if (QSPI_W25Qxx_ExitMemoryMappedMode() != QSPI_W25Qxx_OK) {
-            return false;
-        }
-    }
-    
+
     // 从Flash读取元数据
     uint32_t flash_address = METADATA_ADDR - EXTERNAL_FLASH_BASE;
     int8_t result = QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(
@@ -256,20 +242,15 @@ bool FirmwareManager::LoadMetadataFromFlash() {
         sizeof(FirmwareMetadata)
     );
     
-    // 恢复内存映射模式
-    if (was_mapped) {
-        QSPI_W25Qxx_EnterMemoryMappedMode();
-    }
-    
-    if (result != 0) {
+    if (result != QSPI_W25Qxx_OK) {
+        APP_ERR("FirmwareManager::LoadMetadataFromFlash: Failed to read metadata from flash");
         return false;
     }
     
     // 验证元数据完整性
     FirmwareValidationResult validation = validate_firmware_metadata(&current_metadata);
     if (validation != FIRMWARE_VALID) {
-        // 元数据验证失败，初始化默认元数据
-        InitializeDefaultMetadata();
+        APP_ERR("FirmwareManager::LoadMetadataFromFlash: Metadata validation failed - %d", validation);
         return false; // 返回验证失败错误码
     }
     
