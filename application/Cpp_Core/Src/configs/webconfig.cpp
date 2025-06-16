@@ -3145,6 +3145,9 @@ std::string apiFirmwareChunk() {
     chunk.chunk_offset = (uint32_t)cJSON_GetNumberValue(chunkOffsetItem);
     strncpy(chunk.checksum, cJSON_GetStringValue(checksumItem), sizeof(chunk.checksum) - 1);
 
+    // 添加调试输出
+    APP_DBG("WebConfig::apiFirmwareChunk: Received checksum: '%s', length: %d", chunk.checksum, strlen(chunk.checksum));
+
     // 解析目标地址（支持字符串格式的十六进制地址）
     if (targetAddressItem) {
         if (cJSON_IsString(targetAddressItem)) {
