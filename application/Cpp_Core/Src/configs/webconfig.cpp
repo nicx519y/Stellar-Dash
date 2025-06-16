@@ -115,6 +115,110 @@ struct DataAndStatusCode
     HttpStatusCode statusCode;
 };
 
+
+/**
+ * @brief 将Intel HEX格式转换为二进制数据
+ * @param hex_data Intel HEX格式的文本数据
+ * @param hex_size HEX数据的大小
+ * @param binary_data 输出的二进制数据指针
+ * @param binary_size 输出的二进制数据大小
+ * @return true 成功, false 失败
+ */
+static bool convert_intel_hex_to_binary(const char* hex_data, size_t hex_size, uint8_t** binary_data, size_t* binary_size) {
+    if (!hex_data || !binary_data || !binary_size) {
+        return false;
+    }
+    
+    // 简化版本：直接跳过Intel HEX格式，提取数据部分
+    // 这是一个快速解决方案，完整的解析器会更复杂
+    
+    // 估算最大可能的二进制数据大小（HEX数据的一半）
+    size_t max_binary_size = hex_size / 2;
+    uint8_t* result = (uint8_t*)malloc(max_binary_size);
+    if (!result) {
+        return false;
+    }
+    
+    size_t binary_pos = 0;
+    const char* line_start = hex_data;
+    
+    while (line_start < hex_data + hex_size) {
+        // 查找行结束
+        const char* line_end = line_start;
+        while (line_end < hex_data + hex_size && *line_end != '\n' && *line_end != '\r') {
+            line_end++;
+        }
+        
+        // 跳过空行
+        if (line_end == line_start) {
+            line_start = line_end + 1;
+            continue;
+        }
+        
+        // 检查是否为有效的Intel HEX行
+        if (line_end - line_start < 11 || *line_start != ':') {
+            line_start = line_end + 1;
+            continue;
+        }
+        
+        // 解析数据长度 (字节2-3)
+        if (line_start + 2 >= line_end) {
+            line_start = line_end + 1;
+            continue;
+        }
+        
+        char len_str[3] = {line_start[1], line_start[2], 0};
+        int data_len = strtol(len_str, nullptr, 16);
+        
+        // 解析记录类型 (字节8-9)
+        if (line_start + 8 >= line_end) {
+            line_start = line_end + 1;
+            continue;
+        }
+        
+        char type_str[3] = {line_start[7], line_start[8], 0};
+        int record_type = strtol(type_str, nullptr, 16);
+        
+        // 只处理数据记录 (类型00)
+        if (record_type == 0x00 && data_len > 0) {
+            // 数据从第9个字符开始
+            const char* data_start = line_start + 9;
+            
+            for (int i = 0; i < data_len && data_start + i*2 + 1 < line_end; i++) {
+                if (binary_pos >= max_binary_size) {
+                    break; // 防止缓冲区溢出
+                }
+                
+                char byte_str[3] = {data_start[i*2], data_start[i*2 + 1], 0};
+                result[binary_pos++] = (uint8_t)strtol(byte_str, nullptr, 16);
+            }
+        }
+        
+        // 移动到下一行
+        line_start = line_end;
+        while (line_start < hex_data + hex_size && (*line_start == '\n' || *line_start == '\r')) {
+            line_start++;
+        }
+    }
+    
+    if (binary_pos == 0) {
+        free(result);
+        return false;
+    }
+    
+    // 调整内存大小到实际使用的大小
+    uint8_t* final_result = (uint8_t*)realloc(result, binary_pos);
+    if (final_result) {
+        result = final_result;
+    }
+    
+    *binary_data = result;
+    *binary_size = binary_pos;
+    
+    return true;
+}
+
+
 // **** WEB SERVER Overrides and Special Functionality ****
 int set_file_data_with_status_code(fs_file* file, const DataAndStatusCode& dataAndStatusCode)
 {
@@ -2625,44 +2729,80 @@ uint8_t* base64_decode(const char* encoded_string, size_t* out_len) {
  * @brief 解析multipart/form-data中的JSON元数据
  */
 cJSON* parse_multipart_json_metadata() {
-    // 在multipart数据中查找JSON元数据
-    // 简化实现：假设元数据在payload开头以特定格式存在
+    APP_DBG("parse_multipart_json_metadata: parsing FormData metadata");
     
-    // 查找 "metadata=" 标记
-    const char* metadata_start = strstr(http_post_payload, "\"metadata\"");
-    if (!metadata_start) {
+    // 查找 name="metadata" 字段
+    const char* metadata_field = strstr(http_post_payload, "name=\"metadata\"");
+    if (!metadata_field) {
+        APP_DBG("parse_multipart_json_metadata: name=\"metadata\" not found");
         return nullptr;
     }
     
-    // 查找JSON开始位置
-    const char* json_start = strchr(metadata_start, '{');
-    if (!json_start) {
+    // 从metadata字段开始查找数据开始位置（跳过Content-Disposition行）
+    const char* line_end = strstr(metadata_field, "\r\n");
+    if (!line_end) {
+        line_end = strstr(metadata_field, "\n");
+    }
+    if (!line_end) {
+        APP_DBG("parse_multipart_json_metadata: line end not found");
         return nullptr;
     }
     
-    // 查找JSON结束位置（简化处理，查找下一个换行符或表单边界）
-    const char* json_end = strstr(json_start, "\r\n");
+    // 跳过可能的空行，找到JSON数据开始
+    const char* json_start = line_end;
+    while (*json_start == '\r' || *json_start == '\n') {
+        json_start++;
+    }
+    
+    if (*json_start != '{') {
+        APP_DBG("parse_multipart_json_metadata: JSON start '{' not found");
+        return nullptr;
+    }
+    
+    // 查找JSON结束位置（下一个multipart边界或换行符）
+    const char* json_end = strstr(json_start, "\r\n--");
     if (!json_end) {
-        json_end = strstr(json_start, "\n");
+        json_end = strstr(json_start, "\n--");
     }
     if (!json_end) {
-        json_end = json_start + strlen(json_start);
+        // 如果没找到边界，寻找换行符
+        json_end = strstr(json_start, "\r\n");
+        if (!json_end) {
+            json_end = strstr(json_start, "\n");
+        }
+    }
+    if (!json_end) {
+        // 最后尝试使用payload结束位置
+        json_end = http_post_payload + http_post_payload_len;
     }
     
     // 提取JSON字符串
     size_t json_len = json_end - json_start;
+    if (json_len <= 0 || json_len > 4096) { // 限制最大长度，防止异常
+        APP_DBG("parse_multipart_json_metadata: invalid json length: %d", json_len);
+        return nullptr;
+    }
+    
     char* json_str = (char*)malloc(json_len + 1);
     if (!json_str) {
+        APP_DBG("parse_multipart_json_metadata: malloc failed");
         return nullptr;
     }
     
     strncpy(json_str, json_start, json_len);
     json_str[json_len] = '\0';
     
+    APP_DBG("parse_multipart_json_metadata: extracted JSON: %s", json_str);
+    
     // 解析JSON
     cJSON* json = cJSON_Parse(json_str);
-    free(json_str);
+    if (!json) {
+        APP_DBG("parse_multipart_json_metadata: JSON parse failed");
+    } else {
+        APP_DBG("parse_multipart_json_metadata: JSON parse successful");
+    }
     
+    free(json_str);
     return json;
 }
 
@@ -2672,16 +2812,27 @@ cJSON* parse_multipart_json_metadata() {
 uint8_t* extract_multipart_binary_data(size_t* data_len) {
     *data_len = 0;
     
-    // 查找二进制数据边界标记
-    const char* boundary_start = strstr(http_post_payload, "Content-Type: application/octet-stream");
-    if (!boundary_start) {
+    APP_DBG("extract_multipart_binary_data: payload_len=%d", http_post_payload_len);
+    APP_DBG("extract_multipart_binary_data: payload first 100 chars: %.100s", http_post_payload);
+    
+    // 查找 name="data" 字段（这是前端发送的二进制数据字段）
+    const char* data_field_start = strstr(http_post_payload, "name=\"data\"");
+    if (!data_field_start) {
+        APP_DBG("extract_multipart_binary_data: name=\"data\" not found");
         return nullptr;
     }
     
-    // 查找数据开始位置（跳过HTTP头）
-    const char* data_start = strstr(boundary_start, "\r\n\r\n");
+    // 从data字段开始位置查找Content-Type
+    const char* content_type_start = strstr(data_field_start, "Content-Type:");
+    if (!content_type_start) {
+        APP_DBG("extract_multipart_binary_data: Content-Type not found after name=\"data\"");
+        return nullptr;
+    }
+    
+    // 查找数据开始位置（跳过HTTP头，寻找空行）
+    const char* data_start = strstr(content_type_start, "\r\n\r\n");
     if (!data_start) {
-        data_start = strstr(boundary_start, "\n\n");
+        data_start = strstr(content_type_start, "\n\n");
         if (data_start) {
             data_start += 2;
         }
@@ -2690,13 +2841,17 @@ uint8_t* extract_multipart_binary_data(size_t* data_len) {
     }
     
     if (!data_start) {
+        APP_DBG("extract_multipart_binary_data: data start not found");
         return nullptr;
     }
     
-    // 查找数据结束位置（下一个边界）
+    // 查找数据结束位置（下一个边界标记）
     const char* data_end = strstr(data_start, "\r\n--");
     if (!data_end) {
         data_end = strstr(data_start, "\n--");
+        if (data_end) {
+            // 找到了换行符+边界，数据在换行符之前结束
+        }
     }
     if (!data_end) {
         // 如果没找到边界，使用payload结束位置
@@ -2705,14 +2860,35 @@ uint8_t* extract_multipart_binary_data(size_t* data_len) {
     
     *data_len = data_end - data_start;
     
+    APP_DBG("extract_multipart_binary_data: data_start=%p, data_end=%p, data_len=%d", 
+            data_start, data_end, *data_len);
+    
+    if (*data_len <= 0) {
+        APP_DBG("extract_multipart_binary_data: invalid data length");
+        return nullptr;
+    }
+    
     // 分配内存并复制数据
     uint8_t* binary_data = (uint8_t*)malloc(*data_len);
     if (!binary_data) {
         *data_len = 0;
+        APP_DBG("extract_multipart_binary_data: malloc failed");
         return nullptr;
     }
     
     memcpy(binary_data, data_start, *data_len);
+    
+    APP_DBG("extract_multipart_binary_data: extracted %d bytes successfully", *data_len);
+    // 打印前16个字节用于调试
+    if (*data_len > 0) {
+        char hex_debug[64] = {0};
+        int debug_bytes = (*data_len > 16) ? 16 : *data_len;
+        for (int i = 0; i < debug_bytes; i++) {
+            sprintf(&hex_debug[i*3], "%02X ", binary_data[i]);
+        }
+        APP_DBG("extract_multipart_binary_data: first %d bytes: %s", debug_bytes, hex_debug);
+    }
+    
     return binary_data;
 }
 
@@ -2996,6 +3172,30 @@ std::string apiFirmwareChunk() {
     binaryData = extract_multipart_binary_data(&binaryDataLen);
     if (binaryData) {
         needFreeData = true;
+        
+        // 检查是否为Intel HEX格式
+        if (binaryDataLen > 0 && binaryData[0] == ':') {
+            APP_DBG("Detected Intel HEX format, converting to binary...");
+            
+            // 这是Intel HEX格式，需要转换为二进制
+            uint8_t* convertedData = nullptr;
+            size_t convertedSize = 0;
+            
+            if (convert_intel_hex_to_binary((const char*)binaryData, binaryDataLen, &convertedData, &convertedSize)) {
+                // 转换成功，释放原始数据，使用转换后的数据
+                free(binaryData);
+                binaryData = convertedData;
+                binaryDataLen = convertedSize;
+                APP_DBG("Intel HEX conversion successful, binary size: %d", convertedSize);
+            } else {
+                APP_DBG("Intel HEX conversion failed");
+                free(binaryData);
+                cJSON_Delete(metadataJSON);
+                cJSON* dataJSON = cJSON_CreateObject();
+                std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Intel HEX conversion failed");
+                return response;
+            }
+        }
     } else {
         // 如果没有找到二进制数据，尝试从JSON中获取Base64编码的数据
         cJSON* dataItem = cJSON_GetObjectItem(metadataJSON, "data");
@@ -3021,6 +3221,8 @@ std::string apiFirmwareChunk() {
     }
 
     chunk.data = binaryData;
+
+    APP_DBG("chunk.data: %p, chunk.chunk_size: %d", chunk.data, chunk.chunk_size);
 
     APP_DBG("Begin ProcessFirmwareChunk: %s, %s, %d", cJSON_GetStringValue(sessionIdItem), cJSON_GetStringValue(componentNameItem), chunk.chunk_index);
     // 处理固件分片

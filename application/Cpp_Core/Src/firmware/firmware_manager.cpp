@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <new>
 #include "CRC32.hpp"
+#include "sha256_simple.h"
 
 // 外部函数声明 (需要在其他地方实现)
 extern "C" {
@@ -642,10 +643,12 @@ bool FirmwareManager::VerifyFlashData(uint32_t address, const uint8_t* data, uin
 }
 
 bool FirmwareManager::CalculateSHA256(const uint8_t* data, uint32_t size, char* hash_output) {
-    // TODO: 实现SHA256计算
-    // 暂时返回固定值，实际应该使用mbedTLS或硬件加速器
-    strcpy(hash_output, "0123456789abcdef0123456789abcdef01234567");
-    return true;
+    if (!data || size == 0 || !hash_output) {
+        return false;
+    }
+    
+    // 使用我们的轻量级SHA256实现
+    return sha256_calculate(data, size, hash_output) == 1;
 }
 
 bool FirmwareManager::VerifyFirmwareIntegrity(FirmwareSlot slot) {

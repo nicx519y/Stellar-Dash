@@ -61,7 +61,8 @@ Libs/stm32_mw_lwip/src/apps \
 Libs/stm32_mw_lwip/src/core \
 Libs/stm32_mw_lwip/src/netif \
 Libs/stm32_mw_lwip/src/core/ipv4 \
-Libs/cJSON 
+Libs/cJSON \
+Libs/sha256_simple \
 
 # C++ 源文件目录
 CPP_SOURCE_DIRS = \
@@ -147,6 +148,7 @@ C_INCLUDES += \
 -ILibs/lwip-port \
 -ILibs/cJSON \
 -ILibs/CRC32/src \
+-ILibs/sha256_simple \
 -ILibs/mbedtls/include 
 
 # C++ 编译器设置

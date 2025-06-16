@@ -26,7 +26,6 @@ public:
     virtual void setup();
     virtual void loop();
 private:
-    
 };
 
 
