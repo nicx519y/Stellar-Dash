@@ -1583,7 +1583,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             }
 
             // 完成升级会话
-            const completeResponse = await fetchWithKeepAlive('/api/firmware-upgrade', {
+            const completeResponse = await fetchWithKeepAlive('/api/firmware-upgrade-complete', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1616,7 +1616,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             // 错误处理：尝试中止会话
             if (upgradeSession?.sessionId) {
                 try {
-                    await fetchWithKeepAlive('/api/firmware-upgrade', {
+                    await fetchWithKeepAlive('/api/firmware-upgrade-abort', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

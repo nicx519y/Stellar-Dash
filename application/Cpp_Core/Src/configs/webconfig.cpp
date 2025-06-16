@@ -3068,22 +3068,6 @@ std::string apiFirmwareUpgrade() {
             cJSON_AddStringToObject(dataJSON, "error", "Failed to create upgrade session. This may be due to an existing active session. Please try again or abort any existing sessions.");
             APP_ERR("FirmwareManager::apiFirmwareUpgrade: CreateUpgradeSession failed for session %s", sessionId);
         }
-    } else if (strcmp(action, "complete") == 0) {
-        // 完成升级会话
-        success = manager->CompleteUpgradeSession(sessionId);
-        cJSON_AddBoolToObject(dataJSON, "success", success);
-        if (success) {
-            cJSON_AddStringToObject(dataJSON, "message", "Firmware upgrade completed successfully. System will restart in 2 seconds.");
-        }
-        
-    } else if (strcmp(action, "abort") == 0) {
-        // 中止升级会话
-        success = manager->AbortUpgradeSession(sessionId);
-        cJSON_AddBoolToObject(dataJSON, "success", success);
-        if (success) {
-            cJSON_AddStringToObject(dataJSON, "message", "Upgrade session aborted successfully");
-        }
-        
     } else if (strcmp(action, "status") == 0) {
         // 获取升级状态
         const UpgradeSession* session = manager->GetUpgradeSession(sessionId);
@@ -3109,12 +3093,6 @@ std::string apiFirmwareUpgrade() {
         } else {
             cJSON_AddStringToObject(dataJSON, "error", "Session not found");
         }
-        
-    } else if (strcmp(action, "cleanup") == 0) {
-        // 强制清理当前会话
-        manager->ForceCleanupSession();
-        cJSON_AddBoolToObject(dataJSON, "success", true);
-        cJSON_AddStringToObject(dataJSON, "message", "Session cleanup completed successfully");
         
     } else {
         cJSON_Delete(postParams);
@@ -3315,7 +3293,7 @@ std::string apiFirmwareChunk() {
  * @return std::string 
  * POST /api/firmware-upgrade-complete
  * {
- *      "sessionId": "session_12345_abcd"
+ *      "session_id": "session_12345_abcd"
  * }
  * 
  * Response:
@@ -3342,7 +3320,7 @@ std::string apiFirmwareUpgradeComplete() {
         return response;
     }
 
-    cJSON* sessionIdItem = cJSON_GetObjectItem(postParams, "sessionId");
+    cJSON* sessionIdItem = cJSON_GetObjectItem(postParams, "session_id");
     if (!sessionIdItem || !cJSON_IsString(sessionIdItem)) {
         cJSON_Delete(postParams);
         cJSON* dataJSON = cJSON_CreateObject();
@@ -3376,7 +3354,7 @@ std::string apiFirmwareUpgradeComplete() {
  * @return std::string 
  * POST /api/firmware-upgrade-abort
  * {
- *      "sessionId": "session_12345_abcd"
+ *      "session_id": "session_12345_abcd"
  * }
  * 
  * Response:
@@ -3403,7 +3381,7 @@ std::string apiFirmwareUpgradeAbort() {
         return response;
     }
 
-    cJSON* sessionIdItem = cJSON_GetObjectItem(postParams, "sessionId");
+    cJSON* sessionIdItem = cJSON_GetObjectItem(postParams, "session_id");
     if (!sessionIdItem || !cJSON_IsString(sessionIdItem)) {
         cJSON_Delete(postParams);
         cJSON* dataJSON = cJSON_CreateObject();
@@ -3438,7 +3416,7 @@ std::string apiFirmwareUpgradeAbort() {
  * @return std::string 
  * POST /api/firmware-upgrade-status
  * {
- *      "sessionId": "session_12345_abcd"
+ *      "session_id": "session_12345_abcd"
  * }
  * 
  * Response:
@@ -3465,7 +3443,7 @@ std::string apiFirmwareUpgradeStatus() {
         return response;
     }
 
-    cJSON* sessionIdItem = cJSON_GetObjectItem(postParams, "sessionId");
+    cJSON* sessionIdItem = cJSON_GetObjectItem(postParams, "session_id");
     if (!sessionIdItem || !cJSON_IsString(sessionIdItem)) {
         cJSON_Delete(postParams);
         cJSON* dataJSON = cJSON_CreateObject();

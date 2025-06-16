@@ -554,13 +554,17 @@ bool FirmwareManager::CompleteUpgradeSession(const char* session_id) {
         return false;
     }
     
+    APP_DBG("FirmwareManager::CompleteUpgradeSession start.");
+
     if (strcmp(current_session->session_id, session_id) != 0) {
+        APP_ERR("FirmwareManager::CompleteUpgradeSession: Session ID mismatch");
         return false;
     }
     
     // 检查所有组件是否完成
     for (uint32_t i = 0; i < current_session->component_count; i++) {
         if (!current_session->components[i].completed) {
+            APP_ERR("FirmwareManager::CompleteUpgradeSession: Component %s not completed", current_session->components[i].component_name);
             return false; // 还有组件未完成
         }
     }
@@ -569,6 +573,7 @@ bool FirmwareManager::CompleteUpgradeSession(const char* session_id) {
     FirmwareSlot target_slot = GetTargetUpgradeSlot();
     if (!VerifyFirmwareIntegrity(target_slot)) {
         current_session->status = UPGRADE_STATUS_FAILED;
+        APP_ERR("FirmwareManager::CompleteUpgradeSession: Firmware integrity verification failed");
         return false;
     }
     
@@ -579,11 +584,13 @@ bool FirmwareManager::CompleteUpgradeSession(const char* session_id) {
     // 保存元数据到Flash
     if (!SaveMetadataToFlash()) {
         current_session->status = UPGRADE_STATUS_FAILED;
+        APP_ERR("FirmwareManager::CompleteUpgradeSession: Failed to save metadata to flash");
         return false;
     }
     
     // 标记新槽位为可启动
     if (!MarkSlotBootable(target_slot)) {
+        APP_ERR("FirmwareManager::CompleteUpgradeSession: Failed to mark slot bootable");
         current_session->status = UPGRADE_STATUS_FAILED;
         return false;
     }
@@ -591,8 +598,10 @@ bool FirmwareManager::CompleteUpgradeSession(const char* session_id) {
     current_session->status = UPGRADE_STATUS_COMPLETED;
     current_session->total_progress = 100;
     
+    APP_DBG("FirmwareManager::CompleteUpgradeSession: Upgrade completed, target slot: %d", target_slot);
+
     // 调度系统重启
-    ScheduleSystemRestart();
+    // ScheduleSystemRestart();
     
     return true;
 }
