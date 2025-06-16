@@ -3,7 +3,7 @@ export interface FirmwareComponent {
     name: string;
     file: string;
     active: boolean;
-    address: number;
+    address: number | string;
     size: number;
     sha256: string;
     data?: Uint8Array; // 组件数据

@@ -361,12 +361,14 @@ uint32_t FirmwareManager::GetComponentSize(FirmwareComponentType component) {
 
 bool FirmwareManager::CreateUpgradeSession(const char* session_id, const FirmwareMetadata* manifest) {
     if (session_active || current_session != nullptr) {
+        APP_ERR("FirmwareManager::CreateUpgradeSession: Already has an active session");
         return false; // 已有活动会话
     }
     
     // 创建新会话
     current_session = new UpgradeSession();
     if (current_session == nullptr) {
+        APP_ERR("FirmwareManager::CreateUpgradeSession: Failed to create new session");
         return false;
     }
     
@@ -392,13 +394,16 @@ bool FirmwareManager::CreateUpgradeSession(const char* session_id, const Firmwar
     
     // 擦除目标槽位
     FirmwareSlot target_slot = GetTargetUpgradeSlot();
-    if (!EraseSlotFlash(target_slot)) {
-        delete current_session;
-        current_session = nullptr;
-        return false;
-    }
+    // 不做擦除，因为升级时会擦除
+    // if (!EraseSlotFlash(target_slot)) {
+    //     delete current_session;
+    //     current_session = nullptr;
+    //     APP_ERR("FirmwareManager::CreateUpgradeSession: Failed to erase target slot");
+    //     return false;
+    // }
     
     session_active = true;
+    APP_DBG("FirmwareManager::CreateUpgradeSession: Session created successfully");
     return true;
 }
 
@@ -417,14 +422,17 @@ const UpgradeSession* FirmwareManager::GetUpgradeSession(const char* session_id)
 bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* component_name, 
                                           const ChunkData* chunk) {
     if (!session_active || current_session == nullptr) {
+        APP_ERR("FirmwareManager::ProcessFirmwareChunk: No active session");
         return false;
     }
     
     if (strcmp(current_session->session_id, session_id) != 0) {
+        APP_ERR("FirmwareManager::ProcessFirmwareChunk: Session ID mismatch");
         return false;
     }
     
     if (current_session->status != UPGRADE_STATUS_ACTIVE) {
+        APP_ERR("FirmwareManager::ProcessFirmwareChunk: Session status is not active");
         return false;
     }
     
@@ -438,12 +446,15 @@ bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* c
     }
     
     if (target_component == nullptr) {
+        APP_ERR("FirmwareManager::ProcessFirmwareChunk: Component not found");
         return false;
     }
     
     // 验证地址
     FirmwareSlot target_slot = GetTargetUpgradeSlot();
+    // APP_DBG("FirmwareManager::check address %d, %d", chunk->target_address, target_slot);
     if (!ValidateSlotAddress(chunk->target_address, target_slot)) {
+        APP_ERR("FirmwareManager::ProcessFirmwareChunk: Invalid target address");
         return false;
     }
     
@@ -453,20 +464,26 @@ bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* c
     // 验证校验和
     char calculated_hash[65];
     if (!CalculateSHA256(chunk->data, chunk->chunk_size, calculated_hash)) {
+        APP_ERR("FirmwareManager::ProcessFirmwareChunk: Failed to calculate SHA256");
         return false;
     }
     
+    APP_DBG("FirmwareManager::ProcessFirmwareChunk: calculated_hash: %s, chunk->checksum: %s", calculated_hash, chunk->checksum);
+
     if (strcmp(calculated_hash, chunk->checksum) != 0) {
+        APP_ERR("FirmwareManager::ProcessFirmwareChunk: Checksum mismatch");
         return false; // 校验和不匹配
     }
     
     // 写入Flash
     if (!WriteChunkToFlash(write_address, chunk->data, chunk->chunk_size)) {
+        APP_ERR("FirmwareManager::ProcessFirmwareChunk: Failed to write chunk to flash");
         return false;
     }
     
     // 验证写入
     if (!VerifyFlashData(write_address, chunk->data, chunk->chunk_size)) {
+        APP_ERR("FirmwareManager::ProcessFirmwareChunk: Failed to verify flash data");
         return false;
     }
     
@@ -582,6 +599,8 @@ bool FirmwareManager::EraseSlotFlash(FirmwareSlot slot) {
     // 使用QSPI接口擦除整个槽位
     int8_t result = QSPI_W25Qxx_BufferErase(slot_base - EXTERNAL_FLASH_BASE, SLOT_SIZE);
     
+    APP_DBG("FirmwareManager::EraseSlotFlash: Erase slot flash result: %d", result);
+
     if (result != QSPI_W25Qxx_OK) {
         return false;
     }

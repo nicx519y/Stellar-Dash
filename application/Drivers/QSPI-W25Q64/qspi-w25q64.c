@@ -1059,6 +1059,7 @@ int8_t QSPI_W25Qxx_BufferErase(uint32_t StartAddr, uint32_t Size)
         if(remainSize >= 64*1024 && (CurrentAddr & (64*1024-1)) == 0) {
             result = QSPI_W25Qxx_BlockErase_64K(CurrentAddr);
             if(result != QSPI_W25Qxx_OK) {
+                QSPI_W25Qxx_ERR("QSPI_W25Qxx_BufferErase 64K block erase failure. error: %d", result);
                 return result;
             }
             CurrentAddr += 64*1024;
@@ -1067,6 +1068,7 @@ int8_t QSPI_W25Qxx_BufferErase(uint32_t StartAddr, uint32_t Size)
         else if(remainSize >= 32*1024 && (CurrentAddr & (32*1024-1)) == 0) {
             result = QSPI_W25Qxx_BlockErase_32K(CurrentAddr);
             if(result != QSPI_W25Qxx_OK) {
+				QSPI_W25Qxx_ERR("QSPI_W25Qxx_BufferErase 32K block erase failure. error: %d", result);
                 return result;
             }
             CurrentAddr += 32*1024;

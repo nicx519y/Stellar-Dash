@@ -2760,8 +2760,7 @@ std::string apiFirmwareUpgrade() {
         cJSON* manifestItem = cJSON_GetObjectItem(postParams, "manifest");
         if (!manifestItem) {
             cJSON_Delete(postParams);
-            cJSON_AddStringToObject(dataJSON, "error", "Manifest required for create action");
-            std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
+            std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Manifest required for create action");
             return response;
         }
         
@@ -2837,6 +2836,8 @@ std::string apiFirmwareUpgrade() {
             }
         }
         
+        APP_DBG("Begin CreateUpgradeSession: %s", sessionId);
+
         success = manager->CreateUpgradeSession(sessionId, &manifest);
         cJSON_AddBoolToObject(dataJSON, "success", success);
         cJSON_AddStringToObject(dataJSON, "session_id", sessionId);
@@ -2897,8 +2898,7 @@ std::string apiFirmwareUpgrade() {
         
     } else {
         cJSON_Delete(postParams);
-        cJSON_AddStringToObject(dataJSON, "error", "Invalid action");
-        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Invalid action");
         return response;
     }
 
@@ -2973,11 +2973,15 @@ std::string apiFirmwareChunk() {
     if (targetAddressItem) {
         if (cJSON_IsString(targetAddressItem)) {
             const char* addrStr = cJSON_GetStringValue(targetAddressItem);
+
             if (strncmp(addrStr, "0x", 2) == 0 || strncmp(addrStr, "0X", 2) == 0) {
                 chunk.target_address = strtoul(addrStr, nullptr, 16);
             } else {
                 chunk.target_address = strtoul(addrStr, nullptr, 10);
             }
+
+            // APP_DBG("WebConfig::targetAddressItem: %s, chunk.target_address: %u (0x%08X)", addrStr, chunk.target_address);
+
         } else if (cJSON_IsNumber(targetAddressItem)) {
             chunk.target_address = (uint32_t)cJSON_GetNumberValue(targetAddressItem);
         }
@@ -3007,8 +3011,7 @@ std::string apiFirmwareChunk() {
     if (!binaryData || binaryDataLen == 0) {
         cJSON_Delete(metadataJSON);
         cJSON* dataJSON = cJSON_CreateObject();
-        cJSON_AddStringToObject(dataJSON, "error", "No binary data found");
-        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "No binary data found");
         return response;
     }
 
@@ -3019,6 +3022,7 @@ std::string apiFirmwareChunk() {
 
     chunk.data = binaryData;
 
+    APP_DBG("Begin ProcessFirmwareChunk: %s, %s, %d", cJSON_GetStringValue(sessionIdItem), cJSON_GetStringValue(componentNameItem), chunk.chunk_index);
     // 处理固件分片
     bool success = manager->ProcessFirmwareChunk(
         cJSON_GetStringValue(sessionIdItem),

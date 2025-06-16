@@ -23,7 +23,7 @@ const nextConfig: NextConfig = {
                     new TerserPlugin({
                         terserOptions: {
                             compress: {
-                                drop_console: true,
+                                drop_console: false,
                                 drop_debugger: true,
                                 passes: 3, // 压缩次数 1-2 默认和中等，3 是最大 时间显著增加
                                 toplevel: true, // 压缩顶级函数

@@ -1321,14 +1321,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
                 // 解析组件基地址（支持十六进制格式）
                 let baseAddress: number;
-                try {
-                    // 处理各种地址格式：0x08000000, 08000000, 0X08000000
-                    baseAddress = component.address;
-                    if (isNaN(baseAddress)) {
-                        throw new Error(`Invalid address format: ${component.address}`);
-                    }
-                } catch (error) {
-                    throw new Error(`Failed to parse component ${componentName} address: ${component.address}`);
+                
+                if(component.address.toString().startsWith('0x')){
+                    baseAddress = parseInt(component.address.toString(), 16);
+                }else if(component.address.toString().startsWith('0X')){
+                    baseAddress = parseInt(component.address.toString(), 16);
+                }else{
+                    baseAddress = parseInt(component.address.toString(), 10);
                 }
 
                 // 分片传输
@@ -1338,7 +1337,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     const chunkData = componentData.slice(start, end);
                     
                     // 计算当前chunk的精确写入地址和偏移
-                    const chunkOffset = start;
+                    const chunkOffset = parseInt(start.toString(), 10);
                     const targetAddress = baseAddress + chunkOffset;
                     const chunkSize = chunkData.length;
 
