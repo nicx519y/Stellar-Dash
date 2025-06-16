@@ -4,10 +4,11 @@
 STM32 HBox Release 管理工具
 
 集成了发版打包和刷写功能：
-1. 自动构建双槽release包（集成auto_release_packager功能）
+1. 自动构建双槽release包（使用Intel HEX分割处理）
 2. 自动解压release包并刷写到设备
 3. 支持槽A和槽B的完整管理
 4. 包含版本管理、元数据和完整性校验
+5. 支持Intel HEX文件解析和分割
 """
 
 import os
@@ -28,6 +29,7 @@ import zlib
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, NamedTuple, Tuple, Any
+from intelhex import IntelHex  # 添加Intel HEX处理库
 
 # 元数据结构常量（与C代码保持一致）
 FIRMWARE_MAGIC = 0x48424F58  # "HBOX"
@@ -41,6 +43,281 @@ HARDWARE_VERSION = 0x00010000    # 1.0.0
 COMPONENT_SIZE = 170  # FirmwareComponent packed结构体大小: 32+64+4+4+65+1 = 170字节
 FIRMWARE_COMPONENT_COUNT = 3
 METADATA_SIZE = 807   # FirmwareMetadata总大小: 20+32+1+32+4+32+4+4+4+(170*3)+32+64+4+64 = 807字节
+
+class HexSegmenter:
+    """Intel HEX文件解析和分割器"""
+    
+    def __init__(self):
+        self.segments = {}
+        self.components = []
+    
+    def parse_hex_file(self, hex_path: Path) -> List[Dict]:
+        """解析Intel HEX文件，按连续段分割并生成组件"""
+        print(f"解析Intel HEX文件: {hex_path}")
+        
+        try:
+            # 使用intelhex库加载HEX文件
+            ih = IntelHex(str(hex_path))
+            
+            # 获取所有使用的地址段
+            segments = ih.segments()
+            print(f"发现 {len(segments)} 个地址段:")
+            
+            components = []
+            for i, (start_addr, end_addr) in enumerate(segments):
+                # 计算段大小（end_addr是exclusive的）
+                segment_size = end_addr - start_addr
+                
+                # 提取连续段的数据
+                segment_data = ih.tobinstr(start=start_addr, end=end_addr-1)
+                
+                # 确定段类型和组件名
+                component_info = self.classify_segment(start_addr, end_addr, segment_size)
+                
+                print(f"  段 {i+1}: 0x{start_addr:08X} - 0x{end_addr:08X} ({segment_size:,} 字节) -> {component_info['name']}")
+                
+                # 创建组件信息
+                component = {
+                    'name': component_info['name'],
+                    'start_address': start_addr,
+                    'end_address': end_addr,
+                    'size': len(segment_data),
+                    'data': segment_data,
+                    'target_address': component_info['target_address'],
+                    'description': component_info['description']
+                }
+                
+                components.append(component)
+            
+            print(f"成功解析Intel HEX文件，生成 {len(components)} 个组件")
+            return components
+            
+        except Exception as e:
+            print(f"解析Intel HEX文件失败: {e}")
+            raise
+    
+    def classify_segment(self, start_addr: int, end_addr: int, size: int) -> Dict:
+        """根据地址范围分类段，确定组件类型和目标地址"""
+        
+        # STM32H750的内存映射
+        if 0x08000000 <= start_addr < 0x08200000:
+            # 内部Flash区域 (STM32H750有128KB内部Flash)
+            return {
+                'name': 'internal_flash',
+                'target_address': start_addr,
+                'description': f'内部Flash (0x{start_addr:08X}-0x{end_addr:08X})',
+                'memory_type': 'flash'
+            }
+        elif 0x20000000 <= start_addr < 0x20020000:
+            # DTCM RAM区域 (128KB)
+            return {
+                'name': 'dtcm_ram',
+                'target_address': start_addr,
+                'description': f'DTCM RAM (0x{start_addr:08X}-0x{end_addr:08X})',
+                'memory_type': 'ram',
+                'skip_flash': True  # RAM段不需要烧写
+            }
+        elif 0x24000000 <= start_addr < 0x24080000:
+            # AXI SRAM区域 (512KB)
+            return {
+                'name': 'axi_sram',
+                'target_address': start_addr,
+                'description': f'AXI SRAM (0x{start_addr:08X}-0x{end_addr:08X})',
+                'memory_type': 'ram',
+                'skip_flash': True  # RAM段不需要烧写
+            }
+        elif 0x30000000 <= start_addr < 0x30048000:
+            # SRAM1 in Domain D2 (288KB)
+            return {
+                'name': 'sram1_d2',
+                'target_address': start_addr,
+                'description': f'SRAM1 D2域 (0x{start_addr:08X}-0x{end_addr:08X})',
+                'memory_type': 'ram',
+                'skip_flash': True  # RAM段不需要烧写
+            }
+        elif 0x38000000 <= start_addr < 0x38010000:
+            # SRAM4 in Domain D3 (64KB)
+            return {
+                'name': 'sram4_d3',
+                'target_address': start_addr,
+                'description': f'SRAM4 D3域 (0x{start_addr:08X}-0x{end_addr:08X})',
+                'memory_type': 'ram',
+                'skip_flash': True  # RAM段不需要烧写
+            }
+        elif 0x38800000 <= start_addr < 0x38801000:
+            # Backup SRAM (4KB)
+            return {
+                'name': 'backup_sram',
+                'target_address': start_addr,
+                'description': f'备份SRAM (0x{start_addr:08X}-0x{end_addr:08X})',
+                'memory_type': 'ram',
+                'skip_flash': True  # RAM段不需要烧写
+            }
+        elif 0x90000000 <= start_addr < 0x94000000:
+            # 外部QSPI Flash区域 - 根据具体地址细分
+            if 0x90000000 <= start_addr < 0x90100000:
+                return {
+                    'name': 'application',
+                    'target_address': 0x90000000,  # 应用程序基地址
+                    'description': f'应用程序 (0x{start_addr:08X}-0x{end_addr:08X})',
+                    'memory_type': 'qspi_flash'
+                }
+            elif 0x90100000 <= start_addr < 0x90280000:
+                return {
+                    'name': 'webresources',
+                    'target_address': 0x90100000,  # Web资源基地址
+                    'description': f'Web资源 (0x{start_addr:08X}-0x{end_addr:08X})',
+                    'memory_type': 'qspi_flash'
+                }
+            elif 0x90280000 <= start_addr < 0x902B0000:
+                return {
+                    'name': 'adc_mapping',
+                    'target_address': 0x90280000,  # ADC映射基地址
+                    'description': f'ADC映射 (0x{start_addr:08X}-0x{end_addr:08X})',
+                    'memory_type': 'qspi_flash'
+                }
+            elif 0x902B0000 <= start_addr < 0x903B0000:
+                return {
+                    'name': 'application_slot_b',
+                    'target_address': 0x902B0000,  # 槽B应用程序基地址
+                    'description': f'槽B应用程序 (0x{start_addr:08X}-0x{end_addr:08X})',
+                    'memory_type': 'qspi_flash'
+                }
+            elif 0x903B0000 <= start_addr < 0x90530000:
+                return {
+                    'name': 'webresources_slot_b',
+                    'target_address': 0x903B0000,  # 槽B Web资源基地址
+                    'description': f'槽B Web资源 (0x{start_addr:08X}-0x{end_addr:08X})',
+                    'memory_type': 'qspi_flash'
+                }
+            elif 0x90530000 <= start_addr < 0x90560000:
+                return {
+                    'name': 'adc_mapping_slot_b',
+                    'target_address': 0x90530000,  # 槽B ADC映射基地址
+                    'description': f'槽B ADC映射 (0x{start_addr:08X}-0x{end_addr:08X})',
+                    'memory_type': 'qspi_flash'
+                }
+            else:
+                return {
+                    'name': f'external_flash_{start_addr:08x}',
+                    'target_address': start_addr,
+                    'description': f'外部Flash段 (0x{start_addr:08X}-0x{end_addr:08X})',
+                    'memory_type': 'qspi_flash'
+                }
+        else:
+            # 其他地址区域
+            return {
+                'name': f'unknown_{start_addr:08x}',
+                'target_address': start_addr,
+                'description': f'未知段 (0x{start_addr:08X}-0x{end_addr:08X})',
+                'memory_type': 'unknown'
+            }
+    
+    def save_components(self, components: List[Dict], output_dir: Path, version: str) -> Dict:
+        """将组件保存为独立的bin文件并生成manifest"""
+        print(f"保存组件到目录: {output_dir}")
+        
+        output_dir.mkdir(exist_ok=True)
+        
+        manifest = {
+            'version': version,
+            'build_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'build_timestamp': int(time.time()),
+            'components': [],
+            'ram_segments': []  # 单独记录RAM段信息
+        }
+        
+        flash_component_count = 0
+        ram_component_count = 0
+        
+        for i, component in enumerate(components):
+            # 检查组件信息
+            component_info = self.classify_segment(
+                component['start_address'], 
+                component['end_address'], 
+                component['size']
+            )
+            
+            # 更新组件信息
+            component.update(component_info)
+            
+            # 判断是否需要跳过Flash烧写
+            if component_info.get('skip_flash', False) or component_info.get('memory_type') == 'ram':
+                # RAM段：只记录信息，不生成bin文件
+                print(f"  跳过RAM段 {i+1}: {component['name']} ({component['size']:,} 字节)")
+                print(f"    地址: 0x{component['start_address']:08X} [{component_info['memory_type'].upper()}]")
+                print(f"    说明: {component_info['description']}")
+                
+                # 添加到RAM段记录
+                manifest['ram_segments'].append({
+                    'name': component['name'],
+                    'address': f"0x{component['start_address']:08X}",
+                    'size': component['size'],
+                    'memory_type': component_info['memory_type'],
+                    'description': component_info['description'],
+                    'note': 'VMA地址，运行时使用，不需要Flash烧写'
+                })
+                
+                ram_component_count += 1
+                continue
+            
+            # Flash段：生成bin文件
+            bin_filename = f"{component['name']}.bin"
+            bin_path = output_dir / bin_filename
+            
+            # 保存二进制数据
+            with open(bin_path, 'wb') as f:
+                f.write(component['data'])
+            
+            # 计算SHA256校验和
+            sha256_hash = hashlib.sha256(component['data']).hexdigest()
+            
+            print(f"  保存组件 {flash_component_count + 1}: {component['name']} -> {bin_filename} ({component['size']:,} 字节)")
+            print(f"    地址: 0x{component['start_address']:08X} -> 0x{component['target_address']:08X} [{component_info['memory_type'].upper()}]")
+            print(f"    SHA256: {sha256_hash[:16]}...")
+            
+            # 添加到manifest
+            manifest['components'].append({
+                'name': component['name'],
+                'file': bin_filename,
+                'address': f"0x{component['target_address']:08X}",
+                'size': component['size'],
+                'sha256': sha256_hash,
+                'active': True,
+                'memory_type': component_info['memory_type'],
+                'description': component_info['description'],
+                'original_address': f"0x{component['start_address']:08X}"
+            })
+            
+            flash_component_count += 1
+        
+        # 保存manifest文件
+        manifest_path = output_dir / 'hex_manifest.json'
+        with open(manifest_path, 'w', encoding='utf-8') as f:
+            json.dump(manifest, f, indent=2, ensure_ascii=False)
+        
+        print(f"生成manifest文件: {manifest_path}")
+        print(f"Flash组件: {flash_component_count} 个")
+        print(f"RAM段(跳过): {ram_component_count} 个")
+        print(f"总段数: {len(components)} 个")
+        
+        return manifest
+    
+    def process_hex_file(self, hex_path: Path, output_dir: Path, version: str) -> Dict:
+        """完整处理Intel HEX文件：解析、分割、保存"""
+        print(f"\n=== 处理Intel HEX文件 ===")
+        print(f"输入文件: {hex_path}")
+        print(f"输出目录: {output_dir}")
+        print(f"版本: {version}")
+        
+        # 解析HEX文件
+        components = self.parse_hex_file(hex_path)
+        
+        # 保存组件
+        manifest = self.save_components(components, output_dir, version)
+        
+        print(f"=== 处理完成 ===\n")
+        return manifest
 
 def calculate_crc32(data, skip_offset=None, skip_size=None):
     """计算CRC32校验和，可以跳过指定区域"""
@@ -249,6 +526,19 @@ class ProgressBar:
         print(f"\r[{bar}] {percent:6.1f}% ({self.current_step}/{self.total_steps}) {step_name}", end='', flush=True)
         if self.current_step == self.total_steps:
             print(f"\n完成! 总耗时: {elapsed:.1f}秒")
+    
+    def set_step(self, step, step_name=""):
+        """直接设置当前步骤（不自动+1）"""
+        self.current_step = step
+        progress = self.current_step / self.total_steps
+        filled = int(self.width * progress)
+        bar = '█' * filled + '░' * (self.width - filled)
+        percent = progress * 100
+        elapsed = time.time() - self.start_time
+        
+        print(f"\r[{bar}] {percent:6.1f}% ({self.current_step}/{self.total_steps}) {step_name}", end='', flush=True)
+        if self.current_step == self.total_steps:
+            print(f"\n完成! 总耗时: {elapsed:.1f}秒")
 
 class ReleaseFlasher:
     """Release包刷写器"""
@@ -336,7 +626,7 @@ class ReleaseFlasher:
         
         return self.slot_addresses[slot][component_name]
     
-    def flash_component(self, component_file: Path, target_address: str, component_name: str) -> bool:
+    def flash_component(self, component_file: Path, target_address: str, component_name: str, file_type: str = None) -> bool:
         """刷写单个组件"""
         if not component_file.exists():
             print(f"错误: 组件文件不存在: {component_file}")
@@ -346,15 +636,20 @@ class ReleaseFlasher:
             print(f"错误: OpenOCD配置文件不存在: {self.openocd_config}")
             return False
         
-        print(f"正在刷写 {component_name}: {component_file.name} -> {target_address}")
+        # 确定文件类型
+        if file_type is None:
+            # 从文件扩展名判断
+            file_type = "hex" if component_file.suffix.lower() == '.hex' else "bin"
         
         # 根据文件类型确定偏移地址
-        # HEX文件包含地址信息，使用0x00000000偏移
-        # BIN文件需要指定目标地址
-        if component_file.suffix.lower() == '.hex':
+        if file_type.lower() == "hex":
+            # HEX文件包含地址信息，使用0x00000000偏移
             flash_offset = "0x00000000"
+            print(f"正在刷写 {component_name}: {component_file.name} -> {target_address} [HEX, 偏移: {flash_offset}]")
         else:
+            # BIN文件需要指定目标地址作为偏移
             flash_offset = target_address
+            print(f"正在刷写 {component_name}: {component_file.name} -> {target_address} [BIN, 偏移: {flash_offset}]")
         
         # 构建OpenOCD命令 - 使用tools目录下的配置
         # 组件文件使用绝对路径，但转换为正斜杠格式
@@ -465,13 +760,17 @@ class ReleaseFlasher:
                 # 根据目标槽位调整地址
                 target_address = self.get_slot_address(component_name, target_slot)
                 
+                # 获取文件类型信息（从manifest或文件扩展名）
+                file_type = component_info.get('file_type', None)
+                
                 print(f"\n[{success_count + 1}/{total_count}] 刷写组件: {component_name}")
                 
-                if self.flash_component(component_file, target_address, component_name):
+                if self.flash_component(component_file, target_address, component_name, file_type):
                     success_count += 1
                 else:
                     print(f"组件 {component_name} 刷写失败")
                     return False
+            
             
             # 生成并刷写元数据
             print(f"\n[{success_count + 1}/{total_count + 1}] 生成并刷写元数据...")
@@ -657,11 +956,11 @@ class ReleaseManager:
 
     # ==================== 自动构建功能（集成auto_release_packager） ====================
     
-    def build_app_with_build_py(self, slot, progress=None):
+    def build_app_with_build_py(self, slot, progress=None, progress_step=None):
         """使用build.py构建Application"""
-        if progress:
-            progress.update(f"构建槽{slot} Application...")
-        else:
+        if progress and progress_step:
+            progress.set_step(progress_step, f"构建槽{slot} Application...")
+        elif not progress:
             print(f"正在构建槽{slot}的Application...")
         
         try:
@@ -684,11 +983,11 @@ class ReleaseManager:
             print(f"\n构建槽{slot}失败: {e}")
             raise
 
-    def copy_adc_mapping_from_resources(self, out_dir, progress=None):
+    def copy_adc_mapping_from_resources(self, out_dir, progress=None, progress_step=None):
         """从resources目录复制ADC映射文件"""
-        if progress:
-            progress.update("复制ADC映射...")
-        else:
+        if progress and progress_step:
+            progress.set_step(progress_step, "复制ADC映射...")
+        elif not progress:
             print("正在复制ADC映射...")
         
         # 从resources目录查找ADC映射文件
@@ -706,11 +1005,11 @@ class ReleaseManager:
         
         return adc_dest
 
-    def copy_webresources_for_auto(self, out_dir, progress=None):
+    def copy_webresources_for_auto(self, out_dir, progress=None, progress_step=None):
         """复制WebResources文件"""
-        if progress:
-            progress.update("复制WebResources...")
-        else:
+        if progress and progress_step:
+            progress.set_step(progress_step, "复制WebResources...")
+        elif not progress:
             print("正在复制WebResources...")
         
         # 查找webresources文件
@@ -729,8 +1028,8 @@ class ReleaseManager:
         
         raise FileNotFoundError("未找到WebResources文件")
 
-    def make_manifest_for_auto(self, slot, hex_file, adc_file, web_file, version):
-        """生成manifest文件"""
+    def make_manifest_for_auto_with_bin(self, slot, app_bin_file, adc_file, web_file, version, app_component):
+        """生成manifest文件（使用BIN文件）"""
         manifest = {
             "version": version,
             "slot": slot,
@@ -738,13 +1037,14 @@ class ReleaseManager:
             "components": []
         }
         
-        # Application组件
+        # Application组件（使用从HEX分割出的BIN文件）
         manifest["components"].append({
             "name": "application",
-            "file": hex_file.name,
-            "address": "0x90000000" if slot == "A" else "0x902B0000",
-            "size": hex_file.stat().st_size,
-            "sha256": self.sha256sum_file(hex_file)
+            "file": app_bin_file.name,
+            "address": app_component['address'],
+            "size": app_bin_file.stat().st_size,
+            "sha256": self.sha256sum_file(app_bin_file),
+            "file_type": "bin"  # 标记为BIN文件
         })
         
         # WebResources组件
@@ -753,7 +1053,8 @@ class ReleaseManager:
             "file": web_file.name,
             "address": "0x90100000" if slot == "A" else "0x903B0000",
             "size": web_file.stat().st_size,
-            "sha256": self.sha256sum_file(web_file)
+            "sha256": self.sha256sum_file(web_file),
+            "file_type": "bin"
         })
         
         # ADC Mapping组件
@@ -762,49 +1063,97 @@ class ReleaseManager:
             "file": adc_file.name,
             "address": "0x90280000" if slot == "A" else "0x90530000",
             "size": adc_file.stat().st_size,
-            "sha256": self.sha256sum_file(adc_file)
+            "sha256": self.sha256sum_file(adc_file),
+            "file_type": "bin"
         })
         
         return manifest
 
-    def make_auto_release_pkg(self, slot, version, out_dir, build_timestamp):
-        """生成单个槽的release包"""
-        print(f"\n=== 开始生成槽{slot} release包 ===")
-        
-        # 创建进度条
-        progress = ProgressBar(6)
+    def make_auto_release_pkg(self, slot, version, out_dir, build_timestamp, progress=None, start_step=0):
+        """生成单个槽的release包（使用Intel HEX分割处理）"""
+        if not progress:
+            print(f"\n=== 开始生成槽{slot} release包 ===")
+            print(f"使用Intel HEX分割处理模式")
         
         try:
             # 1. 构建Application
-            hex_file = self.build_app_with_build_py(slot, progress)
+            hex_file = self.build_app_with_build_py(slot, progress, start_step + 1)
             
-            # 2. 复制ADC映射
-            adc_file = self.copy_adc_mapping_from_resources(out_dir, progress)
+            # 2. 处理Intel HEX文件 - 解析和分割
+            if progress:
+                progress.set_step(start_step + 2, f"槽{slot}: 解析Intel HEX文件...")
+            hex_segmenter = HexSegmenter()
+            hex_manifest = hex_segmenter.process_hex_file(
+                hex_file, 
+                out_dir / "hex_components", 
+                version
+            )
             
-            # 3. 复制WebResources
-            web_file = self.copy_webresources_for_auto(out_dir, progress)
+            # 3. 查找application组件
+            if progress:
+                progress.set_step(start_step + 3, f"槽{slot}: 验证HEX组件...")
+            app_component = None
+            for comp in hex_manifest['components']:
+                if comp['name'] == 'application' or comp['name'].startswith('application'):
+                    app_component = comp
+                    break
             
-            # 4. 复制hex文件到输出目录
-            progress.update("复制Application文件...")
-            out_hex_file = out_dir / f'application_slot_{slot.lower()}.hex'
-            shutil.copy2(hex_file, out_hex_file)
+            if not app_component:
+                print("警告: HEX文件中未找到application组件")
+                raise ValueError("HEX文件中未找到有效的application组件")
             
-            # 5. 生成manifest
-            progress.update("生成manifest...")
-            manifest = self.make_manifest_for_auto(slot, out_hex_file, adc_file, web_file, version)
+            if not progress:
+                print(f"发现application组件: {app_component['name']} ({app_component['size']:,} 字节)")
+            
+            # 4. 复制application BIN文件到主输出目录
+            if progress:
+                progress.set_step(start_step + 4, f"槽{slot}: 复制application BIN文件...")
+            hex_comp_dir = out_dir / "hex_components"
+            src_bin_file = hex_comp_dir / app_component['file']
+            app_bin_file = out_dir / f"application_slot_{slot.lower()}.bin"
+            shutil.copy2(src_bin_file, app_bin_file)
+            if not progress:
+                print(f"复制application BIN文件: {src_bin_file} -> {app_bin_file}")
+            
+            # 5. 复制其他必要的组件
+            adc_file = self.copy_adc_mapping_from_resources(out_dir, progress, start_step + 5)
+            web_file = self.copy_webresources_for_auto(out_dir, progress, start_step + 6)
+            
+            # 6. 生成标准manifest（使用BIN文件）
+            if progress:
+                progress.set_step(start_step + 7, f"槽{slot}: 生成manifest...")
+            manifest = self.make_manifest_for_auto_with_bin(
+                slot, app_bin_file, adc_file, web_file, version, app_component
+            )
+            
+            # 添加HEX处理信息
+            manifest["hex_processed"] = True
+            manifest["hex_info"] = {
+                "original_hex_file": hex_file.name,
+                "hex_segments": len(hex_manifest.get('components', [])) + len(hex_manifest.get('ram_segments', [])),
+                "flash_components": len(hex_manifest.get('components', [])),
+                "ram_segments": len(hex_manifest.get('ram_segments', [])),
+                "hex_build_date": hex_manifest['build_date']
+            }
+            
+            # 最后步骤：生成包文件
             manifest_file = out_dir / 'manifest.json'
             with open(manifest_file, 'w', encoding='utf-8') as f:
                 json.dump(manifest, f, indent=2, ensure_ascii=False)
             
-            # 6. 打包并移动到releases目录
-            progress.update("移动到releases目录...")
+            # 7. 打包并移动到releases目录
+            if progress:
+                progress.set_step(start_step + 8, f"槽{slot}: 打包并移动到releases目录...")
             package_name = f'hbox_firmware_{version}_{slot.lower()}_{build_timestamp}.zip'
             temp_package_path = out_dir / package_name
             final_package_path = self.releases_dir / package_name
             
             # 创建ZIP包
             with zipfile.ZipFile(temp_package_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-                zf.write(out_hex_file, out_hex_file.name)
+                # 添加BIN文件
+                zf.write(app_bin_file, app_bin_file.name)
+                
+                # 共同文件
                 zf.write(web_file, web_file.name)
                 zf.write(adc_file, adc_file.name)
                 zf.write(manifest_file, manifest_file.name)
@@ -814,8 +1163,9 @@ class ReleaseManager:
             
             # 显示结果
             package_size = final_package_path.stat().st_size
-            print(f"\n[OK] 生成release包: {final_package_path.name}")
-            print(f"     包大小: {package_size:,} 字节")
+            if not progress:
+                print(f"\n[OK] 生成release包: {final_package_path.name}")
+                print(f"     包大小: {package_size:,} 字节")
             
             return final_package_path
             
@@ -824,11 +1174,12 @@ class ReleaseManager:
             raise
 
     def create_auto_release(self, version: str) -> List[str]:
-        """自动构建双槽release包（集成auto_release_packager功能）"""
+        """自动构建双槽release包（使用Intel HEX分割处理）"""
         print("=== STM32 HBox 双槽Release包生成工具 ===")
         print(f"工作目录: {self.project_root}")
         print(f"输出目录: {self.releases_dir}")
         print(f"版本号: {version}")
+        print(f"模式: Intel HEX分割处理")
         
         # 创建临时目录
         out_dir = self.tools_dir / 'release_temp'
@@ -842,13 +1193,17 @@ class ReleaseManager:
         build_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         print(f"构建时间戳: {build_timestamp}")
         
+        # 创建统一进度条 (每个槽8步，共16步)
+        progress = ProgressBar(16)
+        
         success_count = 0
         generated_packages = []
         
         try:
-            for slot in ['A', 'B']:
+            for i, slot in enumerate(['A', 'B']):
                 try:
-                    package_path = self.make_auto_release_pkg(slot, version, out_dir, build_timestamp)
+                    start_step = i * 8  # 每个槽8步
+                    package_path = self.make_auto_release_pkg(slot, version, out_dir, build_timestamp, progress, start_step)
                     success_count += 1
                     generated_packages.append(package_path)
                 except Exception as e:
@@ -1375,11 +1730,22 @@ def main():
 使用示例:
 
 自动构建双槽release包:
-  自动构建并打包:
+  自动构建并打包（传统模式）:
     python release.py auto --version 1.0.2
+  
+  自动构建并打包（HEX增强模式）:
+    python release.py auto --version 1.0.2 --process-hex
   
   交互式输入版本号:
     python release.py auto
+
+Intel HEX文件处理（测试功能）:
+  处理HEX文件并分割为多个组件:
+    python release.py hex application_slot_a.hex
+    python release.py hex application_slot_a.hex --output ./hex_out --version 1.0.0
+  
+  分析HEX文件结构:
+    python release.py hex build/application_slot_a.hex -o analysis
 
 发版包管理:
   列出可用的release包:
@@ -1440,6 +1806,17 @@ def main():
   删除指定服务器上的固件:
     python release.py delete abc123def456... --server http://192.168.1.100:3000
 
+Intel HEX增强模式说明:
+  传统模式: 
+    - 保持HEX文件完整，由固件管理器在运行时处理
+    - 兼容现有的刷写逻辑
+  
+  HEX增强模式:
+    - 在打包时将HEX文件解析并分割为多个二进制组件
+    - 每个地址段独立存储，支持精确的地址映射
+    - 生成详细的组件清单和地址信息
+    - 便于调试和地址冲突分析
+
 支持的组件:
   application   - 应用程序固件
   webresources  - Web界面资源
@@ -1450,14 +1827,21 @@ def main():
   B             - 备用槽 (0x902B0000起始)
 
 注意: 槽B发版包会自动重新编译Application以适配槽B地址空间
+      Intel HEX增强模式为实验性功能，建议先使用hex命令测试
         """
     )
     
     subparsers = parser.add_subparsers(dest='command', help='可用命令')
     
-    # 自动构建命令（集成auto_release_packager功能）
-    auto_parser = subparsers.add_parser('auto', help='自动构建双槽release包')
+    # 自动构建命令（使用Intel HEX分割处理）
+    auto_parser = subparsers.add_parser('auto', help='自动构建双槽release包（使用Intel HEX分割处理）')
     auto_parser.add_argument("--version", help="发版版本号（可选，不指定则交互式输入）")
+    
+    # Intel HEX处理命令（独立测试）
+    hex_parser = subparsers.add_parser('hex', help='Intel HEX文件处理和分割（测试功能）')
+    hex_parser.add_argument("hex_file", help="要处理的Intel HEX文件路径")
+    hex_parser.add_argument("--output", "-o", help="输出目录（可选，默认为当前目录下的hex_output）")
+    hex_parser.add_argument("--version", help="版本号（可选，默认为1.0.0）")
     
     # 列出发版包命令
     list_parser = subparsers.add_parser('list', help='列出发版包')
@@ -1499,7 +1883,7 @@ def main():
     
     try:
         if args.command == 'auto':
-            # 自动构建双槽release包
+            # 自动构建双槽release包（使用Intel HEX分割处理）
             version = args.version
             if not version:
                 version = input('请输入版本号（如1.0.0）: ').strip()
@@ -1514,6 +1898,38 @@ def main():
                 return 0
             else:
                 print("\n✗ 发版包生成失败")
+                return 1
+        
+        elif args.command == 'hex':
+            # Intel HEX文件处理和分割
+            hex_file_path = Path(args.hex_file)
+            if not hex_file_path.exists():
+                print(f"错误: HEX文件不存在: {hex_file_path}")
+                return 1
+            
+            output_dir = Path(args.output) if args.output else Path("hex_output")
+            version = args.version or "1.0.0"
+            
+            print(f"=== Intel HEX文件处理测试 ===")
+            print(f"输入文件: {hex_file_path}")
+            print(f"输出目录: {output_dir}")
+            print(f"版本: {version}")
+            
+            try:
+                hex_segmenter = HexSegmenter()
+                manifest = hex_segmenter.process_hex_file(hex_file_path, output_dir, version)
+                
+                print(f"\n✓ HEX文件处理完成")
+                print(f"生成了 {len(manifest['components'])} 个组件:")
+                for comp in manifest['components']:
+                    print(f"  - {comp['name']}: {comp['file']} ({comp['size']:,} 字节)")
+                    print(f"    地址: {comp.get('original_address', 'N/A')} -> {comp['address']}")
+                
+                print(f"\n输出文件保存在: {output_dir}")
+                return 0
+                
+            except Exception as e:
+                print(f"✗ HEX文件处理失败: {e}")
                 return 1
         
         elif args.command == 'list':
@@ -1568,9 +1984,6 @@ def main():
                     server_url=args.server or "http://localhost:3000",
                     desc=args.desc
                 ):
-                    print("\n✓ 固件包上传成功")
-                    return 0
-                else:
                     print("\n✗ 固件包上传失败")
                     return 1
             else:

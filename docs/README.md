@@ -194,20 +194,22 @@ typedef struct {
 
 **功能：**
 集成了发版打包和管理功能的统一工具：
-- 自动构建双槽release包（集成原auto_release_packager功能）
+- 自动构建双槽release包（使用Intel HEX分割处理）
 - 支持槽A和槽B的完整管理
 - 包含版本管理、元数据和完整性校验
+- Intel HEX文件自动解析和分割
 - 完整的SHA256校验和错误处理
 
 **依赖：**
 - Python 3.6+
+- intelhex库（Intel HEX文件处理）
 - build.py和extract_adc_mapping.py工具
 
 #### 自动构建双槽release包功能
 
 **使用方法：**
 ```bash
-# 自动构建并打包（推荐，自动生成A/B两个包）
+# 自动构建并打包（使用Intel HEX分割处理）
 python tools/release.py auto --version 1.0.0
 
 # 交互式输入版本号
@@ -216,13 +218,15 @@ python tools/release.py auto
 
 **功能特性：**
 - **自动调用构建工具**：自动调用build.py构建slot A和slot B的application
+- **Intel HEX分割处理**：自动解析HEX文件并分割为二进制组件
+- **地址映射精确处理**：每个地址段独立存储，支持精确地址映射
 - **自动提取数据**：自动调用extract_adc_mapping.py生成ADC mapping文件
 - **自动复制资源**：自动复制webresources文件
 - **双槽支持**：一次命令生成槽A和槽B两个完整发版包
 - **地址重映射**：槽B自动重新编译以适配不同地址空间
 - **进度显示**：实时显示构建进度和耗时统计
 - **完整性保证**：自动生成包含地址、大小、校验和的manifest.json元数据文件
-- **自动打包**：将以上四个文件打包成zip格式的release包
+- **自动打包**：将处理后的BIN文件打包成zip格式的release包
 - **自动保存**：自动保存到`/releases`目录
 
 **生成结果：**
@@ -231,22 +235,40 @@ python tools/release.py auto
 - 文件格式：`hbox_firmware_1.0.0_b_YYYYMMDD_HHMMSS.zip`
 
 **每个包包含：**
-1. `application_slot_x.hex` - 应用程序固件
+1. `application_slot_x.bin` - 应用程序固件（从HEX分割的二进制文件）
 2. `webresources.bin` - Web界面资源
 3. `slot_a_adc_mapping.bin` - ADC通道映射数据
-4. `manifest.json` - 包元数据
+4. `manifest.json` - 包元数据（含file_type信息）
+
+**Intel HEX分割处理说明：**
+
+传统方式直接使用HEX文件存在的问题：
+- HEX文件包含地址信息，但按chunk直接处理会导致地址映射错误
+- 数据可能不连续，存在地址跳跃和填充区域
+- 无法有效处理LMA（Load Memory Address）和VMA（Virtual Memory Address）差异
+
+Intel HEX分割处理的优势：
+- **精确地址映射**：完整解析HEX文件中的地址信息，确保正确的内存映射
+- **组件独立存储**：每个地址段分割为独立的二进制文件
+- **自动过滤RAM段**：智能识别并过滤RAM区域（VMA），只保存需要Flash烧写的组件
+- **详细组件信息**：生成包含地址范围、大小、校验和的详细manifest
+- **调试友好**：便于分析地址冲突和内存布局问题
 
 **每个文件的生成方式：**
 
-1. **application_slot_x.hex** - 应用程序固件
-   - **生成工具**: `tools/build.py`
-   - **生成命令**: `python tools/build.py build app A` (槽A) 或 `python tools/build.py build app B` (槽B)
-   - **源文件位置**: `application/` 目录下的所有源代码
-   - **输出位置**: `application/build/application_slot_A.hex` 或 `application/build/application_slot_B.hex`
+1. **application_slot_x.bin** - 应用程序固件（Intel HEX分割处理）
+   - **生成工具**: `tools/build.py` + Intel HEX分割器
+   - **生成命令**: `python tools/build.py build app A` → HEX分割 → BIN文件
+   - **处理流程**: 
+     1. 构建生成HEX文件
+     2. 使用intelhex库解析HEX文件地址段
+     3. 识别application组件（通常在0x90000000或0x902B0000）
+     4. 分割为独立的BIN文件
+     5. 自动过滤RAM段（0x30000000、0x38000000等）
    - **地址映射**: 
      - 槽A: 0x90000000 (1MB空间)
-     - 槽B: 0x902B0000 (1MB空间，自动重新编译以适配地址)
-   - **特殊处理**: 槽B需要修改链接脚本地址并重新编译
+     - 槽B: 0x902B0000 (1MB空间)
+   - **特殊处理**: 生成的BIN文件用于OpenOCD刷写时需要指定正确的偏移地址
 
 2. **webresources.bin** - Web界面资源
    - **生成方式**: 直接复制现有文件
@@ -273,6 +295,9 @@ python tools/release.py auto
    - **包含信息**:
      - 版本号、槽位、构建时间
      - 每个组件的文件名、地址、大小、SHA256校验和
+     - **file_type标记**: "bin"（用于区分文件类型）
+     - **hex_processed标记**: true（标识使用了HEX分割处理）
+     - **HEX分析信息**: 包含HEX文件的段数量、RAM段过滤等信息
    - **用途**: 用于包完整性验证和刷写时的地址映射
 
 **文件生成流程总览：**
@@ -281,14 +306,22 @@ python tools/release.py auto
    ├─ 槽A: 使用默认地址 0x90000000
    └─ 槽B: 修改链接脚本到 0x902B0000 并重新编译
 
-2. 从 resources/ 目录复制 WebResources 和 ADC Mapping
+2. Intel HEX分割处理
+   ├─ 使用intelhex库解析HEX文件地址段
+   ├─ 识别Flash组件（application、其他段）
+   ├─ 过滤RAM段（0x30000000、0x38000000等）
+   └─ 分割为独立的BIN文件
+
+3. 从 resources/ 目录复制其他组件
    ├─ webresources.bin: Web界面静态资源
    └─ slot_a_adc_mapping.bin: ADC校准映射数据
 
-3. 自动生成 manifest.json 元数据文件
-   └─ 包含所有组件的地址、大小、校验和信息
+4. 自动生成 manifest.json 元数据文件
+   ├─ 包含所有组件的地址、大小、校验和信息
+   ├─ 标记file_type为"bin"
+   └─ 记录HEX处理信息
 
-4. 打包成 ZIP 格式的 release 包
+5. 打包成 ZIP 格式的 release 包
    └─ 文件名格式: hbox_firmware_1.0.0_x_YYYYMMDD_HHMMSS.zip
 ```
 
@@ -296,14 +329,17 @@ python tools/release.py auto
 工具会显示详细的进度条和步骤信息：
 ```
 === 开始生成槽A release包 ===
-[██████████████████████████████████████████████████] 100.0% (6/6) 移动到releases目录...
-完成! 总耗时: 15.2秒
+使用Intel HEX分割处理模式
+[████████████████████████████████████████████] 100.0% (8/8) 移动到releases目录...
+解析Intel HEX文件...
+发现application组件: application_slot_a (252,284 字节)
+完成! 总耗时: 18.3秒
 
 [OK] 生成release包: releases/hbox_firmware_1.0.0_a_20241201_143022.zip
      包大小: 2,458,123 字节
 ```
 
-**manifest.json示例：**
+**manifest.json示例（Intel HEX分割处理）：**
 ```json
 {
   "version": "1.0.0",
@@ -312,27 +348,44 @@ python tools/release.py auto
   "components": [
     {
       "name": "application",
-      "file": "application_slot_a.hex",
+      "file": "application_slot_a.bin",
       "address": "0x90000000",
-      "size": 524288,
-      "sha256": "abc123..."
+      "size": 252284,
+      "sha256": "abc123...",
+      "file_type": "bin"
     },
     {
       "name": "webresources", 
       "file": "webresources.bin",
       "address": "0x90100000",
       "size": 1048576,
-      "sha256": "def456..."
+      "sha256": "def456...",
+      "file_type": "bin"
     },
     {
       "name": "adc_mapping",
       "file": "slot_a_adc_mapping.bin", 
       "address": "0x90280000",
       "size": 4096,
-      "sha256": "ghi789..."
+      "sha256": "ghi789...",
+      "file_type": "bin"
     }
-  ]
+  ],
+  "hex_processed": true,
+  "hex_info": {
+    "original_hex_file": "application_slot_A.hex",
+    "hex_segments": 5,
+    "flash_components": 1,
+    "ram_segments": 2,
+    "hex_build_date": "2024-12-01 14:28:15"
+  }
 }
+```
+
+**Intel HEX测试命令：**
+```bash
+# 独立测试HEX文件分割功能
+python tools/release.py hex application/build/application.hex --output hex_test --version 1.0.0
 ```
 
 #### 发版包管理功能
