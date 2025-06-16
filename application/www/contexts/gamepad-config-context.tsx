@@ -1543,32 +1543,32 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     const targetAddress = baseAddress + chunkOffset;
                     const chunkSize = chunkData.length;
 
-                    // 检测并处理Intel HEX格式
-                    let dataForChecksum: Uint8Array = chunkData;
-                    let isHexChunk = false;
+                    // 计算分片的校验和
+                    // 对于Intel HEX数据，后端会先转换为二进制再计算校验和
+                    // 为了保持一致性，我们也需要对Intel HEX分片转换后再计算校验和
+                    let chunkForChecksum: Uint8Array = chunkData;
                     
+                    // 检查这个分片是否是Intel HEX格式
                     if (isIntelHexFormat(chunkData)) {
-                        console.log(`Chunk ${chunkIndex} detected as Intel HEX format, converting to binary for checksum calculation`);
                         try {
-                            const convertedData = convertIntelHexToBinary(chunkData);
-                            dataForChecksum = new Uint8Array(convertedData);
-                            isHexChunk = true;
-                            console.log(`Intel HEX conversion: ${chunkData.length} bytes -> ${dataForChecksum.length} bytes`);
+                            // 转换Intel HEX为二进制用于校验和计算
+                            chunkForChecksum = new Uint8Array(convertIntelHexToBinary(chunkData));
+                            console.log(`Chunk ${chunkIndex + 1}/${totalChunks} (${component.name}): Intel HEX ${chunkData.length} bytes -> binary ${chunkForChecksum.length} bytes`);
                         } catch (error) {
-                            console.warn(`Failed to convert Intel HEX chunk ${chunkIndex}:`, error);
+                            console.warn(`Failed to convert Intel HEX chunk ${chunkIndex + 1} for checksum:`, error);
                             // 如果转换失败，使用原始数据
-                            dataForChecksum = chunkData;
+                            chunkForChecksum = chunkData;
                         }
                     }
-
-                    // 计算chunk校验和（使用处理后的数据）
-                    const chunkChecksum = await calculateSHA256(dataForChecksum);
+                    
+                    // 使用与后端一致的SHA256实现（同步版本）
+                    const checksum = calculateSHA256JS(chunkForChecksum);
 
                     // 添加调试输出
-                    console.log(`Frontend calculated chunk ${chunkIndex} SHA256:`, chunkChecksum);
-                    console.log(`Chunk data type: ${isHexChunk ? 'Intel HEX' : 'Binary'}`);
-                    console.log(`Original chunk size: ${chunkData.length}, Checksum data size: ${dataForChecksum.length}`);
-                    console.log(`First 32 bytes of checksum data:`, Array.from(dataForChecksum.slice(0, 32)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+                    console.log(`Frontend calculated chunk ${chunkIndex} SHA256:`, checksum);
+                    console.log(`Chunk data type: ${isIntelHexFormat(chunkData) ? 'Intel HEX' : 'Binary'}`);
+                    console.log(`Original chunk size: ${chunkData.length}, Checksum data size: ${chunkForChecksum.length}`);
+                    console.log(`First 32 bytes of checksum data:`, Array.from(chunkForChecksum.slice(0, 32)).map(b => b.toString(16).padStart(2, '0')).join(' '));
 
                     // 创建FormData进行二进制传输
                     const formData = new FormData();
@@ -1582,7 +1582,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                         target_address: `0x${targetAddress.toString(16).toUpperCase()}`,
                         chunk_size: chunkSize,
                         chunk_offset: chunkOffset,
-                        checksum: chunkChecksum
+                        checksum: checksum
                     };
                     
                     // 调试输出metadata对象

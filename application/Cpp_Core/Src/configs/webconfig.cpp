@@ -2813,49 +2813,60 @@ uint8_t* extract_multipart_binary_data(size_t* data_len) {
     *data_len = 0;
     
     APP_DBG("extract_multipart_binary_data: payload_len=%d", http_post_payload_len);
-    APP_DBG("extract_multipart_binary_data: payload first 100 chars: %.100s", http_post_payload);
     
-    // 查找 name="data" 字段（这是前端发送的二进制数据字段）
+    if (!http_post_payload || http_post_payload_len <= 0) {
+        APP_DBG("extract_multipart_binary_data: no payload data");
+        return nullptr;
+    }
+    
+    // 查找 name="data" 字段
     const char* data_field_start = strstr(http_post_payload, "name=\"data\"");
     if (!data_field_start) {
         APP_DBG("extract_multipart_binary_data: name=\"data\" not found");
         return nullptr;
     }
     
-    // 从data字段开始位置查找Content-Type
-    const char* content_type_start = strstr(data_field_start, "Content-Type:");
-    if (!content_type_start) {
-        APP_DBG("extract_multipart_binary_data: Content-Type not found after name=\"data\"");
-        return nullptr;
-    }
-    
-    // 查找数据开始位置（跳过HTTP头，寻找空行）
-    const char* data_start = strstr(content_type_start, "\r\n\r\n");
-    if (!data_start) {
-        data_start = strstr(content_type_start, "\n\n");
-        if (data_start) {
-            data_start += 2;
+    // 从data字段开始位置查找数据开始（跳过headers）
+    const char* headers_end = strstr(data_field_start, "\r\n\r\n");
+    if (!headers_end) {
+        headers_end = strstr(data_field_start, "\n\n");
+        if (headers_end) {
+            headers_end += 2;
         }
     } else {
-        data_start += 4;
+        headers_end += 4;
     }
     
-    if (!data_start) {
-        APP_DBG("extract_multipart_binary_data: data start not found");
+    if (!headers_end) {
+        APP_DBG("extract_multipart_binary_data: data headers end not found");
         return nullptr;
     }
     
-    // 查找数据结束位置（下一个边界标记）
-    const char* data_end = strstr(data_start, "\r\n--");
-    if (!data_end) {
-        data_end = strstr(data_start, "\n--");
-        if (data_end) {
-            // 找到了换行符+边界，数据在换行符之前结束
+    const char* data_start = headers_end;
+    
+    // 查找数据结束位置：下一个boundary（以 \r\n-- 或 \n-- 开始）
+    const char* data_end = nullptr;
+    
+    // 从数据开始位置向后查找boundary模式
+    const char* search_pos = data_start;
+    while (search_pos < http_post_payload + http_post_payload_len - 4) {
+        // 查找 \r\n-- 或 \n-- 模式
+        if ((*search_pos == '\r' && *(search_pos + 1) == '\n' && 
+             *(search_pos + 2) == '-' && *(search_pos + 3) == '-') ||
+            (*search_pos == '\n' && *(search_pos + 1) == '-' && *(search_pos + 2) == '-')) {
+            data_end = search_pos;
+            break;
         }
+        search_pos++;
     }
+    
     if (!data_end) {
-        // 如果没找到边界，使用payload结束位置
+        // 如果没找到boundary，使用payload末尾
         data_end = http_post_payload + http_post_payload_len;
+        // 回退一些字符以避免包含结尾的boundary
+        while (data_end > data_start && (*(data_end - 1) == '-' || *(data_end - 1) == '\r' || *(data_end - 1) == '\n')) {
+            data_end--;
+        }
     }
     
     *data_len = data_end - data_start;
@@ -2879,14 +2890,15 @@ uint8_t* extract_multipart_binary_data(size_t* data_len) {
     memcpy(binary_data, data_start, *data_len);
     
     APP_DBG("extract_multipart_binary_data: extracted %d bytes successfully", *data_len);
-    // 打印前16个字节用于调试
+    
+    // 打印前32个字节用于调试（十六进制格式）
     if (*data_len > 0) {
-        char hex_debug[64] = {0};
-        int debug_bytes = (*data_len > 16) ? 16 : *data_len;
+        char hex_debug[100] = {0};
+        int debug_bytes = (*data_len > 32) ? 32 : *data_len;
         for (int i = 0; i < debug_bytes; i++) {
-            sprintf(&hex_debug[i*3], "%02X ", binary_data[i]);
+            sprintf(&hex_debug[i*2], "%02x", binary_data[i]);
         }
-        APP_DBG("extract_multipart_binary_data: first %d bytes: %s", debug_bytes, hex_debug);
+        APP_DBG("extract_multipart_binary_data: first %d bytes (hex): %s", debug_bytes, hex_debug);
     }
     
     return binary_data;
@@ -3176,8 +3188,57 @@ std::string apiFirmwareChunk() {
     if (binaryData) {
         needFreeData = true;
         
+        APP_DBG("Received binary data from multipart, size: %d", binaryDataLen);
+        
+        // 输出前32字节用于调试
+        if (binaryDataLen >= 32) {
+            char hex_debug[65];
+            for (int i = 0; i < 32; i++) {
+                sprintf(hex_debug + i*2, "%02x", binaryData[i]);
+            }
+            hex_debug[64] = '\0';
+            APP_DBG("First 32 bytes of received data: %s", hex_debug);
+        }
+        
         // 检查是否为Intel HEX格式
-        if (binaryDataLen > 0 && binaryData[0] == ':') {
+        // 更严格的检测：不仅检查第一个字节，还要验证是否符合Intel HEX行格式
+        bool isIntelHex = false;
+        if (binaryDataLen > 10 && binaryData[0] == ':') {
+            // 检查第一行是否符合Intel HEX格式
+            // Intel HEX行格式：:LLAAAATT[DD...]CC
+            // L=长度(2位), A=地址(4位), T=类型(2位), D=数据, C=校验和(2位)
+            
+            // 查找第一行的结束位置
+            size_t lineEnd = 0;
+            for (size_t i = 1; i < binaryDataLen && i < 50; i++) { // 限制搜索范围
+                if (binaryData[i] == '\n' || binaryData[i] == '\r') {
+                    lineEnd = i;
+                    break;
+                }
+            }
+            
+            if (lineEnd > 10) { // Intel HEX行最少11个字符（不含换行）
+                // 检查第一行的字符是否都是有效的十六进制字符
+                bool validHexLine = true;
+                for (size_t i = 1; i < lineEnd; i++) {
+                    char c = binaryData[i];
+                    if (!((c >= '0' && c <= '9') || 
+                          (c >= 'A' && c <= 'F') || 
+                          (c >= 'a' && c <= 'f'))) {
+                        validHexLine = false;
+                        break;
+                    }
+                }
+                
+                // 检查行长度是否合理（Intel HEX行通常是偶数长度+1）
+                if (validHexLine && (lineEnd - 1) % 2 == 0 && lineEnd >= 11) {
+                    isIntelHex = true;
+                    APP_DBG("Intel HEX format detected with strict validation");
+                }
+            }
+        }
+        
+        if (isIntelHex) {
             APP_DBG("Detected Intel HEX format, converting to binary...");
             
             // 这是Intel HEX格式，需要转换为二进制
@@ -3190,6 +3251,16 @@ std::string apiFirmwareChunk() {
                 binaryData = convertedData;
                 binaryDataLen = convertedSize;
                 APP_DBG("Intel HEX conversion successful, binary size: %d", convertedSize);
+                
+                // 输出转换后的前32字节用于调试
+                if (convertedSize >= 32) {
+                    char hex_debug_converted[65];
+                    for (int i = 0; i < 32; i++) {
+                        sprintf(hex_debug_converted + i*2, "%02x", binaryData[i]);
+                    }
+                    hex_debug_converted[64] = '\0';
+                    APP_DBG("First 32 bytes after Intel HEX conversion: %s", hex_debug_converted);
+                }
             } else {
                 APP_DBG("Intel HEX conversion failed");
                 free(binaryData);
@@ -3198,6 +3269,8 @@ std::string apiFirmwareChunk() {
                 std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Intel HEX conversion failed");
                 return response;
             }
+        } else {
+            APP_DBG("Binary data detected (not Intel HEX), size: %d", binaryDataLen);
         }
     } else {
         // 如果没有找到二进制数据，尝试从JSON中获取Base64编码的数据
