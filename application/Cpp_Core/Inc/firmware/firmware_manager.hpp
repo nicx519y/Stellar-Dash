@@ -163,7 +163,7 @@ typedef struct {
 #define MAX_CHUNKS_PER_COMPONENT    512         // 最大分片数
 
 // 会话超时时间 (毫秒)
-#define UPGRADE_SESSION_TIMEOUT     1800000     // 30分钟
+#define UPGRADE_SESSION_TIMEOUT     300000      // 5分钟 (原来30分钟太长)
 
 #ifdef __cplusplus
 }
@@ -244,6 +244,9 @@ public:
     
     // 清理过期会话
     void CleanupExpiredSessions();
+    
+    // 强制清理当前会话
+    void ForceCleanupSession();
     
     // 验证固件完整性
     bool VerifyFirmwareIntegrity(FirmwareSlot slot);

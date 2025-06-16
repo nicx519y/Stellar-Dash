@@ -2809,70 +2809,103 @@ cJSON* parse_multipart_json_metadata() {
 /**
  * @brief 从multipart数据中提取二进制数据
  */
-uint8_t* extract_multipart_binary_data(size_t* data_len) {
-    *data_len = 0;
+uint8_t* extract_multipart_binary_data(const char* http_post_payload, 
+                                       uint16_t http_post_payload_len, 
+                                       uint16_t* data_len) {
+    if (!http_post_payload || !data_len || http_post_payload_len == 0) {
+        return nullptr;
+    }
     
     APP_DBG("extract_multipart_binary_data: payload_len=%d", http_post_payload_len);
     
-    if (!http_post_payload || http_post_payload_len <= 0) {
-        APP_DBG("extract_multipart_binary_data: no payload data");
+    // 查找metadata中的chunk_size
+    const char* chunk_size_key = "\"chunk_size\":";
+    const char* chunk_size_pos = strstr(http_post_payload, chunk_size_key);
+    uint16_t expected_chunk_size = 0;
+    
+    if (chunk_size_pos) {
+        chunk_size_pos += strlen(chunk_size_key);
+        // 跳过可能的空格
+        while (*chunk_size_pos == ' ' || *chunk_size_pos == '\t') {
+            chunk_size_pos++;
+        }
+        expected_chunk_size = (uint16_t)atoi(chunk_size_pos);
+        APP_DBG("extract_multipart_binary_data: found expected chunk_size=%d", expected_chunk_size);
+    }
+    
+    // 查找 name="data" 标记
+    const char* data_marker = "name=\"data\"";
+    const char* data_start = strstr(http_post_payload, data_marker);
+    
+    if (!data_start) {
+        APP_ERR("extract_multipart_binary_data: could not find name=\"data\" marker");
         return nullptr;
     }
     
-    // 查找 name="data" 字段
-    const char* data_field_start = strstr(http_post_payload, "name=\"data\"");
-    if (!data_field_start) {
-        APP_DBG("extract_multipart_binary_data: name=\"data\" not found");
-        return nullptr;
-    }
-    
-    // 从data字段开始位置查找数据开始（跳过headers）
-    const char* headers_end = strstr(data_field_start, "\r\n\r\n");
-    if (!headers_end) {
-        headers_end = strstr(data_field_start, "\n\n");
-        if (headers_end) {
-            headers_end += 2;
+    // 从name="data"位置开始查找数据开始标记
+    data_start = strstr(data_start, "\r\n\r\n");
+    if (!data_start) {
+        data_start = strstr(data_start, "\n\n");
+        if (data_start) {
+            data_start += 2; // 跳过 \n\n
+            APP_DBG("extract_multipart_binary_data: found data start with \\n\\n pattern");
         }
     } else {
-        headers_end += 4;
+        data_start += 4; // 跳过 \r\n\r\n
+        APP_DBG("extract_multipart_binary_data: found data start with \\r\\n\\r\\n pattern");
     }
     
-    if (!headers_end) {
-        APP_DBG("extract_multipart_binary_data: data headers end not found");
+    if (!data_start) {
+        APP_ERR("extract_multipart_binary_data: could not find data start marker");
         return nullptr;
     }
     
-    const char* data_start = headers_end;
-    
-    // 查找数据结束位置：下一个boundary（以 \r\n-- 或 \n-- 开始）
-    const char* data_end = nullptr;
-    
-    // 从数据开始位置向后查找boundary模式
-    const char* search_pos = data_start;
-    while (search_pos < http_post_payload + http_post_payload_len - 4) {
-        // 查找 \r\n-- 或 \n-- 模式
-        if ((*search_pos == '\r' && *(search_pos + 1) == '\n' && 
-             *(search_pos + 2) == '-' && *(search_pos + 3) == '-') ||
-            (*search_pos == '\n' && *(search_pos + 1) == '-' && *(search_pos + 2) == '-')) {
-            data_end = search_pos;
-            break;
-        }
-        search_pos++;
+    // 确保data_start在有效范围内
+    if (data_start >= http_post_payload + http_post_payload_len) {
+        APP_ERR("extract_multipart_binary_data: data_start beyond payload boundary");
+        return nullptr;
     }
     
-    if (!data_end) {
-        // 如果没找到boundary，使用payload末尾
-        data_end = http_post_payload + http_post_payload_len;
-        // 回退一些字符以避免包含结尾的boundary
-        while (data_end > data_start && (*(data_end - 1) == '-' || *(data_end - 1) == '\r' || *(data_end - 1) == '\n')) {
-            data_end--;
+    APP_DBG("extract_multipart_binary_data: data_start=%p (offset: %zu)", data_start, data_start - http_post_payload);
+    
+    // 计算可用的数据长度
+    uint16_t available_data_len = http_post_payload + http_post_payload_len - data_start;
+    APP_DBG("extract_multipart_binary_data: available_data_len=%d", available_data_len);
+    
+    // 如果我们知道期望的chunk_size，直接使用它
+    if (expected_chunk_size > 0 && expected_chunk_size <= available_data_len) {
+        *data_len = expected_chunk_size;
+        APP_DBG("extract_multipart_binary_data: using expected chunk_size=%d", expected_chunk_size);
+    } else {
+        // 否则查找边界标记
+        const char* data_end = http_post_payload + http_post_payload_len;
+        
+        // 在数据中查找可能的boundary开始标记：\r\n-- 或 \n--
+        const char* boundary_start = strstr(data_start, "\r\n--");
+        if (!boundary_start) {
+            boundary_start = strstr(data_start, "\n--");
         }
+        
+        if (boundary_start) {
+            data_end = boundary_start;
+            APP_DBG("extract_multipart_binary_data: found boundary at offset %zu from data_start", 
+                    boundary_start - data_start);
+        } else {
+            APP_DBG("extract_multipart_binary_data: no boundary found, using payload end");
+            // 打印payload末尾50字节的内容来调试
+            if (http_post_payload_len > 50) {
+                char debug_end[101] = {0};
+                const char* end_start = http_post_payload + http_post_payload_len - 50;
+                for (int i = 0; i < 50; i++) {
+                    sprintf(&debug_end[i*2], "%02x", (uint8_t)end_start[i]);
+                }
+                APP_DBG("extract_multipart_binary_data: last 50 bytes: %s", debug_end);
+            }
+        }
+        
+        *data_len = data_end - data_start;
+        APP_DBG("extract_multipart_binary_data: calculated data_len=%d", *data_len);
     }
-    
-    *data_len = data_end - data_start;
-    
-    APP_DBG("extract_multipart_binary_data: data_start=%p, data_end=%p, data_len=%d", 
-            data_start, data_end, *data_len);
     
     if (*data_len <= 0) {
         APP_DBG("extract_multipart_binary_data: invalid data length");
@@ -3055,39 +3088,33 @@ std::string apiFirmwareUpgrade() {
         // 获取升级状态
         const UpgradeSession* session = manager->GetUpgradeSession(sessionId);
         if (session) {
-            success = true;
             cJSON_AddStringToObject(dataJSON, "session_id", session->session_id);
-            
-            // 将枚举转换为字符串
-            const char* statusStr = "unknown";
-            switch (session->status) {
-                case UPGRADE_STATUS_IDLE: statusStr = "idle"; break;
-                case UPGRADE_STATUS_ACTIVE: statusStr = "active"; break;
-                case UPGRADE_STATUS_COMPLETED: statusStr = "completed"; break;
-                case UPGRADE_STATUS_ABORTED: statusStr = "aborted"; break;
-                case UPGRADE_STATUS_FAILED: statusStr = "failed"; break;
-            }
-            cJSON_AddStringToObject(dataJSON, "status", statusStr);
             cJSON_AddNumberToObject(dataJSON, "progress", session->total_progress);
-            cJSON_AddNumberToObject(dataJSON, "created_at", session->created_at);
+            cJSON_AddStringToObject(dataJSON, "status", 
+                (session->status == UPGRADE_STATUS_ACTIVE) ? "active" :
+                (session->status == UPGRADE_STATUS_COMPLETED) ? "completed" :
+                (session->status == UPGRADE_STATUS_FAILED) ? "failed" : "aborted");
             
-            // 组件进度信息
+            // 添加组件信息
             cJSON* componentsArray = cJSON_CreateArray();
             for (uint32_t i = 0; i < session->component_count; i++) {
-                const ComponentUpgradeData* compData = &session->components[i];
                 cJSON* compObj = cJSON_CreateObject();
-                cJSON_AddStringToObject(compObj, "name", compData->component_name);
-                cJSON_AddNumberToObject(compObj, "total_chunks", compData->total_chunks);
-                cJSON_AddNumberToObject(compObj, "received_chunks", compData->received_chunks);
-                cJSON_AddNumberToObject(compObj, "total_size", compData->total_size);
-                cJSON_AddNumberToObject(compObj, "received_size", compData->received_size);
-                cJSON_AddBoolToObject(compObj, "completed", compData->completed);
+                cJSON_AddStringToObject(compObj, "name", session->components[i].component_name);
+                cJSON_AddNumberToObject(compObj, "received_chunks", session->components[i].received_chunks);
+                cJSON_AddNumberToObject(compObj, "total_chunks", session->components[i].total_chunks);
+                cJSON_AddBoolToObject(compObj, "completed", session->components[i].completed);
                 cJSON_AddItemToArray(componentsArray, compObj);
             }
             cJSON_AddItemToObject(dataJSON, "components", componentsArray);
         } else {
             cJSON_AddStringToObject(dataJSON, "error", "Session not found");
         }
+        
+    } else if (strcmp(action, "cleanup") == 0) {
+        // 强制清理当前会话
+        manager->ForceCleanupSession();
+        cJSON_AddBoolToObject(dataJSON, "success", true);
+        cJSON_AddStringToObject(dataJSON, "message", "Session cleanup completed successfully");
         
     } else {
         cJSON_Delete(postParams);
@@ -3185,11 +3212,11 @@ std::string apiFirmwareChunk() {
 
     // 获取二进制数据
     uint8_t* binaryData = nullptr;
-    size_t binaryDataLen = 0;
+    uint16_t binaryDataLen = 0;
     bool needFreeData = false;
 
     // 首先尝试从multipart数据中提取二进制数据
-    binaryData = extract_multipart_binary_data(&binaryDataLen);
+    binaryData = extract_multipart_binary_data(http_post_payload, http_post_payload_len, &binaryDataLen);
     if (binaryData) {
         needFreeData = true;
         
@@ -3223,7 +3250,15 @@ std::string apiFirmwareChunk() {
         cJSON* dataItem = cJSON_GetObjectItem(metadataJSON, "data");
         if (dataItem && cJSON_IsString(dataItem)) {
             const char* base64Data = cJSON_GetStringValue(dataItem);
-            binaryData = base64_decode(base64Data, &binaryDataLen);
+            
+            // 尝试Base64解码
+            binaryData = nullptr; // 重置指针
+            needFreeData = false;
+            
+            size_t tempDataLen = 0;
+            binaryData = base64_decode(base64Data, &tempDataLen);
+            binaryDataLen = (uint16_t)tempDataLen;
+            
             if (binaryData) {
                 needFreeData = true;
             }
@@ -3466,6 +3501,38 @@ std::string apiFirmwareUpgradeStatus() {
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
     return response;
 }
+
+/**
+ * @brief 清理固件升级会话
+ * @return std::string 
+ * POST /api/firmware-upgrade-cleanup
+ * 
+ * Response:
+ * {
+ *      "errNo": 0,
+ *      "data": {
+ *          "message": "Session cleanup completed successfully"
+ *      }
+ * }
+ */
+std::string apiFirmwareUpgradeCleanup() {
+    FirmwareManager* manager = FirmwareManager::GetInstance();
+    if (!manager) {
+        cJSON* dataJSON = cJSON_CreateObject();
+        std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Failed to get firmware manager instance");
+        return response;
+    }
+
+    // 强制清理当前会话
+    manager->ForceCleanupSession();
+    
+    // 返回成功响应
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(dataJSON, "message", "Session cleanup completed successfully");
+    
+    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    return response;
+}
 /*============================================ apis end ====================================================*/
 
 
@@ -3509,6 +3576,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/firmware-upgrade/chunk", apiFirmwareChunk },             // 处理固件分片上传
     { "/api/firmware-upgrade-complete", apiFirmwareUpgradeComplete }, // 完成固件升级会话
     { "/api/firmware-upgrade-abort", apiFirmwareUpgradeAbort },       // 中止固件升级会话
+    { "/api/firmware-upgrade-cleanup", apiFirmwareUpgradeCleanup },     // 清理固件升级会话
 #if !defined(NDEBUG)
     // { "/api/echo", echo },
 #endif

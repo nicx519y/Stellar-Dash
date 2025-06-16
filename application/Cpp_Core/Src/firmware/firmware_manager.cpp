@@ -366,28 +366,21 @@ bool FirmwareManager::CreateUpgradeSession(const char* session_id, const Firmwar
     
     // 检查是否已有活动会话
     if (session_active && current_session != nullptr) {
-        // 如果旧会话状态为失败、中止或超时，自动清理
-        if (current_session->status == UPGRADE_STATUS_FAILED || 
-            current_session->status == UPGRADE_STATUS_ABORTED) {
-            APP_DBG("FirmwareManager::CreateUpgradeSession: Cleaning up previous failed/aborted session");
-            delete current_session;
-            current_session = nullptr;
-            session_active = false;
-        } else {
-            // 如果是活跃状态的会话，检查是否超时
-            uint32_t current_time = HAL_GetTick();
-            uint32_t session_age = current_time - current_session->created_at;
-            
-            if (session_age > UPGRADE_SESSION_TIMEOUT) {
-                APP_DBG("FirmwareManager::CreateUpgradeSession: Cleaning up expired session");
-                delete current_session;
-                current_session = nullptr;
-                session_active = false;
-            } else {
-                APP_ERR("FirmwareManager::CreateUpgradeSession: Already has an active session");
-                return false; // 仍有活动会话
-            }
+        // 强制清理任何现有会话，无论其状态如何
+        APP_DBG("FirmwareManager::CreateUpgradeSession: Force terminating existing session (ID: %s, status: %d)", 
+                current_session->session_id, current_session->status);
+        
+        // 如果旧会话仍在进行中，标记为中止
+        if (current_session->status == UPGRADE_STATUS_ACTIVE) {
+            current_session->status = UPGRADE_STATUS_ABORTED;
         }
+        
+        // 清理旧会话
+        delete current_session;
+        current_session = nullptr;
+        session_active = false;
+        
+        APP_DBG("FirmwareManager::CreateUpgradeSession: Previous session terminated successfully");
     }
     
     // 创建新会话
@@ -433,6 +426,9 @@ bool FirmwareManager::CreateUpgradeSession(const char* session_id, const Firmwar
 }
 
 const UpgradeSession* FirmwareManager::GetUpgradeSession(const char* session_id) {
+    // 先清理过期会话
+    CleanupExpiredSessions();
+    
     if (!session_active || current_session == nullptr) {
         return nullptr;
     }
@@ -446,6 +442,9 @@ const UpgradeSession* FirmwareManager::GetUpgradeSession(const char* session_id)
 
 bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* component_name, 
                                           const ChunkData* chunk) {
+    // 先清理过期会话
+    CleanupExpiredSessions();
+    
     if (!session_active || current_session == nullptr) {
         APP_ERR("FirmwareManager::ProcessFirmwareChunk: No active session");
         return false;
@@ -768,6 +767,21 @@ void FirmwareManager::CleanupExpiredSessions() {
         
         APP_DBG("FirmwareManager::CleanupExpiredSessions: Cleaning up session with status %d, age %d ms", 
                 current_session->status, session_age);
+        
+        delete current_session;
+        current_session = nullptr;
+        session_active = false;
+    }
+}
+
+// 添加主动会话清理函数，在多个API调用时使用
+void FirmwareManager::ForceCleanupSession() {
+    if (session_active && current_session != nullptr) {
+        APP_DBG("FirmwareManager::ForceCleanupSession: Force cleaning session (ID: %s, status: %d)", 
+                current_session->session_id, current_session->status);
+        
+        // 标记为中止状态
+        current_session->status = UPGRADE_STATUS_ABORTED;
         
         delete current_session;
         current_session = nullptr;
