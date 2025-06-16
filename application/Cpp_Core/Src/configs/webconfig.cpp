@@ -3030,6 +3030,11 @@ std::string apiFirmwareUpgrade() {
         cJSON_AddBoolToObject(dataJSON, "success", success);
         cJSON_AddStringToObject(dataJSON, "session_id", sessionId);
         
+        if (!success) {
+            // 添加更详细的错误信息
+            cJSON_AddStringToObject(dataJSON, "error", "Failed to create upgrade session. This may be due to an existing active session. Please try again or abort any existing sessions.");
+            APP_ERR("FirmwareManager::apiFirmwareUpgrade: CreateUpgradeSession failed for session %s", sessionId);
+        }
     } else if (strcmp(action, "complete") == 0) {
         // 完成升级会话
         success = manager->CompleteUpgradeSession(sessionId);
@@ -3190,7 +3195,7 @@ std::string apiFirmwareChunk() {
         
         APP_DBG("Received binary data from multipart, size: %d", binaryDataLen);
         
-        // 输出前32字节用于调试
+        // 检查是否有二进制数据
         if (binaryDataLen >= 32) {
             char hex_debug[65];
             for (int i = 0; i < 32; i++) {
@@ -3200,77 +3205,18 @@ std::string apiFirmwareChunk() {
             APP_DBG("First 32 bytes of received data: %s", hex_debug);
         }
         
-        // 检查是否为Intel HEX格式
-        // 更严格的检测：不仅检查第一个字节，还要验证是否符合Intel HEX行格式
-        bool isIntelHex = false;
-        if (binaryDataLen > 10 && binaryData[0] == ':') {
-            // 检查第一行是否符合Intel HEX格式
-            // Intel HEX行格式：:LLAAAATT[DD...]CC
-            // L=长度(2位), A=地址(4位), T=类型(2位), D=数据, C=校验和(2位)
-            
-            // 查找第一行的结束位置
-            size_t lineEnd = 0;
-            for (size_t i = 1; i < binaryDataLen && i < 50; i++) { // 限制搜索范围
-                if (binaryData[i] == '\n' || binaryData[i] == '\r') {
-                    lineEnd = i;
-                    break;
-                }
-            }
-            
-            if (lineEnd > 10) { // Intel HEX行最少11个字符（不含换行）
-                // 检查第一行的字符是否都是有效的十六进制字符
-                bool validHexLine = true;
-                for (size_t i = 1; i < lineEnd; i++) {
-                    char c = binaryData[i];
-                    if (!((c >= '0' && c <= '9') || 
-                          (c >= 'A' && c <= 'F') || 
-                          (c >= 'a' && c <= 'f'))) {
-                        validHexLine = false;
-                        break;
-                    }
-                }
-                
-                // 检查行长度是否合理（Intel HEX行通常是偶数长度+1）
-                if (validHexLine && (lineEnd - 1) % 2 == 0 && lineEnd >= 11) {
-                    isIntelHex = true;
-                    APP_DBG("Intel HEX format detected with strict validation");
-                }
-            }
-        }
+        // 直接处理二进制数据（移除Intel HEX相关逻辑）
+        APP_DBG("Processing binary data, size: %d", binaryDataLen);
         
-        if (isIntelHex) {
-            APP_DBG("Detected Intel HEX format, converting to binary...");
-            
-            // 这是Intel HEX格式，需要转换为二进制
-            uint8_t* convertedData = nullptr;
-            size_t convertedSize = 0;
-            
-            if (convert_intel_hex_to_binary((const char*)binaryData, binaryDataLen, &convertedData, &convertedSize)) {
-                // 转换成功，释放原始数据，使用转换后的数据
-                free(binaryData);
-                binaryData = convertedData;
-                binaryDataLen = convertedSize;
-                APP_DBG("Intel HEX conversion successful, binary size: %d", convertedSize);
-                
-                // 输出转换后的前32字节用于调试
-                if (convertedSize >= 32) {
-                    char hex_debug_converted[65];
-                    for (int i = 0; i < 32; i++) {
-                        sprintf(hex_debug_converted + i*2, "%02x", binaryData[i]);
-                    }
-                    hex_debug_converted[64] = '\0';
-                    APP_DBG("First 32 bytes after Intel HEX conversion: %s", hex_debug_converted);
-                }
-            } else {
-                APP_DBG("Intel HEX conversion failed");
-                free(binaryData);
-                cJSON_Delete(metadataJSON);
-                cJSON* dataJSON = cJSON_CreateObject();
-                std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Intel HEX conversion failed");
-                return response;
+        // 输出后32字节用于调试
+        if (binaryDataLen > 32) {
+            char hex_debug_end[65];
+            int start_pos = binaryDataLen - 32;
+            for (int i = 0; i < 32; i++) {
+                sprintf(hex_debug_end + i*2, "%02x", binaryData[start_pos + i]);
             }
-        } else {
-            APP_DBG("Binary data detected (not Intel HEX), size: %d", binaryDataLen);
+            hex_debug_end[64] = '\0';
+            APP_DBG("Last 32 bytes of binary data: %s", hex_debug_end);
         }
     } else {
         // 如果没有找到二进制数据，尝试从JSON中获取Base64编码的数据

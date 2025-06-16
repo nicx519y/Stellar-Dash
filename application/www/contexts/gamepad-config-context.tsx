@@ -19,118 +19,38 @@ const FIRMWARE_SERVER_CONFIG = {
     }
 };
 
-// 工具函数：将Intel HEX格式转换为二进制数据
-const convertIntelHexToBinary = (hexData: Uint8Array): Uint8Array => {
-    const hexText = new TextDecoder().decode(hexData);
-    const lines = hexText.split(/\r?\n/).filter(line => line.trim().length > 0);
-    
-    const binaryChunks: number[] = [];
-    
-    for (const line of lines) {
-        if (!line.startsWith(':')) {
-            continue; // 跳过非记录行
-        }
-        
-        if (line.length < 11) {
-            continue; // 记录太短，跳过
-        }
-        
-        // 解析记录
-        const byteCount = parseInt(line.substr(1, 2), 16);
-        const address = parseInt(line.substr(3, 4), 16);
-        const recordType = parseInt(line.substr(7, 2), 16);
-        
-        if (recordType === 0x00) { // 数据记录
-            // 提取数据字节
-            for (let i = 0; i < byteCount; i++) {
-                const bytePos = 9 + (i * 2);
-                if (bytePos + 1 < line.length) {
-                    const byte = parseInt(line.substr(bytePos, 2), 16);
-                    binaryChunks.push(byte);
-                }
-            }
-        }
-        // 忽略其他类型的记录（地址扩展、文件结束等）
-    }
-    
-    return new Uint8Array(binaryChunks);
-};
-
-// 工具函数：检测数据是否为Intel HEX格式
-const isIntelHexFormat = (data: Uint8Array): boolean => {
-    if (data.length === 0) return false;
-    
-    // Intel HEX文件以':'开头
-    if (data[0] !== 0x3A) return false; // ':' 的ASCII码是0x3A
-    
-    // 检查前几个字符是否符合Intel HEX格式
-    try {
-        const text = new TextDecoder().decode(data.slice(0, Math.min(100, data.length)));
-        const lines = text.split(/\r?\n/);
-        if (lines.length > 0 && lines[0].startsWith(':') && lines[0].length >= 11) {
-            return true;
-        }
-    } catch (error) {
-        // 解码失败，可能不是文本格式
-    }
-    
-    return false;
-};
-
 // 工具函数：计算数据的SHA256校验和
 const calculateSHA256 = async (data: Uint8Array): Promise<string> => {
-    // 简单测试：验证SHA256实现
-    const testData = new Uint8Array([0x61, 0x62, 0x63]); // "abc"
-    const expectedHash = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
-    
+    // 检查Web Crypto API是否可用
+    if (typeof crypto === 'undefined' || 
+        typeof crypto.subtle === 'undefined' || 
+        typeof crypto.subtle.digest !== 'function') {
+        console.warn('Web Crypto API not available, falling back to JS implementation');
+        return calculateSHA256JS(data);
+    }
+
+    // 检查是否在安全上下文中（HTTPS或localhost）
+    if (typeof window !== 'undefined' && 
+        window.location && 
+        window.location.protocol !== 'https:' && 
+        !window.location.hostname.match(/^(localhost|127\.0\.0\.1|::1)$/)) {
+        console.warn('Web Crypto API requires secure context (HTTPS), falling back to JS implementation');
+        return calculateSHA256JS(data);
+    }
+
     try {
-        if (typeof crypto !== 'undefined' && crypto.subtle) {
-            const testHashBuffer = await crypto.subtle.digest('SHA-256', testData);
-            const testHashArray = Array.from(new Uint8Array(testHashBuffer));
-            const testHashWeb = testHashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-            console.log('Web Crypto API test - Expected:', expectedHash);
-            console.log('Web Crypto API test - Actual:  ', testHashWeb);
-            console.log('Web Crypto API test - Match:', testHashWeb === expectedHash);
-        }
-        
-        const testHashJS = calculateSHA256JS(testData);
-        console.log('JS SHA256 test - Expected:', expectedHash);
-        console.log('JS SHA256 test - Actual:  ', testHashJS);
-        console.log('JS SHA256 test - Match:', testHashJS === expectedHash);
-        console.log('JS SHA256 test - Length:', testHashJS.length);
-        
-        // 验证是否包含非十六进制字符
-        if (!/^[0-9a-f]+$/.test(testHashJS)) {
-            console.error('JS SHA256 test - Contains non-hex characters!');
-        }
-        
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     } catch (error) {
-        console.error('SHA256 test failed:', error);
+        console.error('Web Crypto API SHA256 calculation failed:', error);
+        console.warn('Falling back to JS implementation');
+        // 回退到JS实现
+        return calculateSHA256JS(data);
     }
-
-    // 首先尝试使用Web Crypto API
-    if (typeof crypto !== 'undefined' && crypto.subtle) {
-        try {
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const result = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-            console.log('Using Web Crypto API, result length:', result.length);
-            return result;
-        } catch (error) {
-            console.warn('Web Crypto API SHA256 calculation failed:', error);
-        }
-    }
-
-    // 如果Web Crypto API不可用或失败，使用纯JavaScript实现
-    console.log('Using JavaScript SHA256 implementation');
-    const result = calculateSHA256JS(data);
-    console.log('JS SHA256 result length:', result.length);
-    console.log('JS SHA256 first 16 chars:', result.substring(0, 16));
-    console.log('JS SHA256 last 16 chars:', result.substring(48, 64));
-    return result;
 };
 
-// 纯JavaScript SHA256实现
+// 纯JavaScript SHA256实现 - 修复版本
 const calculateSHA256JS = (data: Uint8Array): string => {
     // SHA-256 constants
     const K = [
@@ -144,39 +64,51 @@ const calculateSHA256JS = (data: Uint8Array): string => {
         0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
     ];
 
-    // 右旋转操作
-    const rotr = (n: number, x: number): number => (x >>> n) | (x << (32 - n));
-    
-    // 将32位数字转换为字节数组（大端序）
-    const toBytes = (num: number): number[] => [
-        (num >>> 24) & 0xff,
-        (num >>> 16) & 0xff,
-        (num >>> 8) & 0xff,
-        num & 0xff
-    ];
+    // Helper functions
+    const rightRotate = (value: number, amount: number): number => {
+        return ((value >>> amount) | (value << (32 - amount))) >>> 0;
+    };
 
-    // 预处理：填充数据
+    const safeAdd = (...nums: number[]): number => {
+        let result = 0;
+        for (const num of nums) {
+            result = (result + (num >>> 0)) >>> 0;
+        }
+        return result;
+    };
+
+    // Pre-processing: adding padding bits
     const msgLength = data.length;
+    const bitLength = msgLength * 8;
+    
+    // Calculate padded length - 必须为64字节的倍数
     const paddedLength = Math.ceil((msgLength + 9) / 64) * 64;
     const padded = new Uint8Array(paddedLength);
     
-    // 复制原始数据
+    // Copy message
     padded.set(data);
     
-    // 添加1位（0x80字节）
+    // Add '1' bit (plus zero padding to make it a byte)
     padded[msgLength] = 0x80;
     
-    // 添加原始长度（位数）到末尾8字节（大端序）
-    const bitLength = msgLength * 8;
-    const lengthBytes = new DataView(new ArrayBuffer(8));
-    lengthBytes.setUint32(0, Math.floor(bitLength / 0x100000000), false); // 高32位
-    lengthBytes.setUint32(4, bitLength & 0xffffffff, false); // 低32位
+    // Add length in bits as 64-bit big-endian integer to the end
+    // 修复：正确处理64位长度编码
+    const bitLengthHigh = Math.floor(bitLength / 0x100000000); // 高32位
+    const bitLengthLow = bitLength >>> 0; // 低32位
     
-    for (let i = 0; i < 8; i++) {
-        padded[paddedLength - 8 + i] = lengthBytes.getUint8(i);
-    }
-
-    // 初始哈希值
+    // 写入高32位（位56-63）
+    padded[paddedLength - 8] = (bitLengthHigh >>> 24) & 0xff;
+    padded[paddedLength - 7] = (bitLengthHigh >>> 16) & 0xff;
+    padded[paddedLength - 6] = (bitLengthHigh >>> 8) & 0xff;
+    padded[paddedLength - 5] = bitLengthHigh & 0xff;
+    
+    // 写入低32位（位0-31）
+    padded[paddedLength - 4] = (bitLengthLow >>> 24) & 0xff;
+    padded[paddedLength - 3] = (bitLengthLow >>> 16) & 0xff;
+    padded[paddedLength - 2] = (bitLengthLow >>> 8) & 0xff;
+    padded[paddedLength - 1] = bitLengthLow & 0xff;
+    
+    // Initialize hash values (first 32 bits of fractional parts of square roots of first 8 primes)
     let h0 = 0x6a09e667;
     let h1 = 0xbb67ae85;
     let h2 = 0x3c6ef372;
@@ -186,69 +118,61 @@ const calculateSHA256JS = (data: Uint8Array): string => {
     let h6 = 0x1f83d9ab;
     let h7 = 0x5be0cd19;
 
-    // 处理每个512位块
-    for (let chunk = 0; chunk < paddedLength; chunk += 64) {
+    // Process message in 512-bit chunks
+    for (let chunkStart = 0; chunkStart < paddedLength; chunkStart += 64) {
         const w = new Array(64);
-        
-        // 从块中复制16个32位字
+
+        // Break chunk into sixteen 32-bit big-endian words
         for (let i = 0; i < 16; i++) {
-            w[i] = (padded[chunk + i * 4] << 24) |
-                   (padded[chunk + i * 4 + 1] << 16) |
-                   (padded[chunk + i * 4 + 2] << 8) |
-                   padded[chunk + i * 4 + 3];
-        }
-        
-        // 扩展为64个字
-        for (let i = 16; i < 64; i++) {
-            const s0 = rotr(7, w[i - 15]) ^ rotr(18, w[i - 15]) ^ (w[i - 15] >>> 3);
-            const s1 = rotr(17, w[i - 2]) ^ rotr(19, w[i - 2]) ^ (w[i - 2] >>> 10);
-            w[i] = (w[i - 16] + s0 + w[i - 7] + s1) & 0xffffffff;
+            const j = chunkStart + i * 4;
+            w[i] = (padded[j] << 24) | (padded[j + 1] << 16) | (padded[j + 2] << 8) | padded[j + 3];
+            w[i] = w[i] >>> 0; // Ensure unsigned 32-bit
         }
 
-        // 初始化工作变量
+        // Extend the sixteen 32-bit words into sixty-four 32-bit words
+        for (let i = 16; i < 64; i++) {
+            const s0 = rightRotate(w[i - 15], 7) ^ rightRotate(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+            const s1 = rightRotate(w[i - 2], 17) ^ rightRotate(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+            w[i] = safeAdd(w[i - 16], s0, w[i - 7], s1);
+        }
+
+        // Initialize working variables for this chunk
         let a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
 
-        // 主循环
+        // Main loop
         for (let i = 0; i < 64; i++) {
-            const S1 = rotr(6, e) ^ rotr(11, e) ^ rotr(25, e);
+            const S1 = rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
             const ch = (e & f) ^ ((~e) & g);
-            const temp1 = (h + S1 + ch + K[i] + w[i]) & 0xffffffff;
-            const S0 = rotr(2, a) ^ rotr(13, a) ^ rotr(22, a);
+            const temp1 = safeAdd(h, S1, ch, K[i], w[i]);
+            const S0 = rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
             const maj = (a & b) ^ (a & c) ^ (b & c);
-            const temp2 = (S0 + maj) & 0xffffffff;
+            const temp2 = safeAdd(S0, maj);
 
             h = g;
             g = f;
             f = e;
-            e = (d + temp1) & 0xffffffff;
+            e = safeAdd(d, temp1);
             d = c;
             c = b;
             b = a;
-            a = (temp1 + temp2) & 0xffffffff;
+            a = safeAdd(temp1, temp2);
         }
 
-        // 添加到哈希值
-        h0 = (h0 + a) & 0xffffffff;
-        h1 = (h1 + b) & 0xffffffff;
-        h2 = (h2 + c) & 0xffffffff;
-        h3 = (h3 + d) & 0xffffffff;
-        h4 = (h4 + e) & 0xffffffff;
-        h5 = (h5 + f) & 0xffffffff;
-        h6 = (h6 + g) & 0xffffffff;
-        h7 = (h7 + h) & 0xffffffff;
+        // Add this chunk's hash to result so far
+        h0 = safeAdd(h0, a);
+        h1 = safeAdd(h1, b);
+        h2 = safeAdd(h2, c);
+        h3 = safeAdd(h3, d);
+        h4 = safeAdd(h4, e);
+        h5 = safeAdd(h5, f);
+        h6 = safeAdd(h6, g);
+        h7 = safeAdd(h7, h);
     }
 
-    // 生成最终的哈希值（十六进制字符串）
-    const hash = [h0, h1, h2, h3, h4, h5, h6, h7]
-        .map(h => {
-            // 确保是32位无符号整数，然后转换为8位十六进制字符串
-            const uint32 = (h >>> 0); // 确保无符号32位整数
-            const hexStr = uint32.toString(16);
-            return hexStr.padStart(8, '0');
-        })
+    // Produce the final hash value
+    return [h0, h1, h2, h3, h4, h5, h6, h7]
+        .map(h => (h >>> 0).toString(16).padStart(8, '0'))
         .join('');
-    
-    return hash;
 };
 
 // 工具函数：解压固件包
@@ -1543,32 +1467,17 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     const targetAddress = baseAddress + chunkOffset;
                     const chunkSize = chunkData.length;
 
-                    // 计算分片的校验和
-                    // 对于Intel HEX数据，后端会先转换为二进制再计算校验和
-                    // 为了保持一致性，我们也需要对Intel HEX分片转换后再计算校验和
-                    let chunkForChecksum: Uint8Array = chunkData;
-                    
-                    // 检查这个分片是否是Intel HEX格式
-                    if (isIntelHexFormat(chunkData)) {
-                        try {
-                            // 转换Intel HEX为二进制用于校验和计算
-                            chunkForChecksum = new Uint8Array(convertIntelHexToBinary(chunkData));
-                            console.log(`Chunk ${chunkIndex + 1}/${totalChunks} (${component.name}): Intel HEX ${chunkData.length} bytes -> binary ${chunkForChecksum.length} bytes`);
-                        } catch (error) {
-                            console.warn(`Failed to convert Intel HEX chunk ${chunkIndex + 1} for checksum:`, error);
-                            // 如果转换失败，使用原始数据
-                            chunkForChecksum = chunkData;
-                        }
-                    }
-                    
-                    // 使用与后端一致的SHA256实现（同步版本）
-                    const checksum = calculateSHA256JS(chunkForChecksum);
+                    // 直接计算二进制数据的校验和（移除Intel HEX相关逻辑）
+                    // 使用异步SHA256计算
+                    const checksum = await calculateSHA256(chunkData);
 
                     // 添加调试输出
                     console.log(`Frontend calculated chunk ${chunkIndex} SHA256:`, checksum);
-                    console.log(`Chunk data type: ${isIntelHexFormat(chunkData) ? 'Intel HEX' : 'Binary'}`);
-                    console.log(`Original chunk size: ${chunkData.length}, Checksum data size: ${chunkForChecksum.length}`);
-                    console.log(`First 32 bytes of checksum data:`, Array.from(chunkForChecksum.slice(0, 32)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+                    console.log(`Chunk size: ${chunkData.length} bytes`);
+                    console.log(`First 32 bytes of chunk data:`, Array.from(chunkData.slice(0, 32)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+                    if (chunkData.length > 32) {
+                        console.log(`Last 32 bytes of chunk data:`, Array.from(chunkData.slice(-32)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+                    }
 
                     // 创建FormData进行二进制传输
                     const formData = new FormData();

@@ -361,9 +361,33 @@ uint32_t FirmwareManager::GetComponentSize(FirmwareComponentType component) {
 }
 
 bool FirmwareManager::CreateUpgradeSession(const char* session_id, const FirmwareMetadata* manifest) {
-    if (session_active || current_session != nullptr) {
-        APP_ERR("FirmwareManager::CreateUpgradeSession: Already has an active session");
-        return false; // 已有活动会话
+    // 首先清理任何过期或失败的会话
+    CleanupExpiredSessions();
+    
+    // 检查是否已有活动会话
+    if (session_active && current_session != nullptr) {
+        // 如果旧会话状态为失败、中止或超时，自动清理
+        if (current_session->status == UPGRADE_STATUS_FAILED || 
+            current_session->status == UPGRADE_STATUS_ABORTED) {
+            APP_DBG("FirmwareManager::CreateUpgradeSession: Cleaning up previous failed/aborted session");
+            delete current_session;
+            current_session = nullptr;
+            session_active = false;
+        } else {
+            // 如果是活跃状态的会话，检查是否超时
+            uint32_t current_time = HAL_GetTick();
+            uint32_t session_age = current_time - current_session->created_at;
+            
+            if (session_age > UPGRADE_SESSION_TIMEOUT) {
+                APP_DBG("FirmwareManager::CreateUpgradeSession: Cleaning up expired session");
+                delete current_session;
+                current_session = nullptr;
+                session_active = false;
+            } else {
+                APP_ERR("FirmwareManager::CreateUpgradeSession: Already has an active session");
+                return false; // 仍有活动会话
+            }
+        }
     }
     
     // 创建新会话
@@ -427,6 +451,8 @@ bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* c
         return false;
     }
     
+    APP_DBG("FirmwareManager::ProcessFirmwareChunk: session_id: %s, current_session_id: %s, chunk->chunk_size: %d", session_id, current_session->session_id, chunk->chunk_size);
+
     if (strcmp(current_session->session_id, session_id) != 0) {
         APP_ERR("FirmwareManager::ProcessFirmwareChunk: Session ID mismatch");
         return false;
@@ -448,6 +474,7 @@ bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* c
     
     if (target_component == nullptr) {
         APP_ERR("FirmwareManager::ProcessFirmwareChunk: Component not found");
+        current_session->status = UPGRADE_STATUS_FAILED;  // 标记会话为失败状态
         return false;
     }
     
@@ -456,6 +483,7 @@ bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* c
     // APP_DBG("FirmwareManager::check address %d, %d", chunk->target_address, target_slot);
     if (!ValidateSlotAddress(chunk->target_address, target_slot)) {
         APP_ERR("FirmwareManager::ProcessFirmwareChunk: Invalid target address");
+        current_session->status = UPGRADE_STATUS_FAILED;  // 标记会话为失败状态
         return false;
     }
     
@@ -466,53 +494,32 @@ bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* c
     char calculated_hash[65];
     if (!CalculateSHA256(chunk->data, chunk->chunk_size, calculated_hash)) {
         APP_ERR("FirmwareManager::ProcessFirmwareChunk: Failed to calculate SHA256");
+        current_session->status = UPGRADE_STATUS_FAILED;  // 标记会话为失败状态
         return false;
     }
     
     APP_DBG("FirmwareManager::ProcessFirmwareChunk: calculated_hash: %s, chunk->checksum: %s", calculated_hash, chunk->checksum);
 
-    // 检测前端发送的是否为重复模式的假SHA256（降级哈希）
-    bool is_fallback_hash = false;
-    if (strlen(chunk->checksum) == 64) {
-        // 检查是否为重复模式 (8字符重复8次)
-        char first_8_chars[9];
-        strncpy(first_8_chars, chunk->checksum, 8);
-        first_8_chars[8] = '\0';
-        
-        bool all_same = true;
-        for (int i = 8; i < 64; i += 8) {
-            if (strncmp(chunk->checksum + i, first_8_chars, 8) != 0) {
-                all_same = false;
-                break;
-            }
-        }
-        
-        if (all_same) {
-            is_fallback_hash = true;
-            APP_DBG("FirmwareManager::ProcessFirmwareChunk: Detected fallback hash from frontend, skipping checksum verification");
-        }
+    // 进行校验和验证
+    if (strcmp(calculated_hash, chunk->checksum) != 0) {
+        APP_ERR("FirmwareManager::ProcessFirmwareChunk: Checksum mismatch - chunk_index: %d, calculated: %s, received: %s", 
+                chunk->chunk_index, calculated_hash, chunk->checksum);
+        current_session->status = UPGRADE_STATUS_FAILED;  // 标记会话为失败状态
+        return false; // 校验和不匹配
     }
-    
-    // 进行校验和验证（对于降级哈希则跳过）
-    if (!is_fallback_hash) {
-        if (strcmp(calculated_hash, chunk->checksum) != 0) {
-            APP_ERR("FirmwareManager::ProcessFirmwareChunk: Checksum mismatch - calculated: %s, received: %s", calculated_hash, chunk->checksum);
-            return false; // 校验和不匹配
-        }
-        APP_DBG("FirmwareManager::ProcessFirmwareChunk: SHA256 checksum verification passed");
-    } else {
-        APP_DBG("FirmwareManager::ProcessFirmwareChunk: Using fallback hash, skipping verification");
-    }
+    APP_DBG("FirmwareManager::ProcessFirmwareChunk: SHA256 checksum verification passed - chunk_index: %d", chunk->chunk_index);
     
     // 写入Flash
     if (!WriteChunkToFlash(write_address, chunk->data, chunk->chunk_size)) {
         APP_ERR("FirmwareManager::ProcessFirmwareChunk: Failed to write chunk to flash");
+        current_session->status = UPGRADE_STATUS_FAILED;  // 标记会话为失败状态
         return false;
     }
     
     // 验证写入
     if (!VerifyFlashData(write_address, chunk->data, chunk->chunk_size)) {
         APP_ERR("FirmwareManager::ProcessFirmwareChunk: Failed to verify flash data");
+        current_session->status = UPGRADE_STATUS_FAILED;  // 标记会话为失败状态
         return false;
     }
     
@@ -753,8 +760,15 @@ void FirmwareManager::CleanupExpiredSessions() {
     uint32_t current_time = HAL_GetTick();
     uint32_t session_age = current_time - current_session->created_at;
     
-    if (session_age > UPGRADE_SESSION_TIMEOUT) {
-        // 会话超时，清理
+    // 清理超时、失败或已中止的会话
+    if (session_age > UPGRADE_SESSION_TIMEOUT || 
+        current_session->status == UPGRADE_STATUS_FAILED ||
+        current_session->status == UPGRADE_STATUS_ABORTED ||
+        current_session->status == UPGRADE_STATUS_COMPLETED) {
+        
+        APP_DBG("FirmwareManager::CleanupExpiredSessions: Cleaning up session with status %d, age %d ms", 
+                current_session->status, session_age);
+        
         delete current_session;
         current_session = nullptr;
         session_active = false;
