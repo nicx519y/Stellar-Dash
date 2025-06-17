@@ -66,5 +66,6 @@
         "tusb_option.h": "c",
         "tusb_config.h": "c",
         "cstring": "cpp"
-    }
+    },
+    "cmake.sourceDirectory": "E:/Works/STM32/HBox_Git/application/Libs/mbedtls/programs/test/cmake_subproject"
 }

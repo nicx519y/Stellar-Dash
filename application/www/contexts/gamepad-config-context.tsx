@@ -7,12 +7,32 @@ import { GameProfile,
         Platform, GameSocdMode, 
         GameControllerButton, Hotkey, RapidTriggerConfig, GameProfileList, GlobalConfig } from '@/types/gamepad-config';
 import { StepInfo, ADCValuesMapping } from '@/types/adc';
-import { ButtonStates, CalibrationStatus, DeviceFirmwareInfo, FirmwareComponent, FirmwareManifest, FirmwareUpgradeConfig, FirmwareUpgradeSession, FirmwarePackage, FirmwareUpdateCheckResponse, LEDsConfig, FirmwarePackageDownloadProgress, FirmwareUpdateCheckRequest, ChunkTransferRequest, FirmwareUpdateInfo } from '@/types/types';
+import { 
+    ButtonStates, 
+    CalibrationStatus, 
+    DeviceFirmwareInfo, 
+    FirmwareComponent, 
+    FirmwareManifest, 
+    FirmwareUpgradeConfig, 
+    FirmwareUpgradeSession, 
+    FirmwarePackage, 
+    FirmwareUpdateCheckResponse, 
+    LEDsConfig, 
+    FirmwarePackageDownloadProgress, 
+    FirmwareUpdateCheckRequest 
+} from '@/types/types';
+
+import { 
+    DEFAULT_FIRMWARE_PACKAGE_CHUNK_SIZE, 
+    DEFAULT_FIRMWARE_UPGRADE_MAX_RETRIES, 
+    DEFAULT_FIRMWARE_UPGRADE_TIMEOUT,
+    DEFAULT_FIRMWARE_SERVER_HOST
+} from '@/types/gamepad-config';
 
 // 固件服务器配置
 const FIRMWARE_SERVER_CONFIG = {
     // 默认固件服务器地址，可通过环境变量覆盖
-    defaultHost: process.env.NEXT_PUBLIC_FIRMWARE_SERVER_HOST || 'http://localhost:3000',
+    defaultHost: process.env.NEXT_PUBLIC_FIRMWARE_SERVER_HOST || DEFAULT_FIRMWARE_SERVER_HOST,
     // API 端点
     endpoints: {
         checkUpdate: '/api/firmware-check-update'
@@ -442,9 +462,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [firmwareServerHost, setFirmwareServerHostState] = useState<string>(FIRMWARE_SERVER_CONFIG.defaultHost);
     const [upgradeSession, setUpgradeSession] = useState<FirmwareUpgradeSession | null>(null);
     const [upgradeConfig, setUpgradeConfigState] = useState<FirmwareUpgradeConfig>({
-        chunkSize: 4096, // 4KB默认分片大小
-        maxRetries: 3,
-        timeout: 30000 // 30秒超时
+        chunkSize: DEFAULT_FIRMWARE_PACKAGE_CHUNK_SIZE, // 4KB默认分片大小
+        maxRetries: DEFAULT_FIRMWARE_UPGRADE_MAX_RETRIES,
+        timeout: DEFAULT_FIRMWARE_UPGRADE_TIMEOUT // 30秒超时
     });
 
     const contextJsReady = useMemo(() => {

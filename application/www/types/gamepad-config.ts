@@ -17,6 +17,15 @@ export const PROFILE_NAME_MAX_LENGTH = 20;
 // max length of switch marking name
 export const SWITCH_MARKING_NAME_MAX_LENGTH = 16;
 
+// firmware package chunk size
+export const DEFAULT_FIRMWARE_PACKAGE_CHUNK_SIZE = 4096 * 2;
+// firmware upgrade max retries
+export const DEFAULT_FIRMWARE_UPGRADE_MAX_RETRIES = 3;
+// firmware upgrade timeout
+export const DEFAULT_FIRMWARE_UPGRADE_TIMEOUT = 30000;
+// firmware server host
+export const DEFAULT_FIRMWARE_SERVER_HOST = 'http://localhost:3000';
+
 // hitbox button position list
 export const HITBOX_BTN_POS_LIST = [
     { x: 376.2, y: 379.8, r: 36 },
