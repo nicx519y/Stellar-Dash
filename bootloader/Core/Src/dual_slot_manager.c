@@ -169,7 +169,7 @@ static void init_default_metadata(FirmwareMetadata* metadata) {
     
     // 设置固件信息
     strncpy(metadata->firmware_version, "0.0.1", sizeof(metadata->firmware_version) - 1);
-    metadata->target_slot = (uint8_t)SLOT_A;  // 转换FirmwareSlot到uint8_t
+    metadata->target_slot = (uint8_t)FIRMWARE_SLOT_A;  // 转换FirmwareSlot到uint8_t
     strncpy(metadata->build_date, "2024-12-08 00:00:00", sizeof(metadata->build_date) - 1);
     metadata->build_timestamp = 0;
     
@@ -226,7 +226,7 @@ int8_t DualSlot_LoadMetadata(FirmwareMetadata* metadata) {
     }
     
     // 从Flash读取元数据
-    uint32_t flash_address = FIRMWARE_METADATA_BASE - EXTERNAL_FLASH_BASE;
+    uint32_t flash_address = METADATA_ADDR - EXTERNAL_FLASH_BASE;
     int8_t result = QSPI_W25Qxx_ReadBuffer(
         (uint8_t*)metadata, 
         flash_address,
@@ -326,7 +326,7 @@ int8_t DualSlot_SaveMetadata(const FirmwareMetadata* metadata) {
     }
     
     // 擦除元数据扇区
-    uint32_t flash_address = FIRMWARE_METADATA_BASE - EXTERNAL_FLASH_BASE;
+    uint32_t flash_address = METADATA_ADDR - EXTERNAL_FLASH_BASE;
     if (QSPI_W25Qxx_SectorErase(flash_address) != QSPI_W25Qxx_OK) {
         if (was_mapped) QSPI_W25Qxx_EnterMemoryMappedMode();
         return -4;
@@ -362,7 +362,7 @@ FirmwareSlot DualSlot_GetActiveSlot(void) {
     if (!g_metadata_loaded) {
         // 尝试加载元数据
         if (DualSlot_LoadMetadata(&g_current_metadata) != 0) {
-            return SLOT_A; // 默认返回槽A
+            return FIRMWARE_SLOT_A; // 默认返回槽A
         }
     }
     
@@ -370,7 +370,7 @@ FirmwareSlot DualSlot_GetActiveSlot(void) {
 }
 
 int8_t DualSlot_SetActiveSlot(FirmwareSlot slot) {
-    if (slot != SLOT_A && slot != SLOT_B) {
+    if (slot != FIRMWARE_SLOT_A && slot != FIRMWARE_SLOT_B) {
         return -1;
     }
     
@@ -397,7 +397,7 @@ uint32_t DualSlot_GetSlotAddress(const char* component_name, FirmwareSlot slot) 
         return 0;
     }
     
-    if (slot == SLOT_A) {
+    if (slot == FIRMWARE_SLOT_A) {
         if (strcmp(component_name, "application") == 0) {
             return SLOT_A_APPLICATION_ADDR;
         } else if (strcmp(component_name, "webresources") == 0) {
@@ -405,7 +405,7 @@ uint32_t DualSlot_GetSlotAddress(const char* component_name, FirmwareSlot slot) 
         } else if (strcmp(component_name, "adc_mapping") == 0) {
             return SLOT_A_ADC_MAPPING_ADDR;
         }
-    } else if (slot == SLOT_B) {
+    } else if (slot == FIRMWARE_SLOT_B) {
         if (strcmp(component_name, "application") == 0) {
             return SLOT_B_APPLICATION_ADDR;
         } else if (strcmp(component_name, "webresources") == 0) {

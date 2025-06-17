@@ -273,14 +273,14 @@ void JumpToApplication(void)
         BOOT_ERR("Using default slot A for startup");
         
         // 使用默认地址
-        uint32_t app_base_address = DualSlot_GetSlotAddress("application", SLOT_A);
+        uint32_t app_base_address = DualSlot_GetSlotAddress("application", FIRMWARE_SLOT_A);
         if (app_base_address == 0) {
             BOOT_ERR("Cannot get application address for slot A");
             return;
         }
         
         // 验证槽位有效性
-        if (!DualSlot_IsSlotValid(SLOT_A)) {
+        if (!DualSlot_IsSlotValid(FIRMWARE_SLOT_A)) {
             BOOT_ERR("Slot A is invalid, cannot start");
             return;
         }
@@ -296,7 +296,7 @@ void JumpToApplication(void)
     BOOT_DBG("Magic Number: 0x%08lX", (unsigned long)metadata.magic);
     BOOT_DBG("Metadata Version: %lu.%lu", (unsigned long)metadata.metadata_version_major, (unsigned long)metadata.metadata_version_minor);
     BOOT_DBG("Firmware Version: %s", metadata.firmware_version);
-    BOOT_DBG("Target Slot: %s", (metadata.target_slot == SLOT_A) ? "A" : "B");
+    BOOT_DBG("Target Slot: %s", (metadata.target_slot == FIRMWARE_SLOT_A) ? "A" : "B");
     BOOT_DBG("Build Date: %s", metadata.build_date);
     BOOT_DBG("Device Model: %s", metadata.device_model);
     BOOT_DBG("Hardware Version: 0x%08lX", (unsigned long)metadata.hardware_version);
@@ -313,21 +313,21 @@ void JumpToApplication(void)
     
     // 获取目标槽位
     FirmwareSlot target_slot = (FirmwareSlot)metadata.target_slot;
-    BOOT_DBG("Target Slot: %s", (target_slot == SLOT_A) ? "A" : "B");
+    BOOT_DBG("Target Slot: %s", (target_slot == FIRMWARE_SLOT_A) ? "A" : "B");
     
     // 验证目标槽位有效性
     if (!DualSlot_IsSlotValid(target_slot)) {
         BOOT_ERR("Target slot %s is invalid, trying to switch to backup slot", 
-                 (target_slot == SLOT_A) ? "A" : "B");
+                 (target_slot == FIRMWARE_SLOT_A) ? "A" : "B");
         
         // 尝试使用另一个槽位
-        FirmwareSlot backup_slot = (target_slot == SLOT_A) ? SLOT_B : SLOT_A;
+        FirmwareSlot backup_slot = (target_slot == FIRMWARE_SLOT_A) ? FIRMWARE_SLOT_B : FIRMWARE_SLOT_A;
         if (DualSlot_IsSlotValid(backup_slot)) {
             target_slot = backup_slot;
-            BOOT_DBG("Switched to backup slot %s", (target_slot == SLOT_A) ? "A" : "B");
+            BOOT_DBG("Switched to backup slot %s", (target_slot == FIRMWARE_SLOT_A) ? "A" : "B");
         } else {
             BOOT_ERR("Backup slot %s is also invalid, cannot start", 
-                     (backup_slot == SLOT_A) ? "A" : "B");
+                     (backup_slot == FIRMWARE_SLOT_A) ? "A" : "B");
             return;
         }
     }
@@ -336,12 +336,12 @@ void JumpToApplication(void)
     uint32_t app_base_address = DualSlot_GetSlotAddress("application", target_slot);
     if (app_base_address == 0) {
         BOOT_ERR("Cannot get application address for slot %s", 
-                 (target_slot == SLOT_A) ? "A" : "B");
+                 (target_slot == FIRMWARE_SLOT_A) ? "A" : "B");
         return;
     }
     
     BOOT_DBG("Final slot %s, application base address: 0x%08lX", 
-             (target_slot == SLOT_A) ? "A" : "B", (unsigned long)app_base_address);
+             (target_slot == FIRMWARE_SLOT_A) ? "A" : "B", (unsigned long)app_base_address);
 
 perform_jump:
     // 读取向量表

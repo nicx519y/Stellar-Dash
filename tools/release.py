@@ -31,18 +31,16 @@ from datetime import datetime
 from typing import Dict, List, Optional, NamedTuple, Tuple, Any
 from intelhex import IntelHex  # 添加Intel HEX处理库
 
-# 元数据结构常量（与C代码保持一致）
-FIRMWARE_MAGIC = 0x48424F58  # "HBOX"
-METADATA_VERSION_MAJOR = 1
-METADATA_VERSION_MINOR = 0
-DEVICE_MODEL_STRING = "STM32H750_HBOX"
-BOOTLOADER_VERSION = 0x00010000  # 1.0.0
-HARDWARE_VERSION = 0x00010000    # 1.0.0
+# 导入统一的固件元数据常量
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'common'))
+from firmware_metadata import *
 
-# 结构体大小常量（与C结构体对齐）
-COMPONENT_SIZE = 170  # FirmwareComponent packed结构体大小: 32+64+4+4+65+1 = 170字节
-FIRMWARE_COMPONENT_COUNT = 3
-METADATA_SIZE = 807   # FirmwareMetadata总大小: 20+32+1+32+4+32+4+4+4+(170*3)+32+64+4+64 = 807字节
+# 使用统一的常量定义，移除重复定义
+# FIRMWARE_MAGIC, METADATA_VERSION_MAJOR, METADATA_VERSION_MINOR 等
+# 现在都从 firmware_metadata.py 导入
+
+# 保留release.py特有的常量
+OPENOCD_CONFIG = "interface/stlink.cfg -f target/stm32h7x.cfg"
 
 class HexSegmenter:
     """Intel HEX文件解析和分割器"""
@@ -337,8 +335,8 @@ def create_metadata_binary(version, slot, build_date, components):
     
     print(f"创建元数据二进制: 版本={version}, 槽位={slot}, 组件数={len(components)}")
     
-    # 准备二进制数据缓冲区
-    metadata_buffer = bytearray(METADATA_SIZE)
+    # 准备二进制数据缓冲区 - 使用统一的大小定义
+    metadata_buffer = bytearray(METADATA_STRUCT_SIZE)
     offset = 0
     
     # === 安全校验区域 ===
@@ -354,8 +352,8 @@ def create_metadata_binary(version, slot, build_date, components):
     struct.pack_into('<I', metadata_buffer, offset, METADATA_VERSION_MINOR)
     offset += 4
     
-    # metadata_size (uint32_t)
-    struct.pack_into('<I', metadata_buffer, offset, METADATA_SIZE)
+    # metadata_size (uint32_t) - 使用统一的大小定义
+    struct.pack_into('<I', metadata_buffer, offset, METADATA_STRUCT_SIZE)
     offset += 4
     
     # metadata_crc32 (uint32_t) - 先填0，最后计算
@@ -370,7 +368,7 @@ def create_metadata_binary(version, slot, build_date, components):
     offset += 32
     
     # target_slot (uint8_t) - 1字节，无padding
-    slot_value = 0 if slot.upper() == 'A' else 1
+    slot_value = FIRMWARE_SLOT_A if slot.upper() == 'A' else FIRMWARE_SLOT_B
     struct.pack_into('<B', metadata_buffer, offset, slot_value)
     offset += 1
     
@@ -616,15 +614,13 @@ class ReleaseFlasher:
                 self.temp_dir = None
     
     def get_slot_address(self, component_name: str, slot: str) -> str:
-        """根据组件名和槽位获取地址"""
-        slot = slot.upper()
-        if slot not in self.slot_addresses:
-            raise ValueError(f"不支持的槽位: {slot}")
-        
-        if component_name not in self.slot_addresses[slot]:
-            raise ValueError(f"槽位{slot}不支持组件: {component_name}")
-        
-        return self.slot_addresses[slot][component_name]
+        """获取组件在指定槽位的地址"""
+        try:
+            # 使用统一的地址映射函数
+            address = get_slot_address(component_name, slot)
+            return f"0x{address:08X}"
+        except ValueError as e:
+            raise ValueError(f"获取槽位地址失败: {e}")
     
     def flash_component(self, component_file: Path, target_address: str, component_name: str, file_type: str = None) -> bool:
         """刷写单个组件"""
