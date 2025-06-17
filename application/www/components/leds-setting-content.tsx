@@ -56,13 +56,13 @@ export function LEDsSettingContent() {
         }
     }, [colorMode]);
 
-    const [ledsEffectStyle, setLedsEffectStyle] = useState<LedsEffectStyle>(LedsEffectStyle.STATIC);
-    const [color1, setColor1] = useState<Color>(defaultFrontColor);
-    const [color2, setColor2] = useState<Color>(defaultFrontColor);
-    const [color3, setColor3] = useState<Color>(defaultFrontColor);
-    const [ledBrightness, setLedBrightness] = useState<number>(75);
-    const [ledAnimationSpeed, setLedAnimationSpeed] = useState<number>(1);
-    const [ledEnabled, setLedEnabled] = useState<boolean>(true);
+    const [ledsEffectStyle, setLedsEffectStyle] = useState<LedsEffectStyle>(defaultProfile.ledsConfigs?.ledsEffectStyle ?? LedsEffectStyle.STATIC);
+    const [color1, setColor1] = useState<Color>(parseColor(defaultProfile.ledsConfigs?.ledColors?.[0] ?? defaultFrontColor.toString('css')));
+    const [color2, setColor2] = useState<Color>(parseColor(defaultProfile.ledsConfigs?.ledColors?.[1] ?? defaultFrontColor.toString('css')));
+    const [color3, setColor3] = useState<Color>(parseColor(defaultProfile.ledsConfigs?.ledColors?.[2] ?? defaultFrontColor.toString('css')));
+    const [ledBrightness, setLedBrightness] = useState<number>(defaultProfile.ledsConfigs?.ledBrightness ?? 75);
+    const [ledAnimationSpeed, setLedAnimationSpeed] = useState<number>(defaultProfile.ledsConfigs?.ledAnimationSpeed ?? 1);
+    const [ledEnabled, setLedEnabled] = useState<boolean>(defaultProfile.ledsConfigs?.ledEnabled ?? true);
     
     // 颜色队列状态
     const [colorSwatches, setColorSwatches] = useState<string[]>(ColorQueueManager.getColorQueue());
@@ -107,7 +107,7 @@ export function LEDsSettingContent() {
     // Initialize the state with the default profile details
     useEffect(() => {
         const ledsConfigs = defaultProfile.ledsConfigs;
-        console.log("ledsConfigs: ", ledsConfigs);
+
         if (ledsConfigs) {
             setLedsEffectStyle(ledsConfigs.ledsEffectStyle ?? LedsEffectStyle.STATIC);
             setColor1(parseColor(ledsConfigs.ledColors?.[0] ?? defaultFrontColor.toString('css')));
@@ -120,7 +120,6 @@ export function LEDsSettingContent() {
 
         }
 
-        
         
     }, [defaultProfile]);
 
@@ -199,6 +198,8 @@ export function LEDsSettingContent() {
         t.SETTINGS_LEDS_BACK_COLOR2
     ];
 
+    
+
     const previewLedsEffectHandler = () => {
         const config = {
             ledEnabled: ledEnabled,
@@ -211,8 +212,12 @@ export function LEDsSettingContent() {
     }
 
     useEffect(() => {
-        previewLedsEffectHandler();
-    }, [ledsEffectStyle, ledEnabled]);
+        
+        if(defaultProfile.id && defaultProfile.id != '') {
+            previewLedsEffectHandler();
+        }
+        
+    }, [ledEnabled, ledsEffectStyle]);
 
     useEffect(() => {
         return () => {
