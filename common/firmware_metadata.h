@@ -144,9 +144,7 @@ _Static_assert(sizeof(FirmwareMetadata) == METADATA_STRUCT_SIZE,
 #define SLOT_B_ADC_MAPPING_ADDR     0x90530000  // 128KB
 #define SLOT_B_ADC_MAPPING_SIZE     0x20000
 
-// 配置和元数据区域
-#define USER_CONFIG_ADDR            0x90560000  // 64KB
-#define USER_CONFIG_SIZE            0x10000
+// 元数据区域
 #define METADATA_ADDR               0x90570000  // 64KB
 #define METADATA_SIZE               0x10000
 

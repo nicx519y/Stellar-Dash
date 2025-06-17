@@ -17,5 +17,6 @@ tools/__pycache__
 server/node_modules
 server/uploads
 server/firmware_list.json
+common/__pycache__
 
 

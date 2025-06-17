@@ -7,6 +7,7 @@
 #include <new>
 #include "CRC32.hpp"
 #include "sha256_simple.h"
+#include "micro_timer.hpp"
 
 // 外部函数声明 (需要在其他地方实现)
 extern "C" {
@@ -280,13 +281,6 @@ bool FirmwareManager::LoadMetadataFromFlash() {
 }
 
 bool FirmwareManager::SaveMetadataToFlash() {
-    // 退出内存映射模式
-    bool was_mapped = QSPI_W25Qxx_IsMemoryMappedMode();
-    if (was_mapped) {
-        if (QSPI_W25Qxx_ExitMemoryMappedMode() != QSPI_W25Qxx_OK) {
-            return false;
-        }
-    }
     
     // 计算并更新CRC32校验和
     current_metadata.metadata_crc32 = generate_metadata_crc32(&current_metadata);
@@ -311,21 +305,145 @@ bool FirmwareManager::SaveMetadataToFlash() {
     
     // 写入元数据到Flash
     uint32_t physical_address = METADATA_ADDR - EXTERNAL_FLASH_BASE;
-    int8_t result = QSPI_W25Qxx_WriteBuffer((uint8_t*)&current_metadata, 
+    int8_t result = QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)&current_metadata, 
                                            physical_address, 
                                            sizeof(FirmwareMetadata));
-    
-    // 恢复内存映射模式
-    if (was_mapped) {
-        QSPI_W25Qxx_EnterMemoryMappedMode();
-    }
     
     if (result != 0) {
         APP_ERR("FirmwareManager::SaveMetadataToFlash: Failed to write metadata to flash, result: %d", result);
         return false;
     }
     
-    APP_DBG("FirmwareManager::SaveMetadataToFlash: Metadata saved successfully to address 0x%08X", METADATA_ADDR);
+    APP_DBG("FirmwareManager::SaveMetadataToFlash: Metadata written to flash, starting verification...");
+    
+    // === 写入后校验逻辑 ===
+    // 从Flash读取刚写入的元数据进行校验
+    FirmwareMetadata verify_metadata;
+    memset(&verify_metadata, 0, sizeof(verify_metadata));
+    
+    result = QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(
+        (uint8_t*)&verify_metadata, 
+        physical_address,
+        sizeof(FirmwareMetadata)
+    );
+    
+    if (result != QSPI_W25Qxx_OK) {
+        APP_ERR("FirmwareManager::SaveMetadataToFlash: Failed to read back metadata for verification, result: %d", result);
+        return false;
+    }
+    
+    // 校验关键字段
+    bool verification_failed = false;
+    
+    // 1. 校验魔术数字
+    if (verify_metadata.magic != current_metadata.magic) {
+        APP_ERR("FirmwareManager::SaveMetadataToFlash: Magic number verification failed - written: 0x%08lX, read: 0x%08lX", 
+                (unsigned long)current_metadata.magic, (unsigned long)verify_metadata.magic);
+        verification_failed = true;
+    }
+    
+    // 2. 校验元数据版本
+    if (verify_metadata.metadata_version_major != current_metadata.metadata_version_major ||
+        verify_metadata.metadata_version_minor != current_metadata.metadata_version_minor) {
+        APP_ERR("FirmwareManager::SaveMetadataToFlash: Metadata version verification failed - written: %ld.%ld, read: %ld.%ld", 
+                (unsigned long)current_metadata.metadata_version_major, (unsigned long)current_metadata.metadata_version_minor,
+                (unsigned long)verify_metadata.metadata_version_major, (unsigned long)verify_metadata.metadata_version_minor);
+        verification_failed = true;
+    }
+    
+    // 3. 校验元数据大小
+    if (verify_metadata.metadata_size != current_metadata.metadata_size) {
+        APP_ERR("FirmwareManager::SaveMetadataToFlash: Metadata size verification failed - written: %ld, read: %ld", 
+                (unsigned long)current_metadata.metadata_size, (unsigned long)verify_metadata.metadata_size);
+        verification_failed = true;
+    }
+    
+    // 4. 校验固件版本字符串
+    if (strcmp(verify_metadata.firmware_version, current_metadata.firmware_version) != 0) {
+        APP_ERR("FirmwareManager::SaveMetadataToFlash: Firmware version verification failed - written: %s, read: %s", 
+                current_metadata.firmware_version, verify_metadata.firmware_version);
+        verification_failed = true;
+    }
+    
+    // 5. 校验目标槽位
+    if (verify_metadata.target_slot != current_metadata.target_slot) {
+        APP_ERR("FirmwareManager::SaveMetadataToFlash: Target slot verification failed - written: %d, read: %d", 
+                current_metadata.target_slot, verify_metadata.target_slot);
+        verification_failed = true;
+    }
+    
+    // 6. 校验设备型号
+    if (strcmp(verify_metadata.device_model, current_metadata.device_model) != 0) {
+        APP_ERR("FirmwareManager::SaveMetadataToFlash: Device model verification failed - written: %s, read: %s", 
+                current_metadata.device_model, verify_metadata.device_model);
+        verification_failed = true;
+    }
+    
+    // 7. 校验硬件版本
+    if (verify_metadata.hardware_version != current_metadata.hardware_version) {
+        APP_ERR("FirmwareManager::SaveMetadataToFlash: Hardware version verification failed - written: %ld, read: %ld", 
+                (unsigned long)current_metadata.hardware_version, (unsigned long)verify_metadata.hardware_version);
+        verification_failed = true;
+    }
+    
+    // 8. 校验组件数量
+    if (verify_metadata.component_count != current_metadata.component_count) {
+        APP_ERR("FirmwareManager::SaveMetadataToFlash: Component count verification failed - written: %ld, read: %ld", 
+                (unsigned long)current_metadata.component_count, (unsigned long)verify_metadata.component_count);
+        verification_failed = true;
+    }
+    
+    // 9. 校验CRC32
+    if (verify_metadata.metadata_crc32 != current_metadata.metadata_crc32) {
+        APP_ERR("FirmwareManager::SaveMetadataToFlash: CRC32 verification failed - written: 0x%08lX, read: 0x%08lX", 
+                (unsigned long)current_metadata.metadata_crc32, (unsigned long)verify_metadata.metadata_crc32);
+        verification_failed = true;
+    }
+    
+    // 10. 校验组件信息
+    for (uint32_t i = 0; i < current_metadata.component_count && i < FIRMWARE_COMPONENT_COUNT; i++) {
+        const FirmwareComponent* written_comp = &current_metadata.components[i];
+        const FirmwareComponent* read_comp = &verify_metadata.components[i];
+        
+        if (strcmp(written_comp->name, read_comp->name) != 0) {
+            APP_ERR("FirmwareManager::SaveMetadataToFlash: Component[%ld] name verification failed - written: %s, read: %s", 
+                    (unsigned long)i, written_comp->name, read_comp->name);
+            verification_failed = true;
+        }
+        
+        if (written_comp->address != read_comp->address) {
+            APP_ERR("FirmwareManager::SaveMetadataToFlash: Component[%ld] address verification failed - written: 0x%08lX, read: 0x%08lX", 
+                    (unsigned long)i, (unsigned long)written_comp->address, (unsigned long)read_comp->address);
+            verification_failed = true;
+        }
+        
+        if (written_comp->size != read_comp->size) {
+            APP_ERR("FirmwareManager::SaveMetadataToFlash: Component[%ld] size verification failed - written: %ld, read: %ld", 
+                    (unsigned long)i, (unsigned long)written_comp->size, (unsigned long)read_comp->size);
+            verification_failed = true;
+        }
+        
+        if (written_comp->active != read_comp->active) {
+            APP_ERR("FirmwareManager::SaveMetadataToFlash: Component[%ld] active flag verification failed - written: %d, read: %d", 
+                    (unsigned long)i, written_comp->active, read_comp->active);
+            verification_failed = true;
+        }
+    }
+    
+    // 如果校验失败，返回错误
+    if (verification_failed) {
+        APP_ERR("FirmwareManager::SaveMetadataToFlash: Metadata verification failed! Flash write may be corrupted.");
+        return false;
+    }
+    
+    // 使用读取的元数据进行完整性验证
+    FirmwareValidationResult validation = validate_firmware_metadata(&verify_metadata);
+    if (validation != FIRMWARE_VALID) {
+        APP_ERR("FirmwareManager::SaveMetadataToFlash: Read-back metadata validation failed - result: %d", validation);
+        return false;
+    }
+    
+    APP_DBG("FirmwareManager::SaveMetadataToFlash: Metadata saved and verified successfully to address 0x%08X", METADATA_ADDR);
     return true;
 }
 
@@ -669,20 +787,10 @@ bool FirmwareManager::CompleteUpgradeSession(const char* session_id) {
         return false;
     }
     
-    // 标记新槽位为可启动
-    if (!MarkSlotBootable(target_slot)) {
-        APP_ERR("FirmwareManager::CompleteUpgradeSession: Failed to mark slot bootable");
-        current_session->status = UPGRADE_STATUS_FAILED;
-        return false;
-    }
-    
     current_session->status = UPGRADE_STATUS_COMPLETED;
     current_session->total_progress = 100;
     
     APP_DBG("FirmwareManager::CompleteUpgradeSession: Upgrade completed successfully, target slot: %d", target_slot);
-
-    // 调度系统重启
-    // ScheduleSystemRestart();
     
     return true;
 }
@@ -803,42 +911,6 @@ bool FirmwareManager::VerifyFirmwareIntegrity(FirmwareSlot slot) {
     }
     
     return !all_ff; // 如果不全是0xFF，说明有数据写入
-}
-
-bool FirmwareManager::MarkSlotBootable(FirmwareSlot slot) {
-    // 这里应该设置Bootloader的启动标志
-    // 具体实现取决于Bootloader的设计
-    // 可能需要写入特定的标志到特定地址
-    
-    // 示例：在用户配置区域写入启动槽位标志
-    uint8_t boot_flag = (slot == FIRMWARE_SLOT_A) ? 0xAA : 0xBB;
-    
-    // 使用QSPI接口写入启动标志
-    int8_t result = QSPI_W25Qxx_WriteBuffer_WithXIPOrNot(
-        &boot_flag, 
-        USER_CONFIG_ADDR - EXTERNAL_FLASH_BASE, 
-        1
-    );
-    
-    if (result != QSPI_W25Qxx_OK) {
-        return false;
-    }
-    
-    return true;
-}
-
-bool FirmwareManager::SwitchBootSlot(FirmwareSlot target_slot) {
-    return MarkSlotBootable(target_slot);
-}
-
-void FirmwareManager::ScheduleSystemRestart() {
-    // 延迟2秒后重启系统
-    HAL_Delay(2000);
-    SystemRestart();
-}
-
-void FirmwareManager::SystemRestart() {
-    NVIC_SystemReset();
 }
 
 void FirmwareManager::CleanupExpiredSessions() {

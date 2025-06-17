@@ -729,7 +729,7 @@ pbuf_free(struct pbuf *p)
   u8_t count;
 
   if (p == NULL) {
-    LWIP_ASSERT("p != NULL", p != NULL);
+    // LWIP_ASSERT("p != NULL", p != NULL);
     /* if assertions are disabled, proceed with debug output */
     LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_LEVEL_SERIOUS,
                 ("pbuf_free(p == NULL) was called.\n"));

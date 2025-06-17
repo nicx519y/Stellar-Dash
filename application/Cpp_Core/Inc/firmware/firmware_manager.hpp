@@ -97,7 +97,6 @@ private:
     bool VerifyFlashData(uint32_t address, const uint8_t* data, uint32_t size);
     bool CalculateSHA256(const uint8_t* data, uint32_t size, char* hash_output);
     void InitializeDefaultMetadata();
-    bool MarkSlotBootable(FirmwareSlot slot);
     void SystemRestart();
     
 public:
@@ -140,14 +139,9 @@ public:
     // 固件验证
     bool VerifyFirmwareIntegrity(FirmwareSlot slot);
     
-    // 槽位切换
-    bool SwitchBootSlot(FirmwareSlot target_slot);
-    
     // 获取目标升级槽位
     FirmwareSlot GetTargetUpgradeSlot();
-    
-    // 系统重启
-    void ScheduleSystemRestart();
+
 };
 
 #endif // __cplusplus

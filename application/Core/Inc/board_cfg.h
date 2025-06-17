@@ -47,7 +47,7 @@
 #endif
 
 /* Debug print configuration */
-#define APPLICATION_DEBUG_PRINT  1   // 设置为 0 可以关闭所有调试打印
+#define APPLICATION_DEBUG_PRINT  0   // 设置为 0 可以关闭所有调试打印
 
 #if APPLICATION_DEBUG_PRINT
     #define APP_DBG(fmt, ...) printf("[APP] " fmt "\r\n", ##__VA_ARGS__)
@@ -82,7 +82,7 @@
 #define ADC_VALUES_MAPPING_OFFSET           0x00280000      // ADC值映射表偏移 +2.5MB  
 
 // 用户配置区固定地址（独立于槽，两个槽共享）
-#define CONFIG_ADDR                         0x00560000      // 用户配置区固定地址
+#define CONFIG_ADDR                         0x90700000      // 用户配置区固定地址
 
 // 动态地址获取函数声明（需要在相应的.c文件中实现）
 uint32_t get_current_slot_base_address(void);

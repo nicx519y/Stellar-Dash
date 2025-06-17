@@ -78,7 +78,6 @@ static char http_post_payload[LWIP_HTTPD_POST_MAX_PAYLOAD_LEN];
 static uint16_t http_post_payload_len = 0;
 // static char http_response[LWIP_HTTPD_RESPONSE_MAX_PAYLOAD_LEN];
 
-const static uint32_t rebootDelayMs = 1000;  // 1秒后重启
 static uint32_t rebootTick = 0;  // 用于存储重启时间点
 static bool needReboot = false;  // 是否需要重启的标志
 
@@ -1452,7 +1451,7 @@ std::string apiReboot() {
     STORAGE_MANAGER.saveConfig();
 
     // 设置延迟重启时间
-    rebootTick = HAL_GetTick() + rebootDelayMs;
+    rebootTick = HAL_GetTick() + 2000;
     needReboot = true;
     
     // 获取标准格式的响应
@@ -3332,6 +3331,11 @@ std::string apiFirmwareUpgradeComplete() {
     cJSON_AddStringToObject(dataJSON, "message", "Firmware upgrade completed successfully. System will restart in 2 seconds.");
     
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+
+    // 设置需要重启 2秒后重启
+    rebootTick = HAL_GetTick() + 2000;
+    needReboot = true;
+
     return response;
 }
 
