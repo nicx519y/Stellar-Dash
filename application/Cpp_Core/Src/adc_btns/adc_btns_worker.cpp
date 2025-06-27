@@ -46,6 +46,10 @@ ADCBtnsWorker::ADCBtnsWorker()
         buttonPtrs[i] = new ADCBtn();  // 动态分配新对象
     }
 
+    // 初始化防抖过滤器，使用ULTRAFAST算法以获得最低延迟
+    ADCDebounceFilter::Config debounceConfig;
+    debounceFilter_.setConfig(debounceConfig);
+
     MC.registerMessage(MessageId::ADC_BTNS_STATE_CHANGED);
 }
 
@@ -269,6 +273,9 @@ ADCBtnsError ADCBtnsWorker::deinit() {
         }
     }
     
+    // 重置防抖状态
+    debounceFilter_.reset();
+    
     return ADCBtnsError::SUCCESS;
 }
 
@@ -303,11 +310,12 @@ uint32_t ADCBtnsWorker::read() {
         }
         
         // 获取按钮事件（新算法直接基于ADC值）
-        const ButtonEvent event = getButtonEvent(btn, adcValue);
+        const ButtonEvent event = getButtonEvent(btn, adcValue, i);
         
 
         // 处理状态转换
         if(event != ButtonEvent::NONE) {
+            APP_DBG("event: %d", event);
             handleButtonState(btn, event);
         }
     }
@@ -519,7 +527,7 @@ void ADCBtnsWorker::generateCalibratedMapping(ADCBtn* btn, uint16_t topValue, ui
 }
 
 // 状态转换处理函数
-ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint16_t currentValue) {
+ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint16_t currentValue, const uint8_t buttonIndex) {
     if (!btn || !btn->initCompleted) {
         return ButtonEvent::NONE;
     }
@@ -532,59 +540,50 @@ ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint
 
     switch(btn->state) {
         case ButtonState::RELEASED:
-
-            // 判断当前值相对于基准值的变化是否达到阈值
+            // 判断当前值是否达到按下阈值
             if (currentValue >= btn->triggerValue && currentDistance <= maxTravelDistance - btn->topDeadzoneMm) {
-
-                // 只有在自动校准模式下才更新滑动窗口
-                if(STORAGE_MANAGER.config.autoCalibrationEnabled) {
-                    if(btn->limitValue < btn->topValueWindow.getAverageValue()) {
-                        btn->topValueWindow.push(btn->limitValue, 2);
-                    } else {
-                        btn->topValueWindow.push(btn->limitValue);
-                    }
-                    btn->needCalibration = true;
+                // 应用防抖过滤
+                bool debounceConfirmed = debounceFilter_.filterUltraFastSingle(buttonIndex, true);
+                
+                if(buttonIndex == 0) {
+                    APP_DBG("Btn[%d]: RELEASE attempt, confirmed=%d", buttonIndex, debounceConfirmed);
                 }
 
-                resetLimitValue(btn, currentValue);
-
-                return ButtonEvent::PRESS_COMPLETE;
+                if (debounceConfirmed) {
+                    resetLimitValue(btn, currentValue);
+                    btn->lastTravelDistance = currentDistance;
+                    btn->lastAdcValue = currentValue;
+                    return ButtonEvent::PRESS_COMPLETE;
+                }
             }
-            
-            btn->lastTravelDistance = currentDistance;
-            btn->lastAdcValue = currentValue;
             break;
 
         case ButtonState::PRESSED:
-
-            // 判断当前值相对于基准值的变化是否达到阈值
+            // 判断当前值是否达到释放阈值
             if (currentValue <= btn->triggerValue && currentDistance >= btn->bottomDeadzoneMm) {
-
-                // 只有在自动校准模式下才更新滑动窗口
-                if(STORAGE_MANAGER.config.autoCalibrationEnabled) {
-                    if(btn->limitValue > btn->bottomValueWindow.getAverageValue()) {
-                        btn->bottomValueWindow.push(btn->limitValue, 2);
-                    } else {
-                        btn->bottomValueWindow.push(btn->limitValue);
-                    }
-                    btn->needCalibration = true;
-                }
+                // 应用防抖过滤
+                bool debounceConfirmed = debounceFilter_.filterUltraFastSingle(buttonIndex, false);
                 
-                resetLimitValue(btn, currentValue);
+                if(buttonIndex == 0) {
+                    APP_DBG("Btn[%d]: PRESS attempt, confirmed=%d", buttonIndex, debounceConfirmed);
+                }
 
-                return ButtonEvent::RELEASE_COMPLETE;
+                if (debounceConfirmed) {
+                    resetLimitValue(btn, currentValue);
+                    btn->lastTravelDistance = currentDistance;
+                    btn->lastAdcValue = currentValue;
+                    return ButtonEvent::RELEASE_COMPLETE;
+                }
             }
-            
-            btn->lastTravelDistance = currentDistance;
-            btn->lastAdcValue = currentValue;
             break;
 
         default:
-            btn->lastTravelDistance = currentDistance;
-            btn->lastAdcValue = currentValue;
             break;
     }
     
+    // 无状态切换，更新位置信息
+    btn->lastTravelDistance = currentDistance;
+    btn->lastAdcValue = currentValue;
     return ButtonEvent::NONE;
 }
 
@@ -814,34 +813,77 @@ float ADCBtnsWorker::getCurrentReleaseAccuracy(ADCBtn* btn, const float currentD
 
 /**
  * 处理按钮状态转换
- * 附带校准逻辑
- * 校准逻辑：
- * 1. 当按下开始时，将过渡值滑动窗口的最小值存储到topValueWindow滑动窗口
- * 2. 整个按下过程，将过渡值滑动窗口的值存储到travelValueWindow滑动窗口
- * 3. 当释放开始时，将过渡值滑动窗口的最大值存储到bottomValueWindow滑动窗口
- * 4. 整个释放过程，将过渡值滑动窗口的值存储到travelValueWindow滑动窗口
  * @param btn 按钮指针
- * @param currentIndex 当前索引
- * @param currentValue 当前值
  * @param event 事件
  */
 void ADCBtnsWorker::handleButtonState(ADCBtn* btn, const ButtonEvent event) {
+    if (!btn) {
+        return;
+    }
+
+    // 确定原始状态转换
+    bool newRawState = false;
+    bool stateChanged = false;
+
     switch(event) {
         case ButtonEvent::PRESS_COMPLETE:
+            newRawState = true;
+            stateChanged = true;
             btn->state = ButtonState::PRESSED;
-            buttonTriggerStatusChanged = true;
-            this->virtualPinMask |= (1U << btn->virtualPin);
-
             break;
 
         case ButtonEvent::RELEASE_COMPLETE:
+            newRawState = false; 
+            stateChanged = true;
             btn->state = ButtonState::RELEASED;
-            buttonTriggerStatusChanged = true;
-            this->virtualPinMask &= ~(1U << btn->virtualPin);
-
             break;
 
         default:
-            break;
+            return; // 无事件，直接返回
     }
+
+    if (!stateChanged) {
+        return;
+    }
+
+    // 直接更新virtualPinMask，不再使用防抖过滤
+    buttonTriggerStatusChanged = true;
+    
+    if (newRawState) {
+        this->virtualPinMask |= (1U << btn->virtualPin);
+    } else {
+        this->virtualPinMask &= ~(1U << btn->virtualPin);
+    }
+}
+
+/**
+ * @brief 设置防抖过滤器配置
+ * @param config 防抖配置
+ */
+void ADCBtnsWorker::setDebounceConfig(const ADCDebounceFilter::Config& config) {
+    debounceFilter_.setConfig(config);
+}
+
+/**
+ * @brief 获取防抖过滤器配置
+ * @return 当前防抖配置
+ */
+const ADCDebounceFilter::Config& ADCBtnsWorker::getDebounceConfig() const {
+    return debounceFilter_.getConfig();
+}
+
+/**
+ * @brief 重置防抖状态
+ */
+void ADCBtnsWorker::resetDebounceState() {
+    debounceFilter_.reset();
+}
+
+/**
+ * @brief 获取指定按钮的防抖状态 (调试用)
+ * @param buttonIndex 按钮索引
+ * @return 防抖状态值
+ */
+uint8_t ADCBtnsWorker::getButtonDebounceState(uint8_t buttonIndex) const {
+    return debounceFilter_.getButtonDebounceState(buttonIndex);
 }

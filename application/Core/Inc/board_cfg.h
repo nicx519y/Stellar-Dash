@@ -101,6 +101,11 @@ uint32_t get_current_slot_base_address(void);
 #define TIME_ADC_INIT                       1000            // ADC初始化时间，时间越长初始化越准确
 #define NUM_WINDOW_SIZE                     8               // 校准滑动窗口大小
 
+#define ULTRAFast_THRESHOLD                 0               // 超快版本阈值 0 表示不使用防抖
+#define ULTRAFast_THRESHOLD_MAX             30             // 超快版本阈值最大值
+#define ULTRAFast_THRESHOLD_NORMAL          15             // 超快版本阈值一般值
+
+
 #define NUM_PROFILES                        16
 #define NUM_ADC                             3               // 3个ADC
 #define NUM_ADC1_BUTTONS                    6

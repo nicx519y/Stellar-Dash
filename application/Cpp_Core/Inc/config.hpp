@@ -70,6 +70,7 @@ typedef struct __attribute__((packed))
 typedef struct
 {
     bool isAllBtnsConfiguring;
+    ADCButtonDebounceAlgorithm debounceAlgorithm;
     RapidTriggerProfile triggerConfigs[NUM_ADC_BUTTONS];
 } TriggerConfigs;
 

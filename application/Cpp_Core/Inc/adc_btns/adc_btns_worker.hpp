@@ -12,6 +12,7 @@
 #include "adc_manager.hpp"
 #include "micro_timer.hpp"
 #include "board_cfg.h"
+#include "adc_btns/adc_debounce_filter.hpp"
 
 #define NUM_MAPPING_INDEX_WINDOW_SIZE 32
 
@@ -66,6 +67,30 @@ class ADCBtnsWorker {
         // 动态校准
         void dynamicCalibration();
 
+        /**
+         * @brief 设置防抖过滤器配置
+         * @param config 防抖配置
+         */
+        void setDebounceConfig(const ADCDebounceFilter::Config& config);
+
+        /**
+         * @brief 获取防抖过滤器配置
+         * @return 当前防抖配置
+         */
+        const ADCDebounceFilter::Config& getDebounceConfig() const;
+
+        /**
+         * @brief 重置防抖状态
+         */
+        void resetDebounceState();
+
+        /**
+         * @brief 获取指定按钮的防抖状态 (调试用)
+         * @param buttonIndex 按钮索引
+         * @return 防抖状态值
+         */
+        uint8_t getButtonDebounceState(uint8_t buttonIndex) const;
+
     private:
 
         // 校准保存延迟常量 (毫秒)
@@ -117,7 +142,7 @@ class ADCBtnsWorker {
         };
 
         // 获取按钮事件
-        ButtonEvent getButtonEvent(ADCBtn* btn, const uint16_t currentValue);
+        ButtonEvent getButtonEvent(ADCBtn* btn, const uint16_t currentValue, const uint8_t buttonIndex);
         // 处理状态转换
         void handleButtonState(ADCBtn* btn, const ButtonEvent event);
 
@@ -143,11 +168,16 @@ class ADCBtnsWorker {
          */
         void generateCalibratedMapping(ADCBtn* btn, uint16_t topValue, uint16_t bottomValue);
 
-        ADCBtn* buttonPtrs[NUM_ADC_BUTTONS];
-        uint32_t virtualPinMask = 0x0;  // 虚拟引脚掩码
-        uint16_t minValueDiff;
-        const ADCValuesMapping* mapping;
-        bool buttonTriggerStatusChanged = false;
+        const ADCValuesMapping* mapping = nullptr;  // 映射表指针
+        ADCBtn* buttonPtrs[NUM_ADC_BUTTONS];        // 按钮指针数组
+        uint32_t virtualPinMask = 0x0;              // 虚拟引脚掩码
+        bool buttonTriggerStatusChanged = false;    // 按钮触发状态是否改变
+        uint16_t minValueDiff;                      // 最小值差值
+        
+        // 防抖过滤器
+        ADCDebounceFilter debounceFilter_;
+
+        // 动态校准相关函数
 };
 
 #define ADC_BTNS_WORKER ADCBtnsWorker::getInstance()

@@ -108,4 +108,11 @@ enum PS4ControllerType
     PS4_ARCADESTICK = 7,
 };
 
+enum ADCButtonDebounceAlgorithm
+{
+    NONE = 0,
+    NORMAL = 1,
+    MAX = 2,
+};
+
 #endif /* _NET_DRIVER_H_  */
