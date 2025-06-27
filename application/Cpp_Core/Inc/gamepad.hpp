@@ -103,6 +103,42 @@ class Gamepad {
         GamepadButtonMapping *mapButtonA2;
         GamepadButtonMapping *mapButtonFn;
 
+        /**
+         * @brief 防抖算法函数
+         * @param currentValues 当前输入值
+         * @return 经过防抖处理的输入值
+         */
+        Mask_t debounceFilter(Mask_t currentValues);
+
+        /**
+         * @brief 重置防抖状态
+         */
+        void resetDebounceState();
+
+        /**
+         * @brief 获取防抖时间窗口T1（微秒）- p->r延时
+         */
+        static inline uint32_t getDebounceT1() { return 10000; }  // DEBOUNCE_T1_US
+
+        /**
+         * @brief 获取防抖时间窗口T2（微秒）- r->p延时
+         */
+        static inline uint32_t getDebounceT2() { return 5000; }   // DEBOUNCE_T2_US
+
+        /**
+         * @brief 获取指定按键位的防抖状态（调试用）
+         * @param bitPosition 按键位位置 (0-31)
+         * @return 防抖状态：0=IDLE, 1=T1_WAITING, 2=T2_WAITING
+         */
+        uint8_t getButtonDebounceState(uint8_t bitPosition) const;
+
+        /**
+         * @brief 获取指定按键位的最后稳定值（调试用）
+         * @param bitPosition 按键位位置 (0-31)
+         * @return 最后确认的稳定值
+         */
+        bool getButtonLastStableValue(uint8_t bitPosition) const;
+
         // These are special to SOCD
         inline static const SOCDMode resolveSOCDMode(const GamepadProfile& options) {
             return (options.keysConfig.socdMode == SOCD_MODE_BYPASS &&
@@ -118,6 +154,33 @@ class Gamepad {
 
         void process();
         
+        // 按键防抖状态机枚举
+        enum DebounceState {
+            DEBOUNCE_IDLE,          // 空闲状态
+            DEBOUNCE_T1_WAITING,    // T1延时等待状态 (p->r)
+            DEBOUNCE_T2_WAITING     // T2延时等待状态 (r->p)
+        };
+        
+        // 单个按键的防抖状态
+        struct ButtonDebounceState {
+            DebounceState state;        // 当前状态机状态
+            bool lastStableValue;       // 上次确认的稳定值
+            bool currentSampleValue;    // 当前采样值
+            uint32_t timerStartTime;    // 计时器开始时间
+            
+            ButtonDebounceState() : state(DEBOUNCE_IDLE), lastStableValue(false), 
+                                  currentSampleValue(false), timerStartTime(0) {}
+        };
+        
+        // 所有按键的防抖状态数组（32位支持最多32个按键）
+        ButtonDebounceState buttonDebounceStates[32];
+        
+        // 防抖算法核心函数
+        bool debounceButton(uint8_t bitPosition, bool currentValue);
+        
+        // 防抖时间常量
+        static const uint32_t DEBOUNCE_T1_US = 10000;  // T1: 10ms (p->r延时)
+        static const uint32_t DEBOUNCE_T2_US = 5000;   // T2: 5ms (r->p延时)
 
 };
 
