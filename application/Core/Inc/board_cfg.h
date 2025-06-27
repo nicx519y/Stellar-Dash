@@ -112,7 +112,7 @@ uint32_t get_current_slot_base_address(void);
 #define MIN_ADC_RELEASE_ACCURACY            0.1f            // 默认ADC释放精度
 #define MIN_VALUE_DIFF_RATIO                0.8             // 最小值差值比例 按键动态校准的过程中，如果bottom - top的值差 不能小于原mapping的值差*MIN_VALUE_DIFF_RATIO
 
-#define READ_BTNS_INTERVAL                  200            // 检查按钮状态间隔 us
+#define READ_BTNS_INTERVAL                  50            // 检查按钮状态间隔 us
 #define DYNAMIC_CALIBRATION_INTERVAL        500000          // 动态校准间隔 500ms
 
 // ========== WebConfig模式ADC按键专用配置宏定义 ==========
@@ -128,7 +128,9 @@ uint32_t get_current_slot_base_address(void);
 #define FN_BUTTON_VIRTUAL_PIN       (1U << (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS - 1))  // FN 键虚拟引脚 最后一个GPIO按钮
 
 #define HAS_LED                                   1             //是否有LED
-#define NUM_LED	                    (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) //LED数量
+#define HAS_LED_AROUND                            1          //是否有底部环绕led
+#define NUM_LED_AROUND                            30          //底部环绕led数量
+#define NUM_LED	                    (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS + NUM_LED_AROUND) //LED数量
 
 #define NUM_LEDs_PER_ADC_BUTTON     1              //每个按钮多少个LED
 #define LEDS_BRIGHTNESS_RATIO       0.8             //默认led 亮度系数 会以实际亮度乘以这个系数

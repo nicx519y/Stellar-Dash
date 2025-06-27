@@ -1,7 +1,7 @@
 {
-  "version": "0x00000001",
+  "version": 1,
   "num": 2,
-  "default_id": "磁王-4464",
+  "default_id": "磁王mini-8",
   "mappings": [
     {
       "id": " 万磁王-4464",
@@ -124,112 +124,112 @@
       ],
       "manual_calibration_values": [
         {
-          "top_value": 36665,
-          "bottom_value": 56103
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36655,
-          "bottom_value": 56430
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36530,
-          "bottom_value": 55257
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36707,
-          "bottom_value": 55190
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36609,
-          "bottom_value": 55546
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36586,
-          "bottom_value": 55313
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36645,
-          "bottom_value": 55560
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36582,
-          "bottom_value": 55591
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36478,
-          "bottom_value": 55500
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36369,
-          "bottom_value": 55157
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36110,
-          "bottom_value": 53871
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36284,
-          "bottom_value": 54879
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36304,
-          "bottom_value": 55730
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36591,
-          "bottom_value": 55228
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36426,
-          "bottom_value": 55408
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36197,
-          "bottom_value": 55637
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 36459,
-          "bottom_value": 55632
+          "top_value": 0,
+          "bottom_value": 0
         }
       ]
     },
     {
-      "id": "test-31124",
-      "name": "test",
-      "length": 5,
+      "id": "万磁王mini-8",
+      "name": "万磁王mini",
+      "length": 29,
       "step": 0.10000000149011612,
-      "sampling_noise": 25,
-      "sampling_frequency": 2565,
+      "sampling_noise": 31,
+      "sampling_frequency": 2566,
       "original_values": [
-        32697,
-        32697,
-        32702,
-        32696,
-        32699,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
+        64851,
+        63935,
+        60996,
+        58984,
+        56901,
+        55346,
+        53749,
+        52335,
+        51001,
+        49713,
+        48645,
+        47675,
+        46793,
+        45873,
+        45237,
+        44441,
+        43694,
+        43135,
+        42509,
+        42027,
+        41481,
+        40998,
+        40515,
+        40188,
+        39738,
+        39423,
+        39119,
+        38746,
+        38443,
         0,
         0,
         0,
@@ -314,72 +314,72 @@
       ],
       "manual_calibration_values": [
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 38308,
+          "bottom_value": 65422
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 39019,
+          "bottom_value": 65535
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 38708,
+          "bottom_value": 65424
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 39136,
+          "bottom_value": 65535
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 39245,
+          "bottom_value": 65423
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 39153,
+          "bottom_value": 65423
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 38809,
+          "bottom_value": 65423
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 39127,
+          "bottom_value": 65423
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 39147,
+          "bottom_value": 65534
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 39091,
+          "bottom_value": 65535
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 39087,
+          "bottom_value": 65521
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 39334,
+          "bottom_value": 65535
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 38947,
+          "bottom_value": 65521
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 39129,
+          "bottom_value": 65534
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 38586,
+          "bottom_value": 65521
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 39650,
+          "bottom_value": 65521
         },
         {
-          "top_value": 0,
-          "bottom_value": 0
+          "top_value": 39174,
+          "bottom_value": 65522
         }
       ]
     }

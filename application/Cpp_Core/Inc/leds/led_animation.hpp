@@ -47,7 +47,7 @@ struct Ripple {
 typedef RGBColor (*LedAnimationAlgorithm)(const LedAnimationParams& params);
 
 // 按钮位置数组声明
-extern const ButtonPosition HITBOX_BTN_POS_LIST[NUM_LED];
+extern const ButtonPosition HITBOX_LED_POS_LIST[NUM_LED + NUM_LED_AROUND];
 
 // 颜色插值函数
 RGBColor lerpColor(const RGBColor& colorA, const RGBColor& colorB, float t);

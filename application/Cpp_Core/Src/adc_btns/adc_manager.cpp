@@ -51,7 +51,7 @@ ADCManager::ADCManager() {
     if(store.version != ADC_MAPPING_VERSION) {
         APP_DBG("ADCValuesMappingUtils version is not match, version: 0x%x", store.version);
         // 擦除64K
-        // QSPI_W25Qxx_BufferErase(ADC_VALUES_MAPPING_ADDR_QSPI, 64*1024);
+    // QSPI_W25Qxx_BufferErase(ADC_VALUES_MAPPING_ADDR_QSPI, 64*1024);
         
         // 初始化存储结构
         memset(&store, 0, sizeof(ADCValuesMappingStore));

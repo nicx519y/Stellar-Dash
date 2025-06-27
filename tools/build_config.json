@@ -5,7 +5,7 @@
   "openocd_target": "stm32h7x",
   "last_build": {
     "bootloader": "成功",
-    "application": "槽A 失败"
+    "application": "槽A 成功"
   },
   "parallel_jobs": 16
 }

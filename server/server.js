@@ -157,6 +157,43 @@ class FirmwareStorage {
         return this.data.firmwares.find(f => f.id === id);
     }
 
+    // 清空指定版本及之前的所有版本固件
+    clearFirmwaresUpToVersion(targetVersion) {
+        const toDelete = [];
+        const toKeep = [];
+        
+        this.data.firmwares.forEach(firmware => {
+            if (isValidVersion(firmware.version) && isValidVersion(targetVersion)) {
+                if (compareVersions(firmware.version, targetVersion) <= 0) {
+                    toDelete.push(firmware);
+                } else {
+                    toKeep.push(firmware);
+                }
+            } else {
+                // 如果版本号格式不正确，保留固件
+                toKeep.push(firmware);
+            }
+        });
+        
+        // 删除文件
+        toDelete.forEach(firmware => {
+            this.deleteFiles(firmware);
+        });
+        
+        // 更新固件列表
+        this.data.firmwares = toKeep;
+        
+        return {
+            success: this.saveData(),
+            deletedCount: toDelete.length,
+            deletedFirmwares: toDelete.map(f => ({
+                id: f.id,
+                name: f.name,
+                version: f.version
+            }))
+        };
+    }
+
     // 删除固件相关文件
     deleteFiles(firmware) {
         try {
@@ -516,6 +553,59 @@ app.delete('/api/firmwares/:id', (req, res) => {
     }
 });
 
+// 4.1. 清空指定版本及之前的所有版本固件
+app.post('/api/firmwares/clear-up-to-version', (req, res) => {
+    try {
+        const { targetVersion } = req.body;
+        
+        // 验证目标版本号参数
+        if (!targetVersion) {
+            return res.status(400).json({
+                success: false,
+                message: 'target version is required'
+            });
+        }
+
+        // 验证版本号格式
+        if (!isValidVersion(targetVersion.trim())) {
+            return res.status(400).json({
+                success: false,
+                message: 'version format error, must be three-digit version format (e.g. 1.0.0)'
+            });
+        }
+
+        // 执行清理操作
+        const result = storage_manager.clearFirmwaresUpToVersion(targetVersion.trim());
+        
+        if (result.success) {
+            res.json({
+                success: true,
+                message: `successfully cleared ${result.deletedCount} firmware(s) up to version ${targetVersion.trim()}`,
+                data: {
+                    targetVersion: targetVersion.trim(),
+                    deletedCount: result.deletedCount,
+                    deletedFirmwares: result.deletedFirmwares,
+                    clearTime: new Date().toISOString()
+                }
+            });
+            console.log(`Firmware clearing completed: cleared ${result.deletedCount} firmware(s) up to version ${targetVersion.trim()}`);
+        } else {
+            res.status(500).json({
+                success: false,
+                message: 'failed to clear firmware data'
+            });
+        }
+
+    } catch (error) {
+        console.error('Firmware clearing failed:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Firmware clearing failed',
+            error: error.message
+        });
+    }
+});
+
 // 5. 获取单个固件详情
 app.get('/api/firmwares/:id', (req, res) => {
     try {
@@ -649,6 +739,7 @@ app.listen(PORT, () => {
     console.log('  GET    /api/firmwares/:id      - 获取固件详情');
     console.log('  PUT    /api/firmwares/:id      - 更新固件信息');
     console.log('  DELETE /api/firmwares/:id      - 删除固件包');
+    console.log('  POST   /api/firmwares/clear-up-to-version - 清空指定版本及之前的固件');
     console.log('  GET    /downloads/:filename    - 下载固件包');
     console.log('='.repeat(60));
     console.log('服务器启动成功！按 Ctrl+C 停止服务');

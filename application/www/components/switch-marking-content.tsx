@@ -460,10 +460,10 @@ export function SwitchMarkingContent() {
                         gap={2}
                     >
                         <Badge colorPalette={"blue"} variant={"outline"} size="sm" >
-                            Sampling Frequency: {samplingFrequency > 0 ? samplingFrequency?.toFixed(0) + ' Hz' : 'N/A'}
+                            Sampling Frequency: { isNaN(samplingFrequency) ? 'N/A' : samplingFrequency?.toFixed(0) + ' Hz'}
                         </Badge>
                         <Badge colorPalette={"red"} variant={"outline"} size="sm">
-                            Sampling Noise: { samplingNoise > 0 ? samplingNoise?.toFixed(0) : 'N/A'}
+                            Sampling Noise: { isNaN(samplingNoise) ? 'N/A' : samplingNoise?.toFixed(0) }
                         </Badge>
                     </HStack>
                     <Line data={mappingData} options={options} />

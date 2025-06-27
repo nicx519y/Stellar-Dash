@@ -21,6 +21,8 @@ void MainStateMachine::setup()
             break;
         case BootMode::BOOT_MODE_CALIBRATION:
             state = &CALIBRATION_STATE;
+            STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT); // 设置为输入模式，保证下次启动时进入输入模式
+            STORAGE_MANAGER.saveConfig();
             break;
     }
 

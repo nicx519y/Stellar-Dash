@@ -1718,6 +1718,125 @@ class ReleaseManager:
             print(f"✗ 删除异常: {e}")
             return False
 
+    def clear_firmware_versions_from_server(self, target_version: str, server_url: str = "http://localhost:3000") -> bool:
+        """清空服务器上指定版本及之前的所有固件"""
+        
+        print("=" * 60)
+        print("清空服务器固件版本")
+        print("=" * 60)
+        print(f"服务器地址: {server_url}")
+        print(f"目标版本: {target_version} (包含此版本及之前的所有版本)")
+        print()
+        
+        try:
+            # 先获取当前所有固件列表，以便用户确认
+            list_url = f"{server_url}/api/firmwares"
+            print(f"正在获取固件列表: {list_url}")
+            
+            response = requests.get(
+                list_url,
+                timeout=30,
+                proxies={'http': None, 'https': None} if 'localhost' in server_url or '127.0.0.1' in server_url else None
+            )
+            
+            if response.status_code != 200:
+                print(f"✗ 获取固件列表失败: HTTP {response.status_code}")
+                return False
+            
+            result = response.json()
+            if not result.get('success'):
+                print(f"✗ 获取固件列表失败: {result.get('message', '未知错误')}")
+                return False
+            
+            firmwares = result['data']
+            if not firmwares:
+                print("服务器上没有固件，无需清空")
+                return True
+            
+            # 显示当前所有固件
+            print("当前服务器上的固件:")
+            firmware_versions = []
+            for firmware in firmwares:
+                print(f"  - {firmware['name']} v{firmware['version']} (ID: {firmware['id'][:8]}...)")
+                firmware_versions.append(firmware['version'])
+            
+            print()
+            
+            # 显示将要删除的版本范围
+            print(f"将要删除版本 <= {target_version} 的所有固件")
+            print("注意: 这个操作会删除指定版本及所有更早的版本!")
+            print()
+            
+            # 二次确认
+            confirm1 = input(f"确认要清空版本 <= {target_version} 的所有固件吗？(y/N): ").strip().lower()
+            if confirm1 not in ['y', 'yes', '是']:
+                print("操作已取消")
+                return False
+            
+            confirm2 = input("这个操作不可恢复！请再次确认 (yes/N): ").strip().lower()
+            if confirm2 != 'yes':
+                print("操作已取消")
+                return False
+            
+            print()
+            
+            # 调用清空接口
+            clear_url = f"{server_url}/api/firmwares/clear-up-to-version"
+            print(f"正在清空固件: {clear_url}")
+            
+            request_data = {
+                "targetVersion": target_version
+            }
+            
+            response = requests.post(
+                clear_url,
+                json=request_data,
+                headers={'Content-Type': 'application/json'},
+                timeout=60,
+                proxies={'http': None, 'https': None} if 'localhost' in server_url or '127.0.0.1' in server_url else None
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    data = result['data']
+                    print("✓ 清空成功!")
+                    print(f"目标版本: {data['targetVersion']}")
+                    print(f"删除数量: {data['deletedCount']} 个固件")
+                    
+                    if data['deletedFirmwares']:
+                        print("已删除的固件:")
+                        for deleted in data['deletedFirmwares']:
+                            print(f"  - {deleted['name']} v{deleted['version']} (ID: {deleted['id'][:8]}...)")
+                    
+                    print(f"清空时间: {data['clearTime']}")
+                    return True
+                else:
+                    print(f"✗ 清空失败: {result.get('message', '未知错误')}")
+                    return False
+            else:
+                print(f"✗ 清空失败: HTTP {response.status_code}")
+                try:
+                    error_info = response.json()
+                    print(f"错误信息: {error_info.get('message', response.text)}")
+                except:
+                    print(f"响应内容: {response.text}")
+                return False
+                
+        except requests.exceptions.ConnectionError:
+            print("✗ 连接失败: 无法连接到服务器")
+            print("请确保服务器已启动并且地址正确")
+            return False
+        except requests.exceptions.Timeout:
+            print("✗ 操作超时: 请检查网络连接")
+            return False
+        except KeyboardInterrupt:
+            print("\n操作已取消")
+            return False
+        except Exception as e:
+            print(f"✗ 清空异常: {e}")
+            return False
+
 def main():
     parser = argparse.ArgumentParser(
         description="STM32 HBox Release 管理工具 - 集成打包和刷写功能",
@@ -1802,6 +1921,18 @@ Intel HEX文件处理（测试功能）:
   删除指定服务器上的固件:
     python release.py delete abc123def456... --server http://192.168.1.100:3000
 
+清空服务器固件版本:
+  清空指定版本及之前的所有固件:
+    python release.py clear 1.0.5
+  
+  清空指定服务器上的固件:
+    python release.py clear 1.0.5 --server http://192.168.1.100:3000
+  
+  说明: 
+    - 会删除版本号 <= 指定版本的所有固件
+    - 例如: clear 1.0.5 会删除 1.0.0, 1.0.1, 1.0.2, 1.0.3, 1.0.4, 1.0.5 等版本
+    - 操作前会显示所有固件列表并要求二次确认
+
 Intel HEX增强模式说明:
   传统模式: 
     - 保持HEX文件完整，由固件管理器在运行时处理
@@ -1868,6 +1999,11 @@ Intel HEX增强模式说明:
     delete_parser = subparsers.add_parser('delete', help='删除服务器固件')
     delete_parser.add_argument("firmware_id", help="要删除的固件ID")
     delete_parser.add_argument("--server", help="指定服务器地址（可选）")
+    
+    # 清空命令
+    clear_parser = subparsers.add_parser('clear', help='清空指定版本及之前的所有固件')
+    clear_parser.add_argument("target_version", help="目标版本号（将删除此版本及之前的所有固件）")
+    clear_parser.add_argument("--server", help="指定服务器地址（可选）")
     
     args = parser.parse_args()
     
@@ -2005,6 +2141,18 @@ Intel HEX增强模式说明:
                 return 0
             else:
                 print("\n✗ 固件删除失败")
+                return 1
+        
+        elif args.command == 'clear':
+            # 清空服务器固件
+            target_version = args.target_version
+            server_url = args.server or "http://localhost:3000"
+            
+            if manager.clear_firmware_versions_from_server(target_version, server_url):
+                print("\n✓ 固件清空成功")
+                return 0
+            else:
+                print("\n✗ 固件清空失败")
                 return 1
         
         else:
