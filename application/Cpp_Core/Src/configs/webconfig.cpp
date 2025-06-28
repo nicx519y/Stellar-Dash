@@ -523,7 +523,9 @@ cJSON* buildProfileJSON(GamepadProfile* profile) {
     }
 
     cJSON_AddBoolToObject(triggerConfigsJSON, "isAllBtnsConfiguring", profile->triggerConfigs.isAllBtnsConfiguring);
-    cJSON_AddNumberToObject(triggerConfigsJSON, "debounceAlgorithm", profile->triggerConfigs.debounceAlgorithm);
+
+    uint8_t debounceAlgorithm = static_cast<uint8_t>(profile->triggerConfigs.debounceAlgorithm);
+    cJSON_AddNumberToObject(triggerConfigsJSON, "debounceAlgorithm", debounceAlgorithm);
     cJSON_AddItemToObject(triggerConfigsJSON, "triggerConfigs", triggerConfigsArrayJSON);
 
     // // 组装最终结构
@@ -949,8 +951,6 @@ std::string apiUpdateProfile() {
             sscanf(cJSON_GetArrayItem(ledColors, 0)->valuestring, "#%x", &targetProfile->ledsConfigs.ledColor1);
             sscanf(cJSON_GetArrayItem(ledColors, 1)->valuestring, "#%x", &targetProfile->ledsConfigs.ledColor2);
             sscanf(cJSON_GetArrayItem(ledColors, 2)->valuestring, "#%x", &targetProfile->ledsConfigs.ledColor3);
-
-            APP_DBG("ledColors: %06x, %06x, %06x\n", targetProfile->ledsConfigs.ledColor1, targetProfile->ledsConfigs.ledColor2, targetProfile->ledsConfigs.ledColor3);
         }
         
         if((item = cJSON_GetObjectItem(ledsConfig, "ledBrightness"))) {

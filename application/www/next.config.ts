@@ -3,8 +3,8 @@ import withBundleAnalyzer from '@next/bundle-analyzer';
 import TerserPlugin from 'terser-webpack-plugin';
 
 const nextConfig: NextConfig = {
-    // output: "export",   // 指定输出模式，export 表示导出静态文件，export 模式下，next 会生成一个 dist 目录，里面包含所有静态文件，使用这个模式的时候 要暂时删除 app/api 
-    // distDir: 'build',
+    output: "export",   // 指定输出模式，export 表示导出静态文件，export 模式下，next 会生成一个 dist 目录，里面包含所有静态文件，使用这个模式的时候 要暂时删除 app/api 
+    distDir: 'build',
     // 忽略 build 错误
     typescript: {
         ignoreBuildErrors: true,
@@ -23,7 +23,7 @@ const nextConfig: NextConfig = {
                     new TerserPlugin({
                         terserOptions: {
                             compress: {
-                                drop_console: false,
+                                drop_console: true,
                                 drop_debugger: true,
                                 passes: 3, // 压缩次数 1-2 默认和中等，3 是最大 时间显著增加
                                 toplevel: true, // 压缩顶级函数

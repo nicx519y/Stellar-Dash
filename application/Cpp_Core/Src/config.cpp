@@ -43,6 +43,7 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
 
     // 设置triggerConfigs 
     profile.triggerConfigs.isAllBtnsConfiguring = true;
+    // 设置防抖算法 无
     profile.triggerConfigs.debounceAlgorithm = ADCButtonDebounceAlgorithm::NONE;
 
     for(uint8_t l = 0; l < NUM_ADC_BUTTONS; l++) {
@@ -93,7 +94,7 @@ bool ConfigUtils::load(Config& config)
             ConfigUtils::makeDefaultProfile(config.profiles[k], profileId, k == 0);
         }
 
-        // 设置hotkeys
+        // 设置hotkeys 默认快捷键
         for(uint8_t m = 0; m < NUM_GAMEPAD_HOTKEYS; m++) {
             if(m == 0) { // 第一个快捷键锁定, 锁定为webconfig
                 config.hotkeys[m].isLocked = true;
@@ -105,6 +106,31 @@ bool ConfigUtils::load(Config& config)
                 config.hotkeys[m].action = GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION;
                 config.hotkeys[m].isHold = true;
                 config.hotkeys[m].virtualPin = 18;
+            } else if(m == 2) {
+                config.hotkeys[m].isLocked = false;
+                config.hotkeys[m].action = GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT;
+                config.hotkeys[m].isHold = false;
+                config.hotkeys[m].virtualPin = 16;
+            } else if(m == 3) {
+                config.hotkeys[m].isLocked = false;
+                config.hotkeys[m].action = GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_PREV;
+                config.hotkeys[m].isHold = false;
+                config.hotkeys[m].virtualPin = 15;
+            } else if(m == 4) {
+                config.hotkeys[m].isLocked = false;
+                config.hotkeys[m].action = GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP;
+                config.hotkeys[m].isHold = false;
+                config.hotkeys[m].virtualPin = 14;
+            } else if(m == 5) {
+                config.hotkeys[m].isLocked = false;
+                config.hotkeys[m].action = GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_DOWN;
+                config.hotkeys[m].isHold = false;
+                config.hotkeys[m].virtualPin = 13;
+            } else if(m == 6) {
+                config.hotkeys[m].isLocked = false;
+                config.hotkeys[m].action = GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH;
+                config.hotkeys[m].isHold = true;
+                config.hotkeys[m].virtualPin = 0;
             } else { // 其他快捷键不锁定
                 config.hotkeys[m].isLocked = false;
                 config.hotkeys[m].action = GamepadHotkey::HOTKEY_NONE;
