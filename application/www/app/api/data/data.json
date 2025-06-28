@@ -80,6 +80,7 @@
       },
       "triggerConfigs": {
         "isAllBtnsConfiguring": true,
+        "debounceAlgorithm": 2,
         "triggerConfigs": [
           {
             "topDeadzone": 0.3,
@@ -224,6 +225,7 @@
       },
       "triggerConfigs": {
         "isAllBtnsConfiguring": true,
+        "debounceAlgorithm": 0,
         "triggerConfigs": [
           {
             "topDeadzone": 0,

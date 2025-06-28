@@ -397,7 +397,7 @@ const converProfileDetails = (profile: any) => {
             ledAnimationSpeed: profile.ledsConfigs?.ledAnimationSpeed as number ?? 1,
         },
         hotkeys: profile.hotkeys as Hotkey[] ?? [],
-        triggerConfigs: profile.triggerConfigs as { [key: number]: RapidTriggerConfig } ?? {},
+        triggerConfigs: profile.triggerConfigs ?? {},
     }
     return newProfile;
 }

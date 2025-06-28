@@ -47,7 +47,22 @@ ADCBtnsWorker::ADCBtnsWorker()
     }
 
     // 初始化防抖过滤器，使用ULTRAFAST算法以获得最低延迟
+    // 根据默认游戏手柄配置初始化防抖过滤器
+    ADCButtonDebounceAlgorithm debounceAlgorithm = STORAGE_MANAGER.getDefaultGamepadProfile()->triggerConfigs.debounceAlgorithm;
+
     ADCDebounceFilter::Config debounceConfig;
+
+    switch (debounceAlgorithm) {
+        case ADCButtonDebounceAlgorithm::NONE:
+            debounceConfig.ultrafastThreshold = ULTRAFast_THRESHOLD_NONE;
+            break;
+        case ADCButtonDebounceAlgorithm::NORMAL:
+            debounceConfig.ultrafastThreshold = ULTRAFast_THRESHOLD_NORMAL;
+            break;
+        case ADCButtonDebounceAlgorithm::MAX:
+            debounceConfig.ultrafastThreshold = ULTRAFast_THRESHOLD_MAX;
+            break;
+    }
     debounceFilter_.setConfig(debounceConfig);
 
     MC.registerMessage(MessageId::ADC_BTNS_STATE_CHANGED);

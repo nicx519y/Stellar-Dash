@@ -12,10 +12,11 @@ import {
     VStack,
     HStack,
     Switch,
+    RadioCard,
+    Slider,
 } from "@chakra-ui/react";
-import { Slider } from "@chakra-ui/react"
 import { useEffect, useState } from "react";
-import { RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS, RapidTriggerConfig } from "@/types/gamepad-config";
+import { ADCButtonDebounceAlgorithm, RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS, RapidTriggerConfig } from "@/types/gamepad-config";
 import Hitbox from "@/components/hitbox";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
@@ -47,6 +48,8 @@ const defaultTriggerConfig: TriggerConfig = {
     releaseAccuracy: 0
 };
 
+
+
 export function ButtonsTravelContent() {
     const { defaultProfile, updateProfileDetails, resetProfileDetails } = useGamepadConfig();
     const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
@@ -55,19 +58,44 @@ export function ButtonsTravelContent() {
     const [selectedButton, setSelectedButton] = useState<number | null>(0); // 当前选中的按钮
     const [triggerConfigs, setTriggerConfigs] = useState<RapidTriggerConfig[]>([]); // 按钮配置
     const [isAllBtnsConfiguring, setIsAllBtnsConfiguring] = useState<boolean>(true); // 是否同时配置所有按钮
+    const [debounceAlgorithm, setDebounceAlgorithm] = useState<ADCButtonDebounceAlgorithm>(ADCButtonDebounceAlgorithm.NONE); // 防抖算法
     const [allBtnsConfig, setAllBtnsConfig] = useState<RapidTriggerConfig>({ ...defaultTriggerConfig });
     const [tableViewConfig, setTableViewConfig] = useState<RapidTriggerConfig[]>([]); // 表格视图配置
 
     // 所有按钮的键值
     const allKeys = RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS;
 
+    const debounceAlgorithmLabelMap = new Map<ADCButtonDebounceAlgorithm, { label: string, description: string }>([
+        [ADCButtonDebounceAlgorithm.NONE, {
+            label: t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE,
+            description: t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE_DESC
+        }],
+        [ADCButtonDebounceAlgorithm.NORMAL, {
+            label: t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL,
+            description: t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL_DESC
+        }],
+        [ADCButtonDebounceAlgorithm.MAX, {
+            label: t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX,
+            description: t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX_DESC
+        }]
+    ]);
+
+    const ADCButtonDebounceAlgorithmLabelList = Array.from(debounceAlgorithmLabelMap.entries()).map(([value, config]) => ({
+        value,
+        label: config.label,
+        description: config.description
+    }));
+
     /**
      * 加载触发配置
      */
     useEffect(() => {
         // Load trigger configs from gamepadConfig when it changes
+
+        
         const triggerConfigs = { ...defaultProfile.triggerConfigs };
         setIsAllBtnsConfiguring(triggerConfigs.isAllBtnsConfiguring ?? false);
+        setDebounceAlgorithm(triggerConfigs.debounceAlgorithm as ADCButtonDebounceAlgorithm ?? ADCButtonDebounceAlgorithm.NONE);
         setTriggerConfigs(allKeys.map(key => triggerConfigs.triggerConfigs?.[key] ?? defaultTriggerConfig));
         setAllBtnsConfig(triggerConfigs.triggerConfigs?.[0] ?? defaultTriggerConfig);
         setIsDirty?.(false);
@@ -80,6 +108,7 @@ export function ButtonsTravelContent() {
             setTableViewConfig(triggerConfigs);
         }
     }, [triggerConfigs, allBtnsConfig, isAllBtnsConfiguring]);
+
 
     /**
      * 获取当前配置
@@ -132,6 +161,9 @@ export function ButtonsTravelContent() {
      */
     const saveProfileDetailHandler = async (): Promise<void> => {
         const profileId = defaultProfile.id;
+
+        console.log("saveProfileDetailHandler: debounceAlgorithm - ", debounceAlgorithm as number);
+
         if (isAllBtnsConfiguring) {
             const newTriggerConfigs: RapidTriggerConfig[] = [];
             allKeys.forEach((key, index) => {
@@ -142,6 +174,7 @@ export function ButtonsTravelContent() {
                 id: profileId,
                 triggerConfigs: {
                     isAllBtnsConfiguring: isAllBtnsConfiguring,
+                    debounceAlgorithm: debounceAlgorithm as number,
                     triggerConfigs: newTriggerConfigs
                 }
             });
@@ -150,6 +183,7 @@ export function ButtonsTravelContent() {
                 id: profileId,
                 triggerConfigs: {
                     isAllBtnsConfiguring: isAllBtnsConfiguring,
+                    debounceAlgorithm: debounceAlgorithm as number,
                     triggerConfigs: triggerConfigs
                 }
             });
@@ -191,146 +225,173 @@ export function ButtonsTravelContent() {
                         </Card.Header>
                         <Card.Body>
                             <Fieldset.Root>
-                  
 
-                                    <Fieldset.Content  >
-                                        <VStack gap={8} alignItems={"flex-start"} >
-                                            <Switch.Root colorPalette={"green"} checked={isAllBtnsConfiguring}
-                                                onCheckedChange={() => {
-                                                    switchAllBtnsConfiging(!isAllBtnsConfiguring);
+
+                                <Fieldset.Content  >
+                                    <VStack gap={8} alignItems={"flex-start"} >
+
+                                        <RadioCard.Root variant={"subtle"} pb={4} value={debounceAlgorithm.toString()} colorPalette={"green"} onValueChange={(details) => {
+                                            if (details.value !== null) {
+                                                const parsedValue = parseInt(details.value);
+                                                setDebounceAlgorithm(parsedValue as ADCButtonDebounceAlgorithm);
+                                                setIsDirty?.(true);
+                                            }
+                                        }} >
+                                            <RadioCard.Label>{t.SETTINGS_ADC_BUTTON_DEBOUNCE_TITLE}</RadioCard.Label>
+                                            <HStack align="stretch">
+                                                {ADCButtonDebounceAlgorithmLabelList.map((item, index) => (
+                                                    <RadioCard.Item key={index} value={item.value.toString()} w="230px" >
+                                                        <RadioCard.ItemHiddenInput />
+                                                        <RadioCard.ItemControl>
+                                                            <RadioCard.ItemContent>
+                                                                <RadioCard.ItemText>{item.label}</RadioCard.ItemText>
+                                                                <RadioCard.ItemDescription>
+                                                                    {item.description}
+                                                                </RadioCard.ItemDescription>
+                                                            </RadioCard.ItemContent>
+                                                            <RadioCard.ItemIndicator />
+                                                        </RadioCard.ItemControl>
+                                                    </RadioCard.Item>
+                                                ))}
+                                            </HStack>
+                                        </RadioCard.Root>
+
+                                        <Switch.Root colorPalette={"green"} checked={isAllBtnsConfiguring}
+                                            onCheckedChange={() => {
+                                                switchAllBtnsConfiging(!isAllBtnsConfiguring);
+                                                setIsDirty?.(true);
+                                            }}
+                                        >
+                                            <Switch.HiddenInput />
+                                            <Switch.Control>
+                                                <Switch.Thumb />
+                                            </Switch.Control>
+                                            <Switch.Label>
+                                                <Text fontSize={"sm"} opacity={0.75} >{t.SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL}</Text>
+                                            </Switch.Label>
+                                        </Switch.Root>
+
+                                        <Text opacity={!isAllBtnsConfiguring ? "0.75" : "0.25"} fontSize={"sm"} >
+                                            {(selectedButton !== null && !isAllBtnsConfiguring) ?
+                                                t.SETTINGS_RAPID_TRIGGER_ONFIGURING_BUTTON
+                                                : t.SETTINGS_RAPID_TRIGGER_SELECT_A_BUTTON_TO_CONFIGURE
+                                            }
+                                            {(selectedButton !== null && !isAllBtnsConfiguring) && (
+                                                <Text as="span" fontWeight="bold">
+                                                    KEY-{(selectedButton ?? 0) + 1}
+                                                </Text>
+                                            )}
+                                        </Text>
+
+                                        {/* Sliders */}
+                                        {[
+                                            { key: 'topDeadzone', label: t.SETTINGS_RAPID_TRIGGER_TOP_DEADZONE_LABEL, min: 0, max: 1, step: 0.1, decimalPlaces: 1 },
+                                            { key: 'pressAccuracy', label: t.SETTINGS_RAPID_TRIGGER_PRESS_ACCURACY_LABEL, min: 0.1, max: 1, step: 0.1, decimalPlaces: 1 },
+                                            { key: 'bottomDeadzone', label: t.SETTINGS_RAPID_TRIGGER_BOTTOM_DEADZONE_LABEL, min: 0, max: 1, step: 0.01, decimalPlaces: 2 },
+                                            { key: 'releaseAccuracy', label: t.SETTINGS_RAPID_TRIGGER_RELEASE_ACCURACY_LABEL, min: 0.01, max: 1, step: 0.01, decimalPlaces: 2 },
+                                        ].map(({ key, label, min, max, step, decimalPlaces }) => (
+
+
+                                            <Slider.Root
+                                                key={key}
+                                                width="680px"
+                                                min={0}
+                                                max={max}
+                                                step={step}
+                                                colorPalette={"green"}
+                                                disabled={selectedButton === null && !isAllBtnsConfiguring}
+                                                value={[isAllBtnsConfiguring ? allBtnsConfig[key as keyof RapidTriggerConfig] : getCurrentConfig()[key as keyof TriggerConfig]]}
+                                                onValueChange={(details) => {
+                                                    let v = 0;
+                                                    if (details.value[0] < min) {
+                                                        v = min;
+                                                    } else if (details.value[0] > max) {
+                                                        v = max;
+                                                    } else {
+                                                        v = details.value[0];
+                                                    }
+                                                    if (isAllBtnsConfiguring) {
+                                                        updateAllBtnsConfig(key as keyof RapidTriggerConfig, v);
+                                                    } else {
+                                                        updateConfig(key as keyof TriggerConfig, v);
+                                                    }
                                                     setIsDirty?.(true);
+
                                                 }}
                                             >
-                                                <Switch.HiddenInput />
-                                                <Switch.Control>
-                                                    <Switch.Thumb />
-                                                </Switch.Control>
-                                                <Switch.Label>
-                                                    <Text fontSize={"sm"} opacity={0.75} >{t.SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL}</Text>
-                                                </Switch.Label>
-                                            </Switch.Root>
-
-                                            <Text opacity={!isAllBtnsConfiguring ? "0.75" : "0.25"} fontSize={"sm"} >
-                                                {(selectedButton !== null && !isAllBtnsConfiguring) ?
-                                                    t.SETTINGS_RAPID_TRIGGER_ONFIGURING_BUTTON
-                                                    : t.SETTINGS_RAPID_TRIGGER_SELECT_A_BUTTON_TO_CONFIGURE
-                                                }
-                                                {(selectedButton !== null && !isAllBtnsConfiguring) && (
-                                                    <Text as="span" fontWeight="bold">
-                                                        KEY-{(selectedButton ?? 0) + 1}
-                                                    </Text>
-                                                )}
-                                            </Text>
-
-                                            {/* Sliders */}
-                                            {[
-                                                { key: 'topDeadzone', label: t.SETTINGS_RAPID_TRIGGER_TOP_DEADZONE_LABEL, min: 0, max: 1, step: 0.1, decimalPlaces: 1 },
-                                                { key: 'pressAccuracy', label: t.SETTINGS_RAPID_TRIGGER_PRESS_ACCURACY_LABEL, min: 0.1, max: 1, step: 0.1, decimalPlaces: 1 },
-                                                { key: 'bottomDeadzone', label: t.SETTINGS_RAPID_TRIGGER_BOTTOM_DEADZONE_LABEL, min: 0, max: 1, step: 0.01, decimalPlaces: 2 },
-                                                { key: 'releaseAccuracy', label: t.SETTINGS_RAPID_TRIGGER_RELEASE_ACCURACY_LABEL, min: 0.01, max: 1, step: 0.01, decimalPlaces: 2 },
-                                            ].map(({ key, label, min, max, step, decimalPlaces }) => (
+                                                <HStack justifyContent={"space-between"} >
+                                                    <Slider.Label>{label}</Slider.Label>
+                                                    <Slider.ValueText />
+                                                </HStack>
+                                                <Slider.Control>
+                                                    <Slider.Track>
+                                                        <Slider.Range />
+                                                    </Slider.Track>
+                                                    <Slider.Thumb index={0} >
+                                                        <Slider.DraggingIndicator
+                                                            layerStyle="fill.solid"
+                                                            top="6"
+                                                            rounded="sm"
+                                                            px="1.5"
+                                                        >
+                                                            <Slider.ValueText />
+                                                        </Slider.DraggingIndicator>
+                                                    </Slider.Thumb>
+                                                    <Slider.Marks marks={Array.from({ length: Math.floor(max / 0.2) + 1 }, (_, i) => ({
+                                                        value: i * 0.2,
+                                                        label: (i * 0.2).toFixed(decimalPlaces)
+                                                    }))} />
+                                                </Slider.Control>
+                                            </Slider.Root>
 
 
-                                                <Slider.Root 
-                                                    key={key}
-                                                    width="680px" 
-                                                    min={0}
-                                                    max={max}
-                                                    step={step}
-                                                    colorPalette={"green"}
-                                                    disabled={selectedButton === null && !isAllBtnsConfiguring}
-                                                    value={[isAllBtnsConfiguring ? allBtnsConfig[key as keyof RapidTriggerConfig] : getCurrentConfig()[key as keyof TriggerConfig]]}
-                                                    onValueChange={(details) => {
-                                                        let v = 0;
-                                                        if (details.value[0] < min) {
-                                                            v = min;
-                                                        } else if (details.value[0] > max) {
-                                                            v = max;
-                                                        } else {
-                                                            v = details.value[0];
-                                                        }
-                                                        if (isAllBtnsConfiguring) {
-                                                            updateAllBtnsConfig(key as keyof RapidTriggerConfig, v);
-                                                        } else {
-                                                        updateConfig(key as keyof TriggerConfig, v);
-                                                        }
-                                                        setIsDirty?.(true);
-                                                        
-                                                    }}
-                                                >
-                                                    <HStack justifyContent={"space-between"} >
-                                                        <Slider.Label>{label}</Slider.Label>
-                                                        <Slider.ValueText />
-                                                    </HStack>
-                                                    <Slider.Control>
-                                                        <Slider.Track>
-                                                            <Slider.Range />
-                                                        </Slider.Track>
-                                                        <Slider.Thumb index={0} >
-                                                            <Slider.DraggingIndicator
-                                                                layerStyle="fill.solid"
-                                                                top="6"
-                                                                rounded="sm"
-                                                                px="1.5"
-                                                            >
-                                                                <Slider.ValueText />
-                                                            </Slider.DraggingIndicator>
-                                                        </Slider.Thumb>
-                                                        <Slider.Marks marks={Array.from({ length: Math.floor(max / 0.2) + 1 }, (_, i) => ({ 
-                                                            value: i * 0.2, 
-                                                            label: (i * 0.2).toFixed(decimalPlaces) 
-                                                        }))} />
-                                                    </Slider.Control>
-                                                </Slider.Root>
+                                        ))}
 
-                                                    
-                                            ))}
 
-                                            
 
-                                            <DialogRoot lazyMount placement={"center"} unmountOnExit={true} >
-                                                <DialogTrigger asChild >
-                                                    <Box width={"120px"} >
-                                                        <Button variant={"ghost"} colorPalette={"green"} size={"sm"} ><LuSheet />{t.BUTTON_PREVIEW_IN_TABLE_VIEW}</Button>
-                                                    </Box>
-                                                </DialogTrigger>
-                                                <DialogContent maxWidth="650px" >
-                                                    <DialogHeader>
-                                                        <DialogTitle fontSize="sm" opacity={0.75} >{t.SETTINGS_RAPID_TRIGGER_TITLE}</DialogTitle>
-                                                    </DialogHeader>
-                                                    <DialogBody >
-                                                        <Table.Root fontSize="sm" colorPalette={"green"} interactive opacity={0.9} >
-                                                            <Table.Header fontSize="xs" >
-                                                                <Table.Row>
-                                                                    <Table.ColumnHeader width="12%" textAlign="center" >Key</Table.ColumnHeader>
-                                                                    <Table.ColumnHeader width="22%" textAlign="end" >{t.SETTINGS_RAPID_TRIGGER_TOP_DEADZONE_LABEL}</Table.ColumnHeader>
-                                                                    <Table.ColumnHeader width="22%" textAlign="end" >{t.SETTINGS_RAPID_TRIGGER_BOTTOM_DEADZONE_LABEL}</Table.ColumnHeader>
-                                                                    <Table.ColumnHeader width="22%" textAlign="end" >{t.SETTINGS_RAPID_TRIGGER_PRESS_ACCURACY_LABEL}</Table.ColumnHeader>
-                                                                    <Table.ColumnHeader width="22%" textAlign="end" >{t.SETTINGS_RAPID_TRIGGER_RELEASE_ACCURACY_LABEL}</Table.ColumnHeader>
+                                        <DialogRoot lazyMount placement={"center"} unmountOnExit={true} >
+                                            <DialogTrigger asChild >
+                                                <Box width={"120px"} >
+                                                    <Button variant={"ghost"} colorPalette={"green"} size={"sm"} ><LuSheet />{t.BUTTON_PREVIEW_IN_TABLE_VIEW}</Button>
+                                                </Box>
+                                            </DialogTrigger>
+                                            <DialogContent maxWidth="650px" >
+                                                <DialogHeader>
+                                                    <DialogTitle fontSize="sm" opacity={0.75} >{t.SETTINGS_RAPID_TRIGGER_TITLE}</DialogTitle>
+                                                </DialogHeader>
+                                                <DialogBody >
+                                                    <Table.Root fontSize="sm" colorPalette={"green"} interactive opacity={0.9} >
+                                                        <Table.Header fontSize="xs" >
+                                                            <Table.Row>
+                                                                <Table.ColumnHeader width="12%" textAlign="center" >Key</Table.ColumnHeader>
+                                                                <Table.ColumnHeader width="22%" textAlign="end" >{t.SETTINGS_RAPID_TRIGGER_TOP_DEADZONE_LABEL}</Table.ColumnHeader>
+                                                                <Table.ColumnHeader width="22%" textAlign="end" >{t.SETTINGS_RAPID_TRIGGER_BOTTOM_DEADZONE_LABEL}</Table.ColumnHeader>
+                                                                <Table.ColumnHeader width="22%" textAlign="end" >{t.SETTINGS_RAPID_TRIGGER_PRESS_ACCURACY_LABEL}</Table.ColumnHeader>
+                                                                <Table.ColumnHeader width="22%" textAlign="end" >{t.SETTINGS_RAPID_TRIGGER_RELEASE_ACCURACY_LABEL}</Table.ColumnHeader>
+                                                            </Table.Row>
+                                                        </Table.Header>
+                                                        <Table.Body>
+                                                            {tableViewConfig.map((config, index) => (
+                                                                <Table.Row key={index}>
+                                                                    <Table.Cell textAlign="center" >{index + 1}</Table.Cell>
+                                                                    <Table.Cell textAlign="end" >{config.topDeadzone}</Table.Cell>
+                                                                    <Table.Cell textAlign="end" >{config.bottomDeadzone}</Table.Cell>
+                                                                    <Table.Cell textAlign="end" >{config.pressAccuracy}</Table.Cell>
+                                                                    <Table.Cell textAlign="end" >{config.releaseAccuracy}</Table.Cell>
                                                                 </Table.Row>
-                                                            </Table.Header>
-                                                            <Table.Body>
-                                                                {tableViewConfig.map((config, index) => (
-                                                                    <Table.Row key={index}>
-                                                                        <Table.Cell textAlign="center" >{index + 1}</Table.Cell>
-                                                                        <Table.Cell textAlign="end" >{config.topDeadzone}</Table.Cell>
-                                                                        <Table.Cell textAlign="end" >{config.bottomDeadzone}</Table.Cell>
-                                                                        <Table.Cell textAlign="end" >{config.pressAccuracy}</Table.Cell>
-                                                                        <Table.Cell textAlign="end" >{config.releaseAccuracy}</Table.Cell>
-                                                                    </Table.Row>
-                                                                ))}
-                                                            </Table.Body>
-                                                        </Table.Root>
-                                                    </DialogBody>
-                                                    <DialogCloseTrigger />
-                                                </DialogContent>
-                                            </DialogRoot>
+                                                            ))}
+                                                        </Table.Body>
+                                                    </Table.Root>
+                                                </DialogBody>
+                                                <DialogCloseTrigger />
+                                            </DialogContent>
+                                        </DialogRoot>
 
-                                            {/* Buttons */}
+                                        {/* Buttons */}
 
-                                        </VStack>
-                                    </Fieldset.Content>
-                              
+                                    </VStack>
+                                </Fieldset.Content>
+
                             </Fieldset.Root>
                         </Card.Body>
                         <Card.Footer justifyContent={"flex-start"} >

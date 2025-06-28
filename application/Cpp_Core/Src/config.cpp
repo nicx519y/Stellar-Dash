@@ -43,6 +43,7 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
 
     // 设置triggerConfigs 
     profile.triggerConfigs.isAllBtnsConfiguring = true;
+    profile.triggerConfigs.debounceAlgorithm = ADCButtonDebounceAlgorithm::NONE;
 
     for(uint8_t l = 0; l < NUM_ADC_BUTTONS; l++) {
         profile.triggerConfigs.triggerConfigs[l] = {

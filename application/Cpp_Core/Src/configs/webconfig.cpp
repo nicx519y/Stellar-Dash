@@ -523,6 +523,7 @@ cJSON* buildProfileJSON(GamepadProfile* profile) {
     }
 
     cJSON_AddBoolToObject(triggerConfigsJSON, "isAllBtnsConfiguring", profile->triggerConfigs.isAllBtnsConfiguring);
+    cJSON_AddNumberToObject(triggerConfigsJSON, "debounceAlgorithm", profile->triggerConfigs.debounceAlgorithm);
     cJSON_AddItemToObject(triggerConfigsJSON, "triggerConfigs", triggerConfigsArrayJSON);
 
     // // 组装最终结构
@@ -636,6 +637,7 @@ std::string apiGetProfileList() {
  *          },
  *          "triggerConfigs": {
  *              "isAllBtnsConfiguring": false,
+ *              "debounceAlgorithm": 0,
  *              "triggerConfigs": [
  *                  {
  *                      "topDeadzone": 0.6,
@@ -966,6 +968,17 @@ std::string apiUpdateProfile() {
         cJSON* isAllBtnsConfiguring = cJSON_GetObjectItem(triggerConfigs, "isAllBtnsConfiguring");
         if(isAllBtnsConfiguring) {
             targetProfile->triggerConfigs.isAllBtnsConfiguring = isAllBtnsConfiguring->type == cJSON_True;
+        }
+
+        cJSON* debounceAlgorithm = cJSON_GetObjectItem(triggerConfigs, "debounceAlgorithm");
+        if(debounceAlgorithm) {
+            if(debounceAlgorithm->type == cJSON_Number 
+                && debounceAlgorithm->valueint >= 0 
+                && debounceAlgorithm->valueint < ADCButtonDebounceAlgorithm::NUM_ADC_BUTTON_DEBOUNCE_ALGORITHMS) {
+                targetProfile->triggerConfigs.debounceAlgorithm = static_cast<ADCButtonDebounceAlgorithm>(debounceAlgorithm->valueint);
+            } else {
+                targetProfile->triggerConfigs.debounceAlgorithm = ADCButtonDebounceAlgorithm::NONE;
+            }
         }
 
         cJSON* configs = cJSON_GetObjectItem(triggerConfigs, "triggerConfigs");

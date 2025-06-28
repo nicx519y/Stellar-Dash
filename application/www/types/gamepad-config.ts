@@ -316,6 +316,7 @@ export interface GameProfile {
     keysConfig?: KeysConfig;
     triggerConfigs?: {
         isAllBtnsConfiguring?: boolean;
+        debounceAlgorithm?: number;
         triggerConfigs?: RapidTriggerConfig[];
     };
     ledsConfigs?: {
@@ -374,6 +375,11 @@ export type RapidTriggerConfig = {
     releaseAccuracy: number;
 }
 
+export enum ADCButtonDebounceAlgorithm {
+    NONE = 0,
+    NORMAL = 1,
+    MAX = 2,
+}
 
 export const ledColorsLabel = [ "Front Color", "Back Color 1", "Back Color 2" ];
 
@@ -486,6 +492,15 @@ export const UI_TEXT = {
     SETTINGS_RAPID_TRIGGER_TITLE: "BUTTONS TRAVEL",
     SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "The rapid trigger settings can be customized here.\n- Top Deadzone: The distance from the top of the trigger to the deadzone.\n- Bottom Deadzone: The distance from the bottom of the trigger to the deadzone.\n- Press Accuracy: The accuracy of the trigger when pressed.\n- Release Accuracy: The accuracy of the trigger when released.",
     SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL: "Configure all buttons at once",
+
+    // ADC Button Debounce Algorithm
+    SETTINGS_ADC_BUTTON_DEBOUNCE_TITLE: "Button Debounce",
+    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE: "Fastest",
+    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL: "Balanced",
+    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX: "Stablility",
+    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE_DESC: "No debounce, low latency",
+    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL_DESC: "Balanced, increase the latency by 0.25ms",
+    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX_DESC: "More stable, increase the latency by 0.5ms",
 
     // Hotkeys Settings
     SETTINGS_HOTKEYS_TITLE: "HOTKEYS SETTINGS",
@@ -723,6 +738,15 @@ export const UI_TEXT_ZH = {
     SETTINGS_RAPID_TRIGGER_TITLE: "按键行程",
     SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "可以在这里自定义快速触发设置。\n- 顶部死区：扳机顶部到死区的距离\n- 底部死区：扳机底部到死区的距离\n- 按下精度：扳机按下时的精度\n- 释放精度：扳机释放时的精度",
     SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL: "同时配置所有按键",
+
+    // 按钮防抖设置
+    SETTINGS_ADC_BUTTON_DEBOUNCE_TITLE: "按键防抖",
+    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE: "急速",
+    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL: "平衡",
+    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX: "稳定",
+    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE_DESC: "无防抖，延迟最低",
+    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL_DESC: "平衡，增加0.25ms延迟",
+    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX_DESC: "稳定，增加0.5ms延迟",
     
     // 热键设置
     SETTINGS_HOTKEYS_TITLE: "快捷键设置",

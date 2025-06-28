@@ -112,7 +112,7 @@ export async function POST(request: Request) {
 
                 // 计算总体进度
                 let totalProgress = 0;
-                let totalComponents = session.components.size;
+                const totalComponents = session.components.size;
                 
                 if (totalComponents > 0) {
                     for (const [, componentData] of session.components) {

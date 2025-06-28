@@ -113,6 +113,7 @@ enum ADCButtonDebounceAlgorithm
     NONE = 0,
     NORMAL = 1,
     MAX = 2,
+    NUM_ADC_BUTTON_DEBOUNCE_ALGORITHMS,
 };
 
 #endif /* _NET_DRIVER_H_  */

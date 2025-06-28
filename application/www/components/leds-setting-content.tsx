@@ -285,7 +285,7 @@ export function LEDsSettingContent() {
                                                     justify="center"
                                                     colorPalette={ledEnabled ? "green" : "gray"}
                                                     size={"sm"}
-                                                    variant={colorMode === "dark" ? "surface" : "outline"}
+                                                    variant={"subtle"}
                                                     value={ledsEffectStyle?.toString() ?? LedsEffectStyle.STATIC.toString()}
                                                     onValueChange={(detail) => {
                                                         setLedsEffectStyle(parseInt(detail.value ?? "0") as LedsEffectStyle);
