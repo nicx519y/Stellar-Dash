@@ -83,6 +83,15 @@ typedef struct
     uint32_t ledColor3;    // 0x000000-0xFFFFFF
     uint8_t ledBrightness; // 0-100
     uint8_t ledAnimationSpeed;      // 1-5
+
+    bool aroundLedEnabled;       // 是否启用环绕灯效
+    bool aroundLedSyncToMainLed; // 是否同步主灯效
+    AroundLEDEffect aroundLedEffect; // 环绕灯效
+    uint32_t aroundLedColor1;    // 0x000000-0xFFFFFF
+    uint32_t aroundLedColor2;    // 0x000000-0xFFFFFF
+    uint32_t aroundLedColor3;    // 0x000000-0xFFFFFF
+    uint8_t aroundLedBrightness; // 0-100
+    uint8_t aroundLedAnimationSpeed; // 1-5
 } LEDProfile;
 
 typedef struct

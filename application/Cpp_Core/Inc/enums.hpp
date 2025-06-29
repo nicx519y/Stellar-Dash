@@ -70,6 +70,13 @@ enum LEDEffect
     NUM_EFFECTS         = 6,        //效果总数
 };
 
+enum AroundLEDEffect
+{
+    STATIC            = 0,
+    BREATHING         = 1,
+    NUM_AROUND_LED_EFFECTS,
+};
+
 enum GamepadHotkey
 {
     HOTKEY_NONE,                        // 无
