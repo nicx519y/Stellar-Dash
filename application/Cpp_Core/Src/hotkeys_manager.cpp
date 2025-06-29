@@ -21,10 +21,10 @@ void HotkeysManager::runVirtualPinMask(uint32_t virtualPinMask) {
 }
 
 void HotkeysManager::updateHotkeyState(uint32_t currentVirtualPinMask, uint32_t lastVirtualPinMask) {
-    uint64_t currentTime = MICROS_TIMER.micros() / 1000; // 转换为毫秒
+    uint64_t currentTime = HAL_GetTick(); // 获取当前时间
     
     for (int i = 0; i < NUM_GAMEPAD_HOTKEYS; i++) {
-        if (hotkeys[i].virtualPin < 0) continue; // 跳过未配置的热键
+        if (hotkeys[i].virtualPin < 0) continue;
         
         bool currentPressed = isHotkeyPressed(currentVirtualPinMask, i);
         bool lastPressed = isHotkeyPressed(lastVirtualPinMask, i);
@@ -63,7 +63,7 @@ bool HotkeysManager::isHotkeyPressed(uint32_t virtualPinMask, int hotkeyIndex) {
     
     // 检查是否同时按下了FN键和对应的热键
     uint32_t expectedMask = (1U << hotkeys[hotkeyIndex].virtualPin) | FN_BUTTON_VIRTUAL_PIN;
-    return (virtualPinMask & expectedMask) == expectedMask;
+    return (virtualPinMask == expectedMask); // 直接比较是否相等, 而不是按位与。目的：同时刻只有一个hotkey被触发
 }
 
 void HotkeysManager::resetHotkeyState(int index) {
@@ -97,11 +97,9 @@ void HotkeysManager::runAction(GamepadHotkey hotkeyAction) {
             rebootSystem();
             break;
         case GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION:
-            STORAGE_MANAGER.setBootMode(STORAGE_MANAGER.getBootMode() == BootMode::BOOT_MODE_CALIBRATION ? BootMode::BOOT_MODE_INPUT : BootMode::BOOT_MODE_CALIBRATION);
+            STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_CALIBRATION);
             STORAGE_MANAGER.saveConfig();
-            if (STORAGE_MANAGER.getBootMode() == BootMode::BOOT_MODE_CALIBRATION) { // 如果切换到校准模式，则重置所有校准数据
-                ADC_CALIBRATION_MANAGER.resetAllCalibration();
-            }
+            ADC_CALIBRATION_MANAGER.resetAllCalibration();
             rebootSystem();
             break;
         case GamepadHotkey::HOTKEY_INPUT_MODE_XINPUT:
