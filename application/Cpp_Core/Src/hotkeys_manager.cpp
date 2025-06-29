@@ -1,6 +1,5 @@
 #include "hotkeys_manager.hpp"
 
-
 HotkeysManager::HotkeysManager() : hotkeys(STORAGE_MANAGER.getGamepadHotkeyEntry()) {
     // 初始化所有热键状态
     for (int i = 0; i < NUM_GAMEPAD_HOTKEYS; i++) {
@@ -21,7 +20,7 @@ void HotkeysManager::runVirtualPinMask(uint32_t virtualPinMask) {
 }
 
 void HotkeysManager::updateHotkeyState(uint32_t currentVirtualPinMask, uint32_t lastVirtualPinMask) {
-    uint64_t currentTime = HAL_GetTick(); // 获取当前时间
+    uint32_t currentTime = HAL_GetTick();
     
     for (int i = 0; i < NUM_GAMEPAD_HOTKEYS; i++) {
         if (hotkeys[i].virtualPin < 0) continue;

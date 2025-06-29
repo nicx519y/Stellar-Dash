@@ -62,8 +62,9 @@ void board_init(void)
 
     // QSPI_W25Qxx_Test(0x00500000);
 
-    MX_TIM2_Init(); // 8000频率定时器 并开启中断模式
-    APP_DBG("board init: MX_TIM2_Init success.");
+    // 由于采用了DWT方案做微秒级定时器，所以不需要初始化TIM2
+    // MX_TIM2_Init(); // 8000频率定时器 并开启中断模式
+    // APP_DBG("board init: MX_TIM2_Init success.");
 
     USB_clock_init();
 

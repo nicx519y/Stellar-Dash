@@ -54,9 +54,8 @@ void InputState::setup() {
     LEDS_MANAGER.setup();
     #endif
 
-    workTime = MICROS_TIMER.micros();
-    calibrationTime = MICROS_TIMER.micros();
-    ledAnimationTime = MICROS_TIMER.micros();
+    workTime = MICROS_TIMER.micros();  // 微秒级
+    ledAnimationTime = HAL_GetTick();  // 毫秒级
 
     isRunning = true;
 }
@@ -86,16 +85,15 @@ void InputState::loop() {
     inputDriver->processAux();
 
     #if HAS_LED == 1
-    if(MICROS_TIMER.checkInterval(LEDS_ANIMATION_INTERVAL, ledAnimationTime)) {
+
+    uint32_t currentTime = HAL_GetTick();
+    if(currentTime - ledAnimationTime >= LEDS_ANIMATION_INTERVAL) {
         LEDS_MANAGER.loop(virtualPinMask);
+        ledAnimationTime = currentTime;
     }
+
     #endif
 
-    // if(STORAGE_MANAGER.config.autoCalibrationEnabled) {
-    //     if(MICROS_TIMER.checkInterval(DYNAMIC_CALIBRATION_INTERVAL, calibrationTime)) {
-    //         ADC_BTNS_WORKER.dynamicCalibration();
-    //     }
-    // }
 }
 
 void InputState::reset() {

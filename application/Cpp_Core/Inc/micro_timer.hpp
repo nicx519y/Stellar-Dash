@@ -23,23 +23,23 @@ public:
     // 如果达到间隔则返回true并更新时间戳，否则返回false
     bool checkInterval(uint32_t interval_us, uint32_t& lastTime);
 
-
     // 重置计时器
     void reset();
 
     // 延时指定微秒
     void delayMicros(uint32_t us);
 
-    
-
 private:
     MicrosTimer();  // 私有构造函数
-    volatile uint32_t overflowCount;  // 溢出计数
+    volatile uint32_t overflowCount;  // 溢出计数（DWT方案中保留以兼容）
     
-    // TIM2 溢出回调
-    void handleOverflow();
+    // 初始化DWT
+    void initDWT();
     
-    friend void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
+    // TIM2 溢出回调（DWT方案中为空实现，保留以兼容）
+    // void handleOverflow();
+    
+    // friend void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
 };
 
 #define MICROS_TIMER MicrosTimer::getInstance()

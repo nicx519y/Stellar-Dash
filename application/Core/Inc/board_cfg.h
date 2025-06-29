@@ -140,7 +140,7 @@ uint32_t get_current_slot_base_address(void);
 #define NUM_LEDs_PER_ADC_BUTTON     1              //每个按钮多少个LED
 #define LEDS_BRIGHTNESS_RATIO       0.8             //默认led 亮度系数 会以实际亮度乘以这个系数
 #define LEDS_ANIMATION_CYCLE        6000            //LED 动画长度 ms
-#define LEDS_ANIMATION_INTERVAL         2000          //LED 动画间隔，影响性能和效果 us
+#define LEDS_ANIMATION_INTERVAL         16          //LED 动画间隔，影响性能和效果 ms
 
 // #define LED_ENABLE_SWITCH_PIN        GPIO_PIN_12    // 灯效开关引脚
 // #define LED_ENABLE_SWITCH_PORT       GPIOC           // 灯效开关端口
