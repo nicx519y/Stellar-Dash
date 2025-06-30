@@ -620,6 +620,41 @@ LedAnimationAlgorithm getLedAnimation(LEDEffect effect) {
 
 #if HAS_LED_AROUND
 /**
+ * @brief 环绕灯呼吸动画效果
+ * @param progress 动画进度 (0.0-1.0)
+ * @param ledIndex 环绕灯的索引 (0 到 NUM_LED_AROUND-1) - 未使用，所有LED显示相同颜色
+ * @param color1 底色（环绕灯color1）
+ * @param color2 呼吸变化颜色（环绕灯color2）
+ * @param brightness 亮度 (0-100)
+ * @param animationSpeed 动画速度 (1-5) - 未使用，进度由外部控制
+ * @param triggerTime 触发时间（毫秒）- 未使用，进度由外部控制
+ * @return 计算后的LED颜色
+ */
+RGBColor aroundLedBreathingAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t triggerTime) {
+    // 转换颜色格式
+    RGBColor color1RGB = hexToRGB(color1);
+    RGBColor color2RGB = hexToRGB(color2);
+    
+    RGBColor resultColor;
+    
+    if (progress >= 1.0f) {
+        // 动画完成，显示底色（静止状态）
+        resultColor = color1RGB;
+    } else {
+        // 呼吸效果：使用正弦波在两种颜色之间变化
+        float breathProgress = sinf(progress * M_PI);
+        resultColor = lerpColor(color1RGB, color2RGB, breathProgress);
+    }
+    
+    // 应用亮度
+    resultColor.r = (uint8_t)(resultColor.r * brightness / 100);
+    resultColor.g = (uint8_t)(resultColor.g * brightness / 100);
+    resultColor.b = (uint8_t)(resultColor.b * brightness / 100);
+    
+    return resultColor;
+}
+
+/**
  * @brief 环绕灯流星动画效果
  * @param progress 动画进度 (0.0-1.0)
  * @param ledIndex 环绕灯的索引 (0 到 NUM_LED_AROUND-1)
@@ -627,47 +662,53 @@ LedAnimationAlgorithm getLedAnimation(LEDEffect effect) {
  * @param color2 流星头部颜色（环绕灯color2）
  * @param brightness 亮度 (0-100)
  * @param animationSpeed 动画速度 (1-5，用于计算尾巴长度)
+ * @param triggerTime 触发时间（毫秒）- 未使用，进度由外部控制
  * @return 计算后的LED颜色
  */
-RGBColor aroundLedMeteorAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed) {
-    // 流星参数 - 调整尾巴长度
-    // 速度1: 5, 速度2: 8, 速度3: 11, 速度4: 14, 速度5: 17
-    // 公式：基础长度2 + 速度 * 3
-    uint8_t meteorLength = 2 + animationSpeed * 3;
-    
-    // 计算流星头部的当前位置（顺时针移动）
-    float meteorPosition = progress * NUM_LED_AROUND;
-    uint8_t meteorHead = (uint8_t)meteorPosition % NUM_LED_AROUND;
-    
+RGBColor aroundLedMeteorAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t triggerTime) {
     // 转换颜色格式
     RGBColor baseColor = hexToRGB(color1);    // 底色
     RGBColor meteorColor = hexToRGB(color2);  // 流星颜色
     
-    // 计算当前LED到流星头部的距离（考虑环形排列）
-    int8_t distance;
-    if (ledIndex <= meteorHead) {
-        distance = meteorHead - ledIndex;
-    } else {
-        distance = meteorHead + NUM_LED_AROUND - ledIndex;
-    }
-    
     RGBColor resultColor;
     
-    if (distance == 0) {
-        // 流星头部：使用完整的流星颜色
-        resultColor = meteorColor;
-    } else if (distance > 0 && distance < meteorLength) {
-        // 流星尾巴：使用简单的线性衰减
-        float normalizedDistance = (float)distance / (float)meteorLength; // 0.0 到 1.0
-        
-        // 线性衰减：距离越远，fadeStrength越小
-        float fadeStrength = 1.0f - normalizedDistance;
-        
-        // 在流星颜色和底色之间插值
-        resultColor = lerpColor(baseColor, meteorColor, fadeStrength);
-    } else {
-        // 其他位置：使用底色
+    if (progress >= 1.0f) {
+        // 动画完成，显示底色（静止状态）
         resultColor = baseColor;
+    } else {
+        // 流星参数 - 调整尾巴长度
+        // 速度1: 5, 速度2: 8, 速度3: 11, 速度4: 14, 速度5: 17
+        // 公式：基础长度2 + 速度 * 3
+        uint8_t meteorLength = 2 + animationSpeed * 3;
+        
+        // 计算流星头部的当前位置（顺时针移动）
+        float meteorPosition = progress * NUM_LED_AROUND;
+        uint8_t meteorHead = (uint8_t)meteorPosition % NUM_LED_AROUND;
+        
+        // 计算当前LED到流星头部的距离（考虑环形排列）
+        int8_t distance;
+        if (ledIndex <= meteorHead) {
+            distance = meteorHead - ledIndex;
+        } else {
+            distance = meteorHead + NUM_LED_AROUND - ledIndex;
+        }
+        
+        if (distance == 0) {
+            // 流星头部：使用完整的流星颜色
+            resultColor = meteorColor;
+        } else if (distance > 0 && distance < meteorLength) {
+            // 流星尾巴：使用简单的线性衰减
+            float normalizedDistance = (float)distance / (float)meteorLength; // 0.0 到 1.0
+            
+            // 线性衰减：距离越远，fadeStrength越小
+            float fadeStrength = 1.0f - normalizedDistance;
+            
+            // 在流星颜色和底色之间插值
+            resultColor = lerpColor(baseColor, meteorColor, fadeStrength);
+        } else {
+            // 其他位置：使用底色
+            resultColor = baseColor;
+        }
     }
     
     // 应用亮度
@@ -685,75 +726,61 @@ RGBColor aroundLedMeteorAnimation(float progress, uint8_t ledIndex, uint32_t col
  * @param color1 底色
  * @param color2 震荡波颜色
  * @param brightness 亮度 (0-100)
- * @param animationSpeed 动画速度 (1-5)
- * @param triggerTime 触发时间（毫秒），用于重新开始震荡
+ * @param animationSpeed 动画速度 (1-5) - 未使用，进度由外部控制
+ * @param triggerTime 触发时间（毫秒）- 未使用，进度由外部控制
  * @return 计算后的LED颜色
  */
-RGBColor aroundLedQuakeAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t processTime) {
-    // 获取当前LED的坐标
-    float ledX = AROUND_LED_POS_LIST[ledIndex].x;
-    
-    // 计算环绕LED的边界值（使用缓存）
-    calculateAroundBoundaries();
-    const float minX = cachedAroundMinX;
-    const float maxX = cachedAroundMaxX;
-    const float centerX = cachedAroundCenterX;
-    const float maxDistance = (maxX - minX) / 2.0f;
-    
-    // 计算当前LED到X轴中线的距离
-    const float distanceFromCenterLine = fabsf(ledX - centerX);
-    
-    // 计算自触发以来的时间
-    uint32_t timeSinceTrigger = processTime;
-    
-    // 震荡动画持续时间（毫秒）- 根据动画速度调整
-    uint32_t animationDuration = static_cast<uint32_t>(900.0f / (static_cast<float_t>(animationSpeed) / 3.0f)); // 速度越快，持续时间越短
-    
-    // 如果超过动画持续时间，显示底色（静止状态）
-    if (timeSinceTrigger > animationDuration) {
-        RGBColor baseColor = hexToRGB(color1);
-        baseColor.r = (uint8_t)(baseColor.r * brightness / 100);
-        baseColor.g = (uint8_t)(baseColor.g * brightness / 100);
-        baseColor.b = (uint8_t)(baseColor.b * brightness / 100);
-        return baseColor;
-    }
-    
-    // 计算基于触发时间的动画进度（0.0-1.0）
-    float animationProgress = (float)timeSinceTrigger / (float)animationDuration;
-    animationProgress = fminf(1.0f, animationProgress); // 限制在1.0以内
-    
-    // 震荡模式：中心->边缘->中心
-    float waveRadius;
-    if (animationProgress < 0.4f) {
-        // 前30%：从中心线扩散到边缘 (0 -> maxDistance)
-        waveRadius = (animationProgress / 0.4f) * maxDistance;
-    } else {
-        // 后70%：从边缘收缩回中心线 (maxDistance -> 0)
-        float retractProgress = (animationProgress - 0.4f) / 0.6f;
-        waveRadius = (1.0f - retractProgress) * maxDistance;
-    }
-    
+RGBColor aroundLedQuakeAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t triggerTime) {
     // 转换颜色格式
     RGBColor baseColor = hexToRGB(color1);
     RGBColor quakeColor = hexToRGB(color2);
     RGBColor resultColor;
     
-    // 震荡渐变：在波边缘创建渐变区域
-    const float fadeWidth = 50.0f; // 渐变区域宽度
-    
-    if (distanceFromCenterLine <= waveRadius - fadeWidth) {
-        // 震荡波内部区域：完全显示震荡色
-        resultColor = quakeColor;
-    } else if (distanceFromCenterLine <= waveRadius) {
-        // 渐变区域：从震荡色渐变到底色
-        float fadeDistance = distanceFromCenterLine - (waveRadius - fadeWidth);
-        float fadeStrength = 1.0f - (fadeDistance / fadeWidth);
-        
-        // 在震荡色和底色之间插值
-        resultColor = lerpColor(baseColor, quakeColor, fadeStrength);
-    } else {
-        // 波外区域：显示底色
+    if (progress >= 1.0f) {
+        // 动画完成，显示底色（静止状态）
         resultColor = baseColor;
+    } else {
+        // 获取当前LED的坐标
+        float ledX = AROUND_LED_POS_LIST[ledIndex].x;
+        
+        // 计算环绕LED的边界值（使用缓存）
+        calculateAroundBoundaries();
+        const float minX = cachedAroundMinX;
+        const float maxX = cachedAroundMaxX;
+        const float centerX = cachedAroundCenterX;
+        const float maxDistance = (maxX - minX) / 2.0f;
+        
+        // 计算当前LED到X轴中线的距离
+        const float distanceFromCenterLine = fabsf(ledX - centerX);
+        
+        // 震荡模式：中心->边缘->中心
+        float waveRadius;
+        if (progress < 0.4f) {
+            // 前40%：从中心线扩散到边缘 (0 -> maxDistance)
+            waveRadius = (progress / 0.4f) * maxDistance;
+        } else {
+            // 后60%：从边缘收缩回中心线 (maxDistance -> 0)
+            float retractProgress = (progress - 0.4f) / 0.6f;
+            waveRadius = (1.0f - retractProgress) * maxDistance;
+        }
+        
+        // 震荡渐变：在波边缘创建渐变区域
+        const float fadeWidth = 50.0f; // 渐变区域宽度
+        
+        if (distanceFromCenterLine <= waveRadius - fadeWidth) {
+            // 震荡波内部区域：完全显示震荡色
+            resultColor = quakeColor;
+        } else if (distanceFromCenterLine <= waveRadius) {
+            // 渐变区域：从震荡色渐变到底色
+            float fadeDistance = distanceFromCenterLine - (waveRadius - fadeWidth);
+            float fadeStrength = 1.0f - (fadeDistance / fadeWidth);
+            
+            // 在震荡色和底色之间插值
+            resultColor = lerpColor(baseColor, quakeColor, fadeStrength);
+        } else {
+            // 波外区域：显示底色
+            resultColor = baseColor;
+        }
     }
     
     // 应用亮度

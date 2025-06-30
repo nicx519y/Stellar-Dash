@@ -86,6 +86,7 @@ typedef struct
 
     bool aroundLedEnabled;       // 是否启用环绕灯效
     bool aroundLedSyncToMainLed; // 是否同步主灯效
+    bool aroundLedTriggerByButton; // 是否由按钮触发环绕灯动画
     AroundLEDEffect aroundLedEffect; // 环绕灯效
     uint32_t aroundLedColor1;    // 0x000000-0xFFFFFF
     uint32_t aroundLedColor2;    // 0x000000-0xFFFFFF

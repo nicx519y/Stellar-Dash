@@ -68,6 +68,7 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
     // 设置环绕灯配置
     profile.ledsConfigs.aroundLedEnabled = false;
     profile.ledsConfigs.aroundLedSyncToMainLed = true;
+    profile.ledsConfigs.aroundLedTriggerByButton = false;
     profile.ledsConfigs.aroundLedEffect = AroundLEDEffect::AROUND_STATIC;
     profile.ledsConfigs.aroundLedColor1 = 0xff0000;  // 红色
     profile.ledsConfigs.aroundLedColor2 = 0x00ff00;  // 绿色

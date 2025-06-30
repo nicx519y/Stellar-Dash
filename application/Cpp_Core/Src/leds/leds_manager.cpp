@@ -12,11 +12,12 @@
 
 #define AROUND_LED_ENABLED true
 #define AROUND_LED_SYNC_TO_MAIN_LED false
+#define AROUND_LED_TRIGGER_BY_BUTTON true
 #define AROUND_LED_EFFECT 2
 #define AROUND_LED_BRIGHTNESS 100
 #define AROUND_LED_COLOR1 0x00ff00
 #define AROUND_LED_COLOR2 0x0000ff
-#define AROUND_LED_ANIMATION_SPEED 5
+#define AROUND_LED_ANIMATION_SPEED 3
 
 LEDsManager::LEDsManager()
 {
@@ -40,6 +41,7 @@ LEDsManager::LEDsManager()
     opts->aroundLedColor2 = AROUND_LED_COLOR2;
     opts->aroundLedAnimationSpeed = AROUND_LED_ANIMATION_SPEED;
     opts->aroundLedSyncToMainLed = AROUND_LED_SYNC_TO_MAIN_LED;
+    opts->aroundLedTriggerByButton = AROUND_LED_TRIGGER_BY_BUTTON;
 
     aroundLedAnimationStartTime = 0;
     aroundLedRippleCount = 0;
@@ -225,16 +227,19 @@ void LEDsManager::processButtonPress(uint32_t virtualPinMask)
     }
     
 #if HAS_LED_AROUND
-    // 检测按键按下用于震荡动画重置
+    // 检测按键按下用于环绕灯动画触发
     if (newPressed != 0 && opts->aroundLedEnabled && !opts->aroundLedSyncToMainLed && 
-        opts->aroundLedEffect == AroundLEDEffect::AROUND_QUAKE) {
-        // 任何按键按下时重置震荡动画
+        opts->aroundLedTriggerByButton) {
+        // 任何按键按下时重置环绕灯动画
         uint32_t currentTime = HAL_GetTick();
-        lastQuakeTriggerTime = currentTime;
-        lastButtonPressTime = currentTime;
         aroundLedAnimationStartTime = currentTime; // 重置动画时间
         
-        APP_DBG("QUAKE: Button pressed, restarting quake animation at time %lu", currentTime);
+        // 为所有环绕灯效果设置触发时间（统一处理）
+        lastQuakeTriggerTime = currentTime;  // 用于震荡动画
+        lastButtonPressTime = currentTime;   // 通用按键触发时间
+        
+        APP_DBG("AROUND_LED: Button pressed, restarting around LED animation (effect: %d) at time %lu", 
+                opts->aroundLedEffect, currentTime);
     }
 #endif
     
@@ -504,12 +509,11 @@ void LEDsManager::processAroundLedAnimation()
     switch (opts->aroundLedEffect) {
         case AroundLEDEffect::AROUND_STATIC:
             {
-                // 静态效果：显示固定颜色
+                // 静态效果：显示固定颜色（不受触发模式影响）
                 RGBColor color = hexToRGB(opts->aroundLedColor1);
                 color.r = (uint8_t)(color.r * opts->aroundLedBrightness / 100);
                 color.g = (uint8_t)(color.g * opts->aroundLedBrightness / 100);
                 color.b = (uint8_t)(color.b * opts->aroundLedBrightness / 100);
-                
                 
                 for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
                     WS2812B_SetLEDColor(color.r, color.g, color.b, i);
@@ -520,20 +524,18 @@ void LEDsManager::processAroundLedAnimation()
             
         case AroundLEDEffect::AROUND_BREATHING:
             {
-                // 呼吸效果：在两种颜色之间呼吸变化
-                RGBColor color1 = hexToRGB(opts->aroundLedColor1);
-                RGBColor color2 = hexToRGB(opts->aroundLedColor2);
-                
-                float breathProgress = sinf(progress * M_PI);
-                RGBColor resultColor = lerpColor(color1, color2, breathProgress);
-                
-                resultColor.r = (uint8_t)(resultColor.r * opts->aroundLedBrightness / 100);
-                resultColor.g = (uint8_t)(resultColor.g * opts->aroundLedBrightness / 100);
-                resultColor.b = (uint8_t)(resultColor.b * opts->aroundLedBrightness / 100);
-                
-                
                 for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
-                    WS2812B_SetLEDColor(resultColor.r, resultColor.g, resultColor.b, i);
+                    // 计算相对于环绕灯起始位置的索引
+                    uint8_t aroundIndex = i - (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS);
+                    
+                    RGBColor color = aroundLedBreathingAnimation(progress, aroundIndex, 
+                                                              opts->aroundLedColor1, 
+                                                              opts->aroundLedColor2, 
+                                                              opts->aroundLedBrightness,
+                                                              opts->aroundLedAnimationSpeed,
+                                                              0); // triggerTime参数已废弃，传入0
+                    
+                    WS2812B_SetLEDColor(color.r, color.g, color.b, i);
                     WS2812B_SetLEDBrightness(opts->aroundLedBrightness, i);
                 }
             }
@@ -541,9 +543,6 @@ void LEDsManager::processAroundLedAnimation()
             
         case AroundLEDEffect::AROUND_QUAKE:
             {
-                uint32_t currentTime = HAL_GetTick();
-                uint32_t timeSinceTrigger = currentTime - lastQuakeTriggerTime;
-
                 for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
                     // 计算相对于环绕灯起始位置的索引
                     uint8_t aroundIndex = i - (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS);
@@ -553,7 +552,7 @@ void LEDsManager::processAroundLedAnimation()
                                                            opts->aroundLedColor2, 
                                                            opts->aroundLedBrightness,
                                                            opts->aroundLedAnimationSpeed,
-                                                           timeSinceTrigger);
+                                                           0); // triggerTime参数已废弃，传入0
                     
                     WS2812B_SetLEDColor(color.r, color.g, color.b, i);
                     WS2812B_SetLEDBrightness(opts->aroundLedBrightness, i);
@@ -563,8 +562,6 @@ void LEDsManager::processAroundLedAnimation()
             
         case AroundLEDEffect::AROUND_METEOR:
             {
-                // 流星效果：流星从一个位置开始，朝一个方向移动，后面拖着渐变尾巴
-                
                 for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
                     // 计算相对于环绕灯起始位置的索引
                     uint8_t aroundIndex = i - (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS);
@@ -573,7 +570,8 @@ void LEDsManager::processAroundLedAnimation()
                                                             opts->aroundLedColor1, 
                                                             opts->aroundLedColor2, 
                                                             opts->aroundLedBrightness,
-                                                            opts->aroundLedAnimationSpeed);
+                                                            opts->aroundLedAnimationSpeed,
+                                                            0); // triggerTime参数已废弃，传入0
                     
                     WS2812B_SetLEDColor(color.r, color.g, color.b, i);
                     WS2812B_SetLEDBrightness(opts->aroundLedBrightness, i);
@@ -599,15 +597,26 @@ float LEDsManager::getAroundLedAnimationProgress()
 {
     uint32_t now = HAL_GetTick();
     uint32_t elapsed = now - aroundLedAnimationStartTime;
+    uint32_t animationDuration = static_cast<uint32_t>(600.0f * (7 - opts->aroundLedAnimationSpeed));
     
-    // 应用动画速度倍数
-    float speedMultiplier = (float)opts->aroundLedAnimationSpeed;
-    float progress = (float)(elapsed % LEDS_ANIMATION_CYCLE) / LEDS_ANIMATION_CYCLE * speedMultiplier;
-    
-    // 确保进度值在 0.0-1.0 范围内循环
-    progress = fmodf(progress, 1.0f);
-    
-    return progress;
+    if(opts->aroundLedEffect == AroundLEDEffect::AROUND_QUAKE) {
+        animationDuration /= 2;
+    }
+
+    if (opts->aroundLedTriggerByButton) {
+        // 按钮触发模式：动画持续一个周期后停止
+        if (elapsed >= animationDuration) {
+            // 动画周期结束，返回1.0（完成状态，显示静止状态）
+            return 1.0f;
+        } else {
+            // 动画进行中，返回当前进度
+            return (float)elapsed / (float)animationDuration;
+        }
+    } else {
+        // 循环模式：连续循环动画
+        uint32_t cycleTime = elapsed % animationDuration;
+        return (float)cycleTime / (float)animationDuration;
+    }
 }
 
 /**

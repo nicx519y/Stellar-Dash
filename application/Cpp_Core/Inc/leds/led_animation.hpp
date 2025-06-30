@@ -74,10 +74,13 @@ LedAnimationAlgorithm getLedAnimation(LEDEffect effect);
 
 #if HAS_LED_AROUND
 // 环绕灯流星动画函数
-RGBColor aroundLedMeteorAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed);
+RGBColor aroundLedMeteorAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t triggerTime);
+
+// 环绕灯呼吸动画函数
+RGBColor aroundLedBreathingAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t triggerTime);
 
 // 环绕灯震荡动画函数
-RGBColor aroundLedQuakeAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t processTime);
+RGBColor aroundLedQuakeAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t triggerTime);
 #endif
 
 #endif // _LED_ANIMATION_HPP_ 
