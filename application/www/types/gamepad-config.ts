@@ -325,6 +325,16 @@ export interface GameProfile {
         ledColors: string[];
         ledBrightness: number;
         ledAnimationSpeed: number;
+
+        // 环绕灯配置
+        hasAroundLed: boolean;
+        aroundLedEnabled: boolean;
+        aroundLedSyncToMainLed: boolean;
+        aroundLedTriggerByButton: boolean;
+        aroundLedEffectStyle: AroundLedsEffectStyle;
+        aroundLedColors: string[];
+        aroundLedBrightness: number;
+        aroundLedAnimationSpeed: number;
     };
 }
 
@@ -360,12 +370,29 @@ export enum LedsEffectStyle {
     TRANSFORM = 5,
 }
 
+export enum AroundLedsEffectStyle {
+    STATIC = 0,
+    BREATHING = 1,
+    QUAKE = 2,
+    METEOR = 3,
+}
+
 export interface LedsEffectStyleConfig {
     ledsEnabled: boolean;
     effectStyle: LedsEffectStyle;
     colors: GamePadColor[];
     brightness: number;
-    animationSpeed: number;
+    animationSpeed: number; // 1-5
+
+    // 环绕灯配置
+    hasAroundLed: boolean;
+    aroundLedEnabled: boolean;
+    aroundLedSyncToMainLed: boolean;
+    aroundLedTriggerByButton: boolean;
+    aroundLedEffectStyle: AroundLedsEffectStyle;
+    aroundLedColors: GamePadColor[];
+    aroundLedBrightness: number;
+    aroundLedAnimationSpeed: number; // 1-5
 }
 
 export type RapidTriggerConfig = {
@@ -435,10 +462,20 @@ export const UI_TEXT = {
     SETTINGS_LEDS_ENABLE_LABEL: "Enable LEDs",
     SETTINGS_LEDS_EFFECT_LABEL: "LED Effect Style",
     SETTINGS_LEDS_BRIGHTNESS_LABEL: "LED Brightness",
-    SETTINGS_LEDS_ANIMATION_SPEED_LABEL: "Animation Speed",
+    SETTINGS_LEDS_ANIMATION_SPEED_LABEL: "LED Animation Speed",
     SETTINGS_LEDS_COLOR_FRONT_LABEL: "Front Color",
     SETTINGS_LEDS_COLOR_BACK1_LABEL: "Back Color 1",
     SETTINGS_LEDS_COLOR_BACK2_LABEL: "Back Color 2",
+
+    SETTINGS_AMBIENT_LIGHT_ENABLE_LABEL: "Enable Ambient Light",
+    SETTINGS_AMBIENT_LIGHT_SYNC_WITH_LEDS_LABEL: "Sync with LEDs",
+    SETTINGS_AMBIENT_LIGHT_TRIGGER_BY_BUTTON_LABEL: "Trigger by Button",
+    SETTINGS_AMBIENT_LIGHT_EFFECT_LABEL: "Ambient Light Effect",
+    SETTINGS_AMBIENT_LIGHT_BRIGHTNESS_LABEL: "Ambient Light Brightness",
+    SETTINGS_AMBIENT_LIGHT_ANIMATION_SPEED_LABEL: "Ambient Light Animation Speed",
+    SETTINGS_AMBIENT_LIGHT_COLOR1_LABEL: "Ambient Light Color 1",
+    SETTINGS_AMBIENT_LIGHT_COLOR2_LABEL: "Ambient Light Color 2",
+
     SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL: "Auto Switch",
     SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL: "Manual Switch",
     SETTINGS_RAPID_TRIGGER_ONFIGURING_BUTTON: "Configuring button: ",
@@ -485,8 +522,8 @@ export const UI_TEXT = {
     SETTINGS_SWITCH_MARKING_HELPER_TEXT: "Each switch marking can be customized with length and step value.\n- Length: The length of the switch marking.\n- Step: The step value of the switch marking.",
 
     // LEDs Settings
-    SETTINGS_LEDS_TITLE: "LEDS SETTINGS",
-    SETTINGS_LEDS_HELPER_TEXT: "The LED effect style, colors, and brightness can be customized here.\n- Front Color: The color of the LEDs when the button is pressed.\n- back Color: The color of the LEDs based on the effect.",
+    SETTINGS_LEDS_TITLE: "LIGHTING SETTINGS",
+    SETTINGS_LEDS_HELPER_TEXT: "The lighting effect style, colors, and brightness can be customized here.",
 
     // Rapid Trigger Settings
     SETTINGS_RAPID_TRIGGER_TITLE: "BUTTONS TRAVEL",
@@ -575,7 +612,7 @@ export const UI_TEXT = {
     // Settings Layout
     SETTINGS_TAB_GLOBAL: "Global Setting",
     SETTINGS_TAB_KEYS: "Keys Setting",
-    SETTINGS_TAB_LEDS: "LEDs Setting",
+    SETTINGS_TAB_LEDS: "Lighting Setting",
     SETTINGS_TAB_BUTTONS_TRAVEL: "Buttons Travel",
     SETTINGS_TAB_SWITCH_MARKING: "Switch Marking",
     SETTINGS_TAB_FIRMWARE: "Firmware",
@@ -589,21 +626,21 @@ export const UI_TEXT = {
     // LEDs Settings
     SETTINGS_LEDS_EFFECT_STYLE_CHOICE: "LED Effect Style",
     SETTINGS_LEDS_STATIC_LABEL: "Static",
-    SETTINGS_LEDS_STATIC_DESC: "Static color",
     SETTINGS_LEDS_BREATHING_LABEL: "Breathing",
-    SETTINGS_LEDS_BREATHING_DESC: "Breathing color",
     SETTINGS_LEDS_STAR_LABEL: "Star",
-    SETTINGS_LEDS_STAR_DESC: "Star effect",
     SETTINGS_LEDS_FLOWING_LABEL: "Flowing",
-    SETTINGS_LEDS_FLOWING_DESC: "Flowing effect",
     SETTINGS_LEDS_RIPPLE_LABEL: "Ripple",
-    SETTINGS_LEDS_RIPPLE_DESC: "Ripple effect",
     SETTINGS_LEDS_TRANSFORM_LABEL: "Transform",
-    SETTINGS_LEDS_TRANSFORM_DESC: "Transform effect",
+    SETTINGS_LEDS_QUAKE_LABEL: "Quake",
+    SETTINGS_LEDS_METEOR_LABEL: "Meteor",
     SETTINGS_LEDS_COLORS_LABEL: "LED Colors",
     SETTINGS_LEDS_FRONT_COLOR: "Front Color",
     SETTINGS_LEDS_BACK_COLOR1: "Back Color 1",
     SETTINGS_LEDS_BACK_COLOR2: "Back Color 2",
+
+    SETTINGS_LEDS_AROUND_COLORS_LABEL: "Ambient Light Colors",
+    SETTINGS_LEDS_AROUND_COLOR1: "Ambient Light Color 1",
+    SETTINGS_LEDS_AROUND_COLOR2: "Ambient Light Color 2",
 
     // Unsaved Changes Warning
     UNSAVED_CHANGES_WARNING_TITLE: "Are you sure?",
@@ -681,10 +718,20 @@ export const UI_TEXT_ZH = {
     SETTINGS_LEDS_ENABLE_LABEL: "启用LED",
     SETTINGS_LEDS_EFFECT_LABEL: "LED效果样式",
     SETTINGS_LEDS_BRIGHTNESS_LABEL: "LED亮度",
-    SETTINGS_LEDS_ANIMATION_SPEED_LABEL: "动画速度",
-    SETTINGS_LEDS_COLOR_FRONT_LABEL: "前置颜色",
-    SETTINGS_LEDS_COLOR_BACK1_LABEL: "背景颜色1",
-    SETTINGS_LEDS_COLOR_BACK2_LABEL: "背景颜色2",
+    SETTINGS_LEDS_ANIMATION_SPEED_LABEL: "LED灯效动画速度",
+    SETTINGS_LEDS_COLOR_FRONT_LABEL: "LED前置颜色",
+    SETTINGS_LEDS_COLOR_BACK1_LABEL: "LED背景颜色1",
+    SETTINGS_LEDS_COLOR_BACK2_LABEL: "LED背景颜色2",
+
+    SETTINGS_AMBIENT_LIGHT_ENABLE_LABEL: "启用氛围灯",
+    SETTINGS_AMBIENT_LIGHT_SYNC_WITH_LEDS_LABEL: "效果和LED同步",
+    SETTINGS_AMBIENT_LIGHT_TRIGGER_BY_BUTTON_LABEL: "由按键触发",
+    SETTINGS_AMBIENT_LIGHT_EFFECT_LABEL: "氛围灯效果",
+    SETTINGS_AMBIENT_LIGHT_BRIGHTNESS_LABEL: "氛围灯亮度",
+    SETTINGS_AMBIENT_LIGHT_ANIMATION_SPEED_LABEL: "氛围灯动画速度",
+    SETTINGS_AMBIENT_LIGHT_COLOR1_LABEL: "氛围灯颜色1",
+    SETTINGS_AMBIENT_LIGHT_COLOR2_LABEL: "氛围灯颜色2",
+
     SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL: "自动切换",
     SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL: "手动切换",
     SETTINGS_RAPID_TRIGGER_ONFIGURING_BUTTON: "正在配置按键: ",
@@ -731,8 +778,8 @@ export const UI_TEXT_ZH = {
     SETTINGS_SWITCH_MARKING_HELPER_TEXT: "每个磁轴标记可以自定义长度和步进值。用于形成磁轴行程和模拟电压值的映射关系。\n- 长度：磁轴标记的长度\n- 步进值：磁轴标记的步进值",
     
     // LED设置
-    SETTINGS_LEDS_TITLE: "LED设置",
-    SETTINGS_LEDS_HELPER_TEXT: "可以在这里自定义LED效果样式、颜色和亮度。\n- 前置颜色：按键按下时的LED颜色\n- 背景颜色：基于效果的LED颜色",
+    SETTINGS_LEDS_TITLE: "灯光设置",
+    SETTINGS_LEDS_HELPER_TEXT: "可以在这里自定义LED效果样式、颜色和亮度。",
     
     // 快速触发设置
     SETTINGS_RAPID_TRIGGER_TITLE: "按键行程",
@@ -822,7 +869,7 @@ export const UI_TEXT_ZH = {
     // Settings Layout
     SETTINGS_TAB_GLOBAL: "全局设置",
     SETTINGS_TAB_KEYS: "按键设置",
-    SETTINGS_TAB_LEDS: "LED设置",
+    SETTINGS_TAB_LEDS: "灯光设置",
     SETTINGS_TAB_BUTTONS_TRAVEL: "按键行程",
     SETTINGS_TAB_SWITCH_MARKING: "磁轴标记",
     SETTINGS_TAB_FIRMWARE: "固件",
@@ -836,21 +883,21 @@ export const UI_TEXT_ZH = {
     // LEDs Settings
     SETTINGS_LEDS_EFFECT_STYLE_CHOICE: "LED效果样式",
     SETTINGS_LEDS_STATIC_LABEL: "静态",
-    SETTINGS_LEDS_STATIC_DESC: "固定颜色",
     SETTINGS_LEDS_BREATHING_LABEL: "呼吸",
-    SETTINGS_LEDS_BREATHING_DESC: "呼吸效果",
     SETTINGS_LEDS_STAR_LABEL: "星光",
-    SETTINGS_LEDS_STAR_DESC: "星光效果",
     SETTINGS_LEDS_FLOWING_LABEL: "流光",
-    SETTINGS_LEDS_FLOWING_DESC: "流动效果",
     SETTINGS_LEDS_RIPPLE_LABEL: "涟漪",
-    SETTINGS_LEDS_RIPPLE_DESC: "涟漪效果",
     SETTINGS_LEDS_TRANSFORM_LABEL: "质变",
-    SETTINGS_LEDS_TRANSFORM_DESC: "质变效果",
+    SETTINGS_LEDS_QUAKE_LABEL: "震颤",
+    SETTINGS_LEDS_METEOR_LABEL: "流星",
     SETTINGS_LEDS_COLORS_LABEL: "LED颜色",
     SETTINGS_LEDS_FRONT_COLOR: "前置颜色",
     SETTINGS_LEDS_BACK_COLOR1: "背景颜色1",
     SETTINGS_LEDS_BACK_COLOR2: "背景颜色2",
+
+    SETTINGS_LEDS_AROUND_COLORS_LABEL: "氛围灯颜色",
+    SETTINGS_LEDS_AROUND_COLOR1: "氛围灯颜色1",
+    SETTINGS_LEDS_AROUND_COLOR2: "氛围灯颜色2",
 
     // Unsaved Changes Warning
     UNSAVED_CHANGES_WARNING_TITLE: "确认离开?",

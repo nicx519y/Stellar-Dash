@@ -6,7 +6,8 @@ import {
     GameProfile,
     LedsEffectStyle,
     GameSocdMode,
-    Platform
+    Platform,
+    AroundLedsEffectStyle
 } from '@/types/gamepad-config';
 
 const dataFilePath = path.join(process.cwd(), 'app/api/data/data.json');
@@ -89,6 +90,19 @@ export async function getInitialProfileDetails(id: string, name: string): Promis
             ],  
             ledBrightness: 100,
             ledAnimationSpeed: 1,
+
+            hasAroundLed: false,
+            aroundLedEnabled: false,
+            aroundLedSyncToMainLed: false,
+            aroundLedTriggerByButton: false,
+            aroundLedEffectStyle: AroundLedsEffectStyle.STATIC,
+            aroundLedColors: [
+                "#000000",
+                "#000000",
+                "#000000",
+            ],
+            aroundLedBrightness: 100,
+            aroundLedAnimationSpeed: 3,
         },
         triggerConfigs: {
             isAllBtnsConfiguring: true,

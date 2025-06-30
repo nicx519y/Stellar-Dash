@@ -16,6 +16,8 @@ import {
     Card,
     Portal,
     Switch,
+    Grid,
+    Separator,
 } from "@chakra-ui/react";
 
 import {
@@ -30,8 +32,10 @@ import {
     GameProfile,
     LedsEffectStyle,
     LEDS_SETTINGS_INTERACTIVE_IDS,
+    AroundLedsEffectStyle,
 } from "@/types/gamepad-config";
-import { LuSunDim, LuActivity, LuCheck, LuSparkles, LuWaves, LuTarget, LuCloudSunRain } from "react-icons/lu";
+import { LuSunDim, LuActivity, LuCheck, LuSparkles, LuWaves, LuTarget, LuCloudSunRain, LuAudioLines } from "react-icons/lu";
+import { TbMeteorFilled } from "react-icons/tb";
 import Hitbox from "./hitbox";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
@@ -63,30 +67,46 @@ export function LEDsSettingContent() {
     const [ledBrightness, setLedBrightness] = useState<number>(defaultProfile.ledsConfigs?.ledBrightness ?? 75);
     const [ledAnimationSpeed, setLedAnimationSpeed] = useState<number>(defaultProfile.ledsConfigs?.ledAnimationSpeed ?? 1);
     const [ledEnabled, setLedEnabled] = useState<boolean>(defaultProfile.ledsConfigs?.ledEnabled ?? true);
-    
+
+    // 环绕灯配置
+
+    const [aroundLedEnabled, setAroundLedEnabled] = useState<boolean>(defaultProfile.ledsConfigs?.aroundLedEnabled ?? false);
+    const [aroundLedSyncToMainLed, setAroundLedSyncToMainLed] = useState<boolean>(defaultProfile.ledsConfigs?.aroundLedSyncToMainLed ?? false);
+    const [aroundLedTriggerByButton, setAroundLedTriggerByButton] = useState<boolean>(defaultProfile.ledsConfigs?.aroundLedTriggerByButton ?? false);
+    const [aroundLedEffectStyle, setAroundLedEffectStyle] = useState<AroundLedsEffectStyle>(defaultProfile.ledsConfigs?.aroundLedEffectStyle ?? AroundLedsEffectStyle.STATIC);
+    const [aroundLedColor1, setAroundLedColor1] = useState<Color>(parseColor(defaultProfile.ledsConfigs?.aroundLedColors?.[0] ?? defaultFrontColor.toString('css')));
+    const [aroundLedColor2, setAroundLedColor2] = useState<Color>(parseColor(defaultProfile.ledsConfigs?.aroundLedColors?.[1] ?? defaultFrontColor.toString('css')));
+    const [aroundLedColor3, setAroundLedColor3] = useState<Color>(parseColor(defaultProfile.ledsConfigs?.aroundLedColors?.[2] ?? defaultFrontColor.toString('css')));
+    const [aroundLedBrightness, setAroundLedBrightness] = useState<number>(defaultProfile.ledsConfigs?.aroundLedBrightness ?? 100);
+    const [aroundLedAnimationSpeed, setAroundLedAnimationSpeed] = useState<number>(defaultProfile.ledsConfigs?.aroundLedAnimationSpeed ?? 1);
+
+    const hasAroundLed = useMemo(() => {
+        return defaultProfile.ledsConfigs?.hasAroundLed ?? false;
+    }, [defaultProfile]);
+
     // 颜色队列状态
     const [colorSwatches, setColorSwatches] = useState<string[]>(ColorQueueManager.getColorQueue());
-    
+
     // 临时存储当前选择的颜色，用于在关闭时更新队列
-    const [tempSelectedColors, setTempSelectedColors] = useState<{[key: number]: string}>({});
+    const [tempSelectedColors, setTempSelectedColors] = useState<{ [key: number]: string }>({});
 
     // 处理颜色变化的函数（仅更新颜色状态，不更新队列）
     const handleColorChange = (colorIndex: number, newColor: Color) => {
         setIsDirty?.(true);
         const hexColor = newColor.toString('hex');
-        
+
         // 更新颜色状态
         if (colorIndex === 0) setColor1(newColor);
         if (colorIndex === 1) setColor2(newColor);
         if (colorIndex === 2) setColor3(newColor);
-        
+
         // 临时存储选择的颜色
         setTempSelectedColors(prev => ({
             ...prev,
             [colorIndex]: hexColor
         }));
     };
-    
+
     // 处理 ColorPicker 关闭事件
     const handleColorPickerClose = (colorIndex: number) => {
         const selectedColor = tempSelectedColors[colorIndex];
@@ -94,7 +114,7 @@ export function LEDsSettingContent() {
             // 更新颜色队列
             const updatedQueue = ColorQueueManager.updateColorQueue(selectedColor);
             setColorSwatches(updatedQueue);
-            
+
             // 清除临时存储的颜色
             setTempSelectedColors(prev => {
                 const newTemp = { ...prev };
@@ -114,13 +134,21 @@ export function LEDsSettingContent() {
             setColor2(parseColor(ledsConfigs.ledColors?.[1] ?? defaultFrontColor.toString('css')));
             setColor3(parseColor(ledsConfigs.ledColors?.[2] ?? defaultFrontColor.toString('css')));
             setLedBrightness(ledsConfigs.ledBrightness ?? 75);
-            setLedAnimationSpeed(ledsConfigs.ledAnimationSpeed ?? 1);
+            setLedAnimationSpeed(ledsConfigs.ledAnimationSpeed ?? 3);
             setLedEnabled(ledsConfigs.ledEnabled ?? true);
             setIsDirty?.(false);
 
+            setAroundLedEnabled(ledsConfigs.aroundLedEnabled ?? false);
+            setAroundLedSyncToMainLed(ledsConfigs.aroundLedSyncToMainLed ?? false);
+            setAroundLedTriggerByButton(ledsConfigs.aroundLedTriggerByButton ?? false);
+            setAroundLedEffectStyle(ledsConfigs.aroundLedEffectStyle ?? AroundLedsEffectStyle.STATIC);
+            setAroundLedColor1(parseColor(ledsConfigs.aroundLedColors?.[0] ?? defaultFrontColor.toString('css')));
+            setAroundLedColor2(parseColor(ledsConfigs.aroundLedColors?.[1] ?? defaultFrontColor.toString('css')));
+            setAroundLedColor3(parseColor(ledsConfigs.aroundLedColors?.[2] ?? defaultFrontColor.toString('css')));
+            setAroundLedBrightness(ledsConfigs.aroundLedBrightness ?? 75);
+            setAroundLedAnimationSpeed(ledsConfigs.aroundLedAnimationSpeed ?? 3);
         }
 
-        
     }, [defaultProfile]);
 
     // Save the profile details
@@ -133,6 +161,15 @@ export function LEDsSettingContent() {
                 ledColors: [color1.toString('hex'), color2.toString('hex'), color3.toString('hex')],
                 ledBrightness: ledBrightness,
                 ledAnimationSpeed: ledAnimationSpeed,
+
+                hasAroundLed: hasAroundLed,
+                aroundLedEnabled: aroundLedEnabled,
+                aroundLedSyncToMainLed: aroundLedSyncToMainLed,
+                aroundLedTriggerByButton: aroundLedTriggerByButton,
+                aroundLedEffectStyle: aroundLedEffectStyle,
+                aroundLedColors: [aroundLedColor1.toString('hex'), aroundLedColor2.toString('hex'), aroundLedColor3.toString('hex')],
+                aroundLedBrightness: aroundLedBrightness,
+                aroundLedAnimationSpeed: aroundLedAnimationSpeed,
             }
         }
 
@@ -144,50 +181,73 @@ export function LEDsSettingContent() {
         return (index == 2 && !(effectStyleLabelMap.get(ledsEffectStyle)?.hasBackColor2 ?? false)) || !ledEnabled;
     }
 
+    const aroundColorPickerDisabled = (index: number) => {
+        return (index == 2 && !(aroundLedEffectStyleLabelMap.get(aroundLedEffectStyle)?.hasBackColor2 ?? false)) || !aroundLedEnabled;
+    }
+
     const iconMap: Record<string, JSX.Element> = {
-        'sun-dim': <LuSunDim />,
-        'activity': <LuActivity />,
+        'static': <LuSunDim />,
+        'breathing': <LuActivity />,
         'star': <LuSparkles />,
-        'flowing': <LuWaves  />,
-        'ripple': <LuTarget  />,
-        'transform': <LuCloudSunRain  />,
+        'flowing': <LuWaves />,
+        'ripple': <LuTarget />,
+        'transform': <LuCloudSunRain />,
+        'quake': <LuAudioLines />,
+        'meteor': <TbMeteorFilled />,
     };
 
-    const effectStyleLabelMap = new Map<LedsEffectStyle, { label: string, description: string, icon: string, hasBackColor2: boolean }>([
+    const effectStyleLabelMap = new Map<LedsEffectStyle, { label: string, icon: string, hasBackColor2: boolean }>([
         [LedsEffectStyle.STATIC, {
             label: t.SETTINGS_LEDS_STATIC_LABEL,
-            description: t.SETTINGS_LEDS_STATIC_DESC,
-            icon: "sun-dim",
+            icon: "static",
             hasBackColor2: false
         }],
         [LedsEffectStyle.BREATHING, {
             label: t.SETTINGS_LEDS_BREATHING_LABEL,
-            description: t.SETTINGS_LEDS_BREATHING_DESC,
-            icon: "activity",
+            icon: "breathing",
             hasBackColor2: true
         }],
         [LedsEffectStyle.STAR, {
             label: t.SETTINGS_LEDS_STAR_LABEL,
-            description: t.SETTINGS_LEDS_STAR_DESC,
             icon: "star",
             hasBackColor2: true
         }],
         [LedsEffectStyle.FLOWING, {
             label: t.SETTINGS_LEDS_FLOWING_LABEL,
-            description: t.SETTINGS_LEDS_FLOWING_DESC,
             icon: "flowing",
             hasBackColor2: true
         }],
         [LedsEffectStyle.RIPPLE, {
             label: t.SETTINGS_LEDS_RIPPLE_LABEL,
-            description: t.SETTINGS_LEDS_RIPPLE_DESC,
             icon: "ripple",
             hasBackColor2: true
         }],
         [LedsEffectStyle.TRANSFORM, {
             label: t.SETTINGS_LEDS_TRANSFORM_LABEL,
-            description: t.SETTINGS_LEDS_TRANSFORM_DESC,
             icon: "transform",
+            hasBackColor2: true
+        }],
+    ]);
+
+    const aroundLedEffectStyleLabelMap = new Map<AroundLedsEffectStyle, { label: string, icon: string, hasBackColor2: boolean }>([
+        [AroundLedsEffectStyle.STATIC, {
+            label: t.SETTINGS_LEDS_STATIC_LABEL,
+            icon: "static",
+            hasBackColor2: false
+        }],
+        [AroundLedsEffectStyle.BREATHING, {
+            label: t.SETTINGS_LEDS_BREATHING_LABEL,
+            icon: "breathing",
+            hasBackColor2: true
+        }],
+        [AroundLedsEffectStyle.QUAKE, {
+            label: t.SETTINGS_LEDS_QUAKE_LABEL,
+            icon: "quake",
+            hasBackColor2: true
+        }],
+        [AroundLedsEffectStyle.METEOR, {
+            label: t.SETTINGS_LEDS_METEOR_LABEL,
+            icon: "meteor",
             hasBackColor2: true
         }],
     ]);
@@ -198,7 +258,12 @@ export function LEDsSettingContent() {
         t.SETTINGS_LEDS_BACK_COLOR2
     ];
 
-    
+    const aroundColorLabels = [
+        t.SETTINGS_LEDS_AROUND_COLOR1,
+        t.SETTINGS_LEDS_AROUND_COLOR2
+    ];
+
+
 
     const previewLedsEffectHandler = () => {
         const config = {
@@ -207,16 +272,25 @@ export function LEDsSettingContent() {
             ledColors: [color1.toString('hex'), color2.toString('hex'), color3.toString('hex')],
             ledBrightness: ledBrightness,
             ledAnimationSpeed: ledAnimationSpeed,
+
+            hasAroundLed: hasAroundLed,
+            aroundLedEnabled: aroundLedEnabled,
+            aroundLedSyncToMainLed: aroundLedSyncToMainLed,
+            aroundLedTriggerByButton: aroundLedTriggerByButton,
+            aroundLedEffectStyle: aroundLedEffectStyle,
+            aroundLedColors: [aroundLedColor1.toString('hex'), aroundLedColor2.toString('hex'), aroundLedColor3.toString('hex')],
+            aroundLedBrightness: aroundLedBrightness,
+            aroundLedAnimationSpeed: aroundLedAnimationSpeed,
         }
         pushLedsConfig(config);
     }
 
     useEffect(() => {
-        
-        if(defaultProfile.id && defaultProfile.id != '') {
+
+        if (defaultProfile.id && defaultProfile.id != '') {
             previewLedsEffectHandler();
         }
-        
+
     }, [ledEnabled, ledsEffectStyle]);
 
     useEffect(() => {
@@ -244,6 +318,19 @@ export function LEDsSettingContent() {
                             ],
                             brightness: ledBrightness,
                             animationSpeed: ledAnimationSpeed,
+
+                            hasAroundLed: hasAroundLed,
+                            aroundLedEnabled: aroundLedEnabled,
+                            aroundLedSyncToMainLed: aroundLedSyncToMainLed,
+                            aroundLedTriggerByButton: aroundLedTriggerByButton,
+                            aroundLedEffectStyle: aroundLedEffectStyle,
+                            aroundLedColors: [
+                                GamePadColor.fromString(aroundLedColor1.toString('hex')),
+                                GamePadColor.fromString(aroundLedColor2.toString('hex')),
+                                GamePadColor.fromString(aroundLedColor3.toString('hex'))
+                            ],
+                            aroundLedBrightness: aroundLedBrightness,
+                            aroundLedAnimationSpeed: aroundLedAnimationSpeed,
                         }}
                         interactiveIds={LEDS_SETTINGS_INTERACTIVE_IDS}
                     />
@@ -266,93 +353,93 @@ export function LEDsSettingContent() {
                                         <VStack gap={8} alignItems={"flex-start"}  >
                                             {/* LED Effect Style */}
 
-                                                <Switch.Root colorPalette={"green"} checked={ledEnabled}
-                                                    onCheckedChange={() => {
-                                                        setLedEnabled(!ledEnabled);
-                                                        setIsDirty?.(true);
-                                                    }}
+                                            <Switch.Root colorPalette={"green"} checked={ledEnabled}
+                                                onCheckedChange={() => {
+                                                    setLedEnabled(!ledEnabled);
+                                                    setIsDirty?.(true);
+                                                }}
 
+                                            >
+                                                <Switch.HiddenInput />
+                                                <Switch.Control>
+                                                    <Switch.Thumb />
+                                                </Switch.Control>
+                                                <Switch.Label>{t.SETTINGS_LEDS_ENABLE_LABEL}</Switch.Label>
+                                            </Switch.Root>
+                                            {/* LED Effect Style */}
+                                            <RadioCardRoot
+                                                align="center"
+                                                justify="center"
+                                                colorPalette={ledEnabled ? "green" : "gray"}
+                                                size={"sm"}
+                                                variant={"subtle"}
+                                                value={ledsEffectStyle?.toString() ?? LedsEffectStyle.STATIC.toString()}
+                                                onValueChange={(detail) => {
+                                                    setLedsEffectStyle(parseInt(detail.value ?? "0") as LedsEffectStyle);
+                                                    setIsDirty?.(true);
+                                                }}
+                                                disabled={!ledEnabled}
+                                            >
+                                                <RadioCardLabel>{t.SETTINGS_LEDS_EFFECT_STYLE_CHOICE}</RadioCardLabel>
+                                                <SimpleGrid columns={6} gap={1} >
+                                                    {Array.from(effectStyleLabelMap.entries()).map(([style], index) => (
+                                                        // <Tooltip key={index} content={effectStyleLabelMap.get(style)?.description ?? ""} >
+                                                        <RadioCardItem
+                                                            w="120px"
+                                                            fontSize={"xs"}
+                                                            indicator={false}
+                                                            key={index}
+                                                            icon={
+                                                                <Icon fontSize={"2xl"} >
+                                                                    {iconMap[effectStyleLabelMap.get(style)?.icon ?? ""]}
+                                                                </Icon>
+                                                            }
+                                                            value={style.toString()}
+                                                            label={effectStyleLabelMap.get(style)?.label ?? ""}
+                                                            disabled={!ledEnabled}
+                                                        />
+                                                        // </Tooltip>
+                                                    ))}
+                                                </SimpleGrid>
+                                            </RadioCardRoot>
+
+                                            {/* LED Colors */}
+                                            <HStack gap={4} alignItems={"flex-start"} >
+                                                {Array.from({ length: 3 }).map((_, index) => (
+                                                    <ColorPicker.Root key={index} size="xs"
+                                                        value={
+                                                            index === 0 ? color1 :
+                                                                index === 1 ? color2 :
+                                                                    index === 2 ? color3 :
+                                                                        parseColor(color1.toString('hex'))}
+
+                                                        onValueChange={(e) => {
+                                                            handleColorChange(index, e.value);
+                                                        }}
+
+                                                        onValueChangeEnd={() => {
+                                                            previewLedsEffectHandler();
+                                                        }}
+
+                                                        onOpenChange={(details) => {
+                                                            // 当 ColorPicker 关闭时更新颜色队列
+                                                            if (!details.open) {
+                                                                handleColorPickerClose(index);
+                                                            }
+                                                        }}
+
+                                                        maxW="200px"
+                                                        disabled={colorPickerDisabled(index)}
                                                     >
-                                                    <Switch.HiddenInput />
-                                                    <Switch.Control>
-                                                        <Switch.Thumb />
-                                                    </Switch.Control>
-                                                    <Switch.Label>{t.SETTINGS_LEDS_ENABLE_LABEL}</Switch.Label>
-                                                </Switch.Root>
-                                                {/* LED Effect Style */}
-                                                <RadioCardRoot
-                                                    align="center"
-                                                    justify="center"
-                                                    colorPalette={ledEnabled ? "green" : "gray"}
-                                                    size={"sm"}
-                                                    variant={"subtle"}
-                                                    value={ledsEffectStyle?.toString() ?? LedsEffectStyle.STATIC.toString()}
-                                                    onValueChange={(detail) => {
-                                                        setLedsEffectStyle(parseInt(detail.value ?? "0") as LedsEffectStyle);
-                                                        setIsDirty?.(true);
-                                                    }}
-                                                    disabled={!ledEnabled}
-                                                >
-                                                    <RadioCardLabel>{t.SETTINGS_LEDS_EFFECT_STYLE_CHOICE}</RadioCardLabel>
-                                                    <SimpleGrid columns={6} gap={1} >
-                                                        {Array.from(effectStyleLabelMap.entries()).map(([style], index) => (
-                                                            // <Tooltip key={index} content={effectStyleLabelMap.get(style)?.description ?? ""} >
-                                                            <RadioCardItem
-                                                                w="120px"
-                                                                fontSize={"xs"}
-                                                                indicator={false}
-                                                                key={index}
-                                                                icon={
-                                                                    <Icon fontSize={"2xl"} >
-                                                                        {iconMap[effectStyleLabelMap.get(style)?.icon ?? ""]}
-                                                                    </Icon>
-                                                                }
-                                                                value={style.toString()}
-                                                                label={effectStyleLabelMap.get(style)?.label ?? ""}
-                                                                disabled={!ledEnabled}
-                                                            />
-                                                            // </Tooltip>
-                                                        ))}
-                                                    </SimpleGrid>
-                                                </RadioCardRoot>
-
-                                                {/* LED Colors */}
-                                                <HStack gap={4} alignItems={"flex-start"} >
-                                                    {Array.from({ length: 3 }).map((_, index) => (
-                                                        <ColorPicker.Root key={index} 
-                                                            value={ 
-                                                                index === 0 ? color1 :
-                                                                        index === 1 ? color2 :
-                                                                            index === 2 ? color3 :
-                                                            parseColor(color1.toString('hex')) } 
-                                                            
-                                                            onValueChange={(e) => {
-                                                                handleColorChange(index, e.value);
-                                                            }}
-
-                                                            onValueChangeEnd={() => {
-                                                                previewLedsEffectHandler();
-                                                            }}
-                                                            
-                                                            onOpenChange={(details) => {
-                                                                // 当 ColorPicker 关闭时更新颜色队列
-                                                                if (!details.open) {
-                                                                    handleColorPickerClose(index);
-                                                                }
-                                                            }}
-
-                                                            maxW="200px"
-                                                            disabled={colorPickerDisabled(index)}
-                                                            >
-                                                            <ColorPicker.Label> {colorLabels[index]} </ColorPicker.Label>
-                                                            <ColorPicker.HiddenInput />
-                                                            <ColorPicker.Control>
-                                                                <ColorPicker.Input />
-                                                                <ColorPicker.Trigger />
-                                                            </ColorPicker.Control>
-                                                            <Portal>
-                                                                <ColorPicker.Positioner>
-                                                                    <ColorPicker.Content>
+                                                        <ColorPicker.Label> {colorLabels[index]} </ColorPicker.Label>
+                                                        <ColorPicker.HiddenInput />
+                                                        <ColorPicker.Control>
+                                                            <ColorPicker.Input />
+                                                            <ColorPicker.Trigger />
+                                                        </ColorPicker.Control>
+                                                        <Portal>
+                                                            <ColorPicker.Positioner>
+                                                                <ColorPicker.Content>
                                                                     <ColorPicker.Area />
                                                                     <HStack>
                                                                         <ColorPicker.EyeDropper size="sm" variant="outline" />
@@ -360,25 +447,25 @@ export function LEDsSettingContent() {
                                                                     </HStack>
                                                                     <ColorPicker.SwatchGroup gap={.5} p={0.5} >
                                                                         {colorSwatches.map((item) => (
-                                                                        <ColorPicker.SwatchTrigger key={item} value={item}>
-                                                                            <ColorPicker.Swatch value={item} boxSize="5">
-                                                                                <ColorPicker.SwatchIndicator>
-                                                                                    <LuCheck />
-                                                                                </ColorPicker.SwatchIndicator>
-                                                                            </ColorPicker.Swatch>
-                                                                        </ColorPicker.SwatchTrigger>
+                                                                            <ColorPicker.SwatchTrigger key={item} value={item}>
+                                                                                <ColorPicker.Swatch value={item} boxSize="5">
+                                                                                    <ColorPicker.SwatchIndicator>
+                                                                                        <LuCheck />
+                                                                                    </ColorPicker.SwatchIndicator>
+                                                                                </ColorPicker.Swatch>
+                                                                            </ColorPicker.SwatchTrigger>
                                                                         ))}
                                                                     </ColorPicker.SwatchGroup>
-                                                                    </ColorPicker.Content>
-                                                                </ColorPicker.Positioner>
-                                                            </Portal>
-                                                        </ColorPicker.Root>
-                                                    ))}
-                                                </HStack>
-                                                {/* LED Brightness */}
-
-                                                <Slider.Root 
-                                                    width="580px" 
+                                                                </ColorPicker.Content>
+                                                            </ColorPicker.Positioner>
+                                                        </Portal>
+                                                    </ColorPicker.Root>
+                                                ))}
+                                            </HStack>
+                                            {/* LED Brightness */}
+                                            <Grid templateColumns="repeat(2, 1fr)" gap={10} w="100%" >
+                                                <Slider.Root
+                                                    size={"sm"}
                                                     min={0}
                                                     max={100}
                                                     step={1}
@@ -395,8 +482,8 @@ export function LEDsSettingContent() {
                                                     }}
                                                 >
                                                     <HStack justifyContent={"space-between"} >
-                                                        <Slider.Label>{t.SETTINGS_LEDS_BRIGHTNESS_LABEL}</Slider.Label>
-                                                        <Slider.ValueText />
+                                                        <Slider.Label color={ledEnabled ? "white" : "gray"} >{t.SETTINGS_LEDS_BRIGHTNESS_LABEL}</Slider.Label>
+                                                        <Slider.ValueText color={ledEnabled ? "white" : "gray"} />
                                                     </HStack>
                                                     <Slider.Control>
                                                         <Slider.Track>
@@ -421,10 +508,10 @@ export function LEDsSettingContent() {
                                                         ]} />
                                                     </Slider.Control>
                                                 </Slider.Root>
-                                                
+
                                                 {/* LED Animation Speed */}
-                                                <Slider.Root 
-                                                    width="580px" 
+                                                <Slider.Root
+                                                    size={"sm"}
                                                     min={1}
                                                     max={5}
                                                     step={1}
@@ -439,11 +526,11 @@ export function LEDsSettingContent() {
                                                     onValueChangeEnd={() => {
                                                         previewLedsEffectHandler();
                                                     }}
-                                                    
+
                                                 >
                                                     <HStack justifyContent={"space-between"} >
-                                                        <Slider.Label>{t.SETTINGS_LEDS_ANIMATION_SPEED_LABEL}</Slider.Label>
-                                                        <Slider.ValueText />
+                                                        <Slider.Label color={ledEnabled ? "white" : "gray"} >{t.SETTINGS_LEDS_ANIMATION_SPEED_LABEL}</Slider.Label>
+                                                        <Slider.ValueText color={ledEnabled ? "white" : "gray"} />
                                                     </HStack>
                                                     <Slider.Control>
                                                         <Slider.Track>
@@ -468,8 +555,217 @@ export function LEDsSettingContent() {
                                                         ]} />
                                                     </Slider.Control>
                                                 </Slider.Root>
-                                           
+                                            </Grid>
                                         </VStack>
+                                        <Separator my={8} />
+                                        <VStack gap={8} alignItems={"flex-start"}  >
+                                            {/* Ambient Light */}
+                                            <Grid templateColumns="repeat(3, 1fr)" gap={10} w="100%" >
+                                                <Switch.Root colorPalette={"green"} checked={aroundLedEnabled}>
+                                                    <Switch.HiddenInput />
+                                                    <Switch.Control>
+                                                        <Switch.Thumb />
+                                                    </Switch.Control>
+                                                    <Switch.Label>{t.SETTINGS_AMBIENT_LIGHT_ENABLE_LABEL}</Switch.Label>
+                                                </Switch.Root>
+                                                <Switch.Root>
+                                                    <Switch.HiddenInput />
+                                                    <Switch.Control>
+                                                        <Switch.Thumb />
+                                                    </Switch.Control>
+                                                    <Switch.Label>{t.SETTINGS_AMBIENT_LIGHT_SYNC_WITH_LEDS_LABEL}</Switch.Label>
+                                                </Switch.Root>
+                                                <Switch.Root>
+                                                    <Switch.HiddenInput />
+                                                    <Switch.Control>
+                                                        <Switch.Thumb />
+                                                    </Switch.Control>
+                                                    <Switch.Label>{t.SETTINGS_AMBIENT_LIGHT_TRIGGER_BY_BUTTON_LABEL}</Switch.Label>
+                                                </Switch.Root>
+                                            </Grid>
+                                            <HStack gap={10} alignItems={"flex-start"} >
+                                                <RadioCardRoot
+                                                    align="center"
+                                                    justify="center"
+                                                    colorPalette={ledEnabled ? "green" : "gray"}
+                                                    size={"sm"}
+                                                    variant={"subtle"}
+                                                    value={aroundLedEffectStyle?.toString() ?? AroundLedsEffectStyle.STATIC.toString()}
+                                                    onValueChange={(detail) => {
+                                                        setAroundLedEffectStyle(parseInt(detail.value ?? "0") as AroundLedsEffectStyle);
+                                                        setIsDirty?.(true);
+                                                    }}
+                                                    disabled={!aroundLedEnabled}
+                                                >
+                                                    <RadioCardLabel>{t.SETTINGS_AMBIENT_LIGHT_EFFECT_LABEL}</RadioCardLabel>
+                                                    <SimpleGrid columns={6} gap={1} >
+                                                        {Array.from(aroundLedEffectStyleLabelMap.entries()).map(([style], index) => (
+                                                            <RadioCardItem
+                                                                w="120px"
+                                                                fontSize={"xs"}
+                                                                indicator={false}
+                                                                key={index}
+                                                                icon={<Icon fontSize={"2xl"} >{iconMap[aroundLedEffectStyleLabelMap.get(style)?.icon ?? ""]}</Icon>}
+                                                                value={style.toString()}
+                                                                label={aroundLedEffectStyleLabelMap.get(style)?.label ?? ""}
+                                                                disabled={!aroundLedEnabled}
+                                                            />
+                                                        ))}
+                                                    </SimpleGrid>
+                                                </RadioCardRoot>
+                                            </HStack>
+                                            <HStack gap={10} alignItems={"flex-start"} >
+                                                {Array.from({ length: 2 }).map((_, index) => (
+                                                    <ColorPicker.Root key={index} size="xs"
+                                                        value={
+                                                            index === 0 ? aroundLedColor1 :
+                                                                index === 1 ? aroundLedColor2 :
+                                                                    parseColor(aroundLedColor1.toString('hex'))}
+
+                                                        onValueChange={(e) => {
+                                                            handleColorChange(index, e.value);
+                                                        }}
+
+                                                        onValueChangeEnd={() => {
+                                                            previewLedsEffectHandler();
+                                                        }}
+
+                                                        onOpenChange={(details) => {
+                                                            // 当 ColorPicker 关闭时更新颜色队列
+                                                            if (!details.open) {
+                                                                handleColorPickerClose(index);
+                                                            }
+                                                        }}
+
+                                                        maxW="200px"
+                                                        disabled={aroundColorPickerDisabled(index)}
+                                                    >
+                                                        <ColorPicker.Label> {aroundColorLabels[index]} </ColorPicker.Label>
+                                                        <ColorPicker.HiddenInput />
+                                                        <ColorPicker.Control>
+                                                            <ColorPicker.Input />
+                                                            <ColorPicker.Trigger />
+                                                        </ColorPicker.Control>
+                                                        <Portal>
+                                                            <ColorPicker.Positioner>
+                                                                <ColorPicker.Content>
+                                                                    <ColorPicker.Area />
+                                                                    <HStack>
+                                                                        <ColorPicker.EyeDropper size="sm" variant="outline" />
+                                                                        <ColorPicker.ChannelSlider channel="hue" />
+                                                                    </HStack>
+                                                                    <ColorPicker.SwatchGroup gap={.5} p={0.5} >
+                                                                        {colorSwatches.map((item) => (
+                                                                            <ColorPicker.SwatchTrigger key={item} value={item}>
+                                                                                <ColorPicker.Swatch value={item} boxSize="5">
+                                                                                    <ColorPicker.SwatchIndicator>
+                                                                                        <LuCheck />
+                                                                                    </ColorPicker.SwatchIndicator>
+                                                                                </ColorPicker.Swatch>
+                                                                            </ColorPicker.SwatchTrigger>
+                                                                        ))}
+                                                                    </ColorPicker.SwatchGroup>
+                                                                </ColorPicker.Content>
+                                                            </ColorPicker.Positioner>
+                                                        </Portal>
+                                                    </ColorPicker.Root>
+                                                ))}
+                                            </HStack>
+                                            <Grid templateColumns="repeat(2, 1fr)" gap={10} w="100%" >
+                                                <Slider.Root
+                                                    size={"sm"}
+                                                    min={0}
+                                                    max={100}
+                                                    step={1}
+                                                    colorPalette={"green"}
+                                                    disabled={!aroundLedEnabled}
+                                                    value={[aroundLedBrightness]}
+                                                    onValueChange={(e) => {
+                                                        setAroundLedBrightness(e.value[0]);
+                                                        setIsDirty?.(true);
+                                                    }}
+
+                                                    onValueChangeEnd={() => {
+                                                        previewLedsEffectHandler();
+                                                    }}
+                                                >
+                                                    <HStack justifyContent={"space-between"} >
+                                                        <Slider.Label color={aroundLedEnabled ? "white" : "gray"} >{t.SETTINGS_AMBIENT_LIGHT_BRIGHTNESS_LABEL}</Slider.Label>
+                                                        <Slider.ValueText color={aroundLedEnabled ? "white" : "gray"} />
+                                                    </HStack>
+                                                    <Slider.Control>
+                                                        <Slider.Track>
+                                                            <Slider.Range />
+                                                        </Slider.Track>
+                                                        <Slider.Thumb index={0} >
+                                                            <Slider.DraggingIndicator
+                                                                layerStyle="fill.solid"
+                                                                top="6"
+                                                                rounded="sm"
+                                                                px="1.5"
+                                                            >
+                                                                <Slider.ValueText />
+                                                            </Slider.DraggingIndicator>
+                                                        </Slider.Thumb>
+                                                        <Slider.Marks marks={[
+                                                            { value: 0, label: "0" },
+                                                            { value: 25, label: "25" },
+                                                            { value: 50, label: "50" },
+                                                            { value: 75, label: "75" },
+                                                            { value: 100, label: "100" },
+                                                        ]} />
+                                                    </Slider.Control>
+                                                </Slider.Root>
+
+                                                {/* LED Animation Speed */}
+                                                <Slider.Root
+                                                    size={"sm"}
+                                                    min={1}
+                                                    max={5}
+                                                    step={1}
+                                                    colorPalette={"green"}
+                                                    disabled={!aroundLedEnabled}
+                                                    value={[aroundLedAnimationSpeed]}
+                                                    onValueChange={(e) => {
+                                                        setAroundLedAnimationSpeed(e.value[0]);
+                                                        setIsDirty?.(true);
+                                                    }}
+
+                                                    onValueChangeEnd={() => {
+                                                        previewLedsEffectHandler();
+                                                    }}
+
+                                                >
+                                                    <HStack justifyContent={"space-between"} >
+                                                        <Slider.Label color={aroundLedEnabled ? "white" : "gray"} >{t.SETTINGS_AMBIENT_LIGHT_ANIMATION_SPEED_LABEL}</Slider.Label>
+                                                        <Slider.ValueText color={aroundLedEnabled ? "white" : "gray"} />
+                                                    </HStack>
+                                                    <Slider.Control>
+                                                        <Slider.Track>
+                                                            <Slider.Range />
+                                                        </Slider.Track>
+                                                        <Slider.Thumb index={0} >
+                                                            <Slider.DraggingIndicator
+                                                                layerStyle="fill.solid"
+                                                                top="6"
+                                                                rounded="sm"
+                                                                px="1.5"
+                                                            >
+                                                                <Slider.ValueText />
+                                                            </Slider.DraggingIndicator>
+                                                        </Slider.Thumb>
+                                                        <Slider.Marks marks={[
+                                                            { value: 1, label: "1x" },
+                                                            { value: 2, label: "2x" },
+                                                            { value: 3, label: "3x" },
+                                                            { value: 4, label: "4x" },
+                                                            { value: 5, label: "5x" },
+                                                        ]} />
+                                                    </Slider.Control>
+                                                </Slider.Root>
+                                            </Grid>
+                                        </VStack>
+
                                     </Fieldset.Content>
                                 </Stack>
                             </Fieldset.Root>

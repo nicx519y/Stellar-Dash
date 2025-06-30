@@ -76,7 +76,18 @@
           "#000000"
         ],
         "ledBrightness": 100,
-        "ledAnimationSpeed": 3
+        "ledAnimationSpeed": 3,
+
+        "hasAroundLed": true,
+        "aroundLedEnabled": true,
+        "aroundLedSyncToMainLed": true,
+        "aroundLedTriggerByButton": true,
+        "aroundLedEffectStyle": 0,
+        "aroundLedColors": [
+          "#75FA07", "#E000BF", "#000000"
+        ],
+        "aroundLedBrightness": 100,
+        "aroundLedAnimationSpeed": 3
       },
       "triggerConfigs": {
         "isAllBtnsConfiguring": true,
@@ -221,7 +232,21 @@
           "#0C24C9",
           "#3A9611"
         ],
-        "ledBrightness": 90
+        "ledBrightness": 90,
+        "ledAnimationSpeed": 3,
+
+        "hasAroundLed": true,
+        "aroundLedEnabled": true,
+        "aroundLedSyncToMainLed": true,
+        "aroundLedTriggerByButton": true,
+        "aroundLedEffectStyle": 0,
+        "aroundLedColors": [
+          "#000000",
+          "#0C24C9",
+          "#3A9611"
+        ],
+        "aroundLedBrightness": 90,
+        "aroundLedAnimationSpeed": 3
       },
       "triggerConfigs": {
         "isAllBtnsConfiguring": true,

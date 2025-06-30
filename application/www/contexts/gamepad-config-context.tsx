@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import JSZip from 'jszip';
 import { GameProfile, 
         LedsEffectStyle, 
+        AroundLedsEffectStyle,
         Platform, GameSocdMode, 
         GameControllerButton, Hotkey, RapidTriggerConfig, GameProfileList, GlobalConfig } from '@/types/gamepad-config';
 import { StepInfo, ADCValuesMapping } from '@/types/adc';
@@ -395,6 +396,14 @@ const converProfileDetails = (profile: any) => {
             ledColors: profile.ledsConfigs?.ledColors as string[] ?? ["#000000", "#000000", "#000000"],
             ledBrightness: profile.ledsConfigs?.ledBrightness as number ?? 100,
             ledAnimationSpeed: profile.ledsConfigs?.ledAnimationSpeed as number ?? 1,
+            // 环绕灯配置
+            hasAroundLed: profile.ledsConfigs?.hasAroundLed as boolean ?? false,
+            aroundLedSyncToMainLed: profile.ledsConfigs?.aroundLedSyncToMainLed as boolean ?? false,
+            aroundLedTriggerByButton: profile.ledsConfigs?.aroundLedTriggerByButton as boolean ?? false,
+            aroundLedEffectStyle: profile.ledsConfigs?.aroundLedEffectStyle as AroundLedsEffectStyle ?? AroundLedsEffectStyle.STATIC,
+            aroundLedColors: profile.ledsConfigs?.aroundLedColors as string[] ?? ["#000000", "#000000", "#000000"],
+            aroundLedBrightness: profile.ledsConfigs?.aroundLedBrightness as number ?? 100,
+            aroundLedAnimationSpeed: profile.ledsConfigs?.aroundLedAnimationSpeed as number ?? 1,
         },
         hotkeys: profile.hotkeys as Hotkey[] ?? [],
         triggerConfigs: profile.triggerConfigs ?? {},

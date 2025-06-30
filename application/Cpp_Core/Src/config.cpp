@@ -66,6 +66,7 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
     profile.ledsConfigs.ledAnimationSpeed = 3;
     
     // 设置环绕灯配置
+    profile.ledsConfigs.hasAroundLed = true; // 如果为false, 则环绕灯不会被使用，webconfig中也不会显示环绕灯配置
     profile.ledsConfigs.aroundLedEnabled = false;
     profile.ledsConfigs.aroundLedSyncToMainLed = true;
     profile.ledsConfigs.aroundLedTriggerByButton = false;
