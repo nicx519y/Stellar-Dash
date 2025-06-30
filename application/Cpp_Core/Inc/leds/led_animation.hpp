@@ -77,7 +77,7 @@ LedAnimationAlgorithm getLedAnimation(LEDEffect effect);
 RGBColor aroundLedMeteorAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed);
 
 // 环绕灯震荡动画函数
-RGBColor aroundLedQuakeAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t triggerTime);
+RGBColor aroundLedQuakeAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t processTime);
 #endif
 
 #endif // _LED_ANIMATION_HPP_ 

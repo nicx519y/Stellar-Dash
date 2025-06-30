@@ -16,7 +16,7 @@
 #define AROUND_LED_BRIGHTNESS 100
 #define AROUND_LED_COLOR1 0x00ff00
 #define AROUND_LED_COLOR2 0x0000ff
-#define AROUND_LED_ANIMATION_SPEED 1
+#define AROUND_LED_ANIMATION_SPEED 5
 
 LEDsManager::LEDsManager()
 {
@@ -167,14 +167,12 @@ void LEDsManager::loop(uint32_t virtualPinMask)
     // 环绕灯处理
     if (!opts->aroundLedEnabled) {
         // 模式1：环绕灯关闭 - 设置为黑色，亮度为0
-        APP_DBG("Around LED Mode 1: Disabled");
         for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
             WS2812B_SetLEDColor(0, 0, 0, i);
             WS2812B_SetLEDBrightness(0, i);
         }
     } else if (opts->aroundLedSyncToMainLed) {
         // 模式2：环绕灯同步到主LED - 使用主LED配置和动画
-        APP_DBG("Around LED Mode 2: Sync to Main LED");
         
         // 在同步模式下，动画算法需要处理所有LED（主LED + 环绕LED）
         // 为每个环绕LED计算颜色并设置（索引从按钮LED数量开始）
@@ -512,8 +510,6 @@ void LEDsManager::processAroundLedAnimation()
                 color.g = (uint8_t)(color.g * opts->aroundLedBrightness / 100);
                 color.b = (uint8_t)(color.b * opts->aroundLedBrightness / 100);
                 
-                APP_DBG("AROUND_STATIC: Setting color RGB(%d,%d,%d) for LEDs %d-%d", 
-                        color.r, color.g, color.b, (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS), NUM_LED - 1);
                 
                 for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
                     WS2812B_SetLEDColor(color.r, color.g, color.b, i);
@@ -535,8 +531,6 @@ void LEDsManager::processAroundLedAnimation()
                 resultColor.g = (uint8_t)(resultColor.g * opts->aroundLedBrightness / 100);
                 resultColor.b = (uint8_t)(resultColor.b * opts->aroundLedBrightness / 100);
                 
-                APP_DBG("AROUND_BREATHING: Setting color RGB(%d,%d,%d)", 
-                        resultColor.r, resultColor.g, resultColor.b);
                 
                 for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
                     WS2812B_SetLEDColor(resultColor.r, resultColor.g, resultColor.b, i);
@@ -547,6 +541,9 @@ void LEDsManager::processAroundLedAnimation()
             
         case AroundLEDEffect::AROUND_QUAKE:
             {
+                uint32_t currentTime = HAL_GetTick();
+                uint32_t timeSinceTrigger = currentTime - lastQuakeTriggerTime;
+
                 for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
                     // 计算相对于环绕灯起始位置的索引
                     uint8_t aroundIndex = i - (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS);
@@ -556,7 +553,7 @@ void LEDsManager::processAroundLedAnimation()
                                                            opts->aroundLedColor2, 
                                                            opts->aroundLedBrightness,
                                                            opts->aroundLedAnimationSpeed,
-                                                           lastQuakeTriggerTime);
+                                                           timeSinceTrigger);
                     
                     WS2812B_SetLEDColor(color.r, color.g, color.b, i);
                     WS2812B_SetLEDBrightness(opts->aroundLedBrightness, i);
@@ -567,7 +564,6 @@ void LEDsManager::processAroundLedAnimation()
         case AroundLEDEffect::AROUND_METEOR:
             {
                 // 流星效果：流星从一个位置开始，朝一个方向移动，后面拖着渐变尾巴
-                APP_DBG("AROUND_METEOR: Animating meteor effect");
                 
                 for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
                     // 计算相对于环绕灯起始位置的索引
@@ -587,7 +583,6 @@ void LEDsManager::processAroundLedAnimation()
             
         default:
             // 默认情况：关闭环绕灯
-            APP_DBG("AROUND_DEFAULT: Turning off around LEDs");
             for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
                 WS2812B_SetLEDColor(0, 0, 0, i);
                 WS2812B_SetLEDBrightness(0, i);

@@ -114,8 +114,8 @@ static float lastTransformProgress = 0.0f;
 const ButtonPosition* MAIN_LED_POS_LIST = HITBOX_LED_POS_LIST;
 
 #if HAS_LED_AROUND
-// 环绕LED坐标数组（后NUM_LED_AROUND个）
-const ButtonPosition* AROUND_LED_POS_LIST = &HITBOX_LED_POS_LIST[NUM_LED];
+// 环绕LED坐标数组（从索引21开始的30个LED）
+const ButtonPosition* AROUND_LED_POS_LIST = &HITBOX_LED_POS_LIST[NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS];
 #endif
 
 // 缓存的边界值，避免每帧重复计算
@@ -123,6 +123,12 @@ static float cachedMainMinX = 0.0f;
 static float cachedMainMaxX = 0.0f;
 static float cachedAllMinX = 0.0f;
 static float cachedAllMaxX = 0.0f;
+#if HAS_LED_AROUND
+static float cachedAroundMinX = 0.0f;
+static float cachedAroundMaxX = 0.0f;
+static float cachedAroundCenterX = 0.0f;
+static bool aroundBoundariesCalculated = false;
+#endif
 static bool mainBoundariesCalculated = false;
 static bool allBoundariesCalculated = false;
 
@@ -178,6 +184,34 @@ static void calculateAllBoundaries() {
         allBoundariesCalculated = true;
     }
 }
+
+#if HAS_LED_AROUND
+// 计算环绕LED边界的函数
+static void calculateAroundBoundaries() {
+    if (!aroundBoundariesCalculated) {
+        cachedAroundMinX = AROUND_LED_POS_LIST[0].x;
+        cachedAroundMaxX = AROUND_LED_POS_LIST[0].x;
+        
+
+        // 遍历环绕LED位置找到最小和最大X坐标
+        for (uint8_t i = 1; i < NUM_LED_AROUND; i++) {
+            if (AROUND_LED_POS_LIST[i].x < cachedAroundMinX) {
+                cachedAroundMinX = AROUND_LED_POS_LIST[i].x;
+            }
+            if (AROUND_LED_POS_LIST[i].x > cachedAroundMaxX) {
+                cachedAroundMaxX = AROUND_LED_POS_LIST[i].x;
+            }
+        }
+        
+        cachedAroundCenterX = (cachedAroundMaxX - cachedAroundMinX) / 2.0f;
+        // 添加缓冲区
+        cachedAroundMinX -= 100.0f;
+        cachedAroundMaxX += 100.0f;
+
+        aroundBoundariesCalculated = true;
+    }
+}
+#endif
 
 // 动态选择边界的函数，根据环绕灯同步状态
 static void getBoundaries(const LedAnimationParams& params, float& minX, float& maxX) {
@@ -655,63 +689,70 @@ RGBColor aroundLedMeteorAnimation(float progress, uint8_t ledIndex, uint32_t col
  * @param triggerTime 触发时间（毫秒），用于重新开始震荡
  * @return 计算后的LED颜色
  */
-RGBColor aroundLedQuakeAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t triggerTime) {
+RGBColor aroundLedQuakeAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t processTime) {
     // 获取当前LED的坐标
     float ledX = AROUND_LED_POS_LIST[ledIndex].x;
     
-    // 计算中心线：x轴中线 = (最小x + 最大x) / 2
-    const float minX = 3.00f;   // 左边界
-    const float maxX = 307.00f; // 右边界
-    const float centerX = (minX + maxX) / 2.0f; // 约155.0
+    // 计算环绕LED的边界值（使用缓存）
+    calculateAroundBoundaries();
+    const float minX = cachedAroundMinX;
+    const float maxX = cachedAroundMaxX;
+    const float centerX = cachedAroundCenterX;
+    const float maxDistance = (maxX - minX) / 2.0f;
     
     // 计算当前LED到X轴中线的距离
-    float distanceFromCenterLine = fabsf(ledX - centerX);
+    const float distanceFromCenterLine = fabsf(ledX - centerX);
     
-    // 计算最大距离（到边界的距离）
-    float maxDistance = (maxX - minX) / 2.0f; // 约152.0
+    // 计算自触发以来的时间
+    uint32_t timeSinceTrigger = processTime;
     
-    // 应用速度倍数调整进度（确保能完整覆盖范围）
-    float speedProgress = progress * animationSpeed;
+    // 震荡动画持续时间（毫秒）- 根据动画速度调整
+    uint32_t animationDuration = static_cast<uint32_t>(900.0f / (static_cast<float_t>(animationSpeed) / 3.0f)); // 速度越快，持续时间越短
     
-    // 计算震荡周期内的进度 (0.0-1.0 为一个完整震荡周期)
-    float cycleProgress = fmodf(speedProgress, 1.0f);
+    // 如果超过动画持续时间，显示底色（静止状态）
+    if (timeSinceTrigger > animationDuration) {
+        RGBColor baseColor = hexToRGB(color1);
+        baseColor.r = (uint8_t)(baseColor.r * brightness / 100);
+        baseColor.g = (uint8_t)(baseColor.g * brightness / 100);
+        baseColor.b = (uint8_t)(baseColor.b * brightness / 100);
+        return baseColor;
+    }
+    
+    // 计算基于触发时间的动画进度（0.0-1.0）
+    float animationProgress = (float)timeSinceTrigger / (float)animationDuration;
+    animationProgress = fminf(1.0f, animationProgress); // 限制在1.0以内
     
     // 震荡模式：中心->边缘->中心
     float waveRadius;
-    if (cycleProgress < 0.7f) {
-        // 前70%：从中心线扩散到边缘 (0 -> maxDistance)
-        waveRadius = (cycleProgress / 0.7f) * maxDistance;
+    if (animationProgress < 0.4f) {
+        // 前30%：从中心线扩散到边缘 (0 -> maxDistance)
+        waveRadius = (animationProgress / 0.4f) * maxDistance;
     } else {
-        // 后30%：从边缘收缩回中心线 (maxDistance -> 0)
-        float retractProgress = (cycleProgress - 0.7f) / 0.3f;
+        // 后70%：从边缘收缩回中心线 (maxDistance -> 0)
+        float retractProgress = (animationProgress - 0.4f) / 0.6f;
         waveRadius = (1.0f - retractProgress) * maxDistance;
     }
-
-    // if(ledIndex == 0) {
-    //     APP_DBG("progress=%.3f, speedProgress=%.3f, cycleProgress=%.3f, waveRadius=%.2f", progress, speedProgress, cycleProgress, waveRadius);
-    // }
     
     // 转换颜色格式
     RGBColor baseColor = hexToRGB(color1);
     RGBColor quakeColor = hexToRGB(color2);
     RGBColor resultColor;
     
-    // 新的震荡逻辑：所有在震荡半径内的LED都显示震荡色
-    APP_DBG("distanceFromCenterLine=%.2f, waveRadius=%.2f", distanceFromCenterLine, waveRadius);
-    if (distanceFromCenterLine <= waveRadius) {
-        // // 在震荡区域内，计算渐变强度
-        // // 距离中心线越近，震荡效果越强
-        // float intensity = 1.0f - (distanceFromCenterLine / waveRadius);
-        // intensity = fmaxf(0.0f, fminf(1.0f, intensity));
-        
-        // // 使用平滑过渡
-        // intensity = intensity * intensity * (3.0f - 2.0f * intensity); // smoothstep
-        
-        // // 在底色和震荡色之间插值
-        // resultColor = lerpColor(baseColor, quakeColor, intensity);
+    // 震荡渐变：在波边缘创建渐变区域
+    const float fadeWidth = 50.0f; // 渐变区域宽度
+    
+    if (distanceFromCenterLine <= waveRadius - fadeWidth) {
+        // 震荡波内部区域：完全显示震荡色
         resultColor = quakeColor;
+    } else if (distanceFromCenterLine <= waveRadius) {
+        // 渐变区域：从震荡色渐变到底色
+        float fadeDistance = distanceFromCenterLine - (waveRadius - fadeWidth);
+        float fadeStrength = 1.0f - (fadeDistance / fadeWidth);
+        
+        // 在震荡色和底色之间插值
+        resultColor = lerpColor(baseColor, quakeColor, fadeStrength);
     } else {
-        // 不在震荡区域内，显示底色
+        // 波外区域：显示底色
         resultColor = baseColor;
     }
     
