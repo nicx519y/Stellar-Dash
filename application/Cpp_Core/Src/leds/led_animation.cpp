@@ -643,4 +643,83 @@ RGBColor aroundLedMeteorAnimation(float progress, uint8_t ledIndex, uint32_t col
     
     return resultColor;
 }
+
+/**
+ * @brief 环绕灯震荡动画效果
+ * @param progress 动画进度 (0.0-1.0)
+ * @param ledIndex 环绕灯的索引 (0 到 NUM_LED_AROUND-1)
+ * @param color1 底色
+ * @param color2 震荡波颜色
+ * @param brightness 亮度 (0-100)
+ * @param animationSpeed 动画速度 (1-5)
+ * @param triggerTime 触发时间（毫秒），用于重新开始震荡
+ * @return 计算后的LED颜色
+ */
+RGBColor aroundLedQuakeAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t triggerTime) {
+    // 获取当前LED的坐标
+    float ledX = AROUND_LED_POS_LIST[ledIndex].x;
+    
+    // 计算中心线：x轴中线 = (最小x + 最大x) / 2
+    const float minX = 3.00f;   // 左边界
+    const float maxX = 307.00f; // 右边界
+    const float centerX = (minX + maxX) / 2.0f; // 约155.0
+    
+    // 计算当前LED到X轴中线的距离
+    float distanceFromCenterLine = fabsf(ledX - centerX);
+    
+    // 计算最大距离（到边界的距离）
+    float maxDistance = (maxX - minX) / 2.0f; // 约152.0
+    
+    // 应用速度倍数调整进度（确保能完整覆盖范围）
+    float speedProgress = progress * animationSpeed;
+    
+    // 计算震荡周期内的进度 (0.0-1.0 为一个完整震荡周期)
+    float cycleProgress = fmodf(speedProgress, 1.0f);
+    
+    // 震荡模式：中心->边缘->中心
+    float waveRadius;
+    if (cycleProgress < 0.7f) {
+        // 前70%：从中心线扩散到边缘 (0 -> maxDistance)
+        waveRadius = (cycleProgress / 0.7f) * maxDistance;
+    } else {
+        // 后30%：从边缘收缩回中心线 (maxDistance -> 0)
+        float retractProgress = (cycleProgress - 0.7f) / 0.3f;
+        waveRadius = (1.0f - retractProgress) * maxDistance;
+    }
+
+    // if(ledIndex == 0) {
+    //     APP_DBG("progress=%.3f, speedProgress=%.3f, cycleProgress=%.3f, waveRadius=%.2f", progress, speedProgress, cycleProgress, waveRadius);
+    // }
+    
+    // 转换颜色格式
+    RGBColor baseColor = hexToRGB(color1);
+    RGBColor quakeColor = hexToRGB(color2);
+    RGBColor resultColor;
+    
+    // 新的震荡逻辑：所有在震荡半径内的LED都显示震荡色
+    APP_DBG("distanceFromCenterLine=%.2f, waveRadius=%.2f", distanceFromCenterLine, waveRadius);
+    if (distanceFromCenterLine <= waveRadius) {
+        // // 在震荡区域内，计算渐变强度
+        // // 距离中心线越近，震荡效果越强
+        // float intensity = 1.0f - (distanceFromCenterLine / waveRadius);
+        // intensity = fmaxf(0.0f, fminf(1.0f, intensity));
+        
+        // // 使用平滑过渡
+        // intensity = intensity * intensity * (3.0f - 2.0f * intensity); // smoothstep
+        
+        // // 在底色和震荡色之间插值
+        // resultColor = lerpColor(baseColor, quakeColor, intensity);
+        resultColor = quakeColor;
+    } else {
+        // 不在震荡区域内，显示底色
+        resultColor = baseColor;
+    }
+    
+    // 应用亮度
+    resultColor.r = (uint8_t)(resultColor.r * brightness / 100);
+    resultColor.g = (uint8_t)(resultColor.g * brightness / 100);
+    resultColor.b = (uint8_t)(resultColor.b * brightness / 100);
+    
+    return resultColor;
+}
 #endif 

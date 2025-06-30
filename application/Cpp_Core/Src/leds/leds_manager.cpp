@@ -12,11 +12,11 @@
 
 #define AROUND_LED_ENABLED true
 #define AROUND_LED_SYNC_TO_MAIN_LED false
-#define AROUND_LED_EFFECT 3
+#define AROUND_LED_EFFECT 2
 #define AROUND_LED_BRIGHTNESS 100
 #define AROUND_LED_COLOR1 0x00ff00
 #define AROUND_LED_COLOR2 0x0000ff
-#define AROUND_LED_ANIMATION_SPEED 5
+#define AROUND_LED_ANIMATION_SPEED 1
 
 LEDsManager::LEDsManager()
 {
@@ -47,6 +47,10 @@ LEDsManager::LEDsManager()
         aroundLedRipples[i].centerIndex = 0;
         aroundLedRipples[i].startTime = 0;
     }
+    
+    // 初始化震荡动画状态
+    lastQuakeTriggerTime = 0;
+    lastButtonPressTime = 0;
 #endif
 };
 
@@ -184,7 +188,6 @@ void LEDsManager::loop(uint32_t virtualPinMask)
         }
     } else {
         // 模式3：环绕灯独立模式 - 使用环绕灯独立配置
-        APP_DBG("Around LED Mode 3: Independent mode - calling processAroundLedAnimation()");
         processAroundLedAnimation();
     }
 #endif
@@ -222,6 +225,20 @@ void LEDsManager::processButtonPress(uint32_t virtualPinMask)
             }
         }
     }
+    
+#if HAS_LED_AROUND
+    // 检测按键按下用于震荡动画重置
+    if (newPressed != 0 && opts->aroundLedEnabled && !opts->aroundLedSyncToMainLed && 
+        opts->aroundLedEffect == AroundLEDEffect::AROUND_QUAKE) {
+        // 任何按键按下时重置震荡动画
+        uint32_t currentTime = HAL_GetTick();
+        lastQuakeTriggerTime = currentTime;
+        lastButtonPressTime = currentTime;
+        aroundLedAnimationStartTime = currentTime; // 重置动画时间
+        
+        APP_DBG("QUAKE: Button pressed, restarting quake animation at time %lu", currentTime);
+    }
+#endif
     
     lastButtonState = virtualPinMask;
 }
@@ -486,8 +503,6 @@ void LEDsManager::processAroundLedAnimation()
 {
     float progress = getAroundLedAnimationProgress();
     
-    APP_DBG("processAroundLedAnimation: effect=%d, progress=%.3f", opts->aroundLedEffect, progress);
-    
     switch (opts->aroundLedEffect) {
         case AroundLEDEffect::AROUND_STATIC:
             {
@@ -525,6 +540,25 @@ void LEDsManager::processAroundLedAnimation()
                 
                 for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
                     WS2812B_SetLEDColor(resultColor.r, resultColor.g, resultColor.b, i);
+                    WS2812B_SetLEDBrightness(opts->aroundLedBrightness, i);
+                }
+            }
+            break;
+            
+        case AroundLEDEffect::AROUND_QUAKE:
+            {
+                for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
+                    // 计算相对于环绕灯起始位置的索引
+                    uint8_t aroundIndex = i - (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS);
+                    
+                    RGBColor color = aroundLedQuakeAnimation(progress, aroundIndex, 
+                                                           opts->aroundLedColor1, 
+                                                           opts->aroundLedColor2, 
+                                                           opts->aroundLedBrightness,
+                                                           opts->aroundLedAnimationSpeed,
+                                                           lastQuakeTriggerTime);
+                    
+                    WS2812B_SetLEDColor(color.r, color.g, color.b, i);
                     WS2812B_SetLEDBrightness(opts->aroundLedBrightness, i);
                 }
             }

@@ -64,6 +64,10 @@ class LEDsManager {
         uint32_t aroundLedAnimationStartTime;
         Ripple aroundLedRipples[5];
         uint8_t aroundLedRippleCount;
+        
+        // 震荡动画状态管理
+        uint32_t lastQuakeTriggerTime;    // 最后一次震荡触发时间
+        uint32_t lastButtonPressTime;     // 最后一次按键时间，用于触发震荡重置
 #endif
         
         // 动画处理函数

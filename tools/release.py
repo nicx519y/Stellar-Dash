@@ -1837,6 +1837,119 @@ class ReleaseManager:
             print(f"✗ 清空异常: {e}")
             return False
 
+    # ==================== 快速构建和刷写功能 ====================
+    
+    def build_and_flash_slot_a_app(self) -> bool:
+        """快速构建槽A的application并直接刷写到设备"""
+        print("=== 快速构建并刷写槽A Application ===")
+        print(f"工作目录: {self.project_root}")
+        
+        try:
+            # 1. 构建槽A的Application
+            print("\n[1/4] 构建槽A Application...")
+            hex_file = self.build_app_with_build_py('A')
+            print(f"✓ 构建完成: {hex_file}")
+            
+            # 2. 使用Intel HEX分割处理，提取application组件
+            print("\n[2/4] 解析Intel HEX文件...")
+            
+            # 创建临时目录
+            temp_dir = self.tools_dir / 'quick_flash_temp'
+            temp_dir.mkdir(exist_ok=True)
+            
+            try:
+                # 使用HEX分割器解析文件
+                hex_segmenter = HexSegmenter()
+                hex_manifest = hex_segmenter.process_hex_file(
+                    hex_file, 
+                    temp_dir / "hex_components", 
+                    "dev-build"
+                )
+                
+                # 查找application组件
+                app_component = None
+                for comp in hex_manifest['components']:
+                    if comp['name'] == 'application' or comp['name'].startswith('application'):
+                        app_component = comp
+                        break
+                
+                if not app_component:
+                    print("错误: HEX文件中未找到application组件")
+                    return False
+                
+                print(f"✓ 发现application组件: {app_component['name']} ({app_component['size']:,} 字节)")
+                print(f"  地址: {app_component.get('original_address', 'N/A')} -> {app_component['address']}")
+                
+                # 3. 直接刷写application组件
+                print("\n[3/4] 刷写application到槽A...")
+                
+                # application组件文件路径
+                component_file = temp_dir / "hex_components" / app_component['file']
+                target_address = "0x90000000"  # 槽A的application地址
+                
+                if not self.flasher.flash_component(component_file, target_address, "application", "bin"):
+                    print("\n✗ Application刷写失败")
+                    return False
+                
+                print(f"✓ Application刷写成功 ({app_component['size']:,} 字节)")
+                
+                # 4. 生成并刷写元数据
+                print("\n[4/4] 生成并刷写槽A元数据...")
+                
+                # 准备元数据组件信息
+                components_list = [{
+                    'name': 'application',
+                    'file': app_component['file'],
+                    'address': target_address,
+                    'size': app_component['size'],
+                    'sha256': app_component['sha256'],
+                    'active': True
+                }]
+                
+                # 生成元数据二进制
+                metadata_binary = create_metadata_binary(
+                    version="dev-build",
+                    slot="A",
+                    build_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    components=components_list
+                )
+                
+                # 写入临时元数据文件
+                metadata_file = temp_dir / "metadata.bin"
+                with open(metadata_file, 'wb') as f:
+                    f.write(metadata_binary)
+                
+                print(f"✓ 生成元数据文件: {len(metadata_binary):,} 字节")
+                
+                # 刷写元数据
+                if self.flasher.flash_metadata(metadata_file):
+                    print("✓ 元数据刷写成功")
+                    
+                    print("\n" + "="*50)
+                    print("✓ 槽A Application构建并刷写成功!")
+                    print(f"刷写内容:")
+                    print(f"  - Application: {target_address} ({app_component['size']:,} 字节)")
+                    print(f"  - 元数据: 0x90570000 ({len(metadata_binary):,} 字节)")
+                    print(f"  - 版本: dev-build (槽A)")
+                    print("="*50)
+                    return True
+                else:
+                    print("✗ 元数据刷写失败")
+                    return False
+                    
+            finally:
+                # 清理临时目录
+                if temp_dir.exists():
+                    try:
+                        shutil.rmtree(temp_dir)
+                        print(f"\n已清理临时目录: {temp_dir}")
+                    except Exception as e:
+                        print(f"清理临时目录失败: {e}")
+                        
+        except Exception as e:
+            print(f"\n✗ 操作失败: {e}")
+            return False
+
 def main():
     parser = argparse.ArgumentParser(
         description="STM32 HBox Release 管理工具 - 集成打包和刷写功能",
@@ -1853,6 +1966,17 @@ def main():
   
   交互式输入版本号:
     python release.py auto
+
+快速开发调试:
+  快速构建槽A的application并直接刷写到设备:
+    python release.py quick
+  
+  说明:
+    - 自动构建槽A的application
+    - 使用Intel HEX分割处理，只提取application组件
+    - 直接刷写到槽A地址(0x90000000)
+    - 生成并刷写槽A的元数据到0x90570000
+    - 适合开发调试阶段快速验证代码
 
 Intel HEX文件处理（测试功能）:
   处理HEX文件并分割为多个组件:
@@ -1964,6 +2088,9 @@ Intel HEX增强模式说明:
     auto_parser = subparsers.add_parser('auto', help='自动构建双槽release包（使用Intel HEX分割处理）')
     auto_parser.add_argument("--version", help="发版版本号（可选，不指定则交互式输入）")
     
+    # 快速构建并刷写命令
+    quick_parser = subparsers.add_parser('quick', help='快速构建槽A的application并直接刷写到设备')
+    
     # Intel HEX处理命令（独立测试）
     hex_parser = subparsers.add_parser('hex', help='Intel HEX文件处理和分割（测试功能）')
     hex_parser.add_argument("hex_file", help="要处理的Intel HEX文件路径")
@@ -2030,6 +2157,15 @@ Intel HEX增强模式说明:
                 return 0
             else:
                 print("\n✗ 发版包生成失败")
+                return 1
+        
+        elif args.command == 'quick':
+            # 快速构建槽A的application并直接刷写到设备
+            if manager.build_and_flash_slot_a_app():
+                print("\n✓ 槽A Application快速构建并刷写成功!")
+                return 0
+            else:
+                print("\n✗ 槽A Application快速构建失败")
                 return 1
         
         elif args.command == 'hex':
