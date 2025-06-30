@@ -110,33 +110,101 @@ static uint8_t transformPassedPositions[NUM_LED + NUM_LED_AROUND] = {0}; // 0: �
 static uint32_t transformCycleCount = 0;
 static float lastTransformProgress = 0.0f;
 
-// 缓存的边界值，避免每帧重复计算
-static float cachedMinX = 0.0f;
-static float cachedMaxX = 0.0f;
-static bool boundariesCalculated = false;
+// 主LED坐标数组（前NUM_LED个）
+const ButtonPosition* MAIN_LED_POS_LIST = HITBOX_LED_POS_LIST;
 
-// 计算按钮X坐标边界的函数
-static void calculateBoundaries() {
-    if (!boundariesCalculated) {
-        cachedMinX = HITBOX_LED_POS_LIST[0].x;
-        cachedMaxX = HITBOX_LED_POS_LIST[0].x;
+#if HAS_LED_AROUND
+// 环绕LED坐标数组（后NUM_LED_AROUND个）
+const ButtonPosition* AROUND_LED_POS_LIST = &HITBOX_LED_POS_LIST[NUM_LED];
+#endif
+
+// 缓存的边界值，避免每帧重复计算
+static float cachedMainMinX = 0.0f;
+static float cachedMainMaxX = 0.0f;
+static float cachedAllMinX = 0.0f;
+static float cachedAllMaxX = 0.0f;
+static bool mainBoundariesCalculated = false;
+static bool allBoundariesCalculated = false;
+
+// 计算主LED边界的函数
+static void calculateMainBoundaries() {
+    if (!mainBoundariesCalculated) {
+        cachedMainMinX = MAIN_LED_POS_LIST[0].x;
+        cachedMainMaxX = MAIN_LED_POS_LIST[0].x;
         
-        // 遍历所有按钮位置找到最小和最大X坐标
+        // 遍历主LED位置找到最小和最大X坐标
         for (uint8_t i = 1; i < NUM_LED; i++) {
-            if (HITBOX_LED_POS_LIST[i].x < cachedMinX) {
-                cachedMinX = HITBOX_LED_POS_LIST[i].x;
+            if (MAIN_LED_POS_LIST[i].x < cachedMainMinX) {
+                cachedMainMinX = MAIN_LED_POS_LIST[i].x;
             }
-            if (HITBOX_LED_POS_LIST[i].x > cachedMaxX) {
-                cachedMaxX = HITBOX_LED_POS_LIST[i].x;
+            if (MAIN_LED_POS_LIST[i].x > cachedMainMaxX) {
+                cachedMainMaxX = MAIN_LED_POS_LIST[i].x;
             }
         }
         
         // 添加缓冲区
-        cachedMinX -= 100.0f;
-        cachedMaxX += 100.0f;
+        cachedMainMinX -= 100.0f;
+        cachedMainMaxX += 100.0f;
         
-        boundariesCalculated = true;
+        mainBoundariesCalculated = true;
     }
+}
+
+// 计算所有LED边界的函数（包括环绕灯）
+static void calculateAllBoundaries() {
+    if (!allBoundariesCalculated) {
+        cachedAllMinX = HITBOX_LED_POS_LIST[0].x;
+        cachedAllMaxX = HITBOX_LED_POS_LIST[0].x;
+        
+        // 遍历所有LED位置找到最小和最大X坐标
+        uint8_t totalLeds = NUM_LED;
+#if HAS_LED_AROUND
+        totalLeds += NUM_LED_AROUND;
+#endif
+        
+        for (uint8_t i = 1; i < totalLeds; i++) {
+            if (HITBOX_LED_POS_LIST[i].x < cachedAllMinX) {
+                cachedAllMinX = HITBOX_LED_POS_LIST[i].x;
+            }
+            if (HITBOX_LED_POS_LIST[i].x > cachedAllMaxX) {
+                cachedAllMaxX = HITBOX_LED_POS_LIST[i].x;
+            }
+        }
+        
+        // 添加缓冲区
+        cachedAllMinX -= 100.0f;
+        cachedAllMaxX += 100.0f;
+        
+        allBoundariesCalculated = true;
+    }
+}
+
+// 动态选择边界的函数，根据环绕灯同步状态
+static void getBoundaries(const LedAnimationParams& params, float& minX, float& maxX) {
+#if HAS_LED_AROUND
+    // 检查当前LED是否为环绕灯，或者是否需要处理环绕灯同步
+    bool isAroundLed = params.index >= NUM_LED;
+    bool needAllBoundaries = isAroundLed || (params.index < NUM_LED && params.global.aroundLedSyncMode);
+    
+    if (needAllBoundaries) {
+        calculateAllBoundaries();
+        minX = cachedAllMinX;
+        maxX = cachedAllMaxX;
+    } else {
+        calculateMainBoundaries();
+        minX = cachedMainMinX;
+        maxX = cachedMainMaxX;
+    }
+#else
+    calculateMainBoundaries();
+    minX = cachedMainMinX;
+    maxX = cachedMainMaxX;
+#endif
+}
+
+// 计算按钮X坐标边界的函数（保留用于兼容性）
+static void calculateBoundaries() {
+    calculateMainBoundaries(); // 保持原有逻辑，使用主LED边界
 }
 
 // 颜色插值函数
@@ -316,15 +384,27 @@ RGBColor flowingAnimation(const LedAnimationParams& params) {
         return color;
     }
     
-    // 确保边界值已计算
-    calculateBoundaries();
+    // 获取动态边界
+    float minX, maxX;
+    getBoundaries(params, minX, maxX);
     
     // 流光参数
     float bandWidth = 140.0f; // 光带宽度，与TypeScript版本保持一致
     
     // 当前流光中心位置
-    float centerX = cachedMinX + (cachedMaxX - cachedMinX) * params.progress * 1.6f;
-    float btnX = HITBOX_LED_POS_LIST[params.index].x;
+    float centerX = minX + (maxX - minX) * params.progress * 1.6f;
+    
+    // 获取当前LED的X坐标
+    float btnX;
+    if (params.index < NUM_LED) {
+        btnX = MAIN_LED_POS_LIST[params.index].x;
+    } else {
+#if HAS_LED_AROUND
+        btnX = AROUND_LED_POS_LIST[params.index - NUM_LED].x;
+#else
+        btnX = MAIN_LED_POS_LIST[params.index].x; // 不应该到达这里
+#endif
+    }
     
     // 计算距离中心的归一化距离
     float dist = fabsf(btnX - centerX);
@@ -368,16 +448,16 @@ RGBColor rippleAnimation(const LedAnimationParams& params) {
         uint8_t centerIndex = params.global.rippleCenters[i];
         float progress = params.global.rippleProgress[i];
         
-        float centerX = HITBOX_LED_POS_LIST[centerIndex].x;
-        float centerY = HITBOX_LED_POS_LIST[centerIndex].y;
-        float btnX = HITBOX_LED_POS_LIST[params.index].x;
-        float btnY = HITBOX_LED_POS_LIST[params.index].y;
+        float centerX = MAIN_LED_POS_LIST[centerIndex].x;
+        float centerY = MAIN_LED_POS_LIST[centerIndex].y;
+        float btnX = MAIN_LED_POS_LIST[params.index].x;
+        float btnY = MAIN_LED_POS_LIST[params.index].y;
         
         // 计算最大距离
         float maxDist = 0.0f;
         for (uint8_t j = 0; j < NUM_LED; j++) {
-            float dx = HITBOX_LED_POS_LIST[j].x - centerX;
-            float dy = HITBOX_LED_POS_LIST[j].y - centerY;
+            float dx = MAIN_LED_POS_LIST[j].x - centerX;
+            float dy = MAIN_LED_POS_LIST[j].y - centerY;
             float dist = sqrtf(dx * dx + dy * dy);
             if (dist > maxDist) maxDist = dist;
         }
@@ -423,13 +503,25 @@ RGBColor transformAnimation(const LedAnimationParams& params) {
     }
     lastTransformProgress = params.progress;
     
-    // 确保边界值已计算
-    calculateBoundaries();
+    // 获取动态边界
+    float minX, maxX;
+    getBoundaries(params, minX, maxX);
     
     // 流光参数
     float bandWidth = 140.0f;
-    float centerX = cachedMinX + (cachedMaxX - cachedMinX) * params.progress * 1.6f;
-    float btnX = HITBOX_LED_POS_LIST[params.index].x;
+    float centerX = minX + (maxX - minX) * params.progress * 1.6f;
+    
+    // 获取当前LED的X坐标
+    float btnX;
+    if (params.index < NUM_LED) {
+        btnX = MAIN_LED_POS_LIST[params.index].x;
+    } else {
+#if HAS_LED_AROUND
+        btnX = AROUND_LED_POS_LIST[params.index - NUM_LED].x;
+#else
+        btnX = MAIN_LED_POS_LIST[params.index].x; // 不应该到达这里
+#endif
+    }
     
     // 记录流光已经经过的按钮
     if (centerX > btnX + bandWidth / 2.0f) {
@@ -490,4 +582,65 @@ LedAnimationAlgorithm getLedAnimation(LEDEffect effect) {
         default:
             return staticAnimation;
     }
-} 
+}
+
+#if HAS_LED_AROUND
+/**
+ * @brief 环绕灯流星动画效果
+ * @param progress 动画进度 (0.0-1.0)
+ * @param ledIndex 环绕灯的索引 (0 到 NUM_LED_AROUND-1)
+ * @param color1 底色（环绕灯color1）
+ * @param color2 流星头部颜色（环绕灯color2）
+ * @param brightness 亮度 (0-100)
+ * @param animationSpeed 动画速度 (1-5，用于计算尾巴长度)
+ * @return 计算后的LED颜色
+ */
+RGBColor aroundLedMeteorAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed) {
+    // 流星参数 - 调整尾巴长度
+    // 速度1: 5, 速度2: 8, 速度3: 11, 速度4: 14, 速度5: 17
+    // 公式：基础长度2 + 速度 * 3
+    uint8_t meteorLength = 2 + animationSpeed * 3;
+    
+    // 计算流星头部的当前位置（顺时针移动）
+    float meteorPosition = progress * NUM_LED_AROUND;
+    uint8_t meteorHead = (uint8_t)meteorPosition % NUM_LED_AROUND;
+    
+    // 转换颜色格式
+    RGBColor baseColor = hexToRGB(color1);    // 底色
+    RGBColor meteorColor = hexToRGB(color2);  // 流星颜色
+    
+    // 计算当前LED到流星头部的距离（考虑环形排列）
+    int8_t distance;
+    if (ledIndex <= meteorHead) {
+        distance = meteorHead - ledIndex;
+    } else {
+        distance = meteorHead + NUM_LED_AROUND - ledIndex;
+    }
+    
+    RGBColor resultColor;
+    
+    if (distance == 0) {
+        // 流星头部：使用完整的流星颜色
+        resultColor = meteorColor;
+    } else if (distance > 0 && distance < meteorLength) {
+        // 流星尾巴：使用简单的线性衰减
+        float normalizedDistance = (float)distance / (float)meteorLength; // 0.0 到 1.0
+        
+        // 线性衰减：距离越远，fadeStrength越小
+        float fadeStrength = 1.0f - normalizedDistance;
+        
+        // 在流星颜色和底色之间插值
+        resultColor = lerpColor(baseColor, meteorColor, fadeStrength);
+    } else {
+        // 其他位置：使用底色
+        resultColor = baseColor;
+    }
+    
+    // 应用亮度
+    resultColor.r = (uint8_t)(resultColor.r * brightness / 100);
+    resultColor.g = (uint8_t)(resultColor.g * brightness / 100);
+    resultColor.b = (uint8_t)(resultColor.b * brightness / 100);
+    
+    return resultColor;
+}
+#endif 

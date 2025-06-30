@@ -72,8 +72,10 @@ enum LEDEffect
 
 enum AroundLEDEffect
 {
-    STATIC            = 0,
-    BREATHING         = 1,
+    AROUND_STATIC     = 0,
+    AROUND_BREATHING  = 1,
+    AROUND_QUAKE      = 2,
+    AROUND_METEOR     = 3,
     NUM_AROUND_LED_EFFECTS,
 };
 

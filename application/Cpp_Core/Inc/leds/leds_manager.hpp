@@ -59,10 +59,24 @@ class LEDsManager {
         Ripple ripples[5];
         uint8_t rippleCount;
         
+        // 环绕灯动画系统相关成员
+#if HAS_LED_AROUND
+        uint32_t aroundLedAnimationStartTime;
+        Ripple aroundLedRipples[5];
+        uint8_t aroundLedRippleCount;
+#endif
+        
         // 动画处理函数
         void processButtonPress(uint32_t virtualPinMask);
         void updateRipples();
         float getAnimationProgress();
+        
+#if HAS_LED_AROUND
+        // 环绕灯动画处理函数
+        void processAroundLedAnimation();
+        float getAroundLedAnimationProgress();
+        void updateAroundLedColors();
+#endif
         
         // 内部配置管理
         void updateColorsFromConfig();
