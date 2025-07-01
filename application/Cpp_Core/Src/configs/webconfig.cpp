@@ -996,13 +996,11 @@ std::string apiUpdateProfile() {
             targetProfile->ledsConfigs.aroundLedEffect = static_cast<AroundLEDEffect>(item->valueint);
         }
 
-        if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedColors"))) {
-            cJSON* colors = cJSON_GetObjectItem(item, "colors");
-            if(colors && cJSON_GetArraySize(colors) >= 3) {
-                sscanf(cJSON_GetArrayItem(colors, 0)->valuestring, "#%x", &targetProfile->ledsConfigs.aroundLedColor1);
-                sscanf(cJSON_GetArrayItem(colors, 1)->valuestring, "#%x", &targetProfile->ledsConfigs.aroundLedColor2);     
-                sscanf(cJSON_GetArrayItem(colors, 2)->valuestring, "#%x", &targetProfile->ledsConfigs.aroundLedColor3);
-            }
+        cJSON* aroundLedColors = cJSON_GetObjectItem(ledsConfig, "aroundLedColors");
+        if(aroundLedColors && cJSON_GetArraySize(aroundLedColors) >= 3) {
+            sscanf(cJSON_GetArrayItem(aroundLedColors, 0)->valuestring, "#%x", &targetProfile->ledsConfigs.aroundLedColor1);
+            sscanf(cJSON_GetArrayItem(aroundLedColors, 1)->valuestring, "#%x", &targetProfile->ledsConfigs.aroundLedColor2);
+            sscanf(cJSON_GetArrayItem(aroundLedColors, 2)->valuestring, "#%x", &targetProfile->ledsConfigs.aroundLedColor3);
         }
 
         if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedBrightness"))) {
@@ -2633,22 +2631,20 @@ std::string apiPushLedsConfig() {
         tempLedsConfig.aroundLedEffect = static_cast<AroundLEDEffect>(item->valueint);
     }
 
-    if ((item = cJSON_GetObjectItem(postParams, "aroundLedColors"))) {
-        cJSON* colors = cJSON_GetObjectItem(item, "colors");
-        if (colors && cJSON_IsArray(colors) && cJSON_GetArraySize(colors) >= 3) {
-            cJSON* color1 = cJSON_GetArrayItem(colors, 0);  
-            cJSON* color2 = cJSON_GetArrayItem(colors, 1);
-            cJSON* color3 = cJSON_GetArrayItem(colors, 2);
-
-            if (color1 && cJSON_IsString(color1)) {
-                sscanf(color1->valuestring, "#%lx", &tempLedsConfig.aroundLedColor1);
-            }   
-            if (color2 && cJSON_IsString(color2)) {
-                sscanf(color2->valuestring, "#%lx", &tempLedsConfig.aroundLedColor2);
-            }
-            if (color3 && cJSON_IsString(color3)) {
-                sscanf(color3->valuestring, "#%lx", &tempLedsConfig.aroundLedColor3);
-            }
+    cJSON* aroundLedColors = cJSON_GetObjectItem(postParams, "aroundLedColors");
+    if (aroundLedColors && cJSON_IsArray(aroundLedColors) && cJSON_GetArraySize(aroundLedColors) >= 3) {
+        cJSON* aroundColor1 = cJSON_GetArrayItem(aroundLedColors, 0);
+        cJSON* aroundColor2 = cJSON_GetArrayItem(aroundLedColors, 1);
+        cJSON* aroundColor3 = cJSON_GetArrayItem(aroundLedColors, 2);
+        
+        if (aroundColor1 && cJSON_IsString(aroundColor1)) {
+            sscanf(aroundColor1->valuestring, "#%lx", &tempLedsConfig.aroundLedColor1);
+        }   
+        if (aroundColor2 && cJSON_IsString(aroundColor2)) {
+            sscanf(aroundColor2->valuestring, "#%lx", &tempLedsConfig.aroundLedColor2);
+        }
+        if (aroundColor3 && cJSON_IsString(aroundColor3)) {
+            sscanf(aroundColor3->valuestring, "#%lx", &tempLedsConfig.aroundLedColor3);
         }
     }
 
