@@ -84,7 +84,6 @@ typedef struct
     uint8_t ledBrightness; // 0-100
     uint8_t ledAnimationSpeed;      // 1-5
 
-    bool hasAroundLed;
     bool aroundLedEnabled;       // 是否启用环绕灯效
     bool aroundLedSyncToMainLed; // 是否同步主灯效
     bool aroundLedTriggerByButton; // 是否由按钮触发环绕灯动画

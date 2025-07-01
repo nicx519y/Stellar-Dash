@@ -66,7 +66,6 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
     profile.ledsConfigs.ledAnimationSpeed = 3;
     
     // 设置环绕灯配置
-    profile.ledsConfigs.hasAroundLed = true; // 如果为false, 则环绕灯不会被使用，webconfig中也不会显示环绕灯配置
     profile.ledsConfigs.aroundLedEnabled = false;
     profile.ledsConfigs.aroundLedSyncToMainLed = true;
     profile.ledsConfigs.aroundLedTriggerByButton = false;
@@ -74,7 +73,7 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
     profile.ledsConfigs.aroundLedColor1 = 0xff0000;  // 红色
     profile.ledsConfigs.aroundLedColor2 = 0x00ff00;  // 绿色
     profile.ledsConfigs.aroundLedColor3 = 0x0000ff;  // 蓝色
-    profile.ledsConfigs.aroundLedBrightness = 80;
+    profile.ledsConfigs.aroundLedBrightness = 100;
     profile.ledsConfigs.aroundLedAnimationSpeed = 3;
 }
 

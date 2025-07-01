@@ -15,7 +15,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
         { id: 'global' as Route, label: t.SETTINGS_TAB_GLOBAL, icon: LuGamepad },
         { id: 'keys' as Route, label: t.SETTINGS_TAB_KEYS, icon: LuKeyboard },
         { id: 'leds' as Route, label: t.SETTINGS_TAB_LEDS, icon: LuLightbulb },
-        { id: 'buttons-travel' as Route, label: t.SETTINGS_TAB_BUTTONS_TRAVEL, icon: LuRocket },
+        { id: 'buttons-performance' as Route, label: t.SETTINGS_TAB_BUTTONS_PERFORMANCE, icon: LuRocket },
         { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
         { id: 'firmware' as Route, label: t.SETTINGS_TAB_FIRMWARE, icon: LuCpu },
     ];
@@ -44,7 +44,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                         <Tabs.Trigger
                             key={tab.id}
                             value={tab.id}
-                            width="180px"
+                            width="200px"
                             justifyContent="center"
                         >
                             <Box as={tab.icon} mr={0} />

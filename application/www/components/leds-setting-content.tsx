@@ -69,7 +69,6 @@ export function LEDsSettingContent() {
     const [ledEnabled, setLedEnabled] = useState<boolean>(defaultProfile.ledsConfigs?.ledEnabled ?? true);
 
     // 环绕灯配置
-
     const [aroundLedEnabled, setAroundLedEnabled] = useState<boolean>(defaultProfile.ledsConfigs?.aroundLedEnabled ?? false);
     const [aroundLedSyncToMainLed, setAroundLedSyncToMainLed] = useState<boolean>(defaultProfile.ledsConfigs?.aroundLedSyncToMainLed ?? false);
     const [aroundLedTriggerByButton, setAroundLedTriggerByButton] = useState<boolean>(defaultProfile.ledsConfigs?.aroundLedTriggerByButton ?? false);
@@ -80,9 +79,14 @@ export function LEDsSettingContent() {
     const [aroundLedBrightness, setAroundLedBrightness] = useState<number>(defaultProfile.ledsConfigs?.aroundLedBrightness ?? 100);
     const [aroundLedAnimationSpeed, setAroundLedAnimationSpeed] = useState<number>(defaultProfile.ledsConfigs?.aroundLedAnimationSpeed ?? 1);
 
-    const hasAroundLed = useMemo(() => {
+    const hasAroundLed = useMemo<boolean>(() => {
         return defaultProfile.ledsConfigs?.hasAroundLed ?? false;
     }, [defaultProfile]);
+
+    const aroundLedConfigIsEnabled = useMemo<boolean>(() => {
+        // 如果同步主灯，则氛围灯配置无效
+        return hasAroundLed && aroundLedEnabled && ledEnabled && !aroundLedSyncToMainLed;
+    }, [hasAroundLed, aroundLedEnabled, ledEnabled, aroundLedSyncToMainLed]);
 
     // 颜色队列状态
     const [colorSwatches, setColorSwatches] = useState<string[]>(ColorQueueManager.getColorQueue());
@@ -91,7 +95,7 @@ export function LEDsSettingContent() {
     const [tempSelectedColors, setTempSelectedColors] = useState<{ [key: number]: string }>({});
 
     // 处理颜色变化的函数（仅更新颜色状态，不更新队列）
-    const handleColorChange = (colorIndex: number, newColor: Color) => {
+    const handleLedColorChange = (colorIndex: number, newColor: Color) => {
         setIsDirty?.(true);
         const hexColor = newColor.toString('hex');
 
@@ -99,6 +103,22 @@ export function LEDsSettingContent() {
         if (colorIndex === 0) setColor1(newColor);
         if (colorIndex === 1) setColor2(newColor);
         if (colorIndex === 2) setColor3(newColor);
+
+        // 临时存储选择的颜色
+        setTempSelectedColors(prev => ({
+            ...prev,
+            [colorIndex]: hexColor
+        }));
+    };
+
+    const handleAroundLedColorChange = (colorIndex: number, newColor: Color) => {
+        setIsDirty?.(true);
+        const hexColor = newColor.toString('hex');
+
+        // 更新颜色状态
+        if (colorIndex === 0) setAroundLedColor1(newColor);
+        if (colorIndex === 1) setAroundLedColor2(newColor);
+        if (colorIndex === 2) setAroundLedColor3(newColor);
 
         // 临时存储选择的颜色
         setTempSelectedColors(prev => ({
@@ -147,6 +167,7 @@ export function LEDsSettingContent() {
             setAroundLedColor3(parseColor(ledsConfigs.aroundLedColors?.[2] ?? defaultFrontColor.toString('css')));
             setAroundLedBrightness(ledsConfigs.aroundLedBrightness ?? 75);
             setAroundLedAnimationSpeed(ledsConfigs.aroundLedAnimationSpeed ?? 3);
+
         }
 
     }, [defaultProfile]);
@@ -162,7 +183,6 @@ export function LEDsSettingContent() {
                 ledBrightness: ledBrightness,
                 ledAnimationSpeed: ledAnimationSpeed,
 
-                hasAroundLed: hasAroundLed,
                 aroundLedEnabled: aroundLedEnabled,
                 aroundLedSyncToMainLed: aroundLedSyncToMainLed,
                 aroundLedTriggerByButton: aroundLedTriggerByButton,
@@ -182,7 +202,7 @@ export function LEDsSettingContent() {
     }
 
     const aroundColorPickerDisabled = (index: number) => {
-        return (index == 2 && !(aroundLedEffectStyleLabelMap.get(aroundLedEffectStyle)?.hasBackColor2 ?? false)) || !aroundLedEnabled;
+        return (index == 2 && !(aroundLedEffectStyleLabelMap.get(aroundLedEffectStyle)?.hasBackColor2 ?? false)) || !aroundLedConfigIsEnabled;
     }
 
     const iconMap: Record<string, JSX.Element> = {
@@ -259,8 +279,8 @@ export function LEDsSettingContent() {
     ];
 
     const aroundColorLabels = [
-        t.SETTINGS_LEDS_AROUND_COLOR1,
-        t.SETTINGS_LEDS_AROUND_COLOR2
+        t.SETTINGS_LEDS_AMBIENT_LIGHT_COLOR1,
+        t.SETTINGS_LEDS_AMBIENT_LIGHT_COLOR2
     ];
 
 
@@ -414,7 +434,7 @@ export function LEDsSettingContent() {
                                                                         parseColor(color1.toString('hex'))}
 
                                                         onValueChange={(e) => {
-                                                            handleColorChange(index, e.value);
+                                                            handleLedColorChange(index, e.value);
                                                         }}
 
                                                         onValueChangeEnd={() => {
@@ -557,25 +577,52 @@ export function LEDsSettingContent() {
                                                 </Slider.Root>
                                             </Grid>
                                         </VStack>
-                                        <Separator my={8} />
-                                        <VStack gap={8} alignItems={"flex-start"}  >
+                                        <HStack display={hasAroundLed ? "flex" : "none"}  >
+                                            <Text flexShrink="0" fontSize={"sm"} fontWeight={"bold"} >{t.SETTINGS_LEDS_AMBIENT_LIGHT_TITLE}</Text>
+                                            <Separator my={8} flex="1" />
+                                        </HStack>
+                                        <VStack gap={8} alignItems={"flex-start"} display={hasAroundLed ? "flex" : "none"}  >
                                             {/* Ambient Light */}
                                             <Grid templateColumns="repeat(3, 1fr)" gap={10} w="100%" >
-                                                <Switch.Root colorPalette={"green"} checked={aroundLedEnabled}>
+                                                {/* 是否开启氛围灯 */}
+                                                <Switch.Root colorPalette={"green"} 
+                                                    disabled={!ledEnabled}
+                                                    checked={aroundLedEnabled}
+                                                    onCheckedChange={() => {
+                                                        setAroundLedEnabled(!aroundLedEnabled);
+                                                        setIsDirty?.(true);
+                                                    }}
+                                                >
                                                     <Switch.HiddenInput />
                                                     <Switch.Control>
                                                         <Switch.Thumb />
                                                     </Switch.Control>
                                                     <Switch.Label>{t.SETTINGS_AMBIENT_LIGHT_ENABLE_LABEL}</Switch.Label>
                                                 </Switch.Root>
-                                                <Switch.Root>
+                                                {/* 氛围灯是否同步主灯 */}
+                                                <Switch.Root colorPalette={"green"}
+                                                    disabled={ !ledEnabled || !aroundLedEnabled }
+                                                    checked={aroundLedSyncToMainLed}
+                                                    onCheckedChange={() => {
+                                                        setAroundLedSyncToMainLed(!aroundLedSyncToMainLed);
+                                                        setIsDirty?.(true);
+                                                    }}
+                                                >
                                                     <Switch.HiddenInput />
                                                     <Switch.Control>
                                                         <Switch.Thumb />
                                                     </Switch.Control>
                                                     <Switch.Label>{t.SETTINGS_AMBIENT_LIGHT_SYNC_WITH_LEDS_LABEL}</Switch.Label>
                                                 </Switch.Root>
-                                                <Switch.Root>
+                                                {/* 氛围灯是否触发按钮 */}
+                                                <Switch.Root colorPalette={"green"}
+                                                    disabled={!aroundLedConfigIsEnabled}
+                                                    checked={aroundLedTriggerByButton}
+                                                    onCheckedChange={() => {
+                                                        setAroundLedTriggerByButton(!aroundLedTriggerByButton);
+                                                        setIsDirty?.(true);
+                                                    }}
+                                                >
                                                     <Switch.HiddenInput />
                                                     <Switch.Control>
                                                         <Switch.Thumb />
@@ -584,10 +631,11 @@ export function LEDsSettingContent() {
                                                 </Switch.Root>
                                             </Grid>
                                             <HStack gap={10} alignItems={"flex-start"} >
+                                                {/* 氛围灯效果 */}
                                                 <RadioCardRoot
                                                     align="center"
                                                     justify="center"
-                                                    colorPalette={ledEnabled ? "green" : "gray"}
+                                                    colorPalette={aroundLedConfigIsEnabled ? "green" : "gray"}
                                                     size={"sm"}
                                                     variant={"subtle"}
                                                     value={aroundLedEffectStyle?.toString() ?? AroundLedsEffectStyle.STATIC.toString()}
@@ -595,7 +643,7 @@ export function LEDsSettingContent() {
                                                         setAroundLedEffectStyle(parseInt(detail.value ?? "0") as AroundLedsEffectStyle);
                                                         setIsDirty?.(true);
                                                     }}
-                                                    disabled={!aroundLedEnabled}
+                                                    disabled={!aroundLedConfigIsEnabled}
                                                 >
                                                     <RadioCardLabel>{t.SETTINGS_AMBIENT_LIGHT_EFFECT_LABEL}</RadioCardLabel>
                                                     <SimpleGrid columns={6} gap={1} >
@@ -608,13 +656,14 @@ export function LEDsSettingContent() {
                                                                 icon={<Icon fontSize={"2xl"} >{iconMap[aroundLedEffectStyleLabelMap.get(style)?.icon ?? ""]}</Icon>}
                                                                 value={style.toString()}
                                                                 label={aroundLedEffectStyleLabelMap.get(style)?.label ?? ""}
-                                                                disabled={!aroundLedEnabled}
+                                                                disabled={!aroundLedConfigIsEnabled}
                                                             />
                                                         ))}
                                                     </SimpleGrid>
                                                 </RadioCardRoot>
                                             </HStack>
                                             <HStack gap={10} alignItems={"flex-start"} >
+                                                {/* 氛围灯颜色 */}
                                                 {Array.from({ length: 2 }).map((_, index) => (
                                                     <ColorPicker.Root key={index} size="xs"
                                                         value={
@@ -623,7 +672,7 @@ export function LEDsSettingContent() {
                                                                     parseColor(aroundLedColor1.toString('hex'))}
 
                                                         onValueChange={(e) => {
-                                                            handleColorChange(index, e.value);
+                                                            handleAroundLedColorChange(index, e.value);
                                                         }}
 
                                                         onValueChangeEnd={() => {
@@ -672,13 +721,14 @@ export function LEDsSettingContent() {
                                                 ))}
                                             </HStack>
                                             <Grid templateColumns="repeat(2, 1fr)" gap={10} w="100%" >
+                                                {/* 氛围灯亮度 */}
                                                 <Slider.Root
                                                     size={"sm"}
                                                     min={0}
                                                     max={100}
                                                     step={1}
                                                     colorPalette={"green"}
-                                                    disabled={!aroundLedEnabled}
+                                                    disabled={!aroundLedConfigIsEnabled}
                                                     value={[aroundLedBrightness]}
                                                     onValueChange={(e) => {
                                                         setAroundLedBrightness(e.value[0]);
@@ -690,8 +740,8 @@ export function LEDsSettingContent() {
                                                     }}
                                                 >
                                                     <HStack justifyContent={"space-between"} >
-                                                        <Slider.Label color={aroundLedEnabled ? "white" : "gray"} >{t.SETTINGS_AMBIENT_LIGHT_BRIGHTNESS_LABEL}</Slider.Label>
-                                                        <Slider.ValueText color={aroundLedEnabled ? "white" : "gray"} />
+                                                        <Slider.Label color={aroundLedConfigIsEnabled ? "white" : "gray"} >{t.SETTINGS_AMBIENT_LIGHT_BRIGHTNESS_LABEL}</Slider.Label>
+                                                        <Slider.ValueText color={aroundLedConfigIsEnabled ? "white" : "gray"} />
                                                     </HStack>
                                                     <Slider.Control>
                                                         <Slider.Track>
@@ -724,7 +774,7 @@ export function LEDsSettingContent() {
                                                     max={5}
                                                     step={1}
                                                     colorPalette={"green"}
-                                                    disabled={!aroundLedEnabled}
+                                                    disabled={!aroundLedConfigIsEnabled}
                                                     value={[aroundLedAnimationSpeed]}
                                                     onValueChange={(e) => {
                                                         setAroundLedAnimationSpeed(e.value[0]);
@@ -737,8 +787,8 @@ export function LEDsSettingContent() {
 
                                                 >
                                                     <HStack justifyContent={"space-between"} >
-                                                        <Slider.Label color={aroundLedEnabled ? "white" : "gray"} >{t.SETTINGS_AMBIENT_LIGHT_ANIMATION_SPEED_LABEL}</Slider.Label>
-                                                        <Slider.ValueText color={aroundLedEnabled ? "white" : "gray"} />
+                                                        <Slider.Label color={aroundLedConfigIsEnabled ? "white" : "gray"} >{t.SETTINGS_AMBIENT_LIGHT_ANIMATION_SPEED_LABEL}</Slider.Label>
+                                                        <Slider.ValueText color={aroundLedConfigIsEnabled ? "white" : "gray"} />
                                                     </HStack>
                                                     <Slider.Control>
                                                         <Slider.Track>

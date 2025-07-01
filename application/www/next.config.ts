@@ -77,7 +77,7 @@ const nextConfig: NextConfig = {
                 destination: '/',
             },
             {
-                source: '/buttons-travel',
+                source: '/buttons-performance',
                 destination: '/',
             },
             {

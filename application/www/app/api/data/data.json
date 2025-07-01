@@ -76,18 +76,18 @@
           "#000000"
         ],
         "ledBrightness": 100,
-        "ledAnimationSpeed": 3,
-
-        "hasAroundLed": true,
+        "ledAnimationSpeed": 5,
         "aroundLedEnabled": true,
-        "aroundLedSyncToMainLed": true,
-        "aroundLedTriggerByButton": true,
-        "aroundLedEffectStyle": 0,
+        "aroundLedSyncToMainLed": false,
+        "aroundLedTriggerByButton": false,
+        "aroundLedEffectStyle": 2,
         "aroundLedColors": [
-          "#75FA07", "#E000BF", "#000000"
+          "#1416A3",
+          "#E000BF",
+          "#000000"
         ],
-        "aroundLedBrightness": 100,
-        "aroundLedAnimationSpeed": 3
+        "aroundLedBrightness": 45,
+        "aroundLedAnimationSpeed": 4
       },
       "triggerConfigs": {
         "isAllBtnsConfiguring": true,
@@ -95,103 +95,103 @@
         "triggerConfigs": [
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           },
           {
             "topDeadzone": 0.3,
-            "bottomDeadzone": 0.16,
+            "bottomDeadzone": 0,
             "pressAccuracy": 0.1,
             "releaseAccuracy": 0.17
           }
@@ -234,7 +234,6 @@
         ],
         "ledBrightness": 90,
         "ledAnimationSpeed": 3,
-
         "hasAroundLed": true,
         "aroundLedEnabled": true,
         "aroundLedSyncToMainLed": true,

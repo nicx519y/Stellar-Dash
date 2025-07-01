@@ -50,7 +50,7 @@ const defaultTriggerConfig: TriggerConfig = {
 
 
 
-export function ButtonsTravelContent() {
+export function ButtonsPerformanceContent() {
     const { defaultProfile, updateProfileDetails, resetProfileDetails } = useGamepadConfig();
     const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
     const { t } = useLanguage();
@@ -293,6 +293,7 @@ export function ButtonsTravelContent() {
 
 
                                             <Slider.Root
+                                                size="sm"
                                                 key={key}
                                                 width="680px"
                                                 min={0}
@@ -321,7 +322,11 @@ export function ButtonsTravelContent() {
                                             >
                                                 <HStack justifyContent={"space-between"} >
                                                     <Slider.Label>{label}</Slider.Label>
-                                                    <Slider.ValueText />
+                                                    <HStack>
+                                                        <Slider.ValueText />
+                                                        <Text fontSize={"sm"} opacity={0.75} >(mm)</Text>
+                                                    </HStack>
+
                                                 </HStack>
                                                 <Slider.Control>
                                                     <Slider.Track>

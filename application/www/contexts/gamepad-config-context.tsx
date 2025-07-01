@@ -398,6 +398,7 @@ const converProfileDetails = (profile: any) => {
             ledAnimationSpeed: profile.ledsConfigs?.ledAnimationSpeed as number ?? 1,
             // 环绕灯配置
             hasAroundLed: profile.ledsConfigs?.hasAroundLed as boolean ?? false,
+            aroundLedEnabled: profile.ledsConfigs?.aroundLedEnabled as boolean ?? false,
             aroundLedSyncToMainLed: profile.ledsConfigs?.aroundLedSyncToMainLed as boolean ?? false,
             aroundLedTriggerByButton: profile.ledsConfigs?.aroundLedTriggerByButton as boolean ?? false,
             aroundLedEffectStyle: profile.ledsConfigs?.aroundLedEffectStyle as AroundLedsEffectStyle ?? AroundLedsEffectStyle.STATIC,

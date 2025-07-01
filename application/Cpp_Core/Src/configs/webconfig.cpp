@@ -68,7 +68,7 @@ const static char* spaPaths[] = {
     "/global",
     "/keys",
     "/leds",
-    "/buttons-travel",
+    "/buttons-performance",
     "/switch-marking",
     "/firmware"
 };
@@ -500,6 +500,26 @@ cJSON* buildProfileJSON(GamepadProfile* profile) {
     cJSON_AddNumberToObject(ledsConfigJSON, "ledBrightness", profile->ledsConfigs.ledBrightness);
     cJSON_AddNumberToObject(ledsConfigJSON, "ledAnimationSpeed", profile->ledsConfigs.ledAnimationSpeed);
 
+    // 氛围灯配置
+    cJSON* aroundLedConfigJSON = cJSON_CreateObject();
+    cJSON_AddBoolToObject(aroundLedConfigJSON, "hasAroundLed", HAS_LED_AROUND); // 是否包含氛围灯，由主板决定
+    cJSON_AddBoolToObject(aroundLedConfigJSON, "aroundLedEnabled", profile->ledsConfigs.aroundLedEnabled);
+    cJSON_AddBoolToObject(aroundLedConfigJSON, "aroundLedSyncToMainLed", profile->ledsConfigs.aroundLedSyncToMainLed);
+    cJSON_AddBoolToObject(aroundLedConfigJSON, "aroundLedTriggerByButton", profile->ledsConfigs.aroundLedTriggerByButton);
+    cJSON_AddNumberToObject(aroundLedConfigJSON, "aroundLedEffectStyle", static_cast<int>(profile->ledsConfigs.aroundLedEffect));
+    
+    cJSON* aroundLedColorsJSON = cJSON_CreateArray();
+    char colorStr[8];
+    sprintf(colorStr, "#%06X", profile->ledsConfigs.aroundLedColor1);
+    cJSON_AddItemToArray(aroundLedColorsJSON, cJSON_CreateString(colorStr));
+    sprintf(colorStr, "#%06X", profile->ledsConfigs.aroundLedColor2);
+    cJSON_AddItemToArray(aroundLedColorsJSON, cJSON_CreateString(colorStr));
+    sprintf(colorStr, "#%06X", profile->ledsConfigs.aroundLedColor3);
+    cJSON_AddItemToArray(aroundLedColorsJSON, cJSON_CreateString(colorStr));
+    cJSON_AddItemToObject(aroundLedConfigJSON, "aroundLedColors", aroundLedColorsJSON);
+
+    cJSON_AddNumberToObject(aroundLedConfigJSON, "aroundLedBrightness", profile->ledsConfigs.aroundLedBrightness);
+    cJSON_AddNumberToObject(aroundLedConfigJSON, "aroundLedAnimationSpeed", profile->ledsConfigs.aroundLedAnimationSpeed);
 
     // 触发器配置
     cJSON* triggerConfigsJSON = cJSON_CreateObject();   
@@ -959,6 +979,40 @@ std::string apiUpdateProfile() {
 
         if((item = cJSON_GetObjectItem(ledsConfig, "ledAnimationSpeed"))) { 
             targetProfile->ledsConfigs.ledAnimationSpeed = item->valueint;
+        }
+
+        // 氛围灯配置
+        if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedEnabled"))) {
+            targetProfile->ledsConfigs.aroundLedEnabled = item->type == cJSON_True;
+        }
+
+        if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedSyncToMainLed"))) {
+            targetProfile->ledsConfigs.aroundLedSyncToMainLed = item->type == cJSON_True;
+        }
+
+        if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedTriggerByButton"))) {
+            targetProfile->ledsConfigs.aroundLedTriggerByButton = item->type == cJSON_True;
+        }
+
+        if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedEffectStyle"))) {
+            targetProfile->ledsConfigs.aroundLedEffect = static_cast<AroundLEDEffect>(item->valueint);
+        }
+
+        if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedColors"))) {
+            cJSON* colors = cJSON_GetObjectItem(item, "colors");
+            if(colors && cJSON_GetArraySize(colors) >= 3) {
+                sscanf(cJSON_GetArrayItem(colors, 0)->valuestring, "#%x", &targetProfile->ledsConfigs.aroundLedColor1);
+                sscanf(cJSON_GetArrayItem(colors, 1)->valuestring, "#%x", &targetProfile->ledsConfigs.aroundLedColor2);     
+                sscanf(cJSON_GetArrayItem(colors, 2)->valuestring, "#%x", &targetProfile->ledsConfigs.aroundLedColor3);
+            }
+        }
+
+        if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedBrightness"))) {
+            targetProfile->ledsConfigs.aroundLedBrightness = item->valueint;
+        }
+
+        if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedAnimationSpeed"))) {
+            targetProfile->ledsConfigs.aroundLedAnimationSpeed = item->valueint;
         }
     }
 

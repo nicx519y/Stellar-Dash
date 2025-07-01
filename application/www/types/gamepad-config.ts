@@ -327,7 +327,7 @@ export interface GameProfile {
         ledAnimationSpeed: number;
 
         // 环绕灯配置
-        hasAroundLed: boolean;
+        hasAroundLed?: boolean;
         aroundLedEnabled: boolean;
         aroundLedSyncToMainLed: boolean;
         aroundLedTriggerByButton: boolean;
@@ -467,7 +467,7 @@ export const UI_TEXT = {
     SETTINGS_LEDS_COLOR_BACK1_LABEL: "Back Color 1",
     SETTINGS_LEDS_COLOR_BACK2_LABEL: "Back Color 2",
 
-    SETTINGS_AMBIENT_LIGHT_ENABLE_LABEL: "Enable Ambient Light",
+    SETTINGS_AMBIENT_LIGHT_ENABLE_LABEL: "Enable Ambient Lighting",
     SETTINGS_AMBIENT_LIGHT_SYNC_WITH_LEDS_LABEL: "Sync with LEDs",
     SETTINGS_AMBIENT_LIGHT_TRIGGER_BY_BUTTON_LABEL: "Trigger by Button",
     SETTINGS_AMBIENT_LIGHT_EFFECT_LABEL: "Ambient Light Effect",
@@ -480,10 +480,10 @@ export const UI_TEXT = {
     SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL: "Manual Switch",
     SETTINGS_RAPID_TRIGGER_ONFIGURING_BUTTON: "Configuring button: ",
     SETTINGS_RAPID_TRIGGER_SELECT_A_BUTTON_TO_CONFIGURE: "Select a button to configure",
-    SETTINGS_RAPID_TRIGGER_TOP_DEADZONE_LABEL: "Top Deadzone (mm)",
-    SETTINGS_RAPID_TRIGGER_BOTTOM_DEADZONE_LABEL: "Bottom Deadzone (mm)",
-    SETTINGS_RAPID_TRIGGER_PRESS_ACCURACY_LABEL: "Press Accuracy (mm)",
-    SETTINGS_RAPID_TRIGGER_RELEASE_ACCURACY_LABEL: "Release Accuracy (mm)",
+    SETTINGS_RAPID_TRIGGER_TOP_DEADZONE_LABEL: "Top Deadzone:",
+    SETTINGS_RAPID_TRIGGER_BOTTOM_DEADZONE_LABEL: "Bottom Deadzone:",
+    SETTINGS_RAPID_TRIGGER_PRESS_ACCURACY_LABEL: "Press Accuracy:",
+    SETTINGS_RAPID_TRIGGER_RELEASE_ACCURACY_LABEL: "Release Accuracy:",
 
     // Select Value Text
     SELECT_VALUE_TEXT_PLACEHOLDER: "Select action",
@@ -526,8 +526,8 @@ export const UI_TEXT = {
     SETTINGS_LEDS_HELPER_TEXT: "The lighting effect style, colors, and brightness can be customized here.",
 
     // Rapid Trigger Settings
-    SETTINGS_RAPID_TRIGGER_TITLE: "BUTTONS TRAVEL",
-    SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "The rapid trigger settings can be customized here.\n- Top Deadzone: The distance from the top of the trigger to the deadzone.\n- Bottom Deadzone: The distance from the bottom of the trigger to the deadzone.\n- Press Accuracy: The accuracy of the trigger when pressed.\n- Release Accuracy: The accuracy of the trigger when released.",
+    SETTINGS_RAPID_TRIGGER_TITLE: "BUTTONS PERFORMANCE",
+    SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "The buttons performance settings can be customized here.\n- Top Deadzone: The distance from the top of the trigger to the deadzone.\n- Bottom Deadzone: The distance from the bottom of the trigger to the deadzone.\n- Press Accuracy: The accuracy of the trigger when pressed.\n- Release Accuracy: The accuracy of the trigger when released.",
     SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL: "Configure all buttons at once",
 
     // ADC Button Debounce Algorithm
@@ -613,7 +613,7 @@ export const UI_TEXT = {
     SETTINGS_TAB_GLOBAL: "Global Setting",
     SETTINGS_TAB_KEYS: "Keys Setting",
     SETTINGS_TAB_LEDS: "Lighting Setting",
-    SETTINGS_TAB_BUTTONS_TRAVEL: "Buttons Travel",
+    SETTINGS_TAB_BUTTONS_PERFORMANCE: "Buttons Performance",
     SETTINGS_TAB_SWITCH_MARKING: "Switch Marking",
     SETTINGS_TAB_FIRMWARE: "Firmware",
 
@@ -638,9 +638,10 @@ export const UI_TEXT = {
     SETTINGS_LEDS_BACK_COLOR1: "Back Color 1",
     SETTINGS_LEDS_BACK_COLOR2: "Back Color 2",
 
-    SETTINGS_LEDS_AROUND_COLORS_LABEL: "Ambient Light Colors",
-    SETTINGS_LEDS_AROUND_COLOR1: "Ambient Light Color 1",
-    SETTINGS_LEDS_AROUND_COLOR2: "Ambient Light Color 2",
+    SETTINGS_LEDS_AMBIENT_LIGHT_TITLE: "Ambient Lighting Settings",
+    SETTINGS_LEDS_AMBIENT_LIGHT_COLORS_LABEL: "Ambient Lighting Colors",
+    SETTINGS_LEDS_AMBIENT_LIGHT_COLOR1: "Ambient Lighting Color 1",
+    SETTINGS_LEDS_AMBIENT_LIGHT_COLOR2: "Ambient Lighting Color 2",
 
     // Unsaved Changes Warning
     UNSAVED_CHANGES_WARNING_TITLE: "Are you sure?",
@@ -736,10 +737,10 @@ export const UI_TEXT_ZH = {
     SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL: "手动切换",
     SETTINGS_RAPID_TRIGGER_ONFIGURING_BUTTON: "正在配置按键: ",
     SETTINGS_RAPID_TRIGGER_SELECT_A_BUTTON_TO_CONFIGURE: "请选择要配置的按键",
-    SETTINGS_RAPID_TRIGGER_TOP_DEADZONE_LABEL: "顶部死区(毫米)",
-    SETTINGS_RAPID_TRIGGER_BOTTOM_DEADZONE_LABEL: "底部死区(毫米)",
-    SETTINGS_RAPID_TRIGGER_PRESS_ACCURACY_LABEL: "按下精度(毫米)",
-    SETTINGS_RAPID_TRIGGER_RELEASE_ACCURACY_LABEL: "释放精度(毫米)",
+    SETTINGS_RAPID_TRIGGER_TOP_DEADZONE_LABEL: "顶部死区：",
+    SETTINGS_RAPID_TRIGGER_BOTTOM_DEADZONE_LABEL: "底部死区：",
+    SETTINGS_RAPID_TRIGGER_PRESS_ACCURACY_LABEL: "按下精度：",
+    SETTINGS_RAPID_TRIGGER_RELEASE_ACCURACY_LABEL: "释放精度：",
     
     // 选择值文本
     SELECT_VALUE_TEXT_PLACEHOLDER: "选择动作",
@@ -782,8 +783,8 @@ export const UI_TEXT_ZH = {
     SETTINGS_LEDS_HELPER_TEXT: "可以在这里自定义LED效果样式、颜色和亮度。",
     
     // 快速触发设置
-    SETTINGS_RAPID_TRIGGER_TITLE: "按键行程",
-    SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "可以在这里自定义快速触发设置。\n- 顶部死区：扳机顶部到死区的距离\n- 底部死区：扳机底部到死区的距离\n- 按下精度：扳机按下时的精度\n- 释放精度：扳机释放时的精度",
+    SETTINGS_RAPID_TRIGGER_TITLE: "按键性能",
+    SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "可以在这里自定义按键性能。\n- 顶部死区：扳机顶部到死区的距离\n- 底部死区：扳机底部到死区的距离\n- 按下精度：扳机按下时的精度\n- 释放精度：扳机释放时的精度",
     SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL: "同时配置所有按键",
 
     // 按钮防抖设置
@@ -870,7 +871,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_TAB_GLOBAL: "全局设置",
     SETTINGS_TAB_KEYS: "按键设置",
     SETTINGS_TAB_LEDS: "灯光设置",
-    SETTINGS_TAB_BUTTONS_TRAVEL: "按键行程",
+    SETTINGS_TAB_BUTTONS_PERFORMANCE: "按键性能",
     SETTINGS_TAB_SWITCH_MARKING: "磁轴标记",
     SETTINGS_TAB_FIRMWARE: "固件",
 
@@ -895,9 +896,10 @@ export const UI_TEXT_ZH = {
     SETTINGS_LEDS_BACK_COLOR1: "背景颜色1",
     SETTINGS_LEDS_BACK_COLOR2: "背景颜色2",
 
-    SETTINGS_LEDS_AROUND_COLORS_LABEL: "氛围灯颜色",
-    SETTINGS_LEDS_AROUND_COLOR1: "氛围灯颜色1",
-    SETTINGS_LEDS_AROUND_COLOR2: "氛围灯颜色2",
+    SETTINGS_LEDS_AMBIENT_LIGHT_TITLE: "氛围灯设置",
+    SETTINGS_LEDS_AMBIENT_LIGHT_COLORS_LABEL: "氛围灯颜色",
+    SETTINGS_LEDS_AMBIENT_LIGHT_COLOR1: "氛围灯颜色1",
+    SETTINGS_LEDS_AMBIENT_LIGHT_COLOR2: "氛围灯颜色2",
 
     // Unsaved Changes Warning
     UNSAVED_CHANGES_WARNING_TITLE: "确认离开?",

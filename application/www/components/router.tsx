@@ -5,11 +5,11 @@ import { useEffect } from 'react';
 import { GlobalSettingContent } from "@/components/global-setting-content";
 import { KeysSettingContent } from "@/components/keys-setting-content";
 import { LEDsSettingContent } from "@/components/leds-setting-content";
-import { ButtonsTravelContent } from "@/components/buttons-travel-content";
+import { ButtonsPerformanceContent } from "@/components/buttons-performance-content";
 import { FirmwareContent } from '@/components/firmware-content';
 import { SwitchMarkingContent } from '@/components/switch-marking-content';
 
-export type Route = '' | 'global' | 'keys' | 'leds' | 'buttons-travel' | 'switch-marking' | 'firmware';
+export type Route = '' | 'global' | 'keys' | 'leds' | 'buttons-performance' | 'switch-marking' | 'firmware';
 
 interface RouterState {
     currentRoute: Route;
@@ -46,8 +46,8 @@ export function Router() {
             return <GlobalSettingContent />;
         case 'leds':
             return <LEDsSettingContent />;
-        case 'buttons-travel':
-            return <ButtonsTravelContent />;
+        case 'buttons-performance':
+            return <ButtonsPerformanceContent />;
         case 'keys':
             return <KeysSettingContent />;
         case 'firmware':

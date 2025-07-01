@@ -74,7 +74,7 @@
 
 
 #define FIRMWARE_VERSION                    (uint32_t)0x010000  //固件版本
-#define CONFIG_VERSION                      (uint32_t)0x000008  //配置版本 三位版本号 0x aa bb cc
+#define CONFIG_VERSION                      (uint32_t)0x000009  //配置版本 三位版本号 0x aa bb cc
 #define ADC_MAPPING_VERSION                 (uint32_t)0x000001  //ADC值映射表版本
 
 // 双槽地址偏移定义（相对于槽基地址的偏移）
