@@ -13,7 +13,7 @@ import {
     Hotkey,
 } from "@/types/gamepad-config";
 import HotkeysField from "./hotkeys-field";
-import { toaster } from "@/components/ui/toaster";
+import { showToast } from "@/components/ui/toaster";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
@@ -105,7 +105,7 @@ export function HotkeySettingContent({
         
         // 如果热键已经被绑定到其他位置，显示错误提示
         if (keyIndex >= 0 && keyIndex !== index && hotkey.key >= 0) {
-            toaster.create({
+            showToast({
                 title: t.ERROR_KEY_ALREADY_BINDED_TITLE,
                 description: t.ERROR_KEY_ALREADY_BINDED_DESC,
                 type: "error",

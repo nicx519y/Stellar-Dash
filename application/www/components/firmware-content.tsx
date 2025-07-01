@@ -188,11 +188,19 @@ export function FirmwareContent() {
                     </Text>
                 </Box>
                 <Box pt=".5rem" pb="1rem" width="300px" height="90px" >
-                    <Text fontSize=".9rem" textAlign="center">
+
+                    <Text fontSize=".9rem" textAlign="center"
+                        onClick={updateStatus === UpdateStatus.UpdateSuccess ? () => { window.location.reload(); } : undefined}
+                        _hover={updateStatus === UpdateStatus.UpdateSuccess ? {
+                            color: "blue.500",
+                            textDecoration: "underline",
+                            cursor: "pointer",
+                        } : {}}
+                    >
                         { updateStatus === UpdateStatus.NoUpdate ? t.SETTINGS_FIRMWARE_NO_UPDATE_MESSAGE
                         : updateStatus === UpdateStatus.Updating ? t.SETTINGS_FIRMWARE_UPDATING_MESSAGE 
                         : updateStatus === UpdateStatus.UpdateFailed ? t.SETTINGS_FIRMWARE_UPDATE_FAILED_MESSAGE
-                        : updateStatus === UpdateStatus.UpdateSuccess ? t.SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE
+                        : updateStatus === UpdateStatus.UpdateSuccess? t.SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE
                         : updateStatus === UpdateStatus.UpdateAvailable ? t.SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE : "" }
                     </Text>
                 </Box>

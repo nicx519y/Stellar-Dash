@@ -10,7 +10,7 @@ import {
     NUM_BIND_KEY_PER_BUTTON_MAX,
 } from "@/types/gamepad-config";
 import KeymappingField from "@/components/keymapping-field";
-import { toaster } from "@/components/ui/toaster";
+import { showToast } from "@/components/ui/toaster";
 import { useEffect, useMemo, useState } from "react";
 import { SimpleGrid } from "@chakra-ui/react";
 import { useLanguage } from "@/contexts/language-context";
@@ -39,14 +39,14 @@ export default function KeymappingFieldset(
             
             const activeKeyMapping = keyMapping[activeButton] ?? [];
             if(activeKeyMapping.indexOf(inputKey) !== -1) { // key already binded
-                toaster.create({
+                showToast({
                     title: t.KEY_MAPPING_ERROR_ALREADY_BINDED_TITLE,
                     description: t.KEY_MAPPING_ERROR_ALREADY_BINDED_DESC,
                     type: "warning",
                 });
                 return;
             } else if(activeKeyMapping.length >= NUM_BIND_KEY_PER_BUTTON_MAX) { // key not binded, and reach max number of key binding per button
-                toaster.create({
+                showToast({
                     title: t.KEY_MAPPING_ERROR_MAX_KEYS_TITLE,
                     description: t.KEY_MAPPING_ERROR_MAX_KEYS_DESC,
                     type: "warning",
@@ -59,7 +59,7 @@ export default function KeymappingFieldset(
                     if(key !== activeButton && value.indexOf(inputKey) !== -1) {
                         value.splice(value.indexOf(inputKey), 1);
                         changeKeyMappingHandler(key as GameControllerButton, value);
-                        toaster.create({
+                        showToast({
                             title: t.KEY_MAPPING_INFO_UNBIND_FROM_OTHER_TITLE,
                             description: t.KEY_MAPPING_INFO_UNBIND_FROM_OTHER_DESC
                                 .replace("{0}", buttonLabelMap.get(key as GameControllerButton) ?? "")

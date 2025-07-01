@@ -13,7 +13,12 @@ export const toaster = createToaster({
   placement: "top",
   pauseOnPageIdle: true,
   duration: 3000,
-  })
+  max: 1, // 限制最多显示一个toast
+})
+
+export const showToast = (options: Parameters<typeof toaster.create>[0]) => {
+  return toaster.create(options)
+}
 
 export const Toaster = () => {
   return (

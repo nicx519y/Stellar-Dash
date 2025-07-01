@@ -550,7 +550,7 @@ export const UI_TEXT = {
     SETTINGS_FIRMWARE_LATEST_VERSION_LABEL: "Latest Firmware Version: ",
     SETTINGS_FIRMWARE_NO_UPDATE_MESSAGE: "Current firmware is the latest version. No update available.",
     SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE: "Please click the button to update the firmware, it will take a few minutes, please do not disconnect the device.",
-    SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE: "The firmware has been updated successfully.",
+    SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE: "The firmware has been updated successfully. Please click here to refresh the page.",
     SETTINGS_FIRMWARE_UPDATE_FAILED_MESSAGE: "The firmware update failed. Please click the button to try again.",
     SETTINGS_FIRMWARE_UPDATING_MESSAGE: "Updating firmware... Please do not disconnect the device.",
 
@@ -807,7 +807,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_FIRMWARE_LATEST_VERSION_LABEL: "最新固件版本: ",
     SETTINGS_FIRMWARE_NO_UPDATE_MESSAGE: "当前固件版本为最新版本，没有可用的更新",
     SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE: "请点击按钮更新固件，过程需要几分钟时间，不要断开设备连接",
-    SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE: "固件更新成功",
+    SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE: "固件更新成功，请点击这里刷新页面，访问最新的驱动页面",
     SETTINGS_FIRMWARE_UPDATE_FAILED_MESSAGE: "固件更新失败，请点击按钮重试",
     SETTINGS_FIRMWARE_UPDATING_MESSAGE: "固件更新中...请不要断开设备连接",
 
