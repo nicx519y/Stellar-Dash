@@ -195,4 +195,4 @@ LogResult Logger_ShowSectorInfo(int (*print_func)(const char* format, ...));
 }
 #endif
 
-#endif // SYSTEM_LOGGER_H 
+#endif // SYSTEM_LOGGER_H
