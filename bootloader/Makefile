@@ -64,6 +64,7 @@ Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_uart_ex.c \
 Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_hcd.c \
 Drivers/USART/usart.c \
 Drivers/QSPI-W25Q64/qspi-w25q64.c \
+../common/system_logger.c \
 Core/Src/system_stm32h7xx.c \
 Core/Src/sysmem.c \
 Core/Src/syscalls.c  
@@ -133,7 +134,8 @@ C_INCLUDES =  \
 -IDrivers/CMSIS/Device/ST/STM32H7xx/Include \
 -IDrivers/CMSIS/Include \
 -IDrivers/QSPI-W25Q64 \
--IDrivers/USART
+-IDrivers/USART \
+-I../common
 
 
 

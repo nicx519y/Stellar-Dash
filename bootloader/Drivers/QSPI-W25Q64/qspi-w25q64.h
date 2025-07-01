@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-#define QSPI_W25Qxx_DEBUG 1
+#define QSPI_W25Qxx_DEBUG 0
 
 #if QSPI_W25Qxx_DEBUG
     #define QSPI_W25Qxx_DBG(fmt, ...) printf("[QSPI_W25Qxx] " fmt "\r\n", ##__VA_ARGS__)
