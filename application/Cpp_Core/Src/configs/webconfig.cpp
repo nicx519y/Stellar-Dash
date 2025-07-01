@@ -501,25 +501,23 @@ cJSON* buildProfileJSON(GamepadProfile* profile) {
     cJSON_AddNumberToObject(ledsConfigJSON, "ledAnimationSpeed", profile->ledsConfigs.ledAnimationSpeed);
 
     // 氛围灯配置
-    cJSON* aroundLedConfigJSON = cJSON_CreateObject();
-    cJSON_AddBoolToObject(aroundLedConfigJSON, "hasAroundLed", HAS_LED_AROUND); // 是否包含氛围灯，由主板决定
-    cJSON_AddBoolToObject(aroundLedConfigJSON, "aroundLedEnabled", profile->ledsConfigs.aroundLedEnabled);
-    cJSON_AddBoolToObject(aroundLedConfigJSON, "aroundLedSyncToMainLed", profile->ledsConfigs.aroundLedSyncToMainLed);
-    cJSON_AddBoolToObject(aroundLedConfigJSON, "aroundLedTriggerByButton", profile->ledsConfigs.aroundLedTriggerByButton);
-    cJSON_AddNumberToObject(aroundLedConfigJSON, "aroundLedEffectStyle", static_cast<int>(profile->ledsConfigs.aroundLedEffect));
+    cJSON_AddBoolToObject(ledsConfigJSON, "hasAroundLed", HAS_LED_AROUND); // 是否包含氛围灯，由主板决定
+    cJSON_AddBoolToObject(ledsConfigJSON, "aroundLedEnabled", profile->ledsConfigs.aroundLedEnabled);
+    cJSON_AddBoolToObject(ledsConfigJSON, "aroundLedSyncToMainLed", profile->ledsConfigs.aroundLedSyncToMainLed);
+    cJSON_AddBoolToObject(ledsConfigJSON, "aroundLedTriggerByButton", profile->ledsConfigs.aroundLedTriggerByButton);
+    cJSON_AddNumberToObject(ledsConfigJSON, "aroundLedEffectStyle", static_cast<int>(profile->ledsConfigs.aroundLedEffect));
     
     cJSON* aroundLedColorsJSON = cJSON_CreateArray();
-    char colorStr[8];
     sprintf(colorStr, "#%06X", profile->ledsConfigs.aroundLedColor1);
     cJSON_AddItemToArray(aroundLedColorsJSON, cJSON_CreateString(colorStr));
     sprintf(colorStr, "#%06X", profile->ledsConfigs.aroundLedColor2);
     cJSON_AddItemToArray(aroundLedColorsJSON, cJSON_CreateString(colorStr));
     sprintf(colorStr, "#%06X", profile->ledsConfigs.aroundLedColor3);
     cJSON_AddItemToArray(aroundLedColorsJSON, cJSON_CreateString(colorStr));
-    cJSON_AddItemToObject(aroundLedConfigJSON, "aroundLedColors", aroundLedColorsJSON);
+    cJSON_AddItemToObject(ledsConfigJSON, "aroundLedColors", aroundLedColorsJSON);
 
-    cJSON_AddNumberToObject(aroundLedConfigJSON, "aroundLedBrightness", profile->ledsConfigs.aroundLedBrightness);
-    cJSON_AddNumberToObject(aroundLedConfigJSON, "aroundLedAnimationSpeed", profile->ledsConfigs.aroundLedAnimationSpeed);
+    cJSON_AddNumberToObject(ledsConfigJSON, "aroundLedBrightness", profile->ledsConfigs.aroundLedBrightness);
+    cJSON_AddNumberToObject(ledsConfigJSON, "aroundLedAnimationSpeed", profile->ledsConfigs.aroundLedAnimationSpeed);
 
     // 触发器配置
     cJSON* triggerConfigsJSON = cJSON_CreateObject();   
@@ -2535,7 +2533,14 @@ std::string apiGetButtonStates() {
  *     "ledsEffectStyle": 2,
  *     "ledColors": ["#ff0000", "#00ff00", "#0000ff"],
  *     "ledBrightness": 75,
- *     "ledAnimationSpeed": 3
+ *     "ledAnimationSpeed": 3,
+ *     "aroundLedEnabled": true,
+ *     "aroundLedSyncToMainLed": true,
+ *     "aroundLedTriggerByButton": true,
+ *     "aroundLedEffectStyle": 2,
+ *     "aroundLedColors": ["#ff0000", "#00ff00", "#0000ff"],
+ *     "aroundLedBrightness": 75,
+ *     "aroundLedAnimationSpeed": 3,
  * }
  * @return std::string 
  * {
@@ -2610,16 +2615,51 @@ std::string apiPushLedsConfig() {
             sscanf(color3->valuestring, "#%lx", &tempLedsConfig.ledColor3);
         }
     }
-    
-    APP_DBG("tempLedsConfig: %d, %d, %ld, %ld, %ld, %d, %d", 
-            tempLedsConfig.ledEnabled, 
-            tempLedsConfig.ledEffect, 
-            tempLedsConfig.ledColor1, 
-            tempLedsConfig.ledColor2, 
-            tempLedsConfig.ledColor3,
-            tempLedsConfig.ledBrightness,
-            tempLedsConfig.ledAnimationSpeed);
 
+    // 氛围灯配置
+    if ((item = cJSON_GetObjectItem(postParams, "aroundLedEnabled"))) {
+        tempLedsConfig.aroundLedEnabled = cJSON_IsTrue(item);
+    }
+
+    if ((item = cJSON_GetObjectItem(postParams, "aroundLedSyncToMainLed"))) {
+        tempLedsConfig.aroundLedSyncToMainLed = cJSON_IsTrue(item);
+    }       
+
+    if ((item = cJSON_GetObjectItem(postParams, "aroundLedTriggerByButton"))) {
+        tempLedsConfig.aroundLedTriggerByButton = cJSON_IsTrue(item);
+    }
+
+    if ((item = cJSON_GetObjectItem(postParams, "aroundLedEffectStyle"))) {
+        tempLedsConfig.aroundLedEffect = static_cast<AroundLEDEffect>(item->valueint);
+    }
+
+    if ((item = cJSON_GetObjectItem(postParams, "aroundLedColors"))) {
+        cJSON* colors = cJSON_GetObjectItem(item, "colors");
+        if (colors && cJSON_IsArray(colors) && cJSON_GetArraySize(colors) >= 3) {
+            cJSON* color1 = cJSON_GetArrayItem(colors, 0);  
+            cJSON* color2 = cJSON_GetArrayItem(colors, 1);
+            cJSON* color3 = cJSON_GetArrayItem(colors, 2);
+
+            if (color1 && cJSON_IsString(color1)) {
+                sscanf(color1->valuestring, "#%lx", &tempLedsConfig.aroundLedColor1);
+            }   
+            if (color2 && cJSON_IsString(color2)) {
+                sscanf(color2->valuestring, "#%lx", &tempLedsConfig.aroundLedColor2);
+            }
+            if (color3 && cJSON_IsString(color3)) {
+                sscanf(color3->valuestring, "#%lx", &tempLedsConfig.aroundLedColor3);
+            }
+        }
+    }
+
+    if ((item = cJSON_GetObjectItem(postParams, "aroundLedBrightness"))) {
+        tempLedsConfig.aroundLedBrightness = item->valueint;
+    }
+    
+    if ((item = cJSON_GetObjectItem(postParams, "aroundLedAnimationSpeed"))) {
+        tempLedsConfig.aroundLedAnimationSpeed = item->valueint;
+    }
+    
     // 通过WebConfigLedsManager应用预览配置
     WEBCONFIG_LEDS_MANAGER.applyPreviewConfig(tempLedsConfig);
     // 通过WebConfigBtnsManager启动按键工作器

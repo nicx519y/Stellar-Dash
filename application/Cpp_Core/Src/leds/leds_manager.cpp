@@ -10,15 +10,6 @@
 #define LEDS_ANIMATION_CYCLE 10000  // 10秒周期
 #endif
 
-#define AROUND_LED_ENABLED true
-#define AROUND_LED_SYNC_TO_MAIN_LED false
-#define AROUND_LED_TRIGGER_BY_BUTTON true
-#define AROUND_LED_EFFECT 2
-#define AROUND_LED_BRIGHTNESS 100
-#define AROUND_LED_COLOR1 0x00ff00
-#define AROUND_LED_COLOR2 0x0000ff
-#define AROUND_LED_ANIMATION_SPEED 3
-
 LEDsManager::LEDsManager()
 {
     opts = &STORAGE_MANAGER.getDefaultGamepadProfile()->ledsConfigs;
@@ -32,16 +23,6 @@ LEDsManager::LEDsManager()
     }
     
 #if HAS_LED_AROUND
-
-    // 测试
-    opts->aroundLedEnabled = AROUND_LED_ENABLED;
-    opts->aroundLedEffect = static_cast<AroundLEDEffect>(AROUND_LED_EFFECT);
-    opts->aroundLedBrightness = AROUND_LED_BRIGHTNESS;
-    opts->aroundLedColor1 = AROUND_LED_COLOR1;
-    opts->aroundLedColor2 = AROUND_LED_COLOR2;
-    opts->aroundLedAnimationSpeed = AROUND_LED_ANIMATION_SPEED;
-    opts->aroundLedSyncToMainLed = AROUND_LED_SYNC_TO_MAIN_LED;
-    opts->aroundLedTriggerByButton = AROUND_LED_TRIGGER_BY_BUTTON;
 
     aroundLedAnimationStartTime = 0;
     aroundLedRippleCount = 0;
@@ -60,15 +41,6 @@ void LEDsManager::setup()
 {
     WS2812B_Init();
     WS2812B_Start();
-
-    APP_DBG("LEDsManager::setup - opts->aroundLedEnabled: %d", opts->aroundLedEnabled);
-    APP_DBG("LEDsManager::setup - opts->aroundLedSyncToMainLed: %d", opts->aroundLedSyncToMainLed);
-    APP_DBG("LEDsManager::setup - opts->aroundLedEffect: %d", opts->aroundLedEffect);
-    APP_DBG("LEDsManager::setup - opts->aroundLedBrightness: %d", opts->aroundLedBrightness);
-    APP_DBG("LEDsManager::setup - opts->aroundLedColor1: 0x%06X", opts->aroundLedColor1);
-    APP_DBG("LEDsManager::setup - opts->aroundLedColor2: 0x%06X", opts->aroundLedColor2);
-    APP_DBG("LEDsManager::setup - opts->aroundLedAnimationSpeed: %d", opts->aroundLedAnimationSpeed);
-    APP_DBG("LEDsManager::setup - NUM_LED: %d, NUM_LED_AROUND: %d", NUM_LED, NUM_LED_AROUND);
 
     if(!opts->ledEnabled) {
         WS2812B_SetAllLEDBrightness(0);

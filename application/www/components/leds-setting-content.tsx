@@ -293,7 +293,6 @@ export function LEDsSettingContent() {
             ledBrightness: ledBrightness,
             ledAnimationSpeed: ledAnimationSpeed,
 
-            hasAroundLed: hasAroundLed,
             aroundLedEnabled: aroundLedEnabled,
             aroundLedSyncToMainLed: aroundLedSyncToMainLed,
             aroundLedTriggerByButton: aroundLedTriggerByButton,
@@ -311,7 +310,7 @@ export function LEDsSettingContent() {
             previewLedsEffectHandler();
         }
 
-    }, [ledEnabled, ledsEffectStyle]);
+    }, [ledEnabled, ledsEffectStyle, aroundLedEnabled, aroundLedSyncToMainLed, aroundLedTriggerByButton, aroundLedEffectStyle]);
 
     useEffect(() => {
         return () => {
@@ -774,7 +773,7 @@ export function LEDsSettingContent() {
                                                     max={5}
                                                     step={1}
                                                     colorPalette={"green"}
-                                                    disabled={!aroundLedConfigIsEnabled}
+                                                    disabled={!aroundLedConfigIsEnabled || aroundLedEffectStyle == AroundLedsEffectStyle.STATIC}
                                                     value={[aroundLedAnimationSpeed]}
                                                     onValueChange={(e) => {
                                                         setAroundLedAnimationSpeed(e.value[0]);
