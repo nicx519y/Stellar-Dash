@@ -17,7 +17,7 @@ extern "C" {
     int cpp_main(void) 
     {   
         // Logger_ClearFlash();
-        Logger_PrintAllLogs(printf);
+        // Logger_PrintAllLogs(printf);
 
         LOG_INFO("CPP_MAIN", "C++ main application startup ...");
 
