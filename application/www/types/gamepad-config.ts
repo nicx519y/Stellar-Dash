@@ -231,6 +231,11 @@ export enum HotkeyAction {
     LedsBrightnessUp = "LedsBrightnessUp",
     LedsBrightnessDown = "LedsBrightnessDown",
     LedsEnableSwitch = "LedsEnableSwitch",
+    AmbientLightEffectStyleNext = "AmbientLightEffectStyleNext",
+    AmbientLightEffectStylePrev = "AmbientLightEffectStylePrev",
+    AmbientLightBrightnessUp = "AmbientLightBrightnessUp",
+    AmbientLightBrightnessDown = "AmbientLightBrightnessDown",
+    AmbientLightEnableSwitch = "AmbientLightEnableSwitch",
     CalibrationMode = "CalibrationMode",
     WebConfigMode = "WebConfigMode",
     XInputMode = "XInputMode",
@@ -265,6 +270,26 @@ export const HotkeyActionLabelMap = new Map<HotkeyAction, { label: string, descr
     [HotkeyAction.LedsEnableSwitch, { 
         label: "Toggle LEDs", 
         description: "Enable/Disable LEDs" 
+    }],
+    [HotkeyAction.AmbientLightEffectStyleNext, { 
+        label: "Next Ambient Light Effect", 
+        description: "Switch to next ambient light effect style" 
+    }],
+    [HotkeyAction.AmbientLightEffectStylePrev, { 
+        label: "Previous Ambient Light Effect", 
+        description: "Switch to previous ambient light effect style" 
+    }],
+    [HotkeyAction.AmbientLightBrightnessUp, { 
+        label: "Increase Ambient Light Brightness", 
+        description: "Increase ambient light brightness" 
+    }],
+    [HotkeyAction.AmbientLightBrightnessDown, { 
+        label: "Decrease Ambient Light Brightness", 
+        description: "Decrease ambient light brightness" 
+    }],
+    [HotkeyAction.AmbientLightEnableSwitch, { 
+        label: "Toggle Ambient Light", 
+        description: "Enable/Disable ambient light" 
     }],
     [HotkeyAction.WebConfigMode, { 
         label: "Web Config Mode", 
@@ -658,6 +683,11 @@ export const UI_TEXT = {
     HOTKEY_ACTION_LEDS_EFFECT_PREV: "LEDs Effect Previous",
     HOTKEY_ACTION_LEDS_BRIGHTNESS_UP: "LEDs Brightness Up",
     HOTKEY_ACTION_LEDS_BRIGHTNESS_DOWN: "LEDs Brightness Down",
+    HOTKEY_ACTION_AMBIENT_LIGHT_ENABLE: "Ambient Lighting Enable/Disable",
+    HOTKEY_ACTION_AMBIENT_LIGHT_EFFECT_NEXT: "Ambient Lighting Effect Next",
+    HOTKEY_ACTION_AMBIENT_LIGHT_EFFECT_PREV: "Ambient Lighting Effect Previous",
+    HOTKEY_ACTION_AMBIENT_LIGHT_BRIGHTNESS_UP: "Ambient Lighting Brightness Up",
+    HOTKEY_ACTION_AMBIENT_LIGHT_BRIGHTNESS_DOWN: "Ambient Lighting Brightness Down",
     HOTKEY_ACTION_CALIBRATION_MODE: "Calibration Mode",
     HOTKEY_ACTION_XINPUT_MODE: "XInput Mode",
     HOTKEY_ACTION_PS4_MODE: "PlayStation 4 Mode",
@@ -916,6 +946,11 @@ export const UI_TEXT_ZH = {
     HOTKEY_ACTION_LEDS_EFFECT_PREV: "上一个LED效果",
     HOTKEY_ACTION_LEDS_BRIGHTNESS_UP: "LED亮度增加",
     HOTKEY_ACTION_LEDS_BRIGHTNESS_DOWN: "LED亮度减少",
+    HOTKEY_ACTION_AMBIENT_LIGHT_ENABLE: "开启/关闭氛围灯",
+    HOTKEY_ACTION_AMBIENT_LIGHT_EFFECT_NEXT: "下一个氛围灯效果",
+    HOTKEY_ACTION_AMBIENT_LIGHT_EFFECT_PREV: "上一个氛围灯效果",
+    HOTKEY_ACTION_AMBIENT_LIGHT_BRIGHTNESS_UP: "氛围灯亮度增加",
+    HOTKEY_ACTION_AMBIENT_LIGHT_BRIGHTNESS_DOWN: "氛围灯亮度减少",
     HOTKEY_ACTION_CALIBRATION_MODE: "校准模式",
     HOTKEY_ACTION_XINPUT_MODE: "XInput模式",
     HOTKEY_ACTION_PS4_MODE: "PlayStation 4模式",

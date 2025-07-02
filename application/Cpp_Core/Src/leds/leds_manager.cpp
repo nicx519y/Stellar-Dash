@@ -612,7 +612,7 @@ void LEDsManager::updateAroundLedColors()
 /**
  * @brief 切换到下一个环绕灯效果
  */
-void LEDsManager::aroundLedEffectStyleNext() {
+void LEDsManager::ambientLightEffectStyleNext() {
     opts->aroundLedEffect = static_cast<AroundLEDEffect>((opts->aroundLedEffect + 1) % AroundLEDEffect::NUM_AROUND_LED_EFFECTS);
     
     // 只有在使用默认配置时才保存到存储
@@ -627,7 +627,7 @@ void LEDsManager::aroundLedEffectStyleNext() {
 /**
  * @brief 切换到上一个环绕灯效果
  */
-void LEDsManager::aroundLedEffectStylePrev() {
+void LEDsManager::ambientLightEffectStylePrev() {
     opts->aroundLedEffect = static_cast<AroundLEDEffect>((opts->aroundLedEffect - 1 + AroundLEDEffect::NUM_AROUND_LED_EFFECTS) % AroundLEDEffect::NUM_AROUND_LED_EFFECTS);
     
     // 只有在使用默认配置时才保存到存储
@@ -642,7 +642,7 @@ void LEDsManager::aroundLedEffectStylePrev() {
 /**
  * @brief 增加环绕灯亮度
  */
-void LEDsManager::aroundLedBrightnessUp() {
+void LEDsManager::ambientLightBrightnessUp() {
     if(opts->aroundLedBrightness == 100) {
         return;
     } else {
@@ -661,7 +661,7 @@ void LEDsManager::aroundLedBrightnessUp() {
 /**
  * @brief 减少环绕灯亮度
  */
-void LEDsManager::aroundLedBrightnessDown() {
+void LEDsManager::ambientLightBrightnessDown() {
     if(opts->aroundLedBrightness == 0) {
         return;
     } else {
@@ -680,7 +680,7 @@ void LEDsManager::aroundLedBrightnessDown() {
 /**
  * @brief 切换环绕灯开关状态
  */
-void LEDsManager::aroundLedEnableSwitch() {
+void LEDsManager::ambientLightEnableSwitch() {
     opts->aroundLedEnabled = !opts->aroundLedEnabled;
     
     // 只有在使用默认配置时才保存到存储

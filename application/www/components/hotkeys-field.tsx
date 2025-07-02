@@ -53,6 +53,16 @@ export default function HotkeysField(
                 return t.HOTKEY_ACTION_LEDS_BRIGHTNESS_UP;
             case HotkeyAction.LedsBrightnessDown:
                 return t.HOTKEY_ACTION_LEDS_BRIGHTNESS_DOWN;
+            case HotkeyAction.AmbientLightEnableSwitch:
+                return t.HOTKEY_ACTION_AMBIENT_LIGHT_ENABLE;
+            case HotkeyAction.AmbientLightEffectStyleNext:
+                return t.HOTKEY_ACTION_AMBIENT_LIGHT_EFFECT_NEXT;
+            case HotkeyAction.AmbientLightEffectStylePrev:
+                return t.HOTKEY_ACTION_AMBIENT_LIGHT_EFFECT_PREV;
+            case HotkeyAction.AmbientLightBrightnessUp:
+                return t.HOTKEY_ACTION_AMBIENT_LIGHT_BRIGHTNESS_UP;
+            case HotkeyAction.AmbientLightBrightnessDown:
+                return t.HOTKEY_ACTION_AMBIENT_LIGHT_BRIGHTNESS_DOWN;
             case HotkeyAction.CalibrationMode:
                 return t.HOTKEY_ACTION_CALIBRATION_MODE;
             case HotkeyAction.XInputMode:
@@ -94,7 +104,7 @@ export default function HotkeysField(
     }
 
     return (
-        <Flex padding={"2px"} width={"680px"} gap={1} >
+        <Flex padding={"2px"} width={"730px"} gap={1} >
             <HStack 
                 pl="2" 
                 pr="2" 
@@ -124,7 +134,7 @@ export default function HotkeysField(
                 collection={hotkeyActionCollection}
                 value={[value.action ?? HotkeyAction.None]}
                 onValueChange={e => onValueChange({ ...value, action: e.value[0] as HotkeyAction })}
-                width="260px"
+                width="320px"
                 disabled={disabled}
             >
 

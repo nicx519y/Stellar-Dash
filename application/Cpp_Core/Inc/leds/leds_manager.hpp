@@ -30,11 +30,11 @@ class LEDsManager {
         void enableSwitch();
 
 #if HAS_LED_AROUND
-        void aroundLedEffectStyleNext();
-        void aroundLedEffectStylePrev();
-        void aroundLedBrightnessUp();
-        void aroundLedBrightnessDown();
-        void aroundLedEnableSwitch();
+        void ambientLightEffectStyleNext();
+        void ambientLightEffectStylePrev();
+        void ambientLightBrightnessUp();
+        void ambientLightBrightnessDown();
+        void ambientLightEnableSwitch();
 #endif
 
         void setBrightness(uint8_t brightness);

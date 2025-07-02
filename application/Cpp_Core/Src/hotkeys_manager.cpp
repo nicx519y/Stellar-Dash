@@ -92,6 +92,21 @@ void HotkeysManager::runAction(GamepadHotkey hotkeyAction) {
         case GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH:
             LEDS_MANAGER.enableSwitch();
             break;
+         case GamepadHotkey::HOTKEY_AMBIENT_LIGHT_ENABLE_SWITCH:
+            LEDS_MANAGER.ambientLightEnableSwitch();
+            break;
+        case GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_NEXT:
+            LEDS_MANAGER.ambientLightEffectStyleNext();
+            break;
+        case GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_PREV:
+            LEDS_MANAGER.ambientLightEffectStylePrev();
+            break;
+        case GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_UP:
+            LEDS_MANAGER.ambientLightBrightnessUp();
+            break;
+        case GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_DOWN:
+            LEDS_MANAGER.ambientLightBrightnessDown();
+            break;
         case GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG:
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_WEB_CONFIG);
             STORAGE_MANAGER.saveConfig();
@@ -130,21 +145,7 @@ void HotkeysManager::runAction(GamepadHotkey hotkeyAction) {
         case GamepadHotkey::HOTKEY_SYSTEM_REBOOT:
             rebootSystem();
             break;
-        case GamepadHotkey::HOTKEY_AROUND_LED_ENABLE_SWITCH:
-            LEDS_MANAGER.enableSwitch();
-            break;
-        case GamepadHotkey::HOTKEY_AROUND_LED_EFFECTSTYLE_NEXT:
-            LEDS_MANAGER.effectStyleNext();
-            break;
-        case GamepadHotkey::HOTKEY_AROUND_LED_EFFECTSTYLE_PREV:
-            LEDS_MANAGER.effectStylePrev();
-            break;
-        case GamepadHotkey::HOTKEY_AROUND_LED_BRIGHTNESS_UP:
-            LEDS_MANAGER.brightnessUp();
-            break;
-        case GamepadHotkey::HOTKEY_AROUND_LED_BRIGHTNESS_DOWN:
-            LEDS_MANAGER.brightnessDown();
-            break;
+       
         default:
             break;
     }

@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include "bsp/board_api.h"
 #include "main_state_machine.hpp"
-// #include "fsdata.h"
 #include "qspi-w25q64.h"
 #include "pwm-ws2812b.h"
 #include "message_center.hpp"
