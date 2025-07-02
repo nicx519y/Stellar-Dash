@@ -21,6 +21,7 @@
 #include "board_cfg.h"
 #include "qspi-w25q64.h"
 #include "bsp/board_api.h"
+#include "system_logger.h"
 
 #if SYSTEM_CHECK_ENABLE == 1
 /* 测试各个段 */
@@ -53,6 +54,14 @@ int main(void)
 
     board_init(); // 初始化板子 时钟 W25Q64 串口 WS2812B 等
 
+    // 初始化系统日志模块（在board_init后，因为需要QSPI已经初始化）
+    LogResult log_init_result = Logger_Init(false, LOG_LEVEL_DEBUG);
+    if (log_init_result != LOG_RESULT_SUCCESS) {
+        APP_ERR("Logger_Init failed with error: %d", log_init_result);
+    } else {
+        LOG_INFO("MAIN", "System logger initialized successfully");
+    }
+
 
 #if SYSTEM_CHECK_ENABLE == 1
     dataSectionTest(); // 测试各个段，测试堆内存
@@ -64,7 +73,6 @@ int main(void)
 
 }
 
-
 /**
   * @brief  This function is executed in case of error occurrence.
   * @retval None
@@ -72,6 +80,10 @@ int main(void)
 void Error_Handler(void)
 {
     /* USER CODE BEGIN Error_Handler_Debug */
+    
+    // 记录错误到日志系统
+    LOG_FATAL("SYSTEM", "HAL Error Handler called - system will be halted");
+    
     APP_ERR("Error_Handler...\r\n");
     /* User can add his own implementation to report the HAL error return state */
     __disable_irq();
@@ -212,10 +224,62 @@ void floatTest(void)
   */
 void assert_failed(uint8_t *file, uint32_t line)
 {
-    /* USER CODE BEGIN 6 */
-    /* User can add his own implementation to report the file name and line number,
-       ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-    /* USER CODE END 6 */
+    LOG_FATAL("ASSERT", "Assert failed: %s:%lu", file, (unsigned long)line);
+    Logger_Flush();
+    
+    APP_ERR("Wrong parameters value: file %s on line %d\r\n", file, line);
+    while(1);
 }
 #endif /* USE_FULL_ASSERT */
+
+/*
+// HAL错误回调函数已在其他文件中定义，避免重复定义：
+// - HAL_UART_ErrorCallback: 在 usart.c 中定义
+// - HAL_ADC_ErrorCallback: 在 adc_manager.cpp 中定义
+// 其他外设的错误回调如需要可在相应驱动文件中定义
+*/
+
+/**
+ * @brief I2C错误回调函数
+ */
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
+{
+    uint32_t error = HAL_I2C_GetError(hi2c);
+    LOG_ERROR("I2C", "I2C Error: 0x%08lX on instance 0x%08lX", (unsigned long)error, (unsigned long)hi2c->Instance);
+    
+    if (error & HAL_I2C_ERROR_BERR) LOG_ERROR("I2C", "Bus error");
+    if (error & HAL_I2C_ERROR_ARLO) LOG_ERROR("I2C", "Arbitration lost error");
+    if (error & HAL_I2C_ERROR_AF) LOG_ERROR("I2C", "Acknowledge failure");
+    if (error & HAL_I2C_ERROR_OVR) LOG_ERROR("I2C", "Overrun/Underrun error");
+    if (error & HAL_I2C_ERROR_DMA) LOG_ERROR("I2C", "DMA transfer error");
+    if (error & HAL_I2C_ERROR_TIMEOUT) LOG_ERROR("I2C", "Timeout error");
+    if (error & HAL_I2C_ERROR_SIZE) LOG_ERROR("I2C", "Size management error");
+}
+
+/**
+ * @brief DMA错误回调函数
+ */
+void HAL_DMA_ErrorCallback(DMA_HandleTypeDef *hdma)
+{
+    uint32_t error = HAL_DMA_GetError(hdma);
+    LOG_ERROR("DMA", "DMA Error: 0x%08lX on instance 0x%08lX", (unsigned long)error, (unsigned long)hdma->Instance);
+    
+    if (error & HAL_DMA_ERROR_TE) LOG_ERROR("DMA", "Transfer error");
+    if (error & HAL_DMA_ERROR_FE) LOG_ERROR("DMA", "FIFO error");
+    if (error & HAL_DMA_ERROR_DME) LOG_ERROR("DMA", "Direct mode error");
+    if (error & HAL_DMA_ERROR_TIMEOUT) LOG_ERROR("DMA", "Timeout error");
+    if (error & HAL_DMA_ERROR_PARAM) LOG_ERROR("DMA", "Parameter error");
+    if (error & HAL_DMA_ERROR_NO_XFER) LOG_ERROR("DMA", "No transfer ongoing");
+    if (error & HAL_DMA_ERROR_NOT_SUPPORTED) LOG_ERROR("DMA", "Not supported mode");
+}
+
+/**
+ * @brief USB错误处理（如果有USB）
+ */
+void HAL_PCD_ErrorCallback(PCD_HandleTypeDef *hpcd)
+{
+    LOG_ERROR("USB", "USB PCD Error on instance 0x%08lX", (unsigned long)hpcd->Instance);
+}
+
+/* USER CODE END 4 */
 

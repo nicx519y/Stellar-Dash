@@ -101,6 +101,7 @@ static LogResult add_entry_to_memory_buffer(const LogEntry entry);
 static LogResult flush_memory_buffer_to_flash(void);
 static LogResult switch_to_next_sector(void);
 static const char* get_level_string(LogLevel level);
+static LogResult logger_log_internal(LogLevel level, const char* component, bool immediate_flush, const char* format, va_list args);
 
 /* ============================================================================
  * 工具函数实现
@@ -189,26 +190,19 @@ static LogResult format_log_entry(LogLevel level, const char* component, const c
     // 清零日志条目
     memset(entry, 0, LOG_ENTRY_SIZE);
 
-    // 获取时间戳
+    // 获取时间戳（系统启动后的毫秒数）
     uint32_t timestamp = get_current_timestamp_ms();
     uint32_t sec = timestamp / 1000;
     uint32_t ms = timestamp % 1000;
 
-    // 模拟日期时间 (简化实现)
-    uint32_t days = sec / 86400;  // 秒转天数
-    uint32_t hours = (sec % 86400) / 3600;
+    // 计算时分秒
+    uint32_t hours = sec / 3600;
     uint32_t minutes = (sec % 3600) / 60;
     uint32_t seconds = sec % 60;
-    
-    // 从2024年开始计算 (简化的日期计算)
-    uint32_t year = 2024 + days / 365;
-    uint32_t month = (days % 365) / 30 + 1;  // 简化月份计算
-    uint32_t day = (days % 365) % 30 + 1;
 
-    // 格式化日志条目 (最多63个字符 + \n)
+    // 格式化日志条目 - 只显示时分秒和毫秒 [HH:MM:SS.mmm]
     snprintf(entry, LOG_ENTRY_SIZE, 
-             "%04lu-%02lu-%02lu %02lu:%02lu:%02lu.%03lu [%s] %s: %s\n",
-             (unsigned long)year, (unsigned long)month, (unsigned long)day,
+             "[%02lu:%02lu:%02lu.%03lu] [%s] %s: %s\n",
              (unsigned long)hours, (unsigned long)minutes, (unsigned long)seconds, (unsigned long)ms,
              get_level_string(level), component, message);
 
@@ -234,10 +228,6 @@ static LogResult add_entry_to_memory_buffer(const LogEntry entry) {
 static LogResult switch_to_next_sector(void) {
     // 切换到下一个扇区
     uint32_t next_sector = (g_logger_state.current_sector + 1) % LOG_FLASH_SECTOR_COUNT;
-    
-    if (g_logger_state.is_bootloader_mode) {
-        printf("[LOGGER] Switching to sector %lu\r\n", (unsigned long)next_sector);
-    }
     
     // 擦除下一个扇区
     LogResult result = erase_flash_sector(next_sector);
@@ -277,11 +267,6 @@ static LogResult flush_memory_buffer_to_flash(void) {
         return LOG_RESULT_SUCCESS; // 没有数据需要刷新
     }
 
-    if (g_logger_state.is_bootloader_mode) {
-        printf("[LOGGER] Flushing %lu entries to sector %lu\r\n",
-               (unsigned long)g_logger_state.buffer_count, (unsigned long)g_logger_state.current_sector);
-    }
-
     // 读取当前扇区的完整数据
     LogSector sector;
     uint32_t sector_addr = LOG_FLASH_BASE_ADDR + g_logger_state.current_sector * LOG_FLASH_SECTOR_SIZE;
@@ -293,10 +278,6 @@ static LogResult flush_memory_buffer_to_flash(void) {
 
     // 检查扇区头部有效性
     if (sector.header.magic != LOG_MAGIC_NUMBER) {
-        // 扇区无效，重新初始化
-        if (g_logger_state.is_bootloader_mode) {
-            printf("[LOGGER] Invalid sector header, reinitializing...\r\n");
-        }
         
         memset(&sector, 0, sizeof(LogSector));
         sector.header.magic = LOG_MAGIC_NUMBER;
@@ -362,13 +343,6 @@ static LogResult flush_memory_buffer_to_flash(void) {
     g_logger_state.buffer_count = 0;
     g_logger_state.last_flush_time = HAL_GetTick();
 
-    if (g_logger_state.is_bootloader_mode) {
-        printf("[LOGGER] Flush complete: sector=%lu, count=%lu, next_index=%lu\r\n",
-               (unsigned long)g_logger_state.current_sector, 
-               (unsigned long)sector.header.current_count,
-               (unsigned long)sector.header.next_write_index);
-    }
-
     return LOG_RESULT_SUCCESS;
 }
 
@@ -392,9 +366,6 @@ LogResult Logger_Init(bool is_bootloader, LogLevel min_level) {
     g_logger_state.global_sequence = 0;
     g_logger_state.boot_counter = 1;
 
-    if (is_bootloader) {
-        printf("[LOGGER] Initializing logger system...\r\n");
-    }
 
     // 扫描Flash找到最新的活跃扇区
     uint32_t max_sequence = 0;
@@ -416,11 +387,6 @@ LogResult Logger_Init(bool is_bootloader, LogLevel min_level) {
                     found_active = true;
                 }
                 
-                if (is_bootloader) {
-                    printf("[LOGGER] Found sector %lu: seq=%lu, boot=%lu, count=%lu\r\n",
-                           (unsigned long)sector, (unsigned long)header.sequence_counter,
-                           (unsigned long)header.boot_counter, (unsigned long)header.current_count);
-                }
             }
         }
     }
@@ -430,11 +396,6 @@ LogResult Logger_Init(bool is_bootloader, LogLevel min_level) {
         g_logger_state.global_sequence = max_sequence;
         g_logger_state.boot_counter = max_boot_count + 1;
         
-        if (is_bootloader) {
-            printf("[LOGGER] Continuing from sector %lu (boot #%lu, seq #%lu)\r\n",
-                   (unsigned long)active_sector, (unsigned long)g_logger_state.boot_counter,
-                   (unsigned long)g_logger_state.global_sequence);
-        }
     } else {
         // 没有找到活跃扇区，初始化第一个扇区
         LogResult result = switch_to_next_sector();
@@ -442,9 +403,6 @@ LogResult Logger_Init(bool is_bootloader, LogLevel min_level) {
             return result;
         }
         
-        if (is_bootloader) {
-            printf("[LOGGER] No active sector found, initialized sector 0\r\n");
-        }
     }
 
     // 设置初始化完成标志
@@ -473,41 +431,18 @@ LogResult Logger_Deinit(void) {
 }
 
 LogResult Logger_Log(LogLevel level, const char* component, const char* format, ...) {
-    if (!g_logger_state.is_initialized) {
-        return LOG_RESULT_ERROR_NOT_INITIALIZED;
-    }
-
-    if (!component || !format) {
-        return LOG_RESULT_ERROR_INVALID_PARAM;
-    }
-
-    // 检查日志级别过滤
-    if (level < g_logger_state.minimum_level) {
-        return LOG_RESULT_SUCCESS; // 级别太低，不记录
-    }
-
-    // 简单锁定
-    LOGGER_LOCK();
-
-    // 格式化消息
-    char message[256];
     va_list args;
     va_start(args, format);
-    vsnprintf(message, sizeof(message), format, args);
+    LogResult result = logger_log_internal(level, component, true, format, args);
     va_end(args);
+    return result;
+}
 
-    // 创建日志条目
-    LogEntry entry;
-    LogResult result = format_log_entry(level, component, message, entry);
-    if (result != LOG_RESULT_SUCCESS) {
-        LOGGER_UNLOCK();
-        return result;
-    }
-
-    // 添加到内存缓冲区
-    result = add_entry_to_memory_buffer(entry);
-
-    LOGGER_UNLOCK();
+LogResult Logger_LogDelay(LogLevel level, const char* component, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    LogResult result = logger_log_internal(level, component, false, format, args);
+    va_end(args);
     return result;
 }
 
@@ -516,9 +451,7 @@ LogResult Logger_Flush(void) {
         return LOG_RESULT_ERROR_NOT_INITIALIZED;
     }
 
-    LOGGER_LOCK();
     LogResult result = flush_memory_buffer_to_flash();
-    LOGGER_UNLOCK();
 
     return result;
 }
@@ -672,5 +605,40 @@ LogResult Logger_ShowSectorInfo(int (*print_func)(const char* format, ...)) {
         }
     }
     
+    return LOG_RESULT_SUCCESS;
+}
+
+static LogResult logger_log_internal(LogLevel level, const char* component, bool immediate_flush, const char* format, va_list args) {
+    if (!g_logger_state.is_initialized) {
+        return LOG_RESULT_ERROR_NOT_INITIALIZED;
+    }
+
+    if (!component || !format) {
+        return LOG_RESULT_ERROR_INVALID_PARAM;
+    }
+
+    // 检查日志级别过滤
+    if (level < g_logger_state.minimum_level) {
+        return LOG_RESULT_SUCCESS; // 级别太低，不记录
+    }
+
+    // 格式化消息
+    char message[256];
+    vsnprintf(message, sizeof(message), format, args);
+
+    // 创建日志条目
+    LogEntry entry;
+    LogResult result = format_log_entry(level, component, message, entry);
+    if (result != LOG_RESULT_SUCCESS) {
+        return result;
+    }
+
+    // 添加到内存缓冲区
+    result = add_entry_to_memory_buffer(entry);
+
+    if (immediate_flush) {
+        return flush_memory_buffer_to_flash();
+    }
+
     return LOG_RESULT_SUCCESS;
 } 

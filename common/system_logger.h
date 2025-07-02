@@ -37,8 +37,8 @@ extern "C" {
 
 // 日志配置
 #define LOG_HEADER_SIZE             64              // 头部固定64字节
-#define LOG_ENTRY_SIZE              64              // 每条日志固定64字节
-#define LOG_ENTRIES_PER_SECTOR      ((LOG_FLASH_SECTOR_SIZE - LOG_HEADER_SIZE) / LOG_ENTRY_SIZE) // 每扇区63条日志
+#define LOG_ENTRY_SIZE              128             // 每条日志固定128字节
+#define LOG_ENTRIES_PER_SECTOR      ((LOG_FLASH_SECTOR_SIZE - LOG_HEADER_SIZE) / LOG_ENTRY_SIZE) // 每扇区31条日志
 #define LOG_MAX_MESSAGE_LENGTH      (LOG_ENTRY_SIZE - 1) // 消息最大长度（预留\n）
 
 // 内存缓冲配置
@@ -68,8 +68,8 @@ typedef struct {
 } __attribute__((packed)) LogSectorHeader;
 
 /**
- * @brief 日志条目 (64字节字符串)
- * 格式: "YYYY-MM-DD HH:MM:SS.mmm [LEVEL] COMPONENT: MESSAGE\n"
+ * @brief 日志条目 (128字节字符串)
+ * 格式: "[HH:MM:SS.mmm] [LEVEL] COMPONENT: MESSAGE\n"
  */
 typedef char LogEntry[LOG_ENTRY_SIZE];
 
@@ -139,6 +139,16 @@ LogResult Logger_Deinit(void);
 LogResult Logger_Log(LogLevel level, const char* component, const char* format, ...);
 
 /**
+ * @brief 记录日志（延迟写盘版本）
+ * @param level 日志级别
+ * @param component 组件名称
+ * @param format 格式化字符串 (printf格式)
+ * @param ... 可变参数
+ * @return 操作结果
+ */
+LogResult Logger_LogDelay(LogLevel level, const char* component, const char* format, ...);
+
+/**
  * @brief 强制刷新缓冲区到Flash
  * @return 操作结果
  */
@@ -190,6 +200,13 @@ LogResult Logger_ShowSectorInfo(int (*print_func)(const char* format, ...));
 #define LOG_WARN(component, format, ...)    Logger_Log(LOG_LEVEL_WARN, component, format, ##__VA_ARGS__)
 #define LOG_ERROR(component, format, ...)   Logger_Log(LOG_LEVEL_ERROR, component, format, ##__VA_ARGS__)
 #define LOG_FATAL(component, format, ...)   Logger_Log(LOG_LEVEL_FATAL, component, format, ##__VA_ARGS__)
+
+// 延迟写盘版本的宏定义
+#define LOG_DEBUG_DELAY(component, format, ...)   Logger_LogDelay(LOG_LEVEL_DEBUG, component, format, ##__VA_ARGS__)
+#define LOG_INFO_DELAY(component, format, ...)    Logger_LogDelay(LOG_LEVEL_INFO, component, format, ##__VA_ARGS__)
+#define LOG_WARN_DELAY(component, format, ...)    Logger_LogDelay(LOG_LEVEL_WARN, component, format, ##__VA_ARGS__)
+#define LOG_ERROR_DELAY(component, format, ...)   Logger_LogDelay(LOG_LEVEL_ERROR, component, format, ##__VA_ARGS__)
+#define LOG_FATAL_DELAY(component, format, ...)   Logger_LogDelay(LOG_LEVEL_FATAL, component, format, ##__VA_ARGS__)
 
 #ifdef __cplusplus
 }

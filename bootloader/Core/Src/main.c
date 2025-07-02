@@ -289,15 +289,6 @@ void Error_Handler(void)
 void JumpToApplication(void)
 {
 
-    // 刷新当前缓冲区的日志到Flash
-    Logger_Flush();
-    
-    // 读取并打印Flash中存储的所有日志
-    BOOT_DBG("Reading stored logs from Flash...");
-    LogResult log_result = Logger_PrintAllLogs(boot_debug_printf);
-    if (log_result != LOG_RESULT_SUCCESS) {
-        BOOT_DBG("Failed to read logs from Flash, error code: %d", log_result);
-    }
 
     // 进入内存映射模式
     if(QSPI_W25Qxx_EnterMemoryMappedMode() != QSPI_W25Qxx_OK)

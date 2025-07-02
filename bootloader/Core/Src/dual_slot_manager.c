@@ -205,8 +205,6 @@ static void print_debug_info(const char* format, ...) {
     vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
     
-    // 直接输出调试信息
-    printf("[BOOT DEBUG] %s\r\n", buffer);
 }
 
 /* ================================ 公共函数实现 ================================ */
@@ -243,53 +241,13 @@ int8_t DualSlot_LoadMetadata(FirmwareMetadata* metadata) {
         return -3;
     }
     
-    // 添加调试输出：显示读取到的原始数据
-    print_debug_info("Raw metadata first 128 bytes:");
-    uint8_t* raw_data = (uint8_t*)metadata;
-    for (int i = 0; i < 128; i += 16) {
-        printf("[BOOT DEBUG] %04X: ", i);
-        for (int j = 0; j < 16 && (i + j) < 128; j++) {
-            printf("%02X ", raw_data[i + j]);
-        }
-        printf("\r\n");
-    }
-    
-    // 显示结构体字段偏移信息
-    print_debug_info("=== C Structure Field Offsets ===");
-    print_debug_info("magic: %d", offsetof(FirmwareMetadata, magic));
-    print_debug_info("metadata_version_major: %d", offsetof(FirmwareMetadata, metadata_version_major));
-    print_debug_info("metadata_version_minor: %d", offsetof(FirmwareMetadata, metadata_version_minor));
-    print_debug_info("metadata_size: %d", offsetof(FirmwareMetadata, metadata_size));
-    print_debug_info("metadata_crc32: %d", offsetof(FirmwareMetadata, metadata_crc32));
-    print_debug_info("firmware_version: %d", offsetof(FirmwareMetadata, firmware_version));
-    print_debug_info("target_slot: %d", offsetof(FirmwareMetadata, target_slot));
-    print_debug_info("build_date: %d", offsetof(FirmwareMetadata, build_date));
-    print_debug_info("build_timestamp: %d", offsetof(FirmwareMetadata, build_timestamp));
-    print_debug_info("device_model: %d", offsetof(FirmwareMetadata, device_model));
-    print_debug_info("hardware_version: %d", offsetof(FirmwareMetadata, hardware_version));
-    print_debug_info("bootloader_min_version: %d", offsetof(FirmwareMetadata, bootloader_min_version));
-    print_debug_info("component_count: %d", offsetof(FirmwareMetadata, component_count));
-    print_debug_info("components: %d", offsetof(FirmwareMetadata, components));
-    print_debug_info("Total structure size: %d", sizeof(FirmwareMetadata));
-    print_debug_info("================================");
     
     // 特别检查设备型号字段的位置和内容
     size_t device_model_offset = offsetof(FirmwareMetadata, device_model);
-    print_debug_info("Device model offset: %d", device_model_offset);
-    print_debug_info("Device model raw bytes:");
-    printf("[BOOT DEBUG] ");
-    for (int i = 0; i < 32; i++) {
-        printf("%02X ", raw_data[device_model_offset + i]);
-    }
-    printf("\r\n");
-    
-    print_debug_info("Device model as string: '%s'", metadata->device_model);
-    print_debug_info("Expected device model: '%s'", DEVICE_MODEL_STRING);
     
     // 验证元数据完整性
     FirmwareValidationResult validation = validate_metadata(metadata);
     if (validation != FIRMWARE_VALID) {
-        print_debug_info("Metadata validation failed: %d", validation);
         // 初始化默认元数据
         init_default_metadata(metadata);
         return -4;
@@ -299,8 +257,6 @@ int8_t DualSlot_LoadMetadata(FirmwareMetadata* metadata) {
     memcpy(&g_current_metadata, metadata, sizeof(FirmwareMetadata));
     g_metadata_loaded = true;
     
-    print_debug_info("Metadata loaded successfully: Version=%s, Slot=%d", 
-                     metadata->firmware_version, metadata->target_slot);
     
     return 0;
 }

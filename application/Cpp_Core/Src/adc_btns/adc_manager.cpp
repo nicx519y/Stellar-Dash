@@ -3,6 +3,7 @@
 #include "adc_btns/adc_manager.hpp"
 #include "board_cfg.h"
 #include "micro_timer.hpp"
+#include "system_logger.h"
 
 // 内存图
 /*
@@ -657,13 +658,13 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
 {
     uint32_t error = HAL_ADC_GetError(hadc);
-    APP_ERR("ADC Error: Instance=0x%p", (void*)hadc->Instance);
-    APP_ERR("State=0x%x", HAL_ADC_GetState(hadc));
-    APP_ERR("Error flags: 0x%lx", error);
+    LOG_ERROR("ADC", "ADC Error: Instance=0x%p", (void*)hadc->Instance);
+    LOG_ERROR("ADC", "State=0x%x", HAL_ADC_GetState(hadc));
+    LOG_ERROR("ADC", "Error flags: 0x%lx", error);
     
-    if (error & HAL_ADC_ERROR_INTERNAL) APP_DBG("- Internal error");
-    if (error & HAL_ADC_ERROR_OVR) APP_DBG("- Overrun error");
-    if (error & HAL_ADC_ERROR_DMA) APP_DBG("- DMA transfer error");
+    if (error & HAL_ADC_ERROR_INTERNAL) LOG_ERROR("ADC", "- Internal error");
+    if (error & HAL_ADC_ERROR_OVR) LOG_ERROR("ADC", "- Overrun error");
+    if (error & HAL_ADC_ERROR_DMA) LOG_ERROR("ADC", "- DMA transfer error");
 }
 
 

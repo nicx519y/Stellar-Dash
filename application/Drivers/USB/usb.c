@@ -158,7 +158,6 @@ void USB_Host_Init() {
     HAL_NVIC_SetPriority(OTG_HS_IRQn, 2, 0);
     HAL_NVIC_EnableIRQ(OTG_HS_IRQn);
     /* USER CODE BEGIN USB_OTG_HS_MspInit 1 */
-    USB_DBG("USB_OTG_HS_MspInit");
 }
 
 

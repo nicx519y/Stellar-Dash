@@ -63,6 +63,7 @@ Libs/stm32_mw_lwip/src/netif \
 Libs/stm32_mw_lwip/src/core/ipv4 \
 Libs/cJSON \
 Libs/sha256_simple \
+../common
 
 # C++ 源文件目录
 CPP_SOURCE_DIRS = \
@@ -149,7 +150,8 @@ C_INCLUDES += \
 -ILibs/cJSON \
 -ILibs/CRC32/src \
 -ILibs/sha256_simple \
--ILibs/mbedtls/include 
+-ILibs/mbedtls/include \
+-I../common
 
 # C++ 编译器设置
 CXX = $(PREFIX)g++

@@ -10,8 +10,10 @@
 #include "usblistener.hpp"
 #include "usbhostmanager.hpp"
 #include "gpdriver.hpp"
+#include "system_logger.h"
 
 void InputState::setup() {
+    LOG_INFO("INPUT", "Starting input state setup");
     APP_DBG("InputState::setup");
     
     /**************** 初始化USB end ******************* */
@@ -19,38 +21,49 @@ void InputState::setup() {
     InputMode inputMode = STORAGE_MANAGER.getInputMode();
     // InputMode inputMode = InputMode::INPUT_MODE_PS5; // TODO: 需要根据实际情况修改 
     // InputMode inputMode = InputMode::INPUT_MODE_XINPUT;
+    LOG_INFO("INPUT", "Selected input mode: %d", static_cast<int>(inputMode));
     APP_DBG("InputState::setup inputMode: %d", inputMode);
+    
     if(inputMode == InputMode::INPUT_MODE_CONFIG) {
+        LOG_ERROR("INPUT", "Invalid input mode CONFIG for input state");
         APP_ERR("InputState::setup error - inputMode: INPUT_MODE_CONFIG, not supported for input state");
         return;
     }
     
+    LOG_DEBUG("INPUT", "Initializing driver manager");
     DRIVER_MANAGER.setup(inputMode);
     inputDriver = DRIVER_MANAGER.getDriver();
     if ( inputDriver != nullptr ) {
 		inputDriver->initializeAux();
+        LOG_DEBUG("INPUT", "Input driver auxiliary initialization completed");
         APP_DBG("InputState::setup inputDriver->initializeAux() done");
 		// Check if we have a USB listener
 		USBListener * listener = inputDriver->get_usb_auth_listener();
 		if (listener != nullptr) {
+			LOG_DEBUG("INPUT", "USB auth listener found, registering with host manager");
 			APP_DBG("InputState::setup listener: %p", listener);
 			USB_HOST_MANAGER.pushListener(listener);
 		}
-	}
+	} else {
+        LOG_ERROR("INPUT", "Failed to get input driver instance");
+    }
 
     // 初始化USB主机
+    LOG_DEBUG("INPUT", "Starting USB host manager");
     USB_HOST_MANAGER.start();
 
     // 初始化TinyUSB设备栈
     APP_DBG("tud_init start");  
     tud_init(TUD_OPT_RHPORT);
     APP_DBG("tud_init done");
+    LOG_DEBUG("INPUT", "TinyUSB device stack initialized");
 
     ADC_BTNS_WORKER.setup();
     GPIO_BTNS_WORKER.setup();
     GAMEPAD.setup();
 
     #if HAS_LED == 1
+    LOG_DEBUG("INPUT", "Initializing LED manager");
     LEDS_MANAGER.setup();
     #endif
 
@@ -58,6 +71,7 @@ void InputState::setup() {
     ledAnimationTime = HAL_GetTick();  // 毫秒级
 
     isRunning = true;
+    LOG_INFO("INPUT", "Input state setup completed successfully");
 }
 
 void InputState::loop() { 
@@ -78,24 +92,23 @@ void InputState::loop() {
         lastVirtualPinMask = virtualPinMask;
     }
 
-
     // 处理USB任务
     tud_task(); // 设备模式任务
     USB_HOST_MANAGER.process();
     inputDriver->processAux();
 
     #if HAS_LED == 1
-
     uint32_t currentTime = HAL_GetTick();
     if(currentTime - ledAnimationTime >= LEDS_ANIMATION_INTERVAL) {
         LEDS_MANAGER.loop(virtualPinMask);
         ledAnimationTime = currentTime;
     }
-
     #endif
-
 }
 
 void InputState::reset() {
-
+    // 清除FN键状态标志
+    static bool fnPressedLogged = false;
+    fnPressedLogged = false;
+    LOG_DEBUG("INPUT", "Input state reset completed");
 }

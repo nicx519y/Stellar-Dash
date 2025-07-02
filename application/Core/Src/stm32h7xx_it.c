@@ -25,6 +25,7 @@
 #include "device/usbd.h"
 #include "board_cfg.h"
 #include "usbh.h"
+#include "system_logger.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -77,6 +78,12 @@ extern TIM_HandleTypeDef htim2;
 void NMI_Handler(void)
 {
   /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
+  
+  // 记录NMI中断到日志
+  LOG_FATAL("NMI", "Non-Maskable Interrupt occurred");
+  
+  // 强制刷新日志
+  Logger_Flush();
 
   /* USER CODE END NonMaskableInt_IRQn 0 */
   /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
@@ -114,6 +121,13 @@ void HardFault_Handler(void)
         stack = (uint32_t *)msp;
     }
 
+    // 记录致命错误到日志系统
+    LOG_FATAL("HARDFAULT", "HardFault exception occurred");
+    LOG_FATAL("HARDFAULT", "MSP=0x%08lX PSP=0x%08lX", msp, psp);
+    LOG_FATAL("HARDFAULT", "CFSR=0x%08lX HFSR=0x%08lX", cfsr, hfsr);
+    LOG_FATAL("HARDFAULT", "MMFAR=0x%08lX BFAR=0x%08lX", mmfar, bfar);
+    LOG_FATAL("HARDFAULT", "PC=0x%08lX LR=0x%08lX", stack[6], stack[5]);
+
     // 打印调试信息
     APP_DBG("\r\n[HardFault]");
     APP_DBG("MSP: 0x%08lX", msp);
@@ -138,15 +152,42 @@ void HardFault_Handler(void)
     APP_DBG("PC:  0x%08lX", stack[6]);
     APP_DBG("PSR: 0x%08lX", stack[7]);
 
-    // 解析 CFSR
-    if (cfsr & (1 << 0))  APP_DBG("MMFSR: Instruction access violation");
-    if (cfsr & (1 << 1))  APP_DBG("MMFSR: Data access violation");
-    if (cfsr & (1 << 16)) APP_DBG("BFSR: Instruction bus error");
-    if (cfsr & (1 << 17)) APP_DBG("BFSR: Precise data bus error");
-    if (cfsr & (1 << 24)) APP_DBG("UFSR: Undefined instruction");
-    if (cfsr & (1 << 25)) APP_DBG("UFSR: Invalid state");
-    if (cfsr & (1 << 26)) APP_DBG("UFSR: Invalid PC");
-    if (cfsr & (1 << 27)) APP_DBG("UFSR: No coprocessor");
+    // 解析 CFSR 并记录到日志
+    if (cfsr & (1 << 0)) {
+        APP_DBG("MMFSR: Instruction access violation");
+        LOG_FATAL("HARDFAULT", "Memory management fault: Instruction access violation");
+    }
+    if (cfsr & (1 << 1)) {
+        APP_DBG("MMFSR: Data access violation");
+        LOG_FATAL("HARDFAULT", "Memory management fault: Data access violation");
+    }
+    if (cfsr & (1 << 16)) {
+        APP_DBG("BFSR: Instruction bus error");
+        LOG_FATAL("HARDFAULT", "Bus fault: Instruction bus error");
+    }
+    if (cfsr & (1 << 17)) {
+        APP_DBG("BFSR: Precise data bus error");
+        LOG_FATAL("HARDFAULT", "Bus fault: Precise data bus error");
+    }
+    if (cfsr & (1 << 24)) {
+        APP_DBG("UFSR: Undefined instruction");
+        LOG_FATAL("HARDFAULT", "Usage fault: Undefined instruction");
+    }
+    if (cfsr & (1 << 25)) {
+        APP_DBG("UFSR: Invalid state");
+        LOG_FATAL("HARDFAULT", "Usage fault: Invalid state");
+    }
+    if (cfsr & (1 << 26)) {
+        APP_DBG("UFSR: Invalid PC");
+        LOG_FATAL("HARDFAULT", "Usage fault: Invalid PC");
+    }
+    if (cfsr & (1 << 27)) {
+        APP_DBG("UFSR: No coprocessor");
+        LOG_FATAL("HARDFAULT", "Usage fault: No coprocessor");
+    }
+
+    // 强制刷新日志到Flash
+    Logger_Flush();
 
     while(1);
 }
@@ -156,6 +197,22 @@ void HardFault_Handler(void)
   */
 void MemManage_Handler(void)
 {
+  // 记录内存管理错误到日志
+  LOG_FATAL("MEMMANAGE", "Memory Management Fault occurred");
+  LOG_FATAL("MEMMANAGE", "MMFAR=0x%08lX CFSR=0x%08lX", SCB->MMFAR, SCB->CFSR);
+  
+  // 解析具体错误原因
+  uint32_t cfsr = SCB->CFSR;
+  if (cfsr & (1 << 0)) LOG_FATAL("MEMMANAGE", "Instruction access violation");
+  if (cfsr & (1 << 1)) LOG_FATAL("MEMMANAGE", "Data access violation");
+  if (cfsr & (1 << 3)) LOG_FATAL("MEMMANAGE", "MemManage fault on unstacking for exception return");
+  if (cfsr & (1 << 4)) LOG_FATAL("MEMMANAGE", "MemManage fault on stacking for exception entry");
+  if (cfsr & (1 << 5)) LOG_FATAL("MEMMANAGE", "MemManage fault during FP lazy state preservation");
+  if (cfsr & (1 << 7)) LOG_FATAL("MEMMANAGE", "MMFAR holds valid fault address");
+
+  // 强制刷新日志
+  Logger_Flush();
+  
   printf("MemManage_Handler!\n");
   while(1);
 }
@@ -165,6 +222,23 @@ void MemManage_Handler(void)
   */
 void BusFault_Handler(void)
 {
+  // 记录总线错误到日志
+  LOG_FATAL("BUSFAULT", "Bus Fault occurred");
+  LOG_FATAL("BUSFAULT", "BFAR=0x%08lX CFSR=0x%08lX", SCB->BFAR, SCB->CFSR);
+  
+  // 解析具体错误原因
+  uint32_t cfsr = SCB->CFSR;
+  if (cfsr & (1 << 8)) LOG_FATAL("BUSFAULT", "Instruction bus error");
+  if (cfsr & (1 << 9)) LOG_FATAL("BUSFAULT", "Precise data bus error");
+  if (cfsr & (1 << 10)) LOG_FATAL("BUSFAULT", "Imprecise data bus error");
+  if (cfsr & (1 << 11)) LOG_FATAL("BUSFAULT", "BusFault on unstacking for exception return");
+  if (cfsr & (1 << 12)) LOG_FATAL("BUSFAULT", "BusFault on stacking for exception entry");
+  if (cfsr & (1 << 13)) LOG_FATAL("BUSFAULT", "BusFault during FP lazy state preservation");
+  if (cfsr & (1 << 15)) LOG_FATAL("BUSFAULT", "BFAR holds valid fault address");
+
+  // 强制刷新日志
+  Logger_Flush();
+  
   printf("BusFault_Handler!\n");
   while(1);
 }
@@ -174,6 +248,22 @@ void BusFault_Handler(void)
   */
 void UsageFault_Handler(void)
 {
+  // 记录使用错误到日志
+  LOG_FATAL("USAGEFAULT", "Usage Fault occurred");
+  LOG_FATAL("USAGEFAULT", "CFSR=0x%08lX", SCB->CFSR);
+  
+  // 解析具体错误原因
+  uint32_t cfsr = SCB->CFSR;
+  if (cfsr & (1 << 16)) LOG_FATAL("USAGEFAULT", "Undefined instruction");
+  if (cfsr & (1 << 17)) LOG_FATAL("USAGEFAULT", "Invalid state");
+  if (cfsr & (1 << 18)) LOG_FATAL("USAGEFAULT", "Invalid PC load");
+  if (cfsr & (1 << 19)) LOG_FATAL("USAGEFAULT", "No coprocessor");
+  if (cfsr & (1 << 20)) LOG_FATAL("USAGEFAULT", "Unaligned access");
+  if (cfsr & (1 << 24)) LOG_FATAL("USAGEFAULT", "Divide by zero");
+
+  // 强制刷新日志
+  Logger_Flush();
+  
   printf("UsageFault_Handler!\n");
   while(1);
 }

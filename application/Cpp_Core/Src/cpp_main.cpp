@@ -12,17 +12,19 @@
 #include "micro_timer.hpp"
 #include "leds/leds_manager.hpp"
 #include "adc_btns/adc_calibration.hpp"
+#include "system_logger.h"
 
 extern "C" {
     int cpp_main(void) 
     {   
+        LOG_INFO("CPP_MAIN", "C++ main application startup ...");
+
         // 注释掉原有的状态机启动，用于手动校准测试
         MAIN_STATE_MACHINE.setup();
-
+    
         // 手动校准测试
         // manual_calibration_test();
-
-
+        
         return 0;
     }
 }
@@ -89,9 +91,6 @@ void manual_calibration_test(void) {
     if (result == ADCBtnsError::SUCCESS) {
         uint8_t activeCount = ADC_CALIBRATION_MANAGER.getActiveCalibrationButtonCount();
         uint8_t uncalibratedCount = ADC_CALIBRATION_MANAGER.getUncalibratedButtonCount();
-        APP_DBG("Manual calibration started successfully");
-        APP_DBG("Active calibration buttons: %d", activeCount);
-        APP_DBG("Uncalibrated buttons: %d", uncalibratedCount);
     } else {
         APP_ERR("Failed to start manual calibration, error: %d", static_cast<int>(result));
         return;

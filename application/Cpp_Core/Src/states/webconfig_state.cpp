@@ -6,9 +6,11 @@
 #include "configs/webconfig_leds_manager.hpp"
 #include "leds/leds_manager.hpp"
 #include "adc_btns/adc_manager.hpp"
+#include "system_logger.h"
 
 void WebConfigState::setup() {
 
+    LOG_INFO("WEBCONFIG", "Starting web configuration state setup");
     APP_DBG("WebConfigState::setup");
 
     // TODO: 初始化Web配置状态
@@ -24,18 +26,26 @@ void WebConfigState::setup() {
     inputDriver = DRIVER_MANAGER.getDriver();
 
     // 设置QSPI为内存映射模式，方便访问Websources
-    QSPI_W25Qxx_EnterMemoryMappedMode();
+    LOG_DEBUG("WEBCONFIG", "Setting QSPI to memory mapped mode for web resources access");
+    int8_t qspi_result = QSPI_W25Qxx_EnterMemoryMappedMode();
+    if (qspi_result != 0) {
+        LOG_ERROR("WEBCONFIG", "Failed to enter QSPI memory mapped mode, error: %d", qspi_result);
+    } else {
+        LOG_DEBUG("WEBCONFIG", "QSPI memory mapped mode enabled successfully");
+    }
 
     // 初始化LED管理器
     LEDS_MANAGER.setup();
 
     isRunning = true;
+    LOG_INFO("WEBCONFIG", "Web configuration state setup completed successfully");
 }
 
 void WebConfigState::loop() {
     if(isRunning) {
         ADC_CALIBRATION_MANAGER.processCalibration(); // 处理校准逻辑
         CONFIG_MANAGER.loop();
+        
         // 实时更新按键状态并生成事件（在主循环中调用）
         WEBCONFIG_BTNS_MANAGER.update();
         
@@ -65,4 +75,6 @@ void WebConfigState::reset() {
     
     // 清除LED预览模式，恢复默认配置
     WEBCONFIG_LEDS_MANAGER.clearPreviewConfig();
+    
+    LOG_DEBUG("WEBCONFIG", "Web configuration state reset completed");
 }

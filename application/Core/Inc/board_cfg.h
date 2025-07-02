@@ -61,7 +61,7 @@
     #define APP_ERR(fmt, ...) ((void)0)
 #endif
 
-#define USB_DEBUG_PRINT 1
+#define USB_DEBUG_PRINT 0
 
 #if USB_DEBUG_PRINT
     #define USB_DBG(fmt, ...) printf("[USB] " fmt "\r\n", ##__VA_ARGS__)
@@ -73,7 +73,6 @@
 
 
 
-#define FIRMWARE_VERSION                    (uint32_t)0x010000  //固件版本
 #define CONFIG_VERSION                      (uint32_t)0x000009  //配置版本 三位版本号 0x aa bb cc
 #define ADC_MAPPING_VERSION                 (uint32_t)0x000001  //ADC值映射表版本
 
