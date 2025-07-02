@@ -217,6 +217,25 @@ LogResult Logger_ShowSectorInfo(int (*print_func)(const char* format, ...));
  */
 LogResult Logger_ShowGlobalState(int (*print_func)(const char* format, ...));
 
+/**
+ * @brief 获取有内容的日志扇区总数并按时间顺序排序
+ * @param sector_array 返回排序后的扇区编号数组 (调用者提供的数组，至少128个元素)
+ * @param actual_count 返回实际有效扇区数量
+ * @return 操作结果
+ * @note 扇区按启动计数器和序列计数器排序，确保时间顺序正确
+ */
+LogResult Logger_GetSortedSectors(uint32_t* sector_array, uint32_t* actual_count);
+
+/**
+ * @brief 获取指定扇区内的所有日志文本
+ * @param sector_index 扇区编号 (0 - LOG_FLASH_SECTOR_COUNT-2)
+ * @param log_array 返回日志文本数组 (调用者提供的数组，至少31个元素)
+ * @param actual_count 返回实际日志条数
+ * @return 操作结果
+ * @note 日志按写入顺序正序排列，每条日志是以null结尾的字符串
+ */
+LogResult Logger_GetSectorLogs(uint32_t sector_index, LogEntry* log_array, uint32_t* actual_count);
+
 /* ============================================================================
  * 便捷宏定义
  * ========================================================================== */

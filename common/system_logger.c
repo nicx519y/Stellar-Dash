@@ -736,6 +736,140 @@ LogResult Logger_ShowGlobalState(int (*print_func)(const char* format, ...)) {
     return LOG_RESULT_SUCCESS;
 }
 
+LogResult Logger_GetSortedSectors(uint32_t* sector_array, uint32_t* actual_count) {
+    if (!sector_array || !actual_count) {
+        return LOG_RESULT_ERROR_INVALID_PARAM;
+    }
+
+    // 存储扇区信息的轻量级结构体
+    typedef struct {
+        uint32_t sector_index;
+        uint32_t boot_counter;
+        uint32_t sequence_counter;
+        uint32_t timestamp_first;
+    } SectorMeta;
+    
+    SectorMeta sectors[LOG_FLASH_SECTOR_COUNT - 1];  // 排除全局状态扇区
+    uint32_t valid_count = 0;
+    
+    // 1. 扫描所有扇区头部，收集有效扇区信息
+    for (uint32_t sector = 0; sector < LOG_FLASH_SECTOR_COUNT - 1; sector++) {
+        LogSectorHeader header;
+        uint32_t sector_addr = LOG_FLASH_BASE_ADDR + sector * LOG_FLASH_SECTOR_SIZE;
+        
+        // 读取扇区头部
+        if (read_from_flash(sector_addr, (uint8_t*)&header, sizeof(LogSectorHeader)) == LOG_RESULT_SUCCESS) {
+            // 检查扇区是否有效且有内容
+            if (header.magic == LOG_MAGIC_NUMBER && header.current_count > 0) {
+                sectors[valid_count].sector_index = sector;
+                sectors[valid_count].boot_counter = header.boot_counter;
+                sectors[valid_count].sequence_counter = header.sequence_counter;
+                sectors[valid_count].timestamp_first = header.timestamp_first;
+                valid_count++;
+            }
+        }
+    }
+    
+    // 2. 对扇区按时间顺序排序（冒泡排序，适合小数据量）
+    for (uint32_t i = 0; i < valid_count - 1; i++) {
+        for (uint32_t j = 0; j < valid_count - 1 - i; j++) {
+            bool should_swap = false;
+            
+            // 先按启动计数器排序
+            if (sectors[j].boot_counter > sectors[j + 1].boot_counter) {
+                should_swap = true;
+            } else if (sectors[j].boot_counter == sectors[j + 1].boot_counter) {
+                // 启动计数器相同，按序列计数器排序
+                if (sectors[j].sequence_counter > sectors[j + 1].sequence_counter) {
+                    should_swap = true;
+                } else if (sectors[j].sequence_counter == sectors[j + 1].sequence_counter) {
+                    // 序列计数器也相同，按时间戳排序
+                    if (sectors[j].timestamp_first > sectors[j + 1].timestamp_first) {
+                        should_swap = true;
+                    }
+                }
+            }
+            
+            if (should_swap) {
+                SectorMeta temp = sectors[j];
+                sectors[j] = sectors[j + 1];
+                sectors[j + 1] = temp;
+            }
+        }
+    }
+    
+    // 3. 将排序后的扇区编号复制到输出数组
+    for (uint32_t i = 0; i < valid_count; i++) {
+        sector_array[i] = sectors[i].sector_index;
+    }
+    
+    *actual_count = valid_count;
+    
+    return LOG_RESULT_SUCCESS;
+}
+
+LogResult Logger_GetSectorLogs(uint32_t sector_index, LogEntry* log_array, uint32_t* actual_count) {
+    if (!log_array || !actual_count) {
+        return LOG_RESULT_ERROR_INVALID_PARAM;
+    }
+    
+    // 检查扇区编号有效性（排除全局状态扇区）
+    if (sector_index >= LOG_FLASH_SECTOR_COUNT - 1) {
+        return LOG_RESULT_ERROR_INVALID_PARAM;
+    }
+    
+    *actual_count = 0;
+    
+    // 读取扇区头部
+    LogSectorHeader header;
+    uint32_t sector_addr = LOG_FLASH_BASE_ADDR + sector_index * LOG_FLASH_SECTOR_SIZE;
+    
+    LogResult result = read_from_flash(sector_addr, (uint8_t*)&header, sizeof(LogSectorHeader));
+    if (result != LOG_RESULT_SUCCESS) {
+        return result;
+    }
+    
+    // 检查扇区是否有效
+    if (header.magic != LOG_MAGIC_NUMBER) {
+        return LOG_RESULT_SUCCESS;  // 扇区无效，返回0条日志
+    }
+    
+    if (header.current_count == 0) {
+        return LOG_RESULT_SUCCESS;  // 扇区为空，返回0条日志
+    }
+    
+    // 按写入顺序读取日志条目
+    uint32_t start_index = header.queue_start_index;
+    uint32_t logs_read = 0;
+    
+    for (uint32_t i = 0; i < header.current_count; i++) {
+        uint32_t entry_index = (start_index + i) % LOG_ENTRIES_PER_SECTOR;
+        
+        // 计算日志条目在Flash中的地址
+        uint32_t entry_addr = sector_addr + LOG_HEADER_SIZE + entry_index * LOG_ENTRY_SIZE;
+        
+        // 读取日志条目
+        result = read_from_flash(entry_addr, (uint8_t*)log_array[logs_read], LOG_ENTRY_SIZE);
+        if (result != LOG_RESULT_SUCCESS) {
+            break;  // 读取失败，返回已读取的日志数
+        }
+        
+        // 确保字符串以null结尾
+        log_array[logs_read][LOG_ENTRY_SIZE - 1] = '\0';
+        
+        // 移除末尾的换行符（如果存在）
+        char* newline = strchr(log_array[logs_read], '\n');
+        if (newline) {
+            *newline = '\0';
+        }
+        
+        logs_read++;
+    }
+    
+    *actual_count = logs_read;
+    return LOG_RESULT_SUCCESS;
+}
+
 static LogResult logger_log_internal(LogLevel level, const char* component, bool immediate_flush, const char* format, va_list args) {
     if (!g_logger_state.is_initialized) {
         return LOG_RESULT_ERROR_NOT_INITIALIZED;
