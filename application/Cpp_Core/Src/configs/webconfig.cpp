@@ -9,6 +9,7 @@
 #include <cctype>
 #include <cstring>
 #include <cstdlib>
+#include "system_logger.h"
 
 extern "C" struct fsdata_file file__index_html[];
 
@@ -607,6 +608,7 @@ cJSON* buildHotkeysConfigJSON(Config& config) {
  * }
  */
 std::string apiGetProfileList() {
+    LOG_INFO("WEBAPI", "apiGetProfileList start.");
     Config& config = Storage::getInstance().config;
     
     // 创建返回数据结构
@@ -615,6 +617,7 @@ std::string apiGetProfileList() {
     
     if (!profileListJSON) {
         cJSON_Delete(dataJSON);
+        LOG_ERROR("WEBAPI", "apiGetProfileList: Failed to build profile list JSON");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to build profile list JSON");
     }
 
@@ -623,6 +626,8 @@ std::string apiGetProfileList() {
 
     // 生成返回字符串
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+
+    LOG_INFO("WEBAPI", "apiGetProfileList success.");
 
     return response;
 }
@@ -672,7 +677,7 @@ std::string apiGetProfileList() {
  * }
  */
 std::string apiGetDefaultProfile() {
-    // printf("apiGetDefaultProfile start.\n");
+    LOG_INFO("WEBAPI", "apiGetDefaultProfile start.");
 
     Config& config = Storage::getInstance().config;
     
@@ -688,6 +693,7 @@ std::string apiGetDefaultProfile() {
     // printf("apiGetDefaultProfile: defaultProfile: %s\n", defaultProfile->name);
 
     if(!defaultProfile) {
+        LOG_ERROR("WEBAPI", "apiGetDefaultProfile: Default profile not found");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Default profile not found");
     }
 
@@ -697,6 +703,7 @@ std::string apiGetDefaultProfile() {
 
     if (!profileDetailsJSON) {
         cJSON_Delete(dataJSON);
+        LOG_ERROR("WEBAPI", "apiGetDefaultProfile: Failed to build profile JSON");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to build profile JSON");
     }
     
@@ -705,11 +712,12 @@ std::string apiGetDefaultProfile() {
     // 生成返回字符串
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
 
-    printf("apiGetDefaultProfile response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiGetDefaultProfile success.");
     return response;
 }
 
 std::string apiGetProfile(const char* profileId) {
+    LOG_INFO("WEBAPI", "apiGetProfile start.");
     if(!profileId) {
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Profile ID not provided");
     }
@@ -726,6 +734,7 @@ std::string apiGetProfile(const char* profileId) {
     }
     
     if(!targetProfile) {
+        LOG_ERROR("WEBAPI", "apiGetProfile: Profile not found");
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Profile not found");
     }
 
@@ -734,6 +743,7 @@ std::string apiGetProfile(const char* profileId) {
     cJSON* profileDetailsJSON = buildProfileJSON(targetProfile);
     if (!profileDetailsJSON) {
         cJSON_Delete(dataJSON);
+        LOG_ERROR("WEBAPI", "apiGetProfile: Failed to build profile JSON");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to build profile JSON");
     }
     
@@ -741,6 +751,7 @@ std::string apiGetProfile(const char* profileId) {
     
     // 生成返回字符串
     std::string result = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    LOG_INFO("WEBAPI", "apiGetProfile success.");
     return result;
 }
 
@@ -763,7 +774,7 @@ std::string apiGetProfile(const char* profileId) {
  * }
  */
 std::string apiGetHotkeysConfig() {
-    // printf("apiGetHotkeysConfig start.\n");
+    LOG_INFO("WEBAPI", "apiGetHotkeysConfig start.");
     Config& config = Storage::getInstance().config;
     
     // 创建返回数据结构
@@ -772,6 +783,7 @@ std::string apiGetHotkeysConfig() {
     
     if (!hotkeysConfigJSON) {
         cJSON_Delete(dataJSON);
+        LOG_ERROR("WEBAPI", "apiGetHotkeysConfig: Failed to build hotkeys config JSON");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to build hotkeys config JSON");
     }
 
@@ -779,7 +791,7 @@ std::string apiGetHotkeysConfig() {
     cJSON_AddItemToObject(dataJSON, "hotkeysConfig", hotkeysConfigJSON);
     
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
-    // printf("apiGetHotkeysConfig response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiGetHotkeysConfig success.");
     return response;
 }
 
@@ -840,11 +852,12 @@ std::string apiGetHotkeysConfig() {
  * }
  */
 std::string apiUpdateProfile() {
-    // printf("apiUpdateProfile start.\n");
+    LOG_INFO("WEBAPI", "apiUpdateProfile start.");
     Config& config = Storage::getInstance().config;
     cJSON* params = get_post_data();
     
     if(!params) {
+        LOG_ERROR("WEBAPI", "apiUpdateProfile: Invalid parameters");
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Invalid parameters");
     }
 
@@ -852,6 +865,7 @@ std::string apiUpdateProfile() {
     
     if(!details) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiUpdateProfile: Invalid parameters");
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Invalid parameters");
     }
 
@@ -859,6 +873,7 @@ std::string apiUpdateProfile() {
     cJSON* idItem = cJSON_GetObjectItem(details, "id");
     if(!idItem) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiUpdateProfile: Profile ID not provided");
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Profile ID not provided");
     }
 
@@ -872,6 +887,7 @@ std::string apiUpdateProfile() {
 
     if(!targetProfile) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiUpdateProfile: Profile not found");
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Profile not found");
     }
 
@@ -1054,6 +1070,7 @@ std::string apiUpdateProfile() {
     // 保存配置
     if(!STORAGE_MANAGER.saveConfig()) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiUpdateProfile: Failed to save configuration");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to save configuration");
     }
 
@@ -1063,6 +1080,7 @@ std::string apiUpdateProfile() {
     if (!profileDetailsJSON) {
         cJSON_Delete(dataJSON);
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiUpdateProfile: Failed to build profile JSON");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to build profile JSON");
     }
     
@@ -1072,7 +1090,7 @@ std::string apiUpdateProfile() {
     
     cJSON_Delete(params);
     
-    // printf("apiUpdateProfile response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiUpdateProfile success.");
     return response;
 }
 
@@ -1100,11 +1118,12 @@ std::string apiUpdateProfile() {
  * }
  */
 std::string apiCreateProfile() {
-    // printf("apiCreateProfile start.\n");
+    LOG_INFO("WEBAPI", "apiCreateProfile start.");
     Config& config = Storage::getInstance().config;
     cJSON* params = get_post_data();
     
     if(!params) {
+        LOG_ERROR("WEBAPI", "apiCreateProfile: Invalid parameters");
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Invalid parameters");
     }
 
@@ -1118,6 +1137,7 @@ std::string apiCreateProfile() {
 
     if(enabledCount >= config.numProfilesMax) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiCreateProfile: Maximum number of profiles reached");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Maximum number of profiles reached");
     }
 
@@ -1132,6 +1152,7 @@ std::string apiCreateProfile() {
 
     if(!targetProfile) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiCreateProfile: No available profile slot");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "No available profile slot");
     }
 
@@ -1144,12 +1165,14 @@ std::string apiCreateProfile() {
         strcpy(config.defaultProfileId, targetProfile->id); // 设置默认配置文件ID 为新创建的配置文件ID
     } else {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiCreateProfile: Profile name not provided");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Profile name not provided");
     }
 
     // 保存配置
     if(!STORAGE_MANAGER.saveConfig()) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiCreateProfile: Failed to save configuration");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to save configuration");
     }
 
@@ -1160,6 +1183,7 @@ std::string apiCreateProfile() {
     if (!profileListJSON) {
         cJSON_Delete(dataJSON);
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiCreateProfile: Failed to build profile list JSON");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to build profile list JSON");
     }
 
@@ -1169,7 +1193,7 @@ std::string apiCreateProfile() {
     
     cJSON_Delete(params);
     
-    // printf("apiCreateProfile response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiCreateProfile success.");
 
     return response;
 }
@@ -1198,11 +1222,12 @@ std::string apiCreateProfile() {
  * }
  */
 std::string apiDeleteProfile() {
-    // printf("apiDeleteProfile start.\n");    
+    LOG_INFO("WEBAPI", "apiDeleteProfile start.");    
     Config& config = Storage::getInstance().config;
     cJSON* params = get_post_data();
     
     if(!params) {
+        LOG_ERROR("WEBAPI", "apiDeleteProfile: Invalid parameters");
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Invalid parameters");
     }
 
@@ -1210,6 +1235,7 @@ std::string apiDeleteProfile() {
     cJSON* profileIdItem = cJSON_GetObjectItem(params, "profileId");
     if(!profileIdItem || !profileIdItem->valuestring) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiDeleteProfile: Profile ID not provided");
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Profile ID not provided");
     }
 
@@ -1231,12 +1257,14 @@ std::string apiDeleteProfile() {
     // 如果目标配置文件不存在，则返回错误
     if(!targetProfile) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiDeleteProfile: Profile not found");
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Profile not found");
     }
 
     // 不允许关闭最后一个启用的配置文件
     if(numEnabledProfiles <= 1) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiDeleteProfile: Cannot delete the last active profile");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Cannot delete the last active profile");
     }
 
@@ -1248,6 +1276,7 @@ std::string apiDeleteProfile() {
     GamepadProfile* tempProfile = (GamepadProfile*)malloc(sizeof(GamepadProfile));
     if(!tempProfile) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiDeleteProfile: Failed to allocate memory");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to allocate memory");
     }
     // 保存目标配置文件
@@ -1271,6 +1300,7 @@ std::string apiDeleteProfile() {
     // 保存配置
     if(!STORAGE_MANAGER.saveConfig()) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiDeleteProfile: Failed to save configuration");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to save configuration");
     }
 
@@ -1281,6 +1311,7 @@ std::string apiDeleteProfile() {
     if (!profileListJSON) {
         cJSON_Delete(dataJSON);
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiDeleteProfile: Failed to build profile list JSON");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to build profile list JSON");
     }
 
@@ -1290,7 +1321,7 @@ std::string apiDeleteProfile() {
     
     cJSON_Delete(params);
     
-    // printf("apiDeleteProfile response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiDeleteProfile success.");
 
     return response;
 }
@@ -1319,11 +1350,12 @@ std::string apiDeleteProfile() {
  * }
  */
 std::string apiSwitchDefaultProfile() {
-    // printf("apiSwitchDefaultProfile start.\n");
+    LOG_INFO("WEBAPI", "apiSwitchDefaultProfile start.");
     Config& config = Storage::getInstance().config;
     cJSON* params = get_post_data();
     
     if(!params) {
+        LOG_ERROR("WEBAPI", "apiSwitchDefaultProfile: Invalid parameters");
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Invalid parameters");
     }
 
@@ -1331,6 +1363,7 @@ std::string apiSwitchDefaultProfile() {
     cJSON* profileIdItem = cJSON_GetObjectItem(params, "profileId");
     if(!profileIdItem || !profileIdItem->valuestring) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiSwitchDefaultProfile: Profile ID not provided");
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Profile ID not provided");
     }
 
@@ -1345,12 +1378,14 @@ std::string apiSwitchDefaultProfile() {
 
     if(!targetProfile) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiSwitchDefaultProfile: Profile not found");
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Profile not found");
     }
 
     // 检查目标配置文件是否已启用
     if(!targetProfile->enabled) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiSwitchDefaultProfile: Cannot set disabled profile as default");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Cannot set disabled profile as default");
     }
 
@@ -1359,6 +1394,7 @@ std::string apiSwitchDefaultProfile() {
     // 保存配置
     if(!STORAGE_MANAGER.saveConfig()) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiSwitchDefaultProfile: Failed to save configuration");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to save configuration");
     }
 
@@ -1369,6 +1405,7 @@ std::string apiSwitchDefaultProfile() {
     if (!profileListJSON) {
         cJSON_Delete(dataJSON);
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiSwitchDefaultProfile: Failed to build profile list JSON");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to build profile list JSON");
     }
 
@@ -1378,7 +1415,7 @@ std::string apiSwitchDefaultProfile() {
     
     cJSON_Delete(params);
     
-    // printf("apiSwitchDefaultProfile response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiSwitchDefaultProfile success.");
 
     return response;
 }
@@ -1412,11 +1449,12 @@ std::string apiSwitchDefaultProfile() {
  * }
  */
 std::string apiUpdateHotkeysConfig() {
-    // printf("apiUpdateHotkeysConfig start.\n");
+    LOG_INFO("WEBAPI", "apiUpdateHotkeysConfig start.");
     Config& config = Storage::getInstance().config;
     cJSON* params = get_post_data();
     
     if(!params) {
+        LOG_ERROR("WEBAPI", "apiUpdateHotkeysConfig: Invalid parameters");
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Invalid parameters");
     }
     
@@ -1424,6 +1462,7 @@ std::string apiUpdateHotkeysConfig() {
     cJSON* hotkeysConfigArray = cJSON_GetObjectItem(params, "hotkeysConfig");
     if(!hotkeysConfigArray || !cJSON_IsArray(hotkeysConfigArray)) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiUpdateHotkeysConfig: Invalid hotkeys configuration");
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Invalid hotkeys configuration");
     }
 
@@ -1469,6 +1508,7 @@ std::string apiUpdateHotkeysConfig() {
     // 保存配置
     if(!STORAGE_MANAGER.saveConfig()) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiUpdateHotkeysConfig: Failed to save configuration");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to save configuration");
     }
 
@@ -1479,6 +1519,7 @@ std::string apiUpdateHotkeysConfig() {
     if (!hotkeysConfigJSON) {
         cJSON_Delete(dataJSON);
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiUpdateHotkeysConfig: Failed to build hotkeys config JSON");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to build hotkeys config JSON");
     }
 
@@ -1488,7 +1529,7 @@ std::string apiUpdateHotkeysConfig() {
     
     cJSON_Delete(params);
     
-    // printf("apiUpdateHotkeysConfig response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiUpdateHotkeysConfig success.");
 
     return response;
 }
@@ -1505,7 +1546,7 @@ std::string apiUpdateHotkeysConfig() {
  * }
  */
 std::string apiReboot() {
-    // printf("apiReboot start.\n");
+    LOG_INFO("WEBAPI", "apiReboot start.");
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON_AddStringToObject(dataJSON, "message", "System is rebooting");
@@ -1519,7 +1560,7 @@ std::string apiReboot() {
     
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
-    // printf("apiReboot response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiReboot success.");
     return response;
 }
 
@@ -1565,7 +1606,7 @@ cJSON* buildMappingListJSON() {
  * }
  */
 std::string apiMSGetList() {
-    APP_DBG("apiMSGetList: start");
+    LOG_INFO("WEBAPI", "apiMSGetList start.");
 
     cJSON* dataJSON = cJSON_CreateObject();
     // 添加映射列表到响应数据
@@ -1575,6 +1616,7 @@ std::string apiMSGetList() {
     
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    LOG_INFO("WEBAPI", "apiMSGetList success.");
     return response;
 }
 
@@ -1601,7 +1643,6 @@ std::string apiMSGetList() {
  * }
  */
 std::string apiMSGetMarkStatus() {
-    // printf("apiMSGetMarkStatus start.\n");
     
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
@@ -1614,7 +1655,6 @@ std::string apiMSGetMarkStatus() {
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
     
-    // printf("apiMSGetMarkStatus response: %s\n", response.c_str());
     return response;
 }
 
@@ -1635,11 +1675,12 @@ std::string apiMSGetMarkStatus() {
  * }
  */
 std::string apiMSSetDefault() {
-    // printf("apiMSSetDefault start.\n");
+    LOG_INFO("WEBAPI", "apiMSSetDefault start.");
     
     // 解析请求参数
     cJSON* params = cJSON_Parse(http_post_payload);
     if (!params) {
+        LOG_ERROR("WEBAPI", "apiMSSetDefault: Invalid request parameters");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Invalid request parameters");
     }
     
@@ -1647,6 +1688,7 @@ std::string apiMSSetDefault() {
     cJSON* idJSON = cJSON_GetObjectItem(params, "id");
     if (!idJSON || !cJSON_IsString(idJSON)) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiMSSetDefault: Missing or invalid mapping id");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Missing or invalid mapping id");
     }
     
@@ -1656,6 +1698,7 @@ std::string apiMSSetDefault() {
     ADCBtnsError error = ADC_MANAGER.setDefaultMapping(mappingId);
     if(error != ADCBtnsError::SUCCESS) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiMSSetDefault: Failed to set default mapping");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to set default mapping");
     }
     
@@ -1668,8 +1711,7 @@ std::string apiMSSetDefault() {
     
     cJSON_Delete(params);
 
-
-    // printf("apiMSSetDefault response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiMSSetDefault success.");
     return response;
 }
 
@@ -1690,7 +1732,7 @@ std::string apiMSSetDefault() {
  * }
  */
 std::string apiMSGetDefault() {
-    // printf("apiMSGetDefault start.\n");
+    LOG_INFO("WEBAPI", "apiMSGetDefault start.");
     
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
@@ -1706,7 +1748,7 @@ std::string apiMSGetDefault() {
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
     
-    // printf("apiMSGetDefault response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiMSGetDefault success.");
     return response;
 }
 
@@ -1727,11 +1769,12 @@ std::string apiMSGetDefault() {
  * }
  */
 std::string apiMSCreateMapping() {
-    // printf("apiMSCreateMapping start.\n");
+    LOG_INFO("WEBAPI", "apiMSCreateMapping start.");
     
     // 解析请求参数
     cJSON* params = cJSON_Parse(http_post_payload);
     if (!params) {
+        LOG_ERROR("WEBAPI", "apiMSCreateMapping: Invalid request parameters");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Invalid request parameters");
     }
     
@@ -1739,6 +1782,7 @@ std::string apiMSCreateMapping() {
     cJSON* nameJSON = cJSON_GetObjectItem(params, "name");
     if (!nameJSON || !cJSON_IsString(nameJSON)) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiMSCreateMapping: Missing or invalid mapping name");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Missing or invalid mapping name");
     }
     
@@ -1746,6 +1790,7 @@ std::string apiMSCreateMapping() {
     cJSON* lengthJSON = cJSON_GetObjectItem(params, "length");
     if (!lengthJSON || !cJSON_IsNumber(lengthJSON)) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiMSCreateMapping: Missing or invalid mapping length");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Missing or invalid mapping length");
     }
     
@@ -1753,6 +1798,7 @@ std::string apiMSCreateMapping() {
     cJSON* stepJSON = cJSON_GetObjectItem(params, "step");
     if (!stepJSON || !cJSON_IsNumber(stepJSON)) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiMSCreateMapping: Missing or invalid mapping step");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Missing or invalid mapping step");
     }
     
@@ -1763,10 +1809,10 @@ std::string apiMSCreateMapping() {
     // 创建映射
     ADCBtnsError error = ADC_MANAGER.createADCMapping(mappingName, length, step);
 
-    // printf("apiMSCreateMapping error: %d\n", error);
 
     if(error != ADCBtnsError::SUCCESS) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiMSCreateMapping: Failed to create mapping");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to create mapping");
     }
     
@@ -1780,7 +1826,7 @@ std::string apiMSCreateMapping() {
     
     cJSON_Delete(params);
     
-    // printf("apiMSCreateMapping response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiMSCreateMapping success.");
     return response;
 }
 
@@ -1801,11 +1847,12 @@ std::string apiMSCreateMapping() {
  * }
  */
 std::string apiMSDeleteMapping() {
-    // printf("apiMSDeleteMapping start.\n");
+    LOG_INFO("WEBAPI", "apiMSDeleteMapping start.");
     
     // 解析请求参数
     cJSON* params = cJSON_Parse(http_post_payload);
     if (!params) {
+        LOG_ERROR("WEBAPI", "apiMSDeleteMapping: Invalid request parameters");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Invalid request parameters");
     }
     
@@ -1813,6 +1860,7 @@ std::string apiMSDeleteMapping() {
     cJSON* idJSON = cJSON_GetObjectItem(params, "id");
     if (!idJSON || !cJSON_IsString(idJSON)) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiMSDeleteMapping: Missing or invalid mapping id");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Missing or invalid mapping id");
     }
     
@@ -1822,6 +1870,7 @@ std::string apiMSDeleteMapping() {
     ADCBtnsError error = ADC_MANAGER.removeADCMapping(mappingId);
     if(error != ADCBtnsError::SUCCESS) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiMSDeleteMapping: Failed to delete mapping");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to delete mapping");
     }
     
@@ -1835,7 +1884,7 @@ std::string apiMSDeleteMapping() {
     
     cJSON_Delete(params);
     
-    // printf("apiMSDeleteMapping response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiMSDeleteMapping success.");
     return response;
 }
 
@@ -1844,9 +1893,11 @@ std::string apiMSDeleteMapping() {
  * @return std::string 
  */
 std::string apiMSRenameMapping() {
+    LOG_INFO("WEBAPI", "apiMSRenameMapping start.");
     // 解析请求参数
     cJSON* params = cJSON_Parse(http_post_payload);
     if (!params) {
+        LOG_ERROR("WEBAPI", "apiMSRenameMapping: Invalid request parameters");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Invalid request parameters");
     }
 
@@ -1854,6 +1905,7 @@ std::string apiMSRenameMapping() {
     cJSON* idJSON = cJSON_GetObjectItem(params, "id");
     if (!idJSON || !cJSON_IsString(idJSON)) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiMSRenameMapping: Missing or invalid mapping id");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Missing or invalid mapping id");
     }
 
@@ -1861,6 +1913,7 @@ std::string apiMSRenameMapping() {
     cJSON* nameJSON = cJSON_GetObjectItem(params, "name");
     if (!nameJSON || !cJSON_IsString(nameJSON)) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiMSRenameMapping: Missing or invalid mapping name");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Missing or invalid mapping name");
     }
 
@@ -1871,6 +1924,7 @@ std::string apiMSRenameMapping() {
     ADCBtnsError error = ADC_MANAGER.renameADCMapping(mappingId, mappingName);
     if(error != ADCBtnsError::SUCCESS) {   
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiMSRenameMapping: Failed to rename mapping");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to rename mapping");
     }
 
@@ -1884,7 +1938,7 @@ std::string apiMSRenameMapping() {
     
     cJSON_Delete(params);
     
-    // printf("apiMSRenameMapping response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiMSRenameMapping success.");
     return response;
 }
 
@@ -1900,11 +1954,12 @@ std::string apiMSRenameMapping() {
  * }
  */
 std::string apiMSMarkMappingStart() {
-    // printf("apiMSMarkMappingStart start.\n");
+    LOG_INFO("WEBAPI", "apiMSMarkMappingStart start.");
     
     // 解析请求参数
     cJSON* params = cJSON_Parse(http_post_payload);
     if (!params) {
+        LOG_ERROR("WEBAPI", "apiMSMarkMappingStart: Invalid request parameters");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Invalid request parameters");
     }
     
@@ -1912,6 +1967,7 @@ std::string apiMSMarkMappingStart() {
     cJSON* idJSON = cJSON_GetObjectItem(params, "id");
     if (!idJSON || !cJSON_IsString(idJSON)) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiMSMarkMappingStart: Missing or invalid mapping id");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Missing or invalid mapping id");
     }
     
@@ -1921,6 +1977,7 @@ std::string apiMSMarkMappingStart() {
     ADCBtnsError error = ADC_BTNS_MARKER.setup(mappingId);
     if(error != ADCBtnsError::SUCCESS) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiMSMarkMappingStart: Failed to start marking");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to start marking");
     }
     
@@ -1934,7 +1991,7 @@ std::string apiMSMarkMappingStart() {
     
     cJSON_Delete(params);
     
-    // printf("apiMSMarkMappingStart response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiMSMarkMappingStart success.");
     return response;
 }
 
@@ -1949,7 +2006,7 @@ std::string apiMSMarkMappingStart() {
  * }
  */
 std::string apiMSMarkMappingStop() {
-    // printf("apiMSMarkMappingStop start.\n");
+    LOG_INFO("WEBAPI", "apiMSMarkMappingStop start.");
     
     // 停止标记
     ADC_BTNS_MARKER.reset();
@@ -1962,7 +2019,7 @@ std::string apiMSMarkMappingStop() {
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
     
-    // printf("apiMSMarkMappingStop response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiMSMarkMappingStop success.");
     return response;
 }
 
@@ -1998,20 +2055,24 @@ std::string apiMSMarkMappingStep() {
  * @return std::string 
  */
 std::string apiMSGetMapping() {
+    LOG_INFO("WEBAPI", "apiMSGetMapping start.");
     cJSON* params = cJSON_Parse(http_post_payload);
     if (!params) {
+        LOG_ERROR("WEBAPI", "apiMSGetMapping: Invalid request parameters");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Invalid request parameters");
     }
 
     cJSON* idJSON = cJSON_GetObjectItem(params, "id");
     if (!idJSON || !cJSON_IsString(idJSON)) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiMSGetMapping: Missing or invalid mapping id");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Missing or invalid mapping id");
     }
 
     const ADCValuesMapping* resultMapping = ADC_MANAGER.getMapping(idJSON->valuestring);
     if (!resultMapping) {
         cJSON_Delete(params);
+        LOG_ERROR("WEBAPI", "apiMSGetMapping: Failed to get mapping");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to get mapping");
     }
 
@@ -2036,7 +2097,7 @@ std::string apiMSGetMapping() {
 
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
 
-    // printf("apiMSGetMapping response: %s\n", response.c_str());
+    LOG_INFO("WEBAPI", "apiMSGetMapping success.");
 
     return response;
 }
@@ -2056,6 +2117,9 @@ std::string apiMSGetMapping() {
  * }
  */
 std::string apiGetGlobalConfig() {
+
+    LOG_INFO("WEBAPI", "apiGetGlobalConfig start.");
+
     Config& config = Storage::getInstance().config;
     
     // 创建返回数据结构
@@ -2082,6 +2146,8 @@ std::string apiGetGlobalConfig() {
     // 生成返回字符串
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
     
+    LOG_INFO("WEBAPI", "apiGetGlobalConfig success.");
+
     return response;
 }
 
@@ -2100,10 +2166,12 @@ std::string apiGetGlobalConfig() {
  * }
  */
 std::string apiUpdateGlobalConfig() {
+    LOG_INFO("WEBAPI", "apiUpdateGlobalConfig start.");
     Config& config = Storage::getInstance().config;
     cJSON* params = get_post_data();
     
     if(!params) {
+        LOG_ERROR("WEBAPI", "apiUpdateGlobalConfig: Invalid parameters");
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Invalid parameters");
     }
 
@@ -2132,6 +2200,7 @@ std::string apiUpdateGlobalConfig() {
 
     // 保存配置
     if(!STORAGE_MANAGER.saveConfig()) {
+        LOG_ERROR("WEBAPI", "apiUpdateGlobalConfig: Failed to save configuration");
         cJSON_Delete(params);
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to save configuration");
     }
@@ -2161,7 +2230,9 @@ std::string apiUpdateGlobalConfig() {
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
     
     cJSON_Delete(params);
-    
+
+    LOG_INFO("WEBAPI", "apiUpdateGlobalConfig success.");
+
     return response;
 }
 
@@ -2182,10 +2253,12 @@ std::string apiUpdateGlobalConfig() {
  * }
  */
 std::string apiStartManualCalibration() {
+    LOG_INFO("WEBAPI", "apiStartManualCalibration start.");
     // 开始手动校准
     // 初始化ADC管理器
     ADCBtnsError error = ADC_CALIBRATION_MANAGER.startManualCalibration();
     if(error != ADCBtnsError::SUCCESS) {
+        LOG_ERROR("WEBAPI", "apiStartManualCalibration: Failed to start manual calibration");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to start manual calibration");
     }
     
@@ -2204,6 +2277,8 @@ std::string apiStartManualCalibration() {
     
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+
+    LOG_INFO("WEBAPI", "apiStartManualCalibration success.");
     
     return response;
 }
@@ -2225,10 +2300,12 @@ std::string apiStartManualCalibration() {
  * }
  */
 std::string apiStopManualCalibration() {
+    LOG_INFO("WEBAPI", "apiStopManualCalibration start.");
     // 停止手动校准
     ADCBtnsError error = ADC_CALIBRATION_MANAGER.stopCalibration();
     
     if(error != ADCBtnsError::SUCCESS) {
+        LOG_ERROR("WEBAPI", "apiStopManualCalibration: Failed to stop manual calibration");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to stop manual calibration");
     }
     
@@ -2247,6 +2324,8 @@ std::string apiStopManualCalibration() {
     
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+
+    LOG_INFO("WEBAPI", "apiStopManualCalibration success.");
     
     return response;
 }
@@ -2365,9 +2444,11 @@ std::string apiGetCalibrationStatus() {
  * }
  */
 std::string apiClearManualCalibrationData() {
+    LOG_INFO("WEBAPI", "apiClearManualCalibrationData start.");
     // 清除所有手动校准数据
     ADCBtnsError error = ADC_CALIBRATION_MANAGER.resetAllCalibration();
     if(error != ADCBtnsError::SUCCESS) {
+        LOG_ERROR("WEBAPI", "apiClearManualCalibrationData: Failed to clear manual calibration data");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to clear manual calibration data");
     }
     
@@ -2386,7 +2467,9 @@ std::string apiClearManualCalibrationData() {
     
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
-    
+
+    LOG_INFO("WEBAPI", "apiClearManualCalibrationData success.");
+
     return response;
 }
 
@@ -2713,12 +2796,14 @@ std::string apiClearLedsPreview() {
  * }
  */
 std::string apiFirmwareMetadata() {
+    LOG_INFO("WEBAPI", "apiFirmwareMetadata start.");
     FirmwareManager* manager = FirmwareManager::GetInstance();
     if (!manager) {
         cJSON* dataJSON = cJSON_CreateObject();
         if (dataJSON) {
             cJSON_AddStringToObject(dataJSON, "error", "Firmware manager not initialized");
         }
+        LOG_ERROR("WEBAPI", "apiFirmwareMetadata: Firmware manager not initialized");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
     }
 
@@ -2728,6 +2813,7 @@ std::string apiFirmwareMetadata() {
         if (dataJSON) {
             cJSON_AddStringToObject(dataJSON, "error", "Failed to get firmware metadata");
         }
+        LOG_ERROR("WEBAPI", "apiFirmwareMetadata: Failed to get firmware metadata");
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
     }
 
@@ -2758,8 +2844,10 @@ std::string apiFirmwareMetadata() {
             }
             cJSON_AddItemToObject(dataJSON, "components", componentsArray);
         }
+        LOG_INFO("WEBAPI", "apiFirmwareMetadata: %s", cJSON_PrintUnformatted(dataJSON));
     }
 
+    LOG_INFO("WEBAPI", "apiFirmwareMetadata success.");
     return get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
 }
 
@@ -3046,10 +3134,12 @@ uint8_t* extract_multipart_binary_data(const char* http_post_payload,
  * 支持的action: create, complete, abort, status
  */
 std::string apiFirmwareUpgrade() {
+    LOG_INFO("WEBAPI", "apiFirmwareUpgrade start.");
     cJSON* postParams = get_post_data();
     if (!postParams) {
         cJSON* dataJSON = cJSON_CreateObject();
         std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Invalid JSON data");
+        LOG_ERROR("WEBAPI", "apiFirmwareUpgrade: Invalid JSON data");
         return response;
     }
 
@@ -3058,6 +3148,7 @@ std::string apiFirmwareUpgrade() {
         cJSON_Delete(postParams);
         cJSON* dataJSON = cJSON_CreateObject();
         std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Failed to get firmware manager instance");
+        LOG_ERROR("WEBAPI", "apiFirmwareUpgrade: Failed to get firmware manager instance");
         return response;
     }
 
@@ -3069,6 +3160,7 @@ std::string apiFirmwareUpgrade() {
         cJSON_Delete(postParams);
         cJSON* dataJSON = cJSON_CreateObject();
         std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Missing required parameters");
+        LOG_ERROR("WEBAPI", "apiFirmwareUpgrade: Missing required parameters");
         return response;
     }
 
@@ -3084,6 +3176,7 @@ std::string apiFirmwareUpgrade() {
         if (!manifestItem) {
             cJSON_Delete(postParams);
             std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Manifest required for create action");
+            LOG_ERROR("WEBAPI", "apiFirmwareUpgrade: Manifest required for create action");
             return response;
         }
         
@@ -3168,7 +3261,7 @@ std::string apiFirmwareUpgrade() {
         if (!success) {
             // 添加更详细的错误信息
             cJSON_AddStringToObject(dataJSON, "error", "Failed to create upgrade session. This may be due to an existing active session. Please try again or abort any existing sessions.");
-            APP_ERR("FirmwareManager::apiFirmwareUpgrade: CreateUpgradeSession failed for session %s", sessionId);
+            LOG_ERROR("WEBAPI", "apiFirmwareUpgrade: CreateUpgradeSession failed for session %s", sessionId);
         }
     } else if (strcmp(action, "status") == 0) {
         // 获取升级状态
@@ -3176,6 +3269,7 @@ std::string apiFirmwareUpgrade() {
         // 如果progress为0且没有活动会话，说明会话不存在
         if (progress == 0) {
             cJSON_AddStringToObject(dataJSON, "error", "Session not found");
+            LOG_ERROR("WEBAPI", "apiFirmwareUpgrade: Session not found for session %s", sessionId);
         } else {
             cJSON_AddStringToObject(dataJSON, "session_id", sessionId);
             cJSON_AddNumberToObject(dataJSON, "progress", progress);
@@ -3185,11 +3279,13 @@ std::string apiFirmwareUpgrade() {
     } else {
         cJSON_Delete(postParams);
         std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Invalid action");
+        LOG_ERROR("WEBAPI", "apiFirmwareUpgrade: Invalid action");
         return response;
     }
 
     cJSON_Delete(postParams);
     std::string response = get_response_temp(success ? STORAGE_ERROR_NO::ACTION_SUCCESS : STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
+    LOG_INFO("WEBAPI", "apiFirmwareUpgrade success.");
     return response;
 }
 
@@ -3393,10 +3489,12 @@ std::string apiFirmwareChunk() {
  * }
  */
 std::string apiFirmwareUpgradeComplete() {
+    LOG_INFO("WEBAPI", "apiFirmwareUpgradeComplete start.");
     cJSON* postParams = get_post_data();
     if (!postParams) {
         cJSON* dataJSON = cJSON_CreateObject();
         std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Invalid JSON data");
+        LOG_ERROR("WEBAPI", "apiFirmwareUpgradeComplete: Invalid JSON data");
         return response;
     }
 
@@ -3405,6 +3503,7 @@ std::string apiFirmwareUpgradeComplete() {
         cJSON_Delete(postParams);
         cJSON* dataJSON = cJSON_CreateObject();
         std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Failed to get firmware manager instance");
+        LOG_ERROR("WEBAPI", "apiFirmwareUpgradeComplete: Failed to get firmware manager instance");
         return response;
     }
 
@@ -3413,6 +3512,7 @@ std::string apiFirmwareUpgradeComplete() {
         cJSON_Delete(postParams);
         cJSON* dataJSON = cJSON_CreateObject();
         std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Missing session ID");
+        LOG_ERROR("WEBAPI", "apiFirmwareUpgradeComplete: Missing session ID");
         return response;
     }
     
@@ -3426,6 +3526,7 @@ std::string apiFirmwareUpgradeComplete() {
     if (!success) {
         cJSON* dataJSON = cJSON_CreateObject();
         std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Failed to complete upgrade session");
+        LOG_ERROR("WEBAPI", "apiFirmwareUpgradeComplete: Failed to complete upgrade session");
         return response;
     }
 
@@ -3434,6 +3535,8 @@ std::string apiFirmwareUpgradeComplete() {
     cJSON_AddStringToObject(dataJSON, "message", "Firmware upgrade completed successfully. System will restart in 2 seconds.");
     
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+
+    LOG_INFO("WEBAPI", "apiFirmwareUpgradeComplete success.");
 
     // 设置需要重启 2秒后重启
     rebootTick = HAL_GetTick() + 2000;
@@ -3459,10 +3562,12 @@ std::string apiFirmwareUpgradeComplete() {
  * }
  */
 std::string apiFirmwareUpgradeAbort() {
+    LOG_INFO("WEBAPI", "apiFirmwareUpgradeAbort start.");
     cJSON* postParams = get_post_data();
     if (!postParams) {
         cJSON* dataJSON = cJSON_CreateObject();
         std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Invalid JSON data");
+        LOG_ERROR("WEBAPI", "apiFirmwareUpgradeAbort: Invalid JSON data");
         return response;
     }
 
@@ -3471,6 +3576,7 @@ std::string apiFirmwareUpgradeAbort() {
         cJSON_Delete(postParams);
         cJSON* dataJSON = cJSON_CreateObject();
         std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Failed to get firmware manager instance");
+        LOG_ERROR("WEBAPI", "apiFirmwareUpgradeAbort: Failed to get firmware manager instance");
         return response;
     }
 
@@ -3479,6 +3585,7 @@ std::string apiFirmwareUpgradeAbort() {
         cJSON_Delete(postParams);
         cJSON* dataJSON = cJSON_CreateObject();
         std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Missing session ID");
+        LOG_ERROR("WEBAPI", "apiFirmwareUpgradeAbort: Missing session ID");
         return response;
     }
     
@@ -3492,6 +3599,7 @@ std::string apiFirmwareUpgradeAbort() {
     if (!success) {
         cJSON* dataJSON = cJSON_CreateObject();
         std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Failed to abort upgrade session");
+        LOG_ERROR("WEBAPI", "apiFirmwareUpgradeAbort: Failed to abort upgrade session");
         return response;
     }
 
@@ -3500,6 +3608,9 @@ std::string apiFirmwareUpgradeAbort() {
     cJSON_AddStringToObject(dataJSON, "message", "Firmware upgrade session aborted successfully");
     
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+
+    LOG_INFO("WEBAPI", "apiFirmwareUpgradeAbort success.");
+
     return response;
 
 }
@@ -3580,10 +3691,12 @@ std::string apiFirmwareUpgradeStatus() {
  * }
  */
 std::string apiFirmwareUpgradeCleanup() {
+    LOG_INFO("WEBAPI", "apiFirmwareUpgradeCleanup start.");
     FirmwareManager* manager = FirmwareManager::GetInstance();
     if (!manager) {
         cJSON* dataJSON = cJSON_CreateObject();
         std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON, "Failed to get firmware manager instance");
+        LOG_ERROR("WEBAPI", "apiFirmwareUpgradeCleanup: Failed to get firmware manager instance");
         return response;
     }
 
