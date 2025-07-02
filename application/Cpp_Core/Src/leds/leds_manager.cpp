@@ -608,6 +608,89 @@ void LEDsManager::updateAroundLedColors()
     // 独立模式下更新环绕灯
     processAroundLedAnimation();
 }
+
+/**
+ * @brief 切换到下一个环绕灯效果
+ */
+void LEDsManager::aroundLedEffectStyleNext() {
+    opts->aroundLedEffect = static_cast<AroundLEDEffect>((opts->aroundLedEffect + 1) % AroundLEDEffect::NUM_AROUND_LED_EFFECTS);
+    
+    // 只有在使用默认配置时才保存到存储
+    if (!usingTemporaryConfig) {
+        STORAGE_MANAGER.saveConfig();
+    }
+    
+    deinit();
+    setup();
+}
+
+/**
+ * @brief 切换到上一个环绕灯效果
+ */
+void LEDsManager::aroundLedEffectStylePrev() {
+    opts->aroundLedEffect = static_cast<AroundLEDEffect>((opts->aroundLedEffect - 1 + AroundLEDEffect::NUM_AROUND_LED_EFFECTS) % AroundLEDEffect::NUM_AROUND_LED_EFFECTS);
+    
+    // 只有在使用默认配置时才保存到存储
+    if (!usingTemporaryConfig) {
+        STORAGE_MANAGER.saveConfig();
+    }
+    
+    deinit();
+    setup();
+}
+
+/**
+ * @brief 增加环绕灯亮度
+ */
+void LEDsManager::aroundLedBrightnessUp() {
+    if(opts->aroundLedBrightness == 100) {
+        return;
+    } else {
+        opts->aroundLedBrightness = std::min((int)opts->aroundLedBrightness + 10, 100); // 增加10%
+        
+        // 只有在使用默认配置时才保存到存储
+        if (!usingTemporaryConfig) {
+            STORAGE_MANAGER.saveConfig();
+        }
+        
+        deinit();
+        setup();
+    }
+}
+
+/**
+ * @brief 减少环绕灯亮度
+ */
+void LEDsManager::aroundLedBrightnessDown() {
+    if(opts->aroundLedBrightness == 0) {
+        return;
+    } else {
+        opts->aroundLedBrightness = std::max((int)opts->aroundLedBrightness - 10, 0); // 减少10%
+        
+        // 只有在使用默认配置时才保存到存储
+        if (!usingTemporaryConfig) {
+            STORAGE_MANAGER.saveConfig();
+        }
+        
+        deinit();
+        setup();
+    }
+}
+
+/**
+ * @brief 切换环绕灯开关状态
+ */
+void LEDsManager::aroundLedEnableSwitch() {
+    opts->aroundLedEnabled = !opts->aroundLedEnabled;
+    
+    // 只有在使用默认配置时才保存到存储
+    if (!usingTemporaryConfig) {
+        STORAGE_MANAGER.saveConfig();
+    }
+    
+    deinit();
+    setup();
+}
 #endif
 
 

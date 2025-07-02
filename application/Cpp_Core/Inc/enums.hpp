@@ -95,6 +95,12 @@ enum GamepadHotkey
     HOTKEY_INPUT_MODE_PS5,              // 切换到PS5模式
     HOTKEY_INPUT_MODE_SWITCH,           // 切换到Switch模式
     HOTKEY_SYSTEM_REBOOT,               // 重启系统
+
+    HOTKEY_AROUND_LED_ENABLE_SWITCH, // 切换氛围灯 开关
+    HOTKEY_AROUND_LED_EFFECTSTYLE_NEXT, // 切换氛围灯效果
+    HOTKEY_AROUND_LED_EFFECTSTYLE_PREV, // 切换氛围灯效果
+    HOTKEY_AROUND_LED_BRIGHTNESS_UP,   // 增加氛围灯亮度
+    HOTKEY_AROUND_LED_BRIGHTNESS_DOWN, // 减少氛围灯亮度
 };
 
 enum ADCButtonManagerState

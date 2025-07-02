@@ -28,6 +28,15 @@ class LEDsManager {
         void brightnessUp();
         void brightnessDown();
         void enableSwitch();
+
+#if HAS_LED_AROUND
+        void aroundLedEffectStyleNext();
+        void aroundLedEffectStylePrev();
+        void aroundLedBrightnessUp();
+        void aroundLedBrightnessDown();
+        void aroundLedEnableSwitch();
+#endif
+
         void setBrightness(uint8_t brightness);
         
         // 配置管理函数

@@ -1,4 +1,5 @@
 #include "hotkeys_manager.hpp"
+#include "system_logger.h"
 
 HotkeysManager::HotkeysManager() : hotkeys(STORAGE_MANAGER.getGamepadHotkeyEntry()) {
     // 初始化所有热键状态
@@ -74,6 +75,7 @@ void HotkeysManager::resetHotkeyState(int index) {
 }
 
 void HotkeysManager::runAction(GamepadHotkey hotkeyAction) {
+    LOG_INFO("HOTKEYS", "runAction: %d", hotkeyAction);
     switch (hotkeyAction) {
         case GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT:
             LEDS_MANAGER.effectStyleNext();
@@ -127,6 +129,21 @@ void HotkeysManager::runAction(GamepadHotkey hotkeyAction) {
             break;
         case GamepadHotkey::HOTKEY_SYSTEM_REBOOT:
             rebootSystem();
+            break;
+        case GamepadHotkey::HOTKEY_AROUND_LED_ENABLE_SWITCH:
+            LEDS_MANAGER.enableSwitch();
+            break;
+        case GamepadHotkey::HOTKEY_AROUND_LED_EFFECTSTYLE_NEXT:
+            LEDS_MANAGER.effectStyleNext();
+            break;
+        case GamepadHotkey::HOTKEY_AROUND_LED_EFFECTSTYLE_PREV:
+            LEDS_MANAGER.effectStylePrev();
+            break;
+        case GamepadHotkey::HOTKEY_AROUND_LED_BRIGHTNESS_UP:
+            LEDS_MANAGER.brightnessUp();
+            break;
+        case GamepadHotkey::HOTKEY_AROUND_LED_BRIGHTNESS_DOWN:
+            LEDS_MANAGER.brightnessDown();
             break;
         default:
             break;
