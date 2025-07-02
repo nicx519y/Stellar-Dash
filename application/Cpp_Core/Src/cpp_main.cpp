@@ -16,6 +16,9 @@
 extern "C" {
     int cpp_main(void) 
     {   
+        // Logger_ClearFlash();
+        Logger_PrintAllLogs(printf);
+
         LOG_INFO("CPP_MAIN", "C++ main application startup ...");
 
         // 注释掉原有的状态机启动，用于手动校准测试

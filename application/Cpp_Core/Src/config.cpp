@@ -139,6 +139,26 @@ bool ConfigUtils::load(Config& config)
                 config.hotkeys[m].virtualPin = 13;
             } else if(m == 6) {
                 config.hotkeys[m].isLocked = false;
+                config.hotkeys[m].action = GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_NEXT;
+                config.hotkeys[m].isHold = false;
+                config.hotkeys[m].virtualPin = 12;
+            } else if(m == 7) {
+                config.hotkeys[m].isLocked = false;
+                config.hotkeys[m].action = GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_PREV;
+                config.hotkeys[m].isHold = false;
+                config.hotkeys[m].virtualPin = 11;
+            } else if(m == 8) {
+                config.hotkeys[m].isLocked = false;
+                config.hotkeys[m].action = GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_UP;
+                config.hotkeys[m].isHold = false;
+                config.hotkeys[m].virtualPin = 9;
+            } else if(m == 9) {
+                config.hotkeys[m].isLocked = false;
+                config.hotkeys[m].action = GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_DOWN;
+                config.hotkeys[m].isHold = false;
+                config.hotkeys[m].virtualPin = 8;
+            } else if(m == 10) {
+                config.hotkeys[m].isLocked = false;
                 config.hotkeys[m].action = GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH;
                 config.hotkeys[m].isHold = true;
                 config.hotkeys[m].virtualPin = 0;

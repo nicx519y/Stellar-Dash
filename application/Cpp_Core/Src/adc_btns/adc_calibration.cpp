@@ -666,7 +666,7 @@ void ADCCalibrationManager::updateButtonLED(uint8_t buttonIndex, CalibrationLEDC
     
     // 设置LED颜色和亮度
     WS2812B_SetLEDColor(red, green, blue, buttonIndex);
-    WS2812B_SetLEDBrightness(brightness, buttonIndex);
+    WS2812B_SetLEDBrightness_Single(brightness, buttonIndex);
     
 }
 

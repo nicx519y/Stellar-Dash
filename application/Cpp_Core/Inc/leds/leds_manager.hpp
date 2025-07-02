@@ -37,7 +37,8 @@ class LEDsManager {
         void ambientLightEnableSwitch();
 #endif
 
-        void setBrightness(uint8_t brightness);
+        void setLedsBrightness(uint8_t brightness);
+        void setAmbientLightBrightness(uint8_t brightness);
         
         // 配置管理函数
         void setTemporaryConfig(const LEDProfile& tempConfig);
@@ -45,8 +46,8 @@ class LEDsManager {
         bool isUsingTemporaryConfig() const;
         
         // 测试函数
-        void testAnimation(LEDEffect effect, float progress = 0.5f, uint32_t buttonMask = 0);
-        void previewAnimation(LEDEffect effect, uint32_t duration = 5000);
+        // void testAnimation(LEDEffect effect, float progress = 0.5f, uint32_t buttonMask = 0);
+        // void previewAnimation(LEDEffect effect, uint32_t duration = 5000);
     private:
         LEDsManager();
         uint32_t t;
@@ -58,7 +59,6 @@ class LEDsManager {
         RGBColor backgroundColor1;
         RGBColor backgroundColor2;
         RGBColor defaultBackColor;
-        uint8_t brightness;
         uint32_t lastBreathTime = 0;
         uint8_t breathBrightness = 0;
         

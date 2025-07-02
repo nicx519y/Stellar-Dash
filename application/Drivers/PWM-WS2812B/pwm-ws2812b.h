@@ -33,7 +33,10 @@ void WS2812B_SetAllLEDBrightness(const uint8_t brightness);
 
 void WS2812B_SetAllLEDColor(const uint8_t r, const uint8_t g, const uint8_t b);
 
-void WS2812B_SetLEDBrightness(const uint8_t brightness, const uint16_t index);
+void WS2812B_SetLEDBrightness(const uint8_t brightness, const uint16_t index, const uint8_t length);
+
+// 便捷宏：当只需要设置单个LED亮度时
+#define WS2812B_SetLEDBrightness_Single(brightness, index) WS2812B_SetLEDBrightness(brightness, index, 1)
 
 void WS2812B_SetLEDColor(const uint8_t r, const uint8_t g, const uint8_t b, const uint16_t index);
 

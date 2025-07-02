@@ -222,11 +222,16 @@ void WS2812B_SetAllLEDColor(const uint8_t r, const uint8_t g, const uint8_t b)
 	clearDCache(LED_Colors, sizeof(LED_Colors));
 }
 
-void WS2812B_SetLEDBrightness(const uint8_t brightness, const uint16_t index)
+void WS2812B_SetLEDBrightness(const uint8_t brightness, const uint16_t index, const uint8_t length)
 {
 	if(index < NUM_LED) {
-		LED_Brightness[index] = brightness;
-		clearDCache(&LED_Brightness[index], sizeof(uint8_t));
+		// 确保不会超出数组边界
+		uint8_t actualLength = (index + length > NUM_LED) ? (NUM_LED - index) : length;
+
+		memset(&LED_Brightness[index], brightness, actualLength * sizeof(uint8_t));
+		
+		// 清除缓存
+		clearDCache(&LED_Brightness[index], actualLength * sizeof(uint8_t));
 	}
 }
 

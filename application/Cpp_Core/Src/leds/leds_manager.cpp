@@ -40,15 +40,16 @@ LEDsManager::LEDsManager()
 void LEDsManager::setup()
 {
     WS2812B_Init();
-    WS2812B_Start();
+
+    WS2812B_SetAllLEDBrightness(0);
+    WS2812B_SetAllLEDColor(0, 0, 0);
 
     if(!opts->ledEnabled) {
-        WS2812B_SetAllLEDBrightness(0);
-        WS2812B_SetAllLEDColor(0, 0, 0);
+        WS2812B_Stop();
     } else {
+        WS2812B_Start();
         // 设置初始亮度
-        setBrightness(opts->ledBrightness);
-
+        setLedsBrightness(opts->ledBrightness);
         // 更新颜色配置
         updateColorsFromConfig();
 
@@ -60,30 +61,32 @@ void LEDsManager::setup()
             WS2812B_SetAllLEDColor(backgroundColor1.r, backgroundColor1.g, backgroundColor1.b);
             WS2812B_SetAllLEDBrightness(opts->ledBrightness);
         }
-    }
-    
-#if HAS_LED_AROUND
-    // 初始化环绕灯
-    aroundLedAnimationStartTime = HAL_GetTick();
-    
-    // 根据配置设置环绕灯
-    if (!opts->aroundLedEnabled) {
-        // 环绕灯关闭，设置为黑色
-        for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
-            WS2812B_SetLEDColor(0, 0, 0, i);
-            WS2812B_SetLEDBrightness(0, i);
-        }
-    } else {
-        // 环绕灯开启，设置初始状态
-        if (opts->aroundLedEffect == AroundLEDEffect::AROUND_STATIC) {
-            RGBColor aroundColor = hexToRGB(opts->aroundLedColor1);
+
+    #if HAS_LED_AROUND
+        // 初始化环绕灯
+        aroundLedAnimationStartTime = HAL_GetTick();
+        
+        // 根据配置设置环绕灯
+        if (!opts->aroundLedEnabled) {
+            // 环绕灯关闭，设置为黑色
             for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
-                WS2812B_SetLEDColor(aroundColor.r, aroundColor.g, aroundColor.b, i);
-                WS2812B_SetLEDBrightness(opts->aroundLedBrightness, i);
+                WS2812B_SetLEDColor(0, 0, 0, i);
+            }
+            setAmbientLightBrightness(0);
+        } else {
+            // 环绕灯开启，设置初始状态
+            if (opts->aroundLedEffect == AroundLEDEffect::AROUND_STATIC) {
+                RGBColor aroundColor = hexToRGB(opts->aroundLedColor1);
+                for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
+                    WS2812B_SetLEDColor(aroundColor.r, aroundColor.g, aroundColor.b, i);
+                }
+                setAmbientLightBrightness(opts->aroundLedBrightness);
             }
         }
+    #endif
+
     }
-#endif
+
 }
 
 /**
@@ -116,7 +119,6 @@ void LEDsManager::loop(uint32_t virtualPinMask)
     params.backColor2 = backgroundColor2;
     params.defaultBackColor = defaultBackColor;
     params.effectStyle = opts->ledEffect;
-    params.brightness = brightness;
     params.animationSpeed = opts->ledAnimationSpeed;
     params.progress = progress;
     
@@ -143,8 +145,8 @@ void LEDsManager::loop(uint32_t virtualPinMask)
         // 模式1：环绕灯关闭 - 设置为黑色，亮度为0
         for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
             WS2812B_SetLEDColor(0, 0, 0, i);
-            WS2812B_SetLEDBrightness(0, i);
         }
+        setAmbientLightBrightness(0);
     } else if (opts->aroundLedSyncToMainLed) {
         // 模式2：环绕灯同步到主LED - 使用主LED配置和动画
         
@@ -156,8 +158,8 @@ void LEDsManager::loop(uint32_t virtualPinMask)
             
             RGBColor color = algorithm(params);
             WS2812B_SetLEDColor(color.r, color.g, color.b, (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) + i);
-            WS2812B_SetLEDBrightness(opts->ledBrightness, (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) + i);
         }
+        setAmbientLightBrightness(opts->aroundLedBrightness);
     } else {
         // 模式3：环绕灯独立模式 - 使用环绕灯独立配置
         processAroundLedAnimation();
@@ -291,15 +293,15 @@ void LEDsManager::brightnessUp() {
     if(opts->ledBrightness == 100) {
         return;
     } else {
-        opts->ledBrightness = std::min((int)opts->ledBrightness + 10, 100); // 增加10%
-        
+        opts->ledBrightness = std::min((int)opts->ledBrightness + 20, 100); // 增加10%
+        setLedsBrightness(opts->ledBrightness);
         // 只有在使用默认配置时才保存到存储
         if (!usingTemporaryConfig) {
             STORAGE_MANAGER.saveConfig();
+            HAL_Delay(20); // 等待保存完成
         }
         
-        deinit();
-        setup();
+        
     }
 }
 
@@ -307,15 +309,15 @@ void LEDsManager::brightnessDown() {
     if(opts->ledBrightness == 0) {
         return;
     } else {
-        opts->ledBrightness = std::max((int)opts->ledBrightness - 10, 0); // 减少10%
-        
+        opts->ledBrightness = std::max((int)opts->ledBrightness - 20, 0); // 减少10%
+        setLedsBrightness(opts->ledBrightness);
         // 只有在使用默认配置时才保存到存储
         if (!usingTemporaryConfig) {
             STORAGE_MANAGER.saveConfig();
+            HAL_Delay(20); // 等待保存完成
         }
         
-        deinit();
-        setup();
+        
     }
 }
 
@@ -331,93 +333,97 @@ void LEDsManager::enableSwitch() {
     setup();
 }
 
-void LEDsManager::setBrightness(uint8_t brightness) {
-    this->brightness = (uint8_t)((float_t)(brightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
-    WS2812B_SetAllLEDBrightness(brightness);
+void LEDsManager::setLedsBrightness(uint8_t brightness) {
+    const uint8_t b = (uint8_t)((float_t)(brightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
+    WS2812B_SetLEDBrightness(b, 0, NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS);
 }
 
-/**
- * @brief 测试特定的LED动画效果
- * @param effect 要测试的动画效果
- * @param progress 动画进度 (0.0-1.0)
- * @param buttonMask 模拟的按钮状态掩码
- */
-void LEDsManager::testAnimation(LEDEffect effect, float progress, uint32_t buttonMask)
-{
-    if(!opts->ledEnabled) {
-        APP_DBG("LEDsManager::testAnimation - LED disabled");
-        return;
-    }
-
-    // 获取测试动画算法
-    LedAnimationAlgorithm algorithm = getLedAnimation(effect);
-    
-    // 准备测试参数
-    LedAnimationParams params;
-    params.colorEnabled = true;
-    params.frontColor = frontColor;
-    params.backColor1 = backgroundColor1;
-    params.backColor2 = backgroundColor2;
-    params.defaultBackColor = defaultBackColor;
-    params.effectStyle = effect;
-    params.brightness = brightness;
-    params.animationSpeed = opts->ledAnimationSpeed;
-    params.progress = progress;
-    
-    // 如果是涟漪效果，设置一个测试涟漪
-    if (effect == LEDEffect::RIPPLE) {
-        params.global.rippleCount = 1;
-        params.global.rippleCenters[0] = 10; // 中心按钮索引10
-        params.global.rippleProgress[0] = progress;
-    } else {
-        params.global.rippleCount = 0;
-    }
-    
-    // 为每个LED计算颜色并设置（只调试前3个LED避免过多输出）
-    for (uint8_t i = 0; i < (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
-        params.index = i;
-        params.pressed = (buttonMask & (1 << i)) != 0;
-        
-        RGBColor color = algorithm(params);
-        
-        WS2812B_SetLEDColor(color.r, color.g, color.b, i);
-    }
+void LEDsManager::setAmbientLightBrightness(uint8_t brightness) {
+    const uint8_t b = (uint8_t)((float_t)(brightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
+    WS2812B_SetLEDBrightness(b, NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS, NUM_LED - (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS));
 }
 
-/**
- * @brief 预览动画效果的完整周期
- * @param effect 要预览的动画效果
- * @param duration 预览持续时间(毫秒)
- */
-void LEDsManager::previewAnimation(LEDEffect effect, uint32_t duration)
-{
-    if(!opts->ledEnabled) {
-        return;
-    }
+// /**
+//  * @brief 测试特定的LED动画效果
+//  * @param effect 要测试的动画效果
+//  * @param progress 动画进度 (0.0-1.0)
+//  * @param buttonMask 模拟的按钮状态掩码
+//  */
+// void LEDsManager::testAnimation(LEDEffect effect, float progress, uint32_t buttonMask)
+// {
+//     if(!opts->ledEnabled) {
+//         APP_DBG("LEDsManager::testAnimation - LED disabled");
+//         return;
+//     }
+
+//     // 获取测试动画算法
+//     LedAnimationAlgorithm algorithm = getLedAnimation(effect);
     
-    uint32_t startTime = HAL_GetTick();
-    uint32_t buttonMask = 0; // 可以设置一些按钮状态用于测试
+//     // 准备测试参数
+//     LedAnimationParams params;
+//     params.colorEnabled = true;
+//     params.frontColor = frontColor;
+//     params.backColor1 = backgroundColor1;
+//     params.backColor2 = backgroundColor2;
+//     params.defaultBackColor = defaultBackColor;
+//     params.effectStyle = effect;
+//     params.animationSpeed = opts->ledAnimationSpeed;
+//     params.progress = progress;
     
-    // 为涟漪效果设置一些测试按钮
-    if (effect == LEDEffect::RIPPLE) {
-        buttonMask = 0x04; // 按钮2按下，用于触发涟漪
-    }
+//     // 如果是涟漪效果，设置一个测试涟漪
+//     if (effect == LEDEffect::RIPPLE) {
+//         params.global.rippleCount = 1;
+//         params.global.rippleCenters[0] = 10; // 中心按钮索引10
+//         params.global.rippleProgress[0] = progress;
+//     } else {
+//         params.global.rippleCount = 0;
+//     }
     
-    while ((HAL_GetTick() - startTime) < duration) {
-        uint32_t elapsed = HAL_GetTick() - startTime;
-        float progress = (float)(elapsed % LEDS_ANIMATION_CYCLE) / LEDS_ANIMATION_CYCLE; // 使用相同的10秒周期
+//     // 为每个LED计算颜色并设置
+//     for (uint8_t i = 0; i < (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
+//         params.index = i;
+//         params.pressed = (buttonMask & (1 << i)) != 0;
         
-        testAnimation(effect, progress, buttonMask);
-        HAL_Delay(16); // ~60FPS
+//         RGBColor color = algorithm(params);
         
-        // 为涟漪效果在中途改变按钮状态
-        if (effect == LEDEffect::RIPPLE && elapsed > duration / 3 && elapsed < duration / 3 + 100) {
-            buttonMask = 0x100; // 按钮8按下，创建新的涟漪
-        } else if (effect == LEDEffect::RIPPLE && elapsed > duration / 3 + 100) {
-            buttonMask = 0; // 释放按钮
-        }
-    }
-}
+//         WS2812B_SetLEDColor(color.r, color.g, color.b, i);
+//     }
+// }
+
+// /**
+//  * @brief 预览动画效果的完整周期
+//  * @param effect 要预览的动画效果
+//  * @param duration 预览持续时间(毫秒)
+//  */
+// void LEDsManager::previewAnimation(LEDEffect effect, uint32_t duration)
+// {
+//     if(!opts->ledEnabled) {
+//         return;
+//     }
+    
+//     uint32_t startTime = HAL_GetTick();
+//     uint32_t buttonMask = 0; // 可以设置一些按钮状态用于测试
+    
+//     // 为涟漪效果设置一些测试按钮
+//     if (effect == LEDEffect::RIPPLE) {
+//         buttonMask = 0x04; // 按钮2按下，用于触发涟漪
+//     }
+    
+//     while ((HAL_GetTick() - startTime) < duration) {
+//         uint32_t elapsed = HAL_GetTick() - startTime;
+//         float progress = (float)(elapsed % LEDS_ANIMATION_CYCLE) / LEDS_ANIMATION_CYCLE; // 使用相同的10秒周期
+        
+//         testAnimation(effect, progress, buttonMask);
+//         HAL_Delay(16); // ~60FPS
+        
+//         // 为涟漪效果在中途改变按钮状态
+//         if (effect == LEDEffect::RIPPLE && elapsed > duration / 3 && elapsed < duration / 3 + 100) {
+//             buttonMask = 0x100; // 按钮8按下，创建新的涟漪
+//         } else if (effect == LEDEffect::RIPPLE && elapsed > duration / 3 + 100) {
+//             buttonMask = 0; // 释放按钮
+//         }
+//     }
+// }
 
 /**
  * @brief 设置临时配置进行预览
@@ -467,7 +473,6 @@ void LEDsManager::updateColorsFromConfig()
     backgroundColor1 = hexToRGB(opts->ledColor2);
     backgroundColor2 = hexToRGB(opts->ledColor3);
     defaultBackColor = {0, 0, 0}; // 黑色作为默认背景色
-    brightness = opts->ledBrightness;
 }
 
 #if HAS_LED_AROUND
@@ -483,17 +488,14 @@ void LEDsManager::processAroundLedAnimation()
             {
                 // 静态效果：显示固定颜色（不受触发模式影响）
                 RGBColor color = hexToRGB(opts->aroundLedColor1);
-                color.r = (uint8_t)(color.r * opts->aroundLedBrightness / 100);
-                color.g = (uint8_t)(color.g * opts->aroundLedBrightness / 100);
-                color.b = (uint8_t)(color.b * opts->aroundLedBrightness / 100);
                 
                 for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
                     WS2812B_SetLEDColor(color.r, color.g, color.b, i);
-                    WS2812B_SetLEDBrightness(opts->aroundLedBrightness, i);
                 }
+                setAmbientLightBrightness(opts->aroundLedBrightness);
             }
             break;
-            
+        
         case AroundLEDEffect::AROUND_BREATHING:
             {
                 for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
@@ -503,13 +505,12 @@ void LEDsManager::processAroundLedAnimation()
                     RGBColor color = aroundLedBreathingAnimation(progress, aroundIndex, 
                                                               opts->aroundLedColor1, 
                                                               opts->aroundLedColor2, 
-                                                              opts->aroundLedBrightness,
                                                               opts->aroundLedAnimationSpeed,
                                                               0); // triggerTime参数已废弃，传入0
                     
                     WS2812B_SetLEDColor(color.r, color.g, color.b, i);
-                    WS2812B_SetLEDBrightness(opts->aroundLedBrightness, i);
                 }
+                setAmbientLightBrightness(opts->aroundLedBrightness);
             }
             break;
             
@@ -522,13 +523,12 @@ void LEDsManager::processAroundLedAnimation()
                     RGBColor color = aroundLedQuakeAnimation(progress, aroundIndex, 
                                                            opts->aroundLedColor1, 
                                                            opts->aroundLedColor2, 
-                                                           opts->aroundLedBrightness,
                                                            opts->aroundLedAnimationSpeed,
                                                            0); // triggerTime参数已废弃，传入0
                     
                     WS2812B_SetLEDColor(color.r, color.g, color.b, i);
-                    WS2812B_SetLEDBrightness(opts->aroundLedBrightness, i);
                 }
+                setAmbientLightBrightness(opts->aroundLedBrightness);
             }
             break;
             
@@ -541,13 +541,12 @@ void LEDsManager::processAroundLedAnimation()
                     RGBColor color = aroundLedMeteorAnimation(progress, aroundIndex, 
                                                             opts->aroundLedColor1, 
                                                             opts->aroundLedColor2, 
-                                                            opts->aroundLedBrightness,
                                                             opts->aroundLedAnimationSpeed,
                                                             0); // triggerTime参数已废弃，传入0
                     
                     WS2812B_SetLEDColor(color.r, color.g, color.b, i);
-                    WS2812B_SetLEDBrightness(opts->aroundLedBrightness, i);
                 }
+                setAmbientLightBrightness(opts->aroundLedBrightness);   
             }
             break;
             
@@ -555,8 +554,8 @@ void LEDsManager::processAroundLedAnimation()
             // 默认情况：关闭环绕灯
             for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
                 WS2812B_SetLEDColor(0, 0, 0, i);
-                WS2812B_SetLEDBrightness(0, i);
             }
+            setAmbientLightBrightness(0);
             break;
     }
 }
@@ -609,6 +608,8 @@ void LEDsManager::updateAroundLedColors()
     processAroundLedAnimation();
 }
 
+#if HAS_LED_AROUND
+
 /**
  * @brief 切换到下一个环绕灯效果
  */
@@ -646,15 +647,14 @@ void LEDsManager::ambientLightBrightnessUp() {
     if(opts->aroundLedBrightness == 100) {
         return;
     } else {
-        opts->aroundLedBrightness = std::min((int)opts->aroundLedBrightness + 10, 100); // 增加10%
-        
+        opts->aroundLedBrightness = std::min((int)opts->aroundLedBrightness + 20, 100); // 增加10%
+        setAmbientLightBrightness(opts->aroundLedBrightness);
+
         // 只有在使用默认配置时才保存到存储
         if (!usingTemporaryConfig) {
             STORAGE_MANAGER.saveConfig();
+            HAL_Delay(20); // 等待保存完成
         }
-        
-        deinit();
-        setup();
     }
 }
 
@@ -665,15 +665,14 @@ void LEDsManager::ambientLightBrightnessDown() {
     if(opts->aroundLedBrightness == 0) {
         return;
     } else {
-        opts->aroundLedBrightness = std::max((int)opts->aroundLedBrightness - 10, 0); // 减少10%
-        
+        opts->aroundLedBrightness = std::max((int)opts->aroundLedBrightness - 20, 0); // 减少10%
+        setAmbientLightBrightness(opts->aroundLedBrightness);
         // 只有在使用默认配置时才保存到存储
         if (!usingTemporaryConfig) {
             STORAGE_MANAGER.saveConfig();
+            HAL_Delay(20); // 等待保存完成
         }
         
-        deinit();
-        setup();
     }
 }
 
@@ -691,6 +690,9 @@ void LEDsManager::ambientLightEnableSwitch() {
     deinit();
     setup();
 }
+
+#endif
+
 #endif
 
 

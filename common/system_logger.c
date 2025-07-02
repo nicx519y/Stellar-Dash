@@ -46,6 +46,7 @@
 extern int8_t QSPI_W25Qxx_WriteBuffer_WithXIPOrNot(uint8_t* pBuffer, uint32_t WriteAddr, uint32_t NumByteToWrite);
 extern int8_t QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(uint8_t* pBuffer, uint32_t ReadAddr, uint32_t NumByteToRead);
 extern int8_t QSPI_W25Qxx_SectorErase(uint32_t SectorAddress);
+extern int8_t QSPI_W25Qxx_WritePage(uint8_t* pBuffer, uint32_t WriteAddr, uint16_t NumByteToWrite);
 
 // QSPI驱动返回值定义
 #define QSPI_W25Qxx_OK              0
@@ -103,6 +104,14 @@ static LogResult switch_to_next_sector(void);
 static const char* get_level_string(LogLevel level);
 static LogResult logger_log_internal(LogLevel level, const char* component, bool immediate_flush, const char* format, va_list args);
 
+// 混合方案：快速启动相关函数
+static LogResult read_global_state(LogGlobalState* state);
+static LogResult write_global_state(const LogGlobalState* state);
+static LogResult quick_start_init(LogLevel min_level);
+static LogResult full_scan_init(LogLevel min_level);
+static uint32_t calculate_checksum(const LogGlobalState* state);
+static bool verify_global_state(const LogGlobalState* state);
+
 /* ============================================================================
  * 工具函数实现
  * ========================================================================== */
@@ -136,10 +145,53 @@ static LogResult write_to_flash(uint32_t address, const uint8_t* data, size_t si
         return LOG_RESULT_ERROR_INVALID_PARAM;
     }
     
-    int8_t result = QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)data, physical_addr, size);
+    // 关键修复：如果要写入的数据不是整个扇区，需要使用读-修改-写策略
+    const uint32_t sector_size = 4096; // 4KB扇区大小
+    uint32_t sector_start = physical_addr & ~(sector_size - 1);
+    uint32_t offset_in_sector = physical_addr - sector_start;
     
-    if (result != QSPI_W25Qxx_OK) {
-        return LOG_RESULT_ERROR_FLASH_WRITE;
+    // 如果写入的数据跨越扇区边界或者不是从扇区开始写入，需要特殊处理
+    if (offset_in_sector != 0 || size != sector_size) {
+        // 读-修改-写策略
+        static uint8_t sector_buffer[4096]; // 4KB缓冲区
+        
+        // 1. 读取整个扇区到缓冲区
+        int8_t result = QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(sector_buffer, sector_start, sector_size);
+        if (result != QSPI_W25Qxx_OK) {
+            return LOG_RESULT_ERROR_FLASH_WRITE;
+        }
+        
+        // 2. 在缓冲区中修改指定位置的数据
+        memcpy(sector_buffer + offset_in_sector, data, size);
+        
+        // 3. 擦除扇区
+        result = QSPI_W25Qxx_SectorErase(sector_start);
+        if (result != QSPI_W25Qxx_OK) {
+            return LOG_RESULT_ERROR_FLASH_WRITE;
+        }
+        
+        // 4. 写回整个扇区
+        result = QSPI_W25Qxx_WritePage(sector_buffer, sector_start, sector_size < 256 ? sector_size : 256);
+        if (result != QSPI_W25Qxx_OK) {
+            return LOG_RESULT_ERROR_FLASH_WRITE;
+        }
+        
+        // 如果扇区大于256字节，需要分页写入
+        if (sector_size > 256) {
+            for (uint32_t i = 256; i < sector_size; i += 256) {
+                uint32_t write_size = (sector_size - i) > 256 ? 256 : (sector_size - i);
+                result = QSPI_W25Qxx_WritePage(sector_buffer + i, sector_start + i, write_size);
+                if (result != QSPI_W25Qxx_OK) {
+                    return LOG_RESULT_ERROR_FLASH_WRITE;
+                }
+            }
+        }
+    } else {
+        // 写入整个扇区，可以直接使用原有逻辑
+        int8_t result = QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)data, physical_addr, size);
+        if (result != QSPI_W25Qxx_OK) {
+            return LOG_RESULT_ERROR_FLASH_WRITE;
+        }
     }
     
     return LOG_RESULT_SUCCESS;
@@ -226,6 +278,17 @@ static LogResult add_entry_to_memory_buffer(const LogEntry entry) {
 }
 
 static LogResult switch_to_next_sector(void) {
+    // 先将当前扇区标记为非活跃
+    LogSectorHeader current_header;
+    uint32_t current_sector_addr = LOG_FLASH_BASE_ADDR + g_logger_state.current_sector * LOG_FLASH_SECTOR_SIZE;
+    
+    if (read_from_flash(current_sector_addr, (uint8_t*)&current_header, sizeof(LogSectorHeader)) == LOG_RESULT_SUCCESS) {
+        if (current_header.magic == LOG_MAGIC_NUMBER) {
+            current_header.is_active = 0; // 标记为非活跃
+            write_to_flash(current_sector_addr, (uint8_t*)&current_header, sizeof(LogSectorHeader));
+        }
+    }
+    
     // 切换到下一个扇区
     uint32_t next_sector = (g_logger_state.current_sector + 1) % LOG_FLASH_SECTOR_COUNT;
     
@@ -236,29 +299,47 @@ static LogResult switch_to_next_sector(void) {
     }
 
     // 初始化新扇区头部
-    LogSector sector;
-    memset(&sector, 0, sizeof(LogSector));
+    LogSectorHeader new_header;
+    memset(&new_header, 0, sizeof(LogSectorHeader));
     
-    sector.header.magic = LOG_MAGIC_NUMBER;
-    sector.header.next_write_index = 0;
-    sector.header.queue_start_index = 0;
-    sector.header.current_count = 0;
-    sector.header.total_written = 0;
-    sector.header.sector_index = next_sector;
-    sector.header.timestamp_first = 0;
-    sector.header.timestamp_last = 0;
-    sector.header.boot_counter = g_logger_state.boot_counter;
-    sector.header.sequence_counter = g_logger_state.global_sequence;
-    sector.header.is_active = 1;
+    new_header.magic = LOG_MAGIC_NUMBER;
+    new_header.next_write_index = 0;
+    new_header.queue_start_index = 0;
+    new_header.current_count = 0;
+    new_header.total_written = 0;
+    new_header.sector_index = next_sector;
+    new_header.timestamp_first = 0;
+    new_header.timestamp_last = 0;
+    new_header.boot_counter = g_logger_state.boot_counter;
+    new_header.sequence_counter = ++g_logger_state.global_sequence;  // 增加序列号
+    new_header.is_active = 1;
 
-    // 写入扇区头部
+    // 写入扇区头部（只写入64字节头部）
     uint32_t sector_addr = LOG_FLASH_BASE_ADDR + next_sector * LOG_FLASH_SECTOR_SIZE;
-    result = write_to_flash(sector_addr, (uint8_t*)&sector.header, LOG_HEADER_SIZE);
+    result = write_to_flash(sector_addr, (uint8_t*)&new_header, sizeof(LogSectorHeader));
     if (result != LOG_RESULT_SUCCESS) {
         return result;
     }
 
+    // 更新全局状态
     g_logger_state.current_sector = next_sector;
+    
+    // 更新全局状态索引（混合方案）
+    LogGlobalState global_state;
+    memset(&global_state, 0, sizeof(LogGlobalState));
+    
+    global_state.magic1 = LOG_GLOBAL_STATE_MAGIC;
+    global_state.magic2 = LOG_GLOBAL_STATE_MAGIC;
+    global_state.last_active_sector = next_sector;
+    global_state.last_active_sector_backup = next_sector;
+    global_state.global_sequence = g_logger_state.global_sequence;
+    global_state.boot_counter = g_logger_state.boot_counter;
+    global_state.last_update_timestamp = get_current_timestamp_ms();
+    global_state.checksum = calculate_checksum(&global_state);
+    
+    // 写入全局状态（错误不影响主要功能）
+    write_global_state(&global_state);
+    
     return LOG_RESULT_SUCCESS;
 }
 
@@ -267,74 +348,82 @@ static LogResult flush_memory_buffer_to_flash(void) {
         return LOG_RESULT_SUCCESS; // 没有数据需要刷新
     }
 
-    // 读取当前扇区的完整数据
-    LogSector sector;
+    // 只读取当前扇区的头部
+    LogSectorHeader header;
     uint32_t sector_addr = LOG_FLASH_BASE_ADDR + g_logger_state.current_sector * LOG_FLASH_SECTOR_SIZE;
     
-    LogResult result = read_from_flash(sector_addr, (uint8_t*)&sector, sizeof(LogSector));
+    LogResult result = read_from_flash(sector_addr, (uint8_t*)&header, sizeof(LogSectorHeader));
     if (result != LOG_RESULT_SUCCESS) {
         return result;
     }
 
     // 检查扇区头部有效性
-    if (sector.header.magic != LOG_MAGIC_NUMBER) {
-        
-        memset(&sector, 0, sizeof(LogSector));
-        sector.header.magic = LOG_MAGIC_NUMBER;
-        sector.header.next_write_index = 0;
-        sector.header.queue_start_index = 0;
-        sector.header.current_count = 0;
-        sector.header.sector_index = g_logger_state.current_sector;
-        sector.header.boot_counter = g_logger_state.boot_counter;
-        sector.header.sequence_counter = g_logger_state.global_sequence;
-        sector.header.is_active = 1;
+    if (header.magic != LOG_MAGIC_NUMBER) {
+        memset(&header, 0, sizeof(LogSectorHeader));
+        header.magic = LOG_MAGIC_NUMBER;
+        header.next_write_index = 0;
+        header.queue_start_index = 0;
+        header.current_count = 0;
+        header.sector_index = g_logger_state.current_sector;
+        header.boot_counter = g_logger_state.boot_counter;
+        header.sequence_counter = g_logger_state.global_sequence;
+        header.is_active = 1;
     }
 
-    // 添加新日志条目到扇区数组
-    for (uint32_t i = 0; i < g_logger_state.buffer_count; i++) {
-        uint32_t write_index = sector.header.next_write_index;
-        
-        // 检查是否需要循环覆盖
-        if (sector.header.current_count >= LOG_ENTRIES_PER_SECTOR) {
-            // 扇区满了，循环覆盖最旧的日志
-            write_index = sector.header.queue_start_index;
-            sector.header.queue_start_index = (sector.header.queue_start_index + 1) % LOG_ENTRIES_PER_SECTOR;
-        } else {
-            // 扇区未满，简单增加计数
-            sector.header.current_count++;
-        }
-        
-        // 复制日志条目
-        memcpy(sector.entries[write_index], g_logger_state.memory_buffer[i], LOG_ENTRY_SIZE);
-        
-        // 更新写入位置
-        sector.header.next_write_index = (write_index + 1) % LOG_ENTRIES_PER_SECTOR;
-        sector.header.total_written++;
-        
-        // 更新时间戳
-        uint32_t current_time = get_current_timestamp_ms();
-        if (sector.header.timestamp_first == 0) {
-            sector.header.timestamp_first = current_time;
-        }
-        sector.header.timestamp_last = current_time;
-        sector.header.sequence_counter = ++g_logger_state.global_sequence;
-    }
-
-    // 检查是否需要切换扇区 (当前扇区循环使用完毕)
-    if (sector.header.current_count >= LOG_ENTRIES_PER_SECTOR && 
-        sector.header.total_written >= LOG_ENTRIES_PER_SECTOR * 2) {
-        // 切换到下一个扇区
+    // 检查是否需要切换扇区（在写入之前检查）
+    if (header.current_count + g_logger_state.buffer_count > LOG_ENTRIES_PER_SECTOR) {
+        // 当前扇区容量不足，切换到下一个扇区
         result = switch_to_next_sector();
         if (result != LOG_RESULT_SUCCESS) {
             return result;
         }
         
-        // 重新开始写入新扇区
-        return flush_memory_buffer_to_flash();
+        // 重新读取新扇区的头部
+        sector_addr = LOG_FLASH_BASE_ADDR + g_logger_state.current_sector * LOG_FLASH_SECTOR_SIZE;
+        result = read_from_flash(sector_addr, (uint8_t*)&header, sizeof(LogSectorHeader));
+        if (result != LOG_RESULT_SUCCESS) {
+            return result;
+        }
     }
 
-    // 写回整个扇区数据
-    result = write_to_flash(sector_addr, (uint8_t*)&sector, sizeof(LogSector));
+    // 逐条写入日志条目
+    for (uint32_t i = 0; i < g_logger_state.buffer_count; i++) {
+        uint32_t write_index = header.next_write_index;
+        
+        // 检查是否需要循环覆盖
+        if (header.current_count >= LOG_ENTRIES_PER_SECTOR) {
+            // 扇区满了，循环覆盖最旧的日志
+            write_index = header.queue_start_index;
+            header.queue_start_index = (header.queue_start_index + 1) % LOG_ENTRIES_PER_SECTOR;
+        } else {
+            // 扇区未满，简单增加计数
+            header.current_count++;
+        }
+        
+        // 计算日志条目在Flash中的具体地址
+        uint32_t entry_addr = sector_addr + LOG_HEADER_SIZE + write_index * LOG_ENTRY_SIZE;
+        
+        // 直接写入这条日志到Flash
+        result = write_to_flash(entry_addr, (uint8_t*)g_logger_state.memory_buffer[i], LOG_ENTRY_SIZE);
+        if (result != LOG_RESULT_SUCCESS) {
+            return result;
+        }
+        
+        // 更新写入位置
+        header.next_write_index = (write_index + 1) % LOG_ENTRIES_PER_SECTOR;
+        header.total_written++;
+        
+        // 更新时间戳
+        uint32_t current_time = get_current_timestamp_ms();
+        if (header.timestamp_first == 0) {
+            header.timestamp_first = current_time;
+        }
+        header.timestamp_last = current_time;
+        header.sequence_counter = ++g_logger_state.global_sequence;
+    }
+
+    // 写入更新后的扇区头部
+    result = write_to_flash(sector_addr, (uint8_t*)&header, sizeof(LogSectorHeader));
     if (result != LOG_RESULT_SUCCESS) {
         return result;
     }
@@ -360,57 +449,34 @@ LogResult Logger_Init(bool is_bootloader, LogLevel min_level) {
 
     // 设置基本参数
     g_logger_state.is_bootloader_mode = is_bootloader;
-    g_logger_state.minimum_level = min_level;
     g_logger_state.last_flush_time = HAL_GetTick();
-    g_logger_state.current_sector = 0;
-    g_logger_state.global_sequence = 0;
-    g_logger_state.boot_counter = 1;
 
-
-    // 扫描Flash找到最新的活跃扇区
-    uint32_t max_sequence = 0;
-    uint32_t max_boot_count = 0;
-    uint32_t active_sector = 0;
-    bool found_active = false;
-
-    for (uint32_t sector = 0; sector < 8; sector++) {  // 只扫描前8个扇区
-        LogSectorHeader header;
-        uint32_t sector_addr = LOG_FLASH_BASE_ADDR + sector * LOG_FLASH_SECTOR_SIZE;
+    // 混合方案：先尝试快速启动
+    LogResult result = quick_start_init(min_level);
+    if (result == LOG_RESULT_SUCCESS) {
+        // 快速启动成功
+        g_logger_state.is_initialized = true;
         
-        if (read_from_flash(sector_addr, (uint8_t*)&header, sizeof(LogSectorHeader)) == LOG_RESULT_SUCCESS) {
-            if (header.magic == LOG_MAGIC_NUMBER && header.is_active) {
-                if (header.sequence_counter > max_sequence || 
-                    (header.sequence_counter == max_sequence && header.boot_counter > max_boot_count)) {
-                    max_sequence = header.sequence_counter;
-                    max_boot_count = header.boot_counter;
-                    active_sector = sector;
-                    found_active = true;
-                }
-                
-            }
-        }
+        // 记录快速启动成功的日志
+        Logger_Log(LOG_LEVEL_SYSTEM, "LOGGER", "Quick start successful - sector %lu, boot #%lu", 
+                   (unsigned long)g_logger_state.current_sector,
+                   (unsigned long)g_logger_state.boot_counter);
+        
+        return LOG_RESULT_SUCCESS;
     }
-
-    if (found_active) {
-        g_logger_state.current_sector = active_sector;
-        g_logger_state.global_sequence = max_sequence;
-        g_logger_state.boot_counter = max_boot_count + 1;
-        
-    } else {
-        // 没有找到活跃扇区，初始化第一个扇区
-        LogResult result = switch_to_next_sector();
-        if (result != LOG_RESULT_SUCCESS) {
-            return result;
-        }
-        
+    
+    // 快速启动失败，降级到完整扫描
+    result = full_scan_init(min_level);
+    if (result != LOG_RESULT_SUCCESS) {
+        return result;
     }
 
     // 设置初始化完成标志
     g_logger_state.is_initialized = true;
 
-    // 记录初始化日志
-    Logger_Log(LOG_LEVEL_SYSTEM, "LOGGER", "Logger initialized in %s mode (boot #%lu)", 
-               is_bootloader ? "bootloader" : "application", 
+    // 记录初始化日志（完整扫描）
+    Logger_Log(LOG_LEVEL_SYSTEM, "LOGGER", "Full scan init - sector %lu, boot #%lu (quick start failed)", 
+               (unsigned long)g_logger_state.current_sector,
                (unsigned long)g_logger_state.boot_counter);
 
     return LOG_RESULT_SUCCESS;
@@ -476,9 +542,12 @@ LogResult Logger_ClearFlash(void) {
 
     LOGGER_LOCK();
 
+    // 声明result变量
+    LogResult result;
+
     // 擦除所有日志扇区
     for (uint32_t i = 0; i < LOG_FLASH_SECTOR_COUNT; i++) {
-        LogResult result = erase_flash_sector(i);
+        result = erase_flash_sector(i);
         if (result != LOG_RESULT_SUCCESS) {
             LOGGER_UNLOCK();
             return result;
@@ -490,8 +559,25 @@ LogResult Logger_ClearFlash(void) {
     g_logger_state.global_sequence = 0;
     g_logger_state.buffer_count = 0;
 
-    // 重新初始化第一个扇区
-    LogResult result = switch_to_next_sector();
+    // 直接初始化扇区0
+    LogSectorHeader header;
+    memset(&header, 0, sizeof(LogSectorHeader));
+    
+    header.magic = LOG_MAGIC_NUMBER;
+    header.next_write_index = 0;
+    header.queue_start_index = 0;
+    header.current_count = 0;
+    header.total_written = 0;
+    header.sector_index = 0;
+    header.timestamp_first = 0;
+    header.timestamp_last = 0;
+    header.boot_counter = g_logger_state.boot_counter;
+    header.sequence_counter = g_logger_state.global_sequence;
+    header.is_active = 1;
+
+    // 写入扇区0头部
+    uint32_t sector_addr = LOG_FLASH_BASE_ADDR;
+    result = write_to_flash(sector_addr, (uint8_t*)&header, sizeof(LogSectorHeader));
 
     LOGGER_UNLOCK();
     return result;
@@ -608,6 +694,48 @@ LogResult Logger_ShowSectorInfo(int (*print_func)(const char* format, ...)) {
     return LOG_RESULT_SUCCESS;
 }
 
+LogResult Logger_ShowGlobalState(int (*print_func)(const char* format, ...)) {
+    if (!print_func) {
+        return LOG_RESULT_ERROR_INVALID_PARAM;
+    }
+
+    print_func("=== GLOBAL STATE INFO (Mixed Mode) ===\r\n");
+    
+    LogGlobalState global_state;
+    LogResult result = read_global_state(&global_state);
+    
+    if (result != LOG_RESULT_SUCCESS) {
+        print_func("Global State: READ ERROR\r\n");
+        return result;
+    }
+    
+    print_func("Magic1: 0x%08lX (expected: 0x%08lX)\r\n", 
+               (unsigned long)global_state.magic1, (unsigned long)LOG_GLOBAL_STATE_MAGIC);
+    print_func("Magic2: 0x%08lX (expected: 0x%08lX)\r\n", 
+               (unsigned long)global_state.magic2, (unsigned long)LOG_GLOBAL_STATE_MAGIC);
+    print_func("Last Active Sector: %lu\r\n", (unsigned long)global_state.last_active_sector);
+    print_func("Last Active Sector Backup: %lu\r\n", (unsigned long)global_state.last_active_sector_backup);
+    print_func("Global Sequence: %lu\r\n", (unsigned long)global_state.global_sequence);
+    print_func("Boot Counter: %lu\r\n", (unsigned long)global_state.boot_counter);
+    print_func("Last Update Timestamp: %lu ms\r\n", (unsigned long)global_state.last_update_timestamp);
+    
+    uint32_t calculated_checksum = calculate_checksum(&global_state);
+    print_func("Checksum: 0x%08lX (calculated: 0x%08lX)\r\n", 
+               (unsigned long)global_state.checksum, (unsigned long)calculated_checksum);
+    
+    bool is_valid = verify_global_state(&global_state);
+    print_func("Global State: %s\r\n", is_valid ? "VALID" : "INVALID");
+    
+    if (is_valid) {
+        print_func("Current Runtime State:\r\n");
+        print_func("  Current Sector: %lu\r\n", (unsigned long)g_logger_state.current_sector);
+        print_func("  Runtime Sequence: %lu\r\n", (unsigned long)g_logger_state.global_sequence);
+        print_func("  Runtime Boot Counter: %lu\r\n", (unsigned long)g_logger_state.boot_counter);
+    }
+    
+    return LOG_RESULT_SUCCESS;
+}
+
 static LogResult logger_log_internal(LogLevel level, const char* component, bool immediate_flush, const char* format, va_list args) {
     if (!g_logger_state.is_initialized) {
         return LOG_RESULT_ERROR_NOT_INITIALIZED;
@@ -640,5 +768,182 @@ static LogResult logger_log_internal(LogLevel level, const char* component, bool
         return flush_memory_buffer_to_flash();
     }
 
+    return LOG_RESULT_SUCCESS;
+}
+
+/* ============================================================================
+ * 混合方案：快速启动功能实现
+ * ========================================================================== */
+
+static uint32_t calculate_checksum(const LogGlobalState* state) {
+    uint32_t checksum = 0;
+    const uint32_t* data = (const uint32_t*)state;
+    
+    // 计算除checksum字段外所有字段的异或值
+    for (int i = 0; i < 7; i++) {  // 前7个uint32_t字段
+        checksum ^= data[i];
+    }
+    
+    return checksum;
+}
+
+static bool verify_global_state(const LogGlobalState* state) {
+    // 检查魔术数字
+    if (state->magic1 != LOG_GLOBAL_STATE_MAGIC || state->magic2 != LOG_GLOBAL_STATE_MAGIC) {
+        return false;
+    }
+    
+    // 检查备份字段一致性
+    if (state->last_active_sector != state->last_active_sector_backup) {
+        return false;
+    }
+    
+    // 检查扇区索引有效性
+    if (state->last_active_sector >= LOG_FLASH_SECTOR_COUNT - 1) {  // 减1因为最后一个扇区用于全局状态
+        return false;
+    }
+    
+    // 检查校验和
+    uint32_t calculated_checksum = calculate_checksum(state);
+    if (calculated_checksum != state->checksum) {
+        return false;
+    }
+    
+    return true;
+}
+
+static LogResult read_global_state(LogGlobalState* state) {
+    if (!state) {
+        return LOG_RESULT_ERROR_INVALID_PARAM;
+    }
+    
+    uint32_t global_state_addr = LOG_FLASH_BASE_ADDR + LOG_GLOBAL_STATE_SECTOR * LOG_FLASH_SECTOR_SIZE;
+    return read_from_flash(global_state_addr, (uint8_t*)state, sizeof(LogGlobalState));
+}
+
+static LogResult write_global_state(const LogGlobalState* state) {
+    if (!state) {
+        return LOG_RESULT_ERROR_INVALID_PARAM;
+    }
+    
+    uint32_t global_state_addr = LOG_FLASH_BASE_ADDR + LOG_GLOBAL_STATE_SECTOR * LOG_FLASH_SECTOR_SIZE;
+    
+    // 先擦除全局状态扇区
+    LogResult result = erase_flash_sector(LOG_GLOBAL_STATE_SECTOR);
+    if (result != LOG_RESULT_SUCCESS) {
+        return result;
+    }
+    
+    // 写入全局状态
+    return write_to_flash(global_state_addr, (uint8_t*)state, sizeof(LogGlobalState));
+}
+
+static LogResult quick_start_init(LogLevel min_level) {
+    // 读取全局状态
+    LogGlobalState global_state;
+    LogResult result = read_global_state(&global_state);
+    if (result != LOG_RESULT_SUCCESS) {
+        return result;  // 读取失败，需要降级到完整扫描
+    }
+    
+    // 验证全局状态
+    if (!verify_global_state(&global_state)) {
+        return LOG_RESULT_ERROR_INIT;  // 验证失败，需要降级到完整扫描
+    }
+    
+    // 验证指定的活跃扇区是否真的有效
+    LogSectorHeader header;
+    uint32_t sector_addr = LOG_FLASH_BASE_ADDR + global_state.last_active_sector * LOG_FLASH_SECTOR_SIZE;
+    result = read_from_flash(sector_addr, (uint8_t*)&header, sizeof(LogSectorHeader));
+    if (result != LOG_RESULT_SUCCESS) {
+        return result;  // 读取失败，需要降级到完整扫描
+    }
+    
+    // 检查扇区是否真的是活跃的
+    if (header.magic != LOG_MAGIC_NUMBER || !header.is_active) {
+        return LOG_RESULT_ERROR_INIT;  // 扇区无效，需要降级到完整扫描
+    }
+    
+    // 检查序列号是否匹配
+    if (header.sequence_counter != global_state.global_sequence) {
+        return LOG_RESULT_ERROR_INIT;  // 序列号不匹配，可能数据不一致
+    }
+    
+    // 快速启动成功，设置状态
+    g_logger_state.current_sector = global_state.last_active_sector;
+    g_logger_state.global_sequence = global_state.global_sequence;
+    g_logger_state.boot_counter = global_state.boot_counter + 1;
+    g_logger_state.minimum_level = min_level;
+    
+    return LOG_RESULT_SUCCESS;
+}
+
+static LogResult full_scan_init(LogLevel min_level) {
+    // 扫描Flash找到最新的活跃扇区
+    uint32_t max_sequence = 0;
+    uint32_t max_boot_count = 0;
+    uint32_t active_sector = 0;
+    bool found_active = false;
+
+    for (uint32_t sector = 0; sector < LOG_FLASH_SECTOR_COUNT - 1; sector++) {  // 减1因为最后一个扇区用于全局状态
+        LogSectorHeader header;
+        uint32_t sector_addr = LOG_FLASH_BASE_ADDR + sector * LOG_FLASH_SECTOR_SIZE;
+        
+        if (read_from_flash(sector_addr, (uint8_t*)&header, sizeof(LogSectorHeader)) == LOG_RESULT_SUCCESS) {
+            if (header.magic == LOG_MAGIC_NUMBER && header.is_active) {
+                if (header.sequence_counter > max_sequence || 
+                    (header.sequence_counter == max_sequence && header.boot_counter > max_boot_count)) {
+                    max_sequence = header.sequence_counter;
+                    max_boot_count = header.boot_counter;
+                    active_sector = sector;
+                    found_active = true;
+                }
+            }
+        }
+    }
+
+    if (found_active) {
+        g_logger_state.current_sector = active_sector;
+        g_logger_state.global_sequence = max_sequence;
+        g_logger_state.boot_counter = max_boot_count + 1;
+        g_logger_state.minimum_level = min_level;
+        
+    } else {
+        // 没有找到活跃扇区，初始化第0个扇区
+        g_logger_state.current_sector = 0;
+        g_logger_state.global_sequence = 0;
+        g_logger_state.boot_counter = 1;
+        g_logger_state.minimum_level = min_level;
+        
+        // 擦除并初始化第0个扇区
+        LogResult result = erase_flash_sector(0);
+        if (result != LOG_RESULT_SUCCESS) {
+            return result;
+        }
+        
+        // 初始化扇区头部
+        LogSectorHeader header;
+        memset(&header, 0, sizeof(LogSectorHeader));
+        
+        header.magic = LOG_MAGIC_NUMBER;
+        header.next_write_index = 0;
+        header.queue_start_index = 0;
+        header.current_count = 0;
+        header.total_written = 0;
+        header.sector_index = 0;
+        header.timestamp_first = 0;
+        header.timestamp_last = 0;
+        header.boot_counter = g_logger_state.boot_counter;
+        header.sequence_counter = g_logger_state.global_sequence;
+        header.is_active = 1;
+
+        // 写入扇区头部（只写入64字节头部）
+        uint32_t sector_addr = LOG_FLASH_BASE_ADDR;
+        result = write_to_flash(sector_addr, (uint8_t*)&header, sizeof(LogSectorHeader));
+        if (result != LOG_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+    
     return LOG_RESULT_SUCCESS;
 } 

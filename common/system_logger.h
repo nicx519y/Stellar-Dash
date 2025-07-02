@@ -6,7 +6,7 @@
  * 
  * 设计原理：
  * - 扇区头部64字节：存储下次写入地址、队列开始地址、当前日志条数
- * - 每条日志64字节：以\n结尾的字符串
+ * - 每条日志128字节：以\n结尾的字符串
  * - 数组操作：读取整个数组→修改→写回Flash，循环覆盖
  */
 
@@ -45,18 +45,37 @@ extern "C" {
 #define LOG_MEMORY_BUFFER_SIZE      (32 * LOG_ENTRY_SIZE)  // 内存缓冲32条日志 (2KB)
 #define LOG_AUTO_FLUSH_INTERVAL_MS  5000                   // 5秒自动刷新间隔
 
+// 混合方案配置
+#define LOG_GLOBAL_STATE_SECTOR     (LOG_FLASH_SECTOR_COUNT - 1)  // 使用最后一个扇区存储全局状态
+#define LOG_GLOBAL_STATE_MAGIC      0x484C4753              // "HLGS" (HBox Logger Global State)
+
 /* ============================================================================
  * 数据结构定义  
  * ========================================================================== */
+
+/**
+ * @brief 全局日志状态结构 (混合方案的快速启动索引)
+ */
+typedef struct {
+    uint32_t magic1;                   // 魔术数字 0x484C4753 ("HLGS")
+    uint32_t last_active_sector;       // 最后已知的活跃扇区索引
+    uint32_t global_sequence;          // 全局序列计数器
+    uint32_t boot_counter;             // 启动计数器
+    uint32_t last_update_timestamp;    // 最后更新时间戳
+    uint32_t magic2;                   // 魔术数字备份 (双重验证)
+    uint32_t last_active_sector_backup; // 活跃扇区索引备份
+    uint32_t checksum;                 // 校验和 (前面所有字段的异或值)
+    uint8_t  reserved[32];             // 预留空间 (总共64字节)
+} __attribute__((packed)) LogGlobalState;
 
 /**
  * @brief 扇区头部结构 (64字节)
  */
 typedef struct {
     uint32_t magic;                    // 魔术数字 0x484C4F47 ("HLOG")
-    uint32_t next_write_index;         // 下一个写入位置索引 (0-62)
-    uint32_t queue_start_index;        // 队列开始位置索引 (0-62)
-    uint32_t current_count;            // 当前日志条数 (0-63)
+    uint32_t next_write_index;         // 下一个写入位置索引 (0-30)
+    uint32_t queue_start_index;        // 队列开始位置索引 (0-30)
+    uint32_t current_count;            // 当前日志条数 (0-31)
     uint32_t total_written;            // 历史写入总数
     uint32_t sector_index;             // 扇区索引
     uint32_t timestamp_first;          // 第一条日志时间戳
@@ -78,7 +97,7 @@ typedef char LogEntry[LOG_ENTRY_SIZE];
  */
 typedef struct {
     LogSectorHeader header;                           // 64字节头部
-    LogEntry entries[LOG_ENTRIES_PER_SECTOR];         // 63条日志，每条64字节
+    LogEntry entries[LOG_ENTRIES_PER_SECTOR];         // 31条日志，每条128字节
 } __attribute__((packed)) LogSector;
 
 /* ============================================================================
@@ -190,6 +209,13 @@ LogResult Logger_PrintAllLogs(int (*print_func)(const char* format, ...));
  * @return 操作结果
  */
 LogResult Logger_ShowSectorInfo(int (*print_func)(const char* format, ...));
+
+/**
+ * @brief 显示全局状态信息 (混合方案调试用)
+ * @param print_func 输出函数指针 (例如printf)
+ * @return 操作结果
+ */
+LogResult Logger_ShowGlobalState(int (*print_func)(const char* format, ...));
 
 /* ============================================================================
  * 便捷宏定义

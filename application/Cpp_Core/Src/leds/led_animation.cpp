@@ -293,11 +293,7 @@ RGBColor staticAnimation(const LedAnimationParams& params) {
     RGBColor color = params.colorEnabled
         ? (params.pressed ? params.frontColor : params.backColor1)
         : params.defaultBackColor;
-    
-    // 应用亮度
-    color.r = (uint8_t)(color.r * params.brightness / 100);
-    color.g = (uint8_t)(color.g * params.brightness / 100);
-    color.b = (uint8_t)(color.b * params.brightness / 100);
+
     
     return color;
 }
@@ -317,11 +313,6 @@ RGBColor breathingAnimation(const LedAnimationParams& params) {
         color = params.defaultBackColor;
     }
     
-    // 应用亮度
-    color.r = (uint8_t)(color.r * params.brightness / 100);
-    color.g = (uint8_t)(color.g * params.brightness / 100);
-    color.b = (uint8_t)(color.b * params.brightness / 100);
-    
     return color;
 }
 
@@ -333,9 +324,6 @@ RGBColor starAnimation(const LedAnimationParams& params) {
     
     if (params.pressed) {
         RGBColor color = params.frontColor;
-        color.r = (uint8_t)(color.r * params.brightness / 100);
-        color.g = (uint8_t)(color.g * params.brightness / 100);
-        color.b = (uint8_t)(color.b * params.brightness / 100);
         return color;
     }
     
@@ -377,9 +365,6 @@ RGBColor starAnimation(const LedAnimationParams& params) {
     
     if (!inGroup1 && !inGroup2) {
         RGBColor color = params.backColor1;
-        color.r = (uint8_t)(color.r * params.brightness / 100);
-        color.g = (uint8_t)(color.g * params.brightness / 100);
-        color.b = (uint8_t)(color.b * params.brightness / 100);
         return color;
     }
     
@@ -397,9 +382,6 @@ RGBColor starAnimation(const LedAnimationParams& params) {
     }
     
     RGBColor result = lerpColor(params.backColor1, params.backColor2, fadeInOut);
-    result.r = (uint8_t)(result.r * params.brightness / 100);
-    result.g = (uint8_t)(result.g * params.brightness / 100);
-    result.b = (uint8_t)(result.b * params.brightness / 100);
     
     return result;
 }
@@ -412,9 +394,6 @@ RGBColor flowingAnimation(const LedAnimationParams& params) {
     
     if (params.pressed) {
         RGBColor color = params.frontColor;
-        color.r = (uint8_t)(color.r * params.brightness / 100);
-        color.g = (uint8_t)(color.g * params.brightness / 100);
-        color.b = (uint8_t)(color.b * params.brightness / 100);
         return color;
     }
     
@@ -454,9 +433,6 @@ RGBColor flowingAnimation(const LedAnimationParams& params) {
     
     // 渐变色
     RGBColor result = lerpColor(params.backColor1, params.backColor2, t);
-    result.r = (uint8_t)(result.r * params.brightness / 100);
-    result.g = (uint8_t)(result.g * params.brightness / 100);
-    result.b = (uint8_t)(result.b * params.brightness / 100);
     
     return result;
 }
@@ -469,9 +445,6 @@ RGBColor rippleAnimation(const LedAnimationParams& params) {
     
     if (params.pressed) {
         RGBColor color = params.frontColor;
-        color.r = (uint8_t)(color.r * params.brightness / 100);
-        color.g = (uint8_t)(color.g * params.brightness / 100);
-        color.b = (uint8_t)(color.b * params.brightness / 100);
         return color;
     }
     
@@ -509,9 +482,6 @@ RGBColor rippleAnimation(const LedAnimationParams& params) {
     }
     
     RGBColor result = lerpColor(params.backColor1, params.backColor2, t);
-    result.r = (uint8_t)(result.r * params.brightness / 100);
-    result.g = (uint8_t)(result.g * params.brightness / 100);
-    result.b = (uint8_t)(result.b * params.brightness / 100);
     
     return result;
 }
@@ -524,9 +494,6 @@ RGBColor transformAnimation(const LedAnimationParams& params) {
     
     if (params.pressed) {
         RGBColor color = params.frontColor;
-        color.r = (uint8_t)(color.r * params.brightness / 100);
-        color.g = (uint8_t)(color.g * params.brightness / 100);
-        color.b = (uint8_t)(color.b * params.brightness / 100);
         return color;
     }
     
@@ -591,9 +558,6 @@ RGBColor transformAnimation(const LedAnimationParams& params) {
         color = lerpColor(buttonAltColor, buttonBaseColor, smoothT);
     }
     
-    color.r = (uint8_t)(color.r * params.brightness / 100);
-    color.g = (uint8_t)(color.g * params.brightness / 100);
-    color.b = (uint8_t)(color.b * params.brightness / 100);
     
     return color;
 }
@@ -625,12 +589,11 @@ LedAnimationAlgorithm getLedAnimation(LEDEffect effect) {
  * @param ledIndex 环绕灯的索引 (0 到 NUM_LED_AROUND-1) - 未使用，所有LED显示相同颜色
  * @param color1 底色（环绕灯color1）
  * @param color2 呼吸变化颜色（环绕灯color2）
- * @param brightness 亮度 (0-100)
  * @param animationSpeed 动画速度 (1-5) - 未使用，进度由外部控制
  * @param triggerTime 触发时间（毫秒）- 未使用，进度由外部控制
  * @return 计算后的LED颜色
  */
-RGBColor aroundLedBreathingAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t triggerTime) {
+RGBColor aroundLedBreathingAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t animationSpeed, uint32_t triggerTime) {
     // 转换颜色格式
     RGBColor color1RGB = hexToRGB(color1);
     RGBColor color2RGB = hexToRGB(color2);
@@ -646,11 +609,6 @@ RGBColor aroundLedBreathingAnimation(float progress, uint8_t ledIndex, uint32_t 
         resultColor = lerpColor(color1RGB, color2RGB, breathProgress);
     }
     
-    // 应用亮度
-    resultColor.r = (uint8_t)(resultColor.r * brightness / 100);
-    resultColor.g = (uint8_t)(resultColor.g * brightness / 100);
-    resultColor.b = (uint8_t)(resultColor.b * brightness / 100);
-    
     return resultColor;
 }
 
@@ -660,12 +618,11 @@ RGBColor aroundLedBreathingAnimation(float progress, uint8_t ledIndex, uint32_t 
  * @param ledIndex 环绕灯的索引 (0 到 NUM_LED_AROUND-1)
  * @param color1 底色（环绕灯color1）
  * @param color2 流星头部颜色（环绕灯color2）
- * @param brightness 亮度 (0-100)
  * @param animationSpeed 动画速度 (1-5，用于计算尾巴长度)
  * @param triggerTime 触发时间（毫秒）- 未使用，进度由外部控制
  * @return 计算后的LED颜色
  */
-RGBColor aroundLedMeteorAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t triggerTime) {
+RGBColor aroundLedMeteorAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t animationSpeed, uint32_t triggerTime) {
     // 转换颜色格式
     RGBColor baseColor = hexToRGB(color1);    // 底色
     RGBColor meteorColor = hexToRGB(color2);  // 流星颜色
@@ -711,11 +668,6 @@ RGBColor aroundLedMeteorAnimation(float progress, uint8_t ledIndex, uint32_t col
         }
     }
     
-    // 应用亮度
-    resultColor.r = (uint8_t)(resultColor.r * brightness / 100);
-    resultColor.g = (uint8_t)(resultColor.g * brightness / 100);
-    resultColor.b = (uint8_t)(resultColor.b * brightness / 100);
-    
     return resultColor;
 }
 
@@ -725,12 +677,11 @@ RGBColor aroundLedMeteorAnimation(float progress, uint8_t ledIndex, uint32_t col
  * @param ledIndex 环绕灯的索引 (0 到 NUM_LED_AROUND-1)
  * @param color1 底色
  * @param color2 震荡波颜色
- * @param brightness 亮度 (0-100)
  * @param animationSpeed 动画速度 (1-5) - 未使用，进度由外部控制
  * @param triggerTime 触发时间（毫秒）- 未使用，进度由外部控制
  * @return 计算后的LED颜色
  */
-RGBColor aroundLedQuakeAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t brightness, uint8_t animationSpeed, uint32_t triggerTime) {
+RGBColor aroundLedQuakeAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t animationSpeed, uint32_t triggerTime) {
     // 转换颜色格式
     RGBColor baseColor = hexToRGB(color1);
     RGBColor quakeColor = hexToRGB(color2);
@@ -782,11 +733,6 @@ RGBColor aroundLedQuakeAnimation(float progress, uint8_t ledIndex, uint32_t colo
             resultColor = baseColor;
         }
     }
-    
-    // 应用亮度
-    resultColor.r = (uint8_t)(resultColor.r * brightness / 100);
-    resultColor.g = (uint8_t)(resultColor.g * brightness / 100);
-    resultColor.b = (uint8_t)(resultColor.b * brightness / 100);
     
     return resultColor;
 }
