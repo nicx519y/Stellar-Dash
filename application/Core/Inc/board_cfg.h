@@ -133,7 +133,7 @@ uint32_t get_current_slot_base_address(void);
 
 #define HAS_LED                                   1             //是否有LED
 #define HAS_LED_AROUND                            1          //是否有底部环绕led
-#define NUM_LED_AROUND                            30          //底部环绕led数量
+#define NUM_LED_AROUND                            29          //底部环绕led数量
 #define NUM_LED	                    (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS + NUM_LED_AROUND) //LED数量
 
 #define NUM_LEDs_PER_ADC_BUTTON     1              //每个按钮多少个LED
