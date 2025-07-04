@@ -12,10 +12,13 @@
 #include "leds/leds_manager.hpp"
 #include "adc_btns/adc_calibration.hpp"
 #include "system_logger.h"
+#include "utils.h"
 
 extern "C" {
     int cpp_main(void) 
     {   
+
+        // printf("STM32 Unique ID: %s\n", str_stm32_unique_id());
         // Logger_ClearFlash();
         // Logger_PrintAllLogs(printf);
 

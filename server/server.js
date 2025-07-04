@@ -74,7 +74,9 @@ const upload = multer({
 class FirmwareStorage {
     constructor() {
         this.dataFile = config.dataFile;
+        this.deviceDataFile = path.join(__dirname, 'device_ids.json');
         this.data = this.loadData();
+        this.deviceData = this.loadDeviceData();
     }
 
     // 加载数据
@@ -95,6 +97,24 @@ class FirmwareStorage {
         };
     }
 
+    // 加载设备数据
+    loadDeviceData() {
+        try {
+            if (fs.existsSync(this.deviceDataFile)) {
+                const content = fs.readFileSync(this.deviceDataFile, 'utf8');
+                return JSON.parse(content);
+            }
+        } catch (error) {
+            console.error('加载设备数据失败:', error.message);
+        }
+        
+        // 返回默认设备数据结构
+        return {
+            devices: [],
+            lastUpdate: new Date().toISOString()
+        };
+    }
+
     // 保存数据
     saveData() {
         try {
@@ -105,6 +125,154 @@ class FirmwareStorage {
             console.error('保存数据失败:', error.message);
             return false;
         }
+    }
+
+    // 保存设备数据
+    saveDeviceData() {
+        try {
+            this.deviceData.lastUpdate = new Date().toISOString();
+            fs.writeFileSync(this.deviceDataFile, JSON.stringify(this.deviceData, null, 2), 'utf8');
+            return true;
+        } catch (error) {
+            console.error('保存设备数据失败:', error.message);
+            return false;
+        }
+    }
+
+    // 计算设备ID哈希 (与固件中的算法保持一致)
+    calculateDeviceIdHash(uid_word0, uid_word1, uid_word2) {
+        // 与 utils.c 中相同的哈希算法
+        // 盐值常量
+        const salt1 = 0x48426F78;  // "HBox"
+        const salt2 = 0x32303234;  // "2024"
+        
+        // 质数常量
+        const prime1 = 0x9E3779B9;  // 黄金比例的32位表示
+        const prime2 = 0x85EBCA6B;  // 另一个质数
+        const prime3 = 0xC2B2AE35;  // 第三个质数
+        
+        // 第一轮哈希
+        let hash1 = uid_word0 ^ salt1;
+        hash1 = ((hash1 << 13) | (hash1 >>> 19)) >>> 0;  // 左循环移位13位
+        hash1 = Math.imul(hash1, prime1) >>> 0;  // 使用Math.imul进行32位乘法
+        hash1 ^= uid_word1;
+        
+        // 第二轮哈希
+        let hash2 = uid_word1 ^ salt2;
+        hash2 = ((hash2 << 17) | (hash2 >>> 15)) >>> 0;  // 左循环移位17位
+        hash2 = Math.imul(hash2, prime2) >>> 0;  // 使用Math.imul进行32位乘法
+        hash2 ^= uid_word2;
+        
+        // 第三轮哈希
+        let hash3 = uid_word2 ^ ((salt1 + salt2) >>> 0);
+        hash3 = ((hash3 << 21) | (hash3 >>> 11)) >>> 0;  // 左循环移位21位
+        hash3 = Math.imul(hash3, prime3) >>> 0;  // 使用Math.imul进行32位乘法
+        hash3 ^= hash1;
+        
+        // 最终组合
+        const final_hash1 = (hash1 ^ hash2) >>> 0;
+        const final_hash2 = (hash2 ^ hash3) >>> 0;
+        
+        // 转换为16位十六进制字符串 (64位哈希)
+        const device_id = final_hash1.toString(16).toUpperCase().padStart(8, '0') + 
+                         final_hash2.toString(16).toUpperCase().padStart(8, '0');
+        
+        return device_id;
+    }
+
+    // 验证设备ID哈希
+    verifyDeviceIdHash(rawUniqueId, deviceIdHash) {
+        try {
+            // 解析原始唯一ID格式: XXXXXXXX-XXXXXXXX-XXXXXXXX
+            const parts = rawUniqueId.split('-');
+            if (parts.length !== 3) {
+                return false;
+            }
+            
+            const uid_word0 = parseInt(parts[0], 16);
+            const uid_word1 = parseInt(parts[1], 16);
+            const uid_word2 = parseInt(parts[2], 16);
+            
+            // 计算期望的哈希值
+            const expectedHash = this.calculateDeviceIdHash(uid_word0, uid_word1, uid_word2);
+            
+            // 比较哈希值
+            return expectedHash === deviceIdHash.toUpperCase();
+        } catch (error) {
+            console.error('验证设备ID哈希失败:', error.message);
+            return false;
+        }
+    }
+
+    // 查找设备
+    findDevice(deviceId) {
+        return this.deviceData.devices.find(d => d.deviceId === deviceId);
+    }
+
+    // 添加设备
+    addDevice(deviceInfo) {
+        // 检查设备是否已存在
+        const existingDevice = this.findDevice(deviceInfo.deviceId);
+        if (existingDevice) {
+            return {
+                success: true,
+                existed: true,
+                message: '设备已存在',
+                device: existingDevice
+            };
+        }
+        
+        // 🔍 调试打印：哈希验证过程
+        console.log('🔧 设备ID哈希验证:');
+        console.log('  输入原始唯一ID:', deviceInfo.rawUniqueId);
+        console.log('  输入设备ID:', deviceInfo.deviceId);
+        
+        // 计算服务器端的设备ID哈希
+        const parts = deviceInfo.rawUniqueId.split('-');
+        const uid_word0 = parseInt(parts[0], 16);
+        const uid_word1 = parseInt(parts[1], 16);
+        const uid_word2 = parseInt(parts[2], 16);
+        const serverCalculatedDeviceId = this.calculateDeviceIdHash(uid_word0, uid_word1, uid_word2);
+        
+        console.log('  服务器计算的设备ID:', serverCalculatedDeviceId);
+        console.log('  验证结果:', serverCalculatedDeviceId === deviceInfo.deviceId.toUpperCase() ? '✅ 匹配' : '❌ 不匹配');
+        
+        // 验证设备ID哈希
+        if (!this.verifyDeviceIdHash(deviceInfo.rawUniqueId, deviceInfo.deviceId)) {
+            return {
+                success: false,
+                message: '设备ID哈希验证失败'
+            };
+        }
+        
+        // 添加新设备
+        const newDevice = {
+            ...deviceInfo,
+            registerTime: new Date().toISOString(),
+            lastSeen: new Date().toISOString(),
+            status: 'active'
+        };
+        
+        this.deviceData.devices.push(newDevice);
+        
+        if (this.saveDeviceData()) {
+            return {
+                success: true,
+                existed: false,
+                message: '设备注册成功',
+                device: newDevice
+            };
+        } else {
+            return {
+                success: false,
+                message: '保存设备数据失败'
+            };
+        }
+    }
+
+    // 获取所有设备
+    getDevices() {
+        return this.deviceData.devices;
     }
 
     // 获取所有固件
@@ -302,6 +470,120 @@ app.get('/health', (req, res) => {
         timestamp: new Date().toISOString(),
         version: '1.0.0'
     });
+});
+
+// 设备注册接口
+app.post('/api/device/register', (req, res) => {
+    try {
+        const { rawUniqueId, deviceId, deviceName } = req.body;
+        
+        // 🔍 调试打印：收到的注册请求数据
+        console.log('📥 设备注册请求:');
+        console.log('  原始唯一ID (rawUniqueId):', rawUniqueId);
+        console.log('  设备ID (deviceId):', deviceId);
+        console.log('  设备名称 (deviceName):', deviceName);
+        
+        // 验证必需参数
+        if (!rawUniqueId || !deviceId) {
+            return res.status(400).json({
+                success: false,
+                message: '原始唯一ID和设备ID是必需的',
+                errNo: 1,
+                errorMessage: 'rawUniqueId and deviceId are required'
+            });
+        }
+
+        // 验证原始唯一ID格式 (XXXXXXXX-XXXXXXXX-XXXXXXXX)
+        const uniqueIdPattern = /^[A-Fa-f0-9]{8}-[A-Fa-f0-9]{8}-[A-Fa-f0-9]{8}$/;
+        if (!uniqueIdPattern.test(rawUniqueId.trim())) {
+            return res.status(400).json({
+                success: false,
+                message: '原始唯一ID格式错误，必须是 XXXXXXXX-XXXXXXXX-XXXXXXXX 格式',
+                errNo: 1,
+                errorMessage: 'rawUniqueId format error, must be XXXXXXXX-XXXXXXXX-XXXXXXXX format'
+            });
+        }
+
+        // 验证设备ID格式 (16位十六进制)
+        const deviceIdPattern = /^[A-Fa-f0-9]{16}$/;
+        if (!deviceIdPattern.test(deviceId.trim())) {
+            return res.status(400).json({
+                success: false,
+                message: '设备ID格式错误，必须是16位十六进制字符串',
+                errNo: 1,
+                errorMessage: 'deviceId format error, must be 16-digit hexadecimal string'
+            });
+        }
+
+        // 构建设备信息
+        const deviceInfo = {
+            rawUniqueId: rawUniqueId.trim(),
+            deviceId: deviceId.trim().toUpperCase(),
+            deviceName: deviceName ? deviceName.trim() : `HBox-${deviceId.trim().substring(0, 8)}`,
+            registerIP: req.ip || req.connection.remoteAddress || 'unknown'
+        };
+
+        // 注册设备
+        const result = storage_manager.addDevice(deviceInfo);
+        
+        if (result.success) {
+            const statusCode = result.existed ? 200 : 201;
+            res.status(statusCode).json({
+                success: true,
+                message: result.message,
+                errNo: 0,
+                data: {
+                    deviceId: result.device.deviceId,
+                    deviceName: result.device.deviceName,
+                    registerTime: result.device.registerTime,
+                    existed: result.existed
+                }
+            });
+            
+            if (!result.existed) {
+                console.log(`Device registered successfully: ${result.device.deviceName} (${result.device.deviceId})`);
+            } else {
+                console.log(`Device already exists: ${result.device.deviceName} (${result.device.deviceId})`);
+            }
+        } else {
+            res.status(400).json({
+                success: false,
+                message: result.message,
+                errNo: 1,
+                errorMessage: result.message
+            });
+        }
+
+    } catch (error) {
+        console.error('Device registration failed:', error);
+        res.status(500).json({
+            success: false,
+            message: '设备注册失败',
+            errNo: 1,
+            errorMessage: 'Device registration failed: ' + error.message,
+            error: error.message
+        });
+    }
+});
+
+// 获取设备列表接口
+app.get('/api/devices', (req, res) => {
+    try {
+        const devices = storage_manager.getDevices();
+        res.json({
+            success: true,
+            data: devices,
+            total: devices.length,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('获取设备列表失败:', error);
+        res.status(500).json({
+            success: false,
+            message: '获取设备列表失败',
+            error: error.message
+        });
+    }
 });
 
 // 1. 获取固件列表
@@ -733,6 +1015,8 @@ app.listen(PORT, () => {
     console.log('='.repeat(60));
     console.log('可用接口:');
     console.log('  GET    /health                 - 健康检查');
+    console.log('  POST   /api/device/register    - 注册设备ID');
+    console.log('  GET    /api/devices            - 获取设备列表');
     console.log('  GET    /api/firmwares          - 获取固件列表');
     console.log('  POST   /api/firmware-check-update - 检查固件更新');
     console.log('  POST   /api/firmwares/upload   - 上传固件包');

@@ -1,6 +1,7 @@
 #include "utils.h"
 #include <stdio.h>
 #include <math.h>
+#include "board_cfg.h"
 
 uint32_t RGBToHex(uint8_t red, uint8_t green, uint8_t blue)
 {
@@ -210,5 +211,85 @@ void printBinary(const char* prefix, uint32_t value) {
     }
     printf("\n");
 }
+
+/******************************** STM32唯一ID读取函数 begin ******************************************/
+/**
+ * 返回STM32唯一ID字符串
+ * @return 包含96位唯一ID的缓冲区
+ */
+char* str_stm32_unique_id() {
+    // 静态缓冲区，用于存储格式化后的唯一ID字符串
+    // 格式: XXXXXXXX-XXXXXXXX-XXXXXXXX (8+1+8+1+8+1 = 27字符)
+    static char uid_str[28];  // 26个字符 + 1个终止符
+    
+    // 直接从内存中读取唯一ID
+    uint32_t *uid_ptr = (uint32_t *)STM32_UNIQUE_ID_BASE_ADDR;
+    
+    // 读取3个32位字（共96位）
+    uint32_t uid_word0 = uid_ptr[0];  // 第一个32位字
+    uint32_t uid_word1 = uid_ptr[1];  // 第二个32位字
+    uint32_t uid_word2 = uid_ptr[2];  // 第三个32位字
+    
+    // 格式化为十六进制字符串，格式: XXXXXXXX-XXXXXXXX-XXXXXXXX
+    snprintf(uid_str, sizeof(uid_str), "%08X-%08X-%08X", 
+             (unsigned int)uid_word0, 
+             (unsigned int)uid_word1, 
+             (unsigned int)uid_word2);
+    
+    return uid_str;
+}
+
+/**
+ * 基于STM32唯一ID生成安全的设备ID哈希值
+ * 使用多轮哈希和盐值确保安全性
+ * @return 16位十六进制哈希字符串（64位哈希值）
+ */
+char* get_device_id_hash() {
+    // 静态缓冲区，用于存储哈希结果
+    static char hash_str[17];  // 16个字符 + 1个终止符
+    
+    // 从内存中读取原始唯一ID
+    uint32_t *uid_ptr = (uint32_t *)STM32_UNIQUE_ID_BASE_ADDR;
+    uint32_t uid_word0 = uid_ptr[0];
+    uint32_t uid_word1 = uid_ptr[1];
+    uint32_t uid_word2 = uid_ptr[2];
+    
+    // 定义盐值和常量（基于项目特征）
+    const uint32_t SALT1 = 0x48426F78;  // "HBox" 的ASCII值
+    const uint32_t SALT2 = 0x32303234;  // "2024" 的ASCII值
+    const uint32_t PRIME1 = 0x9E3779B9; // 黄金比例常数
+    const uint32_t PRIME2 = 0x85EBCA6B; // 另一个质数
+    
+    // 第一轮哈希：结合原始ID和盐值
+    uint32_t hash1 = uid_word0 ^ SALT1;
+    hash1 = ((hash1 << 13) | (hash1 >> 19)) ^ uid_word1;
+    hash1 += PRIME1;
+    
+    uint32_t hash2 = uid_word1 ^ SALT2;
+    hash2 = ((hash2 << 17) | (hash2 >> 15)) ^ uid_word2;
+    hash2 += PRIME2;
+    
+    // 第二轮哈希：交叉混合
+    uint32_t mixed1 = hash1 ^ hash2;
+    mixed1 = ((mixed1 << 11) | (mixed1 >> 21)) + uid_word0;
+    
+    uint32_t mixed2 = hash2 ^ hash1;
+    mixed2 = ((mixed2 << 23) | (mixed2 >> 9)) + uid_word2;
+    
+    // 第三轮哈希：最终混合
+    uint32_t final_hash1 = mixed1 ^ (mixed2 << 7);
+    final_hash1 = ((final_hash1 << 5) | (final_hash1 >> 27)) ^ PRIME1;
+    
+    uint32_t final_hash2 = mixed2 ^ (mixed1 >> 11);
+    final_hash2 = ((final_hash2 << 19) | (final_hash2 >> 13)) ^ PRIME2;
+    
+    // 格式化为16位十六进制字符串
+    snprintf(hash_str, sizeof(hash_str), "%08X%08X", 
+             (unsigned int)final_hash1, 
+             (unsigned int)final_hash2);
+    
+    return hash_str;
+}
+/******************************** STM32唯一ID读取函数 end ******************************************/
 
 

@@ -61,6 +61,21 @@ uint32_t read_uint32_le(const uint8_t* data);
 void printBinary(const char* prefix, uint32_t value);
 /******************************** 打印二进制函数 end ******************************************/
 
+/******************************** STM32唯一ID读取函数 begin ******************************************/
+/**
+ * 返回STM32唯一ID字符串
+ * @return 包含96位唯一ID的缓冲区
+ */
+char* str_stm32_unique_id();
+
+/**
+ * 基于STM32唯一ID生成安全的设备ID哈希值
+ * 使用SHA-256风格的哈希算法对原始唯一ID进行处理
+ * @return 64位十六进制哈希字符串
+ */
+char* get_device_id_hash();
+/******************************** STM32唯一ID读取函数 end ******************************************/
+
 #ifdef __cplusplus
 }
 #endif

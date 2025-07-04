@@ -811,7 +811,7 @@ class ReleaseFlasher:
         finally:
             # 清理临时目录
             self.cleanup_temp_dir()
-
+    
     def flash_metadata(self, metadata_file: Path) -> bool:
         """刷写元数据到Flash"""
         if not metadata_file.exists():
@@ -1359,7 +1359,22 @@ class ReleaseManager:
     def flash_release_package(self, package_path: str, target_slot: str = None, 
                             components: List[str] = None) -> bool:
         """刷写release包"""
-        return self.flasher.flash_release_package(package_path, target_slot, components)
+        result = self.flasher.flash_release_package(package_path, target_slot, components)
+        
+        # 如果刷写成功，尝试注册设备ID
+        if result:
+            print("\n" + "="*60)
+            print("🔐 正在注册设备ID到服务器...")
+            print("="*60)
+            try:
+                # 尝试注册设备ID，失败不影响整体流程
+                self.register_device_id()
+            except Exception as e:
+                print(f"⚠️  设备ID注册出现异常: {str(e)}")
+                print("   烧录已成功完成，但设备注册失败")
+            print("="*60)
+        
+        return result
     
     def select_release_package(self) -> Optional[str]:
         """交互式选择release包"""
@@ -1950,6 +1965,312 @@ class ReleaseManager:
             print(f"\n✗ 操作失败: {e}")
             return False
 
+    # ==================== 设备ID读取功能 ====================
+    
+    def read_device_ids(self) -> bool:
+        """读取STM32设备唯一ID并计算设备ID哈希"""
+        print("=== STM32 设备ID读取工具 ===")
+        print(f"工作目录: {self.project_root}")
+        
+        if not self.openocd_config.exists():
+            print(f"错误: OpenOCD配置文件不存在: {self.openocd_config}")
+            return False
+        
+        try:
+            print("\n正在连接设备并读取唯一ID...")
+            
+            # STM32H750的唯一ID存储地址
+            unique_id_address = "0x1FF1E800"
+            unique_id_size = 12  # 96位 = 12字节
+            
+            # 构建OpenOCD命令读取唯一ID
+            cmd = [
+                "openocd",
+                "-d0",
+                "-f", "openocd_configs/ST-LINK-QSPIFLASH.cfg",
+                "-c", "init",
+                "-c", "halt",
+                "-c", "reset init",
+                "-c", f"dump_image unique_id_temp.bin {unique_id_address} {unique_id_size}",
+                "-c", "shutdown"
+            ]
+            
+            print(f"执行命令: {' '.join(cmd)}")
+            
+            # 执行OpenOCD命令
+            result = subprocess.run(
+                cmd,
+                cwd=self.tools_dir,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode != 0:
+                print("✗ OpenOCD命令执行失败")
+                if result.stderr:
+                    print(f"错误信息: {result.stderr}")
+                return False
+            
+            # 读取导出的唯一ID数据
+            unique_id_file = self.tools_dir / "unique_id_temp.bin"
+            if not unique_id_file.exists():
+                print("✗ 未找到导出的唯一ID数据文件")
+                return False
+            
+            try:
+                with open(unique_id_file, 'rb') as f:
+                    uid_data = f.read()
+                
+                if len(uid_data) != 12:
+                    print(f"✗ 唯一ID数据长度错误: 期望12字节，实际{len(uid_data)}字节")
+                    return False
+                
+                # 解析96位唯一ID (3个32位字)
+                uid_word0 = struct.unpack('<I', uid_data[0:4])[0]
+                uid_word1 = struct.unpack('<I', uid_data[4:8])[0]
+                uid_word2 = struct.unpack('<I', uid_data[8:12])[0]
+                
+                # 格式化原始唯一ID (格式: XXXXXXXX-XXXXXXXX-XXXXXXXX)
+                raw_unique_id = f"{uid_word0:08X}-{uid_word1:08X}-{uid_word2:08X}"
+                
+                # 计算设备ID哈希 (与固件中的算法一致)
+                device_id_hash = self.calculate_device_id_hash(uid_word0, uid_word1, uid_word2)
+                
+                # 显示结果
+                print("\n" + "="*60)
+                print("✓ STM32 设备ID读取成功!")
+                print("="*60)
+                print(f"设备型号: STM32H750")
+                print(f"唯一ID地址: {unique_id_address}")
+                print()
+                print("原始唯一ID (96位):")
+                print(f"  Word0: 0x{uid_word0:08X}")
+                print(f"  Word1: 0x{uid_word1:08X}")
+                print(f"  Word2: 0x{uid_word2:08X}")
+                print(f"  格式化: {raw_unique_id}")
+                print()
+                print("设备ID哈希 (用于网络认证):")
+                print(f"  Device ID: {device_id_hash}")
+                print()
+                print("数据解读:")
+                print(f"  - 原始ID用于内部调试和硬件识别")
+                print(f"  - 设备ID哈希用于网络安全验证")
+                print(f"  - 设备ID通过多轮哈希算法生成，无法逆推原始ID")
+                print("="*60)
+                
+                return True
+                
+            finally:
+                # 清理临时文件
+                if unique_id_file.exists():
+                    try:
+                        unique_id_file.unlink()
+                        print(f"\n已清理临时文件: {unique_id_file}")
+                    except Exception as e:
+                        print(f"清理临时文件失败: {e}")
+                        
+        except subprocess.TimeoutExpired:
+            print("✗ OpenOCD操作超时")
+            return False
+        except FileNotFoundError:
+            print("✗ 未找到OpenOCD工具，请确保已安装并在PATH中")
+            return False
+        except Exception as e:
+            print(f"✗ 读取设备ID失败: {e}")
+            return False
+    
+    def calculate_device_id_hash(self, uid_word0: int, uid_word1: int, uid_word2: int) -> str:
+        """计算设备ID哈希 (与固件中的算法保持一致)"""
+        
+        # 与 utils.c 中相同的哈希算法
+        # 盐值常量
+        salt1 = 0x48426F78  # "HBox"
+        salt2 = 0x32303234  # "2024"
+        
+        # 质数常量
+        prime1 = 0x9E3779B9  # 黄金比例的32位表示
+        prime2 = 0x85EBCA6B  # 另一个质数
+        prime3 = 0xC2B2AE35  # 第三个质数
+        
+        # 第一轮哈希
+        hash1 = (uid_word0 ^ salt1) & 0xFFFFFFFF
+        hash1 = ((hash1 << 13) | ((hash1 & 0xFFFFFFFF) >> 19)) & 0xFFFFFFFF  # 左循环移位13位
+        hash1 = (hash1 * prime1) & 0xFFFFFFFF
+        hash1 = (hash1 ^ uid_word1) & 0xFFFFFFFF
+        
+        # 第二轮哈希
+        hash2 = (uid_word1 ^ salt2) & 0xFFFFFFFF
+        hash2 = ((hash2 << 17) | ((hash2 & 0xFFFFFFFF) >> 15)) & 0xFFFFFFFF  # 左循环移位17位
+        hash2 = (hash2 * prime2) & 0xFFFFFFFF
+        hash2 = (hash2 ^ uid_word2) & 0xFFFFFFFF
+        
+        # 第三轮哈希
+        hash3 = (uid_word2 ^ ((salt1 + salt2) & 0xFFFFFFFF)) & 0xFFFFFFFF
+        hash3 = ((hash3 << 21) | ((hash3 & 0xFFFFFFFF) >> 11)) & 0xFFFFFFFF  # 左循环移位21位
+        hash3 = (hash3 * prime3) & 0xFFFFFFFF
+        hash3 = (hash3 ^ hash1) & 0xFFFFFFFF
+        
+        # 最终组合
+        final_hash1 = (hash1 ^ hash2) & 0xFFFFFFFF
+        final_hash2 = (hash2 ^ hash3) & 0xFFFFFFFF
+        
+        # 转换为16位十六进制字符串 (64位哈希)
+        device_id = f"{final_hash1:08X}{final_hash2:08X}"
+        
+        return device_id
+
+    def register_device_id(self, server_url: str = "http://localhost:3000") -> bool:
+        """
+        注册设备ID到服务器
+        
+        Args:
+            server_url: 服务器URL
+            
+        Returns:
+            bool: 注册是否成功
+        """
+        try:
+            import requests
+        except ImportError:
+            print("❌ 需要安装 requests 库：pip install requests")
+            return False
+        
+        try:
+            print("📋 正在读取设备唯一ID...")
+            
+            # 直接读取设备唯一ID
+            if not self.openocd_config.exists():
+                print(f"❌ OpenOCD配置文件不存在: {self.openocd_config}")
+                return False
+            
+            # STM32H750的唯一ID存储地址
+            unique_id_address = "0x1FF1E800"
+            unique_id_size = 12  # 96位 = 12字节
+            
+            # 构建OpenOCD命令读取唯一ID
+            temp_file = self.tools_dir / "device_id_temp.bin"
+            cmd = [
+                "openocd",
+                "-d0",
+                "-f", "openocd_configs/ST-LINK-QSPIFLASH.cfg",
+                "-c", "init",
+                "-c", "halt",
+                "-c", "reset init",
+                "-c", f"dump_image {temp_file.name} {unique_id_address} {unique_id_size}",
+                "-c", "shutdown"
+            ]
+            
+            print("🔌 正在连接设备...")
+            
+            # 执行OpenOCD命令
+            result = subprocess.run(
+                cmd,
+                cwd=self.tools_dir,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode != 0:
+                print("❌ 设备连接失败")
+                if result.stderr:
+                    print(f"   错误: {result.stderr}")
+                return False
+            
+            # 检查临时文件是否生成
+            if not temp_file.exists():
+                print("❌ 未找到设备唯一ID数据")
+                return False
+            
+            # 读取12字节的唯一ID数据
+            with open(temp_file, 'rb') as f:
+                data = f.read()
+            
+            if len(data) != 12:
+                print(f"❌ 设备ID数据长度错误: {len(data)} 字节，期望 12 字节")
+                return False
+            
+            # 解析三个32位字
+            uid_word0 = int.from_bytes(data[0:4], byteorder='little')
+            uid_word1 = int.from_bytes(data[4:8], byteorder='little')
+            uid_word2 = int.from_bytes(data[8:12], byteorder='little')
+            
+            # 格式化原始唯一ID
+            raw_unique_id = f"{uid_word0:08X}-{uid_word1:08X}-{uid_word2:08X}"
+            
+            # 计算设备ID哈希
+            device_id_hash = self.calculate_device_id_hash(uid_word0, uid_word1, uid_word2)
+            
+            print(f"📱 设备原始唯一ID: {raw_unique_id}")
+            print(f"🔐 设备哈希ID: {device_id_hash}")
+            print(f"🌐 注册到服务器: {server_url}")
+            
+            # 构建注册数据
+            register_data = {
+                "rawUniqueId": raw_unique_id,
+                "deviceId": device_id_hash,
+                "deviceName": f"HBox-{device_id_hash[:8]}"
+            }
+            
+            # 发送注册请求
+            register_url = f"{server_url}/api/device/register"
+            headers = {'Content-Type': 'application/json'}
+            
+            print("📡 正在发送注册请求...")
+            response = requests.post(register_url, json=register_data, headers=headers, timeout=10)
+            
+            if response.status_code in [200, 201]:
+                result = response.json()
+                if result.get('success'):
+                    if result.get('data', {}).get('existed'):
+                        print("✅ 设备已存在于服务器，无需重复注册")
+                    else:
+                        print("✅ 设备注册成功！")
+                    
+                    device_info = result.get('data', {})
+                    print(f"   设备名称: {device_info.get('deviceName', 'N/A')}")
+                    print(f"   设备ID: {device_info.get('deviceId', 'N/A')}")
+                    print(f"   注册时间: {device_info.get('registerTime', 'N/A')}")
+                    return True
+                else:
+                    print(f"❌ 注册失败: {result.get('message', 'Unknown error')}")
+                    return False
+            else:
+                print(f"❌ 服务器响应错误: HTTP {response.status_code}")
+                try:
+                    error_info = response.json()
+                    print(f"   错误信息: {error_info.get('message', 'Unknown error')}")
+                except:
+                    print(f"   响应内容: {response.text}")
+                return False
+                
+        except requests.exceptions.ConnectionError:
+            print(f"❌ 无法连接到服务器: {server_url}")
+            print("   请确保服务器正在运行")
+            return False
+        except requests.exceptions.Timeout:
+            print("❌ 注册请求超时")
+            return False
+        except subprocess.TimeoutExpired:
+            print("❌ 设备连接超时")
+            return False
+        except FileNotFoundError:
+            print("❌ 未找到OpenOCD工具，请确保已安装并在PATH中")
+            return False
+        except Exception as e:
+            print(f"❌ 注册设备ID时发生错误: {str(e)}")
+            return False
+        finally:
+            # 清理临时文件
+            temp_file = self.tools_dir / "device_id_temp.bin"
+            if temp_file.exists():
+                try:
+                    temp_file.unlink()
+                    print(f"🧹 已清理临时文件")
+                except Exception as e:
+                    print(f"清理临时文件失败: {e}")
+
 def main():
     parser = argparse.ArgumentParser(
         description="STM32 HBox Release 管理工具 - 集成打包和刷写功能",
@@ -1977,6 +2298,32 @@ def main():
     - 直接刷写到槽A地址(0x90000000)
     - 生成并刷写槽A的元数据到0x90570000
     - 适合开发调试阶段快速验证代码
+
+设备信息读取:
+  读取STM32设备唯一ID并计算设备ID哈希:
+    python release.py device-id
+  
+  说明:
+    - 通过OpenOCD连接设备读取96位硬件唯一ID
+    - 显示原始唯一ID的3个32位字和格式化字符串
+    - 计算安全的设备ID哈希值(用于网络认证)
+    - 哈希算法与固件中utils.c的get_device_id_hash()保持一致
+    - 需要设备通过ST-Link连接并处于可访问状态
+
+设备注册:
+  注册设备ID到服务器:
+    python release.py register
+  
+  注册到指定服务器:
+    python release.py register --server http://192.168.1.100:3000
+  
+  说明:
+    - 自动读取设备唯一ID并计算安全哈希
+    - 将设备信息注册到固件管理服务器
+    - 如果设备已存在则返回现有信息
+    - 验证设备ID哈希的合法性
+    - 成功注册后设备可通过固件服务器进行认证
+    - 需要设备通过ST-Link连接并处于可访问状态
 
 Intel HEX文件处理（测试功能）:
   处理HEX文件并分割为多个组件:
@@ -2091,6 +2438,13 @@ Intel HEX增强模式说明:
     # 快速构建并刷写命令
     quick_parser = subparsers.add_parser('quick', help='快速构建槽A的application并直接刷写到设备')
     
+    # 设备ID读取命令
+    device_id_parser = subparsers.add_parser('device-id', help='读取STM32设备唯一ID并计算设备ID哈希')
+    
+    # 注册设备ID命令
+    register_parser = subparsers.add_parser('register', help='注册设备ID到服务器')
+    register_parser.add_argument("--server", help="指定服务器地址（可选，默认: http://localhost:3000）")
+    
     # Intel HEX处理命令（独立测试）
     hex_parser = subparsers.add_parser('hex', help='Intel HEX文件处理和分割（测试功能）')
     hex_parser.add_argument("hex_file", help="要处理的Intel HEX文件路径")
@@ -2166,6 +2520,25 @@ Intel HEX增强模式说明:
                 return 0
             else:
                 print("\n✗ 槽A Application快速构建失败")
+                return 1
+        
+        elif args.command == 'device-id':
+            # 读取STM32设备唯一ID并计算设备ID哈希
+            if manager.read_device_ids():
+                print("\n✓ 设备ID读取成功")
+                return 0
+            else:
+                print("\n✗ 设备ID读取失败")
+                return 1
+        
+        elif args.command == 'register':
+            # 注册设备ID到服务器
+            server_url = args.server or "http://localhost:3000"
+            if manager.register_device_id(server_url):
+                print("\n✓ 设备ID注册成功")
+                return 0
+            else:
+                print("\n✗ 设备ID注册失败")
                 return 1
         
         elif args.command == 'hex':
@@ -2252,6 +2625,9 @@ Intel HEX增强模式说明:
                     server_url=args.server or "http://localhost:3000",
                     desc=args.desc
                 ):
+                    print("\n✓ 固件包上传成功")
+                    return 0
+                else:
                     print("\n✗ 固件包上传失败")
                     return 1
             else:

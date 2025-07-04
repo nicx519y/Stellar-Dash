@@ -38,6 +38,9 @@
 
 #define SYSTEM_CHECK_ENABLE    0 // 使能缓存检查
 
+// STM32H7系列的唯一ID存储地址（96位，12字节）
+#define STM32_UNIQUE_ID_BASE_ADDR   0x1FF1E800
+
 #ifndef FPU_FPDSCR_RMode_Msk
     #define FPU_FPDSCR_RMode_Msk   (0x3 << 22) // 清除舍入模式位 [23:22]
 #endif
