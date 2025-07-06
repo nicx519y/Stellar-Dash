@@ -32,6 +32,7 @@ void CalibrationState::setup() {
     rebootTime = 0;
     
     LOG_INFO("CALIBRATION", "Calibration state setup completed - waiting for user input");
+    Logger_Flush();
 }
 
 void CalibrationState::loop() {

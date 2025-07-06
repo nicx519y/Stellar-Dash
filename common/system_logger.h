@@ -158,16 +158,6 @@ LogResult Logger_Deinit(void);
 LogResult Logger_Log(LogLevel level, const char* component, const char* format, ...);
 
 /**
- * @brief 记录日志（延迟写盘版本）
- * @param level 日志级别
- * @param component 组件名称
- * @param format 格式化字符串 (printf格式)
- * @param ... 可变参数
- * @return 操作结果
- */
-LogResult Logger_LogDelay(LogLevel level, const char* component, const char* format, ...);
-
-/**
  * @brief 强制刷新缓冲区到Flash
  * @return 操作结果
  */

@@ -36,9 +36,12 @@ void WebConfigState::setup() {
 
     // 初始化LED管理器
     LEDS_MANAGER.setup();
+    LOG_DEBUG("WEBCONFIG", "LEDS_MANAGER setup completed");
 
     isRunning = true;
     LOG_INFO("WEBCONFIG", "Web configuration state setup completed successfully");
+
+    Logger_Flush();
 }
 
 void WebConfigState::loop() {

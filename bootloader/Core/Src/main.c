@@ -95,6 +95,9 @@ int main(void)
   // 现在可以安全地初始化日志模块
   BOOT_DBG("Initializing Logger system...");
   LogResult init_result = Logger_Init(true, LOG_LEVEL_DEBUG);
+
+  BOOT_DBG("Logger system initialized");
+
   if (init_result != LOG_RESULT_SUCCESS) {
     BOOT_ERR("Logger_Init failed with error: %d", init_result);
     return -1;
@@ -289,6 +292,8 @@ void Error_Handler(void)
 void JumpToApplication(void)
 {
 
+    
+
 
     // 进入内存映射模式
     if(QSPI_W25Qxx_EnterMemoryMappedMode() != QSPI_W25Qxx_OK)
@@ -384,11 +389,22 @@ perform_jump:
         return;
     }
 
+
+    BOOT_DBG("Jumping to slot %s: Base=0x%08lX, SP=0x%08lX, PC=0x%08lX", 
+                     (target_slot == FIRMWARE_SLOT_A) ? "A" : "B",
+                     (unsigned long)app_base_address,
+                     (unsigned long)app_stack, 
+                     (unsigned long)jump_address);
+
     Logger_Log(LOG_LEVEL_INFO, "JUMP", "Jumping to slot %s: Base=0x%08lX, SP=0x%08lX, PC=0x%08lX", 
                      (target_slot == FIRMWARE_SLOT_A) ? "A" : "B",
                      (unsigned long)app_base_address,
                      (unsigned long)app_stack, 
                      (unsigned long)jump_address);
+
+    
+    // 刷新日志缓冲区，确保日志写入Flash，再往下无法使用logger
+    Logger_Flush();
 
     /****************************  跳转前准备  ************************* */
     // 关闭SysTick
@@ -407,6 +423,8 @@ perform_jump:
         NVIC->ICPR[i] = 0xFFFFFFFF;
     }
 
+    
+
     // 禁用MPU
     HAL_MPU_Disable();
 
@@ -415,10 +433,10 @@ perform_jump:
     
     // 验证向量表设置
     if (SCB->VTOR != app_base_address) {
-        Logger_Log(LOG_LEVEL_ERROR, "VECTOR", "Vector table setup failed: Expected=0x%08lX, Actual=0x%08lX", 
-                         (unsigned long)app_base_address, (unsigned long)SCB->VTOR);
         BOOT_ERR("Vector table setup failed: Expected=0x%08lX, Actual=0x%08lX", 
                  (unsigned long)app_base_address, (unsigned long)SCB->VTOR);
+        Logger_Log(LOG_LEVEL_ERROR, "VECTOR", "Vector table setup failed: Expected=0x%08lX, Actual=0x%08lX", 
+                         (unsigned long)app_base_address, (unsigned long)SCB->VTOR);
         return;
     }
 
@@ -426,14 +444,12 @@ perform_jump:
     __set_MSP(app_stack);
     uint32_t current_msp = __get_MSP();
     if (current_msp != app_stack) {
-        Logger_Log(LOG_LEVEL_ERROR, "STACK", "Stack pointer setup failed: Expected=0x%08lX, Actual=0x%08lX", 
-                         (unsigned long)app_stack, (unsigned long)current_msp);
         BOOT_ERR("Stack pointer setup failed: Expected=0x%08lX, Actual=0x%08lX", 
                  (unsigned long)app_stack, (unsigned long)current_msp);
+        Logger_Log(LOG_LEVEL_ERROR, "STACK", "Stack pointer setup failed: Expected=0x%08lX, Actual=0x%08lX", 
+                         (unsigned long)app_stack, (unsigned long)current_msp);
         return;
     }
-
-    
 
     // 内存屏障确保所有操作完成
     __DSB();
@@ -454,8 +470,8 @@ perform_jump:
     app_reset_handler();
 
     // 不应该到达这里
-    Logger_Log(LOG_LEVEL_FATAL, "JUMP", "Jump to application failed - should not return here");
     BOOT_ERR("Jump failed! Program should not return here");
+    Logger_Log(LOG_LEVEL_FATAL, "JUMP", "Jump to application failed - should not return here");
     while(1) {
         // 无限循环，表示跳转失败
     }

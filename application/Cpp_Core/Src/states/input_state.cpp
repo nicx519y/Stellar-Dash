@@ -72,6 +72,8 @@ void InputState::setup() {
 
     isRunning = true;
     LOG_INFO("INPUT", "Input state setup completed successfully");
+
+    Logger_Flush();
 }
 
 void InputState::loop() { 

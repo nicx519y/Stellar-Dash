@@ -344,6 +344,7 @@ static LogResult switch_to_next_sector(void) {
 }
 
 static LogResult flush_memory_buffer_to_flash(void) {
+
     if (g_logger_state.buffer_count == 0) {
         return LOG_RESULT_SUCCESS; // 没有数据需要刷新
     }
@@ -486,7 +487,7 @@ LogResult Logger_Deinit(void) {
     if (!g_logger_state.is_initialized) {
         return LOG_RESULT_ERROR_NOT_INITIALIZED;
     }
-
+    
     // 刷新剩余数据到Flash
     LogResult result = flush_memory_buffer_to_flash();
 
@@ -499,15 +500,33 @@ LogResult Logger_Deinit(void) {
 LogResult Logger_Log(LogLevel level, const char* component, const char* format, ...) {
     va_list args;
     va_start(args, format);
-    LogResult result = logger_log_internal(level, component, true, format, args);
-    va_end(args);
-    return result;
-}
 
-LogResult Logger_LogDelay(LogLevel level, const char* component, const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    LogResult result = logger_log_internal(level, component, false, format, args);
+    LogResult result;
+
+    // 根据日志级别选择是否立即写入
+    switch (level) {
+        case LOG_LEVEL_DEBUG:
+            result = logger_log_internal(level, component, false, format, args);
+            break;
+        case LOG_LEVEL_INFO:
+            result = logger_log_internal(level, component, false, format, args);
+            break;
+        case LOG_LEVEL_WARN:
+            result = logger_log_internal(level, component, false, format, args);
+            break;
+        case LOG_LEVEL_ERROR:
+            result = logger_log_internal(level, component, true, format, args);
+            break;
+        case LOG_LEVEL_FATAL:
+            result = logger_log_internal(level, component, true, format, args);
+            break;
+        case LOG_LEVEL_SYSTEM:
+            result = logger_log_internal(level, component, false, format, args);
+            break;
+        default:
+            result = logger_log_internal(level, component, true, format, args);
+            break;
+    }
     va_end(args);
     return result;
 }
