@@ -923,6 +923,60 @@ class ReleaseManager:
         self.releases_dir.mkdir(exist_ok=True)
         print(f"发版目录: {self.releases_dir}")
     
+    def get_admin_credentials(self, admin_username: str = None, admin_password: str = None) -> tuple:
+        """
+        获取管理员认证凭据
+        优先级：命令行参数 > 环境变量 > 交互式输入
+        
+        Args:
+            admin_username: 命令行传入的用户名（可选）
+            admin_password: 命令行传入的密码（可选）
+        
+        Returns:
+            tuple: (username, password) 如果获取失败返回 (None, None)
+        """
+        # 处理管理员用户名
+        if not admin_username:
+            admin_username = os.getenv('ADMIN_USERNAME')
+        
+        if not admin_username:
+            admin_username = input("请输入管理员用户名 (默认: admin): ").strip()
+            if not admin_username:
+                admin_username = 'admin'
+        
+        # 处理管理员密码
+        if not admin_password:
+            admin_password = os.getenv('ADMIN_PASSWORD')
+        
+        if not admin_password:
+            import getpass
+            admin_password = getpass.getpass("请输入管理员密码: ")
+        
+        if not admin_password:
+            print("错误: 管理员密码不能为空")
+            return None, None
+        
+        return admin_username, admin_password
+    
+    def generate_basic_auth_headers(self, admin_username: str, admin_password: str) -> dict:
+        """
+        生成Basic认证请求头
+        
+        Args:
+            admin_username: 管理员用户名
+            admin_password: 管理员密码
+        
+        Returns:
+            dict: 包含Authorization头的字典
+        """
+        import base64
+        credentials = f"{admin_username}:{admin_password}"
+        auth_token = base64.b64encode(credentials.encode()).decode()
+        
+        return {
+            'Authorization': f'Basic {auth_token}'
+        }
+    
     def calculate_checksum(self, data: bytes) -> str:
         """计算SHA256校验和"""
         return hashlib.sha256(data).hexdigest()
@@ -1433,11 +1487,17 @@ class ReleaseManager:
     
     def upload_firmware_to_server(self, slot_a_path: str = None, slot_b_path: str = None, 
                                  server_url: str = "http://localhost:3000", 
-                                 desc: str = None) -> bool:
+                                 desc: str = None, 
+                                 admin_username: str = None, admin_password: str = None) -> bool:
         """上传固件包到服务器"""
         
         if not slot_a_path and not slot_b_path:
             print("错误: 至少需要指定一个槽的固件包")
+            return False
+
+        # 获取管理员认证凭据
+        admin_username, admin_password = self.get_admin_credentials(admin_username, admin_password)
+        if not admin_username or not admin_password:
             return False
         
         # 解析包信息
@@ -1463,6 +1523,7 @@ class ReleaseManager:
         print(f"服务器地址: {server_url}")
         print(f"版本号: {version}")
         print(f"描述: {desc}")
+        print(f"👤 管理员用户名: {admin_username}")
         
         # 检查文件是否存在
         files_to_upload = {}
@@ -1485,6 +1546,9 @@ class ReleaseManager:
         print()
         
         try:
+            # 生成认证请求头
+            headers = self.generate_basic_auth_headers(admin_username, admin_password)
+            
             # 准备上传数据
             form_data = {
                 'version': version,
@@ -1499,6 +1563,7 @@ class ReleaseManager:
                 upload_url,
                 data=form_data,
                 files=files_to_upload,
+                headers=headers,
                 timeout=300,  # 5分钟超时
                 proxies={'http': None, 'https': None} if 'localhost' in server_url or '127.0.0.1' in server_url else None
             )
@@ -1553,7 +1618,7 @@ class ReleaseManager:
                     pass
     
     def upload_latest_packages(self, version: str = None, server_url: str = "http://localhost:3000", 
-                             desc: str = None) -> bool:
+                             desc: str = None, admin_username: str = None, admin_password: str = None) -> bool:
         """上传最新的双槽包到服务器"""
         
         # 如果指定了版本，查找该版本的包
@@ -1623,7 +1688,9 @@ class ReleaseManager:
             slot_a_path=slot_a_path,
             slot_b_path=slot_b_path,
             server_url=server_url,
-            desc=desc
+            desc=desc,
+            admin_username=admin_username,
+            admin_password=admin_password
         )
 
     # ==================== 固件删除功能 ====================
@@ -1733,7 +1800,8 @@ class ReleaseManager:
             print(f"✗ 删除异常: {e}")
             return False
 
-    def clear_firmware_versions_from_server(self, target_version: str, server_url: str = "http://localhost:3000") -> bool:
+    def clear_firmware_versions_from_server(self, target_version: str, server_url: str = "http://localhost:3000", 
+                                           admin_username: str = None, admin_password: str = None) -> bool:
         """清空服务器上指定版本及之前的所有固件"""
         
         print("=" * 60)
@@ -1741,9 +1809,20 @@ class ReleaseManager:
         print("=" * 60)
         print(f"服务器地址: {server_url}")
         print(f"目标版本: {target_version} (包含此版本及之前的所有版本)")
+        
+        # 获取管理员认证凭据
+        admin_username, admin_password = self.get_admin_credentials(admin_username, admin_password)
+        if not admin_username or not admin_password:
+            return False
+            
+        print(f"👤 管理员用户名: {admin_username}")
+        print("🔐 管理员密码: [已隐藏]")
         print()
         
         try:
+            # 生成认证请求头
+            auth_headers = self.generate_basic_auth_headers(admin_username, admin_password)
+            
             # 先获取当前所有固件列表，以便用户确认
             list_url = f"{server_url}/api/firmwares"
             print(f"正在获取固件列表: {list_url}")
@@ -1803,10 +1882,16 @@ class ReleaseManager:
                 "targetVersion": target_version
             }
             
+            # 合并认证请求头和Content-Type
+            headers = {
+                'Content-Type': 'application/json',
+                **auth_headers
+            }
+            
             response = requests.post(
                 clear_url,
                 json=request_data,
-                headers={'Content-Type': 'application/json'},
+                headers=headers,
                 timeout=60,
                 proxies={'http': None, 'https': None} if 'localhost' in server_url or '127.0.0.1' in server_url else None
             )
@@ -1829,6 +1914,14 @@ class ReleaseManager:
                 else:
                     print(f"✗ 清空失败: {result.get('message', '未知错误')}")
                     return False
+            elif response.status_code == 401:
+                print("✗ 清空失败: 管理员认证失败")
+                try:
+                    error_info = response.json()
+                    print(f"错误信息: {error_info.get('message', 'Authentication failed')}")
+                except:
+                    print("请检查管理员用户名和密码")
+                return False
             else:
                 print(f"✗ 清空失败: HTTP {response.status_code}")
                 try:
@@ -2120,62 +2213,30 @@ class ReleaseManager:
         
         return device_id
     
-    def generate_device_signature(self, device_id: str, challenge: str, timestamp: int) -> str:
+    def register_device_id(self, server_url: str = "http://localhost:3000", 
+                           admin_username: str = None, admin_password: str = None) -> bool:
         """
-        生成设备签名 (与服务器端算法保持一致)
-        
-        Args:
-            device_id: 设备ID
-            challenge: 挑战字符串
-            timestamp: 时间戳
-            
-        Returns:
-            str: 签名字符串
-        """
-        print('\n🔐 ===== 设备签名生成过程 =====')
-        print('📥 输入参数:')
-        print(f'  device_id: "{device_id}"')
-        print(f'  challenge: "{challenge}"')
-        print(f'  timestamp: {timestamp}')
-        
-        sign_data = device_id + challenge + str(timestamp)
-        print(f'📝 签名数据拼接: "{sign_data}"')
-        print(f'📏 签名数据长度: {len(sign_data)} 字符')
-        
-        hash_value = 0x9E3779B9
-        print(f'🔢 初始哈希值: 0x{hash_value:08X}')
-        
-        for i, char in enumerate(sign_data):
-            char_code = ord(char)
-            old_hash = hash_value
-            
-            hash_value = ((hash_value << 5) + hash_value) + char_code
-            hash_value = hash_value & 0xFFFFFFFF  # 确保32位无符号整数
-        
-        final_signature = f"SIG_{hash_value:08X}"
-        print(f'🔐 最终签名: "{final_signature}"')
-        print('🔐 ===== 设备签名生成完成 =====\n')
-        
-        return final_signature
-
-    def register_device_id(self, server_url: str = "http://localhost:3000") -> bool:
-        """
-        注册设备ID到服务器
+        注册设备ID到服务器（使用管理员认证）
         
         Args:
             server_url: 服务器URL
-            
+            admin_username: 管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）
+            admin_password: 管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）
+        
         Returns:
             bool: 注册是否成功
         """
-        try:
-            import requests
-        except ImportError:
-            print("❌ 需要安装 requests 库：pip install requests")
-            return False
+        import requests
+        import subprocess
         
         try:
-            print("📋 正在读取设备唯一ID...")
+            # 获取管理员认证凭据
+            admin_username, admin_password = self.get_admin_credentials(admin_username, admin_password)
+            if not admin_username or not admin_password:
+                return False
+            
+            print(f"👤 管理员用户名: {admin_username}")
+            print("🔐 管理员密码: [已隐藏]")
             
             # 直接读取设备唯一ID
             if not self.openocd_config.exists():
@@ -2244,39 +2305,21 @@ class ReleaseManager:
             print(f"🔐 设备哈希ID: {device_id_hash}")
             print(f"🌐 注册到服务器: {server_url}")
             
-            # 生成设备认证数据
-            import time
-            import secrets
-            
-            print("\n🔐 生成设备认证数据...")
-            challenge = secrets.token_hex(16)  # 生成32字符的随机挑战
-            timestamp = int(time.time())  # 当前时间戳
-            
-            print(f"🎲 生成的挑战: {challenge}")
-            print(f"⏰ 时间戳: {timestamp}")
-            
-            # 生成签名
-            signature = self.generate_device_signature(device_id_hash, challenge, timestamp)
-            
-            # 构建认证数据
-            device_auth = {
-                "deviceId": device_id_hash,
-                "challenge": challenge,
-                "timestamp": timestamp,
-                "signature": signature
-            }
-            
             # 构建注册数据
             register_data = {
                 "rawUniqueId": raw_unique_id,
                 "deviceId": device_id_hash,
-                "deviceName": f"HBox-{device_id_hash[:8]}",
-                "deviceAuth": device_auth
+                "deviceName": f"HBox-{device_id_hash[:8]}"
+            }
+            
+            # 生成认证请求头
+            headers = {
+                'Content-Type': 'application/json',
+                **self.generate_basic_auth_headers(admin_username, admin_password)
             }
             
             # 发送注册请求
             register_url = f"{server_url}/api/device/register"
-            headers = {'Content-Type': 'application/json'}
             
             print("📡 正在发送注册请求...")
             response = requests.post(register_url, json=register_data, headers=headers, timeout=10)
@@ -2293,10 +2336,21 @@ class ReleaseManager:
                     print(f"   设备名称: {device_info.get('deviceName', 'N/A')}")
                     print(f"   设备ID: {device_info.get('deviceId', 'N/A')}")
                     print(f"   注册时间: {device_info.get('registerTime', 'N/A')}")
+                    print(f"   注册管理员: {device_info.get('registeredBy', 'N/A')}")
                     return True
                 else:
                     print(f"❌ 注册失败: {result.get('message', 'Unknown error')}")
+                    if result.get('errNo') == 1:
+                        print(f"   详细错误: {result.get('errorMessage', 'Unknown error')}")
                     return False
+            elif response.status_code == 401:
+                print("❌ 管理员认证失败")
+                try:
+                    error_info = response.json()
+                    print(f"   错误信息: {error_info.get('message', 'Authentication failed')}")
+                except:
+                    print("   请检查管理员用户名和密码")
+                return False
             else:
                 print(f"❌ 服务器响应错误: HTTP {response.status_code}")
                 try:
@@ -2308,19 +2362,14 @@ class ReleaseManager:
                 
         except requests.exceptions.ConnectionError:
             print(f"❌ 无法连接到服务器: {server_url}")
-            print("   请确保服务器正在运行")
-            return False
-        except requests.exceptions.Timeout:
-            print("❌ 注册请求超时")
+            print("   请确保服务器已启动并且网络连接正常")
             return False
         except subprocess.TimeoutExpired:
             print("❌ 设备连接超时")
-            return False
-        except FileNotFoundError:
-            print("❌ 未找到OpenOCD工具，请确保已安装并在PATH中")
+            print("   请检查设备是否已连接并进入烧录模式")
             return False
         except Exception as e:
-            print(f"❌ 注册设备ID时发生错误: {str(e)}")
+            print(f"❌ 注册异常: {e}")
             return False
         finally:
             # 清理临时文件
@@ -2328,9 +2377,8 @@ class ReleaseManager:
             if temp_file.exists():
                 try:
                     temp_file.unlink()
-                    print(f"🧹 已清理临时文件")
-                except Exception as e:
-                    print(f"清理临时文件失败: {e}")
+                except:
+                    pass
 
 def main():
     parser = argparse.ArgumentParser(
@@ -2372,19 +2420,24 @@ def main():
     - 需要设备通过ST-Link连接并处于可访问状态
 
 设备注册:
-  注册设备ID到服务器:
+  注册设备ID到服务器（需要管理员认证）:
     python release.py register
   
   注册到指定服务器:
     python release.py register --server http://192.168.1.100:3000
   
+  指定管理员凭据:
+    python release.py register --admin-username admin --admin-password mypassword
+  
+  使用环境变量:
+    export ADMIN_USERNAME=admin
+    export ADMIN_PASSWORD=mypassword
+    python release.py register
+  
   说明:
-    - 自动读取设备唯一ID并计算安全哈希
-    - 将设备信息注册到固件管理服务器
-    - 如果设备已存在则返回现有信息
-    - 验证设备ID哈希的合法性
-    - 成功注册后设备可通过固件服务器进行认证
-    - 需要设备通过ST-Link连接并处于可访问状态
+    - 需要提供管理员用户名和密码进行认证
+    - 优先使用命令行参数，其次环境变量，最后交互式输入
+    - 默认管理员用户名为'admin'，密码需要配置
 
 Intel HEX文件处理（测试功能）:
   处理HEX文件并分割为多个组件:
@@ -2446,6 +2499,19 @@ Intel HEX文件处理（测试功能）:
   上传指定的固件包:
     python release.py upload --slot-a hbox_firmware_1.0.0_a_20250613_112625.zip --slot-b hbox_firmware_1.0.0_b_20250613_112625.zip
 
+  使用命令行参数指定管理员认证:
+    python release.py upload --admin-username admin --admin-password mypassword
+  
+  使用环境变量指定管理员认证:
+    export ADMIN_USERNAME=admin
+    export ADMIN_PASSWORD=mypassword
+    python release.py upload
+  
+  说明:
+    - 上传固件需要管理员认证
+    - 优先使用命令行参数，其次环境变量，最后交互式输入
+    - 默认管理员用户名为'admin'，密码需要配置
+
 删除服务器固件:
   删除指定ID的固件:
     python release.py delete abc123def456...
@@ -2460,10 +2526,20 @@ Intel HEX文件处理（测试功能）:
   清空指定服务器上的固件:
     python release.py clear 1.0.5 --server http://192.168.1.100:3000
   
+  使用命令行参数指定管理员认证:
+    python release.py clear 1.0.5 --admin-username admin --admin-password mypassword
+  
+  使用环境变量指定管理员认证:
+    export ADMIN_USERNAME=admin
+    export ADMIN_PASSWORD=mypassword
+    python release.py clear 1.0.5
+  
   说明: 
+    - 清空操作需要管理员认证
     - 会删除版本号 <= 指定版本的所有固件
     - 例如: clear 1.0.5 会删除 1.0.0, 1.0.1, 1.0.2, 1.0.3, 1.0.4, 1.0.5 等版本
     - 操作前会显示所有固件列表并要求二次确认
+    - 优先使用命令行参数，其次环境变量，最后交互式输入
 
 Intel HEX增强模式说明:
   传统模式: 
@@ -2505,6 +2581,8 @@ Intel HEX增强模式说明:
     # 注册设备ID命令
     register_parser = subparsers.add_parser('register', help='注册设备ID到服务器')
     register_parser.add_argument("--server", help="指定服务器地址（可选，默认: http://localhost:3000）")
+    register_parser.add_argument("--admin-username", help="管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）")
+    register_parser.add_argument("--admin-password", help="管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）")
     
     # Intel HEX处理命令（独立测试）
     hex_parser = subparsers.add_parser('hex', help='Intel HEX文件处理和分割（测试功能）')
@@ -2536,6 +2614,8 @@ Intel HEX增强模式说明:
     upload_parser.add_argument("--desc", help="指定固件描述（可选）")
     upload_parser.add_argument("--slot-a", help="指定槽A的固件包路径（可选）")
     upload_parser.add_argument("--slot-b", help="指定槽B的固件包路径（可选）")
+    upload_parser.add_argument("--admin-username", help="管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）")
+    upload_parser.add_argument("--admin-password", help="管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）")
     
     # 删除命令
     delete_parser = subparsers.add_parser('delete', help='删除服务器固件')
@@ -2546,6 +2626,8 @@ Intel HEX增强模式说明:
     clear_parser = subparsers.add_parser('clear', help='清空指定版本及之前的所有固件')
     clear_parser.add_argument("target_version", help="目标版本号（将删除此版本及之前的所有固件）")
     clear_parser.add_argument("--server", help="指定服务器地址（可选）")
+    clear_parser.add_argument("--admin-username", help="管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）")
+    clear_parser.add_argument("--admin-password", help="管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）")
     
     args = parser.parse_args()
     
@@ -2595,7 +2677,9 @@ Intel HEX增强模式说明:
         elif args.command == 'register':
             # 注册设备ID到服务器
             server_url = args.server or "http://localhost:3000"
-            if manager.register_device_id(server_url):
+            admin_username = args.admin_username
+            admin_password = args.admin_password
+            if manager.register_device_id(server_url, admin_username, admin_password):
                 print("\n✓ 设备ID注册成功")
                 return 0
             else:
@@ -2684,7 +2768,9 @@ Intel HEX增强模式说明:
                     slot_a_path=args.slot_a,
                     slot_b_path=args.slot_b,
                     server_url=args.server or "http://localhost:3000",
-                    desc=args.desc
+                    desc=args.desc,
+                    admin_username=args.admin_username,
+                    admin_password=args.admin_password
                 ):
                     print("\n✓ 固件包上传成功")
                     return 0
@@ -2696,7 +2782,9 @@ Intel HEX增强模式说明:
                 if manager.upload_latest_packages(
                     version=args.version,
                     server_url=args.server or "http://localhost:3000",
-                    desc=args.desc
+                    desc=args.desc,
+                    admin_username=args.admin_username,
+                    admin_password=args.admin_password
                 ):
                     print("\n✓ 固件包上传成功")
                     return 0
@@ -2720,8 +2808,10 @@ Intel HEX增强模式说明:
             # 清空服务器固件
             target_version = args.target_version
             server_url = args.server or "http://localhost:3000"
+            admin_username = args.admin_username
+            admin_password = args.admin_password
             
-            if manager.clear_firmware_versions_from_server(target_version, server_url):
+            if manager.clear_firmware_versions_from_server(target_version, server_url, admin_username, admin_password):
                 print("\n✓ 固件清空成功")
                 return 0
             else:

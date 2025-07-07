@@ -1,0 +1,17 @@
+{
+  "admin": {
+    "username": "admin",
+    "passwordHash": {
+      "hash": "ca48e68f8f65fd1adfa08c410a7e33884f0cae133387f38d38754ddb62885eb9b159c0c836ad72ea4ffacc3de29a6e6c535f7031fa2cd06da7ddacb86f1f0ce6",
+      "salt": "66320b0e16f3dc23a97a5567fcdb384a44b20b1ff534112991ac81c6e8f148db"
+    },
+    "salt": "1342ec2d4c6a6d2a9557c2fa88f13f936404107dfeb295d3f02f3e97e196c194",
+    "lastUpdate": "2025-07-07T15:51:20.875Z"
+  },
+  "settings": {
+    "sessionTimeout": 86400,
+    "maxLoginAttempts": 5,
+    "lockoutDuration": 900
+  },
+  "lastUpdate": "2025-07-07T15:51:20.876Z"
+}
