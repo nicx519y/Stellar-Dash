@@ -30,6 +30,8 @@ import {
     DEFAULT_FIRMWARE_SERVER_HOST
 } from '@/types/gamepad-config';
 
+import DeviceAuthManager from '@/utils/deviceAuth';
+
 // 固件服务器配置
 const FIRMWARE_SERVER_CONFIG = {
     // 默认固件服务器地址，可通过环境变量覆盖
@@ -1228,43 +1230,117 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         try {
             // setIsLoading(true);
             
-            // 使用传入的服务器地址、状态中的地址或默认配置
-            const serverHost = customServerHost || firmwareServerHost || FIRMWARE_SERVER_CONFIG.defaultHost;
-            const updateCheckUrl = `${serverHost}${FIRMWARE_SERVER_CONFIG.endpoints.checkUpdate}`;
-            
             // 构建请求数据
             const requestData: FirmwareUpdateCheckRequest = {
                 currentVersion: currentVersion.trim()
             };
             
-            // 直接请求固件服务器
-            const response = await fetch(updateCheckUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(requestData),
-            });
+            // 确定服务器地址
+            const serverHost = customServerHost || firmwareServerHost || FIRMWARE_SERVER_CONFIG.defaultHost;
+            const url = `${serverHost}${FIRMWARE_SERVER_CONFIG.endpoints.checkUpdate}`;
+            
+            // 获取设备认证管理器
+            const authManager = DeviceAuthManager.getInstance();
+            
+            // 重试逻辑：最多重试2次
+            const maxRetries = 2;
+            let attempt = 0;
+            let lastError: any = null;
+            
+            while (attempt <= maxRetries) {
+                try {
+                    // 获取设备认证信息
+                    const authInfo = await authManager.getValidAuth();
+                    
+                    if (!authInfo) {
+                        throw new Error('无法获取设备认证信息');
+                    }
+                    
+                    console.log(`🚀 开始固件更新检查 (尝试 ${attempt + 1}/${maxRetries + 1})`);
+                    
+                    // 直接请求服务器，认证信息放在body中
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            ...requestData,
+                            deviceAuth: authInfo
+                        })
+                    });
 
-            let result = true;
-            
-            if (!response.ok) {
-                result = false;
+                    // 检查HTTP状态
+                    if (!response.ok) {
+                        throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
+                    }
+                    
+                    const responseData = await response.json();
+                    
+                    // 检查服务器返回的错误
+                    if (responseData.errNo && responseData.errNo !== 0) {
+                        // 检查是否是认证相关错误
+                        const authErrorCodes = [
+                            'AUTH_MISSING', 'AUTH_INVALID_FORMAT', 'AUTH_INCOMPLETE',
+                            'DEVICE_NOT_REGISTERED', 'INVALID_SIGNATURE', 'CHALLENGE_REUSED',
+                            'AUTH_SERVER_ERROR', 'CHALLENGE_EXPIRED'
+                        ];
+                        
+                        if (authErrorCodes.includes(responseData.errorCode)) {
+                            console.log(`🔄 检测到认证错误: ${responseData.errorCode}，尝试重新获取认证信息`);
+                            
+                            // 处理认证错误并重新获取认证信息
+                            await authManager.handleAuthError(responseData);
+                            
+                            // 如果不是最后一次尝试，继续重试
+                            if (attempt < maxRetries) {
+                                attempt++;
+                                console.log(`🔁 认证错误重试 ${attempt}/${maxRetries}`);
+                                continue;
+                            }
+                        }
+                        
+                        throw new Error(`Server error: ${responseData.errorMessage || 'Unknown error'}`);
+                    }
+                    
+                    // 请求成功，设置更新信息
+                    console.log('✅ 固件更新检查成功');
+                    setFirmwareUpdateInfo(responseData.data);
+                    return Promise.resolve();
+                    
+                } catch (error) {
+                    console.error(`❌ 固件更新检查失败 (尝试 ${attempt + 1}):`, error);
+                    lastError = error;
+                    
+                    // 如果是认证相关错误，尝试重新获取认证信息
+                    if (error instanceof Error && 
+                        (error.message.includes('认证') || 
+                         error.message.includes('auth') || 
+                         error.message.includes('AUTH'))) {
+                        
+                        console.log('🔄 检测到认证错误，尝试重新获取认证信息');
+                        await authManager.handleAuthError(error);
+                        
+                        // 如果不是最后一次尝试，继续重试
+                        if (attempt < maxRetries) {
+                            attempt++;
+                            console.log(`🔁 认证错误重试 ${attempt}/${maxRetries}`);
+                            continue;
+                        }
+                    }
+                    
+                    // 如果不是认证错误，或者已经是最后一次尝试，跳出循环
+                    break;
+                }
             }
             
-            const responseData = await response.json();
-            
-            // 检查服务器返回的错误
-            if (responseData.errNo && responseData.errNo !== 0) {
-                result = false;
-            }
-            
-            // 设置更新信息 如果请求失败，则返回默认的固件更新信息
-            setFirmwareUpdateInfo(result ? responseData.data : makeDefaultFirmwareUpdateInfo());
-            // setError(null);
+            // 如果所有重试都失败了，返回默认的固件更新信息
+            console.log('❌ 所有重试都失败，返回默认固件更新信息');
+            setFirmwareUpdateInfo(makeDefaultFirmwareUpdateInfo());
             return Promise.resolve();
             
         } catch (err) {
+            console.error('❌ 固件更新检查异常:', err);
             setFirmwareUpdateInfo(makeDefaultFirmwareUpdateInfo());
             return Promise.resolve();
         } finally {

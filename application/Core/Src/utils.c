@@ -241,7 +241,7 @@ char* str_stm32_unique_id() {
 
 /**
  * 基于STM32唯一ID生成安全的设备ID哈希值
- * 使用多轮哈希和盐值确保安全性
+ * 使用多轮哈希和盐值确保安全性（与release.py中的算法保持一致）
  * @return 16位十六进制哈希字符串（64位哈希值）
  */
 char* get_device_id_hash() {
@@ -254,36 +254,39 @@ char* get_device_id_hash() {
     uint32_t uid_word1 = uid_ptr[1];
     uint32_t uid_word2 = uid_ptr[2];
     
-    // 定义盐值和常量（基于项目特征）
-    const uint32_t SALT1 = 0x48426F78;  // "HBox" 的ASCII值
-    const uint32_t SALT2 = 0x32303234;  // "2024" 的ASCII值
-    const uint32_t PRIME1 = 0x9E3779B9; // 黄金比例常数
-    const uint32_t PRIME2 = 0x85EBCA6B; // 另一个质数
+    // 与 release.py 中相同的哈希算法
+    // 盐值常量
+    uint32_t salt1 = 0x48426F78;  // "HBox"
+    uint32_t salt2 = 0x32303234;  // "2024"
     
-    // 第一轮哈希：结合原始ID和盐值
-    uint32_t hash1 = uid_word0 ^ SALT1;
-    hash1 = ((hash1 << 13) | (hash1 >> 19)) ^ uid_word1;
-    hash1 += PRIME1;
+    // 质数常量
+    uint32_t prime1 = 0x9E3779B9;  // 黄金比例的32位表示
+    uint32_t prime2 = 0x85EBCA6B;  // 另一个质数
+    uint32_t prime3 = 0xC2B2AE35;  // 第三个质数
     
-    uint32_t hash2 = uid_word1 ^ SALT2;
-    hash2 = ((hash2 << 17) | (hash2 >> 15)) ^ uid_word2;
-    hash2 += PRIME2;
+    // 第一轮哈希
+    uint32_t hash1 = (uid_word0 ^ salt1) & 0xFFFFFFFF;
+    hash1 = ((hash1 << 13) | ((hash1 & 0xFFFFFFFF) >> 19)) & 0xFFFFFFFF;  // 左循环移位13位
+    hash1 = (hash1 * prime1) & 0xFFFFFFFF;
+    hash1 = (hash1 ^ uid_word1) & 0xFFFFFFFF;
     
-    // 第二轮哈希：交叉混合
-    uint32_t mixed1 = hash1 ^ hash2;
-    mixed1 = ((mixed1 << 11) | (mixed1 >> 21)) + uid_word0;
+    // 第二轮哈希
+    uint32_t hash2 = (uid_word1 ^ salt2) & 0xFFFFFFFF;
+    hash2 = ((hash2 << 17) | ((hash2 & 0xFFFFFFFF) >> 15)) & 0xFFFFFFFF;  // 左循环移位17位
+    hash2 = (hash2 * prime2) & 0xFFFFFFFF;
+    hash2 = (hash2 ^ uid_word2) & 0xFFFFFFFF;
     
-    uint32_t mixed2 = hash2 ^ hash1;
-    mixed2 = ((mixed2 << 23) | (mixed2 >> 9)) + uid_word2;
+    // 第三轮哈希
+    uint32_t hash3 = (uid_word2 ^ ((salt1 + salt2) & 0xFFFFFFFF)) & 0xFFFFFFFF;
+    hash3 = ((hash3 << 21) | ((hash3 & 0xFFFFFFFF) >> 11)) & 0xFFFFFFFF;  // 左循环移位21位
+    hash3 = (hash3 * prime3) & 0xFFFFFFFF;
+    hash3 = (hash3 ^ hash1) & 0xFFFFFFFF;
     
-    // 第三轮哈希：最终混合
-    uint32_t final_hash1 = mixed1 ^ (mixed2 << 7);
-    final_hash1 = ((final_hash1 << 5) | (final_hash1 >> 27)) ^ PRIME1;
+    // 最终组合
+    uint32_t final_hash1 = (hash1 ^ hash2) & 0xFFFFFFFF;
+    uint32_t final_hash2 = (hash2 ^ hash3) & 0xFFFFFFFF;
     
-    uint32_t final_hash2 = mixed2 ^ (mixed1 >> 11);
-    final_hash2 = ((final_hash2 << 19) | (final_hash2 >> 13)) ^ PRIME2;
-    
-    // 格式化为16位十六进制字符串
+    // 转换为16位十六进制字符串 (64位哈希)
     snprintf(hash_str, sizeof(hash_str), "%08X%08X", 
              (unsigned int)final_hash1, 
              (unsigned int)final_hash2);

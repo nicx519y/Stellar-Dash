@@ -33,14 +33,17 @@ export function FirmwareContent() {
         fetchFirmwareMetadata();
     }, []);
 
+    const firmwrareCurrentVersion = useMemo(() => {
+        return firmwareInfo?.firmware?.version || "";
+    }, [firmwareInfo?.firmware.version]);
+
     useEffect(() => {
-        console.log('firmwareInfo changed: ', firmwareInfo);
-        if(firmwareInfo && firmwareInfo.firmware) {
-           checkFirmwareUpdate(firmwareInfo.firmware.version ? firmwareInfo.firmware.version : "0.0.0");
+        if(firmwrareCurrentVersion != "") {
+           checkFirmwareUpdate(firmwrareCurrentVersion);
         } else {
             console.log('firmwareInfo is null');
         }
-    }, [firmwareInfo]);
+    }, [firmwrareCurrentVersion]);
 
     useEffect(() => {
         if(firmwareUpdateInfo) {

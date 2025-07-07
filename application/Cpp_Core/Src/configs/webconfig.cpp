@@ -3715,6 +3715,51 @@ std::string apiFirmwareUpgradeCleanup() {
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
     return response;
 }
+
+/**
+ * @brief API: 获取设备认证信息
+ * @return JSON格式的设备认证响应
+ */
+std::string apiGetDeviceAuth() {
+    cJSON* data = cJSON_CreateObject();
+    
+    char* uniqueId = str_stm32_unique_id();
+    char* deviceId = get_device_id_hash();
+    
+    if (!uniqueId || !deviceId) {
+        return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, nullptr, "Failed to get device identifiers");
+    }
+    
+    uint32_t deviceTimestamp = HAL_GetTick();
+    uint32_t deviceRandom = deviceTimestamp ^ 0xA5A5A5A5;
+    
+    char challenge[64];
+    snprintf(challenge, sizeof(challenge), "DEV_%08X_%08X", deviceTimestamp, deviceRandom);
+    
+    // 简单签名：deviceId + challenge + timestamp的哈希
+    uint32_t hash = 0x9E3779B9;
+    std::string signData = std::string(deviceId) + challenge + std::to_string(deviceTimestamp);
+    for (char c : signData) {
+        hash = ((hash << 5) + hash) + c;
+    }
+    
+    char signature[32];
+    snprintf(signature, sizeof(signature), "SIG_%08X", hash);
+    
+    cJSON_AddStringToObject(data, "deviceId", deviceId);
+    cJSON_AddStringToObject(data, "originalUniqueId", uniqueId);
+    cJSON_AddStringToObject(data, "challenge", challenge);
+    cJSON_AddNumberToObject(data, "timestamp", deviceTimestamp);
+    cJSON_AddStringToObject(data, "signature", signature);
+    cJSON_AddNumberToObject(data, "expiresIn", 30 * 60);
+    
+    free(uniqueId);
+    free(deviceId);
+    
+    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, data);
+    return response;
+}
+
 /*============================================ apis end ====================================================*/
 
 
@@ -3759,6 +3804,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/firmware-upgrade-complete", apiFirmwareUpgradeComplete }, // 完成固件升级会话
     { "/api/firmware-upgrade-abort", apiFirmwareUpgradeAbort },       // 中止固件升级会话
     { "/api/firmware-upgrade-cleanup", apiFirmwareUpgradeCleanup },     // 清理固件升级会话
+    { "/api/device-auth", apiGetDeviceAuth },                       // 获取设备认证信息
 #if !defined(NDEBUG)
     // { "/api/echo", echo },
 #endif
