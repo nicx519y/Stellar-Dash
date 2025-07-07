@@ -633,13 +633,14 @@ app.get('/health', (req, res) => {
 // 设备注册接口
 app.post('/api/device/register', (req, res) => {
     try {
-        const { rawUniqueId, deviceId, deviceName } = req.body;
+        const { rawUniqueId, deviceId, deviceName, deviceAuth } = req.body;
         
         // 🔍 调试打印：收到的注册请求数据
         console.log('📥 设备注册请求:');
         console.log('  原始唯一ID (rawUniqueId):', rawUniqueId);
         console.log('  设备ID (deviceId):', deviceId);
         console.log('  设备名称 (deviceName):', deviceName);
+        console.log('  设备认证 (deviceAuth):', deviceAuth ? '✅存在' : '❌缺失');
         
         // 验证必需参数
         if (!rawUniqueId || !deviceId) {
@@ -648,6 +649,16 @@ app.post('/api/device/register', (req, res) => {
                 message: '原始唯一ID和设备ID是必需的',
                 errNo: 1,
                 errorMessage: 'rawUniqueId and deviceId are required'
+            });
+        }
+
+        // 验证设备认证数据
+        if (!deviceAuth) {
+            return res.status(400).json({
+                success: false,
+                message: '设备认证数据是必需的',
+                errNo: 1,
+                errorMessage: 'Device authentication data is required'
             });
         }
 
@@ -672,6 +683,113 @@ app.post('/api/device/register', (req, res) => {
                 errorMessage: 'deviceId format error, must be 16-digit hexadecimal string'
             });
         }
+
+        // === 设备签名验证（注册专用版本：不检查设备是否已注册） ===
+        console.log('\n🛡️  ===== 设备注册签名验证开始 =====');
+        
+        // 验证认证数据字段
+        const { deviceId: authDeviceId, challenge, timestamp, signature } = deviceAuth;
+        console.log('📋 认证数据字段检查:');
+        console.log(`  deviceId: ${authDeviceId ? '✅' : '❌'} "${authDeviceId || 'undefined'}"`);
+        console.log(`  challenge: ${challenge ? '✅' : '❌'} "${challenge || 'undefined'}"`);
+        console.log(`  timestamp: ${timestamp ? '✅' : '❌'} ${timestamp || 'undefined'}`);
+        console.log(`  signature: ${signature ? '✅' : '❌'} "${signature || 'undefined'}"`);
+        
+        if (!authDeviceId || !challenge || !timestamp || !signature) {
+            console.log('❌ 认证失败: 认证数据字段不完整');
+            return res.status(401).json({
+                success: false,
+                message: '设备认证数据字段不完整',
+                errNo: 1,
+                errorMessage: 'Authentication data incomplete'
+            });
+        }
+
+        // 验证认证数据中的设备ID与请求数据中的设备ID是否一致
+        if (authDeviceId.toUpperCase() !== deviceId.trim().toUpperCase()) {
+            console.log('❌ 认证失败: 认证数据中的设备ID与请求数据不匹配');
+            return res.status(401).json({
+                success: false,
+                message: '认证数据中的设备ID与请求数据不匹配',
+                errNo: 1,
+                errorMessage: 'Device ID in auth data does not match request data'
+            });
+        }
+
+        // 验证签名
+        console.log('\n🔍 验证设备签名');
+        console.log('🔐 开始生成期望签名...');
+        const expectedSignature = generateDeviceSignature(authDeviceId, challenge, timestamp);
+        
+        console.log('📋 签名比较:');
+        console.log(`  收到的签名: "${signature}"`);
+        console.log(`  期望的签名: "${expectedSignature}"`);
+        console.log(`  签名匹配: ${signature === expectedSignature ? '✅' : '❌'}`);
+        
+        if (signature !== expectedSignature) {
+            console.log('❌ 认证失败: 设备签名验证失败');
+            return res.status(401).json({
+                success: false,
+                message: '设备签名验证失败',
+                errNo: 1,
+                errorMessage: 'Invalid device signature'
+            });
+        }
+        console.log('✅ 设备签名验证成功');
+
+        // 基于挑战的重放攻击防护
+        console.log('\n🔍 挑战重放攻击防护');
+        const expiresIn = volidateDefaultConfig.expiresIn; // 使用全局配置的过期时间
+        
+        if (!global.usedChallenges) {
+            global.usedChallenges = new Map();
+            console.log('🆕 初始化挑战存储Map');
+        }
+        
+        console.log(`📋 当前已记录的挑战数量: ${global.usedChallenges.size}`);
+        
+        // 检查挑战是否已被使用过
+        const challengeFirstUsed = global.usedChallenges.get(challenge);
+        if (challengeFirstUsed) {
+            // 如果挑战已被使用，检查是否超出有效期
+            const timeSinceFirstUse = Date.now() - challengeFirstUsed;
+            console.log(`🔄 挑战已存在: "${challenge}"`);
+            console.log(`⏰ 首次使用时间: ${new Date(challengeFirstUsed).toISOString()}`);
+            console.log(`⏰ 已使用时长: ${Math.round(timeSinceFirstUse / 1000)}秒`);
+            console.log(`⏰ 有效期限制: ${expiresIn}秒`);
+            
+            if (timeSinceFirstUse > (expiresIn * 1000)) {
+                console.log('❌ 认证失败: 挑战已过期');
+                return res.status(401).json({
+                    success: false,
+                    message: '挑战已过期',
+                    errNo: 1,
+                    errorMessage: 'Challenge has expired'
+                });
+            }
+            // 在有效期内，允许重复使用
+            console.log(`✅ 挑战复用成功: ${challenge}, 已使用 ${Math.round(timeSinceFirstUse / 1000)}秒`);
+        } else {
+            // 第一次使用此挑战，记录使用时间
+            global.usedChallenges.set(challenge, Date.now());
+            console.log(`🆕 挑战首次使用: "${challenge}"`);
+            console.log(`⏰ 记录时间: ${new Date().toISOString()}`);
+        }
+        
+        // 定期清理过期的挑战记录
+        const cleanupThreshold = Date.now() - (expiresIn * 1000);
+        let cleanupCount = 0;
+        for (const [usedChallenge, usedTime] of global.usedChallenges.entries()) {
+            if (usedTime < cleanupThreshold) {
+                global.usedChallenges.delete(usedChallenge);
+                cleanupCount++;
+            }
+        }
+        if (cleanupCount > 0) {
+            console.log(`🧹 清理过期挑战: ${cleanupCount}个, 剩余: ${global.usedChallenges.size}个`);
+        }
+
+        console.log('🛡️  ===== 设备注册签名验证成功 =====\n');
 
         // 构建设备信息
         const deviceInfo = {

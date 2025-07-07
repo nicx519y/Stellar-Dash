@@ -2119,6 +2119,44 @@ class ReleaseManager:
         device_id = f"{final_hash1:08X}{final_hash2:08X}"
         
         return device_id
+    
+    def generate_device_signature(self, device_id: str, challenge: str, timestamp: int) -> str:
+        """
+        生成设备签名 (与服务器端算法保持一致)
+        
+        Args:
+            device_id: 设备ID
+            challenge: 挑战字符串
+            timestamp: 时间戳
+            
+        Returns:
+            str: 签名字符串
+        """
+        print('\n🔐 ===== 设备签名生成过程 =====')
+        print('📥 输入参数:')
+        print(f'  device_id: "{device_id}"')
+        print(f'  challenge: "{challenge}"')
+        print(f'  timestamp: {timestamp}')
+        
+        sign_data = device_id + challenge + str(timestamp)
+        print(f'📝 签名数据拼接: "{sign_data}"')
+        print(f'📏 签名数据长度: {len(sign_data)} 字符')
+        
+        hash_value = 0x9E3779B9
+        print(f'🔢 初始哈希值: 0x{hash_value:08X}')
+        
+        for i, char in enumerate(sign_data):
+            char_code = ord(char)
+            old_hash = hash_value
+            
+            hash_value = ((hash_value << 5) + hash_value) + char_code
+            hash_value = hash_value & 0xFFFFFFFF  # 确保32位无符号整数
+        
+        final_signature = f"SIG_{hash_value:08X}"
+        print(f'🔐 最终签名: "{final_signature}"')
+        print('🔐 ===== 设备签名生成完成 =====\n')
+        
+        return final_signature
 
     def register_device_id(self, server_url: str = "http://localhost:3000") -> bool:
         """
@@ -2206,11 +2244,34 @@ class ReleaseManager:
             print(f"🔐 设备哈希ID: {device_id_hash}")
             print(f"🌐 注册到服务器: {server_url}")
             
+            # 生成设备认证数据
+            import time
+            import secrets
+            
+            print("\n🔐 生成设备认证数据...")
+            challenge = secrets.token_hex(16)  # 生成32字符的随机挑战
+            timestamp = int(time.time())  # 当前时间戳
+            
+            print(f"🎲 生成的挑战: {challenge}")
+            print(f"⏰ 时间戳: {timestamp}")
+            
+            # 生成签名
+            signature = self.generate_device_signature(device_id_hash, challenge, timestamp)
+            
+            # 构建认证数据
+            device_auth = {
+                "deviceId": device_id_hash,
+                "challenge": challenge,
+                "timestamp": timestamp,
+                "signature": signature
+            }
+            
             # 构建注册数据
             register_data = {
                 "rawUniqueId": raw_unique_id,
                 "deviceId": device_id_hash,
-                "deviceName": f"HBox-{device_id_hash[:8]}"
+                "deviceName": f"HBox-{device_id_hash[:8]}",
+                "deviceAuth": device_auth
             }
             
             # 发送注册请求
