@@ -13,6 +13,18 @@ void LEDDataToDMABuffer(const uint16_t start, const uint16_t length);
 
 ADCCalibrationManager::ADCCalibrationManager() {
     APP_DBG("ADCCalibrationManager constructor - creating global instance");
+    
+    // 初始化启用按键掩码
+    enabledKeysMask = 0;
+    GamepadProfile* profile = STORAGE_MANAGER.getGamepadProfile(STORAGE_MANAGER.config.defaultProfileId);
+    if (profile) {
+        const bool* enabledKeys = profile->keysConfig.keysEnableTag;
+        for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+            enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
+        }
+        APP_DBG("ADCCalibrationManager: enabled keys mask = 0x%08X", enabledKeysMask);
+    }
+    
     initializeButtonStates();
 }
 
@@ -43,6 +55,13 @@ ADCBtnsError ADCCalibrationManager::startManualCalibration() {
     // 同时启动所有未校准按键的校准
     uint8_t uncalibratedCount = 0;
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        // 检查按键是否启用
+        if (!(enabledKeysMask & (1 << i))) {
+            // 未启用的按键设置为关闭状态
+            setButtonLEDColor(i, CalibrationLEDColor::OFF);
+            continue;
+        }
+        
         if (!buttonStates[i].isCalibrated) {
             // 设置按键为顶部值采样状态（按键释放状态）
             setButtonPhase(i, CalibrationPhase::TOP_SAMPLING);
@@ -114,7 +133,16 @@ ADCBtnsError ADCCalibrationManager::resetAllCalibration() {
         state.lastSampleTime = 0;
         
         clearSampleBuffer(i);
-        setButtonLEDColor(i, CalibrationLEDColor::OFF);
+        
+        // 检查按键是否启用
+        if (!(enabledKeysMask & (1 << i))) {
+            // 未启用的按键设置为关闭状态
+            setButtonLEDColor(i, CalibrationLEDColor::OFF);
+        } else {
+            // 启用的按键设置为红色（未校准状态）
+            setButtonLEDColor(i, CalibrationLEDColor::RED);
+        }
+        
         updateButtonLED(i, state.ledColor);
     }
     
@@ -144,6 +172,11 @@ void ADCCalibrationManager::processCalibration() {
     
     // 并行处理所有按键的校准
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        // 检查按键是否启用
+        if (!(enabledKeysMask & (1 << i))) {
+            continue; // 跳过未启用的按键
+        }
+        
         if (buttonStates[i].isCalibrated) {
             continue; // 跳过已校准的按键
         }
@@ -382,6 +415,11 @@ void ADCCalibrationManager::checkCalibrationCompletion() {
     // 检查是否所有按键都已校准完成或出错
     bool allCompleted = true;
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        // 检查按键是否启用
+        if (!(enabledKeysMask & (1 << i))) {
+            continue; // 跳过未启用的按键
+        }
+        
         CalibrationPhase phase = buttonStates[i].phase;
         if (phase == CalibrationPhase::BOTTOM_SAMPLING || 
             phase == CalibrationPhase::TOP_SAMPLING) {
@@ -463,7 +501,6 @@ void ADCCalibrationManager::initializeButtonStates() {
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
         ButtonCalibrationState& state = buttonStates[i];
         state.phase = CalibrationPhase::IDLE;
-        state.ledColor = CalibrationLEDColor::RED;
         state.isCalibrated = false;
         state.sampleCount = 0;
         state.minSample = UINT16_MAX;
@@ -472,6 +509,15 @@ void ADCCalibrationManager::initializeButtonStates() {
         state.topValue = 0;
         state.lastSampleTime = 0;
         state.sampleBuffer.fill(0);
+        
+        // 根据按键启用状态设置LED颜色
+        if (!(enabledKeysMask & (1 << i))) {
+            // 未启用的按键设置为关闭状态
+            state.ledColor = CalibrationLEDColor::OFF;
+        } else {
+            // 启用的按键设置为红色（未校准状态）
+            state.ledColor = CalibrationLEDColor::RED;
+        }
         
         // 设置期望值（来自原始映射）
         std::string mappingId = ADC_MANAGER.getDefaultMapping();
@@ -498,6 +544,11 @@ bool ADCCalibrationManager::loadExistingCalibration() {
     bool hasAnyCalibration = false;
     
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        // 检查按键是否启用
+        if (!(enabledKeysMask & (1 << i))) {
+            continue; // 跳过未启用的按键
+        }
+        
         uint16_t topValue, bottomValue;
         ADCBtnsError result = ADC_MANAGER.getCalibrationValues(mappingId.c_str(), i, false, topValue, bottomValue);
         
@@ -541,6 +592,11 @@ bool ADCCalibrationManager::isButtonCalibrated(uint8_t buttonIndex) const {
 
 bool ADCCalibrationManager::isAllButtonsCalibrated() const {
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        // 检查按键是否启用
+        if (!(enabledKeysMask & (1 << i))) {
+            continue; // 跳过未启用的按键
+        }
+        
         if (!buttonStates[i].isCalibrated) {
             return false;
         }
@@ -551,6 +607,11 @@ bool ADCCalibrationManager::isAllButtonsCalibrated() const {
 uint8_t ADCCalibrationManager::getUncalibratedButtonCount() const {
     uint8_t count = 0;
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        // 检查按键是否启用
+        if (!(enabledKeysMask & (1 << i))) {
+            continue; // 跳过未启用的按键
+        }
+        
         if (!buttonStates[i].isCalibrated) {
             count++;
         }
@@ -561,6 +622,11 @@ uint8_t ADCCalibrationManager::getUncalibratedButtonCount() const {
 uint8_t ADCCalibrationManager::getActiveCalibrationButtonCount() const {
     uint8_t count = 0;
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        // 检查按键是否启用
+        if (!(enabledKeysMask & (1 << i))) {
+            continue; // 跳过未启用的按键
+        }
+        
         CalibrationPhase phase = buttonStates[i].phase;
         if (phase == CalibrationPhase::BOTTOM_SAMPLING || 
             phase == CalibrationPhase::TOP_SAMPLING) {

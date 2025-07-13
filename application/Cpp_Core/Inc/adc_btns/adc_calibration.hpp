@@ -6,6 +6,7 @@
 #include <functional>
 #include "adc_btns_error.hpp"
 #include "board_cfg.h"
+#include "storagemanager.hpp"
 
 // 回调函数类型定义
 using CalibrationCompletedCallback = std::function<void(uint8_t buttonIndex, uint16_t topValue, uint16_t bottomValue)>;
@@ -120,6 +121,7 @@ private:
     // 校准状态
     bool calibrationActive = false;                        // 校准是否激活
     bool completionCheckExecuted = false;                  // 是否已执行完成检查（防止重复执行）
+    uint32_t enabledKeysMask = 0;                          // 启用按键掩码
     std::array<ButtonCalibrationState, NUM_ADC_BUTTONS> buttonStates; // 按键校准状态
     
     // 回调函数
