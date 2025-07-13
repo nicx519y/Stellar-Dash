@@ -73,7 +73,7 @@ typedef struct {
     LogLevel          minimum_level;         // 最小记录级别
     uint32_t          last_flush_time;       // 上次刷新时间
     uint32_t          current_sector;        // 当前写入扇区
-    uint32_t          global_sequence;       // 全局序列计数器
+    uint32_t          global_sequence;       // 全局序列计数器 
     uint32_t          boot_counter;          // 启动计数器
     volatile bool     is_writing;            // 正在写入标志
     
