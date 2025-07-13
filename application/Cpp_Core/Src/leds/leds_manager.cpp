@@ -13,6 +13,14 @@
 LEDsManager::LEDsManager()
 {
     opts = &STORAGE_MANAGER.getDefaultGamepadProfile()->ledsConfigs;
+
+    const bool* enabledKeys = STORAGE_MANAGER.getDefaultGamepadProfile()->keysConfig.keysEnableTag;
+    // 初始化启用按键掩码
+    enabledKeysMask = 0;
+    for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
+    }
+
     usingTemporaryConfig = false;
     animationStartTime = 0;
     lastButtonState = 0;
@@ -335,7 +343,7 @@ void LEDsManager::enableSwitch() {
 
 void LEDsManager::setLedsBrightness(uint8_t brightness) {
     const uint8_t b = (uint8_t)((float_t)(brightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
-    WS2812B_SetLEDBrightness(b, 0, NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS);
+    WS2812B_SetLEDBrightnessByMask(b, 0, enabledKeysMask); // 根据启用按键掩码设置亮度，未启用的按键亮度为0
 }
 
 void LEDsManager::setAmbientLightBrightness(uint8_t brightness) {

@@ -21,6 +21,7 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
     profile.keysConfig.fourWayMode = false;
     profile.keysConfig.invertXAxis = false;
     profile.keysConfig.invertYAxis = false;
+    memset(profile.keysConfig.keysEnableTag, true, NUM_ADC_BUTTONS); // 默认启用所有按钮
     profile.keysConfig.keyDpadUp = (1 << 0) | (1 << 7);
     profile.keysConfig.keyDpadDown = 1 << 4;
     profile.keysConfig.keyDpadLeft = 1 << 5;

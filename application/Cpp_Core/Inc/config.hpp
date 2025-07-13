@@ -17,6 +17,7 @@ typedef struct
     bool fourWayMode;
     bool invertXAxis;
     bool invertYAxis;
+    bool keysEnableTag[NUM_ADC_BUTTONS]; // 0-15 表示第0-15个按钮 1表示启用 0表示禁用
     uint32_t keyDpadUp;             // example: 0001 0000 0010 0000 0000 0000 0000 0000  说明 keyDpadUp 这个功能按键和物理按键virtualPin的关系
     uint32_t keyDpadDown;
     uint32_t keyDpadLeft;

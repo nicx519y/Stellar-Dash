@@ -922,6 +922,14 @@ std::string apiUpdateProfile() {
             && item->valueint < SOCDMode::NUM_SOCD_MODES) {
             targetProfile->keysConfig.socdMode = static_cast<SOCDMode>(item->valueint);
         }
+
+        // 更新按键启用状态
+        cJSON* keysEnableTag = cJSON_GetObjectItem(keysConfig, "keysEnableTag");
+        if(keysEnableTag) {
+            for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+                targetProfile->keysConfig.keysEnableTag[i] = cJSON_GetArrayItem(keysEnableTag, i)->type == cJSON_True;
+            }
+        }
       
         // 更新按键映射
         cJSON* keyMapping = cJSON_GetObjectItem(keysConfig, "keyMapping");                                          

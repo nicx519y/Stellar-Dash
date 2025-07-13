@@ -55,6 +55,7 @@ class LEDsManager {
         LEDProfile* opts;
         LEDProfile temporaryConfig;  // 临时配置存储
         bool usingTemporaryConfig;   // 是否正在使用临时配置
+        uint32_t enabledKeysMask; // 启用按键掩码
         RGBColor frontColor;
         RGBColor backgroundColor1;
         RGBColor backgroundColor2;

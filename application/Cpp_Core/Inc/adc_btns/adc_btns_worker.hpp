@@ -173,6 +173,7 @@ class ADCBtnsWorker {
         uint32_t virtualPinMask = 0x0;              // 虚拟引脚掩码
         bool buttonTriggerStatusChanged = false;    // 按钮触发状态是否改变
         uint16_t minValueDiff;                      // 最小值差值
+        uint32_t enabledKeysMask = 0x0;             // 启用按键掩码
         
         // 防抖过滤器
         ADCDebounceFilter debounceFilter_;

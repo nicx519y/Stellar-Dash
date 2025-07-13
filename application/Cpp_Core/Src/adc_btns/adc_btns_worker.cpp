@@ -99,6 +99,12 @@ ADCBtnsError ADCBtnsWorker::setup() {
         return ADCBtnsError::MAPPING_NOT_FOUND;
     }
 
+    // 初始化启用按键掩码
+    const bool* enabledKeys = profile->keysConfig.keysEnableTag;
+    for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
+    }
+
     this->mapping = mapping;
 
     // 获取校准模式配置
@@ -340,7 +346,8 @@ uint32_t ADCBtnsWorker::read() {
         buttonTriggerStatusChanged = false;
     }
 
-    return this->virtualPinMask;
+    // 返回按键状态掩码，只返回启用的按键，其他按键不返回
+    return (this->virtualPinMask & enabledKeysMask);
 }
 
 /**
