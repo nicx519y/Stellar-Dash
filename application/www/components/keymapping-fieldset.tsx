@@ -21,14 +21,20 @@ export default function KeymappingFieldset(
         inputKey: number,
         keyMapping: { [key in GameControllerButton]?: number[] },
         autoSwitch: boolean,
+        disabled?: boolean,
         changeKeyMappingHandler: (key: GameControllerButton, value: number[]) => void,
     }
 ) {
 
-    const { inputMode, inputKey, keyMapping, autoSwitch, changeKeyMappingHandler } = props;
+    const { inputMode, inputKey, keyMapping, autoSwitch, disabled, changeKeyMappingHandler } = props;
     const { t } = useLanguage();
 
     const [activeButton, setActiveButton] = useState<GameControllerButton>(GameControllerButtonList[0]);
+    
+    const isDisabled = useMemo(() => {
+        return disabled ?? false;
+    }, [disabled]);
+
     /**
      * change key mapping when input key is changed
      */
@@ -101,11 +107,12 @@ export default function KeymappingFieldset(
                 {GameControllerButtonList.map((gameControllerButton, index) => (
                     <KeymappingField
                         key={ index }  
-                        onClick={() => setActiveButton(gameControllerButton)}
+                        onClick={() => !isDisabled && setActiveButton(gameControllerButton)}
                         label={buttonLabelMap.get(gameControllerButton) ?? ""} 
                         value={keyMapping[gameControllerButton] ?? []}
                         changeValue={(v: number[]) => changeKeyMappingHandler(gameControllerButton, v)} 
                         isActive={activeButton === gameControllerButton}
+                        disabled={isDisabled}
                     />
                 ))}
             </SimpleGrid>

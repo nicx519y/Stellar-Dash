@@ -16,10 +16,19 @@ import { openForm } from '@/components/dialog-form';
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from '@/contexts/language-context';
 
-export function ProfileSelect() {
+export function ProfileSelect(
+    props: {
+        disabled?: boolean,
+    }
+) {
 
     const { profileList, switchProfile, createProfile, deleteProfile, updateProfileDetails } = useGamepadConfig();
     const { t } = useLanguage();
+    const { disabled } = props;
+
+    const isDisabled = useMemo(() => {
+        return disabled ?? false;
+    }, [disabled]);
 
     const defaultProfile = useMemo(() => {
         const profile = profileList.items.find(p => p.id === profileList.defaultId);
@@ -181,7 +190,7 @@ export function ProfileSelect() {
     return (
         <Card.Root w="100%" h="100%" >
             <Card.Header >
-                <Card.Title fontSize={"md"} >{t.PROFILE_SELECT_TITLE}</Card.Title>
+                <Card.Title fontSize={"md"} color={isDisabled ? "gray.500" : "white"} >{t.PROFILE_SELECT_TITLE}</Card.Title>
             </Card.Header>
             <Card.Body>
                 <VStack  gap={2} >
@@ -196,6 +205,7 @@ export function ProfileSelect() {
                                 colorPalette={defaultProfile?.id === item.value ? "green" : "gray"} 
                                 onClick={() => defaultProfile?.id !== item.value && onDefaultProfileChange(item.value)}
                                 justifyContent="flex-start" 
+                                disabled={isDisabled}
                             >
                                 {item.label}
                             </Button>
@@ -208,7 +218,7 @@ export function ProfileSelect() {
                     {
                         menuItems.map((item) => (
                             <Tooltip key={item.value} content={item.label} >
-                                <IconButton key={item.value} w="32px" size="xs" variant="ghost" colorPalette="green" onClick={item.onClick}  >
+                                <IconButton key={item.value} w="32px" size="xs" variant="ghost" colorPalette="green" onClick={item.onClick} disabled={isDisabled}  >
                                     {item.icon}
                                 </IconButton>
                             </Tooltip>

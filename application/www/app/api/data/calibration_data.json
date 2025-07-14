@@ -80,7 +80,7 @@
       "index": 9,
       "phase": "IDLE",
       "isCalibrated": false,
-      "topValue": 3093,
+      "topValue": 3785,
       "bottomValue": 0,
       "ledColor": "RED"
     },

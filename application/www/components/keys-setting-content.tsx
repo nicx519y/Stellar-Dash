@@ -171,7 +171,7 @@ export function KeysSettingContent() {
     return (
         <Flex direction="row" width={"100%"} height={"100%"} padding={"18px"} >
             <Center >
-                <ProfileSelect />
+                <ProfileSelect disabled={keysEnableSettingActive} />
             </Center>
             <Center flex={1}  >
                 <Center padding="80px 30px" position="relative"   >
@@ -214,19 +214,18 @@ export function KeysSettingContent() {
                                 <VStack gap={8} alignItems={"flex-start"} >
                                     {/* Key Mapping */}
                                     <Stack direction={"column"}>
-                                        <Fieldset.Legend fontSize={"sm"} fontWeight={"bold"} >{t.SETTINGS_KEYS_MAPPING_TITLE}</Fieldset.Legend>
-                                        <HStack gap={1} >
+                                        <Fieldset.Legend fontSize={"sm"} fontWeight={"bold"} color={keysEnableSettingActive ? "gray.500" : "white"} >{t.SETTINGS_KEYS_MAPPING_TITLE}</Fieldset.Legend>
+                                        <HStack gap={4} >
                                             <SegmentedControl
-                                                size={"xs"}
+                                                size={"sm"}
                                                 defaultValue={autoSwitch ? t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL : t.SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL}
                                                 items={[t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL, t.SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL]}
                                                 onValueChange={(detail) => setAutoSwitch(detail.value === t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL)}
+                                                disabled={keysEnableSettingActive}
                                             />
-                                            <ToggleTip content={t.TOOLTIP_AUTO_SWITCH}  >
-                                                <Button size="xs" variant="ghost">
-                                                    <LuInfo />
-                                                </Button>
-                                            </ToggleTip>
+                                            <Button w="130px" size="xs" variant={"solid"} colorPalette={"red"} disabled={keysEnableSettingActive} >
+                                                {t.SETTINGS_KEY_MAPPING_CLEAR_MAPPING_BUTTON}
+                                            </Button>
                                         </HStack>
                                         
                                         <KeymappingFieldset
@@ -238,6 +237,7 @@ export function KeysSettingContent() {
                                                 setHitboxButtons(key, hitboxButtons);
                                                 setIsDirty?.(true);
                                             }}
+                                            disabled={keysEnableSettingActive}
                                         />
                                     </Stack>
 
@@ -251,6 +251,7 @@ export function KeysSettingContent() {
                                             setSocdMode(parseInt(detail.value ?? GameSocdMode.SOCD_MODE_NEUTRAL.toString()) as GameSocdMode);
                                             setIsDirty?.(true);
                                         }}
+                                        disabled={keysEnableSettingActive}
                                     >
                                         <RadioCardLabel>{t.SETTINGS_KEYS_SOCD_MODE_TITLE}</RadioCardLabel>
                                         <SimpleGrid gap={1} columns={5} >
@@ -261,6 +262,7 @@ export function KeysSettingContent() {
                                                     key={index}
                                                     value={index.toString()}
                                                     label={GameSocdModeLabelMap.get(index as GameSocdMode)?.label ?? ""}
+                                                    
                                                 />
                                             ))}
                                         </SimpleGrid>
@@ -275,6 +277,7 @@ export function KeysSettingContent() {
                                                 setInvertXAxis(!invertXAxis);
                                                 setIsDirty?.(true);
                                             }}
+                                            disabled={keysEnableSettingActive}
                                         >
                                             <Switch.HiddenInput />
                                             <Switch.Control>
@@ -290,6 +293,7 @@ export function KeysSettingContent() {
                                                 setInvertYAxis(!invertYAxis);
                                                 setIsDirty?.(true);
                                             }}
+                                            disabled={keysEnableSettingActive}
                                         >
                                             <Switch.HiddenInput />
                                             <Switch.Control>
@@ -310,6 +314,7 @@ export function KeysSettingContent() {
                             saveLabel={t.BUTTON_SAVE}
                             resetHandler={fetchDefaultProfile}
                             saveHandler={saveProfileDetailHandler}
+                            disabled={keysEnableSettingActive}
                         />
                     </Card.Footer>
                 </Card.Root>
