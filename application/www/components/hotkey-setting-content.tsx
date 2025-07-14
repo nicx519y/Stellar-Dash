@@ -17,7 +17,6 @@ import { showToast } from "@/components/ui/toaster";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
-import { ContentActionButtons } from "@/components/content-action-buttons";
 import { ButtonEvent } from "@/components/button-monitor-manager";
 import { useButtonMonitor } from "@/hooks/use-button-monitor";
 
@@ -53,8 +52,6 @@ export function HotkeySettingContent({
     const { t } = useLanguage();
     const {
         hotkeysConfig,
-        updateHotkeysConfig,
-        fetchHotkeysConfig,
         calibrationStatus,
     } = useGamepadConfig();
 
@@ -197,20 +194,11 @@ export function HotkeySettingContent({
         };
     }, [activeHotkeyIndex, hotkeys, updateHotkey]);
 
-    // 保存热键配置
-    const saveHotkeysConfigHandler = async () => {
-        if (!hotkeysConfig) return;
-        await updateHotkeysConfig(hotkeys);
-    };
+    
 
     // 处理热键字段点击
     const handleHotkeyFieldClick = (index: number) => {
         setActiveHotkeyIndex(index);
-    };
-
-    // 重置热键配置
-    const resetHotkeysConfigHandler = async () => {
-        await fetchHotkeysConfig();
     };
 
     const handleButtonMonitoringToggle = async (checked: boolean) => {
@@ -278,14 +266,7 @@ export function HotkeySettingContent({
             </Card.Body>
 
             <Card.Footer justifyContent="flex-start">
-                <ContentActionButtons
-                    isDirty={_isDirty}
-                    disabled={disabled || calibrationStatus.isActive}
-                    resetLabel={t.BUTTON_RESET}
-                    saveLabel={t.BUTTON_SAVE}
-                    resetHandler={resetHotkeysConfigHandler}
-                    saveHandler={saveHotkeysConfigHandler}
-                />
+                
             </Card.Footer>
         </Card.Root>
     );

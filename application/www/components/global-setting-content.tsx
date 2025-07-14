@@ -14,6 +14,9 @@ import {
 import { useEffect, useState, useMemo } from "react";
 import {
     HOTKEYS_SETTINGS_INTERACTIVE_IDS,
+    HotkeyAction,
+    DEFAULT_NUM_HOTKEYS_MAX,
+    Hotkey,
 } from "@/types/gamepad-config";
 import HitboxCalibration from "@/components/hitbox/hitbox-calibration";
 import HitboxHotkey from "@/components/hitbox/hitbox-hotkey";
@@ -26,6 +29,7 @@ import { openConfirm } from "@/components/dialog-confirm";
 import { GamePadColor } from "@/types/gamepad-color";
 import { useNavigationBlocker } from '@/hooks/use-navigation-blocker';
 import React from "react";
+import { ContentActionButtons } from "./content-action-buttons";
 
 export function GlobalSettingContent() {
     const { t } = useLanguage();
@@ -35,17 +39,23 @@ export function GlobalSettingContent() {
         startManualCalibration,
         stopManualCalibration,
         fetchCalibrationStatus,
+        fetchHotkeysConfig,
+        updateHotkeysConfig,
         globalConfig,
+        hotkeysConfig,
         // updateGlobalConfig,
     } = useGamepadConfig();
 
-    const [_isDirty] = useUnsavedChangesWarning();
+    const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
 
     // 管理活跃的热键索引
     const [activeHotkeyIndex, setActiveHotkeyIndex] = useState<number>(0);
-    
+
     // 按键监控状态
     const [isButtonMonitoringEnabled, setIsButtonMonitoringEnabled] = useState<boolean>(false);
+
+    // 添加本地 hotkeys 状态来存储用户修改
+    const [currentHotkeys, setCurrentHotkeys] = useState<Hotkey[]>([]);
 
     const [calibrationTipOpen, setCalibrationTipOpen] = useState<boolean>(false);
     const [hasShownCompletionDialog, setHasShownCompletionDialog] = useState<boolean>(false);
@@ -165,11 +175,37 @@ export function GlobalSettingContent() {
     const handleExternalClick = (keyId: number) => {
         if (keyId >= 0 && keyId < 20) {
             // 触发自定义事件通知HotkeySettingContent组件
-            const event = new CustomEvent('hitbox-click', { 
-                detail: { keyId, activeHotkeyIndex } 
+            const event = new CustomEvent('hitbox-click', {
+                detail: { keyId, activeHotkeyIndex }
             });
             window.dispatchEvent(event);
         }
+    };
+
+    // 处理热键更新回调
+    const handleHotkeyUpdate = (index: number, hotkey: Hotkey) => {
+        const newHotkeys = [...currentHotkeys];
+        newHotkeys[index] = hotkey;
+        setCurrentHotkeys(newHotkeys);
+        setIsDirty(true);
+    };
+
+    // 初始化 currentHotkeys
+    useEffect(() => {
+        setCurrentHotkeys(Array.from({ length: DEFAULT_NUM_HOTKEYS_MAX }, (_, i) => {
+            return hotkeysConfig?.[i] ?? { key: -1, action: HotkeyAction.None, isLocked: false, isHold: false };
+        }));
+    }, [hotkeysConfig]);
+
+    // 保存热键配置
+    const saveHotkeysConfigHandler = async () => {
+        if (!currentHotkeys || currentHotkeys.length === 0) return;
+        await updateHotkeysConfig(currentHotkeys);
+    };
+
+    // 重置热键配置
+    const resetHotkeysConfigHandler = async () => {
+        await fetchHotkeysConfig();
     };
 
     return (
@@ -177,26 +213,14 @@ export function GlobalSettingContent() {
             <Center>
                 <InputModeSettingContent disabled={calibrationStatus.isActive} />
             </Center>
-            <Center flex={1} >
-                <Center padding="80px 30px" position="relative"   >
-                    <Box position="absolute" top="0px" >
+            <Center flex={1} justifyContent={"center"} flexDirection={"column"}  >
+
+                <Center padding="80px 30px" position="relative" flex={1}  >
+                    <Box position="absolute" top="50%" left="50%" transform="translateX(-50%) translateY(-350px)" zIndex={10} >
                         <Card.Root w="100%" h="100%" >
                             <Card.Body p="10px" >
                                 <Flex direction="row" gap={2} w="268px" >
                                     {/* 隐藏自动校准入口 */}
-                                    {/* <Center>
-                                        <Switch.Root
-                                            disabled={calibrationStatus.isActive}
-                                            colorPalette={"green"}
-                                            checked={globalConfig.autoCalibrationEnabled}
-                                            onCheckedChange={switchAutoCalibration} >
-                                            <Switch.HiddenInput />
-                                            <Switch.Control>
-                                                <Switch.Thumb />
-                                            </Switch.Control>
-                                            <Switch.Label >{globalConfig.autoCalibrationEnabled ? t.AUTO_CALIBRATION_TITLE : t.MANUAL_CALIBRATION_TITLE}</Switch.Label>
-                                        </Switch.Root>
-                                    </Center> */}
                                     <HStack flex={1} justifyContent="flex-end" >
                                         <Popover.Root open={calibrationTipOpen} >
                                             <Popover.Trigger asChild>
@@ -248,16 +272,25 @@ export function GlobalSettingContent() {
                         />
                     )}
                 </Center>
+                <Center flex={0}  >
+                    <ContentActionButtons
+                        isDirty={_isDirty}
+                        disabled={calibrationStatus.isActive}
+                        resetHandler={resetHotkeysConfigHandler}
+                        saveHandler={saveHotkeysConfigHandler}
+                    />
+                </Center>
             </Center>
-            <Center>
+            <Flex>
                 <HotkeySettingContent
                     disabled={calibrationStatus.isActive}
                     activeHotkeyIndex={activeHotkeyIndex}
                     onActiveHotkeyIndexChange={setActiveHotkeyIndex}
                     isButtonMonitoringEnabled={isButtonMonitoringEnabled}
                     onButtonMonitoringToggle={setIsButtonMonitoringEnabled}
+                    onHotkeyUpdate={handleHotkeyUpdate}
                 />
-            </Center>
+            </Flex>
         </Flex>
     );
 } 

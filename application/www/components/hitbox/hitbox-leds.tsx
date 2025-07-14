@@ -70,6 +70,7 @@ interface HitboxLedsProps {
     ledsConfig?: LedsEffectStyleConfig;
     interactiveIds?: number[];
     highlightIds?: number[];
+    disabledKeys?: number[];
     className?: string;
 }
 
@@ -107,6 +108,9 @@ export default function HitboxLeds(props: HitboxLedsProps) {
         if (!target.id || !target.id.startsWith("btn-")) return;
         const id = Number(target.id.replace("btn-", ""));
         if (id === Number.NaN || !(props.interactiveIds?.includes(id) ?? false)) return;
+        // 禁用的按键不能点击
+        if (props.disabledKeys?.includes(id)) return;
+        
         if (event.type === "mousedown") {
             props.onClick?.(id);
             pressedButtonListRef.current[id] = 1;
@@ -188,6 +192,16 @@ export default function HitboxLeds(props: HitboxLedsProps) {
         };
     }, [props.ledsConfig?.ledsEnabled]);
 
+    // 判断按键是否可交互（既要在交互列表中，又不能在禁用列表中）
+    const isButtonInteractive = (buttonId: number): boolean => {
+        return (props.interactiveIds?.includes(buttonId) ?? false) && !(props.disabledKeys?.includes(buttonId) ?? false);
+    };
+
+    // 判断按键是否被禁用
+    const isButtonDisabled = (buttonId: number): boolean => {
+        return props.disabledKeys?.includes(buttonId) ?? false;
+    };
+
     // leds 颜色动画
     const animate = () => {
         const now = new Date().getTime();
@@ -218,6 +232,12 @@ export default function HitboxLeds(props: HitboxLedsProps) {
         }
 
         for (let i = 0; i < btnLen; i++) {
+            // 禁用的按键LED不亮，使用默认背景色
+            if (isButtonDisabled(i)) {
+                colorListRef.current[i].setValue(defaultBackColorRef.current);
+                continue;
+            }
+
             const color = algorithm({
                 index: i,
                 progress,
@@ -262,9 +282,11 @@ export default function HitboxLeds(props: HitboxLedsProps) {
     };
 
     const clearButtonsColor = () => {
-        circleRefs.current.forEach((circle) => {
+        circleRefs.current.forEach((circle, index) => {
             if (circle) {
-                circle.setAttribute('fill', defaultBackColorRef.current.toString('css'));
+                // 禁用的按键始终使用默认背景色
+                const color = isButtonDisabled(index) ? defaultBackColorRef.current : defaultBackColorRef.current;
+                circle.setAttribute('fill', color.toString('css'));
             }
         });
     }
@@ -307,7 +329,7 @@ export default function HitboxLeds(props: HitboxLedsProps) {
                         cy={item.y}
                         r={item.r}
                         $opacity={1}
-                        $interactive={props.interactiveIds?.includes(index) ?? false}
+                        $interactive={isButtonInteractive(index)}
                         $highlight={props.highlightIds?.includes(index) ?? false}
                         fill={colorMode === 'light' ? 'white' : 'black'}
                         onMouseLeave={handleLeave}

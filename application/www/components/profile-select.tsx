@@ -15,6 +15,7 @@ import { openConfirm } from '@/components/dialog-confirm';
 import { openForm } from '@/components/dialog-form';
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from '@/contexts/language-context';
+import { useColorMode } from "./ui/color-mode";
 
 export function ProfileSelect(
     props: {
@@ -25,7 +26,7 @@ export function ProfileSelect(
     const { profileList, switchProfile, createProfile, deleteProfile, updateProfileDetails } = useGamepadConfig();
     const { t } = useLanguage();
     const { disabled } = props;
-
+    const { colorMode } = useColorMode();
     const isDisabled = useMemo(() => {
         return disabled ?? false;
     }, [disabled]);
@@ -188,9 +189,9 @@ export function ProfileSelect(
 
 
     return (
-        <Card.Root w="100%" h="100%" >
+        <Card.Root w="100%" minH="450px" >
             <Card.Header >
-                <Card.Title fontSize={"md"} color={isDisabled ? "gray.500" : "white"} >{t.PROFILE_SELECT_TITLE}</Card.Title>
+                <Card.Title fontSize={"md"} color={isDisabled ? "gray.500" :  colorMode === "dark" ? "white" : "black"} >{t.PROFILE_SELECT_TITLE}</Card.Title>
             </Card.Header>
             <Card.Body>
                 <VStack  gap={2} >

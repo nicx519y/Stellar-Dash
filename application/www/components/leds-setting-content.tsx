@@ -88,6 +88,21 @@ export function LEDsSettingContent() {
         return hasAroundLed && aroundLedEnabled && ledEnabled && !aroundLedSyncToMainLed;
     }, [hasAroundLed, aroundLedEnabled, ledEnabled, aroundLedSyncToMainLed]);
 
+    const disabledKeys = useMemo<number[]>(() => {
+        let keys: number[] = [];
+        const keysEnableConfig = defaultProfile.keysConfig?.keysEnableTag;
+        if (keysEnableConfig) {
+            for (let i = 0; i < keysEnableConfig.length; i++) {
+                if (!keysEnableConfig[i]) {
+                    keys.push(i);
+                }
+            }
+        } else {
+            keys = Array(20).fill(true);
+        }
+        return keys;
+    }, [defaultProfile]);
+
     // 颜色队列状态
     const [colorSwatches, setColorSwatches] = useState<string[]>(ColorQueueManager.getColorQueue());
 
@@ -321,38 +336,48 @@ export function LEDsSettingContent() {
     return (
         <>
             <Flex direction="row" width={"100%"} height={"100%"} padding={"18px"}  >
-                <Center >
+                <Flex flex={0} justifyContent={"flex-start"} height="fit-content" >
                     <ProfileSelect />
-                </Center>
-                <Center flex={1}  >
-                    <HitboxLeds
-                        hasText={false}
-                        ledsConfig={{
-                            ledsEnabled: ledEnabled,
-                            effectStyle: ledsEffectStyle,
-                            colors: [
-                                GamePadColor.fromString(color1.toString('hex')),
-                                GamePadColor.fromString(color2.toString('hex')),
-                                GamePadColor.fromString(color3.toString('hex'))
-                            ],
-                            brightness: ledBrightness,
-                            animationSpeed: ledAnimationSpeed,
+                </Flex>
+                <Center flex={1} justifyContent={"center"} flexDirection={"column"}  >
+                    <Center padding="80px 30px" position="relative" flex={1}  >
+                        <HitboxLeds
+                            hasText={false}
+                            ledsConfig={{
+                                ledsEnabled: ledEnabled,
+                                effectStyle: ledsEffectStyle,
+                                colors: [
+                                    GamePadColor.fromString(color1.toString('hex')),
+                                    GamePadColor.fromString(color2.toString('hex')),
+                                    GamePadColor.fromString(color3.toString('hex'))
+                                ],
+                                brightness: ledBrightness,
+                                animationSpeed: ledAnimationSpeed,
 
-                            hasAroundLed: hasAroundLed,
-                            aroundLedEnabled: aroundLedEnabled,
-                            aroundLedSyncToMainLed: aroundLedSyncToMainLed,
-                            aroundLedTriggerByButton: aroundLedTriggerByButton,
-                            aroundLedEffectStyle: aroundLedEffectStyle,
-                            aroundLedColors: [
-                                GamePadColor.fromString(aroundLedColor1.toString('hex')),
-                                GamePadColor.fromString(aroundLedColor2.toString('hex')),
-                                GamePadColor.fromString(aroundLedColor3.toString('hex'))
-                            ],
-                            aroundLedBrightness: aroundLedBrightness,
-                            aroundLedAnimationSpeed: aroundLedAnimationSpeed,
-                        }}
-                        interactiveIds={LEDS_SETTINGS_INTERACTIVE_IDS}
-                    />
+                                hasAroundLed: hasAroundLed,
+                                aroundLedEnabled: aroundLedEnabled,
+                                aroundLedSyncToMainLed: aroundLedSyncToMainLed,
+                                aroundLedTriggerByButton: aroundLedTriggerByButton,
+                                aroundLedEffectStyle: aroundLedEffectStyle,
+                                aroundLedColors: [
+                                    GamePadColor.fromString(aroundLedColor1.toString('hex')),
+                                    GamePadColor.fromString(aroundLedColor2.toString('hex')),
+                                    GamePadColor.fromString(aroundLedColor3.toString('hex'))
+                                ],
+                                aroundLedBrightness: aroundLedBrightness,
+                                aroundLedAnimationSpeed: aroundLedAnimationSpeed,
+                            }}
+                            interactiveIds={LEDS_SETTINGS_INTERACTIVE_IDS}
+                            disabledKeys={disabledKeys}
+                        />
+                    </Center>
+                    <Center flex={0}  >
+                        <ContentActionButtons
+                            isDirty={_isDirty}
+                            resetHandler={resetProfileDetails}
+                            saveHandler={saveProfileDetailsHandler}
+                        />
+                    </Center>
                 </Center>
                 <Center >
                     <Card.Root w="778px" h="100%" >
@@ -391,7 +416,7 @@ export function LEDsSettingContent() {
                                                 justify="center"
                                                 colorPalette={ledEnabled ? "green" : "gray"}
                                                 size={"sm"}
-                                                variant={"subtle"}
+                                                variant={ colorMode === "dark" ? "subtle" : "solid"}
                                                 value={ledsEffectStyle?.toString() ?? LedsEffectStyle.STATIC.toString()}
                                                 onValueChange={(detail) => {
                                                     setLedsEffectStyle(parseInt(detail.value ?? "0") as LedsEffectStyle);
@@ -584,7 +609,7 @@ export function LEDsSettingContent() {
                                             {/* Ambient Light */}
                                             <Grid templateColumns="repeat(3, 1fr)" gap={10} w="100%" >
                                                 {/* 是否开启氛围灯 */}
-                                                <Switch.Root colorPalette={"green"} 
+                                                <Switch.Root colorPalette={"green"}
                                                     disabled={!ledEnabled}
                                                     checked={aroundLedEnabled}
                                                     onCheckedChange={() => {
@@ -600,7 +625,7 @@ export function LEDsSettingContent() {
                                                 </Switch.Root>
                                                 {/* 氛围灯是否同步主灯 */}
                                                 <Switch.Root colorPalette={"green"}
-                                                    disabled={ !ledEnabled || !aroundLedEnabled }
+                                                    disabled={!ledEnabled || !aroundLedEnabled}
                                                     checked={aroundLedSyncToMainLed}
                                                     onCheckedChange={() => {
                                                         setAroundLedSyncToMainLed(!aroundLedSyncToMainLed);
@@ -636,7 +661,7 @@ export function LEDsSettingContent() {
                                                     justify="center"
                                                     colorPalette={aroundLedConfigIsEnabled ? "green" : "gray"}
                                                     size={"sm"}
-                                                    variant={"subtle"}
+                                                    variant={ colorMode === "dark" ? "subtle" : "solid"}
                                                     value={aroundLedEffectStyle?.toString() ?? AroundLedsEffectStyle.STATIC.toString()}
                                                     onValueChange={(detail) => {
                                                         setAroundLedEffectStyle(parseInt(detail.value ?? "0") as AroundLedsEffectStyle);
@@ -819,15 +844,6 @@ export function LEDsSettingContent() {
                                 </Stack>
                             </Fieldset.Root>
                         </Card.Body>
-                        <Card.Footer justifyContent={"flex-start"} >
-                            <ContentActionButtons
-                                isDirty={_isDirty}
-                                resetLabel={t.BUTTON_RESET}
-                                saveLabel={t.BUTTON_SAVE}
-                                resetHandler={resetProfileDetails}
-                                saveHandler={saveProfileDetailsHandler}
-                            />
-                        </Card.Footer>
                     </Card.Root>
                 </Center>
             </Flex>

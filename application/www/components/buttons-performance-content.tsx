@@ -92,7 +92,7 @@ export function ButtonsPerformanceContent() {
     useEffect(() => {
         // Load trigger configs from gamepadConfig when it changes
 
-        
+
         const triggerConfigs = { ...defaultProfile.triggerConfigs };
         setIsAllBtnsConfiguring(triggerConfigs.isAllBtnsConfiguring ?? false);
         setDebounceAlgorithm(triggerConfigs.debounceAlgorithm as ADCButtonDebounceAlgorithm ?? ADCButtonDebounceAlgorithm.NONE);
@@ -203,15 +203,24 @@ export function ButtonsPerformanceContent() {
     return (
         <>
             <Flex direction="row" width={"100%"} height={"100%"} padding={"18px"} >
-                <Center >
+                <Flex flex={0} justifyContent={"flex-start"} height="fit-content" >
                     <ProfileSelect />
-                </Center>
-                <Center flex={1} >
-                    <HitboxPerformance
-                        onClick={(id) => handleButtonClick(id)}
-                        highlightIds={!isAllBtnsConfiguring ? [selectedButton ?? -1] : allKeys}
-                        interactiveIds={allKeys}
-                    />
+                </Flex>
+                <Center flex={1} justifyContent={"center"} flexDirection={"column"}>
+                    <Center padding="80px 30px" position="relative" flex={1}  >
+                        <HitboxPerformance
+                            onClick={(id) => handleButtonClick(id)}
+                            highlightIds={!isAllBtnsConfiguring ? [selectedButton ?? -1] : allKeys}
+                            interactiveIds={allKeys}
+                        />
+                    </Center>
+                    <Center flex={0}  >
+                        <ContentActionButtons
+                            isDirty={_isDirty}
+                            resetHandler={resetProfileDetails}
+                            saveHandler={saveProfileDetailHandler}
+                        />
+                    </Center>
                 </Center>
                 <Center>
                     <Card.Root w="778px" h="100%" >
@@ -399,15 +408,7 @@ export function ButtonsPerformanceContent() {
 
                             </Fieldset.Root>
                         </Card.Body>
-                        <Card.Footer justifyContent={"flex-start"} >
-                            <ContentActionButtons
-                                isDirty={_isDirty}
-                                resetLabel={t.BUTTON_RESET}
-                                saveLabel={t.BUTTON_SAVE}
-                                resetHandler={resetProfileDetails}
-                                saveHandler={saveProfileDetailHandler}
-                            />
-                        </Card.Footer>
+
                     </Card.Root>
                 </Center>
             </Flex>

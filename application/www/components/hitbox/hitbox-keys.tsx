@@ -259,7 +259,7 @@ export default function HitboxKeys({
                                 height: "100%",
                                 color: colorMode === "dark" ? "#ffffff" : "#333333",
                             }}>
-                                <AiOutlineClose size={iconSize * .8} />
+                                <AiOutlineClose size={iconSize * .5} />
                             </div>
                         </foreignObject>
                     );

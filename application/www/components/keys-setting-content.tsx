@@ -14,6 +14,7 @@ import {
     VStack,
     Switch,
     Box,
+    Icon,
 } from "@chakra-ui/react";
 import KeymappingFieldset from "@/components/keymapping-fieldset";
 import { useEffect, useMemo, useState } from "react";
@@ -32,8 +33,7 @@ import {
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import HitboxKeys from "@/components/hitbox/hitbox-keys";
 import HitboxEnableSetting from "@/components/hitbox/hitbox-enableSetting";
-import { LuInfo } from "react-icons/lu";
-import { ToggleTip } from "@/components/ui/toggle-tip"
+import { MdCleaningServices } from "react-icons/md";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
@@ -53,7 +53,7 @@ export function KeysSettingContent() {
     const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
     const { t } = useLanguage();
     const { colorMode } = useColorMode();
-    
+
     // 按键映射状态
     const [socdMode, setSocdMode] = useState<GameSocdMode>(GameSocdMode.SOCD_MODE_UP_PRIORITY);
     const [invertXAxis, setInvertXAxis] = useState<boolean>(false);
@@ -109,13 +109,13 @@ export function KeysSettingContent() {
     useEffect(() => {
         const handleDeviceButtonEvent = (event: CustomEvent<ButtonEvent>) => {
             const buttonEvent = event.detail;
-            
+
             console.log('Received device button event:', {
                 type: buttonEvent.type,
                 buttonIndex: buttonEvent.buttonIndex,
                 timestamp: Date.now()
             });
-            
+
             // 只处理按键按下事件，并且只在启用监控时
             if (buttonEvent.type === 'button-press') {
                 // 设置输入按键，触发 KeymappingFieldset 的处理
@@ -124,7 +124,7 @@ export function KeysSettingContent() {
                 setInputKey(-1);
             }
         };
-        
+
         // 添加事件监听器
         window.addEventListener('device-button-event', handleDeviceButtonEvent as EventListener);
 
@@ -134,7 +134,7 @@ export function KeysSettingContent() {
         };
     }, []);
 
-    
+
     /**
      * set key mapping
      * @param key - game controller button
@@ -184,12 +184,12 @@ export function KeysSettingContent() {
 
     return (
         <Flex direction="row" width={"100%"} height={"100%"} padding={"18px"} >
-            <Center >
+            <Flex flex={0} justifyContent={"flex-start"} height="fit-content" >
                 <ProfileSelect disabled={keysEnableSettingActive} />
-            </Center>
-            <Center flex={1}  >
-                <Center padding="80px 30px" position="relative"   >
-                    <Box position="absolute" top="0px" >
+            </Flex>
+            <Center flex={1} justifyContent={"center"} flexDirection={"column"}  >
+                <Center padding="80px 30px" position="relative" flex={1}   >
+                    <Box position="absolute" top="50%" left="50%" transform="translateX(-50%) translateY(-350px)" zIndex={10} >
                         <Card.Root w="100%" h="100%" >
                             <Card.Body p="10px" >
                                 <Button w="240px" size="xs" variant="solid" colorPalette={keysEnableSettingActive ? "blue" : "green"} onClick={() => setKeysEnableSettingActive(!keysEnableSettingActive)} >
@@ -211,6 +211,14 @@ export function KeysSettingContent() {
                             disabledKeys={disabledKeys}
                         />
                     )}
+                </Center>
+                <Center flex={0}  >
+                    <ContentActionButtons
+                        isDirty={_isDirty}
+                        resetHandler={fetchDefaultProfile}
+                        saveHandler={saveProfileDetailHandler}
+                        disabled={keysEnableSettingActive}
+                    />
                 </Center>
             </Center>
             <Center>
@@ -238,18 +246,19 @@ export function KeysSettingContent() {
                                                 onValueChange={(detail) => setAutoSwitch(detail.value === t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL)}
                                                 disabled={keysEnableSettingActive}
                                             />
-                                            <Button 
-                                                w="130px" 
-                                                size="xs" 
-                                                variant={"solid"} 
-                                                colorPalette={"red"} 
-                                                disabled={keysEnableSettingActive} 
+                                            <Button
+                                                w="150px"
+                                                size="xs"
+                                                variant={"solid"}
+                                                colorPalette={"red"}
+                                                disabled={keysEnableSettingActive}
                                                 onClick={clearKeyMappingHandler}
                                             >
+                                                <MdCleaningServices />
                                                 {t.SETTINGS_KEY_MAPPING_CLEAR_MAPPING_BUTTON}
                                             </Button>
                                         </HStack>
-                                        
+
                                         <KeymappingFieldset
                                             autoSwitch={autoSwitch}
                                             inputKey={inputKey}
@@ -267,7 +276,7 @@ export function KeysSettingContent() {
                                     <RadioCardRoot
                                         colorPalette={"green"}
                                         size={"sm"}
-                                        variant={colorMode === "dark" ? "surface" : "outline"}
+                                        variant={ colorMode === "dark" ? "subtle" : "solid"}
                                         value={socdMode?.toString() ?? GameSocdMode.SOCD_MODE_UP_PRIORITY.toString()}
                                         onValueChange={(detail) => {
                                             setSocdMode(parseInt(detail.value ?? GameSocdMode.SOCD_MODE_NEUTRAL.toString()) as GameSocdMode);
@@ -284,12 +293,12 @@ export function KeysSettingContent() {
                                                     key={index}
                                                     value={index.toString()}
                                                     label={GameSocdModeLabelMap.get(index as GameSocdMode)?.label ?? ""}
-                                                    
+
                                                 />
                                             ))}
                                         </SimpleGrid>
                                     </RadioCardRoot>
-                                    
+
                                     {/* Invert Axis Choice & Invert Y Axis Choice & FourWay Mode Choice */}
                                     <HStack gap={5}>
                                         <Switch.Root
@@ -323,22 +332,11 @@ export function KeysSettingContent() {
                                             </Switch.Control>
                                             <Switch.Label>{t.SETTINGS_KEYS_INVERT_Y_AXIS}</Switch.Label>
                                         </Switch.Root>
-                                    </HStack>  
+                                    </HStack>
                                 </VStack>
                             </Fieldset.Content>
                         </Fieldset.Root>
                     </Card.Body>
-
-                    <Card.Footer justifyContent={"flex-start"} >
-                        <ContentActionButtons
-                            isDirty={_isDirty}
-                            resetLabel={t.BUTTON_RESET}
-                            saveLabel={t.BUTTON_SAVE}
-                            resetHandler={fetchDefaultProfile}
-                            saveHandler={saveProfileDetailHandler}
-                            disabled={keysEnableSettingActive}
-                        />
-                    </Card.Footer>
                 </Card.Root>
             </Center>
         </Flex>

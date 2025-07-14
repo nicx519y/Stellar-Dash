@@ -441,7 +441,7 @@ export const UI_TEXT = {
     // Common Button Labels
     BUTTON_RESET: "Reset",
     BUTTON_SAVE: "Save",
-    BUTTON_REBOOT_WITH_SAVING: "Switching to Game Mode With Saving",
+    BUTTON_REBOOT_WITH_SAVING: "Play Game With Saving",
     BUTTON_CANCEL: "Cancel",
     BUTTON_SUBMIT: "Submit",
     BUTTON_CONFIRM: "Confirm",
@@ -707,7 +707,7 @@ export const UI_TEXT_ZH = {
     // 通用按钮文案
     BUTTON_RESET: "重置",
     BUTTON_SAVE: "保存",
-    BUTTON_REBOOT_WITH_SAVING: "保存并切换成游戏模式",
+    BUTTON_REBOOT_WITH_SAVING: "保存并开始游戏",
     BUTTON_CANCEL: "取消",
     BUTTON_SUBMIT: "确定",
     BUTTON_CONFIRM: "确认",
