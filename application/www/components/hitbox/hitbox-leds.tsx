@@ -1,30 +1,22 @@
 'use client';
 
 import { useEffect, useState, useRef } from "react";
-import { ButtonsEnableSwitchConfig, HITBOX_BTN_POS_LIST, LEDS_ANIMATION_CYCLE, LedsEffectStyle, LedsEffectStyleConfig } from "@/types/gamepad-config";
+import { HITBOX_BTN_POS_LIST, LEDS_ANIMATION_CYCLE, LedsEffectStyle, LedsEffectStyleConfig } from "@/types/gamepad-config";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
-import { useColorMode } from "./ui/color-mode";
+import { useColorMode } from "../ui/color-mode";
 import { GamePadColor } from "@/types/gamepad-color";
-import { ledAnimations } from "@/components/hitbox-animation";
+import { ledAnimations } from "./hitbox-animation";
 
 const StyledSvg = styled.svg`
   width: 828.82px;
   height: 548.1px;
-  padding:20px;
+  padding: 20px;
   position: relative;
 `;
 
-/**
- * StyledCircle
- * @param props 
- *  $opacity: number - 透明度
- *  $interactive: boolean - 是否可交互  
- * @returns 
- */
 const StyledCircle = styled.circle<{
-    // $color?: string;
     $opacity?: number;
     $interactive?: boolean;
     $highlight?: boolean;
@@ -60,10 +52,6 @@ const StyledFrame = styled.rect`
   filter: drop-shadow(0 0 5px rgba(204, 204, 204, 0.8));
 `;
 
-/**
- * StyledText
- * @returns 
- */
 const StyledText = styled.text`
   text-align: center;
   font-family: "Helvetica", cursive;
@@ -73,35 +61,27 @@ const StyledText = styled.text`
 `;
 
 const btnPosList = HITBOX_BTN_POS_LIST;
-
 const btnFrameRadiusDistance = 3;
-
 const btnLen = btnPosList.length;
 
+interface HitboxLedsProps {
+    onClick?: (id: number) => void;
+    hasText?: boolean;
+    ledsConfig?: LedsEffectStyleConfig;
+    interactiveIds?: number[];
+    highlightIds?: number[];
+    className?: string;
+}
+
 /**
- * Hitbox
- * @param props 
- * onClick: (id: number) => void - 点击事件
- * hasText?: boolean - 是否显示文字
- * ledsConfig?: LedsEffectStyleConfig - LED配置
- * interactiveIds?: number[] - 可交互按钮id列表  
- * highlightIds?: number[] - 高亮按钮id列表
- * buttonsColorList?: GamePadColor[] - 按钮颜色列表，用于批量设置按钮颜色（优先级高于LED配置）
- * @returns 
+ * HitboxLeds - 专用于LED设置页面的Hitbox组件
+ * 支持LED动画预览功能
  */
-export default function Hitbox(props: {
-    onClick?: (id: number) => void,
-    hasText?: boolean,
-    ledsConfig?: LedsEffectStyleConfig,
-    interactiveIds?: number[],
-    highlightIds?: number[],
-    buttonsColorList?: GamePadColor[],
-    buttonsEnableSwitch?: ButtonsEnableSwitchConfig[], // 按钮启用/禁用配置
-}) {
-
+export default function HitboxLeds(props: HitboxLedsProps) {
     const [hasText, _setHasText] = useState(props.hasText ?? true);
+    const { colorMode } = useColorMode();
+    const { contextJsReady, setContextJsReady } = useGamepadConfig();
 
-    const { colorMode } = useColorMode()
     const frontColorRef = useRef(props.ledsConfig?.colors[0]?.clone() ?? GamePadColor.fromString("#ffffff"));
     const backColor1Ref = useRef(props.ledsConfig?.colors[1]?.clone() ?? GamePadColor.fromString("#000000"));
     const backColor2Ref = useRef(props.ledsConfig?.colors[2]?.clone() ?? GamePadColor.fromString("#000000"));
@@ -113,15 +93,12 @@ export default function Hitbox(props: {
     const pressedButtonListRef = useRef(Array(btnLen).fill(-1));
     const prevPressedButtonListRef = useRef(Array(btnLen).fill(-1));
 
-    const { contextJsReady, setContextJsReady } = useGamepadConfig();
-
     const circleRefs = useRef<(SVGCircleElement | null)[]>([]);
     const colorListRef = useRef<GamePadColor[]>(Array(btnLen));
     const textRefs = useRef<(SVGTextElement | null)[]>([]);
     const animationFrameRef = useRef<number>();
     const timerRef = useRef<number>(0);
 
-    // leds 颜色动画
     // ripple 列表
     const ripplesRef = useRef<{ centerIndex: number, startTime: number }[]>([]);
 
@@ -200,9 +177,6 @@ export default function Hitbox(props: {
     useEffect(() => {
         if (props.ledsConfig?.ledsEnabled) {
             startAnimation();
-        } else if (props.buttonsColorList && props.buttonsColorList.length > 0) {
-            // 如果有自定义颜色列表，启动自定义颜色渲染
-            startCustomColorAnimation();
         } else {
             stopAnimation();
             clearButtonsColor();
@@ -213,56 +187,6 @@ export default function Hitbox(props: {
             timerRef.current = 0;
         };
     }, [props.ledsConfig?.ledsEnabled]);
-
-    // 当 buttonsColorList 变化时，处理自定义颜色渲染
-    useEffect(() => {
-        if (props.buttonsColorList && props.buttonsColorList.length > 0) {
-            // 停止 LED 动画，启动自定义颜色渲染
-            stopAnimation();
-            startCustomColorAnimation();
-        } else if (props.ledsConfig?.ledsEnabled) {
-            // 恢复 LED 动画
-            startAnimation();
-        } else {
-            stopAnimation();
-            clearButtonsColor();
-        }
-    }, [props.buttonsColorList]);
-
-    /**
-     * 自定义颜色动画渲染
-     */
-    const animateCustomColors = () => {
-        if (props.buttonsColorList && props.buttonsColorList.length > 0) {
-            updateButtonsWithCustomColors(props.buttonsColorList);
-        }
-        
-        // 继续下一帧渲染
-        animationFrameRef.current = requestAnimationFrame(animateCustomColors);
-    };
-
-    /**
-     * 启动自定义颜色动画
-     */
-    const startCustomColorAnimation = () => {
-        if (!animationFrameRef.current) {
-            animationFrameRef.current = requestAnimationFrame(animateCustomColors);
-        }
-    };
-
-    /**
-     * 使用自定义颜色列表更新按钮颜色
-     */
-    const updateButtonsWithCustomColors = (colorList: GamePadColor[]) => {
-        circleRefs.current.forEach((circle, index) => {
-            if (circle && index < colorList.length && colorList[index]) {
-                circle.setAttribute('fill', colorList[index].toString('css'));
-            } else if (circle) {
-                // 如果没有提供颜色，使用默认背景色
-                circle.setAttribute('fill', defaultBackColorRef.current.toString('css'));
-            }
-        });
-    };
 
     // leds 颜色动画
     const animate = () => {
@@ -346,7 +270,7 @@ export default function Hitbox(props: {
     }
 
     return (
-        <Box display={contextJsReady ? "block" : "none"} >
+        <Box display={contextJsReady ? "block" : "none"} className={props.className}>
             <StyledSvg xmlns="http://www.w3.org/2000/svg"
                 onMouseDown={handleClick}
                 onMouseUp={handleClick}
@@ -354,14 +278,13 @@ export default function Hitbox(props: {
                 <title>hitbox</title>
                 <StyledFrame x="0.36" y="0.36" width="787.82" height="507.1" rx="10" />
 
-
                 {/* 渲染按钮外框 */}
                 {btnPosList.map((item, index) => {
                     const radius = item.r + btnFrameRadiusDistance;
                     return (
                         <StyledCircle
-                            id={`btn-${index}`}
-                            key={index}
+                            id={`btn-frame-${index}`}
+                            key={`frame-${index}`}
                             cx={item.x}
                             cy={item.y}
                             r={radius}
@@ -410,4 +333,4 @@ export default function Hitbox(props: {
             </StyledSvg>
         </Box>
     );
-}
+} 

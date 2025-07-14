@@ -15,7 +15,7 @@ import { useEffect, useState, useMemo } from "react";
 import {
     HOTKEYS_SETTINGS_INTERACTIVE_IDS,
 } from "@/types/gamepad-config";
-import Hitbox from "@/components/hitbox";
+import HitboxCalibration from "@/components/hitbox/hitbox-calibration";
 import { HotkeySettingContent } from "./hotkey-setting-content";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
@@ -235,13 +235,13 @@ export function GlobalSettingContent() {
                         </Card.Root>
                     </Box>
                     {!calibrationStatus.isActive && (
-                        <Hitbox
+                        <HitboxCalibration
                             interactiveIds={HOTKEYS_SETTINGS_INTERACTIVE_IDS}
                             onClick={handleExternalClick}
                         />
                     )}
                     {calibrationStatus.isActive && (
-                        <Hitbox
+                        <HitboxCalibration
                             hasText={false}
                             buttonsColorList={calibrationButtonColors}
                         />

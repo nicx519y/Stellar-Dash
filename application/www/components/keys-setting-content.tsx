@@ -30,7 +30,7 @@ import {
     Platform,
 } from "@/types/gamepad-config";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import Hitbox from "@/components/hitbox";
+import HitboxKeys from "@/components/hitbox/hitbox-keys";
 import { LuInfo } from "react-icons/lu";
 import { ToggleTip } from "@/components/ui/toggle-tip"
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
@@ -170,7 +170,7 @@ export function KeysSettingContent() {
                             </Card.Body>
                         </Card.Root>
                     </Box>
-                    <Hitbox
+                    <HitboxKeys
                         onClick={hitboxButtonClick}
                         interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
                     />

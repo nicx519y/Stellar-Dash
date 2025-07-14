@@ -17,7 +17,7 @@ import {
 } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { ADCButtonDebounceAlgorithm, RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS, RapidTriggerConfig } from "@/types/gamepad-config";
-import Hitbox from "@/components/hitbox";
+import HitboxPerformance from "@/components/hitbox/hitbox-performance";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
@@ -207,7 +207,7 @@ export function ButtonsPerformanceContent() {
                     <ProfileSelect />
                 </Center>
                 <Center flex={1} >
-                    <Hitbox
+                    <HitboxPerformance
                         onClick={(id) => handleButtonClick(id)}
                         highlightIds={!isAllBtnsConfiguring ? [selectedButton ?? -1] : allKeys}
                         interactiveIds={allKeys}

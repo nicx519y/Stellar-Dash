@@ -36,7 +36,7 @@ import {
 } from "@/types/gamepad-config";
 import { LuSunDim, LuActivity, LuCheck, LuSparkles, LuWaves, LuTarget, LuCloudSunRain, LuAudioLines } from "react-icons/lu";
 import { TbMeteorFilled } from "react-icons/tb";
-import Hitbox from "./hitbox";
+import HitboxLeds from "@/components/hitbox/hitbox-leds";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
@@ -325,7 +325,7 @@ export function LEDsSettingContent() {
                     <ProfileSelect />
                 </Center>
                 <Center flex={1}  >
-                    <Hitbox
+                    <HitboxLeds
                         hasText={false}
                         ledsConfig={{
                             ledsEnabled: ledEnabled,
