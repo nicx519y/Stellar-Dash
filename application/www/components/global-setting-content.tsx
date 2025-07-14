@@ -16,6 +16,7 @@ import {
     HOTKEYS_SETTINGS_INTERACTIVE_IDS,
 } from "@/types/gamepad-config";
 import HitboxCalibration from "@/components/hitbox/hitbox-calibration";
+import HitboxHotkey from "@/components/hitbox/hitbox-hotkey";
 import { HotkeySettingContent } from "./hotkey-setting-content";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
@@ -235,7 +236,7 @@ export function GlobalSettingContent() {
                         </Card.Root>
                     </Box>
                     {!calibrationStatus.isActive && (
-                        <HitboxCalibration
+                        <HitboxHotkey
                             interactiveIds={HOTKEYS_SETTINGS_INTERACTIVE_IDS}
                             onClick={handleExternalClick}
                         />

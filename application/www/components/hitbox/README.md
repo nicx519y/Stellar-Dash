@@ -21,8 +21,13 @@
   - 提供基本的点击交互功能
   - 继承自 HitboxBase，无额外逻辑
 
+- **HitboxHotkey** (`hitbox-hotkey.tsx`)
+  - 专用于热键设置页面 (`global-setting-content.tsx` 非校准状态)
+  - 提供热键设置的点击交互功能
+  - 继承自 HitboxBase，无额外逻辑
+
 - **HitboxCalibration** (`hitbox-calibration.tsx`)
-  - 专用于全局设置页面 (`global-setting-content.tsx`)
+  - 专用于全局设置页面 (`global-setting-content.tsx` 校准状态)
   - 支持校准状态的颜色显示 (`buttonsColorList` prop)
   - 实现自定义颜色动画渲染
   - 用于显示校准进度和状态
@@ -51,12 +56,13 @@
 ```typescript
 // 导入特定组件
 import HitboxKeys from "@/components/hitbox/hitbox-keys";
+import HitboxHotkey from "@/components/hitbox/hitbox-hotkey";
 import HitboxCalibration from "@/components/hitbox/hitbox-calibration";
 import HitboxPerformance from "@/components/hitbox/hitbox-performance";
 import HitboxLeds from "@/components/hitbox/hitbox-leds";
 
 // 或者从索引文件导入
-import { HitboxKeys, HitboxCalibration, HitboxPerformance, HitboxLeds } from "@/components/hitbox";
+import { HitboxKeys, HitboxHotkey, HitboxCalibration, HitboxPerformance, HitboxLeds } from "@/components/hitbox";
 ```
 
 ### 页面使用示例
@@ -66,6 +72,12 @@ import { HitboxKeys, HitboxCalibration, HitboxPerformance, HitboxLeds } from "@/
 <HitboxKeys
     onClick={hitboxButtonClick}
     interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
+/>
+
+// 热键设置页面
+<HitboxHotkey
+    interactiveIds={HOTKEYS_SETTINGS_INTERACTIVE_IDS}
+    onClick={handleExternalClick}
 />
 
 // 校准页面
@@ -113,6 +125,7 @@ interface HitboxBaseProps {
 @/components/hitbox/
 ├── hitbox-base.tsx          # 基类组件
 ├── hitbox-keys.tsx          # 按键设置专用组件
+├── hitbox-hotkey.tsx        # 热键设置专用组件
 ├── hitbox-calibration.tsx   # 校准专用组件
 ├── hitbox-performance.tsx   # 性能设置专用组件
 ├── hitbox-leds.tsx          # LED设置专用组件
