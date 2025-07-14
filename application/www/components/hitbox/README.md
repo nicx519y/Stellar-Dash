@@ -21,6 +21,11 @@
   - 提供基本的点击交互功能
   - 继承自 HitboxBase，无额外逻辑
 
+- **HitboxEnableSetting** (`hitbox-enableSetting.tsx`)
+  - 专用于按键启用设置模式 (`keys-setting-content.tsx`)
+  - 根据按键启用状态显示不同颜色（启用绿色，禁用灰色）
+  - 支持点击切换按键启用状态
+
 - **HitboxHotkey** (`hitbox-hotkey.tsx`)
   - 专用于热键设置页面 (`global-setting-content.tsx` 非校准状态)
   - 提供热键设置的点击交互功能
@@ -56,13 +61,14 @@
 ```typescript
 // 导入特定组件
 import HitboxKeys from "@/components/hitbox/hitbox-keys";
+import HitboxEnableSetting from "@/components/hitbox/hitbox-enableSetting";
 import HitboxHotkey from "@/components/hitbox/hitbox-hotkey";
 import HitboxCalibration from "@/components/hitbox/hitbox-calibration";
 import HitboxPerformance from "@/components/hitbox/hitbox-performance";
 import HitboxLeds from "@/components/hitbox/hitbox-leds";
 
 // 或者从索引文件导入
-import { HitboxKeys, HitboxHotkey, HitboxCalibration, HitboxPerformance, HitboxLeds } from "@/components/hitbox";
+import { HitboxKeys, HitboxEnableSetting, HitboxHotkey, HitboxCalibration, HitboxPerformance, HitboxLeds } from "@/components/hitbox";
 ```
 
 ### 页面使用示例
@@ -72,6 +78,13 @@ import { HitboxKeys, HitboxHotkey, HitboxCalibration, HitboxPerformance, HitboxL
 <HitboxKeys
     onClick={hitboxButtonClick}
     interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
+/>
+
+// 按键启用设置模式
+<HitboxEnableSetting
+    onClick={hitboxEnableSettingClick}
+    interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
+    buttonsEnableConfig={keysEnableConfig}
 />
 
 // 热键设置页面
@@ -118,6 +131,7 @@ interface HitboxBaseProps {
 
 - **HitboxCalibration**: `buttonsColorList?: GamePadColor[]`
 - **HitboxLeds**: `ledsConfig?: LedsEffectStyleConfig`
+- **HitboxEnableSetting**: `buttonsEnableConfig?: boolean[]`
 
 ## 目录结构
 
@@ -125,6 +139,7 @@ interface HitboxBaseProps {
 @/components/hitbox/
 ├── hitbox-base.tsx          # 基类组件
 ├── hitbox-keys.tsx          # 按键设置专用组件
+├── hitbox-enableSetting.tsx # 按键启用设置专用组件
 ├── hitbox-hotkey.tsx        # 热键设置专用组件
 ├── hitbox-calibration.tsx   # 校准专用组件
 ├── hitbox-performance.tsx   # 性能设置专用组件

@@ -330,6 +330,7 @@ export interface KeysConfig {
     invertXAxis?: boolean;
     invertYAxis?: boolean;
     fourWayMode?: boolean;
+    keysEnableTag?: boolean[]; // 按键启用状态数组，对应 NUM_ADC_BUTTONS 个按键
     keyMapping?: {
         [key in GameControllerButton]?: number[];
     };

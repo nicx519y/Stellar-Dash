@@ -31,6 +31,7 @@ import {
 } from "@/types/gamepad-config";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import HitboxKeys from "@/components/hitbox/hitbox-keys";
+import HitboxEnableSetting from "@/components/hitbox/hitbox-enableSetting";
 import { LuInfo } from "react-icons/lu";
 import { ToggleTip } from "@/components/ui/toggle-tip"
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
@@ -62,6 +63,7 @@ export function KeysSettingContent() {
     const [autoSwitch, setAutoSwitch] = useState<boolean>(true);
     const [inputKey, setInputKey] = useState<number>(-1);
     const [keysEnableSettingActive, setKeysEnableSettingActive] = useState<boolean>(false); // 按键启用/禁用设置状态
+    const [keysEnableConfig, setKeysEnableConfig] = useState<boolean[]>([]); // 按键启用配置
 
 
     // 使用新的按键监控 hook
@@ -79,6 +81,9 @@ export function KeysSettingContent() {
             setInvertYAxis(defaultProfile.keysConfig?.invertYAxis ?? false);
             setFourWayMode(defaultProfile.keysConfig?.fourWayMode ?? false);
             setKeyMapping(defaultProfile.keysConfig?.keyMapping ?? {});
+            // 初始化按键启用配置，默认所有按键都启用
+            const enableConfig = defaultProfile.keysConfig?.keysEnableTag ?? Array(20).fill(true);
+            setKeysEnableConfig(enableConfig);
             setIsDirty?.(false); // reset the unsaved changes warning 
         }
     }, [defaultProfile, setIsDirty]);
@@ -137,6 +142,14 @@ export function KeysSettingContent() {
         setInputKey(keyId);
     }
 
+    const hitboxEnableSettingClick = (keyId: number) => {
+        if (keysEnableSettingActive && keyId >= 0 && keyId < keysEnableConfig.length) {
+            const newConfig = [...keysEnableConfig];
+            newConfig[keyId] = !newConfig[keyId]; // 切换按键启用状态
+            setKeysEnableConfig(newConfig);
+            setIsDirty?.(true);
+        }
+    }
 
 
     const saveProfileDetailHandler = (): Promise<void> => {
@@ -148,6 +161,7 @@ export function KeysSettingContent() {
                 fourWayMode: fourWayMode,
                 socdMode: socdMode,
                 keyMapping: keyMapping,
+                keysEnableTag: keysEnableConfig,
             },
         }
 
@@ -170,10 +184,18 @@ export function KeysSettingContent() {
                             </Card.Body>
                         </Card.Root>
                     </Box>
-                    <HitboxKeys
-                        onClick={hitboxButtonClick}
-                        interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
-                    />
+                    {keysEnableSettingActive ? (
+                        <HitboxEnableSetting
+                            onClick={hitboxEnableSettingClick}
+                            interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
+                            buttonsEnableConfig={keysEnableConfig}
+                        />
+                    ) : (
+                        <HitboxKeys
+                            onClick={hitboxButtonClick}
+                            interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
+                        />
+                    )}
                 </Center>
             </Center>
             <Center>
