@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 @font-face {
-  font-family: 'icomoon';
+  font-family: 'Montserrat, sans-serif';
   src: url('../public/fonts/icomoon.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
@@ -12,7 +12,7 @@
 
 [class^="icon-"], [class*=" icon-"] {
   /* use !important to prevent issues with browser extensions that change fonts */
-  font-family: 'icomoon' !important;
+  font-family: 'Montserrat, sans-serif' !important;
   speak: never;
   font-style: normal;
   font-weight: normal;
@@ -53,5 +53,5 @@
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Montserrat', sans-serif;
 }
