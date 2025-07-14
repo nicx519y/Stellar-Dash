@@ -226,7 +226,7 @@ export function GlobalSettingContent() {
 
                                         <Button
                                             disabled={globalConfig.autoCalibrationEnabled || calibrationStatus.isActive}
-                                            colorPalette={"red"} size={"xs"} w="130px" variant="surface"
+                                            colorPalette={"red"} size={"xs"} w="130px" variant="solid"
                                             onClick={deleteCalibrationDataClick} >
                                             {t.CALIBRATION_CLEAR_DATA_BUTTON}
                                         </Button>

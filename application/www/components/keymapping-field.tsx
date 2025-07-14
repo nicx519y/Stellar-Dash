@@ -50,8 +50,9 @@ export default function KeymappingField(
                             <Tag 
                                 key={index} 
                                 closable={isActive}
-                                colorPalette={isActive ? "green" : "gray"}
-                                color={isDisabled ? "gray.500" : "white"}
+                                variant={isActive && !isDisabled ? "solid" : "surface"}
+                                colorPalette={isActive && !isDisabled ? "green" : "gray"}
+                                color={isDisabled ? "gray.500" : colorMode === "dark" || isActive == true ? "white" : "black"}
                                 onClick={() => tagClick(hitboxButton)}
 
                             >{`${t.KEY_MAPPING_KEY_PREFIX}${hitboxButton + 1}`}</Tag>

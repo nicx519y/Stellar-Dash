@@ -434,11 +434,6 @@ export enum ADCButtonDebounceAlgorithm {
     MAX = 2,
 }
 
-export type ButtonsEnableSwitchConfig = {
-    isShowSwitch: boolean;
-    enable: boolean;
-}
-
 export const ledColorsLabel = [ "Front Color", "Back Color 1", "Back Color 2" ];
 
 // UI Text Constants

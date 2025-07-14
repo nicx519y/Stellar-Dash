@@ -14,16 +14,15 @@
         "socdMode": 0,
         "keyMapping": {
           "L1": [
-            13
+            10
           ],
-          "R1": [
-            15
-          ],
+          "R1": [],
           "L2": [
-            14
+            12
           ],
           "R2": [
-            16
+            13,
+            9
           ],
           "DPAD_UP": [
             0,
@@ -39,25 +38,25 @@
             6
           ],
           "L3": [
-            1
+            1,
+            11,
+            17
           ],
           "R3": [
             2
           ],
-          "B1": [
-            8
-          ],
+          "B1": [],
           "B2": [
-            11
+            14
           ],
           "B3": [
-            9
+            8
           ],
           "B4": [
-            12
+            15
           ],
           "S1": [
-            17
+            16
           ],
           "S2": [
             18
@@ -65,7 +64,26 @@
           "A1": [
             19
           ]
-        }
+        },
+        "keysEnableTag": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          false,
+          true,
+          true,
+          false,
+          true,
+          false,
+          false,
+          false,
+          true,
+          true
+        ]
       },
       "ledsConfigs": {
         "ledEnabled": true,
@@ -206,6 +224,25 @@
         "invertYAxis": true,
         "fourWayMode": false,
         "socdMode": 0,
+        "keysEnableTag": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
         "keyMapping": {
           "DPAD_UP": [
             15

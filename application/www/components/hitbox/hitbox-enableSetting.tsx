@@ -253,7 +253,7 @@ export default function HitboxEnableSetting({
                                 backgroundColor: "rgba(0, 0, 0, 0.3)", // 半透明背景增强可见性
                                 borderRadius: "50%", // 圆形背景
                             }}>
-                                <IconComponent size={iconSize * 0.6} />
+                                <IconComponent size={iconSize * .8} />
                             </div>
                         </foreignObject>
                     );

@@ -16,7 +16,7 @@ import {
     Box,
 } from "@chakra-ui/react";
 import KeymappingFieldset from "@/components/keymapping-fieldset";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     RadioCardItem,
     RadioCardRoot,
@@ -65,6 +65,15 @@ export function KeysSettingContent() {
     const [keysEnableSettingActive, setKeysEnableSettingActive] = useState<boolean>(false); // 按键启用/禁用设置状态
     const [keysEnableConfig, setKeysEnableConfig] = useState<boolean[]>([]); // 按键启用配置
 
+    const disabledKeys = useMemo(() => {
+        const keys = []
+        for (let i = 0; i < keysEnableConfig.length; i++) {
+            if (!keysEnableConfig[i]) {
+                keys.push(i);
+            }
+        }
+        return keys;
+    }, [keysEnableConfig]);
 
     // 使用新的按键监控 hook
     const buttonMonitor = useButtonMonitor({
@@ -168,6 +177,11 @@ export function KeysSettingContent() {
         return updateProfileDetails(defaultProfile.id, newProfile);
     }
 
+    const clearKeyMappingHandler = () => {
+        setKeyMapping({});
+        setIsDirty?.(true);
+    }
+
     return (
         <Flex direction="row" width={"100%"} height={"100%"} padding={"18px"} >
             <Center >
@@ -187,13 +201,14 @@ export function KeysSettingContent() {
                     {keysEnableSettingActive ? (
                         <HitboxEnableSetting
                             onClick={hitboxEnableSettingClick}
-                            interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
+                            interactiveIds={keysEnableConfig.map((_, index) => index)}
                             buttonsEnableConfig={keysEnableConfig}
                         />
                     ) : (
                         <HitboxKeys
                             onClick={hitboxButtonClick}
                             interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
+                            disabledKeys={disabledKeys}
                         />
                     )}
                 </Center>
@@ -223,7 +238,14 @@ export function KeysSettingContent() {
                                                 onValueChange={(detail) => setAutoSwitch(detail.value === t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL)}
                                                 disabled={keysEnableSettingActive}
                                             />
-                                            <Button w="130px" size="xs" variant={"solid"} colorPalette={"red"} disabled={keysEnableSettingActive} >
+                                            <Button 
+                                                w="130px" 
+                                                size="xs" 
+                                                variant={"solid"} 
+                                                colorPalette={"red"} 
+                                                disabled={keysEnableSettingActive} 
+                                                onClick={clearKeyMappingHandler}
+                                            >
                                                 {t.SETTINGS_KEY_MAPPING_CLEAR_MAPPING_BUTTON}
                                             </Button>
                                         </HStack>

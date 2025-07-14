@@ -391,6 +391,7 @@ const converProfileDetails = (profile: any) => {
             invertYAxis: profile.keysConfig?.invertYAxis as boolean ?? false,
             fourWayMode: profile.keysConfig?.fourWayMode as boolean ?? false,
             keyMapping: profile.keysConfig?.keyMapping as { [key in GameControllerButton]?: number[] } ?? {},
+            keysEnableTag: profile.keysConfig?.keysEnableTag as boolean[] ?? [],
         },
         ledsConfigs: {
             ledEnabled: profile.ledsConfigs?.ledEnabled as boolean ?? false,
