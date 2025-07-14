@@ -13,6 +13,7 @@ import {
     Card,
     VStack,
     Switch,
+    Box,
 } from "@chakra-ui/react";
 import KeymappingFieldset from "@/components/keymapping-fieldset";
 import { useEffect, useState } from "react";
@@ -60,6 +61,7 @@ export function KeysSettingContent() {
     const [keyMapping, setKeyMapping] = useState<{ [key in GameControllerButton]?: number[] }>({});
     const [autoSwitch, setAutoSwitch] = useState<boolean>(true);
     const [inputKey, setInputKey] = useState<number>(-1);
+    const [keysEnableSettingActive, setKeysEnableSettingActive] = useState<boolean>(false); // 按键启用/禁用设置状态
 
 
     // 使用新的按键监控 hook
@@ -158,10 +160,21 @@ export function KeysSettingContent() {
                 <ProfileSelect />
             </Center>
             <Center flex={1}  >
-                <Hitbox
-                    onClick={hitboxButtonClick}
-                    interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
-                />
+                <Center padding="80px 30px" position="relative"   >
+                    <Box position="absolute" top="0px" >
+                        <Card.Root w="100%" h="100%" >
+                            <Card.Body p="10px" >
+                                <Button w="240px" size="xs" variant="solid" colorPalette={keysEnableSettingActive ? "blue" : "green"} onClick={() => setKeysEnableSettingActive(!keysEnableSettingActive)} >
+                                    {keysEnableSettingActive ? t.KEYS_ENABLE_STOP_BUTTON_LABEL : t.KEYS_ENABLE_START_BUTTON_LABEL}
+                                </Button>
+                            </Card.Body>
+                        </Card.Root>
+                    </Box>
+                    <Hitbox
+                        onClick={hitboxButtonClick}
+                        interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
+                    />
+                </Center>
             </Center>
             <Center>
                 <Card.Root w="778px" h="100%" >

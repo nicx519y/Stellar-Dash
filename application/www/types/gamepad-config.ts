@@ -433,6 +433,11 @@ export enum ADCButtonDebounceAlgorithm {
     MAX = 2,
 }
 
+export type ButtonsEnableSwitchConfig = {
+    isShowSwitch: boolean;
+    enable: boolean;
+}
+
 export const ledColorsLabel = [ "Front Color", "Back Color 1", "Back Color 2" ];
 
 // UI Text Constants
@@ -541,6 +546,8 @@ export const UI_TEXT = {
     // Keys Settings
     SETTINGS_KEYS_TITLE: "KEYS SETTINGS",
     SETTINGS_KEYS_HELPER_TEXT: `Set the mapping between Hitbox buttons and game controller buttons.\n- Select a configuration box below, then press a Hitbox button on the left to bind it.\n- Multiple key mappings can be set. Each controller button can be mapped to multiple Hitbox buttons.`,
+    KEYS_ENABLE_START_BUTTON_LABEL: "Start configuring keys enablement",
+    KEYS_ENABLE_STOP_BUTTON_LABEL: "Stop configuring keys enablement",
 
     // Switch Marking Settings
     SETTINGS_SWITCH_MARKING_TITLE: "NEW SWITCH MARKINGS",
@@ -803,6 +810,8 @@ export const UI_TEXT_ZH = {
     // 按键设置
     SETTINGS_KEYS_TITLE: "按键设置",
     SETTINGS_KEYS_HELPER_TEXT: `设置hitbox按键和游戏控制器按键的映射关系。\n- 选中下面的配置框，然后按左侧hitbox按键即可绑定 \n- 可以设置多个按键映射，每个控制器按键映射可以设置多个hitbox按键`,
+    KEYS_ENABLE_START_BUTTON_LABEL: "开始配置按键启用/禁用",
+    KEYS_ENABLE_STOP_BUTTON_LABEL: "停止配置按键启用/禁用",
 
     // 磁轴标记设置
     SETTINGS_SWITCH_MARKING_TITLE: "新磁轴标记",

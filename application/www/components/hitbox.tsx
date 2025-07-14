@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from "react";
-import { HITBOX_BTN_POS_LIST, LEDS_ANIMATION_CYCLE, LedsEffectStyle, LedsEffectStyleConfig } from "@/types/gamepad-config";
+import { ButtonsEnableSwitchConfig, HITBOX_BTN_POS_LIST, LEDS_ANIMATION_CYCLE, LedsEffectStyle, LedsEffectStyleConfig } from "@/types/gamepad-config";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
@@ -96,6 +96,7 @@ export default function Hitbox(props: {
     interactiveIds?: number[],
     highlightIds?: number[],
     buttonsColorList?: GamePadColor[],
+    buttonsEnableSwitch?: ButtonsEnableSwitchConfig[], // 按钮启用/禁用配置
 }) {
 
     const [hasText, _setHasText] = useState(props.hasText ?? true);
