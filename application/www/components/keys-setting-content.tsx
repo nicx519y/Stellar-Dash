@@ -14,7 +14,6 @@ import {
     VStack,
     Switch,
     Box,
-    Icon,
 } from "@chakra-ui/react";
 import KeymappingFieldset from "@/components/keymapping-fieldset";
 import { useEffect, useMemo, useState } from "react";
@@ -237,7 +236,7 @@ export function KeysSettingContent() {
                                 <VStack gap={8} alignItems={"flex-start"} >
                                     {/* Key Mapping */}
                                     <Stack direction={"column"}>
-                                        <Fieldset.Legend fontSize={"sm"} fontWeight={"bold"} color={keysEnableSettingActive ? "gray.500" : "white"} >{t.SETTINGS_KEYS_MAPPING_TITLE}</Fieldset.Legend>
+                                        <Fieldset.Legend fontSize={"sm"} color={keysEnableSettingActive ? "gray.500" :  colorMode === "dark" ? "white" : "black"} >{t.SETTINGS_KEYS_MAPPING_TITLE}</Fieldset.Legend>
                                         <HStack gap={4} >
                                             <SegmentedControl
                                                 size={"sm"}

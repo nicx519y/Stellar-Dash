@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { HITBOX_BTN_POS_LIST } from "@/types/gamepad-config";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";

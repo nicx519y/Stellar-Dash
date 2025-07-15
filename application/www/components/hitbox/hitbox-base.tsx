@@ -6,7 +6,6 @@ import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useColorMode } from "../ui/color-mode";
-import { GamePadColor } from "@/types/gamepad-color";
 
 const StyledSvg = styled.svg`
   width: 828.82px;
@@ -128,13 +127,10 @@ export default function HitboxBase(props: HitboxBaseProps) {
     }, [setContextJsReady]);
 
     // 子类可以重写的方法
-    const getButtonFillColor = (index: number): string => {
+    const getButtonFillColor = (_index: number): string => {
         return colorMode === 'light' ? 'white' : 'black';
     };
 
-    // 暴露给子类的refs和方法
-    const getCircleRef = (index: number) => circleRefs.current[index];
-    const getAllCircleRefs = () => circleRefs.current;
 
     return (
         <Box display={contextJsReady ? "block" : "none"} className={props.className}>
