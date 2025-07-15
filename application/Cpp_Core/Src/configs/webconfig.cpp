@@ -74,7 +74,7 @@ using namespace std;
 const static char* spaPaths[] = {
     "/global",
     "/keys",
-    "/leds",
+    "/lighting",
     "/buttons-performance",
     "/switch-marking",
     "/firmware"

@@ -10,7 +10,7 @@ import { FirmwareContent } from '@/components/firmware-content';
 import { SwitchMarkingContent } from '@/components/switch-marking-content';
 import WebSocketTest from '@/components/websocket-test';
 
-export type Route = '' | 'global' | 'keys' | 'leds' | 'buttons-performance' | 'switch-marking' | 'firmware' | 'websocket';
+export type Route = '' | 'global' | 'keys' | 'lighting' | 'buttons-performance' | 'switch-marking' | 'firmware' | 'websocket';
 
 interface RouterState {
     currentRoute: Route;
@@ -45,7 +45,7 @@ export function Router() {
     switch (currentRoute) {
         case 'global':
             return <GlobalSettingContent />;
-        case 'leds':
+        case 'lighting':
             return <LEDsSettingContent />;
         case 'buttons-performance':
             return <ButtonsPerformanceContent />;

@@ -438,7 +438,7 @@ export function LEDsSettingContent() {
                                                                     {iconMap[effectStyleLabelMap.get(style)?.icon ?? ""]}
                                                                 </Icon>
                                                             }
-                                                            value={style.toString()}
+                                                            value={style?.toString() ?? ""}
                                                             label={effectStyleLabelMap.get(style)?.label ?? ""}
                                                             disabled={!ledEnabled}
                                                         />
