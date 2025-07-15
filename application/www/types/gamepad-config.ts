@@ -387,13 +387,13 @@ export interface GamepadConfig {
     autoCalibrationEnabled?: boolean;
 }
 
+// LED 动画效果类型
 export enum LedsEffectStyle {
-    STATIC = 0,
-    BREATHING = 1,
-    STAR = 2,
-    FLOWING = 3,
-    RIPPLE = 4,
-    TRANSFORM = 5,
+    STATIC = 'static',
+    RAINBOW = 'rainbow',
+    RIPPLE = 'ripple',
+    STAR = 'star',
+    STREAMING = 'streaming',
 }
 
 export enum AroundLedsEffectStyle {

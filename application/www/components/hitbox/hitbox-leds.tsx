@@ -206,8 +206,12 @@ export default function HitboxLeds(props: HitboxLedsProps) {
     const animate = () => {
         const now = new Date().getTime();
         const deltaTime = now - timerRef.current;
-        const cycle = LEDS_ANIMATION_CYCLE / animationSpeedRef.current;
-        const progress = (deltaTime % cycle) / cycle;
+        
+        // 使用与C++端一致的动画进度计算方式
+        // C++端: progress = (elapsed % LEDS_ANIMATION_CYCLE) / LEDS_ANIMATION_CYCLE * speedMultiplier; progress = fmod(progress, 1.0f);
+        const speedMultiplier = animationSpeedRef.current;
+        let progress = (deltaTime % LEDS_ANIMATION_CYCLE) / LEDS_ANIMATION_CYCLE * speedMultiplier;
+        progress = progress % 1; // 确保进度值在 0.0-1.0 范围内循环
 
         const algorithm = ledAnimations[effectStyleRef.current];
 
