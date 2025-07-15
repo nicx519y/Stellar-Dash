@@ -45,9 +45,15 @@ private:
     WebConfigLedsManager();
     ~WebConfigLedsManager();
     
+    /**
+     * @brief 初始化启用按键掩码
+     */
+    void initializeEnabledKeysMask();
+    
     bool previewMode;           // 是否在预览模式
     LEDProfile previewConfig;   // 预览配置
     uint32_t lastButtonMask;    // 上次按键状态，用于动画更新
+    uint32_t enabledKeysMask;   // 启用按键掩码，控制只有启用的按键才点亮
 }; 
 
 #define WEBCONFIG_LEDS_MANAGER WebConfigLedsManager::getInstance()

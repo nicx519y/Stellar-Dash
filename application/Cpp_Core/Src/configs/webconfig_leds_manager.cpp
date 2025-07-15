@@ -3,6 +3,7 @@
 #include "leds/leds_manager.hpp"
 #include "storagemanager.hpp"
 #include "utils.h"
+#include "board_cfg.h"
 
 WebConfigLedsManager& WebConfigLedsManager::getInstance() {
     static WebConfigLedsManager instance;
@@ -11,6 +12,8 @@ WebConfigLedsManager& WebConfigLedsManager::getInstance() {
 
 WebConfigLedsManager::WebConfigLedsManager() 
     : previewMode(false), lastButtonMask(0) {
+    
+    
     // 初始化预览配置为默认值
     previewConfig = {
         .ledEnabled = true,
@@ -28,6 +31,19 @@ WebConfigLedsManager::~WebConfigLedsManager() {
     clearPreviewConfig();
 }
 
+void WebConfigLedsManager::initializeEnabledKeysMask() {
+    const bool* enabledKeys = STORAGE_MANAGER.getDefaultGamepadProfile()->keysConfig.keysEnableTag;
+    enabledKeysMask = 0;
+    for(uint8_t i = 0; i < 32; i++) {
+        if(i < NUM_ADC_BUTTONS) {
+            enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
+        } else {
+            enabledKeysMask |= (1 << i);
+        }
+    }
+    APP_DBG("WebConfigLedsManager: initialized enabled keys mask = 0x%08lX", enabledKeysMask);
+}
+
 void WebConfigLedsManager::applyPreviewConfig(const LEDProfile& config) {
     APP_DBG("WebConfigLedsManager::applyPreviewConfig - Applying LED preview config");
     APP_DBG("LED Enabled: %s, Effect: %d, Brightness: %d, Speed: %d", 
@@ -37,13 +53,15 @@ void WebConfigLedsManager::applyPreviewConfig(const LEDProfile& config) {
             config.ledAnimationSpeed);
     APP_DBG("Colors: #%06lX, #%06lX, #%06lX", config.ledColor1, config.ledColor2, config.ledColor3);
     
+    initializeEnabledKeysMask();
+
     // 保存预览配置
     previewConfig = config;
     previewMode = true;
     
     // 通过LEDsManager应用临时配置
     LEDsManager& ledsManager = LEDsManager::getInstance();
-    ledsManager.setTemporaryConfig(previewConfig);
+    ledsManager.setTemporaryConfig(previewConfig, enabledKeysMask);
     
     APP_DBG("WebConfigLedsManager::applyPreviewConfig - Preview config applied successfully");
 }
@@ -54,6 +72,9 @@ void WebConfigLedsManager::clearPreviewConfig() {
         
         previewMode = false;
         lastButtonMask = 0;
+        
+        // 更新启用按键掩码（以防在预览过程中按键启用状态发生了变化）
+        initializeEnabledKeysMask();
         
         // 恢复LEDsManager的默认配置
         LEDsManager& ledsManager = LEDsManager::getInstance();
@@ -74,34 +95,39 @@ void WebConfigLedsManager::update(uint32_t buttonMask) {
         return;
     }
     
+    // 只保留启用按键的状态，禁用的按键强制为未按下状态
+    uint32_t filteredButtonMask = buttonMask & enabledKeysMask;
+    
     // 检查按键状态是否发生变化
-    bool buttonsChanged = (buttonMask != lastButtonMask);
+    bool buttonsChanged = (filteredButtonMask != lastButtonMask);
     
     // 添加基础状态调试
     if (buttonsChanged) {
-        APP_DBG("WebConfigLedsManager::update - Button state changed: 0x%08lX -> 0x%08lX", lastButtonMask, buttonMask);
+        APP_DBG("WebConfigLedsManager::update - Button state changed: 0x%08lX -> 0x%08lX (filtered: 0x%08lX)", 
+                lastButtonMask, buttonMask, filteredButtonMask);
+        APP_DBG("WebConfigLedsManager::update - Enabled keys mask: 0x%08lX", enabledKeysMask);
         APP_DBG("WebConfigLedsManager::update - Current effect: %d", previewConfig.ledEffect);
         APP_DBG("WebConfigLedsManager::update - LED enabled: %s", previewConfig.ledEnabled ? "true" : "false");
     }
     
-    // 通过LEDsManager更新LED效果
+    // 通过LEDsManager更新LED效果，使用过滤后的按键状态
     LEDsManager& ledsManager = LEDsManager::getInstance();
-    ledsManager.loop(buttonMask);
+    ledsManager.loop(filteredButtonMask);
     
     // 为涟漪效果提供详细的调试信息
     if (previewConfig.ledEffect == LEDEffect::RIPPLE) {
         if (buttonsChanged) {
             // 检测新按下的按钮
-            uint32_t newPressed = buttonMask & ~lastButtonMask;
-            uint32_t newReleased = lastButtonMask & ~buttonMask;
+            uint32_t newPressed = filteredButtonMask & ~lastButtonMask;
+            uint32_t newReleased = lastButtonMask & ~filteredButtonMask;
 
         }
         
 
     }
     
-    // 更新最后的按键状态
-    lastButtonMask = buttonMask;
+    // 更新最后的按键状态（使用过滤后的状态）
+    lastButtonMask = filteredButtonMask;
 }
 
 std::string WebConfigLedsManager::toJSON() const {

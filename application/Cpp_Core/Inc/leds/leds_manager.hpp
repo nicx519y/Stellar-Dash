@@ -41,7 +41,7 @@ class LEDsManager {
         void setAmbientLightBrightness(uint8_t brightness);
         
         // 配置管理函数
-        void setTemporaryConfig(const LEDProfile& tempConfig);
+        void setTemporaryConfig(const LEDProfile& tempConfig, uint32_t enabledKeysMask);
         void restoreDefaultConfig();
         bool isUsingTemporaryConfig() const;
         

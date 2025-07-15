@@ -440,13 +440,15 @@ void LEDsManager::setAmbientLightBrightness(uint8_t brightness) {
 /**
  * @brief 设置临时配置进行预览
  * @param tempConfig 临时LED配置
+ * @param enabledKeysMask 启用按键掩码
  */
-void LEDsManager::setTemporaryConfig(const LEDProfile& tempConfig)
+void LEDsManager::setTemporaryConfig(const LEDProfile& tempConfig, uint32_t enabledKeysMask)
 {
     temporaryConfig = tempConfig;
     opts = &temporaryConfig;
     usingTemporaryConfig = true;
-    
+    this->enabledKeysMask = enabledKeysMask;
+
     // 重新初始化以应用新配置
     deinit();
     setup();

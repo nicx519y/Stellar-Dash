@@ -229,7 +229,7 @@ export default function HitboxEnableSetting({
                     
                     if (!isInteractive || !isHovered) return null;
                     
-                    const IconComponent = isEnabled ? AiOutlineClose : AiOutlineCheck;
+                const IconComponent = isEnabled ? AiOutlineClose : AiOutlineCheck;
                     const iconColor = isEnabled ? "#ffffff" : "#00aa00";
                     const buttonRadius = item.r;
                     const iconSize = buttonRadius * 2.0; // 图标大小为按钮半径的1.5倍，确保覆盖整个按键
