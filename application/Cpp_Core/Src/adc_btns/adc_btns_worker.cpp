@@ -101,8 +101,13 @@ ADCBtnsError ADCBtnsWorker::setup() {
 
     // 初始化启用按键掩码
     const bool* enabledKeys = profile->keysConfig.keysEnableTag;
+    enabledKeysMask = 0;
     for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-        enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
+        if(i < NUM_ADC_BUTTONS) {
+            enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
+        } else {
+            enabledKeysMask |= (1 << i);
+        }
     }
 
     this->mapping = mapping;

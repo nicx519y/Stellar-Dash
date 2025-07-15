@@ -19,8 +19,12 @@ ADCCalibrationManager::ADCCalibrationManager() {
     GamepadProfile* profile = STORAGE_MANAGER.getGamepadProfile(STORAGE_MANAGER.config.defaultProfileId);
     if (profile) {
         const bool* enabledKeys = profile->keysConfig.keysEnableTag;
-        for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-            enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
+        for(uint8_t i = 0; i < 32; i++) {
+            if(i < NUM_ADC_BUTTONS) {
+                enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
+            } else {
+                enabledKeysMask |= (1 << i);
+            }
         }
         APP_DBG("ADCCalibrationManager: enabled keys mask = 0x%08X", enabledKeysMask);
     }

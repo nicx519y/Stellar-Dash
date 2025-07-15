@@ -17,8 +17,12 @@ LEDsManager::LEDsManager()
     const bool* enabledKeys = STORAGE_MANAGER.getDefaultGamepadProfile()->keysConfig.keysEnableTag;
     // 初始化启用按键掩码
     enabledKeysMask = 0;
-    for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-        enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
+    for(uint8_t i = 0; i < 32; i++) {
+        if(i < NUM_ADC_BUTTONS) {
+            enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
+        } else {
+            enabledKeysMask |= (1 << i);
+        }
     }
 
     usingTemporaryConfig = false;

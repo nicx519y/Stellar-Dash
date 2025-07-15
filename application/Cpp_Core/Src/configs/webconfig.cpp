@@ -463,6 +463,13 @@ cJSON* buildProfileJSON(GamepadProfile* profile) {
 
     cJSON_AddNumberToObject(keysConfigJSON, "socdMode", profile->keysConfig.socdMode);
 
+    // 按键开启状态
+    cJSON* enabledKeysJSON = cJSON_CreateArray();
+    for(uint8_t i = 0; i < 32; i++) {
+        cJSON_AddItemToArray(enabledKeysJSON, cJSON_CreateBool(profile->keysConfig.keysEnableTag[i]));
+    }
+    cJSON_AddItemToObject(keysConfigJSON, "enabledKeys", enabledKeysJSON);
+
     // 按键映射
     cJSON* keyMappingJSON = cJSON_CreateObject();
 
