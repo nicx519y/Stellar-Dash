@@ -1,4 +1,5 @@
 #include "configs/webconfig.hpp"
+#include "configs/websocket_server.hpp"
 #include "qspi-w25q64.h"
 #include "board_cfg.h"
 #include "adc_btns/adc_calibration.hpp"
@@ -87,8 +88,60 @@ static uint16_t http_post_payload_len = 0;
 static uint32_t rebootTick = 0;  // 用于存储重启时间点
 static bool needReboot = false;  // 是否需要重启的标志
 
+// WebSocket服务器全局实例
+static WebSocketServer* g_websocket_server = nullptr;
+static uint32_t g_websocket_connection_count = 0;
+static uint32_t g_websocket_message_count = 0;
+static uint32_t g_websocket_start_time = 0;
+
+// WebSocket消息处理回调
+void onWebSocketMessage(WebSocketConnection* conn, const std::string& message) {
+    LOG_INFO("WebSocket", "Received message: %s", message.c_str());
+    g_websocket_message_count++;
+    
+    // 简单的echo服务器 - 将收到的消息发送回客户端
+    std::string response = "Echo: " + message;
+    conn->send_text(response);
+    
+    // 广播消息给所有连接的客户端
+    if (g_websocket_server) {
+        std::string broadcast = "Broadcast: " + message;
+        g_websocket_server->broadcast_text(broadcast);
+    }
+}
+
+// WebSocket连接建立回调
+void onWebSocketConnect(WebSocketConnection* conn) {
+    g_websocket_connection_count++;
+    LOG_INFO("WebSocket", "WebSocket client connected, total connections: %d", g_websocket_connection_count);
+    
+    // 发送欢迎消息
+    conn->send_text("Welcome to STM32 WebSocket Server!");
+}
+
+// WebSocket连接断开回调
+void onWebSocketDisconnect(WebSocketConnection* conn) {
+    if (g_websocket_connection_count > 0) {
+        g_websocket_connection_count--;
+    }
+    LOG_INFO("WebSocket", "WebSocket client disconnected, remaining connections: %d", g_websocket_connection_count);
+}
+
 void WebConfig::setup() {
     rndis_init();
+    
+    // 启动WebSocket服务器
+    g_websocket_server = &WebSocketServer::getInstance();
+    g_websocket_server->set_default_message_callback(onWebSocketMessage);
+    g_websocket_server->set_default_connect_callback(onWebSocketConnect);
+    g_websocket_server->set_default_disconnect_callback(onWebSocketDisconnect);
+    
+    if (g_websocket_server->start(8081)) {
+        g_websocket_start_time = HAL_GetTick();
+        LOG_INFO("WebConfig", "WebSocket server started on port 8081");
+    } else {
+        LOG_ERROR("WebConfig", "Failed to start WebSocket server");
+    }
 }
 
 void WebConfig::loop() {
@@ -3777,6 +3830,88 @@ std::string apiGetDeviceAuth() {
 
 /*============================================ apis end ====================================================*/
 
+/**
+ * @brief WebSocket连接测试API
+ * @return std::string 
+ * {
+ *      "errNo": 0,
+ *      "data": {
+ *          "message": "WebSocket server is running",
+ *          "timestamp": 1234567890,
+ *          "server_port": 8081,
+ *          "connection_count": 2,
+ *          "uptime": 60000
+ *      }
+ * }
+ */
+std::string apiWebSocketTest() {
+    LOG_INFO("WEBAPI", "apiWebSocketTest start.");
+    
+    // 创建返回数据结构
+    cJSON* dataJSON = cJSON_CreateObject();
+    
+    if (g_websocket_server) {
+        cJSON_AddStringToObject(dataJSON, "message", "WebSocket server is running");
+        cJSON_AddNumberToObject(dataJSON, "server_port", 8081);
+        cJSON_AddNumberToObject(dataJSON, "connection_count", g_websocket_connection_count);
+        cJSON_AddNumberToObject(dataJSON, "uptime", HAL_GetTick() - g_websocket_start_time);
+        
+        // 发送测试消息给所有连接的客户端
+        g_websocket_server->broadcast_text("Test message from HTTP API");
+    } else {
+        cJSON_AddStringToObject(dataJSON, "message", "WebSocket server is not running");
+        cJSON_AddNumberToObject(dataJSON, "server_port", 0);
+        cJSON_AddNumberToObject(dataJSON, "connection_count", 0);
+        cJSON_AddNumberToObject(dataJSON, "uptime", 0);
+    }
+    
+    cJSON_AddNumberToObject(dataJSON, "timestamp", HAL_GetTick());
+    
+    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    LOG_INFO("WEBAPI", "apiWebSocketTest success.");
+    return response;
+}
+
+/**
+ * @brief WebSocket连接状态API
+ * @return std::string 
+ * {
+ *      "errNo": 0,
+ *      "data": {
+ *          "status": "running",
+ *          "connectionTime": 1234567890,
+ *          "messageCount": 25,
+ *          "connectionCount": 2,
+ *          "serverPort": 8081
+ *      }
+ * }
+ */
+std::string apiWebSocketStatus() {
+    LOG_INFO("WEBAPI", "apiWebSocketStatus start.");
+    
+    // 创建返回数据结构
+    cJSON* dataJSON = cJSON_CreateObject();
+    
+    if (g_websocket_server) {
+        cJSON_AddStringToObject(dataJSON, "status", "running");
+        cJSON_AddNumberToObject(dataJSON, "connectionTime", g_websocket_start_time);
+        cJSON_AddNumberToObject(dataJSON, "messageCount", g_websocket_message_count);
+        cJSON_AddNumberToObject(dataJSON, "connectionCount", g_websocket_connection_count);
+        cJSON_AddNumberToObject(dataJSON, "serverPort", 8081);
+    } else {
+        cJSON_AddStringToObject(dataJSON, "status", "stopped");
+        cJSON_AddNumberToObject(dataJSON, "connectionTime", 0);
+        cJSON_AddNumberToObject(dataJSON, "messageCount", 0);
+        cJSON_AddNumberToObject(dataJSON, "connectionCount", 0);
+        cJSON_AddNumberToObject(dataJSON, "serverPort", 0);
+    }
+    
+    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
+    LOG_INFO("WEBAPI", "apiWebSocketStatus success.");
+    return response;
+}
+
+// **** WEB SERVER ROUTING ****
 
 typedef std::string (*HandlerFuncPtr)();
 static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
@@ -3820,6 +3955,8 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/firmware-upgrade-abort", apiFirmwareUpgradeAbort },       // 中止固件升级会话
     { "/api/firmware-upgrade-cleanup", apiFirmwareUpgradeCleanup },     // 清理固件升级会话
     { "/api/device-auth", apiGetDeviceAuth },                       // 获取设备认证信息
+    { "/api/websocket-test", apiWebSocketTest },                     // WebSocket连接测试
+    { "/api/websocket-status", apiWebSocketStatus },                 // WebSocket连接状态
 #if !defined(NDEBUG)
     // { "/api/echo", echo },
 #endif

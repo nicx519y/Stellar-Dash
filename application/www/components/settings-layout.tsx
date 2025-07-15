@@ -3,7 +3,7 @@
 import { useRouterStore } from './router';
 import { Flex, Center, Box, Tabs } from '@chakra-ui/react';
 import { useLanguage } from "@/contexts/language-context";
-import { LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuChartSpline, LuGamepad } from 'react-icons/lu';
+import { LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuChartSpline, LuGamepad, LuWifi } from 'react-icons/lu';
 import type { Route } from './router';
 import { navigationEvents } from '@/lib/event-manager';
 
@@ -18,6 +18,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
         { id: 'buttons-performance' as Route, label: t.SETTINGS_TAB_BUTTONS_PERFORMANCE, icon: LuRocket },
         { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
         { id: 'firmware' as Route, label: t.SETTINGS_TAB_FIRMWARE, icon: LuCpu },
+        { id: 'websocket' as Route, label: 'WebSocket测试', icon: LuWifi },
     ];
 
     const handleValueChange = async (details: { value: string }) => {

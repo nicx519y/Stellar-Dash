@@ -8,7 +8,17 @@
       "registerTime": "2025-07-04T16:42:20.762Z",
       "lastSeen": "2025-07-04T16:42:20.762Z",
       "status": "active"
+    },
+    {
+      "rawUniqueId": "004A0047-32335114-32333338",
+      "deviceId": "D6A90617061DA84D",
+      "deviceName": "HBox-D6A90617",
+      "registerIP": "::ffff:127.0.0.1",
+      "registeredBy": "admin",
+      "registerTime": "2025-07-15T13:15:40.095Z",
+      "lastSeen": "2025-07-15T13:15:40.095Z",
+      "status": "active"
     }
   ],
-  "lastUpdate": "2025-07-04T16:42:20.762Z"
+  "lastUpdate": "2025-07-15T13:15:40.095Z"
 }
