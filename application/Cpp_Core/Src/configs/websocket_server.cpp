@@ -307,54 +307,63 @@ void WebSocketConnection::send_raw_data(const char* data, size_t length) {
         return;
     }
     
-    // 检查TCP发送缓冲区可用空间
+    // 详细的TCP状态检查
     u16_t available_space = tcp_sndbuf(pcb);
     u16_t queue_len = tcp_sndqueuelen(pcb);
+    u16_t mss = tcp_mss(pcb);
     
-    APP_DBG("WebSocket: Send attempt - data_len:%u, sndbuf:%u, queuelen:%u", 
-            (unsigned int)length, available_space, queue_len);
+    // 计算需要的段数
+    u16_t segments_needed = (length + mss - 1) / mss;
     
-    // 如果发送缓冲区空间不足，记录警告但仍尝试发送
-    if (length > available_space) {
-        APP_ERR("WebSocket: Data size (%u) > available buffer (%u), may fail", 
-                 (unsigned int)length, available_space);
-    }
+    // APP_ERR("WebSocket: Pre-send detailed status check:");
+    // APP_ERR("  Data length: %u bytes", (unsigned int)length);
+    // APP_ERR("  Available buffer: %u bytes", available_space);
+    // APP_ERR("  Current queue length: %u/%u", queue_len, (u16_t)TCP_SND_QUEUELEN);
+    // APP_ERR("  MSS: %u bytes", mss);
+    // APP_ERR("  Estimated segments needed: %u", segments_needed);
+    // APP_ERR("  Remaining queue space: %u", (u16_t)TCP_SND_QUEUELEN - queue_len);
     
-    // 如果队列长度接近上限，也记录警告
-    if (queue_len >= (TCP_SND_QUEUELEN - 2)) {
-        APP_ERR("WebSocket: Send queue nearly full (%u/%u), may cause delays", 
-                 queue_len, (u16_t)TCP_SND_QUEUELEN);
+    // 检查是否会超出队列限制
+    if (queue_len + segments_needed > TCP_SND_QUEUELEN) {
+        APP_ERR("WebSocket: Insufficient queue capacity (current:%u + needed:%u > max:%u)", 
+                queue_len, segments_needed, (u16_t)TCP_SND_QUEUELEN);
     }
     
     err_t err = tcp_write(pcb, data, length, TCP_WRITE_FLAG_COPY);
+    
+    // 发送后再次检查状态
+    u16_t new_available_space = tcp_sndbuf(pcb);
+    u16_t new_queue_len = tcp_sndqueuelen(pcb);
+    
     if (err == ERR_OK) {
+        // APP_ERR("WebSocket: Send successful!");
+        // APP_ERR("  Post-send available buffer: %u bytes (%d)", new_available_space, 
+        //         (int)new_available_space - (int)available_space);
+        // APP_ERR("  Post-send queue length: %u (%+d)", new_queue_len, 
+        //         (int)new_queue_len - (int)queue_len);
+        
         err_t output_err = tcp_output(pcb);
-        if (output_err == ERR_OK) {
-            APP_DBG("WebSocket: Successfully sent %u bytes", (unsigned int)length);
-        } else {
+        if (output_err != ERR_OK) {
             APP_ERR("WebSocket: tcp_output failed: %d", output_err);
         }
     } else {
-        APP_ERR("WebSocket: tcp_write failed: %d (data_len:%u, sndbuf:%u)", 
-                  err, (unsigned int)length, available_space);
+        APP_ERR("WebSocket: tcp_write failed! Error code: %d", err);
+        APP_ERR("  Post-failure available buffer: %u bytes", new_available_space);
+        APP_ERR("  Post-failure queue length: %u", new_queue_len);
         
-        // 详细的错误分析
+        // 详细错误分析
         switch (err) {
             case ERR_MEM:
-                APP_ERR("WebSocket: Send failed: Out of memory or buffer full");
+                APP_ERR("  Reason: Out of memory or buffer full");
                 break;
             case ERR_BUF:
-                APP_ERR("WebSocket: Send failed: Buffer error");
+                APP_ERR("  Reason: Buffer error");
                 break;
             case ERR_CONN:
-                APP_ERR("WebSocket: Send failed: Connection error");
-                break;
-            case ERR_ARG:
-                APP_ERR("WebSocket: Send failed: Invalid argument");
+                APP_ERR("  Reason: Connection error");
                 break;
             default:
-                APP_ERR("WebSocket: Send failed: Unknown error %d", err);
-                break;
+                APP_ERR("  Reason: Unknown error %d", err);
         }
     }
 }

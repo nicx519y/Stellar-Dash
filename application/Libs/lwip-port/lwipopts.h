@@ -60,6 +60,13 @@
 #define MEMP_NUM_PBUF                   32          // pbuf内存池大小
 #define PBUF_POOL_SIZE                  24          // pbuf池大小
 
+// 关键配置：PBUF缓冲区大小 - 这是解决tcp_write失败的关键
+#define PBUF_POOL_BUFSIZE               (TCP_MSS + 128)  // 设置为MSS+余量，确保能容纳大数据包
+
+// 内存配置优化
+#define MEM_SIZE                        (16 * 1024)  // 主内存堆大小16KB
+#define MEMP_MEM_MALLOC                 0            // 使用内存池而非malloc
+
 #define ETHARP_SUPPORT_STATIC_ENTRIES   1
 
 #define LWIP_HTTPD_CGI                  0

@@ -8,7 +8,7 @@ export interface WebSocketUpstreamMessage {
 }
 
 export interface WebSocketDownstreamMessage {
-  cid: number;
+  cid?: number; // 响应消息可能没有CID（通知消息）
   command: string;
   errNo: number;
   data?: Record<string, unknown>;
@@ -51,6 +51,14 @@ export type MessageHandler = (message: WebSocketDownstreamMessage) => void;
 export type StateChangeHandler = (state: WebSocketState) => void;
 export type ErrorHandler = (error: WebSocketError) => void;
 
+// 待处理请求接口
+interface PendingRequest {
+  resolve: (value: Record<string, unknown> | undefined) => void;
+  reject: (error: Error) => void;
+  timer: NodeJS.Timeout;
+  command: string;
+}
+
 // WebSocket框架主类
 export class WebSocketFramework {
   private ws: WebSocket | null = null;
@@ -59,12 +67,7 @@ export class WebSocketFramework {
   private reconnectCount = 0;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
-  private pendingRequests = new Map<number, {
-    resolve: (value: WebSocketDownstreamMessage) => void;
-    reject: (error: WebSocketError) => void;
-    timer: NodeJS.Timeout;
-    command: string;
-  }>();
+  private pendingRequests = new Map<number, PendingRequest>();
   private nextCid = 1;
 
   // 事件监听器
@@ -74,11 +77,11 @@ export class WebSocketFramework {
 
   constructor(config: WebSocketConfig = {}) {
     this.config = {
-      url: config.url || `ws://${window.location.hostname}:81/ws`,
+      url: config.url || `ws://${window.location.hostname}:8081`,
       heartbeatInterval: config.heartbeatInterval || 30000, // 30秒
       reconnectInterval: config.reconnectInterval || 5000,  // 5秒
       maxReconnectAttempts: config.maxReconnectAttempts || 10,
-      timeout: config.timeout || 10000, // 10秒
+      timeout: config.timeout || 15000, // 15秒
       autoReconnect: config.autoReconnect !== false
     };
   }
@@ -163,7 +166,7 @@ export class WebSocketFramework {
   }
 
   // 发送消息（带响应）
-  public async sendMessage(command: string, params: Record<string, unknown> = {}): Promise<WebSocketDownstreamMessage> {
+  public async sendMessage(command: string, params: Record<string, unknown> = {}): Promise<Record<string, unknown> | undefined> {
     if (this.state !== WebSocketState.CONNECTED) {
       throw new Error('WebSocket未连接');
     }
@@ -175,11 +178,7 @@ export class WebSocketFramework {
       // 设置超时
       const timer = setTimeout(() => {
         this.pendingRequests.delete(cid);
-        reject({
-          type: 'timeout',
-          message: `命令 ${command} 响应超时`,
-          timestamp: new Date()
-        });
+        reject(new Error(`命令 ${command} 响应超时`));
       }, this.config.timeout);
 
       // 保存待处理请求
@@ -192,11 +191,7 @@ export class WebSocketFramework {
       } catch (error) {
         this.pendingRequests.delete(cid);
         clearTimeout(timer);
-        reject({
-          type: 'connection',
-          message: `发送失败: ${error}`,
-          timestamp: new Date()
-        });
+        reject(new Error(`发送失败: ${error}`));
       }
     });
   }
@@ -257,26 +252,24 @@ export class WebSocketFramework {
       const message: WebSocketDownstreamMessage = JSON.parse(data);
       console.log('收到WebSocket消息:', message);
 
-      // 处理待处理的请求响应
-      const pending = this.pendingRequests.get(message.cid);
-      if (pending) {
-        clearTimeout(pending.timer);
-        this.pendingRequests.delete(message.cid);
-        
-        if (message.errNo === 0) {
-          pending.resolve(message);
-        } else {
-          pending.reject({
-            type: 'server',
-            message: `命令 ${pending.command} 执行失败`,
-            code: message.errNo,
-            timestamp: new Date()
-          });
+      // 处理待处理的请求响应（有CID的消息）
+      if (message.cid !== undefined) {
+        const pending = this.pendingRequests.get(message.cid);
+        if (pending) {
+          clearTimeout(pending.timer);
+          this.pendingRequests.delete(message.cid);
+          
+          if (message.errNo === 0) {
+            pending.resolve(message.data);
+          } else {
+            const errorMessage = (message.data as Record<string, unknown>)?.errorMessage as string || `命令 ${pending.command} 执行失败`;
+            pending.reject(new Error(errorMessage));
+          }
+          return;
         }
-        return;
       }
 
-      // 分发消息给所有监听器
+      // 分发消息给所有监听器（通知消息或未匹配的响应消息）
       this.messageHandlers.forEach(handler => handler(message));
 
     } catch (error) {
@@ -331,11 +324,7 @@ export class WebSocketFramework {
     // 清理所有待处理的请求
     this.pendingRequests.forEach(({ timer, reject }) => {
       clearTimeout(timer);
-      reject({
-        type: 'connection',
-        message: '连接已断开',
-        timestamp: new Date()
-      });
+      reject(new Error('连接已断开'));
     });
     this.pendingRequests.clear();
   }

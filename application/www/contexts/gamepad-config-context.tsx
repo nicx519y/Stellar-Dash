@@ -507,6 +507,31 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         return jsReady;
     }, [jsReady]);
 
+    // 处理通知消息
+    const handleNotificationMessage = (message: WebSocketDownstreamMessage): void => {
+        const { command, data } = message;
+
+        switch (command) {
+            case 'welcome':
+                console.log('收到欢迎消息:', data);
+                break;
+            case 'notification':
+                console.log('收到通知:', data);
+                break;
+            case 'config_changed':
+                // 配置变更，重新获取数据
+                fetchGlobalConfig();
+                fetchProfileList();
+                break;
+            case 'calibration_update':
+                // 校准状态更新
+                fetchCalibrationStatus();
+                break;
+            default:
+                console.log('收到未知通知消息:', message);
+        }
+    };
+
     // 初始化WebSocket框架
     useEffect(() => {
         const framework = new WebSocketFramework({
@@ -530,19 +555,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         });
 
         const unsubscribeMessage = framework.onMessage((message: WebSocketDownstreamMessage) => {
-            // 处理服务器主动推送的消息
-            if (message.command === 'welcome') {
-                console.log('收到欢迎消息:', message.data);
-            } else if (message.command === 'notification') {
-                console.log('收到通知:', message.data);
-            } else if (message.command === 'config_changed') {
-                // 配置变更，重新获取数据
-                fetchGlobalConfig();
-                fetchProfileList();
-            } else if (message.command === 'calibration_update') {
-                // 校准状态更新
-                fetchCalibrationStatus();
+            // 只处理通知消息（没有CID的消息）
+            if (message.cid === undefined) {
+                handleNotificationMessage(message);
             }
+            // 响应消息由WebSocketFramework内部处理
         });
 
         setWsFramework(framework);
@@ -603,11 +620,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
         
         try {
-            const response = await wsFramework.sendMessage(command, params);
-            if (response.errNo !== 0) {
-                throw new Error(response.data?.errorMessage || `命令 ${command} 执行失败`);
-            }
-            return response.data;
+            // WebSocket框架已经处理了错误，直接返回数据
+            return await wsFramework.sendMessage(command, params);
         } catch (error) {
             if (error instanceof Error) {
                 throw error;
@@ -934,6 +948,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         try {
             setIsLoading(true);
             const data = await sendWebSocketRequest('get_global_config');
+            console.log('fetchGlobalConfig', data);
             setGlobalConfig(data.globalConfig);
             return Promise.resolve();
         } catch (err) {
