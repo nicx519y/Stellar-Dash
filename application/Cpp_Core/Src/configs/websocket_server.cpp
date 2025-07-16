@@ -650,7 +650,7 @@ bool WebSocketServer::start(uint16_t port) {
     tcp_accept(listen_pcb, tcp_accept_callback);
     
     this->port = port;
-    LOG_INFO("WebSocket", "WebSocket server started on port %d", port);
+    // LOG_INFO("WebSocket", "WebSocket server started on port %d", port);
     return true;
 }
 
@@ -672,7 +672,7 @@ void WebSocketServer::stop() {
     }
     connection_count = 0;
     
-    LOG_INFO("WebSocket", "WebSocket server stopped");
+    // LOG_INFO("WebSocket", "WebSocket server stopped");
 }
 
 void WebSocketServer::broadcast_text(const std::string& message) {

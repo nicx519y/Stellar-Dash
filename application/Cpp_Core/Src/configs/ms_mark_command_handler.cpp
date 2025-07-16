@@ -14,11 +14,51 @@ MSMarkCommandHandler& MSMarkCommandHandler::getInstance() {
     return instance;
 }
 
+// 提供全局访问MSMarkCommandHandler实例的函数
+MSMarkCommandHandler& getMarkingCommandHandler() {
+    return MSMarkCommandHandler::getInstance();
+}
+
+// 发送标记状态变化通知
+void MSMarkCommandHandler::sendMarkingStatusNotification() {
+    // 使用单例模式获取WebSocket服务器实例
+    WebSocketServer& server = WebSocketServer::getInstance();
+    
+    // 创建通知消息（不带CID的消息）
+    cJSON* json = cJSON_CreateObject();
+    if (!json) {
+        LOG_ERROR("WebSocket", "Failed to create notification JSON");
+        return;
+    }
+    
+    // 设置通知消息格式：{"command": "marking_status_update", "errNo": 0, "data": {...}}
+    cJSON_AddStringToObject(json, "command", "marking_status_update");
+    cJSON_AddNumberToObject(json, "errNo", 0);
+    
+    // 添加状态数据
+    cJSON* statusJSON = ADC_BTNS_MARKER.getStepInfoJSON();
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddItemToObject(dataJSON, "status", statusJSON);
+    cJSON_AddItemToObject(json, "data", dataJSON);
+    
+    // 序列化JSON并广播
+    char* json_string = cJSON_PrintUnformatted(json);
+    if (json_string) {
+        server.broadcast_text(std::string(json_string));
+        // APP_DBG("sendMarkingStatusNotification: Marking status notification sent - %s", json_string);
+        free(json_string);
+    } else {
+        LOG_ERROR("WebSocket", "Failed to serialize notification JSON");
+    }
+    
+    cJSON_Delete(json);
+}
+
 cJSON* MSMarkCommandHandler::buildMappingListJSON() {
     // 获取轴体映射名称列表
     std::vector<ADCValuesMapping*> mappingList = ADC_MANAGER.getMappingList();
 
-    APP_DBG("buildMappingListJSON: mappingList size: %d", mappingList.size());
+    // APP_DBG("buildMappingListJSON: mappingList size: %d", mappingList.size());
 
     cJSON* listJSON = cJSON_CreateArray();
     for(ADCValuesMapping* mapping : mappingList) {
@@ -28,26 +68,26 @@ cJSON* MSMarkCommandHandler::buildMappingListJSON() {
         cJSON_AddItemToArray(listJSON, itemJSON);
     }
 
-    APP_DBG("buildMappingListJSON: listJSON size: %d", cJSON_GetArraySize(listJSON));
+    // APP_DBG("buildMappingListJSON: listJSON size: %d", cJSON_GetArraySize(listJSON));
 
     return listJSON;
 }
 
 WebSocketDownstreamMessage MSMarkCommandHandler::handleGetList(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling ms_get_list command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling ms_get_list command, cid: %d", request.getCid());
 
     cJSON* dataJSON = cJSON_CreateObject();
     // 添加映射列表到响应数据
     cJSON_AddItemToObject(dataJSON, "mappingList", buildMappingListJSON());
     cJSON_AddItemToObject(dataJSON, "defaultMappingId", cJSON_CreateString(ADC_MANAGER.getDefaultMapping().c_str()));
     
-    LOG_INFO("WebSocket", "ms_get_list command completed successfully");
+    // LOG_INFO("WebSocket", "ms_get_list command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage MSMarkCommandHandler::handleGetMarkStatus(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling ms_get_mark_status command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling ms_get_mark_status command, cid: %d", request.`getCid());
     
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
@@ -56,13 +96,13 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleGetMarkStatus(const WebSo
     // 添加标记状态到响应数据
     cJSON_AddItemToObject(dataJSON, "status", markStatusJSON);
     
-    LOG_INFO("WebSocket", "ms_get_mark_status command completed successfully");
+    // LOG_INFO("WebSocket", "ms_get_mark_status command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage MSMarkCommandHandler::handleSetDefault(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling ms_set_default command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling ms_set_default command, cid: %d", request.getCid());
     
     // 获取请求参数
     cJSON* params = request.getParams();
@@ -91,13 +131,13 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleSetDefault(const WebSocke
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON_AddStringToObject(dataJSON, "id", mappingId);
 
-    LOG_INFO("WebSocket", "ms_set_default command completed successfully");
+    // LOG_INFO("WebSocket", "ms_set_default command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage MSMarkCommandHandler::handleGetDefault(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling ms_get_default command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling ms_get_default command, cid: %d", request.getCid());
     
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
@@ -110,13 +150,13 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleGetDefault(const WebSocke
         cJSON_AddStringToObject(dataJSON, "id", defaultId.c_str());
     }
     
-    LOG_INFO("WebSocket", "ms_get_default command completed successfully");
+    // LOG_INFO("WebSocket", "ms_get_default command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage MSMarkCommandHandler::handleCreateMapping(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling ms_create_mapping command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling ms_create_mapping command, cid: %d", request.getCid());
     
     // 获取请求参数
     cJSON* params = request.getParams();
@@ -162,13 +202,13 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleCreateMapping(const WebSo
     cJSON_AddItemToObject(dataJSON, "defaultMappingId", cJSON_CreateString(ADC_MANAGER.getDefaultMapping().c_str()));
     cJSON_AddItemToObject(dataJSON, "mappingList", buildMappingListJSON());
     
-    LOG_INFO("WebSocket", "ms_create_mapping command completed successfully");
+    // LOG_INFO("WebSocket", "ms_create_mapping command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage MSMarkCommandHandler::handleDeleteMapping(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling ms_delete_mapping command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling ms_delete_mapping command, cid: %d", request.getCid());
     
     // 获取请求参数
     cJSON* params = request.getParams();
@@ -198,13 +238,13 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleDeleteMapping(const WebSo
     cJSON_AddItemToObject(dataJSON, "defaultMappingId", cJSON_CreateString(ADC_MANAGER.getDefaultMapping().c_str()));
     cJSON_AddItemToObject(dataJSON, "mappingList", buildMappingListJSON());
     
-    LOG_INFO("WebSocket", "ms_delete_mapping command completed successfully");
+    // LOG_INFO("WebSocket", "ms_delete_mapping command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage MSMarkCommandHandler::handleRenameMapping(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling ms_rename_mapping command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling ms_rename_mapping command, cid: %d", request.getCid());
     
     // 获取请求参数
     cJSON* params = request.getParams();
@@ -242,13 +282,13 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleRenameMapping(const WebSo
     cJSON_AddItemToObject(dataJSON, "defaultMappingId", cJSON_CreateString(ADC_MANAGER.getDefaultMapping().c_str()));
     cJSON_AddItemToObject(dataJSON, "mappingList", buildMappingListJSON());
 
-    LOG_INFO("WebSocket", "ms_rename_mapping command completed successfully");
+    // LOG_INFO("WebSocket", "ms_rename_mapping command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage MSMarkCommandHandler::handleMarkMappingStart(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling ms_mark_mapping_start command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling ms_mark_mapping_start command, cid: %d", request.getCid());
     
     // 获取请求参数
     cJSON* params = request.getParams();
@@ -273,34 +313,40 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleMarkMappingStart(const We
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to start marking");
     }
     
+    // 发送状态变化通知
+    sendMarkingStatusNotification();
+    
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON* statusJSON = ADC_BTNS_MARKER.getStepInfoJSON();
     cJSON_AddItemToObject(dataJSON, "status", statusJSON);
     
-    LOG_INFO("WebSocket", "ms_mark_mapping_start command completed successfully");
+    // LOG_INFO("WebSocket", "ms_mark_mapping_start command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage MSMarkCommandHandler::handleMarkMappingStop(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling ms_mark_mapping_stop command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling ms_mark_mapping_stop command, cid: %d", request.getCid());
     
     // 停止标记
     ADC_BTNS_MARKER.reset();
+    
+    // 发送状态变化通知
+    sendMarkingStatusNotification();
     
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON* statusJSON = ADC_BTNS_MARKER.getStepInfoJSON();
     cJSON_AddItemToObject(dataJSON, "status", statusJSON);
     
-    LOG_INFO("WebSocket", "ms_mark_mapping_stop command completed successfully");
+    // LOG_INFO("WebSocket", "ms_mark_mapping_stop command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage MSMarkCommandHandler::handleMarkMappingStep(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling ms_mark_mapping_step command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling ms_mark_mapping_step command, cid: %d", request.getCid());
     
     // 执行标记步进
     ADCBtnsError error = ADC_BTNS_MARKER.step();
@@ -309,18 +355,21 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleMarkMappingStep(const Web
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to perform marking step");
     }
     
+    // 发送状态变化通知
+    sendMarkingStatusNotification();
+    
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON* statusJSON = ADC_BTNS_MARKER.getStepInfoJSON();
     cJSON_AddItemToObject(dataJSON, "status", statusJSON);
     
-    LOG_INFO("WebSocket", "ms_mark_mapping_step command completed successfully");
+    // LOG_INFO("WebSocket", "ms_mark_mapping_step command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage MSMarkCommandHandler::handleGetMapping(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling ms_get_mapping command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling ms_get_mapping command, cid: %d", request.getCid());
     
     // 获取请求参数
     cJSON* params = request.getParams();
@@ -358,7 +407,7 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleGetMapping(const WebSocke
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON_AddItemToObject(dataJSON, "mapping", mappingJSON);
 
-    LOG_INFO("WebSocket", "ms_get_mapping command completed successfully");
+    // LOG_INFO("WebSocket", "ms_get_mapping command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }

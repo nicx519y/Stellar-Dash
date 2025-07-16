@@ -88,5 +88,5 @@ void WebSocketCommandManager::initializeHandlers() {
     registerHandler("ms_mark_mapping_step", &msMarkHandler);
     registerHandler("ms_get_mapping", &msMarkHandler);
     
-    LOG_INFO("WebSocket", "WebSocket command handlers initialized successfully");
+    // LOG_INFO("WebSocket", "WebSocket command handlers initialized successfully");
 } 

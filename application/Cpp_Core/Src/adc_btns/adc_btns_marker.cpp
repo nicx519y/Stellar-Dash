@@ -2,6 +2,12 @@
 #include "board_cfg.h"
 #include <numeric>
 
+// 包含完整的头文件以访问MSMarkCommandHandler
+#include "configs/websocket_command_handler.hpp"
+
+// 添加外部访问MSMarkCommandHandler的声明
+extern MSMarkCommandHandler& getMarkingCommandHandler();
+
 /**
  * @brief 构造函数
  * 初始化DMA缓存，临时值，标记值，映射名称，标记状态
@@ -9,7 +15,8 @@
  */
 
 ADCBtnsMarker::ADCBtnsMarker() {
-    memset(&step_info, 0, sizeof(step_info));
+    // 使用值初始化替代memset
+    step_info = {};
 }
 
 /**
@@ -17,7 +24,8 @@ ADCBtnsMarker::ADCBtnsMarker() {
  */
 void ADCBtnsMarker::reset() {
 
-    memset(&step_info, 0, sizeof(step_info));
+    // 使用值初始化替代memset
+    step_info = {};
     
     // ADC_MANAGER.stopADCSamping();
 
@@ -119,9 +127,10 @@ void ADCBtnsMarker::stepFinish(const ADCChannelStats* const stats) {
     step_info.noise_values.at(step_info.index) = stats->noiseValue;
     step_info.frequency_values.at(step_info.index) = stats->samplingFreq;
 
-    APP_DBG("ADCBtnsMarker: stepFinish - index: %d, value: %d, Frequency: %d, Noise: %d", step_info.index, step_info.values.at(step_info.index), step_info.frequency_values.at(step_info.index), step_info.noise_values.at(step_info.index));
+    APP_DBG("ADCBtnsMarker: stepFinish - index: %d, value: %lu, Frequency: %lu, Noise: %lu", step_info.index, step_info.values.at(step_info.index), step_info.frequency_values.at(step_info.index), step_info.noise_values.at(step_info.index));
 
-    
+    MSMarkCommandHandler& handler = getMarkingCommandHandler();
+    handler.sendMarkingStatusNotification();
 }
 
 /**
@@ -142,10 +151,13 @@ void ADCBtnsMarker::markingFinish() {
 
 
     if(err != ADCBtnsError::SUCCESS) {
-        APP_ERR("ADCBtnsMarker: markingFinish - mark save failed. err: %d", err);
+        APP_ERR("ADCBtnsMarker: markingFinish - mark save failed. err: %d", static_cast<int>(err));
         return;
     }
 
+    // 发送标记状态变化通知
+    MSMarkCommandHandler& handler = getMarkingCommandHandler();
+    handler.sendMarkingStatusNotification();
 }
 
 /**

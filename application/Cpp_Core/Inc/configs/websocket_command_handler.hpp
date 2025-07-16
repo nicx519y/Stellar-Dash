@@ -101,6 +101,9 @@ public:
     
     // WebSocketCommandHandler接口实现
     WebSocketDownstreamMessage handle(const WebSocketUpstreamMessage& request) override;
+    
+    // 发送标记状态变化通知
+    void sendMarkingStatusNotification();
 
 private:
     MSMarkCommandHandler() = default;

@@ -153,7 +153,7 @@ class ADCManager {
             // const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& adcValues = rawADCBufferInfoList;
 
             for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++){
-                printf("%d", *adcValues[i].valuePtr);
+                printf("%lu", *adcValues[i].valuePtr);
                 if(i != NUM_ADC_BUTTONS - 1){
                     printf(", ");
                 }

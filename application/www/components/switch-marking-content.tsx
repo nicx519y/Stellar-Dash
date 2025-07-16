@@ -13,6 +13,10 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useColorMode } from "./ui/color-mode";
 
+// 导入事件总线
+import { eventBus, EVENTS } from "@/lib/event-manager";
+import { StepInfo } from "@/types/adc";
+
 // 注册Chart.js组件
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -66,12 +70,25 @@ export function SwitchMarkingContent() {
     const { 
         mappingList, defaultMappingId, markingStatus, activeMapping,
         fetchMappingList, fetchMarkingStatus, startMarking, stopMarking, stepMarking, 
-        createMapping, deleteMapping, updateDefaultMapping, renameMapping, fetchActiveMapping
+        createMapping, deleteMapping, updateDefaultMapping, renameMapping, fetchActiveMapping,
+        updateMarkingStatus
     } = useGamepadConfig();
     const [ activeMappingId, setActiveMappingId ] = useState<string>("");
     const [ markingStatusToastMessage, setMarkingStatusToastMessage ] = useState<string>("");
     const nextActiveMappingIdRef = useRef<string>(activeMappingId);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    
+    // 使用 useRef 保存最新的状态值，避免闭包问题
+    const activeMappingIdRef = useRef<string>(activeMappingId);
+    const markingStatusRef = useRef<StepInfo | undefined>(markingStatus);
+    
+    // 更新 ref 值
+    useEffect(() => {
+        activeMappingIdRef.current = activeMappingId;
+    }, [activeMappingId]);
+    
+    useEffect(() => {
+        markingStatusRef.current = markingStatus;
+    }, [markingStatus]);
 
     const itemsConfig = useMemo(() => {
         return mappingList.map(({ id, name }) => ({
@@ -88,13 +105,9 @@ export function SwitchMarkingContent() {
     useEffect(() => {
         fetchMappingList();
         // fetchDefaultMapping();
-        fetchMarkingStatus();
+        fetchMarkingStatus(); // 仅用于初始化状态，后续通过WebSocket推送更新
 
         return () => {
-            if(timerRef.current) {
-                clearInterval(timerRef.current);
-                timerRef.current = null;
-            }
             if(markingStatus?.is_marking) {
                 stopMarking();
             }
@@ -193,15 +206,6 @@ export function SwitchMarkingContent() {
             return;
         }
 
-        if(markingStatus.is_marking && !timerRef.current) {
-            timerRef.current = setInterval(() => {
-                fetchMarkingStatus();
-            }, 2000);
-        } else if(!markingStatus.is_marking && timerRef.current) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-        }
-
         // 如果标记未开始，则弹出提示
         if(!markingStatus.is_marking && !markingStatus.is_completed && !markingStatus.is_sampling) {
             setMarkingStatusToastMessage(t.SETTINGS_SWITCH_MARKING_START_DIALOG_MESSAGE);
@@ -226,6 +230,36 @@ export function SwitchMarkingContent() {
             setMarkingStatusToastMessage("");
         }
     }, [markingStatus]);
+
+    // 订阅标记状态更新事件，在组件整个生命周期中保持订阅
+    useEffect(() => {
+        // 订阅标记状态更新事件
+        const unsubscribe = eventBus.on(EVENTS.MARKING_STATUS_UPDATE, (data: unknown) => {
+            if (data && typeof data === 'object' && 'status' in data) {
+                const eventData = data as { status: StepInfo };
+                const newStatus = eventData.status;
+                console.log('通过事件总线收到标记状态更新:', newStatus);
+                
+                // 使用ref获取最新的状态值
+                const currentActiveMappingId = activeMappingIdRef.current;
+                const currentMarkingStatus = markingStatusRef.current;
+                
+                // 只有当前正在标记的映射或者状态发生变化时才更新
+                if (newStatus.id === currentActiveMappingId || 
+                    newStatus.is_marking !== currentMarkingStatus?.is_marking) {
+                    updateMarkingStatus(newStatus);
+                }
+            }
+        });
+
+        console.log('订阅标记状态更新事件');
+
+        // 返回清理函数，只在组件卸载时取消订阅
+        return () => {
+            console.log('取消订阅标记状态更新事件');
+            unsubscribe();
+        };
+    }, [updateMarkingStatus]); // 添加updateMarkingStatus依赖
 
     const createMappingClick = async () => {
         const result = await openForm({

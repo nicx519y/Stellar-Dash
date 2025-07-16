@@ -66,7 +66,7 @@ DTCMRAM (xrw)                 : ORIGIN = 0x20000000, LENGTH = 128K
 RAM (xrw)                     : ORIGIN = 0x24000000, LENGTH = 512K
 RAM_D2 (xrw)                  : ORIGIN = 0x30000000, LENGTH = 288K
 RAM_D3 (xrw)                  : ORIGIN = 0x38000000, LENGTH = 64K
-FLASH (rx)                    : ORIGIN = 0x90000000, LENGTH = 2048K
+FLASH (rx)                    : ORIGIN = 0x902B0000, LENGTH = 2048K
 }
 
 /* Define Flash起始地址符号供代码使用 */

@@ -90,7 +90,7 @@ cJSON* GlobalConfigCommandHandler::buildHotkeysConfigJSON(Config& config) {
 }
 
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetGlobalConfig(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling get_global_config command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling get_global_config command, cid: %d", request.getCid());
 
     Config& config = Storage::getInstance().config;
     
@@ -115,13 +115,13 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetGlobalConfig(con
     // 构建返回结构
     cJSON_AddItemToObject(dataJSON, "globalConfig", globalConfigJSON);
     
-    LOG_INFO("WebSocket", "get_global_config command completed successfully");
+    // LOG_INFO("WebSocket", "get_global_config command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateGlobalConfig(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling update_global_config command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling update_global_config command, cid: %d", request.getCid());
     
     Config& config = Storage::getInstance().config;
     
@@ -142,7 +142,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateGlobalConfig(
             auto it = STRING_TO_INPUT_MODE.find(modeStr);
             if (it != STRING_TO_INPUT_MODE.end()) {
                 config.inputMode = it->second;
-                LOG_INFO("WebSocket", "Updated inputMode to: %s", modeStr.c_str());
+                // LOG_INFO("WebSocket", "Updated inputMode to: %s", modeStr.c_str());
             } else {
                 config.inputMode = InputMode::INPUT_MODE_XINPUT; // 默认值
                 LOG_WARN("WebSocket", "Invalid inputMode '%s', using default XINPUT", modeStr.c_str());
@@ -153,8 +153,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateGlobalConfig(
         cJSON* autoCalibrationItem = cJSON_GetObjectItem(globalConfig, "autoCalibrationEnabled");
         if (autoCalibrationItem) {
             config.autoCalibrationEnabled = cJSON_IsTrue(autoCalibrationItem);
-            LOG_INFO("WebSocket", "Updated autoCalibrationEnabled to: %s", 
-                     config.autoCalibrationEnabled ? "true" : "false");
+            // LOG_INFO("WebSocket", "Updated autoCalibrationEnabled to: %s", config.autoCalibrationEnabled ? "true" : "false");
         }
     }
 
@@ -169,7 +168,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateGlobalConfig(
 }
 
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetHotkeysConfig(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling get_hotkeys_config command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling get_hotkeys_config command, cid: %d", request.getCid());
     
     Config& config = Storage::getInstance().config;
     
@@ -185,13 +184,13 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetHotkeysConfig(co
     // 构建返回结构
     cJSON_AddItemToObject(dataJSON, "hotkeysConfig", hotkeysConfigJSON);
     
-    LOG_INFO("WebSocket", "get_hotkeys_config command completed successfully");
+    // LOG_INFO("WebSocket", "get_hotkeys_config command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateHotkeysConfig(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling update_hotkeys_config command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling update_hotkeys_config command, cid: %d", request.getCid());
     
     Config& config = Storage::getInstance().config;
     
@@ -259,7 +258,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateHotkeysConfig
 }
 
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handleReboot(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling reboot command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling reboot command, cid: %d", request.getCid());
     
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
@@ -272,13 +271,13 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleReboot(const WebSoc
     WebSocketCommandHandler::rebootTick = HAL_GetTick() + 2000;
     WebSocketCommandHandler::needReboot = true;
     
-    LOG_INFO("WebSocket", "reboot command completed successfully");
+    // LOG_INFO("WebSocket", "reboot command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handlePushLedsConfig(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling push_leds_config command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling push_leds_config command, cid: %d", request.getCid());
     
     // 获取请求参数
     cJSON* params = request.getParams();
@@ -398,13 +397,13 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handlePushLedsConfig(cons
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON_AddStringToObject(dataJSON, "message", "LED configuration applied successfully for preview");
     
-    LOG_INFO("WebSocket", "push_leds_config command completed successfully");
+    // LOG_INFO("WebSocket", "push_leds_config command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handleClearLedsPreview(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling clear_leds_preview command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling clear_leds_preview command, cid: %d", request.getCid());
     
     WEBCONFIG_LEDS_MANAGER.clearPreviewConfig();
     WEBCONFIG_BTNS_MANAGER.stopButtonWorkers();
@@ -413,7 +412,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleClearLedsPreview(co
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON_AddStringToObject(dataJSON, "message", "LED preview mode cleared successfully");
     
-    LOG_INFO("WebSocket", "clear_leds_preview command completed successfully");
+    // LOG_INFO("WebSocket", "clear_leds_preview command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }

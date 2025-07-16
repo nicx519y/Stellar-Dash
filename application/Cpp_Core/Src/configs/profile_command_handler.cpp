@@ -232,7 +232,7 @@ cJSON* ProfileCommandHandler::buildProfileJSON(GamepadProfile* profile) {
 }
 
 WebSocketDownstreamMessage ProfileCommandHandler::handleGetProfileList(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling get_profile_list command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling get_profile_list command, cid: %d", request.getCid());
     
     // 创建返回数据结构
     cJSON* dataJSON = cJSON_CreateObject();
@@ -246,13 +246,13 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleGetProfileList(const Web
     // 构建返回结构
     cJSON_AddItemToObject(dataJSON, "profileList", profileListJSON);
 
-    LOG_INFO("WebSocket", "get_profile_list command completed successfully");
+    // LOG_INFO("WebSocket", "get_profile_list command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage ProfileCommandHandler::handleGetDefaultProfile(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling get_default_profile command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling get_default_profile command, cid: %d", request.getCid());
 
     Config& config = Storage::getInstance().config;
     
@@ -281,13 +281,13 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleGetDefaultProfile(const 
     
     cJSON_AddItemToObject(dataJSON, "profileDetails", profileDetailsJSON);
 
-    LOG_INFO("WebSocket", "get_default_profile command completed successfully");
+    // LOG_INFO("WebSocket", "get_default_profile command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling update_profile command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling update_profile command, cid: %d", request.getCid());
     
     Config& config = Storage::getInstance().config;
     
@@ -525,13 +525,13 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebS
     
     cJSON_AddItemToObject(dataJSON, "profileDetails", profileDetailsJSON);
     
-    LOG_INFO("WebSocket", "update_profile command completed successfully");
+    // LOG_INFO("WebSocket", "update_profile command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage ProfileCommandHandler::handleCreateProfile(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling create_profile command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling create_profile command, cid: %d", request.getCid());
     
     Config& config = Storage::getInstance().config;
     
@@ -598,13 +598,13 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleCreateProfile(const WebS
 
     cJSON_AddItemToObject(dataJSON, "profileList", profileListJSON);
     
-    LOG_INFO("WebSocket", "create_profile command completed successfully");
+    // LOG_INFO("WebSocket", "create_profile command completed successfully");
 
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage ProfileCommandHandler::handleDeleteProfile(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling delete_profile command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling delete_profile command, cid: %d", request.getCid());
     
     Config& config = Storage::getInstance().config;
     
@@ -694,13 +694,13 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleDeleteProfile(const WebS
 
     cJSON_AddItemToObject(dataJSON, "profileList", profileListJSON);
     
-    LOG_INFO("WebSocket", "delete_profile command completed successfully");
+    // LOG_INFO("WebSocket", "delete_profile command completed successfully");
 
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 WebSocketDownstreamMessage ProfileCommandHandler::handleSwitchDefaultProfile(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling switch_default_profile command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling switch_default_profile command, cid: %d", request.getCid());
     
     Config& config = Storage::getInstance().config;
     
@@ -757,7 +757,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleSwitchDefaultProfile(con
 
     cJSON_AddItemToObject(dataJSON, "profileList", profileListJSON);
     
-    LOG_INFO("WebSocket", "switch_default_profile command completed successfully");
+    // LOG_INFO("WebSocket", "switch_default_profile command completed successfully");
 
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }

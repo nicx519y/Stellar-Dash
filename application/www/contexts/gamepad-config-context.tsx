@@ -40,6 +40,9 @@ import {
     WebSocketError 
 } from '@/components/websocket-framework';
 
+// 导入事件总线
+import { eventBus, EVENTS } from '@/lib/event-manager';
+
 // 固件服务器配置
 const FIRMWARE_SERVER_CONFIG = {
     // 默认固件服务器地址，可通过环境变量覆盖
@@ -388,6 +391,7 @@ interface GamepadConfigContextType {
     setUpgradeConfig: (config: Partial<FirmwareUpgradeConfig>) => void;
     getUpgradeConfig: () => FirmwareUpgradeConfig;
     getValidChunkSizes: () => number[];
+    updateMarkingStatus: (status: StepInfo) => void;
 }
 
 const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
@@ -522,10 +526,22 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 // 配置变更，重新获取数据
                 fetchGlobalConfig();
                 fetchProfileList();
+                // 同时发布事件
+                eventBus.emit(EVENTS.CONFIG_CHANGED, data);
                 break;
             case 'calibration_update':
                 // 校准状态更新
                 fetchCalibrationStatus();
+                // 同时发布事件
+                eventBus.emit(EVENTS.CALIBRATION_UPDATE, data);
+                break;
+            case 'marking_status_update':
+                // 发布标记状态更新事件，让具体组件订阅处理
+                eventBus.emit(EVENTS.MARKING_STATUS_UPDATE, data);
+                break;
+            case 'button_state_changed':
+                // 发布按键状态变化事件
+                eventBus.emit(EVENTS.BUTTON_STATE_CHANGED, data);
                 break;
             default:
                 console.log('收到未知通知消息:', message);
@@ -1695,6 +1711,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         return validSizes;
     };
 
+    const updateMarkingStatus = (status: StepInfo) => {
+        setMarkingStatus(status);
+    };
+
 
     return (
         <GamepadConfigContext.Provider value={{
@@ -1772,6 +1792,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setUpgradeConfig: setUpgradeConfig,
             getUpgradeConfig: getUpgradeConfig,
             getValidChunkSizes: getValidChunkSizes,
+            updateMarkingStatus: updateMarkingStatus,
         }}>
             {children}
         </GamepadConfigContext.Provider>
