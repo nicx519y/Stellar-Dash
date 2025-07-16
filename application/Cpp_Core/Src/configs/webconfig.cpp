@@ -4114,18 +4114,18 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/push-leds-config", apiPushLedsConfig },                             // 已经移植
     { "/api/clear-leds-preview", apiClearLedsPreview },                         // 已经移植
     { "/api/reboot", apiReboot },                                               
-    { "/api/ms-get-list", apiMSGetList },                                       // 获取轴体映射列表
-    { "/api/ms-get-mark-status", apiMSGetMarkStatus },                          // 获取标记状态
-    { "/api/ms-set-default", apiMSSetDefault },                                 // 设置默认轴体
-    { "/api/ms-get-default", apiMSGetDefault },                                 // 获取默认轴体
-    { "/api/ms-create-mapping", apiMSCreateMapping },                           // 创建轴体映射
-    { "/api/ms-delete-mapping", apiMSDeleteMapping },                           // 删除轴体映射
-    { "/api/ms-rename-mapping", apiMSRenameMapping },                           // 重命名轴体映射
-    { "/api/ms-mark-mapping-start", apiMSMarkMappingStart },                    // 开始标记
-    { "/api/ms-mark-mapping-stop", apiMSMarkMappingStop },                      // 停止标记
-    { "/api/ms-mark-mapping-step", apiMSMarkMappingStep },                      // 标记步进
-    { "/api/ms-get-mapping", apiMSGetMapping },                                 // 获取轴体映射
-    
+    { "/api/ms-get-list", apiMSGetList },                                       // 已经移植 获取轴体映射列表
+    { "/api/ms-get-mark-status", apiMSGetMarkStatus },                          // 已经移植 获取标记状态
+    { "/api/ms-set-default", apiMSSetDefault },                                 // 已经移植 设置默认轴体
+    { "/api/ms-get-default", apiMSGetDefault },                                 // 已经移植 获取默认轴体
+    { "/api/ms-create-mapping", apiMSCreateMapping },                           // 已经移植 创建轴体映射
+    { "/api/ms-delete-mapping", apiMSDeleteMapping },                           // 已经移植 删除轴体映射
+    { "/api/ms-rename-mapping", apiMSRenameMapping },                           // 已经移植 重命名轴体映射
+    { "/api/ms-mark-mapping-start", apiMSMarkMappingStart },                    // 已经移植 开始标记
+    { "/api/ms-mark-mapping-stop", apiMSMarkMappingStop },                      // 已经移植 停止标记
+    { "/api/ms-mark-mapping-step", apiMSMarkMappingStep },                      // 已经移植 标记步进
+    { "/api/ms-get-mapping", apiMSGetMapping },                                 // 已经移植 获取轴体映射
+
     { "/api/start-manual-calibration", apiStartManualCalibration },             // 开始手动校准
     { "/api/stop-manual-calibration", apiStopManualCalibration },               // 结束手动校准
     { "/api/get-calibration-status", apiGetCalibrationStatus },                 // 获取校准状态

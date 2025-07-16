@@ -81,6 +81,34 @@ private:
     cJSON* buildProfileJSON(GamepadProfile* profile);
 };
 
+// 轴体映射和标记命令处理器
+class MSMarkCommandHandler : public WebSocketCommandHandler {
+public:
+    static MSMarkCommandHandler& getInstance();
+    
+    // 轴体映射相关命令
+    WebSocketDownstreamMessage handleGetList(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleGetMarkStatus(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleSetDefault(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleGetDefault(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleCreateMapping(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleDeleteMapping(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleRenameMapping(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleMarkMappingStart(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleMarkMappingStop(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleMarkMappingStep(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleGetMapping(const WebSocketUpstreamMessage& request);
+    
+    // WebSocketCommandHandler接口实现
+    WebSocketDownstreamMessage handle(const WebSocketUpstreamMessage& request) override;
+
+private:
+    MSMarkCommandHandler() = default;
+    
+    // 辅助函数
+    cJSON* buildMappingListJSON();
+};
+
 // WebSocket命令处理器管理器
 class WebSocketCommandManager {
 public:

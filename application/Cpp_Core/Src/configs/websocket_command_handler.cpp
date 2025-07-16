@@ -54,6 +54,7 @@ void WebSocketCommandManager::initializeHandlers() {
     // 获取处理器实例
     GlobalConfigCommandHandler& globalHandler = GlobalConfigCommandHandler::getInstance();
     ProfileCommandHandler& profileHandler = ProfileCommandHandler::getInstance();
+    MSMarkCommandHandler& msMarkHandler = MSMarkCommandHandler::getInstance();
     
     // 注册全局配置相关命令
     registerHandler("get_global_config", &globalHandler);
@@ -73,6 +74,19 @@ void WebSocketCommandManager::initializeHandlers() {
     registerHandler("create_profile", &profileHandler);
     registerHandler("delete_profile", &profileHandler);
     registerHandler("switch_default_profile", &profileHandler);
+    
+    // 注册轴体映射相关命令
+    registerHandler("ms_get_list", &msMarkHandler);
+    registerHandler("ms_get_mark_status", &msMarkHandler);
+    registerHandler("ms_set_default", &msMarkHandler);
+    registerHandler("ms_get_default", &msMarkHandler);
+    registerHandler("ms_create_mapping", &msMarkHandler);
+    registerHandler("ms_delete_mapping", &msMarkHandler);
+    registerHandler("ms_rename_mapping", &msMarkHandler);
+    registerHandler("ms_mark_mapping_start", &msMarkHandler);
+    registerHandler("ms_mark_mapping_stop", &msMarkHandler);
+    registerHandler("ms_mark_mapping_step", &msMarkHandler);
+    registerHandler("ms_get_mapping", &msMarkHandler);
     
     LOG_INFO("WebSocket", "WebSocket command handlers initialized successfully");
 } 
