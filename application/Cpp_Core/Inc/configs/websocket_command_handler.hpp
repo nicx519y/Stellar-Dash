@@ -35,6 +35,10 @@ public:
     WebSocketDownstreamMessage handleUpdateHotkeysConfig(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleReboot(const WebSocketUpstreamMessage& request);
     
+    // LED配置相关命令
+    WebSocketDownstreamMessage handlePushLedsConfig(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleClearLedsPreview(const WebSocketUpstreamMessage& request);
+    
     // WebSocketCommandHandler接口实现
     WebSocketDownstreamMessage handle(const WebSocketUpstreamMessage& request) override;
 

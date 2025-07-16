@@ -4101,47 +4101,49 @@ std::string apiWebSocketStatus() {
 typedef std::string (*HandlerFuncPtr)();
 static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
 {
-    { "/api/global-config", apiGetGlobalConfig },
-    { "/api/update-global-config", apiUpdateGlobalConfig },
-    { "/api/profile-list",  apiGetProfileList },
-    { "/api/default-profile",  apiGetDefaultProfile },
-    { "/api/hotkeys-config", apiGetHotkeysConfig },    
-    { "/api/update-profile", apiUpdateProfile },
-    { "/api/create-profile", apiCreateProfile },
-    { "/api/delete-profile", apiDeleteProfile },
-    { "/api/switch-default-profile", apiSwitchDefaultProfile },
-    { "/api/update-hotkeys-config", apiUpdateHotkeysConfig },
-    { "/api/reboot", apiReboot },
-    { "/api/ms-get-list", apiMSGetList },          //获取轴体映射列表
-    { "/api/ms-get-mark-status", apiMSGetMarkStatus },      // 获取标记状态
-    { "/api/ms-set-default", apiMSSetDefault },            // 设置默认轴体
-    { "/api/ms-get-default", apiMSGetDefault },            // 获取默认轴体
-    { "/api/ms-create-mapping", apiMSCreateMapping },      // 创建轴体映射
-    { "/api/ms-delete-mapping", apiMSDeleteMapping },      // 删除轴体映射
-    { "/api/ms-rename-mapping", apiMSRenameMapping },      // 重命名轴体映射
-    { "/api/ms-mark-mapping-start", apiMSMarkMappingStart },// 开始标记
-    { "/api/ms-mark-mapping-stop", apiMSMarkMappingStop },    // 停止标记
-    { "/api/ms-mark-mapping-step", apiMSMarkMappingStep },    // 标记步进
-    { "/api/ms-get-mapping", apiMSGetMapping },              // 获取轴体映射
-    { "/api/start-manual-calibration", apiStartManualCalibration }, // 开始手动校准
-    { "/api/stop-manual-calibration", apiStopManualCalibration },   // 结束手动校准
-    { "/api/get-calibration-status", apiGetCalibrationStatus },     // 获取校准状态
-    { "/api/clear-manual-calibration-data", apiClearManualCalibrationData }, // 清除手动校准数据
-    { "/api/start-button-monitoring", apiStartButtonMonitoring },   // 开启按键功能
-    { "/api/stop-button-monitoring", apiStopButtonMonitoring },     // 关闭按键功能
-    { "/api/get-button-states", apiGetButtonStates },               // 轮询获取按键状态
-    { "/api/push-leds-config", apiPushLedsConfig },                 // 推送 LED 配置
-    { "/api/clear-leds-preview", apiClearLedsPreview },             // 清除 LED 预览模式
-    { "/api/firmware-metadata", apiFirmwareMetadata },               // 获取固件元数据信息
-    { "/api/firmware-upgrade", apiFirmwareUpgrade },                 // 固件升级会话管理
-    { "/api/firmware-upgrade-status", apiFirmwareUpgradeStatus },     // 获取固件升级会话状态
-    { "/api/firmware-upgrade/chunk", apiFirmwareChunk },             // 处理固件分片上传
-    { "/api/firmware-upgrade-complete", apiFirmwareUpgradeComplete }, // 完成固件升级会话
-    { "/api/firmware-upgrade-abort", apiFirmwareUpgradeAbort },       // 中止固件升级会话
-    { "/api/firmware-upgrade-cleanup", apiFirmwareUpgradeCleanup },     // 清理固件升级会话
-    { "/api/device-auth", apiGetDeviceAuth },                       // 获取设备认证信息
-    { "/api/websocket-test", apiWebSocketTest },                     // WebSocket连接测试
-    { "/api/websocket-status", apiWebSocketStatus },                 // WebSocket连接状态
+    { "/api/global-config", apiGetGlobalConfig },                               // 已经移植
+    { "/api/update-global-config", apiUpdateGlobalConfig },                     // 已经移植
+    { "/api/profile-list",  apiGetProfileList },                                // 已经移植
+    { "/api/default-profile",  apiGetDefaultProfile },                          // 已经移植
+    { "/api/hotkeys-config", apiGetHotkeysConfig },                             // 已经移植
+    { "/api/update-profile", apiUpdateProfile },                                // 已经移植
+    { "/api/create-profile", apiCreateProfile },                                // 已经移植
+    { "/api/delete-profile", apiDeleteProfile },                                // 已经移植
+    { "/api/switch-default-profile", apiSwitchDefaultProfile },                 // 已经移植
+    { "/api/update-hotkeys-config", apiUpdateHotkeysConfig },                   // 已经移植
+    { "/api/push-leds-config", apiPushLedsConfig },                             // 已经移植
+    { "/api/clear-leds-preview", apiClearLedsPreview },                         // 已经移植
+    { "/api/reboot", apiReboot },                                               
+    { "/api/ms-get-list", apiMSGetList },                                       // 获取轴体映射列表
+    { "/api/ms-get-mark-status", apiMSGetMarkStatus },                          // 获取标记状态
+    { "/api/ms-set-default", apiMSSetDefault },                                 // 设置默认轴体
+    { "/api/ms-get-default", apiMSGetDefault },                                 // 获取默认轴体
+    { "/api/ms-create-mapping", apiMSCreateMapping },                           // 创建轴体映射
+    { "/api/ms-delete-mapping", apiMSDeleteMapping },                           // 删除轴体映射
+    { "/api/ms-rename-mapping", apiMSRenameMapping },                           // 重命名轴体映射
+    { "/api/ms-mark-mapping-start", apiMSMarkMappingStart },                    // 开始标记
+    { "/api/ms-mark-mapping-stop", apiMSMarkMappingStop },                      // 停止标记
+    { "/api/ms-mark-mapping-step", apiMSMarkMappingStep },                      // 标记步进
+    { "/api/ms-get-mapping", apiMSGetMapping },                                 // 获取轴体映射
+    
+    { "/api/start-manual-calibration", apiStartManualCalibration },             // 开始手动校准
+    { "/api/stop-manual-calibration", apiStopManualCalibration },               // 结束手动校准
+    { "/api/get-calibration-status", apiGetCalibrationStatus },                 // 获取校准状态
+    { "/api/clear-manual-calibration-data", apiClearManualCalibrationData },    // 清除手动校准数据
+    { "/api/start-button-monitoring", apiStartButtonMonitoring },               // 开启按键功能
+    { "/api/stop-button-monitoring", apiStopButtonMonitoring },                 // 关闭按键功能
+    { "/api/get-button-states", apiGetButtonStates },                           // 轮询获取按键状态
+    
+    { "/api/firmware-metadata", apiFirmwareMetadata },                          // 获取固件元数据信息
+    { "/api/firmware-upgrade", apiFirmwareUpgrade },                            // 固件升级会话管理
+    { "/api/firmware-upgrade-status", apiFirmwareUpgradeStatus },               // 获取固件升级会话状态
+    { "/api/firmware-upgrade/chunk", apiFirmwareChunk },                        // 处理固件分片上传
+    { "/api/firmware-upgrade-complete", apiFirmwareUpgradeComplete },           // 完成固件升级会话
+    { "/api/firmware-upgrade-abort", apiFirmwareUpgradeAbort },                 // 中止固件升级会话
+    { "/api/firmware-upgrade-cleanup", apiFirmwareUpgradeCleanup },             // 清理固件升级会话
+    { "/api/device-auth", apiGetDeviceAuth },                                   // 获取设备认证信息
+    { "/api/websocket-test", apiWebSocketTest },                                // WebSocket连接测试
+    { "/api/websocket-status", apiWebSocketStatus },                            // WebSocket连接状态
 #if !defined(NDEBUG)
     // { "/api/echo", echo },
 #endif
