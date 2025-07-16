@@ -18,7 +18,7 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
 import { ButtonEvent } from "@/components/button-monitor-manager";
-import { useButtonMonitor } from "@/hooks/use-button-monitor";
+// import { useButtonMonitor } from "@/hooks/use-button-monitor";
 
 interface HotkeySettingContentProps {
     /** 是否禁用组件（例如在校准模式下） */
@@ -47,7 +47,7 @@ export function HotkeySettingContent({
     width = "778px",
     height = "100%",
     isButtonMonitoringEnabled = false,
-    onButtonMonitoringToggle,
+    // onButtonMonitoringToggle,
 }: HotkeySettingContentProps) {
     const { t } = useLanguage();
     const {
@@ -64,12 +64,12 @@ export function HotkeySettingContent({
     const activeHotkeyIndexRef = useRef<number>(0);
 
     // 使用新的按键监控 hook
-    const buttonMonitor = useButtonMonitor({
-        pollingInterval: 500,
-        onError: (error) => {
-            console.error('按键监控错误:', error);
-        },
-    });
+    // const buttonMonitor = useButtonMonitor({
+    //     pollingInterval: 500,
+    //     onError: (error) => {
+    //         console.error('按键监控错误:', error);
+    //     },
+    // });
 
     // 使用外部提供的活跃索引，否则使用内部状态
     const activeHotkeyIndex = externalActiveIndex !== undefined ? externalActiveIndex : internalActiveIndex;
@@ -201,33 +201,33 @@ export function HotkeySettingContent({
         setActiveHotkeyIndex(index);
     };
 
-    const handleButtonMonitoringToggle = async (checked: boolean) => {
-        if (checked) {
-            await buttonMonitor.startMonitoring();
-            console.log('Button monitoring started');
-            onButtonMonitoringToggle?.(true);
-        } else {
-            await buttonMonitor.stopMonitoring();
-            console.log('Button monitoring stopped');
-            onButtonMonitoringToggle?.(false);
-        }
-    };
+    // const handleButtonMonitoringToggle = async (checked: boolean) => {
+    //     if (checked) {
+    //         await buttonMonitor.startMonitoring();
+    //         console.log('Button monitoring started');
+    //         onButtonMonitoringToggle?.(true);
+    //     } else {
+    //         await buttonMonitor.stopMonitoring();
+    //         console.log('Button monitoring stopped');
+    //         onButtonMonitoringToggle?.(false);
+    //     }
+    // };
 
     /**
      * 组件挂载时，如果组件未禁用，则开启按键监控,
      * 组件卸载时，关闭按键监控
      * 
      */
-    useEffect(() => {
-        if (!disabled) {
-            handleButtonMonitoringToggle(true);
-        } else {
-            handleButtonMonitoringToggle(false);
-        }
-        return () => {
-            handleButtonMonitoringToggle(false);
-        };
-    }, [disabled]);
+    // useEffect(() => {
+    //     if (!disabled) {
+    //         handleButtonMonitoringToggle(true);
+    //     } else {
+    //         handleButtonMonitoringToggle(false);
+    //     }
+    //     return () => {
+    //         handleButtonMonitoringToggle(false);
+    //     };
+    // }, [disabled]);
 
     return (
         <Card.Root w={width} h={height}>

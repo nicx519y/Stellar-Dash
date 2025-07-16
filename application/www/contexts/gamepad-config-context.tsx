@@ -615,7 +615,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     // 使用WebSocket发送请求的辅助函数
     const sendWebSocketRequest = async (command: string, params: any = {}): Promise<any> => {
-        if (!wsFramework || wsState !== WebSocketState.CONNECTED) {
+        if(!wsFramework) {
+            return Promise.reject(new Error('WebSocket框架未初始化'));
+        }
+        if (wsState !== WebSocketState.CONNECTED) {
             throw new Error('WebSocket未连接');
         }
         

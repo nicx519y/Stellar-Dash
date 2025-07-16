@@ -39,7 +39,7 @@ import { useLanguage } from "@/contexts/language-context";
 import { ContentActionButtons } from "@/components/content-action-buttons";
 import { useColorMode } from "./ui/color-mode";
 import { ProfileSelect } from "@/components/profile-select";
-import { useButtonMonitor } from "@/hooks/use-button-monitor";
+// import { useButtonMonitor } from "@/hooks/use-button-monitor";
 import type { ButtonEvent } from "@/components/button-monitor-manager";
 
 export function KeysSettingContent() {
@@ -75,12 +75,12 @@ export function KeysSettingContent() {
     }, [keysEnableConfig]);
 
     // 使用新的按键监控 hook
-    const buttonMonitor = useButtonMonitor({
-        pollingInterval: 500,
-        onError: (error) => {
-            console.error('按键监控错误:', error);
-        },
-    });
+    // const buttonMonitor = useButtonMonitor({
+    //     pollingInterval: 500,
+    //     onError: (error) => {
+    //         console.error('按键监控错误:', error);
+    //     },
+    // });
 
     useEffect(() => {
         if (defaultProfile.keysConfig) {
@@ -97,12 +97,12 @@ export function KeysSettingContent() {
     }, [defaultProfile, setIsDirty]);
 
     // 处理监控状态切换
-    useEffect(() => {
-        buttonMonitor.startMonitoring();
-        return () => {
-            buttonMonitor.stopMonitoring();
-        };
-    }, []);
+    // useEffect(() => {
+    //     buttonMonitor.startMonitoring();
+    //     return () => {
+    //         buttonMonitor.stopMonitoring();
+    //     };
+    // }, []);
 
     // 监听设备按键事件
     useEffect(() => {
