@@ -13,7 +13,7 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
 {
     // 设置profile id, name, enabled
     sprintf(profile.id, id);
-    sprintf(profile.name, "Profile XInput");
+    sprintf(profile.name, "Profile-XInput");
     profile.enabled = isEnabled;
 
     // 设置keysConfig

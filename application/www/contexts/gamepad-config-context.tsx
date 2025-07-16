@@ -32,6 +32,14 @@ import {
 
 import DeviceAuthManager from '@/utils/deviceAuth';
 
+// 导入WebSocket框架
+import { 
+    WebSocketFramework, 
+    WebSocketState, 
+    WebSocketDownstreamMessage,
+    WebSocketError 
+} from '@/components/websocket-framework';
+
 // 固件服务器配置
 const FIRMWARE_SERVER_CONFIG = {
     // 默认固件服务器地址，可通过环境变量覆盖
@@ -308,6 +316,14 @@ const fetchWithKeepAlive = createFetchWithKeepAlive();
 interface GamepadConfigContextType {
     contextJsReady: boolean;
     setContextJsReady: (ready: boolean) => void;
+    
+    // WebSocket 连接状态
+    wsConnected: boolean;
+    wsState: WebSocketState;
+    wsError: WebSocketError | null;
+    connectWebSocket: () => Promise<void>;
+    disconnectWebSocket: () => void;
+    
     profileList: GameProfileList;
     defaultProfile: GameProfile;
     hotkeysConfig: Hotkey[];
@@ -446,6 +462,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [error, setError] = useState<string | null>(null);
     const [hotkeysConfig, setHotkeysConfig] = useState<Hotkey[]>([]);
     const [jsReady, setJsReady] = useState(false);
+    
+    // WebSocket 状态
+    const [wsConnected, setWsConnected] = useState(false);
+    const [wsState, setWsState] = useState<WebSocketState>(WebSocketState.DISCONNECTED);
+    const [wsError, setWsError] = useState<WebSocketError | null>(null);
+    const [wsFramework, setWsFramework] = useState<WebSocketFramework | null>(null);
+    
     const [calibrationStatus, setCalibrationStatus] = useState<CalibrationStatus>({
         isActive: false,
         uncalibratedCount: 0,
@@ -484,11 +507,70 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         return jsReady;
     }, [jsReady]);
 
+    // 初始化WebSocket框架
     useEffect(() => {
-        fetchGlobalConfig();
-        fetchProfileList();
-        fetchHotkeysConfig();
+        const framework = new WebSocketFramework({
+            url: `ws://${window.location.hostname}:8081`,
+            heartbeatInterval: 30000,
+            reconnectInterval: 5000,
+            maxReconnectAttempts: 10,
+            timeout: 15000,
+            autoReconnect: true
+        });
+
+        // 设置事件监听器
+        const unsubscribeState = framework.onStateChange((state) => {
+            setWsState(state);
+            setWsConnected(state === WebSocketState.CONNECTED);
+        });
+
+        const unsubscribeError = framework.onError((error) => {
+            setWsError(error);
+            console.error('WebSocket错误:', error);
+        });
+
+        const unsubscribeMessage = framework.onMessage((message: WebSocketDownstreamMessage) => {
+            // 处理服务器主动推送的消息
+            if (message.command === 'welcome') {
+                console.log('收到欢迎消息:', message.data);
+            } else if (message.command === 'notification') {
+                console.log('收到通知:', message.data);
+            } else if (message.command === 'config_changed') {
+                // 配置变更，重新获取数据
+                fetchGlobalConfig();
+                fetchProfileList();
+            } else if (message.command === 'calibration_update') {
+                // 校准状态更新
+                fetchCalibrationStatus();
+            }
+        });
+
+        setWsFramework(framework);
+
+        // 清理函数
+        return () => {
+            unsubscribeState();
+            unsubscribeError();
+            unsubscribeMessage();
+            framework.disconnect();
+        };
     }, []);
+
+    // 自动连接WebSocket
+    useEffect(() => {
+        if (wsFramework && wsState === WebSocketState.DISCONNECTED) {
+            wsFramework.connect().catch(console.error);
+        }
+    }, [wsFramework, wsState]);
+
+    // 当WebSocket连接成功后，初始化数据
+    useEffect(() => {
+        if (wsConnected) {
+            fetchGlobalConfig();
+            fetchProfileList();
+            fetchHotkeysConfig();
+        }
+    }, [wsConnected]);
 
     useEffect(() => {
         if (profileList.defaultId !== "") {
@@ -498,18 +580,46 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const setContextJsReady = (ready: boolean) => {
         setJsReady(ready);
-    }
+    };
+
+    // WebSocket连接管理
+    const connectWebSocket = async (): Promise<void> => {
+        if (wsFramework) {
+            return wsFramework.connect();
+        }
+        throw new Error('WebSocket框架未初始化');
+    };
+
+    const disconnectWebSocket = (): void => {
+        if (wsFramework) {
+            wsFramework.disconnect();
+        }
+    };
+
+    // 使用WebSocket发送请求的辅助函数
+    const sendWebSocketRequest = async (command: string, params: any = {}): Promise<any> => {
+        if (!wsFramework || wsState !== WebSocketState.CONNECTED) {
+            throw new Error('WebSocket未连接');
+        }
+        
+        try {
+            const response = await wsFramework.sendMessage(command, params);
+            if (response.errNo !== 0) {
+                throw new Error(response.data?.errorMessage || `命令 ${command} 执行失败`);
+            }
+            return response.data;
+        } catch (error) {
+            if (error instanceof Error) {
+                throw error;
+            }
+            throw new Error(`WebSocket请求失败: ${error}`);
+        }
+    };
 
     const fetchDefaultProfile = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/default-profile', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to fetch default profile"));
-            };
+            const data = await sendWebSocketRequest('get_default_profile');
             setDefaultProfile(converProfileDetails(data.profileDetails) ?? {});
             return Promise.resolve();
         } catch (err) {
@@ -523,13 +633,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const fetchProfileList = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/profile-list', {
-                method: 'GET'
-            }); 
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to fetch profile list"))    ;
-            };
+            const data = await sendWebSocketRequest('get_profile_list');
             setProfileList(data.profileList);
             return Promise.resolve();
         } catch (err) {
@@ -543,13 +647,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const fetchHotkeysConfig = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/hotkeys-config', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to fetch hotkeys config"));
-            };
+            const data = await sendWebSocketRequest('get_hotkeys_config');
             setHotkeysConfig(data.hotkeysConfig);
             return Promise.resolve();
         } catch (err) {
@@ -558,20 +656,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         } finally {
             setIsLoading(false);
         }
-    }
+    };
 
     const updateProfileDetails = async (profileId: string, profileDetails: GameProfile): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/update-profile', {
-                method: 'POST',
-                body: JSON.stringify({ profileId, profileDetails }),
-            });
-
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to update profile details"));
-            };
+            const data = await sendWebSocketRequest('update_profile', { profileId, profileDetails });
 
             // 如果更新的是 profile 的 name，则需要重新获取 profile list
             if(profileDetails.hasOwnProperty("name") || profileDetails.hasOwnProperty("id")) {
@@ -596,15 +686,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const createProfile = async (profileName: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/create-profile', {
-                method: 'POST',
-                body: JSON.stringify({ profileName }),
-            });
-
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to create profile"));
-            };
+            const data = await sendWebSocketRequest('create_profile', { profileName });
             setProfileList(data.profileList);
             setError(null);
             return Promise.resolve();
@@ -619,15 +701,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const deleteProfile = async (profileId: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/delete-profile', {
-                method: 'POST',
-                body: JSON.stringify({ profileId }),
-            });
-
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to delete profile"));
-            };
+            const data = await sendWebSocketRequest('delete_profile', { profileId });
             setProfileList(data.profileList);
             setError(null);
             return Promise.resolve();
@@ -642,14 +716,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const switchProfile = async (profileId: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/switch-default-profile', {
-                method: 'POST',
-                body: JSON.stringify({ profileId }),
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to switch profile"));
-            };
+            const data = await sendWebSocketRequest('switch_default_profile', { profileId });
             setProfileList(data.profileList);
             setError(null);
             return Promise.resolve();
@@ -664,14 +731,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const updateHotkeysConfig = async (hotkeysConfig: Hotkey[]): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/update-hotkeys-config', {
-                method: 'POST',
-                body: JSON.stringify({ hotkeysConfig }),
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to update hotkeys config"));
-            }
+            const data = await sendWebSocketRequest('update_hotkeys_config', { hotkeysConfig });
             setHotkeysConfig(data.hotkeysConfig);
             setError(null);
             return Promise.resolve();
@@ -686,14 +746,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const rebootSystem = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/reboot', {
-                method: 'POST',
-            });
-
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to reboot system"));
-            }
+            await sendWebSocketRequest('reboot');
             setError(null);
             return Promise.resolve();
         } catch (err) {
@@ -707,13 +760,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const fetchMappingList = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/ms-get-list', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to fetch mapping list"));
-            }
+            const data = await sendWebSocketRequest('ms_get_list');
             setMappingList(data.mappingList);
             setDefaultMappingId(data.defaultMappingId);
             setError(null);
@@ -729,13 +776,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const fetchDefaultMapping = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/ms-get-default', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to fetch default mapping"));
-            }
+            const data = await sendWebSocketRequest('ms_get_default');
             setDefaultMappingId(data.id ?? "");
             return Promise.resolve(data.id);
         } catch (err) {
@@ -749,14 +790,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const createMapping = async (name: string, length: number, step: number): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/ms-create-mapping', {
-                method: 'POST',
-                body: JSON.stringify({ name, length, step }),
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to create mapping"));
-            }
+            const data = await sendWebSocketRequest('ms_create_mapping', { name, length, step });
             setMappingList(data.mappingList);
             setDefaultMappingId(data.defaultMappingId);
             setError(null);
@@ -772,14 +806,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const deleteMapping = async (id: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/ms-delete-mapping', {
-                method: 'POST',
-                body: JSON.stringify({ id }),
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to delete mapping"));
-            }
+            const data = await sendWebSocketRequest('ms_delete_mapping', { id });
             setMappingList(data.mappingList);
             setDefaultMappingId(data.defaultMappingId);
             setError(null);
@@ -795,14 +822,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const updateDefaultMapping = async (id: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/ms-set-default', {
-                method: 'POST',
-                body: JSON.stringify({ id }),
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to set default mapping"));
-            }
+            const data = await sendWebSocketRequest('ms_set_default', { id });
             setDefaultMappingId(data.id);
             setError(null);
             return Promise.resolve();
@@ -817,19 +837,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const startMarking = async (id: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/ms-mark-mapping-start', {
-                method: 'POST',
-                body: JSON.stringify({ id }),
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to start marking"));
-            }
-
+            const data = await sendWebSocketRequest('ms_mark_mapping_start', { id });
             if(data.status) {
                 setMarkingStatus(data.status);
             }
-
             setError(null);
             return Promise.resolve();
         } catch (err) {
@@ -843,18 +854,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const stopMarking = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/ms-mark-mapping-stop', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to stop marking"));
-            }
-
+            const data = await sendWebSocketRequest('ms_mark_mapping_stop');
             if(data.status) {
                 setMarkingStatus(data.status);
             }
-
             setError(null);
             return Promise.resolve();
         } catch (err) {
@@ -868,18 +871,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const stepMarking = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/ms-mark-mapping-step', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to step marking"));
-            }
-
+            const data = await sendWebSocketRequest('ms_mark_mapping_step');
             if(data.status) {
                 setMarkingStatus(data.status);
             }
-
             setError(null);
             return Promise.resolve();
         } catch (err) {
@@ -892,18 +887,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const fetchMarkingStatus = async (): Promise<void> => {
         try {
-            const response = await fetchWithKeepAlive('/api/ms-get-mark-status', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to fetch marking status"));
-            }
-
+            const data = await sendWebSocketRequest('ms_get_mark_status');
             if(data.status) {
                 setMarkingStatus(data.status);
             }
-
             setError(null);
             return Promise.resolve();
         } catch (err) {
@@ -915,19 +902,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const fetchActiveMapping = async (id: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/ms-get-mapping', {
-                method: 'POST',
-                body: JSON.stringify({ id }),
-            });
-
-            const data = await processResponse(response, setError);
-
-            if (!data) {
-                return Promise.reject(new Error("Failed to fetch mapping"));
-            }
-
+            const data = await sendWebSocketRequest('ms_get_mapping', { id });
             setActiveMapping(data.mapping);
-
             setError(null);
             return Promise.resolve();
         } catch (err) {
@@ -941,14 +917,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const renameMapping = async (id: string, name: string): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/ms-rename-mapping', {
-                method: 'POST',
-                body: JSON.stringify({ id, name }),
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to rename mapping"));
-            }
+            const data = await sendWebSocketRequest('ms_rename_mapping', { id, name });
             setMappingList(data.mappingList);
             setDefaultMappingId(data.defaultMappingId);
             setError(null);
@@ -964,13 +933,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const fetchGlobalConfig = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/global-config', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to fetch global config"));
-            }
+            const data = await sendWebSocketRequest('get_global_config');
             setGlobalConfig(data.globalConfig);
             return Promise.resolve();
         } catch (err) {
@@ -984,14 +947,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const updateGlobalConfig = async (globalConfig: GlobalConfig): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/update-global-config', {
-                method: 'POST',
-                body: JSON.stringify({ globalConfig }),
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to update global config"));
-            }
+            const data = await sendWebSocketRequest('update_global_config', { globalConfig });
             setGlobalConfig(data.globalConfig);
             return Promise.resolve();
         } catch (err) {
@@ -1005,13 +961,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const startManualCalibration = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/start-manual-calibration', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to start manual calibration"));
-            }
+            const data = await sendWebSocketRequest('start_manual_calibration');
             setCalibrationStatus(data.calibrationStatus);
             setError(null);
             return Promise.resolve();
@@ -1026,13 +976,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const stopManualCalibration = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/stop-manual-calibration', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to stop manual calibration"));
-            }
+            const data = await sendWebSocketRequest('stop_manual_calibration');
             setCalibrationStatus(data.calibrationStatus);
             setError(null);
             return Promise.resolve();
@@ -1046,13 +990,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const fetchCalibrationStatus = async (): Promise<void> => {
         try {
-            const response = await fetchWithKeepAlive('/api/get-calibration-status', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to fetch calibration status"));
-            }
+            const data = await sendWebSocketRequest('get_calibration_status');
             setCalibrationStatus(data.calibrationStatus);
             setError(null);
             return Promise.resolve();
@@ -1065,13 +1003,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const clearManualCalibrationData = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/clear-manual-calibration-data', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to clear manual calibration data"));
-            }
+            const data = await sendWebSocketRequest('clear_manual_calibration_data');
             setCalibrationStatus(data.calibrationStatus);
             setError(null);
             return Promise.resolve();
@@ -1086,13 +1018,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const startButtonMonitoring = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/start-button-monitoring', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to start button monitoring"));
-            }
+            const data = await sendWebSocketRequest('start_button_monitoring');
             setButtonMonitoringActive(data.isActive ?? true);
             setError(null);
             return Promise.resolve();
@@ -1107,13 +1033,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const stopButtonMonitoring = async (): Promise<void> => {
         try {
             setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/stop-button-monitoring', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to stop button monitoring"));
-            }
+            const data = await sendWebSocketRequest('stop_button_monitoring');
             setButtonMonitoringActive(data.isActive ?? false);
             setError(null);
             return Promise.resolve();
@@ -1128,11 +1048,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const getButtonStates = async (): Promise<ButtonStates> => {
         setError(null);
         try {
-            const response = await fetchWithKeepAlive('/api/get-button-states');
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to get button states"));
-            }
+            const data = await sendWebSocketRequest('get_button_states');
             return Promise.resolve(data as ButtonStates);
         } catch (error) {
             console.error('获取按键状态失败:', error);
@@ -1144,38 +1060,19 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     // LED 配置相关
     const pushLedsConfig = async (ledsConfig: LEDsConfig): Promise<void> => {
         setError(null);
-        // setIsLoading(true);
         try {
-            const response = await fetchWithKeepAlive('/api/push-leds-config', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(ledsConfig),
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to push LED configuration"));
-            }
+            await sendWebSocketRequest('push_leds_config', ledsConfig);
             return Promise.resolve();
         } catch (error) {
             setError(error instanceof Error ? error.message : 'An error occurred');
             return Promise.reject(new Error("Failed to push LED configuration"));
-        } finally {
-            // setIsLoading(false);
         }
     };
 
     const clearLedsPreview = async (): Promise<void> => {
         setError(null);
         try {
-            const response = await fetchWithKeepAlive('/api/clear-leds-preview', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to clear LED preview"));
-            }
+            await sendWebSocketRequest('clear_leds_preview');
             return Promise.resolve();
         } catch (error) {
             setError(error instanceof Error ? error.message : 'An error occurred');
@@ -1185,23 +1082,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     
     const fetchFirmwareMetadata = async (): Promise<void> => {
         try {
-            // setIsLoading(true);
-            const response = await fetchWithKeepAlive('/api/firmware-metadata', {
-                method: 'GET'
-            });
-            const data = await processResponse(response, setError);
-            if (!data) {
-                return Promise.reject(new Error("Failed to fetch firmware metadata"));
-            }
+            const data = await sendWebSocketRequest('firmware_metadata');
             setFirmwareInfo({
                 firmware: data
             });
             return Promise.resolve();
         } catch (err) {
-            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to fetch firmware metadata"));
-        } finally {
-            // setIsLoading(false);
         }
     };
 
@@ -1229,8 +1116,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const checkFirmwareUpdate = async (currentVersion: string, customServerHost?: string): Promise<void> => {
         try {
-            // setIsLoading(true);
-            
             // 构建请求数据
             const requestData: FirmwareUpdateCheckRequest = {
                 currentVersion: currentVersion.trim()
@@ -1344,8 +1229,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             console.error('❌ 固件更新检查异常:', err);
             setFirmwareUpdateInfo(makeDefaultFirmwareUpdateInfo());
             return Promise.resolve();
-        } finally {
-            // setIsLoading(false);
         }
     };
 
@@ -1373,7 +1256,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
      */
     const downloadFirmwarePackage = async (downloadUrl: string, onProgress?: (progress: FirmwarePackageDownloadProgress) => void): Promise<FirmwarePackage> => {
         try {
-            // setIsLoading(true);
             setError(null);
 
             // 初始化进度
@@ -1480,8 +1362,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             });
 
             return Promise.reject(new Error(errorMessage));
-        } finally {
-            // setIsLoading(false);
         }
     };
 
@@ -1802,6 +1682,14 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         <GamepadConfigContext.Provider value={{
             contextJsReady,
             setContextJsReady,
+            
+            // WebSocket 状态
+            wsConnected,
+            wsState,
+            wsError,
+            connectWebSocket,
+            disconnectWebSocket,
+            
             globalConfig,
             profileList,
             defaultProfile,

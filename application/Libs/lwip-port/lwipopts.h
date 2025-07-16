@@ -52,7 +52,13 @@
 #define LWIP_IP_ACCEPT_UDP_PORT(p)      ((p) == PP_NTOHS(67))
 
 #define TCP_MSS                         (1500 /*mtu*/ - 20 /*iphdr*/ - 20 /*tcphhr*/)
-#define TCP_SND_BUF                     (2 * TCP_MSS)
+#define TCP_SND_BUF                     (8 * 1024)  // 8KB 发送缓冲区，替代之前的 (2 * TCP_MSS)
+
+// TCP 队列和内存池配置
+#define TCP_SND_QUEUELEN                16          // TCP发送队列长度
+#define MEMP_NUM_TCP_SEG                32          // TCP段内存池大小，必须 >= TCP_SND_QUEUELEN
+#define MEMP_NUM_PBUF                   32          // pbuf内存池大小
+#define PBUF_POOL_SIZE                  24          // pbuf池大小
 
 #define ETHARP_SUPPORT_STATIC_ENTRIES   1
 

@@ -106,6 +106,9 @@ public:
     uint32_t get_connection_time() const { return connection_time; }
     uint32_t get_message_count() const { return message_count; }
     bool is_connected() const { return state == WS_STATE_OPEN; }
+    
+    // 获取TCP PCB（用于缓冲区状态检查）
+    struct tcp_pcb* get_pcb() const { return pcb; }
 };
 
 // WebSocket 服务器类

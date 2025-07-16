@@ -3,6 +3,7 @@
 #include "stm32h7xx_hal.h"
 #include <cstring>
 #include <cstdlib>
+#include "board_cfg.h"
 
 // 最大连接数
 #define MAX_WEBSOCKET_CONNECTIONS 4
@@ -301,19 +302,66 @@ std::string WebSocketConnection::create_frame(uint8_t opcode, const std::string&
 }
 
 void WebSocketConnection::send_raw_data(const char* data, size_t length) {
-    if (!pcb || state == WS_STATE_CLOSED) return;
+    if (!pcb || state == WS_STATE_CLOSED) {
+        APP_ERR("WebSocket: Cannot send data: pcb=%p, state=%d", pcb, state);
+        return;
+    }
+    
+    // 检查TCP发送缓冲区可用空间
+    u16_t available_space = tcp_sndbuf(pcb);
+    u16_t queue_len = tcp_sndqueuelen(pcb);
+    
+    APP_DBG("WebSocket: Send attempt - data_len:%u, sndbuf:%u, queuelen:%u", 
+            (unsigned int)length, available_space, queue_len);
+    
+    // 如果发送缓冲区空间不足，记录警告但仍尝试发送
+    if (length > available_space) {
+        APP_ERR("WebSocket: Data size (%u) > available buffer (%u), may fail", 
+                 (unsigned int)length, available_space);
+    }
+    
+    // 如果队列长度接近上限，也记录警告
+    if (queue_len >= (TCP_SND_QUEUELEN - 2)) {
+        APP_ERR("WebSocket: Send queue nearly full (%u/%u), may cause delays", 
+                 queue_len, (u16_t)TCP_SND_QUEUELEN);
+    }
     
     err_t err = tcp_write(pcb, data, length, TCP_WRITE_FLAG_COPY);
     if (err == ERR_OK) {
-        tcp_output(pcb);
+        err_t output_err = tcp_output(pcb);
+        if (output_err == ERR_OK) {
+            APP_DBG("WebSocket: Successfully sent %u bytes", (unsigned int)length);
+        } else {
+            APP_ERR("WebSocket: tcp_output failed: %d", output_err);
+        }
     } else {
-        LOG_ERROR("WebSocket", "Failed to send data: %d", err);
+        APP_ERR("WebSocket: tcp_write failed: %d (data_len:%u, sndbuf:%u)", 
+                  err, (unsigned int)length, available_space);
+        
+        // 详细的错误分析
+        switch (err) {
+            case ERR_MEM:
+                APP_ERR("WebSocket: Send failed: Out of memory or buffer full");
+                break;
+            case ERR_BUF:
+                APP_ERR("WebSocket: Send failed: Buffer error");
+                break;
+            case ERR_CONN:
+                APP_ERR("WebSocket: Send failed: Connection error");
+                break;
+            case ERR_ARG:
+                APP_ERR("WebSocket: Send failed: Invalid argument");
+                break;
+            default:
+                APP_ERR("WebSocket: Send failed: Unknown error %d", err);
+                break;
+        }
     }
 }
 
 void WebSocketConnection::handle_data(const uint8_t* data, size_t length) {
     if (!ensure_buffer_capacity(buffer_used + length + 1)) {
-        LOG_ERROR("WebSocket", "Buffer allocation failed");
+        APP_ERR("WebSocket: Buffer allocation failed");
         return;
     }
     
@@ -340,7 +388,7 @@ void WebSocketConnection::handle_data(const uint8_t* data, size_t length) {
                     on_connect(this);
                 }
                 
-                LOG_INFO("WebSocket", "WebSocket connection established");
+                APP_DBG("WebSocket: WebSocket connection established");
                 
                 // 移除已处理的数据
                 size_t consumed = header_end + 4 - buffer;
@@ -348,7 +396,7 @@ void WebSocketConnection::handle_data(const uint8_t* data, size_t length) {
                 buffer_used -= consumed;
                 buffer[buffer_used] = '\0';
             } else {
-                LOG_ERROR("WebSocket", "Invalid WebSocket handshake");
+                APP_ERR("WebSocket: Invalid WebSocket handshake");
                 close();
             }
         }
@@ -406,16 +454,16 @@ void WebSocketConnection::handle_data(const uint8_t* data, size_t length) {
                         break;
                         
                     case WS_OP_PONG:
-                        LOG_INFO("WebSocket", "Received pong");
+                        APP_DBG("WebSocket: Received pong");
                         break;
                         
                     case WS_OP_CLOSE:
-                        LOG_INFO("WebSocket", "Received close frame");
+                        APP_DBG("WebSocket: Received close frame");
                         close();
                         break;
                         
                     default:
-                        LOG_WARN("WebSocket", "Unknown opcode: %d", frame.opcode);
+                        APP_ERR("WebSocket: Unknown opcode: %d", frame.opcode);
                         break;
                 }
                 
@@ -454,12 +502,18 @@ void WebSocketConnection::send_ping() {
 
 void WebSocketConnection::close() {
     if (state != WS_STATE_CLOSED) {
-        if (state == WS_STATE_OPEN) {
-            std::string frame = create_frame(WS_OP_CLOSE, "");
-            send_raw_data(frame.c_str(), frame.length());
-        }
-        
+        // 立即设置状态，防止后续发送操作
         state = WS_STATE_CLOSED;
+        
+        // 只有在连接正常开启状态时才发送关闭帧
+        if (pcb) {
+            std::string frame = create_frame(WS_OP_CLOSE, "");
+            // 直接发送，不检查状态，因为我们正在关闭
+            err_t err = tcp_write(pcb, frame.c_str(), frame.length(), TCP_WRITE_FLAG_COPY);
+            if (err == ERR_OK) {
+                tcp_output(pcb);
+            }
+        }
         
         if (on_disconnect) {
             on_disconnect(this);
@@ -470,7 +524,7 @@ void WebSocketConnection::close() {
             pcb = nullptr;
         }
         
-        LOG_INFO("WebSocket", "WebSocket connection closed");
+        APP_DBG("WebSocket: WebSocket connection closed");
     }
 }
 
@@ -500,14 +554,31 @@ err_t WebSocketConnection::tcp_recv_callback(void* arg, struct tcp_pcb* pcb, str
 }
 
 err_t WebSocketConnection::tcp_sent_callback(void* arg, struct tcp_pcb* pcb, u16_t len) {
-    // 数据发送完成回调
+    WebSocketConnection* conn = static_cast<WebSocketConnection*>(arg);
+    if (conn) {
+        // 检查发送完成后的缓冲区状态
+        u16_t available_space = tcp_sndbuf(pcb);
+        u16_t queue_len = tcp_sndqueuelen(pcb);
+        
+        APP_DBG("WebSocket: Data sent callback - sent:%u bytes, sndbuf:%u, queuelen:%u", 
+                len, available_space, queue_len);
+        
+        // 声明外部函数，用于通知消息发送完成
+        extern void on_websocket_message_sent();
+        
+        // 当TCP队列为空时，表示当前消息完全发送完毕，可以处理下一条
+        if (queue_len == 0) {
+            APP_DBG("WebSocket: TCP send queue empty, triggering next message processing");
+            on_websocket_message_sent();
+        }
+    }
     return ERR_OK;
 }
 
 void WebSocketConnection::tcp_err_callback(void* arg, err_t err) {
     WebSocketConnection* conn = static_cast<WebSocketConnection*>(arg);
     if (conn) {
-        LOG_ERROR("WebSocket", "TCP error: %d", err);
+        APP_ERR("WebSocket: TCP error: %d", err);
         conn->state = WS_STATE_CLOSED;
         conn->pcb = nullptr; // PCB已经被lwIP释放
     }
@@ -651,7 +722,6 @@ err_t WebSocketServer::tcp_accept_callback(void* arg, struct tcp_pcb* newpcb, er
         return ERR_VAL;
     }
     
-    LOG_INFO("WebSocket", "New WebSocket connection");
     
     WebSocketConnection* conn = new WebSocketConnection(newpcb);
     if (!conn->initialize()) {
@@ -662,7 +732,7 @@ err_t WebSocketServer::tcp_accept_callback(void* arg, struct tcp_pcb* newpcb, er
     
     // 尝试添加到连接列表
     if (!server->add_connection(conn)) {
-        LOG_WARN("WebSocket", "Connection limit reached, rejecting new connection");
+        APP_ERR("WebSocket: Connection limit reached, rejecting new connection");
         delete conn;
         tcp_close(newpcb);
         return ERR_MEM;

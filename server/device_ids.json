@@ -18,7 +18,17 @@
       "registerTime": "2025-07-15T13:15:40.095Z",
       "lastSeen": "2025-07-15T13:15:40.095Z",
       "status": "active"
+    },
+    {
+      "rawUniqueId": "003D0018-32335108-32323838",
+      "deviceId": "73BC7565EEADE08A",
+      "deviceName": "HBox-73BC7565",
+      "registerIP": "::ffff:127.0.0.1",
+      "registeredBy": "admin",
+      "registerTime": "2025-07-16T07:23:43.067Z",
+      "lastSeen": "2025-07-16T07:23:43.068Z",
+      "status": "active"
     }
   ],
-  "lastUpdate": "2025-07-15T13:15:40.095Z"
+  "lastUpdate": "2025-07-16T07:23:43.068Z"
 }

@@ -66,7 +66,10 @@
         "tusb_option.h": "c",
         "tusb_config.h": "c",
         "cstring": "cpp",
-        "system_logger.h": "c"
+        "system_logger.h": "c",
+        "codecvt": "cpp",
+        "iomanip": "cpp",
+        "sstream": "cpp"
     },
     "cmake.sourceDirectory": "E:/Works/STM32/HBox_Git/application/Libs/mbedtls/programs/test/cmake_subproject"
 }

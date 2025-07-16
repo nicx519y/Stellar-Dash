@@ -1,5 +1,8 @@
 #include "configs/webconfig.hpp"
 #include "configs/websocket_server.hpp"
+#include "configs/websocket_message.hpp"
+#include "configs/websocket_message_queue.hpp"
+#include "configs/websocket_command_handler.hpp"
 #include "qspi-w25q64.h"
 #include "board_cfg.h"
 #include "adc_btns/adc_calibration.hpp"
@@ -10,6 +13,7 @@
 #include <cctype>
 #include <cstring>
 #include <cstdlib>
+#include <queue>
 #include "system_logger.h"
 
 extern "C" struct fsdata_file file__index_html[];
@@ -85,38 +89,210 @@ static char http_post_payload[LWIP_HTTPD_POST_MAX_PAYLOAD_LEN];
 static uint16_t http_post_payload_len = 0;
 // static char http_response[LWIP_HTTPD_RESPONSE_MAX_PAYLOAD_LEN];
 
-static uint32_t rebootTick = 0;  // 用于存储重启时间点
-static bool needReboot = false;  // 是否需要重启的标志
 
 // WebSocket服务器全局实例
 static WebSocketServer* g_websocket_server = nullptr;
 static uint32_t g_websocket_connection_count = 0;
 static uint32_t g_websocket_message_count = 0;
 static uint32_t g_websocket_start_time = 0;
+static bool g_websocket_processing = false;  // 添加处理状态标记
 
-// WebSocket消息处理回调
+// 全局消息队列实例
+static WebSocketMessageQueue g_websocket_message_queue;
+
+// WebSocket 命令处理器 - 示例处理器
+WebSocketDownstreamMessage handle_websocket_ping(const WebSocketUpstreamMessage& request) {
+    LOG_INFO("WebSocket", "Handling ping command, cid: %d", request.getCid());
+    APP_DBG("Handling ping command, cid: %d", request.getCid());
+    cJSON* responseData = cJSON_CreateObject();
+    cJSON_AddStringToObject(responseData, "message", "pong");
+    cJSON_AddNumberToObject(responseData, "timestamp", HAL_GetTick());
+    
+    return create_websocket_response(request.getCid(), request.getCommand(), 0, responseData);
+}
+
+// 处理WebSocket消息队列 - 修改为状态机模式
+void process_websocket_message_queue() {
+    // 如果当前正在处理中，不允许重入
+    if (g_websocket_processing) {
+        return;
+    }
+    
+    WebSocketUpstreamMessage message;
+    
+    // 只有队列不为空且当前不在处理中时才开始处理
+    if (g_websocket_message_queue.dequeue(message)) {
+        g_websocket_processing = true;  // 设置处理中状态
+        
+        // 检查连接的TCP发送缓冲区状态
+        WebSocketConnection* conn = message.getConnection();
+        if (conn && conn->get_pcb()) {
+            u16_t available_space = tcp_sndbuf(conn->get_pcb());
+            u16_t queue_len = tcp_sndqueuelen(conn->get_pcb());
+            
+            // 如果可用缓冲区太小，将消息重新放回队列，等待下次处理
+            const u16_t MIN_BUFFER_REQUIRED = 512; // 最小需要512字节缓冲区
+            if (available_space < MIN_BUFFER_REQUIRED) {
+                APP_DBG("WebSocket: Buffer insufficient (available:%u < required:%u), deferring message", 
+                        available_space, MIN_BUFFER_REQUIRED);
+                
+                // 将消息重新放回队列头部，下次优先处理
+                if (!g_websocket_message_queue.enqueue_front(std::move(message))) {
+                    APP_ERR("WebSocket: Failed to re-enqueue message, dropping");
+                }
+                g_websocket_processing = false;  // 重置处理状态
+                return;
+            }
+            
+            // 如果队列长度接近上限，也延迟处理
+            if (queue_len >= (TCP_SND_QUEUELEN - 3)) {
+                APP_DBG("WebSocket: Send queue nearly full (%u/%u), deferring message", 
+                        queue_len, (u16_t)TCP_SND_QUEUELEN);
+                
+                // 将消息重新放回队列
+                if (!g_websocket_message_queue.enqueue_front(std::move(message))) {
+                    APP_ERR("WebSocket: Failed to re-enqueue message, dropping");
+                }
+                g_websocket_processing = false;  // 重置处理状态
+                return;
+            }
+            
+            APP_DBG("WebSocket: Buffer check passed - available:%u, queue_len:%u", 
+                    available_space, queue_len);
+        }
+        
+        LOG_INFO("WebSocket", "Processing message: cid=%d, command=%s", message.getCid(), message.getCommand().c_str());
+        APP_DBG("Processing message: cid=%d, command=%s", message.getCid(), message.getCommand().c_str());
+
+        // 先处理特殊命令（如ping）
+        if (message.getCommand() == "ping") {
+            WebSocketDownstreamMessage response = handle_websocket_ping(message);
+            send_websocket_response(message.getConnection(), std::move(response));
+        } else {
+            // 使用命令管理器处理其他命令
+            WebSocketCommandManager& commandManager = WebSocketCommandManager::getInstance();
+            WebSocketDownstreamMessage response = commandManager.processCommand(message);
+            
+            LOG_INFO("WebSocket", "create_websocket_response: cid=%d, command=%s, errNo=%d", 
+                     response.getCid(), response.getCommand().c_str(), response.getErrNo());
+            APP_DBG("create_websocket_response: cid=%d, command=%s, errNo=%d", 
+                    response.getCid(), response.getCommand().c_str(), response.getErrNo());
+            
+            send_websocket_response(message.getConnection(), std::move(response));
+        }
+        
+        APP_DBG("WebSocket: Processed 1 message from queue, waiting for send completion");
+        // 注意：g_websocket_processing状态将在TCP发送完成回调中重置
+    }
+}
+
+// 消息发送完成后的回调 - 用于继续处理队列中的下一条消息
+void on_websocket_message_sent() {
+    g_websocket_processing = false;  // 重置处理状态
+    
+    // 如果队列中还有消息，立即处理下一条
+    if (!g_websocket_message_queue.empty()) {
+        APP_DBG("WebSocket: Send completed, processing next message");
+        process_websocket_message_queue();
+    } else {
+        APP_DBG("WebSocket: Send completed, queue is empty");
+    }
+}
+
+// WebSocket消息处理回调 - 作为所有上行请求的入口
 void onWebSocketMessage(WebSocketConnection* conn, const std::string& message) {
     LOG_INFO("WebSocket", "Received message: %s", message.c_str());
+    APP_DBG("Received message: %s", message.c_str());
     g_websocket_message_count++;
     
-    // 简单的echo服务器 - 将收到的消息发送回客户端
-    std::string response = "Echo: " + message;
-    conn->send_text(response);
-    
-    // 广播消息给所有连接的客户端
-    if (g_websocket_server) {
-        std::string broadcast = "Broadcast: " + message;
-        g_websocket_server->broadcast_text(broadcast);
+    // 解析JSON消息
+    cJSON* json = cJSON_Parse(message.c_str());
+    if (!json) {
+        LOG_ERROR("WebSocket", "Failed to parse JSON message");
+        // 发送解析错误响应
+        WebSocketDownstreamMessage error_response = create_websocket_response(
+            0, "", -1, nullptr, "Invalid JSON format"
+        );
+        send_websocket_response(conn, std::move(error_response));
+        return;
     }
+    
+    // 提取必要字段
+    cJSON* cidItem = cJSON_GetObjectItem(json, "cid");
+    cJSON* commandItem = cJSON_GetObjectItem(json, "command");
+    cJSON* paramsItem = cJSON_GetObjectItem(json, "params");
+    
+    if (!cidItem || !cJSON_IsNumber(cidItem) || 
+        !commandItem || !cJSON_IsString(commandItem)) {
+        LOG_ERROR("WebSocket", "Missing required fields: cid or command");
+        // 发送字段错误响应
+        WebSocketDownstreamMessage error_response = create_websocket_response(
+            cidItem ? (uint32_t)cidItem->valuedouble : 0, 
+            commandItem ? commandItem->valuestring : "", 
+            -1, nullptr, "Missing required fields: cid or command"
+        );
+        send_websocket_response(conn, std::move(error_response));
+        cJSON_Delete(json);
+        return;
+    }
+    
+    // 构建上行消息结构
+    WebSocketUpstreamMessage upstream_message;
+    upstream_message.setCid((uint32_t)cidItem->valuedouble);
+    upstream_message.setCommand(commandItem->valuestring);
+    upstream_message.setConnection(conn);
+    
+    // 复制参数（如果存在）
+    if (paramsItem) {
+        upstream_message.setParams(cJSON_Duplicate(paramsItem, 1));
+    } else {
+        upstream_message.setParams(cJSON_CreateObject());
+    }
+    
+    // 将消息加入队列
+    if (!g_websocket_message_queue.enqueue(std::move(upstream_message))) {
+        LOG_ERROR("WebSocket", "Failed to enqueue message, queue is full");
+        // 发送队列满错误响应
+        WebSocketDownstreamMessage error_response = create_websocket_response(
+            (uint32_t)cidItem->valuedouble, 
+            commandItem->valuestring, 
+            -1, nullptr, "Message queue is full, please try again later"
+        );
+        send_websocket_response(conn, std::move(error_response));
+    } else {
+        LOG_INFO("WebSocket", "Message enqueued successfully: cid=%d, command=%s", 
+                 (uint32_t)cidItem->valuedouble, commandItem->valuestring);
+        APP_DBG("Message enqueued successfully: cid=%d, command=%s", 
+                (uint32_t)cidItem->valuedouble, commandItem->valuestring);
+        
+        // 如果当前不在处理中，立即触发处理
+        if (!g_websocket_processing) {
+            APP_DBG("WebSocket: Triggering immediate message processing");
+            process_websocket_message_queue();
+        } else {
+            APP_DBG("WebSocket: Message queued, waiting for current processing to complete");
+        }
+    }
+    
+    cJSON_Delete(json);
 }
 
 // WebSocket连接建立回调
 void onWebSocketConnect(WebSocketConnection* conn) {
     g_websocket_connection_count++;
     LOG_INFO("WebSocket", "WebSocket client connected, total connections: %d", g_websocket_connection_count);
+    APP_DBG("WebSocket client connected, total connections: %d", g_websocket_connection_count);
+
+    // 发送欢迎消息（按照下行协议格式）
+    cJSON* welcomeData = cJSON_CreateObject();
+    cJSON_AddStringToObject(welcomeData, "message", "Welcome to STM32 WebSocket Server!");
+    cJSON_AddNumberToObject(welcomeData, "timestamp", HAL_GetTick());
+    cJSON_AddNumberToObject(welcomeData, "version", 1);
     
-    // 发送欢迎消息
-    conn->send_text("Welcome to STM32 WebSocket Server!");
+    WebSocketDownstreamMessage welcome_response = create_websocket_response(
+        0, "welcome", 0, welcomeData
+    );
+    send_websocket_response(conn, std::move(welcome_response));
 }
 
 // WebSocket连接断开回调
@@ -125,6 +301,7 @@ void onWebSocketDisconnect(WebSocketConnection* conn) {
         g_websocket_connection_count--;
     }
     LOG_INFO("WebSocket", "WebSocket client disconnected, remaining connections: %d", g_websocket_connection_count);
+    APP_DBG("WebSocket client disconnected, remaining connections: %d", g_websocket_connection_count);
 }
 
 void WebConfig::setup() {
@@ -139,6 +316,11 @@ void WebConfig::setup() {
     if (g_websocket_server->start(8081)) {
         g_websocket_start_time = HAL_GetTick();
         LOG_INFO("WebConfig", "WebSocket server started on port 8081");
+        
+        // 初始化WebSocket命令处理器
+        WebSocketCommandManager& commandManager = WebSocketCommandManager::getInstance();
+        commandManager.initializeHandlers();
+        LOG_INFO("WebConfig", "WebSocket command handlers initialized");
     } else {
         LOG_ERROR("WebConfig", "Failed to start WebSocket server");
     }
@@ -148,8 +330,11 @@ void WebConfig::loop() {
     // rndis http server requires inline functions (non-class)
     rndis_task();
 
+    // 处理WebSocket消息队列
+    // process_websocket_message_queue();
+
     // 检查是否需要重启
-    if (needReboot && (HAL_GetTick() >= rebootTick)) {
+    if (WebSocketCommandHandler::needReboot && (HAL_GetTick() >= WebSocketCommandHandler::rebootTick)) {
         NVIC_SystemReset();
     }
 }
@@ -1628,8 +1813,8 @@ std::string apiReboot() {
     STORAGE_MANAGER.saveConfig();
 
     // 设置延迟重启时间
-    rebootTick = HAL_GetTick() + 2000;
-    needReboot = true;
+    WebSocketCommandHandler::rebootTick = HAL_GetTick() + 2000;
+    WebSocketCommandHandler::needReboot = true;
     
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
@@ -3612,8 +3797,8 @@ std::string apiFirmwareUpgradeComplete() {
     LOG_INFO("WEBAPI", "apiFirmwareUpgradeComplete success.");
 
     // 设置需要重启 2秒后重启
-    rebootTick = HAL_GetTick() + 2000;
-    needReboot = true;
+    WebSocketCommandHandler::rebootTick = HAL_GetTick() + 2000;
+    WebSocketCommandHandler::needReboot = true;
 
     return response;
 }
