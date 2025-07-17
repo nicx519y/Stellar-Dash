@@ -112,6 +112,9 @@ private:
     cJSON* buildMappingListJSON();
 };
 
+// 校准和按键监控命令处理器前向声明
+class CalibrationCommandHandler;
+
 // WebSocket命令处理器管理器
 class WebSocketCommandManager {
 public:

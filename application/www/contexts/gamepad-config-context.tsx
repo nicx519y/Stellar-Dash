@@ -352,6 +352,7 @@ interface GamepadConfigContextType {
     stopManualCalibration: () => Promise<void>;
     fetchCalibrationStatus: () => Promise<void>;
     clearManualCalibrationData: () => Promise<void>;
+    updateCalibrationStatus: (status: CalibrationStatus) => void;
     // ADC Mapping 相关
     defaultMappingId: string;
     markingStatus: StepInfo;
@@ -530,9 +531,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 eventBus.emit(EVENTS.CONFIG_CHANGED, data);
                 break;
             case 'calibration_update':
-                // 校准状态更新
-                fetchCalibrationStatus();
-                // 同时发布事件
+                // 校准状态更新 - 只发布事件，让具体组件处理
+                console.log('收到校准状态推送更新:', data);
                 eventBus.emit(EVENTS.CALIBRATION_UPDATE, data);
                 break;
             case 'marking_status_update':
@@ -602,6 +602,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             fetchGlobalConfig();
             fetchProfileList();
             fetchHotkeysConfig();
+            fetchCalibrationStatus(); // 获取初始校准状态
         }
     }, [wsConnected]);
 
@@ -1047,6 +1048,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const updateCalibrationStatus = (status: CalibrationStatus) => {
+        setCalibrationStatus(status);
     };
 
     const startButtonMonitoring = async (): Promise<void> => {
@@ -1753,6 +1758,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             stopManualCalibration,
             fetchCalibrationStatus,
             clearManualCalibrationData,
+            updateCalibrationStatus,
             // ADC Mapping 相关
             defaultMappingId: defaultMappingId,
             markingStatus,

@@ -11,6 +11,7 @@
 // 回调函数类型定义
 using CalibrationCompletedCallback = std::function<void(uint8_t buttonIndex, uint16_t topValue, uint16_t bottomValue)>;
 using AllCalibrationCompletedCallback = std::function<void(uint8_t totalButtons, uint8_t successCount, uint8_t failedCount)>;
+using CalibrationStatusChangedCallback = std::function<void()>;
 
 // LED颜色枚举
 enum class CalibrationLEDColor {
@@ -90,6 +91,7 @@ public:
     // 回调函数设置
     void setCalibrationCompletedCallback(CalibrationCompletedCallback callback);
     void setAllCalibrationCompletedCallback(AllCalibrationCompletedCallback callback);
+    void setCalibrationStatusChangedCallback(CalibrationStatusChangedCallback callback);
     void clearCallbacks();                                 // 清除所有回调函数
     
     // 状态查询
@@ -127,30 +129,32 @@ private:
     // 回调函数
     CalibrationCompletedCallback onCalibrationCompleted = nullptr;
     AllCalibrationCompletedCallback onAllCalibrationCompleted = nullptr;
+    CalibrationStatusChangedCallback onCalibrationStatusChanged = nullptr;
     
     // 校准常量
     static constexpr uint8_t REQUIRED_SAMPLES = ADC_CALIBRATION_MANAGER_REQUIRED_SAMPLES;      // 需要的采样数量
     static constexpr uint32_t SAMPLE_INTERVAL_MS = ADC_CALIBRATION_MANAGER_SAMPLE_INTERVAL_MS;    // 采样间隔（毫秒）
     
-    // 私有方法
-    void initializeButtonStates();                         // 初始化按键状态
-    bool loadExistingCalibration();                        // 加载已有的校准数据
+    // 内部方法
+    void initializeButtonStates();                        // 初始化按键状态
+    bool loadExistingCalibration();                       // 加载已有的校准数据
+    void processButtonCalibration(uint8_t buttonIndex);   // 处理单个按键校准
+    bool shouldSampleButton(uint8_t buttonIndex) const;   // 判断是否应该对按键采样
     ADCBtnsError validateSample(uint8_t buttonIndex, uint16_t adcValue); // 验证采样值
     bool checkSampleStability(uint8_t buttonIndex);       // 检查采样稳定性
     ADCBtnsError finalizeSampling(uint8_t buttonIndex);   // 完成采样
     ADCBtnsError saveCalibrationValues(uint8_t buttonIndex); // 保存校准值
-    void moveToNextPhase(uint8_t buttonIndex);            // 进入下一个阶段
+    void moveToNextPhase(uint8_t buttonIndex);             // 移动到下一个阶段
     void checkCalibrationCompletion();                    // 检查校准是否全部完成
-    void setButtonPhase(uint8_t buttonIndex, CalibrationPhase phase);
-    void setButtonLEDColor(uint8_t buttonIndex, CalibrationLEDColor color);
+    void setButtonPhase(uint8_t buttonIndex, CalibrationPhase phase); // 设置按键阶段
+    void setButtonLEDColor(uint8_t buttonIndex, CalibrationLEDColor color); // 设置按键LED颜色
     void clearSampleBuffer(uint8_t buttonIndex);          // 清空采样缓冲区
-    void processButtonCalibration(uint8_t buttonIndex);   // 处理单个按键校准
-    bool shouldSampleButton(uint8_t buttonIndex) const;   // 判断是否应该对按键采样
     void printButtonCalibrationCompleted(uint8_t buttonIndex); // 打印单个按键校准完成信息
     
     // 回调触发方法
     void triggerCalibrationCompletedCallback(uint8_t buttonIndex);
     void triggerAllCalibrationCompletedCallback();
+    void triggerCalibrationStatusChangedCallback();
     
     // Flash存储优化相关方法
     ADCBtnsError clearAllCalibrationFromFlash();          // 批量清除Flash中的校准数据

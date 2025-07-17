@@ -78,18 +78,13 @@ ADCBtnsError ADCCalibrationManager::startManualCalibration() {
         }
     }
     
-    // if (uncalibratedCount == 0) {
-    //     // 所有按键都已校准
-    //     calibrationActive = false;
-    //     APP_DBG("All buttons are already calibrated");
-    //     updateAllLEDs();
-    //     return ADCBtnsError::SUCCESS;
-    // }
-    
     // 更新所有LED状态
     updateAllLEDs();
     
     APP_DBG("Manual calibration started for %d buttons simultaneously", uncalibratedCount);
+    
+    // 触发状态变更回调
+    triggerCalibrationStatusChangedCallback();
     
     return ADCBtnsError::SUCCESS;
 }
@@ -117,6 +112,9 @@ ADCBtnsError ADCCalibrationManager::stopCalibration() {
     
     APP_DBG("Manual calibration stopped, all LEDs OFF");
     
+    // 触发状态变更回调
+    triggerCalibrationStatusChangedCallback();
+    
     return ADCBtnsError::SUCCESS;
 }
 
@@ -143,8 +141,8 @@ ADCBtnsError ADCCalibrationManager::resetAllCalibration() {
             // 未启用的按键设置为关闭状态
             setButtonLEDColor(i, CalibrationLEDColor::OFF);
         } else {
-            // 启用的按键设置为红色（未校准状态）
-            setButtonLEDColor(i, CalibrationLEDColor::RED);
+            // 启用的按键设置为关闭状态
+            setButtonLEDColor(i, CalibrationLEDColor::OFF);
         }
         
         updateButtonLED(i, state.ledColor);
@@ -160,6 +158,9 @@ ADCBtnsError ADCCalibrationManager::resetAllCalibration() {
     
     APP_DBG("All button calibrations reset (memory and Flash)");
     
+    // 触发状态变更回调
+    triggerCalibrationStatusChangedCallback();
+    
     return flashResult;
 }
 
@@ -170,6 +171,9 @@ void ADCCalibrationManager::processCalibration() {
     if (!calibrationActive) {
         return;
     }
+    
+    // 记录本轮循环是否有状态变更
+    bool hasStatusChange = false;
     
     // 获取所有ADC值
     const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& adcValues = ADC_MANAGER.readADCValues();
@@ -185,6 +189,11 @@ void ADCCalibrationManager::processCalibration() {
             continue; // 跳过已校准的按键
         }
         
+        // 记录处理前的状态
+        CalibrationPhase prevPhase = buttonStates[i].phase;
+        bool prevCalibrated = buttonStates[i].isCalibrated;
+        CalibrationLEDColor prevLEDColor = buttonStates[i].ledColor;
+        
         // 处理单个按键的校准逻辑
         processButtonCalibration(i);
         
@@ -195,10 +204,22 @@ void ADCCalibrationManager::processCalibration() {
                 addSample(i, adcValue);
             }
         }
+        
+        // 检查状态是否发生变化
+        if (buttonStates[i].phase != prevPhase || 
+            buttonStates[i].isCalibrated != prevCalibrated ||
+            buttonStates[i].ledColor != prevLEDColor) {
+            hasStatusChange = true;
+        }
     }
     
     // 检查是否所有按键都已完成校准
     checkCalibrationCompletion();
+    
+    // 如果本轮循环有状态变更，触发回调
+    if (hasStatusChange) {
+        triggerCalibrationStatusChangedCallback();
+    }
 }
 
 /**
@@ -938,14 +959,14 @@ ADCBtnsError ADCCalibrationManager::clearAllCalibrationFromFlash() {
     // 批量清除所有按键的校准数据
     ADCBtnsError finalResult = ADCBtnsError::SUCCESS;
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-        ADCBtnsError result = ADC_MANAGER.setCalibrationValues(mappingId.c_str(), i, false, 0, 0);
+        ADCBtnsError result = ADC_MANAGER.setCalibrationValues(mappingId.c_str(), i, false, 0, 0, false);
         if (result != ADCBtnsError::SUCCESS) {
             APP_ERR("Failed to clear calibration data for button %d, error: %d", i, static_cast<int>(result));
             finalResult = result; // 记录最后一个错误
         }
     }
     
-    if (finalResult == ADCBtnsError::SUCCESS) {
+    if (finalResult == ADCBtnsError::SUCCESS && ADC_MANAGER.saveStore() == QSPI_W25Qxx_OK) {
         APP_DBG("All calibration data cleared from Flash successfully");
     } else {
         APP_ERR("Some calibration data failed to clear from Flash");
@@ -1060,11 +1081,20 @@ void ADCCalibrationManager::setAllCalibrationCompletedCallback(AllCalibrationCom
 }
 
 /**
+ * 设置校准状态变更回调函数
+ */
+void ADCCalibrationManager::setCalibrationStatusChangedCallback(CalibrationStatusChangedCallback callback) {
+    onCalibrationStatusChanged = callback;
+    APP_DBG("Calibration status changed callback set");
+}
+
+/**
  * 清除所有回调函数
  */
 void ADCCalibrationManager::clearCallbacks() {
     onCalibrationCompleted = nullptr;
     onAllCalibrationCompleted = nullptr;
+    onCalibrationStatusChanged = nullptr;
     APP_DBG("All calibration callbacks cleared");
 }
 
@@ -1101,5 +1131,15 @@ void ADCCalibrationManager::triggerAllCalibrationCompletedCallback() {
         onAllCalibrationCompleted(NUM_ADC_BUTTONS, successCount, failedCount);
         APP_DBG("All calibration completed callback triggered: total=%d, success=%d, failed=%d", 
                 NUM_ADC_BUTTONS, successCount, failedCount);
+    }
+}
+
+/**
+ * 触发校准状态变更回调
+ */
+void ADCCalibrationManager::triggerCalibrationStatusChangedCallback() {
+    if (onCalibrationStatusChanged) {
+        onCalibrationStatusChanged();
+        APP_DBG("Calibration status changed callback triggered");
     }
 }

@@ -365,9 +365,10 @@ ADCBtnsError ADCManager::getCalibrationValues(const char* mappingId, uint8_t but
  * @param isAutoCalibration 是否为自动校准
  * @param topValue 顶部值(完全按下)
  * @param bottomValue 底部值(完全释放)
+ * @param withSave 是否保存到存储
  * @return 错误码
  */
-ADCBtnsError ADCManager::setCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCalibration, uint16_t topValue, uint16_t bottomValue) {
+ADCBtnsError ADCManager::setCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCalibration, uint16_t topValue, uint16_t bottomValue, bool withSave) {
     if (!mappingId || buttonIndex >= NUM_ADC_BUTTONS) {
         return ADCBtnsError::INVALID_PARAMS;
     }
@@ -388,7 +389,7 @@ ADCBtnsError ADCManager::setCalibrationValues(const char* mappingId, uint8_t but
     }
     
     // 保存到存储
-    if (saveStore() != QSPI_W25Qxx_OK) {
+    if (withSave != false && saveStore() != QSPI_W25Qxx_OK) {
         return ADCBtnsError::MAPPING_UPDATE_FAILED;
     }
     

@@ -86,6 +86,9 @@ class ADCManager {
             return instance;
         }
 
+        // 保存存储
+        int8_t saveStore();
+
         // 获取映射索引
         int8_t findMappingById(const char* const id) const;
 
@@ -123,7 +126,7 @@ class ADCManager {
         ADCBtnsError getCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCalibration, uint16_t& topValue, uint16_t& bottomValue) const;
         
         // 设置校准值
-        ADCBtnsError setCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCalibration, uint16_t topValue, uint16_t bottomValue);
+        ADCBtnsError setCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCalibration, uint16_t topValue, uint16_t bottomValue, bool withSave = true);
 
         // 开始采样
         ADCBtnsError startADCSamping(bool enableSamplingRate = false, 
@@ -183,7 +186,7 @@ class ADCManager {
         ADCIndexInfo samplingADCInfo;
 
         void handleADCStats(ADC_HandleTypeDef *hadc);
-        int8_t saveStore();
+        
         ADCIndexInfo findADCButtonVirtualPin(uint8_t virtualPin);
 
         // 添加 const 修饰符

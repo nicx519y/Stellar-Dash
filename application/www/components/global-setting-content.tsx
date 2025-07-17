@@ -11,7 +11,7 @@ import {
     Popover,
     Portal,
 } from "@chakra-ui/react";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
     HOTKEYS_SETTINGS_INTERACTIVE_IDS,
     HotkeyAction,
@@ -30,6 +30,8 @@ import { GamePadColor } from "@/types/gamepad-color";
 import { useNavigationBlocker } from '@/hooks/use-navigation-blocker';
 import React from "react";
 import { ContentActionButtons } from "./content-action-buttons";
+import { eventBus, EVENTS } from "@/lib/event-manager";
+import { CalibrationStatus } from "@/types/types";
 
 export function GlobalSettingContent() {
     const { t } = useLanguage();
@@ -39,6 +41,7 @@ export function GlobalSettingContent() {
         startManualCalibration,
         stopManualCalibration,
         fetchCalibrationStatus,
+        updateCalibrationStatus,
         fetchHotkeysConfig,
         updateHotkeysConfig,
         globalConfig,
@@ -98,27 +101,53 @@ export function GlobalSettingContent() {
         return colors;
     }, [calibrationStatus]);
 
-    // 手动校准状态监听和定时器
+    // 手动校准状态监听 - 移除定时器，改为事件监听
     useEffect(() => {
-        let intervalId: NodeJS.Timeout | null = null;
 
-        if (calibrationStatus.isActive) {
-            // 手动校准激活时，每1秒获取一次校准状态
-            intervalId = setInterval(() => {
-                fetchCalibrationStatus();
-            }, 1000);
-        } else {
-            // 校准停止时，重置完成对话框标志
-            setHasShownCompletionDialog(false);
-        }
-
-        // 清理定时器
-        return () => {
-            if (intervalId) {
-                clearInterval(intervalId);
+        // 添加校准状态更新事件监听
+        const handleCalibrationUpdate = (data: unknown) => {
+            if(!calibrationStatus.isActive) return;
+            console.log('Global setting received calibration update:', data);
+            // 处理校准状态更新
+            if (data && typeof data === 'object' && 'calibrationStatus' in data) {
+                const eventData = data as { calibrationStatus?: CalibrationStatus };
+                if (eventData.calibrationStatus) {
+                    console.log('更新校准状态:', eventData.calibrationStatus);
+                    // 确保数据格式正确，添加默认值
+                    const statusData = eventData.calibrationStatus;
+                    const newCalibrationStatus: CalibrationStatus = {
+                        isActive: statusData?.isActive || false,
+                        uncalibratedCount: statusData?.uncalibratedCount || 0,
+                        activeCalibrationCount: statusData?.activeCalibrationCount || 0,
+                        allCalibrated: statusData?.allCalibrated || false,
+                        buttons: statusData?.buttons || []
+                    };
+                    // 直接更新校准状态
+                    updateCalibrationStatus(newCalibrationStatus);
+                }
             }
         };
-    }, [calibrationStatus.isActive, fetchCalibrationStatus]);
+
+        // 订阅校准更新事件
+        const unsubscribe = eventBus.on(EVENTS.CALIBRATION_UPDATE, handleCalibrationUpdate);
+
+        // 清理函数
+        return () => {
+            unsubscribe();
+        };
+    }, []);
+
+    // 弹窗询问用户是否关闭校准模式
+    const showCompletionDialog = useCallback(async () => {
+        const confirmed = await openConfirm({
+            title: t.CALIBRATION_COMPLETION_DIALOG_TITLE,
+            message: t.CALIBRATION_COMPLETION_DIALOG_MESSAGE
+        });
+
+        if (confirmed) {
+            stopManualCalibration();
+        }
+    }, [t.CALIBRATION_COMPLETION_DIALOG_TITLE, t.CALIBRATION_COMPLETION_DIALOG_MESSAGE, stopManualCalibration]);
 
     // 检测校准完成状态，显示确认对话框
     useEffect(() => {
@@ -127,10 +156,16 @@ export function GlobalSettingContent() {
             !hasShownCompletionDialog) {
 
             setHasShownCompletionDialog(true);
-
             showCompletionDialog();
         }
-    }, [calibrationStatus.isActive, calibrationStatus.allCalibrated, hasShownCompletionDialog]);
+    }, [calibrationStatus.isActive, calibrationStatus.allCalibrated, hasShownCompletionDialog, showCompletionDialog]);
+
+    // 当校准停止时，重置完成对话框标志
+    useEffect(() => {
+        if (!calibrationStatus.isActive) {
+            setHasShownCompletionDialog(false);
+        }
+    }, [calibrationStatus.isActive]);
 
     const deleteCalibrationDataClick = async () => {
         const confirmed = await openConfirm({
@@ -158,18 +193,6 @@ export function GlobalSettingContent() {
     // const switchAutoCalibration = () => {
     //     updateGlobalConfig({ autoCalibrationEnabled: !globalConfig.autoCalibrationEnabled });
     // }
-
-    // 弹窗询问用户是否关闭校准模式
-    const showCompletionDialog = async () => {
-        const confirmed = await openConfirm({
-            title: t.CALIBRATION_COMPLETION_DIALOG_TITLE,
-            message: t.CALIBRATION_COMPLETION_DIALOG_MESSAGE
-        });
-
-        if (confirmed) {
-            stopManualCalibration();
-        }
-    };
 
     // 处理外部点击（从Hitbox组件）
     const handleExternalClick = (keyId: number) => {
