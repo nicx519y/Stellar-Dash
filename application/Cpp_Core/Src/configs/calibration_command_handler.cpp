@@ -60,7 +60,7 @@ void CalibrationCommandHandler::sendCalibrationStatusNotification() {
         // 广播给所有连接的客户端
         server.broadcast_text(std::string(notificationString));
         
-        LOG_INFO("WebSocket", "Calibration status notification sent to all clients");
+        // LOG_INFO("WebSocket", "Calibration status notification sent to all clients");
         
         // 释放JSON字符串内存
         free(notificationString);
@@ -104,7 +104,7 @@ void CalibrationCommandHandler::sendCalibrationStatusNotification() {
  * }
  */
 WebSocketDownstreamMessage CalibrationCommandHandler::handleStartManualCalibration(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling start_manual_calibration command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling start_manual_calibration command, cid: %d", request.getCid());
     
     // 开始手动校准
     ADCBtnsError error = ADC_CALIBRATION_MANAGER.startManualCalibration();
@@ -126,7 +126,7 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handleStartManualCalibrati
     
     cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
     
-    LOG_INFO("WebSocket", "start_manual_calibration command completed successfully");
+    // LOG_INFO("WebSocket", "start_manual_calibration command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
@@ -159,7 +159,7 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handleStartManualCalibrati
  * }
  */
 WebSocketDownstreamMessage CalibrationCommandHandler::handleStopManualCalibration(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling stop_manual_calibration command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling stop_manual_calibration command, cid: %d", request.getCid());
     
     // 停止手动校准
     ADCBtnsError error = ADC_CALIBRATION_MANAGER.stopCalibration();
@@ -182,7 +182,7 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handleStopManualCalibratio
     
     cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
     
-    LOG_INFO("WebSocket", "stop_manual_calibration command completed successfully");
+    // LOG_INFO("WebSocket", "stop_manual_calibration command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
@@ -261,7 +261,7 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handleGetCalibrationStatus
  * }
  */
 WebSocketDownstreamMessage CalibrationCommandHandler::handleClearManualCalibrationData(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling clear_manual_calibration_data command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling clear_manual_calibration_data command, cid: %d", request.getCid());
     
     // 清除所有手动校准数据
     ADCBtnsError error = ADC_CALIBRATION_MANAGER.resetAllCalibration();
@@ -283,7 +283,7 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handleClearManualCalibrati
     
     cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
     
-    LOG_INFO("WebSocket", "clear_manual_calibration_data command completed successfully");
+    // LOG_INFO("WebSocket", "clear_manual_calibration_data command completed successfully");
 
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
