@@ -7,6 +7,9 @@
 #include <string>
 #include <map>
 
+// 前向声明
+class FirmwareCommandHandler;
+
 // WebSocket命令处理器基类
 class WebSocketCommandHandler {
 public:

@@ -2,6 +2,7 @@
 #include "storagemanager.hpp"
 #include "system_logger.h"
 #include "configs/calibration_command_handler.hpp"
+#include "configs/firmware_command_handler.hpp"
 #include <map>
 
 // ============================================================================
@@ -57,6 +58,7 @@ void WebSocketCommandManager::initializeHandlers() {
     ProfileCommandHandler& profileHandler = ProfileCommandHandler::getInstance();
     MSMarkCommandHandler& msMarkHandler = MSMarkCommandHandler::getInstance();
     CalibrationCommandHandler& calibrationHandler = CalibrationCommandHandler::getInstance();
+    FirmwareCommandHandler& firmwareHandler = FirmwareCommandHandler::getInstance();
     
     // 注册全局配置相关命令
     registerHandler("get_global_config", &globalHandler);
@@ -100,6 +102,10 @@ void WebSocketCommandManager::initializeHandlers() {
     registerHandler("start_button_monitoring", &calibrationHandler);
     registerHandler("stop_button_monitoring", &calibrationHandler);
     registerHandler("get_button_states", &calibrationHandler);
+    
+    // 注册固件相关命令
+    registerHandler("get_device_auth", &firmwareHandler);
+    registerHandler("get_firmware_metadata", &firmwareHandler);
     
     // LOG_INFO("WebSocket", "WebSocket command handlers initialized successfully");
 } 
