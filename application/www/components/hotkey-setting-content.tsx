@@ -37,6 +37,8 @@ interface HotkeySettingContentProps {
     isButtonMonitoringEnabled?: boolean;
     /** 按键监控开关回调 */
     onButtonMonitoringToggle?: (enabled: boolean) => void;
+    /** 是否启用校准 */
+    calibrationActive?: boolean;
 }
 
 export function HotkeySettingContent({
@@ -47,12 +49,12 @@ export function HotkeySettingContent({
     width = "778px",
     height = "100%",
     isButtonMonitoringEnabled = false,
+    calibrationActive = false,
     // onButtonMonitoringToggle,
 }: HotkeySettingContentProps) {
     const { t } = useLanguage();
     const {
         hotkeysConfig,
-        calibrationStatus,
     } = useGamepadConfig();
 
     const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
@@ -133,8 +135,7 @@ export function HotkeySettingContent({
             // 只处理按键按下事件，并且只在启用监控时
             if (buttonEvent.type === 'button-press' && 
                 isButtonMonitoringEnabled && 
-                !disabled && 
-                !calibrationStatus.isActive) {
+                !disabled) {
                 
                 const currentActiveIndex = activeHotkeyIndexRef.current;
                 const currentHotkeys = hotkeysRef.current;
@@ -160,7 +161,7 @@ export function HotkeySettingContent({
         return () => {
             window.removeEventListener('device-button-event', handleDeviceButtonEvent as EventListener);
         };
-    }, [isButtonMonitoringEnabled, disabled, calibrationStatus.isActive, updateHotkey]);
+    }, [isButtonMonitoringEnabled, disabled, updateHotkey]);
 
     // 自动选择下一个可用的热键索引（如果当前的被锁定）
     useEffect(() => {
@@ -257,7 +258,7 @@ export function HotkeySettingContent({
                                     }}
                                     isActive={i === activeHotkeyIndex}
                                     onFieldClick={handleHotkeyFieldClick}
-                                    disabled={(hotkeys[i]?.isLocked || disabled || calibrationStatus.isActive) ?? false}
+                                    disabled={(hotkeys[i]?.isLocked || disabled || calibrationActive) ?? false}
                                 />
                             ))}
                         </Stack>

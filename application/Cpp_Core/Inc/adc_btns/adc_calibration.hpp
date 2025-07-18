@@ -39,11 +39,17 @@ struct ButtonCalibrationState {
     bool isCalibrated = false;                             // 是否已校准
     bool needSaveToFlash = false;                          // 是否需要保存到Flash
     
-    // 采样数据
-    std::array<uint16_t, 100> sampleBuffer = {0};         // 采样缓冲区
+    // 采样数据 - 修改为基于时间的采样机制
+    std::array<uint16_t, 100> sampleBuffer = {0};         // 采样缓冲区（保存最后100个样本）
     uint8_t sampleCount = 0;                               // 当前采样数量
+    uint8_t bufferIndex = 0;                               // 缓冲区索引（循环使用）
     uint16_t minSample = UINT16_MAX;                       // 最小采样值
     uint16_t maxSample = 0;                                // 最大采样值
+    
+    // 时间管理（每个按键独立管理）
+    uint32_t lastSampleTime = 0;                          // 上次采样时间
+    uint32_t samplingStartTime = 0;                       // 采样开始时间
+    bool samplingStarted = false;                         // 是否已开始采样（第一个有效样本出现时）
     
     // 校准结果
     uint16_t bottomValue = 0;                              // 底部值（按下状态）
@@ -54,9 +60,6 @@ struct ButtonCalibrationState {
     uint16_t expectedTopValue = 0;                         // 期望的顶部值（来自originValues）
     uint16_t toleranceRange = ADC_CALIBRATION_MANAGER_TOLERANCE_RANGE;                          // 容差范围
     uint16_t stabilityThreshold = ADC_CALIBRATION_MANAGER_STABILITY_THRESHOLD;                      // 稳定性阈值
-    
-    // 时间管理（每个按键独立管理）
-    uint32_t lastSampleTime = 0;                          // 上次采样时间
 };
 
 /**
@@ -132,7 +135,8 @@ private:
     CalibrationStatusChangedCallback onCalibrationStatusChanged = nullptr;
     
     // 校准常量
-    static constexpr uint8_t REQUIRED_SAMPLES = ADC_CALIBRATION_MANAGER_REQUIRED_SAMPLES;      // 需要的采样数量
+    static constexpr uint8_t MAX_SAMPLES = 100;            // 最大采样数量（保存最后100个样本）
+    static constexpr uint32_t SAMPLING_DURATION_MS = 700; // 采样持续时间（毫秒）
     static constexpr uint32_t SAMPLE_INTERVAL_MS = ADC_CALIBRATION_MANAGER_SAMPLE_INTERVAL_MS;    // 采样间隔（毫秒）
     
     // 内部方法
@@ -142,6 +146,7 @@ private:
     bool shouldSampleButton(uint8_t buttonIndex) const;   // 判断是否应该对按键采样
     ADCBtnsError validateSample(uint8_t buttonIndex, uint16_t adcValue); // 验证采样值
     bool checkSampleStability(uint8_t buttonIndex);       // 检查采样稳定性
+    bool checkSamplingTimeComplete(uint8_t buttonIndex);  // 检查采样时间是否完成
     ADCBtnsError finalizeSampling(uint8_t buttonIndex);   // 完成采样
     ADCBtnsError saveCalibrationValues(uint8_t buttonIndex); // 保存校准值
     void moveToNextPhase(uint8_t buttonIndex);             // 移动到下一个阶段
@@ -149,6 +154,8 @@ private:
     void setButtonPhase(uint8_t buttonIndex, CalibrationPhase phase); // 设置按键阶段
     void setButtonLEDColor(uint8_t buttonIndex, CalibrationLEDColor color); // 设置按键LED颜色
     void clearSampleBuffer(uint8_t buttonIndex);          // 清空采样缓冲区
+    void startSampling(uint8_t buttonIndex);              // 开始采样（第一个有效样本时调用）
+    void addSampleToBuffer(uint8_t buttonIndex, uint16_t adcValue); // 添加样本到缓冲区
     void printButtonCalibrationCompleted(uint8_t buttonIndex); // 打印单个按键校准完成信息
     
     // 回调触发方法

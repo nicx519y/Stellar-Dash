@@ -3,6 +3,7 @@
 #include "system_logger.h"
 #include "configs/calibration_command_handler.hpp"
 #include "configs/firmware_command_handler.hpp"
+#include "configs/common_command_handler.hpp"
 #include <map>
 
 // ============================================================================
@@ -59,6 +60,7 @@ void WebSocketCommandManager::initializeHandlers() {
     MSMarkCommandHandler& msMarkHandler = MSMarkCommandHandler::getInstance();
     CalibrationCommandHandler& calibrationHandler = CalibrationCommandHandler::getInstance();
     FirmwareCommandHandler& firmwareHandler = FirmwareCommandHandler::getInstance();
+    CommonCommandHandler& commonHandler = CommonCommandHandler::getInstance();
     
     // 注册全局配置相关命令
     registerHandler("get_global_config", &globalHandler);
@@ -99,9 +101,9 @@ void WebSocketCommandManager::initializeHandlers() {
     registerHandler("clear_manual_calibration_data", &calibrationHandler);
     
     // 注册按键监控相关命令
-    registerHandler("start_button_monitoring", &calibrationHandler);
-    registerHandler("stop_button_monitoring", &calibrationHandler);
-    registerHandler("get_button_states", &calibrationHandler);
+    registerHandler("start_button_monitoring", &commonHandler);
+    registerHandler("stop_button_monitoring", &commonHandler);
+    registerHandler("get_button_states", &commonHandler);
     
     // 注册固件相关命令
     registerHandler("get_device_auth", &firmwareHandler);

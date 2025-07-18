@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <functional>
 #include "board_cfg.h"
 #include "config.hpp"
 #include "adc_btns/adc_btns_worker.hpp"  // 包含ExternalADCButtonConfig定义
@@ -19,7 +20,15 @@ class WebConfigBtnsManager {
 public:
     static WebConfigBtnsManager& getInstance();
 
-    void update(); // 刷新按键状态（主循环调用）
+    void update();                                      // 更新按键状态（主循环调用）
+    
+    // 按键状态变化回调类型
+    using ButtonStateChangedCallback = std::function<void()>;
+    
+    // 设置按键状态变化回调
+    void setButtonStateChangedCallback(ButtonStateChangedCallback callback);
+    
+    // 获取触发掩码
     std::vector<bool> getButtonStates() const; // 获取所有按键当前状态
     
     void startButtonWorkers(); // 启动按键工作器
@@ -88,6 +97,9 @@ private:
     
     // ========== WebConfig模式ADC按键配置 ==========
     std::vector<WebConfigADCButtonConfig> adcButtonConfigs; // ADC按键配置数组
+    
+    // ========== 按键状态变化回调 ==========
+    ButtonStateChangedCallback buttonStateChangedCallback; // 按键状态变化回调函数
 }; 
 
 #define WEBCONFIG_BTNS_MANAGER WebConfigBtnsManager::getInstance()

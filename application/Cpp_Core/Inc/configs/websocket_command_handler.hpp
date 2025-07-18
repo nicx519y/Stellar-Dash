@@ -9,6 +9,7 @@
 
 // 前向声明
 class FirmwareCommandHandler;
+class CommonCommandHandler;
 
 // WebSocket命令处理器基类
 class WebSocketCommandHandler {

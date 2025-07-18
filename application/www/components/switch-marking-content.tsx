@@ -259,7 +259,8 @@ export function SwitchMarkingContent() {
             console.log('取消订阅标记状态更新事件');
             unsubscribe();
         };
-    }, [updateMarkingStatus]); // 添加updateMarkingStatus依赖
+    // }, [updateMarkingStatus]); // 添加updateMarkingStatus依赖
+    }, []);
 
     const createMappingClick = async () => {
         const result = await openForm({

@@ -14,22 +14,7 @@ void LEDDataToDMABuffer(const uint16_t start, const uint16_t length);
 ADCCalibrationManager::ADCCalibrationManager() {
     APP_DBG("ADCCalibrationManager constructor - creating global instance");
     
-    // 初始化启用按键掩码
-    enabledKeysMask = 0;
-    GamepadProfile* profile = STORAGE_MANAGER.getGamepadProfile(STORAGE_MANAGER.config.defaultProfileId);
-    if (profile) {
-        const bool* enabledKeys = profile->keysConfig.keysEnableTag;
-        for(uint8_t i = 0; i < 32; i++) {
-            if(i < NUM_ADC_BUTTONS) {
-                enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
-            } else {
-                enabledKeysMask |= (1 << i);
-            }
-        }
-        APP_DBG("ADCCalibrationManager: enabled keys mask = 0x%08X", enabledKeysMask);
-    }
-    
-    initializeButtonStates();
+    // initializeButtonStates();
 }
 
 ADCCalibrationManager::~ADCCalibrationManager() {
@@ -44,6 +29,21 @@ ADCBtnsError ADCCalibrationManager::startManualCalibration() {
         return ADCBtnsError::CALIBRATION_IN_PROGRESS;
     }
     
+    // 初始化启用按键掩码
+    enabledKeysMask = 0;
+    GamepadProfile* profile = STORAGE_MANAGER.getGamepadProfile(STORAGE_MANAGER.config.defaultProfileId);
+    if (profile) {
+        const bool* enabledKeys = profile->keysConfig.keysEnableTag;
+        for(uint8_t i = 0; i < 32; i++) {
+            if(i < NUM_ADC_BUTTONS) {
+                enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
+            } else {
+                enabledKeysMask |= (1 << i);
+            }
+        }
+        APP_DBG("ADCCalibrationManager: enabled keys mask = 0x%08X", enabledKeysMask);
+    }
+
     // 重置所有状态
     initializeButtonStates();
     
@@ -52,6 +52,16 @@ ADCBtnsError ADCCalibrationManager::startManualCalibration() {
     
     calibrationActive = true;
     completionCheckExecuted = false; // 重置完成检查标志
+
+    if(WS2812B_GetState() != WS2812B_RUNNING) {
+        WS2812B_Init();
+        WS2812B_Start();
+    }
+
+    if(WS2812B_GetState() == WS2812B_RUNNING) {
+        WS2812B_SetAllLEDColor(0, 0, 0);
+        WS2812B_SetAllLEDBrightness(0);
+    }
 
     // 启动ADC采样
     ADC_MANAGER.startADCSamping(false);
@@ -67,10 +77,19 @@ ADCBtnsError ADCCalibrationManager::startManualCalibration() {
         }
         
         if (!buttonStates[i].isCalibrated) {
+            // 重置采样相关字段
+            buttonStates[i].sampleCount = 0;
+            buttonStates[i].bufferIndex = 0;
+            buttonStates[i].minSample = UINT16_MAX;
+            buttonStates[i].maxSample = 0;
+            buttonStates[i].lastSampleTime = 0; // 允许立即采样
+            buttonStates[i].samplingStartTime = 0;
+            buttonStates[i].samplingStarted = false;
+            buttonStates[i].sampleBuffer.fill(0);
+            
             // 设置按键为顶部值采样状态（按键释放状态）
             setButtonPhase(i, CalibrationPhase::TOP_SAMPLING);
             setButtonLEDColor(i, CalibrationLEDColor::CYAN);
-            buttonStates[i].lastSampleTime = 0; // 允许立即采样
             uncalibratedCount++;
         } else {
             // 已校准的按键显示绿色
@@ -103,13 +122,18 @@ ADCBtnsError ADCCalibrationManager::stopCalibration() {
     // 停止ADC采样
     // ADC_MANAGER.stopADCSamping();
 
-    // 结束校准时关闭所有LED
-    for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-        setButtonLEDColor(i, CalibrationLEDColor::OFF);
+    // // 结束校准时关闭所有LED
+    // for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+    //     setButtonLEDColor(i, CalibrationLEDColor::OFF);
+    // }
+    
+    // updateAllLEDs();
+    
+    // 关闭LED
+    if(WS2812B_GetState() == WS2812B_RUNNING) {
+        WS2812B_Stop();
     }
-    
-    updateAllLEDs();
-    
+
     APP_DBG("Manual calibration stopped, all LEDs OFF");
     
     // 触发状态变更回调
@@ -128,22 +152,18 @@ ADCBtnsError ADCCalibrationManager::resetAllCalibration() {
         state.phase = CalibrationPhase::IDLE;
         state.isCalibrated = false;
         state.sampleCount = 0;
+        state.bufferIndex = 0; // 重置缓冲区索引
         state.minSample = UINT16_MAX;
         state.maxSample = 0;
         state.bottomValue = 0;
         state.topValue = 0;
         state.lastSampleTime = 0;
+        state.samplingStartTime = 0; // 重置采样开始时间
+        state.samplingStarted = false; // 重置采样开始标志
         
         clearSampleBuffer(i);
         
-        // 检查按键是否启用
-        if (!(enabledKeysMask & (1 << i))) {
-            // 未启用的按键设置为关闭状态
-            setButtonLEDColor(i, CalibrationLEDColor::OFF);
-        } else {
-            // 启用的按键设置为关闭状态
-            setButtonLEDColor(i, CalibrationLEDColor::OFF);
-        }
+        setButtonLEDColor(i, CalibrationLEDColor::OFF);
         
         updateButtonLED(i, state.ledColor);
     }
@@ -194,8 +214,6 @@ void ADCCalibrationManager::processCalibration() {
         bool prevCalibrated = buttonStates[i].isCalibrated;
         CalibrationLEDColor prevLEDColor = buttonStates[i].ledColor;
         
-        // 处理单个按键的校准逻辑
-        processButtonCalibration(i);
         
         // 检查是否应该进行采样
         if (shouldSampleButton(i) && i < adcValues.size()) {
@@ -222,13 +240,6 @@ void ADCCalibrationManager::processCalibration() {
     }
 }
 
-/**
- * 处理单个按键校准
- */
-void ADCCalibrationManager::processButtonCalibration(uint8_t buttonIndex) {
-    // 移除超时检查逻辑，让用户有充足时间操作按键
-    // 原来的超时检查代码已删除
-}
 
 /**
  * 判断是否应该对按键采样
@@ -276,27 +287,26 @@ ADCBtnsError ADCCalibrationManager::addSample(uint8_t buttonIndex, uint16_t adcV
     // 验证采样值
     ADCBtnsError validateResult = validateSample(buttonIndex, adcValue);
     if (validateResult != ADCBtnsError::SUCCESS) {
-        clearSampleBuffer(buttonIndex);
+        // 如果验证失败且还未开始采样，清空缓冲区
+        if (!state.samplingStarted) {
+            clearSampleBuffer(buttonIndex);
+        }
         return validateResult;
     }
     
-    // 添加采样值到缓冲区
-    state.sampleBuffer[state.sampleCount] = adcValue;
-    state.sampleCount++;
+    // 如果是第一个有效样本，开始采样计时
+    if (!state.samplingStarted) {
+        startSampling(buttonIndex);
+    }
     
-    // 更新最小最大值
-    if (adcValue < state.minSample) {
-        state.minSample = adcValue;
-    }
-    if (adcValue > state.maxSample) {
-        state.maxSample = adcValue;
-    }
+    // 添加样本到缓冲区
+    addSampleToBuffer(buttonIndex, adcValue);
     
     // 更新采样时间
     state.lastSampleTime = HAL_GetTick();
     
-    // 检查是否收集完所有采样
-    if (state.sampleCount >= REQUIRED_SAMPLES) {
+    // 检查采样时间是否完成
+    if (checkSamplingTimeComplete(buttonIndex)) {
         // 检查稳定性
         if (checkSampleStability(buttonIndex)) {
             // 完成当前阶段的采样
@@ -329,15 +339,6 @@ ADCBtnsError ADCCalibrationManager::validateSample(uint8_t buttonIndex, uint16_t
         return ADCBtnsError::CALIBRATION_INVALID_DATA;
     }
     
-    // 如果已经有采样值，检查与现有样本的差异
-    if (state.sampleCount > 0) {
-        // 检查与已有样本的差异是否在稳定性阈值内
-        for (uint8_t i = 0; i < state.sampleCount; i++) {
-            if (abs((int32_t)adcValue - (int32_t)state.sampleBuffer[i]) > state.stabilityThreshold) {
-                return ADCBtnsError::CALIBRATION_INVALID_DATA;
-            }
-        }
-    }
     
     return ADCBtnsError::SUCCESS;
 }
@@ -348,16 +349,33 @@ ADCBtnsError ADCCalibrationManager::validateSample(uint8_t buttonIndex, uint16_t
 bool ADCCalibrationManager::checkSampleStability(uint8_t buttonIndex) {
     ButtonCalibrationState& state = buttonStates[buttonIndex];
     
-    if (state.sampleCount < REQUIRED_SAMPLES) {
+    // 确保采样时间已完成且至少有足够的样本
+    if (!state.samplingStarted || state.sampleCount < 10) {
         return false;
     }
     
     // 检查最大值与最小值的差异
     uint16_t range = state.maxSample - state.minSample;
     if (range > state.stabilityThreshold) {
+        APP_DBG("Button %d stability check failed: range %d > threshold %d", 
+                buttonIndex, range, state.stabilityThreshold);
         return false;
     }
     
+    // 检查样本间的差异（使用最后100个样本）
+    uint8_t samplesToCheck = (state.sampleCount < MAX_SAMPLES) ? state.sampleCount : MAX_SAMPLES;
+    uint16_t firstSample = state.sampleBuffer[0];
+    
+    for (uint8_t i = 1; i < samplesToCheck; i++) {
+        if (abs((int32_t)state.sampleBuffer[i] - (int32_t)firstSample) > state.stabilityThreshold) {
+            APP_DBG("Button %d stability check failed: sample %d differs from first by %d", 
+                    buttonIndex, i, abs((int32_t)state.sampleBuffer[i] - (int32_t)firstSample));
+            return false;
+        }
+    }
+    
+    APP_DBG("Button %d stability check passed: range %d, samples %d", 
+            buttonIndex, range, samplesToCheck);
     return true;
 }
 
@@ -367,18 +385,23 @@ bool ADCCalibrationManager::checkSampleStability(uint8_t buttonIndex) {
 ADCBtnsError ADCCalibrationManager::finalizeSampling(uint8_t buttonIndex) {
     ButtonCalibrationState& state = buttonStates[buttonIndex];
     
-    // 计算平均值
+    // 计算平均值（使用最后100个样本）
     uint32_t sum = 0;
-    for (uint8_t i = 0; i < state.sampleCount; i++) {
+    uint8_t samplesToUse = (state.sampleCount < MAX_SAMPLES) ? state.sampleCount : MAX_SAMPLES;
+    
+    for (uint8_t i = 0; i < samplesToUse; i++) {
         sum += state.sampleBuffer[i];
     }
-    uint16_t averageValue = sum / state.sampleCount;
+    uint16_t averageValue = sum / samplesToUse;
+    
+    // 计算采样时间
+    uint32_t samplingDuration = HAL_GetTick() - state.samplingStartTime;
     
     if (state.phase == CalibrationPhase::TOP_SAMPLING) {
         // 完成顶部值采样（按键释放状态）
         state.topValue = averageValue;
-        // APP_DBG("Button %d top value calibrated (RELEASED): %d (samples: %d, range: %d-%d, expected: %d)", 
-        //         buttonIndex, averageValue, state.sampleCount, state.minSample, state.maxSample, state.expectedTopValue);
+        APP_DBG("Button %d top value calibrated (RELEASED): %d (samples: %d, duration: %lums, range: %d-%d, expected: %d)", 
+                buttonIndex, averageValue, samplesToUse, samplingDuration, state.minSample, state.maxSample, state.expectedTopValue);
         
         // 进入底部值采样阶段（按键按下状态）
         setButtonPhase(buttonIndex, CalibrationPhase::BOTTOM_SAMPLING);
@@ -390,8 +413,8 @@ ADCBtnsError ADCCalibrationManager::finalizeSampling(uint8_t buttonIndex) {
     } else if (state.phase == CalibrationPhase::BOTTOM_SAMPLING) {
         // 完成底部值采样（按键按下状态）
         state.bottomValue = averageValue;
-        APP_DBG("Button %d bottom value calibrated (PRESSED): %d (samples: %d, range: %d-%d, expected: %d)", 
-                buttonIndex, averageValue, state.sampleCount, state.minSample, state.maxSample, state.expectedBottomValue);
+        APP_DBG("Button %d bottom value calibrated (PRESSED): %d (samples: %d, duration: %lums, range: %d-%d, expected: %d)", 
+                buttonIndex, averageValue, samplesToUse, samplingDuration, state.minSample, state.maxSample, state.expectedBottomValue);
         
         // 校准完成，立即保存到Flash
         state.isCalibrated = true;
@@ -470,9 +493,11 @@ void ADCCalibrationManager::checkCalibrationCompletion() {
         // printAllCalibrationResults();
         // 更新最终LED状态
         for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-            if (buttonStates[i].isCalibrated) {
+            if (buttonStates[i].isCalibrated) {                         // 校准完成 绿色
                 setButtonLEDColor(i, CalibrationLEDColor::GREEN);
-            } else {
+            } else if (!(enabledKeysMask & (1 << i))) {                 // 未启用 关闭
+                setButtonLEDColor(i, CalibrationLEDColor::OFF);
+            } else {                                                  // 未校准 红色    
                 setButtonLEDColor(i, CalibrationLEDColor::RED);
             }
         }
@@ -510,13 +535,68 @@ void ADCCalibrationManager::setButtonLEDColor(uint8_t buttonIndex, CalibrationLE
  * 清空采样缓冲区
  */
 void ADCCalibrationManager::clearSampleBuffer(uint8_t buttonIndex) {
-    if (buttonIndex < NUM_ADC_BUTTONS) {
-        ButtonCalibrationState& state = buttonStates[buttonIndex];
-        state.sampleCount = 0;
-        state.minSample = UINT16_MAX;
-        state.maxSample = 0;
-        state.sampleBuffer.fill(0);
+    ButtonCalibrationState& state = buttonStates[buttonIndex];
+    state.sampleCount = 0;
+    state.bufferIndex = 0;
+    state.minSample = UINT16_MAX;
+    state.maxSample = 0;
+    state.sampleBuffer.fill(0);
+    state.samplingStarted = false; // 重置采样开始标志
+    state.samplingStartTime = 0;   // 重置采样开始时间
+}
+
+/**
+ * 开始采样（第一个有效样本时调用）
+ */
+void ADCCalibrationManager::startSampling(uint8_t buttonIndex) {
+    ButtonCalibrationState& state = buttonStates[buttonIndex];
+    state.samplingStarted = true;
+    state.samplingStartTime = HAL_GetTick();
+    APP_DBG("Button %d sampling started at time: %lu", buttonIndex, state.samplingStartTime);
+}
+
+/**
+ * 添加样本到缓冲区（循环使用缓冲区，保存最后100个样本）
+ */
+void ADCCalibrationManager::addSampleToBuffer(uint8_t buttonIndex, uint16_t adcValue) {
+    ButtonCalibrationState& state = buttonStates[buttonIndex];
+    
+    // 使用循环缓冲区，保存最后100个样本
+    state.sampleBuffer[state.bufferIndex] = adcValue;
+    state.bufferIndex = (state.bufferIndex + 1) % MAX_SAMPLES;
+    
+    // 更新采样计数（最大不超过100）
+    if (state.sampleCount < MAX_SAMPLES) {
+        state.sampleCount++;
     }
+    
+    // 更新最小最大值
+    if (adcValue < state.minSample) {
+        state.minSample = adcValue;
+    }
+    if (adcValue > state.maxSample) {
+        state.maxSample = adcValue;
+    }
+}
+
+/**
+ * 检查采样时间是否完成（700ms且至少100个样本）
+ */
+bool ADCCalibrationManager::checkSamplingTimeComplete(uint8_t buttonIndex) {
+    ButtonCalibrationState& state = buttonStates[buttonIndex];
+    
+    if (!state.samplingStarted) {
+        return false;
+    }
+    
+    uint32_t currentTime = HAL_GetTick();
+    uint32_t elapsedTime = currentTime - state.samplingStartTime;
+    
+    // 检查是否已经采样了700ms 并且 至少有10个样本
+    bool timeComplete = elapsedTime >= SAMPLING_DURATION_MS;
+    bool sampleCountSufficient = state.sampleCount == MAX_SAMPLES;
+    
+    return timeComplete && sampleCountSufficient;
 }
 
 /**
@@ -528,11 +608,14 @@ void ADCCalibrationManager::initializeButtonStates() {
         state.phase = CalibrationPhase::IDLE;
         state.isCalibrated = false;
         state.sampleCount = 0;
+        state.bufferIndex = 0; // 初始化缓冲区索引
         state.minSample = UINT16_MAX;
         state.maxSample = 0;
         state.bottomValue = 0;
         state.topValue = 0;
         state.lastSampleTime = 0;
+        state.samplingStartTime = 0; // 初始化采样开始时间
+        state.samplingStarted = false; // 初始化采样开始标志
         state.sampleBuffer.fill(0);
         
         // 根据按键启用状态设置LED颜色
@@ -699,21 +782,6 @@ void ADCCalibrationManager::updateButtonLED(uint8_t buttonIndex, CalibrationLEDC
         return;
     }
     
-    // 确保WS2812B已初始化
-    static bool ws2812b_initialized = false;
-    if (!ws2812b_initialized) {
-        WS2812B_Init();
-        ws2812b_initialized = true;
-        
-        // 启动WS2812B
-        if (WS2812B_Start() != WS2812B_RUNNING) {
-            APP_ERR("Failed to start WS2812B");
-            return;
-        }
-        
-        APP_DBG("WS2812B initialized for calibration");
-    }
-    
     uint8_t red = 0, green = 0, blue = 0;
     uint8_t brightness = 80; // 适中的亮度，避免过亮
     
@@ -765,8 +833,6 @@ void ADCCalibrationManager::updateButtonLED(uint8_t buttonIndex, CalibrationLEDC
  * 更新所有LED
  */
 void ADCCalibrationManager::updateAllLEDs() {
-
-    WS2812B_SetAllLEDColor(0, 0, 0);
 
     // 更新每个按键的LED
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {

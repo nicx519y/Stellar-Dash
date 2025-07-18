@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "num": 2,
-  "default_id": "磁王mini-8",
+  "num": 3,
+  "default_id": "磁mini-1147",
   "mappings": [
     {
       "id": " 万磁王-4464",
@@ -380,6 +380,196 @@
         {
           "top_value": 39174,
           "bottom_value": 65522
+        }
+      ]
+    },
+    {
+      "id": "星磁mini-1147",
+      "name": "星磁mini",
+      "length": 29,
+      "step": 0.10000000149011612,
+      "sampling_noise": 15,
+      "sampling_frequency": 2566,
+      "original_values": [
+        50676,
+        49862,
+        48403,
+        47123,
+        45980,
+        44975,
+        44084,
+        43227,
+        42484,
+        41818,
+        41233,
+        40678,
+        40130,
+        39657,
+        39242,
+        38839,
+        38463,
+        38122,
+        37808,
+        37528,
+        37245,
+        36995,
+        36774,
+        36559,
+        36346,
+        36162,
+        35994,
+        35823,
+        35672,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "auto_calibration_values": [
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        }
+      ],
+      "manual_calibration_values": [
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
+        },
+        {
+          "top_value": 0,
+          "bottom_value": 0
         }
       ]
     }

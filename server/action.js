@@ -87,7 +87,7 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
     // ==================== 设备管理接口 ====================
     
     // 设备注册接口
-    app.post('/api/device/register', requireAdminAuth(), (req, res) => {
+    app.post('/api/device/register', requireAdminAuth(), async (req, res) => {
         try {
             const { rawUniqueId, deviceId, deviceName } = req.body;
             
@@ -138,8 +138,8 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
                 registeredBy: req.authenticatedAdmin.username
             };
 
-            // 注册设备
-            const result = storage_manager.addDevice(deviceInfo);
+            // 使用异步方式注册设备
+            const result = await storage_manager.addDeviceAsync(deviceInfo);
             
             if (result.success) {
                 const statusCode = result.existed ? 200 : 201;

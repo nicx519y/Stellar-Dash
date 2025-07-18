@@ -11,7 +11,7 @@ import {
     Popover,
     Portal,
 } from "@chakra-ui/react";
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
     HOTKEYS_SETTINGS_INTERACTIVE_IDS,
     HotkeyAction,
@@ -37,11 +37,8 @@ export function GlobalSettingContent() {
     const { t } = useLanguage();
     const {
         clearManualCalibrationData,
-        calibrationStatus,
         startManualCalibration,
         stopManualCalibration,
-        fetchCalibrationStatus,
-        updateCalibrationStatus,
         fetchHotkeysConfig,
         updateHotkeysConfig,
         globalConfig,
@@ -63,6 +60,19 @@ export function GlobalSettingContent() {
     const [calibrationTipOpen, setCalibrationTipOpen] = useState<boolean>(false);
     const [hasShownCompletionDialog, setHasShownCompletionDialog] = useState<boolean>(false);
 
+    const [calibrationStatus, setCalibrationStatus] = useState<CalibrationStatus>({
+        isActive: false,
+        uncalibratedCount: 0,
+        activeCalibrationCount: 0,
+        allCalibrated: false,
+        buttons: []
+    });
+
+    // 使用 useRef 来保存 calibrationStatus 的最新引用
+    const calibrationStatusRef = useRef(calibrationStatus);
+    // 每次渲染时更新 ref
+    calibrationStatusRef.current = calibrationStatus;
+
     // 添加校准模式检查
     useNavigationBlocker(
         calibrationStatus.isActive,
@@ -73,8 +83,7 @@ export function GlobalSettingContent() {
                 await stopManualCalibration();
                 return true;
             } catch {
-                await fetchCalibrationStatus();
-                return !calibrationStatus.isActive;
+                return true;
             }
         }
     );
@@ -98,21 +107,21 @@ export function GlobalSettingContent() {
             colorMap[button.ledColor] || GamePadColor.fromString('#808080') // 默认灰色
         );
 
+
         return colors;
     }, [calibrationStatus]);
 
-    // 手动校准状态监听 - 移除定时器，改为事件监听
+    // 手动校准状态监听 - 只订阅一次，通过 ref 获取最新状态
     useEffect(() => {
-
         // 添加校准状态更新事件监听
         const handleCalibrationUpdate = (data: unknown) => {
-            if(!calibrationStatus.isActive) return;
-            console.log('Global setting received calibration update:', data);
+            // 通过 ref 获取最新的 calibrationStatus 状态
+            if (!calibrationStatusRef.current.isActive) return;
+            
             // 处理校准状态更新
             if (data && typeof data === 'object' && 'calibrationStatus' in data) {
                 const eventData = data as { calibrationStatus?: CalibrationStatus };
                 if (eventData.calibrationStatus) {
-                    console.log('更新校准状态:', eventData.calibrationStatus);
                     // 确保数据格式正确，添加默认值
                     const statusData = eventData.calibrationStatus;
                     const newCalibrationStatus: CalibrationStatus = {
@@ -123,19 +132,19 @@ export function GlobalSettingContent() {
                         buttons: statusData?.buttons || []
                     };
                     // 直接更新校准状态
-                    updateCalibrationStatus(newCalibrationStatus);
+                    setCalibrationStatus(newCalibrationStatus);
                 }
             }
         };
 
-        // 订阅校准更新事件
+        // 订阅校准更新事件（只订阅一次）
         const unsubscribe = eventBus.on(EVENTS.CALIBRATION_UPDATE, handleCalibrationUpdate);
-
+        
         // 清理函数
         return () => {
             unsubscribe();
         };
-    }, []);
+    }, []); // 依赖数组为空，只执行一次
 
     // 弹窗询问用户是否关闭校准模式
     const showCompletionDialog = useCallback(async () => {
@@ -167,6 +176,7 @@ export function GlobalSettingContent() {
         }
     }, [calibrationStatus.isActive]);
 
+
     const deleteCalibrationDataClick = async () => {
         const confirmed = await openConfirm({
             title: t.CALIBRATION_CLEAR_DATA_DIALOG_TITLE,
@@ -182,12 +192,24 @@ export function GlobalSettingContent() {
         return clearManualCalibrationData();
     }
 
-    const onStartManualCalibration = () => {
-        startManualCalibration();
+    const onStartManualCalibration = async () => {
+        try {
+            const status = await startManualCalibration();
+            console.log("startManualCalibration:", status);
+            setCalibrationStatus(status);
+        } catch {
+            throw new Error("Failed to start manual calibration");
+        }
     }
 
-    const onEndManualCalibration = () => {
-        stopManualCalibration();
+    const onEndManualCalibration = async () => {
+        try {
+            const status = await stopManualCalibration();
+            console.log("stopManualCalibration:", status);
+            setCalibrationStatus(status);
+        } catch {
+            throw new Error("Failed to stop manual calibration");
+        }
     }
 
     // const switchAutoCalibration = () => {

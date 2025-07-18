@@ -79,6 +79,26 @@ export interface CalibrationStatus {
   }>;
 }
 
+// WebSocket响应数据类型
+export interface WebSocketResponseData {
+  globalConfig?: GlobalConfig;
+  profileList?: { 
+    defaultId: string; 
+    maxNumProfiles: number; 
+    items: Array<{ id: string; name: string; enabled: boolean }> 
+  };
+  profileDetails?: ProfileConfig;
+  hotkeysConfig?: Array<{
+    key: number;
+    action: string;
+    isHold: boolean;
+    isLocked: boolean;
+  }>;
+  calibrationStatus?: CalibrationStatus;
+  message?: string;
+  [key: string]: unknown;
+}
+
 // 事件回调函数类型
 export type EventCallback = (...args: unknown[]) => void;
 
@@ -142,20 +162,26 @@ export class WebSocketService {
   // ===== 全局配置相关 =====
   public async getGlobalConfig(): Promise<GlobalConfig> {
     const response = await this.framework.sendMessage('get_global_config', {});
+    if (!response) {
+      throw new Error('获取全局配置失败：无响应');
+    }
     if (response.errNo !== 0) {
       throw new Error('获取全局配置失败');
     }
-    return response.data?.globalConfig as GlobalConfig;
+    return (response.data as WebSocketResponseData)?.globalConfig as GlobalConfig;
   }
 
   public async updateGlobalConfig(config: Partial<GlobalConfig>): Promise<GlobalConfig> {
     const response = await this.framework.sendMessage('update_global_config', {
       globalConfig: config
     });
+    if (!response) {
+      throw new Error('更新全局配置失败：无响应');
+    }
     if (response.errNo !== 0) {
       throw new Error('更新全局配置失败');
     }
-    return response.data?.globalConfig as GlobalConfig;
+    return (response.data as WebSocketResponseData)?.globalConfig as GlobalConfig;
   }
 
   // ===== 配置文件相关 =====
@@ -165,10 +191,13 @@ export class WebSocketService {
     items: Array<{ id: string; name: string; enabled: boolean }> 
   }> {
     const response = await this.framework.sendMessage('get_profile_list', {});
+    if (!response) {
+      throw new Error('获取配置文件列表失败：无响应');
+    }
     if (response.errNo !== 0) {
       throw new Error('获取配置文件列表失败');
     }
-    return response.data?.profileList as { 
+    return (response.data as WebSocketResponseData)?.profileList as { 
       defaultId: string; 
       maxNumProfiles: number; 
       items: Array<{ id: string; name: string; enabled: boolean }> 
@@ -177,20 +206,26 @@ export class WebSocketService {
 
   public async getDefaultProfile(): Promise<ProfileConfig> {
     const response = await this.framework.sendMessage('get_default_profile', {});
+    if (!response) {
+      throw new Error('获取默认配置文件失败：无响应');
+    }
     if (response.errNo !== 0) {
       throw new Error('获取默认配置文件失败');
     }
-    return response.data?.profileDetails as ProfileConfig;
+    return (response.data as WebSocketResponseData)?.profileDetails as ProfileConfig;
   }
 
   public async updateProfile(profileDetails: Partial<ProfileConfig>): Promise<ProfileConfig> {
     const response = await this.framework.sendMessage('update_profile', {
       profileDetails
     });
+    if (!response) {
+      throw new Error('更新配置文件失败：无响应');
+    }
     if (response.errNo !== 0) {
       throw new Error('更新配置文件失败');
     }
-    return response.data?.profileDetails as ProfileConfig;
+    return (response.data as WebSocketResponseData)?.profileDetails as ProfileConfig;
   }
 
   public async createProfile(profileName: string): Promise<{ 
@@ -201,10 +236,13 @@ export class WebSocketService {
     const response = await this.framework.sendMessage('create_profile', {
       profileName
     });
+    if (!response) {
+      throw new Error('创建配置文件失败：无响应');
+    }
     if (response.errNo !== 0) {
       throw new Error('创建配置文件失败');
     }
-    return response.data?.profileList as { 
+    return (response.data as WebSocketResponseData)?.profileList as { 
       defaultId: string; 
       maxNumProfiles: number; 
       items: Array<{ id: string; name: string; enabled: boolean }> 
@@ -219,10 +257,13 @@ export class WebSocketService {
     const response = await this.framework.sendMessage('delete_profile', {
       profileId
     });
+    if (!response) {
+      throw new Error('删除配置文件失败：无响应');
+    }
     if (response.errNo !== 0) {
       throw new Error('删除配置文件失败');
     }
-    return response.data?.profileList as { 
+    return (response.data as WebSocketResponseData)?.profileList as { 
       defaultId: string; 
       maxNumProfiles: number; 
       items: Array<{ id: string; name: string; enabled: boolean }> 
@@ -237,10 +278,13 @@ export class WebSocketService {
     const response = await this.framework.sendMessage('switch_default_profile', {
       profileId
     });
+    if (!response) {
+      throw new Error('切换默认配置文件失败：无响应');
+    }
     if (response.errNo !== 0) {
       throw new Error('切换默认配置文件失败');
     }
-    return response.data?.profileList as { 
+    return (response.data as WebSocketResponseData)?.profileList as { 
       defaultId: string; 
       maxNumProfiles: number; 
       items: Array<{ id: string; name: string; enabled: boolean }> 
@@ -255,10 +299,13 @@ export class WebSocketService {
     isLocked: boolean;
   }>> {
     const response = await this.framework.sendMessage('get_hotkeys_config', {});
+    if (!response) {
+      throw new Error('获取快捷键配置失败：无响应');
+    }
     if (response.errNo !== 0) {
       throw new Error('获取快捷键配置失败');
     }
-    return response.data?.hotkeysConfig as Array<{
+    return (response.data as WebSocketResponseData)?.hotkeysConfig as Array<{
       key: number;
       action: string;
       isHold: boolean;
@@ -280,10 +327,13 @@ export class WebSocketService {
     const response = await this.framework.sendMessage('update_hotkeys_config', {
       hotkeysConfig
     });
+    if (!response) {
+      throw new Error('更新快捷键配置失败：无响应');
+    }
     if (response.errNo !== 0) {
       throw new Error('更新快捷键配置失败');
     }
-    return response.data?.hotkeysConfig as Array<{
+    return (response.data as WebSocketResponseData)?.hotkeysConfig as Array<{
       key: number;
       action: string;
       isHold: boolean;
@@ -294,14 +344,20 @@ export class WebSocketService {
   // ===== 校准相关 =====
   public async getCalibrationStatus(): Promise<CalibrationStatus> {
     const response = await this.framework.sendMessage('get_calibration_status', {});
+    if (!response) {
+      throw new Error('获取校准状态失败：无响应');
+    }
     if (response.errNo !== 0) {
       throw new Error('获取校准状态失败');
     }
-    return response.data?.calibrationStatus as CalibrationStatus;
+    return (response.data as WebSocketResponseData)?.calibrationStatus as CalibrationStatus;
   }
 
   public async startManualCalibration(): Promise<{ message: string; calibrationStatus: CalibrationStatus }> {
     const response = await this.framework.sendMessage('start_manual_calibration', {});
+    if (!response) {
+      throw new Error('开始手动校准失败：无响应');
+    }
     if (response.errNo !== 0) {
       throw new Error('开始手动校准失败');
     }
@@ -310,6 +366,9 @@ export class WebSocketService {
 
   public async stopManualCalibration(): Promise<{ message: string; calibrationStatus: CalibrationStatus }> {
     const response = await this.framework.sendMessage('stop_manual_calibration', {});
+    if (!response) {
+      throw new Error('停止手动校准失败：无响应');
+    }
     if (response.errNo !== 0) {
       throw new Error('停止手动校准失败');
     }
@@ -319,6 +378,9 @@ export class WebSocketService {
   // ===== 系统控制 =====
   public async reboot(): Promise<{ message: string }> {
     const response = await this.framework.sendMessage('reboot', {});
+    if (!response) {
+      throw new Error('系统重启失败：无响应');
+    }
     if (response.errNo !== 0) {
       throw new Error('系统重启失败');
     }
@@ -328,10 +390,13 @@ export class WebSocketService {
   // ===== Ping测试 =====
   public async ping(params: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
     const response = await this.framework.sendMessage('ping', params);
+    if (!response) {
+      throw new Error('Ping失败：无响应');
+    }
     if (response.errNo !== 0) {
       throw new Error('Ping失败');
     }
-    return response.data || {};
+    return (response.data as Record<string, unknown>) || {};
   }
 
   // ===== 内部事件处理 =====

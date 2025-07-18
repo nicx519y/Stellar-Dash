@@ -141,12 +141,70 @@ class FirmwareStorage {
 
     // 查找设备
     findDevice(deviceId) {
-        return this.deviceData.devices.find(d => d.deviceId === deviceId);
+        return this.deviceData.devices.find(d => d.deviceId === deviceId.toUpperCase());
+    }
+    
+    // 异步保存设备数据
+    async saveDeviceDataAsync() {
+        try {
+            const dataString = JSON.stringify(this.deviceData, null, 2);
+            await fs.promises.writeFile(this.deviceDataFile, dataString, 'utf8');
+            return true;
+        } catch (error) {
+            console.error('异步保存设备数据失败:', error.message);
+            return false;
+        }
+    }
+    
+    // 异步添加设备
+    async addDeviceAsync(deviceInfo) {
+        // 查找已存在的设备
+        const existingDevice = this.findDevice(deviceInfo.deviceId);
+        if (existingDevice) {
+            return {
+                success: true,
+                existed: true,
+                message: '设备已存在',
+                device: existingDevice
+            };
+        }
+        
+        // 验证设备ID哈希
+        if (!this.verifyDeviceIdHash(deviceInfo.rawUniqueId, deviceInfo.deviceId)) {
+            return {
+                success: false,
+                message: '设备ID哈希验证失败'
+            };
+        }
+        
+        // 添加新设备
+        const newDevice = {
+            ...deviceInfo,
+            registerTime: new Date().toISOString(),
+            lastSeen: new Date().toISOString(),
+            status: 'active'
+        };
+        
+        this.deviceData.devices.push(newDevice);
+        
+        if (await this.saveDeviceDataAsync()) {
+            return {
+                success: true,
+                existed: false,
+                message: '设备注册成功',
+                device: newDevice
+            };
+        } else {
+            return {
+                success: false,
+                message: '保存设备数据失败'
+            };
+        }
     }
 
     // 添加设备
     addDevice(deviceInfo) {
-        // 检查设备是否已存在
+        // 查找已存在的设备
         const existingDevice = this.findDevice(deviceInfo.deviceId);
         if (existingDevice) {
             return {

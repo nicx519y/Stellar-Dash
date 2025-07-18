@@ -5,6 +5,9 @@
 #include "board_cfg.h"
 #include "storagemanager.hpp"
 
+// 前向声明，避免循环依赖
+class CommonCommandHandler;
+
 WebConfigBtnsManager& WebConfigBtnsManager::getInstance() {
     static WebConfigBtnsManager instance;
     return instance;
@@ -127,12 +130,20 @@ void WebConfigBtnsManager::update() {
 
 void WebConfigBtnsManager::checkButtonTriggers() {
     // 检查所有按键的0->1跳变
+    bool hasNewTriggers = false;
+    
     for (uint8_t i = 0; i < btnStates.size() && i < 32; i++) {
         // 检测从false到true的跳变（按键按下瞬间）
         if (!prevBtnStates[i] && btnStates[i]) {
             // 设置对应位的触发标志
             triggerMask |= (1U << i);
+            hasNewTriggers = true;
         }
+    }
+    
+    // 如果有新的按键触发且设置了回调函数，则触发回调
+    if (hasNewTriggers && buttonStateChangedCallback) {
+        buttonStateChangedCallback();
     }
 }
 
@@ -152,6 +163,11 @@ uint8_t WebConfigBtnsManager::getTotalButtonCount() const {
 
 std::vector<bool> WebConfigBtnsManager::getButtonStates() const {
     return btnStates;
+}
+
+void WebConfigBtnsManager::setButtonStateChangedCallback(ButtonStateChangedCallback callback) {
+    buttonStateChangedCallback = callback;
+    APP_DBG("WebConfigBtnsManager::setButtonStateChangedCallback - Button state changed callback set");
 }
 
 // ========== ADC按键WebConfig模式专用配置接口实现 ==========

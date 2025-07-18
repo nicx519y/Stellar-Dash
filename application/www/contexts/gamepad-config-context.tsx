@@ -347,12 +347,9 @@ interface GamepadConfigContextType {
     setError: (error: string | null) => void;
     rebootSystem: () => Promise<void>;
     // 校准相关
-    calibrationStatus: CalibrationStatus;
-    startManualCalibration: () => Promise<void>;
-    stopManualCalibration: () => Promise<void>;
-    fetchCalibrationStatus: () => Promise<void>;
+    startManualCalibration: () => Promise<CalibrationStatus>;
+    stopManualCalibration: () => Promise<CalibrationStatus>;
     clearManualCalibrationData: () => Promise<void>;
-    updateCalibrationStatus: (status: CalibrationStatus) => void;
     // ADC Mapping 相关
     defaultMappingId: string;
     markingStatus: StepInfo;
@@ -474,13 +471,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [wsError, setWsError] = useState<WebSocketError | null>(null);
     const [wsFramework, setWsFramework] = useState<WebSocketFramework | null>(null);
     
-    const [calibrationStatus, setCalibrationStatus] = useState<CalibrationStatus>({
-        isActive: false,
-        uncalibratedCount: 0,
-        activeCalibrationCount: 0,
-        allCalibrated: false,
-        buttons: []
-    });
     const [defaultMappingId, setDefaultMappingId] = useState<string>("");
     const [mappingList, setMappingList] = useState<{ id: string, name: string }[]>([]);
     const [markingStatus, setMarkingStatus] = useState<StepInfo>({
@@ -540,7 +530,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 eventBus.emit(EVENTS.MARKING_STATUS_UPDATE, data);
                 break;
             case 'button_state_changed':
-                // 发布按键状态变化事件
+                // 按键状态变化推送
+                console.log('收到按键状态变化推送:', data);
                 eventBus.emit(EVENTS.BUTTON_STATE_CHANGED, data);
                 break;
             default:
@@ -602,7 +593,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             fetchGlobalConfig();
             fetchProfileList();
             fetchHotkeysConfig();
-            fetchCalibrationStatus(); // 获取初始校准状态
         }
     }, [wsConnected]);
 
@@ -993,13 +983,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const startManualCalibration = async (): Promise<void> => {
+    const startManualCalibration = async (): Promise<CalibrationStatus> => {
         try {
             setIsLoading(true);
             const data = await sendWebSocketRequest('start_manual_calibration');
-            setCalibrationStatus(data.calibrationStatus);
             setError(null);
-            return Promise.resolve();
+            return Promise.resolve(data.calibrationStatus);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to start manual calibration"));
@@ -1008,13 +997,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const stopManualCalibration = async (): Promise<void> => {
+    const stopManualCalibration = async (): Promise<CalibrationStatus> => {
         try {
             setIsLoading(true);
             const data = await sendWebSocketRequest('stop_manual_calibration');
-            setCalibrationStatus(data.calibrationStatus);
             setError(null);
-            return Promise.resolve();
+            return Promise.resolve(data.calibrationStatus);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to stop manual calibration"));
@@ -1023,23 +1011,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const fetchCalibrationStatus = async (): Promise<void> => {
-        try {
-            const data = await sendWebSocketRequest('get_calibration_status');
-            setCalibrationStatus(data.calibrationStatus);
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to fetch calibration status"));
-        }
-    };
-
     const clearManualCalibrationData = async (): Promise<void> => {
         try {
             setIsLoading(true);
             const data = await sendWebSocketRequest('clear_manual_calibration_data');
-            setCalibrationStatus(data.calibrationStatus);
             setError(null);
             return Promise.resolve();
         } catch (err) {
@@ -1048,10 +1023,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         } finally {
             setIsLoading(false);
         }
-    };
-
-    const updateCalibrationStatus = (status: CalibrationStatus) => {
-        setCalibrationStatus(status);
     };
 
     const startButtonMonitoring = async (): Promise<void> => {
@@ -1084,6 +1055,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
+    /**
+     * @deprecated 已废弃：现在使用服务器推送模式，请监听 EVENTS.BUTTON_STATE_CHANGED 事件
+     * 保留此方法仅用于兼容性，推荐使用推送模式获取按键状态变化
+     */
     const getButtonStates = async (): Promise<ButtonStates> => {
         setError(null);
         try {
@@ -1753,12 +1728,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setError,
             rebootSystem,
             // 校准相关
-            calibrationStatus,
             startManualCalibration,
             stopManualCalibration,
-            fetchCalibrationStatus,
             clearManualCalibrationData,
-            updateCalibrationStatus,
             // ADC Mapping 相关
             defaultMappingId: defaultMappingId,
             markingStatus,
