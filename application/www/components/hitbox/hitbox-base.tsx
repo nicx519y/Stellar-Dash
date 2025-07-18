@@ -78,6 +78,7 @@ export interface HitboxBaseProps {
     onClick?: (id: number) => void;
     hasText?: boolean;
     interactiveIds?: number[];
+    isButtonMonitoringEnabled?: boolean;
     highlightIds?: number[];
     className?: string;
 }

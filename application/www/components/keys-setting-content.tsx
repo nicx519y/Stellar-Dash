@@ -39,8 +39,6 @@ import { useLanguage } from "@/contexts/language-context";
 import { ContentActionButtons } from "@/components/content-action-buttons";
 import { useColorMode } from "./ui/color-mode";
 import { ProfileSelect } from "@/components/profile-select";
-// import { useButtonMonitor } from "@/hooks/use-button-monitor";
-import type { ButtonEvent } from "@/components/button-monitor-manager";
 
 export function KeysSettingContent() {
     const {
@@ -74,14 +72,6 @@ export function KeysSettingContent() {
         return keys;
     }, [keysEnableConfig]);
 
-    // 使用新的按键监控 hook
-    // const buttonMonitor = useButtonMonitor({
-    //     pollingInterval: 500,
-    //     onError: (error) => {
-    //         console.error('按键监控错误:', error);
-    //     },
-    // });
-
     useEffect(() => {
         if (defaultProfile.keysConfig) {
             setSocdMode(defaultProfile.keysConfig?.socdMode ?? GameSocdMode.SOCD_MODE_UP_PRIORITY);
@@ -95,44 +85,6 @@ export function KeysSettingContent() {
             setIsDirty?.(false); // reset the unsaved changes warning 
         }
     }, [defaultProfile, setIsDirty]);
-
-    // 处理监控状态切换
-    // useEffect(() => {
-    //     buttonMonitor.startMonitoring();
-    //     return () => {
-    //         buttonMonitor.stopMonitoring();
-    //     };
-    // }, []);
-
-    // 监听设备按键事件
-    useEffect(() => {
-        const handleDeviceButtonEvent = (event: CustomEvent<ButtonEvent>) => {
-            const buttonEvent = event.detail;
-
-            console.log('Received device button event:', {
-                type: buttonEvent.type,
-                buttonIndex: buttonEvent.buttonIndex,
-                timestamp: Date.now()
-            });
-
-            // 只处理按键按下事件，并且只在启用监控时
-            if (buttonEvent.type === 'button-press') {
-                // 设置输入按键，触发 KeymappingFieldset 的处理
-                setInputKey(buttonEvent.buttonIndex);
-            } else if (buttonEvent.type === 'button-release') {
-                setInputKey(-1);
-            }
-        };
-
-        // 添加事件监听器
-        window.addEventListener('device-button-event', handleDeviceButtonEvent as EventListener);
-
-        // 清理函数
-        return () => {
-            window.removeEventListener('device-button-event', handleDeviceButtonEvent as EventListener);
-        };
-    }, []);
-
 
     /**
      * set key mapping
@@ -158,8 +110,7 @@ export function KeysSettingContent() {
             setIsDirty?.(true);
         }
     }
-
-
+    
     const saveProfileDetailHandler = (): Promise<void> => {
         const newProfile: GameProfile = {
             id: defaultProfile.id,

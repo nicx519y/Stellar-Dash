@@ -17,7 +17,6 @@ import { showToast } from "@/components/ui/toaster";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
-import { ButtonEvent } from "@/components/button-monitor-manager";
 // import { useButtonMonitor } from "@/hooks/use-button-monitor";
 
 interface HotkeySettingContentProps {
@@ -33,10 +32,6 @@ interface HotkeySettingContentProps {
     width?: string;
     /** 自定义高度 */
     height?: string;
-    /** 是否启用设备按键监控 */
-    isButtonMonitoringEnabled?: boolean;
-    /** 按键监控开关回调 */
-    onButtonMonitoringToggle?: (enabled: boolean) => void;
     /** 是否启用校准 */
     calibrationActive?: boolean;
 }
@@ -48,9 +43,7 @@ export function HotkeySettingContent({
     onHotkeyUpdate,
     width = "778px",
     height = "100%",
-    isButtonMonitoringEnabled = false,
     calibrationActive = false,
-    // onButtonMonitoringToggle,
 }: HotkeySettingContentProps) {
     const { t } = useLanguage();
     const {
@@ -121,48 +114,6 @@ export function HotkeySettingContent({
         onHotkeyUpdate?.(index, hotkey);
     }, [t, setIsDirty, onHotkeyUpdate]);
 
-    // 监听设备按键事件 - 移除会频繁变化的依赖项
-    useEffect(() => {
-        const handleDeviceButtonEvent = (event: CustomEvent<ButtonEvent>) => {
-            const buttonEvent = event.detail;
-            
-            console.log('Hotkey handleDeviceButtonEvent called:', {
-                type: buttonEvent.type,
-                buttonIndex: buttonEvent.buttonIndex,
-                timestamp: Date.now()
-            });
-            
-            // 只处理按键按下事件，并且只在启用监控时
-            if (buttonEvent.type === 'button-press' && 
-                isButtonMonitoringEnabled && 
-                !disabled) {
-                
-                const currentActiveIndex = activeHotkeyIndexRef.current;
-                const currentHotkeys = hotkeysRef.current;
-                
-                console.log('Processing button press for hotkey binding:', {
-                    activeIndex: currentActiveIndex,
-                    buttonIndex: buttonEvent.buttonIndex
-                });
-                
-                // 获取当前热键设置并更新
-                const currentHotkey = currentHotkeys[currentActiveIndex] || { key: -1, action: HotkeyAction.None, isHold: false, isLocked: false };
-                updateHotkey(currentActiveIndex, { 
-                    ...currentHotkey,
-                    key: buttonEvent.buttonIndex
-                });
-            }
-        };
-
-        // 添加事件监听器
-        window.addEventListener('device-button-event', handleDeviceButtonEvent as EventListener);
-
-        // 清理函数
-        return () => {
-            window.removeEventListener('device-button-event', handleDeviceButtonEvent as EventListener);
-        };
-    }, [isButtonMonitoringEnabled, disabled, updateHotkey]);
-
     // 自动选择下一个可用的热键索引（如果当前的被锁定）
     useEffect(() => {
         if (activeHotkeyIndex >= 0 && hotkeys[activeHotkeyIndex]?.isLocked === true) {
@@ -172,8 +123,6 @@ export function HotkeySettingContent({
             }
         }
     }, [hotkeys, activeHotkeyIndex, setActiveHotkeyIndex]);
-
-    
 
     // 监听外部点击事件（从Hitbox组件）
     useEffect(() => {

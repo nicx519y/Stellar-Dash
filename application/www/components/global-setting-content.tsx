@@ -331,8 +331,6 @@ export function GlobalSettingContent() {
                     disabled={calibrationStatus.isActive}
                     activeHotkeyIndex={activeHotkeyIndex}
                     onActiveHotkeyIndexChange={setActiveHotkeyIndex}
-                    isButtonMonitoringEnabled={isButtonMonitoringEnabled}
-                    onButtonMonitoringToggle={setIsButtonMonitoringEnabled}
                     onHotkeyUpdate={handleHotkeyUpdate}
                 />
             </Flex>

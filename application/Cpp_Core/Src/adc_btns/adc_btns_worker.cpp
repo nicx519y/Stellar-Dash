@@ -100,13 +100,17 @@ ADCBtnsError ADCBtnsWorker::setup(const ExternalADCButtonConfig* externalConfigs
         return ADCBtnsError::MAPPING_NOT_FOUND;
     }
 
-    // 初始化启用按键掩码
-    const bool* enabledKeys = profile->keysConfig.keysEnableTag;
-    enabledKeysMask = 0;
-    for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-        if(i < NUM_ADC_BUTTONS) {
+    // 如果没有外部配置 则按照配置删除键 用于工作场景，如果有外部配置 是非工作场景，则全部按键生效
+    if(externalConfigs == nullptr) {
+        // 初始化启用按键掩码
+        const bool* enabledKeys = profile->keysConfig.keysEnableTag;
+        enabledKeysMask = 0;
+        for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
             enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
-        } else {
+        }
+    } else {
+        enabledKeysMask = 0;
+        for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
             enabledKeysMask |= (1 << i);
         }
     }
@@ -248,7 +252,7 @@ uint32_t ADCBtnsWorker::read() {
 
             btn->initCompleted = true;
             continue;
-        }
+    }
         
         // 获取按钮事件（新算法直接基于ADC值）
         const ButtonEvent event = getButtonEvent(btn, adcValue, i);
