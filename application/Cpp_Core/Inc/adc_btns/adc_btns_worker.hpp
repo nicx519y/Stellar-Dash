@@ -49,14 +49,13 @@ class ADCBtnsWorker {
             static ADCBtnsWorker instance;
             return instance;
         }
-        ADCBtnsError setup();
         
         /**
-         * @brief 使用外部配置初始化ADC按键工作器（用于WebConfig等模式）
-         * @param externalConfigs 外部配置数组，长度必须为NUM_ADC_BUTTONS
+         * @brief 初始化ADC按键工作器
+         * @param externalConfigs 外部配置数组（可选），如果提供则会覆盖从storage读取的配置，长度必须为NUM_ADC_BUTTONS
          * @return ADCBtnsError 初始化结果
          */
-        ADCBtnsError setup(const ExternalADCButtonConfig* externalConfigs);
+        ADCBtnsError setup(const ExternalADCButtonConfig* externalConfigs = nullptr);
         
         uint32_t read();
 

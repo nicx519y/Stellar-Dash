@@ -3,6 +3,30 @@
 #include "configs/websocket_command_handler.hpp"
 #include "websocket_message.hpp"
 #include "cJSON.h"
+#include <cstdint>
+#include <string>
+
+// ============================================================================
+// 二进制数据结构定义
+// ============================================================================
+
+// 按键状态推送的二进制数据结构
+#pragma pack(push, 1)  // 确保结构体紧密排列，避免字节对齐问题
+struct ButtonStateBinaryData {
+    uint8_t command;        // 命令号：1 表示按键状态变化
+    uint8_t isActive;       // 布尔值：1=活跃，0=非活跃
+    uint32_t triggerMask;   // 32位按键触发掩码
+    uint8_t totalButtons;   // 总按键数量
+    uint8_t reserved[2];    // 保留字节，用于将来扩展，保持8字节对齐
+};
+#pragma pack(pop)
+
+// 命令号定义
+#define BUTTON_STATE_CHANGED_CMD    1
+
+// ============================================================================
+// CommonCommandHandler 类定义
+// ============================================================================
 
 /**
  * @brief 通用命令处理器
@@ -62,4 +86,7 @@ private:
      * @return cJSON* 按键状态JSON对象
      */
     cJSON* buildButtonStatesJSON();
+
+    // 构建按键状态的二进制数据
+    ButtonStateBinaryData buildButtonStateBinaryData();
 }; 

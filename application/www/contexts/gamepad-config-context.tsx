@@ -1,12 +1,12 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import JSZip from 'jszip';
 import { GameProfile, 
         LedsEffectStyle, 
         AroundLedsEffectStyle,
         Platform, GameSocdMode, 
-        GameControllerButton, Hotkey, RapidTriggerConfig, GameProfileList, GlobalConfig } from '@/types/gamepad-config';
+        GameControllerButton, Hotkey, GameProfileList, GlobalConfig } from '@/types/gamepad-config';
 import { StepInfo, ADCValuesMapping } from '@/types/adc';
 import { 
     ButtonStates, 
@@ -42,6 +42,7 @@ import {
 
 // 导入事件总线
 import { eventBus, EVENTS } from '@/lib/event-manager';
+import { parseButtonStateBinaryData, BUTTON_STATE_CHANGED_CMD, type ButtonStateBinaryData } from '@/lib/button-binary-parser';
 
 // 固件服务器配置
 const FIRMWARE_SERVER_CONFIG = {
@@ -529,13 +530,41 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 // 发布标记状态更新事件，让具体组件订阅处理
                 eventBus.emit(EVENTS.MARKING_STATUS_UPDATE, data);
                 break;
-            case 'button_state_changed':
-                // 按键状态变化推送
-                console.log('收到按键状态变化推送:', data);
-                eventBus.emit(EVENTS.BUTTON_STATE_CHANGED, data);
-                break;
+            // 注意：button_state_changed 现在使用二进制格式推送，不再使用JSON
             default:
                 console.log('收到未知通知消息:', message);
+        }
+    };
+
+    // 处理二进制消息
+    const handleBinaryMessage = (data: ArrayBuffer): void => {
+        try {
+            // 先检查数据长度
+            if (data.byteLength < 1) {
+                console.warn('二进制消息长度不足，至少需要1字节包含CMD字段');
+                return;
+            }
+
+            // 读取第一个字节作为CMD字段
+            const dataView = new DataView(data);
+            const cmd = dataView.getUint8(0);
+
+            // 根据CMD字段分发处理
+            switch (cmd) {
+                case BUTTON_STATE_CHANGED_CMD: {
+                    // 按键状态变化消息
+                    const buttonStateData = parseButtonStateBinaryData(new Uint8Array(data));
+                    if (buttonStateData) {
+                        eventBus.emit(EVENTS.BUTTON_STATE_CHANGED, buttonStateData);
+                    }
+                    break;
+                }
+                default:
+                    console.warn(`收到未知的二进制消息命令: ${cmd}`);
+                    break;
+            }
+        } catch (e) {
+            console.error('Failed to parse binary message:', e);
         }
     };
 
@@ -561,12 +590,22 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             console.error('WebSocket错误:', error);
         });
 
+        /**
+         * 处理通知消息 JSON数据推送
+         */
         const unsubscribeMessage = framework.onMessage((message: WebSocketDownstreamMessage) => {
             // 只处理通知消息（没有CID的消息）
             if (message.cid === undefined) {
                 handleNotificationMessage(message);
             }
             // 响应消息由WebSocketFramework内部处理
+        });
+
+        /**
+         * 处理二进制消息推送
+         */
+        const unsubscribeBinary = framework.onBinaryMessage((data: ArrayBuffer) => {
+            handleBinaryMessage(data);
         });
 
         setWsFramework(framework);
@@ -576,6 +615,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             unsubscribeState();
             unsubscribeError();
             unsubscribeMessage();
+            unsubscribeBinary();
             framework.disconnect();
         };
     }, []);
@@ -1027,7 +1067,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const startButtonMonitoring = async (): Promise<void> => {
         try {
-            setIsLoading(true);
+            // setIsLoading(true);
             const data = await sendWebSocketRequest('start_button_monitoring');
             setButtonMonitoringActive(data.isActive ?? true);
             setError(null);
@@ -1036,13 +1076,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to start button monitoring"));
         } finally {
-            setIsLoading(false);
+            // setIsLoading(false);
         }
     };
 
     const stopButtonMonitoring = async (): Promise<void> => {
         try {
-            setIsLoading(true);
+            // setIsLoading(true);
             const data = await sendWebSocketRequest('stop_button_monitoring');
             setButtonMonitoringActive(data.isActive ?? false);
             setError(null);
@@ -1051,7 +1091,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to stop button monitoring"));
         } finally {
-            setIsLoading(false);
+            // setIsLoading(false);
         }
     };
 

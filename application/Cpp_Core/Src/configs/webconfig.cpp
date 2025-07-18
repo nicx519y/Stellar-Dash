@@ -2809,62 +2809,6 @@ std::string apiStopButtonMonitoring() {
 }
 
 /**
- * @brief 轮询获取按键状态
- * @return std::string 
- * {
- *      "errNo": 0,
- *      "data": {
- *          "triggerMask": 5,  // 二进制码：按键0和按键2在本周期内有触发
- *          "triggerBinary": "00000101",  // 二进制字符串表示
- *          "totalButtons": 8,
- *          "timestamp": 1234567890
- *      }
- * }
- */
-std::string apiGetButtonStates() {
-    // 获取按键管理器实例
-    WebConfigBtnsManager& btnsManager = WebConfigBtnsManager::getInstance();
-    
-    // 检查按键工作器是否活跃
-    if (!btnsManager.isActive()) {
-        return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Button monitoring is not active");
-    }
-    
-    // 获取并清空触发掩码
-    uint32_t triggerMask = btnsManager.getAndClearTriggerMask();
-    uint8_t totalButtons = btnsManager.getTotalButtonCount();
-    
-    // 创建响应数据
-    cJSON* dataJSON = cJSON_CreateObject();
-    if (!dataJSON) {
-        return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Failed to create JSON object");
-    }
-    
-    // 添加触发掩码（十进制）
-    cJSON_AddNumberToObject(dataJSON, "triggerMask", triggerMask);
-    
-    // 创建二进制字符串表示
-    std::string binaryStr = "";
-    for (int i = totalButtons - 1; i >= 0; i--) {
-        binaryStr += (triggerMask & (1U << i)) ? "1" : "0";
-    }
-    cJSON_AddStringToObject(dataJSON, "triggerBinary", binaryStr.c_str());
-    
-    // 添加按键总数
-    cJSON_AddNumberToObject(dataJSON, "totalButtons", totalButtons);
-    
-    // 添加时间戳
-    cJSON_AddNumberToObject(dataJSON, "timestamp", HAL_GetTick());
-    
-    // 获取标准格式的响应
-    std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
-    return response;
-}
-
-
-
-
-/**
  * @brief 推送前端 LED 配置到后端硬件
  * POST 请求体格式：
  * {
@@ -4132,7 +4076,6 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/clear-manual-calibration-data", apiClearManualCalibrationData },    // 已经移植（未测试） 清除手动校准数据
     { "/api/start-button-monitoring", apiStartButtonMonitoring },               // 已经移植（未测试） 开启按键功能
     { "/api/stop-button-monitoring", apiStopButtonMonitoring },                 // 已经移植（未测试） 关闭按键功能
-    { "/api/get-button-states", apiGetButtonStates },                           // 已经移植（未测试） 轮询获取按键状态
     
     { "/api/device-auth", apiGetDeviceAuth },                                   // 已经移植 获取设备认证信息
     { "/api/firmware-metadata", apiFirmwareMetadata },                          // 已经移植 获取固件元数据信息

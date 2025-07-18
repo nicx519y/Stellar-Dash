@@ -2,15 +2,16 @@
 
 import { create } from 'zustand';
 import { useEffect } from 'react';
-import { GlobalSettingContent } from "@/components/global-setting-content";
-import { KeysSettingContent } from "@/components/keys-setting-content";
-import { LEDsSettingContent } from "@/components/leds-setting-content";
-import { ButtonsPerformanceContent } from "@/components/buttons-performance-content";
+import { GlobalSettingContent } from '@/components/global-setting-content';
+import { KeysSettingContent } from '@/components/keys-setting-content';
+import { LEDsSettingContent } from '@/components/leds-setting-content';
+import { ButtonsPerformanceContent } from '@/components/buttons-performance-content';
 import { FirmwareContent } from '@/components/firmware-content';
 import { SwitchMarkingContent } from '@/components/switch-marking-content';
 import WebSocketTest from '@/components/websocket-test';
+import { ButtonMonitorTest } from '@/components/button-monitor-test';
 
-export type Route = '' | 'global' | 'keys' | 'lighting' | 'buttons-performance' | 'switch-marking' | 'firmware' | 'websocket';
+export type Route = '' | 'global' | 'keys' | 'lighting' | 'buttons-performance' | 'switch-marking' | 'firmware' | 'websocket' | 'button-monitor';
 
 interface RouterState {
     currentRoute: Route;
@@ -21,7 +22,10 @@ export const useRouterStore = create<RouterState>((set) => ({
     currentRoute: '',
     setRoute: (route) => {
         set({ currentRoute: route });
-        window.history.pushState(null, '', `/${route}`);
+        // 只在客户端环境中使用 window 对象
+        if (typeof window !== 'undefined') {
+            window.history.pushState(null, '', `/${route}`);
+        }
     },
 }));
 
@@ -29,6 +33,7 @@ export function Router() {
     const { currentRoute, setRoute } = useRouterStore();
 
     useEffect(() => {
+        // useEffect 只在客户端运行，所以这里可以安全使用 window
         const handlePopState = () => {
             const path = window.location.pathname.slice(1) || '';
             setRoute(path as Route);
@@ -57,6 +62,8 @@ export function Router() {
             return <SwitchMarkingContent />;
         case 'websocket':
             return <WebSocketTest />;
+        case 'button-monitor':
+            return <ButtonMonitorTest />;
         default:
             return <></>;
     }

@@ -31,42 +31,47 @@ CommonCommandHandler& CommonCommandHandler::getInstance() {
 // ============================================================================
 
 /**
- * @brief 推送按键状态变化通知
+ * @brief 推送按键状态变化通知（二进制格式）
  */
 void CommonCommandHandler::sendButtonStateNotification() {
     // 获取WebSocket服务器实例
     WebSocketServer& server = WebSocketServer::getInstance();
     
-    // 构建按键状态数据
-    cJSON* notificationData = cJSON_CreateObject();
-    cJSON* buttonStatesJSON = buildButtonStatesJSON();
+    // 构建二进制按键状态数据
+    ButtonStateBinaryData binaryData = buildButtonStateBinaryData();
     
-    cJSON_AddItemToObject(notificationData, "buttonStates", buttonStatesJSON);
-    cJSON_AddStringToObject(notificationData, "type", "button_state_update");
-    cJSON_AddNumberToObject(notificationData, "timestamp", HAL_GetTick());
+    // 发送二进制数据到所有连接的客户端
+    server.broadcast_binary(reinterpret_cast<const uint8_t*>(&binaryData), sizeof(ButtonStateBinaryData));
     
-    // 创建通知消息（无CID的消息表示这是服务器主动推送）
-    cJSON* notification = cJSON_CreateObject();
-    cJSON_AddStringToObject(notification, "command", "button_state_changed");
-    cJSON_AddNumberToObject(notification, "errNo", 0);
-    cJSON_AddItemToObject(notification, "data", notificationData);
+    APP_DBG("Button state binary notification sent to all clients (cmd=%d, active=%d, mask=0x%08X, total=%d)", 
+            binaryData.command, binaryData.isActive, binaryData.triggerMask, binaryData.totalButtons);
+}
+
+/**
+ * @brief 构建按键状态的二进制数据
+ * @return 按键状态二进制数据结构
+ */
+ButtonStateBinaryData CommonCommandHandler::buildButtonStateBinaryData() {
+    ButtonStateBinaryData data = {};
     
-    // 转换为JSON字符串
-    char* notificationString = cJSON_PrintUnformatted(notification);
-    if (notificationString) {
-        // 广播给所有连接的客户端
-        server.broadcast_text(std::string(notificationString));
-        
-        // APP_DBG("Button state notification sent to all clients");
-        
-        // 释放JSON字符串内存
-        free(notificationString);
-    } else {
-        LOG_ERROR("WebSocket", "Failed to serialize button state notification");
-    }
+    // 设置命令号
+    data.command = BUTTON_STATE_CHANGED_CMD;
     
-    // 清理JSON对象
-    cJSON_Delete(notification);
+    // 获取按键管理器的状态
+    bool isManagerActive = WEBCONFIG_BTNS_MANAGER.isActive();
+    data.isActive = isManagerActive ? 1 : 0;
+    
+    // 获取当前按键触发掩码
+    data.triggerMask = WEBCONFIG_BTNS_MANAGER.getCurrentMask(); // 这里直接调用update获取最新状态
+    
+    // 获取总按键数量
+    data.totalButtons = WEBCONFIG_BTNS_MANAGER.getTotalButtonCount();
+    
+    // 保留字节清零
+    data.reserved[0] = 0;
+    data.reserved[1] = 0;
+    
+    return data;
 }
 
 // ============================================================================
@@ -169,68 +174,6 @@ WebSocketDownstreamMessage CommonCommandHandler::handleStopButtonMonitoring(cons
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-/**
- * @brief 获取按键状态（保留用于兼容，推荐使用推送模式）
- * 对应HTTP接口: GET /api/get-button-states
- * 
- * WebSocket命令格式:
- * {
- *   "cid": 7,
- *   "command": "get_button_states",
- *   "params": {}
- * }
- * 
- * 响应格式:
- * {
- *   "cid": 7,
- *   "command": "get_button_states",
- *   "errNo": 0,
- *   "data": {
- *     "triggerMask": 5,
- *     "triggerBinary": "00000101",
- *     "totalButtons": 8,
- *     "timestamp": 1234567890
- *   }
- * }
- */
-WebSocketDownstreamMessage CommonCommandHandler::handleGetButtonStates(const WebSocketUpstreamMessage& request) {
-    // 获取按键管理器实例
-    WebConfigBtnsManager& btnsManager = WEBCONFIG_BTNS_MANAGER;
-    
-    // 检查按键工作器是否活跃
-    if (!btnsManager.isActive()) {
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Button monitoring is not active");
-    }
-    
-    // 获取并清空触发掩码
-    uint32_t triggerMask = btnsManager.getAndClearTriggerMask();
-    uint8_t totalButtons = btnsManager.getTotalButtonCount();
-    
-    // 创建响应数据
-    cJSON* dataJSON = cJSON_CreateObject();
-    if (!dataJSON) {
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to create JSON object");
-    }
-    
-    // 添加触发掩码（十进制）
-    cJSON_AddNumberToObject(dataJSON, "triggerMask", triggerMask);
-    
-    // 创建二进制字符串表示
-    std::string binaryStr = "";
-    for (int i = totalButtons - 1; i >= 0; i--) {
-        binaryStr += (triggerMask & (1U << i)) ? "1" : "0";
-    }
-    cJSON_AddStringToObject(dataJSON, "triggerBinary", binaryStr.c_str());
-    
-    // 添加按键总数
-    cJSON_AddNumberToObject(dataJSON, "totalButtons", totalButtons);
-    
-    // 添加时间戳
-    cJSON_AddNumberToObject(dataJSON, "timestamp", HAL_GetTick());
-    
-    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
-}
-
 // ============================================================================
 // 命令路由处理
 // ============================================================================
@@ -243,67 +186,7 @@ WebSocketDownstreamMessage CommonCommandHandler::handle(const WebSocketUpstreamM
         return handleStartButtonMonitoring(request);
     } else if (command == "stop_button_monitoring") {
         return handleStopButtonMonitoring(request);
-    } else if (command == "get_button_states") {
-        return handleGetButtonStates(request);
     }
     
     return create_error_response(request.getCid(), command, -1, "Unknown common command");
 }
-
-// ============================================================================
-// 辅助函数实现
-// ============================================================================
-
-/**
- * @brief 构建按键状态的JSON对象
- * @return cJSON* 按键状态JSON对象
- */
-cJSON* CommonCommandHandler::buildButtonStatesJSON() {
-    // 获取按键管理器实例
-    WebConfigBtnsManager& btnsManager = WEBCONFIG_BTNS_MANAGER;
-    
-    // 检查按键工作器是否活跃
-    if (!btnsManager.isActive()) {
-        // 返回空状态
-        cJSON* dataJSON = cJSON_CreateObject();
-        if (dataJSON) {
-            cJSON_AddNumberToObject(dataJSON, "triggerMask", 0);
-            cJSON_AddStringToObject(dataJSON, "triggerBinary", "00000000");
-            cJSON_AddNumberToObject(dataJSON, "totalButtons", btnsManager.getTotalButtonCount());
-            cJSON_AddNumberToObject(dataJSON, "timestamp", HAL_GetTick());
-            cJSON_AddBoolToObject(dataJSON, "isActive", false);
-        }
-        return dataJSON;
-    }
-    
-    // 获取并清空触发掩码
-    uint32_t triggerMask = btnsManager.getAndClearTriggerMask();
-    uint8_t totalButtons = btnsManager.getTotalButtonCount();
-    
-    // 创建按键状态数据
-    cJSON* dataJSON = cJSON_CreateObject();
-    if (!dataJSON) {
-        return nullptr;
-    }
-    
-    // 添加触发掩码（十进制）
-    cJSON_AddNumberToObject(dataJSON, "triggerMask", triggerMask);
-    
-    // 创建二进制字符串表示
-    std::string binaryStr = "";
-    for (int i = totalButtons - 1; i >= 0; i--) {
-        binaryStr += (triggerMask & (1U << i)) ? "1" : "0";
-    }
-    cJSON_AddStringToObject(dataJSON, "triggerBinary", binaryStr.c_str());
-    
-    // 添加按键总数
-    cJSON_AddNumberToObject(dataJSON, "totalButtons", totalButtons);
-    
-    // 添加时间戳
-    cJSON_AddNumberToObject(dataJSON, "timestamp", HAL_GetTick());
-    
-    // 添加活跃状态
-    cJSON_AddBoolToObject(dataJSON, "isActive", true);
-    
-    return dataJSON;
-} 

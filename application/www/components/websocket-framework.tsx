@@ -48,6 +48,7 @@ export interface UseWebSocketOptions extends WebSocketConfig {
 
 // 回调函数类型
 export type MessageHandler = (message: WebSocketDownstreamMessage) => void;
+export type BinaryMessageHandler = (data: ArrayBuffer) => void;
 export type StateChangeHandler = (state: WebSocketState) => void;
 export type ErrorHandler = (error: WebSocketError) => void;
 
@@ -72,6 +73,7 @@ export class WebSocketFramework {
 
   // 事件监听器
   private messageHandlers = new Set<MessageHandler>();
+  private binaryMessageHandlers = new Set<BinaryMessageHandler>();
   private stateChangeHandlers = new Set<StateChangeHandler>();
   private errorHandlers = new Set<ErrorHandler>();
 
@@ -119,7 +121,21 @@ export class WebSocketFramework {
         };
 
         this.ws.onmessage = (event) => {
-          this.handleMessage(event.data);
+          // 检查消息类型：二进制或文本
+          if (event.data instanceof ArrayBuffer) {
+            // 二进制消息
+            this.handleBinaryMessage(event.data);
+          } else if (typeof event.data === 'string') {
+            // 文本消息（JSON）
+            this.handleMessage(event.data);
+          } else if (event.data instanceof Blob) {
+            // Blob消息，转换为ArrayBuffer
+            event.data.arrayBuffer().then((buffer) => {
+              this.handleBinaryMessage(buffer);
+            }).catch((error) => {
+              console.error('Failed to convert Blob to ArrayBuffer:', error);
+            });
+          }
         };
 
         this.ws.onclose = () => {
@@ -229,6 +245,11 @@ export class WebSocketFramework {
     return () => this.messageHandlers.delete(handler);
   }
 
+  public onBinaryMessage(handler: BinaryMessageHandler): () => void {
+    this.binaryMessageHandlers.add(handler);
+    return () => this.binaryMessageHandlers.delete(handler);
+  }
+
   public onStateChange(handler: StateChangeHandler): () => void {
     this.stateChangeHandlers.add(handler);
     return () => this.stateChangeHandlers.delete(handler);
@@ -279,6 +300,11 @@ export class WebSocketFramework {
         timestamp: new Date()
       });
     }
+  }
+
+  private handleBinaryMessage(data: ArrayBuffer): void {
+    console.log('收到二进制WebSocket消息');
+    this.binaryMessageHandlers.forEach(handler => handler(data));
   }
 
   private handleError(error: WebSocketError): void {

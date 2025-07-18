@@ -1,15 +1,9 @@
 import { useEffect, useRef } from 'react';
+import { eventBus, EVENTS } from '@/lib/event-manager';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
-import { 
-    ButtonMonitorManager, 
-    ButtonMonitorConfig,
-    createGlobalButtonMonitorManager,
-    getGlobalButtonMonitorManager,
-    destroyGlobalButtonMonitorManager
-} from '@/components/button-monitor-manager';
 
-export interface UseButtonMonitorOptions extends Omit<ButtonMonitorConfig, 'onError' | 'onMonitoringStateChange' | 'onButtonStatesChange'> {
-    /** 是否自动初始化全局管理器 */
+export interface UseButtonMonitorOptions {
+    /** 是否自动初始化监控 */
     autoInitialize?: boolean;
     /** 错误回调 */
     onError?: (error: Error) => void;
@@ -17,156 +11,133 @@ export interface UseButtonMonitorOptions extends Omit<ButtonMonitorConfig, 'onEr
     onMonitoringStateChange?: (isActive: boolean) => void;
     /** 按键状态变化回调 */
     onButtonStatesChange?: (states: any) => void;
+    /** 使用 eventBus 而不是直接监听（推荐） */
+    useEventBus?: boolean;
 }
 
 export function useButtonMonitor(options: UseButtonMonitorOptions = {}) {
     const {
         autoInitialize = true,
-        pollingInterval = 500,
         onError,
         onMonitoringStateChange,
         onButtonStatesChange,
+        useEventBus: useEventBusOption = true, // 默认使用 eventBus
     } = options;
 
-    const { 
-        startButtonMonitoring, 
-        stopButtonMonitoring, 
-        getButtonStates 
-    } = useGamepadConfig();
+    // 使用 gamepad-config-context 中的方法
+    const { startButtonMonitoring, stopButtonMonitoring } = useGamepadConfig();
 
-    const managerRef = useRef<ButtonMonitorManager | null>(null);
+    const isActiveRef = useRef<boolean>(false);
+    const unsubscribeRef = useRef<(() => void) | null>(null);
 
-    // 初始化全局管理器
-    useEffect(() => {
-        if (!autoInitialize) return;
-
-        // 检查是否已有全局实例
-        let manager = getGlobalButtonMonitorManager();
-        
-        if (!manager) {
-            // 创建新的全局实例
-            manager = createGlobalButtonMonitorManager(
-                {
-                    pollingInterval,
-                    onError,
-                    onMonitoringStateChange,
-                    onButtonStatesChange,
-                },
-                {
-                    startButtonMonitoring,
-                    stopButtonMonitoring,
-                    getButtonStates,
-                }
-            );
-        }
-
-        managerRef.current = manager;
-
-        // 组件卸载时不销毁全局实例，让其他组件继续使用
-        return () => {
-            managerRef.current = null;
-        };
-    }, [
-        autoInitialize,
-        pollingInterval,
-        onError,
-        onMonitoringStateChange,
-        onButtonStatesChange,
-        startButtonMonitoring,
-        stopButtonMonitoring,
-        getButtonStates,
-    ]);
-
-    // 获取管理器实例
-    const getManager = (): ButtonMonitorManager | null => {
-        return managerRef.current || getGlobalButtonMonitorManager();
-    };
-
-    // 开始监控
+    // 启动按键监控
     const startMonitoring = async (): Promise<void> => {
-        const manager = getManager();
-        if (manager) {
-            await manager.startMonitoring();
+        try {
+            // 使用 gamepad-config-context 中的方法
+            await startButtonMonitoring();
+            
+            isActiveRef.current = true;
+            
+            // 开始监听WebSocket推送消息
+            if (!unsubscribeRef.current) {
+                if (useEventBusOption) {
+                    // 使用 eventBus 监听（推荐方式）
+                    unsubscribeRef.current = eventBus.on(EVENTS.BUTTON_STATE_CHANGED, handleButtonStateUpdate);
+                } else {
+                    // 注意：由于 webSocketService 已简化，这里只支持 eventBus 方式
+                    unsubscribeRef.current = eventBus.on(EVENTS.BUTTON_STATE_CHANGED, handleButtonStateUpdate);
+                }
+            }
+            
+            onMonitoringStateChange?.(true);
+            console.log('Button monitoring started successfully');
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error : new Error('Unknown error');
+            onError?.(errorMsg);
+            console.error('Failed to start button monitoring:', errorMsg);
         }
     };
 
-    // 停止监控
+    // 停止按键监控
     const stopMonitoring = async (): Promise<void> => {
-        const manager = getManager();
-        if (manager) {
-            await manager.stopMonitoring();
+        try {
+            // 使用 gamepad-config-context 中的方法
+            await stopButtonMonitoring();
+            
+            isActiveRef.current = false;
+            
+            // 停止监听WebSocket推送消息
+            if (unsubscribeRef.current) {
+                unsubscribeRef.current();
+                unsubscribeRef.current = null;
+            }
+            
+            onMonitoringStateChange?.(false);
+            console.log('Button monitoring stopped successfully');
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error : new Error('Unknown error');
+            onError?.(errorMsg);
+            console.error('Failed to stop button monitoring:', errorMsg);
         }
     };
 
-    // 获取状态
+    // 处理WebSocket推送的按键状态更新
+    const handleButtonStateUpdate = (data: any) => {
+        try {
+            console.log('Received button state update:', data);
+            
+            // 解析推送数据
+            if (data && data.buttonStates) {
+                onButtonStatesChange?.(data.buttonStates);
+            } else if (data) {
+                // 如果直接收到按键状态数据
+                onButtonStatesChange?.(data);
+            }
+        } catch (error) {
+            console.error('Failed to handle button state update:', error);
+            onError?.(error instanceof Error ? error : new Error('Failed to handle button state update'));
+        }
+    };
+
+    // 获取当前状态
     const getState = () => {
-        const manager = getManager();
-        return manager ? manager.getState() : {
-            isMonitoring: false,
-            isPolling: false,
+        return {
+            isMonitoring: isActiveRef.current,
+            isPolling: false, // WebSocket推送模式下不需要轮询
             lastButtonStates: undefined,
         };
     };
 
-    // 添加事件监听器
-    const addEventListener = (listener: any): void => {
-        const manager = getManager();
-        if (manager) {
-            manager.addEventListener(listener);
+    // 自动初始化
+    useEffect(() => {
+        if (autoInitialize) {
+            // 组件挂载时不自动启动，由用户手动启动
         }
-    };
 
-    // 移除事件监听器
-    const removeEventListener = (listener: any): void => {
-        const manager = getManager();
-        if (manager) {
-            manager.removeEventListener(listener);
-        }
-    };
+        // 组件卸载时清理
+        return () => {
+            if (unsubscribeRef.current) {
+                unsubscribeRef.current();
+                unsubscribeRef.current = null;
+            }
+        };
+    }, [autoInitialize]);
 
     return {
         startMonitoring,
         stopMonitoring,
         getState,
-        addEventListener,
-        removeEventListener,
-        manager: getManager(),
+        isActive: isActiveRef.current,
     };
 }
 
-// 用于应用级别的管理器初始化和清理
+// 保留旧的接口以兼容现有代码
 export function useGlobalButtonMonitorManager() {
-    const { 
-        startButtonMonitoring, 
-        stopButtonMonitoring, 
-        getButtonStates 
-    } = useGamepadConfig();
-
-    // 初始化全局管理器
-    const initializeManager = (config: ButtonMonitorConfig = {}) => {
-        return createGlobalButtonMonitorManager(
-            config,
-            {
-                startButtonMonitoring,
-                stopButtonMonitoring,
-                getButtonStates,
-            }
-        );
-    };
-
-    // 销毁全局管理器
-    const destroyManager = () => {
-        destroyGlobalButtonMonitorManager();
-    };
-
-    // 获取全局管理器
-    const getManager = () => {
-        return getGlobalButtonMonitorManager();
-    };
-
+    const monitor = useButtonMonitor();
+    
     return {
-        initializeManager,
-        destroyManager,
-        getManager,
+        initializeManager: () => monitor,
+        destroyManager: () => monitor.stopMonitoring(),
+        getManager: () => monitor,
     };
 } 
