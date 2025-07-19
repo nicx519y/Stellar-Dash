@@ -629,12 +629,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     // 当WebSocket连接成功后，初始化数据
     useEffect(() => {
-        if (wsConnected) {
+        if (wsConnected && wsState === WebSocketState.CONNECTED) {
             fetchGlobalConfig();
             fetchProfileList();
             fetchHotkeysConfig();
         }
-    }, [wsConnected]);
+    }, [wsConnected, wsState]);
 
     useEffect(() => {
         if (profileList.defaultId !== "") {

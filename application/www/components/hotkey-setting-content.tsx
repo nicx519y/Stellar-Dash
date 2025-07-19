@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useEffect, useCallback, useState } from "react";
 import {
     Stack,
     Fieldset,
@@ -13,22 +13,17 @@ import {
     Hotkey,
 } from "@/types/gamepad-config";
 import HotkeysField from "./hotkeys-field";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
-import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
 import { btnPosList } from "@/components/hitbox/hitbox-base";
 import { showToast } from "./ui/toaster";
-// import { useButtonMonitor } from "@/hooks/use-button-monitor";
 
 interface HotkeySettingContentProps {
+    /** 热键配置数组 */
+    hotkeys: Hotkey[];
+    /** 热键批量更新回调 */
+    onHotkeysUpdate: (hotkeys: Hotkey[]) => void;
     /** 是否禁用组件（例如在校准模式下） */
     disabled?: boolean;
-    /** 活跃的热键索引 */
-    activeHotkeyIndex?: number;
-    /** 活跃热键索引变化回调 */
-    onActiveHotkeyIndexChange?: (index: number) => void;
-    /** 热键更新回调 */
-    onHotkeyUpdate?: (index: number, hotkey: Hotkey) => void;
     /** 自定义宽度 */
     width?: string;
     /** 自定义高度 */
@@ -38,77 +33,60 @@ interface HotkeySettingContentProps {
 }
 
 export function HotkeySettingContent({
+    hotkeys,
+    onHotkeysUpdate,  // 改为批量更新
     disabled = false,
-    onHotkeyUpdate,
     width = "778px",
     height = "100%",
     calibrationActive = false,
 }: HotkeySettingContentProps) {
     const { t } = useLanguage();
-    const {
-        hotkeysConfig,
-    } = useGamepadConfig();
-
-    const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
-    const [hotkeys, setHotkeys] = useState<Hotkey[]>([]);
-
-    // 使用 ref 存储最新的状态，避免事件监听器重复创建
-    const hotkeysRef = useRef<Hotkey[]>([]);
 
     const [activeHotkeyIndex, setActiveHotkeyIndex] = useState<number>(0);
-
-    hotkeysRef.current = useMemo(() => {
-        return hotkeys;
-    }, [hotkeys]);
-
-    // 从 gamepadConfig 加载 hotkeys 配置
-    useEffect(() => {
-        setHotkeys(Array.from({ length: DEFAULT_NUM_HOTKEYS_MAX }, (_, i) => {
-            return hotkeysConfig?.[i] ?? { key: -1, action: HotkeyAction.None, isLocked: false, isHold: false };
-        }));
-        setIsDirty?.(false);
-    }, [hotkeysConfig, setIsDirty]);
-
 
     // 更新单个热键
     const updateHotkey = useCallback((index: number, hotkey: Hotkey) => {
         if (index < 0 || index >= DEFAULT_NUM_HOTKEYS_MAX) return;
 
-        // 如果热键已经被锁定，则不能更改
-        if(hotkeysRef.current[index].isLocked && hotkey.key == hotkeysRef.current[index].key) {
-            showToast({
-                title: t.ERROR_KEY_ALREADY_BINDED_TITLE,
-                description: t.ERROR_KEY_ALREADY_BINDED_DESC,
-                type: "error",
-            });
-            return;
-        }
-
-        const keys = hotkeysRef.current.map(h => h.key);
-        let isChange = false;
-        
-        for(let i = 0; i < keys.length; i++) {
-
-            // 如果热键已经被绑定到其他位置，则释放位置
-            if(keys[i] === hotkey.key && i !== index) {
-                hotkeysRef.current[i].key = -1;
-                isChange = true;
-            }
-            // 如果热键未绑定到预计位置，则绑定
-            if(keys[i] !== hotkey.key && i == index) {
-                hotkeysRef.current[i].key = hotkey.key;
-                isChange = true;
+        for (let i = 0; i < hotkeys.length; i++) {
+            console.log("hotkeys[i]: ", hotkeys[i], " key: ", hotkey.key);
+            if (hotkeys[i].isLocked && hotkey.key == hotkeys[i].key) {
+                showToast({
+                    title: t.ERROR_KEY_ALREADY_BINDED_TITLE,
+                    description: t.ERROR_KEY_ALREADY_BINDED_DESC,
+                    type: "error",
+                });
+                return;
             }
         }
 
-        if(isChange) {
-            setHotkeys(hotkeysRef.current);
-            setIsDirty?.(true);
-            // 调用外部回调
-            onHotkeyUpdate?.(index, hotkey);
+        // 创建新的热键数组
+        const newHotkeys = [...hotkeys];
+        let hasChanges = false;
+
+        // 1. 如果新的热键不是 -1，检查是否已经被其他位置使用
+        if (hotkey.key !== -1) {
+            for (let i = 0; i < newHotkeys.length; i++) {
+                if (i !== index && newHotkeys[i].key === hotkey.key) {
+                    // 释放已被占用的位置
+                    newHotkeys[i] = { ...newHotkeys[i], key: -1 };
+                    hasChanges = true;
+                }
+            }
         }
 
-    }, [t, setIsDirty, onHotkeyUpdate]);
+        // 2. 更新当前位置的热键
+        if (newHotkeys[index].key !== hotkey.key) {
+            newHotkeys[index] = { ...newHotkeys[index], key: hotkey.key };
+            hasChanges = true;
+        }
+
+        // 3. 如果有变化，批量通知父组件
+        if (hasChanges) {
+            onHotkeysUpdate(newHotkeys);
+        }
+
+    }, [onHotkeysUpdate, hotkeys]);
 
     // 自动选择下一个可用的热键索引（如果当前的被锁定）
     useEffect(() => {
@@ -118,7 +96,7 @@ export function HotkeySettingContent({
                 setActiveHotkeyIndex(index);
             }
         }
-    }, [hotkeys, activeHotkeyIndex, setActiveHotkeyIndex]);
+    }, [hotkeys, activeHotkeyIndex]);
 
     // 监听外部点击事件（从Hitbox组件）
     useEffect(() => {
@@ -139,8 +117,6 @@ export function HotkeySettingContent({
             window.removeEventListener('hitbox-click', handleHitboxClick as EventListener);
         };
     }, [activeHotkeyIndex, hotkeys, updateHotkey]);
-
-    
 
     // 处理热键字段点击
     const handleHotkeyFieldClick = (index: number) => {
@@ -188,45 +164,4 @@ export function HotkeySettingContent({
             </Card.Footer>
         </Card.Root>
     );
-}
-
-// 导出辅助hook，用于外部组件管理热键状态
-export function useHotkeyManager() {
-    const { hotkeysConfig } = useGamepadConfig();
-    const [hotkeys, setHotkeys] = useState<Hotkey[]>([]);
-    const [activeHotkeyIndex, setActiveHotkeyIndex] = useState<number>(0);
-
-    // 初始化热键状态
-    useEffect(() => {
-        setHotkeys(Array.from({ length: DEFAULT_NUM_HOTKEYS_MAX }, (_, i) => {
-            return hotkeysConfig?.[i] ?? { key: -1, action: HotkeyAction.None, isLocked: false, isHold: false };
-        }));
-    }, [hotkeysConfig]);
-
-    // 提供热键操作方法
-    const updateHotkey = (index: number, hotkey: Hotkey) => {
-        if (index < 0 || index >= DEFAULT_NUM_HOTKEYS_MAX) return;
-        
-        const newHotkeys = hotkeys.slice();
-        newHotkeys[index] = hotkey;
-        setHotkeys(newHotkeys);
-    };
-
-    // 处理外部点击（例如从Hitbox组件）
-    const handleExternalClick = (keyId: number) => {
-        if (keyId >= 0 && keyId < 20) {
-            updateHotkey(activeHotkeyIndex, { 
-                ...hotkeys[activeHotkeyIndex], 
-                key: keyId 
-            });
-        }
-    };
-
-    return {
-        hotkeys,
-        activeHotkeyIndex,
-        setActiveHotkeyIndex,
-        updateHotkey,
-        handleExternalClick,
-    };
 } 

@@ -212,6 +212,7 @@ export default function HitboxBase(props: HitboxBaseProps) {
 
         if(wsConnected && contextJsReady) {
             if(enabled) {
+                console.log("hitbox-base: 启动按键监听");
                 startMonitoring().catch((error) => {
                     console.error('启动按键监听失败:', error);
                 });
@@ -219,6 +220,7 @@ export default function HitboxBase(props: HitboxBaseProps) {
 
             if(!enabled) {
                 setHardwareButtonStates(Array(btnLen).fill(-1));
+                console.log("hitbox-base: 停止按键监听");
                 stopMonitoring();
             }
         }
@@ -226,7 +228,10 @@ export default function HitboxBase(props: HitboxBaseProps) {
         // 清理函数
         return () => {
             setHardwareButtonStates(Array(btnLen).fill(-1));
-            stopMonitoring();
+            console.log("hitbox-base: 清理按键监听");
+            if(wsConnected && contextJsReady) {
+                stopMonitoring();
+            }
         };
     }, [props.isButtonMonitoringEnabled, wsConnected, contextJsReady]);
 

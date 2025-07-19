@@ -45,11 +45,11 @@ export default function KeymappingFieldset(
             
             const activeKeyMapping = keyMapping[activeButton] ?? [];
             if(activeKeyMapping.indexOf(inputKey) !== -1) { // key already binded
-                showToast({
-                    title: t.KEY_MAPPING_ERROR_ALREADY_BINDED_TITLE,
-                    description: t.KEY_MAPPING_ERROR_ALREADY_BINDED_DESC,
-                    type: "warning",
-                });
+                // showToast({
+                //     title: t.KEY_MAPPING_ERROR_ALREADY_BINDED_TITLE,
+                //     description: t.KEY_MAPPING_ERROR_ALREADY_BINDED_DESC,
+                //     type: "warning",
+                // });
                 return;
             } else if(activeKeyMapping.length >= NUM_BIND_KEY_PER_BUTTON_MAX) { // key not binded, and reach max number of key binding per button
                 showToast({
@@ -65,13 +65,13 @@ export default function KeymappingFieldset(
                     if(key !== activeButton && value.indexOf(inputKey) !== -1) {
                         value.splice(value.indexOf(inputKey), 1);
                         changeKeyMappingHandler(key as GameControllerButton, value);
-                        showToast({
-                            title: t.KEY_MAPPING_INFO_UNBIND_FROM_OTHER_TITLE,
-                            description: t.KEY_MAPPING_INFO_UNBIND_FROM_OTHER_DESC
-                                .replace("{0}", buttonLabelMap.get(key as GameControllerButton) ?? "")
-                                .replace("{1}", buttonLabelMap.get(activeButton) ?? ""),
-                            type: "warning",
-                        });
+                        // showToast({
+                        //     title: t.KEY_MAPPING_INFO_UNBIND_FROM_OTHER_TITLE,
+                        //     description: t.KEY_MAPPING_INFO_UNBIND_FROM_OTHER_DESC
+                        //         .replace("{0}", buttonLabelMap.get(key as GameControllerButton) ?? "")
+                        //         .replace("{1}", buttonLabelMap.get(activeButton) ?? ""),
+                        //     type: "warning",
+                        // });
                     }
                 });
 

@@ -159,6 +159,7 @@ export function KeysSettingContent() {
                             onClick={hitboxButtonClick}
                             interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
                             disabledKeys={disabledKeys}
+                            isButtonMonitoringEnabled={!keysEnableSettingActive}
                         />
                     )}
                 </Center>

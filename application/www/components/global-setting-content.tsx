@@ -206,10 +206,6 @@ export function GlobalSettingContent() {
         }
     }
 
-    // const switchAutoCalibration = () => {
-    //     updateGlobalConfig({ autoCalibrationEnabled: !globalConfig.autoCalibrationEnabled });
-    // }
-
     // 处理外部点击（从Hitbox组件）
     const handleExternalClick = (keyId: number) => {
 
@@ -223,24 +219,24 @@ export function GlobalSettingContent() {
     };
 
     // 处理热键更新回调
-    const handleHotkeyUpdate = (index: number, hotkey: Hotkey) => {
-        const newHotkeys = [...currentHotkeys];
-        newHotkeys[index] = hotkey;
-        setCurrentHotkeys(newHotkeys);
+    const handleHotkeyUpdate = useCallback((hotkeys: Hotkey[]) => {
+        setCurrentHotkeys(hotkeys);
         setIsDirty(true);
-    };
+    }, [currentHotkeys]);
 
     // 初始化 currentHotkeys
     useEffect(() => {
         setCurrentHotkeys(Array.from({ length: DEFAULT_NUM_HOTKEYS_MAX }, (_, i) => {
             return hotkeysConfig?.[i] ?? { key: -1, action: HotkeyAction.None, isLocked: false, isHold: false };
         }));
-    }, [hotkeysConfig]);
+        setIsDirty(false);
+    }, [hotkeysConfig, setIsDirty]);
 
     // 保存热键配置
     const saveHotkeysConfigHandler = async () => {
         if (!currentHotkeys || currentHotkeys.length === 0) return;
         await updateHotkeysConfig(currentHotkeys);
+        setIsDirty(false);
     };
 
     // 重置热键配置
@@ -325,7 +321,8 @@ export function GlobalSettingContent() {
             <Flex>
                 <HotkeySettingContent
                     disabled={calibrationStatus.isActive}
-                    onHotkeyUpdate={handleHotkeyUpdate}
+                    onHotkeysUpdate={handleHotkeyUpdate}
+                    hotkeys={currentHotkeys}
                 />
             </Flex>
         </Flex>

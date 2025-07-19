@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { HITBOX_BTN_POS_LIST } from "@/types/gamepad-config";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useColorMode } from "../ui/color-mode";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { AiOutlineClose } from "react-icons/ai";
+import { type ButtonStateBinaryData, isButtonTriggered } from '@/lib/button-binary-parser';
+import { useButtonMonitor } from '@/hooks/use-button-monitor';
 
 // 样式化的 SVG 组件 - 与基类保持一致
 const StyledSvg = styled.svg`
@@ -22,6 +24,7 @@ const StyledCircle = styled.circle<{
     $interactive?: boolean;
     $highlight?: boolean;
     $fillNone?: boolean;
+    $pressed?: boolean;
 }>`
   stroke: 'gray';
   stroke-width: 1px;
@@ -39,6 +42,14 @@ const StyledCircle = styled.circle<{
     filter: ${props => props.$interactive ? 'drop-shadow(0 0 10px rgba(204, 204, 204, 0.8))' : 'none'};
   }
 
+  /* 硬件按下状态样式 */
+  ${props => props.$pressed && `
+    stroke: yellowgreen;
+    stroke-width: 2px;
+    filter: drop-shadow(0 0 15px rgba(154, 205, 50, 0.9));
+  `}
+
+  /* 鼠标按下状态样式 */
   &:active {
     stroke-width: ${props => props.$interactive ? '2px' : '1px'};
     stroke: ${props => props.$interactive ? 'yellowgreen' : 'gray'};
@@ -71,6 +82,7 @@ export interface HitboxKeysProps {
     onClick?: (id: number) => void;
     hasText?: boolean;
     interactiveIds?: number[];
+    isButtonMonitoringEnabled?: boolean;
     highlightIds?: number[];
     disabledKeys?: number[];
     className?: string;
@@ -84,21 +96,115 @@ export default function HitboxKeys({
     onClick,
     hasText = true,
     interactiveIds = [],
+    isButtonMonitoringEnabled = false,
     highlightIds = [],
     disabledKeys = [],
     className,
 }: HitboxKeysProps) {
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady } = useGamepadConfig();
+    const { contextJsReady, setContextJsReady, wsConnected } = useGamepadConfig();
+    
     const svgRef = useRef<SVGSVGElement>(null);
     const circleRefs = useRef<(SVGCircleElement | null)[]>([]);
     const textRefs = useRef<(SVGTextElement | null)[]>([]);
+    
+    // 用于跟踪软件按键状态的state和ref
     const pressedButtonListRef = useRef(Array(btnLen).fill(-1));
+    // 用于跟踪硬件按键状态的state和ref
+    const hardwareButtonStatesRef = useRef(Array(btnLen).fill(-1));
+
+    const disabledKeysRef = useRef(disabledKeys);
+
+    const [pressedButtonStates, setPressedButtonStates] = useState(Array(btnLen).fill(-1));
+    const [hardwareButtonStates, setHardwareButtonStates] = useState(Array(btnLen).fill(-1));
+
+    pressedButtonListRef.current = useMemo(() => pressedButtonStates, [pressedButtonStates]);
+    hardwareButtonStatesRef.current = useMemo(() => hardwareButtonStates, [hardwareButtonStates]);
+    disabledKeysRef.current = useMemo(() => disabledKeys, [disabledKeys]);
+
+    // 使用 useButtonMonitor hook
+    const { startMonitoring, stopMonitoring } = useButtonMonitor({
+        autoInitialize: false, // 不自动初始化，由组件控制
+        onButtonStatesChange: (data: ButtonStateBinaryData) => {
+            if (!data || !interactiveIds) {
+                return;
+            }
+
+            // 检查每个在interactiveIds范围内的按键
+            interactiveIds.forEach((buttonId) => {
+
+                // 禁用的按键不处理
+                if(disabledKeysRef.current.includes(buttonId)) {
+                    return;
+                }
+
+                const isPressed = isButtonTriggered(data.triggerMask, buttonId);
+                
+                // 使用ref获取当前真实状态，避免闭包陷阱
+                const wasPressed = (hardwareButtonStatesRef.current[buttonId] === 1) || false;
+                if (isPressed !== wasPressed) {
+                    if (isPressed) {
+                        // 按键按下，模拟mousedown
+                        onClick?.(buttonId);
+                        setHardwareButtonStates(prev => {
+                            const newStates = [...prev];
+                            newStates[buttonId] = 1;
+                            return newStates;
+                        });
+                        console.log(`hitbox-keys: 硬件按键 ${buttonId} 按下`);
+                    } else {
+                        // 按键释放，模拟mouseup
+                        onClick?.(-1);
+                        setHardwareButtonStates(prev => {
+                            const newStates = [...prev];
+                            newStates[buttonId] = -1;
+                            return newStates;
+                        });
+                        console.log(`hitbox-keys: 硬件按键 ${buttonId} 释放`);
+                    }
+                }
+            });
+        },
+        onError: (error) => {
+            console.error('hitbox-keys: 按键监听错误:', error);
+        },
+        onMonitoringStateChange: (isActive) => {
+            console.log('hitbox-keys: 按键监听状态变化:', isActive);
+        }
+    });
 
     // 初始化显示状态
     useEffect(() => {
         setContextJsReady(true);
     }, [setContextJsReady]);
+
+    /**
+     * 管理按键监听的启动和停止
+     */
+    useEffect(() => {
+        const enabled = isButtonMonitoringEnabled ?? false;
+
+        if(wsConnected && contextJsReady) {
+            if(enabled) {
+                startMonitoring().catch((error) => {
+                    console.error('启动按键监听失败:', error);
+                });
+            }
+
+            if(!enabled) {
+                setHardwareButtonStates(Array(btnLen).fill(-1));
+                stopMonitoring();
+            }
+        }
+
+        // 清理函数
+        return () => {
+            setHardwareButtonStates(Array(btnLen).fill(-1));
+            if(wsConnected && contextJsReady) {
+                stopMonitoring();
+            }
+        };
+    }, [isButtonMonitoringEnabled, wsConnected, contextJsReady]);
 
     // 处理按钮点击 - 采用与基类一致的事件处理方式
     const handleClick = (event: React.MouseEvent<SVGElement>) => {
@@ -111,10 +217,18 @@ export default function HitboxKeys({
         
         if (event.type === "mousedown") {
             onClick?.(id);
-            pressedButtonListRef.current[id] = 1;
+            setPressedButtonStates(prev => {
+                const newStates = [...prev];
+                newStates[id] = 1;
+                return newStates;
+            });
         } else if (event.type === "mouseup") {
             onClick?.(-1);
-            pressedButtonListRef.current[id] = -1;
+            setPressedButtonStates(prev => {
+                const newStates = [...prev];
+                newStates[id] = -1;
+                return newStates;
+            });
         }
     };
 
@@ -124,7 +238,11 @@ export default function HitboxKeys({
         const id = Number(target.id.replace("btn-", ""));
         if (id === Number.NaN || !(interactiveIds?.includes(id) ?? false)) return;
         if (event.type === "mouseleave") {
-            pressedButtonListRef.current[id] = -1;
+            setPressedButtonStates(prev => {
+                const newStates = [...prev];
+                newStates[id] = -1;
+                return newStates;
+            });
         }
     }
 
@@ -170,6 +288,11 @@ export default function HitboxKeys({
         return interactiveIds.includes(buttonId) && !disabledKeys.includes(buttonId);
     };
 
+    // 判断按键是否处于按下状态（鼠标或硬件按键）
+    const isButtonPressed = (index: number): boolean => {
+        return (hardwareButtonStates[index] === 1 || pressedButtonStates[index] === 1) || false;
+    };
+
     return (
         <Box display={contextJsReady ? "block" : "none"} className={className}>
             <StyledSvg xmlns="http://www.w3.org/2000/svg"
@@ -193,6 +316,7 @@ export default function HitboxKeys({
                             $interactive={false}
                             $highlight={false}
                             $fillNone={true}
+                            $pressed={false}
                         />
                     )
                 })}
@@ -211,6 +335,7 @@ export default function HitboxKeys({
                         $opacity={1}
                         $interactive={isButtonInteractive(index)}
                         $highlight={highlightIds?.includes(index) ?? false}
+                        $pressed={isButtonPressed(index)}
                         fill={getButtonColor(index)}
                         onMouseLeave={handleLeave}
                     />
@@ -267,4 +392,4 @@ export default function HitboxKeys({
             </StyledSvg>
         </Box>
     );
-} 
+}
