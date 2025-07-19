@@ -73,30 +73,22 @@ export function KeysSettingContent() {
     }, [keysEnableConfig]);
 
     useEffect(() => {
+        console.log("initializing keys-setting-content: keyConfig: ", defaultProfile.keysConfig);
         if (defaultProfile.keysConfig) {
+
+            const keyLength = Object.keys(defaultProfile.keysConfig?.keyMapping ?? {}).length;
+
             setSocdMode(defaultProfile.keysConfig?.socdMode ?? GameSocdMode.SOCD_MODE_UP_PRIORITY);
             setInvertXAxis(defaultProfile.keysConfig?.invertXAxis ?? false);
             setInvertYAxis(defaultProfile.keysConfig?.invertYAxis ?? false);
             setFourWayMode(defaultProfile.keysConfig?.fourWayMode ?? false);
-            setKeyMapping(defaultProfile.keysConfig?.keyMapping ?? {});
+            setKeyMapping(Object.assign({}, defaultProfile.keysConfig?.keyMapping ?? {}));
             // 初始化按键启用配置，默认所有按键都启用
-            const enableConfig = defaultProfile.keysConfig?.keysEnableTag ?? Array(20).fill(true);
+            const enableConfig = defaultProfile.keysConfig?.keysEnableTag?.slice(0, keyLength - 1) ?? Array(keyLength).fill(true);
             setKeysEnableConfig(enableConfig);
             setIsDirty?.(false); // reset the unsaved changes warning 
         }
     }, [defaultProfile, setIsDirty]);
-
-    /**
-     * set key mapping
-     * @param key - game controller button
-     * @param hitboxButtons - hitbox buttons
-     */
-    const setHitboxButtons = (key: string, hitboxButtons: number[]) => {
-        setKeyMapping({
-            ...keyMapping,
-            [key as GameControllerButton]: hitboxButtons,
-        });
-    }
 
     const hitboxButtonClick = (keyId: number) => {
         setInputKey(keyId);
@@ -215,8 +207,8 @@ export function KeysSettingContent() {
                                             inputKey={inputKey}
                                             inputMode={globalConfig.inputMode ?? Platform.XINPUT}
                                             keyMapping={keyMapping}
-                                            changeKeyMappingHandler={(key, hitboxButtons) => {
-                                                setHitboxButtons(key, hitboxButtons);
+                                            changeKeyMappingHandler={(map) => {
+                                                setKeyMapping(map);
                                                 setIsDirty?.(true);
                                             }}
                                             disabled={keysEnableSettingActive}

@@ -81,6 +81,16 @@ export function HotkeySettingContent({
             hasChanges = true;
         }
 
+        if(newHotkeys[index].action !== hotkey.action) {
+            newHotkeys[index] = { ...newHotkeys[index], action: hotkey.action };
+            hasChanges = true;
+        }
+
+        if(newHotkeys[index].isHold !== hotkey.isHold) {
+            newHotkeys[index] = { ...newHotkeys[index], isHold: hotkey.isHold };
+            hasChanges = true;
+        }
+
         // 3. 如果有变化，批量通知父组件
         if (hasChanges) {
             onHotkeysUpdate(newHotkeys);

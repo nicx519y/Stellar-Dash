@@ -22,7 +22,7 @@ export default function KeymappingFieldset(
         keyMapping: { [key in GameControllerButton]?: number[] },
         autoSwitch: boolean,
         disabled?: boolean,
-        changeKeyMappingHandler: (key: GameControllerButton, value: number[]) => void,
+        changeKeyMappingHandler: (keyMapping: { [key in GameControllerButton]?: number[] }) => void,
     }
 ) {
 
@@ -45,11 +45,6 @@ export default function KeymappingFieldset(
             
             const activeKeyMapping = keyMapping[activeButton] ?? [];
             if(activeKeyMapping.indexOf(inputKey) !== -1) { // key already binded
-                // showToast({
-                //     title: t.KEY_MAPPING_ERROR_ALREADY_BINDED_TITLE,
-                //     description: t.KEY_MAPPING_ERROR_ALREADY_BINDED_DESC,
-                //     type: "warning",
-                // });
                 return;
             } else if(activeKeyMapping.length >= NUM_BIND_KEY_PER_BUTTON_MAX) { // key not binded, and reach max number of key binding per button
                 showToast({
@@ -60,24 +55,21 @@ export default function KeymappingFieldset(
                 return;
             } else { // key not binded, and not reach max number of key binding per button
 
+                // 创建新的keyMapping对象
+                const newKeyMapping = { ...keyMapping };
+
                 // remove input key from other button
-                Object.entries(keyMapping).forEach(([key, value]) => {
+                Object.entries(newKeyMapping).forEach(([key, value]) => {
                     if(key !== activeButton && value.indexOf(inputKey) !== -1) {
-                        value.splice(value.indexOf(inputKey), 1);
-                        changeKeyMappingHandler(key as GameControllerButton, value);
-                        // showToast({
-                        //     title: t.KEY_MAPPING_INFO_UNBIND_FROM_OTHER_TITLE,
-                        //     description: t.KEY_MAPPING_INFO_UNBIND_FROM_OTHER_DESC
-                        //         .replace("{0}", buttonLabelMap.get(key as GameControllerButton) ?? "")
-                        //         .replace("{1}", buttonLabelMap.get(activeButton) ?? ""),
-                        //     type: "warning",
-                        // });
+                        newKeyMapping[key as GameControllerButton] = value.filter(v => v !== inputKey);
                     }
                 });
 
                 // add input key to active button
-                activeKeyMapping.push(inputKey);
-                changeKeyMappingHandler(activeButton, activeKeyMapping);
+                newKeyMapping[activeButton] = [...activeKeyMapping, inputKey];
+
+                // 批量更新整个keyMapping
+                changeKeyMappingHandler(newKeyMapping);
 
                 if(autoSwitch) {
                     const nextButton = GameControllerButtonList[GameControllerButtonList.indexOf(activeButton) + 1] ?? GameControllerButtonList[0];
@@ -101,6 +93,13 @@ export default function KeymappingFieldset(
         }
     }, [inputMode]);
 
+    // 处理单个按键映射变化的辅助函数
+    const handleSingleKeyMappingChange = (key: GameControllerButton, value: number[]) => {
+        const newKeyMapping = { ...keyMapping };
+        newKeyMapping[key] = value;
+        changeKeyMappingHandler(newKeyMapping);
+    };
+
     return (
         <>
             <SimpleGrid gap={1} columns={3} >
@@ -110,7 +109,7 @@ export default function KeymappingFieldset(
                         onClick={() => !isDisabled && setActiveButton(gameControllerButton)}
                         label={buttonLabelMap.get(gameControllerButton) ?? ""} 
                         value={keyMapping[gameControllerButton] ?? []}
-                        changeValue={(v: number[]) => changeKeyMappingHandler(gameControllerButton, v)} 
+                        changeValue={(v: number[]) => handleSingleKeyMappingChange(gameControllerButton, v)} 
                         isActive={activeButton === gameControllerButton}
                         disabled={isDisabled}
                     />
