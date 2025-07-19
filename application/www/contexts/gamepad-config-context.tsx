@@ -30,7 +30,7 @@ import {
     DEFAULT_FIRMWARE_SERVER_HOST
 } from '@/types/gamepad-config';
 
-import DeviceAuthManager from '@/utils/deviceAuth';
+import DeviceAuthManager from '@/contexts/deviceAuth';
 
 // 导入WebSocket框架
 import { 
@@ -630,6 +630,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     // 当WebSocket连接成功后，初始化数据
     useEffect(() => {
         if (wsConnected && wsState === WebSocketState.CONNECTED) {
+            // 设置DeviceAuthManager的WebSocket发送函数
+            const authManager = DeviceAuthManager.getInstance();
+            authManager.setWebSocketSendFunction(sendWebSocketRequest);
+            
             fetchGlobalConfig();
             fetchProfileList();
             fetchHotkeysConfig();
@@ -1136,7 +1140,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     
     const fetchFirmwareMetadata = async (): Promise<void> => {
         try {
-            const data = await sendWebSocketRequest('firmware_metadata');
+            const data = await sendWebSocketRequest('get_firmware_metadata');
             setFirmwareInfo({
                 firmware: data
             });

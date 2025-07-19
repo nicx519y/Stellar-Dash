@@ -13,13 +13,17 @@ interface DeviceAuthInfo {
     obtainedAt: number; // 获取时间戳，用于计算过期
 }
 
-// 认证有效期配置（25分钟）
+// WebSocket发送函数类型定义
+type WebSocketSendFunction = (command: string, params?: any) => Promise<any>;
+
+// 认证有效期配置（1.5分钟）
 const AUTH_VALIDITY_DURATION = 1.5 * 60 * 1000; // 1.5分钟，单位毫秒，server有效期是2分钟
 
 class DeviceAuthManager {
     private static instance: DeviceAuthManager;
     private cachedAuth: DeviceAuthInfo | null = null;
     private isRefreshing = false;
+    private webSocketSendFunction: WebSocketSendFunction | null = null;
 
     private constructor() {}
 
@@ -31,6 +35,14 @@ class DeviceAuthManager {
             DeviceAuthManager.instance = new DeviceAuthManager();
         }
         return DeviceAuthManager.instance;
+    }
+
+    /**
+     * 设置WebSocket发送函数
+     * 必须在使用认证管理器之前调用此方法
+     */
+    public setWebSocketSendFunction(sendFunction: WebSocketSendFunction): void {
+        this.webSocketSendFunction = sendFunction;
     }
 
     /**
@@ -47,24 +59,15 @@ class DeviceAuthManager {
      */
     private async fetchAuthFromDevice(): Promise<DeviceAuthInfo> {
         try {
-            const response = await fetch('/api/device-auth', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to get device auth: ${response.status} ${response.statusText}`);
+            // 检查是否已设置WebSocket发送函数
+            if (!this.webSocketSendFunction) {
+                throw new Error('WebSocket发送函数未设置，请先调用setWebSocketSendFunction方法');
             }
 
-            const data = await response.json();
+            // 使用WebSocket获取设备认证信息
+            const data = await this.webSocketSendFunction('get_device_auth');
             
-            if (data.errNo && data.errNo !== 0) {
-                throw new Error(`Device auth error: ${data.errorMessage || 'Unknown error'}`);
-            }
-
-            const authData = data.data;
+            const authData = data;
             
             // 验证返回的数据结构
             if (!authData || !authData.deviceId || !authData.challenge || !authData.signature) {

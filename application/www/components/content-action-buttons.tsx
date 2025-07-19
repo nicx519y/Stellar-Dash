@@ -18,7 +18,7 @@ export function ContentActionButtons(
     const { rebootSystem } = useGamepadConfig();
     const { resetHandler, saveHandler, isDirty } = props;
     return (
-        <Center height="100px" pb="20px" >
+        <Center height="100px" pb="60px" >
             <Stack direction="row" gap={4}>
                 <Button
                     colorPalette="teal"

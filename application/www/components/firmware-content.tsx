@@ -24,14 +24,16 @@ export function FirmwareContent() {
     const [ isLoading, setIsLoading ] = useState(true);
     const [ _updateProgress, _setUpdateProgress ] = useState(0);
     const [ updateStatus, setUpdateStatus ] = useState(UpdateStatus.Idle);
-    const { firmwareInfo, fetchFirmwareMetadata, firmwareUpdateInfo, checkFirmwareUpdate, downloadFirmwarePackage, uploadFirmwareToDevice } = useGamepadConfig();
+    const { firmwareInfo, fetchFirmwareMetadata, firmwareUpdateInfo, checkFirmwareUpdate, downloadFirmwarePackage, uploadFirmwareToDevice, wsConnected } = useGamepadConfig();
     const currentVersion = useMemo(() => firmwareInfo?.firmware?.version || "0.0.0", [firmwareInfo]);
     const latestVersion = useMemo(() => firmwareUpdateInfo?.latestVersion? firmwareUpdateInfo.latestVersion : firmwareInfo?.firmware?.version || "0.0.0", [firmwareUpdateInfo, firmwareInfo]);
     const latestFirmwareUpdateLog = useMemo(() => firmwareUpdateInfo?.latestFirmware?.desc.split(/\s+/) || [], [firmwareUpdateInfo]);
 
     useEffect(() => {
-        fetchFirmwareMetadata();
-    }, []);
+        if(wsConnected) {
+            fetchFirmwareMetadata();
+        }
+    }, [wsConnected]);
 
     const firmwrareCurrentVersion = useMemo(() => {
         return firmwareInfo?.firmware?.version || "";
