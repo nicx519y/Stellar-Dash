@@ -20,6 +20,7 @@ import {
 } from "@/types/gamepad-config";
 import HitboxCalibration from "@/components/hitbox/hitbox-calibration";
 import HitboxHotkey from "@/components/hitbox/hitbox-hotkey";
+import { btnPosList } from "@/components/hitbox/hitbox-base";
 import { HotkeySettingContent } from "./hotkey-setting-content";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
@@ -47,13 +48,6 @@ export function GlobalSettingContent() {
     } = useGamepadConfig();
 
     const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
-
-    // 管理活跃的热键索引
-    const [activeHotkeyIndex, setActiveHotkeyIndex] = useState<number>(0);
-
-    // 按键监控状态
-    const [isButtonMonitoringEnabled, setIsButtonMonitoringEnabled] = useState<boolean>(false);
-
     // 添加本地 hotkeys 状态来存储用户修改
     const [currentHotkeys, setCurrentHotkeys] = useState<Hotkey[]>([]);
 
@@ -218,10 +212,11 @@ export function GlobalSettingContent() {
 
     // 处理外部点击（从Hitbox组件）
     const handleExternalClick = (keyId: number) => {
-        if (keyId >= 0 && keyId < 20) {
+
+        if (keyId >= 0 && keyId < btnPosList.length - 1) {
             // 触发自定义事件通知HotkeySettingContent组件
             const event = new CustomEvent('hitbox-click', {
-                detail: { keyId, activeHotkeyIndex }
+                detail: { keyId }
             });
             window.dispatchEvent(event);
         }
@@ -308,6 +303,7 @@ export function GlobalSettingContent() {
                         <HitboxHotkey
                             interactiveIds={HOTKEYS_SETTINGS_INTERACTIVE_IDS}
                             onClick={handleExternalClick}
+                            isButtonMonitoringEnabled={true} // 启用设备按键监控
                         />
                     )}
                     {calibrationStatus.isActive && (
@@ -329,8 +325,6 @@ export function GlobalSettingContent() {
             <Flex>
                 <HotkeySettingContent
                     disabled={calibrationStatus.isActive}
-                    activeHotkeyIndex={activeHotkeyIndex}
-                    onActiveHotkeyIndexChange={setActiveHotkeyIndex}
                     onHotkeyUpdate={handleHotkeyUpdate}
                 />
             </Flex>

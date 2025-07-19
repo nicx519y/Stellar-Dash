@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
     Stack,
     Fieldset,
@@ -13,10 +13,11 @@ import {
     Hotkey,
 } from "@/types/gamepad-config";
 import HotkeysField from "./hotkeys-field";
-import { showToast } from "@/components/ui/toaster";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
+import { btnPosList } from "@/components/hitbox/hitbox-base";
+import { showToast } from "./ui/toaster";
 // import { useButtonMonitor } from "@/hooks/use-button-monitor";
 
 interface HotkeySettingContentProps {
@@ -38,8 +39,6 @@ interface HotkeySettingContentProps {
 
 export function HotkeySettingContent({
     disabled = false,
-    activeHotkeyIndex: externalActiveIndex,
-    onActiveHotkeyIndexChange,
     onHotkeyUpdate,
     width = "778px",
     height = "100%",
@@ -52,32 +51,15 @@ export function HotkeySettingContent({
 
     const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
     const [hotkeys, setHotkeys] = useState<Hotkey[]>([]);
-    const [internalActiveIndex, setInternalActiveIndex] = useState<number>(0);
 
     // 使用 ref 存储最新的状态，避免事件监听器重复创建
     const hotkeysRef = useRef<Hotkey[]>([]);
-    const activeHotkeyIndexRef = useRef<number>(0);
 
-    // 使用新的按键监控 hook
-    // const buttonMonitor = useButtonMonitor({
-    //     pollingInterval: 500,
-    //     onError: (error) => {
-    //         console.error('按键监控错误:', error);
-    //     },
-    // });
+    const [activeHotkeyIndex, setActiveHotkeyIndex] = useState<number>(0);
 
-    // 使用外部提供的活跃索引，否则使用内部状态
-    const activeHotkeyIndex = externalActiveIndex !== undefined ? externalActiveIndex : internalActiveIndex;
-    const setActiveHotkeyIndex = onActiveHotkeyIndexChange || setInternalActiveIndex;
-
-    // 更新 ref 中的状态
-    useEffect(() => {
-        hotkeysRef.current = hotkeys;
+    hotkeysRef.current = useMemo(() => {
+        return hotkeys;
     }, [hotkeys]);
-
-    useEffect(() => {
-        activeHotkeyIndexRef.current = activeHotkeyIndex;
-    }, [activeHotkeyIndex]);
 
     // 从 gamepadConfig 加载 hotkeys 配置
     useEffect(() => {
@@ -92,11 +74,8 @@ export function HotkeySettingContent({
     const updateHotkey = useCallback((index: number, hotkey: Hotkey) => {
         if (index < 0 || index >= DEFAULT_NUM_HOTKEYS_MAX) return;
 
-        const keys = hotkeysRef.current.map(h => h.key);
-        const keyIndex = keys.indexOf(hotkey.key);
-        
-        // 如果热键已经被绑定到其他位置，显示错误提示
-        if (keyIndex >= 0 && keyIndex !== index && hotkey.key >= 0) {
+        // 如果热键已经被锁定，则不能更改
+        if(hotkeysRef.current[index].isLocked && hotkey.key == hotkeysRef.current[index].key) {
             showToast({
                 title: t.ERROR_KEY_ALREADY_BINDED_TITLE,
                 description: t.ERROR_KEY_ALREADY_BINDED_DESC,
@@ -105,13 +84,30 @@ export function HotkeySettingContent({
             return;
         }
 
-        const newHotkeys = hotkeysRef.current.slice();
-        newHotkeys[index] = hotkey;
-        setHotkeys(newHotkeys);
-        setIsDirty?.(true);
+        const keys = hotkeysRef.current.map(h => h.key);
+        let isChange = false;
+        
+        for(let i = 0; i < keys.length; i++) {
 
-        // 调用外部回调
-        onHotkeyUpdate?.(index, hotkey);
+            // 如果热键已经被绑定到其他位置，则释放位置
+            if(keys[i] === hotkey.key && i !== index) {
+                hotkeysRef.current[i].key = -1;
+                isChange = true;
+            }
+            // 如果热键未绑定到预计位置，则绑定
+            if(keys[i] !== hotkey.key && i == index) {
+                hotkeysRef.current[i].key = hotkey.key;
+                isChange = true;
+            }
+        }
+
+        if(isChange) {
+            setHotkeys(hotkeysRef.current);
+            setIsDirty?.(true);
+            // 调用外部回调
+            onHotkeyUpdate?.(index, hotkey);
+        }
+
     }, [t, setIsDirty, onHotkeyUpdate]);
 
     // 自动选择下一个可用的热键索引（如果当前的被锁定）
@@ -127,9 +123,9 @@ export function HotkeySettingContent({
     // 监听外部点击事件（从Hitbox组件）
     useEffect(() => {
         const handleHitboxClick = (event: CustomEvent) => {
-            const { keyId, activeHotkeyIndex: clickActiveIndex } = event.detail;
+            const { keyId } = event.detail;
             // 只有当前组件的活跃索引与点击时的活跃索引匹配时才处理
-            if (clickActiveIndex === activeHotkeyIndex && keyId >= 0 && keyId < 20) {
+            if (keyId >= 0 && keyId < btnPosList.length - 1) {
                 updateHotkey(activeHotkeyIndex, { 
                     ...hotkeys[activeHotkeyIndex], 
                     key: keyId 
@@ -150,34 +146,6 @@ export function HotkeySettingContent({
     const handleHotkeyFieldClick = (index: number) => {
         setActiveHotkeyIndex(index);
     };
-
-    // const handleButtonMonitoringToggle = async (checked: boolean) => {
-    //     if (checked) {
-    //         await buttonMonitor.startMonitoring();
-    //         console.log('Button monitoring started');
-    //         onButtonMonitoringToggle?.(true);
-    //     } else {
-    //         await buttonMonitor.stopMonitoring();
-    //         console.log('Button monitoring stopped');
-    //         onButtonMonitoringToggle?.(false);
-    //     }
-    // };
-
-    /**
-     * 组件挂载时，如果组件未禁用，则开启按键监控,
-     * 组件卸载时，关闭按键监控
-     * 
-     */
-    // useEffect(() => {
-    //     if (!disabled) {
-    //         handleButtonMonitoringToggle(true);
-    //     } else {
-    //         handleButtonMonitoringToggle(false);
-    //     }
-    //     return () => {
-    //         handleButtonMonitoringToggle(false);
-    //     };
-    // }, [disabled]);
 
     return (
         <Card.Root w={width} h={height}>

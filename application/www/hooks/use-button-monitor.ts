@@ -100,11 +100,9 @@ export function useButtonMonitor(options: UseButtonMonitorOptions = {}) {
     };
 
     // 获取当前状态
-    const getState = () => {
+    const getMonitoringState = () => {
         return {
             isMonitoring: isActiveRef.current,
-            isPolling: false, // WebSocket推送模式下不需要轮询
-            lastButtonStates: undefined,
         };
     };
 
@@ -126,7 +124,7 @@ export function useButtonMonitor(options: UseButtonMonitorOptions = {}) {
     return {
         startMonitoring,
         stopMonitoring,
-        getState,
+        getMonitoringState,
         isActive: isActiveRef.current,
     };
 }
