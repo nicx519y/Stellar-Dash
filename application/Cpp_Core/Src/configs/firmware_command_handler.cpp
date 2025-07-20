@@ -127,7 +127,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleGetFirmwareMetadata(con
  * @brief 创建固件升级会话
  */
 WebSocketDownstreamMessage FirmwareCommandHandler::handleCreateFirmwareUpgradeSession(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling create_firmware_upgrade_session command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling create_firmware_upgrade_session command, cid: %d", request.getCid());
     
     FirmwareManager* manager = FirmwareManager::GetInstance();
     if (!manager) {
@@ -238,7 +238,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleCreateFirmwareUpgradeSe
         LOG_ERROR("WebSocket", "create_firmware_upgrade_session: CreateUpgradeSession failed for session %s", sessionId);
     }
 
-    LOG_INFO("WebSocket", "create_firmware_upgrade_session command completed");
+    // LOG_INFO("WebSocket", "create_firmware_upgrade_session command completed");
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
@@ -246,7 +246,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleCreateFirmwareUpgradeSe
  * @brief 上传固件分片（JSON版本，保留兼容性）
  */
 WebSocketDownstreamMessage FirmwareCommandHandler::handleUploadFirmwareChunk(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling upload_firmware_chunk command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling upload_firmware_chunk command, cid: %d", request.getCid());
     
     FirmwareManager* manager = FirmwareManager::GetInstance();
     if (!manager) {
@@ -272,7 +272,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleUploadFirmwareChunk(con
     cJSON* checksumItem = cJSON_GetObjectItem(params, "checksum");
     cJSON* dataItem = cJSON_GetObjectItem(params, "data");
 
-    LOG_INFO("WebSocket", "upload_firmware_chunk: Validating parameters...");
+    // LOG_INFO("WebSocket", "upload_firmware_chunk: Validating parameters...");
     
     if (!sessionIdItem || !cJSON_IsString(sessionIdItem) ||
         !componentNameItem || !cJSON_IsString(componentNameItem) ||
@@ -293,7 +293,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleUploadFirmwareChunk(con
         return create_error_response(request.getCid(), request.getCommand(), 1, "Missing or invalid parameters");
     }
 
-    LOG_INFO("WebSocket", "upload_firmware_chunk: Parameters validated successfully");
+    // LOG_INFO("WebSocket", "upload_firmware_chunk: Parameters validated successfully");
 
     // 构建ChunkData结构
     ChunkData chunk = {0};
@@ -303,8 +303,8 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleUploadFirmwareChunk(con
     chunk.chunk_offset = (uint32_t)cJSON_GetNumberValue(chunkOffsetItem);
     strncpy(chunk.checksum, cJSON_GetStringValue(checksumItem), sizeof(chunk.checksum) - 1);
 
-    LOG_INFO("WebSocket", "upload_firmware_chunk: chunk_index=%u, total_chunks=%u, chunk_size=%u",
-             chunk.chunk_index, chunk.total_chunks, chunk.chunk_size);
+    // LOG_INFO("WebSocket", "upload_firmware_chunk: chunk_index=%u, total_chunks=%u, chunk_size=%u",
+    //          chunk.chunk_index, chunk.total_chunks, chunk.chunk_size);
 
     // 添加调试输出
     APP_DBG("WebSocket::upload_firmware_chunk: Received checksum: '%s', length: %d", chunk.checksum, strlen(chunk.checksum));
@@ -324,11 +324,11 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleUploadFirmwareChunk(con
         }
     }
 
-    LOG_INFO("WebSocket", "upload_firmware_chunk: target_address=0x%08X", chunk.target_address);
+    // LOG_INFO("WebSocket", "upload_firmware_chunk: target_address=0x%08X", chunk.target_address);
 
     // 解码Base64数据
     const char* base64Data = cJSON_GetStringValue(dataItem);
-    LOG_INFO("WebSocket", "upload_firmware_chunk: Starting Base64 decode, input length=%zu", strlen(base64Data));
+    // LOG_INFO("WebSocket", "upload_firmware_chunk: Starting Base64 decode, input length=%zu", strlen(base64Data));
     
     size_t binaryDataLen = 0;
     uint8_t* binaryData = base64_decode_websocket(base64Data, &binaryDataLen);
@@ -339,7 +339,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleUploadFirmwareChunk(con
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to decode Base64 data");
     }
 
-    LOG_INFO("WebSocket", "upload_firmware_chunk: Base64 decode successful, binary data length=%zu", binaryDataLen);
+    // LOG_INFO("WebSocket", "upload_firmware_chunk: Base64 decode successful, binary data length=%zu", binaryDataLen);
     APP_DBG("Received binary data from WebSocket, size: %d", binaryDataLen);
     
     // 检查是否有二进制数据
@@ -377,20 +377,20 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleUploadFirmwareChunk(con
     const char* sessionId = cJSON_GetStringValue(sessionIdItem);
     const char* componentName = cJSON_GetStringValue(componentNameItem);
     
-    LOG_INFO("WebSocket", "upload_firmware_chunk: Calling ProcessFirmwareChunk with session=%s, component=%s, index=%u",
-             sessionId, componentName, chunk.chunk_index);
+    // LOG_INFO("WebSocket", "upload_firmware_chunk: Calling ProcessFirmwareChunk with session=%s, component=%s, index=%u",
+    //          sessionId, componentName, chunk.chunk_index);
     APP_DBG("Begin ProcessFirmwareChunk: %s, %s, %d", sessionId, componentName, chunk.chunk_index);
     
     // 处理固件分片
     bool success = manager->ProcessFirmwareChunk(sessionId, componentName, &chunk);
 
-    LOG_INFO("WebSocket", "upload_firmware_chunk: ProcessFirmwareChunk returned: %s", success ? "SUCCESS" : "FAILED");
+    // LOG_INFO("WebSocket", "upload_firmware_chunk: ProcessFirmwareChunk returned: %s", success ? "SUCCESS" : "FAILED");
 
     // 清理资源
     free(binaryData);
 
     // 构建响应
-    LOG_INFO("WebSocket", "upload_firmware_chunk: Building response...");
+    // LOG_INFO("WebSocket", "upload_firmware_chunk: Building response...");
     cJSON* dataJSON = cJSON_CreateObject();
     if (!dataJSON) {
         LOG_ERROR("WebSocket", "upload_firmware_chunk: Failed to create response JSON");
@@ -403,16 +403,16 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleUploadFirmwareChunk(con
     if (success) {
         uint32_t progress = manager->GetUpgradeProgress(sessionId);
         cJSON_AddNumberToObject(dataJSON, "progress", progress);
-        LOG_INFO("WebSocket", "upload_firmware_chunk: Success, progress=%u", progress);
+        // LOG_INFO("WebSocket", "upload_firmware_chunk: Success, progress=%u", progress);
     } else {
         // 检查是否是会话不存在的错误
         cJSON_AddStringToObject(dataJSON, "error", "Chunk processing failed. Session may not exist or chunk data is invalid.");
         LOG_ERROR("WebSocket", "upload_firmware_chunk: Failed - session may not exist or chunk data invalid");
     }
 
-    LOG_INFO("WebSocket", "upload_firmware_chunk: Creating success response with cid=%d", request.getCid());
+    // LOG_INFO("WebSocket", "upload_firmware_chunk: Creating success response with cid=%d", request.getCid());
     WebSocketDownstreamMessage response = create_success_response(request.getCid(), request.getCommand(), dataJSON);
-    LOG_INFO("WebSocket", "upload_firmware_chunk: Response created, returning...");
+    // LOG_INFO("WebSocket", "upload_firmware_chunk: Response created, returning...");
     return response;
 }
 
@@ -424,7 +424,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleUploadFirmwareChunk(con
  * @return bool 处理成功返回true
  */
 bool FirmwareCommandHandler::handleBinaryFirmwareChunk(const uint8_t* data, size_t length, WebSocketConnection* connection) {
-    LOG_INFO("WebSocket", "Handling binary firmware chunk, data length: %zu", length);
+    // LOG_INFO("WebSocket", "Handling binary firmware chunk, data length: %zu", length);
     
     // 检查数据长度是否足够包含头部
     if (length < sizeof(BinaryFirmwareChunkHeader)) {
@@ -456,9 +456,9 @@ bool FirmwareCommandHandler::handleBinaryFirmwareChunk(const uint8_t* data, size
         // 使用实际大小继续处理
     }
     
-    LOG_INFO("WebSocket", "Binary chunk: session=%s, component=%s, index=%u/%u, size=%u, offset=%u, addr=0x%08X",
-             sessionId.c_str(), componentName.c_str(), header->chunk_index, header->total_chunks,
-             header->chunk_size, header->chunk_offset, header->target_address);
+    // LOG_INFO("WebSocket", "Binary chunk: session=%s, component=%s, index=%u/%u, size=%u, offset=%u, addr=0x%08X",
+    //          sessionId.c_str(), componentName.c_str(), header->chunk_index, header->total_chunks,
+    //          header->chunk_size, header->chunk_offset, header->target_address);
     
     FirmwareManager* manager = FirmwareManager::GetInstance();
     if (!manager) {
@@ -512,7 +512,7 @@ bool FirmwareCommandHandler::handleBinaryFirmwareChunk(const uint8_t* data, size
     sendBinaryChunkResponse(connection, success, header->chunk_index, progress, 
                            success ? nullptr : "Chunk processing failed");
     
-    LOG_INFO("WebSocket", "Binary firmware chunk processing completed: %s", success ? "success" : "failed");
+    // LOG_INFO("WebSocket", "Binary firmware chunk processing completed: %s", success ? "success" : "failed");
     return success;
 }
 
@@ -561,7 +561,7 @@ void FirmwareCommandHandler::sendBinaryChunkResponse(WebSocketConnection* connec
  * @brief 完成固件升级会话
  */
 WebSocketDownstreamMessage FirmwareCommandHandler::handleCompleteFirmwareUpgradeSession(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling complete_firmware_upgrade_session command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling complete_firmware_upgrade_session command, cid: %d", request.getCid());
     
     FirmwareManager* manager = FirmwareManager::GetInstance();
     if (!manager) {
@@ -601,7 +601,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleCompleteFirmwareUpgrade
         LOG_ERROR("WebSocket", "complete_firmware_upgrade_session: Failed to complete upgrade session");
     }
 
-    LOG_INFO("WebSocket", "complete_firmware_upgrade_session command completed");
+    // LOG_INFO("WebSocket", "complete_firmware_upgrade_session command completed");
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
@@ -609,7 +609,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleCompleteFirmwareUpgrade
  * @brief 中止固件升级会话
  */
 WebSocketDownstreamMessage FirmwareCommandHandler::handleAbortFirmwareUpgradeSession(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling abort_firmware_upgrade_session command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling abort_firmware_upgrade_session command, cid: %d", request.getCid());
     
     FirmwareManager* manager = FirmwareManager::GetInstance();
     if (!manager) {
@@ -645,7 +645,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleAbortFirmwareUpgradeSes
         LOG_ERROR("WebSocket", "abort_firmware_upgrade_session: Failed to abort upgrade session");
     }
 
-    LOG_INFO("WebSocket", "abort_firmware_upgrade_session command completed");
+    // LOG_INFO("WebSocket", "abort_firmware_upgrade_session command completed");
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
@@ -653,7 +653,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleAbortFirmwareUpgradeSes
  * @brief 获取固件升级会话状态
  */
 WebSocketDownstreamMessage FirmwareCommandHandler::handleGetFirmwareUpgradeStatus(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling get_firmware_upgrade_status command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling get_firmware_upgrade_status command, cid: %d", request.getCid());
     
     FirmwareManager* manager = FirmwareManager::GetInstance();
     if (!manager) {
@@ -691,7 +691,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleGetFirmwareUpgradeStatu
         cJSON_AddNumberToObject(dataJSON, "progress", progress);
     }
 
-    LOG_INFO("WebSocket", "get_firmware_upgrade_status command completed");
+    // LOG_INFO("WebSocket", "get_firmware_upgrade_status command completed");
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
@@ -699,7 +699,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleGetFirmwareUpgradeStatu
  * @brief 清理固件升级会话
  */
 WebSocketDownstreamMessage FirmwareCommandHandler::handleCleanupFirmwareUpgradeSession(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling cleanup_firmware_upgrade_session command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling cleanup_firmware_upgrade_session command, cid: %d", request.getCid());
     
     FirmwareManager* manager = FirmwareManager::GetInstance();
     if (!manager) {
@@ -715,7 +715,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleCleanupFirmwareUpgradeS
     cJSON_AddBoolToObject(dataJSON, "success", true);
     cJSON_AddStringToObject(dataJSON, "message", "Session cleanup completed successfully");
 
-    LOG_INFO("WebSocket", "cleanup_firmware_upgrade_session command completed");
+    // LOG_INFO("WebSocket", "cleanup_firmware_upgrade_session command completed");
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
@@ -851,7 +851,7 @@ cJSON* FirmwareCommandHandler::createFirmwareMetadataJSON() {
         LOG_ERROR("WebSocket", "createFirmwareMetadataJSON: Failed to create JSON object");
         return nullptr;
     }
-    
+
     // 当前槽位信息
     cJSON_AddStringToObject(data, "currentSlot", 
         metadata->target_slot == FIRMWARE_SLOT_A ? "A" : "B");
@@ -877,7 +877,7 @@ cJSON* FirmwareCommandHandler::createFirmwareMetadataJSON() {
         }
         cJSON_AddItemToObject(data, "components", componentsArray);
     }
-    
+
     // LOG_INFO("WebSocket", "createFirmwareMetadataJSON: Created firmware metadata successfully");
     return data;
 } 

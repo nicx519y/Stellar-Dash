@@ -7,7 +7,7 @@
 // 二进制命令定义
 #define BINARY_CMD_UPLOAD_FIRMWARE_CHUNK 0x01
 
-// 二进制固件分片头部结构（64字节固定大小）
+// 二进制固件分片头部结构（82字节固定大小）
 #pragma pack(push, 1)
 struct BinaryFirmwareChunkHeader {
     uint8_t command;                    // 命令类型 (BINARY_CMD_UPLOAD_FIRMWARE_CHUNK)

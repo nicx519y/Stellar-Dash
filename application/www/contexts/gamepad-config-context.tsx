@@ -1524,8 +1524,15 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                             // 尝试使用二进制传输（如果WebSocket框架支持）
                             let chunkResult: any;
                             
-                            if (wsFramework && typeof (wsFramework as any).sendBinaryMessage === 'function') {
+                            console.log('WebSocket框架检查:', {
+                                wsFramework: !!wsFramework,
+                                sendBinaryMessage: typeof wsFramework?.sendBinaryMessage,
+                                onBinaryMessage: typeof wsFramework?.onBinaryMessage
+                            });
+                            
+                            if (wsFramework && typeof wsFramework.sendBinaryMessage === 'function') {
                                 // 使用二进制传输
+                                console.log('使用二进制传输模式上传固件分片');
                                 chunkResult = await sendBinaryFirmwareChunk(
                                     deviceSessionId,
                                     componentName,
@@ -1539,6 +1546,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                                 );
                             } else {
                                 // 降级到JSON+Base64传输
+                                console.log('降级到JSON+Base64传输模式');
                                 const base64Data = btoa(String.fromCharCode(...chunkData));
                                 
                                 // 准备WebSocket请求参数
@@ -1670,13 +1678,23 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         checksum: string,
         chunkData: Uint8Array
     ): Promise<any> => {
+        console.log('sendBinaryFirmwareChunk called:', {
+            sessionId,
+            componentName,
+            chunkIndex,
+            totalChunks,
+            chunkSize,
+            wsFramework: !!wsFramework,
+            wsFrameworkMethods: wsFramework ? Object.getOwnPropertyNames(wsFramework) : 'null'
+        });
+        
         if (!wsFramework) {
             throw new Error('WebSocket framework not available');
         }
 
-        // 构建二进制消息头部（64字节固定大小）
+        // 构建二进制消息头部（82字节固定大小）
         const BINARY_CMD_UPLOAD_FIRMWARE_CHUNK = 0x01;
-        const headerSize = 64;
+        const headerSize = 82; // 修正头部大小：1+1+2+32+2+16+4+4+4+4+4+8 = 82字节
         const header = new ArrayBuffer(headerSize);
         const headerView = new DataView(header);
         const headerBytes = new Uint8Array(header);
@@ -1787,13 +1805,22 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             };
 
             // 注册一次性二进制消息监听器
-            if (typeof (wsFramework as any).onBinaryMessage === 'function') {
-                const unsubscribe = (wsFramework as any).onBinaryMessage(handleBinaryResponse);
+            if (typeof wsFramework.onBinaryMessage === 'function') {
+                console.log('二进制消息监听器注册成功');
+                const unsubscribe = wsFramework.onBinaryMessage(handleBinaryResponse);
                 
                 // 发送二进制消息
                 try {
-                    (wsFramework as any).sendBinaryMessage(binaryMessage);
+                    console.log('发送二进制消息:', {
+                        messageSize: binaryMessage.length,
+                        headerSize,
+                        chunkDataSize: chunkData.length,
+                        wsFrameworkState: wsFramework.getState ? wsFramework.getState() : 'unknown'
+                    });
+                    wsFramework.sendBinaryMessage(binaryMessage);
+                    console.log('二进制消息发送成功');
                 } catch (error) {
+                    console.error('二进制消息发送失败:', error);
                     clearTimeout(timeout);
                     if (unsubscribe) unsubscribe();
                     reject(error);

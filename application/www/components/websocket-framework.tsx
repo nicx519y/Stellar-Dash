@@ -234,6 +234,25 @@ export class WebSocketFramework {
     }
   }
 
+  // 发送二进制消息
+  public sendBinaryMessage(data: ArrayBuffer | Uint8Array): void {
+    if (this.state !== WebSocketState.CONNECTED) {
+      console.warn('WebSocket未连接，无法发送二进制消息');
+      return;
+    }
+
+    try {
+      this.ws!.send(data);
+      console.log('发送二进制WebSocket消息:', data.byteLength, 'bytes');
+    } catch (error) {
+      this.handleError({
+        type: 'connection',
+        message: `二进制消息发送失败: ${error}`,
+        timestamp: new Date()
+      });
+    }
+  }
+
   // 获取当前状态
   public getState(): WebSocketState {
     return this.state;
@@ -402,8 +421,16 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     frameworkRef.current?.sendMessageNoResponse(command, params);
   }, []);
 
+  const sendBinaryMessage = useCallback((data: ArrayBuffer | Uint8Array) => {
+    frameworkRef.current?.sendBinaryMessage(data);
+  }, []);
+
   const onMessage = useCallback((handler: MessageHandler): (() => void) => {
     return frameworkRef.current?.onMessage(handler) || (() => {});
+  }, []);
+
+  const onBinaryMessage = useCallback((handler: BinaryMessageHandler): (() => void) => {
+    return frameworkRef.current?.onBinaryMessage(handler) || (() => {});
   }, []);
 
   return {
@@ -413,7 +440,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     disconnect,
     sendMessage,
     sendMessageNoResponse,
+    sendBinaryMessage,
     onMessage,
+    onBinaryMessage,
     framework: frameworkRef.current
   };
 }

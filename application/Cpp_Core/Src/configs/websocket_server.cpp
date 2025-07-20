@@ -133,7 +133,7 @@ std::string base64_encode(const uint8_t* data, size_t length) {
 // WebSocketConnection 实现
 WebSocketConnection::WebSocketConnection(struct tcp_pcb* pcb)
     : pcb(pcb), state(WS_STATE_CONNECTING), buffer(nullptr), buffer_size(0), buffer_used(0),
-      connection_time(0), message_count(0), on_message(nullptr), on_connect(nullptr), on_disconnect(nullptr) {
+      connection_time(0), message_count(0), on_message(nullptr), on_binary_message(nullptr), on_connect(nullptr), on_disconnect(nullptr) {
     // 分配初始缓冲区
     buffer = (char*)malloc(DEFAULT_BUFFER_SIZE);
     if (buffer) {
@@ -446,7 +446,10 @@ void WebSocketConnection::handle_data(const uint8_t* data, size_t length) {
                         break;
                         
                     case WS_OP_BINARY:
-                        // 可以在这里处理二进制消息
+                        // 处理二进制消息
+                        if (on_binary_message && frame.payload && frame.payload_length > 0) {
+                            on_binary_message(this, frame.payload, frame.payload_length);
+                        }
                         message_count++;
                         break;
                         
@@ -596,8 +599,8 @@ void WebSocketConnection::tcp_err_callback(void* arg, err_t err) {
 // WebSocketServer 实现
 WebSocketServer::WebSocketServer() 
     : listen_pcb(nullptr), port(0), connections(nullptr), max_connections(MAX_WEBSOCKET_CONNECTIONS), 
-      connection_count(0), default_message_callback(nullptr), default_connect_callback(nullptr), 
-      default_disconnect_callback(nullptr) {
+      connection_count(0), default_message_callback(nullptr), default_binary_message_callback(nullptr), 
+      default_connect_callback(nullptr), default_disconnect_callback(nullptr) {
     
     // 分配连接数组
     connections = (WebSocketConnection**)malloc(max_connections * sizeof(WebSocketConnection*));
@@ -750,6 +753,9 @@ err_t WebSocketServer::tcp_accept_callback(void* arg, struct tcp_pcb* newpcb, er
     // 设置回调函数
     if (server->default_message_callback) {
         conn->set_message_callback(server->default_message_callback);
+    }
+    if (server->default_binary_message_callback) {
+        conn->set_binary_message_callback(server->default_binary_message_callback);
     }
     if (server->default_connect_callback) {
         conn->set_connect_callback(server->default_connect_callback);

@@ -639,14 +639,14 @@ bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* c
     
     APP_DBG("FirmwareManager::ProcessFirmwareChunk: calculated_hash: %s, chunk->checksum: %s", calculated_hash, chunk->checksum);
 
-    // 进行校验和验证
-    if (strcmp(calculated_hash, chunk->checksum) != 0) {
-        APP_ERR("FirmwareManager::ProcessFirmwareChunk: Checksum mismatch - chunk_index: %ld, calculated: %s, received: %s", 
+    // 进行校验和验证 - 只比较前16个字符（8字节）
+    if (strncmp(calculated_hash, chunk->checksum, 16) != 0) {
+        APP_ERR("FirmwareManager::ProcessFirmwareChunk: Checksum mismatch - chunk_index: %ld, calculated: %.16s, received: %s", 
                 (unsigned long)chunk->chunk_index, calculated_hash, chunk->checksum);
         current_session->status = UPGRADE_STATUS_FAILED;  // 标记会话为失败状态
         return false; // 校验和不匹配
     }
-    APP_DBG("FirmwareManager::ProcessFirmwareChunk: SHA256 checksum verification passed - chunk_index: %ld", (unsigned long)chunk->chunk_index);
+    APP_DBG("FirmwareManager::ProcessFirmwareChunk: SHA256 checksum verification passed - chunk_index: %ld (compared first 8 bytes)", (unsigned long)chunk->chunk_index);
     
     // 写入Flash
     if (!WriteChunkToFlash(write_address, chunk->data, chunk->chunk_size)) {

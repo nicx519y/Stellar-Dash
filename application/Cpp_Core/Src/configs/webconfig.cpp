@@ -337,8 +337,7 @@ void WebConfig::setup() {
     g_websocket_server->set_default_message_callback(onWebSocketMessage);
     g_websocket_server->set_default_connect_callback(onWebSocketConnect);
     g_websocket_server->set_default_disconnect_callback(onWebSocketDisconnect);
-    // TODO: 添加二进制消息回调支持
-    // g_websocket_server->set_binary_message_callback(onWebSocketBinaryMessage);
+    g_websocket_server->set_default_binary_message_callback(onWebSocketBinaryMessage);
     
     if (g_websocket_server->start(8081)) {
         g_websocket_start_time = HAL_GetTick();

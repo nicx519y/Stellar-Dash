@@ -42,6 +42,7 @@ class WebSocketConnection;
 
 // WebSocket 消息回调函数类型
 typedef void (*WebSocketMessageCallback)(WebSocketConnection*, const std::string&);
+typedef void (*WebSocketBinaryMessageCallback)(WebSocketConnection*, const uint8_t*, size_t);
 typedef void (*WebSocketEventCallback)(WebSocketConnection*);
 
 // WebSocket 连接类
@@ -57,6 +58,7 @@ private:
     
     // 回调函数
     WebSocketMessageCallback on_message;
+    WebSocketBinaryMessageCallback on_binary_message;
     WebSocketEventCallback on_connect;
     WebSocketEventCallback on_disconnect;
     
@@ -98,6 +100,7 @@ public:
     
     // 设置回调函数
     void set_message_callback(WebSocketMessageCallback callback) { on_message = callback; }
+    void set_binary_message_callback(WebSocketBinaryMessageCallback callback) { on_binary_message = callback; }
     void set_connect_callback(WebSocketEventCallback callback) { on_connect = callback; }
     void set_disconnect_callback(WebSocketEventCallback callback) { on_disconnect = callback; }
     
@@ -122,6 +125,7 @@ private:
     
     // 回调函数
     WebSocketMessageCallback default_message_callback;
+    WebSocketBinaryMessageCallback default_binary_message_callback;
     WebSocketEventCallback default_connect_callback;
     WebSocketEventCallback default_disconnect_callback;
     
@@ -144,6 +148,7 @@ public:
     
     // 设置默认回调函数
     void set_default_message_callback(WebSocketMessageCallback callback) { default_message_callback = callback; }
+    void set_default_binary_message_callback(WebSocketBinaryMessageCallback callback) { default_binary_message_callback = callback; }
     void set_default_connect_callback(WebSocketEventCallback callback) { default_connect_callback = callback; }
     void set_default_disconnect_callback(WebSocketEventCallback callback) { default_disconnect_callback = callback; }
     
