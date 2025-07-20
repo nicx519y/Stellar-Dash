@@ -1426,25 +1426,15 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     // 上传固件到设备
     const uploadFirmwareToDevice = async (firmwarePackage: FirmwarePackage, onProgress?: (progress: FirmwarePackageDownloadProgress) => void): Promise<void> => {
         try {
-            // 创建升级会话
+            // 生成会话ID
             const sessionId = generateSessionId();
-            const sessionResponse = await fetchWithKeepAlive('/api/firmware-upgrade', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    action: 'create',
-                    session_id: sessionId,
-                    manifest: firmwarePackage.manifest
-                })
+
+            // 创建升级会话
+            const sessionData = await sendWebSocketRequest('create_firmware_upgrade_session', {
+                session_id: sessionId,
+                manifest: firmwarePackage.manifest
             });
 
-            if (!sessionResponse.ok) {
-                throw new Error(`Failed to create upgrade session: ${sessionResponse.statusText}`);
-            }
-
-            const sessionData = await sessionResponse.json();
             const deviceSessionId = sessionData.session_id || sessionId;
 
             // 更新升级会话状态
@@ -1524,35 +1514,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                         console.log(`Last 32 bytes of chunk data:`, Array.from(chunkData.slice(-32)).map(b => b.toString(16).padStart(2, '0')).join(' '));
                     }
 
-                    // 创建FormData进行二进制传输
-                    const formData = new FormData();
-                    
-                    // 添加元数据作为JSON字符串
-                    const metadata = {
-                        session_id: deviceSessionId,
-                        component_name: componentName,
-                        chunk_index: chunkIndex,
-                        total_chunks: totalChunks,
-                        target_address: `0x${targetAddress.toString(16).toUpperCase()}`,
-                        chunk_size: chunkSize,
-                        chunk_offset: chunkOffset,
-                        checksum: checksum
-                    };
-                    
-                    // 调试输出metadata对象
-                    console.log('Metadata object before JSON.stringify:', metadata);
-                    console.log('Checksum type:', typeof metadata.checksum);
-                    console.log('Checksum length:', metadata.checksum.length);
-                    
-                    const metadataJsonString = JSON.stringify(metadata);
-                    console.log('Metadata JSON string:', metadataJsonString);
-                    
-                    formData.append('metadata', metadataJsonString);
-                    
-                    // 添加二进制数据
-                    const blob = new Blob([chunkData], { type: 'application/octet-stream' });
-                    formData.append('data', blob, 'chunk.bin');
-
                     // 重试机制
                     let retryCount = 0;
                     let success = false;
@@ -1560,44 +1521,63 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
                     while (retryCount <= upgradeConfig.maxRetries && !success) {
                         try {
-                            const chunkResponse = await fetchWithKeepAlive('/api/firmware-upgrade/chunk', {
-                                method: 'POST',
-                                body: formData
-                            });
-
-                            if (!chunkResponse.ok) {
-                                throw new Error(`Chunk upload failed: ${chunkResponse.statusText}`);
+                            // 尝试使用二进制传输（如果WebSocket框架支持）
+                            let chunkResult: any;
+                            
+                            if (wsFramework && typeof (wsFramework as any).sendBinaryMessage === 'function') {
+                                // 使用二进制传输
+                                chunkResult = await sendBinaryFirmwareChunk(
+                                    deviceSessionId,
+                                    componentName,
+                                    chunkIndex,
+                                    totalChunks,
+                                    chunkSize,
+                                    chunkOffset,
+                                    targetAddress,
+                                    checksum,
+                                    chunkData
+                                );
+                            } else {
+                                // 降级到JSON+Base64传输
+                                const base64Data = btoa(String.fromCharCode(...chunkData));
+                                
+                                // 准备WebSocket请求参数
+                                const chunkParams = {
+                                    session_id: deviceSessionId,
+                                    component_name: componentName,
+                                    chunk_index: chunkIndex,
+                                    total_chunks: totalChunks,
+                                    target_address: `0x${targetAddress.toString(16).toUpperCase()}`,
+                                    chunk_size: chunkSize,
+                                    chunk_offset: chunkOffset,
+                                    checksum: checksum,
+                                    data: base64Data
+                                };
+                                
+                                chunkResult = await sendWebSocketRequest('upload_firmware_chunk', chunkParams);
                             }
-
-                            const chunkResult = await chunkResponse.json();
-                            if (chunkResult.errNo !== 0) {
+                            
+                            if (!chunkResult.success) {
                                 // 检查是否是会话不存在的错误
-                                if (chunkResult.errNo === 2 && chunkResult.errorCode === 'SESSION_NOT_FOUND' && !sessionRecreated) {
+                                if (chunkResult.error && chunkResult.error.includes('session') && chunkResult.error.includes('not found') && !sessionRecreated) {
                                     console.warn('Session lost, attempting to recreate session...');
                                     
                                     // 重新创建会话
-                                    const recreateResponse = await fetchWithKeepAlive('/api/firmware-upgrade', {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                        },
-                                        body: JSON.stringify({
-                                            action: 'create',
-                                            session_id: deviceSessionId,
-                                            manifest: firmwarePackage.manifest
-                                        })
+                                    const recreateResult = await sendWebSocketRequest('create_firmware_upgrade_session', {
+                                        session_id: deviceSessionId,
+                                        manifest: firmwarePackage.manifest
                                     });
 
-                                    if (recreateResponse.ok) {
+                                    if (recreateResult.success) {
                                         sessionRecreated = true;
                                         console.log('Session recreated successfully, retrying chunk upload...');
                                         // 不增加重试计数，直接重试
                                         continue;
                                     } else {
-                                        throw new Error(`Failed to recreate session: ${recreateResponse.statusText}`);
+                                        throw new Error(`Failed to recreate session: ${recreateResult.error || 'Unknown error'}`);
                                     }
                                 } else {
-                                    throw new Error(`Chunk verification failed: ${chunkResult.errorMessage || 'Unknown error'}`);
+                                    throw new Error(`Chunk verification failed: ${chunkResult.error || 'Unknown error'}`);
                                 }
                             }
 
@@ -1628,19 +1608,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             }
 
             // 完成升级会话
-            const completeResponse = await fetchWithKeepAlive('/api/firmware-upgrade-complete', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    action: 'complete',
-                    session_id: deviceSessionId
-                })
+            const completeResult = await sendWebSocketRequest('complete_firmware_upgrade_session', {
+                session_id: deviceSessionId
             });
 
-            if (!completeResponse.ok) {
-                throw new Error(`Failed to complete upgrade session: ${completeResponse.statusText}`);
+            if (!completeResult.success) {
+                throw new Error(`Failed to complete upgrade session: ${completeResult.error || 'Unknown error'}`);
             }
 
             // 更新最终状态
@@ -1661,15 +1634,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             // 错误处理：尝试中止会话
             if (upgradeSession?.sessionId) {
                 try {
-                    await fetchWithKeepAlive('/api/firmware-upgrade-abort', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            action: 'abort',
-                            session_id: upgradeSession.sessionId
-                        })
+                    await sendWebSocketRequest('abort_firmware_upgrade_session', {
+                        session_id: upgradeSession.sessionId
                     });
                 } catch (abortError) {
                     console.error('Failed to abort upgrade session:', abortError);
@@ -1690,6 +1656,165 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
             throw error;
         }
+    };
+
+    // 二进制固件分片传输函数
+    const sendBinaryFirmwareChunk = async (
+        sessionId: string,
+        componentName: string,
+        chunkIndex: number,
+        totalChunks: number,
+        chunkSize: number,
+        chunkOffset: number,
+        targetAddress: number,
+        checksum: string,
+        chunkData: Uint8Array
+    ): Promise<any> => {
+        if (!wsFramework) {
+            throw new Error('WebSocket framework not available');
+        }
+
+        // 构建二进制消息头部（64字节固定大小）
+        const BINARY_CMD_UPLOAD_FIRMWARE_CHUNK = 0x01;
+        const headerSize = 64;
+        const header = new ArrayBuffer(headerSize);
+        const headerView = new DataView(header);
+        const headerBytes = new Uint8Array(header);
+
+        // 填充头部数据
+        let offset = 0;
+        
+        // command (1 byte)
+        headerView.setUint8(offset, BINARY_CMD_UPLOAD_FIRMWARE_CHUNK);
+        offset += 1;
+        
+        // reserved1 (1 byte)
+        headerView.setUint8(offset, 0);
+        offset += 1;
+        
+        // session_id_len (2 bytes, little-endian)
+        const sessionIdBytes = new TextEncoder().encode(sessionId);
+        const sessionIdLen = Math.min(sessionIdBytes.length, 31); // 最多31字节，保留1字节给null terminator
+        headerView.setUint16(offset, sessionIdLen, true);
+        offset += 2;
+        
+        // session_id (32 bytes)
+        headerBytes.set(sessionIdBytes.slice(0, sessionIdLen), offset);
+        offset += 32;
+        
+        // component_name_len (2 bytes, little-endian)
+        const componentNameBytes = new TextEncoder().encode(componentName);
+        const componentNameLen = Math.min(componentNameBytes.length, 15); // 最多15字节，保留1字节给null terminator
+        headerView.setUint16(offset, componentNameLen, true);
+        offset += 2;
+        
+        // component_name (16 bytes)
+        headerBytes.set(componentNameBytes.slice(0, componentNameLen), offset);
+        offset += 16;
+        
+        // chunk_index (4 bytes, little-endian)
+        headerView.setUint32(offset, chunkIndex, true);
+        offset += 4;
+        
+        // total_chunks (4 bytes, little-endian)
+        headerView.setUint32(offset, totalChunks, true);
+        offset += 4;
+        
+        // chunk_size (4 bytes, little-endian)
+        headerView.setUint32(offset, chunkSize, true);
+        offset += 4;
+        
+        // chunk_offset (4 bytes, little-endian)
+        headerView.setUint32(offset, chunkOffset, true);
+        offset += 4;
+        
+        // target_address (4 bytes, little-endian)
+        headerView.setUint32(offset, targetAddress, true);
+        offset += 4;
+        
+        // checksum (8 bytes) - SHA256的前8字节
+        const checksumBytes = new Uint8Array(8);
+        for (let i = 0; i < 8 && i * 2 < checksum.length; i++) {
+            checksumBytes[i] = parseInt(checksum.substr(i * 2, 2), 16);
+        }
+        headerBytes.set(checksumBytes, offset);
+
+        // 合并头部和数据
+        const totalSize = headerSize + chunkData.length;
+        const binaryMessage = new Uint8Array(totalSize);
+        binaryMessage.set(headerBytes, 0);
+        binaryMessage.set(chunkData, headerSize);
+
+        // 发送二进制消息
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error('Binary chunk upload timeout'));
+            }, upgradeConfig.timeout);
+
+            // 监听二进制响应
+            const handleBinaryResponse = (data: ArrayBuffer) => {
+                clearTimeout(timeout);
+                
+                try {
+                    // 解析二进制响应
+                    const responseView = new DataView(data);
+                    const responseCommand = responseView.getUint8(0);
+                    
+                    if (responseCommand === 0x81) { // 响应命令
+                        const success = responseView.getUint8(1) === 1;
+                        const responseChunkIndex = responseView.getUint32(2, true);
+                        const progress = responseView.getUint32(6, true);
+                        const errorLen = responseView.getUint8(10);
+                        
+                        let errorMessage = '';
+                        if (!success && errorLen > 0) {
+                            const errorBytes = new Uint8Array(data, 11, errorLen);
+                            errorMessage = new TextDecoder().decode(errorBytes);
+                        }
+                        
+                        resolve({
+                            success,
+                            chunk_index: responseChunkIndex,
+                            progress,
+                            error: success ? null : errorMessage
+                        });
+                    } else {
+                        reject(new Error('Invalid binary response command'));
+                    }
+                } catch (error) {
+                    reject(new Error(`Failed to parse binary response: ${error}`));
+                }
+            };
+
+            // 注册一次性二进制消息监听器
+            if (typeof (wsFramework as any).onBinaryMessage === 'function') {
+                const unsubscribe = (wsFramework as any).onBinaryMessage(handleBinaryResponse);
+                
+                // 发送二进制消息
+                try {
+                    (wsFramework as any).sendBinaryMessage(binaryMessage);
+                } catch (error) {
+                    clearTimeout(timeout);
+                    if (unsubscribe) unsubscribe();
+                    reject(error);
+                }
+                
+                // 确保在响应后取消监听
+                const originalResolve = resolve;
+                const originalReject = reject;
+                resolve = (value: any) => {
+                    if (unsubscribe) unsubscribe();
+                    originalResolve(value);
+                };
+                reject = (reason: any) => {
+                    if (unsubscribe) unsubscribe();
+                    originalReject(reason);
+                };
+            } else {
+                clearTimeout(timeout);
+                reject(new Error('Binary message not supported by WebSocket framework'));
+            }
+        });
     };
 
     // 配置管理函数

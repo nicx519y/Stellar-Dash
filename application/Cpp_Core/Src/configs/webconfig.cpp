@@ -3,6 +3,7 @@
 #include "configs/websocket_message.hpp"
 #include "configs/websocket_message_queue.hpp"
 #include "configs/websocket_command_handler.hpp"
+#include "configs/firmware_command_handler.hpp"
 #include "qspi-w25q64.h"
 #include "board_cfg.h"
 #include "adc_btns/adc_calibration.hpp"
@@ -10,6 +11,7 @@
 #include "leds/leds_manager.hpp"
 #include "configs/webconfig_leds_manager.hpp"
 #include "firmware/firmware_manager.hpp"
+#include "storagemanager.hpp"
 #include <cctype>
 #include <cstring>
 #include <cstdlib>
@@ -280,19 +282,8 @@ void onWebSocketMessage(WebSocketConnection* conn, const std::string& message) {
 // WebSocket连接建立回调
 void onWebSocketConnect(WebSocketConnection* conn) {
     g_websocket_connection_count++;
-    LOG_INFO("WebSocket", "WebSocket client connected, total connections: %d", g_websocket_connection_count);
-    APP_DBG("WebSocket client connected, total connections: %d", g_websocket_connection_count);
-
-    // 发送欢迎消息（按照下行协议格式）
-    cJSON* welcomeData = cJSON_CreateObject();
-    cJSON_AddStringToObject(welcomeData, "message", "Welcome to STM32 WebSocket Server!");
-    cJSON_AddNumberToObject(welcomeData, "timestamp", HAL_GetTick());
-    cJSON_AddNumberToObject(welcomeData, "version", 1);
-    
-    WebSocketDownstreamMessage welcome_response = create_websocket_response(
-        0, "welcome", 0, welcomeData
-    );
-    send_websocket_response(conn, std::move(welcome_response));
+    LOG_INFO("WebSocket", "New WebSocket connection established. Total connections: %d", g_websocket_connection_count);
+    APP_DBG("New WebSocket connection established. Total connections: %d", g_websocket_connection_count);
 }
 
 // WebSocket连接断开回调
@@ -300,8 +291,42 @@ void onWebSocketDisconnect(WebSocketConnection* conn) {
     if (g_websocket_connection_count > 0) {
         g_websocket_connection_count--;
     }
-    LOG_INFO("WebSocket", "WebSocket client disconnected, remaining connections: %d", g_websocket_connection_count);
-    APP_DBG("WebSocket client disconnected, remaining connections: %d", g_websocket_connection_count);
+    LOG_INFO("WebSocket", "WebSocket connection closed. Total connections: %d", g_websocket_connection_count);
+    APP_DBG("WebSocket connection closed. Total connections: %d", g_websocket_connection_count);
+}
+
+// WebSocket二进制消息处理回调
+void onWebSocketBinaryMessage(WebSocketConnection* conn, const uint8_t* data, size_t length) {
+    LOG_INFO("WebSocket", "Received binary message, length: %zu", length);
+    APP_DBG("Received binary message, length: %zu", length);
+    
+    if (!data || length == 0) {
+        LOG_ERROR("WebSocket", "Invalid binary message data");
+        return;
+    }
+    
+    // 检查数据长度是否足够包含命令字节
+    if (length < 1) {
+        LOG_ERROR("WebSocket", "Binary message too short, length: %zu", length);
+        return;
+    }
+    
+    // 读取命令类型
+    uint8_t command = data[0];
+    
+    switch (command) {
+        case BINARY_CMD_UPLOAD_FIRMWARE_CHUNK: {
+            // 处理固件分片上传
+            FirmwareCommandHandler& handler = FirmwareCommandHandler::getInstance();
+            bool success = handler.handleBinaryFirmwareChunk(data, length, conn);
+            LOG_INFO("WebSocket", "Binary firmware chunk processed: %s", success ? "success" : "failed");
+            break;
+        }
+        default:
+            LOG_WARN("WebSocket", "Unknown binary command: %d", command);
+            // 可以在这里发送错误响应
+            break;
+    }
 }
 
 void WebConfig::setup() {
@@ -312,6 +337,8 @@ void WebConfig::setup() {
     g_websocket_server->set_default_message_callback(onWebSocketMessage);
     g_websocket_server->set_default_connect_callback(onWebSocketConnect);
     g_websocket_server->set_default_disconnect_callback(onWebSocketDisconnect);
+    // TODO: 添加二进制消息回调支持
+    // g_websocket_server->set_binary_message_callback(onWebSocketBinaryMessage);
     
     if (g_websocket_server->start(8081)) {
         g_websocket_start_time = HAL_GetTick();

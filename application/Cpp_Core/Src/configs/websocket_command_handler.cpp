@@ -108,6 +108,12 @@ void WebSocketCommandManager::initializeHandlers() {
     // 注册固件相关命令
     registerHandler("get_device_auth", &firmwareHandler);
     registerHandler("get_firmware_metadata", &firmwareHandler);
+    registerHandler("create_firmware_upgrade_session", &firmwareHandler);
+    registerHandler("upload_firmware_chunk", &firmwareHandler);
+    registerHandler("complete_firmware_upgrade_session", &firmwareHandler);
+    registerHandler("abort_firmware_upgrade_session", &firmwareHandler);
+    registerHandler("get_firmware_upgrade_status", &firmwareHandler);
+    registerHandler("cleanup_firmware_upgrade_session", &firmwareHandler);
     
     // LOG_INFO("WebSocket", "WebSocket command handlers initialized successfully");
 } 
