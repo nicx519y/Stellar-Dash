@@ -537,7 +537,7 @@ ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint
  * 在没有触发时，更新limitValue和triggerValue
  */
 void ADCBtnsWorker::updateLimitValue(ADCBtn* btn, const uint16_t currentValue) {
-    uint16_t noise = this->mapping->samplingNoise;
+    uint16_t noise = 2*this->mapping->samplingNoise;
     if(btn->state == ButtonState::RELEASED) {
         if(currentValue + noise < btn->limitValue) {
             btn->limitValue = currentValue + noise;
@@ -565,7 +565,7 @@ void ADCBtnsWorker::updateLimitValue(ADCBtn* btn, const uint16_t currentValue) {
  * 在触发时，重置limitValue和triggerValue
  */
 void ADCBtnsWorker::resetLimitValue(ADCBtn* btn, const uint16_t currentValue) {
-    uint16_t noise = this->mapping->samplingNoise;
+    uint16_t noise = 2*this->mapping->samplingNoise;
     if(btn->state == ButtonState::RELEASED) {
         btn->limitValue = currentValue - noise;
         float currentDistance = getDistanceByValue(btn, currentValue);
