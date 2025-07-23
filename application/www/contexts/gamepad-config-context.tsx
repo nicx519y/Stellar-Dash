@@ -44,6 +44,9 @@ import { parseButtonStateBinaryData, BUTTON_STATE_CHANGED_CMD, type ButtonStateB
 // 导入固件工具函数
 import { calculateSHA256, extractFirmwarePackage } from '@/lib/firmware-utils';
 
+// 导入WebSocket队列管理器
+import { WebSocketQueueManager } from '@/lib/websocket-queue-manager';
+
 // 固件服务器配置
 const FIRMWARE_SERVER_CONFIG = {
     // 默认固件服务器地址，可通过环境变量覆盖
@@ -102,7 +105,7 @@ interface GamepadConfigContextType {
     startMarking: (id: string) => Promise<void>;
     stopMarking: () => Promise<void>;
     stepMarking: () => Promise<void>;
-    fetchMarkingStatus: () => Promise<void>;
+    // fetchMarkingStatus: () => Promise<void>;
     renameMapping: (id: string, name: string) => Promise<void>;
     // 按键监控相关
     buttonMonitoringActive: boolean;
@@ -118,8 +121,6 @@ interface GamepadConfigContextType {
     // 固件更新检查相关
     firmwareUpdateInfo: FirmwareUpdateCheckResponse | null;
     checkFirmwareUpdate: (currentVersion: string, customServerHost?: string) => Promise<void>;
-    setFirmwareServerHost: (host: string) => void;
-    getFirmwareServerHost: () => string;
     // 固件升级包下载和传输相关
     upgradeSession: FirmwareUpgradeSession | null;
     downloadFirmwarePackage: (downloadUrl: string, onProgress?: (progress: FirmwarePackageDownloadProgress) => void) => Promise<FirmwarePackage>;
@@ -209,6 +210,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [wsError, setWsError] = useState<WebSocketError | null>(null);
     const [wsFramework, setWsFramework] = useState<WebSocketFramework | null>(null);
     
+    // WebSocket 队列管理器
+    const wsQueueManager = useRef<WebSocketQueueManager | null>(null);
+    
     const [defaultMappingId, setDefaultMappingId] = useState<string>("");
     const [mappingList, setMappingList] = useState<{ id: string, name: string }[]>([]);
     const [markingStatus, setMarkingStatus] = useState<StepInfo>({
@@ -228,7 +232,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [buttonMonitoringActive, setButtonMonitoringActive] = useState<boolean>(false);
     const [firmwareInfo, setFirmwareInfo] = useState<DeviceFirmwareInfo | null>(null);
     const [firmwareUpdateInfo, setFirmwareUpdateInfo] = useState<FirmwareUpdateCheckResponse | null>(null);
-    const [firmwareServerHost, setFirmwareServerHostState] = useState<string>(FIRMWARE_SERVER_CONFIG.defaultHost);
+    const [firmwareServerHost, _setFirmwareServerHostState] = useState<string>(FIRMWARE_SERVER_CONFIG.defaultHost);
     const [upgradeSession, setUpgradeSession] = useState<FirmwareUpgradeSession | null>(null);
     const [upgradeConfig, setUpgradeConfigState] = useState<FirmwareUpgradeConfig>({
         chunkSize: DEFAULT_FIRMWARE_PACKAGE_CHUNK_SIZE, // 4KB默认分片大小
@@ -247,16 +251,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         switch (command) {
             case 'welcome':
                 console.log('收到欢迎消息:', data);
-                break;
-            case 'notification':
-                console.log('收到通知:', data);
-                break;
-            case 'config_changed':
-                // 配置变更，重新获取数据
-                fetchGlobalConfig();
-                fetchProfileList();
-                // 同时发布事件
-                eventBus.emit(EVENTS.CONFIG_CHANGED, data);
                 break;
             case 'calibration_update':
                 // 校准状态更新 - 只发布事件，让具体组件处理
@@ -316,10 +310,26 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             autoReconnect: true
         });
 
+        // 初始化队列管理器
+        const queueManager = new WebSocketQueueManager();
+        
+        // 设置队列管理器的发送函数
+        queueManager.setSendFunction(async (command: string, params: any) => {
+            // 直接调用WebSocket框架的sendMessage，它会处理完整的请求-响应流程
+            return await framework.sendMessage(command, params);
+        });
+        
+        wsQueueManager.current = queueManager;
+
         // 设置事件监听器
         const unsubscribeState = framework.onStateChange((state) => {
             setWsState(state);
             setWsConnected(state === WebSocketState.CONNECTED);
+            
+            // 如果连接断开，清空队列
+            if (state === WebSocketState.DISCONNECTED && wsQueueManager.current) {
+                wsQueueManager.current.clear();
+            }
         });
 
         const unsubscribeError = framework.onError((error) => {
@@ -331,11 +341,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
          * 处理通知消息 JSON数据推送
          */
         const unsubscribeMessage = framework.onMessage((message: WebSocketDownstreamMessage) => {
-            // 只处理通知消息（没有CID的消息）
+            // 现在只处理通知消息（没有CID的消息），响应消息由WebSocket框架内部处理
             if (message.cid === undefined) {
                 handleNotificationMessage(message);
             }
-            // 响应消息由WebSocketFramework内部处理
+            // 响应消息由WebSocket框架内部处理，不再需要队列管理器参与
         });
 
         /**
@@ -354,12 +364,19 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             unsubscribeMessage();
             unsubscribeBinary();
             framework.disconnect();
+            
+            // 清理队列管理器
+            if (wsQueueManager.current) {
+                wsQueueManager.current.destroy();
+                wsQueueManager.current = null;
+            }
         };
     }, []);
 
     // 自动连接WebSocket
     useEffect(() => {
         if (wsFramework && wsState === WebSocketState.DISCONNECTED) {
+            setIsLoading(true);
             wsFramework.connect().catch(console.error);
         }
     }, [wsFramework, wsState]);
@@ -371,9 +388,16 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             const authManager = DeviceAuthManager.getInstance();
             authManager.setWebSocketSendFunction(sendWebSocketRequest);
             
-            fetchGlobalConfig();
-            fetchProfileList();
-            fetchHotkeysConfig();
+            Promise.all([
+                fetchGlobalConfig(),
+                fetchProfileList(),
+                fetchHotkeysConfig(),
+                fetchFirmwareMetadata()
+            ])
+            .catch(console.error)
+            .finally(() => {
+                setIsLoading(false);
+            });
         }
     }, [wsConnected, wsState]);
 
@@ -401,18 +425,24 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    // 使用WebSocket发送请求的辅助函数
-    const sendWebSocketRequest = async (command: string, params: any = {}): Promise<any> => {
-        if(!wsFramework) {
-            return Promise.reject(new Error('WebSocket框架未初始化'));
+    /**
+     * 发送WebSocket请求
+     * @param command 命令
+     * @param params 参数
+     * @param immediate 是否立即发送，忽略延迟 true: 立即发送 false: 延迟发送
+     * @returns 
+     */
+    const sendWebSocketRequest = async (command: string, params: Record<string, unknown> = {}, immediate: boolean = false): Promise<any> => {
+        if (!wsQueueManager.current) {
+            return Promise.reject(new Error('WebSocket队列管理器未初始化'));
         }
         if (wsState !== WebSocketState.CONNECTED) {
             throw new Error('WebSocket未连接');
         }
         
         try {
-            // WebSocket框架已经处理了错误，直接返回数据
-            return await wsFramework.sendMessage(command, params);
+            // 将请求推入队列，队列管理器会处理延迟、去重和顺序发送
+            return await wsQueueManager.current.enqueue(command, params, immediate);
         } catch (error) {
             if (error instanceof Error) {
                 throw error;
@@ -421,153 +451,170 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const fetchDefaultProfile = async (): Promise<void> => {
+    const fetchDefaultProfile = async (immediate: boolean = true): Promise<void> => {
         try {
-            setIsLoading(true);
-            const data = await sendWebSocketRequest('get_default_profile');
-            setDefaultProfile(converProfileDetails(data.profileDetails) ?? {});
+            // setIsLoading(true);
+            const data = await sendWebSocketRequest('get_default_profile', {}, immediate);
+            if (data && 'profileDetails' in data) {
+                setDefaultProfile(converProfileDetails(data.profileDetails) ?? {});
+            }
             return Promise.resolve();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to fetch default profile"));
         } finally {
-            setIsLoading(false);
+            // setIsLoading(false);
         }
     };
 
-    const fetchProfileList = async (): Promise<void> => {
+    const fetchProfileList = async (immediate: boolean = true): Promise<void> => {
         try {
-            setIsLoading(true);
-            const data = await sendWebSocketRequest('get_profile_list');
-            setProfileList(data.profileList);
+            // setIsLoading(true);
+            const data = await sendWebSocketRequest('get_profile_list', {}, immediate);
+            if (data && 'profileList' in data) {
+                setProfileList(data.profileList as GameProfileList);
+            }
             return Promise.resolve();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to fetch profile list"));
         } finally {
-            setIsLoading(false);
+            // setIsLoading(false);
         }
     };
 
-    const fetchHotkeysConfig = async (): Promise<void> => {
+    const fetchHotkeysConfig = async (immediate: boolean = true): Promise<void> => {
         try {
-            setIsLoading(true);
-            const data = await sendWebSocketRequest('get_hotkeys_config');
-            setHotkeysConfig(data.hotkeysConfig);
+            // setIsLoading(true);
+            const data = await sendWebSocketRequest('get_hotkeys_config', {}, immediate);
+            if (data && 'hotkeysConfig' in data) {
+                setHotkeysConfig(data.hotkeysConfig as Hotkey[]);
+            }
             return Promise.resolve();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to fetch hotkeys config"));
         } finally {
-            setIsLoading(false);
+            // setIsLoading(false);
         }
     };
 
-    const updateProfileDetails = async (profileId: string, profileDetails: GameProfile): Promise<void> => {
+    const updateProfileDetails = async (profileId: string, profileDetails: GameProfile, immediate: boolean = false): Promise<void> => {
         try {
-            setIsLoading(true);
-            const data = await sendWebSocketRequest('update_profile', { profileId, profileDetails });
+            // setIsLoading(true);
+            const data = await sendWebSocketRequest('update_profile', { profileId, profileDetails }, immediate);
 
             // 如果更新的是 profile 的 name，则需要重新获取 profile list
             if(profileDetails.hasOwnProperty("name") || profileDetails.hasOwnProperty("id")) {
                 fetchProfileList();
-            } else { // 否则更新 default profile
+            } else if (data && 'profileDetails' in data) {
+                // 否则更新 default profile
                 setDefaultProfile(converProfileDetails(data.profileDetails) ?? {});
+            }
+            // setError(null);
+            return Promise.resolve();
+        } catch (err) {
+            // setError(err instanceof Error ? err.message : 'An error occurred');
+            return Promise.reject(new Error("Failed to update profile details"));
+        } finally {
+            // setIsLoading(false);
+        }
+    };
+
+    const resetProfileDetails = async (immediate: boolean = true): Promise<void> => {
+        await fetchDefaultProfile();
+    };
+
+    const createProfile = async (profileName: string, immediate: boolean = true): Promise<void> => {
+        try {
+            setIsLoading(true);
+            const data = await sendWebSocketRequest('create_profile', { profileName }, immediate);
+            if (data && 'profileList' in data) {
+                setProfileList(data.profileList as GameProfileList);
             }
             setError(null);
             return Promise.resolve();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to update profile details"));
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const resetProfileDetails = async (): Promise<void> => {
-        await fetchDefaultProfile();
-    };
-
-    const createProfile = async (profileName: string): Promise<void> => {
-        try {
-            setIsLoading(true);
-            const data = await sendWebSocketRequest('create_profile', { profileName });
-            setProfileList(data.profileList);
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to create profile"));
         } finally {
             setIsLoading(false);
         }
     };
 
-    const deleteProfile = async (profileId: string): Promise<void> => {
+    const deleteProfile = async (profileId: string, immediate: boolean = true): Promise<void> => {
         try {
             setIsLoading(true);
-            const data = await sendWebSocketRequest('delete_profile', { profileId });
-            setProfileList(data.profileList);
+            const data = await sendWebSocketRequest('delete_profile', { profileId }, immediate);
+            if (data && 'profileList' in data) {
+                setProfileList(data.profileList as GameProfileList);
+            }
             setError(null);
             return Promise.resolve();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to delete profile"));
         } finally {
             setIsLoading(false);
         }
     };
 
-    const switchProfile = async (profileId: string): Promise<void> => {
+    const switchProfile = async (profileId: string, immediate: boolean = true): Promise<void> => {
         try {
-            setIsLoading(true);
-            const data = await sendWebSocketRequest('switch_default_profile', { profileId });
-            setProfileList(data.profileList);
+            // setIsLoading(true);
+            const data = await sendWebSocketRequest('switch_default_profile', { profileId }, immediate);
+            if (data && 'profileList' in data) {
+                setProfileList(data.profileList as GameProfileList);
+            }
             setError(null);
             return Promise.resolve();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to switch profile"));
         } finally {
-            setIsLoading(false);
+            // setIsLoading(false);
         }
     };
 
-    const updateHotkeysConfig = async (hotkeysConfig: Hotkey[]): Promise<void> => {
+    const updateHotkeysConfig = async (hotkeysConfig: Hotkey[], immediate: boolean = false): Promise<void> => {
         try {
-            setIsLoading(true);
-            const data = await sendWebSocketRequest('update_hotkeys_config', { hotkeysConfig });
-            setHotkeysConfig(data.hotkeysConfig);
+            // setIsLoading(true);
+            const data = await sendWebSocketRequest('update_hotkeys_config', { hotkeysConfig }, immediate);
+            if (data && 'hotkeysConfig' in data) {
+                setHotkeysConfig(data.hotkeysConfig as Hotkey[]);
+            }
             setError(null);
             return Promise.resolve();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to update hotkeys config"));
         } finally {
-            setIsLoading(false);
+            // setIsLoading(false);
         }
     };
 
-    const rebootSystem = async (): Promise<void> => {
+    const rebootSystem = async (immediate: boolean = true): Promise<void> => {
         try {
             setIsLoading(true);
-            await sendWebSocketRequest('reboot');
+            await sendWebSocketRequest('reboot', {}, immediate);
             setError(null);
             return Promise.resolve();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to reboot system"));
         } finally {
             setIsLoading(false);
         }
     };
 
-    const fetchMappingList = async (): Promise<void> => {
+    const fetchMappingList = async (immediate: boolean = true): Promise<void> => {
         try {
             setIsLoading(true);
-            const data = await sendWebSocketRequest('ms_get_list');
-            setMappingList(data.mappingList);
-            setDefaultMappingId(data.defaultMappingId);
+            const data = await sendWebSocketRequest('ms_get_list', {}, immediate);
+            if (data && 'mappingList' in data && 'defaultMappingId' in data) {
+                setMappingList(data.mappingList as { id: string, name: string }[]);
+                setDefaultMappingId(data.defaultMappingId as string);
+            }
             setError(null);
             return Promise.resolve();
         } catch (err) {
@@ -578,12 +625,14 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const fetchDefaultMapping = async (): Promise<void> => {
+    const fetchDefaultMapping = async (immediate: boolean = true): Promise<void> => {
         try {
             setIsLoading(true);
-            const data = await sendWebSocketRequest('ms_get_default');
-            setDefaultMappingId(data.id ?? "");
-            return Promise.resolve(data.id);
+            const data = await sendWebSocketRequest('ms_get_default', {}, immediate);
+            if (data && 'id' in data) {
+                setDefaultMappingId(data.id as string ?? "");
+            }
+            return Promise.resolve();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to fetch default mapping"));
@@ -592,12 +641,14 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const createMapping = async (name: string, length: number, step: number): Promise<void> => {
+    const createMapping = async (name: string, length: number, step: number, immediate: boolean = true): Promise<void> => {
         try {
             setIsLoading(true);
-            const data = await sendWebSocketRequest('ms_create_mapping', { name, length, step });
-            setMappingList(data.mappingList);
-            setDefaultMappingId(data.defaultMappingId);
+            const data = await sendWebSocketRequest('ms_create_mapping', { name, length, step }, immediate);
+            if (data && 'mappingList' in data && 'defaultMappingId' in data) {
+                setMappingList(data.mappingList as { id: string, name: string }[]);
+                setDefaultMappingId(data.defaultMappingId as string);
+            }
             setError(null);
             return Promise.resolve();
         } catch (err) {
@@ -608,12 +659,14 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const deleteMapping = async (id: string): Promise<void> => {
+    const deleteMapping = async (id: string, immediate: boolean = true): Promise<void> => {
         try {
             setIsLoading(true);
-            const data = await sendWebSocketRequest('ms_delete_mapping', { id });
-            setMappingList(data.mappingList);
-            setDefaultMappingId(data.defaultMappingId);
+            const data = await sendWebSocketRequest('ms_delete_mapping', { id }, immediate);
+            if (data && 'mappingList' in data && 'defaultMappingId' in data) {
+                setMappingList(data.mappingList as { id: string, name: string }[]);
+                setDefaultMappingId(data.defaultMappingId as string);
+            }
             setError(null);
             return Promise.resolve();
         } catch (err) {
@@ -624,10 +677,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const updateDefaultMapping = async (id: string): Promise<void> => {
+    const updateDefaultMapping = async (id: string, immediate: boolean = true): Promise<void> => {
         try {
             setIsLoading(true);
-            const data = await sendWebSocketRequest('ms_set_default', { id });
+            const data = await sendWebSocketRequest('ms_set_default', { id }, immediate);
             setDefaultMappingId(data.id);
             setError(null);
             return Promise.resolve();
@@ -639,10 +692,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const startMarking = async (id: string): Promise<void> => {
+    const startMarking = async (id: string, immediate: boolean = true): Promise<void> => {
         try {
             setIsLoading(true);
-            const data = await sendWebSocketRequest('ms_mark_mapping_start', { id });
+            const data = await sendWebSocketRequest('ms_mark_mapping_start', { id }, immediate);
             if(data.status) {
                 setMarkingStatus(data.status);
             }
@@ -656,10 +709,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const stopMarking = async (): Promise<void> => {
+    const stopMarking = async (immediate: boolean = true): Promise<void> => {
         try {
             setIsLoading(true);
-            const data = await sendWebSocketRequest('ms_mark_mapping_stop');
+            const data = await sendWebSocketRequest('ms_mark_mapping_stop', {}, immediate);
             if(data.status) {
                 setMarkingStatus(data.status);
             }
@@ -673,10 +726,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const stepMarking = async (): Promise<void> => {
+    const stepMarking = async (immediate: boolean = true): Promise<void> => {
         try {
             setIsLoading(true);
-            const data = await sendWebSocketRequest('ms_mark_mapping_step');
+            const data = await sendWebSocketRequest('ms_mark_mapping_step', {}, immediate);
             if(data.status) {
                 setMarkingStatus(data.status);
             }
@@ -690,24 +743,24 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const fetchMarkingStatus = async (): Promise<void> => {
-        try {
-            const data = await sendWebSocketRequest('ms_get_mark_status');
-            if(data.status) {
-                setMarkingStatus(data.status);
-            }
-            setError(null);
-            return Promise.resolve();
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to fetch marking status"));
-        }
-    };
+    // const fetchMarkingStatus = async (): Promise<void> => {
+    //     try {
+    //         const data = await sendWebSocketRequest('ms_get_mark_status');
+    //         if(data.status) {
+    //             setMarkingStatus(data.status);
+    //         }
+    //         setError(null);
+    //         return Promise.resolve();
+    //     } catch (err) {
+    //         setError(err instanceof Error ? err.message : 'An error occurred');
+    //         return Promise.reject(new Error("Failed to fetch marking status"));
+    //     }
+    // };
 
-    const fetchActiveMapping = async (id: string): Promise<void> => {
+    const fetchActiveMapping = async (id: string, immediate: boolean = true): Promise<void> => {
         try {
             setIsLoading(true);
-            const data = await sendWebSocketRequest('ms_get_mapping', { id });
+            const data = await sendWebSocketRequest('ms_get_mapping', { id }, immediate);
             setActiveMapping(data.mapping);
             setError(null);
             return Promise.resolve();
@@ -719,10 +772,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const renameMapping = async (id: string, name: string): Promise<void> => {
+    const renameMapping = async (id: string, name: string, immediate: boolean = true): Promise<void> => {
         try {
             setIsLoading(true);
-            const data = await sendWebSocketRequest('ms_rename_mapping', { id, name });
+            const data = await sendWebSocketRequest('ms_rename_mapping', { id, name }, immediate);
             setMappingList(data.mappingList);
             setDefaultMappingId(data.defaultMappingId);
             setError(null);
@@ -735,101 +788,101 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const fetchGlobalConfig = async (): Promise<void> => {
+    const fetchGlobalConfig = async (immediate: boolean = true): Promise<void> => {
         try {
-            setIsLoading(true);
-            const data = await sendWebSocketRequest('get_global_config');
+            // setIsLoading(true);
+            const data = await sendWebSocketRequest('get_global_config', {}, immediate);
             console.log('fetchGlobalConfig', data);
             setGlobalConfig(data.globalConfig);
             return Promise.resolve();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to fetch global config"));
         } finally {
-            setIsLoading(false);
+            // setIsLoading(false);
         }
     };
 
-    const updateGlobalConfig = async (globalConfig: GlobalConfig): Promise<void> => {
+    const updateGlobalConfig = async (globalConfig: GlobalConfig, immediate: boolean = true): Promise<void> => {
         try {
-            setIsLoading(true);
-            const data = await sendWebSocketRequest('update_global_config', { globalConfig });
+            // setIsLoading(true);
+            const data = await sendWebSocketRequest('update_global_config', { globalConfig }, immediate);
             setGlobalConfig(data.globalConfig);
             return Promise.resolve();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to update global config"));
         } finally {
-            setIsLoading(false);
+            // setIsLoading(false);
         }
     };
 
-    const startManualCalibration = async (): Promise<CalibrationStatus> => {
+    const startManualCalibration = async (immediate: boolean = true): Promise<CalibrationStatus> => {
         try {
             setIsLoading(true);
-            const data = await sendWebSocketRequest('start_manual_calibration');
+            const data = await sendWebSocketRequest('start_manual_calibration', {}, immediate);
             setError(null);
             return Promise.resolve(data.calibrationStatus);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to start manual calibration"));
         } finally {
             setIsLoading(false);
         }
     };
 
-    const stopManualCalibration = async (): Promise<CalibrationStatus> => {
+    const stopManualCalibration = async (immediate: boolean = true): Promise<CalibrationStatus> => {
         try {
             setIsLoading(true);
-            const data = await sendWebSocketRequest('stop_manual_calibration');
+            const data = await sendWebSocketRequest('stop_manual_calibration', {}, immediate);
             setError(null);
             return Promise.resolve(data.calibrationStatus);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to stop manual calibration"));
         } finally {
             setIsLoading(false);
         }
     };
 
-    const clearManualCalibrationData = async (): Promise<void> => {
+    const clearManualCalibrationData = async (immediate: boolean = true): Promise<void> => {
         try {
             setIsLoading(true);
-            const data = await sendWebSocketRequest('clear_manual_calibration_data');
+            const data = await sendWebSocketRequest('clear_manual_calibration_data', {}, immediate);
             setError(null);
             return Promise.resolve();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to clear manual calibration data"));
         } finally {
             setIsLoading(false);
         }
     };
 
-    const startButtonMonitoring = async (): Promise<void> => {
+    const startButtonMonitoring = async (immediate: boolean = true): Promise<void> => {
         try {
             // setIsLoading(true);
-            const data = await sendWebSocketRequest('start_button_monitoring');
+            const data = await sendWebSocketRequest('start_button_monitoring', {}, immediate);
             setButtonMonitoringActive(data.isActive ?? true);
             setError(null);
             return Promise.resolve();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to start button monitoring"));
         } finally {
             // setIsLoading(false);
         }
     };
 
-    const stopButtonMonitoring = async (): Promise<void> => {
+    const stopButtonMonitoring = async (immediate: boolean = true): Promise<void> => {
         try {
             // setIsLoading(true);
-            const data = await sendWebSocketRequest('stop_button_monitoring');
+            const data = await sendWebSocketRequest('stop_button_monitoring', {}, immediate);
             setButtonMonitoringActive(data.isActive ?? false);
             setError(null);
             return Promise.resolve();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'An error occurred');
+            // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to stop button monitoring"));
         } finally {
             // setIsLoading(false);
@@ -853,10 +906,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     };
 
     // LED 配置相关
-    const pushLedsConfig = async (ledsConfig: LEDsConfig): Promise<void> => {
+    const pushLedsConfig = async (ledsConfig: LEDsConfig, immediate: boolean = true): Promise<void> => {
         setError(null);
         try {
-            await sendWebSocketRequest('push_leds_config', ledsConfig);
+            await sendWebSocketRequest('push_leds_config', ledsConfig as unknown as Record<string, unknown>, immediate);
             return Promise.resolve();
         } catch (error) {
             setError(error instanceof Error ? error.message : 'An error occurred');
@@ -864,10 +917,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const clearLedsPreview = async (): Promise<void> => {
+    const clearLedsPreview = async (immediate: boolean = true): Promise<void> => {
         setError(null);
         try {
-            await sendWebSocketRequest('clear_leds_preview');
+            await sendWebSocketRequest('clear_leds_preview', {}, immediate);
             return Promise.resolve();
         } catch (error) {
             setError(error instanceof Error ? error.message : 'An error occurred');
@@ -875,9 +928,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
     
-    const fetchFirmwareMetadata = async (): Promise<void> => {
+    const fetchFirmwareMetadata = async (immediate: boolean = true): Promise<void> => {
         try {
-            const data = await sendWebSocketRequest('get_firmware_metadata');
+            const data = await sendWebSocketRequest('get_firmware_metadata', {}, immediate);
             setFirmwareInfo({
                 firmware: data
             });
@@ -1027,14 +1080,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const setFirmwareServerHost = (host: string): void => {
-        setFirmwareServerHostState(host);
-    };
-
-    const getFirmwareServerHost = (): string => {
-        return firmwareServerHost;
-    };
-
     // 工具函数：生成会话ID
     const generateSessionId = (): string => {
         return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -1170,7 +1215,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             const sessionData = await sendWebSocketRequest('create_firmware_upgrade_session', {
                 session_id: sessionId,
                 manifest: firmwarePackage.manifest
-            });
+            }, true);
 
             const deviceSessionId = sessionData.session_id || sessionId;
 
@@ -1299,7 +1344,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                                     data: base64Data
                                 };
                                 
-                                chunkResult = await sendWebSocketRequest('upload_firmware_chunk', chunkParams);
+                                chunkResult = await sendWebSocketRequest('upload_firmware_chunk', chunkParams, true);
                             }
                             
                             if (!chunkResult.success) {
@@ -1311,7 +1356,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                                     const recreateResult = await sendWebSocketRequest('create_firmware_upgrade_session', {
                                         session_id: deviceSessionId,
                                         manifest: firmwarePackage.manifest
-                                    });
+                                    }, true);
 
                                     if (recreateResult.success) {
                                         sessionRecreated = true;
@@ -1355,7 +1400,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             // 完成升级会话
             const completeResult = await sendWebSocketRequest('complete_firmware_upgrade_session', {
                 session_id: deviceSessionId
-            });
+            }, true);
 
             if (!completeResult.success) {
                 throw new Error(`Failed to complete upgrade session: ${completeResult.error || 'Unknown error'}`);
@@ -1381,7 +1426,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 try {
                     await sendWebSocketRequest('abort_firmware_upgrade_session', {
                         session_id: upgradeSession.sessionId
-                    });
+                    }, true);
                 } catch (abortError) {
                     console.error('Failed to abort upgrade session:', abortError);
                 }
@@ -1670,7 +1715,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             mappingList,
             activeMapping,
             fetchMappingList,
-            fetchMarkingStatus,
+            // fetchMarkingStatus,
             updateDefaultMapping,
             fetchDefaultMapping,
             fetchActiveMapping,
@@ -1694,8 +1739,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             // 固件更新检查相关
             firmwareUpdateInfo,
             checkFirmwareUpdate,
-            setFirmwareServerHost,
-            getFirmwareServerHost,
             // 固件升级包下载和传输相关
             upgradeSession: upgradeSession,
             downloadFirmwarePackage: downloadFirmwarePackage,

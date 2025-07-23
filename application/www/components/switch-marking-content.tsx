@@ -69,7 +69,7 @@ export function SwitchMarkingContent() {
 
     const { 
         mappingList, defaultMappingId, markingStatus, activeMapping,
-        fetchMappingList, fetchMarkingStatus, startMarking, stopMarking, stepMarking, 
+        fetchMappingList, startMarking, stopMarking, stepMarking, 
         createMapping, deleteMapping, updateDefaultMapping, renameMapping, fetchActiveMapping,
         updateMarkingStatus
     } = useGamepadConfig();
@@ -104,9 +104,6 @@ export function SwitchMarkingContent() {
 
     useEffect(() => {
         fetchMappingList();
-        // fetchDefaultMapping();
-        fetchMarkingStatus(); // 仅用于初始化状态，后续通过WebSocket推送更新
-
         return () => {
             if(markingStatus?.is_marking) {
                 stopMarking();
