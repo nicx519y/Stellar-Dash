@@ -29,16 +29,16 @@ import { ColorPicker, Slider } from "@chakra-ui/react";
 
 import { useEffect, useMemo, useState } from "react";
 import {
-    GameProfile,
+    // GameProfile,
     LedsEffectStyle,
     LEDS_SETTINGS_INTERACTIVE_IDS,
     AroundLedsEffectStyle,
+    GameProfile,
 } from "@/types/gamepad-config";
 import { LuSunDim, LuActivity, LuCheck, LuSparkles, LuWaves, LuTarget, LuCloudSunRain, LuAudioLines } from "react-icons/lu";
 import { TbMeteorFilled } from "react-icons/tb";
 import HitboxLeds from "@/components/hitbox/hitbox-leds";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
-import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
 import { useColorMode } from "./ui/color-mode";
 import { ContentActionButtons } from "@/components/content-action-buttons";
@@ -49,8 +49,7 @@ import { ColorQueueManager } from "@/components/color-queue-manager";
 export function LEDsSettingContent() {
     const { t } = useLanguage();
 
-    const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
-    const { defaultProfile, updateProfileDetails, resetProfileDetails, pushLedsConfig, clearLedsPreview } = useGamepadConfig();
+    const { defaultProfile, updateProfileDetails, pushLedsConfig, clearLedsPreview, wsConnected } = useGamepadConfig();
     const { colorMode } = useColorMode();
     const defaultFrontColor = useMemo(() => {
         if (colorMode === "dark") {
@@ -59,6 +58,11 @@ export function LEDsSettingContent() {
             return parseColor("#ffffff");
         }
     }, [colorMode]);
+
+    const [isInit, setIsInit] = useState<boolean>(false); // 是否初始化
+    const [needPreview, setNeedPreview] = useState<boolean>(false); // 是否需要预览
+    const [needUpdate, setNeedUpdate] = useState<boolean>(false); // 是否需要更新
+
 
     const [ledsEffectStyle, setLedsEffectStyle] = useState<LedsEffectStyle>(defaultProfile.ledsConfigs?.ledsEffectStyle ?? LedsEffectStyle.STATIC);
     const [color1, setColor1] = useState<Color>(parseColor(defaultProfile.ledsConfigs?.ledColors?.[0] ?? defaultFrontColor.toString('css')));
@@ -79,9 +83,10 @@ export function LEDsSettingContent() {
     const [aroundLedBrightness, setAroundLedBrightness] = useState<number>(defaultProfile.ledsConfigs?.aroundLedBrightness ?? 100);
     const [aroundLedAnimationSpeed, setAroundLedAnimationSpeed] = useState<number>(defaultProfile.ledsConfigs?.aroundLedAnimationSpeed ?? 1);
 
+
     const hasAroundLed = useMemo<boolean>(() => {
         return defaultProfile.ledsConfigs?.hasAroundLed ?? false;
-    }, [defaultProfile]);
+    }, [defaultProfile.ledsConfigs?.hasAroundLed]);
 
     const aroundLedConfigIsEnabled = useMemo<boolean>(() => {
         // 如果同步主灯，则氛围灯配置无效
@@ -89,19 +94,8 @@ export function LEDsSettingContent() {
     }, [hasAroundLed, aroundLedEnabled, ledEnabled, aroundLedSyncToMainLed]);
 
     const disabledKeys = useMemo<number[]>(() => {
-        let keys: number[] = [];
-        const keysEnableConfig = defaultProfile.keysConfig?.keysEnableTag;
-        if (keysEnableConfig) {
-            for (let i = 0; i < keysEnableConfig.length; i++) {
-                if (!keysEnableConfig[i]) {
-                    keys.push(i);
-                }
-            }
-        } else {
-            keys = Array(20).fill(true);
-        }
-        return keys;
-    }, [defaultProfile]);
+        return defaultProfile.keysConfig?.keysEnableTag?.map((_, index) => index).filter((_, index) => !defaultProfile.keysConfig?.keysEnableTag?.[index]) ?? [];
+    }, [defaultProfile?.keysConfig?.keysEnableTag]);
 
     // 颜色队列状态
     const [colorSwatches, setColorSwatches] = useState<string[]>(ColorQueueManager.getColorQueue());
@@ -111,7 +105,6 @@ export function LEDsSettingContent() {
 
     // 处理颜色变化的函数（仅更新颜色状态，不更新队列）
     const handleLedColorChange = (colorIndex: number, newColor: Color) => {
-        setIsDirty?.(true);
         const hexColor = newColor.toString('hex');
 
         // 更新颜色状态
@@ -127,7 +120,6 @@ export function LEDsSettingContent() {
     };
 
     const handleAroundLedColorChange = (colorIndex: number, newColor: Color) => {
-        setIsDirty?.(true);
         const hexColor = newColor.toString('hex');
 
         // 更新颜色状态
@@ -159,58 +151,14 @@ export function LEDsSettingContent() {
         }
     };
 
-    // Initialize the state with the default profile details
+    // 清除灯光预览数据
     useEffect(() => {
-        const ledsConfigs = defaultProfile.ledsConfigs;
-
-        if (ledsConfigs) {
-            setLedsEffectStyle(ledsConfigs.ledsEffectStyle ?? LedsEffectStyle.STATIC);
-            setColor1(parseColor(ledsConfigs.ledColors?.[0] ?? defaultFrontColor.toString('css')));
-            setColor2(parseColor(ledsConfigs.ledColors?.[1] ?? defaultFrontColor.toString('css')));
-            setColor3(parseColor(ledsConfigs.ledColors?.[2] ?? defaultFrontColor.toString('css')));
-            setLedBrightness(ledsConfigs.ledBrightness ?? 75);
-            setLedAnimationSpeed(ledsConfigs.ledAnimationSpeed ?? 3);
-            setLedEnabled(ledsConfigs.ledEnabled ?? true);
-            setIsDirty?.(false);
-
-            setAroundLedEnabled(ledsConfigs.aroundLedEnabled ?? false);
-            setAroundLedSyncToMainLed(ledsConfigs.aroundLedSyncToMainLed ?? false);
-            setAroundLedTriggerByButton(ledsConfigs.aroundLedTriggerByButton ?? false);
-            setAroundLedEffectStyle(ledsConfigs.aroundLedEffectStyle ?? AroundLedsEffectStyle.STATIC);
-            setAroundLedColor1(parseColor(ledsConfigs.aroundLedColors?.[0] ?? defaultFrontColor.toString('css')));
-            setAroundLedColor2(parseColor(ledsConfigs.aroundLedColors?.[1] ?? defaultFrontColor.toString('css')));
-            setAroundLedColor3(parseColor(ledsConfigs.aroundLedColors?.[2] ?? defaultFrontColor.toString('css')));
-            setAroundLedBrightness(ledsConfigs.aroundLedBrightness ?? 75);
-            setAroundLedAnimationSpeed(ledsConfigs.aroundLedAnimationSpeed ?? 3);
-
-        }
-
-    }, [defaultProfile]);
-
-    // Save the profile details
-    const saveProfileDetailsHandler = (): Promise<void> => {
-        const newProfileDetails = {
-            id: defaultProfile.id,
-            ledsConfigs: {
-                ledEnabled: ledEnabled,
-                ledsEffectStyle: ledsEffectStyle,
-                ledColors: [color1.toString('hex'), color2.toString('hex'), color3.toString('hex')],
-                ledBrightness: ledBrightness,
-                ledAnimationSpeed: ledAnimationSpeed,
-
-                aroundLedEnabled: aroundLedEnabled,
-                aroundLedSyncToMainLed: aroundLedSyncToMainLed,
-                aroundLedTriggerByButton: aroundLedTriggerByButton,
-                aroundLedEffectStyle: aroundLedEffectStyle,
-                aroundLedColors: [aroundLedColor1.toString('hex'), aroundLedColor2.toString('hex'), aroundLedColor3.toString('hex')],
-                aroundLedBrightness: aroundLedBrightness,
-                aroundLedAnimationSpeed: aroundLedAnimationSpeed,
+        return () => {
+            if(wsConnected) {
+                clearLedsPreview();
             }
         }
-
-        console.log("saveProfileDetailHandler: ", newProfileDetails);
-        return updateProfileDetails(defaultProfile.id, newProfileDetails as GameProfile);
-    }
+    }, [wsConnected]);
 
     const colorPickerDisabled = (index: number) => {
         return (index == 2 && !(effectStyleLabelMap.get(ledsEffectStyle)?.hasBackColor2 ?? false)) || !ledEnabled;
@@ -298,8 +246,6 @@ export function LEDsSettingContent() {
         t.SETTINGS_LEDS_AMBIENT_LIGHT_COLOR2
     ];
 
-
-
     const previewLedsEffectHandler = () => {
         const config = {
             ledEnabled: ledEnabled,
@@ -319,19 +265,76 @@ export function LEDsSettingContent() {
         pushLedsConfig(config);
     }
 
+    const updateLedsConfigHandler = () => {
+        const newConfig = Object.assign({
+            ledEnabled: ledEnabled,
+            ledsEffectStyle: ledsEffectStyle,
+            ledColors: [color1.toString('hex'), color2.toString('hex'), color3.toString('hex')],
+            ledBrightness: ledBrightness,
+            ledAnimationSpeed: ledAnimationSpeed,
+
+            aroundLedEnabled: aroundLedEnabled,
+            aroundLedSyncToMainLed: aroundLedSyncToMainLed,
+            aroundLedTriggerByButton: aroundLedTriggerByButton,
+            aroundLedEffectStyle: aroundLedEffectStyle,
+            aroundLedColors: [aroundLedColor1.toString('hex'), aroundLedColor2.toString('hex'), aroundLedColor3.toString('hex')],
+            aroundLedBrightness: aroundLedBrightness,
+            aroundLedAnimationSpeed: aroundLedAnimationSpeed,
+        });
+
+        const newProfileDetails: GameProfile = {
+            id: defaultProfile.id,
+            ledsConfigs: newConfig,
+        }
+        updateProfileDetails(defaultProfile.id, newProfileDetails);
+    }
+
+    // Initialize the state with the default profile details
     useEffect(() => {
 
-        if (defaultProfile.id && defaultProfile.id != '') {
+        if(isInit) {
+            return;
+        } else if(defaultProfile.ledsConfigs) {
+
+            const ledsConfigs = defaultProfile.ledsConfigs;
+
+            setLedsEffectStyle(ledsConfigs.ledsEffectStyle ?? LedsEffectStyle.STATIC);
+            setColor1(parseColor(ledsConfigs.ledColors?.[0] ?? defaultFrontColor.toString('css')));
+            setColor2(parseColor(ledsConfigs.ledColors?.[1] ?? defaultFrontColor.toString('css')));
+            setColor3(parseColor(ledsConfigs.ledColors?.[2] ?? defaultFrontColor.toString('css')));
+            setLedBrightness(ledsConfigs.ledBrightness ?? 75);
+            setLedAnimationSpeed(ledsConfigs.ledAnimationSpeed ?? 3);
+            setLedEnabled(ledsConfigs.ledEnabled ?? true);
+
+            setAroundLedEnabled(ledsConfigs.aroundLedEnabled ?? false);
+            setAroundLedSyncToMainLed(ledsConfigs.aroundLedSyncToMainLed ?? false);
+            setAroundLedTriggerByButton(ledsConfigs.aroundLedTriggerByButton ?? false);
+            setAroundLedEffectStyle(ledsConfigs.aroundLedEffectStyle ?? AroundLedsEffectStyle.STATIC);
+            setAroundLedColor1(parseColor(ledsConfigs.aroundLedColors?.[0] ?? defaultFrontColor.toString('css')));
+            setAroundLedColor2(parseColor(ledsConfigs.aroundLedColors?.[1] ?? defaultFrontColor.toString('css')));
+            setAroundLedColor3(parseColor(ledsConfigs.aroundLedColors?.[2] ?? defaultFrontColor.toString('css')));
+            setAroundLedBrightness(ledsConfigs.aroundLedBrightness ?? 75);
+            setAroundLedAnimationSpeed(ledsConfigs.aroundLedAnimationSpeed ?? 3);
+
+            setIsInit(true);
+            setNeedPreview(true);
+        }
+
+    }, [defaultProfile]);
+    
+    useEffect(() => {
+        if(needPreview) {
             previewLedsEffectHandler();
+            setNeedPreview(false);
         }
-
-    }, [ledEnabled, ledsEffectStyle, aroundLedEnabled, aroundLedSyncToMainLed, aroundLedTriggerByButton, aroundLedEffectStyle]);
+    }, [needPreview]);
 
     useEffect(() => {
-        return () => {
-            clearLedsPreview();
+        if(needUpdate) {
+            updateLedsConfigHandler();
+            setNeedUpdate(false);
         }
-    }, []);
+    }, [needUpdate]);
 
     return (
         <>
@@ -344,9 +347,9 @@ export function LEDsSettingContent() {
                         <HitboxLeds
                             hasText={false}
                             ledsConfig={{
-                                ledsEnabled: ledEnabled,
-                                effectStyle: ledsEffectStyle,
-                                colors: [
+                                ledEnabled: ledEnabled,
+                                ledsEffectStyle: ledsEffectStyle,
+                                ledColors: [
                                     GamePadColor.fromString(color1.toString('hex')),
                                     GamePadColor.fromString(color2.toString('hex')),
                                     GamePadColor.fromString(color3.toString('hex'))
@@ -372,11 +375,7 @@ export function LEDsSettingContent() {
                         />
                     </Center>
                     <Center flex={0}  >
-                        <ContentActionButtons
-                            isDirty={_isDirty}
-                            resetHandler={resetProfileDetails}
-                            saveHandler={saveProfileDetailsHandler}
-                        />
+                        <ContentActionButtons />
                     </Center>
                 </Center>
                 <Center >
@@ -400,7 +399,8 @@ export function LEDsSettingContent() {
                                             <Switch.Root colorPalette={"green"} checked={ledEnabled}
                                                 onCheckedChange={() => {
                                                     setLedEnabled(!ledEnabled);
-                                                    setIsDirty?.(true);
+                                                    setNeedUpdate(true);
+                                                    setNeedPreview(true);
                                                 }}
 
                                             >
@@ -419,8 +419,10 @@ export function LEDsSettingContent() {
                                                 variant={ colorMode === "dark" ? "subtle" : "solid"}
                                                 value={ledsEffectStyle?.toString() ?? LedsEffectStyle.STATIC.toString()}
                                                 onValueChange={(detail) => {
-                                                    setLedsEffectStyle(parseInt(detail.value ?? "0") as LedsEffectStyle);
-                                                    setIsDirty?.(true);
+                                                    const newEffectStyle = parseInt(detail.value ?? "0") as LedsEffectStyle;
+                                                    setLedsEffectStyle(newEffectStyle);
+                                                    setNeedUpdate(true);
+                                                    setNeedPreview(true);
                                                 }}
                                                 disabled={!ledEnabled}
                                             >
@@ -462,7 +464,8 @@ export function LEDsSettingContent() {
                                                         }}
 
                                                         onValueChangeEnd={() => {
-                                                            previewLedsEffectHandler();
+                                                            setNeedUpdate(true);
+                                                            setNeedPreview(true);
                                                         }}
 
                                                         onOpenChange={(details) => {
@@ -518,11 +521,11 @@ export function LEDsSettingContent() {
                                                     value={[ledBrightness]}
                                                     onValueChange={(e) => {
                                                         setLedBrightness(e.value[0]);
-                                                        setIsDirty?.(true);
                                                     }}
 
                                                     onValueChangeEnd={() => {
-                                                        previewLedsEffectHandler();
+                                                        setNeedUpdate(true);
+                                                        setNeedPreview(true);
                                                     }}
                                                 >
                                                     <HStack justifyContent={"space-between"} >
@@ -564,11 +567,11 @@ export function LEDsSettingContent() {
                                                     value={[ledAnimationSpeed]}
                                                     onValueChange={(e) => {
                                                         setLedAnimationSpeed(e.value[0]);
-                                                        setIsDirty?.(true);
                                                     }}
 
                                                     onValueChangeEnd={() => {
-                                                        previewLedsEffectHandler();
+                                                        setNeedUpdate(true);
+                                                        setNeedPreview(true);
                                                     }}
 
                                                 >
@@ -614,7 +617,8 @@ export function LEDsSettingContent() {
                                                     checked={aroundLedEnabled}
                                                     onCheckedChange={() => {
                                                         setAroundLedEnabled(!aroundLedEnabled);
-                                                        setIsDirty?.(true);
+                                                        setNeedUpdate(true);
+                                                        setNeedPreview(true);
                                                     }}
                                                 >
                                                     <Switch.HiddenInput />
@@ -629,7 +633,8 @@ export function LEDsSettingContent() {
                                                     checked={aroundLedSyncToMainLed}
                                                     onCheckedChange={() => {
                                                         setAroundLedSyncToMainLed(!aroundLedSyncToMainLed);
-                                                        setIsDirty?.(true);
+                                                        setNeedUpdate(true);
+                                                        setNeedPreview(true);
                                                     }}
                                                 >
                                                     <Switch.HiddenInput />
@@ -644,7 +649,8 @@ export function LEDsSettingContent() {
                                                     checked={aroundLedTriggerByButton}
                                                     onCheckedChange={() => {
                                                         setAroundLedTriggerByButton(!aroundLedTriggerByButton);
-                                                        setIsDirty?.(true);
+                                                        setNeedUpdate(true);
+                                                        setNeedPreview(true);
                                                     }}
                                                 >
                                                     <Switch.HiddenInput />
@@ -664,8 +670,10 @@ export function LEDsSettingContent() {
                                                     variant={ colorMode === "dark" ? "subtle" : "solid"}
                                                     value={aroundLedEffectStyle?.toString() ?? AroundLedsEffectStyle.STATIC.toString()}
                                                     onValueChange={(detail) => {
-                                                        setAroundLedEffectStyle(parseInt(detail.value ?? "0") as AroundLedsEffectStyle);
-                                                        setIsDirty?.(true);
+                                                        const newAroundLedEffectStyle = parseInt(detail.value ?? "0") as AroundLedsEffectStyle;
+                                                        setAroundLedEffectStyle(newAroundLedEffectStyle);
+                                                        setNeedUpdate(true);
+                                                        setNeedPreview(true);
                                                     }}
                                                     disabled={!aroundLedConfigIsEnabled}
                                                 >
@@ -700,7 +708,8 @@ export function LEDsSettingContent() {
                                                         }}
 
                                                         onValueChangeEnd={() => {
-                                                            previewLedsEffectHandler();
+                                                            setNeedUpdate(true);
+                                                            setNeedPreview(true);
                                                         }}
 
                                                         onOpenChange={(details) => {
@@ -756,11 +765,11 @@ export function LEDsSettingContent() {
                                                     value={[aroundLedBrightness]}
                                                     onValueChange={(e) => {
                                                         setAroundLedBrightness(e.value[0]);
-                                                        setIsDirty?.(true);
                                                     }}
 
                                                     onValueChangeEnd={() => {
-                                                        previewLedsEffectHandler();
+                                                        setNeedUpdate(true);
+                                                        setNeedPreview(true);
                                                     }}
                                                 >
                                                     <HStack justifyContent={"space-between"} >
@@ -802,11 +811,11 @@ export function LEDsSettingContent() {
                                                     value={[aroundLedAnimationSpeed]}
                                                     onValueChange={(e) => {
                                                         setAroundLedAnimationSpeed(e.value[0]);
-                                                        setIsDirty?.(true);
                                                     }}
 
                                                     onValueChangeEnd={() => {
-                                                        previewLedsEffectHandler();
+                                                        setNeedUpdate(true);
+                                                        setNeedPreview(true);
                                                     }}
 
                                                 >

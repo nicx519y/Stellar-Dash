@@ -40,7 +40,6 @@ export function GlobalSettingContent() {
         clearManualCalibrationData,
         startManualCalibration,
         stopManualCalibration,
-        fetchHotkeysConfig,
         updateHotkeysConfig,
         globalConfig,
         hotkeysConfig,
@@ -221,7 +220,7 @@ export function GlobalSettingContent() {
     // 处理热键更新回调
     const handleHotkeyUpdate = useCallback((hotkeys: Hotkey[]) => {
         setCurrentHotkeys(hotkeys);
-        setIsDirty(true);
+        updateHotkeysConfig(hotkeys);
     }, [currentHotkeys]);
 
     // 初始化 currentHotkeys
@@ -231,18 +230,6 @@ export function GlobalSettingContent() {
         }));
         setIsDirty(false);
     }, [hotkeysConfig, setIsDirty]);
-
-    // 保存热键配置
-    const saveHotkeysConfigHandler = async () => {
-        if (!currentHotkeys || currentHotkeys.length === 0) return;
-        await updateHotkeysConfig(currentHotkeys);
-        setIsDirty(false);
-    };
-
-    // 重置热键配置
-    const resetHotkeysConfigHandler = async () => {
-        await fetchHotkeysConfig();
-    };
 
     return (
         <Flex direction="row" width={"100%"} height={"100%"} padding="18px">
@@ -311,10 +298,7 @@ export function GlobalSettingContent() {
                 </Center>
                 <Center flex={0}  >
                     <ContentActionButtons
-                        isDirty={_isDirty}
                         disabled={calibrationStatus.isActive}
-                        resetHandler={resetHotkeysConfigHandler}
-                        saveHandler={saveHotkeysConfigHandler}
                     />
                 </Center>
             </Center>

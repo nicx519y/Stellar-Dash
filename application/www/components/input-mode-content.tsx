@@ -21,6 +21,10 @@ export function InputModeSettingContent(props: {
         [Platform.SWITCH, { icon: <SiNintendoswitch />, size: "2xl" }],
     ]);
 
+    const onInputModeChange = (detail: { value: Platform }) => {
+        updateGlobalConfig({ inputMode: detail.value as Platform });
+    }
+
     return (
         <Card.Root w="100%" h="100%" >
             <Card.Header >
@@ -33,9 +37,7 @@ export function InputModeSettingContent(props: {
                 align="center"
                 variant={"solid"}
                 colorPalette={"green"}
-                onValueChange={(detail) => {
-                    updateGlobalConfig({ inputMode: detail.value as Platform });
-                }}
+                onValueChange={(detail) => onInputModeChange(detail as { value: Platform })}
             >
                 <VStack w="180px" justifyContent="start" gap={2} >
                     {Array.from(PlatformLabelMap.entries()).map(([platform, { label }]) => (

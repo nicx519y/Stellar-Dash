@@ -46,6 +46,7 @@ import { calculateSHA256, extractFirmwarePackage } from '@/lib/firmware-utils';
 
 // 导入WebSocket队列管理器
 import { WebSocketQueueManager } from '@/lib/websocket-queue-manager';
+import { setGlobal } from 'next/dist/trace';
 
 // 固件服务器配置
 const FIRMWARE_SERVER_CONFIG = {
@@ -389,10 +390,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             authManager.setWebSocketSendFunction(sendWebSocketRequest);
             
             Promise.all([
-                fetchGlobalConfig(),
-                fetchProfileList(),
-                fetchHotkeysConfig(),
-                fetchFirmwareMetadata()
+                fetchGlobalConfig(),    // 获取全局配置
+                fetchProfileList(),      // 获取配置列表
+                fetchHotkeysConfig(),    // 获取热键配置
+                fetchFirmwareMetadata(), // 获取固件元数据
+                clearLedsPreview(),      // 清除LED预览
             ])
             .catch(console.error)
             .finally(() => {
@@ -578,18 +580,15 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const updateHotkeysConfig = async (hotkeysConfig: Hotkey[], immediate: boolean = false): Promise<void> => {
         try {
-            // setIsLoading(true);
             const data = await sendWebSocketRequest('update_hotkeys_config', { hotkeysConfig }, immediate);
-            if (data && 'hotkeysConfig' in data) {
+            if(data) {
                 setHotkeysConfig(data.hotkeysConfig as Hotkey[]);
             }
-            setError(null);
             return Promise.resolve();
         } catch (err) {
-            // setError(err instanceof Error ? err.message : 'An error occurred');
+            fetchHotkeysConfig(true); // 如果更新失败，则重新拉取最新的hotkeys配置
             return Promise.reject(new Error("Failed to update hotkeys config"));
         } finally {
-            // setIsLoading(false);
         }
     };
 
@@ -806,11 +805,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const updateGlobalConfig = async (globalConfig: GlobalConfig, immediate: boolean = true): Promise<void> => {
         try {
             // setIsLoading(true);
+            setGlobalConfig(globalConfig);
             const data = await sendWebSocketRequest('update_global_config', { globalConfig }, immediate);
-            setGlobalConfig(data.globalConfig);
             return Promise.resolve();
         } catch (err) {
-            // setError(err instanceof Error ? err.message : 'An error occurred');
+            setError('Failed to update global config');
             return Promise.reject(new Error("Failed to update global config"));
         } finally {
             // setIsLoading(false);

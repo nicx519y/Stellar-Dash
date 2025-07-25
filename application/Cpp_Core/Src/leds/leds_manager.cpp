@@ -71,7 +71,6 @@ void LEDsManager::setup()
         // 对于静态效果，直接设置颜色
         if (opts->ledEffect == LEDEffect::STATIC) {
             WS2812B_SetAllLEDColor(backgroundColor1.r, backgroundColor1.g, backgroundColor1.b);
-            WS2812B_SetAllLEDBrightness(opts->ledBrightness);
         }
 
     #if HAS_LED_AROUND
@@ -136,9 +135,9 @@ void LEDsManager::loop(uint32_t virtualPinMask)
     
     // 设置涟漪参数
     params.global.rippleCount = rippleCount;
+    uint32_t now = HAL_GetTick();
     for (uint8_t i = 0; i < rippleCount && i < 5; i++) {
         params.global.rippleCenters[i] = ripples[i].centerIndex;
-        uint32_t now = HAL_GetTick();
         uint32_t elapsed = now - ripples[i].startTime;
         // 涟漪持续时间根据动画速度调整（与 TypeScript 版本保持一致）
         const uint32_t rippleDuration = 3000 / opts->ledAnimationSpeed; // 毫秒

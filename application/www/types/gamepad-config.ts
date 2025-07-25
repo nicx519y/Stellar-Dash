@@ -405,21 +405,21 @@ export enum AroundLedsEffectStyle {
 }
 
 export interface LedsEffectStyleConfig {
-    ledsEnabled: boolean;
-    effectStyle: LedsEffectStyle;
-    colors: GamePadColor[];
-    brightness: number;
-    animationSpeed: number; // 1-5
+    ledEnabled?: boolean;
+    ledsEffectStyle?: LedsEffectStyle;
+    ledColors?: GamePadColor[];
+    brightness?: number;
+    animationSpeed?: number; // 1-5
 
     // 环绕灯配置
-    hasAroundLed: boolean;
-    aroundLedEnabled: boolean;
-    aroundLedSyncToMainLed: boolean;
-    aroundLedTriggerByButton: boolean;
-    aroundLedEffectStyle: AroundLedsEffectStyle;
-    aroundLedColors: GamePadColor[];
-    aroundLedBrightness: number;
-    aroundLedAnimationSpeed: number; // 1-5
+    hasAroundLed?: boolean;
+    aroundLedEnabled?: boolean;
+    aroundLedSyncToMainLed?: boolean;
+    aroundLedTriggerByButton?: boolean;
+    aroundLedEffectStyle?: AroundLedsEffectStyle;
+    aroundLedColors?: GamePadColor[];
+    aroundLedBrightness?: number;
+    aroundLedAnimationSpeed?: number; // 1-5
 }
 
 export type RapidTriggerConfig = {

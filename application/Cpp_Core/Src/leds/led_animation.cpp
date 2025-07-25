@@ -346,10 +346,16 @@ static uint8_t selectRandomButtons(uint8_t total, uint8_t count, uint8_t* exclud
 
 // 静态动画
 RGBColor staticAnimation(const LedAnimationParams& params) {
-    RGBColor color = params.colorEnabled
-        ? (params.pressed ? params.frontColor : params.backColor1)
-        : params.defaultBackColor;
-
+    RGBColor color;
+    if(params.colorEnabled) {
+        if(params.pressed) {
+            color = params.frontColor;
+        } else {
+            color = params.backColor1;
+        }
+    } else {
+        color = params.defaultBackColor;
+    }
     
     return color;
 }

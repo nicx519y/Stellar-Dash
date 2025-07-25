@@ -34,7 +34,6 @@ import HitboxKeys from "@/components/hitbox/hitbox-keys";
 import HitboxEnableSetting from "@/components/hitbox/hitbox-enableSetting";
 import { MdCleaningServices } from "react-icons/md";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
-import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
 import { ContentActionButtons } from "@/components/content-action-buttons";
 import { useColorMode } from "./ui/color-mode";
@@ -44,40 +43,35 @@ export function KeysSettingContent() {
     const {
         defaultProfile,
         updateProfileDetails,
-        fetchDefaultProfile,
         globalConfig,
     } = useGamepadConfig();
-    const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
     const { t } = useLanguage();
     const { colorMode } = useColorMode();
 
+    const [isInit, setIsInit] = useState<boolean>(false);
+    const [needUpdate, setNeedUpdate] = useState<boolean>(false);
+    
     // 按键映射状态
+    const keyLength = useMemo(() => Object.keys(defaultProfile.keysConfig?.keyMapping ?? {}).length, [defaultProfile?.keysConfig?.keyMapping]);
     const [socdMode, setSocdMode] = useState<GameSocdMode>(GameSocdMode.SOCD_MODE_UP_PRIORITY);
-    const [invertXAxis, setInvertXAxis] = useState<boolean>(false);
-    const [invertYAxis, setInvertYAxis] = useState<boolean>(false);
-    const [fourWayMode, setFourWayMode] = useState<boolean>(false);
-    const [keyMapping, setKeyMapping] = useState<{ [key in GameControllerButton]?: number[] }>({});
-    const [autoSwitch, setAutoSwitch] = useState<boolean>(true);
+    const [invertXAxis, setInvertXAxis] = useState<boolean>(defaultProfile?.keysConfig?.invertXAxis ?? false);
+    const [invertYAxis, setInvertYAxis] = useState<boolean>(defaultProfile?.keysConfig?.invertYAxis ?? false);
+    const [fourWayMode, setFourWayMode] = useState<boolean>(defaultProfile?.keysConfig?.fourWayMode ?? false);
+    const [keyMapping, setKeyMapping] = useState<{ [key in GameControllerButton]?: number[] }>(defaultProfile?.keysConfig?.keyMapping ?? {});
+    const [keysEnableConfig, setKeysEnableConfig] = useState<boolean[]>(defaultProfile?.keysConfig?.keysEnableTag?.slice(0, keyLength - 1) ?? []); // 按键启用配置
+
     const [inputKey, setInputKey] = useState<number>(-1);
     const [keysEnableSettingActive, setKeysEnableSettingActive] = useState<boolean>(false); // 按键启用/禁用设置状态
-    const [keysEnableConfig, setKeysEnableConfig] = useState<boolean[]>([]); // 按键启用配置
+    const [autoSwitch, setAutoSwitch] = useState<boolean>(true);
 
-    const disabledKeys = useMemo(() => {
-        const keys = []
-        for (let i = 0; i < keysEnableConfig.length; i++) {
-            if (!keysEnableConfig[i]) {
-                keys.push(i);
-            }
-        }
-        return keys;
-    }, [keysEnableConfig]);
+    
 
     useEffect(() => {
-        console.log("initializing keys-setting-content: keyConfig: ", defaultProfile.keysConfig);
-        if (defaultProfile.keysConfig) {
+        if(isInit) {
+            return;
+        }
 
-            const keyLength = Object.keys(defaultProfile.keysConfig?.keyMapping ?? {}).length;
-
+        if (!isInit && defaultProfile.keysConfig) {
             setSocdMode(defaultProfile.keysConfig?.socdMode ?? GameSocdMode.SOCD_MODE_UP_PRIORITY);
             setInvertXAxis(defaultProfile.keysConfig?.invertXAxis ?? false);
             setInvertYAxis(defaultProfile.keysConfig?.invertYAxis ?? false);
@@ -86,9 +80,24 @@ export function KeysSettingContent() {
             // 初始化按键启用配置，默认所有按键都启用
             const enableConfig = defaultProfile.keysConfig?.keysEnableTag?.slice(0, keyLength - 1) ?? Array(keyLength).fill(true);
             setKeysEnableConfig(enableConfig);
-            setIsDirty?.(false); // reset the unsaved changes warning 
+
+            setIsInit(true);
         }
-    }, [defaultProfile, setIsDirty]);
+    }, [defaultProfile]);
+
+    const updateKeysConfigHandler = () => {
+
+        const newConfig = Object.assign({ invertXAxis, invertYAxis, fourWayMode, socdMode, keyMapping, keysEnableTag: keysEnableConfig });
+
+        const newProfile: GameProfile = {
+            id: defaultProfile.id,
+            keysConfig: newConfig,
+        }
+        updateProfileDetails(defaultProfile.id, newProfile);
+
+    };
+
+    const disabledKeys = useMemo(() => keysEnableConfig.map((_, index) => index).filter((_, index) => !keysEnableConfig[index]), [keysEnableConfig]);
 
     const hitboxButtonClick = (keyId: number) => {
         setInputKey(keyId);
@@ -99,30 +108,22 @@ export function KeysSettingContent() {
             const newConfig = [...keysEnableConfig];
             newConfig[keyId] = !newConfig[keyId]; // 切换按键启用状态
             setKeysEnableConfig(newConfig);
-            setIsDirty?.(true);
+            setNeedUpdate(true);
         }
-    }
-    
-    const saveProfileDetailHandler = (): Promise<void> => {
-        const newProfile: GameProfile = {
-            id: defaultProfile.id,
-            keysConfig: {
-                invertXAxis: invertXAxis,
-                invertYAxis: invertYAxis,
-                fourWayMode: fourWayMode,
-                socdMode: socdMode,
-                keyMapping: keyMapping,
-                keysEnableTag: keysEnableConfig,
-            },
-        }
-
-        return updateProfileDetails(defaultProfile.id, newProfile);
     }
 
     const clearKeyMappingHandler = () => {
-        setKeyMapping({});
-        setIsDirty?.(true);
+        const clearMapping = Object.fromEntries(Object.keys(keyMapping).map(key => [key, []]));
+        setKeyMapping(clearMapping);
+        setNeedUpdate(true);
     }
+
+    useEffect(() => {
+        if(needUpdate) {
+            updateKeysConfigHandler();
+            setNeedUpdate(false);
+        }
+    }, [needUpdate]);
 
     return (
         <Flex direction="row" width={"100%"} height={"100%"} padding={"18px"} >
@@ -157,9 +158,6 @@ export function KeysSettingContent() {
                 </Center>
                 <Center flex={0}  >
                     <ContentActionButtons
-                        isDirty={_isDirty}
-                        resetHandler={fetchDefaultProfile}
-                        saveHandler={saveProfileDetailHandler}
                         disabled={keysEnableSettingActive}
                     />
                 </Center>
@@ -207,9 +205,9 @@ export function KeysSettingContent() {
                                             inputKey={inputKey}
                                             inputMode={globalConfig.inputMode ?? Platform.XINPUT}
                                             keyMapping={keyMapping}
-                                            changeKeyMappingHandler={(map) => {
+                                            changeKeyMappingHandler={(map) => { 
                                                 setKeyMapping(map);
-                                                setIsDirty?.(true);
+                                                setNeedUpdate(true);
                                             }}
                                             disabled={keysEnableSettingActive}
                                         />
@@ -222,8 +220,9 @@ export function KeysSettingContent() {
                                         variant={ colorMode === "dark" ? "subtle" : "solid"}
                                         value={socdMode?.toString() ?? GameSocdMode.SOCD_MODE_UP_PRIORITY.toString()}
                                         onValueChange={(detail) => {
-                                            setSocdMode(parseInt(detail.value ?? GameSocdMode.SOCD_MODE_NEUTRAL.toString()) as GameSocdMode);
-                                            setIsDirty?.(true);
+                                            const socd = parseInt(detail.value ?? GameSocdMode.SOCD_MODE_NEUTRAL.toString()) as GameSocdMode;
+                                            setSocdMode(socd);
+                                            setNeedUpdate(true);
                                         }}
                                         disabled={keysEnableSettingActive}
                                     >
@@ -249,7 +248,7 @@ export function KeysSettingContent() {
                                             checked={invertXAxis}
                                             onCheckedChange={() => {
                                                 setInvertXAxis(!invertXAxis);
-                                                setIsDirty?.(true);
+                                                setNeedUpdate(true);
                                             }}
                                             disabled={keysEnableSettingActive}
                                         >
@@ -265,7 +264,7 @@ export function KeysSettingContent() {
                                             checked={invertYAxis}
                                             onCheckedChange={() => {
                                                 setInvertYAxis(!invertYAxis);
-                                                setIsDirty?.(true);
+                                                setNeedUpdate(true);
                                             }}
                                             disabled={keysEnableSettingActive}
                                         >

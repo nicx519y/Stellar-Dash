@@ -2213,6 +2213,52 @@ class ReleaseManager:
         
         return device_id
     
+    def flash_web_resources(self, slot: str = "A") -> bool:
+        """只刷写web资源到指定槽位"""
+        try:
+            print(f"正在准备刷写Web资源到槽{slot}...")
+            
+            # 查找webresources文件
+            web_sources = [
+                self.resources_dir / "webresources.bin",
+                self.application_dir / "Libs" / "httpd" / "ex_fsdata.bin"
+            ]
+            
+            web_file = None
+            for src in web_sources:
+                if src.exists():
+                    web_file = src
+                    break
+            
+            if not web_file:
+                print("错误: 未找到Web资源文件")
+                print("请确保以下文件之一存在:")
+                for src in web_sources:
+                    print(f"  - {src}")
+                return False
+            
+            print(f"找到Web资源文件: {web_file}")
+            print(f"文件大小: {web_file.stat().st_size:,} 字节")
+            
+            # 确定目标地址
+            target_address = "0x90100000" if slot == "A" else "0x903B0000"
+            print(f"目标地址: {target_address}")
+            
+            # 创建刷写器并刷写
+            flasher = ReleaseFlasher(self.project_root)
+            
+            print("开始刷写Web资源...")
+            if flasher.flash_component(web_file, target_address, "webresources", "bin"):
+                print(f"✓ Web资源刷写到槽{slot}成功!")
+                return True
+            else:
+                print(f"✗ Web资源刷写到槽{slot}失败!")
+                return False
+                
+        except Exception as e:
+            print(f"刷写Web资源时发生错误: {e}")
+            return False
+
     def register_device_id(self, server_url: str = "http://localhost:3000", 
                            admin_username: str = None, admin_password: str = None) -> bool:
         """
@@ -2380,6 +2426,56 @@ class ReleaseManager:
                 except:
                     pass
 
+    def build_and_flash_app_and_web(self, slot: str = "A") -> bool:
+        """快捷编译 application 并烧录 application 和 web resource"""
+        print(f"=== 快捷编译并烧录 Application + Web Resource (槽{slot}) ===")
+        print(f"工作目录: {self.project_root}")
+        try:
+            # 1. 编译 application
+            print(f"\n[1/3] 编译槽{slot} Application...")
+            hex_file = self.build_app_with_build_py(slot)
+            print(f"✓ 构建完成: {hex_file}")
+
+            # 2. 解析 HEX 并烧录 application
+            print(f"\n[2/3] 解析HEX并烧录 Application 到槽{slot}...")
+            temp_dir = self.tools_dir / f'appweb_flash_temp_{slot}'; temp_dir.mkdir(exist_ok=True)
+            try:
+                hex_segmenter = HexSegmenter()
+                hex_manifest = hex_segmenter.process_hex_file(hex_file, temp_dir / "hex_components", "dev-build")
+                app_component = None
+                for comp in hex_manifest['components']:
+                    if comp['name'] == 'application' or comp['name'].startswith('application'):
+                        app_component = comp
+                        break
+                if not app_component:
+                    print("错误: HEX文件中未找到application组件")
+                    return False
+                print(f"✓ 发现application组件: {app_component['name']} ({app_component['size']:,} 字节)")
+                component_file = temp_dir / "hex_components" / app_component['file']
+                target_address = "0x90000000" if slot == "A" else "0x902B0000"
+                if not self.flasher.flash_component(component_file, target_address, "application", "bin"):
+                    print("\n✗ Application刷写失败")
+                    return False
+                print(f"✓ Application刷写成功 ({app_component['size']:,} 字节)")
+            finally:
+                if temp_dir.exists():
+                    try:
+                        shutil.rmtree(temp_dir)
+                        print(f"\n已清理临时目录: {temp_dir}")
+                    except Exception as e:
+                        print(f"清理临时目录失败: {e}")
+
+            # 3. 烧录 web resource
+            print(f"\n[3/3] 烧录Web资源到槽{slot}...")
+            if not self.flash_web_resources(slot):
+                print(f"✗ Web资源刷写到槽{slot}失败!")
+                return False
+            print(f"\n=== Application + Web Resource (槽{slot}) 编译和烧录全部成功! ===")
+            return True
+        except Exception as e:
+            print(f"\n✗ 操作失败: {e}")
+            return False
+
 def main():
     parser = argparse.ArgumentParser(
         description="STM32 HBox Release 管理工具 - 集成打包和刷写功能",
@@ -2407,6 +2503,18 @@ def main():
     - 直接刷写到槽A地址(0x90000000)
     - 生成并刷写槽A的元数据到0x90570000
     - 适合开发调试阶段快速验证代码
+
+  只刷写Web资源到设备:
+    python release.py web
+    python release.py web --slot A
+    python release.py web --slot B
+  
+  说明:
+    - 直接刷写Web资源文件到指定槽位
+    - 槽A地址: 0x90100000
+    - 槽B地址: 0x903B0000
+    - 适合Web界面更新，无需重新编译固件
+    - 自动查找webresources.bin或ex_fsdata.bin文件
 
 设备信息读取:
   读取STM32设备唯一ID并计算设备ID哈希:
@@ -2575,6 +2683,10 @@ Intel HEX增强模式说明:
     # 快速构建并刷写命令
     quick_parser = subparsers.add_parser('quick', help='快速构建槽A的application并直接刷写到设备')
     
+    # 刷写Web资源命令
+    web_parser = subparsers.add_parser('web', help='只刷写Web资源到设备')
+    web_parser.add_argument("--slot", choices=["A", "B"], default="A", help="目标槽位（可选，默认: A）")
+    
     # 设备ID读取命令
     device_id_parser = subparsers.add_parser('device-id', help='读取STM32设备唯一ID并计算设备ID哈希')
     
@@ -2629,6 +2741,9 @@ Intel HEX增强模式说明:
     clear_parser.add_argument("--admin-username", help="管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）")
     clear_parser.add_argument("--admin-password", help="管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）")
     
+    appweb_parser = subparsers.add_parser('appweb', help='快捷编译 application 并烧录 application 和 web resource')
+    appweb_parser.add_argument("--slot", choices=["A", "B"], default="A", help="目标槽位（可选，默认: A）")
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -2663,6 +2778,16 @@ Intel HEX增强模式说明:
                 return 0
             else:
                 print("\n✗ 槽A Application快速构建失败")
+                return 1
+        
+        elif args.command == 'web':
+            # 只刷写Web资源到设备
+            slot = args.slot
+            if manager.flash_web_resources(slot):
+                print(f"\n✓ Web资源刷写到槽{slot}成功!")
+                return 0
+            else:
+                print(f"\n✗ Web资源刷写到槽{slot}失败!")
                 return 1
         
         elif args.command == 'device-id':
@@ -2816,6 +2941,15 @@ Intel HEX增强模式说明:
                 return 0
             else:
                 print("\n✗ 固件清空失败")
+                return 1
+        
+        elif args.command == 'appweb':
+            slot = args.slot
+            if manager.build_and_flash_app_and_web(slot):
+                print(f"\n✓ Application + Web Resource (槽{slot}) 编译和烧录全部成功!")
+                return 0
+            else:
+                print(f"\n✗ Application + Web Resource (槽{slot}) 编译或烧录失败!")
                 return 1
         
         else:

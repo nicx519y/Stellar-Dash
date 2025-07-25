@@ -83,14 +83,17 @@ export default function HitboxLeds(props: HitboxLedsProps) {
     const { colorMode } = useColorMode();
     const { contextJsReady, setContextJsReady } = useGamepadConfig();
 
-    const frontColorRef = useRef(props.ledsConfig?.colors[0]?.clone() ?? GamePadColor.fromString("#ffffff"));
-    const backColor1Ref = useRef(props.ledsConfig?.colors[1]?.clone() ?? GamePadColor.fromString("#000000"));
-    const backColor2Ref = useRef(props.ledsConfig?.colors[2]?.clone() ?? GamePadColor.fromString("#000000"));
+    const disabledKeysRef = useRef(props.disabledKeys ?? []);
+    const interactiveIdsRef = useRef(props.interactiveIds ?? []);
+
+    const frontColorRef = useRef(props.ledsConfig?.ledColors?.[0]?.clone() ?? GamePadColor.fromString("#ffffff"));
+    const backColor1Ref = useRef(props.ledsConfig?.ledColors?.[1]?.clone() ?? GamePadColor.fromString("#000000"));
+    const backColor2Ref = useRef(props.ledsConfig?.ledColors?.[2]?.clone() ?? GamePadColor.fromString("#000000"));
     const defaultBackColorRef = useRef(colorMode === 'light' ? GamePadColor.fromString("#ffffff") : GamePadColor.fromString("#000000"));
     const brightnessRef = useRef(props.ledsConfig?.brightness ?? 100);
     const animationSpeedRef = useRef(props.ledsConfig?.animationSpeed ?? 1);
-    const colorEnabledRef = useRef(props.ledsConfig?.ledsEnabled ?? false);
-    const effectStyleRef = useRef(props.ledsConfig?.effectStyle ?? LedsEffectStyle.STATIC);
+    const colorEnabledRef = useRef(props.ledsConfig?.ledEnabled ?? false);
+    const effectStyleRef = useRef(props.ledsConfig?.ledsEffectStyle ?? LedsEffectStyle.STATIC);
     const pressedButtonListRef = useRef(Array(btnLen).fill(-1));
     const prevPressedButtonListRef = useRef(Array(btnLen).fill(-1));
 
@@ -107,9 +110,9 @@ export default function HitboxLeds(props: HitboxLedsProps) {
         const target = event.target as SVGElement;
         if (!target.id || !target.id.startsWith("btn-")) return;
         const id = Number(target.id.replace("btn-", ""));
-        if (id === Number.NaN || !(props.interactiveIds?.includes(id) ?? false)) return;
+        if (id === Number.NaN || !interactiveIdsRef.current.includes(id)) return;
         // 禁用的按键不能点击
-        if (props.disabledKeys?.includes(id)) return;
+        if (disabledKeysRef.current.includes(id)) return;
         
         if (event.type === "mousedown") {
             props.onClick?.(id);
@@ -124,7 +127,7 @@ export default function HitboxLeds(props: HitboxLedsProps) {
         const target = event.target as SVGElement;
         if (!target.id || !target.id.startsWith("btn-")) return;
         const id = Number(target.id.replace("btn-", ""));
-        if (id === Number.NaN || !(props.interactiveIds?.includes(id) ?? false)) return;
+        if (id === Number.NaN || !(interactiveIdsRef.current.includes(id) ?? false)) return;
         if (event.type === "mouseleave") {
             pressedButtonListRef.current[id] = -1;
         }
@@ -145,22 +148,22 @@ export default function HitboxLeds(props: HitboxLedsProps) {
     }, [colorMode]);
 
     useEffect(() => {
-        if (props.ledsConfig?.colors[0]) {
-            frontColorRef.current.setValue(props.ledsConfig.colors[0]);
+        if (props.ledsConfig?.ledColors?.[0]) {
+            frontColorRef.current.setValue(props.ledsConfig.ledColors[0]);
         }
-    }, [props.ledsConfig?.colors[0]]);
+    }, [props.ledsConfig?.ledColors?.[0]]);
 
     useEffect(() => {
-        if (props.ledsConfig?.colors[1]) {
-            backColor1Ref.current.setValue(props.ledsConfig.colors[1]);
+        if (props.ledsConfig?.ledColors?.[1]) {
+            backColor1Ref.current.setValue(props.ledsConfig.ledColors[1]);
         }
-    }, [props.ledsConfig?.colors[1]]);
+    }, [props.ledsConfig?.ledColors?.[1]]);
 
     useEffect(() => {
-        if (props.ledsConfig?.colors[2]) {
-            backColor2Ref.current.setValue(props.ledsConfig.colors[2]);
+        if (props.ledsConfig?.ledColors?.[2]) {
+            backColor2Ref.current.setValue(props.ledsConfig.ledColors[2]);
         }
-    }, [props.ledsConfig?.colors[2]]);
+    }, [props.ledsConfig?.ledColors?.[2]]);
 
     useEffect(() => {
         brightnessRef.current = props.ledsConfig?.brightness ?? 100;
@@ -171,15 +174,23 @@ export default function HitboxLeds(props: HitboxLedsProps) {
     }, [props.ledsConfig?.animationSpeed]);
 
     useEffect(() => {
-        effectStyleRef.current = props.ledsConfig?.effectStyle ?? LedsEffectStyle.STATIC;
-    }, [props.ledsConfig?.effectStyle]);
+        effectStyleRef.current = props.ledsConfig?.ledsEffectStyle ?? LedsEffectStyle.STATIC;
+    }, [props.ledsConfig?.ledsEffectStyle]);
 
     useEffect(() => {
-        colorEnabledRef.current = props.ledsConfig?.ledsEnabled ?? true;
-    }, [props.ledsConfig?.ledsEnabled]);
+        colorEnabledRef.current = props.ledsConfig?.ledEnabled ?? true;
+    }, [props.ledsConfig?.ledEnabled]);
 
     useEffect(() => {
-        if (props.ledsConfig?.ledsEnabled) {
+        disabledKeysRef.current = props.disabledKeys ?? [];
+    }, [props.disabledKeys]);
+
+    useEffect(() => {
+        interactiveIdsRef.current = props.interactiveIds ?? [];
+    }, [props.interactiveIds]);
+
+    useEffect(() => {
+        if (props.ledsConfig?.ledEnabled) {
             startAnimation();
         } else {
             stopAnimation();
@@ -190,16 +201,16 @@ export default function HitboxLeds(props: HitboxLedsProps) {
             stopAnimation();
             timerRef.current = 0;
         };
-    }, [props.ledsConfig?.ledsEnabled]);
+    }, [props.ledsConfig?.ledEnabled]);
 
     // 判断按键是否可交互（既要在交互列表中，又不能在禁用列表中）
     const isButtonInteractive = (buttonId: number): boolean => {
-        return (props.interactiveIds?.includes(buttonId) ?? false) && !(props.disabledKeys?.includes(buttonId) ?? false);
+        return (interactiveIdsRef.current.includes(buttonId) ?? false) && !isButtonDisabled(buttonId);
     };
 
     // 判断按键是否被禁用
     const isButtonDisabled = (buttonId: number): boolean => {
-        return props.disabledKeys?.includes(buttonId) ?? false;
+        return disabledKeysRef.current.includes(buttonId);
     };
 
     // leds 颜色动画
