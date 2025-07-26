@@ -76,7 +76,7 @@
 
 
 
-#define CONFIG_VERSION                      (uint32_t)0x00000c  //配置版本 三位版本号 0x aa bb cc
+#define CONFIG_VERSION                      (uint32_t)0x00000d  //配置版本 三位版本号 0x aa bb cc
 #define ADC_MAPPING_VERSION                 (uint32_t)0x000001  //ADC值映射表版本
 
 // 双槽地址偏移定义（相对于槽基地址的偏移）
@@ -112,7 +112,7 @@ uint32_t get_current_slot_base_address(void);
 #define NUM_ADC                             3               // 3个ADC
 #define NUM_ADC1_BUTTONS                    6
 #define NUM_ADC2_BUTTONS                    6
-#define NUM_ADC3_BUTTONS                    5
+#define NUM_ADC3_BUTTONS                    6
 #define NUM_ADC_BUTTONS                     (NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS + NUM_ADC3_BUTTONS)
 #define MIN_ADC_TOP_DEADZONE                0.1             // 默认ADC顶部死区最小值
 #define MIN_ADC_BOTTOM_DEADZONE             0.1             // 默认ADC底部死区最小值
@@ -136,7 +136,7 @@ uint32_t get_current_slot_base_address(void);
 
 #define HAS_LED                                   1             //是否有LED
 #define HAS_LED_AROUND                            1          //是否有底部环绕led
-#define NUM_LED_AROUND                            29          //底部环绕led数量
+#define NUM_LED_AROUND                            37          //底部环绕led数量
 #define NUM_LED	                    (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS + NUM_LED_AROUND) //LED数量
 
 #define NUM_LEDs_PER_ADC_BUTTON     1              //每个按钮多少个LED
@@ -171,20 +171,21 @@ PC5     ------> ADC1_INP8  -----> 6
 /**ADC2 GPIO Configuration
 PF13     ------> ADC2_INP2 -----> 1
 PF14     ------> ADC2_INP6 -----> 3
-PC1     ------> ADC2_INP11 -----> 13
-PC2     ------> ADC2_INP12 -----> 11
+PC1     ------> ADC2_INP11 -----> 14
+PC2     ------> ADC2_INP12 -----> 12
 PC3     ------> ADC2_INP13 -----> 8
 PA2     ------> ADC2_INP14 -----> 9
 */
-#define ADC2_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {1, 3, 13, 11, 8, 9}
+#define ADC2_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {1, 3, 14, 12, 8, 9}
 /**ADC3 GPIO Configuration
-PF5     ------> ADC3_INP4  -----> 15
-PF3     ------> ADC3_INP5  -----> 16
-PF4     ------> ADC3_INP9  -----> 14
-PH2     ------> ADC3_INP13 -----> 12
+PF5     ------> ADC3_INP4  -----> 16
+PF3     ------> ADC3_INP5  -----> 17
+PF4     ------> ADC3_INP9  -----> 15
+PH2     ------> ADC3_INP13 -----> 13
 PH3     ------> ADC3_INP14 -----> 10
+PH4     ------> ADC3_INP15 -----> 11
 */
-#define ADC3_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {15, 16, 14, 12, 10}
+#define ADC3_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {16, 17, 15, 13, 10, 11}
 
 #define ADC_CALIBRATION_MANAGER_REQUIRED_SAMPLES 100 // 校准管理器需要的采样数量
 #define ADC_CALIBRATION_MANAGER_SAMPLE_INTERVAL_MS 1 // 校准管理器采样间隔（毫秒）

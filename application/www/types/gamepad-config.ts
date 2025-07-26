@@ -27,41 +27,46 @@ export const DEFAULT_FIRMWARE_UPGRADE_TIMEOUT = 30000;
 export const DEFAULT_FIRMWARE_SERVER_HOST = 'http://localhost:3000';
 
 // hitbox button position list
-export const HITBOX_BTN_POS_LIST = [
-    { x: 376.2, y: 379.8, r: 36 },
-    { x: 299.52, y: 352.44, r: 28.63 },
-    { x: 452.88, y: 352.44, r: 28.63 },
-    { x: 523.00, y: 328.44, r: 28.63 },
-    { x: 304.97, y: 182.0, r: 28.63 },
-    { x: 239.31, y: 170.56, r: 28.63 },
-    { x: 359.52, y: 220.35, r: 28.63 },
-    { x: 330.43, y: 120.46, r: 28.63 },
-    { x: 435.24, y: 226.76, r: 28.63 },
-    { x: 404.82, y: 163.22, r: 28.63 },
-    { x: 398.52, y: 92.67, r: 28.63 },
-    { x: 493.2, y: 186.48, r: 28.63 },
-    { x: 462.78, y: 122.94, r: 28.63 },
-    { x: 559.8, y: 162.36, r: 28.63 },
-    { x: 529.43, y: 98.67, r: 28.63 },
-    { x: 630.36, y: 156.06, r: 28.63 },
-    { x: 599.94, y: 92.52, r: 28.63 },
-    { x: 184.03, y: 46.03, r: 11.37 },
-    { x: 140.02, y: 46.03, r: 11.37 },
-    { x: 96.01, y: 46.03, r: 11.37 },
-    { x: 51.99, y: 46.03, r: 11.37 },
+const btnsPos = [
+    { x: 120.19, y: 123.51, r: 26 },         // 0
+    { x: 147.24, y: 130.70, r: 34 },         // 1
+    { x: 174.30, y: 123.51, r: 26 },         // 2
+    { x: 198.48, y: 117.14, r: 26 },         // 3
+    { x: 73.39, y: 63.66, r: 26 },           // 4
+    { x: 98.95, y: 59.57, r: 26 },           // 5
+    { x: 122.09, y: 63.66, r: 26 },          // 6
+    { x: 141.34, y: 77.13, r: 26 },          // 7
+    { x: 131.09, y: 41.94, r: 26 },          // 8
+    { x: 168.08, y: 79.30, r: 26 },          // 9
+    { x: 157.34, y: 56.87, r: 26 },          // 10
+    { x: 155.16, y: 31.97, r: 26 },          // 11
+    { x: 188.56, y: 64.96, r: 26 },          // 12
+    { x: 177.82, y: 42.53, r: 26 },          // 13
+    { x: 212.05, y: 56.41, r: 26 },          // 14
+    { x: 201.31, y: 33.98, r: 26 },          // 15
+    { x: 236.96, y: 54.23, r: 26 },          // 16
+    { x: 226.22, y: 31.80, r: 26 },          // 17
+    { x: 66.39, y: 15.39, r: 11.5 },           // 18
+    { x: 50.39, y: 15.39, r: 11.5 },           // 19
+    { x: 34.39, y: 15.39, r: 11.5 },           // 20
+    { x: 18.39, y: 15.39, r: 11.5 },           // 21
 ];
 
+export const HITBOX_BTN_POS_SCALE = 2.56;
+
+export const HITBOX_BTN_POS_LIST = btnsPos.map(item => ({ x: item.x * HITBOX_BTN_POS_SCALE, y: item.y * HITBOX_BTN_POS_SCALE, r: item.r }));
+
 // keys settings interactive ids
-export const KEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 ]; // 0-19 共20个按键可以交互，并设置为按键
+export const KEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 ]; // 0-20 共21个按键可以交互，并设置为按键
 
 // leds settings interactive ids
-export const LEDS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 ]; // 0-19 共20个按键可以交互，并设置为led
+export const LEDS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21 ]; // 0-21 共22个按键可以交互，并设置为led
 
 // hotkeys settings interactive ids
-export const HOTKEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 ]; // 0-19 共20个按键可以交互，并设置为hotkey
+export const HOTKEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 ]; // 0-20 共21个按键可以交互，并设置为hotkey
 
 // rapid trigger settings interactive ids
-export const RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 ]; // 0-16 共17个按键可以交互，并设置为rapid trigger
+export const RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 ]; // 0-17 共18个按键可以交互，并设置为rapid trigger
 
 
 
