@@ -1,425 +1,45 @@
 {
   "version": 1,
-  "num": 3,
-  "default_id": "磁mini-1147",
+  "num": 1,
+  "default_id": "a8db6",
   "mappings": [
     {
-      "id": " 万磁王-4464",
-      "name": " 万磁王",
-      "length": 36,
-      "step": 0.10000000149011612,
-      "sampling_noise": 21,
-      "sampling_frequency": 2566,
-      "original_values": [
-        56230,
-        55457,
-        53842,
-        52496,
-        51202,
-        50068,
-        48968,
-        47938,
-        47050,
-        46230,
-        45416,
-        44745,
-        44083,
-        43452,
-        42849,
-        42294,
-        41823,
-        41326,
-        40916,
-        40503,
-        40125,
-        39762,
-        39440,
-        39140,
-        38848,
-        38568,
-        38301,
-        38062,
-        37835,
-        37624,
-        37408,
-        37230,
-        37027,
-        36861,
-        36700,
-        36589,
-        0,
-        0,
-        0,
-        0
-      ],
-      "auto_calibration_values": [
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        }
-      ],
-      "manual_calibration_values": [
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        }
-      ]
-    },
-    {
-      "id": "万磁王mini-8",
-      "name": "万磁王mini",
-      "length": 29,
-      "step": 0.10000000149011612,
-      "sampling_noise": 31,
-      "sampling_frequency": 2566,
-      "original_values": [
-        64851,
-        63935,
-        60996,
-        58984,
-        56901,
-        55346,
-        53749,
-        52335,
-        51001,
-        49713,
-        48645,
-        47675,
-        46793,
-        45873,
-        45237,
-        44441,
-        43694,
-        43135,
-        42509,
-        42027,
-        41481,
-        40998,
-        40515,
-        40188,
-        39738,
-        39423,
-        39119,
-        38746,
-        38443,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
-      ],
-      "auto_calibration_values": [
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        },
-        {
-          "top_value": 0,
-          "bottom_value": 0
-        }
-      ],
-      "manual_calibration_values": [
-        {
-          "top_value": 38308,
-          "bottom_value": 65422
-        },
-        {
-          "top_value": 39019,
-          "bottom_value": 65535
-        },
-        {
-          "top_value": 38708,
-          "bottom_value": 65424
-        },
-        {
-          "top_value": 39136,
-          "bottom_value": 65535
-        },
-        {
-          "top_value": 39245,
-          "bottom_value": 65423
-        },
-        {
-          "top_value": 39153,
-          "bottom_value": 65423
-        },
-        {
-          "top_value": 38809,
-          "bottom_value": 65423
-        },
-        {
-          "top_value": 39127,
-          "bottom_value": 65423
-        },
-        {
-          "top_value": 39147,
-          "bottom_value": 65534
-        },
-        {
-          "top_value": 39091,
-          "bottom_value": 65535
-        },
-        {
-          "top_value": 39087,
-          "bottom_value": 65521
-        },
-        {
-          "top_value": 39334,
-          "bottom_value": 65535
-        },
-        {
-          "top_value": 38947,
-          "bottom_value": 65521
-        },
-        {
-          "top_value": 39129,
-          "bottom_value": 65534
-        },
-        {
-          "top_value": 38586,
-          "bottom_value": 65521
-        },
-        {
-          "top_value": 39650,
-          "bottom_value": 65521
-        },
-        {
-          "top_value": 39174,
-          "bottom_value": 65522
-        }
-      ]
-    },
-    {
-      "id": "星磁mini-1147",
-      "name": "星磁mini",
+      "id": "f04a8db6",
+      "name": "xingci-mini",
       "length": 29,
       "step": 0.10000000149011612,
       "sampling_noise": 15,
-      "sampling_frequency": 2566,
+      "sampling_frequency": 2565,
       "original_values": [
-        50676,
-        49862,
-        48403,
-        47123,
-        45980,
-        44975,
-        44084,
-        43227,
-        42484,
-        41818,
-        41233,
-        40678,
-        40130,
-        39657,
-        39242,
-        38839,
-        38463,
-        38122,
-        37808,
-        37528,
-        37245,
-        36995,
-        36774,
-        36559,
-        36346,
-        36162,
-        35994,
-        35823,
-        35672,
+        51825,
+        50850,
+        49283,
+        47926,
+        46612,
+        45531,
+        44508,
+        43503,
+        42676,
+        41945,
+        41304,
+        40662,
+        40141,
+        39639,
+        39169,
+        38746,
+        38366,
+        38011,
+        37682,
+        37377,
+        37110,
+        36819,
+        36589,
+        36363,
+        36179,
+        35987,
+        35782,
+        35617,
+        35467,
         0,
         0,
         0,
@@ -504,72 +124,72 @@
       ],
       "manual_calibration_values": [
         {
-          "top_value": 35407,
-          "bottom_value": 52229
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 35761,
-          "bottom_value": 53367
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 35377,
-          "bottom_value": 53550
+          "top_value": 0,
+          "bottom_value": 0
         },
         {
-          "top_value": 35607,
-          "bottom_value": 52964
+          "top_value": 35141,
+          "bottom_value": 52982
         },
         {
-          "top_value": 35908,
-          "bottom_value": 54362
+          "top_value": 35219,
+          "bottom_value": 51904
         },
         {
-          "top_value": 35423,
-          "bottom_value": 53096
+          "top_value": 35124,
+          "bottom_value": 52948
         },
         {
-          "top_value": 35370,
-          "bottom_value": 53851
+          "top_value": 35008,
+          "bottom_value": 52648
         },
         {
-          "top_value": 35385,
-          "bottom_value": 52811
+          "top_value": 35057,
+          "bottom_value": 52829
         },
         {
-          "top_value": 35576,
-          "bottom_value": 53270
+          "top_value": 34754,
+          "bottom_value": 49446
         },
         {
-          "top_value": 35888,
-          "bottom_value": 53092
+          "top_value": 34912,
+          "bottom_value": 52655
         },
         {
-          "top_value": 35510,
-          "bottom_value": 52740
+          "top_value": 34865,
+          "bottom_value": 51232
         },
         {
-          "top_value": 35677,
-          "bottom_value": 54185
+          "top_value": 34685,
+          "bottom_value": 49998
         },
         {
-          "top_value": 35298,
-          "bottom_value": 52574
+          "top_value": 34913,
+          "bottom_value": 51239
         },
         {
-          "top_value": 35748,
-          "bottom_value": 53530
+          "top_value": 35252,
+          "bottom_value": 51478
         },
         {
-          "top_value": 35399,
-          "bottom_value": 52418
+          "top_value": 35293,
+          "bottom_value": 52727
         },
         {
-          "top_value": 35859,
-          "bottom_value": 52973
+          "top_value": 35042,
+          "bottom_value": 51223
         },
         {
-          "top_value": 35654,
-          "bottom_value": 53165
+          "top_value": 35221,
+          "bottom_value": 51786
         }
       ]
     }

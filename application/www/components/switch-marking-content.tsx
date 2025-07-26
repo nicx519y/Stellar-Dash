@@ -68,11 +68,13 @@ export function SwitchMarkingContent() {
     });
 
     const { 
+        wsConnected, dataIsReady,
         mappingList, defaultMappingId, markingStatus, activeMapping,
         fetchMappingList, startMarking, stopMarking, stepMarking, 
         createMapping, deleteMapping, updateDefaultMapping, renameMapping, fetchActiveMapping,
         updateMarkingStatus
     } = useGamepadConfig();
+    const [ isInit, setIsInit ] = useState<boolean>(false);
     const [ activeMappingId, setActiveMappingId ] = useState<string>("");
     const [ markingStatusToastMessage, setMarkingStatusToastMessage ] = useState<string>("");
     const nextActiveMappingIdRef = useRef<string>(activeMappingId);
@@ -103,13 +105,17 @@ export function SwitchMarkingContent() {
     }, [mappingList, defaultMappingId]);
 
     useEffect(() => {
-        fetchMappingList();
+        if(!isInit && wsConnected && dataIsReady) {
+            fetchMappingList().then(() => {
+                setIsInit(true);
+            });
+        }
         return () => {
             if(markingStatus?.is_marking) {
                 stopMarking();
             }
         }
-    }, []);
+    }, [wsConnected, dataIsReady]);
 
     useEffect(() => {
 

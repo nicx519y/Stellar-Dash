@@ -796,6 +796,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             const data = await sendWebSocketRequest('ms_rename_mapping', { id, name }, immediate);
             setMappingList(data.mappingList);
             setDefaultMappingId(data.defaultMappingId);
+            setActiveMapping({...(activeMapping as ADCValuesMapping), name: name});
             setError(null);
             return Promise.resolve();
         } catch (err) {

@@ -4,6 +4,10 @@
 #include "board_cfg.h"
 #include "micro_timer.hpp"
 #include "system_logger.h"
+#include "qspi-w25q64.h"
+#include <cstring>
+#include <algorithm>
+#include "cpp_utils.hpp"
 
 // 内存图
 /*
@@ -194,8 +198,13 @@ ADCBtnsError ADCManager::createADCMapping(const char* name, size_t length, float
     // 创建新映射
     ADCValuesMapping& newMapping = store.mapping[store.num];
     memset(&newMapping, 0, sizeof(ADCValuesMapping));
-    snprintf(newMapping.id, sizeof(newMapping.id), "%s-%d", name, HAL_GetTick());
-    snprintf(newMapping.name, sizeof(newMapping.name), "%s", name);
+    
+    // 使用ID生成器生成唯一ID
+    std::string unique_id = generate_unique_id(name);
+    strncpy(newMapping.id, unique_id.c_str(), sizeof(newMapping.id) - 1);
+    newMapping.id[sizeof(newMapping.id) - 1] = '\0';
+    strncpy(newMapping.name, name, sizeof(newMapping.name) - 1);
+    newMapping.name[sizeof(newMapping.name) - 1] = '\0';
     newMapping.length = length;
     newMapping.step = step;
     newMapping.samplingNoise = 0;
@@ -206,7 +215,8 @@ ADCBtnsError ADCManager::createADCMapping(const char* name, size_t length, float
     
     // 如果这是第一个映射，则设置为默认映射
     if(store.num == 1) {
-        snprintf(store.defaultId, sizeof(store.defaultId), "%s", newMapping.id);
+        strncpy(store.defaultId, newMapping.id, sizeof(store.defaultId) - 1);
+        store.defaultId[sizeof(store.defaultId) - 1] = '\0';
     }
 
     // 保存更新后的存储结构
@@ -224,7 +234,8 @@ ADCBtnsError ADCManager::renameADCMapping(const char* id, const char* name) {
     int idx = findMappingById(id);
     if(idx == -1) return ADCBtnsError::MAPPING_NOT_FOUND;
     
-    snprintf(store.mapping[idx].name, sizeof(store.mapping[idx].name), "%s", name);
+    strncpy(store.mapping[idx].name, name, sizeof(store.mapping[idx].name) - 1);
+    store.mapping[idx].name[sizeof(store.mapping[idx].name) - 1] = '\0';
     
     // 保存更新后的存储结构
 
@@ -269,7 +280,8 @@ ADCBtnsError ADCManager::setDefaultMapping(const char* id) {
     uint8_t idx = findMappingById(id);
     if(idx == -1) return ADCBtnsError::MAPPING_NOT_FOUND;
     
-    snprintf(store.defaultId, sizeof(store.defaultId), "%s", id);
+    strncpy(store.defaultId, id, sizeof(store.defaultId) - 1);
+    store.defaultId[sizeof(store.defaultId) - 1] = '\0';
     
     // 保存更新后的存储结构
     if(saveStore() != QSPI_W25Qxx_OK) {

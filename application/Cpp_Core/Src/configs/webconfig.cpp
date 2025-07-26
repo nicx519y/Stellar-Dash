@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <queue>
 #include "system_logger.h"
+#include "cpp_utils.hpp"
 
 extern "C" struct fsdata_file file__index_html[];
 
@@ -104,8 +105,8 @@ static WebSocketMessageQueue g_websocket_message_queue;
 
 // WebSocket 命令处理器 - 示例处理器
 WebSocketDownstreamMessage handle_websocket_ping(const WebSocketUpstreamMessage& request) {
-    LOG_INFO("WebSocket", "Handling ping command, cid: %d", request.getCid());
-    APP_DBG("Handling ping command, cid: %d", request.getCid());
+    // LOG_INFO("WebSocket", "Handling ping command, cid: %d", request.getCid());
+    // APP_DBG("Handling ping command, cid: %d", request.getCid());
     cJSON* responseData = cJSON_CreateObject();
     cJSON_AddStringToObject(responseData, "message", "pong");
     cJSON_AddNumberToObject(responseData, "timestamp", HAL_GetTick());
@@ -163,8 +164,8 @@ void process_websocket_message_queue() {
                     available_space, queue_len);
         }
         
-        LOG_INFO("WebSocket", "Processing message: cid=%d, command=%s", message.getCid(), message.getCommand().c_str());
-        APP_DBG("Processing message: cid=%d, command=%s", message.getCid(), message.getCommand().c_str());
+        // LOG_INFO("WebSocket", "Processing message: cid=%d, command=%s", message.getCid(), message.getCommand().c_str());
+        // APP_DBG("Processing message: cid=%d, command=%s", message.getCid(), message.getCommand().c_str());
 
         // 先处理特殊命令（如ping）
         if (message.getCommand() == "ping") {
@@ -175,10 +176,10 @@ void process_websocket_message_queue() {
             WebSocketCommandManager& commandManager = WebSocketCommandManager::getInstance();
             WebSocketDownstreamMessage response = commandManager.processCommand(message);
             
-            LOG_INFO("WebSocket", "create_websocket_response: cid=%d, command=%s, errNo=%d", 
-                     response.getCid(), response.getCommand().c_str(), response.getErrNo());
-            APP_DBG("create_websocket_response: cid=%d, command=%s, errNo=%d", 
-                    response.getCid(), response.getCommand().c_str(), response.getErrNo());
+            // LOG_INFO("WebSocket", "create_websocket_response: cid=%d, command=%s, errNo=%d", 
+            //          response.getCid(), response.getCommand().c_str(), response.getErrNo());
+            // APP_DBG("create_websocket_response: cid=%d, command=%s, errNo=%d", 
+            //         response.getCid(), response.getCommand().c_str(), response.getErrNo());
             
             send_websocket_response(message.getConnection(), std::move(response));
         }
@@ -203,8 +204,7 @@ void on_websocket_message_sent() {
 
 // WebSocket消息处理回调 - 作为所有上行请求的入口
 void onWebSocketMessage(WebSocketConnection* conn, const std::string& message) {
-    LOG_INFO("WebSocket", "Received message: %s", message.c_str());
-    APP_DBG("Received message: %s", message.c_str());
+    // LOG_INFO("WebSocket", "Received message: %s", message.c_str());
     g_websocket_message_count++;
     
     // 解析JSON消息
@@ -262,10 +262,10 @@ void onWebSocketMessage(WebSocketConnection* conn, const std::string& message) {
         );
         send_websocket_response(conn, std::move(error_response));
     } else {
-        LOG_INFO("WebSocket", "Message enqueued successfully: cid=%d, command=%s", 
-                 (uint32_t)cidItem->valuedouble, commandItem->valuestring);
-        APP_DBG("Message enqueued successfully: cid=%d, command=%s", 
-                (uint32_t)cidItem->valuedouble, commandItem->valuestring);
+        // LOG_INFO("WebSocket", "Message enqueued successfully: cid=%d, command=%s", 
+        //          (uint32_t)cidItem->valuedouble, commandItem->valuestring);
+        // APP_DBG("Message enqueued successfully: cid=%d, command=%s", 
+        //         (uint32_t)cidItem->valuedouble, commandItem->valuestring);
         
         // 如果当前不在处理中，立即触发处理
         if (!g_websocket_processing) {
@@ -282,8 +282,8 @@ void onWebSocketMessage(WebSocketConnection* conn, const std::string& message) {
 // WebSocket连接建立回调
 void onWebSocketConnect(WebSocketConnection* conn) {
     g_websocket_connection_count++;
-    LOG_INFO("WebSocket", "New WebSocket connection established. Total connections: %d", g_websocket_connection_count);
-    APP_DBG("New WebSocket connection established. Total connections: %d", g_websocket_connection_count);
+    // LOG_INFO("WebSocket", "New WebSocket connection established. Total connections: %d", g_websocket_connection_count);
+    // APP_DBG("New WebSocket connection established. Total connections: %d", g_websocket_connection_count);
 }
 
 // WebSocket连接断开回调
@@ -291,14 +291,14 @@ void onWebSocketDisconnect(WebSocketConnection* conn) {
     if (g_websocket_connection_count > 0) {
         g_websocket_connection_count--;
     }
-    LOG_INFO("WebSocket", "WebSocket connection closed. Total connections: %d", g_websocket_connection_count);
-    APP_DBG("WebSocket connection closed. Total connections: %d", g_websocket_connection_count);
+    // LOG_INFO("WebSocket", "WebSocket connection closed. Total connections: %d", g_websocket_connection_count);
+    // APP_DBG("WebSocket connection closed. Total connections: %d", g_websocket_connection_count);
 }
 
 // WebSocket二进制消息处理回调
 void onWebSocketBinaryMessage(WebSocketConnection* conn, const uint8_t* data, size_t length) {
-    LOG_INFO("WebSocket", "Received binary message, length: %zu", length);
-    APP_DBG("Received binary message, length: %zu", length);
+    // LOG_INFO("WebSocket", "Received binary message, length: %zu", length);
+    // APP_DBG("Received binary message, length: %zu", length);
     
     if (!data || length == 0) {
         LOG_ERROR("WebSocket", "Invalid binary message data");
@@ -319,7 +319,7 @@ void onWebSocketBinaryMessage(WebSocketConnection* conn, const uint8_t* data, si
             // 处理固件分片上传
             FirmwareCommandHandler& handler = FirmwareCommandHandler::getInstance();
             bool success = handler.handleBinaryFirmwareChunk(data, length, conn);
-            LOG_INFO("WebSocket", "Binary firmware chunk processed: %s", success ? "success" : "failed");
+            // LOG_INFO("WebSocket", "Binary firmware chunk processed: %s", success ? "success" : "failed");
             break;
         }
         default:
@@ -341,12 +341,12 @@ void WebConfig::setup() {
     
     if (g_websocket_server->start(8081)) {
         g_websocket_start_time = HAL_GetTick();
-        LOG_INFO("WebConfig", "WebSocket server started on port 8081");
+        // LOG_INFO("WebConfig", "WebSocket server started on port 8081");
         
         // 初始化WebSocket命令处理器
         WebSocketCommandManager& commandManager = WebSocketCommandManager::getInstance();
         commandManager.initializeHandlers();
-        LOG_INFO("WebConfig", "WebSocket command handlers initialized");
+        // LOG_INFO("WebConfig", "WebSocket command handlers initialized");
     } else {
         LOG_ERROR("WebConfig", "Failed to start WebSocket server");
     }
@@ -884,7 +884,7 @@ cJSON* buildHotkeysConfigJSON(Config& config) {
  * }
  */
 std::string apiGetProfileList() {
-    LOG_INFO("WEBAPI", "apiGetProfileList start.");
+    // LOG_INFO("WEBAPI", "apiGetProfileList start.");
     Config& config = Storage::getInstance().config;
     
     // 创建返回数据结构
@@ -903,7 +903,7 @@ std::string apiGetProfileList() {
     // 生成返回字符串
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
 
-    LOG_INFO("WEBAPI", "apiGetProfileList success.");
+    // LOG_INFO("WEBAPI", "apiGetProfileList success.");
 
     return response;
 }
@@ -953,7 +953,7 @@ std::string apiGetProfileList() {
  * }
  */
 std::string apiGetDefaultProfile() {
-    LOG_INFO("WEBAPI", "apiGetDefaultProfile start.");
+    // LOG_INFO("WEBAPI", "apiGetDefaultProfile start.");
 
     Config& config = Storage::getInstance().config;
     
@@ -988,12 +988,13 @@ std::string apiGetDefaultProfile() {
     // 生成返回字符串
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
 
-    LOG_INFO("WEBAPI", "apiGetDefaultProfile success.");
+    APP_DBG("apiGetDefaultProfile: response: %s", response.c_str());
+    // LOG_INFO("WEBAPI", "apiGetDefaultProfile success.");
     return response;
 }
 
 std::string apiGetProfile(const char* profileId) {
-    LOG_INFO("WEBAPI", "apiGetProfile start.");
+    // LOG_INFO("WEBAPI", "apiGetProfile start.");
     if(!profileId) {
         return get_response_temp(STORAGE_ERROR_NO::PARAMETERS_ERROR, NULL, "Profile ID not provided");
     }
@@ -1027,7 +1028,7 @@ std::string apiGetProfile(const char* profileId) {
     
     // 生成返回字符串
     std::string result = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
-    LOG_INFO("WEBAPI", "apiGetProfile success.");
+    // LOG_INFO("WEBAPI", "apiGetProfile success.");
     return result;
 }
 
@@ -1050,7 +1051,7 @@ std::string apiGetProfile(const char* profileId) {
  * }
  */
 std::string apiGetHotkeysConfig() {
-    LOG_INFO("WEBAPI", "apiGetHotkeysConfig start.");
+    // LOG_INFO("WEBAPI", "apiGetHotkeysConfig start.");
     Config& config = Storage::getInstance().config;
     
     // 创建返回数据结构
@@ -1067,7 +1068,7 @@ std::string apiGetHotkeysConfig() {
     cJSON_AddItemToObject(dataJSON, "hotkeysConfig", hotkeysConfigJSON);
     
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
-    LOG_INFO("WEBAPI", "apiGetHotkeysConfig success.");
+    // LOG_INFO("WEBAPI", "apiGetHotkeysConfig success.");
     return response;
 }
 
@@ -1128,7 +1129,7 @@ std::string apiGetHotkeysConfig() {
  * }
  */
 std::string apiUpdateProfile() {
-    LOG_INFO("WEBAPI", "apiUpdateProfile start.");
+    // LOG_INFO("WEBAPI", "apiUpdateProfile start.");
     Config& config = Storage::getInstance().config;
     cJSON* params = get_post_data();
     
@@ -1170,7 +1171,7 @@ std::string apiUpdateProfile() {
     // 更新基本信息
     cJSON* nameItem = cJSON_GetObjectItem(details, "name");
     if(nameItem) {
-        strcpy(targetProfile->name, nameItem->valuestring);
+        safe_strncpy(targetProfile->name, nameItem->valuestring, sizeof(targetProfile->name));
     }
 
     // 更新按键配置
@@ -1374,7 +1375,7 @@ std::string apiUpdateProfile() {
     
     cJSON_Delete(params);
     
-    LOG_INFO("WEBAPI", "apiUpdateProfile success.");
+    // LOG_INFO("WEBAPI", "apiUpdateProfile success.");
     return response;
 }
 
@@ -1402,7 +1403,7 @@ std::string apiUpdateProfile() {
  * }
  */
 std::string apiCreateProfile() {
-    LOG_INFO("WEBAPI", "apiCreateProfile start.");
+    // LOG_INFO("WEBAPI", "apiCreateProfile start.");
     Config& config = Storage::getInstance().config;
     cJSON* params = get_post_data();
     
@@ -1444,8 +1445,7 @@ std::string apiCreateProfile() {
     cJSON* nameItem = cJSON_GetObjectItem(params, "profileName");
     if(nameItem && nameItem->valuestring) {
         ConfigUtils::makeDefaultProfile(*targetProfile, targetProfile->id, true); // 启用配置文件 并且 初始化配置文件
-        strncpy(targetProfile->name, nameItem->valuestring, sizeof(targetProfile->name) - 1); // 设置配置文件名称
-        targetProfile->name[sizeof(targetProfile->name) - 1] = '\0';  // 确保字符串结束
+        safe_strncpy(targetProfile->name, nameItem->valuestring, sizeof(targetProfile->name)); // 设置配置文件名称
         strcpy(config.defaultProfileId, targetProfile->id); // 设置默认配置文件ID 为新创建的配置文件ID
     } else {
         cJSON_Delete(params);
@@ -1477,7 +1477,7 @@ std::string apiCreateProfile() {
     
     cJSON_Delete(params);
     
-    LOG_INFO("WEBAPI", "apiCreateProfile success.");
+    // LOG_INFO("WEBAPI", "apiCreateProfile success.");
 
     return response;
 }
@@ -1506,7 +1506,7 @@ std::string apiCreateProfile() {
  * }
  */
 std::string apiDeleteProfile() {
-    LOG_INFO("WEBAPI", "apiDeleteProfile start.");    
+    // LOG_INFO("WEBAPI", "apiDeleteProfile start.");    
     Config& config = Storage::getInstance().config;
     cJSON* params = get_post_data();
     
@@ -1605,7 +1605,7 @@ std::string apiDeleteProfile() {
     
     cJSON_Delete(params);
     
-    LOG_INFO("WEBAPI", "apiDeleteProfile success.");
+    // LOG_INFO("WEBAPI", "apiDeleteProfile success.");
 
     return response;
 }
@@ -1634,7 +1634,7 @@ std::string apiDeleteProfile() {
  * }
  */
 std::string apiSwitchDefaultProfile() {
-    LOG_INFO("WEBAPI", "apiSwitchDefaultProfile start.");
+    // LOG_INFO("WEBAPI", "apiSwitchDefaultProfile start.");
     Config& config = Storage::getInstance().config;
     cJSON* params = get_post_data();
     
@@ -1699,7 +1699,7 @@ std::string apiSwitchDefaultProfile() {
     
     cJSON_Delete(params);
     
-    LOG_INFO("WEBAPI", "apiSwitchDefaultProfile success.");
+    // LOG_INFO("WEBAPI", "apiSwitchDefaultProfile success.");
 
     return response;
 }
@@ -1733,7 +1733,7 @@ std::string apiSwitchDefaultProfile() {
  * }
  */
 std::string apiUpdateHotkeysConfig() {
-    LOG_INFO("WEBAPI", "apiUpdateHotkeysConfig start.");
+    // LOG_INFO("WEBAPI", "apiUpdateHotkeysConfig start.");
     Config& config = Storage::getInstance().config;
     cJSON* params = get_post_data();
     
@@ -1813,7 +1813,7 @@ std::string apiUpdateHotkeysConfig() {
     
     cJSON_Delete(params);
     
-    LOG_INFO("WEBAPI", "apiUpdateHotkeysConfig success.");
+    // LOG_INFO("WEBAPI", "apiUpdateHotkeysConfig success.");
 
     return response;
 }
@@ -1830,7 +1830,7 @@ std::string apiUpdateHotkeysConfig() {
  * }
  */
 std::string apiReboot() {
-    LOG_INFO("WEBAPI", "apiReboot start.");
+    // LOG_INFO("WEBAPI", "apiReboot start.");
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON_AddStringToObject(dataJSON, "message", "System is rebooting");
@@ -1844,15 +1844,14 @@ std::string apiReboot() {
     
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
-    LOG_INFO("WEBAPI", "apiReboot success.");
+    // LOG_INFO("WEBAPI", "apiReboot success.");
     return response;
 }
 
 
-/**
- * @brief 构建轴体映射名称列表JSON
- * @return cJSON*
- */
+
+
+
 cJSON* buildMappingListJSON() {
 
     // 获取轴体映射名称列表
@@ -1863,8 +1862,8 @@ cJSON* buildMappingListJSON() {
     cJSON* listJSON = cJSON_CreateArray();
     for(ADCValuesMapping* mapping : mappingList) {
         cJSON* itemJSON = cJSON_CreateObject();
-        cJSON_AddStringToObject(itemJSON, "id", mapping->id);
-        cJSON_AddStringToObject(itemJSON, "name", mapping->name);
+        safe_add_string_to_object(itemJSON, "id", mapping->id);
+        safe_add_string_to_object(itemJSON, "name", mapping->name);
         cJSON_AddItemToArray(listJSON, itemJSON);
     }
 
@@ -1872,7 +1871,6 @@ cJSON* buildMappingListJSON() {
 
     return listJSON;
 }
-
 /**
  * @brief 获取轴体映射名称列表
  * @return std::string 
@@ -1890,17 +1888,20 @@ cJSON* buildMappingListJSON() {
  * }
  */
 std::string apiMSGetList() {
-    LOG_INFO("WEBAPI", "apiMSGetList start.");
+    // LOG_INFO("WEBAPI", "apiMSGetList start.");
 
     cJSON* dataJSON = cJSON_CreateObject();
     // 添加映射列表到响应数据
     cJSON_AddItemToObject(dataJSON, "mappingList", buildMappingListJSON());
 
-    cJSON_AddItemToObject(dataJSON, "defaultMappingId", cJSON_CreateString(ADC_MANAGER.getDefaultMapping().c_str()));
+    safe_add_string_to_object(dataJSON, "defaultMappingId", ADC_MANAGER.getDefaultMapping().c_str());
     
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
-    LOG_INFO("WEBAPI", "apiMSGetList success.");
+    // LOG_INFO("WEBAPI", "apiMSGetList success.");
+
+    APP_DBG("apiMSGetList: response: %s", response.c_str());
+
     return response;
 }
 
@@ -1959,7 +1960,7 @@ std::string apiMSGetMarkStatus() {
  * }
  */
 std::string apiMSSetDefault() {
-    LOG_INFO("WEBAPI", "apiMSSetDefault start.");
+    // LOG_INFO("WEBAPI", "apiMSSetDefault start.");
     
     // 解析请求参数
     cJSON* params = cJSON_Parse(http_post_payload);
@@ -1995,7 +1996,7 @@ std::string apiMSSetDefault() {
     
     cJSON_Delete(params);
 
-    LOG_INFO("WEBAPI", "apiMSSetDefault success.");
+    // LOG_INFO("WEBAPI", "apiMSSetDefault success.");
     return response;
 }
 
@@ -2016,7 +2017,7 @@ std::string apiMSSetDefault() {
  * }
  */
 std::string apiMSGetDefault() {
-    LOG_INFO("WEBAPI", "apiMSGetDefault start.");
+    // LOG_INFO("WEBAPI", "apiMSGetDefault start.");
     
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
@@ -2032,7 +2033,7 @@ std::string apiMSGetDefault() {
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
     
-    LOG_INFO("WEBAPI", "apiMSGetDefault success.");
+    // LOG_INFO("WEBAPI", "apiMSGetDefault success.");
     return response;
 }
 
@@ -2053,7 +2054,7 @@ std::string apiMSGetDefault() {
  * }
  */
 std::string apiMSCreateMapping() {
-    LOG_INFO("WEBAPI", "apiMSCreateMapping start.");
+    // LOG_INFO("WEBAPI", "apiMSCreateMapping start.");
     
     // 解析请求参数
     cJSON* params = cJSON_Parse(http_post_payload);
@@ -2086,12 +2087,26 @@ std::string apiMSCreateMapping() {
         return get_response_temp(STORAGE_ERROR_NO::ACTION_FAILURE, NULL, "Missing or invalid mapping step");
     }
     
-    const char* mappingName = nameJSON->valuestring;
+    // 对映射名称进行安全转码
+    std::string safeMappingName = fix_utf8_string(nameJSON->valuestring);
+    if (!is_valid_utf8(safeMappingName.c_str())) {
+        LOG_WARN("WEBAPI", "apiMSCreateMapping: Invalid UTF-8 in mapping name, using fallback");
+        std::string fallback;
+        for (char c : safeMappingName) {
+            if (c >= 32 && c <= 126) {
+                fallback += c;
+            } else {
+                fallback += '?';
+            }
+        }
+        safeMappingName = fallback;
+    }
+    
     size_t length = (size_t)lengthJSON->valueint;
     float_t step = (float_t)stepJSON->valuedouble;
     
     // 创建映射
-    ADCBtnsError error = ADC_MANAGER.createADCMapping(mappingName, length, step);
+    ADCBtnsError error = ADC_MANAGER.createADCMapping(safeMappingName.c_str(), length, step);
 
 
     if(error != ADCBtnsError::SUCCESS) {
@@ -2110,7 +2125,7 @@ std::string apiMSCreateMapping() {
     
     cJSON_Delete(params);
     
-    LOG_INFO("WEBAPI", "apiMSCreateMapping success.");
+    // LOG_INFO("WEBAPI", "apiMSCreateMapping success.");
     return response;
 }
 
@@ -2131,7 +2146,7 @@ std::string apiMSCreateMapping() {
  * }
  */
 std::string apiMSDeleteMapping() {
-    LOG_INFO("WEBAPI", "apiMSDeleteMapping start.");
+    // LOG_INFO("WEBAPI", "apiMSDeleteMapping start.");
     
     // 解析请求参数
     cJSON* params = cJSON_Parse(http_post_payload);
@@ -2168,7 +2183,7 @@ std::string apiMSDeleteMapping() {
     
     cJSON_Delete(params);
     
-    LOG_INFO("WEBAPI", "apiMSDeleteMapping success.");
+    // LOG_INFO("WEBAPI", "apiMSDeleteMapping success.");
     return response;
 }
 
@@ -2177,7 +2192,7 @@ std::string apiMSDeleteMapping() {
  * @return std::string 
  */
 std::string apiMSRenameMapping() {
-    LOG_INFO("WEBAPI", "apiMSRenameMapping start.");
+    // LOG_INFO("WEBAPI", "apiMSRenameMapping start.");
     // 解析请求参数
     cJSON* params = cJSON_Parse(http_post_payload);
     if (!params) {
@@ -2202,10 +2217,24 @@ std::string apiMSRenameMapping() {
     }
 
     const char* mappingId = idJSON->valuestring;
-    const char* mappingName = nameJSON->valuestring;
+    
+    // 对映射名称进行安全转码
+    std::string safeMappingName = fix_utf8_string(nameJSON->valuestring);
+    if (!is_valid_utf8(safeMappingName.c_str())) {
+        LOG_WARN("WEBAPI", "apiMSRenameMapping: Invalid UTF-8 in mapping name, using fallback");
+        std::string fallback;
+        for (char c : safeMappingName) {
+            if (c >= 32 && c <= 126) {
+                fallback += c;
+            } else {
+                fallback += '?';
+            }
+        }
+        safeMappingName = fallback;
+    }
 
     // 重命名映射
-    ADCBtnsError error = ADC_MANAGER.renameADCMapping(mappingId, mappingName);
+    ADCBtnsError error = ADC_MANAGER.renameADCMapping(mappingId, safeMappingName.c_str());
     if(error != ADCBtnsError::SUCCESS) {   
         cJSON_Delete(params);
         LOG_ERROR("WEBAPI", "apiMSRenameMapping: Failed to rename mapping");
@@ -2222,7 +2251,7 @@ std::string apiMSRenameMapping() {
     
     cJSON_Delete(params);
     
-    LOG_INFO("WEBAPI", "apiMSRenameMapping success.");
+    // LOG_INFO("WEBAPI", "apiMSRenameMapping success.");
     return response;
 }
 
@@ -2238,7 +2267,7 @@ std::string apiMSRenameMapping() {
  * }
  */
 std::string apiMSMarkMappingStart() {
-    LOG_INFO("WEBAPI", "apiMSMarkMappingStart start.");
+    // LOG_INFO("WEBAPI", "apiMSMarkMappingStart start.");
     
     // 解析请求参数
     cJSON* params = cJSON_Parse(http_post_payload);
@@ -2275,7 +2304,7 @@ std::string apiMSMarkMappingStart() {
     
     cJSON_Delete(params);
     
-    LOG_INFO("WEBAPI", "apiMSMarkMappingStart success.");
+    // LOG_INFO("WEBAPI", "apiMSMarkMappingStart success.");
     return response;
 }
 
@@ -2290,7 +2319,7 @@ std::string apiMSMarkMappingStart() {
  * }
  */
 std::string apiMSMarkMappingStop() {
-    LOG_INFO("WEBAPI", "apiMSMarkMappingStop start.");
+    // LOG_INFO("WEBAPI", "apiMSMarkMappingStop start.");
     
     // 停止标记
     ADC_BTNS_MARKER.reset();
@@ -2303,7 +2332,7 @@ std::string apiMSMarkMappingStop() {
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
     
-    LOG_INFO("WEBAPI", "apiMSMarkMappingStop success.");
+    // LOG_INFO("WEBAPI", "apiMSMarkMappingStop success.");
     return response;
 }
 
@@ -2339,7 +2368,7 @@ std::string apiMSMarkMappingStep() {
  * @return std::string 
  */
 std::string apiMSGetMapping() {
-    LOG_INFO("WEBAPI", "apiMSGetMapping start.");
+    // LOG_INFO("WEBAPI", "apiMSGetMapping start.");
     cJSON* params = cJSON_Parse(http_post_payload);
     if (!params) {
         LOG_ERROR("WEBAPI", "apiMSGetMapping: Invalid request parameters");
@@ -2381,7 +2410,7 @@ std::string apiMSGetMapping() {
 
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
 
-    LOG_INFO("WEBAPI", "apiMSGetMapping success.");
+    // LOG_INFO("WEBAPI", "apiMSGetMapping success.");
 
     return response;
 }
@@ -2402,7 +2431,7 @@ std::string apiMSGetMapping() {
  */
 std::string apiGetGlobalConfig() {
 
-    LOG_INFO("WEBAPI", "apiGetGlobalConfig start.");
+    // LOG_INFO("WEBAPI", "apiGetGlobalConfig start.");
 
     Config& config = Storage::getInstance().config;
     
@@ -2430,7 +2459,7 @@ std::string apiGetGlobalConfig() {
     // 生成返回字符串
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
     
-    LOG_INFO("WEBAPI", "apiGetGlobalConfig success.");
+    // LOG_INFO("WEBAPI", "apiGetGlobalConfig success.");
 
     return response;
 }
@@ -2450,7 +2479,7 @@ std::string apiGetGlobalConfig() {
  * }
  */
 std::string apiUpdateGlobalConfig() {
-    LOG_INFO("WEBAPI", "apiUpdateGlobalConfig start.");
+    // LOG_INFO("WEBAPI", "apiUpdateGlobalConfig start.");
     Config& config = Storage::getInstance().config;
     cJSON* params = get_post_data();
     
@@ -2515,7 +2544,7 @@ std::string apiUpdateGlobalConfig() {
     
     cJSON_Delete(params);
 
-    LOG_INFO("WEBAPI", "apiUpdateGlobalConfig success.");
+    // LOG_INFO("WEBAPI", "apiUpdateGlobalConfig success.");
 
     return response;
 }
@@ -2537,7 +2566,7 @@ std::string apiUpdateGlobalConfig() {
  * }
  */
 std::string apiStartManualCalibration() {
-    LOG_INFO("WEBAPI", "apiStartManualCalibration start.");
+    // LOG_INFO("WEBAPI", "apiStartManualCalibration start.");
     // 开始手动校准
     // 初始化ADC管理器
     ADCBtnsError error = ADC_CALIBRATION_MANAGER.startManualCalibration();
@@ -2562,7 +2591,7 @@ std::string apiStartManualCalibration() {
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
 
-    LOG_INFO("WEBAPI", "apiStartManualCalibration success.");
+    // LOG_INFO("WEBAPI", "apiStartManualCalibration success.");
     
     return response;
 }
@@ -2584,7 +2613,7 @@ std::string apiStartManualCalibration() {
  * }
  */
 std::string apiStopManualCalibration() {
-    LOG_INFO("WEBAPI", "apiStopManualCalibration start.");
+    // LOG_INFO("WEBAPI", "apiStopManualCalibration start.");
     // 停止手动校准
     ADCBtnsError error = ADC_CALIBRATION_MANAGER.stopCalibration();
     
@@ -2609,7 +2638,7 @@ std::string apiStopManualCalibration() {
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
 
-    LOG_INFO("WEBAPI", "apiStopManualCalibration success.");
+    // LOG_INFO("WEBAPI", "apiStopManualCalibration success.");
     
     return response;
 }
@@ -2728,7 +2757,7 @@ std::string apiGetCalibrationStatus() {
  * }
  */
 std::string apiClearManualCalibrationData() {
-    LOG_INFO("WEBAPI", "apiClearManualCalibrationData start.");
+    // LOG_INFO("WEBAPI", "apiClearManualCalibrationData start.");
     // 清除所有手动校准数据
     ADCBtnsError error = ADC_CALIBRATION_MANAGER.resetAllCalibration();
     if(error != ADCBtnsError::SUCCESS) {
@@ -2752,7 +2781,7 @@ std::string apiClearManualCalibrationData() {
     // 获取标准格式的响应
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
 
-    LOG_INFO("WEBAPI", "apiClearManualCalibrationData success.");
+    // LOG_INFO("WEBAPI", "apiClearManualCalibrationData success.");
 
     return response;
 }
@@ -3024,7 +3053,7 @@ std::string apiClearLedsPreview() {
  * }
  */
 std::string apiFirmwareMetadata() {
-    LOG_INFO("WEBAPI", "apiFirmwareMetadata start.");
+    // LOG_INFO("WEBAPI", "apiFirmwareMetadata start.");
     FirmwareManager* manager = FirmwareManager::GetInstance();
     if (!manager) {
         cJSON* dataJSON = cJSON_CreateObject();
@@ -3072,10 +3101,10 @@ std::string apiFirmwareMetadata() {
             }
             cJSON_AddItemToObject(dataJSON, "components", componentsArray);
         }
-        LOG_INFO("WEBAPI", "apiFirmwareMetadata: %s", cJSON_PrintUnformatted(dataJSON));
+        // LOG_INFO("WEBAPI", "apiFirmwareMetadata: %s", cJSON_PrintUnformatted(dataJSON));
     }
 
-    LOG_INFO("WEBAPI", "apiFirmwareMetadata success.");
+    // LOG_INFO("WEBAPI", "apiFirmwareMetadata success.");
     return get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
 }
 
@@ -3362,7 +3391,7 @@ uint8_t* extract_multipart_binary_data(const char* http_post_payload,
  * 支持的action: create, complete, abort, status
  */
 std::string apiFirmwareUpgrade() {
-    LOG_INFO("WEBAPI", "apiFirmwareUpgrade start.");
+    // LOG_INFO("WEBAPI", "apiFirmwareUpgrade start.");
     cJSON* postParams = get_post_data();
     if (!postParams) {
         cJSON* dataJSON = cJSON_CreateObject();
@@ -3513,7 +3542,7 @@ std::string apiFirmwareUpgrade() {
 
     cJSON_Delete(postParams);
     std::string response = get_response_temp(success ? STORAGE_ERROR_NO::ACTION_SUCCESS : STORAGE_ERROR_NO::ACTION_FAILURE, dataJSON);
-    LOG_INFO("WEBAPI", "apiFirmwareUpgrade success.");
+    // LOG_INFO("WEBAPI", "apiFirmwareUpgrade success.");
     return response;
 }
 
@@ -3717,7 +3746,7 @@ std::string apiFirmwareChunk() {
  * }
  */
 std::string apiFirmwareUpgradeComplete() {
-    LOG_INFO("WEBAPI", "apiFirmwareUpgradeComplete start.");
+    // LOG_INFO("WEBAPI", "apiFirmwareUpgradeComplete start.");
     cJSON* postParams = get_post_data();
     if (!postParams) {
         cJSON* dataJSON = cJSON_CreateObject();
@@ -3764,7 +3793,7 @@ std::string apiFirmwareUpgradeComplete() {
     
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
 
-    LOG_INFO("WEBAPI", "apiFirmwareUpgradeComplete success.");
+    // LOG_INFO("WEBAPI", "apiFirmwareUpgradeComplete success.");
 
     // 设置需要重启 2秒后重启
     WebSocketCommandHandler::rebootTick = HAL_GetTick() + 2000;
@@ -3790,7 +3819,7 @@ std::string apiFirmwareUpgradeComplete() {
  * }
  */
 std::string apiFirmwareUpgradeAbort() {
-    LOG_INFO("WEBAPI", "apiFirmwareUpgradeAbort start.");
+    // LOG_INFO("WEBAPI", "apiFirmwareUpgradeAbort start.");
     cJSON* postParams = get_post_data();
     if (!postParams) {
         cJSON* dataJSON = cJSON_CreateObject();
@@ -3837,7 +3866,7 @@ std::string apiFirmwareUpgradeAbort() {
     
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
 
-    LOG_INFO("WEBAPI", "apiFirmwareUpgradeAbort success.");
+    // LOG_INFO("WEBAPI", "apiFirmwareUpgradeAbort success.");
 
     return response;
 
@@ -3919,7 +3948,7 @@ std::string apiFirmwareUpgradeStatus() {
  * }
  */
 std::string apiFirmwareUpgradeCleanup() {
-    LOG_INFO("WEBAPI", "apiFirmwareUpgradeCleanup start.");
+    // LOG_INFO("WEBAPI", "apiFirmwareUpgradeCleanup start.");
     FirmwareManager* manager = FirmwareManager::GetInstance();
     if (!manager) {
         cJSON* dataJSON = cJSON_CreateObject();
@@ -4000,7 +4029,7 @@ std::string apiGetDeviceAuth() {
  * }
  */
 std::string apiWebSocketTest() {
-    LOG_INFO("WEBAPI", "apiWebSocketTest start.");
+    // LOG_INFO("WEBAPI", "apiWebSocketTest start.");
     
     // 创建返回数据结构
     cJSON* dataJSON = cJSON_CreateObject();
@@ -4023,7 +4052,7 @@ std::string apiWebSocketTest() {
     cJSON_AddNumberToObject(dataJSON, "timestamp", HAL_GetTick());
     
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
-    LOG_INFO("WEBAPI", "apiWebSocketTest success.");
+    // LOG_INFO("WEBAPI", "apiWebSocketTest success.");
     return response;
 }
 
@@ -4042,7 +4071,7 @@ std::string apiWebSocketTest() {
  * }
  */
 std::string apiWebSocketStatus() {
-    LOG_INFO("WEBAPI", "apiWebSocketStatus start.");
+    // LOG_INFO("WEBAPI", "apiWebSocketStatus start.");
     
     // 创建返回数据结构
     cJSON* dataJSON = cJSON_CreateObject();
@@ -4062,7 +4091,7 @@ std::string apiWebSocketStatus() {
     }
     
     std::string response = get_response_temp(STORAGE_ERROR_NO::ACTION_SUCCESS, dataJSON);
-    LOG_INFO("WEBAPI", "apiWebSocketStatus success.");
+    // LOG_INFO("WEBAPI", "apiWebSocketStatus success.");
     return response;
 }
 
@@ -4189,3 +4218,6 @@ void fs_close_custom(struct fs_file *file)
         file->pextension = NULL;
     }
 }
+
+
+

@@ -260,7 +260,6 @@ uint32_t ADCBtnsWorker::read() {
 
         // 处理状态转换
         if(event != ButtonEvent::NONE) {
-            APP_DBG("event: %d", event);
             handleButtonState(btn, event);
         }
     }

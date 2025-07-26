@@ -107,7 +107,7 @@ ADCBtnsError ADCBtnsMarker::step() {
     }
 
     step_info.is_sampling = true;
-    ADC_MANAGER.startADCSamping(true, 0);
+    ADC_MANAGER.startADCSamping(true, 2);
 
     return ADCBtnsError::SUCCESS;   
 }

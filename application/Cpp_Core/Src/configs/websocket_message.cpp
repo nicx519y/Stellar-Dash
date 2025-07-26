@@ -2,6 +2,7 @@
 #include "system_logger.h"
 #include <cstdlib>
 #include "board_cfg.h"
+#include "cpp_utils.hpp"
 
 // ==================== WebSocketUpstreamMessage 实现 ====================
 
@@ -111,6 +112,8 @@ WebSocketDownstreamMessage create_websocket_response(uint32_t cid, const std::st
     return response;
 }
 
+
+
 void send_websocket_response(WebSocketConnection* conn, WebSocketDownstreamMessage&& response) {
     if (!conn) {
         LOG_ERROR("WebSocket", "Invalid connection for sending response");
@@ -138,7 +141,17 @@ void send_websocket_response(WebSocketConnection* conn, WebSocketDownstreamMessa
     APP_DBG("send_websocket_response: %s", json_string);
 
     if (json_string) {
-        conn->send_text(std::string(json_string));
+        // 检查并修复UTF-8编码
+        std::string json_str(json_string);
+        if (!is_valid_utf8(json_str.c_str())) {
+            LOG_WARN("WebSocket", "Invalid UTF-8 detected in JSON, attempting to fix");
+            json_str = fix_utf8_string(json_str);
+            if (!is_valid_utf8(json_str.c_str())) {
+                LOG_ERROR("WebSocket", "Failed to fix UTF-8 encoding, sending as-is");
+            }
+        }
+        
+        conn->send_text(json_str);
         free(json_string);
     } else {
         LOG_ERROR("WebSocket", "Failed to serialize JSON response");
