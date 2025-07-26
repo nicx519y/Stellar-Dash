@@ -23,7 +23,6 @@ import HitboxHotkey from "@/components/hitbox/hitbox-hotkey";
 import { btnPosList } from "@/components/hitbox/hitbox-base";
 import { HotkeySettingContent } from "./hotkey-setting-content";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
-import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
 import { InputModeSettingContent } from "./input-mode-content";
 import { openConfirm } from "@/components/dialog-confirm";
@@ -43,10 +42,13 @@ export function GlobalSettingContent() {
         updateHotkeysConfig,
         globalConfig,
         hotkeysConfig,
+        dataIsReady,
         // updateGlobalConfig,
     } = useGamepadConfig();
 
-    const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
+    const [isInit, setIsInit] = useState<boolean>(false);
+    const [needUpdate, setNeedUpdate] = useState<boolean>(false);
+
     // 添加本地 hotkeys 状态来存储用户修改
     const [currentHotkeys, setCurrentHotkeys] = useState<Hotkey[]>([]);
 
@@ -188,7 +190,6 @@ export function GlobalSettingContent() {
     const onStartManualCalibration = async () => {
         try {
             const status = await startManualCalibration();
-            console.log("startManualCalibration:", status);
             setCalibrationStatus(status);
         } catch {
             throw new Error("Failed to start manual calibration");
@@ -198,7 +199,6 @@ export function GlobalSettingContent() {
     const onEndManualCalibration = async () => {
         try {
             const status = await stopManualCalibration();
-            console.log("stopManualCalibration:", status);
             setCalibrationStatus(status);
         } catch {
             throw new Error("Failed to stop manual calibration");
@@ -220,16 +220,29 @@ export function GlobalSettingContent() {
     // 处理热键更新回调
     const handleHotkeyUpdate = useCallback((hotkeys: Hotkey[]) => {
         setCurrentHotkeys(hotkeys);
-        updateHotkeysConfig(hotkeys);
+        setNeedUpdate(true);
     }, [currentHotkeys]);
 
     // 初始化 currentHotkeys
     useEffect(() => {
-        setCurrentHotkeys(Array.from({ length: DEFAULT_NUM_HOTKEYS_MAX }, (_, i) => {
-            return hotkeysConfig?.[i] ?? { key: -1, action: HotkeyAction.None, isLocked: false, isHold: false };
-        }));
-        setIsDirty(false);
-    }, [hotkeysConfig, setIsDirty]);
+        if(isInit) {
+            return;
+        }
+        
+        if(!isInit && dataIsReady && hotkeysConfig.length > 0) {
+            setCurrentHotkeys(Array.from({ length: DEFAULT_NUM_HOTKEYS_MAX }, (_, i) => {
+                return hotkeysConfig?.[i] ?? { key: -1, action: HotkeyAction.None, isLocked: false, isHold: false };
+            }));
+            setIsInit(true);
+        }
+    }, [dataIsReady, hotkeysConfig]);
+
+    useEffect(() => {
+        if(needUpdate) {
+            updateHotkeysConfig(currentHotkeys);
+            setNeedUpdate(false);
+        }
+    }, [needUpdate]);
 
     return (
         <Flex direction="row" width={"100%"} height={"100%"} padding="18px">

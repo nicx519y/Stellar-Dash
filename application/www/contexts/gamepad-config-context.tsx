@@ -73,6 +73,8 @@ interface GamepadConfigContextType {
     defaultProfile: GameProfile;
     hotkeysConfig: Hotkey[];
     globalConfig: GlobalConfig;
+    dataIsReady: boolean;
+    
     fetchGlobalConfig: () => Promise<void>;
     updateGlobalConfig: (globalConfig: GlobalConfig) => Promise<void>;
     fetchDefaultProfile: () => Promise<void>;
@@ -245,6 +247,14 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         return jsReady;
     }, [jsReady]);
 
+    const [globalConfigIsReady, setGlobalConfigIsReady] = useState(false);
+    const [profileListIsReady, setProfileListIsReady] = useState(false);
+    const [hotkeysConfigIsReady, setHotkeysConfigIsReady] = useState(false);
+    const [firmwareInfoIsReady, setFirmwareInfoIsReady] = useState(false);
+    const [dataIsReady, setDataIsReady] = useState(false);
+
+    
+
     // 处理通知消息
     const handleNotificationMessage = (message: WebSocketDownstreamMessage): void => {
         const { command, data } = message;
@@ -389,19 +399,28 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             const authManager = DeviceAuthManager.getInstance();
             authManager.setWebSocketSendFunction(sendWebSocketRequest);
             
-            Promise.all([
-                fetchGlobalConfig(),    // 获取全局配置
-                fetchProfileList(),      // 获取配置列表
-                fetchHotkeysConfig(),    // 获取热键配置
-                fetchFirmwareMetadata(), // 获取固件元数据
-                clearLedsPreview(),      // 清除LED预览
-            ])
-            .catch(console.error)
-            .finally(() => {
-                setIsLoading(false);
-            });
+            fetchGlobalConfig().then(() => {
+                setGlobalConfigIsReady(true);
+            }).catch(console.error);
+            fetchProfileList().then(() => {
+                setProfileListIsReady(true);
+            }).catch(console.error);
+            fetchHotkeysConfig().then(() => {
+                setHotkeysConfigIsReady(true);
+            }).catch(console.error);
+            fetchFirmwareMetadata().then(() => {
+                setFirmwareInfoIsReady(true);
+            }).catch(console.error);
+
         }
     }, [wsConnected, wsState]);
+
+    useEffect(() => {
+        if(globalConfigIsReady && profileListIsReady && hotkeysConfigIsReady && firmwareInfoIsReady) {
+            setDataIsReady(true);
+            setIsLoading(false);
+        }
+    }, [globalConfigIsReady, profileListIsReady, hotkeysConfigIsReady, firmwareInfoIsReady]);
 
     useEffect(() => {
         if (profileList.defaultId !== "") {
@@ -1689,6 +1708,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             profileList,
             defaultProfile,
             hotkeysConfig,
+            dataIsReady,
             fetchDefaultProfile,
             fetchProfileList,
             fetchHotkeysConfig,

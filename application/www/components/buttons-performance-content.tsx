@@ -19,7 +19,6 @@ import { useEffect, useState } from "react";
 import { ADCButtonDebounceAlgorithm, RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS, RapidTriggerConfig } from "@/types/gamepad-config";
 import HitboxPerformance from "@/components/hitbox/hitbox-performance";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
-import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
 import { useLanguage } from "@/contexts/language-context";
 import { ContentActionButtons } from "@/components/content-action-buttons";
 import {
@@ -51,8 +50,11 @@ const defaultTriggerConfig: TriggerConfig = {
 
 
 export function ButtonsPerformanceContent() {
-    const { defaultProfile, updateProfileDetails, resetProfileDetails } = useGamepadConfig();
-    const [_isDirty, setIsDirty] = useUnsavedChangesWarning();
+
+    const [isInit, setIsInit] = useState<boolean>(false);
+    const [needUpdate, setNeedUpdate] = useState<boolean>(false);
+
+    const { defaultProfile, updateProfileDetails, dataIsReady } = useGamepadConfig();
     const { t } = useLanguage();
 
     const [selectedButton, setSelectedButton] = useState<number | null>(0); // 当前选中的按钮
@@ -92,14 +94,20 @@ export function ButtonsPerformanceContent() {
     useEffect(() => {
         // Load trigger configs from gamepadConfig when it changes
 
+        if(isInit) {
+            return;
+        }
 
-        const triggerConfigs = { ...defaultProfile.triggerConfigs };
-        setIsAllBtnsConfiguring(triggerConfigs.isAllBtnsConfiguring ?? false);
-        setDebounceAlgorithm(triggerConfigs.debounceAlgorithm as ADCButtonDebounceAlgorithm ?? ADCButtonDebounceAlgorithm.NONE);
-        setTriggerConfigs(allKeys.map(key => triggerConfigs.triggerConfigs?.[key] ?? defaultTriggerConfig));
-        setAllBtnsConfig(triggerConfigs.triggerConfigs?.[0] ?? defaultTriggerConfig);
-        setIsDirty?.(false);
-    }, [defaultProfile]);
+        if(!isInit && dataIsReady && defaultProfile.triggerConfigs) {
+            const triggerConfigs = { ...defaultProfile.triggerConfigs };
+            setIsAllBtnsConfiguring(triggerConfigs.isAllBtnsConfiguring ?? false);
+            setDebounceAlgorithm(triggerConfigs.debounceAlgorithm as ADCButtonDebounceAlgorithm ?? ADCButtonDebounceAlgorithm.NONE);
+            setTriggerConfigs(allKeys.map(key => triggerConfigs.triggerConfigs?.[key] ?? defaultTriggerConfig));
+            setAllBtnsConfig(triggerConfigs.triggerConfigs?.[0] ?? defaultTriggerConfig);
+            setIsInit(true);
+        }
+
+    }, [dataIsReady, defaultProfile.triggerConfigs]);
 
     useEffect(() => {
         if (isAllBtnsConfiguring) {
@@ -159,10 +167,8 @@ export function ButtonsPerformanceContent() {
     /**
      * 保存配置
      */
-    const saveProfileDetailHandler = async (): Promise<void> => {
+    const updateProfileDetailHandler = async (): Promise<void> => {
         const profileId = defaultProfile.id;
-
-        console.log("saveProfileDetailHandler: debounceAlgorithm - ", debounceAlgorithm as number);
 
         if (isAllBtnsConfiguring) {
             const newTriggerConfigs: RapidTriggerConfig[] = [];
@@ -194,11 +200,18 @@ export function ButtonsPerformanceContent() {
      * 点击按钮
      */
     const handleButtonClick = (id: number) => {
-        console.log("handleButtonClick: ", id);
         if (!isAllBtnsConfiguring && selectedButton !== id && id >= 0) {
             setSelectedButton(id);
         }
     };
+
+
+    useEffect(() => {
+        if(needUpdate) {
+            updateProfileDetailHandler();
+            setNeedUpdate(false);
+        }
+    }, [needUpdate]);
 
     return (
         <>
@@ -215,11 +228,7 @@ export function ButtonsPerformanceContent() {
                         />
                     </Center>
                     <Center flex={0}  >
-                        <ContentActionButtons
-                            isDirty={_isDirty}
-                            resetHandler={resetProfileDetails}
-                            saveHandler={saveProfileDetailHandler}
-                        />
+                        <ContentActionButtons />
                     </Center>
                 </Center>
                 <Center>
@@ -243,7 +252,7 @@ export function ButtonsPerformanceContent() {
                                             if (details.value !== null) {
                                                 const parsedValue = parseInt(details.value);
                                                 setDebounceAlgorithm(parsedValue as ADCButtonDebounceAlgorithm);
-                                                setIsDirty?.(true);
+                                                setNeedUpdate(true);
                                             }
                                         }} >
                                             <RadioCard.Label>{t.SETTINGS_ADC_BUTTON_DEBOUNCE_TITLE}</RadioCard.Label>
@@ -268,7 +277,6 @@ export function ButtonsPerformanceContent() {
                                         <Switch.Root colorPalette={"green"} checked={isAllBtnsConfiguring}
                                             onCheckedChange={() => {
                                                 switchAllBtnsConfiging(!isAllBtnsConfiguring);
-                                                setIsDirty?.(true);
                                             }}
                                         >
                                             <Switch.HiddenInput />
@@ -322,10 +330,11 @@ export function ButtonsPerformanceContent() {
                                                     }
                                                     if (isAllBtnsConfiguring) {
                                                         updateAllBtnsConfig(key as keyof RapidTriggerConfig, v);
+                                                        setNeedUpdate(true);
                                                     } else {
                                                         updateConfig(key as keyof TriggerConfig, v);
+                                                        setNeedUpdate(true);
                                                     }
-                                                    setIsDirty?.(true);
 
                                                 }}
                                             >

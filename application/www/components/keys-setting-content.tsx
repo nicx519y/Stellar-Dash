@@ -44,6 +44,7 @@ export function KeysSettingContent() {
         defaultProfile,
         updateProfileDetails,
         globalConfig,
+        dataIsReady,
     } = useGamepadConfig();
     const { t } = useLanguage();
     const { colorMode } = useColorMode();
@@ -71,7 +72,7 @@ export function KeysSettingContent() {
             return;
         }
 
-        if (!isInit && defaultProfile.keysConfig) {
+        if (!isInit && dataIsReady && defaultProfile.keysConfig) {
             setSocdMode(defaultProfile.keysConfig?.socdMode ?? GameSocdMode.SOCD_MODE_UP_PRIORITY);
             setInvertXAxis(defaultProfile.keysConfig?.invertXAxis ?? false);
             setInvertYAxis(defaultProfile.keysConfig?.invertYAxis ?? false);
@@ -83,7 +84,7 @@ export function KeysSettingContent() {
 
             setIsInit(true);
         }
-    }, [defaultProfile]);
+    }, [dataIsReady, defaultProfile.keysConfig]);
 
     const updateKeysConfigHandler = () => {
 

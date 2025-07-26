@@ -21,10 +21,9 @@ enum ProgressPercent {
 
 export function FirmwareContent() {
     const { t } = useLanguage();
-    const [ isLoading, setIsLoading ] = useState(true);
     const [ _updateProgress, _setUpdateProgress ] = useState(0);
     const [ updateStatus, setUpdateStatus ] = useState(UpdateStatus.Idle);
-    const { firmwareInfo, fetchFirmwareMetadata, firmwareUpdateInfo, checkFirmwareUpdate, downloadFirmwarePackage, uploadFirmwareToDevice } = useGamepadConfig();
+    const { firmwareInfo, fetchFirmwareMetadata, firmwareUpdateInfo, checkFirmwareUpdate, downloadFirmwarePackage, uploadFirmwareToDevice, dataIsReady } = useGamepadConfig();
     const currentVersion = useMemo(() => firmwareInfo?.firmware?.version || "0.0.0", [firmwareInfo]);
     const latestVersion = useMemo(() => firmwareUpdateInfo?.latestVersion? firmwareUpdateInfo.latestVersion : firmwareInfo?.firmware?.version || "0.0.0", [firmwareUpdateInfo, firmwareInfo]);
     const latestFirmwareUpdateLog = useMemo(() => firmwareUpdateInfo?.latestFirmware?.desc.split(/\s+/) || [], [firmwareUpdateInfo]);
@@ -40,16 +39,15 @@ export function FirmwareContent() {
     }, [firmwareInfo?.firmware.version]);
 
     useEffect(() => {
-        if(firmwrareCurrentVersion != "") {
+        if(dataIsReady && firmwrareCurrentVersion != "") {
            checkFirmwareUpdate(firmwrareCurrentVersion);
         } else {
             console.log('firmwareInfo is null');
         }
-    }, [firmwrareCurrentVersion]);
+    }, [firmwrareCurrentVersion, dataIsReady]);
 
     useEffect(() => {
         if(firmwareUpdateInfo) {
-            setIsLoading(false);
 
             // 如果正在更新，则根据固件更新信息判断更新状态
             if(updateStatus === UpdateStatus.Updating) {
@@ -148,7 +146,7 @@ export function FirmwareContent() {
                 `}
             </style>
 
-            <VStack visibility={isLoading ? "hidden" : "visible"} >
+            <VStack visibility={dataIsReady ? "visible" : "hidden"} >
                 <Center width="140px" height="140px"  >
                 {updateStatus === UpdateStatus.NoUpdate && (
                     <Icon color="green.600" >

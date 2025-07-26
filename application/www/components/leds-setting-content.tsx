@@ -49,7 +49,7 @@ import { ColorQueueManager } from "@/components/color-queue-manager";
 export function LEDsSettingContent() {
     const { t } = useLanguage();
 
-    const { defaultProfile, updateProfileDetails, pushLedsConfig, clearLedsPreview, wsConnected } = useGamepadConfig();
+    const { defaultProfile, updateProfileDetails, pushLedsConfig, clearLedsPreview, wsConnected, dataIsReady } = useGamepadConfig();
     const { colorMode } = useColorMode();
     const defaultFrontColor = useMemo(() => {
         if (colorMode === "dark") {
@@ -294,7 +294,9 @@ export function LEDsSettingContent() {
 
         if(isInit) {
             return;
-        } else if(defaultProfile.ledsConfigs) {
+        }
+        
+        if(!isInit && dataIsReady && defaultProfile.ledsConfigs) {
 
             const ledsConfigs = defaultProfile.ledsConfigs;
 
@@ -320,7 +322,7 @@ export function LEDsSettingContent() {
             setNeedPreview(true);
         }
 
-    }, [defaultProfile]);
+    }, [dataIsReady, defaultProfile.ledsConfigs]);
     
     useEffect(() => {
         if(needPreview) {
