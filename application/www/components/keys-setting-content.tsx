@@ -54,6 +54,7 @@ export function KeysSettingContent() {
     
     // 按键映射状态
     const keyLength = useMemo(() => Object.keys(defaultProfile.keysConfig?.keyMapping ?? {}).length, [defaultProfile?.keysConfig?.keyMapping]);
+    const [defaultProfileId, setDefaultProfileId] = useState<string>(defaultProfile.id);
     const [socdMode, setSocdMode] = useState<GameSocdMode>(GameSocdMode.SOCD_MODE_UP_PRIORITY);
     const [invertXAxis, setInvertXAxis] = useState<boolean>(defaultProfile?.keysConfig?.invertXAxis ?? false);
     const [invertYAxis, setInvertYAxis] = useState<boolean>(defaultProfile?.keysConfig?.invertYAxis ?? false);
@@ -68,11 +69,11 @@ export function KeysSettingContent() {
     
 
     useEffect(() => {
-        if(isInit) {
+        if(isInit && defaultProfileId === defaultProfile.id) {
             return;
         }
 
-        if (!isInit && dataIsReady && defaultProfile.keysConfig) {
+        if(dataIsReady && defaultProfile.keysConfig) {
             setSocdMode(defaultProfile.keysConfig?.socdMode ?? GameSocdMode.SOCD_MODE_UP_PRIORITY);
             setInvertXAxis(defaultProfile.keysConfig?.invertXAxis ?? false);
             setInvertYAxis(defaultProfile.keysConfig?.invertYAxis ?? false);
@@ -83,8 +84,9 @@ export function KeysSettingContent() {
             setKeysEnableConfig(enableConfig);
 
             setIsInit(true);
+            setDefaultProfileId(defaultProfile.id);
         }
-    }, [dataIsReady, defaultProfile.keysConfig]);
+    }, [dataIsReady, defaultProfile]);
 
     const updateKeysConfigHandler = () => {
 

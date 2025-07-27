@@ -63,7 +63,7 @@ export function LEDsSettingContent() {
     const [needPreview, setNeedPreview] = useState<boolean>(false); // 是否需要预览
     const [needUpdate, setNeedUpdate] = useState<boolean>(false); // 是否需要更新
 
-
+    const [defaultProfileId, setDefaultProfileId] = useState<string>(defaultProfile.id);
     const [ledsEffectStyle, setLedsEffectStyle] = useState<LedsEffectStyle>(defaultProfile.ledsConfigs?.ledsEffectStyle ?? LedsEffectStyle.STATIC);
     const [color1, setColor1] = useState<Color>(parseColor(defaultProfile.ledsConfigs?.ledColors?.[0] ?? defaultFrontColor.toString('css')));
     const [color2, setColor2] = useState<Color>(parseColor(defaultProfile.ledsConfigs?.ledColors?.[1] ?? defaultFrontColor.toString('css')));
@@ -292,12 +292,11 @@ export function LEDsSettingContent() {
     // Initialize the state with the default profile details
     useEffect(() => {
 
-        if(isInit) {
+        if(isInit && defaultProfileId === defaultProfile.id) {
             return;
         }
         
-        if(!isInit && dataIsReady && defaultProfile.ledsConfigs) {
-
+        if(dataIsReady && defaultProfile.ledsConfigs) {
             const ledsConfigs = defaultProfile.ledsConfigs;
 
             setLedsEffectStyle(ledsConfigs.ledsEffectStyle ?? LedsEffectStyle.STATIC);
@@ -319,10 +318,11 @@ export function LEDsSettingContent() {
             setAroundLedAnimationSpeed(ledsConfigs.aroundLedAnimationSpeed ?? 3);
 
             setIsInit(true);
+            setDefaultProfileId(defaultProfile.id);
             setNeedPreview(true);
         }
 
-    }, [dataIsReady, defaultProfile.ledsConfigs]);
+    }, [dataIsReady, defaultProfile]);
     
     useEffect(() => {
         if(needPreview) {

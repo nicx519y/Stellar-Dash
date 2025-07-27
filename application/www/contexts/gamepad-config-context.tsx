@@ -46,7 +46,6 @@ import { calculateSHA256, extractFirmwarePackage } from '@/lib/firmware-utils';
 
 // 导入WebSocket队列管理器
 import { WebSocketQueueManager } from '@/lib/websocket-queue-manager';
-import { setGlobal } from 'next/dist/trace';
 
 // 固件服务器配置
 const FIRMWARE_SERVER_CONFIG = {
@@ -253,7 +252,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [firmwareInfoIsReady, setFirmwareInfoIsReady] = useState(false);
     const [dataIsReady, setDataIsReady] = useState(false);
 
-    
 
     // 处理通知消息
     const handleNotificationMessage = (message: WebSocketDownstreamMessage): void => {
@@ -422,11 +420,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     }, [globalConfigIsReady, profileListIsReady, hotkeysConfigIsReady, firmwareInfoIsReady]);
 
-    useEffect(() => {
-        if (profileList.defaultId !== "") {
-            fetchDefaultProfile();
-        }
-    }, [profileList]);
+    // useEffect(() => {
+    //     if (profileList.defaultId !== "") {
+    //         fetchDefaultProfile();
+    //     }
+    // }, [profileList]);
 
     const setContextJsReady = (ready: boolean) => {
         setJsReady(ready);
@@ -476,8 +474,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         try {
             // setIsLoading(true);
             const data = await sendWebSocketRequest('get_default_profile', {}, immediate);
-            if (data && 'profileDetails' in data) {
-                setDefaultProfile(converProfileDetails(data.profileDetails) ?? {});
+            if (data && 'defaultProfileDetails' in data) {
+                setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
             }
             return Promise.resolve();
         } catch (err) {
@@ -495,6 +493,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (data && 'profileList' in data) {
                 setProfileList(data.profileList as GameProfileList);
             }
+
+            if(data && 'defaultProfileDetails' in data) {
+                setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
+            }
+
             return Promise.resolve();
         } catch (err) {
             // setError(err instanceof Error ? err.message : 'An error occurred');
@@ -528,9 +531,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             // 如果更新的是 profile 的 name，则需要重新获取 profile list
             if(profileDetails.hasOwnProperty("name") || profileDetails.hasOwnProperty("id")) {
                 fetchProfileList();
-            } else if (data && 'profileDetails' in data) {
+            } else if (data && 'defaultProfileDetails' in data) {
                 // 否则更新 default profile
-                setDefaultProfile(converProfileDetails(data.profileDetails) ?? {});
+                setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
             }
             // setError(null);
             return Promise.resolve();
@@ -553,6 +556,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (data && 'profileList' in data) {
                 setProfileList(data.profileList as GameProfileList);
             }
+            if(data && 'defaultProfileDetails' in data) {
+                setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
+            }
             setError(null);
             return Promise.resolve();
         } catch (err) {
@@ -570,6 +576,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (data && 'profileList' in data) {
                 setProfileList(data.profileList as GameProfileList);
             }
+            if(data && 'defaultProfileDetails' in data) {
+                setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
+            }
             setError(null);
             return Promise.resolve();
         } catch (err) {
@@ -582,10 +591,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const switchProfile = async (profileId: string, immediate: boolean = true): Promise<void> => {
         try {
-            // setIsLoading(true);
+            setIsLoading(true);
             const data = await sendWebSocketRequest('switch_default_profile', { profileId }, immediate);
             if (data && 'profileList' in data) {
                 setProfileList(data.profileList as GameProfileList);
+            }
+            if(data && 'defaultProfileDetails' in data) {
+                setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
             }
             setError(null);
             return Promise.resolve();
@@ -593,7 +605,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             // setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to switch profile"));
         } finally {
-            // setIsLoading(false);
+            setIsLoading(false);
         }
     };
 
@@ -1697,7 +1709,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         <GamepadConfigContext.Provider value={{
             contextJsReady,
             setContextJsReady,
-            
+
             // WebSocket 状态
             wsConnected,
             wsState,

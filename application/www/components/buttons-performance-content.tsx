@@ -53,8 +53,9 @@ export function ButtonsPerformanceContent() {
 
     const [isInit, setIsInit] = useState<boolean>(false);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false);
-
     const { defaultProfile, updateProfileDetails, dataIsReady } = useGamepadConfig();
+    
+    const [ defaultProfileId, setDefaultProfileId ] = useState<string>(defaultProfile.id);
     const { t } = useLanguage();
 
     const [selectedButton, setSelectedButton] = useState<number | null>(0); // 当前选中的按钮
@@ -94,20 +95,21 @@ export function ButtonsPerformanceContent() {
     useEffect(() => {
         // Load trigger configs from gamepadConfig when it changes
 
-        if(isInit) {
+        if(isInit && defaultProfileId === defaultProfile.id) {
             return;
         }
 
-        if(!isInit && dataIsReady && defaultProfile.triggerConfigs) {
+        if(dataIsReady && defaultProfile.triggerConfigs) {
             const triggerConfigs = { ...defaultProfile.triggerConfigs };
             setIsAllBtnsConfiguring(triggerConfigs.isAllBtnsConfiguring ?? false);
             setDebounceAlgorithm(triggerConfigs.debounceAlgorithm as ADCButtonDebounceAlgorithm ?? ADCButtonDebounceAlgorithm.NONE);
             setTriggerConfigs(allKeys.map(key => triggerConfigs.triggerConfigs?.[key] ?? defaultTriggerConfig));
             setAllBtnsConfig(triggerConfigs.triggerConfigs?.[0] ?? defaultTriggerConfig);
             setIsInit(true);
+            setDefaultProfileId(defaultProfile.id);
         }
 
-    }, [dataIsReady, defaultProfile.triggerConfigs]);
+    }, [dataIsReady, defaultProfile]);
 
     useEffect(() => {
         if (isAllBtnsConfiguring) {

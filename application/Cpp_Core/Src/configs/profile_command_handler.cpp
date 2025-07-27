@@ -234,6 +234,8 @@ cJSON* ProfileCommandHandler::buildProfileJSON(GamepadProfile* profile) {
 WebSocketDownstreamMessage ProfileCommandHandler::handleGetProfileList(const WebSocketUpstreamMessage& request) {
     // LOG_INFO("WebSocket", "Handling get_profile_list command, cid: %d", request.getCid());
     
+    Config& config = Storage::getInstance().config;
+
     // 创建返回数据结构
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON* profileListJSON = buildProfileListJSON();
@@ -243,8 +245,17 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleGetProfileList(const Web
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to build profile list JSON");
     }
 
+    GamepadProfile* defaultProfile = nullptr;
+    for(uint8_t i = 0; i < NUM_PROFILES; i++) {
+        if(strcmp(config.defaultProfileId, config.profiles[i].id) == 0) {
+            defaultProfile = &config.profiles[i];
+            break;
+        }
+    }
+
     // 构建返回结构
     cJSON_AddItemToObject(dataJSON, "profileList", profileListJSON);
+    cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", buildProfileJSON(defaultProfile));
 
     // LOG_INFO("WebSocket", "get_profile_list command completed successfully");
     
@@ -279,7 +290,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleGetDefaultProfile(const 
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to build profile JSON");
     }
     
-    cJSON_AddItemToObject(dataJSON, "profileDetails", profileDetailsJSON);
+    cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", profileDetailsJSON);
 
     // LOG_INFO("WebSocket", "get_default_profile command completed successfully");
     
@@ -523,7 +534,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebS
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to build profile JSON");
     }
     
-    cJSON_AddItemToObject(dataJSON, "profileDetails", profileDetailsJSON);
+    cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", profileDetailsJSON);
     
     // LOG_INFO("WebSocket", "update_profile command completed successfully");
     
@@ -597,6 +608,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleCreateProfile(const WebS
     }
 
     cJSON_AddItemToObject(dataJSON, "profileList", profileListJSON);
+    cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", buildProfileJSON(targetProfile));
     
     // LOG_INFO("WebSocket", "create_profile command completed successfully");
 
@@ -692,7 +704,20 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleDeleteProfile(const WebS
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to build profile list JSON");
     }
 
+    GamepadProfile* defaultProfile = nullptr;
+    for(uint8_t i = targetIndex; i >= 0; i --) {
+        if(strcmp(config.defaultProfileId, config.profiles[i].id) == 0) {
+            defaultProfile = &config.profiles[i];
+            break;
+        }
+    }
+
     cJSON_AddItemToObject(dataJSON, "profileList", profileListJSON);
+    if(defaultProfile) {
+        cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", buildProfileJSON(defaultProfile));
+    } else {
+        cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", cJSON_CreateNull());
+    }
     
     // LOG_INFO("WebSocket", "delete_profile command completed successfully");
 
@@ -756,6 +781,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleSwitchDefaultProfile(con
     }
 
     cJSON_AddItemToObject(dataJSON, "profileList", profileListJSON);
+    cJSON_AddItemToObject(dataJSON, "defaultProfileDetails", buildProfileJSON(targetProfile));
     
     // LOG_INFO("WebSocket", "switch_default_profile command completed successfully");
 

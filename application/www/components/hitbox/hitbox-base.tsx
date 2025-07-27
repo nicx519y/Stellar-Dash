@@ -10,7 +10,7 @@ import { type ButtonStateBinaryData, isButtonTriggered } from '@/lib/button-bina
 import { useButtonMonitor } from '@/hooks/use-button-monitor';
 
 const StyledSvg = styled.svg`
-  width: 828.82px;
+  width: 829px;
   height: 548.1px;
   padding: 20px;
   position: relative;
