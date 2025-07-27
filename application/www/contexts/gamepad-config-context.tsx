@@ -64,6 +64,7 @@ interface GamepadConfigContextType {
     // WebSocket 连接状态
     wsConnected: boolean;
     wsState: WebSocketState;
+    showReconnect: boolean;
     wsError: WebSocketError | null;
     connectWebSocket: () => Promise<void>;
     disconnectWebSocket: () => void;
@@ -211,6 +212,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [wsState, setWsState] = useState<WebSocketState>(WebSocketState.DISCONNECTED);
     const [wsError, setWsError] = useState<WebSocketError | null>(null);
     const [wsFramework, setWsFramework] = useState<WebSocketFramework | null>(null);
+    const [showReconnect, setShowReconnect] = useState(false);  // 是否显示websocket重连窗口
     
     // WebSocket 队列管理器
     const wsQueueManager = useRef<WebSocketQueueManager | null>(null);
@@ -242,9 +244,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         timeout: DEFAULT_FIRMWARE_UPGRADE_TIMEOUT // 30秒超时
     });
 
-    const contextJsReady = useMemo(() => {
-        return jsReady;
-    }, [jsReady]);
+    const contextJsReady = useMemo(() => jsReady, [jsReady]);
 
     const [globalConfigIsReady, setGlobalConfigIsReady] = useState(false);
     const [profileListIsReady, setProfileListIsReady] = useState(false);
@@ -314,10 +314,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         const framework = new WebSocketFramework({
             url: `ws://${window.location.hostname}:8081`,
             heartbeatInterval: 30000,
-            reconnectInterval: 5000,
-            maxReconnectAttempts: 10,
-            timeout: 15000,
-            autoReconnect: true
+            timeout: 15000
         });
 
         // 初始化队列管理器
@@ -365,6 +362,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             handleBinaryMessage(data);
         });
 
+        const unsubscribeDisconnect = framework.onDisconnect(() => {
+            console.log('WebSocket连接断开，触发全局断开事件');
+            // 这里可以触发全局事件，让layout组件知道连接断开了
+            eventBus.emit(EVENTS.WEBSOCKET_DISCONNECTED);
+        });
+
         setWsFramework(framework);
 
         // 清理函数
@@ -373,6 +376,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             unsubscribeError();
             unsubscribeMessage();
             unsubscribeBinary();
+            unsubscribeDisconnect();
             framework.disconnect();
             
             // 清理队列管理器
@@ -383,17 +387,32 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         };
     }, []);
 
+    const isFirstConnectRef = useRef(true);
+
     // 自动连接WebSocket
     useEffect(() => {
         if (wsFramework && wsState === WebSocketState.DISCONNECTED) {
-            setIsLoading(true);
-            wsFramework.connect().catch(console.error);
+            if (isFirstConnectRef.current) { // 只有第一次连接时会自动连接，并且显示loading
+                setIsLoading(true);
+                wsFramework.connect().catch((error) => {
+                    console.error('首次连接失败:', error);
+                    setIsLoading(false);
+                    setShowReconnect(true); // 首次连接失败也显示重连窗口
+                });
+                isFirstConnectRef.current = false;
+            } else {
+                setIsLoading(false);
+                setShowReconnect(true); // 显示重连窗口
+            }
         }
     }, [wsFramework, wsState]);
 
     // 当WebSocket连接成功后，初始化数据
     useEffect(() => {
         if (wsConnected && wsState === WebSocketState.CONNECTED) {
+            // 隐藏重连窗口
+            setShowReconnect(false);
+            
             // 设置DeviceAuthManager的WebSocket发送函数
             const authManager = DeviceAuthManager.getInstance();
             authManager.setWebSocketSendFunction(sendWebSocketRequest);
@@ -1713,6 +1732,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
             // WebSocket 状态
             wsConnected,
+            showReconnect,
             wsState,
             wsError,
             connectWebSocket,

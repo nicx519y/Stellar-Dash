@@ -22,10 +22,7 @@ const WebSocketDemo: React.FC = () => {
   } = useWebSocket({
     url: `ws://${window.location.hostname}:8081`,
     heartbeatInterval: 30000,
-    reconnectInterval: 5000,
-    maxReconnectAttempts: 5,
     timeout: 10000,
-    autoReconnect: true,
     connectOnMount: true
   });
 
@@ -58,8 +55,8 @@ const WebSocketDemo: React.FC = () => {
     setLoading(true);
     try {
       const response = await sendMessage('get_global_config', {});
-      setResponseData(response.data || {});
-      setMessages(prev => [...prev, `获取全局配置成功: ${JSON.stringify(response.data)}`]);
+      setResponseData(response || {});
+      setMessages(prev => [...prev, `获取全局配置成功: ${JSON.stringify(response)}`]);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       setMessages(prev => [...prev, `获取全局配置失败: ${errorMessage}`]);
@@ -73,7 +70,7 @@ const WebSocketDemo: React.FC = () => {
     setLoading(true);
     try {
       const response = await sendMessage('ping', { timestamp: Date.now() });
-      setMessages(prev => [...prev, `Ping响应: ${JSON.stringify(response.data)}`]);
+      setMessages(prev => [...prev, `Ping响应: ${JSON.stringify(response)}`]);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       setMessages(prev => [...prev, `Ping失败: ${errorMessage}`]);
@@ -114,7 +111,6 @@ const WebSocketDemo: React.FC = () => {
       case WebSocketState.CONNECTED:
         return 'text-green-600';
       case WebSocketState.CONNECTING:
-      case WebSocketState.RECONNECTING:
         return 'text-yellow-600';
       case WebSocketState.ERROR:
         return 'text-red-600';

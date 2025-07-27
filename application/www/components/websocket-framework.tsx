@@ -35,7 +35,6 @@ export interface WebSocketConfig {
   url?: string;
   heartbeatInterval?: number;
   timeout?: number;
-  maxConnectAttempts?: number; // 连接重试次数
 }
 
 // Hook选项接口
@@ -77,18 +76,12 @@ export class WebSocketFramework {
     this.config = {
       url: config.url || `ws://${window.location.hostname}:8081`,
       heartbeatInterval: config.heartbeatInterval || 30000, // 30秒
-      timeout: config.timeout || 15000, // 15秒
-      maxConnectAttempts: config.maxConnectAttempts || 3 // 连接重试3次
+      timeout: config.timeout || 15000 // 15秒
     };
   }
 
   // 连接WebSocket
   public connect(): Promise<void> {
-    return this.connectWithRetry(0);
-  }
-
-  // 带重试的连接方法
-  private connectWithRetry(attempt: number): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.state === WebSocketState.CONNECTED || this.state === WebSocketState.CONNECTING) {
         resolve();
@@ -107,15 +100,7 @@ export class WebSocketFramework {
             message: '连接超时',
             timestamp: new Date()
           });
-          
-          // 重试逻辑
-          if (attempt < this.config.maxConnectAttempts - 1) {
-            console.log(`连接超时，重试 (${attempt + 1}/${this.config.maxConnectAttempts})`);
-            this.ws?.close();
-            this.connectWithRetry(attempt + 1).then(resolve).catch(reject);
-          } else {
-            reject(new Error('连接超时，重试次数已用完'));
-          }
+          reject(new Error('连接超时'));
         }, this.config.timeout);
 
         this.ws.onopen = () => {
@@ -160,15 +145,7 @@ export class WebSocketFramework {
             message: '连接错误',
             timestamp: new Date()
           });
-          
-          // 重试逻辑
-          if (attempt < this.config.maxConnectAttempts - 1) {
-            console.log(`连接错误，重试 (${attempt + 1}/${this.config.maxConnectAttempts})`);
-            this.ws?.close();
-            this.connectWithRetry(attempt + 1).then(resolve).catch(reject);
-          } else {
-            reject(new Error('连接错误，重试次数已用完'));
-          }
+          reject(new Error('连接错误'));
         };
 
       } catch (error) {
@@ -177,14 +154,7 @@ export class WebSocketFramework {
           message: `连接失败: ${error}`,
           timestamp: new Date()
         });
-        
-        // 重试逻辑
-        if (attempt < this.config.maxConnectAttempts - 1) {
-          console.log(`连接失败，重试 (${attempt + 1}/${this.config.maxConnectAttempts})`);
-          this.connectWithRetry(attempt + 1).then(resolve).catch(reject);
-        } else {
-          reject(error);
-        }
+        reject(error);
       }
     });
   }

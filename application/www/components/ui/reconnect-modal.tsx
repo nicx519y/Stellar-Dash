@@ -1,20 +1,24 @@
-import { 
+import {
   Box,
   Portal,
-  Text,
   Button,
-  VStack,
+  Center,
 } from "@chakra-ui/react";
 import * as React from "react";
 
+import { BeatLoader } from "react-spinners"
+import { MdCastConnected } from "react-icons/md";
+
 interface ReconnectModalProps {
+  buttonText: string;
   isOpen: boolean;
   onReconnect: () => void;
   isLoading?: boolean;
 }
 
-export function ReconnectModal({ isOpen, onReconnect, isLoading = false }: ReconnectModalProps) {
+export function ReconnectModal({ buttonText, isOpen, onReconnect, isLoading = false }: ReconnectModalProps) {
   if (!isOpen) return null;
+
 
   return (
     <Portal>
@@ -29,7 +33,7 @@ export function ReconnectModal({ isOpen, onReconnect, isLoading = false }: Recon
         alignItems="center"
         justifyContent="center"
       >
-        <Box
+        <Center
           position="absolute"
           top={0}
           left={0}
@@ -37,35 +41,21 @@ export function ReconnectModal({ isOpen, onReconnect, isLoading = false }: Recon
           bottom={0}
           bg="blackAlpha.100"
           backdropFilter="blur(4px)"
-        />
-        <Box
-          position="relative"
-          zIndex={1}
-          bg="white"
-          borderRadius="lg"
-          p={8}
-          boxShadow="xl"
-          maxW="400px"
-          w="90%"
         >
-          <VStack gap={6}>
-            <Text fontSize="lg" fontWeight="bold" textAlign="center">
-              连接已断开
-            </Text>
-            <Text fontSize="md" textAlign="center" color="gray.600">
-              与服务器的连接已断开，请点击下方按钮重新连接。
-            </Text>
-            <Button
-              colorScheme="blue"
-              size="lg"
-              onClick={onReconnect}
-              loading={isLoading}
-              w="full"
-            >
-              {isLoading ? "连接中..." : "重新连接"}
-            </Button>
-          </VStack>
-        </Box>
+
+          <Button
+            colorPalette="green"
+            size="lg"
+            onClick={onReconnect}
+            loading={isLoading}
+            spinner={<BeatLoader size={8} color="white" />}
+            w="240px"
+            boxShadow="0 0 10px 10px rgba(0, 0, 0, 0.4)"
+          >
+            <MdCastConnected />
+            {buttonText}
+          </Button>
+        </Center>
       </Box>
     </Portal>
   );

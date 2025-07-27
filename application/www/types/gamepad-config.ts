@@ -707,6 +707,13 @@ export const UI_TEXT = {
 
     HOTKEY_TRIGGER_HOLD: "Hold",
     HOTKEY_TRIGGER_CLICK: "Click",
+
+    // Reconnect Modal
+    RECONNECT_MODAL_MESSAGE: "The connection to the device has been lost, please click the button to reconnect",
+    RECONNECT_MODAL_BUTTON: "Reconnect Device",
+    RECONNECT_FAILED_TITLE: "Reconnect Failed",
+    RECONNECT_FAILED_MESSAGE: "Failed to reconnect to the device. Please check the USB connection and make sure the device is in webconfig mode, then try again.",
+
 } as const;
 
 export const UI_TEXT_ZH = {
@@ -973,6 +980,12 @@ export const UI_TEXT_ZH = {
 
     HOTKEY_TRIGGER_HOLD: "长按",
     HOTKEY_TRIGGER_CLICK: "短按",
+
+    // Reconnect Modal
+    RECONNECT_MODAL_MESSAGE: "与设备的连接已断开，请点击按钮重新连接",
+    RECONNECT_MODAL_BUTTON: "重新连接设备",
+    RECONNECT_FAILED_TITLE: "重新连接失败",
+    RECONNECT_FAILED_MESSAGE: "无法重新连接到设备，请检查USB连接，以及保证设备在webconfig模式并重试",
     
 } as const;
 

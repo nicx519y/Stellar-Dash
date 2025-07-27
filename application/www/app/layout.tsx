@@ -7,19 +7,22 @@ import { GamepadConfigProvider, useGamepadConfig } from '@/contexts/gamepad-conf
 import { Flex, HStack } from '@chakra-ui/react'
 import { toaster, Toaster } from "@/components/ui/toaster"
 import { LoadingModal } from "@/components/ui/loading-modal"
+import { ReconnectModal } from "@/components/ui/reconnect-modal"
 import { useState, useEffect } from 'react'
 import { DialogConfirm } from '@/components/dialog-confirm'
 import { DialogForm } from "@/components/dialog-form";
 import { DialogCannotClose } from '@/components/dialog-cannot-close'
-import { LanguageProvider } from '@/contexts/language-context';
+import { LanguageProvider, useLanguage } from '@/contexts/language-context';
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { ColorModeSwitcher } from "@/components/color-mode-switcher";
 
 // 创建一个内部组件来使用 context
 function AppContent({ children }: { children: React.ReactNode }) {
-    const { isLoading } = useGamepadConfig();
+    const { isLoading, connectWebSocket, showReconnect } = useGamepadConfig();
     const [showLoading, setShowLoading] = useState(false);
+    const [isReconnecting, setIsReconnecting] = useState(false);
     const { error, setError } = useGamepadConfig();
+    const { t } = useLanguage();
 
     // 全局错误处理
     useEffect(() => {
@@ -86,6 +89,28 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </Flex>
             <Toaster />
             <LoadingModal isOpen={showLoading} />
+            <ReconnectModal
+                isOpen={showReconnect}
+                onReconnect={async () => {
+                    console.log('reconnecting...');
+                    setIsReconnecting(true);
+                    try {
+                        await connectWebSocket();
+                        console.log('重连成功');
+                    } catch (error) {
+                        console.error('重连失败:', error); 
+                        toaster.error({
+                            title: t.RECONNECT_FAILED_TITLE,
+                            description: t.RECONNECT_FAILED_MESSAGE,
+                        });
+                        setIsReconnecting(false);
+                    } finally {
+                        setIsReconnecting(false);
+                    }
+                }}
+                isLoading={isReconnecting}
+                buttonText={t.RECONNECT_MODAL_BUTTON}
+            />
         </Flex>
     );
 }
