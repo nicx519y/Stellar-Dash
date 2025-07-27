@@ -7,7 +7,7 @@ import {
 import * as React from "react";
 
 import { BeatLoader } from "react-spinners"
-import { MdCastConnected } from "react-icons/md";
+import { PiPlugsConnectedFill } from "react-icons/pi";
 
 interface ReconnectModalProps {
   buttonText: string;
@@ -49,10 +49,10 @@ export function ReconnectModal({ buttonText, isOpen, onReconnect, isLoading = fa
             onClick={onReconnect}
             loading={isLoading}
             spinner={<BeatLoader size={8} color="white" />}
-            w="240px"
+            w="300px"
             boxShadow="0 0 10px 10px rgba(0, 0, 0, 0.4)"
           >
-            <MdCastConnected />
+            <PiPlugsConnectedFill />
             {buttonText}
           </Button>
         </Center>

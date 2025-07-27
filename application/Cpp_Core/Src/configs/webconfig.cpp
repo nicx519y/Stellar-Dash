@@ -51,6 +51,7 @@ static uint32_t g_websocket_connection_count = 0;
 static uint32_t g_websocket_message_count = 0;
 static uint32_t g_websocket_start_time = 0;
 static bool g_websocket_processing = false;  // 添加处理状态标记
+static WebSocketConnection* g_current_connection = nullptr;  // 当前活跃连接
 
 // 全局消息队列实例
 static WebSocketMessageQueue g_websocket_message_queue;
@@ -79,8 +80,17 @@ void process_websocket_message_queue() {
     if (g_websocket_message_queue.dequeue(message)) {
         g_websocket_processing = true;  // 设置处理中状态
         
-        // 检查连接的TCP发送缓冲区状态
+        // 检查消息是否来自当前活跃连接
         WebSocketConnection* conn = message.getConnection();
+        if (conn != g_current_connection) {
+            APP_DBG("WebSocket: Skipping message from non-current connection in queue");
+            g_websocket_processing = false;  // 重置处理状态
+            // 继续处理队列中的下一条消息
+            process_websocket_message_queue();
+            return;
+        }
+        
+        // 检查连接的TCP发送缓冲区状态
         if (conn && conn->get_pcb()) {
             u16_t available_space = tcp_sndbuf(conn->get_pcb());
             u16_t queue_len = tcp_sndqueuelen(conn->get_pcb());
@@ -156,6 +166,12 @@ void on_websocket_message_sent() {
 
 // WebSocket消息处理回调 - 作为所有上行请求的入口
 void onWebSocketMessage(WebSocketConnection* conn, const std::string& message) {
+    // 只处理当前活跃连接的消息
+    if (conn != g_current_connection) {
+        APP_DBG("WebSocket: Ignoring message from non-current connection");
+        return;
+    }
+    
     // LOG_INFO("WebSocket", "Received message: %s", message.c_str());
     g_websocket_message_count++;
     
@@ -228,22 +244,46 @@ void onWebSocketMessage(WebSocketConnection* conn, const std::string& message) {
 
 // WebSocket连接建立回调
 void onWebSocketConnect(WebSocketConnection* conn) {
-    g_websocket_connection_count++;
-    // LOG_INFO("WebSocket", "New WebSocket connection established. Total connections: %d", g_websocket_connection_count);
-    // APP_DBG("New WebSocket connection established. Total connections: %d", g_websocket_connection_count);
+    // 如果已有连接，先断开旧连接
+    if (g_current_connection != nullptr) {
+        APP_DBG("WebSocket: New connection request, closing existing connection");
+        g_current_connection->close();
+        g_current_connection = nullptr;
+        g_websocket_connection_count = 0; // 重置连接计数
+    }
+    
+    // 设置新连接为当前活跃连接
+    g_current_connection = conn;
+    g_websocket_connection_count = 1; // 只允许一个连接
+    
+    APP_DBG("WebSocket: New connection established, total connections: %d", g_websocket_connection_count);
+    APP_DBG("WebSocket: Single connection policy active - only this connection will be served");
 }
 
 // WebSocket连接断开回调
 void onWebSocketDisconnect(WebSocketConnection* conn) {
-    if (g_websocket_connection_count > 0) {
-        g_websocket_connection_count--;
+    // 检查是否是当前活跃连接
+    if (g_current_connection == conn) {
+        g_current_connection = nullptr;
+        g_websocket_connection_count = 0;
+        APP_DBG("WebSocket: Current connection closed, total connections: %d", g_websocket_connection_count);
+    } else {
+        // 如果不是当前连接，可能是之前的连接被清理
+        if (g_websocket_connection_count > 0) {
+            g_websocket_connection_count--;
+        }
+        APP_DBG("WebSocket: Non-current connection closed, total connections: %d", g_websocket_connection_count);
     }
-    // LOG_INFO("WebSocket", "WebSocket connection closed. Total connections: %d", g_websocket_connection_count);
-    // APP_DBG("WebSocket connection closed. Total connections: %d", g_websocket_connection_count);
 }
 
 // WebSocket二进制消息处理回调
 void onWebSocketBinaryMessage(WebSocketConnection* conn, const uint8_t* data, size_t length) {
+    // 只处理当前活跃连接的二进制消息
+    if (conn != g_current_connection) {
+        APP_DBG("WebSocket: Ignoring binary message from non-current connection");
+        return;
+    }
+    
     // LOG_INFO("WebSocket", "Received binary message, length: %zu", length);
     // APP_DBG("Received binary message, length: %zu", length);
     
@@ -540,8 +580,10 @@ std::string apiWebSocketTest() {
         cJSON_AddNumberToObject(dataJSON, "connection_count", g_websocket_connection_count);
         cJSON_AddNumberToObject(dataJSON, "uptime", HAL_GetTick() - g_websocket_start_time);
         
-        // 发送测试消息给所有连接的客户端
-        g_websocket_server->broadcast_text("Test message from HTTP API");
+        // 发送测试消息给当前连接的客户端
+        if (g_current_connection) {
+            g_current_connection->send_text("Test message from HTTP API");
+        }
     } else {
         cJSON_AddStringToObject(dataJSON, "message", "WebSocket server is not running");
         cJSON_AddNumberToObject(dataJSON, "server_port", 0);
