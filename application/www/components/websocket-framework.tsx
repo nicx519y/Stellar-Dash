@@ -19,7 +19,6 @@ export enum WebSocketState {
   DISCONNECTED = 'disconnected',
   CONNECTING = 'connecting',
   CONNECTED = 'connected',
-  RECONNECTING = 'reconnecting',
   ERROR = 'error'
 }
 
@@ -35,10 +34,8 @@ export interface WebSocketError {
 export interface WebSocketConfig {
   url?: string;
   heartbeatInterval?: number;
-  reconnectInterval?: number;
-  maxReconnectAttempts?: number;
   timeout?: number;
-  autoReconnect?: boolean;
+  maxConnectAttempts?: number; // 连接重试次数
 }
 
 // Hook选项接口
@@ -65,9 +62,7 @@ export class WebSocketFramework {
   private ws: WebSocket | null = null;
   private config: Required<WebSocketConfig>;
   private state: WebSocketState = WebSocketState.DISCONNECTED;
-  private reconnectCount = 0;
   private heartbeatTimer: NodeJS.Timeout | null = null;
-  private reconnectTimer: NodeJS.Timeout | null = null;
   private pendingRequests = new Map<number, PendingRequest>();
   private nextCid = 1;
 
@@ -76,20 +71,24 @@ export class WebSocketFramework {
   private binaryMessageHandlers = new Set<BinaryMessageHandler>();
   private stateChangeHandlers = new Set<StateChangeHandler>();
   private errorHandlers = new Set<ErrorHandler>();
+  private disconnectHandlers = new Set<() => void>(); // 断开连接事件处理器
 
   constructor(config: WebSocketConfig = {}) {
     this.config = {
       url: config.url || `ws://${window.location.hostname}:8081`,
       heartbeatInterval: config.heartbeatInterval || 30000, // 30秒
-      reconnectInterval: config.reconnectInterval || 5000,  // 5秒
-      maxReconnectAttempts: config.maxReconnectAttempts || 10,
       timeout: config.timeout || 15000, // 15秒
-      autoReconnect: config.autoReconnect !== false
+      maxConnectAttempts: config.maxConnectAttempts || 3 // 连接重试3次
     };
   }
 
   // 连接WebSocket
   public connect(): Promise<void> {
+    return this.connectWithRetry(0);
+  }
+
+  // 带重试的连接方法
+  private connectWithRetry(attempt: number): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.state === WebSocketState.CONNECTED || this.state === WebSocketState.CONNECTING) {
         resolve();
@@ -108,13 +107,20 @@ export class WebSocketFramework {
             message: '连接超时',
             timestamp: new Date()
           });
-          reject(new Error('连接超时'));
+          
+          // 重试逻辑
+          if (attempt < this.config.maxConnectAttempts - 1) {
+            console.log(`连接超时，重试 (${attempt + 1}/${this.config.maxConnectAttempts})`);
+            this.ws?.close();
+            this.connectWithRetry(attempt + 1).then(resolve).catch(reject);
+          } else {
+            reject(new Error('连接超时，重试次数已用完'));
+          }
         }, this.config.timeout);
 
         this.ws.onopen = () => {
           clearTimeout(connectTimeout);
           this.setState(WebSocketState.CONNECTED);
-          this.reconnectCount = 0;
           this.startHeartbeat();
           console.log('WebSocket连接已建立');
           resolve();
@@ -142,12 +148,9 @@ export class WebSocketFramework {
           clearTimeout(connectTimeout);
           this.cleanup();
           console.log('WebSocket连接已关闭');
-          
-          if (this.config.autoReconnect && this.reconnectCount < this.config.maxReconnectAttempts) {
-            this.scheduleReconnect();
-          } else {
-            this.setState(WebSocketState.DISCONNECTED);
-          }
+          this.setState(WebSocketState.DISCONNECTED);
+          // 触发断开连接事件，显示重连提示
+          this.handleDisconnect();
         };
 
         this.ws.onerror = () => {
@@ -157,7 +160,15 @@ export class WebSocketFramework {
             message: '连接错误',
             timestamp: new Date()
           });
-          reject(new Error('连接错误'));
+          
+          // 重试逻辑
+          if (attempt < this.config.maxConnectAttempts - 1) {
+            console.log(`连接错误，重试 (${attempt + 1}/${this.config.maxConnectAttempts})`);
+            this.ws?.close();
+            this.connectWithRetry(attempt + 1).then(resolve).catch(reject);
+          } else {
+            reject(new Error('连接错误，重试次数已用完'));
+          }
         };
 
       } catch (error) {
@@ -166,7 +177,14 @@ export class WebSocketFramework {
           message: `连接失败: ${error}`,
           timestamp: new Date()
         });
-        reject(error);
+        
+        // 重试逻辑
+        if (attempt < this.config.maxConnectAttempts - 1) {
+          console.log(`连接失败，重试 (${attempt + 1}/${this.config.maxConnectAttempts})`);
+          this.connectWithRetry(attempt + 1).then(resolve).catch(reject);
+        } else {
+          reject(error);
+        }
       }
     });
   }
@@ -279,6 +297,11 @@ export class WebSocketFramework {
     return () => this.errorHandlers.delete(handler);
   }
 
+  public onDisconnect(handler: () => void): () => void {
+    this.disconnectHandlers.add(handler);
+    return () => this.disconnectHandlers.delete(handler);
+  }
+
   // 私有方法
   private setState(newState: WebSocketState): void {
     if (this.state !== newState) {
@@ -332,11 +355,24 @@ export class WebSocketFramework {
     this.errorHandlers.forEach(handler => handler(error));
   }
 
+  private handleDisconnect(): void {
+    console.log('WebSocket连接断开，触发断开事件');
+    this.disconnectHandlers.forEach(handler => handler());
+  }
+
   private startHeartbeat(): void {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
       this.sendMessageNoResponse('ping', { type: 'heartbeat' });
     }, this.config.heartbeatInterval);
+  }
+
+  // 心跳失败处理
+  private handleHeartbeatFailure(): void {
+    console.log('心跳检测失败，连接可能已断开');
+    this.cleanup();
+    this.setState(WebSocketState.DISCONNECTED);
+    this.handleDisconnect();
   }
 
   private stopHeartbeat(): void {
@@ -346,25 +382,10 @@ export class WebSocketFramework {
     }
   }
 
-  private scheduleReconnect(): void {
-    this.setState(WebSocketState.RECONNECTING);
-    this.reconnectCount++;
-    
-    this.reconnectTimer = setTimeout(() => {
-      console.log(`尝试重连 (${this.reconnectCount}/${this.config.maxReconnectAttempts})`);
-      this.connect().catch(() => {
-        // 重连失败将在onclose中处理
-      });
-    }, this.config.reconnectInterval);
-  }
+
 
   private cleanup(): void {
     this.stopHeartbeat();
-    
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
     
     // 清理所有待处理的请求
     this.pendingRequests.forEach(({ timer, reject }) => {
@@ -378,6 +399,7 @@ export class WebSocketFramework {
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const [state, setState] = useState<WebSocketState>(WebSocketState.DISCONNECTED);
   const [error, setError] = useState<WebSocketError | null>(null);
+  const [isDisconnected, setIsDisconnected] = useState(false);
   const frameworkRef = useRef<WebSocketFramework | null>(null);
 
   // 稳定化options引用，避免不必要的重新创建
@@ -390,10 +412,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     
     const unsubscribeState = frameworkRef.current.onStateChange(setState);
     const unsubscribeError = frameworkRef.current.onError(setError);
+    const unsubscribeDisconnect = frameworkRef.current.onDisconnect(() => {
+      setIsDisconnected(true);
+    });
 
     return () => {
       unsubscribeState();
       unsubscribeError();
+      unsubscribeDisconnect();
       frameworkRef.current?.disconnect();
     };
   }, []); // 空依赖数组，只在组件挂载时初始化一次
@@ -406,6 +432,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   }, []); // 只在组件挂载时检查一次
 
   const connect = useCallback(() => {
+    setIsDisconnected(false); // 重置断开状态
     return frameworkRef.current?.connect() || Promise.reject('Framework not initialized');
   }, []);
 
@@ -436,6 +463,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   return {
     state,
     error,
+    isDisconnected,
     connect,
     disconnect,
     sendMessage,

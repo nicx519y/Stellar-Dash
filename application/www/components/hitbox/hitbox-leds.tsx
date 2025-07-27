@@ -8,6 +8,8 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useColorMode } from "../ui/color-mode";
 import { GamePadColor } from "@/types/gamepad-color";
 import { ledAnimations } from "./hitbox-animation";
+import { type ButtonStateBinaryData, isButtonTriggered } from '@/lib/button-binary-parser';
+import { useButtonMonitor } from '@/hooks/use-button-monitor';
 
 const StyledSvg = styled.svg`
   width: 828.82px;
@@ -21,6 +23,7 @@ const StyledCircle = styled.circle<{
     $interactive?: boolean;
     $highlight?: boolean;
     $fillNone?: boolean;
+    $pressed?: boolean;
 }>`
   stroke: 'gray';
   stroke-width: 1px;
@@ -43,6 +46,13 @@ const StyledCircle = styled.circle<{
     stroke: ${props => props.$interactive ? 'yellowgreen' : 'gray'};
     filter: ${props => props.$interactive ? 'drop-shadow(0 0 15px rgba(154, 205, 50, 0.9))' : 'none'};
   }
+
+  /* 硬件按下状态样式 */
+  ${props => props.$pressed && `
+    stroke: yellowgreen;
+    stroke-width: 2px;
+    filter: drop-shadow(0 0 15px rgba(154, 205, 50, 0.9));
+  `}
 `;
 
 const StyledFrame = styled.rect`
@@ -71,6 +81,7 @@ interface HitboxLedsProps {
     interactiveIds?: number[];
     highlightIds?: number[];
     disabledKeys?: number[];
+    isButtonMonitoringEnabled?: boolean;
     className?: string;
 }
 
@@ -79,9 +90,22 @@ interface HitboxLedsProps {
  * 支持LED动画预览功能
  */
 export default function HitboxLeds(props: HitboxLedsProps) {
-    const [hasText, _setHasText] = useState(props.hasText ?? true);
+    const hasText = props.hasText ?? true;
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady } = useGamepadConfig();
+    const { contextJsReady, setContextJsReady, wsConnected } = useGamepadConfig();
+
+    // 硬件按键状态管理
+    const [pressedButtonStates, setPressedButtonStates] = useState(Array(btnLen).fill(-1));
+    const [hardwareButtonStates, setHardwareButtonStates] = useState(Array(btnLen).fill(-1));
+
+    const buttonStates: { [key: number]: number } = {};
+    if(props.interactiveIds) {
+        for(let i = 0; i < btnLen; i++) {
+            if(props.interactiveIds.includes(i)) {
+                buttonStates[i] = -1;
+            }
+        }
+    }
 
     const disabledKeysRef = useRef(props.disabledKeys ?? []);
     const interactiveIdsRef = useRef(props.interactiveIds ?? []);
@@ -106,6 +130,58 @@ export default function HitboxLeds(props: HitboxLedsProps) {
     // ripple 列表
     const ripplesRef = useRef<{ centerIndex: number, startTime: number }[]>([]);
 
+    // 使用 useButtonMonitor hook
+    const { startMonitoring, stopMonitoring } = useButtonMonitor({
+        autoInitialize: false, // 不自动初始化，由组件控制
+        onButtonStatesChange: (data: ButtonStateBinaryData) => {
+            if (!data || !interactiveIdsRef.current) {
+                return;
+            }
+
+            // 检查每个在interactiveIds范围内的按键
+            interactiveIdsRef.current.forEach((buttonId) => {
+                // 禁用的按键不处理
+                if(disabledKeysRef.current.includes(buttonId)) {
+                    return;
+                }
+
+                const isPressed = isButtonTriggered(data.triggerMask, buttonId);
+                
+                // 使用ref获取当前真实状态，避免闭包陷阱
+                const wasPressed = (buttonStates[buttonId] === 1) || false;
+                if (isPressed !== wasPressed) {
+                    if (isPressed) {
+                        // 按键按下，模拟mousedown
+                        props.onClick?.(buttonId);
+                        setHardwareButtonStates(prev => {
+                            const newStates = [...prev];
+                            newStates[buttonId] = 1;
+                            return newStates;
+                        });
+                        console.log(`hitbox-leds: 硬件按键 ${buttonId} 按下`);
+                        buttonStates[buttonId] = 1;
+                    } else {
+                        // 按键释放，模拟mouseup
+                        props.onClick?.(-1);
+                        setHardwareButtonStates(prev => {
+                            const newStates = [...prev];
+                            newStates[buttonId] = -1;
+                            return newStates;
+                        });
+                        console.log(`hitbox-leds: 硬件按键 ${buttonId} 释放`);
+                        buttonStates[buttonId] = -1;
+                    }
+                }
+            });
+        },
+        onError: (error) => {
+            console.error('hitbox-leds: 按键监听错误:', error);
+        },
+        onMonitoringStateChange: (isActive) => {
+            console.log('hitbox-leds: 按键监听状态变化:', isActive);
+        }
+    });
+
     const handleClick = (event: React.MouseEvent<SVGElement>) => {
         const target = event.target as SVGElement;
         if (!target.id || !target.id.startsWith("btn-")) return;
@@ -117,9 +193,19 @@ export default function HitboxLeds(props: HitboxLedsProps) {
         if (event.type === "mousedown") {
             props.onClick?.(id);
             pressedButtonListRef.current[id] = 1;
+            setPressedButtonStates(prev => {
+                const newStates = [...prev];
+                newStates[id] = 1;
+                return newStates;
+            });
         } else if (event.type === "mouseup") {
             props.onClick?.(-1);
             pressedButtonListRef.current[id] = -1;
+            setPressedButtonStates(prev => {
+                const newStates = [...prev];
+                newStates[id] = -1;
+                return newStates;
+            });
         }
     };
 
@@ -130,6 +216,11 @@ export default function HitboxLeds(props: HitboxLedsProps) {
         if (id === Number.NaN || !(interactiveIdsRef.current.includes(id) ?? false)) return;
         if (event.type === "mouseleave") {
             pressedButtonListRef.current[id] = -1;
+            setPressedButtonStates(prev => {
+                const newStates = [...prev];
+                newStates[id] = -1;
+                return newStates;
+            });
         }
     }
 
@@ -142,6 +233,37 @@ export default function HitboxLeds(props: HitboxLedsProps) {
             colorListRef.current[i] = backColor1Ref.current.clone();
         }
     }, [setContextJsReady]);
+
+    /**
+     * 管理按键监听的启动和停止
+     */
+    useEffect(() => {
+        const enabled = props.isButtonMonitoringEnabled ?? false;
+
+        if(wsConnected && contextJsReady) {
+            if(enabled) {
+                console.log("hitbox-leds: 启动按键监听");
+                startMonitoring().catch((error) => {
+                    console.error('启动按键监听失败:', error);
+                });
+            }
+
+            if(!enabled) {
+                setHardwareButtonStates(Array(btnLen).fill(-1));
+                console.log("hitbox-leds: 停止按键监听");
+                stopMonitoring();
+            }
+        }
+
+        // 清理函数
+        return () => {
+            setHardwareButtonStates(Array(btnLen).fill(-1));
+            console.log("hitbox-leds: 清理按键监听");
+            if(wsConnected && contextJsReady) {
+                stopMonitoring();
+            }
+        };
+    }, [props.isButtonMonitoringEnabled, wsConnected, contextJsReady]);
 
     useEffect(() => {
         defaultBackColorRef.current = colorMode === 'light' ? GamePadColor.fromString("#ffffff") : GamePadColor.fromString("#000000");
@@ -211,6 +333,11 @@ export default function HitboxLeds(props: HitboxLedsProps) {
     // 判断按键是否被禁用
     const isButtonDisabled = (buttonId: number): boolean => {
         return disabledKeysRef.current.includes(buttonId);
+    };
+
+    // 判断按键是否处于按下状态（鼠标或硬件按键）
+    const isButtonPressed = (index: number): boolean => {
+        return (hardwareButtonStates[index] === 1 || pressedButtonStates[index] === 1) || false;
     };
 
     // leds 颜色动画
@@ -346,6 +473,7 @@ export default function HitboxLeds(props: HitboxLedsProps) {
                         $opacity={1}
                         $interactive={isButtonInteractive(index)}
                         $highlight={props.highlightIds?.includes(index) ?? false}
+                        $pressed={isButtonPressed(index)}
                         fill={colorMode === 'light' ? 'white' : 'black'}
                         onMouseLeave={handleLeave}
                     />

@@ -50,7 +50,6 @@ export function parseButtonStateBinaryData(buffer: ArrayBuffer | Uint8Array): Bu
       totalButtons
     };
     
-    console.log('解析按键状态二进制数据:', result);
     return result;
     
   } catch (error) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HITBOX_BTN_POS_LIST } from "@/types/gamepad-config";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
@@ -107,20 +107,18 @@ export default function HitboxKeys({
     const svgRef = useRef<SVGSVGElement>(null);
     const circleRefs = useRef<(SVGCircleElement | null)[]>([]);
     const textRefs = useRef<(SVGTextElement | null)[]>([]);
-    
-    // 用于跟踪软件按键状态的state和ref
-    const pressedButtonListRef = useRef(Array(btnLen).fill(-1));
-    // 用于跟踪硬件按键状态的state和ref
-    const hardwareButtonStatesRef = useRef(Array(btnLen).fill(-1));
-
-    const disabledKeysRef = useRef(disabledKeys);
 
     const [pressedButtonStates, setPressedButtonStates] = useState(Array(btnLen).fill(-1));
     const [hardwareButtonStates, setHardwareButtonStates] = useState(Array(btnLen).fill(-1));
 
-    pressedButtonListRef.current = useMemo(() => pressedButtonStates, [pressedButtonStates]);
-    hardwareButtonStatesRef.current = useMemo(() => hardwareButtonStates, [hardwareButtonStates]);
-    disabledKeysRef.current = useMemo(() => disabledKeys, [disabledKeys]);
+    const buttonStates: { [key: number]: number } = {};
+    if(interactiveIds) {
+        for(let i = 0; i < btnLen; i++) {
+            if(interactiveIds.includes(i)) {
+                buttonStates[i] = -1;
+            }
+        }
+    }
 
     // 使用 useButtonMonitor hook
     const { startMonitoring, stopMonitoring } = useButtonMonitor({
@@ -134,14 +132,14 @@ export default function HitboxKeys({
             interactiveIds.forEach((buttonId) => {
 
                 // 禁用的按键不处理
-                if(disabledKeysRef.current.includes(buttonId)) {
+                if(disabledKeys.includes(buttonId)) {
                     return;
                 }
 
                 const isPressed = isButtonTriggered(data.triggerMask, buttonId);
                 
                 // 使用ref获取当前真实状态，避免闭包陷阱
-                const wasPressed = (hardwareButtonStatesRef.current[buttonId] === 1) || false;
+                const wasPressed = (buttonStates[buttonId] === 1) || false;
                 if (isPressed !== wasPressed) {
                     if (isPressed) {
                         // 按键按下，模拟mousedown
@@ -152,6 +150,7 @@ export default function HitboxKeys({
                             return newStates;
                         });
                         console.log(`hitbox-keys: 硬件按键 ${buttonId} 按下`);
+                        buttonStates[buttonId] = 1;
                     } else {
                         // 按键释放，模拟mouseup
                         onClick?.(-1);
@@ -161,6 +160,7 @@ export default function HitboxKeys({
                             return newStates;
                         });
                         console.log(`hitbox-keys: 硬件按键 ${buttonId} 释放`);
+                        buttonStates[buttonId] = -1;
                     }
                 }
             });

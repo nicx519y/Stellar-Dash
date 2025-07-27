@@ -136,7 +136,7 @@ void WebConfigBtnsManager::update() {
 
     currentMask = ADC_BTNS_WORKER.read() | GPIO_BTNS_WORKER.read();
 
-    if(currentMask != previousMask) {
+    if(currentMask != previousMask && buttonStateChangedCallback) {
         buttonStateChangedCallback();
     }
 

@@ -40,6 +40,7 @@ void WebConfigState::setup() {
     // LOG_DEBUG("WEBCONFIG", "LEDS_MANAGER setup completed");
 
     isRunning = true;
+    workTime = MICROS_TIMER.micros();  // 微秒级
     // LOG_INFO("WEBCONFIG", "Web configuration state setup completed successfully");
 
     // Logger_Flush();
@@ -50,16 +51,12 @@ void WebConfigState::loop() {
         ADC_CALIBRATION_MANAGER.processCalibration(); // 处理校准逻辑
         CONFIG_MANAGER.loop();
         
-        // 实时更新按键状态并生成事件（在主循环中调用）
-        WEBCONFIG_BTNS_MANAGER.update();
-        
-        // 更新LED预览效果
-        WEBCONFIG_LEDS_MANAGER.update(WEBCONFIG_BTNS_MANAGER.getCurrentMask());
-        
-        // // 如果没有在预览模式，正常运行LED管理器
-        // if (!WEBCONFIG_LEDS_MANAGER.isInPreviewMode()) {
-        //     LEDS_MANAGER.loop(buttonMask);
-        // }
+        if(MICROS_TIMER.checkInterval(READ_BTNS_INTERVAL, workTime)) {
+            // 实时更新按键状态并生成事件（在主循环中调用）
+            WEBCONFIG_BTNS_MANAGER.update();
+            // 更新LED预览效果
+            WEBCONFIG_LEDS_MANAGER.update(WEBCONFIG_BTNS_MANAGER.getCurrentMask());
+        }
     }
 }
 

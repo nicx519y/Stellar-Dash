@@ -49,7 +49,6 @@ export function HotkeySettingContent({
         if (index < 0 || index >= DEFAULT_NUM_HOTKEYS_MAX) return;
 
         for (let i = 0; i < hotkeys.length; i++) {
-            console.log("hotkeys[i]: ", hotkeys[i], " key: ", hotkey.key);
             if (hotkeys[i].isLocked && hotkey.key == hotkeys[i].key) {
                 showToast({
                     title: t.ERROR_KEY_ALREADY_BINDED_TITLE,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { HITBOX_BTN_POS_LIST } from "@/types/gamepad-config";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
@@ -80,9 +80,9 @@ const StyledText = styled.text`
   pointer-events: none;
 `;
 
-const btnPosList = HITBOX_BTN_POS_LIST;
+export const btnPosList = HITBOX_BTN_POS_LIST;
 const btnFrameRadiusDistance = 3;
-const btnLen = btnPosList.length;
+export const btnLen = btnPosList.length;
 
 // 基础Props接口
 export interface HitboxBaseProps {
@@ -99,20 +99,21 @@ export interface HitboxBaseProps {
  * 提供基础的SVG渲染和交互逻辑
  */
 export default function HitboxBase(props: HitboxBaseProps) {
-    const [hasText, _setHasText] = useState(props.hasText ?? true);
+    const hasText = props.hasText ?? true;
     const { colorMode } = useColorMode();
     const { contextJsReady, setContextJsReady, wsConnected } = useGamepadConfig();
-
-    // 用于跟踪软件按键状态的state和ref
-    const pressedButtonListRef = useRef(Array(btnLen).fill(-1));
-    // 用于跟踪硬件按键状态的state和ref
-    const hardwareButtonStatesRef = useRef(Array(btnLen).fill(-1));
 
     const [pressedButtonStates, setPressedButtonStates] = useState(Array(btnLen).fill(-1));
     const [hardwareButtonStates, setHardwareButtonStates] = useState(Array(btnLen).fill(-1));
 
-    pressedButtonListRef.current = useMemo(() => pressedButtonStates, [pressedButtonStates]);
-    hardwareButtonStatesRef.current = useMemo(() => hardwareButtonStates, [hardwareButtonStates]);
+    const buttonStates: { [key: number]: number } = {};
+    if(props.interactiveIds) {
+        for(let i = 0; i < btnLen; i++) {
+            if(props.interactiveIds.includes(i)) {
+                buttonStates[i] = -1;
+            }
+        }
+    }
 
     // 使用 useButtonMonitor hook
     const { startMonitoring, stopMonitoring } = useButtonMonitor({
@@ -127,7 +128,7 @@ export default function HitboxBase(props: HitboxBaseProps) {
                 const isPressed = isButtonTriggered(data.triggerMask, buttonId);
                 
                 // 使用ref获取当前真实状态，避免闭包陷阱
-                const wasPressed = (hardwareButtonStatesRef.current[buttonId] === 1) || false;
+                const wasPressed = (buttonStates[buttonId] === 1) || false;
                 if (isPressed !== wasPressed) {
                     if (isPressed) {
                         // 按键按下，模拟mousedown
@@ -138,6 +139,7 @@ export default function HitboxBase(props: HitboxBaseProps) {
                             return newStates;
                         });
                         console.log(`硬件按键 ${buttonId} 按下`);
+                        buttonStates[buttonId] = 1;
                     } else {
                         // 按键释放，模拟mouseup
                         props.onClick?.(-1);
@@ -147,6 +149,7 @@ export default function HitboxBase(props: HitboxBaseProps) {
                             return newStates;
                         });
                         console.log(`硬件按键 ${buttonId} 释放`);
+                        buttonStates[buttonId] = -1;
                     }
                 }
             });
@@ -254,7 +257,7 @@ export default function HitboxBase(props: HitboxBaseProps) {
                 <StyledFrame x="0.36" y="0.36" width="787.82" height="507.1" rx="10" />
 
                 {/* 渲染按钮外框 */}
-                {btnPosList.map((item, index) => {
+                {btnPosList.map((item: { x: number, y: number, r: number }, index: number) => {
                     const radius = item.r + btnFrameRadiusDistance;
                     return (
                         <StyledCircle
@@ -272,7 +275,7 @@ export default function HitboxBase(props: HitboxBaseProps) {
                 })}
 
                 {/* 渲染按钮 */}
-                {btnPosList.map((item, index) => (
+                {btnPosList.map((item: { x: number, y: number, r: number }, index: number) => (
                     <StyledCircle
                         // ref={(el: SVGCircleElement | null) => {
                         //     circleRefs.current[index] = el;
@@ -292,7 +295,7 @@ export default function HitboxBase(props: HitboxBaseProps) {
                 ))}
 
                 {/* 渲染按钮文字 */}
-                {hasText && btnPosList.map((item, index) => (
+                {hasText && btnPosList.map((item: { x: number, y: number, r: number }, index: number) => (
                     <StyledText
                         // ref={(el: SVGTextElement | null) => {
                         //     textRefs.current[index] = el;
@@ -310,8 +313,4 @@ export default function HitboxBase(props: HitboxBaseProps) {
             </StyledSvg>
         </Box>
     );
-}
-
-// 导出常用的常量和工具函数
-export { btnPosList, btnLen };
-export type { StyledCircle }; 
+} 

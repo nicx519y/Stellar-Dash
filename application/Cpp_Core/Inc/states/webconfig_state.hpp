@@ -29,6 +29,7 @@ class WebConfigState : public BaseState {
         WebConfigState() = default;
         bool isRunning = false;
         GPDriver * inputDriver;
+        uint32_t workTime = 0;
 };
 
 // 定义一个宏方便使用

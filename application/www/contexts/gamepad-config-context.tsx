@@ -295,6 +295,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     // 按键状态变化消息
                     const buttonStateData = parseButtonStateBinaryData(new Uint8Array(data));
                     if (buttonStateData) {
+                        console.log("emit button state changed: ", buttonStateData);
                         eventBus.emit(EVENTS.BUTTON_STATE_CHANGED, buttonStateData);
                     }
                     break;
