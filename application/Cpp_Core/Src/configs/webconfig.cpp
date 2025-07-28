@@ -344,7 +344,7 @@ void WebConfig::loop() {
     rndis_task();
 
     // 处理WebSocket消息队列
-    // process_websocket_message_queue();
+    process_websocket_message_queue();
 
     // 检查是否需要重启
     if (WebSocketCommandHandler::needReboot && (HAL_GetTick() >= WebSocketCommandHandler::rebootTick)) {

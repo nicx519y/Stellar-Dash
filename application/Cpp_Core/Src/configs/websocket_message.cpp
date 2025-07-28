@@ -120,6 +120,12 @@ void send_websocket_response(WebSocketConnection* conn, WebSocketDownstreamMessa
         return;
     }
     
+    // 检查连接状态，只有在连接完全建立后才能发送数据
+    if (!conn->is_connected()) {
+        APP_DBG("WebSocket: Connection not ready, deferring response");
+        return;
+    }
+    
     cJSON* json = cJSON_CreateObject();
     if (!json) {
         LOG_ERROR("WebSocket", "Failed to create JSON response object");

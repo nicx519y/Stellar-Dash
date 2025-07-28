@@ -55,6 +55,7 @@ private:
     size_t buffer_used;
     uint32_t connection_time;
     uint32_t message_count;
+    bool is_closing; // 防止重复关闭
     
     // 回调函数
     WebSocketMessageCallback on_message;
@@ -160,6 +161,9 @@ public:
     
     // 移除连接
     void remove_connection(WebSocketConnection* conn);
+    
+    // 清理已断开的连接
+    void cleanup_dead_connections();
     
     // 获取服务器实例 (单例)
     static WebSocketServer& getInstance() {

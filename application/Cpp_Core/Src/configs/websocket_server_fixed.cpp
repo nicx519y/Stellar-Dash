@@ -9,6 +9,8 @@
 #define MAX_WEBSOCKET_CONNECTIONS 4
 // 默认缓冲区大小
 #define DEFAULT_BUFFER_SIZE 1024
+// 最大缓冲区大小（防止内存分配过大）
+#define MAX_BUFFER_SIZE 16384
 
 // SHA-1 实现（简化版）
 void sha1_hash(const uint8_t* input, size_t length, uint8_t* output) {
@@ -47,35 +49,34 @@ void sha1_hash(const uint8_t* input, size_t length, uint8_t* output) {
     }
     
     // 处理512位块
-    for (size_t chunk = 0; chunk < msg_len; chunk += 64) {
+    for (size_t i = 0; i < msg_len; i += 64) {
         uint32_t w[80];
+        uint32_t a, b, c, d, e;
         
-        // 将块分解为16个32位字 (big-endian)
-        for (int i = 0; i < 16; i++) {
-            w[i] = (msg[chunk + i * 4] << 24) |
-                   (msg[chunk + i * 4 + 1] << 16) |
-                   (msg[chunk + i * 4 + 2] << 8) |
-                   (msg[chunk + i * 4 + 3]);
+        // 准备消息调度
+        for (int j = 0; j < 16; j++) {
+            w[j] = (msg[i + j*4] << 24) | (msg[i + j*4 + 1] << 16) | 
+                   (msg[i + j*4 + 2] << 8) | msg[i + j*4 + 3];
         }
         
-        // 扩展到80个字
-        for (int i = 16; i < 80; i++) {
-            uint32_t temp = w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16];
-            w[i] = (temp << 1) | (temp >> 31);
+        for (int j = 16; j < 80; j++) {
+            w[j] = ((w[j-3] ^ w[j-8] ^ w[j-14] ^ w[j-16]) << 1) | 
+                   ((w[j-3] ^ w[j-8] ^ w[j-14] ^ w[j-16]) >> 31);
         }
         
-        uint32_t a = hash[0], b = hash[1], c = hash[2], d = hash[3], e = hash[4];
+        a = hash[0]; b = hash[1]; c = hash[2]; d = hash[3]; e = hash[4];
         
         // 主循环
-        for (int i = 0; i < 80; i++) {
+        for (int j = 0; j < 80; j++) {
             uint32_t f, k;
-            if (i < 20) {
+            
+            if (j < 20) {
                 f = (b & c) | ((~b) & d);
                 k = 0x5A827999;
-            } else if (i < 40) {
+            } else if (j < 40) {
                 f = b ^ c ^ d;
                 k = 0x6ED9EBA1;
-            } else if (i < 60) {
+            } else if (j < 60) {
                 f = (b & c) | (b & d) | (c & d);
                 k = 0x8F1BBCDC;
             } else {
@@ -83,33 +84,24 @@ void sha1_hash(const uint8_t* input, size_t length, uint8_t* output) {
                 k = 0xCA62C1D6;
             }
             
-            uint32_t temp = ((a << 5) | (a >> 27)) + f + e + k + w[i];
-            e = d;
-            d = c;
-            c = (b << 30) | (b >> 2);
-            b = a;
-            a = temp;
+            uint32_t temp = ((a << 5) | (a >> 27)) + f + e + k + w[j];
+            e = d; d = c; c = ((b << 30) | (b >> 2)); b = a; a = temp;
         }
         
-        hash[0] += a;
-        hash[1] += b;
-        hash[2] += c;
-        hash[3] += d;
-        hash[4] += e;
+        hash[0] += a; hash[1] += b; hash[2] += c; hash[3] += d; hash[4] += e;
     }
     
-    // 输出hash (big-endian)
+    // 输出结果
     for (int i = 0; i < 5; i++) {
-        output[i * 4] = (hash[i] >> 24) & 0xFF;
-        output[i * 4 + 1] = (hash[i] >> 16) & 0xFF;
-        output[i * 4 + 2] = (hash[i] >> 8) & 0xFF;
-        output[i * 4 + 3] = hash[i] & 0xFF;
+        output[i*4] = (hash[i] >> 24) & 0xFF;
+        output[i*4 + 1] = (hash[i] >> 16) & 0xFF;
+        output[i*4 + 2] = (hash[i] >> 8) & 0xFF;
+        output[i*4 + 3] = hash[i] & 0xFF;
     }
     
     free(msg);
 }
 
-// Base64 编码
 std::string base64_encode(const uint8_t* data, size_t length) {
     const char* chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     std::string result;
@@ -133,7 +125,8 @@ std::string base64_encode(const uint8_t* data, size_t length) {
 // WebSocketConnection 实现
 WebSocketConnection::WebSocketConnection(struct tcp_pcb* pcb)
     : pcb(pcb), state(WS_STATE_CONNECTING), buffer(nullptr), buffer_size(0), buffer_used(0),
-      connection_time(0), message_count(0), on_message(nullptr), on_binary_message(nullptr), on_connect(nullptr), on_disconnect(nullptr) {
+      connection_time(0), message_count(0), on_message(nullptr), on_binary_message(nullptr), 
+      on_connect(nullptr), on_disconnect(nullptr), is_closing(false) {
     // 分配初始缓冲区
     buffer = (char*)malloc(DEFAULT_BUFFER_SIZE);
     if (buffer) {
@@ -143,7 +136,11 @@ WebSocketConnection::WebSocketConnection(struct tcp_pcb* pcb)
 }
 
 WebSocketConnection::~WebSocketConnection() {
-    close();
+    // 确保连接已关闭
+    if (!is_closing) {
+        close();
+    }
+    
     if (buffer) {
         free(buffer);
         buffer = nullptr;
@@ -155,13 +152,25 @@ bool WebSocketConnection::ensure_buffer_capacity(size_t required_size) {
         return true;
     }
     
+    // 限制最大缓冲区大小，防止内存分配过大
+    if (required_size > MAX_BUFFER_SIZE) {
+        APP_ERR("WebSocket: Required buffer size %zu exceeds maximum %d", required_size, MAX_BUFFER_SIZE);
+        return false;
+    }
+    
     size_t new_size = buffer_size;
-    while (new_size < required_size) {
+    while (new_size < required_size && new_size < MAX_BUFFER_SIZE) {
         new_size *= 2;
+    }
+    
+    // 确保不超过最大限制
+    if (new_size > MAX_BUFFER_SIZE) {
+        new_size = MAX_BUFFER_SIZE;
     }
     
     char* new_buffer = (char*)realloc(buffer, new_size);
     if (!new_buffer) {
+        APP_ERR("WebSocket: Failed to reallocate buffer from %zu to %zu bytes", buffer_size, new_size);
         return false;
     }
     
@@ -246,6 +255,8 @@ bool WebSocketConnection::parse_frame(const uint8_t* data, size_t length, WebSoc
         header_len = 10;
     }
     
+    frame.payload_length = payload_len;
+    
     if (frame.masked) {
         if (length < header_len + 4) return false;
         memcpy(frame.mask, data + header_len, 4);
@@ -254,16 +265,14 @@ bool WebSocketConnection::parse_frame(const uint8_t* data, size_t length, WebSoc
     
     if (length < header_len + payload_len) return false;
     
-    frame.payload_length = payload_len;
     if (payload_len > 0) {
         frame.payload = (uint8_t*)malloc(payload_len);
         if (!frame.payload) return false;
         
         memcpy(frame.payload, data + header_len, payload_len);
         
-        // 解码掩码
         if (frame.masked) {
-            for (uint64_t i = 0; i < payload_len; i++) {
+            for (size_t i = 0; i < payload_len; i++) {
                 frame.payload[i] ^= frame.mask[i % 4];
             }
         }
@@ -277,100 +286,57 @@ bool WebSocketConnection::parse_frame(const uint8_t* data, size_t length, WebSoc
 std::string WebSocketConnection::create_frame(uint8_t opcode, const std::string& payload) {
     std::string frame;
     
-    // 第一个字节：FIN=1, RSV=000, Opcode
-    frame += (char)(0x80 | opcode);
+    // 第一个字节：FIN + RSV + Opcode
+    frame.push_back(0x80 | (opcode & 0x0F));
     
-    // 第二个字节和长度
-    size_t payload_len = payload.length();
-    if (payload_len < 126) {
-        frame += (char)payload_len;
-    } else if (payload_len < 65536) {
-        frame += (char)126;
-        frame += (char)(payload_len >> 8);
-        frame += (char)(payload_len & 0xFF);
+    // 第二个字节：MASK + Payload length
+    if (payload.length() < 126) {
+        frame.push_back(payload.length());
+    } else if (payload.length() < 65536) {
+        frame.push_back(126);
+        frame.push_back((payload.length() >> 8) & 0xFF);
+        frame.push_back(payload.length() & 0xFF);
     } else {
-        frame += (char)127;
+        frame.push_back(127);
         for (int i = 7; i >= 0; i--) {
-            frame += (char)((payload_len >> (i * 8)) & 0xFF);
+            frame.push_back((payload.length() >> (i * 8)) & 0xFF);
         }
     }
     
-    // 载荷数据 (服务器不需要掩码)
+    // Payload
     frame += payload;
     
     return frame;
 }
 
 void WebSocketConnection::send_raw_data(const char* data, size_t length) {
-    if (!pcb || state == WS_STATE_CLOSED) {
-        APP_ERR("WebSocket: Cannot send data: pcb=%p, state=%d", pcb, state);
+    if (!pcb || is_closing) {
+        APP_ERR("WebSocket: Cannot send data, connection not ready");
         return;
     }
     
-    // 详细的TCP状态检查
-    u16_t available_space = tcp_sndbuf(pcb);
-    u16_t queue_len = tcp_sndqueuelen(pcb);
-    u16_t mss = tcp_mss(pcb);
-    
-    // 计算需要的段数
-    u16_t segments_needed = (length + mss - 1) / mss;
-    
-    // APP_ERR("WebSocket: Pre-send detailed status check:");
-    // APP_ERR("  Data length: %u bytes", (unsigned int)length);
-    // APP_ERR("  Available buffer: %u bytes", available_space);
-    // APP_ERR("  Current queue length: %u/%u", queue_len, (u16_t)TCP_SND_QUEUELEN);
-    // APP_ERR("  MSS: %u bytes", mss);
-    // APP_ERR("  Estimated segments needed: %u", segments_needed);
-    // APP_ERR("  Remaining queue space: %u", (u16_t)TCP_SND_QUEUELEN - queue_len);
-    
-    // 检查是否会超出队列限制
-    if (queue_len + segments_needed > TCP_SND_QUEUELEN) {
-        APP_ERR("WebSocket: Insufficient queue capacity (current:%u + needed:%u > max:%u)", 
-                queue_len, segments_needed, (u16_t)TCP_SND_QUEUELEN);
+    // 允许在连接建立过程中发送握手响应
+    if (state != WS_STATE_OPEN && state != WS_STATE_CONNECTING) {
+        APP_ERR("WebSocket: Cannot send data, connection not ready");
+        return;
     }
     
     err_t err = tcp_write(pcb, data, length, TCP_WRITE_FLAG_COPY);
+    if (err != ERR_OK) {
+        APP_ERR("WebSocket: Failed to send data: %d", err);
+        return;
+    }
     
-    // 发送后再次检查状态
-    u16_t new_available_space = tcp_sndbuf(pcb);
-    u16_t new_queue_len = tcp_sndqueuelen(pcb);
-    
-    if (err == ERR_OK) {
-        // APP_ERR("WebSocket: Send successful!");
-        // APP_ERR("  Post-send available buffer: %u bytes (%d)", new_available_space, 
-        //         (int)new_available_space - (int)available_space);
-        // APP_ERR("  Post-send queue length: %u (%+d)", new_queue_len, 
-        //         (int)new_queue_len - (int)queue_len);
-        
-        err_t output_err = tcp_output(pcb);
-        if (output_err != ERR_OK) {
-            APP_ERR("WebSocket: tcp_output failed: %d", output_err);
-        }
-    } else {
-        APP_ERR("WebSocket: tcp_write failed! Error code: %d", err);
-        APP_ERR("  Post-failure available buffer: %u bytes", new_available_space);
-        APP_ERR("  Post-failure queue length: %u", new_queue_len);
-        
-        // 详细错误分析
-        switch (err) {
-            case ERR_MEM:
-                APP_ERR("  Reason: Out of memory or buffer full");
-                break;
-            case ERR_BUF:
-                APP_ERR("  Reason: Buffer error");
-                break;
-            case ERR_CONN:
-                APP_ERR("  Reason: Connection error");
-                break;
-            default:
-                APP_ERR("  Reason: Unknown error %d", err);
-        }
+    err = tcp_output(pcb);
+    if (err != ERR_OK) {
+        APP_ERR("WebSocket: Failed to output data: %d", err);
     }
 }
 
 void WebSocketConnection::handle_data(const uint8_t* data, size_t length) {
     if (!ensure_buffer_capacity(buffer_used + length + 1)) {
         APP_ERR("WebSocket: Buffer allocation failed");
+        close();
         return;
     }
     
@@ -410,32 +376,23 @@ void WebSocketConnection::handle_data(const uint8_t* data, size_t length) {
             }
         }
     } else if (state == WS_STATE_OPEN) {
-        // 解析WebSocket帧
-        while (buffer_used >= 2) {
+        // 处理WebSocket帧
+        while (buffer_used > 0) {
             WebSocketFrame frame;
             if (parse_frame((const uint8_t*)buffer, buffer_used, frame)) {
+                // 移除已处理的数据
                 size_t frame_size = 2; // 基本头部
-                
-                // 计算完整帧大小
-                if (frame.payload_length < 126) {
-                    frame_size += 0;
-                } else if (frame.payload_length < 65536) {
-                    frame_size += 2;
-                } else {
-                    frame_size += 8;
+                if (frame.payload_length >= 126) {
+                    frame_size += (frame.payload_length >= 65536) ? 8 : 2;
                 }
-                
-                if (frame.masked) {
-                    frame_size += 4;
-                }
+                if (frame.masked) frame_size += 4;
                 frame_size += frame.payload_length;
                 
-                // 移除已处理的帧
                 memmove(buffer, buffer + frame_size, buffer_used - frame_size);
                 buffer_used -= frame_size;
                 buffer[buffer_used] = '\0';
                 
-                // 处理不同类型的帧
+                // 处理帧
                 switch (frame.opcode) {
                     case WS_OP_TEXT:
                         if (on_message && frame.payload) {
@@ -446,7 +403,6 @@ void WebSocketConnection::handle_data(const uint8_t* data, size_t length) {
                         break;
                         
                     case WS_OP_BINARY:
-                        // 处理二进制消息
                         if (on_binary_message && frame.payload && frame.payload_length > 0) {
                             on_binary_message(this, frame.payload, frame.payload_length);
                         }
@@ -454,7 +410,6 @@ void WebSocketConnection::handle_data(const uint8_t* data, size_t length) {
                         break;
                         
                     case WS_OP_PING:
-                        // 响应pong
                         if (frame.payload) {
                             std::string pong_data((const char*)frame.payload, frame.payload_length);
                             std::string pong_frame = create_frame(WS_OP_PONG, pong_data);
@@ -491,14 +446,14 @@ void WebSocketConnection::handle_data(const uint8_t* data, size_t length) {
 }
 
 void WebSocketConnection::send_text(const std::string& message) {
-    if (state == WS_STATE_OPEN) {
+    if (state == WS_STATE_OPEN && !is_closing) {
         std::string frame = create_frame(WS_OP_TEXT, message);
         send_raw_data(frame.c_str(), frame.length());
     }
 }
 
 void WebSocketConnection::send_binary(const uint8_t* data, size_t length) {
-    if (state == WS_STATE_OPEN) {
+    if (state == WS_STATE_OPEN && !is_closing) {
         std::string payload((const char*)data, length);
         std::string frame = create_frame(WS_OP_BINARY, payload);
         send_raw_data(frame.c_str(), frame.length());
@@ -506,26 +461,28 @@ void WebSocketConnection::send_binary(const uint8_t* data, size_t length) {
 }
 
 void WebSocketConnection::send_ping() {
-    if (state == WS_STATE_OPEN) {
+    if (state == WS_STATE_OPEN && !is_closing) {
         std::string frame = create_frame(WS_OP_PING, "");
         send_raw_data(frame.c_str(), frame.length());
     }
 }
 
 void WebSocketConnection::close() {
+    if (is_closing) return; // 防止重复关闭
+    
+    is_closing = true;
+    
     if (state != WS_STATE_CLOSED) {
-        // 立即设置状态，防止后续发送操作
-        state = WS_STATE_CLOSED;
-        
         // 只有在连接正常开启状态时才发送关闭帧
-        if (pcb) {
+        if (pcb && state == WS_STATE_OPEN) {
             std::string frame = create_frame(WS_OP_CLOSE, "");
-            // 直接发送，不检查状态，因为我们正在关闭
             err_t err = tcp_write(pcb, frame.c_str(), frame.length(), TCP_WRITE_FLAG_COPY);
             if (err == ERR_OK) {
                 tcp_output(pcb);
             }
         }
+        
+        state = WS_STATE_CLOSING;
         
         if (on_disconnect) {
             on_disconnect(this);
@@ -536,6 +493,7 @@ void WebSocketConnection::close() {
             pcb = nullptr;
         }
         
+        state = WS_STATE_CLOSED;
         APP_DBG("WebSocket: WebSocket connection closed");
     }
 }
@@ -653,7 +611,6 @@ bool WebSocketServer::start(uint16_t port) {
     tcp_accept(listen_pcb, tcp_accept_callback);
     
     this->port = port;
-    // LOG_INFO("WebSocket", "WebSocket server started on port %d", port);
     return true;
 }
 
@@ -674,8 +631,6 @@ void WebSocketServer::stop() {
         }
     }
     connection_count = 0;
-    
-    // LOG_INFO("WebSocket", "WebSocket server stopped");
 }
 
 void WebSocketServer::broadcast_text(const std::string& message) {
@@ -701,10 +656,14 @@ void WebSocketServer::broadcast_binary(const uint8_t* data, size_t length) {
 bool WebSocketServer::add_connection(WebSocketConnection* conn) {
     if (!connections || !conn) return false;
     
+    // 清理已断开的连接
+    cleanup_dead_connections();
+    
     for (size_t i = 0; i < max_connections; i++) {
         if (!connections[i]) {
             connections[i] = conn;
             connection_count++;
+            APP_DBG("WebSocket: Added connection, total: %zu", connection_count);
             return true;
         }
     }
@@ -721,8 +680,23 @@ void WebSocketServer::remove_connection(WebSocketConnection* conn) {
             if (connection_count > 0) {
                 connection_count--;
             }
-            delete conn;
+            APP_DBG("WebSocket: Removed connection, total: %zu", connection_count);
             break;
+        }
+    }
+}
+
+void WebSocketServer::cleanup_dead_connections() {
+    if (!connections) return;
+    
+    for (size_t i = 0; i < max_connections; i++) {
+        if (connections[i] && !connections[i]->is_connected()) {
+            APP_DBG("WebSocket: Cleaning up dead connection");
+            delete connections[i];
+            connections[i] = nullptr;
+            if (connection_count > 0) {
+                connection_count--;
+            }
         }
     }
 }
@@ -734,9 +708,17 @@ err_t WebSocketServer::tcp_accept_callback(void* arg, struct tcp_pcb* newpcb, er
         return ERR_VAL;
     }
     
+    // 检查连接数限制
+    if (server->connection_count >= server->max_connections) {
+        APP_ERR("WebSocket: Connection limit reached (%zu/%zu), rejecting new connection", 
+                server->connection_count, server->max_connections);
+        tcp_close(newpcb);
+        return ERR_MEM;
+    }
     
     WebSocketConnection* conn = new WebSocketConnection(newpcb);
     if (!conn->initialize()) {
+        APP_ERR("WebSocket: Failed to initialize connection");
         delete conn;
         tcp_close(newpcb);
         return ERR_MEM;
@@ -744,7 +726,7 @@ err_t WebSocketServer::tcp_accept_callback(void* arg, struct tcp_pcb* newpcb, er
     
     // 尝试添加到连接列表
     if (!server->add_connection(conn)) {
-        APP_ERR("WebSocket: Connection limit reached, rejecting new connection");
+        APP_ERR("WebSocket: Failed to add connection to server");
         delete conn;
         tcp_close(newpcb);
         return ERR_MEM;
@@ -764,12 +746,10 @@ err_t WebSocketServer::tcp_accept_callback(void* arg, struct tcp_pcb* newpcb, er
         conn->set_disconnect_callback([](WebSocketConnection* disconnected_conn) {
             // 这里需要在断开连接时从服务器移除连接
             WebSocketServer& server = WebSocketServer::getInstance();
-            if (server.default_disconnect_callback) {
-                server.default_disconnect_callback(disconnected_conn);
-            }
             server.remove_connection(disconnected_conn);
         });
     }
     
+    APP_DBG("WebSocket: New connection accepted, total: %zu", server->connection_count);
     return ERR_OK;
 } 
