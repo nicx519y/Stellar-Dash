@@ -43,6 +43,7 @@ export function GlobalSettingContent() {
         globalConfig,
         hotkeysConfig,
         dataIsReady,
+        sendPendingCommandImmediately,
         // updateGlobalConfig,
     } = useGamepadConfig();
 
@@ -244,6 +245,18 @@ export function GlobalSettingContent() {
         }
     }, [needUpdate]);
 
+    useEffect(() => {
+        // 在关闭页面的时候 把队列中的 update_hotkeys_config 命令立即发送
+        return () => {
+            try {
+                console.log("GlobalSettingContent unmount");
+                sendPendingCommandImmediately('update_hotkeys_config');
+            } catch (error) {
+                console.warn('页面关闭前发送 update_hotkeys_config 命令失败:', error);
+            }
+        }
+    }, [sendPendingCommandImmediately]);
+    
     return (
         <Flex direction="row" width={"100%"} height={"100%"} padding="18px">
             <Center>

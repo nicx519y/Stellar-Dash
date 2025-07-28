@@ -49,7 +49,7 @@ import { ColorQueueManager } from "@/components/color-queue-manager";
 export function LEDsSettingContent() {
     const { t } = useLanguage();
 
-    const { defaultProfile, updateProfileDetails, pushLedsConfig, clearLedsPreview, wsConnected, dataIsReady } = useGamepadConfig();
+    const { defaultProfile, updateProfileDetails, pushLedsConfig, clearLedsPreview, wsConnected, dataIsReady, sendPendingCommandImmediately } = useGamepadConfig();
     const { colorMode } = useColorMode();
     const defaultFrontColor = useMemo(() => {
         if (colorMode === "dark") {
@@ -337,6 +337,17 @@ export function LEDsSettingContent() {
             setNeedUpdate(false);
         }
     }, [needUpdate]);
+
+    useEffect(() => {
+        return () => {
+            try {
+                console.log("LedSetting unmount");
+                sendPendingCommandImmediately('update_profile');
+            } catch (error) {
+                console.warn('页面关闭前发送 update_keys_config 命令失败:', error);
+            }
+        }
+    }, [sendPendingCommandImmediately]);
 
     return (
         <>

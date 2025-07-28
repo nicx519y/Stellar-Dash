@@ -45,6 +45,7 @@ export function KeysSettingContent() {
         updateProfileDetails,
         globalConfig,
         dataIsReady,
+        sendPendingCommandImmediately,
     } = useGamepadConfig();
     const { t } = useLanguage();
     const { colorMode } = useColorMode();
@@ -127,6 +128,17 @@ export function KeysSettingContent() {
             setNeedUpdate(false);
         }
     }, [needUpdate]);
+
+    useEffect(() => {
+        return () => {
+            try {
+                console.log("KeysSettingContent unmount");
+                sendPendingCommandImmediately('update_profile');
+            } catch (error) {
+                console.warn('页面关闭前发送 update_keys_config 命令失败:', error);
+            }
+        }
+    }, [sendPendingCommandImmediately]);
 
     return (
         <Flex direction="row" width={"100%"} height={"100%"} padding={"18px"} >

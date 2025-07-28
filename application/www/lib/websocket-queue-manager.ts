@@ -2,10 +2,12 @@
  * WebSocket队列管理器
  * 功能：
  * 1. 按command去重，只保留最后一个同command的消息
- * 2. 延迟1秒发送，避免频繁请求
+ * 2. 延迟发送，避免频繁请求
  * 3. 保证只有一个请求在运行，不并行发送
  * 4. 基于CID管理请求和响应
  */
+
+import { DEFAULT_WEBSOCKET_CONFIG } from '@/contexts/gamepad-config-context';
 
 // 通用参数类型
 type MessageParams = Record<string, unknown>;
@@ -35,8 +37,8 @@ export class WebSocketQueueManager {
     private pollTimer: NodeJS.Timeout | null = null; // 轮询定时器
     
     // 配置参数
-    private readonly SEND_DELAY = 1000; // 1秒延迟发送
-    private readonly POLL_INTERVAL = 50; // 轮询间隔50ms
+    private readonly SEND_DELAY = DEFAULT_WEBSOCKET_CONFIG.sendDelay; // 延迟发送时间
+    private readonly POLL_INTERVAL = DEFAULT_WEBSOCKET_CONFIG.pollInterval; // 轮询间隔
     
     // WebSocket发送函数，由外部设置 - 直接返回响应数据
     private sendFunction: ((command: string, params: MessageParams) => Promise<ResponseData>) | null = null;
@@ -46,6 +48,26 @@ export class WebSocketQueueManager {
      */
     setSendFunction(sendFn: (command: string, params: MessageParams) => Promise<ResponseData>) {
         this.sendFunction = sendFn;
+    }
+
+    /**
+     * 立即发送队列中的特定命令
+     * @param command 命令名称
+     * @returns 是否成功找到并修改了命令的发送时间
+     */
+    sendPendingCommandImmediately(command: string): boolean {
+        const message = this.messageQueue.get(command);
+        if (!message) {
+            console.log(`[WebSocketQueue] Command ${command} not found in queue`);
+            return false;
+        }
+
+        // 将发送时间设置为现在
+        message.canSendAt = Date.now();
+        message.paused = false; // 确保消息没有被暂停
+        
+        console.log(`[WebSocketQueue] Command ${command} will be sent immediately`);
+        return true;
     }
 
     /**

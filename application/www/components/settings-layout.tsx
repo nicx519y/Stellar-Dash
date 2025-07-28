@@ -3,7 +3,9 @@
 import { useRouterStore, Route } from './router';
 import { Flex, Center, Box, Tabs } from '@chakra-ui/react';
 import { useLanguage } from "@/contexts/language-context";
-import { LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuChartSpline, LuGamepad, LuWifi, LuMonitor } from 'react-icons/lu';
+import { LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuGamepad,
+    //  LuWifi, LuMonitor, LuChartSpline 
+    } from 'react-icons/lu';
 import { navigationEvents } from '@/lib/event-manager';
 
 export function SettingsLayout({ children }: { children: React.ReactNode }) {
@@ -15,10 +17,10 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
         { id: 'keys' as Route, label: t.SETTINGS_TAB_KEYS, icon: LuKeyboard },
         { id: 'lighting' as Route, label: t.SETTINGS_TAB_LEDS, icon: LuLightbulb },
         { id: 'buttons-performance' as Route, label: t.SETTINGS_TAB_BUTTONS_PERFORMANCE, icon: LuRocket },
-        { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
+        // { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
         { id: 'firmware' as Route, label: t.SETTINGS_TAB_FIRMWARE, icon: LuCpu },
-        { id: 'websocket' as Route, label: 'WebSocket测试', icon: LuWifi },
-        { id: 'button-monitor' as Route, label: '按键监控测试', icon: LuMonitor },
+        // { id: 'websocket' as Route, label: 'WebSocket测试', icon: LuWifi },
+        // { id: 'button-monitor' as Route, label: '按键监控测试', icon: LuMonitor },
     ];
 
     const handleValueChange = async (details: { value: string }) => {

@@ -1,5 +1,5 @@
 import { useLanguage } from "@/contexts/language-context";
-import { AbsoluteCenter, Badge, Box, Card, Center, Icon, List, ProgressCircle, Text, VStack } from "@chakra-ui/react";
+import { AbsoluteCenter, Badge, Box, Card, Center, Icon, List, ProgressCircle, Spinner, Text, VStack } from "@chakra-ui/react";
 import { useEffect, useMemo, useState } from "react";
 import { CiCircleCheck, CiCircleRemove, CiSaveUp1 } from "react-icons/ci";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
@@ -145,9 +145,16 @@ export function FirmwareContent() {
                     }
                 `}
             </style>
+            
+            <Center display={(dataIsReady && !firmwareUpdateInfo) ? "block" : "none"} >
+                <Spinner
+                    color="green.500"
+                    size="xl"
+                />
+            </Center>
 
-            <VStack visibility={dataIsReady ? "visible" : "hidden"} >
-                <Center width="140px" height="140px"  >
+            <VStack display={firmwareUpdateInfo ? "block" : "none"} >
+                <Center w="full" height="160px"  >
                 {updateStatus === UpdateStatus.NoUpdate && (
                     <Icon color="green.600" >
                         <CiCircleCheck size="140px"  />

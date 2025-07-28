@@ -53,7 +53,7 @@ export function ButtonsPerformanceContent() {
 
     const [isInit, setIsInit] = useState<boolean>(false);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false);
-    const { defaultProfile, updateProfileDetails, dataIsReady } = useGamepadConfig();
+    const { defaultProfile, updateProfileDetails, dataIsReady, sendPendingCommandImmediately } = useGamepadConfig();
     
     const [ defaultProfileId, setDefaultProfileId ] = useState<string>(defaultProfile.id);
     const { t } = useLanguage();
@@ -214,6 +214,16 @@ export function ButtonsPerformanceContent() {
             setNeedUpdate(false);
         }
     }, [needUpdate]);
+
+    useEffect(() => {
+        return () => {
+            try {
+                sendPendingCommandImmediately('update_profile');
+            } catch (error) {
+                console.warn('页面关闭前发送 update_keys_config 命令失败:', error);
+            }
+        }
+    }, [sendPendingCommandImmediately]);
 
     return (
         <>

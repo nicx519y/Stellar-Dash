@@ -57,6 +57,27 @@ const FIRMWARE_SERVER_CONFIG = {
     }
 };
 
+// WebSocket配置类型
+export interface WebSocketConfigType {
+    // WebSocket连接配置
+    url: string;
+    heartbeatInterval: number; // 心跳间隔（毫秒）
+    timeout: number; // 超时时间（毫秒）
+    
+    // 队列管理器配置
+    sendDelay: number; // 延迟发送时间（毫秒） 
+    pollInterval: number; // 轮询间隔（毫秒）
+}
+
+// 默认WebSocket配置
+export const DEFAULT_WEBSOCKET_CONFIG: WebSocketConfigType = {
+    url: `ws://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:8081`,
+    heartbeatInterval: 30000, // 30秒心跳间隔
+    timeout: 15000, // 15秒超时
+    sendDelay: 3000, // 500ms延迟发送
+    pollInterval: 50, // 轮询间隔50ms
+} as const;
+
 interface GamepadConfigContextType {
     contextJsReady: boolean;
     setContextJsReady: (ready: boolean) => void;
@@ -132,6 +153,11 @@ interface GamepadConfigContextType {
     getUpgradeConfig: () => FirmwareUpgradeConfig;
     getValidChunkSizes: () => number[];
     updateMarkingStatus: (status: StepInfo) => void;
+    // 立即发送队列中的特定命令
+    sendPendingCommandImmediately: (command: string) => boolean;
+    // WebSocket配置管理
+    getWebSocketConfig: () => WebSocketConfigType;
+    updateWebSocketConfig: (config: Partial<WebSocketConfigType>) => void;
 }
 
 const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
@@ -244,6 +270,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         timeout: DEFAULT_FIRMWARE_UPGRADE_TIMEOUT // 30秒超时
     });
 
+    // WebSocket配置状态管理
+    const [websocketConfig, setWebsocketConfig] = useState<WebSocketConfigType>(DEFAULT_WEBSOCKET_CONFIG);
+
     const contextJsReady = useMemo(() => jsReady, [jsReady]);
 
     const [globalConfigIsReady, setGlobalConfigIsReady] = useState(false);
@@ -312,9 +341,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     // 初始化WebSocket框架
     useEffect(() => {
         const framework = new WebSocketFramework({
-            url: `ws://${window.location.hostname}:8081`,
-            heartbeatInterval: 30000,
-            timeout: 15000
+            url: websocketConfig.url,
+            heartbeatInterval: websocketConfig.heartbeatInterval,
+            timeout: websocketConfig.timeout
         });
 
         // 初始化队列管理器
@@ -410,25 +439,28 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     // 当WebSocket连接成功后，初始化数据
     useEffect(() => {
         if (wsConnected && wsState === WebSocketState.CONNECTED) {
-            // 隐藏重连窗口
-            setShowReconnect(false);
-            
-            // 设置DeviceAuthManager的WebSocket发送函数
-            const authManager = DeviceAuthManager.getInstance();
-            authManager.setWebSocketSendFunction(sendWebSocketRequest);
-            
-            fetchGlobalConfig().then(() => {
-                setGlobalConfigIsReady(true);
-            }).catch(console.error);
-            fetchProfileList().then(() => {
-                setProfileListIsReady(true);
-            }).catch(console.error);
-            fetchHotkeysConfig().then(() => {
-                setHotkeysConfigIsReady(true);
-            }).catch(console.error);
-            fetchFirmwareMetadata().then(() => {
-                setFirmwareInfoIsReady(true);
-            }).catch(console.error);
+            // 延迟500ms获取数据
+            setTimeout(() => {
+                // 隐藏重连窗口
+                setShowReconnect(false);
+                
+                // 设置DeviceAuthManager的WebSocket发送函数
+                const authManager = DeviceAuthManager.getInstance();
+                authManager.setWebSocketSendFunction(sendWebSocketRequest);
+                
+                fetchGlobalConfig().then(() => {
+                    setGlobalConfigIsReady(true);
+                }).catch(console.error);
+                fetchProfileList().then(() => {
+                    setProfileListIsReady(true);
+                }).catch(console.error);
+                fetchHotkeysConfig().then(() => {
+                    setHotkeysConfigIsReady(true);
+                }).catch(console.error);
+                fetchFirmwareMetadata().then(() => {
+                    setFirmwareInfoIsReady(true);
+                }).catch(console.error);
+            }, 500);
 
         }
     }, [wsConnected, wsState]);
@@ -548,8 +580,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             // setIsLoading(true);
             const data = await sendWebSocketRequest('update_profile', { profileId, profileDetails }, immediate);
 
-            // 如果更新的是 profile 的 name，则需要重新获取 profile list
-            if(profileDetails.hasOwnProperty("name") || profileDetails.hasOwnProperty("id")) {
+            // 如果更新的是 profile 的 name， 或者更新的profile不是defaultProfile，则需要重新获取 profile list
+            if(profileDetails.name != undefined && profileDetails.name !== defaultProfile.name || profileDetails.id !== defaultProfile.id) {
                 fetchProfileList();
             } else if (data && 'defaultProfileDetails' in data) {
                 // 否则更新 default profile
@@ -1724,6 +1756,27 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         setMarkingStatus(status);
     };
 
+    // 立即发送队列中的特定命令
+    const sendPendingCommandImmediately = (command: string): boolean => {
+        if (wsQueueManager.current) {
+            return wsQueueManager.current.sendPendingCommandImmediately(command);
+        }
+        return false;
+    };
+
+    // WebSocket配置管理
+    const getWebSocketConfig = () => {
+        return websocketConfig;
+    };
+
+    const updateWebSocketConfig = (config: Partial<WebSocketConfigType>) => {
+        setWebsocketConfig(prevConfig => ({
+            ...prevConfig,
+            ...config
+        }));
+        console.log('WebSocket配置已更新:', config);
+    };
+
 
     return (
         <GamepadConfigContext.Provider value={{
@@ -1800,6 +1853,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             getUpgradeConfig: getUpgradeConfig,
             getValidChunkSizes: getValidChunkSizes,
             updateMarkingStatus: updateMarkingStatus,
+            sendPendingCommandImmediately: sendPendingCommandImmediately,
+            getWebSocketConfig: getWebSocketConfig,
+            updateWebSocketConfig: updateWebSocketConfig,
         }}>
             {children}
         </GamepadConfigContext.Provider>

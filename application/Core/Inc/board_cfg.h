@@ -192,6 +192,24 @@ PH4     ------> ADC3_INP15 -----> 11
 #define ADC_CALIBRATION_MANAGER_TOLERANCE_RANGE 5000 // 校准管理器容忍范围
 #define ADC_CALIBRATION_MANAGER_STABILITY_THRESHOLD 200 // 校准管理器稳定性阈值
 
+// GPIO按钮配置宏定义
+#define GPIO_BTN1_PORT              GPIOC
+#define GPIO_BTN1_PIN               GPIO_PIN_6
+#define GPIO_BTN1_VIRTUAL_PIN       18
+
+#define GPIO_BTN2_PORT              GPIOC
+#define GPIO_BTN2_PIN               GPIO_PIN_7
+#define GPIO_BTN2_VIRTUAL_PIN       19
+
+#define GPIO_BTN3_PORT              GPIOC
+#define GPIO_BTN3_PIN               GPIO_PIN_8
+#define GPIO_BTN3_VIRTUAL_PIN       20
+
+#define GPIO_BTN4_PORT              GPIOC
+#define GPIO_BTN4_PIN               GPIO_PIN_9
+#define GPIO_BTN4_VIRTUAL_PIN       21
+
+
 #ifdef __cplusplus
  }
 #endif

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { DEFAULT_WEBSOCKET_CONFIG } from '@/contexts/gamepad-config-context';
 
 // WebSocket消息类型定义
 export interface WebSocketUpstreamMessage {
@@ -54,6 +55,7 @@ interface PendingRequest {
   reject: (error: Error) => void;
   timer: NodeJS.Timeout;
   command: string;
+  params: Record<string, unknown>;
 }
 
 // WebSocket框架主类
@@ -74,9 +76,9 @@ export class WebSocketFramework {
 
   constructor(config: WebSocketConfig = {}) {
     this.config = {
-      url: config.url || `ws://${window.location.hostname}:8081`,
-      heartbeatInterval: config.heartbeatInterval || 30000, // 30秒
-      timeout: config.timeout || 15000 // 15秒
+      url: config.url || DEFAULT_WEBSOCKET_CONFIG.url,
+      heartbeatInterval: config.heartbeatInterval || DEFAULT_WEBSOCKET_CONFIG.heartbeatInterval,
+      timeout: config.timeout || DEFAULT_WEBSOCKET_CONFIG.timeout
     };
   }
 
@@ -186,7 +188,7 @@ export class WebSocketFramework {
       }, this.config.timeout);
 
       // 保存待处理请求
-      this.pendingRequests.set(cid, { resolve, reject, timer, command });
+      this.pendingRequests.set(cid, { resolve, reject, timer, command, params });
 
       // 发送消息
       try {
@@ -239,6 +241,57 @@ export class WebSocketFramework {
         timestamp: new Date()
       });
     }
+  }
+
+  // 获取当前待处理请求列表
+  public getPendingRequests(): Array<{ cid: number; command: string; timestamp: Date }> {
+    const requests: Array<{ cid: number; command: string; timestamp: Date }> = [];
+    this.pendingRequests.forEach((request, cid) => {
+      requests.push({
+        cid,
+        command: request.command,
+        timestamp: new Date() // 注意：这里没有存储原始时间戳，所以使用当前时间
+      });
+    });
+    return requests;
+  }
+
+  // 取消特定命令的待处理请求
+  public cancelPendingCommand(command: string): number {
+    let cancelledCount = 0;
+    const cidsToRemove: number[] = [];
+
+    this.pendingRequests.forEach((request, cid) => {
+      if (request.command === command) {
+        clearTimeout(request.timer);
+        request.reject(new Error(`命令 ${command} 已被取消`));
+        cidsToRemove.push(cid);
+        cancelledCount++;
+      }
+    });
+
+    cidsToRemove.forEach(cid => this.pendingRequests.delete(cid));
+    
+    if (cancelledCount > 0) {
+      console.log(`已取消 ${cancelledCount} 个命令为 ${command} 的待处理请求`);
+    }
+
+    return cancelledCount; 
+  }
+
+  // 取消特定CID的待处理请求
+  public cancelPendingRequest(cid: number): boolean {
+    const request = this.pendingRequests.get(cid);
+    if (!request) {
+      console.warn(`未找到CID为 ${cid} 的待处理请求`);
+      return false;
+    }
+
+    clearTimeout(request.timer);
+    request.reject(new Error(`请求 (CID: ${cid}) 已被取消`));
+    this.pendingRequests.delete(cid);
+    console.log(`已取消CID为 ${cid} 的待处理请求`);
+    return true;
   }
 
   // 获取当前状态
@@ -430,6 +483,19 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     return frameworkRef.current?.onBinaryMessage(handler) || (() => {});
   }, []);
 
+  // 新增的队列管理方法
+  const getPendingRequests = useCallback(() => {
+    return frameworkRef.current?.getPendingRequests() || [];
+  }, []);
+
+  const cancelPendingCommand = useCallback((command: string) => {
+    return frameworkRef.current?.cancelPendingCommand(command) || 0;
+  }, []);
+
+  const cancelPendingRequest = useCallback((cid: number) => {
+    return frameworkRef.current?.cancelPendingRequest(cid) || false;
+  }, []);
+
   return {
     state,
     error,
@@ -441,6 +507,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     sendBinaryMessage,
     onMessage,
     onBinaryMessage,
+    // 新增的队列管理方法
+    getPendingRequests,
+    cancelPendingCommand,
+    cancelPendingRequest,
     framework: frameworkRef.current
   };
 }

@@ -34,7 +34,7 @@ uint32_t GPIOBtnsWorker::read()
     GPIO_Btns_Iterate([](uint8_t virtualPin, bool isPressed, uint8_t idx) {
         if (!instance_) return;
         
-        // APP_DBG("virtualPin: %d, isPressed: %d", virtualPin, isPressed);
+        APP_DBG("virtualPin: %d, isPressed: %d", virtualPin, isPressed);
 
         GPIOBtn* btn = &instance_->buttonStates[idx];
         const bool currentState = isPressed;
