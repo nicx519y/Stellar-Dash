@@ -482,7 +482,7 @@ export const UI_TEXT = {
     CALIBRATION_HELPER_TEXT: "calibration is the process of finding the optimal button travel for the gamepad. It is a process of finding the optimal button travel for the gamepad.",
     CALIBRATION_START_BUTTON: "Start Calibration",
     CALIBRATION_STOP_BUTTON: "Stop Calibration",
-    CALIBRATION_CLEAR_DATA_BUTTON: "Clear Data",
+    CALIBRATION_CLEAR_DATA_BUTTON: "Clear Calibration Data",
     CALIBRATION_CLEAR_DATA_DIALOG_TITLE: "Clear Calibration Data",
     CALIBRATION_CLEAR_DATA_DIALOG_MESSAGE: "Clearing the calibration data will delete all the calibration data. It will need to be calibrated again. Are you sure you want to clear the calibration data?",
     CALIBRATION_COMPLETION_DIALOG_TITLE: "Calibration Completed",
@@ -709,9 +709,10 @@ export const UI_TEXT = {
     HOTKEY_TRIGGER_CLICK: "Click",
 
     // Reconnect Modal
-    RECONNECT_MODAL_MESSAGE: "The connection to the device has been lost, please click the button to reconnect",
+    RECONNECT_MODAL_MESSAGE: "The connection to the device has been lost, possible reasons: \n1. The USB connection has been lost. \n2. The device is not in webconfig mode. \n3. Other web pages are connected to the device at the same time. \nPlease check and click the button to reconnect.",
     RECONNECT_MODAL_BUTTON: "Reconnect Device",
-    RECONNECT_FAILED_TITLE: "Reconnect Failed",
+    RECONNECT_MODAL_TITLE: "Device Disconnected",
+    RECONNECT_FAILED_TITLE: "Failed to Reconnect",
     RECONNECT_FAILED_MESSAGE: "Failed to reconnect to the device. Please check the USB connection and make sure the device is in webconfig mode, then try again.",
 
 } as const;
@@ -752,9 +753,9 @@ export const UI_TEXT_ZH = {
     AUTO_CALIBRATION_TITLE: "自动磁轴校准",
     MANUAL_CALIBRATION_TITLE: "手动磁轴校准",
     CALIBRATION_HELPER_TEXT: "磁轴校准是找到控制器最佳按键行程的过程。它是找到控制器最佳按键行程的过程。",
-    CALIBRATION_START_BUTTON: "开始校准",
-    CALIBRATION_STOP_BUTTON: "停止校准",
-    CALIBRATION_CLEAR_DATA_BUTTON: "清除数据",
+    CALIBRATION_START_BUTTON: "开始按键校准",
+    CALIBRATION_STOP_BUTTON: "停止按键校准",
+    CALIBRATION_CLEAR_DATA_BUTTON: "清除校准数据",
     CALIBRATION_CLEAR_DATA_DIALOG_TITLE: "清除校准数据",
     CALIBRATION_CLEAR_DATA_DIALOG_MESSAGE: "清除校准数据后将无法恢复，需要重新校准，是否确认清除？",
     CALIBRATION_COMPLETION_DIALOG_TITLE: "校准完成",
@@ -982,10 +983,11 @@ export const UI_TEXT_ZH = {
     HOTKEY_TRIGGER_CLICK: "短按",
 
     // Reconnect Modal
-    RECONNECT_MODAL_MESSAGE: "与设备的连接已断开，请点击按钮重新连接",
+    RECONNECT_MODAL_MESSAGE: "与设备的连接已断开，可能的原因：\n1. 设备USB已经断开。\n2. 设备没有打开网页配置模式。\n3. 同时打开了其他网页连接了设备。\n请检查无误后点击按钮重新连接。",
     RECONNECT_MODAL_BUTTON: "重新连接设备",
-    RECONNECT_FAILED_TITLE: "重新连接失败",
-    RECONNECT_FAILED_MESSAGE: "无法重新连接到设备，请检查USB连接，以及保证设备在webconfig模式并重试",
+    RECONNECT_MODAL_TITLE: "设备断开连接",
+    RECONNECT_FAILED_TITLE: "重连设备失败",
+    RECONNECT_FAILED_MESSAGE: "无法重新连接到设备，请检查USB连接，以及保证设备在网页配置模式并重试。",
     
 } as const;
 

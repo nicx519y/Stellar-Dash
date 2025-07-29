@@ -13,11 +13,12 @@ export const toaster = createToaster({
   placement: "top",
   pauseOnPageIdle: true,
   duration: 3000,
-  max: 1, // 限制最多显示一个toast
+  // max: 1, // 限制最多显示一个toast，不限制，但是显示新的toast之前先把旧的删除
 })
 
 export const showToast = (options: Parameters<typeof toaster.create>[0]) => {
-  return toaster.create(options)
+  toaster.dismiss(); // 先关闭所有toast
+  return toaster.create(options);
 }
 
 export const Toaster = () => {

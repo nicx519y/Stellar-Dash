@@ -64,10 +64,39 @@ export function GlobalSettingContent() {
         buttons: []
     });
 
+    // 添加容器引用和宽度状态
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState<number>(0);
+
     // 使用 useRef 来保存 calibrationStatus 的最新引用
     const calibrationStatusRef = useRef(calibrationStatus);
     // 每次渲染时更新 ref
     calibrationStatusRef.current = calibrationStatus;
+
+    // 监听容器宽度变化
+    useEffect(() => {
+        const updateWidth = () => {
+            if (containerRef.current) {
+                const width = containerRef.current.offsetWidth;
+                console.log("containerWidth: ", width);
+                setContainerWidth(width);
+            }
+        };
+
+        // 初始获取宽度
+        updateWidth();
+
+        // 监听窗口大小变化
+        const resizeObserver = new ResizeObserver(updateWidth);
+        if (containerRef.current) {
+            resizeObserver.observe(containerRef.current);
+        }
+
+        // 清理
+        return () => {
+            resizeObserver.disconnect();
+        };
+    }, []);
 
     // 添加校准模式检查
     useNavigationBlocker(
@@ -257,18 +286,42 @@ export function GlobalSettingContent() {
         }
     }, [sendPendingCommandImmediately]);
     
+    // 计算缩放比例
+    const calculateScale = (): number => {
+        if (!containerWidth) return 1;
+        
+        const hitboxWidth = 829; // StyledSvg的原始宽度
+        const margin = 80; // 左右边距
+        const availableWidth = containerWidth - (margin * 2);
+        
+        if (availableWidth <= 0) return 0.1; // 最小缩放比例
+        
+        const scale = availableWidth / hitboxWidth;
+        return Math.min(scale, 1.3); // 最大不超过1.3，避免过度放大
+    };
+
+    const scale = calculateScale();
+
+    // 计算动态位置偏移
+    const calculateDynamicOffset = (): number => {
+        const baseOffset = 280; // 原始偏移量
+        const margin = 80; // 保持80px边距
+        return (baseOffset * scale) + margin;
+    };
+
+    const dynamicOffset = calculateDynamicOffset();
+
     return (
         <Flex direction="row" width={"100%"} height={"100%"} padding="18px">
             <Center>
                 <InputModeSettingContent disabled={calibrationStatus.isActive} />
             </Center>
-            <Center flex={1} justifyContent={"center"} flexDirection={"column"}  >
-
-                <Center padding="80px 30px" position="relative" flex={1}  >
-                    <Box position="absolute" top="50%" left="50%" transform="translateX(-50%) translateY(-350px)" zIndex={10} >
+            <Center ref={containerRef} flex={1} justifyContent={"center"} flexDirection={"column"}  >
+                <Center padding="80px 30px" position="relative" flex={1} >
+                    <Box position="absolute" top="50%" left="50%" transform={`translateX(-50%) translateY(-${dynamicOffset}px)`} zIndex={10} >
                         <Card.Root w="100%" h="100%" >
                             <Card.Body p="10px" >
-                                <Flex direction="row" gap={2} w="268px" >
+                                <Flex direction="row" gap={2} w="348px" >
                                     {/* 隐藏自动校准入口 */}
                                     <HStack flex={1} justifyContent="flex-end" >
                                         <Popover.Root open={calibrationTipOpen} >
@@ -277,7 +330,7 @@ export function GlobalSettingContent() {
                                                     disabled={globalConfig.autoCalibrationEnabled}
                                                     colorPalette={calibrationStatus.isActive ? "blue" : "green"}
                                                     size="xs"
-                                                    w="130px"
+                                                    w="170px"
                                                     onMouseEnter={!calibrationStatus.isActive ? () => setCalibrationTipOpen(true) : undefined}
                                                     onMouseLeave={!calibrationStatus.isActive ? () => setCalibrationTipOpen(false) : undefined}
                                                     onClick={calibrationStatus.isActive ? onEndManualCalibration : onStartManualCalibration}
@@ -299,7 +352,7 @@ export function GlobalSettingContent() {
 
                                         <Button
                                             disabled={globalConfig.autoCalibrationEnabled || calibrationStatus.isActive}
-                                            colorPalette={"red"} size={"xs"} w="130px" variant="solid"
+                                            colorPalette={"red"} size={"xs"} w="170px" variant="solid"
                                             onClick={deleteCalibrationDataClick} >
                                             {t.CALIBRATION_CLEAR_DATA_BUTTON}
                                         </Button>
@@ -313,12 +366,14 @@ export function GlobalSettingContent() {
                             interactiveIds={HOTKEYS_SETTINGS_INTERACTIVE_IDS}
                             onClick={handleExternalClick}
                             isButtonMonitoringEnabled={true} // 启用设备按键监控
+                            containerWidth={containerWidth}
                         />
                     )}
                     {calibrationStatus.isActive && (
                         <HitboxCalibration
                             hasText={false}
                             buttonsColorList={calibrationButtonColors}
+                            containerWidth={containerWidth}
                         />
                     )}
                 </Center>

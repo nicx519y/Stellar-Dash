@@ -14,22 +14,14 @@ import {
     Switch,
     RadioCard,
     Slider,
+    Dialog,
 } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { ADCButtonDebounceAlgorithm, RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS, RapidTriggerConfig } from "@/types/gamepad-config";
 import HitboxPerformance from "@/components/hitbox/hitbox-performance";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { ContentActionButtons } from "@/components/content-action-buttons";
-import {
-    DialogBody,
-    DialogCloseTrigger,
-    DialogContent,
-    DialogHeader,
-    DialogRoot,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog"
 import { LuSheet } from "react-icons/lu";
 import { ProfileSelect } from "./profile-select";
 
@@ -54,6 +46,10 @@ export function ButtonsPerformanceContent() {
     const [isInit, setIsInit] = useState<boolean>(false);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false);
     const { defaultProfile, updateProfileDetails, dataIsReady, sendPendingCommandImmediately } = useGamepadConfig();
+    
+    // 添加容器引用和宽度状态
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState<number>(0);
     
     const [ defaultProfileId, setDefaultProfileId ] = useState<string>(defaultProfile.id);
     const { t } = useLanguage();
@@ -118,6 +114,31 @@ export function ButtonsPerformanceContent() {
             setTableViewConfig(triggerConfigs);
         }
     }, [triggerConfigs, allBtnsConfig, isAllBtnsConfiguring]);
+
+    // 监听容器宽度变化
+    useEffect(() => {
+        const updateWidth = () => {
+            if (containerRef.current) {
+                const width = containerRef.current.offsetWidth;
+                console.log("buttons-performance containerWidth: ", width);
+                setContainerWidth(width);
+            }
+        };
+
+        // 初始获取宽度
+        updateWidth();
+
+        // 监听窗口大小变化
+        const resizeObserver = new ResizeObserver(updateWidth);
+        if (containerRef.current) {
+            resizeObserver.observe(containerRef.current);
+        }
+
+        // 清理
+        return () => {
+            resizeObserver.disconnect();
+        };
+    }, []);
 
 
     /**
@@ -231,12 +252,13 @@ export function ButtonsPerformanceContent() {
                 <Flex flex={0} justifyContent={"flex-start"} height="fit-content" >
                     <ProfileSelect />
                 </Flex>
-                <Center flex={1} justifyContent={"center"} flexDirection={"column"}>
+                <Center ref={containerRef} flex={1} justifyContent={"center"} flexDirection={"column"}>
                     <Center padding="80px 30px" position="relative" flex={1}  >
                         <HitboxPerformance
                             onClick={(id) => handleButtonClick(id)}
                             highlightIds={!isAllBtnsConfiguring ? [selectedButton ?? -1] : allKeys}
                             interactiveIds={allKeys}
+                            containerWidth={containerWidth}
                         />
                     </Center>
                     <Center flex={0}  >
@@ -384,17 +406,17 @@ export function ButtonsPerformanceContent() {
 
 
 
-                                        <DialogRoot lazyMount placement={"center"} unmountOnExit={true} >
-                                            <DialogTrigger asChild >
+                                        <Dialog.Root lazyMount placement={"center"} unmountOnExit={true} >
+                                            <Dialog.Trigger asChild >
                                                 <Box width={"120px"} >
                                                     <Button variant={"ghost"} colorPalette={"green"} size={"sm"} ><LuSheet />{t.BUTTON_PREVIEW_IN_TABLE_VIEW}</Button>
                                                 </Box>
-                                            </DialogTrigger>
-                                            <DialogContent maxWidth="650px" >
-                                                <DialogHeader>
-                                                    <DialogTitle fontSize="sm" opacity={0.75} >{t.SETTINGS_RAPID_TRIGGER_TITLE}</DialogTitle>
-                                                </DialogHeader>
-                                                <DialogBody >
+                                            </Dialog.Trigger>
+                                            <Dialog.Content maxWidth="650px" >
+                                                <Dialog.Header>
+                                                    <Dialog.Title fontSize="sm" opacity={0.75} >{t.SETTINGS_RAPID_TRIGGER_TITLE}</Dialog.Title>
+                                                </Dialog.Header>
+                                                <Dialog.Body >
                                                     <Table.Root fontSize="sm" colorPalette={"green"} interactive opacity={0.9} >
                                                         <Table.Header fontSize="xs" >
                                                             <Table.Row>
@@ -417,10 +439,10 @@ export function ButtonsPerformanceContent() {
                                                             ))}
                                                         </Table.Body>
                                                     </Table.Root>
-                                                </DialogBody>
-                                                <DialogCloseTrigger />
-                                            </DialogContent>
-                                        </DialogRoot>
+                                                </Dialog.Body>
+                                                <Dialog.CloseTrigger />
+                                            </Dialog.Content>
+                                        </Dialog.Root>
 
                                         {/* Buttons */}
 

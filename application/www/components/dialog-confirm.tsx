@@ -1,17 +1,10 @@
 'use client';
 
 import { create } from 'zustand';
-import {
-    DialogRoot,
-    DialogBody,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog"
 import { Alert } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/contexts/language-context";
+import { Dialog, Text, Portal } from '@chakra-ui/react';
 
 interface ConfirmState {
     isOpen: boolean;
@@ -44,35 +37,43 @@ export function DialogConfirm() {
     };
 
     return (
-        <DialogRoot open={isOpen} onOpenChange={handleClose}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle fontSize="sm" opacity={0.75} >{title}</DialogTitle>
-                </DialogHeader>
-                <DialogBody>
-                    <Alert fontSize="sm" colorPalette={"yellow"}>{message}</Alert>
-                </DialogBody>
-                <DialogFooter>
-                    <Button 
-                        width="100px"
-                        size="sm"
-                        colorPalette="teal" 
-                        variant="surface" 
-                        onClick={handleCancel}
-                    >
-                        {t.BUTTON_CANCEL}
-                    </Button>
-                    <Button 
-                        width="100px"
-                        size="sm"
-                        colorPalette="green" 
-                        onClick={handleConfirm}
-                    >
-                        {t.BUTTON_CONFIRM}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </DialogRoot>
+        <Portal>
+            <Dialog.Root open={isOpen} onOpenChange={handleClose}>
+                <Dialog.Positioner>
+                    <Dialog.Content>
+                        <Dialog.Header>
+                            <Dialog.Title fontSize="sm" opacity={0.75} >{title}</Dialog.Title>
+                        </Dialog.Header>
+                        <Dialog.Body>
+                            <Alert fontSize="sm" colorPalette={"yellow"}>
+                                <Text whiteSpace="pre-wrap" lineHeight="1.5" >
+                                    {message}
+                                </Text>
+                            </Alert>
+                        </Dialog.Body>
+                        <Dialog.Footer>
+                            <Button
+                                width="100px"
+                                size="sm"
+                                colorPalette="teal"
+                                variant="surface"
+                                onClick={handleCancel}
+                            >
+                                {t.BUTTON_CANCEL}
+                            </Button>
+                            <Button
+                                width="100px"
+                                size="sm"
+                                colorPalette="green"
+                                onClick={handleConfirm}
+                            >
+                                {t.BUTTON_CONFIRM}
+                            </Button>
+                        </Dialog.Footer>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
+        </Portal>
     );
 }
 

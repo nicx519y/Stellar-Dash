@@ -55,6 +55,13 @@ function AppContent({ children }: { children: React.ReactNode }) {
         };
     }, [isLoading]);
 
+    // 初始化状态
+    useEffect(() => {
+        if (!showReconnect) {
+            setIsReconnecting(false);
+        }
+    }, [showReconnect]);
+
     return (
         <Flex
             direction="column"
@@ -90,27 +97,30 @@ function AppContent({ children }: { children: React.ReactNode }) {
             <Toaster />
             <LoadingModal isOpen={showLoading} />
             <ReconnectModal
+                title={t.RECONNECT_MODAL_TITLE}
+                message={t.RECONNECT_MODAL_MESSAGE}
+                buttonText={t.RECONNECT_MODAL_BUTTON}
                 isOpen={showReconnect}
+                isLoading={isReconnecting}
                 onReconnect={async () => {
-                    console.log('reconnecting...');
                     setIsReconnecting(true);
                     try {
                         await connectWebSocket();
-                        console.log('重连成功');
-                    } catch (error) {
-                        console.error('重连失败:', error); 
+                    } catch {
                         toaster.error({
                             title: t.RECONNECT_FAILED_TITLE,
                             description: t.RECONNECT_FAILED_MESSAGE,
                         });
                         setIsReconnecting(false);
                     } finally {
-                        setIsReconnecting(false);
+                        
                     }
                 }}
-                isLoading={isReconnecting}
-                buttonText={t.RECONNECT_MODAL_BUTTON}
+                
             />
+            <DialogConfirm />
+            <DialogForm />
+            <DialogCannotClose />
         </Flex>
     );
 }
@@ -1289,9 +1299,7 @@ jnOfAJzDQKWmAn8IvAdQobcBbwN8wlP5aQRoACQWM/D/QN+5DmrsiuEAAAAASUVORK5CYII=
                                 <AppContent>
                                     {children}
                                 </AppContent>
-                                <DialogConfirm />
-                                <DialogForm />
-                                <DialogCannotClose />
+                                
                             </LanguageProvider>
                         </GamepadConfigProvider>
                     </Provider>

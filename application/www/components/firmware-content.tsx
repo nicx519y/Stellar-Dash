@@ -155,26 +155,31 @@ export function FirmwareContent() {
 
             <VStack display={firmwareUpdateInfo ? "block" : "none"} >
                 <Center w="full" height="160px"  >
+                {/* 没有更新 */}
                 {updateStatus === UpdateStatus.NoUpdate && (
                     <Icon color="green.600" >
                         <CiCircleCheck size="140px"  />
                     </Icon>
                 )}
+                {/* 有更新 */}
                 {updateStatus === UpdateStatus.UpdateAvailable && (
                     <Icon color="yellow" cursor="pointer" className="bounce-icon" onClick={upgradeFirmware}>
                         <CiSaveUp1 size="150px"  />
                     </Icon>
                 )}
+                {/* 更新失败 */}
                 {updateStatus === UpdateStatus.UpdateFailed && (
                     <Icon color="red" cursor="pointer" className="bounce-icon" onClick={upgradeFirmware}>
                         <CiCircleRemove size="140px"  />
                     </Icon>
                 )}
+                {/* 更新成功 */}
                 {updateStatus === UpdateStatus.UpdateSuccess && (
                     <Icon color="green.600" >
                         <CiCircleCheck size="140px"  />
                     </Icon>
                 )}
+                {/* 更新中 */}
                 {updateStatus === UpdateStatus.Updating && (
                     <ProgressCircle.Root size="xl" colorPalette="green" value={_updateProgress} css={{transform:"scale(1.9)"}}>
                         <ProgressCircle.Circle css={{ "--thickness": "2px" }} >

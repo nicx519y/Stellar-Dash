@@ -1,14 +1,8 @@
 'use client';
 
 import { create } from 'zustand';
-import {
-    DialogRoot,
-    DialogBody,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog"
 import { Alert } from "@/components/ui/alert"
+import { Dialog, Text, Portal } from '@chakra-ui/react';
 
 interface DialogState {
     isOpen: boolean;
@@ -28,25 +22,31 @@ export function DialogCannotClose() {
     if (!isOpen) return null;
 
     return (
-        <DialogRoot 
-            open={isOpen} 
-            modal 
-            onPointerDownOutside={e => e.preventDefault()} 
-            onEscapeKeyDown={e => e.preventDefault()}
-        >
-            <DialogContent>
-                <DialogHeader>
-                    {title && (
-                        <DialogTitle>{title}</DialogTitle>
-                    )}
-                </DialogHeader>
-                <DialogBody>
-                    <Alert colorPalette="yellow" status={status} >
-                        {message}
-                    </Alert>
-                </DialogBody>
-            </DialogContent>
-        </DialogRoot>
+        <Portal>
+            <Dialog.Root
+                open={isOpen}
+                modal
+                onPointerDownOutside={e => e.preventDefault()}
+                onEscapeKeyDown={e => e.preventDefault()}
+            >
+                <Dialog.Positioner>
+                    <Dialog.Content>
+                        <Dialog.Header>
+                            {title && (
+                                <Dialog.Title>{title}</Dialog.Title>
+                            )}
+                        </Dialog.Header>
+                        <Dialog.Body>
+                            <Alert colorPalette="yellow" status={status} >
+                                <Text whiteSpace="pre-wrap" lineHeight="1.5" >
+                                    {message}
+                                </Text>
+                            </Alert>
+                        </Dialog.Body>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
+        </Portal>
     )
 }
 

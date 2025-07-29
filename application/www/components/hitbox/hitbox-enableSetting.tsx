@@ -9,11 +9,15 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { AiOutlineClose, AiOutlineCheck } from "react-icons/ai";
 
 // 样式化的 SVG 组件 - 与基类保持一致
-const StyledSvg = styled.svg`
+const StyledSvg = styled.svg<{
+    $scale?: number;
+}>`
   width: 828.82px;
   height: 548.1px;
   padding: 20px;
   position: relative;
+  transform: scale(${props => props.$scale || 1});
+  transform-origin: center;
 `;
 
 // 样式化的圆形按钮 - 与基类保持一致
@@ -73,6 +77,7 @@ interface HitboxEnableSettingProps {
     interactiveIds?: number[];
     buttonsEnableConfig?: boolean[]; // 按键启用配置数组
     className?: string;
+    containerWidth?: number; // 外部容器宽度
 }
 
 /**
@@ -85,6 +90,7 @@ export default function HitboxEnableSetting({
     interactiveIds = [],
     buttonsEnableConfig = [],
     className,
+    containerWidth,
 }: HitboxEnableSettingProps) {
     const { colorMode } = useColorMode();
     const { contextJsReady, setContextJsReady } = useGamepadConfig();
@@ -93,6 +99,22 @@ export default function HitboxEnableSetting({
     const textRefs = useRef<(SVGTextElement | null)[]>([]);
     const pressedButtonListRef = useRef(Array(btnLen).fill(-1));
     const [hoveredButton, setHoveredButton] = useState<number | null>(null);
+
+    // 计算缩放比例
+    const calculateScale = (): number => {
+        if (!containerWidth) return 1;
+        
+        const hitboxWidth = 829; // StyledSvg的原始宽度
+        const margin = 80; // 左右边距
+        const availableWidth = containerWidth - (margin * 2);
+        
+        if (availableWidth <= 0) return 0.1; // 最小缩放比例
+        
+        const scale = availableWidth / hitboxWidth;
+        return Math.min(scale, 1.3); // 最大不超过1.3，避免过度放大
+    };
+
+    const scale = calculateScale();
 
     // 初始化显示状态
     useEffect(() => {
@@ -159,10 +181,12 @@ export default function HitboxEnableSetting({
 
     return (
         <Box display={contextJsReady ? "block" : "none"} className={className}>
-            <StyledSvg xmlns="http://www.w3.org/2000/svg"
+            <StyledSvg 
+                xmlns="http://www.w3.org/2000/svg"
                 ref={svgRef}
                 onMouseDown={handleClick}
                 onMouseUp={handleClick}
+                $scale={scale}
             >
                 <title>hitbox</title>
                 <StyledFrame x="0.36" y="0.36" width="787.82" height="507.1" rx="10" />

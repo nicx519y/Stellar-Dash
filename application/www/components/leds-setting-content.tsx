@@ -27,7 +27,7 @@ import {
 
 import { ColorPicker, Slider } from "@chakra-ui/react";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
     // GameProfile,
     LedsEffectStyle,
@@ -62,6 +62,10 @@ export function LEDsSettingContent() {
     const [isInit, setIsInit] = useState<boolean>(false); // 是否初始化
     const [needPreview, setNeedPreview] = useState<boolean>(false); // 是否需要预览
     const [needUpdate, setNeedUpdate] = useState<boolean>(false); // 是否需要更新
+
+    // 添加容器引用和宽度状态
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState<number>(0);
 
     const [defaultProfileId, setDefaultProfileId] = useState<string>(defaultProfile.id);
     const [ledsEffectStyle, setLedsEffectStyle] = useState<LedsEffectStyle>(defaultProfile.ledsConfigs?.ledsEffectStyle ?? LedsEffectStyle.STATIC);
@@ -159,6 +163,31 @@ export function LEDsSettingContent() {
             }
         }
     }, [wsConnected]);
+
+    // 监听容器宽度变化
+    useEffect(() => {
+        const updateWidth = () => {
+            if (containerRef.current) {
+                const width = containerRef.current.offsetWidth;
+                console.log("leds-setting containerWidth: ", width);
+                setContainerWidth(width);
+            }
+        };
+
+        // 初始获取宽度
+        updateWidth();
+
+        // 监听窗口大小变化
+        const resizeObserver = new ResizeObserver(updateWidth);
+        if (containerRef.current) {
+            resizeObserver.observe(containerRef.current);
+        }
+
+        // 清理
+        return () => {
+            resizeObserver.disconnect();
+        };
+    }, []);
 
     const colorPickerDisabled = (index: number) => {
         return (index == 2 && !(effectStyleLabelMap.get(ledsEffectStyle)?.hasBackColor2 ?? false)) || !ledEnabled;
@@ -355,7 +384,7 @@ export function LEDsSettingContent() {
                 <Flex flex={0} justifyContent={"flex-start"} height="fit-content" >
                     <ProfileSelect />
                 </Flex>
-                <Center flex={1} justifyContent={"center"} flexDirection={"column"}  >
+                <Center ref={containerRef} flex={1} justifyContent={"center"} flexDirection={"column"}  >
                     <Center padding="80px 30px" position="relative" flex={1}  >
                         <HitboxLeds
                             hasText={false}
@@ -385,6 +414,7 @@ export function LEDsSettingContent() {
                             }}
                             interactiveIds={LEDS_SETTINGS_INTERACTIVE_IDS}
                             disabledKeys={disabledKeys}
+                            containerWidth={containerWidth}
                         />
                     </Center>
                     <Center flex={0}  >

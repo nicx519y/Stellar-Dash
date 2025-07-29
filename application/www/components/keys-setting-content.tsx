@@ -16,7 +16,7 @@ import {
     Box,
 } from "@chakra-ui/react";
 import KeymappingFieldset from "@/components/keymapping-fieldset";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
     RadioCardItem,
     RadioCardRoot,
@@ -52,6 +52,10 @@ export function KeysSettingContent() {
 
     const [isInit, setIsInit] = useState<boolean>(false);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false);
+    
+    // 添加容器引用和宽度状态
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState<number>(0);
     
     // 按键映射状态
     const keyLength = useMemo(() => Object.keys(defaultProfile.keysConfig?.keyMapping ?? {}).length, [defaultProfile?.keysConfig?.keyMapping]);
@@ -140,14 +144,64 @@ export function KeysSettingContent() {
         }
     }, [sendPendingCommandImmediately]);
 
+    // 监听容器宽度变化
+    useEffect(() => {
+        const updateWidth = () => {
+            if (containerRef.current) {
+                const width = containerRef.current.offsetWidth;
+                console.log("keys-setting containerWidth: ", width);
+                setContainerWidth(width);
+            }
+        };
+
+        // 初始获取宽度
+        updateWidth();
+
+        // 监听窗口大小变化
+        const resizeObserver = new ResizeObserver(updateWidth);
+        if (containerRef.current) {
+            resizeObserver.observe(containerRef.current);
+        }
+
+        // 清理
+        return () => {
+            resizeObserver.disconnect();
+        };
+    }, []);
+
+    // 计算缩放比例
+    const calculateScale = (): number => {
+        if (!containerWidth) return 1;
+        
+        const hitboxWidth = 829; // StyledSvg的原始宽度
+        const margin = 80; // 左右边距
+        const availableWidth = containerWidth - (margin * 2);
+        
+        if (availableWidth <= 0) return 0.1; // 最小缩放比例
+        
+        const scale = availableWidth / hitboxWidth;
+        return Math.min(scale, 1.3); // 最大不超过1.3，避免过度放大
+    };
+
+    const scale = calculateScale();
+
+    // 计算动态位置偏移
+    const calculateDynamicOffset = (): number => {
+        const baseOffset = 280; // 原始偏移量
+        const margin = 80; // 保持80px边距
+        return (baseOffset * scale) + margin;
+    };
+
+    const dynamicOffset = calculateDynamicOffset();
+
     return (
         <Flex direction="row" width={"100%"} height={"100%"} padding={"18px"} >
             <Flex flex={0} justifyContent={"flex-start"} height="fit-content" >
                 <ProfileSelect disabled={keysEnableSettingActive} />
             </Flex>
-            <Center flex={1} justifyContent={"center"} flexDirection={"column"}  >
+            <Center ref={containerRef} flex={1} justifyContent={"center"} flexDirection={"column"}  >
                 <Center padding="80px 30px" position="relative" flex={1}   >
-                    <Box position="absolute" top="50%" left="50%" transform="translateX(-50%) translateY(-350px)" zIndex={10} >
+                    <Box position="absolute" top="50%" left="50%" transform={`translateX(-50%) translateY(-${dynamicOffset}px)`} zIndex={10} >
                         <Card.Root w="100%" h="100%" >
                             <Card.Body p="10px" >
                                 <Button w="240px" size="xs" variant="solid" colorPalette={keysEnableSettingActive ? "blue" : "green"} onClick={() => setKeysEnableSettingActive(!keysEnableSettingActive)} >
@@ -161,6 +215,7 @@ export function KeysSettingContent() {
                             onClick={hitboxEnableSettingClick}
                             interactiveIds={keysEnableConfig.map((_, index) => index)}
                             buttonsEnableConfig={keysEnableConfig}
+                            containerWidth={containerWidth}
                         />
                     ) : (
                         <HitboxKeys
@@ -168,6 +223,7 @@ export function KeysSettingContent() {
                             interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
                             disabledKeys={disabledKeys}
                             isButtonMonitoringEnabled={!keysEnableSettingActive}
+                            containerWidth={containerWidth}
                         />
                     )}
                 </Center>

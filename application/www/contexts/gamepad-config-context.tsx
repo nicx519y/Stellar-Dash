@@ -439,28 +439,25 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     // 当WebSocket连接成功后，初始化数据
     useEffect(() => {
         if (wsConnected && wsState === WebSocketState.CONNECTED) {
-            // 延迟500ms获取数据
-            setTimeout(() => {
-                // 隐藏重连窗口
-                setShowReconnect(false);
-                
-                // 设置DeviceAuthManager的WebSocket发送函数
-                const authManager = DeviceAuthManager.getInstance();
-                authManager.setWebSocketSendFunction(sendWebSocketRequest);
-                
-                fetchGlobalConfig().then(() => {
-                    setGlobalConfigIsReady(true);
-                }).catch(console.error);
-                fetchProfileList().then(() => {
-                    setProfileListIsReady(true);
-                }).catch(console.error);
-                fetchHotkeysConfig().then(() => {
-                    setHotkeysConfigIsReady(true);
-                }).catch(console.error);
-                fetchFirmwareMetadata().then(() => {
-                    setFirmwareInfoIsReady(true);
-                }).catch(console.error);
-            }, 500);
+            // 隐藏重连窗口
+            setShowReconnect(false);
+            
+            // 设置DeviceAuthManager的WebSocket发送函数
+            const authManager = DeviceAuthManager.getInstance();
+            authManager.setWebSocketSendFunction(sendWebSocketRequest);
+            
+            fetchGlobalConfig().then(() => {
+                setGlobalConfigIsReady(true);
+            }).catch(console.error);
+            fetchProfileList().then(() => {
+                setProfileListIsReady(true);
+            }).catch(console.error);
+            fetchHotkeysConfig().then(() => {
+                setHotkeysConfigIsReady(true);
+            }).catch(console.error);
+            fetchFirmwareMetadata().then(() => {
+                setFirmwareInfoIsReady(true);
+            }).catch(console.error);
 
         }
     }, [wsConnected, wsState]);

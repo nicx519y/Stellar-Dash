@@ -1,8 +1,11 @@
+'use client'
+
 import {
-  Box,
   Portal,
   Button,
-  Center,
+  Dialog,
+  Box,
+  Text,
 } from "@chakra-ui/react";
 import * as React from "react";
 
@@ -10,30 +13,32 @@ import { BeatLoader } from "react-spinners"
 import { PiPlugsConnectedFill } from "react-icons/pi";
 
 interface ReconnectModalProps {
+  title: string;
+  message: string;
   buttonText: string;
   isOpen: boolean;
   onReconnect: () => void;
   isLoading?: boolean;
 }
 
-export function ReconnectModal({ buttonText, isOpen, onReconnect, isLoading = false }: ReconnectModalProps) {
+export function ReconnectModal({ title, message, buttonText, isOpen, onReconnect, isLoading = false }: ReconnectModalProps) {
   if (!isOpen) return null;
 
 
   return (
-    <Portal>
+    <>
       <Box
         position="fixed"
         top={0}
         left={0}
         right={0}
         bottom={0}
-        zIndex={9999}
+        zIndex={1}
         display="flex"
         alignItems="center"
         justifyContent="center"
       >
-        <Center
+        <Box
           position="absolute"
           top={0}
           left={0}
@@ -41,22 +46,37 @@ export function ReconnectModal({ buttonText, isOpen, onReconnect, isLoading = fa
           bottom={0}
           bg="blackAlpha.100"
           backdropFilter="blur(4px)"
-        >
-
-          <Button
-            colorPalette="green"
-            size="lg"
-            onClick={onReconnect}
-            loading={isLoading}
-            spinner={<BeatLoader size={8} color="white" />}
-            w="300px"
-            boxShadow="0 0 10px 10px rgba(0, 0, 0, 0.4)"
-          >
-            <PiPlugsConnectedFill />
-            {buttonText}
-          </Button>
-        </Center>
+        />
       </Box>
-    </Portal>
+      <Portal>
+        <Dialog.Root open={isOpen} >
+          <Dialog.Positioner>
+            <Dialog.Content>
+              <Dialog.Header>
+                <Dialog.Title>{title}</Dialog.Title>
+              </Dialog.Header>
+              <Dialog.Body>
+                <Text whiteSpace="pre-wrap" lineHeight="1.5">
+                  {message}
+                </Text>
+              </Dialog.Body>
+              <Dialog.Footer>
+                <Button
+                  w="200px"
+                  colorPalette="blue"
+                  onClick={onReconnect}
+                  loading={isLoading}
+                  spinner={<BeatLoader size={8} color="white" />}
+                >
+                  <PiPlugsConnectedFill />
+                  {buttonText}
+                </Button>
+              </Dialog.Footer>
+            </Dialog.Content>
+          </Dialog.Positioner>
+        </Dialog.Root>
+
+      </Portal>
+    </>
   );
 } 

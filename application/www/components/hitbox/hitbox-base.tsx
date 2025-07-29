@@ -9,11 +9,15 @@ import { useColorMode } from "../ui/color-mode";
 import { type ButtonStateBinaryData, isButtonTriggered } from '@/lib/button-binary-parser';
 import { useButtonMonitor } from '@/hooks/use-button-monitor';
 
-const StyledSvg = styled.svg`
+const StyledSvg = styled.svg<{
+    $scale?: number;
+}>`
   width: 829px;
   height: 548.1px;
   padding: 20px;
   position: relative;
+  transform: scale(${props => props.$scale || 1});
+  transform-origin: center;
 `;
 
 /**
@@ -92,6 +96,7 @@ export interface HitboxBaseProps {
     isButtonMonitoringEnabled?: boolean;
     highlightIds?: number[];
     className?: string;
+    containerWidth?: number; // 外部容器宽度
 }
 
 /**
@@ -105,6 +110,22 @@ export default function HitboxBase(props: HitboxBaseProps) {
 
     const [pressedButtonStates, setPressedButtonStates] = useState(Array(btnLen).fill(-1));
     const [hardwareButtonStates, setHardwareButtonStates] = useState(Array(btnLen).fill(-1));
+
+    // 计算缩放比例
+    const calculateScale = (): number => {
+        if (!props.containerWidth) return 1;
+        
+        const hitboxWidth = 829; // StyledSvg的原始宽度
+        const margin = 80; // 左右边距
+        const availableWidth = props.containerWidth - (margin * 2);
+        
+        if (availableWidth <= 0) return 0.1; // 最小缩放比例
+        
+        const scale = availableWidth / hitboxWidth;
+        return Math.min(scale, 1.3); // 最大不超过1，避免放大
+    };
+
+    const scale = calculateScale();
 
     const buttonStates: { [key: number]: number } = {};
     if(props.interactiveIds) {
@@ -249,9 +270,11 @@ export default function HitboxBase(props: HitboxBaseProps) {
 
     return (
         <Box display={contextJsReady ? "block" : "none"} className={props.className}>
-            <StyledSvg xmlns="http://www.w3.org/2000/svg"
+            <StyledSvg 
+                xmlns="http://www.w3.org/2000/svg"
                 onMouseDown={handleClick}
                 onMouseUp={handleClick}
+                $scale={scale}
             >
                 <title>hitbox</title>
                 <StyledFrame x="0.36" y="0.36" width="787.82" height="507.1" rx="10" />
