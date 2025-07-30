@@ -138,6 +138,17 @@ class ADCBtnsWorker {
             RingBufferSlidingWindow<uint16_t> topValueWindow{NUM_MAPPING_INDEX_WINDOW_SIZE};  // 最小值滑动窗口
             RingBufferSlidingWindow<uint16_t> bottomValueWindow{NUM_MAPPING_INDEX_WINDOW_SIZE};   // 最大值滑动窗口
             uint16_t limitValue = 0;  // 限制值
+            
+            // 缓存的阈值（避免重复计算）
+            uint16_t cachedPressThreshold = 0;    // 缓存的按下阈值
+            uint16_t cachedReleaseThreshold = 0;  // 缓存的释放阈值
+            
+            // 预计算精度映射表
+            struct PrecisionMapping {
+                uint16_t pressThresholds[MAX_ADC_VALUES_LENGTH];   // 每个位置的按下阈值
+                uint16_t releaseThresholds[MAX_ADC_VALUES_LENGTH]; // 每个位置的弹起阈值
+                bool isValid;  // 映射表是否有效
+            } precisionMap;
         };
 
         // 获取按钮事件
@@ -154,8 +165,14 @@ class ADCBtnsWorker {
         float getCurrentReleaseAccuracy(ADCBtn* btn, const float currentDistance);
         void updateLimitValue(ADCBtn* btn, const uint16_t currentValue);
         void resetLimitValue(ADCBtn* btn, const uint16_t currentValue);
-        
-        // 校准保存相关方法
+
+        // 预计算精度映射表相关函数
+        void calculatePrecisionMapping(ADCBtn* btn);
+        uint8_t findMappingIndex(ADCBtn* btn, const uint16_t currentValue);
+        uint16_t getInterpolatedPressThreshold(ADCBtn* btn, const uint16_t currentValue);
+        uint16_t getInterpolatedReleaseThreshold(ADCBtn* btn, const uint16_t currentValue);
+
+        // 校准相关
         void saveCalibrationValues();
         bool shouldSaveCalibration(ADCBtn* btn, uint32_t currentTime);
 

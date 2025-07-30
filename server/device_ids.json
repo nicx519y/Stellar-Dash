@@ -28,6 +28,16 @@
       "registerTime": "2025-07-16T07:23:43.067Z",
       "lastSeen": "2025-07-16T07:23:43.068Z",
       "status": "active"
+    },
+    {
+      "rawUniqueId": "004A0037-32335113-34313937",
+      "deviceId": "DE430C1FAF59A5D0",
+      "deviceName": "HBox-DE430C1F",
+      "registerIP": "::ffff:127.0.0.1",
+      "registeredBy": "admin",
+      "registerTime": "2025-07-29T16:33:08.931Z",
+      "lastSeen": "2025-07-29T16:33:08.931Z",
+      "status": "active"
     }
   ],
   "lastUpdate": "2025-07-16T07:23:43.068Z"
