@@ -460,8 +460,8 @@ export const UI_TEXT = {
     DIALOG_RENAME_PROFILE_TITLE: "Rename Profile",
     
     // Dialog Messages
-    DIALOG_REBOOT_CONFIRM_MESSAGE: "Rebooting the system with saving will save the current profile and ending the current session. Are you sure to continue?",
-    DIALOG_REBOOT_SUCCESS_MESSAGE: "Rebooting the system with saving is successful. You can now close this window and start enjoying the gaming experience.",
+    DIALOG_REBOOT_CONFIRM_MESSAGE: "Rebooting the system with saving will save the current profile and ending the current session. \nAre you sure to continue?",
+    DIALOG_REBOOT_SUCCESS_MESSAGE: "Rebooting the system with saving is successful. \nYou can now close this window and start enjoying the gaming experience.",
     DIALOG_CREATE_PROFILE_CONFIRM_MESSAGE: "Creating a new profile will create a new profile and ending the current session. Are you sure to continue?",
     DIALOG_RENAME_PROFILE_CONFIRM_MESSAGE: "Renaming the current profile will save the current profile and ending the current session. Are you sure to continue?",
     
@@ -585,9 +585,11 @@ export const UI_TEXT = {
     SETTINGS_FIRMWARE_LATEST_VERSION_LABEL: "Latest Firmware Version: ",
     SETTINGS_FIRMWARE_NO_UPDATE_MESSAGE: "Current firmware is the latest version. No update available.",
     SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE: "Please click the button to update the firmware, it will take a few minutes, please do not disconnect the device.",
-    SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE: "The firmware has been updated successfully. Please click here to refresh the page.",
+    SETTINGS_FIRMWARE_UPDATE_SUCCESS_TITLE: "Firmware updated successfully",
+    SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE: "Congratulations! The firmware has been updated successfully.\nTo access the latest driver page, the page will be refreshed in {seconds} seconds.",
     SETTINGS_FIRMWARE_UPDATE_FAILED_MESSAGE: "The firmware update failed. Please click the button to try again.",
     SETTINGS_FIRMWARE_UPDATING_MESSAGE: "Updating firmware... Please do not disconnect the device.",
+    SETTINGS_FIRMWARE_UPDATE_SUCCESS_BUTTON: "Refresh Page",
 
     // Profile Select
     PROFILE_SELECT_TITLE: "Profile Select",
@@ -733,8 +735,8 @@ export const UI_TEXT_ZH = {
     DIALOG_RENAME_PROFILE_TITLE: "重命名配置",
     
     // 对话框消息
-    DIALOG_REBOOT_CONFIRM_MESSAGE: "保存并重启系统将会保存当前配置并结束当前会话。是否确认继续？",
-    DIALOG_REBOOT_SUCCESS_MESSAGE: "系统重启成功。您现在可以关闭此窗口并开始享受游戏体验。",
+    DIALOG_REBOOT_CONFIRM_MESSAGE: "保存并重启系统将会保存当前配置并结束当前会话。\n是否确认继续？",
+    DIALOG_REBOOT_SUCCESS_MESSAGE: "系统重启成功。\n您现在可以关闭此窗口并开始享受游戏体验。",
     DIALOG_CREATE_PROFILE_CONFIRM_MESSAGE: "创建新配置将会结束当前会话。是否确认继续？",
     DIALOG_RENAME_PROFILE_CONFIRM_MESSAGE: "重命名当前配置将会保存当前配置并结束当前会话。是否确认继续？",
     
@@ -858,9 +860,11 @@ export const UI_TEXT_ZH = {
     SETTINGS_FIRMWARE_LATEST_VERSION_LABEL: "最新固件版本: ",
     SETTINGS_FIRMWARE_NO_UPDATE_MESSAGE: "当前固件版本为最新版本，没有可用的更新",
     SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE: "请点击按钮更新固件，过程需要几分钟时间，不要断开设备连接",
-    SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE: "固件更新成功，请点击这里刷新页面，访问最新的驱动页面",
+    SETTINGS_FIRMWARE_UPDATE_SUCCESS_TITLE: "固件更新成功",
+    SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE: "太棒了！固件更新成功。\n为了访问最新的驱动页面，{seconds}秒后，页面将自动刷新",
     SETTINGS_FIRMWARE_UPDATE_FAILED_MESSAGE: "固件更新失败，请点击按钮重试",
     SETTINGS_FIRMWARE_UPDATING_MESSAGE: "固件更新中...请不要断开设备连接",
+    SETTINGS_FIRMWARE_UPDATE_SUCCESS_BUTTON: "刷新页面",
 
     // 配置选择
     PROFILE_SELECT_TITLE: "配置选择",

@@ -4,17 +4,16 @@ import { Provider } from "@/components/ui/provider"
 import StyledComponentsRegistry from '@/lib/registry'
 import { SettingsLayout } from '@/components/settings-layout'
 import { GamepadConfigProvider, useGamepadConfig } from '@/contexts/gamepad-config-context'
-import { Flex, HStack } from '@chakra-ui/react'
+import { Flex } from '@chakra-ui/react'
 import { toaster, Toaster } from "@/components/ui/toaster"
 import { LoadingModal } from "@/components/ui/loading-modal"
-import { ReconnectModal } from "@/components/ui/reconnect-modal"
+import { openReconnectModal, closeReconnectModal, setReconnectModalLoading } from "@/components/reconnect-modal"
 import { useState, useEffect } from 'react'
 import { DialogConfirm } from '@/components/dialog-confirm'
 import { DialogForm } from "@/components/dialog-form";
 import { DialogCannotClose } from '@/components/dialog-cannot-close'
 import { LanguageProvider, useLanguage } from '@/contexts/language-context';
-import { LanguageSwitcher } from '@/components/language-switcher'
-import { ColorModeSwitcher } from "@/components/color-mode-switcher";
+
 
 // 创建一个内部组件来使用 context
 function AppContent({ children }: { children: React.ReactNode }) {
@@ -59,8 +58,32 @@ function AppContent({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (!showReconnect) {
             setIsReconnecting(false);
+            closeReconnectModal();
+        } else {
+            openReconnectModal({
+                title: t.RECONNECT_MODAL_TITLE,
+                message: t.RECONNECT_MODAL_MESSAGE,
+                buttonText: t.RECONNECT_MODAL_BUTTON,
+                onReconnect: async () => {
+                    setIsReconnecting(true);
+                    setReconnectModalLoading(true);
+                    try {
+                        await connectWebSocket();
+                    } catch {
+                        toaster.error({
+                            title: t.RECONNECT_FAILED_TITLE,
+                            description: t.RECONNECT_FAILED_MESSAGE,
+                        });
+                        setIsReconnecting(false);
+                        setReconnectModalLoading(false);
+                    } finally {
+                        
+                    }
+                },
+                isLoading: isReconnecting,
+            });
         }
-    }, [showReconnect]);
+    }, [showReconnect, t, connectWebSocket]);
 
     return (
         <Flex
@@ -70,21 +93,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
             position="relative"
             overflow="auto"
         >
-            {/* 添加语言切换按钮 */}
-            <HStack
-                gap={4}
-                position="fixed"
-                top={"8px"}
-                right={4}
-                zIndex={2}
-            >
-                <LanguageSwitcher />
-                <ColorModeSwitcher />
-            </HStack>
+           
 
 
             {/* 内容区域 */}
-            <Flex direction="column" height="100%" zIndex={1}>
+            <Flex direction="column" height="100%" zIndex={0}>
                 <SettingsLayout>
                     {children}
                 </SettingsLayout>
@@ -96,28 +109,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </Flex>
             <Toaster />
             <LoadingModal isOpen={showLoading} />
-            <ReconnectModal
-                title={t.RECONNECT_MODAL_TITLE}
-                message={t.RECONNECT_MODAL_MESSAGE}
-                buttonText={t.RECONNECT_MODAL_BUTTON}
-                isOpen={showReconnect}
-                isLoading={isReconnecting}
-                onReconnect={async () => {
-                    setIsReconnecting(true);
-                    try {
-                        await connectWebSocket();
-                    } catch {
-                        toaster.error({
-                            title: t.RECONNECT_FAILED_TITLE,
-                            description: t.RECONNECT_FAILED_MESSAGE,
-                        });
-                        setIsReconnecting(false);
-                    } finally {
-                        
-                    }
-                }}
-                
-            />
             <DialogConfirm />
             <DialogForm />
             <DialogCannotClose />

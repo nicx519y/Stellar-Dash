@@ -1,12 +1,15 @@
 'use client';
 
 import { useRouterStore, Route } from './router';
-import { Flex, Center, Box, Tabs } from '@chakra-ui/react';
+import { Flex, Center, Box, Tabs, HStack } from '@chakra-ui/react';
 import { useLanguage } from "@/contexts/language-context";
-import { LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuGamepad,
+import {
+    LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuGamepad,
     //  LuWifi, LuMonitor, LuChartSpline 
-    } from 'react-icons/lu';
+} from 'react-icons/lu';
 import { navigationEvents } from '@/lib/event-manager';
+import { LanguageSwitcher } from '@/components/language-switcher'
+// import { ColorModeSwitcher } from "@/components/color-mode-switcher";
 
 export function SettingsLayout({ children }: { children: React.ReactNode }) {
     const { t } = useLanguage();
@@ -32,32 +35,51 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
 
     return (
         <Flex direction="column" height="100%" flex={1} >
-            <Tabs.Root
-                defaultValue={currentRoute}
-                value={currentRoute}
-                size="md"
-                variant="plain"
-                colorPalette="green"
-                boxShadow="0 1px 3px rgba(0, 0, 0, 0.4)"    
-                
-                onValueChange={handleValueChange}
+
+            {/* 添加语言切换按钮 */}
+            <HStack
+                w="full"
+                gap={4}
+                top={"8px"}
+                right={4}
+                zIndex={1}
+                justifyContent="space-between"
+                bg="bg.muted"
+                boxShadow="0 1px 3px rgba(0, 0, 0, 0.4)"
+                padding="7px 10px 7px 7px"
             >
-                <Tabs.List justifyContent="center" bg="bg.muted" width="100%">
-                    {tabs.map((tab) => (
-                        <Tabs.Trigger
-                            key={tab.id}
-                            value={tab.id}
-                            width="200px"
-                            justifyContent="center"
-                        >
-                            <Box as={tab.icon} mr={0} />
-                            <span>{tab.label}</span>
-                        </Tabs.Trigger>
-                    ))}
-                    <Tabs.Indicator rounded="l2" />
-                </Tabs.List>
-            </Tabs.Root>
-            
+
+                <Tabs.Root
+                    defaultValue={currentRoute}
+                    value={currentRoute}
+                    size="md"
+                    variant="plain"
+                    colorPalette="green"
+                    onValueChange={handleValueChange}
+                >
+                    <Tabs.List justifyContent="start" bg="bg.muted" width="100%">
+                        {tabs.map((tab) => (
+                            <Tabs.Trigger
+                                key={tab.id}
+                                value={tab.id}
+                                width="200px"
+                                justifyContent="center"
+                            >
+                                <Box as={tab.icon} mr={0} />
+                                <span>{tab.label}</span>
+                            </Tabs.Trigger>
+                        ))}
+                        <Tabs.Indicator rounded="l2" />
+                    </Tabs.List>
+                </Tabs.Root>
+                
+                <HStack justifyContent="flex-end" >
+                    <LanguageSwitcher />
+                    {/* <ColorModeSwitcher /> */}
+                </HStack>
+            </HStack>
+
+
             <Flex direction="column" flex={1} height="100%">
                 <Center flex={1}>
                     {children}

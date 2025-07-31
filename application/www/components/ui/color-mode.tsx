@@ -6,7 +6,7 @@ import { LuMoon, LuSun } from "react-icons/lu"
 
 export function ColorModeProvider({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider attribute="class" disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="dark" disableTransitionOnChange>
       {children}
     </ThemeProvider>
   )

@@ -12,7 +12,7 @@ export function ContentActionButtons(
     }
 ) {
     const { t } = useLanguage();
-    const { rebootSystem } = useGamepadConfig();
+    const { rebootSystem, setUserRebooting } = useGamepadConfig();
     return (
         <Center height="100px" pb="60px" >
             <Stack direction="row" gap={4}>
@@ -27,16 +27,18 @@ export function ContentActionButtons(
                             title: t.DIALOG_REBOOT_CONFIRM_TITLE,
                             message: t.DIALOG_REBOOT_CONFIRM_MESSAGE,
                         });
+
                         if (confirmed) {
-                            rebootSystem()
-                                .then(() => {
-                                    openRebootDialog({
-                                        title: t.DIALOG_REBOOT_SUCCESS_TITLE,
-                                        status: "success",
-                                        message: t.DIALOG_REBOOT_SUCCESS_MESSAGE,
-                                    });
-                                });
+                            await rebootSystem();
+                            setUserRebooting(true); // 标示用户主动重启
+                            openRebootDialog({
+                                id: 'reboot-success',
+                                title: t.DIALOG_REBOOT_SUCCESS_TITLE,
+                                status: "warning",
+                                message: t.DIALOG_REBOOT_SUCCESS_MESSAGE,
+                            });
                         }
+                        
                     }}
                 >
                     <LuGamepad2 />

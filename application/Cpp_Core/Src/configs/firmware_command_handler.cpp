@@ -5,6 +5,7 @@
 #include "main.h"
 #include "system_logger.h"
 #include <string>
+#include "storagemanager.hpp"
 
 /**
  * @brief 处理WebSocket命令的统一入口
@@ -593,9 +594,13 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleCompleteFirmwareUpgrade
     if (success) {
         cJSON_AddStringToObject(dataJSON, "message", "Firmware upgrade completed successfully. System will restart in 2 seconds.");
         
+        STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_WEB_CONFIG);
+        STORAGE_MANAGER.saveConfig(); // 保存配置
+
         // 设置需要重启 2秒后重启
         WebSocketCommandHandler::rebootTick = HAL_GetTick() + 2000;
         WebSocketCommandHandler::needReboot = true;
+
     } else {
         cJSON_AddStringToObject(dataJSON, "error", "Failed to complete upgrade session");
         LOG_ERROR("WebSocket", "complete_firmware_upgrade_session: Failed to complete upgrade session");

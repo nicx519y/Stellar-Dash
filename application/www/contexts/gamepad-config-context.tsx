@@ -95,6 +95,9 @@ interface GamepadConfigContextType {
     hotkeysConfig: Hotkey[];
     globalConfig: GlobalConfig;
     dataIsReady: boolean;
+    setUserRebooting: (rebooting: boolean) => void;
+    firmwareUpdating: boolean;
+    setFirmwareUpdating: (updating: boolean) => void;
     
     fetchGlobalConfig: () => Promise<void>;
     updateGlobalConfig: (globalConfig: GlobalConfig) => Promise<void>;
@@ -280,6 +283,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [hotkeysConfigIsReady, setHotkeysConfigIsReady] = useState(false);
     const [firmwareInfoIsReady, setFirmwareInfoIsReady] = useState(false);
     const [dataIsReady, setDataIsReady] = useState(false);
+    const [userRebooting, setUserRebooting] = useState(false); // 是否是用户手动重启
+    const [firmwareUpdating, setFirmwareUpdating] = useState(false); // 是否正在固件升级
 
 
     // 处理通知消息
@@ -431,7 +436,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 isFirstConnectRef.current = false;
             } else {
                 setIsLoading(false);
-                setShowReconnect(true); // 显示重连窗口
+                if(!userRebooting && !firmwareUpdating) { // 不是用户主动重启导致的断连，并且不是固件升级导致的断连
+                    setShowReconnect(true); // 显示重连窗口
+                }
             }
         }
     }, [wsFramework, wsState]);
@@ -1793,6 +1800,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             defaultProfile,
             hotkeysConfig,
             dataIsReady,
+            setUserRebooting,
+            firmwareUpdating,
+            setFirmwareUpdating,
+
             fetchDefaultProfile,
             fetchProfileList,
             fetchHotkeysConfig,

@@ -1,9 +1,10 @@
 import { useLanguage } from "@/contexts/language-context";
-import { AbsoluteCenter, Badge, Box, Card, Center, Icon, List, ProgressCircle, Spinner, Text, VStack } from "@chakra-ui/react";
+import { AbsoluteCenter, Badge, Box, Card, Center, Icon, List, ProgressCircle, Spinner, Text } from "@chakra-ui/react";
 import { useEffect, useMemo, useState } from "react";
 import { CiCircleCheck, CiCircleRemove, CiSaveUp1 } from "react-icons/ci";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { FirmwarePackage } from "@/types/types";
+import { openDialog as openSuccessDialog, updateDialogMessage } from "./dialog-cannot-close";
 
 enum UpdateStatus {
     Idle = 0,
@@ -19,11 +20,28 @@ enum ProgressPercent {
     Uploading = 0.58,
 }
 
+const REFRESH_PAGE_DELAY_SECONDS = 5; // 固件更新成功后，延迟5秒自动刷新页面
+const RECONNECT_DELAY_SECONDS = 3; // 固件更新失败后，延迟3秒重新连接websocket
+
 export function FirmwareContent() {
     const { t } = useLanguage();
     const [ _updateProgress, _setUpdateProgress ] = useState(0);
     const [ updateStatus, setUpdateStatus ] = useState(UpdateStatus.Idle);
-    const { firmwareInfo, fetchFirmwareMetadata, firmwareUpdateInfo, checkFirmwareUpdate, downloadFirmwarePackage, uploadFirmwareToDevice, dataIsReady } = useGamepadConfig();
+    const [ countdownSeconds, setCountdownSeconds ] = useState(REFRESH_PAGE_DELAY_SECONDS);
+    const [ successDialogId, setSuccessDialogId ] = useState<string | null>(null);
+    const { 
+        firmwareInfo, 
+        fetchFirmwareMetadata, 
+        firmwareUpdateInfo, 
+        checkFirmwareUpdate, 
+        downloadFirmwarePackage, 
+        uploadFirmwareToDevice, 
+        dataIsReady, 
+        setFirmwareUpdating, 
+        firmwareUpdating, 
+        wsConnected,
+        connectWebSocket,
+    } = useGamepadConfig();
     const currentVersion = useMemo(() => firmwareInfo?.firmware?.version || "0.0.0", [firmwareInfo]);
     const latestVersion = useMemo(() => firmwareUpdateInfo?.latestVersion? firmwareUpdateInfo.latestVersion : firmwareInfo?.firmware?.version || "0.0.0", [firmwareUpdateInfo, firmwareInfo]);
     const latestFirmwareUpdateLog = useMemo(() => firmwareUpdateInfo?.latestFirmware?.desc.split(/\s+/) || [], [firmwareUpdateInfo]);
@@ -69,6 +87,65 @@ export function FirmwareContent() {
         }
     }, [firmwareUpdateInfo]);
 
+    // 倒计时效果和对话框显示
+    useEffect(() => {
+        if(updateStatus === UpdateStatus.UpdateSuccess) {
+            // 重置倒计时
+            setCountdownSeconds(REFRESH_PAGE_DELAY_SECONDS);
+            
+            // 显示成功对话框（只显示一次）
+            const dialogId = openSuccessDialog({
+                title: t.SETTINGS_FIRMWARE_UPDATE_SUCCESS_TITLE,
+                message: t.SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE.replace("{seconds}", REFRESH_PAGE_DELAY_SECONDS.toString()),
+                buttons: [
+                    {
+                        text: t.SETTINGS_FIRMWARE_UPDATE_SUCCESS_BUTTON,
+                        onClick: refreshBrowser,
+                    }
+                ]
+            });
+            setSuccessDialogId(dialogId);
+            
+            // 开始倒计时
+            const countdownInterval = setInterval(() => {
+                setCountdownSeconds(prev => {
+                    if (prev <= 1) {
+                        clearInterval(countdownInterval);
+                        refreshBrowser(); // 倒计时结束自动刷新
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+
+            // 清理函数
+            return () => clearInterval(countdownInterval);
+        }
+    }, [updateStatus]);
+
+    // 更新对话框中的倒计时消息
+    useEffect(() => {
+        if (successDialogId && countdownSeconds > 0) {
+            updateDialogMessage(successDialogId, t.SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE.replace("{seconds}", countdownSeconds.toString()));
+        }
+    }, [countdownSeconds, successDialogId]);
+
+    // webcosket断开，如果是在固件更新中，则重新连接websocket，并延迟检查固件更新状态
+    useEffect(() => {
+        if(!wsConnected && firmwareUpdating) {
+            console.log('firmware: reconnect websocket.');
+            setTimeout(connectWebSocket, RECONNECT_DELAY_SECONDS);
+        } else if(wsConnected && firmwareUpdating) {
+            console.log('firmware: check update status.');
+            setFirmwareUpdating(false);
+            checkUpdateStatusLoop();
+        }
+
+    }, [wsConnected, firmwareUpdating]);
+
+    const refreshBrowser = () => {
+        window.location.reload();
+    };
 
     const upgradeFirmware = async () => {
         if (firmwareUpdateInfo && firmwareUpdateInfo.updateAvailable) {
@@ -100,9 +177,9 @@ export function FirmwareContent() {
                     _setUpdateProgress(nowProgress + progress.progress * ProgressPercent.Uploading);
                 } else if(progress.stage === 'uploadcompleted') { // 上传完成，等待设备重启，重启完成后，设置固件更新状态为成功
                     _setUpdateProgress(nowProgress + progress.progress * ProgressPercent.Uploading);
-                    setTimeout(() => { // 等待2秒后，检查固件更新状态, 此时固件已经上传到设备，设备正在重启
-                        checkUpdateStatusLoop();
-                    }, 2000);
+
+                    setFirmwareUpdating(true); // 标识状态，不展示重连提示，用于等待固件上传完成做状态检查
+
                 } else if(progress.stage === 'failed') {
                     setUpdateStatus(UpdateStatus.UpdateFailed);
                 }
@@ -114,6 +191,7 @@ export function FirmwareContent() {
     const checkUpdateStatusLoop = async () => {
         try {
             await fetchFirmwareMetadata();
+            
         } catch {
             // 如果请求失败，则2秒后重试
             setTimeout(() => {
@@ -153,7 +231,7 @@ export function FirmwareContent() {
                 />
             </Center>
 
-            <VStack display={firmwareUpdateInfo ? "block" : "none"} >
+            <Center display={firmwareUpdateInfo ? "block" : "none"} w="400px" >
                 <Center w="full" height="160px"  >
                 {/* 没有更新 */}
                 {updateStatus === UpdateStatus.NoUpdate && (
@@ -196,13 +274,13 @@ export function FirmwareContent() {
                 <Text fontSize="2rem" color="green.600" textAlign="center">
                     {t.SETTINGS_FIRMWARE_TITLE}
                 </Text>
-                <Box pt=".5rem" width="300px" >
+                <Box pt=".5rem" w="full" >
                     <Text fontSize=".9rem" textAlign="center">
                         {t.SETTINGS_FIRMWARE_CURRENT_VERSION_LABEL}<Badge colorPalette="green" fontSize=".9rem" >v{currentVersion}</Badge><br />
                         {t.SETTINGS_FIRMWARE_LATEST_VERSION_LABEL}<Badge colorPalette="yellow" fontSize=".9rem" >v{latestVersion}</Badge><br />
                     </Text>
                 </Box>
-                <Box pt=".5rem" pb="1rem" width="300px" height="90px" >
+                <Box pt=".5rem" pb="1rem" w="full" height="90px" >
 
                     <Text fontSize=".9rem" textAlign="center"
                         onClick={updateStatus === UpdateStatus.UpdateSuccess ? () => { window.location.reload(); } : undefined}
@@ -219,7 +297,7 @@ export function FirmwareContent() {
                         : updateStatus === UpdateStatus.UpdateAvailable ? t.SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE : "" }
                     </Text>
                 </Box>
-                <Card.Root width="400px" height="200px" display={updateStatus === UpdateStatus.NoUpdate ? "none" : "block"} >
+                <Card.Root height="200px" display={updateStatus === UpdateStatus.NoUpdate ? "none" : "block"} >
                     <Card.Body overflowY="auto" pl="2rem" pr="2rem" pt="1rem" pb="1rem" >
                         <List.Root
                             gap=".5rem"
@@ -239,7 +317,7 @@ export function FirmwareContent() {
                         </List.Root>
                     </Card.Body>
                 </Card.Root>
-            </VStack>
+            </Center>
         </Center>
     );
 }

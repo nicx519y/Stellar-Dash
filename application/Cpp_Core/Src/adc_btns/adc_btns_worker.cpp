@@ -503,11 +503,6 @@ ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint
 
     switch(btn->state) {
         case ButtonState::RELEASED:
-            // 释放状态：使用缓存的按下阈值
-            if(buttonIndex == 0) {
-                APP_DBG("RELEASED: limitValue=%d, cachedPressThreshold=%d, noise=%d, currentValue=%d", 
-                        btn->limitValue, btn->cachedPressThreshold, noise, currentValue);
-            }
             
             // 判断当前值是否达到按下阈值
             if (currentValue >= btn->cachedPressThreshold + noise) {
@@ -524,11 +519,6 @@ ADCBtnsWorker::ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn* btn, const uint
             break;
 
         case ButtonState::PRESSED:
-            // 按下状态：使用缓存的释放阈值
-            if(buttonIndex == 0) {
-                APP_DBG("PRESSED: limitValue=%d, cachedReleaseThreshold=%d, noise=%d, currentValue=%d", 
-                        btn->limitValue, btn->cachedReleaseThreshold, noise, currentValue);
-            }
             
             // 判断当前值是否达到释放阈值
             if (currentValue <= btn->cachedReleaseThreshold - noise) {

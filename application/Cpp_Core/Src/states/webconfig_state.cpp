@@ -30,8 +30,6 @@ void WebConfigState::setup() {
     int8_t qspi_result = QSPI_W25Qxx_EnterMemoryMappedMode();
     if (qspi_result != 0) {
         LOG_ERROR("WEBCONFIG", "Failed to enter QSPI memory mapped mode, error: %d", qspi_result);
-    } else {
-        LOG_DEBUG("WEBCONFIG", "QSPI memory mapped mode enabled successfully");
     }
 
     // 初始化LED管理器
@@ -42,6 +40,10 @@ void WebConfigState::setup() {
     isRunning = true;
     workTime = MICROS_TIMER.micros();  // 微秒级
     // LOG_INFO("WEBCONFIG", "Web configuration state setup completed successfully");
+
+    // 在storage中自动切换成input mode，保证下次重启device的时候是input mode
+    STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
+    STORAGE_MANAGER.saveConfig(); // 保存配置
 
     // Logger_Flush();
 }
@@ -66,5 +68,4 @@ void WebConfigState::reset() {
     // 清除LED预览模式，恢复默认配置
     WEBCONFIG_LEDS_MANAGER.clearPreviewConfig();
     
-    LOG_DEBUG("WEBCONFIG", "Web configuration state reset completed");
 }
