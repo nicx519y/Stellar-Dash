@@ -20,7 +20,7 @@ export function ContentActionButtons(
                     disabled={props.disabled}
                     colorPalette="blue"
                     variant="solid"
-                    size="md"
+                    size="xl"
                     width={"280px"}
                     onClick={async () => {
                         const confirmed = await openRebootConfirmDialog({
@@ -29,14 +29,21 @@ export function ContentActionButtons(
                         });
 
                         if (confirmed) {
-                            await rebootSystem();
-                            setUserRebooting(true); // 标示用户主动重启
-                            openRebootDialog({
-                                id: 'reboot-success',
-                                title: t.DIALOG_REBOOT_SUCCESS_TITLE,
-                                status: "warning",
-                                message: t.DIALOG_REBOOT_SUCCESS_MESSAGE,
-                            });
+                            // 清空websocket队列后重启
+                            try {
+                                // await flushQueue();
+                                console.log('WebSocket队列已清空，开始重启系统');
+                                await rebootSystem();
+                                setUserRebooting(true); // 标示用户主动重启
+                                openRebootDialog({
+                                    id: 'reboot-success',
+                                    title: t.DIALOG_REBOOT_SUCCESS_TITLE,
+                                    status: "warning",
+                                    message: t.DIALOG_REBOOT_SUCCESS_MESSAGE,
+                                });
+                            } catch {
+                                throw new Error('清空队列或重启失败');
+                            }
                         }
                         
                     }}

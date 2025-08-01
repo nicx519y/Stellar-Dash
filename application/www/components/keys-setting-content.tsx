@@ -15,7 +15,7 @@ import {
     Switch,
     Box,
 } from "@chakra-ui/react";
-import KeymappingFieldset from "@/components/keymapping-fieldset";
+import KeymappingFieldset, { KeymappingFieldsetRef } from "@/components/keymapping-fieldset";
 import { useEffect, useMemo, useState, useRef } from "react";
 import {
     RadioCardItem,
@@ -28,6 +28,7 @@ import {
     GameControllerButton,
     KEYS_SETTINGS_INTERACTIVE_IDS,
     Platform,
+    GameControllerButtonList,
 } from "@/types/gamepad-config";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import HitboxKeys from "@/components/hitbox/hitbox-keys";
@@ -70,7 +71,8 @@ export function KeysSettingContent() {
     const [inputKey, setInputKey] = useState<number>(-1);
     const [keysEnableSettingActive, setKeysEnableSettingActive] = useState<boolean>(false); // 按键启用/禁用设置状态
     const [autoSwitch, setAutoSwitch] = useState<boolean>(true);
-
+    
+    const keymappingFieldsetRef = useRef<KeymappingFieldsetRef>(null);
     
 
     useEffect(() => {
@@ -124,6 +126,7 @@ export function KeysSettingContent() {
         const clearMapping = Object.fromEntries(Object.keys(keyMapping).map(key => [key, []]));
         setKeyMapping(clearMapping);
         setNeedUpdate(true);
+        keymappingFieldsetRef.current?.setActiveButton(GameControllerButtonList[0]); // 清除数据以后，自动将第一个button作为active button
     }
 
     useEffect(() => {
@@ -272,6 +275,7 @@ export function KeysSettingContent() {
                                         </HStack>
 
                                         <KeymappingFieldset
+                                            ref={keymappingFieldsetRef}
                                             autoSwitch={autoSwitch}
                                             inputKey={inputKey}
                                             inputMode={globalConfig.inputMode ?? Platform.XINPUT}

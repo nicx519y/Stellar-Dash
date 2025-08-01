@@ -62,49 +62,49 @@ export function DialogCannotClose() {
                                 backdropFilter="blur(4px)"
                             />
 
-<Dialog.Root
-                            open={dialog.isOpen}
-                            modal
-                            size={dialog.size ?? 'md'}
-                            onPointerDownOutside={e => e.preventDefault()}
-                            onEscapeKeyDown={e => e.preventDefault()}
-                        >
-                            <Dialog.Positioner>
-                                <Dialog.Content>
-                                    <Dialog.Header>
-                                        {dialog.title && (
-                                            <Dialog.Title>{dialog.title}</Dialog.Title>
+                            <Dialog.Root
+                                open={dialog.isOpen}
+                                modal
+                                size={dialog.size ?? 'md'}
+                                onPointerDownOutside={e => e.preventDefault()}
+                                onEscapeKeyDown={e => e.preventDefault()}
+                            >
+                                <Dialog.Positioner>
+                                    <Dialog.Content>
+                                        <Dialog.Header>
+                                            {dialog.title && (
+                                                <Dialog.Title>{dialog.title}</Dialog.Title>
+                                            )}
+                                        </Dialog.Header>
+                                        <Dialog.Body>
+                                            <Alert colorPalette={dialog.status === "success" ? "green" : dialog.status === "error" ? "red" : dialog.status === "info" ? "blue" : "yellow"}>
+                                                <Text whiteSpace="pre-wrap" lineHeight="1.5" >
+                                                    {dialog.message}
+                                                </Text>
+                                            </Alert>
+                                        </Dialog.Body>
+                                        {dialog.buttons && (
+                                            <Dialog.Footer>
+                                                {dialog.buttons?.map((button, index) => (
+                                                    <Button
+                                                        key={index}
+                                                        onClick={button.onClick}
+                                                        colorPalette={button.colorPalette}
+                                                        loading={button.loading}
+                                                        spinner={button.spinner}
+                                                    >
+                                                        {button.text}
+                                                    </Button>
+                                                ))}
+                                            </Dialog.Footer>
                                         )}
-                                    </Dialog.Header>
-                                    <Dialog.Body>
-                                        <Alert colorPalette={dialog.status === "success" ? "green" : dialog.status === "error" ? "red" : dialog.status === "info" ? "blue" : "yellow"}>
-                                            <Text whiteSpace="pre-wrap" lineHeight="1.5" >
-                                                {dialog.message}
-                                            </Text>
-                                        </Alert>
-                                    </Dialog.Body>
-                                    {dialog.buttons && (
-                                        <Dialog.Footer>
-                                            {dialog.buttons?.map((button, index) => (
-                                                <Button
-                                                    key={index}
-                                                    onClick={button.onClick}
-                                                    colorPalette={button.colorPalette}
-                                                    loading={button.loading}
-                                                    spinner={button.spinner}
-                                                >
-                                                    {button.text}
-                                                </Button>
-                                            ))}
-                                        </Dialog.Footer>
-                                    )}
-                                </Dialog.Content>
-                            </Dialog.Positioner>
-                        </Dialog.Root>
+                                    </Dialog.Content>
+                                </Dialog.Positioner>
+                            </Dialog.Root>
 
                         </Box>
 
-                        
+
                     </Portal>
                 );
             })}

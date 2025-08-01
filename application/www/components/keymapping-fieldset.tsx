@@ -11,26 +11,33 @@ import {
 } from "@/types/gamepad-config";
 import KeymappingField from "@/components/keymapping-field";
 import { showToast } from "@/components/ui/toaster";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, forwardRef, useImperativeHandle } from "react";
 import { SimpleGrid } from "@chakra-ui/react";
 import { useLanguage } from "@/contexts/language-context";
 
-export default function KeymappingFieldset(
-    props: {
-        inputMode: Platform,
-        inputKey: number,
-        keyMapping: { [key in GameControllerButton]?: number[] },
-        autoSwitch: boolean,
-        disabled?: boolean,
-        changeKeyMappingHandler: (keyMapping: { [key in GameControllerButton]?: number[] }) => void,
-    }
-) {
+export interface KeymappingFieldsetRef {
+    setActiveButton: (button: GameControllerButton) => void;
+}
+
+const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
+    inputMode: Platform,
+    inputKey: number,
+    keyMapping: { [key in GameControllerButton]?: number[] },
+    autoSwitch: boolean,
+    disabled?: boolean,
+    changeKeyMappingHandler: (keyMapping: { [key in GameControllerButton]?: number[] }) => void,
+}>((props, ref) => {
 
     const { inputMode, inputKey, keyMapping, autoSwitch, disabled, changeKeyMappingHandler } = props;
     const { t } = useLanguage();
 
     const [activeButton, setActiveButton] = useState<GameControllerButton>(GameControllerButtonList[0]);
     
+    // 暴露方法给父组件
+    useImperativeHandle(ref, () => ({
+        setActiveButton: setActiveButton
+    }), []);
+
     const isDisabled = useMemo(() => {
         return disabled ?? false;
     }, [disabled]);
@@ -117,4 +124,8 @@ export default function KeymappingFieldset(
             </SimpleGrid>
         </>
     )
-}
+});
+
+KeymappingFieldset.displayName = 'KeymappingFieldset';
+
+export default KeymappingFieldset;
