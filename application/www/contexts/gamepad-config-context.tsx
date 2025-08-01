@@ -158,6 +158,8 @@ interface GamepadConfigContextType {
     updateMarkingStatus: (status: StepInfo) => void;
     // 立即发送队列中的特定命令
     sendPendingCommandImmediately: (command: string) => boolean;
+    // 快速清空队列
+    flushQueue: () => Promise<void>;
     // WebSocket配置管理
     getWebSocketConfig: () => WebSocketConfigType;
     updateWebSocketConfig: (config: Partial<WebSocketConfigType>) => void;
@@ -244,7 +246,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [showReconnect, setShowReconnect] = useState(false);  // 是否显示websocket重连窗口
     
     // WebSocket 队列管理器
-    const wsQueueManager = useRef<WebSocketQueueManager | null>(null);
+    // const wsQueueManager = useRef<WebSocketQueueManager | null>(null);
     
     const [defaultMappingId, setDefaultMappingId] = useState<string>("");
     const [mappingList, setMappingList] = useState<{ id: string, name: string }[]>([]);
@@ -351,26 +353,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             timeout: websocketConfig.timeout
         });
 
-        // 初始化队列管理器
-        const queueManager = new WebSocketQueueManager();
-        
-        // 设置队列管理器的发送函数
-        queueManager.setSendFunction(async (command: string, params: any) => {
-            // 直接调用WebSocket框架的sendMessage，它会处理完整的请求-响应流程
-            return await framework.sendMessage(command, params);
-        });
-        
-        wsQueueManager.current = queueManager;
-
         // 设置事件监听器
         const unsubscribeState = framework.onStateChange((state) => {
             setWsState(state);
             setWsConnected(state === WebSocketState.CONNECTED);
-            
-            // 如果连接断开，清空队列
-            if (state === WebSocketState.DISCONNECTED && wsQueueManager.current) {
-                wsQueueManager.current.clear();
-            }
         });
 
         const unsubscribeError = framework.onError((error) => {
@@ -412,12 +398,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             unsubscribeBinary();
             unsubscribeDisconnect();
             framework.disconnect();
-            
-            // 清理队列管理器
-            if (wsQueueManager.current) {
-                wsQueueManager.current.destroy();
-                wsQueueManager.current = null;
-            }
         };
     }, []);
 
@@ -508,8 +488,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
      * @returns 
      */
     const sendWebSocketRequest = async (command: string, params: Record<string, unknown> = {}, immediate: boolean = false): Promise<any> => {
-        if (!wsQueueManager.current) {
-            return Promise.reject(new Error('WebSocket队列管理器未初始化'));
+        if (!wsFramework) {
+            return Promise.reject(new Error('WebSocket框架未初始化'));
         }
         if (wsState !== WebSocketState.CONNECTED) {
             throw new Error('WebSocket未连接');
@@ -517,7 +497,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         
         try {
             // 将请求推入队列，队列管理器会处理延迟、去重和顺序发送
-            return await wsQueueManager.current.enqueue(command, params, immediate);
+            return await wsFramework.enqueue(command, params, immediate);
         } catch (error) {
             if (error instanceof Error) {
                 throw error;
@@ -1762,10 +1742,17 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     // 立即发送队列中的特定命令
     const sendPendingCommandImmediately = (command: string): boolean => {
-        if (wsQueueManager.current) {
-            return wsQueueManager.current.sendPendingCommandImmediately(command);
+        if (wsFramework) {
+            return wsFramework.sendPendingCommandImmediately(command);
         }
         return false;
+    };
+
+    // 快速清空队列
+    const flushQueue = async (): Promise<void> => {
+        if (wsFramework) {
+            await wsFramework.flushQueue();
+        }
     };
 
     // WebSocket配置管理
@@ -1862,6 +1849,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             getValidChunkSizes: getValidChunkSizes,
             updateMarkingStatus: updateMarkingStatus,
             sendPendingCommandImmediately: sendPendingCommandImmediately,
+            flushQueue: flushQueue,
             getWebSocketConfig: getWebSocketConfig,
             updateWebSocketConfig: updateWebSocketConfig,
         }}>

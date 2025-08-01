@@ -12,7 +12,7 @@ export function ContentActionButtons(
     }
 ) {
     const { t } = useLanguage();
-    const { rebootSystem, setUserRebooting } = useGamepadConfig();
+    const { rebootSystem, setUserRebooting, flushQueue } = useGamepadConfig();
     return (
         <Center height="100px" pb="60px" >
             <Stack direction="row" gap={4}>
@@ -31,7 +31,7 @@ export function ContentActionButtons(
                         if (confirmed) {
                             // 清空websocket队列后重启
                             try {
-                                // await flushQueue();
+                                await flushQueue();
                                 console.log('WebSocket队列已清空，开始重启系统');
                                 await rebootSystem();
                                 setUserRebooting(true); // 标示用户主动重启

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { DEFAULT_WEBSOCKET_CONFIG } from '@/contexts/gamepad-config-context';
+import { WebSocketQueueManager } from '@/lib/websocket-queue-manager';
 
 // WebSocket消息类型定义
 export interface WebSocketUpstreamMessage {
@@ -67,6 +68,9 @@ export class WebSocketFramework {
   private pendingRequests = new Map<number, PendingRequest>();
   private nextCid = 1;
 
+  // 队列管理器
+  private queueManager: WebSocketQueueManager = new WebSocketQueueManager();
+
   // 事件监听器
   private messageHandlers = new Set<MessageHandler>();
   private binaryMessageHandlers = new Set<BinaryMessageHandler>();
@@ -80,6 +84,9 @@ export class WebSocketFramework {
       heartbeatInterval: config.heartbeatInterval || DEFAULT_WEBSOCKET_CONFIG.heartbeatInterval,
       timeout: config.timeout || DEFAULT_WEBSOCKET_CONFIG.timeout
     };
+
+    // 设置队列管理器的发送函数
+    this.queueManager.setSendFunction((command, params) => this.sendMessageDirect(command, params));
   }
 
   // 连接WebSocket
@@ -224,6 +231,11 @@ export class WebSocketFramework {
     }
   }
 
+  // 直接发送消息（供队列管理器使用）
+  private async sendMessageDirect(command: string, params: Record<string, unknown> = {}): Promise<Record<string, unknown> | undefined> {
+    return this.sendMessage(command, params);
+  }
+
   // 发送二进制消息
   public sendBinaryMessage(data: ArrayBuffer | Uint8Array): void {
     if (this.state !== WebSocketState.CONNECTED) {
@@ -297,6 +309,23 @@ export class WebSocketFramework {
   // 获取当前状态
   public getState(): WebSocketState {
     return this.state;
+  }
+
+  // 队列管理相关方法
+  public async enqueue(command: string, params: Record<string, unknown> = {}, immediate: boolean = false): Promise<Record<string, unknown> | undefined> {
+    return this.queueManager.enqueue(command, params, immediate);
+  }
+
+  public flushQueue(): Promise<void> {
+    return this.queueManager.flushQueue();
+  }
+
+  public getQueueStatus() {
+    return this.queueManager.getStatus();
+  }
+
+  public sendPendingCommandImmediately(command: string): boolean {
+    return this.queueManager.sendPendingCommandImmediately(command);
   }
 
   // 事件监听器管理
@@ -416,6 +445,9 @@ export class WebSocketFramework {
       reject(new Error('连接已断开'));
     });
     this.pendingRequests.clear();
+
+    // 清理队列管理器
+    this.queueManager.clear();
   }
 }
 
@@ -483,6 +515,23 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     return frameworkRef.current?.onBinaryMessage(handler) || (() => {});
   }, []);
 
+  // 队列管理方法
+  const enqueue = useCallback((command: string, params: Record<string, unknown> = {}, immediate: boolean = false) => {
+    return frameworkRef.current?.enqueue(command, params, immediate) || Promise.reject('Framework not initialized');
+  }, []);
+
+  const flushQueue = useCallback(() => {
+    return frameworkRef.current?.flushQueue() || Promise.reject('Framework not initialized');
+  }, []);
+
+  const getQueueStatus = useCallback(() => {
+    return frameworkRef.current?.getQueueStatus() || { queueSize: 0, queueState: 'idle', isPolling: false, queuedCommands: [], pausedCommands: [], isFlushing: false, pendingFlushCount: 0 };
+  }, []);
+
+  const sendPendingCommandImmediately = useCallback((command: string) => {
+    return frameworkRef.current?.sendPendingCommandImmediately(command) || false;
+  }, []);
+
   // 新增的队列管理方法
   const getPendingRequests = useCallback(() => {
     return frameworkRef.current?.getPendingRequests() || [];
@@ -507,6 +556,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     sendBinaryMessage,
     onMessage,
     onBinaryMessage,
+    // 队列管理方法
+    enqueue,
+    flushQueue,
+    getQueueStatus,
+    sendPendingCommandImmediately,
     // 新增的队列管理方法
     getPendingRequests,
     cancelPendingCommand,

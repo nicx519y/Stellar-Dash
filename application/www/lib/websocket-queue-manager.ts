@@ -43,11 +43,51 @@ export class WebSocketQueueManager {
     // WebSocket发送函数，由外部设置 - 直接返回响应数据
     private sendFunction: ((command: string, params: MessageParams) => Promise<ResponseData>) | null = null;
 
+    // 清空队列相关状态
+    private isFlushingQueue: boolean = false; // 是否正在清空队列
+    private flushPromise: Promise<void> | null = null; // 清空队列的Promise
+    private flushResolve: (() => void) | null = null; // 清空完成的resolve函数
+    private pendingFlushCount: number = 0; // 待清空的命令数量
+
     /**
      * 设置WebSocket发送函数
      */
     setSendFunction(sendFn: (command: string, params: MessageParams) => Promise<ResponseData>) {
         this.sendFunction = sendFn;
+    }
+
+    /**
+     * 快速清空队列
+     * 将所有待发送命令立即执行，等待所有命令完成后返回Promise
+     * @returns Promise，当所有命令发送完毕后 resolve
+     */
+    flushQueue(): Promise<void> {
+        if (this.isFlushingQueue) {
+            return this.flushPromise!;
+        }
+
+        this.isFlushingQueue = true;
+        this.flushPromise = new Promise<void>((resolve) => {
+            this.flushResolve = resolve;
+        });
+
+        // 计算当前队列中活跃的命令数量
+        this.pendingFlushCount = Array.from(this.messageQueue.values()).filter(msg => !msg.paused).length;
+
+        if (this.pendingFlushCount === 0) {
+            // 队列为空，立即完成
+            this.isFlushingQueue = false;
+            this.flushPromise = null;
+            this.flushResolve = null;
+            return Promise.resolve();
+        }
+
+        console.log(`[WebSocketQueue] Starting queue flush for ${this.pendingFlushCount} commands`);
+
+        // 启动轮询以确保消息被处理
+        this.startPolling();
+
+        return this.flushPromise;
     }
 
     /**
@@ -155,7 +195,12 @@ export class WebSocketQueueManager {
                 continue;
             }
             
-            if (message.canSendAt <= now) {
+            // 如果正在清空队列，立即发送所有消息
+            if (this.isFlushingQueue) {
+                if (!nextMessage) {
+                    nextMessage = message;
+                }
+            } else if (message.canSendAt <= now) {
                 // 可以立即发送，选择发送时间最近的
                 if (!nextMessage || message.canSendAt < nextMessage.canSendAt) {
                     nextMessage = message;
@@ -224,13 +269,52 @@ export class WebSocketQueueManager {
             
             console.log(`[WebSocketQueue] Command completed: ${message.command}`);
 
+            // 如果是清空队列中的命令，减少计数
+            if (this.isFlushingQueue) {
+                this.pendingFlushCount--;
+                console.log(`[WebSocketQueue] Flush command completed: ${message.command}, remaining: ${this.pendingFlushCount}`);
+                
+                // 检查是否所有清空命令都已完成
+                if (this.pendingFlushCount <= 0) {
+                    this.completeFlush();
+                }
+            }
+
         } catch (error) {
             console.error(`[WebSocketQueue] Failed to send message:`, error);
             message.reject(error instanceof Error ? error : new Error(String(error)));
+            
+            // 如果是清空队列中的命令，即使失败也要减少计数
+            if (this.isFlushingQueue) {
+                this.pendingFlushCount--;
+                console.log(`[WebSocketQueue] Flush command failed: ${message.command}, remaining: ${this.pendingFlushCount}`);
+                
+                // 检查是否所有清空命令都已完成
+                if (this.pendingFlushCount <= 0) {
+                    this.completeFlush();
+                }
+            }
         } finally {
             // 设置为空闲状态，可以处理下一条消息
             this.queueState = QueueState.IDLE;
             console.log(`[WebSocketQueue] Queue state changed to IDLE`);
+        }
+    }
+
+    /**
+     * 完成清空队列
+     */
+    private completeFlush(): void {
+        console.log(`[WebSocketQueue] All flush commands completed`);
+        
+        // 重置清空状态
+        this.isFlushingQueue = false;
+        this.flushPromise = null;
+        
+        // 调用resolve函数
+        if (this.flushResolve) {
+            this.flushResolve();
+            this.flushResolve = null;
         }
     }
 
@@ -250,6 +334,12 @@ export class WebSocketQueueManager {
         // 重置状态
         this.queueState = QueueState.IDLE;
 
+        // 重置清空队列状态
+        this.isFlushingQueue = false;
+        this.flushPromise = null;
+        this.flushResolve = null;
+        this.pendingFlushCount = 0;
+
         console.log(`[WebSocketQueue] Queue cleared`);
     }
 
@@ -266,7 +356,9 @@ export class WebSocketQueueManager {
             queueState: this.queueState,
             isPolling: this.pollTimer !== null,
             queuedCommands: Array.from(this.messageQueue.keys()),
-            pausedCommands: pausedCommands
+            pausedCommands: pausedCommands,
+            isFlushing: this.isFlushingQueue,
+            pendingFlushCount: this.pendingFlushCount
         };
     }
 
