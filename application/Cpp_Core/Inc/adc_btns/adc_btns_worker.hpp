@@ -100,7 +100,7 @@ class ADCBtnsWorker {
          * @return true 如果获取成功
          */
         bool getButtonDetails(uint8_t buttonIndex, uint16_t& adcValue, float& travelDistance, 
-                             uint16_t& limitValue, float& limitValueDistance) const;
+                             uint16_t& pressStartValue, uint16_t& releaseStartValue, float& pressStartValueDistance, float& releaseStartValueDistance) const;
 
         /**
          * @brief 获取指定按钮的虚拟引脚
@@ -178,6 +178,9 @@ class ADCBtnsWorker {
             RingBufferSlidingWindow<uint16_t> topValueWindow{NUM_MAPPING_INDEX_WINDOW_SIZE};  // 最小值滑动窗口
             RingBufferSlidingWindow<uint16_t> bottomValueWindow{NUM_MAPPING_INDEX_WINDOW_SIZE};   // 最大值滑动窗口
             uint16_t limitValue = 0;  // 限制值
+            uint16_t prevLimitValue = 0;  // 上一次的限制值
+            uint16_t pressStartValue = 0;  // 按下开始值
+            uint16_t releaseStartValue = 0;  // 释放开始值
             
             // 缓存的阈值（避免重复计算）
             uint16_t cachedPressThreshold = 0;    // 缓存的按下阈值

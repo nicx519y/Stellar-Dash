@@ -139,6 +139,9 @@ interface GamepadConfigContextType {
     startButtonMonitoring: () => Promise<void>;
     stopButtonMonitoring: () => Promise<void>;
     getButtonStates: () => Promise<ButtonStates>;
+    // 按键性能监控相关
+    startButtonPerformanceMonitoring: () => Promise<void>;
+    stopButtonPerformanceMonitoring: () => Promise<void>;
     // LED 配置相关
     pushLedsConfig: (ledsConfig: LEDsConfig) => Promise<void>;
     clearLedsPreview: () => Promise<void>;
@@ -969,6 +972,29 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             console.error('获取按键状态失败:', error);
             setError(error instanceof Error ? error.message : '获取按键状态失败');
             throw error;
+        }
+    };
+
+    // 按键性能监控相关
+    const startButtonPerformanceMonitoring = async (immediate: boolean = true): Promise<void> => {
+        try {
+            const data = await sendWebSocketRequest('start_button_performance_monitoring', {}, immediate);
+            setButtonMonitoringActive(data.isActive ?? false);
+            setError(null);
+            return Promise.resolve();
+        } catch (err) {
+            return Promise.reject(new Error("Failed to start button performance monitoring"));
+        }
+    };
+
+    const stopButtonPerformanceMonitoring = async (immediate: boolean = true): Promise<void> => {
+        try {
+            const data = await sendWebSocketRequest('stop_button_performance_monitoring', {}, immediate);
+            setButtonMonitoringActive(data.isActive ?? false);
+            setError(null);
+            return Promise.resolve();
+        } catch (err) {
+            return Promise.reject(new Error("Failed to stop button performance monitoring"));
         }
     };
 
@@ -1831,6 +1857,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             startButtonMonitoring,
             stopButtonMonitoring,
             getButtonStates,
+            // 按键性能监控相关
+            startButtonPerformanceMonitoring,
+            stopButtonPerformanceMonitoring,
             // LED 配置相关
             pushLedsConfig: pushLedsConfig,
             clearLedsPreview: clearLedsPreview,

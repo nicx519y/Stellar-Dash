@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { DEFAULT_WEBSOCKET_CONFIG } from '@/contexts/gamepad-config-context';
 import { WebSocketQueueManager } from '@/lib/websocket-queue-manager';
+import { eventBus, EVENTS } from '@/lib/event-manager';
 
 // WebSocket消息类型定义
 export interface WebSocketUpstreamMessage {
@@ -398,6 +399,21 @@ export class WebSocketFramework {
 
   private handleBinaryMessage(data: ArrayBuffer): void {
     console.log('收到二进制WebSocket消息');
+    
+    // 解析命令号
+    const view = new DataView(data);
+    const command = view.getUint8(0);
+    
+    // 根据命令号触发不同的eventBus事件
+    if (command === 1) {
+      // 按键状态变化事件
+      eventBus.emit(EVENTS.BUTTON_STATE_CHANGED, data);
+    } else if (command === 2) {
+      // 按键性能监控事件
+      eventBus.emit(EVENTS.BUTTON_PERFORMANCE_MONITORING, data);
+    }
+    
+    // 同时调用所有二进制消息处理器
     this.binaryMessageHandlers.forEach(handler => handler(data));
   }
 

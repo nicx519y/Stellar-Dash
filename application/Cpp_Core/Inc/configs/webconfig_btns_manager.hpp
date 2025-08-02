@@ -22,8 +22,10 @@ struct ADCBtnTestEvent {
     uint8_t virtualPin;            // 虚拟引脚
     uint16_t adcValue;             // 触发时的ADC值
     float triggerDistance;         // 触发时的物理行程（mm）
-    float limitValueDistance;      // limitValue对应的物理行程（mm）
-    uint16_t limitValue;           // limitValue值
+    uint16_t pressStartValue;      // 按下开始值
+    uint16_t releaseStartValue;    // 释放开始值
+    float pressStartValueDistance;  // 按下开始值对应的物理行程（mm）
+    float releaseStartValueDistance;  // 释放开始值对应的物理行程（mm）
     bool isPressEvent;             // 是否为按下事件（true=按下，false=释放）
     uint32_t timestamp;            // 时间戳
 };
@@ -34,12 +36,16 @@ public:
 
     // 按键状态变化回调类型
     using ButtonStateChangedCallback = std::function<void()>;
+    // 按键性能监控回调类型
+    using ButtonPerformanceMonitoringCallback = std::function<void()>;
     
     // ADC按键技术测试模式回调类型
     using ADCBtnTestCallback = std::function<void(const ADCBtnTestEvent&)>;
     
     // 设置按键状态变化回调
     void setButtonStateChangedCallback(ButtonStateChangedCallback callback);
+    // 设置按键性能监控回调
+    void setButtonPerformanceMonitoringCallback(ButtonPerformanceMonitoringCallback callback);
     
     // 设置ADC按键技术测试模式回调
     void setADCBtnTestCallback(ADCBtnTestCallback callback);
@@ -105,7 +111,7 @@ private:
     
     // ========== 按键状态变化回调 ==========
     ButtonStateChangedCallback buttonStateChangedCallback; // 按键状态变化回调函数
-    ADCBtnTestCallback adcBtnTestCallback; // ADC按键技术测试模式回调函数
+    ButtonPerformanceMonitoringCallback buttonPerformanceMonitoringCallback; // 按键性能监控回调函数
     
     // ========== 技术测试模式事件收集 ==========
     std::vector<ADCBtnTestEvent> testEventCollector; // 测试事件收集器

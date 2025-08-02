@@ -103,6 +103,8 @@ void WebSocketCommandManager::initializeHandlers() {
     // 注册按键监控相关命令
     registerHandler("start_button_monitoring", &commonHandler);
     registerHandler("stop_button_monitoring", &commonHandler);
+    registerHandler("start_button_performance_monitoring", &commonHandler);
+    registerHandler("stop_button_performance_monitoring", &commonHandler);
     registerHandler("get_button_states", &commonHandler);
     
     // 注册固件相关命令

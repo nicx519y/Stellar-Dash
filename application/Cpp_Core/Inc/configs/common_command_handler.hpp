@@ -22,30 +22,35 @@ struct ButtonStateBinaryData {
     uint8_t reserved[2];    // 保留字节，用于将来扩展，保持8字节对齐
 };
 
-// ADC按键测试事件推送的二进制数据结构
-struct ADCBtnTestEventBinaryData {
-    uint8_t command;        // 命令号：2 表示ADC按键测试事件
-    uint8_t eventCount;     // 本次推送的事件数量
-    uint32_t timestamp;     // 时间戳
-    uint8_t reserved[2];    // 保留字节，用于将来扩展，保持8字节对齐
-    // 后面跟着 eventCount 个 ADCBtnTestEventItem
-};
-
-// 单个ADC按键测试事件项
-struct ADCBtnTestEventItem {
+// 单个按键性能监控数据
+struct ButtonPerformanceData {
     uint8_t buttonIndex;    // 按键索引
     uint8_t virtualPin;     // 虚拟引脚
-    uint16_t adcValue;      // 触发时的ADC值
+    uint16_t adcValue;      // 当前ADC值
     float triggerDistance;  // 触发时的物理行程（mm）
-    float limitValueDistance; // limitValue对应的物理行程（mm）
-    uint16_t limitValue;    // limitValue值
-    uint8_t isPressEvent;   // 是否为按下事件（1=按下，0=释放）
+    uint16_t pressStartValue; // 按下开始值
+    uint16_t releaseStartValue; // 释放开始值
+    float pressStartValueDistance; // 按下开始值对应的物理行程（mm）
+    float releaseStartValueDistance; // 释放开始值对应的物理行程（mm）
+    uint8_t isPressed;      // 是否按下（1=按下，0=释放）
+    uint8_t reserved;       // 保留字节，保持8字节对齐
 };
+
+// 按键性能监控推送的二进制数据结构
+struct ButtonPerformanceMonitoringBinaryData {
+    uint8_t command;        // 命令号：2 表示按键性能监控
+    uint8_t isActive;       // 布尔值：1=活跃，0=非活跃
+    uint8_t buttonCount;    // 本次推送的按键数量
+    uint8_t reserved;       // 保留字节，保持4字节对齐
+    uint32_t timestamp;     // 时间戳
+    // 后面跟着 buttonCount 个 ButtonPerformanceData
+};
+
 #pragma pack(pop)
 
 // 命令号定义
 #define BUTTON_STATE_CHANGED_CMD    1
-#define ADC_BTN_TEST_EVENT_CMD      2
+#define BUTTON_PERFORMANCE_MONITORING_CMD    2
 
 // ============================================================================
 // CommonCommandHandler 类定义
@@ -89,6 +94,18 @@ public:
     WebSocketDownstreamMessage handleStopButtonMonitoring(const WebSocketUpstreamMessage& request);
     
     /**
+     * @brief 启动按键性能监控（包含测试模式）
+     * WebSocket命令: start_button_performance_monitoring
+     */
+    WebSocketDownstreamMessage handleStartButtonPerformanceMonitoring(const WebSocketUpstreamMessage& request);
+    
+    /**
+     * @brief 停止按键性能监控
+     * WebSocket命令: stop_button_performance_monitoring
+     */
+    WebSocketDownstreamMessage handleStopButtonPerformanceMonitoring(const WebSocketUpstreamMessage& request);
+
+    /**
      * @brief 获取按键状态（保留用于兼容，推荐使用推送模式）
      * WebSocket命令: get_button_states
      * 对应HTTP接口: GET /api/get-button-states
@@ -104,10 +121,10 @@ public:
     void sendButtonStateNotification();
 
     /**
-     * @brief 推送ADC按键测试事件通知
-     * 当ADC按键在测试模式下触发时调用此方法发送推送通知
+     * @brief 推送按键性能监控通知
+     * 当按键性能监控发生变化时调用此方法发送推送通知
      */
-    void sendADCBtnTestEventNotification(const std::vector<ADCBtnTestEvent>& testEvents);
+    void sendButtonPerformanceMonitoringNotification();
 
 private:
     /**
@@ -119,6 +136,6 @@ private:
     // 构建按键状态的二进制数据
     ButtonStateBinaryData buildButtonStateBinaryData();
 
-    // 构建ADC按键测试事件的二进制数据
-    std::vector<uint8_t> buildADCBtnTestEventBinaryData(const std::vector<ADCBtnTestEvent>& testEvents);
+    // 构建按键性能监控的二进制数据
+    std::vector<uint8_t> buildButtonPerformanceMonitoringBinaryData();
 }; 

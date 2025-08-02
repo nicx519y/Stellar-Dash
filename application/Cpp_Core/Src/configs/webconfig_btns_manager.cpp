@@ -40,18 +40,20 @@ WebConfigBtnsManager::~WebConfigBtnsManager() {
 void WebConfigBtnsManager::setupButtonWorkers() {
     // WebConfig模式下一律使用外部配置
     // 转换WebConfig配置为外部配置格式
-    ExternalADCButtonConfig externalConfigs[NUM_ADC_BUTTONS];
-    for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-        const WebConfigADCButtonConfig& webConfig = adcButtonConfigs[i];
-        externalConfigs[i].pressAccuracy = webConfig.pressAccuracy;
-        externalConfigs[i].releaseAccuracy = webConfig.releaseAccuracy;
-        externalConfigs[i].topDeadzone = webConfig.topDeadzone;
-        externalConfigs[i].bottomDeadzone = webConfig.bottomDeadzone;
-    }
+    // ExternalADCButtonConfig externalConfigs[NUM_ADC_BUTTONS];
+    // for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+    //     const WebConfigADCButtonConfig& webConfig = adcButtonConfigs[i];
+    //     externalConfigs[i].pressAccuracy = webConfig.pressAccuracy;
+    //     externalConfigs[i].releaseAccuracy = webConfig.releaseAccuracy;
+    //     externalConfigs[i].topDeadzone = webConfig.topDeadzone;
+    //     externalConfigs[i].bottomDeadzone = webConfig.bottomDeadzone;
+    // }
     
-    ADCBtnsError adcResult = ADC_BTNS_WORKER.setup(externalConfigs);
-    APP_DBG("WebConfigBtnsManager::setupButtonWorkers - Using WebConfig external configurations");
+    // ADCBtnsError adcResult = ADC_BTNS_WORKER.setup(externalConfigs);
+    // APP_DBG("WebConfigBtnsManager::setupButtonWorkers - Using WebConfig external configurations");
     
+    ADCBtnsError adcResult = ADC_BTNS_WORKER.setup();
+
     if (adcResult != ADCBtnsError::SUCCESS) {
         APP_ERR("WebConfigBtnsManager::setupButtonWorkers - ADC setup failed with error: %d", (int)adcResult);
     }
@@ -98,6 +100,11 @@ void WebConfigBtnsManager::setButtonStateChangedCallback(ButtonStateChangedCallb
     APP_DBG("WebConfigBtnsManager::setButtonStateChangedCallback - Button state changed callback set");
 }
 
+void WebConfigBtnsManager::setButtonPerformanceMonitoringCallback(ButtonPerformanceMonitoringCallback callback) {
+    buttonPerformanceMonitoringCallback = callback;
+    APP_DBG("WebConfigBtnsManager::setButtonPerformanceMonitoringCallback - Button performance monitoring callback set");
+}
+
 // ========== ADC按键WebConfig模式专用配置接口实现 ==========
 
 bool WebConfigBtnsManager::setADCButtonConfig(uint8_t buttonIndex, const WebConfigADCButtonConfig& config) {
@@ -139,46 +146,30 @@ void WebConfigBtnsManager::update() {
         return;
     }
 
-    // 在技术测试模式下，不更新按键掩码，只处理ADC按键触发事件
-    if (isTestModeEnabled_) {
-        // 清空事件收集器
-        testEventCollector.clear();
+    // 技术测试模式下，只处理ADC按键
+
+    if(isTestModeEnabled_) {
         
-        // 仍然调用read()以触发ADC按键事件检测，但不使用返回的掩码
-        ADC_BTNS_WORKER.read();
-        
-        // 检查ADC按键状态变化并处理测试事件
-        for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-            bool isPressEvent;
-            uint16_t adcValue;
-            if (ADC_BTNS_WORKER.getButtonStateChange(i, isPressEvent, adcValue)) {
-                processADCBtnTestEvent(i, isPressEvent, adcValue);
-            }
+        currentMask = ADC_BTNS_WORKER.read();
+
+        if(currentMask != previousMask && buttonPerformanceMonitoringCallback) {
+            buttonPerformanceMonitoringCallback();
         }
-        
-        // 清除状态变化标志
-        ADC_BTNS_WORKER.clearButtonStateChange();
-        
-        // 如果有收集到测试事件，一次性推送
-        if (!testEventCollector.empty()) {
-            CommonCommandHandler::getInstance().sendADCBtnTestEventNotification(testEventCollector);
-        }
-        
-        // GPIO按键仍然正常处理
-        uint32_t gpioMask = GPIO_BTNS_WORKER.read();
-        currentMask = gpioMask;
+
+        previousMask = currentMask;
+
     } else {
-        // 正常模式：处理所有按键
+
+        // 处理所有按键，包括ADC和GPIO按键
         currentMask = ADC_BTNS_WORKER.read() | GPIO_BTNS_WORKER.read();
+
+        if(currentMask != previousMask && buttonStateChangedCallback) {
+            buttonStateChangedCallback();
+        }
+
+        previousMask = currentMask;
     }
 
-    if(currentMask != previousMask && buttonStateChangedCallback) {
-        buttonStateChangedCallback();
-    }
-
-    // APP_DBG("WebConfigBtnsManager::update - Current mask: 0x%08lX", currentMask);
-
-    previousMask = currentMask;
 }
 
 uint32_t WebConfigBtnsManager::getCurrentMask() const {
@@ -186,14 +177,8 @@ uint32_t WebConfigBtnsManager::getCurrentMask() const {
 }
 
 // ========== WebConfig模式专用方法实现 ==========
-// 注意：新的实现方式不再需要修改Profile配置，而是直接传入外部配置到ADC工作器 
+// 注意：新的实现方式不再需要修改Profile配置，而是直接传入外部配置到ADC工作器
 
-// ========== 技术测试模式相关方法实现 ==========
-
-void WebConfigBtnsManager::setADCBtnTestCallback(ADCBtnTestCallback callback) {
-    adcBtnTestCallback = callback;
-    APP_DBG("WebConfigBtnsManager::setADCBtnTestCallback - ADC button test callback set");
-}
 
 void WebConfigBtnsManager::enableTestMode(bool enabled) {
     isTestModeEnabled_ = enabled;
@@ -210,15 +195,15 @@ bool WebConfigBtnsManager::isTestModeEnabled() const {
 }
 
 void WebConfigBtnsManager::processADCBtnTestEvent(uint8_t buttonIndex, bool isPressEvent, uint16_t adcValue) {
-    if (!isTestModeEnabled_ || !adcBtnTestCallback) {
+    if (!isTestModeEnabled_) {
         return;
     }
     
     // 获取按钮详细信息
-    uint16_t currentAdcValue, limitValue;
-    float triggerDistance, limitValueDistance;
+    uint16_t currentAdcValue, pressStartValue, releaseStartValue;
+    float triggerDistance, pressStartValueDistance, releaseStartValueDistance;
     
-    if (!ADC_BTNS_WORKER.getButtonDetails(buttonIndex, currentAdcValue, triggerDistance, limitValue, limitValueDistance)) {
+    if (!ADC_BTNS_WORKER.getButtonDetails(buttonIndex, currentAdcValue, triggerDistance, pressStartValue, releaseStartValue, pressStartValueDistance, releaseStartValueDistance)) {
         APP_ERR("WebConfigBtnsManager::processADCBtnTestEvent - Failed to get button details for index %d", buttonIndex);
         return;
     }
@@ -236,22 +221,16 @@ void WebConfigBtnsManager::processADCBtnTestEvent(uint8_t buttonIndex, bool isPr
     testEvent.virtualPin = virtualPin;
     testEvent.adcValue = currentAdcValue;
     testEvent.triggerDistance = triggerDistance;
-    testEvent.limitValueDistance = limitValueDistance;
-    testEvent.limitValue = limitValue;
+    testEvent.pressStartValue = pressStartValue;
+    testEvent.releaseStartValue = releaseStartValue;
+    testEvent.pressStartValueDistance = pressStartValueDistance;
+    testEvent.releaseStartValueDistance = releaseStartValueDistance;
     testEvent.isPressEvent = isPressEvent;
     testEvent.timestamp = HAL_GetTick();
     
     // 添加到事件收集器
     testEventCollector.push_back(testEvent);
     
-    // 调用回调（如果设置了的话）
-    if (adcBtnTestCallback) {
-        adcBtnTestCallback(testEvent);
-    }
-    
-    APP_DBG("WebConfigBtnsManager::processADCBtnTestEvent - Button %d (VP:%d) %s event: ADC=%d, Travel=%.2fmm, Limit=%.2fmm", 
-            buttonIndex, virtualPin, isPressEvent ? "PRESS" : "RELEASE", 
-            currentAdcValue, triggerDistance, limitValueDistance);
 }
 
 /*

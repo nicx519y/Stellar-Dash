@@ -20,6 +20,12 @@ CommonCommandHandler& CommonCommandHandler::getInstance() {
             // 按键状态发生变化，发送推送通知
             CommonCommandHandler::getInstance().sendButtonStateNotification();
         });
+        
+        WEBCONFIG_BTNS_MANAGER.setButtonPerformanceMonitoringCallback([]() {
+            // 按键性能监控发生变化，发送推送通知
+            CommonCommandHandler::getInstance().sendButtonPerformanceMonitoringNotification();
+        });
+        
         callbackSet = true;
     }
     
@@ -48,25 +54,21 @@ void CommonCommandHandler::sendButtonStateNotification() {
 }
 
 /**
- * @brief 推送ADC按键测试事件通知（二进制格式）
+ * @brief 推送按键性能监控通知（二进制格式）
  */
-void CommonCommandHandler::sendADCBtnTestEventNotification(const std::vector<ADCBtnTestEvent>& testEvents) {
-    if (testEvents.empty()) {
-        return; // 没有事件需要推送
-    }
-    
+void CommonCommandHandler::sendButtonPerformanceMonitoringNotification() {
     // 获取WebSocket服务器实例
     WebSocketServer& server = WebSocketServer::getInstance();
     
     // 构建完整的二进制数据
-    std::vector<uint8_t> binaryData = buildADCBtnTestEventBinaryData(testEvents);
+    std::vector<uint8_t> binaryData = buildButtonPerformanceMonitoringBinaryData();
     
     // 发送二进制数据到所有连接的客户端
     server.broadcast_binary(binaryData.data(), binaryData.size());
     
-    APP_DBG("ADC button test event binary notification sent to all clients (events=%d, size=%d bytes)", 
-            testEvents.size(), binaryData.size());
+    APP_DBG("Button performance monitoring binary notification sent to all clients (size=%d bytes)", binaryData.size());
 }
+
 
 /**
  * @brief 构建按键状态的二进制数据
@@ -202,56 +204,201 @@ WebSocketDownstreamMessage CommonCommandHandler::handleStopButtonMonitoring(cons
 WebSocketDownstreamMessage CommonCommandHandler::handle(const WebSocketUpstreamMessage& request) {
     const std::string& command = request.getCommand();
     
+    APP_DBG("CommonCommandHandler::handle command: %s", command.c_str());
+
     // 按键监控相关命令
     if (command == "start_button_monitoring") {
         return handleStartButtonMonitoring(request);
     } else if (command == "stop_button_monitoring") {
         return handleStopButtonMonitoring(request);
+    } else if (command == "start_button_performance_monitoring") {
+        return handleStartButtonPerformanceMonitoring(request);
+    } else if (command == "stop_button_performance_monitoring") {
+        return handleStopButtonPerformanceMonitoring(request);
     }
     
     return create_error_response(request.getCid(), command, -1, "Unknown common command");
 }
 
 /**
- * @brief 构建ADC按键测试事件的二进制数据
- * @param testEvents ADC按键测试事件数组
+ * @brief 构建按键性能监控的二进制数据
  * @return 完整的二进制数据
  */
-std::vector<uint8_t> CommonCommandHandler::buildADCBtnTestEventBinaryData(const std::vector<ADCBtnTestEvent>& testEvents) {
-    // 计算总数据大小：头部 + 事件项数组
-    size_t totalSize = sizeof(ADCBtnTestEventBinaryData) + 
-                      testEvents.size() * sizeof(ADCBtnTestEventItem);
+std::vector<uint8_t> CommonCommandHandler::buildButtonPerformanceMonitoringBinaryData() {
+    // 收集所有ADC按键的状态
+    std::vector<ButtonPerformanceData> buttonDataList;
+    
+    for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        // 获取按钮详细信息
+        uint16_t currentAdcValue, pressStartValue, releaseStartValue;
+        float triggerDistance, pressStartValueDistance, releaseStartValueDistance;
+        
+        if (ADC_BTNS_WORKER.getButtonDetails(i, currentAdcValue, triggerDistance, pressStartValue, releaseStartValue, pressStartValueDistance, releaseStartValueDistance)) {
+            // 获取虚拟引脚
+            uint8_t virtualPin = ADC_BTNS_WORKER.getButtonVirtualPin(i);
+            if (virtualPin != 0xFF) {
+                // 检查按键是否按下
+                bool isPressed = (WEBCONFIG_BTNS_MANAGER.getCurrentMask() & (1U << virtualPin)) != 0;
+                
+                // 构造按键性能数据
+                ButtonPerformanceData buttonData;
+                buttonData.buttonIndex = i;
+                buttonData.virtualPin = virtualPin;
+                buttonData.adcValue = currentAdcValue;
+                buttonData.triggerDistance = triggerDistance;
+                buttonData.pressStartValue = pressStartValue;
+                buttonData.releaseStartValue = releaseStartValue;
+                buttonData.pressStartValueDistance = pressStartValueDistance;
+                buttonData.releaseStartValueDistance = releaseStartValueDistance;
+                buttonData.isPressed = isPressed ? 1 : 0;
+                buttonData.reserved = 0;
+                
+                buttonDataList.push_back(buttonData);
+            }
+        }
+    }
+    
+    // 计算总数据大小：头部 + 按键数据数组
+    size_t totalSize = sizeof(ButtonPerformanceMonitoringBinaryData) + 
+                      buttonDataList.size() * sizeof(ButtonPerformanceData);
     
     // 创建完整的数据缓冲区
     std::vector<uint8_t> buffer(totalSize);
     uint8_t* dataPtr = buffer.data();
     
     // 构建头部数据
-    ADCBtnTestEventBinaryData header;
-    header.command = ADC_BTN_TEST_EVENT_CMD;
-    header.eventCount = static_cast<uint8_t>(testEvents.size());
-    header.timestamp = testEvents.empty() ? HAL_GetTick() : testEvents[0].timestamp;
-    header.reserved[0] = 0;
-    header.reserved[1] = 0;
+    ButtonPerformanceMonitoringBinaryData header;
+    header.command = BUTTON_PERFORMANCE_MONITORING_CMD;
+    header.isActive = WEBCONFIG_BTNS_MANAGER.isActive() ? 1 : 0;
+    header.buttonCount = static_cast<uint8_t>(buttonDataList.size());
+    header.reserved = 0;
+    header.timestamp = HAL_GetTick();
     
     // 复制头部数据
-    memcpy(dataPtr, &header, sizeof(ADCBtnTestEventBinaryData));
-    dataPtr += sizeof(ADCBtnTestEventBinaryData);
+    memcpy(dataPtr, &header, sizeof(ButtonPerformanceMonitoringBinaryData));
+    dataPtr += sizeof(ButtonPerformanceMonitoringBinaryData);
     
-    // 复制事件项数据
-    for (const auto& testEvent : testEvents) {
-        ADCBtnTestEventItem item;
-        item.buttonIndex = testEvent.buttonIndex;
-        item.virtualPin = testEvent.virtualPin;
-        item.adcValue = testEvent.adcValue;
-        item.triggerDistance = testEvent.triggerDistance;
-        item.limitValueDistance = testEvent.limitValueDistance;
-        item.limitValue = testEvent.limitValue;
-        item.isPressEvent = testEvent.isPressEvent ? 1 : 0;
-        
-        memcpy(dataPtr, &item, sizeof(ADCBtnTestEventItem));
-        dataPtr += sizeof(ADCBtnTestEventItem);
+    // 复制按键数据
+    for (const auto& buttonData : buttonDataList) {
+        memcpy(dataPtr, &buttonData, sizeof(ButtonPerformanceData));
+        dataPtr += sizeof(ButtonPerformanceData);
     }
     
     return buffer;
+}
+
+/**
+ * @brief 启动按键性能监控（包含测试模式）
+ * WebSocket命令: start_button_performance_monitoring
+ * 
+ * WebSocket命令格式:
+ * {
+ *   "cid": 9,
+ *   "command": "start_button_performance_monitoring",
+ *   "params": {}
+ * }
+ * 
+ * 响应格式:
+ * {
+ *   "cid": 9,
+ *   "command": "start_button_performance_monitoring",
+ *   "errNo": 0,
+ *   "data": {
+ *     "message": "Button performance monitoring started successfully",
+ *     "status": "active",
+ *     "isActive": true,
+ *     "isTestModeEnabled": true
+ *   }
+ * }
+ */
+WebSocketDownstreamMessage CommonCommandHandler::handleStartButtonPerformanceMonitoring(const WebSocketUpstreamMessage& request) {
+    // 获取按键管理器实例
+    WebConfigBtnsManager& btnsManager = WEBCONFIG_BTNS_MANAGER;
+    
+    // 启动按键工作器
+    btnsManager.startButtonWorkers();
+    
+    // 启用测试模式
+    btnsManager.enableTestMode(true);
+    
+    // 验证启动状态
+    if (!btnsManager.isActive()) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to start button performance monitoring");
+    }
+    
+    // 验证测试模式状态
+    if (!btnsManager.isTestModeEnabled()) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to enable test mode");
+    }
+    
+    // 创建响应数据
+    cJSON* dataJSON = cJSON_CreateObject();
+    if (!dataJSON) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to create JSON object");
+    }
+    
+    cJSON_AddStringToObject(dataJSON, "message", "Button performance monitoring started successfully");
+    cJSON_AddStringToObject(dataJSON, "status", "active");
+    cJSON_AddBoolToObject(dataJSON, "isActive", btnsManager.isActive());
+    cJSON_AddBoolToObject(dataJSON, "isTestModeEnabled", btnsManager.isTestModeEnabled());
+    
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+/**
+ * @brief 停止按键性能监控
+ * WebSocket命令: stop_button_performance_monitoring
+ * 
+ * WebSocket命令格式:
+ * {
+ *   "cid": 10,
+ *   "command": "stop_button_performance_monitoring",
+ *   "params": {}
+ * }
+ * 
+ * 响应格式:
+ * {
+ *   "cid": 10,
+ *   "command": "stop_button_performance_monitoring",
+ *   "errNo": 0,
+ *   "data": {
+ *     "message": "Button performance monitoring stopped successfully",
+ *     "status": "inactive",
+ *     "isActive": false,
+ *     "isTestModeEnabled": false
+ *   }
+ * }
+ */
+WebSocketDownstreamMessage CommonCommandHandler::handleStopButtonPerformanceMonitoring(const WebSocketUpstreamMessage& request) {
+    // 获取按键管理器实例
+    WebConfigBtnsManager& btnsManager = WEBCONFIG_BTNS_MANAGER;
+    
+    // 禁用测试模式
+    btnsManager.enableTestMode(false);
+    
+    // 停止按键工作器
+    btnsManager.stopButtonWorkers();
+    
+    // 验证停止状态
+    if (btnsManager.isActive()) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to stop button performance monitoring");
+    }
+    
+    // 验证测试模式状态
+    if (btnsManager.isTestModeEnabled()) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to disable test mode");
+    }
+    
+    // 创建响应数据
+    cJSON* dataJSON = cJSON_CreateObject();
+    if (!dataJSON) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to create JSON object");
+    }
+    
+    cJSON_AddStringToObject(dataJSON, "message", "Button performance monitoring stopped successfully");
+    cJSON_AddStringToObject(dataJSON, "status", "inactive");
+    cJSON_AddBoolToObject(dataJSON, "isActive", btnsManager.isActive());
+    cJSON_AddBoolToObject(dataJSON, "isTestModeEnabled", btnsManager.isTestModeEnabled());
+    
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
