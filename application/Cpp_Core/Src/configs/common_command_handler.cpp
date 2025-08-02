@@ -48,6 +48,27 @@ void CommonCommandHandler::sendButtonStateNotification() {
 }
 
 /**
+ * @brief 推送ADC按键测试事件通知（二进制格式）
+ */
+void CommonCommandHandler::sendADCBtnTestEventNotification(const std::vector<ADCBtnTestEvent>& testEvents) {
+    if (testEvents.empty()) {
+        return; // 没有事件需要推送
+    }
+    
+    // 获取WebSocket服务器实例
+    WebSocketServer& server = WebSocketServer::getInstance();
+    
+    // 构建完整的二进制数据
+    std::vector<uint8_t> binaryData = buildADCBtnTestEventBinaryData(testEvents);
+    
+    // 发送二进制数据到所有连接的客户端
+    server.broadcast_binary(binaryData.data(), binaryData.size());
+    
+    APP_DBG("ADC button test event binary notification sent to all clients (events=%d, size=%d bytes)", 
+            testEvents.size(), binaryData.size());
+}
+
+/**
  * @brief 构建按键状态的二进制数据
  * @return 按键状态二进制数据结构
  */
@@ -189,4 +210,48 @@ WebSocketDownstreamMessage CommonCommandHandler::handle(const WebSocketUpstreamM
     }
     
     return create_error_response(request.getCid(), command, -1, "Unknown common command");
+}
+
+/**
+ * @brief 构建ADC按键测试事件的二进制数据
+ * @param testEvents ADC按键测试事件数组
+ * @return 完整的二进制数据
+ */
+std::vector<uint8_t> CommonCommandHandler::buildADCBtnTestEventBinaryData(const std::vector<ADCBtnTestEvent>& testEvents) {
+    // 计算总数据大小：头部 + 事件项数组
+    size_t totalSize = sizeof(ADCBtnTestEventBinaryData) + 
+                      testEvents.size() * sizeof(ADCBtnTestEventItem);
+    
+    // 创建完整的数据缓冲区
+    std::vector<uint8_t> buffer(totalSize);
+    uint8_t* dataPtr = buffer.data();
+    
+    // 构建头部数据
+    ADCBtnTestEventBinaryData header;
+    header.command = ADC_BTN_TEST_EVENT_CMD;
+    header.eventCount = static_cast<uint8_t>(testEvents.size());
+    header.timestamp = testEvents.empty() ? HAL_GetTick() : testEvents[0].timestamp;
+    header.reserved[0] = 0;
+    header.reserved[1] = 0;
+    
+    // 复制头部数据
+    memcpy(dataPtr, &header, sizeof(ADCBtnTestEventBinaryData));
+    dataPtr += sizeof(ADCBtnTestEventBinaryData);
+    
+    // 复制事件项数据
+    for (const auto& testEvent : testEvents) {
+        ADCBtnTestEventItem item;
+        item.buttonIndex = testEvent.buttonIndex;
+        item.virtualPin = testEvent.virtualPin;
+        item.adcValue = testEvent.adcValue;
+        item.triggerDistance = testEvent.triggerDistance;
+        item.limitValueDistance = testEvent.limitValueDistance;
+        item.limitValue = testEvent.limitValue;
+        item.isPressEvent = testEvent.isPressEvent ? 1 : 0;
+        
+        memcpy(dataPtr, &item, sizeof(ADCBtnTestEventItem));
+        dataPtr += sizeof(ADCBtnTestEventItem);
+    }
+    
+    return buffer;
 }

@@ -1,5 +1,6 @@
 #include "adc_btns/adc_btns_worker.hpp"
 #include "board_cfg.h"
+#include "stm32h7xx_hal.h"  // 为HAL_GetTick()
 
 /*
  * ADC Hall 按钮工作逻辑：
@@ -62,8 +63,42 @@ ADCBtnsWorker::ADCBtnsWorker()
         case ADCButtonDebounceAlgorithm::MAX:
             debounceConfig.ultrafastThreshold = ULTRAFast_THRESHOLD_MAX;
             break;
+        default:
+            // 处理未知的防抖算法，使用默认值
+            debounceConfig.ultrafastThreshold = ULTRAFast_THRESHOLD_NORMAL;
+            break;
     }
     debounceFilter_.setConfig(debounceConfig);
+
+    // 初始化状态变化跟踪数组
+    for (auto& change : buttonStateChanges_) {
+        change.hasChange = false;
+        change.isPressEvent = false;
+        change.adcValue = 0;
+        change.timestamp = 0;
+    }
+
+    // 初始化virtualPin到buttonIndex的映射表
+    // 根据board_cfg.h中的映射定义初始化
+    const uint8_t ADC1_MAPPING[] = {2, 7, 4, 0, 5, 6};
+    const uint8_t ADC2_MAPPING[] = {1, 3, 14, 12, 8, 9};
+    const uint8_t ADC3_MAPPING[] = {16, 17, 15, 13, 10, 11};
+    
+    // 初始化映射表为无效值
+    for (auto& index : virtualPinToButtonIndex_) {
+        index = 0xFF; // 无效值
+    }
+    
+    // 填充映射表
+    for (uint8_t i = 0; i < NUM_ADC1_BUTTONS; i++) {
+        virtualPinToButtonIndex_[ADC1_MAPPING[i]] = i;
+    }
+    for (uint8_t i = 0; i < NUM_ADC2_BUTTONS; i++) {
+        virtualPinToButtonIndex_[ADC2_MAPPING[i]] = i + NUM_ADC1_BUTTONS;
+    }
+    for (uint8_t i = 0; i < NUM_ADC3_BUTTONS; i++) {
+        virtualPinToButtonIndex_[ADC3_MAPPING[i]] = i + NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS;
+    }
 
     MC.registerMessage(MessageId::ADC_BTNS_STATE_CHANGED);
 }
@@ -598,7 +633,7 @@ void ADCBtnsWorker::resetLimitValue(ADCBtn* btn, const uint16_t currentValue) {
  * @param adcValue ADC值
  * @return 对应的行程距离（mm）
  */
-float ADCBtnsWorker::getDistanceByValue(ADCBtn* btn, const uint16_t adcValue) {
+float ADCBtnsWorker::getDistanceByValue(ADCBtn* btn, const uint16_t adcValue) const {
     if (!btn || !mapping || mapping->length == 0) {
         return 0.0f;
     }
@@ -774,17 +809,38 @@ void ADCBtnsWorker::handleButtonState(ADCBtn* btn, const ButtonEvent event) {
         return;
     }
 
+    // 声明变量，避免跨case标签跳转错误
+    uint8_t buttonIndex;
+
     switch(event) {
         case ButtonEvent::PRESS_COMPLETE:
             btn->state = ButtonState::PRESSED;
             this->virtualPinMask |= (1U << btn->virtualPin);
             buttonTriggerStatusChanged = true;
+            
+            // 记录状态变化（技术测试模式用）
+            buttonIndex = getButtonIndexFromVirtualPin(btn->virtualPin);
+            if (buttonIndex != 0xFF) {
+                buttonStateChanges_[buttonIndex].hasChange = true;
+                buttonStateChanges_[buttonIndex].isPressEvent = true;
+                buttonStateChanges_[buttonIndex].adcValue = btn->lastAdcValue;
+                buttonStateChanges_[buttonIndex].timestamp = HAL_GetTick();
+            }
             break;
 
         case ButtonEvent::RELEASE_COMPLETE:
             btn->state = ButtonState::RELEASED;
             this->virtualPinMask &= ~(1U << btn->virtualPin);
             buttonTriggerStatusChanged = true;
+            
+            // 记录状态变化（技术测试模式用）
+            buttonIndex = getButtonIndexFromVirtualPin(btn->virtualPin);
+            if (buttonIndex != 0xFF) {
+                buttonStateChanges_[buttonIndex].hasChange = true;
+                buttonStateChanges_[buttonIndex].isPressEvent = false;
+                buttonStateChanges_[buttonIndex].adcValue = btn->lastAdcValue;
+                buttonStateChanges_[buttonIndex].timestamp = HAL_GetTick();
+            }
             break;
 
         default:
@@ -978,4 +1034,91 @@ uint16_t ADCBtnsWorker::getInterpolatedReleaseThreshold(ADCBtn* btn, const uint1
     }
     
     return btn->precisionMap.releaseThresholds[0]; // 默认返回第一个阈值
+}
+
+/**
+ * @brief 获取指定按钮的详细信息 (技术测试模式用)
+ * @param buttonIndex 按钮索引
+ * @param adcValue 返回当前ADC值
+ * @param travelDistance 返回当前物理行程（mm）
+ * @param limitValue 返回当前limitValue
+ * @param limitValueDistance 返回limitValue对应的物理行程（mm）
+ * @return true 如果获取成功
+ */
+bool ADCBtnsWorker::getButtonDetails(uint8_t buttonIndex, uint16_t& adcValue, float& travelDistance, 
+                                     uint16_t& limitValue, float& limitValueDistance) const {
+    if (buttonIndex >= NUM_ADC_BUTTONS || !buttonPtrs[buttonIndex] || !buttonPtrs[buttonIndex]->initCompleted) {
+        return false;
+    }
+    
+    const ADCBtn* btn = buttonPtrs[buttonIndex];
+    
+    // 获取当前ADC值
+    const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& adcValues = ADC_MANAGER.readADCValues();
+    adcValue = *adcValues[buttonIndex].valuePtr;
+    
+    // 计算当前物理行程
+    travelDistance = getDistanceByValue(const_cast<ADCBtn*>(btn), adcValue);
+    
+    // 获取limitValue和对应的物理行程
+    limitValue = btn->limitValue;
+    limitValueDistance = getDistanceByValue(const_cast<ADCBtn*>(btn), limitValue);
+    
+    return true;
+}
+
+/**
+ * @brief 获取指定按钮的虚拟引脚
+ * @param buttonIndex 按钮索引
+ * @return 虚拟引脚号，如果索引无效返回0xFF
+ */
+uint8_t ADCBtnsWorker::getButtonVirtualPin(uint8_t buttonIndex) const {
+    if (buttonIndex >= NUM_ADC_BUTTONS || !buttonPtrs[buttonIndex]) {
+        return 0xFF;
+    }
+    
+    return buttonPtrs[buttonIndex]->virtualPin;
+}
+
+/**
+ * @brief 获取按键状态变化信息（技术测试模式用）
+ * @param buttonIndex 按钮索引
+ * @param isPressEvent 返回是否为按下事件
+ * @param adcValue 返回触发时的ADC值
+ * @return true 如果有状态变化
+ */
+bool ADCBtnsWorker::getButtonStateChange(uint8_t buttonIndex, bool& isPressEvent, uint16_t& adcValue) const {
+    if (buttonIndex >= NUM_ADC_BUTTONS) {
+        return false;
+    }
+    
+    const ButtonStateChange& change = buttonStateChanges_[buttonIndex];
+    if (change.hasChange) {
+        isPressEvent = change.isPressEvent;
+        adcValue = change.adcValue;
+        return true;
+    }
+    
+    return false;
+}
+
+/**
+ * @brief 清除按键状态变化标志
+ */
+void ADCBtnsWorker::clearButtonStateChange() {
+    for (auto& change : buttonStateChanges_) {
+        change.hasChange = false;
+    }
+}
+
+/**
+ * @brief 从virtualPin获取buttonIndex
+ * @param virtualPin 虚拟引脚
+ * @return buttonIndex，如果virtualPin无效返回0xFF
+ */
+uint8_t ADCBtnsWorker::getButtonIndexFromVirtualPin(uint8_t virtualPin) const {
+    if (virtualPin >= NUM_ADC_BUTTONS) {
+        return 0xFF;
+    }
+    return virtualPinToButtonIndex_[virtualPin];
 }

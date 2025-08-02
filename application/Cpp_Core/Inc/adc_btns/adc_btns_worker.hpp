@@ -90,6 +90,46 @@ class ADCBtnsWorker {
          */
         uint8_t getButtonDebounceState(uint8_t buttonIndex) const;
 
+        /**
+         * @brief 获取指定按钮的详细信息 (技术测试模式用)
+         * @param buttonIndex 按钮索引
+         * @param adcValue 返回当前ADC值
+         * @param travelDistance 返回当前物理行程（mm）
+         * @param limitValue 返回当前limitValue
+         * @param limitValueDistance 返回limitValue对应的物理行程（mm）
+         * @return true 如果获取成功
+         */
+        bool getButtonDetails(uint8_t buttonIndex, uint16_t& adcValue, float& travelDistance, 
+                             uint16_t& limitValue, float& limitValueDistance) const;
+
+        /**
+         * @brief 获取指定按钮的虚拟引脚
+         * @param buttonIndex 按钮索引
+         * @return 虚拟引脚号，如果索引无效返回0xFF
+         */
+        uint8_t getButtonVirtualPin(uint8_t buttonIndex) const;
+
+        /**
+         * @brief 获取按键状态变化信息（技术测试模式用）
+         * @param buttonIndex 按钮索引
+         * @param isPressEvent 返回是否为按下事件
+         * @param adcValue 返回触发时的ADC值
+         * @return true 如果有状态变化
+         */
+        bool getButtonStateChange(uint8_t buttonIndex, bool& isPressEvent, uint16_t& adcValue) const;
+
+        /**
+         * @brief 清除按键状态变化标志
+         */
+        void clearButtonStateChange();
+
+        /**
+         * @brief 从virtualPin获取buttonIndex
+         * @param virtualPin 虚拟引脚
+         * @return buttonIndex，如果virtualPin无效返回0xFF
+         */
+        uint8_t getButtonIndexFromVirtualPin(uint8_t virtualPin) const;
+
     private:
 
         // 校准保存延迟常量 (毫秒)
@@ -159,7 +199,7 @@ class ADCBtnsWorker {
         void initButtonMapping(ADCBtn* btn, const uint16_t releaseValue);
 
         // 新的基于距离和ADC值换算的核心方法
-        float getDistanceByValue(ADCBtn* btn, const uint16_t adcValue);
+        float getDistanceByValue(ADCBtn* btn, const uint16_t adcValue) const;
         uint16_t getValueByDistance(ADCBtn* btn, const uint16_t baseAdcValue, const float distanceMm);
         float getCurrentPressAccuracy(ADCBtn* btn, const float currentDistance);
         float getCurrentReleaseAccuracy(ADCBtn* btn, const float currentDistance);
@@ -195,6 +235,17 @@ class ADCBtnsWorker {
         ADCDebounceFilter debounceFilter_;
 
         // 动态校准相关函数
+        // 状态变化跟踪（技术测试模式用）
+        struct ButtonStateChange {
+            bool hasChange;
+            bool isPressEvent;
+            uint16_t adcValue;
+            uint32_t timestamp;
+        };
+        mutable std::array<ButtonStateChange, NUM_ADC_BUTTONS> buttonStateChanges_;
+        
+        // virtualPin到buttonIndex的映射表
+        std::array<uint8_t, NUM_ADC_BUTTONS> virtualPinToButtonIndex_;
 };
 
 #define ADC_BTNS_WORKER ADCBtnsWorker::getInstance()

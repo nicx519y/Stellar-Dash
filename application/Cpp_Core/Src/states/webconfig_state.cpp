@@ -26,7 +26,6 @@ void WebConfigState::setup() {
     inputDriver = DRIVER_MANAGER.getDriver();
 
     // 设置QSPI为内存映射模式，方便访问Websources
-    // LOG_INFO("WEBCONFIG", "Setting QSPI to memory mapped mode for web resources access");
     int8_t qspi_result = QSPI_W25Qxx_EnterMemoryMappedMode();
     if (qspi_result != 0) {
         LOG_ERROR("WEBCONFIG", "Failed to enter QSPI memory mapped mode, error: %d", qspi_result);
@@ -35,11 +34,9 @@ void WebConfigState::setup() {
     // 初始化LED管理器
     LEDS_MANAGER.setup();
     WS2812B_SetAllLEDBrightness(0); // 设置所有LED亮度默认为0
-    // LOG_DEBUG("WEBCONFIG", "LEDS_MANAGER setup completed");
 
     isRunning = true;
     workTime = MICROS_TIMER.micros();  // 微秒级
-    // LOG_INFO("WEBCONFIG", "Web configuration state setup completed successfully");
 
     // 在storage中自动切换成input mode，保证下次重启device的时候是input mode
     STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
