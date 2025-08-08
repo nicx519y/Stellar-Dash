@@ -149,6 +149,8 @@ ADCBtnsError ADCBtnsWorker::setup()
 
     this->mapping = mapping;
 
+    maxTravelDistance = (mapping->length - 1) * mapping->step;
+
     // 获取校准模式配置
     bool isAutoCalibrationEnabled = STORAGE_MANAGER.config.autoCalibrationEnabled;
 
@@ -334,6 +336,9 @@ void ADCBtnsWorker::initButtonMapping(ADCBtn *btn, const uint16_t releaseValue)
     btn->state = ButtonState::RELEASED;
     btn->initCompleted = true;
 
+    // 预计算阈值映射表
+    calculateThresholdMapping(btn);
+
     // 初始化缓存的阈值
     btn->cachedPressThreshold = calculatePressThreshold(btn, btn->pressStartValue);
     btn->cachedReleaseThreshold = calculateReleaseThreshold(btn, btn->releaseStartValue);
@@ -394,6 +399,9 @@ void ADCBtnsWorker::generateCalibratedMapping(ADCBtn *btn, uint16_t topValue, ui
     btn->pressStartValue = UINT16_MAX; // 初始状态为释放，需要记录最小值，所以初始化为最大值
     btn->releaseStartValue = 0;        // 初始状态为释放，需要记录最小值，所以初始化为最大值
 
+    // 预计算阈值映射表
+    calculateThresholdMapping(btn);
+
     // 初始化缓存的阈值
     btn->cachedPressThreshold = calculatePressThreshold(btn, btn->pressStartValue);
     btn->cachedReleaseThreshold = calculateReleaseThreshold(btn, btn->releaseStartValue);
@@ -415,23 +423,26 @@ ButtonEvent ADCBtnsWorker::getButtonEvent(ADCBtn *btn, const uint16_t currentVal
     switch (btn->state)
     {
     case ButtonState::RELEASED:
-
+        // 按键释放状态下，但是已经到最短行程，则判定为按下状态
+        if (getDistanceByValue(btn, currentValue) <= 0.1f) {
+            resetLimitValue(btn, currentValue);
+            return ButtonEvent::PRESS_COMPLETE;
+        }
+        
         // 判断当前值是否达到按下阈值
         if (currentValue >= btn->cachedPressThreshold + noise)
         {
-
-            APP_DBG("adc_btns_worker::getButtonEvent PRESS_COMPLETE");
-            APP_DBG("adc_btns_worker::getButtonEvent currentValue: %d, btn->pressStartValue: %d, btn->cachedPressThreshold: %d, noise: %d", 
-                currentValue, btn->pressStartValue, btn->cachedPressThreshold, noise);
-            APP_DBG("adc_btns_worker::getButtonEvent pressStartDistance: %f, pressStartAccuracy: %f, cachedPressThresholdDistance: %f, cachedPressThresholdAccuracy: %f", 
-                getDistanceByValue(btn, btn->pressStartValue), getCurrentPressAccuracy(btn, getDistanceByValue(btn, btn->pressStartValue)), getDistanceByValue(btn, btn->cachedPressThreshold), getCurrentPressAccuracy(btn, getDistanceByValue(btn, btn->cachedPressThreshold)));
-
             resetLimitValue(btn, currentValue);
             return ButtonEvent::PRESS_COMPLETE;
         }
         break;
 
     case ButtonState::PRESSED:
+        // 按键按下状态下，但是已经到最长行程，则判定为释放状态
+        if (getDistanceByValue(btn, currentValue) >= maxTravelDistance - 0.01f) {
+            resetLimitValue(btn, currentValue);
+            return ButtonEvent::RELEASE_COMPLETE;
+        }
 
         // 判断当前值是否达到释放阈值
         if (currentValue <= btn->cachedReleaseThreshold - noise)
@@ -749,6 +760,7 @@ void ADCBtnsWorker::handleButtonState(ADCBtn *btn, const ButtonEvent event, cons
         // 记录快照 只有在触发的时候形成
         btn->pressTriggerSnapshot = adcValue;
         btn->pressStartSnapshot = btn->pressStartValue;
+        // APP_DBG("adc_btns_worker::handleButtonState PRESS_COMPLETE, virtualPin: %d, adcValue: %d, pressTriggerSnapshot: %d, pressStartSnapshot: %d", btn->virtualPin, adcValue, btn->pressTriggerSnapshot, btn->pressStartSnapshot);
         this->virtualPinMask |= (1U << btn->virtualPin);
         break;
 
@@ -757,6 +769,7 @@ void ADCBtnsWorker::handleButtonState(ADCBtn *btn, const ButtonEvent event, cons
         // 记录快照 只有在触发的时候形成
         btn->releaseTriggerSnapshot = adcValue;
         btn->releaseStartSnapshot = btn->releaseStartValue;
+        // APP_DBG("adc_btns_worker::handleButtonState RELEASE_COMPLETE, virtualPin: %d, adcValue: %d, releaseTriggerSnapshot: %d, releaseStartSnapshot: %d", btn->virtualPin, adcValue, btn->releaseTriggerSnapshot, btn->releaseStartSnapshot);
         this->virtualPinMask &= ~(1U << btn->virtualPin);
         break;
 
@@ -874,22 +887,12 @@ const ADCValuesMapping *ADCBtnsWorker::getCurrentMapping() const
  */
 uint16_t ADCBtnsWorker::calculatePressThreshold(ADCBtn* btn, const uint16_t baseValue)
 {
-    while(!btn || !mapping);
-
-    float currentDistance = getDistanceByValue(btn, baseValue);
-    float pressAccuracy = getCurrentPressAccuracy(btn, currentDistance);
-    
-    // APP_DBG("adc_btns_worker::calculatePressThreshold currentDistance: %f, pressAccuracy: %f", currentDistance, pressAccuracy);
-
-    // 死区处理：如果当前位置在顶部死区内，调整精度
-    float maxTravelDistance = (mapping->length - 1) * mapping->step;
-
-    if(currentDistance - pressAccuracy >= maxTravelDistance - btn->topDeadzoneMm) {
-        float edgeDistance = maxTravelDistance - btn->topDeadzoneMm;
-        return getValueByDistance(btn, baseValue, edgeDistance - currentDistance);
-    } else {
-        return getValueByDistance(btn, baseValue, -pressAccuracy);
+    if (!btn || !mapping)
+    {
+        return 0;
     }
+
+    return getInterpolatedPressThreshold(btn, baseValue);
 }
 
 /**
@@ -905,18 +908,145 @@ uint16_t ADCBtnsWorker::calculateReleaseThreshold(ADCBtn* btn, const uint16_t ba
         return UINT16_MAX;
     }
 
-    float currentDistance = getDistanceByValue(btn, baseValue);
-    float releaseAccuracy = getCurrentReleaseAccuracy(btn, currentDistance);
-    
-    // 死区处理：如果当前位置在底部死区内，调整精度
-    if (currentDistance + releaseAccuracy <= btn->bottomDeadzoneMm)
+    return getInterpolatedReleaseThreshold(btn, baseValue);
+}
+
+/**
+ * 预计算阈值映射表
+ * @param btn 按钮指针
+ */
+void ADCBtnsWorker::calculateThresholdMapping(ADCBtn* btn)
+{
+    if (!btn || !mapping)
     {
-        // 底部死区：设置释放阈值为死区边缘的值
-        float edgeDistance = btn->bottomDeadzoneMm;
-        return getValueByDistance(btn, baseValue, -(currentDistance - edgeDistance));
+        return;
     }
-    else
+
+    // 清空映射表
+    memset(&btn->thresholdMap, 0, sizeof(btn->thresholdMap));
+
+    // 为每个映射点计算按下和释放阈值
+    for (uint8_t i = 0; i < mapping->length; i++)
     {
-        return getValueByDistance(btn, baseValue, releaseAccuracy);
+        uint16_t baseValue = btn->valueMapping[i];
+
+        // 计算当前距离
+        float currentDistance = i * mapping->step;
+
+        // 获取当前位置的按下和释放精度
+        float pressAccuracy = getCurrentPressAccuracy(btn, currentDistance);
+        float releaseAccuracy = getCurrentReleaseAccuracy(btn, currentDistance);
+
+        // 计算按下阈值：从当前位置向按下方向移动pressAccuracy距离
+        if(currentDistance - pressAccuracy >= maxTravelDistance - btn->topDeadzoneMm) {
+            float edgeDistance = maxTravelDistance - btn->topDeadzoneMm;
+            btn->thresholdMap.pressThresholds[i] = getValueByDistance(btn, baseValue, edgeDistance - currentDistance);
+        } else {
+            btn->thresholdMap.pressThresholds[i] = getValueByDistance(btn, baseValue, -pressAccuracy);
+        }
+
+        // 计算释放阈值：从当前位置向释放方向移动releaseAccuracy距离
+        if (currentDistance + releaseAccuracy <= btn->bottomDeadzoneMm)
+        {
+            // 底部死区：设置释放阈值为死区边缘的值
+            float edgeDistance = btn->bottomDeadzoneMm;
+            btn->thresholdMap.releaseThresholds[i] = getValueByDistance(btn, baseValue, -(currentDistance - edgeDistance));
+        }
+        else
+        {
+            btn->thresholdMap.releaseThresholds[i] = getValueByDistance(btn, baseValue, releaseAccuracy);
+        }
     }
+
+    btn->thresholdMap.isValid = true;
+}
+
+/**
+ * 根据ADC值获取插值计算的按下阈值
+ * @param btn 按钮指针
+ * @param currentValue 当前ADC值
+ * @return 插值计算的按下阈值
+ */
+uint16_t ADCBtnsWorker::getInterpolatedPressThreshold(ADCBtn* btn, const uint16_t currentValue)
+{
+    if (!btn || !mapping || mapping->length == 0 || !btn->thresholdMap.isValid)
+    {
+        return 0;
+    }
+
+    // 处理边界情况：直接使用预计算的阈值
+    if (currentValue >= btn->valueMapping[0])
+    {
+        return btn->thresholdMap.pressThresholds[0];
+    }
+    if (currentValue <= btn->valueMapping[mapping->length - 1])
+    {
+        return btn->thresholdMap.pressThresholds[mapping->length - 1];
+    }
+
+    // 找到当前值所在的区间
+    for (uint8_t i = 0; i < mapping->length - 1; i++)
+    {
+        if (currentValue <= btn->valueMapping[i] && currentValue >= btn->valueMapping[i + 1])
+        {
+            // 计算插值权重
+            uint16_t upperValue = btn->valueMapping[i];
+            uint16_t lowerValue = btn->valueMapping[i + 1];
+            uint16_t upperThreshold = btn->thresholdMap.pressThresholds[i];
+            uint16_t lowerThreshold = btn->thresholdMap.pressThresholds[i + 1];
+
+            // 线性插值
+            float weight = (float)(currentValue - lowerValue) / (float)(upperValue - lowerValue);
+            uint16_t interpolatedThreshold = (uint16_t)(lowerThreshold + weight * (upperThreshold - lowerThreshold));
+
+            return interpolatedThreshold;
+        }
+    }
+
+    return btn->thresholdMap.pressThresholds[0]; // 默认返回第一个阈值
+}
+
+/**
+ * 根据ADC值获取插值计算的释放阈值
+ * @param btn 按钮指针
+ * @param currentValue 当前ADC值
+ * @return 插值计算的释放阈值
+ */
+uint16_t ADCBtnsWorker::getInterpolatedReleaseThreshold(ADCBtn* btn, const uint16_t currentValue)
+{
+    if (!btn || !mapping || mapping->length == 0 || !btn->thresholdMap.isValid)
+    {
+        return UINT16_MAX;
+    }
+
+    // 处理边界情况：直接使用预计算的阈值
+    if (currentValue >= btn->valueMapping[0])
+    {
+        return btn->thresholdMap.releaseThresholds[0];
+    }
+    if (currentValue <= btn->valueMapping[mapping->length - 1])
+    {
+        return btn->thresholdMap.releaseThresholds[mapping->length - 1];
+    }
+
+    // 找到当前值所在的区间
+    for (uint8_t i = 0; i < mapping->length - 1; i++)
+    {
+        if (currentValue <= btn->valueMapping[i] && currentValue >= btn->valueMapping[i + 1])
+        {
+            // 计算插值权重
+            uint16_t upperValue = btn->valueMapping[i];
+            uint16_t lowerValue = btn->valueMapping[i + 1];
+            uint16_t upperThreshold = btn->thresholdMap.releaseThresholds[i];
+            uint16_t lowerThreshold = btn->thresholdMap.releaseThresholds[i + 1];
+
+            // 线性插值
+            float weight = (float)(currentValue - lowerValue) / (float)(upperValue - lowerValue);
+            uint16_t interpolatedThreshold = (uint16_t)(lowerThreshold + weight * (upperThreshold - lowerThreshold));
+
+            return interpolatedThreshold;
+        }
+    }
+
+    return btn->thresholdMap.releaseThresholds[0]; // 默认返回第一个阈值
 }

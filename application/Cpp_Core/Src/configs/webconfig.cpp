@@ -160,10 +160,8 @@ void on_websocket_message_sent() {
     
     // 如果队列中还有消息，立即处理下一条
     if (!g_websocket_message_queue.empty()) {
-        APP_DBG("WebSocket: Send completed, processing next message");
+        // APP_DBG("WebSocket: Send completed, processing next message");
         process_websocket_message_queue();
-    } else {
-        APP_DBG("WebSocket: Send completed, queue is empty");
     }
 }
 

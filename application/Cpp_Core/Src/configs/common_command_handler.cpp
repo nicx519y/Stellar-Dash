@@ -59,7 +59,7 @@ void CommonCommandHandler::sendButtonStateNotification() {
 void CommonCommandHandler::sendButtonPerformanceMonitoringNotification() {
 
     static uint32_t lastSendTime = 0;
-    static constexpr uint32_t SEND_INTERVAL_MS = 100; // 10ms发送间隔
+    static constexpr uint32_t SEND_INTERVAL_MS = WEBCONFIG_BUTTON_PERFORMANCE_MONITORING_INTERVAL_MS; // 10ms发送间隔 
     // 检查发送间隔
     uint32_t currentTime = HAL_GetTick();
     if (currentTime - lastSendTime < SEND_INTERVAL_MS) {
@@ -77,8 +77,6 @@ void CommonCommandHandler::sendButtonPerformanceMonitoringNotification() {
     
     // 更新发送时间
     lastSendTime = currentTime;
-    
-    APP_DBG("Button performance monitoring binary notification sent to all clients (size=%d bytes)", binaryData.size());
     
     // 发送完成后清理数据
     binaryData.clear();

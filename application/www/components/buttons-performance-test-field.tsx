@@ -28,9 +28,9 @@ export default function ButtonsPerformanceTestField(
 
     return (
         <Flex w="100%" h="100%" justifyContent="start"  gap={2} flexDirection={"row"} >
-            <Box flex={0} width="10px"  >
+            <Box flex={0} width="20px"  >
                 <DistanceBar 
-                    width={10} height={70} 
+                    width={20} height={70} 
                     maxDistance={maxDistance} 
                     currentDistance={currentDistance} 
                     pressStartDistance={pressStartDistance} 

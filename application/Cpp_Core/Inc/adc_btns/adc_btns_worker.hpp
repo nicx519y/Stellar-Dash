@@ -80,6 +80,13 @@ struct ADCBtn {
     // 缓存的阈值（避免重复计算）
     uint16_t cachedPressThreshold = 0;    // 缓存的按下阈值
     uint16_t cachedReleaseThreshold = 0;  // 缓存的释放阈值
+    
+    // 预计算的阈值映射表
+    struct ThresholdMapping {
+        uint16_t pressThresholds[MAX_ADC_VALUES_LENGTH];   // 每个位置的按下阈值
+        uint16_t releaseThresholds[MAX_ADC_VALUES_LENGTH]; // 每个位置的释放阈值
+        bool isValid;  // 映射表是否有效
+    } thresholdMap;
 };
 
 class ADCBtnsWorker {
@@ -201,6 +208,28 @@ class ADCBtnsWorker {
         uint16_t calculateReleaseThreshold(ADCBtn* btn, const uint16_t baseValue);
 
         /**
+         * 预计算阈值映射表
+         * @param btn 按钮指针
+         */
+        void calculateThresholdMapping(ADCBtn* btn);
+
+        /**
+         * 根据ADC值获取插值计算的按下阈值
+         * @param btn 按钮指针
+         * @param currentValue 当前ADC值
+         * @return 插值计算的按下阈值
+         */
+        uint16_t getInterpolatedPressThreshold(ADCBtn* btn, const uint16_t currentValue);
+
+        /**
+         * 根据ADC值获取插值计算的释放阈值
+         * @param btn 按钮指针
+         * @param currentValue 当前ADC值
+         * @return 插值计算的释放阈值
+         */
+        uint16_t getInterpolatedReleaseThreshold(ADCBtn* btn, const uint16_t currentValue);
+
+        /**
          * 根据校准值生成完整的校准后映射
          * @param btn 按钮指针
          * @param topValue 完全释放时的校准值（较小的ADC值）
@@ -214,6 +243,7 @@ class ADCBtnsWorker {
         bool buttonTriggerStatusChanged = false;    // 按钮触发状态是否改变
         uint16_t minValueDiff;                      // 最小值差值
         uint32_t enabledKeysMask = 0x0;             // 启用按键掩码
+        float maxTravelDistance;                    // 最大行程距离
         
         // 防抖过滤器
         ADCDebounceFilter debounceFilter_;

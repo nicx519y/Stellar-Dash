@@ -50,7 +50,7 @@
 #endif
 
 /* Debug print configuration */
-#define APPLICATION_DEBUG_PRINT  1   // 设置为 0 可以关闭所有调试打印
+#define APPLICATION_DEBUG_PRINT  0   // 设置为 0 可以关闭所有调试打印
 
 #if APPLICATION_DEBUG_PRINT
     #define APP_DBG(fmt, ...) printf("[APP] " fmt "\r\n", ##__VA_ARGS__)
@@ -144,6 +144,8 @@ uint32_t get_current_slot_base_address(void);
 #define LEDS_ANIMATION_CYCLE        10000            //LED 动画长度 ms
 #define LEDS_ANIMATION_INTERVAL         16          //LED 动画间隔，影响性能和效果 ms
 
+#define WEBCONFIG_BUTTON_PERFORMANCE_MONITORING_INTERVAL_MS 100 // 按键性能监控间隔 ms
+
 // #define LED_ENABLE_SWITCH_PIN        GPIO_PIN_12    // 灯效开关引脚
 // #define LED_ENABLE_SWITCH_PORT       GPIOC           // 灯效开关端口
 
@@ -189,7 +191,7 @@ PH4     ------> ADC3_INP15 -----> 11
 
 #define ADC_CALIBRATION_MANAGER_REQUIRED_SAMPLES 100 // 校准管理器需要的采样数量
 #define ADC_CALIBRATION_MANAGER_SAMPLE_INTERVAL_MS 1 // 校准管理器采样间隔（毫秒）
-#define ADC_CALIBRATION_MANAGER_TOLERANCE_RANGE 5000 // 校准管理器容忍范围
+#define ADC_CALIBRATION_MANAGER_TOLERANCE_RANGE 8000 // 校准管理器容忍范围
 #define ADC_CALIBRATION_MANAGER_STABILITY_THRESHOLD 200 // 校准管理器稳定性阈值
 
 // GPIO按钮配置宏定义

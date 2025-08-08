@@ -50,9 +50,9 @@ export default function DistanceBar(
 
     return (
         <Box width={`${width}px`} height={`${height}px`} position="relative" >
-            <Box width="100%" height={`${baseHeight}px`} position="absolute" top={`${baseTop}px`} left="0" bg="gray.400" zIndex={1} />
-            <Box width="100%" height={`${pressBoxHeight}px`} position="absolute" top={`${pressBoxTop}px`} left="0" bg="blue" zIndex={2} opacity={0.7} />
-            <Box width="100%" height={`${releaseBoxHeight}px`} position="absolute" top={`${releaseBoxTop}px`} left="0" bg="yellow" zIndex={3} opacity={0.7} />
+            <Box width={`${width/3}px`} height={`${baseHeight}px`} position="absolute" left={`${0}px`} top={`${baseTop}px`} bg="gray.400" zIndex={1} />
+            <Box width={`${width/3}px`} height={`${pressBoxHeight}px`} position="absolute" left={`${width/3}px`} top={`${pressBoxTop}px`} bg="blue" zIndex={2} opacity={1} />
+            <Box width={`${width/3}px`} height={`${releaseBoxHeight}px`} position="absolute" left={`${width/3*2}px`} top={`${releaseBoxTop}px`} bg="yellow" zIndex={3} opacity={1} />
         </Box>
     )
 }

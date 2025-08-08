@@ -17,6 +17,7 @@ import { ButtonsPerformenceTestContent } from "./buttons-performence-test-conten
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { useButtonPerformanceMonitor, type ButtonPerformanceMonitoringData, type ButtonPerformanceData } from '@/hooks/use-button-performance-monitor';
+import HitboxPerformanceTest from "./hitbox/hitbox-performance-test";
 
 
 
@@ -27,7 +28,7 @@ export function ButtonsPerformanceContent() {
     const { t } = useLanguage();
 
     // 添加容器引用和宽度状态
-    const { defaultProfile } = useGamepadConfig();
+    const { defaultProfile, sendPendingCommandImmediately } = useGamepadConfig();
     const containerRef = useRef<HTMLDivElement>(null);
     const { setError } = useGamepadConfig();
     const [containerWidth, setContainerWidth] = useState<number>(0);
@@ -167,6 +168,7 @@ export function ButtonsPerformanceContent() {
 
     useEffect(() => {
         if(isTestingModeActivity) {
+            sendPendingCommandImmediately('update_profile'); // 切换测试模式之前立即保存配置
             handleStartMonitoring();
         } else {
             handleStopMonitoring();
@@ -178,6 +180,7 @@ export function ButtonsPerformanceContent() {
             if(monitorIsActive.current == true) {
                 handleStopMonitoring();
             }
+            sendPendingCommandImmediately('update_profile');
         }
     }, []);
 
@@ -199,13 +202,20 @@ export function ButtonsPerformanceContent() {
                             </Card.Body>
                         </Card.Root>
                     </Box>
-
+                    {!isTestingModeActivity && 
                         <HitboxPerformance
                             onClick={(id) => handleButtonClick(id)}
                             highlightIds={[selectedButton ?? -1]}
                             interactiveIds={interactive}
                             containerWidth={containerWidth}
                         />
+                    }
+                    {isTestingModeActivity && 
+                        <HitboxPerformanceTest
+                            buttonStates={allButtonsData}
+                            containerWidth={containerWidth}
+                        />
+                    }
                     </Center>
                     <Center flex={0}  >
                         <ContentActionButtons disabled={isTestingModeActivity} />

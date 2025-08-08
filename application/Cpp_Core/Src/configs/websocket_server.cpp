@@ -530,15 +530,15 @@ err_t WebSocketConnection::tcp_sent_callback(void* arg, struct tcp_pcb* pcb, u16
         u16_t available_space = tcp_sndbuf(pcb);
         u16_t queue_len = tcp_sndqueuelen(pcb);
         
-        APP_DBG("WebSocket: Data sent callback - sent:%u bytes, sndbuf:%u, queuelen:%u", 
-                len, available_space, queue_len);
+        // APP_DBG("WebSocket: Data sent callback - sent:%u bytes, sndbuf:%u, queuelen:%u", 
+        //         len, available_space, queue_len);
         
         // 声明外部函数，用于通知消息发送完成
         extern void on_websocket_message_sent();
         
         // 当TCP队列为空时，表示当前消息完全发送完毕，可以处理下一条
         if (queue_len == 0) {
-            APP_DBG("WebSocket: TCP send queue empty, triggering next message processing");
+            // APP_DBG("WebSocket: TCP send queue empty, triggering next message processing");
             on_websocket_message_sent();
         }
     }
