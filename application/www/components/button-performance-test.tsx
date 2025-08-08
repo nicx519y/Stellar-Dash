@@ -8,8 +8,8 @@ import {
     Box,
     HStack,
     Button,
-    Grid,
-    GridItem,
+    // Grid,
+    // GridItem,
     Badge,
     Code,
     Table,
@@ -20,6 +20,8 @@ import { useButtonPerformanceMonitor, type ButtonPerformanceMonitoringData, type
 interface ButtonPerformanceTableData {
     buttonIndex: number,
     virtualPin: number,
+    currentValue: number,      // 当前ADC值
+    currentDistance: number,   // 当前行程距离
     pressAdcValue: number,
     pressTriggerDistance: number,
     pressStartDistance: number,
@@ -32,12 +34,14 @@ interface ButtonPerformanceTableData {
 export function ButtonPerformanceTest() {
     const [isMonitoring, setIsMonitoring] = useState(false);
     const [performanceData, setPerformanceData] = useState<ButtonPerformanceMonitoringData | null>(null);
-    const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+    // const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [logs, setLogs] = useState<string[]>([]);
     const [eventHistory, setEventHistory] = useState<ButtonPerformanceTableData[]>([]);
+    const [allButtonsData, setAllButtonsData] = useState<ButtonPerformanceTableData[]>([]);
 
     const prevButtonData = useRef<ButtonPerformanceTableData[]>([]);
+    const monitorIsActive = useRef(false);
 
     const addLog = (message: string) => {
         const timestamp = new Date().toLocaleTimeString();
@@ -51,6 +55,8 @@ export function ButtonPerformanceTest() {
             prevButtonData.current.push({
                 buttonIndex: i,
                 virtualPin: i,
+                currentValue: 0,
+                currentDistance: 0,
                 pressAdcValue: 0,
                 pressTriggerDistance: 0,
                 pressStartDistance: 0,
@@ -59,6 +65,12 @@ export function ButtonPerformanceTest() {
                 releaseStartDistance: 0,
                 isPressed: false,
             });
+        }
+
+        return () => {
+            if(monitorIsActive.current) {
+                stopMonitoring();
+            }
         }
     }, []);
 
@@ -73,25 +85,52 @@ export function ButtonPerformanceTest() {
         },
         onButtonPerformanceData: (data: ButtonPerformanceMonitoringData) => {
 
-            setPerformanceData(data);
-            setLastUpdate(new Date());
-            
+            console.log(data);
 
-            // 添加到事件历史
+            setPerformanceData(data);
+            // setLastUpdate(new Date());
+
+            // 实时更新所有按键数据
+            const updatedAllButtonsData = [...allButtonsData];
+            
             for(let i = 0; i < data.buttonCount; i++) {
                 const buttonData: ButtonPerformanceData = data.buttonData[i];
-
-
+                
+                // 查找或创建按键数据
+                let buttonInfo = updatedAllButtonsData.find(item => item.buttonIndex === buttonData.buttonIndex);
+                if (!buttonInfo) {
+                    buttonInfo = {
+                        buttonIndex: buttonData.buttonIndex,
+                        virtualPin: buttonData.virtualPin,
+                        currentValue: 0,
+                        currentDistance: 0,
+                        pressAdcValue: 0,
+                        pressTriggerDistance: 0,
+                        pressStartDistance: 0,
+                        releaseAdcValue: 0,
+                        releaseTriggerDistance: 0,
+                        releaseStartDistance: 0,
+                        isPressed: false,
+                    };
+                    updatedAllButtonsData.push(buttonInfo);
+                }
+                
+                // 更新实时数据
+                buttonInfo.virtualPin = buttonData.virtualPin;
+                buttonInfo.currentValue = buttonData.currentValue;
+                buttonInfo.currentDistance = buttonData.currentDistance;
+                buttonInfo.isPressed = buttonData.isPressed;
+                
+                // 更新事件历史（只在状态变化时）
                 const prevData = prevButtonData.current.find(item => item.buttonIndex === buttonData.buttonIndex);
-
                 if(prevData) {
                     if(buttonData.isPressed && !prevData.isPressed) {
-                        prevData.pressAdcValue = buttonData.triggerValue;
+                        prevData.pressAdcValue = buttonData.currentValue;
                         prevData.pressTriggerDistance = buttonData.triggerDistance;
                         prevData.pressStartDistance = buttonData.pressStartValueDistance;
                         prevData.isPressed = true;
                     }else if(!buttonData.isPressed && prevData.isPressed) {
-                        prevData.releaseAdcValue = buttonData.triggerValue;
+                        prevData.releaseAdcValue = buttonData.currentValue;
                         prevData.releaseTriggerDistance = buttonData.triggerDistance;
                         prevData.releaseStartDistance = buttonData.releaseStartValueDistance;
                         prevData.isPressed = false;
@@ -99,14 +138,13 @@ export function ButtonPerformanceTest() {
                 }
             }
 
-            console.log(prevButtonData.current);
-
+            setAllButtonsData(updatedAllButtonsData);
             setEventHistory(prevButtonData.current);
             
             // 记录日志
-            data.buttonData.forEach(button => {
+            data.buttonData.forEach((button: ButtonPerformanceData) => {
                 const eventType = button.isPressed ? '按下' : '释放';
-                addLog(`🎮 按键${button.buttonIndex} (VP:${button.virtualPin}) ${eventType}: ADC=${button.triggerValue}, 行程=${button.triggerDistance.toFixed(2)}mm, 按下开始行程=${button.pressStartValueDistance.toFixed(2)}mm, 释放开始行程=${button.releaseStartValueDistance.toFixed(2)}mm`);
+                addLog(`🎮 按键${button.buttonIndex} (VP:${button.virtualPin}) ${eventType}: ADC=${button.currentValue}, 行程=${button.triggerDistance.toFixed(2)}mm, 按下开始行程=${button.pressStartValueDistance.toFixed(2)}mm, 释放开始行程=${button.releaseStartValueDistance.toFixed(2)}mm`);
             });
         },
         useEventBus: true, // 使用 eventBus 监听
@@ -117,6 +155,7 @@ export function ButtonPerformanceTest() {
         addLog('🚀 正在启动ADC按键性能监控...');
         try {
             await startMonitoring();
+            monitorIsActive.current = true;
         } catch (err) {
             console.error('Failed to start monitoring:', err);
         }
@@ -126,6 +165,7 @@ export function ButtonPerformanceTest() {
         addLog('🛑 正在停止ADC按键性能监控...');
         try {
             await stopMonitoring();
+            monitorIsActive.current = false;
         } catch (err) {
             console.error('Failed to stop monitoring:', err);
         }
@@ -139,58 +179,55 @@ export function ButtonPerformanceTest() {
         setEventHistory([]);
     };
 
-    // 渲染按键状态可视化
-    const renderButtonVisual = () => {
-        if (!performanceData) return null;
-
-        const buttons = [];
-        const maxButtons = 18; // ADC按键数量
+    // // 渲染按键状态可视化
+    // const renderButtonVisual = () => {
+    //     const buttons = [];
+    //     const maxButtons = 18; // ADC按键数量
         
-        for (let i = 0; i < maxButtons; i++) {
-            // 查找当前按键是否有事件
-            const buttonEvent = performanceData.buttonData.find(button => button.buttonIndex === i);
-            const isPressed = buttonEvent?.isPressed || false;
+    //     for (let i = 0; i < maxButtons; i++) {
+    //         // 查找当前按键的状态
+    //         const buttonInfo = allButtonsData.find(button => button.buttonIndex === i);
+    //         const isPressed = buttonInfo?.isPressed || false;
+    //         const virtualPin = buttonInfo?.virtualPin || i;
             
-            buttons.push(
-                <GridItem key={i}>
-                    <Center
-                        w="60px"
-                        h="60px"
-                        rounded="md"
-                        border="2px solid"
-                        borderColor={isPressed ? "green.500" : "gray.300"}
-                        bg={isPressed ? "green.500" : "gray.100"}
-                        color={isPressed ? "white" : "gray.600"}
-                        fontWeight="bold"
-                        fontSize="sm"
-                        transition="all 0.2s"
-                        boxShadow={isPressed ? "lg" : "none"}
-                        position="relative"
-                    >
-                        {i}
-                        {buttonEvent && (
-                            <Badge
-                                position="absolute"
-                                top="-8px"
-                                right="-8px"
-                                size="sm"
-                                colorPalette="blue"
-                                variant="solid"
-                            >
-                                {buttonEvent.virtualPin}
-                            </Badge>
-                        )}
-                    </Center>
-                </GridItem>
-            );
-        }
+    //         buttons.push(
+    //             <GridItem key={i}>
+    //                 <Center
+    //                     w="60px"
+    //                     h="60px"
+    //                     rounded="md"
+    //                     border="2px solid"
+    //                     borderColor={isPressed ? "green.500" : "gray.300"}
+    //                     bg={isPressed ? "green.500" : "gray.100"}
+    //                     color={isPressed ? "white" : "gray.600"}
+    //                     fontWeight="bold"
+    //                     fontSize="sm"
+    //                     transition="all 0.2s"
+    //                     boxShadow={isPressed ? "lg" : "none"}
+    //                     position="relative"
+    //                 >
+    //                     {i}
+    //                     <Badge
+    //                         position="absolute"
+    //                         top="-8px"
+    //                         right="-8px"
+    //                         size="sm"
+    //                         colorPalette="blue"
+    //                         variant="solid"
+    //                     >
+    //                         {virtualPin}
+    //                     </Badge>
+    //                 </Center>
+    //             </GridItem>
+    //         );
+    //     }
 
-        return (
-            <Grid templateColumns="repeat(9, 1fr)" gap={3} w="full">
-                {buttons}
-            </Grid>
-        );
-    };
+    //     return (
+    //         <Grid templateColumns="repeat(9, 1fr)" gap={3} w="full">
+    //             {buttons}
+    //         </Grid>
+    //     );
+    // };
 
     return (
         <Flex direction="row" width="100%" height="100%" padding="18px">
@@ -250,45 +287,84 @@ export function ButtonPerformanceTest() {
                         </Card.Body>
                     </Card.Root>
 
-                    {/* 按键状态可视化 */}
-                    {performanceData && (
+                    {/* 实时按键数据表格 */}
+                    {allButtonsData.length > 0 && (
                         <Card.Root w="full">
                             <Card.Header>
                                 <HStack justify="space-between" w="full">
                                     <Text fontSize="lg" fontWeight="semibold">
-                                        ADC按键状态可视化
+                                        实时按键数据
                                     </Text>
-                                    {lastUpdate && (
-                                        <Text fontSize="sm" color="gray.500">
-                                            最后更新: {lastUpdate.toLocaleTimeString()}
-                                        </Text>
-                                    )}
+                                    <Badge colorPalette="blue" variant="solid">
+                                        {allButtonsData.filter(btn => btn.isPressed).length} / {allButtonsData.length}
+                                    </Badge>
                                 </HStack>
                             </Card.Header>
                             <Card.Body>
-                                <Flex direction="column" gap={4}>
-                                    <Box p={4} bg="gray.50" rounded="lg">
-                                        {renderButtonVisual()}
-                                    </Box>
-                                    
-                                    <Grid templateColumns="repeat(3, 1fr)" gap={4}>
-                                        <Box>
-                                            <Text fontWeight="medium" fontSize="sm">
-                                                按键数量: <Code>{performanceData.buttonCount}</Code>
-                                            </Text>
-                                        </Box>
-                                        <Box>
-                                            <Text fontWeight="medium" fontSize="sm">
-                                                时间戳: <Code>{performanceData.timestamp}</Code>
-                                            </Text>
-                                        </Box>
-                                        <Box>
-                                            <Text fontWeight="medium" fontSize="sm">
-                                                命令号: <Code>{performanceData.command}</Code>
-                                            </Text>
-                                        </Box>
-                                    </Grid>
-                                </Flex>
+                                <Box overflowX="auto">
+                                    <Table.Root size="sm">
+                                        <Table.Header>
+                                            <Table.Row>
+                                                <Table.ColumnHeader>按键</Table.ColumnHeader>
+                                                <Table.ColumnHeader>虚拟引脚</Table.ColumnHeader>
+                                                <Table.ColumnHeader>状态</Table.ColumnHeader>
+                                                <Table.ColumnHeader>当前ADC值</Table.ColumnHeader>
+                                            <Table.ColumnHeader>当前行程(mm)</Table.ColumnHeader>
+                                            <Table.ColumnHeader>触发行程(mm)</Table.ColumnHeader>
+                                                <Table.ColumnHeader>按下开始值</Table.ColumnHeader>
+                                                <Table.ColumnHeader>释放开始值</Table.ColumnHeader>
+                                                <Table.ColumnHeader>按下开始行程(mm)</Table.ColumnHeader>
+                                                <Table.ColumnHeader>释放开始行程(mm)</Table.ColumnHeader>
+                                            </Table.Row>
+                                        </Table.Header>
+                                        <Table.Body>
+                                            {allButtonsData.map((button, index) => {
+                                                const currentData = performanceData?.buttonData.find(
+                                                    data => data.buttonIndex === button.buttonIndex
+                                                );
+                                                return (
+                                                    <Table.Row key={index}>
+                                                        <Table.Cell>
+                                                            <Badge colorPalette="blue" variant="solid">
+                                                                {button.buttonIndex}
+                                                            </Badge>
+                                                        </Table.Cell>
+                                                        <Table.Cell>{button.virtualPin}</Table.Cell>
+                                                        <Table.Cell>
+                                                            <Badge 
+                                                                colorPalette={button.isPressed ? "green" : "gray"} 
+                                                                variant="solid"
+                                                            >
+                                                                {button.isPressed ? '按下' : '释放'}
+                                                            </Badge>
+                                                        </Table.Cell>
+                                                        <Table.Cell>
+                                                            <Code>{button.currentValue || '-'}</Code>
+                                                        </Table.Cell>
+                                                        <Table.Cell>
+                                                            {button.currentDistance.toFixed(2) || '-'}
+                                                        </Table.Cell>
+                                                        <Table.Cell>
+                                                            {currentData?.triggerDistance.toFixed(2) || '-'}
+                                                        </Table.Cell>
+                                                        <Table.Cell>
+                                                            <Code>{currentData?.pressStartValue || '-'}</Code>
+                                                        </Table.Cell>
+                                                        <Table.Cell>
+                                                            <Code>{currentData?.releaseStartValue || '-'}</Code>
+                                                        </Table.Cell>
+                                                        <Table.Cell>
+                                                            {currentData?.pressStartValueDistance.toFixed(2) || '-'}
+                                                        </Table.Cell>
+                                                        <Table.Cell>
+                                                            {currentData?.releaseStartValueDistance.toFixed(2) || '-'}
+                                                        </Table.Cell>
+                                                    </Table.Row>
+                                                );
+                                            })}
+                                        </Table.Body>
+                                    </Table.Root>
+                                </Box>
                             </Card.Body>
                         </Card.Root>
                     )}
@@ -414,19 +490,22 @@ export function ButtonPerformanceTest() {
                                     1. 点击&quot;启动监控&ldquo;开始监听ADC按键性能数据
                                 </Text>
                                 <Text fontSize="sm" >
-                                    2. 按下设备上的ADC按键，查看详细的性能参数
+                                    2. 实时显示所有18个ADC按键的当前状态和详细参数
                                 </Text>
                                 <Text fontSize="sm" >
                                     3. 绿色按键表示当前被按下，灰色表示未按下
                                 </Text>
                                 <Text fontSize="sm" >
-                                    4. 事件历史表格显示详细的ADC值、行程距离等信息
+                                    4. 实时按键数据表格显示所有按键的当前ADC值、行程距离等信息
                                 </Text>
                                 <Text fontSize="sm" >
-                                    5. 此模式专门用于ADC按键的性能测试和调试
+                                    5. 事件历史表格记录按键状态变化时的详细参数
                                 </Text>
                                 <Text fontSize="sm" >
-                                    6. 支持批量事件推送，提高数据传输效率
+                                    6. 此模式专门用于ADC按键的性能测试和调试
+                                </Text>
+                                <Text fontSize="sm" >
+                                    7. 支持实时WebSocket推送，每10ms发送一次所有按键数据
                                 </Text>
                             </Flex>
                         </Card.Body>

@@ -20,14 +20,33 @@ struct WebConfigADCButtonConfig {
 struct ADCBtnTestEvent {
     uint8_t buttonIndex;           // 按键索引
     uint8_t virtualPin;            // 虚拟引脚
-    uint16_t adcValue;             // 触发时的ADC值
-    float triggerDistance;         // 触发时的物理行程（mm）
+    uint16_t currentValue;         // 当前adc value
+    uint16_t pressTriggerValue;    // 按下触发值
+    uint16_t releaseTriggerValue;  // 释放触发值
     uint16_t pressStartValue;      // 按下开始值
     uint16_t releaseStartValue;    // 释放开始值
-    float pressStartValueDistance;  // 按下开始值对应的物理行程（mm）
-    float releaseStartValueDistance;  // 释放开始值对应的物理行程（mm）
+    float currentDistance;         // 当前行程距离（mm）
+    float pressTriggerDistance;    // 按下触发值对应的行程距离（mm）
+    float releaseTriggerDistance;  // 释放触发值对应的行程距离（mm）
+    float pressStartDistance;      // 按下开始值对应的行程距离（mm）
+    float releaseStartDistance;    // 释放开始值对应的行程距离（mm）
     bool isPressEvent;             // 是否为按下事件（true=按下，false=释放）
     uint32_t timestamp;            // 时间戳
+};
+
+// 按键状态缓存数据结构
+struct ButtonStateCache {
+    bool isPressed;                // 上一次的按下状态
+    float pressTriggerDistance;    // 按下触发时的物理行程（mm）
+    float releaseTriggerDistance;  // 释放触发时的物理行程（mm）
+    uint16_t pressStartValue;      // 按下开始值
+    uint16_t releaseStartValue;    // 释放开始值
+    float pressStartValueDistance; // 按下开始值对应的物理行程（mm）
+    float releaseStartValueDistance; // 释放开始值对应的物理行程（mm）
+    
+    ButtonStateCache() : isPressed(false), pressTriggerDistance(0.0f), releaseTriggerDistance(0.0f),
+                        pressStartValue(0), releaseStartValue(0),
+                        pressStartValueDistance(0.0f), releaseStartValueDistance(0.0f) {}
 };
 
 class WebConfigBtnsManager {
@@ -91,15 +110,20 @@ public:
 
     uint32_t getCurrentMask() const; // 获取当前按键状态掩码
 
+    // ========== 按键性能监控数据构建 ==========
+    
+    /**
+     * @brief 构建按键性能监控的二进制数据
+     * @return 完整的二进制数据
+     */
+    std::vector<uint8_t> buildButtonPerformanceMonitoringBinaryData();
+
 private:
     WebConfigBtnsManager();
     ~WebConfigBtnsManager();
     
     void setupButtonWorkers(); // 初始化按键工作器
     void cleanupButtonWorkers(); // 清理按键工作器
-    
-    // 技术测试模式相关方法
-    void processADCBtnTestEvent(uint8_t buttonIndex, bool isPressEvent, uint16_t adcValue);
     
     uint32_t currentMask; // 当前按键状态掩码
     uint32_t previousMask; // 上一次按键状态掩码
@@ -108,6 +132,9 @@ private:
     
     // ========== WebConfig模式ADC按键配置 ==========
     std::vector<WebConfigADCButtonConfig> adcButtonConfigs; // ADC按键配置数组
+    
+    // ========== 按键状态缓存 ==========
+    std::vector<ButtonStateCache> buttonStateCache; // 按键状态缓存数组
     
     // ========== 按键状态变化回调 ==========
     ButtonStateChangedCallback buttonStateChangedCallback; // 按键状态变化回调函数

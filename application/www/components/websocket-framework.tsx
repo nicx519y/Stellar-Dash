@@ -398,7 +398,6 @@ export class WebSocketFramework {
   }
 
   private handleBinaryMessage(data: ArrayBuffer): void {
-    console.log('收到二进制WebSocket消息');
     
     // 解析命令号
     const view = new DataView(data);

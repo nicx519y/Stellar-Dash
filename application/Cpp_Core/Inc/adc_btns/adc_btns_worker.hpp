@@ -39,6 +39,48 @@ enum class ADCBtnsWorkerError {
     BUTTON_CONFIG_ERROR = -10   // 按钮配置错误
 };
 
+// 按钮状态枚举
+enum class ButtonState {
+    RELEASED,       // 完全释放状态
+    PRESSED,        // 完全按下状态
+};
+
+// 按钮事件枚举
+enum class ButtonEvent {
+    NONE,
+    PRESS_COMPLETE, // 按下完成
+    RELEASE_COMPLETE// 释放完成
+};
+
+// 按钮结构体
+struct ADCBtn {
+    uint8_t virtualPin;  // 虚拟引脚
+    uint16_t valueMapping[MAX_ADC_VALUES_LENGTH];  // 当前使用的校准后映射值
+    uint16_t calibratedMapping[MAX_ADC_VALUES_LENGTH];      // 根据校准值生成的完整映射
+    ButtonState state;  // 按钮状态
+    bool initCompleted;  // 初始化完成标志
+
+    // 新的基于距离和ADC值的字段
+    float pressAccuracyMm = 0.0f;        // 按下精度（mm）
+    float releaseAccuracyMm = 0.0f;      // 释放精度（mm）
+    float highPrecisionReleaseAccuracyMm = 0.0f; // 高精度释放精度（mm）
+    float topDeadzoneMm = 0.0f;          // 顶部死区（mm）
+    float bottomDeadzoneMm = 0.0f;       // 底部死区（mm）
+    float halfwayDistanceMm = 0.0f;      // 中点距离（mm），用于高精度判断
+
+    uint16_t currentValue = 0;      // 当前值
+    uint16_t pressStartValue = 0;  // 按下开始值
+    uint16_t releaseStartValue = 0;  // 释放开始值
+
+    uint16_t pressTriggerSnapshot = 0;  // 按下触发值快照
+    uint16_t releaseTriggerSnapshot = 0;  // 释放触发值快照
+    uint16_t pressStartSnapshot = 0;  // 按下开始值快照
+    uint16_t releaseStartSnapshot = 0;  // 释放开始值快照
+    
+    // 缓存的阈值（避免重复计算）
+    uint16_t cachedPressThreshold = 0;    // 缓存的按下阈值
+    uint16_t cachedReleaseThreshold = 0;  // 缓存的释放阈值
+};
 
 class ADCBtnsWorker {
     public:
@@ -52,10 +94,9 @@ class ADCBtnsWorker {
         
         /**
          * @brief 初始化ADC按键工作器
-         * @param externalConfigs 外部配置数组（可选），如果提供则会覆盖从storage读取的配置，长度必须为NUM_ADC_BUTTONS
          * @return ADCBtnsError 初始化结果
          */
-        ADCBtnsError setup(const ExternalADCButtonConfig* externalConfigs = nullptr);
+        ADCBtnsError setup();
         
         uint32_t read();
 
@@ -63,8 +104,8 @@ class ADCBtnsWorker {
         ADCBtnsWorker();
         ~ADCBtnsWorker();
 
-        // 动态校准
-        void dynamicCalibration();
+
+        ADCBtn* getButtonState(uint8_t buttonIndex) const;
 
         /**
          * @brief 设置防抖过滤器配置
@@ -90,17 +131,6 @@ class ADCBtnsWorker {
          */
         uint8_t getButtonDebounceState(uint8_t buttonIndex) const;
 
-        /**
-         * @brief 获取指定按钮的详细信息 (技术测试模式用)
-         * @param buttonIndex 按钮索引
-         * @param adcValue 返回当前ADC值
-         * @param travelDistance 返回当前物理行程（mm）
-         * @param limitValue 返回当前limitValue
-         * @param limitValueDistance 返回limitValue对应的物理行程（mm）
-         * @return true 如果获取成功
-         */
-        bool getButtonDetails(uint8_t buttonIndex, uint16_t& adcValue, float& travelDistance, 
-                             uint16_t& pressStartValue, uint16_t& releaseStartValue, float& pressStartValueDistance, float& releaseStartValueDistance) const;
 
         /**
          * @brief 获取指定按钮的虚拟引脚
@@ -110,18 +140,17 @@ class ADCBtnsWorker {
         uint8_t getButtonVirtualPin(uint8_t buttonIndex) const;
 
         /**
-         * @brief 获取按键状态变化信息（技术测试模式用）
+         * @brief 获取指定按钮的当前物理行程距离
          * @param buttonIndex 按钮索引
-         * @param isPressEvent 返回是否为按下事件
-         * @param adcValue 返回触发时的ADC值
-         * @return true 如果有状态变化
+         * @return 当前物理行程距离（mm），如果索引无效返回0.0f
          */
-        bool getButtonStateChange(uint8_t buttonIndex, bool& isPressEvent, uint16_t& adcValue) const;
+        float getCurrentDistance(uint8_t buttonIndex) const;
 
         /**
-         * @brief 清除按键状态变化标志
+         * @brief 获取当前映射
+         * @return 当前映射指针，如果没有映射则返回nullptr
          */
-        void clearButtonStateChange();
+        const ADCValuesMapping* getCurrentMapping() const;
 
         /**
          * @brief 从virtualPin获取buttonIndex
@@ -130,94 +159,46 @@ class ADCBtnsWorker {
          */
         uint8_t getButtonIndexFromVirtualPin(uint8_t virtualPin) const;
 
+        // 新的基于距离和ADC值换算的核心方法
+        float getDistanceByValue(ADCBtn* btn, const uint16_t adcValue) const;
+        uint16_t getValueByDistance(ADCBtn* btn, const uint16_t baseAdcValue, const float distanceMm);
+
     private:
 
         // 校准保存延迟常量 (毫秒)
         static constexpr uint32_t CALIBRATION_SAVE_DELAY_MS = 5000;  // 5秒后保存
         static constexpr uint32_t MIN_CALIBRATION_INTERVAL_MS = 1000; // 最小校准间隔1秒
 
-        // 按钮状态枚举
-        enum class ButtonState {
-            RELEASED,       // 完全释放状态
-            RELEASING,      // 正在释放过程中
-            PRESSED,        // 完全按下状态
-            PRESSING,       // 正在按下过程中
-        };
-
-        // 按钮事件枚举
-        enum class ButtonEvent {
-            NONE,
-            PRESS_START,    // 开始按下
-            PRESS_COMPLETE, // 按下完成
-            RELEASE_START,  // 开始释放
-            RELEASE_COMPLETE// 释放完成
-        };
-
-        // 按钮结构体
-        struct ADCBtn {
-            uint8_t virtualPin;  // 虚拟引脚
-            uint16_t valueMapping[MAX_ADC_VALUES_LENGTH];  // 当前使用的校准后映射值
-            uint16_t calibratedMapping[MAX_ADC_VALUES_LENGTH];      // 根据校准值生成的完整映射
-            ButtonState state;  // 按钮状态
-            bool initCompleted;  // 初始化完成标志
-
-            // 新的基于距离和ADC值的字段
-            float lastTravelDistance = 0.0f;    // 上次行程距离（mm）
-            uint16_t lastAdcValue = 0;           // 上次ADC值
-            float pressAccuracyMm = 0.0f;        // 按下精度（mm）
-            float releaseAccuracyMm = 0.0f;      // 释放精度（mm）
-            float highPrecisionReleaseAccuracyMm = 0.0f; // 高精度释放精度（mm）
-            float topDeadzoneMm = 0.0f;          // 顶部死区（mm）
-            float bottomDeadzoneMm = 0.0f;       // 底部死区（mm）
-            float halfwayDistanceMm = 0.0f;      // 中点距离（mm），用于高精度判断
-            uint16_t triggerValue = 0;            // 触发值
-            bool needCalibration = false;
-            bool needSaveCalibration = false;          // 需要保存校准值到存储
-            uint32_t lastCalibrationTime = 0;         // 上次校准时间
-            uint32_t lastSaveTime = 0;                // 上次保存时间
-            RingBufferSlidingWindow<uint16_t> topValueWindow{NUM_MAPPING_INDEX_WINDOW_SIZE};  // 最小值滑动窗口
-            RingBufferSlidingWindow<uint16_t> bottomValueWindow{NUM_MAPPING_INDEX_WINDOW_SIZE};   // 最大值滑动窗口
-            uint16_t limitValue = 0;  // 限制值
-            uint16_t prevLimitValue = 0;  // 上一次的限制值
-            uint16_t pressStartValue = 0;  // 按下开始值
-            uint16_t releaseStartValue = 0;  // 释放开始值
-            
-            // 缓存的阈值（避免重复计算）
-            uint16_t cachedPressThreshold = 0;    // 缓存的按下阈值
-            uint16_t cachedReleaseThreshold = 0;  // 缓存的释放阈值
-            
-            // 预计算精度映射表
-            struct PrecisionMapping {
-                uint16_t pressThresholds[MAX_ADC_VALUES_LENGTH];   // 每个位置的按下阈值
-                uint16_t releaseThresholds[MAX_ADC_VALUES_LENGTH]; // 每个位置的弹起阈值
-                bool isValid;  // 映射表是否有效
-            } precisionMap;
-        };
+        
 
         // 获取按钮事件
         ButtonEvent getButtonEvent(ADCBtn* btn, const uint16_t currentValue, const uint8_t buttonIndex);
         // 处理状态转换
-        void handleButtonState(ADCBtn* btn, const ButtonEvent event);
+        void handleButtonState(ADCBtn* btn, const ButtonEvent event, const uint16_t adcValue);
 
         void initButtonMapping(ADCBtn* btn, const uint16_t releaseValue);
 
-        // 新的基于距离和ADC值换算的核心方法
-        float getDistanceByValue(ADCBtn* btn, const uint16_t adcValue) const;
-        uint16_t getValueByDistance(ADCBtn* btn, const uint16_t baseAdcValue, const float distanceMm);
+        
         float getCurrentPressAccuracy(ADCBtn* btn, const float currentDistance);
         float getCurrentReleaseAccuracy(ADCBtn* btn, const float currentDistance);
         void updateLimitValue(ADCBtn* btn, const uint16_t currentValue);
         void resetLimitValue(ADCBtn* btn, const uint16_t currentValue);
 
-        // 预计算精度映射表相关函数
-        void calculatePrecisionMapping(ADCBtn* btn);
-        uint8_t findMappingIndex(ADCBtn* btn, const uint16_t currentValue);
-        uint16_t getInterpolatedPressThreshold(ADCBtn* btn, const uint16_t currentValue);
-        uint16_t getInterpolatedReleaseThreshold(ADCBtn* btn, const uint16_t currentValue);
+        /**
+         * 计算按下阈值（考虑死区处理）
+         * @param btn 按钮指针
+         * @param baseValue 基准ADC值
+         * @return 计算出的按下阈值
+         */
+        uint16_t calculatePressThreshold(ADCBtn* btn, const uint16_t baseValue);
 
-        // 校准相关
-        void saveCalibrationValues();
-        bool shouldSaveCalibration(ADCBtn* btn, uint32_t currentTime);
+        /**
+         * 计算释放阈值（考虑死区处理）
+         * @param btn 按钮指针
+         * @param baseValue 基准ADC值
+         * @return 计算出的释放阈值
+         */
+        uint16_t calculateReleaseThreshold(ADCBtn* btn, const uint16_t baseValue);
 
         /**
          * 根据校准值生成完整的校准后映射
@@ -236,16 +217,6 @@ class ADCBtnsWorker {
         
         // 防抖过滤器
         ADCDebounceFilter debounceFilter_;
-
-        // 动态校准相关函数
-        // 状态变化跟踪（技术测试模式用）
-        struct ButtonStateChange {
-            bool hasChange;
-            bool isPressEvent;
-            uint16_t adcValue;
-            uint32_t timestamp;
-        };
-        mutable std::array<ButtonStateChange, NUM_ADC_BUTTONS> buttonStateChanges_;
         
         // virtualPin到buttonIndex的映射表
         std::array<uint8_t, NUM_ADC_BUTTONS> virtualPinToButtonIndex_;

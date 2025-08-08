@@ -362,6 +362,8 @@ ADCBtnsError ADCManager::getCalibrationValues(const char* mappingId, uint8_t but
         bottomValue = mapping.manualCalibrationValues[buttonIndex].bottomValue;
     }
     
+    APP_DBG("getCalibrationValues: buttonIndex: %d, topValue: %d, bottomValue: %d", buttonIndex, topValue, bottomValue);
+
     // 检查校准值是否有效
     if (topValue == 0 && bottomValue == 0) {
         return ADCBtnsError::CALIBRATION_VALUES_NOT_FOUND;

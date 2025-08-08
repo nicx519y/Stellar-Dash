@@ -1,28 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { eventBus, EVENTS } from '@/lib/event-manager';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
-import { createWebSocketFramework } from '@/components/websocket-framework';
+import { parseButtonPerformanceMonitoringBinaryData, type ButtonPerformanceMonitoringBinaryData, type ButtonPerformanceData } from '@/lib/button-performance-binary-parser';
 
-// ADC按键测试事件数据结构
-export interface ButtonPerformanceData {
-    buttonIndex: number;
-    virtualPin: number;
-    triggerValue: number;
-    triggerDistance: number;
-    pressStartValue: number;
-    releaseStartValue: number;
-    pressStartValueDistance: number;
-    releaseStartValueDistance: number;
-    isPressed: boolean;
-}
-
-export interface ButtonPerformanceMonitoringData {
-    command: number;
-    isActive: boolean;
-    buttonCount: number;
-    timestamp: number;
-    buttonData: ButtonPerformanceData[];
-}
+// 重新导出数据结构
+export type { ButtonPerformanceData, ButtonPerformanceMonitoringBinaryData as ButtonPerformanceMonitoringData };
 
 export interface UseButtonPerformanceMonitorOptions {
     /** 是否自动初始化监控 */
@@ -32,7 +14,7 @@ export interface UseButtonPerformanceMonitorOptions {
     /** 状态变化回调 */
     onMonitoringStateChange?: (isActive: boolean) => void;
     /** 按键性能监控数据回调 */
-    onButtonPerformanceData?: (data: ButtonPerformanceMonitoringData) => void;
+    onButtonPerformanceData?: (data: ButtonPerformanceMonitoringBinaryData) => void;
     /** 使用 eventBus 而不是直接监听（推荐） */
     useEventBus?: boolean;
 }
@@ -106,7 +88,6 @@ export function useButtonPerformanceMonitor(options: UseButtonPerformanceMonitor
     // 处理WebSocket推送的按键性能监控事件
     const handleButtonPerformanceEvent = (data: unknown) => {
         try {
-            console.log('Received button performance monitoring event:', data);
             
             // 检查数据类型
             if (!(data instanceof ArrayBuffer)) {
@@ -114,44 +95,13 @@ export function useButtonPerformanceMonitor(options: UseButtonPerformanceMonitor
                 return;
             }
             
-            // 解析二进制数据
-            const view = new DataView(data);
-            const command = view.getUint8(0);
+            // 使用新的二进制解析器解析数据
+            const performanceData = parseButtonPerformanceMonitoringBinaryData(data);
             
-            if (command === 2) { // 按键性能监控命令号
-                const isActive = view.getUint8(1);
-                const buttonCount = view.getUint8(2);
-                const reserved = view.getUint8(3); // 添加reserved字段解析
-                const timestamp = view.getUint32(4, true); // little-endian
-                
-                const buttonData: ButtonPerformanceData[] = [];
-                // 解析每个按键数据
-                let offset = 8; // 跳过头部 (1+1+1+1+4 = 8字节)
-                for (let i = 0; i < buttonCount; i++) {
-                    const event: ButtonPerformanceData = {
-                        buttonIndex: view.getUint8(offset),
-                        virtualPin: view.getUint8(offset + 1),
-                        triggerValue: view.getUint16(offset + 2, true),
-                        triggerDistance: view.getFloat32(offset + 4, true),
-                        pressStartValue: view.getUint16(offset + 8, true),
-                        releaseStartValue: view.getUint16(offset + 10, true),
-                        pressStartValueDistance: view.getFloat32(offset + 12, true),
-                        releaseStartValueDistance: view.getFloat32(offset + 16, true),
-                        isPressed: view.getUint8(offset + 20) === 1,
-                    };
-                    buttonData.push(event);
-                    offset += 22; // ButtonPerformanceData结构体大小：1+1+2+4+2+2+4+4+1+1 = 22字节
-                }
-                
-                const performanceData: ButtonPerformanceMonitoringData = {
-                    command,
-                    isActive: isActive === 1,
-                    buttonCount,
-                    timestamp,
-                    buttonData,
-                };
-                
+            if (performanceData) {
                 onButtonPerformanceData?.(performanceData);
+            } else {
+                console.warn('Failed to parse button performance monitoring binary data');
             }
         } catch (error) {
             console.error('Failed to handle button performance monitoring event:', error);

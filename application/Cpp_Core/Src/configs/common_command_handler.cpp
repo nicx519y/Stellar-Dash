@@ -57,16 +57,32 @@ void CommonCommandHandler::sendButtonStateNotification() {
  * @brief 推送按键性能监控通知（二进制格式）
  */
 void CommonCommandHandler::sendButtonPerformanceMonitoringNotification() {
+
+    static uint32_t lastSendTime = 0;
+    static constexpr uint32_t SEND_INTERVAL_MS = 100; // 10ms发送间隔
+    // 检查发送间隔
+    uint32_t currentTime = HAL_GetTick();
+    if (currentTime - lastSendTime < SEND_INTERVAL_MS) {
+        return;
+    }
+
+    // 构建完整的二进制数据（每次都执行，用于更新缓存）
+    std::vector<uint8_t> binaryData = WEBCONFIG_BTNS_MANAGER.buildButtonPerformanceMonitoringBinaryData();
+    
     // 获取WebSocket服务器实例
     WebSocketServer& server = WebSocketServer::getInstance();
-    
-    // 构建完整的二进制数据
-    std::vector<uint8_t> binaryData = buildButtonPerformanceMonitoringBinaryData();
     
     // 发送二进制数据到所有连接的客户端
     server.broadcast_binary(binaryData.data(), binaryData.size());
     
+    // 更新发送时间
+    lastSendTime = currentTime;
+    
     APP_DBG("Button performance monitoring binary notification sent to all clients (size=%d bytes)", binaryData.size());
+    
+    // 发送完成后清理数据
+    binaryData.clear();
+    binaryData.shrink_to_fit();
 }
 
 
@@ -220,72 +236,7 @@ WebSocketDownstreamMessage CommonCommandHandler::handle(const WebSocketUpstreamM
     return create_error_response(request.getCid(), command, -1, "Unknown common command");
 }
 
-/**
- * @brief 构建按键性能监控的二进制数据
- * @return 完整的二进制数据
- */
-std::vector<uint8_t> CommonCommandHandler::buildButtonPerformanceMonitoringBinaryData() {
-    // 收集所有ADC按键的状态
-    std::vector<ButtonPerformanceData> buttonDataList;
-    
-    for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-        // 获取按钮详细信息
-        uint16_t currentAdcValue, pressStartValue, releaseStartValue;
-        float triggerDistance, pressStartValueDistance, releaseStartValueDistance;
-        
-        if (ADC_BTNS_WORKER.getButtonDetails(i, currentAdcValue, triggerDistance, pressStartValue, releaseStartValue, pressStartValueDistance, releaseStartValueDistance)) {
-            // 获取虚拟引脚
-            uint8_t virtualPin = ADC_BTNS_WORKER.getButtonVirtualPin(i);
-            if (virtualPin != 0xFF) {
-                // 检查按键是否按下
-                bool isPressed = (WEBCONFIG_BTNS_MANAGER.getCurrentMask() & (1U << virtualPin)) != 0;
-                
-                // 构造按键性能数据
-                ButtonPerformanceData buttonData;
-                buttonData.buttonIndex = i;
-                buttonData.virtualPin = virtualPin;
-                buttonData.adcValue = currentAdcValue;
-                buttonData.triggerDistance = triggerDistance;
-                buttonData.pressStartValue = pressStartValue;
-                buttonData.releaseStartValue = releaseStartValue;
-                buttonData.pressStartValueDistance = pressStartValueDistance;
-                buttonData.releaseStartValueDistance = releaseStartValueDistance;
-                buttonData.isPressed = isPressed ? 1 : 0;
-                buttonData.reserved = 0;
-                
-                buttonDataList.push_back(buttonData);
-            }
-        }
-    }
-    
-    // 计算总数据大小：头部 + 按键数据数组
-    size_t totalSize = sizeof(ButtonPerformanceMonitoringBinaryData) + 
-                      buttonDataList.size() * sizeof(ButtonPerformanceData);
-    
-    // 创建完整的数据缓冲区
-    std::vector<uint8_t> buffer(totalSize);
-    uint8_t* dataPtr = buffer.data();
-    
-    // 构建头部数据
-    ButtonPerformanceMonitoringBinaryData header;
-    header.command = BUTTON_PERFORMANCE_MONITORING_CMD;
-    header.isActive = WEBCONFIG_BTNS_MANAGER.isActive() ? 1 : 0;
-    header.buttonCount = static_cast<uint8_t>(buttonDataList.size());
-    header.reserved = 0;
-    header.timestamp = HAL_GetTick();
-    
-    // 复制头部数据
-    memcpy(dataPtr, &header, sizeof(ButtonPerformanceMonitoringBinaryData));
-    dataPtr += sizeof(ButtonPerformanceMonitoringBinaryData);
-    
-    // 复制按键数据
-    for (const auto& buttonData : buttonDataList) {
-        memcpy(dataPtr, &buttonData, sizeof(ButtonPerformanceData));
-        dataPtr += sizeof(ButtonPerformanceData);
-    }
-    
-    return buffer;
-}
+
 
 /**
  * @brief 启动按键性能监控（包含测试模式）

@@ -447,7 +447,7 @@ export const UI_TEXT = {
     // Common Button Labels
     BUTTON_RESET: "Reset",
     BUTTON_SAVE: "Save",
-    BUTTON_REBOOT_WITH_SAVING: "Play Game With Saving",
+    BUTTON_REBOOT_WITH_SAVING: "Finish Configuration",
     BUTTON_CANCEL: "Cancel",
     BUTTON_SUBMIT: "Submit",
     BUTTON_CONFIRM: "Confirm",
@@ -517,6 +517,16 @@ export const UI_TEXT = {
     SETTINGS_RAPID_TRIGGER_BOTTOM_DEADZONE_LABEL: "Bottom Deadzone:",
     SETTINGS_RAPID_TRIGGER_PRESS_ACCURACY_LABEL: "Press Accuracy:",
     SETTINGS_RAPID_TRIGGER_RELEASE_ACCURACY_LABEL: "Release Accuracy:",
+    SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL_TITLE: "Configure All Buttons",
+    SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL_MESSAGE: "Are you sure you want to configure all buttons at once? This will overwrite the current configuration of all buttons.",
+
+    SETTINGS_RAPID_TRIGGER_ENTER_TEST_MODE_BUTTON: "Enter Button Test Mode",
+    SETTINGS_RAPID_TRIGGER_EXIT_TEST_MODE_BUTTON: "Exit Button Test Mode",
+    SETTINGS_BUTTONS_PERFORMANCE_TEST_TITLE: "BUTTONS PERFORMANCE TEST",
+    SETTINGS_BUTTONS_PERFORMANCE_TEST_HELPER_TEXT: "You can test the button performance here. Press and release the button on the device, and the travel distance and press/release points will be recorded here.\n- Press: The point when the button is pressed (mm)\n- Release: The point when the button is released (mm)",
+    TEST_MODE_FIELD_KEY_LABEL: "Key:",
+    TEST_MODE_FIELD_PRESS_TRIGGER_POINT_LABEL: "Press:",
+    TEST_MODE_FIELD_RELEASE_START_POINT_LABEL: "Release:",
 
     // Select Value Text
     SELECT_VALUE_TEXT_PLACEHOLDER: "Select action",
@@ -723,7 +733,7 @@ export const UI_TEXT_ZH = {
     // 通用按钮文案
     BUTTON_RESET: "重置",
     BUTTON_SAVE: "保存",
-    BUTTON_REBOOT_WITH_SAVING: "保存并开始游戏",
+    BUTTON_REBOOT_WITH_SAVING: "结束配置",
     BUTTON_CANCEL: "取消",
     BUTTON_SUBMIT: "确定",
     BUTTON_CONFIRM: "确认",
@@ -792,6 +802,16 @@ export const UI_TEXT_ZH = {
     SETTINGS_RAPID_TRIGGER_BOTTOM_DEADZONE_LABEL: "底部死区：",
     SETTINGS_RAPID_TRIGGER_PRESS_ACCURACY_LABEL: "按下精度：",
     SETTINGS_RAPID_TRIGGER_RELEASE_ACCURACY_LABEL: "释放精度：",
+    SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL_TITLE: "同时配置所有按键",
+    SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL_MESSAGE: "确定要同时配置所有按键吗？此操作将覆盖所有按键的当前配置。",
+
+    SETTINGS_RAPID_TRIGGER_ENTER_TEST_MODE_BUTTON: "进入按键测试模式",
+    SETTINGS_RAPID_TRIGGER_EXIT_TEST_MODE_BUTTON: "退出按键测试模式",
+    SETTINGS_BUTTONS_PERFORMANCE_TEST_TITLE: "按键性能测试",
+    SETTINGS_BUTTONS_PERFORMANCE_TEST_HELPER_TEXT: "可以在这里测试按键性能。按下并释放设备上的磁轴按键，这里会记录下按键的行程，以及按下和触发的点位。\n- 按下：按键按下时的点位(mm)\n- 释放：按键释放时的点位(mm)",
+    TEST_MODE_FIELD_KEY_LABEL: "按键:",
+    TEST_MODE_FIELD_PRESS_TRIGGER_POINT_LABEL: "按下:",
+    TEST_MODE_FIELD_RELEASE_START_POINT_LABEL: "释放:",
     
     // 选择值文本
     SELECT_VALUE_TEXT_PLACEHOLDER: "选择动作",

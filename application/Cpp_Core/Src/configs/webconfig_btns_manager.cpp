@@ -29,6 +29,9 @@ WebConfigBtnsManager::WebConfigBtnsManager() {
     
     // 初始化ADC按键WebConfig配置
     adcButtonConfigs.resize(NUM_ADC_BUTTONS);
+    
+    // 初始化按键状态缓存
+    buttonStateCache.resize(NUM_ADC_BUTTONS);
 
 }
 
@@ -146,15 +149,17 @@ void WebConfigBtnsManager::update() {
         return;
     }
 
-    // 技术测试模式下，只处理ADC按键
+    // 技术测试模式下，只处理ADC按键，并且每一次循环都send websocket 传输当前的状态和值
 
     if(isTestModeEnabled_) {
         
         currentMask = ADC_BTNS_WORKER.read();
 
-        if(currentMask != previousMask && buttonPerformanceMonitoringCallback) {
+        // if(currentMask != previousMask && buttonPerformanceMonitoringCallback) {
+        if(buttonPerformanceMonitoringCallback) {
             buttonPerformanceMonitoringCallback();
         }
+        // }
 
         previousMask = currentMask;
 
@@ -194,44 +199,6 @@ bool WebConfigBtnsManager::isTestModeEnabled() const {
     return isTestModeEnabled_;
 }
 
-void WebConfigBtnsManager::processADCBtnTestEvent(uint8_t buttonIndex, bool isPressEvent, uint16_t adcValue) {
-    if (!isTestModeEnabled_) {
-        return;
-    }
-    
-    // 获取按钮详细信息
-    uint16_t currentAdcValue, pressStartValue, releaseStartValue;
-    float triggerDistance, pressStartValueDistance, releaseStartValueDistance;
-    
-    if (!ADC_BTNS_WORKER.getButtonDetails(buttonIndex, currentAdcValue, triggerDistance, pressStartValue, releaseStartValue, pressStartValueDistance, releaseStartValueDistance)) {
-        APP_ERR("WebConfigBtnsManager::processADCBtnTestEvent - Failed to get button details for index %d", buttonIndex);
-        return;
-    }
-    
-    // 获取虚拟引脚
-    uint8_t virtualPin = ADC_BTNS_WORKER.getButtonVirtualPin(buttonIndex);
-    if (virtualPin == 0xFF) {
-        APP_ERR("WebConfigBtnsManager::processADCBtnTestEvent - Invalid virtual pin for button index %d", buttonIndex);
-        return;
-    }
-    
-    // 构造测试事件
-    ADCBtnTestEvent testEvent;
-    testEvent.buttonIndex = buttonIndex;
-    testEvent.virtualPin = virtualPin;
-    testEvent.adcValue = currentAdcValue;
-    testEvent.triggerDistance = triggerDistance;
-    testEvent.pressStartValue = pressStartValue;
-    testEvent.releaseStartValue = releaseStartValue;
-    testEvent.pressStartValueDistance = pressStartValueDistance;
-    testEvent.releaseStartValueDistance = releaseStartValueDistance;
-    testEvent.isPressEvent = isPressEvent;
-    testEvent.timestamp = HAL_GetTick();
-    
-    // 添加到事件收集器
-    testEventCollector.push_back(testEvent);
-    
-}
 
 /*
  * 技术测试模式使用示例：
@@ -256,3 +223,66 @@ void WebConfigBtnsManager::processADCBtnTestEvent(uint8_t buttonIndex, bool isPr
  * // 5. 禁用技术测试模式（恢复正常模式）
  * WEBCONFIG_BTNS_MANAGER.enableTestMode(false);
  */ 
+
+// ============================================================================
+// 按键性能监控数据构建实现
+// ============================================================================
+
+std::vector<uint8_t> WebConfigBtnsManager::buildButtonPerformanceMonitoringBinaryData() {
+    // 收集所有ADC按键的状态
+    std::vector<ButtonPerformanceData> buttonDataList;
+    
+    for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+        ADCBtn* btn = ADC_BTNS_WORKER.getButtonState(i);
+        if (btn) {
+            ButtonPerformanceData buttonData;
+            buttonData.buttonIndex = i;
+            buttonData.virtualPin = ADC_BTNS_WORKER.getButtonVirtualPin(i);
+            buttonData.isPressed = btn->state == ButtonState::PRESSED ? 1 : 0;
+            buttonData.currentDistance = ADC_BTNS_WORKER.getDistanceByValue(btn, btn->currentValue);
+            buttonData.pressTriggerDistance = ADC_BTNS_WORKER.getDistanceByValue(btn, btn->pressTriggerSnapshot);
+            buttonData.releaseTriggerDistance = ADC_BTNS_WORKER.getDistanceByValue(btn, btn->releaseTriggerSnapshot);
+            buttonData.pressStartDistance = ADC_BTNS_WORKER.getDistanceByValue(btn, btn->pressStartSnapshot);
+            buttonData.releaseStartDistance = ADC_BTNS_WORKER.getDistanceByValue(btn, btn->releaseStartSnapshot);
+            buttonData.reserved = 0;
+            
+            buttonDataList.push_back(buttonData);
+        }
+    }
+    
+    // 计算总数据大小：头部 + 按键数据数组
+    size_t totalSize = sizeof(ButtonPerformanceMonitoringBinaryData) + 
+                      buttonDataList.size() * sizeof(ButtonPerformanceData);
+    
+    // 创建完整的数据缓冲区
+    std::vector<uint8_t> buffer(totalSize);
+    uint8_t* dataPtr = buffer.data();
+    
+    // 构建头部数据
+    ButtonPerformanceMonitoringBinaryData header;
+    header.command = BUTTON_PERFORMANCE_MONITORING_CMD;
+    header.isActive = isActive() ? 1 : 0;
+    header.buttonCount = static_cast<uint8_t>(buttonDataList.size());
+    header.reserved = 0;
+    header.timestamp = HAL_GetTick();
+    
+    // 获取最大物理行程（从当前映射获取）
+    const ADCValuesMapping* currentMapping = ADC_BTNS_WORKER.getCurrentMapping();
+    if (currentMapping) {
+        header.maxTravelDistance = (currentMapping->length - 1) * currentMapping->step;
+    } else {
+        header.maxTravelDistance = 0.0f; // 如果没有映射，设为0
+    }
+    
+    // 复制头部数据
+    memcpy(dataPtr, &header, sizeof(ButtonPerformanceMonitoringBinaryData));
+    dataPtr += sizeof(ButtonPerformanceMonitoringBinaryData);
+    
+    // 复制按键数据
+    for (const auto& buttonData : buttonDataList) {
+        memcpy(dataPtr, &buttonData, sizeof(ButtonPerformanceData));
+        dataPtr += sizeof(ButtonPerformanceData);
+    }
+    
+    return buffer;
+}

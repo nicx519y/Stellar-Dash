@@ -46,6 +46,7 @@ import { calculateSHA256, extractFirmwarePackage } from '@/lib/firmware-utils';
 
 // 导入WebSocket队列管理器
 import { WebSocketQueueManager } from '@/lib/websocket-queue-manager';
+import { BUTTON_PERFORMANCE_MONITORING_CMD, parseButtonPerformanceMonitoringBinaryData } from '@/lib/button-performance-binary-parser';
 
 // 固件服务器配置
 const FIRMWARE_SERVER_CONFIG = {
@@ -334,8 +335,15 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     // 按键状态变化消息
                     const buttonStateData = parseButtonStateBinaryData(new Uint8Array(data));
                     if (buttonStateData) {
-                        console.log("emit button state changed: ", buttonStateData);
                         eventBus.emit(EVENTS.BUTTON_STATE_CHANGED, buttonStateData);
+                    }
+                    break;
+                }
+                case BUTTON_PERFORMANCE_MONITORING_CMD: {
+                    // 按键性能监控消息
+                    const performanceData = parseButtonPerformanceMonitoringBinaryData(new Uint8Array(data));
+                    if (performanceData) {
+                        eventBus.emit(EVENTS.BUTTON_PERFORMANCE_MONITORING, performanceData);
                     }
                     break;
                 }

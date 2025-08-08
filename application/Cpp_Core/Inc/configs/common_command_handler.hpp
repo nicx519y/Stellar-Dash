@@ -26,13 +26,12 @@ struct ButtonStateBinaryData {
 struct ButtonPerformanceData {
     uint8_t buttonIndex;    // 按键索引
     uint8_t virtualPin;     // 虚拟引脚
-    uint16_t adcValue;      // 当前ADC值
-    float triggerDistance;  // 触发时的物理行程（mm）
-    uint16_t pressStartValue; // 按下开始值
-    uint16_t releaseStartValue; // 释放开始值
-    float pressStartValueDistance; // 按下开始值对应的物理行程（mm）
-    float releaseStartValueDistance; // 释放开始值对应的物理行程（mm）
     uint8_t isPressed;      // 是否按下（1=按下，0=释放）
+    float currentDistance;  // 当前物理行程（mm）
+    float pressTriggerDistance;  // 触发时的物理行程（mm）
+    float pressStartDistance; // 按下开始值对应的物理行程（mm）
+    float releaseTriggerDistance; // 释放触发值对应的行程距离（mm）
+    float releaseStartDistance; // 释放开始值对应的行程距离（mm）
     uint8_t reserved;       // 保留字节，保持8字节对齐
 };
 
@@ -43,6 +42,7 @@ struct ButtonPerformanceMonitoringBinaryData {
     uint8_t buttonCount;    // 本次推送的按键数量
     uint8_t reserved;       // 保留字节，保持4字节对齐
     uint32_t timestamp;     // 时间戳
+    float maxTravelDistance; // 最大物理行程（mm），从当前映射获取
     // 后面跟着 buttonCount 个 ButtonPerformanceData
 };
 
@@ -136,6 +136,4 @@ private:
     // 构建按键状态的二进制数据
     ButtonStateBinaryData buildButtonStateBinaryData();
 
-    // 构建按键性能监控的二进制数据
-    std::vector<uint8_t> buildButtonPerformanceMonitoringBinaryData();
 }; 

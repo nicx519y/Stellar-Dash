@@ -50,12 +50,12 @@ void WebConfigState::loop() {
         ADC_CALIBRATION_MANAGER.processCalibration(); // 处理校准逻辑
         CONFIG_MANAGER.loop();
         
-        if(MICROS_TIMER.checkInterval(READ_BTNS_INTERVAL, workTime)) {
+        // if(MICROS_TIMER.checkInterval(READ_BTNS_INTERVAL, workTime)) {
             // 实时更新按键状态并生成事件（在主循环中调用）
             WEBCONFIG_BTNS_MANAGER.update();
             // 更新LED预览效果
             WEBCONFIG_LEDS_MANAGER.update(WEBCONFIG_BTNS_MANAGER.getCurrentMask());
-        }
+        // }
     }
 }
 

@@ -310,7 +310,7 @@ export default function HitboxBase(props: HitboxBaseProps) {
                         r={item.r}
                         $opacity={1}
                         $interactive={props.interactiveIds?.includes(index) ?? false}
-                        $highlight={props.highlightIds?.includes(index) ?? false}
+                        $highlight={(props.interactiveIds?.includes(index) && props.highlightIds?.includes(index)) ?? false}
                         $pressed={isButtonPressed(index)}
                         fill={getButtonFillColor(index)}
                         onMouseLeave={handleLeave}
