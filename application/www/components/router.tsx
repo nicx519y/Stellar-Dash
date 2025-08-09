@@ -8,11 +8,8 @@ import { LEDsSettingContent } from '@/components/leds-setting-content';
 import { ButtonsPerformanceContent } from '@/components/buttons-performance-content';
 import { FirmwareContent } from '@/components/firmware-content';
 import { SwitchMarkingContent } from '@/components/switch-marking-content';
-import WebSocketTest from '@/components/websocket-test';
-import { ButtonMonitorTest } from '@/components/button-monitor-test';
-import { ButtonPerformanceTest } from './button-performance-test';
 
-export type Route = '' | 'global' | 'keys' | 'lighting' | 'buttons-performance' | 'switch-marking' | 'firmware' | 'websocket' | 'buttons-monitor' | 'buttons-performance-test';
+export type Route = '' | 'global' | 'keys' | 'lighting' | 'buttons-performance' | 'switch-marking' | 'firmware';
 
 interface RouterState {
     currentRoute: Route;
@@ -61,12 +58,10 @@ export function Router() {
             return <FirmwareContent />;
         case 'switch-marking':
             return <SwitchMarkingContent />;
-        case 'websocket':
-            return <WebSocketTest />;
-        case 'buttons-monitor':
-            return <ButtonMonitorTest />;
-        case 'buttons-performance-test':
-            return <ButtonPerformanceTest />;
+        // case 'websocket':
+        //     return <WebSocketTest />;
+        // case 'buttons-monitor':
+        //     return <ButtonMonitorTest />;
         default:
             return <></>;
     }

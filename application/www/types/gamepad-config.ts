@@ -434,6 +434,43 @@ export type RapidTriggerConfig = {
     releaseAccuracy: number;
 }
 
+export enum ButtonPerformancePresetName {
+    FASTEST = 'Fastest',
+    BALANCED = 'Balanced',
+    STABILITY = 'Stability',
+    CUSTOM = 'Custom',
+}
+
+export const ButtonPerformancePresetConfigs = [
+    {
+        name: ButtonPerformancePresetName.FASTEST,
+        configs: {
+            topDeadzone: 0,
+            bottomDeadzone: 0,
+            pressAccuracy: 0.1,
+            releaseAccuracy: 0.01,
+        }
+    },
+    {
+        name: ButtonPerformancePresetName.BALANCED,
+        configs: {
+            topDeadzone: 0.3,
+            bottomDeadzone: 0.3,
+            pressAccuracy: 0.1,
+            releaseAccuracy: 0.1,
+        }
+    },
+    {
+        name: ButtonPerformancePresetName.STABILITY,
+        configs: {
+            topDeadzone: 0.8,
+            bottomDeadzone: 1.0,
+            pressAccuracy: 0.1,
+            releaseAccuracy: 0.1,
+        }
+    }
+]
+
 export enum ADCButtonDebounceAlgorithm {
     NONE = 0,
     NORMAL = 1,
@@ -519,6 +556,8 @@ export const UI_TEXT = {
     SETTINGS_RAPID_TRIGGER_RELEASE_ACCURACY_LABEL: "Release Accuracy:",
     SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL_TITLE: "Configure All Buttons",
     SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL_MESSAGE: "Are you sure you want to configure all buttons at once? This will overwrite the current configuration of all buttons.",
+    SETTINGS_BUTTONS_PERFORMANCE_PRESET_CONFIRM_TITLE: "Select Preset",
+    SETTINGS_BUTTONS_PERFORMANCE_PRESET_CONFIRM_MESSAGE: "Are you sure you want to select this preset? This will overwrite the current configuration of all buttons.",
 
     SETTINGS_RAPID_TRIGGER_ENTER_TEST_MODE_BUTTON: "Enter Button Test Mode",
     SETTINGS_RAPID_TRIGGER_EXIT_TEST_MODE_BUTTON: "Exit Button Test Mode",
@@ -583,6 +622,16 @@ export const UI_TEXT = {
     SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE_DESC: "No debounce, low latency",
     SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL_DESC: "Balanced, increase the latency by 0.25ms",
     SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX_DESC: "More stable, increase the latency by 0.5ms",
+
+    SETTING_BUTTON_PERFORMANCE_PRESET_TITLE: "Preset Configuration",
+    SETTING_BUTTON_PERFORMANCE_PRESET_CUSTOM_LABEL: "Custom",
+    SETTING_BUTTON_PERFORMANCE_PRESET_FASTEST_LABEL: "Fastest",
+    SETTING_BUTTON_PERFORMANCE_PRESET_BALANCED_LABEL: "Balanced",
+    SETTING_BUTTON_PERFORMANCE_PRESET_STABILITY_LABEL: "Stablility",
+    SETTING_BUTTON_PERFORMANCE_PRESET_CUSTOM_DESC: "Find the best control feel.",
+    SETTING_BUTTON_PERFORMANCE_PRESET_FASTEST_DESC: "Fastest response speed.",
+    SETTING_BUTTON_PERFORMANCE_PRESET_BALANCED_DESC: "Suitable for most scenes.",
+    SETTING_BUTTON_PERFORMANCE_PRESET_STABILITY_DESC: "Similar to mechanical switch.",
 
     // Hotkeys Settings
     SETTINGS_HOTKEYS_TITLE: "HOTKEYS SETTINGS",
@@ -804,6 +853,8 @@ export const UI_TEXT_ZH = {
     SETTINGS_RAPID_TRIGGER_RELEASE_ACCURACY_LABEL: "释放精度：",
     SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL_TITLE: "同时配置所有按键",
     SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL_MESSAGE: "确定要同时配置所有按键吗？此操作将覆盖所有按键的当前配置。",
+    SETTINGS_BUTTONS_PERFORMANCE_PRESET_CONFIRM_TITLE: "选择预设",
+    SETTINGS_BUTTONS_PERFORMANCE_PRESET_CONFIRM_MESSAGE: "确定要选择这个预设吗？此操作将覆盖所有按键的当前配置。",
 
     SETTINGS_RAPID_TRIGGER_ENTER_TEST_MODE_BUTTON: "进入按键测试模式",
     SETTINGS_RAPID_TRIGGER_EXIT_TEST_MODE_BUTTON: "退出按键测试模式",
@@ -868,6 +919,17 @@ export const UI_TEXT_ZH = {
     SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE_DESC: "无防抖，延迟最低",
     SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL_DESC: "平衡，增加0.25ms延迟",
     SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX_DESC: "稳定，增加0.5ms延迟",
+
+    // 按钮性能设置
+    SETTING_BUTTON_PERFORMANCE_PRESET_TITLE: "按键性能预设",
+    SETTING_BUTTON_PERFORMANCE_PRESET_CUSTOM_LABEL: "自定义",
+    SETTING_BUTTON_PERFORMANCE_PRESET_FASTEST_LABEL: "急速",
+    SETTING_BUTTON_PERFORMANCE_PRESET_BALANCED_LABEL: "平衡",
+    SETTING_BUTTON_PERFORMANCE_PRESET_STABILITY_LABEL: "稳定",
+    SETTING_BUTTON_PERFORMANCE_PRESET_CUSTOM_DESC: "找到自己的最佳手感。",
+    SETTING_BUTTON_PERFORMANCE_PRESET_FASTEST_DESC: "适合对按键延迟要求极高的场景。",
+    SETTING_BUTTON_PERFORMANCE_PRESET_BALANCED_DESC: "适合大多数场景。",
+    SETTING_BUTTON_PERFORMANCE_PRESET_STABILITY_DESC: "类似机械轴的体验。",
     
     // 热键设置
     SETTINGS_HOTKEYS_TITLE: "快捷键设置",

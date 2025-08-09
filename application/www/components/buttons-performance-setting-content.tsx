@@ -16,7 +16,7 @@ import {
     Portal,
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ADCButtonDebounceAlgorithm, RapidTriggerConfig, RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS } from "@/types/gamepad-config";
+import { RapidTriggerConfig, RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS, ButtonPerformancePresetConfigs, ButtonPerformancePresetName } from "@/types/gamepad-config";
 import { useLanguage } from "@/contexts/language-context";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { LuSheet } from "react-icons/lu";
@@ -48,36 +48,34 @@ export function ButtonsPerformanceSettingContent({
     const { t } = useLanguage();
     const { defaultProfile, updateProfileDetails } = useGamepadConfig();
     const [isInit, setIsInit] = useState<boolean>(false);
-    const [debounceAlgorithm, setDebounceAlgorithm] = useState<ADCButtonDebounceAlgorithm>(defaultProfile.triggerConfigs?.debounceAlgorithm as ADCButtonDebounceAlgorithm ?? ADCButtonDebounceAlgorithm.NONE);
     const [isAllBtnsConfiguring, setIsAllBtnsConfiguring] = useState<boolean>(defaultProfile.triggerConfigs?.isAllBtnsConfiguring ?? true);
     const [triggerConfigs, setTriggerConfigs] = useState<RapidTriggerConfig[]>([]);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false);
     const [isTableDialogOpen, setIsTableDialogOpen] = useState<boolean>(false);
     const { sendPendingCommandImmediately } = useGamepadConfig();
+    const [selectedPreset, setSelectedPreset] = useState<ButtonPerformancePresetName>(ButtonPerformancePresetName.BALANCED);
     const allKeys = RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS;
 
     const tableViewConfig = useMemo(() => triggerConfigs, [triggerConfigs]);
 
-    const debounceAlgorithmLabelMap = new Map<ADCButtonDebounceAlgorithm, { label: string, description: string }>([
-        [ADCButtonDebounceAlgorithm.NONE, {
-            label: t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE,
-            description: t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE_DESC
+    const PresetLabelMap = new Map<string, { label: string, description: string }>([
+        [ButtonPerformancePresetName.FASTEST, {
+            label: t.SETTING_BUTTON_PERFORMANCE_PRESET_FASTEST_LABEL,
+            description: t.SETTING_BUTTON_PERFORMANCE_PRESET_FASTEST_DESC
         }],
-        [ADCButtonDebounceAlgorithm.NORMAL, {
-            label: t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL,
-            description: t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL_DESC
+        [ButtonPerformancePresetName.BALANCED, {
+            label: t.SETTING_BUTTON_PERFORMANCE_PRESET_BALANCED_LABEL,
+            description: t.SETTING_BUTTON_PERFORMANCE_PRESET_BALANCED_DESC
         }],
-        [ADCButtonDebounceAlgorithm.MAX, {
-            label: t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX,
-            description: t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX_DESC
+        [ButtonPerformancePresetName.STABILITY, {
+            label: t.SETTING_BUTTON_PERFORMANCE_PRESET_STABILITY_LABEL,
+            description: t.SETTING_BUTTON_PERFORMANCE_PRESET_STABILITY_DESC
+        }],
+        [ButtonPerformancePresetName.CUSTOM, {
+            label: t.SETTING_BUTTON_PERFORMANCE_PRESET_CUSTOM_LABEL,
+            description: t.SETTING_BUTTON_PERFORMANCE_PRESET_CUSTOM_DESC
         }]
     ]);
-
-    const ADCButtonDebounceAlgorithmLabelList = Array.from(debounceAlgorithmLabelMap.entries()).map(([value, config]) => ({
-        value,
-        label: config.label,
-        description: config.description
-    }));
 
     useEffect(() => {
         return () => {
@@ -92,7 +90,6 @@ export function ButtonsPerformanceSettingContent({
         if (defaultProfile.triggerConfigs && !isInit) {
             const triggerConfigs = { ...defaultProfile.triggerConfigs };
             setIsAllBtnsConfiguring(triggerConfigs.isAllBtnsConfiguring ?? false);
-            setDebounceAlgorithm(triggerConfigs.debounceAlgorithm as ADCButtonDebounceAlgorithm ?? ADCButtonDebounceAlgorithm.NONE);
             setTriggerConfigs(allKeys.map(key => triggerConfigs.triggerConfigs?.[key] ?? defaultTriggerConfig));
             setIsInit(true);
             setNeedUpdate(false);
@@ -173,19 +170,80 @@ export function ButtonsPerformanceSettingContent({
             id: profileId,
             triggerConfigs: {
                 isAllBtnsConfiguring: isAllBtnsConfiguring,
-                debounceAlgorithm: debounceAlgorithm as number,
                 triggerConfigs: triggerConfigs
             }
         });
-    }, [isAllBtnsConfiguring, defaultProfile, debounceAlgorithm, triggerConfigs]);
+    }, [isAllBtnsConfiguring, defaultProfile, triggerConfigs]);
 
     /**
-     * 处理防抖算法变化
+     * 根据预设设置触发配置
+     * @param preset 预设名称
      */
-    const handleDebounceAlgorithmChange = (algorithm: ADCButtonDebounceAlgorithm) => {
-        setDebounceAlgorithm(algorithm);
-        setNeedUpdate(true);
+    const setTriggerConfigsByPreset = async (preset: ButtonPerformancePresetName) => {
+        
+        if(preset === ButtonPerformancePresetName.CUSTOM) {
+            setSelectedPreset(preset);
+            return;
+        }
+        
+        const result = await openConfirm({
+            title: t.SETTINGS_BUTTONS_PERFORMANCE_PRESET_CONFIRM_TITLE,
+            message: t.SETTINGS_BUTTONS_PERFORMANCE_PRESET_CONFIRM_MESSAGE,
+        });
+
+        if(result) {
+
+            setSelectedPreset(preset);
+            setIsAllBtnsConfiguring(true);
+
+            const presetConfig = ButtonPerformancePresetConfigs.find(config => config.name === preset);
+
+            if(presetConfig) {
+                const newConfig = [...triggerConfigs];
+                newConfig.forEach(config => {
+                    config.topDeadzone = presetConfig.configs.topDeadzone;
+                    config.bottomDeadzone = presetConfig.configs.bottomDeadzone;
+                    config.pressAccuracy = presetConfig.configs.pressAccuracy;
+                    config.releaseAccuracy = presetConfig.configs.releaseAccuracy;
+                });
+                setTriggerConfigs(newConfig);
+            }
+
+            setNeedUpdate(true);
+        }
     };
+    
+    /**
+     * 检查当前配置是否匹配预设
+     * @returns
+     */
+    const checkIsMatchPreset = useCallback(() => {
+
+        let result: ButtonPerformancePresetName = ButtonPerformancePresetName.CUSTOM;
+
+        if(isAllBtnsConfiguring) {
+
+            const currentConfig = getCurrentConfig();
+
+            for(const preset of ButtonPerformancePresetConfigs) {
+                if(currentConfig.topDeadzone === preset.configs.topDeadzone &&
+                    currentConfig.bottomDeadzone === preset.configs.bottomDeadzone &&
+                    currentConfig.pressAccuracy === preset.configs.pressAccuracy &&
+                    currentConfig.releaseAccuracy === preset.configs.releaseAccuracy) {
+                    result = preset.name;
+                    break;
+                }
+            }
+
+        }
+
+        setSelectedPreset(result);
+
+    }, [isAllBtnsConfiguring, triggerConfigs]);
+
+    useEffect(() => {
+        checkIsMatchPreset();
+    }, [triggerConfigs, isAllBtnsConfiguring]);
 
     return (
         <>
@@ -202,23 +260,22 @@ export function ButtonsPerformanceSettingContent({
                     <Fieldset.Root>
                         <Fieldset.Content  >
                             <VStack gap={8} alignItems={"flex-start"} >
-                                {/* 防抖算法设置 */}
-                                <RadioCard.Root variant={"subtle"} pb={4} value={debounceAlgorithm.toString()} colorPalette={"green"} onValueChange={(details) => {
+                                {/* 预设 */}
+                                <RadioCard.Root variant={"subtle"} pb={4} value={selectedPreset} colorPalette={"green"} onValueChange={(details) => {
                                     if (details.value !== null) {
-                                        const parsedValue = parseInt(details.value);
-                                        handleDebounceAlgorithmChange(parsedValue as ADCButtonDebounceAlgorithm);
+                                        setTriggerConfigsByPreset(details.value as ButtonPerformancePresetName);
                                     }
                                 }} >
-                                    <RadioCard.Label>{t.SETTINGS_ADC_BUTTON_DEBOUNCE_TITLE}</RadioCard.Label>
+                                    <RadioCard.Label>{t.SETTING_BUTTON_PERFORMANCE_PRESET_TITLE}</RadioCard.Label>
                                     <HStack align="stretch">
-                                        {ADCButtonDebounceAlgorithmLabelList.map((item, index) => (
-                                            <RadioCard.Item key={index} value={item.value.toString()} w="230px" >
+                                        {Array.from(PresetLabelMap.entries()).map(([value, config]) => (
+                                            <RadioCard.Item key={value} value={value} w="176px" >
                                                 <RadioCard.ItemHiddenInput />
                                                 <RadioCard.ItemControl>
                                                     <RadioCard.ItemContent>
-                                                        <RadioCard.ItemText>{item.label}</RadioCard.ItemText>
-                                                        <RadioCard.ItemDescription>
-                                                            {item.description}
+                                                        <RadioCard.ItemText>{config.label}</RadioCard.ItemText>
+                                                        <RadioCard.ItemDescription fontSize={"xs"} >
+                                                            {config.description}
                                                         </RadioCard.ItemDescription>
                                                     </RadioCard.ItemContent>
                                                     <RadioCard.ItemIndicator />

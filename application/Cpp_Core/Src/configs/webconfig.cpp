@@ -36,10 +36,9 @@ const static char* spaPaths[] = {
     "/lighting",
     "/buttons-performance",
     "/firmware",
-    "/switch-marking",
-    "/websocket",
-    "/buttons-monitor",
-    "/buttons-performance-test"
+    "/switch-marking"
+    // "/websocket"
+    // "/buttons-monitor"
 };
 const static char* excludePaths[] = { "/css", "/images", "/js", "/static" };
 static string http_post_uri;
