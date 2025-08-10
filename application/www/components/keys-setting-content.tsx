@@ -1,8 +1,6 @@
 "use client";
 
 import {
-    Flex,
-    Center,
     Stack,
     Fieldset,
     SimpleGrid,
@@ -13,7 +11,6 @@ import {
     Card,
     VStack,
     Switch,
-    Box,
 } from "@chakra-ui/react";
 import KeymappingFieldset, { KeymappingFieldsetRef } from "@/components/keymapping-fieldset";
 import { useEffect, useMemo, useState, useRef } from "react";
@@ -36,9 +33,17 @@ import HitboxEnableSetting from "@/components/hitbox/hitbox-enableSetting";
 import { MdCleaningServices } from "react-icons/md";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
-import { ContentActionButtons } from "@/components/content-action-buttons";
 import { useColorMode } from "./ui/color-mode";
 import { ProfileSelect } from "@/components/profile-select";
+import { 
+    SettingContentLayout, 
+    SideContent, 
+    HitboxContent, 
+    MainContent, 
+    TopButtons 
+} from "./setting-content-layout";
+import { GiSightDisabled } from "react-icons/gi";
+import { BiSolidExit } from "react-icons/bi";
 
 export function KeysSettingContent() {
     const {
@@ -53,10 +58,6 @@ export function KeysSettingContent() {
 
     const [isInit, setIsInit] = useState<boolean>(false);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false);
-    
-    // 添加容器引用和宽度状态
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [containerWidth, setContainerWidth] = useState<number>(0);
     
     // 按键映射状态
     const keyLength = useMemo(() => Object.keys(defaultProfile.keysConfig?.keyMapping ?? {}).length, [defaultProfile?.keysConfig?.keyMapping]);
@@ -147,96 +148,61 @@ export function KeysSettingContent() {
         }
     }, [sendPendingCommandImmediately]);
 
-    // 监听容器宽度变化
-    useEffect(() => {
-        const updateWidth = () => {
-            if (containerRef.current) {
-                const width = containerRef.current.offsetWidth;
-                console.log("keys-setting containerWidth: ", width);
-                setContainerWidth(width);
-            }
-        };
-
-        // 初始获取宽度
-        updateWidth();
-
-        // 监听窗口大小变化
-        const resizeObserver = new ResizeObserver(updateWidth);
-        if (containerRef.current) {
-            resizeObserver.observe(containerRef.current);
+    // 渲染hitbox内容
+    const renderHitboxContent = (containerWidth: number) => {
+        if (keysEnableSettingActive) {
+            return (
+                <HitboxEnableSetting
+                    onClick={hitboxEnableSettingClick}
+                    interactiveIds={keysEnableConfig.map((_, index) => index)}
+                    buttonsEnableConfig={keysEnableConfig}
+                    containerWidth={containerWidth}
+                />
+            );
+        } else {
+            return (
+                <HitboxKeys
+                    onClick={hitboxButtonClick}
+                    interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
+                    disabledKeys={disabledKeys}
+                    isButtonMonitoringEnabled={!keysEnableSettingActive}
+                    containerWidth={containerWidth}
+                />
+            );
         }
-
-        // 清理
-        return () => {
-            resizeObserver.disconnect();
-        };
-    }, []);
-
-    // 计算缩放比例
-    const calculateScale = (): number => {
-        if (!containerWidth) return 1;
-        
-        const hitboxWidth = 829; // StyledSvg的原始宽度
-        const margin = 80; // 左右边距
-        const availableWidth = containerWidth - (margin * 2);
-        
-        if (availableWidth <= 0) return 0.1; // 最小缩放比例
-        
-        const scale = availableWidth / hitboxWidth;
-        return Math.min(scale, 1.3); // 最大不超过1.3，避免过度放大
     };
 
-    const scale = calculateScale();
-
-    // 计算动态位置偏移
-    const calculateDynamicOffset = (): number => {
-        const baseOffset = 280; // 原始偏移量
-        const margin = 80; // 保持80px边距
-        return (baseOffset * scale) + margin;
+    // 上方按键配置
+    const topButtonsConfig = {
+        show: true,
+        buttons: [
+            {
+                text: keysEnableSettingActive ? t.KEYS_ENABLE_STOP_BUTTON_LABEL : t.KEYS_ENABLE_START_BUTTON_LABEL,
+                icon: (keysEnableSettingActive ? BiSolidExit: GiSightDisabled ),
+                color: (keysEnableSettingActive ? "blue" : "green") as "blue" | "green",
+                size: "sm" as const,
+                width: "260px",
+                onClick: () => setKeysEnableSettingActive(!keysEnableSettingActive),
+            }
+        ],
+        gap: 2,
+        justifyContent: "flex-end" as const
     };
-
-    const dynamicOffset = calculateDynamicOffset();
 
     return (
-        <Flex direction="row" width={"100%"} height={"100%"} padding={"18px"} >
-            <Flex flex={0} justifyContent={"flex-start"} height="fit-content" >
+        <SettingContentLayout
+            disabled={keysEnableSettingActive}
+            showActionButtons={true}
+        >
+            <SideContent>
                 <ProfileSelect disabled={keysEnableSettingActive} />
-            </Flex>
-            <Center ref={containerRef} flex={1} justifyContent={"center"} flexDirection={"column"}  >
-                <Center padding="80px 30px" position="relative" flex={1}   >
-                    <Box position="absolute" top="50%" left="50%" transform={`translateX(-50%) translateY(-${dynamicOffset}px)`} zIndex={10} >
-                        <Card.Root w="100%" h="100%" >
-                            <Card.Body p="10px" >
-                                <Button w="240px" size="xs" variant="solid" colorPalette={keysEnableSettingActive ? "blue" : "green"} onClick={() => setKeysEnableSettingActive(!keysEnableSettingActive)} >
-                                    {keysEnableSettingActive ? t.KEYS_ENABLE_STOP_BUTTON_LABEL : t.KEYS_ENABLE_START_BUTTON_LABEL}
-                                </Button>
-                            </Card.Body>
-                        </Card.Root>
-                    </Box>
-                    {keysEnableSettingActive ? (
-                        <HitboxEnableSetting
-                            onClick={hitboxEnableSettingClick}
-                            interactiveIds={keysEnableConfig.map((_, index) => index)}
-                            buttonsEnableConfig={keysEnableConfig}
-                            containerWidth={containerWidth}
-                        />
-                    ) : (
-                        <HitboxKeys
-                            onClick={hitboxButtonClick}
-                            interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
-                            disabledKeys={disabledKeys}
-                            isButtonMonitoringEnabled={!keysEnableSettingActive}
-                            containerWidth={containerWidth}
-                        />
-                    )}
-                </Center>
-                <Center flex={0}  >
-                    <ContentActionButtons
-                        disabled={keysEnableSettingActive}
-                    />
-                </Center>
-            </Center>
-            <Center>
+            </SideContent>
+            
+            <HitboxContent>
+                {renderHitboxContent}
+            </HitboxContent>
+            
+            <MainContent>
                 <Card.Root w="778px" h="100%" >
                     <Card.Header>
                         <Card.Title fontSize={"md"}  >
@@ -305,6 +271,7 @@ export function KeysSettingContent() {
                                         <SimpleGrid gap={1} columns={5} >
                                             {Array.from({ length: GameSocdMode.SOCD_MODE_NUM_MODES }, (_, index) => (
                                                 <RadioCardItem
+                                                    w="142px"
                                                     fontSize={"xs"}
                                                     indicator={false}
                                                     key={index}
@@ -355,7 +322,9 @@ export function KeysSettingContent() {
                         </Fieldset.Root>
                     </Card.Body>
                 </Card.Root>
-            </Center>
-        </Flex>
+            </MainContent>
+            
+            <TopButtons config={topButtonsConfig} />
+        </SettingContentLayout>
     )
 }

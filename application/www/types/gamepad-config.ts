@@ -519,7 +519,7 @@ export const UI_TEXT = {
     CALIBRATION_HELPER_TEXT: "calibration is the process of finding the optimal button travel for the gamepad. It is a process of finding the optimal button travel for the gamepad.",
     CALIBRATION_START_BUTTON: "Start Calibration",
     CALIBRATION_STOP_BUTTON: "Stop Calibration",
-    CALIBRATION_CLEAR_DATA_BUTTON: "Clear Calibration Data",
+    CALIBRATION_CLEAR_DATA_BUTTON: "Reset Calibration",
     CALIBRATION_CLEAR_DATA_DIALOG_TITLE: "Clear Calibration Data",
     CALIBRATION_CLEAR_DATA_DIALOG_MESSAGE: "Clearing the calibration data will delete all the calibration data. It will need to be calibrated again. Are you sure you want to clear the calibration data?",
     CALIBRATION_COMPLETION_DIALOG_TITLE: "Calibration Completed",
@@ -598,8 +598,8 @@ export const UI_TEXT = {
     // Keys Settings
     SETTINGS_KEYS_TITLE: "KEYS SETTINGS",
     SETTINGS_KEYS_HELPER_TEXT: `Set the mapping between Hitbox buttons and game controller buttons.\n- Select a configuration box below, then press a Hitbox button on the left to bind it.\n- Multiple key mappings can be set. Each controller button can be mapped to multiple Hitbox buttons.`,
-    KEYS_ENABLE_START_BUTTON_LABEL: "Start configuring keys enablement",
-    KEYS_ENABLE_STOP_BUTTON_LABEL: "Stop configuring keys enablement",
+    KEYS_ENABLE_START_BUTTON_LABEL: "Configuring keys enablement",
+    KEYS_ENABLE_STOP_BUTTON_LABEL: "Exit configuring",
 
     // Switch Marking Settings
     SETTINGS_SWITCH_MARKING_TITLE: "NEW SWITCH MARKINGS",
@@ -816,7 +816,7 @@ export const UI_TEXT_ZH = {
     CALIBRATION_HELPER_TEXT: "磁轴校准是找到控制器最佳按键行程的过程。它是找到控制器最佳按键行程的过程。",
     CALIBRATION_START_BUTTON: "开始按键校准",
     CALIBRATION_STOP_BUTTON: "停止按键校准",
-    CALIBRATION_CLEAR_DATA_BUTTON: "清除校准数据",
+    CALIBRATION_CLEAR_DATA_BUTTON: "重置校准数据",
     CALIBRATION_CLEAR_DATA_DIALOG_TITLE: "清除校准数据",
     CALIBRATION_CLEAR_DATA_DIALOG_MESSAGE: "清除校准数据后将无法恢复，需要重新校准，是否确认清除？",
     CALIBRATION_COMPLETION_DIALOG_TITLE: "校准完成",
@@ -896,7 +896,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_KEYS_TITLE: "按键设置",
     SETTINGS_KEYS_HELPER_TEXT: `设置hitbox按键和游戏控制器按键的映射关系。\n- 选中下面的配置框，然后按左侧hitbox按键即可绑定 \n- 可以设置多个按键映射，每个控制器按键映射可以设置多个hitbox按键`,
     KEYS_ENABLE_START_BUTTON_LABEL: "开始配置按键启用/禁用",
-    KEYS_ENABLE_STOP_BUTTON_LABEL: "停止配置按键启用/禁用",
+    KEYS_ENABLE_STOP_BUTTON_LABEL: "结束配置按键启用/禁用",
 
     // 磁轴标记设置
     SETTINGS_SWITCH_MARKING_TITLE: "新磁轴标记",

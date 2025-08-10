@@ -105,7 +105,7 @@ interface GamepadConfigContextType {
     fetchDefaultProfile: () => Promise<void>;
     fetchProfileList: () => Promise<void>;
     fetchHotkeysConfig: () => Promise<void>;
-    updateProfileDetails: (profileId: string, profileDetails: GameProfile, immediate: boolean, showError: boolean, showLoading: boolean) => Promise<void>;
+    updateProfileDetails: (profileId: string, profileDetails: GameProfile, immediate?: boolean, showError?: boolean, showLoading?: boolean) => Promise<void>;
     resetProfileDetails: () => Promise<void>;
     createProfile: (profileName: string) => Promise<void>;
     deleteProfile: (profileId: string) => Promise<void>;

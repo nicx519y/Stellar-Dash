@@ -1,16 +1,8 @@
 "use client";
 
-import {
-    Flex,
-    Center,
-    Card,
-    Box,
-    Button,
-} from "@chakra-ui/react";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS } from "@/types/gamepad-config";
 import HitboxPerformance from "@/components/hitbox/hitbox-performance";
-import { ContentActionButtons } from "@/components/content-action-buttons";
 import { ProfileSelect } from "./profile-select";
 import { ButtonsPerformanceSettingContent } from "./buttons-performance-setting-content";
 import { ButtonsPerformenceTestContent } from "./buttons-performence-test-content";
@@ -18,20 +10,23 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { useButtonPerformanceMonitor, type ButtonPerformanceMonitoringData, type ButtonPerformanceData } from '@/hooks/use-button-performance-monitor';
 import HitboxPerformanceTest from "./hitbox/hitbox-performance-test";
-
-
-
+import { 
+    SettingContentLayout, 
+    SideContent, 
+    HitboxContent, 
+    MainContent, 
+    TopButtons 
+} from "./setting-content-layout";
+import { BiSolidExit } from "react-icons/bi";
+import { ImEqualizer2 } from "react-icons/im";
 
 export function ButtonsPerformanceContent() {
 
     const [isTestingModeActivity, setIsTestingModeActivity] = useState<boolean>(false);
     const { t } = useLanguage();
 
-    // 添加容器引用和宽度状态
     const { defaultProfile, sendPendingCommandImmediately } = useGamepadConfig();
-    const containerRef = useRef<HTMLDivElement>(null);
     const { setError } = useGamepadConfig();
-    const [containerWidth, setContainerWidth] = useState<number>(0);
     const [selectedButton, setSelectedButton] = useState<number>(0); // 当前选中的按钮
     const [canSelectAllButton, setCanSelectAllButton] = useState<boolean>(false);
     const [isInit, setIsInit] = useState<boolean>(false);
@@ -41,31 +36,6 @@ export function ButtonsPerformanceContent() {
     const [allButtonsData, setAllButtonsData] = useState<ButtonPerformanceData[]>([]);
     const monitorIsActive = useRef(false);
 
-    // 监听容器宽度变化
-    useEffect(() => {
-        const updateWidth = () => {
-            if (containerRef.current) {
-                const width = containerRef.current.offsetWidth;
-                console.log("buttons-performance containerWidth: ", width);
-                setContainerWidth(width);
-            }
-        };
-
-        // 初始获取宽度
-        updateWidth();
-
-        // 监听窗口大小变化
-        const resizeObserver = new ResizeObserver(updateWidth);
-        if (containerRef.current) {
-            resizeObserver.observe(containerRef.current);
-        }
-
-        // 清理
-        return () => {
-            resizeObserver.disconnect();
-        };
-    }, []);
-
     useEffect(() => {
         if(defaultProfile.triggerConfigs && !isInit) {
             setCanSelectAllButton(!(defaultProfile.triggerConfigs.isAllBtnsConfiguring));
@@ -73,7 +43,6 @@ export function ButtonsPerformanceContent() {
             setIsInit(true);
         }
     }, [defaultProfile]);
-
 
     /**
      * 点击按钮
@@ -83,32 +52,6 @@ export function ButtonsPerformanceContent() {
             setSelectedButton(id);
         }
     };
-
-    // 计算缩放比例
-    const calculateScale = (): number => {
-        if (!containerWidth) return 1;
-        
-        const hitboxWidth = 829; // StyledSvg的原始宽度
-        const margin = 80; // 左右边距
-        const availableWidth = containerWidth - (margin * 2);
-        
-        if (availableWidth <= 0) return 0.1; // 最小缩放比例
-        
-        const scale = availableWidth / hitboxWidth;
-        return Math.min(scale, 1.3); // 最大不超过1.3，避免过度放大
-    };
-
-    const scale = calculateScale();
-
-    // 计算动态位置偏移
-    const calculateDynamicOffset = (): number => {
-        const baseOffset = 280; // 原始偏移量
-        const margin = 80; // 保持80px边距
-        return (baseOffset * scale) + margin;
-    };
-
-    const dynamicOffset = calculateDynamicOffset();
-    
 
     /***************************************** 按键性能监控 ********************************************** */
 
@@ -143,6 +86,9 @@ export function ButtonsPerformanceContent() {
 
         setError(null);
         console.log('Starting button performance monitoring...');
+
+        setAllButtonsData([]); // reset all buttons data
+
         try {
             await startMonitoring();
         } catch (err) {
@@ -159,6 +105,7 @@ export function ButtonsPerformanceContent() {
         console.log('Stopping button performance monitoring...');
         try {
             await stopMonitoring();
+            setAllButtonsData([]);
             
         } catch (err) {
             console.error('Failed to stop monitoring:', err);
@@ -184,59 +131,73 @@ export function ButtonsPerformanceContent() {
         }
     }, []);
 
-    return (
-        <>
-            <Flex direction="row" width={"100%"} height={"100%"} padding={"18px"} >
-                <Flex flex={0} justifyContent={"flex-start"} height="fit-content" >
-                    <ProfileSelect disabled={isTestingModeActivity} />
-                </Flex>
-                <Center ref={containerRef} flex={1} justifyContent={"center"} flexDirection={"column"}>
-                    <Center padding="80px 30px" position="relative" flex={1}  >
+    // 渲染hitbox内容
+    const renderHitboxContent = (containerWidth: number) => {
+        if (!isTestingModeActivity) {
+            return (
+                <HitboxPerformance
+                    onClick={(id) => handleButtonClick(id)}
+                    highlightIds={[selectedButton ?? -1]}
+                    interactiveIds={interactive}
+                    containerWidth={containerWidth}
+                />
+            );
+        } else {
+            return (
+                <HitboxPerformanceTest
+                    buttonStates={allButtonsData}
+                    containerWidth={containerWidth}
+                />
+            );
+        }
+    };
 
-                    <Box position="absolute" top="50%" left="50%" transform={`translateX(-50%) translateY(-${dynamicOffset}px)`} zIndex={10} >
-                        <Card.Root w="100%" h="100%" >
-                            <Card.Body p="10px" >
-                                <Button w="240px" size="xs" variant="solid" colorPalette={isTestingModeActivity ? "blue" : "green"} onClick={() => setIsTestingModeActivity(!isTestingModeActivity)} >
-                                    {isTestingModeActivity ? t.SETTINGS_RAPID_TRIGGER_EXIT_TEST_MODE_BUTTON : t.SETTINGS_RAPID_TRIGGER_ENTER_TEST_MODE_BUTTON}
-                                </Button>
-                            </Card.Body>
-                        </Card.Root>
-                    </Box>
-                    {!isTestingModeActivity && 
-                        <HitboxPerformance
-                            onClick={(id) => handleButtonClick(id)}
-                            highlightIds={[selectedButton ?? -1]}
-                            interactiveIds={interactive}
-                            containerWidth={containerWidth}
-                        />
-                    }
-                    {isTestingModeActivity && 
-                        <HitboxPerformanceTest
-                            buttonStates={allButtonsData}
-                            containerWidth={containerWidth}
-                        />
-                    }
-                    </Center>
-                    <Center flex={0}  >
-                        <ContentActionButtons disabled={isTestingModeActivity} />
-                    </Center>
-                </Center>
-                <Center>
-                    {!isTestingModeActivity && 
+    // 上方按键配置
+    const topButtonsConfig = {
+        show: true,
+        buttons: [
+            {
+                text: isTestingModeActivity ? t.SETTINGS_RAPID_TRIGGER_EXIT_TEST_MODE_BUTTON : t.SETTINGS_RAPID_TRIGGER_ENTER_TEST_MODE_BUTTON,
+                icon: (isTestingModeActivity ? BiSolidExit : ImEqualizer2),
+                color: (isTestingModeActivity ? "blue" : "green") as "blue" | "green",
+                size: "sm" as const,
+                width: "240px",
+                onClick: () => setIsTestingModeActivity(!isTestingModeActivity),
+            }
+        ],
+        gap: 8,
+        justifyContent: "flex-end" as const
+    };
+
+    return (
+        <SettingContentLayout
+            disabled={isTestingModeActivity}
+            showActionButtons={true}
+        >
+            <SideContent>
+                <ProfileSelect disabled={isTestingModeActivity} />
+            </SideContent>
+            
+            <HitboxContent>
+                {renderHitboxContent}
+            </HitboxContent>
+            
+            <MainContent>
+                {!isTestingModeActivity && 
                     <ButtonsPerformanceSettingContent
                         selectedButton={selectedButton}
                         selectAllButtonHandler={(result: boolean) => setCanSelectAllButton(!result)}
                     />
-                    }
-                    {isTestingModeActivity && 
+                }
+                {isTestingModeActivity && 
                     <ButtonsPerformenceTestContent
                         allButtonsData={allButtonsData}
                         maxTravelDistance={performanceData?.maxTravelDistance || 0}
                     />
-                    }
-                </Center>
-            </Flex>
-        </>
-
+                }
+            </MainContent>
+            
+            <TopButtons config={topButtonsConfig} />
+        </SettingContentLayout>
     );
 } 

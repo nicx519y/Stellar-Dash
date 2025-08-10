@@ -267,9 +267,9 @@ export function ButtonsPerformanceSettingContent({
                                     }
                                 }} >
                                     <RadioCard.Label>{t.SETTING_BUTTON_PERFORMANCE_PRESET_TITLE}</RadioCard.Label>
-                                    <HStack align="stretch">
+                                    <HStack align="stretch" gap={1} >
                                         {Array.from(PresetLabelMap.entries()).map(([value, config]) => (
-                                            <RadioCard.Item key={value} value={value} w="176px" >
+                                            <RadioCard.Item key={value} value={value} w="178px" >
                                                 <RadioCard.ItemHiddenInput />
                                                 <RadioCard.ItemControl>
                                                     <RadioCard.ItemContent>
