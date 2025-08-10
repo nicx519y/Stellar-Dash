@@ -105,7 +105,7 @@ interface GamepadConfigContextType {
     fetchDefaultProfile: () => Promise<void>;
     fetchProfileList: () => Promise<void>;
     fetchHotkeysConfig: () => Promise<void>;
-    updateProfileDetails: (profileId: string, profileDetails: GameProfile) => Promise<void>;
+    updateProfileDetails: (profileId: string, profileDetails: GameProfile, immediate: boolean, showError: boolean, showLoading: boolean) => Promise<void>;
     resetProfileDetails: () => Promise<void>;
     createProfile: (profileName: string) => Promise<void>;
     deleteProfile: (profileId: string) => Promise<void>;
@@ -570,9 +570,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const updateProfileDetails = async (profileId: string, profileDetails: GameProfile, immediate: boolean = false): Promise<void> => {
+    const updateProfileDetails = async (profileId: string, profileDetails: GameProfile, immediate: boolean = false, showError: boolean = false, showLoading: boolean = false): Promise<void> => {
         try {
-            // setIsLoading(true);
+            if(showLoading) {
+                setIsLoading(true);
+            }
             const data = await sendWebSocketRequest('update_profile', { profileId, profileDetails }, immediate);
 
             // 如果更新的是 profile 的 name， 或者更新的profile不是defaultProfile，则需要重新获取 profile list
@@ -582,13 +584,17 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 // 否则更新 default profile
                 setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
             }
-            // setError(null);
+            setError(null);
             return Promise.resolve();
         } catch (err) {
-            // setError(err instanceof Error ? err.message : 'An error occurred');
+            if(showError) {
+                setError(err instanceof Error ? err.message : 'An error occurred');
+            }
             return Promise.reject(new Error("Failed to update profile details"));
         } finally {
-            // setIsLoading(false);
+            if(showLoading) {
+                setIsLoading(false);
+            }
         }
     };
 
@@ -609,7 +615,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setError(null);
             return Promise.resolve();
         } catch (err) {
-            // setError(err instanceof Error ? err.message : 'An error occurred');
+            setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to create profile"));
         } finally {
             setIsLoading(false);
@@ -629,7 +635,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setError(null);
             return Promise.resolve();
         } catch (err) {
-            // setError(err instanceof Error ? err.message : 'An error occurred');
+            setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to delete profile"));
         } finally {
             setIsLoading(false);
@@ -649,7 +655,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setError(null);
             return Promise.resolve();
         } catch (err) {
-            // setError(err instanceof Error ? err.message : 'An error occurred');
+            setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to switch profile"));
         } finally {
             setIsLoading(false);

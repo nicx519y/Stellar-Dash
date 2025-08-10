@@ -137,7 +137,6 @@ export function FirmwareContent() {
             setTimeout(connectWebSocket, RECONNECT_DELAY_SECONDS);
         } else if(wsConnected && firmwareUpdating) {
             console.log('firmware: check update status.');
-            setFirmwareUpdating(false);
             checkUpdateStatusLoop();
         }
 
@@ -177,7 +176,6 @@ export function FirmwareContent() {
                     _setUpdateProgress(nowProgress + progress.progress * ProgressPercent.Uploading);
                 } else if(progress.stage === 'uploadcompleted') { // 上传完成，等待设备重启，重启完成后，设置固件更新状态为成功
                     _setUpdateProgress(nowProgress + progress.progress * ProgressPercent.Uploading);
-
                     setFirmwareUpdating(true); // 标识状态，不展示重连提示，用于等待固件上传完成做状态检查
 
                 } else if(progress.stage === 'failed') {

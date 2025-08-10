@@ -38,6 +38,16 @@
       "registerTime": "2025-07-29T16:33:08.931Z",
       "lastSeen": "2025-07-29T16:33:08.931Z",
       "status": "active"
+    },
+    {
+      "rawUniqueId": "001C0034-32335110-32323838",
+      "deviceId": "B978EC59246979B6",
+      "deviceName": "HBox-B978EC59",
+      "registerIP": "::ffff:127.0.0.1",
+      "registeredBy": "admin",
+      "registerTime": "2025-08-09T08:16:14.473Z",
+      "lastSeen": "2025-08-09T08:16:14.474Z",
+      "status": "active"
     }
   ],
   "lastUpdate": "2025-07-16T07:23:43.068Z"

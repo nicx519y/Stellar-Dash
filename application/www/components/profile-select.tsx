@@ -113,7 +113,7 @@ export function ProfileSelect(
             await updateProfileDetails(defaultProfile?.id ?? "", {
                 id: defaultProfile?.id ?? "",
                 name: result.profileName
-            });
+            }, false, true, true);
         }
     };
 
@@ -194,7 +194,7 @@ export function ProfileSelect(
                 <Card.Title fontSize={"md"} color={isDisabled ? "gray.500" :  colorMode === "dark" ? "white" : "black"} >{t.PROFILE_SELECT_TITLE}</Card.Title>
             </Card.Header>
             <Card.Body>
-                <VStack  gap={2} >
+                <VStack  gap={1} >
                     
                     {
                         profilesCollection.items.map((item) => (
@@ -202,8 +202,12 @@ export function ProfileSelect(
                                 key={item.value} 
                                 w="180px" 
                                 size="sm" 
-                                variant={defaultProfile?.id === item.value ? "solid" : "ghost" } 
-                                colorPalette={defaultProfile?.id === item.value ? "green" : "gray"} 
+                                variant={defaultProfile?.id === item.value ? "surface" : "ghost" } 
+                                colorPalette={"gray"} 
+                                _hover={{
+                                    color: defaultProfile?.id === item.value ? "gray.100" : "gray.200",
+                                }}
+                                color={defaultProfile?.id === item.value ? "gray.100" : "gray.400"}
                                 onClick={() => defaultProfile?.id !== item.value && onDefaultProfileChange(item.value)}
                                 justifyContent="flex-start" 
                                 disabled={isDisabled}
