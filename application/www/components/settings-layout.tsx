@@ -67,6 +67,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                                     key={tab.id}
                                     value={tab.id}
                                     width="200px"
+                                    fontWeight={"bold"}
                                     justifyContent="center"
                                 >
                                     <Box as={tab.icon} mr={0} />

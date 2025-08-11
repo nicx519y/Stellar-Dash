@@ -136,7 +136,7 @@ export function HotkeySettingContent({
         <Card.Root w={width} h={height}>
             <Card.Header>
                 <Card.Title fontSize="md">
-                    <Text fontSize="32px" fontWeight="normal" color="green.600">
+                    <Text fontSize="32px" fontWeight="bold" color="green.600">
                         {t.SETTINGS_HOTKEYS_TITLE}
                     </Text>
                 </Card.Title>

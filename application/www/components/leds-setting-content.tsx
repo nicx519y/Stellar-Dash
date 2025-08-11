@@ -404,7 +404,7 @@ export function LEDsSettingContent() {
                 <Card.Root w="778px" h="100%" >
                     <Card.Header>
                         <Card.Title fontSize={"md"}  >
-                            <Text fontSize={"32px"} fontWeight={"normal"} color={"green.600"} >{t.SETTINGS_LEDS_TITLE}</Text>
+                            <Text fontSize={"32px"} fontWeight={"bold"} color={"green.600"} >{t.SETTINGS_LEDS_TITLE}</Text>
                         </Card.Title>
                         <Card.Description fontSize={"sm"} pt={4} pb={4} whiteSpace="pre-wrap"  >
                             {t.SETTINGS_LEDS_HELPER_TEXT}

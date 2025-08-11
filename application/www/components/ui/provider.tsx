@@ -15,22 +15,33 @@ const theme = {
     }
   },
   fonts: {
-    body: 'Arial, Helvetica, sans-serif',
+    body: 'icomoon, Arial, Helvetica, sans-serif',
     heading: 'Arial, Helvetica, sans-serif',
     mono: 'monospace',
-    icomoon: 'icomoon, Arial, sans-serif'
+    mulish: 'mulish, Arial, sans-serif'
   }
 };
 
 const Fonts = () => (
   <Global
     styles={`
+
       @font-face {
-        font-family: 'icomoon';
-        src: url('/fonts/icomoon.ttf') format('truetype');
+        font-family: 'custom_en';
+        src: url('/fonts/custom_en.ttf') format('truetype');
         font-weight: normal;
         font-style: normal;
-        font-display: block;
+        font-display: swap;
+      }
+
+      /* 预加载字体 */
+      .font-preload {
+        font-family: 'custom_en', sans-serif;
+        position: absolute;
+        left: -9999px;
+        top: -9999px;
+        visibility: hidden;
+        opacity: 0;
       }
     `}
   />
@@ -40,6 +51,8 @@ export function Provider({ children }: { children: React.ReactNode }) {
   return (
     <ChakraProvider value={theme}>
       <Fonts />
+      {/* 添加字体预加载元素 */}
+      <div className="font-preload">字体预加载</div>
       <ColorModeProvider>
         {children}
       </ColorModeProvider>

@@ -52,7 +52,7 @@ export default function ButtonsPerformanceTestField(
                         <Text fontSize="xs" >{t.TEST_MODE_FIELD_PRESS_TRIGGER_POINT_LABEL}</Text>
                     </Flex>
                     <Flex flex={1} >
-                        <Text fontSize="xs" >{pressTriggerDistance.toFixed(2)} mm</Text>
+                        <Text fontSize="xs" >{Math.abs(pressTriggerDistance - pressStartDistance).toFixed(2)} mm</Text>
                     </Flex>
                 </Flex>
                 <Flex gap={2} >
@@ -60,7 +60,7 @@ export default function ButtonsPerformanceTestField(
                         <Text fontSize="xs" >{t.TEST_MODE_FIELD_RELEASE_START_POINT_LABEL}</Text>
                     </Flex>
                     <Flex flex={1} >
-                        <Text fontSize="xs" >{releaseTriggerDistance.toFixed(2)} mm</Text>
+                        <Text fontSize="xs" >{Math.abs(releaseTriggerDistance - releaseStartDistance).toFixed(2)} mm</Text>
                     </Flex>
                 </Flex>
             </VStack>

@@ -19,7 +19,7 @@ const includes_files = [ // 需要包含的文件
 	/main\-app(\.[a-z|A-Z|0-9|]*)?\.js/, 
 	/layout(\.[a-z|A-Z|0-9|]*)?\.js/, 
 	/page(\.[a-z|A-Z|0-9|]*)?\.js/,
-	/icomoon\.ttf/,
+	/\.ttf/,
 ];
 
 // These are the same content types that are used by the original makefsdata

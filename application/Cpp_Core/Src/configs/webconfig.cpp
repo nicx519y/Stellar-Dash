@@ -40,7 +40,7 @@ const static char* spaPaths[] = {
     // "/websocket"
     // "/buttons-monitor"
 };
-const static char* excludePaths[] = { "/css", "/images", "/js", "/static" };
+const static char* excludePaths[] = { "/css", "/images", "/js", "/static", "/fonts" };
 static string http_post_uri;
 static char http_post_payload[LWIP_HTTPD_POST_MAX_PAYLOAD_LEN];
 static uint16_t http_post_payload_len = 0;

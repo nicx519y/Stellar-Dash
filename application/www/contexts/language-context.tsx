@@ -20,15 +20,52 @@ const LanguageContext = createContext<LanguageContextType>({
     t: UI_TEXT,
 });
 
+// 字体加载检测函数
+const waitForFont = (fontFamily: string): Promise<void> => {
+    return new Promise((resolve) => {
+        if (document.fonts && document.fonts.check) {
+            // 现代浏览器
+            const checkFont = () => {
+                if (document.fonts.check(`12px ${fontFamily}`)) {
+                    resolve();
+                } else {
+                    setTimeout(checkFont, 100);
+                }
+            };
+            checkFont();
+        } else {
+            // 兼容性处理
+            setTimeout(resolve, 1000);
+        }
+    });
+};
+
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [currentLanguage, setCurrentLanguage] = useState<'en' | 'zh'>('en');
 
     // 根据语言设置字体
     useEffect(() => {
-        document.documentElement.style.fontFamily = 
-            currentLanguage === 'zh' 
-                ? '"Microsoft YaHei", system-ui, sans-serif'
-                : 'system-ui, sans-serif';
+        const applyFont = async () => {
+            const targetFont = 'custom_en';
+            
+            try {
+                // 等待字体加载
+                await waitForFont(targetFont);
+                
+                // 应用字体
+                document.documentElement.style.fontFamily = 
+                    // currentLanguage === 'zh' 
+                    //     ? 'system-ui, sans-serif'
+                    //     : 
+                        'custom_en, system-ui, sans-serif';
+            } catch (error) {
+                console.warn('字体加载失败，使用备用字体:', error);
+                // 如果字体加载失败，使用备用字体
+                document.documentElement.style.fontFamily = 'system-ui, sans-serif';
+            }
+        };
+
+        applyFont();
     }, [currentLanguage]);
 
     const value = {

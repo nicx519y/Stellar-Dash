@@ -203,7 +203,7 @@ export function ProfileSelect(
                                 w="180px" 
                                 size="sm" 
                                 variant={defaultProfile?.id === item.value ? "surface" : "ghost" } 
-                                colorPalette={"gray"} 
+                                colorPalette={defaultProfile?.id === item.value ? "green" : "gray"} 
                                 _hover={{
                                     color: defaultProfile?.id === item.value ? "gray.100" : "gray.200",
                                 }}

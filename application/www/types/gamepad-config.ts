@@ -782,7 +782,7 @@ export const UI_TEXT_ZH = {
     // 通用按钮文案
     BUTTON_RESET: "重置",
     BUTTON_SAVE: "保存",
-    BUTTON_REBOOT_WITH_SAVING: "结束配置",
+    BUTTON_REBOOT_WITH_SAVING: "结束配置并开始游戏",
     BUTTON_CANCEL: "取消",
     BUTTON_SUBMIT: "确定",
     BUTTON_CONFIRM: "确认",
