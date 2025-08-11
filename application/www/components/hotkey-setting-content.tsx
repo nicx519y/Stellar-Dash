@@ -4,8 +4,6 @@ import { useEffect, useCallback, useState } from "react";
 import {
     Stack,
     Fieldset,
-    Text,
-    Card,
 } from "@chakra-ui/react";
 import {
     HotkeyAction,
@@ -16,6 +14,11 @@ import HotkeysField from "./hotkeys-field";
 import { useLanguage } from "@/contexts/language-context";
 import { btnPosList } from "@/components/hitbox/hitbox-base";
 import { showToast } from "./ui/toaster";
+import { 
+    SettingMainContentLayout, 
+    MainContentHeader, 
+    MainContentBody 
+} from "@/components/setting-main-content-layout";
 
 interface HotkeySettingContentProps {
     /** 热键配置数组 */
@@ -25,7 +28,7 @@ interface HotkeySettingContentProps {
     /** 是否禁用组件（例如在校准模式下） */
     disabled?: boolean;
     /** 自定义宽度 */
-    width?: string;
+    width?: number;
     /** 自定义高度 */
     height?: string;
     /** 是否启用校准 */
@@ -36,7 +39,7 @@ export function HotkeySettingContent({
     hotkeys,
     onHotkeysUpdate,  // 改为批量更新
     disabled = false,
-    width = "778px",
+    width = 778,
     height = "100%",
     calibrationActive = false,
 }: HotkeySettingContentProps) {
@@ -133,20 +136,16 @@ export function HotkeySettingContent({
     };
 
     return (
-        <Card.Root w={width} h={height}>
-            <Card.Header>
-                <Card.Title fontSize="md">
-                    <Text fontSize="32px" fontWeight="bold" color="green.600">
-                        {t.SETTINGS_HOTKEYS_TITLE}
-                    </Text>
-                </Card.Title>
-                <Card.Description fontSize="sm" pt={4} pb={4} whiteSpace="pre-wrap">
-                    {t.SETTINGS_HOTKEYS_HELPER_TEXT}
-                </Card.Description>
-                
-            </Card.Header>
-
-            <Card.Body>
+        <SettingMainContentLayout 
+            width={width}
+            height={height}
+        >
+            <MainContentHeader 
+                title={t.SETTINGS_HOTKEYS_TITLE}
+                description={t.SETTINGS_HOTKEYS_HELPER_TEXT}
+            />
+            
+            <MainContentBody>
                 <Fieldset.Root>
                     <Fieldset.Content>
                         <Stack gap={4}>
@@ -166,11 +165,7 @@ export function HotkeySettingContent({
                         </Stack>
                     </Fieldset.Content>
                 </Fieldset.Root>
-            </Card.Body>
-
-            <Card.Footer justifyContent="flex-start">
-                
-            </Card.Footer>
-        </Card.Root>
+            </MainContentBody>
+        </SettingMainContentLayout>
     );
 } 

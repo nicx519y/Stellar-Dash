@@ -49,7 +49,7 @@ export function InputModeSettingContent(props: {
                                         {platformIcons.get(platform as Platform)?.icon}
                                     </Icon>
                                 </Center>
-                                <RadioCard.ItemText fontSize={"xs"} textAlign={"left"} >{label}</RadioCard.ItemText>
+                                <RadioCard.ItemText fontSize={"xs"} textAlign={"left"} letterSpacing={"0.04em"} >{label}</RadioCard.ItemText>
                             </RadioCard.ItemControl>
                         </RadioCard.Item>
                     ))}

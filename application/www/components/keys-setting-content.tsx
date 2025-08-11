@@ -7,8 +7,6 @@ import {
     Button,
     HStack,
     RadioCardLabel,
-    Text,
-    Card,
     VStack,
     Switch,
 } from "@chakra-ui/react";
@@ -42,6 +40,11 @@ import {
     MainContent, 
     TopButtons 
 } from "./setting-content-layout";
+import { 
+    SettingMainContentLayout, 
+    MainContentHeader, 
+    MainContentBody 
+} from "@/components/setting-main-content-layout";
 import { GiSightDisabled } from "react-icons/gi";
 import { BiSolidExit } from "react-icons/bi";
 
@@ -203,19 +206,15 @@ export function KeysSettingContent() {
             </HitboxContent>
             
             <MainContent>
-                <Card.Root w="778px" h="100%" >
-                    <Card.Header>
-                        <Card.Title fontSize={"md"}  >
-                            <Text fontSize={"32px"} fontWeight={"bold"} color={"green.600"} >{t.SETTINGS_KEYS_TITLE}</Text>
-                        </Card.Title>
-                        <Card.Description fontSize={"sm"} pt={4} pb={4} whiteSpace="pre-wrap"  >
-                            {t.SETTINGS_KEYS_HELPER_TEXT}
-                        </Card.Description>
-                    </Card.Header>
-                    <Card.Body>
-                        <Fieldset.Root  >
-                            <Fieldset.Content >
-                                <VStack gap={8} alignItems={"flex-start"} >
+                <SettingMainContentLayout width={778}>
+                    <MainContentHeader 
+                        title={t.SETTINGS_KEYS_TITLE}
+                        description={t.SETTINGS_KEYS_HELPER_TEXT}
+                    />
+                    <MainContentBody>
+                        <Fieldset.Root>
+                            <Fieldset.Content>
+                                <VStack gap={8} alignItems={"flex-start"}>
                                     {/* Key Mapping */}
                                     <Stack direction={"column"}>
                                         <Fieldset.Legend fontSize={"sm"} color={keysEnableSettingActive ? "gray.500" :  colorMode === "dark" ? "white" : "black"} >{t.SETTINGS_KEYS_MAPPING_TITLE}</Fieldset.Legend>
@@ -320,8 +319,8 @@ export function KeysSettingContent() {
                                 </VStack>
                             </Fieldset.Content>
                         </Fieldset.Root>
-                    </Card.Body>
-                </Card.Root>
+                    </MainContentBody>
+                </SettingMainContentLayout>
             </MainContent>
             
             <TopButtons config={topButtonsConfig} />

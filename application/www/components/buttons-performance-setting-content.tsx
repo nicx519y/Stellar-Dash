@@ -5,7 +5,6 @@ import {
     Button,
     Box,
     Table,
-    Card,
     VStack,
     HStack,
     Switch,
@@ -21,6 +20,11 @@ import { useLanguage } from "@/contexts/language-context";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { LuSheet } from "react-icons/lu";
 import { openConfirm } from "./dialog-confirm";
+import { 
+    SettingMainContentLayout, 
+    MainContentHeader, 
+    MainContentBody 
+} from "@/components/setting-main-content-layout";
 
 interface TriggerConfig {
     topDeadzone: number;
@@ -247,19 +251,15 @@ export function ButtonsPerformanceSettingContent({
 
     return (
         <>
-            <Card.Root w="778px" h="100%" >
-                <Card.Header>
-                    <Card.Title fontSize={"md"}  >
-                        <Text fontSize={"32px"} fontWeight={"bold"} color={"green.600"} >{t.SETTINGS_RAPID_TRIGGER_TITLE}</Text>
-                    </Card.Title>
-                    <Card.Description fontSize={"sm"} pt={4} pb={4} whiteSpace="pre-wrap"  >
-                        {t.SETTINGS_RAPID_TRIGGER_HELPER_TEXT}
-                    </Card.Description>
-                </Card.Header>
-                <Card.Body>
+            <SettingMainContentLayout width={778}>
+                <MainContentHeader 
+                    title={t.SETTINGS_RAPID_TRIGGER_TITLE}
+                    description={t.SETTINGS_RAPID_TRIGGER_HELPER_TEXT}
+                />
+                <MainContentBody>
                     <Fieldset.Root>
-                        <Fieldset.Content  >
-                            <VStack gap={8} alignItems={"flex-start"} >
+                        <Fieldset.Content>
+                            <VStack gap={8} alignItems={"flex-start"}>
                                 {/* 预设 */}
                                 <RadioCard.Root variant={"subtle"} pb={4} value={selectedPreset} colorPalette={"green"} onValueChange={(details) => {
                                     if (details.value !== null) {
@@ -274,7 +274,7 @@ export function ButtonsPerformanceSettingContent({
                                                 <RadioCard.ItemControl>
                                                     <RadioCard.ItemContent>
                                                         <RadioCard.ItemText>{config.label}</RadioCard.ItemText>
-                                                        <RadioCard.ItemDescription fontSize={"xs"} >
+                                                        <RadioCard.ItemDescription fontSize={"xs"} letterSpacing={'0.02em'} >
                                                             {config.description}
                                                         </RadioCard.ItemDescription>
                                                     </RadioCard.ItemContent>
@@ -392,8 +392,8 @@ export function ButtonsPerformanceSettingContent({
                             </VStack>
                         </Fieldset.Content>
                     </Fieldset.Root>
-                </Card.Body>
-            </Card.Root>
+                </MainContentBody>
+            </SettingMainContentLayout>
             
             {/* Portal Dialog for Table View */}
             <Portal>

@@ -11,7 +11,6 @@ import {
     parseColor,
     Text,
     Color,
-    Card,
     Portal,
     Switch,
     Grid,
@@ -48,6 +47,11 @@ import {
     HitboxContent, 
     MainContent 
 } from "./setting-content-layout";
+import { 
+    SettingMainContentLayout, 
+    MainContentHeader, 
+    MainContentBody 
+} from "@/components/setting-main-content-layout";
 
 export function LEDsSettingContent() {
     const { t } = useLanguage();
@@ -401,21 +405,16 @@ export function LEDsSettingContent() {
             </HitboxContent>
             
             <MainContent>
-                <Card.Root w="778px" h="100%" >
-                    <Card.Header>
-                        <Card.Title fontSize={"md"}  >
-                            <Text fontSize={"32px"} fontWeight={"bold"} color={"green.600"} >{t.SETTINGS_LEDS_TITLE}</Text>
-                        </Card.Title>
-                        <Card.Description fontSize={"sm"} pt={4} pb={4} whiteSpace="pre-wrap"  >
-                            {t.SETTINGS_LEDS_HELPER_TEXT}
-                        </Card.Description>
-                    </Card.Header>
-                    <Card.Body>
+                <SettingMainContentLayout width={778}>
+                    <MainContentHeader 
+                        title={t.SETTINGS_LEDS_TITLE}
+                        description={t.SETTINGS_LEDS_HELPER_TEXT}
+                    />
+                    <MainContentBody>
                         <Fieldset.Root>
-                            <Stack direction={"column"} >
-
-                                <Fieldset.Content  >
-                                    <VStack gap={8} alignItems={"flex-start"}  >
+                            <Stack direction={"column"}>
+                                <Fieldset.Content>
+                                    <VStack gap={8} alignItems={"flex-start"}>
                                         {/* LED Effect Style */}
 
                                         <Switch.Root colorPalette={"green"} checked={ledEnabled}
@@ -472,7 +471,7 @@ export function LEDsSettingContent() {
                                         </RadioCardRoot>
 
                                         {/* LED Colors */}
-                                        <HStack gap={4} alignItems={"flex-start"} >
+                                        <HStack gap={4} alignItems={"flex-start"}>
                                             {Array.from({ length: 3 }).map((_, index) => (
                                                 <ColorPicker.Root key={index} size="xs"
                                                     value={
@@ -532,7 +531,7 @@ export function LEDsSettingContent() {
                                             ))}
                                         </HStack>
                                         {/* LED Brightness */}
-                                        <Grid templateColumns="repeat(2, 1fr)" gap={10} w="100%" >
+                                        <Grid templateColumns="repeat(2, 1fr)" gap={10} w="100%">
                                             <Slider.Root
                                                 size={"sm"}
                                                 min={0}
@@ -550,15 +549,15 @@ export function LEDsSettingContent() {
                                                     setNeedPreview(true);
                                                 }}
                                             >
-                                                <HStack justifyContent={"space-between"} >
-                                                    <Slider.Label color={ledEnabled ? "white" : "gray"} >{t.SETTINGS_LEDS_BRIGHTNESS_LABEL}</Slider.Label>
+                                                <HStack justifyContent={"space-between"}>
+                                                    <Slider.Label color={ledEnabled ? "white" : "gray"}>{t.SETTINGS_LEDS_BRIGHTNESS_LABEL}</Slider.Label>
                                                     <Slider.ValueText color={ledEnabled ? "white" : "gray"} />
                                                 </HStack>
                                                 <Slider.Control>
                                                     <Slider.Track>
                                                         <Slider.Range />
                                                     </Slider.Track>
-                                                    <Slider.Thumb index={0} >
+                                                    <Slider.Thumb index={0}>
                                                         <Slider.DraggingIndicator
                                                             layerStyle="fill.solid"
                                                             top="6"
@@ -597,15 +596,15 @@ export function LEDsSettingContent() {
                                                 }}
 
                                             >
-                                                <HStack justifyContent={"space-between"} >
-                                                    <Slider.Label color={ledEnabled ? "white" : "gray"} >{t.SETTINGS_LEDS_ANIMATION_SPEED_LABEL}</Slider.Label>
+                                                <HStack justifyContent={"space-between"}>
+                                                    <Slider.Label color={ledEnabled ? "white" : "gray"}>{t.SETTINGS_LEDS_ANIMATION_SPEED_LABEL}</Slider.Label>
                                                     <Slider.ValueText color={ledEnabled ? "white" : "gray"} />
                                                 </HStack>
                                                 <Slider.Control>
                                                     <Slider.Track>
                                                         <Slider.Range />
                                                     </Slider.Track>
-                                                    <Slider.Thumb index={0} >
+                                                    <Slider.Thumb index={0}>
                                                         <Slider.DraggingIndicator
                                                             layerStyle="fill.solid"
                                                             top="6"
@@ -626,13 +625,13 @@ export function LEDsSettingContent() {
                                             </Slider.Root>
                                         </Grid>
                                     </VStack>
-                                    <HStack display={hasAroundLed ? "flex" : "none"}  >
-                                        <Text flexShrink="0" fontSize={"sm"} fontWeight={"bold"} >{t.SETTINGS_LEDS_AMBIENT_LIGHT_TITLE}</Text>
+                                    <HStack display={hasAroundLed ? "flex" : "none"}>
+                                        <Text flexShrink="0" fontSize={"sm"} fontWeight={"bold"}>{t.SETTINGS_LEDS_AMBIENT_LIGHT_TITLE}</Text>
                                         <Separator my={8} flex="1" />
                                     </HStack>
-                                    <VStack gap={8} alignItems={"flex-start"} display={hasAroundLed ? "flex" : "none"}  >
+                                    <VStack gap={8} alignItems={"flex-start"} display={hasAroundLed ? "flex" : "none"}>
                                         {/* Ambient Light */}
-                                        <Grid templateColumns="repeat(3, 1fr)" gap={10} w="100%" >
+                                        <Grid templateColumns="repeat(3, 1fr)" gap={10} w="100%">
                                             {/* 是否开启氛围灯 */}
                                             <Switch.Root colorPalette={"green"}
                                                 disabled={!ledEnabled}
@@ -682,7 +681,7 @@ export function LEDsSettingContent() {
                                                 <Switch.Label>{t.SETTINGS_AMBIENT_LIGHT_TRIGGER_BY_BUTTON_LABEL}</Switch.Label>
                                             </Switch.Root>
                                         </Grid>
-                                        <HStack gap={10} alignItems={"flex-start"} >
+                                        <HStack gap={10} alignItems={"flex-start"}>
                                             {/* 氛围灯效果 */}
                                             <RadioCardRoot
                                                 align="center"
@@ -700,14 +699,14 @@ export function LEDsSettingContent() {
                                                 disabled={!aroundLedConfigIsEnabled}
                                             >
                                                 <RadioCardLabel>{t.SETTINGS_AMBIENT_LIGHT_EFFECT_LABEL}</RadioCardLabel>
-                                                <SimpleGrid columns={6} gap={1} >
+                                                <SimpleGrid columns={6} gap={1}>
                                                     {Array.from(aroundLedEffectStyleLabelMap.entries()).map(([style], index) => (
                                                         <RadioCardItem
                                                             w="120px"
                                                             fontSize={"xs"}
                                                             indicator={false}
                                                             key={index}
-                                                            icon={<Icon fontSize={"2xl"} >{iconMap[aroundLedEffectStyleLabelMap.get(style)?.icon ?? ""]}</Icon>}
+                                                            icon={<Icon fontSize={"2xl"}>{iconMap[aroundLedEffectStyleLabelMap.get(style)?.icon ?? ""]}</Icon>}
                                                             value={style.toString()}
                                                             label={aroundLedEffectStyleLabelMap.get(style)?.label ?? ""}
                                                             disabled={!aroundLedConfigIsEnabled}
@@ -716,7 +715,7 @@ export function LEDsSettingContent() {
                                                 </SimpleGrid>
                                             </RadioCardRoot>
                                         </HStack>
-                                        <HStack gap={10} alignItems={"flex-start"} >
+                                        <HStack gap={10} alignItems={"flex-start"}>
                                             {/* 氛围灯颜色 */}
                                             {Array.from({ length: 2 }).map((_, index) => (
                                                 <ColorPicker.Root key={index} size="xs"
@@ -758,7 +757,7 @@ export function LEDsSettingContent() {
                                                                     <ColorPicker.EyeDropper size="sm" variant="outline" />
                                                                     <ColorPicker.ChannelSlider channel="hue" />
                                                                 </HStack>
-                                                                <ColorPicker.SwatchGroup gap={.5} p={0.5} >
+                                                                <ColorPicker.SwatchGroup gap={.5} p={0.5}>
                                                                     {colorSwatches.map((item) => (
                                                                         <ColorPicker.SwatchTrigger key={item} value={item}>
                                                                             <ColorPicker.Swatch value={item} boxSize="5">
@@ -775,7 +774,7 @@ export function LEDsSettingContent() {
                                                 </ColorPicker.Root>
                                             ))}
                                         </HStack>
-                                        <Grid templateColumns="repeat(2, 1fr)" gap={10} w="100%" >
+                                        <Grid templateColumns="repeat(2, 1fr)" gap={10} w="100%">
                                             {/* 氛围灯亮度 */}
                                             <Slider.Root
                                                 size={"sm"}
@@ -794,15 +793,15 @@ export function LEDsSettingContent() {
                                                     setNeedPreview(true);
                                                 }}
                                             >
-                                                <HStack justifyContent={"space-between"} >
-                                                    <Slider.Label color={aroundLedConfigIsEnabled ? "white" : "gray"} >{t.SETTINGS_AMBIENT_LIGHT_BRIGHTNESS_LABEL}</Slider.Label>
+                                                <HStack justifyContent={"space-between"}>
+                                                    <Slider.Label color={aroundLedConfigIsEnabled ? "white" : "gray"}>{t.SETTINGS_AMBIENT_LIGHT_BRIGHTNESS_LABEL}</Slider.Label>
                                                     <Slider.ValueText color={aroundLedConfigIsEnabled ? "white" : "gray"} />
                                                 </HStack>
                                                 <Slider.Control>
                                                     <Slider.Track>
                                                         <Slider.Range />
                                                     </Slider.Track>
-                                                    <Slider.Thumb index={0} >
+                                                    <Slider.Thumb index={0}>
                                                         <Slider.DraggingIndicator
                                                             layerStyle="fill.solid"
                                                             top="6"
@@ -841,15 +840,15 @@ export function LEDsSettingContent() {
                                                 }}
 
                                             >
-                                                <HStack justifyContent={"space-between"} >
-                                                    <Slider.Label color={aroundLedConfigIsEnabled ? "white" : "gray"} >{t.SETTINGS_AMBIENT_LIGHT_ANIMATION_SPEED_LABEL}</Slider.Label>
+                                                <HStack justifyContent={"space-between"}>
+                                                    <Slider.Label color={aroundLedConfigIsEnabled ? "white" : "gray"}>{t.SETTINGS_AMBIENT_LIGHT_ANIMATION_SPEED_LABEL}</Slider.Label>
                                                     <Slider.ValueText color={aroundLedConfigIsEnabled ? "white" : "gray"} />
                                                 </HStack>
                                                 <Slider.Control>
                                                     <Slider.Track>
                                                         <Slider.Range />
                                                     </Slider.Track>
-                                                    <Slider.Thumb index={0} >
+                                                    <Slider.Thumb index={0}>
                                                         <Slider.DraggingIndicator
                                                             layerStyle="fill.solid"
                                                             top="6"
@@ -874,8 +873,8 @@ export function LEDsSettingContent() {
                                 </Fieldset.Content>
                             </Stack>
                         </Fieldset.Root>
-                    </Card.Body>
-                </Card.Root>
+                    </MainContentBody>
+                </SettingMainContentLayout>
             </MainContent>
         </SettingContentLayout>
     )

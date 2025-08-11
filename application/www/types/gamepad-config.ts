@@ -597,7 +597,7 @@ export const UI_TEXT = {
 
     // Keys Settings
     SETTINGS_KEYS_TITLE: "KEYS SETTINGS",
-    SETTINGS_KEYS_HELPER_TEXT: `Set the mapping between Hitbox buttons and game controller buttons.\n- Select a configuration box below, then press a Hitbox button on the left to bind it.\n- Multiple key mappings can be set. Each controller button can be mapped to multiple Hitbox buttons.`,
+    SETTINGS_KEYS_HELPER_TEXT: `Set the mapping between Hitbox buttons and game controller buttons.\n- Select a configuration box below, then press a Hitbox button on the left to bind it.\n- Multiple key mappings can be binded to one controller button.`,
     KEYS_ENABLE_START_BUTTON_LABEL: "Configuring keys enablement",
     KEYS_ENABLE_STOP_BUTTON_LABEL: "Exit configuring",
 
