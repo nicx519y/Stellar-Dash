@@ -8,6 +8,7 @@
 #include "board_cfg.h"
 #include "adc_btns/adc_calibration.hpp"
 #include "micro_timer.hpp"
+#include <map>
 
 class HotkeysManager {
     public:
@@ -21,6 +22,12 @@ class HotkeysManager {
 
         void runVirtualPinMask(uint32_t virtualPinMask);
         void updateHotkeyState(uint32_t currentVirtualPinMask, uint32_t lastVirtualPinMask);
+        
+        // 新增：根据action快速查找hotkeyIndex
+        int findHotkeyIndexByAction(GamepadHotkey action) const;
+        
+        // 新增：当热键配置发生变化时，重新构建Map
+        void refreshActionToIndexMap();
 
     private:
         HotkeysManager();
@@ -35,10 +42,17 @@ class HotkeysManager {
         };
         
         HotkeyState hotkeyStates[NUM_GAMEPAD_HOTKEYS];
+        
+        // 新增：action到hotkeyIndex的映射Map
+        std::map<GamepadHotkey, int> actionToIndexMap;
+        
+        // 新增：构建action到index的映射
+        void buildActionToIndexMap();
 
+        bool isValidHotkey(int hotkeyIndex, uint32_t currentTime, bool currentPressed, bool lastPressed);
         void runAction(GamepadHotkey hotkeyAction);
         void resetHotkeyState(int index);
-        bool isHotkeyPressed(uint32_t virtualPinMask, int hotkeyIndex);
+        bool isHotkeyPressed(uint32_t virtualPinMask, int hotkeyIndex, bool isOnly = true);
         void rebootSystem();
 };
 
