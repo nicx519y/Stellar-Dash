@@ -1,0 +1,54 @@
+{
+  "devices": [
+    {
+      "rawUniqueId": "0030001F-3233510E-32323838",
+      "deviceId": "9E5DDEAA034C4B45",
+      "deviceName": "HBox-9E5DDEAA",
+      "registerIP": "::ffff:127.0.0.1",
+      "registerTime": "2025-07-04T16:42:20.762Z",
+      "lastSeen": "2025-07-04T16:42:20.762Z",
+      "status": "active"
+    },
+    {
+      "rawUniqueId": "004A0047-32335114-32333338",
+      "deviceId": "D6A90617061DA84D",
+      "deviceName": "HBox-D6A90617",
+      "registerIP": "::ffff:127.0.0.1",
+      "registeredBy": "admin",
+      "registerTime": "2025-07-15T13:15:40.095Z",
+      "lastSeen": "2025-07-15T13:15:40.095Z",
+      "status": "active"
+    },
+    {
+      "rawUniqueId": "003D0018-32335108-32323838",
+      "deviceId": "73BC7565EEADE08A",
+      "deviceName": "HBox-73BC7565",
+      "registerIP": "::ffff:127.0.0.1",
+      "registeredBy": "admin",
+      "registerTime": "2025-07-16T07:23:43.067Z",
+      "lastSeen": "2025-07-16T07:23:43.068Z",
+      "status": "active"
+    },
+    {
+      "rawUniqueId": "004A0037-32335113-34313937",
+      "deviceId": "DE430C1FAF59A5D0",
+      "deviceName": "HBox-DE430C1F",
+      "registerIP": "::ffff:127.0.0.1",
+      "registeredBy": "admin",
+      "registerTime": "2025-07-29T16:33:08.931Z",
+      "lastSeen": "2025-07-29T16:33:08.931Z",
+      "status": "active"
+    },
+    {
+      "rawUniqueId": "001C0034-32335110-32323838",
+      "deviceId": "B978EC59246979B6",
+      "deviceName": "HBox-B978EC59",
+      "registerIP": "::ffff:127.0.0.1",
+      "registeredBy": "admin",
+      "registerTime": "2025-08-09T08:16:14.473Z",
+      "lastSeen": "2025-08-09T08:16:14.474Z",
+      "status": "active"
+    }
+  ],
+  "lastUpdate": "2025-07-16T07:23:43.068Z"
+}

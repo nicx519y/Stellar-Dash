@@ -34,7 +34,7 @@ const PORT = process.env.PORT || 3000;
 // 配置目录
 const config = {
     uploadDir: path.join(__dirname, 'uploads'),
-    dataFile: path.join(__dirname, 'firmware_list.json'),
+    dataFile: path.join(__dirname, '..', 'data/firmware_list.json'),
     maxFileSize: 50 * 1024 * 1024, // 50MB
     allowedExtensions: ['.zip'],
     serverUrl: process.env.SERVER_URL || `http://localhost:${PORT}`

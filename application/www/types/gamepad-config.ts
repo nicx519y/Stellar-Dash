@@ -536,8 +536,8 @@ export const UI_TEXT = {
     SETTINGS_LEDS_COLOR_BACK1_LABEL: "Back Color 1",
     SETTINGS_LEDS_COLOR_BACK2_LABEL: "Back Color 2",
 
-    SETTINGS_AMBIENT_LIGHT_ENABLE_LABEL: "Enable Ambient Lighting",
-    SETTINGS_AMBIENT_LIGHT_SYNC_WITH_LEDS_LABEL: "Sync with LEDs",
+    SETTINGS_AMBIENT_LIGHT_ENABLE_LABEL: "Enable Ambient Light",
+    SETTINGS_AMBIENT_LIGHT_SYNC_WITH_LEDS_LABEL: "Sync To Button LED",
     SETTINGS_AMBIENT_LIGHT_TRIGGER_BY_BUTTON_LABEL: "Trigger by Button",
     SETTINGS_AMBIENT_LIGHT_EFFECT_LABEL: "Ambient Light Effect",
     SETTINGS_AMBIENT_LIGHT_BRIGHTNESS_LABEL: "Ambient Light Brightness",
@@ -612,7 +612,7 @@ export const UI_TEXT = {
     // Rapid Trigger Settings
     SETTINGS_RAPID_TRIGGER_TITLE: "BUTTONS PERFORMANCE",
     SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "The buttons performance settings can be customized here.\n- Top Deadzone: The distance from the top of the trigger to the deadzone.\n- Bottom Deadzone: The distance from the bottom of the trigger to the deadzone.\n- Press Accuracy: The accuracy of the trigger when pressed.\n- Release Accuracy: The accuracy of the trigger when released.",
-    SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL: "Configure all buttons at once",
+    SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL: "Configure All Buttons At Once",
 
     // ADC Button Debounce Algorithm
     SETTINGS_ADC_BUTTON_DEBOUNCE_TITLE: "Button Debounce",
@@ -834,7 +834,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_LEDS_COLOR_BACK2_LABEL: "LED背景颜色2",
 
     SETTINGS_AMBIENT_LIGHT_ENABLE_LABEL: "启用氛围灯",
-    SETTINGS_AMBIENT_LIGHT_SYNC_WITH_LEDS_LABEL: "效果和LED同步",
+    SETTINGS_AMBIENT_LIGHT_SYNC_WITH_LEDS_LABEL: "效果与按键的LED同步",
     SETTINGS_AMBIENT_LIGHT_TRIGGER_BY_BUTTON_LABEL: "由按键触发",
     SETTINGS_AMBIENT_LIGHT_EFFECT_LABEL: "氛围灯效果",
     SETTINGS_AMBIENT_LIGHT_BRIGHTNESS_LABEL: "氛围灯亮度",

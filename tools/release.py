@@ -42,6 +42,248 @@ from firmware_metadata import *
 # 保留release.py特有的常量
 OPENOCD_CONFIG = "interface/stlink.cfg -f target/stm32h7x.cfg"
 
+class ReleaseConfig:
+    """Release工具的统一配置管理类"""
+    
+    def __init__(self, config_file: Path = None):
+        """
+        初始化配置管理器
+        
+        Args:
+            config_file: 配置文件路径，默认为 tools/release_config.json
+        """
+        if config_file is None:
+            # 默认配置文件路径
+            self.config_file = Path(__file__).parent / "release_config.json"
+        else:
+            self.config_file = Path(config_file)
+        
+        # 默认配置
+        self.default_config = {
+            "server": {
+                "default_url": "http://182.92.72.220:3000",
+                "timeout": 300,
+                "retry_count": 3
+            },
+            "admin": {
+                "default_username": "admin",
+                "prompt_for_password": True
+            },
+            "build": {
+                "default_version": "1.0.0",
+                "auto_timestamp": True
+            },
+            "flash": {
+                "default_slot": "A",
+                "verify_after_flash": True
+            }
+        }
+        
+        # 加载配置
+        self.config = self.load_config()
+    
+    def load_config(self) -> dict:
+        """加载配置文件，如果不存在则创建默认配置"""
+        try:
+            if self.config_file.exists():
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                print(f"✓ 已加载配置文件: {self.config_file}")
+                return self.merge_config(self.default_config, config)
+            else:
+                # 创建默认配置文件
+                self.save_config(self.default_config)
+                print(f"✓ 已创建默认配置文件: {self.config_file}")
+                return self.default_config.copy()
+        except Exception as e:
+            print(f"⚠️  加载配置文件失败: {e}，使用默认配置")
+            return self.default_config.copy()
+    
+    def save_config(self, config: dict = None):
+        """保存配置到文件"""
+        if config is None:
+            config = self.config
+        
+        try:
+            # 确保配置目录存在
+            self.config_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+            
+            print(f"✓ 配置已保存到: {self.config_file}")
+        except Exception as e:
+            print(f"✗ 保存配置文件失败: {e}")
+    
+    def merge_config(self, default: dict, user: dict) -> dict:
+        """合并默认配置和用户配置"""
+        result = default.copy()
+        
+        def merge_dict(base, update):
+            for key, value in update.items():
+                if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+                    merge_dict(base[key], value)
+                else:
+                    base[key] = value
+        
+        merge_dict(result, user)
+        return result
+    
+    def get_server_url(self, custom_url: str = None) -> str:
+        """获取服务器URL，优先使用自定义URL，其次使用配置的默认URL"""
+        if custom_url:
+            return custom_url
+        return self.config["server"]["default_url"]
+    
+    def get_admin_username(self, custom_username: str = None) -> str:
+        """获取管理员用户名"""
+        if custom_username:
+            return custom_username
+        return self.config["admin"]["default_username"]
+    
+    def get_timeout(self) -> int:
+        """获取请求超时时间"""
+        return self.config["server"]["timeout"]
+    
+    def get_retry_count(self) -> int:
+        """获取重试次数"""
+        return self.config["server"]["retry_count"]
+    
+    def get_default_slot(self) -> str:
+        """获取默认槽位"""
+        return self.config["flash"]["default_slot"]
+    
+    def get_default_version(self) -> str:
+        """获取默认版本号"""
+        return self.config["build"]["default_version"]
+    
+    def should_verify_after_flash(self) -> bool:
+        """是否在刷写后验证"""
+        return self.config["flash"]["verify_after_flash"]
+    
+    def should_prompt_for_password(self) -> bool:
+        """是否提示输入密码"""
+        return self.config["admin"]["prompt_for_password"]
+    
+    def update_config(self, section: str, key: str, value: Any):
+        """更新配置项"""
+        if section not in self.config:
+            self.config[section] = {}
+        
+        self.config[section][key] = value
+        self.save_config()
+        print(f"✓ 已更新配置: {section}.{key} = {value}")
+    
+    def show_config(self):
+        """显示当前配置"""
+        print("=" * 60)
+        print("当前配置:")
+        print("=" * 60)
+        
+        for section, items in self.config.items():
+            print(f"\n[{section.upper()}]")
+            for key, value in items.items():
+                if key == "default_username" and self.should_prompt_for_password():
+                    print(f"  {key}: {value} (需要输入密码)")
+                else:
+                    print(f"  {key}: {value}")
+        
+        print(f"\n配置文件: {self.config_file}")
+        print("=" * 60)
+    
+    def reset_config(self):
+        """重置为默认配置"""
+        self.config = self.default_config.copy()
+        self.save_config()
+        print("✓ 配置已重置为默认值")
+    
+    def edit_config_interactive(self):
+        """交互式编辑配置"""
+        print("=" * 60)
+        print("交互式配置编辑器")
+        print("=" * 60)
+        
+        while True:
+            print("\n当前配置:")
+            self.show_config()
+            
+            print("\n可编辑的配置项:")
+            print("1. 服务器默认地址")
+            print("2. 请求超时时间")
+            print("3. 重试次数")
+            print("4. 默认管理员用户名")
+            print("5. 默认槽位")
+            print("6. 默认版本号")
+            print("7. 刷写后验证")
+            print("8. 重置为默认配置")
+            print("0. 退出")
+            
+            try:
+                choice = input("\n请选择要编辑的配置项 (0-8): ").strip()
+                
+                if choice == "0":
+                    break
+                elif choice == "1":
+                    new_url = input(f"当前服务器地址: {self.get_server_url()}\n新的服务器地址: ").strip()
+                    if new_url:
+                        self.update_config("server", "default_url", new_url)
+                elif choice == "2":
+                    current_timeout = self.get_timeout()
+                    new_timeout = input(f"当前超时时间: {current_timeout}秒\n新的超时时间: ").strip()
+                    if new_timeout and new_timeout.isdigit():
+                        self.update_config("server", "timeout", int(new_timeout))
+                elif choice == "3":
+                    current_retry = self.get_retry_count()
+                    new_retry = input(f"当前重试次数: {current_retry}\n新的重试次数: ").strip()
+                    if new_retry and new_retry.isdigit():
+                        self.update_config("server", "retry_count", int(new_retry))
+                elif choice == "4":
+                    current_username = self.get_admin_username()
+                    new_username = input(f"当前管理员用户名: {current_username}\n新的管理员用户名: ").strip()
+                    if new_username:
+                        self.update_config("admin", "default_username", new_username)
+                elif choice == "5":
+                    current_slot = self.get_default_slot()
+                    new_slot = input(f"当前默认槽位: {current_slot}\n新的默认槽位 (A/B): ").strip().upper()
+                    if new_slot in ["A", "B"]:
+                        self.update_config("flash", "default_slot", new_slot)
+                elif choice == "6":
+                    current_version = self.get_default_version()
+                    new_version = input(f"当前默认版本: {current_version}\n新的默认版本: ").strip()
+                    if new_version:
+                        self.update_config("build", "default_version", new_version)
+                elif choice == "7":
+                    current_verify = self.should_verify_after_flash()
+                    new_verify = input(f"当前刷写后验证: {current_verify}\n是否启用刷写后验证 (y/n): ").strip().lower()
+                    if new_verify in ["y", "yes", "是"]:
+                        self.update_config("flash", "verify_after_flash", True)
+                    elif new_verify in ["n", "no", "否"]:
+                        self.update_config("flash", "verify_after_flash", False)
+                elif choice == "8":
+                    confirm = input("确认重置为默认配置？(y/N): ").strip().lower()
+                    if confirm in ["y", "yes", "是"]:
+                        self.reset_config()
+                else:
+                    print("无效选择，请重新输入")
+                    
+            except KeyboardInterrupt:
+                print("\n配置编辑已取消")
+                break
+            except Exception as e:
+                print(f"配置编辑出错: {e}")
+        
+        print("配置编辑完成")
+
+# 全局配置实例
+_config_instance = None
+
+def get_config() -> ReleaseConfig:
+    """获取全局配置实例"""
+    global _config_instance
+    if _config_instance is None:
+        _config_instance = ReleaseConfig()
+    return _config_instance
+
 class HexSegmenter:
     """Intel HEX文件解析和分割器"""
     
@@ -894,6 +1136,9 @@ class ReleaseManager:
         self.openocd_configs_dir = self.tools_dir / "openocd_configs"
         self.temp_dir = None
         
+        # 加载统一配置
+        self.config = get_config()
+        
         # OpenOCD配置
         self.openocd_config = self.openocd_configs_dir / "ST-LINK-QSPIFLASH.cfg"
         
@@ -926,7 +1171,7 @@ class ReleaseManager:
     def get_admin_credentials(self, admin_username: str = None, admin_password: str = None) -> tuple:
         """
         获取管理员认证凭据
-        优先级：命令行参数 > 环境变量 > 交互式输入
+        优先级：命令行参数 > 环境变量 > 配置默认值 > 交互式输入
         
         Args:
             admin_username: 命令行传入的用户名（可选）
@@ -940,6 +1185,9 @@ class ReleaseManager:
             admin_username = os.getenv('ADMIN_USERNAME')
         
         if not admin_username:
+            admin_username = self.config.get_admin_username()
+        
+        if not admin_username:
             admin_username = input("请输入管理员用户名 (默认: admin): ").strip()
             if not admin_username:
                 admin_username = 'admin'
@@ -948,7 +1196,7 @@ class ReleaseManager:
         if not admin_password:
             admin_password = os.getenv('ADMIN_PASSWORD')
         
-        if not admin_password:
+        if not admin_password and self.config.should_prompt_for_password():
             import getpass
             admin_password = getpass.getpass("请输入管理员密码: ")
         
@@ -1486,7 +1734,7 @@ class ReleaseManager:
         }
     
     def upload_firmware_to_server(self, slot_a_path: str = None, slot_b_path: str = None, 
-                                 server_url: str = "http://localhost:3000", 
+                                 server_url: str = None, 
                                  desc: str = None, 
                                  admin_username: str = None, admin_password: str = None) -> bool:
         """上传固件包到服务器"""
@@ -1494,6 +1742,9 @@ class ReleaseManager:
         if not slot_a_path and not slot_b_path:
             print("错误: 至少需要指定一个槽的固件包")
             return False
+
+        # 获取服务器URL（优先使用参数，其次使用配置）
+        server_url = self.config.get_server_url(server_url)
 
         # 获取管理员认证凭据
         admin_username, admin_password = self.get_admin_credentials(admin_username, admin_password)
@@ -1564,7 +1815,7 @@ class ReleaseManager:
                 data=form_data,
                 files=files_to_upload,
                 headers=headers,
-                timeout=300,  # 5分钟超时
+                timeout=self.config.get_timeout(),  # 使用配置的超时时间
                 proxies={'http': None, 'https': None} if 'localhost' in server_url or '127.0.0.1' in server_url else None
             )
             
@@ -1617,9 +1868,12 @@ class ReleaseManager:
                 except:
                     pass
     
-    def upload_latest_packages(self, version: str = None, server_url: str = "http://localhost:3000", 
+    def upload_latest_packages(self, version: str = None, server_url: str = None, 
                              desc: str = None, admin_username: str = None, admin_password: str = None) -> bool:
         """上传最新的双槽包到服务器"""
+        
+        # 获取服务器URL（优先使用参数，其次使用配置）
+        server_url = self.config.get_server_url(server_url)
         
         # 如果指定了版本，查找该版本的包
         if version:
@@ -1695,8 +1949,11 @@ class ReleaseManager:
 
     # ==================== 固件删除功能 ====================
     
-    def delete_firmware_from_server(self, firmware_id: str, server_url: str = "http://localhost:3000") -> bool:
+    def delete_firmware_from_server(self, firmware_id: str, server_url: str = None) -> bool:
         """从服务器删除指定ID的固件"""
+        
+        # 获取服务器URL（优先使用参数，其次使用配置）
+        server_url = self.config.get_server_url(server_url)
         
         print("=" * 60)
         print("删除服务器固件")
@@ -1712,7 +1969,7 @@ class ReleaseManager:
             
             response = requests.get(
                 query_url,
-                timeout=30,
+                timeout=self.config.get_timeout(),
                 proxies={'http': None, 'https': None} if 'localhost' in server_url or '127.0.0.1' in server_url else None
             )
             
@@ -1800,9 +2057,12 @@ class ReleaseManager:
             print(f"✗ 删除异常: {e}")
             return False
 
-    def clear_firmware_versions_from_server(self, target_version: str, server_url: str = "http://localhost:3000", 
+    def clear_firmware_versions_from_server(self, target_version: str, server_url: str = None, 
                                            admin_username: str = None, admin_password: str = None) -> bool:
         """清空服务器上指定版本及之前的所有固件"""
+        
+        # 获取服务器URL（优先使用参数，其次使用配置）
+        server_url = self.config.get_server_url(server_url)
         
         print("=" * 60)
         print("清空服务器固件版本")
@@ -1829,7 +2089,7 @@ class ReleaseManager:
             
             response = requests.get(
                 list_url,
-                timeout=30,
+                timeout=self.config.get_timeout(),
                 proxies={'http': None, 'https': None} if 'localhost' in server_url or '127.0.0.1' in server_url else None
             )
             
@@ -1892,7 +2152,7 @@ class ReleaseManager:
                 clear_url,
                 json=request_data,
                 headers=headers,
-                timeout=60,
+                timeout=self.config.get_timeout(),
                 proxies={'http': None, 'https': None} if 'localhost' in server_url or '127.0.0.1' in server_url else None
             )
             
@@ -2259,7 +2519,7 @@ class ReleaseManager:
             print(f"刷写Web资源时发生错误: {e}")
             return False
 
-    def register_device_id(self, server_url: str = "http://localhost:3000", 
+    def register_device_id(self, server_url: str = None, 
                            admin_username: str = None, admin_password: str = None) -> bool:
         """
         注册设备ID到服务器（使用管理员认证）
@@ -2276,6 +2536,9 @@ class ReleaseManager:
         import subprocess
         
         try:
+            # 获取服务器URL（优先使用参数，其次使用配置）
+            server_url = self.config.get_server_url(server_url)
+            
             # 获取管理员认证凭据
             admin_username, admin_password = self.get_admin_credentials(admin_username, admin_password)
             if not admin_username or not admin_password:
@@ -2314,7 +2577,7 @@ class ReleaseManager:
                 cwd=self.tools_dir,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=self.config.get_timeout()
             )
             
             if result.returncode != 0:
@@ -2368,7 +2631,7 @@ class ReleaseManager:
             register_url = f"{server_url}/api/device/register"
             
             print("📡 正在发送注册请求...")
-            response = requests.post(register_url, json=register_data, headers=headers, timeout=10)
+            response = requests.post(register_url, json=register_data, headers=headers, timeout=self.config.get_timeout())
             
             if response.status_code in [200, 201]:
                 result = response.json()
@@ -2547,6 +2810,29 @@ def main():
     - 优先使用命令行参数，其次环境变量，最后交互式输入
     - 默认管理员用户名为'admin'，密码需要配置
 
+配置管理:
+  显示当前配置:
+    python release.py config
+    python release.py config --show
+  
+  交互式编辑配置:
+    python release.py config --edit
+  
+  重置为默认配置:
+    python release.py config --reset
+  
+  快速设置配置项:
+    python release.py config --set-server http://192.168.1.100:3000
+    python release.py config --set-username admin
+    python release.py config --set-timeout 300
+    python release.py config --set-retry 3
+  
+  说明:
+    - 配置文件保存在 tools/release_config.json
+    - 支持服务器地址、管理员用户名、超时时间等配置
+    - 所有网络相关命令都会使用配置的默认值
+    - 命令行参数优先级高于配置文件
+
 Intel HEX文件处理（测试功能）:
   处理HEX文件并分割为多个组件:
     python release.py hex application_slot_a.hex
@@ -2692,9 +2978,19 @@ Intel HEX增强模式说明:
     
     # 注册设备ID命令
     register_parser = subparsers.add_parser('register', help='注册设备ID到服务器')
-    register_parser.add_argument("--server", help="指定服务器地址（可选，默认: http://localhost:3000）")
+    register_parser.add_argument("--server", help="指定服务器地址（可选，使用配置的默认地址）")
     register_parser.add_argument("--admin-username", help="管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）")
     register_parser.add_argument("--admin-password", help="管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）")
+    
+    # 配置管理命令
+    config_parser = subparsers.add_parser('config', help='配置管理')
+    config_parser.add_argument("--show", action="store_true", help="显示当前配置")
+    config_parser.add_argument("--edit", action="store_true", help="交互式编辑配置")
+    config_parser.add_argument("--reset", action="store_true", help="重置为默认配置")
+    config_parser.add_argument("--set-server", help="设置默认服务器地址")
+    config_parser.add_argument("--set-username", help="设置默认管理员用户名")
+    config_parser.add_argument("--set-timeout", type=int, help="设置请求超时时间（秒）")
+    config_parser.add_argument("--set-retry", type=int, help="设置重试次数")
     
     # Intel HEX处理命令（独立测试）
     hex_parser = subparsers.add_parser('hex', help='Intel HEX文件处理和分割（测试功能）')
@@ -2722,7 +3018,7 @@ Intel HEX增强模式说明:
     # 上传命令
     upload_parser = subparsers.add_parser('upload', help='上传固件包到服务器')
     upload_parser.add_argument("--version", help="指定版本号（可选）")
-    upload_parser.add_argument("--server", help="指定服务器地址（可选）")
+    upload_parser.add_argument("--server", help="指定服务器地址（可选，使用配置的默认地址）")
     upload_parser.add_argument("--desc", help="指定固件描述（可选）")
     upload_parser.add_argument("--slot-a", help="指定槽A的固件包路径（可选）")
     upload_parser.add_argument("--slot-b", help="指定槽B的固件包路径（可选）")
@@ -2732,12 +3028,12 @@ Intel HEX增强模式说明:
     # 删除命令
     delete_parser = subparsers.add_parser('delete', help='删除服务器固件')
     delete_parser.add_argument("firmware_id", help="要删除的固件ID")
-    delete_parser.add_argument("--server", help="指定服务器地址（可选）")
+    delete_parser.add_argument("--server", help="指定服务器地址（可选，使用配置的默认地址）")
     
     # 清空命令
     clear_parser = subparsers.add_parser('clear', help='清空指定版本及之前的所有固件')
     clear_parser.add_argument("target_version", help="目标版本号（将删除此版本及之前的所有固件）")
-    clear_parser.add_argument("--server", help="指定服务器地址（可选）")
+    clear_parser.add_argument("--server", help="指定服务器地址（可选，使用配置的默认地址）")
     clear_parser.add_argument("--admin-username", help="管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）")
     clear_parser.add_argument("--admin-password", help="管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）")
     
@@ -2801,7 +3097,7 @@ Intel HEX增强模式说明:
         
         elif args.command == 'register':
             # 注册设备ID到服务器
-            server_url = args.server or "http://localhost:3000"
+            server_url = args.server
             admin_username = args.admin_username
             admin_password = args.admin_password
             if manager.register_device_id(server_url, admin_username, admin_password):
@@ -2892,7 +3188,7 @@ Intel HEX增强模式说明:
                 if manager.upload_firmware_to_server(
                     slot_a_path=args.slot_a,
                     slot_b_path=args.slot_b,
-                    server_url=args.server or "http://localhost:3000",
+                    server_url=args.server,
                     desc=args.desc,
                     admin_username=args.admin_username,
                     admin_password=args.admin_password
@@ -2906,7 +3202,7 @@ Intel HEX增强模式说明:
                 # 上传指定版本或最新版本的双槽包
                 if manager.upload_latest_packages(
                     version=args.version,
-                    server_url=args.server or "http://localhost:3000",
+                    server_url=args.server,
                     desc=args.desc,
                     admin_username=args.admin_username,
                     admin_password=args.admin_password
@@ -2920,7 +3216,7 @@ Intel HEX增强模式说明:
         elif args.command == 'delete':
             # 删除服务器固件
             firmware_id = args.firmware_id
-            server_url = args.server or "http://localhost:3000"
+            server_url = args.server
             
             if manager.delete_firmware_from_server(firmware_id, server_url):
                 print("\n✓ 固件删除成功")
@@ -2932,7 +3228,7 @@ Intel HEX增强模式说明:
         elif args.command == 'clear':
             # 清空服务器固件
             target_version = args.target_version
-            server_url = args.server or "http://localhost:3000"
+            server_url = args.server
             admin_username = args.admin_username
             admin_password = args.admin_password
             
@@ -2942,6 +3238,36 @@ Intel HEX增强模式说明:
             else:
                 print("\n✗ 固件清空失败")
                 return 1
+        
+        elif args.command == 'config':
+            # 配置管理
+            config = get_config()
+            
+            if args.show:
+                config.show_config()
+                return 0
+            elif args.edit:
+                config.edit_config_interactive()
+                return 0
+            elif args.reset:
+                config.reset_config()
+                return 0
+            elif args.set_server:
+                config.update_config("server", "default_url", args.set_server)
+                return 0
+            elif args.set_username:
+                config.update_config("admin", "default_username", args.set_username)
+                return 0
+            elif args.set_timeout:
+                config.update_config("server", "timeout", args.set_timeout)
+                return 0
+            elif args.set_retry:
+                config.update_config("server", "retry_count", args.set_retry)
+                return 0
+            else:
+                # 默认显示配置
+                config.show_config()
+                return 0
         
         elif args.command == 'appweb':
             slot = args.slot

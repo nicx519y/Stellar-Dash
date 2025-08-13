@@ -1,0 +1,33 @@
+{
+  "environments": {
+    "dev": {
+      "host": "182.92.72.220",
+      "user": "root",
+      "path": "/home/root/hbox-server-dev",
+      "ssh_key": "E:\\Works\\Ali-cloude\\182.92.72.220\\PC1125.pem",
+      "port": 3001,
+      "description": "开发环境"
+    },
+    "test": {
+      "host": "182.92.72.220",
+      "user": "root",
+      "path": "/home/root/hbox-server-test",
+      "ssh_key": "E:\\Works\\Ali-cloude\\182.92.72.220\\PC1125.pem",
+      "port": 3002,
+      "description": "测试环境"
+    },
+    "prod": {
+      "host": "182.92.72.220",
+      "user": "root",
+      "path": "/opt/hbox-server",
+      "ssh_key": "E:\\Works\\Ali-cloude\\182.92.72.220\\PC1125.pem",
+      "port": 3000,
+      "description": "生产环境"
+    }
+  },
+  "default_env": "prod",
+  "backup_enabled": true,
+  "backup_retention_days": 7,
+  "health_check_url": "http://localhost:3000/health",
+  "health_check_timeout": 30
+} 

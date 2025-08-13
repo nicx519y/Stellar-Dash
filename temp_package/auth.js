@@ -16,7 +16,7 @@ const path = require('path');
 
 class AuthManager {
     constructor() {
-        this.configFile = path.join(__dirname, 'auth_config.json');
+        this.configFile = path.join(__dirname, '..', 'data/auth_config.json');
         this.config = this.loadConfig();
     }
 

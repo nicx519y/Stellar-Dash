@@ -52,6 +52,7 @@ try changing the first byte of tud_network_mac_address[] below from 0x02 to 0x00
 #include "lwip/apps/httpd.h"
 #include "lwip/udp.h"
 #include "lwip/prot/udp.h"
+#include "board_cfg.h"
 
 #define INIT_IP4(a,b,c,d) { PP_HTONL(LWIP_MAKEU32(a,b,c,d)) }
 
@@ -70,7 +71,7 @@ static struct pbuf *received_frame;
 uint8_t tud_network_mac_address[6] = {0x02, 0x02, 0x84, 0x6A, 0x96, 0x00};
 
 /* network parameters of this MCU */
-static const ip4_addr_t ipaddr  = INIT_IP4(192, 168, 7, 1);
+static const ip4_addr_t ipaddr  = INIT_IP4(WEBCONFIG_IP_FIRST, WEBCONFIG_IP_SECOND, WEBCONFIG_IP_THIRD, WEBCONFIG_IP_FOURTH);
 static const ip4_addr_t netmask = INIT_IP4(255, 255, 255, 0);
 static const ip4_addr_t gateway = INIT_IP4(0, 0, 0, 0);
 
@@ -78,17 +79,18 @@ static const ip4_addr_t gateway = INIT_IP4(0, 0, 0, 0);
 static dhcp_entry_t entries[] =
 {
     /* mac ip address                          lease time */
-    { {0}, INIT_IP4(192, 168, 7, 2), 24 * 60 * 60 },
-    { {0}, INIT_IP4(192, 168, 7, 3), 24 * 60 * 60 },
-    { {0}, INIT_IP4(192, 168, 7, 4), 24 * 60 * 60 },
+    { {0}, INIT_IP4(WEBCONFIG_IP_FIRST, WEBCONFIG_IP_SECOND, WEBCONFIG_IP_THIRD, 2), 24 * 60 * 60 },
+    { {0}, INIT_IP4(WEBCONFIG_IP_FIRST, WEBCONFIG_IP_SECOND, WEBCONFIG_IP_THIRD, 3), 24 * 60 * 60 },
+    { {0}, INIT_IP4(WEBCONFIG_IP_FIRST, WEBCONFIG_IP_SECOND, WEBCONFIG_IP_THIRD, 4), 24 * 60 * 60 },
 };
 
+// 修改DHCP配置中的DNS后缀
 static const dhcp_config_t dhcp_config =
 {
     .router = INIT_IP4(0, 0, 0, 0),            /* router address (if any) */
     .port = 67,                                /* listen port */
-    .dns = INIT_IP4(192, 168, 7, 1),           /* dns server (if any) */
-    "usb",                                     /* dns suffix */
+    .dns = INIT_IP4(WEBCONFIG_IP_FIRST, WEBCONFIG_IP_SECOND, WEBCONFIG_IP_THIRD, WEBCONFIG_IP_FOURTH),           /* dns server (if any) */
+    "local",                                   /* dns suffix - 改为更通用的后缀 */
     TU_ARRAY_SIZE(entries),                    /* num entry */
     entries                                    /* entries */
 };
@@ -148,14 +150,19 @@ static void init_lwip(void)
   netif_set_default(netif);
 }
 
-/* handle any DNS requests from dns-server */
+// 改进域名解析函数
 bool dns_query_proc(const char *name, ip4_addr_t *addr)
 {
-  if (0 == strcmp(name, "wizio.pico"))
+  // 支持多个域名映射到设备IP
+  if (0 == strcmp(name, WEBCONFIG_DOMAIN_NAME))
   {
     *addr = ipaddr;
     return true;
   }
+  
+  // 调试输出 - 帮助诊断问题
+  printf("DNS query received: %s\n", name);
+  
   return false;
 }
 
@@ -204,6 +211,7 @@ static void service_traffic(void)
     received_frame = NULL;
     tud_network_recv_renew();
   }
+
 
   sys_check_timeouts();
 }

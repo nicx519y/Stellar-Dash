@@ -1,0 +1,19 @@
+{
+  "server": {
+    "default_url": "http://182.92.72.220:3000",
+    "timeout": 300,
+    "retry_count": 3
+  },
+  "admin": {
+    "default_username": "admin",
+    "prompt_for_password": true
+  },
+  "build": {
+    "default_version": "1.0.0",
+    "auto_timestamp": true
+  },
+  "flash": {
+    "default_slot": "A",
+    "verify_after_flash": true
+  }
+}
