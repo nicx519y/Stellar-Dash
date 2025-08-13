@@ -341,10 +341,18 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
     app.get('/api/firmwares', (req, res) => {
         try {
             const firmwares = storage_manager.getFirmwares();
+            
+            // 只返回基本信息，过滤敏感信息
+            const filteredFirmwares = firmwares.map(firmware => ({
+                name: firmware.name,
+                version: firmware.version,
+                desc: firmware.desc
+            }));
+            
             res.json({
                 success: true,
-                data: firmwares,
-                total: firmwares.length,
+                data: filteredFirmwares,
+                total: filteredFirmwares.length,
                 timestamp: new Date().toISOString()
             });
         } catch (error) {
