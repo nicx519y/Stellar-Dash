@@ -17,7 +17,7 @@ tools/__pycache__
 server/node_modules/
 server/uploads/
 server/data/
-temp_package
+temp_package/
 common/__pycache__
 
 
