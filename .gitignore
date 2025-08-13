@@ -12,11 +12,12 @@
 
 application/build
 bootloader/build
-releases/
+releases
 tools/__pycache__
-server/node_modules
-server/uploads
-server/firmware_list.json
+server/node_modules/
+server/uploads/
+server/data/
+temp_package
 common/__pycache__
 
 

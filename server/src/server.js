@@ -33,11 +33,11 @@ const PORT = process.env.PORT || 3000;
 
 // 配置目录
 const config = {
-    uploadDir: path.join(__dirname, 'uploads'),
+    uploadDir: path.join(__dirname, '..', 'uploads'),
     dataFile: path.join(__dirname, '..', 'data/firmware_list.json'),
     maxFileSize: 50 * 1024 * 1024, // 50MB
     allowedExtensions: ['.zip'],
-    serverUrl: process.env.SERVER_URL || `http://localhost:${PORT}`
+    serverUrl: process.env.SERVER_URL || `http://182.92.72.220:${PORT}`
 };
 
 // 中间件配置
@@ -105,7 +105,7 @@ app.listen(PORT, () => {
     console.log('='.repeat(60));
     console.log('STM32 HBox 固件管理服务器');
     console.log('='.repeat(60));
-    console.log(`服务器地址: http://localhost:${PORT}`);
+    console.log(`服务器地址: http://182.92.72.220:${PORT}`);
     console.log(`上传目录: ${config.uploadDir}`);
     console.log(`数据文件: ${config.dataFile}`);
     console.log(`最大文件大小: ${config.maxFileSize / (1024 * 1024)}MB`);

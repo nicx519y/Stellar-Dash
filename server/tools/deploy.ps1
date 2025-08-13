@@ -214,7 +214,6 @@ function New-ServerPackage {
     # 复制必需的文件和目录
     Write-Info "复制核心文件..."
     Copy-Item -Path "src" -Destination $packageDir -Recurse -Force
-    Copy-Item -Path "data" -Destination $packageDir -Recurse -Force
     Copy-Item -Path "package.json" -Destination $packageDir -Force
     Copy-Item -Path "package-lock.json" -Destination $packageDir -Force
     Copy-Item -Path "start.js" -Destination $packageDir -Force
@@ -229,9 +228,10 @@ function New-ServerPackage {
         }
     }
     
-    # 创建uploads目录
-    $uploadsDir = Join-Path $packageDir "uploads"
-    New-Item -ItemType Directory -Path $uploadsDir -Force | Out-Null
+    # 创建必要的目录结构（不包含data和uploads）
+    Write-Info "创建目录结构..."
+    $logsDir = Join-Path $packageDir "logs"
+    New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
     
     # 创建环境配置文件
     New-EnvConfig $packageDir
@@ -436,7 +436,6 @@ create_directories() {
     
     mkdir -p logs
     mkdir -p uploads
-    mkdir -p data
     
     log_success "目录创建完成"
 }

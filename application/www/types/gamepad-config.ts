@@ -24,7 +24,7 @@ export const DEFAULT_FIRMWARE_UPGRADE_MAX_RETRIES = 3;
 // firmware upgrade timeout
 export const DEFAULT_FIRMWARE_UPGRADE_TIMEOUT = 30000;
 // firmware server host
-export const DEFAULT_FIRMWARE_SERVER_HOST = 'http://localhost:3000';
+export const DEFAULT_FIRMWARE_SERVER_HOST = 'http://182.92.72.220:3000';
 
 // hitbox button position list
 const btnsPos = [

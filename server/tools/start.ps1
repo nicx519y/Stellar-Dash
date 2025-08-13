@@ -14,7 +14,6 @@ $requiredFiles = @(
     "deploy.ps1",
     "test-connection.ps1",
     "service-manager.ps1", 
-    "quick-deploy.ps1",
     "deploy-config.json"
 )
 
@@ -48,24 +47,24 @@ Write-Host ""
 
 # 显示可用选项
 Write-Host "可用命令:" -ForegroundColor White
-Write-Host "1. .\quick-deploy.ps1     - 交互式部署工具 (推荐)" -ForegroundColor Yellow
-Write-Host "2. .\deploy.ps1 prod      - 直接部署到生产环境" -ForegroundColor Yellow
+Write-Host "1. .\deploy.ps1 prod      - 直接部署到生产环境" -ForegroundColor Yellow
+Write-Host "2. .\deploy-simple.ps1    - 简化部署到生产环境" -ForegroundColor Yellow
 Write-Host "3. .\test-connection.ps1 prod - 测试生产环境连接" -ForegroundColor Yellow
 Write-Host "4. .\service-manager.ps1 prod status - 查看服务状态" -ForegroundColor Yellow
 Write-Host "5. .\check-files.ps1      - 检查文件完整性" -ForegroundColor Yellow
 Write-Host ""
 
 # 询问用户选择
-$choice = Read-Host "请选择操作 (1-5，或按回车启动交互式工具)"
+$choice = Read-Host "请选择操作 (1-5，或按回车直接部署到生产环境)"
 
 switch ($choice) {
     "1" { 
-        Write-Host "启动交互式部署工具..." -ForegroundColor Blue
-        .\quick-deploy.ps1 
-    }
-    "2" { 
         Write-Host "部署到生产环境..." -ForegroundColor Blue
         .\deploy.ps1 prod 
+    }
+    "2" { 
+        Write-Host "简化部署到生产环境..." -ForegroundColor Blue
+        .\deploy-simple.ps1 
     }
     "3" { 
         Write-Host "测试生产环境连接..." -ForegroundColor Blue
@@ -80,7 +79,7 @@ switch ($choice) {
         .\check-files.ps1 
     }
     default { 
-        Write-Host "启动交互式部署工具..." -ForegroundColor Blue
-        .\quick-deploy.ps1 
+        Write-Host "部署到生产环境..." -ForegroundColor Blue
+        .\deploy.ps1 prod 
     }
 } 
