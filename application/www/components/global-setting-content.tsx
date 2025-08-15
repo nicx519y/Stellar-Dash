@@ -42,6 +42,8 @@ export function GlobalSettingContent() {
         hotkeysConfig,
         dataIsReady,
         sendPendingCommandImmediately,
+        setFinishConfigDisabled,
+        wsConnected,
         // updateGlobalConfig,
     } = useGamepadConfig();
 
@@ -254,6 +256,31 @@ export function GlobalSettingContent() {
         }
     }, [sendPendingCommandImmediately]);
 
+    // 当校准状态改变时，更新完成配置按钮的禁用状态
+    useEffect(() => {
+        if(calibrationStatus.isActive) {
+            setFinishConfigDisabled(true);
+        } else if(!calibrationStatus.isActive) {
+            setFinishConfigDisabled(false);
+        }
+        return () => {
+            setFinishConfigDisabled(false);
+        }
+    }, [calibrationStatus.isActive]);
+
+    useEffect(() => {
+        // 如果webscoket断开，并且校准正在进行中，则停止校准
+        if(!wsConnected && calibrationStatus.isActive) {
+            setCalibrationStatus({
+                isActive: false,
+                uncalibratedCount: 0,
+                activeCalibrationCount: 0,
+                allCalibrated: false,
+                buttons: []
+            });
+        }
+    }, [wsConnected]);
+
     // 渲染hitbox内容
     const renderHitboxContent = (containerWidth: number) => {
         if (!calibrationStatus.isActive) {
@@ -308,7 +335,6 @@ export function GlobalSettingContent() {
     return (
         <SettingContentLayout
             disabled={calibrationStatus.isActive}
-            showActionButtons={true}
         >
             <SideContent>
                 <InputModeSettingContent disabled={calibrationStatus.isActive} />

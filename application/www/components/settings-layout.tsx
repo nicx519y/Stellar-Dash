@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouterStore, Route } from './router';
-import { Flex, Center, Box, Tabs, HStack } from '@chakra-ui/react';
+import { Flex, Center, Box, Tabs, HStack, Separator } from '@chakra-ui/react';
 import { useLanguage } from "@/contexts/language-context";
 import {
     LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuGamepad,
@@ -9,17 +9,21 @@ import {
 } from 'react-icons/lu';
 import { navigationEvents } from '@/lib/event-manager';
 import { LanguageSwitcher } from '@/components/language-switcher'
+import { FinishConfigButton } from './finish-config-button';
+import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 // import { ColorModeSwitcher } from "@/components/color-mode-switcher";
 
 export function SettingsLayout({ children }: { children: React.ReactNode }) {
     const { t } = useLanguage();
     const { currentRoute, setRoute } = useRouterStore();
+    
+    const { finishConfigDisabled } = useGamepadConfig();
 
     const tabs = [
         { id: 'global' as Route, label: t.SETTINGS_TAB_GLOBAL, icon: LuGamepad },
         { id: 'keys' as Route, label: t.SETTINGS_TAB_KEYS, icon: LuKeyboard },
-        { id: 'lighting' as Route, label: t.SETTINGS_TAB_LEDS, icon: LuLightbulb },
         { id: 'buttons-performance' as Route, label: t.SETTINGS_TAB_BUTTONS_PERFORMANCE, icon: LuRocket },
+        { id: 'lighting' as Route, label: t.SETTINGS_TAB_LEDS, icon: LuLightbulb },
         // { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
         { id: 'firmware' as Route, label: t.SETTINGS_TAB_FIRMWARE, icon: LuCpu },
         // { id: 'websocket' as Route, label: 'WebSocket测试', icon: LuWifi },
@@ -61,22 +65,31 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                         colorPalette="green"
                         onValueChange={handleValueChange}
                     >
-                        <Tabs.List bg="bg.muted" width="100%">
+                        <Tabs.List bg="bg.muted" width="100%"  >
                             {tabs.map((tab) => (
-                                <Tabs.Trigger
-                                    key={tab.id}
-                                    value={tab.id}
-                                    width="200px"
-                                    fontWeight={"bold"}
-                                    justifyContent="center"
-                                >
-                                    <Box as={tab.icon} mr={0} />
-                                    <span>{tab.label}</span>
-                                </Tabs.Trigger>
+                                <>
+                                    <Tabs.Trigger
+                                        key={tab.id}
+                                        value={tab.id}
+                                        w="fit-content"
+                                        padding="0 30px"
+                                        fontWeight={"bold"}
+                                        justifyContent="center"
+                                    >
+                                        <Box as={tab.icon} mr={0} />
+                                        <span>{tab.label}</span>
+                                    </Tabs.Trigger>
+                                    
+                                    <Separator orientation="vertical" height="6" alignSelf={"center"} />
+                                </>
                             ))}
                             <Tabs.Indicator rounded="l2" />
                         </Tabs.List>
                     </Tabs.Root>
+                    <Box w="fit-content" ml="15px">
+                        <FinishConfigButton disabled={finishConfigDisabled}  />
+                    </Box>
+
                 </HStack>
                 <HStack justifyContent="flex-end" >
                     <LanguageSwitcher />

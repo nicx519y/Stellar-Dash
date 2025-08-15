@@ -649,6 +649,9 @@ export const UI_TEXT = {
     SETTINGS_FIRMWARE_UPDATE_FAILED_MESSAGE: "The firmware update failed. Please click the button to try again.",
     SETTINGS_FIRMWARE_UPDATING_MESSAGE: "Updating firmware... Please do not disconnect the device.",
     SETTINGS_FIRMWARE_UPDATE_SUCCESS_BUTTON: "Refresh Page",
+    SETTINGS_FIRMWARE_UPDATE_TODO_BUTTON: "Begin Firmware Update",
+    SETTINGS_FIRMWARE_UPDATE_TODO_BUTTON_PROGRESS: "Updating firmware...",
+    SETTINGS_FIRMWARE_UPDATE_TODO_BUTTON_RETRY: "Retry Update",
 
     // Profile Select
     PROFILE_SELECT_TITLE: "Profile Select",
@@ -947,6 +950,9 @@ export const UI_TEXT_ZH = {
     SETTINGS_FIRMWARE_UPDATE_FAILED_MESSAGE: "固件更新失败，请点击按钮重试",
     SETTINGS_FIRMWARE_UPDATING_MESSAGE: "固件更新中...请不要断开设备连接",
     SETTINGS_FIRMWARE_UPDATE_SUCCESS_BUTTON: "刷新页面",
+    SETTINGS_FIRMWARE_UPDATE_TODO_BUTTON: "开始固件更新",
+    SETTINGS_FIRMWARE_UPDATE_TODO_BUTTON_PROGRESS: "固件更新中...",
+    SETTINGS_FIRMWARE_UPDATE_TODO_BUTTON_RETRY: "重试更新",
 
     // 配置选择
     PROFILE_SELECT_TITLE: "配置选择",
@@ -1010,7 +1016,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_TAB_LEDS: "灯光设置",
     SETTINGS_TAB_BUTTONS_PERFORMANCE: "按键性能",
     SETTINGS_TAB_SWITCH_MARKING: "磁轴标记",
-    SETTINGS_TAB_FIRMWARE: "固件",
+    SETTINGS_TAB_FIRMWARE: "固件升级",
 
     // Keys Settings
     SETTINGS_KEYS_INPUT_MODE_TITLE: "输入模式选择",

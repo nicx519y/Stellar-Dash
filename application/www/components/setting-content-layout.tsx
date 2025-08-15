@@ -2,7 +2,6 @@
 
 import { Flex, Center, Box, Card, Button, HStack, Popover, Portal, Text, Icon } from '@chakra-ui/react';
 import React, { useEffect, useRef, useState, ReactNode, createContext, useContext } from 'react';
-import { ContentActionButtons } from './content-action-buttons';
 import { IconType } from 'react-icons/lib';
 
 // 按键选项接口
@@ -89,8 +88,6 @@ interface SettingContentLayoutProps {
     disabled?: boolean;
     /** 自定义容器宽度 */
     containerWidth?: number;
-    /** 是否显示操作按钮 */
-    showActionButtons?: boolean;
     /** 自定义样式 */
     className?: string;
 }
@@ -224,9 +221,7 @@ function renderButtonGroup(
  */
 export function SettingContentLayout({
     children,
-    disabled = false,
     containerWidth: externalContainerWidth,
-    showActionButtons = true,
     className
 }: SettingContentLayoutProps) {
     // 添加容器引用和宽度状态
@@ -338,12 +333,6 @@ export function SettingContentLayout({
                         {bottomButtons}
                     </Center>
                     
-                    {/* 底部操作按钮 */}
-                    {showActionButtons && (
-                        <Center flex={0}>
-                            <ContentActionButtons disabled={disabled} />
-                        </Center>
-                    )}
                 </Center>
 
                 {/* 右侧主内容区域 */}

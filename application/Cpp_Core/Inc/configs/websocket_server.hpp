@@ -165,6 +165,9 @@ public:
     // 清理已断开的连接
     void cleanup_dead_connections();
     
+    // 处理连接断开（内部方法）
+    void handle_connection_disconnect(WebSocketConnection* conn);
+    
     // 获取服务器实例 (单例)
     static WebSocketServer& getInstance() {
         static WebSocketServer instance;

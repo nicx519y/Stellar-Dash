@@ -7,6 +7,13 @@
 
 // 最大连接数
 #define MAX_WEBSOCKET_CONNECTIONS 4
+
+// 静态函数：处理连接断开
+static void internal_disconnect_handler(WebSocketConnection* conn) {
+    WebSocketServer::getInstance().handle_connection_disconnect(conn);
+}
+
+
 // 默认缓冲区大小
 #define DEFAULT_BUFFER_SIZE 1024
 // 最大缓冲区大小（防止内存分配过大）
@@ -554,6 +561,8 @@ void WebSocketConnection::tcp_err_callback(void* arg, err_t err) {
     }
 }
 
+
+
 // WebSocketServer 实现
 WebSocketServer::WebSocketServer() 
     : listen_pcb(nullptr), port(0), connections(nullptr), max_connections(MAX_WEBSOCKET_CONNECTIONS), 
@@ -701,6 +710,18 @@ void WebSocketServer::cleanup_dead_connections() {
     }
 }
 
+void WebSocketServer::handle_connection_disconnect(WebSocketConnection* conn) {
+    if (!conn) return;
+    
+    // 先调用默认的断开回调函数
+    if (default_disconnect_callback) {
+        default_disconnect_callback(conn);
+    }
+    
+    // 然后从服务器移除连接
+    remove_connection(conn);
+}
+
 err_t WebSocketServer::tcp_accept_callback(void* arg, struct tcp_pcb* newpcb, err_t err) {
     WebSocketServer* server = static_cast<WebSocketServer*>(arg);
     
@@ -742,13 +763,8 @@ err_t WebSocketServer::tcp_accept_callback(void* arg, struct tcp_pcb* newpcb, er
     if (server->default_connect_callback) {
         conn->set_connect_callback(server->default_connect_callback);
     }
-    if (server->default_disconnect_callback) {
-        conn->set_disconnect_callback([](WebSocketConnection* disconnected_conn) {
-            // 这里需要在断开连接时从服务器移除连接
-            WebSocketServer& server = WebSocketServer::getInstance();
-            server.remove_connection(disconnected_conn);
-        });
-    }
+    // 设置断开回调为内部处理方法
+    conn->set_disconnect_callback(internal_disconnect_handler);
     
     APP_DBG("WebSocket: New connection accepted, total: %zu", server->connection_count);
     return ERR_OK;

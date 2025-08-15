@@ -32,11 +32,11 @@ export default function KeymappingField(
 
     return (
         <>
-            <VStack onClick={ () => !isDisabled && onClick() } gap={0.5} mt={3} >
+            <VStack onClick={ () => !isDisabled && onClick() } gap="0.5em" >
                 <Text fontFamily={'icomoon'}  fontSize={"xs"} color={isActive ? "green.500" : colorMode === "dark" ? "gray.400" : "gray.600"} fontWeight={"bold"} >{`[ ${label} ]`}</Text>
-                <Box width={"240px"} 
+                <Box width={"200px"} 
                     height={"32px"} 
-                    padding={"5px"} 
+                    padding={"2px"} 
                     border={".5px solid"} 
                     borderColor={isActive && !isDisabled ? "green.500" : colorMode === "dark" ? "gray.700" : "gray.400"} 
                     borderRadius={"4px"} 
@@ -49,7 +49,7 @@ export default function KeymappingField(
                         {value.map((hitboxButton, index) => (
                             <Tag 
                                 key={index} 
-                                closable={isActive}
+                                // closable={isActive}
                                 variant={isActive && !isDisabled ? "solid" : "surface"}
                                 colorPalette={isActive && !isDisabled ? "green" : "gray"}
                                 color={isDisabled ? "gray.500" : colorMode === "dark" || isActive == true ? "white" : "black"}

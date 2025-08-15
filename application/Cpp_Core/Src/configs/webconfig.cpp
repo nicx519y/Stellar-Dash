@@ -55,6 +55,8 @@ static uint32_t g_websocket_start_time = 0;
 static bool g_websocket_processing = false;  // 添加处理状态标记
 static WebSocketConnection* g_current_connection = nullptr;  // 当前活跃连接
 
+
+
 // 全局消息队列实例
 static WebSocketMessageQueue g_websocket_message_queue;
 
@@ -262,11 +264,30 @@ void onWebSocketConnect(WebSocketConnection* conn) {
 
 // WebSocket连接断开回调
 void onWebSocketDisconnect(WebSocketConnection* conn) {
+    APP_DBG("WebSocket: Disconnected, total connections: %d", g_websocket_connection_count);
     // 检查是否是当前活跃连接
     if (g_current_connection == conn) {
         g_current_connection = nullptr;
         g_websocket_connection_count = 0;
         APP_DBG("WebSocket: Current connection closed, total connections: %d", g_websocket_connection_count);
+        
+        // 如果校准正在进行中，自动停止校准
+        if (ADCCalibrationManager::getInstance().isCalibrationActive()) {
+            LOG_INFO("WebSocket", "WebSocket断开连接，自动停止校准模式");
+            ADCBtnsError error = ADCCalibrationManager::getInstance().stopCalibration();
+            if (error != ADCBtnsError::SUCCESS) {
+                LOG_ERROR("WebSocket", "自动停止校准失败，错误码: %d", static_cast<int>(error));
+            }
+        }
+        // 如果按键工作器正在运行，则停止按键工作器
+        if(WEBCONFIG_BTNS_MANAGER.isActive()) {
+            WEBCONFIG_BTNS_MANAGER.stopButtonWorkers();
+        }
+        // 在灯光预览模式 则关闭灯光
+        if(WEBCONFIG_LEDS_MANAGER.isInPreviewMode()) {
+            WEBCONFIG_LEDS_MANAGER.clearPreviewConfig();
+        }
+
     } else {
         // 如果不是当前连接，可能是之前的连接被清理
         if (g_websocket_connection_count > 0) {

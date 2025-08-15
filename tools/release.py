@@ -2107,12 +2107,23 @@ class ReleaseManager:
                 print("服务器上没有固件，无需清空")
                 return True
             
+            # 调试：显示第一个固件的结构（如果存在）
+            if firmwares and len(firmwares) > 0:
+                print(f"调试: 第一个固件的数据结构: {list(firmwares[0].keys())}")
+            
             # 显示当前所有固件
             print("当前服务器上的固件:")
             firmware_versions = []
             for firmware in firmwares:
-                print(f"  - {firmware['name']} v{firmware['version']} (ID: {firmware['id'][:8]}...)")
-                firmware_versions.append(firmware['version'])
+                # 安全地获取固件信息，处理可能缺失的字段
+                name = firmware.get('name', 'Unknown')
+                version = firmware.get('version', 'Unknown')
+                firmware_id = firmware.get('id', firmware.get('_id', 'Unknown'))
+                
+                # 安全地截取ID的前8位
+                id_display = str(firmware_id)[:8] if firmware_id != 'Unknown' else 'Unknown'
+                print(f"  - {name} v{version} (ID: {id_display}...)")
+                firmware_versions.append(version)
             
             print()
             
@@ -2167,7 +2178,14 @@ class ReleaseManager:
                     if data['deletedFirmwares']:
                         print("已删除的固件:")
                         for deleted in data['deletedFirmwares']:
-                            print(f"  - {deleted['name']} v{deleted['version']} (ID: {deleted['id'][:8]}...)")
+                            # 安全地获取删除的固件信息
+                            name = deleted.get('name', 'Unknown')
+                            version = deleted.get('version', 'Unknown')
+                            deleted_id = deleted.get('id', deleted.get('_id', 'Unknown'))
+                            
+                            # 安全地截取ID的前8位
+                            id_display = str(deleted_id)[:8] if deleted_id != 'Unknown' else 'Unknown'
+                            print(f"  - {name} v{version} (ID: {id_display}...)")
                     
                     print(f"清空时间: {data['clearTime']}")
                     return True

@@ -167,6 +167,9 @@ interface GamepadConfigContextType {
     // WebSocket配置管理
     getWebSocketConfig: () => WebSocketConfigType;
     updateWebSocketConfig: (config: Partial<WebSocketConfigType>) => void;
+    // 是否禁用完成配置按钮
+    finishConfigDisabled: boolean;
+    setFinishConfigDisabled: (disabled: boolean) => void;
 }
 
 const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
@@ -291,6 +294,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [dataIsReady, setDataIsReady] = useState(false);
     const [userRebooting, setUserRebooting] = useState(false); // 是否是用户手动重启
     const [firmwareUpdating, setFirmwareUpdating] = useState(false); // 是否正在固件升级
+
+    const [finishConfigDisabled, setFinishConfigDisabled] = useState(false);
 
 
     // 处理通知消息
@@ -1895,6 +1900,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             flushQueue: flushQueue,
             getWebSocketConfig: getWebSocketConfig,
             updateWebSocketConfig: updateWebSocketConfig,
+            // 是否禁用完成配置按钮
+            finishConfigDisabled: finishConfigDisabled,
+            setFinishConfigDisabled: setFinishConfigDisabled,
         }}>
             {children}
         </GamepadConfigContext.Provider>

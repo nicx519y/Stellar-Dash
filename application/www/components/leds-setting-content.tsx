@@ -24,7 +24,7 @@ import {
 
 import { ColorPicker, Slider } from "@chakra-ui/react";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
     // GameProfile,
     LedsEffectStyle,
@@ -68,6 +68,7 @@ export function LEDsSettingContent() {
 
     const [isInit, setIsInit] = useState<boolean>(false); // 是否初始化
     const [needPreview, setNeedPreview] = useState<boolean>(false); // 是否需要预览
+    const isPreviewing = useRef<boolean>(false);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false); // 是否需要更新
 
     const [defaultProfileId, setDefaultProfileId] = useState<string>(defaultProfile.id);
@@ -160,9 +161,14 @@ export function LEDsSettingContent() {
 
     // 清除灯光预览数据
     useEffect(() => {
+        // 如果webcosket 断开重连，并且之前在灯光预览模式，则重新开启预览
+        if(wsConnected && isPreviewing.current) {
+            previewLedsEffectHandler();
+        }
+
         return () => {
-            if(wsConnected) {
-                clearLedsPreview();
+            if(wsConnected && isPreviewing.current) {
+                clearLedsPreviewHandler();
             }
         }
     }, [wsConnected]);
@@ -253,7 +259,7 @@ export function LEDsSettingContent() {
         t.SETTINGS_LEDS_AMBIENT_LIGHT_COLOR2
     ];
 
-    const previewLedsEffectHandler = () => {
+    const previewLedsEffectHandler = async() => {
         const config = {
             ledEnabled: ledEnabled,
             ledsEffectStyle: ledsEffectStyle,
@@ -269,7 +275,21 @@ export function LEDsSettingContent() {
             aroundLedBrightness: aroundLedBrightness,
             aroundLedAnimationSpeed: aroundLedAnimationSpeed,
         }
-        pushLedsConfig(config);
+        try {
+            await pushLedsConfig(config);
+            isPreviewing.current = true;
+        } catch (error) {
+            console.error('预览灯光配置失败:', error);
+        }
+    }
+
+    const clearLedsPreviewHandler = async() => {
+        try {
+            await clearLedsPreview();
+            isPreviewing.current = false;
+        } catch (error) {
+            console.error('清除灯光预览失败:', error);
+        }
     }
 
     const updateLedsConfigHandler = () => {
@@ -393,9 +413,7 @@ export function LEDsSettingContent() {
     };
 
     return (
-        <SettingContentLayout
-            showActionButtons={true}
-        >
+        <SettingContentLayout >
             <SideContent>
                 <ProfileSelect />
             </SideContent>

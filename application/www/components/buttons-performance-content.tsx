@@ -25,7 +25,7 @@ export function ButtonsPerformanceContent() {
     const [isTestingModeActivity, setIsTestingModeActivity] = useState<boolean>(false);
     const { t } = useLanguage();
 
-    const { defaultProfile, sendPendingCommandImmediately } = useGamepadConfig();
+    const { defaultProfile, sendPendingCommandImmediately, setFinishConfigDisabled } = useGamepadConfig();
     const { setError } = useGamepadConfig();
     const [selectedButton, setSelectedButton] = useState<number>(0); // 当前选中的按钮
     const [canSelectAllButton, setCanSelectAllButton] = useState<boolean>(false);
@@ -122,6 +122,14 @@ export function ButtonsPerformanceContent() {
         }
     }, [isTestingModeActivity]);
 
+    // 当测试模式状态改变时，更新完成配置按钮的禁用状态 
+    useEffect(() => {
+        setFinishConfigDisabled(isTestingModeActivity);
+        return () => {
+            setFinishConfigDisabled(false);
+        }
+    }, [isTestingModeActivity]);
+
     useEffect(() => {
         return () => {
             if(monitorIsActive.current == true) {
@@ -172,7 +180,6 @@ export function ButtonsPerformanceContent() {
     return (
         <SettingContentLayout
             disabled={isTestingModeActivity}
-            showActionButtons={true}
         >
             <SideContent>
                 <ProfileSelect disabled={isTestingModeActivity} />

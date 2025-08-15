@@ -55,6 +55,7 @@ export function KeysSettingContent() {
         globalConfig,
         dataIsReady,
         sendPendingCommandImmediately,
+        setFinishConfigDisabled,
     } = useGamepadConfig();
     const { t } = useLanguage();
     const { colorMode } = useColorMode();
@@ -151,6 +152,14 @@ export function KeysSettingContent() {
         }
     }, [sendPendingCommandImmediately]);
 
+    // 当按键启用设置状态改变时，更新完成配置按钮的禁用状态
+    useEffect(() => {
+        setFinishConfigDisabled(keysEnableSettingActive);
+        return () => {
+            setFinishConfigDisabled(false);
+        }
+    }, [keysEnableSettingActive]);
+
     // 渲染hitbox内容
     const renderHitboxContent = (containerWidth: number) => {
         if (keysEnableSettingActive) {
@@ -195,7 +204,6 @@ export function KeysSettingContent() {
     return (
         <SettingContentLayout
             disabled={keysEnableSettingActive}
-            showActionButtons={true}
         >
             <SideContent>
                 <ProfileSelect disabled={keysEnableSettingActive} />

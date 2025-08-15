@@ -38,10 +38,6 @@ void WebConfigState::setup() {
     isRunning = true;
     workTime = MICROS_TIMER.micros();  // 微秒级
 
-    // 在storage中自动切换成input mode，保证下次重启device的时候是input mode
-    STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
-    STORAGE_MANAGER.saveConfig(); // 保存配置
-
     // Logger_Flush();
 }
 
