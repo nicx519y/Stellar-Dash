@@ -302,40 +302,50 @@ export function FirmwareContent() {
                             {t.SETTINGS_FIRMWARE_LATEST_VERSION_LABEL}<Badge colorPalette="yellow" fontSize=".9rem" >v{latestVersion}</Badge><br />
                         </Text>
                     </Box>
-                    <Alert.Root status={updateStatus === UpdateStatus.UpdateSuccess ? "success" : updateStatus === UpdateStatus.UpdateFailed ? "error" : "info"} >
-                        <Alert.Indicator />
-                        <Alert.Content>
-                            <Alert.Title fontSize=".9rem" lineHeight="1.4em"  >
-                                {updateStatus === UpdateStatus.NoUpdate ? t.SETTINGS_FIRMWARE_NO_UPDATE_MESSAGE
-                                    : updateStatus === UpdateStatus.Updating ? t.SETTINGS_FIRMWARE_UPDATING_MESSAGE
-                                        : updateStatus === UpdateStatus.UpdateFailed ? t.SETTINGS_FIRMWARE_UPDATE_FAILED_MESSAGE
-                                            : updateStatus === UpdateStatus.UpdateSuccess ? t.SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE
-                                                : updateStatus === UpdateStatus.UpdateAvailable ? t.SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE : ""}
-                            </Alert.Title>
-                        </Alert.Content>
-                    </Alert.Root>
-                    <Card.Root w="full" height="200px" display={updateStatus === UpdateStatus.NoUpdate ? "none" : "block"} >
-                        <Card.Body overflowY="auto" >
-                            <List.Root
-                                gap=".5rem"
-                                align="start"
-                                variant="marker"
-                                fontSize=".8rem"
-                                listStyle="disc"
-                                color="GrayText"
-                                lineHeight={"1.2em"}
-                            >
-                                {latestFirmwareUpdateLog.map((log: string, index: number) => (
-                                    <List.Item as="li" key={index} >
-                                        <Text >
-                                            {log}
-                                        </Text>
-                                    </List.Item>
-                                ))}
-                            </List.Root>
-                        </Card.Body>
-                    </Card.Root>
 
+                    {updateStatus === UpdateStatus.NoUpdate && (
+                        <Center w="full" >
+                            <Text fontSize=".9rem" color="green.600" textAlign="center">
+                                {t.SETTINGS_FIRMWARE_NO_UPDATE_MESSAGE}
+                            </Text>
+                        </Center>
+                    )}
+                    {updateStatus !== UpdateStatus.NoUpdate && (
+                        <Center w="full" >
+                            <Alert.Root status={updateStatus === UpdateStatus.UpdateSuccess ? "success" : updateStatus === UpdateStatus.UpdateFailed ? "error" : "info"} >
+                                <Alert.Indicator />
+                                <Alert.Content>
+                                    <Alert.Title fontSize=".9rem" lineHeight="1.4em"  >
+                                        {updateStatus === UpdateStatus.Updating ? t.SETTINGS_FIRMWARE_UPDATING_MESSAGE
+                                            : updateStatus === UpdateStatus.UpdateFailed ? t.SETTINGS_FIRMWARE_UPDATE_FAILED_MESSAGE
+                                                : updateStatus === UpdateStatus.UpdateSuccess ? t.SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE
+                                                    : updateStatus === UpdateStatus.UpdateAvailable ? t.SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE : ""}
+                                    </Alert.Title>
+                                </Alert.Content>
+                            </Alert.Root>
+                            <Card.Root w="full" height="200px"  >
+                                <Card.Body overflowY="auto" >
+                                    <List.Root
+                                        gap=".5rem"
+                                        align="start"
+                                        variant="marker"
+                                        fontSize=".8rem"
+                                        listStyle="disc"
+                                        color="GrayText"
+                                        lineHeight={"1.2em"}
+                                    >
+                                        {latestFirmwareUpdateLog.map((log: string, index: number) => (
+                                            <List.Item as="li" key={index} >
+                                                <Text >
+                                                    {log}
+                                                </Text>
+                                            </List.Item>
+                                        ))}
+                                    </List.Root>
+                                </Card.Body>
+                            </Card.Root>
+                        </Center>
+                    )}
 
                     {(updateStatus === UpdateStatus.UpdateAvailable || updateStatus === UpdateStatus.UpdateFailed || updateStatus === UpdateStatus.Updating) && (
                         <Button width="300px" size="lg" mt="30px" onClick={upgradeFirmware}

@@ -1,6 +1,6 @@
 'use client';
 
-import { Flex, Center, Box, Card, Button, HStack, Popover, Portal, Text, Icon } from '@chakra-ui/react';
+import { Flex, Center, Box, Card, Button, HStack, HoverCard, Portal, Text, Icon } from '@chakra-ui/react';
 import React, { useEffect, useRef, useState, ReactNode, createContext, useContext } from 'react';
 import { IconType } from 'react-icons/lib';
 
@@ -153,8 +153,6 @@ function renderButtonGroup(
             >
                 <HStack flex={1} justifyContent={justifyContent} gap={gap} >
                     {buttons.map((button, index) => {
-                        const [isPopoverOpen, setIsPopoverOpen] = useState(false);
-                        
                         const buttonElement = (
                             <Button
                                 key={index}
@@ -164,38 +162,36 @@ function renderButtonGroup(
                                 width={button.width || "170px"}
                                 disabled={button.disabled}
                                 onClick={button.onClick}
-                                onMouseEnter={button.hasTip ? () => setIsPopoverOpen(true) : button.onMouseEnter}
-                                onMouseLeave={button.hasTip ? () => setIsPopoverOpen(false) : button.onMouseLeave}
+                                onMouseEnter={button.onMouseEnter}
+                                onMouseLeave={button.onMouseLeave}
                             >
                                 {button.icon && <Icon as={button.icon} />}
                                 {button.text}
                             </Button>
                         );
 
-                        // 如果按钮有提示，则包装在 Popover 中
+                        // 如果按钮有提示，则包装在 HoverCard 中
                         if (button.hasTip && button.tipMessage) {
                             return (
-                                <Popover.Root 
+                                <HoverCard.Root 
                                     key={index}
-                                    open={isPopoverOpen}
-                                    onOpenChange={(details) => setIsPopoverOpen(details.open)}
+                                    openDelay={200}
+                                    closeDelay={0}
                                 >
-                                    <Popover.Trigger asChild>
+                                    <HoverCard.Trigger asChild>
                                         {buttonElement}
-                                    </Popover.Trigger>
+                                    </HoverCard.Trigger>
                                     <Portal>
-                                        <Popover.Positioner>
-                                            <Popover.Content>
-                                                <Popover.Arrow />
-                                                <Popover.Body>
-                                                    <Text fontSize={"xs"} whiteSpace="pre-wrap">
-                                                        {button.tipMessage}
-                                                    </Text>
-                                                </Popover.Body>
-                                            </Popover.Content>
-                                        </Popover.Positioner>
+                                        <HoverCard.Positioner>
+                                            <HoverCard.Content>
+                                                <HoverCard.Arrow />
+                                                <Text fontSize={"xs"} whiteSpace="pre-wrap">
+                                                    {button.tipMessage}
+                                                </Text>
+                                            </HoverCard.Content>
+                                        </HoverCard.Positioner>
                                     </Portal>
-                                </Popover.Root>
+                                </HoverCard.Root>
                             );
                         }
 

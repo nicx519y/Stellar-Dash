@@ -1,18 +1,18 @@
 'use client';
 
-import {  Platform } from "@/types/gamepad-config";
-import { 
-    GameControllerButton, 
+import { Platform } from "@/types/gamepad-config";
+import {
+    GameControllerButton,
     GameControllerButtonList,
     XInputButtonMap,
     PS4ButtonMap,
-    SwitchButtonMap,    
+    SwitchButtonMap,
     NUM_BIND_KEY_PER_BUTTON_MAX,
 } from "@/types/gamepad-config";
 import KeymappingField from "@/components/keymapping-field";
 import { showToast } from "@/components/ui/toaster";
 import { useEffect, useMemo, useState, forwardRef, useImperativeHandle } from "react";
-import { SimpleGrid } from "@chakra-ui/react";
+import { Center, HStack, Separator, VStack, Text, Box } from "@chakra-ui/react";
 import { useLanguage } from "@/contexts/language-context";
 
 export interface KeymappingFieldsetRef {
@@ -32,7 +32,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
     const { t } = useLanguage();
 
     const [activeButton, setActiveButton] = useState<GameControllerButton>(GameControllerButtonList[0]);
-    
+
     // 暴露方法给父组件
     useImperativeHandle(ref, () => ({
         setActiveButton: setActiveButton
@@ -46,14 +46,14 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
      * change key mapping when input key is changed
      */
     useEffect(() => {
-        
+
         // input key is valid
-        if(inputKey >= 0) {
-            
+        if (inputKey >= 0) {
+
             const activeKeyMapping = keyMapping[activeButton] ?? [];
-            if(activeKeyMapping.indexOf(inputKey) !== -1) { // key already binded
+            if (activeKeyMapping.indexOf(inputKey) !== -1) { // key already binded
                 return;
-            } else if(activeKeyMapping.length >= NUM_BIND_KEY_PER_BUTTON_MAX) { // key not binded, and reach max number of key binding per button
+            } else if (activeKeyMapping.length >= NUM_BIND_KEY_PER_BUTTON_MAX) { // key not binded, and reach max number of key binding per button
                 showToast({
                     title: t.KEY_MAPPING_ERROR_MAX_KEYS_TITLE,
                     description: t.KEY_MAPPING_ERROR_MAX_KEYS_DESC,
@@ -67,7 +67,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
 
                 // remove input key from other button
                 Object.entries(newKeyMapping).forEach(([key, value]) => {
-                    if(key !== activeButton && value.indexOf(inputKey) !== -1) {
+                    if (key !== activeButton && value.indexOf(inputKey) !== -1) {
                         newKeyMapping[key as GameControllerButton] = value.filter(v => v !== inputKey);
                     }
                 });
@@ -78,11 +78,11 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
                 // 批量更新整个keyMapping
                 changeKeyMappingHandler(newKeyMapping);
 
-                if(autoSwitch) {
+                if (autoSwitch) {
                     const nextButton = GameControllerButtonList[GameControllerButtonList.indexOf(activeButton) + 1] ?? GameControllerButtonList[0];
                     setActiveButton(nextButton);
                 }
-                
+
             }
         }
     }, [inputKey]);
@@ -91,7 +91,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
      * get button label map by input mode
      */
     const buttonLabelMap = useMemo(() => {
-        switch(inputMode) {
+        switch (inputMode) {
             case Platform.XINPUT: return XInputButtonMap;
             case Platform.PS4: return PS4ButtonMap;
             case Platform.PS5: return PS4ButtonMap;
@@ -107,22 +107,77 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
         changeKeyMappingHandler(newKeyMapping);
     };
 
+
+    const TitleLabel = ({ title, mt }: { title: string, mt?: string }) => {
+        return (
+            <HStack w="full" margin="8px 0" marginTop={mt ?? "8px"} >
+                <Separator flex="1" />
+                <Text flexShrink="0" fontSize="sm" >{title}</Text>
+                <Separator flex="1" />
+            </HStack>
+        )
+    }
+
+    const ButtonField = ({ button }: { button: GameControllerButton }) => {
+        return (
+            <KeymappingField
+                onClick={() => !isDisabled && setActiveButton(button)}
+                label={buttonLabelMap.get(button) ?? ""}
+                value={keyMapping[button] ?? []}
+                changeValue={(v: number[]) => handleSingleKeyMappingChange(button, v)}
+                isActive={activeButton === button}
+                disabled={isDisabled}
+            />
+        )
+    }
+
     return (
-        <>
-            <SimpleGrid gap={1} columns={3} >
-                {GameControllerButtonList.map((gameControllerButton, index) => (
-                    <KeymappingField
-                        key={ index }  
-                        onClick={() => !isDisabled && setActiveButton(gameControllerButton)}
-                        label={buttonLabelMap.get(gameControllerButton) ?? ""} 
-                        value={keyMapping[gameControllerButton] ?? []}
-                        changeValue={(v: number[]) => handleSingleKeyMappingChange(gameControllerButton, v)} 
-                        isActive={activeButton === gameControllerButton}
-                        disabled={isDisabled}
-                    />
-                ))}
-            </SimpleGrid>
-        </>
+        <Center w="full">
+            <VStack w="full" gap={"4px"} >
+                <HStack gap="22px" >
+                    <Box w="50%" >
+                        <TitleLabel title={t.KEYS_MAPPING_TITLE_DPAD} mt="0px" />
+                        <ButtonField button={GameControllerButton.DPAD_UP} />
+                        <HStack>
+                            <ButtonField button={GameControllerButton.DPAD_LEFT} />
+                            <ButtonField button={GameControllerButton.DPAD_RIGHT} />
+                        </HStack>
+                        <ButtonField button={GameControllerButton.DPAD_DOWN} />
+                    </Box>
+                    <Box w="50%" >
+                        <TitleLabel title={t.KEYS_MAPPING_TITLE_CORE} mt="0px" />
+                        <ButtonField button={GameControllerButton.B4} />
+                        <HStack>
+                            <ButtonField button={GameControllerButton.B3} />
+                            <ButtonField button={GameControllerButton.B2} />
+                        </HStack>
+                        <ButtonField button={GameControllerButton.B1} />
+                    </Box>
+                </HStack>
+                <Box w="full" h="10px" />
+                <TitleLabel title={t.KEYS_MAPPING_TITLE_SHOULDER} />
+                <HStack gap="200px" >
+                    <ButtonField button={GameControllerButton.L3} />
+                    <ButtonField button={GameControllerButton.R3} />
+                </HStack>
+                <HStack gap="200px" >
+                    <ButtonField button={GameControllerButton.L2} />
+                    <ButtonField button={GameControllerButton.R2} />
+                </HStack>
+                <HStack gap="200px" >
+                    <ButtonField button={GameControllerButton.L1} />
+                    <ButtonField button={GameControllerButton.R1} />
+                </HStack>
+                <Box w="full" h="10px" />
+                <TitleLabel title={t.KEYS_MAPPING_TITLE_FUNCTION} />
+                <HStack>
+                    <ButtonField button={GameControllerButton.S1} />
+                    <ButtonField button={GameControllerButton.S2} />
+                    <ButtonField button={GameControllerButton.A1} />
+                    <ButtonField button={GameControllerButton.A2} />
+                </HStack>
+            </VStack>
+        </Center>
     )
 });
 

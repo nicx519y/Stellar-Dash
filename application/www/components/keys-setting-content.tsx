@@ -1,7 +1,6 @@
 "use client";
 
 import {
-    Stack,
     Fieldset,
     SimpleGrid,
     Button,
@@ -9,6 +8,9 @@ import {
     RadioCardLabel,
     VStack,
     Switch,
+    Portal,
+    Text,
+    HoverCard,
 } from "@chakra-ui/react";
 import KeymappingFieldset, { KeymappingFieldsetRef } from "@/components/keymapping-fieldset";
 import { useEffect, useMemo, useState, useRef } from "react";
@@ -19,7 +21,6 @@ import {
 import {
     GameProfile,
     GameSocdMode,
-    GameSocdModeLabelMap,
     GameControllerButton,
     KEYS_SETTINGS_INTERACTIVE_IDS,
     Platform,
@@ -33,17 +34,17 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { useColorMode } from "./ui/color-mode";
 import { ProfileSelect } from "@/components/profile-select";
-import { 
-    SettingContentLayout, 
-    SideContent, 
-    HitboxContent, 
-    MainContent, 
-    TopButtons 
+import {
+    SettingContentLayout,
+    SideContent,
+    HitboxContent,
+    MainContent,
+    TopButtons
 } from "./setting-content-layout";
-import { 
-    SettingMainContentLayout, 
-    MainContentHeader, 
-    MainContentBody 
+import {
+    SettingMainContentLayout,
+    MainContentHeader,
+    MainContentBody
 } from "@/components/setting-main-content-layout";
 import { GiSightDisabled } from "react-icons/gi";
 import { BiSolidExit } from "react-icons/bi";
@@ -62,7 +63,7 @@ export function KeysSettingContent() {
 
     const [isInit, setIsInit] = useState<boolean>(false);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false);
-    
+
     // 按键映射状态
     const keyLength = useMemo(() => Object.keys(defaultProfile.keysConfig?.keyMapping ?? {}).length, [defaultProfile?.keysConfig?.keyMapping]);
     const [defaultProfileId, setDefaultProfileId] = useState<string>(defaultProfile.id);
@@ -76,16 +77,16 @@ export function KeysSettingContent() {
     const [inputKey, setInputKey] = useState<number>(-1);
     const [keysEnableSettingActive, setKeysEnableSettingActive] = useState<boolean>(false); // 按键启用/禁用设置状态
     const [autoSwitch, setAutoSwitch] = useState<boolean>(true);
-    
+
     const keymappingFieldsetRef = useRef<KeymappingFieldsetRef>(null);
-    
+
 
     useEffect(() => {
-        if(isInit && defaultProfileId === defaultProfile.id) {
+        if (isInit && defaultProfileId === defaultProfile.id) {
             return;
         }
 
-        if(dataIsReady && defaultProfile.keysConfig) {
+        if (dataIsReady && defaultProfile.keysConfig) {
             setSocdMode(defaultProfile.keysConfig?.socdMode ?? GameSocdMode.SOCD_MODE_UP_PRIORITY);
             setInvertXAxis(defaultProfile.keysConfig?.invertXAxis ?? false);
             setInvertYAxis(defaultProfile.keysConfig?.invertYAxis ?? false);
@@ -134,8 +135,32 @@ export function KeysSettingContent() {
         keymappingFieldsetRef.current?.setActiveButton(GameControllerButtonList[0]); // 清除数据以后，自动将第一个button作为active button
     }
 
+    const gameSocdModeLabelMap = new Map<GameSocdMode, { label: string, description: string }>([
+        [GameSocdMode.SOCD_MODE_UP_PRIORITY, {
+            label: t.SOCD_UP_PRIORITY,
+            description: t.SOCD_UP_PRIORITY_DESC
+        }],
+        [GameSocdMode.SOCD_MODE_NEUTRAL, {
+            label: t.SOCD_NEUTRAL,
+            description: t.SOCD_NEUTRAL_DESC
+        }],
+        [GameSocdMode.SOCD_MODE_SECOND_INPUT_PRIORITY, {
+            label: t.SOCD_SEC_INPUT_PRIORITY,
+            description: t.SOCD_SEC_INPUT_PRIORITY_DESC
+        }],
+        [GameSocdMode.SOCD_MODE_FIRST_INPUT_PRIORITY, {
+            label: t.SOCD_FIRST_INPUT_PRIORITY,
+            description: t.SOCD_FIRST_INPUT_PRIORITY_DESC
+        }],
+        [GameSocdMode.SOCD_MODE_BYPASS, {
+            label: t.SOCD_BYPASS,
+            description: t.SOCD_BYPASS_DESC
+        }],
+    ]);
+
+
     useEffect(() => {
-        if(needUpdate) {
+        if (needUpdate) {
             updateKeysConfigHandler();
             setNeedUpdate(false);
         }
@@ -190,11 +215,13 @@ export function KeysSettingContent() {
         buttons: [
             {
                 text: keysEnableSettingActive ? t.KEYS_ENABLE_STOP_BUTTON_LABEL : t.KEYS_ENABLE_START_BUTTON_LABEL,
-                icon: (keysEnableSettingActive ? BiSolidExit: GiSightDisabled ),
+                icon: (keysEnableSettingActive ? BiSolidExit : GiSightDisabled),
                 color: (keysEnableSettingActive ? "blue" : "green") as "blue" | "green",
                 size: "sm" as const,
                 width: "260px",
                 onClick: () => setKeysEnableSettingActive(!keysEnableSettingActive),
+                hasTip: keysEnableSettingActive ? false : true,
+                tipMessage: t.KEYS_ENABLE_HELPER_TEXT,
             }
         ],
         gap: 2,
@@ -208,64 +235,61 @@ export function KeysSettingContent() {
             <SideContent>
                 <ProfileSelect disabled={keysEnableSettingActive} />
             </SideContent>
-            
+
             <HitboxContent>
                 {renderHitboxContent}
             </HitboxContent>
-            
+
             <MainContent>
                 <SettingMainContentLayout width={778}>
-                    <MainContentHeader 
+                    <MainContentHeader
                         title={t.SETTINGS_KEYS_TITLE}
                         description={t.SETTINGS_KEYS_HELPER_TEXT}
                     />
                     <MainContentBody>
                         <Fieldset.Root>
                             <Fieldset.Content>
-                                <VStack gap={8} alignItems={"flex-start"}>
+                                <VStack gap={8} alignItems={"flex-start"} width="full">
                                     {/* Key Mapping */}
-                                    <Stack direction={"column"}>
-                                        <Fieldset.Legend fontSize={"sm"} color={keysEnableSettingActive ? "gray.500" :  colorMode === "dark" ? "white" : "black"} >{t.SETTINGS_KEYS_MAPPING_TITLE}</Fieldset.Legend>
-                                        <HStack gap={4} >
-                                            <SegmentedControl
-                                                size={"sm"}
-                                                defaultValue={autoSwitch ? t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL : t.SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL}
-                                                items={[t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL, t.SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL]}
-                                                onValueChange={(detail) => setAutoSwitch(detail.value === t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL)}
-                                                disabled={keysEnableSettingActive}
-                                            />
-                                            <Button
-                                                w="150px"
-                                                size="xs"
-                                                variant={"solid"}
-                                                colorPalette={"red"}
-                                                disabled={keysEnableSettingActive}
-                                                onClick={clearKeyMappingHandler}
-                                            >
-                                                <MdCleaningServices />
-                                                {t.SETTINGS_KEY_MAPPING_CLEAR_MAPPING_BUTTON}
-                                            </Button>
-                                        </HStack>
-
-                                        <KeymappingFieldset
-                                            ref={keymappingFieldsetRef}
-                                            autoSwitch={autoSwitch}
-                                            inputKey={inputKey}
-                                            inputMode={globalConfig.inputMode ?? Platform.XINPUT}
-                                            keyMapping={keyMapping}
-                                            changeKeyMappingHandler={(map) => { 
-                                                setKeyMapping(map);
-                                                setNeedUpdate(true);
-                                            }}
+                                    <HStack gap={4} >
+                                        <SegmentedControl
+                                            size={"sm"}
+                                            defaultValue={autoSwitch ? t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL : t.SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL}
+                                            items={[t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL, t.SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL]}
+                                            onValueChange={(detail) => setAutoSwitch(detail.value === t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL)}
                                             disabled={keysEnableSettingActive}
                                         />
-                                    </Stack>
+                                        <Button
+                                            w="150px"
+                                            size="xs"
+                                            variant={"solid"}
+                                            colorPalette={"red"}
+                                            disabled={keysEnableSettingActive}
+                                            onClick={clearKeyMappingHandler}
+                                        >
+                                            <MdCleaningServices />
+                                            {t.SETTINGS_KEY_MAPPING_CLEAR_MAPPING_BUTTON}
+                                        </Button>
+                                    </HStack>
+
+                                    <KeymappingFieldset
+                                        ref={keymappingFieldsetRef}
+                                        autoSwitch={autoSwitch}
+                                        inputKey={inputKey}
+                                        inputMode={globalConfig.inputMode ?? Platform.XINPUT}
+                                        keyMapping={keyMapping}
+                                        changeKeyMappingHandler={(map) => {
+                                            setKeyMapping(map);
+                                            setNeedUpdate(true);
+                                        }}
+                                        disabled={keysEnableSettingActive}
+                                    />
 
                                     {/* SOCD Mode Choice */}
                                     <RadioCardRoot
                                         colorPalette={"green"}
                                         size={"sm"}
-                                        variant={ colorMode === "dark" ? "subtle" : "solid"}
+                                        variant={colorMode === "dark" ? "subtle" : "solid"}
                                         value={socdMode?.toString() ?? GameSocdMode.SOCD_MODE_UP_PRIORITY.toString()}
                                         onValueChange={(detail) => {
                                             const socd = parseInt(detail.value ?? GameSocdMode.SOCD_MODE_NEUTRAL.toString()) as GameSocdMode;
@@ -277,15 +301,33 @@ export function KeysSettingContent() {
                                         <RadioCardLabel>{t.SETTINGS_KEYS_SOCD_MODE_TITLE}</RadioCardLabel>
                                         <SimpleGrid gap={1} columns={5} >
                                             {Array.from({ length: GameSocdMode.SOCD_MODE_NUM_MODES }, (_, index) => (
-                                                <RadioCardItem
-                                                    w="142px"
-                                                    fontSize={"xs"}
-                                                    indicator={false}
-                                                    key={index}
-                                                    value={index.toString()}
-                                                    label={GameSocdModeLabelMap.get(index as GameSocdMode)?.label ?? ""}
 
-                                                />
+                                                <HoverCard.Root key={index} openDelay={200} closeDelay={0}>
+                                                    <HoverCard.Trigger asChild>
+
+                                                        <RadioCardItem
+                                                            w="142px"
+                                                            fontSize={"xs"}
+                                                            indicator={false}
+                                                            key={index}
+                                                            value={index.toString()}
+                                                            label={gameSocdModeLabelMap.get(index as GameSocdMode)?.label ?? ""}
+
+                                                        />
+                                                    </HoverCard.Trigger>
+
+                                                    <Portal>
+                                                        <HoverCard.Positioner>
+                                                            <HoverCard.Content>
+                                                                <HoverCard.Arrow />
+                                                                <Text fontSize={"xs"} whiteSpace="pre-wrap">
+                                                                    {gameSocdModeLabelMap.get(index as GameSocdMode)?.description ?? ""}
+                                                                </Text>
+                                                            </HoverCard.Content>
+                                                        </HoverCard.Positioner>
+                                                    </Portal>
+                                                </HoverCard.Root>
+
                                             ))}
                                         </SimpleGrid>
                                     </RadioCardRoot>
@@ -330,7 +372,7 @@ export function KeysSettingContent() {
                     </MainContentBody>
                 </SettingMainContentLayout>
             </MainContent>
-            
+
             <TopButtons config={topButtonsConfig} />
         </SettingContentLayout>
     )

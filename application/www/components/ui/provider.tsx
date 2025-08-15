@@ -47,7 +47,7 @@ const Fonts = () => (
       body {
         font-family: 'custom_en', system-ui, sans-serif;
         letter-spacing: 0.05em;
-        line-height: 1.8em;
+        line-height: 1.6em;
       }
 
 

@@ -125,15 +125,35 @@ export enum GameControllerButton {
     A2 = "A2",
 }
 
-export const GameControllerButtonList = Object.values(GameControllerButton);
+export const GameControllerButtonList = [
+    GameControllerButton.DPAD_UP,
+    GameControllerButton.DPAD_LEFT,
+    GameControllerButton.DPAD_RIGHT,
+    GameControllerButton.DPAD_DOWN,
 
+    GameControllerButton.B4,
+    GameControllerButton.B3,
+    GameControllerButton.B2,
+    GameControllerButton.B1,
 
+    GameControllerButton.L3,
+    GameControllerButton.R3,
+    GameControllerButton.L2,
+    GameControllerButton.R2,
+    GameControllerButton.L1,
+    GameControllerButton.R1,
+
+    GameControllerButton.S1,
+    GameControllerButton.S2,
+    GameControllerButton.A1,
+    GameControllerButton.A2
+];
 
 export const XInputButtonMap = new Map<GameControllerButton, string>([
-    [GameControllerButton.DPAD_UP, "DPAD_UP"],
-    [GameControllerButton.DPAD_DOWN, "DPAD_DOWN"],
-    [GameControllerButton.DPAD_LEFT, "DPAD_LEFT"],
-    [GameControllerButton.DPAD_RIGHT, "DPAD_RIGHT"],
+    [GameControllerButton.DPAD_UP, "UP"],
+    [GameControllerButton.DPAD_DOWN, "DOWN"],
+    [GameControllerButton.DPAD_LEFT, "LEFT"],
+    [GameControllerButton.DPAD_RIGHT, "RIGHT"],
     [GameControllerButton.S1, "BACK"],
     [GameControllerButton.S2, "START"],
     [GameControllerButton.A1, "GUIDE"],
@@ -150,10 +170,10 @@ export const XInputButtonMap = new Map<GameControllerButton, string>([
 ]);
 
 export const PS4ButtonMap = new Map<GameControllerButton, string>([
-    [GameControllerButton.DPAD_UP, "DPAD_UP"],
-    [GameControllerButton.DPAD_DOWN, "DPAD_DOWN"],
-    [GameControllerButton.DPAD_LEFT, "DPAD_LEFT"],
-    [GameControllerButton.DPAD_RIGHT, "DPAD_RIGHT"],
+    [GameControllerButton.DPAD_UP, "UP"],
+    [GameControllerButton.DPAD_DOWN, "DOWN"],
+    [GameControllerButton.DPAD_LEFT, "LEFT"],
+    [GameControllerButton.DPAD_RIGHT, "RIGHT"],
     [GameControllerButton.S1, "SHARE"],
     [GameControllerButton.S2, "OPTIONS"],
     [GameControllerButton.A1, "PS"],
@@ -171,10 +191,10 @@ export const PS4ButtonMap = new Map<GameControllerButton, string>([
 ]);
 
 export const SwitchButtonMap = new Map<GameControllerButton, string>([
-    [GameControllerButton.DPAD_UP, "DPAD_UP"],
-    [GameControllerButton.DPAD_DOWN, "DPAD_DOWN"],
-    [GameControllerButton.DPAD_LEFT, "DPAD_LEFT"],
-    [GameControllerButton.DPAD_RIGHT, "DPAD_RIGHT"],
+    [GameControllerButton.DPAD_UP, "UP"],
+    [GameControllerButton.DPAD_DOWN, "DOWN"],
+    [GameControllerButton.DPAD_LEFT, "LEFT"],
+    [GameControllerButton.DPAD_RIGHT, "RIGHT"],
     [GameControllerButton.S1, "MINUS"],
     [GameControllerButton.S2, "PLUS"],
     [GameControllerButton.A1, "HOME"],
@@ -205,29 +225,6 @@ export enum GameSocdMode {
     SOCD_MODE_BYPASS = 4,                   // 绕过 不做任何处理 所有dpad信号都有效
     SOCD_MODE_NUM_MODES = 5,                // 模式数量
 }
-
-export const GameSocdModeLabelMap = new Map<GameSocdMode, { label: string, description: string }>([
-    [GameSocdMode.SOCD_MODE_UP_PRIORITY, { 
-        label: "Up Priority", 
-        description: "The first input is prioritized when the two inputs are the same." 
-    }],
-    [GameSocdMode.SOCD_MODE_NEUTRAL, { 
-        label: "Neutral", 
-        description: "The first input is prioritized when the two inputs are different." 
-    }],
-    [GameSocdMode.SOCD_MODE_SECOND_INPUT_PRIORITY, { 
-        label: "Sec Input Priority", 
-        description: "The second input is prioritized when the two inputs are different." 
-    }],
-    [GameSocdMode.SOCD_MODE_FIRST_INPUT_PRIORITY, { 
-        label: "First Input Priority", 
-        description: "The first input is prioritized when the two inputs are different." 
-    }],
-    [GameSocdMode.SOCD_MODE_BYPASS, { 
-        label: "Bypass", 
-        description: "Bypass the SOCD mode and use the first input." 
-    }],
-]);
 
 export enum HotkeyAction {
     None = "None",
@@ -562,7 +559,7 @@ export const UI_TEXT = {
     SETTINGS_RAPID_TRIGGER_ENTER_TEST_MODE_BUTTON: "Enter Button Test Mode",
     SETTINGS_RAPID_TRIGGER_EXIT_TEST_MODE_BUTTON: "Exit Button Test Mode",
     SETTINGS_BUTTONS_PERFORMANCE_TEST_TITLE: "BUTTONS PERFORMANCE TEST",
-    SETTINGS_BUTTONS_PERFORMANCE_TEST_HELPER_TEXT: "You can test the button performance here. Press and release the button on the device, and the travel distance and press/release points will be recorded here.\n- Press: The point when the button is pressed (mm)\n- Release: The point when the button is released (mm)",
+    SETTINGS_BUTTONS_PERFORMANCE_TEST_HELPER_TEXT: "Test the performance and sensitivity of the buttons. Press and release the magnetic axis button on the device, this will record the stroke and the point of the button. Because sampling interval exists, slow press and release can get more accurate data.\n- Key: The index of the button.\n- Press: The stroke of the button when pressed (mm).\n- PoD: The stroke of the button when pressed out of the top deadzone (mm).\n- Release: The stroke of the button when released (mm).\n- RoD: The stroke of the button when released out of the bottom deadzone (mm).\n- After testing, [Exit button test mode] can exit this mode and continue to configure other settings.",
     TEST_MODE_FIELD_KEY_LABEL: "Key:",
     TEST_MODE_FIELD_PRESS_TRIGGER_POINT_LABEL: "Press:",
     TEST_MODE_FIELD_RELEASE_START_POINT_LABEL: "Release:",
@@ -597,9 +594,15 @@ export const UI_TEXT = {
 
     // Keys Settings
     SETTINGS_KEYS_TITLE: "KEYS SETTINGS",
-    SETTINGS_KEYS_HELPER_TEXT: `Set the mapping between Hitbox buttons and game controller buttons.\n- Select a configuration box below, then press a Hitbox button on the left to bind it.\n- Multiple key mappings can be binded to one controller button.`,
+    SETTINGS_KEYS_HELPER_TEXT: `Set the mapping between Hitbox buttons and game controller buttons.\n- Select a configuration field, then press left Hitbox button or the button of the device to bind it.\n- Multiple key mappings can be binded to one controller button.\n- Auto switch mode: Automatically switch the button field when the input key is changed.\n- Manual switch mode: Manually set the active button field. \n- Clear mapping: Clear all key mappings, used when you want to reconfigure all buttons.`,
     KEYS_ENABLE_START_BUTTON_LABEL: "Configuring keys enablement",
     KEYS_ENABLE_STOP_BUTTON_LABEL: "Exit configuring",
+    KEYS_ENABLE_HELPER_TEXT: "- Click [Configuring keys enablement] to start configuring keys. The available keys will be shown in green, and the disabled keys will be shown in gray.\n- Click the green button to disable the key, and click the gray button to enable the key.\n- Click the [Exit configuring] button to exit the configuring mode. \n- Disabled keys cannot trigger press and release, and cannot light up the LED.",
+    KEYS_MAPPING_TITLE_DPAD: "Dpad Buttons",
+    KEYS_MAPPING_TITLE_CORE: "Core Buttons",
+    KEYS_MAPPING_TITLE_SHOULDER: "Shoulder & Stick Buttons",
+    KEYS_MAPPING_TITLE_FUNCTION: "Function Buttons",
+
 
     // Switch Marking Settings
     SETTINGS_SWITCH_MARKING_TITLE: "NEW SWITCH MARKINGS",
@@ -611,7 +614,7 @@ export const UI_TEXT = {
 
     // Rapid Trigger Settings
     SETTINGS_RAPID_TRIGGER_TITLE: "BUTTONS PERFORMANCE",
-    SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "The buttons performance settings can be customized here.\n- Top Deadzone: The distance from the top of the trigger to the deadzone.\n- Bottom Deadzone: The distance from the bottom of the trigger to the deadzone.\n- Press Accuracy: The accuracy of the trigger when pressed.\n- Release Accuracy: The accuracy of the trigger when released.",
+    SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "Configure the performance parameters of the buttons, the preset configuration is usually enough, if you need more precise control, you can customize the configuration.\n- Top Deadzone: \"Press\" cannot be triggered within this stroke.\n- Bottom Deadzone: \"Release\" cannot be triggered within this stroke.\n- Press Accuracy: The distance from the top of the button to the press point.\n- Release Accuracy: The distance from the bottom of the button to the release point.",
     SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL: "Configure All Buttons At Once",
 
     // ADC Button Debounce Algorithm
@@ -635,7 +638,7 @@ export const UI_TEXT = {
 
     // Hotkeys Settings
     SETTINGS_HOTKEYS_TITLE: "HOTKEYS SETTINGS",
-    SETTINGS_HOTKEYS_HELPER_TEXT: `Configure up to ${DEFAULT_NUM_HOTKEYS_MAX} hotkeys for quick access to various functions.\n- Click on the hotkey field and press the desired key on the hitbox to bind the hotkey.\n- Choice the hotkey action from the dropdown list.\n- Locked hotkeys are used for web configuration mode because this function is required.\n- Enable device button monitoring to bind hotkeys by pressing the buttons on the device.`,
+    SETTINGS_HOTKEYS_HELPER_TEXT: `Configure up to ${DEFAULT_NUM_HOTKEYS_MAX} hotkeys for quick access to various functions.\n- Click on the hotkey field and press the desired key on the hitbox or device to bind the hotkey.\n- Choice the hotkey action from the dropdown list.\n- Locked hotkeys are used for web configuration mode and calibration mode because this function is required. `,
     SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "Device Button Monitoring",
 
     // Firmware Settings
@@ -643,7 +646,7 @@ export const UI_TEXT = {
     SETTINGS_FIRMWARE_CURRENT_VERSION_LABEL: "Current Version: ",
     SETTINGS_FIRMWARE_LATEST_VERSION_LABEL: "Latest Firmware Version: ",
     SETTINGS_FIRMWARE_NO_UPDATE_MESSAGE: "Current firmware is the latest version. No update available.",
-    SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE: "Please click the button to update the firmware, it will take a few minutes, please do not disconnect the device.",
+    SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE: "Please click the button to update the firmware, it will take a few minutes, please do not disconnect the device.\nThe firmware update will overwrite the key data, please recalibrate the keys.",
     SETTINGS_FIRMWARE_UPDATE_SUCCESS_TITLE: "Firmware updated successfully",
     SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE: "Congratulations! The firmware has been updated successfully.\nTo access the latest driver page, the page will be refreshed in {seconds} seconds.",
     SETTINGS_FIRMWARE_UPDATE_FAILED_MESSAGE: "The firmware update failed. Please click the button to try again.",
@@ -747,7 +750,7 @@ export const UI_TEXT = {
     UNSAVED_CHANGES_WARNING_MESSAGE: "You have unsaved changes. If you leave without saving, your changes will be lost.",
     CALIBRATION_MODE_WARNING_TITLE: "Calibration in Progress",
     CALIBRATION_MODE_WARNING_MESSAGE: "Calibration is in progress. You must stop calibration before leaving this page.",
-    CALIBRATION_TIP_MESSAGE: "The buttons on the device that are blue are the buttons to be calibrated. Press the blue button until the LED light turns green, then the calibration is complete. When all buttons are calibrated, click the [Stop Calibration] button to end the calibration mode.",
+    CALIBRATION_TIP_MESSAGE: "Click [Start Calibration] to start calibration. If there are buttons to be calibrated, they will be shown in dark-blue on the device. Press and hold the dark-blue button until the LED light turns green, then the calibration is complete. \n- Note that after pressing the button to the bottom, you need to keep the button pressed and stable, otherwise the calibration will fail. \n- When all buttons are calibrated, click the [Stop Calibration] button to end the calibration mode. \n- If you want to re-calibrate a button, please click the [Reset Calibration] button first. \n- [Reset Calibration] button will clear all the calibration data, please use it with caution.",
 
     // Hotkeys Actions
     HOTKEY_ACTION_NONE: "None",
@@ -778,6 +781,17 @@ export const UI_TEXT = {
     RECONNECT_MODAL_TITLE: "Device Disconnected",
     RECONNECT_FAILED_TITLE: "Failed to Reconnect",
     RECONNECT_FAILED_MESSAGE: "Failed to reconnect to the device. Please check the USB connection and make sure the device is in webconfig mode, then try again.",
+
+    SOCD_NEUTRAL: "Neutral",
+    SOCD_NEUTRAL_DESC: "When opposite directional keys are pressed simultaneously, a neutral signal will be output, meaning no directional input.",
+    SOCD_UP_PRIORITY: "Up Priority",
+    SOCD_UP_PRIORITY_DESC: "In the horizontal direction, opposite directional inputs are handled in NEUTRAL mode, meaning a neutral signal is output; when both up and down are pressed simultaneously in the vertical direction, the \"up\" directional signal is prioritized for output.",
+    SOCD_SEC_INPUT_PRIORITY: "Sec Input Priority",
+    SOCD_SEC_INPUT_PRIORITY_DESC: "The later input directional command is prioritized for sending.",
+    SOCD_FIRST_INPUT_PRIORITY: "First Input Priority",
+    SOCD_FIRST_INPUT_PRIORITY_DESC: "The First input directional command is prioritized for sending.",
+    SOCD_BYPASS: "Bypass",
+    SOCD_BYPASS_DESC: "All directional commands are sent directly without any processing.",
 
 } as const;
 
@@ -862,7 +876,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_RAPID_TRIGGER_ENTER_TEST_MODE_BUTTON: "进入按键测试模式",
     SETTINGS_RAPID_TRIGGER_EXIT_TEST_MODE_BUTTON: "退出按键测试模式",
     SETTINGS_BUTTONS_PERFORMANCE_TEST_TITLE: "按键性能测试",
-    SETTINGS_BUTTONS_PERFORMANCE_TEST_HELPER_TEXT: "可以在这里测试按键性能。按下并释放设备上的磁轴按键，这里会记录下按键的行程，以及按下和触发的点位。\n- 按下：按键按下时的点位(mm)\n- 释放：按键释放时的点位(mm)",
+    SETTINGS_BUTTONS_PERFORMANCE_TEST_HELPER_TEXT: "可以在这里测试按键性能和灵敏度。按下并释放设备上的磁轴按键，这里会记录每个按键的最近一次按下和释放行程。由于采样间隔因素的存在，缓慢按压和释放，能得到更符合设置的数据。\n- key：按键索引\n- Press：按键触发按压的行程(mm)\n- PoD：按压行程在顶部死区之外的行程(mm)\n- Release：按键释放的行程(mm)\n- RoD：释放行程在底部死区之外的行程(mm)\n- 测试完成后，[退出按键测试模式]可以退出此模式继续其他的配置。",
     TEST_MODE_FIELD_KEY_LABEL: "按键:",
     TEST_MODE_FIELD_PRESS_TRIGGER_POINT_LABEL: "按下:",
     TEST_MODE_FIELD_RELEASE_START_POINT_LABEL: "释放:",
@@ -897,9 +911,14 @@ export const UI_TEXT_ZH = {
 
     // 按键设置
     SETTINGS_KEYS_TITLE: "按键设置",
-    SETTINGS_KEYS_HELPER_TEXT: `设置hitbox按键和游戏控制器按键的映射关系。\n- 选中下面的配置框，然后按左侧hitbox按键即可绑定 \n- 可以设置多个按键映射，每个控制器按键映射可以设置多个hitbox按键`,
+    SETTINGS_KEYS_HELPER_TEXT: `设置格斗板按键和游戏控制器按键的映射关系。\n- 选中下面的游戏控制器按键配置框，然后点击左侧格斗板图示按键或者按压实体设备上的按键即可绑定。 \n- 每个控制器按键可以绑定多个格斗板按键。\n- 选择自动切换模式，每次绑定按键时，会自动切换到下一个按键区域。\n- 选择手动切换模式，每次绑定按键时，需要手动切换到另一个按键区域。\n- [清空映射]：清空所有按键映射，用于想重新配置所有按键映射时使用。`,
     KEYS_ENABLE_START_BUTTON_LABEL: "开始配置按键启用/禁用",
     KEYS_ENABLE_STOP_BUTTON_LABEL: "结束配置按键启用/禁用",
+    KEYS_ENABLE_HELPER_TEXT: "- 点击[开始配置按键启用/禁用]后，下面的格斗板图示上，可用按键会以绿色显示，禁用按键会以灰色显示。\n- 点击绿色按键可以禁用此按键，点击灰色按键可以启用此按键。\n- 点击[结束配置按键启用/禁用]后，配置模式结束。\n- 被禁用的按键无法触发按下和回弹，无法点亮LED。",
+    KEYS_MAPPING_TITLE_DPAD: "十字方向键",
+    KEYS_MAPPING_TITLE_CORE: "核心按键",
+    KEYS_MAPPING_TITLE_SHOULDER: "肩键和摇杆键",
+    KEYS_MAPPING_TITLE_FUNCTION: "功能按键",
 
     // 磁轴标记设置
     SETTINGS_SWITCH_MARKING_TITLE: "新磁轴标记",
@@ -911,7 +930,7 @@ export const UI_TEXT_ZH = {
     
     // 快速触发设置
     SETTINGS_RAPID_TRIGGER_TITLE: "按键性能",
-    SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "可以在这里自定义按键性能。\n- 顶部死区：扳机顶部到死区的距离\n- 底部死区：扳机底部到死区的距离\n- 按下精度：扳机按下时的精度\n- 释放精度：扳机释放时的精度",
+    SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "配置按键的性能参数，大多数情况下预设配置已经足够，如果需要更精细的控制，可以自定义配置。\n- 顶部死区：按键顶部的保护行程，在此行程中“按下”不会触发，一般用于防止误触。\n- 底部死区：按键底部的保护行程，在此行程中“释放”不会触发，一般用于防止意外的“释放”。\n- 按下精度：在顶部死区外，按下超过此行程后即可触发“按下”，用于控制按键的触发灵敏度。\n- 释放精度：在底部死区外，弹起超过此行程后即可触发“释放”，用于控制按键的触发灵敏度。\n- 同时配置所有按键：同时配置所有按键的性能参数，用于快速配置所有按键，会覆盖当前所有按键的配置。\n- [在表格试图中预览]可以看到所有按键的性能参数配置。",
     SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL: "同时配置所有按键",
 
     // 按钮防抖设置
@@ -936,7 +955,7 @@ export const UI_TEXT_ZH = {
     
     // 热键设置
     SETTINGS_HOTKEYS_TITLE: "快捷键设置",
-    SETTINGS_HOTKEYS_HELPER_TEXT: `最多可以配置${DEFAULT_NUM_HOTKEYS_MAX}个快捷键来快速访问各种功能。\n- 点击快捷键区域并在左侧hitbox上按下想要绑定的按键\n- 从下拉列表中选择快捷键动作\n- 锁定的快捷键用于网页配置模式，因为这个功能是必需的\n- 启用设备按键监控后，可以直接按下设备上的按键来绑定热键`,
+    SETTINGS_HOTKEYS_HELPER_TEXT: `最多可以配置${DEFAULT_NUM_HOTKEYS_MAX}个快捷键来快速访问各种功能。\n- 点击快捷键区域并在实体设备上或者左侧格斗板图示上按下想要绑定的按键\n- 从下拉列表中选择快捷键动作\n- 锁定的快捷键用于网页配置模式和校准模式，因为这些功能是必需的。`,
     SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "设备按键监控",
 
     // 固件更新
@@ -944,9 +963,9 @@ export const UI_TEXT_ZH = {
     SETTINGS_FIRMWARE_CURRENT_VERSION_LABEL: "当前固件版本: ",
     SETTINGS_FIRMWARE_LATEST_VERSION_LABEL: "最新固件版本: ",
     SETTINGS_FIRMWARE_NO_UPDATE_MESSAGE: "当前固件版本为最新版本，没有可用的更新",
-    SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE: "请点击按钮更新固件，过程需要几分钟时间，不要断开设备连接",
+    SETTINGS_FIRMWARE_UPDATE_TODO_MESSAGE: "请点击按钮更新固件，过程需要几分钟时间，不要断开设备连接。\n固件更新刷写了按键数据，请重新校准按键。",
     SETTINGS_FIRMWARE_UPDATE_SUCCESS_TITLE: "固件更新成功",
-    SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE: "太棒了！固件更新成功。\n为了访问最新的驱动页面，{seconds}秒后，页面将自动刷新",
+    SETTINGS_FIRMWARE_UPDATE_SUCCESS_MESSAGE: "太棒了！固件更新成功。\n为了访问最新的驱动页面，{seconds}秒后，页面将自动刷新。",
     SETTINGS_FIRMWARE_UPDATE_FAILED_MESSAGE: "固件更新失败，请点击按钮重试",
     SETTINGS_FIRMWARE_UPDATING_MESSAGE: "固件更新中...请不要断开设备连接",
     SETTINGS_FIRMWARE_UPDATE_SUCCESS_BUTTON: "刷新页面",
@@ -1049,7 +1068,7 @@ export const UI_TEXT_ZH = {
     UNSAVED_CHANGES_WARNING_MESSAGE: "您有未保存的更改。如果离开而不保存，您的更改将会丢失。",
     CALIBRATION_MODE_WARNING_TITLE: "校准进行中",
     CALIBRATION_MODE_WARNING_MESSAGE: "校准正在进行中。在离开此页面之前，您必须停止校准。",
-    CALIBRATION_TIP_MESSAGE: "设备上深蓝色的按钮代表待校准的按钮，把深蓝色的按钮按压到底，直到按钮上的LED灯变成绿色，则校准完成。所有按键校准完成后，点击[结束校准]按钮结束校准模式。",
+    CALIBRATION_TIP_MESSAGE: "点击[开始按键校准]后，如果有待校准的按键，设备上会以深蓝色展示，把深蓝色的按钮按压到底并保持住，直到按钮上的LED灯变成绿色，则校准完成。\n- 注意按压到底后，需要保持稳定按压状态，不要抖动或者移动手指，否则会校准失败。\n- 所有按键校准完成后，点击[结束校准]按钮结束校准模式。\n- 已经校准过的按键，如果希望重新校准，请先点击[重置校准数据]按键。\n- [重置校准数据]按键会清除所有按键的校准数据，请谨慎使用。",
 
     // Hotkeys Actions
     HOTKEY_ACTION_NONE: "无",
@@ -1080,6 +1099,17 @@ export const UI_TEXT_ZH = {
     RECONNECT_MODAL_TITLE: "设备断开连接",
     RECONNECT_FAILED_TITLE: "重连设备失败",
     RECONNECT_FAILED_MESSAGE: "无法重新连接到设备，请检查USB连接，以及保证设备在网页配置模式并重试。",
+
+    SOCD_NEUTRAL: "中立",
+    SOCD_NEUTRAL_DESC: "当同时按下相对方向键时，输出中立信号，表示没有方向输入。", 
+    SOCD_UP_PRIORITY: "上优先",
+    SOCD_UP_PRIORITY_DESC: "在水平方向上，相反方向的输入类似NEUTRAL模式下处理一样，输出中立信号；当同时按下上和下时，优先输出上方向信号。",
+    SOCD_SEC_INPUT_PRIORITY: "后输入优先",
+    SOCD_SEC_INPUT_PRIORITY_DESC: "优先发送后输入的方向命令。",
+    SOCD_FIRST_INPUT_PRIORITY: "前输入优先",
+    SOCD_FIRST_INPUT_PRIORITY_DESC: "优先发送先输入的方向命令。",
+    SOCD_BYPASS: "绕过",
+    SOCD_BYPASS_DESC: "所有方向命令直接发送，不进行任何处理。",
     
 } as const;
 

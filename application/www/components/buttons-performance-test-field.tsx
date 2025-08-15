@@ -73,7 +73,10 @@ export default function ButtonsPerformanceTestField(
                     pressStartDistance={pressStartDistance} 
                     pressTriggerDistance={pressTriggerDistance} 
                     releaseStartDistance={releaseStartDistance} 
-                    releaseTriggerDistance={releaseTriggerDistance} />
+                    releaseTriggerDistance={releaseTriggerDistance} 
+                    topDeadzone={topDeadzone}
+                    bottomDeadzone={bottomDeadzone}
+                />
             </Box>
             <VStack gap={2} flex={1} alignItems="start" justifyContent={"flex-end"} lineHeight={".85em"} >
                 <Flex gap={2} >
