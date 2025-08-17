@@ -168,6 +168,7 @@ export function LEDsSettingContent() {
 
         return () => {
             if(wsConnected && isPreviewing.current) {
+                console.log('leds setting content unmount, clear leds preview');
                 clearLedsPreviewHandler();
             }
         }
@@ -276,8 +277,8 @@ export function LEDsSettingContent() {
             aroundLedAnimationSpeed: aroundLedAnimationSpeed,
         }
         try {
-            await pushLedsConfig(config);
             isPreviewing.current = true;
+            await pushLedsConfig(config);
         } catch (error) {
             console.error('预览灯光配置失败:', error);
         }
@@ -285,8 +286,8 @@ export function LEDsSettingContent() {
 
     const clearLedsPreviewHandler = async() => {
         try {
-            await clearLedsPreview();
             isPreviewing.current = false;
+            await clearLedsPreview();
         } catch (error) {
             console.error('清除灯光预览失败:', error);
         }

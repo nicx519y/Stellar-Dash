@@ -521,6 +521,8 @@ export const UI_TEXT = {
     CALIBRATION_CLEAR_DATA_DIALOG_MESSAGE: "Clearing the calibration data will delete all the calibration data. It will need to be calibrated again. Are you sure you want to clear the calibration data?",
     CALIBRATION_COMPLETION_DIALOG_TITLE: "Calibration Completed",
     CALIBRATION_COMPLETION_DIALOG_MESSAGE: "All buttons have been calibrated. Do you want to end the calibration mode? If you want to calibrate again, please clear the calibration data first.",
+    CALIBRATION_CHECK_COMPLETED_DIALOG_TITLE: "Has Uncalibrated Buttons",
+    CALIBRATION_CHECK_COMPLETED_DIALOG_MESSAGE: "The calibration is not completed, which will cause the buttons to be unusable. Do you want to start the calibration immediately?",
 
     // Settings Labels
     SETTINGS_SOCD_LABEL: "SOCD Mode",
@@ -838,6 +840,8 @@ export const UI_TEXT_ZH = {
     CALIBRATION_CLEAR_DATA_DIALOG_MESSAGE: "清除校准数据后将无法恢复，需要重新校准，是否确认清除？",
     CALIBRATION_COMPLETION_DIALOG_TITLE: "校准完成",
     CALIBRATION_COMPLETION_DIALOG_MESSAGE: "所有按键已校准完成，是否要结束校准模式？如果需要重新校准，请先清除校准数据",
+    CALIBRATION_CHECK_COMPLETED_DIALOG_TITLE: "存在未校准的按键",
+    CALIBRATION_CHECK_COMPLETED_DIALOG_MESSAGE: "按键校准未完成，会导致按键无法使用，是否立即开始校准？",
 
     // 设置标签
     SETTINGS_SOCD_LABEL: "SOCD模式",

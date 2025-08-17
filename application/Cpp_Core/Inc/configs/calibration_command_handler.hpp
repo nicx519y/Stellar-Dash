@@ -23,6 +23,7 @@ public:
     WebSocketDownstreamMessage handleStopManualCalibration(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleGetCalibrationStatus(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleClearManualCalibrationData(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleCheckIsManualCalibrationCompleted(const WebSocketUpstreamMessage& request);
     
     // 按键监控相关命令
     WebSocketDownstreamMessage handleStartButtonMonitoring(const WebSocketUpstreamMessage& request);

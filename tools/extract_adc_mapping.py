@@ -237,17 +237,63 @@ class ADCMappingExtractor:
         return aligned_size
     
     def save_binary_data(self, data: bytes, filename: str = "slot_a_adc_mapping.bin"):
-        """保存原始二进制数据"""
+        """保存原始二进制数据（清空校准值）"""
         # 保存到resources目录
         resources_dir = self.workspace_root / "resources"
         resources_dir.mkdir(exist_ok=True)  # 确保resources目录存在
         output_path = resources_dir / filename
         
         try:
+            # 解析数据以获取结构信息
+            store = self.parse_adc_mapping_data(data)
+            
+            # 创建新的二进制数据，清空校准值
+            new_data = bytearray()
+            
+            # 写入头部信息
+            new_data.extend(struct.pack('<I', store.version))  # 版本号
+            new_data.extend(struct.pack('<B', store.num))      # 映射数量
+            new_data.extend(b'\x00\x00\x00')                  # 3字节填充
+            new_data.extend(store.default_id.encode('utf-8').ljust(16, b'\x00'))  # 默认ID
+            
+            # 写入每个映射
+            for mapping in store.mappings:
+                # ID (16字节)
+                new_data.extend(mapping.id.encode('utf-8').ljust(16, b'\x00'))
+                
+                # 名称 (16字节)
+                new_data.extend(mapping.name.encode('utf-8').ljust(16, b'\x00'))
+                
+                # 长度 (4字节)
+                new_data.extend(struct.pack('<I', mapping.length))
+                
+                # 步长 (4字节)
+                new_data.extend(struct.pack('<f', mapping.step))
+                
+                # 采样噪声 (2字节)
+                new_data.extend(struct.pack('<H', mapping.sampling_noise))
+                
+                # 采样频率 (2字节)
+                new_data.extend(struct.pack('<H', mapping.sampling_frequency))
+                
+                # 原始值数组 (40个uint32_t)
+                for value in mapping.original_values:
+                    new_data.extend(struct.pack('<I', value))
+                
+                # 自动校准值 (17个按钮) - 清空为0
+                for _ in range(NUM_ADC_BUTTONS):
+                    new_data.extend(struct.pack('<HH', 0, 0))  # top=0, bottom=0
+                
+                # 手动校准值 (17个按钮) - 清空为0
+                for _ in range(NUM_ADC_BUTTONS):
+                    new_data.extend(struct.pack('<HH', 0, 0))  # top=0, bottom=0
+            
+            # 写入文件
             with open(output_path, 'wb') as f:
-                f.write(data)
+                f.write(new_data)
             print(f"ADC Mapping已保存到: {output_path}")
-            print(f"文件大小: {len(data)} 字节")
+            print(f"文件大小: {len(new_data)} 字节")
+            print("注意: 校准值已被清空")
             return True
         except Exception as e:
             print(f"保存文件失败: {e}")
@@ -313,14 +359,8 @@ class ADCMappingExtractor:
                         "sampling_noise": mapping.sampling_noise,
                         "sampling_frequency": mapping.sampling_frequency,
                         "original_values": mapping.original_values,
-                        "auto_calibration_values": [
-                            {"top_value": value.top_value, "bottom_value": value.bottom_value}
-                            for value in mapping.auto_calibration_values
-                        ],
-                        "manual_calibration_values": [
-                            {"top_value": value.top_value, "bottom_value": value.bottom_value}
-                            for value in mapping.manual_calibration_values
-                        ]
+                        "auto_calibration_values": [],  # 清空自动校准值
+                        "manual_calibration_values": []  # 清空手动校准值
                     }
                     for mapping in store.mappings
                 ]

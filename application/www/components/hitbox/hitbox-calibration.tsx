@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { HITBOX_BTN_POS_LIST } from "@/types/gamepad-config";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useColorMode } from "../ui/color-mode";
 import { GamePadColor } from "@/types/gamepad-color";
+import { CalibrationStatus } from "@/types/types";
+import { eventBus, EVENTS } from "@/lib/event-manager";
 
 const StyledSvg = styled.svg<{
     $scale?: number;
@@ -55,26 +57,21 @@ const StyledFrame = styled.rect`
   filter: drop-shadow(0 0 5px rgba(204, 204, 204, 0.8));
 `;
 
-const StyledText = styled.text`
-  text-align: center;
-  font-family: "Helvetica", cursive;
-  font-size: .9rem;
-  cursor: default;
-  pointer-events: none;
-`;
+// const StyledText = styled.text`
+//   text-align: center;
+//   font-family: "Helvetica", cursive;
+//   font-size: .9rem;
+//   cursor: default;
+//   pointer-events: none;
+// `;
 
 const btnPosList = HITBOX_BTN_POS_LIST;
 const btnFrameRadiusDistance = 3;
-const btnLen = btnPosList.length;
+// const btnLen = btnPosList.length;
 
 interface HitboxCalibrationProps {
-    onClick?: (id: number) => void;
-    hasText?: boolean;
-    interactiveIds?: number[];
-    highlightIds?: number[];
-    buttonsColorList?: GamePadColor[]; // 按钮颜色列表，用于校准状态显示
-    className?: string;
     containerWidth?: number; // 外部容器宽度
+    calibrationAllCompletedCallback?: () => void;
 }
 
 /**
@@ -82,122 +79,99 @@ interface HitboxCalibrationProps {
  * 支持校准状态的颜色显示
  */
 export default function HitboxCalibration(props: HitboxCalibrationProps) {
-    const [hasText, _setHasText] = useState(props.hasText ?? true);
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady } = useGamepadConfig();
-
+    const { contextJsReady, setContextJsReady, startManualCalibration, stopManualCalibration } = useGamepadConfig();
     const circleRefs = useRef<(SVGCircleElement | null)[]>([]);
-    const textRefs = useRef<(SVGTextElement | null)[]>([]);
-    const pressedButtonListRef = useRef(Array(btnLen).fill(-1));
-    const animationFrameRef = useRef<number>();
 
     // 计算缩放比例
     const calculateScale = (): number => {
         if (!props.containerWidth) return 1;
-        
         const hitboxWidth = 829; // StyledSvg的原始宽度
         const margin = 80; // 左右边距
         const availableWidth = props.containerWidth - (margin * 2);
-        
         if (availableWidth <= 0) return 0.1; // 最小缩放比例
-        
         const scale = availableWidth / hitboxWidth;
         return Math.min(scale, 1.3); // 最大不超过1.3，避免过度放大
     };
 
     const scale = calculateScale();
 
-    const handleClick = (event: React.MouseEvent<SVGElement>) => {
-        const target = event.target as SVGElement;
-        if (!target.id || !target.id.startsWith("btn-")) return;
-        const id = Number(target.id.replace("btn-", ""));
-        if (id === Number.NaN || !(props.interactiveIds?.includes(id) ?? false)) return;
-        if (event.type === "mousedown") {
-            props.onClick?.(id);
-            pressedButtonListRef.current[id] = 1;
-        } else if (event.type === "mouseup") {
-            props.onClick?.(-1);
-            pressedButtonListRef.current[id] = -1;
-        }
-    };
+    const [calibrationStatus, setCalibrationStatus] = useState<CalibrationStatus>({
+        isActive: false,
+        uncalibratedCount: 0,
+        activeCalibrationCount: 0,
+        allCalibrated: false,
+        buttons: []
+    });
 
-    const handleLeave = (event: React.MouseEvent<SVGElement>) => {
-        const target = event.target as SVGElement;
-        if (!target.id || !target.id.startsWith("btn-")) return;
-        const id = Number(target.id.replace("btn-", ""));
-        if (id === Number.NaN || !(props.interactiveIds?.includes(id) ?? false)) return;
-        if (event.type === "mouseleave") {
-            pressedButtonListRef.current[id] = -1;
-        }
-    }
+    // 手动校准状态监听 - 只订阅一次，通过 ref 获取最新状态
+    useEffect(() => {
+        // 添加校准状态更新事件监听
+        const handleCalibrationUpdate = (data: unknown) => {
+            // 处理校准状态更新
+            if (data && typeof data === 'object' && 'calibrationStatus' in data) {
+                const eventData = data as { calibrationStatus?: CalibrationStatus };
+                if (eventData.calibrationStatus) {
+                    // 确保数据格式正确，添加默认值
+                    const statusData = eventData.calibrationStatus;
+                    const newCalibrationStatus: CalibrationStatus = {
+                        isActive: statusData?.isActive || false,
+                        uncalibratedCount: statusData?.uncalibratedCount || 0,
+                        activeCalibrationCount: statusData?.activeCalibrationCount || 0,
+                        allCalibrated: statusData?.allCalibrated || false,
+                        buttons: statusData?.buttons || []
+                    };
+                    // 直接更新校准状态
+                    setCalibrationStatus(newCalibrationStatus);
+
+                    if(newCalibrationStatus.allCalibrated) {
+                        props.calibrationAllCompletedCallback?.();
+                    }
+                }
+            }
+        };
+
+        // 订阅校准更新事件（只订阅一次）
+        const unsubscribe = eventBus.on(EVENTS.CALIBRATION_UPDATE, handleCalibrationUpdate);
+        // 开启校准
+        startManualCalibration();
+
+        // 清理函数
+        return () => {
+            unsubscribe();
+            // 停止校准
+            stopManualCalibration();
+        };
+    }, []); // 依赖数组为空，只执行一次
 
     // 获取按钮填充颜色
     const getButtonFillColor = (index: number): string => {
-        if (props.buttonsColorList && props.buttonsColorList.length > 0) {
-            if (index < props.buttonsColorList.length && props.buttonsColorList[index]) {
-                return props.buttonsColorList[index].toString('css');
+        if (buttonsColorList && buttonsColorList.length > 0) {
+            if (index < buttonsColorList.length && buttonsColorList[index]) {
+                return buttonsColorList[index].toString('css');
             }
         }
         return colorMode === 'light' ? 'white' : 'black';
     };
 
-    /**
-     * 自定义颜色动画渲染
-     */
-    const animateCustomColors = () => {
-        if (props.buttonsColorList && props.buttonsColorList.length > 0) {
-            updateButtonsWithCustomColors(props.buttonsColorList);
-        }
-        
-        // 继续下一帧渲染
-        animationFrameRef.current = requestAnimationFrame(animateCustomColors);
-    };
+    // 根据校准状态生成按钮颜色列表
+    const buttonsColorList = useMemo(() => {
 
-    /**
-     * 启动自定义颜色动画
-     */
-    const startCustomColorAnimation = () => {
-        if (!animationFrameRef.current) {
-            animationFrameRef.current = requestAnimationFrame(animateCustomColors);
-        }
-    };
+        const colorMap = {
+            'OFF': GamePadColor.fromString('#000000'),      // 黑色
+            'RED': GamePadColor.fromString('#FF0000'),      // 红色 - 未校准
+            'CYAN': GamePadColor.fromString('#00FFFF'),     // 天蓝色 - 顶部值采样中
+            'DARK_BLUE': GamePadColor.fromString('#0000AA'), // 深蓝色 - 底部值采样中
+            'GREEN': GamePadColor.fromString('#00FF00'),    // 绿色 - 校准完成
+            'YELLOW': GamePadColor.fromString('#FFFF00'),   // 黄色 - 校准出错
+        };
 
-    /**
-     * 停止动画
-     */
-    const stopAnimation = () => {
-        if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
-            animationFrameRef.current = undefined;
-        }
-    };
+        const colors = calibrationStatus.buttons.map(button =>
+            colorMap[button.ledColor] || GamePadColor.fromString('#808080') // 默认灰色
+        );
 
-    /**
-     * 使用自定义颜色列表更新按钮颜色
-     */
-    const updateButtonsWithCustomColors = (colorList: GamePadColor[]) => {
-        circleRefs.current.forEach((circle, index) => {
-            if (circle && index < colorList.length && colorList[index]) {
-                circle.setAttribute('fill', colorList[index].toString('css'));
-            } else if (circle) {
-                // 如果没有提供颜色，使用默认背景色
-                const defaultColor = colorMode === 'light' ? '#ffffff' : '#000000';
-                circle.setAttribute('fill', defaultColor);
-            }
-        });
-    };
-
-    /**
-     * 清除按钮颜色
-     */
-    const clearButtonsColor = () => {
-        circleRefs.current.forEach((circle) => {
-            if (circle) {
-                const defaultColor = colorMode === 'light' ? '#ffffff' : '#000000';
-                circle.setAttribute('fill', defaultColor);
-            }
-        });
-    };
+        return colors;
+    }, [calibrationStatus]);
 
     /**
      * 初始化显示状态
@@ -206,28 +180,10 @@ export default function HitboxCalibration(props: HitboxCalibrationProps) {
         setContextJsReady(true);
     }, [setContextJsReady]);
 
-    // 当 buttonsColorList 变化时，处理自定义颜色渲染
-    useEffect(() => {
-        if (props.buttonsColorList && props.buttonsColorList.length > 0) {
-            // 启动自定义颜色渲染
-            startCustomColorAnimation();
-        } else {
-            stopAnimation();
-            clearButtonsColor();
-        }
-
-        // 清理函数
-        return () => {
-            stopAnimation();
-        };
-    }, [props.buttonsColorList, colorMode]);
-
     return (
-        <Box display={contextJsReady ? "block" : "none"} className={props.className}>
+        <Box display={contextJsReady ? "block" : "none"} >
             <StyledSvg 
                 xmlns="http://www.w3.org/2000/svg"
-                onMouseDown={handleClick}
-                onMouseUp={handleClick}
                 $scale={scale}
             >
                 <title>hitbox</title>
@@ -262,29 +218,11 @@ export default function HitboxCalibration(props: HitboxCalibrationProps) {
                         cy={item.y}
                         r={item.r}
                         $opacity={1}
-                        $interactive={props.interactiveIds?.includes(index) ?? false}
-                        $highlight={props.highlightIds?.includes(index) ?? false}
+                        $interactive={false}
                         fill={getButtonFillColor(index)}
-                        onMouseLeave={handleLeave}
                     />
                 ))}
 
-                {/* 渲染按钮文字 */}
-                {hasText && btnPosList.map((item, index) => (
-                    <StyledText
-                        ref={(el: SVGTextElement | null) => {
-                            textRefs.current[index] = el;
-                        }}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        key={index}
-                        x={item.x}
-                        y={index < btnLen - 4 ? item.y : item.y + 30}
-                        fill={colorMode === 'light' ? 'black' : 'white'}
-                    >
-                        {index !== btnLen - 1 ? index + 1 : "Fn"}
-                    </StyledText>
-                ))}
             </StyledSvg>
         </Box>
     );

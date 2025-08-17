@@ -41,20 +41,6 @@ WebConfigBtnsManager::~WebConfigBtnsManager() {
 }
 
 void WebConfigBtnsManager::setupButtonWorkers() {
-    // WebConfig模式下一律使用外部配置
-    // 转换WebConfig配置为外部配置格式
-    // ExternalADCButtonConfig externalConfigs[NUM_ADC_BUTTONS];
-    // for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-    //     const WebConfigADCButtonConfig& webConfig = adcButtonConfigs[i];
-    //     externalConfigs[i].pressAccuracy = webConfig.pressAccuracy;
-    //     externalConfigs[i].releaseAccuracy = webConfig.releaseAccuracy;
-    //     externalConfigs[i].topDeadzone = webConfig.topDeadzone;
-    //     externalConfigs[i].bottomDeadzone = webConfig.bottomDeadzone;
-    // }
-    
-    // ADCBtnsError adcResult = ADC_BTNS_WORKER.setup(externalConfigs);
-    // APP_DBG("WebConfigBtnsManager::setupButtonWorkers - Using WebConfig external configurations");
-    
     ADCBtnsError adcResult = ADC_BTNS_WORKER.setup();
 
     if (adcResult != ADCBtnsError::SUCCESS) {

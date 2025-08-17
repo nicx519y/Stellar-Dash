@@ -218,28 +218,3 @@ void print_calibration_status(void) {
     APP_DBG("Progress: %d active, %d uncalibrated", activeCount, uncalibratedCount);
     APP_DBG("==========================");
 }
-
-/**
- * 打印最终校准结果
- */
-void print_final_calibration_results(void) {
-    APP_DBG("=== Final Calibration Results ===");
-    
-    // 使用校准管理器自己的详细打印功能
-    ADC_CALIBRATION_MANAGER.printAllCalibrationResults();
-    
-    // 简化的状态确认
-    if (ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated()) {
-        APP_DBG("✓ All buttons successfully calibrated!");
-    } else {
-        uint8_t calibratedCount = 0;
-        for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-            if (ADC_CALIBRATION_MANAGER.isButtonCalibrated(i)) {
-                calibratedCount++;
-            }
-        }
-        APP_DBG("⚠ Partial calibration: %d/%d buttons completed", calibratedCount, NUM_ADC_BUTTONS);
-    }
-    
-    APP_DBG("==================================");
-}

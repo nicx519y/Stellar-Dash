@@ -99,6 +99,7 @@ void WebSocketCommandManager::initializeHandlers() {
     registerHandler("stop_manual_calibration", &calibrationHandler);
     registerHandler("get_calibration_status", &calibrationHandler);
     registerHandler("clear_manual_calibration_data", &calibrationHandler);
+    registerHandler("check_is_manual_calibration_completed", &calibrationHandler);
     
     // 注册按键监控相关命令
     registerHandler("start_button_monitoring", &commonHandler);

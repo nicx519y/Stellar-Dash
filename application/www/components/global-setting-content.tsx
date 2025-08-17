@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
     HOTKEYS_SETTINGS_INTERACTIVE_IDS,
     HotkeyAction,
@@ -15,11 +15,8 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { InputModeSettingContent } from "./input-mode-content";
 import { openConfirm } from "@/components/dialog-confirm";
-import { GamePadColor } from "@/types/gamepad-color";
 import { useNavigationBlocker } from '@/hooks/use-navigation-blocker';
 import React from "react";
-import { eventBus, EVENTS } from "@/lib/event-manager";
-import { CalibrationStatus } from "@/types/types";
 import { 
     SettingContentLayout, 
     SideContent, 
@@ -35,8 +32,6 @@ export function GlobalSettingContent() {
     const { t } = useLanguage();
     const {
         clearManualCalibrationData,
-        startManualCalibration,
-        stopManualCalibration,
         updateHotkeysConfig,
         globalConfig,
         hotkeysConfig,
@@ -44,133 +39,38 @@ export function GlobalSettingContent() {
         sendPendingCommandImmediately,
         setFinishConfigDisabled,
         wsConnected,
+        checkIsManualCalibrationCompleted,
         // updateGlobalConfig,
     } = useGamepadConfig();
 
     const [isInit, setIsInit] = useState<boolean>(false);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false);
-
     // 添加本地 hotkeys 状态来存储用户修改
     const [currentHotkeys, setCurrentHotkeys] = useState<Hotkey[]>([]);
-
-    const [hasShownCompletionDialog, setHasShownCompletionDialog] = useState<boolean>(false);
-
-    const [calibrationStatus, setCalibrationStatus] = useState<CalibrationStatus>({
-        isActive: false,
-        uncalibratedCount: 0,
-        activeCalibrationCount: 0,
-        allCalibrated: false,
-        buttons: []
-    });
-
-    // 使用 useRef 来保存 calibrationStatus 的最新引用
-    const calibrationStatusRef = useRef(calibrationStatus);
-    // 每次渲染时更新 ref
-    calibrationStatusRef.current = calibrationStatus;
+    const [calibrationActive, setCalibrationActive] = useState<boolean>(false);
 
     // 添加校准模式检查
     useNavigationBlocker(
-        calibrationStatus.isActive,
+        calibrationActive,
         t.CALIBRATION_MODE_WARNING_TITLE,
         t.CALIBRATION_MODE_WARNING_MESSAGE,
         async () => {
-            try {
-                await stopManualCalibration();
-                return true;
-            } catch {
-                return true;
-            }
+            onEndManualCalibration();
+            return true;
         }
     );
 
-    // 根据校准状态生成按钮颜色列表
-    const calibrationButtonColors = useMemo(() => {
-        if (!calibrationStatus.isActive || !calibrationStatus.buttons) {
-            return undefined;
-        }
-
-        const colorMap = {
-            'OFF': GamePadColor.fromString('#000000'),      // 黑色
-            'RED': GamePadColor.fromString('#FF0000'),      // 红色 - 未校准
-            'CYAN': GamePadColor.fromString('#00FFFF'),     // 天蓝色 - 顶部值采样中
-            'DARK_BLUE': GamePadColor.fromString('#0000AA'), // 深蓝色 - 底部值采样中
-            'GREEN': GamePadColor.fromString('#00FF00'),    // 绿色 - 校准完成
-            'YELLOW': GamePadColor.fromString('#FFFF00'),   // 黄色 - 校准出错
-        };
-
-        const colors = calibrationStatus.buttons.map(button =>
-            colorMap[button.ledColor] || GamePadColor.fromString('#808080') // 默认灰色
-        );
-
-
-        return colors;
-    }, [calibrationStatus]);
-
-    // 手动校准状态监听 - 只订阅一次，通过 ref 获取最新状态
-    useEffect(() => {
-        // 添加校准状态更新事件监听
-        const handleCalibrationUpdate = (data: unknown) => {
-            // 通过 ref 获取最新的 calibrationStatus 状态
-            if (!calibrationStatusRef.current.isActive) return;
-            
-            // 处理校准状态更新
-            if (data && typeof data === 'object' && 'calibrationStatus' in data) {
-                const eventData = data as { calibrationStatus?: CalibrationStatus };
-                if (eventData.calibrationStatus) {
-                    // 确保数据格式正确，添加默认值
-                    const statusData = eventData.calibrationStatus;
-                    const newCalibrationStatus: CalibrationStatus = {
-                        isActive: statusData?.isActive || false,
-                        uncalibratedCount: statusData?.uncalibratedCount || 0,
-                        activeCalibrationCount: statusData?.activeCalibrationCount || 0,
-                        allCalibrated: statusData?.allCalibrated || false,
-                        buttons: statusData?.buttons || []
-                    };
-                    // 直接更新校准状态
-                    setCalibrationStatus(newCalibrationStatus);
-                }
-            }
-        };
-
-        // 订阅校准更新事件（只订阅一次）
-        const unsubscribe = eventBus.on(EVENTS.CALIBRATION_UPDATE, handleCalibrationUpdate);
-        
-        // 清理函数
-        return () => {
-            unsubscribe();
-        };
-    }, []); // 依赖数组为空，只执行一次
-
     // 弹窗询问用户是否关闭校准模式
-    const showCompletionDialog = useCallback(async () => {
+    const showCompletionDialog = async () => {
         const confirmed = await openConfirm({
             title: t.CALIBRATION_COMPLETION_DIALOG_TITLE,
             message: t.CALIBRATION_COMPLETION_DIALOG_MESSAGE
         });
 
         if (confirmed) {
-            stopManualCalibration();
+            onEndManualCalibration();
         }
-    }, [t.CALIBRATION_COMPLETION_DIALOG_TITLE, t.CALIBRATION_COMPLETION_DIALOG_MESSAGE, stopManualCalibration]);
-
-    // 检测校准完成状态，显示确认对话框
-    useEffect(() => {
-        if (calibrationStatus.isActive &&
-            calibrationStatus.allCalibrated &&
-            !hasShownCompletionDialog) {
-
-            setHasShownCompletionDialog(true);
-            showCompletionDialog();
-        }
-    }, [calibrationStatus.isActive, calibrationStatus.allCalibrated, hasShownCompletionDialog, showCompletionDialog]);
-
-    // 当校准停止时，重置完成对话框标志
-    useEffect(() => {
-        if (!calibrationStatus.isActive) {
-            setHasShownCompletionDialog(false);
-        }
-    }, [calibrationStatus.isActive]);
-
+    };
 
     const deleteCalibrationDataClick = async () => {
         const confirmed = await openConfirm({
@@ -179,63 +79,37 @@ export function GlobalSettingContent() {
         });
 
         if (confirmed) {
-            await onDeleteCalibrationConfirm();
+            await clearManualCalibrationData();
         }
     };
 
-    const onDeleteCalibrationConfirm = () => {
-        return clearManualCalibrationData();
-    }
-
     const onStartManualCalibration = async () => {
-        try {
-            const status = await startManualCalibration();
-            setCalibrationStatus(status);
-        } catch {
-            throw new Error("Failed to start manual calibration");
-        }
+        setCalibrationActive(true);
     }
 
     const onEndManualCalibration = async () => {
-        try {
-            const status = await stopManualCalibration();
-            setCalibrationStatus(status);
-        } catch {
-            throw new Error("Failed to stop manual calibration");
-        }
+        setCalibrationActive(false);
     }
 
-    // 处理外部点击（从Hitbox组件）
-    const handleExternalClick = (keyId: number) => {
-
-        if (keyId >= 0 && keyId < btnPosList.length - 1) {
-            // 触发自定义事件通知HotkeySettingContent组件
-            const event = new CustomEvent('hitbox-click', {
-                detail: { keyId }
+    // 检查手动校准是否完成，如果未完成，则弹出确认对话框
+    const checkIsManualCalibrationCompletedHandle = useCallback(async () => {
+        const isCompleted = await checkIsManualCalibrationCompleted();
+        if(!isCompleted) {
+            const confirmation = await openConfirm({
+                title: t.CALIBRATION_CHECK_COMPLETED_DIALOG_TITLE,
+                message: t.CALIBRATION_CHECK_COMPLETED_DIALOG_MESSAGE
             });
-            window.dispatchEvent(event);
+            if(confirmation && !calibrationActive) {
+                onStartManualCalibration();
+            }
         }
-    };
+    }, [checkIsManualCalibrationCompleted, calibrationActive]);
 
     // 处理热键更新回调
     const handleHotkeyUpdate = useCallback((hotkeys: Hotkey[]) => {
         setCurrentHotkeys(hotkeys);
         setNeedUpdate(true);
     }, [currentHotkeys]);
-
-    // 初始化 currentHotkeys
-    useEffect(() => {
-        if(isInit) {
-            return;
-        }
-        
-        if(!isInit && dataIsReady && hotkeysConfig.length > 0) {
-            setCurrentHotkeys(Array.from({ length: DEFAULT_NUM_HOTKEYS_MAX }, (_, i) => {
-                return hotkeysConfig?.[i] ?? { key: -1, action: HotkeyAction.None, isLocked: false, isHold: false };
-            }));
-            setIsInit(true);
-        }
-    }, [dataIsReady, hotkeysConfig]);
 
     useEffect(() => {
         if(needUpdate) {
@@ -256,34 +130,57 @@ export function GlobalSettingContent() {
         }
     }, [sendPendingCommandImmediately]);
 
+    // 处理外部点击（从Hitbox组件）
+    const handleExternalClick = (keyId: number) => {
+        if (keyId >= 0 && keyId < btnPosList.length - 1) {
+            // 触发自定义事件通知HotkeySettingContent组件
+            const event = new CustomEvent('hitbox-click', {
+                detail: { keyId }
+            });
+            window.dispatchEvent(event);
+        }
+    };
+
     // 当校准状态改变时，更新完成配置按钮的禁用状态
     useEffect(() => {
-        if(calibrationStatus.isActive) {
+        if(calibrationActive) {
             setFinishConfigDisabled(true);
-        } else if(!calibrationStatus.isActive) {
+        } else if(!calibrationActive) {
             setFinishConfigDisabled(false);
         }
         return () => {
             setFinishConfigDisabled(false);
         }
-    }, [calibrationStatus.isActive]);
+    }, [calibrationActive]);
 
     useEffect(() => {
         // 如果webscoket断开，并且校准正在进行中，则停止校准
-        if(!wsConnected && calibrationStatus.isActive) {
-            setCalibrationStatus({
-                isActive: false,
-                uncalibratedCount: 0,
-                activeCalibrationCount: 0,
-                allCalibrated: false,
-                buttons: []
-            });
+        if(!wsConnected && calibrationActive) {
+            setCalibrationActive(false);
         }
     }, [wsConnected]);
 
+    // 初始化 currentHotkeys
+    useEffect(() => {
+        if(isInit) {
+            return;
+        }
+        
+        if(!isInit && dataIsReady && hotkeysConfig.length > 0) {
+            setCurrentHotkeys(Array.from({ length: DEFAULT_NUM_HOTKEYS_MAX }, (_, i) => {
+                return hotkeysConfig?.[i] ?? { key: -1, action: HotkeyAction.None, isLocked: false, isHold: false };
+            }));
+
+            // 每次进入页面的时候会检查是否按键都校准了，如果未完成，则弹出确认对话框
+            checkIsManualCalibrationCompletedHandle();
+
+            setIsInit(true);
+        }
+    }, [dataIsReady, hotkeysConfig]);
+
     // 渲染hitbox内容
     const renderHitboxContent = (containerWidth: number) => {
-        if (!calibrationStatus.isActive) {
+        if (!calibrationActive) {
             return (
                 <HitboxHotkey
                     interactiveIds={HOTKEYS_SETTINGS_INTERACTIVE_IDS}
@@ -295,9 +192,8 @@ export function GlobalSettingContent() {
         } else {
             return (
                 <HitboxCalibration
-                    hasText={false}
-                    buttonsColorList={calibrationButtonColors}
                     containerWidth={containerWidth}
+                    calibrationAllCompletedCallback={showCompletionDialog}
                 />
             );
         }
@@ -308,14 +204,14 @@ export function GlobalSettingContent() {
         show: true,
         buttons: [
             {
-                text: calibrationStatus.isActive ? t.CALIBRATION_STOP_BUTTON : t.CALIBRATION_START_BUTTON,
-                icon: (calibrationStatus.isActive ? FaRegStopCircle : VscDashboard),
-                color: (calibrationStatus.isActive ? "blue" : "green") as "blue" | "green",
+                text: calibrationActive ? t.CALIBRATION_STOP_BUTTON : t.CALIBRATION_START_BUTTON,
+                icon: (calibrationActive ? FaRegStopCircle : VscDashboard),
+                color: (calibrationActive ? "blue" : "green") as "blue" | "green",
                 size: "sm" as const,
                 width: "190px",
                 disabled: globalConfig.autoCalibrationEnabled,
-                onClick: calibrationStatus.isActive ? onEndManualCalibration : onStartManualCalibration,
-                hasTip: !calibrationStatus.isActive,
+                onClick: calibrationActive ? onEndManualCalibration : onStartManualCalibration,
+                hasTip: !calibrationActive,
                 tipMessage: t.CALIBRATION_TIP_MESSAGE,
             },
             {
@@ -324,7 +220,7 @@ export function GlobalSettingContent() {
                 color: "red" as const,
                 size: "sm" as const,
                 width: "190px",
-                disabled: globalConfig.autoCalibrationEnabled || calibrationStatus.isActive,
+                disabled: globalConfig.autoCalibrationEnabled || calibrationActive,
                 onClick: deleteCalibrationDataClick,
             }
         ],
@@ -334,10 +230,10 @@ export function GlobalSettingContent() {
 
     return (
         <SettingContentLayout
-            disabled={calibrationStatus.isActive}
+            disabled={calibrationActive}
         >
             <SideContent>
-                <InputModeSettingContent disabled={calibrationStatus.isActive} />
+                <InputModeSettingContent disabled={calibrationActive} />
             </SideContent>
             
             <HitboxContent>
@@ -346,7 +242,7 @@ export function GlobalSettingContent() {
             
             <MainContent>
                 <HotkeySettingContent
-                    disabled={calibrationStatus.isActive}
+                    disabled={calibrationActive}
                     onHotkeysUpdate={handleHotkeyUpdate}
                     hotkeys={currentHotkeys}
                 />

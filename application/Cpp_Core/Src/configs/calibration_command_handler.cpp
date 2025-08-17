@@ -304,6 +304,8 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handle(const WebSocketUpst
         return handleGetCalibrationStatus(request);
     } else if (command == "clear_manual_calibration_data") {
         return handleClearManualCalibrationData(request);
+    } else if (command == "check_is_manual_calibration_completed") {
+        return handleCheckIsManualCalibrationCompleted(request);
     }
     
     return create_error_response(request.getCid(), command, -1, "Unknown calibration command");
@@ -361,6 +363,13 @@ cJSON* CalibrationCommandHandler::buildCalibrationStatusJSON() {
     cJSON_AddItemToObject(statusJSON, "buttons", buttonsArray);
     
     return statusJSON;
+}
+
+WebSocketDownstreamMessage CalibrationCommandHandler::handleCheckIsManualCalibrationCompleted(const WebSocketUpstreamMessage& request) {
+    // 创建响应数据
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddBoolToObject(dataJSON, "isCompleted", ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated(false)); // 不使用缓存，重新加载校准数据
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
 /**

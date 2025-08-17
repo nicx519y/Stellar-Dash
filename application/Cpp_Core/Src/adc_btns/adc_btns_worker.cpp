@@ -208,6 +208,7 @@ ADCBtnsError ADCBtnsWorker::setup()
         }
         else
         {
+            APP_ERR("adc_btns_worker::setup calibration failed, buttonIndex: %d, topValue: %d, bottomValue: %d", i, topValue, bottomValue);
             // 这里需要等待第一次ADC读取来初始化
             buttonPtrs[i]->initCompleted = false;
             // 清空映射数组
@@ -305,22 +306,6 @@ void ADCBtnsWorker::initButtonMapping(ADCBtn *btn, const uint16_t releaseValue)
     {
         return;
     }
-
-    // 计算差值：当前释放值与原始映射末尾值的差
-    // const int32_t offset = (int32_t)releaseValue - btn->calibratedMapping[mapping->length - 1];
-
-    // // 对每个值进行平移，生成校准后的映射
-    // for (size_t i = 0; i < mapping->length; i++)
-    // {
-    //     // 使用int32_t避免uint16_t相加减可能的溢出
-    //     int32_t newValue = btn->calibratedMapping[i] + offset;
-
-    //     // 确保值在uint16_t范围内
-    //     newValue = newValue < 0 ? 0 : (newValue > UINT16_MAX ? UINT16_MAX : newValue);
-
-    //     // 更新校准后的映射
-    //     btn->calibratedMapping[i] = (uint16_t)newValue;
-    // }
 
     // 如果校准后的映射为空，则不进行初始化
     if(btn->calibratedMapping[0] == 0 && btn->calibratedMapping[mapping->length - 1] == 0) {

@@ -102,7 +102,7 @@ public:
     CalibrationPhase getButtonPhase(uint8_t buttonIndex) const;
     CalibrationLEDColor getButtonLEDColor(uint8_t buttonIndex) const;
     bool isButtonCalibrated(uint8_t buttonIndex) const;
-    bool isAllButtonsCalibrated() const;
+    bool isAllButtonsCalibrated( bool useCache = true );
     uint8_t getUncalibratedButtonCount() const;            // 获取未校准按键数量
     uint8_t getActiveCalibrationButtonCount() const;      // 获取正在校准的按键数量
     
@@ -117,7 +117,7 @@ public:
     // Flash存储优化
     ADCBtnsError savePendingCalibration();                 // 手动保存待保存的校准数据
     uint8_t getPendingCalibrationCount() const;            // 获取待保存的校准数据数量
-    
+
     // 调试和监控
     void printAllCalibrationResults();                    // 打印所有按键校准完成的汇总信息
     void testAllLEDs66();                                    // 测试所有LED显示效果
@@ -142,6 +142,7 @@ private:
     // 内部方法
     void initializeButtonStates();                        // 初始化按键状态
     bool loadExistingCalibration();                       // 加载已有的校准数据
+    void initEnabledKeysMask();                           // 初始化启用按键掩码
     void processButtonCalibration(uint8_t buttonIndex);   // 处理单个按键校准
     bool shouldSampleButton(uint8_t buttonIndex) const;   // 判断是否应该对按键采样
     ADCBtnsError validateSample(uint8_t buttonIndex, uint16_t adcValue); // 验证采样值
@@ -167,6 +168,7 @@ private:
     ADCBtnsError clearAllCalibrationFromFlash();          // 批量清除Flash中的校准数据
     ADCBtnsError saveAllPendingCalibration();             // 保存所有待保存的校准数据
     void markCalibrationForSave(uint8_t buttonIndex);     // 标记校准数据需要保存
+    
 };
 
 #define ADC_CALIBRATION_MANAGER ADCCalibrationManager::getInstance()

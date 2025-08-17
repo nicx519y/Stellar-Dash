@@ -119,6 +119,7 @@ interface GamepadConfigContextType {
     startManualCalibration: () => Promise<CalibrationStatus>;
     stopManualCalibration: () => Promise<CalibrationStatus>;
     clearManualCalibrationData: () => Promise<void>;
+    checkIsManualCalibrationCompleted: () => Promise<boolean>;
     // ADC Mapping 相关
     defaultMappingId: string;
     markingStatus: StepInfo;
@@ -913,7 +914,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setError(null);
             return Promise.resolve(data.calibrationStatus);
         } catch (err) {
-            // setError(err instanceof Error ? err.message : 'An error occurred');
+            setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to start manual calibration"));
         } finally {
             setIsLoading(false);
@@ -927,7 +928,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setError(null);
             return Promise.resolve(data.calibrationStatus);
         } catch (err) {
-            // setError(err instanceof Error ? err.message : 'An error occurred');
+            setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to stop manual calibration"));
         } finally {
             setIsLoading(false);
@@ -945,6 +946,15 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             return Promise.reject(new Error("Failed to clear manual calibration data"));
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const checkIsManualCalibrationCompleted = async (immediate: boolean = true): Promise<boolean> => {
+        try {
+            const data = await sendWebSocketRequest('check_is_manual_calibration_completed', {}, immediate);
+            return Promise.resolve(data.isCompleted);
+        } catch (err) {
+            return Promise.reject(new Error("Failed to check if manual calibration is completed"));
         }
     };
 
@@ -1855,6 +1865,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             startManualCalibration,
             stopManualCalibration,
             clearManualCalibrationData,
+            checkIsManualCalibrationCompleted,
             // ADC Mapping 相关
             defaultMappingId: defaultMappingId,
             markingStatus,

@@ -13,7 +13,6 @@ void LEDDataToDMABuffer(const uint16_t start, const uint16_t length);
 
 ADCCalibrationManager::ADCCalibrationManager() {
     APP_DBG("ADCCalibrationManager constructor - creating global instance");
-    
     // initializeButtonStates();
 }
 
@@ -22,14 +21,9 @@ ADCCalibrationManager::~ADCCalibrationManager() {
 }
 
 /**
- * 开始手动校准
+ * 初始化启用按键掩码
  */
-ADCBtnsError ADCCalibrationManager::startManualCalibration() {
-    if (calibrationActive) {
-        return ADCBtnsError::CALIBRATION_IN_PROGRESS;
-    }
-    
-    // 初始化启用按键掩码
+void ADCCalibrationManager::initEnabledKeysMask() {
     enabledKeysMask = 0;
     GamepadProfile* profile = STORAGE_MANAGER.getGamepadProfile(STORAGE_MANAGER.config.defaultProfileId);
     if (profile) {
@@ -43,6 +37,18 @@ ADCBtnsError ADCCalibrationManager::startManualCalibration() {
         }
         APP_DBG("ADCCalibrationManager: enabled keys mask = 0x%08X", enabledKeysMask);
     }
+}
+
+/**
+ * 开始手动校准
+ */
+ADCBtnsError ADCCalibrationManager::startManualCalibration() {
+    if (calibrationActive) {
+        return ADCBtnsError::CALIBRATION_IN_PROGRESS;
+    }
+    
+    // 初始化启用按键掩码
+    initEnabledKeysMask();
 
     // 重置所有状态
     initializeButtonStates();
@@ -698,7 +704,13 @@ bool ADCCalibrationManager::isButtonCalibrated(uint8_t buttonIndex) const {
     return false;
 }
 
-bool ADCCalibrationManager::isAllButtonsCalibrated() const {
+bool ADCCalibrationManager::isAllButtonsCalibrated( bool useCache ) {
+    if(!useCache) {
+        initializeButtonStates();
+        initEnabledKeysMask();
+        loadExistingCalibration();
+    }
+
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
         // 检查按键是否启用
         if (!(enabledKeysMask & (1 << i))) {
