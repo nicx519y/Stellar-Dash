@@ -311,8 +311,8 @@ export function FirmwareContent() {
                         </Center>
                     )}
                     {updateStatus !== UpdateStatus.NoUpdate && (
-                        <Center w="full" >
-                            <Alert.Root status={updateStatus === UpdateStatus.UpdateSuccess ? "success" : updateStatus === UpdateStatus.UpdateFailed ? "error" : "info"} >
+                        <Box w="full" >
+                            <Alert.Root w="full" status={updateStatus === UpdateStatus.UpdateSuccess ? "success" : updateStatus === UpdateStatus.UpdateFailed ? "error" : "info"} >
                                 <Alert.Indicator />
                                 <Alert.Content>
                                     <Alert.Title fontSize=".9rem" lineHeight="1.4em"  >
@@ -323,7 +323,7 @@ export function FirmwareContent() {
                                     </Alert.Title>
                                 </Alert.Content>
                             </Alert.Root>
-                            <Card.Root w="full" height="200px"  >
+                            <Card.Root w="full" height="200px" mt="10px"  >
                                 <Card.Body overflowY="auto" >
                                     <List.Root
                                         gap=".5rem"
@@ -344,7 +344,7 @@ export function FirmwareContent() {
                                     </List.Root>
                                 </Card.Body>
                             </Card.Root>
-                        </Center>
+                        </Box>
                     )}
 
                     {(updateStatus === UpdateStatus.UpdateAvailable || updateStatus === UpdateStatus.UpdateFailed || updateStatus === UpdateStatus.Updating) && (

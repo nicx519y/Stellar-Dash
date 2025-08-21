@@ -125,15 +125,6 @@ ADCBtnsError ADCCalibrationManager::stopCalibration() {
     calibrationActive = false;
     completionCheckExecuted = false; // 重置完成检查标志
     
-    // 停止ADC采样
-    // ADC_MANAGER.stopADCSamping();
-
-    // // 结束校准时关闭所有LED
-    // for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-    //     setButtonLEDColor(i, CalibrationLEDColor::OFF);
-    // }
-    
-    // updateAllLEDs();
     
     // 关闭LED
     if(WS2812B_GetState() == WS2812B_RUNNING) {

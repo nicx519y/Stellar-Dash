@@ -24,7 +24,7 @@ export const DEFAULT_FIRMWARE_UPGRADE_MAX_RETRIES = 3;
 // firmware upgrade timeout
 export const DEFAULT_FIRMWARE_UPGRADE_TIMEOUT = 30000;
 // firmware server host
-export const DEFAULT_FIRMWARE_SERVER_HOST = 'http://182.92.72.220:3000';
+export const DEFAULT_FIRMWARE_SERVER_HOST = 'https://firmware.st-dash.com';
 
 // hitbox button position list
 const btnsPos = [
@@ -1107,7 +1107,7 @@ export const UI_TEXT_ZH = {
     SOCD_NEUTRAL: "中立",
     SOCD_NEUTRAL_DESC: "当同时按下相对方向键时，输出中立信号，表示没有方向输入。", 
     SOCD_UP_PRIORITY: "上优先",
-    SOCD_UP_PRIORITY_DESC: "在水平方向上，相反方向的输入类似NEUTRAL模式下处理一样，输出中立信号；当同时按下上和下时，优先输出上方向信号。",
+    SOCD_UP_PRIORITY_DESC: "在水平方向上，相反方向的输入类似<中立>模式下处理一样，输出中立信号；当同时按下上和下时，优先输出上方向信号。",
     SOCD_SEC_INPUT_PRIORITY: "后输入优先",
     SOCD_SEC_INPUT_PRIORITY_DESC: "优先发送后输入的方向命令。",
     SOCD_FIRST_INPUT_PRIORITY: "前输入优先",

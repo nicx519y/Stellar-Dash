@@ -67,9 +67,6 @@ void InputState::setup() {
     LEDS_MANAGER.setup();
     #endif
 
-    workTime = MICROS_TIMER.micros();  // 微秒级
-    ledAnimationTime = HAL_GetTick();  // 毫秒级
-
     isRunning = true;
     LOG_INFO("INPUT", "Input state setup completed successfully");
 
@@ -78,21 +75,18 @@ void InputState::setup() {
 
 void InputState::loop() { 
 
-    if(MICROS_TIMER.checkInterval(READ_BTNS_INTERVAL, workTime)) {
+    virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
 
-        virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
-
-        // 只有在没有按下FN键时才处理游戏手柄数据
-        if((virtualPinMask & FN_BUTTON_VIRTUAL_PIN) == 0) {
-            GAMEPAD.read(virtualPinMask);
-            inputDriver->process(&GAMEPAD);  // 处理游戏手柄数据，将按键数据映射到xinput协议 形成 report 数据，然后通过 usb 发送出去
-        } else {
-            // 更新热键状态，处理hold和click逻辑
-            HOTKEYS_MANAGER.updateHotkeyState(virtualPinMask, lastVirtualPinMask);
-        }
-
-        lastVirtualPinMask = virtualPinMask;
+    // 只有在没有按下FN键时才处理游戏手柄数据
+    if((virtualPinMask & FN_BUTTON_VIRTUAL_PIN) == 0) {
+        GAMEPAD.read(virtualPinMask);
+        inputDriver->process(&GAMEPAD);  // 处理游戏手柄数据，将按键数据映射到xinput协议 形成 report 数据，然后通过 usb 发送出去
+    } else {
+        // 更新热键状态，处理hold和click逻辑
+        HOTKEYS_MANAGER.updateHotkeyState(virtualPinMask, lastVirtualPinMask);
     }
+
+    lastVirtualPinMask = virtualPinMask;
 
     // 处理USB任务
     tud_task(); // 设备模式任务
@@ -100,11 +94,7 @@ void InputState::loop() {
     inputDriver->processAux();
 
     #if HAS_LED == 1
-    uint32_t currentTime = HAL_GetTick();
-    if(currentTime - ledAnimationTime >= LEDS_ANIMATION_INTERVAL) {
-        LEDS_MANAGER.loop(virtualPinMask);
-        ledAnimationTime = currentTime;
-    }
+    LEDS_MANAGER.loop(virtualPinMask);
     #endif
 }
 

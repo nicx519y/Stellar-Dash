@@ -15,6 +15,9 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs-extra');
+const server_address = process.env.SERVER_ADDRESS || '182.92.72.220';
+const server_port = process.env.SERVER_PORT || 3000;
+const domain_name = process.env.DOMAIN_NAME || 'firmware.st-dash.com';
 
 // 引入固件模块
 const { FirmwareStorage, compareVersions, isValidVersion } = require('./firmware');
@@ -37,7 +40,13 @@ const config = {
     dataFile: path.join(__dirname, '..', 'data/firmware_list.json'),
     maxFileSize: 50 * 1024 * 1024, // 50MB
     allowedExtensions: ['.zip'],
-    serverUrl: process.env.SERVER_URL || `http://182.92.72.220:${PORT}`
+    // 支持多种访问方式
+    serverUrls: {
+        direct: process.env.DIRECT_URL || `http://${server_address}:${server_port}`,
+        domain: process.env.DOMAIN_URL || `https://${domain_name}`
+    },
+    // 兼容旧配置
+    serverUrl: process.env.SERVER_URL || `http://${server_address}:${server_port}`
 };
 
 // 中间件配置
@@ -105,7 +114,8 @@ app.listen(PORT, () => {
     console.log('='.repeat(60));
     console.log('STM32 HBox 固件管理服务器');
     console.log('='.repeat(60));
-    console.log(`服务器地址: http://182.92.72.220:${PORT}`);
+    console.log(`服务器地址: http://${server_address}:${server_port}`);
+    console.log(`域名地址: https://${domain_name}`);
     console.log(`上传目录: ${config.uploadDir}`);
     console.log(`数据文件: ${config.dataFile}`);
     console.log(`最大文件大小: ${config.maxFileSize / (1024 * 1024)}MB`);

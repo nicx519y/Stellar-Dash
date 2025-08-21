@@ -85,88 +85,28 @@ cd server/tools
 .\deploy-simple.ps1
 ```
 
-## API 文档
+## 访问方式
 
-### 固件管理 API
+本服务支持两种访问方式：
 
-#### 获取固件列表
-```http
-GET /api/firmwares
-```
+### 1. 直接端口访问
+- **地址**: http://182.92.72.220:3000
+- **用途**: 内部测试、开发调试
+- **特点**: 无需域名解析，直接访问
 
-**响应示例:**
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "firmware-001",
-      "name": "HBox固件 v1.0.0",
-      "version": "1.0.0",
-      "description": "初始版本固件",
-      "createTime": "2024-01-01T00:00:00.000Z",
-      "slotA": {
-        "filePath": "firmware_v1.0.0_slotA.bin",
-        "size": 1024000
-      },
-      "slotB": {
-        "filePath": "firmware_v1.0.0_slotB.bin", 
-        "size": 1024000
-      }
-    }
-  ]
-}
-```
+### 2. 域名HTTPS访问
+- **地址**: https://firmware.st-dash.com
+- **用途**: 生产环境、外部访问
+- **特点**: 安全HTTPS连接，专业域名
 
-#### 上传固件
-```http
-POST /api/firmwares/upload
-Content-Type: multipart/form-data
-```
+### 健康检查
+- 直接访问: http://182.92.72.220:3000/health
+- 域名访问: https://firmware.st-dash.com/health
 
-**参数:**
-- `name`: 固件名称
-- `version`: 版本号
-- `description`: 描述信息
-- `slotA`: 槽A固件文件
-- `slotB`: 槽B固件文件
-
-#### 删除固件
-```http
-DELETE /api/firmwares/:id
-```
-
-### 设备管理 API
-
-#### 设备注册
-```http
-POST /api/devices/register
-Content-Type: application/json
-```
-
-**请求体:**
-```json
-{
-  "rawUniqueId": "12345678-87654321-ABCDEF01",
-  "deviceId": "A1B2C3D4E5F6G7H8"
-}
-```
-
-#### 获取设备列表
-```http
-GET /api/devices
-```
-
-### 固件更新 API
-
-#### 检查更新
-```http
-GET /api/firmware/check-update?deviceId=:deviceId&currentVersion=:version
-```
-
-#### 下载固件
-```http
-GET /api/firmware/download/:firmwareId/:slot
+### 部署命令
+```bash
+# 双访问模式部署
+./deploy-simple.ps1
 ```
 
 ## 部署配置
@@ -184,10 +124,20 @@ GET /api/firmware/download/:firmwareId/:slot
       "path": "/opt/hbox-server",
       "ssh_key": "E:\\Works\\Ali-cloude\\182.92.72.220\\PC1125.pem",
       "port": 3000,
+      "domain": "firmware.st-dash.com",
+      "ssl_enabled": true,
+      "access_methods": {
+        "direct_port": "http://182.92.72.220:3000",
+        "domain_https": "https://firmware.st-dash.com"
+      },
       "description": "生产环境"
     }
   },
-  "default_env": "prod"
+  "default_env": "prod",
+  "health_check_urls": {
+    "direct": "http://182.92.72.220:3000/health",
+    "domain": "https://firmware.st-dash.com/health"
+  }
 }
 ```
 

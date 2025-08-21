@@ -61,7 +61,7 @@ class ReleaseConfig:
         # 默认配置
         self.default_config = {
             "server": {
-                "default_url": "http://182.92.72.220:3000",
+                "default_url": "https://firmware.st-dash.com",
                 "timeout": 300,
                 "retry_count": 3
             },

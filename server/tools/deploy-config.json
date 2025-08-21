@@ -22,12 +22,21 @@
       "path": "/opt/hbox-server",
       "ssh_key": "E:\\Works\\Ali-cloude\\182.92.72.220\\PC1125.pem",
       "port": 3000,
-      "description": "生产环境"
+      "description": "生产环境",
+      "domain": "firmware.st-dash.com",
+      "ssl_enabled": true,
+      "access_methods": {
+        "direct_port": "http://182.92.72.220:3000",
+        "domain_https": "https://firmware.st-dash.com"
+      }
     }
   },
   "default_env": "prod",
   "backup_enabled": true,
   "backup_retention_days": 7,
-  "health_check_url": "http://localhost:3000/health",
+  "health_check_urls": {
+    "direct": "http://182.92.72.220:3000/health",
+    "domain": "https://firmware.st-dash.com/health"
+  },
   "health_check_timeout": 30
 } 
