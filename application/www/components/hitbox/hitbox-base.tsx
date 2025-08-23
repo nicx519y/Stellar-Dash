@@ -284,11 +284,11 @@ export default function HitboxBase(props: HitboxBaseProps) {
         const buttonLabel = props.buttonLabelMap?.[index];
 
         return `
-            <tspan x="${x+1}" y="${y-5}" style="font-size: 0.5rem; fill: #999; ">
+            <tspan x="${x+1}" y="${y-7}" style="font-size: 0.5rem; fill: #999; ">
                 ${index + 1}
             </tspan>
-            <tspan x="${x}" y="${y+8}" style="font-size: 0.5rem; font-weight: bold; fill: #fff;">
-                [${buttonLabel ?? "----"}]
+            <tspan x="${x}" y="${y+6}" style="font-size: 0.5rem; font-weight: bold; fill: #fff;">
+                ${buttonLabel ?? "----"}
             </tspan>
         `;
     }

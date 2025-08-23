@@ -15,7 +15,7 @@ struct GamepadButtonMapping
     {}
 
     Mask_t virtualPinMask;
-    const Mask_t buttonMask;
+    Mask_t buttonMask;
     
 };
 

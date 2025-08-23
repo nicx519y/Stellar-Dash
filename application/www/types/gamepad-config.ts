@@ -596,7 +596,7 @@ export const UI_TEXT = {
 
     // Keys Settings
     SETTINGS_KEYS_TITLE: "KEYS SETTINGS",
-    SETTINGS_KEYS_HELPER_TEXT: `Set the mapping between Hitbox buttons and game controller buttons.\n- Select a configuration field, then press left Hitbox button or the button of the device to bind it.\n- Multiple key mappings can be binded to one controller button.\n- Auto switch mode: Automatically switch the button field when the input key is changed.\n- Manual switch mode: Manually set the active button field. \n- Clear mapping: Clear all key mappings, used when you want to reconfigure all buttons.`,
+    SETTINGS_KEYS_HELPER_TEXT: `Set the mapping between Hitbox buttons and game controller buttons.\n- Select a configuration field, then press left Hitbox button or the button of the device to bind it.\n- Multiple key mappings can be binded to one controller button.`,
     KEYS_ENABLE_START_BUTTON_LABEL: "Configuring keys enablement",
     KEYS_ENABLE_STOP_BUTTON_LABEL: "Exit configuring",
     KEYS_ENABLE_HELPER_TEXT: "- Click [Configuring keys enablement] to start configuring keys. The available keys will be shown in green, and the disabled keys will be shown in gray.\n- Click the green button to disable the key, and click the gray button to enable the key.\n- Click the [Exit configuring] button to exit the configuring mode. \n- Disabled keys cannot trigger press and release, and cannot light up the LED.",
@@ -915,7 +915,7 @@ export const UI_TEXT_ZH = {
 
     // 按键设置
     SETTINGS_KEYS_TITLE: "按键设置",
-    SETTINGS_KEYS_HELPER_TEXT: `设置格斗板按键和游戏控制器按键的映射关系。\n- 选中下面的游戏控制器按键配置框，然后点击左侧格斗板图示按键或者按压实体设备上的按键即可绑定。 \n- 每个控制器按键可以绑定多个格斗板按键。\n- 选择自动切换模式，每次绑定按键时，会自动切换到下一个按键区域。\n- 选择手动切换模式，每次绑定按键时，需要手动切换到另一个按键区域。\n- [清空映射]：清空所有按键映射，用于想重新配置所有按键映射时使用。`,
+    SETTINGS_KEYS_HELPER_TEXT: `设置格斗板按键和游戏控制器按键的映射关系。\n- 选中下面的游戏控制器按键配置框，然后点击左侧格斗板图示按键或者按压实体设备上的按键即可绑定。 \n- 每个控制器按键可以绑定多个格斗板按键。`,
     KEYS_ENABLE_START_BUTTON_LABEL: "开始配置按键启用/禁用",
     KEYS_ENABLE_STOP_BUTTON_LABEL: "结束配置按键启用/禁用",
     KEYS_ENABLE_HELPER_TEXT: "- 点击[开始配置按键启用/禁用]后，下面的格斗板图示上，可用按键会以绿色显示，禁用按键会以灰色显示。\n- 点击绿色按键可以禁用此按键，点击灰色按键可以启用此按键。\n- 点击[结束配置按键启用/禁用]后，配置模式结束。\n- 被禁用的按键无法触发按下和回弹，无法点亮LED。",

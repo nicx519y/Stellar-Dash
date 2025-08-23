@@ -50,7 +50,7 @@
 #endif
 
 /* Debug print configuration */
-#define APPLICATION_DEBUG_PRINT  0   // 设置为 0 可以关闭所有调试打印
+#define APPLICATION_DEBUG_PRINT  1   // 设置为 0 可以关闭所有调试打印
 
 #if APPLICATION_DEBUG_PRINT
     #define APP_DBG(fmt, ...) printf("[APP] " fmt "\r\n", ##__VA_ARGS__)
@@ -80,7 +80,7 @@
 #define WEBCONFIG_IP_FOURTH                 1
 #define WEBCONFIG_DOMAIN_NAME               "st-dash.usb"
 
-#define CONFIG_VERSION                      (uint32_t)0x00000e  //配置版本 三位版本号 0x aa bb cc
+#define CONFIG_VERSION                      (uint32_t)0x00000f  //配置版本 三位版本号 0x aa bb cc
 #define ADC_MAPPING_VERSION                 (uint32_t)0x000001  //ADC值映射表版本
 
 // 双槽地址偏移定义（相对于槽基地址的偏移）
@@ -107,11 +107,6 @@ uint32_t get_current_slot_base_address(void);
 #define TIME_ADC_INIT                       1000            // ADC初始化时间，时间越长初始化越准确
 #define NUM_WINDOW_SIZE                     8               // 校准滑动窗口大小
 
-#define ULTRAFast_THRESHOLD_NONE                 0               // 超快版本阈值 0 表示不使用防抖
-#define ULTRAFast_THRESHOLD_MAX             30             // 超快版本阈值最大值
-#define ULTRAFast_THRESHOLD_NORMAL          15             // 超快版本阈值一般值
-
-
 #define NUM_PROFILES                        16
 #define NUM_ADC                             3               // 3个ADC
 #define NUM_ADC1_BUTTONS                    6
@@ -122,6 +117,8 @@ uint32_t get_current_slot_base_address(void);
 #define MIN_ADC_BOTTOM_DEADZONE             0.1             // 默认ADC底部死区最小值
 #define MIN_ADC_RELEASE_ACCURACY            0.1f            // 默认ADC释放精度
 #define MIN_VALUE_DIFF_RATIO                0.8             // 最小值差值比例 按键动态校准的过程中，如果bottom - top的值差 不能小于原mapping的值差*MIN_VALUE_DIFF_RATIO
+
+#define MAX_KEY_COMBINATION                 10              // 最大自定义按键组合键数量
 
 #define READ_BTNS_INTERVAL                  50            // 检查按钮状态间隔 us
 #define DYNAMIC_CALIBRATION_INTERVAL        500000          // 动态校准间隔 500ms

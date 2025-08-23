@@ -23,6 +23,129 @@ cJSON* ProfileCommandHandler::buildKeyMappingJSON(uint32_t virtualMask) {
     return keyMappingJSON;
 }
 
+cJSON* ProfileCommandHandler::buildKeyCombinationJSON(KeyCombination* keyCombination) {
+    cJSON* keyCombinationJSON = cJSON_CreateObject();
+    cJSON* gameControllerButtonMaskJSON = cJSON_CreateArray();
+    cJSON* virtualPinMaskJSON = cJSON_CreateArray();
+
+    for(uint8_t i = 0; i < NUM_GAME_CONTROLLER_BUTTONS; i++) {
+        if(keyCombination->gameControllerButtonMask & (1 << i)) {
+            if(i == GameControllerButton::GAME_CONTROLLER_DPAD_UP) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("DPAD_UP"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_DPAD_DOWN) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("DPAD_DOWN"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_DPAD_LEFT) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("DPAD_LEFT"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_DPAD_RIGHT) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("DPAD_RIGHT"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_B1) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("B1"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_B2) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("B2"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_B3) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("B3"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_B4) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("B4"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_L1) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("L1"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_L2) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("L2"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_R1) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("R1"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_R2) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("R2"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_S1) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("S1"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_S2) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("S2"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_L3) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("L3"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_R3) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("R3"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_A1) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("A1"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_A2) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("A2"));
+            } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_FN) {
+                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("Fn"));
+            }
+        }
+    }
+
+    for(uint8_t i = 0; i < NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS; i++) {
+        if(keyCombination->virtualPinMask & (1 << i)) {
+            cJSON_AddItemToArray(virtualPinMaskJSON, cJSON_CreateNumber(i));
+        }
+    }
+
+    cJSON_AddItemToObject(keyCombinationJSON, "gameControllerButtons", gameControllerButtonMaskJSON);
+    cJSON_AddItemToObject(keyCombinationJSON, "virtualPinMask", virtualPinMaskJSON);
+
+    return keyCombinationJSON;
+}
+
+KeyCombination ProfileCommandHandler::getKeyCombination(cJSON* keyCombinationJSON) {
+    KeyCombination keyCombination;
+    keyCombination.gameControllerButtonMask = 0;
+    keyCombination.virtualPinMask = 0;
+
+    cJSON* gameControllerButtons = cJSON_GetObjectItem(keyCombinationJSON, "gameControllerButtons");
+    if(gameControllerButtons) {
+        cJSON* item = NULL;
+        cJSON_ArrayForEach(item, gameControllerButtons) {
+            if(strcmp(cJSON_GetStringValue(item), "DPAD_UP") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_DPAD_UP);
+            } else if(strcmp(cJSON_GetStringValue(item), "DPAD_DOWN") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_DPAD_DOWN);
+            } else if(strcmp(cJSON_GetStringValue(item), "DPAD_LEFT") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_DPAD_LEFT);
+            } else if(strcmp(cJSON_GetStringValue(item), "DPAD_RIGHT") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_DPAD_RIGHT);
+            } else if(strcmp(cJSON_GetStringValue(item), "B1") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_B1);
+            } else if(strcmp(cJSON_GetStringValue(item), "B2") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_B2);
+            } else if(strcmp(cJSON_GetStringValue(item), "B3") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_B3);
+            } else if(strcmp(cJSON_GetStringValue(item), "B4") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_B4);
+            } else if(strcmp(cJSON_GetStringValue(item), "L1") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_L1);
+            } else if(strcmp(cJSON_GetStringValue(item), "L2") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_L2);
+            } else if(strcmp(cJSON_GetStringValue(item), "R1") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_R1);
+            } else if(strcmp(cJSON_GetStringValue(item), "R2") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_R2);
+            } else if(strcmp(cJSON_GetStringValue(item), "S1") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_S1);
+            } else if(strcmp(cJSON_GetStringValue(item), "S2") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_S2);
+            } else if(strcmp(cJSON_GetStringValue(item), "L3") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_L3);
+            } else if(strcmp(cJSON_GetStringValue(item), "R3") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_R3);
+            } else if(strcmp(cJSON_GetStringValue(item), "A1") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_A1);
+            } else if(strcmp(cJSON_GetStringValue(item), "A2") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_A2);
+            } else if(strcmp(cJSON_GetStringValue(item), "Fn") == 0) {
+                keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_FN);
+            }
+        }
+    }
+
+    cJSON* virtualPinMaskJSON = cJSON_GetObjectItem(keyCombinationJSON, "virtualPinMask");
+    if(virtualPinMaskJSON) {
+        cJSON* item = NULL;
+        cJSON_ArrayForEach(item, virtualPinMaskJSON) {
+            keyCombination.virtualPinMask |= (1 << (int)cJSON_GetNumberValue(item));
+        }
+    }
+
+    return keyCombination;
+}
+
 uint32_t ProfileCommandHandler::getKeyMappingVirtualMask(cJSON* keyMappingJSON) {
     if(!keyMappingJSON || !cJSON_IsArray(keyMappingJSON)) {
         return 0;
@@ -137,26 +260,34 @@ cJSON* ProfileCommandHandler::buildProfileJSON(GamepadProfile* profile) {
     // 按键映射
     cJSON* keyMappingJSON = cJSON_CreateObject();
 
-    cJSON_AddItemToObject(keyMappingJSON, "DPAD_UP", buildKeyMappingJSON(profile->keysConfig.keyDpadUp));
-    cJSON_AddItemToObject(keyMappingJSON, "DPAD_DOWN", buildKeyMappingJSON(profile->keysConfig.keyDpadDown));
-    cJSON_AddItemToObject(keyMappingJSON, "DPAD_LEFT", buildKeyMappingJSON(profile->keysConfig.keyDpadLeft));
-    cJSON_AddItemToObject(keyMappingJSON, "DPAD_RIGHT", buildKeyMappingJSON(profile->keysConfig.keyDpadRight));
-    cJSON_AddItemToObject(keyMappingJSON, "B1", buildKeyMappingJSON(profile->keysConfig.keyButtonB1));
-    cJSON_AddItemToObject(keyMappingJSON, "B2", buildKeyMappingJSON(profile->keysConfig.keyButtonB2));
-    cJSON_AddItemToObject(keyMappingJSON, "B3", buildKeyMappingJSON(profile->keysConfig.keyButtonB3));
-    cJSON_AddItemToObject(keyMappingJSON, "B4", buildKeyMappingJSON(profile->keysConfig.keyButtonB4));
-    cJSON_AddItemToObject(keyMappingJSON, "L1", buildKeyMappingJSON(profile->keysConfig.keyButtonL1));
-    cJSON_AddItemToObject(keyMappingJSON, "L2", buildKeyMappingJSON(profile->keysConfig.keyButtonL2));
-    cJSON_AddItemToObject(keyMappingJSON, "R1", buildKeyMappingJSON(profile->keysConfig.keyButtonR1));
-    cJSON_AddItemToObject(keyMappingJSON, "R2", buildKeyMappingJSON(profile->keysConfig.keyButtonR2));
-    cJSON_AddItemToObject(keyMappingJSON, "S1", buildKeyMappingJSON(profile->keysConfig.keyButtonS1));
-    cJSON_AddItemToObject(keyMappingJSON, "S2", buildKeyMappingJSON(profile->keysConfig.keyButtonS2));
-    cJSON_AddItemToObject(keyMappingJSON, "L3", buildKeyMappingJSON(profile->keysConfig.keyButtonL3));
-    cJSON_AddItemToObject(keyMappingJSON, "R3", buildKeyMappingJSON(profile->keysConfig.keyButtonR3));
-    cJSON_AddItemToObject(keyMappingJSON, "A1", buildKeyMappingJSON(profile->keysConfig.keyButtonA1));
-    cJSON_AddItemToObject(keyMappingJSON, "A2", buildKeyMappingJSON(profile->keysConfig.keyButtonA2));
-    cJSON_AddItemToObject(keyMappingJSON, "Fn", buildKeyMappingJSON(profile->keysConfig.keyButtonFn));
+    cJSON_AddItemToObject(keyMappingJSON, "DPAD_UP", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_UP]));
+    cJSON_AddItemToObject(keyMappingJSON, "DPAD_DOWN", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_DOWN]));
+    cJSON_AddItemToObject(keyMappingJSON, "DPAD_LEFT", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_LEFT]));
+    cJSON_AddItemToObject(keyMappingJSON, "DPAD_RIGHT", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_RIGHT]));
+    cJSON_AddItemToObject(keyMappingJSON, "B1", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B1]));
+    cJSON_AddItemToObject(keyMappingJSON, "B2", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B2]));
+    cJSON_AddItemToObject(keyMappingJSON, "B3", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B3]));
+    cJSON_AddItemToObject(keyMappingJSON, "B4", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B4]));
+    cJSON_AddItemToObject(keyMappingJSON, "L1", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L1]));
+    cJSON_AddItemToObject(keyMappingJSON, "L2", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L2]));
+    cJSON_AddItemToObject(keyMappingJSON, "R1", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R1]));
+    cJSON_AddItemToObject(keyMappingJSON, "R2", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R2]));
+    cJSON_AddItemToObject(keyMappingJSON, "S1", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S1]));
+    cJSON_AddItemToObject(keyMappingJSON, "S2", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S2]));
+    cJSON_AddItemToObject(keyMappingJSON, "L3", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L3]));
+    cJSON_AddItemToObject(keyMappingJSON, "R3", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R3]));
+    cJSON_AddItemToObject(keyMappingJSON, "A1", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A1]));
+    cJSON_AddItemToObject(keyMappingJSON, "A2", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A2]));
+    cJSON_AddItemToObject(keyMappingJSON, "Fn", buildKeyMappingJSON(profile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_FN]));
     cJSON_AddItemToObject(keysConfigJSON, "keyMapping", keyMappingJSON);
+    
+    // 按键组合键配置
+    cJSON* keyCombinationsJSON = cJSON_CreateArray();
+    for(uint8_t i = 0; i < MAX_KEY_COMBINATION; i++) {
+        cJSON* keyCombinationJSON = buildKeyCombinationJSON(&profile->keysConfig.keyCombinations[i]);
+        cJSON_AddItemToArray(keyCombinationsJSON, keyCombinationJSON);
+    }
+    cJSON_AddItemToObject(keysConfigJSON, "keyCombinations", keyCombinationsJSON);
 
     // LED配置
     cJSON* ledsConfigJSON = cJSON_CreateObject();
@@ -375,43 +506,54 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebS
         cJSON* keyMapping = cJSON_GetObjectItem(keysConfig, "keyMapping");                                          
         if(keyMapping) {
             if((item = cJSON_GetObjectItem(keyMapping, "DPAD_UP"))) 
-                targetProfile->keysConfig.keyDpadUp = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_UP] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "DPAD_DOWN"))) 
-                targetProfile->keysConfig.keyDpadDown = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_DOWN] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "DPAD_LEFT"))) 
-                targetProfile->keysConfig.keyDpadLeft = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_LEFT] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "DPAD_RIGHT"))) 
-                targetProfile->keysConfig.keyDpadRight = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_RIGHT] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "B1"))) 
-                targetProfile->keysConfig.keyButtonB1 = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B1] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "B2"))) 
-                targetProfile->keysConfig.keyButtonB2 = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B2] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "B3"))) 
-                targetProfile->keysConfig.keyButtonB3 = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B3] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "B4"))) 
-                targetProfile->keysConfig.keyButtonB4 = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B4] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "L1"))) 
-                targetProfile->keysConfig.keyButtonL1 = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L1] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "L2"))) 
-                targetProfile->keysConfig.keyButtonL2 = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L2] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "R1"))) 
-                targetProfile->keysConfig.keyButtonR1 = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R1] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "R2"))) 
-                targetProfile->keysConfig.keyButtonR2 = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R2] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "S1"))) 
-                targetProfile->keysConfig.keyButtonS1 = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S1] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "S2"))) 
-                targetProfile->keysConfig.keyButtonS2 = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S2] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "L3"))) 
-                targetProfile->keysConfig.keyButtonL3 = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L3] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "R3"))) 
-                targetProfile->keysConfig.keyButtonR3 = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R3] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "A1"))) 
-                targetProfile->keysConfig.keyButtonA1 = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A1] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "A2"))) 
-                targetProfile->keysConfig.keyButtonA2 = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A2] = getKeyMappingVirtualMask(item);
             if((item = cJSON_GetObjectItem(keyMapping, "Fn"))) 
-                targetProfile->keysConfig.keyButtonFn = getKeyMappingVirtualMask(item);
+                targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_FN] = getKeyMappingVirtualMask(item);
+        }
+    }
+
+    // 更新按键组合键配置
+    cJSON* keyCombinations = cJSON_GetObjectItem(keysConfig, "keyCombinations");
+    if(keyCombinations) {
+        for(uint8_t i = 0; i < MAX_KEY_COMBINATION; i++) {
+            cJSON* keyCombination = cJSON_GetArrayItem(keyCombinations, i);
+            if(keyCombination) {
+                targetProfile->keysConfig.keyCombinations[i] = getKeyCombination(keyCombination);
+            }
         }
     }
 

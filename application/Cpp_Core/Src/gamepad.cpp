@@ -12,25 +12,58 @@ Gamepad::Gamepad()
 
 void Gamepad::setup()
 {
-    mapDpadUp    = new GamepadButtonMapping(options->keysConfig.keyDpadUp, GAMEPAD_MASK_UP);
-	mapDpadDown  = new GamepadButtonMapping(options->keysConfig.keyDpadDown, GAMEPAD_MASK_DOWN);
-	mapDpadLeft  = new GamepadButtonMapping(options->keysConfig.keyDpadLeft, GAMEPAD_MASK_LEFT);
-	mapDpadRight = new GamepadButtonMapping(options->keysConfig.keyDpadRight, GAMEPAD_MASK_RIGHT);
-	mapButtonB1  = new GamepadButtonMapping(options->keysConfig.keyButtonB1, GAMEPAD_MASK_B1);
-	mapButtonB2  = new GamepadButtonMapping(options->keysConfig.keyButtonB2, GAMEPAD_MASK_B2);
-	mapButtonB3  = new GamepadButtonMapping(options->keysConfig.keyButtonB3, GAMEPAD_MASK_B3);
-	mapButtonB4  = new GamepadButtonMapping(options->keysConfig.keyButtonB4, GAMEPAD_MASK_B4);
-	mapButtonL1  = new GamepadButtonMapping(options->keysConfig.keyButtonL1, GAMEPAD_MASK_L1);
-	mapButtonR1  = new GamepadButtonMapping(options->keysConfig.keyButtonR1, GAMEPAD_MASK_R1);
-	mapButtonL2  = new GamepadButtonMapping(options->keysConfig.keyButtonL2, GAMEPAD_MASK_L2);
-	mapButtonR2  = new GamepadButtonMapping(options->keysConfig.keyButtonR2, GAMEPAD_MASK_R2);
-	mapButtonS1  = new GamepadButtonMapping(options->keysConfig.keyButtonS1, GAMEPAD_MASK_S1);
-	mapButtonS2  = new GamepadButtonMapping(options->keysConfig.keyButtonS2, GAMEPAD_MASK_S2);
-	mapButtonL3  = new GamepadButtonMapping(options->keysConfig.keyButtonL3, GAMEPAD_MASK_L3);
-	mapButtonR3  = new GamepadButtonMapping(options->keysConfig.keyButtonR3, GAMEPAD_MASK_R3);
-	mapButtonA1  = new GamepadButtonMapping(options->keysConfig.keyButtonA1, GAMEPAD_MASK_A1);
-	mapButtonA2  = new GamepadButtonMapping(options->keysConfig.keyButtonA2, GAMEPAD_MASK_A2);
-	mapButtonFn  = new GamepadButtonMapping(options->keysConfig.keyButtonFn, AUX_MASK_FUNCTION);
+	APP_DBG("Gamepad setup: start");
+
+    // 将 std::map 访问改为数组访问
+    mapDpadUp    = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_UP], GAMEPAD_MASK_UP);
+    mapDpadDown  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_DOWN], GAMEPAD_MASK_DOWN);
+    mapDpadLeft  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_LEFT], GAMEPAD_MASK_LEFT);
+    mapDpadRight = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_RIGHT], GAMEPAD_MASK_RIGHT);
+    mapButtonB1  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B1], GAMEPAD_MASK_B1);
+    mapButtonB2  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B2], GAMEPAD_MASK_B2);
+    mapButtonB3  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B3], GAMEPAD_MASK_B3);
+    mapButtonB4  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B4], GAMEPAD_MASK_B4);
+    mapButtonL1  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L1], GAMEPAD_MASK_L1);
+    mapButtonR1  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R1], GAMEPAD_MASK_R1);
+    mapButtonL2  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L2], GAMEPAD_MASK_L2);
+    mapButtonR2  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R2], GAMEPAD_MASK_R2);
+    mapButtonS1  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S1], GAMEPAD_MASK_S1);
+    mapButtonS2  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S2], GAMEPAD_MASK_S2);
+    mapButtonL3  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L3], GAMEPAD_MASK_L3);
+    mapButtonR3  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R3], GAMEPAD_MASK_R3);
+    mapButtonA1  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A1], GAMEPAD_MASK_A1);
+    mapButtonA2  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A2], GAMEPAD_MASK_A2);
+    mapButtonFn  = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_FN], AUX_MASK_FUNCTION);
+
+	APP_DBG("Gamepad setup: keyMapping init done");
+
+	for(int i = 0; i < MAX_KEY_COMBINATION; i++) {
+		KeyCombination& combo = options->keysConfig.keyCombinations[i];
+		if(combo.gameControllerButtonMask == 0 || combo.virtualPinMask == 0) {
+			continue;
+		}
+		
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_DPAD_UP))  mapDpadUp->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_DPAD_DOWN))  mapDpadDown->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_DPAD_LEFT))  mapDpadLeft->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_DPAD_RIGHT))  mapDpadRight->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_B1))  mapButtonB1->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_B2))  mapButtonB2->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_B3))  mapButtonB3->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_B4))  mapButtonB4->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_L1))  mapButtonL1->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_R1))  mapButtonR1->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_L2))  mapButtonL2->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_R2))  mapButtonR2->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_S1))  mapButtonS1->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_S2))  mapButtonS2->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_L3))  mapButtonL3->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_R3))  mapButtonR3->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_A1))  mapButtonA1->virtualPinMask |= combo.virtualPinMask;
+		if(combo.gameControllerButtonMask & (1U << GameControllerButton::GAME_CONTROLLER_BUTTON_A2))  mapButtonA2->virtualPinMask |= combo.virtualPinMask;
+	}
+	
+	APP_DBG("Gamepad setup: keyCombinations init done");
 
 }
 

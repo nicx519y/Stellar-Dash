@@ -12,7 +12,6 @@
 #include "adc_manager.hpp"
 #include "micro_timer.hpp"
 #include "board_cfg.h"
-#include "adc_btns/adc_debounce_filter.hpp"
 
 #define NUM_MAPPING_INDEX_WINDOW_SIZE 32
 
@@ -113,30 +112,6 @@ class ADCBtnsWorker {
 
 
         ADCBtn* getButtonState(uint8_t buttonIndex) const;
-
-        /**
-         * @brief 设置防抖过滤器配置
-         * @param config 防抖配置
-         */
-        void setDebounceConfig(const ADCDebounceFilter::Config& config);
-
-        /**
-         * @brief 获取防抖过滤器配置
-         * @return 当前防抖配置
-         */
-        const ADCDebounceFilter::Config& getDebounceConfig() const;
-
-        /**
-         * @brief 重置防抖状态
-         */
-        void resetDebounceState();
-
-        /**
-         * @brief 获取指定按钮的防抖状态 (调试用)
-         * @param buttonIndex 按钮索引
-         * @return 防抖状态值
-         */
-        uint8_t getButtonDebounceState(uint8_t buttonIndex) const;
 
 
         /**
@@ -245,8 +220,6 @@ class ADCBtnsWorker {
         uint32_t enabledKeysMask = 0x0;             // 启用按键掩码
         float maxTravelDistance;                    // 最大行程距离
         
-        // 防抖过滤器
-        ADCDebounceFilter debounceFilter_;
         
         // virtualPin到buttonIndex的映射表
         std::array<uint8_t, NUM_ADC_BUTTONS> virtualPinToButtonIndex_;

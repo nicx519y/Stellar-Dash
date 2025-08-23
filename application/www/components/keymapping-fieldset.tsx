@@ -110,7 +110,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
 
     const TitleLabel = ({ title, mt }: { title: string, mt?: string }) => {
         return (
-            <HStack w="full" margin="8px 0" marginTop={mt ?? "8px"} >
+            <HStack w="full" margin="2px 0" marginTop={mt ?? "2px"} >
                 <Separator flex="1" />
                 <Text flexShrink="0" fontSize="sm" >{title}</Text>
                 <Separator flex="1" />

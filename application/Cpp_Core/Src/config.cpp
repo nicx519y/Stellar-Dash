@@ -13,8 +13,10 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
 {
     // 设置profile id, name, enabled
     sprintf(profile.id, id);
-    sprintf(profile.name, "Profile-XInput");
+    sprintf(profile.name, "Profile-1");
     profile.enabled = isEnabled;
+    
+    APP_DBG("ConfigUtils::makeDefaultProfile - base init done");
 
     // 设置keysConfig
     profile.keysConfig.socdMode = SOCDMode::SOCD_MODE_NEUTRAL;
@@ -22,25 +24,39 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
     profile.keysConfig.invertXAxis = false;
     profile.keysConfig.invertYAxis = false;
     memset(profile.keysConfig.keysEnableTag, true, NUM_ADC_BUTTONS); // 默认启用所有按钮
-    profile.keysConfig.keyDpadUp = (1 << 0) | (1 << 7);
-    profile.keysConfig.keyDpadDown = 1 << 4;
-    profile.keysConfig.keyDpadLeft = 1 << 5;
-    profile.keysConfig.keyDpadRight = 1 << 6;
-    profile.keysConfig.keyButtonB1 = 1 << 8;
-    profile.keysConfig.keyButtonB2 = 1 << 11;
-    profile.keysConfig.keyButtonB3 = 1 << 9;
-    profile.keysConfig.keyButtonB4 = 1 << 12;
-    profile.keysConfig.keyButtonL1 = 1 << 14;
-    profile.keysConfig.keyButtonL2 = 1 << 13;
-    profile.keysConfig.keyButtonR1 = 1 << 16;
-    profile.keysConfig.keyButtonR2 = 1 << 15;
-    profile.keysConfig.keyButtonL3 = 1 << 1;
-    profile.keysConfig.keyButtonR3 = 1 << 2;
-    profile.keysConfig.keyButtonA1 = 1 << 19;
-    profile.keysConfig.keyButtonA2 = 1 << 10;
-    profile.keysConfig.keyButtonS1 = 1 << 17;
-    profile.keysConfig.keyButtonS2 = 1 << 18;
-    profile.keysConfig.keyButtonFn = FN_BUTTON_VIRTUAL_PIN;
+
+    APP_DBG("ConfigUtils::makeDefaultProfile - keysConfig base init done");
+
+    
+    // 默认映射 - 将 std::map 操作改为数组操作
+    memset(profile.keysConfig.keyMapping, 0, sizeof(profile.keysConfig.keyMapping)); // 先清零所有映射
+
+    // 设置默认映射
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_UP] = (1 << 1) | (1 << 8);
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_DOWN] = 1 << 6;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_LEFT] = 1 << 5;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_RIGHT] = 1 << 7;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B1] = 1 << 9;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B2] = 1 << 12;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B3] = 1 << 10;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B4] = 1 << 13;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L1] = 1 << 14;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R1] = 1 << 16;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L2] = 1 << 15;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R2] = 1 << 17;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S1] = 1 << 18;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S2] = 1 << 19;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L3] = 1 << 0;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R3] = 1 << 2;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A1] = 1 << 20;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A2] = 0;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_FN] = FN_BUTTON_VIRTUAL_PIN;
+
+    APP_DBG("ConfigUtils::makeDefaultProfile - keyMapping init done");
+
+    memset(profile.keysConfig.keyCombinations, 0, sizeof(profile.keysConfig.keyCombinations)); // 默认清空所有按键组合键
+
+    APP_DBG("ConfigUtils::makeDefaultProfile - keyCombinations init done");
 
     // 设置triggerConfigs 
     profile.triggerConfigs.isAllBtnsConfiguring = true;
@@ -56,6 +72,8 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
             .bottomDeadzone = 0.2f
         };
     }
+
+    APP_DBG("ConfigUtils::makeDefaultProfile - triggerConfigs init done");
 
     // 设置ledProfile
     profile.ledsConfigs.ledEnabled = false;
@@ -76,6 +94,8 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
     profile.ledsConfigs.aroundLedColor3 = 0x0000ff;  // 蓝色
     profile.ledsConfigs.aroundLedBrightness = 100;
     profile.ledsConfigs.aroundLedAnimationSpeed = 3;
+
+    APP_DBG("ConfigUtils::makeDefaultProfile - ledsConfigs init done");
 }
 
 bool ConfigUtils::load(Config& config)
@@ -98,13 +118,19 @@ bool ConfigUtils::load(Config& config)
         config.numProfilesMax = NUM_PROFILES;
         config.autoCalibrationEnabled = false; // 默认关闭自动校准
 
+        APP_DBG("ConfigUtils::load - base config init done");
+
         // 设置profiles
         for(uint8_t k = 0; k < NUM_PROFILES; k++) {
             // 设置profile id, name, enabled
             char profileId[16];
             sprintf(profileId, "profile-%d", k);
+            APP_DBG("ConfigUtils::load - make default profile %d id: %s", k, profileId);
             ConfigUtils::makeDefaultProfile(config.profiles[k], profileId, k == 0);
+            APP_DBG("ConfigUtils::load - make profile %d init done", k);
         }
+
+        APP_DBG("ConfigUtils::load - profiles init done");
 
         // 设置hotkeys 默认快捷键
         for(uint8_t m = 0; m < NUM_GAMEPAD_HOTKEYS; m++) {
@@ -171,6 +197,7 @@ bool ConfigUtils::load(Config& config)
             }
         }
 
+        APP_DBG("ConfigUtils::load - success.");
 
         return save(config);
     } 

@@ -48,30 +48,6 @@ ADCBtnsWorker::ADCBtnsWorker()
         buttonPtrs[i] = new ADCBtn(); // 动态分配新对象
     }
 
-    // 初始化防抖过滤器，使用ULTRAFAST算法以获得最低延迟
-    // 根据默认游戏手柄配置初始化防抖过滤器
-    ADCButtonDebounceAlgorithm debounceAlgorithm = STORAGE_MANAGER.getDefaultGamepadProfile()->triggerConfigs.debounceAlgorithm;
-
-    ADCDebounceFilter::Config debounceConfig;
-
-    switch (debounceAlgorithm)
-    {
-    case ADCButtonDebounceAlgorithm::NONE:
-        debounceConfig.ultrafastThreshold = ULTRAFast_THRESHOLD_NONE;
-        break;
-    case ADCButtonDebounceAlgorithm::NORMAL:
-        debounceConfig.ultrafastThreshold = ULTRAFast_THRESHOLD_NORMAL;
-        break;
-    case ADCButtonDebounceAlgorithm::MAX:
-        debounceConfig.ultrafastThreshold = ULTRAFast_THRESHOLD_MAX;
-        break;
-    default:
-        // 处理未知的防抖算法，使用默认值
-        debounceConfig.ultrafastThreshold = ULTRAFast_THRESHOLD_NORMAL;
-        break;
-    }
-    debounceFilter_.setConfig(debounceConfig);
-
     // 初始化virtualPin到buttonIndex的映射表
     // 根据board_cfg.h中的映射定义初始化
     const uint8_t ADC1_MAPPING[] = {2, 7, 4, 0, 5, 6};
@@ -227,9 +203,6 @@ ADCBtnsError ADCBtnsWorker::setup()
 ADCBtnsError ADCBtnsWorker::deinit()
 {
     // ADC_MANAGER.stopADCSamping();
-
-    // 重置防抖状态
-    debounceFilter_.reset();
 
     return ADCBtnsError::SUCCESS;
 }
@@ -763,45 +736,6 @@ void ADCBtnsWorker::handleButtonState(ADCBtn *btn, const ButtonEvent event, cons
         return; // 无事件，直接返回
     }
 }
-
-/**
- * @brief 设置防抖过滤器配置
- * @param config 防抖配置
- */
-void ADCBtnsWorker::setDebounceConfig(const ADCDebounceFilter::Config &config)
-{
-    debounceFilter_.setConfig(config);
-}
-
-/**
- * @brief 获取防抖过滤器配置
- * @return 当前防抖配置
- */
-const ADCDebounceFilter::Config &ADCBtnsWorker::getDebounceConfig() const
-{
-    return debounceFilter_.getConfig();
-}
-
-/**
- * @brief 重置防抖状态
- */
-void ADCBtnsWorker::resetDebounceState()
-{
-    debounceFilter_.reset();
-}
-
-/**
- * @brief 获取指定按钮的防抖状态 (调试用)
- * @param buttonIndex 按钮索引
- * @return 防抖状态值
- */
-uint8_t ADCBtnsWorker::getButtonDebounceState(uint8_t buttonIndex) const
-{
-    return debounceFilter_.getButtonDebounceState(buttonIndex);
-}
-
-
-
 
 /**
  * @brief 获取指定按钮的虚拟引脚

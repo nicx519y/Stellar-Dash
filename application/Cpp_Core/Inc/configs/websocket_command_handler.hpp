@@ -80,7 +80,9 @@ private:
     
     // 辅助函数
     cJSON* buildKeyMappingJSON(uint32_t virtualMask);
+    cJSON* buildKeyCombinationJSON(KeyCombination* keyCombination);
     uint32_t getKeyMappingVirtualMask(cJSON* keyMappingJSON);
+    KeyCombination getKeyCombination(cJSON* keyCombinationJSON);
     cJSON* buildProfileListJSON();
     cJSON* buildProfileJSON(GamepadProfile* profile);
 };

@@ -2,6 +2,7 @@
 #define CONFIG_H
 
 #include <string.h>
+#include <map>
 #include "enums.hpp"
 #include "stm32h750xx.h"
 #include "stm32h7xx_hal.h"
@@ -13,30 +14,20 @@ extern "C" {
 
 typedef struct
 {
+    uint32_t gameControllerButtonMask; // 游戏控制器按钮掩码 0001 0000 0010 0000 0000 0000 0000 0000  说明包含哪些游戏控制器按钮
+    uint32_t virtualPinMask;           // 虚拟引脚掩码 0001 0000 0010 0000 0000 0000 0000 0000  说明包含哪些虚拟引脚
+} KeyCombination;
+
+typedef struct
+{
     SOCDMode socdMode;
     bool fourWayMode;
     bool invertXAxis;
     bool invertYAxis;
     bool keysEnableTag[NUM_ADC_BUTTONS]; // 0-15 表示第0-15个按钮 1表示启用 0表示禁用
-    uint32_t keyDpadUp;             // example: 0001 0000 0010 0000 0000 0000 0000 0000  说明 keyDpadUp 这个功能按键和物理按键virtualPin的关系
-    uint32_t keyDpadDown;
-    uint32_t keyDpadLeft;
-    uint32_t keyDpadRight;
-    uint32_t keyButtonB1;
-    uint32_t keyButtonB2;
-    uint32_t keyButtonB3;
-    uint32_t keyButtonB4;
-    uint32_t keyButtonL1;
-    uint32_t keyButtonR1;
-    uint32_t keyButtonL2;
-    uint32_t keyButtonR2;
-    uint32_t keyButtonS1;
-    uint32_t keyButtonS2;
-    uint32_t keyButtonL3;
-    uint32_t keyButtonR3;
-    uint32_t keyButtonA1;
-    uint32_t keyButtonA2;
-    uint32_t keyButtonFn; 
+    // 将 std::map 替换为固定大小的数组
+    uint32_t keyMapping[NUM_GAME_CONTROLLER_BUTTONS]; // 按键映射，20个按钮类型，每个4字节
+    KeyCombination keyCombinations[MAX_KEY_COMBINATION];   // 按键组合键配置 说明 哪些游戏控制器按键组合键对应哪些物理按键
 } KeysConfig;
 
 typedef struct
