@@ -184,10 +184,10 @@ export const PS4ButtonMap = new Map<GameControllerButton, string>([
     [GameControllerButton.R2, "R2"],
     [GameControllerButton.L3, "L3"],
     [GameControllerButton.R3, "R3"],
-    [GameControllerButton.B1, "\ue900"],  // SOUTH
-    [GameControllerButton.B2, "\ue901"],   // EAST
-    [GameControllerButton.B3, "\ue902"],   // WEST
-    [GameControllerButton.B4, "\ue903"], // NORTH
+    [GameControllerButton.B1, "CROSS"],  // SOUTH
+    [GameControllerButton.B2, "CIRCLE"],   // EAST
+    [GameControllerButton.B3, "SQUARE"],   // WEST
+    [GameControllerButton.B4, "TRIANGLE"], // NORTH
 ]);
 
 export const SwitchButtonMap = new Map<GameControllerButton, string>([

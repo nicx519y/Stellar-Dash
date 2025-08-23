@@ -25,6 +25,9 @@ import {
     KEYS_SETTINGS_INTERACTIVE_IDS,
     Platform,
     GameControllerButtonList,
+    PS4ButtonMap,
+    SwitchButtonMap,
+    XInputButtonMap,
 } from "@/types/gamepad-config";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import HitboxKeys from "@/components/hitbox/hitbox-keys";
@@ -79,6 +82,29 @@ export function KeysSettingContent() {
     const [autoSwitch, setAutoSwitch] = useState<boolean>(true);
 
     const keymappingFieldsetRef = useRef<KeymappingFieldsetRef>(null);
+
+    const indexMapToGameControllerButton: { [key: number]: GameControllerButton } = useMemo(() => {
+        let labelMap = new Map<GameControllerButton, string>();
+        switch (globalConfig.inputMode) {
+            case Platform.XINPUT: labelMap = XInputButtonMap;
+                break;
+            case Platform.PS4: labelMap = PS4ButtonMap;
+                break;
+            case Platform.PS5: labelMap = PS4ButtonMap;
+                break;
+            case Platform.SWITCH: labelMap = SwitchButtonMap;
+                break;
+            default: labelMap = new Map<GameControllerButton, string>();
+                break;
+        }
+        const map: { [key: number]: GameControllerButton } = {};
+        for(const [key, value] of Object.entries(keyMapping)) {
+            for(const index of value) {
+                map[index] = labelMap.get(key as GameControllerButton) as GameControllerButton;
+            }
+        }
+        return map;
+    }, [keyMapping, globalConfig.inputMode]);
 
 
     useEffect(() => {
@@ -193,6 +219,7 @@ export function KeysSettingContent() {
                     onClick={hitboxEnableSettingClick}
                     interactiveIds={keysEnableConfig.map((_, index) => index)}
                     buttonsEnableConfig={keysEnableConfig}
+                    buttonLabelMap={indexMapToGameControllerButton}
                     containerWidth={containerWidth}
                 />
             );
@@ -203,6 +230,7 @@ export function KeysSettingContent() {
                     interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
                     disabledKeys={disabledKeys}
                     isButtonMonitoringEnabled={!keysEnableSettingActive}
+                    buttonLabelMap={indexMapToGameControllerButton}
                     containerWidth={containerWidth}
                 />
             );

@@ -9,6 +9,7 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { AiOutlineClose } from "react-icons/ai";
 import { type ButtonStateBinaryData, isButtonTriggered } from '@/lib/button-binary-parser';
 import { useButtonMonitor } from '@/hooks/use-button-monitor';
+import { GameControllerButton } from "@/types/gamepad-config";
 
 // 样式化的 SVG 组件 - 与基类保持一致
 const StyledSvg = styled.svg<{
@@ -72,8 +73,7 @@ const StyledFrame = styled.rect`
 // 样式化的文本 - 与基类保持一致
 const StyledText = styled.text`
   text-align: center;
-  font-family: "Helvetica", cursive;
-  font-size: .9rem;
+  font-family: 'custom_en',system-ui,sans-serif;
   cursor: default;
   pointer-events: none;
 `;
@@ -84,12 +84,10 @@ const btnLen = btnPosList.length;
 
 export interface HitboxKeysProps {
     onClick?: (id: number) => void;
-    hasText?: boolean;
     interactiveIds?: number[];
     isButtonMonitoringEnabled?: boolean;
-    highlightIds?: number[];
     disabledKeys?: number[];
-    className?: string;
+    buttonLabelMap?: { [key: number]: GameControllerButton };
     containerWidth?: number; // 外部容器宽度
 }
 
@@ -99,12 +97,10 @@ export interface HitboxKeysProps {
  */
 export default function HitboxKeys({
     onClick,
-    hasText = true,
     interactiveIds = [],
     isButtonMonitoringEnabled = false,
-    highlightIds = [],
     disabledKeys = [],
-    className,
+    buttonLabelMap = {},
     containerWidth,
 }: HitboxKeysProps) {
     const { colorMode } = useColorMode();
@@ -272,14 +268,9 @@ export default function HitboxKeys({
     const getButtonColor = (buttonId: number): string => {
         const isDisabled = disabledKeys.includes(buttonId);
         const isInteractive = interactiveIds.includes(buttonId);
-        const isHighlighted = highlightIds.includes(buttonId);
         
         if (isDisabled) {
             return "#ff444400"; // 禁用按键为红色
-        }
-        
-        if (isHighlighted) {
-            return "#9acd32"; // 高亮按键为黄绿色
         }
         
         if (!isInteractive) {
@@ -287,22 +278,6 @@ export default function HitboxKeys({
         }
         
         return colorMode === "dark" ? "#000" : "#fff"; // 默认颜色
-    };
-
-    // 获取按钮文字颜色
-    const getButtonTextColor = (buttonId: number): string => {
-        const isDisabled = disabledKeys.includes(buttonId);
-        const isInteractive = interactiveIds.includes(buttonId);
-        
-        if (isDisabled) {
-            return colorMode === "dark" ? "#ffffff" : "#333333"; // 禁用按键为白色文字
-        }
-        
-        if (!isInteractive) {
-            return colorMode === "dark" ? "#666666" : "#999999"; // 非交互按钮文字颜色
-        }
-        
-        return colorMode === "dark" ? "#ffffff" : "#333333"; // 默认文字颜色
     };
 
     // 判断按键是否可交互（既要在交互列表中，又不能在禁用列表中）
@@ -315,8 +290,24 @@ export default function HitboxKeys({
         return (hardwareButtonStates[index] === 1 || pressedButtonStates[index] === 1) || false;
     };
 
+    const getInnerText = (index: number, x: number, y: number): string => {
+        if(index === btnLen - 1) {
+            return `<tspan x="${x}" y="${y}" style="font-size: 0.6rem; font-weight: bold; fill: #fff; ">Fn</tspan>`;
+        }
+        const buttonLabel = buttonLabelMap[index];
+
+        return `
+            <tspan x="${x+1}" y="${y-5}" style="font-size: 0.5rem; fill: #999; ">
+                ${index + 1}
+            </tspan>
+            <tspan x="${x}" y="${y+8}" style="font-size: 0.5rem; font-weight: bold; fill: #fff;">
+                [${buttonLabel ?? "----"}]
+            </tspan>
+        `;
+    }
+
     return (
-        <Box display={contextJsReady ? "block" : "none"} className={className}>
+        <Box display={contextJsReady ? "block" : "none"} >
             <StyledSvg 
                 xmlns="http://www.w3.org/2000/svg"
                 ref={svgRef}
@@ -358,7 +349,6 @@ export default function HitboxKeys({
                         r={item.r}
                         $opacity={1}
                         $interactive={isButtonInteractive(index)}
-                        $highlight={highlightIds?.includes(index) ?? false}
                         $pressed={isButtonPressed(index)}
                         fill={getButtonColor(index)}
                         onMouseLeave={handleLeave}
@@ -366,7 +356,7 @@ export default function HitboxKeys({
                 ))}
 
                 {/* 渲染按钮文字 */}
-                {hasText && btnPosList.map((item, index) => (
+                {btnPosList.map((item, index) => (
                     <StyledText
                         ref={(el: SVGTextElement | null) => {
                             textRefs.current[index] = el;
@@ -376,10 +366,8 @@ export default function HitboxKeys({
                         key={index}
                         x={item.x}
                         y={index < btnLen - 4 ? item.y : item.y + 30}
-                        fill={getButtonTextColor(index)}
-                    >
-                        {index !== btnLen - 1 ? index + 1 : "Fn"}
-                    </StyledText>
+                        dangerouslySetInnerHTML={{ __html: getInnerText(index, item.x, index < btnLen - 4 ? item.y : item.y + 30) }}
+                    />
                 ))}
 
                 {/* 渲染禁用按键的 X 图标 */}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from "react";
-import { HITBOX_BTN_POS_LIST } from "@/types/gamepad-config";
+import { GameControllerButton, HITBOX_BTN_POS_LIST } from "@/types/gamepad-config";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useColorMode } from "../ui/color-mode";
@@ -73,10 +73,9 @@ const btnLen = btnPosList.length;
 
 interface HitboxEnableSettingProps {
     onClick?: (id: number) => void;
-    hasText?: boolean;
     interactiveIds?: number[];
     buttonsEnableConfig?: boolean[]; // 按键启用配置数组
-    className?: string;
+    buttonLabelMap?: { [key: number]: GameControllerButton };
     containerWidth?: number; // 外部容器宽度
 }
 
@@ -86,10 +85,9 @@ interface HitboxEnableSettingProps {
  */
 export default function HitboxEnableSetting({
     onClick,
-    hasText = true,
     interactiveIds = [],
     buttonsEnableConfig = [],
-    className,
+    buttonLabelMap = {},
     containerWidth,
 }: HitboxEnableSettingProps) {
     const { colorMode } = useColorMode();
@@ -179,8 +177,24 @@ export default function HitboxEnableSetting({
         return isEnabled ? "#ffffff" : "#d5d5d5"; // 启用时白色文字，禁用时浅灰文字
     };
 
+    const getInnerText = (index: number, x: number, y: number): string => {
+        if(index === btnLen - 1) {
+            return `<tspan x="${x}" y="${y}" style="font-size: 0.6rem; font-weight: bold; fill: #fff; ">Fn</tspan>`;
+        }
+        const buttonLabel = buttonLabelMap[index];
+
+        return `
+            <tspan x="${x+1}" y="${y-5}" style="font-size: 0.5rem; fill: #999; ">
+                ${index + 1}
+            </tspan>
+            <tspan x="${x}" y="${y+8}" style="font-size: 0.5rem; font-weight: bold; fill: #fff;">
+                [${buttonLabel ?? "----"}]
+            </tspan>
+        `;
+    }
+
     return (
-        <Box display={contextJsReady ? "block" : "none"} className={className}>
+        <Box display={contextJsReady ? "block" : "none"} >
             <StyledSvg 
                 xmlns="http://www.w3.org/2000/svg"
                 ref={svgRef}
@@ -229,7 +243,7 @@ export default function HitboxEnableSetting({
                 ))}
 
                 {/* 渲染按钮文字 */}
-                {hasText && btnPosList.map((item, index) => (
+                {btnPosList.map((item, index) => (
                     <StyledText
                         ref={(el: SVGTextElement | null) => {
                             textRefs.current[index] = el;
@@ -240,9 +254,8 @@ export default function HitboxEnableSetting({
                         x={item.x}
                         y={index < btnLen - 4 ? item.y : item.y + 30}
                         fill={getButtonTextColor(index)}
-                    >
-                        {index !== btnLen - 1 ? index + 1 : "Fn"}
-                    </StyledText>
+                        dangerouslySetInnerHTML={{ __html: getInnerText(index, item.x, index < btnLen - 4 ? item.y : item.y + 30) }}
+                    />
                 ))}
 
                 {/* 渲染悬停图标 */}
