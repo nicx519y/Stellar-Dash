@@ -8,6 +8,7 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useColorMode } from "../ui/color-mode";
 import { type ButtonStateBinaryData, isButtonTriggered } from '@/lib/button-binary-parser';
 import { useButtonMonitor } from '@/hooks/use-button-monitor';
+import { GameControllerButton } from "@/types/gamepad-config";
 
 const StyledSvg = styled.svg<{
     $scale?: number;
@@ -78,8 +79,7 @@ const StyledFrame = styled.rect`
  */
 const StyledText = styled.text`
   text-align: center;
-  font-family: "Helvetica", cursive;
-  font-size: .9rem;
+  font-family: 'custom_en',system-ui,sans-serif;
   cursor: default;
   pointer-events: none;
 `;
@@ -97,6 +97,7 @@ export interface HitboxBaseProps {
     highlightIds?: number[];
     className?: string;
     containerWidth?: number; // 外部容器宽度
+    buttonLabelMap?: { [key: number]: GameControllerButton }; // 按钮标签映射
 }
 
 /**
@@ -268,6 +269,30 @@ export default function HitboxBase(props: HitboxBaseProps) {
         return (hardwareButtonStates[index] === 1 || pressedButtonStates[index] === 1) || false;
     };
 
+    const getInnerText = (index: number, x: number, y: number): string => {
+
+        if(index === btnLen - 1) {
+            return `<tspan x="${x}" y="${y}" style="font-size: 0.6rem; font-weight: bold; fill: #fff; ">Fn</tspan>`;
+        }
+
+        if(!props.buttonLabelMap) {
+            return `
+                <tspan x="${x}" y="${y}" style="font-size: 0.6rem; font-weight: bold; fill: #fff; ">${index + 1}</tspan>
+            `;
+        }
+        
+        const buttonLabel = props.buttonLabelMap?.[index];
+
+        return `
+            <tspan x="${x+1}" y="${y-5}" style="font-size: 0.5rem; fill: #999; ">
+                ${index + 1}
+            </tspan>
+            <tspan x="${x}" y="${y+8}" style="font-size: 0.5rem; font-weight: bold; fill: #fff;">
+                [${buttonLabel ?? "----"}]
+            </tspan>
+        `;
+    }
+
     return (
         <Box display={contextJsReady ? "block" : "none"} className={props.className}>
             <StyledSvg 
@@ -328,10 +353,8 @@ export default function HitboxBase(props: HitboxBaseProps) {
                         key={index}
                         x={item.x}
                         y={index < btnLen - 4 ? item.y : item.y + 30}
-                        fill={colorMode === 'light' ? 'black' : 'white'}
-                    >
-                        {index !== btnLen - 1 ? index + 1 : "Fn"}
-                    </StyledText>
+                        dangerouslySetInnerHTML={{ __html: getInnerText(index, item.x, index < btnLen - 4 ? item.y : item.y + 30) }}
+                    />
                 ))}
             </StyledSvg>
         </Box>

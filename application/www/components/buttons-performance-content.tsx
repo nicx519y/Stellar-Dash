@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
-import { RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS } from "@/types/gamepad-config";
+import { PS4ButtonMap, Platform, XInputButtonMap, SwitchButtonMap, RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS } from "@/types/gamepad-config";
 import HitboxPerformance from "@/components/hitbox/hitbox-performance";
 import { ProfileSelect } from "./profile-select";
 import { ButtonsPerformanceSettingContent } from "./buttons-performance-setting-content";
@@ -9,6 +9,7 @@ import { ButtonsPerformenceTestContent } from "./buttons-performence-test-conten
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { useButtonPerformanceMonitor, type ButtonPerformanceMonitoringData, type ButtonPerformanceData } from '@/hooks/use-button-performance-monitor';
+import { GameControllerButton } from "@/types/gamepad-config";
 import HitboxPerformanceTest from "./hitbox/hitbox-performance-test";
 import { 
     SettingContentLayout, 
@@ -25,7 +26,7 @@ export function ButtonsPerformanceContent() {
     const [isTestingModeActivity, setIsTestingModeActivity] = useState<boolean>(false);
     const { t } = useLanguage();
 
-    const { defaultProfile, sendPendingCommandImmediately, setFinishConfigDisabled } = useGamepadConfig();
+    const { defaultProfile, sendPendingCommandImmediately, setFinishConfigDisabled, globalConfig } = useGamepadConfig();
     const { setError } = useGamepadConfig();
     const [selectedButton, setSelectedButton] = useState<number>(0); // 当前选中的按钮
     const [canSelectAllButton, setCanSelectAllButton] = useState<boolean>(false);
@@ -35,6 +36,30 @@ export function ButtonsPerformanceContent() {
     const [performanceData, setPerformanceData] = useState<ButtonPerformanceMonitoringData | null>(null);
     const [allButtonsData, setAllButtonsData] = useState<ButtonPerformanceData[]>([]);
     const monitorIsActive = useRef(false);
+
+    const indexMapToGameControllerButton: { [key: number]: GameControllerButton } = useMemo(() => {
+        let labelMap = new Map<GameControllerButton, string>();
+        const keyMapping = defaultProfile.keysConfig?.keyMapping ?? {};
+        switch (globalConfig.inputMode) {
+            case Platform.XINPUT: labelMap = XInputButtonMap;
+                break;
+            case Platform.PS4: labelMap = PS4ButtonMap;
+                break;
+            case Platform.PS5: labelMap = PS4ButtonMap;
+                break;
+            case Platform.SWITCH: labelMap = SwitchButtonMap;
+                break;
+            default: labelMap = new Map<GameControllerButton, string>();
+                break;
+        }
+        const map: { [key: number]: GameControllerButton } = {};
+        for(const [key, value] of Object.entries(keyMapping)) {
+            for(const index of value) {
+                map[index] = labelMap.get(key as GameControllerButton) as GameControllerButton;
+            }
+        }
+        return map;
+    }, [defaultProfile, globalConfig.inputMode]);
 
     useEffect(() => {
         if(defaultProfile.triggerConfigs && !isInit) {
@@ -148,6 +173,7 @@ export function ButtonsPerformanceContent() {
                     highlightIds={[selectedButton ?? -1]}
                     interactiveIds={interactive}
                     containerWidth={containerWidth}
+                    buttonLabelMap={indexMapToGameControllerButton}
                 />
             );
         } else {
@@ -155,6 +181,7 @@ export function ButtonsPerformanceContent() {
                 <HitboxPerformanceTest
                     buttonStates={allButtonsData}
                     containerWidth={containerWidth}
+                    buttonLabelMap={indexMapToGameControllerButton}
                 />
             );
         }
