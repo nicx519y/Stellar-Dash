@@ -1,9 +1,9 @@
 "use client";
 
-import { Box, HStack, Text, VStack, Tag } from "@chakra-ui/react"
-import { useLanguage } from "@/contexts/language-context";
+import { Text, VStack } from "@chakra-ui/react"
 import { useColorMode } from "./ui/color-mode";
 import { useMemo } from "react";
+import { KeyField } from "./key-field";
 
 export default function KeymappingField(
     props: {
@@ -16,18 +16,15 @@ export default function KeymappingField(
     }
 ) {
     const { colorMode } = useColorMode();
-    const { t } = useLanguage();
     const { value, changeValue, label, isActive, disabled, onClick } = props;  
 
     const isDisabled = useMemo(() => {
         return disabled ?? false;
     }, [disabled]);
 
-    const tagClick = (hitboxButton: number) => {
-        if(isActive && !isDisabled) {
-            changeValue(value.filter(v => v !== hitboxButton));
-        }
-    }
+    const valueString = useMemo(() => {
+        return value.map(v => (v + 1).toString());
+    }, [value]);
 
     return (
         <>
@@ -37,33 +34,16 @@ export default function KeymappingField(
                     fontWeight={"bold"} 
                     lineHeight={"1rem"}
                 >{`[ ${label} ]`}</Text>
-                <Box width={"170px"} 
-                    height={"30px"} 
-                    padding={"4px"} 
-                    border={".5px solid"} 
-                    borderColor={isActive && !isDisabled ? "green.500" : colorMode === "dark" ? "gray.600" : "gray.400"} 
-                    borderRadius={"4px"} 
-                    cursor={isDisabled ? "not-allowed" : "pointer"} 
-                    boxShadow={isActive && !isDisabled ? "0 0 8px rgba(154, 205, 50, 0.8)" : "none"}
-
-                    
-                >
-                    <HStack gap="2px">
-                        {value.map((hitboxButton, index) => (
-                            <Tag.Root
-                                key={index} 
-                                // closable={isActive}
-                                variant={isActive && !isDisabled ? "solid" : "surface"}
-                                colorPalette={isActive && !isDisabled ? "green" : "gray"}
-                                color={isDisabled ? "gray.500" : colorMode === "dark" || isActive == true ? "white" : "black"}
-                                onClick={() => tagClick(hitboxButton)}
-                                
-                            >
-                                <Tag.Label fontSize="10px" >{`${t.KEY_MAPPING_KEY_PREFIX}${hitboxButton + 1}`}</Tag.Label>
-                            </Tag.Root>
-                        ))}
-                    </HStack>
-                </Box>
+                <KeyField
+                    value={valueString}
+                    changeValue={(v: string[]) => changeValue(v.map(Number).map(v => v - 1))}
+                    isActive={isActive}
+                    disabled={isDisabled}
+                    onClick={onClick}
+                    width={170}
+                    showTags={true}
+                    maxKeys={4}
+                />
             </VStack>
         </>
     )

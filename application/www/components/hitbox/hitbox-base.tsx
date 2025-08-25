@@ -97,7 +97,7 @@ export interface HitboxBaseProps {
     highlightIds?: number[];
     className?: string;
     containerWidth?: number; // 外部容器宽度
-    buttonLabelMap?: { [key: number]: GameControllerButton }; // 按钮标签映射
+    buttonLabelMap?: { [key: number]: GameControllerButton | string }; // 按钮标签映射
 }
 
 /**

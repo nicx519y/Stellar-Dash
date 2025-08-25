@@ -75,7 +75,7 @@ interface HitboxEnableSettingProps {
     onClick?: (id: number) => void;
     interactiveIds?: number[];
     buttonsEnableConfig?: boolean[]; // 按键启用配置数组
-    buttonLabelMap?: { [key: number]: GameControllerButton };
+    buttonLabelMap?: { [key: number]: GameControllerButton | string };
     containerWidth?: number; // 外部容器宽度
 }
 

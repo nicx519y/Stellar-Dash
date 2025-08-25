@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react'
 import { DialogConfirm } from '@/components/dialog-confirm'
 import { DialogForm } from "@/components/dialog-form";
 import { DialogCannotClose } from '@/components/dialog-cannot-close'
+import { DialogEditCombination } from '@/components/dialog-edit-combination'
 import { LanguageProvider, useLanguage } from '@/contexts/language-context';
 
 
@@ -112,6 +113,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             <DialogConfirm />
             <DialogForm />
             <DialogCannotClose />
+            <DialogEditCombination />
         </Flex>
     );
 }

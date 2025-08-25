@@ -11,6 +11,7 @@ import {
     Portal,
     Text,
     HoverCard,
+    Separator,
 } from "@chakra-ui/react";
 import KeymappingFieldset, { KeymappingFieldsetRef } from "@/components/keymapping-fieldset";
 import { useEffect, useMemo, useState, useRef } from "react";
@@ -25,11 +26,8 @@ import {
     KEYS_SETTINGS_INTERACTIVE_IDS,
     Platform,
     GameControllerButtonList,
-    PS4ButtonMap,
-    SwitchButtonMap,
-    XInputButtonMap,
+    KeyCombination,
 } from "@/types/gamepad-config";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 import HitboxKeys from "@/components/hitbox/hitbox-keys";
 import HitboxEnableSetting from "@/components/hitbox/hitbox-enableSetting";
 import { MdCleaningServices } from "react-icons/md";
@@ -51,6 +49,7 @@ import {
 } from "@/components/setting-main-content-layout";
 import { GiSightDisabled } from "react-icons/gi";
 import { BiSolidExit } from "react-icons/bi";
+import { IoMdHelpCircleOutline } from "react-icons/io";
 
 export function KeysSettingContent() {
     const {
@@ -75,39 +74,27 @@ export function KeysSettingContent() {
     const [invertYAxis, setInvertYAxis] = useState<boolean>(defaultProfile?.keysConfig?.invertYAxis ?? false);
     const [fourWayMode, setFourWayMode] = useState<boolean>(defaultProfile?.keysConfig?.fourWayMode ?? false);
     const [keyMapping, setKeyMapping] = useState<{ [key in GameControllerButton]?: number[] }>(defaultProfile?.keysConfig?.keyMapping ?? {});
+    const [combinationKeyMapping, setCombinationKeyMapping] = useState<KeyCombination[]>(defaultProfile?.keysConfig?.keyCombinations ?? []);
     const [keysEnableConfig, setKeysEnableConfig] = useState<boolean[]>(defaultProfile?.keysConfig?.keysEnableTag?.slice(0, keyLength - 1) ?? []); // 按键启用配置
 
     const [inputKey, setInputKey] = useState<number>(-1);
     const [keysEnableSettingActive, setKeysEnableSettingActive] = useState<boolean>(false); // 按键启用/禁用设置状态
-    const [autoSwitch, setAutoSwitch] = useState<boolean>(true);
+    const [autoSwitch, setAutoSwitch] = useState<boolean>(() => {
+        // 从 localStorage 读取 autoSwitch 值，默认为 false
+        if (typeof window !== 'undefined') {
+            const stored = localStorage.getItem('autoSwitch');
+            return stored !== null ? JSON.parse(stored) : false;
+        }
+        return false;
+    });
 
     const keymappingFieldsetRef = useRef<KeymappingFieldsetRef>(null);
 
-    const indexMapToGameControllerButton: { [key: number]: GameControllerButton } = useMemo(() => {
-        let labelMap = new Map<GameControllerButton, string>();
-        switch (globalConfig.inputMode) {
-            case Platform.XINPUT: labelMap = XInputButtonMap;
-                break;
-            case Platform.PS4: labelMap = PS4ButtonMap;
-                break;
-            case Platform.PS5: labelMap = PS4ButtonMap;
-                break;
-            case Platform.SWITCH: labelMap = SwitchButtonMap;
-                break;
-            default: labelMap = new Map<GameControllerButton, string>();
-                break;
-        }
-        const map: { [key: number]: GameControllerButton } = {};
-        for(const [key, value] of Object.entries(keyMapping)) {
-            for(const index of value) {
-                map[index] = labelMap.get(key as GameControllerButton) as GameControllerButton;
-            }
-        }
-        return map;
-    }, [keyMapping, globalConfig.inputMode]);
-
+    // 使用 context 中的 indexMapToGameControllerButtonOrCombination 方法
+    const { indexMapToGameControllerButtonOrCombination } = useGamepadConfig();
 
     useEffect(() => {
+
         if (isInit && defaultProfileId === defaultProfile.id) {
             return;
         }
@@ -118,18 +105,21 @@ export function KeysSettingContent() {
             setInvertYAxis(defaultProfile.keysConfig?.invertYAxis ?? false);
             setFourWayMode(defaultProfile.keysConfig?.fourWayMode ?? false);
             setKeyMapping(Object.assign({}, defaultProfile.keysConfig?.keyMapping ?? {}));
+            setCombinationKeyMapping(defaultProfile.keysConfig?.keyCombinations ?? []);
+            console.log("defaultProfile.keysConfig?.keyCombinations", defaultProfile.keysConfig?.keyCombinations);
             // 初始化按键启用配置，默认所有按键都启用
             const enableConfig = defaultProfile.keysConfig?.keysEnableTag?.slice(0, keyLength - 1) ?? Array(keyLength).fill(true);
             setKeysEnableConfig(enableConfig);
 
             setIsInit(true);
             setDefaultProfileId(defaultProfile.id);
+
         }
     }, [dataIsReady, defaultProfile]);
 
     const updateKeysConfigHandler = () => {
 
-        const newConfig = Object.assign({ invertXAxis, invertYAxis, fourWayMode, socdMode, keyMapping, keysEnableTag: keysEnableConfig });
+        const newConfig = Object.assign({ invertXAxis, invertYAxis, fourWayMode, socdMode, keyMapping, keysEnableTag: keysEnableConfig, keyCombinations: combinationKeyMapping });
 
         const newProfile: GameProfile = {
             id: defaultProfile.id,
@@ -157,6 +147,11 @@ export function KeysSettingContent() {
     const clearKeyMappingHandler = () => {
         const clearMapping = Object.fromEntries(Object.keys(keyMapping).map(key => [key, []]));
         setKeyMapping(clearMapping);
+        // 保留原有的 gameControllerButtons，但清空 keyIndexes
+        setCombinationKeyMapping(combinationKeyMapping.map(combination => ({
+            ...combination,
+            keyIndexes: []
+        })));
         setNeedUpdate(true);
         keymappingFieldsetRef.current?.setActiveButton(GameControllerButtonList[0]); // 清除数据以后，自动将第一个button作为active button
     }
@@ -195,7 +190,6 @@ export function KeysSettingContent() {
     useEffect(() => {
         return () => {
             try {
-                console.log("KeysSettingContent unmount");
                 sendPendingCommandImmediately('update_profile');
             } catch (error) {
                 console.warn('页面关闭前发送 update_keys_config 命令失败:', error);
@@ -211,15 +205,29 @@ export function KeysSettingContent() {
         }
     }, [keysEnableSettingActive]);
 
+    // 当 autoSwitch 值改变时，保存到 localStorage
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('autoSwitch', JSON.stringify(autoSwitch));
+        }
+    }, [autoSwitch]);
+
     // 渲染hitbox内容
     const renderHitboxContent = (containerWidth: number) => {
+        // 使用 context 中的方法，传入本地状态
+        const buttonLabelMap = indexMapToGameControllerButtonOrCombination(
+            keyMapping,
+            combinationKeyMapping,
+            globalConfig.inputMode ?? Platform.XINPUT
+        );
+
         if (keysEnableSettingActive) {
             return (
                 <HitboxEnableSetting
                     onClick={hitboxEnableSettingClick}
                     interactiveIds={keysEnableConfig.map((_, index) => index)}
                     buttonsEnableConfig={keysEnableConfig}
-                    buttonLabelMap={indexMapToGameControllerButton}
+                    buttonLabelMap={buttonLabelMap}
                     containerWidth={containerWidth}
                 />
             );
@@ -230,7 +238,7 @@ export function KeysSettingContent() {
                     interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
                     disabledKeys={disabledKeys}
                     isButtonMonitoringEnabled={!keysEnableSettingActive}
-                    buttonLabelMap={indexMapToGameControllerButton}
+                    buttonLabelMap={buttonLabelMap}
                     containerWidth={containerWidth}
                 />
             );
@@ -279,14 +287,40 @@ export function KeysSettingContent() {
                             <Fieldset.Content>
                                 <VStack gap={8} alignItems={"flex-start"} width="full">
                                     {/* Key Mapping */}
-                                    <HStack gap={4} >
-                                        <SegmentedControl
-                                            size={"sm"}
-                                            defaultValue={autoSwitch ? t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL : t.SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL}
-                                            items={[t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL, t.SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL]}
-                                            onValueChange={(detail) => setAutoSwitch(detail.value === t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL)}
+                                    <HStack gap={5} >
+                                        <Switch.Root
+                                            colorPalette={"green"}
+                                            checked={autoSwitch}
+                                            onCheckedChange={() => setAutoSwitch(!autoSwitch)}
                                             disabled={keysEnableSettingActive}
-                                        />
+                                        >
+                                            <Switch.HiddenInput />
+                                            <Switch.Control>
+                                                <Switch.Thumb />
+                                            </Switch.Control>
+                                            <Switch.Label>{t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL}</Switch.Label>
+                                        </Switch.Root>
+
+                                        <HoverCard.Root size="sm" openDelay={300} closeDelay={0}  >
+                                            <HoverCard.Trigger asChild>
+                                                <Button size="xs" colorPalette="yellow" variant="subtle" cursor="default" disabled={keysEnableSettingActive} >
+                                                    <IoMdHelpCircleOutline color="yellow" />
+                                                </Button>
+                                            </HoverCard.Trigger>
+                                            <Portal>
+                                                <HoverCard.Positioner>
+                                                    <HoverCard.Content maxWidth="340px">
+                                                        <HoverCard.Arrow />
+                                                        <Text fontSize={"xs"} whiteSpace="pre-wrap">
+                                                            {t.TOOLTIP_AUTO_SWITCH}
+                                                        </Text>
+                                                    </HoverCard.Content>
+                                                </HoverCard.Positioner>
+                                            </Portal>
+                                        </HoverCard.Root>
+
+                                        <Separator h="6" orientation="vertical" />
+
                                         <Button
                                             w="150px"
                                             size="xs"
@@ -306,8 +340,13 @@ export function KeysSettingContent() {
                                         inputKey={inputKey}
                                         inputMode={globalConfig.inputMode ?? Platform.XINPUT}
                                         keyMapping={keyMapping}
+                                        combinationKeyMapping={combinationKeyMapping}
                                         changeKeyMappingHandler={(map) => {
                                             setKeyMapping(map);
+                                            setNeedUpdate(true);
+                                        }}
+                                        changeCombinationKeyMappingHandler={(combinationKeyMapping) => {
+                                            setCombinationKeyMapping(combinationKeyMapping);
                                             setNeedUpdate(true);
                                         }}
                                         disabled={keysEnableSettingActive}

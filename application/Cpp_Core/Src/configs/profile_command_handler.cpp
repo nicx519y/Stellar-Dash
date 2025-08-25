@@ -25,61 +25,64 @@ cJSON* ProfileCommandHandler::buildKeyMappingJSON(uint32_t virtualMask) {
 
 cJSON* ProfileCommandHandler::buildKeyCombinationJSON(KeyCombination* keyCombination) {
     cJSON* keyCombinationJSON = cJSON_CreateObject();
-    cJSON* gameControllerButtonMaskJSON = cJSON_CreateArray();
-    cJSON* virtualPinMaskJSON = cJSON_CreateArray();
+    cJSON* gameControllerButtonsJSON = cJSON_CreateArray();
+    cJSON* keyIndexesJSON = cJSON_CreateArray();
 
+    // 将位掩码转换为字符串数组，返回给前端
     for(uint8_t i = 0; i < NUM_GAME_CONTROLLER_BUTTONS; i++) {
         if(keyCombination->gameControllerButtonMask & (1 << i)) {
             if(i == GameControllerButton::GAME_CONTROLLER_DPAD_UP) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("DPAD_UP"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("DPAD_UP"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_DPAD_DOWN) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("DPAD_DOWN"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("DPAD_DOWN"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_DPAD_LEFT) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("DPAD_LEFT"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("DPAD_LEFT"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_DPAD_RIGHT) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("DPAD_RIGHT"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("DPAD_RIGHT"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_B1) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("B1"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("B1"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_B2) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("B2"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("B2"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_B3) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("B3"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("B3"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_B4) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("B4"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("B4"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_L1) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("L1"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("L1"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_L2) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("L2"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("L2"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_R1) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("R1"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("R1"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_R2) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("R2"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("R2"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_S1) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("S1"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("S1"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_S2) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("S2"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("S2"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_L3) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("L3"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("L3"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_R3) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("R3"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("R3"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_A1) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("A1"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("A1"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_A2) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("A2"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("A2"));
             } else if(i == GameControllerButton::GAME_CONTROLLER_BUTTON_FN) {
-                cJSON_AddItemToArray(gameControllerButtonMaskJSON, cJSON_CreateString("Fn"));
+                cJSON_AddItemToArray(gameControllerButtonsJSON, cJSON_CreateString("Fn"));
             }
         }
     }
 
+    // 将位掩码转换为数字数组，返回给前端
     for(uint8_t i = 0; i < NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS; i++) {
         if(keyCombination->virtualPinMask & (1 << i)) {
-            cJSON_AddItemToArray(virtualPinMaskJSON, cJSON_CreateNumber(i));
+            cJSON_AddItemToArray(keyIndexesJSON, cJSON_CreateNumber(i));
         }
     }
 
-    cJSON_AddItemToObject(keyCombinationJSON, "gameControllerButtons", gameControllerButtonMaskJSON);
-    cJSON_AddItemToObject(keyCombinationJSON, "virtualPinMask", virtualPinMaskJSON);
+    // 返回前端期望的字段名
+    cJSON_AddItemToObject(keyCombinationJSON, "gameControllerButtons", gameControllerButtonsJSON);
+    cJSON_AddItemToObject(keyCombinationJSON, "keyIndexes", keyIndexesJSON);
 
     return keyCombinationJSON;
 }
@@ -89,6 +92,7 @@ KeyCombination ProfileCommandHandler::getKeyCombination(cJSON* keyCombinationJSO
     keyCombination.gameControllerButtonMask = 0;
     keyCombination.virtualPinMask = 0;
 
+    // 处理前端发送的 gameControllerButtons 字段（字符串数组）
     cJSON* gameControllerButtons = cJSON_GetObjectItem(keyCombinationJSON, "gameControllerButtons");
     if(gameControllerButtons) {
         cJSON* item = NULL;
@@ -135,11 +139,31 @@ KeyCombination ProfileCommandHandler::getKeyCombination(cJSON* keyCombinationJSO
         }
     }
 
-    cJSON* virtualPinMaskJSON = cJSON_GetObjectItem(keyCombinationJSON, "virtualPinMask");
-    if(virtualPinMaskJSON) {
+    // 处理前端发送的 keyIndexes 字段（数字数组）
+    cJSON* keyIndexes = cJSON_GetObjectItem(keyCombinationJSON, "keyIndexes");
+    if(keyIndexes) {
         cJSON* item = NULL;
-        cJSON_ArrayForEach(item, virtualPinMaskJSON) {
-            keyCombination.virtualPinMask |= (1 << (int)cJSON_GetNumberValue(item));
+        cJSON_ArrayForEach(item, keyIndexes) {
+            if(item->type == cJSON_Number) {
+                int keyIndex = (int)cJSON_GetNumberValue(item);
+                if(keyIndex >= 0 && keyIndex < NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) {
+                    keyCombination.virtualPinMask |= (1 << keyIndex);
+                }
+            }
+        }
+    }
+
+    // 兼容性处理：如果前端仍然发送 virtualPinMask 字段，也进行处理
+    cJSON* virtualPinMask = cJSON_GetObjectItem(keyCombinationJSON, "virtualPinMask");
+    if(virtualPinMask) {
+        cJSON* item = NULL;
+        cJSON_ArrayForEach(item, virtualPinMask) {
+            if(item->type == cJSON_Number) {
+                int keyIndex = (int)cJSON_GetNumberValue(item);
+                if(keyIndex >= 0 && keyIndex < NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) {
+                    keyCombination.virtualPinMask |= (1 << keyIndex);
+                }
+            }
         }
     }
 
@@ -283,7 +307,8 @@ cJSON* ProfileCommandHandler::buildProfileJSON(GamepadProfile* profile) {
     
     // 按键组合键配置
     cJSON* keyCombinationsJSON = cJSON_CreateArray();
-    for(uint8_t i = 0; i < MAX_KEY_COMBINATION; i++) {
+    // 前端最多支持5个组合键，后端支持10个，但只返回前5个
+    for(uint8_t i = 0; i < MAX_KEY_COMBINATION_WEBCONFIG; i++) {
         cJSON* keyCombinationJSON = buildKeyCombinationJSON(&profile->keysConfig.keyCombinations[i]);
         cJSON_AddItemToArray(keyCombinationsJSON, keyCombinationJSON);
     }
@@ -549,11 +574,21 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebS
     // 更新按键组合键配置
     cJSON* keyCombinations = cJSON_GetObjectItem(keysConfig, "keyCombinations");
     if(keyCombinations) {
-        for(uint8_t i = 0; i < MAX_KEY_COMBINATION; i++) {
+        // 前端最多支持5个组合键，后端支持10个，但只处理前5个
+        uint8_t maxCombinations = cJSON_GetArraySize(keyCombinations);
+        if(maxCombinations > MAX_KEY_COMBINATION_WEBCONFIG) maxCombinations = MAX_KEY_COMBINATION_WEBCONFIG; // 限制为前端支持的最大数量
+        
+        for(uint8_t i = 0; i < maxCombinations; i++) {
             cJSON* keyCombination = cJSON_GetArrayItem(keyCombinations, i);
             if(keyCombination) {
                 targetProfile->keysConfig.keyCombinations[i] = getKeyCombination(keyCombination);
             }
+        }
+        
+        // 清空剩余的组合键配置
+        for(uint8_t i = maxCombinations; i < MAX_KEY_COMBINATION; i++) {
+            targetProfile->keysConfig.keyCombinations[i].gameControllerButtonMask = 0;
+            targetProfile->keysConfig.keyCombinations[i].virtualPinMask = 0;
         }
     }
 

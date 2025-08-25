@@ -87,7 +87,7 @@ export interface HitboxKeysProps {
     interactiveIds?: number[];
     isButtonMonitoringEnabled?: boolean;
     disabledKeys?: number[];
-    buttonLabelMap?: { [key: number]: GameControllerButton };
+    buttonLabelMap?: { [key: number]: GameControllerButton | string };
     containerWidth?: number; // 外部容器宽度
 }
 

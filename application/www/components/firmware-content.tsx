@@ -45,7 +45,7 @@ export function FirmwareContent() {
     } = useGamepadConfig();
     const currentVersion = useMemo(() => firmwareInfo?.firmware?.version || "0.0.0", [firmwareInfo]);
     const latestVersion = useMemo(() => firmwareUpdateInfo?.latestVersion ? firmwareUpdateInfo.latestVersion : firmwareInfo?.firmware?.version || "0.0.0", [firmwareUpdateInfo, firmwareInfo]);
-    const latestFirmwareUpdateLog = useMemo(() => firmwareUpdateInfo?.latestFirmware?.desc.split(/\s+/) || [], [firmwareUpdateInfo]);
+    const latestFirmwareUpdateLog = useMemo(() => firmwareUpdateInfo?.latestFirmware?.desc.split(/\s{2,}/) || [], [firmwareUpdateInfo]);
 
     // useEffect(() => {
     //     if(wsConnected) {

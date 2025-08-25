@@ -25,6 +25,11 @@ export const DEFAULT_FIRMWARE_UPGRADE_MAX_RETRIES = 3;
 export const DEFAULT_FIRMWARE_UPGRADE_TIMEOUT = 30000;
 // firmware server host
 export const DEFAULT_FIRMWARE_SERVER_HOST = 'https://firmware.st-dash.com';
+// 
+// combination key max length
+export const COMBINATION_KEY_MAX_LENGTH = 5;
+// max number of button combination
+export const MAX_NUM_BUTTON_COMBINATION = 5;
 
 // hitbox button position list
 const btnsPos = [
@@ -326,6 +331,12 @@ export type Hotkey = {
     isHold?: boolean,
 }
 
+// 按键组合键配置 说明 哪些游戏控制器按键组合键对应哪些物理按键
+export type KeyCombination = {
+    keyIndexes: number[];
+    gameControllerButtons: GameControllerButton[];
+}
+
 export interface KeysConfig {
     inputMode?: Platform;
     socdMode?: GameSocdMode;
@@ -336,6 +347,7 @@ export interface KeysConfig {
     keyMapping?: {
         [key in GameControllerButton]?: number[];
     };
+    keyCombinations?: KeyCombination[]; // 按键组合键配置 说明 哪些游戏控制器按键组合键对应哪些物理按键
 }
 
 export interface GameProfile {
@@ -544,8 +556,8 @@ export const UI_TEXT = {
     SETTINGS_AMBIENT_LIGHT_COLOR1_LABEL: "Ambient Light Color 1",
     SETTINGS_AMBIENT_LIGHT_COLOR2_LABEL: "Ambient Light Color 2",
 
-    SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL: "Auto switch",
-    SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL: "Manual switch",
+    SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL: "Auto Switch Mode",
+    SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL: "Manual Switch Mode",
     SETTINGS_KEY_MAPPING_CLEAR_MAPPING_BUTTON: "Clear mapping",
     SETTINGS_RAPID_TRIGGER_ONFIGURING_BUTTON: "Configuring button: ",
     SETTINGS_RAPID_TRIGGER_SELECT_A_BUTTON_TO_CONFIGURE: "Select a button to configure",
@@ -575,7 +587,7 @@ export const UI_TEXT = {
     TOOLTIP_LEDS_ENABLE: "Toggle LED lighting effects",
     TOOLTIP_LEDS_EFFECT: "Choose the LED animation style",
     TOOLTIP_LEDS_BRIGHTNESS: "Adjust the brightness of LEDs",
-    TOOLTIP_AUTO_SWITCH: "Auto Switch: Automatically switch the button field when the input key is changed.\nManual Switch: Manually set the active button field.",
+    TOOLTIP_AUTO_SWITCH: "Auto Switch Mode: Automatically switch the button field when the button is binded. \nCan be used with device button clicks to quickly bind multiple buttons.",
     
     // API Response Messages
     API_REBOOT_SUCCESS_MESSAGE: "System is rebooting",
@@ -604,6 +616,7 @@ export const UI_TEXT = {
     KEYS_MAPPING_TITLE_CORE: "Core Buttons",
     KEYS_MAPPING_TITLE_SHOULDER: "Shoulder & Stick Buttons",
     KEYS_MAPPING_TITLE_FUNCTION: "Function Buttons",
+    KEYS_MAPPING_TITLE_CUSTOM_COMBINATION: "Custom Button Combinations",
 
 
     // Switch Marking Settings
@@ -795,6 +808,13 @@ export const UI_TEXT = {
     SOCD_BYPASS: "Bypass",
     SOCD_BYPASS_DESC: "All directional commands are sent directly without any processing.",
 
+    // Combination Field
+    COMBINATION_FIELD_EDIT_BUTTON: "Edit",
+    COMBINATION_SELECT_PLACEHOLDER: "Select The Game Controller Button",
+    COMBINATION_DIALOG_TITLE: "Edit Button Combination",
+    COMBINATION_DIALOG_MESSAGE: `Please select up to ${COMBINATION_KEY_MAX_LENGTH} buttons to form a combination key`,
+    COMBINATION_DIALOG_BUTTON_CONFIRM: "Confirm",
+
 } as const;
 
 export const UI_TEXT_ZH = {
@@ -863,8 +883,8 @@ export const UI_TEXT_ZH = {
     SETTINGS_AMBIENT_LIGHT_COLOR1_LABEL: "氛围灯颜色1",
     SETTINGS_AMBIENT_LIGHT_COLOR2_LABEL: "氛围灯颜色2",
 
-    SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL: "自动切换",
-    SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL: "手动切换",
+    SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL: "自动切换模式",
+    SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL: "手动切换模式",
     SETTINGS_KEY_MAPPING_CLEAR_MAPPING_BUTTON: "清空映射",
     SETTINGS_RAPID_TRIGGER_ONFIGURING_BUTTON: "正在配置按键: ",
     SETTINGS_RAPID_TRIGGER_SELECT_A_BUTTON_TO_CONFIGURE: "请选择要配置的按键",
@@ -894,7 +914,7 @@ export const UI_TEXT_ZH = {
     TOOLTIP_LEDS_ENABLE: "开启/关闭LED灯光效果",
     TOOLTIP_LEDS_EFFECT: "选择LED动画样式",
     TOOLTIP_LEDS_BRIGHTNESS: "调整LED亮度",
-    TOOLTIP_AUTO_SWITCH: "自动切换：输入按键改变时自动切换按键区域\n手动切换：手动设置活动按键区域",
+    TOOLTIP_AUTO_SWITCH: "自动切换模式：当前按键绑定后，会自动切换至下一个按键。可配合设备按键点击，快速绑定多个按键。",
     
     // API响应消息
     API_REBOOT_SUCCESS_MESSAGE: "系统正在重启",
@@ -923,6 +943,7 @@ export const UI_TEXT_ZH = {
     KEYS_MAPPING_TITLE_CORE: "核心按键",
     KEYS_MAPPING_TITLE_SHOULDER: "肩键和摇杆键",
     KEYS_MAPPING_TITLE_FUNCTION: "功能按键",
+    KEYS_MAPPING_TITLE_CUSTOM_COMBINATION: "自定义组合键",
 
     // 磁轴标记设置
     SETTINGS_SWITCH_MARKING_TITLE: "新磁轴标记",
@@ -1114,6 +1135,13 @@ export const UI_TEXT_ZH = {
     SOCD_FIRST_INPUT_PRIORITY_DESC: "优先发送先输入的方向命令。",
     SOCD_BYPASS: "绕过",
     SOCD_BYPASS_DESC: "所有方向命令直接发送，不进行任何处理。",
+
+    // Combination Field
+    COMBINATION_FIELD_EDIT_BUTTON: "编辑",
+    COMBINATION_SELECT_PLACEHOLDER: "选择游戏控制器按键",
+    COMBINATION_DIALOG_TITLE: "编辑按键组合",
+    COMBINATION_DIALOG_MESSAGE: `请选择最多 ${COMBINATION_KEY_MAX_LENGTH} 个按键组成组合键`,
+    COMBINATION_DIALOG_BUTTON_CONFIRM: "确定",
     
 } as const;
 

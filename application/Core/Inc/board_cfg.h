@@ -50,7 +50,7 @@
 #endif
 
 /* Debug print configuration */
-#define APPLICATION_DEBUG_PRINT  1   // 设置为 0 可以关闭所有调试打印
+#define APPLICATION_DEBUG_PRINT  0   // 设置为 0 可以关闭所有调试打印
 
 #if APPLICATION_DEBUG_PRINT
     #define APP_DBG(fmt, ...) printf("[APP] " fmt "\r\n", ##__VA_ARGS__)
@@ -119,6 +119,7 @@ uint32_t get_current_slot_base_address(void);
 #define MIN_VALUE_DIFF_RATIO                0.8             // 最小值差值比例 按键动态校准的过程中，如果bottom - top的值差 不能小于原mapping的值差*MIN_VALUE_DIFF_RATIO
 
 #define MAX_KEY_COMBINATION                 10              // 最大自定义按键组合键数量
+#define MAX_KEY_COMBINATION_WEBCONFIG       5               // 最大自定义按键组合键数量 webconfig模式下，实际使用数量 必须小于等于 MAX_KEY_COMBINATION
 
 #define READ_BTNS_INTERVAL                  50            // 检查按钮状态间隔 us
 #define DYNAMIC_CALIBRATION_INTERVAL        500000          // 动态校准间隔 500ms

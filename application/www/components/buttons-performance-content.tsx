@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
-import { PS4ButtonMap, Platform, XInputButtonMap, SwitchButtonMap, RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS } from "@/types/gamepad-config";
+import { RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS } from "@/types/gamepad-config";
 import HitboxPerformance from "@/components/hitbox/hitbox-performance";
 import { ProfileSelect } from "./profile-select";
 import { ButtonsPerformanceSettingContent } from "./buttons-performance-setting-content";
@@ -9,7 +9,6 @@ import { ButtonsPerformenceTestContent } from "./buttons-performence-test-conten
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { useButtonPerformanceMonitor, type ButtonPerformanceMonitoringData, type ButtonPerformanceData } from '@/hooks/use-button-performance-monitor';
-import { GameControllerButton } from "@/types/gamepad-config";
 import HitboxPerformanceTest from "./hitbox/hitbox-performance-test";
 import { 
     SettingContentLayout, 
@@ -20,6 +19,7 @@ import {
 } from "./setting-content-layout";
 import { BiSolidExit } from "react-icons/bi";
 import { ImEqualizer2 } from "react-icons/im";
+import { Platform } from "@/types/gamepad-config";
 
 export function ButtonsPerformanceContent() {
 
@@ -37,29 +37,8 @@ export function ButtonsPerformanceContent() {
     const [allButtonsData, setAllButtonsData] = useState<ButtonPerformanceData[]>([]);
     const monitorIsActive = useRef(false);
 
-    const indexMapToGameControllerButton: { [key: number]: GameControllerButton } = useMemo(() => {
-        let labelMap = new Map<GameControllerButton, string>();
-        const keyMapping = defaultProfile.keysConfig?.keyMapping ?? {};
-        switch (globalConfig.inputMode) {
-            case Platform.XINPUT: labelMap = XInputButtonMap;
-                break;
-            case Platform.PS4: labelMap = PS4ButtonMap;
-                break;
-            case Platform.PS5: labelMap = PS4ButtonMap;
-                break;
-            case Platform.SWITCH: labelMap = SwitchButtonMap;
-                break;
-            default: labelMap = new Map<GameControllerButton, string>();
-                break;
-        }
-        const map: { [key: number]: GameControllerButton } = {};
-        for(const [key, value] of Object.entries(keyMapping)) {
-            for(const index of value) {
-                map[index] = labelMap.get(key as GameControllerButton) as GameControllerButton;
-            }
-        }
-        return map;
-    }, [defaultProfile, globalConfig.inputMode]);
+    // 使用 context 中的 indexMapToGameControllerButtonOrCombination 方法
+    const { indexMapToGameControllerButtonOrCombination } = useGamepadConfig();
 
     useEffect(() => {
         if(defaultProfile.triggerConfigs && !isInit) {
@@ -166,22 +145,29 @@ export function ButtonsPerformanceContent() {
 
     // 渲染hitbox内容
     const renderHitboxContent = (containerWidth: number) => {
+        // 使用 context 中的方法，传入本地状态
+        const buttonLabelMap = indexMapToGameControllerButtonOrCombination(
+            defaultProfile.keysConfig?.keyMapping ?? {},
+            defaultProfile.keysConfig?.keyCombinations ?? [],
+            globalConfig.inputMode ?? Platform.XINPUT
+        );
+        
         if (!isTestingModeActivity) {
             return (
                 <HitboxPerformance
-                    onClick={(id) => handleButtonClick(id)}
-                    highlightIds={[selectedButton ?? -1]}
+                    onClick={handleButtonClick}
                     interactiveIds={interactive}
+                    highlightIds={[selectedButton ?? -1]}
+                    buttonLabelMap={buttonLabelMap}
                     containerWidth={containerWidth}
-                    buttonLabelMap={indexMapToGameControllerButton}
                 />
             );
         } else {
             return (
                 <HitboxPerformanceTest
                     buttonStates={allButtonsData}
+                    buttonLabelMap={buttonLabelMap}
                     containerWidth={containerWidth}
-                    buttonLabelMap={indexMapToGameControllerButton}
                 />
             );
         }

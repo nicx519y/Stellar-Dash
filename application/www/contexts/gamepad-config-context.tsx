@@ -1,28 +1,32 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
-import { GameProfile, 
-        LedsEffectStyle, 
-        AroundLedsEffectStyle,
-        Platform, GameSocdMode, 
-        GameControllerButton, Hotkey, GameProfileList, GlobalConfig } from '@/types/gamepad-config';
+import {
+    GameProfile,
+    KeyCombination,
+    LedsEffectStyle,
+    AroundLedsEffectStyle,
+    Platform, GameSocdMode,
+    GameControllerButton, Hotkey, GameProfileList, GlobalConfig,
+    XInputButtonMap, PS4ButtonMap, SwitchButtonMap
+} from '@/types/gamepad-config';
 import { StepInfo, ADCValuesMapping } from '@/types/adc';
-import { 
-    ButtonStates, 
-    CalibrationStatus, 
-    DeviceFirmwareInfo, 
-    FirmwareUpgradeConfig, 
-    FirmwareUpgradeSession, 
-    FirmwarePackage, 
-    FirmwareUpdateCheckResponse, 
-    LEDsConfig, 
-    FirmwarePackageDownloadProgress, 
-    FirmwareUpdateCheckRequest 
+import {
+    ButtonStates,
+    CalibrationStatus,
+    DeviceFirmwareInfo,
+    FirmwareUpgradeConfig,
+    FirmwareUpgradeSession,
+    FirmwarePackage,
+    FirmwareUpdateCheckResponse,
+    LEDsConfig,
+    FirmwarePackageDownloadProgress,
+    FirmwareUpdateCheckRequest
 } from '@/types/types';
 
-import { 
-    DEFAULT_FIRMWARE_PACKAGE_CHUNK_SIZE, 
-    DEFAULT_FIRMWARE_UPGRADE_MAX_RETRIES, 
+import {
+    DEFAULT_FIRMWARE_PACKAGE_CHUNK_SIZE,
+    DEFAULT_FIRMWARE_UPGRADE_MAX_RETRIES,
     DEFAULT_FIRMWARE_UPGRADE_TIMEOUT,
     DEFAULT_FIRMWARE_SERVER_HOST
 } from '@/types/gamepad-config';
@@ -30,11 +34,11 @@ import {
 import DeviceAuthManager from '@/contexts/deviceAuth';
 
 // 导入WebSocket框架
-import { 
-    WebSocketFramework, 
-    WebSocketState, 
+import {
+    WebSocketFramework,
+    WebSocketState,
     WebSocketDownstreamMessage,
-    WebSocketError 
+    WebSocketError
 } from '@/components/websocket-framework';
 
 // 导入事件总线
@@ -64,7 +68,7 @@ export interface WebSocketConfigType {
     url: string;
     heartbeatInterval: number; // 心跳间隔（毫秒）
     timeout: number; // 超时时间（毫秒）
-    
+
     // 队列管理器配置
     sendDelay: number; // 延迟发送时间（毫秒） 
     pollInterval: number; // 轮询间隔（毫秒）
@@ -82,7 +86,7 @@ export const DEFAULT_WEBSOCKET_CONFIG: WebSocketConfigType = {
 interface GamepadConfigContextType {
     contextJsReady: boolean;
     setContextJsReady: (ready: boolean) => void;
-    
+
     // WebSocket 连接状态
     wsConnected: boolean;
     wsState: WebSocketState;
@@ -90,7 +94,7 @@ interface GamepadConfigContextType {
     wsError: WebSocketError | null;
     connectWebSocket: () => Promise<void>;
     disconnectWebSocket: () => void;
-    
+
     profileList: GameProfileList;
     defaultProfile: GameProfile;
     hotkeysConfig: Hotkey[];
@@ -99,7 +103,7 @@ interface GamepadConfigContextType {
     setUserRebooting: (rebooting: boolean) => void;
     firmwareUpdating: boolean;
     setFirmwareUpdating: (updating: boolean) => void;
-    
+
     fetchGlobalConfig: () => Promise<void>;
     updateGlobalConfig: (globalConfig: GlobalConfig) => Promise<void>;
     fetchDefaultProfile: () => Promise<void>;
@@ -171,6 +175,12 @@ interface GamepadConfigContextType {
     // 是否禁用完成配置按钮
     finishConfigDisabled: boolean;
     setFinishConfigDisabled: (disabled: boolean) => void;
+    // 按键索引映射到游戏控制器按钮或组合键
+    indexMapToGameControllerButtonOrCombination: (
+        keyMapping: { [key in GameControllerButton]?: number[] },
+        keyCombinations: KeyCombination[],
+        inputMode: Platform
+    ) => { [key: number]: GameControllerButton | string };
 }
 
 const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
@@ -190,6 +200,7 @@ const converProfileDetails = (profile: any) => {
             invertYAxis: profile.keysConfig?.invertYAxis as boolean ?? false,
             fourWayMode: profile.keysConfig?.fourWayMode as boolean ?? false,
             keyMapping: profile.keysConfig?.keyMapping as { [key in GameControllerButton]?: number[] } ?? {},
+            keyCombinations: profile.keysConfig?.keyCombinations as KeyCombination[] ?? [],
             keysEnableTag: profile.keysConfig?.keysEnableTag as boolean[] ?? [],
         },
         ledsConfigs: {
@@ -225,7 +236,7 @@ const processResponse = async (response: Response, setError: (error: string | nu
         return;
     }
     const data = await response.json();
-    if(data.errNo) {
+    if (data.errNo) {
         setError(data.errorMessage);
         return;
     }
@@ -245,17 +256,17 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [error, setError] = useState<string | null>(null);
     const [hotkeysConfig, setHotkeysConfig] = useState<Hotkey[]>([]);
     const [jsReady, setJsReady] = useState(false);
-    
+
     // WebSocket 状态
     const [wsConnected, setWsConnected] = useState(false);
     const [wsState, setWsState] = useState<WebSocketState>(WebSocketState.DISCONNECTED);
     const [wsError, setWsError] = useState<WebSocketError | null>(null);
     const [wsFramework, setWsFramework] = useState<WebSocketFramework | null>(null);
     const [showReconnect, setShowReconnect] = useState(false);  // 是否显示websocket重连窗口
-    
+
     // WebSocket 队列管理器
     // const wsQueueManager = useRef<WebSocketQueueManager | null>(null);
-    
+
     const [defaultMappingId, setDefaultMappingId] = useState<string>("");
     const [mappingList, setMappingList] = useState<{ id: string, name: string }[]>([]);
     const [markingStatus, setMarkingStatus] = useState<StepInfo>({
@@ -433,7 +444,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 isFirstConnectRef.current = false;
             } else {
                 setIsLoading(false);
-                if(!userRebooting && !firmwareUpdating) { // 不是用户主动重启导致的断连，并且不是固件升级导致的断连
+                if (!userRebooting && !firmwareUpdating) { // 不是用户主动重启导致的断连，并且不是固件升级导致的断连
                     setShowReconnect(true); // 显示重连窗口
                 }
             }
@@ -445,11 +456,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         if (wsConnected && wsState === WebSocketState.CONNECTED) {
             // 隐藏重连窗口
             setShowReconnect(false);
-            
+
             // 设置DeviceAuthManager的WebSocket发送函数
             const authManager = DeviceAuthManager.getInstance();
             authManager.setWebSocketSendFunction(sendWebSocketRequest);
-            
+
             fetchGlobalConfig().then(() => {
                 setGlobalConfigIsReady(true);
             }).catch(console.error);
@@ -467,7 +478,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     }, [wsConnected, wsState]);
 
     useEffect(() => {
-        if(globalConfigIsReady && profileListIsReady && hotkeysConfigIsReady && firmwareInfoIsReady) {
+        if (globalConfigIsReady && profileListIsReady && hotkeysConfigIsReady && firmwareInfoIsReady) {
             setDataIsReady(true);
             setIsLoading(false);
         }
@@ -511,7 +522,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         if (wsState !== WebSocketState.CONNECTED) {
             throw new Error('WebSocket未连接');
         }
-        
+
         try {
             // 将请求推入队列，队列管理器会处理延迟、去重和顺序发送
             return await wsFramework.enqueue(command, params, immediate);
@@ -547,7 +558,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 setProfileList(data.profileList as GameProfileList);
             }
 
-            if(data && 'defaultProfileDetails' in data) {
+            if (data && 'defaultProfileDetails' in data) {
                 setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
             }
 
@@ -578,13 +589,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const updateProfileDetails = async (profileId: string, profileDetails: GameProfile, immediate: boolean = false, showError: boolean = false, showLoading: boolean = false): Promise<void> => {
         try {
-            if(showLoading) {
+            if (showLoading) {
                 setIsLoading(true);
             }
             const data = await sendWebSocketRequest('update_profile', { profileId, profileDetails }, immediate);
 
             // 如果更新的是 profile 的 name， 或者更新的profile不是defaultProfile，则需要重新获取 profile list
-            if(profileDetails.name != undefined && profileDetails.name !== defaultProfile.name || profileDetails.id !== defaultProfile.id) {
+            if (profileDetails.name != undefined && profileDetails.name !== defaultProfile.name || profileDetails.id !== defaultProfile.id) {
                 fetchProfileList();
             } else if (data && 'defaultProfileDetails' in data) {
                 // 否则更新 default profile
@@ -593,12 +604,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setError(null);
             return Promise.resolve();
         } catch (err) {
-            if(showError) {
+            if (showError) {
                 setError(err instanceof Error ? err.message : 'An error occurred');
             }
             return Promise.reject(new Error("Failed to update profile details"));
         } finally {
-            if(showLoading) {
+            if (showLoading) {
                 setIsLoading(false);
             }
         }
@@ -615,7 +626,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (data && 'profileList' in data) {
                 setProfileList(data.profileList as GameProfileList);
             }
-            if(data && 'defaultProfileDetails' in data) {
+            if (data && 'defaultProfileDetails' in data) {
                 setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
             }
             setError(null);
@@ -635,7 +646,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (data && 'profileList' in data) {
                 setProfileList(data.profileList as GameProfileList);
             }
-            if(data && 'defaultProfileDetails' in data) {
+            if (data && 'defaultProfileDetails' in data) {
                 setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
             }
             setError(null);
@@ -655,7 +666,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (data && 'profileList' in data) {
                 setProfileList(data.profileList as GameProfileList);
             }
-            if(data && 'defaultProfileDetails' in data) {
+            if (data && 'defaultProfileDetails' in data) {
                 setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
             }
             setError(null);
@@ -671,7 +682,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const updateHotkeysConfig = async (hotkeysConfig: Hotkey[], immediate: boolean = false): Promise<void> => {
         try {
             const data = await sendWebSocketRequest('update_hotkeys_config', { hotkeysConfig }, immediate);
-            if(data) {
+            if (data) {
                 setHotkeysConfig(data.hotkeysConfig as Hotkey[]);
             }
             return Promise.resolve();
@@ -785,7 +796,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         try {
             setIsLoading(true);
             const data = await sendWebSocketRequest('ms_mark_mapping_start', { id }, immediate);
-            if(data.status) {
+            if (data.status) {
                 setMarkingStatus(data.status);
             }
             setError(null);
@@ -802,7 +813,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         try {
             setIsLoading(true);
             const data = await sendWebSocketRequest('ms_mark_mapping_stop', {}, immediate);
-            if(data.status) {
+            if (data.status) {
                 setMarkingStatus(data.status);
             }
             setError(null);
@@ -819,7 +830,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         try {
             setIsLoading(true);
             const data = await sendWebSocketRequest('ms_mark_mapping_step', {}, immediate);
-            if(data.status) {
+            if (data.status) {
                 setMarkingStatus(data.status);
             }
             setError(null);
@@ -867,7 +878,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             const data = await sendWebSocketRequest('ms_rename_mapping', { id, name }, immediate);
             setMappingList(data.mappingList);
             setDefaultMappingId(data.defaultMappingId);
-            setActiveMapping({...(activeMapping as ADCValuesMapping), name: name});
+            setActiveMapping({ ...(activeMapping as ADCValuesMapping), name: name });
             setError(null);
             return Promise.resolve();
         } catch (err) {
@@ -1049,7 +1060,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             return Promise.reject(new Error("Failed to clear LED preview"));
         }
     };
-    
+
     const fetchFirmwareMetadata = async (immediate: boolean = true): Promise<void> => {
         try {
             const data = await sendWebSocketRequest('get_firmware_metadata', {}, immediate);
@@ -1090,30 +1101,30 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             const requestData: FirmwareUpdateCheckRequest = {
                 currentVersion: currentVersion.trim()
             };
-            
+
             // 确定服务器地址
             const serverHost = customServerHost || firmwareServerHost || FIRMWARE_SERVER_CONFIG.defaultHost;
             const url = `${serverHost}${FIRMWARE_SERVER_CONFIG.endpoints.checkUpdate}`;
-            
+
             // 获取设备认证管理器
             const authManager = DeviceAuthManager.getInstance();
-            
+
             // 重试逻辑：最多重试2次
             const maxRetries = 2;
             let attempt = 0;
             let lastError: any = null;
-            
+
             while (attempt <= maxRetries) {
                 try {
                     // 获取设备认证信息
                     const authInfo = await authManager.getValidAuth();
-                    
+
                     if (!authInfo) {
                         throw new Error('无法获取设备认证信息');
                     }
-                    
+
                     console.log(`🚀 开始固件更新检查 (尝试 ${attempt + 1}/${maxRetries + 1})`);
-                    
+
                     // 直接请求服务器，认证信息放在body中
                     const response = await fetch(url, {
                         method: 'POST',
@@ -1130,9 +1141,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     if (!response.ok) {
                         throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
                     }
-                    
+
                     const responseData = await response.json();
-                    
+
                     // 检查服务器返回的错误
                     if (responseData.errNo && responseData.errNo !== 0) {
                         // 检查是否是认证相关错误
@@ -1141,13 +1152,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                             'DEVICE_NOT_REGISTERED', 'INVALID_SIGNATURE', 'CHALLENGE_REUSED',
                             'AUTH_SERVER_ERROR', 'CHALLENGE_EXPIRED'
                         ];
-                        
+
                         if (authErrorCodes.includes(responseData.errorCode)) {
                             console.log(`🔄 检测到认证错误: ${responseData.errorCode}，尝试重新获取认证信息`);
-                            
+
                             // 处理认证错误并重新获取认证信息
                             await authManager.handleAuthError(responseData);
-                            
+
                             // 如果不是最后一次尝试，继续重试
                             if (attempt < maxRetries) {
                                 attempt++;
@@ -1155,28 +1166,28 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                                 continue;
                             }
                         }
-                        
+
                         throw new Error(`Server error: ${responseData.errorMessage || 'Unknown error'}`);
                     }
-                    
+
                     // 请求成功，设置更新信息
                     console.log('✅ 固件更新检查成功');
                     setFirmwareUpdateInfo(responseData.data);
                     return Promise.resolve();
-                    
+
                 } catch (error) {
                     console.error(`❌ 固件更新检查失败 (尝试 ${attempt + 1}):`, error);
                     lastError = error;
-                    
+
                     // 如果是认证相关错误，尝试重新获取认证信息
-                    if (error instanceof Error && 
-                        (error.message.includes('认证') || 
-                         error.message.includes('auth') || 
-                         error.message.includes('AUTH'))) {
-                        
+                    if (error instanceof Error &&
+                        (error.message.includes('认证') ||
+                            error.message.includes('auth') ||
+                            error.message.includes('AUTH'))) {
+
                         console.log('🔄 检测到认证错误，尝试重新获取认证信息');
                         await authManager.handleAuthError(error);
-                        
+
                         // 如果不是最后一次尝试，继续重试
                         if (attempt < maxRetries) {
                             attempt++;
@@ -1184,17 +1195,17 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                             continue;
                         }
                     }
-                    
+
                     // 如果不是认证错误，或者已经是最后一次尝试，跳出循环
                     break;
                 }
             }
-            
+
             // 如果所有重试都失败了，返回默认的固件更新信息
             console.log('❌ 所有重试都失败，返回默认固件更新信息');
             setFirmwareUpdateInfo(makeDefaultFirmwareUpdateInfo());
             return Promise.resolve();
-            
+
         } catch (err) {
             console.error('❌ 固件更新检查异常:', err);
             setFirmwareUpdateInfo(makeDefaultFirmwareUpdateInfo());
@@ -1315,7 +1326,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Failed to download firmware package: unknown error';
             setError(errorMessage);
-            
+
             onProgress?.({
                 stage: 'failed',
                 progress: 0,
@@ -1386,12 +1397,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
                 // 解析组件基地址（支持十六进制格式）
                 let baseAddress: number;
-                
-                if(component.address.toString().startsWith('0x')){
+
+                if (component.address.toString().startsWith('0x')) {
                     baseAddress = parseInt(component.address.toString(), 16);
-                }else if(component.address.toString().startsWith('0X')){
+                } else if (component.address.toString().startsWith('0X')) {
                     baseAddress = parseInt(component.address.toString(), 16);
-                }else{
+                } else {
                     baseAddress = parseInt(component.address.toString(), 10);
                 }
 
@@ -1400,7 +1411,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     const start = chunkIndex * upgradeConfig.chunkSize;
                     const end = Math.min(start + upgradeConfig.chunkSize, componentData.length);
                     const chunkData = componentData.slice(start, end);
-                    
+
                     // 计算当前chunk的精确写入地址和偏移
                     const chunkOffset = parseInt(start.toString(), 10);
                     const targetAddress = baseAddress + chunkOffset;
@@ -1427,13 +1438,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                         try {
                             // 尝试使用二进制传输（如果WebSocket框架支持）
                             let chunkResult: any;
-                            
+
                             console.log('WebSocket框架检查:', {
                                 wsFramework: !!wsFramework,
                                 sendBinaryMessage: typeof wsFramework?.sendBinaryMessage,
                                 onBinaryMessage: typeof wsFramework?.onBinaryMessage
                             });
-                            
+
                             if (wsFramework && typeof wsFramework.sendBinaryMessage === 'function') {
                                 // 使用二进制传输
                                 console.log('使用二进制传输模式上传固件分片');
@@ -1452,7 +1463,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                                 // 降级到JSON+Base64传输
                                 console.log('降级到JSON+Base64传输模式');
                                 const base64Data = btoa(String.fromCharCode(...chunkData));
-                                
+
                                 // 准备WebSocket请求参数
                                 const chunkParams = {
                                     session_id: deviceSessionId,
@@ -1465,15 +1476,15 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                                     checksum: checksum,
                                     data: base64Data
                                 };
-                                
+
                                 chunkResult = await sendWebSocketRequest('upload_firmware_chunk', chunkParams, true);
                             }
-                            
+
                             if (!chunkResult.success) {
                                 // 检查是否是会话不存在的错误
                                 if (chunkResult.error && chunkResult.error.includes('session') && chunkResult.error.includes('not found') && !sessionRecreated) {
                                     console.warn('Session lost, attempting to recreate session...');
-                                    
+
                                     // 重新创建会话
                                     const recreateResult = await sendWebSocketRequest('create_firmware_upgrade_session', {
                                         session_id: deviceSessionId,
@@ -1510,7 +1521,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     // 更新进度
                     const componentProgress = ((chunkIndex + 1) / totalChunks) * 100;
                     const overallProgress = ((i + (chunkIndex + 1) / totalChunks) / totalComponents) * 100;
-                    
+
                     onProgress?.({
                         stage: 'uploading',
                         progress: Math.round(overallProgress),
@@ -1591,7 +1602,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             wsFramework: !!wsFramework,
             wsFrameworkMethods: wsFramework ? Object.getOwnPropertyNames(wsFramework) : 'null'
         });
-        
+
         if (!wsFramework) {
             throw new Error('WebSocket framework not available');
         }
@@ -1605,55 +1616,55 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
         // 填充头部数据
         let offset = 0;
-        
+
         // command (1 byte)
         headerView.setUint8(offset, BINARY_CMD_UPLOAD_FIRMWARE_CHUNK);
         offset += 1;
-        
+
         // reserved1 (1 byte)
         headerView.setUint8(offset, 0);
         offset += 1;
-        
+
         // session_id_len (2 bytes, little-endian)
         const sessionIdBytes = new TextEncoder().encode(sessionId);
         const sessionIdLen = Math.min(sessionIdBytes.length, 31); // 最多31字节，保留1字节给null terminator
         headerView.setUint16(offset, sessionIdLen, true);
         offset += 2;
-        
+
         // session_id (32 bytes)
         headerBytes.set(sessionIdBytes.slice(0, sessionIdLen), offset);
         offset += 32;
-        
+
         // component_name_len (2 bytes, little-endian)
         const componentNameBytes = new TextEncoder().encode(componentName);
         const componentNameLen = Math.min(componentNameBytes.length, 15); // 最多15字节，保留1字节给null terminator
         headerView.setUint16(offset, componentNameLen, true);
         offset += 2;
-        
+
         // component_name (16 bytes)
         headerBytes.set(componentNameBytes.slice(0, componentNameLen), offset);
         offset += 16;
-        
+
         // chunk_index (4 bytes, little-endian)
         headerView.setUint32(offset, chunkIndex, true);
         offset += 4;
-        
+
         // total_chunks (4 bytes, little-endian)
         headerView.setUint32(offset, totalChunks, true);
         offset += 4;
-        
+
         // chunk_size (4 bytes, little-endian)
         headerView.setUint32(offset, chunkSize, true);
         offset += 4;
-        
+
         // chunk_offset (4 bytes, little-endian)
         headerView.setUint32(offset, chunkOffset, true);
         offset += 4;
-        
+
         // target_address (4 bytes, little-endian)
         headerView.setUint32(offset, targetAddress, true);
         offset += 4;
-        
+
         // checksum (8 bytes) - SHA256的前8字节
         const checksumBytes = new Uint8Array(8);
         for (let i = 0; i < 8 && i * 2 < checksum.length; i++) {
@@ -1676,24 +1687,24 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             // 监听二进制响应
             const handleBinaryResponse = (data: ArrayBuffer) => {
                 clearTimeout(timeout);
-                
+
                 try {
                     // 解析二进制响应
                     const responseView = new DataView(data);
                     const responseCommand = responseView.getUint8(0);
-                    
+
                     if (responseCommand === 0x81) { // 响应命令
                         const success = responseView.getUint8(1) === 1;
                         const responseChunkIndex = responseView.getUint32(2, true);
                         const progress = responseView.getUint32(6, true);
                         const errorLen = responseView.getUint8(10);
-                        
+
                         let errorMessage = '';
                         if (!success && errorLen > 0) {
                             const errorBytes = new Uint8Array(data, 11, errorLen);
                             errorMessage = new TextDecoder().decode(errorBytes);
                         }
-                        
+
                         resolve({
                             success,
                             chunk_index: responseChunkIndex,
@@ -1712,7 +1723,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (typeof wsFramework.onBinaryMessage === 'function') {
                 console.log('二进制消息监听器注册成功');
                 const unsubscribe = wsFramework.onBinaryMessage(handleBinaryResponse);
-                
+
                 // 发送二进制消息
                 try {
                     console.log('发送二进制消息:', {
@@ -1729,7 +1740,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     if (unsubscribe) unsubscribe();
                     reject(error);
                 }
-                
+
                 // 确保在响应后取消监听
                 const originalResolve = resolve;
                 const originalReject = reject;
@@ -1753,22 +1764,22 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         // 验证分片大小必须是4K或4K的倍数
         if (config.chunkSize !== undefined) {
             const CHUNK_SIZE_BASE = 4096; // 4KB基础单位
-            
+
             if (config.chunkSize <= 0) {
                 throw new Error('Chunk size must be greater than 0');
             }
-            
+
             if (config.chunkSize % CHUNK_SIZE_BASE !== 0) {
                 throw new Error(`Chunk size must be a multiple of 4KB (${CHUNK_SIZE_BASE} bytes), current value: ${config.chunkSize}`);
             }
-            
+
             // 建议的最大分片大小为16KB，避免超过STM32的HTTP缓冲区限制
             const MAX_CHUNK_SIZE = 16384; // 16KB
             if (config.chunkSize > MAX_CHUNK_SIZE) {
                 console.warn(`Chunk size ${config.chunkSize} exceeds the recommended maximum of ${MAX_CHUNK_SIZE}, which may lead to insufficient STM32 memory.`);
             }
         }
-        
+
         setUpgradeConfigState(prevConfig => ({
             ...prevConfig,
             ...config
@@ -1783,11 +1794,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         const CHUNK_SIZE_BASE = 4096; // 4KB基础单位
         const MAX_CHUNK_SIZE = 16384; // 16KB
         const validSizes: number[] = [];
-        
+
         for (let size = CHUNK_SIZE_BASE; size <= MAX_CHUNK_SIZE; size += CHUNK_SIZE_BASE) {
             validSizes.push(size);
         }
-        
+
         return validSizes;
     };
 
@@ -1823,6 +1834,49 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         console.log('WebSocket配置已更新:', config);
     };
 
+    // 按键索引映射到游戏控制器按钮或组合键
+    const indexMapToGameControllerButtonOrCombination = (
+        keyMapping: { [key in GameControllerButton]?: number[] },
+        keyCombinations: KeyCombination[],
+        inputMode: Platform
+    ): { [key: number]: GameControllerButton | string } => {
+        let labelMap = new Map<GameControllerButton, string>();
+        switch (inputMode) {
+            case Platform.XINPUT: labelMap = XInputButtonMap;
+                break;
+            case Platform.PS4: labelMap = PS4ButtonMap;
+                break;
+            case Platform.PS5: labelMap = PS4ButtonMap;
+                break;
+            case Platform.SWITCH: labelMap = SwitchButtonMap;
+                break;
+            default: labelMap = new Map<GameControllerButton, string>();
+                break;
+        }
+        
+        const map: { [key: number]: GameControllerButton | string } = {};
+        
+        // 处理普通游戏控制器按钮的按键映射
+        if (keyMapping) {
+            for(const [key, value] of Object.entries(keyMapping)) {
+                for(const index of value) {
+                    map[index] = labelMap.get(key as GameControllerButton) as GameControllerButton;
+                }
+            }
+        }
+        
+        // 处理组合键的按键映射
+        if (keyCombinations) {
+            for(let i = 0; i < keyCombinations.length; i++) {
+                const combination = keyCombinations[i];
+                for(const index of combination.keyIndexes) {
+                    map[index] = `COM${i + 1}`;
+                }
+            }
+        }
+        
+        return map;
+    };
 
     return (
         <GamepadConfigContext.Provider value={{
@@ -1836,7 +1890,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             wsError,
             connectWebSocket,
             disconnectWebSocket,
-            
+
             globalConfig,
             profileList,
             defaultProfile,
@@ -1914,6 +1968,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             // 是否禁用完成配置按钮
             finishConfigDisabled: finishConfigDisabled,
             setFinishConfigDisabled: setFinishConfigDisabled,
+            // 按键索引映射到游戏控制器按钮或组合键
+            indexMapToGameControllerButtonOrCombination: indexMapToGameControllerButtonOrCombination,
         }}>
             {children}
         </GamepadConfigContext.Provider>
