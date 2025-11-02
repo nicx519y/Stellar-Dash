@@ -8,13 +8,6 @@
 #include "board_cfg.h"
 #include <cmath>
 
-// 按钮位置结构体
-struct ButtonPosition {
-    float x;
-    float y;
-    float r;
-};
-
 // LED动画参数结构体
 struct LedAnimationParams {
     uint8_t index;                  // 按钮索引
@@ -48,8 +41,7 @@ struct Ripple {
 // LED动画算法函数类型
 typedef RGBColor (*LedAnimationAlgorithm)(const LedAnimationParams& params);
 
-// 按钮位置数组声明
-extern const ButtonPosition HITBOX_LED_POS_LIST[NUM_LED + NUM_LED_AROUND];
+// 按钮位置数组在 board_cfg.h 中以静态常量定义
 
 // 主LED和环绕LED坐标数组声明
 extern const ButtonPosition* MAIN_LED_POS_LIST;
@@ -82,4 +74,4 @@ RGBColor aroundLedBreathingAnimation(float progress, uint8_t ledIndex, uint32_t 
 RGBColor aroundLedQuakeAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t animationSpeed, uint32_t triggerTime);
 #endif
 
-#endif // _LED_ANIMATION_HPP_ 
+#endif // _LED_ANIMATION_HPP_
