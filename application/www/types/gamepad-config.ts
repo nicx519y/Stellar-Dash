@@ -250,80 +250,81 @@ export enum HotkeyAction {
     PS4Mode = "PS4Mode",
     PS5Mode = "PS5Mode",
     NSwitchMode = "NSwitchMode",
+    SystemReboot = "SystemReboot",
 }
 
 export const HotkeyActionList = Object.values(HotkeyAction);
 
-export const HotkeyActionLabelMap = new Map<HotkeyAction, { label: string, description: string }>([
-    [HotkeyAction.None, { 
-        label: "None", 
-        description: "No action" 
-    }],
-    [HotkeyAction.LedsEffectStyleNext, { 
-        label: "Next LED Effect", 
-        description: "Switch to next LED effect style" 
-    }],
-    [HotkeyAction.LedsEffectStylePrev, { 
-        label: "Previous LED Effect", 
-        description: "Switch to previous LED effect style" 
-    }],
-    [HotkeyAction.LedsBrightnessUp, { 
-        label: "Increase Brightness", 
-        description: "Increase LED brightness" 
-    }],
-    [HotkeyAction.LedsBrightnessDown, { 
-        label: "Decrease Brightness", 
-        description: "Decrease LED brightness" 
-    }],
-    [HotkeyAction.LedsEnableSwitch, { 
-        label: "Toggle LEDs", 
-        description: "Enable/Disable LEDs" 
-    }],
-    [HotkeyAction.AmbientLightEffectStyleNext, { 
-        label: "Next Ambient Light Effect", 
-        description: "Switch to next ambient light effect style" 
-    }],
-    [HotkeyAction.AmbientLightEffectStylePrev, { 
-        label: "Previous Ambient Light Effect", 
-        description: "Switch to previous ambient light effect style" 
-    }],
-    [HotkeyAction.AmbientLightBrightnessUp, { 
-        label: "Increase Ambient Light Brightness", 
-        description: "Increase ambient light brightness" 
-    }],
-    [HotkeyAction.AmbientLightBrightnessDown, { 
-        label: "Decrease Ambient Light Brightness", 
-        description: "Decrease ambient light brightness" 
-    }],
-    [HotkeyAction.AmbientLightEnableSwitch, { 
-        label: "Toggle Ambient Light", 
-        description: "Enable/Disable ambient light" 
-    }],
-    [HotkeyAction.WebConfigMode, { 
-        label: "Web Config Mode", 
-        description: "Enter web configuration mode" 
-    }],
-    [HotkeyAction.CalibrationMode, { 
-        label: "Calibration Mode", 
-        description: "Toggle calibration mode" 
-    }],
-    [HotkeyAction.XInputMode, { 
-        label: "XInput Mode", 
-        description: "Switch to XInput mode" 
-    }],
-    [HotkeyAction.PS4Mode, { 
-        label: "PS4 Mode", 
-        description: "Switch to PS4 mode" 
-    }],
-    [HotkeyAction.PS5Mode, { 
-        label: "PS5 Mode", 
-        description: "Switch to PS5 mode" 
-    }],
-    [HotkeyAction.NSwitchMode, { 
-        label: "Nintendo Switch Mode", 
-        description: "Switch to Nintendo Switch mode" 
-    }],
-]);
+// export const HotkeyActionLabelMap = new Map<HotkeyAction, { label: string, description: string }>([
+//     [HotkeyAction.None, { 
+//         label: "None", 
+//         description: "No action" 
+//     }],
+//     [HotkeyAction.LedsEffectStyleNext, { 
+//         label: "Next LED Effect", 
+//         description: "Switch to next LED effect style" 
+//     }],
+//     [HotkeyAction.LedsEffectStylePrev, { 
+//         label: "Previous LED Effect", 
+//         description: "Switch to previous LED effect style" 
+//     }],
+//     [HotkeyAction.LedsBrightnessUp, { 
+//         label: "Increase Brightness", 
+//         description: "Increase LED brightness" 
+//     }],
+//     [HotkeyAction.LedsBrightnessDown, { 
+//         label: "Decrease Brightness", 
+//         description: "Decrease LED brightness" 
+//     }],
+//     [HotkeyAction.LedsEnableSwitch, { 
+//         label: "Toggle LEDs", 
+//         description: "Enable/Disable LEDs" 
+//     }],
+//     [HotkeyAction.AmbientLightEffectStyleNext, { 
+//         label: "Next Ambient Light Effect", 
+//         description: "Switch to next ambient light effect style" 
+//     }],
+//     [HotkeyAction.AmbientLightEffectStylePrev, { 
+//         label: "Previous Ambient Light Effect", 
+//         description: "Switch to previous ambient light effect style" 
+//     }],
+//     [HotkeyAction.AmbientLightBrightnessUp, { 
+//         label: "Increase Ambient Light Brightness", 
+//         description: "Increase ambient light brightness" 
+//     }],
+//     [HotkeyAction.AmbientLightBrightnessDown, { 
+//         label: "Decrease Ambient Light Brightness", 
+//         description: "Decrease ambient light brightness" 
+//     }],
+//     [HotkeyAction.AmbientLightEnableSwitch, { 
+//         label: "Toggle Ambient Light", 
+//         description: "Enable/Disable ambient light" 
+//     }],
+//     [HotkeyAction.WebConfigMode, { 
+//         label: "Web Config Mode", 
+//         description: "Enter web configuration mode" 
+//     }],
+//     [HotkeyAction.CalibrationMode, { 
+//         label: "Calibration Mode", 
+//         description: "Toggle calibration mode" 
+//     }],
+//     [HotkeyAction.XInputMode, { 
+//         label: "XInput Mode", 
+//         description: "Switch to XInput mode" 
+//     }],
+//     [HotkeyAction.PS4Mode, { 
+//         label: "PS4 Mode", 
+//         description: "Switch to PS4 mode" 
+//     }],
+//     [HotkeyAction.PS5Mode, { 
+//         label: "PS5 Mode", 
+//         description: "Switch to PS5 mode" 
+//     }],
+//     [HotkeyAction.NSwitchMode, { 
+//         label: "Nintendo Switch Mode", 
+//         description: "Switch to Nintendo Switch mode" 
+//     }],
+// ]);
 
 export type Hotkey = {
     key: number,

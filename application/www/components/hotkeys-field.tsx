@@ -37,6 +37,7 @@ export default function HotkeysField(
     const { index, value, onValueChange, isActive, disabled, onFieldClick } = props;
     const { colorMode } = useColorMode();
 
+    // 获取热键操作的标签
     const getHotkeyActionLabel = (action: HotkeyAction): string => {
         switch (action) {
             case HotkeyAction.None:
@@ -73,6 +74,8 @@ export default function HotkeysField(
                 return t.HOTKEY_ACTION_PS5_MODE;
             case HotkeyAction.NSwitchMode:
                 return t.HOTKEY_ACTION_NSWITCH_MODE;
+            case HotkeyAction.SystemReboot:
+                return t.HOTKEY_ACTION_SYSTEM_REBOOT;
             default:
                 return action;
         }
