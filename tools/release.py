@@ -1949,7 +1949,8 @@ class ReleaseManager:
 
     # ==================== 固件删除功能 ====================
     
-    def delete_firmware_from_server(self, firmware_id: str, server_url: str = None) -> bool:
+    def delete_firmware_from_server(self, firmware_id: str, server_url: str = None,
+                                    admin_username: str = None, admin_password: str = None) -> bool:
         """从服务器删除指定ID的固件"""
         
         # 获取服务器URL（优先使用参数，其次使用配置）
@@ -2014,9 +2015,16 @@ class ReleaseManager:
             delete_url = f"{server_url}/api/firmwares/{firmware_id}"
             print(f"正在删除: {delete_url}")
             
+            # 获取管理员认证凭据并生成请求头
+            admin_username, admin_password = self.get_admin_credentials(admin_username, admin_password)
+            if not admin_username or not admin_password:
+                return False
+            auth_headers = self.generate_basic_auth_headers(admin_username, admin_password)
+            
             response = requests.delete(
                 delete_url,
                 timeout=30,
+                headers=auth_headers,
                 proxies={'http': None, 'https': None} if 'localhost' in server_url or '127.0.0.1' in server_url else None
             )
             
@@ -2031,6 +2039,14 @@ class ReleaseManager:
                 else:
                     print(f"✗ 删除失败: {result.get('message', '未知错误')}")
                     return False
+            elif response.status_code == 401:
+                print("✗ 删除失败: 需要管理员认证或认证失败 (401 Unauthorized)")
+                try:
+                    error_info = response.json()
+                    print(f"错误信息: {error_info.get('message', response.text)}")
+                except:
+                    print(f"响应内容: {response.text}")
+                return False
             elif response.status_code == 404:
                 print(f"✗ 固件不存在: ID {firmware_id}")
                 return False
@@ -3047,6 +3063,8 @@ Intel HEX增强模式说明:
     delete_parser = subparsers.add_parser('delete', help='删除服务器固件')
     delete_parser.add_argument("firmware_id", help="要删除的固件ID")
     delete_parser.add_argument("--server", help="指定服务器地址（可选，使用配置的默认地址）")
+    delete_parser.add_argument("--admin-username", help="管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）")
+    delete_parser.add_argument("--admin-password", help="管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）")
     
     # 清空命令
     clear_parser = subparsers.add_parser('clear', help='清空指定版本及之前的所有固件')
@@ -3235,8 +3253,10 @@ Intel HEX增强模式说明:
             # 删除服务器固件
             firmware_id = args.firmware_id
             server_url = args.server
+            admin_username = args.admin_username
+            admin_password = args.admin_password
             
-            if manager.delete_firmware_from_server(firmware_id, server_url):
+            if manager.delete_firmware_from_server(firmware_id, server_url, admin_username, admin_password):
                 print("\n✓ 固件删除成功")
                 return 0
             else:
