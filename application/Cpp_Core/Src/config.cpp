@@ -68,8 +68,8 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
             .virtualPin = l,
             .pressAccuracy = 0.1f,
             .releaseAccuracy = 0.1f,
-            .topDeadzone = 0.2f,
-            .bottomDeadzone = 0.2f
+            .topDeadzone = 0.3f,
+            .bottomDeadzone = 0.3f
         };
     }
 
@@ -81,7 +81,7 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
     profile.ledsConfigs.ledColor1 = 0x00ff00;
     profile.ledsConfigs.ledColor2 = 0x0000ff;
     profile.ledsConfigs.ledColor3 = 0x000000;
-    profile.ledsConfigs.ledBrightness = 100;
+    profile.ledsConfigs.ledBrightness = 50;
     profile.ledsConfigs.ledAnimationSpeed = 3;
     
     // 设置环绕灯配置
@@ -92,7 +92,7 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
     profile.ledsConfigs.aroundLedColor1 = 0xff0000;  // 红色
     profile.ledsConfigs.aroundLedColor2 = 0x00ff00;  // 绿色
     profile.ledsConfigs.aroundLedColor3 = 0x0000ff;  // 蓝色
-    profile.ledsConfigs.aroundLedBrightness = 100;
+    profile.ledsConfigs.aroundLedBrightness = 50;
     profile.ledsConfigs.aroundLedAnimationSpeed = 3;
 
     APP_DBG("ConfigUtils::makeDefaultProfile - ledsConfigs init done");

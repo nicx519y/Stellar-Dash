@@ -787,7 +787,7 @@ export const UI_TEXT = {
     HOTKEY_ACTION_PS4_MODE: "PlayStation 4 Mode",
     HOTKEY_ACTION_PS5_MODE: "PlayStation 5 Mode",
     HOTKEY_ACTION_NSWITCH_MODE: "Nintendo Switch Mode",
-    HOTKEY_ACTION_SYSTEM_REBOOT: "System Reboot",
+    HOTKEY_ACTION_SYSTEM_REBOOT: "Device Reboot",
 
     HOTKEY_TRIGGER_HOLD: "Hold",
     HOTKEY_TRIGGER_CLICK: "Click",
@@ -1115,7 +1115,7 @@ export const UI_TEXT_ZH = {
     HOTKEY_ACTION_PS4_MODE: "PlayStation 4模式",
     HOTKEY_ACTION_PS5_MODE: "PlayStation 5模式",
     HOTKEY_ACTION_NSWITCH_MODE: "Nintendo Switch模式",
-    HOTKEY_ACTION_SYSTEM_REBOOT: "系统重启",
+    HOTKEY_ACTION_SYSTEM_REBOOT: "重启设备",
 
     HOTKEY_TRIGGER_HOLD: "长按",
     HOTKEY_TRIGGER_CLICK: "短按",
