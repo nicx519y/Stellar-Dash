@@ -4,7 +4,7 @@ import { useRouterStore, Route } from './router';
 import { Flex, Center, Box, Tabs, HStack, Separator } from '@chakra-ui/react';
 import { useLanguage } from "@/contexts/language-context";
 import {
-    LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuGamepad,
+    LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuGamepad, LuFileText,
     //  LuWifi, LuMonitor, LuChartSpline 
 } from 'react-icons/lu';
 import { navigationEvents } from '@/lib/event-manager';
@@ -26,6 +26,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
         { id: 'lighting' as Route, label: t.SETTINGS_TAB_LEDS, icon: LuLightbulb },
         // { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
         { id: 'firmware' as Route, label: t.SETTINGS_TAB_FIRMWARE, icon: LuCpu },
+        { id: 'view-logs' as Route, label: t.SETTINGS_TAB_VIEW_LOGS, icon: LuFileText },
         // { id: 'websocket' as Route, label: 'WebSocket测试', icon: LuWifi },
         // { id: 'button-monitor' as Route, label: '按键监控测试', icon: LuMonitor },
     ];

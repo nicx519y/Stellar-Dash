@@ -181,6 +181,8 @@ interface GamepadConfigContextType {
         keyCombinations: KeyCombination[],
         inputMode: Platform
     ) => { [key: number]: GameControllerButton | string };
+    // 设备日志相关（服务端固定返回最近50条）
+    fetchDeviceLogsList: () => Promise<string[]>;
 }
 
 const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
@@ -617,6 +619,18 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const resetProfileDetails = async (immediate: boolean = true): Promise<void> => {
         await fetchDefaultProfile();
+    };
+
+    // 设备日志：通过共享的 WebSocket 连接获取日志（服务端固定返回最近50条）
+    const fetchDeviceLogsList = async (): Promise<string[]> => {
+        try {
+            const data = await sendWebSocketRequest('get_device_logs_list', {}, true);
+            const items = (data?.items as string[]) || [];
+            return items;
+        } catch (err) {
+            // 不在上下文里打断 UI，只将错误向上抛出即可
+            throw err instanceof Error ? err : new Error('获取设备日志失败');
+        }
     };
 
     const createProfile = async (profileName: string, immediate: boolean = true): Promise<void> => {
@@ -1970,6 +1984,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setFinishConfigDisabled: setFinishConfigDisabled,
             // 按键索引映射到游戏控制器按钮或组合键
             indexMapToGameControllerButtonOrCombination: indexMapToGameControllerButtonOrCombination,
+            // 设备日志相关
+            fetchDeviceLogsList: fetchDeviceLogsList,
         }}>
             {children}
         </GamepadConfigContext.Provider>

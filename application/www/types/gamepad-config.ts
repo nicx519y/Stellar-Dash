@@ -735,6 +735,7 @@ export const UI_TEXT = {
     SETTINGS_TAB_BUTTONS_PERFORMANCE: "Buttons Performance",
     SETTINGS_TAB_SWITCH_MARKING: "Switch Marking",
     SETTINGS_TAB_FIRMWARE: "Firmware",
+    SETTINGS_TAB_VIEW_LOGS: "View Logs",
 
     // Keys Settings
     SETTINGS_KEYS_INPUT_MODE_TITLE: "Input Mode Choice",
@@ -1063,6 +1064,8 @@ export const UI_TEXT_ZH = {
     SETTINGS_TAB_BUTTONS_PERFORMANCE: "按键性能",
     SETTINGS_TAB_SWITCH_MARKING: "磁轴标记",
     SETTINGS_TAB_FIRMWARE: "固件升级",
+    SETTINGS_TAB_VIEW_LOGS: "查看日志",
+    
 
     // Keys Settings
     SETTINGS_KEYS_INPUT_MODE_TITLE: "输入模式选择",

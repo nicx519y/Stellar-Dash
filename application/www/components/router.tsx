@@ -7,9 +7,10 @@ import { KeysSettingContent } from '@/components/keys-setting-content';
 import { LEDsSettingContent } from '@/components/leds-setting-content';
 import { ButtonsPerformanceContent } from '@/components/buttons-performance-content';
 import { FirmwareContent } from '@/components/firmware-content';
+import { ViewLogsContent } from '@/components/view-logs-content';
 import { SwitchMarkingContent } from '@/components/switch-marking-content';
 
-export type Route = '' | 'global' | 'keys' | 'lighting' | 'buttons-performance' | 'switch-marking' | 'firmware';
+export type Route = '' | 'global' | 'keys' | 'lighting' | 'buttons-performance' | 'switch-marking' | 'firmware' | 'view-logs';
 
 interface RouterState {
     currentRoute: Route;
@@ -58,10 +59,13 @@ export function Router() {
             return <FirmwareContent />;
         case 'switch-marking':
             return <SwitchMarkingContent />;
+        case 'view-logs':
+            return <ViewLogsContent />;
         // case 'websocket':
         //     return <WebSocketTest />;
         // case 'buttons-monitor':
         //     return <ButtonMonitorTest />;
+
         default:
             return <></>;
     }
