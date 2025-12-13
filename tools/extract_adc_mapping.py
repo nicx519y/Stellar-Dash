@@ -20,7 +20,7 @@ SLOT_A_ADC_MAPPING_SIZE = 128 * 1024  # 128KB
 
 NUM_ADC_VALUES_MAPPING = 8  # 最大8个映射
 MAX_ADC_VALUES_LENGTH = 40  # 每个映射最大40个值
-NUM_ADC_BUTTONS = 17  # 总按钮数 (6+6+5)
+NUM_ADC_BUTTONS = 18  # 总按钮数 (6+6+6)
 
 class ADCCalibrationValues(NamedTuple):
     """ADC校准值"""
@@ -65,15 +65,22 @@ class ADCMappingExtractor:
             # OpenOCD命令 - 使用项目的QSPI配置
             cmd = [
                 "openocd",
+                "-d0",
                 "-f", "openocd_configs/ST-LINK-QSPIFLASH.cfg",
                 "-c", "init",
                 "-c", "halt",
+                "-c", "reset init",
                 "-c", f"dump_image {temp_file} 0x{SLOT_A_ADC_MAPPING_BASE:08X} {SLOT_A_ADC_MAPPING_SIZE}",
-                "-c", "exit"
+                "-c", "shutdown"
             ]
             
             print(f"执行命令: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
             
             if result.returncode == 0:
                 # 检查文件是否生成
@@ -126,7 +133,7 @@ class ADCMappingExtractor:
         
         # 读取默认ID (16字节)
         default_id_bytes = raw_data[offset:offset+16]
-        default_id = default_id_bytes.decode('utf-8', errors='ignore').rstrip('\x00')
+        default_id = default_id_bytes.decode('utf-8', errors='ignore').strip('\x00')
         offset += 16
         
         print(f"版本: 0x{version:08X}, 映射数量: {num}, 默认ID: '{default_id}'")
@@ -162,12 +169,12 @@ class ADCMappingExtractor:
         
         # 读取ID (16字节)
         id_bytes = data[offset:offset+16]
-        id_str = id_bytes.decode('utf-8', errors='ignore').rstrip('\x00')
+        id_str = id_bytes.decode('utf-8', errors='ignore').strip('\x00')
         offset += 16
         
         # 读取名称 (16字节)  
         name_bytes = data[offset:offset+16]
-        name = name_bytes.decode('utf-8', errors='ignore').rstrip('\x00')
+        name = name_bytes.decode('utf-8', errors='ignore').strip('\x00')
         offset += 16
         
         # 读取长度 (4字节)
@@ -229,9 +236,17 @@ class ADCMappingExtractor:
     
     def _get_mapping_size(self) -> int:
         """获取单个映射的大小"""
-        # ID(16) + Name(16) + Length(4) + Step(4) + SamplingNoise(2) + SamplingFreq(2) +
-        # OriginalValues(40*4) + AutoCalib(17*2*2) + ManualCalib(17*2*2)
-        base_size = 16 + 16 + 4 + 4 + 2 + 2 + (40 * 4) + (17 * 2 * 2) + (17 * 2 * 2)
+        base_size = (
+            16 +  # id[16]
+            16 +  # name[16]
+            4  +  # length (size_t, 4 bytes)
+            4  +  # step (float, 4 bytes)
+            2  +  # samplingNoise (uint16_t)
+            2  +  # samplingFrequency (uint16_t)
+            (40 * 4) +  # originalValues (40 * uint32_t)
+            (NUM_ADC_BUTTONS * 2 * 2) +  # autoCalibrationValues (top,bottom)
+            (NUM_ADC_BUTTONS * 2 * 2)    # manualCalibrationValues (top,bottom)
+        )
         # ARM编译器4字节对齐
         aligned_size = ((base_size + 3) // 4) * 4
         return aligned_size
