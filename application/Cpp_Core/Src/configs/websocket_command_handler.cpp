@@ -107,6 +107,8 @@ void WebSocketCommandManager::initializeHandlers() {
     registerHandler("start_button_performance_monitoring", &commonHandler);
     registerHandler("stop_button_performance_monitoring", &commonHandler);
     registerHandler("get_button_states", &commonHandler);
+    // 设备日志相关命令
+    registerHandler("get_device_logs_list", &commonHandler);
     
     // 注册固件相关命令
     registerHandler("get_device_auth", &firmwareHandler);

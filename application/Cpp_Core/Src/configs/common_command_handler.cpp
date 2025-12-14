@@ -229,6 +229,8 @@ WebSocketDownstreamMessage CommonCommandHandler::handle(const WebSocketUpstreamM
         return handleStartButtonPerformanceMonitoring(request);
     } else if (command == "stop_button_performance_monitoring") {
         return handleStopButtonPerformanceMonitoring(request);
+    } else if (command == "get_device_logs_list") {
+        return handleGetDeviceLogsList(request);
     }
     
     return create_error_response(request.getCid(), command, -1, "Unknown common command");
@@ -291,6 +293,89 @@ WebSocketDownstreamMessage CommonCommandHandler::handleStartButtonPerformanceMon
     cJSON_AddBoolToObject(dataJSON, "isActive", btnsManager.isActive());
     cJSON_AddBoolToObject(dataJSON, "isTestModeEnabled", btnsManager.isTestModeEnabled());
     
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+/**
+ * @brief 获取设备日志列表（从Flash读取，按时间倒序，限制条数）
+ * WebSocket命令: get_device_logs_list
+ *
+ * 请求示例:
+ * {
+ *   "cid": 21,
+ *   "command": "get_device_logs_list",
+ *   "params": { "limit": 200 }
+ * }
+ *
+ * 响应示例:
+ * {
+ *   "cid": 21,
+ *   "command": "get_device_logs_list",
+ *   "errNo": 0,
+ *   "data": {
+ *     "count": 120,
+ *     "items": ["[...]"]
+ *   }
+ * }
+ */
+WebSocketDownstreamMessage CommonCommandHandler::handleGetDeviceLogsList(const WebSocketUpstreamMessage& request) {
+    // 固定仅返回最近50条日志
+    uint32_t limit = 50;
+
+    // 先尝试刷新缓冲到Flash，确保包含最近日志
+    (void)Logger_Flush();
+
+    uint32_t sectorArray[LOG_FLASH_SECTOR_COUNT] = {0};
+    uint32_t sectorCount = 0;
+    LogResult r = Logger_GetSortedSectors(sectorArray, &sectorCount);
+    if (r != LOG_RESULT_SUCCESS) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to enumerate log sectors");
+    }
+
+    cJSON* dataJSON = cJSON_CreateObject();
+    if (!dataJSON) {
+        return create_error_response(request.getCid(), request.getCommand(), 2, "Failed to create JSON object");
+    }
+    cJSON* itemsArray = cJSON_CreateArray();
+    if (!itemsArray) {
+        cJSON_Delete(dataJSON);
+        return create_error_response(request.getCid(), request.getCommand(), 2, "Failed to create JSON array");
+    }
+
+    uint32_t collected = 0;
+    // 从最新的扇区开始向前收集，按条目倒序以保证整体新→旧
+    for (int i = static_cast<int>(sectorCount) - 1; i >= 0 && collected < limit; --i) {
+        uint32_t sectorIndex = sectorArray[i];
+        // 改为使用堆内存，避免因大数组导致的栈溢出
+        LogEntry* entries = (LogEntry*)malloc(LOG_ENTRIES_PER_SECTOR * sizeof(LogEntry));
+        if (!entries) {
+            // 无法分配足够内存，直接跳过该扇区
+            continue;
+        }
+        uint32_t entryCount = 0;
+        LogResult lr = Logger_GetSectorLogs(sectorIndex, entries, &entryCount);
+        if (lr != LOG_RESULT_SUCCESS) {
+            free(entries);
+            continue; // 跳过异常扇区
+        }
+        for (int j = static_cast<int>(entryCount) - 1; j >= 0 && collected < limit; --j) {
+            // 仅返回 WARN 和 ERROR 级别的日志
+            const char* entry = entries[j];
+            if (entry && (
+                strstr(entry, "[WARN]") != nullptr ||
+                strstr(entry, "[ERROR]") != nullptr ||
+                strstr(entry, "[FATAL]") != nullptr
+            )) {
+                cJSON_AddItemToArray(itemsArray, cJSON_CreateString(entry));
+                collected++;
+            }
+        }
+        free(entries);
+    }
+
+    cJSON_AddItemToObject(dataJSON, "items", itemsArray);
+    cJSON_AddNumberToObject(dataJSON, "count", static_cast<double>(collected));
+
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 

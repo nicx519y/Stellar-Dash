@@ -39,7 +39,7 @@ void CalibrationState::loop() {
     if (isRunning) {
         // 如果校准完成，等待1秒后重启
         if(rebootTime > 0 && HAL_GetTick() - rebootTime >= 1000) {
-            LOG_WARN("CALIBRATION", "Initiating system reboot after calibration completion");
+            LOG_INFO("CALIBRATION", "Initiating system reboot after calibration completion");
             Logger_Flush(); // 确保日志被写入Flash
             NVIC_SystemReset();
         } else {    

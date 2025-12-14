@@ -32,6 +32,7 @@
 #include "tusb.h"
 #include "usbh_pvt.h"
 #include "hub.h"
+#include "system_logger.h"
 
 //--------------------------------------------------------------------+
 // Configuration
@@ -814,10 +815,13 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
   const uint8_t rhport = usbh_get_rhport(daddr);
   tusb_control_request_t const * request = &_usbh_epbuf.request;
   usbh_ctrl_xfer_info_t* ctrl_info = &_usbh_data.ctrl_xfer_info;
+  // 控制传输异常记录到闪存日志
 
   switch (result) {
     case XFER_RESULT_STALLED:
       TU_LOG_USBH("[%u:%u] Control STALLED, xferred_bytes = %" PRIu32 "\r\n", rhport, daddr, xferred_bytes);
+      LOG_WARN("USBH", "CTRL STALLED rhport=%u daddr=%u len=%lu", rhport, daddr, (unsigned long)xferred_bytes);
+      (void)Logger_Flush();
       TU_LOG_BUF_USBH(request, 8);
       _control_xfer_complete(daddr, result);
     break;
@@ -825,6 +829,7 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
     case XFER_RESULT_FAILED:
       if (tuh_connected(daddr) && ctrl_info->failed_count < USBH_CONTROL_RETRY_MAX) {
         TU_LOG_USBH("[%u:%u] Control FAILED %u/%u, retrying\r\n", rhport, daddr, ctrl_info->failed_count+1, USBH_CONTROL_RETRY_MAX);
+        LOG_WARN("USBH", "CTRL FAIL RETRY #%u/%u rhport=%u daddr=%u", (unsigned)(ctrl_info->failed_count+1), (unsigned)USBH_CONTROL_RETRY_MAX, rhport, daddr);
         (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
         ctrl_info->stage = CONTROL_STAGE_SETUP;
         ctrl_info->failed_count++;
@@ -834,6 +839,8 @@ static bool usbh_control_xfer_cb (uint8_t daddr, uint8_t ep_addr, xfer_result_t 
         TU_ASSERT(usbh_setup_send(daddr, (uint8_t const *) request));
       } else {
         TU_LOG_USBH("[%u:%u] Control FAILED, xferred_bytes = %" PRIu32 "\r\n", rhport, daddr, xferred_bytes);
+        LOG_ERROR("USBH", "CTRL FAILED rhport=%u daddr=%u len=%lu", rhport, daddr, (unsigned long)xferred_bytes);
+        (void)Logger_Flush();
         TU_LOG_BUF_USBH(request, 8);
         _control_xfer_complete(daddr, result);
       }
@@ -912,6 +919,8 @@ bool tuh_edpt_xfer(tuh_xfer_t* xfer) {
 
 bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
   TU_LOG_USBH("[%u] Aborted transfer on EP %02X\r\n", daddr, ep_addr);
+  LOG_WARN("USBH", "ABORT XFER daddr=%u ep=0x%02X", daddr, ep_addr);
+  (void)Logger_Flush();
   const uint8_t epnum = tu_edpt_number(ep_addr);
   const uint8_t dir   = tu_edpt_dir(ep_addr);
 

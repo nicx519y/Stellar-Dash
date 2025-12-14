@@ -36,7 +36,8 @@ const static char* spaPaths[] = {
     "/lighting",
     "/buttons-performance",
     "/firmware",
-    "/switch-marking"
+    "/switch-marking",
+    "/view-logs"
     // "/websocket"
     // "/buttons-monitor"
 };

@@ -32,6 +32,7 @@
 #include "usbh.h"
 #include "usbh_pvt.h"
 #include "hub.h"
+#include "system_logger.h"
 
 // Debug level, TUSB_CFG_DEBUG must be at least this level for debug message
 #define HUB_DEBUG   2
@@ -387,6 +388,14 @@ bool hub_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t 
     }
   }
 
+  if (result == XFER_RESULT_STALLED) {
+    LOG_WARN("USBH", "HUB STALLED daddr=%u", daddr);
+    (void)Logger_Flush();
+  } else if (result == XFER_RESULT_FAILED) {
+    LOG_ERROR("USBH", "HUB FAILED daddr=%u", daddr);
+    (void)Logger_Flush();
+  }
+
   // If new status event is processed: next status pool is queued by usbh.c after handled this request
   // Otherwise re-queue the status poll here
   if (!processed) {
@@ -400,7 +409,9 @@ static void process_new_status(tuh_xfer_t* xfer) {
   const uint8_t daddr = xfer->daddr;
 
   if (xfer->result != XFER_RESULT_SUCCESS) {
+    LOG_WARN("USBH", "HUB STATUS ERR daddr=%u result=%d", daddr, (int)xfer->result);
     TU_ASSERT(hub_edpt_status_xfer(daddr),);
+    (void)Logger_Flush();
     return;
   }
 

@@ -290,30 +290,34 @@ bool WebSocketConnection::parse_frame(const uint8_t* data, size_t length, WebSoc
     return true;
 }
 
-std::string WebSocketConnection::create_frame(uint8_t opcode, const std::string& payload) {
+std::string WebSocketConnection::create_frame(uint8_t opcode, const char* payload, size_t length, bool fin) {
     std::string frame;
-    
+
     // 第一个字节：FIN + RSV + Opcode
-    frame.push_back(0x80 | (opcode & 0x0F));
-    
-    // 第二个字节：MASK + Payload length
-    if (payload.length() < 126) {
-        frame.push_back(payload.length());
-    } else if (payload.length() < 65536) {
+    frame.push_back((fin ? 0x80 : 0x00) | (opcode & 0x0F));
+
+    // 第二个字节：MASK位始终为0（服务器端不掩码）+ Payload length
+    if (length < 126) {
+        frame.push_back(static_cast<char>(length & 0xFF));
+    } else if (length < 65536) {
         frame.push_back(126);
-        frame.push_back((payload.length() >> 8) & 0xFF);
-        frame.push_back(payload.length() & 0xFF);
+        frame.push_back(static_cast<char>((length >> 8) & 0xFF));
+        frame.push_back(static_cast<char>(length & 0xFF));
     } else {
         frame.push_back(127);
-        for (int i = 7; i >= 0; i--) {
-            frame.push_back((payload.length() >> (i * 8)) & 0xFF);
+        for (int i = 7; i >= 0; --i) {
+            frame.push_back(static_cast<char>((length >> (i * 8)) & 0xFF));
         }
     }
-    
+
     // Payload
-    frame += payload;
-    
+    frame.append(payload, length);
+
     return frame;
+}
+
+std::string WebSocketConnection::create_frame(uint8_t opcode, const std::string& payload) {
+    return create_frame(opcode, payload.c_str(), payload.length(), true);
 }
 
 void WebSocketConnection::send_raw_data(const char* data, size_t length) {
@@ -454,8 +458,14 @@ void WebSocketConnection::handle_data(const uint8_t* data, size_t length) {
 
 void WebSocketConnection::send_text(const std::string& message) {
     if (state == WS_STATE_OPEN && !is_closing) {
-        std::string frame = create_frame(WS_OP_TEXT, message);
-        send_raw_data(frame.c_str(), frame.length());
+        // 小消息直接发送，大消息交给分片逻辑
+        const size_t SMALL_MSG_THRESHOLD = 1024; // 1KB 阈值
+        if (message.size() <= SMALL_MSG_THRESHOLD) {
+            std::string frame = create_frame(WS_OP_TEXT, message);
+            send_raw_data(frame.c_str(), frame.length());
+        } else {
+            send_text_large(message);
+        }
     }
 }
 
@@ -465,6 +475,113 @@ void WebSocketConnection::send_binary(const uint8_t* data, size_t length) {
         std::string frame = create_frame(WS_OP_BINARY, payload);
         send_raw_data(frame.c_str(), frame.length());
     }
+}
+
+void WebSocketConnection::send_text_large(const std::string& message) {
+    if (state != WS_STATE_OPEN || is_closing) return;
+
+    // 基础分片大小，结合tcp缓冲动态调整
+    const size_t BASE_CHUNK_SIZE = 1024;    // 每帧约1KB，有利于lwIP缓冲
+    size_t offset = 0;
+    bool first_chunk = true;
+
+    while (offset < message.size()) {
+        size_t available = 0;
+        if (pcb) {
+            available = tcp_sndbuf(pcb);
+        }
+
+        // 根据当前可用缓冲调整本次分片大小，避免ERR_MEM
+        size_t max_chunk = BASE_CHUNK_SIZE;
+        if (available > 128) {
+            size_t safe_space = (available > 64) ? (available - 64) : available; // 预留头部等
+            if (safe_space < max_chunk) {
+                max_chunk = safe_space;
+            }
+        } else {
+            // 可用缓冲很小，尝试更小分片
+            max_chunk = 256;
+        }
+
+        if (max_chunk == 0) {
+            // 无可用缓冲，退出循环，等待TCP回调驱动后续发送
+            // 记录挂起的剩余数据以便在tcp_sent回调中继续发送
+            pending_text_message = message;
+            pending_text_offset = offset;
+            return;
+        }
+
+        size_t chunk_len = std::min(max_chunk, message.size() - offset);
+        bool fin = (offset + chunk_len == message.size());
+        uint8_t opcode = first_chunk ? WS_OP_TEXT : WS_OP_CONTINUATION;
+
+        std::string frame = create_frame(opcode, message.c_str() + offset, chunk_len, fin);
+        send_raw_data(frame.c_str(), frame.length());
+
+        offset += chunk_len;
+        first_chunk = false;
+    }
+
+    // 完整发送完成，清理挂起状态
+    pending_text_message.clear();
+    pending_text_offset = 0;
+}
+
+bool WebSocketConnection::continue_send_text_large() {
+    // 若无挂起发送，直接返回true表示无需继续
+    if (pending_text_message.empty()) {
+        return true;
+    }
+
+    if (state != WS_STATE_OPEN || is_closing) {
+        // 连接不可用，丢弃挂起数据
+        pending_text_message.clear();
+        pending_text_offset = 0;
+        return true;
+    }
+
+    const size_t BASE_CHUNK_SIZE = 1024;
+    bool first_chunk = (pending_text_offset == 0);
+
+    while (pending_text_offset < pending_text_message.size()) {
+        size_t available = 0;
+        if (pcb) {
+            available = tcp_sndbuf(pcb);
+        }
+
+        size_t max_chunk = BASE_CHUNK_SIZE;
+        if (available > 128) {
+            size_t safe_space = (available > 64) ? (available - 64) : available;
+            if (safe_space < max_chunk) {
+                max_chunk = safe_space;
+            }
+        } else {
+            max_chunk = 256;
+        }
+
+        if (max_chunk == 0) {
+            // 仍然没有可用缓冲，等待下次tcp_sent回调
+            return false;
+        }
+
+        size_t chunk_len = std::min(max_chunk, pending_text_message.size() - pending_text_offset);
+        bool fin = (pending_text_offset + chunk_len == pending_text_message.size());
+        uint8_t opcode = first_chunk ? WS_OP_TEXT : WS_OP_CONTINUATION;
+
+        std::string frame = create_frame(opcode,
+                                         pending_text_message.c_str() + pending_text_offset,
+                                         chunk_len,
+                                         fin);
+        send_raw_data(frame.c_str(), frame.length());
+
+        pending_text_offset += chunk_len;
+        first_chunk = false;
+    }
+
+    // 所有分片发送完毕
+    pending_text_message.clear();
+    pending_text_offset = 0;
+    return true;
 }
 
 void WebSocketConnection::send_ping() {
@@ -543,10 +660,13 @@ err_t WebSocketConnection::tcp_sent_callback(void* arg, struct tcp_pcb* pcb, u16
         // 声明外部函数，用于通知消息发送完成
         extern void on_websocket_message_sent();
         
-        // 当TCP队列为空时，表示当前消息完全发送完毕，可以处理下一条
+        // 当TCP队列为空时，尝试继续发送挂起的大文本分片；
+        // 只有在没有挂起发送时才通知队列处理下一条消息
         if (queue_len == 0) {
-            // APP_DBG("WebSocket: TCP send queue empty, triggering next message processing");
-            on_websocket_message_sent();
+            bool no_pending = conn->continue_send_text_large();
+            if (no_pending) {
+                on_websocket_message_sent();
+            }
         }
     }
     return ERR_OK;

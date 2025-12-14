@@ -136,4 +136,11 @@ private:
     // 构建按键状态的二进制数据
     ButtonStateBinaryData buildButtonStateBinaryData();
 
+public:
+    /**
+     * @brief 获取设备日志列表（从Flash读取，按时间倒序，限制条数）
+     * WebSocket命令: get_device_logs_list
+     */
+    WebSocketDownstreamMessage handleGetDeviceLogsList(const WebSocketUpstreamMessage& request);
+
 }; 

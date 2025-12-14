@@ -56,6 +56,10 @@ private:
     uint32_t connection_time;
     uint32_t message_count;
     bool is_closing; // 防止重复关闭
+
+    // 大文本分片发送的挂起状态
+    std::string pending_text_message;
+    size_t pending_text_offset = 0;
     
     // 回调函数
     WebSocketMessageCallback on_message;
@@ -69,6 +73,8 @@ private:
     std::string create_handshake_response(const std::string& accept_key);
     bool parse_frame(const uint8_t* data, size_t length, WebSocketFrame& frame);
     std::string create_frame(uint8_t opcode, const std::string& payload);
+    // 支持自定义FIN标志和原始缓冲区的帧创建（用于分片发送）
+    std::string create_frame(uint8_t opcode, const char* payload, size_t length, bool fin);
     void send_raw_data(const char* data, size_t length);
     bool ensure_buffer_capacity(size_t required_size);
     
@@ -89,6 +95,13 @@ public:
     
     // 发送文本消息
     void send_text(const std::string& message);
+
+    // 发送大文本消息（自动分片）
+    void send_text_large(const std::string& message);
+
+    // 继续发送挂起的大文本分片；
+    // 返回true表示当前没有挂起发送（已完成或从未开始），返回false表示仍有剩余需要继续发送
+    bool continue_send_text_large();
     
     // 发送二进制消息
     void send_binary(const uint8_t* data, size_t length);

@@ -157,7 +157,8 @@ void send_websocket_response(WebSocketConnection* conn, WebSocketDownstreamMessa
             }
         }
         
-        conn->send_text(json_str);
+        // 使用分片发送，避免大响应导致TCP缓冲不足而断开
+        conn->send_text_large(json_str);
         free(json_string);
     } else {
         LOG_ERROR("WebSocket", "Failed to serialize JSON response");
