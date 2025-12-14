@@ -1,0 +1,153 @@
+{
+  "version": 4294967295,
+  "default_id": "",
+  "calibrated_id": "",
+  "manual_calibration_values": [
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    }
+  ],
+  "auto_calibration_values": [
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    },
+    {
+      "top_value": 65535,
+      "bottom_value": 65535
+    }
+  ]
+}

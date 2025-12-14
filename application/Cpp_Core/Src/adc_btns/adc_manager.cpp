@@ -39,6 +39,7 @@ __attribute__((section(".BDMA_Section"))) uint32_t ADCManager::ADC3_Values[NUM_A
 uint32_t ADCManager::ADC_Values_Result[NUM_ADC_BUTTONS];
 
 #define ADC_VALUES_MAPPING_ADDR_QSPI (ADC_VALUES_MAPPING_ADDR & 0x0FFFFFFF)
+#define ADC_COMMON_CONFIG_ADDR_QSPI (ADC_COMMON_CONFIG_ADDR & 0x0FFFFFFF)
 
 const uint8_t ADC1_BUTTONS_MAPPING[NUM_ADC1_BUTTONS] = ADC1_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN;
 const uint8_t ADC2_BUTTONS_MAPPING[NUM_ADC2_BUTTONS] = ADC2_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN;
@@ -71,8 +72,62 @@ ADCManager::ADCManager() {
             APP_DBG("ADCValuesMappingUtils init success");
         }
     }
-    
+
     APP_DBG("ADCManager init: store version - %d, num - %d, defaultId - %s", store.version, store.num, store.defaultId);
+
+    QSPI_W25Qxx_ReadBuffer_WithXIPOrNot((uint8_t*)&common, ADC_COMMON_CONFIG_ADDR_QSPI, sizeof(ADCCommonConfig));
+    if (common.version != ADC_COMMON_VERSION) {
+        memset(&common, 0, sizeof(ADCCommonConfig));
+        common.version = ADC_COMMON_VERSION;
+        if (store.num > 0) {
+            int8_t didx = -1;
+            if (store.defaultId[0] != '\0') {
+                didx = findMappingById(store.defaultId);
+            }
+            if (didx == -1) {
+                strncpy(common.defaultMappingId, store.mapping[0].id, sizeof(common.defaultMappingId) - 1);
+                common.defaultMappingId[sizeof(common.defaultMappingId) - 1] = '\0';
+                didx = 0;
+            } else {
+                strncpy(common.defaultMappingId, store.defaultId, sizeof(common.defaultMappingId) - 1);
+                common.defaultMappingId[sizeof(common.defaultMappingId) - 1] = '\0';
+            }
+            if (didx >= 0) {
+                const ADCValuesMapping& m = store.mapping[didx];
+                bool hasManual = false;
+                bool hasAuto = false;
+                for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+                    if (m.manualCalibrationValues[i].topValue != 0 || m.manualCalibrationValues[i].bottomValue != 0) {
+                        hasManual = true;
+                    }
+                    if (m.autoCalibrationValues[i].topValue != 0 || m.autoCalibrationValues[i].bottomValue != 0) {
+                        hasAuto = true;
+                    }
+                }
+                if (hasManual || hasAuto) {
+                    for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
+                        common.manualCalibrationValues[i].topValue = m.manualCalibrationValues[i].topValue;
+                        common.manualCalibrationValues[i].bottomValue = m.manualCalibrationValues[i].bottomValue;
+                        common.autoCalibrationValues[i].topValue = m.autoCalibrationValues[i].topValue;
+                        common.autoCalibrationValues[i].bottomValue = m.autoCalibrationValues[i].bottomValue;
+                    }
+                    strncpy(common.calibratedMappingId, m.id, sizeof(common.calibratedMappingId) - 1);
+                    common.calibratedMappingId[sizeof(common.calibratedMappingId) - 1] = '\0';
+                }
+            }
+        }
+        QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)&common, ADC_COMMON_CONFIG_ADDR_QSPI, sizeof(ADCCommonConfig));
+    }
+    if (store.num > 0) {
+        if (findMappingById(common.defaultMappingId) == -1) {
+            memset(common.manualCalibrationValues, 0, sizeof(common.manualCalibrationValues));
+            memset(common.autoCalibrationValues, 0, sizeof(common.autoCalibrationValues));
+            memset(common.calibratedMappingId, 0, sizeof(common.calibratedMappingId));
+            strncpy(common.defaultMappingId, store.mapping[0].id, sizeof(common.defaultMappingId) - 1);
+            common.defaultMappingId[sizeof(common.defaultMappingId) - 1] = '\0';
+            QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)&common, ADC_COMMON_CONFIG_ADDR_QSPI, sizeof(ADCCommonConfig));
+        }
+    }
 
     // 注册消息
     MC.registerMessage(MessageId::DMA_ADC_CONV_CPLT);           // DMA ADC 转换完成消息
@@ -123,6 +178,11 @@ ADCManager::~ADCManager() {
 int8_t ADCManager::saveStore() {
     APP_DBG("ADCManager: saveStore - begin save store to flash.");
     return QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore));
+}
+
+int8_t ADCManager::saveCommon() {
+    APP_DBG("ADCManager: saveCommon - begin save common to flash.");
+    return QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)&common, ADC_COMMON_CONFIG_ADDR_QSPI, sizeof(ADCCommonConfig));
 }
 
 /**
@@ -280,11 +340,11 @@ ADCBtnsError ADCManager::setDefaultMapping(const char* id) {
     uint8_t idx = findMappingById(id);
     if(idx == -1) return ADCBtnsError::MAPPING_NOT_FOUND;
     
-    strncpy(store.defaultId, id, sizeof(store.defaultId) - 1);
-    store.defaultId[sizeof(store.defaultId) - 1] = '\0';
+    strncpy(common.defaultMappingId, id, sizeof(common.defaultMappingId) - 1);
+    common.defaultMappingId[sizeof(common.defaultMappingId) - 1] = '\0';
     
     // 保存更新后的存储结构
-    if(saveStore() != QSPI_W25Qxx_OK) {
+    if(saveCommon() != QSPI_W25Qxx_OK) {
         return ADCBtnsError::MAPPING_UPDATE_FAILED;
     }
     
@@ -311,11 +371,11 @@ std::string ADCManager::getDefaultMapping() const {
     // 如果映射数量为0，则返回空字符串
     if(store.num == 0) return std::string("");
     // 如果默认映射名称未设置，则返回第一个映射名称
-    if(store.defaultId[0] == '\0') {
+    if(common.defaultMappingId[0] == '\0') {
         APP_DBG("ADCManager: getDefaultMapping defaultId is empty, return first mapping id.");
         return std::string(store.mapping[0].id);
     };
-    return std::string(store.defaultId);
+    return std::string(common.defaultMappingId);
 }
 
 /**
@@ -352,14 +412,16 @@ ADCBtnsError ADCManager::getCalibrationValues(const char* mappingId, uint8_t but
         return ADCBtnsError::MAPPING_NOT_FOUND;
     }
     
-    const ADCValuesMapping& mapping = store.mapping[idx];
+    if (strncmp(common.calibratedMappingId, mappingId, sizeof(common.calibratedMappingId)) != 0) {
+        return ADCBtnsError::CALIBRATION_VALUES_NOT_FOUND;
+    }
     
     if (isAutoCalibration) {
-        topValue = mapping.autoCalibrationValues[buttonIndex].topValue;
-        bottomValue = mapping.autoCalibrationValues[buttonIndex].bottomValue;
+        topValue = common.autoCalibrationValues[buttonIndex].topValue;
+        bottomValue = common.autoCalibrationValues[buttonIndex].bottomValue;
     } else {
-        topValue = mapping.manualCalibrationValues[buttonIndex].topValue;
-        bottomValue = mapping.manualCalibrationValues[buttonIndex].bottomValue;
+        topValue = common.manualCalibrationValues[buttonIndex].topValue;
+        bottomValue = common.manualCalibrationValues[buttonIndex].bottomValue;
     }
     
     APP_DBG("getCalibrationValues: buttonIndex: %d, topValue: %d, bottomValue: %d", buttonIndex, topValue, bottomValue);
@@ -392,18 +454,19 @@ ADCBtnsError ADCManager::setCalibrationValues(const char* mappingId, uint8_t but
         return ADCBtnsError::MAPPING_NOT_FOUND;
     }
     
-    ADCValuesMapping& mapping = store.mapping[idx];
+    strncpy(common.calibratedMappingId, mappingId, sizeof(common.calibratedMappingId) - 1);
+    common.calibratedMappingId[sizeof(common.calibratedMappingId) - 1] = '\0';
     
     if (isAutoCalibration) {
-        mapping.autoCalibrationValues[buttonIndex].topValue = topValue;
-        mapping.autoCalibrationValues[buttonIndex].bottomValue = bottomValue;
+        common.autoCalibrationValues[buttonIndex].topValue = topValue;
+        common.autoCalibrationValues[buttonIndex].bottomValue = bottomValue;
     } else {
-        mapping.manualCalibrationValues[buttonIndex].topValue = topValue;
-        mapping.manualCalibrationValues[buttonIndex].bottomValue = bottomValue;
+        common.manualCalibrationValues[buttonIndex].topValue = topValue;
+        common.manualCalibrationValues[buttonIndex].bottomValue = bottomValue;
     }
     
     // 保存到存储
-    if (withSave != false && saveStore() != QSPI_W25Qxx_OK) {
+    if (withSave != false && saveCommon() != QSPI_W25Qxx_OK) {
         return ADCBtnsError::MAPPING_UPDATE_FAILED;
     }
     

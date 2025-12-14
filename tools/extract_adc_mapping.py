@@ -17,6 +17,8 @@ from pathlib import Path
 # 常量定义
 SLOT_A_ADC_MAPPING_BASE = 0x90280000  # 槽A ADC Mapping 虚拟地址
 SLOT_A_ADC_MAPPING_SIZE = 128 * 1024  # 128KB
+ADC_COMMON_CONFIG_BASE = 0x90710000
+ADC_COMMON_CONFIG_SIZE = 512
 
 NUM_ADC_VALUES_MAPPING = 8  # 最大8个映射
 MAX_ADC_VALUES_LENGTH = 40  # 每个映射最大40个值
@@ -45,6 +47,17 @@ class ADCValuesMappingStore(NamedTuple):
     num: int                                    # 映射数量 (uint8_t - 1字节)
     default_id: str                             # 默认映射ID (16字节)
     mappings: List[ADCValuesMapping]            # 映射数组 (最多8个)
+
+class ADCCommonCalibrationPair(NamedTuple):
+    top_value: int
+    bottom_value: int
+
+class ADCCommonConfigData(NamedTuple):
+    version: int
+    default_id: str
+    calibrated_id: str
+    manual_calibration_values: List[ADCCommonCalibrationPair]
+    auto_calibration_values: List[ADCCommonCalibrationPair]
 
 class ADCMappingExtractor:
     """ADC Mapping数据提取器"""
@@ -103,6 +116,57 @@ class ADCMappingExtractor:
                     print(f"错误: {result.stderr}")
                 return None
                 
+        except subprocess.TimeoutExpired:
+            print("错误: OpenOCD执行超时")
+            return None
+        except FileNotFoundError:
+            print("错误: 未找到OpenOCD工具，请确保已安装并在PATH中")
+            return None
+        except Exception as e:
+            print(f"执行异常: {e}")
+            return None
+    
+    def extract_common_from_device(self) -> bytes:
+        try:
+            print("从设备Flash读取ADC公共配置数据...")
+            print(f"地址: 0x{ADC_COMMON_CONFIG_BASE:08X}")
+            print(f"大小: {ADC_COMMON_CONFIG_SIZE} 字节")
+            temp_file = "adc_common.bin"
+            cmd = [
+                "openocd",
+                "-d0",
+                "-f", "openocd_configs/ST-LINK-QSPIFLASH.cfg",
+                "-c", "init",
+                "-c", "halt",
+                "-c", "reset init",
+                "-c", f"dump_image {temp_file} 0x{ADC_COMMON_CONFIG_BASE:08X} {ADC_COMMON_CONFIG_SIZE}",
+                "-c", "shutdown"
+            ]
+            print(f"执行命令: {' '.join(cmd)}")
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                temp_path = Path(temp_file)
+                if temp_path.exists():
+                    with open(temp_path, 'rb') as f:
+                        data = f.read()
+                    temp_path.unlink()
+                    print(f"成功读取 {len(data)} 字节数据")
+                    return data
+                else:
+                    print("错误: OpenOCD未生成输出文件")
+                    return None
+            else:
+                print(f"OpenOCD执行失败:")
+                if result.stdout:
+                    print(f"输出: {result.stdout}")
+                if result.stderr:
+                    print(f"错误: {result.stderr}")
+                return None
         except subprocess.TimeoutExpired:
             print("错误: OpenOCD执行超时")
             return None
@@ -387,6 +451,64 @@ class ADCMappingExtractor:
         except Exception as e:
             print(f"保存文件失败: {e}")
             return False
+    
+    def parse_common_config_data(self, raw_data: bytes) -> ADCCommonConfigData:
+        if len(raw_data) < 4 + 16 + 16:
+            raise ValueError("数据长度不足")
+        offset = 0
+        version = struct.unpack('<I', raw_data[offset:offset+4])[0]
+        offset += 4
+        default_id = raw_data[offset:offset+16].decode('utf-8', errors='ignore').strip('\x00')
+        offset += 16
+        calibrated_id = raw_data[offset:offset+16].decode('utf-8', errors='ignore').strip('\x00')
+        offset += 16
+        manual = []
+        for _ in range(NUM_ADC_BUTTONS):
+            top = struct.unpack('<H', raw_data[offset:offset+2])[0]
+            offset += 2
+            bottom = struct.unpack('<H', raw_data[offset:offset+2])[0]
+            offset += 2
+            manual.append(ADCCommonCalibrationPair(top, bottom))
+        auto = []
+        for _ in range(NUM_ADC_BUTTONS):
+            top = struct.unpack('<H', raw_data[offset:offset+2])[0]
+            offset += 2
+            bottom = struct.unpack('<H', raw_data[offset:offset+2])[0]
+            offset += 2
+            auto.append(ADCCommonCalibrationPair(top, bottom))
+        return ADCCommonConfigData(
+            version=version,
+            default_id=default_id,
+            calibrated_id=calibrated_id,
+            manual_calibration_values=manual,
+            auto_calibration_values=auto
+        )
+    
+    def save_common_json_data(self, common: ADCCommonConfigData, filename: str = "adc_common_config.json"):
+        resources_dir = self.workspace_root / "resources"
+        resources_dir.mkdir(exist_ok=True)
+        output_path = resources_dir / filename
+        try:
+            data = {
+                "version": common.version,
+                "default_id": common.default_id,
+                "calibrated_id": common.calibrated_id,
+                "manual_calibration_values": [
+                    {"top_value": p.top_value, "bottom_value": p.bottom_value}
+                    for p in common.manual_calibration_values
+                ],
+                "auto_calibration_values": [
+                    {"top_value": p.top_value, "bottom_value": p.bottom_value}
+                    for p in common.auto_calibration_values
+                ]
+            }
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            print(f"ADC 公共配置已保存到: {output_path}")
+            return True
+        except Exception as e:
+            print(f"保存文件失败: {e}")
+            return False
 
 def main():
     """主函数"""
@@ -432,6 +554,18 @@ def main():
         print(f"\n解析数据失败: {e}")
         print("原始二进制数据已保存，但无法解析结构")
         print("这可能是由于数据结构不匹配或数据未初始化")
+    
+    print("\n读取公共配置区...")
+    common_raw = extractor.extract_common_from_device()
+    if common_raw:
+        try:
+            common = extractor.parse_common_config_data(common_raw)
+            print(f"公共配置版本: 0x{common.version:08X}")
+            print(f"默认映射ID: {common.default_id}")
+            print(f"已校准映射ID: {common.calibrated_id}")
+            extractor.save_common_json_data(common)
+        except Exception as e:
+            print(f"解析公共配置失败: {e}")
 
 if __name__ == "__main__":
     main() 

@@ -17,6 +17,19 @@
 #include <algorithm>  // 为 std::sort
 #include "board_cfg.h"
 
+struct ADCCommonCalibrationPair {
+    uint16_t topValue;
+    uint16_t bottomValue;
+};
+
+struct ADCCommonConfig {
+    uint32_t version;
+    char defaultMappingId[16];
+    char calibratedMappingId[16];
+    ADCCommonCalibrationPair manualCalibrationValues[NUM_ADC_BUTTONS];
+    ADCCommonCalibrationPair autoCalibrationValues[NUM_ADC_BUTTONS];
+};
+
 struct ADCValuesMapping {
     char id[16];                                            // 映射ID
     char name[16];                                          // 映射名称
@@ -88,6 +101,7 @@ class ADCManager {
 
         // 保存存储
         int8_t saveStore();
+        int8_t saveCommon();
 
         // 获取映射索引
         int8_t findMappingById(const char* const id) const;
@@ -202,6 +216,7 @@ class ADCManager {
         bool enableStats;
         uint32_t statsInterval;
         uint32_t lastStatsTime;
+        ADCCommonConfig common;
 };
 
 #define ADC_MANAGER ADCManager::getInstance()

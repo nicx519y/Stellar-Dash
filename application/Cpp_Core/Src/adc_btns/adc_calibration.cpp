@@ -1035,7 +1035,7 @@ ADCBtnsError ADCCalibrationManager::clearAllCalibrationFromFlash() {
         }
     }
     
-    if (finalResult == ADCBtnsError::SUCCESS && ADC_MANAGER.saveStore() == QSPI_W25Qxx_OK) {
+    if (finalResult == ADCBtnsError::SUCCESS && ADC_MANAGER.saveCommon() == QSPI_W25Qxx_OK) {
         APP_DBG("All calibration data cleared from Flash successfully");
     } else {
         APP_ERR("Some calibration data failed to clear from Flash");
