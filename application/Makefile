@@ -73,6 +73,7 @@ Cpp_Core/Src/drivers/xinput \
 Cpp_Core/Src/drivers/switch \
 Cpp_Core/Src/drivers/psclassic \
 Cpp_Core/Src/drivers/ps4 \
+Cpp_Core/Src/drivers/xbone \
 Cpp_Core/Src/drivers/shared \
 Cpp_Core/Src/configs \
 Cpp_Core/Src/gamepad \

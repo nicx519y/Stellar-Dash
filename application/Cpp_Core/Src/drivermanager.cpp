@@ -4,6 +4,8 @@
 #include "drivers/xinput/XInputDriver.hpp"
 #include "drivers/switch/SwitchDriver.hpp"
 #include "drivers/ps4/PS4Driver.hpp"
+#include "drivers/xbone/XBOneDriver.hpp"
+
 // #include "drivers/astro/AstroDriver.h"
 // #include "drivers/egret/EgretDriver.h"
 // #include "drivers/hid/HIDDriver.h"
@@ -29,10 +31,10 @@ void DriverManager::setup(InputMode mode) {
         case INPUT_MODE_XINPUT:
             driver = new XInputDriver();
             break;
-        case INPUT_MODE_PS4:
+        case INPUT_MODE_PS4: // 支持PS4 DualShock 4 手柄
             driver = new PS4Driver(PS4_CONTROLLER);
             break;
-        case INPUT_MODE_PS5:
+        case INPUT_MODE_PS5: // 模拟 PS4 街机摇杆 (Specialty Peripheral) 。索尼允许经过认证的 PS4 特殊外设（如摇杆、方向盘）在 PS5 上游玩 原生的 PS5 游戏 （主要是格斗游戏）。
             driver = new PS4Driver(PS4_ARCADESTICK);
             break;
         // case INPUT_MODE_ASTRO:
@@ -62,9 +64,9 @@ void DriverManager::setup(InputMode mode) {
         // case INPUT_MODE_PS3:
         //     driver = new PS3Driver();
         //     break;
-        // case INPUT_MODE_XBONE:
-        //     driver = new XBOneDriver();
-        //     break;
+        case INPUT_MODE_XBONE:
+            driver = new XBOneDriver();
+            break;
         // case INPUT_MODE_XBOXORIGINAL:
         //     driver = new XboxOriginalDriver();
         //     break;

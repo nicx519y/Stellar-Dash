@@ -15,6 +15,7 @@ const std::map<InputMode, const char*> GlobalConfigCommandHandler::INPUT_MODE_ST
     {InputMode::INPUT_MODE_XINPUT, "XINPUT"},
     {InputMode::INPUT_MODE_PS4, "PS4"},
     {InputMode::INPUT_MODE_PS5, "PS5"},
+    {InputMode::INPUT_MODE_XBONE, "XBONE"},
     {InputMode::INPUT_MODE_SWITCH, "SWITCH"}
 };
 
@@ -32,6 +33,7 @@ const std::map<std::string, GamepadHotkey> GlobalConfigCommandHandler::STRING_TO
     {"XInputMode", GamepadHotkey::HOTKEY_INPUT_MODE_XINPUT},
     {"PS4Mode", GamepadHotkey::HOTKEY_INPUT_MODE_PS4},
     {"PS5Mode", GamepadHotkey::HOTKEY_INPUT_MODE_PS5},
+    {"XBoxMode", GamepadHotkey::HOTKEY_INPUT_MODE_XBONE},
     {"LedsEffectStyleNext", GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT},
     {"LedsEffectStylePrev", GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_PREV},
     {"LedsBrightnessUp", GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP},

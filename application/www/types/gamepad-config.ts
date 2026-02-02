@@ -250,6 +250,7 @@ export enum HotkeyAction {
     PS4Mode = "PS4Mode",
     PS5Mode = "PS5Mode",
     NSwitchMode = "NSwitchMode",
+    XBoxMode = "XBoxMode",
     SystemReboot = "SystemReboot",
 }
 
@@ -788,6 +789,7 @@ export const UI_TEXT = {
     HOTKEY_ACTION_PS4_MODE: "PlayStation 4 Mode",
     HOTKEY_ACTION_PS5_MODE: "PlayStation 5 Mode",
     HOTKEY_ACTION_NSWITCH_MODE: "Nintendo Switch Mode",
+    HOTKEY_ACTION_XBOX_MODE: "Xbox Mode",
     HOTKEY_ACTION_SYSTEM_REBOOT: "Device Reboot",
 
     HOTKEY_TRIGGER_HOLD: "Hold",
@@ -1118,6 +1120,7 @@ export const UI_TEXT_ZH = {
     HOTKEY_ACTION_PS4_MODE: "PlayStation 4模式",
     HOTKEY_ACTION_PS5_MODE: "PlayStation 5模式",
     HOTKEY_ACTION_NSWITCH_MODE: "Nintendo Switch模式",
+    HOTKEY_ACTION_XBOX_MODE: "Xbox模式",
     HOTKEY_ACTION_SYSTEM_REBOOT: "重启设备",
 
     HOTKEY_TRIGGER_HOLD: "长按",
