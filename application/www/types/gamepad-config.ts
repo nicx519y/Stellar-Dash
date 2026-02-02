@@ -80,6 +80,7 @@ export enum Platform {
     XINPUT = "XINPUT",
     PS4 = "PS4",
     PS5 = "PS5",
+    XBOX = "XBOX",
     SWITCH = "SWITCH",
 }
 
@@ -87,7 +88,7 @@ export const PlatformList = Object.values(Platform);
 
 export const PlatformLabelMap = new Map<Platform, { label: string, description: string }>([
     [Platform.XINPUT, { 
-        label: "XInput | Win", 
+        label: "Windows PC", 
         description: "Xbox/Windows controller" 
     }],
     [Platform.PS4, { 
@@ -97,6 +98,10 @@ export const PlatformLabelMap = new Map<Platform, { label: string, description: 
     [Platform.PS5, { 
         label: "PlayStation 5", 
         description: "PlayStation 5 controller" 
+    }],
+    [Platform.XBOX, { 
+        label: "Xbox One|Series", 
+        description: "Xbox controller" 
     }],
     [Platform.SWITCH, { 
         label: "Nintendo Switch", 

@@ -29,7 +29,7 @@ enum InputMode
     INPUT_MODE_PS4,
     INPUT_MODE_PS5,
     INPUT_MODE_SWITCH,
-    INPUT_MODE_XBONE,
+    INPUT_MODE_XBOX,
     INPUT_MODE_CONFIG = 255,
 };
 
@@ -99,7 +99,7 @@ enum GamepadHotkey
     HOTKEY_INPUT_MODE_XINPUT,           // 切换到XInput模式
     HOTKEY_INPUT_MODE_PS4,              // 切换到PS4模式
     HOTKEY_INPUT_MODE_PS5,              // 切换到PS5模式
-    HOTKEY_INPUT_MODE_XBONE,            // 切换到XBONE模式
+    HOTKEY_INPUT_MODE_XBOX,            // 切换到XBOX模式
     HOTKEY_INPUT_MODE_SWITCH,           // 切换到Switch模式
     HOTKEY_SYSTEM_REBOOT,               // 重启系统
 };

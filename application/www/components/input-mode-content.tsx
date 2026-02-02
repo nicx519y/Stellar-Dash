@@ -4,6 +4,7 @@ import { PlatformLabelMap, Platform } from '@/types/gamepad-config';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { Card, Center, Icon, RadioCard, VStack } from '@chakra-ui/react';
 import { BsXbox } from "react-icons/bs";
+import { FaWindows } from "react-icons/fa";
 import { SiNintendoswitch, SiPlaystation4, SiPlaystation5   } from "react-icons/si";
 import { useLanguage } from '@/contexts/language-context';
 
@@ -15,9 +16,10 @@ export function InputModeSettingContent(props: {
     const { t } = useLanguage();
 
     const platformIcons = new Map<Platform, { icon: React.ReactNode, size: string }>([
-        [Platform.XINPUT, { icon: <BsXbox />, size: "2xl" }],
+        [Platform.XINPUT, { icon: <FaWindows />, size: "2xl" }],
         [Platform.PS4, { icon: <SiPlaystation4 />, size: "3xl" }],
         [Platform.PS5, { icon: <SiPlaystation5 />, size: "3xl" }],
+        [Platform.XBOX, { icon: <BsXbox />, size: "2xl" }],
         [Platform.SWITCH, { icon: <SiNintendoswitch />, size: "2xl" }],
     ]);
 

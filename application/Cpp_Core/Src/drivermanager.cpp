@@ -64,7 +64,7 @@ void DriverManager::setup(InputMode mode) {
         // case INPUT_MODE_PS3:
         //     driver = new PS3Driver();
         //     break;
-        case INPUT_MODE_XBONE:
+        case INPUT_MODE_XBOX:
             driver = new XBOneDriver();
             break;
         // case INPUT_MODE_XBOXORIGINAL:

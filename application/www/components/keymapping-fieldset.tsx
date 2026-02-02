@@ -170,6 +170,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
             case Platform.XINPUT: return XInputButtonMap;
             case Platform.PS4: return PS4ButtonMap;
             case Platform.PS5: return PS4ButtonMap;
+            case Platform.XBOX: return XInputButtonMap;
             case Platform.SWITCH: return SwitchButtonMap;
             default: return new Map<GameControllerButton, string>();
         }

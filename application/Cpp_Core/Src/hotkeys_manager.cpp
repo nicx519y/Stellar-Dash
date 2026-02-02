@@ -226,9 +226,9 @@ void HotkeysManager::runAction(GamepadHotkey hotkeyAction) {
             STORAGE_MANAGER.saveConfig();
             rebootSystem();
             break;
-        case GamepadHotkey::HOTKEY_INPUT_MODE_XBONE:
+        case GamepadHotkey::HOTKEY_INPUT_MODE_XBOX:
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
-            STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_XBONE);
+            STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_XBOX);
             STORAGE_MANAGER.saveConfig();
             rebootSystem();
             break;

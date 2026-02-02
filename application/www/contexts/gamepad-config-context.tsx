@@ -1862,6 +1862,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 break;
             case Platform.PS5: labelMap = PS4ButtonMap;
                 break;
+            case Platform.XBOX: labelMap = XInputButtonMap;
+                break;
             case Platform.SWITCH: labelMap = SwitchButtonMap;
                 break;
             default: labelMap = new Map<GameControllerButton, string>();
