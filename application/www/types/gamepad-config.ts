@@ -506,6 +506,7 @@ export const UI_TEXT = {
     BUTTON_SUBMIT: "Submit",
     BUTTON_CONFIRM: "Confirm",
     BUTTON_PREVIEW_IN_TABLE_VIEW: "Preview In Table View",
+    BUTTON_EXPORT_CONFIG: "Export Config",
 
     // Dialog Titles
     DIALOG_REBOOT_CONFIRM_TITLE: "Are you sure?",
@@ -836,6 +837,7 @@ export const UI_TEXT_ZH = {
     BUTTON_SUBMIT: "确定",
     BUTTON_CONFIRM: "确认",
     BUTTON_PREVIEW_IN_TABLE_VIEW: "在表格视图中预览",
+    BUTTON_EXPORT_CONFIG: "导出配置",
     // 对话框标题
     DIALOG_REBOOT_CONFIRM_TITLE: "确认重启?",
     DIALOG_REBOOT_SUCCESS_TITLE: "重启成功",

@@ -37,6 +37,7 @@ public:
     WebSocketDownstreamMessage handleUpdateGlobalConfig(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleGetHotkeysConfig(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleUpdateHotkeysConfig(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleExportAllConfig(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleReboot(const WebSocketUpstreamMessage& request);
     
     // LED配置相关命令
@@ -50,6 +51,7 @@ private:
     GlobalConfigCommandHandler() = default;
     
     // 辅助函数
+    cJSON* buildGlobalConfigJSON(Config& config);
     cJSON* buildHotkeysConfigJSON(Config& config);
     
     // 映射表
@@ -64,6 +66,13 @@ class ProfileCommandHandler : public WebSocketCommandHandler {
 public:
     static ProfileCommandHandler& getInstance();
     
+    // 静态辅助函数，供其他处理器调用
+    static cJSON* buildKeyMappingJSON(uint32_t virtualMask);
+    static cJSON* buildKeyCombinationJSON(KeyCombination* keyCombination);
+    static uint32_t getKeyMappingVirtualMask(cJSON* keyMappingJSON);
+    static KeyCombination getKeyCombination(cJSON* keyCombinationJSON);
+    static cJSON* buildProfileJSON(GamepadProfile* profile);
+
     // 配置文件相关命令
     WebSocketDownstreamMessage handleGetProfileList(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleGetDefaultProfile(const WebSocketUpstreamMessage& request);
@@ -79,12 +88,7 @@ private:
     ProfileCommandHandler() = default;
     
     // 辅助函数
-    cJSON* buildKeyMappingJSON(uint32_t virtualMask);
-    cJSON* buildKeyCombinationJSON(KeyCombination* keyCombination);
-    uint32_t getKeyMappingVirtualMask(cJSON* keyMappingJSON);
-    KeyCombination getKeyCombination(cJSON* keyCombinationJSON);
     cJSON* buildProfileListJSON();
-    cJSON* buildProfileJSON(GamepadProfile* profile);
 };
 
 // 轴体映射和标记命令处理器

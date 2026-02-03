@@ -259,6 +259,50 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateHotkeysConfig
     return handleGetHotkeysConfig(request);
 }
 
+WebSocketDownstreamMessage GlobalConfigCommandHandler::handleExportAllConfig(const WebSocketUpstreamMessage& request) {
+    Config& config = Storage::getInstance().config;
+    cJSON* exportJSON = cJSON_CreateObject();
+
+    // 1. 全局配置
+    cJSON* globalConfigJSON = cJSON_CreateObject();
+    const char* modeStr = "XINPUT";
+    auto it = INPUT_MODE_STRINGS.find(config.inputMode);
+    if (it != INPUT_MODE_STRINGS.end()) {
+        modeStr = it->second;
+    }
+    cJSON_AddStringToObject(globalConfigJSON, "inputMode", modeStr);
+    // cJSON_AddBoolToObject(globalConfigJSON, "autoCalibrationEnabled", config.autoCalibrationEnabled);
+    // cJSON_AddBoolToObject(globalConfigJSON, "manualCalibrationActive", ADC_CALIBRATION_MANAGER.isCalibrationActive());
+    cJSON_AddStringToObject(globalConfigJSON, "defaultProfileId", config.defaultProfileId);
+    // cJSON_AddNumberToObject(globalConfigJSON, "numProfilesMax", config.numProfilesMax);
+
+    cJSON_AddItemToObject(exportJSON, "globalConfig", globalConfigJSON);
+
+    // 2. 快捷键配置
+    cJSON* hotkeysConfigJSON = buildHotkeysConfigJSON(config);
+    cJSON_AddItemToObject(exportJSON, "hotkeysConfig", hotkeysConfigJSON);
+
+    // 3. 所有配置文件
+    cJSON* profilesJSON = cJSON_CreateArray();
+    for (int i = 0; i < NUM_PROFILES; i++) {
+        // 导出所有配置，不仅仅是启用的，或者根据需求。
+        // 用户说“所有配置”，通常意味着完整备份。
+        // 但buildProfileListJSON只列出启用的。
+        // 这里我们导出所有启用的。如果用户想备份未启用的，可能需要逻辑调整。
+        // 但目前配置结构是静态数组，enabled只是标记。
+        // 假设导出所有启用的配置是合理的。
+        if (config.profiles[i].enabled) {
+            cJSON* profileJSON = ProfileCommandHandler::buildProfileJSON(&config.profiles[i]);
+            if (profileJSON) {
+                cJSON_AddItemToArray(profilesJSON, profileJSON);
+            }
+        }
+    }
+    cJSON_AddItemToObject(exportJSON, "profiles", profilesJSON);
+
+    return create_success_response(request.getCid(), request.getCommand(), exportJSON);
+}
+
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handleReboot(const WebSocketUpstreamMessage& request) {
     // LOG_INFO("WebSocket", "Handling reboot command, cid: %d", request.getCid());
     
@@ -430,6 +474,8 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handle(const WebSocketUps
         return handleGetHotkeysConfig(request);
     } else if (command == "update_hotkeys_config") {
         return handleUpdateHotkeysConfig(request);
+    } else if (command == "export_all_config") {
+        return handleExportAllConfig(request);
     } else if (command == "reboot") {
         return handleReboot(request);
     } else if (command == "push_leds_config") {

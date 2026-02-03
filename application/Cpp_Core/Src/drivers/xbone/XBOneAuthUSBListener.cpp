@@ -1,14 +1,14 @@
 #include "host/usbh.h"
 #include "class/hid/hid.h"
 #include "class/hid/hid_host.h"
-#include "drivers/xbone/XBOneAuthUSBListener.h"
-#include "CRC32.h"
-#include "peripheralmanager.h"
-#include "usbhostmanager.h"
+#include "drivers/xbone/XBOneAuthUSBListener.hpp"
+#include "CRC32.hpp"
+// #include "peripheralmanager.hpp"
+#include "usbhostmanager.hpp"
 
-#include "drivers/xbone/XBOneDescriptors.h"
-#include "drivers/shared/xgip_protocol.h"
-#include "drivers/shared/xinput_host.h"
+#include "drivers/xbone/XBOneDescriptors.hpp"
+#include "drivers/shared/xgip_protocol.hpp"
+#include "drivers/shared/xinput_host.hpp"
 
 // power-on states and rumble-on with everything disabled
 static uint8_t xb1_power_on[] = {0x06, 0x62, 0x45, 0xb8, 0x77, 0x26, 0x2c, 0x55,
@@ -97,7 +97,8 @@ void XBOneAuthUSBListener::report_received(uint8_t dev_addr, uint8_t instance, u
 
     incomingXGIP.parse(report, len);
     if ( incomingXGIP.validate() == false ) {
-        sleep_ms(50); // First packet is invalid, drop and wait for dongle to boot
+        // sleep_ms(50); // First packet is invalid, drop and wait for dongle to boot
+        HAL_Delay(50);
         incomingXGIP.reset();
         return;
     }
@@ -163,13 +164,15 @@ void XBOneAuthUSBListener::queue_host_report(void* report, uint16_t len) {
 }
 
 void XBOneAuthUSBListener::process_report_queue() {
-    uint32_t now = to_ms_since_boot(get_absolute_time());
+    // uint32_t now = to_ms_since_boot(get_absolute_time());
+    uint32_t now = HAL_GetTick();
+
     if ( mounted == true && !report_queue.empty() && (now - lastReportQueue) > REPORT_QUEUE_INTERVAL  ) {
         if ( tuh_xinput_send_report(xbone_dev_addr, xbone_instance, report_queue.front().report, report_queue.front().len) ) {
 			report_queue.pop();
             lastReportQueue = now; // last time we checked report queue
         } else {
-            sleep_ms(REPORT_QUEUE_INTERVAL);
+            HAL_Delay(REPORT_QUEUE_INTERVAL);
         }
 	}
 }

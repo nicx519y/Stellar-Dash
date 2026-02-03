@@ -1,9 +1,9 @@
-#include "drivers/xbone/XBOneDriver.h"
-#include "drivers/shared/driverhelper.h"
-
-#include "drivers/xbone/XBOneAuth.h"
-#include "peripheralmanager.h"
-#include "storagemanager.h"
+#include "drivers/xbone/XBOneDriver.hpp"
+#include "drivers/shared/driverhelper.hpp"
+#include "drivers/xbone/XBOneAuth.hpp"
+// #include "peripheralmanager.hpp"
+#include "storagemanager.hpp"
+#include "gamepad.hpp"
 
 #define XBONE_KEEPALIVE_TIMER 15000
 
@@ -148,7 +148,7 @@ const OS_COMPATIBLE_ID_DESCRIPTOR_SINGLE DevCompatIDsOne = {
 
 static void xbone_reset(uint8_t rhport) {
     (void)rhport;
-    timer_wait_for_announce = to_ms_since_boot(get_absolute_time());
+    timer_wait_for_announce = HAL_GetTick();
     xbox_one_powered_on = false;
     report_led_mode = 0; // 0 = OFF
     while(!report_queue.empty())
@@ -344,7 +344,7 @@ void XBOneDriver::initialize() {
         .sof = NULL
     };
 
-    keep_alive_timer = to_ms_since_boot(get_absolute_time());
+    keep_alive_timer = HAL_GetTick(); 
     keep_alive_sequence = 1; // sequence starts at 1?
     virtual_keycode_sequence = 0;
     xb1_guide_pressed = false;
@@ -388,12 +388,12 @@ void XBOneDriver::process(Gamepad * gamepad) {
     this->update();
 
     // Check if LEDs need to turn on
-    if ( xbone_led_mode != report_led_mode ) {
-        Gamepad * processedGamepad = Storage::getInstance().GetProcessedGamepad();
-        processedGamepad->auxState.playerID.active = true;
-        processedGamepad->auxState.playerID.ledValue = report_led_mode;
-        processedGamepad->auxState.playerID.ledBlinkOn = report_led_brightness;
-    }
+    // if ( xbone_led_mode != report_led_mode ) {
+    //     Gamepad * processedGamepad = Storage::getInstance().GetProcessedGamepad();
+    //     processedGamepad->auxState.playerID.active = true;
+    //     processedGamepad->auxState.playerID.ledValue = report_led_mode;
+    //     processedGamepad->auxState.playerID.ledBlinkOn = report_led_brightness;
+    // }
 
     // No input until auth is ready
     if ( xboxOneAuthData->authCompleted == false ) {
@@ -404,7 +404,7 @@ void XBOneDriver::process(Gamepad * gamepad) {
         return;
     }
 
-    uint32_t now = to_ms_since_boot(get_absolute_time());
+    uint32_t now = HAL_GetTick(); 
     // Send Keep-Alive every 15 seconds (keep_alive_timer updates if send is successful)
     if ( (now - keep_alive_timer) > XBONE_KEEPALIVE_TIMER) {
         memset(&xboneReport.Header, 0, sizeof(GipHeader_t));
@@ -415,7 +415,7 @@ void XBOneDriver::process(Gamepad * gamepad) {
         xboneReportSize = sizeof(GipHeader_t) + sizeof(keepAlive);
         // If successful, update our keep alive timer/sequence
         if ( send_xbone_usb((uint8_t*)&xboneReport, xboneReportSize) == true ) {
-            keep_alive_timer = to_ms_since_boot(get_absolute_time());
+            keep_alive_timer = HAL_GetTick(); 
             keep_alive_sequence++; // will rollover
             if ( keep_alive_sequence == 0 )
                 keep_alive_sequence = 1;
@@ -483,16 +483,16 @@ void XBOneDriver::process(Gamepad * gamepad) {
     newInputReport.rightStickX = static_cast<int16_t>(gamepad->state.rx) + INT16_MIN;
     newInputReport.rightStickY = static_cast<int16_t>(~gamepad->state.ry) + INT16_MIN;
 
-    if (gamepad->hasAnalogTriggers)
-    {
-        newInputReport.leftTrigger = gamepad->pressedL2() ? 0x03FF : gamepad->state.lt;
-        newInputReport.rightTrigger = gamepad->pressedR2() ? 0x03FF : gamepad->state.rt;
-    }
-    else
-    {
+    // if (gamepad->hasAnalogTriggers)
+    // {
+    //     newInputReport.leftTrigger = gamepad->pressedL2() ? 0x03FF : gamepad->state.lt;
+    //     newInputReport.rightTrigger = gamepad->pressedR2() ? 0x03FF : gamepad->state.rt;
+    // }
+    // else
+    // {
         newInputReport.leftTrigger = gamepad->pressedL2() ? 0x03FF : 0;
         newInputReport.rightTrigger = gamepad->pressedR2() ? 0x03FF : 0;
-    }
+    // }
 
     // We changed inputs since generating our last report, increment last report counter (but don't update until success)
     if ( memcmp(&last_report[4], &((uint8_t*)&newInputReport)[4], sizeof(XboxOneGamepad_Data_t)-4) != 0 ) {
@@ -603,11 +603,11 @@ const uint8_t * XBOneDriver::get_descriptor_device_qualifier_cb() {
 
 void XBOneDriver::set_ack_wait() {
     waiting_ack = true;
-    waiting_ack_timeout = to_ms_since_boot(get_absolute_time()); // 2 second time-out
+    waiting_ack_timeout = HAL_GetTick(); // 2 second time-out 
 }
 
 void XBOneDriver::update() {
-    uint32_t now = to_ms_since_boot(get_absolute_time());
+    uint32_t now = HAL_GetTick();
 
     // Process our report queue
     process_report_queue(now);
@@ -681,7 +681,8 @@ void XBOneDriver::process_report_queue(uint32_t now) {
             lastReportQueue = now;
         } else {
             // THIS IS REQUIRED FOR TIMING ON PC / CONSOLE
-            sleep_ms(REPORT_QUEUE_INTERVAL); // sleep while we wait, never happens during input only auth
+            HAL_Delay(REPORT_QUEUE_INTERVAL); // sleep while we wait, never happens during input only auth
+            
         }
     }
 }

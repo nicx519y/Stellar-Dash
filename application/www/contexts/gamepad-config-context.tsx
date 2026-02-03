@@ -183,6 +183,9 @@ interface GamepadConfigContextType {
     ) => { [key: number]: GameControllerButton | string };
     // 设备日志相关（服务端固定返回最近50条）
     fetchDeviceLogsList: () => Promise<string[]>;
+
+    // 导出所有配置
+    exportAllConfig: () => Promise<any>;
 }
 
 const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
@@ -630,6 +633,15 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         } catch (err) {
             // 不在上下文里打断 UI，只将错误向上抛出即可
             throw err instanceof Error ? err : new Error('获取设备日志失败');
+        }
+    };
+
+    const exportAllConfig = async (): Promise<any> => {
+        try {
+            const data = await sendWebSocketRequest('export_all_config', {}, true);
+            return Promise.resolve(data);
+        } catch (err) {
+            return Promise.reject(new Error("Failed to export all config"));
         }
     };
 
@@ -1988,6 +2000,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             indexMapToGameControllerButtonOrCombination: indexMapToGameControllerButtonOrCombination,
             // 设备日志相关
             fetchDeviceLogsList: fetchDeviceLogsList,
+            exportAllConfig: exportAllConfig,
         }}>
             {children}
         </GamepadConfigContext.Provider>
