@@ -68,6 +68,7 @@ void WebSocketCommandManager::initializeHandlers() {
     registerHandler("get_hotkeys_config", &globalHandler);
     registerHandler("update_hotkeys_config", &globalHandler);
     registerHandler("export_all_config", &globalHandler);
+    registerHandler("import_all_config", &globalHandler);
     registerHandler("reboot", &globalHandler);
     
     // 注册LED配置相关命令

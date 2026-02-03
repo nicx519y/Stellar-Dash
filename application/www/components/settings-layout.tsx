@@ -11,6 +11,7 @@ import { navigationEvents } from '@/lib/event-manager';
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { FinishConfigButton } from './finish-config-button';
 import { ExportConfigButton } from './export-config-button';
+import { ImportConfigButton } from './import-config-button';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 // import { ColorModeSwitcher } from "@/components/color-mode-switcher";
 
@@ -92,6 +93,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                         <HStack gap={2}>
                             <FinishConfigButton disabled={finishConfigDisabled}  />
                             <ExportConfigButton disabled={finishConfigDisabled} />
+                            <ImportConfigButton disabled={finishConfigDisabled} />
                         </HStack>
                     </Box>
 

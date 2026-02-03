@@ -38,6 +38,7 @@ public:
     WebSocketDownstreamMessage handleGetHotkeysConfig(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleUpdateHotkeysConfig(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleExportAllConfig(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleImportAllConfig(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleReboot(const WebSocketUpstreamMessage& request);
     
     // LED配置相关命令
@@ -51,14 +52,14 @@ private:
     GlobalConfigCommandHandler() = default;
     
     // 辅助函数
-    cJSON* buildGlobalConfigJSON(Config& config);
-    cJSON* buildHotkeysConfigJSON(Config& config);
+    // cJSON* buildGlobalConfigJSON(Config& config);
+    // cJSON* buildHotkeysConfigJSON(Config& config);
     
     // 映射表
-    static const std::map<InputMode, const char*> INPUT_MODE_STRINGS;
-    static const std::map<std::string, InputMode> STRING_TO_INPUT_MODE;
-    static const std::map<std::string, GamepadHotkey> STRING_TO_GAMEPAD_HOTKEY;
-    static const std::map<GamepadHotkey, const char*> GAMEPAD_HOTKEY_TO_STRING;
+    // static const std::map<InputMode, const char*> INPUT_MODE_STRINGS;
+    // static const std::map<std::string, InputMode> STRING_TO_INPUT_MODE;
+    // static const std::map<std::string, GamepadHotkey> STRING_TO_GAMEPAD_HOTKEY;
+    // static const std::map<GamepadHotkey, const char*> GAMEPAD_HOTKEY_TO_STRING;
 };
 
 // 配置文件命令处理器
@@ -72,6 +73,7 @@ public:
     static uint32_t getKeyMappingVirtualMask(cJSON* keyMappingJSON);
     static KeyCombination getKeyCombination(cJSON* keyCombinationJSON);
     static cJSON* buildProfileJSON(GamepadProfile* profile);
+    static void parseProfileJSON(cJSON* profileJSON, GamepadProfile* targetProfile);
 
     // 配置文件相关命令
     WebSocketDownstreamMessage handleGetProfileList(const WebSocketUpstreamMessage& request);

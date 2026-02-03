@@ -6,8 +6,237 @@
 #include <string.h>
 #include <stdio.h>
 #include "board_cfg.h"
+#include <map>
+#include <string>
+#include "configs/websocket_command_handler.hpp" // For ProfileCommandHandler
+#include "system_logger.h"
 
 #define CONFIG_ADDR_ORIGIN  CONFIG_ADDR
+
+// ============================================================================
+// ConfigUtils Mappings
+// ============================================================================
+
+namespace ConfigUtils {
+
+static const std::map<InputMode, const char*> INPUT_MODE_STRINGS = {
+    {InputMode::INPUT_MODE_XINPUT, "XINPUT"},
+    {InputMode::INPUT_MODE_PS4, "PS4"},
+    {InputMode::INPUT_MODE_PS5, "PS5"},
+    {InputMode::INPUT_MODE_XBOX, "XBOX"},
+    {InputMode::INPUT_MODE_SWITCH, "SWITCH"}
+};
+
+static const std::map<std::string, InputMode> STRING_TO_INPUT_MODE = [](){
+    std::map<std::string, InputMode> reverse_map;
+    for(const auto& pair : INPUT_MODE_STRINGS) {
+        reverse_map[pair.second] = pair.first;
+    }
+    return reverse_map;
+}();
+
+static const std::map<std::string, GamepadHotkey> STRING_TO_GAMEPAD_HOTKEY = {
+    {"WebConfigMode", GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG},
+    {"NSwitchMode", GamepadHotkey::HOTKEY_INPUT_MODE_SWITCH},
+    {"XInputMode", GamepadHotkey::HOTKEY_INPUT_MODE_XINPUT},
+    {"PS4Mode", GamepadHotkey::HOTKEY_INPUT_MODE_PS4},
+    {"PS5Mode", GamepadHotkey::HOTKEY_INPUT_MODE_PS5},
+    {"XBoxMode", GamepadHotkey::HOTKEY_INPUT_MODE_XBOX},
+    {"LedsEffectStyleNext", GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT},
+    {"LedsEffectStylePrev", GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_PREV},
+    {"LedsBrightnessUp", GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP},
+    {"LedsBrightnessDown", GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_DOWN},
+    {"LedsEnableSwitch", GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH},
+    {"AmbientLightEffectStyleNext", GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_NEXT},
+    {"AmbientLightEffectStylePrev", GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_PREV},
+    {"AmbientLightBrightnessUp", GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_UP},
+    {"AmbientLightBrightnessDown", GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_DOWN},
+    {"AmbientLightEnableSwitch", GamepadHotkey::HOTKEY_AMBIENT_LIGHT_ENABLE_SWITCH},
+    {"CalibrationMode", GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION},
+    {"SystemReboot", GamepadHotkey::HOTKEY_SYSTEM_REBOOT}
+};
+
+static const std::map<GamepadHotkey, const char*> GAMEPAD_HOTKEY_TO_STRING = [](){
+    std::map<GamepadHotkey, const char*> reverse_map;
+    for(const auto& pair : STRING_TO_GAMEPAD_HOTKEY) {
+        reverse_map[pair.second] = pair.first.c_str();
+    }
+    return reverse_map;
+}();
+
+const char* getInputModeString(InputMode mode) {
+    auto it = INPUT_MODE_STRINGS.find(mode);
+    if (it != INPUT_MODE_STRINGS.end()) {
+        return it->second;
+    }
+    return "XINPUT"; // Default
+}
+
+InputMode getInputModeFromString(const char* str) {
+    if (!str) return InputMode::INPUT_MODE_XINPUT;
+    auto it = STRING_TO_INPUT_MODE.find(str);
+    if (it != STRING_TO_INPUT_MODE.end()) {
+        return it->second;
+    }
+    return InputMode::INPUT_MODE_XINPUT;
+}
+
+const char* getGamepadHotkeyString(GamepadHotkey action) {
+    auto it = GAMEPAD_HOTKEY_TO_STRING.find(action);
+    if (it != GAMEPAD_HOTKEY_TO_STRING.end()) {
+        return it->second;
+    }
+    return "None";
+}
+
+GamepadHotkey getGamepadHotkeyFromString(const char* str) {
+    if (!str) return GamepadHotkey::HOTKEY_NONE;
+    auto it = STRING_TO_GAMEPAD_HOTKEY.find(str);
+    if (it != STRING_TO_GAMEPAD_HOTKEY.end()) {
+        return it->second;
+    }
+    return GamepadHotkey::HOTKEY_NONE;
+}
+
+cJSON* buildHotkeysConfigJSON(Config& config) {
+    cJSON* hotkeysConfigJSON = cJSON_CreateArray();
+
+    for(uint8_t i = 0; i < NUM_GAMEPAD_HOTKEYS; i++) {
+        cJSON* hotkeyJSON = cJSON_CreateObject();
+        
+        // 添加快捷键动作(转换为字符串)
+        cJSON_AddStringToObject(hotkeyJSON, "action", getGamepadHotkeyString(config.hotkeys[i].action));
+
+        // 添加快捷键序号
+        cJSON_AddNumberToObject(hotkeyJSON, "key", config.hotkeys[i].virtualPin);
+
+        // 添加是否长按
+        cJSON_AddBoolToObject(hotkeyJSON, "isHold", config.hotkeys[i].isHold);
+
+        // 添加锁定状态
+        cJSON_AddBoolToObject(hotkeyJSON, "isLocked", config.hotkeys[i].isLocked);
+        
+        // 添加到组
+        cJSON_AddItemToArray(hotkeysConfigJSON, hotkeyJSON);
+    }
+
+    return hotkeysConfigJSON;
+}
+
+cJSON* toJSON(Config& config) {
+    cJSON* exportJSON = cJSON_CreateObject();
+
+    // 1. 全局配置
+    cJSON* globalConfigJSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(globalConfigJSON, "inputMode", getInputModeString(config.inputMode));
+    cJSON_AddStringToObject(globalConfigJSON, "defaultProfileId", config.defaultProfileId);
+    
+    cJSON_AddItemToObject(exportJSON, "globalConfig", globalConfigJSON);
+
+    // 2. 快捷键配置
+    cJSON* hotkeysConfigJSON = buildHotkeysConfigJSON(config);
+    cJSON_AddItemToObject(exportJSON, "hotkeysConfig", hotkeysConfigJSON);
+
+    // 3. 所有配置文件
+    cJSON* profilesJSON = cJSON_CreateArray();
+    for (int i = 0; i < NUM_PROFILES; i++) {
+        if (config.profiles[i].enabled) {
+            cJSON* profileJSON = ProfileCommandHandler::buildProfileJSON(&config.profiles[i]);
+            if (profileJSON) {
+                cJSON_AddItemToArray(profilesJSON, profileJSON);
+            }
+        }
+    }
+    cJSON_AddItemToObject(exportJSON, "profiles", profilesJSON);
+
+    return exportJSON;
+}
+
+bool fromJSON(Config& config, cJSON* json) {
+    if (!json) return false;
+
+    // 1. 全局配置
+    cJSON* globalConfig = cJSON_GetObjectItem(json, "globalConfig");
+    if (globalConfig) {
+        cJSON* inputModeItem = cJSON_GetObjectItem(globalConfig, "inputMode");
+        if (inputModeItem && cJSON_IsString(inputModeItem)) {
+            config.inputMode = getInputModeFromString(inputModeItem->valuestring);
+        }
+
+        cJSON* defaultProfileId = cJSON_GetObjectItem(globalConfig, "defaultProfileId");
+        if (defaultProfileId && cJSON_IsString(defaultProfileId)) {
+            if (strlen(defaultProfileId->valuestring) < sizeof(config.defaultProfileId)) { 
+                 strncpy(config.defaultProfileId, defaultProfileId->valuestring, sizeof(config.defaultProfileId) - 1);
+                 config.defaultProfileId[sizeof(config.defaultProfileId) - 1] = '\0';
+            } else {
+                APP_DBG("ConfigUtils::fromJSON - defaultProfileId too long");
+            }
+        }
+    }
+
+    // 2. 快捷键配置
+    cJSON* hotkeysConfig = cJSON_GetObjectItem(json, "hotkeysConfig");
+    if (hotkeysConfig && cJSON_IsArray(hotkeysConfig)) {
+        int numHotkeys = cJSON_GetArraySize(hotkeysConfig);
+        for (int i = 0; i < numHotkeys && i < NUM_GAMEPAD_HOTKEYS; i++) {
+            cJSON* hotkeyItem = cJSON_GetArrayItem(hotkeysConfig, i);
+            if (!hotkeyItem || !cJSON_IsObject(hotkeyItem)) continue;
+
+            cJSON* keyItem = cJSON_GetObjectItem(hotkeyItem, "key");
+            if (keyItem && cJSON_IsNumber(keyItem)) {
+                int keyIndex = keyItem->valueint;
+                if (keyIndex >= -1 && keyIndex < (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS)) {
+                     config.hotkeys[i].virtualPin = keyIndex;
+                }
+            }
+
+            cJSON* actionItem = cJSON_GetObjectItem(hotkeyItem, "action");
+            if (actionItem && cJSON_IsString(actionItem)) {
+                config.hotkeys[i].action = getGamepadHotkeyFromString(actionItem->valuestring);
+            }
+            
+            cJSON* isHoldItem = cJSON_GetObjectItem(hotkeyItem, "isHold");
+            if (isHoldItem && cJSON_IsBool(isHoldItem)) {
+                config.hotkeys[i].isHold = cJSON_IsTrue(isHoldItem);
+            }
+
+            // 锁定状态不能修改
+            // cJSON* isLockedItem = cJSON_GetObjectItem(hotkeyItem, "isLocked");
+            // if (isLockedItem) {
+            //     config.hotkeys[i].isLocked = cJSON_IsTrue(isLockedItem);
+            // }
+        }
+    }
+
+    // 3. Profiles
+    cJSON* profiles = cJSON_GetObjectItem(json, "profiles");
+    if (profiles && cJSON_IsArray(profiles)) {
+        cJSON* profileItem;
+        cJSON_ArrayForEach(profileItem, profiles) {
+            if (!cJSON_IsObject(profileItem)) continue;
+
+            cJSON* idItem = cJSON_GetObjectItem(profileItem, "id");
+            if (idItem && cJSON_IsString(idItem)) {
+                 if (strlen(idItem->valuestring) >= sizeof(config.profiles[0].id)) {
+                     APP_DBG("ConfigUtils::fromJSON - profile id too long: %s", idItem->valuestring);
+                     continue;
+                 }
+
+                 // Find profile by ID
+                 for (int i=0; i < NUM_PROFILES; i++) {
+                     if (strncmp(config.profiles[i].id, idItem->valuestring, sizeof(config.profiles[i].id)) == 0) {
+                         ProfileCommandHandler::parseProfileJSON(profileItem, &config.profiles[i]);
+                         break;
+                     }
+                 }
+            }
+        }
+    }
+
+    return true;
+}
+
+} // namespace ConfigUtils
 
 void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bool isEnabled)
 {

@@ -8,7 +8,8 @@ import {
     AroundLedsEffectStyle,
     Platform, GameSocdMode,
     GameControllerButton, Hotkey, GameProfileList, GlobalConfig,
-    XInputButtonMap, PS4ButtonMap, SwitchButtonMap
+    XInputButtonMap, PS4ButtonMap, SwitchButtonMap,
+    NUM_PROFILES_MAX
 } from '@/types/gamepad-config';
 import { StepInfo, ADCValuesMapping } from '@/types/adc';
 import {
@@ -186,6 +187,9 @@ interface GamepadConfigContextType {
 
     // 导出所有配置
     exportAllConfig: () => Promise<any>;
+
+    // 导入所有配置
+    importAllConfig: (configData: any) => Promise<void>;
 }
 
 const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
@@ -642,6 +646,53 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             return Promise.resolve(data);
         } catch (err) {
             return Promise.reject(new Error("Failed to export all config"));
+        }
+    };
+
+    const importAllConfig = async (configData: any): Promise<void> => {
+        try {
+            setIsLoading(true);
+            await sendWebSocketRequest('import_all_config', configData, true);
+            
+            // 如果服务端返回了完整配置，直接更新状态
+            // if (data && data.globalConfig && data.profiles && data.hotkeysConfig) {
+            //     // Update Global Config
+            //     setGlobalConfig(data.globalConfig);
+                
+            //     // Update Hotkeys Config
+            //     setHotkeysConfig(data.hotkeysConfig);
+                
+            //     // Update Profiles
+            //     const profiles = data.profiles;
+            //     const defaultId = data.globalConfig.defaultProfileId || "";
+                
+            //     setProfileList({
+            //         defaultId: defaultId,
+            //         maxNumProfiles: NUM_PROFILES_MAX,
+            //         items: profiles
+            //     });
+                
+            //     // Update Default Profile
+            //     const defaultProfileData = profiles.find((p: any) => p.id === defaultId);
+            //     if (defaultProfileData) {
+            //         setDefaultProfile(converProfileDetails(defaultProfileData));
+            //     }
+            // }
+            // } else {
+            //     // Fallback: Refresh all data individually if not returned
+            //     await fetchGlobalConfig();
+            //     await fetchProfileList();
+            //     await fetchDefaultProfile();
+            //     await fetchHotkeysConfig();
+            // }
+            
+            setError(null);
+            return Promise.resolve();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred during import');
+            return Promise.reject(new Error("Failed to import config"));
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -2001,6 +2052,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             // 设备日志相关
             fetchDeviceLogsList: fetchDeviceLogsList,
             exportAllConfig: exportAllConfig,
+            importAllConfig: importAllConfig,
         }}>
             {children}
         </GamepadConfigContext.Provider>

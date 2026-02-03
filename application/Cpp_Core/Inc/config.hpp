@@ -7,6 +7,7 @@
 #include "stm32h750xx.h"
 #include "stm32h7xx_hal.h"
 #include "board_cfg.h"
+#include "cJSON.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -115,6 +116,17 @@ namespace ConfigUtils {
     bool reset(Config& config);
     bool fromStorage(Config& config);
     void makeDefaultProfile(GamepadProfile& profile, const char* id, bool isEnabled);
+
+    // JSON serialization/deserialization
+    cJSON* toJSON(Config& config);
+    bool fromJSON(Config& config, cJSON* json);
+    cJSON* buildHotkeysConfigJSON(Config& config);
+
+    // Mappings helpers
+    const char* getInputModeString(InputMode mode);
+    InputMode getInputModeFromString(const char* str);
+    const char* getGamepadHotkeyString(GamepadHotkey action);
+    GamepadHotkey getGamepadHotkeyFromString(const char* str);
 };
 
 #ifdef __cplusplus

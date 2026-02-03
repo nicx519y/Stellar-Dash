@@ -92,48 +92,53 @@ KeyCombination ProfileCommandHandler::getKeyCombination(cJSON* keyCombinationJSO
     keyCombination.gameControllerButtonMask = 0;
     keyCombination.virtualPinMask = 0;
 
+    if (!keyCombinationJSON) return keyCombination;
+
     // 处理前端发送的 gameControllerButtons 字段（字符串数组）
     cJSON* gameControllerButtons = cJSON_GetObjectItem(keyCombinationJSON, "gameControllerButtons");
-    if(gameControllerButtons) {
+    if(gameControllerButtons && cJSON_IsArray(gameControllerButtons)) {
         cJSON* item = NULL;
         cJSON_ArrayForEach(item, gameControllerButtons) {
-            if(strcmp(cJSON_GetStringValue(item), "DPAD_UP") == 0) {
+            if (!cJSON_IsString(item) || !item->valuestring) continue;
+            
+            const char* val = item->valuestring;
+            if(strcmp(val, "DPAD_UP") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_DPAD_UP);
-            } else if(strcmp(cJSON_GetStringValue(item), "DPAD_DOWN") == 0) {
+            } else if(strcmp(val, "DPAD_DOWN") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_DPAD_DOWN);
-            } else if(strcmp(cJSON_GetStringValue(item), "DPAD_LEFT") == 0) {
+            } else if(strcmp(val, "DPAD_LEFT") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_DPAD_LEFT);
-            } else if(strcmp(cJSON_GetStringValue(item), "DPAD_RIGHT") == 0) {
+            } else if(strcmp(val, "DPAD_RIGHT") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_DPAD_RIGHT);
-            } else if(strcmp(cJSON_GetStringValue(item), "B1") == 0) {
+            } else if(strcmp(val, "B1") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_B1);
-            } else if(strcmp(cJSON_GetStringValue(item), "B2") == 0) {
+            } else if(strcmp(val, "B2") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_B2);
-            } else if(strcmp(cJSON_GetStringValue(item), "B3") == 0) {
+            } else if(strcmp(val, "B3") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_B3);
-            } else if(strcmp(cJSON_GetStringValue(item), "B4") == 0) {
+            } else if(strcmp(val, "B4") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_B4);
-            } else if(strcmp(cJSON_GetStringValue(item), "L1") == 0) {
+            } else if(strcmp(val, "L1") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_L1);
-            } else if(strcmp(cJSON_GetStringValue(item), "L2") == 0) {
+            } else if(strcmp(val, "L2") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_L2);
-            } else if(strcmp(cJSON_GetStringValue(item), "R1") == 0) {
+            } else if(strcmp(val, "R1") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_R1);
-            } else if(strcmp(cJSON_GetStringValue(item), "R2") == 0) {
+            } else if(strcmp(val, "R2") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_R2);
-            } else if(strcmp(cJSON_GetStringValue(item), "S1") == 0) {
+            } else if(strcmp(val, "S1") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_S1);
-            } else if(strcmp(cJSON_GetStringValue(item), "S2") == 0) {
+            } else if(strcmp(val, "S2") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_S2);
-            } else if(strcmp(cJSON_GetStringValue(item), "L3") == 0) {
+            } else if(strcmp(val, "L3") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_L3);
-            } else if(strcmp(cJSON_GetStringValue(item), "R3") == 0) {
+            } else if(strcmp(val, "R3") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_R3);
-            } else if(strcmp(cJSON_GetStringValue(item), "A1") == 0) {
+            } else if(strcmp(val, "A1") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_A1);
-            } else if(strcmp(cJSON_GetStringValue(item), "A2") == 0) {
+            } else if(strcmp(val, "A2") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_A2);
-            } else if(strcmp(cJSON_GetStringValue(item), "Fn") == 0) {
+            } else if(strcmp(val, "Fn") == 0) {
                 keyCombination.gameControllerButtonMask |= (1 << GameControllerButton::GAME_CONTROLLER_BUTTON_FN);
             }
         }
@@ -141,7 +146,7 @@ KeyCombination ProfileCommandHandler::getKeyCombination(cJSON* keyCombinationJSO
 
     // 处理前端发送的 keyIndexes 字段（数字数组）
     cJSON* keyIndexes = cJSON_GetObjectItem(keyCombinationJSON, "keyIndexes");
-    if(keyIndexes) {
+    if(keyIndexes && cJSON_IsArray(keyIndexes)) {
         cJSON* item = NULL;
         cJSON_ArrayForEach(item, keyIndexes) {
             if(item->type == cJSON_Number) {
@@ -155,7 +160,7 @@ KeyCombination ProfileCommandHandler::getKeyCombination(cJSON* keyCombinationJSO
 
     // 兼容性处理：如果前端仍然发送 virtualPinMask 字段，也进行处理
     cJSON* virtualPinMask = cJSON_GetObjectItem(keyCombinationJSON, "virtualPinMask");
-    if(virtualPinMask) {
+    if(virtualPinMask && cJSON_IsArray(virtualPinMask)) {
         cJSON* item = NULL;
         cJSON_ArrayForEach(item, virtualPinMask) {
             if(item->type == cJSON_Number) {
@@ -453,64 +458,29 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleGetDefaultProfile(const 
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling update_profile command, cid: %d", request.getCid());
-    
-    Config& config = Storage::getInstance().config;
-    
-    // 获取请求参数
-    cJSON* params = request.getParams();
-    if (!params) {
-        LOG_ERROR("WebSocket", "update_profile: Invalid parameters");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
-    }
+void ProfileCommandHandler::parseProfileJSON(cJSON* profileJSON, GamepadProfile* targetProfile) {
+    if (!profileJSON || !targetProfile) return;
 
-    cJSON* details = cJSON_GetObjectItem(params, "profileDetails");
-    
-    if(!details) {
-        LOG_ERROR("WebSocket", "update_profile: Invalid parameters");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
-    }
-
-    // 获取profile ID并查找对应的配置文件
-    cJSON* idItem = cJSON_GetObjectItem(details, "id");
-    if(!idItem) {
-        LOG_ERROR("WebSocket", "update_profile: Profile ID not provided");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Profile ID not provided");
-    }
-
-    GamepadProfile* targetProfile = nullptr;
-    for(uint8_t i = 0; i < NUM_PROFILES; i++) {
-        if(strcmp(idItem->valuestring, config.profiles[i].id) == 0) {
-            targetProfile = &config.profiles[i];
-            break;
-        }
-    }
-
-    if(!targetProfile) {
-        LOG_ERROR("WebSocket", "update_profile: Profile not found");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Profile not found");
-    }
+    cJSON* item;
 
     // 更新基本信息
-    cJSON* nameItem = cJSON_GetObjectItem(details, "name");
-    if(nameItem) {
-        strcpy(targetProfile->name, nameItem->valuestring);
+    cJSON* nameItem = cJSON_GetObjectItem(profileJSON, "name");
+    if(nameItem && cJSON_IsString(nameItem)) {
+        strncpy(targetProfile->name, nameItem->valuestring, sizeof(targetProfile->name) - 1);
+        targetProfile->name[sizeof(targetProfile->name) - 1] = '\0';
     }
 
     // 更新按键配置
-    cJSON* keysConfig = cJSON_GetObjectItem(details, "keysConfig");
+    cJSON* keysConfig = cJSON_GetObjectItem(profileJSON, "keysConfig");
     if(keysConfig) {
-        cJSON* item;
-        
-        if((item = cJSON_GetObjectItem(keysConfig, "invertXAxis"))) {
-            targetProfile->keysConfig.invertXAxis = item->type == cJSON_True;
+        if((item = cJSON_GetObjectItem(keysConfig, "invertXAxis")) && cJSON_IsBool(item)) {
+            targetProfile->keysConfig.invertXAxis = cJSON_IsTrue(item);
         }
-        if((item = cJSON_GetObjectItem(keysConfig, "invertYAxis"))) {
-            targetProfile->keysConfig.invertYAxis = item->type == cJSON_True;
+        if((item = cJSON_GetObjectItem(keysConfig, "invertYAxis")) && cJSON_IsBool(item)) {
+            targetProfile->keysConfig.invertYAxis = cJSON_IsTrue(item);
         }
-        if((item = cJSON_GetObjectItem(keysConfig, "fourWayMode"))) {
-            targetProfile->keysConfig.fourWayMode = item->type == cJSON_True;
+        if((item = cJSON_GetObjectItem(keysConfig, "fourWayMode")) && cJSON_IsBool(item)) {
+            targetProfile->keysConfig.fourWayMode = cJSON_IsTrue(item);
         }
         if((item = cJSON_GetObjectItem(keysConfig, "socdMode")) 
             && item->type == cJSON_Number 
@@ -519,15 +489,17 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebS
             targetProfile->keysConfig.socdMode = static_cast<SOCDMode>(item->valueint);
         }
 
-        // 更新按键启用状态
         cJSON* keysEnableTag = cJSON_GetObjectItem(keysConfig, "keysEnableTag");
-        if(keysEnableTag) {
-            for(uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-                targetProfile->keysConfig.keysEnableTag[i] = cJSON_GetArrayItem(keysEnableTag, i)->type == cJSON_True;
+        if(keysEnableTag && cJSON_IsArray(keysEnableTag)) {
+            int arraySize = cJSON_GetArraySize(keysEnableTag);
+            for(uint8_t i = 0; i < NUM_ADC_BUTTONS && i < arraySize; i++) {
+                cJSON* tagItem = cJSON_GetArrayItem(keysEnableTag, i);
+                if (tagItem && cJSON_IsBool(tagItem)) {
+                    targetProfile->keysConfig.keysEnableTag[i] = cJSON_IsTrue(tagItem);
+                }
             }
         }
       
-        // 更新按键映射
         cJSON* keyMapping = cJSON_GetObjectItem(keysConfig, "keyMapping");                                          
         if(keyMapping) {
             if((item = cJSON_GetObjectItem(keyMapping, "DPAD_UP"))) 
@@ -569,39 +541,33 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebS
             if((item = cJSON_GetObjectItem(keyMapping, "Fn"))) 
                 targetProfile->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_FN] = getKeyMappingVirtualMask(item);
         }
-    }
 
-    // 更新按键组合键配置
-    cJSON* keyCombinations = cJSON_GetObjectItem(keysConfig, "keyCombinations");
-    if(keyCombinations) {
-        // 前端最多支持5个组合键，后端支持10个，但只处理前5个
-        uint8_t maxCombinations = cJSON_GetArraySize(keyCombinations);
-        if(maxCombinations > MAX_KEY_COMBINATION_WEBCONFIG) maxCombinations = MAX_KEY_COMBINATION_WEBCONFIG; // 限制为前端支持的最大数量
-        
-        for(uint8_t i = 0; i < maxCombinations; i++) {
-            cJSON* keyCombination = cJSON_GetArrayItem(keyCombinations, i);
-            if(keyCombination) {
-                targetProfile->keysConfig.keyCombinations[i] = getKeyCombination(keyCombination);
+        cJSON* keyCombinations = cJSON_GetObjectItem(keysConfig, "keyCombinations");
+        if(keyCombinations) {
+            uint8_t maxCombinations = cJSON_GetArraySize(keyCombinations);
+            if(maxCombinations > MAX_KEY_COMBINATION_WEBCONFIG) maxCombinations = MAX_KEY_COMBINATION_WEBCONFIG;
+            
+            for(uint8_t i = 0; i < maxCombinations; i++) {
+                cJSON* keyCombination = cJSON_GetArrayItem(keyCombinations, i);
+                if(keyCombination) {
+                    targetProfile->keysConfig.keyCombinations[i] = getKeyCombination(keyCombination);
+                }
             }
-        }
-        
-        // 清空剩余的组合键配置
-        for(uint8_t i = maxCombinations; i < MAX_KEY_COMBINATION; i++) {
-            targetProfile->keysConfig.keyCombinations[i].gameControllerButtonMask = 0;
-            targetProfile->keysConfig.keyCombinations[i].virtualPinMask = 0;
+            
+            for(uint8_t i = maxCombinations; i < MAX_KEY_COMBINATION; i++) {
+                targetProfile->keysConfig.keyCombinations[i].gameControllerButtonMask = 0;
+                targetProfile->keysConfig.keyCombinations[i].virtualPinMask = 0;
+            }
         }
     }
 
     // 更新LED配置
-    cJSON* ledsConfig = cJSON_GetObjectItem(details, "ledsConfigs");
+    cJSON* ledsConfig = cJSON_GetObjectItem(profileJSON, "ledsConfigs");
     if(ledsConfig) {
-        cJSON* item;
-        
         if((item = cJSON_GetObjectItem(ledsConfig, "ledEnabled"))) {
             targetProfile->ledsConfigs.ledEnabled = item->type == cJSON_True;
         }
         
-        // 解析LED效果
         if((item = cJSON_GetObjectItem(ledsConfig, "ledsEffectStyle")) 
             && item->type == cJSON_Number 
             && item->valueint >= 0 
@@ -609,23 +575,30 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebS
             targetProfile->ledsConfigs.ledEffect = static_cast<LEDEffect>(item->valueint);
         }
 
-        // 解析LED颜色
         cJSON* ledColors = cJSON_GetObjectItem(ledsConfig, "ledColors");
-        if(ledColors && cJSON_GetArraySize(ledColors) >= 3) {
-            sscanf(cJSON_GetArrayItem(ledColors, 0)->valuestring, "#%x", &targetProfile->ledsConfigs.ledColor1);
-            sscanf(cJSON_GetArrayItem(ledColors, 1)->valuestring, "#%x", &targetProfile->ledsConfigs.ledColor2);
-            sscanf(cJSON_GetArrayItem(ledColors, 2)->valuestring, "#%x", &targetProfile->ledsConfigs.ledColor3);
+        if(ledColors && cJSON_IsArray(ledColors) && cJSON_GetArraySize(ledColors) >= 3) {
+            cJSON* c1 = cJSON_GetArrayItem(ledColors, 0);
+            cJSON* c2 = cJSON_GetArrayItem(ledColors, 1);
+            cJSON* c3 = cJSON_GetArrayItem(ledColors, 2);
+            if(cJSON_IsString(c1)) sscanf(c1->valuestring, "#%x", &targetProfile->ledsConfigs.ledColor1);
+            if(cJSON_IsString(c2)) sscanf(c2->valuestring, "#%x", &targetProfile->ledsConfigs.ledColor2);
+            if(cJSON_IsString(c3)) sscanf(c3->valuestring, "#%x", &targetProfile->ledsConfigs.ledColor3);
         }
         
-        if((item = cJSON_GetObjectItem(ledsConfig, "ledBrightness"))) {
-            targetProfile->ledsConfigs.ledBrightness = item->valueint;
+        if((item = cJSON_GetObjectItem(ledsConfig, "ledBrightness")) && cJSON_IsNumber(item)) {
+            int val = item->valueint;
+            if(val < 0) val = 0;
+            if(val > 255) val = 255;
+            targetProfile->ledsConfigs.ledBrightness = (uint8_t)val;
         }
 
-        if((item = cJSON_GetObjectItem(ledsConfig, "ledAnimationSpeed"))) { 
-            targetProfile->ledsConfigs.ledAnimationSpeed = item->valueint;
+        if((item = cJSON_GetObjectItem(ledsConfig, "ledAnimationSpeed")) && cJSON_IsNumber(item)) { 
+            int val = item->valueint;
+            if(val < 0) val = 0;
+            if(val > 255) val = 255;
+            targetProfile->ledsConfigs.ledAnimationSpeed = (uint8_t)val;
         }
 
-        // 氛围灯配置
         if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedEnabled"))) {
             targetProfile->ledsConfigs.aroundLedEnabled = item->type == cJSON_True;
         }
@@ -638,28 +611,40 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebS
             targetProfile->ledsConfigs.aroundLedTriggerByButton = item->type == cJSON_True;
         }
 
-        if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedEffectStyle"))) {
+        if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedEffectStyle")) 
+            && cJSON_IsNumber(item) 
+            && item->valueint >= 0 
+            && item->valueint < AroundLEDEffect::NUM_AROUND_LED_EFFECTS) {
             targetProfile->ledsConfigs.aroundLedEffect = static_cast<AroundLEDEffect>(item->valueint);
         }
 
         cJSON* aroundLedColors = cJSON_GetObjectItem(ledsConfig, "aroundLedColors");
-        if(aroundLedColors && cJSON_GetArraySize(aroundLedColors) >= 3) {
-            sscanf(cJSON_GetArrayItem(aroundLedColors, 0)->valuestring, "#%x", &targetProfile->ledsConfigs.aroundLedColor1);
-            sscanf(cJSON_GetArrayItem(aroundLedColors, 1)->valuestring, "#%x", &targetProfile->ledsConfigs.aroundLedColor2);
-            sscanf(cJSON_GetArrayItem(aroundLedColors, 2)->valuestring, "#%x", &targetProfile->ledsConfigs.aroundLedColor3);
+        if(aroundLedColors && cJSON_IsArray(aroundLedColors) && cJSON_GetArraySize(aroundLedColors) >= 3) {
+            cJSON* c1 = cJSON_GetArrayItem(aroundLedColors, 0);
+            cJSON* c2 = cJSON_GetArrayItem(aroundLedColors, 1);
+            cJSON* c3 = cJSON_GetArrayItem(aroundLedColors, 2);
+            if(cJSON_IsString(c1)) sscanf(c1->valuestring, "#%x", &targetProfile->ledsConfigs.aroundLedColor1);
+            if(cJSON_IsString(c2)) sscanf(c2->valuestring, "#%x", &targetProfile->ledsConfigs.aroundLedColor2);
+            if(cJSON_IsString(c3)) sscanf(c3->valuestring, "#%x", &targetProfile->ledsConfigs.aroundLedColor3);
         }
 
-        if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedBrightness"))) {
-            targetProfile->ledsConfigs.aroundLedBrightness = item->valueint;
+        if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedBrightness")) && cJSON_IsNumber(item)) {
+            int val = item->valueint;
+            if(val < 0) val = 0;
+            if(val > 255) val = 255;
+            targetProfile->ledsConfigs.aroundLedBrightness = (uint8_t)val;
         }
 
-        if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedAnimationSpeed"))) {
-            targetProfile->ledsConfigs.aroundLedAnimationSpeed = item->valueint;
+        if((item = cJSON_GetObjectItem(ledsConfig, "aroundLedAnimationSpeed")) && cJSON_IsNumber(item)) {
+            int val = item->valueint;
+            if(val < 0) val = 0;
+            if(val > 255) val = 255;
+            targetProfile->ledsConfigs.aroundLedAnimationSpeed = (uint8_t)val;
         }
     }
 
     // 更新按键行程配置
-    cJSON* triggerConfigs = cJSON_GetObjectItem(details, "triggerConfigs");
+    cJSON* triggerConfigs = cJSON_GetObjectItem(profileJSON, "triggerConfigs");
     if(triggerConfigs) {
         cJSON* isAllBtnsConfiguring = cJSON_GetObjectItem(triggerConfigs, "isAllBtnsConfiguring");
         if(isAllBtnsConfiguring) {
@@ -678,31 +663,90 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebS
         }
 
         cJSON* configs = cJSON_GetObjectItem(triggerConfigs, "triggerConfigs");
-        if(configs) {
+        if(configs && cJSON_IsArray(configs)) {
             for(uint8_t i = 0; i < NUM_ADC_BUTTONS && i < cJSON_GetArraySize(configs); i++) {
                 cJSON* trigger = cJSON_GetArrayItem(configs, i);
                 RapidTriggerProfile* triggerProfile = &targetProfile->triggerConfigs.triggerConfigs[i];
                 if(trigger) {
                     cJSON* item;
-                    if((item = cJSON_GetObjectItem(trigger, "topDeadzone")))
-                        triggerProfile->topDeadzone = item->valuedouble;
-                    if((item = cJSON_GetObjectItem(trigger, "bottomDeadzone")))
-                        triggerProfile->bottomDeadzone = item->valuedouble;
-                    if((item = cJSON_GetObjectItem(trigger, "pressAccuracy")))
-                        triggerProfile->pressAccuracy = item->valuedouble;
-                    if((item = cJSON_GetObjectItem(trigger, "releaseAccuracy")))
-                        triggerProfile->releaseAccuracy = item->valuedouble;
+                    if((item = cJSON_GetObjectItem(trigger, "topDeadzone")) && cJSON_IsNumber(item)) {
+                         double val = item->valuedouble;
+                         if (val < 0.0) val = 0.0;
+                         if (val > 100.0) val = 100.0;
+                         triggerProfile->topDeadzone = (float)val;
+                    }
+                    if((item = cJSON_GetObjectItem(trigger, "bottomDeadzone")) && cJSON_IsNumber(item)) {
+                         double val = item->valuedouble;
+                         if (val < 0.0) val = 0.0;
+                         if (val > 100.0) val = 100.0;
+                         triggerProfile->bottomDeadzone = (float)val;
+                    }
+                    if((item = cJSON_GetObjectItem(trigger, "pressAccuracy")) && cJSON_IsNumber(item)) {
+                         double val = item->valuedouble;
+                         if (val < 0.0) val = 0.0;
+                         if (val > 100.0) val = 100.0;
+                         triggerProfile->pressAccuracy = (float)val;
+                    }
+                    if((item = cJSON_GetObjectItem(trigger, "releaseAccuracy")) && cJSON_IsNumber(item)) {
+                         double val = item->valuedouble;
+                         if (val < 0.0) val = 0.0;
+                         if (val > 100.0) val = 100.0;
+                         triggerProfile->releaseAccuracy = (float)val;
+                    }
                 }
             }
         }
     }
+}
+
+WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebSocketUpstreamMessage& request) {
+    // LOG_INFO("WebSocket", "Handling update_profile command, cid: %d", request.getCid());
+    
+    Config& config = Storage::getInstance().config;
+    
+    // 获取请求参数
+    cJSON* params = request.getParams();
+    if (!params) {
+        LOG_ERROR("WebSocket", "update_profile: Invalid parameters");
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
+    }
+
+    cJSON* details = cJSON_GetObjectItem(params, "profileDetails");
+    
+    if(!details) {
+        LOG_ERROR("WebSocket", "update_profile: Invalid parameters");
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
+    }
+
+    // 获取profile ID并查找对应的配置文件
+    cJSON* idItem = cJSON_GetObjectItem(details, "id");
+    if(!idItem) {
+        LOG_ERROR("WebSocket", "update_profile: Profile ID not provided");
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Profile ID not provided");
+    }
+
+    GamepadProfile* targetProfile = nullptr;
+    for(uint8_t i = 0; i < NUM_PROFILES; i++) {
+        if(strcmp(idItem->valuestring, config.profiles[i].id) == 0) {
+            targetProfile = &config.profiles[i];
+            break;
+        }
+    }
+
+    if(!targetProfile) {
+        LOG_ERROR("WebSocket", "update_profile: Profile not found");
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Profile not found");
+    }
+
+    // 更新配置
+    parseProfileJSON(details, targetProfile);
 
     // 保存配置
     if(!STORAGE_MANAGER.saveConfig()) {
         LOG_ERROR("WebSocket", "update_profile: Failed to save configuration");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
     }
-
+    
     // 构建返回数据
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON* profileDetailsJSON = buildProfileJSON(targetProfile);

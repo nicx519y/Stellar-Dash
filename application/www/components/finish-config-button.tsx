@@ -16,10 +16,10 @@ export function FinishConfigButton(
     return (
         <Button
             disabled={props.disabled}
-            colorPalette="blue"
+            colorPalette="green"
             variant="surface"
-            size="sm"
-            width={"240px"}
+            size="xs"
+            // width={"240px"}
             onClick={async () => {
                 const confirmed = await openRebootConfirmDialog({
                     title: t.DIALOG_REBOOT_CONFIRM_TITLE,
