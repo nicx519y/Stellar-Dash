@@ -28,6 +28,7 @@
 #define __BOARD_H__
 
 #include "stm32h750xx.h"
+#include "stm32h7xx_hal.h"
 
 #ifdef __cplusplus
  extern "C" {
@@ -91,6 +92,77 @@
 // 用户配置区固定地址（独立于槽，两个槽共享）
 #define CONFIG_ADDR                         0x90700000      // 用户配置区固定地址
 
+
+
+// ADC 引脚配置结构体
+typedef struct {
+    GPIO_TypeDef* port;
+    uint16_t pin;
+    uint32_t channel;
+    uint32_t rank;
+    uint8_t virtualPin;
+} ADC_PinConfig;
+
+static const ADC_PinConfig ADC1_PIN_MAP[] = {
+    { GPIOF, GPIO_PIN_11, ADC_CHANNEL_2,  ADC_REGULAR_RANK_1, 2 },
+    { GPIOA, GPIO_PIN_6,  ADC_CHANNEL_3,  ADC_REGULAR_RANK_2, 7 },
+    { GPIOC, GPIO_PIN_4,  ADC_CHANNEL_4,  ADC_REGULAR_RANK_3, 4 },
+    { GPIOF, GPIO_PIN_12, ADC_CHANNEL_6,  ADC_REGULAR_RANK_4, 0 },
+    { GPIOA, GPIO_PIN_7,  ADC_CHANNEL_7,  ADC_REGULAR_RANK_5, 5 },
+    { GPIOC, GPIO_PIN_5,  ADC_CHANNEL_8,  ADC_REGULAR_RANK_6, 6 },
+};
+
+static const ADC_PinConfig ADC2_PIN_MAP[] = {
+    { GPIOF, GPIO_PIN_13, ADC_CHANNEL_2,  ADC_REGULAR_RANK_1, 1 },
+    { GPIOF, GPIO_PIN_14, ADC_CHANNEL_6,  ADC_REGULAR_RANK_2, 3 },
+    { GPIOC, GPIO_PIN_1,  ADC_CHANNEL_11, ADC_REGULAR_RANK_3, 14 },
+    { GPIOC, GPIO_PIN_2,  ADC_CHANNEL_12, ADC_REGULAR_RANK_4, 12 },
+    { GPIOC, GPIO_PIN_3,  ADC_CHANNEL_13, ADC_REGULAR_RANK_5, 8 },
+    { GPIOA, GPIO_PIN_2,  ADC_CHANNEL_14, ADC_REGULAR_RANK_6, 9 },
+};
+
+static const ADC_PinConfig ADC3_PIN_MAP[] = {
+    { GPIOF, GPIO_PIN_5,  ADC_CHANNEL_4,  ADC_REGULAR_RANK_1, 16 },
+    { GPIOF, GPIO_PIN_4,  ADC_CHANNEL_9,  ADC_REGULAR_RANK_3, 15 },
+    { GPIOH, GPIO_PIN_2,  ADC_CHANNEL_13, ADC_REGULAR_RANK_4, 13 },
+    { GPIOH, GPIO_PIN_3,  ADC_CHANNEL_14, ADC_REGULAR_RANK_5, 10 },
+    { GPIOH, GPIO_PIN_4,  ADC_CHANNEL_15, ADC_REGULAR_RANK_6, 11 },
+};
+
+#define ADC1_PIN_MAP_SIZE (sizeof(ADC1_PIN_MAP)/sizeof(ADC_PinConfig))
+#define ADC2_PIN_MAP_SIZE (sizeof(ADC2_PIN_MAP)/sizeof(ADC_PinConfig))
+#define ADC3_PIN_MAP_SIZE (sizeof(ADC3_PIN_MAP)/sizeof(ADC_PinConfig))
+
+#define ADC_CALIBRATION_MANAGER_REQUIRED_SAMPLES 100 // 校准管理器需要的采样数量
+#define ADC_CALIBRATION_MANAGER_SAMPLE_INTERVAL_MS 1 // 校准管理器采样间隔（毫秒）
+#define ADC_CALIBRATION_MANAGER_TOLERANCE_RANGE 8000 // 校准管理器容忍范围
+#define ADC_CALIBRATION_MANAGER_STABILITY_THRESHOLD 400 // 校准管理器稳定性阈值
+
+// GPIO 按钮定义结构体
+struct gpio_pin_def {
+    GPIO_TypeDef* port;
+    uint16_t pin;
+    uint8_t virtualPin;
+};
+
+// GPIO按钮配置宏定义
+#define GPIO_BTN1_PORT              GPIOC
+#define GPIO_BTN1_PIN               GPIO_PIN_6
+#define GPIO_BTN1_VIRTUAL_PIN       18
+
+#define GPIO_BTN2_PORT              GPIOC
+#define GPIO_BTN2_PIN               GPIO_PIN_7
+#define GPIO_BTN2_VIRTUAL_PIN       19
+
+#define GPIO_BTN3_PORT              GPIOC
+#define GPIO_BTN3_PIN               GPIO_PIN_8
+#define GPIO_BTN3_VIRTUAL_PIN       20
+
+#define GPIO_BTN4_PORT              GPIOC
+#define GPIO_BTN4_PIN               GPIO_PIN_9
+#define GPIO_BTN4_VIRTUAL_PIN       21
+
+
 // 动态地址获取函数声明（需要在相应的.c文件中实现）
 uint32_t get_current_slot_base_address(void);
 
@@ -112,9 +184,9 @@ uint32_t get_current_slot_base_address(void);
 
 #define NUM_PROFILES                        16
 #define NUM_ADC                             3               // 3个ADC
-#define NUM_ADC1_BUTTONS                    6
-#define NUM_ADC2_BUTTONS                    6
-#define NUM_ADC3_BUTTONS                    6
+#define NUM_ADC1_BUTTONS                    ADC1_PIN_MAP_SIZE
+#define NUM_ADC2_BUTTONS                    ADC2_PIN_MAP_SIZE
+#define NUM_ADC3_BUTTONS                    ADC3_PIN_MAP_SIZE
 #define NUM_ADC_BUTTONS                     (NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS + NUM_ADC3_BUTTONS)
 #define MIN_ADC_TOP_DEADZONE                0.1             // 默认ADC顶部死区最小值
 #define MIN_ADC_BOTTOM_DEADZONE             0.1             // 默认ADC底部死区最小值
@@ -139,11 +211,6 @@ uint32_t get_current_slot_base_address(void);
 
 #define FN_BUTTON_VIRTUAL_PIN       (1U << (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS - 1))  // FN 键虚拟引脚 最后一个GPIO按钮
 
-#define HAS_LED                                   1             //是否有LED
-#define HAS_LED_AROUND                            1          //是否有底部环绕led
-#define NUM_LED_AROUND                            49          //底部环绕led数量
-#define NUM_LED	                    (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS + NUM_LED_AROUND) //LED数量
-
 #define NUM_LEDs_PER_ADC_BUTTON     1              //每个按钮多少个LED
 #define LEDS_BRIGHTNESS_RATIO       0.8             //默认led 亮度系数 会以实际亮度乘以这个系数
 #define LEDS_ANIMATION_CYCLE        10000            //LED 动画长度 ms
@@ -157,150 +224,112 @@ uint32_t get_current_slot_base_address(void);
 #define NUM_GAMEPAD_HOTKEYS                 (uint8_t)11   // 快捷键数量
 #define HOLD_THRESHOLD_MS                   1000             // 长按阈值 1000ms
 
-// GPIO 按钮定义结构体
-struct gpio_pin_def {
-    GPIO_TypeDef* port;
-    uint16_t pin;
-    uint8_t virtualPin;
-};
-
-// Hall 按钮映射表 DMA to virtualPin，virtualPin 是按钮在所有按钮中的序号
-
-/**ADC1 GPIO Configuration
-PF11     ------> ADC1_INP2 -----> 2
-PA6     ------> ADC1_INP3  -----> 7
-PC4     ------> ADC1_INP4  -----> 4
-PF12     ------> ADC1_INP6 -----> 0
-PA7     ------> ADC1_INP7  -----> 5
-PC5     ------> ADC1_INP8  -----> 6
-*/
-#define ADC1_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {2, 7, 4, 0, 5, 6}
-/**ADC2 GPIO Configuration
-PF13     ------> ADC2_INP2 -----> 1
-PF14     ------> ADC2_INP6 -----> 3
-PC1     ------> ADC2_INP11 -----> 14
-PC2     ------> ADC2_INP12 -----> 12
-PC3     ------> ADC2_INP13 -----> 8
-PA2     ------> ADC2_INP14 -----> 9
-*/
-#define ADC2_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {1, 3, 14, 12, 8, 9}
-/**ADC3 GPIO Configuration
-PF5     ------> ADC3_INP4  -----> 16
-PF3     ------> ADC3_INP5  -----> 17
-PF4     ------> ADC3_INP9  -----> 15
-PH2     ------> ADC3_INP13 -----> 13
-PH3     ------> ADC3_INP14 -----> 10
-PH4     ------> ADC3_INP15 -----> 11
-*/
-#define ADC3_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN {16, 17, 15, 13, 10, 11}
-
-#define ADC_CALIBRATION_MANAGER_REQUIRED_SAMPLES 100 // 校准管理器需要的采样数量
-#define ADC_CALIBRATION_MANAGER_SAMPLE_INTERVAL_MS 1 // 校准管理器采样间隔（毫秒）
-#define ADC_CALIBRATION_MANAGER_TOLERANCE_RANGE 8000 // 校准管理器容忍范围
-#define ADC_CALIBRATION_MANAGER_STABILITY_THRESHOLD 400 // 校准管理器稳定性阈值
-
-// GPIO按钮配置宏定义
-#define GPIO_BTN1_PORT              GPIOC
-#define GPIO_BTN1_PIN               GPIO_PIN_6
-#define GPIO_BTN1_VIRTUAL_PIN       18
-
-#define GPIO_BTN2_PORT              GPIOC
-#define GPIO_BTN2_PIN               GPIO_PIN_7
-#define GPIO_BTN2_VIRTUAL_PIN       19
-
-#define GPIO_BTN3_PORT              GPIOC
-#define GPIO_BTN3_PIN               GPIO_PIN_8
-#define GPIO_BTN3_VIRTUAL_PIN       20
-
-#define GPIO_BTN4_PORT              GPIOC
-#define GPIO_BTN4_PIN               GPIO_PIN_9
-#define GPIO_BTN4_VIRTUAL_PIN       21
-
+#define HAS_LED                                   1             //是否有LED
+#define HAS_LED_AROUND                            1          //是否有底部环绕led
+#define NUM_LED_AROUND                            49          //底部环绕led数量
+#define NUM_LED	                    (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS + NUM_LED_AROUND) //LED数量
 
 // ================= LED 位置定义 =================
 // 为在 C/C++ 两端使用，将按钮位置结构体和坐标数组放到此处
-typedef struct ButtonPosition {
+typedef struct Position {
     float x;
     float y;
     float r;
-} ButtonPosition;
+} Position;
 
-// 主按键 + GPIO 按钮 + 环绕灯 的坐标列表
-// 注意：数组长度按 NUM_LED + NUM_LED_AROUND 预留，未显式初始化的元素将被零初始化
-static const ButtonPosition HITBOX_LED_POS_LIST[NUM_LED + NUM_LED_AROUND] = {
-    { 121.10f, 121.04f, 21.50f },      // 0
-    { 147.34f, 130.80f, 21.50f },      // 1
-    { 174.40f, 123.61f, 21.50f },      // 2
-    { 192.10f, 105.95f, 21.50f },      // 3
-    { 73.49f, 63.76f, 21.50f },        // 4
-    { 99.05f, 59.67f, 21.50f },        // 5
-    { 122.19f, 63.76f, 21.50f },       // 6
-    { 141.44f, 77.23f, 21.50f },       // 7
-    { 131.19f, 42.04f, 21.50f },       // 8
-    { 168.18f, 79.40f, 21.50f },       // 9
-    { 157.60f, 57.30f, 21.50f },       // 10
-    { 157.60f, 101.50f, 21.50f },       // 11
-    { 188.25f, 65.35f, 21.50f },       // 12
-    { 177.69f, 43.25f, 21.50f },       // 13
-    { 211.27f, 56.97f, 21.50f },       // 14
-    { 200.69f, 34.87f, 21.50f },       // 15
-    { 235.68f, 54.83f, 21.50f },       // 16
-    { 225.10f, 32.73f, 21.50f },       // 17
-    { 84.49f, 15.49f, 21.50f },        // 18
-    { 62.49f, 15.49f, 21.50f },        // 19
-    { 40.49f, 15.49f, 21.50f },        // 20
-    { 18.48f, 15.49f, 21.50f },        // 21
+#define HITBOX_ADC_BUTTON_POS_DATA \
+    { 125.10f,  103.10f,  26.00f },      /* 0 */ \
+    { 147.34f,  120.10f,  34.00f },      /* 1 */ \
+    { 175.10f,  119.10f,  26.00f },      /* 2 */ \
+    { 192.80f,  101.44f,  26.00f },      /* 3 */ \
+    { 73.49f,   63.76f,   26.00f },        /* 4 */ \
+    { 99.05f,   59.67f,   26.00f },        /* 5 */ \
+    { 122.19f,  63.76f,   26.00f },       /* 6 */ \
+    { 141.44f,  77.23f,   26.00f },       /* 7 */ \
+    { 131.19f,  42.04f,   26.00f },       /* 8 */ \
+    { 165.45f,  87.10f,   26.00f },       /* 9 */ \
+    { 163.37f,  62.80f,   26.00f },       /* 10 */ \
+    { 185.51f,  73.05f,   26.00f },       /* 11 */ \
+    { 183.43f,  48.75f,   26.00f },       /* 12 */ \
+    { 209.01f,  66.10f,   26.00f },       /* 13 */ \
+    { 206.93f,  41.80f,   26.00f },       /* 14 */ \
+    { 233.44f,  67.98f,   26.00f },       /* 15 */ \
+    { 231.36f,  43.69f,   26.00f }       /* 16 */ 
+    
 
+#define HITBOX_GPIO_BUTTON_POS_DATA \
+    { 84.49f,   15.49f,   11.50f },        /* 17 */ \
+    { 62.49f,   15.49f,   11.50f },        /* 18 */ \
+    { 40.49f,   15.49f,   11.50f },        /* 19 */ \
+    { 18.48f,   15.49f,   11.50f }        /* 20 */
+
+#define HITBOX_AMBIENT_POS_DATA \
+    { 35.10f, 35.10f, 5.40f },         /* 22 */ \
+    { 35.10f, 45.10f, 5.40f },         /* 23 */ \
+    { 35.10f, 55.10f, 5.40f },          /* 24 */ \
+    { 35.10f, 65.10f, 5.40f },         /* 25 */ \
+    { 35.10f, 75.10f, 5.40f },         /* 26 */ \
+    { 35.10f, 85.10f, 5.40f },         /* 27 */ \
+    { 35.10f, 95.10f, 5.40f },         /* 28 */ \
+    { 35.10f, 105.10f, 5.40f },        /* 29 */ \
+    { 35.10f, 115.10f, 5.40f },        /* 30 */ \
+    { 35.10f, 125.10f, 5.40f },        /* 31 */ \
+    { 35.10f, 135.10f, 5.40f },        /* 32 */ \
+    { 35.10f, 145.10f, 5.40f },        /* 33 */ \
+    { 35.10f, 155.10f, 5.40f },        /* 34 */ \
+    \
+    { 45.10f, 155.10f, 5.40f },        /* 35 */ \
+    { 55.10f, 155.10f, 5.40f },        /* 36 */ \
+    { 65.10f, 155.10f, 5.40f },       /* 37 */ \
+    { 75.10f, 155.10f, 5.40f },       /* 38 */ \
+    { 85.10f, 155.10f, 5.40f },       /* 39 */ \
+    { 95.10f, 155.10f, 5.40f },       /* 40 */ \
+    { 105.10f, 155.10f, 5.40f },       /* 41 */ \
+    { 115.10f, 155.10f, 5.40f },       /* 42 */ \
+    { 125.10f, 155.10f, 5.40f },       /* 43 */ \
+    { 135.10f, 155.10f, 5.40f },       /* 44 */ \
+    { 145.10f, 155.10f, 5.40f },       /* 45 */ \
+    { 155.10f, 155.10f, 5.40f },       /* 40 */ \
+    { 165.10f, 155.10f, 5.40f },       /* 41 */ \
+    { 175.10f, 155.10f, 5.40f },       /* 42 */ \
+    { 185.10f, 155.10f, 5.40f },       /* 43 */ \
+    { 195.10f, 155.10f, 5.40f },       /* 44 */ \
+    { 205.10f, 155.10f, 5.40f },       /* 45 */ \
+    { 215.10f, 155.10f, 5.40f },       /* 46 */ \
+    { 225.10f, 155.10f, 5.40f },       /* 47 */ \
+    { 235.10f, 155.10f, 5.40f },       /* 48 */ \
+    { 245.10f, 155.10f, 5.40f },       /* 49 */ \
+    { 255.10f, 155.10f, 5.40f },       /* 50 */ \
+    { 265.10f, 155.10f, 5.40f },       /* 51 */ \
+    \
+    { 275.10f, 155.10f, 5.40f },        /* 52 */ \
+    { 275.10f, 145.10f, 5.40f },        /* 53 */ \
+    { 275.10f, 135.10f, 5.40f },        /* 54 */ \
+    { 275.10f, 125.10f, 5.40f },        /* 55 */ \
+    { 275.10f, 115.10f, 5.40f },        /* 56 */ \
+    { 275.10f, 105.10f, 5.40f },        /* 57 */ \
+    { 275.10f, 95.10f, 5.40f },         /* 58 */ \
+    { 275.10f, 85.10f, 5.40f },         /* 59 */ \
+    { 275.10f, 75.10f, 5.40f },         /* 60 */ \
+    { 275.10f, 65.10f, 5.40f },         /* 61 */ \
+    { 275.10f, 55.10f, 5.40f },         /* 62 */ \
+    { 275.10f, 45.10f, 5.40f },         /* 63 */ \
+    { 275.10f, 35.10f, 5.40f }          /* 64 */
+
+static const Position HITBOX_BUTTON_POS_LIST[NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS] = {
+    HITBOX_ADC_BUTTON_POS_DATA,
+    HITBOX_GPIO_BUTTON_POS_DATA
+};
+
+static const Position HITBOX_AMBIENT_POS_LIST[NUM_LED_AROUND] = {
+    HITBOX_AMBIENT_POS_DATA
+};
+
+static const Position HITBOX_LED_POS_LIST[NUM_LED] = {
+    HITBOX_ADC_BUTTON_POS_DATA,
+    HITBOX_GPIO_BUTTON_POS_DATA
 #if HAS_LED_AROUND
-    { 35.10f, 35.10f, 5.40f },         // 22
-    { 35.10f, 45.10f, 5.40f },         // 23
-    { 35.10f, 55.10f, 5.40f },          // 24
-    { 35.10f, 65.10f, 5.40f },         // 25
-    { 35.10f, 75.10f, 5.40f },         // 26
-    { 35.10f, 85.10f, 5.40f },         // 27
-    { 35.10f, 95.10f, 5.40f },         // 28
-    { 35.10f, 105.10f, 5.40f },        // 29
-    { 35.10f, 115.10f, 5.40f },        // 30
-    { 35.10f, 125.10f, 5.40f },        // 31
-    { 35.10f, 135.10f, 5.40f },        // 32
-    { 35.10f, 145.10f, 5.40f },        // 33
-    { 35.10f, 155.10f, 5.40f },        // 34
-    { 45.10f, 155.10f, 5.40f },        // 35
-    { 55.10f, 155.10f, 5.40f },        // 36
-    { 65.10f, 155.10f, 5.40f },       // 37
-    { 75.10f, 155.10f, 5.40f },       // 38
-    { 85.10f, 155.10f, 5.40f },       // 39
-    { 95.10f, 155.10f, 5.40f },       // 40
-    { 105.10f, 155.10f, 5.40f },       // 41
-    { 115.10f, 155.10f, 5.40f },       // 42
-    { 125.10f, 155.10f, 5.40f },       // 43
-    { 135.10f, 155.10f, 5.40f },       // 44
-    { 145.10f, 155.10f, 5.40f },       // 45
-    { 155.10f, 155.10f, 5.40f },       // 40
-    { 165.10f, 155.10f, 5.40f },       // 41
-    { 175.10f, 155.10f, 5.40f },       // 42
-    { 185.10f, 155.10f, 5.40f },       // 43
-    { 195.10f, 155.10f, 5.40f },       // 44
-    { 205.10f, 155.10f, 5.40f },       // 45
-    { 215.10f, 155.10f, 5.40f },       // 46
-    { 225.10f, 155.10f, 5.40f },       // 47
-    { 235.10f, 155.10f, 5.40f },       // 48
-    { 245.10f, 155.10f, 5.40f },       // 49
-    { 255.10f, 155.10f, 5.40f },       // 50
-    { 265.10f, 155.10f, 5.40f },       // 51
-    { 275.10f, 155.10f, 5.40f },        // 52
-    { 275.10f, 145.10f, 5.40f },        // 53
-    { 275.10f, 135.10f, 5.40f },        // 54
-    { 275.10f, 125.10f, 5.40f },        // 55
-    { 275.10f, 115.10f, 5.40f },        // 56
-    { 275.10f, 105.10f, 5.40f },        // 57
-    { 275.10f, 95.10f, 5.40f },         // 58
-    { 275.10f, 85.10f, 5.40f },         // 59
-    { 275.10f, 75.10f, 5.40f },         // 60
-    { 275.10f, 65.10f, 5.40f },         // 61
-    { 275.10f, 55.10f, 5.40f },         // 62
-    { 275.10f, 45.10f, 5.40f },         // 63
-    { 275.10f, 35.10f, 5.40f }         // 64
+    , HITBOX_AMBIENT_POS_DATA
 #endif
 };
 

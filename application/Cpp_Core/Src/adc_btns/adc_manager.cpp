@@ -41,12 +41,25 @@ uint32_t ADCManager::ADC_Values_Result[NUM_ADC_BUTTONS];
 #define ADC_VALUES_MAPPING_ADDR_QSPI (ADC_VALUES_MAPPING_ADDR & 0x0FFFFFFF)
 #define ADC_COMMON_CONFIG_ADDR_QSPI (ADC_COMMON_CONFIG_ADDR & 0x0FFFFFFF)
 
-const uint8_t ADC1_BUTTONS_MAPPING[NUM_ADC1_BUTTONS] = ADC1_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN;
-const uint8_t ADC2_BUTTONS_MAPPING[NUM_ADC2_BUTTONS] = ADC2_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN;
-const uint8_t ADC3_BUTTONS_MAPPING[NUM_ADC3_BUTTONS] = ADC3_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN;
+uint8_t ADC1_BUTTONS_MAPPING[NUM_ADC1_BUTTONS] = {0};
+uint8_t ADC2_BUTTONS_MAPPING[NUM_ADC2_BUTTONS] = {0};
+uint8_t ADC3_BUTTONS_MAPPING[NUM_ADC3_BUTTONS] = {0};
 
 ADCManager::ADCManager() {
     APP_DBG("ADCManager constructor");
+
+    // Dynamically populate mapping arrays from ADC_PIN_MAP in board_cfg.h
+    // This replaces the static macros ADCx_BUTTONS_MAPPING_DMA_TO_VIRTUALPIN
+    for(uint8_t i = 0; i < NUM_ADC1_BUTTONS; i++) {
+        ADC1_BUTTONS_MAPPING[i] = ADC1_PIN_MAP[i].virtualPin;
+    }
+    for(uint8_t i = 0; i < NUM_ADC2_BUTTONS; i++) {
+        ADC2_BUTTONS_MAPPING[i] = ADC2_PIN_MAP[i].virtualPin;
+    }
+    for(uint8_t i = 0; i < NUM_ADC3_BUTTONS; i++) {
+        ADC3_BUTTONS_MAPPING[i] = ADC3_PIN_MAP[i].virtualPin;
+    }
+
     // 读取整个存储结构
     QSPI_W25Qxx_ReadBuffer_WithXIPOrNot((uint8_t*)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore));
     

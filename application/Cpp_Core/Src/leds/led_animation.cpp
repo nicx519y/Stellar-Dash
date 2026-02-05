@@ -24,11 +24,11 @@ static uint32_t transformCycleCount = 0;
 static float lastTransformProgress = 0.0f;
 
 // 主LED坐标数组（前NUM_LED个）
-const ButtonPosition* MAIN_LED_POS_LIST = HITBOX_LED_POS_LIST;
+const Position* MAIN_LED_POS_LIST = HITBOX_LED_POS_LIST;
 
 #if HAS_LED_AROUND
 // 环绕LED坐标数组（从索引21开始的30个LED）
-const ButtonPosition* AROUND_LED_POS_LIST = &HITBOX_LED_POS_LIST[NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS];
+const Position* AROUND_LED_POS_LIST = &HITBOX_LED_POS_LIST[NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS];
 #endif
 
 // 缓存的边界值，避免每帧重复计算

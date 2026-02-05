@@ -206,7 +206,7 @@ uint32_t read_uint32_le(const uint8_t* data) {
 void printBinary(const char* prefix, uint32_t value) {
     printf("%s0b", prefix);
     for (int i = 31; i >= 0; i--) {
-        printf("%d", (value >> i) & 1);
+        printf("%d", (int)((value >> i) & 1));
         if (i % 8 == 0) printf(" ");  // 每8位添加一个空格
     }
     printf("\n");

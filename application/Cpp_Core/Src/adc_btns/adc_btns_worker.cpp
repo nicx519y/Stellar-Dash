@@ -50,9 +50,6 @@ ADCBtnsWorker::ADCBtnsWorker()
 
     // 初始化virtualPin到buttonIndex的映射表
     // 根据board_cfg.h中的映射定义初始化
-    const uint8_t ADC1_MAPPING[] = {2, 7, 4, 0, 5, 6};
-    const uint8_t ADC2_MAPPING[] = {1, 3, 14, 12, 8, 9};
-    const uint8_t ADC3_MAPPING[] = {16, 17, 15, 13, 10, 11};
 
     // 初始化映射表为无效值
     for (auto &index : virtualPinToButtonIndex_)
@@ -63,15 +60,15 @@ ADCBtnsWorker::ADCBtnsWorker()
     // 填充映射表
     for (uint8_t i = 0; i < NUM_ADC1_BUTTONS; i++)
     {
-        virtualPinToButtonIndex_[ADC1_MAPPING[i]] = i;
+        virtualPinToButtonIndex_[ADC1_PIN_MAP[i].virtualPin] = i;
     }
     for (uint8_t i = 0; i < NUM_ADC2_BUTTONS; i++)
     {
-        virtualPinToButtonIndex_[ADC2_MAPPING[i]] = i + NUM_ADC1_BUTTONS;
+        virtualPinToButtonIndex_[ADC2_PIN_MAP[i].virtualPin] = i + NUM_ADC1_BUTTONS;
     }
     for (uint8_t i = 0; i < NUM_ADC3_BUTTONS; i++)
     {
-        virtualPinToButtonIndex_[ADC3_MAPPING[i]] = i + NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS;
+        virtualPinToButtonIndex_[ADC3_PIN_MAP[i].virtualPin] = i + NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS;
     }
 
     MC.registerMessage(MessageId::ADC_BTNS_STATE_CHANGED);

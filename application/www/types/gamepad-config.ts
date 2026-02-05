@@ -34,28 +34,27 @@ export const MAX_NUM_BUTTON_COMBINATION = 5;
 // hitbox button position list
 const btnsPos = [
 
-    { x: 121.10, y: 121.04, r: 26 },      // 0
-    { x: 147.34, y: 130.80, r: 34 },      // 1
-    { x: 174.40, y: 123.61, r: 26 },      // 2
-    { x: 192.10, y: 105.95, r: 26 },      // 3
+    { x: 125.10, y: 103.10, r: 26 },      // 0
+    { x: 147.34, y: 120.10, r: 34 },      // 1
+    { x: 175.10, y: 119.10, r: 26 },      // 2
+    { x: 192.80, y: 101.44, r: 26 },      // 3
     { x: 73.49, y: 63.76, r: 26 },        // 4
     { x: 99.05, y: 59.67, r: 26 },        // 5
     { x: 122.19, y: 63.76, r: 26 },       // 6
     { x: 141.44, y: 77.23, r: 26 },       // 7
     { x: 131.19, y: 42.04, r: 26 },       // 8
-    { x: 168.18, y: 79.40, r: 26 },       // 9
-    { x: 157.60, y: 57.30, r: 26 },       // 10
-    { x: 157.60, y: 101.50, r: 26 },       // 11
-    { x: 188.25, y: 65.35, r: 26 },       // 12
-    { x: 177.69, y: 43.25, r: 26 },       // 13
-    { x: 211.27, y: 56.97, r: 26 },       // 14
-    { x: 200.69, y: 34.87, r: 26 },       // 15
-    { x: 235.68, y: 54.83, r: 26 },       // 16
-    { x: 225.10, y: 32.73, r: 26 },       // 17
-    { x: 84.49, y: 15.49, r: 11.5 },        // 18
-    { x: 62.49, y: 15.49, r: 11.5 },        // 19
-    { x: 40.49, y: 15.49, r: 11.5 },        // 20
-    { x: 18.48, y: 15.49, r: 11.5 },        // 21
+    { x: 165.45, y: 87.10, r: 26 },       // 9
+    { x: 163.37, y: 62.80, r: 26 },       // 10
+    { x: 185.51, y: 73.05, r: 26 },       // 11
+    { x: 183.43, y: 48.75, r: 26 },       // 12
+    { x: 209.01, y: 66.10, r: 26 },       // 13
+    { x: 206.93, y: 41.80, r: 26 },       // 14
+    { x: 233.44, y: 67.98, r: 26 },       // 15
+    { x: 231.36, y: 43.69, r: 26 },       // 16
+    { x: 84.49, y: 15.49, r: 11.5 },        // 17
+    { x: 62.49, y: 15.49, r: 11.5 },        // 18
+    { x: 40.49, y: 15.49, r: 11.5 },        // 19
+    { x: 18.48, y: 15.49, r: 11.5 },        // 20
 ];
 
 export const HITBOX_BTN_POS_SCALE = 2.56;
@@ -63,16 +62,16 @@ export const HITBOX_BTN_POS_SCALE = 2.56;
 export const HITBOX_BTN_POS_LIST = btnsPos.map(item => ({ x: item.x * HITBOX_BTN_POS_SCALE, y: item.y * HITBOX_BTN_POS_SCALE, r: item.r }));
 
 // keys settings interactive ids
-export const KEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 ]; // 0-20 共21个按键可以交互，并设置为按键
+export const KEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 ]; // 0-19 共20个按键可以交互，并设置为按键
 
 // leds settings interactive ids
-export const LEDS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21 ]; // 0-21 共22个按键可以交互，并设置为led
+export const LEDS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 ]; // 0-20 共21个按键可以交互，并设置为led
 
 // hotkeys settings interactive ids
-export const HOTKEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 ]; // 0-20 共21个按键可以交互，并设置为hotkey
+export const HOTKEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 ]; // 0-19 共20个按键可以交互，并设置为hotkey
 
 // rapid trigger settings interactive ids
-export const RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 ]; // 0-17 共18个按键可以交互，并设置为rapid trigger
+export const RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 ]; // 0-16 共17个按键可以交互，并设置为rapid trigger
 
 
 

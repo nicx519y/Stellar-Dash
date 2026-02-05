@@ -26,6 +26,7 @@
 #include "board_cfg.h"
 #include "usbh.h"
 #include "system_logger.h"
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/

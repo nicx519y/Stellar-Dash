@@ -44,9 +44,9 @@ typedef RGBColor (*LedAnimationAlgorithm)(const LedAnimationParams& params);
 // 按钮位置数组在 board_cfg.h 中以静态常量定义
 
 // 主LED和环绕LED坐标数组声明
-extern const ButtonPosition* MAIN_LED_POS_LIST;
+extern const Position* MAIN_LED_POS_LIST;
 #if HAS_LED_AROUND
-extern const ButtonPosition* AROUND_LED_POS_LIST;
+extern const Position* AROUND_LED_POS_LIST;
 #endif
 
 // 颜色插值函数
