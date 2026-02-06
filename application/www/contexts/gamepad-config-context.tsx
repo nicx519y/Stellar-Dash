@@ -656,12 +656,99 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     };
 
     const exportAllConfig = async (): Promise<any> => {
-        try {
-            const data = await sendWebSocketRequest('export_all_config', {}, true);
-            return Promise.resolve(data);
-        } catch (err) {
-            return Promise.reject(new Error("Failed to export all config"));
+        if (!wsFramework) {
+            return Promise.reject(new Error("WebSocket framework not initialized"));
         }
+
+        return new Promise((resolve, reject) => {
+            console.log("Starting export_all_config...");
+            const exportedData: any = {
+                globalConfig: {},
+                hotkeysConfig: [],
+                profiles: []
+            };
+
+            // 设置超时
+            const timeoutId = setTimeout(() => {
+                cleanup();
+                console.error("export_all_config timeout");
+                reject(new Error("Export timeout"));
+            }, 30000);
+
+            // 注册临时消息处理器
+            const cleanupListener = wsFramework.onMessage((msg: WebSocketDownstreamMessage) => {
+                // Debug log to trace all messages during export
+                console.log(`[Export Debug] Listener received: cmd=${msg.command}, cid=${msg.cid}, err=${msg.errNo}`);
+
+                // 只处理 export_all_config 命令的响应
+                if (msg.command !== 'export_all_config') return;
+
+                console.log(`[Export] Received chunk: CID=${msg.cid}, ErrNo=${msg.errNo}, Section=${msg.data?.section}`);
+                    console.log("[Export] Full message:", JSON.stringify(msg));
+
+                    if (msg.errNo !== undefined && msg.errNo !== 0) {
+                        console.error("[Export] Error from server:", msg);
+                        clearTimeout(timeoutId);
+                        cleanup();
+                        reject(new Error(`Server error: ${msg.errNo}`));
+                        return;
+                    }
+
+                    const section = msg.data?.section as string;
+                    const data = msg.data?.data;
+
+                    if (!section) {
+                        console.warn("[Export] Received message without section:", msg);
+                        return;
+                    }
+
+                    try {
+                        if (section === 'global') {
+                            console.log("[Export] Processing global config");
+                            exportedData.globalConfig = data;
+                        } else if (section === 'hotkeys') {
+                            console.log("[Export] Processing hotkeys config");
+                            exportedData.hotkeysConfig = data;
+                        } else if (section === 'profile') {
+                            console.log("[Export] Processing profile chunk");
+                            if (data) {
+                                exportedData.profiles.push(data);
+                            } else {
+                                console.warn("[Export] Profile chunk missing data");
+                            }
+                        } else if (section === 'end') {
+                            console.log("[Export] Completed, resolving data with", 
+                                { global: !!exportedData.globalConfig, hotkeys: !!exportedData.hotkeysConfig, profiles: exportedData.profiles.length });
+                            clearTimeout(timeoutId);
+                            cleanup();
+                            resolve(exportedData);
+                        } else {
+                            console.warn(`[Export] Unknown section: ${section}`);
+                        }
+                    } catch (e) {
+                        console.error("[Export] Error processing message:", e);
+                        clearTimeout(timeoutId);
+                        cleanup();
+                        reject(new Error(`Processing error: ${e instanceof Error ? e.message : String(e)}`));
+                    }
+                });
+
+            const cleanup = () => {
+                cleanupListener();
+            };
+
+            try {
+                // 使用 sendMessageNoResponse 避免框架捕获第一个响应并resolve
+                // 这样所有的响应片段都会通过 onMessage 广播出来
+                console.log("Sending export_all_config request");
+                wsFramework.sendMessageNoResponse('export_all_config', {});
+            } catch (err) {
+                console.error("Failed to send export request:", err);
+                clearTimeout(timeoutId);
+                cleanup();
+                reject(new Error("Failed to send export request"));
+            }
+        });
     };
 
     const importAllConfig = async (configData: any): Promise<void> => {

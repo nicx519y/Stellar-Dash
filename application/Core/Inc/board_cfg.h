@@ -149,19 +149,19 @@ struct gpio_pin_def {
 // GPIO按钮配置宏定义
 #define GPIO_BTN1_PORT              GPIOC
 #define GPIO_BTN1_PIN               GPIO_PIN_6
-#define GPIO_BTN1_VIRTUAL_PIN       18
+#define GPIO_BTN1_VIRTUAL_PIN       17
 
 #define GPIO_BTN2_PORT              GPIOC
 #define GPIO_BTN2_PIN               GPIO_PIN_7
-#define GPIO_BTN2_VIRTUAL_PIN       19
+#define GPIO_BTN2_VIRTUAL_PIN       18
 
 #define GPIO_BTN3_PORT              GPIOC
 #define GPIO_BTN3_PIN               GPIO_PIN_8
-#define GPIO_BTN3_VIRTUAL_PIN       20
+#define GPIO_BTN3_VIRTUAL_PIN       19
 
 #define GPIO_BTN4_PORT              GPIOC
 #define GPIO_BTN4_PIN               GPIO_PIN_9
-#define GPIO_BTN4_VIRTUAL_PIN       21
+#define GPIO_BTN4_VIRTUAL_PIN       20
 
 
 // 动态地址获取函数声明（需要在相应的.c文件中实现）
@@ -333,6 +333,36 @@ static const Position HITBOX_LED_POS_LIST[NUM_LED] = {
 
     , HITBOX_AMBIENT_POS_DATA
 };
+
+
+#ifdef __cplusplus
+#include "enums.hpp"
+
+// Default hotkey configuration
+// The default hotkey configuration is used when the user has not configured any hotkey.
+// The default hotkey configuration is also used when the user has configured a hotkey, but the hotkey is not available on the current gamepad.
+
+typedef struct {
+    bool isLocked;
+    GamepadHotkey action;
+    bool isHold;
+    int32_t virtualPin;
+} DefaultHotkeyConfig;
+
+static const DefaultHotkeyConfig DEFAULT_HOTKEY_LIST[NUM_GAMEPAD_HOTKEYS] = {
+    { true,  GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG,           true,  19 }, // 0
+    { true,  GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION,         true,  18 }, // 1
+    { false, GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT,          false, 15 }, // 2
+    { false, GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_PREV,          false, 16 }, // 3
+    { false, GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP,             false, 14 }, // 4
+    { false, GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_DOWN,           false, 13 }, // 5
+    { false, GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_NEXT, false, 11 }, // 6
+    { false, GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_PREV, false, 12 }, // 7
+    { false, GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_UP,    false, 10 }, // 8
+    { false, GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_DOWN,  false, 9  }, // 9
+    { false, GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH,             true,  2  }, // 10
+};
+#endif
 
 
 #ifdef __cplusplus

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <string>
+#include <queue>
 #include "lwip/tcp.h"
 #include "lwip/pbuf.h"
 
@@ -61,6 +62,13 @@ private:
     std::string pending_text_message;
     size_t pending_text_offset = 0;
     
+    // 发送队列
+    std::queue<std::string> tx_queue;
+    
+    // 内部方法处理发送队列
+    // 返回true表示队列为空且当前没有挂起发送，返回false表示仍有数据待发送
+    bool process_tx_queue();
+    
     // 回调函数
     WebSocketMessageCallback on_message;
     WebSocketBinaryMessageCallback on_binary_message;
@@ -75,7 +83,7 @@ private:
     std::string create_frame(uint8_t opcode, const std::string& payload);
     // 支持自定义FIN标志和原始缓冲区的帧创建（用于分片发送）
     std::string create_frame(uint8_t opcode, const char* payload, size_t length, bool fin);
-    void send_raw_data(const char* data, size_t length);
+    bool send_raw_data(const char* data, size_t length);
     bool ensure_buffer_capacity(size_t required_size);
     
     // lwIP 回调函数 (静态)
@@ -101,7 +109,7 @@ public:
 
     // 继续发送挂起的大文本分片；
     // 返回true表示当前没有挂起发送（已完成或从未开始），返回false表示仍有剩余需要继续发送
-    bool continue_send_text_large();
+    // bool continue_send_text_large();
     
     // 发送二进制消息
     void send_binary(const uint8_t* data, size_t length);

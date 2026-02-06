@@ -282,18 +282,18 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_LEFT] = 1 << 5;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_RIGHT] = 1 << 7;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B1] = 1 << 9;
-    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B2] = 1 << 12;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B2] = 1 << 11;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B3] = 1 << 10;
-    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B4] = 1 << 13;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_B4] = 1 << 12;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L1] = 1 << 14;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R1] = 1 << 16;
-    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L2] = 1 << 15;
-    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R2] = 1 << 17;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L2] = 1 << 13;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R2] = 1 << 15;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S1] = 1 << 18;
-    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S2] = 1 << 19;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S2] = 1 << 17;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L3] = 1 << 0;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R3] = 1 << 2;
-    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A1] = 1 << 20;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A1] = 1 << 19;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A2] = 0;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_FN] = FN_BUTTON_VIRTUAL_PIN;
 
@@ -379,62 +379,12 @@ bool ConfigUtils::load(Config& config)
 
         // 设置hotkeys 默认快捷键
         for(uint8_t m = 0; m < NUM_GAMEPAD_HOTKEYS; m++) {
-            if(m == 0) { // 第一个快捷键锁定, 锁定为webconfig
-                config.hotkeys[m].isLocked = true;
-                config.hotkeys[m].action = GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG;
-                config.hotkeys[m].isHold = true;
-                config.hotkeys[m].virtualPin = 20;
-            } else if(m == 1) { // 第二个快捷键锁定, 锁定为校准模式
-                config.hotkeys[m].isLocked = true;
-                config.hotkeys[m].action = GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION;
-                config.hotkeys[m].isHold = true;
-                config.hotkeys[m].virtualPin = 19;
-            } else if(m == 2) {
-                config.hotkeys[m].isLocked = false;
-                config.hotkeys[m].action = GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT;
-                config.hotkeys[m].isHold = false;
-                config.hotkeys[m].virtualPin = 17;
-            } else if(m == 3) {
-                config.hotkeys[m].isLocked = false;
-                config.hotkeys[m].action = GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_PREV;
-                config.hotkeys[m].isHold = false;
-                config.hotkeys[m].virtualPin = 16;
-            } else if(m == 4) {
-                config.hotkeys[m].isLocked = false;
-                config.hotkeys[m].action = GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP;
-                config.hotkeys[m].isHold = false;
-                config.hotkeys[m].virtualPin = 15;
-            } else if(m == 5) {
-                config.hotkeys[m].isLocked = false;
-                config.hotkeys[m].action = GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_DOWN;
-                config.hotkeys[m].isHold = false;
-                config.hotkeys[m].virtualPin = 14;
-            } else if(m == 6) {
-                config.hotkeys[m].isLocked = false;
-                config.hotkeys[m].action = GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_NEXT;
-                config.hotkeys[m].isHold = false;
-                config.hotkeys[m].virtualPin = 13;
-            } else if(m == 7) {
-                config.hotkeys[m].isLocked = false;
-                config.hotkeys[m].action = GamepadHotkey::HOTKEY_AMBIENT_LIGHT_EFFECTSTYLE_PREV;
-                config.hotkeys[m].isHold = false;
-                config.hotkeys[m].virtualPin = 12;
-            } else if(m == 8) {
-                config.hotkeys[m].isLocked = false;
-                config.hotkeys[m].action = GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_UP;
-                config.hotkeys[m].isHold = false;
-                config.hotkeys[m].virtualPin = 10;
-            } else if(m == 9) {
-                config.hotkeys[m].isLocked = false;
-                config.hotkeys[m].action = GamepadHotkey::HOTKEY_AMBIENT_LIGHT_BRIGHTNESS_DOWN;
-                config.hotkeys[m].isHold = false;
-                config.hotkeys[m].virtualPin = 9;
-            } else if(m == 10) {
-                config.hotkeys[m].isLocked = false;
-                config.hotkeys[m].action = GamepadHotkey::HOTKEY_LEDS_ENABLE_SWITCH;
-                config.hotkeys[m].isHold = true;
-                config.hotkeys[m].virtualPin = 1;
-            } else { // 其他快捷键不锁定
+            if(m < sizeof(DEFAULT_HOTKEY_LIST) / sizeof(DefaultHotkeyConfig)) {
+                config.hotkeys[m].isLocked = DEFAULT_HOTKEY_LIST[m].isLocked;
+                config.hotkeys[m].action = DEFAULT_HOTKEY_LIST[m].action;
+                config.hotkeys[m].isHold = DEFAULT_HOTKEY_LIST[m].isHold;
+                config.hotkeys[m].virtualPin = DEFAULT_HOTKEY_LIST[m].virtualPin;
+            } else {
                 config.hotkeys[m].isLocked = false;
                 config.hotkeys[m].action = GamepadHotkey::HOTKEY_NONE;
                 config.hotkeys[m].virtualPin = -1;

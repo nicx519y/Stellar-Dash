@@ -167,13 +167,62 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateHotkeysConfig
 
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handleExportAllConfig(const WebSocketUpstreamMessage& request) {
     Config& config = Storage::getInstance().config;
-    
-    cJSON* exportJSON = ConfigUtils::toJSON(config);
-    if (!exportJSON) {
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to export configuration");
+    WebSocketConnection* conn = request.getConnection();
+
+    if (!conn) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "No active connection");
     }
 
-    return create_success_response(request.getCid(), request.getCommand(), exportJSON);
+    // 定义发送辅助函数
+    auto sendPart = [&](const char* section, cJSON* data) {
+        cJSON* msgData = cJSON_CreateObject();
+        cJSON_AddStringToObject(msgData, "section", section);
+        if (data) cJSON_AddItemToObject(msgData, "data", data);
+        
+        cJSON* response = cJSON_CreateObject();
+        cJSON_AddNumberToObject(response, "cid", request.getCid());
+        cJSON_AddStringToObject(response, "command", request.getCommand().c_str());
+        cJSON_AddNumberToObject(response, "errNo", 0);
+        cJSON_AddItemToObject(response, "data", msgData);
+        
+        char* str = cJSON_PrintUnformatted(response);
+        if (str) {
+            conn->send_text(str);
+            free(str);
+        }
+        cJSON_Delete(response);
+    };
+
+    // 1. 发送 Global Config
+    {
+        cJSON* globalConfigJSON = cJSON_CreateObject();
+        cJSON_AddStringToObject(globalConfigJSON, "inputMode", ConfigUtils::getInputModeString(config.inputMode));
+        cJSON_AddStringToObject(globalConfigJSON, "defaultProfileId", config.defaultProfileId);
+        sendPart("global", globalConfigJSON);
+    }
+
+    // 2. 发送 Hotkeys Config
+    {
+        sendPart("hotkeys", ConfigUtils::buildHotkeysConfigJSON(config));
+    }
+
+    // 3. 发送 Profiles
+    for (int i = 0; i < NUM_PROFILES; i++) {
+        if (config.profiles[i].enabled) {
+            cJSON* profileJSON = ProfileCommandHandler::buildProfileJSON(&config.profiles[i]);
+            if (profileJSON) {
+                sendPart("profile", profileJSON);
+                // 简单的延时以防止发送缓冲区溢出
+                // HAL_Delay(10);
+            }
+        }
+    }
+
+    // 4. 发送结束信号 (通过返回最后的响应)
+    cJSON* finishData = cJSON_CreateObject();
+    cJSON_AddStringToObject(finishData, "section", "end");
+
+    return create_success_response(request.getCid(), request.getCommand(), finishData);
 }
 
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportAllConfig(const WebSocketUpstreamMessage& request) {
