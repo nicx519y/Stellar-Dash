@@ -223,12 +223,28 @@ bool fromJSON(Config& config, cJSON* json) {
                  }
 
                  // Find profile by ID
+                 bool profileFound = false;
                  for (int i=0; i < NUM_PROFILES; i++) {
                      if (strncmp(config.profiles[i].id, idItem->valuestring, sizeof(config.profiles[i].id)) == 0) {
                          ProfileCommandHandler::parseProfileJSON(profileItem, &config.profiles[i]);
+                         config.profiles[i].enabled = true;
+                         profileFound = true;
                          break;
                      }
                  }
+                
+                // 不接受自定义 profile-id，也就是说 不在已经定义的profile-id范围内的配置，不会被导入
+                //  if (!profileFound) {
+                //      // Try to add new profile
+                //      for (int i=0; i < NUM_PROFILES; i++) {
+                //          if (!config.profiles[i].enabled) {
+                //              APP_DBG("ConfigUtils::fromJSON - creating new profile: %s", idItem->valuestring);
+                //              ConfigUtils::makeDefaultProfile(config.profiles[i], idItem->valuestring, true);
+                //              ProfileCommandHandler::parseProfileJSON(profileItem, &config.profiles[i]);
+                //              break;
+                //          }
+                //      }
+                //  }
             }
         }
     }
