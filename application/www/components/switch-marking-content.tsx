@@ -93,15 +93,16 @@ export function SwitchMarkingContent() {
     }, [markingStatus]);
 
     const itemsConfig = useMemo(() => {
-        return mappingList.map(({ id, name }) => ({
-            value: id,
-            label: (
-                <HStack direction={"row"} alignItems={"center"} gap={2} >
-                    { id === defaultMappingId && <LuCheck /> }
-                    <span>{name}</span>
-                </HStack>
-            )
-        }));
+        return mappingList.filter(m => m.id !== "" && m.name !== "")
+            .map(({ id, name }) => ({
+                value: id,
+                label: (
+                    <HStack direction={"row"} alignItems={"center"} gap={2} >
+                        { id === defaultMappingId && <LuCheck /> }
+                        <span>{name}</span>
+                    </HStack>
+                )
+            }));
     }, [mappingList, defaultMappingId]);
 
     useEffect(() => {
