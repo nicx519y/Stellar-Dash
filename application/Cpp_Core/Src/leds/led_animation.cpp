@@ -26,22 +26,18 @@ static float lastTransformProgress = 0.0f;
 // 主LED坐标数组（前NUM_LED个）
 const Position* MAIN_LED_POS_LIST = HITBOX_LED_POS_LIST;
 
-#if HAS_LED_AROUND
 // 环绕LED坐标数组（从索引21开始的30个LED）
 const Position* AROUND_LED_POS_LIST = &HITBOX_LED_POS_LIST[NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS];
-#endif
 
 // 缓存的边界值，避免每帧重复计算
 static float cachedMainMinX = 0.0f;
 static float cachedMainMaxX = 0.0f;
 static float cachedAllMinX = 0.0f;
 static float cachedAllMaxX = 0.0f;
-#if HAS_LED_AROUND
 static float cachedAroundMinX = 0.0f;
 static float cachedAroundMaxX = 0.0f;
 static float cachedAroundCenterX = 0.0f;
 static bool aroundBoundariesCalculated = false;
-#endif
 static bool mainBoundariesCalculated = false;
 static bool allBoundariesCalculated = false;
 
@@ -52,7 +48,9 @@ static void calculateMainBoundaries() {
         cachedMainMaxX = MAIN_LED_POS_LIST[0].x;
         
         // 遍历主LED位置找到最小和最大X坐标
-        for (uint8_t i = 1; i < NUM_LED; i++) {
+        // 仅遍历主按键部分 (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS)
+        uint8_t mainLedsCount = NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS;
+        for (uint8_t i = 1; i < mainLedsCount; i++) {
             if (MAIN_LED_POS_LIST[i].x < cachedMainMinX) {
                 cachedMainMinX = MAIN_LED_POS_LIST[i].x;
             }
@@ -76,10 +74,8 @@ static void calculateAllBoundaries() {
         cachedAllMaxX = HITBOX_LED_POS_LIST[0].x;
         
         // 遍历所有LED位置找到最小和最大X坐标
-        uint8_t totalLeds = NUM_LED;
-#if HAS_LED_AROUND
-        totalLeds += NUM_LED_AROUND;
-#endif
+        // NUM_LED 已经在 board_cfg.h 中包含了 NUM_LED_AROUND
+        uint8_t totalLeds = NUM_LED; 
         
         for (uint8_t i = 1; i < totalLeds; i++) {
             if (HITBOX_LED_POS_LIST[i].x < cachedAllMinX) {
@@ -98,7 +94,6 @@ static void calculateAllBoundaries() {
     }
 }
 
-#if HAS_LED_AROUND
 // 计算环绕LED边界的函数
 static void calculateAroundBoundaries() {
     if (!aroundBoundariesCalculated) {
@@ -125,29 +120,29 @@ static void calculateAroundBoundaries() {
         aroundBoundariesCalculated = true;
     }
 }
-#endif
 
 // 动态选择边界的函数，根据环绕灯同步状态
 static void getBoundaries(const LedAnimationParams& params, float& minX, float& maxX) {
-#if HAS_LED_AROUND
-    // 检查当前LED是否为环绕灯，或者是否需要处理环绕灯同步
-    bool isAroundLed = params.index >= NUM_LED;
-    bool needAllBoundaries = isAroundLed || (params.index < NUM_LED && params.global.aroundLedSyncMode);
-    
-    if (needAllBoundaries) {
-        calculateAllBoundaries();
-        minX = cachedAllMinX;
-        maxX = cachedAllMaxX;
+    if (g_has_led_around) {
+        // 检查当前LED是否为环绕灯，或者是否需要处理环绕灯同步
+        uint8_t mainLedsCount = NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS;
+        bool isAroundLed = params.index >= mainLedsCount;
+        bool needAllBoundaries = isAroundLed || (params.index < mainLedsCount && params.global.aroundLedSyncMode);
+        
+        if (needAllBoundaries) {
+            calculateAllBoundaries();
+            minX = cachedAllMinX;
+            maxX = cachedAllMaxX;
+        } else {
+            calculateMainBoundaries();
+            minX = cachedMainMinX;
+            maxX = cachedMainMaxX;
+        }
     } else {
         calculateMainBoundaries();
         minX = cachedMainMinX;
         maxX = cachedMainMaxX;
     }
-#else
-    calculateMainBoundaries();
-    minX = cachedMainMinX;
-    maxX = cachedMainMaxX;
-#endif
 }
 
 // 计算按钮X坐标边界的函数（保留用于兼容性）
@@ -329,14 +324,15 @@ RGBColor flowingAnimation(const LedAnimationParams& params) {
     
     // 获取当前LED的X坐标
     float btnX;
-    if (params.index < NUM_LED) {
+    uint8_t mainLedsCount = NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS;
+    if (params.index < mainLedsCount) {
         btnX = MAIN_LED_POS_LIST[params.index].x;
     } else {
-#if HAS_LED_AROUND
-        btnX = AROUND_LED_POS_LIST[params.index - NUM_LED].x;
-#else
-        btnX = MAIN_LED_POS_LIST[params.index].x; // 不应该到达这里
-#endif
+        if (g_has_led_around) {
+            btnX = AROUND_LED_POS_LIST[params.index - mainLedsCount].x;
+        } else {
+            btnX = MAIN_LED_POS_LIST[0].x; // Safe fallback
+        }
     }
     
     // 计算距离中心的归一化距离
@@ -434,14 +430,15 @@ RGBColor transformAnimation(const LedAnimationParams& params) {
     
     // 获取当前LED的X坐标
     float btnX;
-    if (params.index < NUM_LED) {
+    uint8_t mainLedsCount = NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS;
+    if (params.index < mainLedsCount) {
         btnX = MAIN_LED_POS_LIST[params.index].x;
     } else {
-#if HAS_LED_AROUND
-        btnX = AROUND_LED_POS_LIST[params.index - NUM_LED].x;
-#else
-        btnX = MAIN_LED_POS_LIST[params.index].x; // 不应该到达这里
-#endif
+        if (g_has_led_around) {
+            btnX = AROUND_LED_POS_LIST[params.index - mainLedsCount].x;
+        } else {
+            btnX = MAIN_LED_POS_LIST[0].x; // Safe fallback
+        }
     }
     
     // 记录流光已经经过的按钮
@@ -502,7 +499,6 @@ LedAnimationAlgorithm getLedAnimation(LEDEffect effect) {
     }
 }
 
-#if HAS_LED_AROUND
 /**
  * @brief 环绕灯呼吸动画效果
  * @param progress 动画进度 (0.0-1.0)
@@ -656,4 +652,3 @@ RGBColor aroundLedQuakeAnimation(float progress, uint8_t ledIndex, uint32_t colo
     
     return resultColor;
 }
-#endif

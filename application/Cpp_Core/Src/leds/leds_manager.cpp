@@ -34,8 +34,6 @@ LEDsManager::LEDsManager()
         ripples[i].startTime = 0;
     }
     
-#if HAS_LED_AROUND
-
     aroundLedAnimationStartTime = 0;
     aroundLedRippleCount = 0;
     for (int i = 0; i < 5; i++) {
@@ -46,7 +44,6 @@ LEDsManager::LEDsManager()
     // 初始化震荡动画状态
     lastQuakeTriggerTime = 0;
     lastButtonPressTime = 0;
-#endif
 };
 
 void LEDsManager::setup()
@@ -73,29 +70,28 @@ void LEDsManager::setup()
             WS2812B_SetAllLEDColor(backgroundColor1.r, backgroundColor1.g, backgroundColor1.b);
         }
 
-    #if HAS_LED_AROUND
-        // 初始化环绕灯
-        aroundLedAnimationStartTime = HAL_GetTick();
-        
-        // 根据配置设置环绕灯
-        if (!opts->aroundLedEnabled) {
-            // 环绕灯关闭，设置为黑色
-            for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
-                WS2812B_SetLEDColor(0, 0, 0, i);
-            }
-            setAmbientLightBrightness(0);
-        } else {
-            // 环绕灯开启，设置初始状态
-            if (opts->aroundLedEffect == AroundLEDEffect::AROUND_STATIC) {
-                RGBColor aroundColor = hexToRGB(opts->aroundLedColor1);
+        if (g_has_led_around) {
+            // 初始化环绕灯
+            aroundLedAnimationStartTime = HAL_GetTick();
+            
+            // 根据配置设置环绕灯
+            if (!opts->aroundLedEnabled) {
+                // 环绕灯关闭，设置为黑色
                 for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
-                    WS2812B_SetLEDColor(aroundColor.r, aroundColor.g, aroundColor.b, i);
+                    WS2812B_SetLEDColor(0, 0, 0, i);
                 }
-                setAmbientLightBrightness(opts->aroundLedBrightness);
+                setAmbientLightBrightness(0);
+            } else {
+                // 环绕灯开启，设置初始状态
+                if (opts->aroundLedEffect == AroundLEDEffect::AROUND_STATIC) {
+                    RGBColor aroundColor = hexToRGB(opts->aroundLedColor1);
+                    for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
+                        WS2812B_SetLEDColor(aroundColor.r, aroundColor.g, aroundColor.b, i);
+                    }
+                    setAmbientLightBrightness(opts->aroundLedBrightness);
+                }
             }
         }
-    #endif
-
     }
 
 }
@@ -147,35 +143,35 @@ void LEDsManager::loop(uint32_t virtualPinMask)
         }
     }
     
-#if HAS_LED_AROUND
-    // 设置环绕灯同步模式参数
-    params.global.aroundLedSyncMode = opts->aroundLedEnabled && opts->aroundLedSyncToMainLed;
-    
-    // 环绕灯处理
-    if (!opts->aroundLedEnabled) {
-        // 模式1：环绕灯关闭 - 设置为黑色，亮度为0
-        for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
-            WS2812B_SetLEDColor(0, 0, 0, i);
-        }
-        setAmbientLightBrightness(0);
-    } else if (opts->aroundLedSyncToMainLed) {
-        // 模式2：环绕灯同步到主LED - 使用主LED配置和动画
+    if (g_has_led_around) {
+        // 设置环绕灯同步模式参数
+        params.global.aroundLedSyncMode = opts->aroundLedEnabled && opts->aroundLedSyncToMainLed;
         
-        // 在同步模式下，动画算法需要处理所有LED（主LED + 环绕LED）
-        // 为每个环绕LED计算颜色并设置（索引从按钮LED数量开始）
-        for (uint8_t i = 0; i < NUM_LED_AROUND; i++) {
-            params.index = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) + i; // 环绕LED在全局数组中的索引
-            params.pressed = false; // 环绕LED没有按钮状态
+        // 环绕灯处理
+        if (!opts->aroundLedEnabled) {
+            // 模式1：环绕灯关闭 - 设置为黑色，亮度为0
+            for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
+                WS2812B_SetLEDColor(0, 0, 0, i);
+            }
+            setAmbientLightBrightness(0);
+        } else if (opts->aroundLedSyncToMainLed) {
+            // 模式2：环绕灯同步到主LED - 使用主LED配置和动画
             
-            RGBColor color = algorithm(params);
-            WS2812B_SetLEDColor(color.r, color.g, color.b, (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) + i);
+            // 在同步模式下，动画算法需要处理所有LED（主LED + 环绕LED）
+            // 为每个环绕LED计算颜色并设置（索引从按钮LED数量开始）
+            for (uint8_t i = 0; i < NUM_LED_AROUND; i++) {
+                params.index = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) + i; // 环绕LED在全局数组中的索引
+                params.pressed = false; // 环绕LED没有按钮状态
+                
+                RGBColor color = algorithm(params);
+                WS2812B_SetLEDColor(color.r, color.g, color.b, (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) + i);
+            }
+            setAmbientLightBrightness(opts->aroundLedBrightness);
+        } else {
+            // 模式3：环绕灯独立模式 - 使用环绕灯独立配置
+            processAroundLedAnimation();
         }
-        setAmbientLightBrightness(opts->aroundLedBrightness);
-    } else {
-        // 模式3：环绕灯独立模式 - 使用环绕灯独立配置
-        processAroundLedAnimation();
     }
-#endif
     
     // 为每个主LED（按钮LED）计算颜色并设置
     for (uint8_t i = 0; i < (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
@@ -211,22 +207,22 @@ void LEDsManager::processButtonPress(uint32_t virtualPinMask)
         }
     }
     
-#if HAS_LED_AROUND
-    // 检测按键按下用于环绕灯动画触发
-    if (newPressed != 0 && opts->aroundLedEnabled && !opts->aroundLedSyncToMainLed && 
-        opts->aroundLedTriggerByButton) {
-        // 任何按键按下时重置环绕灯动画
-        uint32_t currentTime = HAL_GetTick();
-        aroundLedAnimationStartTime = currentTime; // 重置动画时间
-        
-        // 为所有环绕灯效果设置触发时间（统一处理）
-        lastQuakeTriggerTime = currentTime;  // 用于震荡动画
-        lastButtonPressTime = currentTime;   // 通用按键触发时间
-        
-        APP_DBG("AROUND_LED: Button pressed, restarting around LED animation (effect: %d) at time %lu", 
-                opts->aroundLedEffect, currentTime);
+    if (g_has_led_around) {
+        // 检测按键按下用于环绕灯动画触发
+        if (newPressed != 0 && opts->aroundLedEnabled && !opts->aroundLedSyncToMainLed && 
+            opts->aroundLedTriggerByButton) {
+            // 任何按键按下时重置环绕灯动画
+            uint32_t currentTime = HAL_GetTick();
+            aroundLedAnimationStartTime = currentTime; // 重置动画时间
+            
+            // 为所有环绕灯效果设置触发时间（统一处理）
+            lastQuakeTriggerTime = currentTime;  // 用于震荡动画
+            lastButtonPressTime = currentTime;   // 通用按键触发时间
+            
+            APP_DBG("AROUND_LED: Button pressed, restarting around LED animation (effect: %d) at time %lu", 
+                    opts->aroundLedEffect, currentTime);
+        }
     }
-#endif
     
     lastButtonState = virtualPinMask;
 }
@@ -488,7 +484,6 @@ void LEDsManager::updateColorsFromConfig()
     defaultBackColor = {0, 0, 0}; // 黑色作为默认背景色
 }
 
-#if HAS_LED_AROUND
 /**
  * @brief 处理环绕灯独立动画
  */
@@ -621,7 +616,6 @@ void LEDsManager::updateAroundLedColors()
     processAroundLedAnimation();
 }
 
-#if HAS_LED_AROUND
 
 /**
  * @brief 切换到下一个环绕灯效果
@@ -704,9 +698,6 @@ void LEDsManager::ambientLightEnableSwitch() {
     setup();
 }
 
-#endif
-
-#endif
 
 
 

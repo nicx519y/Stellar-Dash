@@ -26,9 +26,7 @@ struct LedAnimationParams {
         uint8_t rippleCount;            // 涟漪数量
         uint8_t rippleCenters[5];       // 涟漪中心索引 (最多5个)
         float rippleProgress[5];        // 涟漪进度
-#if HAS_LED_AROUND
         bool aroundLedSyncMode;         // 环绕灯是否同步到主LED
-#endif
     } global;
 };
 
@@ -45,9 +43,7 @@ typedef RGBColor (*LedAnimationAlgorithm)(const LedAnimationParams& params);
 
 // 主LED和环绕LED坐标数组声明
 extern const Position* MAIN_LED_POS_LIST;
-#if HAS_LED_AROUND
 extern const Position* AROUND_LED_POS_LIST;
-#endif
 
 // 颜色插值函数
 RGBColor lerpColor(const RGBColor& colorA, const RGBColor& colorB, float t);
@@ -63,7 +59,6 @@ RGBColor transformAnimation(const LedAnimationParams& params);
 // 获取动画算法函数
 LedAnimationAlgorithm getLedAnimation(LEDEffect effect);
 
-#if HAS_LED_AROUND
 // 环绕灯流星动画函数
 RGBColor aroundLedMeteorAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t animationSpeed, uint32_t triggerTime);
 
@@ -72,6 +67,5 @@ RGBColor aroundLedBreathingAnimation(float progress, uint8_t ledIndex, uint32_t 
 
 // 环绕灯震荡动画函数
 RGBColor aroundLedQuakeAnimation(float progress, uint8_t ledIndex, uint32_t color1, uint32_t color2, uint8_t animationSpeed, uint32_t triggerTime);
-#endif
 
 #endif // _LED_ANIMATION_HPP_

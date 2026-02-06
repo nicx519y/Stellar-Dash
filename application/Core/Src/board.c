@@ -24,6 +24,26 @@ void board_init(void)
     // Enable All GPIOs clocks
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE(); // USB ULPI NXT
+
+    // 检测是否有氛围灯 GPIOB PIN7
+    // 配置为输入模式，下拉
+    GPIOB->MODER &= ~(3U << (7 * 2)); // Clear mode bits
+    GPIOB->MODER |= (0U << (7 * 2));  // Set as input mode (00)
+    GPIOB->PUPDR &= ~(3U << (7 * 2)); // Clear pull-up/down bits
+    GPIOB->PUPDR |= (2U << (7 * 2));  // Set pull-down resistor (10)
+
+    // 稍微延时确保电平稳定（可选，但通常读取寄存器很快）
+    __DSB();
+
+    // 读取电平
+    if ((GPIOB->IDR & (1U << 7)) != 0) {
+        g_has_led_around = true;
+    } else {
+        g_has_led_around = false;
+    }
+    
+    APP_DBG("board init: g_has_led_around: %d", g_has_led_around);
+
     __HAL_RCC_GPIOC_CLK_ENABLE(); // USB ULPI NXT
     __HAL_RCC_GPIOD_CLK_ENABLE();
     __HAL_RCC_GPIOE_CLK_ENABLE();

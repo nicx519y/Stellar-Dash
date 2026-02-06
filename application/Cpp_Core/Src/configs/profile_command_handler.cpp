@@ -1,6 +1,7 @@
 #include "configs/websocket_command_handler.hpp"
 #include "storagemanager.hpp"
 #include "system_logger.h"
+#include "board_cfg.h"
 
 // ============================================================================
 // ProfileCommandHandler 实现
@@ -339,7 +340,7 @@ cJSON* ProfileCommandHandler::buildProfileJSON(GamepadProfile* profile) {
     cJSON_AddNumberToObject(ledsConfigJSON, "ledAnimationSpeed", profile->ledsConfigs.ledAnimationSpeed);
 
     // 氛围灯配置
-    cJSON_AddBoolToObject(ledsConfigJSON, "hasAroundLed", HAS_LED_AROUND); // 是否包含氛围灯，由主板决定
+    cJSON_AddBoolToObject(ledsConfigJSON, "hasAroundLed", g_has_led_around); // 是否包含氛围灯，由主板决定
     cJSON_AddBoolToObject(ledsConfigJSON, "aroundLedEnabled", profile->ledsConfigs.aroundLedEnabled);
     cJSON_AddBoolToObject(ledsConfigJSON, "aroundLedSyncToMainLed", profile->ledsConfigs.aroundLedSyncToMainLed);
     cJSON_AddBoolToObject(ledsConfigJSON, "aroundLedTriggerByButton", profile->ledsConfigs.aroundLedTriggerByButton);

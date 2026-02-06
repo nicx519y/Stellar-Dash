@@ -29,6 +29,7 @@
 
 #include "stm32h750xx.h"
 #include "stm32h7xx_hal.h"
+#include <stdbool.h>
 
 #ifdef __cplusplus
  extern "C" {
@@ -225,7 +226,8 @@ uint32_t get_current_slot_base_address(void);
 #define HOLD_THRESHOLD_MS                   1000             // 长按阈值 1000ms
 
 #define HAS_LED                                   1             //是否有LED
-#define HAS_LED_AROUND                            1          //是否有底部环绕led
+// #define HAS_LED_AROUND                            1          //是否有底部环绕led
+extern bool g_has_led_around;                               // 运行时检测是否有氛围灯
 #define NUM_LED_AROUND                            49          //底部环绕led数量
 #define NUM_LED	                    (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS + NUM_LED_AROUND) //LED数量
 
@@ -328,9 +330,8 @@ static const Position HITBOX_AMBIENT_POS_LIST[NUM_LED_AROUND] = {
 static const Position HITBOX_LED_POS_LIST[NUM_LED] = {
     HITBOX_ADC_BUTTON_POS_DATA,
     HITBOX_GPIO_BUTTON_POS_DATA
-#if HAS_LED_AROUND
+
     , HITBOX_AMBIENT_POS_DATA
-#endif
 };
 
 

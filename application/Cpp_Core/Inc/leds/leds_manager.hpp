@@ -29,13 +29,11 @@ class LEDsManager {
         void brightnessDown();
         void enableSwitch();
 
-#if HAS_LED_AROUND
         void ambientLightEffectStyleNext();
         void ambientLightEffectStylePrev();
         void ambientLightBrightnessUp();
         void ambientLightBrightnessDown();
         void ambientLightEnableSwitch();
-#endif
 
         void setLedsBrightness(uint8_t brightness);
         void setAmbientLightBrightness(uint8_t brightness);
@@ -70,7 +68,6 @@ class LEDsManager {
         uint8_t rippleCount;
         
         // 环绕灯动画系统相关成员
-#if HAS_LED_AROUND
         uint32_t aroundLedAnimationStartTime;
         Ripple aroundLedRipples[5];
         uint8_t aroundLedRippleCount;
@@ -78,19 +75,16 @@ class LEDsManager {
         // 震荡动画状态管理
         uint32_t lastQuakeTriggerTime;    // 最后一次震荡触发时间
         uint32_t lastButtonPressTime;     // 最后一次按键时间，用于触发震荡重置
-#endif
         
         // 动画处理函数
         void processButtonPress(uint32_t virtualPinMask);
         void updateRipples();
         float getAnimationProgress();
         
-#if HAS_LED_AROUND
         // 环绕灯动画处理函数
         void processAroundLedAnimation();
         float getAroundLedAnimationProgress();
         void updateAroundLedColors();
-#endif
         
         // 内部配置管理
         void updateColorsFromConfig();

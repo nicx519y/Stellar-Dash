@@ -23,6 +23,8 @@
 #include "bsp/board_api.h"
 #include "system_logger.h"
 
+bool g_has_led_around = false;
+
 #if SYSTEM_CHECK_ENABLE == 1
 /* 测试各个段 */
 const uint32_t rodata_test = 0x12345678;        // .rodata 段
