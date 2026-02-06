@@ -31,36 +31,6 @@ export const COMBINATION_KEY_MAX_LENGTH = 5;
 // max number of button combination
 export const MAX_NUM_BUTTON_COMBINATION = 5;
 
-// hitbox button position list
-const btnsPos = [
-
-    { x: 125.10, y: 103.10, r: 26 },      // 0
-    { x: 147.34, y: 120.10, r: 34 },      // 1
-    { x: 175.10, y: 119.10, r: 26 },      // 2
-    { x: 192.80, y: 101.44, r: 26 },      // 3
-    { x: 73.49, y: 63.76, r: 26 },        // 4
-    { x: 99.05, y: 59.67, r: 26 },        // 5
-    { x: 122.19, y: 63.76, r: 26 },       // 6
-    { x: 141.44, y: 77.23, r: 26 },       // 7
-    { x: 131.19, y: 42.04, r: 26 },       // 8
-    { x: 165.45, y: 87.10, r: 26 },       // 9
-    { x: 163.37, y: 62.80, r: 26 },       // 10
-    { x: 185.51, y: 73.05, r: 26 },       // 11
-    { x: 183.43, y: 48.75, r: 26 },       // 12
-    { x: 209.01, y: 66.10, r: 26 },       // 13
-    { x: 206.93, y: 41.80, r: 26 },       // 14
-    { x: 233.44, y: 67.98, r: 26 },       // 15
-    { x: 231.36, y: 43.69, r: 26 },       // 16
-    { x: 84.49, y: 15.49, r: 11.5 },        // 17
-    { x: 62.49, y: 15.49, r: 11.5 },        // 18
-    { x: 40.49, y: 15.49, r: 11.5 },        // 19
-    { x: 18.48, y: 15.49, r: 11.5 },        // 20
-];
-
-export const HITBOX_BTN_POS_SCALE = 2.56;
-
-export const HITBOX_BTN_POS_LIST = btnsPos.map(item => ({ x: item.x * HITBOX_BTN_POS_SCALE, y: item.y * HITBOX_BTN_POS_SCALE, r: item.r }));
-
 // keys settings interactive ids
 export const KEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 ]; // 0-19 共20个按键可以交互，并设置为按键
 

@@ -12,7 +12,7 @@ import {
 } from "@/types/gamepad-config";
 import HotkeysField from "./hotkeys-field";
 import { useLanguage } from "@/contexts/language-context";
-import { btnPosList } from "@/components/hitbox/hitbox-base";
+import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { showToast } from "./ui/toaster";
 import { 
     SettingMainContentLayout, 
@@ -44,6 +44,7 @@ export function HotkeySettingContent({
     calibrationActive = false,
 }: HotkeySettingContentProps) {
     const { t } = useLanguage();
+    const { hitboxLayout } = useGamepadConfig();
 
     const [activeHotkeyIndex, setActiveHotkeyIndex] = useState<number>(0);
 
@@ -114,8 +115,9 @@ export function HotkeySettingContent({
     useEffect(() => {
         const handleHitboxClick = (event: CustomEvent) => {
             const { keyId } = event.detail;
+            const layoutLen = hitboxLayout?.length || 0;
             // 只有当前组件的活跃索引与点击时的活跃索引匹配时才处理
-            if (keyId >= 0 && keyId < btnPosList.length - 1) {
+            if (keyId >= 0 && keyId < layoutLen - 1) {
                 updateHotkey(activeHotkeyIndex, { 
                     ...hotkeys[activeHotkeyIndex], 
                     key: keyId 

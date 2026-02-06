@@ -98,6 +98,12 @@ public:
      * WebSocket命令: start_button_performance_monitoring
      */
     WebSocketDownstreamMessage handleStartButtonPerformanceMonitoring(const WebSocketUpstreamMessage& request);
+
+    /**
+     * @brief 获取Hitbox按键布局
+     * WebSocket命令: get_hitbox_layout
+     */
+    WebSocketDownstreamMessage handleGetHitboxLayout(const WebSocketUpstreamMessage& request);
     
     /**
      * @brief 停止按键性能监控

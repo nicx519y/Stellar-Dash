@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from "react";
-import { HITBOX_BTN_POS_LIST } from "@/types/gamepad-config";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useColorMode } from "../ui/color-mode";
@@ -10,14 +9,15 @@ import { AiOutlineClose } from "react-icons/ai";
 import { type ButtonStateBinaryData, isButtonTriggered } from '@/lib/button-binary-parser';
 import { useButtonMonitor } from '@/hooks/use-button-monitor';
 import { GameControllerButton } from "@/types/gamepad-config";
+import { HITBOX_WIDTH, HITBOX_HEIGHT, HITBOX_PADDING, HITBOX_LAYOUT_SCALE } from "./hitbox-constants";
 
 // 样式化的 SVG 组件 - 与基类保持一致
 const StyledSvg = styled.svg<{
     $scale?: number;
 }>`
-  width: 828.82px;
-  height: 548.1px;
-  padding: 20px;
+  width: ${HITBOX_WIDTH + HITBOX_PADDING * 2 + 2}px;
+  height: ${HITBOX_HEIGHT + HITBOX_PADDING * 2 + 2}px;
+  padding: ${HITBOX_PADDING}px;
   position: relative;
   transform: scale(${props => props.$scale || 1});
   transform-origin: center;
@@ -78,9 +78,7 @@ const StyledText = styled.text`
   pointer-events: none;
 `;
 
-const btnPosList = HITBOX_BTN_POS_LIST;
 const btnFrameRadiusDistance = 3;
-const btnLen = btnPosList.length;
 
 export interface HitboxKeysProps {
     onClick?: (id: number) => void;
@@ -104,26 +102,43 @@ export default function HitboxKeys({
     containerWidth,
 }: HitboxKeysProps) {
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady, wsConnected } = useGamepadConfig();
+    const { contextJsReady, setContextJsReady, hitboxLayout } = useGamepadConfig();
+    
+    const layout = useMemo(() => {
+        const rawLayout = hitboxLayout ?? [];
+        return rawLayout.map(item => ({
+            ...item,
+            x: item.x * HITBOX_LAYOUT_SCALE,
+            y: item.y * HITBOX_LAYOUT_SCALE
+        }));
+    }, [hitboxLayout]);
+    const len = layout.length;
     
     const svgRef = useRef<SVGSVGElement>(null);
     const circleRefs = useRef<(SVGCircleElement | null)[]>([]);
     const textRefs = useRef<(SVGTextElement | null)[]>([]);
 
-    const [pressedButtonStates, setPressedButtonStates] = useState(Array(btnLen).fill(-1));
-    const [hardwareButtonStates, setHardwareButtonStates] = useState(Array(btnLen).fill(-1));
+    const [pressedButtonStates, setPressedButtonStates] = useState(Array(len).fill(-1));
+    const [hardwareButtonStates, setHardwareButtonStates] = useState(Array(len).fill(-1));
+
+    const {wsConnected} = useGamepadConfig();
+
+    // 当 layout 长度变化时，重置状态数组
+    useEffect(() => {
+        setPressedButtonStates(Array(len).fill(-1));
+        setHardwareButtonStates(Array(len).fill(-1));
+    }, [len]);
 
     // 计算缩放比例
     const calculateScale = (): number => {
         if (!containerWidth) return 1;
         
-        const hitboxWidth = 829; // StyledSvg的原始宽度
         const margin = 80; // 左右边距
         const availableWidth = containerWidth - (margin * 2);
         
         if (availableWidth <= 0) return 0.1; // 最小缩放比例
         
-        const scale = availableWidth / hitboxWidth;
+        const scale = availableWidth / HITBOX_WIDTH;
         return Math.min(scale, 1.3); // 最大不超过1.3，避免过度放大
     };
 
@@ -131,7 +146,7 @@ export default function HitboxKeys({
 
     const buttonStates: { [key: number]: number } = {};
     if(interactiveIds) {
-        for(let i = 0; i < btnLen; i++) {
+        for(let i = 0; i < len; i++) {
             if(interactiveIds.includes(i)) {
                 buttonStates[i] = -1;
             }
@@ -210,14 +225,14 @@ export default function HitboxKeys({
             }
 
             if(!enabled) {
-                setHardwareButtonStates(Array(btnLen).fill(-1));
+                setHardwareButtonStates(Array(len).fill(-1));
                 stopMonitoring();
             }
         }
 
         // 清理函数
         return () => {
-            setHardwareButtonStates(Array(btnLen).fill(-1));
+            setHardwareButtonStates(Array(len).fill(-1));
             if(wsConnected && contextJsReady) {
                 stopMonitoring();
             }
@@ -291,7 +306,7 @@ export default function HitboxKeys({
     };
 
     const getInnerText = (index: number, x: number, y: number): string => {
-        if(index === btnLen - 1) {
+        if(index === len - 1) {
             return `<tspan x="${x}" y="${y}" style="font-size: 0.6rem; font-weight: bold; fill: #fff; ">Fn</tspan>`;
         }
         const buttonLabel = buttonLabelMap[index];
@@ -316,10 +331,10 @@ export default function HitboxKeys({
                 $scale={scale}
             >
                 <title>hitbox</title>
-                <StyledFrame x="0.36" y="0.36" width="787.82" height="507.1" rx="10" />
+                <StyledFrame x="0.36" y="0.36" width={HITBOX_WIDTH} height={HITBOX_HEIGHT} rx="10" />
 
                 {/* 渲染按钮外框 */}
-                {btnPosList.map((item, index) => {
+                {layout.map((item: { x: number, y: number, r: number }, index: number) => {
                     const radius = item.r + btnFrameRadiusDistance;
                     return (
                         <StyledCircle
@@ -337,7 +352,7 @@ export default function HitboxKeys({
                 })}
 
                 {/* 渲染按钮 */}
-                {btnPosList.map((item, index) => (
+                {layout.map((item: { x: number, y: number, r: number }, index: number) => (
                     <StyledCircle
                         ref={(el: SVGCircleElement | null) => {
                             circleRefs.current[index] = el;
@@ -356,7 +371,7 @@ export default function HitboxKeys({
                 ))}
 
                 {/* 渲染按钮文字 */}
-                {btnPosList.map((item, index) => (
+                {layout.map((item: { x: number, y: number, r: number }, index: number) => (
                     <StyledText
                         ref={(el: SVGTextElement | null) => {
                             textRefs.current[index] = el;
@@ -365,13 +380,13 @@ export default function HitboxKeys({
                         dominantBaseline="middle"
                         key={index}
                         x={item.x}
-                        y={index < btnLen - 4 ? item.y : item.y + 30}
-                        dangerouslySetInnerHTML={{ __html: getInnerText(index, item.x, index < btnLen - 4 ? item.y : item.y + 30) }}
+                        y={index < len - 4 ? item.y : item.y + 30}
+                        dangerouslySetInnerHTML={{ __html: getInnerText(index, item.x, index < len - 4 ? item.y : item.y + 30) }}
                     />
                 ))}
 
                 {/* 渲染禁用按键的 X 图标 */}
-                {btnPosList.map((item, index) => {
+                {layout.map((item: { x: number, y: number, r: number }, index: number) => {
                     const isDisabled = disabledKeys.includes(index);
                     
                     if (!isDisabled) return null;

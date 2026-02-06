@@ -1,20 +1,21 @@
 'use client';
 
-import { useEffect, useState, useRef } from "react";
-import { GameControllerButton, HITBOX_BTN_POS_LIST } from "@/types/gamepad-config";
+import { useEffect, useState, useRef, useMemo } from "react";
+import { GameControllerButton } from "@/types/gamepad-config";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useColorMode } from "../ui/color-mode";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { AiOutlineClose, AiOutlineCheck } from "react-icons/ai";
+import { HITBOX_WIDTH, HITBOX_HEIGHT, HITBOX_PADDING, HITBOX_LAYOUT_SCALE } from "./hitbox-constants";
 
 // 样式化的 SVG 组件 - 与基类保持一致
 const StyledSvg = styled.svg<{
     $scale?: number;
 }>`
-  width: 828.82px;
-  height: 548.1px;
-  padding: 20px;
+  width: ${HITBOX_WIDTH + HITBOX_PADDING * 2 + 2}px;
+  height: ${HITBOX_HEIGHT + HITBOX_PADDING * 2 + 2}px;
+  padding: ${HITBOX_PADDING}px;
   position: relative;
   transform: scale(${props => props.$scale || 1});
   transform-origin: center;
@@ -67,9 +68,7 @@ const StyledText = styled.text`
   pointer-events: none;
 `;
 
-const btnPosList = HITBOX_BTN_POS_LIST;
 const btnFrameRadiusDistance = 3;
-const btnLen = btnPosList.length;
 
 interface HitboxEnableSettingProps {
     onClick?: (id: number) => void;
@@ -91,24 +90,39 @@ export default function HitboxEnableSetting({
     containerWidth,
 }: HitboxEnableSettingProps) {
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady } = useGamepadConfig();
+    const { contextJsReady, setContextJsReady, hitboxLayout } = useGamepadConfig();
+    
+    const layout = useMemo(() => {
+        const rawLayout = hitboxLayout ?? [];
+        return rawLayout.map(item => ({
+            ...item,
+            x: item.x * HITBOX_LAYOUT_SCALE,
+            y: item.y * HITBOX_LAYOUT_SCALE
+        }));
+    }, [hitboxLayout]);
+    const len = layout.length;
+
     const svgRef = useRef<SVGSVGElement>(null);
     const circleRefs = useRef<(SVGCircleElement | null)[]>([]);
     const textRefs = useRef<(SVGTextElement | null)[]>([]);
-    const pressedButtonListRef = useRef(Array(btnLen).fill(-1));
+    const pressedButtonListRef = useRef(Array(len).fill(-1));
     const [hoveredButton, setHoveredButton] = useState<number | null>(null);
+
+    // 当 layout 长度变化时，重置 ref
+    useEffect(() => {
+        pressedButtonListRef.current = Array(len).fill(-1);
+    }, [len]);
 
     // 计算缩放比例
     const calculateScale = (): number => {
         if (!containerWidth) return 1;
         
-        const hitboxWidth = 829; // StyledSvg的原始宽度
         const margin = 80; // 左右边距
         const availableWidth = containerWidth - (margin * 2);
         
         if (availableWidth <= 0) return 0.1; // 最小缩放比例
         
-        const scale = availableWidth / hitboxWidth;
+        const scale = availableWidth / HITBOX_WIDTH;
         return Math.min(scale, 1.3); // 最大不超过1.3，避免过度放大
     };
 
@@ -178,7 +192,7 @@ export default function HitboxEnableSetting({
     };
 
     const getInnerText = (index: number, x: number, y: number): string => {
-        if(index === btnLen - 1) {
+        if(index === len - 1) {
             return `<tspan x="${x}" y="${y}" style="font-size: 0.6rem; font-weight: bold; fill: #fff; ">Fn</tspan>`;
         }
         const buttonLabel = buttonLabelMap[index];
@@ -203,10 +217,10 @@ export default function HitboxEnableSetting({
                 $scale={scale}
             >
                 <title>hitbox</title>
-                <StyledFrame x="0.36" y="0.36" width="787.82" height="507.1" rx="10" />
+                <StyledFrame x="0.36" y="0.36" width={HITBOX_WIDTH} height={HITBOX_HEIGHT} rx="10" />
 
                 {/* 渲染按钮外框 */}
-                {btnPosList.map((item, index) => {
+                {layout.map((item, index) => {
                     const radius = item.r + btnFrameRadiusDistance;
                     return (
                         <StyledCircle
@@ -223,7 +237,7 @@ export default function HitboxEnableSetting({
                 })}
 
                 {/* 渲染按钮 */}
-                {btnPosList.map((item, index) => (
+                {layout.map((item, index) => (
                     <StyledCircle
                         ref={(el: SVGCircleElement | null) => {
                             circleRefs.current[index] = el;
@@ -243,7 +257,7 @@ export default function HitboxEnableSetting({
                 ))}
 
                 {/* 渲染按钮文字 */}
-                {btnPosList.map((item, index) => (
+                {layout.map((item, index) => (
                     <StyledText
                         ref={(el: SVGTextElement | null) => {
                             textRefs.current[index] = el;
@@ -252,21 +266,21 @@ export default function HitboxEnableSetting({
                         dominantBaseline="middle"
                         key={index}
                         x={item.x}
-                        y={index < btnLen - 4 ? item.y : item.y + 30}
+                        y={index < len - 4 ? item.y : item.y + 30}
                         fill={getButtonTextColor(index)}
-                        dangerouslySetInnerHTML={{ __html: getInnerText(index, item.x, index < btnLen - 4 ? item.y : item.y + 30) }}
+                        dangerouslySetInnerHTML={{ __html: getInnerText(index, item.x, index < len - 4 ? item.y : item.y + 30) }}
                     />
                 ))}
 
                 {/* 渲染悬停图标 */}
-                {btnPosList.map((item, index) => {
+                {layout.map((item, index) => {
                     const isEnabled = buttonsEnableConfig[index];
                     const isInteractive = interactiveIds.includes(index);
                     const isHovered = hoveredButton === index;
                     
                     if (!isInteractive || !isHovered) return null;
                     
-                const IconComponent = isEnabled ? AiOutlineClose : AiOutlineCheck;
+                    const IconComponent = isEnabled ? AiOutlineClose : AiOutlineCheck;
                     const iconColor = isEnabled ? "#ffffff" : "#00aa00";
                     const buttonRadius = item.r;
                     const iconSize = buttonRadius * 2.0; // 图标大小为按钮半径的1.5倍，确保覆盖整个按键

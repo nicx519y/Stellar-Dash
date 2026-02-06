@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { HITBOX_BTN_POS_LIST } from "@/types/gamepad-config";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
@@ -9,13 +8,16 @@ import { useColorMode } from "../ui/color-mode";
 import { GamePadColor } from "@/types/gamepad-color";
 import { CalibrationStatus } from "@/types/types";
 import { eventBus, EVENTS } from "@/lib/event-manager";
+import { HITBOX_WIDTH, HITBOX_HEIGHT, HITBOX_PADDING, HITBOX_LAYOUT_SCALE } from "./hitbox-constants";
+
+
 
 const StyledSvg = styled.svg<{
     $scale?: number;
 }>`
-  width: 828.82px;
-  height: 548.1px;
-  padding: 20px;
+  width: ${HITBOX_WIDTH + HITBOX_PADDING * 2 + 2}px;
+  height: ${HITBOX_HEIGHT + HITBOX_PADDING * 2 + 2}px;
+  padding: ${HITBOX_PADDING}px;
   position: relative;
   transform: scale(${props => props.$scale || 1});
   transform-origin: center;
@@ -57,17 +59,7 @@ const StyledFrame = styled.rect`
   filter: drop-shadow(0 0 5px rgba(204, 204, 204, 0.8));
 `;
 
-// const StyledText = styled.text`
-//   text-align: center;
-//   font-family: "Helvetica", cursive;
-//   font-size: .9rem;
-//   cursor: default;
-//   pointer-events: none;
-// `;
-
-const btnPosList = HITBOX_BTN_POS_LIST;
 const btnFrameRadiusDistance = 3;
-// const btnLen = btnPosList.length;
 
 interface HitboxCalibrationProps {
     containerWidth?: number; // 外部容器宽度
@@ -80,17 +72,26 @@ interface HitboxCalibrationProps {
  */
 export default function HitboxCalibration(props: HitboxCalibrationProps) {
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady, startManualCalibration, stopManualCalibration } = useGamepadConfig();
+    const { contextJsReady, setContextJsReady, startManualCalibration, stopManualCalibration, hitboxLayout } = useGamepadConfig();
+    
+    const layout = useMemo(() => {
+        const rawLayout = hitboxLayout ?? [];
+        return rawLayout.map(item => ({
+            ...item,
+            x: item.x * HITBOX_LAYOUT_SCALE,
+            y: item.y * HITBOX_LAYOUT_SCALE
+        }));
+    }, [hitboxLayout]);
+    
     const circleRefs = useRef<(SVGCircleElement | null)[]>([]);
 
     // 计算缩放比例
     const calculateScale = (): number => {
         if (!props.containerWidth) return 1;
-        const hitboxWidth = 829; // StyledSvg的原始宽度
         const margin = 80; // 左右边距
         const availableWidth = props.containerWidth - (margin * 2);
         if (availableWidth <= 0) return 0.1; // 最小缩放比例
-        const scale = availableWidth / hitboxWidth;
+        const scale = availableWidth / HITBOX_WIDTH;
         return Math.min(scale, 1.3); // 最大不超过1.3，避免过度放大
     };
 
@@ -187,10 +188,10 @@ export default function HitboxCalibration(props: HitboxCalibrationProps) {
                 $scale={scale}
             >
                 <title>hitbox</title>
-                <StyledFrame x="0.36" y="0.36" width="787.82" height="507.1" rx="10" />
+                <StyledFrame x="0.36" y="0.36" width={HITBOX_WIDTH} height={HITBOX_HEIGHT} rx="10" />
 
                 {/* 渲染按钮外框 */}
-                {btnPosList.map((item, index) => {
+                {layout.map((item, index) => {
                     const radius = item.r + btnFrameRadiusDistance;
                     return (
                         <StyledCircle
@@ -207,7 +208,7 @@ export default function HitboxCalibration(props: HitboxCalibrationProps) {
                 })}
 
                 {/* 渲染按钮 */}
-                {btnPosList.map((item, index) => (
+                {layout.map((item, index) => (
                     <StyledCircle
                         ref={(el: SVGCircleElement | null) => {
                             circleRefs.current[index] = el;

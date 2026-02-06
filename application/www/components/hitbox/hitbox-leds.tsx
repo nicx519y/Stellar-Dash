@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useRef } from "react";
-import { HITBOX_BTN_POS_LIST, LEDS_ANIMATION_CYCLE, LedsEffectStyle, LedsEffectStyleConfig } from "@/types/gamepad-config";
+import { useEffect, useState, useRef, useMemo } from "react";
+import { LEDS_ANIMATION_CYCLE, LedsEffectStyle, LedsEffectStyleConfig } from "@/types/gamepad-config";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
@@ -10,13 +10,14 @@ import { GamePadColor } from "@/types/gamepad-color";
 import { ledAnimations } from "./hitbox-animation";
 import { type ButtonStateBinaryData, isButtonTriggered } from '@/lib/button-binary-parser';
 import { useButtonMonitor } from '@/hooks/use-button-monitor';
+import { HITBOX_WIDTH, HITBOX_HEIGHT, HITBOX_PADDING, HITBOX_LAYOUT_SCALE } from "./hitbox-constants";
 
 const StyledSvg = styled.svg<{
     $scale?: number;
 }>`
-  width: 828.82px;
-  height: 548.1px;
-  padding: 20px;
+  width: ${HITBOX_WIDTH + HITBOX_PADDING * 2 + 2}px;
+  height: ${HITBOX_HEIGHT + HITBOX_PADDING * 2 + 2}px;
+  padding: ${HITBOX_PADDING}px;
   position: relative;
   transform: scale(${props => props.$scale || 1});
   transform-origin: center;
@@ -74,9 +75,7 @@ const StyledText = styled.text`
   pointer-events: none;
 `;
 
-const btnPosList = HITBOX_BTN_POS_LIST;
 const btnFrameRadiusDistance = 3;
-const btnLen = btnPosList.length;
 
 interface HitboxLedsProps {
     onClick?: (id: number) => void;
@@ -97,23 +96,41 @@ interface HitboxLedsProps {
 export default function HitboxLeds(props: HitboxLedsProps) {
     const hasText = props.hasText ?? true;
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady, wsConnected } = useGamepadConfig();
+    const { contextJsReady, setContextJsReady, wsConnected, hitboxLayout } = useGamepadConfig();
+
+    const layout = useMemo(() => {
+        const rawLayout = hitboxLayout ?? [];
+        return rawLayout.map(item => ({
+            ...item,
+            x: item.x * HITBOX_LAYOUT_SCALE,
+            y: item.y * HITBOX_LAYOUT_SCALE
+        }));
+    }, [hitboxLayout]);
+    const len = layout.length;
 
     // 硬件按键状态管理
-    const [pressedButtonStates, setPressedButtonStates] = useState(Array(btnLen).fill(-1));
-    const [hardwareButtonStates, setHardwareButtonStates] = useState(Array(btnLen).fill(-1));
+    const [pressedButtonStates, setPressedButtonStates] = useState(Array(len).fill(-1));
+    const [hardwareButtonStates, setHardwareButtonStates] = useState(Array(len).fill(-1));
+
+    // 当 layout 长度变化时，重置状态数组
+    useEffect(() => {
+        setPressedButtonStates(Array(len).fill(-1));
+        setHardwareButtonStates(Array(len).fill(-1));
+        pressedButtonListRef.current = Array(len).fill(-1);
+        prevPressedButtonListRef.current = Array(len).fill(-1);
+    }, [len]);
 
     // 计算缩放比例
     const calculateScale = (): number => {
         if (!props.containerWidth) return 1;
         
-        const hitboxWidth = 829; // StyledSvg的原始宽度
+        
         const margin = 80; // 左右边距
         const availableWidth = props.containerWidth - (margin * 2);
         
         if (availableWidth <= 0) return 0.1; // 最小缩放比例
         
-        const scale = availableWidth / hitboxWidth;
+        const scale = availableWidth / HITBOX_WIDTH;
         return Math.min(scale, 1.3); // 最大不超过1.3，避免过度放大
     };
 
@@ -121,7 +138,7 @@ export default function HitboxLeds(props: HitboxLedsProps) {
 
     const buttonStates: { [key: number]: number } = {};
     if(props.interactiveIds) {
-        for(let i = 0; i < btnLen; i++) {
+        for(let i = 0; i < len; i++) {
             if(props.interactiveIds.includes(i)) {
                 buttonStates[i] = -1;
             }
@@ -139,11 +156,11 @@ export default function HitboxLeds(props: HitboxLedsProps) {
     const animationSpeedRef = useRef(props.ledsConfig?.animationSpeed ?? 1);
     const colorEnabledRef = useRef(props.ledsConfig?.ledEnabled ?? false);
     const effectStyleRef = useRef(props.ledsConfig?.ledsEffectStyle ?? LedsEffectStyle.STATIC);
-    const pressedButtonListRef = useRef(Array(btnLen).fill(-1));
-    const prevPressedButtonListRef = useRef(Array(btnLen).fill(-1));
+    const pressedButtonListRef = useRef(Array(len).fill(-1));
+    const prevPressedButtonListRef = useRef(Array(len).fill(-1));
 
     const circleRefs = useRef<(SVGCircleElement | null)[]>([]);
-    const colorListRef = useRef<GamePadColor[]>(Array(btnLen));
+    const colorListRef = useRef<GamePadColor[]>(Array(len));
     const textRefs = useRef<(SVGTextElement | null)[]>([]);
     const animationFrameRef = useRef<number>();
     const timerRef = useRef<number>(0);
@@ -250,10 +267,10 @@ export default function HitboxLeds(props: HitboxLedsProps) {
      */
     useEffect(() => {
         setContextJsReady(true);
-        for (let i = 0; i < btnLen; i++) {
+        for (let i = 0; i < len; i++) {
             colorListRef.current[i] = backColor1Ref.current.clone();
         }
-    }, [setContextJsReady]);
+    }, [setContextJsReady, len]);
 
     /**
      * 管理按键监听的启动和停止
@@ -270,7 +287,7 @@ export default function HitboxLeds(props: HitboxLedsProps) {
             }
 
             if(!enabled) {
-                setHardwareButtonStates(Array(btnLen).fill(-1));
+                setHardwareButtonStates(Array(len).fill(-1));
                 console.log("hitbox-leds: 停止按键监听");
                 stopMonitoring();
             }
@@ -278,13 +295,13 @@ export default function HitboxLeds(props: HitboxLedsProps) {
 
         // 清理函数
         return () => {
-            setHardwareButtonStates(Array(btnLen).fill(-1));
+            setHardwareButtonStates(Array(len).fill(-1));
             console.log("hitbox-leds: 清理按键监听");
             if(wsConnected && contextJsReady) {
                 stopMonitoring();
             }
         };
-    }, [props.isButtonMonitoringEnabled, wsConnected, contextJsReady]);
+    }, [props.isButtonMonitoringEnabled, wsConnected, contextJsReady, len]);
 
     useEffect(() => {
         defaultBackColorRef.current = colorMode === 'light' ? GamePadColor.fromString("#ffffff") : GamePadColor.fromString("#000000");
@@ -394,7 +411,7 @@ export default function HitboxLeds(props: HitboxLedsProps) {
             global = { ripples };
         }
 
-        for (let i = 0; i < btnLen; i++) {
+        for (let i = 0; i < len; i++) {
             // 禁用的按键LED不亮，使用默认背景色
             if (isButtonDisabled(i)) {
                 colorListRef.current[i].setValue(defaultBackColorRef.current);
@@ -413,6 +430,7 @@ export default function HitboxLeds(props: HitboxLedsProps) {
                 effectStyle: effectStyleRef.current,
                 brightness: brightnessRef.current,
                 global,
+                layout,
             });
 
             colorListRef.current[i].setValue(color);
@@ -463,10 +481,10 @@ export default function HitboxLeds(props: HitboxLedsProps) {
                 $scale={scale}
             >
                 <title>hitbox</title>
-                <StyledFrame x="0.36" y="0.36" width="787.82" height="507.1" rx="10" />
+                <StyledFrame x="0.36" y="0.36" width={HITBOX_WIDTH} height={HITBOX_HEIGHT} rx="10" />
 
                 {/* 渲染按钮外框 */}
-                {btnPosList.map((item, index) => {
+                {layout.map((item, index) => {
                     const radius = item.r + btnFrameRadiusDistance;
                     return (
                         <StyledCircle
@@ -483,7 +501,7 @@ export default function HitboxLeds(props: HitboxLedsProps) {
                 })}
 
                 {/* 渲染按钮 */}
-                {btnPosList.map((item, index) => (
+                {layout.map((item, index) => (
                     <StyledCircle
                         ref={(el: SVGCircleElement | null) => {
                             circleRefs.current[index] = el;
@@ -503,7 +521,7 @@ export default function HitboxLeds(props: HitboxLedsProps) {
                 ))}
 
                 {/* 渲染按钮文字 */}
-                {hasText && btnPosList.map((item, index) => (
+                {hasText && layout.map((item, index) => (
                     <StyledText
                         ref={(el: SVGTextElement | null) => {
                             textRefs.current[index] = el;
@@ -512,10 +530,10 @@ export default function HitboxLeds(props: HitboxLedsProps) {
                         dominantBaseline="middle"
                         key={index}
                         x={item.x}
-                        y={index < btnLen - 4 ? item.y : item.y + 30}
+                        y={index < len - 4 ? item.y : item.y + 30}
                         fill={colorMode === 'light' ? 'black' : 'white'}
                     >
-                        {index !== btnLen - 1 ? index + 1 : "Fn"}
+                        {index !== len - 1 ? index + 1 : "Fn"}
                     </StyledText>
                 ))}
             </StyledSvg>

@@ -1,5 +1,5 @@
 import { GamePadColor } from "@/types/gamepad-color";
-import { LedsEffectStyle, HITBOX_BTN_POS_LIST } from "@/types/gamepad-config";
+import { LedsEffectStyle } from "@/types/gamepad-config";
 
 export type LedAnimationParams = {
 	index: number;
@@ -12,6 +12,7 @@ export type LedAnimationParams = {
 	defaultBackColor: GamePadColor;
 	effectStyle: LedsEffectStyle;
 	brightness: number;
+	layout: { x: number, y: number, r: number }[];
 	// 全局动画参数
 	global?: {
 		rippleActive?: boolean;
@@ -105,6 +106,7 @@ export const starAnimation: LedAnimationAlgorithm = ({
 	defaultBackColor, 
 	progress, 
 	brightness,
+	layout,
 }) => {
 	// 如果颜色未启用，返回默认背景色
 	if (!colorEnabled) {
@@ -120,7 +122,7 @@ export const starAnimation: LedAnimationAlgorithm = ({
 
 	// 加快动画速度4倍
 	const fastProgress = (progress * 2) % 1;
-	const btnLen = HITBOX_BTN_POS_LIST.length;
+	const btnLen = layout.length;
 
 	// 在周期的中点（0.5）更新闪烁按钮
 	const currentHalf = fastProgress < 0.5;
@@ -179,6 +181,7 @@ export const flowingAnimation: LedAnimationAlgorithm = ({
 	pressed,
 	frontColor,
 	defaultBackColor,
+	layout,
 }) => {
 	// 颜色未启用，返回默认色
 	if (!colorEnabled) {
@@ -191,12 +194,12 @@ export const flowingAnimation: LedAnimationAlgorithm = ({
 		return color;
 	}
 	// 流光参数
-	const minX = Math.min(...HITBOX_BTN_POS_LIST.map(btn => btn.x)) - 100; // 流光中心范围扩大，保证边缘按钮完整渐变
-	const maxX = Math.max(...HITBOX_BTN_POS_LIST.map(btn => btn.x)) + 100; // 流光中心范围扩大，保证边缘按钮完整渐变
+	const minX = Math.min(...layout.map(btn => btn.x)) - 100; // 流光中心范围扩大，保证边缘按钮完整渐变
+	const maxX = Math.max(...layout.map(btn => btn.x)) + 100; // 流光中心范围扩大，保证边缘按钮完整渐变
 	const bandWidth = 140; // 光带宽度，可调整
 	// 当前流光中心位置
 	const centerX = minX + (maxX - minX) * progress * 1.6;
-	const btnX = HITBOX_BTN_POS_LIST[index]?.x ?? minX;
+	const btnX = layout[index]?.x ?? minX;
 	// 计算距离中心的归一化距离
 	const dist = Math.abs(btnX - centerX);
 	
@@ -218,7 +221,7 @@ export const flowingAnimation: LedAnimationAlgorithm = ({
 
 export const rippleAnimation: LedAnimationAlgorithm = (params) => {
 	const {
-		index, pressed, colorEnabled, frontColor, backColor1, backColor2, defaultBackColor, brightness, global
+		index, pressed, colorEnabled, frontColor, backColor1, backColor2, defaultBackColor, brightness, global, layout
 	} = params;
 	if (!colorEnabled) {
 		return defaultBackColor.clone();
@@ -233,11 +236,11 @@ export const rippleAnimation: LedAnimationAlgorithm = (params) => {
 	if (ripples && ripples.length > 0) {
 		for (const ripple of ripples) {
 			const { centerIndex, progress } = ripple;
-			const centerX = HITBOX_BTN_POS_LIST[centerIndex]?.x ?? 0;
-			const centerY = HITBOX_BTN_POS_LIST[centerIndex]?.y ?? 0;
-			const btnX = HITBOX_BTN_POS_LIST[index]?.x ?? 0;
-			const btnY = HITBOX_BTN_POS_LIST[index]?.y ?? 0;
-			const maxDist = Math.max(...HITBOX_BTN_POS_LIST.map(btn => Math.hypot(btn.x - centerX, btn.y - centerY)));
+			const centerX = layout[centerIndex]?.x ?? 0;
+			const centerY = layout[centerIndex]?.y ?? 0;
+			const btnX = layout[index]?.x ?? 0;
+			const btnY = layout[index]?.y ?? 0;
+			const maxDist = Math.max(...layout.map(btn => Math.hypot(btn.x - centerX, btn.y - centerY)));
 			const rippleRadius = progress * maxDist * 1.1;
 			const rippleWidth = 80;
 			const dist = Math.hypot(btnX - centerX, btnY - centerY);
@@ -268,6 +271,7 @@ export const transformAnimation: LedAnimationAlgorithm = ({
 	pressed,
 	frontColor,
 	defaultBackColor,
+	layout,
 }) => {
 	// 颜色未启用，返回默认色
 	if (!colorEnabled) {
@@ -288,11 +292,11 @@ export const transformAnimation: LedAnimationAlgorithm = ({
 	lastTransformProgress = progress;
 	
 	// 流光参数
-	const minX = Math.min(...HITBOX_BTN_POS_LIST.map(btn => btn.x)) - 100;
-	const maxX = Math.max(...HITBOX_BTN_POS_LIST.map(btn => btn.x)) + 100;
+	const minX = Math.min(...layout.map(btn => btn.x)) - 100;
+	const maxX = Math.max(...layout.map(btn => btn.x)) + 100;
 	const bandWidth = 140;
 	const centerX = minX + (maxX - minX) * progress * 1.6;
-	const btnX = HITBOX_BTN_POS_LIST[index]?.x ?? minX;
+	const btnX = layout[index]?.x ?? minX;
 	
 	// 记录流光已经经过的按钮
 	if (centerX > btnX + bandWidth / 2) {

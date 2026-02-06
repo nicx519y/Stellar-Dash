@@ -9,7 +9,6 @@ import {
 } from "@/types/gamepad-config";
 import HitboxCalibration from "@/components/hitbox/hitbox-calibration";
 import HitboxHotkey from "@/components/hitbox/hitbox-hotkey";
-import { btnPosList } from "@/components/hitbox/hitbox-base";
 import { HotkeySettingContent } from "./hotkey-setting-content";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
@@ -40,6 +39,7 @@ export function GlobalSettingContent() {
         setFinishConfigDisabled,
         wsConnected,
         checkIsManualCalibrationCompleted,
+        hitboxLayout,
         // updateGlobalConfig,
     } = useGamepadConfig();
 
@@ -132,7 +132,8 @@ export function GlobalSettingContent() {
 
     // 处理外部点击（从Hitbox组件）
     const handleExternalClick = (keyId: number) => {
-        if (keyId >= 0 && keyId < btnPosList.length - 1) {
+        const layoutLen = hitboxLayout?.length || 0;
+        if (keyId >= 0 && keyId < layoutLen - 1) {
             // 触发自定义事件通知HotkeySettingContent组件
             const event = new CustomEvent('hitbox-click', {
                 detail: { keyId }

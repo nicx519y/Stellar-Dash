@@ -109,6 +109,7 @@ void WebSocketCommandManager::initializeHandlers() {
     registerHandler("start_button_performance_monitoring", &commonHandler);
     registerHandler("stop_button_performance_monitoring", &commonHandler);
     registerHandler("get_button_states", &commonHandler);
+    registerHandler("get_hitbox_layout", &commonHandler);
     // 设备日志相关命令
     registerHandler("get_device_logs_list", &commonHandler);
     

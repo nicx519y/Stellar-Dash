@@ -25,6 +25,12 @@ import {
     FirmwareUpdateCheckRequest
 } from '@/types/types';
 
+export interface HitboxLayoutItem {
+    x: number;
+    y: number;
+    r: number;
+}
+
 import {
     DEFAULT_FIRMWARE_PACKAGE_CHUNK_SIZE,
     DEFAULT_FIRMWARE_UPGRADE_MAX_RETRIES,
@@ -190,6 +196,10 @@ interface GamepadConfigContextType {
 
     // 导入所有配置
     importAllConfig: (configData: any) => Promise<void>;
+
+    // 获取Hitbox布局
+    getHitboxLayout: () => Promise<HitboxLayoutItem[]>;
+    hitboxLayout: HitboxLayoutItem[];
 }
 
 const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
@@ -317,6 +327,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [firmwareUpdating, setFirmwareUpdating] = useState(false); // 是否正在固件升级
 
     const [finishConfigDisabled, setFinishConfigDisabled] = useState(false);
+
+    const [hitboxLayout, setHitboxLayout] = useState<HitboxLayoutItem[]>([]);
 
 
     // 处理通知消息
@@ -481,6 +493,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             }).catch(console.error);
             fetchFirmwareMetadata().then(() => {
                 setFirmwareInfoIsReady(true);
+            }).catch(console.error);
+            getHitboxLayout().then((data) => {
+                setHitboxLayout(data);
             }).catch(console.error);
 
         }
@@ -693,6 +708,16 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             return Promise.reject(new Error("Failed to import config"));
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const getHitboxLayout = async (immediate: boolean = true): Promise<HitboxLayoutItem[]> => {
+        try {
+            const data = await sendWebSocketRequest('get_hitbox_layout', {}, immediate);
+            return Promise.resolve(data as HitboxLayoutItem[]);
+        } catch (err) {
+            // setError(err instanceof Error ? err.message : '获取Hitbox布局失败');
+            return Promise.reject(new Error("Failed to get Hitbox layout"));
         }
     };
 
@@ -2053,6 +2078,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             fetchDeviceLogsList: fetchDeviceLogsList,
             exportAllConfig: exportAllConfig,
             importAllConfig: importAllConfig,
+            getHitboxLayout: getHitboxLayout,
+            hitboxLayout: hitboxLayout,
         }}>
             {children}
         </GamepadConfigContext.Provider>

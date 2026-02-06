@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from "react";
-import { HITBOX_BTN_POS_LIST } from "@/types/gamepad-config";
+import { useEffect, useState, useMemo } from "react";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
@@ -9,13 +8,14 @@ import { useColorMode } from "../ui/color-mode";
 import { type ButtonStateBinaryData, isButtonTriggered } from '@/lib/button-binary-parser';
 import { useButtonMonitor } from '@/hooks/use-button-monitor';
 import { GameControllerButton } from "@/types/gamepad-config";
+import { HITBOX_WIDTH, HITBOX_HEIGHT, HITBOX_PADDING, HITBOX_LAYOUT_SCALE } from "./hitbox-constants";
 
 const StyledSvg = styled.svg<{
     $scale?: number;
 }>`
-  width: 829px;
-  height: 548.1px;
-  padding: 20px;
+  width: ${HITBOX_WIDTH + HITBOX_PADDING * 2 + 2}px;
+  height: ${HITBOX_HEIGHT + HITBOX_PADDING * 2 + 2}px;
+  padding: ${HITBOX_PADDING}px;
   position: relative;
   transform: scale(${props => props.$scale || 1});
   transform-origin: center;
@@ -84,9 +84,7 @@ const StyledText = styled.text`
   pointer-events: none;
 `;
 
-export const btnPosList = HITBOX_BTN_POS_LIST;
 const btnFrameRadiusDistance = 3;
-export const btnLen = btnPosList.length;
 
 // 基础Props接口
 export interface HitboxBaseProps {
@@ -107,22 +105,43 @@ export interface HitboxBaseProps {
 export default function HitboxBase(props: HitboxBaseProps) {
     const hasText = props.hasText ?? true;
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady, wsConnected } = useGamepadConfig();
+    const { contextJsReady, setContextJsReady, wsConnected, hitboxLayout } = useGamepadConfig();
 
-    const [pressedButtonStates, setPressedButtonStates] = useState(Array(btnLen).fill(-1));
-    const [hardwareButtonStates, setHardwareButtonStates] = useState(Array(btnLen).fill(-1));
+    const layout = useMemo(() => {
+        const rawLayout = hitboxLayout ?? [];
+        return rawLayout.map(item => ({
+            ...item,
+            x: item.x * HITBOX_LAYOUT_SCALE,
+            y: item.y * HITBOX_LAYOUT_SCALE
+        }));
+    }, [hitboxLayout]);
+    
+    const len = layout.length;
+
+    const [pressedButtonStates, setPressedButtonStates] = useState(Array(len).fill(-1));
+    const [hardwareButtonStates, setHardwareButtonStates] = useState(Array(len).fill(-1));
+
+    useEffect(() => {
+        setPressedButtonStates(prev => {
+            if (prev.length === len) return prev;
+            return Array(len).fill(-1);
+        });
+        setHardwareButtonStates(prev => {
+             if (prev.length === len) return prev;
+             return Array(len).fill(-1);
+        });
+    }, [len]);
 
     // 计算缩放比例
     const calculateScale = (): number => {
         if (!props.containerWidth) return 1;
         
-        const hitboxWidth = 829; // StyledSvg的原始宽度
         const margin = 80; // 左右边距
         const availableWidth = props.containerWidth - (margin * 2);
         
         if (availableWidth <= 0) return 0.1; // 最小缩放比例
         
-        const scale = availableWidth / hitboxWidth;
+        const scale = availableWidth / HITBOX_WIDTH;
         return Math.min(scale, 1.3); // 最大不超过1，避免放大
     };
 
@@ -130,7 +149,7 @@ export default function HitboxBase(props: HitboxBaseProps) {
 
     const buttonStates: { [key: number]: number } = {};
     if(props.interactiveIds) {
-        for(let i = 0; i < btnLen; i++) {
+        for(let i = 0; i < len; i++) {
             if(props.interactiveIds.includes(i)) {
                 buttonStates[i] = -1;
             }
@@ -244,7 +263,7 @@ export default function HitboxBase(props: HitboxBaseProps) {
             }
 
             if(!enabled) {
-                setHardwareButtonStates(Array(btnLen).fill(-1));
+                setHardwareButtonStates(Array(len).fill(-1));
                 console.log("hitbox-base: 停止按键监听");
                 stopMonitoring();
             }
@@ -252,13 +271,13 @@ export default function HitboxBase(props: HitboxBaseProps) {
 
         // 清理函数
         return () => {
-            setHardwareButtonStates(Array(btnLen).fill(-1));
+            setHardwareButtonStates(Array(len).fill(-1));
             console.log("hitbox-base: 清理按键监听");
             if(wsConnected && contextJsReady) {
                 stopMonitoring();
             }
         };
-    }, [props.isButtonMonitoringEnabled, wsConnected, contextJsReady]);
+    }, [props.isButtonMonitoringEnabled, wsConnected, contextJsReady, len]);
 
     // 子类可以重写的方法
     const getButtonFillColor = (_index: number): string => {
@@ -271,7 +290,7 @@ export default function HitboxBase(props: HitboxBaseProps) {
 
     const getInnerText = (index: number, x: number, y: number): string => {
 
-        if(index === btnLen - 1) {
+        if(index === len - 1) {
             return `<tspan x="${x}" y="${y}" style="font-size: 0.6rem; font-weight: bold; fill: #fff; ">Fn</tspan>`;
         }
 
@@ -302,14 +321,13 @@ export default function HitboxBase(props: HitboxBaseProps) {
                 $scale={scale}
             >
                 <title>hitbox</title>
-                <StyledFrame x="0.36" y="0.36" width="787.82" height="507.1" rx="10" />
+                <StyledFrame x="0.36" y="0.36" width={HITBOX_WIDTH} height={HITBOX_HEIGHT} rx="10" />
 
                 {/* 渲染按钮外框 */}
-                {btnPosList.map((item: { x: number, y: number, r: number }, index: number) => {
+                {layout.map((item: { x: number, y: number, r: number }, index: number) => {
                     const radius = item.r + btnFrameRadiusDistance;
                     return (
                         <StyledCircle
-                            id={`btn-frame-${index}`}
                             key={`frame-${index}`}
                             cx={item.x}
                             cy={item.y}
@@ -322,12 +340,9 @@ export default function HitboxBase(props: HitboxBaseProps) {
                     )
                 })}
 
-                {/* 渲染按钮 */}
-                {btnPosList.map((item: { x: number, y: number, r: number }, index: number) => (
+                {/* 绘制按钮 */}
+                {layout.map((item: { x: number, y: number, r: number }, index: number) => (
                     <StyledCircle
-                        // ref={(el: SVGCircleElement | null) => {
-                        //     circleRefs.current[index] = el;
-                        // }}
                         id={`btn-${index}`}
                         key={index}
                         cx={item.x}
@@ -343,7 +358,7 @@ export default function HitboxBase(props: HitboxBaseProps) {
                 ))}
 
                 {/* 渲染按钮文字 */}
-                {hasText && btnPosList.map((item: { x: number, y: number, r: number }, index: number) => (
+                {hasText && layout.map((item: { x: number, y: number, r: number }, index: number) => (
                     <StyledText
                         // ref={(el: SVGTextElement | null) => {
                         //     textRefs.current[index] = el;
@@ -352,8 +367,8 @@ export default function HitboxBase(props: HitboxBaseProps) {
                         dominantBaseline="middle"
                         key={index}
                         x={item.x}
-                        y={index < btnLen - 4 ? item.y : item.y + 30}
-                        dangerouslySetInnerHTML={{ __html: getInnerText(index, item.x, index < btnLen - 4 ? item.y : item.y + 30) }}
+                        y={index < len - 4 ? item.y : item.y + 30}
+                        dangerouslySetInnerHTML={{ __html: getInnerText(index, item.x, index < len - 4 ? item.y : item.y + 30) }}
                     />
                 ))}
             </StyledSvg>

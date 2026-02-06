@@ -1,4 +1,5 @@
 #include "configs/common_command_handler.hpp"
+#include "board_cfg.h"
 #include "system_logger.h"
 #include "configs/webconfig_btns_manager.hpp"
 #include "configs/websocket_server.hpp"
@@ -231,6 +232,8 @@ WebSocketDownstreamMessage CommonCommandHandler::handle(const WebSocketUpstreamM
         return handleStopButtonPerformanceMonitoring(request);
     } else if (command == "get_device_logs_list") {
         return handleGetDeviceLogsList(request);
+    } else if (command == "get_hitbox_layout") {
+        return handleGetHitboxLayout(request);
     }
     
     return create_error_response(request.getCid(), command, -1, "Unknown common command");
@@ -434,5 +437,38 @@ WebSocketDownstreamMessage CommonCommandHandler::handleStopButtonPerformanceMoni
     cJSON_AddBoolToObject(dataJSON, "isActive", btnsManager.isActive());
     cJSON_AddBoolToObject(dataJSON, "isTestModeEnabled", btnsManager.isTestModeEnabled());
     
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+/**
+ * @brief 获取Hitbox按键布局
+ * WebSocket命令: get_hitbox_layout
+ *
+ * 响应格式:
+ * {
+ *   "cid": xx,
+ *   "command": "get_hitbox_layout",
+ *   "errNo": 0,
+ *   "data": [
+ *     { "x": 125.10, "y": 103.10, "r": 26.00 },
+ *     ...
+ *   ]
+ * }
+ */
+WebSocketDownstreamMessage CommonCommandHandler::handleGetHitboxLayout(const WebSocketUpstreamMessage& request) {
+    cJSON* dataJSON = cJSON_CreateArray();
+    if (!dataJSON) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to create JSON array");
+    }
+
+    size_t count = sizeof(HITBOX_BUTTON_POS_LIST) / sizeof(HITBOX_BUTTON_POS_LIST[0]);
+    for (size_t i = 0; i < count; i++) {
+        cJSON* item = cJSON_CreateObject();
+        cJSON_AddNumberToObject(item, "x", HITBOX_BUTTON_POS_LIST[i].x);
+        cJSON_AddNumberToObject(item, "y", HITBOX_BUTTON_POS_LIST[i].y);
+        cJSON_AddNumberToObject(item, "r", HITBOX_BUTTON_POS_LIST[i].r);
+        cJSON_AddItemToArray(dataJSON, item);
+    }
+
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
