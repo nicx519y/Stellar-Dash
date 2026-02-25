@@ -39,6 +39,8 @@ public:
     WebSocketDownstreamMessage handleUpdateHotkeysConfig(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleExportAllConfig(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleImportAllConfig(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleImportConfigPart(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleImportConfigFinish(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleReboot(const WebSocketUpstreamMessage& request);
     
     // LED配置相关命令

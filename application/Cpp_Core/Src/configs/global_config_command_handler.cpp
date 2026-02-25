@@ -1,5 +1,5 @@
-#include "configs/websocket_command_handler.hpp"
 #include "storagemanager.hpp"
+#include "configs/websocket_command_handler.hpp"
 #include "adc_btns/adc_calibration.hpp"
 #include "webconfig_leds_manager.hpp"
 #include "webconfig_btns_manager.hpp"
@@ -115,43 +115,33 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateHotkeysConfig
         LOG_ERROR("WebSocket", "update_hotkeys_config: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
-    
-    // 获取快捷键配置组
-    cJSON* hotkeysConfigArray = cJSON_GetObjectItem(params, "hotkeysConfig");
-    if (!hotkeysConfigArray || !cJSON_IsArray(hotkeysConfigArray)) {
-        LOG_ERROR("WebSocket", "update_hotkeys_config: Invalid hotkeys configuration");
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid hotkeys configuration");
-    }
 
-    // 遍历并更新每个快捷键配置
-    int numHotkeys = cJSON_GetArraySize(hotkeysConfigArray);
-    for (int i = 0; i < numHotkeys && i < NUM_GAMEPAD_HOTKEYS; i++) {
-        cJSON* hotkeyItem = cJSON_GetArrayItem(hotkeysConfigArray, i);
-        if (!hotkeyItem) continue;
+    // 更新快捷键配置
+    cJSON* hotkeysConfig = cJSON_GetObjectItem(params, "hotkeysConfig");
+    if (hotkeysConfig && cJSON_IsArray(hotkeysConfig)) {
+        int index = 0;
+        cJSON* hotkeyItem;
+        cJSON_ArrayForEach(hotkeyItem, hotkeysConfig) {
+            if (index >= NUM_GAMEPAD_HOTKEYS) break;
+            
+            cJSON* actionItem = cJSON_GetObjectItem(hotkeyItem, "action");
+            cJSON* pinItem = cJSON_GetObjectItem(hotkeyItem, "virtualPin");
+            cJSON* lockedItem = cJSON_GetObjectItem(hotkeyItem, "isLocked");
+            cJSON* holdItem = cJSON_GetObjectItem(hotkeyItem, "isHold");
 
-        // 获取快捷键序号
-        cJSON* keyItem = cJSON_GetObjectItem(hotkeyItem, "key");
-        if (!keyItem || !cJSON_IsNumber(keyItem)) continue;
-        int keyIndex = keyItem->valueint;
-        if (keyIndex < -1 || keyIndex >= (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS)) continue;
-        config.hotkeys[i].virtualPin = keyIndex;
-
-        // 获取动作
-        cJSON* actionItem = cJSON_GetObjectItem(hotkeyItem, "action");
-        if (actionItem && cJSON_IsString(actionItem)) {
-            config.hotkeys[i].action = ConfigUtils::getGamepadHotkeyFromString(actionItem->valuestring);
-        }
-
-        // 获取锁定状态
-        cJSON* isLockedItem = cJSON_GetObjectItem(hotkeyItem, "isLocked");
-        if (isLockedItem) {
-            config.hotkeys[i].isLocked = cJSON_IsTrue(isLockedItem);
-        }
-
-        // 获取是否长按
-        cJSON* isHoldItem = cJSON_GetObjectItem(hotkeyItem, "isHold");
-        if (isHoldItem) {
-            config.hotkeys[i].isHold = cJSON_IsTrue(isHoldItem);
+            if (actionItem && cJSON_IsString(actionItem)) {
+                config.hotkeys[index].action = ConfigUtils::getGamepadHotkeyFromString(actionItem->valuestring);
+            }
+            if (pinItem && cJSON_IsNumber(pinItem)) {
+                config.hotkeys[index].virtualPin = pinItem->valueint;
+            }
+            if (lockedItem) {
+                config.hotkeys[index].isLocked = cJSON_IsTrue(lockedItem);
+            }
+            if (holdItem) {
+                config.hotkeys[index].isHold = cJSON_IsTrue(holdItem);
+            }
+            index++;
         }
     }
 
@@ -166,14 +156,16 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateHotkeysConfig
 }
 
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handleExportAllConfig(const WebSocketUpstreamMessage& request) {
+    // LOG_INFO("WebSocket", "Handling export_all_config command, cid: %d", request.getCid());
+    
     Config& config = Storage::getInstance().config;
-    WebSocketConnection* conn = request.getConnection();
 
+    WebSocketConnection* conn = request.getConnection();
     if (!conn) {
-        return create_error_response(request.getCid(), request.getCommand(), 1, "No active connection");
+         LOG_ERROR("WebSocket", "export_all_config: No connection");
+         return create_error_response(request.getCid(), request.getCommand(), 1, "No connection");
     }
 
-    // 定义发送辅助函数
     auto sendPart = [&](const char* section, cJSON* data) {
         cJSON* msgData = cJSON_CreateObject();
         cJSON_AddStringToObject(msgData, "section", section);
@@ -196,7 +188,9 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleExportAllConfig(con
     // 1. 发送 Global Config
     {
         cJSON* globalConfigJSON = cJSON_CreateObject();
-        cJSON_AddStringToObject(globalConfigJSON, "inputMode", ConfigUtils::getInputModeString(config.inputMode));
+        const char* modeStr = ConfigUtils::getInputModeString(config.inputMode);
+        cJSON_AddStringToObject(globalConfigJSON, "inputMode", modeStr);
+        cJSON_AddBoolToObject(globalConfigJSON, "autoCalibrationEnabled", config.autoCalibrationEnabled);
         cJSON_AddStringToObject(globalConfigJSON, "defaultProfileId", config.defaultProfileId);
         sendPart("global", globalConfigJSON);
     }
@@ -245,6 +239,91 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportAllConfig(con
     }
 
     // cJSON* exportJSON = ConfigUtils::toJSON(config);
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(dataJSON, "message", "Configuration imported successfully");
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(const WebSocketUpstreamMessage& request) {
+    Config& config = Storage::getInstance().config;
+    cJSON* params = request.getParams();
+    
+    if (!params) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
+    }
+
+    cJSON* sectionItem = cJSON_GetObjectItem(params, "section");
+    cJSON* dataItem = cJSON_GetObjectItem(params, "data");
+
+    if (!sectionItem || !cJSON_IsString(sectionItem) || !dataItem) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Missing section or data");
+    }
+
+    std::string section = sectionItem->valuestring;
+
+    if (section == "global") {
+        cJSON* globalConfigJSON = dataItem;
+        cJSON* item;
+        if ((item = cJSON_GetObjectItem(globalConfigJSON, "inputMode")) && cJSON_IsString(item)) {
+            config.inputMode = ConfigUtils::getInputModeFromString(item->valuestring);
+        }
+        if ((item = cJSON_GetObjectItem(globalConfigJSON, "defaultProfileId")) && cJSON_IsString(item)) {
+             strncpy(config.defaultProfileId, item->valuestring, sizeof(config.defaultProfileId) - 1);
+        }
+        if ((item = cJSON_GetObjectItem(globalConfigJSON, "autoCalibrationEnabled"))) {
+             config.autoCalibrationEnabled = cJSON_IsTrue(item);
+        }
+    } else if (section == "hotkeys") {
+        if (cJSON_IsArray(dataItem)) {
+            int index = 0;
+            cJSON* hotkeyItem;
+            cJSON_ArrayForEach(hotkeyItem, dataItem) {
+                if (index >= NUM_GAMEPAD_HOTKEYS) break;
+                
+                cJSON* actionItem = cJSON_GetObjectItem(hotkeyItem, "action");
+                cJSON* pinItem = cJSON_GetObjectItem(hotkeyItem, "virtualPin");
+                cJSON* lockedItem = cJSON_GetObjectItem(hotkeyItem, "isLocked");
+                cJSON* holdItem = cJSON_GetObjectItem(hotkeyItem, "isHold");
+
+                if (actionItem && cJSON_IsString(actionItem)) {
+                    config.hotkeys[index].action = ConfigUtils::getGamepadHotkeyFromString(actionItem->valuestring);
+                }
+                if (pinItem && cJSON_IsNumber(pinItem)) {
+                    config.hotkeys[index].virtualPin = pinItem->valueint;
+                }
+                if (lockedItem) {
+                    config.hotkeys[index].isLocked = cJSON_IsTrue(lockedItem);
+                }
+                if (holdItem) {
+                    config.hotkeys[index].isHold = cJSON_IsTrue(holdItem);
+                }
+                index++;
+            }
+        }
+    } else if (section == "profile") {
+        cJSON* profileItem = dataItem;
+        cJSON* idItem = cJSON_GetObjectItem(profileItem, "id");
+        if (idItem && cJSON_IsString(idItem)) {
+             // Find profile by ID
+             for (int i=0; i < NUM_PROFILES; i++) {
+                 if (strncmp(config.profiles[i].id, idItem->valuestring, sizeof(config.profiles[i].id)) == 0) {
+                     ProfileCommandHandler::parseProfileJSON(profileItem, &config.profiles[i]);
+                     config.profiles[i].enabled = true;
+                     break;
+                 }
+             }
+        }
+    } else {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Unknown section");
+    }
+
+    return create_success_response(request.getCid(), request.getCommand(), nullptr);
+}
+
+WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigFinish(const WebSocketUpstreamMessage& request) {
+    if (!STORAGE_MANAGER.saveConfig()) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
+    }
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON_AddStringToObject(dataJSON, "message", "Configuration imported successfully");
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
@@ -425,6 +504,10 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handle(const WebSocketUps
         return handleExportAllConfig(request);
     } else if (command == "import_all_config") {
         return handleImportAllConfig(request);
+    } else if (command == "import_config_part") {
+        return handleImportConfigPart(request);
+    } else if (command == "import_config_finish") {
+        return handleImportConfigFinish(request);
     } else if (command == "reboot") {
         return handleReboot(request);
     } else if (command == "push_leds_config") {
@@ -434,4 +517,4 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handle(const WebSocketUps
     }
     
     return create_error_response(request.getCid(), command, -1, "Unknown command");
-} 
+}

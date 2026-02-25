@@ -11,15 +11,17 @@ interface ConfirmState {
     title?: string;
     message: string;
     resolve?: (value: boolean) => void;
+    closable?: boolean;
 }
 
 const useConfirmStore = create<ConfirmState>(() => ({
     isOpen: false,
     message: '',
+    closable: true,
 }));
 
 export function DialogConfirm() {
-    const { isOpen, title, message, resolve } = useConfirmStore();
+    const { isOpen, title, message, resolve, closable } = useConfirmStore();
     const { t } = useLanguage();
 
     const handleClose = () => {
@@ -38,7 +40,13 @@ export function DialogConfirm() {
 
     return (
         <Portal>
-            <Dialog.Root open={isOpen} onOpenChange={handleClose}>
+            <Dialog.Root 
+                open={isOpen} 
+                onOpenChange={(e) => !e.open && handleCancel()}
+                closeOnInteractOutside={closable ?? true}
+                closeOnEscape={closable ?? true}
+            >
+                <Dialog.Backdrop backdropFilter="blur(4px)" />
                 <Dialog.Positioner>
                     <Dialog.Content>
                         <Dialog.Header>
@@ -52,15 +60,17 @@ export function DialogConfirm() {
                             </Alert>
                         </Dialog.Body>
                         <Dialog.Footer>
-                            <Button
-                                width="100px"
-                                size="sm"
-                                colorPalette="teal"
-                                variant="surface"
-                                onClick={handleCancel}
-                            >
-                                {t.BUTTON_CANCEL}
-                            </Button>
+                            {closable && (
+                                <Button
+                                    width="100px"
+                                    size="sm"
+                                    colorPalette="teal"
+                                    variant="surface"
+                                    onClick={handleCancel}
+                                >
+                                    {t.BUTTON_CANCEL}
+                                </Button>
+                            )}
                             <Button
                                 width="100px"
                                 size="sm"
@@ -77,13 +87,14 @@ export function DialogConfirm() {
     );
 }
 
-export function openConfirm(options: { title?: string; message: string }): Promise<boolean> {
+export function openConfirm(options: { title?: string; message: string; closable?: boolean }): Promise<boolean> {
     return new Promise((resolve) => {
         useConfirmStore.setState({
             isOpen: true,
             title: options.title,
             message: options.message,
             resolve,
+            closable: options.closable ?? true,
         });
     });
 }

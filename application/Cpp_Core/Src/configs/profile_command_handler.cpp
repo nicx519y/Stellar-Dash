@@ -2,6 +2,9 @@
 #include "storagemanager.hpp"
 #include "system_logger.h"
 #include "board_cfg.h"
+#include "cpp_utils.hpp"
+
+
 
 // ============================================================================
 // ProfileCommandHandler 实现
@@ -211,19 +214,11 @@ cJSON* ProfileCommandHandler::buildProfileListJSON() {
             
             // 复制并清理ID
             strncpy(cleanId, config.profiles[i].id, sizeof(cleanId) - 1);
-            for(int j = 0; cleanId[j]; j++) {
-                if(cleanId[j] < 32 && cleanId[j] != ' ' && cleanId[j] != '\n' && cleanId[j] != '\r' && cleanId[j] != '\t') {
-                    cleanId[j] = '_';  // 替换控制字符为下划线
-                }
-            }
+            sanitize_string_control_chars(cleanId, sizeof(cleanId));
             
             // 复制并清理name
             strncpy(cleanName, config.profiles[i].name, sizeof(cleanName) - 1);
-            for(int j = 0; cleanName[j]; j++) {
-                if(cleanName[j] < 32 && cleanName[j] != ' ' && cleanName[j] != '\n' && cleanName[j] != '\r' && cleanName[j] != '\t') {
-                    cleanName[j] = '_';  // 替换控制字符为下划线
-                }
-            }
+            sanitize_string_control_chars(cleanName, sizeof(cleanName));
             
             // 基本信息
             cJSON_AddStringToObject(profileJSON, "id", cleanId);
@@ -254,19 +249,11 @@ cJSON* ProfileCommandHandler::buildProfileJSON(GamepadProfile* profile) {
     
     // 复制并清理ID
     strncpy(cleanId, profile->id, sizeof(cleanId) - 1);
-    for(int j = 0; cleanId[j]; j++) {
-        if(cleanId[j] < 32 && cleanId[j] != ' ' && cleanId[j] != '\n' && cleanId[j] != '\r' && cleanId[j] != '\t') {
-            cleanId[j] = '_';  // 替换控制字符为下划线
-        }
-    }
+    sanitize_string_control_chars(cleanId, sizeof(cleanId));
     
     // 复制并清理name
     strncpy(cleanName, profile->name, sizeof(cleanName) - 1);
-    for(int j = 0; cleanName[j]; j++) {
-        if(cleanName[j] < 32 && cleanName[j] != ' ' && cleanName[j] != '\n' && cleanName[j] != '\r' && cleanName[j] != '\t') {
-            cleanName[j] = '_';  // 替换控制字符为下划线
-        }
-    }
+    sanitize_string_control_chars(cleanName, sizeof(cleanName));
 
     // 基本信息
     cJSON_AddStringToObject(profileDetailsJSON, "id", cleanId);
@@ -788,7 +775,28 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleCreateProfile(const WebS
         return create_error_response(request.getCid(), request.getCommand(), 1, "Maximum number of profiles reached");
     }
 
-    // 查找第一个未启用的配置文件
+    // 整理配置文件列表，将所有已启用的配置文件移动到前面
+    // 这样新创建的配置文件就会被添加到所有启用配置文件的后面
+    for (uint8_t dest = 0; dest < NUM_PROFILES; dest++) {
+        if (!config.profiles[dest].enabled) {
+            // 如果当前位置为空，查找后面第一个启用的配置文件
+            for (uint8_t src = dest + 1; src < NUM_PROFILES; src++) {
+                if (config.profiles[src].enabled) {
+                    // 移动配置文件
+                    config.profiles[dest] = config.profiles[src];
+                    
+                    // 清空源位置
+                    config.profiles[src].enabled = false;
+                    memset(config.profiles[src].id, 0, sizeof(config.profiles[src].id));
+                    memset(config.profiles[src].name, 0, sizeof(config.profiles[src].name));
+                    
+                    break; // 找到一个移动后，重新检查当前dest位置（其实不需要，因为刚移过来的是启用的，直接进行下一个dest即可? 不，刚移过来的就是启用的，所以dest位置填满了，可以继续）
+                }
+            }
+        }
+    }
+
+    // 查找第一个未启用的配置文件（现在应该是在所有启用配置文件的末尾）
     GamepadProfile* targetProfile = nullptr;
     for(uint8_t i = 0; i < NUM_PROFILES; i++) {
         if(!config.profiles[i].enabled) {

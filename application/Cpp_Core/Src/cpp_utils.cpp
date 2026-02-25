@@ -177,4 +177,13 @@ std::string generate_unique_id(const char* name) {
     
     // 只返回16进制后缀作为ID
     return std::string(hex_str);
-} 
+}
+
+void sanitize_string_control_chars(char* str, size_t max_len) {
+    if (!str) return;
+    for(size_t j = 0; j < max_len && str[j]; j++) {
+        if(str[j] < 32 && str[j] != ' ' && str[j] != '\n' && str[j] != '\r' && str[j] != '\t') {
+            str[j] = '_';  // 替换控制字符为下划线
+        }
+    }
+}

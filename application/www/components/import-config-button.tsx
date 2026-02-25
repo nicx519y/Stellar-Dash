@@ -4,7 +4,7 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { LuUpload } from "react-icons/lu";
 import { useRef } from "react";
 import { showToast } from "@/components/ui/toaster";
-import { openConfirm } from "@/components/dialog-confirm";
+import { openConfirm as openImportDialog } from "@/components/dialog-confirm";
 
 export function ImportConfigButton(
     props: {
@@ -28,9 +28,10 @@ export function ImportConfigButton(
             const configData = JSON.parse(text);
             await importAllConfig(configData);
             
-            const confirmed = await openConfirm({
+            const confirmed = await openImportDialog({
                 title: t.IMPORT_CONFIG_SUCCESS_TITLE,
-                message: t.IMPORT_CONFIG_SUCCESS_MESSAGE
+                message: t.IMPORT_CONFIG_SUCCESS_MESSAGE,
+                closable: false,
             });
 
             if (confirmed) {

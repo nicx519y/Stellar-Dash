@@ -18,4 +18,7 @@ void safe_strncpy(char* dest, const char* src, size_t dest_size);
 void safe_add_string_to_object(cJSON* obj, const char* key, const char* value);
 
 // 生成唯一ID，使用name、随机数和哈希
-std::string generate_unique_id(const char* name); 
+std::string generate_unique_id(const char* name);
+
+// 清理字符串中的控制字符，确保UTF-8编码有效（替换为下划线）
+void sanitize_string_control_chars(char* str, size_t max_len); 

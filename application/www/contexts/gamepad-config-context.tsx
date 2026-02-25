@@ -87,6 +87,7 @@ export const DEFAULT_WEBSOCKET_CONFIG: WebSocketConfigType = {
     heartbeatInterval: 30000, // 30秒心跳间隔
     timeout: 15000, // 15秒超时
     sendDelay: 3000, // 500ms延迟发送
+    // sendDelay: 0, // 立即发送
     pollInterval: 50, // 轮询间隔50ms
 } as const;
 
@@ -754,43 +755,45 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const importAllConfig = async (configData: any): Promise<void> => {
         try {
             setIsLoading(true);
-            await sendWebSocketRequest('import_all_config', configData, true);
-            
-            // 如果服务端返回了完整配置，直接更新状态
-            // if (data && data.globalConfig && data.profiles && data.hotkeysConfig) {
-            //     // Update Global Config
-            //     setGlobalConfig(data.globalConfig);
-                
-            //     // Update Hotkeys Config
-            //     setHotkeysConfig(data.hotkeysConfig);
-                
-            //     // Update Profiles
-            //     const profiles = data.profiles;
-            //     const defaultId = data.globalConfig.defaultProfileId || "";
-                
-            //     setProfileList({
-            //         defaultId: defaultId,
-            //         maxNumProfiles: NUM_PROFILES_MAX,
-            //         items: profiles
-            //     });
-                
-            //     // Update Default Profile
-            //     const defaultProfileData = profiles.find((p: any) => p.id === defaultId);
-            //     if (defaultProfileData) {
-            //         setDefaultProfile(converProfileDetails(defaultProfileData));
-            //     }
-            // }
-            // } else {
-            //     // Fallback: Refresh all data individually if not returned
-            //     await fetchGlobalConfig();
-            //     await fetchProfileList();
-            //     await fetchDefaultProfile();
-            //     await fetchHotkeysConfig();
-            // }
+            console.log("[Import] Starting split import...");
+
+            // 1. Send Global Config
+            if (configData.globalConfig) {
+                 console.log("[Import] Sending global config");
+                 await sendWebSocketRequest('import_config_part', { 
+                     section: 'global', 
+                     data: configData.globalConfig
+                 }, true);
+            }
+
+            // 2. Send Hotkeys Config
+            if (configData.hotkeysConfig) {
+                 console.log("[Import] Sending hotkeys config");
+                 await sendWebSocketRequest('import_config_part', { 
+                     section: 'hotkeys', 
+                     data: configData.hotkeysConfig
+                 }, true);
+            }
+
+            // 3. Send Profiles
+            if (configData.profiles && Array.isArray(configData.profiles)) {
+                for (const profile of configData.profiles) {
+                    console.log(`[Import] Sending profile: ${profile.id}`);
+                    await sendWebSocketRequest('import_config_part', { 
+                        section: 'profile', 
+                        data: profile
+                    }, true);
+                }
+            }
+
+            // 4. Finish
+            console.log("[Import] Finishing import");
+            await sendWebSocketRequest('import_config_finish', {}, true);
             
             setError(null);
             return Promise.resolve();
         } catch (err) {
+            console.error("[Import] Error:", err);
             setError(err instanceof Error ? err.message : 'An error occurred during import');
             return Promise.reject(new Error("Failed to import config"));
         } finally {
