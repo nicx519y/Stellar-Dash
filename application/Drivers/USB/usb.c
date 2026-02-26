@@ -77,6 +77,10 @@ void USB_Device_Init() {
     USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
     #endif // vbus sense
 
+    /* USB_OTG_FS interrupt Init */
+    HAL_NVIC_SetPriority(OTG_FS_IRQn, 2, 0);
+    HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
+
     #elif BOARD_TUD_RHPORT == 1
     // Despite being call USB2_OTG
     // OTG_HS is marked as RHPort1 by TinyUSB to be consistent across stm32 port

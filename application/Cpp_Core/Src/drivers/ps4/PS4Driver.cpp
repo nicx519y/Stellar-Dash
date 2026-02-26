@@ -414,7 +414,7 @@ uint16_t PS4Driver::get_report(uint8_t report_id, hid_report_type_t report_type,
             memcpy(buffer, output_0x03, responseLen);
             buffer[4] = (uint8_t)controllerType; // Change controller type in definition
 
-            APP_DBG("PS4Driver::get_report - controllerType: %d", controllerType);
+            APP_DBG("PS4Driver::get_report - controllerType: %lu", controllerType);
 
             return responseLen;
         case PS4AuthReport::PS4_GET_MAC_ADDRESS:

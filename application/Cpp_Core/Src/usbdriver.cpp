@@ -8,6 +8,8 @@
 
 #include "tusb.h"
 #include "drivermanager.hpp"
+#include "board_cfg.h"
+#include <stdio.h>
 
 static bool usb_mounted;
 static bool usb_suspended;
@@ -40,6 +42,7 @@ void tud_mount_cb(void)
 {
 	usb_mounted = true;
 	usb_suspended = false;
+	tud_sof_cb_enable(true);
 }
 
 // Invoked when device is unmounted
@@ -47,6 +50,7 @@ void tud_umount_cb(void)
 {
 	usb_mounted = false;
 	usb_suspended = false;
+	tud_sof_cb_enable(false);
 }
 
 // Invoked when usb bus is suspended
@@ -55,11 +59,22 @@ void tud_umount_cb(void)
 void tud_suspend_cb(bool remote_wakeup_en) {
 	(void)remote_wakeup_en;
 	usb_suspended = true;
+	tud_sof_cb_enable(false);
 }
 
 // Invoked when usb bus is resumed
 void tud_resume_cb(void) {
 	usb_suspended = false;
+	tud_sof_cb_enable(true);
+}
+
+// Invoked when a new (micro) frame started
+void tud_sof_cb(uint32_t frame_count) {
+	// Print every 1000 frames (approx 1 second for Full Speed)
+	if (frame_count % 1000 == 0) {
+		APP_DBG("tud_sof_cb: frame %lu", frame_count);
+	}
+	DriverManager::getInstance().getDriver()->sof_cb(frame_count);
 }
 
 // Vendor Controlled XFER occured
