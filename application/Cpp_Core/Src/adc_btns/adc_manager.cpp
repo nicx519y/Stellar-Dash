@@ -6,9 +6,9 @@
 #include "system_logger.h"
 #include "qspi-w25q64.h"
 #include <cstring>
-#include <algorithm>
 #include "cpp_utils.hpp"
 #include "latency_monitor.hpp"
+#include "delay_timer.h"
 
 // 内存图
 /*
@@ -177,7 +177,9 @@ ADCManager::ADCManager() {
             return a.virtualPin < b.virtualPin;
         });
 
-
+    // Initialize Delay Timer
+    DelayTimer_Init();
+    DelayTimer_SetCallback(ADCManager::timerCallback);
 }
 
 ADCManager::~ADCManager() {
@@ -748,8 +750,29 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
 }
 
 void ADCManager::triggerSampling() {
+    LATENCY_MONITOR.samplingArmed();
+    if (samplingDelayUs > 0) {
+        DelayTimer_Start(samplingDelayUs);
+    } else {
+        startSamplingNow();
+    }
+}
+
+void ADCManager::setSamplingDelay(uint16_t delay_us) {
+    samplingDelayUs = delay_us;
+}
+
+uint16_t ADCManager::getSamplingDelay() const {
+    return samplingDelayUs;
+}
+
+void ADCManager::timerCallback() {
+    ADCManager::getInstance().startSamplingNow();
+}
+
+void ADCManager::startSamplingNow() {
     completionMask = 0;
-    // Start conversions
+    LATENCY_MONITOR.samplingStarted();
     HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&ADC1_Values[0], NUM_ADC1_BUTTONS);
     HAL_ADC_Start_DMA(&hadc2, (uint32_t*)&ADC2_Values[0], NUM_ADC2_BUTTONS);
     HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&ADC3_Values[0], NUM_ADC3_BUTTONS);

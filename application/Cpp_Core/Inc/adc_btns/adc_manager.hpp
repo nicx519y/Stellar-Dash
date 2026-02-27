@@ -150,8 +150,11 @@ class ADCManager {
         // 停止采样
         void stopADCSamping();
         
-        // 触发一次采样
         void triggerSampling();
+        
+        void setSamplingDelay(uint16_t delay_us);
+        
+        uint16_t getSamplingDelay() const;
         
         // 检查采样是否完成
         bool isSamplingDone();
@@ -233,6 +236,11 @@ class ADCManager {
         uint32_t statsInterval;
         uint32_t lastStatsTime;
         ADCCommonConfig common;
+
+        uint16_t samplingDelayUs = 0;
+        
+        static void timerCallback();
+        void startSamplingNow();
 };
 
 #define ADC_MANAGER ADCManager::getInstance()
