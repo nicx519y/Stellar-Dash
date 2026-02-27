@@ -41,12 +41,16 @@ extern ADC_HandleTypeDef hadc2;
 extern ADC_HandleTypeDef hadc3;
 
 /* USER CODE BEGIN Private defines */
-
+typedef enum {
+    ADC_MODE_LOW_LATENCY = 0,   // Low latency mode: SOF triggered, 2x Oversampling
+    ADC_MODE_CONTINUOUS = 1     // Calibration/WebConfig mode: Continuous circular DMA, 16x Oversampling
+} ADC_SamplingMode;
 /* USER CODE END Private defines */
 
 void MX_ADC1_Init(void);
 void MX_ADC2_Init(void);
 void MX_ADC3_Init(void);
+void ADC_SetMode(ADC_SamplingMode mode);
 /* USER CODE BEGIN Prototypes */
 
 

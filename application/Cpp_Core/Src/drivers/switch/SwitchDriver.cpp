@@ -1,5 +1,5 @@
 #include "drivers/switch/SwitchDriver.hpp"
-
+#include "latency_monitor.hpp"
 
 void SwitchDriver::initialize() {
 	switchReport = {
@@ -69,8 +69,11 @@ void SwitchDriver::process(Gamepad * gamepad) {
 	uint16_t report_size = sizeof(switchReport);
 	if (memcmp(last_report, report, report_size) != 0) {
 		// HID ready + report sent, copy previous report
-		if (tud_hid_ready() && tud_hid_report(0, report, report_size) == true ) {
-			memcpy(last_report, report, report_size);
+		if (tud_hid_ready()) {
+            LATENCY_MONITOR.usbInStarted();
+            if (tud_hid_report(0, report, report_size) == true ) {
+			    memcpy(last_report, report, report_size);
+            }
 		}
 	}
 }

@@ -1,6 +1,8 @@
 #include "main_state_machine.hpp"
 #include "states/calibration_state.hpp"
 #include "system_logger.h"
+#include "adc_btns/adc_manager.hpp"
+#include "tusb.h"
 
 void MainStateMachine::setup()
 {
@@ -15,6 +17,10 @@ void MainStateMachine::setup()
 
     switch(bootMode) {
     case BootMode::BOOT_MODE_WEB_CONFIG:
+            // 切换到校准/连续采样模式
+            ADCManager::getInstance().setADCMode(ADC_MODE_CONTINUOUS);
+            // 启动连续采样 (需确保USB初始化后再启动，这里先不启动，或在WebConfigState中启动)
+            
             state = &WEB_CONFIG_STATE;
             // 在storage中自动切换成input mode，保证下次重启device的时候是input mode
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
@@ -22,10 +28,16 @@ void MainStateMachine::setup()
             LOG_INFO("MAIN_STATE_MACHINE", "Entering WEB_CONFIG_STATE");
             break;
         case BootMode::BOOT_MODE_INPUT:
+            // 切换到低延迟模式 (SOF触发)
+            ADCManager::getInstance().setADCMode(ADC_MODE_LOW_LATENCY);
+            
             state = &INPUT_STATE;
             LOG_INFO("MAIN_STATE_MACHINE", "Entering INPUT_STATE");
             break;
         case BootMode::BOOT_MODE_CALIBRATION:
+            // 切换到校准/连续采样模式
+            ADCManager::getInstance().setADCMode(ADC_MODE_CONTINUOUS);
+
             state = &CALIBRATION_STATE;
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT); // 设置为输入模式，保证下次启动时进入输入模式
             STORAGE_MANAGER.saveConfig();

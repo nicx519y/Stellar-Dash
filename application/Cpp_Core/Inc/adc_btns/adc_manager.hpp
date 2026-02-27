@@ -142,7 +142,10 @@ class ADCManager {
         // 设置校准值
         ADCBtnsError setCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCalibration, uint16_t topValue, uint16_t bottomValue, bool withSave = true);
 
-        // 开始采样
+        void setADCMode(ADC_SamplingMode mode);
+        ADC_SamplingMode getADCMode() const;
+
+        // 启动连续采样 (用于校准/WebConfig模式)
         ADCBtnsError startADCSamping(bool enableSamplingRate = false, 
                                    uint8_t virtualPin = 0, 
                                    uint32_t samplingCountMax = 0);
@@ -222,11 +225,6 @@ class ADCManager {
         
         ADCIndexInfo findADCButtonVirtualPin(uint8_t virtualPin);
 
-        // 添加 const 修饰符
-        ADCBtnsError loadMapping(const char* const id) const;
-        void handleADCConvCplt(const ADC_HandleTypeDef* const hadc);
-        void handleADCStats(const ADCChannelStats* const stats) const;
-
         // 成员变量
         std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS> ADCBufferInfoList;
         std::string defaultMappingId;
@@ -236,11 +234,14 @@ class ADCManager {
         uint32_t statsInterval;
         uint32_t lastStatsTime;
         ADCCommonConfig common;
+        
+        ADC_SamplingMode adcMode = ADC_MODE_LOW_LATENCY;
 
         uint16_t samplingDelayUs = 0;
         
         static void timerCallback();
         void startSamplingNow();
+        void startContinuousSampling();
 };
 
 #define ADC_MANAGER ADCManager::getInstance()

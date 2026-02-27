@@ -11,6 +11,7 @@
 #include "gamepad.hpp"
 #include "enums.hpp"
 #include <algorithm>
+#include "latency_monitor.hpp"
 // #include "gpauthdriver.hpp"
 
 // PS4/PS5 Auth Systems
@@ -299,8 +300,11 @@ void PS4Driver::process(Gamepad * gamepad) {
     if (memcmp(last_report, report, report_size) != 0)
     {
         // HID ready + report sent, copy previous report
-        if (tud_hid_ready() && tud_hid_report(0, report, report_size) == true ) {
-            memcpy(last_report, report, report_size);
+        if (tud_hid_ready()) {
+            LATENCY_MONITOR.usbInStarted();
+            if (tud_hid_report(0, report, report_size) == true ) {
+                memcpy(last_report, report, report_size);
+            }
         }
         // keep track of our last successful report, for keepalive purposes
         last_report_timer = now;

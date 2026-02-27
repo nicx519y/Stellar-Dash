@@ -44,7 +44,12 @@ void tud_mount_cb(void)
 {
 	usb_mounted = true;
 	usb_suspended = false;
-	tud_sof_cb_enable(true);
+	// 只有在低延迟模式下才启用SOF回调
+	if (ADCManager::getInstance().getADCMode() == ADC_MODE_LOW_LATENCY) {
+		tud_sof_cb_enable(true);
+	} else {
+		tud_sof_cb_enable(false);
+	}
 }
 
 // Invoked when device is unmounted
@@ -67,14 +72,21 @@ void tud_suspend_cb(bool remote_wakeup_en) {
 // Invoked when usb bus is resumed
 void tud_resume_cb(void) {
 	usb_suspended = false;
-	tud_sof_cb_enable(true);
+	// 只有在低延迟模式下才启用SOF回调
+	if (ADCManager::getInstance().getADCMode() == ADC_MODE_LOW_LATENCY) {
+		tud_sof_cb_enable(true);
+	} else {
+		tud_sof_cb_enable(false);
+	}
 }
 
 // Invoked when a new (micro) frame started
 void tud_sof_cb(uint32_t frame_count) {
-	LATENCY_MONITOR.sofTriggered();
-	// Print every 1000 frames (approx 1 second for Full Speed)
-	ADCManager::getInstance().triggerSampling();
+	// 双重保险：只有在低延迟模式下才执行ADC逻辑
+	if (ADCManager::getInstance().getADCMode() == ADC_MODE_LOW_LATENCY) {
+		LATENCY_MONITOR.sofTriggered();
+		ADCManager::getInstance().triggerSampling();
+	}
 	DriverManager::getInstance().getDriver()->sof_cb(frame_count);
 }
 
@@ -95,6 +107,15 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
 // Application return pointer to descriptor
 uint8_t const *tud_descriptor_device_cb() {
 	return DriverManager::getInstance().getDriver()->get_descriptor_device_cb();
+}
+
+// Invoked when sent report to host via interrupt endpoint
+void tud_hid_report_complete_cb(uint8_t instance, uint8_t const* report, uint16_t len)
+{
+	(void)instance;
+	(void)report;
+	(void)len;
+	LATENCY_MONITOR.usbInTransfer();
 }
 
 // Invoked when received GET HID REPORT DESCRIPTOR

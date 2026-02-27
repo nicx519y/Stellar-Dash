@@ -552,58 +552,39 @@ ADCBtnsError ADCManager::markMapping(const char* const id,
 ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate, 
                                         uint8_t virtualPin, 
                                         uint32_t samplingCountMax) {
-    // 停止所有 ADC
-    this->stopADCSamping();
+    // 如果在低延迟模式下调用，可能不支持此功能，或者需要停止当前的SOF触发机制
+    // 这里假设此函数主要用于校准/WebConfig模式
+    
+    // 如果不在校准模式，执行旧的初始化逻辑 (停止->校准->启动)
+    if (this->adcMode != ADC_MODE_CONTINUOUS) {
+        // 停止所有 ADC
+        this->stopADCSamping();
 
-    // 初始化DMA缓存
-    memset(ADC1_Values, 0, sizeof(ADC1_Values)); // DMA缓存清零  
-    memset(ADC2_Values, 0, sizeof(ADC2_Values)); // DMA缓存清零  
-    memset(ADC3_Values, 0, sizeof(ADC3_Values)); // DMA缓存清零
-    memset(ADC_Values_Result, 0, sizeof(ADC_Values_Result)); // DMA缓存清零
+        // 初始化DMA缓存
+        memset(ADC1_Values, 0, sizeof(ADC1_Values)); // DMA缓存清零  
+        memset(ADC2_Values, 0, sizeof(ADC2_Values)); // DMA缓存清零  
+        memset(ADC3_Values, 0, sizeof(ADC3_Values)); // DMA缓存清零
+        memset(ADC_Values_Result, 0, sizeof(ADC_Values_Result)); // DMA缓存清零
 
-    // 校准 ADC1
-    if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
-        APP_ERR("ADC1 calibration failed\n");
-        return ADCBtnsError::ADC1_CALIB_FAILED;
+        // 校准 ADC1
+        if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
+            APP_ERR("ADC1 calibration failed\n");
+            return ADCBtnsError::ADC1_CALIB_FAILED;
+        }
+
+        // 校准 ADC2
+        if (HAL_ADCEx_Calibration_Start(&hadc2, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
+            APP_ERR("ADC2 calibration failed\n");
+            return ADCBtnsError::ADC2_CALIB_FAILED;
+        }
+
+        // 校准 ADC3
+        if (HAL_ADCEx_Calibration_Start(&hadc3, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
+            APP_ERR("ADC3 calibration failed\n");
+            return ADCBtnsError::ADC3_CALIB_FAILED;
+        }
     }
-
-    // 校准 ADC2
-    if (HAL_ADCEx_Calibration_Start(&hadc2, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
-        APP_ERR("ADC2 calibration failed\n");
-        return ADCBtnsError::ADC2_CALIB_FAILED;
-    }
-
-    // 校准 ADC3
-    if (HAL_ADCEx_Calibration_Start(&hadc3, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
-        APP_ERR("ADC3 calibration failed\n");
-        return ADCBtnsError::ADC3_CALIB_FAILED;
-    }
-
-    // 不要在初始化时启动DMA，由SOF触发
-    // // 启动 ADC1
-    // if (HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&ADC1_Values[0], NUM_ADC1_BUTTONS) != HAL_OK) {
-    //     APP_ERR("ADC1 DMA start failed\n");
-    //     return ADCBtnsError::DMA1_START_FAILED;
-    // }
-
-    // // MICROS_TIMER.delayMicros(READ_BTNS_INTERVAL); // 等待一个轮询周期，均摊延时
-
-    // // 启动 ADC2
-    // if (HAL_ADC_Start_DMA(&hadc2, (uint32_t*)&ADC2_Values[0], NUM_ADC2_BUTTONS) != HAL_OK) {
-    //     APP_ERR("ADC2 DMA start failed\n");
-    //     HAL_ADC_Stop_DMA(&hadc1);  // 清理已启动的 ADC1
-    //     return ADCBtnsError::DMA2_START_FAILED;
-    // }
-
-    // // MICROS_TIMER.delayMicros(READ_BTNS_INTERVAL); // 等待一个轮询周期，均摊延时
-
-    // // 启动 ADC3
-    // if (HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&ADC3_Values[0], NUM_ADC3_BUTTONS) != HAL_OK) {
-    //     APP_ERR("ADC3 DMA start failed\n");
-    //     HAL_ADC_Stop_DMA(&hadc1);  // 清理已启动的 ADC
-    //     HAL_ADC_Stop_DMA(&hadc2);
-    //     return ADCBtnsError::DMA3_START_FAILED;
-    // }
+    // 如果在校准模式，ADC已经在运行连续采样，不需要停止或重新校准
 
     // 如果启用采样率统计，则注册回调
     if(enableSamplingRate) {
@@ -646,16 +627,19 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
 }
 
 void ADCManager::stopADCSamping() {
-    if(HAL_ADC_Stop_DMA(&hadc1) != HAL_OK) {
-        return;
-    }
+    // 如果是校准模式，不要停止DMA，只停止统计
+    if (this->adcMode != ADC_MODE_CONTINUOUS) {
+        if(HAL_ADC_Stop_DMA(&hadc1) != HAL_OK) {
+            // return;
+        }
 
-    if(HAL_ADC_Stop_DMA(&hadc2) != HAL_OK) {
-        return;
-    }
+        if(HAL_ADC_Stop_DMA(&hadc2) != HAL_OK) {
+            // return;
+        }
 
-    if(HAL_ADC_Stop_DMA(&hadc3) != HAL_OK) {
-        return;
+        if(HAL_ADC_Stop_DMA(&hadc3) != HAL_OK) {
+            // return;
+        }
     }
 
     if(messageHandler) {
@@ -749,7 +733,30 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
     ADCManager::getInstance().notifyConversionComplete(hadc);
 }
 
+void ADCManager::setADCMode(ADC_SamplingMode mode) {
+    this->adcMode = mode;
+    ADC_SetMode(mode);
+}
+
+ADC_SamplingMode ADCManager::getADCMode() const {
+    return adcMode;
+}
+
+void ADCManager::startContinuousSampling() {
+    if (this->adcMode != ADC_MODE_CONTINUOUS) return;
+    
+    // Stop any ongoing
+    stopADCSamping();
+
+    // In calibration/webconfig mode, we start once and it runs continuously via circular DMA
+    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&ADC1_Values[0], NUM_ADC1_BUTTONS);
+    HAL_ADC_Start_DMA(&hadc2, (uint32_t*)&ADC2_Values[0], NUM_ADC2_BUTTONS);
+    HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&ADC3_Values[0], NUM_ADC3_BUTTONS);
+}
+
 void ADCManager::triggerSampling() {
+    if (this->adcMode != ADC_MODE_LOW_LATENCY) return;
+
     LATENCY_MONITOR.samplingArmed();
     if (samplingDelayUs > 0) {
         DelayTimer_Start(samplingDelayUs);
@@ -771,6 +778,9 @@ void ADCManager::timerCallback() {
 }
 
 void ADCManager::startSamplingNow() {
+    // In Low Latency mode, we start DMA for each conversion (One Shot)
+    if (this->adcMode != ADC_MODE_LOW_LATENCY) return;
+
     completionMask = 0;
     LATENCY_MONITOR.samplingStarted();
     HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&ADC1_Values[0], NUM_ADC1_BUTTONS);
@@ -791,16 +801,21 @@ void ADCManager::clearSamplingDone() {
 }
 
 void ADCManager::notifyConversionComplete(ADC_HandleTypeDef *hadc) {
-    if (hadc->Instance == ADC1) {
-        completionMask |= 0x01;
-    } else if (hadc->Instance == ADC2) {
-        completionMask |= 0x02;
-    } else if (hadc->Instance == ADC3) {
-        completionMask |= 0x04;
+    if (this->adcMode != ADC_MODE_LOW_LATENCY && !samplingRateEnabled) return;
+
+    if (this->adcMode == ADC_MODE_LOW_LATENCY) {
+        if (hadc->Instance == ADC1) {
+            completionMask |= 0x01;
+        } else if (hadc->Instance == ADC2) {
+            completionMask |= 0x02;
+        } else if (hadc->Instance == ADC3) {
+            completionMask |= 0x04;
+        }
     }
-    
-    // Also publish existing message for compatibility
-    MC.publish(MessageId::DMA_ADC_CONV_CPLT, hadc);
+
+    if (samplingRateEnabled) {
+        MC.publish(MessageId::DMA_ADC_CONV_CPLT, hadc);
+    }
 }
 
 // ADC错误回调

@@ -76,6 +76,8 @@ DMA_HandleTypeDef hdma_adc1;
 DMA_HandleTypeDef hdma_adc2;
 DMA_HandleTypeDef hdma_adc3;
 
+static ADC_SamplingMode current_adc_mode = ADC_MODE_LOW_LATENCY;
+
 static void configure_adc_common(ADC_HandleTypeDef* hadc, uint32_t nbrOfConversion)
 {
     hadc->Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
@@ -83,17 +85,28 @@ static void configure_adc_common(ADC_HandleTypeDef* hadc, uint32_t nbrOfConversi
     hadc->Init.ScanConvMode = ADC_SCAN_ENABLE;
     hadc->Init.EOCSelection = ADC_EOC_SEQ_CONV;
     hadc->Init.LowPowerAutoWait = DISABLE;
-    hadc->Init.ContinuousConvMode = DISABLE;
+
+    if (current_adc_mode == ADC_MODE_CONTINUOUS) {
+        hadc->Init.ContinuousConvMode = ENABLE;
+        hadc->Init.ConversionDataManagement = ADC_CONVERSIONDATA_DMA_CIRCULAR;
+        hadc->Init.Oversampling.Ratio = 16;
+        hadc->Init.Oversampling.RightBitShift = ADC_RIGHTBITSHIFT_4;
+    } else {
+        hadc->Init.ContinuousConvMode = DISABLE;
+        hadc->Init.ConversionDataManagement = ADC_CONVERSIONDATA_DMA_ONESHOT;
+        hadc->Init.Oversampling.Ratio = 2;
+        hadc->Init.Oversampling.RightBitShift = ADC_RIGHTBITSHIFT_1;
+    }
+
     hadc->Init.NbrOfConversion = nbrOfConversion;
     hadc->Init.DiscontinuousConvMode = DISABLE;
     hadc->Init.ExternalTrigConv = ADC_SOFTWARE_START;
     hadc->Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-    hadc->Init.ConversionDataManagement = ADC_CONVERSIONDATA_DMA_ONESHOT;
+    // ConversionDataManagement set above
     hadc->Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
     hadc->Init.LeftBitShift = ADC_LEFTBITSHIFT_NONE;
     hadc->Init.OversamplingMode = ENABLE;
-    hadc->Init.Oversampling.Ratio = ADC_OVERSAMPLE_RATIO;
-    hadc->Init.Oversampling.RightBitShift = ADC_OVERSAMPLE_RIGHT_BIT_SHIFT;
+    // Ratio and RightBitShift set above
     hadc->Init.Oversampling.TriggeredMode = ADC_TRIGGEREDMODE_SINGLE_TRIGGER;
     hadc->Init.Oversampling.OversamplingStopReset = ADC_REGOVERSAMPLING_CONTINUED_MODE;
 }
@@ -106,7 +119,13 @@ static void configure_dma_common(DMA_HandleTypeDef* hdma, uint32_t request)
     hdma->Init.MemInc = DMA_MINC_ENABLE;
     hdma->Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
     hdma->Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
-    hdma->Init.Mode = DMA_NORMAL;
+    
+    if (current_adc_mode == ADC_MODE_CONTINUOUS) {
+        hdma->Init.Mode = DMA_CIRCULAR;
+    } else {
+        hdma->Init.Mode = DMA_NORMAL;
+    }
+
     hdma->Init.Priority = DMA_PRIORITY_VERY_HIGH;
     hdma->Init.FIFOMode = DMA_FIFOMODE_DISABLE;
 }
@@ -447,5 +466,26 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef *adcHandle)
 }
 
 /* USER CODE BEGIN 1 */
+
+void ADC_SetMode(ADC_SamplingMode mode) {
+    if (current_adc_mode == mode) return;
+
+    current_adc_mode = mode;
+
+    // Stop any ongoing conversions and DMA
+    HAL_ADC_Stop_DMA(&hadc1);
+    HAL_ADC_Stop_DMA(&hadc2);
+    HAL_ADC_Stop_DMA(&hadc3);
+
+    // DeInit ADCs to reset state
+    HAL_ADC_DeInit(&hadc1);
+    HAL_ADC_DeInit(&hadc2);
+    HAL_ADC_DeInit(&hadc3);
+
+    // Re-Initialize ADCs
+    MX_ADC1_Init();
+    MX_ADC2_Init();
+    MX_ADC3_Init();
+}
 
 /* USER CODE END 1 */
