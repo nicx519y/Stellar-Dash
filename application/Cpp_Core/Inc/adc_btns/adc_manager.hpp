@@ -168,6 +168,9 @@ class ADCManager {
         // 通知采样完成 (由 HAL_ADC_ConvCpltCallback 调用)
         void notifyConversionComplete(ADC_HandleTypeDef *hadc);
 
+        void startSamplingNow();
+        void startContinuousSampling();
+
         /**
          * @brief 读取ADC值 按virtualPin排序
          * 值要减去ADC_BASE_V 基准电压
@@ -240,8 +243,6 @@ class ADCManager {
         uint16_t samplingDelayUs = 0;
         
         static void timerCallback();
-        void startSamplingNow();
-        void startContinuousSampling();
 };
 
 #define ADC_MANAGER ADCManager::getInstance()

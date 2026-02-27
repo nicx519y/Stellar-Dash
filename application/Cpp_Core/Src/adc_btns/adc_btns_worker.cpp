@@ -192,7 +192,12 @@ ADCBtnsError ADCBtnsWorker::setup()
         buttonPtrs[i]->state = ButtonState::RELEASED; // 明确设置初始状态为释放
     }
 
-    ADC_MANAGER.startADCSamping();
+    // 根据当前模式启动采样
+    if (ADC_MANAGER.getADCMode() == ADC_MODE_CONTINUOUS) {
+        ADC_MANAGER.startContinuousSampling();
+    } else {
+        // 低延迟模式不需要手动start，由SOF触发
+    }
 
     return ADCBtnsError::SUCCESS;
 }

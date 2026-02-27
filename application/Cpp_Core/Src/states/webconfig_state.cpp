@@ -31,6 +31,11 @@ void WebConfigState::setup() {
         LOG_ERROR("WEBCONFIG", "Failed to enter QSPI memory mapped mode, error: %d", qspi_result);
     }
 
+    // 切换到校准/连续采样模式
+    ADCManager::getInstance().setADCMode(ADC_MODE_CONTINUOUS);
+    // 启动连续采样 (需确保USB初始化后再启动，这里先不启动，或在WebConfigState中启动)
+    ADCManager::getInstance().startContinuousSampling();
+
     // 初始化LED管理器
     LEDS_MANAGER.setup();
     WS2812B_SetAllLEDBrightness(0); // 设置所有LED亮度默认为0

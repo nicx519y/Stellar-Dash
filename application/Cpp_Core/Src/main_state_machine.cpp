@@ -17,9 +17,7 @@ void MainStateMachine::setup()
 
     switch(bootMode) {
     case BootMode::BOOT_MODE_WEB_CONFIG:
-            // 切换到校准/连续采样模式
-            ADCManager::getInstance().setADCMode(ADC_MODE_CONTINUOUS);
-            // 启动连续采样 (需确保USB初始化后再启动，这里先不启动，或在WebConfigState中启动)
+            
             
             state = &WEB_CONFIG_STATE;
             // 在storage中自动切换成input mode，保证下次重启device的时候是input mode
