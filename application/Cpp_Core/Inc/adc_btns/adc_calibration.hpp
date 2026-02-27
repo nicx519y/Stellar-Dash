@@ -135,8 +135,8 @@ private:
     CalibrationStatusChangedCallback onCalibrationStatusChanged = nullptr;
     
     // 校准常量
-    static constexpr uint8_t MAX_SAMPLES = 100;            // 最大采样数量（保存最后100个样本）
-    static constexpr uint32_t SAMPLING_DURATION_MS = 700; // 采样持续时间（毫秒）
+    static constexpr uint8_t MAX_SAMPLES = ADC_CALIBRATION_MANAGER_REQUIRED_SAMPLES;            // 最大采样数量（保存最后100个样本）
+    static constexpr uint32_t SAMPLING_DURATION_MS = ADC_CALIBRATION_MANAGER_SAMPLING_DURATION_MS; // 采样持续时间（毫秒）
     static constexpr uint32_t SAMPLE_INTERVAL_MS = ADC_CALIBRATION_MANAGER_SAMPLE_INTERVAL_MS;    // 采样间隔（毫秒）
     
     // 内部方法

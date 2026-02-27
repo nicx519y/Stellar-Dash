@@ -4,6 +4,7 @@
 // #include "peripheralmanager.hpp"
 #include "storagemanager.hpp"
 #include "gamepad.hpp"
+#include "latency_monitor.hpp"
 
 #define XBONE_KEEPALIVE_TIMER 15000
 
@@ -504,6 +505,7 @@ void XBOneDriver::process(Gamepad * gamepad) {
 
         // Successfully sent report, actually increment last report counter!
         if ( send_xbone_usb((uint8_t*)&xboneReport, xboneReportSize) == true ) {
+            // LATENCY_MONITOR.usbInStarted() is called in send_xbone_usb
             if ( memcmp(&last_report[4], &((uint8_t*)&xboneReport)[4], xboneReportSize-4) != 0) {
                 last_report_counter++;
                 if (last_report_counter == 0)
@@ -541,6 +543,7 @@ bool XBOneDriver::send_xbone_usb(uint8_t const *report, uint16_t report_size) {
         (p_xbone->ep_in != 0) && (!usbd_edpt_busy(TUD_OPT_RHPORT, p_xbone->ep_in))) // Is the IN endpoint available?
     {
         usbd_edpt_claim(0, p_xbone->ep_in);										// Take control of IN endpoint
+        LATENCY_MONITOR.usbInStarted();
         usbd_edpt_xfer(0, p_xbone->ep_in, (uint8_t *)report, report_size); 	// Send report buffer
         usbd_edpt_release(0, p_xbone->ep_in);										// Release control of IN endpoint
 
