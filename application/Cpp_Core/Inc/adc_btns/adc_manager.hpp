@@ -149,6 +149,18 @@ class ADCManager {
 
         // 停止采样
         void stopADCSamping();
+        
+        // 触发一次采样
+        void triggerSampling();
+        
+        // 检查采样是否完成
+        bool isSamplingDone();
+
+        // 清除采样完成标志
+        void clearSamplingDone();
+        
+        // 通知采样完成 (由 HAL_ADC_ConvCpltCallback 调用)
+        void notifyConversionComplete(ADC_HandleTypeDef *hadc);
 
         /**
          * @brief 读取ADC值 按virtualPin排序
@@ -197,6 +209,10 @@ class ADCManager {
         ADCChannelStats ADCButtonStats;
         bool samplingRateEnabled;
         uint32_t samplingCountMax;
+        
+        // 采样完成标志位掩码 (bit 0: ADC1, bit 1: ADC2, bit 2: ADC3)
+        volatile uint8_t completionMask = 0;
+        
         ADCIndexInfo samplingADCInfo;
 
         void handleADCStats(ADC_HandleTypeDef *hadc);

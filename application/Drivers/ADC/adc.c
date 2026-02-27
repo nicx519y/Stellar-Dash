@@ -38,8 +38,11 @@ static void enable_gpio_clock(GPIO_TypeDef* port)
 }
 
 
-#define ADC_OVERSAMPLE_RATIO               16         //ADC过采样倍数
-#define ADC_OVERSAMPLE_RIGHT_BIT_SHIFT     ADC_RIGHTBITSHIFT_4 //ADC过采样右移位数
+// #define ADC_OVERSAMPLE_RATIO               16         //ADC过采样倍数
+#define ADC_OVERSAMPLE_RATIO               2         //ADC过采样倍数
+// #define ADC_OVERSAMPLE_RIGHT_BIT_SHIFT     ADC_RIGHTBITSHIFT_4 //ADC过采样右移位数
+#define ADC_OVERSAMPLE_RIGHT_BIT_SHIFT     ADC_RIGHTBITSHIFT_1 //ADC过采样右移位数
+// #define ADC_SAMPLE_TIME                    ADC_SAMPLETIME_64CYCLES_5       //ADC采样时间
 #define ADC_SAMPLE_TIME                    ADC_SAMPLETIME_64CYCLES_5       //ADC采样时间
 
 
@@ -80,12 +83,12 @@ static void configure_adc_common(ADC_HandleTypeDef* hadc, uint32_t nbrOfConversi
     hadc->Init.ScanConvMode = ADC_SCAN_ENABLE;
     hadc->Init.EOCSelection = ADC_EOC_SEQ_CONV;
     hadc->Init.LowPowerAutoWait = DISABLE;
-    hadc->Init.ContinuousConvMode = ENABLE;
+    hadc->Init.ContinuousConvMode = DISABLE;
     hadc->Init.NbrOfConversion = nbrOfConversion;
     hadc->Init.DiscontinuousConvMode = DISABLE;
     hadc->Init.ExternalTrigConv = ADC_SOFTWARE_START;
     hadc->Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-    hadc->Init.ConversionDataManagement = ADC_CONVERSIONDATA_DMA_CIRCULAR;
+    hadc->Init.ConversionDataManagement = ADC_CONVERSIONDATA_DMA_ONESHOT;
     hadc->Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
     hadc->Init.LeftBitShift = ADC_LEFTBITSHIFT_NONE;
     hadc->Init.OversamplingMode = ENABLE;
@@ -103,7 +106,7 @@ static void configure_dma_common(DMA_HandleTypeDef* hdma, uint32_t request)
     hdma->Init.MemInc = DMA_MINC_ENABLE;
     hdma->Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
     hdma->Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
-    hdma->Init.Mode = DMA_CIRCULAR;
+    hdma->Init.Mode = DMA_NORMAL;
     hdma->Init.Priority = DMA_PRIORITY_VERY_HIGH;
     hdma->Init.FIFOMode = DMA_FIFOMODE_DISABLE;
 }

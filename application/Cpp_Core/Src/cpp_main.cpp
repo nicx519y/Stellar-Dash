@@ -73,6 +73,8 @@ void adc_test(void) {
                     direction = 1;
             }
 
+            ADCManager::getInstance().triggerSampling();
+            HAL_Delay(1); // Wait for sampling
             ADCManager::getInstance().ADCValuesTestPrint();
         }
     }
@@ -107,6 +109,9 @@ void manual_calibration_test(void) {
     uint32_t last_adc_print = HAL_GetTick();
     
     while (true) {
+        // 触发采样
+        ADCManager::getInstance().triggerSampling();
+        
         // 处理校准逻辑
         ADC_CALIBRATION_MANAGER.processCalibration();
         

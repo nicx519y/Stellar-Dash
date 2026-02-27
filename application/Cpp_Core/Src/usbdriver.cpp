@@ -10,6 +10,8 @@
 #include "drivermanager.hpp"
 #include "board_cfg.h"
 #include <stdio.h>
+#include "adc_btns/adc_manager.hpp"
+#include "latency_monitor.hpp"
 
 static bool usb_mounted;
 static bool usb_suspended;
@@ -70,10 +72,9 @@ void tud_resume_cb(void) {
 
 // Invoked when a new (micro) frame started
 void tud_sof_cb(uint32_t frame_count) {
+	LATENCY_MONITOR.sofTriggered();
 	// Print every 1000 frames (approx 1 second for Full Speed)
-	if (frame_count % 1000 == 0) {
-		APP_DBG("tud_sof_cb: frame %lu", frame_count);
-	}
+	ADCManager::getInstance().triggerSampling();
 	DriverManager::getInstance().getDriver()->sof_cb(frame_count);
 }
 

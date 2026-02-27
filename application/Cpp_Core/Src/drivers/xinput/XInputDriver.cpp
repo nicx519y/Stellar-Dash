@@ -6,6 +6,7 @@
 #include "drivers/xinput/XInputDriver.hpp"
 #include "drivers/shared/driverhelper.hpp"
 #include "storagemanager.hpp"
+#include "latency_monitor.hpp"
 
 #define USB_SETUP_DEVICE_TO_HOST 0x80
 #define USB_SETUP_HOST_TO_DEVICE 0x00
@@ -119,6 +120,10 @@ static bool xinput_xfer_callback(uint8_t rhport, uint8_t ep_addr, xfer_result_t 
 
 	if (ep_addr == endpoint_out)
 		usbd_edpt_xfer(0, endpoint_out, xinput_out_buffer, XINPUT_OUT_SIZE);
+    
+    if (ep_addr == endpoint_in) {
+        LATENCY_MONITOR.usbInTransfer();
+    }
 
 	return true;
 }
@@ -221,6 +226,7 @@ void XInputDriver::process(Gamepad * gamepad) {
 			(endpoint_in != 0) && (!usbd_edpt_busy(0, endpoint_in)) ) // Is the IN endpoint available?
 		{
 			usbd_edpt_claim(0, endpoint_in);								// Take control of IN endpoint
+            LATENCY_MONITOR.usbInStarted();
 			usbd_edpt_xfer(0, endpoint_in, (uint8_t *)&xinputReport, sizeof(XInputReport)); // Send report buffer
 			usbd_edpt_release(0, endpoint_in);								// Release control of IN endpoint
 			memcpy(last_report, &xinputReport, sizeof(XInputReport)); // save if we sent it

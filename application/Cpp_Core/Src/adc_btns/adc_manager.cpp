@@ -8,6 +8,7 @@
 #include <cstring>
 #include <algorithm>
 #include "cpp_utils.hpp"
+#include "latency_monitor.hpp"
 
 // 内存图
 /*
@@ -576,30 +577,31 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
         return ADCBtnsError::ADC3_CALIB_FAILED;
     }
 
-    // 启动 ADC1
-    if (HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&ADC1_Values[0], NUM_ADC1_BUTTONS) != HAL_OK) {
-        APP_ERR("ADC1 DMA start failed\n");
-        return ADCBtnsError::DMA1_START_FAILED;
-    }
+    // 不要在初始化时启动DMA，由SOF触发
+    // // 启动 ADC1
+    // if (HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&ADC1_Values[0], NUM_ADC1_BUTTONS) != HAL_OK) {
+    //     APP_ERR("ADC1 DMA start failed\n");
+    //     return ADCBtnsError::DMA1_START_FAILED;
+    // }
 
-    // MICROS_TIMER.delayMicros(READ_BTNS_INTERVAL); // 等待一个轮询周期，均摊延时
+    // // MICROS_TIMER.delayMicros(READ_BTNS_INTERVAL); // 等待一个轮询周期，均摊延时
 
-    // 启动 ADC2
-    if (HAL_ADC_Start_DMA(&hadc2, (uint32_t*)&ADC2_Values[0], NUM_ADC2_BUTTONS) != HAL_OK) {
-        APP_ERR("ADC2 DMA start failed\n");
-        HAL_ADC_Stop_DMA(&hadc1);  // 清理已启动的 ADC1
-        return ADCBtnsError::DMA2_START_FAILED;
-    }
+    // // 启动 ADC2
+    // if (HAL_ADC_Start_DMA(&hadc2, (uint32_t*)&ADC2_Values[0], NUM_ADC2_BUTTONS) != HAL_OK) {
+    //     APP_ERR("ADC2 DMA start failed\n");
+    //     HAL_ADC_Stop_DMA(&hadc1);  // 清理已启动的 ADC1
+    //     return ADCBtnsError::DMA2_START_FAILED;
+    // }
 
-    // MICROS_TIMER.delayMicros(READ_BTNS_INTERVAL); // 等待一个轮询周期，均摊延时
+    // // MICROS_TIMER.delayMicros(READ_BTNS_INTERVAL); // 等待一个轮询周期，均摊延时
 
-    // 启动 ADC3
-    if (HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&ADC3_Values[0], NUM_ADC3_BUTTONS) != HAL_OK) {
-        APP_ERR("ADC3 DMA start failed\n");
-        HAL_ADC_Stop_DMA(&hadc1);  // 清理已启动的 ADC
-        HAL_ADC_Stop_DMA(&hadc2);
-        return ADCBtnsError::DMA3_START_FAILED;
-    }
+    // // 启动 ADC3
+    // if (HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&ADC3_Values[0], NUM_ADC3_BUTTONS) != HAL_OK) {
+    //     APP_ERR("ADC3 DMA start failed\n");
+    //     HAL_ADC_Stop_DMA(&hadc1);  // 清理已启动的 ADC
+    //     HAL_ADC_Stop_DMA(&hadc2);
+    //     return ADCBtnsError::DMA3_START_FAILED;
+    // }
 
     // 如果启用采样率统计，则注册回调
     if(enableSamplingRate) {
@@ -742,6 +744,39 @@ ADCIndexInfo ADCManager::findADCButtonVirtualPin(uint8_t virtualPin) {
 
 // ADC转换完成回调
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
+    ADCManager::getInstance().notifyConversionComplete(hadc);
+}
+
+void ADCManager::triggerSampling() {
+    completionMask = 0;
+    // Start conversions
+    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&ADC1_Values[0], NUM_ADC1_BUTTONS);
+    HAL_ADC_Start_DMA(&hadc2, (uint32_t*)&ADC2_Values[0], NUM_ADC2_BUTTONS);
+    HAL_ADC_Start_DMA(&hadc3, (uint32_t*)&ADC3_Values[0], NUM_ADC3_BUTTONS);
+}
+
+bool ADCManager::isSamplingDone() {
+    bool done = (completionMask & 0x07) == 0x07;
+    if (done) {
+        LATENCY_MONITOR.samplingCompleted();
+    }
+    return done;
+}
+
+void ADCManager::clearSamplingDone() {
+    completionMask = 0;
+}
+
+void ADCManager::notifyConversionComplete(ADC_HandleTypeDef *hadc) {
+    if (hadc->Instance == ADC1) {
+        completionMask |= 0x01;
+    } else if (hadc->Instance == ADC2) {
+        completionMask |= 0x02;
+    } else if (hadc->Instance == ADC3) {
+        completionMask |= 0x04;
+    }
+    
+    // Also publish existing message for compatibility
     MC.publish(MessageId::DMA_ADC_CONV_CPLT, hadc);
 }
 

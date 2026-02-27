@@ -11,6 +11,7 @@
 #include "usbhostmanager.hpp"
 #include "gpdriver.hpp"
 #include "system_logger.h"
+#include "latency_monitor.hpp"
 
 void InputState::setup() {
     LOG_INFO("INPUT", "Starting input state setup");
@@ -75,18 +76,26 @@ void InputState::setup() {
 
 void InputState::loop() { 
 
-    virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
+    // 检查采样是否完成 (由SOF触发)
+    if (ADCManager::getInstance().isSamplingDone()) {
+        virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
 
-    // 只有在没有按下FN键时才处理游戏手柄数据
-    if((virtualPinMask & FN_BUTTON_VIRTUAL_PIN) == 0) {
-        GAMEPAD.read(virtualPinMask);
-        inputDriver->process(&GAMEPAD);  // 处理游戏手柄数据，将按键数据映射到xinput协议 形成 report 数据，然后通过 usb 发送出去
-    } else {
-        // 更新热键状态，处理hold和click逻辑
-        HOTKEYS_MANAGER.updateHotkeyState(virtualPinMask, lastVirtualPinMask);
+        // 只有在没有按下FN键时才处理游戏手柄数据
+        if((virtualPinMask & FN_BUTTON_VIRTUAL_PIN) == 0) {
+            GAMEPAD.read(virtualPinMask);
+            LATENCY_MONITOR.processingCompleted();
+            inputDriver->process(&GAMEPAD);  // 处理游戏手柄数据，将按键数据映射到xinput协议 形成 report 数据，然后通过 usb 发送出去
+        } else {
+            // 更新热键状态，处理hold和click逻辑
+            HOTKEYS_MANAGER.updateHotkeyState(virtualPinMask, lastVirtualPinMask);
+            LATENCY_MONITOR.processingCompleted();
+        }
+
+        lastVirtualPinMask = virtualPinMask;
+        
+        // 清除标志，等待下一次SOF
+        ADCManager::getInstance().clearSamplingDone();
     }
-
-    lastVirtualPinMask = virtualPinMask;
 
     // 处理USB任务
     tud_task(); // 设备模式任务
@@ -96,6 +105,8 @@ void InputState::loop() {
     #if HAS_LED == 1
     LEDS_MANAGER.loop(virtualPinMask);
     #endif
+    
+    LATENCY_MONITOR.process();
 }
 
 void InputState::reset() {
