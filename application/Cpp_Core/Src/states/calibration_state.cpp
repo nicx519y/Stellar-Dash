@@ -2,6 +2,7 @@
 #include "adc_btns/adc_calibration.hpp"
 #include "pwm-ws2812b.h"
 #include "storagemanager.hpp"
+#include "adc_btns/adc_manager.hpp"
 
 #include "system_logger.h"
 
@@ -24,6 +25,11 @@ void CalibrationState::setup() {
     LOG_INFO("CALIBRATION", "Starting calibration state setup");
     APP_DBG("CalibrationState::setup");
     
+    // 切换到校准/连续采样模式
+    ADCManager::getInstance().setADCMode(ADC_MODE_CONTINUOUS);
+    // 启动连续采样
+    ADCManager::getInstance().startContinuousSampling();
+
     // 启动手动校准模式
     ADC_CALIBRATION_MANAGER.startManualCalibration();
     ADC_CALIBRATION_MANAGER.setAllCalibrationCompletedCallback(allCalibrationCompletedCallback);

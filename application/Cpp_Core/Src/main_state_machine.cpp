@@ -33,8 +33,6 @@ void MainStateMachine::setup()
             LOG_INFO("MAIN_STATE_MACHINE", "Entering INPUT_STATE");
             break;
         case BootMode::BOOT_MODE_CALIBRATION:
-            // 切换到校准/连续采样模式
-            ADCManager::getInstance().setADCMode(ADC_MODE_CONTINUOUS);
 
             state = &CALIBRATION_STATE;
             STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT); // 设置为输入模式，保证下次启动时进入输入模式
