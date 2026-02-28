@@ -10,6 +10,7 @@
 #define LEDS_ANIMATION_CYCLE 10000  // 10秒周期
 #endif
 
+
 LEDsManager::LEDsManager()
 {
     opts = &STORAGE_MANAGER.getDefaultGamepadProfile()->ledsConfigs;
@@ -106,9 +107,15 @@ void LEDsManager::loop(uint32_t virtualPinMask)
         return;
     }
 
+    static uint32_t lastLoopTime = 0;
+    if (HAL_GetTick() - lastLoopTime < 1000 / FPS_OF_LED_ANIMATION) {
+        return;
+    }
+    lastLoopTime = HAL_GetTick();
+
     // 处理按钮按下事件（用于涟漪效果）
     processButtonPress(virtualPinMask);
-    
+
     // 更新涟漪状态
     updateRipples();
     
