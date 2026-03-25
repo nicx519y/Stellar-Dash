@@ -48,6 +48,7 @@ Drivers/USB \
 Drivers/ADC \
 Drivers/PWM-WS2812B \
 Drivers/GPIO-BTN \
+Drivers/SPI-ST7789 \
 Libs/tinyusb/src \
 Libs/tinyusb/src/device \
 Libs/tinyusb/src/host \
@@ -130,6 +131,7 @@ C_INCLUDES += \
 -IDrivers/ADC \
 -IDrivers/PWM-WS2812B \
 -IDrivers/GPIO-BTN \
+-IDrivers/SPI-ST7789 \
 -ILibs/httpd \
 -ILibs/tinyusb/hw \
 -ILibs/tinyusb/src \
