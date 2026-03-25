@@ -26,14 +26,14 @@ extern "C" {
  * ========================================================================== */
 
 // HBox Flash内存布局 (8MB总容量):
-// 0x00780000-0x007FFFFF   0x90780000-0x907FFFFF   512KB     【日志存储区域】
+// 0x00580000-0x0058FFFF   0x90580000-0x9058FFFF   64KB      【日志存储区域】
 
 // Flash存储配置
 #define LOG_FLASH_BASE_ADDR         0x90580000      // 虚拟地址
 #define LOG_FLASH_PHYSICAL_ADDR     0x00580000      // 物理地址
-#define LOG_FLASH_TOTAL_SIZE        (512 * 1024)    // 512KB日志存储空间
+#define LOG_FLASH_TOTAL_SIZE        (64 * 1024)     // 64KB日志存储空间
 #define LOG_FLASH_SECTOR_SIZE       4096            // 4KB扇区大小
-#define LOG_FLASH_SECTOR_COUNT      (LOG_FLASH_TOTAL_SIZE / LOG_FLASH_SECTOR_SIZE) // 128个扇区
+#define LOG_FLASH_SECTOR_COUNT      (LOG_FLASH_TOTAL_SIZE / LOG_FLASH_SECTOR_SIZE) // 16个扇区
 
 // 日志配置
 #define LOG_HEADER_SIZE             64              // 头部固定64字节

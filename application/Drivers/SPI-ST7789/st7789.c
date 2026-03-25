@@ -1,4 +1,5 @@
 #include "st7789.h"
+#include <string.h>
 
 #define ST7789_CMD_SWRESET 0x01u
 #define ST7789_CMD_SLPOUT  0x11u
@@ -562,4 +563,1017 @@ void ST7789_DrawString(ST7789_Handle* lcd, uint16_t x, uint16_t y, const char* s
         ST7789_DrawChar(lcd, cx, cy, c, fg_rgb888, bg_rgb888, scale);
         cx = (uint16_t)(cx + step_x);
     }
+}
+
+static uint16_t st7789_min_u16(uint16_t a, uint16_t b)
+{
+    return (a < b) ? a : b;
+}
+
+void ST7789_DrawBitmap(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h, const void* pixels, ST7789_BitmapFormat format, uint32_t stride_bytes)
+{
+    if (!lcd || !lcd->inited || !pixels) return;
+    if (w == 0 || h == 0) return;
+    if (x >= st7789_width(lcd) || y >= st7789_height(lcd)) return;
+
+    uint16_t draw_w = st7789_min_u16(w, (uint16_t)(st7789_width(lcd) - x));
+    uint16_t draw_h = st7789_min_u16(h, (uint16_t)(st7789_height(lcd) - y));
+
+    if (stride_bytes == 0)
+    {
+        switch (format)
+        {
+            case ST7789_BITMAP_RGB565_BE:
+            case ST7789_BITMAP_RGB565_LE:
+                stride_bytes = (uint32_t)w * 2u;
+                break;
+            case ST7789_BITMAP_RGB888:
+                stride_bytes = (uint32_t)w * 3u;
+                break;
+            case ST7789_BITMAP_ARGB8888:
+                stride_bytes = (uint32_t)w * 4u;
+                break;
+            default:
+                return;
+        }
+    }
+
+    st7789_set_address_window(lcd, x, y, (uint16_t)(x + draw_w - 1u), (uint16_t)(y + draw_h - 1u));
+
+    const uint8_t* src = (const uint8_t*)pixels;
+    uint8_t out[192];
+    size_t out_len = 0;
+
+    for (uint16_t row = 0; row < draw_h; row++)
+    {
+        const uint8_t* row_ptr = src + (size_t)row * (size_t)stride_bytes;
+
+        for (uint16_t col = 0; col < draw_w; col++)
+        {
+            uint8_t r = 0, g = 0, b = 0;
+            uint16_t c565 = 0;
+
+            switch (format)
+            {
+                case ST7789_BITMAP_RGB565_BE:
+                {
+                    const uint8_t* p = row_ptr + (size_t)col * 2u;
+                    c565 = (uint16_t)(((uint16_t)p[0] << 8) | (uint16_t)p[1]);
+                    break;
+                }
+                case ST7789_BITMAP_RGB565_LE:
+                {
+                    const uint8_t* p = row_ptr + (size_t)col * 2u;
+                    c565 = (uint16_t)(((uint16_t)p[1] << 8) | (uint16_t)p[0]);
+                    break;
+                }
+                case ST7789_BITMAP_RGB888:
+                {
+                    const uint8_t* p = row_ptr + (size_t)col * 3u;
+                    r = p[0];
+                    g = p[1];
+                    b = p[2];
+                    c565 = st7789_rgb888_to_565(((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b);
+                    break;
+                }
+                case ST7789_BITMAP_ARGB8888:
+                {
+                    const uint8_t* p = row_ptr + (size_t)col * 4u;
+                    r = p[1];
+                    g = p[2];
+                    b = p[3];
+                    c565 = st7789_rgb888_to_565(((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b);
+                    break;
+                }
+                default:
+                    st7789_end_pixels();
+                    return;
+            }
+
+            if (format == ST7789_BITMAP_RGB565_BE || format == ST7789_BITMAP_RGB565_LE)
+            {
+                uint8_t r5 = (uint8_t)((c565 >> 11) & 0x1Fu);
+                uint8_t g6 = (uint8_t)((c565 >> 5) & 0x3Fu);
+                uint8_t b5 = (uint8_t)(c565 & 0x1Fu);
+                r = (uint8_t)((r5 << 3) | (r5 >> 2));
+                g = (uint8_t)((g6 << 2) | (g6 >> 4));
+                b = (uint8_t)((b5 << 3) | (b5 >> 2));
+            }
+
+            if (lcd->cfg.color_mode == ST7789_COLOR_MODE_RGB565)
+            {
+                if (out_len + 2 > sizeof(out))
+                {
+                    st7789_write_bytes(lcd, out, out_len);
+                    out_len = 0;
+                }
+                out[out_len++] = (uint8_t)(c565 >> 8);
+                out[out_len++] = (uint8_t)(c565 & 0xFFu);
+            }
+            else
+            {
+                if (out_len + 3 > sizeof(out))
+                {
+                    st7789_write_bytes(lcd, out, out_len);
+                    out_len = 0;
+                }
+                out[out_len++] = (uint8_t)(r & 0xFCu);
+                out[out_len++] = (uint8_t)(g & 0xFCu);
+                out[out_len++] = (uint8_t)(b & 0xFCu);
+            }
+        }
+    }
+
+    if (out_len)
+    {
+        st7789_write_bytes(lcd, out, out_len);
+    }
+    st7789_end_pixels();
+}
+
+void ST7789_DrawBitmap1BPP(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t* bits, uint32_t stride_bytes, uint32_t fg_rgb888, uint32_t bg_rgb888)
+{
+    if (!lcd || !lcd->inited || !bits) return;
+    if (w == 0 || h == 0) return;
+    if (x >= st7789_width(lcd) || y >= st7789_height(lcd)) return;
+
+    uint16_t draw_w = st7789_min_u16(w, (uint16_t)(st7789_width(lcd) - x));
+    uint16_t draw_h = st7789_min_u16(h, (uint16_t)(st7789_height(lcd) - y));
+
+    if (stride_bytes == 0)
+    {
+        stride_bytes = ((uint32_t)w + 7u) / 8u;
+    }
+
+    st7789_set_address_window(lcd, x, y, (uint16_t)(x + draw_w - 1u), (uint16_t)(y + draw_h - 1u));
+
+    uint16_t fg565 = st7789_rgb888_to_565(fg_rgb888);
+    uint16_t bg565 = st7789_rgb888_to_565(bg_rgb888);
+    uint8_t out[192];
+    size_t out_len = 0;
+
+    for (uint16_t row = 0; row < draw_h; row++)
+    {
+        const uint8_t* row_ptr = bits + (size_t)row * (size_t)stride_bytes;
+        for (uint16_t col = 0; col < draw_w; col++)
+        {
+            uint8_t byte = row_ptr[col >> 3];
+            uint8_t bit = (uint8_t)((byte >> (7u - (col & 7u))) & 0x01u);
+            uint16_t c = bit ? fg565 : bg565;
+            uint8_t r5 = (uint8_t)((c >> 11) & 0x1Fu);
+            uint8_t g6 = (uint8_t)((c >> 5) & 0x3Fu);
+            uint8_t b5 = (uint8_t)(c & 0x1Fu);
+            uint8_t r = (uint8_t)((r5 << 3) | (r5 >> 2));
+            uint8_t g = (uint8_t)((g6 << 2) | (g6 >> 4));
+            uint8_t b = (uint8_t)((b5 << 3) | (b5 >> 2));
+
+            if (lcd->cfg.color_mode == ST7789_COLOR_MODE_RGB565)
+            {
+                if (out_len + 2 > sizeof(out))
+                {
+                    st7789_write_bytes(lcd, out, out_len);
+                    out_len = 0;
+                }
+                out[out_len++] = (uint8_t)(c >> 8);
+                out[out_len++] = (uint8_t)(c & 0xFFu);
+            }
+            else
+            {
+                if (out_len + 3 > sizeof(out))
+                {
+                    st7789_write_bytes(lcd, out, out_len);
+                    out_len = 0;
+                }
+                out[out_len++] = (uint8_t)(r & 0xFCu);
+                out[out_len++] = (uint8_t)(g & 0xFCu);
+                out[out_len++] = (uint8_t)(b & 0xFCu);
+            }
+        }
+    }
+
+    if (out_len)
+    {
+        st7789_write_bytes(lcd, out, out_len);
+    }
+    st7789_end_pixels();
+}
+
+typedef struct
+{
+    const uint8_t* data;
+    size_t len;
+    size_t pos;
+} st7789_gif_stream_t;
+
+typedef struct
+{
+    bool transparent;
+    uint8_t transparent_index;
+    uint16_t delay_cs;
+    uint8_t disposal;
+} st7789_gif_gce_t;
+
+typedef struct
+{
+    st7789_gif_stream_t* s;
+    uint8_t subblock_remaining;
+    bool terminator_seen;
+    uint32_t datum;
+    uint8_t bits;
+} st7789_gif_lzw_reader_t;
+
+static uint16_t st7789_gif_prefix[4096];
+static uint8_t st7789_gif_suffix[4096];
+static uint8_t st7789_gif_stack[4096];
+static uint8_t st7789_gif_gct[256 * 3];
+static uint8_t st7789_gif_lct[256 * 3];
+static uint8_t st7789_gif_line_idx[ST7789_WIDTH];
+
+static bool st7789_gif_read_u8(st7789_gif_stream_t* s, uint8_t* out)
+{
+    if (!s || s->pos >= s->len) return false;
+    *out = s->data[s->pos++];
+    return true;
+}
+
+static bool st7789_gif_read_u16le(st7789_gif_stream_t* s, uint16_t* out)
+{
+    uint8_t lo = 0, hi = 0;
+    if (!st7789_gif_read_u8(s, &lo)) return false;
+    if (!st7789_gif_read_u8(s, &hi)) return false;
+    *out = (uint16_t)((uint16_t)lo | ((uint16_t)hi << 8));
+    return true;
+}
+
+static bool st7789_gif_skip(st7789_gif_stream_t* s, size_t n)
+{
+    if (!s) return false;
+    if (s->pos + n > s->len) return false;
+    s->pos += n;
+    return true;
+}
+
+static bool st7789_gif_skip_subblocks(st7789_gif_stream_t* s)
+{
+    uint8_t sz = 0;
+    while (1)
+    {
+        if (!st7789_gif_read_u8(s, &sz)) return false;
+        if (sz == 0) return true;
+        if (!st7789_gif_skip(s, sz)) return false;
+    }
+}
+
+static bool st7789_gif_read_color_table(st7789_gif_stream_t* s, uint8_t* pal, uint16_t count)
+{
+    if (count > 256) return false;
+    if (!s || !pal) return false;
+    for (uint16_t i = 0; i < count; i++)
+    {
+        uint8_t r = 0, g = 0, b = 0;
+        if (!st7789_gif_read_u8(s, &r)) return false;
+        if (!st7789_gif_read_u8(s, &g)) return false;
+        if (!st7789_gif_read_u8(s, &b)) return false;
+        pal[i * 3u + 0u] = r;
+        pal[i * 3u + 1u] = g;
+        pal[i * 3u + 2u] = b;
+    }
+    return true;
+}
+
+static bool st7789_gif_read_gce(st7789_gif_stream_t* s, st7789_gif_gce_t* gce)
+{
+    uint8_t block_size = 0;
+    if (!st7789_gif_read_u8(s, &block_size)) return false;
+    if (block_size != 4) return false;
+
+    uint8_t packed = 0;
+    uint16_t delay_cs = 0;
+    uint8_t trans = 0;
+    uint8_t terminator = 0;
+
+    if (!st7789_gif_read_u8(s, &packed)) return false;
+    if (!st7789_gif_read_u16le(s, &delay_cs)) return false;
+    if (!st7789_gif_read_u8(s, &trans)) return false;
+    if (!st7789_gif_read_u8(s, &terminator)) return false;
+    if (terminator != 0) return false;
+
+    if (gce)
+    {
+        gce->transparent = (packed & 0x01u) ? true : false;
+        gce->transparent_index = trans;
+        gce->delay_cs = delay_cs;
+        gce->disposal = (uint8_t)((packed >> 2) & 0x07u);
+    }
+
+    return true;
+}
+
+static bool st7789_gif_lzw_next_data_byte(st7789_gif_lzw_reader_t* r, uint8_t* out)
+{
+    if (!r || !out) return false;
+    if (r->terminator_seen) return false;
+    if (r->subblock_remaining == 0)
+    {
+        uint8_t sz = 0;
+        if (!st7789_gif_read_u8(r->s, &sz)) return false;
+        if (sz == 0)
+        {
+            r->terminator_seen = true;
+            return false;
+        }
+        r->subblock_remaining = sz;
+    }
+
+    if (!st7789_gif_read_u8(r->s, out)) return false;
+    r->subblock_remaining--;
+    return true;
+}
+
+static bool st7789_gif_lzw_drain_to_terminator(st7789_gif_lzw_reader_t* r)
+{
+    if (!r) return false;
+    if (r->terminator_seen) return true;
+
+    if (r->subblock_remaining)
+    {
+        if (!st7789_gif_skip(r->s, r->subblock_remaining)) return false;
+        r->subblock_remaining = 0;
+    }
+
+    if (!st7789_gif_skip_subblocks(r->s)) return false;
+    r->terminator_seen = true;
+    return true;
+}
+
+static int st7789_gif_lzw_read_code(st7789_gif_lzw_reader_t* r, int code_size)
+{
+    while (r->bits < (uint8_t)code_size)
+    {
+        uint8_t byte = 0;
+        if (!st7789_gif_lzw_next_data_byte(r, &byte))
+        {
+            return -1;
+        }
+        r->datum |= ((uint32_t)byte << r->bits);
+        r->bits = (uint8_t)(r->bits + 8u);
+    }
+
+    int code_mask = (1 << code_size) - 1;
+    int code = (int)(r->datum & (uint32_t)code_mask);
+    r->datum >>= code_size;
+    r->bits = (uint8_t)(r->bits - (uint8_t)code_size);
+    return code;
+}
+
+static void st7789_gif_palette_color(const uint8_t* pal, uint16_t count, uint8_t index, uint8_t* r, uint8_t* g, uint8_t* b)
+{
+    if (!pal || count == 0 || index >= count)
+    {
+        *r = 0;
+        *g = 0;
+        *b = 0;
+        return;
+    }
+    *r = pal[index * 3u + 0u];
+    *g = pal[index * 3u + 1u];
+    *b = pal[index * 3u + 2u];
+}
+
+static void st7789_gif_write_scanline(ST7789_Handle* lcd, uint16_t x, uint16_t y, const uint8_t* idx, uint16_t w, const uint8_t* pal, uint16_t pal_count, const st7789_gif_gce_t* gce, uint32_t bg_rgb888)
+{
+    if (w == 0) return;
+
+    uint8_t bg_r = (uint8_t)((bg_rgb888 >> 16) & 0xFFu);
+    uint8_t bg_g = (uint8_t)((bg_rgb888 >> 8) & 0xFFu);
+    uint8_t bg_b = (uint8_t)(bg_rgb888 & 0xFFu);
+    uint16_t bg565 = st7789_rgb888_to_565(bg_rgb888);
+
+    st7789_set_address_window(lcd, x, y, (uint16_t)(x + w - 1u), y);
+
+    uint8_t out[192];
+    size_t out_len = 0;
+
+    for (uint16_t i = 0; i < w; i++)
+    {
+        uint8_t r = 0, g = 0, b = 0;
+        uint8_t px = idx[i];
+
+        if (gce && gce->transparent && px == gce->transparent_index)
+        {
+            r = bg_r;
+            g = bg_g;
+            b = bg_b;
+        }
+        else
+        {
+            st7789_gif_palette_color(pal, pal_count, px, &r, &g, &b);
+        }
+
+        if (lcd->cfg.color_mode == ST7789_COLOR_MODE_RGB565)
+        {
+            uint16_t c = (gce && gce->transparent && px == gce->transparent_index) ? bg565 : st7789_rgb888_to_565(((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b);
+            if (out_len + 2 > sizeof(out))
+            {
+                st7789_write_bytes(lcd, out, out_len);
+                out_len = 0;
+            }
+            out[out_len++] = (uint8_t)(c >> 8);
+            out[out_len++] = (uint8_t)(c & 0xFFu);
+        }
+        else
+        {
+            if (out_len + 3 > sizeof(out))
+            {
+                st7789_write_bytes(lcd, out, out_len);
+                out_len = 0;
+            }
+            out[out_len++] = (uint8_t)(r & 0xFCu);
+            out[out_len++] = (uint8_t)(g & 0xFCu);
+            out[out_len++] = (uint8_t)(b & 0xFCu);
+        }
+    }
+
+    if (out_len)
+    {
+        st7789_write_bytes(lcd, out, out_len);
+    }
+
+    st7789_end_pixels();
+}
+
+static bool st7789_gif_decode_image(ST7789_Handle* lcd, uint16_t base_x, uint16_t base_y, st7789_gif_stream_t* s, uint16_t left, uint16_t top, uint16_t w, uint16_t h, bool interlaced, const uint8_t* pal, uint16_t pal_count, const st7789_gif_gce_t* gce, uint32_t bg_rgb888, uint16_t* out_delay_ms, uint8_t* out_disposal)
+{
+    uint8_t lzw_min = 0;
+    if (!st7789_gif_read_u8(s, &lzw_min)) return false;
+    if (lzw_min < 2 || lzw_min > 8) return false;
+
+    if (w > ST7789_WIDTH) return false;
+
+    st7789_gif_lzw_reader_t r = {0};
+    r.s = s;
+    r.subblock_remaining = 0;
+    r.terminator_seen = false;
+    r.datum = 0;
+    r.bits = 0;
+
+    int clear_code = 1 << lzw_min;
+    int end_code = clear_code + 1;
+    int code_size = lzw_min + 1;
+    int next_code = end_code + 1;
+    int code = 0;
+    int old_code = -1;
+    int in_code = 0;
+    uint8_t first = 0;
+
+    for (int i = 0; i < clear_code; i++)
+    {
+        st7789_gif_prefix[i] = 0xFFFFu;
+        st7789_gif_suffix[i] = (uint8_t)i;
+    }
+
+    uint16_t row_actual = 0;
+    uint8_t pass = 0;
+    uint16_t interlace_row = 0;
+    if (interlaced)
+    {
+        pass = 0;
+        interlace_row = 0;
+        row_actual = 0;
+    }
+    else
+    {
+        row_actual = 0;
+    }
+
+    uint16_t col = 0;
+    uint16_t rows_written = 0;
+
+    while (rows_written < h)
+    {
+        code = st7789_gif_lzw_read_code(&r, code_size);
+        if (code < 0) break;
+
+        if (code == clear_code)
+        {
+            code_size = lzw_min + 1;
+            next_code = end_code + 1;
+            old_code = -1;
+            continue;
+        }
+        if (code == end_code)
+        {
+            break;
+        }
+
+        if (old_code == -1)
+        {
+            uint8_t px = (uint8_t)code;
+            st7789_gif_line_idx[col++] = px;
+            old_code = code;
+            first = (uint8_t)code;
+
+            if (col == w)
+            {
+                uint16_t screen_y = (uint16_t)(base_y + top + row_actual);
+                uint16_t screen_x = (uint16_t)(base_x + left);
+                if (screen_x < st7789_width(lcd) && screen_y < st7789_height(lcd))
+                {
+                    uint16_t vis_w = st7789_min_u16(w, (uint16_t)(st7789_width(lcd) - screen_x));
+                    st7789_gif_write_scanline(lcd, screen_x, screen_y, st7789_gif_line_idx, vis_w, pal, pal_count, gce, bg_rgb888);
+                }
+
+                col = 0;
+                rows_written++;
+
+                if (interlaced)
+                {
+                    static const uint8_t start[4] = {0, 4, 2, 1};
+                    static const uint8_t step[4] = {8, 8, 4, 2};
+
+                    interlace_row = (uint16_t)(interlace_row + step[pass]);
+                    while (pass < 3 && interlace_row >= h)
+                    {
+                        pass++;
+                        interlace_row = start[pass];
+                    }
+                    row_actual = interlace_row;
+                }
+                else
+                {
+                    row_actual++;
+                }
+            }
+            continue;
+        }
+
+        in_code = code;
+        int stack_top = 0;
+
+        if (code >= next_code)
+        {
+            st7789_gif_stack[stack_top++] = first;
+            code = old_code;
+        }
+
+        while (code >= clear_code)
+        {
+            st7789_gif_stack[stack_top++] = st7789_gif_suffix[code];
+            code = st7789_gif_prefix[code];
+        }
+
+        first = (uint8_t)code;
+        st7789_gif_stack[stack_top++] = first;
+
+        if (next_code < 4096)
+        {
+            st7789_gif_prefix[next_code] = (uint16_t)old_code;
+            st7789_gif_suffix[next_code] = first;
+            next_code++;
+            if (next_code == (1 << code_size) && code_size < 12)
+            {
+                code_size++;
+            }
+        }
+
+        old_code = in_code;
+
+        while (stack_top)
+        {
+            uint8_t px = st7789_gif_stack[--stack_top];
+            st7789_gif_line_idx[col++] = px;
+            if (col == w)
+            {
+                uint16_t screen_y = (uint16_t)(base_y + top + row_actual);
+                uint16_t screen_x = (uint16_t)(base_x + left);
+                if (screen_x < st7789_width(lcd) && screen_y < st7789_height(lcd))
+                {
+                    uint16_t vis_w = st7789_min_u16(w, (uint16_t)(st7789_width(lcd) - screen_x));
+                    st7789_gif_write_scanline(lcd, screen_x, screen_y, st7789_gif_line_idx, vis_w, pal, pal_count, gce, bg_rgb888);
+                }
+
+                col = 0;
+                rows_written++;
+
+                if (interlaced)
+                {
+                    static const uint8_t start[4] = {0, 4, 2, 1};
+                    static const uint8_t step[4] = {8, 8, 4, 2};
+
+                    interlace_row = (uint16_t)(interlace_row + step[pass]);
+                    while (pass < 3 && interlace_row >= h)
+                    {
+                        pass++;
+                        interlace_row = start[pass];
+                    }
+                    row_actual = interlace_row;
+                }
+                else
+                {
+                    row_actual++;
+                }
+
+                if (rows_written >= h) break;
+            }
+        }
+    }
+
+    if (!st7789_gif_lzw_drain_to_terminator(&r)) return false;
+    if (rows_written != h) return false;
+
+    if (out_delay_ms)
+    {
+        uint16_t delay_cs = gce ? gce->delay_cs : 0;
+        uint16_t delay_ms = (uint16_t)(delay_cs * 10u);
+        if (delay_ms == 0) delay_ms = 10;
+        *out_delay_ms = delay_ms;
+    }
+
+    if (out_disposal)
+    {
+        *out_disposal = gce ? gce->disposal : 0;
+    }
+
+    return true;
+}
+
+static bool st7789_gif_has_signature(const uint8_t* gif, size_t gif_len)
+{
+    if (!gif || gif_len < 6) return false;
+    if (gif[0] != 'G' || gif[1] != 'I' || gif[2] != 'F') return false;
+    if (gif[3] != '8') return false;
+    if (gif[4] != '7' && gif[4] != '9') return false;
+    if (gif[5] != 'a') return false;
+    return true;
+}
+
+bool ST7789_GIF_GetCanvasSize(const uint8_t* gif, size_t gif_len, uint16_t* out_w, uint16_t* out_h)
+{
+    if (!st7789_gif_has_signature(gif, gif_len)) return false;
+
+    st7789_gif_stream_t s = {0};
+    s.data = gif;
+    s.len = gif_len;
+    s.pos = 6;
+
+    uint16_t w = 0, h = 0;
+    uint8_t packed = 0;
+    uint8_t bg = 0;
+    uint8_t aspect = 0;
+
+    if (!st7789_gif_read_u16le(&s, &w)) return false;
+    if (!st7789_gif_read_u16le(&s, &h)) return false;
+    if (!st7789_gif_read_u8(&s, &packed)) return false;
+    if (!st7789_gif_read_u8(&s, &bg)) return false;
+    if (!st7789_gif_read_u8(&s, &aspect)) return false;
+
+    if (out_w) *out_w = w;
+    if (out_h) *out_h = h;
+
+    return true;
+}
+
+bool ST7789_GIF_RenderFirstFrame(ST7789_Handle* lcd, uint16_t x, uint16_t y, const uint8_t* gif, size_t gif_len, uint32_t bg_rgb888)
+{
+    if (!lcd || !lcd->inited) return false;
+    if (!st7789_gif_has_signature(gif, gif_len)) return false;
+
+    st7789_gif_stream_t s = {0};
+    s.data = gif;
+    s.len = gif_len;
+    s.pos = 6;
+
+    uint16_t canvas_w = 0, canvas_h = 0;
+    uint8_t packed = 0;
+    uint8_t bg_index = 0;
+    uint8_t aspect = 0;
+
+    if (!st7789_gif_read_u16le(&s, &canvas_w)) return false;
+    if (!st7789_gif_read_u16le(&s, &canvas_h)) return false;
+    if (!st7789_gif_read_u8(&s, &packed)) return false;
+    if (!st7789_gif_read_u8(&s, &bg_index)) return false;
+    if (!st7789_gif_read_u8(&s, &aspect)) return false;
+
+    bool gct_flag = (packed & 0x80u) ? true : false;
+    uint16_t gct_count = 0;
+    if (gct_flag)
+    {
+        uint8_t sz = (uint8_t)(packed & 0x07u);
+        gct_count = (uint16_t)(1u << (sz + 1u));
+        if (!st7789_gif_read_color_table(&s, st7789_gif_gct, gct_count)) return false;
+    }
+
+    st7789_gif_gce_t gce = {0};
+    gce.transparent = false;
+    gce.transparent_index = 0;
+    gce.delay_cs = 0;
+    gce.disposal = 0;
+
+    while (s.pos < s.len)
+    {
+        uint8_t sep = 0;
+        if (!st7789_gif_read_u8(&s, &sep)) return false;
+
+        if (sep == 0x3Bu)
+        {
+            return false;
+        }
+        else if (sep == 0x21u)
+        {
+            uint8_t label = 0;
+            if (!st7789_gif_read_u8(&s, &label)) return false;
+            if (label == 0xF9u)
+            {
+                if (!st7789_gif_read_gce(&s, &gce)) return false;
+            }
+            else
+            {
+                if (!st7789_gif_skip_subblocks(&s)) return false;
+            }
+        }
+        else if (sep == 0x2Cu)
+        {
+            uint16_t left = 0, top = 0, w = 0, h = 0;
+            uint8_t ipacked = 0;
+            if (!st7789_gif_read_u16le(&s, &left)) return false;
+            if (!st7789_gif_read_u16le(&s, &top)) return false;
+            if (!st7789_gif_read_u16le(&s, &w)) return false;
+            if (!st7789_gif_read_u16le(&s, &h)) return false;
+            if (!st7789_gif_read_u8(&s, &ipacked)) return false;
+
+            bool lct_flag = (ipacked & 0x80u) ? true : false;
+            bool interlaced = (ipacked & 0x40u) ? true : false;
+            uint16_t lct_count = 0;
+            const uint8_t* pal = st7789_gif_gct;
+            uint16_t pal_count = gct_count;
+
+            if (lct_flag)
+            {
+                uint8_t sz = (uint8_t)(ipacked & 0x07u);
+                lct_count = (uint16_t)(1u << (sz + 1u));
+                if (!st7789_gif_read_color_table(&s, st7789_gif_lct, lct_count)) return false;
+                pal = st7789_gif_lct;
+                pal_count = lct_count;
+            }
+
+            uint16_t delay_ms = 0;
+            uint8_t disposal = 0;
+            bool ok = st7789_gif_decode_image(lcd, x, y, &s, left, top, w, h, interlaced, pal, pal_count, &gce, bg_rgb888, &delay_ms, &disposal);
+            (void)canvas_w;
+            (void)canvas_h;
+            (void)bg_index;
+            (void)aspect;
+            (void)delay_ms;
+            (void)disposal;
+            return ok;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+bool ST7789_GIF_Play(ST7789_Handle* lcd, uint16_t x, uint16_t y, const uint8_t* gif, size_t gif_len, uint32_t bg_rgb888, uint16_t repeat)
+{
+    if (!lcd || !lcd->inited) return false;
+    if (!st7789_gif_has_signature(gif, gif_len)) return false;
+    if (repeat == 0) repeat = 1;
+
+    for (uint16_t rep = 0; rep < repeat; rep++)
+    {
+        st7789_gif_stream_t s = {0};
+        s.data = gif;
+        s.len = gif_len;
+        s.pos = 6;
+
+        uint16_t canvas_w = 0, canvas_h = 0;
+        uint8_t packed = 0;
+        uint8_t bg_index = 0;
+        uint8_t aspect = 0;
+
+        if (!st7789_gif_read_u16le(&s, &canvas_w)) return false;
+        if (!st7789_gif_read_u16le(&s, &canvas_h)) return false;
+        if (!st7789_gif_read_u8(&s, &packed)) return false;
+        if (!st7789_gif_read_u8(&s, &bg_index)) return false;
+        if (!st7789_gif_read_u8(&s, &aspect)) return false;
+
+        bool gct_flag = (packed & 0x80u) ? true : false;
+        uint16_t gct_count = 0;
+        if (gct_flag)
+        {
+            uint8_t sz = (uint8_t)(packed & 0x07u);
+            gct_count = (uint16_t)(1u << (sz + 1u));
+            if (!st7789_gif_read_color_table(&s, st7789_gif_gct, gct_count)) return false;
+        }
+
+        st7789_gif_gce_t gce = {0};
+        gce.transparent = false;
+        gce.transparent_index = 0;
+        gce.delay_cs = 0;
+        gce.disposal = 0;
+
+        while (s.pos < s.len)
+        {
+            uint8_t sep = 0;
+            if (!st7789_gif_read_u8(&s, &sep)) return false;
+
+            if (sep == 0x3Bu)
+            {
+                break;
+            }
+            else if (sep == 0x21u)
+            {
+                uint8_t label = 0;
+                if (!st7789_gif_read_u8(&s, &label)) return false;
+                if (label == 0xF9u)
+                {
+                    if (!st7789_gif_read_gce(&s, &gce)) return false;
+                }
+                else
+                {
+                    if (!st7789_gif_skip_subblocks(&s)) return false;
+                }
+            }
+            else if (sep == 0x2Cu)
+            {
+                uint16_t left = 0, top = 0, w = 0, h = 0;
+                uint8_t ipacked = 0;
+                if (!st7789_gif_read_u16le(&s, &left)) return false;
+                if (!st7789_gif_read_u16le(&s, &top)) return false;
+                if (!st7789_gif_read_u16le(&s, &w)) return false;
+                if (!st7789_gif_read_u16le(&s, &h)) return false;
+                if (!st7789_gif_read_u8(&s, &ipacked)) return false;
+
+                bool lct_flag = (ipacked & 0x80u) ? true : false;
+                bool interlaced = (ipacked & 0x40u) ? true : false;
+                uint16_t lct_count = 0;
+                const uint8_t* pal = st7789_gif_gct;
+                uint16_t pal_count = gct_count;
+
+                if (lct_flag)
+                {
+                    uint8_t sz = (uint8_t)(ipacked & 0x07u);
+                    lct_count = (uint16_t)(1u << (sz + 1u));
+                    if (!st7789_gif_read_color_table(&s, st7789_gif_lct, lct_count)) return false;
+                    pal = st7789_gif_lct;
+                    pal_count = lct_count;
+                }
+
+                uint16_t delay_ms = 0;
+                uint8_t disposal = 0;
+                if (!st7789_gif_decode_image(lcd, x, y, &s, left, top, w, h, interlaced, pal, pal_count, &gce, bg_rgb888, &delay_ms, &disposal))
+                {
+                    return false;
+                }
+
+                HAL_Delay(delay_ms);
+
+                if (disposal == 2)
+                {
+                    uint16_t fx = (uint16_t)(x + left);
+                    uint16_t fy = (uint16_t)(y + top);
+                    if (fx < st7789_width(lcd) && fy < st7789_height(lcd))
+                    {
+                        uint16_t fw = st7789_min_u16(w, (uint16_t)(st7789_width(lcd) - fx));
+                        uint16_t fh = st7789_min_u16(h, (uint16_t)(st7789_height(lcd) - fy));
+                        ST7789_FillRect(lcd, fx, fy, fw, fh, bg_rgb888);
+                    }
+                }
+
+                gce.transparent = false;
+                gce.transparent_index = 0;
+                gce.delay_cs = 0;
+                gce.disposal = 0;
+
+                (void)canvas_w;
+                (void)canvas_h;
+                (void)bg_index;
+                (void)aspect;
+            }
+            else
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+static const uint8_t* st7789_assets_base = (const uint8_t*)0x905B0000u;
+
+const void* ST7789_Assets_GetBaseAddress(void)
+{
+    return st7789_assets_base;
+}
+
+void ST7789_Assets_SetBaseAddress(const void* base)
+{
+    if (base) st7789_assets_base = (const uint8_t*)base;
+}
+
+static uint16_t st7789_u16le(const uint8_t* p)
+{
+    return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+}
+
+static uint32_t st7789_u32le(const uint8_t* p)
+{
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+static bool st7789_assets_header_ok(const uint8_t* base, uint32_t* out_count, uint32_t* out_index_size)
+{
+    if (!base) return false;
+    if (base[0] != 'H' || base[1] != 'I' || base[2] != 'M' || base[3] != 'G') return false;
+    uint16_t ver = st7789_u16le(base + 4);
+    if (ver != 1u) return false;
+    uint32_t count = st7789_u32le(base + 16);
+    uint32_t index_size = st7789_u32le(base + 20);
+    if (count > 4096u) return false;
+    if ((index_size & 0x0Fu) != 0u) return false;
+    if (out_count) *out_count = count;
+    if (out_index_size) *out_index_size = index_size;
+    return true;
+}
+
+bool ST7789_Assets_Find(const char* name, ST7789_AssetInfo* out)
+{
+    if (!name || !out) return false;
+
+    const uint8_t* base = st7789_assets_base;
+    uint32_t count = 0;
+    uint32_t index_size = 0;
+    if (!st7789_assets_header_ok(base, &count, &index_size)) return false;
+
+    const uint8_t* index = base + 64;
+    for (uint32_t i = 0; i < count; i++)
+    {
+        const uint8_t* e = index + i * 64u;
+        char nbuf[33];
+        memcpy(nbuf, e, 32);
+        nbuf[32] = '\0';
+        for (int j = 0; j < 32; j++)
+        {
+            if (nbuf[j] == '\0') break;
+            if ((unsigned char)nbuf[j] < 0x20) { nbuf[j] = '\0'; break; }
+        }
+
+        if (strncmp(nbuf, name, 32) != 0) continue;
+
+        uint8_t type = e[32];
+        uint32_t offset = st7789_u32le(e + 36);
+        uint32_t size = st7789_u32le(e + 40);
+        uint16_t w = st7789_u16le(e + 44);
+        uint16_t h = st7789_u16le(e + 46);
+
+        out->type = (ST7789_AssetType)type;
+        out->data = base + offset;
+        out->size = size;
+        out->width = w;
+        out->height = h;
+        return true;
+    }
+
+    (void)index_size;
+    return false;
+}
+
+bool ST7789_Assets_Draw(ST7789_Handle* lcd, uint16_t x, uint16_t y, const char* name, uint32_t bg_rgb888)
+{
+    if (!lcd || !lcd->inited) return false;
+
+    ST7789_AssetInfo info = {0};
+    if (!ST7789_Assets_Find(name, &info)) return false;
+
+    if (info.type == ST7789_ASSET_TYPE_GIF)
+    {
+        return ST7789_GIF_RenderFirstFrame(lcd, x, y, (const uint8_t*)info.data, (size_t)info.size, bg_rgb888);
+    }
+
+    if (info.type == ST7789_ASSET_TYPE_RGB565LE)
+    {
+        ST7789_DrawBitmap(lcd, x, y, info.width, info.height, info.data, ST7789_BITMAP_RGB565_LE, (uint32_t)info.width * 2u);
+        return true;
+    }
+
+    return false;
+}
+
+bool ST7789_Assets_Play(ST7789_Handle* lcd, uint16_t x, uint16_t y, const char* name, uint32_t bg_rgb888, uint16_t repeat)
+{
+    if (!lcd || !lcd->inited) return false;
+
+    ST7789_AssetInfo info = {0};
+    if (!ST7789_Assets_Find(name, &info)) return false;
+
+    if (info.type == ST7789_ASSET_TYPE_GIF)
+    {
+        return ST7789_GIF_Play(lcd, x, y, (const uint8_t*)info.data, (size_t)info.size, bg_rgb888, repeat);
+    }
+
+    return ST7789_Assets_Draw(lcd, x, y, name, bg_rgb888);
 }

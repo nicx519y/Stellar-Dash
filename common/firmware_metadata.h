@@ -144,9 +144,27 @@ _Static_assert(sizeof(FirmwareMetadata) == METADATA_STRUCT_SIZE,
 #define SLOT_B_ADC_MAPPING_ADDR     0x90530000  // 128KB
 #define SLOT_B_ADC_MAPPING_SIZE     0x20000
 
-// 元数据区域
+// 配置/共享区域
+#define USER_CONFIG_ADDR            0x90560000  // 64KB (bootloader侧用户配置)
+#define USER_CONFIG_SIZE            0x10000
+
 #define METADATA_ADDR               0x90570000  // 64KB
 #define METADATA_SIZE               0x10000
+
+#define LOG_STORAGE_ADDR            0x90580000  // 64KB
+#define LOG_STORAGE_SIZE            0x10000
+
+#define APP_CONFIG_ADDR             0x90590000  // 64KB (application侧配置)
+#define APP_CONFIG_SIZE             0x10000
+
+#define ADC_COMMON_CONFIG_ADDR      0x905A0000  // 64KB
+#define ADC_COMMON_CONFIG_SIZE      0x10000
+
+#define SYS_IMAGE_RESOURCES_ADDR    0x905B0000  // 256KB
+#define SYS_IMAGE_RESOURCES_SIZE    0x40000
+
+#define USER_IMAGE_RESOURCES_ADDR   0x905F0000  // 2.0625MB
+#define USER_IMAGE_RESOURCES_SIZE   0x210000
 
 #ifdef __cplusplus
 }

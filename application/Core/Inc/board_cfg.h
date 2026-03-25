@@ -92,7 +92,29 @@
 #define ADC_VALUES_MAPPING_OFFSET           0x00280000      // ADC值映射表偏移 +2.5MB  
 
 // 用户配置区固定地址（独立于槽，两个槽共享）
-#define CONFIG_ADDR                         0x90700000      // 用户配置区固定地址
+#define CONFIG_ADDR                         0x90590000      // 用户配置区固定地址
+
+// 日志/资源区（独立于槽，两个槽共享）
+#ifndef LOG_STORAGE_ADDR
+#define LOG_STORAGE_ADDR                    0x90580000
+#endif
+#ifndef LOG_STORAGE_SIZE
+#define LOG_STORAGE_SIZE                    0x00010000      // 64KB
+#endif
+
+#ifndef SYS_IMAGE_RESOURCES_ADDR
+#define SYS_IMAGE_RESOURCES_ADDR            0x905B0000
+#endif
+#ifndef SYS_IMAGE_RESOURCES_SIZE
+#define SYS_IMAGE_RESOURCES_SIZE            0x00040000      // 256KB
+#endif
+
+#ifndef USER_IMAGE_RESOURCES_ADDR
+#define USER_IMAGE_RESOURCES_ADDR           0x905F0000
+#endif
+#ifndef USER_IMAGE_RESOURCES_SIZE
+#define USER_IMAGE_RESOURCES_SIZE           0x00210000      // 2.0625MB
+#endif
 
 
 
@@ -176,13 +198,11 @@ uint32_t get_current_slot_base_address(void);
 // 兼容性：如果需要编译时确定的地址，可以使用默认槽A地址
 #define WEB_RESOURCES_ADDR_STATIC           (0x90000000 + WEB_RESOURCES_OFFSET)       // 0x90100000
 #define ADC_VALUES_MAPPING_ADDR_STATIC      (0x90000000 + ADC_VALUES_MAPPING_OFFSET)  // 0x90280000
-
-#define ADC_COMMON_CONFIG_ADDR              0x90710000
+#define ADC_COMMON_CONFIG_ADDR              0x905A0000
 
 #define NUM_ADC_VALUES_MAPPING              8               // 最大8个映射 ADC按钮映射表用于值查找
 #define MAX_ADC_VALUES_LENGTH               40              // 每个映射最大40个值 ADC按钮映射表用于值查找
 #define MAX_NUM_MARKING_VALUE               100             // 每个step最大采集值个数
-#define TIME_ADC_INIT                       1000            // ADC初始化时间，时间越长初始化越准确
 #define NUM_WINDOW_SIZE                     8               // 校准滑动窗口大小
 
 #define NUM_PROFILES                        16

@@ -12,6 +12,7 @@ import subprocess
 import shutil
 import json
 import multiprocessing
+import re
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -49,6 +50,35 @@ class BuildTool:
         
         # 加载构建配置
         self.load_build_config()
+        self.shared_addresses = self.load_shared_addresses()
+
+    def load_shared_addresses(self) -> Dict[str, str]:
+        shared = {
+            "sys_assets_addr": "0x905B0000",
+            "sys_assets_size": "0x00040000",
+        }
+
+        board_cfg = self.application_dir / "Core" / "Inc" / "board_cfg.h"
+        if not board_cfg.exists():
+            return shared
+
+        try:
+            text = board_cfg.read_text(encoding="utf-8", errors="ignore")
+            for key, macro in [
+                ("sys_assets_addr", "SYS_IMAGE_RESOURCES_ADDR"),
+                ("sys_assets_size", "SYS_IMAGE_RESOURCES_SIZE"),
+            ]:
+                m = re.search(
+                    rf"^[ \t]*#define[ \t]+{re.escape(macro)}[ \t]+(0x[0-9A-Fa-f]+)",
+                    text,
+                    re.MULTILINE,
+                )
+                if m:
+                    shared[key] = m.group(1)
+        except Exception:
+            return shared
+
+        return shared
 
     def load_build_config(self):
         """加载构建配置"""
@@ -393,8 +423,22 @@ class BuildTool:
         # 如果Makefile不可用，使用手动OpenOCD配置
         return self._flash_using_openocd(slot)
 
+    
+    def load_assets_cfg(self) -> Dict[str, Any]:
+        cfg = {"max_width": 320, "max_height": 170, "dither": True}
+        cfg_path = self.tools_dir / "assets_config.json"
+        try:
+            if cfg_path.exists():
+                with open(cfg_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        cfg.update(data)
+        except Exception:
+            pass
+        return cfg
     def flash_web_resources(self, slot: str) -> bool:
         """烧录Web Resources到指定槽"""
+        print("=" * 50)
         print("=" * 50)
         print(f"烧录 Web Resources 到槽 {slot}")
         print("=" * 50)
@@ -426,6 +470,90 @@ class BuildTool:
             
         # 如果失败，使用OpenOCD方式
         return self._flash_web_resources_using_openocd(slot, webres_address, physical_address)
+
+    def build_system_assets(self) -> Optional[Path]:
+        assets_dir = self.application_dir / "assets"
+        if not assets_dir.exists():
+            print(f"未找到 assets 目录: {assets_dir}")
+            return None
+        out_file = self.application_dir / "build" / "system_assets.bin"
+        packer = self.tools_dir / "pack_assets.py"
+        if not packer.exists():
+            print(f"错误: assets 打包脚本不存在: {packer}")
+            return None
+        assets_fix = self.tools_dir / "assets_fix.py"
+        if assets_fix.exists():
+            acfg = self.load_assets_cfg()
+            fit_arg = f"{int(acfg.get('max_width',320))}x{int(acfg.get('max_height',170))}"
+            args = [
+                sys.executable,
+                str(assets_fix),
+                "--dir", str(assets_dir),
+                "--out", str(assets_dir),
+                "--fit", fit_arg,
+                "--inplace",
+            ]
+            if acfg.get("dither", True):
+                args.append("--dither")
+            self.run_command(args, self.tools_dir)
+
+        max_size = self.shared_addresses.get("sys_assets_size", "0x00040000")
+        cmd = [
+            sys.executable,
+            str(packer),
+            "--input", str(assets_dir),
+            "--output", str(out_file),
+            "--max-size", str(max_size),
+        ]
+
+        ok = self.run_command(cmd, self.tools_dir)
+        if not ok:
+            return None
+
+        if not out_file.exists():
+            print(f"错误: assets 打包输出不存在: {out_file}")
+            return None
+
+        return out_file
+
+    def flash_system_assets(self) -> bool:
+        print("=" * 50)
+        print("烧录 系统图片资源 (assets)")
+        print("=" * 50)
+
+        out_file = self.build_system_assets()
+        if not out_file:
+            return False
+
+        target_address = self.shared_addresses.get("sys_assets_addr", "0x905B0000")
+        max_size = int(self.shared_addresses.get("sys_assets_size", "0x00040000"), 16)
+        file_size = out_file.stat().st_size
+        if file_size > max_size:
+            print(f"错误: system_assets.bin 超过系统图片区大小: {file_size} > {max_size}")
+            return False
+
+        openocd_cfg = self.application_dir / "Openocd_Script" / "ST-LINK-QSPIFLASH.cfg"
+        if not openocd_cfg.exists():
+            openocd_cfg = self.application_dir / "Openocd_Script" / "openocd.cfg"
+            if not openocd_cfg.exists():
+                print("错误: OpenOCD配置文件不存在")
+                return False
+
+        assets_path = str(out_file).replace('\\', '/')
+        cmd = [
+            "openocd",
+            "-d0",
+            "-f", str(openocd_cfg),
+            "-c", "init",
+            "-c", "halt",
+            "-c", "reset init",
+            "-c", f"flash write_image erase \"{assets_path}\" {target_address}",
+            "-c", f"flash verify_image \"{assets_path}\" {target_address}",
+            "-c", "reset",
+            "-c", "shutdown"
+        ]
+
+        return self.run_command(cmd, self.application_dir)
         
     def _flash_using_makefile(self, slot: str) -> bool:
         """使用Makefile的flash目标进行烧录"""
@@ -676,30 +804,36 @@ class BuildTool:
             print(f"    ADC Mapping: {config['adc_address']}")
 
     def build_and_flash_complete_slot(self, slot: str) -> bool:
-        """构建并烧录完整槽（Application + Web Resources）"""
+        """构建并烧录完整槽（Application + Web Resources + Sys Assets）"""
         print("=" * 60)
         print(f"构建并烧录完整槽 {slot}")
         print("=" * 60)
         
         # 1. 构建Application
-        print("1/3 构建Application...")
+        print("1/4 构建Application...")
         build_success = self.build_application(slot)
         if not build_success:
             print("❌ Application构建失败，停止操作")
             return False
             
         # 2. 烧录Application  
-        print("\n2/3 烧录Application...")
+        print("\n2/4 烧录Application...")
         app_flash_success = self.flash_application(slot)
         if not app_flash_success:
             print("❌ Application烧录失败，停止操作")
             return False
             
         # 3. 烧录Web Resources
-        print("\n3/3 烧录Web Resources...")
+        print("\n3/4 烧录Web Resources...")
         web_flash_success = self.flash_web_resources(slot)
         if not web_flash_success:
             print("❌ Web Resources烧录失败")
+            return False
+
+        print("\n4/4 烧录系统图片资源...")
+        assets_flash_success = self.flash_system_assets()
+        if not assets_flash_success:
+            print("❌ 系统图片资源烧录失败")
             return False
             
         print(f"\n✅ 完整槽 {slot} 构建并烧录成功！")
@@ -708,6 +842,7 @@ class BuildTool:
         print(f"  - Application: {slot_cfg['address']}")
         print(f"  - WebResources: {slot_cfg['webres_address']}")
         print(f"  - ADC Mapping: {slot_cfg['adc_address']}")
+        print(f"  - SysAssets: {self.shared_addresses.get('sys_assets_addr', '0x905B0000')}")
         
         return True
 
@@ -726,6 +861,7 @@ def main():
   %(prog)s flash app B                   # 烧录application槽B
   %(prog)s flash web A                   # 烧录Web Resources到槽A
   %(prog)s flash web B                   # 烧录Web Resources到槽B
+  %(prog)s flash assets                  # 烧录系统图片资源(assets)到共享区
   %(prog)s flash all A                   # 烧录application和Web Resources到槽A
   %(prog)s flash all B                   # 烧录application和Web Resources到槽B
   %(prog)s deploy A                      # 一键构建并烧录完整槽A
@@ -750,7 +886,7 @@ def main():
     
     # flash 命令
     flash_parser = subparsers.add_parser("flash", help="烧录固件")
-    flash_parser.add_argument("target", choices=["bootloader", "app", "web", "all"], help="烧录目标")
+    flash_parser.add_argument("target", choices=["bootloader", "app", "web", "assets", "all"], help="烧录目标")
     flash_parser.add_argument("slot", nargs="?", choices=["A", "B"], help="槽选择 (app/web/all时必须)")
     
     # deploy 命令 - 一键构建并烧录
@@ -808,6 +944,8 @@ def main():
                     print("错误: 烧录Web Resources时必须指定槽 (A 或 B)")
                     return 1
                 success = tool.flash_web_resources(args.slot)
+            elif args.target == "assets":
+                success = tool.flash_system_assets()
             elif args.target == "all":
                 if not args.slot:
                     print("错误: 烧录完整固件时必须指定槽 (A 或 B)")
@@ -816,16 +954,22 @@ def main():
                 print(f"烧录完整固件到槽 {args.slot}")
                 print("=" * 50)
                 # 先烧录Application
-                print("1/2 烧录Application...")
+                print("1/3 烧录Application...")
                 app_success = tool.flash_application(args.slot)
                 if not app_success:
                     print("❌ Application烧录失败，停止操作")
                     return 1
                     
-                print("\n2/2 烧录Web Resources...")
+                print("\n2/3 烧录Web Resources...")
                 web_success = tool.flash_web_resources(args.slot)
                 if not web_success:
                     print("❌ Web Resources烧录失败")
+                    return 1
+
+                print("\n3/3 烧录系统图片资源...")
+                assets_success = tool.flash_system_assets()
+                if not assets_success:
+                    print("❌ 系统图片资源烧录失败")
                     return 1
                     
                 print(f"\n✅ 完整固件烧录成功到槽 {args.slot}")

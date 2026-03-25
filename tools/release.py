@@ -859,6 +859,8 @@ class ReleaseFlasher:
         """获取组件在指定槽位的地址"""
         try:
             # 使用统一的地址映射函数
+            if component_name == 'sys_assets':
+                return f"0x{SYS_IMAGE_RESOURCES_ADDR:08X}"
             address = get_slot_address(component_name, slot)
             return f"0x{address:08X}"
         except ValueError as e:
@@ -1016,6 +1018,8 @@ class ReleaseFlasher:
             # 使用新的create_metadata_binary函数
             components_list = []
             for comp_name in components:
+                if comp_name == 'sys_assets':
+                    continue
                 comp_info = components_dict[comp_name]
                 components_list.append({
                     'name': comp_name,
@@ -1323,10 +1327,86 @@ class ReleaseManager:
                 if not progress:
                     print(f"成功复制WebResources: {src} -> {dst}")
                 return dst
-        
+
+        makefs = self.application_dir / "www" / "makefsdata.js"
+        if makefs.exists():
+            self.run_cmd(["node", str(makefs)], cwd=self.application_dir / "www", check=False)
+            for src in web_sources:
+                if src.exists():
+                    dst = out_dir / "webresources.bin"
+                    shutil.copy2(src, dst)
+                    if not progress:
+                        print(f"成功复制WebResources: {src} -> {dst}")
+                    return dst
+
         raise FileNotFoundError("未找到WebResources文件")
 
-    def make_manifest_for_auto_with_bin(self, slot, app_bin_file, adc_file, web_file, version, app_component):
+    def copy_system_assets_for_auto(self, out_dir, progress=None, progress_step=None):
+        if progress and progress_step:
+            progress.set_step(progress_step, "生成/复制系统图片资源...")
+        elif not progress:
+            print("正在生成/复制系统图片资源...")
+
+        assets_dir = self.application_dir / "assets"
+        if not assets_dir.exists():
+            raise FileNotFoundError(f"未找到 assets 目录: {assets_dir}")
+
+        packer = self.tools_dir / "pack_assets.py"
+        if not packer.exists():
+            raise FileNotFoundError(f"未找到 assets 打包脚本: {packer}")
+
+        assets_fix = self.tools_dir / "assets_fix.py"
+        if assets_fix.exists():
+            fit_arg = "320x170"
+            dither_flag = True
+            cfg_path = self.tools_dir / "assets_config.json"
+            try:
+                if cfg_path.exists():
+                    with open(cfg_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        mw = int(data.get("max_width", 320))
+                        mh = int(data.get("max_height", 170))
+                        fit_arg = f"{mw}x{mh}"
+                        dither_flag = bool(data.get("dither", True))
+            except Exception:
+                pass
+            args = [
+                sys.executable,
+                str(assets_fix),
+                "--dir", str(assets_dir),
+                "--out", str(assets_dir),
+                "--fit", fit_arg,
+                "--inplace",
+            ]
+            if dither_flag:
+                args.append("--dither")
+            self.run_cmd(args, cwd=self.project_root, check=False)
+
+        out_bin = self.application_dir / "build" / "system_assets.bin"
+        out_bin.parent.mkdir(exist_ok=True)
+
+        cmd = [
+            sys.executable,
+            str(packer),
+            "--input", str(assets_dir),
+            "--output", str(out_bin),
+            "--max-size", hex(SYS_IMAGE_RESOURCES_SIZE),
+        ]
+
+        result = self.run_cmd(cmd, cwd=self.project_root, check=False)
+        if result.returncode != 0:
+            raise RuntimeError("系统图片资源打包失败")
+
+        if not out_bin.exists():
+            raise FileNotFoundError(f"未生成 system_assets.bin: {out_bin}")
+
+        dst = out_dir / "system_assets.bin"
+        shutil.copy2(out_bin, dst)
+        if not progress:
+            print(f"成功复制系统图片资源: {out_bin} -> {dst}")
+        return dst
+
+    def make_manifest_for_auto_with_bin(self, slot, app_bin_file, adc_file, web_file, version, app_component, sys_assets_file=None):
         """生成manifest文件（使用BIN文件）"""
         manifest = {
             "version": version,
@@ -1364,6 +1444,16 @@ class ReleaseManager:
             "sha256": self.sha256sum_file(adc_file),
             "file_type": "bin"
         })
+
+        if sys_assets_file is not None:
+            manifest["components"].append({
+                "name": "sys_assets",
+                "file": sys_assets_file.name,
+                "address": f"0x{SYS_IMAGE_RESOURCES_ADDR:08X}",
+                "size": sys_assets_file.stat().st_size,
+                "sha256": self.sha256sum_file(sys_assets_file),
+                "file_type": "bin"
+            })
         
         return manifest
 
@@ -1416,12 +1506,13 @@ class ReleaseManager:
             # 5. 复制其他必要的组件
             adc_file = self.copy_adc_mapping_from_resources(out_dir, progress, start_step + 5)
             web_file = self.copy_webresources_for_auto(out_dir, progress, start_step + 6)
+            sys_assets_file = self.copy_system_assets_for_auto(out_dir, progress, start_step + 7)
             
             # 6. 生成标准manifest（使用BIN文件）
             if progress:
-                progress.set_step(start_step + 7, f"槽{slot}: 生成manifest...")
+                progress.set_step(start_step + 8, f"槽{slot}: 生成manifest...")
             manifest = self.make_manifest_for_auto_with_bin(
-                slot, app_bin_file, adc_file, web_file, version, app_component
+                slot, app_bin_file, adc_file, web_file, version, app_component, sys_assets_file
             )
             
             # 添加HEX处理信息
@@ -1441,7 +1532,7 @@ class ReleaseManager:
             
             # 7. 打包并移动到releases目录
             if progress:
-                progress.set_step(start_step + 8, f"槽{slot}: 打包并移动到releases目录...")
+                progress.set_step(start_step + 9, f"槽{slot}: 打包并移动到releases目录...")
             package_name = f'hbox_firmware_{version}_{slot.lower()}_{build_timestamp}.zip'
             temp_package_path = out_dir / package_name
             final_package_path = self.releases_dir / package_name
@@ -1454,6 +1545,7 @@ class ReleaseManager:
                 # 共同文件
                 zf.write(web_file, web_file.name)
                 zf.write(adc_file, adc_file.name)
+                zf.write(sys_assets_file, sys_assets_file.name)
                 zf.write(manifest_file, manifest_file.name)
             
             # 移动到最终位置
@@ -1491,8 +1583,8 @@ class ReleaseManager:
         build_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         print(f"构建时间戳: {build_timestamp}")
         
-        # 创建统一进度条 (每个槽8步，共16步)
-        progress = ProgressBar(16)
+        # 创建统一进度条 (每个槽9步，共18步)
+        progress = ProgressBar(18)
         
         success_count = 0
         generated_packages = []
@@ -1500,7 +1592,7 @@ class ReleaseManager:
         try:
             for i, slot in enumerate(['A', 'B']):
                 try:
-                    start_step = i * 8  # 每个槽8步
+                    start_step = i * 9  # 每个槽9步
                     package_path = self.make_auto_release_pkg(slot, version, out_dir, build_timestamp, progress, start_step)
                     success_count += 1
                     generated_packages.append(package_path)
@@ -2553,6 +2645,52 @@ class ReleaseManager:
             print(f"刷写Web资源时发生错误: {e}")
             return False
 
+    def flash_system_assets(self) -> bool:
+        try:
+            assets_dir = self.application_dir / "assets"
+            if not assets_dir.exists():
+                print(f"错误: 未找到 assets 目录: {assets_dir}")
+                return False
+
+            packer = self.tools_dir / "pack_assets.py"
+            if not packer.exists():
+                print(f"错误: 未找到 assets 打包脚本: {packer}")
+                return False
+
+            out_file = self.application_dir / "build" / "system_assets.bin"
+            out_file.parent.mkdir(exist_ok=True)
+
+            cmd = [
+                sys.executable,
+                str(packer),
+                "--input", str(assets_dir),
+                "--output", str(out_file),
+                "--max-size", hex(SYS_IMAGE_RESOURCES_SIZE),
+            ]
+            result = subprocess.run(cmd, cwd=self.project_root, capture_output=True, text=True)
+            if result.returncode != 0:
+                print("错误: assets 打包失败")
+                if result.stdout:
+                    print(result.stdout)
+                if result.stderr:
+                    print(result.stderr)
+                return False
+
+            if not out_file.exists():
+                print(f"错误: 未生成 system_assets.bin: {out_file}")
+                return False
+
+            print(f"找到系统图片资源包: {out_file} ({out_file.stat().st_size:,} 字节)")
+            target_address = f"0x{SYS_IMAGE_RESOURCES_ADDR:08X}"
+            print(f"目标地址: {target_address}")
+
+            flasher = ReleaseFlasher(self.project_root)
+            return flasher.flash_component(out_file, target_address, "sys_assets", "bin")
+
+        except Exception as e:
+            print(f"刷写系统图片资源时发生错误: {e}")
+            return False
+
     def register_device_id(self, server_url: str = None, 
                            admin_username: str = None, admin_password: str = None) -> bool:
         """
@@ -2729,12 +2867,12 @@ class ReleaseManager:
         print(f"工作目录: {self.project_root}")
         try:
             # 1. 编译 application
-            print(f"\n[1/3] 编译槽{slot} Application...")
+            print(f"\n[1/4] 编译槽{slot} Application...")
             hex_file = self.build_app_with_build_py(slot)
             print(f"✓ 构建完成: {hex_file}")
 
             # 2. 解析 HEX 并烧录 application
-            print(f"\n[2/3] 解析HEX并烧录 Application 到槽{slot}...")
+            print(f"\n[2/4] 解析HEX并烧录 Application 到槽{slot}...")
             temp_dir = self.tools_dir / f'appweb_flash_temp_{slot}'; temp_dir.mkdir(exist_ok=True)
             try:
                 hex_segmenter = HexSegmenter()
@@ -2763,11 +2901,18 @@ class ReleaseManager:
                         print(f"清理临时目录失败: {e}")
 
             # 3. 烧录 web resource
-            print(f"\n[3/3] 烧录Web资源到槽{slot}...")
+            print(f"\n[3/4] 烧录Web资源到槽{slot}...")
             if not self.flash_web_resources(slot):
                 print(f"✗ Web资源刷写到槽{slot}失败!")
                 return False
-            print(f"\n=== Application + Web Resource (槽{slot}) 编译和烧录全部成功! ===")
+
+            # 4. 烧录系统图片资源
+            print(f"\n[4/4] 烧录系统图片资源(assets)...")
+            if not self.flash_system_assets():
+                print("✗ 系统图片资源刷写失败!")
+                return False
+
+            print(f"\n=== Application + Web Resource + Sys Assets (槽{slot}) 编译和烧录全部成功! ===")
             return True
         except Exception as e:
             print(f"\n✗ 操作失败: {e}")
@@ -3046,7 +3191,7 @@ Intel HEX增强模式说明:
     flash_parser.add_argument("package", nargs="?", help="要刷写的release包路径（可选，不指定则交互式选择）")
     flash_parser.add_argument("--slot", choices=["A", "B"], help="目标槽位（可选，默认使用包中指定的槽位）")
     flash_parser.add_argument("--components", nargs="+", 
-                            choices=["application", "webresources", "adc_mapping"],
+                            choices=["application", "webresources", "adc_mapping", "sys_assets"],
                             help="要刷写的组件（可选，默认刷写所有组件）")
     
     # 上传命令
