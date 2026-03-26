@@ -4,21 +4,28 @@
 #include "board_cfg.h"
 #include "system_logger.h"
 #include <cstring>
+#include <cstdio>
 
 static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN = 0x30;
 static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_CHUNK = 0x31;
 static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_COMMIT = 0x32;
 static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_DELETE = 0x33;
+static const uint8_t BINARY_CMD_GET_BG_IMAGE_INFO = 0x34;
+static const uint8_t BINARY_CMD_READ_BG_IMAGE_CHUNK = 0x35;
 
 static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP = 0xB0;
 static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_CHUNK_RESP = 0xB1;
 static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_COMMIT_RESP = 0xB2;
 static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_DELETE_RESP = 0xB3;
+static const uint8_t BINARY_CMD_GET_BG_IMAGE_INFO_RESP = 0xB4;
+static const uint8_t BINARY_CMD_READ_BG_IMAGE_CHUNK_RESP = 0xB5;
 
 static const uint32_t USER_IMAGE_INDEX_HEADER_SIZE = 4096;
 static const uint32_t USER_IMAGE_PAYLOAD_ADDR = USER_IMAGE_RESOURCES_ADDR + USER_IMAGE_INDEX_HEADER_SIZE;
 static const uint32_t USER_IMAGE_FORMAT_RGB565LE = 1;
 static const char* USER_IMAGE_ID = "USER_IMAGE";
+static const uint32_t SYS_IMAGE_INDEX_HEADER_SIZE = 4096;
+static const char* SYS_IMAGE_ID = "SYSTEM_DEFAULT";
 
 #pragma pack(push, 1)
 struct BinaryUserImageBeginHeader {
@@ -51,6 +58,21 @@ struct BinaryUserImageDeleteHeader {
     uint32_t cid;
 };
 
+struct BinaryGetBgImageInfoHeader {
+    uint8_t command;
+    uint8_t reserved;
+    uint32_t cid;
+};
+
+struct BinaryReadBgImageChunkHeader {
+    uint8_t command;
+    uint8_t target;   // 0=user, 1=system
+    uint32_t cid;
+    uint32_t offset;
+    uint16_t chunk_size;
+    uint16_t reserved2;
+};
+
 struct BinaryUserImageResponse {
     uint8_t command;
     uint8_t success;
@@ -71,6 +93,37 @@ struct UserImageIndexHeader {
     uint32_t size;
     uint32_t offset;
     char id[16];
+};
+
+struct BinaryGetBgImageInfoResponse {
+    uint8_t command;
+    uint8_t success;
+    uint32_t cid;
+    uint8_t user_valid;
+    uint8_t sys_valid;
+    uint16_t user_width;
+    uint16_t user_height;
+    uint32_t user_size;
+    uint16_t sys_width;
+    uint16_t sys_height;
+    uint32_t sys_size;
+    char user_id[16];
+    char sys_id[16];
+};
+
+struct BinaryReadBgImageChunkResponseHeader {
+    uint8_t command;
+    uint8_t success;
+    uint8_t target; // 0=user, 1=system
+    uint8_t format;
+    uint32_t cid;
+    uint16_t width;
+    uint16_t height;
+    uint32_t total;
+    uint32_t offset;
+    uint16_t chunk_size;
+    uint8_t error_len;
+    char error_msg[32];
 };
 #pragma pack(pop)
 
@@ -108,7 +161,7 @@ static int8_t qspi_write_bytes(uint32_t address, const uint8_t* data, uint32_t l
         uint32_t page_offset = (address + offset) & (W25Qxx_PageSize - 1);
         uint32_t to_write = W25Qxx_PageSize - page_offset;
         if (to_write > remaining) to_write = remaining;
-        int8_t r = QSPI_W25Qxx_WritePage((uint8_t*)(data + offset), address + offset, (uint16_t)to_write);
+        int8_t r = QSPI_W25Qxx_WritePage((uint8_t*)(data + offset), (address + offset) & 0x00FFFFFF, (uint16_t)to_write);
         if (r != QSPI_W25Qxx_OK) return r;
         offset += to_write;
     }
@@ -117,6 +170,95 @@ static int8_t qspi_write_bytes(uint32_t address, const uint8_t* data, uint32_t l
 
 static void clear_user_image_upload_session() {
     memset(&g_user_image_upload_session, 0, sizeof(g_user_image_upload_session));
+}
+
+struct QSPIXipGuard {
+    bool was_xip;
+    QSPIXipGuard() : was_xip(QSPI_W25Qxx_IsMemoryMappedMode()) {
+        if (was_xip) {
+            QSPI_W25Qxx_ExitMemoryMappedMode();
+        }
+    }
+    ~QSPIXipGuard() {
+        if (was_xip) {
+            QSPI_W25Qxx_EnterMemoryMappedMode();
+        }
+    }
+};
+
+static bool read_index_header(uint8_t target, UserImageIndexHeader& out) {
+    QSPIXipGuard guard;
+    uint32_t addr = (target == 0) ? USER_IMAGE_RESOURCES_ADDR : SYS_IMAGE_RESOURCES_ADDR;
+    int8_t r = QSPI_W25Qxx_ReadBuffer((uint8_t*)&out, addr, sizeof(out));
+    if (r != QSPI_W25Qxx_OK) return false;
+    if (out.magic != 0x474D4955) return false;
+    if (out.valid != 1) return false;
+    return true;
+}
+
+static void send_get_bg_info_response(WebSocketConnection* conn, uint32_t cid) {
+    if (!conn) return;
+    BinaryGetBgImageInfoResponse resp = {0};
+    resp.command = BINARY_CMD_GET_BG_IMAGE_INFO_RESP;
+    resp.success = 1;
+    resp.cid = cid;
+
+    UserImageIndexHeader userIdx = {0};
+    if (read_index_header(0, userIdx)) {
+        resp.user_valid = 1;
+        resp.user_width = userIdx.width;
+        resp.user_height = userIdx.height;
+        resp.user_size = userIdx.size;
+        strncpy(resp.user_id, userIdx.id, sizeof(resp.user_id) - 1);
+    }
+
+    UserImageIndexHeader sysIdx = {0};
+    if (read_index_header(1, sysIdx)) {
+        resp.sys_valid = 1;
+        resp.sys_width = sysIdx.width;
+        resp.sys_height = sysIdx.height;
+        resp.sys_size = sysIdx.size;
+        strncpy(resp.sys_id, sysIdx.id, sizeof(resp.sys_id) - 1);
+    } else {
+        resp.sys_valid = 0;
+        resp.sys_width = 0;
+        resp.sys_height = 0;
+        resp.sys_size = 0;
+        strncpy(resp.sys_id, SYS_IMAGE_ID, sizeof(resp.sys_id) - 1);
+    }
+
+    conn->send_binary((const uint8_t*)&resp, sizeof(resp));
+}
+
+static void send_read_chunk_response(WebSocketConnection* conn, const BinaryReadBgImageChunkHeader* req, const uint8_t* chunk, uint16_t chunk_size, uint16_t width, uint16_t height, uint32_t total, const char* error_message) {
+    if (!conn) return;
+    BinaryReadBgImageChunkResponseHeader h = {0};
+    h.command = BINARY_CMD_READ_BG_IMAGE_CHUNK_RESP;
+    h.success = (error_message == nullptr) ? 1 : 0;
+    h.target = req->target;
+    h.format = USER_IMAGE_FORMAT_RGB565LE;
+    h.cid = req->cid;
+    h.width = width;
+    h.height = height;
+    h.total = total;
+    h.offset = req->offset;
+    h.chunk_size = (error_message == nullptr) ? chunk_size : 0;
+    if (error_message) {
+        size_t n = strlen(error_message);
+        if (n > 31) n = 31;
+        h.error_len = (uint8_t)n;
+        memcpy(h.error_msg, error_message, n);
+        h.error_msg[n] = '\0';
+    }
+
+    static uint8_t buffer[sizeof(BinaryReadBgImageChunkResponseHeader) + 4096];
+    memcpy(buffer, &h, sizeof(h));
+    if (!error_message && chunk && chunk_size > 0) {
+        memcpy(buffer + sizeof(h), chunk, chunk_size);
+        conn->send_binary(buffer, sizeof(h) + chunk_size);
+    } else {
+        conn->send_binary(buffer, sizeof(h));
+    }
 }
 
 void UserImageCommandHandler::handleBinaryMessage(WebSocketConnection* conn, const uint8_t* data, size_t length) {
@@ -128,6 +270,7 @@ void UserImageCommandHandler::handleBinaryMessage(WebSocketConnection* conn, con
     
     switch (command) {
         case BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN: {
+            QSPIXipGuard guard;
             if (length < sizeof(BinaryUserImageBeginHeader)) {
                 send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP, false, 0, 0, 0, "Invalid begin length");
                 break;
@@ -145,7 +288,9 @@ void UserImageCommandHandler::handleBinaryMessage(WebSocketConnection* conn, con
             uint32_t erase_size = USER_IMAGE_INDEX_HEADER_SIZE + h->total_size;
             int8_t er = QSPI_W25Qxx_BufferErase(USER_IMAGE_RESOURCES_ADDR, erase_size);
             if (er != QSPI_W25Qxx_OK) {
-                send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP, false, h->cid, 0, h->total_size, "Erase failed");
+                char msg[64];
+                std::snprintf(msg, sizeof(msg), "Erase failed:%d", (int)er);
+                send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP, false, h->cid, 0, h->total_size, msg);
                 break;
             }
             g_user_image_upload_session.active = true;
@@ -158,6 +303,7 @@ void UserImageCommandHandler::handleBinaryMessage(WebSocketConnection* conn, con
             break;
         }
         case BINARY_CMD_UPLOAD_USER_IMAGE_CHUNK: {
+            QSPIXipGuard guard;
             if (length < sizeof(BinaryUserImageChunkHeader)) {
                 send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_CHUNK_RESP, false, 0, 0, 0, "Invalid chunk length");
                 break;
@@ -184,7 +330,9 @@ void UserImageCommandHandler::handleBinaryMessage(WebSocketConnection* conn, con
             const uint8_t* payload = data + payload_offset;
             int8_t wr = qspi_write_bytes(USER_IMAGE_PAYLOAD_ADDR + h->offset, payload, (uint32_t)payload_size);
             if (wr != QSPI_W25Qxx_OK) {
-                send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_CHUNK_RESP, false, h->cid, g_user_image_upload_session.received, g_user_image_upload_session.total, "Write failed");
+                char msg[64];
+                std::snprintf(msg, sizeof(msg), "Write failed:%d", (int)wr);
+                send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_CHUNK_RESP, false, h->cid, g_user_image_upload_session.received, g_user_image_upload_session.total, msg);
                 break;
             }
             g_user_image_upload_session.received += (uint32_t)payload_size;
@@ -192,6 +340,7 @@ void UserImageCommandHandler::handleBinaryMessage(WebSocketConnection* conn, con
             break;
         }
         case BINARY_CMD_UPLOAD_USER_IMAGE_COMMIT: {
+            QSPIXipGuard guard;
             if (length < sizeof(BinaryUserImageCommitHeader)) {
                 send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_COMMIT_RESP, false, 0, 0, 0, "Invalid commit length");
                 break;
@@ -217,7 +366,9 @@ void UserImageCommandHandler::handleBinaryMessage(WebSocketConnection* conn, con
             strncpy(idx.id, USER_IMAGE_ID, sizeof(idx.id) - 1);
             int8_t hr = qspi_write_bytes(USER_IMAGE_RESOURCES_ADDR, (const uint8_t*)&idx, sizeof(idx));
             if (hr != QSPI_W25Qxx_OK) {
-                send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_COMMIT_RESP, false, h->cid, g_user_image_upload_session.received, g_user_image_upload_session.total, "Header write failed");
+                char msg[64];
+                std::snprintf(msg, sizeof(msg), "Header write failed:%d", (int)hr);
+                send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_COMMIT_RESP, false, h->cid, g_user_image_upload_session.received, g_user_image_upload_session.total, msg);
                 break;
             }
             send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_COMMIT_RESP, true, h->cid, g_user_image_upload_session.received, g_user_image_upload_session.total, nullptr);
@@ -225,6 +376,7 @@ void UserImageCommandHandler::handleBinaryMessage(WebSocketConnection* conn, con
             break;
         }
         case BINARY_CMD_UPLOAD_USER_IMAGE_DELETE: {
+            QSPIXipGuard guard;
             if (length < sizeof(BinaryUserImageDeleteHeader)) {
                 send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_DELETE_RESP, false, 0, 0, 0, "Invalid delete length");
                 break;
@@ -233,10 +385,58 @@ void UserImageCommandHandler::handleBinaryMessage(WebSocketConnection* conn, con
             clear_user_image_upload_session();
             int8_t er = QSPI_W25Qxx_BufferErase(USER_IMAGE_RESOURCES_ADDR, USER_IMAGE_RESOURCES_SIZE);
             if (er != QSPI_W25Qxx_OK) {
-                send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_DELETE_RESP, false, h->cid, 0, 0, "Erase failed");
+                char msg[64];
+                std::snprintf(msg, sizeof(msg), "Erase failed:%d", (int)er);
+                send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_DELETE_RESP, false, h->cid, 0, 0, msg);
                 break;
             }
             send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_DELETE_RESP, true, h->cid, 0, 0, nullptr);
+            break;
+        }
+        case BINARY_CMD_GET_BG_IMAGE_INFO: {
+            if (length < sizeof(BinaryGetBgImageInfoHeader)) {
+                break;
+            }
+            const BinaryGetBgImageInfoHeader* h = reinterpret_cast<const BinaryGetBgImageInfoHeader*>(data);
+            send_get_bg_info_response(conn, h->cid);
+            break;
+        }
+        case BINARY_CMD_READ_BG_IMAGE_CHUNK: {
+            if (length < sizeof(BinaryReadBgImageChunkHeader)) {
+                break;
+            }
+            const BinaryReadBgImageChunkHeader* h = reinterpret_cast<const BinaryReadBgImageChunkHeader*>(data);
+
+            UserImageIndexHeader idx = {0};
+            bool hasHeader = read_index_header(h->target, idx);
+            uint32_t base = (h->target == 0) ? USER_IMAGE_RESOURCES_ADDR : SYS_IMAGE_RESOURCES_ADDR;
+            uint32_t payloadBase = base + (hasHeader ? idx.offset : SYS_IMAGE_INDEX_HEADER_SIZE);
+            uint16_t width = hasHeader ? idx.width : 320;
+            uint16_t height = hasHeader ? idx.height : 172;
+            uint32_t total = hasHeader ? idx.size : (uint32_t)width * (uint32_t)height * 2;
+
+            if (h->offset >= total) {
+                send_read_chunk_response(conn, h, nullptr, 0, width, height, total, "Out of range");
+                break;
+            }
+
+            uint16_t want = h->chunk_size;
+            if (want > 4096) want = 4096;
+            uint32_t remain = total - h->offset;
+            if (want > remain) want = (uint16_t)remain;
+
+            uint8_t chunkBuf[4096];
+            {
+                QSPIXipGuard guard;
+                int8_t r = QSPI_W25Qxx_ReadBuffer(chunkBuf, payloadBase + h->offset, want);
+                if (r != QSPI_W25Qxx_OK) {
+                    char msg[32];
+                    std::snprintf(msg, sizeof(msg), "Read failed:%d", (int)r);
+                    send_read_chunk_response(conn, h, nullptr, 0, width, height, total, msg);
+                    break;
+                }
+            }
+            send_read_chunk_response(conn, h, chunkBuf, want, width, height, total, nullptr);
             break;
         }
         default:

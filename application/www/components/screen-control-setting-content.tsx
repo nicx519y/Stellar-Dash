@@ -1,13 +1,12 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Grid, VStack, HStack, Portal, Color, parseColor, Table, Image, Box, Flex } from '@chakra-ui/react';
+import { Grid, VStack, HStack, Portal, Color, parseColor, Table, Image, Box, Flex, Text, Input, Spinner } from '@chakra-ui/react';
 import { Slider } from '@/components/ui/slider';
 import { Field } from '@/components/ui/field';
 import { Switch } from '@/components/ui/switch';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { ScreenControlConfig } from '@/types/gamepad-config';
-import { Text, Input } from '@chakra-ui/react';
 import { useLanguage } from '@/contexts/language-context';
 import { ColorPicker } from '@chakra-ui/react';
 import { LuCheck, LuUpload } from "react-icons/lu";
@@ -33,7 +32,7 @@ type ScreenControlSettingContentProps = {
 
 export function ScreenControlSettingContent(props: ScreenControlSettingContentProps) {
     const { disabled = false } = props;
-    const { screenControl, updateScreenControl, sendBinaryMessage, onBinaryMessage } = useGamepadConfig();
+    const { screenControl, updateScreenControl, sendBinaryMessage, onBinaryMessage, wsConnected } = useGamepadConfig();
     const [brightness, setBrightness] = useState<number>(screenControl.brightness ?? 100);
     const [backgroundImageEnabled, setBackgroundImageEnabled] = useState<boolean>(screenControl.backgroundImageEnabled ?? false);
     const [bgColor, setBgColor] = useState<Color>(parseColor(toHex6(screenControl.backgroundColor ?? 0)));
@@ -52,8 +51,10 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     const SYSTEM_BG_ID = 'SYSTEM_DEFAULT';
     const USER_BG_ID = 'USER_IMAGE';
     const [userAsset, setUserAsset] = useState<{ id: string; name: string; width: number; height: number; previewUrl: string } | null>(null);
+    const [isUploadingUserImage, setIsUploadingUserImage] = useState(false);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
-    const systemPreviewUrl = useMemo(() => {
+    const [systemAsset, setSystemAsset] = useState<{ id: string; width: number; height: number; previewUrl: string } | null>(null);
+    const placeholderSystemPreviewUrl = useMemo(() => {
         if (typeof document === 'undefined') return '';
         const canvas = document.createElement('canvas');
         canvas.width = 320;
@@ -63,6 +64,9 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         return canvas.toDataURL('image/png');
     }, []);
+    const systemPreviewUrl = systemAsset?.previewUrl ?? placeholderSystemPreviewUrl;
+    const BG_IMAGES_CACHE_KEY = 'screen_control_bg_images_cache_v1';
+    const bgImagesLoadedRef = React.useRef(false);
 
     useEffect(() => {
         setBrightness(screenControl.brightness ?? 100);
@@ -74,6 +78,41 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         setCurrentPageId(String(screenControl.currentPageId ?? 0));
         setFeatures(screenControl.features);
     }, [screenControl]);
+
+    type BgImagesCache = {
+        system?: { id: string; width: number; height: number; previewUrl: string } | null;
+        user?: { id: string; width: number; height: number; previewUrl: string } | null;
+    };
+
+    const loadBgImagesCache = (): BgImagesCache | null => {
+        try {
+            const raw = sessionStorage.getItem(BG_IMAGES_CACHE_KEY);
+            if (!raw) return null;
+            return JSON.parse(raw) as BgImagesCache;
+        } catch {
+            return null;
+        }
+    };
+
+    const saveBgImagesCache = (cache: BgImagesCache) => {
+        try {
+            sessionStorage.setItem(BG_IMAGES_CACHE_KEY, JSON.stringify(cache));
+        } catch {
+        }
+    };
+
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            try {
+                sessionStorage.removeItem(BG_IMAGES_CACHE_KEY);
+            } catch {
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, []);
 
     const handleColorChange = (type: 'bg' | 'text', newColor: Color) => {
         const hexColor = newColor.toString('hex');
@@ -115,6 +154,28 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         await updateScreenControl(nextConfig, true);
     };
 
+    const rgb565ToPngDataUrl = (rgb565le: Uint8Array, width: number, height: number) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+
+        const rgba = new Uint8ClampedArray(width * height * 4);
+        for (let i = 0, j = 0; i < rgb565le.length; i += 2, j += 4) {
+            const v = rgb565le[i] | (rgb565le[i + 1] << 8);
+            const r = (v >> 11) & 0x1F;
+            const g = (v >> 5) & 0x3F;
+            const b = v & 0x1F;
+            rgba[j] = (r * 255) / 31;
+            rgba[j + 1] = (g * 255) / 63;
+            rgba[j + 2] = (b * 255) / 31;
+            rgba[j + 3] = 255;
+        }
+        const img = new ImageData(rgba, width, height);
+        ctx.putImageData(img, 0, 0);
+        return canvas.toDataURL('image/png');
+    };
+
     const processImageToRGB565 = async (file: File) => {
         const bitmap = await createImageBitmap(file);
         const maxW = 320;
@@ -123,13 +184,17 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         const w = Math.max(1, Math.floor(bitmap.width * scale));
         const h = Math.max(1, Math.floor(bitmap.height * scale));
         const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
+        canvas.width = maxW;
+        canvas.height = maxH;
         const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-        ctx.drawImage(bitmap, 0, 0, w, h);
-        const imgData = ctx.getImageData(0, 0, w, h);
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, maxW, maxH);
+        const dx = Math.floor((maxW - w) / 2);
+        const dy = Math.floor((maxH - h) / 2);
+        ctx.drawImage(bitmap, dx, dy, w, h);
+        const imgData = ctx.getImageData(0, 0, maxW, maxH);
         const src = imgData.data;
-        const out = new Uint8Array(w * h * 2);
+        const out = new Uint8Array(maxW * maxH * 2);
         for (let i = 0, j = 0; i < src.length; i += 4) {
             const r = src[i];
             const g = src[i + 1];
@@ -142,7 +207,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
             out[j++] = (v >> 8) & 0xFF;
         }
         const previewUrl = canvas.toDataURL('image/png');
-        return { width: w, height: h, data: out, previewUrl };
+        return { width: maxW, height: maxH, data: out, previewUrl };
     };
 
     const sendBinaryUserImageRequest = async (payload: Uint8Array, expectedRespCmd: number, cid: number) => {
@@ -184,6 +249,159 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
             sendBinaryMessage(payload);
         });
     };
+
+    const fetchBgImagesFromDeviceOnce = async () => {
+        if (bgImagesLoadedRef.current) return;
+        if (!wsConnected) return;
+
+        const cached = loadBgImagesCache();
+        if (cached) {
+            if (cached.system) setSystemAsset(cached.system);
+            if (cached.user) setUserAsset({ ...cached.user, name: cached.user.id });
+            bgImagesLoadedRef.current = true;
+            return;
+        }
+
+        try {
+        const CMD_GET_INFO = 0x34;
+        const RESP_GET_INFO = 0xB4;
+        const CMD_READ_CHUNK = 0x35;
+        const RESP_READ_CHUNK = 0xB5;
+
+        const cid = (Math.random() * 0xFFFFFFFF) >>> 0;
+        const req = new ArrayBuffer(6);
+        const reqView = new DataView(req);
+        reqView.setUint8(0, CMD_GET_INFO);
+        reqView.setUint8(1, 0);
+        reqView.setUint32(2, cid, true);
+
+        const info = await new Promise<{
+            userValid: boolean;
+            userWidth: number;
+            userHeight: number;
+            userSize: number;
+            sysValid: boolean;
+            sysWidth: number;
+            sysHeight: number;
+            sysSize: number;
+        }>((resolve, reject) => {
+            const timeout = window.setTimeout(() => {
+                unsubscribe();
+                reject(new Error('Get info timeout'));
+            }, 5000);
+
+            const unsubscribe = onBinaryMessage((data) => {
+                const view = new DataView(data);
+                if (view.byteLength < 56) return;
+                const cmd = view.getUint8(0);
+                if (cmd !== RESP_GET_INFO) return;
+                const respCid = view.getUint32(2, true);
+                if (respCid !== cid) return;
+
+                window.clearTimeout(timeout);
+                unsubscribe();
+
+                const userValid = view.getUint8(6) === 1;
+                const sysValid = view.getUint8(7) === 1;
+                const userWidth = view.getUint16(8, true);
+                const userHeight = view.getUint16(10, true);
+                const userSize = view.getUint32(12, true);
+                const sysWidth = view.getUint16(16, true);
+                const sysHeight = view.getUint16(18, true);
+                const sysSize = view.getUint32(20, true);
+                resolve({ userValid, userWidth, userHeight, userSize, sysValid, sysWidth, sysHeight, sysSize });
+            });
+
+            sendBinaryMessage(new Uint8Array(req));
+        });
+
+        const readImage = async (target: 0 | 1, width: number, height: number, total: number) => {
+            const all = new Uint8Array(total);
+            const chunkSize = 4096;
+            const readCid = (Math.random() * 0xFFFFFFFF) >>> 0;
+            for (let offset = 0; offset < total; offset += chunkSize) {
+                const want = Math.min(chunkSize, total - offset);
+                const hdr = new ArrayBuffer(14);
+                const dv = new DataView(hdr);
+                dv.setUint8(0, CMD_READ_CHUNK);
+                dv.setUint8(1, target);
+                dv.setUint32(2, readCid, true);
+                dv.setUint32(6, offset, true);
+                dv.setUint16(10, want, true);
+                dv.setUint16(12, 0, true);
+
+                const resp = await new Promise<{ payload: Uint8Array }>((resolve, reject) => {
+                    const timeout = window.setTimeout(() => {
+                        unsubscribe();
+                        reject(new Error('Read chunk timeout'));
+                    }, 5000);
+
+                    const unsubscribe = onBinaryMessage((data) => {
+                        const view = new DataView(data);
+                        if (view.byteLength < 55) return;
+                        const cmd = view.getUint8(0);
+                        if (cmd !== RESP_READ_CHUNK) return;
+                        const respCid = view.getUint32(4, true);
+                        if (respCid !== readCid) return;
+                        const respTarget = view.getUint8(2);
+                        if (respTarget !== target) return;
+                        const respOffset = view.getUint32(16, true);
+                        if (respOffset !== offset) return;
+
+                        window.clearTimeout(timeout);
+                        unsubscribe();
+
+                        const success = view.getUint8(1) === 1;
+                        if (!success) {
+                            const errLen = view.getUint8(22);
+                            let msg = 'Read failed';
+                            if (errLen > 0 && view.byteLength >= 23 + errLen) {
+                                msg = new TextDecoder().decode(new Uint8Array(data, 23, errLen));
+                            }
+                            reject(new Error(msg));
+                            return;
+                        }
+                        const got = view.getUint16(20, true);
+                        const payload = new Uint8Array(data, 55, got);
+                        resolve({ payload });
+                    });
+
+                    sendBinaryMessage(new Uint8Array(hdr));
+                });
+
+                all.set(resp.payload, offset);
+            }
+            const previewUrl = rgb565ToPngDataUrl(all, width, height);
+            return previewUrl;
+        };
+
+        const cache: BgImagesCache = { system: null, user: null };
+
+        if (info.sysValid && info.sysWidth > 0 && info.sysHeight > 0 && info.sysSize > 0) {
+            const previewUrl = await readImage(1, info.sysWidth, info.sysHeight, info.sysSize);
+            const sys = { id: SYSTEM_BG_ID, width: info.sysWidth, height: info.sysHeight, previewUrl };
+            setSystemAsset(sys);
+            cache.system = sys;
+        }
+
+        if (info.userValid && info.userWidth > 0 && info.userHeight > 0 && info.userSize > 0) {
+            const previewUrl = await readImage(0, info.userWidth, info.userHeight, info.userSize);
+            const usr = { id: USER_BG_ID, width: info.userWidth, height: info.userHeight, previewUrl };
+            setUserAsset({ ...usr, name: usr.id });
+            cache.user = usr;
+        }
+
+        saveBgImagesCache(cache);
+        bgImagesLoadedRef.current = true;
+        } catch {
+            bgImagesLoadedRef.current = false;
+        }
+    };
+
+    useEffect(() => {
+        if (!wsConnected) return;
+        void fetchBgImagesFromDeviceOnce();
+    }, [wsConnected]);
 
     const uploadUserBackgroundImage = async (name: string, width: number, height: number, data: Uint8Array) => {
         const CMD_BEGIN = 0x30;
@@ -276,14 +494,24 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         if (disabled) return;
         const file = e.target.files?.[0];
         if (!file) return;
-        const processed = await processImageToRGB565(file);
-        const uploaded = await uploadUserBackgroundImage(file.name, processed.width, processed.height, processed.data);
-        const next = { ...uploaded, previewUrl: processed.previewUrl };
-        setUserAsset(next);
-        setBackgroundImageId(USER_BG_ID);
-        setBackgroundImageEnabled(true);
-        await updateScreenControl({ ...nextConfig, backgroundImageEnabled: true, backgroundImageId: USER_BG_ID }, true);
-        e.target.value = '';
+        setIsUploadingUserImage(true);
+        try {
+            const processed = await processImageToRGB565(file);
+            const uploaded = await uploadUserBackgroundImage(file.name, processed.width, processed.height, processed.data);
+            const next = { ...uploaded, previewUrl: processed.previewUrl };
+            setUserAsset(next);
+            {
+                const current = loadBgImagesCache() ?? { system: systemAsset, user: null };
+                current.user = { id: USER_BG_ID, width: processed.width, height: processed.height, previewUrl: processed.previewUrl };
+                saveBgImagesCache(current);
+            }
+            setBackgroundImageId(USER_BG_ID);
+            setBackgroundImageEnabled(true);
+            await updateScreenControl({ ...nextConfig, backgroundImageEnabled: true, backgroundImageId: USER_BG_ID }, true);
+        } finally {
+            setIsUploadingUserImage(false);
+            e.target.value = '';
+        }
     };
 
     const handleSetBackground = async (id: string) => {
@@ -294,8 +522,14 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
 
     const handleDeleteUserAsset = async () => {
         if (!userAsset?.id) return;
-        await deleteUserBackgroundImage();
         setUserAsset(null);
+        {
+            const current = loadBgImagesCache() ?? { system: systemAsset, user: null };
+            current.user = null;
+            saveBgImagesCache(current);
+        }
+        void deleteUserBackgroundImage().catch(() => {
+        });
         if (backgroundImageId === USER_BG_ID) {
             setBackgroundImageId(SYSTEM_BG_ID);
             await updateScreenControl({ ...nextConfig, backgroundImageId: SYSTEM_BG_ID }, true);
@@ -322,6 +556,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         onClick,
         emptyBg = "gray.800",
         showUploadTrigger = false,
+        uploading = false,
         onUploadClick,
     }: {
         selected: boolean;
@@ -329,11 +564,12 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         onClick?: () => void;
         emptyBg?: string;
         showUploadTrigger?: boolean;
+        uploading?: boolean;
         onUploadClick?: () => void;
     }) => {
         const borderColor = selected ? "green.500" : "gray.400";
         const hoverBorderColor = selected ? "green.600" : "gray.300";
-        const clickable = !!onClick || (!!onUploadClick && showUploadTrigger && !previewUrl);
+        const clickable = !uploading && (!!onClick || (!!onUploadClick && showUploadTrigger && !previewUrl));
         return (
             <Box
                 width="160px"
@@ -347,6 +583,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                 _hover={{ borderColor: hoverBorderColor }}
                 cursor={clickable ? "pointer" : "default"}
                 onClick={() => {
+                    if (uploading) return;
                     if (previewUrl) {
                         onClick?.();
                     } else if (showUploadTrigger) {
@@ -372,7 +609,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                         justifyContent="center"
                         color="gray.300"
                     >
-                        <LuUpload />
+                        {uploading ? <Spinner size="sm" /> : <LuUpload />}
                     </Box>
                 )}
                 {selected && (
@@ -568,6 +805,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                             onClick={userAsset ? () => handleSetBackground(userAsset.id) : undefined}
                             emptyBg="gray.800"
                             showUploadTrigger={!userAsset}
+                            uploading={isUploadingUserImage}
                             onUploadClick={() => handleUploadClick()}
                         />
                         <ActionsRow
@@ -579,7 +817,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                                         onClick={() => void handleSetBackground(userAsset.id)}
                                     />
                                     : null,
-                                !userAsset
+                                !userAsset && !isUploadingUserImage
                                     ? <ActionLink
                                         key="upload"
                                         label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_UPLOAD_BUTTON}

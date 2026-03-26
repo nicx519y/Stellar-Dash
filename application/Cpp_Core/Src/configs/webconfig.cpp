@@ -450,7 +450,9 @@ void onWebSocketBinaryMessage(WebSocketConnection* conn, const uint8_t* data, si
         case 0x30:
         case 0x31:
         case 0x32:
-        case 0x33: {
+        case 0x33:
+        case 0x34:
+        case 0x35: {
             UserImageCommandHandler::handleBinaryMessage(conn, data, length);
             break;
         }
