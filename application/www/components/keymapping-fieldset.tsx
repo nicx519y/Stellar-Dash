@@ -12,9 +12,10 @@ import {
 import KeymappingField from "@/components/keymapping-field";
 import { showToast } from "@/components/ui/toaster";
 import { useEffect, useMemo, useState, forwardRef, useImperativeHandle } from "react";
-import { Center, HStack, Separator, VStack, Text, Box } from "@chakra-ui/react";
+import { Center, HStack, VStack, Box } from "@chakra-ui/react";
 import { useLanguage } from "@/contexts/language-context";
 import { CombinationField } from "./combination-field";
+import { TitleLabel } from "@/components/ui/title-label";
 
 export interface KeymappingFieldsetRef {
     setActiveButton: (button: GameControllerButton) => void;
@@ -182,17 +183,6 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
         newKeyMapping[key] = value;
         changeKeyMappingHandler(newKeyMapping);
     };
-
-
-    const TitleLabel = ({ title, mt }: { title: string, mt?: string }) => {
-        return (
-            <HStack w="full" margin="2px 0" marginTop={mt ?? "2px"} >
-                <Separator flex="1" />
-                <Text flexShrink="0" fontSize="sm" >{title}</Text>
-                <Separator flex="1" />
-            </HStack>
-        )
-    }
 
     const ButtonField = ({ button }: { button: GameControllerButton }) => {
         return (

@@ -1,6 +1,6 @@
 'use client';
 
-import { Flex, Box, Card, Text } from '@chakra-ui/react';
+import { Flex, Box, Text } from '@chakra-ui/react';
 import React, { ReactNode, createContext, useContext } from 'react';
 
 export type SettingMainContentLayoutSize = number | string;
@@ -96,29 +96,32 @@ export function SettingMainContentLayout({
                 width={width}
                 height={height}
                 className={className}
+                borderLeftWidth="1px"
+                borderColor="grey.500"
+                pl={6}
             >
-                <Card.Root w="100%" h="100%">
+                <Flex direction="column" w="100%" h="100%" gap={6}>
                     {/* 头部区域 */}
                     {headerContent.length > 0 && (
-                        <Card.Header>
+                        <Box>
                             {headerContent}
-                        </Card.Header>
+                        </Box>
                     )}
                     
                     {/* 主体内容区域 */}
                     {bodyContent.length > 0 && (
-                        <Card.Body>
+                        <Box flex="1">
                             {bodyContent}
-                        </Card.Body>
+                        </Box>
                     )}
                     
                     {/* 底部区域 */}
                     {footerContent.length > 0 && (
-                        <Card.Footer>
+                        <Box mt="auto">
                             {footerContent}
-                        </Card.Footer>
+                        </Box>
                     )}
-                </Card.Root>
+                </Flex>
             </Flex>
         </MainContentLayoutContext.Provider>
     );
@@ -144,23 +147,23 @@ export function MainContentHeader({
     return (
         <Box className={className}>
             {title && (
-                <Card.Title fontSize="md">
+                <Box mb={description ? 2 : 4}>
                     <Text 
-                        fontSize="32px" 
+                        fontSize="24px" 
                         fontWeight="normal" 
-                        color="green.600" 
+                        color="green.400" 
                         letterSpacing="0.06em" 
                         lineHeight="3rem"
                     >
                         {title}
                     </Text>
-                </Card.Title>
+                </Box>
             )}
             
             {description && (
-                <Card.Description fontSize="sm" pt={4} pb={4} whiteSpace="pre-wrap">
+                <Text fontSize="sm" pt={2} pb={4} whiteSpace="pre-wrap" color="gray.400">
                     {description}
-                </Card.Description>
+                </Text>
             )}
             
             {children}

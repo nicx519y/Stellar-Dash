@@ -17,13 +17,17 @@ import { ScreenControlSettingContent } from "./screen-control-setting-content";
 import { openConfirm } from "@/components/dialog-confirm";
 import { useNavigationBlocker } from '@/hooks/use-navigation-blocker';
 import React from "react";
-import { Tabs, Separator } from "@chakra-ui/react";
-import { 
-    SettingContentLayout, 
-    SideContent, 
-    HitboxContent, 
-    MainContent, 
-    TopButtons 
+import { Box, Tabs } from "@chakra-ui/react";
+import { MainContentBody, MainContentHeader, SettingMainContentLayout } from "./setting-main-content-layout";
+import { MdOutlineScreenshotMonitor } from "react-icons/md";
+import { FaKeyboard } from "react-icons/fa";
+
+import {
+    SettingContentLayout,
+    SideContent,
+    HitboxContent,
+    MainContent,
+    TopButtons
 } from "./setting-content-layout";
 import { LuTimerReset } from "react-icons/lu";
 import { VscDashboard } from "react-icons/vsc";
@@ -50,7 +54,7 @@ export function GlobalSettingContent() {
     // 添加本地 hotkeys 状态来存储用户修改
     const [currentHotkeys, setCurrentHotkeys] = useState<Hotkey[]>([]);
     const [calibrationActive, setCalibrationActive] = useState<boolean>(false);
-    const [mainTab, setMainTab] = useState<'hotkeys' | 'screen'>('hotkeys');
+    const [mainTab, setMainTab] = useState<'hotkeys' | 'screen'>('screen');
 
     // 添加校准模式检查
     useNavigationBlocker(
@@ -97,12 +101,12 @@ export function GlobalSettingContent() {
     // 检查手动校准是否完成，如果未完成，则弹出确认对话框
     const checkIsManualCalibrationCompletedHandle = useCallback(async () => {
         const isCompleted = await checkIsManualCalibrationCompleted();
-        if(!isCompleted) {
+        if (!isCompleted) {
             const confirmation = await openConfirm({
                 title: t.CALIBRATION_CHECK_COMPLETED_DIALOG_TITLE,
                 message: t.CALIBRATION_CHECK_COMPLETED_DIALOG_MESSAGE
             });
-            if(confirmation && !calibrationActive) {
+            if (confirmation && !calibrationActive) {
                 onStartManualCalibration();
             }
         }
@@ -115,7 +119,7 @@ export function GlobalSettingContent() {
     }, [currentHotkeys]);
 
     useEffect(() => {
-        if(needUpdate) {
+        if (needUpdate) {
             updateHotkeysConfig(currentHotkeys);
             setNeedUpdate(false);
         }
@@ -147,9 +151,9 @@ export function GlobalSettingContent() {
 
     // 当校准状态改变时，更新完成配置按钮的禁用状态
     useEffect(() => {
-        if(calibrationActive) {
+        if (calibrationActive) {
             setFinishConfigDisabled(true);
-        } else if(!calibrationActive) {
+        } else if (!calibrationActive) {
             setFinishConfigDisabled(false);
         }
         return () => {
@@ -159,18 +163,18 @@ export function GlobalSettingContent() {
 
     useEffect(() => {
         // 如果webscoket断开，并且校准正在进行中，则停止校准
-        if(!wsConnected && calibrationActive) {
+        if (!wsConnected && calibrationActive) {
             setCalibrationActive(false);
         }
     }, [wsConnected]);
 
     // 初始化 currentHotkeys
     useEffect(() => {
-        if(isInit) {
+        if (isInit) {
             return;
         }
-        
-        if(!isInit && dataIsReady && hotkeysConfig.length > 0) {
+
+        if (!isInit && dataIsReady && hotkeysConfig.length > 0) {
             setCurrentHotkeys(Array.from({ length: DEFAULT_NUM_HOTKEYS_MAX }, (_, i) => {
                 return hotkeysConfig?.[i] ?? { key: -1, action: HotkeyAction.None, isLocked: false, isHold: false };
             }));
@@ -239,48 +243,47 @@ export function GlobalSettingContent() {
             <SideContent>
                 <InputModeSettingContent disabled={calibrationActive} />
             </SideContent>
-            
+
             <HitboxContent>
                 {renderHitboxContent}
             </HitboxContent>
-            
+
             <MainContent>
-                <>
-                    <Tabs.Root
-                        defaultValue={mainTab}
-                        value={mainTab}
-                        size="sm"
-                        variant="plain"
-                        colorPalette="green"
-                        onValueChange={(details) => {
-                            const v = details.value === 'screen' ? 'screen' : 'hotkeys';
-                            setMainTab(v);
-                        }}
-                    >
-                        <Tabs.List bg="bg.muted" width="100%">
-                            <Tabs.Trigger value="hotkeys" padding="0 24px" fontWeight="bold">
-                                {t.SETTINGS_HOTKEYS_TITLE}
-                            </Tabs.Trigger>
-                            <Separator orientation="vertical" height="6" alignSelf="center" />
-                            <Tabs.Trigger value="screen" padding="0 24px" fontWeight="bold">
-                                {t.SETTINGS_SCREEN_CONTROL_TITLE}
-                            </Tabs.Trigger>
-                            <Tabs.Indicator rounded="l2" />
-                        </Tabs.List>
-                    </Tabs.Root>
-                    {mainTab === 'hotkeys' ? (
-                        <HotkeySettingContent
-                            disabled={calibrationActive}
-                            onHotkeysUpdate={handleHotkeyUpdate}
-                            hotkeys={currentHotkeys}
-                        />
-                    ) : (
-                        <ScreenControlSettingContent disabled={calibrationActive} />
-                    )}
-                </>
+                <SettingMainContentLayout width={778}>
+                    
+                    <MainContentBody>
+                        <Tabs.Root
+                            value={mainTab}
+                            onValueChange={(details) => setMainTab(details.value as 'hotkeys' | 'screen')}
+                            colorPalette="green"
+                        >
+                            <Tabs.List>
+                                <Tabs.Trigger value="screen" fontSize="16px" fontWeight="extrabold" >
+                                    <MdOutlineScreenshotMonitor />
+                                    {t.SETTINGS_SCREEN_CONTROL_TITLE}
+                                </Tabs.Trigger>
+                                <Tabs.Trigger value="hotkeys" fontSize="16px" fontWeight="extrabold">
+                                    <FaKeyboard />
+                                    {t.SETTINGS_HOTKEYS_TITLE}
+                                </Tabs.Trigger>
+                            </Tabs.List>
+
+                            <Tabs.Content value="hotkeys" padding="24px 0" >
+                                <HotkeySettingContent
+                                    disabled={calibrationActive}
+                                    onHotkeysUpdate={handleHotkeyUpdate}
+                                    hotkeys={currentHotkeys}
+                                />
+                            </Tabs.Content>
+                            <Tabs.Content value="screen" padding="24px 0">
+                                <ScreenControlSettingContent disabled={calibrationActive} />
+                            </Tabs.Content>
+                        </Tabs.Root>
+                    </MainContentBody>
+                </SettingMainContentLayout>
             </MainContent>
-            
+
             <TopButtons config={topButtonsConfig} />
-        </SettingContentLayout>
+        </SettingContentLayout >
     );
 } 

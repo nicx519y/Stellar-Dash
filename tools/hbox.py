@@ -35,6 +35,8 @@ HBox 工具统一入口（tools/hbox.py）
   python tools/hbox.py flash appAll A
   python tools/hbox.py release auto --version 1.0.0
   python tools/hbox.py release flash 0.0.1_a --slot A
+  python tools/hbox.py web dev
+  python tools/hbox.py web build
 """
 
 import argparse
@@ -130,6 +132,8 @@ def main(argv: list[str]) -> int:
   python tools/hbox.py build appAll A
   python tools/hbox.py flash appAll A
   python tools/hbox.py release auto --version 1.0.0
+  python tools/hbox.py web dev
+  python tools/hbox.py web build
 """,
     )
 
@@ -146,6 +150,9 @@ def main(argv: list[str]) -> int:
     p_release = subparsers.add_parser("release", help="发版相关")
     p_release.add_argument("target", choices=["auto", "flash"])
     p_release.add_argument("args", nargs=argparse.REMAINDER)
+
+    p_web = subparsers.add_parser("web", help="Web前端")
+    p_web.add_argument("target", choices=["dev", "build"])
 
     args = parser.parse_args(argv)
 
@@ -196,6 +203,67 @@ def main(argv: list[str]) -> int:
             return _run_python_tool("release.py", ["auto", *args.args])
         if args.target == "flash":
             return _run_python_tool("release.py", ["flash", *args.args])
+
+    if args.cmd == "web":
+        if args.target == "dev":
+            www_dir = _project_root() / "application" / "www"
+            next_bin = www_dir / "node_modules" / "next" / "dist" / "bin" / "next"
+            if not next_bin.exists():
+                print(f"错误: 未找到 Next.js 可执行脚本: {next_bin}")
+                print("请先安装依赖: npm --prefix application/www install")
+                return 2
+            try:
+                ws = subprocess.Popen(
+                    ["node", "websocket-server.js"],
+                    cwd=www_dir,
+                )
+                dev = subprocess.Popen(
+                    ["node", str(next_bin), "dev"],
+                    cwd=www_dir,
+                )
+                dev.wait()
+                try:
+                    ws.terminate()
+                except Exception:
+                    pass
+                return dev.returncode
+            except FileNotFoundError as e:
+                print(f"错误: 启动开发服务失败: {e}")
+                print("请确保系统已安装 Node.js，并且 'node' 命令可用")
+                return 2
+        if args.target == "build":
+            www_dir = _project_root() / "application" / "www"
+            makefs = www_dir / "makefsdata.js"
+            next_bin = www_dir / "node_modules" / "next" / "dist" / "bin" / "next"
+            try:
+                rc = subprocess.call(
+                    ["npm", "--prefix", str(www_dir), "run", "build"],
+                    cwd=_project_root(),
+                )
+            except FileNotFoundError:
+                try:
+                    rc = subprocess.call(
+                        ["npm.cmd", "--prefix", str(www_dir), "run", "build"],
+                        cwd=_project_root(),
+                    )
+                except FileNotFoundError:
+                    if not next_bin.exists():
+                        print("错误: 未找到 npm 或 Next.js 可执行文件")
+                        print("请先安装依赖: npm --prefix application/www install")
+                        return 2
+                    rc = subprocess.call(["node", str(next_bin), "build"], cwd=www_dir)
+            if rc != 0:
+                print("错误: Web前端构建失败")
+                return rc
+            if not makefs.exists():
+                print(f"错误: 未找到 makefsdata.js: {makefs}")
+                return 2
+            rc2 = subprocess.call(["node", str(makefs)], cwd=www_dir)
+            if rc2 != 0:
+                print("错误: 生成 WebResources 二进制失败")
+                return rc2
+            print("Web 前端构建并生成二进制完成")
+            return 0
 
     return 2
 

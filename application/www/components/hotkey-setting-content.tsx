@@ -14,11 +14,8 @@ import HotkeysField from "./hotkeys-field";
 import { useLanguage } from "@/contexts/language-context";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { showToast } from "./ui/toaster";
-import { 
-    SettingMainContentLayout, 
-    MainContentHeader, 
-    MainContentBody 
-} from "@/components/setting-main-content-layout";
+import { Text } from "@chakra-ui/react";
+
 
 interface HotkeySettingContentProps {
     /** 热键配置数组 */
@@ -39,8 +36,6 @@ export function HotkeySettingContent({
     hotkeys,
     onHotkeysUpdate,  // 改为批量更新
     disabled = false,
-    width = 778,
-    height = "100%",
     calibrationActive = false,
 }: HotkeySettingContentProps) {
     const { t } = useLanguage();
@@ -84,12 +79,12 @@ export function HotkeySettingContent({
             hasChanges = true;
         }
 
-        if(newHotkeys[index].action !== hotkey.action) {
+        if (newHotkeys[index].action !== hotkey.action) {
             newHotkeys[index] = { ...newHotkeys[index], action: hotkey.action };
             hasChanges = true;
         }
 
-        if(newHotkeys[index].isHold !== hotkey.isHold) {
+        if (newHotkeys[index].isHold !== hotkey.isHold) {
             newHotkeys[index] = { ...newHotkeys[index], isHold: hotkey.isHold };
             hasChanges = true;
         }
@@ -118,15 +113,15 @@ export function HotkeySettingContent({
             const layoutLen = hitboxLayout?.length || 0;
             // 只有当前组件的活跃索引与点击时的活跃索引匹配时才处理
             if (keyId >= 0 && keyId < layoutLen - 1) {
-                updateHotkey(activeHotkeyIndex, { 
-                    ...hotkeys[activeHotkeyIndex], 
-                    key: keyId 
+                updateHotkey(activeHotkeyIndex, {
+                    ...hotkeys[activeHotkeyIndex],
+                    key: keyId
                 });
             }
         };
 
         window.addEventListener('hitbox-click', handleHitboxClick as EventListener);
-        
+
         return () => {
             window.removeEventListener('hitbox-click', handleHitboxClick as EventListener);
         };
@@ -138,36 +133,32 @@ export function HotkeySettingContent({
     };
 
     return (
-        <SettingMainContentLayout 
-            width={width}
-            height={height}
-        >
-            <MainContentHeader 
-                // title={t.SETTINGS_HOTKEYS_TITLE}
-                description={t.SETTINGS_HOTKEYS_HELPER_TEXT}
-            />
-            
-            <MainContentBody>
-                <Fieldset.Root>
-                    <Fieldset.Content>
-                        <Stack gap={4}>
-                            {Array.from({ length: DEFAULT_NUM_HOTKEYS_MAX }, (_, i) => (
-                                <HotkeysField
-                                    key={i}
-                                    index={i}
-                                    value={hotkeys[i] ?? { key: -1, action: HotkeyAction.None, isHold: false, isLocked: false }}
-                                    onValueChange={(changeDetail) => {
-                                        updateHotkey(i, changeDetail);
-                                    }}
-                                    isActive={i === activeHotkeyIndex}
-                                    onFieldClick={handleHotkeyFieldClick}
-                                    disabled={(hotkeys[i]?.isLocked || disabled || calibrationActive) ?? false}
-                                />
-                            ))}
-                        </Stack>
-                    </Fieldset.Content>
-                </Fieldset.Root>
-            </MainContentBody>
-        </SettingMainContentLayout>
+
+        <>
+
+            <Text fontSize="14px" color="gray.400" mb="30px" whiteSpace="pre-wrap" >
+                {t.SETTINGS_HOTKEYS_HELPER_TEXT}
+            </Text>
+
+            <Fieldset.Root>
+                <Fieldset.Content>
+                    <Stack gap={4}>
+                        {Array.from({ length: DEFAULT_NUM_HOTKEYS_MAX }, (_, i) => (
+                            <HotkeysField
+                                key={i}
+                                index={i}
+                                value={hotkeys[i] ?? { key: -1, action: HotkeyAction.None, isHold: false, isLocked: false }}
+                                onValueChange={(changeDetail) => {
+                                    updateHotkey(i, changeDetail);
+                                }}
+                                isActive={i === activeHotkeyIndex}
+                                onFieldClick={handleHotkeyFieldClick}
+                                disabled={(hotkeys[i]?.isLocked || disabled || calibrationActive) ?? false}
+                            />
+                        ))}
+                    </Stack>
+                </Fieldset.Content>
+            </Fieldset.Root>
+        </>
     );
 } 

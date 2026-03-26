@@ -60,13 +60,13 @@ export const PlatformLabelMap = new Map<Platform, { label: string, description: 
         label: "Windows PC", 
         description: "Xbox/Windows controller" 
     }],
-    [Platform.PS4, { 
-        label: "PlayStation 4", 
-        description: "PlayStation 4 controller" 
-    }],
+    // [Platform.PS4, { 
+    //     label: "PlayStation 4", 
+    //     description: "PlayStation 4 controller" 
+    // }],
     [Platform.PS5, { 
-        label: "PlayStation 5", 
-        description: "PlayStation 5 controller" 
+        label: "PlayStation", 
+        description: "PlayStation controller" 
     }],
     [Platform.XBOX, { 
         label: "Xbox One|Series", 
@@ -680,13 +680,37 @@ export const UI_TEXT = {
     SETTING_BUTTON_PERFORMANCE_PRESET_STABILITY_DESC: "Similar to mechanical switch.",
 
     // Hotkeys Settings
-    SETTINGS_HOTKEYS_TITLE: "HOTKEYS SETTINGS",
+    SETTINGS_HOTKEYS_TITLE: "Hotkey",
     SETTINGS_HOTKEYS_HELPER_TEXT: `Configure up to ${DEFAULT_NUM_HOTKEYS_MAX} hotkeys for quick access to various functions.\n- Click on the hotkey field and press the desired key on the hitbox or device to bind the hotkey.\n- Choice the hotkey action from the dropdown list.\n- Locked hotkeys are used for web configuration mode and calibration mode because this function is required. `,
     SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "Device Button Monitoring",
 
     // Screen Control Settings
-    SETTINGS_SCREEN_CONTROL_TITLE: "Screen Control Settings",
+    SETTINGS_SCREEN_CONTROL_TITLE: "Screen Control",
+    SETTINGS_SCREEN_CONTROL_BASIC: "Basic Settings",
     SETTINGS_SCREEN_CONTROL_HELPER_TEXT: "Customize the screen control features, such as brightness, contrast, and color.",
+    SETTINGS_SCREEN_CONTROL_FEATURES: "Features Display",
+    SETTINGS_SCREEN_CONTROL_BRIGHTNESS_LABEL: "Brightness",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_COLOR_LABEL: "Background Color",
+    SETTINGS_SCREEN_CONTROL_TEXT_COLOR_LABEL: "Text Color",
+    SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH: "Input Mode Switch",
+    SETTINGS_SCREEN_CONTROL_FEATURE_PROFILES_SWITCH: "Profiles Switch",
+    SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH: "SOCD Mode Switch",
+    SETTINGS_SCREEN_CONTROL_FEATURE_TOURNAMENT_MODE_SWITCH: "Tournament Mode Switch",
+    SETTINGS_SCREEN_CONTROL_FEATURE_LED_BRIGHTNESS_ADJUST: "LED Brightness Adjust",
+    SETTINGS_SCREEN_CONTROL_FEATURE_LED_EFFECT_SWITCH: "LED Effect Switch",
+    SETTINGS_SCREEN_CONTROL_FEATURE_AMBIENT_BRIGHTNESS_ADJUST: "Ambient Brightness Adjust",
+    SETTINGS_SCREEN_CONTROL_FEATURE_AMBIENT_EFFECT_SWITCH: "Ambient Effect Switch",
+    SETTINGS_SCREEN_CONTROL_FEATURE_SCREEN_BRIGHTNESS_ADJUST: "Screen Brightness Adjust",
+    SETTINGS_SCREEN_CONTROL_FEATURE_WEB_CONFIG_ENTRY: "Web Config Entry",
+    SETTINGS_SCREEN_CONTROL_FEATURE_CALIBRATION_MODE_SWITCH: "Calibration Mode Switch",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGES_TITLE: "Background Images",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_UPLOAD_BUTTON: "Upload Image",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP: "Choose system preset or upload one user image. Max size 320×172. Larger images will be downscaled.",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SET_BUTTON: "Set as Background",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_DELETE_BUTTON: "Delete",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SYSTEM_LABEL: "System Preset",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_USER_LABEL: "User Image",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_ENABLE_LABEL: "Display Background Image",
 
     // Firmware Settings
     SETTINGS_FIRMWARE_TITLE: "FIRMWARE UPDATE",
@@ -1021,13 +1045,37 @@ export const UI_TEXT_ZH = {
     SETTING_BUTTON_PERFORMANCE_PRESET_STABILITY_DESC: "类似机械轴的体验。",
     
     // 热键设置
-    SETTINGS_HOTKEYS_TITLE: "快捷键设置",
+    SETTINGS_HOTKEYS_TITLE: "快捷键",
     SETTINGS_HOTKEYS_HELPER_TEXT: `最多可以配置${DEFAULT_NUM_HOTKEYS_MAX}个快捷键来快速访问各种功能。\n- 点击快捷键区域并在实体设备上或者左侧格斗板图示上按下想要绑定的按键\n- 从下拉列表中选择快捷键动作\n- 锁定的快捷键用于网页配置模式和校准模式，因为这些功能是必需的。`,
     SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "设备按键监控",
 
     // 屏控设置
     SETTINGS_SCREEN_CONTROL_TITLE: "屏控设置",
+    SETTINGS_SCREEN_CONTROL_BASIC: "基本设置",
     SETTINGS_SCREEN_CONTROL_HELPER_TEXT: "可以在这里自定义屏控功能、效果样式、颜色和亮度。",
+    SETTINGS_SCREEN_CONTROL_FEATURES: "屏控功能显示",
+    SETTINGS_SCREEN_CONTROL_BRIGHTNESS_LABEL: "屏幕亮度",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_COLOR_LABEL: "背景颜色",
+    SETTINGS_SCREEN_CONTROL_TEXT_COLOR_LABEL: "文字颜色",
+    SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH: "输入模式切换",
+    SETTINGS_SCREEN_CONTROL_FEATURE_PROFILES_SWITCH: "用户配置切换",
+    SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH: "SOCD 模式切换",
+    SETTINGS_SCREEN_CONTROL_FEATURE_TOURNAMENT_MODE_SWITCH: "正常/比赛模式切换",
+    SETTINGS_SCREEN_CONTROL_FEATURE_LED_BRIGHTNESS_ADJUST: "LED 亮度调整",
+    SETTINGS_SCREEN_CONTROL_FEATURE_LED_EFFECT_SWITCH: "LED 特效切换",
+    SETTINGS_SCREEN_CONTROL_FEATURE_AMBIENT_BRIGHTNESS_ADJUST: "氛围灯亮度调整",
+    SETTINGS_SCREEN_CONTROL_FEATURE_AMBIENT_EFFECT_SWITCH: "氛围灯特效切换",
+    SETTINGS_SCREEN_CONTROL_FEATURE_SCREEN_BRIGHTNESS_ADJUST: "屏幕亮度调整",
+    SETTINGS_SCREEN_CONTROL_FEATURE_WEB_CONFIG_ENTRY: "进入 WebConfig",
+    SETTINGS_SCREEN_CONTROL_FEATURE_CALIBRATION_MODE_SWITCH: "进入/退出校准模式",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGES_TITLE: "背景图片",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_UPLOAD_BUTTON: "上传图片",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP: "可选择系统预设或上传 1 张用户图片。最大尺寸 320×172，超过会自动等比缩小。",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SET_BUTTON: "设为背景",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_DELETE_BUTTON: "删除",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SYSTEM_LABEL: "系统预设",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_USER_LABEL: "用户图片",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_ENABLE_LABEL: "显示背景图片",
 
     // 固件更新
     SETTINGS_FIRMWARE_TITLE: "设备固件更新",
