@@ -155,6 +155,104 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateHotkeysConfig
     return handleGetHotkeysConfig(request);
 }
 
+WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetScreenControlConfig(const WebSocketUpstreamMessage& request) {
+    Config& config = Storage::getInstance().config;
+
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON* screenControlJSON = cJSON_CreateObject();
+
+    cJSON_AddNumberToObject(screenControlJSON, "brightness", config.screenControl.brightness);
+    cJSON_AddNumberToObject(screenControlJSON, "backgroundColor", config.screenControl.backgroundColor);
+    cJSON_AddNumberToObject(screenControlJSON, "textColor", config.screenControl.textColor);
+    cJSON_AddStringToObject(screenControlJSON, "backgroundImageId", config.screenControl.backgroundImageId);
+    cJSON_AddNumberToObject(screenControlJSON, "currentPageId", config.screenControl.currentPageId);
+
+    cJSON* featuresJSON = cJSON_CreateObject();
+    cJSON_AddBoolToObject(featuresJSON, "inputModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_INPUT_MODE_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "profilesSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_PROFILES_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "socdModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_SOCD_MODE_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "tournamentModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "ledBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "ledEffectSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_LED_EFFECT_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "ambientBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "ambientEffectSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "screenBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "webConfigEntry", (config.screenControl.featuresMask & SCREEN_FEATURE_WEB_CONFIG_ENTRY) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "calibrationModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_CALIBRATION_MODE_SWITCH) != 0);
+    cJSON_AddItemToObject(screenControlJSON, "features", featuresJSON);
+
+    cJSON_AddItemToObject(dataJSON, "screenControl", screenControlJSON);
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateScreenControlConfig(const WebSocketUpstreamMessage& request) {
+    Config& config = Storage::getInstance().config;
+
+    cJSON* params = request.getParams();
+    if (!params) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
+    }
+
+    cJSON* screenControl = cJSON_GetObjectItem(params, "screenControl");
+    if (!screenControl || !cJSON_IsObject(screenControl)) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid screenControl");
+    }
+
+    cJSON* item;
+    if ((item = cJSON_GetObjectItem(screenControl, "brightness")) && cJSON_IsNumber(item)) {
+        int v = item->valueint;
+        if (v < 0) v = 0;
+        if (v > 100) v = 100;
+        config.screenControl.brightness = (uint8_t)v;
+    }
+    if ((item = cJSON_GetObjectItem(screenControl, "backgroundColor")) && cJSON_IsNumber(item)) {
+        config.screenControl.backgroundColor = (uint32_t)item->valuedouble;
+    }
+    if ((item = cJSON_GetObjectItem(screenControl, "textColor")) && cJSON_IsNumber(item)) {
+        config.screenControl.textColor = (uint32_t)item->valuedouble;
+    }
+    if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageId")) && cJSON_IsString(item)) {
+        strncpy(config.screenControl.backgroundImageId, item->valuestring, sizeof(config.screenControl.backgroundImageId) - 1);
+        config.screenControl.backgroundImageId[sizeof(config.screenControl.backgroundImageId) - 1] = '\0';
+    }
+    if ((item = cJSON_GetObjectItem(screenControl, "currentPageId")) && cJSON_IsNumber(item)) {
+        int v = item->valueint;
+        if (v < 0) v = 0;
+        if (v > 65535) v = 65535;
+        config.screenControl.currentPageId = (uint16_t)v;
+    }
+
+    cJSON* features = cJSON_GetObjectItem(screenControl, "features");
+    if (features && cJSON_IsObject(features)) {
+        struct { const char* key; uint32_t bit; } map[] = {
+            {"inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
+            {"profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
+            {"socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
+            {"tournamentModeSwitch", SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH},
+            {"ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
+            {"ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
+            {"ambientBrightnessAdjust", SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST},
+            {"ambientEffectSwitch", SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH},
+            {"screenBrightnessAdjust", SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST},
+            {"webConfigEntry", SCREEN_FEATURE_WEB_CONFIG_ENTRY},
+            {"calibrationModeSwitch", SCREEN_FEATURE_CALIBRATION_MODE_SWITCH},
+        };
+        for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
+            cJSON* b = cJSON_GetObjectItem(features, map[i].key);
+            if (b && cJSON_IsBool(b)) {
+                if (cJSON_IsTrue(b)) config.screenControl.featuresMask |= map[i].bit;
+                else config.screenControl.featuresMask &= ~map[i].bit;
+            }
+        }
+    }
+
+    if (!STORAGE_MANAGER.saveConfig()) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
+    }
+
+    return handleGetScreenControlConfig(request);
+}
+
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handleExportAllConfig(const WebSocketUpstreamMessage& request) {
     // LOG_INFO("WebSocket", "Handling export_all_config command, cid: %d", request.getCid());
     
@@ -312,6 +410,54 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(co
                      break;
                  }
              }
+        }
+    } else if (section == "screenControl") {
+        cJSON* screenControl = dataItem;
+        cJSON* item;
+        if ((item = cJSON_GetObjectItem(screenControl, "brightness")) && cJSON_IsNumber(item)) {
+            int v = item->valueint;
+            if (v < 0) v = 0;
+            if (v > 100) v = 100;
+            config.screenControl.brightness = (uint8_t)v;
+        }
+        if ((item = cJSON_GetObjectItem(screenControl, "backgroundColor")) && cJSON_IsNumber(item)) {
+            config.screenControl.backgroundColor = (uint32_t)item->valuedouble;
+        }
+        if ((item = cJSON_GetObjectItem(screenControl, "textColor")) && cJSON_IsNumber(item)) {
+            config.screenControl.textColor = (uint32_t)item->valuedouble;
+        }
+        if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageId")) && cJSON_IsString(item)) {
+            strncpy(config.screenControl.backgroundImageId, item->valuestring, sizeof(config.screenControl.backgroundImageId) - 1);
+            config.screenControl.backgroundImageId[sizeof(config.screenControl.backgroundImageId) - 1] = '\0';
+        }
+        if ((item = cJSON_GetObjectItem(screenControl, "currentPageId")) && cJSON_IsNumber(item)) {
+            int v = item->valueint;
+            if (v < 0) v = 0;
+            if (v > 65535) v = 65535;
+            config.screenControl.currentPageId = (uint16_t)v;
+        }
+        cJSON* features = cJSON_GetObjectItem(screenControl, "features");
+        if (features && cJSON_IsObject(features)) {
+            struct { const char* key; uint32_t bit; } map[] = {
+                {"inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
+                {"profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
+                {"socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
+                {"tournamentModeSwitch", SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH},
+                {"ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
+                {"ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
+                {"ambientBrightnessAdjust", SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST},
+                {"ambientEffectSwitch", SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH},
+                {"screenBrightnessAdjust", SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST},
+                {"webConfigEntry", SCREEN_FEATURE_WEB_CONFIG_ENTRY},
+                {"calibrationModeSwitch", SCREEN_FEATURE_CALIBRATION_MODE_SWITCH},
+            };
+            for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
+                cJSON* b = cJSON_GetObjectItem(features, map[i].key);
+                if (b && cJSON_IsBool(b)) {
+                    if (cJSON_IsTrue(b)) config.screenControl.featuresMask |= map[i].bit;
+                    else config.screenControl.featuresMask &= ~map[i].bit;
+                }
+            }
         }
     } else {
         return create_error_response(request.getCid(), request.getCommand(), 1, "Unknown section");
@@ -500,6 +646,10 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handle(const WebSocketUps
         return handleGetHotkeysConfig(request);
     } else if (command == "update_hotkeys_config") {
         return handleUpdateHotkeysConfig(request);
+    } else if (command == "get_screen_control_config") {
+        return handleGetScreenControlConfig(request);
+    } else if (command == "update_screen_control_config") {
+        return handleUpdateScreenControlConfig(request);
     } else if (command == "export_all_config") {
         return handleExportAllConfig(request);
     } else if (command == "import_all_config") {

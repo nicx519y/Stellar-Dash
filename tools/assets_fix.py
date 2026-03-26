@@ -100,7 +100,7 @@ def _process_image_with_pillow(src: Path, out_dir: Path, resize: str | None, fit
     return out_path
 
 
-def _process_gif_with_pillow(src: Path, out_dir: Path, max_colors: int, dither: bool) -> Path:
+def _process_gif_with_pillow(src: Path, out_dir: Path, max_colors: int, dither: bool, resize: str | None = None, fit: str | None = None) -> Path:
     Image = _try_import_pillow()
     if Image is None:
         raise RuntimeError("Pillow not available")
@@ -123,6 +123,19 @@ def _process_gif_with_pillow(src: Path, out_dir: Path, max_colors: int, dither: 
         while True:
             img.seek(i)
             frame = img.convert("RGBA")
+            if resize:
+                w_s, h_s = resize.lower().split("x", 1)
+                tw = int(w_s)
+                th = int(h_s)
+                frame = frame.resize((tw, th), Image.BILINEAR)
+            elif fit:
+                w_s, h_s = fit.lower().split("x", 1)
+                max_w = int(w_s)
+                max_h = int(h_s)
+                ow, oh = frame.size
+                nw, nh = _fit_dims(ow, oh, max_w, max_h)
+                if (nw, nh) != (ow, oh):
+                    frame = frame.resize((nw, nh), Image.BILINEAR)
             pal = frame.convert("P", palette=Image.ADAPTIVE, colors=max_colors, dither=dither_flag)
             frames.append(pal)
             durations.append(img.info.get("duration", 10))
@@ -202,7 +215,7 @@ def main():
             if pillow is None:
                 continue
             try:
-                _process_gif_with_pillow(p, out_dir, args.gif_colors, args.dither)
+                _process_gif_with_pillow(p, out_dir, args.gif_colors, args.dither, resize, fit)
                 changed += 1
             except Exception:
                 warnings += 1

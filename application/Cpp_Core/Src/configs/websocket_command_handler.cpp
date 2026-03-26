@@ -67,6 +67,8 @@ void WebSocketCommandManager::initializeHandlers() {
     registerHandler("update_global_config", &globalHandler);
     registerHandler("get_hotkeys_config", &globalHandler);
     registerHandler("update_hotkeys_config", &globalHandler);
+    registerHandler("get_screen_control_config", &globalHandler);
+    registerHandler("update_screen_control_config", &globalHandler);
     registerHandler("export_all_config", &globalHandler);
     registerHandler("import_all_config", &globalHandler);
     registerHandler("import_config_part", &globalHandler);

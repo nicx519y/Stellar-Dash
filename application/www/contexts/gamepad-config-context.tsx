@@ -9,7 +9,9 @@ import {
     Platform, GameSocdMode,
     GameControllerButton, Hotkey, GameProfileList, GlobalConfig,
     XInputButtonMap, PS4ButtonMap, SwitchButtonMap,
-    NUM_PROFILES_MAX
+    NUM_PROFILES_MAX,
+    ScreenControlConfig,
+    DEFAULT_SCREEN_CONTROL_CONFIG
 } from '@/types/gamepad-config';
 import { StepInfo, ADCValuesMapping } from '@/types/adc';
 import {
@@ -107,6 +109,7 @@ interface GamepadConfigContextType {
     defaultProfile: GameProfile;
     hotkeysConfig: Hotkey[];
     globalConfig: GlobalConfig;
+    screenControl: ScreenControlConfig;
     dataIsReady: boolean;
     setUserRebooting: (rebooting: boolean) => void;
     firmwareUpdating: boolean;
@@ -114,6 +117,8 @@ interface GamepadConfigContextType {
 
     fetchGlobalConfig: () => Promise<void>;
     updateGlobalConfig: (globalConfig: GlobalConfig) => Promise<void>;
+    fetchScreenControl: () => Promise<void>;
+    updateScreenControl: (screenControl: ScreenControlConfig, immediate?: boolean) => Promise<void>;
     fetchDefaultProfile: () => Promise<void>;
     fetchProfileList: () => Promise<void>;
     fetchHotkeysConfig: () => Promise<void>;
@@ -270,6 +275,7 @@ const processResponse = async (response: Response, setError: (error: string | nu
  */
 export function GamepadConfigProvider({ children }: { children: React.ReactNode }) {
     const [globalConfig, setGlobalConfig] = useState<GlobalConfig>({ inputMode: Platform.XINPUT });
+    const [screenControl, setScreenControl] = useState<ScreenControlConfig>(DEFAULT_SCREEN_CONTROL_CONFIG);
     const [profileList, setProfileList] = useState<GameProfileList>({ defaultId: "", maxNumProfiles: 0, items: [] });
     const [defaultProfile, setDefaultProfile] = useState<GameProfile>({ id: "", name: "" });
     const [isLoading, setIsLoading] = useState(true);
@@ -320,6 +326,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const contextJsReady = useMemo(() => jsReady, [jsReady]);
 
     const [globalConfigIsReady, setGlobalConfigIsReady] = useState(false);
+    const [screenControlIsReady, setScreenControlIsReady] = useState(false);
     const [profileListIsReady, setProfileListIsReady] = useState(false);
     const [hotkeysConfigIsReady, setHotkeysConfigIsReady] = useState(false);
     const [firmwareInfoIsReady, setFirmwareInfoIsReady] = useState(false);
@@ -486,6 +493,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             fetchGlobalConfig().then(() => {
                 setGlobalConfigIsReady(true);
             }).catch(console.error);
+            fetchScreenControl().then(() => {
+                setScreenControlIsReady(true);
+            }).catch(console.error);
             fetchProfileList().then(() => {
                 setProfileListIsReady(true);
             }).catch(console.error);
@@ -503,11 +513,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     }, [wsConnected, wsState]);
 
     useEffect(() => {
-        if (globalConfigIsReady && profileListIsReady && hotkeysConfigIsReady && firmwareInfoIsReady) {
+        if (globalConfigIsReady && screenControlIsReady && profileListIsReady && hotkeysConfigIsReady && firmwareInfoIsReady) {
             setDataIsReady(true);
             setIsLoading(false);
         }
-    }, [globalConfigIsReady, profileListIsReady, hotkeysConfigIsReady, firmwareInfoIsReady]);
+    }, [globalConfigIsReady, screenControlIsReady, profileListIsReady, hotkeysConfigIsReady, firmwareInfoIsReady]);
 
     // useEffect(() => {
     //     if (profileList.defaultId !== "") {
@@ -1107,6 +1117,36 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             return Promise.reject(new Error("Failed to update global config"));
         } finally {
             // setIsLoading(false);
+        }
+    };
+
+    const fetchScreenControl = async (immediate: boolean = true): Promise<void> => {
+        try {
+            const data = await sendWebSocketRequest('get_screen_control_config', {}, immediate);
+            const remote = data.screenControl ?? {};
+            const merged = {
+                ...DEFAULT_SCREEN_CONTROL_CONFIG,
+                ...remote,
+                features: {
+                    ...DEFAULT_SCREEN_CONTROL_CONFIG.features,
+                    ...(remote.features ?? {})
+                }
+            };
+            setScreenControl(merged);
+            return Promise.resolve();
+        } catch (err) {
+            return Promise.reject(new Error("Failed to fetch screen control config"));
+        }
+    };
+
+    const updateScreenControl = async (next: ScreenControlConfig, immediate: boolean = true): Promise<void> => {
+        try {
+            setScreenControl(next);
+            await sendWebSocketRequest('update_screen_control_config', { screenControl: next }, immediate);
+            return Promise.resolve();
+        } catch (err) {
+            setError('Failed to update screen control config');
+            return Promise.reject(new Error("Failed to update screen control config"));
         }
     };
 
@@ -2086,6 +2126,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             disconnectWebSocket,
 
             globalConfig,
+            screenControl,
             profileList,
             defaultProfile,
             hotkeysConfig,
@@ -2099,6 +2140,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             fetchHotkeysConfig,
             fetchGlobalConfig,
             updateGlobalConfig,
+            fetchScreenControl,
+            updateScreenControl,
             updateProfileDetails,
             resetProfileDetails,
             createProfile,

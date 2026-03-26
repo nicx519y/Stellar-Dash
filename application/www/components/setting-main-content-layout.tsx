@@ -3,6 +3,8 @@
 import { Flex, Box, Card, Text } from '@chakra-ui/react';
 import React, { ReactNode, createContext, useContext } from 'react';
 
+export type SettingMainContentLayoutSize = number | string;
+
 // 布局上下文
 interface MainContentLayoutContextType {
     width: number;
@@ -23,13 +25,13 @@ interface SettingMainContentLayoutProps {
     /** 子组件 */
     children: ReactNode;
     /** 自定义容器宽度 */
-    width?: number;
+    width?: SettingMainContentLayoutSize;
     /** 自定义样式 */
     className?: string;
     /** 是否显示边框 */
     showBorder?: boolean;
     /** 自定义高度 */
-    height?: string;
+    height?: SettingMainContentLayoutSize;
 }
 
 /**
@@ -48,9 +50,18 @@ export function SettingMainContentLayout({
     width = 778,
     height = "100%"
 }: SettingMainContentLayoutProps) {
+    const numericWidth = typeof width === "number"
+        ? width
+        : (() => {
+            const m = String(width).trim().match(/^(\d+(?:\.\d+)?)(px)?$/i);
+            if (!m) return 0;
+            const v = Number(m[1]);
+            return Number.isFinite(v) ? v : 0;
+        })();
+
     // 创建上下文值
     const contextValue: MainContentLayoutContextType = {
-        width,
+        width: numericWidth,
         scale: 1, // 主内容区域通常不需要缩放
     };
 

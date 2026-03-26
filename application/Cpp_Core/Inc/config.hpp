@@ -98,6 +98,30 @@ typedef struct
     LEDProfile ledsConfigs;
 } GamepadProfile;
 
+#define SCREEN_FEATURE_INPUT_MODE_SWITCH          (1u << 0)
+#define SCREEN_FEATURE_PROFILES_SWITCH            (1u << 1)
+#define SCREEN_FEATURE_SOCD_MODE_SWITCH           (1u << 2)
+#define SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH     (1u << 3)
+#define SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST      (1u << 4)
+#define SCREEN_FEATURE_LED_EFFECT_SWITCH          (1u << 5)
+#define SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST  (1u << 6)
+#define SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH      (1u << 7)
+#define SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST   (1u << 8)
+#define SCREEN_FEATURE_WEB_CONFIG_ENTRY           (1u << 9)
+#define SCREEN_FEATURE_CALIBRATION_MODE_SWITCH    (1u << 10)
+
+typedef struct
+{
+    uint8_t brightness;              // 屏幕亮度（0-100）
+    uint8_t reserved0[3];            // 保留字节（对齐）
+    uint32_t backgroundColor;        // 背景颜色（RGB888：0x000000-0xFFFFFF）
+    uint32_t textColor;              // 文字颜色（RGB888：0x000000-0xFFFFFF）
+    char backgroundImageId[32];      // 背景图片资源ID（对应 assets 索引名）
+    uint16_t currentPageId;          // 当前页面ID
+    uint16_t reserved1;              // 保留字节（对齐）
+    uint32_t featuresMask;           // 功能开关位图（SCREEN_FEATURE_*）
+} ScreenControlConfig;
+
 typedef struct
 {
     uint32_t version;
@@ -108,6 +132,8 @@ typedef struct
     GamepadProfile profiles[NUM_PROFILES];
     GamepadHotkeyEntry hotkeys[NUM_GAMEPAD_HOTKEYS];
     bool autoCalibrationEnabled;
+    uint8_t reserved0[3];
+    ScreenControlConfig screenControl;
 } Config;
 
 namespace ConfigUtils {

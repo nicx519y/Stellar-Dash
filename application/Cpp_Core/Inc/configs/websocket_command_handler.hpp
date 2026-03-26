@@ -37,6 +37,8 @@ public:
     WebSocketDownstreamMessage handleUpdateGlobalConfig(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleGetHotkeysConfig(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleUpdateHotkeysConfig(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleGetScreenControlConfig(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleUpdateScreenControlConfig(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleExportAllConfig(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleImportAllConfig(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleImportConfigPart(const WebSocketUpstreamMessage& request);

@@ -60,6 +60,27 @@ class MockDataStore {
       deviceId: "DEVICE_12345",
       originalUniqueId: "0123456789ABCDEF"
     };
+
+    this.screenControl = {
+      brightness: 100,
+      backgroundColor: 0x000000,
+      textColor: 0xFFFFFF,
+      backgroundImageId: "",
+      currentPageId: 0,
+      features: {
+        inputModeSwitch: true,
+        profilesSwitch: true,
+        socdModeSwitch: true,
+        tournamentModeSwitch: true,
+        ledBrightnessAdjust: true,
+        ledEffectSwitch: true,
+        ambientBrightnessAdjust: true,
+        ambientEffectSwitch: true,
+        screenBrightnessAdjust: true,
+        webConfigEntry: true,
+        calibrationModeSwitch: true,
+      }
+    };
   }
 
   // Getter 方法
@@ -70,12 +91,14 @@ class MockDataStore {
   getCalibrationStatus() { return this.calibrationStatus; }
   getButtonMonitoringStatus() { return this.buttonMonitoringStatus; }
   getFirmwareMetadata() { return this.firmwareMetadata; }
+  getScreenControl() { return this.screenControl; }
 
   // Setter 方法
   updateGlobalConfig(config) { this.globalConfig = { ...this.globalConfig, ...config }; }
   updateHotkeysConfig(config) { this.hotkeysConfig = { ...this.hotkeysConfig, ...config }; }
   setCalibrationStatus(status) { this.calibrationStatus = { ...this.calibrationStatus, ...status }; }
   setButtonMonitoringStatus(status) { this.buttonMonitoringStatus = { ...this.buttonMonitoringStatus, ...status }; }
+  updateScreenControl(config) { this.screenControl = { ...this.screenControl, ...config }; }
 }
 
 const dataStore = new MockDataStore();
@@ -123,6 +146,23 @@ class CommandHandler {
       });
     }
     return CommandHandler.createErrorResponse(request.cid, request.command, "无效的快捷键配置数据");
+  }
+
+  static handleGetScreenControlConfig(request) {
+    return CommandHandler.createSuccessResponse(request.cid, request.command, {
+      screenControl: dataStore.getScreenControl()
+    });
+  }
+
+  static handleUpdateScreenControlConfig(request) {
+    const config = request.params?.screenControl;
+    if (config) {
+      dataStore.updateScreenControl(config);
+      return CommandHandler.createSuccessResponse(request.cid, request.command, {
+        message: "ScreenControl配置更新成功"
+      });
+    }
+    return CommandHandler.createErrorResponse(request.cid, request.command, "无效的ScreenControl配置数据");
   }
 
   static handleReboot(request) {
@@ -427,6 +467,8 @@ const commandHandlers = {
   "update_global_config": CommandHandler.handleUpdateGlobalConfig,
   "get_hotkeys_config": CommandHandler.handleGetHotkeysConfig,
   "update_hotkeys_config": CommandHandler.handleUpdateHotkeysConfig,
+  "get_screen_control_config": CommandHandler.handleGetScreenControlConfig,
+  "update_screen_control_config": CommandHandler.handleUpdateScreenControlConfig,
   "reboot": CommandHandler.handleReboot,
   "push_leds_config": CommandHandler.handlePushLedsConfig,
   "clear_leds_preview": CommandHandler.handleClearLedsPreview,

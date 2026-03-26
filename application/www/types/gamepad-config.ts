@@ -84,6 +84,50 @@ export interface GlobalConfig {
     manualCalibrationActive?: boolean;
 }
 
+export interface ScreenControlFeatures {
+    inputModeSwitch: boolean;
+    profilesSwitch: boolean;
+    socdModeSwitch: boolean;
+    tournamentModeSwitch: boolean;
+    ledBrightnessAdjust: boolean;
+    ledEffectSwitch: boolean;
+    ambientBrightnessAdjust: boolean;
+    ambientEffectSwitch: boolean;
+    screenBrightnessAdjust: boolean;
+    webConfigEntry: boolean;
+    calibrationModeSwitch: boolean;
+}
+
+export interface ScreenControlConfig {
+    brightness: number;
+    backgroundColor: number;
+    textColor: number;
+    backgroundImageId: string;
+    currentPageId: number;
+    features: ScreenControlFeatures;
+}
+
+export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
+    brightness: 100,
+    backgroundColor: 0x000000,
+    textColor: 0xFFFFFF,
+    backgroundImageId: "",
+    currentPageId: 0,
+    features: {
+        inputModeSwitch: true,
+        profilesSwitch: true,
+        socdModeSwitch: true,
+        tournamentModeSwitch: true,
+        ledBrightnessAdjust: true,
+        ledEffectSwitch: true,
+        ambientBrightnessAdjust: true,
+        ambientEffectSwitch: true,
+        screenBrightnessAdjust: true,
+        webConfigEntry: true,
+        calibrationModeSwitch: true,
+    },
+};
+
 export enum GameControllerButton {
     DPAD_UP = "DPAD_UP",
     DPAD_DOWN = "DPAD_DOWN",
@@ -640,6 +684,10 @@ export const UI_TEXT = {
     SETTINGS_HOTKEYS_HELPER_TEXT: `Configure up to ${DEFAULT_NUM_HOTKEYS_MAX} hotkeys for quick access to various functions.\n- Click on the hotkey field and press the desired key on the hitbox or device to bind the hotkey.\n- Choice the hotkey action from the dropdown list.\n- Locked hotkeys are used for web configuration mode and calibration mode because this function is required. `,
     SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "Device Button Monitoring",
 
+    // Screen Control Settings
+    SETTINGS_SCREEN_CONTROL_TITLE: "Screen Control Settings",
+    SETTINGS_SCREEN_CONTROL_HELPER_TEXT: "Customize the screen control features, such as brightness, contrast, and color.",
+
     // Firmware Settings
     SETTINGS_FIRMWARE_TITLE: "FIRMWARE UPDATE",
     SETTINGS_FIRMWARE_CURRENT_VERSION_LABEL: "Current Version: ",
@@ -976,6 +1024,10 @@ export const UI_TEXT_ZH = {
     SETTINGS_HOTKEYS_TITLE: "快捷键设置",
     SETTINGS_HOTKEYS_HELPER_TEXT: `最多可以配置${DEFAULT_NUM_HOTKEYS_MAX}个快捷键来快速访问各种功能。\n- 点击快捷键区域并在实体设备上或者左侧格斗板图示上按下想要绑定的按键\n- 从下拉列表中选择快捷键动作\n- 锁定的快捷键用于网页配置模式和校准模式，因为这些功能是必需的。`,
     SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "设备按键监控",
+
+    // 屏控设置
+    SETTINGS_SCREEN_CONTROL_TITLE: "屏控设置",
+    SETTINGS_SCREEN_CONTROL_HELPER_TEXT: "可以在这里自定义屏控功能、效果样式、颜色和亮度。",
 
     // 固件更新
     SETTINGS_FIRMWARE_TITLE: "设备固件更新",

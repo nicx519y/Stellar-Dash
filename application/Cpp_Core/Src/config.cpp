@@ -149,6 +149,27 @@ cJSON* toJSON(Config& config) {
     }
     cJSON_AddItemToObject(exportJSON, "profiles", profilesJSON);
 
+    cJSON* screenControlJSON = cJSON_CreateObject();
+    cJSON_AddNumberToObject(screenControlJSON, "brightness", config.screenControl.brightness);
+    cJSON_AddNumberToObject(screenControlJSON, "backgroundColor", config.screenControl.backgroundColor);
+    cJSON_AddNumberToObject(screenControlJSON, "textColor", config.screenControl.textColor);
+    cJSON_AddStringToObject(screenControlJSON, "backgroundImageId", config.screenControl.backgroundImageId);
+    cJSON_AddNumberToObject(screenControlJSON, "currentPageId", config.screenControl.currentPageId);
+    cJSON* featuresJSON = cJSON_CreateObject();
+    cJSON_AddBoolToObject(featuresJSON, "inputModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_INPUT_MODE_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "profilesSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_PROFILES_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "socdModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_SOCD_MODE_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "tournamentModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "ledBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "ledEffectSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_LED_EFFECT_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "ambientBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "ambientEffectSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "screenBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "webConfigEntry", (config.screenControl.featuresMask & SCREEN_FEATURE_WEB_CONFIG_ENTRY) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "calibrationModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_CALIBRATION_MODE_SWITCH) != 0);
+    cJSON_AddItemToObject(screenControlJSON, "features", featuresJSON);
+    cJSON_AddItemToObject(exportJSON, "screenControl", screenControlJSON);
+
     return exportJSON;
 }
 
@@ -245,6 +266,57 @@ bool fromJSON(Config& config, cJSON* json) {
                 //          }
                 //      }
                 //  }
+            }
+        }
+    }
+
+    cJSON* screenControl = cJSON_GetObjectItem(json, "screenControl");
+    if (screenControl && cJSON_IsObject(screenControl)) {
+        cJSON* item;
+        if ((item = cJSON_GetObjectItem(screenControl, "brightness")) && cJSON_IsNumber(item)) {
+            int v = item->valueint;
+            if (v < 0) v = 0;
+            if (v > 100) v = 100;
+            config.screenControl.brightness = (uint8_t)v;
+        }
+        if ((item = cJSON_GetObjectItem(screenControl, "backgroundColor")) && cJSON_IsNumber(item)) {
+            config.screenControl.backgroundColor = (uint32_t)item->valuedouble;
+        }
+        if ((item = cJSON_GetObjectItem(screenControl, "textColor")) && cJSON_IsNumber(item)) {
+            config.screenControl.textColor = (uint32_t)item->valuedouble;
+        }
+        if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageId")) && cJSON_IsString(item)) {
+            strncpy(config.screenControl.backgroundImageId, item->valuestring, sizeof(config.screenControl.backgroundImageId) - 1);
+            config.screenControl.backgroundImageId[sizeof(config.screenControl.backgroundImageId) - 1] = '\0';
+        }
+        if ((item = cJSON_GetObjectItem(screenControl, "currentPageId")) && cJSON_IsNumber(item)) {
+            int v = item->valueint;
+            if (v < 0) v = 0;
+            if (v > 65535) v = 65535;
+            config.screenControl.currentPageId = (uint16_t)v;
+        }
+
+        cJSON* features = cJSON_GetObjectItem(screenControl, "features");
+        if (features && cJSON_IsObject(features)) {
+            struct { const char* key; uint32_t bit; } map[] = {
+                {"inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
+                {"profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
+                {"socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
+                {"tournamentModeSwitch", SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH},
+                {"ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
+                {"ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
+                {"ambientBrightnessAdjust", SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST},
+                {"ambientEffectSwitch", SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH},
+                {"screenBrightnessAdjust", SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST},
+                {"webConfigEntry", SCREEN_FEATURE_WEB_CONFIG_ENTRY},
+                {"calibrationModeSwitch", SCREEN_FEATURE_CALIBRATION_MODE_SWITCH},
+            };
+            for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
+                cJSON* b = cJSON_GetObjectItem(features, map[i].key);
+                if (b && cJSON_IsBool(b)) {
+                    if (cJSON_IsTrue(b)) config.screenControl.featuresMask |= map[i].bit;
+                    else config.screenControl.featuresMask &= ~map[i].bit;
+                }
             }
         }
     }
@@ -362,6 +434,26 @@ bool ConfigUtils::load(Config& config)
         strcpy(config.defaultProfileId, "profile-0");
         config.numProfilesMax = NUM_PROFILES;
         config.autoCalibrationEnabled = false; // 默认关闭自动校准
+        memset(config.reserved0, 0, sizeof(config.reserved0));
+        config.screenControl.brightness = 100;
+        memset(config.screenControl.reserved0, 0, sizeof(config.screenControl.reserved0));
+        config.screenControl.backgroundColor = 0x000000;
+        config.screenControl.textColor = 0xFFFFFF;
+        config.screenControl.backgroundImageId[0] = '\0';
+        config.screenControl.currentPageId = 0;
+        config.screenControl.reserved1 = 0;
+        config.screenControl.featuresMask =
+            SCREEN_FEATURE_INPUT_MODE_SWITCH |
+            SCREEN_FEATURE_PROFILES_SWITCH |
+            SCREEN_FEATURE_SOCD_MODE_SWITCH |
+            SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH |
+            SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST |
+            SCREEN_FEATURE_LED_EFFECT_SWITCH |
+            SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST |
+            SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH |
+            SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST |
+            SCREEN_FEATURE_WEB_CONFIG_ENTRY |
+            SCREEN_FEATURE_CALIBRATION_MODE_SWITCH;
 
         APP_DBG("ConfigUtils::load - base config init done");
 

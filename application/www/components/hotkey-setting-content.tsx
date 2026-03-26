@@ -143,7 +143,7 @@ export function HotkeySettingContent({
             height={height}
         >
             <MainContentHeader 
-                title={t.SETTINGS_HOTKEYS_TITLE}
+                // title={t.SETTINGS_HOTKEYS_TITLE}
                 description={t.SETTINGS_HOTKEYS_HELPER_TEXT}
             />
             

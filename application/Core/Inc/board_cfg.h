@@ -83,7 +83,7 @@
 #define WEBCONFIG_IP_FOURTH                 1
 #define WEBCONFIG_DOMAIN_NAME               "st-dash.usb"
 
-#define CONFIG_VERSION                      (uint32_t)0x00000f  //配置版本 三位版本号 0x aa bb cc
+#define CONFIG_VERSION                      (uint32_t)0x000011  //配置版本 三位版本号 0x aa bb cc
 #define ADC_MAPPING_VERSION                 (uint32_t)0x000001  //ADC值映射表版本
 #define ADC_COMMON_VERSION                  (uint32_t)0x000001
 
@@ -392,6 +392,6 @@ static const DefaultHotkeyConfig DEFAULT_HOTKEY_LIST[NUM_GAMEPAD_HOTKEYS] = {
  }
 #endif
 
-#endif // __BOARD_H__
+#endif /* __BOARD_H__ */
 
 

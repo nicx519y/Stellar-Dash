@@ -13,9 +13,11 @@ import { HotkeySettingContent } from "./hotkey-setting-content";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { InputModeSettingContent } from "./input-mode-content";
+import { ScreenControlSettingContent } from "./screen-control-setting-content";
 import { openConfirm } from "@/components/dialog-confirm";
 import { useNavigationBlocker } from '@/hooks/use-navigation-blocker';
 import React from "react";
+import { Tabs, Separator } from "@chakra-ui/react";
 import { 
     SettingContentLayout, 
     SideContent, 
@@ -48,6 +50,7 @@ export function GlobalSettingContent() {
     // 添加本地 hotkeys 状态来存储用户修改
     const [currentHotkeys, setCurrentHotkeys] = useState<Hotkey[]>([]);
     const [calibrationActive, setCalibrationActive] = useState<boolean>(false);
+    const [mainTab, setMainTab] = useState<'hotkeys' | 'screen'>('hotkeys');
 
     // 添加校准模式检查
     useNavigationBlocker(
@@ -242,11 +245,39 @@ export function GlobalSettingContent() {
             </HitboxContent>
             
             <MainContent>
-                <HotkeySettingContent
-                    disabled={calibrationActive}
-                    onHotkeysUpdate={handleHotkeyUpdate}
-                    hotkeys={currentHotkeys}
-                />
+                <>
+                    <Tabs.Root
+                        defaultValue={mainTab}
+                        value={mainTab}
+                        size="sm"
+                        variant="plain"
+                        colorPalette="green"
+                        onValueChange={(details) => {
+                            const v = details.value === 'screen' ? 'screen' : 'hotkeys';
+                            setMainTab(v);
+                        }}
+                    >
+                        <Tabs.List bg="bg.muted" width="100%">
+                            <Tabs.Trigger value="hotkeys" padding="0 24px" fontWeight="bold">
+                                {t.SETTINGS_HOTKEYS_TITLE}
+                            </Tabs.Trigger>
+                            <Separator orientation="vertical" height="6" alignSelf="center" />
+                            <Tabs.Trigger value="screen" padding="0 24px" fontWeight="bold">
+                                {t.SETTINGS_SCREEN_CONTROL_TITLE}
+                            </Tabs.Trigger>
+                            <Tabs.Indicator rounded="l2" />
+                        </Tabs.List>
+                    </Tabs.Root>
+                    {mainTab === 'hotkeys' ? (
+                        <HotkeySettingContent
+                            disabled={calibrationActive}
+                            onHotkeysUpdate={handleHotkeyUpdate}
+                            hotkeys={currentHotkeys}
+                        />
+                    ) : (
+                        <ScreenControlSettingContent disabled={calibrationActive} />
+                    )}
+                </>
             </MainContent>
             
             <TopButtons config={topButtonsConfig} />
