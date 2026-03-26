@@ -12,6 +12,7 @@
 #include "configs/webconfig_leds_manager.hpp"
 #include "firmware/firmware_manager.hpp"
 #include "storagemanager.hpp"
+#include "configs/user_image_command_handler.hpp"
 #include <cctype>
 #include <cstring>
 #include <cstdlib>
@@ -55,6 +56,120 @@ static uint32_t g_websocket_message_count = 0;
 static uint32_t g_websocket_start_time = 0;
 static bool g_websocket_processing = false;  // 添加处理状态标记
 static WebSocketConnection* g_current_connection = nullptr;  // 当前活跃连接
+
+static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN = 0x30;
+static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_CHUNK = 0x31;
+static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_COMMIT = 0x32;
+static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_DELETE = 0x33;
+
+static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP = 0xB0;
+static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_CHUNK_RESP = 0xB1;
+static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_COMMIT_RESP = 0xB2;
+static const uint8_t BINARY_CMD_UPLOAD_USER_IMAGE_DELETE_RESP = 0xB3;
+
+static const uint32_t USER_IMAGE_INDEX_HEADER_SIZE = 4096;
+static const uint32_t USER_IMAGE_PAYLOAD_ADDR = USER_IMAGE_RESOURCES_ADDR + USER_IMAGE_INDEX_HEADER_SIZE;
+static const uint32_t USER_IMAGE_FORMAT_RGB565LE = 1;
+static const char* USER_IMAGE_ID = "USER_IMAGE";
+
+#pragma pack(push, 1)
+struct BinaryUserImageBeginHeader {
+    uint8_t command;
+    uint8_t reserved;
+    uint32_t cid;
+    uint16_t width;
+    uint16_t height;
+    uint32_t total_size;
+};
+
+struct BinaryUserImageChunkHeader {
+    uint8_t command;
+    uint8_t reserved;
+    uint32_t cid;
+    uint32_t offset;
+    uint16_t chunk_size;
+    uint16_t reserved2;
+};
+
+struct BinaryUserImageCommitHeader {
+    uint8_t command;
+    uint8_t reserved;
+    uint32_t cid;
+};
+
+struct BinaryUserImageDeleteHeader {
+    uint8_t command;
+    uint8_t reserved;
+    uint32_t cid;
+};
+
+struct BinaryUserImageResponse {
+    uint8_t command;
+    uint8_t success;
+    uint32_t cid;
+    uint32_t received;
+    uint32_t total;
+    uint8_t error_len;
+    char error_msg[64];
+};
+
+struct UserImageIndexHeader {
+    uint32_t magic;
+    uint16_t version;
+    uint8_t valid;
+    uint8_t format;
+    uint16_t width;
+    uint16_t height;
+    uint32_t size;
+    uint32_t offset;
+    char id[16];
+};
+#pragma pack(pop)
+
+static struct {
+    bool active;
+    uint32_t cid;
+    uint16_t width;
+    uint16_t height;
+    uint32_t total;
+    uint32_t received;
+} g_user_image_upload_session = {0};
+
+static void send_user_image_binary_response(WebSocketConnection* connection, uint8_t resp_cmd, bool success, uint32_t cid, uint32_t received, uint32_t total, const char* error_message) {
+    if (!connection) return;
+    BinaryUserImageResponse response = {0};
+    response.command = resp_cmd;
+    response.success = success ? 1 : 0;
+    response.cid = cid;
+    response.received = received;
+    response.total = total;
+    if (!success && error_message) {
+        size_t n = strlen(error_message);
+        if (n > 63) n = 63;
+        response.error_len = (uint8_t)n;
+        memcpy(response.error_msg, error_message, n);
+        response.error_msg[n] = '\0';
+    }
+    connection->send_binary((const uint8_t*)&response, sizeof(response));
+}
+
+static int8_t qspi_write_bytes(uint32_t address, const uint8_t* data, uint32_t length) {
+    uint32_t offset = 0;
+    while (offset < length) {
+        uint32_t remaining = length - offset;
+        uint32_t page_offset = (address + offset) & (W25Qxx_PageSize - 1);
+        uint32_t to_write = W25Qxx_PageSize - page_offset;
+        if (to_write > remaining) to_write = remaining;
+        int8_t r = QSPI_W25Qxx_WritePage((uint8_t*)(data + offset), address + offset, (uint16_t)to_write);
+        if (r != QSPI_W25Qxx_OK) return r;
+        offset += to_write;
+    }
+    return QSPI_W25Qxx_OK;
+}
+
+static void clear_user_image_upload_session() {
+    memset(&g_user_image_upload_session, 0, sizeof(g_user_image_upload_session));
+}
 
 
 
@@ -271,6 +386,7 @@ void onWebSocketDisconnect(WebSocketConnection* conn) {
         g_current_connection = nullptr;
         g_websocket_connection_count = 0;
         APP_DBG("WebSocket: Current connection closed, total connections: %d", g_websocket_connection_count);
+        UserImageCommandHandler::handleBinaryMessage(conn, nullptr, 0); // trigger cleanup
         
         // 如果校准正在进行中，自动停止校准
         if (ADCCalibrationManager::getInstance().isCalibrationActive()) {
@@ -329,6 +445,13 @@ void onWebSocketBinaryMessage(WebSocketConnection* conn, const uint8_t* data, si
             FirmwareCommandHandler& handler = FirmwareCommandHandler::getInstance();
             bool success = handler.handleBinaryFirmwareChunk(data, length, conn);
             // LOG_INFO("WebSocket", "Binary firmware chunk processed: %s", success ? "success" : "failed");
+            break;
+        }
+        case 0x30:
+        case 0x31:
+        case 0x32:
+        case 0x33: {
+            UserImageCommandHandler::handleBinaryMessage(conn, data, length);
             break;
         }
         default:

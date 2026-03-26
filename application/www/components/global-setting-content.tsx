@@ -17,8 +17,8 @@ import { ScreenControlSettingContent } from "./screen-control-setting-content";
 import { openConfirm } from "@/components/dialog-confirm";
 import { useNavigationBlocker } from '@/hooks/use-navigation-blocker';
 import React from "react";
-import { Box, Tabs } from "@chakra-ui/react";
-import { MainContentBody, MainContentHeader, SettingMainContentLayout } from "./setting-main-content-layout";
+import { Tabs } from "@chakra-ui/react";
+import { MainContentBody, SettingMainContentLayout } from "./setting-main-content-layout";
 import { MdOutlineScreenshotMonitor } from "react-icons/md";
 import { FaKeyboard } from "react-icons/fa";
 

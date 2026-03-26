@@ -100,6 +100,7 @@ export interface ScreenControlFeatures {
 
 export interface ScreenControlConfig {
     brightness: number;
+    backgroundImageEnabled: boolean;
     backgroundColor: number;
     textColor: number;
     backgroundImageId: string;
@@ -109,6 +110,7 @@ export interface ScreenControlConfig {
 
 export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
     brightness: 100,
+    backgroundImageEnabled: false,
     backgroundColor: 0x000000,
     textColor: 0xFFFFFF,
     backgroundImageId: "",

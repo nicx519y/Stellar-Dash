@@ -113,7 +113,8 @@ typedef struct
 typedef struct
 {
     uint8_t brightness;              // 屏幕亮度（0-100）
-    uint8_t reserved0[3];            // 保留字节（对齐）
+    bool backgroundImageEnabled;     // 是否显示背景图片
+    uint8_t reserved0[2];            // 保留字节（对齐）
     uint32_t backgroundColor;        // 背景颜色（RGB888：0x000000-0xFFFFFF）
     uint32_t textColor;              // 文字颜色（RGB888：0x000000-0xFFFFFF）
     char backgroundImageId[32];      // 背景图片资源ID（对应 assets 索引名）
@@ -147,6 +148,7 @@ namespace ConfigUtils {
     cJSON* toJSON(Config& config);
     bool fromJSON(Config& config, cJSON* json);
     cJSON* buildHotkeysConfigJSON(Config& config);
+    cJSON* buildScreenControlConfigJSON(Config& config);
 
     // Mappings helpers
     const char* getInputModeString(InputMode mode);

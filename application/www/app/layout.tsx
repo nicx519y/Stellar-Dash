@@ -127,7 +127,7 @@ export default function RootLayout({
     return (
         <html suppressHydrationWarning style={{ height: '100%' }}>
             <head>
-                <link
+                {/* <link
                     rel="icon"
                     href="data:image/x-icon;base64,AAABAAQAEBAAAAEAIAAoBQAARgAAACAgAAABACAAKBQAAG4FAAAwMAAAAQAgACgtAACWGQAAAAAA
 AAEAIACNHgAAvkYAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAUAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
@@ -1282,7 +1282,7 @@ dwIfATsAzsAj6gE+6WkAOA9fYjgDMgCGV1CA7NH16BoAGoGOAHsPJwJur+EEHNM48Ho7gMaked1/
 jnOfAJzDQKWmAn8IvAdQobcBbwN8wlP5aQRoACQWM/D/QN+5DmrsiuEAAAAASUVORK5CYII=
 "
                     type="image/x-icon"
-                />
+                /> */}
             </head>
             <body style={{ height: '100vh', margin: 0 }}>
                 <StyledComponentsRegistry>

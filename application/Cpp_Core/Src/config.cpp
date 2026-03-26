@@ -123,6 +123,30 @@ cJSON* buildHotkeysConfigJSON(Config& config) {
     return hotkeysConfigJSON;
 }
 
+cJSON* buildScreenControlConfigJSON(Config& config) {
+    cJSON* screenControlJSON = cJSON_CreateObject();
+    cJSON_AddNumberToObject(screenControlJSON, "brightness", config.screenControl.brightness);
+    cJSON_AddBoolToObject(screenControlJSON, "backgroundImageEnabled", config.screenControl.backgroundImageEnabled);
+    cJSON_AddNumberToObject(screenControlJSON, "backgroundColor", config.screenControl.backgroundColor);
+    cJSON_AddNumberToObject(screenControlJSON, "textColor", config.screenControl.textColor);
+    cJSON_AddStringToObject(screenControlJSON, "backgroundImageId", config.screenControl.backgroundImageId);
+    cJSON_AddNumberToObject(screenControlJSON, "currentPageId", config.screenControl.currentPageId);
+    cJSON* featuresJSON = cJSON_CreateObject();
+    cJSON_AddBoolToObject(featuresJSON, "inputModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_INPUT_MODE_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "profilesSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_PROFILES_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "socdModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_SOCD_MODE_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "tournamentModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "ledBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "ledEffectSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_LED_EFFECT_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "ambientBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "ambientEffectSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "screenBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "webConfigEntry", (config.screenControl.featuresMask & SCREEN_FEATURE_WEB_CONFIG_ENTRY) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "calibrationModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_CALIBRATION_MODE_SWITCH) != 0);
+    cJSON_AddItemToObject(screenControlJSON, "features", featuresJSON);
+    return screenControlJSON;
+}
+
 cJSON* toJSON(Config& config) {
     cJSON* exportJSON = cJSON_CreateObject();
 
@@ -149,25 +173,7 @@ cJSON* toJSON(Config& config) {
     }
     cJSON_AddItemToObject(exportJSON, "profiles", profilesJSON);
 
-    cJSON* screenControlJSON = cJSON_CreateObject();
-    cJSON_AddNumberToObject(screenControlJSON, "brightness", config.screenControl.brightness);
-    cJSON_AddNumberToObject(screenControlJSON, "backgroundColor", config.screenControl.backgroundColor);
-    cJSON_AddNumberToObject(screenControlJSON, "textColor", config.screenControl.textColor);
-    cJSON_AddStringToObject(screenControlJSON, "backgroundImageId", config.screenControl.backgroundImageId);
-    cJSON_AddNumberToObject(screenControlJSON, "currentPageId", config.screenControl.currentPageId);
-    cJSON* featuresJSON = cJSON_CreateObject();
-    cJSON_AddBoolToObject(featuresJSON, "inputModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_INPUT_MODE_SWITCH) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "profilesSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_PROFILES_SWITCH) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "socdModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_SOCD_MODE_SWITCH) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "tournamentModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "ledBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "ledEffectSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_LED_EFFECT_SWITCH) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "ambientBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "ambientEffectSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "screenBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "webConfigEntry", (config.screenControl.featuresMask & SCREEN_FEATURE_WEB_CONFIG_ENTRY) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "calibrationModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_CALIBRATION_MODE_SWITCH) != 0);
-    cJSON_AddItemToObject(screenControlJSON, "features", featuresJSON);
+    cJSON* screenControlJSON = buildScreenControlConfigJSON(config);
     cJSON_AddItemToObject(exportJSON, "screenControl", screenControlJSON);
 
     return exportJSON;
@@ -278,6 +284,9 @@ bool fromJSON(Config& config, cJSON* json) {
             if (v < 0) v = 0;
             if (v > 100) v = 100;
             config.screenControl.brightness = (uint8_t)v;
+        }
+        if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageEnabled")) && cJSON_IsBool(item)) {
+            config.screenControl.backgroundImageEnabled = cJSON_IsTrue(item);
         }
         if ((item = cJSON_GetObjectItem(screenControl, "backgroundColor")) && cJSON_IsNumber(item)) {
             config.screenControl.backgroundColor = (uint32_t)item->valuedouble;
@@ -436,6 +445,7 @@ bool ConfigUtils::load(Config& config)
         config.autoCalibrationEnabled = false; // 默认关闭自动校准
         memset(config.reserved0, 0, sizeof(config.reserved0));
         config.screenControl.brightness = 100;
+        config.screenControl.backgroundImageEnabled = true;
         memset(config.screenControl.reserved0, 0, sizeof(config.screenControl.reserved0));
         config.screenControl.backgroundColor = 0x000000;
         config.screenControl.textColor = 0xFFFFFF;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
     GameProfile,
     KeyCombination,
@@ -9,7 +9,6 @@ import {
     Platform, GameSocdMode,
     GameControllerButton, Hotkey, GameProfileList, GlobalConfig,
     XInputButtonMap, PS4ButtonMap, SwitchButtonMap,
-    NUM_PROFILES_MAX,
     ScreenControlConfig,
     DEFAULT_SCREEN_CONTROL_CONFIG
 } from '@/types/gamepad-config';
@@ -104,6 +103,8 @@ interface GamepadConfigContextType {
     wsError: WebSocketError | null;
     connectWebSocket: () => Promise<void>;
     disconnectWebSocket: () => void;
+    sendBinaryMessage: (data: ArrayBuffer | Uint8Array) => void;
+    onBinaryMessage: (handler: (data: ArrayBuffer) => void) => () => void;
 
     profileList: GameProfileList;
     defaultProfile: GameProfile;
@@ -543,6 +544,14 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
+    const sendBinaryMessage = useCallback((data: ArrayBuffer | Uint8Array): void => {
+        wsFramework?.sendBinaryMessage(data);
+    }, [wsFramework]);
+
+    const onBinaryMessage = useCallback((handler: (data: ArrayBuffer) => void): (() => void) => {
+        return wsFramework?.onBinaryMessage(handler) || (() => {});
+    }, [wsFramework]);
+
     /**
      * 发送WebSocket请求
      * @param command 命令
@@ -720,6 +729,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                         } else if (section === 'hotkeys') {
                             console.log("[Export] Processing hotkeys config");
                             exportedData.hotkeysConfig = data;
+                        } else if (section === 'screenControl') {
+                            console.log("[Export] Processing screenControl config");
+                            exportedData.screenControl = data;
                         } else if (section === 'profile') {
                             console.log("[Export] Processing profile chunk");
                             if (data) {
@@ -785,7 +797,16 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                  }, true);
             }
 
-            // 3. Send Profiles
+            // 3. Send ScreenControl Config
+            if (configData.screenControl) {
+                 console.log("[Import] Sending screenControl config");
+                 await sendWebSocketRequest('import_config_part', { 
+                     section: 'screenControl', 
+                     data: configData.screenControl
+                 }, true);
+            }
+
+            // 4. Send Profiles
             if (configData.profiles && Array.isArray(configData.profiles)) {
                 for (const profile of configData.profiles) {
                     console.log(`[Import] Sending profile: ${profile.id}`);
@@ -2124,6 +2145,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             wsError,
             connectWebSocket,
             disconnectWebSocket,
+            sendBinaryMessage,
+            onBinaryMessage,
 
             globalConfig,
             screenControl,

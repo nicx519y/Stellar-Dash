@@ -33,8 +33,9 @@ type ScreenControlSettingContentProps = {
 
 export function ScreenControlSettingContent(props: ScreenControlSettingContentProps) {
     const { disabled = false } = props;
-    const { screenControl, updateScreenControl } = useGamepadConfig();
+    const { screenControl, updateScreenControl, sendBinaryMessage, onBinaryMessage } = useGamepadConfig();
     const [brightness, setBrightness] = useState<number>(screenControl.brightness ?? 100);
+    const [backgroundImageEnabled, setBackgroundImageEnabled] = useState<boolean>(screenControl.backgroundImageEnabled ?? false);
     const [bgColor, setBgColor] = useState<Color>(parseColor(toHex6(screenControl.backgroundColor ?? 0)));
     const [textColor, setTextColor] = useState<Color>(parseColor(toHex6(screenControl.textColor ?? 0xFFFFFF)));
     const [backgroundImageId, setBackgroundImageId] = useState<string>(screenControl.backgroundImageId ?? '');
@@ -49,6 +50,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     const [colorSwatches, setColorSwatches] = useState<string[]>(defaultColorSwatches);
     const [tempSelectedColors, setTempSelectedColors] = useState<{ bg?: string; text?: string }>({});
     const SYSTEM_BG_ID = 'SYSTEM_DEFAULT';
+    const USER_BG_ID = 'USER_IMAGE';
     const [userAsset, setUserAsset] = useState<{ id: string; name: string; width: number; height: number; previewUrl: string } | null>(null);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const systemPreviewUrl = useMemo(() => {
@@ -64,6 +66,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
 
     useEffect(() => {
         setBrightness(screenControl.brightness ?? 100);
+        setBackgroundImageEnabled(screenControl.backgroundImageEnabled ?? false);
         setBgColor(parseColor(toHex6(screenControl.backgroundColor ?? 0)));
         setTextColor(parseColor(toHex6(screenControl.textColor ?? 0xFFFFFF)));
 
@@ -99,13 +102,14 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         const pid = Math.max(0, Math.min(65535, parseInt(currentPageId || '0', 10) || 0));
         return {
             brightness: b,
+            backgroundImageEnabled,
             backgroundColor: bg,
             textColor: fg,
             backgroundImageId,
             currentPageId: pid,
             features,
         };
-    }, [brightness, bgColor, textColor, backgroundImageId, currentPageId, features, screenControl.backgroundColor, screenControl.textColor]);
+    }, [brightness, backgroundImageEnabled, bgColor, textColor, backgroundImageId, currentPageId, features, screenControl.backgroundColor, screenControl.textColor]);
 
     const push = async () => {
         await updateScreenControl(nextConfig, true);
@@ -141,31 +145,107 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         return { width: w, height: h, data: out, previewUrl };
     };
 
-    const encodeBase64 = (bytes: Uint8Array) => {
-        let binary = '';
-        const chunk = 0x8000;
-        for (let i = 0; i < bytes.length; i += chunk) {
-            binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)));
+    const sendBinaryUserImageRequest = async (payload: Uint8Array, expectedRespCmd: number, cid: number) => {
+        return new Promise<{ success: boolean; received: number; total: number; error?: string }>((resolve, reject) => {
+            const timeout = window.setTimeout(() => {
+                unsubscribe();
+                reject(new Error('Binary request timeout'));
+            }, 15000);
+
+            const unsubscribe = onBinaryMessage((data) => {
+                try {
+                    const view = new DataView(data);
+                    if (view.byteLength < 1 + 1 + 4 + 4 + 4 + 1) return;
+                    const cmd = view.getUint8(0);
+                    if (cmd !== expectedRespCmd) return;
+                    const respCid = view.getUint32(2, true);
+                    if (respCid !== cid) return;
+
+                    window.clearTimeout(timeout);
+                    unsubscribe();
+
+                    const success = view.getUint8(1) === 1;
+                    const received = view.getUint32(6, true);
+                    const total = view.getUint32(10, true);
+                    const errLen = view.getUint8(14);
+                    let error: string | undefined;
+                    if (!success && errLen > 0 && view.byteLength >= 15 + errLen) {
+                        const bytes = new Uint8Array(data, 15, errLen);
+                        error = new TextDecoder().decode(bytes);
+                    }
+                    resolve({ success, received, total, error });
+                } catch (e) {
+                    window.clearTimeout(timeout);
+                    unsubscribe();
+                    reject(e);
+                }
+            });
+
+            sendBinaryMessage(payload);
+        });
+    };
+
+    const uploadUserBackgroundImage = async (name: string, width: number, height: number, data: Uint8Array) => {
+        const CMD_BEGIN = 0x30;
+        const CMD_CHUNK = 0x31;
+        const CMD_COMMIT = 0x32;
+        const RESP_BEGIN = 0xB0;
+        const RESP_CHUNK = 0xB1;
+        const RESP_COMMIT = 0xB2;
+
+        const cid = (Math.random() * 0xFFFFFFFF) >>> 0;
+
+        const begin = new ArrayBuffer(14);
+        const beginView = new DataView(begin);
+        beginView.setUint8(0, CMD_BEGIN);
+        beginView.setUint8(1, 0);
+        beginView.setUint32(2, cid, true);
+        beginView.setUint16(6, width, true);
+        beginView.setUint16(8, height, true);
+        beginView.setUint32(10, data.length, true);
+        const beginResp = await sendBinaryUserImageRequest(new Uint8Array(begin), RESP_BEGIN, cid);
+        if (!beginResp.success) throw new Error(beginResp.error || 'Begin failed');
+
+        const chunkSize = 4096;
+        for (let offset = 0; offset < data.length; offset += chunkSize) {
+            const part = data.subarray(offset, Math.min(data.length, offset + chunkSize));
+            const header = new ArrayBuffer(14);
+            const headerView = new DataView(header);
+            headerView.setUint8(0, CMD_CHUNK);
+            headerView.setUint8(1, 0);
+            headerView.setUint32(2, cid, true);
+            headerView.setUint32(6, offset, true);
+            headerView.setUint16(10, part.length, true);
+            headerView.setUint16(12, 0, true);
+            const msg = new Uint8Array(14 + part.length);
+            msg.set(new Uint8Array(header), 0);
+            msg.set(part, 14);
+            const chunkResp = await sendBinaryUserImageRequest(msg, RESP_CHUNK, cid);
+            if (!chunkResp.success) throw new Error(chunkResp.error || 'Chunk failed');
         }
-        return btoa(binary);
+
+        const commit = new ArrayBuffer(6);
+        const commitView = new DataView(commit);
+        commitView.setUint8(0, CMD_COMMIT);
+        commitView.setUint8(1, 0);
+        commitView.setUint32(2, cid, true);
+        const commitResp = await sendBinaryUserImageRequest(new Uint8Array(commit), RESP_COMMIT, cid);
+        if (!commitResp.success) throw new Error(commitResp.error || 'Commit failed');
+
+        return { id: USER_BG_ID, name, width, height };
     };
 
-    const uploadAsset = async (name: string, width: number, height: number, dataBase64: string) => {
-        const res = await fetch('/api/user-assets/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, width, height, format: 'RGB565LE', dataBase64 })
-        });
-        const json = await res.json();
-        return json.id as string;
-    };
-
-    const deleteAsset = async (id: string) => {
-        await fetch('/api/user-assets/delete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id })
-        });
+    const deleteUserBackgroundImage = async () => {
+        const CMD_DELETE = 0x33;
+        const RESP_DELETE = 0xB3;
+        const cid = (Math.random() * 0xFFFFFFFF) >>> 0;
+        const del = new ArrayBuffer(6);
+        const delView = new DataView(del);
+        delView.setUint8(0, CMD_DELETE);
+        delView.setUint8(1, 0);
+        delView.setUint32(2, cid, true);
+        const resp = await sendBinaryUserImageRequest(new Uint8Array(del), RESP_DELETE, cid);
+        if (!resp.success) throw new Error(resp.error || 'Delete failed');
     };
 
     const ActionLink = (props: { label: string; onClick: () => void; hidden?: boolean }) => {
@@ -196,28 +276,27 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         if (disabled) return;
         const file = e.target.files?.[0];
         if (!file) return;
-        if (userAsset?.id) {
-            await deleteAsset(userAsset.id);
-        }
         const processed = await processImageToRGB565(file);
-        const id = await uploadAsset(file.name, processed.width, processed.height, encodeBase64(processed.data));
-        const next = { id, name: file.name, width: processed.width, height: processed.height, previewUrl: processed.previewUrl };
+        const uploaded = await uploadUserBackgroundImage(file.name, processed.width, processed.height, processed.data);
+        const next = { ...uploaded, previewUrl: processed.previewUrl };
         setUserAsset(next);
-        setBackgroundImageId(id); // 覆盖为用户图片
-        await updateScreenControl({ ...nextConfig, backgroundImageId: id }, true);
+        setBackgroundImageId(USER_BG_ID);
+        setBackgroundImageEnabled(true);
+        await updateScreenControl({ ...nextConfig, backgroundImageEnabled: true, backgroundImageId: USER_BG_ID }, true);
         e.target.value = '';
     };
 
     const handleSetBackground = async (id: string) => {
         setBackgroundImageId(id);
-        await updateScreenControl({ ...nextConfig, backgroundImageId: id }, true);
+        setBackgroundImageEnabled(true);
+        await updateScreenControl({ ...nextConfig, backgroundImageEnabled: true, backgroundImageId: id }, true);
     };
 
     const handleDeleteUserAsset = async () => {
         if (!userAsset?.id) return;
-        await deleteAsset(userAsset.id);
+        await deleteUserBackgroundImage();
         setUserAsset(null);
-        if (backgroundImageId === userAsset.id) {
+        if (backgroundImageId === USER_BG_ID) {
             setBackgroundImageId(SYSTEM_BG_ID);
             await updateScreenControl({ ...nextConfig, backgroundImageId: SYSTEM_BG_ID }, true);
         }
@@ -353,9 +432,9 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                     <Field label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_COLOR_LABEL}>
                         <ColorPicker.Root size="xs"
                             value={bgColor}
-                            onValueChange={(e: any) => handleColorChange('bg', e.value)}
+                            onValueChange={(e: { value: Color }) => handleColorChange('bg', e.value)}
                             onValueChangeEnd={() => void push()}
-                            onOpenChange={(details: any) => {
+                            onOpenChange={(details: { open: boolean }) => {
                                 if (!details.open) handleColorPickerClose('bg');
                             }}
                             maxW="200px"
@@ -393,9 +472,9 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                     <Field label={t.SETTINGS_SCREEN_CONTROL_TEXT_COLOR_LABEL}>
                         <ColorPicker.Root size="xs"
                             value={textColor}
-                            onValueChange={(e: any) => handleColorChange('text', e.value)}
+                            onValueChange={(e: { value: Color }) => handleColorChange('text', e.value)}
                             onValueChangeEnd={() => void push()}
-                            onOpenChange={(details: any) => {
+                            onOpenChange={(details: { open: boolean }) => {
                                 if (!details.open) handleColorPickerClose('text');
                             }}
                             maxW="200px"
@@ -436,15 +515,16 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                 <TitleLabel title={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGES_TITLE} />
                 <HStack align="center" gap={4}>
                     <Switch
-                        checked={!!backgroundImageId}
+                        checked={backgroundImageEnabled}
                         onCheckedChange={async (e: { checked: boolean }) => {
                             if (!e.checked) {
-                                setBackgroundImageId('');
-                                await updateScreenControl({ ...nextConfig, backgroundImageId: '' }, true);
+                                setBackgroundImageEnabled(false);
+                                await updateScreenControl({ ...nextConfig, backgroundImageEnabled: false }, true);
                             } else {
-                                const targetId = userAsset?.id ?? SYSTEM_BG_ID;
+                                const targetId = backgroundImageId || userAsset?.id || SYSTEM_BG_ID;
+                                setBackgroundImageEnabled(true);
                                 setBackgroundImageId(targetId);
-                                await updateScreenControl({ ...nextConfig, backgroundImageId: targetId }, true);
+                                await updateScreenControl({ ...nextConfig, backgroundImageEnabled: true, backgroundImageId: targetId }, true);
                             }
                         }}
                     >
@@ -459,7 +539,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                     <Flex justifyContent="center">
                     <VStack align="center" gap={2}>
                         <BGSlot
-                            selected={backgroundImageId === SYSTEM_BG_ID}
+                            selected={backgroundImageEnabled && backgroundImageId === SYSTEM_BG_ID}
                             previewUrl={systemPreviewUrl}
                             onClick={() => handleSetBackground(SYSTEM_BG_ID)}
                             emptyBg="gray.800"
@@ -470,7 +550,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                                 <ActionLink
                                     key="set"
                                     label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SET_BUTTON}
-                                    hidden={backgroundImageId === SYSTEM_BG_ID}
+                                    hidden={backgroundImageEnabled && backgroundImageId === SYSTEM_BG_ID}
                                     onClick={() => void handleSetBackground(SYSTEM_BG_ID)}
                                 />
                             ]}
@@ -483,7 +563,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                     <Flex justifyContent="center">
                     <VStack align="center" gap={2}>
                         <BGSlot
-                            selected={!!userAsset && backgroundImageId === userAsset?.id}
+                            selected={backgroundImageEnabled && !!userAsset && backgroundImageId === userAsset?.id}
                             previewUrl={userAsset?.previewUrl}
                             onClick={userAsset ? () => handleSetBackground(userAsset.id) : undefined}
                             emptyBg="gray.800"
@@ -492,7 +572,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                         />
                         <ActionsRow
                             items={[
-                                userAsset && backgroundImageId !== userAsset.id
+                                userAsset && (!backgroundImageEnabled || backgroundImageId !== userAsset.id)
                                     ? <ActionLink
                                         key="set"
                                         label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SET_BUTTON}

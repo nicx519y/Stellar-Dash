@@ -162,6 +162,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetScreenControlCon
     cJSON* screenControlJSON = cJSON_CreateObject();
 
     cJSON_AddNumberToObject(screenControlJSON, "brightness", config.screenControl.brightness);
+    cJSON_AddBoolToObject(screenControlJSON, "backgroundImageEnabled", config.screenControl.backgroundImageEnabled);
     cJSON_AddNumberToObject(screenControlJSON, "backgroundColor", config.screenControl.backgroundColor);
     cJSON_AddNumberToObject(screenControlJSON, "textColor", config.screenControl.textColor);
     cJSON_AddStringToObject(screenControlJSON, "backgroundImageId", config.screenControl.backgroundImageId);
@@ -204,6 +205,9 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateScreenControl
         if (v < 0) v = 0;
         if (v > 100) v = 100;
         config.screenControl.brightness = (uint8_t)v;
+    }
+    if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageEnabled")) && cJSON_IsBool(item)) {
+        config.screenControl.backgroundImageEnabled = cJSON_IsTrue(item);
     }
     if ((item = cJSON_GetObjectItem(screenControl, "backgroundColor")) && cJSON_IsNumber(item)) {
         config.screenControl.backgroundColor = (uint32_t)item->valuedouble;
@@ -298,7 +302,12 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleExportAllConfig(con
         sendPart("hotkeys", ConfigUtils::buildHotkeysConfigJSON(config));
     }
 
-    // 3. 发送 Profiles
+    // 3. 发送 Screen Control Config
+    {
+        sendPart("screenControl", ConfigUtils::buildScreenControlConfigJSON(config));
+    }
+
+    // 4. 发送 Profiles
     for (int i = 0; i < NUM_PROFILES; i++) {
         if (config.profiles[i].enabled) {
             cJSON* profileJSON = ProfileCommandHandler::buildProfileJSON(&config.profiles[i]);
@@ -310,7 +319,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleExportAllConfig(con
         }
     }
 
-    // 4. 发送结束信号 (通过返回最后的响应)
+    // 5. 发送结束信号 (通过返回最后的响应)
     cJSON* finishData = cJSON_CreateObject();
     cJSON_AddStringToObject(finishData, "section", "end");
 
@@ -435,6 +444,9 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(co
             if (v < 0) v = 0;
             if (v > 65535) v = 65535;
             config.screenControl.currentPageId = (uint16_t)v;
+        }
+        if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageEnabled"))) {
+            config.screenControl.backgroundImageEnabled = cJSON_IsTrue(item);
         }
         cJSON* features = cJSON_GetObjectItem(screenControl, "features");
         if (features && cJSON_IsObject(features)) {
