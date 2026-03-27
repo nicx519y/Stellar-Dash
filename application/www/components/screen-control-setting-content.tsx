@@ -11,6 +11,7 @@ import { useLanguage } from '@/contexts/language-context';
 import { ColorPicker } from '@chakra-ui/react';
 import { LuCheck, LuUpload, LuGripVertical } from "react-icons/lu";
 import { TitleLabel } from './ui/title-label';
+import { processGifToRGB565Sequence, processImageToRGB565, rgb565ToPngDataUrl } from '@/lib/screen-control-image';
 
 
 
@@ -54,8 +55,12 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     const [tempSelectedColors, setTempSelectedColors] = useState<{ bg?: string; text?: string }>({});
     const SYSTEM_BG_ID = 'SYSTEM_DEFAULT';
     const USER_BG_ID = 'USER_IMAGE';
-    const [userAsset, setUserAsset] = useState<{ id: string; name: string; width: number; height: number; previewUrl: string } | null>(null);
+    const [userAsset, setUserAsset] = useState<{ id: string; name: string; width: number; height: number; previewUrl: string; frames?: string[]; fps?: number; frameCount?: number } | null>(null);
     const [isUploadingUserImage, setIsUploadingUserImage] = useState(false);
+    const [isDownloadingBgImages, setIsDownloadingBgImages] = useState(false);
+    const [userPreviewFrameIndex, setUserPreviewFrameIndex] = useState(0);
+    const [gifTargetFps, _setGifTargetFps] = useState(3);
+    const [gifMaxFrames, _setGifMaxFrames] = useState(10);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [systemAsset, setSystemAsset] = useState<{ id: string; width: number; height: number; previewUrl: string } | null>(null);
     const placeholderSystemPreviewUrl = useMemo(() => {
@@ -103,7 +108,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
 
     type BgImagesCache = {
         system?: { id: string; width: number; height: number; previewUrl: string } | null;
-        user?: { id: string; width: number; height: number; previewUrl: string } | null;
+        user?: { id: string; width: number; height: number; previewUrl: string; frames?: string[]; fps?: number; frameCount?: number } | null;
     };
 
     const loadBgImagesCache = (): BgImagesCache | null => {
@@ -122,6 +127,28 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         } catch {
         }
     };
+
+    const userFrames = userAsset?.frames;
+    useEffect(() => {
+        setUserPreviewFrameIndex(0);
+        if (!userFrames || userFrames.length <= 1) return;
+        const fps = Math.max(1, Math.min(5, Math.floor(gifTargetFps)));
+        const intervalMs = Math.floor(1000 / fps);
+        const id = window.setInterval(() => {
+            setUserPreviewFrameIndex((i) => (i + 1) % userFrames.length);
+        }, intervalMs);
+        return () => {
+            window.clearInterval(id);
+        };
+    }, [gifTargetFps, userFrames]);
+
+    const userSlotPreviewUrl = useMemo(() => {
+        if (!userAsset) return undefined;
+        if (userAsset.frames && userAsset.frames.length > 0) {
+            return userAsset.frames[userPreviewFrameIndex % userAsset.frames.length];
+        }
+        return userAsset.previewUrl;
+    }, [userAsset, userPreviewFrameIndex]);
 
     useEffect(() => {
         const handleBeforeUnload = () => {
@@ -177,62 +204,6 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         await updateScreenControl(nextConfig, true);
     };
 
-    const rgb565ToPngDataUrl = (rgb565le: Uint8Array, width: number, height: number) => {
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-
-        const rgba = new Uint8ClampedArray(width * height * 4);
-        for (let i = 0, j = 0; i < rgb565le.length; i += 2, j += 4) {
-            const v = rgb565le[i] | (rgb565le[i + 1] << 8);
-            const r = (v >> 11) & 0x1F;
-            const g = (v >> 5) & 0x3F;
-            const b = v & 0x1F;
-            rgba[j] = (r * 255) / 31;
-            rgba[j + 1] = (g * 255) / 63;
-            rgba[j + 2] = (b * 255) / 31;
-            rgba[j + 3] = 255;
-        }
-        const img = new ImageData(rgba, width, height);
-        ctx.putImageData(img, 0, 0);
-        return canvas.toDataURL('image/png');
-    };
-
-    const processImageToRGB565 = async (file: File) => {
-        const bitmap = await createImageBitmap(file);
-        const maxW = 320;
-        const maxH = 172;
-        const scale = Math.min(1, Math.min(maxW / bitmap.width, maxH / bitmap.height));
-        const w = Math.max(1, Math.floor(bitmap.width * scale));
-        const h = Math.max(1, Math.floor(bitmap.height * scale));
-        const canvas = document.createElement('canvas');
-        canvas.width = maxW;
-        canvas.height = maxH;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, maxW, maxH);
-        const dx = Math.floor((maxW - w) / 2);
-        const dy = Math.floor((maxH - h) / 2);
-        ctx.drawImage(bitmap, dx, dy, w, h);
-        const imgData = ctx.getImageData(0, 0, maxW, maxH);
-        const src = imgData.data;
-        const out = new Uint8Array(maxW * maxH * 2);
-        for (let i = 0, j = 0; i < src.length; i += 4) {
-            const r = src[i];
-            const g = src[i + 1];
-            const b = src[i + 2];
-            const r5 = r >> 3;
-            const g6 = g >> 2;
-            const b5 = b >> 3;
-            const v = (r5 << 11) | (g6 << 5) | b5;
-            out[j++] = v & 0xFF;
-            out[j++] = (v >> 8) & 0xFF;
-        }
-        const previewUrl = canvas.toDataURL('image/png');
-        return { width: maxW, height: maxH, data: out, previewUrl };
-    };
-
     const sendBinaryUserImageRequest = async (payload: Uint8Array, expectedRespCmd: number, cid: number) => {
         return new Promise<{ success: boolean; received: number; total: number; error?: string }>((resolve, reject) => {
             const timeout = window.setTimeout(() => {
@@ -286,6 +257,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         }
 
         try {
+        setIsDownloadingBgImages(true);
         const CMD_GET_INFO = 0x34;
         const RESP_GET_INFO = 0xB4;
         const CMD_READ_CHUNK = 0x35;
@@ -303,10 +275,16 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
             userWidth: number;
             userHeight: number;
             userSize: number;
+            userFrameCount: number;
+            userFps: number;
+            userFormat: number;
             sysValid: boolean;
             sysWidth: number;
             sysHeight: number;
             sysSize: number;
+            sysFrameCount: number;
+            sysFps: number;
+            sysFormat: number;
         }>((resolve, reject) => {
             const timeout = window.setTimeout(() => {
                 unsubscribe();
@@ -315,7 +293,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
 
             const unsubscribe = onBinaryMessage((data) => {
                 const view = new DataView(data);
-                if (view.byteLength < 56) return;
+                if (view.byteLength < 64) return;
                 const cmd = view.getUint8(0);
                 if (cmd !== RESP_GET_INFO) return;
                 const respCid = view.getUint32(2, true);
@@ -329,10 +307,16 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                 const userWidth = view.getUint16(8, true);
                 const userHeight = view.getUint16(10, true);
                 const userSize = view.getUint32(12, true);
-                const sysWidth = view.getUint16(16, true);
-                const sysHeight = view.getUint16(18, true);
-                const sysSize = view.getUint32(20, true);
-                resolve({ userValid, userWidth, userHeight, userSize, sysValid, sysWidth, sysHeight, sysSize });
+                const userFrameCount = view.getUint8(16);
+                const userFps = view.getUint8(17);
+                const userFormat = view.getUint8(18);
+                const sysWidth = view.getUint16(20, true);
+                const sysHeight = view.getUint16(22, true);
+                const sysSize = view.getUint32(24, true);
+                const sysFrameCount = view.getUint8(28);
+                const sysFps = view.getUint8(29);
+                const sysFormat = view.getUint8(30);
+                resolve({ userValid, userWidth, userHeight, userSize, userFrameCount, userFps, userFormat, sysValid, sysWidth, sysHeight, sysSize, sysFrameCount, sysFps, sysFormat });
             });
 
             sendBinaryMessage(new Uint8Array(req));
@@ -394,22 +378,36 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
 
                 all.set(resp.payload, offset);
             }
-            const previewUrl = rgb565ToPngDataUrl(all, width, height);
-            return previewUrl;
+            return all;
         };
 
         const cache: BgImagesCache = { system: null, user: null };
 
+        const buildPreviews = (bytes: Uint8Array, width: number, height: number, format: number, frameCount: number, fps: number) => {
+            const frameSize = width * height * 2;
+            if (format === 2 && frameCount > 1 && bytes.length >= frameSize * frameCount) {
+                const frames: string[] = [];
+                for (let i = 0; i < frameCount; i++) {
+                    const slice = bytes.subarray(i * frameSize, (i + 1) * frameSize);
+                    frames.push(rgb565ToPngDataUrl(slice, width, height));
+                }
+                return { previewUrl: frames[0], frames, fps: Math.max(1, Math.min(5, fps || 5)), frameCount };
+            }
+            return { previewUrl: rgb565ToPngDataUrl(bytes, width, height), frames: undefined, fps: undefined, frameCount: 1 };
+        };
+
         if (info.sysValid && info.sysWidth > 0 && info.sysHeight > 0 && info.sysSize > 0) {
-            const previewUrl = await readImage(1, info.sysWidth, info.sysHeight, info.sysSize);
-            const sys = { id: SYSTEM_BG_ID, width: info.sysWidth, height: info.sysHeight, previewUrl };
+            const bytes = await readImage(1, info.sysWidth, info.sysHeight, info.sysSize);
+            const previews = buildPreviews(bytes, info.sysWidth, info.sysHeight, info.sysFormat, info.sysFrameCount || 1, info.sysFps || 0);
+            const sys = { id: SYSTEM_BG_ID, width: info.sysWidth, height: info.sysHeight, previewUrl: previews.previewUrl };
             setSystemAsset(sys);
             cache.system = sys;
         }
 
         if (info.userValid && info.userWidth > 0 && info.userHeight > 0 && info.userSize > 0) {
-            const previewUrl = await readImage(0, info.userWidth, info.userHeight, info.userSize);
-            const usr = { id: USER_BG_ID, width: info.userWidth, height: info.userHeight, previewUrl };
+            const bytes = await readImage(0, info.userWidth, info.userHeight, info.userSize);
+            const previews = buildPreviews(bytes, info.userWidth, info.userHeight, info.userFormat, info.userFrameCount || 1, info.userFps || 0);
+            const usr = { id: USER_BG_ID, width: info.userWidth, height: info.userHeight, previewUrl: previews.previewUrl, frames: previews.frames, fps: previews.fps, frameCount: previews.frameCount };
             setUserAsset({ ...usr, name: usr.id });
             cache.user = usr;
         }
@@ -418,6 +416,8 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         bgImagesLoadedRef.current = true;
         } catch {
             bgImagesLoadedRef.current = false;
+        } finally {
+            setIsDownloadingBgImages(false);
         }
     };
 
@@ -426,7 +426,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         void fetchBgImagesFromDeviceOnce();
     }, [wsConnected]);
 
-    const uploadUserBackgroundImage = async (name: string, width: number, height: number, data: Uint8Array) => {
+    const uploadUserBackgroundImage = async (name: string, width: number, height: number, data: Uint8Array, opts: { frameCount: number; fps: number }) => {
         const CMD_BEGIN = 0x30;
         const CMD_CHUNK = 0x31;
         const CMD_COMMIT = 0x32;
@@ -436,14 +436,21 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
 
         const cid = (Math.random() * 0xFFFFFFFF) >>> 0;
 
-        const begin = new ArrayBuffer(14);
+        const frameCount = Math.max(1, Math.min(10, opts.frameCount | 0));
+        const fps = Math.max(0, Math.min(5, opts.fps | 0));
+        const imageType = frameCount > 1 ? 1 : 0;
+
+        const begin = new ArrayBuffer(18);
         const beginView = new DataView(begin);
         beginView.setUint8(0, CMD_BEGIN);
-        beginView.setUint8(1, 0);
+        beginView.setUint8(1, imageType);
         beginView.setUint32(2, cid, true);
         beginView.setUint16(6, width, true);
         beginView.setUint16(8, height, true);
         beginView.setUint32(10, data.length, true);
+        beginView.setUint8(14, frameCount);
+        beginView.setUint8(15, fps);
+        beginView.setUint16(16, 0, true);
         const beginResp = await sendBinaryUserImageRequest(new Uint8Array(begin), RESP_BEGIN, cid);
         if (!beginResp.success) throw new Error(beginResp.error || 'Begin failed');
 
@@ -473,7 +480,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         const commitResp = await sendBinaryUserImageRequest(new Uint8Array(commit), RESP_COMMIT, cid);
         if (!commitResp.success) throw new Error(commitResp.error || 'Commit failed');
 
-        return { id: USER_BG_ID, name, width, height };
+        return { id: USER_BG_ID, name, width, height, frameCount, fps };
     };
 
     const deleteUserBackgroundImage = async () => {
@@ -494,8 +501,9 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         return (
             <Text
                 as="button"
-                fontSize="sm"
+                fontSize="xs"
                 color={disabled ? "gray.400" : "gray.400"}
+                whiteSpace="nowrap"
                 _hover={disabled ? undefined : { color: "green.400", textDecoration: "underline" }}
                 cursor={disabled ? "not-allowed" : "pointer"}
                 onClick={() => {
@@ -519,13 +527,20 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         if (!file) return;
         setIsUploadingUserImage(true);
         try {
-            const processed = await processImageToRGB565(file);
-            const uploaded = await uploadUserBackgroundImage(file.name, processed.width, processed.height, processed.data);
-            const next = { ...uploaded, previewUrl: processed.previewUrl };
-            setUserAsset(next);
+            const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
             {
                 const current = loadBgImagesCache() ?? { system: systemAsset, user: null };
-                current.user = { id: USER_BG_ID, width: processed.width, height: processed.height, previewUrl: processed.previewUrl };
+                if (isGif) {
+                    const processed = await processGifToRGB565Sequence(file, gifTargetFps, gifMaxFrames);
+                    const uploaded = await uploadUserBackgroundImage(file.name, processed.width, processed.height, processed.data, { frameCount: processed.frameCount, fps: processed.fps });
+                    setUserAsset({ ...uploaded, previewUrl: processed.previewUrl, frames: processed.frames, fps: processed.fps });
+                    current.user = { id: USER_BG_ID, width: processed.width, height: processed.height, previewUrl: processed.previewUrl, frames: processed.frames, fps: processed.fps, frameCount: processed.frameCount };
+                } else {
+                    const processed = await processImageToRGB565(file);
+                    const uploaded = await uploadUserBackgroundImage(file.name, processed.width, processed.height, processed.data, { frameCount: 1, fps: 0 });
+                    setUserAsset({ ...uploaded, previewUrl: processed.previewUrl });
+                    current.user = { id: USER_BG_ID, width: processed.width, height: processed.height, previewUrl: processed.previewUrl, frameCount: 1 };
+                }
                 saveBgImagesCache(current);
             }
             setBackgroundImageId(USER_BG_ID);
@@ -563,10 +578,22 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         const filtered = items.filter(Boolean) as React.ReactElement[];
         if (filtered.length === 0) return null;
         return (
-            <HStack gap={2}>
+            <HStack gap={2}
+                position="absolute"
+                left="50%"
+                transform="translateX(-50%)"
+                bottom="-24px"
+                justifyContent="center"
+                w="max-content"
+                maxW="none"
+                flexWrap="nowrap"
+                whiteSpace="nowrap"
+                display="inline-flex"
+            >
+                
                 {filtered.map((el, idx) => (
-                    <React.Fragment key={idx}>
-                        {idx > 0 && <Text color="gray.400">|</Text>}
+                    <React.Fragment key={idx}  >
+                        {idx > 0 && <Text color="gray.400" whiteSpace="nowrap">|</Text>}
                         {el}
                     </React.Fragment>
                 ))}
@@ -852,71 +879,77 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                         </HStack>
                     </RadioCard.Root>
                 </VStack>
-                <Text fontSize="xs" color="gray.400">{t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP}</Text>
+                <Text fontSize="xs" color="gray.400" whiteSpace="pre-wrap" >{t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP.replace('{seconds}', (Math.floor(gifMaxFrames/gifTargetFps)).toString())}</Text>
+               
 
                 <Input ref={fileInputRef} type="file" accept="image/*" display="none" onChange={handleFileChange} />
 
                 <Grid templateColumns="1fr 1px 1fr" w="full" alignItems="stretch">
                     <Flex justifyContent="center">
-                    <VStack align="center" gap={2}>
+                    <VStack align="center" gap={2} position="relative" overflow="visible" >
                         <BGSlot
                             selected={standbyDisplay === 'backgroundImage' && backgroundImageId === SYSTEM_BG_ID}
                             previewUrl={systemPreviewUrl}
                             onClick={() => handleSetBackground(SYSTEM_BG_ID)}
                             emptyBg="gray.800"
                             showUploadTrigger={false}
+                            uploading={isDownloadingBgImages}
                         />
-                        <ActionsRow
-                            items={[
-                                <ActionLink
-                                    key="set"
-                                    label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SET_BUTTON}
-                                    hidden={standbyDisplay === 'backgroundImage' && backgroundImageId === SYSTEM_BG_ID}
-                                    onClick={() => void handleSetBackground(SYSTEM_BG_ID)}
-                                />
-                            ]}
-                        />
+                        {!isDownloadingBgImages && (
+                            <ActionsRow
+                                items={[
+                                    <ActionLink
+                                        key="set"
+                                        label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SET_BUTTON}
+                                        hidden={standbyDisplay === 'backgroundImage' && backgroundImageId === SYSTEM_BG_ID}
+                                        onClick={() => void handleSetBackground(SYSTEM_BG_ID)}
+                                    />
+                                ]}
+                            />
+                        )}
                     </VStack>
                     </Flex>
 
                     <Box w="1px" h="90px" bg="gray.800" alignSelf="stretch" />
 
                     <Flex justifyContent="center">
-                    <VStack align="center" gap={2}>
+                    <VStack align="center" gap={2} position="relative" overflow="visible" >
                         <BGSlot
                             selected={standbyDisplay === 'backgroundImage' && !!userAsset && backgroundImageId === userAsset?.id}
-                            previewUrl={userAsset?.previewUrl}
+                            previewUrl={userSlotPreviewUrl}
                             onClick={userAsset ? () => handleSetBackground(userAsset.id) : undefined}
                             emptyBg="gray.800"
                             showUploadTrigger={!userAsset}
-                            uploading={isUploadingUserImage}
+                            uploading={isUploadingUserImage || isDownloadingBgImages}
                             onUploadClick={() => handleUploadClick()}
                         />
-                        <ActionsRow
-                            items={[
-                                userAsset && (standbyDisplay !== 'backgroundImage' || backgroundImageId !== userAsset.id)
-                                    ? <ActionLink
-                                        key="set"
-                                        label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SET_BUTTON}
-                                        onClick={() => void handleSetBackground(userAsset.id)}
-                                    />
-                                    : null,
-                                !userAsset && !isUploadingUserImage
-                                    ? <ActionLink
-                                        key="upload"
-                                        label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_UPLOAD_BUTTON}
-                                        onClick={() => void handleUploadClick()}
-                                    />
-                                    : null,
-                                userAsset
-                                    ? <ActionLink
-                                        key="delete"
-                                        label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_DELETE_BUTTON}
-                                        onClick={() => void handleDeleteUserAsset()}
-                                    />
-                                    : null,
-                            ]}
-                        />
+                        {!isUploadingUserImage && !isDownloadingBgImages && (
+                            <ActionsRow
+                                items={[
+                                    userAsset && (standbyDisplay !== 'backgroundImage' || backgroundImageId !== userAsset.id)
+                                        ? <ActionLink
+                                            key="set"
+                                            label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SET_BUTTON}
+                                            onClick={() => void handleSetBackground(userAsset.id)}
+                                        />
+                                        : null,
+                                    !userAsset
+                                        ? <ActionLink
+                                            key="upload"
+                                            label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_UPLOAD_BUTTON}
+                                            onClick={() => void handleUploadClick()}
+                                        />
+                                        : null,
+                                    userAsset
+                                        ? <ActionLink
+                                            key="delete"
+                                            label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_DELETE_BUTTON}
+                                            onClick={() => void handleDeleteUserAsset()}
+                                        />
+                                        : null,
+                                ]}
+                            />
+                        )}
                     </VStack>
                     </Flex>
                 </Grid>
