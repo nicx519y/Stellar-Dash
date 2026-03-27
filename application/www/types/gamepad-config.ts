@@ -98,19 +98,23 @@ export interface ScreenControlFeatures {
     calibrationModeSwitch: boolean;
 }
 
+export type StandbyDisplay = 'none' | 'backgroundImage' | 'buttonLayout';
+export type ScreenControlFeatureKey = keyof ScreenControlFeatures;
+
 export interface ScreenControlConfig {
     brightness: number;
-    backgroundImageEnabled: boolean;
+    standbyDisplay: StandbyDisplay;
     backgroundColor: number;
     textColor: number;
     backgroundImageId: string;
     currentPageId: number;
     features: ScreenControlFeatures;
+    featuresOrder: ScreenControlFeatureKey[];
 }
 
 export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
     brightness: 100,
-    backgroundImageEnabled: false,
+    standbyDisplay: 'none',
     backgroundColor: 0x000000,
     textColor: 0xFFFFFF,
     backgroundImageId: "",
@@ -128,6 +132,19 @@ export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
         webConfigEntry: true,
         calibrationModeSwitch: true,
     },
+    featuresOrder: [
+        'inputModeSwitch',
+        'profilesSwitch',
+        'socdModeSwitch',
+        'tournamentModeSwitch',
+        'ledBrightnessAdjust',
+        'ledEffectSwitch',
+        'ambientBrightnessAdjust',
+        'ambientEffectSwitch',
+        'screenBrightnessAdjust',
+        'webConfigEntry',
+        'calibrationModeSwitch',
+    ],
 };
 
 export enum GameControllerButton {
@@ -712,7 +729,11 @@ export const UI_TEXT = {
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_DELETE_BUTTON: "Delete",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SYSTEM_LABEL: "System Preset",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_USER_LABEL: "User Image",
-    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_ENABLE_LABEL: "Display Background Image",
+    SETTINGS_SCREEN_CONTROL_STANDBY_DISPLAY_LABEL: "Standby Display",
+    SETTINGS_SCREEN_CONTROL_STANDBY_NONE: "None",
+    SETTINGS_SCREEN_CONTROL_STANDBY_BACKGROUND_IMAGE: "Background Image",
+    SETTINGS_SCREEN_CONTROL_STANDBY_BUTTON_LAYOUT: "Button Layout",
+    SETTINGS_SCREEN_CONTROL_FIRST_SCREEN_LABEL: "First Screen",
 
     // Firmware Settings
     SETTINGS_FIRMWARE_TITLE: "FIRMWARE UPDATE",
@@ -1077,7 +1098,11 @@ export const UI_TEXT_ZH = {
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_DELETE_BUTTON: "删除",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SYSTEM_LABEL: "系统预设",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_USER_LABEL: "用户图片",
-    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_ENABLE_LABEL: "显示背景图片",
+    SETTINGS_SCREEN_CONTROL_STANDBY_DISPLAY_LABEL: "待机显示",
+    SETTINGS_SCREEN_CONTROL_STANDBY_NONE: "无",
+    SETTINGS_SCREEN_CONTROL_STANDBY_BACKGROUND_IMAGE: "背景图片",
+    SETTINGS_SCREEN_CONTROL_STANDBY_BUTTON_LAYOUT: "按键布局",
+    SETTINGS_SCREEN_CONTROL_FIRST_SCREEN_LABEL: "首屏显示",
 
     // 固件更新
     SETTINGS_FIRMWARE_TITLE: "设备固件更新",

@@ -1,15 +1,15 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Grid, VStack, HStack, Portal, Color, parseColor, Table, Image, Box, Flex, Text, Input, Spinner } from '@chakra-ui/react';
+import { Grid, VStack, HStack, Portal, Color, parseColor, Table, Image, Box, Flex, Text, Input, Spinner, RadioCard, RadioGroup } from '@chakra-ui/react';
 import { Slider } from '@/components/ui/slider';
 import { Field } from '@/components/ui/field';
 import { Switch } from '@/components/ui/switch';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
-import { ScreenControlConfig } from '@/types/gamepad-config';
+import { DEFAULT_SCREEN_CONTROL_CONFIG, ScreenControlConfig, ScreenControlFeatureKey, ScreenControlFeatures, StandbyDisplay } from '@/types/gamepad-config';
 import { useLanguage } from '@/contexts/language-context';
 import { ColorPicker } from '@chakra-ui/react';
-import { LuCheck, LuUpload } from "react-icons/lu";
+import { LuCheck, LuUpload, LuGripVertical } from "react-icons/lu";
 import { TitleLabel } from './ui/title-label';
 
 
@@ -34,12 +34,16 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     const { disabled = false } = props;
     const { screenControl, updateScreenControl, sendBinaryMessage, onBinaryMessage, wsConnected } = useGamepadConfig();
     const [brightness, setBrightness] = useState<number>(screenControl.brightness ?? 100);
-    const [backgroundImageEnabled, setBackgroundImageEnabled] = useState<boolean>(screenControl.backgroundImageEnabled ?? false);
+    const [standbyDisplay, setStandbyDisplay] = useState<StandbyDisplay>(screenControl.standbyDisplay ?? 'none');
     const [bgColor, setBgColor] = useState<Color>(parseColor(toHex6(screenControl.backgroundColor ?? 0)));
     const [textColor, setTextColor] = useState<Color>(parseColor(toHex6(screenControl.textColor ?? 0xFFFFFF)));
     const [backgroundImageId, setBackgroundImageId] = useState<string>(screenControl.backgroundImageId ?? '');
     const [currentPageId, setCurrentPageId] = useState<string>(String(screenControl.currentPageId ?? 0));
     const [features, setFeatures] = useState(screenControl.features);
+    const [featuresOrder, setFeaturesOrder] = useState<ScreenControlFeatureKey[]>(
+        screenControl.featuresOrder ?? DEFAULT_SCREEN_CONTROL_CONFIG.featuresOrder
+    );
+    const [dropIndicator, setDropIndicator] = useState<{ key: ScreenControlFeatureKey; position: 'before' | 'after' } | null>(null);
     const { t } = useLanguage();
     
     // 颜色队列状态
@@ -68,15 +72,33 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     const BG_IMAGES_CACHE_KEY = 'screen_control_bg_images_cache_v1';
     const bgImagesLoadedRef = React.useRef(false);
 
+    const normalizeFeaturesOrder = (order: ScreenControlFeatureKey[] | undefined): ScreenControlFeatureKey[] => {
+        const fallback = DEFAULT_SCREEN_CONTROL_CONFIG.featuresOrder;
+        if (!order || !Array.isArray(order)) return fallback;
+        const seen = new Set<ScreenControlFeatureKey>();
+        const next: ScreenControlFeatureKey[] = [];
+        for (const k of order) {
+            if (!fallback.includes(k)) continue;
+            if (seen.has(k)) continue;
+            seen.add(k);
+            next.push(k);
+        }
+        for (const k of fallback) {
+            if (!seen.has(k)) next.push(k);
+        }
+        return next;
+    };
+
     useEffect(() => {
         setBrightness(screenControl.brightness ?? 100);
-        setBackgroundImageEnabled(screenControl.backgroundImageEnabled ?? false);
+        setStandbyDisplay(screenControl.standbyDisplay ?? 'none');
         setBgColor(parseColor(toHex6(screenControl.backgroundColor ?? 0)));
         setTextColor(parseColor(toHex6(screenControl.textColor ?? 0xFFFFFF)));
 
         setBackgroundImageId(screenControl.backgroundImageId ?? '');
         setCurrentPageId(String(screenControl.currentPageId ?? 0));
         setFeatures(screenControl.features);
+        setFeaturesOrder(normalizeFeaturesOrder(screenControl.featuresOrder));
     }, [screenControl]);
 
     type BgImagesCache = {
@@ -141,14 +163,15 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         const pid = Math.max(0, Math.min(65535, parseInt(currentPageId || '0', 10) || 0));
         return {
             brightness: b,
-            backgroundImageEnabled,
+            standbyDisplay,
             backgroundColor: bg,
             textColor: fg,
             backgroundImageId,
             currentPageId: pid,
             features,
+            featuresOrder,
         };
-    }, [brightness, backgroundImageEnabled, bgColor, textColor, backgroundImageId, currentPageId, features, screenControl.backgroundColor, screenControl.textColor]);
+    }, [brightness, standbyDisplay, bgColor, textColor, backgroundImageId, currentPageId, features, featuresOrder, screenControl.backgroundColor, screenControl.textColor]);
 
     const push = async () => {
         await updateScreenControl(nextConfig, true);
@@ -506,8 +529,8 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                 saveBgImagesCache(current);
             }
             setBackgroundImageId(USER_BG_ID);
-            setBackgroundImageEnabled(true);
-            await updateScreenControl({ ...nextConfig, backgroundImageEnabled: true, backgroundImageId: USER_BG_ID }, true);
+            setStandbyDisplay('backgroundImage');
+            await updateScreenControl({ ...nextConfig, standbyDisplay: 'backgroundImage', backgroundImageId: USER_BG_ID }, true);
         } finally {
             setIsUploadingUserImage(false);
             e.target.value = '';
@@ -516,8 +539,8 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
 
     const handleSetBackground = async (id: string) => {
         setBackgroundImageId(id);
-        setBackgroundImageEnabled(true);
-        await updateScreenControl({ ...nextConfig, backgroundImageEnabled: true, backgroundImageId: id }, true);
+        setStandbyDisplay('backgroundImage');
+        await updateScreenControl({ ...nextConfig, standbyDisplay: 'backgroundImage', backgroundImageId: id }, true);
     };
 
     const handleDeleteUserAsset = async () => {
@@ -631,6 +654,52 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
             </Box>
         );
     };
+
+    const dragFeatureKeyRef = React.useRef<ScreenControlFeatureKey | null>(null);
+
+    const featureLabelMap: Record<ScreenControlFeatureKey, string> = {
+        inputModeSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH,
+        profilesSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_PROFILES_SWITCH,
+        socdModeSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH,
+        tournamentModeSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_TOURNAMENT_MODE_SWITCH,
+        ledBrightnessAdjust: t.SETTINGS_SCREEN_CONTROL_FEATURE_LED_BRIGHTNESS_ADJUST,
+        ledEffectSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_LED_EFFECT_SWITCH,
+        ambientBrightnessAdjust: t.SETTINGS_SCREEN_CONTROL_FEATURE_AMBIENT_BRIGHTNESS_ADJUST,
+        ambientEffectSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_AMBIENT_EFFECT_SWITCH,
+        screenBrightnessAdjust: t.SETTINGS_SCREEN_CONTROL_FEATURE_SCREEN_BRIGHTNESS_ADJUST,
+        webConfigEntry: t.SETTINGS_SCREEN_CONTROL_FEATURE_WEB_CONFIG_ENTRY,
+        calibrationModeSwitch: t.SETTINGS_SCREEN_CONTROL_FEATURE_CALIBRATION_MODE_SWITCH,
+    };
+
+    const orderedFeatureItems = featuresOrder.map((key) => ({ key, label: featureLabelMap[key] }));
+
+    const featureKeyToId: Record<ScreenControlFeatureKey, number> = {
+        inputModeSwitch: 0,
+        profilesSwitch: 1,
+        socdModeSwitch: 2,
+        tournamentModeSwitch: 3,
+        ledBrightnessAdjust: 4,
+        ledEffectSwitch: 5,
+        ambientBrightnessAdjust: 6,
+        ambientEffectSwitch: 7,
+        screenBrightnessAdjust: 8,
+        webConfigEntry: 9,
+        calibrationModeSwitch: 10,
+    };
+    const idToFeatureKey = (id: number): ScreenControlFeatureKey | null => {
+        const entries = Object.entries(featureKeyToId) as [ScreenControlFeatureKey, number][];
+        for (const [k, v] of entries) if (v === id) return k;
+        return null;
+    };
+    const [firstFeatureKey, setFirstFeatureKey] = useState<ScreenControlFeatureKey>(() => {
+        const k = idToFeatureKey(screenControl.currentPageId);
+        return k && featuresOrder.includes(k) ? k : featuresOrder[0];
+    });
+    useEffect(() => {
+        const k = idToFeatureKey(screenControl.currentPageId);
+        setFirstFeatureKey(k && featuresOrder.includes(k) ? k : featuresOrder[0]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [screenControl.currentPageId, featuresOrder.join('|')]);
 
     return (
 
@@ -749,25 +818,40 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                    
                 </Grid>
 
-                <TitleLabel title={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGES_TITLE} />
-                <HStack align="center" gap={4}>
-                    <Switch
-                        checked={backgroundImageEnabled}
-                        onCheckedChange={async (e: { checked: boolean }) => {
-                            if (!e.checked) {
-                                setBackgroundImageEnabled(false);
-                                await updateScreenControl({ ...nextConfig, backgroundImageEnabled: false }, true);
-                            } else {
+                <TitleLabel title={t.SETTINGS_SCREEN_CONTROL_STANDBY_DISPLAY_LABEL} />
+                <VStack align="start" gap={1}>
+                    <RadioCard.Root
+                        size={"sm"}
+                        value={standbyDisplay}
+                        variant={"subtle"}
+                        onValueChange={(d) => {
+                            const v = (d as { value: 'none'|'backgroundImage'|'buttonLayout' }).value;
+                            setStandbyDisplay(v);
+                            const update: Partial<ScreenControlConfig> = { standbyDisplay: v };
+                            if (v === 'backgroundImage') {
                                 const targetId = backgroundImageId || userAsset?.id || SYSTEM_BG_ID;
-                                setBackgroundImageEnabled(true);
                                 setBackgroundImageId(targetId);
-                                await updateScreenControl({ ...nextConfig, backgroundImageEnabled: true, backgroundImageId: targetId }, true);
+                                (update as Partial<ScreenControlConfig>).backgroundImageId = targetId;
                             }
+                            void updateScreenControl({ ...nextConfig, ...update }, true);
                         }}
                     >
-                        {t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_ENABLE_LABEL}
-                    </Switch>
-                </HStack>
+                        <HStack>
+                            {[
+                                { value: 'none', label: t.SETTINGS_SCREEN_CONTROL_STANDBY_NONE },
+                                { value: 'backgroundImage', label: t.SETTINGS_SCREEN_CONTROL_STANDBY_BACKGROUND_IMAGE },
+                                { value: 'buttonLayout', label: t.SETTINGS_SCREEN_CONTROL_STANDBY_BUTTON_LAYOUT },
+                            ].map(opt => (
+                                <RadioCard.Item w="242px" key={opt.value} value={opt.value as 'none'|'backgroundImage'|'buttonLayout'}>
+                                    <RadioCard.ItemHiddenInput />
+                                    <RadioCard.ItemControl>
+                                        <RadioCard.ItemText>{opt.label}</RadioCard.ItemText>
+                                    </RadioCard.ItemControl>
+                                </RadioCard.Item>
+                            ))}
+                        </HStack>
+                    </RadioCard.Root>
+                </VStack>
                 <Text fontSize="xs" color="gray.400">{t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP}</Text>
 
                 <Input ref={fileInputRef} type="file" accept="image/*" display="none" onChange={handleFileChange} />
@@ -776,7 +860,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                     <Flex justifyContent="center">
                     <VStack align="center" gap={2}>
                         <BGSlot
-                            selected={backgroundImageEnabled && backgroundImageId === SYSTEM_BG_ID}
+                            selected={standbyDisplay === 'backgroundImage' && backgroundImageId === SYSTEM_BG_ID}
                             previewUrl={systemPreviewUrl}
                             onClick={() => handleSetBackground(SYSTEM_BG_ID)}
                             emptyBg="gray.800"
@@ -787,7 +871,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                                 <ActionLink
                                     key="set"
                                     label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SET_BUTTON}
-                                    hidden={backgroundImageEnabled && backgroundImageId === SYSTEM_BG_ID}
+                                    hidden={standbyDisplay === 'backgroundImage' && backgroundImageId === SYSTEM_BG_ID}
                                     onClick={() => void handleSetBackground(SYSTEM_BG_ID)}
                                 />
                             ]}
@@ -800,7 +884,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                     <Flex justifyContent="center">
                     <VStack align="center" gap={2}>
                         <BGSlot
-                            selected={backgroundImageEnabled && !!userAsset && backgroundImageId === userAsset?.id}
+                            selected={standbyDisplay === 'backgroundImage' && !!userAsset && backgroundImageId === userAsset?.id}
                             previewUrl={userAsset?.previewUrl}
                             onClick={userAsset ? () => handleSetBackground(userAsset.id) : undefined}
                             emptyBg="gray.800"
@@ -810,7 +894,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                         />
                         <ActionsRow
                             items={[
-                                userAsset && (!backgroundImageEnabled || backgroundImageId !== userAsset.id)
+                                userAsset && (standbyDisplay !== 'backgroundImage' || backgroundImageId !== userAsset.id)
                                     ? <ActionLink
                                         key="set"
                                         label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SET_BUTTON}
@@ -839,120 +923,117 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
 
                 <TitleLabel title={t.SETTINGS_SCREEN_CONTROL_FEATURES} mt="20px" />
 
+                <RadioGroup.Root
+                    variant = "subtle"
+                    value={firstFeatureKey}
+                    onValueChange={(d) => {
+                        const v = (d as { value: string }).value as ScreenControlFeatureKey;
+                        if (!v || v === firstFeatureKey) return;
+                        setFirstFeatureKey(v);
+                        const pageId = featureKeyToId[v];
+                        void updateScreenControl({ ...nextConfig, currentPageId: pageId }, true);
+                    }}
+                >
                 <Table.Root size="sm" colorPalette="green" interactive>
                     <Table.Body>
-                        <Table.Row>
-                            <Table.Cell py={3}>{t.SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH}</Table.Cell>
-                            <Table.Cell py={3} textAlign="end">
-                                <Switch
-                                    checked={features.inputModeSwitch}
-                                    disabled={disabled}
-                                    onCheckedChange={(e: { checked: boolean }) => { setFeatures({ ...features, inputModeSwitch: e.checked }); void updateScreenControl({ ...nextConfig, features: { ...features, inputModeSwitch: e.checked } }, true); }}
-                                />
-                            </Table.Cell>
-                        </Table.Row>
-                        <Table.Row>
-                            <Table.Cell py={3}>{t.SETTINGS_SCREEN_CONTROL_FEATURE_PROFILES_SWITCH}</Table.Cell>
-                            <Table.Cell py={3} textAlign="end">
-                                <Switch
-                                    checked={features.profilesSwitch}
-                                    disabled={disabled}
-                                    onCheckedChange={(e: { checked: boolean }) => { setFeatures({ ...features, profilesSwitch: e.checked }); void updateScreenControl({ ...nextConfig, features: { ...features, profilesSwitch: e.checked } }, true); }}
-                                />
-                            </Table.Cell>
-                        </Table.Row>
-                        <Table.Row>
-                            <Table.Cell py={3}>{t.SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH}</Table.Cell>
-                            <Table.Cell py={3} textAlign="end">
-                                <Switch
-                                    checked={features.socdModeSwitch}
-                                    disabled={disabled}
-                                    onCheckedChange={(e: { checked: boolean }) => { setFeatures({ ...features, socdModeSwitch: e.checked }); void updateScreenControl({ ...nextConfig, features: { ...features, socdModeSwitch: e.checked } }, true); }}
-                                />
-                            </Table.Cell>
-                        </Table.Row>
-                        <Table.Row>
-                            <Table.Cell py={3}>{t.SETTINGS_SCREEN_CONTROL_FEATURE_TOURNAMENT_MODE_SWITCH}</Table.Cell>
-                            <Table.Cell py={3} textAlign="end">
-                                <Switch
-                                    checked={features.tournamentModeSwitch}
-                                    disabled={disabled}
-                                    onCheckedChange={(e: { checked: boolean }) => { setFeatures({ ...features, tournamentModeSwitch: e.checked }); void updateScreenControl({ ...nextConfig, features: { ...features, tournamentModeSwitch: e.checked } }, true); }}
-                                />
-                            </Table.Cell>
-                        </Table.Row>
-                        <Table.Row>
-                            <Table.Cell py={3}>{t.SETTINGS_SCREEN_CONTROL_FEATURE_LED_BRIGHTNESS_ADJUST}</Table.Cell>
-                            <Table.Cell py={3} textAlign="end">
-                                <Switch
-                                    checked={features.ledBrightnessAdjust}
-                                    disabled={disabled}
-                                    onCheckedChange={(e: { checked: boolean }) => { setFeatures({ ...features, ledBrightnessAdjust: e.checked }); void updateScreenControl({ ...nextConfig, features: { ...features, ledBrightnessAdjust: e.checked } }, true); }}
-                                />
-                            </Table.Cell>
-                        </Table.Row>
-                        <Table.Row>
-                            <Table.Cell py={3}>{t.SETTINGS_SCREEN_CONTROL_FEATURE_LED_EFFECT_SWITCH}</Table.Cell>
-                            <Table.Cell py={3} textAlign="end">
-                                <Switch
-                                    checked={features.ledEffectSwitch}
-                                    disabled={disabled}
-                                    onCheckedChange={(e: { checked: boolean }) => { setFeatures({ ...features, ledEffectSwitch: e.checked }); void updateScreenControl({ ...nextConfig, features: { ...features, ledEffectSwitch: e.checked } }, true); }}
-                                />
-                            </Table.Cell>
-                        </Table.Row>
-                        <Table.Row>
-                            <Table.Cell py={3}>{t.SETTINGS_SCREEN_CONTROL_FEATURE_AMBIENT_BRIGHTNESS_ADJUST}</Table.Cell>
-                            <Table.Cell py={3} textAlign="end">
-                                <Switch
-                                    checked={features.ambientBrightnessAdjust}
-                                    disabled={disabled}
-                                    onCheckedChange={(e: { checked: boolean }) => { setFeatures({ ...features, ambientBrightnessAdjust: e.checked }); void updateScreenControl({ ...nextConfig, features: { ...features, ambientBrightnessAdjust: e.checked } }, true); }}
-                                />
-                            </Table.Cell>
-                        </Table.Row>
-                        <Table.Row>
-                            <Table.Cell py={3}>{t.SETTINGS_SCREEN_CONTROL_FEATURE_AMBIENT_EFFECT_SWITCH}</Table.Cell>
-                            <Table.Cell py={3} textAlign="end">
-                                <Switch
-                                    checked={features.ambientEffectSwitch}
-                                    disabled={disabled}
-                                    onCheckedChange={(e: { checked: boolean }) => { setFeatures({ ...features, ambientEffectSwitch: e.checked }); void updateScreenControl({ ...nextConfig, features: { ...features, ambientEffectSwitch: e.checked } }, true); }}
-                                />
-                            </Table.Cell>
-                        </Table.Row>
-                        <Table.Row>
-                            <Table.Cell py={3}>{t.SETTINGS_SCREEN_CONTROL_FEATURE_SCREEN_BRIGHTNESS_ADJUST}</Table.Cell>
-                            <Table.Cell py={3} textAlign="end">
-                                <Switch
-                                    checked={features.screenBrightnessAdjust}
-                                    disabled={disabled}
-                                    onCheckedChange={(e: { checked: boolean }) => { setFeatures({ ...features, screenBrightnessAdjust: e.checked }); void updateScreenControl({ ...nextConfig, features: { ...features, screenBrightnessAdjust: e.checked } }, true); }}
-                                />
-                            </Table.Cell>
-                        </Table.Row>
-                        <Table.Row>
-                            <Table.Cell py={3}>{t.SETTINGS_SCREEN_CONTROL_FEATURE_WEB_CONFIG_ENTRY}</Table.Cell>
-                            <Table.Cell py={3} textAlign="end">
-                                <Switch
-                                    checked={features.webConfigEntry}
-                                    disabled={disabled}
-                                    onCheckedChange={(e: { checked: boolean }) => { setFeatures({ ...features, webConfigEntry: e.checked }); void updateScreenControl({ ...nextConfig, features: { ...features, webConfigEntry: e.checked } }, true); }}
-                                />
-                            </Table.Cell>
-                        </Table.Row>
-                        <Table.Row>
-                            <Table.Cell py={3}>{t.SETTINGS_SCREEN_CONTROL_FEATURE_CALIBRATION_MODE_SWITCH}</Table.Cell>
-                            <Table.Cell py={3} textAlign="end">
-                                <Switch
-                                    checked={features.calibrationModeSwitch}
-                                    disabled={disabled}
-                                    onCheckedChange={(e: { checked: boolean }) => { setFeatures({ ...features, calibrationModeSwitch: e.checked }); void updateScreenControl({ ...nextConfig, features: { ...features, calibrationModeSwitch: e.checked } }, true); }}
-                                />
-                            </Table.Cell>
-                        </Table.Row>
+                        {orderedFeatureItems.map((item) => (
+                            <Table.Row
+                                key={item.key}
+                                draggable={!disabled}
+                                bg={item.key === firstFeatureKey ? "bg.success" : undefined}
+                                borderTopWidth={dropIndicator?.key === item.key && dropIndicator.position === 'before' ? "2px" : undefined}
+                                borderTopColor={dropIndicator?.key === item.key && dropIndicator.position === 'before' ? "green.400" : undefined}
+                                borderBottomWidth={dropIndicator?.key === item.key && dropIndicator.position === 'after' ? "2px" : undefined}
+                                borderBottomColor={dropIndicator?.key === item.key && dropIndicator.position === 'after' ? "green.400" : undefined}
+                                onDragStart={(e) => {
+                                    if (disabled) return;
+                                    dragFeatureKeyRef.current = item.key;
+                                    e.dataTransfer.effectAllowed = 'move';
+                                    e.dataTransfer.setData('text/plain', item.key);
+                                }}
+                                onDragOver={(e) => {
+                                    if (disabled) return;
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = 'move';
+
+                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                    const mid = rect.top + rect.height / 2;
+                                    const deadZonePx = 6;
+
+                                    setDropIndicator((cur) => {
+                                        if (cur?.key === item.key && Math.abs(e.clientY - mid) <= deadZonePx) {
+                                            return cur;
+                                        }
+                                        const position: 'before' | 'after' = e.clientY < mid ? 'before' : 'after';
+                                        if (cur?.key === item.key && cur.position === position) return cur;
+                                        return { key: item.key, position };
+                                    });
+                                }}
+                                onDrop={(e) => {
+                                    if (disabled) return;
+                                    e.preventDefault();
+
+                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                    const mid = rect.top + rect.height / 2;
+                                    const position: 'before' | 'after' = e.clientY < mid ? 'before' : 'after';
+
+                                    setDropIndicator(null);
+                                    const from = dragFeatureKeyRef.current;
+                                    const to = item.key;
+                                    dragFeatureKeyRef.current = null;
+                                    if (!from || from === to) return;
+
+                                    const nextOrder = [...featuresOrder];
+                                    const fromIdx = nextOrder.indexOf(from);
+                                    const toIdx = nextOrder.indexOf(to);
+                                    if (fromIdx < 0 || toIdx < 0) return;
+
+                                    const [moved] = nextOrder.splice(fromIdx, 1);
+                                    let insertIndex = position === 'before' ? toIdx : toIdx + 1;
+                                    if (fromIdx < insertIndex) insertIndex -= 1;
+                                    nextOrder.splice(insertIndex, 0, moved);
+
+                                    setFeaturesOrder(nextOrder);
+                                    void updateScreenControl({ ...nextConfig, featuresOrder: nextOrder }, true);
+                                }}
+                                onDragEnd={() => {
+                                    dragFeatureKeyRef.current = null;
+                                    setDropIndicator(null);
+                                }}
+                            >
+                                <Table.Cell py={3}>
+                                    <HStack gap={2}>
+                                        <Box color="gray.500" cursor={disabled ? "default" : "grab"}>
+                                            <LuGripVertical />
+                                        </Box>
+                                        <Text>{item.label}</Text>
+                                    </HStack>
+                                </Table.Cell>
+                                <Table.Cell py={3}>
+                                    <HStack gap={2}>
+                                        <RadioGroup.Item value={item.key} >
+                                            <RadioGroup.ItemHiddenInput />
+                                            <RadioGroup.ItemIndicator />
+                                            {firstFeatureKey === item.key && <RadioGroup.ItemText fontSize="xs" color="gray.400" >{t.SETTINGS_SCREEN_CONTROL_FIRST_SCREEN_LABEL}</RadioGroup.ItemText>}
+                                        </RadioGroup.Item>
+                                    </HStack>
+                                </Table.Cell>
+                                <Table.Cell py={3} textAlign="end">
+                                    <Switch
+                                        checked={features[item.key]}
+                                        disabled={disabled}
+                                        onCheckedChange={(e: { checked: boolean }) => {
+                                            const nf = { ...features, [item.key]: e.checked } as ScreenControlFeatures;
+                                            setFeatures(nf);
+                                            void updateScreenControl({ ...nextConfig, features: nf }, true);
+                                        }}
+                                    />
+                                </Table.Cell>
+                            </Table.Row>
+                        ))}
                     </Table.Body>
                 </Table.Root>
+                </RadioGroup.Root>
             </VStack>
         </>
     );

@@ -162,7 +162,13 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetScreenControlCon
     cJSON* screenControlJSON = cJSON_CreateObject();
 
     cJSON_AddNumberToObject(screenControlJSON, "brightness", config.screenControl.brightness);
-    cJSON_AddBoolToObject(screenControlJSON, "backgroundImageEnabled", config.screenControl.backgroundImageEnabled);
+    const char* standbyDisplayStr = "none";
+    switch (config.screenControl.standbyDisplay) {
+        case 1: standbyDisplayStr = "backgroundImage"; break;
+        case 2: standbyDisplayStr = "buttonLayout"; break;
+        default: standbyDisplayStr = "none"; break;
+    }
+    cJSON_AddStringToObject(screenControlJSON, "standbyDisplay", standbyDisplayStr);
     cJSON_AddNumberToObject(screenControlJSON, "backgroundColor", config.screenControl.backgroundColor);
     cJSON_AddNumberToObject(screenControlJSON, "textColor", config.screenControl.textColor);
     cJSON_AddStringToObject(screenControlJSON, "backgroundImageId", config.screenControl.backgroundImageId);
@@ -181,6 +187,35 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetScreenControlCon
     cJSON_AddBoolToObject(featuresJSON, "webConfigEntry", (config.screenControl.featuresMask & SCREEN_FEATURE_WEB_CONFIG_ENTRY) != 0);
     cJSON_AddBoolToObject(featuresJSON, "calibrationModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_CALIBRATION_MODE_SWITCH) != 0);
     cJSON_AddItemToObject(screenControlJSON, "features", featuresJSON);
+
+    cJSON* featuresOrderJSON = cJSON_CreateArray();
+    struct { uint8_t id; const char* key; } orderMap[] = {
+        {0, "inputModeSwitch"},
+        {1, "profilesSwitch"},
+        {2, "socdModeSwitch"},
+        {3, "tournamentModeSwitch"},
+        {4, "ledBrightnessAdjust"},
+        {5, "ledEffectSwitch"},
+        {6, "ambientBrightnessAdjust"},
+        {7, "ambientEffectSwitch"},
+        {8, "screenBrightnessAdjust"},
+        {9, "webConfigEntry"},
+        {10, "calibrationModeSwitch"},
+    };
+    for (uint32_t i = 0; i < SCREEN_FEATURE_COUNT; i++) {
+        uint8_t id = config.screenControl.featuresOrder[i];
+        const char* key = nullptr;
+        for (size_t j = 0; j < sizeof(orderMap) / sizeof(orderMap[0]); j++) {
+            if (orderMap[j].id == id) {
+                key = orderMap[j].key;
+                break;
+            }
+        }
+        if (key) {
+            cJSON_AddItemToArray(featuresOrderJSON, cJSON_CreateString(key));
+        }
+    }
+    cJSON_AddItemToObject(screenControlJSON, "featuresOrder", featuresOrderJSON);
 
     cJSON_AddItemToObject(dataJSON, "screenControl", screenControlJSON);
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
@@ -206,8 +241,10 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateScreenControl
         if (v > 100) v = 100;
         config.screenControl.brightness = (uint8_t)v;
     }
-    if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageEnabled")) && cJSON_IsBool(item)) {
-        config.screenControl.backgroundImageEnabled = cJSON_IsTrue(item);
+    if ((item = cJSON_GetObjectItem(screenControl, "standbyDisplay")) && cJSON_IsString(item)) {
+        if (strcmp(item->valuestring, "backgroundImage") == 0) config.screenControl.standbyDisplay = 1;
+        else if (strcmp(item->valuestring, "buttonLayout") == 0) config.screenControl.standbyDisplay = 2;
+        else config.screenControl.standbyDisplay = 0;
     }
     if ((item = cJSON_GetObjectItem(screenControl, "backgroundColor")) && cJSON_IsNumber(item)) {
         config.screenControl.backgroundColor = (uint32_t)item->valuedouble;
@@ -247,6 +284,50 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateScreenControl
                 if (cJSON_IsTrue(b)) config.screenControl.featuresMask |= map[i].bit;
                 else config.screenControl.featuresMask &= ~map[i].bit;
             }
+        }
+    }
+
+    cJSON* featuresOrder = cJSON_GetObjectItem(screenControl, "featuresOrder");
+    if (featuresOrder && cJSON_IsArray(featuresOrder)) {
+        struct { const char* key; uint8_t id; } orderMap[] = {
+            {"inputModeSwitch", 0},
+            {"profilesSwitch", 1},
+            {"socdModeSwitch", 2},
+            {"tournamentModeSwitch", 3},
+            {"ledBrightnessAdjust", 4},
+            {"ledEffectSwitch", 5},
+            {"ambientBrightnessAdjust", 6},
+            {"ambientEffectSwitch", 7},
+            {"screenBrightnessAdjust", 8},
+            {"webConfigEntry", 9},
+            {"calibrationModeSwitch", 10},
+        };
+        bool used[SCREEN_FEATURE_COUNT] = {false};
+        uint32_t pos = 0;
+        cJSON* it;
+        cJSON_ArrayForEach(it, featuresOrder) {
+            if (!cJSON_IsString(it)) continue;
+            for (size_t j = 0; j < sizeof(orderMap) / sizeof(orderMap[0]); j++) {
+                if (strcmp(it->valuestring, orderMap[j].key) == 0) {
+                    uint8_t id = orderMap[j].id;
+                    if (id < SCREEN_FEATURE_COUNT && !used[id] && pos < SCREEN_FEATURE_COUNT) {
+                        config.screenControl.featuresOrder[pos++] = id;
+                        used[id] = true;
+                    }
+                    break;
+                }
+            }
+        }
+        for (size_t j = 0; j < sizeof(orderMap) / sizeof(orderMap[0]); j++) {
+            uint8_t id = orderMap[j].id;
+            if (id < SCREEN_FEATURE_COUNT && !used[id] && pos < SCREEN_FEATURE_COUNT) {
+                config.screenControl.featuresOrder[pos++] = id;
+                used[id] = true;
+            }
+        }
+        while (pos < SCREEN_FEATURE_COUNT) {
+            config.screenControl.featuresOrder[pos] = (uint8_t)pos;
+            pos++;
         }
     }
 
@@ -445,8 +526,10 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(co
             if (v > 65535) v = 65535;
             config.screenControl.currentPageId = (uint16_t)v;
         }
-        if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageEnabled"))) {
-            config.screenControl.backgroundImageEnabled = cJSON_IsTrue(item);
+        if ((item = cJSON_GetObjectItem(screenControl, "standbyDisplay")) && cJSON_IsString(item)) {
+            if (strcmp(item->valuestring, "backgroundImage") == 0) config.screenControl.standbyDisplay = 1;
+            else if (strcmp(item->valuestring, "buttonLayout") == 0) config.screenControl.standbyDisplay = 2;
+            else config.screenControl.standbyDisplay = 0;
         }
         cJSON* features = cJSON_GetObjectItem(screenControl, "features");
         if (features && cJSON_IsObject(features)) {
@@ -469,6 +552,49 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(co
                     if (cJSON_IsTrue(b)) config.screenControl.featuresMask |= map[i].bit;
                     else config.screenControl.featuresMask &= ~map[i].bit;
                 }
+            }
+        }
+        cJSON* featuresOrder = cJSON_GetObjectItem(screenControl, "featuresOrder");
+        if (featuresOrder && cJSON_IsArray(featuresOrder)) {
+            struct { const char* key; uint8_t id; } orderMap[] = {
+                {"inputModeSwitch", 0},
+                {"profilesSwitch", 1},
+                {"socdModeSwitch", 2},
+                {"tournamentModeSwitch", 3},
+                {"ledBrightnessAdjust", 4},
+                {"ledEffectSwitch", 5},
+                {"ambientBrightnessAdjust", 6},
+                {"ambientEffectSwitch", 7},
+                {"screenBrightnessAdjust", 8},
+                {"webConfigEntry", 9},
+                {"calibrationModeSwitch", 10},
+            };
+            bool used[SCREEN_FEATURE_COUNT] = {false};
+            uint32_t pos = 0;
+            cJSON* it;
+            cJSON_ArrayForEach(it, featuresOrder) {
+                if (!cJSON_IsString(it)) continue;
+                for (size_t j = 0; j < sizeof(orderMap) / sizeof(orderMap[0]); j++) {
+                    if (strcmp(it->valuestring, orderMap[j].key) == 0) {
+                        uint8_t id = orderMap[j].id;
+                        if (id < SCREEN_FEATURE_COUNT && !used[id] && pos < SCREEN_FEATURE_COUNT) {
+                            config.screenControl.featuresOrder[pos++] = id;
+                            used[id] = true;
+                        }
+                        break;
+                    }
+                }
+            }
+            for (size_t j = 0; j < sizeof(orderMap) / sizeof(orderMap[0]); j++) {
+                uint8_t id = orderMap[j].id;
+                if (id < SCREEN_FEATURE_COUNT && !used[id] && pos < SCREEN_FEATURE_COUNT) {
+                    config.screenControl.featuresOrder[pos++] = id;
+                    used[id] = true;
+                }
+            }
+            while (pos < SCREEN_FEATURE_COUNT) {
+                config.screenControl.featuresOrder[pos] = (uint8_t)pos;
+                pos++;
             }
         }
     } else {

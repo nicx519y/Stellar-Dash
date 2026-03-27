@@ -109,11 +109,12 @@ typedef struct
 #define SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST   (1u << 8)
 #define SCREEN_FEATURE_WEB_CONFIG_ENTRY           (1u << 9)
 #define SCREEN_FEATURE_CALIBRATION_MODE_SWITCH    (1u << 10)
+#define SCREEN_FEATURE_COUNT                      11u
 
 typedef struct
 {
     uint8_t brightness;              // 屏幕亮度（0-100）
-    bool backgroundImageEnabled;     // 是否显示背景图片
+    uint8_t standbyDisplay;          // 待机显示：0 None, 1 BackgroundImage, 2 ButtonLayout
     uint8_t reserved0[2];            // 保留字节（对齐）
     uint32_t backgroundColor;        // 背景颜色（RGB888：0x000000-0xFFFFFF）
     uint32_t textColor;              // 文字颜色（RGB888：0x000000-0xFFFFFF）
@@ -121,6 +122,8 @@ typedef struct
     uint16_t currentPageId;          // 当前页面ID
     uint16_t reserved1;              // 保留字节（对齐）
     uint32_t featuresMask;           // 功能开关位图（SCREEN_FEATURE_*）
+    uint8_t featuresOrder[SCREEN_FEATURE_COUNT];
+    uint8_t reserved2;
 } ScreenControlConfig;
 
 typedef struct

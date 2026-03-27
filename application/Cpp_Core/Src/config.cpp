@@ -126,24 +126,51 @@ cJSON* buildHotkeysConfigJSON(Config& config) {
 cJSON* buildScreenControlConfigJSON(Config& config) {
     cJSON* screenControlJSON = cJSON_CreateObject();
     cJSON_AddNumberToObject(screenControlJSON, "brightness", config.screenControl.brightness);
-    cJSON_AddBoolToObject(screenControlJSON, "backgroundImageEnabled", config.screenControl.backgroundImageEnabled);
+    const char* standbyDisplayStr2 = "none";
+    switch (config.screenControl.standbyDisplay) {
+        case 1: standbyDisplayStr2 = "backgroundImage"; break;
+        case 2: standbyDisplayStr2 = "buttonLayout"; break;
+        default: standbyDisplayStr2 = "none"; break;
+    }
+    cJSON_AddStringToObject(screenControlJSON, "standbyDisplay", standbyDisplayStr2);
     cJSON_AddNumberToObject(screenControlJSON, "backgroundColor", config.screenControl.backgroundColor);
     cJSON_AddNumberToObject(screenControlJSON, "textColor", config.screenControl.textColor);
     cJSON_AddStringToObject(screenControlJSON, "backgroundImageId", config.screenControl.backgroundImageId);
     cJSON_AddNumberToObject(screenControlJSON, "currentPageId", config.screenControl.currentPageId);
     cJSON* featuresJSON = cJSON_CreateObject();
-    cJSON_AddBoolToObject(featuresJSON, "inputModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_INPUT_MODE_SWITCH) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "profilesSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_PROFILES_SWITCH) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "socdModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_SOCD_MODE_SWITCH) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "tournamentModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "ledBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "ledEffectSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_LED_EFFECT_SWITCH) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "ambientBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "ambientEffectSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "screenBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "webConfigEntry", (config.screenControl.featuresMask & SCREEN_FEATURE_WEB_CONFIG_ENTRY) != 0);
-    cJSON_AddBoolToObject(featuresJSON, "calibrationModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_CALIBRATION_MODE_SWITCH) != 0);
+    struct { uint8_t id; const char* key; uint32_t bit; } map[] = {
+        {0, "inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
+        {1, "profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
+        {2, "socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
+        {3, "tournamentModeSwitch", SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH},
+        {4, "ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
+        {5, "ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
+        {6, "ambientBrightnessAdjust", SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST},
+        {7, "ambientEffectSwitch", SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH},
+        {8, "screenBrightnessAdjust", SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST},
+        {9, "webConfigEntry", SCREEN_FEATURE_WEB_CONFIG_ENTRY},
+        {10, "calibrationModeSwitch", SCREEN_FEATURE_CALIBRATION_MODE_SWITCH},
+    };
+    for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
+        cJSON_AddBoolToObject(featuresJSON, map[i].key, (config.screenControl.featuresMask & map[i].bit) != 0);
+    }
     cJSON_AddItemToObject(screenControlJSON, "features", featuresJSON);
+
+    cJSON* featuresOrderJSON = cJSON_CreateArray();
+    for (uint32_t i = 0; i < SCREEN_FEATURE_COUNT; i++) {
+        uint8_t id = config.screenControl.featuresOrder[i];
+        const char* key = nullptr;
+        for (size_t j = 0; j < sizeof(map) / sizeof(map[0]); j++) {
+            if (map[j].id == id) {
+                key = map[j].key;
+                break;
+            }
+        }
+        if (key) {
+            cJSON_AddItemToArray(featuresOrderJSON, cJSON_CreateString(key));
+        }
+    }
+    cJSON_AddItemToObject(screenControlJSON, "featuresOrder", featuresOrderJSON);
     return screenControlJSON;
 }
 
@@ -285,8 +312,10 @@ bool fromJSON(Config& config, cJSON* json) {
             if (v > 100) v = 100;
             config.screenControl.brightness = (uint8_t)v;
         }
-        if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageEnabled")) && cJSON_IsBool(item)) {
-            config.screenControl.backgroundImageEnabled = cJSON_IsTrue(item);
+        if ((item = cJSON_GetObjectItem(screenControl, "standbyDisplay")) && cJSON_IsString(item)) {
+            if (strcmp(item->valuestring, "backgroundImage") == 0) config.screenControl.standbyDisplay = 1;
+            else if (strcmp(item->valuestring, "buttonLayout") == 0) config.screenControl.standbyDisplay = 2;
+            else config.screenControl.standbyDisplay = 0;
         }
         if ((item = cJSON_GetObjectItem(screenControl, "backgroundColor")) && cJSON_IsNumber(item)) {
             config.screenControl.backgroundColor = (uint32_t)item->valuedouble;
@@ -326,6 +355,54 @@ bool fromJSON(Config& config, cJSON* json) {
                     if (cJSON_IsTrue(b)) config.screenControl.featuresMask |= map[i].bit;
                     else config.screenControl.featuresMask &= ~map[i].bit;
                 }
+            }
+        }
+
+        cJSON* featuresOrder = cJSON_GetObjectItem(screenControl, "featuresOrder");
+        struct { const char* key; uint8_t id; } orderMap[] = {
+            {"inputModeSwitch", 0},
+            {"profilesSwitch", 1},
+            {"socdModeSwitch", 2},
+            {"tournamentModeSwitch", 3},
+            {"ledBrightnessAdjust", 4},
+            {"ledEffectSwitch", 5},
+            {"ambientBrightnessAdjust", 6},
+            {"ambientEffectSwitch", 7},
+            {"screenBrightnessAdjust", 8},
+            {"webConfigEntry", 9},
+            {"calibrationModeSwitch", 10},
+        };
+        if (featuresOrder && cJSON_IsArray(featuresOrder)) {
+            bool used[SCREEN_FEATURE_COUNT] = {false};
+            uint32_t pos = 0;
+            cJSON* it;
+            cJSON_ArrayForEach(it, featuresOrder) {
+                if (!cJSON_IsString(it)) continue;
+                for (size_t j = 0; j < sizeof(orderMap) / sizeof(orderMap[0]); j++) {
+                    if (strcmp(it->valuestring, orderMap[j].key) == 0) {
+                        uint8_t id = orderMap[j].id;
+                        if (id < SCREEN_FEATURE_COUNT && !used[id] && pos < SCREEN_FEATURE_COUNT) {
+                            config.screenControl.featuresOrder[pos++] = id;
+                            used[id] = true;
+                        }
+                        break;
+                    }
+                }
+            }
+            for (size_t j = 0; j < sizeof(orderMap) / sizeof(orderMap[0]); j++) {
+                uint8_t id = orderMap[j].id;
+                if (id < SCREEN_FEATURE_COUNT && !used[id] && pos < SCREEN_FEATURE_COUNT) {
+                    config.screenControl.featuresOrder[pos++] = id;
+                    used[id] = true;
+                }
+            }
+            while (pos < SCREEN_FEATURE_COUNT) {
+                config.screenControl.featuresOrder[pos] = (uint8_t)pos;
+                pos++;
+            }
+        } else {
+            for (uint32_t i = 0; i < SCREEN_FEATURE_COUNT; i++) {
+                config.screenControl.featuresOrder[i] = (uint8_t)i;
             }
         }
     }
@@ -445,7 +522,7 @@ bool ConfigUtils::load(Config& config)
         config.autoCalibrationEnabled = false; // 默认关闭自动校准
         memset(config.reserved0, 0, sizeof(config.reserved0));
         config.screenControl.brightness = 100;
-        config.screenControl.backgroundImageEnabled = true;
+        config.screenControl.standbyDisplay = 0;
         memset(config.screenControl.reserved0, 0, sizeof(config.screenControl.reserved0));
         config.screenControl.backgroundColor = 0x000000;
         config.screenControl.textColor = 0xFFFFFF;
@@ -464,6 +541,10 @@ bool ConfigUtils::load(Config& config)
             SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST |
             SCREEN_FEATURE_WEB_CONFIG_ENTRY |
             SCREEN_FEATURE_CALIBRATION_MODE_SWITCH;
+        for (uint32_t i = 0; i < SCREEN_FEATURE_COUNT; i++) {
+            config.screenControl.featuresOrder[i] = (uint8_t)i;
+        }
+        config.screenControl.reserved2 = 0;
 
         APP_DBG("ConfigUtils::load - base config init done");
 

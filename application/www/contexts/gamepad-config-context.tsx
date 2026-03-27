@@ -1145,13 +1145,31 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         try {
             const data = await sendWebSocketRequest('get_screen_control_config', {}, immediate);
             const remote = data.screenControl ?? {};
+            const normalizeFeaturesOrder = (order: unknown): ScreenControlConfig['featuresOrder'] => {
+                const fallback = DEFAULT_SCREEN_CONTROL_CONFIG.featuresOrder;
+                if (!Array.isArray(order)) return fallback;
+                const seen = new Set<string>();
+                const next: string[] = [];
+                for (const k of order) {
+                    if (typeof k !== 'string') continue;
+                    if (!(k in DEFAULT_SCREEN_CONTROL_CONFIG.features)) continue;
+                    if (seen.has(k)) continue;
+                    seen.add(k);
+                    next.push(k);
+                }
+                for (const k of fallback) {
+                    if (!seen.has(k)) next.push(k);
+                }
+                return next as ScreenControlConfig['featuresOrder'];
+            };
             const merged = {
                 ...DEFAULT_SCREEN_CONTROL_CONFIG,
                 ...remote,
                 features: {
                     ...DEFAULT_SCREEN_CONTROL_CONFIG.features,
                     ...(remote.features ?? {})
-                }
+                },
+                featuresOrder: normalizeFeaturesOrder(remote.featuresOrder),
             };
             setScreenControl(merged);
             return Promise.resolve();
