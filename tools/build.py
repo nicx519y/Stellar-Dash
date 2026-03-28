@@ -56,6 +56,8 @@ class BuildTool:
         shared = {
             "sys_assets_addr": "0x905B0000",
             "sys_assets_size": "0x00040000",
+            "user_image_addr": "0x905F0000",
+            "user_image_size": "0x00210000",
         }
 
         board_cfg = self.application_dir / "Core" / "Inc" / "board_cfg.h"
@@ -67,6 +69,8 @@ class BuildTool:
             for key, macro in [
                 ("sys_assets_addr", "SYS_IMAGE_RESOURCES_ADDR"),
                 ("sys_assets_size", "SYS_IMAGE_RESOURCES_SIZE"),
+                ("user_image_addr", "USER_IMAGE_RESOURCES_ADDR"),
+                ("user_image_size", "USER_IMAGE_RESOURCES_SIZE"),
             ]:
                 m = re.search(
                     rf"^[ \t]*#define[ \t]+{re.escape(macro)}[ \t]+(0x[0-9A-Fa-f]+)",
@@ -472,7 +476,7 @@ class BuildTool:
         return self._flash_web_resources_using_openocd(slot, webres_address, physical_address)
 
     def build_system_assets(self) -> Optional[Path]:
-        assets_dir = self.application_dir / "assets"
+        assets_dir = self.application_dir / "assets" / "icons"
         if not assets_dir.exists():
             print(f"未找到 assets 目录: {assets_dir}")
             return None
@@ -501,9 +505,9 @@ class BuildTool:
         cmd = [
             sys.executable,
             str(packer),
-            "--input", str(assets_dir),
-            "--output", str(out_file),
-            "--max-size", str(max_size),
+            "--icons-dir", str(assets_dir),
+            "--icons-output", str(out_file),
+            "--icons-max-size", str(max_size),
         ]
 
         ok = self.run_command(cmd, self.tools_dir)
@@ -516,10 +520,85 @@ class BuildTool:
 
         return out_file
 
-    def flash_system_assets(self) -> bool:
+    def build_sysbg(self) -> Optional[Path]:
+        sysbg_dir = self.application_dir / "assets" / "sysbg"
+        if not sysbg_dir.exists():
+            print(f"未找到 sysbg 目录: {sysbg_dir}")
+            return None
+        out_file = self.application_dir / "build" / "sysbg.bin"
+        packer = self.tools_dir / "pack_assets.py"
+        if not packer.exists():
+            print(f"错误: assets 打包脚本不存在: {packer}")
+            return None
+
+        max_size = self.shared_addresses.get("user_image_size", "0x00210000")
+        cmd = [
+            sys.executable,
+            str(packer),
+            "--sysbg-dir", str(sysbg_dir),
+            "--sysbg-output", str(out_file),
+            "--sysbg-max-size", str(max_size),
+        ]
+        ok = self.run_command(cmd, self.tools_dir)
+        if not ok:
+            return None
+        if not out_file.exists():
+            print(f"错误: sysbg 打包输出不存在: {out_file}")
+            return None
+        return out_file
+
+    def flash_sysbg(self) -> bool:
+        print("=" * 50)
+        print("烧录 系统背景图片 (sysbg)")
+        print("=" * 50)
+
+        out_file = self.build_sysbg()
+        if not out_file:
+            return False
+
+        target_address = self.shared_addresses.get("user_image_addr", "0x905F0000")
+        max_size = int(self.shared_addresses.get("user_image_size", "0x00210000"), 16)
+        file_size = out_file.stat().st_size
+        if file_size > max_size:
+            print(f"错误: sysbg.bin 超过用户图片区大小: {file_size} > {max_size}")
+            return False
+
+        openocd_cfg = self.application_dir / "Openocd_Script" / "ST-LINK-QSPIFLASH.cfg"
+        if not openocd_cfg.exists():
+            openocd_cfg = self.application_dir / "Openocd_Script" / "openocd.cfg"
+            if not openocd_cfg.exists():
+                print("错误: OpenOCD配置文件不存在")
+                return False
+
+        sysbg_path = str(out_file).replace('\\', '/')
+        cmd = [
+            "openocd",
+            "-d0",
+            "-f", str(openocd_cfg),
+            "-c", "init",
+            "-c", "halt",
+            "-c", "reset init",
+            "-c", f"flash write_image erase \"{sysbg_path}\" {target_address}",
+            "-c", f"flash verify_image \"{sysbg_path}\" {target_address}",
+            "-c", "reset",
+            "-c", "shutdown"
+        ]
+
+        return self.run_command(cmd, self.application_dir)
+
+    def flash_system_assets(self, allow_missing: bool = False) -> bool:
         print("=" * 50)
         print("烧录 系统图片资源 (assets)")
         print("=" * 50)
+
+        assets_dir = self.application_dir / "assets" / "icons"
+        if not assets_dir.exists():
+            if allow_missing:
+                print(f"未找到 icons 目录: {assets_dir}")
+                print("跳过系统图片资源烧录")
+                return True
+            print(f"未找到 icons 目录: {assets_dir}")
+            return False
 
         out_file = self.build_system_assets()
         if not out_file:
@@ -804,36 +883,42 @@ class BuildTool:
             print(f"    ADC Mapping: {config['adc_address']}")
 
     def build_and_flash_complete_slot(self, slot: str) -> bool:
-        """构建并烧录完整槽（Application + Web Resources + Sys Assets）"""
+        """构建并烧录完整槽（Application + Web Resources + Sys Assets + SysBg）"""
         print("=" * 60)
         print(f"构建并烧录完整槽 {slot}")
         print("=" * 60)
         
         # 1. 构建Application
-        print("1/4 构建Application...")
+        print("1/5 构建Application...")
         build_success = self.build_application(slot)
         if not build_success:
             print("❌ Application构建失败，停止操作")
             return False
             
         # 2. 烧录Application  
-        print("\n2/4 烧录Application...")
+        print("\n2/5 烧录Application...")
         app_flash_success = self.flash_application(slot)
         if not app_flash_success:
             print("❌ Application烧录失败，停止操作")
             return False
             
         # 3. 烧录Web Resources
-        print("\n3/4 烧录Web Resources...")
+        print("\n3/5 烧录Web Resources...")
         web_flash_success = self.flash_web_resources(slot)
         if not web_flash_success:
             print("❌ Web Resources烧录失败")
             return False
 
-        print("\n4/4 烧录系统图片资源...")
-        assets_flash_success = self.flash_system_assets()
+        print("\n4/5 烧录系统图片资源...")
+        assets_flash_success = self.flash_system_assets(allow_missing=True)
         if not assets_flash_success:
             print("❌ 系统图片资源烧录失败")
+            return False
+
+        print("\n5/5 烧录系统背景图片(sysbg)...")
+        sysbg_flash_success = self.flash_sysbg()
+        if not sysbg_flash_success:
+            print("❌ 系统背景图片(sysbg)烧录失败")
             return False
             
         print(f"\n✅ 完整槽 {slot} 构建并烧录成功！")
@@ -843,6 +928,7 @@ class BuildTool:
         print(f"  - WebResources: {slot_cfg['webres_address']}")
         print(f"  - ADC Mapping: {slot_cfg['adc_address']}")
         print(f"  - SysAssets: {self.shared_addresses.get('sys_assets_addr', '0x905B0000')}")
+        print(f"  - SysBg: {self.shared_addresses.get('user_image_addr', '0x905F0000')}")
         
         return True
 
@@ -862,8 +948,9 @@ def main():
   %(prog)s flash web A                   # 烧录Web Resources到槽A
   %(prog)s flash web B                   # 烧录Web Resources到槽B
   %(prog)s flash assets                  # 烧录系统图片资源(assets)到共享区
-  %(prog)s flash all A                   # 烧录application和Web Resources到槽A
-  %(prog)s flash all B                   # 烧录application和Web Resources到槽B
+  %(prog)s flash sysbg                   # 烧录系统背景图片(sysbg)到用户图片区
+  %(prog)s flash all A                   # 烧录完整固件(含assets/sysbg)到槽A
+  %(prog)s flash all B                   # 烧录完整固件(含assets/sysbg)到槽B
   %(prog)s deploy A                      # 一键构建并烧录完整槽A
   %(prog)s deploy B                      # 一键构建并烧录完整槽B
   %(prog)s status                        # 显示构建状态
@@ -886,7 +973,7 @@ def main():
     
     # flash 命令
     flash_parser = subparsers.add_parser("flash", help="烧录固件")
-    flash_parser.add_argument("target", choices=["bootloader", "app", "web", "assets", "all"], help="烧录目标")
+    flash_parser.add_argument("target", choices=["bootloader", "app", "web", "assets", "sysbg", "all"], help="烧录目标")
     flash_parser.add_argument("slot", nargs="?", choices=["A", "B"], help="槽选择 (app/web/all时必须)")
     
     # deploy 命令 - 一键构建并烧录
@@ -946,6 +1033,8 @@ def main():
                 success = tool.flash_web_resources(args.slot)
             elif args.target == "assets":
                 success = tool.flash_system_assets()
+            elif args.target == "sysbg":
+                success = tool.flash_sysbg()
             elif args.target == "all":
                 if not args.slot:
                     print("错误: 烧录完整固件时必须指定槽 (A 或 B)")
@@ -954,22 +1043,28 @@ def main():
                 print(f"烧录完整固件到槽 {args.slot}")
                 print("=" * 50)
                 # 先烧录Application
-                print("1/3 烧录Application...")
+                print("1/4 烧录Application...")
                 app_success = tool.flash_application(args.slot)
                 if not app_success:
                     print("❌ Application烧录失败，停止操作")
                     return 1
                     
-                print("\n2/3 烧录Web Resources...")
+                print("\n2/4 烧录Web Resources...")
                 web_success = tool.flash_web_resources(args.slot)
                 if not web_success:
                     print("❌ Web Resources烧录失败")
                     return 1
 
-                print("\n3/3 烧录系统图片资源...")
-                assets_success = tool.flash_system_assets()
+                print("\n3/4 烧录系统图片资源...")
+                assets_success = tool.flash_system_assets(allow_missing=True)
                 if not assets_success:
                     print("❌ 系统图片资源烧录失败")
+                    return 1
+
+                print("\n4/4 烧录系统背景图片(sysbg)...")
+                sysbg_success = tool.flash_sysbg()
+                if not sysbg_success:
+                    print("❌ 系统背景图片(sysbg)烧录失败")
                     return 1
                     
                 print(f"\n✅ 完整固件烧录成功到槽 {args.slot}")

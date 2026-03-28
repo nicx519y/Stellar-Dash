@@ -75,7 +75,7 @@ def _run_node_makefsdata() -> int:
 
 def _run_pack_assets() -> int:
     out_file = _project_root() / "application" / "build" / "system_assets.bin"
-    in_dir = _project_root() / "application" / "assets"
+    in_dir = _project_root() / "application" / "assets" / "icons"
     assets_fix = _tools_dir() / "assets_fix.py"
     if assets_fix.exists():
         fit_arg = "320x170"
@@ -104,7 +104,16 @@ def _run_pack_assets() -> int:
         )
     return _run_python_tool(
         "pack_assets.py",
-        ["--input", str(in_dir), "--output", str(out_file)],
+        ["--icons-dir", str(in_dir), "--icons-output", str(out_file)],
+    )
+
+
+def _run_pack_sysbg() -> int:
+    out_file = _project_root() / "application" / "build" / "sysbg.bin"
+    in_dir = _project_root() / "application" / "assets" / "sysbg"
+    return _run_python_tool(
+        "pack_assets.py",
+        ["--sysbg-dir", str(in_dir), "--sysbg-output", str(out_file)],
     )
 
 
@@ -140,11 +149,11 @@ def main(argv: list[str]) -> int:
     subparsers = parser.add_subparsers(dest="cmd", required=True)
 
     p_build = subparsers.add_parser("build", help="构建相关")
-    p_build.add_argument("target", choices=["bootloader", "web", "assets", "ADCMapping", "app", "appAll"])
+    p_build.add_argument("target", choices=["bootloader", "web", "assets", "sysbg", "ADCMapping", "app", "appAll"])
     p_build.add_argument("slot", nargs="?", choices=["A", "B"])
 
     p_flash = subparsers.add_parser("flash", help="烧录相关")
-    p_flash.add_argument("target", choices=["bootloader", "app", "appAll", "assets"])
+    p_flash.add_argument("target", choices=["bootloader", "app", "appAll", "assets", "sysbg"])
     p_flash.add_argument("slot", nargs="?", choices=["A", "B"])
 
     p_release = subparsers.add_parser("release", help="发版相关")
@@ -163,6 +172,8 @@ def main(argv: list[str]) -> int:
             return _run_node_makefsdata()
         if args.target == "assets":
             return _run_pack_assets()
+        if args.target == "sysbg":
+            return _run_pack_sysbg()
         if args.target == "ADCMapping":
             return _run_extract_adc_mapping()
         if args.target == "app":
@@ -187,6 +198,8 @@ def main(argv: list[str]) -> int:
             return _run_python_tool("build.py", ["flash", "bootloader"])
         if args.target == "assets":
             return _run_python_tool("build.py", ["flash", "assets"])
+        if args.target == "sysbg":
+            return _run_python_tool("build.py", ["flash", "sysbg"])
         if args.target == "app":
             if not args.slot:
                 print("错误: flash app 需要指定槽位 A 或 B")

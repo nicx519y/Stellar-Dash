@@ -21,7 +21,6 @@ static const uint8_t BINARY_CMD_GET_BG_IMAGE_INFO_RESP = 0xB4;
 static const uint8_t BINARY_CMD_READ_BG_IMAGE_CHUNK_RESP = 0xB5;
 
 static const uint32_t USER_IMAGE_INDEX_HEADER_SIZE = 4096;
-static const uint32_t USER_IMAGE_PAYLOAD_ADDR = USER_IMAGE_RESOURCES_ADDR + USER_IMAGE_INDEX_HEADER_SIZE;
 static const uint32_t USER_IMAGE_FORMAT_RGB565LE = 1;
 static const char* USER_IMAGE_ID = "USER_IMAGE";
 static const uint32_t SYS_IMAGE_INDEX_HEADER_SIZE = 4096;
@@ -228,9 +227,12 @@ struct UserImageIndexHeaderV1 {
 };
 #pragma pack(pop)
 
-static bool read_index_header(uint8_t target, UserImageIndexHeader& out) {
+static uint32_t align_up_u32(uint32_t v, uint32_t a) {
+    return (v + (a - 1)) & ~(a - 1);
+}
+
+static bool read_index_header_at(uint32_t addr, UserImageIndexHeader& out) {
     QSPIXipGuard guard;
-    uint32_t addr = (target == 0) ? USER_IMAGE_RESOURCES_ADDR : SYS_IMAGE_RESOURCES_ADDR;
     UserImageIndexHeaderV1 v1 = {0};
     int8_t r = QSPI_W25Qxx_ReadBuffer((uint8_t*)&v1, addr, sizeof(v1));
     if (r != QSPI_W25Qxx_OK) return false;
@@ -257,6 +259,38 @@ static bool read_index_header(uint8_t target, UserImageIndexHeader& out) {
     if (r != QSPI_W25Qxx_OK) return false;
     if (out.magic != 0x474D4955) return false;
     if (out.valid != 1) return false;
+    return true;
+}
+
+static bool is_sysbg_index_header(const UserImageIndexHeader& idx) {
+    return std::strncmp(idx.id, SYS_IMAGE_ID, sizeof(idx.id)) == 0;
+}
+
+static bool is_user_index_header(const UserImageIndexHeader& idx) {
+    return std::strncmp(idx.id, USER_IMAGE_ID, sizeof(idx.id)) == 0;
+}
+
+static const uint32_t SYSBG_MAX_FRAMES = 8;
+static const uint32_t SYSBG_FRAME_W = 320;
+static const uint32_t SYSBG_FRAME_H = 172;
+static const uint32_t SYSBG_FRAME_SIZE = SYSBG_FRAME_W * SYSBG_FRAME_H * 2;
+static const uint32_t SYSBG_RESERVED_SIZE = USER_IMAGE_INDEX_HEADER_SIZE + SYSBG_MAX_FRAMES * SYSBG_FRAME_SIZE;
+static const uint32_t USER_IMAGE_BASE_ADDR = USER_IMAGE_RESOURCES_ADDR + SYSBG_RESERVED_SIZE;
+static const uint32_t USER_IMAGE_AREA_SIZE = USER_IMAGE_RESOURCES_SIZE - SYSBG_RESERVED_SIZE;
+static_assert(SYSBG_RESERVED_SIZE <= USER_IMAGE_RESOURCES_SIZE, "SYSBG reserved area exceeds USER_IMAGE_RESOURCES_SIZE");
+
+static bool read_sysbg_index_header(UserImageIndexHeader& out) {
+    if (!read_index_header_at(USER_IMAGE_RESOURCES_ADDR, out)) return false;
+    if (!is_sysbg_index_header(out)) return false;
+    return true;
+}
+
+static bool read_index_header(uint8_t target, UserImageIndexHeader& out) {
+    if (target == 1) {
+        return read_sysbg_index_header(out);
+    }
+    if (!read_index_header_at(USER_IMAGE_BASE_ADDR, out)) return false;
+    if (!is_user_index_header(out)) return false;
     return true;
 }
 
@@ -381,7 +415,11 @@ void UserImageCommandHandler::handleBinaryMessage(WebSocketConnection* conn, con
                 send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP, false, cid, 0, 0, "Invalid size");
                 break;
             }
-            uint32_t max_payload = USER_IMAGE_RESOURCES_SIZE - USER_IMAGE_INDEX_HEADER_SIZE;
+            if (USER_IMAGE_AREA_SIZE <= USER_IMAGE_INDEX_HEADER_SIZE) {
+                send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP, false, cid, 0, total_size, "No space");
+                break;
+            }
+            uint32_t max_payload = USER_IMAGE_AREA_SIZE - USER_IMAGE_INDEX_HEADER_SIZE;
             if (total_size > max_payload) {
                 send_user_image_binary_response(conn, BINARY_CMD_UPLOAD_USER_IMAGE_BEGIN_RESP, false, cid, 0, total_size, "Size too large");
                 break;
@@ -397,7 +435,7 @@ void UserImageCommandHandler::handleBinaryMessage(WebSocketConnection* conn, con
             }
 
             uint32_t erase_size = USER_IMAGE_INDEX_HEADER_SIZE + total_size;
-            int8_t er = QSPI_W25Qxx_BufferErase(USER_IMAGE_RESOURCES_ADDR, erase_size);
+            int8_t er = QSPI_W25Qxx_BufferErase(USER_IMAGE_BASE_ADDR, erase_size);
             if (er != QSPI_W25Qxx_OK) {
                 char msg[64];
                 std::snprintf(msg, sizeof(msg), "Erase failed:%d", (int)er);
@@ -442,7 +480,7 @@ void UserImageCommandHandler::handleBinaryMessage(WebSocketConnection* conn, con
                 break;
             }
             const uint8_t* payload = data + payload_offset;
-            int8_t wr = qspi_write_bytes(USER_IMAGE_PAYLOAD_ADDR + h->offset, payload, (uint32_t)payload_size);
+            int8_t wr = qspi_write_bytes(USER_IMAGE_BASE_ADDR + USER_IMAGE_INDEX_HEADER_SIZE + h->offset, payload, (uint32_t)payload_size);
             if (wr != QSPI_W25Qxx_OK) {
                 char msg[64];
                 std::snprintf(msg, sizeof(msg), "Write failed:%d", (int)wr);
@@ -488,7 +526,7 @@ void UserImageCommandHandler::handleBinaryMessage(WebSocketConnection* conn, con
                 }
             }
             strncpy(idx.id, USER_IMAGE_ID, sizeof(idx.id) - 1);
-            int8_t hr = qspi_write_bytes(USER_IMAGE_RESOURCES_ADDR, (const uint8_t*)&idx, sizeof(idx));
+            int8_t hr = qspi_write_bytes(USER_IMAGE_BASE_ADDR, (const uint8_t*)&idx, sizeof(idx));
             if (hr != QSPI_W25Qxx_OK) {
                 char msg[64];
                 std::snprintf(msg, sizeof(msg), "Header write failed:%d", (int)hr);
@@ -507,7 +545,7 @@ void UserImageCommandHandler::handleBinaryMessage(WebSocketConnection* conn, con
             }
             const BinaryUserImageDeleteHeader* h = reinterpret_cast<const BinaryUserImageDeleteHeader*>(data);
             clear_user_image_upload_session();
-            int8_t er = QSPI_W25Qxx_BufferErase(USER_IMAGE_RESOURCES_ADDR, USER_IMAGE_RESOURCES_SIZE);
+            int8_t er = QSPI_W25Qxx_BufferErase(USER_IMAGE_BASE_ADDR, USER_IMAGE_AREA_SIZE);
             if (er != QSPI_W25Qxx_OK) {
                 char msg[64];
                 std::snprintf(msg, sizeof(msg), "Erase failed:%d", (int)er);
@@ -533,8 +571,8 @@ void UserImageCommandHandler::handleBinaryMessage(WebSocketConnection* conn, con
 
             UserImageIndexHeader idx = {0};
             bool hasHeader = read_index_header(h->target, idx);
-            uint32_t base = (h->target == 0) ? USER_IMAGE_RESOURCES_ADDR : SYS_IMAGE_RESOURCES_ADDR;
-            uint32_t payloadBase = base + (hasHeader ? idx.frames_offset : SYS_IMAGE_INDEX_HEADER_SIZE);
+            uint32_t base = (h->target == 1) ? USER_IMAGE_RESOURCES_ADDR : USER_IMAGE_BASE_ADDR;
+            uint32_t payloadBase = base + (hasHeader ? idx.frames_offset : USER_IMAGE_INDEX_HEADER_SIZE);
             uint16_t width = hasHeader ? idx.width : 320;
             uint16_t height = hasHeader ? idx.height : 172;
             uint8_t format = hasHeader ? idx.format : USER_IMAGE_FORMAT_RGB565LE;

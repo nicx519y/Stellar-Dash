@@ -861,6 +861,8 @@ class ReleaseFlasher:
             # 使用统一的地址映射函数
             if component_name == 'sys_assets':
                 return f"0x{SYS_IMAGE_RESOURCES_ADDR:08X}"
+            if component_name == 'sysbg':
+                return f"0x{USER_IMAGE_RESOURCES_ADDR:08X}"
             address = get_slot_address(component_name, slot)
             return f"0x{address:08X}"
         except ValueError as e:
@@ -1018,7 +1020,7 @@ class ReleaseFlasher:
             # 使用新的create_metadata_binary函数
             components_list = []
             for comp_name in components:
-                if comp_name == 'sys_assets':
+                if comp_name in ('sys_assets', 'sysbg'):
                     continue
                 comp_info = components_dict[comp_name]
                 components_list.append({
@@ -1347,7 +1349,7 @@ class ReleaseManager:
         elif not progress:
             print("正在生成/复制系统图片资源...")
 
-        assets_dir = self.application_dir / "assets"
+        assets_dir = self.application_dir / "assets" / "icons"
         if not assets_dir.exists():
             raise FileNotFoundError(f"未找到 assets 目录: {assets_dir}")
 
@@ -1388,9 +1390,9 @@ class ReleaseManager:
         cmd = [
             sys.executable,
             str(packer),
-            "--input", str(assets_dir),
-            "--output", str(out_bin),
-            "--max-size", hex(SYS_IMAGE_RESOURCES_SIZE),
+            "--icons-dir", str(assets_dir),
+            "--icons-output", str(out_bin),
+            "--icons-max-size", hex(SYS_IMAGE_RESOURCES_SIZE),
         ]
 
         result = self.run_cmd(cmd, cwd=self.project_root, check=False)
@@ -1406,7 +1408,44 @@ class ReleaseManager:
             print(f"成功复制系统图片资源: {out_bin} -> {dst}")
         return dst
 
-    def make_manifest_for_auto_with_bin(self, slot, app_bin_file, adc_file, web_file, version, app_component, sys_assets_file=None):
+    def copy_sysbg_for_auto(self, out_dir, progress=None, progress_step=None):
+        if progress and progress_step:
+            progress.set_step(progress_step, "生成/复制系统背景图片(sysbg)...")
+        elif not progress:
+            print("正在生成/复制系统背景图片(sysbg)...")
+
+        sysbg_dir = self.application_dir / "assets" / "sysbg"
+        if not sysbg_dir.exists():
+            raise FileNotFoundError(f"未找到 sysbg 目录: {sysbg_dir}")
+
+        packer = self.tools_dir / "pack_assets.py"
+        if not packer.exists():
+            raise FileNotFoundError(f"未找到 assets 打包脚本: {packer}")
+
+        out_bin = self.application_dir / "build" / "sysbg.bin"
+        out_bin.parent.mkdir(exist_ok=True)
+
+        cmd = [
+            sys.executable,
+            str(packer),
+            "--sysbg-dir", str(sysbg_dir),
+            "--sysbg-output", str(out_bin),
+            "--sysbg-max-size", hex(USER_IMAGE_RESOURCES_SIZE),
+        ]
+        result = self.run_cmd(cmd, cwd=self.project_root, check=False)
+        if result.returncode != 0:
+            raise RuntimeError("系统背景图片(sysbg)打包失败")
+
+        if not out_bin.exists():
+            raise FileNotFoundError(f"未生成 sysbg.bin: {out_bin}")
+
+        dst = out_dir / "sysbg.bin"
+        shutil.copy2(out_bin, dst)
+        if not progress:
+            print(f"成功复制系统背景图片: {out_bin} -> {dst}")
+        return dst
+
+    def make_manifest_for_auto_with_bin(self, slot, app_bin_file, adc_file, web_file, version, app_component, sys_assets_file=None, sysbg_file=None):
         """生成manifest文件（使用BIN文件）"""
         manifest = {
             "version": version,
@@ -1452,6 +1491,16 @@ class ReleaseManager:
                 "address": f"0x{SYS_IMAGE_RESOURCES_ADDR:08X}",
                 "size": sys_assets_file.stat().st_size,
                 "sha256": self.sha256sum_file(sys_assets_file),
+                "file_type": "bin"
+            })
+
+        if sysbg_file is not None:
+            manifest["components"].append({
+                "name": "sysbg",
+                "file": sysbg_file.name,
+                "address": f"0x{USER_IMAGE_RESOURCES_ADDR:08X}",
+                "size": sysbg_file.stat().st_size,
+                "sha256": self.sha256sum_file(sysbg_file),
                 "file_type": "bin"
             })
         
@@ -1507,12 +1556,13 @@ class ReleaseManager:
             adc_file = self.copy_adc_mapping_from_resources(out_dir, progress, start_step + 5)
             web_file = self.copy_webresources_for_auto(out_dir, progress, start_step + 6)
             sys_assets_file = self.copy_system_assets_for_auto(out_dir, progress, start_step + 7)
+            sysbg_file = self.copy_sysbg_for_auto(out_dir, progress, start_step + 8)
             
             # 6. 生成标准manifest（使用BIN文件）
             if progress:
-                progress.set_step(start_step + 8, f"槽{slot}: 生成manifest...")
+                progress.set_step(start_step + 9, f"槽{slot}: 生成manifest...")
             manifest = self.make_manifest_for_auto_with_bin(
-                slot, app_bin_file, adc_file, web_file, version, app_component, sys_assets_file
+                slot, app_bin_file, adc_file, web_file, version, app_component, sys_assets_file, sysbg_file
             )
             
             # 添加HEX处理信息
@@ -1532,7 +1582,7 @@ class ReleaseManager:
             
             # 7. 打包并移动到releases目录
             if progress:
-                progress.set_step(start_step + 9, f"槽{slot}: 打包并移动到releases目录...")
+                progress.set_step(start_step + 10, f"槽{slot}: 打包并移动到releases目录...")
             package_name = f'hbox_firmware_{version}_{slot.lower()}_{build_timestamp}.zip'
             temp_package_path = out_dir / package_name
             final_package_path = self.releases_dir / package_name
@@ -1546,6 +1596,7 @@ class ReleaseManager:
                 zf.write(web_file, web_file.name)
                 zf.write(adc_file, adc_file.name)
                 zf.write(sys_assets_file, sys_assets_file.name)
+                zf.write(sysbg_file, sysbg_file.name)
                 zf.write(manifest_file, manifest_file.name)
             
             # 移动到最终位置
@@ -1583,8 +1634,8 @@ class ReleaseManager:
         build_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         print(f"构建时间戳: {build_timestamp}")
         
-        # 创建统一进度条 (每个槽9步，共18步)
-        progress = ProgressBar(18)
+        # 创建统一进度条 (每个槽10步，共20步)
+        progress = ProgressBar(20)
         
         success_count = 0
         generated_packages = []
@@ -1592,7 +1643,7 @@ class ReleaseManager:
         try:
             for i, slot in enumerate(['A', 'B']):
                 try:
-                    start_step = i * 9  # 每个槽9步
+                    start_step = i * 10  # 每个槽10步
                     package_path = self.make_auto_release_pkg(slot, version, out_dir, build_timestamp, progress, start_step)
                     success_count += 1
                     generated_packages.append(package_path)
@@ -2647,9 +2698,9 @@ class ReleaseManager:
 
     def flash_system_assets(self) -> bool:
         try:
-            assets_dir = self.application_dir / "assets"
-            if not assets_dir.exists():
-                print(f"错误: 未找到 assets 目录: {assets_dir}")
+            icons_dir = self.application_dir / "assets" / "icons"
+            if not icons_dir.exists():
+                print(f"错误: 未找到 icons 目录: {icons_dir}")
                 return False
 
             packer = self.tools_dir / "pack_assets.py"
@@ -2663,9 +2714,9 @@ class ReleaseManager:
             cmd = [
                 sys.executable,
                 str(packer),
-                "--input", str(assets_dir),
-                "--output", str(out_file),
-                "--max-size", hex(SYS_IMAGE_RESOURCES_SIZE),
+                "--icons-dir", str(icons_dir),
+                "--icons-output", str(out_file),
+                "--icons-max-size", hex(SYS_IMAGE_RESOURCES_SIZE),
             ]
             result = subprocess.run(cmd, cwd=self.project_root, capture_output=True, text=True)
             if result.returncode != 0:
@@ -3191,7 +3242,7 @@ Intel HEX增强模式说明:
     flash_parser.add_argument("package", nargs="?", help="要刷写的release包路径（可选，不指定则交互式选择）")
     flash_parser.add_argument("--slot", choices=["A", "B"], help="目标槽位（可选，默认使用包中指定的槽位）")
     flash_parser.add_argument("--components", nargs="+", 
-                            choices=["application", "webresources", "adc_mapping", "sys_assets"],
+                            choices=["application", "webresources", "adc_mapping", "sys_assets", "sysbg"],
                             help="要刷写的组件（可选，默认刷写所有组件）")
     
     # 上传命令
