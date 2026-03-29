@@ -19,6 +19,25 @@ typedef struct
     uint32_t virtualPinMask;           // 虚拟引脚掩码 0001 0000 0010 0000 0000 0000 0000 0000  说明包含哪些虚拟引脚
 } KeyCombination;
 
+#define MAX_NUM_MACROS 5
+#define MAX_MACRO_STEPS 32
+#define MAX_MACRO_TRIGGER_KEYS 4
+
+typedef struct __attribute__((packed))
+{
+    uint16_t timeMs;
+    uint32_t buttonMask;
+} MacroStep;
+
+typedef struct __attribute__((packed))
+{
+    uint8_t numSteps;
+    uint8_t numTriggerKeys;
+    uint8_t triggerKeys[MAX_MACRO_TRIGGER_KEYS];
+    uint8_t reserved0[1];
+    MacroStep steps[MAX_MACRO_STEPS];
+} MacroConfig;
+
 typedef struct
 {
     SOCDMode socdMode;
@@ -29,6 +48,7 @@ typedef struct
     // 将 std::map 替换为固定大小的数组
     uint32_t keyMapping[NUM_GAME_CONTROLLER_BUTTONS]; // 按键映射，20个按钮类型，每个4字节
     KeyCombination keyCombinations[MAX_KEY_COMBINATION];   // 按键组合键配置 说明 哪些游戏控制器按键组合键对应哪些物理按键
+    MacroConfig macros[MAX_NUM_MACROS];
 } KeysConfig;
 
 typedef struct

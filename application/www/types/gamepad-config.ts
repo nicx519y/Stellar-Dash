@@ -377,6 +377,20 @@ export type KeyCombination = {
     gameControllerButtons: GameControllerButton[];
 }
 
+export const MAX_NUM_MACROS = 5;
+export const MAX_MACRO_STEPS = 32;
+
+export type MacroStep = {
+    timeMs: number;
+    buttonMask: number;
+}
+
+export type MacroConfig = {
+    index: number;
+    triggerKeys: number[];
+    steps: MacroStep[];
+}
+
 export interface KeysConfig {
     inputMode?: Platform;
     socdMode?: GameSocdMode;
@@ -388,6 +402,7 @@ export interface KeysConfig {
         [key in GameControllerButton]?: number[];
     };
     keyCombinations?: KeyCombination[]; // 按键组合键配置 说明 哪些游戏控制器按键组合键对应哪些物理按键
+    macros?: MacroConfig[];
 }
 
 export interface GameProfile {
@@ -663,7 +678,16 @@ export const UI_TEXT = {
     KEYS_MAPPING_TITLE_CORE: "Core Buttons",
     KEYS_MAPPING_TITLE_SHOULDER: "Shoulder & Stick Buttons",
     KEYS_MAPPING_TITLE_FUNCTION: "Function Buttons",
-    KEYS_MAPPING_TITLE_CUSTOM_COMBINATION: "Custom Button Combinations",
+    KEYS_MAPPING_TITLE_CUSTOM_COMBINATION: "Combinations",
+    KEYS_MAPPING_TITLE_MACROS: "Macros",
+    MACRO_FIELD_RECORD_BUTTON: "Record",
+    MACRO_DIALOG_TITLE: "Record Macro",
+    MACRO_DIALOG_MESSAGE: "Click [Start Recording] then press buttons on device. Recording stops when you click [Stop Recording] or when the macro reaches its capacity.",
+    MACRO_DIALOG_BUTTON_START: "Start Recording",
+    MACRO_DIALOG_BUTTON_STOP: "Stop Recording",
+    MACRO_DIALOG_BUTTON_CLOSE: "Close",
+    MACRO_DIALOG_STOP_REASON_MANUAL: "Stopped manually.",
+    MACRO_DIALOG_STOP_REASON_FULL: "Stopped automatically (macro capacity reached).",
 
 
     // Switch Marking Settings
@@ -1032,7 +1056,16 @@ export const UI_TEXT_ZH = {
     KEYS_MAPPING_TITLE_CORE: "核心按键",
     KEYS_MAPPING_TITLE_SHOULDER: "肩键和摇杆键",
     KEYS_MAPPING_TITLE_FUNCTION: "功能按键",
-    KEYS_MAPPING_TITLE_CUSTOM_COMBINATION: "自定义组合键",
+    KEYS_MAPPING_TITLE_CUSTOM_COMBINATION: "组合键",
+    KEYS_MAPPING_TITLE_MACROS: "宏设置",
+    MACRO_FIELD_RECORD_BUTTON: "录制",
+    MACRO_DIALOG_TITLE: "录制宏",
+    MACRO_DIALOG_MESSAGE: "点击[开始录制]后，在设备上按键即可录制。点击[结束录制]或达到宏容量后会自动停止。",
+    MACRO_DIALOG_BUTTON_START: "开始录制",
+    MACRO_DIALOG_BUTTON_STOP: "结束录制",
+    MACRO_DIALOG_BUTTON_CLOSE: "关闭",
+    MACRO_DIALOG_STOP_REASON_MANUAL: "已手动停止录制。",
+    MACRO_DIALOG_STOP_REASON_FULL: "已达到宏容量，自动结束录制。",
 
     // 磁轴标记设置
     SETTINGS_SWITCH_MARKING_TITLE: "新磁轴标记",

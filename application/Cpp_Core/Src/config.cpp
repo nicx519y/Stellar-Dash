@@ -461,6 +461,8 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
 
     APP_DBG("ConfigUtils::makeDefaultProfile - keyCombinations init done");
 
+    memset(profile.keysConfig.macros, 0, sizeof(profile.keysConfig.macros));
+
     // 设置triggerConfigs 
     profile.triggerConfigs.isAllBtnsConfiguring = true;
     // 设置防抖算法 无
@@ -581,13 +583,52 @@ bool ConfigUtils::load(Config& config)
     } 
 }
 
+static uint32_t align_up_u32(uint32_t v, uint32_t a) {
+    return (v + (a - 1)) & ~(a - 1);
+}
+
+static int8_t qspi_write_buffer_no_erase(uint8_t* pBuffer, uint32_t writeAddr, uint32_t numBytes) {
+    writeAddr &= 0x00FFFFFF;
+    int8_t status = QSPI_W25Qxx_OK;
+    while (numBytes > 0) {
+        uint32_t current_addr = writeAddr;
+        uint32_t current_size = W25Qxx_PageSize - (current_addr % W25Qxx_PageSize);
+        if (current_size > numBytes) current_size = numBytes;
+        status = QSPI_W25Qxx_WritePage(pBuffer, current_addr, (uint16_t)current_size);
+        if (status != QSPI_W25Qxx_OK) return status;
+        writeAddr += current_size;
+        pBuffer += current_size;
+        numBytes -= current_size;
+    }
+    return status;
+}
+
+static int8_t qspi_erase_and_write_config(uint8_t* pBuffer, uint32_t addr, uint32_t size) {
+    const bool was_mmap = QSPI_W25Qxx_IsMemoryMappedMode();
+    if (was_mmap) {
+        QSPI_W25Qxx_ExitMemoryMappedMode();
+    }
+
+    const uint32_t erase_size = align_up_u32(size, W25Qxx_SECTOR_SIZE);
+    int8_t er = QSPI_W25Qxx_BufferErase(addr, erase_size);
+    if (er != QSPI_W25Qxx_OK) {
+        if (was_mmap) QSPI_W25Qxx_EnterMemoryMappedMode();
+        return er;
+    }
+
+    int8_t wr = qspi_write_buffer_no_erase(pBuffer, addr, size);
+    if (was_mmap) {
+        QSPI_W25Qxx_EnterMemoryMappedMode();
+    }
+    return wr;
+}
+
 bool ConfigUtils::save(Config& config)
 {
     APP_DBG("ConfigUtils::save begin");
 
-
-    // 写入配置数据
-    int8_t result = QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t*)&config, CONFIG_ADDR_ORIGIN, sizeof(Config));
+    const uint32_t cfgSize = (uint32_t)sizeof(Config);
+    int8_t result = qspi_erase_and_write_config((uint8_t*)&config, CONFIG_ADDR_ORIGIN, cfgSize);
     if(result == QSPI_W25Qxx_OK) {
         APP_DBG("ConfigUtils::save - success.");
         return true;

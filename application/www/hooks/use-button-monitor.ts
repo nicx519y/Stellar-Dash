@@ -13,6 +13,8 @@ export interface UseButtonMonitorOptions {
     onButtonStatesChange?: (states: any) => void;
     /** 使用 eventBus 而不是直接监听（推荐） */
     useEventBus?: boolean;
+    /** 是否控制 start/stop_button_monitoring 命令 */
+    controlMonitoringCommand?: boolean;
 }
 
 export function useButtonMonitor(options: UseButtonMonitorOptions = {}) {
@@ -22,6 +24,7 @@ export function useButtonMonitor(options: UseButtonMonitorOptions = {}) {
         onMonitoringStateChange,
         onButtonStatesChange,
         useEventBus: useEventBusOption = true, // 默认使用 eventBus
+        controlMonitoringCommand = true,
     } = options;
 
     // 使用 gamepad-config-context 中的方法
@@ -33,8 +36,9 @@ export function useButtonMonitor(options: UseButtonMonitorOptions = {}) {
     // 启动按键监控
     const startMonitoring = async (): Promise<void> => {
         try {
-            // 使用 gamepad-config-context 中的方法
-            await startButtonMonitoring();
+            if (controlMonitoringCommand) {
+                await startButtonMonitoring();
+            }
             
             isActiveRef.current = true;
             
@@ -61,8 +65,9 @@ export function useButtonMonitor(options: UseButtonMonitorOptions = {}) {
     // 停止按键监控
     const stopMonitoring = async (): Promise<void> => {
         try {
-            // 使用 gamepad-config-context 中的方法
-            await stopButtonMonitoring();
+            if (controlMonitoringCommand) {
+                await stopButtonMonitoring();
+            }
             
             isActiveRef.current = false;
             

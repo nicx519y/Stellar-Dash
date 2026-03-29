@@ -83,6 +83,10 @@ public:
     WebSocketDownstreamMessage handleGetProfileList(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleGetDefaultProfile(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleUpdateProfile(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleGetMacro(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleUpdateMacro(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleGetProfileMacros(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleUpdateProfileMacros(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleCreateProfile(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleDeleteProfile(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleSwitchDefaultProfile(const WebSocketUpstreamMessage& request);

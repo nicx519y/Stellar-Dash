@@ -3,6 +3,7 @@
 #include "system_logger.h"
 #include "board_cfg.h"
 #include "cpp_utils.hpp"
+#include "configs/base64.hpp"
 
 
 
@@ -187,7 +188,10 @@ uint32_t ProfileCommandHandler::getKeyMappingVirtualMask(cJSON* keyMappingJSON) 
     uint32_t virtualMask = 0;
     cJSON* item = NULL;
     cJSON_ArrayForEach(item, keyMappingJSON) {
-        virtualMask |= (1 << (int)cJSON_GetNumberValue(item));
+        if (!item || !cJSON_IsNumber(item)) continue;
+        int idx = (int)cJSON_GetNumberValue(item);
+        if (idx < 0 || idx >= (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS)) continue;
+        virtualMask |= (1u << (uint32_t)idx);
     }
     return virtualMask;
 }
@@ -547,6 +551,88 @@ void ProfileCommandHandler::parseProfileJSON(cJSON* profileJSON, GamepadProfile*
                 targetProfile->keysConfig.keyCombinations[i].virtualPinMask = 0;
             }
         }
+
+        cJSON* macros = cJSON_GetObjectItem(keysConfig, "macros");
+        if (macros) {
+            if (cJSON_IsNull(macros)) {
+                memset(targetProfile->keysConfig.macros, 0, sizeof(targetProfile->keysConfig.macros));
+            } else if (cJSON_IsArray(macros)) {
+                memset(targetProfile->keysConfig.macros, 0, sizeof(targetProfile->keysConfig.macros));
+                int macroCount = cJSON_GetArraySize(macros);
+                for (int mi = 0; mi < macroCount; mi++) {
+                    cJSON* macroJSON = cJSON_GetArrayItem(macros, mi);
+                    if (!macroJSON || !cJSON_IsObject(macroJSON)) continue;
+
+                    cJSON* idxItem = cJSON_GetObjectItem(macroJSON, "index");
+                    if (!idxItem || !cJSON_IsNumber(idxItem)) continue;
+                    int index = idxItem->valueint;
+                    if (index < 0 || index >= (int)MAX_NUM_MACROS) continue;
+
+                    cJSON* steps = cJSON_GetObjectItem(macroJSON, "steps");
+                    cJSON* triggers = cJSON_GetObjectItem(macroJSON, "triggerKeys");
+
+                    MacroConfig& out = targetProfile->keysConfig.macros[index];
+                    if (triggers && cJSON_IsArray(triggers)) {
+                        uint8_t triggerCount = (uint8_t)cJSON_GetArraySize(triggers);
+                        if (triggerCount > MAX_MACRO_TRIGGER_KEYS) triggerCount = MAX_MACRO_TRIGGER_KEYS;
+                        out.numTriggerKeys = triggerCount;
+                        for (uint8_t ti = 0; ti < triggerCount; ti++) {
+                            cJSON* tItem = cJSON_GetArrayItem(triggers, ti);
+                            if (tItem && cJSON_IsNumber(tItem)) out.triggerKeys[ti] = (uint8_t)tItem->valueint;
+                        }
+                        for (uint8_t ti = triggerCount; ti < MAX_MACRO_TRIGGER_KEYS; ti++) out.triggerKeys[ti] = 0;
+                    } else {
+                        out.numTriggerKeys = 0;
+                        memset(out.triggerKeys, 0, sizeof(out.triggerKeys));
+                    }
+
+                    if (!steps || !cJSON_IsArray(steps)) {
+                        out.numSteps = 0;
+                        memset(out.steps, 0, sizeof(out.steps));
+                        continue;
+                    }
+
+                    uint8_t stepCount = (uint8_t)cJSON_GetArraySize(steps);
+                    if (stepCount > MAX_MACRO_STEPS) stepCount = MAX_MACRO_STEPS;
+                    out.numSteps = stepCount;
+
+                    for (uint8_t si = 0; si < stepCount; si++) {
+                        MacroStep& step = out.steps[si];
+                        memset(&step, 0, sizeof(step));
+                        cJSON* stepJSON = cJSON_GetArrayItem(steps, si);
+                        if (!stepJSON || !cJSON_IsObject(stepJSON)) continue;
+
+                        cJSON* timeItem = cJSON_GetObjectItem(stepJSON, "timeMs");
+                        if (timeItem && cJSON_IsNumber(timeItem)) {
+                            int v = timeItem->valueint;
+                            if (v < 0) v = 0;
+                            if (v > 65535) v = 65535;
+                            step.timeMs = (uint16_t)v;
+                        }
+
+                        cJSON* buttonMaskItem = cJSON_GetObjectItem(stepJSON, "buttonMask");
+                        if (buttonMaskItem && cJSON_IsNumber(buttonMaskItem)) {
+                            step.buttonMask = (uint32_t)buttonMaskItem->valuedouble;
+                        } else {
+                            cJSON* pressMaskItem = cJSON_GetObjectItem(stepJSON, "pressButtonMask");
+                            cJSON* releaseMaskItem = cJSON_GetObjectItem(stepJSON, "releaseButtonMask");
+                            uint32_t pressMask = (pressMaskItem && cJSON_IsNumber(pressMaskItem)) ? (uint32_t)pressMaskItem->valuedouble : 0;
+                            uint32_t releaseMask = (releaseMaskItem && cJSON_IsNumber(releaseMaskItem)) ? (uint32_t)releaseMaskItem->valuedouble : 0;
+                            if (si == 0) {
+                                step.buttonMask = pressMask & ~releaseMask;
+                            } else {
+                                uint32_t prevMask = out.steps[si - 1].buttonMask;
+                                step.buttonMask = (prevMask | pressMask) & ~releaseMask;
+                            }
+                        }
+                    }
+
+                    for (uint8_t si = stepCount; si < MAX_MACRO_STEPS; si++) {
+                        memset(&out.steps[si], 0, sizeof(out.steps[si]));
+                    }
+                }
+            }
+        }
     }
 
     // 更新LED配置
@@ -748,6 +834,435 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfile(const WebS
     // LOG_INFO("WebSocket", "update_profile command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+static GamepadProfile* find_profile_by_id(Config& config, const char* id) {
+    if (!id) return nullptr;
+    for (uint8_t i = 0; i < NUM_PROFILES; i++) {
+        if (strcmp(id, config.profiles[i].id) == 0) {
+            return &config.profiles[i];
+        }
+    }
+    return nullptr;
+}
+
+static void append_u16_le(std::string& out, uint16_t v) {
+    out.push_back((char)(v & 0xFF));
+    out.push_back((char)((v >> 8) & 0xFF));
+}
+
+static void append_u32_le(std::string& out, uint32_t v) {
+    out.push_back((char)(v & 0xFF));
+    out.push_back((char)((v >> 8) & 0xFF));
+    out.push_back((char)((v >> 16) & 0xFF));
+    out.push_back((char)((v >> 24) & 0xFF));
+}
+
+static uint16_t read_u16_le(const char* p) {
+    return (uint16_t)((uint8_t)p[0] | ((uint16_t)(uint8_t)p[1] << 8));
+}
+
+static uint32_t read_u32_le(const char* p) {
+    return (uint32_t)((uint8_t)p[0]
+        | ((uint32_t)(uint8_t)p[1] << 8)
+        | ((uint32_t)(uint8_t)p[2] << 16)
+        | ((uint32_t)(uint8_t)p[3] << 24));
+}
+
+static std::string encode_macro_binary(const MacroConfig& macro) {
+    uint8_t triggerCount = macro.numTriggerKeys;
+    if (triggerCount > MAX_MACRO_TRIGGER_KEYS) triggerCount = MAX_MACRO_TRIGGER_KEYS;
+    uint8_t stepCount = macro.numSteps;
+    if (stepCount > MAX_MACRO_STEPS) stepCount = MAX_MACRO_STEPS;
+
+    std::string raw;
+    raw.reserve((size_t)2 + triggerCount + (size_t)stepCount * 6);
+    raw.push_back((char)triggerCount);
+    for (uint8_t i = 0; i < triggerCount; i++) raw.push_back((char)macro.triggerKeys[i]);
+    raw.push_back((char)stepCount);
+    for (uint8_t i = 0; i < stepCount; i++) {
+        const MacroStep& step = macro.steps[i];
+        append_u16_le(raw, step.timeMs);
+        append_u32_le(raw, step.buttonMask);
+    }
+    return Base64::Encode(raw);
+}
+
+static bool decode_macro_binary(const char* b64, MacroConfig& out) {
+    if (!b64) return false;
+    std::string raw;
+    if (!Base64::Decode(b64, strlen(b64), raw)) return false;
+    if (raw.size() < 2) return false;
+
+    const char* p = raw.data();
+    size_t len = raw.size();
+    uint8_t triggerCount = (uint8_t)p[0];
+    if (triggerCount > MAX_MACRO_TRIGGER_KEYS) return false;
+    if (len < (size_t)1 + triggerCount + 1) return false;
+
+    size_t off = 1 + triggerCount;
+    uint8_t stepCount = (uint8_t)p[off];
+    if (stepCount > MAX_MACRO_STEPS) return false;
+
+    size_t expected = (size_t)1 + triggerCount + 1 + (size_t)stepCount * 6;
+    if (len != expected) return false;
+
+    memset(&out, 0, sizeof(out));
+    out.numTriggerKeys = triggerCount;
+    for (uint8_t i = 0; i < triggerCount; i++) out.triggerKeys[i] = (uint8_t)p[1 + i];
+    out.numSteps = stepCount;
+
+    off = 1 + triggerCount + 1;
+    for (uint8_t i = 0; i < stepCount; i++) {
+        MacroStep& step = out.steps[i];
+        step.timeMs = read_u16_le(p + off);
+        step.buttonMask = read_u32_le(p + off + 2);
+        off += 6;
+    }
+    return true;
+}
+
+static std::string encode_profile_macros_binary(const GamepadProfile& profile) {
+    std::string raw;
+    raw.reserve((size_t)2 + (size_t)MAX_NUM_MACROS * (size_t)(1 + 1 + MAX_MACRO_TRIGGER_KEYS + 1 + MAX_MACRO_STEPS * 6));
+    raw.push_back((char)1);
+    raw.push_back((char)MAX_NUM_MACROS);
+    for (uint8_t mi = 0; mi < MAX_NUM_MACROS; mi++) {
+        const MacroConfig& macro = profile.keysConfig.macros[mi];
+        raw.push_back((char)macro.numSteps);
+        raw.push_back((char)macro.numTriggerKeys);
+        for (uint8_t ti = 0; ti < MAX_MACRO_TRIGGER_KEYS; ti++) {
+            raw.push_back((char)macro.triggerKeys[ti]);
+        }
+        raw.push_back((char)0);
+        for (uint8_t si = 0; si < MAX_MACRO_STEPS; si++) {
+            const MacroStep& step = macro.steps[si];
+            append_u16_le(raw, step.timeMs);
+            append_u32_le(raw, step.buttonMask);
+        }
+    }
+    return Base64::Encode(raw);
+}
+
+static bool decode_profile_macros_binary(const char* b64, GamepadProfile& profile) {
+    if (!b64) return false;
+    std::string raw;
+    if (!Base64::Decode(b64, strlen(b64), raw)) return false;
+    if (raw.size() < 2) return false;
+    const uint8_t* p = (const uint8_t*)raw.data();
+    const size_t len = raw.size();
+    const uint8_t ver = p[0];
+    const uint8_t count = p[1];
+    if (ver != 1) return false;
+    if (count != MAX_NUM_MACROS) return false;
+    const size_t perMacro = (size_t)(1 + 1 + MAX_MACRO_TRIGGER_KEYS + 1 + MAX_MACRO_STEPS * 6);
+    const size_t expected = (size_t)2 + (size_t)MAX_NUM_MACROS * perMacro;
+    if (len != expected) return false;
+
+    memset(profile.keysConfig.macros, 0, sizeof(profile.keysConfig.macros));
+
+    size_t off = 2;
+    for (uint8_t mi = 0; mi < MAX_NUM_MACROS; mi++) {
+        MacroConfig& macro = profile.keysConfig.macros[mi];
+        macro.numSteps = p[off + 0];
+        if (macro.numSteps > MAX_MACRO_STEPS) macro.numSteps = MAX_MACRO_STEPS;
+        macro.numTriggerKeys = p[off + 1];
+        if (macro.numTriggerKeys > MAX_MACRO_TRIGGER_KEYS) macro.numTriggerKeys = MAX_MACRO_TRIGGER_KEYS;
+        for (uint8_t ti = 0; ti < MAX_MACRO_TRIGGER_KEYS; ti++) {
+            macro.triggerKeys[ti] = p[off + 2 + ti];
+        }
+        size_t stepOff = off + 2 + MAX_MACRO_TRIGGER_KEYS + 1;
+        for (uint8_t si = 0; si < MAX_MACRO_STEPS; si++) {
+            MacroStep& step = macro.steps[si];
+            step.timeMs = read_u16_le((const char*)p + stepOff);
+            step.buttonMask = read_u32_le((const char*)p + stepOff + 2);
+            stepOff += 6;
+        }
+        off += perMacro;
+    }
+    return true;
+}
+
+static cJSON* build_profile_macros_json_compact(const GamepadProfile& profile) {
+    cJSON* macrosJSON = cJSON_CreateArray();
+    for (uint8_t mi = 0; mi < MAX_NUM_MACROS; mi++) {
+        const MacroConfig& macro = profile.keysConfig.macros[mi];
+        if (macro.numSteps == 0 && macro.numTriggerKeys == 0) {
+            cJSON_AddItemToArray(macrosJSON, cJSON_CreateNull());
+            continue;
+        }
+
+        cJSON* macroJSON = cJSON_CreateObject();
+
+        cJSON* triggerKeysJSON = cJSON_CreateArray();
+        uint8_t triggerCount = macro.numTriggerKeys;
+        if (triggerCount > MAX_MACRO_TRIGGER_KEYS) triggerCount = MAX_MACRO_TRIGGER_KEYS;
+        for (uint8_t ti = 0; ti < triggerCount; ti++) {
+            cJSON_AddItemToArray(triggerKeysJSON, cJSON_CreateNumber(macro.triggerKeys[ti]));
+        }
+        cJSON_AddItemToObject(macroJSON, "k", triggerKeysJSON);
+
+        cJSON* stepsJSON = cJSON_CreateArray();
+        uint8_t stepCount = macro.numSteps;
+        if (stepCount > MAX_MACRO_STEPS) stepCount = MAX_MACRO_STEPS;
+        for (uint8_t si = 0; si < stepCount; si++) {
+            const MacroStep& step = macro.steps[si];
+            cJSON* stepJSON = cJSON_CreateArray();
+            cJSON_AddItemToArray(stepJSON, cJSON_CreateNumber(step.timeMs));
+            cJSON_AddItemToArray(stepJSON, cJSON_CreateNumber(step.buttonMask));
+            cJSON_AddItemToArray(stepsJSON, stepJSON);
+        }
+        cJSON_AddItemToObject(macroJSON, "s", stepsJSON);
+
+        cJSON_AddItemToArray(macrosJSON, macroJSON);
+    }
+    return macrosJSON;
+}
+
+static void parse_profile_macros_json_compact(cJSON* macrosJSON, GamepadProfile& profile) {
+    if (!macrosJSON || !cJSON_IsArray(macrosJSON)) return;
+
+    for (uint8_t mi = 0; mi < MAX_NUM_MACROS; mi++) {
+        MacroConfig& out = profile.keysConfig.macros[mi];
+        memset(&out, 0, sizeof(out));
+
+        cJSON* macroJSON = cJSON_GetArrayItem(macrosJSON, mi);
+        if (!macroJSON || cJSON_IsNull(macroJSON)) continue;
+        if (!cJSON_IsObject(macroJSON)) continue;
+
+        cJSON* triggers = cJSON_GetObjectItem(macroJSON, "k");
+        if (triggers && cJSON_IsArray(triggers)) {
+            uint8_t triggerCount = (uint8_t)cJSON_GetArraySize(triggers);
+            if (triggerCount > MAX_MACRO_TRIGGER_KEYS) triggerCount = MAX_MACRO_TRIGGER_KEYS;
+            out.numTriggerKeys = triggerCount;
+            for (uint8_t ti = 0; ti < triggerCount; ti++) {
+                cJSON* tItem = cJSON_GetArrayItem(triggers, ti);
+                if (tItem && cJSON_IsNumber(tItem)) {
+                    int v = tItem->valueint;
+                    if (v < 0) v = 0;
+                    if (v > 255) v = 255;
+                    out.triggerKeys[ti] = (uint8_t)v;
+                }
+            }
+        }
+
+        cJSON* steps = cJSON_GetObjectItem(macroJSON, "s");
+        if (steps && cJSON_IsArray(steps)) {
+            uint8_t stepCount = (uint8_t)cJSON_GetArraySize(steps);
+            if (stepCount > MAX_MACRO_STEPS) stepCount = MAX_MACRO_STEPS;
+            out.numSteps = stepCount;
+            for (uint8_t si = 0; si < stepCount; si++) {
+                MacroStep& step = out.steps[si];
+                memset(&step, 0, sizeof(step));
+                cJSON* stepJSON = cJSON_GetArrayItem(steps, si);
+                if (!stepJSON || !cJSON_IsArray(stepJSON)) continue;
+
+                cJSON* t0 = cJSON_GetArrayItem(stepJSON, 0);
+                cJSON* t1 = cJSON_GetArrayItem(stepJSON, 1);
+                cJSON* t2 = cJSON_GetArrayItem(stepJSON, 2);
+                if (t0 && cJSON_IsNumber(t0)) {
+                    int v = t0->valueint;
+                    if (v < 0) v = 0;
+                    if (v > 65535) v = 65535;
+                    step.timeMs = (uint16_t)v;
+                }
+                if (t2 && cJSON_IsNumber(t1) && cJSON_IsNumber(t2)) {
+                    uint32_t pressMask = (uint32_t)t1->valuedouble;
+                    uint32_t releaseMask = (uint32_t)t2->valuedouble;
+                    if (si == 0) step.buttonMask = pressMask & ~releaseMask;
+                    else step.buttonMask = (out.steps[si - 1].buttonMask | pressMask) & ~releaseMask;
+                } else if (t1 && cJSON_IsNumber(t1)) {
+                    step.buttonMask = (uint32_t)t1->valuedouble;
+                }
+            }
+        }
+    }
+}
+
+static cJSON* build_macro_json(const MacroConfig& macro, uint8_t index) {
+    cJSON* macroJSON = cJSON_CreateObject();
+    cJSON_AddNumberToObject(macroJSON, "index", index);
+    std::string b64 = encode_macro_binary(macro);
+    cJSON_AddStringToObject(macroJSON, "data", b64.c_str());
+    return macroJSON;
+}
+
+WebSocketDownstreamMessage ProfileCommandHandler::handleGetMacro(const WebSocketUpstreamMessage& request) {
+    Config& config = Storage::getInstance().config;
+
+    cJSON* params = request.getParams();
+    if (!params) return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
+
+    cJSON* profileIdItem = cJSON_GetObjectItem(params, "profileId");
+    cJSON* indexItem = cJSON_GetObjectItem(params, "index");
+    if (!profileIdItem || !cJSON_IsString(profileIdItem) || !indexItem || !cJSON_IsNumber(indexItem)) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Missing profileId or index");
+    }
+
+    int index = indexItem->valueint;
+    if (index < 0 || index >= (int)MAX_NUM_MACROS) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid macro index");
+    }
+
+    GamepadProfile* profile = find_profile_by_id(config, profileIdItem->valuestring);
+    if (!profile) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Profile not found");
+    }
+
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddItemToObject(dataJSON, "macro", build_macro_json(profile->keysConfig.macros[index], (uint8_t)index));
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateMacro(const WebSocketUpstreamMessage& request) {
+    Config& config = Storage::getInstance().config;
+
+    cJSON* params = request.getParams();
+    if (!params) return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
+
+    cJSON* profileIdItem = cJSON_GetObjectItem(params, "profileId");
+    cJSON* macroJSON = cJSON_GetObjectItem(params, "macro");
+    if (!profileIdItem || !cJSON_IsString(profileIdItem) || !macroJSON || !cJSON_IsObject(macroJSON)) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Missing profileId or macro");
+    }
+
+    cJSON* indexItem = cJSON_GetObjectItem(macroJSON, "index");
+    if (!indexItem || !cJSON_IsNumber(indexItem)) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Missing macro index");
+    }
+    int index = indexItem->valueint;
+    if (index < 0 || index >= (int)MAX_NUM_MACROS) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid macro index");
+    }
+
+    GamepadProfile* profile = find_profile_by_id(config, profileIdItem->valuestring);
+    if (!profile) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Profile not found");
+    }
+
+    MacroConfig decoded;
+    bool decodedOk = false;
+    cJSON* dataItem = cJSON_GetObjectItem(macroJSON, "data");
+    if (dataItem && cJSON_IsString(dataItem) && dataItem->valuestring) {
+        decodedOk = decode_macro_binary(dataItem->valuestring, decoded);
+        if (!decodedOk) {
+            return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid macro data");
+        }
+    } else {
+        memset(&decoded, 0, sizeof(decoded));
+        cJSON* triggers = cJSON_GetObjectItem(macroJSON, "triggerKeys");
+        if (triggers && cJSON_IsArray(triggers)) {
+            uint8_t triggerCount = (uint8_t)cJSON_GetArraySize(triggers);
+            if (triggerCount > MAX_MACRO_TRIGGER_KEYS) triggerCount = MAX_MACRO_TRIGGER_KEYS;
+            decoded.numTriggerKeys = triggerCount;
+            for (uint8_t ti = 0; ti < triggerCount; ti++) {
+                cJSON* tItem = cJSON_GetArrayItem(triggers, ti);
+                if (tItem && cJSON_IsNumber(tItem)) {
+                    int v = tItem->valueint;
+                    if (v < 0) v = 0;
+                    if (v > 255) v = 255;
+                    decoded.triggerKeys[ti] = (uint8_t)v;
+                }
+            }
+        }
+
+        cJSON* steps = cJSON_GetObjectItem(macroJSON, "steps");
+        if (steps && cJSON_IsArray(steps)) {
+            uint8_t stepCount = (uint8_t)cJSON_GetArraySize(steps);
+            if (stepCount > MAX_MACRO_STEPS) stepCount = MAX_MACRO_STEPS;
+            decoded.numSteps = stepCount;
+            for (uint8_t si = 0; si < stepCount; si++) {
+                MacroStep& step = decoded.steps[si];
+                memset(&step, 0, sizeof(step));
+                cJSON* stepJSON = cJSON_GetArrayItem(steps, si);
+                if (!stepJSON || !cJSON_IsObject(stepJSON)) continue;
+
+                cJSON* timeItem = cJSON_GetObjectItem(stepJSON, "timeMs");
+                if (timeItem && cJSON_IsNumber(timeItem)) {
+                    int v = timeItem->valueint;
+                    if (v < 0) v = 0;
+                    if (v > 65535) v = 65535;
+                    step.timeMs = (uint16_t)v;
+                }
+                cJSON* buttonMaskItem = cJSON_GetObjectItem(stepJSON, "buttonMask");
+                if (buttonMaskItem && cJSON_IsNumber(buttonMaskItem)) {
+                    step.buttonMask = (uint32_t)buttonMaskItem->valuedouble;
+                } else {
+                    cJSON* pressMaskItem = cJSON_GetObjectItem(stepJSON, "pressButtonMask");
+                    cJSON* releaseMaskItem = cJSON_GetObjectItem(stepJSON, "releaseButtonMask");
+                    uint32_t pressMask = (pressMaskItem && cJSON_IsNumber(pressMaskItem)) ? (uint32_t)pressMaskItem->valuedouble : 0;
+                    uint32_t releaseMask = (releaseMaskItem && cJSON_IsNumber(releaseMaskItem)) ? (uint32_t)releaseMaskItem->valuedouble : 0;
+                    if (si == 0) step.buttonMask = pressMask & ~releaseMask;
+                    else step.buttonMask = (decoded.steps[si - 1].buttonMask | pressMask) & ~releaseMask;
+                }
+            }
+        }
+        decodedOk = true;
+    }
+
+    MacroConfig& out = profile->keysConfig.macros[index];
+    out = decoded;
+
+    if(!STORAGE_MANAGER.saveConfig()) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
+    }
+
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddItemToObject(dataJSON, "macro", build_macro_json(out, (uint8_t)index));
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+WebSocketDownstreamMessage ProfileCommandHandler::handleGetProfileMacros(const WebSocketUpstreamMessage& request) {
+    Config& config = Storage::getInstance().config;
+    cJSON* params = request.getParams();
+    if (!params) return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
+
+    cJSON* profileIdItem = cJSON_GetObjectItem(params, "pid");
+    if (!profileIdItem) profileIdItem = cJSON_GetObjectItem(params, "profileId");
+    if (!profileIdItem || !cJSON_IsString(profileIdItem) || !profileIdItem->valuestring) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Missing pid");
+    }
+    GamepadProfile* profile = find_profile_by_id(config, profileIdItem->valuestring);
+    if (!profile) return create_error_response(request.getCid(), request.getCommand(), 1, "Profile not found");
+
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddItemToObject(dataJSON, "m", build_profile_macros_json_compact(*profile));
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateProfileMacros(const WebSocketUpstreamMessage& request) {
+    Config& config = Storage::getInstance().config;
+    cJSON* params = request.getParams();
+    if (!params) return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
+
+    cJSON* profileIdItem = cJSON_GetObjectItem(params, "pid");
+    if (!profileIdItem) profileIdItem = cJSON_GetObjectItem(params, "profileId");
+    if (!profileIdItem || !cJSON_IsString(profileIdItem) || !profileIdItem->valuestring) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Missing pid");
+    }
+    GamepadProfile* profile = find_profile_by_id(config, profileIdItem->valuestring);
+    if (!profile) return create_error_response(request.getCid(), request.getCommand(), 1, "Profile not found");
+
+    cJSON* macrosJSON = cJSON_GetObjectItem(params, "m");
+    if (macrosJSON && cJSON_IsArray(macrosJSON)) {
+        parse_profile_macros_json_compact(macrosJSON, *profile);
+    } else {
+        cJSON* dataItem = cJSON_GetObjectItem(params, "data");
+        if (!dataItem || !cJSON_IsString(dataItem) || !dataItem->valuestring) {
+            return create_error_response(request.getCid(), request.getCommand(), 1, "Missing m");
+        }
+        if (!decode_profile_macros_binary(dataItem->valuestring, *profile)) {
+            return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid macros data");
+        }
+    }
+
+    if (!STORAGE_MANAGER.saveConfig()) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
+    }
+
+    cJSON* outJSON = cJSON_CreateObject();
+    cJSON_AddItemToObject(outJSON, "m", build_profile_macros_json_compact(*profile));
+    return create_success_response(request.getCid(), request.getCommand(), outJSON);
 }
 
 WebSocketDownstreamMessage ProfileCommandHandler::handleCreateProfile(const WebSocketUpstreamMessage& request) {
@@ -1027,6 +1542,14 @@ WebSocketDownstreamMessage ProfileCommandHandler::handle(const WebSocketUpstream
         return handleGetDefaultProfile(request);
     } else if (command == "update_profile") {
         return handleUpdateProfile(request);
+    } else if (command == "get_macro") {
+        return handleGetMacro(request);
+    } else if (command == "update_macro") {
+        return handleUpdateMacro(request);
+    } else if (command == "get_profile_macros") {
+        return handleGetProfileMacros(request);
+    } else if (command == "update_profile_macros") {
+        return handleUpdateProfileMacros(request);
     } else if (command == "create_profile") {
         return handleCreateProfile(request);
     } else if (command == "delete_profile") {

@@ -5,7 +5,6 @@ import {
     SimpleGrid,
     Button,
     HStack,
-    RadioCardLabel,
     VStack,
     Switch,
     Portal,
@@ -27,6 +26,7 @@ import {
     Platform,
     GameControllerButtonList,
     KeyCombination,
+    MacroConfig,
 } from "@/types/gamepad-config";
 import HitboxKeys from "@/components/hitbox/hitbox-keys";
 import HitboxEnableSetting from "@/components/hitbox/hitbox-enableSetting";
@@ -50,12 +50,15 @@ import {
 import { GiSightDisabled } from "react-icons/gi";
 import { BiSolidExit } from "react-icons/bi";
 import { IoMdHelpCircleOutline } from "react-icons/io";
+import { TitleLabel } from "./ui/title-label";
 
 export function KeysSettingContent() {
     const {
         defaultProfile,
         updateProfileDetails,
         globalConfig,
+        getProfileMacros,
+        updateProfileMacros,
         dataIsReady,
         sendPendingCommandImmediately,
         setFinishConfigDisabled,
@@ -75,9 +78,11 @@ export function KeysSettingContent() {
     const [fourWayMode, setFourWayMode] = useState<boolean>(defaultProfile?.keysConfig?.fourWayMode ?? false);
     const [keyMapping, setKeyMapping] = useState<{ [key in GameControllerButton]?: number[] }>(defaultProfile?.keysConfig?.keyMapping ?? {});
     const [combinationKeyMapping, setCombinationKeyMapping] = useState<KeyCombination[]>(defaultProfile?.keysConfig?.keyCombinations ?? []);
+    const [macros, setMacros] = useState<MacroConfig[]>([]);
     const [keysEnableConfig, setKeysEnableConfig] = useState<boolean[]>(defaultProfile?.keysConfig?.keysEnableTag?.slice(0, keyLength - 1) ?? []); // 按键启用配置
 
     const [inputKey, setInputKey] = useState<number>(-1);
+    const [macroRecording, setMacroRecording] = useState<boolean>(false);
     const [keysEnableSettingActive, setKeysEnableSettingActive] = useState<boolean>(false); // 按键启用/禁用设置状态
     const [autoSwitch, setAutoSwitch] = useState<boolean>(() => {
         // 从 localStorage 读取 autoSwitch 值，默认为 false
@@ -89,9 +94,22 @@ export function KeysSettingContent() {
     });
 
     const keymappingFieldsetRef = useRef<KeymappingFieldsetRef>(null);
+    const macrosLoadedForProfileIdRef = useRef<string>("");
+    const macrosFetchSeqRef = useRef(0);
+    const [debugMacros, setDebugMacros] = useState(false);
 
     // 使用 context 中的 indexMapToGameControllerButtonOrCombination 方法
     const { indexMapToGameControllerButtonOrCombination } = useGamepadConfig();
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        setDebugMacros(window.localStorage.getItem("debugMacros") === "1");
+    }, []);
+
+    useEffect(() => {
+        if (!debugMacros) return;
+        console.log("[KeysSettingContent] macros state:", macros);
+    }, [debugMacros, macros]);
 
     useEffect(() => {
 
@@ -113,9 +131,39 @@ export function KeysSettingContent() {
 
             setIsInit(true);
             setDefaultProfileId(defaultProfile.id);
+            macrosLoadedForProfileIdRef.current = "";
 
         }
     }, [dataIsReady, defaultProfile]);
+
+    useEffect(() => {
+        if (!dataIsReady) return;
+        if (!defaultProfileId) return;
+        if (macrosLoadedForProfileIdRef.current === defaultProfileId) return;
+        const loadingKey = `loading:${defaultProfileId}`;
+        macrosLoadedForProfileIdRef.current = loadingKey;
+        const seq = ++macrosFetchSeqRef.current;
+        let cancelled = false;
+        (async () => {
+            try {
+                const fetched = await getProfileMacros(defaultProfileId);
+                if (!cancelled && seq === macrosFetchSeqRef.current) {
+                    setMacros(fetched);
+                    macrosLoadedForProfileIdRef.current = defaultProfileId;
+                    if (debugMacros) {
+                        console.log("[KeysSettingContent] macros fetched:", fetched);
+                    }
+                }
+            } catch {
+                if (!cancelled && seq === macrosFetchSeqRef.current) {
+                    macrosLoadedForProfileIdRef.current = "";
+                }
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [dataIsReady, defaultProfileId, getProfileMacros]);
 
     const updateKeysConfigHandler = () => {
 
@@ -132,6 +180,7 @@ export function KeysSettingContent() {
     const disabledKeys = useMemo(() => keysEnableConfig.map((_, index) => index).filter((_, index) => !keysEnableConfig[index]), [keysEnableConfig]);
 
     const hitboxButtonClick = (keyId: number) => {
+        if (macroRecording) return;
         setInputKey(keyId);
     }
 
@@ -220,6 +269,16 @@ export function KeysSettingContent() {
             combinationKeyMapping,
             globalConfig.inputMode ?? Platform.XINPUT
         );
+        const buttonLabelMapWithMacros = { ...buttonLabelMap };
+        for (const macro of macros ?? []) {
+            const macroIndex = macro?.index;
+            if (typeof macroIndex !== "number" || macroIndex < 0) continue;
+            const label = `MAC${macroIndex + 1}`;
+            for (const k of macro.triggerKeys ?? []) {
+                if (typeof k !== "number" || k < 0) continue;
+                buttonLabelMapWithMacros[k] = label;
+            }
+        }
 
         if (keysEnableSettingActive) {
             return (
@@ -238,7 +297,7 @@ export function KeysSettingContent() {
                     interactiveIds={KEYS_SETTINGS_INTERACTIVE_IDS}
                     disabledKeys={disabledKeys}
                     isButtonMonitoringEnabled={!keysEnableSettingActive}
-                    buttonLabelMap={buttonLabelMap}
+                    buttonLabelMap={buttonLabelMapWithMacros}
                     containerWidth={containerWidth}
                 />
             );
@@ -341,6 +400,7 @@ export function KeysSettingContent() {
                                         inputMode={globalConfig.inputMode ?? Platform.XINPUT}
                                         keyMapping={keyMapping}
                                         combinationKeyMapping={combinationKeyMapping}
+                                        macros={macros}
                                         changeKeyMappingHandler={(map) => {
                                             setKeyMapping(map);
                                             setNeedUpdate(true);
@@ -349,10 +409,22 @@ export function KeysSettingContent() {
                                             setCombinationKeyMapping(combinationKeyMapping);
                                             setNeedUpdate(true);
                                         }}
+                                        changeMacrosHandler={(macros) => {
+                                            setMacros(macros);
+                                        }}
+                                        updateMacrosHandler={async (macros) => {
+                                            const updated = await updateProfileMacros(defaultProfile.id, macros);
+                                            setMacros(updated);
+                                        }}
+                                        onMacroRecordingChange={(recording) => {
+                                            setMacroRecording(recording);
+                                            if (recording) setInputKey(-1);
+                                        }}
                                         disabled={keysEnableSettingActive}
                                     />
 
                                     {/* SOCD Mode Choice */}
+
                                     <RadioCardRoot
                                         colorPalette={"green"}
                                         size={"sm"}
@@ -365,7 +437,7 @@ export function KeysSettingContent() {
                                         }}
                                         disabled={keysEnableSettingActive}
                                     >
-                                        <RadioCardLabel>{t.SETTINGS_KEYS_SOCD_MODE_TITLE}</RadioCardLabel>
+                                        <TitleLabel title={t.SETTINGS_KEYS_SOCD_MODE_TITLE} />
                                         <SimpleGrid gap={1} columns={5} >
                                             {Array.from({ length: GameSocdMode.SOCD_MODE_NUM_MODES }, (_, index) => (
 

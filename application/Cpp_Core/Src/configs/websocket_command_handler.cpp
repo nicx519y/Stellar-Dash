@@ -83,6 +83,10 @@ void WebSocketCommandManager::initializeHandlers() {
     registerHandler("get_profile_list", &profileHandler);
     registerHandler("get_default_profile", &profileHandler);
     registerHandler("update_profile", &profileHandler);
+    registerHandler("get_macro", &profileHandler);
+    registerHandler("update_macro", &profileHandler);
+    registerHandler("get_profile_macros", &profileHandler);
+    registerHandler("update_profile_macros", &profileHandler);
     registerHandler("create_profile", &profileHandler);
     registerHandler("delete_profile", &profileHandler);
     registerHandler("switch_default_profile", &profileHandler);

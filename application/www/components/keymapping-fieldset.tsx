@@ -1,6 +1,6 @@
 'use client';
 
-import { MAX_NUM_BUTTON_COMBINATION, Platform, KeyCombination } from "@/types/gamepad-config";
+import { MAX_NUM_BUTTON_COMBINATION, MAX_NUM_MACROS, Platform, KeyCombination, MacroConfig } from "@/types/gamepad-config";
 import {
     GameControllerButton,
     GameControllerButtonList,
@@ -11,11 +11,12 @@ import {
 } from "@/types/gamepad-config";
 import KeymappingField from "@/components/keymapping-field";
 import { showToast } from "@/components/ui/toaster";
-import { useEffect, useMemo, useState, forwardRef, useImperativeHandle } from "react";
-import { Center, HStack, VStack, Box } from "@chakra-ui/react";
+import { useEffect, useMemo, useState, forwardRef, useImperativeHandle, useCallback } from "react";
+import { Center, HStack, VStack, Box, Tabs, Separator } from "@chakra-ui/react";
 import { useLanguage } from "@/contexts/language-context";
 import { CombinationField } from "./combination-field";
 import { TitleLabel } from "@/components/ui/title-label";
+import { MacroField } from "./macro-field";
 
 export interface KeymappingFieldsetRef {
     setActiveButton: (button: GameControllerButton) => void;
@@ -26,21 +27,28 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
     inputKey: number,
     keyMapping: { [key in GameControllerButton]?: number[] },
     combinationKeyMapping: KeyCombination[],
+    macros: MacroConfig[],
     autoSwitch: boolean,
     disabled?: boolean,
     changeKeyMappingHandler: (keyMapping: { [key in GameControllerButton]?: number[] }) => void,
     changeCombinationKeyMappingHandler: (combinationKeyMapping: KeyCombination[]) => void,
+    changeMacrosHandler: (macros: MacroConfig[]) => void,
+    updateMacrosHandler: (macros: MacroConfig[]) => void | Promise<void>,
+    onMacroRecordingChange?: (recording: boolean) => void,
 }>((props, ref) => {
 
     const { inputMode, inputKey, keyMapping, combinationKeyMapping, autoSwitch, disabled, changeKeyMappingHandler, changeCombinationKeyMappingHandler } = props;
     const { t } = useLanguage();
     const [activeButton, setActiveButton] = useState<string>(GameControllerButtonList[0].toString());
-    const buttonsList = GameControllerButtonList.map(button => button.toString()).concat(Array(MAX_NUM_BUTTON_COMBINATION).fill(0).map((_, index) => `COM${index + 1}`));
+    const [activeTab, setActiveTab] = useState<string>("combination");
+    const [activeMacroIndex, setActiveMacroIndex] = useState<number | null>(null);
+    const [isMacroRecording, setIsMacroRecording] = useState(false);
 
     // 暴露方法给父组件
     useImperativeHandle(ref, () => ({
         setActiveButton: (button: string) => {
             setActiveButton(button);
+            setActiveMacroIndex(null);
         }
     }), []);
 
@@ -65,6 +73,76 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
         return newCombinationKeyMapping;
     }, [combinationKeyMapping]);
 
+    const macrosByIndex = useMemo(() => {
+        const m = new Map<number, MacroConfig>();
+        for (const item of props.macros ?? []) {
+            if (typeof item?.index !== "number") continue;
+            if (item.index < 0 || item.index >= MAX_NUM_MACROS) continue;
+            m.set(item.index, item);
+        }
+        return m;
+    }, [props.macros]);
+
+    const nonEmptyCombinationCount = useMemo(() => {
+        return useCombinationKeyMapping.filter((c) => (c.keyIndexes?.length ?? 0) > 0).length;
+    }, [useCombinationKeyMapping]);
+
+    const handleMacroRecordingChange = useCallback((recording: boolean) => {
+        setIsMacroRecording(recording);
+        props.onMacroRecordingChange?.(recording);
+    }, [props.onMacroRecordingChange]);
+
+    const changeMacroAtIndex = (index: number, macro: MacroConfig) => {
+        const next = new Map(macrosByIndex);
+        const changedMacroIndices = new Set<number>();
+        changedMacroIndices.add(index);
+        const hasSteps = (macro.steps?.length ?? 0) > 0;
+        const hasTriggers = (macro.triggerKeys?.length ?? 0) > 0;
+        if (!hasSteps && !hasTriggers) {
+            next.delete(index);
+        } else {
+            const triggerKeys = (macro.triggerKeys ?? []).filter(k => typeof k === "number" && k >= 0);
+            next.set(index, { ...macro, index, triggerKeys });
+            if (triggerKeys.length > 0) {
+                for (const [mi, m] of next.entries()) {
+                    if (mi === index) continue;
+                    const filtered = (m.triggerKeys ?? []).filter(k => triggerKeys.indexOf(k) === -1);
+                    if (filtered.length !== (m.triggerKeys ?? []).length) {
+                        changedMacroIndices.add(mi);
+                        next.set(mi, { ...m, index: mi, triggerKeys: filtered });
+                    }
+                }
+            }
+        }
+
+        const nextMacros = Array.from(next.values()).sort((a, b) => a.index - b.index);
+        props.changeMacrosHandler(nextMacros);
+        void props.updateMacrosHandler(nextMacros);
+
+        const activeMacro = next.get(index);
+        const triggerKeys = (activeMacro?.triggerKeys ?? []).filter(k => typeof k === "number" && k >= 0);
+        if (triggerKeys.length > 0) {
+            const nextKeyMapping = { ...keyMapping };
+            let keyMappingChanged = false;
+            Object.entries(nextKeyMapping).forEach(([key, value]) => {
+                const filtered = (value ?? []).filter(v => triggerKeys.indexOf(v) === -1);
+                if (filtered.length !== (value ?? []).length) {
+                    nextKeyMapping[key as GameControllerButton] = filtered;
+                    keyMappingChanged = true;
+                }
+            });
+            if (keyMappingChanged) changeKeyMappingHandler(nextKeyMapping);
+
+            const nextCombinationKeyMapping = [...useCombinationKeyMapping].map((c) => {
+                const filtered = (c.keyIndexes ?? []).filter(v => triggerKeys.indexOf(v) === -1);
+                if (filtered.length === (c.keyIndexes ?? []).length) return c;
+                return { ...c, keyIndexes: filtered };
+            });
+            const combinationChanged = nextCombinationKeyMapping.some((c, i) => (c.keyIndexes?.length ?? 0) !== (useCombinationKeyMapping[i]?.keyIndexes?.length ?? 0));
+            if (combinationChanged) changeCombinationKeyMappingHandler(nextCombinationKeyMapping);
+        }
+    };
+
     const activeButtonIsGameControllerButton = () => {
         return GameControllerButtonList.some(button => button.toString() === activeButton);
     }
@@ -76,9 +154,19 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
 
         // input key is valid
         if (inputKey >= 0) {
+            if (isMacroRecording) {
+                return;
+            }
+            if (activeTab === "macros" && activeMacroIndex !== null) {
+                return;
+            }
 
             // 判断activeButton是否是游戏控制器按钮
             const isGameControllerButton = activeButtonIsGameControllerButton();
+            const isCombinationButton = activeButton.startsWith("COM") && Number.isFinite(parseInt(activeButton.replace("COM", "")));
+            if (!isGameControllerButton && !isCombinationButton) {
+                return;
+            }
             // 可以是游戏控制器按钮，也可以是组合键
             const activeKeyMapping = isGameControllerButton ? keyMapping[activeButton as GameControllerButton] ?? [] : combinationKeyMapping[parseInt(activeButton.replace("COM", "")) - 1]?.keyIndexes ?? [];
 
@@ -125,7 +213,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
                 } else {
                     // 处理组合键按钮
                     const combinationIndex = parseInt(activeButton.replace("COM", "")) - 1;
-                    
+
                     // remove input key from other combination buttons
                     newCombinationKeyMapping.forEach((combination, index) => {
                         if (index !== combinationIndex && combination.keyIndexes.indexOf(inputKey) !== -1) {
@@ -154,14 +242,35 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
                     changeCombinationKeyMappingHandler(newCombinationKeyMapping);
                 }
 
-                if (autoSwitch) {
-                    const nextButton = buttonsList[buttonsList.indexOf(activeButton) + 1] ?? buttonsList[0];
+                if (props.macros && props.macros.length > 0) {
+                    const nextMacrosMap = new Map<number, MacroConfig>(macrosByIndex);
+                    let changed = false;
+                    const changedMacroIndices = new Set<number>();
+                    for (const [mi, m] of nextMacrosMap.entries()) {
+                        const filtered = (m.triggerKeys ?? []).filter(k => k !== inputKey);
+                        if (filtered.length !== (m.triggerKeys ?? []).length) {
+                            nextMacrosMap.set(mi, { ...m, index: mi, triggerKeys: filtered });
+                            changed = true;
+                            changedMacroIndices.add(mi);
+                        }
+                    }
+                    if (changed) {
+                        const nextMacros = Array.from(nextMacrosMap.values()).sort((a, b) => a.index - b.index);
+                        props.changeMacrosHandler(nextMacros);
+                        void props.updateMacrosHandler(nextMacros);
+                    }
+                }
+
+                if (autoSwitch && isGameControllerButton) {
+                    const controllerButtonsList = GameControllerButtonList.map(button => button.toString());
+                    const currentIndex = controllerButtonsList.indexOf(activeButton);
+                    const nextButton = controllerButtonsList[currentIndex + 1] ?? controllerButtonsList[0];
                     setActiveButton(nextButton);
                 }
 
             }
         }
-    }, [inputKey]);
+    }, [inputKey, isMacroRecording]);
 
     /**
      * get button label map by input mode
@@ -187,7 +296,11 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
     const ButtonField = ({ button }: { button: GameControllerButton }) => {
         return (
             <KeymappingField
-                onClick={() => !isDisabled && setActiveButton(button.toString())}
+                onClick={() => {
+                    if (isDisabled) return;
+                    setActiveMacroIndex(null);
+                    setActiveButton(button.toString());
+                }}
                 label={buttonLabelMap.get(button) ?? ""}
                 value={keyMapping[button] ?? []}
                 changeValue={(v: number[]) => handleSingleKeyMappingChange(button, v)}
@@ -209,7 +322,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
         changeCombinationKeyMappingHandler(newCombinationKeyMapping);
     }
 
-    
+
     return (
         <Center w="full">
             <VStack w="full" gap={"4px"} >
@@ -256,22 +369,85 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
                     <ButtonField button={GameControllerButton.A2} />
                 </HStack>
                 <Box w="full" h="10px" />
-                <TitleLabel title={t.KEYS_MAPPING_TITLE_CUSTOM_COMBINATION} />
+                <Tabs.Root
+                    w="full"
+                    value={activeTab}
+                    size="sm"
+                    variant="plain"
+                    colorPalette="green"
+                    onValueChange={(details) => {
+                        setActiveTab(details.value);
+                        if (details.value === "macros") {
+                            setActiveButton("");
+                            setActiveMacroIndex(prev => prev ?? 0);
+                        } else {
+                            setActiveMacroIndex(null);
+                            if (!activeButton) {
+                                setActiveButton(GameControllerButtonList[0].toString());
+                            }
+                        }
+                    }}
+                >
+                    <HStack w="full" margin="2px 0" marginTop={"2px"} >
+                        <Separator flex="1" />
+                        <Tabs.List>
+                            <Tabs.Trigger value="combination" fontWeight="bold">
+                                {t.KEYS_MAPPING_TITLE_CUSTOM_COMBINATION} ({nonEmptyCombinationCount})
+                            </Tabs.Trigger>
+                            <Tabs.Trigger value="macros" fontWeight="bold">
+                                {t.KEYS_MAPPING_TITLE_MACROS} ({props.macros?.length ?? 0})
+                            </Tabs.Trigger>
+                        </Tabs.List>
+                        <Separator flex="1" />
+                    </HStack>
+                </Tabs.Root>
                 <Box w="full" h="10px" />
-                <VStack>
-                    {[...Array(MAX_NUM_BUTTON_COMBINATION)].map((_, index) => (
-                        <CombinationField
-                            key={index}
-                            value={useCombinationKeyMapping?.[index] ?? { keyIndexes: [], gameControllerButtons: [] }}
-                            changeValue={(newCombination: KeyCombination) => { combinationValueChangeHandler(newCombination, index) }}
-                            label={`COM${index + 1}`}
-                            isActive={activeButton === `COM${index + 1}`}
-                            disabled={disabled}
-                            inputMode={inputMode}
-                            onClick={() => !isDisabled && setActiveButton(`COM${index + 1}`)}
-                        />
-                    ))}
-                </VStack>
+                {activeTab === "combination" ? (
+                    <VStack>
+                        {[...Array(MAX_NUM_BUTTON_COMBINATION)].map((_, index) => (
+                            <CombinationField
+                                key={index}
+                                value={useCombinationKeyMapping?.[index] ?? { keyIndexes: [], gameControllerButtons: [] }}
+                                changeValue={(newCombination: KeyCombination) => { combinationValueChangeHandler(newCombination, index) }}
+                                label={`COM${index + 1}`}
+                                isActive={activeButton === `COM${index + 1}`}
+                                disabled={disabled}
+                                inputMode={inputMode}
+                                onClick={() => {
+                                    if (isDisabled) return;
+                                    setActiveMacroIndex(null);
+                                    setActiveButton(`COM${index + 1}`);
+                                }}
+                            />
+                        ))}
+                    </VStack>
+                ) : (
+                    <VStack>
+                        {[...Array(MAX_NUM_MACROS)].map((_, index) => (
+                            <MacroField
+                                key={index}
+                                value={macrosByIndex.get(index) ?? { index, triggerKeys: [], steps: [] }}
+                                changeValue={(newValue) => changeMacroAtIndex(index, newValue)}
+                                label={`MAC${index + 1}`}
+                                keyMapping={keyMapping}
+                                inputKey={props.inputKey}
+                                inputMode={inputMode}
+                                suspendInputListening={isMacroRecording}
+                                isActive={activeTab === "macros" && activeMacroIndex === index}
+                                onClick={() => {
+                                    if (isDisabled) return;
+                                    setActiveTab("macros");
+                                    setActiveMacroIndex(index);
+                                    setActiveButton("");
+                                }}
+                                onRecordingChange={(recording) => {
+                                    handleMacroRecordingChange(recording);
+                                }}
+                                disabled={disabled}
+                            />
+                        ))}
+                    </VStack>
+                )}
             </VStack>
         </Center>
     )

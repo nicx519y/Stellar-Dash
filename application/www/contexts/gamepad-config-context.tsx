@@ -9,6 +9,9 @@ import {
     Platform, GameSocdMode,
     GameControllerButton, Hotkey, GameProfileList, GlobalConfig,
     XInputButtonMap, PS4ButtonMap, SwitchButtonMap,
+    MacroConfig,
+    MAX_NUM_MACROS,
+    MAX_MACRO_STEPS,
     ScreenControlConfig,
     DEFAULT_SCREEN_CONTROL_CONFIG
 } from '@/types/gamepad-config';
@@ -124,6 +127,10 @@ interface GamepadConfigContextType {
     fetchProfileList: () => Promise<void>;
     fetchHotkeysConfig: () => Promise<void>;
     updateProfileDetails: (profileId: string, profileDetails: GameProfile, immediate?: boolean, showError?: boolean, showLoading?: boolean) => Promise<void>;
+    getMacro: (profileId: string, index: number) => Promise<MacroConfig>;
+    updateMacro: (profileId: string, macro: MacroConfig) => Promise<MacroConfig>;
+    getProfileMacros: (profileId: string) => Promise<MacroConfig[]>;
+    updateProfileMacros: (profileId: string, macros: MacroConfig[]) => Promise<MacroConfig[]>;
     resetProfileDetails: () => Promise<void>;
     createProfile: (profileName: string) => Promise<void>;
     deleteProfile: (profileId: string) => Promise<void>;
@@ -217,6 +224,28 @@ const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>
  * @returns 
  */
 const converProfileDetails = (profile: any) => {
+    const rawMacros = profile.keysConfig?.macros;
+    const macros: MacroConfig[] = Array.isArray(rawMacros)
+        ? rawMacros.map((m: unknown) => {
+            const obj = (m && typeof m === "object") ? (m as Record<string, unknown>) : {};
+            const index = typeof obj.index === "number" ? obj.index : 0;
+            const triggerKeys = Array.isArray(obj.triggerKeys)
+                ? obj.triggerKeys.filter((x): x is number => typeof x === "number")
+                : [];
+            const steps = Array.isArray(obj.steps)
+                ? obj.steps
+                    .map((s: unknown) => (s && typeof s === "object") ? (s as Record<string, unknown>) : null)
+                    .filter((s): s is Record<string, unknown> => !!s)
+                    .map((s) => ({
+                        timeMs: typeof s.timeMs === "number" ? s.timeMs : 0,
+                        buttonMask: typeof s.buttonMask === "number"
+                            ? s.buttonMask
+                            : (((typeof s.pressButtonMask === "number" ? s.pressButtonMask : 0) & ~((typeof s.releaseButtonMask === "number" ? s.releaseButtonMask : 0))) >>> 0),
+                    }))
+                : [];
+            return { index, triggerKeys, steps };
+        })
+        : [];
     const newProfile: GameProfile = {
         ...profile,
         keysConfig: {
@@ -228,6 +257,7 @@ const converProfileDetails = (profile: any) => {
             keyMapping: profile.keysConfig?.keyMapping as { [key in GameControllerButton]?: number[] } ?? {},
             keyCombinations: profile.keysConfig?.keyCombinations as KeyCombination[] ?? [],
             keysEnableTag: profile.keysConfig?.keysEnableTag as boolean[] ?? [],
+            macros,
         },
         ledsConfigs: {
             ledEnabled: profile.ledsConfigs?.ledEnabled as boolean ?? false,
@@ -636,7 +666,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (showLoading) {
                 setIsLoading(true);
             }
-            const data = await sendWebSocketRequest('update_profile', { profileId, profileDetails }, immediate);
+            const profileDetailsNoMacros: GameProfile = {
+                ...profileDetails,
+                keysConfig: profileDetails.keysConfig
+                    ? { ...profileDetails.keysConfig, macros: undefined }
+                    : undefined,
+            };
+            const data = await sendWebSocketRequest('update_profile', { profileId, profileDetails: profileDetailsNoMacros }, immediate);
 
             // 如果更新的是 profile 的 name， 或者更新的profile不是defaultProfile，则需要重新获取 profile list
             if (profileDetails.name != undefined && profileDetails.name !== defaultProfile.name || profileDetails.id !== defaultProfile.id) {
@@ -657,6 +693,243 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 setIsLoading(false);
             }
         }
+    };
+
+    const decodeBase64ToBytes = (b64: string): Uint8Array => {
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i) & 0xff;
+        return bytes;
+    };
+
+    const encodeBytesToBase64 = (bytes: Uint8Array): string => {
+        let bin = "";
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin);
+    };
+
+    const decodeMacroData = (index: number, b64: string): MacroConfig => {
+        const bytes = decodeBase64ToBytes(b64);
+        if (bytes.length < 2) throw new Error("Invalid macro data");
+        let off = 0;
+        const numTriggerKeys = bytes[off++];
+        if (off + numTriggerKeys + 1 > bytes.length) throw new Error("Invalid macro data");
+        const triggerKeys: number[] = [];
+        for (let i = 0; i < numTriggerKeys; i++) triggerKeys.push(bytes[off++]);
+        const numSteps = bytes[off++];
+        const expected = 1 + numTriggerKeys + 1 + numSteps * 6;
+        if (bytes.length !== expected) throw new Error("Invalid macro data");
+
+        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+        const steps: { timeMs: number; buttonMask: number }[] = [];
+        const stepsToRead = Math.min(numSteps, MAX_MACRO_STEPS);
+        for (let i = 0; i < numSteps; i++) {
+            const timeMs = view.getUint16(off, true); off += 2;
+            const buttonMask = view.getUint32(off, true); off += 4;
+            if (i < stepsToRead) steps.push({ timeMs, buttonMask });
+        }
+        return { index, triggerKeys: triggerKeys.slice(0, 4), steps };
+    };
+
+    const encodeMacroData = (macro: MacroConfig): string => {
+        const triggerKeys = (macro.triggerKeys ?? []).slice(0, 4).map(v => Math.max(0, Math.min(255, v | 0)));
+        const steps = (macro.steps ?? []).slice(0, MAX_MACRO_STEPS);
+        const len = 1 + triggerKeys.length + 1 + steps.length * 6;
+        const bytes = new Uint8Array(len);
+        let off = 0;
+        bytes[off++] = triggerKeys.length;
+        for (const k of triggerKeys) bytes[off++] = k;
+        bytes[off++] = steps.length;
+        const view = new DataView(bytes.buffer);
+        for (const s of steps) {
+            view.setUint16(off, Math.max(0, Math.min(65535, (s.timeMs ?? 0) | 0)), true); off += 2;
+            view.setUint32(off, (s.buttonMask ?? 0) >>> 0, true); off += 4;
+        }
+        return encodeBytesToBase64(bytes);
+    };
+
+    const decodeProfileMacrosData = (b64: string): MacroConfig[] => {
+        const bytes = decodeBase64ToBytes(b64);
+        if (bytes.length < 2) throw new Error("Invalid macros data");
+        let off = 0;
+        const version = bytes[off++];
+        const count = bytes[off++];
+        if (version !== 1) throw new Error("Invalid macros data");
+        if (count !== MAX_NUM_MACROS) throw new Error("Invalid macros data");
+        const bodyLen = bytes.length - 2;
+        if (bodyLen % count !== 0) throw new Error("Invalid macros data");
+        const perMacro = bodyLen / count;
+        const headerLen = 1 + 1 + 4 + 1;
+        if (perMacro < headerLen) throw new Error("Invalid macros data");
+        const stepsBytes = perMacro - headerLen;
+        if (stepsBytes % 6 !== 0) throw new Error("Invalid macros data");
+        const stepsPerMacro = stepsBytes / 6;
+
+        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+        const macros: MacroConfig[] = [];
+        for (let i = 0; i < count; i++) {
+            const numSteps = bytes[off++];
+            const numTriggerKeys = bytes[off++];
+            const triggerKeysRaw: number[] = [];
+            for (let k = 0; k < 4; k++) triggerKeysRaw.push(bytes[off++]);
+            off++;
+
+            const triggerKeys = triggerKeysRaw.slice(0, Math.min(4, numTriggerKeys));
+            const steps: { timeMs: number; buttonMask: number }[] = [];
+            const stepsToRead = Math.min(numSteps, MAX_MACRO_STEPS);
+            for (let s = 0; s < stepsPerMacro; s++) {
+                const timeMs = view.getUint16(off, true); off += 2;
+                const buttonMask = view.getUint32(off, true); off += 4;
+                if (s < stepsToRead) steps.push({ timeMs, buttonMask });
+            }
+
+            if (triggerKeys.length > 0 || steps.length > 0) {
+                macros.push({ index: i, triggerKeys, steps });
+            }
+        }
+        return macros;
+    };
+
+    const encodeProfileMacrosData = (macrosList: MacroConfig[]): string => {
+        const macrosByIndex = new Map<number, MacroConfig>();
+        for (const m of macrosList ?? []) {
+            if (typeof m?.index !== "number") continue;
+            if (m.index < 0 || m.index >= MAX_NUM_MACROS) continue;
+            macrosByIndex.set(m.index, m);
+        }
+
+        const count = MAX_NUM_MACROS;
+        const perMacro = 1 + 1 + 4 + 1 + MAX_MACRO_STEPS * 6;
+        const bytes = new Uint8Array(2 + count * perMacro);
+        let off = 0;
+        bytes[off++] = 1;
+        bytes[off++] = count;
+        const view = new DataView(bytes.buffer);
+
+        for (let i = 0; i < count; i++) {
+            const m = macrosByIndex.get(i) ?? { index: i, triggerKeys: [], steps: [] };
+            const triggerKeys = (m.triggerKeys ?? []).slice(0, 4).map(v => Math.max(0, Math.min(255, v | 0)));
+            const steps = (m.steps ?? []).slice(0, MAX_MACRO_STEPS);
+
+            bytes[off++] = steps.length;
+            bytes[off++] = triggerKeys.length;
+            for (let k = 0; k < 4; k++) bytes[off++] = triggerKeys[k] ?? 0;
+            bytes[off++] = 0;
+
+            for (let s = 0; s < MAX_MACRO_STEPS; s++) {
+                const step = steps[s] ?? { timeMs: 0, buttonMask: 0 };
+                view.setUint16(off, Math.max(0, Math.min(65535, (step.timeMs ?? 0) | 0)), true); off += 2;
+                view.setUint32(off, (step.buttonMask ?? 0) >>> 0, true); off += 4;
+            }
+        }
+        return encodeBytesToBase64(bytes);
+    };
+
+    const getMacro = async (profileId: string, index: number): Promise<MacroConfig> => {
+        const data = await sendWebSocketRequest('get_macro', { profileId, index }, true);
+        const macroObj = (data?.macro ?? null) as { index: number; data: string } | null;
+        if (!macroObj || typeof macroObj.data !== "string") throw new Error("Invalid macro response");
+        return decodeMacroData(index, macroObj.data);
+    };
+
+    const updateMacro = async (profileId: string, macro: MacroConfig): Promise<MacroConfig> => {
+        const payload = { index: macro.index, data: encodeMacroData(macro) };
+        const data = await sendWebSocketRequest('update_macro', { profileId, macro: payload }, true);
+        const macroObj = (data?.macro ?? null) as { index: number; data: string } | null;
+        if (!macroObj || typeof macroObj.data !== "string") throw new Error("Invalid macro response");
+        return decodeMacroData(macro.index, macroObj.data);
+    };
+
+    const getProfileMacros = async (profileId: string): Promise<MacroConfig[]> => {
+        const data = await sendWebSocketRequest('get_profile_macros', { pid: profileId }, true);
+        const raw = ((data as any)?.m ?? (data as any)?.data?.m ?? (data as any)?.macros ?? null) as unknown;
+        const macrosJSON = Array.isArray(raw)
+            ? raw
+            : (raw && typeof raw === "object")
+                ? Array.from({ length: MAX_NUM_MACROS }).map((_, i) => (raw as any)[i])
+                : null;
+        if (Array.isArray(macrosJSON)) {
+            const macros: MacroConfig[] = [];
+            for (let i = 0; i < MAX_NUM_MACROS; i++) {
+                const item = (macrosJSON as any[])[i];
+                if (!item) continue;
+                const obj = item as any;
+                const triggerKeys = Array.isArray(obj.k)
+                    ? obj.k.map((x: any) => Number(x)).filter((x: any) => Number.isFinite(x)).slice(0, 4)
+                    : [];
+                const steps = Array.isArray(obj.s)
+                    ? obj.s
+                        .filter((x: any) => Array.isArray(x) && x.length >= 2)
+                        .slice(0, MAX_MACRO_STEPS)
+                        .map((x: any[]) => ({
+                            timeMs: (Number(x[0]) || 0) | 0,
+                            buttonMask: (Number(x[1]) || 0) >>> 0,
+                        }))
+                    : [];
+                if (triggerKeys.length > 0 || steps.length > 0) {
+                    macros.push({ index: i, triggerKeys, steps });
+                }
+            }
+            return macros;
+        }
+
+        const b64 = (data?.data ?? null) as string | null;
+        if (!b64) return [];
+        return decodeProfileMacrosData(b64);
+    };
+
+    const updateProfileMacros = async (profileId: string, macros: MacroConfig[]): Promise<MacroConfig[]> => {
+        const macrosByIndex = new Map<number, MacroConfig>();
+        for (const m of macros ?? []) {
+            if (typeof m?.index !== "number") continue;
+            if (m.index < 0 || m.index >= MAX_NUM_MACROS) continue;
+            macrosByIndex.set(m.index, m);
+        }
+        const payload = Array.from({ length: MAX_NUM_MACROS }).map((_, i) => {
+            const m = macrosByIndex.get(i);
+            if (!m) return null;
+            const triggerKeys = (m.triggerKeys ?? []).slice(0, 4).map(v => Math.max(0, Math.min(255, v | 0)));
+            const steps = (m.steps ?? [])
+                .slice(0, MAX_MACRO_STEPS)
+                .map(s => [
+                    Math.max(0, Math.min(65535, (s.timeMs ?? 0) | 0)),
+                    (s.buttonMask ?? 0) >>> 0,
+                ]);
+            if (triggerKeys.length === 0 && steps.length === 0) return null;
+            return { k: triggerKeys, s: steps };
+        });
+
+        const data = await sendWebSocketRequest('update_profile_macros', { pid: profileId, m: payload }, true);
+        const raw = ((data as any)?.m ?? (data as any)?.data?.m ?? (data as any)?.macros ?? null) as unknown;
+        const macrosJSON = Array.isArray(raw)
+            ? raw
+            : (raw && typeof raw === "object")
+                ? Array.from({ length: MAX_NUM_MACROS }).map((_, i) => (raw as any)[i])
+                : null;
+        if (!Array.isArray(macrosJSON)) return [];
+
+        const updated: MacroConfig[] = [];
+        for (let i = 0; i < MAX_NUM_MACROS; i++) {
+            const item = (macrosJSON as any[])[i];
+            if (!item) continue;
+            const obj = item as any;
+            const triggerKeys = Array.isArray(obj.k)
+                ? obj.k.map((x: any) => Number(x)).filter((x: any) => Number.isFinite(x)).slice(0, 4)
+                : [];
+            const steps = Array.isArray(obj.s)
+                ? obj.s
+                    .filter((x: any) => Array.isArray(x) && x.length >= 2)
+                    .slice(0, MAX_MACRO_STEPS)
+                    .map((x: any[]) => ({
+                        timeMs: (Number(x[0]) || 0) | 0,
+                        buttonMask: (Number(x[1]) || 0) >>> 0,
+                    }))
+                : [];
+            if (triggerKeys.length > 0 || steps.length > 0) {
+                updated.push({ index: i, triggerKeys, steps });
+            }
+        }
+        return updated;
     };
 
     const resetProfileDetails = async (immediate: boolean = true): Promise<void> => {
@@ -2184,6 +2457,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             fetchScreenControl,
             updateScreenControl,
             updateProfileDetails,
+            getMacro,
+            updateMacro,
+            getProfileMacros,
+            updateProfileMacros,
             resetProfileDetails,
             createProfile,
             deleteProfile,

@@ -49,25 +49,26 @@ class Base64 {
 
     size_t i = 0;
     char *p = ret.data();
+    const unsigned char* bytes = reinterpret_cast<const unsigned char*>(dataPtr);
 
     if (dataLen >= 2) {
       for (; i < dataLen - 2; i += 3) {
-        *p++ = sEncodingTable[(dataPtr[i] >> 2) & 0x3F];
-        *p++ = sEncodingTable[((dataPtr[i] & 0x3) << 4) | ((int) (dataPtr[i + 1] & 0xF0) >> 4)];
-        *p++ = sEncodingTable[((dataPtr[i + 1] & 0xF) << 2) | ((int) (dataPtr[i + 2] & 0xC0) >> 6)];
-        *p++ = sEncodingTable[dataPtr[i + 2] & 0x3F];
+        *p++ = sEncodingTable[(bytes[i] >> 2) & 0x3F];
+        *p++ = sEncodingTable[((bytes[i] & 0x3) << 4) | ((int) (bytes[i + 1] & 0xF0) >> 4)];
+        *p++ = sEncodingTable[((bytes[i + 1] & 0xF) << 2) | ((int) (bytes[i + 2] & 0xC0) >> 6)];
+        *p++ = sEncodingTable[bytes[i + 2] & 0x3F];
       }
     }
 
     if (i < dataLen) {
-      *p++ = sEncodingTable[(dataPtr[i] >> 2) & 0x3F];
+      *p++ = sEncodingTable[(bytes[i] >> 2) & 0x3F];
       if (i == (dataLen - 1)) {
-        *p++ = sEncodingTable[((dataPtr[i] & 0x3) << 4)];
+        *p++ = sEncodingTable[((bytes[i] & 0x3) << 4)];
         *p++ = '=';
       }
       else {
-        *p++ = sEncodingTable[((dataPtr[i] & 0x3) << 4) | ((int) (dataPtr[i + 1] & 0xF0) >> 4)];
-        *p++ = sEncodingTable[((dataPtr[i + 1] & 0xF) << 2)];
+        *p++ = sEncodingTable[((bytes[i] & 0x3) << 4) | ((int) (bytes[i + 1] & 0xF0) >> 4)];
+        *p++ = sEncodingTable[((bytes[i + 1] & 0xF) << 2)];
       }
       *p++ = '=';
     }
