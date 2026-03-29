@@ -6,6 +6,7 @@
 #include "config.hpp"
 #include "gamepad/GamepadState.hpp"
 #include "leds/leds_manager.hpp"
+#include "micro_timer.hpp"
 
 struct GamepadButtonMapping
 {
@@ -115,6 +116,20 @@ class Gamepad {
         Gamepad();
 
         GamepadProfile* options;
+        uint32_t macroTriggerMask[MAX_NUM_MACROS] = { 0 };
+        bool macroTriggerLatched[MAX_NUM_MACROS] = { false };
+        bool macroPlaying = false;
+        bool macroFinishPending = false;
+        uint8_t macroPlayingIndex = 0;
+        uint8_t macroPlayingStepIndex = 0;
+        uint32_t macroStepStartMs = 0;
+        uint32_t macroOutputMask = 0;
+
+        bool isMacroTriggerPressed(uint8_t macroIndex, Mask_t virtualPinMask) const;
+        void startMacroPlayback(uint8_t macroIndex, uint32_t nowMs);
+        void updateMacroPlayback(uint32_t nowMs);
+        void applyMacroOutputToState();
+        void finishMacroPlaybackIfPending();
 
         void process();
         

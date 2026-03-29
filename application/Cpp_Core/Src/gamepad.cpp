@@ -13,6 +13,15 @@ Gamepad::Gamepad()
 void Gamepad::setup()
 {
 	APP_DBG("Gamepad setup: start");
+    options = Storage::getInstance().getDefaultGamepadProfile();
+    memset(macroTriggerMask, 0, sizeof(macroTriggerMask));
+    memset(macroTriggerLatched, 0, sizeof(macroTriggerLatched));
+    macroPlaying = false;
+    macroFinishPending = false;
+    macroPlayingIndex = 0;
+    macroPlayingStepIndex = 0;
+    macroStepStartMs = 0;
+    macroOutputMask = 0;
 
     // 将 std::map 访问改为数组访问
     mapDpadUp    = new GamepadButtonMapping(options->keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_DPAD_UP], GAMEPAD_MASK_UP);
@@ -65,6 +74,97 @@ void Gamepad::setup()
 	
 	APP_DBG("Gamepad setup: keyCombinations init done");
 
+    for (uint8_t i = 0; i < MAX_NUM_MACROS; i++) {
+        const MacroConfig& macro = options->keysConfig.macros[i];
+        uint32_t triggerMask = 0;
+        for (uint8_t t = 0; t < macro.numTriggerKeys && t < MAX_MACRO_TRIGGER_KEYS; t++) {
+            uint8_t key = macro.triggerKeys[t];
+            if (key < 32) triggerMask |= (1UL << key);
+        }
+        macroTriggerMask[i] = triggerMask;
+    }
+
+}
+
+bool Gamepad::isMacroTriggerPressed(uint8_t macroIndex, Mask_t virtualPinMask) const {
+    uint32_t triggerMask = macroTriggerMask[macroIndex];
+    if (triggerMask == 0) return false;
+    return (virtualPinMask & triggerMask) != 0;
+}
+
+void Gamepad::startMacroPlayback(uint8_t macroIndex, uint32_t nowMs) {
+    const MacroConfig& macro = options->keysConfig.macros[macroIndex];
+    if (macro.numSteps == 0) return;
+
+    macroPlaying = true;
+    macroFinishPending = false;
+    macroPlayingIndex = macroIndex;
+    macroPlayingStepIndex = 0;
+    macroStepStartMs = nowMs;
+    macroOutputMask = macro.steps[0].buttonMask;
+
+    if (macro.numSteps <= 1) {
+        macroFinishPending = true;
+    }
+}
+
+void Gamepad::updateMacroPlayback(uint32_t nowMs) {
+    if (!macroPlaying) return;
+
+    const MacroConfig& macro = options->keysConfig.macros[macroPlayingIndex];
+    if (macro.numSteps == 0) {
+        macroPlaying = false;
+        macroFinishPending = false;
+        macroOutputMask = 0;
+        return;
+    }
+
+    while (macroPlayingStepIndex + 1 < macro.numSteps) {
+        uint16_t nextDelay = macro.steps[macroPlayingStepIndex + 1].timeMs;
+        uint32_t elapsed = nowMs - macroStepStartMs;
+        if (elapsed < nextDelay) break;
+        macroStepStartMs += nextDelay;
+        macroPlayingStepIndex++;
+        macroOutputMask = macro.steps[macroPlayingStepIndex].buttonMask;
+    }
+
+    if (macroPlayingStepIndex + 1 >= macro.numSteps) {
+        macroFinishPending = true;
+    }
+}
+
+void Gamepad::applyMacroOutputToState() {
+    if (!macroPlaying) return;
+
+    uint32_t m = macroOutputMask;
+    state.dpad = 0
+        | ((m & (1UL << 0)) ? GAMEPAD_MASK_UP : 0)
+        | ((m & (1UL << 1)) ? GAMEPAD_MASK_DOWN : 0)
+        | ((m & (1UL << 2)) ? GAMEPAD_MASK_LEFT : 0)
+        | ((m & (1UL << 3)) ? GAMEPAD_MASK_RIGHT : 0);
+
+    state.buttons = 0
+        | ((m & (1UL << 4)) ? GAMEPAD_MASK_B1 : 0)
+        | ((m & (1UL << 5)) ? GAMEPAD_MASK_B2 : 0)
+        | ((m & (1UL << 6)) ? GAMEPAD_MASK_B3 : 0)
+        | ((m & (1UL << 7)) ? GAMEPAD_MASK_B4 : 0)
+        | ((m & (1UL << 8)) ? GAMEPAD_MASK_L1 : 0)
+        | ((m & (1UL << 9)) ? GAMEPAD_MASK_R1 : 0)
+        | ((m & (1UL << 10)) ? GAMEPAD_MASK_L2 : 0)
+        | ((m & (1UL << 11)) ? GAMEPAD_MASK_R2 : 0)
+        | ((m & (1UL << 12)) ? GAMEPAD_MASK_S1 : 0)
+        | ((m & (1UL << 13)) ? GAMEPAD_MASK_S2 : 0)
+        | ((m & (1UL << 14)) ? GAMEPAD_MASK_L3 : 0)
+        | ((m & (1UL << 15)) ? GAMEPAD_MASK_R3 : 0)
+        | ((m & (1UL << 16)) ? GAMEPAD_MASK_A1 : 0)
+        | ((m & (1UL << 17)) ? GAMEPAD_MASK_A2 : 0);
+}
+
+void Gamepad::finishMacroPlaybackIfPending() {
+    if (!macroPlaying || !macroFinishPending) return;
+    macroPlaying = false;
+    macroFinishPending = false;
+    macroOutputMask = 0;
 }
 
 void Gamepad::process()
@@ -123,6 +223,11 @@ void Gamepad::deinit()
 	delete mapButtonFn;
 	
 	this->clearState();
+    memset(macroTriggerMask, 0, sizeof(macroTriggerMask));
+    memset(macroTriggerLatched, 0, sizeof(macroTriggerLatched));
+    macroPlaying = false;
+    macroFinishPending = false;
+    macroOutputMask = 0;
 
 }
 
@@ -164,7 +269,27 @@ void Gamepad::read(Mask_t values)
 	state.lt = 0;
 	state.rt = 0;
 
+    if (!macroPlaying) {
+        for (uint8_t i = 0; i < MAX_NUM_MACROS; i++) {
+            const MacroConfig& macro = options->keysConfig.macros[i];
+            bool pressed = isMacroTriggerPressed(i, values);
+            if (!pressed) {
+                macroTriggerLatched[i] = false;
+                continue;
+            }
+            if (macroTriggerLatched[i]) continue;
+            macroTriggerLatched[i] = true;
+            if (macro.numSteps == 0) continue;
+            startMacroPlayback(i, MICROS_TIMER.micros() / 1000);
+            break;
+        }
+    }
+
+    updateMacroPlayback(MICROS_TIMER.micros() / 1000);
+    applyMacroOutputToState();
+
 	process();
+    finishMacroPlaybackIfPending();
 }
 
 void Gamepad::clearState()
@@ -178,6 +303,10 @@ void Gamepad::clearState()
 	state.ry = GAMEPAD_JOYSTICK_MID;
 	state.lt = 0;
 	state.rt = 0;
+    memset(macroTriggerLatched, 0, sizeof(macroTriggerLatched));
+    macroPlaying = false;
+    macroFinishPending = false;
+    macroOutputMask = 0;
 }
 
 void Gamepad::setSOCDMode(SOCDMode socdMode) {
