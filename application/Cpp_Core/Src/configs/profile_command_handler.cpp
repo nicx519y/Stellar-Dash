@@ -625,6 +625,12 @@ void ProfileCommandHandler::parseProfileJSON(cJSON* profileJSON, GamepadProfile*
                                 step.buttonMask = (prevMask | pressMask) & ~releaseMask;
                             }
                         }
+                        cJSON* dynamicMaskItem = cJSON_GetObjectItem(stepJSON, "dynamicMask");
+                        if (dynamicMaskItem && cJSON_IsNumber(dynamicMaskItem)) {
+                            step.dynamicMask = (uint32_t)dynamicMaskItem->valuedouble;
+                        } else {
+                            step.dynamicMask = 0;
+                        }
                     }
 
                     for (uint8_t si = stepCount; si < MAX_MACRO_STEPS; si++) {
@@ -876,7 +882,7 @@ static std::string encode_macro_binary(const MacroConfig& macro) {
     if (stepCount > MAX_MACRO_STEPS) stepCount = MAX_MACRO_STEPS;
 
     std::string raw;
-    raw.reserve((size_t)2 + triggerCount + (size_t)stepCount * 6);
+    raw.reserve((size_t)2 + triggerCount + (size_t)stepCount * 10);
     raw.push_back((char)triggerCount);
     for (uint8_t i = 0; i < triggerCount; i++) raw.push_back((char)macro.triggerKeys[i]);
     raw.push_back((char)stepCount);
@@ -884,6 +890,7 @@ static std::string encode_macro_binary(const MacroConfig& macro) {
         const MacroStep& step = macro.steps[i];
         append_u16_le(raw, step.timeMs);
         append_u32_le(raw, step.buttonMask);
+        append_u32_le(raw, step.dynamicMask);
     }
     return Base64::Encode(raw);
 }
@@ -904,8 +911,12 @@ static bool decode_macro_binary(const char* b64, MacroConfig& out) {
     uint8_t stepCount = (uint8_t)p[off];
     if (stepCount > MAX_MACRO_STEPS) return false;
 
-    size_t expected = (size_t)1 + triggerCount + 1 + (size_t)stepCount * 6;
-    if (len != expected) return false;
+    size_t expectedV2 = (size_t)1 + triggerCount + 1 + (size_t)stepCount * 10;
+    size_t expectedV1 = (size_t)1 + triggerCount + 1 + (size_t)stepCount * 6;
+    bool isV2 = false;
+    if (len == expectedV2) isV2 = true;
+    else if (len == expectedV1) isV2 = false;
+    else return false;
 
     memset(&out, 0, sizeof(out));
     out.numTriggerKeys = triggerCount;
@@ -917,14 +928,20 @@ static bool decode_macro_binary(const char* b64, MacroConfig& out) {
         MacroStep& step = out.steps[i];
         step.timeMs = read_u16_le(p + off);
         step.buttonMask = read_u32_le(p + off + 2);
-        off += 6;
+        if (isV2) {
+            step.dynamicMask = read_u32_le(p + off + 6);
+            off += 10;
+        } else {
+            step.dynamicMask = 0;
+            off += 6;
+        }
     }
     return true;
 }
 
 static std::string encode_profile_macros_binary(const GamepadProfile& profile) {
     std::string raw;
-    raw.reserve((size_t)2 + (size_t)MAX_NUM_MACROS * (size_t)(1 + 1 + MAX_MACRO_TRIGGER_KEYS + 1 + MAX_MACRO_STEPS * 6));
+    raw.reserve((size_t)2 + (size_t)MAX_NUM_MACROS * (size_t)(1 + 1 + MAX_MACRO_TRIGGER_KEYS + 1 + MAX_MACRO_STEPS * 10));
     raw.push_back((char)1);
     raw.push_back((char)MAX_NUM_MACROS);
     for (uint8_t mi = 0; mi < MAX_NUM_MACROS; mi++) {
@@ -939,6 +956,7 @@ static std::string encode_profile_macros_binary(const GamepadProfile& profile) {
             const MacroStep& step = macro.steps[si];
             append_u16_le(raw, step.timeMs);
             append_u32_le(raw, step.buttonMask);
+            append_u32_le(raw, step.dynamicMask);
         }
     }
     return Base64::Encode(raw);
@@ -955,9 +973,21 @@ static bool decode_profile_macros_binary(const char* b64, GamepadProfile& profil
     const uint8_t count = p[1];
     if (ver != 1) return false;
     if (count != MAX_NUM_MACROS) return false;
-    const size_t perMacro = (size_t)(1 + 1 + MAX_MACRO_TRIGGER_KEYS + 1 + MAX_MACRO_STEPS * 6);
-    const size_t expected = (size_t)2 + (size_t)MAX_NUM_MACROS * perMacro;
-    if (len != expected) return false;
+    const size_t perMacroV2 = (size_t)(1 + 1 + MAX_MACRO_TRIGGER_KEYS + 1 + MAX_MACRO_STEPS * 10);
+    const size_t perMacroV1 = (size_t)(1 + 1 + MAX_MACRO_TRIGGER_KEYS + 1 + MAX_MACRO_STEPS * 6);
+    const size_t expectedV2 = (size_t)2 + (size_t)MAX_NUM_MACROS * perMacroV2;
+    const size_t expectedV1 = (size_t)2 + (size_t)MAX_NUM_MACROS * perMacroV1;
+    bool isV2 = false;
+    size_t perMacro = 0;
+    if (len == expectedV2) {
+        isV2 = true;
+        perMacro = perMacroV2;
+    } else if (len == expectedV1) {
+        isV2 = false;
+        perMacro = perMacroV1;
+    } else {
+        return false;
+    }
 
     memset(profile.keysConfig.macros, 0, sizeof(profile.keysConfig.macros));
 
@@ -976,7 +1006,13 @@ static bool decode_profile_macros_binary(const char* b64, GamepadProfile& profil
             MacroStep& step = macro.steps[si];
             step.timeMs = read_u16_le((const char*)p + stepOff);
             step.buttonMask = read_u32_le((const char*)p + stepOff + 2);
-            stepOff += 6;
+            if (isV2) {
+                step.dynamicMask = read_u32_le((const char*)p + stepOff + 6);
+                stepOff += 10;
+            } else {
+                step.dynamicMask = 0;
+                stepOff += 6;
+            }
         }
         off += perMacro;
     }
@@ -1010,6 +1046,7 @@ static cJSON* build_profile_macros_json_compact(const GamepadProfile& profile) {
             cJSON* stepJSON = cJSON_CreateArray();
             cJSON_AddItemToArray(stepJSON, cJSON_CreateNumber(step.timeMs));
             cJSON_AddItemToArray(stepJSON, cJSON_CreateNumber(step.buttonMask));
+            cJSON_AddItemToArray(stepJSON, cJSON_CreateNumber(step.dynamicMask));
             cJSON_AddItemToArray(stepsJSON, stepJSON);
         }
         cJSON_AddItemToObject(macroJSON, "s", stepsJSON);
@@ -1066,13 +1103,13 @@ static void parse_profile_macros_json_compact(cJSON* macrosJSON, GamepadProfile&
                     if (v > 65535) v = 65535;
                     step.timeMs = (uint16_t)v;
                 }
-                if (t2 && cJSON_IsNumber(t1) && cJSON_IsNumber(t2)) {
-                    uint32_t pressMask = (uint32_t)t1->valuedouble;
-                    uint32_t releaseMask = (uint32_t)t2->valuedouble;
-                    if (si == 0) step.buttonMask = pressMask & ~releaseMask;
-                    else step.buttonMask = (out.steps[si - 1].buttonMask | pressMask) & ~releaseMask;
-                } else if (t1 && cJSON_IsNumber(t1)) {
+                if (t1 && cJSON_IsNumber(t1)) {
                     step.buttonMask = (uint32_t)t1->valuedouble;
+                }
+                if (t2 && cJSON_IsNumber(t2)) {
+                    step.dynamicMask = (uint32_t)t2->valuedouble;
+                } else {
+                    step.dynamicMask = 0;
                 }
             }
         }
@@ -1194,6 +1231,12 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleUpdateMacro(const WebSoc
                     uint32_t releaseMask = (releaseMaskItem && cJSON_IsNumber(releaseMaskItem)) ? (uint32_t)releaseMaskItem->valuedouble : 0;
                     if (si == 0) step.buttonMask = pressMask & ~releaseMask;
                     else step.buttonMask = (decoded.steps[si - 1].buttonMask | pressMask) & ~releaseMask;
+                }
+                cJSON* dynamicMaskItem = cJSON_GetObjectItem(stepJSON, "dynamicMask");
+                if (dynamicMaskItem && cJSON_IsNumber(dynamicMaskItem)) {
+                    step.dynamicMask = (uint32_t)dynamicMaskItem->valuedouble;
+                } else {
+                    step.dynamicMask = 0;
                 }
             }
         }

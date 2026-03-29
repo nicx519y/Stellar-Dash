@@ -1,6 +1,6 @@
 'use client';
 
-import { Box, Button, Dialog, HStack, Portal, Text, VStack, Separator, Table, CloseButton } from "@chakra-ui/react";
+import { Box, Button, Dialog, HStack, Portal, Text, VStack, Separator, Table, CloseButton, Input } from "@chakra-ui/react";
 import { BsRecordCircle, BsStopCircle  } from "react-icons/bs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/contexts/language-context";
@@ -57,7 +57,6 @@ export function MacroField(props: {
     const lastEventTsRef = useRef<number>(-1);
     const firstEventTsRef = useRef<number>(-1);
     const timelineEndTsRef = useRef<number>(-1);
-    const [timelineNowMs, setTimelineNowMs] = useState<number>(0);
     const isRecordingRef = useRef(false);
     const onRecordingChangeRef = useRef(props.onRecordingChange);
     const keyMappingRef = useRef(props.keyMapping);
@@ -91,6 +90,7 @@ export function MacroField(props: {
             const cur = controllerMask >>> 0;
             if (cur === prev) return;
             prevMaskRef.current = cur;
+            if (cur === 0) return;
 
             let deltaMs = 0;
             if (lastEventTsRef.current < 0) {
@@ -105,7 +105,7 @@ export function MacroField(props: {
 
             setRecordedSteps(prevSteps => {
                 if (prevSteps.length >= MAX_MACRO_STEPS) return prevSteps;
-                const next = [...prevSteps, { timeMs, buttonMask: cur }];
+                const next = [...prevSteps, { timeMs, buttonMask: cur, dynamicMask: 0 }];
                 eventAbsMsRef.current = [...eventAbsMsRef.current, absMsExact];
                 if (next.length >= MAX_MACRO_STEPS) {
                     setIsRecording(false);
@@ -135,7 +135,7 @@ export function MacroField(props: {
     useEffect(() => {
         if (open) return;
         if (isRecording) return;
-        setRecordedSteps(props.value.steps ?? []);
+        setRecordedSteps((props.value.steps ?? []).map((s) => ({ ...s, dynamicMask: s.dynamicMask ?? 0 })));
         eventAbsMsRef.current = [];
     }, [props.value.steps, open, isRecording]);
 
@@ -171,7 +171,6 @@ export function MacroField(props: {
             isRecordingRef.current = false;
             setStopReason(null);
             stopMonitoring();
-            setTimelineNowMs(0);
             firstEventTsRef.current = -1;
             timelineEndTsRef.current = -1;
             eventAbsMsRef.current = [];
@@ -202,76 +201,35 @@ export function MacroField(props: {
         return map;
     }, [buttonLabelMap]);
 
-    const maskToLabels = (mask: number): string => {
-        const labels: string[] = [];
-        const m = mask >>> 0;
-        for (let fid = 1; fid <= 32; fid++) {
-            if ((m & (1 << (fid - 1))) !== 0) {
-                labels.push(firmwareIdToLabel.get(fid) ?? `B${fid}`);
-            }
-        }
-        return labels.length > 0 ? labels.join(" + ") : "-";
+    const stepRows = useMemo(() => {
+        return recordedSteps.map((step, index) => ({ step, index })).reverse();
+    }, [recordedSteps]);
+
+    const frameMs = 1000 / 60;
+    const msToFrames = (ms: number) => Math.max(0, Math.round((ms ?? 0) / frameMs));
+    const framesToMs = (frames: number) => Math.max(0, Math.round((frames ?? 0) * frameMs));
+
+    const updateStepAtDisplayIndex = (displayIndex: number, updater: (prev: MacroStep) => MacroStep) => {
+        setRecordedSteps((prev) => {
+            const rawIndex = prev.length - 1 - displayIndex;
+            if (rawIndex < 0 || rawIndex >= prev.length) return prev;
+            const next = [...prev];
+            const updated = updater(next[rawIndex]);
+            next[rawIndex] = { ...updated, dynamicMask: (updated.dynamicMask ?? 0) & (updated.buttonMask ?? 0) };
+            return next;
+        });
     };
 
-    useEffect(() => {
-        if (!open) return;
-        if (!isRecording) return;
-        let raf = 0;
-        const loop = () => {
-            const start = firstEventTsRef.current;
-            if (start >= 0) setTimelineNowMs(performance.now() - start);
-            raf = requestAnimationFrame(loop);
-        };
-        raf = requestAnimationFrame(loop);
-        return () => cancelAnimationFrame(raf);
-    }, [open, isRecording]);
-
-    const frameRows = useMemo(() => {
-        const frameMs = 1000 / 60;
-        const absMsList: number[] = [];
-        if (eventAbsMsRef.current.length === recordedSteps.length && recordedSteps.length > 0) {
-            absMsList.push(...eventAbsMsRef.current);
-        } else {
-            let absMs = 0;
-            for (const step of recordedSteps) {
-                absMs += step.timeMs ?? 0;
-                absMsList.push(absMs);
-            }
-        }
-
-        const byFrame = new Map<number, { state: number }>();
-        for (let i = 0; i < recordedSteps.length; i++) {
-            const step = recordedSteps[i];
-            const absMs = absMsList[i] ?? 0;
-            const frame = Math.max(0, Math.floor(absMs / frameMs));
-            const current = byFrame.get(frame) ?? { state: 0 };
-            current.state = (step.buttonMask ?? 0) >>> 0;
-            byFrame.set(frame, current);
-        }
-
-        const frames = Array.from(byFrame.keys()).sort((a, b) => a - b);
-        if (frames.length === 0) return [];
-
-        let endMs = absMsList.length > 0 ? absMsList[absMsList.length - 1] : 0;
-        if (isRecording && firstEventTsRef.current >= 0) {
-            endMs = Math.max(0, timelineNowMs);
-        } else if (!isRecording && firstEventTsRef.current >= 0 && timelineEndTsRef.current >= firstEventTsRef.current) {
-            endMs = Math.max(0, timelineEndTsRef.current - firstEventTsRef.current);
-        }
-        const endFrame = Math.max(0, Math.floor(endMs / frameMs));
-
-        const rows = frames.map((frame, idx) => {
-            const nextFrame = frames[idx + 1];
-            const durationFrames = nextFrame !== undefined ? Math.max(1, nextFrame - frame) : Math.max(1, endFrame - frame + 1);
-            const payload = byFrame.get(frame)!;
-            return {
-                frame,
-                durationFrames,
-                state: payload.state,
-            };
+    const toggleDynamicBitAtDisplayIndex = (displayIndex: number, bit: number) => {
+        updateStepAtDisplayIndex(displayIndex, (prev) => {
+            const maskBit = (1 << bit) >>> 0;
+            if (((prev.buttonMask ?? 0) & maskBit) === 0) return prev;
+            const dynamicMask = (((prev.dynamicMask ?? 0) & maskBit) !== 0)
+                ? ((prev.dynamicMask ?? 0) & ~maskBit)
+                : ((prev.dynamicMask ?? 0) | maskBit);
+            return { ...prev, dynamicMask: dynamicMask >>> 0 };
         });
-        return rows.reverse();
-    }, [recordedSteps, isRecording, timelineNowMs]);
+    };
 
     const handleTriggerKeysChange = (newKeyIndexes: string[]) => {
         const triggerKeys = newKeyIndexes
@@ -282,7 +240,7 @@ export function MacroField(props: {
 
     const handleOpen = () => {
         if (props.disabled) return;
-        setRecordedSteps(props.value.steps ?? []);
+        setRecordedSteps((props.value.steps ?? []).map((s) => ({ ...s, dynamicMask: s.dynamicMask ?? 0 })));
         eventAbsMsRef.current = [];
         setStopReason(null);
         setIsRecording(false);
@@ -297,7 +255,6 @@ export function MacroField(props: {
         lastEventTsRef.current = -1;
         firstEventTsRef.current = -1;
         timelineEndTsRef.current = -1;
-        setTimelineNowMs(0);
         keyMappingRef.current = props.keyMapping;
         eventAbsMsRef.current = [];
         setIsRecording(true);
@@ -314,7 +271,7 @@ export function MacroField(props: {
     };
 
     const handleClose = () => {
-        props.changeValue({ ...props.value, steps: recordedSteps });
+        props.changeValue({ ...props.value, steps: recordedSteps.map((s) => ({ ...s, dynamicMask: (s.dynamicMask ?? 0) & (s.buttonMask ?? 0) })) });
         isRecordingRef.current = false;
         timelineEndTsRef.current = performance.now();
         setOpen(false);
@@ -400,7 +357,7 @@ export function MacroField(props: {
                                     </Dialog.Header>
                                     <Dialog.Body>
                                         <VStack gap={3} alignItems="stretch">
-                                            <Text fontSize="12px" color="gray.400">
+                                            <Text fontSize="12px" color="gray.400" whiteSpace="pre-wrap" >
                                                 {t.MACRO_DIALOG_MESSAGE}
                                             </Text>
                                             <HStack gap={3}>
@@ -436,22 +393,54 @@ export function MacroField(props: {
                                                 <Table.Root fontSize="sm" colorPalette="green" interactive opacity={0.9}>
                                                     <Table.Header fontSize="xs">
                                                         <Table.Row>
-                                                            <Table.ColumnHeader width="20%" textAlign="center">帧数</Table.ColumnHeader>
-                                                            <Table.ColumnHeader width="80%" textAlign="center">按下</Table.ColumnHeader>
+                                                            <Table.ColumnHeader width="10%" textAlign="center">{t.MACRO_DIALOG_TABLE_COL_INDEX}</Table.ColumnHeader>
+                                                            <Table.ColumnHeader width="15%" textAlign="center">{t.MACRO_DIALOG_TABLE_COL_FRAMES}</Table.ColumnHeader>
+                                                            <Table.ColumnHeader width="75%" textAlign="center">{t.MACRO_DIALOG_TABLE_COL_PRESSED}</Table.ColumnHeader>
                                                         </Table.Row>
                                                     </Table.Header>
                                                     <Table.Body fontSize="xs">
-                                                        {frameRows.length === 0 ? (
+                                                        {stepRows.length === 0 ? (
                                                             <Table.Row>
-                                                                <Table.Cell colSpan={2} textAlign="center" color="gray.500">
-                                                                    {isRecording ? "等待按键..." : "暂无录制数据"}
+                                                                <Table.Cell colSpan={3} textAlign="center" color="gray.500">
+                                                                    {isRecording ? t.MACRO_DIALOG_TABLE_WAITING : t.MACRO_DIALOG_TABLE_EMPTY}
                                                                 </Table.Cell>
                                                             </Table.Row>
                                                         ) : (
-                                                            frameRows.map((r) => (
-                                                                <Table.Row key={r.frame}>
-                                                                    <Table.Cell textAlign="center">{r.durationFrames}</Table.Cell>
-                                                                    <Table.Cell>{maskToLabels(r.state)}</Table.Cell>
+                                                            stepRows.map((r, displayIndex) => (
+                                                                <Table.Row key={`${r.index}-${r.step.timeMs}-${r.step.buttonMask}`}>
+                                                                    <Table.Cell textAlign="center">{stepRows.length - displayIndex}</Table.Cell>
+                                                                    <Table.Cell textAlign="center">
+                                                                        <Input
+                                                                            size="2xs"
+                                                                            value={msToFrames(r.step.timeMs)}
+                                                                            onChange={(e) => {
+                                                                                const v = parseInt(e.target.value);
+                                                                                const frames = Number.isFinite(v) && v >= 0 ? v : 0;
+                                                                                updateStepAtDisplayIndex(displayIndex, (prev) => ({ ...prev, timeMs: framesToMs(frames) }));
+                                                                            }}
+                                                                        />
+                                                                    </Table.Cell>
+                                                                    <Table.Cell>
+                                                                        <HStack gap={1} flexWrap="wrap">
+                                                                            {Array.from({ length: 18 }).map((_, bit) => {
+                                                                                const bitMask = (1 << bit) >>> 0;
+                                                                                if (((r.step.buttonMask ?? 0) & bitMask) === 0) return null;
+                                                                                const label = firmwareIdToLabel.get(bit + 1) ?? `B${bit + 1}`;
+                                                                                const active = (((r.step.dynamicMask ?? 0) & bitMask) !== 0);
+                                                                                return (
+                                                                                    <Button
+                                                                                        key={`${r.index}-${bit}`}
+                                                                                        size="2xs"
+                                                                                        variant={active ? "solid" : "outline"}
+                                                                                        colorPalette={active ? "orange" : "gray"}
+                                                                                        onClick={() => toggleDynamicBitAtDisplayIndex(displayIndex, bit)}
+                                                                                    >
+                                                                                        {label}
+                                                                                    </Button>
+                                                                                );
+                                                                            })}
+                                                                        </HStack>
+                                                                    </Table.Cell>
                                                                 </Table.Row>
                                                             ))
                                                         )}

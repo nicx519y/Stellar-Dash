@@ -27,6 +27,7 @@ typedef struct __attribute__((packed))
 {
     uint16_t timeMs;
     uint32_t buttonMask;
+    uint32_t dynamicMask;
 } MacroStep;
 
 typedef struct __attribute__((packed))

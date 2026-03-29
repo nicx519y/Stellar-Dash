@@ -383,6 +383,7 @@ export const MAX_MACRO_STEPS = 32;
 export type MacroStep = {
     timeMs: number;
     buttonMask: number;
+    dynamicMask: number;
 }
 
 export type MacroConfig = {
@@ -679,15 +680,21 @@ export const UI_TEXT = {
     KEYS_MAPPING_TITLE_SHOULDER: "Shoulder & Stick Buttons",
     KEYS_MAPPING_TITLE_FUNCTION: "Function Buttons",
     KEYS_MAPPING_TITLE_CUSTOM_COMBINATION: "Combinations",
-    KEYS_MAPPING_TITLE_MACROS: "Macros",
+    KEYS_MAPPING_TITLE_MACROS: "Dynamic Macros",
     MACRO_FIELD_RECORD_BUTTON: "Record",
     MACRO_DIALOG_TITLE: "Record Macro",
-    MACRO_DIALOG_MESSAGE: "Click [Start Recording] then press buttons on device. Recording stops when you click [Stop Recording] or when the macro reaches its capacity.",
+    MACRO_DIALOG_MESSAGE: "Click [Start Recording] then press buttons on device. Recording stops when you click [Stop Recording] or when the macro reaches its capacity.\n - You can manually adjust the time of each step in the left.\n- You can click each command slot, the red slot will be replaced with the last button command pressed before the macro is triggered.",
     MACRO_DIALOG_BUTTON_START: "Start Recording",
     MACRO_DIALOG_BUTTON_STOP: "Stop Recording",
     MACRO_DIALOG_BUTTON_CLOSE: "Close",
     MACRO_DIALOG_STOP_REASON_MANUAL: "Stopped manually.",
     MACRO_DIALOG_STOP_REASON_FULL: "Stopped automatically (macro capacity reached).",
+    MACRO_DIALOG_TABLE_COL_INDEX: "No.",
+    MACRO_DIALOG_TABLE_COL_FRAMES: "Frames",
+    MACRO_DIALOG_TABLE_COL_PRESSED: "Pressed",
+    MACRO_DIALOG_TABLE_WAITING: "Waiting for input...",
+    MACRO_DIALOG_TABLE_EMPTY: "No recorded data",
+    
 
 
     // Switch Marking Settings
@@ -1057,15 +1064,20 @@ export const UI_TEXT_ZH = {
     KEYS_MAPPING_TITLE_SHOULDER: "肩键和摇杆键",
     KEYS_MAPPING_TITLE_FUNCTION: "功能按键",
     KEYS_MAPPING_TITLE_CUSTOM_COMBINATION: "组合键",
-    KEYS_MAPPING_TITLE_MACROS: "宏设置",
+    KEYS_MAPPING_TITLE_MACROS: "动态宏",
     MACRO_FIELD_RECORD_BUTTON: "录制",
     MACRO_DIALOG_TITLE: "录制宏",
-    MACRO_DIALOG_MESSAGE: "点击[开始录制]后，在设备上按键即可录制。点击[结束录制]或达到宏容量后会自动停止。",
+    MACRO_DIALOG_MESSAGE: "- 点击[开始录制]后，在设备上按键即可录制。点击[结束录制]或达到宏容量后会自动停止。\n- 可手动调整左侧的帧数，代表每一行指令的执行时间。\n- 可点击每个指令槽位，红色槽位在运行时会自动替换为宏触发之前的按键指令。",
     MACRO_DIALOG_BUTTON_START: "开始录制",
     MACRO_DIALOG_BUTTON_STOP: "结束录制",
     MACRO_DIALOG_BUTTON_CLOSE: "关闭",
     MACRO_DIALOG_STOP_REASON_MANUAL: "已手动停止录制。",
     MACRO_DIALOG_STOP_REASON_FULL: "已达到宏容量，自动结束录制。",
+    MACRO_DIALOG_TABLE_COL_INDEX: "序号",
+    MACRO_DIALOG_TABLE_COL_FRAMES: "帧数",
+    MACRO_DIALOG_TABLE_COL_PRESSED: "按下",
+    MACRO_DIALOG_TABLE_WAITING: "等待按键...",
+    MACRO_DIALOG_TABLE_EMPTY: "暂无录制数据",
 
     // 磁轴标记设置
     SETTINGS_SWITCH_MARKING_TITLE: "新磁轴标记",

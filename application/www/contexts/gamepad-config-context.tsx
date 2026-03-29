@@ -241,6 +241,7 @@ const converProfileDetails = (profile: any) => {
                         buttonMask: typeof s.buttonMask === "number"
                             ? s.buttonMask
                             : (((typeof s.pressButtonMask === "number" ? s.pressButtonMask : 0) & ~((typeof s.releaseButtonMask === "number" ? s.releaseButtonMask : 0))) >>> 0),
+                        dynamicMask: typeof s.dynamicMask === "number" ? s.dynamicMask : 0,
                     }))
                 : [];
             return { index, triggerKeys, steps };
@@ -717,16 +718,19 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         const triggerKeys: number[] = [];
         for (let i = 0; i < numTriggerKeys; i++) triggerKeys.push(bytes[off++]);
         const numSteps = bytes[off++];
-        const expected = 1 + numTriggerKeys + 1 + numSteps * 6;
-        if (bytes.length !== expected) throw new Error("Invalid macro data");
+        const expectedV2 = 1 + numTriggerKeys + 1 + numSteps * 10;
+        const expectedV1 = 1 + numTriggerKeys + 1 + numSteps * 6;
+        const isV2 = bytes.length === expectedV2;
+        if (!isV2 && bytes.length !== expectedV1) throw new Error("Invalid macro data");
 
         const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-        const steps: { timeMs: number; buttonMask: number }[] = [];
+        const steps: { timeMs: number; buttonMask: number; dynamicMask: number }[] = [];
         const stepsToRead = Math.min(numSteps, MAX_MACRO_STEPS);
         for (let i = 0; i < numSteps; i++) {
             const timeMs = view.getUint16(off, true); off += 2;
             const buttonMask = view.getUint32(off, true); off += 4;
-            if (i < stepsToRead) steps.push({ timeMs, buttonMask });
+            const dynamicMask = isV2 ? view.getUint32(off, true) : 0; off += isV2 ? 4 : 0;
+            if (i < stepsToRead) steps.push({ timeMs, buttonMask, dynamicMask });
         }
         return { index, triggerKeys: triggerKeys.slice(0, 4), steps };
     };
@@ -734,7 +738,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const encodeMacroData = (macro: MacroConfig): string => {
         const triggerKeys = (macro.triggerKeys ?? []).slice(0, 4).map(v => Math.max(0, Math.min(255, v | 0)));
         const steps = (macro.steps ?? []).slice(0, MAX_MACRO_STEPS);
-        const len = 1 + triggerKeys.length + 1 + steps.length * 6;
+        const len = 1 + triggerKeys.length + 1 + steps.length * 10;
         const bytes = new Uint8Array(len);
         let off = 0;
         bytes[off++] = triggerKeys.length;
@@ -744,6 +748,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         for (const s of steps) {
             view.setUint16(off, Math.max(0, Math.min(65535, (s.timeMs ?? 0) | 0)), true); off += 2;
             view.setUint32(off, (s.buttonMask ?? 0) >>> 0, true); off += 4;
+            view.setUint32(off, (s.dynamicMask ?? 0) >>> 0, true); off += 4;
         }
         return encodeBytesToBase64(bytes);
     };
@@ -762,8 +767,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         const headerLen = 1 + 1 + 4 + 1;
         if (perMacro < headerLen) throw new Error("Invalid macros data");
         const stepsBytes = perMacro - headerLen;
-        if (stepsBytes % 6 !== 0) throw new Error("Invalid macros data");
-        const stepsPerMacro = stepsBytes / 6;
+        const isV2 = stepsBytes % 10 === 0;
+        if (!isV2 && stepsBytes % 6 !== 0) throw new Error("Invalid macros data");
+        const stepsPerMacro = isV2 ? (stepsBytes / 10) : (stepsBytes / 6);
 
         const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
         const macros: MacroConfig[] = [];
@@ -775,12 +781,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             off++;
 
             const triggerKeys = triggerKeysRaw.slice(0, Math.min(4, numTriggerKeys));
-            const steps: { timeMs: number; buttonMask: number }[] = [];
+            const steps: { timeMs: number; buttonMask: number; dynamicMask: number }[] = [];
             const stepsToRead = Math.min(numSteps, MAX_MACRO_STEPS);
             for (let s = 0; s < stepsPerMacro; s++) {
                 const timeMs = view.getUint16(off, true); off += 2;
                 const buttonMask = view.getUint32(off, true); off += 4;
-                if (s < stepsToRead) steps.push({ timeMs, buttonMask });
+                const dynamicMask = isV2 ? view.getUint32(off, true) : 0; off += isV2 ? 4 : 0;
+                if (s < stepsToRead) steps.push({ timeMs, buttonMask, dynamicMask });
             }
 
             if (triggerKeys.length > 0 || steps.length > 0) {
@@ -799,7 +806,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
 
         const count = MAX_NUM_MACROS;
-        const perMacro = 1 + 1 + 4 + 1 + MAX_MACRO_STEPS * 6;
+        const perMacro = 1 + 1 + 4 + 1 + MAX_MACRO_STEPS * 10;
         const bytes = new Uint8Array(2 + count * perMacro);
         let off = 0;
         bytes[off++] = 1;
@@ -817,9 +824,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             bytes[off++] = 0;
 
             for (let s = 0; s < MAX_MACRO_STEPS; s++) {
-                const step = steps[s] ?? { timeMs: 0, buttonMask: 0 };
+                const step = steps[s] ?? { timeMs: 0, buttonMask: 0, dynamicMask: 0 };
                 view.setUint16(off, Math.max(0, Math.min(65535, (step.timeMs ?? 0) | 0)), true); off += 2;
                 view.setUint32(off, (step.buttonMask ?? 0) >>> 0, true); off += 4;
+                view.setUint32(off, (step.dynamicMask ?? 0) >>> 0, true); off += 4;
             }
         }
         return encodeBytesToBase64(bytes);
@@ -864,6 +872,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                         .map((x: any[]) => ({
                             timeMs: (Number(x[0]) || 0) | 0,
                             buttonMask: (Number(x[1]) || 0) >>> 0,
+                            dynamicMask: (Number(x[2]) || 0) >>> 0,
                         }))
                     : [];
                 if (triggerKeys.length > 0 || steps.length > 0) {
@@ -894,6 +903,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 .map(s => [
                     Math.max(0, Math.min(65535, (s.timeMs ?? 0) | 0)),
                     (s.buttonMask ?? 0) >>> 0,
+                    (s.dynamicMask ?? 0) >>> 0,
                 ]);
             if (triggerKeys.length === 0 && steps.length === 0) return null;
             return { k: triggerKeys, s: steps };
@@ -923,6 +933,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     .map((x: any[]) => ({
                         timeMs: (Number(x[0]) || 0) | 0,
                         buttonMask: (Number(x[1]) || 0) >>> 0,
+                        dynamicMask: (Number(x[2]) || 0) >>> 0,
                     }))
                 : [];
             if (triggerKeys.length > 0 || steps.length > 0) {

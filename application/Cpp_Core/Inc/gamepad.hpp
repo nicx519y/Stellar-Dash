@@ -120,16 +120,22 @@ class Gamepad {
         bool macroTriggerLatched[MAX_NUM_MACROS] = { false };
         bool macroPlaying = false;
         bool macroFinishPending = false;
+        uint32_t macroFinishPendingStartMs = 0;
         uint8_t macroPlayingIndex = 0;
         uint8_t macroPlayingStepIndex = 0;
         uint32_t macroStepStartMs = 0;
         uint32_t macroOutputMask = 0;
+        uint32_t macroDynamicCommandMask = 0;
+        uint32_t lastButtonCommandMask = 0;
+        uint32_t prevPhysicalMacroMask = 0;
 
         bool isMacroTriggerPressed(uint8_t macroIndex, Mask_t virtualPinMask) const;
         void startMacroPlayback(uint8_t macroIndex, uint32_t nowMs);
         void updateMacroPlayback(uint32_t nowMs);
         void applyMacroOutputToState();
-        void finishMacroPlaybackIfPending();
+        void finishMacroPlaybackIfPending(uint32_t nowMs);
+        uint32_t buildMacroMaskFromCurrentState() const;
+        void updateLastButtonCommand(uint32_t physicalMacroMask);
 
         void process();
         
