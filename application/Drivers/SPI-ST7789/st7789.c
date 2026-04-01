@@ -1,6 +1,8 @@
 #include "st7789.h"
 #include <string.h>
 
+#include "stm32h7xx_hal_gpio_ex.h"
+
 #define ST7789_CMD_SWRESET 0x01u
 #define ST7789_CMD_SLPOUT  0x11u
 #define ST7789_CMD_NORON   0x13u
@@ -134,6 +136,73 @@ static inline uint16_t st7789_rgb888_to_565(uint32_t rgb888)
     return (uint16_t)(((uint16_t)(r & 0xF8u) << 8) | ((uint16_t)(g & 0xFCu) << 3) | (uint16_t)(b >> 3));
 }
 
+static uint16_t st7789_fb0[ST7789_WIDTH * ST7789_HEIGHT] __attribute__((section(".DMA_Section"), aligned(32)));
+static uint16_t st7789_fb1[ST7789_WIDTH * ST7789_HEIGHT] __attribute__((section(".DMA_Section"), aligned(32)));
+
+static inline uint32_t st7789_fb_index(uint16_t x, uint16_t y)
+{
+    return (uint32_t)y * (uint32_t)ST7789_WIDTH + (uint32_t)x;
+}
+
+static void st7789_fb_clear(ST7789_Handle* lcd, uint32_t rgb888)
+{
+    if (!lcd || !lcd->framebuffer_enabled || !lcd->fb_back) return;
+    uint16_t c = st7789_rgb888_to_565(rgb888);
+    uint32_t pixels = (uint32_t)ST7789_WIDTH * (uint32_t)ST7789_HEIGHT;
+    for (uint32_t i = 0; i < pixels; i++) {
+        lcd->fb_back[i] = c;
+    }
+}
+
+static void st7789_fb_fill_rect(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t rgb888)
+{
+    if (!lcd || !lcd->framebuffer_enabled || !lcd->fb_back) return;
+    if (w == 0 || h == 0) return;
+    if (x >= ST7789_WIDTH || y >= ST7789_HEIGHT) return;
+
+    uint16_t x1 = (uint16_t)(x + w - 1u);
+    uint16_t y1 = (uint16_t)(y + h - 1u);
+    if (x1 >= ST7789_WIDTH) x1 = (uint16_t)(ST7789_WIDTH - 1u);
+    if (y1 >= ST7789_HEIGHT) y1 = (uint16_t)(ST7789_HEIGHT - 1u);
+
+    uint16_t c = st7789_rgb888_to_565(rgb888);
+    for (uint16_t yy = y; yy <= y1; yy++) {
+        uint32_t row = (uint32_t)yy * (uint32_t)ST7789_WIDTH;
+        for (uint16_t xx = x; xx <= x1; xx++) {
+            lcd->fb_back[row + xx] = c;
+        }
+    }
+}
+
+static void st7789_fb_put_pixel(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint32_t rgb888)
+{
+    if (!lcd || !lcd->framebuffer_enabled || !lcd->fb_back) return;
+    if (x >= ST7789_WIDTH || y >= ST7789_HEIGHT) return;
+    lcd->fb_back[st7789_fb_index(x, y)] = st7789_rgb888_to_565(rgb888);
+}
+
+static void st7789_flush_full_rgb565_be(ST7789_Handle* lcd, const uint16_t* buf)
+{
+    if (!lcd || !lcd->inited || !buf) return;
+    st7789_set_address_window(lcd, 0, 0, (uint16_t)(ST7789_WIDTH - 1u), (uint16_t)(ST7789_HEIGHT - 1u));
+
+    uint8_t out[256];
+    uint32_t pixels_total = (uint32_t)ST7789_WIDTH * (uint32_t)ST7789_HEIGHT;
+    uint32_t idx = 0;
+    while (idx < pixels_total) {
+        uint32_t chunkPixels = (pixels_total - idx);
+        if (chunkPixels > (sizeof(out) / 2u)) chunkPixels = (sizeof(out) / 2u);
+        for (uint32_t i = 0; i < chunkPixels; i++) {
+            uint16_t c = buf[idx + i];
+            out[i * 2u] = (uint8_t)(c >> 8);
+            out[i * 2u + 1u] = (uint8_t)(c & 0xFFu);
+        }
+        st7789_write_bytes(lcd, out, chunkPixels * 2u);
+        idx += chunkPixels;
+    }
+    st7789_end_pixels();
+}
+
 static void st7789_write_color_repeat(ST7789_Handle* lcd, uint32_t rgb888, uint32_t pixel_count)
 {
     if (pixel_count == 0) return;
@@ -202,9 +271,6 @@ static void st7789_gpio_init(void)
     GPIO_InitStruct.Pin = ST7789_CS_PIN;
     HAL_GPIO_Init(ST7789_CS_PORT, &GPIO_InitStruct);
 
-    GPIO_InitStruct.Pin = ST7789_BL_PIN;
-    HAL_GPIO_Init(ST7789_BL_PORT, &GPIO_InitStruct);
-
     GPIO_InitStruct.Pin = ST7789_DC_PIN;
     HAL_GPIO_Init(ST7789_DC_PORT, &GPIO_InitStruct);
 
@@ -218,7 +284,65 @@ static void st7789_gpio_init(void)
     st7789_dc_data();
     st7789_scl_low();
     st7789_sda_high();
+}
+
+static void st7789_backlight_gpio_init_off(void)
+{
+    __HAL_RCC_GPIOH_CLK_ENABLE();
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Pin = ST7789_BL_PIN;
+    HAL_GPIO_Init(ST7789_BL_PORT, &GPIO_InitStruct);
     st7789_gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, GPIO_PIN_RESET);
+}
+
+static TIM_HandleTypeDef st7789_bl_htim12;
+static bool st7789_bl_tim12_inited = false;
+
+static void st7789_backlight_tim12_init(void)
+{
+    if (st7789_bl_tim12_inited) return;
+
+    __HAL_RCC_TIM12_CLK_ENABLE();
+    __HAL_RCC_GPIOH_CLK_ENABLE();
+
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = ST7789_BL_PIN;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF2_TIM12;
+    HAL_GPIO_Init(ST7789_BL_PORT, &GPIO_InitStruct);
+
+    uint32_t timclk = HAL_RCC_GetPCLK1Freq() * 2u;
+
+    const uint32_t targetHz = 20000u;
+    const uint32_t period = 999u;
+    uint64_t presc64 = (uint64_t)timclk / ((uint64_t)targetHz * (uint64_t)(period + 1u));
+    if (presc64 == 0) presc64 = 1;
+    if (presc64 > 65536ull) presc64 = 65536ull;
+    uint32_t prescaler = (uint32_t)(presc64 - 1ull);
+
+    memset(&st7789_bl_htim12, 0, sizeof(st7789_bl_htim12));
+    st7789_bl_htim12.Instance = TIM12;
+    st7789_bl_htim12.Init.Prescaler = prescaler;
+    st7789_bl_htim12.Init.CounterMode = TIM_COUNTERMODE_UP;
+    st7789_bl_htim12.Init.Period = period;
+    st7789_bl_htim12.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    st7789_bl_htim12.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+    (void)HAL_TIM_PWM_Init(&st7789_bl_htim12);
+
+    TIM_OC_InitTypeDef sConfigOC = {0};
+    sConfigOC.OCMode = TIM_OCMODE_PWM1;
+    sConfigOC.Pulse = 0;
+    sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+    sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+    (void)HAL_TIM_PWM_ConfigChannel(&st7789_bl_htim12, &sConfigOC, TIM_CHANNEL_1);
+    (void)HAL_TIM_PWM_Start(&st7789_bl_htim12, TIM_CHANNEL_1);
+
+    st7789_bl_tim12_inited = true;
 }
 
 static uint8_t st7789_madctl_for_rotation(ST7789_Rotation rot)
@@ -242,17 +366,8 @@ static void st7789_apply_rotation(ST7789_Handle* lcd)
 {
     uint8_t madctl = st7789_madctl_for_rotation(lcd->cfg.rotation);
     st7789_write_cmd_data(lcd, ST7789_CMD_MADCTL, &madctl, 1);
-
-    if (lcd->cfg.rotation == ST7789_ROTATION_0 || lcd->cfg.rotation == ST7789_ROTATION_180)
-    {
-        lcd->cfg.width = ST7789_WIDTH;
-        lcd->cfg.height = ST7789_HEIGHT;
-    }
-    else
-    {
-        lcd->cfg.width = ST7789_HEIGHT;
-        lcd->cfg.height = ST7789_WIDTH;
-    }
+    lcd->cfg.width = ST7789_WIDTH;
+    lcd->cfg.height = ST7789_HEIGHT;
 }
 
 static void st7789_apply_color_mode(ST7789_Handle* lcd)
@@ -276,6 +391,43 @@ uint32_t ST7789_RGB(uint8_t r, uint8_t g, uint8_t b)
 bool ST7789_IsInited(const ST7789_Handle* lcd)
 {
     return lcd && lcd->inited;
+}
+
+bool ST7789_IsFrameBlocked(const ST7789_Handle* lcd)
+{
+    return lcd ? lcd->frame_blocked : true;
+}
+
+bool ST7789_FrameBegin(ST7789_Handle* lcd)
+{
+    if (!lcd || !lcd->inited) return false;
+    if (lcd->cfg.fps == 0) {
+        lcd->frame_blocked = false;
+        return true;
+    }
+
+    uint32_t intervalMs = 1000u / (uint32_t)lcd->cfg.fps;
+    if (intervalMs == 0) intervalMs = 1;
+    uint32_t nowMs = HAL_GetTick();
+    if (lcd->last_frame_ms != 0 && (uint32_t)(nowMs - lcd->last_frame_ms) < intervalMs) {
+        lcd->frame_blocked = true;
+        return false;
+    }
+    lcd->last_frame_ms = nowMs;
+    lcd->frame_blocked = false;
+    return true;
+}
+
+void ST7789_FrameEnd(ST7789_Handle* lcd)
+{
+    if (!lcd || !lcd->inited) return;
+    if (lcd->frame_blocked) return;
+    if (!lcd->framebuffer_enabled) return;
+    if (!lcd->fb_back) return;
+    st7789_flush_full_rgb565_be(lcd, lcd->fb_back);
+    uint16_t* tmp = lcd->fb_front;
+    lcd->fb_front = lcd->fb_back;
+    lcd->fb_back = tmp;
 }
 
 void ST7789_AttachBacklightPWM(ST7789_Handle* lcd, TIM_HandleTypeDef* htim, uint32_t channel)
@@ -328,14 +480,40 @@ void ST7789_Init(ST7789_Handle* lcd, const ST7789_Config* cfg)
     c.color_mode = ST7789_COLOR_MODE_RGB666;
     c.rotation = ST7789_ROTATION_0;
     c.invert = true;
+    c.fps = ST7789_DEFAULT_FPS;
+    c.use_framebuffer = false;
     c.bl_htim = NULL;
     c.bl_tim_channel = 0;
 
     if (cfg) c = *cfg;
     lcd->cfg = c;
     lcd->inited = false;
+    lcd->frame_blocked = false;
+    lcd->last_frame_ms = 0;
+    lcd->framebuffer_enabled = lcd->cfg.use_framebuffer;
+    lcd->fb_front = NULL;
+    lcd->fb_back = NULL;
+
+    if (lcd->framebuffer_enabled)
+    {
+        lcd->cfg.color_mode = ST7789_COLOR_MODE_RGB565;
+        lcd->fb_front = st7789_fb0;
+        lcd->fb_back = st7789_fb1;
+        memset(st7789_fb0, 0, sizeof(st7789_fb0));
+        memset(st7789_fb1, 0, sizeof(st7789_fb1));
+    }
 
     st7789_gpio_init();
+    if (lcd->cfg.bl_htim == NULL)
+    {
+        st7789_backlight_tim12_init();
+        lcd->cfg.bl_htim = &st7789_bl_htim12;
+        lcd->cfg.bl_tim_channel = TIM_CHANNEL_1;
+    }
+    else
+    {
+        st7789_backlight_gpio_init_off();
+    }
 
     st7789_write_cmd(lcd, ST7789_CMD_SWRESET);
     HAL_Delay(150);
@@ -359,12 +537,24 @@ void ST7789_Init(ST7789_Handle* lcd, const ST7789_Config* cfg)
 void ST7789_FillScreen(ST7789_Handle* lcd, uint32_t rgb888)
 {
     if (!lcd || !lcd->inited) return;
+    if (lcd->frame_blocked) return;
+    if (lcd->framebuffer_enabled)
+    {
+        st7789_fb_clear(lcd, rgb888);
+        return;
+    }
     ST7789_FillRect(lcd, 0, 0, st7789_width(lcd), st7789_height(lcd), rgb888);
 }
 
 void ST7789_FillRect(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t rgb888)
 {
     if (!lcd || !lcd->inited) return;
+    if (lcd->frame_blocked) return;
+    if (lcd->framebuffer_enabled)
+    {
+        st7789_fb_fill_rect(lcd, x, y, w, h, rgb888);
+        return;
+    }
     if (w == 0 || h == 0) return;
     if (x >= st7789_width(lcd) || y >= st7789_height(lcd)) return;
 
@@ -383,6 +573,12 @@ void ST7789_FillRect(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uin
 void ST7789_DrawPixel(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint32_t rgb888)
 {
     if (!lcd || !lcd->inited) return;
+    if (lcd->frame_blocked) return;
+    if (lcd->framebuffer_enabled)
+    {
+        st7789_fb_put_pixel(lcd, x, y, rgb888);
+        return;
+    }
     if (x >= st7789_width(lcd) || y >= st7789_height(lcd)) return;
 
     st7789_set_address_window(lcd, x, y, x, y);
@@ -395,6 +591,7 @@ static int st7789_abs_i(int v) { return (v < 0) ? -v : v; }
 void ST7789_DrawLine(ST7789_Handle* lcd, int x0, int y0, int x1, int y1, uint32_t rgb888)
 {
     if (!lcd || !lcd->inited) return;
+    if (lcd->frame_blocked) return;
 
     int dx = st7789_abs_i(x1 - x0);
     int sx = (x0 < x1) ? 1 : -1;
@@ -418,6 +615,7 @@ void ST7789_DrawLine(ST7789_Handle* lcd, int x0, int y0, int x1, int y1, uint32_
 void ST7789_DrawRect(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t rgb888)
 {
     if (!lcd || !lcd->inited) return;
+    if (lcd->frame_blocked) return;
     if (w == 0 || h == 0) return;
 
     ST7789_DrawLine(lcd, x, y, (int)(x + w - 1u), y, rgb888);
@@ -429,6 +627,7 @@ void ST7789_DrawRect(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uin
 void ST7789_DrawCircle(ST7789_Handle* lcd, int x0, int y0, int r, uint32_t rgb888)
 {
     if (!lcd || !lcd->inited) return;
+    if (lcd->frame_blocked) return;
     if (r <= 0) return;
 
     int x = r;
@@ -455,6 +654,7 @@ void ST7789_DrawCircle(ST7789_Handle* lcd, int x0, int y0, int r, uint32_t rgb88
 void ST7789_FillCircle(ST7789_Handle* lcd, int x0, int y0, int r, uint32_t rgb888)
 {
     if (!lcd || !lcd->inited) return;
+    if (lcd->frame_blocked) return;
     if (r <= 0) return;
 
     int x = r;
@@ -504,6 +704,7 @@ static const uint8_t st7789_font5x7[95][5] = {
 void ST7789_DrawChar(ST7789_Handle* lcd, uint16_t x, uint16_t y, char c, uint32_t fg_rgb888, uint32_t bg_rgb888, uint8_t scale)
 {
     if (!lcd || !lcd->inited) return;
+    if (lcd->frame_blocked) return;
     if (scale == 0) scale = 1;
 
     if (c < 32 || c > 126) c = '?';
@@ -531,6 +732,7 @@ void ST7789_DrawChar(ST7789_Handle* lcd, uint16_t x, uint16_t y, char c, uint32_
 void ST7789_DrawString(ST7789_Handle* lcd, uint16_t x, uint16_t y, const char* s, uint32_t fg_rgb888, uint32_t bg_rgb888, uint8_t scale)
 {
     if (!lcd || !lcd->inited || !s) return;
+    if (lcd->frame_blocked) return;
     if (scale == 0) scale = 1;
 
     uint16_t cx = x;
@@ -573,6 +775,7 @@ static uint16_t st7789_min_u16(uint16_t a, uint16_t b)
 void ST7789_DrawBitmap(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h, const void* pixels, ST7789_BitmapFormat format, uint32_t stride_bytes)
 {
     if (!lcd || !lcd->inited || !pixels) return;
+    if (lcd->frame_blocked) return;
     if (w == 0 || h == 0) return;
     if (x >= st7789_width(lcd) || y >= st7789_height(lcd)) return;
 
@@ -596,6 +799,46 @@ void ST7789_DrawBitmap(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, u
             default:
                 return;
         }
+    }
+
+    if (lcd->framebuffer_enabled)
+    {
+        const uint8_t* src = (const uint8_t*)pixels;
+        for (uint16_t row = 0; row < draw_h; row++)
+        {
+            const uint8_t* row_ptr = src + (size_t)row * (size_t)stride_bytes;
+            for (uint16_t col = 0; col < draw_w; col++)
+            {
+                uint16_t c565 = 0;
+                uint32_t rgb = 0;
+                switch (format)
+                {
+                    case ST7789_BITMAP_RGB565_BE:
+                        c565 = (uint16_t)(((uint16_t)row_ptr[col * 2u] << 8) | (uint16_t)row_ptr[col * 2u + 1u]);
+                        break;
+                    case ST7789_BITMAP_RGB565_LE:
+                        c565 = (uint16_t)(((uint16_t)row_ptr[col * 2u + 1u] << 8) | (uint16_t)row_ptr[col * 2u]);
+                        break;
+                    case ST7789_BITMAP_RGB888:
+                        rgb = ((uint32_t)row_ptr[col * 3u] << 16) | ((uint32_t)row_ptr[col * 3u + 1u] << 8) | (uint32_t)row_ptr[col * 3u + 2u];
+                        c565 = st7789_rgb888_to_565(rgb);
+                        break;
+                    case ST7789_BITMAP_ARGB8888:
+                        rgb = ((uint32_t)row_ptr[col * 4u + 1u] << 16) | ((uint32_t)row_ptr[col * 4u + 2u] << 8) | (uint32_t)row_ptr[col * 4u + 3u];
+                        c565 = st7789_rgb888_to_565(rgb);
+                        break;
+                    default:
+                        return;
+                }
+                uint16_t px = (uint16_t)(x + col);
+                uint16_t py = (uint16_t)(y + row);
+                if (px < ST7789_WIDTH && py < ST7789_HEIGHT)
+                {
+                    lcd->fb_back[st7789_fb_index(px, py)] = c565;
+                }
+            }
+        }
+        return;
     }
 
     st7789_set_address_window(lcd, x, y, (uint16_t)(x + draw_w - 1u), (uint16_t)(y + draw_h - 1u));
@@ -694,6 +937,7 @@ void ST7789_DrawBitmap(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, u
 void ST7789_DrawBitmap1BPP(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t* bits, uint32_t stride_bytes, uint32_t fg_rgb888, uint32_t bg_rgb888)
 {
     if (!lcd || !lcd->inited || !bits) return;
+    if (lcd->frame_blocked) return;
     if (w == 0 || h == 0) return;
     if (x >= st7789_width(lcd) || y >= st7789_height(lcd)) return;
 
@@ -703,6 +947,29 @@ void ST7789_DrawBitmap1BPP(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t 
     if (stride_bytes == 0)
     {
         stride_bytes = ((uint32_t)w + 7u) / 8u;
+    }
+
+    if (lcd->framebuffer_enabled)
+    {
+        uint16_t fg565 = st7789_rgb888_to_565(fg_rgb888);
+        uint16_t bg565 = st7789_rgb888_to_565(bg_rgb888);
+        for (uint16_t row = 0; row < draw_h; row++)
+        {
+            const uint8_t* row_ptr = bits + (size_t)row * (size_t)stride_bytes;
+            for (uint16_t col = 0; col < draw_w; col++)
+            {
+                uint8_t byte = row_ptr[col >> 3];
+                uint8_t bit = (uint8_t)((byte >> (7u - (col & 7u))) & 0x01u);
+                uint16_t c = bit ? fg565 : bg565;
+                uint16_t px = (uint16_t)(x + col);
+                uint16_t py = (uint16_t)(y + row);
+                if (px < ST7789_WIDTH && py < ST7789_HEIGHT)
+                {
+                    lcd->fb_back[st7789_fb_index(px, py)] = c;
+                }
+            }
+        }
+        return;
     }
 
     st7789_set_address_window(lcd, x, y, (uint16_t)(x + draw_w - 1u), (uint16_t)(y + draw_h - 1u));

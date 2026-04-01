@@ -28,6 +28,8 @@ extern "C" {
 #define ST7789_BL_PORT  GPIOH
 #define ST7789_BL_PIN   GPIO_PIN_6
 
+#define ST7789_DEFAULT_FPS 12u
+
 typedef enum
 {
     ST7789_COLOR_MODE_RGB565 = 0,
@@ -51,6 +53,8 @@ typedef struct
     ST7789_ColorMode color_mode;
     ST7789_Rotation rotation;
     bool invert;
+    uint8_t fps;
+    bool use_framebuffer;
 
     TIM_HandleTypeDef* bl_htim;
     uint32_t bl_tim_channel;
@@ -60,6 +64,11 @@ typedef struct
 {
     ST7789_Config cfg;
     bool inited;
+    bool frame_blocked;
+    uint32_t last_frame_ms;
+    bool framebuffer_enabled;
+    uint16_t* fb_front;
+    uint16_t* fb_back;
 } ST7789_Handle;
 
 typedef enum
@@ -74,6 +83,9 @@ uint32_t ST7789_RGB(uint8_t r, uint8_t g, uint8_t b);
 
 void ST7789_Init(ST7789_Handle* lcd, const ST7789_Config* cfg);
 bool ST7789_IsInited(const ST7789_Handle* lcd);
+bool ST7789_IsFrameBlocked(const ST7789_Handle* lcd);
+bool ST7789_FrameBegin(ST7789_Handle* lcd);
+void ST7789_FrameEnd(ST7789_Handle* lcd);
 
 void ST7789_AttachBacklightPWM(ST7789_Handle* lcd, TIM_HandleTypeDef* htim, uint32_t channel);
 

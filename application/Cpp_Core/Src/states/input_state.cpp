@@ -12,6 +12,7 @@
 #include "gpdriver.hpp"
 #include "system_logger.h"
 #include "latency_monitor.hpp"
+#include "tests/st7789_test.hpp"
 
 void InputState::setup()
 {
@@ -68,6 +69,7 @@ void InputState::setup()
     ADC_BTNS_WORKER.setup();
     GPIO_BTNS_WORKER.setup();
     GAMEPAD.setup();
+    ST7789Test::setup();
 
 #if HAS_LED == 1
     LOG_DEBUG("INPUT", "Initializing LED manager");
@@ -82,6 +84,7 @@ void InputState::setup()
 
 void InputState::loop()
 {
+    ST7789Test::loop();
 
     // 检查采样是否完成 (由SOF触发)
     if (ADCManager::getInstance().isSamplingDone())
