@@ -455,17 +455,18 @@ void ST7789_SetBacklight(ST7789_Handle* lcd, uint8_t percent)
 {
     if (!lcd) return;
     if (percent > 100) percent = 100;
+    uint8_t hwPercent = (uint8_t)(100u - percent);
 
     if (lcd->cfg.bl_htim)
     {
         uint32_t arr = __HAL_TIM_GET_AUTORELOAD(lcd->cfg.bl_htim);
-        uint32_t ccr = (arr * (uint32_t)percent) / 100u;
+        uint32_t ccr = (arr * (uint32_t)hwPercent) / 100u;
         __HAL_TIM_SET_COMPARE(lcd->cfg.bl_htim, lcd->cfg.bl_tim_channel, ccr);
         (void)HAL_TIM_PWM_Start(lcd->cfg.bl_htim, lcd->cfg.bl_tim_channel);
         return;
     }
 
-    st7789_gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, (percent == 0) ? GPIO_PIN_RESET : GPIO_PIN_SET);
+    st7789_gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, (percent == 0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 
 void ST7789_Init(ST7789_Handle* lcd, const ST7789_Config* cfg)
@@ -701,6 +702,20 @@ static const uint8_t st7789_font5x7[95][5] = {
     {0x00,0x00,0x7F,0x00,0x00},{0x00,0x41,0x36,0x08,0x00},{0x10,0x08,0x08,0x10,0x08}
 };
 
+static uint16_t st7789_char_cell_w(uint8_t scale)
+{
+    if (scale == 0) scale = 1;
+    if (scale == 3) return 9;
+    return (uint16_t)(6u * scale);
+}
+
+static uint16_t st7789_char_cell_h(uint8_t scale)
+{
+    if (scale == 0) scale = 1;
+    if (scale == 3) return 12;
+    return (uint16_t)(8u * scale);
+}
+
 void ST7789_DrawChar(ST7789_Handle* lcd, uint16_t x, uint16_t y, char c, uint32_t fg_rgb888, uint32_t bg_rgb888, uint8_t scale)
 {
     if (!lcd || !lcd->inited) return;
@@ -710,10 +725,29 @@ void ST7789_DrawChar(ST7789_Handle* lcd, uint16_t x, uint16_t y, char c, uint32_
     if (c < 32 || c > 126) c = '?';
     const uint8_t* glyph = st7789_font5x7[(uint8_t)(c - 32)];
 
-    uint16_t w = (uint16_t)(6u * scale);
-    uint16_t h = (uint16_t)(8u * scale);
+    uint16_t w = st7789_char_cell_w(scale);
+    uint16_t h = st7789_char_cell_h(scale);
 
     ST7789_FillRect(lcd, x, y, w, h, bg_rgb888);
+
+    if (scale == 3)
+    {
+        for (uint8_t dy = 0; dy < 12u; dy++)
+        {
+            uint8_t sy = (uint8_t)(((uint16_t)dy * 2u) / 3u);
+            if (sy >= 7u) continue;
+            for (uint8_t dx = 0; dx < 9u; dx++)
+            {
+                uint8_t sx = (uint8_t)(((uint16_t)dx * 2u) / 3u);
+                if (sx >= 5u) continue;
+                if (glyph[sx] & (uint8_t)(1u << sy))
+                {
+                    ST7789_DrawPixel(lcd, (uint16_t)(x + dx), (uint16_t)(y + dy), fg_rgb888);
+                }
+            }
+        }
+        return;
+    }
 
     for (uint8_t col = 0; col < 5; col++)
     {
@@ -738,8 +772,8 @@ void ST7789_DrawString(ST7789_Handle* lcd, uint16_t x, uint16_t y, const char* s
     uint16_t cx = x;
     uint16_t cy = y;
 
-    uint16_t step_x = (uint16_t)(6u * scale);
-    uint16_t step_y = (uint16_t)(8u * scale);
+    uint16_t step_x = st7789_char_cell_w(scale);
+    uint16_t step_y = st7789_char_cell_h(scale);
 
     while (*s)
     {

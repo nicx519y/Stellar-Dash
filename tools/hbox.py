@@ -20,6 +20,7 @@ HBox 工具统一入口（tools/hbox.py）
 2) flash
   - bootloader
   - app A|B
+  - code A|B
   - appAll A|B
   - assets
 
@@ -33,6 +34,8 @@ HBox 工具统一入口（tools/hbox.py）
   python tools/hbox.py build assets
   python tools/hbox.py build appAll A
   python tools/hbox.py flash appAll A
+  python tools/hbox.py flash code A
+  python tools/hbox.py flash appAll A --code-only
   python tools/hbox.py release auto --version 1.0.0
   python tools/hbox.py release flash 0.0.1_a --slot A
   python tools/hbox.py web dev
@@ -153,8 +156,9 @@ def main(argv: list[str]) -> int:
     p_build.add_argument("slot", nargs="?", choices=["A", "B"])
 
     p_flash = subparsers.add_parser("flash", help="烧录相关")
-    p_flash.add_argument("target", choices=["bootloader", "app", "appAll", "assets", "sysbg"])
+    p_flash.add_argument("target", choices=["bootloader", "app", "code", "appAll", "assets", "sysbg"])
     p_flash.add_argument("slot", nargs="?", choices=["A", "B"])
+    p_flash.add_argument("--code-only", action="store_true", help="仅烧录代码（app），不烧录资源")
 
     p_release = subparsers.add_parser("release", help="发版相关")
     p_release.add_argument("target", choices=["auto", "flash"])
@@ -205,10 +209,17 @@ def main(argv: list[str]) -> int:
                 print("错误: flash app 需要指定槽位 A 或 B")
                 return 2
             return _run_python_tool("build.py", ["flash", "app", args.slot])
+        if args.target == "code":
+            if not args.slot:
+                print("错误: flash code 需要指定槽位 A 或 B")
+                return 2
+            return _run_python_tool("build.py", ["flash", "app", args.slot])
         if args.target == "appAll":
             if not args.slot:
                 print("错误: flash appAll 需要指定槽位 A 或 B")
                 return 2
+            if args.code_only:
+                return _run_python_tool("build.py", ["flash", "app", args.slot])
             return _run_python_tool("build.py", ["flash", "all", args.slot])
 
     if args.cmd == "release":

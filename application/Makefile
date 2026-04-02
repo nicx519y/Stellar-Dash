@@ -84,6 +84,7 @@ Cpp_Core/Src/adc_btns \
 Cpp_Core/Src/gpio_btns \
 Cpp_Core/Src/leds \
 Cpp_Core/Src/firmware \
+Cpp_Core/Src/screen_control \
 Libs/CRC32/src \
 Libs/httpd
 
@@ -124,6 +125,7 @@ C_INCLUDES += \
 -ICpp_Core/Inc/enums \
 -ICpp_Core/Inc/constants \
 -ICpp_Core/Inc/firmware \
+-ICpp_Core/Inc/screen_control \
 -IDrivers \
 -IDrivers/QSPI-W25Q64 \
 -IDrivers/USART \
