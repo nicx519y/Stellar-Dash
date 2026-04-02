@@ -23,15 +23,20 @@ extern "C" {
 #endif
 
 #ifndef ROTENC_STEPS_PER_DETENT
-#define ROTENC_STEPS_PER_DETENT 4
+#define ROTENC_STEPS_PER_DETENT 2
 #endif
 
 #ifndef ROTENC_LONG_PRESS_MS
 #define ROTENC_LONG_PRESS_MS 1000u
 #endif
 
+#ifndef ROTENC_DEBUG_PRINT
+#define ROTENC_DEBUG_PRINT 1
+#endif
+
 void RotEnc_Init(void);
 void RotEnc_Update(void);
+void RotEnc_OnEdgeIRQ(void);
 
 int16_t RotEnc_GetDelta(void);
 int8_t RotEnc_GetDetentDelta(void);

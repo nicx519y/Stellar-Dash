@@ -26,6 +26,7 @@
 #include "board_cfg.h"
 #include "usbh.h"
 #include "system_logger.h"
+#include "rotary-encoder.h"
 #include <stdio.h>
 /* USER CODE END Includes */
 
@@ -376,6 +377,20 @@ void DMA1_Stream2_IRQHandler(void)
   /* USER CODE BEGIN DMA1_Stream2_IRQn 1 */
 
   /* USER CODE END DMA1_Stream2_IRQn 1 */
+}
+
+/**
+  * @brief This function handles EXTI line[9:5] interrupts.
+  */
+void EXTI9_5_IRQHandler(void)
+{
+  if (__HAL_GPIO_EXTI_GET_IT(ROTENC_A_PIN) != RESET) {
+    __HAL_GPIO_EXTI_CLEAR_IT(ROTENC_A_PIN);
+  }
+  if (__HAL_GPIO_EXTI_GET_IT(ROTENC_B_PIN) != RESET) {
+    __HAL_GPIO_EXTI_CLEAR_IT(ROTENC_B_PIN);
+  }
+  RotEnc_OnEdgeIRQ();
 }
 
 /**

@@ -24,7 +24,6 @@ private:
     void rebuildMenu();
     void renderFrame();
     void renderBars();
-    void renderList();
     void beginAnimation(int dir);
 
     uint8_t menuCount = 0;
