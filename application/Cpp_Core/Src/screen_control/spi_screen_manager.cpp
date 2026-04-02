@@ -6,6 +6,7 @@
 
 extern "C" {
 #include "st7789.h"
+#include "rotary-encoder.h"
 }
 
 extern "C" uint32_t HAL_GetTick(void);
@@ -16,11 +17,25 @@ extern "C" uint32_t HAL_GetTick(void);
 #define SPI_SCREEN_STATUS_BAR_TEXT_SCALE 2u
 #define SPI_SCREEN_MENU_TEXT_SCALE 2u
 #define SPI_SCREEN_MENU_ITEM_H 34u
+#define SPI_SCREEN_OK_FLASH_MS 200u
 
 static ST7789_Handle g_lcd;
 static bool g_inited = false;
+static uint32_t g_okFlashUntilMs = 0;
+static uint32_t g_cfgBg = 0;
+static uint32_t g_cfgText = 0;
+static uint32_t g_cfgSelBg = 0;
+static uint32_t g_cfgOkBg = 0;
+static uint8_t g_cfgBrightness = 100;
+static uint32_t g_cfgFeaturesMask = 0;
+static uint8_t g_cfgFeaturesOrder[SCREEN_FEATURE_COUNT] = {0};
+static bool g_menuCfgDirty = true;
 
 static uint32_t rgb888(uint32_t v) { return v & 0x00FFFFFFu; }
+
+static bool ok_flash_active(void) {
+    return (uint32_t)(HAL_GetTick() - g_okFlashUntilMs) > 0x80000000u ? false : (HAL_GetTick() < g_okFlashUntilMs);
+}
 
 static uint32_t blend_to_white(uint32_t rgb, uint8_t alpha255) {
     uint32_t r = (rgb >> 16) & 0xFFu;
@@ -32,6 +47,54 @@ static uint32_t blend_to_white(uint32_t rgb, uint8_t alpha255) {
     b = b + ((255u - b) * alpha255) / 255u;
 
     return (r << 16) | (g << 8) | b;
+}
+
+static uint32_t blend_to_black(uint32_t rgb, uint8_t alpha255) {
+    uint32_t r = (rgb >> 16) & 0xFFu;
+    uint32_t g = (rgb >> 8) & 0xFFu;
+    uint32_t b = rgb & 0xFFu;
+
+    r = (r * (255u - alpha255)) / 255u;
+    g = (g * (255u - alpha255)) / 255u;
+    b = (b * (255u - alpha255)) / 255u;
+
+    return (r << 16) | (g << 8) | b;
+}
+
+static uint32_t luma8(uint32_t rgb) {
+    uint32_t r = (rgb >> 16) & 0xFFu;
+    uint32_t g = (rgb >> 8) & 0xFFu;
+    uint32_t b = rgb & 0xFFu;
+    return (uint32_t)((r * 54u + g * 183u + b * 19u) >> 8);
+}
+
+static uint32_t highlight_from_bg(uint32_t bg, uint8_t amount) {
+    return (luma8(bg) < 128u) ? blend_to_white(bg, amount) : blend_to_black(bg, amount);
+}
+
+static uint8_t clamp_brightness(uint8_t v) {
+    return (v > 100) ? 100 : v;
+}
+
+static void refresh_screen_cfg_cache(void) {
+    const ScreenControlConfig& sc = STORAGE_MANAGER.config.screenControl;
+
+    uint32_t bg = rgb888(sc.backgroundColor);
+    uint32_t text = rgb888(sc.textColor);
+    if (bg != g_cfgBg || text != g_cfgText) {
+        g_cfgBg = bg;
+        g_cfgText = text;
+        g_cfgSelBg = highlight_from_bg(bg, 32u);
+        g_cfgOkBg = highlight_from_bg(bg, 64u);
+    }
+
+    g_cfgBrightness = clamp_brightness(sc.brightness);
+
+    if (sc.featuresMask != g_cfgFeaturesMask || memcmp(sc.featuresOrder, g_cfgFeaturesOrder, sizeof(g_cfgFeaturesOrder)) != 0) {
+        g_cfgFeaturesMask = sc.featuresMask;
+        memcpy(g_cfgFeaturesOrder, sc.featuresOrder, sizeof(g_cfgFeaturesOrder));
+        g_menuCfgDirty = true;
+    }
 }
 
 static uint16_t char_cell_w(uint8_t scale) {
@@ -151,12 +214,19 @@ void SPIScreenManager::setup() {
     cfg.bl_tim_channel = 0;
     ST7789_Init(&g_lcd, &cfg);
     g_inited = true;
+    g_okFlashUntilMs = 0;
 
-    rebuildMenu();
+    RotEnc_Init();
+
+    refresh_screen_cfg_cache();
+    if (g_menuCfgDirty) {
+        rebuildMenu();
+        g_menuCfgDirty = false;
+    }
 
     ST7789_FrameBegin(&g_lcd);
-    ST7789_SetBacklight(&g_lcd, 100);
-    ST7789_FillScreen(&g_lcd, rgb888(STORAGE_MANAGER.config.screenControl.backgroundColor));
+    ST7789_SetBacklight(&g_lcd, g_cfgBrightness);
+    ST7789_FillScreen(&g_lcd, g_cfgBg);
     renderFrame();
     ST7789_FrameEnd(&g_lcd);
 }
@@ -208,7 +278,23 @@ void SPIScreenManager::menuNext() {
 
 void SPIScreenManager::loop() {
     if (!g_inited) return;
+
+    RotEnc_Update();
+    int8_t det = RotEnc_GetDetentDelta();
+    while (det > 0) { menuNext(); det--; }
+    while (det < 0) { menuPrev(); det++; }
+
+    if (RotEnc_WasButtonPressed()) {
+        g_okFlashUntilMs = HAL_GetTick() + SPI_SCREEN_OK_FLASH_MS;
+    }
+
     if (!ST7789_FrameBegin(&g_lcd)) return;
+
+    refresh_screen_cfg_cache();
+    if (g_menuCfgDirty) {
+        rebuildMenu();
+        g_menuCfgDirty = false;
+    }
 
     uint32_t nowMs = HAL_GetTick();
     if (animActive) {
@@ -221,10 +307,8 @@ void SPIScreenManager::loop() {
         }
     }
 
-    uint8_t brightness = STORAGE_MANAGER.config.screenControl.brightness;
-    if (brightness > 100) brightness = 100;
-    ST7789_SetBacklight(&g_lcd, brightness);
-    ST7789_FillScreen(&g_lcd, rgb888(STORAGE_MANAGER.config.screenControl.backgroundColor));
+    ST7789_SetBacklight(&g_lcd, g_cfgBrightness);
+    ST7789_FillScreen(&g_lcd, g_cfgBg);
     renderFrame();
     ST7789_FrameEnd(&g_lcd);
 }
@@ -240,8 +324,8 @@ void SPIScreenManager::renderBars() {
     const uint16_t leftW = SPI_SCREEN_LEFT_BAR_W;
     const uint16_t rightW = SPI_SCREEN_RIGHT_BAR_W;
     const uint16_t rightX = (uint16_t)(w - rightW);
-    const uint32_t barBg = rgb888(STORAGE_MANAGER.config.screenControl.backgroundColor);
-    const uint32_t textColor = rgb888(STORAGE_MANAGER.config.screenControl.textColor);
+    const uint32_t barBg = g_cfgBg;
+    const uint32_t textColor = g_cfgText;
 
     ST7789_FillRect(&g_lcd, 0, 0, leftW, h, barBg);
     ST7789_FillRect(&g_lcd, rightX, 0, rightW, h, barBg);
@@ -259,7 +343,8 @@ void SPIScreenManager::renderBars() {
     const uint16_t botH = (uint16_t)(h - botY);
 
     if (prev && prev->label) draw_string_centered_in_box(rightX, topY, rightW, areaH, prev->label, textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
-    draw_string_centered_in_box(rightX, midY, rightW, areaH, "OK", textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
+    const uint32_t okBg = ok_flash_active() ? g_cfgOkBg : barBg;
+    draw_string_centered_in_box(rightX, midY, rightW, areaH, "OK", textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
     if (next && next->label) draw_string_centered_in_box(rightX, botY, rightW, botH, next->label, textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
 }
 
@@ -273,9 +358,9 @@ void SPIScreenManager::renderList() {
     const uint16_t itemH = SPI_SCREEN_MENU_ITEM_H;
     const uint16_t centerY = (uint16_t)(h / 2u);
     const uint16_t anchorY = (uint16_t)(centerY - itemH / 2u);
-    const uint32_t textColor = rgb888(STORAGE_MANAGER.config.screenControl.textColor);
-    const uint32_t bg = rgb888(STORAGE_MANAGER.config.screenControl.backgroundColor);
-    const uint32_t selBg = blend_to_white(bg, 32u);
+    const uint32_t textColor = g_cfgText;
+    const uint32_t bg = g_cfgBg;
+    const uint32_t selBg = g_cfgSelBg;
 
     int offsetPx = 0;
     if (animActive) {
