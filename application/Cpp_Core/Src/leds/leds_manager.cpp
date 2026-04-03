@@ -10,6 +10,10 @@
 #define LEDS_ANIMATION_CYCLE 10000  // 10秒周期
 #endif
 
+static void on_default_profile_changed_leds(void) {
+    LEDsManager::getInstance().refreshDefaultProfile();
+}
+
 
 LEDsManager::LEDsManager()
 {
@@ -45,6 +49,8 @@ LEDsManager::LEDsManager()
     // 初始化震荡动画状态
     lastQuakeTriggerTime = 0;
     lastButtonPressTime = 0;
+
+    STORAGE_MANAGER.registerDefaultProfileChangedCallback(on_default_profile_changed_leds);
 };
 
 void LEDsManager::setup()
@@ -95,6 +101,25 @@ void LEDsManager::setup()
         }
     }
 
+}
+
+void LEDsManager::refreshDefaultProfile()
+{
+    if (usingTemporaryConfig) return;
+
+    opts = &STORAGE_MANAGER.getDefaultGamepadProfile()->ledsConfigs;
+    const bool* enabledKeys = STORAGE_MANAGER.getDefaultGamepadProfile()->keysConfig.keysEnableTag;
+    enabledKeysMask = 0;
+    for(uint8_t i = 0; i < 32; i++) {
+        if(i < NUM_ADC_BUTTONS) {
+            enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
+        } else {
+            enabledKeysMask |= (1 << i);
+        }
+    }
+
+    deinit();
+    setup();
 }
 
 /**

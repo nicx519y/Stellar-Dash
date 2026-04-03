@@ -65,4 +65,7 @@ void ScreenDetailTournament_Rotate(uint8_t* ioIndex, int8_t det);
 void ScreenDetailTournament_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style);
 void ScreenDetailTournament_OnConfirm(uint8_t index);
 
+void ScreenUI_RequestDeferredSave(uint32_t delayMs);
+void ScreenUI_RequestRebootTo(uint8_t menuId, uint8_t index);
+
 #endif

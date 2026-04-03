@@ -1,5 +1,6 @@
 #include "screen_control/spi_screen_detail_entries.hpp"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "storagemanager.hpp"
@@ -8,20 +9,28 @@
 static const uint8_t kMaxProfileLabels = 16;
 static char g_profileLabels[kMaxProfileLabels][32];
 static const char* g_profilePtrs[kMaxProfileLabels];
+static uint8_t g_enabledProfileIdx[kMaxProfileLabels];
 
-static uint8_t profile_count(void) {
+static uint8_t build_enabled_profile_map(void) {
+    uint8_t out = 0;
     uint8_t cnt = STORAGE_MANAGER.config.numProfilesMax;
-    if (cnt > kMaxProfileLabels) cnt = kMaxProfileLabels;
-    return cnt;
+    if (cnt > NUM_PROFILES) cnt = NUM_PROFILES;
+    for (uint8_t i = 0; i < cnt; i++) {
+        if (!STORAGE_MANAGER.config.profiles[i].enabled) continue;
+        if (out >= kMaxProfileLabels) break;
+        g_enabledProfileIdx[out++] = i;
+    }
+    return out;
 }
 
-static void rebuild_profile_labels(uint8_t count) {
-    for (uint8_t i = 0; i < count; i++) {
-        const char* n = STORAGE_MANAGER.config.profiles[i].name;
-        const char* id = STORAGE_MANAGER.config.profiles[i].id;
+static void rebuild_profile_labels(uint8_t enabledCount) {
+    for (uint8_t i = 0; i < enabledCount; i++) {
+        uint8_t pi = g_enabledProfileIdx[i];
+        const char* n = STORAGE_MANAGER.config.profiles[pi].name;
+        const char* id = STORAGE_MANAGER.config.profiles[pi].id;
         g_profileLabels[i][0] = '\0';
-        if (n && n[0] != '\0') strncpy(g_profileLabels[i], n, sizeof(g_profileLabels[i]) - 1);
-        else if (id && id[0] != '\0') strncpy(g_profileLabels[i], id, sizeof(g_profileLabels[i]) - 1);
+        const char* shown = (n && n[0] != '\0') ? n : ((id && id[0] != '\0') ? id : "");
+        snprintf(g_profileLabels[i], sizeof(g_profileLabels[i]), "P%u - %s", (unsigned)(pi + 1u), shown);
         g_profileLabels[i][sizeof(g_profileLabels[i]) - 1] = '\0';
         g_profilePtrs[i] = g_profileLabels[i];
     }
@@ -29,16 +38,17 @@ static void rebuild_profile_labels(uint8_t count) {
 
 uint8_t ScreenDetailProfiles_InitIndex(void) {
     const char* current = STORAGE_MANAGER.config.defaultProfileId;
-    uint8_t count = profile_count();
+    uint8_t count = build_enabled_profile_map();
     for (uint8_t i = 0; i < count; i++) {
-        if (strcmp(STORAGE_MANAGER.config.profiles[i].id, current) == 0) return i;
+        uint8_t pi = g_enabledProfileIdx[i];
+        if (strcmp(STORAGE_MANAGER.config.profiles[pi].id, current) == 0) return i;
     }
     return 0;
 }
 
 void ScreenDetailProfiles_Rotate(uint8_t* ioIndex, int8_t det) {
     if (!ioIndex) return;
-    uint8_t count = profile_count();
+    uint8_t count = build_enabled_profile_map();
     if (count == 0) {
         *ioIndex = 0;
         return;
@@ -50,15 +60,15 @@ void ScreenDetailProfiles_Rotate(uint8_t* ioIndex, int8_t det) {
 }
 
 void ScreenDetailProfiles_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
-    uint8_t count = profile_count();
+    uint8_t count = build_enabled_profile_map();
     rebuild_profile_labels(count);
     uint8_t selected = ScreenDetailProfiles_InitIndex();
     ScreenDetailRender_List(lcd, "Profiles", g_profilePtrs, count, index, selected, style);
 }
 
 void ScreenDetailProfiles_OnConfirm(uint8_t index) {
-    uint8_t count = profile_count();
+    uint8_t count = build_enabled_profile_map();
     if (index >= count) return;
-    strncpy(STORAGE_MANAGER.config.defaultProfileId, STORAGE_MANAGER.config.profiles[index].id, sizeof(STORAGE_MANAGER.config.defaultProfileId) - 1);
-    STORAGE_MANAGER.config.defaultProfileId[sizeof(STORAGE_MANAGER.config.defaultProfileId) - 1] = '\0';
+    uint8_t pi = g_enabledProfileIdx[index];
+    STORAGE_MANAGER.setDefaultProfileId(STORAGE_MANAGER.config.profiles[pi].id);
 }

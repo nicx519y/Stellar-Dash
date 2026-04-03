@@ -64,9 +64,9 @@ bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
         case 2: ScreenDetailSocd_OnConfirm(index); return true;
         case 5: ScreenDetailLightEffect_OnConfirm(index); return true;
         case 7: ScreenDetailAmbientEffect_OnConfirm(index); return true;
-        case 4: ScreenDetailLightBrightness_OnConfirm(index); return true;
-        case 6: ScreenDetailAmbientBrightness_OnConfirm(index); return true;
-        case 8: ScreenDetailScreenBrightness_OnConfirm(index); return true;
+        case 4: ScreenDetailLightBrightness_OnConfirm(index); return false;
+        case 6: ScreenDetailAmbientBrightness_OnConfirm(index); return false;
+        case 8: ScreenDetailScreenBrightness_OnConfirm(index); return false;
         case 9: ScreenDetailWebConfig_OnConfirm(index); return true;
         case 10: ScreenDetailCalibration_OnConfirm(index); return true;
         case 3: ScreenDetailTournament_OnConfirm(index); return true;

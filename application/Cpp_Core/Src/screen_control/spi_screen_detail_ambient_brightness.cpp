@@ -1,5 +1,6 @@
 #include "screen_control/spi_screen_detail_entries.hpp"
 
+#include "leds/leds_manager.hpp"
 #include "storagemanager.hpp"
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
 
@@ -20,8 +21,16 @@ uint8_t ScreenDetailAmbientBrightness_InitIndex(void) {
 
 void ScreenDetailAmbientBrightness_Rotate(uint8_t* ioIndex, int8_t det) {
     if (!ioIndex) return;
+    uint8_t prev = *ioIndex;
     int32_t next = (int32_t)(*ioIndex) + (int32_t)det * SPI_SCREEN_SLIDER_STEP;
     *ioIndex = clamp_u8_i32(next, 0, 100);
+    if (*ioIndex == prev) return;
+
+    GamepadProfile* p = default_profile();
+    if (p) p->ledsConfigs.aroundLedBrightness = *ioIndex;
+    if (p && !p->ledsConfigs.aroundLedEnabled) LEDS_MANAGER.ambientLightEnableSwitch();
+    LEDS_MANAGER.setAmbientLightBrightness(*ioIndex);
+    ScreenUI_RequestDeferredSave(2000u);
 }
 
 void ScreenDetailAmbientBrightness_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
@@ -29,6 +38,7 @@ void ScreenDetailAmbientBrightness_Render(ST7789_Handle* lcd, uint8_t index, con
 }
 
 void ScreenDetailAmbientBrightness_OnConfirm(uint8_t index) {
-    GamepadProfile* p = default_profile();
-    if (p) p->ledsConfigs.aroundLedBrightness = index;
+    (void)index;
+    LEDS_MANAGER.ambientLightEnableSwitch();
+    ScreenUI_RequestDeferredSave(2000u);
 }

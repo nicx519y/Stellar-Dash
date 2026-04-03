@@ -15,8 +15,12 @@ uint8_t ScreenDetailScreenBrightness_InitIndex(void) {
 
 void ScreenDetailScreenBrightness_Rotate(uint8_t* ioIndex, int8_t det) {
     if (!ioIndex) return;
+    uint8_t prev = *ioIndex;
     int32_t next = (int32_t)(*ioIndex) + (int32_t)det * SPI_SCREEN_SLIDER_STEP;
     *ioIndex = clamp_u8_i32(next, 0, 100);
+    if (*ioIndex == prev) return;
+    STORAGE_MANAGER.config.screenControl.brightness = *ioIndex;
+    ScreenUI_RequestDeferredSave(2000u);
 }
 
 void ScreenDetailScreenBrightness_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
@@ -24,5 +28,10 @@ void ScreenDetailScreenBrightness_Render(ST7789_Handle* lcd, uint8_t index, cons
 }
 
 void ScreenDetailScreenBrightness_OnConfirm(uint8_t index) {
-    STORAGE_MANAGER.config.screenControl.brightness = index;
+    uint8_t current = STORAGE_MANAGER.config.screenControl.brightness;
+    uint8_t restore = index;
+    if (restore == 0) restore = 50;
+    if (current > 0) STORAGE_MANAGER.config.screenControl.brightness = 0;
+    else STORAGE_MANAGER.config.screenControl.brightness = restore;
+    ScreenUI_RequestDeferredSave(2000u);
 }

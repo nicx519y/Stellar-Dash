@@ -3,11 +3,34 @@
 #include "drivermanager.hpp"
 #include "micro_timer.hpp"
 
-
+static void on_default_profile_changed_gamepad(void) {
+    Gamepad::getInstance().refreshDefaultProfile();
+}
 
 Gamepad::Gamepad()
 {
 	options = Storage::getInstance().getDefaultGamepadProfile();
+    mapDpadUp = nullptr;
+    mapDpadDown = nullptr;
+    mapDpadLeft = nullptr;
+    mapDpadRight = nullptr;
+    mapButtonB1 = nullptr;
+    mapButtonB2 = nullptr;
+    mapButtonB3 = nullptr;
+    mapButtonB4 = nullptr;
+    mapButtonL1 = nullptr;
+    mapButtonR1 = nullptr;
+    mapButtonL2 = nullptr;
+    mapButtonR2 = nullptr;
+    mapButtonS1 = nullptr;
+    mapButtonS2 = nullptr;
+    mapButtonL3 = nullptr;
+    mapButtonR3 = nullptr;
+    mapButtonA1 = nullptr;
+    mapButtonA2 = nullptr;
+    mapButtonFn = nullptr;
+
+    Storage::getInstance().registerDefaultProfileChangedCallback(on_default_profile_changed_gamepad);
 }
 
 void Gamepad::setup()
@@ -376,6 +399,11 @@ void Gamepad::clearState()
 
 void Gamepad::setSOCDMode(SOCDMode socdMode) {
     options->keysConfig.socdMode = socdMode;
+}
+
+void Gamepad::refreshDefaultProfile() {
+    deinit();
+    setup();
 }
 
 

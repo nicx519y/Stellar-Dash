@@ -40,6 +40,7 @@ class Gamepad {
         }
 
         void setSOCDMode(SOCDMode socdMode);
+        void refreshDefaultProfile();
         const GamepadProfile* getOptions() const { return options; }
 
         /**

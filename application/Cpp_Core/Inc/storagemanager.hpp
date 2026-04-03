@@ -9,6 +9,8 @@ class ADCValuesMarker;
 
 class Storage {
 public:
+	using DefaultProfileChangedCallback = void (*)(void);
+
 	Storage(Storage const&) = delete;
 	void operator=(Storage const&) = delete;
 	
@@ -30,6 +32,8 @@ public:
 	GamepadProfile* getDefaultGamepadProfile() {
 		return getGamepadProfile(config.defaultProfileId);
 	}
+	bool setDefaultProfileId(const char* id);
+	void registerDefaultProfileChangedCallback(DefaultProfileChangedCallback cb);
 	GamepadHotkeyEntry* getGamepadHotkeyEntry() {
 		return config.hotkeys;
 	}

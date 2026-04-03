@@ -1374,7 +1374,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleCreateProfile(const WebS
         ConfigUtils::makeDefaultProfile(*targetProfile, targetProfile->id, true); // 启用配置文件 并且 初始化配置文件
         strncpy(targetProfile->name, nameItem->valuestring, sizeof(targetProfile->name) - 1); // 设置配置文件名称
         targetProfile->name[sizeof(targetProfile->name) - 1] = '\0';  // 确保字符串结束
-        strcpy(config.defaultProfileId, targetProfile->id); // 设置默认配置文件ID 为新创建的配置文件ID
+        STORAGE_MANAGER.setDefaultProfileId(targetProfile->id); // 设置默认配置文件ID 为新创建的配置文件ID
     } else {
         LOG_ERROR("WebSocket", "create_profile: Profile name not provided");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Profile name not provided");
@@ -1472,7 +1472,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleDeleteProfile(const WebS
     // 设置下一个启用的配置文件为默认配置文件
     for(uint8_t i = targetIndex; i >= 0; i --) {
         if(config.profiles[i].enabled) {
-            strcpy(config.defaultProfileId, config.profiles[i].id);
+            STORAGE_MANAGER.setDefaultProfileId(config.profiles[i].id);
             break;
         }
     }
@@ -1551,7 +1551,7 @@ WebSocketDownstreamMessage ProfileCommandHandler::handleSwitchDefaultProfile(con
         return create_error_response(request.getCid(), request.getCommand(), 1, "Cannot set disabled profile as default");
     }
 
-    strcpy(config.defaultProfileId, targetProfile->id);
+    STORAGE_MANAGER.setDefaultProfileId(targetProfile->id);
 
     // 保存配置
     if(!STORAGE_MANAGER.saveConfig()) {

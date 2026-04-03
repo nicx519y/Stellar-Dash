@@ -28,6 +28,7 @@ class LEDsManager {
         void brightnessUp();
         void brightnessDown();
         void enableSwitch();
+        void refreshDefaultProfile();
 
         void ambientLightEffectStyleNext();
         void ambientLightEffectStylePrev();

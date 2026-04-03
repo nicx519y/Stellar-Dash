@@ -58,12 +58,12 @@ export function ProfileSelect(
      */
     const validateProfileName = (name: string): [boolean, string] => {
 
-        if (/[!@#$%^&*()_+\[\]{}|;:'",.<>?/\\]/.test(name)) {
-            return [false, t.PROFILE_SELECT_VALIDATION_SPECIAL_CHARS];
-        }
-
         if (name.length > PROFILE_NAME_MAX_LENGTH || name.length < 1) {
             return [false, t.PROFILE_SELECT_VALIDATION_LENGTH.replace("{0}", name.length.toString())];
+        }
+
+        if (!/^[A-Za-z0-9]+$/.test(name)) {
+            return [false, t.PROFILE_SELECT_VALIDATION_SPECIAL_CHARS];
         }
 
         if (name === defaultProfile?.name) {

@@ -1,7 +1,9 @@
 #include "screen_control/spi_screen_manager.hpp"
 
+#include <stdio.h>
 #include <string.h>
 
+#include "stm32h7xx.h"
 #include "storagemanager.hpp"
 #include "screen_control/spi_screen_ui_common.hpp"
 #include "screen_control/spi_screen_layout.hpp"
@@ -29,9 +31,37 @@ static bool g_menuCfgDirty = true;
 static bool g_inDetail = false;
 static uint8_t g_detailMenuId = 0;
 static uint8_t g_detailIndex = 0;
+static bool g_deferredSavePending = false;
+static uint32_t g_deferredSaveDueMs = 0;
 
 static bool ok_flash_active(void) {
     return (uint32_t)(HAL_GetTick() - g_okFlashUntilMs) > 0x80000000u ? false : (HAL_GetTick() < g_okFlashUntilMs);
+}
+
+static bool tick_expired(uint32_t now, uint32_t due) {
+    return (int32_t)(now - due) >= 0;
+}
+
+static inline void bkp_write(uint32_t idx, uint32_t val) {
+    volatile uint32_t* base = &RTC->BKP0R;
+    base[idx] = val;
+}
+static inline uint32_t bkp_read(uint32_t idx) {
+    volatile uint32_t* base = &RTC->BKP0R;
+    return base[idx];
+}
+
+void ScreenUI_RequestRebootTo(uint8_t menuId, uint8_t index) {
+    bkp_write(0, 0x5343u);
+    bkp_write(1, (uint32_t)menuId);
+    bkp_write(2, (uint32_t)index);
+    STORAGE_MANAGER.saveConfig();
+    NVIC_SystemReset();
+}
+
+void ScreenUI_RequestDeferredSave(uint32_t delayMs) {
+    g_deferredSavePending = true;
+    g_deferredSaveDueMs = HAL_GetTick() + delayMs;
 }
 
 static uint8_t clamp_brightness(uint8_t v) {
@@ -88,6 +118,17 @@ void SPIScreenManager::setup() {
     RotEnc_Init();
 
     refresh_screen_cfg_cache();
+    uint32_t sig = bkp_read(0);
+    if (sig == 0x5343u) {
+        uint32_t mid = bkp_read(1);
+        uint32_t didx = bkp_read(2);
+        bkp_write(0, 0);
+        bkp_write(1, 0);
+        bkp_write(2, 0);
+        g_inDetail = true;
+        g_detailMenuId = (uint8_t)mid;
+        g_detailIndex = (uint8_t)didx;
+    }
     if (g_menuCfgDirty) {
         rebuildMenu();
         g_menuCfgDirty = false;
@@ -147,6 +188,11 @@ void SPIScreenManager::loop() {
     if (!g_inited) return;
 
     RotEnc_Update();
+    uint32_t nowMs = HAL_GetTick();
+    if (g_deferredSavePending && tick_expired(nowMs, g_deferredSaveDueMs)) {
+        g_deferredSavePending = false;
+        STORAGE_MANAGER.saveConfig();
+    }
 
     int8_t det = RotEnc_GetDetentDelta();
     if (g_inDetail) ScreenDetail_OnRotate(g_detailMenuId, &g_detailIndex, det);
@@ -169,8 +215,9 @@ void SPIScreenManager::loop() {
     if (RotEnc_WasButtonClicked()) {
         if (g_inDetail) {
             if (ScreenDetail_OnConfirm(g_detailMenuId, g_detailIndex)) STORAGE_MANAGER.saveConfig();
+            g_detailIndex = ScreenDetail_InitIndex(g_detailMenuId);
         } else if (menuCount > 0) enter_detail(menuIds[menuIndex]);
-        g_okFlashUntilMs = HAL_GetTick() + SPI_SCREEN_OK_FLASH_MS;
+        g_okFlashUntilMs = nowMs + SPI_SCREEN_OK_FLASH_MS;
     }
 
     if (!ST7789_FrameBegin(&g_lcd)) return;
@@ -211,7 +258,6 @@ void SPIScreenManager::renderBars() {
     ST7789_FillRect(&g_lcd, rightX, 0, rightW, h, barBg);
 
     const char* mode = ScreenMain_InputModeAbbrev(STORAGE_MANAGER.getInputMode());
-    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, 0, leftW, h, mode, textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
 
     const ScreenMenuMeta* prev = (menuIndex > 0) ? ScreenMain_FindMenuMeta(menuIds[menuIndex - 1]) : nullptr;
     const ScreenMenuMeta* next = (menuIndex + 1 < menuCount) ? ScreenMain_FindMenuMeta(menuIds[menuIndex + 1]) : nullptr;
@@ -222,11 +268,49 @@ void SPIScreenManager::renderBars() {
     const uint16_t botY = (uint16_t)(areaH * 2u);
     const uint16_t botH = (uint16_t)(h - botY);
 
+    const uint8_t tokenScale = SPI_SCREEN_STATUS_BAR_TEXT_SCALE;
+    const uint16_t tokenH = ScreenUI_CharCellH(tokenScale);
+    const uint16_t profileModeGap = 8u;
+    const uint16_t groupH = (uint16_t)(tokenH + profileModeGap + tokenH);
+    const uint16_t startY = (groupH < h) ? (uint16_t)((h - groupH) / 2u) : 0u;
+
+    uint8_t currentProfileIdx = 0xFF;
+    uint8_t count = STORAGE_MANAGER.config.numProfilesMax;
+    if (count > NUM_PROFILES) count = NUM_PROFILES;
+    for (uint8_t i = 0; i < count; i++) {
+        if (!STORAGE_MANAGER.config.profiles[i].enabled) continue;
+        if (strcmp(STORAGE_MANAGER.config.profiles[i].id, STORAGE_MANAGER.config.defaultProfileId) == 0) {
+            currentProfileIdx = i;
+            break;
+        }
+    }
+
+    char token[6] = "P?";
+    if (currentProfileIdx != 0xFF) snprintf(token, sizeof(token), "P%u", (unsigned)(currentProfileIdx + 1u));
+    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, startY, leftW, tokenH, token, textColor, barBg, tokenScale);
+    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, (uint16_t)(startY + tokenH + profileModeGap), leftW, tokenH, mode, textColor, barBg, tokenScale);
+
     if (g_inDetail) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH, "Back", textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
     else if (prev && prev->label) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH, prev->label, textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
 
     const uint32_t okBg = ok_flash_active() ? g_cfgOkBg : barBg;
-    ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, "OK", textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
+    if (g_inDetail && (g_detailMenuId == 4 || g_detailMenuId == 6 || g_detailMenuId == 8)) {
+        bool on = false;
+        if (g_detailMenuId == 4) {
+            const GamepadProfile* p = STORAGE_MANAGER.getDefaultGamepadProfile();
+            on = p ? p->ledsConfigs.ledEnabled : false;
+        } else if (g_detailMenuId == 6) {
+            const GamepadProfile* p = STORAGE_MANAGER.getDefaultGamepadProfile();
+            on = p ? p->ledsConfigs.aroundLedEnabled : false;
+        } else if (g_detailMenuId == 8) {
+            on = STORAGE_MANAGER.config.screenControl.brightness > 0;
+        }
+
+        const char* label = on ? "OFF" : "ON";
+        ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, label, textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
+    } else {
+        ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, "OK", textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
+    }
 
     if (!g_inDetail && next && next->label) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, botY, rightW, botH, next->label, textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
 }
