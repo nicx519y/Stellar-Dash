@@ -34,7 +34,8 @@ void ScreenDetailInputMode_Rotate(uint8_t* ioIndex, int8_t det) {
 }
 
 void ScreenDetailInputMode_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
-    ScreenDetailRender_List(lcd, "Input Mode", kInputModeLabels, (uint8_t)(sizeof(kInputModeLabels) / sizeof(kInputModeLabels[0])), index, style);
+    uint8_t selected = ScreenDetailInputMode_InitIndex();
+    ScreenDetailRender_List(lcd, "Input Mode", kInputModeLabels, (uint8_t)(sizeof(kInputModeLabels) / sizeof(kInputModeLabels[0])), index, selected, style);
 }
 
 void ScreenDetailInputMode_OnConfirm(uint8_t index) {

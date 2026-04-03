@@ -78,6 +78,7 @@ void ScreenMain_RenderList(ST7789_Handle* lcd,
     const uint16_t itemH = SPI_SCREEN_MENU_ITEM_H;
     const uint16_t centerY = (uint16_t)(h / 2u);
     const uint16_t anchorY = (uint16_t)(centerY - itemH / 2u);
+    const uint32_t normalText = ScreenUI_MutedTextForBg(style.text, style.bg, 80u);
 
     int offsetPx = 0;
     if (animActive) {
@@ -101,7 +102,7 @@ void ScreenMain_RenderList(ST7789_Handle* lcd,
             ST7789_FillRect(lcd, listX, yy, listW, itemH, style.selBg);
             ST7789_DrawString(lcd, itemTextX, itemTextY, meta->label, style.text, style.selBg, SPI_SCREEN_MENU_TEXT_SCALE);
         } else {
-            ST7789_DrawString(lcd, itemTextX, itemTextY, meta->label, style.text, style.bg, SPI_SCREEN_MENU_TEXT_SCALE);
+            ST7789_DrawString(lcd, itemTextX, itemTextY, meta->label, normalText, style.bg, SPI_SCREEN_MENU_TEXT_SCALE);
         }
     }
 }

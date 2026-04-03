@@ -33,7 +33,8 @@ void ScreenDetailLightEffect_Rotate(uint8_t* ioIndex, int8_t det) {
 }
 
 void ScreenDetailLightEffect_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
-    ScreenDetailRender_List(lcd, "Light Effect", kLightEffectLabels, (uint8_t)(sizeof(kLightEffectLabels) / sizeof(kLightEffectLabels[0])), index, style);
+    uint8_t selected = ScreenDetailLightEffect_InitIndex();
+    ScreenDetailRender_List(lcd, "Light Effect", kLightEffectLabels, (uint8_t)(sizeof(kLightEffectLabels) / sizeof(kLightEffectLabels[0])), index, selected, style);
 }
 
 void ScreenDetailLightEffect_OnConfirm(uint8_t index) {

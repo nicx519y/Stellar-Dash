@@ -31,7 +31,8 @@ void ScreenDetailAmbientEffect_Rotate(uint8_t* ioIndex, int8_t det) {
 }
 
 void ScreenDetailAmbientEffect_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
-    ScreenDetailRender_List(lcd, "Ambient Effect", kAmbientEffectLabels, (uint8_t)(sizeof(kAmbientEffectLabels) / sizeof(kAmbientEffectLabels[0])), index, style);
+    uint8_t selected = ScreenDetailAmbientEffect_InitIndex();
+    ScreenDetailRender_List(lcd, "Ambient Effect", kAmbientEffectLabels, (uint8_t)(sizeof(kAmbientEffectLabels) / sizeof(kAmbientEffectLabels[0])), index, selected, style);
 }
 
 void ScreenDetailAmbientEffect_OnConfirm(uint8_t index) {

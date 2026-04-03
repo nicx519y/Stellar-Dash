@@ -161,15 +161,15 @@ void SPIScreenManager::loop() {
         }
     }
 
-    if (RotEnc_WasButtonPressed()) {
-        if (g_inDetail) {
-            if (ScreenDetail_OnConfirm(g_detailMenuId, g_detailIndex)) STORAGE_MANAGER.saveConfig();
-        } else if (menuCount > 0) enter_detail(menuIds[menuIndex]);
+    if (RotEnc_WasButtonLongPressed() && g_inDetail) {
+        g_inDetail = false;
         g_okFlashUntilMs = HAL_GetTick() + SPI_SCREEN_OK_FLASH_MS;
     }
 
-    if (RotEnc_WasButtonLongPressed() && g_inDetail) {
-        g_inDetail = false;
+    if (RotEnc_WasButtonClicked()) {
+        if (g_inDetail) {
+            if (ScreenDetail_OnConfirm(g_detailMenuId, g_detailIndex)) STORAGE_MANAGER.saveConfig();
+        } else if (menuCount > 0) enter_detail(menuIds[menuIndex]);
         g_okFlashUntilMs = HAL_GetTick() + SPI_SCREEN_OK_FLASH_MS;
     }
 

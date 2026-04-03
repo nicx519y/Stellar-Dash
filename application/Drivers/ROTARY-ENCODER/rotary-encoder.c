@@ -14,6 +14,7 @@ typedef struct {
     bool btnDown;
     bool btnPressed;
     bool btnReleased;
+    bool btnClicked;
     bool btnLongPressed;
 
     bool btnStable;
@@ -67,6 +68,7 @@ void RotEnc_Init(void) {
     g_rotenc.btnDown = rotenc_read_button_raw_down();
     g_rotenc.btnPressed = false;
     g_rotenc.btnReleased = false;
+    g_rotenc.btnClicked = false;
     g_rotenc.btnLongPressed = false;
     g_rotenc.btnStable = g_rotenc.btnDown;
     g_rotenc.btnLastChangeMs = HAL_GetTick();
@@ -118,8 +120,12 @@ void RotEnc_Update(void) {
                 APP_DBG("ROT BTN down");
 #endif
             } else if (!g_rotenc.btnStable && g_rotenc.btnDown) {
+                uint32_t heldMs = nowMs - g_rotenc.btnDownStartMs;
                 g_rotenc.btnDown = false;
                 g_rotenc.btnReleased = true;
+                if (!g_rotenc.btnLongFired && heldMs < (uint32_t)ROTENC_LONG_PRESS_MS) {
+                    g_rotenc.btnClicked = true;
+                }
                 g_rotenc.btnLongFired = false;
 #if ROTENC_DEBUG_PRINT
                 APP_DBG("ROT BTN up");
@@ -170,6 +176,12 @@ bool RotEnc_WasButtonPressed(void) {
 bool RotEnc_WasButtonReleased(void) {
     bool v = g_rotenc.btnReleased;
     g_rotenc.btnReleased = false;
+    return v;
+}
+
+bool RotEnc_WasButtonClicked(void) {
+    bool v = g_rotenc.btnClicked;
+    g_rotenc.btnClicked = false;
     return v;
 }
 

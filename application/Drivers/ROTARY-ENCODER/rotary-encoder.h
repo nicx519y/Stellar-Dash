@@ -44,6 +44,7 @@ int8_t RotEnc_GetDetentDelta(void);
 bool RotEnc_IsButtonDown(void);
 bool RotEnc_WasButtonPressed(void);
 bool RotEnc_WasButtonReleased(void);
+bool RotEnc_WasButtonClicked(void);
 bool RotEnc_WasButtonLongPressed(void);
 
 #ifdef __cplusplus

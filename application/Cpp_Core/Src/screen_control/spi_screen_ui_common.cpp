@@ -43,6 +43,19 @@ uint32_t ScreenUI_HighlightFromBg(uint32_t bg, uint8_t amount) {
     return (screenui_luma8(bg) < 128u) ? ScreenUI_BlendToWhite(bg, amount) : ScreenUI_BlendToBlack(bg, amount);
 }
 
+uint32_t ScreenUI_MutedTextForBg(uint32_t fg, uint32_t bg, uint8_t amount) {
+    uint32_t fr = (fg >> 16) & 0xFFu;
+    uint32_t fgc = (fg >> 8) & 0xFFu;
+    uint32_t fb = fg & 0xFFu;
+    uint32_t br = (bg >> 16) & 0xFFu;
+    uint32_t bgc = (bg >> 8) & 0xFFu;
+    uint32_t bb = bg & 0xFFu;
+    uint32_t r = (fr * (255u - amount) + br * amount) / 255u;
+    uint32_t g = (fgc * (255u - amount) + bgc * amount) / 255u;
+    uint32_t b = (fb * (255u - amount) + bb * amount) / 255u;
+    return (r << 16) | (g << 8) | b;
+}
+
 uint16_t ScreenUI_CharCellW(uint8_t scale) {
     if (scale == 0) scale = 1;
     if (scale == 3) return 9;

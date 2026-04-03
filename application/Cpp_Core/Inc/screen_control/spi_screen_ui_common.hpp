@@ -11,6 +11,7 @@ uint32_t ScreenUI_RGB888(uint32_t v);
 uint32_t ScreenUI_BlendToWhite(uint32_t rgb, uint8_t alpha255);
 uint32_t ScreenUI_BlendToBlack(uint32_t rgb, uint8_t alpha255);
 uint32_t ScreenUI_HighlightFromBg(uint32_t bg, uint8_t amount);
+uint32_t ScreenUI_MutedTextForBg(uint32_t fg, uint32_t bg, uint8_t amount);
 
 uint16_t ScreenUI_CharCellW(uint8_t scale);
 uint16_t ScreenUI_CharCellH(uint8_t scale);

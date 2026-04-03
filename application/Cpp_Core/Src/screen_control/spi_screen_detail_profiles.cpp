@@ -52,7 +52,8 @@ void ScreenDetailProfiles_Rotate(uint8_t* ioIndex, int8_t det) {
 void ScreenDetailProfiles_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
     uint8_t count = profile_count();
     rebuild_profile_labels(count);
-    ScreenDetailRender_List(lcd, "Profiles", g_profilePtrs, count, index, style);
+    uint8_t selected = ScreenDetailProfiles_InitIndex();
+    ScreenDetailRender_List(lcd, "Profiles", g_profilePtrs, count, index, selected, style);
 }
 
 void ScreenDetailProfiles_OnConfirm(uint8_t index) {

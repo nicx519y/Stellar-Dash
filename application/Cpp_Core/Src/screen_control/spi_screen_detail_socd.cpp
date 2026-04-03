@@ -32,7 +32,8 @@ void ScreenDetailSocd_Rotate(uint8_t* ioIndex, int8_t det) {
 }
 
 void ScreenDetailSocd_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
-    ScreenDetailRender_List(lcd, "SOCD", kSocdLabels, (uint8_t)(sizeof(kSocdLabels) / sizeof(kSocdLabels[0])), index, style);
+    uint8_t selected = ScreenDetailSocd_InitIndex();
+    ScreenDetailRender_List(lcd, "SOCD", kSocdLabels, (uint8_t)(sizeof(kSocdLabels) / sizeof(kSocdLabels[0])), index, selected, style);
 }
 
 void ScreenDetailSocd_OnConfirm(uint8_t index) {
