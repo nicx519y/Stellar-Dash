@@ -21,9 +21,16 @@ typedef struct {
     uint32_t btnLastChangeMs;
     uint32_t btnDownStartMs;
     bool btnLongFired;
+
+    bool bootIgnoreActive;
+    uint32_t bootIgnoreUntilMs;
 } RotEnc_State;
 
 static RotEnc_State g_rotenc = {0};
+
+#ifndef ROTENC_BOOT_IGNORE_MS
+#define ROTENC_BOOT_IGNORE_MS 1000u
+#endif
 
 static uint8_t rotenc_read_ab(void) {
 
@@ -65,15 +72,18 @@ void RotEnc_Init(void) {
     g_rotenc.stepAcc = 0;
     g_rotenc.detentDeltaAcc = 0;
 
-    g_rotenc.btnDown = rotenc_read_button_raw_down();
+    g_rotenc.btnDown = false;
     g_rotenc.btnPressed = false;
     g_rotenc.btnReleased = false;
     g_rotenc.btnClicked = false;
     g_rotenc.btnLongPressed = false;
-    g_rotenc.btnStable = g_rotenc.btnDown;
+    g_rotenc.btnStable = false;
     g_rotenc.btnLastChangeMs = HAL_GetTick();
     g_rotenc.btnDownStartMs = g_rotenc.btnLastChangeMs;
     g_rotenc.btnLongFired = false;
+
+    g_rotenc.bootIgnoreActive = true;
+    g_rotenc.bootIgnoreUntilMs = g_rotenc.btnLastChangeMs + (uint32_t)ROTENC_BOOT_IGNORE_MS;
 }
 
 void RotEnc_OnEdgeIRQ(void) {
@@ -82,6 +92,11 @@ void RotEnc_OnEdgeIRQ(void) {
     uint8_t b = (uint8_t)(ab & 1u);
 
     if (a != g_rotenc.lastA || b != g_rotenc.lastB) {
+        if (g_rotenc.bootIgnoreActive) {
+            g_rotenc.lastA = a;
+            g_rotenc.lastB = b;
+            return;
+        }
         int8_t step = (a != g_rotenc.lastB) ? 1 : -1;
         step = (int8_t)(step * (int8_t)ROTENC_DIR);
         g_rotenc.lastA = a;
@@ -105,6 +120,44 @@ void RotEnc_OnEdgeIRQ(void) {
 
 void RotEnc_Update(void) {
     const uint32_t nowMs = HAL_GetTick();
+    if (g_rotenc.bootIgnoreActive) {
+        if ((int32_t)(nowMs - g_rotenc.bootIgnoreUntilMs) < 0) {
+            g_rotenc.deltaAcc = 0;
+            g_rotenc.stepAcc = 0;
+            g_rotenc.detentDeltaAcc = 0;
+            g_rotenc.btnDown = false;
+            g_rotenc.btnPressed = false;
+            g_rotenc.btnReleased = false;
+            g_rotenc.btnClicked = false;
+            g_rotenc.btnLongPressed = false;
+            g_rotenc.btnStable = false;
+            g_rotenc.btnLastChangeMs = nowMs;
+            g_rotenc.btnDownStartMs = nowMs;
+            g_rotenc.btnLongFired = false;
+            uint8_t ab = rotenc_read_ab();
+            g_rotenc.lastA = (uint8_t)((ab >> 1) & 1u);
+            g_rotenc.lastB = (uint8_t)(ab & 1u);
+            return;
+        }
+        g_rotenc.bootIgnoreActive = false;
+        {
+            uint8_t ab = rotenc_read_ab();
+            g_rotenc.lastA = (uint8_t)((ab >> 1) & 1u);
+            g_rotenc.lastB = (uint8_t)(ab & 1u);
+        }
+        g_rotenc.deltaAcc = 0;
+        g_rotenc.stepAcc = 0;
+        g_rotenc.detentDeltaAcc = 0;
+        g_rotenc.btnDown = rotenc_read_button_raw_down();
+        g_rotenc.btnPressed = false;
+        g_rotenc.btnReleased = false;
+        g_rotenc.btnClicked = false;
+        g_rotenc.btnLongPressed = false;
+        g_rotenc.btnStable = g_rotenc.btnDown;
+        g_rotenc.btnLastChangeMs = nowMs;
+        g_rotenc.btnDownStartMs = nowMs;
+        g_rotenc.btnLongFired = false;
+    }
     const bool rawDown = rotenc_read_button_raw_down();
     if (rawDown != g_rotenc.btnStable) {
         if ((uint32_t)(nowMs - g_rotenc.btnLastChangeMs) >= 10u) {

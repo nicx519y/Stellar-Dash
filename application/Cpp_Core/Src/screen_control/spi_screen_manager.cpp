@@ -39,6 +39,8 @@ static uint8_t g_detailMenuId = 0;
 static uint8_t g_detailIndex = 0;
 static bool g_deferredSavePending = false;
 static uint32_t g_deferredSaveDueMs = 0;
+static uint32_t g_bl_boot_ms = 0;
+static bool g_bl_ramp_active = false;
 static uint32_t g_perfLastMs = 0;
 static uint64_t g_perfAccPreUs = 0;
 static uint64_t g_perfAccFrameBeginUs = 0;
@@ -81,6 +83,27 @@ void ScreenUI_RequestDeferredSave(uint32_t delayMs) {
 
 static uint8_t clamp_brightness(uint8_t v) {
     return (v > 100) ? 100 : v;
+}
+
+#ifndef SPI_SCREEN_BL_INIT_HOLD_MS
+#define SPI_SCREEN_BL_INIT_HOLD_MS 1000u
+#endif
+
+#ifndef SPI_SCREEN_BL_RAMP_MS
+#define SPI_SCREEN_BL_RAMP_MS 2000u
+#endif
+
+static uint8_t compute_backlight_percent(uint32_t nowMs) {
+    if (!g_bl_ramp_active) return g_cfgBrightness;
+    uint32_t elapsed = nowMs - g_bl_boot_ms;
+    if (elapsed < SPI_SCREEN_BL_INIT_HOLD_MS) return 0u;
+    elapsed -= SPI_SCREEN_BL_INIT_HOLD_MS;
+    if (SPI_SCREEN_BL_RAMP_MS == 0u) return g_cfgBrightness;
+    if (elapsed >= SPI_SCREEN_BL_RAMP_MS) {
+        g_bl_ramp_active = false;
+        return g_cfgBrightness;
+    }
+    return (uint8_t)(((uint32_t)g_cfgBrightness * elapsed) / SPI_SCREEN_BL_RAMP_MS);
 }
 
 static void refresh_screen_cfg_cache(void) {
@@ -147,7 +170,9 @@ void SPIScreenManager::setup() {
     RotEnc_Init();
 
     refresh_screen_cfg_cache();
-    ST7789_SetBacklight(&g_lcd, g_cfgBrightness);
+    g_bl_boot_ms = HAL_GetTick();
+    g_bl_ramp_active = true;
+    ST7789_SetBacklight(&g_lcd, 0);
     rebuildMenu();
     {
         uint8_t forcedMenuId = 0;
@@ -300,7 +325,7 @@ void SPIScreenManager::loop() {
         g_lcd.dirty_y1 = (uint16_t)(ST7789_HEIGHT - 1u);
         g_firstDrawPending = false;
     }
-    ST7789_SetBacklight(&g_lcd, g_cfgBrightness);
+    ST7789_SetBacklight(&g_lcd, compute_backlight_percent(nowMs));
     renderFrame();
     ST7789_FrameEnd(&g_lcd);
 }
