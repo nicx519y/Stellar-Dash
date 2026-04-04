@@ -12,8 +12,6 @@
 #include "gpdriver.hpp"
 #include "system_logger.h"
 #include "latency_monitor.hpp"
-#include "screen_control/spi_screen_manager.hpp"
-// #include "tests/st7789_test.hpp"
 
 void InputState::setup()
 {
@@ -76,7 +74,7 @@ void InputState::setup()
     LEDS_MANAGER.setup();
 #endif
 
-    SPIScreenManager::getInstance().setup();
+    
 
     isRunning = true;
     LOG_INFO("INPUT", "Input state setup completed successfully");
@@ -86,7 +84,7 @@ void InputState::setup()
 
 void InputState::loop()
 {
-    SPIScreenManager::getInstance().loop();
+    
 
     // 检查采样是否完成 (由SOF触发)
     if (ADCManager::getInstance().isSamplingDone())

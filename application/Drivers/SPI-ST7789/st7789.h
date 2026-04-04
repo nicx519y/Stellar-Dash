@@ -19,6 +19,8 @@ extern "C" {
 #define ST7789_SDA_PORT GPIOJ
 #define ST7789_SDA_PIN  GPIO_PIN_10
 
+#define ST7789_SPI_MOSI_AF GPIO_AF5_SPI5
+
 #define ST7789_CS_PORT  GPIOH
 #define ST7789_CS_PIN   GPIO_PIN_5
 
@@ -27,6 +29,16 @@ extern "C" {
 
 #define ST7789_BL_PORT  GPIOH
 #define ST7789_BL_PIN   GPIO_PIN_6
+
+#define ST7789_SPI_INSTANCE SPI5
+#define ST7789_SPI_DMA_STREAM DMA2_Stream2
+#define ST7789_SPI_DMA_REQUEST DMA_REQUEST_SPI5_TX
+#define ST7789_SPI_DMA_IRQn DMA2_Stream2_IRQn
+
+
+
+#define ST7789_BL_ON_STATE  GPIO_PIN_RESET
+#define ST7789_BL_OFF_STATE GPIO_PIN_SET
 
 #define ST7789_DEFAULT_FPS 12u
 
@@ -69,6 +81,11 @@ typedef struct
     bool framebuffer_enabled;
     uint16_t* fb_front;
     uint16_t* fb_back;
+    bool dirty_valid;
+    uint16_t dirty_x0;
+    uint16_t dirty_y0;
+    uint16_t dirty_x1;
+    uint16_t dirty_y1;
 } ST7789_Handle;
 
 typedef enum
@@ -86,6 +103,8 @@ bool ST7789_IsInited(const ST7789_Handle* lcd);
 bool ST7789_IsFrameBlocked(const ST7789_Handle* lcd);
 bool ST7789_FrameBegin(ST7789_Handle* lcd);
 void ST7789_FrameEnd(ST7789_Handle* lcd);
+void ST7789_SPI_DMA_IRQHandler(void);
+void ST7789_SPI_IRQHandler(void);
 
 void ST7789_AttachBacklightPWM(ST7789_Handle* lcd, TIM_HandleTypeDef* htim, uint32_t channel);
 
@@ -95,6 +114,8 @@ void ST7789_SetOffset(ST7789_Handle* lcd, uint16_t x_offset, uint16_t y_offset);
 void ST7789_SetBacklight(ST7789_Handle* lcd, uint8_t percent);
 
 void ST7789_FillScreen(ST7789_Handle* lcd, uint32_t rgb888);
+bool ST7789_FillScreenAsync(ST7789_Handle* lcd, uint32_t rgb888);
+bool ST7789_IsTransferBusy(const ST7789_Handle* lcd);
 void ST7789_FillRect(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t rgb888);
 void ST7789_DrawPixel(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint32_t rgb888);
 void ST7789_DrawLine(ST7789_Handle* lcd, int x0, int y0, int x1, int y1, uint32_t rgb888);

@@ -70,7 +70,6 @@ Libs/sha256_simple \
 # C++ 源文件目录
 CPP_SOURCE_DIRS = \
 Cpp_Core/Src \
-Cpp_Core/Src/tests \
 Cpp_Core/Src/drivers/net \
 Cpp_Core/Src/drivers/xinput \
 Cpp_Core/Src/drivers/switch \

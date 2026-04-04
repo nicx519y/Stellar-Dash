@@ -27,6 +27,8 @@
 #include "usbh.h"
 #include "system_logger.h"
 #include "rotary-encoder.h"
+#include "st7789.h"
+#include "spi-st7789.h"
 #include <stdio.h>
 /* USER CODE END Includes */
 
@@ -377,6 +379,31 @@ void DMA1_Stream2_IRQHandler(void)
   /* USER CODE BEGIN DMA1_Stream2_IRQn 1 */
 
   /* USER CODE END DMA1_Stream2_IRQn 1 */
+}
+
+void DMA1_Stream4_IRQHandler(void)
+{
+  SPIST7789_DMA_IRQHandler();
+}
+
+void DMA2_Stream1_IRQHandler(void)
+{
+  SPIST7789_DMA_IRQHandler();
+}
+
+void DMA2_Stream2_IRQHandler(void)
+{
+  SPIST7789_DMA_IRQHandler();
+}
+
+void DMA2_Stream4_IRQHandler(void)
+{
+  SPIST7789_DMA_IRQHandler();
+}
+
+void SPI5_IRQHandler(void)
+{
+  SPIST7789_SPI_IRQHandler();
 }
 
 /**

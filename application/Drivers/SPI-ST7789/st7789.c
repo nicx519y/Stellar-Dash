@@ -1,7 +1,12 @@
 #include "st7789.h"
+#include "spi-st7789.h"
 #include <string.h>
 
 #include "stm32h7xx_hal_gpio_ex.h"
+#include "stm32h7xx_hal_dma.h"
+#include "stm32h7xx_hal_spi.h"
+#include "stm32h7xx_hal_rcc_ex.h"
+#include "board_cfg.h"
 
 #define ST7789_CMD_SWRESET 0x01u
 #define ST7789_CMD_SLPOUT  0x11u
@@ -15,7 +20,43 @@
 #define ST7789_CMD_MADCTL  0x36u
 #define ST7789_CMD_COLMOD  0x3Au
 
-#define ST7789_SPI_TIMEOUT_MS 1000u
+#define ST7789_SPI_TIMEOUT_MS 200u
+#define ST7789_DMA_CHUNK_BYTES 1024u
+
+static SPI_HandleTypeDef g_st7789_hspi;
+static DMA_HandleTypeDef g_st7789_hdma_tx;
+static bool g_st7789_hw_spi_ready = false;
+static uint8_t g_st7789_dma_txbuf[ST7789_DMA_CHUNK_BYTES] __attribute__((section(".DMA_Section"), aligned(32)));
+static uint32_t g_st7789_spi_fail_count = 0;
+static bool g_st7789_in_init = false;
+static bool g_st7789_spi_clk_configured = false;
+static uint8_t g_st7789_fillbuf[ST7789_DMA_CHUNK_BYTES] __attribute__((section(".DMA_Section"), aligned(32)));
+static volatile bool g_st7789_fill_active = false;
+static volatile uint32_t g_st7789_fill_remaining = 0;
+static uint16_t g_st7789_fill_color565 = 0;
+
+static bool st7789_wait_spi_ready(void)
+{
+    uint32_t t0 = HAL_GetTick();
+    while (g_st7789_hspi.State != HAL_SPI_STATE_READY) {
+        if ((uint32_t)(HAL_GetTick() - t0) > ST7789_SPI_TIMEOUT_MS) {
+            g_st7789_spi_fail_count++;
+            (void)HAL_SPI_Abort(&g_st7789_hspi);
+            (void)HAL_DMA_Abort(&g_st7789_hdma_tx);
+            g_st7789_hspi.State = HAL_SPI_STATE_READY;
+            g_st7789_hspi.ErrorCode = HAL_SPI_ERROR_NONE;
+            return false;
+        }
+    }
+
+    if (g_st7789_hspi.Instance) {
+        uint32_t t1 = HAL_GetTick();
+        while ((g_st7789_hspi.Instance->SR & SPI_SR_TXC) == 0u) {
+            if ((uint32_t)(HAL_GetTick() - t1) > ST7789_SPI_TIMEOUT_MS) break;
+        }
+    }
+    return true;
+}
 
 static inline void st7789_gpio_write(GPIO_TypeDef* port, uint16_t pin, GPIO_PinState state)
 {
@@ -52,14 +93,247 @@ static void st7789_bitbang_write_byte(uint8_t b)
     }
 }
 
+static void st7789_dma_clean_dcache(const void* data, size_t len)
+{
+#if (__DCACHE_PRESENT == 1U)
+    if (!data || len == 0) return;
+    uintptr_t start = (uintptr_t)data & ~(uintptr_t)31u;
+    uintptr_t end = ((uintptr_t)data + len + 31u) & ~(uintptr_t)31u;
+    SCB_CleanDCache_by_Addr((uint32_t*)start, (int32_t)(end - start));
+#else
+    (void)data;
+    (void)len;
+#endif
+}
+
+static void st7789_enable_gpio_clock(GPIO_TypeDef* port)
+{
+    if (port == GPIOA) __HAL_RCC_GPIOA_CLK_ENABLE();
+    else if (port == GPIOB) __HAL_RCC_GPIOB_CLK_ENABLE();
+    else if (port == GPIOC) __HAL_RCC_GPIOC_CLK_ENABLE();
+    else if (port == GPIOD) __HAL_RCC_GPIOD_CLK_ENABLE();
+    else if (port == GPIOE) __HAL_RCC_GPIOE_CLK_ENABLE();
+    else if (port == GPIOF) __HAL_RCC_GPIOF_CLK_ENABLE();
+    else if (port == GPIOG) __HAL_RCC_GPIOG_CLK_ENABLE();
+    else if (port == GPIOH) __HAL_RCC_GPIOH_CLK_ENABLE();
+    else if (port == GPIOI) __HAL_RCC_GPIOI_CLK_ENABLE();
+    else if (port == GPIOJ) __HAL_RCC_GPIOJ_CLK_ENABLE();
+    else if (port == GPIOK) __HAL_RCC_GPIOK_CLK_ENABLE();
+}
+
+static void st7789_spi_gpio_init(void)
+{
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    st7789_enable_gpio_clock(ST7789_SCL_PORT);
+    if (ST7789_SDA_PORT != ST7789_SCL_PORT) st7789_enable_gpio_clock(ST7789_SDA_PORT);
+
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Alternate = ST7789_SPI_MOSI_AF;
+
+    GPIO_InitStruct.Pin = ST7789_SCL_PIN;
+    HAL_GPIO_Init(ST7789_SCL_PORT, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = ST7789_SDA_PIN;
+    HAL_GPIO_Init(ST7789_SDA_PORT, &GPIO_InitStruct);
+
+}
+
+static bool st7789_spi_dma_init(void)
+{
+    if (g_st7789_hw_spi_ready) return true;
+
+    st7789_spi_gpio_init();
+    __HAL_RCC_SPI5_CLK_ENABLE();
+    __HAL_RCC_DMA1_CLK_ENABLE();
+#ifdef __HAL_RCC_DMAMUX1_CLK_ENABLE
+    __HAL_RCC_DMAMUX1_CLK_ENABLE();
+#endif
+
+    if (!g_st7789_spi_clk_configured) {
+        RCC_PeriphCLKInitTypeDef clk = {0};
+        clk.PeriphClockSelection = RCC_PERIPHCLK_SPI5;
+        clk.Spi45ClockSelection = RCC_SPI45CLKSOURCE_D2PCLK2;
+        (void)HAL_RCCEx_PeriphCLKConfig(&clk);
+        g_st7789_spi_clk_configured = true;
+    }
+
+    __HAL_RCC_SPI5_FORCE_RESET();
+    __HAL_RCC_SPI5_RELEASE_RESET();
+
+    memset(&g_st7789_hspi, 0, sizeof(g_st7789_hspi));
+    g_st7789_hspi.Instance = ST7789_SPI_INSTANCE;
+    g_st7789_hspi.Init.Mode = SPI_MODE_MASTER;
+    g_st7789_hspi.Init.Direction = SPI_DIRECTION_2LINES;
+    g_st7789_hspi.Init.DataSize = SPI_DATASIZE_8BIT;
+    g_st7789_hspi.Init.CLKPolarity = SPI_POLARITY_HIGH;
+    g_st7789_hspi.Init.CLKPhase = SPI_PHASE_2EDGE;
+    g_st7789_hspi.Init.NSS = SPI_NSS_SOFT;
+    g_st7789_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+    g_st7789_hspi.Init.FirstBit = SPI_FIRSTBIT_MSB;
+    g_st7789_hspi.Init.TIMode = SPI_TIMODE_DISABLE;
+    g_st7789_hspi.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+    g_st7789_hspi.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
+    g_st7789_hspi.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
+    g_st7789_hspi.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
+    g_st7789_hspi.Init.TxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
+    g_st7789_hspi.Init.RxCRCInitializationPattern = SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
+    g_st7789_hspi.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
+    g_st7789_hspi.Init.MasterInterDataIdleness = SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
+    g_st7789_hspi.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
+    g_st7789_hspi.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_ENABLE;
+    g_st7789_hspi.Init.IOSwap = SPI_IO_SWAP_DISABLE;
+
+    if (HAL_SPI_Init(&g_st7789_hspi) != HAL_OK) {
+        APP_DBG("[ST7789] HAL_SPI_Init failed");
+        return false;
+    }
+
+    memset(&g_st7789_hdma_tx, 0, sizeof(g_st7789_hdma_tx));
+    g_st7789_hdma_tx.Instance = ST7789_SPI_DMA_STREAM;
+    g_st7789_hdma_tx.Init.Request = ST7789_SPI_DMA_REQUEST;
+    g_st7789_hdma_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
+    g_st7789_hdma_tx.Init.PeriphInc = DMA_PINC_DISABLE;
+    g_st7789_hdma_tx.Init.MemInc = DMA_MINC_ENABLE;
+    g_st7789_hdma_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    g_st7789_hdma_tx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    g_st7789_hdma_tx.Init.Mode = DMA_NORMAL;
+    g_st7789_hdma_tx.Init.Priority = DMA_PRIORITY_VERY_HIGH;
+    g_st7789_hdma_tx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+
+    if (HAL_DMA_Init(&g_st7789_hdma_tx) != HAL_OK) {
+        APP_DBG("[ST7789] HAL_DMA_Init failed");
+        return false;
+    }
+    __HAL_LINKDMA(&g_st7789_hspi, hdmatx, g_st7789_hdma_tx);
+    DMA_Stream_TypeDef* s = (DMA_Stream_TypeDef*)g_st7789_hdma_tx.Instance;
+    if (s) CLEAR_BIT(s->CR, DMA_SxCR_HTIE);
+
+    HAL_NVIC_SetPriority(ST7789_SPI_DMA_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(ST7789_SPI_DMA_IRQn);
+
+    HAL_NVIC_SetPriority(SPI5_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(SPI5_IRQn);
+
+    g_st7789_hw_spi_ready = true;
+    return true;
+}
+
+static inline void st7789_wait_spi_txc(void)
+{
+    if (!g_st7789_hspi.Instance) return;
+    uint32_t t0 = HAL_GetTick();
+    while ((g_st7789_hspi.Instance->SR & SPI_SR_TXC) == 0u) {
+        if ((uint32_t)(HAL_GetTick() - t0) > ST7789_SPI_TIMEOUT_MS) break;
+    }
+}
+
+static void st7789_hwspi_tx_blocking(const uint8_t* data, size_t len)
+{
+    if (!data || len == 0) return;
+    if (!st7789_spi_dma_init()) return;
+
+    if (g_st7789_in_init || len <= 16u) {
+        (void)st7789_wait_spi_ready();
+        if (HAL_SPI_Transmit(&g_st7789_hspi, (uint8_t*)data, (uint16_t)len, ST7789_SPI_TIMEOUT_MS) != HAL_OK) {
+            g_st7789_spi_fail_count++;
+            APP_DBG("[ST7789] HAL_SPI_Transmit failed cnt=%lu st=%lu err=0x%08lX",
+                    (unsigned long)g_st7789_spi_fail_count,
+                    (unsigned long)g_st7789_hspi.State,
+                    (unsigned long)g_st7789_hspi.ErrorCode);
+            (void)HAL_SPI_Abort(&g_st7789_hspi);
+            g_st7789_hspi.State = HAL_SPI_STATE_READY;
+            g_st7789_hspi.ErrorCode = HAL_SPI_ERROR_NONE;
+            (void)HAL_SPI_Transmit(&g_st7789_hspi, (uint8_t*)data, (uint16_t)len, ST7789_SPI_TIMEOUT_MS);
+        }
+        return;
+    }
+
+    size_t offset = 0;
+    while (offset < len) {
+        uint16_t chunk = (uint16_t)((len - offset) > ST7789_DMA_CHUNK_BYTES ? ST7789_DMA_CHUNK_BYTES : (len - offset));
+        memcpy(g_st7789_dma_txbuf, data + offset, chunk);
+        st7789_dma_clean_dcache(g_st7789_dma_txbuf, chunk);
+        if (!st7789_wait_spi_ready()) return;
+        if (g_st7789_hspi.State != HAL_SPI_STATE_READY) {
+            (void)HAL_SPI_Abort(&g_st7789_hspi);
+            g_st7789_hspi.State = HAL_SPI_STATE_READY;
+            g_st7789_hspi.ErrorCode = HAL_SPI_ERROR_NONE;
+        }
+        if (HAL_SPI_Transmit_DMA(&g_st7789_hspi, g_st7789_dma_txbuf, chunk) != HAL_OK) {
+            g_st7789_spi_fail_count++;
+            APP_DBG("[ST7789] HAL_SPI_Transmit_DMA failed cnt=%lu st=%lu err=0x%08lX dma_st=%lu dma_err=0x%08lX",
+                    (unsigned long)g_st7789_spi_fail_count,
+                    (unsigned long)g_st7789_hspi.State,
+                    (unsigned long)g_st7789_hspi.ErrorCode,
+                    (unsigned long)g_st7789_hdma_tx.State,
+                    (unsigned long)g_st7789_hdma_tx.ErrorCode);
+            (void)HAL_SPI_Abort(&g_st7789_hspi);
+            (void)HAL_DMA_Abort(&g_st7789_hdma_tx);
+            g_st7789_hspi.State = HAL_SPI_STATE_READY;
+            g_st7789_hspi.ErrorCode = HAL_SPI_ERROR_NONE;
+            return;
+        }
+        if (!st7789_wait_spi_ready()) return;
+        st7789_wait_spi_txc();
+        offset += chunk;
+    }
+}
+
 static void st7789_write_bytes(ST7789_Handle* lcd, const uint8_t* data, size_t len)
 {
     if (len == 0) return;
 
-    for (size_t i = 0; i < len; i++)
-    {
-        st7789_bitbang_write_byte(data[i]);
+    (void)lcd;
+    if (g_st7789_hw_spi_ready || st7789_spi_dma_init()) {
+        st7789_hwspi_tx_blocking(data, len);
+        return;
     }
+}
+
+void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef* hspi)
+{
+    SPIST7789_OnSpiTxCplt(hspi);
+    if (hspi != &g_st7789_hspi) return;
+    if (!g_st7789_fill_active) return;
+
+    if (g_st7789_fill_remaining > 0u) {
+        uint16_t chunk = (g_st7789_fill_remaining > ST7789_DMA_CHUNK_BYTES) ? (uint16_t)ST7789_DMA_CHUNK_BYTES : (uint16_t)g_st7789_fill_remaining;
+        g_st7789_fill_remaining -= (uint32_t)chunk;
+        if (HAL_SPI_Transmit_DMA(&g_st7789_hspi, g_st7789_fillbuf, chunk) != HAL_OK) {
+            (void)HAL_SPI_Abort(&g_st7789_hspi);
+            (void)HAL_DMA_Abort(&g_st7789_hdma_tx);
+            g_st7789_hspi.State = HAL_SPI_STATE_READY;
+            g_st7789_hspi.ErrorCode = HAL_SPI_ERROR_NONE;
+            st7789_cs_high();
+            g_st7789_fill_active = false;
+        }
+        return;
+    }
+
+    st7789_cs_high();
+    g_st7789_fill_active = false;
+}
+
+void HAL_SPI_ErrorCallback(SPI_HandleTypeDef* hspi)
+{
+    if (hspi != &g_st7789_hspi) return;
+    st7789_cs_high();
+    g_st7789_fill_active = false;
+}
+
+void ST7789_SPI_DMA_IRQHandler(void)
+{
+    if (!g_st7789_hw_spi_ready) return;
+    if (g_st7789_hdma_tx.State == HAL_DMA_STATE_RESET) return;
+    HAL_DMA_IRQHandler(&g_st7789_hdma_tx);
+}
+
+void ST7789_SPI_IRQHandler(void)
+{
+    if (!g_st7789_hw_spi_ready) return;
+    HAL_SPI_IRQHandler(&g_st7789_hspi);
 }
 
 static void st7789_write_cmd(ST7789_Handle* lcd, uint8_t cmd)
@@ -67,6 +341,8 @@ static void st7789_write_cmd(ST7789_Handle* lcd, uint8_t cmd)
     st7789_cs_low();
     st7789_dc_cmd();
     st7789_write_bytes(lcd, &cmd, 1);
+    (void)st7789_wait_spi_ready();
+    st7789_wait_spi_txc();
     st7789_cs_high();
 }
 
@@ -80,6 +356,8 @@ static void st7789_write_cmd_data(ST7789_Handle* lcd, uint8_t cmd, const uint8_t
         st7789_dc_data();
         st7789_write_bytes(lcd, data, len);
     }
+    (void)st7789_wait_spi_ready();
+    st7789_wait_spi_txc();
     st7789_cs_high();
 }
 
@@ -95,9 +373,10 @@ static uint16_t st7789_height(const ST7789_Handle* lcd)
 
 static void st7789_set_address_window(ST7789_Handle* lcd, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
+    static bool dbg_once = true;
     uint16_t xs = (uint16_t)(x0 + lcd->cfg.x_offset);
     uint16_t xe = (uint16_t)(x1 + lcd->cfg.x_offset);
-    uint16_t ys = (uint16_t)(y0 + lcd->cfg.y_offset);
+    uint16_t ys = (uint16_t)(y0 + lcd->cfg.y_offset); 
     uint16_t ye = (uint16_t)(y1 + lcd->cfg.y_offset);
 
     uint8_t caset[4] = {
@@ -110,9 +389,12 @@ static void st7789_set_address_window(ST7789_Handle* lcd, uint16_t x0, uint16_t 
         (uint8_t)(ye >> 8), (uint8_t)(ye & 0xFFu)
     };
 
+    if (dbg_once) APP_DBG("[ST7789] window step=1");
     st7789_write_cmd_data(lcd, ST7789_CMD_CASET, caset, sizeof(caset));
+    if (dbg_once) APP_DBG("[ST7789] window step=2");
     st7789_write_cmd_data(lcd, ST7789_CMD_RASET, raset, sizeof(raset));
 
+    if (dbg_once) APP_DBG("[ST7789] window step=3");
     st7789_cs_low();
     st7789_dc_cmd();
     {
@@ -120,10 +402,16 @@ static void st7789_set_address_window(ST7789_Handle* lcd, uint16_t x0, uint16_t 
         st7789_write_bytes(lcd, &cmd, 1);
     }
     st7789_dc_data();
+    if (dbg_once) {
+        APP_DBG("[ST7789] window step=4");
+        dbg_once = false;
+    }
 }
 
 static void st7789_end_pixels(void)
 {
+    (void)st7789_wait_spi_ready();
+    st7789_wait_spi_txc();
     st7789_cs_high();
 }
 
@@ -144,13 +432,59 @@ static inline uint32_t st7789_fb_index(uint16_t x, uint16_t y)
     return (uint32_t)y * (uint32_t)ST7789_WIDTH + (uint32_t)x;
 }
 
+static void st7789_mark_dirty_xy(ST7789_Handle* lcd, uint16_t x, uint16_t y)
+{
+    if (!lcd) return;
+    if (x >= ST7789_WIDTH || y >= ST7789_HEIGHT) return;
+    if (!lcd->dirty_valid) {
+        lcd->dirty_valid = true;
+        lcd->dirty_x0 = x;
+        lcd->dirty_y0 = y;
+        lcd->dirty_x1 = x;
+        lcd->dirty_y1 = y;
+        return;
+    }
+    if (x < lcd->dirty_x0) lcd->dirty_x0 = x;
+    if (y < lcd->dirty_y0) lcd->dirty_y0 = y;
+    if (x > lcd->dirty_x1) lcd->dirty_x1 = x;
+    if (y > lcd->dirty_y1) lcd->dirty_y1 = y;
+}
+
+static void st7789_mark_dirty_rect(ST7789_Handle* lcd, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
+{
+    if (!lcd) return;
+    if (x0 >= ST7789_WIDTH || y0 >= ST7789_HEIGHT) return;
+    if (x1 >= ST7789_WIDTH) x1 = (uint16_t)(ST7789_WIDTH - 1u);
+    if (y1 >= ST7789_HEIGHT) y1 = (uint16_t)(ST7789_HEIGHT - 1u);
+    if (x1 < x0 || y1 < y0) return;
+    if (!lcd->dirty_valid) {
+        lcd->dirty_valid = true;
+        lcd->dirty_x0 = x0;
+        lcd->dirty_y0 = y0;
+        lcd->dirty_x1 = x1;
+        lcd->dirty_y1 = y1;
+        return;
+    }
+    if (x0 < lcd->dirty_x0) lcd->dirty_x0 = x0;
+    if (y0 < lcd->dirty_y0) lcd->dirty_y0 = y0;
+    if (x1 > lcd->dirty_x1) lcd->dirty_x1 = x1;
+    if (y1 > lcd->dirty_y1) lcd->dirty_y1 = y1;
+}
+
 static void st7789_fb_clear(ST7789_Handle* lcd, uint32_t rgb888)
 {
     if (!lcd || !lcd->framebuffer_enabled || !lcd->fb_back) return;
     uint16_t c = st7789_rgb888_to_565(rgb888);
     uint32_t pixels = (uint32_t)ST7789_WIDTH * (uint32_t)ST7789_HEIGHT;
+    bool changed = false;
     for (uint32_t i = 0; i < pixels; i++) {
-        lcd->fb_back[i] = c;
+        if (lcd->fb_back[i] != c) {
+            lcd->fb_back[i] = c;
+            changed = true;
+        }
+    }
+    if (changed) {
+        st7789_mark_dirty_rect(lcd, 0, 0, (uint16_t)(ST7789_WIDTH - 1u), (uint16_t)(ST7789_HEIGHT - 1u));
     }
 }
 
@@ -169,7 +503,11 @@ static void st7789_fb_fill_rect(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint
     for (uint16_t yy = y; yy <= y1; yy++) {
         uint32_t row = (uint32_t)yy * (uint32_t)ST7789_WIDTH;
         for (uint16_t xx = x; xx <= x1; xx++) {
-            lcd->fb_back[row + xx] = c;
+            uint32_t idx = row + xx;
+            if (lcd->fb_back[idx] != c) {
+                lcd->fb_back[idx] = c;
+                st7789_mark_dirty_xy(lcd, xx, yy);
+            }
         }
     }
 }
@@ -178,27 +516,39 @@ static void st7789_fb_put_pixel(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint
 {
     if (!lcd || !lcd->framebuffer_enabled || !lcd->fb_back) return;
     if (x >= ST7789_WIDTH || y >= ST7789_HEIGHT) return;
-    lcd->fb_back[st7789_fb_index(x, y)] = st7789_rgb888_to_565(rgb888);
+    uint32_t idx = st7789_fb_index(x, y);
+    uint16_t c = st7789_rgb888_to_565(rgb888);
+    if (lcd->fb_back[idx] == c) return;
+    lcd->fb_back[idx] = c;
+    st7789_mark_dirty_xy(lcd, x, y);
 }
 
-static void st7789_flush_full_rgb565_be(ST7789_Handle* lcd, const uint16_t* buf)
+static void st7789_flush_rect_rgb565_be(ST7789_Handle* lcd, const uint16_t* buf, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
     if (!lcd || !lcd->inited || !buf) return;
-    st7789_set_address_window(lcd, 0, 0, (uint16_t)(ST7789_WIDTH - 1u), (uint16_t)(ST7789_HEIGHT - 1u));
+    if (x0 > x1 || y0 > y1) return;
+    if (x1 >= ST7789_WIDTH) x1 = (uint16_t)(ST7789_WIDTH - 1u);
+    if (y1 >= ST7789_HEIGHT) y1 = (uint16_t)(ST7789_HEIGHT - 1u);
 
-    uint8_t out[256];
-    uint32_t pixels_total = (uint32_t)ST7789_WIDTH * (uint32_t)ST7789_HEIGHT;
-    uint32_t idx = 0;
-    while (idx < pixels_total) {
-        uint32_t chunkPixels = (pixels_total - idx);
-        if (chunkPixels > (sizeof(out) / 2u)) chunkPixels = (sizeof(out) / 2u);
-        for (uint32_t i = 0; i < chunkPixels; i++) {
-            uint16_t c = buf[idx + i];
-            out[i * 2u] = (uint8_t)(c >> 8);
-            out[i * 2u + 1u] = (uint8_t)(c & 0xFFu);
+    st7789_set_address_window(lcd, x0, y0, x1, y1);
+    uint8_t out[512];
+    uint16_t width = (uint16_t)(x1 - x0 + 1u);
+
+    for (uint16_t y = y0; y <= y1; y++) {
+        const uint16_t* row = buf + ((uint32_t)y * (uint32_t)ST7789_WIDTH + x0);
+        uint16_t remaining = width;
+        while (remaining) {
+            uint16_t chunkPixels = remaining;
+            if (chunkPixels > (uint16_t)(sizeof(out) / 2u)) chunkPixels = (uint16_t)(sizeof(out) / 2u);
+            for (uint16_t i = 0; i < chunkPixels; i++) {
+                uint16_t c = row[i];
+                out[(uint32_t)i * 2u] = (uint8_t)(c >> 8);
+                out[(uint32_t)i * 2u + 1u] = (uint8_t)(c & 0xFFu);
+            }
+            st7789_write_bytes(lcd, out, (size_t)chunkPixels * 2u);
+            row += chunkPixels;
+            remaining = (uint16_t)(remaining - chunkPixels);
         }
-        st7789_write_bytes(lcd, out, chunkPixels * 2u);
-        idx += chunkPixels;
     }
     st7789_end_pixels();
 }
@@ -212,7 +562,7 @@ static void st7789_write_color_repeat(ST7789_Handle* lcd, uint32_t rgb888, uint3
         uint16_t c = st7789_rgb888_to_565(rgb888);
         uint8_t hi = (uint8_t)(c >> 8);
         uint8_t lo = (uint8_t)(c & 0xFFu);
-        uint8_t buf[128];
+        uint8_t buf[ST7789_DMA_CHUNK_BYTES];
 
         for (size_t i = 0; i < sizeof(buf); i += 2)
         {
@@ -258,9 +608,9 @@ static void st7789_write_color_repeat(ST7789_Handle* lcd, uint32_t rgb888, uint3
 
 static void st7789_gpio_init(void)
 {
-    __HAL_RCC_GPIOH_CLK_ENABLE();
-    __HAL_RCC_GPIOJ_CLK_ENABLE();
-    __HAL_RCC_GPIOK_CLK_ENABLE();
+    st7789_enable_gpio_clock(ST7789_CS_PORT);
+    if (ST7789_DC_PORT != ST7789_CS_PORT) st7789_enable_gpio_clock(ST7789_DC_PORT);
+    if (ST7789_BL_PORT != ST7789_CS_PORT && ST7789_BL_PORT != ST7789_DC_PORT) st7789_enable_gpio_clock(ST7789_BL_PORT);
 
     GPIO_InitTypeDef GPIO_InitStruct = {0};
 
@@ -274,21 +624,17 @@ static void st7789_gpio_init(void)
     GPIO_InitStruct.Pin = ST7789_DC_PIN;
     HAL_GPIO_Init(ST7789_DC_PORT, &GPIO_InitStruct);
 
-    GPIO_InitStruct.Pin = ST7789_SCL_PIN;
-    HAL_GPIO_Init(ST7789_SCL_PORT, &GPIO_InitStruct);
-
-    GPIO_InitStruct.Pin = ST7789_SDA_PIN;
-    HAL_GPIO_Init(ST7789_SDA_PORT, &GPIO_InitStruct);
+    GPIO_InitStruct.Pin = ST7789_BL_PIN;
+    HAL_GPIO_Init(ST7789_BL_PORT, &GPIO_InitStruct);
 
     st7789_cs_high();
     st7789_dc_data();
-    st7789_scl_low();
-    st7789_sda_high();
+    st7789_gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, GPIO_PIN_RESET);
 }
 
 static void st7789_backlight_gpio_init_off(void)
 {
-    __HAL_RCC_GPIOH_CLK_ENABLE();
+    st7789_enable_gpio_clock(ST7789_BL_PORT);
     GPIO_InitTypeDef GPIO_InitStruct = {0};
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -296,53 +642,6 @@ static void st7789_backlight_gpio_init_off(void)
     GPIO_InitStruct.Pin = ST7789_BL_PIN;
     HAL_GPIO_Init(ST7789_BL_PORT, &GPIO_InitStruct);
     st7789_gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, GPIO_PIN_RESET);
-}
-
-static TIM_HandleTypeDef st7789_bl_htim12;
-static bool st7789_bl_tim12_inited = false;
-
-static void st7789_backlight_tim12_init(void)
-{
-    if (st7789_bl_tim12_inited) return;
-
-    __HAL_RCC_TIM12_CLK_ENABLE();
-    __HAL_RCC_GPIOH_CLK_ENABLE();
-
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-    GPIO_InitStruct.Pin = ST7789_BL_PIN;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Alternate = GPIO_AF2_TIM12;
-    HAL_GPIO_Init(ST7789_BL_PORT, &GPIO_InitStruct);
-
-    uint32_t timclk = HAL_RCC_GetPCLK1Freq() * 2u;
-
-    const uint32_t targetHz = 20000u;
-    const uint32_t period = 999u;
-    uint64_t presc64 = (uint64_t)timclk / ((uint64_t)targetHz * (uint64_t)(period + 1u));
-    if (presc64 == 0) presc64 = 1;
-    if (presc64 > 65536ull) presc64 = 65536ull;
-    uint32_t prescaler = (uint32_t)(presc64 - 1ull);
-
-    memset(&st7789_bl_htim12, 0, sizeof(st7789_bl_htim12));
-    st7789_bl_htim12.Instance = TIM12;
-    st7789_bl_htim12.Init.Prescaler = prescaler;
-    st7789_bl_htim12.Init.CounterMode = TIM_COUNTERMODE_UP;
-    st7789_bl_htim12.Init.Period = period;
-    st7789_bl_htim12.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-    st7789_bl_htim12.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-    (void)HAL_TIM_PWM_Init(&st7789_bl_htim12);
-
-    TIM_OC_InitTypeDef sConfigOC = {0};
-    sConfigOC.OCMode = TIM_OCMODE_PWM1;
-    sConfigOC.Pulse = 0;
-    sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-    sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-    (void)HAL_TIM_PWM_ConfigChannel(&st7789_bl_htim12, &sConfigOC, TIM_CHANNEL_1);
-    (void)HAL_TIM_PWM_Start(&st7789_bl_htim12, TIM_CHANNEL_1);
-
-    st7789_bl_tim12_inited = true;
 }
 
 static uint8_t st7789_madctl_for_rotation(ST7789_Rotation rot)
@@ -424,7 +723,9 @@ void ST7789_FrameEnd(ST7789_Handle* lcd)
     if (lcd->frame_blocked) return;
     if (!lcd->framebuffer_enabled) return;
     if (!lcd->fb_back) return;
-    st7789_flush_full_rgb565_be(lcd, lcd->fb_back);
+    if (!lcd->dirty_valid) return;
+    st7789_flush_rect_rgb565_be(lcd, lcd->fb_back, lcd->dirty_x0, lcd->dirty_y0, lcd->dirty_x1, lcd->dirty_y1);
+    lcd->dirty_valid = false;
     uint16_t* tmp = lcd->fb_front;
     lcd->fb_front = lcd->fb_back;
     lcd->fb_back = tmp;
@@ -455,23 +756,14 @@ void ST7789_SetBacklight(ST7789_Handle* lcd, uint8_t percent)
 {
     if (!lcd) return;
     if (percent > 100) percent = 100;
-    uint8_t hwPercent = (uint8_t)(100u - percent);
-
-    if (lcd->cfg.bl_htim)
-    {
-        uint32_t arr = __HAL_TIM_GET_AUTORELOAD(lcd->cfg.bl_htim);
-        uint32_t ccr = (arr * (uint32_t)hwPercent) / 100u;
-        __HAL_TIM_SET_COMPARE(lcd->cfg.bl_htim, lcd->cfg.bl_tim_channel, ccr);
-        (void)HAL_TIM_PWM_Start(lcd->cfg.bl_htim, lcd->cfg.bl_tim_channel);
-        return;
-    }
-
-    st7789_gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, (percent == 0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    st7789_gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, (percent == 0) ? ST7789_BL_OFF_STATE : ST7789_BL_ON_STATE);
 }
 
 void ST7789_Init(ST7789_Handle* lcd, const ST7789_Config* cfg)
 {
     if (!lcd) return;
+    APP_DBG("[ST7789] init start");
+    g_st7789_in_init = true;
 
     ST7789_Config c = {0};
     c.width = ST7789_WIDTH;
@@ -494,6 +786,11 @@ void ST7789_Init(ST7789_Handle* lcd, const ST7789_Config* cfg)
     lcd->framebuffer_enabled = lcd->cfg.use_framebuffer;
     lcd->fb_front = NULL;
     lcd->fb_back = NULL;
+    lcd->dirty_valid = false;
+    lcd->dirty_x0 = 0;
+    lcd->dirty_y0 = 0;
+    lcd->dirty_x1 = 0;
+    lcd->dirty_y1 = 0;
 
     if (lcd->framebuffer_enabled)
     {
@@ -505,34 +802,34 @@ void ST7789_Init(ST7789_Handle* lcd, const ST7789_Config* cfg)
     }
 
     st7789_gpio_init();
-    if (lcd->cfg.bl_htim == NULL)
-    {
-        st7789_backlight_tim12_init();
-        lcd->cfg.bl_htim = &st7789_bl_htim12;
-        lcd->cfg.bl_tim_channel = TIM_CHANNEL_1;
-    }
-    else
-    {
-        st7789_backlight_gpio_init_off();
-    }
+    APP_DBG("[ST7789] gpio ready");
+    lcd->cfg.bl_htim = NULL;
+    lcd->cfg.bl_tim_channel = 0;
+    st7789_backlight_gpio_init_off();
+    APP_DBG("[ST7789] backlight ready");
 
+    APP_DBG("[ST7789] cmd SWRESET");
     st7789_write_cmd(lcd, ST7789_CMD_SWRESET);
     HAL_Delay(150);
+    APP_DBG(" cmd SLPOUT");
     st7789_write_cmd(lcd, ST7789_CMD_SLPOUT);
     HAL_Delay(120);
 
+    APP_DBG("[ST7789] apply cfg");
     st7789_apply_color_mode(lcd);
     st7789_apply_rotation(lcd);
     st7789_apply_inversion(lcd);
 
+    APP_DBG("[ST7789] cmd NORON");
     st7789_write_cmd(lcd, ST7789_CMD_NORON);
     HAL_Delay(10);
+    APP_DBG("[ST7789] cmd DISPON");
     st7789_write_cmd(lcd, ST7789_CMD_DISPON);
     HAL_Delay(120);
 
+    g_st7789_in_init = false;
     lcd->inited = true;
-    ST7789_SetBacklight(lcd, 100);
-    ST7789_FillScreen(lcd, 0x000000u);
+    APP_DBG("[ST7789] init done");
 }
 
 void ST7789_FillScreen(ST7789_Handle* lcd, uint32_t rgb888)
@@ -545,6 +842,58 @@ void ST7789_FillScreen(ST7789_Handle* lcd, uint32_t rgb888)
         return;
     }
     ST7789_FillRect(lcd, 0, 0, st7789_width(lcd), st7789_height(lcd), rgb888);
+}
+
+bool ST7789_IsTransferBusy(const ST7789_Handle* lcd)
+{
+    (void)lcd;
+    return g_st7789_fill_active || (g_st7789_hspi.State != HAL_SPI_STATE_READY);
+}
+
+bool ST7789_FillScreenAsync(ST7789_Handle* lcd, uint32_t rgb888)
+{
+    static bool dbg_once = true;
+    if (!lcd || !lcd->inited) return false;
+    if (lcd->frame_blocked) return false;
+    if (lcd->framebuffer_enabled) return false;
+    if (lcd->cfg.color_mode != ST7789_COLOR_MODE_RGB565) return false;
+    if (g_st7789_fill_active) return false;
+    if (!st7789_spi_dma_init()) return false;
+    if (g_st7789_hspi.State != HAL_SPI_STATE_READY) return false;
+
+    if (dbg_once) APP_DBG("[ST7789] fill_async step=1");
+    uint16_t c = st7789_rgb888_to_565(rgb888);
+    if (c != g_st7789_fill_color565) {
+        uint8_t hi = (uint8_t)(c >> 8);
+        uint8_t lo = (uint8_t)(c & 0xFFu);
+        for (size_t i = 0; i < sizeof(g_st7789_fillbuf); i += 2) {
+            g_st7789_fillbuf[i] = hi;
+            g_st7789_fillbuf[i + 1] = lo;
+        }
+        st7789_dma_clean_dcache(g_st7789_fillbuf, sizeof(g_st7789_fillbuf));
+        g_st7789_fill_color565 = c;
+    }
+
+    if (dbg_once) APP_DBG("[ST7789] fill_async step=2");
+    st7789_set_address_window(lcd, 0, 0, (uint16_t)(st7789_width(lcd) - 1u), (uint16_t)(st7789_height(lcd) - 1u));
+
+    if (dbg_once) APP_DBG("[ST7789] fill_async step=3");
+    g_st7789_fill_remaining = (uint32_t)st7789_width(lcd) * (uint32_t)st7789_height(lcd) * 2u;
+    uint16_t first = (g_st7789_fill_remaining > ST7789_DMA_CHUNK_BYTES) ? (uint16_t)ST7789_DMA_CHUNK_BYTES : (uint16_t)g_st7789_fill_remaining;
+    g_st7789_fill_remaining -= (uint32_t)first;
+    g_st7789_fill_active = true;
+
+    if (HAL_SPI_Transmit_DMA(&g_st7789_hspi, g_st7789_fillbuf, first) != HAL_OK) {
+        g_st7789_fill_active = false;
+        st7789_cs_high();
+        return false;
+    }
+
+    if (dbg_once) {
+        APP_DBG("[ST7789] fill_async step=4");
+        dbg_once = false;
+    }
+    return true;
 }
 
 void ST7789_FillRect(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t rgb888)
@@ -868,7 +1217,11 @@ void ST7789_DrawBitmap(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, u
                 uint16_t py = (uint16_t)(y + row);
                 if (px < ST7789_WIDTH && py < ST7789_HEIGHT)
                 {
-                    lcd->fb_back[st7789_fb_index(px, py)] = c565;
+                    uint32_t idx = st7789_fb_index(px, py);
+                    if (lcd->fb_back[idx] != c565) {
+                        lcd->fb_back[idx] = c565;
+                        st7789_mark_dirty_xy(lcd, px, py);
+                    }
                 }
             }
         }
@@ -999,7 +1352,11 @@ void ST7789_DrawBitmap1BPP(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t 
                 uint16_t py = (uint16_t)(y + row);
                 if (px < ST7789_WIDTH && py < ST7789_HEIGHT)
                 {
-                    lcd->fb_back[st7789_fb_index(px, py)] = c;
+                    uint32_t idx = st7789_fb_index(px, py);
+                    if (lcd->fb_back[idx] != c) {
+                        lcd->fb_back[idx] = c;
+                        st7789_mark_dirty_xy(lcd, px, py);
+                    }
                 }
             }
         }

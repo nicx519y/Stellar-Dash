@@ -53,6 +53,10 @@ void MX_DMA_Init(void)
   HAL_NVIC_SetPriority(DMA1_Stream2_IRQn, 3, 0); // 设置DMA1_Stream2_IRQn中断优先级为2 用于TIM4_CH1 DMA中断, PWM输出
   HAL_NVIC_EnableIRQ(DMA1_Stream2_IRQn);
 
+  /* DMA1_Stream4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
+
 }
 
 /* USER CODE BEGIN 2 */

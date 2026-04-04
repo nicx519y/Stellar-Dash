@@ -3,11 +3,14 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "system_logger.h"
 #include "stm32h7xx.h"
+#include "micro_timer.hpp"
 #include "storagemanager.hpp"
 #include "screen_control/spi_screen_ui_common.hpp"
 #include "screen_control/spi_screen_layout.hpp"
 #include "screen_control/spi_screen_main_list.hpp"
+#include "screen_control/spi_screen_detail_entries.hpp"
 #include "screen_control/spi_screen_detail_pages.hpp"
 
 extern "C" {
@@ -33,6 +36,15 @@ static uint8_t g_detailMenuId = 0;
 static uint8_t g_detailIndex = 0;
 static bool g_deferredSavePending = false;
 static uint32_t g_deferredSaveDueMs = 0;
+static uint32_t g_perfLastMs = 0;
+static uint64_t g_perfAccPreUs = 0;
+static uint64_t g_perfAccFrameBeginUs = 0;
+static uint64_t g_perfAccPrepUs = 0;
+static uint64_t g_perfAccRenderUs = 0;
+static uint64_t g_perfAccFlushUs = 0;
+static uint32_t g_perfCalls = 0;
+static uint32_t g_perfFrames = 0;
+static uint32_t g_perfBlocked = 0;
 
 static bool ok_flash_active(void) {
     return (uint32_t)(HAL_GetTick() - g_okFlashUntilMs) > 0x80000000u ? false : (HAL_GetTick() < g_okFlashUntilMs);
@@ -65,7 +77,9 @@ void ScreenUI_RequestDeferredSave(uint32_t delayMs) {
 }
 
 static uint8_t clamp_brightness(uint8_t v) {
-    return (v > 100) ? 100 : v;
+    // if (v == 0) return 100;
+    // return (v > 100) ? 100 : v;
+    return 100;
 }
 
 static void refresh_screen_cfg_cache(void) {
@@ -108,37 +122,20 @@ void SPIScreenManager::setup() {
     cfg.rotation = ST7789_ROTATION_270;
     cfg.invert = true;
     cfg.fps = 12;
-    cfg.use_framebuffer = true;
-    cfg.bl_htim = NULL;
-    cfg.bl_tim_channel = 0;
+    cfg.use_framebuffer = false;
+    // cfg.bl_htim = NULL;
+    // cfg.bl_tim_channel = 0;
     ST7789_Init(&g_lcd, &cfg);
+
     g_inited = true;
     g_okFlashUntilMs = 0;
-
     RotEnc_Init();
 
-    refresh_screen_cfg_cache();
-    uint32_t sig = bkp_read(0);
-    if (sig == 0x5343u) {
-        uint32_t mid = bkp_read(1);
-        uint32_t didx = bkp_read(2);
-        bkp_write(0, 0);
-        bkp_write(1, 0);
-        bkp_write(2, 0);
-        g_inDetail = true;
-        g_detailMenuId = (uint8_t)mid;
-        g_detailIndex = (uint8_t)didx;
-    }
-    if (g_menuCfgDirty) {
-        rebuildMenu();
-        g_menuCfgDirty = false;
-    }
-
-    ST7789_FrameBegin(&g_lcd);
-    ST7789_SetBacklight(&g_lcd, g_cfgBrightness);
-    ST7789_FillScreen(&g_lcd, g_cfgBg);
-    renderFrame();
-    ST7789_FrameEnd(&g_lcd);
+    APP_DBG("[SPI_SCREEN] setup red start");
+    ST7789_SetBacklight(&g_lcd, 100);
+    APP_DBG("[SPI_SCREEN] setup bl done");
+    ST7789_FillScreen(&g_lcd, 0xFF0000);
+    APP_DBG("[SPI_SCREEN] setup red done");
 }
 
 void SPIScreenManager::rebuildMenu() {
@@ -187,51 +184,19 @@ void SPIScreenManager::menuNext() {
 void SPIScreenManager::loop() {
     if (!g_inited) return;
 
-    RotEnc_Update();
     uint32_t nowMs = HAL_GetTick();
-    if (g_deferredSavePending && tick_expired(nowMs, g_deferredSaveDueMs)) {
-        g_deferredSavePending = false;
-        STORAGE_MANAGER.saveConfig();
+    static uint32_t lastRedMs = 0;
+    bool frameOk = ST7789_FrameBegin(&g_lcd);
+
+    if (frameOk) {
+        ST7789_SetBacklight(&g_lcd, 100);
+        (void)ST7789_FillScreenAsync(&g_lcd, 0xFF0000);
     }
 
-    int8_t det = RotEnc_GetDetentDelta();
-    if (g_inDetail) ScreenDetail_OnRotate(g_detailMenuId, &g_detailIndex, det);
-    else {
-        while (det > 0) {
-            menuNext();
-            det--;
-        }
-        while (det < 0) {
-            menuPrev();
-            det++;
-        }
+    if ((uint32_t)(nowMs - lastRedMs) >= 1000u) {
+        APP_DBG("[SPI_SCREEN] loop alive");
+        lastRedMs = nowMs;
     }
-
-    if (RotEnc_WasButtonLongPressed() && g_inDetail) {
-        g_inDetail = false;
-        g_okFlashUntilMs = HAL_GetTick() + SPI_SCREEN_OK_FLASH_MS;
-    }
-
-    if (RotEnc_WasButtonClicked()) {
-        if (g_inDetail) {
-            if (ScreenDetail_OnConfirm(g_detailMenuId, g_detailIndex)) STORAGE_MANAGER.saveConfig();
-            g_detailIndex = ScreenDetail_InitIndex(g_detailMenuId);
-        } else if (menuCount > 0) enter_detail(menuIds[menuIndex]);
-        g_okFlashUntilMs = nowMs + SPI_SCREEN_OK_FLASH_MS;
-    }
-
-    if (!ST7789_FrameBegin(&g_lcd)) return;
-
-    refresh_screen_cfg_cache();
-    if (g_menuCfgDirty) {
-        rebuildMenu();
-        g_menuCfgDirty = false;
-    }
-
-    ST7789_SetBacklight(&g_lcd, g_cfgBrightness);
-    ST7789_FillScreen(&g_lcd, g_cfgBg);
-    renderFrame();
-    ST7789_FrameEnd(&g_lcd);
 }
 
 void SPIScreenManager::renderFrame() {
@@ -294,7 +259,9 @@ void SPIScreenManager::renderBars() {
     else if (prev && prev->label) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH, prev->label, textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
 
     const uint32_t okBg = ok_flash_active() ? g_cfgOkBg : barBg;
-    if (g_inDetail && (g_detailMenuId == 4 || g_detailMenuId == 6 || g_detailMenuId == 8)) {
+    if (g_inDetail && g_detailMenuId == 9) {
+        ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, "Quit", textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
+    } else if (g_inDetail && (g_detailMenuId == 4 || g_detailMenuId == 6 || g_detailMenuId == 8)) {
         bool on = false;
         if (g_detailMenuId == 4) {
             const GamepadProfile* p = STORAGE_MANAGER.getDefaultGamepadProfile();
