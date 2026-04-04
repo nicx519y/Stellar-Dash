@@ -264,8 +264,10 @@ void SPIScreenManager::handleInput(uint32_t nowMs) {
 void SPIScreenManager::loop() {
     if (!g_inited) return;
     SPIST7789_Service();
-    RotEnc_Update();
+    bool frameOk = ST7789_FrameBegin(&g_lcd);
+    if (!frameOk) return;
 
+    RotEnc_Update();
     uint32_t nowMs = HAL_GetTick();
     {
         uint8_t forcedMenuId = 0;
@@ -288,9 +290,6 @@ void SPIScreenManager::loop() {
         STORAGE_MANAGER.saveConfig();
         g_deferredSavePending = false;
     }
-
-    bool frameOk = ST7789_FrameBegin(&g_lcd);
-    if (!frameOk) return;
 
     if (g_firstDrawPending) {
         ST7789_FillScreen(&g_lcd, g_cfgBg);
