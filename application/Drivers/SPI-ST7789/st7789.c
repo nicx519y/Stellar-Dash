@@ -154,7 +154,7 @@ static bool st7789_spi_dma_init(void)
     if (!g_st7789_spi_clk_configured) {
         RCC_PeriphCLKInitTypeDef clk = {0};
         clk.PeriphClockSelection = RCC_PERIPHCLK_SPI5;
-        clk.Spi45ClockSelection = RCC_SPI45CLKSOURCE_D2PCLK2;
+    clk.Spi45ClockSelection = RCC_SPI45CLKSOURCE_D2PCLK2;
         (void)HAL_RCCEx_PeriphCLKConfig(&clk);
         g_st7789_spi_clk_configured = true;
     }
@@ -422,6 +422,16 @@ static inline uint16_t st7789_rgb888_to_565(uint32_t rgb888)
     uint8_t b = (uint8_t)(rgb888 & 0xFFu);
 
     return (uint16_t)(((uint16_t)(r & 0xF8u) << 8) | ((uint16_t)(g & 0xFCu) << 3) | (uint16_t)(b >> 3));
+}
+
+static bool st7789_wait_spist_done(uint32_t timeout_ms)
+{
+    uint32_t t0 = HAL_GetTick();
+    while (SPIST7789_IsBusy()) {
+        SPIST7789_Service();
+        if ((uint32_t)(HAL_GetTick() - t0) > timeout_ms) return false;
+    }
+    return true;
 }
 
 static uint16_t st7789_fb0[ST7789_WIDTH * ST7789_HEIGHT] __attribute__((section(".DMA_Section"), aligned(32)));
@@ -699,6 +709,7 @@ bool ST7789_IsFrameBlocked(const ST7789_Handle* lcd)
 
 bool ST7789_FrameBegin(ST7789_Handle* lcd)
 {
+    SPIST7789_Service();
     if (!lcd || !lcd->inited) return false;
     if (lcd->cfg.fps == 0) {
         lcd->frame_blocked = false;
@@ -755,23 +766,20 @@ void ST7789_SetRotation(ST7789_Handle* lcd, ST7789_Rotation rotation)
 void ST7789_SetBacklight(ST7789_Handle* lcd, uint8_t percent)
 {
     if (!lcd) return;
-    if (percent > 100) percent = 100;
-    st7789_gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, (percent == 0) ? ST7789_BL_OFF_STATE : ST7789_BL_ON_STATE);
+    SPIST7789_SetBacklight(percent);
 }
 
 void ST7789_Init(ST7789_Handle* lcd, const ST7789_Config* cfg)
 {
     if (!lcd) return;
-    APP_DBG("[ST7789] init start");
     g_st7789_in_init = true;
-
     ST7789_Config c = {0};
     c.width = ST7789_WIDTH;
     c.height = ST7789_HEIGHT;
     c.x_offset = 0;
-    c.y_offset = 0;
-    c.color_mode = ST7789_COLOR_MODE_RGB666;
-    c.rotation = ST7789_ROTATION_0;
+    c.y_offset = 34;
+    c.color_mode = ST7789_COLOR_MODE_RGB565;
+    c.rotation = ST7789_ROTATION_270;
     c.invert = true;
     c.fps = ST7789_DEFAULT_FPS;
     c.use_framebuffer = false;
@@ -799,37 +807,30 @@ void ST7789_Init(ST7789_Handle* lcd, const ST7789_Config* cfg)
         lcd->fb_back = st7789_fb1;
         memset(st7789_fb0, 0, sizeof(st7789_fb0));
         memset(st7789_fb1, 0, sizeof(st7789_fb1));
+
+        st7789_gpio_init();
+        lcd->cfg.bl_htim = NULL;
+        lcd->cfg.bl_tim_channel = 0;
+        st7789_backlight_gpio_init_off();
+
+        st7789_write_cmd(lcd, ST7789_CMD_SWRESET);
+        HAL_Delay(150);
+        st7789_write_cmd(lcd, ST7789_CMD_SLPOUT);
+        HAL_Delay(120);
+        st7789_apply_color_mode(lcd);
+        st7789_apply_rotation(lcd);
+        st7789_apply_inversion(lcd);
+        st7789_write_cmd(lcd, ST7789_CMD_NORON);
+        HAL_Delay(10);
+        st7789_write_cmd(lcd, ST7789_CMD_DISPON);
+        HAL_Delay(120);
     }
-
-    st7789_gpio_init();
-    APP_DBG("[ST7789] gpio ready");
-    lcd->cfg.bl_htim = NULL;
-    lcd->cfg.bl_tim_channel = 0;
-    st7789_backlight_gpio_init_off();
-    APP_DBG("[ST7789] backlight ready");
-
-    APP_DBG("[ST7789] cmd SWRESET");
-    st7789_write_cmd(lcd, ST7789_CMD_SWRESET);
-    HAL_Delay(150);
-    APP_DBG(" cmd SLPOUT");
-    st7789_write_cmd(lcd, ST7789_CMD_SLPOUT);
-    HAL_Delay(120);
-
-    APP_DBG("[ST7789] apply cfg");
-    st7789_apply_color_mode(lcd);
-    st7789_apply_rotation(lcd);
-    st7789_apply_inversion(lcd);
-
-    APP_DBG("[ST7789] cmd NORON");
-    st7789_write_cmd(lcd, ST7789_CMD_NORON);
-    HAL_Delay(10);
-    APP_DBG("[ST7789] cmd DISPON");
-    st7789_write_cmd(lcd, ST7789_CMD_DISPON);
-    HAL_Delay(120);
-
+    else
+    {
+        SPIST7789_Init();
+    }
     g_st7789_in_init = false;
     lcd->inited = true;
-    APP_DBG("[ST7789] init done");
 }
 
 void ST7789_FillScreen(ST7789_Handle* lcd, uint32_t rgb888)
@@ -841,83 +842,38 @@ void ST7789_FillScreen(ST7789_Handle* lcd, uint32_t rgb888)
         st7789_fb_clear(lcd, rgb888);
         return;
     }
-    ST7789_FillRect(lcd, 0, 0, st7789_width(lcd), st7789_height(lcd), rgb888);
+    (void)ST7789_FillScreenAsync(lcd, rgb888);
+    (void)st7789_wait_spist_done(500);
 }
 
 bool ST7789_IsTransferBusy(const ST7789_Handle* lcd)
 {
     (void)lcd;
-    return g_st7789_fill_active || (g_st7789_hspi.State != HAL_SPI_STATE_READY);
+    return SPIST7789_IsBusy();
 }
 
 bool ST7789_FillScreenAsync(ST7789_Handle* lcd, uint32_t rgb888)
 {
-    static bool dbg_once = true;
     if (!lcd || !lcd->inited) return false;
     if (lcd->frame_blocked) return false;
     if (lcd->framebuffer_enabled) return false;
-    if (lcd->cfg.color_mode != ST7789_COLOR_MODE_RGB565) return false;
-    if (g_st7789_fill_active) return false;
-    if (!st7789_spi_dma_init()) return false;
-    if (g_st7789_hspi.State != HAL_SPI_STATE_READY) return false;
-
-    if (dbg_once) APP_DBG("[ST7789] fill_async step=1");
     uint16_t c = st7789_rgb888_to_565(rgb888);
-    if (c != g_st7789_fill_color565) {
-        uint8_t hi = (uint8_t)(c >> 8);
-        uint8_t lo = (uint8_t)(c & 0xFFu);
-        for (size_t i = 0; i < sizeof(g_st7789_fillbuf); i += 2) {
-            g_st7789_fillbuf[i] = hi;
-            g_st7789_fillbuf[i + 1] = lo;
-        }
-        st7789_dma_clean_dcache(g_st7789_fillbuf, sizeof(g_st7789_fillbuf));
-        g_st7789_fill_color565 = c;
-    }
-
-    if (dbg_once) APP_DBG("[ST7789] fill_async step=2");
-    st7789_set_address_window(lcd, 0, 0, (uint16_t)(st7789_width(lcd) - 1u), (uint16_t)(st7789_height(lcd) - 1u));
-
-    if (dbg_once) APP_DBG("[ST7789] fill_async step=3");
-    g_st7789_fill_remaining = (uint32_t)st7789_width(lcd) * (uint32_t)st7789_height(lcd) * 2u;
-    uint16_t first = (g_st7789_fill_remaining > ST7789_DMA_CHUNK_BYTES) ? (uint16_t)ST7789_DMA_CHUNK_BYTES : (uint16_t)g_st7789_fill_remaining;
-    g_st7789_fill_remaining -= (uint32_t)first;
-    g_st7789_fill_active = true;
-
-    if (HAL_SPI_Transmit_DMA(&g_st7789_hspi, g_st7789_fillbuf, first) != HAL_OK) {
-        g_st7789_fill_active = false;
-        st7789_cs_high();
-        return false;
-    }
-
-    if (dbg_once) {
-        APP_DBG("[ST7789] fill_async step=4");
-        dbg_once = false;
-    }
-    return true;
+    return SPIST7789_FillRectColor565Async(0u, 0u, ST7789_WIDTH, ST7789_HEIGHT, c);
 }
 
 void ST7789_FillRect(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint32_t rgb888)
 {
     if (!lcd || !lcd->inited) return;
     if (lcd->frame_blocked) return;
+    if (w == 0u || h == 0u) return;
     if (lcd->framebuffer_enabled)
     {
         st7789_fb_fill_rect(lcd, x, y, w, h, rgb888);
         return;
     }
-    if (w == 0 || h == 0) return;
-    if (x >= st7789_width(lcd) || y >= st7789_height(lcd)) return;
-
-    uint16_t x1 = (uint16_t)(x + w - 1u);
-    uint16_t y1 = (uint16_t)(y + h - 1u);
-
-    if (x1 >= st7789_width(lcd)) x1 = (uint16_t)(st7789_width(lcd) - 1u);
-    if (y1 >= st7789_height(lcd)) y1 = (uint16_t)(st7789_height(lcd) - 1u);
-
-    st7789_set_address_window(lcd, x, y, x1, y1);
-    uint32_t pixels = (uint32_t)(x1 - x + 1u) * (uint32_t)(y1 - y + 1u);
-    st7789_write_color_repeat(lcd, rgb888, pixels);
-    st7789_end_pixels();
+    uint16_t c = st7789_rgb888_to_565(rgb888);
+    if (!SPIST7789_FillRectColor565Async(x, y, w, h, c)) return;
+    (void)st7789_wait_spist_done(200);
 }
 
 void ST7789_DrawPixel(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint32_t rgb888)
@@ -929,11 +885,7 @@ void ST7789_DrawPixel(ST7789_Handle* lcd, uint16_t x, uint16_t y, uint32_t rgb88
         st7789_fb_put_pixel(lcd, x, y, rgb888);
         return;
     }
-    if (x >= st7789_width(lcd) || y >= st7789_height(lcd)) return;
-
-    st7789_set_address_window(lcd, x, y, x, y);
-    st7789_write_color_repeat(lcd, rgb888, 1);
-    st7789_end_pixels();
+    ST7789_FillRect(lcd, x, y, 1u, 1u, rgb888);
 }
 
 static int st7789_abs_i(int v) { return (v < 0) ? -v : v; }

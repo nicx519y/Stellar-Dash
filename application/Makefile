@@ -91,6 +91,7 @@ Libs/httpd
 # 自动查找源文件
 C_SOURCES = $(foreach dir,$(C_SOURCE_DIRS),$(wildcard $(dir)/*.c))
 CPP_SOURCES = $(foreach dir,$(CPP_SOURCE_DIRS),$(wildcard $(dir)/*.cpp))
+C_SOURCES := $(filter-out Drivers/SPI-ST7789/st7789.c,$(C_SOURCES))
 
 # ASM sources
 ASM_SOURCES =  \

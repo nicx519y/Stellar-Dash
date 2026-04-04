@@ -15,13 +15,14 @@ public:
     void setup();
     void loop();
 
-    void menuPrev();
-    void menuNext();
+    bool menuPrev();
+    bool menuNext();
 
 private:
     SPIScreenManager() = default;
 
     void rebuildMenu();
+    void handleInput(uint32_t nowMs);
     void renderFrame();
     void renderBars();
     void beginAnimation(int dir);

@@ -41,7 +41,8 @@ void ScreenDetailInputMode_Render(ST7789_Handle* lcd, uint8_t index, const Scree
 void ScreenDetailInputMode_OnConfirm(uint8_t index) {
     if (index < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0]))) {
         STORAGE_MANAGER.setInputMode(kInputModes[index]);
+        STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
         STORAGE_MANAGER.saveConfig();
-        ScreenUI_RequestRebootTo(0, index);
+        NVIC_SystemReset();
     }
 }

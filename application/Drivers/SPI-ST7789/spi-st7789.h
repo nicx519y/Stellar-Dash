@@ -10,7 +10,10 @@ extern "C" {
 
 void SPIST7789_Init(void);
 void SPIST7789_SetBacklight100(void);
+void SPIST7789_SetBacklight(uint8_t percent);
 bool SPIST7789_FillBlueAsync(void);
+bool SPIST7789_FillRectColor565Async(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color565);
+bool SPIST7789_WaitDone(uint32_t timeout_ms);
 bool SPIST7789_IsBusy(void);
 void SPIST7789_DMA_IRQHandler(void);
 void SPIST7789_SPI_IRQHandler(void);

@@ -1,6 +1,7 @@
 #include "screen_control/spi_screen_main_list.hpp"
 
 #include "screen_control/spi_screen_ui_common.hpp"
+#include "screen_control/spi_screen_detail_render_helpers.hpp"
 
 static const ScreenMenuMeta kMenuMeta[] = {
     {0, SCREEN_FEATURE_INPUT_MODE_SWITCH, "Input Mode"},
@@ -70,39 +71,12 @@ void ScreenMain_RenderList(ST7789_Handle* lcd,
                            uint32_t animStartMs,
                            uint32_t nowMs) {
     if (!lcd || !menuIds || menuCount == 0) return;
-
-    const uint16_t w = ST7789_WIDTH;
-    const uint16_t h = ST7789_HEIGHT;
-    const uint16_t listX = SPI_SCREEN_LEFT_BAR_W;
-    const uint16_t listW = (uint16_t)(w - SPI_SCREEN_LEFT_BAR_W - SPI_SCREEN_RIGHT_BAR_W);
-    const uint16_t itemH = SPI_SCREEN_MENU_ITEM_H;
-    const uint16_t centerY = (uint16_t)(h / 2u);
-    const uint16_t anchorY = (uint16_t)(centerY - itemH / 2u);
-    const uint32_t normalText = ScreenUI_MutedTextForBg(style.text, style.bg, 80u);
-
-    int offsetPx = 0;
-    if (animActive) {
-        uint32_t eased = ScreenUI_EaseOutCubic(nowMs - animStartMs, SPI_SCREEN_ANIM_MS);
-        int signedPx = (int)((int)itemH * (int)eased / 1000);
-        offsetPx = -animDir * signedPx;
-    }
-
-    for (uint8_t i = 0; i < menuCount; i++) {
-        int dy = (int)((int)i - (int)menuIndex) * (int)itemH;
-        int y = (int)anchorY + dy + offsetPx;
-        if (y < -(int)itemH || y > (int)h) continue;
-
+    const char* labels[32] = {0};
+    uint8_t renderCount = menuCount;
+    if (renderCount > (uint8_t)(sizeof(labels) / sizeof(labels[0]))) renderCount = (uint8_t)(sizeof(labels) / sizeof(labels[0]));
+    for (uint8_t i = 0; i < renderCount; i++) {
         const ScreenMenuMeta* meta = ScreenMain_FindMenuMeta(menuIds[i]);
-        if (!meta || !meta->label) continue;
-
-        uint16_t yy = (uint16_t)((y < 0) ? 0 : y);
-        uint16_t itemTextY = (uint16_t)(yy + (itemH - ScreenUI_CharCellH(SPI_SCREEN_MENU_TEXT_SCALE)) / 2u);
-        uint16_t itemTextX = (uint16_t)(listX + 4);
-        if (i == menuIndex && !animActive) {
-            ST7789_FillRect(lcd, listX, yy, listW, itemH, style.selBg);
-            ST7789_DrawString(lcd, itemTextX, itemTextY, meta->label, style.text, style.selBg, SPI_SCREEN_MENU_TEXT_SCALE);
-        } else {
-            ST7789_DrawString(lcd, itemTextX, itemTextY, meta->label, normalText, style.bg, SPI_SCREEN_MENU_TEXT_SCALE);
-        }
+        labels[i] = (meta && meta->label) ? meta->label : "";
     }
+    ScreenDetailRender_List(lcd, "", labels, renderCount, menuIndex, menuIndex, style, SPI_SCREEN_MENU_ITEM_H, animActive, animDir, animStartMs, nowMs);
 }

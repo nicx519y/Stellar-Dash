@@ -12,9 +12,11 @@
 #include "screen_control/spi_screen_main_list.hpp"
 #include "screen_control/spi_screen_detail_entries.hpp"
 #include "screen_control/spi_screen_detail_pages.hpp"
+#include "adc_btns/adc_calibration.hpp"
 
 extern "C" {
 #include "st7789.h"
+#include "spi-st7789.h"
 #include "rotary-encoder.h"
 }
 
@@ -31,6 +33,7 @@ static uint8_t g_cfgBrightness = 100;
 static uint32_t g_cfgFeaturesMask = 0;
 static uint8_t g_cfgFeaturesOrder[SCREEN_FEATURE_COUNT] = {0};
 static bool g_menuCfgDirty = true;
+static bool g_firstDrawPending = true;
 static bool g_inDetail = false;
 static uint8_t g_detailMenuId = 0;
 static uint8_t g_detailIndex = 0;
@@ -77,9 +80,7 @@ void ScreenUI_RequestDeferredSave(uint32_t delayMs) {
 }
 
 static uint8_t clamp_brightness(uint8_t v) {
-    // if (v == 0) return 100;
-    // return (v > 100) ? 100 : v;
-    return 100;
+    return (v > 100) ? 100 : v;
 }
 
 static void refresh_screen_cfg_cache(void) {
@@ -109,6 +110,19 @@ static void enter_detail(uint8_t menuId) {
     g_detailIndex = ScreenDetail_InitIndex(menuId);
 }
 
+static bool boot_mode_to_detail_menu(BootMode mode, uint8_t* outMenuId) {
+    if (!outMenuId) return false;
+    if (mode == BootMode::BOOT_MODE_WEB_CONFIG) {
+        *outMenuId = 9u;
+        return true;
+    }
+    if (mode == BootMode::BOOT_MODE_CALIBRATION) {
+        *outMenuId = 10u;
+        return true;
+    }
+    return false;
+}
+
 void SPIScreenManager::setup() {
     if (g_inited) return;
     memset(&g_lcd, 0, sizeof(g_lcd));
@@ -122,20 +136,25 @@ void SPIScreenManager::setup() {
     cfg.rotation = ST7789_ROTATION_270;
     cfg.invert = true;
     cfg.fps = 12;
-    cfg.use_framebuffer = false;
+    cfg.use_framebuffer = true;
     // cfg.bl_htim = NULL;
     // cfg.bl_tim_channel = 0;
     ST7789_Init(&g_lcd, &cfg);
 
     g_inited = true;
     g_okFlashUntilMs = 0;
+    g_firstDrawPending = true;
     RotEnc_Init();
 
-    APP_DBG("[SPI_SCREEN] setup red start");
-    ST7789_SetBacklight(&g_lcd, 100);
-    APP_DBG("[SPI_SCREEN] setup bl done");
-    ST7789_FillScreen(&g_lcd, 0xFF0000);
-    APP_DBG("[SPI_SCREEN] setup red done");
+    refresh_screen_cfg_cache();
+    ST7789_SetBacklight(&g_lcd, g_cfgBrightness);
+    rebuildMenu();
+    {
+        uint8_t forcedMenuId = 0;
+        if (boot_mode_to_detail_menu(STORAGE_MANAGER.getBootMode(), &forcedMenuId)) {
+            enter_detail(forcedMenuId);
+        }
+    }
 }
 
 void SPIScreenManager::rebuildMenu() {
@@ -169,34 +188,122 @@ void SPIScreenManager::beginAnimation(int dir) {
     animStartMs = HAL_GetTick();
 }
 
-void SPIScreenManager::menuPrev() {
-    if (menuCount == 0) return;
-    if (menuIndex == 0) return;
+bool SPIScreenManager::menuPrev() {
+    if (menuCount == 0) return false;
+    if (menuIndex == 0) return false;
     menuIndex--;
+    return true;
 }
 
-void SPIScreenManager::menuNext() {
-    if (menuCount == 0) return;
-    if (menuIndex + 1 >= menuCount) return;
+bool SPIScreenManager::menuNext() {
+    if (menuCount == 0) return false;
+    if (menuIndex + 1 >= menuCount) return false;
     menuIndex++;
+    return true;
+}
+
+void SPIScreenManager::handleInput(uint32_t nowMs) {
+    if (animActive && tick_expired(nowMs, animStartMs + SPI_SCREEN_ANIM_MS)) {
+        animActive = false;
+    }
+
+    int8_t det = RotEnc_GetDetentDelta();
+    if (det > 0) {
+        if (g_inDetail) {
+            ScreenDetail_OnRotate(g_detailMenuId, &g_detailIndex, 1);
+        } else {
+            if (menuNext()) animActive = false;
+        }
+    } else if (det < 0) {
+        if (g_inDetail) {
+            ScreenDetail_OnRotate(g_detailMenuId, &g_detailIndex, -1);
+        } else {
+            if (menuPrev()) animActive = false;
+        }
+    }
+
+    if (RotEnc_WasButtonClicked()) {
+        if (g_inDetail) {
+            bool shouldExit = ScreenDetail_OnConfirm(g_detailMenuId, g_detailIndex);
+            g_okFlashUntilMs = nowMs + 120u;
+            if (shouldExit) {
+                g_inDetail = false;
+            }
+        } else {
+            if (menuCount > 0 && menuIndex < menuCount) {
+                uint8_t id = menuIds[menuIndex];
+                if (id == 9u) {
+                    STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_WEB_CONFIG);
+                    STORAGE_MANAGER.saveConfig();
+                    NVIC_SystemReset();
+                } else if (id == 10u) {
+                    ADC_CALIBRATION_MANAGER.resetAllCalibration();
+                    STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_CALIBRATION);
+                    STORAGE_MANAGER.saveConfig();
+                    NVIC_SystemReset();
+                } else {
+                    enter_detail(id);
+                }
+            }
+        }
+    }
+
+    if (RotEnc_WasButtonLongPressed()) {
+        if (g_inDetail) {
+            if (g_detailMenuId == 9u || g_detailMenuId == 10u) {
+                STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
+                STORAGE_MANAGER.saveConfig();
+                NVIC_SystemReset();
+            } else {
+                g_inDetail = false;
+            }
+        }
+    }
 }
 
 void SPIScreenManager::loop() {
     if (!g_inited) return;
+    SPIST7789_Service();
+    RotEnc_Update();
 
     uint32_t nowMs = HAL_GetTick();
-    static uint32_t lastRedMs = 0;
+    {
+        uint8_t forcedMenuId = 0;
+        if (boot_mode_to_detail_menu(STORAGE_MANAGER.getBootMode(), &forcedMenuId)) {
+            if (!g_inDetail || g_detailMenuId != forcedMenuId) {
+                enter_detail(forcedMenuId);
+            }
+        }
+    }
+    handleInput(nowMs);
+
+    refresh_screen_cfg_cache();
+
+    if (g_menuCfgDirty) {
+        rebuildMenu();
+        g_menuCfgDirty = false;
+    }
+
+    if (g_deferredSavePending && tick_expired(nowMs, g_deferredSaveDueMs)) {
+        STORAGE_MANAGER.saveConfig();
+        g_deferredSavePending = false;
+    }
+
     bool frameOk = ST7789_FrameBegin(&g_lcd);
+    if (!frameOk) return;
 
-    if (frameOk) {
-        ST7789_SetBacklight(&g_lcd, 100);
-        (void)ST7789_FillScreenAsync(&g_lcd, 0xFF0000);
+    if (g_firstDrawPending) {
+        ST7789_FillScreen(&g_lcd, g_cfgBg);
+        g_lcd.dirty_valid = true;
+        g_lcd.dirty_x0 = 0;
+        g_lcd.dirty_y0 = 0;
+        g_lcd.dirty_x1 = (uint16_t)(ST7789_WIDTH - 1u);
+        g_lcd.dirty_y1 = (uint16_t)(ST7789_HEIGHT - 1u);
+        g_firstDrawPending = false;
     }
-
-    if ((uint32_t)(nowMs - lastRedMs) >= 1000u) {
-        APP_DBG("[SPI_SCREEN] loop alive");
-        lastRedMs = nowMs;
-    }
+    ST7789_SetBacklight(&g_lcd, g_cfgBrightness);
+    renderFrame();
+    ST7789_FrameEnd(&g_lcd);
 }
 
 void SPIScreenManager::renderFrame() {
@@ -206,7 +313,7 @@ void SPIScreenManager::renderFrame() {
         ScreenDetail_Render(&g_lcd, g_detailMenuId, g_detailIndex, style);
     } else {
         ScreenUiStyle style = {g_cfgBg, g_cfgText, g_cfgSelBg, g_cfgOkBg};
-        ScreenMain_RenderList(&g_lcd, style, menuIds, menuCount, menuIndex, animActive, animDir, animStartMs, HAL_GetTick());
+        ScreenMain_RenderList(&g_lcd, style, menuIds, menuCount, menuIndex, false, 0, 0u, HAL_GetTick());
     }
 }
 
@@ -259,7 +366,7 @@ void SPIScreenManager::renderBars() {
     else if (prev && prev->label) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH, prev->label, textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
 
     const uint32_t okBg = ok_flash_active() ? g_cfgOkBg : barBg;
-    if (g_inDetail && g_detailMenuId == 9) {
+    if (g_inDetail && (g_detailMenuId == 9 || g_detailMenuId == 10)) {
         ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, "Quit", textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
     } else if (g_inDetail && (g_detailMenuId == 4 || g_detailMenuId == 6 || g_detailMenuId == 8)) {
         bool on = false;
