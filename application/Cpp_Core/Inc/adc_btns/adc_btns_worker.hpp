@@ -105,6 +105,7 @@ class ADCBtnsWorker {
         ADCBtnsError setup();
         
         uint32_t read();
+        uint32_t getVirtualPinMask() const { return virtualPinMask; }
 
         ADCBtnsError deinit();
         ADCBtnsWorker();

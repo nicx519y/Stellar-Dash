@@ -21,6 +21,7 @@ class InputState : public BaseState {
         void setup() override;
         void loop() override;
         void reset() override;
+        uint32_t getVirtualPinMask() const { return virtualPinMask; }
 
     private:
         // 私有构造函数

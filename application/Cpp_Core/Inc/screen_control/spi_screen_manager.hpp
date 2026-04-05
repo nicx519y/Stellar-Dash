@@ -22,7 +22,7 @@ private:
     SPIScreenManager() = default;
 
     void rebuildMenu();
-    void handleInput(uint32_t nowMs);
+    void handleInput(uint32_t nowMs, int8_t det, bool clicked, bool longPressed);
     void renderFrame();
     void renderBars();
     void beginAnimation(int dir);

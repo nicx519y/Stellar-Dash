@@ -12,7 +12,11 @@
 #include "screen_control/spi_screen_main_list.hpp"
 #include "screen_control/spi_screen_detail_entries.hpp"
 #include "screen_control/spi_screen_detail_pages.hpp"
+#include "screen_control/spi_screen_standby.hpp"
 #include "adc_btns/adc_calibration.hpp"
+#include "adc_btns/adc_manager.hpp"
+#include "adc_btns/adc_btns_worker.hpp"
+#include "gpio_btns/gpio_btns_worker.hpp"
 
 extern "C" {
 #include "st7789.h"
@@ -30,6 +34,8 @@ static uint32_t g_cfgText = 0;
 static uint32_t g_cfgSelBg = 0;
 static uint32_t g_cfgOkBg = 0;
 static uint8_t g_cfgBrightness = 100;
+static uint8_t g_cfgStandbyDisplay = 0;
+static char g_cfgBackgroundImageId[32] = {0};
 static uint32_t g_cfgFeaturesMask = 0;
 static uint8_t g_cfgFeaturesOrder[SCREEN_FEATURE_COUNT] = {0};
 static bool g_menuCfgDirty = true;
@@ -41,6 +47,7 @@ static bool g_deferredSavePending = false;
 static uint32_t g_deferredSaveDueMs = 0;
 static uint32_t g_bl_boot_ms = 0;
 static bool g_bl_ramp_active = false;
+static bool g_menu_full_refresh_pending = false;
 static uint32_t g_perfLastMs = 0;
 static uint64_t g_perfAccPreUs = 0;
 static uint64_t g_perfAccFrameBeginUs = 0;
@@ -106,6 +113,10 @@ static uint8_t compute_backlight_percent(uint32_t nowMs) {
     return (uint8_t)(((uint32_t)g_cfgBrightness * elapsed) / SPI_SCREEN_BL_RAMP_MS);
 }
 
+static uint32_t get_gamepad_activity_mask() {
+    return GPIO_BTNS_WORKER.getVirtualPinMask() | ADC_BTNS_WORKER.getVirtualPinMask();
+}
+
 static void refresh_screen_cfg_cache(void) {
     const ScreenControlConfig& sc = STORAGE_MANAGER.config.screenControl;
 
@@ -119,6 +130,14 @@ static void refresh_screen_cfg_cache(void) {
     }
 
     g_cfgBrightness = clamp_brightness(sc.brightness);
+    uint8_t standby = sc.standbyDisplay;
+    if (standby != g_cfgStandbyDisplay) {
+        g_cfgStandbyDisplay = standby;
+    }
+    if (strncmp(g_cfgBackgroundImageId, sc.backgroundImageId, sizeof(g_cfgBackgroundImageId)) != 0) {
+        memcpy(g_cfgBackgroundImageId, sc.backgroundImageId, sizeof(g_cfgBackgroundImageId));
+        g_cfgBackgroundImageId[sizeof(g_cfgBackgroundImageId) - 1u] = '\0';
+    }
 
     if (sc.featuresMask != g_cfgFeaturesMask || memcmp(sc.featuresOrder, g_cfgFeaturesOrder, sizeof(g_cfgFeaturesOrder)) != 0) {
         g_cfgFeaturesMask = sc.featuresMask;
@@ -173,6 +192,8 @@ void SPIScreenManager::setup() {
     g_bl_boot_ms = HAL_GetTick();
     g_bl_ramp_active = true;
     ST7789_SetBacklight(&g_lcd, 0);
+    ScreenStandby_Init(HAL_GetTick(), get_gamepad_activity_mask());
+    ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgBackgroundImageId, g_cfgBg, g_cfgText);
     rebuildMenu();
     {
         uint8_t forcedMenuId = 0;
@@ -227,12 +248,11 @@ bool SPIScreenManager::menuNext() {
     return true;
 }
 
-void SPIScreenManager::handleInput(uint32_t nowMs) {
+void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, bool longPressed) {
     if (animActive && tick_expired(nowMs, animStartMs + SPI_SCREEN_ANIM_MS)) {
         animActive = false;
     }
 
-    int8_t det = RotEnc_GetDetentDelta();
     if (det > 0) {
         if (g_inDetail) {
             ScreenDetail_OnRotate(g_detailMenuId, &g_detailIndex, 1);
@@ -247,7 +267,7 @@ void SPIScreenManager::handleInput(uint32_t nowMs) {
         }
     }
 
-    if (RotEnc_WasButtonClicked()) {
+    if (clicked) {
         if (g_inDetail) {
             bool shouldExit = ScreenDetail_OnConfirm(g_detailMenuId, g_detailIndex);
             g_okFlashUntilMs = nowMs + 120u;
@@ -273,7 +293,7 @@ void SPIScreenManager::handleInput(uint32_t nowMs) {
         }
     }
 
-    if (RotEnc_WasButtonLongPressed()) {
+    if (longPressed) {
         if (g_inDetail) {
             if (g_detailMenuId == 9u || g_detailMenuId == 10u) {
                 STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
@@ -294,6 +314,31 @@ void SPIScreenManager::loop() {
 
     RotEnc_Update();
     uint32_t nowMs = HAL_GetTick();
+    int8_t det = RotEnc_GetDetentDelta();
+    bool clicked = RotEnc_WasButtonClicked();
+    bool longPressed = RotEnc_WasButtonLongPressed();
+    uint32_t inputMask = get_gamepad_activity_mask();
+
+    refresh_screen_cfg_cache();
+    ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgBackgroundImageId, g_cfgBg, g_cfgText);
+    bool standbyAllowed = (STORAGE_MANAGER.getBootMode() == BootMode::BOOT_MODE_INPUT)
+        && (ADCManager::getInstance().getADCMode() == ADC_MODE_LOW_LATENCY);
+    bool standbyWasActive = ScreenStandby_IsActive();
+    bool encoderEvent = (det != 0) || clicked || longPressed;
+    bool anyActivity = encoderEvent || (inputMask != 0u);
+    if (!standbyAllowed) {
+        if (ScreenStandby_Deactivate()) {
+            g_menu_full_refresh_pending = true;
+        }
+    } else {
+        ScreenStandby_NotifyInput(nowMs, inputMask, anyActivity, encoderEvent);
+        ScreenStandby_Tick(nowMs);
+    }
+    bool standbyNowActive = ScreenStandby_IsActive();
+    bool wokeFromStandby = standbyWasActive && !standbyNowActive;
+    if (standbyWasActive && !standbyNowActive) {
+        g_menu_full_refresh_pending = true;
+    }
     {
         uint8_t forcedMenuId = 0;
         if (boot_mode_to_detail_menu(STORAGE_MANAGER.getBootMode(), &forcedMenuId)) {
@@ -302,9 +347,9 @@ void SPIScreenManager::loop() {
             }
         }
     }
-    handleInput(nowMs);
-
-    refresh_screen_cfg_cache();
+    if (!standbyNowActive && !wokeFromStandby) {
+        handleInput(nowMs, det, clicked, longPressed);
+    }
 
     if (g_menuCfgDirty) {
         rebuildMenu();
@@ -325,8 +370,21 @@ void SPIScreenManager::loop() {
         g_lcd.dirty_y1 = (uint16_t)(ST7789_HEIGHT - 1u);
         g_firstDrawPending = false;
     }
+    if (g_menu_full_refresh_pending && !standbyNowActive) {
+        ST7789_FillScreen(&g_lcd, g_cfgBg);
+        g_lcd.dirty_valid = true;
+        g_lcd.dirty_x0 = 0;
+        g_lcd.dirty_y0 = 0;
+        g_lcd.dirty_x1 = (uint16_t)(ST7789_WIDTH - 1u);
+        g_lcd.dirty_y1 = (uint16_t)(ST7789_HEIGHT - 1u);
+        g_menu_full_refresh_pending = false;
+    }
     ST7789_SetBacklight(&g_lcd, compute_backlight_percent(nowMs));
-    renderFrame();
+    if (standbyNowActive) {
+        ScreenStandby_Render(&g_lcd, inputMask);
+    } else {
+        renderFrame();
+    }
     ST7789_FrameEnd(&g_lcd);
 }
 
