@@ -9,38 +9,7 @@ extern "C" {
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-
-#define ST7789_WIDTH  320u
-#define ST7789_HEIGHT 172u
-
-#define ST7789_SCL_PORT GPIOK
-#define ST7789_SCL_PIN  GPIO_PIN_0
-
-#define ST7789_SDA_PORT GPIOJ
-#define ST7789_SDA_PIN  GPIO_PIN_10
-
-#define ST7789_SPI_MOSI_AF GPIO_AF5_SPI5
-
-#define ST7789_CS_PORT  GPIOH
-#define ST7789_CS_PIN   GPIO_PIN_5
-
-#define ST7789_DC_PORT  GPIOJ
-#define ST7789_DC_PIN   GPIO_PIN_11
-
-#define ST7789_BL_PORT  GPIOH
-#define ST7789_BL_PIN   GPIO_PIN_6
-
-#define ST7789_SPI_INSTANCE SPI5
-#define ST7789_SPI_DMA_STREAM DMA2_Stream2
-#define ST7789_SPI_DMA_REQUEST DMA_REQUEST_SPI5_TX
-#define ST7789_SPI_DMA_IRQn DMA2_Stream2_IRQn
-
-
-
-#define ST7789_BL_ON_STATE  GPIO_PIN_RESET
-#define ST7789_BL_OFF_STATE GPIO_PIN_SET
-
-#define ST7789_DEFAULT_FPS 12u
+#include "board_cfg.h"
 
 typedef enum
 {

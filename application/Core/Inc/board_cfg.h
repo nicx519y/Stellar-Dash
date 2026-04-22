@@ -77,6 +77,161 @@
     #define USB_ERR(fmt, ...) ((void)0)
 #endif
 
+/* ================= Board Peripheral Pinout (Single Source of Truth) =================
+ *
+ * Board-level pin/peripheral configuration macros must be defined here.
+ * Drivers should include this file and must not hardcode board pinout elsewhere.
+ *
+ * Sections:
+ *   - QSPI (W25Q64)
+ *   - SPI LCD (ST7789 via SPI5 + DMA2)
+ *   - WS2812B LED (TIM4 PWM + DMA) + Enable Switch
+ *   - USART (Debug)
+ *   - Rotary Encoder
+ *   - USB (Device/Host)
+ *   - Misc board detect pins
+ */
+
+/* ================= QSPI (W25Q64) ================= */
+#define  QUADSPI_CLK_PIN                        GPIO_PIN_10
+#define  QUADSPI_CLK_PORT                       GPIOF
+#define  QUADSPI_CLK_AF                         GPIO_AF9_QUADSPI
+#define  GPIO_QUADSPI_CLK_ENABLE                __HAL_RCC_GPIOF_CLK_ENABLE()
+
+#define  QUADSPI_BK1_NCS_PIN                    GPIO_PIN_6
+#define  QUADSPI_BK1_NCS_PORT                   GPIOG
+#define  QUADSPI_BK1_NCS_AF                     GPIO_AF10_QUADSPI
+#define  GPIO_QUADSPI_BK1_NCS_ENABLE            __HAL_RCC_GPIOG_CLK_ENABLE()
+
+#define  QUADSPI_BK1_IO0_PIN                    GPIO_PIN_8
+#define  QUADSPI_BK1_IO0_PORT                   GPIOF
+#define  QUADSPI_BK1_IO0_AF                     GPIO_AF10_QUADSPI
+#define  GPIO_QUADSPI_BK1_IO0_ENABLE            __HAL_RCC_GPIOF_CLK_ENABLE()
+
+#define  QUADSPI_BK1_IO1_PIN                    GPIO_PIN_9
+#define  QUADSPI_BK1_IO1_PORT                   GPIOF
+#define  QUADSPI_BK1_IO1_AF                     GPIO_AF10_QUADSPI
+#define  GPIO_QUADSPI_BK1_IO1_ENABLE            __HAL_RCC_GPIOF_CLK_ENABLE()
+
+#define  QUADSPI_BK1_IO2_PIN                    GPIO_PIN_7
+#define  QUADSPI_BK1_IO2_PORT                   GPIOF
+#define  QUADSPI_BK1_IO2_AF                     GPIO_AF9_QUADSPI
+#define  GPIO_QUADSPI_BK1_IO2_ENABLE            __HAL_RCC_GPIOF_CLK_ENABLE()
+
+#define  QUADSPI_BK1_IO3_PIN                    GPIO_PIN_6
+#define  QUADSPI_BK1_IO3_PORT                   GPIOF
+#define  QUADSPI_BK1_IO3_AF                     GPIO_AF9_QUADSPI
+#define  GPIO_QUADSPI_BK1_IO3_ENABLE            __HAL_RCC_GPIOF_CLK_ENABLE()
+
+/* ================= SPI LCD (ST7789) ================= */
+#define ST7789_WIDTH                            320u
+#define ST7789_HEIGHT                           172u
+#define ST7789_DEFAULT_FPS                      12u
+
+#define ST7789_SCL_PORT                         GPIOK
+#define ST7789_SCL_PIN                          GPIO_PIN_0
+
+#define ST7789_SDA_PORT                         GPIOJ
+#define ST7789_SDA_PIN                          GPIO_PIN_10
+
+#define ST7789_SPI_MOSI_AF                      GPIO_AF5_SPI5
+
+#define ST7789_CS_PORT                          GPIOH
+#define ST7789_CS_PIN                           GPIO_PIN_5
+
+#define ST7789_DC_PORT                          GPIOJ
+#define ST7789_DC_PIN                           GPIO_PIN_11
+
+#define ST7789_BL_PORT                          GPIOH
+#define ST7789_BL_PIN                           GPIO_PIN_6
+
+#define ST7789_SPI_INSTANCE                     SPI5
+#define ST7789_SPI_DMA_STREAM                   DMA2_Stream2
+#define ST7789_SPI_DMA_REQUEST                  DMA_REQUEST_SPI5_TX
+#define ST7789_SPI_DMA_IRQn                     DMA2_Stream2_IRQn
+
+#define ST7789_BL_ON_STATE                      GPIO_PIN_RESET
+#define ST7789_BL_OFF_STATE                     GPIO_PIN_SET
+
+#define SPIST7789_BL_TIM_INSTANCE               TIM12
+#define SPIST7789_BL_TIM_CHANNEL                TIM_CHANNEL_1
+#define SPIST7789_BL_TIM_AF                     GPIO_AF2_TIM12
+
+#define SPIST7789_DMA_CHUNK_BYTES               1024u
+#define SPIST7789_Y_OFFSET                      34u
+
+/* ================= WS2812B LEDs (TIM4 PWM + DMA) ================= */
+#define WS2812B_ENABLE_SWITCH_PORT              GPIOC
+#define WS2812B_ENABLE_SWITCH_PIN               GPIO_PIN_12
+
+/* TIM4 PWM output for WS2812B data stream */
+#define WS2812B_TIM_INSTANCE                    TIM4
+#define WS2812B_TIM_CHANNEL                     TIM_CHANNEL_1
+#define WS2812B_TIM_PRESCALER                   0u
+#define WS2812B_TIM_PERIOD                      299u
+
+#define WS2812B_TIM_GPIO_PORT                   GPIOB
+#define WS2812B_TIM_GPIO_PIN                    GPIO_PIN_6
+#define WS2812B_TIM_GPIO_AF                     GPIO_AF2_TIM4
+
+/* TIM4_CH1 DMA configuration */
+#define WS2812B_TIM_DMA_INSTANCE                DMA1_Stream2
+#define WS2812B_TIM_DMA_REQUEST                 DMA_REQUEST_TIM4_CH1
+#define WS2812B_TIM_DMA_IRQn                    DMA1_Stream2_IRQn
+#define WS2812B_TIM_DMA_IRQn_PRIO               3u
+
+/* Additional DMA IRQs used by firmware */
+#define BOARD_DMA_STREAM4_IRQn                  DMA1_Stream4_IRQn
+#define BOARD_DMA_STREAM4_IRQn_PRIO             5u
+
+/* ================= TIM2 (legacy micro-timer, currently not used) ================= */
+#define BOARD_TIM2_INSTANCE                     TIM2
+#define BOARD_TIM2_PRESCALER                    29u
+#define BOARD_TIM2_PERIOD                       1000u
+#define BOARD_TIM2_IRQn                         TIM2_IRQn
+#define BOARD_TIM2_IRQn_PRIO                    0u
+
+/* ================= USART (Debug) ================= */
+#define USART1_BaudRate                         115200
+#define USART1_TX_PIN                           GPIO_PIN_9
+#define USART1_TX_PORT                          GPIOA
+#define GPIO_USART1_TX_CLK_ENABLE               __HAL_RCC_GPIOA_CLK_ENABLE()
+#define USART1_RX_PIN                           GPIO_PIN_10
+#define USART1_RX_PORT                          GPIOA
+#define GPIO_USART1_RX_CLK_ENABLE               __HAL_RCC_GPIOA_CLK_ENABLE()
+
+/* ================= Rotary Encoder ================= */
+#define ROTENC_A_PORT                           GPIOH
+#define ROTENC_A_PIN                            GPIO_PIN_8
+#define ROTENC_B_PORT                           GPIOH
+#define ROTENC_B_PIN                            GPIO_PIN_9
+#define ROTENC_BTN_PORT                         GPIOH
+#define ROTENC_BTN_PIN                          GPIO_PIN_7
+#define ROTENC_EXTI_IRQn                        EXTI9_5_IRQn
+
+/* ================= USB =================
+ * Device (FS): PA11 DM, PA12 DP (AF10 OTG1_FS)
+ * Host  (HS in FS mode): PB14 DM, PB15 DP (AF12 OTG2_FS)
+ */
+#define USB_DEV_FS_GPIO_PORT                    GPIOA
+#define USB_DEV_FS_DM_PIN                       GPIO_PIN_11
+#define USB_DEV_FS_DP_PIN                       GPIO_PIN_12
+#define USB_DEV_FS_AF                           GPIO_AF10_OTG1_FS
+#define USB_DEV_FS_IRQn                         OTG_FS_IRQn
+#define USB_DEV_FS_IRQn_PRIO                    2u
+
+#define USB_HOST_HS_FS_GPIO_PORT                GPIOB
+#define USB_HOST_HS_FS_DM_PIN                   GPIO_PIN_14
+#define USB_HOST_HS_FS_DP_PIN                   GPIO_PIN_15
+#define USB_HOST_HS_FS_AF                       GPIO_AF12_OTG2_FS
+#define USB_HOST_HS_IRQn                        OTG_HS_IRQn
+#define USB_HOST_HS_IRQn_PRIO                   2u
+
+/* ================= Misc Board Detect Pins ================= */
+#define BOARD_AMBIENT_LED_DETECT_PORT           GPIOB
+#define BOARD_AMBIENT_LED_DETECT_PIN            GPIO_PIN_7
+#define BOARD_AMBIENT_LED_DETECT_PIN_NUM        7u
+
 #define WEBCONFIG_IP_FIRST                  192
 #define WEBCONFIG_IP_SECOND                 168
 #define WEBCONFIG_IP_THIRD                  7
@@ -126,6 +281,13 @@ typedef struct {
     uint32_t rank;
     uint8_t virtualPin;
 } ADC_PinConfig;
+
+/* ================= ADC (Sampling/Timing) ================= */
+#define BOARD_ADC_SAMPLE_TIME                  ADC_SAMPLETIME_64CYCLES_5
+#define BOARD_ADC_CONTINUOUS_OVERSAMPLE_RATIO  16u
+#define BOARD_ADC_CONTINUOUS_RIGHT_SHIFT       ADC_RIGHTBITSHIFT_4
+#define BOARD_ADC_LOWLAT_OVERSAMPLE_RATIO      2u
+#define BOARD_ADC_LOWLAT_RIGHT_SHIFT           ADC_RIGHTBITSHIFT_1
 
 static const ADC_PinConfig ADC1_PIN_MAP[] = {
     { GPIOF, GPIO_PIN_11, ADC_CHANNEL_2,  ADC_REGULAR_RANK_1, 2 },
@@ -241,9 +403,6 @@ uint32_t get_current_slot_base_address(void);
 #define LEDS_ANIMATION_INTERVAL         16          //LED 动画间隔，影响性能和效果 ms
 
 #define WEBCONFIG_BUTTON_PERFORMANCE_MONITORING_INTERVAL_MS 100 // 按键性能监控间隔 ms
-
-// #define LED_ENABLE_SWITCH_PIN        GPIO_PIN_12    // 灯效开关引脚
-// #define LED_ENABLE_SWITCH_PORT       GPIOC           // 灯效开关端口
 
 #define NUM_GAMEPAD_HOTKEYS                 (uint8_t)11   // 快捷键数量
 #define HOLD_THRESHOLD_MS                   1000             // 长按阈值 1000ms

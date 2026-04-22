@@ -39,12 +39,12 @@ void USB_Device_Init() {
     // PA9 VUSB, PA10 ID, PA11 DM, PA12 DP
 
     // Configure DM DP Pins
-    GPIO_InitStruct.Pin = GPIO_PIN_11 | GPIO_PIN_12;
+    GPIO_InitStruct.Pin = USB_DEV_FS_DM_PIN | USB_DEV_FS_DP_PIN;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Alternate = GPIO_AF10_OTG1_FS;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    GPIO_InitStruct.Alternate = USB_DEV_FS_AF;
+    HAL_GPIO_Init(USB_DEV_FS_GPIO_PORT, &GPIO_InitStruct);
 
     // This for ID line debug
     // GPIO_InitStruct.Pin = GPIO_PIN_10;
@@ -78,8 +78,8 @@ void USB_Device_Init() {
     #endif // vbus sense
 
     /* USB_OTG_FS interrupt Init */
-    HAL_NVIC_SetPriority(OTG_FS_IRQn, 2, 0);
-    HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
+    HAL_NVIC_SetPriority(USB_DEV_FS_IRQn, USB_DEV_FS_IRQn_PRIO, 0);
+    HAL_NVIC_EnableIRQ(USB_DEV_FS_IRQn);
 
     #elif BOARD_TUD_RHPORT == 1
     // Despite being call USB2_OTG
@@ -148,19 +148,19 @@ void USB_Host_Init() {
      PB15     ------> USB_OTG_HS_DP
     PB14     ------> USB_OTG_HS_DM
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_15 | GPIO_PIN_14;
+    GPIO_InitStruct.Pin = USB_HOST_HS_FS_DP_PIN | USB_HOST_HS_FS_DM_PIN;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    GPIO_InitStruct.Alternate = GPIO_AF12_OTG2_FS;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    GPIO_InitStruct.Alternate = USB_HOST_HS_FS_AF;
+    HAL_GPIO_Init(USB_HOST_HS_FS_GPIO_PORT, &GPIO_InitStruct);
 
     /* USB_OTG_HS clock enable */
     __HAL_RCC_USB_OTG_HS_CLK_ENABLE();
 
     /* USB_OTG_HS interrupt Init */
-    HAL_NVIC_SetPriority(OTG_HS_IRQn, 2, 0);
-    HAL_NVIC_EnableIRQ(OTG_HS_IRQn);
+    HAL_NVIC_SetPriority(USB_HOST_HS_IRQn, USB_HOST_HS_IRQn_PRIO, 0);
+    HAL_NVIC_EnableIRQ(USB_HOST_HS_IRQn);
     /* USER CODE BEGIN USB_OTG_HS_MspInit 1 */
 }
 

@@ -15,6 +15,7 @@ void ScreenDetailRender_List(ST7789_Handle* lcd, const char* title, const char* 
     const uint16_t centerY = (uint16_t)(h / 2u);
     const uint16_t anchorY = (uint16_t)(centerY - itemH / 2u);
     const uint32_t normalText = ScreenUI_MutedTextForBg(style.text, style.bg, 80u);
+    const uint16_t charH = ScreenUI_CharCellH(SPI_SCREEN_MENU_TEXT_SCALE);
 
     ST7789_FillRect(lcd, listX, 0, listW, h, style.bg);
 
@@ -27,17 +28,29 @@ void ScreenDetailRender_List(ST7789_Handle* lcd, const char* title, const char* 
 
     for (uint8_t i = 0; i < count; i++) {
         int dy = (int)((int)i - (int)index) * (int)itemH;
-        int y = (int)anchorY + dy + offsetPx;
-        if (y < -(int)itemH || y > (int)h) continue;
-        uint16_t yy = (uint16_t)((y < 0) ? 0 : y);
-        uint16_t ty = (uint16_t)(yy + (itemH - ScreenUI_CharCellH(SPI_SCREEN_MENU_TEXT_SCALE)) / 2u);
+        int y0 = (int)anchorY + dy + offsetPx;
+        int y1 = y0 + (int)itemH;
+        if (y1 <= 0 || y0 >= (int)h) continue;
+
+        int clipY0 = (y0 < 0) ? 0 : y0;
+        int clipY1 = (y1 > (int)h) ? (int)h : y1;
+        uint16_t yy = (uint16_t)clipY0;
+        uint16_t hh = (uint16_t)(clipY1 - clipY0);
+
+        int textY = y0 + (int)((itemH - charH) / 2u);
+        bool textVisible = (textY >= 0) && ((textY + (int)charH) <= (int)h);
+        uint16_t ty = (uint16_t)((textY < 0) ? 0 : textY);
         const char* label = labels[i] ? labels[i] : "";
         const uint32_t itemText = (i == selectedConfigIndex) ? style.text : normalText;
         if (i == index) {
-            ST7789_FillRect(lcd, listX, yy, listW, itemH, style.selBg);
-            ST7789_DrawString(lcd, (uint16_t)(listX + 4), ty, label, itemText, style.selBg, SPI_SCREEN_MENU_TEXT_SCALE);
+            ST7789_FillRect(lcd, listX, yy, listW, hh, style.selBg);
+            if (textVisible) {
+                ST7789_DrawString(lcd, (uint16_t)(listX + 4), ty, label, itemText, style.selBg, SPI_SCREEN_MENU_TEXT_SCALE);
+            }
         } else {
-            ST7789_DrawString(lcd, (uint16_t)(listX + 4), ty, label, itemText, style.bg, SPI_SCREEN_MENU_TEXT_SCALE);
+            if (textVisible) {
+                ST7789_DrawString(lcd, (uint16_t)(listX + 4), ty, label, itemText, style.bg, SPI_SCREEN_MENU_TEXT_SCALE);
+            }
         }
     }
 }

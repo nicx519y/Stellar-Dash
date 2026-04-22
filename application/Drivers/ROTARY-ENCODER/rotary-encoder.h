@@ -2,21 +2,13 @@
 #define ROTARY_ENCODER_H
 
 #include "stm32h7xx_hal.h"
+#include "board_cfg.h"
 #include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#define ROTENC_A_PORT GPIOH
-#define ROTENC_A_PIN GPIO_PIN_8
-
-#define ROTENC_B_PORT GPIOH
-#define ROTENC_B_PIN GPIO_PIN_9
-
-#define ROTENC_BTN_PORT GPIOH
-#define ROTENC_BTN_PIN GPIO_PIN_7
 
 #ifndef ROTENC_DIR
 #define ROTENC_DIR 1

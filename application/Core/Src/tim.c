@@ -21,6 +21,7 @@
 #include "tim.h"
 
 /* USER CODE BEGIN 0 */
+#include "board_cfg.h"
 
 /* USER CODE END 0 */
 
@@ -42,10 +43,10 @@ void MX_TIM2_Init(void)
   /* USER CODE BEGIN TIM2_Init 1 */
 
   /* USER CODE END TIM2_Init 1 */
-  htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 30-1;
+  htim2.Instance = BOARD_TIM2_INSTANCE;
+  htim2.Init.Prescaler = BOARD_TIM2_PRESCALER;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 1000;
+  htim2.Init.Period = BOARD_TIM2_PERIOD;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -82,10 +83,10 @@ void MX_TIM4_Init(void)
   /* USER CODE BEGIN TIM4_Init 1 */
 
   /* USER CODE END TIM4_Init 1 */
-  htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 0;
+  htim4.Instance = WS2812B_TIM_INSTANCE;
+  htim4.Init.Prescaler = WS2812B_TIM_PRESCALER;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 299;
+  htim4.Init.Period = WS2812B_TIM_PERIOD;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_PWM_Init(&htim4) != HAL_OK)
@@ -102,7 +103,7 @@ void MX_TIM4_Init(void)
   sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, WS2812B_TIM_CHANNEL) != HAL_OK)
   {
     Error_Handler();
   }
@@ -125,8 +126,8 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* tim_baseHandle)
     __HAL_RCC_TIM2_CLK_ENABLE();
 
     /* TIM2 interrupt Init */
-    HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(TIM2_IRQn);
+    HAL_NVIC_SetPriority(BOARD_TIM2_IRQn, BOARD_TIM2_IRQn_PRIO, 0);
+    HAL_NVIC_EnableIRQ(BOARD_TIM2_IRQn);
   /* USER CODE BEGIN TIM2_MspInit 1 */
 
   /* USER CODE END TIM2_MspInit 1 */
@@ -146,8 +147,8 @@ void HAL_TIM_PWM_MspInit(TIM_HandleTypeDef* tim_pwmHandle)
 
     /* TIM4 DMA Init */
     /* TIM4_CH1 Init */
-    hdma_tim4_ch1.Instance = DMA1_Stream2;
-    hdma_tim4_ch1.Init.Request = DMA_REQUEST_TIM4_CH1;
+    hdma_tim4_ch1.Instance = WS2812B_TIM_DMA_INSTANCE;
+    hdma_tim4_ch1.Init.Request = WS2812B_TIM_DMA_REQUEST;
     hdma_tim4_ch1.Init.Direction = DMA_MEMORY_TO_PERIPH;
     hdma_tim4_ch1.Init.PeriphInc = DMA_PINC_DISABLE;
     hdma_tim4_ch1.Init.MemInc = DMA_MINC_ENABLE;
@@ -182,12 +183,12 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* timHandle)
     /**TIM4 GPIO Configuration
     PB6     ------> TIM4_CH1
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_6;
+    GPIO_InitStruct.Pin = WS2812B_TIM_GPIO_PIN;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    GPIO_InitStruct.Alternate = GPIO_AF2_TIM4;
-    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    GPIO_InitStruct.Alternate = WS2812B_TIM_GPIO_AF;
+    HAL_GPIO_Init(WS2812B_TIM_GPIO_PORT, &GPIO_InitStruct);
 
   /* USER CODE BEGIN TIM4_MspPostInit 1 */
 

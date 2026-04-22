@@ -62,8 +62,8 @@ void RotEnc_Init(void) {
     GPIO_Init.Mode = GPIO_MODE_INPUT;
     HAL_GPIO_Init(ROTENC_BTN_PORT, &GPIO_Init);
 
-    HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
-    HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+    HAL_NVIC_SetPriority(ROTENC_EXTI_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(ROTENC_EXTI_IRQn);
 
     uint8_t ab = rotenc_read_ab();
     g_rotenc.lastA = (uint8_t)((ab >> 1) & 1u);

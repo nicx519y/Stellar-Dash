@@ -11,8 +11,6 @@ static SPI_HandleTypeDef g_hspi;
 static DMA_HandleTypeDef g_dma;
 static TIM_HandleTypeDef g_bl_htim;
 
-#define SPIST7789_DMA_CHUNK_BYTES 1024u
-#define SPIST7789_Y_OFFSET 34u
 static uint8_t g_fillbuf[SPIST7789_DMA_CHUNK_BYTES] __attribute__((section(".DMA_Section"), aligned(32)));
 
 static volatile bool g_busy = false;
@@ -34,10 +32,6 @@ static inline void cs_low(void) { gpio_write(ST7789_CS_PORT, ST7789_CS_PIN, GPIO
 static inline void cs_high(void) { gpio_write(ST7789_CS_PORT, ST7789_CS_PIN, GPIO_PIN_SET); }
 static inline void dc_cmd(void) { gpio_write(ST7789_DC_PORT, ST7789_DC_PIN, GPIO_PIN_RESET); }
 static inline void dc_data(void) { gpio_write(ST7789_DC_PORT, ST7789_DC_PIN, GPIO_PIN_SET); }
-
-#define SPIST7789_BL_TIM_INSTANCE TIM12
-#define SPIST7789_BL_TIM_CHANNEL TIM_CHANNEL_1
-#define SPIST7789_BL_TIM_AF GPIO_AF2_TIM12
 
 static void enable_gpio_clock(GPIO_TypeDef* port)
 {

@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include "stm32h7xx_hal.h"
 #include "usart.h"
+#include "board_cfg.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,39 +66,6 @@ extern "C" {
 #define W25Qxx_CMD_ReadStatus_REG2    0x35    // 读状态寄存器2
 #define W25Qxx_CMD_WriteStatus_REG2   0x31    // 写状态寄存器2
 #define W25Qxx_Status_REG2_QE         0x02    // 状态寄存器2的QE位（bit 1）
-
-/*----------------------------------------------- 引脚配置宏 ------------------------------------------*/
-
-#define  QUADSPI_CLK_PIN							GPIO_PIN_10								// QUADSPI_CLK 引脚
-#define	QUADSPI_CLK_PORT							GPIOF										// QUADSPI_CLK 引脚端口
-#define	QUADSPI_CLK_AF								GPIO_AF9_QUADSPI						// QUADSPI_CLK IO口复用
-#define 	GPIO_QUADSPI_CLK_ENABLE      			__HAL_RCC_GPIOF_CLK_ENABLE()	 	// QUADSPI_CLK 引脚时钟
-
-#define  QUADSPI_BK1_NCS_PIN						GPIO_PIN_6								// QUADSPI_BK1_NCS 引脚
-#define	QUADSPI_BK1_NCS_PORT						GPIOG										// QUADSPI_BK1_NCS 引脚端口
-#define	QUADSPI_BK1_NCS_AF						GPIO_AF10_QUADSPI						// QUADSPI_BK1_NCS IO口复用
-#define 	GPIO_QUADSPI_BK1_NCS_ENABLE        	__HAL_RCC_GPIOG_CLK_ENABLE()	 	// QUADSPI_BK1_NCS 引脚时钟
-
-#define  QUADSPI_BK1_IO0_PIN						GPIO_PIN_8								// QUADSPI_BK1_IO0 引脚
-#define	QUADSPI_BK1_IO0_PORT						GPIOF										// QUADSPI_BK1_IO0 引脚端口
-#define	QUADSPI_BK1_IO0_AF						GPIO_AF10_QUADSPI						// QUADSPI_BK1_IO0 IO口复用
-#define 	GPIO_QUADSPI_BK1_IO0_ENABLE        	__HAL_RCC_GPIOF_CLK_ENABLE()	 	// QUADSPI_BK1_IO0 引脚时钟
-
-#define  QUADSPI_BK1_IO1_PIN						GPIO_PIN_9								// QUADSPI_BK1_IO1 引脚
-#define	QUADSPI_BK1_IO1_PORT						GPIOF										// QUADSPI_BK1_IO1 引脚端口
-#define	QUADSPI_BK1_IO1_AF						GPIO_AF10_QUADSPI						// QUADSPI_BK1_IO1 IO口复用
-#define 	GPIO_QUADSPI_BK1_IO1_ENABLE        	__HAL_RCC_GPIOF_CLK_ENABLE()	 	// QUADSPI_BK1_IO1 引脚时钟
-
-#define  QUADSPI_BK1_IO2_PIN						GPIO_PIN_7								// QUADSPI_BK1_IO2 引脚
-#define	QUADSPI_BK1_IO2_PORT						GPIOF										// QUADSPI_BK1_IO2 引脚端口
-#define	QUADSPI_BK1_IO2_AF						GPIO_AF9_QUADSPI						// QUADSPI_BK1_IO2 IO口复用
-#define 	GPIO_QUADSPI_BK1_IO2_ENABLE        	__HAL_RCC_GPIOF_CLK_ENABLE()	 	// QUADSPI_BK1_IO2 引脚时钟
-
-#define  QUADSPI_BK1_IO3_PIN						GPIO_PIN_6								// QUADSPI_BK1_IO3 引脚
-#define	QUADSPI_BK1_IO3_PORT						GPIOF										// QUADSPI_BK1_IO3 引脚端口
-#define	QUADSPI_BK1_IO3_AF						GPIO_AF9_QUADSPI						// QUADSPI_BK1_IO3 IO口复用
-#define 	GPIO_QUADSPI_BK1_IO3_ENABLE      	__HAL_RCC_GPIOF_CLK_ENABLE()	 	// QUADSPI_BK1_IO3 引脚时钟
-
 
 /*----------------------------------------------- 函数声明 ---------------------------------------------------*/
 

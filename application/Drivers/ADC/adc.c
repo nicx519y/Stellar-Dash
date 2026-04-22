@@ -38,14 +38,6 @@ static void enable_gpio_clock(GPIO_TypeDef* port)
 }
 
 
-// #define ADC_OVERSAMPLE_RATIO               16         //ADC过采样倍数
-#define ADC_OVERSAMPLE_RATIO               2         //ADC过采样倍数
-// #define ADC_OVERSAMPLE_RIGHT_BIT_SHIFT     ADC_RIGHTBITSHIFT_4 //ADC过采样右移位数
-#define ADC_OVERSAMPLE_RIGHT_BIT_SHIFT     ADC_RIGHTBITSHIFT_1 //ADC过采样右移位数
-// #define ADC_SAMPLE_TIME                    ADC_SAMPLETIME_64CYCLES_5       //ADC采样时间
-#define ADC_SAMPLE_TIME                    ADC_SAMPLETIME_64CYCLES_5       //ADC采样时间
-
-
 void ADC_Clock_Init(void)
 {
     RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
@@ -89,13 +81,13 @@ static void configure_adc_common(ADC_HandleTypeDef* hadc, uint32_t nbrOfConversi
     if (current_adc_mode == ADC_MODE_CONTINUOUS) {
         hadc->Init.ContinuousConvMode = ENABLE;
         hadc->Init.ConversionDataManagement = ADC_CONVERSIONDATA_DMA_CIRCULAR;
-        hadc->Init.Oversampling.Ratio = 16;
-        hadc->Init.Oversampling.RightBitShift = ADC_RIGHTBITSHIFT_4;
+        hadc->Init.Oversampling.Ratio = BOARD_ADC_CONTINUOUS_OVERSAMPLE_RATIO;
+        hadc->Init.Oversampling.RightBitShift = BOARD_ADC_CONTINUOUS_RIGHT_SHIFT;
     } else {
         hadc->Init.ContinuousConvMode = DISABLE;
         hadc->Init.ConversionDataManagement = ADC_CONVERSIONDATA_DMA_ONESHOT;
-        hadc->Init.Oversampling.Ratio = 2;
-        hadc->Init.Oversampling.RightBitShift = ADC_RIGHTBITSHIFT_1;
+        hadc->Init.Oversampling.Ratio = BOARD_ADC_LOWLAT_OVERSAMPLE_RATIO;
+        hadc->Init.Oversampling.RightBitShift = BOARD_ADC_LOWLAT_RIGHT_SHIFT;
     }
 
     hadc->Init.NbrOfConversion = nbrOfConversion;
@@ -159,7 +151,7 @@ void MX_ADC1_Init(void)
         Error_Handler();
     }
 
-    sConfig.SamplingTime = ADC_SAMPLE_TIME;
+    sConfig.SamplingTime = BOARD_ADC_SAMPLE_TIME;
     sConfig.SingleDiff = ADC_SINGLE_ENDED;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;
@@ -206,7 +198,7 @@ void MX_ADC2_Init(void)
         Error_Handler();
     }
 
-    sConfig.SamplingTime = ADC_SAMPLE_TIME;
+    sConfig.SamplingTime = BOARD_ADC_SAMPLE_TIME;
     sConfig.SingleDiff = ADC_SINGLE_ENDED;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;
@@ -251,7 +243,7 @@ void MX_ADC3_Init(void)
         Error_Handler();
     }
 
-    sConfig.SamplingTime = ADC_SAMPLE_TIME;
+    sConfig.SamplingTime = BOARD_ADC_SAMPLE_TIME;
     sConfig.SingleDiff = ADC_SINGLE_ENDED;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;

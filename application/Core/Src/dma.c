@@ -22,6 +22,7 @@
 #include "dma.h"
 
 /* USER CODE BEGIN 0 */
+#include "board_cfg.h"
 
 /* USER CODE END 0 */
 
@@ -50,12 +51,12 @@ void MX_DMA_Init(void)
   // HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 0, 0);
   // HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
   /* DMA1_Stream2_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream2_IRQn, 3, 0); // 设置DMA1_Stream2_IRQn中断优先级为2 用于TIM4_CH1 DMA中断, PWM输出
-  HAL_NVIC_EnableIRQ(DMA1_Stream2_IRQn);
+  HAL_NVIC_SetPriority(WS2812B_TIM_DMA_IRQn, WS2812B_TIM_DMA_IRQn_PRIO, 0);
+  HAL_NVIC_EnableIRQ(WS2812B_TIM_DMA_IRQn);
 
   /* DMA1_Stream4_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
+  HAL_NVIC_SetPriority(BOARD_DMA_STREAM4_IRQn, BOARD_DMA_STREAM4_IRQn_PRIO, 0);
+  HAL_NVIC_EnableIRQ(BOARD_DMA_STREAM4_IRQn);
 
 }
 
