@@ -11,6 +11,7 @@ import {
 
 
 import { LuTrash, LuPlus, LuPencil } from "react-icons/lu"
+import { FaLock } from "react-icons/fa"
 import { openConfirm } from '@/components/dialog-confirm';
 import { openForm } from '@/components/dialog-form';
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
@@ -48,6 +49,12 @@ export function ProfileSelect(
             return createListCollection({ items: [] });
         }
     }, [profileList]);
+
+    const profileMap = useMemo(() => {
+        const m = new Map<string, { isCompetitionProfile?: boolean }>();
+        profileList.items.forEach((p) => m.set(p.id, { isCompetitionProfile: p.isCompetitionProfile }));
+        return m;
+    }, [profileList.items]);
 
     /**
      * Validate the profile name.
@@ -212,7 +219,10 @@ export function ProfileSelect(
                                 justifyContent="flex-start" 
                                 disabled={isDisabled}
                             >
-                                {item.label}
+                                <HStack w="100%" justifyContent="space-between">
+                                    <span>{item.label}</span>
+                                    {profileMap.get(item.value)?.isCompetitionProfile ? <FaLock color="#f59e0b" /> : null}
+                                </HStack>
                             </Button>
                         ))
                     }

@@ -114,6 +114,7 @@ typedef struct
     char id[16];
     char name[24];
     bool enabled;
+    bool isCompetitionProfile;
     KeysConfig keysConfig;
     TriggerConfigs triggerConfigs;
     LEDProfile ledsConfigs;

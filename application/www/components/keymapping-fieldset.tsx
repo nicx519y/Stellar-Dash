@@ -7,7 +7,6 @@ import {
     XInputButtonMap,
     PS4ButtonMap,
     SwitchButtonMap,
-    NUM_BIND_KEY_PER_BUTTON_MAX,
 } from "@/types/gamepad-config";
 import KeymappingField from "@/components/keymapping-field";
 import { showToast } from "@/components/ui/toaster";
@@ -29,6 +28,8 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
     combinationKeyMapping: KeyCombination[],
     macros: MacroConfig[],
     autoSwitch: boolean,
+    maxBindKeysPerButton?: number,
+    lockAdvancedBindings?: boolean,
     disabled?: boolean,
     changeKeyMappingHandler: (keyMapping: { [key in GameControllerButton]?: number[] }) => void,
     changeCombinationKeyMappingHandler: (combinationKeyMapping: KeyCombination[]) => void,
@@ -55,6 +56,29 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
     const isDisabled = useMemo(() => {
         return disabled ?? false;
     }, [disabled]);
+
+    const maxBindKeysPerButton = useMemo(() => {
+        return props.maxBindKeysPerButton && props.maxBindKeysPerButton > 0 ? props.maxBindKeysPerButton : 3;
+    }, [props.maxBindKeysPerButton]);
+
+    const lockAdvancedBindings = useMemo(() => {
+        return props.lockAdvancedBindings ?? false;
+    }, [props.lockAdvancedBindings]);
+
+    useEffect(() => {
+        if (maxBindKeysPerButton !== 1) return;
+        let mappingChanged = false;
+        const nextKeyMapping = { ...keyMapping };
+        Object.entries(nextKeyMapping).forEach(([key, value]) => {
+            if ((value?.length ?? 0) > 1) {
+                nextKeyMapping[key as GameControllerButton] = value ? value.slice(0, 1) : [];
+                mappingChanged = true;
+            }
+        });
+        if (mappingChanged) {
+            changeKeyMappingHandler(nextKeyMapping);
+        }
+    }, [maxBindKeysPerButton, keyMapping]);
 
     const useCombinationKeyMapping = useMemo(() => {
 
@@ -172,7 +196,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
 
             if (activeKeyMapping.indexOf(inputKey) !== -1) { // key already binded
                 return;
-            } else if (activeKeyMapping.length >= NUM_BIND_KEY_PER_BUTTON_MAX) { // key not binded, and reach max number of key binding per button
+            } else if (activeKeyMapping.length >= maxBindKeysPerButton) {
                 showToast({
                     title: t.KEY_MAPPING_ERROR_MAX_KEYS_TITLE,
                     description: t.KEY_MAPPING_ERROR_MAX_KEYS_DESC,
@@ -205,7 +229,9 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
                     });
 
                     // add input key to active button
-                    newKeyMapping[activeButton as GameControllerButton] = [...activeKeyMapping, inputKey];
+                    newKeyMapping[activeButton as GameControllerButton] = maxBindKeysPerButton === 1
+                        ? [inputKey]
+                        : [...activeKeyMapping, inputKey];
 
                     // 批量更新整个keyMapping
                     changeKeyMappingHandler(newKeyMapping);
@@ -234,7 +260,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
                     // add input key to active combination button
                     newCombinationKeyMapping[combinationIndex] = {
                         ...newCombinationKeyMapping[combinationIndex],
-                        keyIndexes: [...activeKeyMapping, inputKey]
+                        keyIndexes: maxBindKeysPerButton === 1 ? [inputKey] : [...activeKeyMapping, inputKey]
                     };
 
                     // 批量更新整个keyMapping和combinationKeyMapping
@@ -270,7 +296,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
 
             }
         }
-    }, [inputKey, isMacroRecording]);
+    }, [inputKey, isMacroRecording, maxBindKeysPerButton]);
 
     /**
      * get button label map by input mode
@@ -306,6 +332,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
                 changeValue={(v: number[]) => handleSingleKeyMappingChange(button, v)}
                 isActive={activeButton === button.toString()}
                 disabled={isDisabled}
+                maxKeys={maxBindKeysPerButton}
             />
         )
     }
@@ -377,6 +404,9 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
                     colorPalette="green"
                     onValueChange={(details) => {
                         setActiveTab(details.value);
+                        if (lockAdvancedBindings) {
+                            return;
+                        }
                         if (details.value === "macros") {
                             setActiveButton("");
                             setActiveMacroIndex(prev => prev ?? 0);
@@ -391,10 +421,10 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
                     <HStack w="full" margin="2px 0" marginTop={"2px"} >
                         <Separator flex="1" />
                         <Tabs.List>
-                            <Tabs.Trigger value="combination" fontWeight="bold">
+                            <Tabs.Trigger value="combination" fontWeight="bold" disabled={lockAdvancedBindings}>
                                 {t.KEYS_MAPPING_TITLE_CUSTOM_COMBINATION} ({nonEmptyCombinationCount})
                             </Tabs.Trigger>
-                            <Tabs.Trigger value="macros" fontWeight="bold">
+                            <Tabs.Trigger value="macros" fontWeight="bold" disabled={lockAdvancedBindings}>
                                 {t.KEYS_MAPPING_TITLE_MACROS} ({props.macros?.length ?? 0})
                             </Tabs.Trigger>
                         </Tabs.List>
@@ -402,7 +432,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
                     </HStack>
                 </Tabs.Root>
                 <Box w="full" h="10px" />
-                {activeTab === "combination" ? (
+                {activeTab === "combination" && !lockAdvancedBindings ? (
                     <VStack>
                         {[...Array(MAX_NUM_BUTTON_COMBINATION)].map((_, index) => (
                             <CombinationField
@@ -421,7 +451,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
                             />
                         ))}
                     </VStack>
-                ) : (
+                ) : !lockAdvancedBindings ? (
                     <VStack>
                         {[...Array(MAX_NUM_MACROS)].map((_, index) => (
                             <MacroField
@@ -447,7 +477,7 @@ const KeymappingFieldset = forwardRef<KeymappingFieldsetRef, {
                             />
                         ))}
                     </VStack>
-                )}
+                ) : null}
             </VStack>
         </Center>
     )

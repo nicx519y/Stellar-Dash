@@ -14,7 +14,6 @@ static const ScreenMenuMeta kMenuMeta[] = {
     {8, SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST, "Screen Brightness"},
     {9, SCREEN_FEATURE_WEB_CONFIG_ENTRY, "Web Config"},
     {10, SCREEN_FEATURE_CALIBRATION_MODE_SWITCH, "Calibration Mode"},
-    {3, SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH, "Tournament Mode"},
 };
 
 const ScreenMenuMeta* ScreenMain_FindMenuMeta(uint8_t id) {

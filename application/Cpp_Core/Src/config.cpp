@@ -123,6 +123,27 @@ cJSON* buildHotkeysConfigJSON(Config& config) {
     return hotkeysConfigJSON;
 }
 
+static uint32_t keep_first_virtual_pin_mask(uint32_t mask) {
+    if (mask == 0u) return 0u;
+    return mask & (0u - mask);
+}
+
+static void sanitize_competition_profile(GamepadProfile& profile) {
+    if (!profile.enabled || !profile.isCompetitionProfile) return;
+    profile.keysConfig.socdMode = SOCDMode::SOCD_MODE_NEUTRAL;
+    for (uint32_t i = 0; i < NUM_GAME_CONTROLLER_BUTTONS; i++) {
+        profile.keysConfig.keyMapping[i] = keep_first_virtual_pin_mask(profile.keysConfig.keyMapping[i]);
+    }
+    memset(profile.keysConfig.keyCombinations, 0, sizeof(profile.keysConfig.keyCombinations));
+    memset(profile.keysConfig.macros, 0, sizeof(profile.keysConfig.macros));
+}
+
+static void sanitize_competition_profiles(Config& config) {
+    for (uint32_t i = 0; i < NUM_PROFILES; i++) {
+        sanitize_competition_profile(config.profiles[i]);
+    }
+}
+
 cJSON* buildScreenControlConfigJSON(Config& config) {
     cJSON* screenControlJSON = cJSON_CreateObject();
     cJSON_AddNumberToObject(screenControlJSON, "brightness", config.screenControl.brightness);
@@ -142,7 +163,6 @@ cJSON* buildScreenControlConfigJSON(Config& config) {
         {0, "inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
         {1, "profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
         {2, "socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
-        {3, "tournamentModeSwitch", SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH},
         {4, "ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
         {5, "ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
         {6, "ambientBrightnessAdjust", SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST},
@@ -340,7 +360,6 @@ bool fromJSON(Config& config, cJSON* json) {
                 {"inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
                 {"profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
                 {"socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
-                {"tournamentModeSwitch", SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH},
                 {"ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
                 {"ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
                 {"ambientBrightnessAdjust", SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST},
@@ -363,7 +382,6 @@ bool fromJSON(Config& config, cJSON* json) {
             {"inputModeSwitch", 0},
             {"profilesSwitch", 1},
             {"socdModeSwitch", 2},
-            {"tournamentModeSwitch", 3},
             {"ledBrightnessAdjust", 4},
             {"ledEffectSwitch", 5},
             {"ambientBrightnessAdjust", 6},
@@ -418,6 +436,7 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
     sprintf(profile.id, id);
     sprintf(profile.name, "Profile-1");
     profile.enabled = isEnabled;
+    profile.isCompetitionProfile = false;
     
     APP_DBG("ConfigUtils::makeDefaultProfile - base init done");
 
@@ -535,7 +554,6 @@ bool ConfigUtils::load(Config& config)
             SCREEN_FEATURE_INPUT_MODE_SWITCH |
             SCREEN_FEATURE_PROFILES_SWITCH |
             SCREEN_FEATURE_SOCD_MODE_SWITCH |
-            SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH |
             SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST |
             SCREEN_FEATURE_LED_EFFECT_SWITCH |
             SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST |
@@ -626,6 +644,7 @@ static int8_t qspi_erase_and_write_config(uint8_t* pBuffer, uint32_t addr, uint3
 bool ConfigUtils::save(Config& config)
 {
     APP_DBG("ConfigUtils::save begin");
+    sanitize_competition_profiles(config);
 
     const uint32_t cfgSize = (uint32_t)sizeof(Config);
     int8_t result = qspi_erase_and_write_config((uint8_t*)&config, CONFIG_ADDR_ORIGIN, cfgSize);

@@ -11,6 +11,7 @@ export const LEDS_ANIMATION_STEP = 80;
 export const DEFAULT_NUM_HOTKEYS_MAX = 11;
 // max number of key binding per button
 export const NUM_BIND_KEY_PER_BUTTON_MAX = 3;
+export const NUM_BIND_KEY_PER_BUTTON_COMPETITION_MAX = 1;
 // max length of profile name
 export const PROFILE_NAME_MAX_LENGTH = 20;
 
@@ -88,7 +89,6 @@ export interface ScreenControlFeatures {
     inputModeSwitch: boolean;
     profilesSwitch: boolean;
     socdModeSwitch: boolean;
-    tournamentModeSwitch: boolean;
     ledBrightnessAdjust: boolean;
     ledEffectSwitch: boolean;
     ambientBrightnessAdjust: boolean;
@@ -123,7 +123,6 @@ export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
         inputModeSwitch: true,
         profilesSwitch: true,
         socdModeSwitch: true,
-        tournamentModeSwitch: true,
         ledBrightnessAdjust: true,
         ledEffectSwitch: true,
         ambientBrightnessAdjust: true,
@@ -136,7 +135,6 @@ export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
         'inputModeSwitch',
         'profilesSwitch',
         'socdModeSwitch',
-        'tournamentModeSwitch',
         'ledBrightnessAdjust',
         'ledEffectSwitch',
         'ambientBrightnessAdjust',
@@ -409,6 +407,7 @@ export interface KeysConfig {
 export interface GameProfile {
     id: string;
     name?: string;
+    isCompetitionProfile?: boolean;
     keysConfig?: KeysConfig;
     triggerConfigs?: {
         isAllBtnsConfiguring?: boolean;
@@ -567,12 +566,14 @@ export const UI_TEXT = {
     DIALOG_REBOOT_SUCCESS_TITLE: "Reboot successful",
     DIALOG_CREATE_PROFILE_TITLE: "Create New Profile",
     DIALOG_RENAME_PROFILE_TITLE: "Rename Profile",
+    DIALOG_COMPETITION_PROFILE_ENABLE_TITLE: "Enable Competition Profile",
     
     // Dialog Messages
     DIALOG_REBOOT_CONFIRM_MESSAGE: "Rebooting the system with saving will save the current profile and ending the current session. \nAre you sure to continue?",
     DIALOG_REBOOT_SUCCESS_MESSAGE: "Rebooting the system with saving is successful. \nYou can now close this window and start enjoying the gaming experience.",
     DIALOG_CREATE_PROFILE_CONFIRM_MESSAGE: "Creating a new profile will create a new profile and ending the current session. Are you sure to continue?",
     DIALOG_RENAME_PROFILE_CONFIRM_MESSAGE: "Renaming the current profile will save the current profile and ending the current session. Are you sure to continue?",
+    DIALOG_COMPETITION_PROFILE_ENABLE_MESSAGE: "Enabling Competition Profile will modify current bindings: SOCD will be forced to Neutral, combinations and dynamic macros will be cleared, and each game button will keep only one physical key binding. Continue?",
     
     // Error Messages
     ERROR_KEY_ALREADY_BINDED_TITLE: "Key already binded",
@@ -620,6 +621,9 @@ export const UI_TEXT = {
     SETTINGS_AMBIENT_LIGHT_COLOR2_LABEL: "Ambient Light Color 2",
 
     SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL: "Auto Switch Mode",
+    SETTINGS_KEY_MAPPING_COMPETITION_MODE_LABEL: "Competition Profile",
+    SETTINGS_TOOLTIP_COMPETITION_MODE: "Competition Profile will force the gamepad to follow the competition rules, including SOCD force neutral mode, disable combo keys and dynamic macros, and multiple buttons cannot be bound to the same physical key.",
+    SETTINGS_KEY_MAPPING_COMPETITION_MODE_DESC: "Enable CPT-safe restrictions",
     SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL: "Manual Switch Mode",
     SETTINGS_KEY_MAPPING_CLEAR_MAPPING_BUTTON: "Clear mapping",
     SETTINGS_RAPID_TRIGGER_ONFIGURING_BUTTON: "Configuring button: ",
@@ -965,7 +969,9 @@ export const UI_TEXT_ZH = {
     // 配置相关
     PROFILE_CREATE_DIALOG_TITLE: "创建新配置",
     PROFILE_DELETE_DIALOG_TITLE: "删除配置",
+    DIALOG_COMPETITION_PROFILE_ENABLE_TITLE: "开启赛用配置",
     PROFILE_DELETE_CONFIRM_MESSAGE: "删除此配置后将无法恢复。是否确认删除？",
+    DIALOG_COMPETITION_PROFILE_ENABLE_MESSAGE: "开启赛用配置会修改当前绑定：SOCD将强制为中立模式，组合键和动态宏会被清空，每个游戏按键仅保留一个物理按键绑定。是否继续？",
     PROFILE_NAME_LABEL: "配置名称",
     PROFILE_NAME_PLACEHOLDER: "请输入配置名称",
     
@@ -1004,6 +1010,9 @@ export const UI_TEXT_ZH = {
     SETTINGS_AMBIENT_LIGHT_COLOR2_LABEL: "氛围灯颜色2",
 
     SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL: "自动切换模式",
+    SETTINGS_KEY_MAPPING_COMPETITION_MODE_LABEL: "赛用配置",
+    SETTINGS_TOOLTIP_COMPETITION_MODE: "赛用配置会强制比赛规则限制，包括 SOCD强制中立模式，禁用组合键和动态宏，多个按键不能同时绑定到一个物理按键",
+    SETTINGS_KEY_MAPPING_COMPETITION_MODE_DESC: "启用后强制比赛规则限制",
     SETTINGS_KEY_MAPPING_MANUAL_SWITCH_LABEL: "手动切换模式",
     SETTINGS_KEY_MAPPING_CLEAR_MAPPING_BUTTON: "清空映射",
     SETTINGS_RAPID_TRIGGER_ONFIGURING_BUTTON: "正在配置按键: ",

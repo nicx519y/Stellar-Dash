@@ -249,6 +249,7 @@ const converProfileDetails = (profile: any) => {
         : [];
     const newProfile: GameProfile = {
         ...profile,
+        isCompetitionProfile: profile.isCompetitionProfile as boolean ?? false,
         keysConfig: {
             inputMode: profile.keysConfig?.inputMode as Platform ?? Platform.XINPUT,
             socdMode: profile.keysConfig?.socdMode as GameSocdMode ?? GameSocdMode.SOCD_MODE_UP_PRIORITY,
@@ -680,7 +681,16 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 fetchProfileList();
             } else if (data && 'defaultProfileDetails' in data) {
                 // 否则更新 default profile
-                setDefaultProfile(converProfileDetails(data.defaultProfileDetails) ?? {});
+                const nextDefault = converProfileDetails(data.defaultProfileDetails) ?? {};
+                setDefaultProfile(nextDefault);
+                setProfileList((prev) => ({
+                    ...prev,
+                    items: prev.items.map((p) => (
+                        p.id === nextDefault.id
+                            ? { ...p, name: nextDefault.name, isCompetitionProfile: nextDefault.isCompetitionProfile }
+                            : p
+                    ))
+                }));
             }
             setError(null);
             return Promise.resolve();

@@ -228,6 +228,7 @@ cJSON* ProfileCommandHandler::buildProfileListJSON() {
             cJSON_AddStringToObject(profileJSON, "id", cleanId);
             cJSON_AddStringToObject(profileJSON, "name", cleanName);
             cJSON_AddBoolToObject(profileJSON, "enabled", config.profiles[i].enabled);
+            cJSON_AddBoolToObject(profileJSON, "isCompetitionProfile", config.profiles[i].isCompetitionProfile);
 
             // 添加到数组
             cJSON_AddItemToArray(itemsJSON, profileJSON);
@@ -262,6 +263,7 @@ cJSON* ProfileCommandHandler::buildProfileJSON(GamepadProfile* profile) {
     // 基本信息
     cJSON_AddStringToObject(profileDetailsJSON, "id", cleanId);
     cJSON_AddStringToObject(profileDetailsJSON, "name", cleanName);
+    cJSON_AddBoolToObject(profileDetailsJSON, "isCompetitionProfile", profile->isCompetitionProfile);
 
     // 按键配置
     cJSON* keysConfigJSON = cJSON_CreateObject();
@@ -460,6 +462,10 @@ void ProfileCommandHandler::parseProfileJSON(cJSON* profileJSON, GamepadProfile*
     if(nameItem && cJSON_IsString(nameItem)) {
         strncpy(targetProfile->name, nameItem->valuestring, sizeof(targetProfile->name) - 1);
         targetProfile->name[sizeof(targetProfile->name) - 1] = '\0';
+    }
+    cJSON* compItem = cJSON_GetObjectItem(profileJSON, "isCompetitionProfile");
+    if(compItem && cJSON_IsBool(compItem)) {
+        targetProfile->isCompetitionProfile = cJSON_IsTrue(compItem);
     }
 
     // 更新按键配置

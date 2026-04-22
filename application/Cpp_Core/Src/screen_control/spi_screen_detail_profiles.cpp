@@ -28,9 +28,17 @@ static void rebuild_profile_labels(uint8_t enabledCount) {
         uint8_t pi = g_enabledProfileIdx[i];
         const char* n = STORAGE_MANAGER.config.profiles[pi].name;
         const char* id = STORAGE_MANAGER.config.profiles[pi].id;
+        bool isCompetition = STORAGE_MANAGER.config.profiles[pi].isCompetitionProfile;
         g_profileLabels[i][0] = '\0';
         const char* shown = (n && n[0] != '\0') ? n : ((id && id[0] != '\0') ? id : "");
-        snprintf(g_profileLabels[i], sizeof(g_profileLabels[i]), "P%u - %s", (unsigned)(pi + 1u), shown);
+        snprintf(
+            g_profileLabels[i],
+            sizeof(g_profileLabels[i]),
+            "P%hhu - %.15s%s",
+            (uint8_t)(pi + 1u),
+            shown,
+            isCompetition ? " - locked" : ""
+        );
         g_profileLabels[i][sizeof(g_profileLabels[i]) - 1] = '\0';
         g_profilePtrs[i] = g_profileLabels[i];
     }

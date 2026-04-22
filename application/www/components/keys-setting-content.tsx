@@ -27,6 +27,8 @@ import {
     GameControllerButtonList,
     KeyCombination,
     MacroConfig,
+    NUM_BIND_KEY_PER_BUTTON_COMPETITION_MAX,
+    NUM_BIND_KEY_PER_BUTTON_MAX,
 } from "@/types/gamepad-config";
 import HitboxKeys from "@/components/hitbox/hitbox-keys";
 import HitboxEnableSetting from "@/components/hitbox/hitbox-enableSetting";
@@ -51,6 +53,7 @@ import { GiSightDisabled } from "react-icons/gi";
 import { BiSolidExit } from "react-icons/bi";
 import { IoMdHelpCircleOutline } from "react-icons/io";
 import { TitleLabel } from "./ui/title-label";
+import { openConfirm } from '@/components/dialog-confirm';
 
 export function KeysSettingContent() {
     const {
@@ -84,7 +87,7 @@ export function KeysSettingContent() {
     const [inputKey, setInputKey] = useState<number>(-1);
     const [macroRecording, setMacroRecording] = useState<boolean>(false);
     const [keysEnableSettingActive, setKeysEnableSettingActive] = useState<boolean>(false); // 按键启用/禁用设置状态
-    const [autoSwitch, setAutoSwitch] = useState<boolean>(() => {
+    const [autoSwitch, _setAutoSwitch] = useState<boolean>(() => {
         // 从 localStorage 读取 autoSwitch 值，默认为 false
         if (typeof window !== 'undefined') {
             const stored = localStorage.getItem('autoSwitch');
@@ -92,6 +95,7 @@ export function KeysSettingContent() {
         }
         return false;
     });
+    const [isCompetitionProfile, setIsCompetitionProfile] = useState<boolean>(defaultProfile.isCompetitionProfile ?? false);
 
     const keymappingFieldsetRef = useRef<KeymappingFieldsetRef>(null);
     const macrosLoadedForProfileIdRef = useRef<string>("");
@@ -131,6 +135,7 @@ export function KeysSettingContent() {
 
             setIsInit(true);
             setDefaultProfileId(defaultProfile.id);
+            setIsCompetitionProfile(defaultProfile.isCompetitionProfile ?? false);
             macrosLoadedForProfileIdRef.current = "";
 
         }
@@ -166,11 +171,26 @@ export function KeysSettingContent() {
     }, [dataIsReady, defaultProfileId, getProfileMacros]);
 
     const updateKeysConfigHandler = () => {
-
-        const newConfig = Object.assign({ invertXAxis, invertYAxis, fourWayMode, socdMode, keyMapping, keysEnableTag: keysEnableConfig, keyCombinations: combinationKeyMapping });
+        const effectiveSocdMode = isCompetitionProfile ? GameSocdMode.SOCD_MODE_NEUTRAL : socdMode;
+        const effectiveKeyMapping = isCompetitionProfile
+            ? Object.fromEntries(Object.entries(keyMapping).map(([k, v]) => [k, (v ?? []).slice(0, NUM_BIND_KEY_PER_BUTTON_COMPETITION_MAX)]))
+            : keyMapping;
+        const effectiveCombinations = isCompetitionProfile
+            ? combinationKeyMapping.map(() => ({ keyIndexes: [], gameControllerButtons: [] }))
+            : combinationKeyMapping;
+        const newConfig = Object.assign({
+            invertXAxis,
+            invertYAxis,
+            fourWayMode,
+            socdMode: effectiveSocdMode,
+            keyMapping: effectiveKeyMapping,
+            keysEnableTag: keysEnableConfig,
+            keyCombinations: effectiveCombinations
+        });
 
         const newProfile: GameProfile = {
             id: defaultProfile.id,
+            isCompetitionProfile,
             keysConfig: newConfig,
         }
         updateProfileDetails(defaultProfile.id, newProfile);
@@ -228,6 +248,22 @@ export function KeysSettingContent() {
         }],
     ]);
 
+    const toggleCompetitionProfile = async () => {
+        const next = !isCompetitionProfile;
+        if (next) {
+            const confirmed = await openConfirm({
+                title: t.DIALOG_COMPETITION_PROFILE_ENABLE_TITLE,
+                message: t.DIALOG_COMPETITION_PROFILE_ENABLE_MESSAGE,
+            });
+            if (!confirmed) return;
+        }
+        setIsCompetitionProfile(next);
+        if (next) {
+            setSocdMode(GameSocdMode.SOCD_MODE_NEUTRAL);
+        }
+        setNeedUpdate(true);
+    };
+
 
     useEffect(() => {
         if (needUpdate) {
@@ -235,6 +271,33 @@ export function KeysSettingContent() {
             setNeedUpdate(false);
         }
     }, [needUpdate]);
+
+    useEffect(() => {
+        if (!isCompetitionProfile) return;
+        let changed = false;
+        if (socdMode !== GameSocdMode.SOCD_MODE_NEUTRAL) {
+            setSocdMode(GameSocdMode.SOCD_MODE_NEUTRAL);
+            changed = true;
+        }
+        const sanitizedKeyMapping = Object.fromEntries(
+            Object.entries(keyMapping).map(([k, v]) => [k, (v ?? []).slice(0, NUM_BIND_KEY_PER_BUTTON_COMPETITION_MAX)])
+        ) as { [key in GameControllerButton]?: number[] };
+        if (Object.values(keyMapping).some((arr) => (arr?.length ?? 0) > NUM_BIND_KEY_PER_BUTTON_COMPETITION_MAX)) {
+            setKeyMapping(sanitizedKeyMapping);
+            changed = true;
+        }
+        if (combinationKeyMapping.some((c) => (c.keyIndexes?.length ?? 0) > 0 || (c.gameControllerButtons?.length ?? 0) > 0)) {
+            setCombinationKeyMapping(combinationKeyMapping.map(() => ({ keyIndexes: [], gameControllerButtons: [] })));
+            changed = true;
+        }
+        if ((macros?.length ?? 0) > 0) {
+            setMacros([]);
+            void updateProfileMacros(defaultProfile.id, []);
+        }
+        if (changed) {
+            setNeedUpdate(true);
+        }
+    }, [isCompetitionProfile, defaultProfile.id]);
 
     useEffect(() => {
         return () => {
@@ -347,7 +410,7 @@ export function KeysSettingContent() {
                                 <VStack gap={8} alignItems={"flex-start"} width="full">
                                     {/* Key Mapping */}
                                     <HStack gap={5} >
-                                        <Switch.Root
+                                        {/* <Switch.Root
                                             colorPalette={"green"}
                                             checked={autoSwitch}
                                             onCheckedChange={() => setAutoSwitch(!autoSwitch)}
@@ -358,6 +421,21 @@ export function KeysSettingContent() {
                                                 <Switch.Thumb />
                                             </Switch.Control>
                                             <Switch.Label>{t.SETTINGS_KEY_MAPPING_AUTO_SWITCH_LABEL}</Switch.Label>
+                                        </Switch.Root> */}
+
+                                        <Switch.Root
+                                            colorPalette={"orange"}
+                                            checked={isCompetitionProfile}
+                                            onCheckedChange={() => {
+                                                void toggleCompetitionProfile();
+                                            }}
+                                            disabled={keysEnableSettingActive}
+                                        >
+                                            <Switch.HiddenInput />
+                                            <Switch.Control>
+                                                <Switch.Thumb />
+                                            </Switch.Control>
+                                            <Switch.Label>{t.SETTINGS_KEY_MAPPING_COMPETITION_MODE_LABEL}</Switch.Label>
                                         </Switch.Root>
 
                                         <HoverCard.Root size="sm" openDelay={300} closeDelay={0}  >
@@ -371,7 +449,7 @@ export function KeysSettingContent() {
                                                     <HoverCard.Content maxWidth="340px">
                                                         <HoverCard.Arrow />
                                                         <Text fontSize={"xs"} whiteSpace="pre-wrap">
-                                                            {t.TOOLTIP_AUTO_SWITCH}
+                                                            {t.SETTINGS_TOOLTIP_COMPETITION_MODE}
                                                         </Text>
                                                     </HoverCard.Content>
                                                 </HoverCard.Positioner>
@@ -416,6 +494,8 @@ export function KeysSettingContent() {
                                             const updated = await updateProfileMacros(defaultProfile.id, macros);
                                             setMacros(updated);
                                         }}
+                                        maxBindKeysPerButton={isCompetitionProfile ? NUM_BIND_KEY_PER_BUTTON_COMPETITION_MAX : NUM_BIND_KEY_PER_BUTTON_MAX}
+                                        lockAdvancedBindings={isCompetitionProfile}
                                         onMacroRecordingChange={(recording) => {
                                             setMacroRecording(recording);
                                             if (recording) setInputKey(-1);
@@ -435,7 +515,7 @@ export function KeysSettingContent() {
                                             setSocdMode(socd);
                                             setNeedUpdate(true);
                                         }}
-                                        disabled={keysEnableSettingActive}
+                                        disabled={keysEnableSettingActive || isCompetitionProfile}
                                     >
                                         <TitleLabel title={t.SETTINGS_KEYS_SOCD_MODE_TITLE} />
                                         <SimpleGrid gap={1} columns={5} >
