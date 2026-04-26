@@ -7,5 +7,5 @@
     "bootloader": "成功",
     "application": "槽A 成功"
   },
-  "parallel_jobs": 16
+  "parallel_jobs": 4
 }
