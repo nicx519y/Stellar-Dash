@@ -63,27 +63,24 @@ void ScreenDetailRender_Slider(ST7789_Handle* lcd, const char* title, uint8_t va
     const uint16_t listX = SPI_SCREEN_LEFT_BAR_W;
     const uint16_t listW = (uint16_t)(w - SPI_SCREEN_LEFT_BAR_W - SPI_SCREEN_RIGHT_BAR_W);
     const uint8_t titleScale = 2u;
+    const uint8_t valueScale = 2u;
     const uint16_t titleH = ScreenUI_CharCellH(titleScale);
+    const uint16_t valueH = ScreenUI_CharCellH(valueScale);
     const uint16_t barW = (uint16_t)(listW - 20u);
-    const uint16_t barH = 14u;
+    const uint16_t barH = (uint16_t)(14u * 2u);
     const uint16_t barX = (uint16_t)(listX + 10u);
     const uint16_t barY = (uint16_t)(h / 2u - barH / 2u);
-    const uint16_t innerX = (uint16_t)(barX + 2u);
-    const uint16_t innerY = (uint16_t)(barY + 2u);
-    const uint16_t innerW = (uint16_t)(barW - 4u);
-    const uint16_t innerH = (uint16_t)(barH - 4u);
-    const uint16_t fillW = (uint16_t)((innerW * (uint16_t)value) / 100u);
+    const uint16_t fillW = (uint16_t)((barW * (uint16_t)value) / 100u);
 
     ST7789_FillRect(lcd, listX, 0, listW, h, style.bg);
     ST7789_DrawString(lcd, barX, (uint16_t)(barY - titleH - 10u), title, style.text, style.bg, titleScale);
 
-    ST7789_DrawRect(lcd, barX, barY, barW, barH, style.text);
-    ST7789_FillRect(lcd, innerX, innerY, innerW, innerH, style.bg);
-    ST7789_FillRect(lcd, innerX, innerY, fillW, innerH, style.text);
+    ST7789_FillRect(lcd, barX, barY, barW, barH, style.selBg);
+    ST7789_FillRect(lcd, barX, barY, fillW, barH, style.text);
 
     char val[8];
     snprintf(val, sizeof(val), "%u%%", (unsigned)value);
-    ScreenUI_DrawStringCenteredInBox(lcd, listX, (uint16_t)(barY + barH + 8u), listW, 16u, val, style.text, style.bg, 1);
+    ScreenUI_DrawStringCenteredInBox(lcd, listX, (uint16_t)(barY + barH + 8u), listW, valueH, val, style.text, style.bg, valueScale);
 }
 
 void ScreenDetailRender_Info(ST7789_Handle* lcd, const char* title, const char* text, const ScreenUiStyle& style) {

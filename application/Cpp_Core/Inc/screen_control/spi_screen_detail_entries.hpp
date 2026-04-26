@@ -24,6 +24,7 @@ uint8_t ScreenDetailSocd_InitIndex(void);
 void ScreenDetailSocd_Rotate(uint8_t* ioIndex, int8_t det);
 void ScreenDetailSocd_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style);
 void ScreenDetailSocd_OnConfirm(uint8_t index);
+bool ScreenDetailSocd_ShouldExitAfterConfirm(void);
 
 uint8_t ScreenDetailLightEffect_InitIndex(void);
 void ScreenDetailLightEffect_Rotate(uint8_t* ioIndex, int8_t det);

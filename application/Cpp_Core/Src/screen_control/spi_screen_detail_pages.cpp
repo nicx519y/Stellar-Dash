@@ -61,7 +61,7 @@ bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
     switch (menuId) {
         case 0: ScreenDetailInputMode_OnConfirm(index); return true;
         case 1: ScreenDetailProfiles_OnConfirm(index); return true;
-        case 2: ScreenDetailSocd_OnConfirm(index); return true;
+        case 2: ScreenDetailSocd_OnConfirm(index); return ScreenDetailSocd_ShouldExitAfterConfirm();
         case 5: ScreenDetailLightEffect_OnConfirm(index); return true;
         case 7: ScreenDetailAmbientEffect_OnConfirm(index); return true;
         case 4: ScreenDetailLightBrightness_OnConfirm(index); return false;
