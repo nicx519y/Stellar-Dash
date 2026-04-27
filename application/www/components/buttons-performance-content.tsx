@@ -22,16 +22,13 @@ import { ImEqualizer2 } from "react-icons/im";
 import { Platform } from "@/types/gamepad-config";
 
 export function ButtonsPerformanceContent() {
-
     const [isTestingModeActivity, setIsTestingModeActivity] = useState<boolean>(false);
     const { t } = useLanguage();
 
     const { defaultProfile, sendPendingCommandImmediately, setFinishConfigDisabled, globalConfig } = useGamepadConfig();
     const { setError } = useGamepadConfig();
-    const [selectedButton, setSelectedButton] = useState<number>(0); // 当前选中的按钮
-    const [canSelectAllButton, setCanSelectAllButton] = useState<boolean>(false);
-    const [isInit, setIsInit] = useState<boolean>(false);
-    const interactive = useMemo(() => canSelectAllButton ? RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS : [], [canSelectAllButton]);
+    const [selectedButtons, setSelectedButtons] = useState<number[]>([]);
+    const initializedSelectionProfileIdRef = useRef<string | null>(null);
 
     const [performanceData, setPerformanceData] = useState<ButtonPerformanceMonitoringData | null>(null);
     const [allButtonsData, setAllButtonsData] = useState<ButtonPerformanceData[]>([]);
@@ -40,21 +37,27 @@ export function ButtonsPerformanceContent() {
     // 使用 context 中的 indexMapToGameControllerButtonOrCombination 方法
     const { indexMapToGameControllerButtonOrCombination } = useGamepadConfig();
 
-    useEffect(() => {
-        if(defaultProfile.triggerConfigs && !isInit) {
-            setCanSelectAllButton(!(defaultProfile.triggerConfigs.isAllBtnsConfiguring));
-            setSelectedButton(0);
-            setIsInit(true);
-        }
-    }, [defaultProfile]);
+    const mappedRapidTriggerButtons = useMemo(() => {
+        const keyMapping = defaultProfile.keysConfig?.keyMapping ?? {};
+        const mappedIds = Object.values(keyMapping)
+            .flatMap((ids) => ids ?? [])
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id) && RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS.includes(id));
+        return Array.from(new Set(mappedIds));
+    }, [defaultProfile.keysConfig?.keyMapping]);
 
-    /**
-     * 点击按钮
-     */
+    useEffect(() => {
+        if (initializedSelectionProfileIdRef.current === defaultProfile.id) return;
+        initializedSelectionProfileIdRef.current = defaultProfile.id;
+        setSelectedButtons(mappedRapidTriggerButtons.length > 0 ? mappedRapidTriggerButtons : RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS);
+    }, [defaultProfile.id]);
+
+    const highlightIds = useMemo(() => selectedButtons, [selectedButtons]);
+
     const handleButtonClick = (id: number) => {
-        if (selectedButton !== id && id >= 0) {
-            setSelectedButton(id);
-        }
+        if (id < 0) return;
+        if (!RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS.includes(id)) return;
+        setSelectedButtons((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
     };
 
     /***************************************** 按键性能监控 ********************************************** */
@@ -156,8 +159,8 @@ export function ButtonsPerformanceContent() {
             return (
                 <HitboxPerformance
                     onClick={handleButtonClick}
-                    interactiveIds={interactive}
-                    highlightIds={[selectedButton ?? -1]}
+                    interactiveIds={RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS}
+                    highlightIds={highlightIds}
                     buttonLabelMap={buttonLabelMap}
                     containerWidth={containerWidth}
                 />
@@ -205,8 +208,8 @@ export function ButtonsPerformanceContent() {
             <MainContent>
                 {!isTestingModeActivity && 
                     <ButtonsPerformanceSettingContent
-                        selectedButton={selectedButton}
-                        selectAllButtonHandler={(result: boolean) => setCanSelectAllButton(!result)}
+                        selectedButtons={selectedButtons}
+                        onSelectedButtonsChange={setSelectedButtons}
                     />
                 }
                 {isTestingModeActivity && 

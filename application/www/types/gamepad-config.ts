@@ -711,8 +711,19 @@ export const UI_TEXT = {
 
     // Rapid Trigger Settings
     SETTINGS_RAPID_TRIGGER_TITLE: "BUTTONS PERFORMANCE",
-    SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "Configure the performance parameters of the buttons, the preset configuration is usually enough, if you need more precise control, you can customize the configuration.\n- Top Deadzone: \"Press\" cannot be triggered within this stroke.\n- Bottom Deadzone: \"Release\" cannot be triggered within this stroke.\n- Press Accuracy: The distance from the top of the button to the press point.\n- Release Accuracy: The distance from the bottom of the button to the release point.",
+    SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "Configure the performance parameters of selected buttons.\n- Configuration Scope: select which buttons are affected.\n- Presets: quick-apply a predefined configuration to the selected buttons.\n- Top Deadzone: \"Press\" cannot be triggered within this stroke.\n- Bottom Deadzone: \"Release\" cannot be triggered within this stroke.\n- Press Accuracy: The distance from the top of the button to the press point.\n- Release Accuracy: The distance from the bottom of the button to the release point.",
     SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL: "Configure All Buttons At Once",
+    SETTINGS_RAPID_TRIGGER_SCOPE_TITLE: "Configuration Scope",
+    SETTINGS_RAPID_TRIGGER_SCOPE_ALL: "All Buttons",
+    SETTINGS_RAPID_TRIGGER_SCOPE_DPAD: "Direction Buttons",
+    SETTINGS_RAPID_TRIGGER_SCOPE_NON_DPAD: "Non-direction Buttons",
+    SETTINGS_RAPID_TRIGGER_SCOPE_CUSTOM: "Custom",
+    SETTINGS_RAPID_TRIGGER_SCOPE_CUSTOM_EMPTY: "Please select at least one button to configure.",
+    SETTINGS_RAPID_TRIGGER_SCOPE_CUSTOM_SELECTED_PREFIX: "Custom selected",
+    SETTINGS_RAPID_TRIGGER_SCOPE_CUSTOM_SELECTED_SUFFIX: "buttons:",
+    SETTINGS_RAPID_TRIGGER_SCOPE_RANGE_PREFIX: "Current scope includes",
+    SETTINGS_RAPID_TRIGGER_SCOPE_RANGE_SUFFIX: "buttons",
+    SETTINGS_RAPID_TRIGGER_PARAM_NOT_UNIFIED: "(Not unified)",
 
     // ADC Button Debounce Algorithm
     SETTINGS_ADC_BUTTON_DEBOUNCE_TITLE: "Button Debounce",
@@ -1098,8 +1109,19 @@ export const UI_TEXT_ZH = {
     
     // 快速触发设置
     SETTINGS_RAPID_TRIGGER_TITLE: "按键性能",
-    SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "配置按键的性能参数，大多数情况下预设配置已经足够，如果需要更精细的控制，可以自定义配置。\n- 顶部死区：按键顶部的保护行程，在此行程中“按下”不会触发，一般用于防止误触。\n- 底部死区：按键底部的保护行程，在此行程中“释放”不会触发，一般用于防止意外的“释放”。\n- 按下精度：在顶部死区外，按下超过此行程后即可触发“按下”，用于控制按键的触发灵敏度。\n- 释放精度：在底部死区外，弹起超过此行程后即可触发“释放”，用于控制按键的触发灵敏度。\n- 同时配置所有按键：同时配置所有按键的性能参数，用于快速配置所有按键，会覆盖当前所有按键的配置。\n- [在表格试图中预览]可以看到所有按键的性能参数配置。",
+    SETTINGS_RAPID_TRIGGER_HELPER_TEXT: "先选中要配置的按键，再设置性能参数。\n- 配置范围：选择哪些按键会被影响。\n- 性能预设：把预设参数快速应用到当前选中的按键。\n- 顶部死区：按键顶部的保护行程，在此行程中“按下”不会触发，一般用于防止误触。\n- 底部死区：按键底部的保护行程，在此行程中“释放”不会触发，一般用于防止意外的“释放”。\n- 按下精度：在顶部死区外，按下超过此行程后即可触发“按下”，用于控制按键的触发灵敏度。\n- 释放精度：在底部死区外，弹起超过此行程后即可触发“释放”，用于控制按键的触发灵敏度。\n- [在表格视图中预览]可以看到所有按键的性能参数配置。",
     SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL: "同时配置所有按键",
+    SETTINGS_RAPID_TRIGGER_SCOPE_TITLE: "配置范围",
+    SETTINGS_RAPID_TRIGGER_SCOPE_ALL: "所有键",
+    SETTINGS_RAPID_TRIGGER_SCOPE_DPAD: "方向键",
+    SETTINGS_RAPID_TRIGGER_SCOPE_NON_DPAD: "非方向键",
+    SETTINGS_RAPID_TRIGGER_SCOPE_CUSTOM: "自选",
+    SETTINGS_RAPID_TRIGGER_SCOPE_CUSTOM_EMPTY: "请选择至少一个按键进行配置",
+    SETTINGS_RAPID_TRIGGER_SCOPE_CUSTOM_SELECTED_PREFIX: "当前自选",
+    SETTINGS_RAPID_TRIGGER_SCOPE_CUSTOM_SELECTED_SUFFIX: "键：",
+    SETTINGS_RAPID_TRIGGER_SCOPE_RANGE_PREFIX: "当前范围共",
+    SETTINGS_RAPID_TRIGGER_SCOPE_RANGE_SUFFIX: "个按键",
+    SETTINGS_RAPID_TRIGGER_PARAM_NOT_UNIFIED: "（参数不统一）",
 
     // 按钮防抖设置
     SETTINGS_ADC_BUTTON_DEBOUNCE_TITLE: "按键防抖",

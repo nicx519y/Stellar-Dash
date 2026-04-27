@@ -7,19 +7,16 @@ import {
     Table,
     VStack,
     HStack,
-    Switch,
-    RadioCard,
     Slider,
     Dialog,
     Fieldset,
     Portal,
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RapidTriggerConfig, RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS, ButtonPerformancePresetConfigs, ButtonPerformancePresetName } from "@/types/gamepad-config";
+import { RapidTriggerConfig, RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS, ButtonPerformancePresetConfigs, ButtonPerformancePresetName, GameControllerButton } from "@/types/gamepad-config";
 import { useLanguage } from "@/contexts/language-context";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { LuSheet } from "react-icons/lu";
-import { openConfirm } from "./dialog-confirm";
 import { 
     SettingMainContentLayout, 
     MainContentHeader, 
@@ -41,45 +38,24 @@ const defaultTriggerConfig: TriggerConfig = {
 };
 
 interface ButtonsPerformanceSettingContentProps {
-    selectedButton: number;
-    selectAllButtonHandler: (result: boolean) => void;
+    selectedButtons: number[];
+    onSelectedButtonsChange: (selected: number[]) => void;
 }
 
 export function ButtonsPerformanceSettingContent({
-    selectedButton,
-    selectAllButtonHandler,
+    selectedButtons,
+    onSelectedButtonsChange,
 }: ButtonsPerformanceSettingContentProps) {
     const { t } = useLanguage();
     const { defaultProfile, updateProfileDetails } = useGamepadConfig();
     const [isInit, setIsInit] = useState<boolean>(false);
-    const [isAllBtnsConfiguring, setIsAllBtnsConfiguring] = useState<boolean>(defaultProfile.triggerConfigs?.isAllBtnsConfiguring ?? true);
     const [triggerConfigs, setTriggerConfigs] = useState<RapidTriggerConfig[]>([]);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false);
     const [isTableDialogOpen, setIsTableDialogOpen] = useState<boolean>(false);
     const { sendPendingCommandImmediately } = useGamepadConfig();
-    const [selectedPreset, setSelectedPreset] = useState<ButtonPerformancePresetName>(ButtonPerformancePresetName.BALANCED);
     const allKeys = RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS;
 
     const tableViewConfig = useMemo(() => triggerConfigs, [triggerConfigs]);
-
-    const PresetLabelMap = new Map<string, { label: string, description: string }>([
-        [ButtonPerformancePresetName.FASTEST, {
-            label: t.SETTING_BUTTON_PERFORMANCE_PRESET_FASTEST_LABEL,
-            description: t.SETTING_BUTTON_PERFORMANCE_PRESET_FASTEST_DESC
-        }],
-        [ButtonPerformancePresetName.BALANCED, {
-            label: t.SETTING_BUTTON_PERFORMANCE_PRESET_BALANCED_LABEL,
-            description: t.SETTING_BUTTON_PERFORMANCE_PRESET_BALANCED_DESC
-        }],
-        [ButtonPerformancePresetName.STABILITY, {
-            label: t.SETTING_BUTTON_PERFORMANCE_PRESET_STABILITY_LABEL,
-            description: t.SETTING_BUTTON_PERFORMANCE_PRESET_STABILITY_DESC
-        }],
-        [ButtonPerformancePresetName.CUSTOM, {
-            label: t.SETTING_BUTTON_PERFORMANCE_PRESET_CUSTOM_LABEL,
-            description: t.SETTING_BUTTON_PERFORMANCE_PRESET_CUSTOM_DESC
-        }]
-    ]);
 
     useEffect(() => {
         return () => {
@@ -93,7 +69,6 @@ export function ButtonsPerformanceSettingContent({
     useEffect(() => {
         if (defaultProfile.triggerConfigs && !isInit) {
             const triggerConfigs = { ...defaultProfile.triggerConfigs };
-            setIsAllBtnsConfiguring(triggerConfigs.isAllBtnsConfiguring ?? false);
             setTriggerConfigs(allKeys.map(key => triggerConfigs.triggerConfigs?.[key] ?? defaultTriggerConfig));
             setIsInit(true);
             setNeedUpdate(false);
@@ -110,59 +85,149 @@ export function ButtonsPerformanceSettingContent({
     /**
      * 获取当前配置
      */
-    const getCurrentConfig = () => {
-        return triggerConfigs[selectedButton] ?? defaultTriggerConfig;
-    };
+    const dpadMappedButtons = useMemo(() => {
+        const keyMapping = defaultProfile.keysConfig?.keyMapping ?? {};
+        const dpadKeys = [
+            GameControllerButton.DPAD_UP,
+            GameControllerButton.DPAD_DOWN,
+            GameControllerButton.DPAD_LEFT,
+            GameControllerButton.DPAD_RIGHT
+        ];
+        const mappedIds = dpadKeys.flatMap((key) => keyMapping[key] ?? []);
+        const filtered = mappedIds
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id) && allKeys.includes(id));
+        return Array.from(new Set(filtered));
+    }, [defaultProfile.keysConfig?.keyMapping, allKeys]);
+
+    const mappedRapidTriggerButtons = useMemo(() => {
+        const keyMapping = defaultProfile.keysConfig?.keyMapping ?? {};
+        const mappedIds = Object.values(keyMapping)
+            .flatMap((ids) => ids ?? [])
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id) && allKeys.includes(id));
+        return Array.from(new Set(mappedIds));
+    }, [defaultProfile.keysConfig?.keyMapping, allKeys]);
+
+    const normalizeIds = useCallback((ids: number[]) => {
+        const unique = Array.from(new Set(ids.map((id) => Number(id))))
+            .filter((id) => Number.isFinite(id) && allKeys.includes(id));
+        unique.sort((a, b) => a - b);
+        return unique;
+    }, [allKeys]);
+
+    const isSameSet = useCallback((a: number[], b: number[]) => {
+        const na = normalizeIds(a);
+        const nb = normalizeIds(b);
+        if (na.length !== nb.length) return false;
+        for (let i = 0; i < na.length; i++) {
+            if (na[i] !== nb[i]) return false;
+        }
+        return true;
+    }, [normalizeIds]);
+
+    const scopeAllIds = useMemo(
+        () => (mappedRapidTriggerButtons.length > 0 ? mappedRapidTriggerButtons : allKeys),
+        [mappedRapidTriggerButtons, allKeys]
+    );
+
+    const scopeNonDpadIds = useMemo(
+        () => scopeAllIds.filter((id) => !dpadMappedButtons.includes(id)),
+        [scopeAllIds, dpadMappedButtons]
+    );
+
+    const activeButtonIds = useMemo(
+        () => Array.from(new Set(selectedButtons.map((id) => Number(id)))).filter((id) => Number.isFinite(id) && allKeys.includes(id)),
+        [selectedButtons, allKeys]
+    );
+
+    const getUnifiedValue = useCallback((key: keyof TriggerConfig) => {
+        if (activeButtonIds.length === 0) return { isUnified: true, value: 0 };
+        const firstId = activeButtonIds[0];
+        const firstCfg = triggerConfigs[firstId] ?? defaultTriggerConfig;
+        const firstValue = Number(firstCfg[key] ?? 0);
+        const isUnified = activeButtonIds.every((id) => {
+            const cfg = triggerConfigs[id] ?? defaultTriggerConfig;
+            return Math.abs(Number(cfg[key] ?? 0) - firstValue) < 1e-6;
+        });
+        return { isUnified, value: isUnified ? firstValue : 0 };
+    }, [activeButtonIds, triggerConfigs]);
 
     /**
      * 更新当前配置
      */
     const updateConfig = (key: keyof TriggerConfig, value: number) => {
-        if (selectedButton === null) return;
-
+        if (activeButtonIds.length === 0) return;
         const newTriggerConfigs = [...triggerConfigs];
-        newTriggerConfigs[selectedButton] = {
-            ...getCurrentConfig(),
-            [key]: value
-        };
+        activeButtonIds.forEach((id) => {
+            newTriggerConfigs[id] = {
+                ...(newTriggerConfigs[id] ?? defaultTriggerConfig),
+                [key]: value
+            };
+        });
 
         setTriggerConfigs(newTriggerConfigs);
         setNeedUpdate(true);
     };
 
-    /**
-     * 更新所有按钮配置
-     */
-    const updateAllBtnsConfig = (key: keyof RapidTriggerConfig, value: number) => {
+    const applySelection = (ids: number[]) => {
+        const next = Array.from(new Set(ids.map((id) => Number(id)))).filter((id) => Number.isFinite(id) && allKeys.includes(id));
+        onSelectedButtonsChange(next);
+    };
+
+    const isScopeAllSelected = useMemo(() => isSameSet(activeButtonIds, scopeAllIds), [activeButtonIds, scopeAllIds, isSameSet]);
+    const isScopeDpadSelected = useMemo(() => dpadMappedButtons.length > 0 && isSameSet(activeButtonIds, dpadMappedButtons), [activeButtonIds, dpadMappedButtons, isSameSet]);
+    const isScopeNonDpadSelected = useMemo(() => scopeNonDpadIds.length > 0 && isSameSet(activeButtonIds, scopeNonDpadIds), [activeButtonIds, scopeNonDpadIds, isSameSet]);
+
+    const approxEqual = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+
+    const getPresetConfig = (preset: ButtonPerformancePresetName) => {
+        const found = ButtonPerformancePresetConfigs.find((p) => p.name === preset);
+        return found?.configs ?? null;
+    };
+
+    const isPresetMatched = useCallback((preset: ButtonPerformancePresetName) => {
+        const presetConfig = getPresetConfig(preset);
+        if (!presetConfig || activeButtonIds.length === 0) return false;
+
+        return activeButtonIds.every((id) => {
+            const cfg = triggerConfigs[id] ?? defaultTriggerConfig;
+            return (
+                approxEqual(cfg.topDeadzone, presetConfig.topDeadzone) &&
+                approxEqual(cfg.bottomDeadzone, presetConfig.bottomDeadzone) &&
+                approxEqual(cfg.pressAccuracy, presetConfig.pressAccuracy) &&
+                approxEqual(cfg.releaseAccuracy, presetConfig.releaseAccuracy)
+            );
+        });
+    }, [activeButtonIds, triggerConfigs]);
+
+    const matchedPreset = useMemo(() => {
+        const candidates: ButtonPerformancePresetName[] = [
+            ButtonPerformancePresetName.FASTEST,
+            ButtonPerformancePresetName.BALANCED,
+            ButtonPerformancePresetName.STABILITY
+        ];
+        for (const preset of candidates) {
+            if (isPresetMatched(preset)) return preset;
+        }
+        return null;
+    }, [isPresetMatched]);
+
+    const applyPresetToSelection = (preset: ButtonPerformancePresetName) => {
+        const presetConfig = getPresetConfig(preset);
+        if (!presetConfig || activeButtonIds.length === 0) return;
+
         const newTriggerConfigs = [...triggerConfigs];
-        newTriggerConfigs.forEach(config => {
-            config[key] = value;
+        activeButtonIds.forEach((id) => {
+            newTriggerConfigs[id] = {
+                topDeadzone: presetConfig.topDeadzone,
+                bottomDeadzone: presetConfig.bottomDeadzone,
+                pressAccuracy: presetConfig.pressAccuracy,
+                releaseAccuracy: presetConfig.releaseAccuracy
+            };
         });
         setTriggerConfigs(newTriggerConfigs);
         setNeedUpdate(true);
-    };
-
-    /**`
-     * 切换所有按钮配置
-     */
-    const switchAllBtnsConfiging =  async (n: boolean) => {
-        if(n == true) {
-            const result = await openConfirm({
-                title: t.SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL_TITLE,
-                message: t.SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL_MESSAGE,
-            });
-
-            if(result) {
-                setIsAllBtnsConfiguring(n);
-                setTriggerConfigs(allKeys.map(() => getCurrentConfig())); // 用当前选中的配置 填充所有按键配置
-                selectAllButtonHandler(true);
-                setNeedUpdate(true);
-            }
-        } else {
-            setIsAllBtnsConfiguring(n);
-            selectAllButtonHandler(false);
-            setNeedUpdate(true);
-        }
     };
 
     /**
@@ -170,84 +235,15 @@ export function ButtonsPerformanceSettingContent({
      */
     const saveConfig = useCallback(() =>{
         const profileId = defaultProfile.id;
+        const preserveAllFlag = defaultProfile.triggerConfigs?.isAllBtnsConfiguring ?? true;
         updateProfileDetails(profileId, {
             id: profileId,
             triggerConfigs: {
-                isAllBtnsConfiguring: isAllBtnsConfiguring,
+                isAllBtnsConfiguring: preserveAllFlag,
                 triggerConfigs: triggerConfigs
             }
         });
-    }, [isAllBtnsConfiguring, defaultProfile, triggerConfigs]);
-
-    /**
-     * 根据预设设置触发配置
-     * @param preset 预设名称
-     */
-    const setTriggerConfigsByPreset = async (preset: ButtonPerformancePresetName) => {
-        
-        if(preset === ButtonPerformancePresetName.CUSTOM) {
-            setSelectedPreset(preset);
-            return;
-        }
-        
-        const result = await openConfirm({
-            title: t.SETTINGS_BUTTONS_PERFORMANCE_PRESET_CONFIRM_TITLE,
-            message: t.SETTINGS_BUTTONS_PERFORMANCE_PRESET_CONFIRM_MESSAGE,
-        });
-
-        if(result) {
-
-            setSelectedPreset(preset);
-            setIsAllBtnsConfiguring(true);
-
-            const presetConfig = ButtonPerformancePresetConfigs.find(config => config.name === preset);
-
-            if(presetConfig) {
-                const newConfig = [...triggerConfigs];
-                newConfig.forEach(config => {
-                    config.topDeadzone = presetConfig.configs.topDeadzone;
-                    config.bottomDeadzone = presetConfig.configs.bottomDeadzone;
-                    config.pressAccuracy = presetConfig.configs.pressAccuracy;
-                    config.releaseAccuracy = presetConfig.configs.releaseAccuracy;
-                });
-                setTriggerConfigs(newConfig);
-            }
-
-            setNeedUpdate(true);
-        }
-    };
-    
-    /**
-     * 检查当前配置是否匹配预设
-     * @returns
-     */
-    const checkIsMatchPreset = useCallback(() => {
-
-        let result: ButtonPerformancePresetName = ButtonPerformancePresetName.CUSTOM;
-
-        if(isAllBtnsConfiguring) {
-
-            const currentConfig = getCurrentConfig();
-
-            for(const preset of ButtonPerformancePresetConfigs) {
-                if(currentConfig.topDeadzone === preset.configs.topDeadzone &&
-                    currentConfig.bottomDeadzone === preset.configs.bottomDeadzone &&
-                    currentConfig.pressAccuracy === preset.configs.pressAccuracy &&
-                    currentConfig.releaseAccuracy === preset.configs.releaseAccuracy) {
-                    result = preset.name;
-                    break;
-                }
-            }
-
-        }
-
-        setSelectedPreset(result);
-
-    }, [isAllBtnsConfiguring, triggerConfigs]);
-
-    useEffect(() => {
-        checkIsMatchPreset();
-    }, [triggerConfigs, isAllBtnsConfiguring]);
+    }, [defaultProfile, triggerConfigs]);
 
     return (
         <>
@@ -260,58 +256,76 @@ export function ButtonsPerformanceSettingContent({
                     <Fieldset.Root>
                         <Fieldset.Content>
                             <VStack gap={8} alignItems={"flex-start"}>
-                                {/* 预设 */}
-                                <RadioCard.Root variant={"subtle"} pb={4} value={selectedPreset} colorPalette={"green"} onValueChange={(details) => {
-                                    if (details.value !== null) {
-                                        setTriggerConfigsByPreset(details.value as ButtonPerformancePresetName);
-                                    }
-                                }} >
-                                    <RadioCard.Label>{t.SETTING_BUTTON_PERFORMANCE_PRESET_TITLE}</RadioCard.Label>
-                                    <HStack align="stretch" gap={1} >
-                                        {Array.from(PresetLabelMap.entries()).map(([value, config]) => (
-                                            <RadioCard.Item key={value} value={value} w="178px" >
-                                                <RadioCard.ItemHiddenInput />
-                                                <RadioCard.ItemControl>
-                                                    <RadioCard.ItemContent>
-                                                        <RadioCard.ItemText>{config.label}</RadioCard.ItemText>
-                                                        <RadioCard.ItemDescription fontSize={"xs"} letterSpacing={'0.02em'} >
-                                                            {config.description}
-                                                        </RadioCard.ItemDescription>
-                                                    </RadioCard.ItemContent>
-                                                    <RadioCard.ItemIndicator />
-                                                </RadioCard.ItemControl>
-                                            </RadioCard.Item>
-                                        ))}
+                                {/* 配置范围 */}
+                                <VStack gap={2} alignItems={"flex-start"}>
+                                    <Text fontSize={"sm"} opacity={0.75}>{t.SETTINGS_RAPID_TRIGGER_SCOPE_TITLE}</Text>
+                                    <HStack align="stretch" gap={2}>
+                                        <Button
+                                            colorPalette={"green"}
+                                            size={"sm"}
+                                            variant={isScopeAllSelected ? "solid" : "outline"}
+                                            onClick={() => applySelection(scopeAllIds)}
+                                        >
+                                            {t.SETTINGS_RAPID_TRIGGER_SCOPE_ALL}
+                                        </Button>
+                                        <Button
+                                            colorPalette={"green"}
+                                            size={"sm"}
+                                            variant={isScopeDpadSelected ? "solid" : "outline"}
+                                            onClick={() => applySelection(dpadMappedButtons)}
+                                        >
+                                            {t.SETTINGS_RAPID_TRIGGER_SCOPE_DPAD}
+                                        </Button>
+                                        <Button
+                                            colorPalette={"green"}
+                                            size={"sm"}
+                                            variant={isScopeNonDpadSelected ? "solid" : "outline"}
+                                            onClick={() => applySelection(scopeNonDpadIds)}
+                                        >
+                                            {t.SETTINGS_RAPID_TRIGGER_SCOPE_NON_DPAD}
+                                        </Button>
                                     </HStack>
-                                </RadioCard.Root>
-                                
+                                </VStack>
 
-                                {/* 是否同时设置全部按键 */}
-                                <Switch.Root colorPalette={"green"} checked={isAllBtnsConfiguring}
-                                    onCheckedChange={() => {
-                                        switchAllBtnsConfiging(!isAllBtnsConfiguring);
-                                    }}
-                                >
-                                    <Switch.HiddenInput />
-                                    <Switch.Control>
-                                        <Switch.Thumb />
-                                    </Switch.Control>
-                                    <Switch.Label>
-                                        <Text fontSize={"sm"} opacity={0.75} >{t.SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL}</Text>
-                                    </Switch.Label>
-                                </Switch.Root>
+                                {/* 预设按钮（快捷设置） */}
+                                <VStack gap={2} alignItems={"flex-start"}>
+                                    <Text fontSize={"sm"} opacity={0.75}>{t.SETTING_BUTTON_PERFORMANCE_PRESET_TITLE}</Text>
+                                    <HStack align="stretch" gap={2}>
+                                        <Button
+                                            colorPalette={"green"}
+                                            size={"sm"}
+                                            variant={matchedPreset === ButtonPerformancePresetName.FASTEST ? "solid" : "outline"}
+                                            disabled={activeButtonIds.length === 0}
+                                            onClick={() => applyPresetToSelection(ButtonPerformancePresetName.FASTEST)}
+                                        >
+                                            {t.SETTING_BUTTON_PERFORMANCE_PRESET_FASTEST_LABEL}
+                                        </Button>
+                                        <Button
+                                            colorPalette={"green"}
+                                            size={"sm"}
+                                            variant={matchedPreset === ButtonPerformancePresetName.BALANCED ? "solid" : "outline"}
+                                            disabled={activeButtonIds.length === 0}
+                                            onClick={() => applyPresetToSelection(ButtonPerformancePresetName.BALANCED)}
+                                        >
+                                            {t.SETTING_BUTTON_PERFORMANCE_PRESET_BALANCED_LABEL}
+                                        </Button>
+                                        <Button
+                                            colorPalette={"green"}
+                                            size={"sm"}
+                                            variant={matchedPreset === ButtonPerformancePresetName.STABILITY ? "solid" : "outline"}
+                                            disabled={activeButtonIds.length === 0}
+                                            onClick={() => applyPresetToSelection(ButtonPerformancePresetName.STABILITY)}
+                                        >
+                                            {t.SETTING_BUTTON_PERFORMANCE_PRESET_STABILITY_LABEL}
+                                        </Button>
+                                    </HStack>
+                                </VStack>
 
                                 {/* 提示文本 */}
-                                <Text opacity={!isAllBtnsConfiguring ? "0.75" : "0.25"} fontSize={"sm"} >
-                                    {(selectedButton !== null && !isAllBtnsConfiguring) ?
-                                        t.SETTINGS_RAPID_TRIGGER_ONFIGURING_BUTTON
-                                        : t.SETTINGS_RAPID_TRIGGER_SELECT_A_BUTTON_TO_CONFIGURE
-                                    }
-                                    {(selectedButton !== null && !isAllBtnsConfiguring) && (
-                                        <Text as="span" fontWeight="bold">
-                                            KEY-{(selectedButton ?? 0) + 1}
-                                        </Text>
-                                    )}
+                                <Text opacity={activeButtonIds.length > 0 ? "0.75" : "0.4"} fontSize={"sm"} >
+                                    {activeButtonIds.length > 0
+                                        ? `${t.SETTINGS_RAPID_TRIGGER_SCOPE_CUSTOM_SELECTED_PREFIX} ${activeButtonIds.length} ${t.SETTINGS_RAPID_TRIGGER_SCOPE_CUSTOM_SELECTED_SUFFIX}KEY-${activeButtonIds.map((id) => id + 1).join(", KEY-")}`
+                                        : t.SETTINGS_RAPID_TRIGGER_SCOPE_CUSTOM_EMPTY}
                                 </Text>
 
                                 {/* 滑块 */}
@@ -320,7 +334,9 @@ export function ButtonsPerformanceSettingContent({
                                     { key: 'pressAccuracy', label: t.SETTINGS_RAPID_TRIGGER_PRESS_ACCURACY_LABEL, min: 0.1, max: 1, step: 0.1, decimalPlaces: 1 },
                                     { key: 'bottomDeadzone', label: t.SETTINGS_RAPID_TRIGGER_BOTTOM_DEADZONE_LABEL, min: 0, max: 1, step: 0.01, decimalPlaces: 2 },
                                     { key: 'releaseAccuracy', label: t.SETTINGS_RAPID_TRIGGER_RELEASE_ACCURACY_LABEL, min: 0.01, max: 1, step: 0.01, decimalPlaces: 2 },
-                                ].map(({ key, label, min, max, step, decimalPlaces }) => (
+                                ].map(({ key, label, min, max, step, decimalPlaces }) => {
+                                    const unified = getUnifiedValue(key as keyof TriggerConfig);
+                                    return (
                                     <Slider.Root
                                         size="sm"
                                         key={key}
@@ -328,9 +344,9 @@ export function ButtonsPerformanceSettingContent({
                                         min={0}
                                         max={max}
                                         step={step}
-                                        colorPalette={"green"}
-                                        disabled={selectedButton === null && !isAllBtnsConfiguring}
-                                        value={[getCurrentConfig()[key as keyof TriggerConfig]]}
+                                        colorPalette={unified.isUnified ? "green" : "gray"}
+                                        disabled={activeButtonIds.length === 0}
+                                        value={[unified.value]}
                                         onValueChange={(details) => {
                                             let v = 0;
                                             if (details.value[0] < min) {
@@ -340,15 +356,16 @@ export function ButtonsPerformanceSettingContent({
                                             } else {
                                                 v = details.value[0];
                                             }
-                                            if (isAllBtnsConfiguring) {
-                                                updateAllBtnsConfig(key as keyof RapidTriggerConfig, v);
-                                            } else {
-                                                updateConfig(key as keyof TriggerConfig, v);
-                                            }
+                                            updateConfig(key as keyof TriggerConfig, v);
                                         }}
                                     >
                                         <HStack justifyContent={"space-between"} >
-                                            <Slider.Label>{label}</Slider.Label>
+                                            <Slider.Label>
+                                                <HStack gap={1}>
+                                                    <Text as="span">{label}</Text>
+                                                    {!unified.isUnified && <Text as="span">{t.SETTINGS_RAPID_TRIGGER_PARAM_NOT_UNIFIED}</Text>}
+                                                </HStack>
+                                            </Slider.Label>
                                             <HStack>
                                                 <Slider.ValueText />
                                                 <Text fontSize={"sm"} opacity={0.75} >(mm)</Text>
@@ -374,7 +391,7 @@ export function ButtonsPerformanceSettingContent({
                                             }))} />
                                         </Slider.Control>
                                     </Slider.Root>
-                                ))}
+                                )})}
 
                                 
                                 <Box width={"120px"} >
