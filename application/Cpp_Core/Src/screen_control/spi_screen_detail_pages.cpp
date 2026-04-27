@@ -7,6 +7,7 @@ ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
         case 0:
         case 1:
         case 2:
+        case 11:
         case 5:
         case 7:
             return SCREEN_DETAIL_LIST;
@@ -28,6 +29,7 @@ uint8_t ScreenDetail_InitIndex(uint8_t menuId) {
         case 0: return ScreenDetailInputMode_InitIndex();
         case 1: return ScreenDetailProfiles_InitIndex();
         case 2: return ScreenDetailSocd_InitIndex();
+        case 11: return ScreenDetailButtonsPerformance_InitIndex();
         case 5: return ScreenDetailLightEffect_InitIndex();
         case 7: return ScreenDetailAmbientEffect_InitIndex();
         case 4: return ScreenDetailLightBrightness_InitIndex();
@@ -45,6 +47,7 @@ void ScreenDetail_OnRotate(uint8_t menuId, uint8_t* ioIndex, int8_t det) {
         case 0: ScreenDetailInputMode_Rotate(ioIndex, det); break;
         case 1: ScreenDetailProfiles_Rotate(ioIndex, det); break;
         case 2: ScreenDetailSocd_Rotate(ioIndex, det); break;
+        case 11: ScreenDetailButtonsPerformance_Rotate(ioIndex, det); break;
         case 5: ScreenDetailLightEffect_Rotate(ioIndex, det); break;
         case 7: ScreenDetailAmbientEffect_Rotate(ioIndex, det); break;
         case 4: ScreenDetailLightBrightness_Rotate(ioIndex, det); break;
@@ -62,6 +65,7 @@ bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
         case 0: ScreenDetailInputMode_OnConfirm(index); return true;
         case 1: ScreenDetailProfiles_OnConfirm(index); return true;
         case 2: ScreenDetailSocd_OnConfirm(index); return ScreenDetailSocd_ShouldExitAfterConfirm();
+        case 11: return ScreenDetailButtonsPerformance_OnConfirm(index);
         case 5: ScreenDetailLightEffect_OnConfirm(index); return true;
         case 7: ScreenDetailAmbientEffect_OnConfirm(index); return true;
         case 4: ScreenDetailLightBrightness_OnConfirm(index); return false;
@@ -79,6 +83,7 @@ void ScreenDetail_Render(ST7789_Handle* lcd, uint8_t menuId, uint8_t index, cons
         case 0: ScreenDetailInputMode_Render(lcd, index, style); break;
         case 1: ScreenDetailProfiles_Render(lcd, index, style); break;
         case 2: ScreenDetailSocd_Render(lcd, index, style); break;
+        case 11: ScreenDetailButtonsPerformance_Render(lcd, index, style); break;
         case 5: ScreenDetailLightEffect_Render(lcd, index, style); break;
         case 7: ScreenDetailAmbientEffect_Render(lcd, index, style); break;
         case 4: ScreenDetailLightBrightness_Render(lcd, index, style); break;

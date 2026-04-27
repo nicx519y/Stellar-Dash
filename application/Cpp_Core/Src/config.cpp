@@ -163,6 +163,7 @@ cJSON* buildScreenControlConfigJSON(Config& config) {
         {0, "inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
         {1, "profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
         {2, "socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
+        {11, "buttonsPerformanceQuickSet", SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET},
         {4, "ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
         {5, "ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
         {6, "ambientBrightnessAdjust", SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST},
@@ -360,6 +361,7 @@ bool fromJSON(Config& config, cJSON* json) {
                 {"inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
                 {"profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
                 {"socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
+                {"buttonsPerformanceQuickSet", SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET},
                 {"ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
                 {"ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
                 {"ambientBrightnessAdjust", SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST},
@@ -382,6 +384,7 @@ bool fromJSON(Config& config, cJSON* json) {
             {"inputModeSwitch", 0},
             {"profilesSwitch", 1},
             {"socdModeSwitch", 2},
+            {"buttonsPerformanceQuickSet", 11},
             {"ledBrightnessAdjust", 4},
             {"ledEffectSwitch", 5},
             {"ambientBrightnessAdjust", 6},
@@ -560,7 +563,8 @@ bool ConfigUtils::load(Config& config)
             SCREEN_FEATURE_AMBIENT_EFFECT_SWITCH |
             SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST |
             SCREEN_FEATURE_WEB_CONFIG_ENTRY |
-            SCREEN_FEATURE_CALIBRATION_MODE_SWITCH;
+            SCREEN_FEATURE_CALIBRATION_MODE_SWITCH |
+            SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET;
         for (uint32_t i = 0; i < SCREEN_FEATURE_COUNT; i++) {
             config.screenControl.featuresOrder[i] = (uint8_t)i;
         }

@@ -178,6 +178,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetScreenControlCon
     cJSON_AddBoolToObject(featuresJSON, "inputModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_INPUT_MODE_SWITCH) != 0);
     cJSON_AddBoolToObject(featuresJSON, "profilesSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_PROFILES_SWITCH) != 0);
     cJSON_AddBoolToObject(featuresJSON, "socdModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_SOCD_MODE_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "buttonsPerformanceQuickSet", (config.screenControl.featuresMask & SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET) != 0);
     cJSON_AddBoolToObject(featuresJSON, "ledBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST) != 0);
     cJSON_AddBoolToObject(featuresJSON, "ledEffectSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_LED_EFFECT_SWITCH) != 0);
     cJSON_AddBoolToObject(featuresJSON, "ambientBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST) != 0);
@@ -192,6 +193,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetScreenControlCon
         {0, "inputModeSwitch"},
         {1, "profilesSwitch"},
         {2, "socdModeSwitch"},
+        {11, "buttonsPerformanceQuickSet"},
         {4, "ledBrightnessAdjust"},
         {5, "ledEffectSwitch"},
         {6, "ambientBrightnessAdjust"},
@@ -267,6 +269,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateScreenControl
             {"inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
             {"profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
             {"socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
+            {"buttonsPerformanceQuickSet", SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET},
             {"ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
             {"ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
             {"ambientBrightnessAdjust", SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST},
@@ -290,6 +293,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateScreenControl
             {"inputModeSwitch", 0},
             {"profilesSwitch", 1},
             {"socdModeSwitch", 2},
+            {"buttonsPerformanceQuickSet", 11},
             {"ledBrightnessAdjust", 4},
             {"ledEffectSwitch", 5},
             {"ambientBrightnessAdjust", 6},
@@ -533,6 +537,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(co
                 {"inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
                 {"profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
                 {"socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
+                {"buttonsPerformanceQuickSet", SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET},
                 {"ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
                 {"ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
                 {"ambientBrightnessAdjust", SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST},
@@ -555,6 +560,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(co
                 {"inputModeSwitch", 0},
                 {"profilesSwitch", 1},
                 {"socdModeSwitch", 2},
+                {"buttonsPerformanceQuickSet", 11},
                 {"ledBrightnessAdjust", 4},
                 {"ledEffectSwitch", 5},
                 {"ambientBrightnessAdjust", 6},

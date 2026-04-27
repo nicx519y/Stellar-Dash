@@ -299,6 +299,10 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
                 STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
                 STORAGE_MANAGER.saveConfig();
                 NVIC_SystemReset();
+            } else if (g_detailMenuId == 11u) {
+                if (!ScreenDetailButtonsPerformance_OnBack()) {
+                    g_inDetail = false;
+                }
             } else {
                 g_inDetail = false;
             }

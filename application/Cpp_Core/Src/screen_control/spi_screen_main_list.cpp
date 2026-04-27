@@ -7,6 +7,7 @@ static const ScreenMenuMeta kMenuMeta[] = {
     {0, SCREEN_FEATURE_INPUT_MODE_SWITCH, "Input Mode"},
     {1, SCREEN_FEATURE_PROFILES_SWITCH, "Profiles"},
     {2, SCREEN_FEATURE_SOCD_MODE_SWITCH, "SOCD"},
+    {11, SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET, "Performance"},
     {4, SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST, "Light Brightness"},
     {5, SCREEN_FEATURE_LED_EFFECT_SWITCH, "Light Effect"},
     {6, SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST, "Ambient Brightness"},

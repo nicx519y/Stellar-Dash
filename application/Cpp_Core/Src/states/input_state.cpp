@@ -12,6 +12,12 @@
 #include "gpdriver.hpp"
 #include "system_logger.h"
 #include "latency_monitor.hpp"
+#include "storagemanager.hpp"
+
+static void on_default_profile_changed_input_workers(void) {
+    ADC_BTNS_WORKER.setup();
+    GPIO_BTNS_WORKER.setup();
+}
 
 void InputState::setup()
 {
@@ -64,6 +70,8 @@ void InputState::setup()
     tud_init(TUD_OPT_RHPORT);
     APP_DBG("tud_init done");
     LOG_DEBUG("INPUT", "TinyUSB device stack initialized");
+
+    STORAGE_MANAGER.registerDefaultProfileChangedCallback(on_default_profile_changed_input_workers);
 
     ADC_BTNS_WORKER.setup();
     GPIO_BTNS_WORKER.setup();

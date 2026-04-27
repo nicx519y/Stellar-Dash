@@ -67,6 +67,12 @@ void ScreenDetailTournament_Rotate(uint8_t* ioIndex, int8_t det);
 void ScreenDetailTournament_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style);
 void ScreenDetailTournament_OnConfirm(uint8_t index);
 
+uint8_t ScreenDetailButtonsPerformance_InitIndex(void);
+void ScreenDetailButtonsPerformance_Rotate(uint8_t* ioIndex, int8_t det);
+void ScreenDetailButtonsPerformance_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style);
+bool ScreenDetailButtonsPerformance_OnConfirm(uint8_t index);
+bool ScreenDetailButtonsPerformance_OnBack(void);
+
 void ScreenUI_RequestDeferredSave(uint32_t delayMs);
 void ScreenUI_RequestRebootTo(uint8_t menuId, uint8_t index);
 

@@ -131,7 +131,8 @@ typedef struct
 #define SCREEN_FEATURE_SCREEN_BRIGHTNESS_ADJUST   (1u << 8)
 #define SCREEN_FEATURE_WEB_CONFIG_ENTRY           (1u << 9)
 #define SCREEN_FEATURE_CALIBRATION_MODE_SWITCH    (1u << 10)
-#define SCREEN_FEATURE_COUNT                      11u
+#define SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET (1u << 11)
+#define SCREEN_FEATURE_COUNT                      12u
 
 typedef struct
 {

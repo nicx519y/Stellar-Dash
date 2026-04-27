@@ -89,6 +89,7 @@ export interface ScreenControlFeatures {
     inputModeSwitch: boolean;
     profilesSwitch: boolean;
     socdModeSwitch: boolean;
+    buttonsPerformanceQuickSet: boolean;
     ledBrightnessAdjust: boolean;
     ledEffectSwitch: boolean;
     ambientBrightnessAdjust: boolean;
@@ -123,6 +124,7 @@ export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
         inputModeSwitch: true,
         profilesSwitch: true,
         socdModeSwitch: true,
+        buttonsPerformanceQuickSet: true,
         ledBrightnessAdjust: true,
         ledEffectSwitch: true,
         ambientBrightnessAdjust: true,
@@ -135,6 +137,7 @@ export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
         'inputModeSwitch',
         'profilesSwitch',
         'socdModeSwitch',
+        'buttonsPerformanceQuickSet',
         'ledBrightnessAdjust',
         'ledEffectSwitch',
         'ambientBrightnessAdjust',
@@ -761,6 +764,7 @@ export const UI_TEXT = {
     SETTINGS_SCREEN_CONTROL_FEATURE_PROFILES_SWITCH: "Profiles Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH: "SOCD Mode Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_TOURNAMENT_MODE_SWITCH: "Tournament Mode Switch",
+    SETTINGS_SCREEN_CONTROL_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET: "Buttons Performance",
     SETTINGS_SCREEN_CONTROL_FEATURE_LED_BRIGHTNESS_ADJUST: "LED Brightness Adjust",
     SETTINGS_SCREEN_CONTROL_FEATURE_LED_EFFECT_SWITCH: "LED Effect Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_AMBIENT_BRIGHTNESS_ADJUST: "Ambient Brightness Adjust",
@@ -1160,6 +1164,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_SCREEN_CONTROL_FEATURE_PROFILES_SWITCH: "用户配置切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH: "SOCD 模式切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_TOURNAMENT_MODE_SWITCH: "正常/比赛模式切换",
+    SETTINGS_SCREEN_CONTROL_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET: "按键性能预设",
     SETTINGS_SCREEN_CONTROL_FEATURE_LED_BRIGHTNESS_ADJUST: "LED 亮度调整",
     SETTINGS_SCREEN_CONTROL_FEATURE_LED_EFFECT_SWITCH: "LED 特效切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_AMBIENT_BRIGHTNESS_ADJUST: "氛围灯亮度调整",
