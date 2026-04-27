@@ -8,6 +8,42 @@
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
 #include "screen_control/spi_screen_ui_common.hpp"
 
+extern "C" uint32_t HAL_GetTick(void);
+
+#define BTN_PERF_EDIT_MUL_BASE 1u // 基础步进倍率：慢慢滚动时使用
+
+#define BTN_PERF_EDIT_ACCEL_DT_FAST_MS 40u  // dt 小于此值视为“很快”，更容易触发大倍率（调大=更容易加速）
+#define BTN_PERF_EDIT_ACCEL_DT_MED_MS 80u   // dt 小于此值视为“较快”
+#define BTN_PERF_EDIT_ACCEL_DT_SLOW_MS 140u // dt 小于此值视为“略快”
+
+#define BTN_PERF_EDIT_MUL_FAST 10u // 很快滚动时的倍率（调大=每次 det 改得更多）
+#define BTN_PERF_EDIT_MUL_MED 6u
+#define BTN_PERF_EDIT_MUL_SLOW 3u
+
+#define BTN_PERF_EDIT_COARSE_STEP100_MIN 10u // step100 >= 10 认为是“粗参数”（避免倍率太大一滚就飞）
+#define BTN_PERF_EDIT_COARSE_MUL_MAX 3u      // 粗参数允许的最大倍率（调大=粗参数也能滚得更快）
+
+#define BTN_PERF_INERTIA_INTERVAL_DEFAULT_MS 40u // 惯性间隔默认值（进入编辑前的初值）
+
+#define BTN_PERF_INERTIA_DT_FAST_MS 90u   // dt 小于此值视为“快速滚动”，惯性更强（调大=更容易出强惯性）
+#define BTN_PERF_INERTIA_DT_MED_MS 170u   // dt 小于此值视为“中速滚动”
+
+#define BTN_PERF_INERTIA_STEPS_MAX_FAST 50u  // 快速滚动时惯性最大补步数（调大=惯性更长）
+#define BTN_PERF_INERTIA_STEPS_ADD_FAST 10u  // 快速滚动时每次增加的惯性补步数（调大=惯性更猛）
+#define BTN_PERF_INERTIA_INTERVAL_FAST_MS 12u // 快速滚动时惯性起始间隔（调小=惯性更快）
+
+#define BTN_PERF_INERTIA_STEPS_MAX_MED 35u
+#define BTN_PERF_INERTIA_STEPS_ADD_MED 6u
+#define BTN_PERF_INERTIA_INTERVAL_MED_MS 16u
+
+#define BTN_PERF_INERTIA_INTERVAL_SLOW_MS 22u // 慢速滚动（或不连续）时的惯性起始间隔
+
+#define BTN_PERF_INERTIA_APPLIED_PER_FRAME_MAX 7u // 每帧最多补几步（调大=更快更猛，但会跳得更厉害）
+#define BTN_PERF_INERTIA_INTERVAL_ADD_MS 8u       // 每次补步后间隔增加（调小=减速更慢、更滑）
+#define BTN_PERF_INERTIA_INTERVAL_MAX_MS 180u     // 惯性最大间隔（调大=能滑更久）
+
+#define BTN_PERF_INERTIA_EDITMUL_DECAY_INTERVAL_MS 110u // 当惯性减速到这个间隔后开始降低倍率（调大=倍率保持更久）
+
 enum ButtonsPerfMode : uint8_t {
     MODE_PRESET_LIST = 0u,
     MODE_CUSTOM = 1u,
@@ -54,9 +90,25 @@ static const CustomParamMeta kParamMeta[PARAM_COUNT] = {
 static ButtonsPerfMode g_mode = MODE_PRESET_LIST;
 static bool g_customEditing = false;
 static uint8_t g_customCursor = 0u;
+static int8_t g_inertiaDir = 0;         // 惯性方向：+1 向上加值，-1 向下减值
+static uint8_t g_inertiaSteps = 0u;     // 惯性剩余“补步”次数：越大惯性越长
+static uint32_t g_inertiaNextMs = 0u;   // 下一次执行惯性补步的时间点（ms）
+static uint32_t g_inertiaIntervalMs = BTN_PERF_INERTIA_INTERVAL_DEFAULT_MS; // 惯性补步间隔（ms）：越小越快；后续会逐步变大实现减速
+static uint32_t g_lastDetMs = 0u;       // 上一次滚轮 det 的时间戳（ms），用来判断“滚得快不快”
+static uint8_t g_editMul = BTN_PERF_EDIT_MUL_BASE; // 编辑加速倍率：滚得越快倍率越大；越大每次 det 改的数值越多
 
 static GamepadProfile* default_profile(void) {
     return STORAGE_MANAGER.getDefaultGamepadProfile();
+}
+
+static bool inertia_enabled_for_param(uint8_t param) {
+    if (param == PARAM_TOP_DEADZONE) return false;
+    if (param == PARAM_PRESS_ACCURACY) return false;
+    return true;
+}
+
+static bool accel_enabled_for_param(uint8_t param) {
+    return inertia_enabled_for_param(param);
 }
 
 static bool approx_eq(float a, float b) {
@@ -166,10 +218,33 @@ static void format_u16_100(char* out, size_t outCap, uint16_t v100, uint8_t deci
     snprintf(out, outCap, "%u.%02u", ip, dp);
 }
 
+static void apply_custom_step(int8_t det, uint8_t mul) {
+    if (det == 0) return;
+    uint8_t param = g_customCursor;
+    if (param >= PARAM_COUNT) param = 0;
+    GamepadProfile* p = default_profile();
+    if (!p) return;
+    uint16_t cur100 = get_param_u16_100(p->triggerConfigs.triggerConfigs[0], param);
+    const CustomParamMeta& m = kParamMeta[param];
+    uint32_t effMul = (mul == 0u) ? 1u : (uint32_t)mul;
+    if (m.step100 >= BTN_PERF_EDIT_COARSE_STEP100_MIN && effMul > BTN_PERF_EDIT_COARSE_MUL_MAX) effMul = BTN_PERF_EDIT_COARSE_MUL_MAX;
+    int32_t delta = (int32_t)((uint32_t)m.step100 * effMul);
+    if (det < 0) delta = -delta;
+    int32_t next = (int32_t)cur100 + delta;
+    uint16_t v100 = clamp_u16_i32(next, m.min100, m.max100);
+    if (v100 == cur100) return;
+    set_param_all(p, param, v100);
+    ADC_BTNS_WORKER.setup();
+    ScreenUI_RequestDeferredSave(2000u);
+}
+
 uint8_t ScreenDetailButtonsPerformance_InitIndex(void) {
     g_mode = MODE_PRESET_LIST;
     g_customEditing = false;
     g_customCursor = 0u;
+    g_inertiaSteps = 0u;
+    g_inertiaDir = 0;
+    g_editMul = BTN_PERF_EDIT_MUL_BASE;
     return (uint8_t)current_matched_preset();
 }
 
@@ -189,21 +264,52 @@ void ScreenDetailButtonsPerformance_Rotate(uint8_t* ioIndex, int8_t det) {
         if (idx >= (int32_t)PARAM_COUNT) idx = (int32_t)PARAM_COUNT - 1;
         g_customCursor = (uint8_t)idx;
         *ioIndex = g_customCursor;
+        g_inertiaSteps = 0u;
+        g_inertiaDir = 0;
+        g_editMul = BTN_PERF_EDIT_MUL_BASE;
         return;
     }
 
-    uint8_t param = g_customCursor;
-    if (param >= PARAM_COUNT) param = 0;
-    GamepadProfile* p = default_profile();
-    if (!p) return;
-    uint16_t cur100 = get_param_u16_100(p->triggerConfigs.triggerConfigs[0], param);
-    const CustomParamMeta& m = kParamMeta[param];
-    int32_t next = (int32_t)cur100 + (int32_t)m.step100 * (int32_t)det;
-    uint16_t v100 = clamp_u16_i32(next, m.min100, m.max100);
-    if (v100 == cur100) return;
-    set_param_all(p, param, v100);
-    ADC_BTNS_WORKER.setup();
-    ScreenUI_RequestDeferredSave(2000u);
+    uint32_t now = HAL_GetTick();
+    uint32_t dt = now - g_lastDetMs;
+    if (accel_enabled_for_param(g_customCursor)) {
+        // 编辑加速（dt 越小代表滚得越快）：
+        // - 想“更容易加速”：把 BTN_PERF_EDIT_ACCEL_DT_*_MS 调大
+        // - 想“加速更猛”：把 BTN_PERF_EDIT_MUL_* 调大
+        if (dt < BTN_PERF_EDIT_ACCEL_DT_FAST_MS) g_editMul = BTN_PERF_EDIT_MUL_FAST;
+        else if (dt < BTN_PERF_EDIT_ACCEL_DT_MED_MS) g_editMul = BTN_PERF_EDIT_MUL_MED;
+        else if (dt < BTN_PERF_EDIT_ACCEL_DT_SLOW_MS) g_editMul = BTN_PERF_EDIT_MUL_SLOW;
+        else g_editMul = BTN_PERF_EDIT_MUL_BASE;
+    } else {
+        g_editMul = BTN_PERF_EDIT_MUL_BASE;
+    }
+
+    apply_custom_step(det, g_editMul);
+
+    if (!inertia_enabled_for_param(g_customCursor)) {
+        g_inertiaSteps = 0u;
+        g_inertiaDir = 0;
+        g_lastDetMs = now;
+        *ioIndex = g_customCursor;
+        return;
+    }
+
+    // 惯性强度（dt 越小惯性越强）：
+    // - 想“惯性更长”：提高 BTN_PERF_INERTIA_STEPS_MAX_* 或 BTN_PERF_INERTIA_STEPS_ADD_*
+    // - 想“惯性更快”：把 BTN_PERF_INERTIA_INTERVAL_*_MS 调小
+    if (dt < BTN_PERF_INERTIA_DT_FAST_MS) {
+        if (g_inertiaSteps < BTN_PERF_INERTIA_STEPS_MAX_FAST) g_inertiaSteps += BTN_PERF_INERTIA_STEPS_ADD_FAST;
+        g_inertiaIntervalMs = BTN_PERF_INERTIA_INTERVAL_FAST_MS;
+    } else if (dt < BTN_PERF_INERTIA_DT_MED_MS) {
+        if (g_inertiaSteps < BTN_PERF_INERTIA_STEPS_MAX_MED) g_inertiaSteps += BTN_PERF_INERTIA_STEPS_ADD_MED;
+        g_inertiaIntervalMs = BTN_PERF_INERTIA_INTERVAL_MED_MS;
+    } else {
+        g_inertiaSteps = 0u;
+        g_inertiaIntervalMs = BTN_PERF_INERTIA_INTERVAL_SLOW_MS;
+    }
+    g_inertiaDir = (det > 0) ? 1 : -1;
+    g_inertiaNextMs = now + g_inertiaIntervalMs;
+    g_lastDetMs = now;
     *ioIndex = g_customCursor;
 }
 
@@ -218,6 +324,9 @@ bool ScreenDetailButtonsPerformance_OnConfirm(uint8_t index) {
             g_mode = MODE_CUSTOM;
             g_customEditing = false;
             g_customCursor = 0u;
+            g_inertiaSteps = 0u;
+            g_inertiaDir = 0;
+            g_editMul = BTN_PERF_EDIT_MUL_BASE;
             return false;
         }
 
@@ -231,6 +340,13 @@ bool ScreenDetailButtonsPerformance_OnConfirm(uint8_t index) {
     if (!g_customEditing) {
         ADC_BTNS_WORKER.setup();
         ScreenUI_RequestDeferredSave(2000u);
+        g_inertiaSteps = 0u;
+        g_inertiaDir = 0;
+        g_editMul = BTN_PERF_EDIT_MUL_BASE;
+    } else {
+        g_inertiaSteps = 0u;
+        g_inertiaDir = 0;
+        g_editMul = BTN_PERF_EDIT_MUL_BASE;
     }
     return false;
 }
@@ -239,9 +355,15 @@ bool ScreenDetailButtonsPerformance_OnBack(void) {
     if (g_mode == MODE_CUSTOM) {
         if (g_customEditing) {
             g_customEditing = false;
+            g_inertiaSteps = 0u;
+            g_inertiaDir = 0;
+            g_editMul = BTN_PERF_EDIT_MUL_BASE;
             return true;
         }
         g_mode = MODE_PRESET_LIST;
+        g_inertiaSteps = 0u;
+        g_inertiaDir = 0;
+        g_editMul = BTN_PERF_EDIT_MUL_BASE;
         return true;
     }
     return false;
@@ -255,6 +377,27 @@ void ScreenDetailButtonsPerformance_Render(ST7789_Handle* lcd, uint8_t index, co
     }
 
     if (!lcd) return;
+    if (g_customEditing && g_inertiaSteps > 0u) {
+        if (!inertia_enabled_for_param(g_customCursor)) {
+            g_inertiaSteps = 0u;
+            g_inertiaDir = 0;
+        } else {
+        uint32_t now = HAL_GetTick();
+        uint8_t applied = 0u;
+        // 惯性执行（每帧最多补 applied 次，避免一次性跳太多）：
+        // - 想“惯性更快/更猛”：把 BTN_PERF_INERTIA_APPLIED_PER_FRAME_MAX 调大
+        // - 想“惯性减速更慢”：把 BTN_PERF_INERTIA_INTERVAL_ADD_MS 调小，或把 BTN_PERF_INERTIA_INTERVAL_MAX_MS 调大
+        while (g_inertiaSteps > 0u && (int32_t)(now - g_inertiaNextMs) >= 0 && applied < BTN_PERF_INERTIA_APPLIED_PER_FRAME_MAX) {
+            apply_custom_step(g_inertiaDir, g_editMul);
+            g_inertiaSteps--;
+            applied++;
+            g_inertiaIntervalMs += BTN_PERF_INERTIA_INTERVAL_ADD_MS;
+            if (g_inertiaIntervalMs > BTN_PERF_INERTIA_INTERVAL_MAX_MS) g_inertiaIntervalMs = BTN_PERF_INERTIA_INTERVAL_MAX_MS;
+            g_inertiaNextMs += g_inertiaIntervalMs;
+            if (g_inertiaIntervalMs >= BTN_PERF_INERTIA_EDITMUL_DECAY_INTERVAL_MS && g_editMul > BTN_PERF_EDIT_MUL_BASE) g_editMul--;
+        }
+        }
+    }
     uint8_t cursor = g_customCursor;
     if (cursor >= PARAM_COUNT) cursor = 0;
     g_customCursor = cursor;
