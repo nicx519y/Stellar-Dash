@@ -1,24 +1,18 @@
 #include "platform_port.h"
 
-#include <stdbool.h>
-#include <stdint.h>
-
 #include "CH58x_common.h"
 
-/* PA10 = LED_EN, active low */
-#define LED_EN_PIN GPIO_Pin_10
-#define US_TICK_STEP   10u
-#define TMR0_PERIOD_10US (FREQ_SYS / 100000u)
+/* SPI wiring with STM32 host: CS/PB12, SCK/PB13, MOSI/PB14, MISO/PB15, IRQ/PB11. */
+#define SPI_PINS        (GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15)
+#define SPI_IRQ_PIN     (GPIO_Pin_11)
+
+#define US_TICK_STEP      10u
+#define TMR0_PERIOD_10US  (FREQ_SYS / 100000u)
 
 static volatile uint32_t s_now_us;
 
 void platform_clock_init(void)
 {
-    /*
-     * Use the same essential register sequence as CH58x highcode_init
-     * to switch system clock away from default low-speed RC clock.
-     * This avoids the ~10x timing drift seen at default clock.
-     */
     R32_SAFE_MODE_CTRL |= RB_XROM_312M_SEL;
     R8_SAFE_MODE_CTRL &= (uint8_t)(~RB_SAFE_AUTO_EN);
     sys_safe_access_enable();
@@ -51,27 +45,36 @@ void platform_clock_init(void)
 
 void platform_gpio_init(void)
 {
+    GPIOPinRemap(ENABLE, RB_PIN_SPI0);
+    GPIOADigitalCfg(ENABLE, (uint16_t)0xFFFFu);
+    GPIOBDigitalCfg(ENABLE, SPI_PINS | SPI_IRQ_PIN);
+
+    GPIOB_ModeCfg(SPI_IRQ_PIN, GPIO_ModeOut_PP_5mA);
+    GPIOB_ResetBits(SPI_IRQ_PIN);
+
     /*
-     * Configure PA10 (LED_EN) as digital output.
-     * Default state is high (pull-up equivalent) => LED off.
+     * SPI0 slave IO mode:
+     * - CS/SCK/MOSI input pull-up
+     * - MISO push-pull output
+     * The SPI peripheral owns these pins after SPI0_SlaveInit().
      */
-    GPIOADigitalCfg(ENABLE, LED_EN_PIN);
-    GPIOA_ModeCfg(LED_EN_PIN, GPIO_ModeOut_PP_5mA);
-    GPIOA_SetBits(LED_EN_PIN);
+    GPIOB_ModeCfg(GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14, GPIO_ModeIN_PU);
+    GPIOB_ModeCfg(GPIO_Pin_15, GPIO_ModeOut_PP_5mA);
 }
 
 void platform_timer_init(void)
 {
     s_now_us = 0u;
 
-    /*
-     * Use TMR0 cycle interrupt as a hardware time base.
-     * Tick period = 10 us.
-     */
     TMR0_TimerInit(TMR0_PERIOD_10US);
     TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
     TMR0_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
     PFIC_EnableIRQ(TMR0_IRQn);
+}
+
+void platform_spi_init(void)
+{
+    SPI0_SlaveInit();
 }
 
 uint32_t platform_now_us(void)
@@ -79,18 +82,18 @@ uint32_t platform_now_us(void)
     return s_now_us;
 }
 
-void platform_led_set(bool on)
+void platform_irq_line_set(bool asserted)
 {
-    if (on) {
-        GPIOA_ResetBits(LED_EN_PIN); /* active low */
+    if (asserted) {
+        GPIOB_SetBits(SPI_IRQ_PIN);
     } else {
-        GPIOA_SetBits(LED_EN_PIN);
+        GPIOB_ResetBits(SPI_IRQ_PIN);
     }
 }
 
 void platform_idle(void)
 {
-    /* TODO: Optional low-power wait-for-interrupt. */
+    /* Stub: optional low power entry can be inserted here. */
 }
 
 __INTERRUPT

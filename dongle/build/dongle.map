@@ -729,7 +729,7 @@ LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/compone
                 0x0000000020000548                . = ALIGN (0x4)
                 0x0000000020000548                PROVIDE (_highcode_vma_end = .)
 
-.text           0x000000000000054c     0x142c
+.text           0x000000000000054c     0x1470
                 0x000000000000054c                . = ALIGN (0x4)
  *(SORT_NONE(.handle_reset))
  .handle_reset  0x000000000000054c       0x42 build/sdk/startup_CH585.o
@@ -856,87 +856,87 @@ LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/compone
                 0x0000000000001630       0x1c build/src/usb_hid_stub.o
                 0x0000000000001630                usb_hid_try_send_report
  .text.platform_clock_init
-                0x000000000000164c       0xac build/src/platform_ch585_stub.o
+                0x000000000000164c       0xf0 build/src/platform_ch585_stub.o
                 0x000000000000164c                platform_clock_init
  .text.platform_gpio_init
-                0x00000000000016f8       0x26 build/src/platform_ch585_stub.o
-                0x00000000000016f8                platform_gpio_init
+                0x000000000000173c       0x26 build/src/platform_ch585_stub.o
+                0x000000000000173c                platform_gpio_init
  .text.platform_timer_init
-                0x000000000000171e       0x34 build/src/platform_ch585_stub.o
-                0x000000000000171e                platform_timer_init
+                0x0000000000001762       0x34 build/src/platform_ch585_stub.o
+                0x0000000000001762                platform_timer_init
  .text.platform_now_us
-                0x0000000000001752        0x6 build/src/platform_ch585_stub.o
-                0x0000000000001752                platform_now_us
+                0x0000000000001796        0x6 build/src/platform_ch585_stub.o
+                0x0000000000001796                platform_now_us
  .text.platform_led_set
-                0x0000000000001758       0x16 build/src/platform_ch585_stub.o
-                0x0000000000001758                platform_led_set
+                0x000000000000179c       0x16 build/src/platform_ch585_stub.o
+                0x000000000000179c                platform_led_set
  .text.platform_idle
-                0x000000000000176e        0x2 build/src/platform_ch585_stub.o
-                0x000000000000176e                platform_idle
+                0x00000000000017b2        0x2 build/src/platform_ch585_stub.o
+                0x00000000000017b2                platform_idle
  .text.GPIOA_ModeCfg
-                0x0000000000001770       0xa2 build/sdk/CH58x_gpio.o
-                0x0000000000001770                GPIOA_ModeCfg
+                0x00000000000017b4       0xa2 build/sdk/CH58x_gpio.o
+                0x00000000000017b4                GPIOA_ModeCfg
  .text.GPIOADigitalCfg
-                0x0000000000001812       0x16 build/sdk/CH58x_gpio.o
-                0x0000000000001812                GPIOADigitalCfg
+                0x0000000000001856       0x16 build/sdk/CH58x_gpio.o
+                0x0000000000001856                GPIOADigitalCfg
  .text.TMR0_TimerInit
-                0x0000000000001828       0x14 build/sdk/CH58x_timer0.o
-                0x0000000000001828                TMR0_TimerInit
- .text.memcpy   0x000000000000183c       0xe2 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memcpy.o)
-                0x000000000000183c                memcpy
+                0x000000000000186c       0x14 build/sdk/CH58x_timer0.o
+                0x000000000000186c                TMR0_TimerInit
+ .text.memcpy   0x0000000000001880       0xe2 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memcpy.o)
+                0x0000000000001880                memcpy
  *(.rodata)
  *(.rodata*)
- *fill*         0x000000000000191e        0x2 
+ *fill*         0x0000000000001962        0x2 
  .rodata.dongle_fsm_tick
-                0x0000000000001920       0x14 build/src/dongle_fsm.o
+                0x0000000000001964       0x14 build/src/dongle_fsm.o
  .rodata.report_pipeline_on_radio_packet
-                0x0000000000001934       0x20 build/src/report_pipeline.o
+                0x0000000000001978       0x20 build/src/report_pipeline.o
  .rodata.s_channel_plan
-                0x0000000000001954       0x10 build/src/rf_link_stub.o
+                0x0000000000001998       0x10 build/src/rf_link_stub.o
  .rodata.GPIOA_ModeCfg
-                0x0000000000001964       0x14 build/sdk/CH58x_gpio.o
+                0x00000000000019a8       0x14 build/sdk/CH58x_gpio.o
  *(.sdata2.*)
  *(.glue_7)
  *(.glue_7t)
  *(.gnu.linkonce.t.*)
-                0x0000000000001978                . = ALIGN (0x4)
+                0x00000000000019bc                . = ALIGN (0x4)
 
-.rela.dyn       0x0000000000001978        0x0
+.rela.dyn       0x00000000000019bc        0x0
  .rela.text.apply_channel
-                0x0000000000001978        0x0 build/src/main.o
+                0x00000000000019bc        0x0 build/src/main.o
  .rela.text.send_packet.part.2
-                0x0000000000001978        0x0 build/src/main.o
+                0x00000000000019bc        0x0 build/src/main.o
  .rela.text.rf_link_init
-                0x0000000000001978        0x0 build/src/main.o
+                0x00000000000019bc        0x0 build/src/main.o
  .rela.text.rf_link_clear_bond
-                0x0000000000001978        0x0 build/src/main.o
+                0x00000000000019bc        0x0 build/src/main.o
  .rela.text.rf_link_poll
-                0x0000000000001978        0x0 build/src/main.o
- .rela.init     0x0000000000001978        0x0 build/src/main.o
- .rela.vector   0x0000000000001978        0x0 build/src/main.o
+                0x00000000000019bc        0x0 build/src/main.o
+ .rela.init     0x00000000000019bc        0x0 build/src/main.o
+ .rela.vector   0x00000000000019bc        0x0 build/src/main.o
  .rela.handle_reset
-                0x0000000000001978        0x0 build/src/main.o
+                0x00000000000019bc        0x0 build/src/main.o
  .rela.highcode_init
-                0x0000000000001978        0x0 build/src/main.o
+                0x00000000000019bc        0x0 build/src/main.o
 
-.fini           0x0000000000001978        0x0
+.fini           0x00000000000019bc        0x0
  *(SORT_NONE(.fini))
-                0x0000000000001978                . = ALIGN (0x4)
+                0x00000000000019bc                . = ALIGN (0x4)
                 [!provide]                        PROVIDE (_etext = .)
                 [!provide]                        PROVIDE (_eitcm = .)
 
-.preinit_array  0x0000000000001978        0x0
+.preinit_array  0x00000000000019bc        0x0
                 [!provide]                        PROVIDE (__preinit_array_start = .)
  *(.preinit_array)
                 [!provide]                        PROVIDE (__preinit_array_end = .)
 
-.init_array     0x0000000000001978        0x0
+.init_array     0x00000000000019bc        0x0
                 [!provide]                        PROVIDE (__init_array_start = .)
  *(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*))
  *(.init_array EXCLUDE_FILE(*crtend?.o *crtend.o *crtbegin?.o *crtbegin.o) .ctors)
                 [!provide]                        PROVIDE (__init_array_end = .)
 
-.fini_array     0x0000000000001978        0x0
+.fini_array     0x00000000000019bc        0x0
                 [!provide]                        PROVIDE (__fini_array_start = .)
  *(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*))
  *(.fini_array EXCLUDE_FILE(*crtend?.o *crtend.o *crtbegin?.o *crtbegin.o) .dtors)
@@ -956,11 +956,11 @@ LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/compone
  *(SORT_BY_NAME(.dtors.*))
  *(.dtors)
 
-.dlalign        0x0000000000001978        0x0
-                0x0000000000001978                . = ALIGN (0x4)
-                0x0000000000001978                PROVIDE (_data_lma = .)
+.dlalign        0x00000000000019bc        0x0
+                0x00000000000019bc                . = ALIGN (0x4)
+                0x00000000000019bc                PROVIDE (_data_lma = .)
 
-.data           0x0000000020000548        0x0 load address 0x0000000000001978
+.data           0x0000000020000548        0x0 load address 0x00000000000019bc
                 0x0000000020000548                . = ALIGN (0x4)
                 0x0000000020000548                PROVIDE (_data_vma = .)
  *(.gnu.linkonce.r.*)
@@ -979,7 +979,7 @@ LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/compone
                 0x0000000020000548                . = ALIGN (0x4)
                 0x0000000020000548                PROVIDE (_edata = .)
 
-.bss            0x0000000020000548       0xa4 load address 0x0000000000001978
+.bss            0x0000000020000548       0xa4 load address 0x00000000000019bc
                 0x0000000020000548                . = ALIGN (0x4)
                 0x0000000020000548                PROVIDE (_sbss = .)
  *(.sbss*)
@@ -1057,40 +1057,40 @@ LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/compone
                 0x0000000020020000                PROVIDE (_eusrstack = .)
 OUTPUT(build/dongle.elf elf32-littleriscv)
 
-.debug_info     0x0000000000000000     0x791f
+.debug_info     0x0000000000000000     0x795b
  .debug_info    0x0000000000000000      0x402 build/src/main.o
  .debug_info    0x0000000000000402      0x442 build/src/dongle_fsm.o
  .debug_info    0x0000000000000844      0x33d build/src/rf_protocol.o
  .debug_info    0x0000000000000b81      0xe91 build/src/report_pipeline.o
  .debug_info    0x0000000000001a12     0x245f build/src/rf_link_stub.o
  .debug_info    0x0000000000003e71      0xb08 build/src/usb_hid_stub.o
- .debug_info    0x0000000000004979     0x1271 build/src/platform_ch585_stub.o
- .debug_info    0x0000000000005bea       0x82 build/src/ch585_startup_compat.o
- .debug_info    0x0000000000005c6c      0xeaf build/sdk/CH58x_gpio.o
- .debug_info    0x0000000000006b1b      0xe04 build/sdk/CH58x_timer0.o
+ .debug_info    0x0000000000004979     0x12ad build/src/platform_ch585_stub.o
+ .debug_info    0x0000000000005c26       0x82 build/src/ch585_startup_compat.o
+ .debug_info    0x0000000000005ca8      0xeaf build/sdk/CH58x_gpio.o
+ .debug_info    0x0000000000006b57      0xe04 build/sdk/CH58x_timer0.o
 
-.debug_abbrev   0x0000000000000000     0x19d9
+.debug_abbrev   0x0000000000000000     0x1a06
  .debug_abbrev  0x0000000000000000      0x16d build/src/main.o
  .debug_abbrev  0x000000000000016d      0x1a7 build/src/dongle_fsm.o
  .debug_abbrev  0x0000000000000314      0x16e build/src/rf_protocol.o
  .debug_abbrev  0x0000000000000482      0x353 build/src/report_pipeline.o
  .debug_abbrev  0x00000000000007d5      0x6cf build/src/rf_link_stub.o
  .debug_abbrev  0x0000000000000ea4      0x278 build/src/usb_hid_stub.o
- .debug_abbrev  0x000000000000111c      0x373 build/src/platform_ch585_stub.o
- .debug_abbrev  0x000000000000148f       0x47 build/src/ch585_startup_compat.o
- .debug_abbrev  0x00000000000014d6      0x2ba build/sdk/CH58x_gpio.o
- .debug_abbrev  0x0000000000001790      0x249 build/sdk/CH58x_timer0.o
+ .debug_abbrev  0x000000000000111c      0x3a0 build/src/platform_ch585_stub.o
+ .debug_abbrev  0x00000000000014bc       0x47 build/src/ch585_startup_compat.o
+ .debug_abbrev  0x0000000000001503      0x2ba build/sdk/CH58x_gpio.o
+ .debug_abbrev  0x00000000000017bd      0x249 build/sdk/CH58x_timer0.o
 
-.debug_loc      0x0000000000000000     0x195d
+.debug_loc      0x0000000000000000     0x19c2
  .debug_loc     0x0000000000000000       0x8e build/src/main.o
  .debug_loc     0x000000000000008e      0x21b build/src/dongle_fsm.o
  .debug_loc     0x00000000000002a9      0x27b build/src/rf_protocol.o
  .debug_loc     0x0000000000000524      0x1ee build/src/report_pipeline.o
  .debug_loc     0x0000000000000712      0xca2 build/src/rf_link_stub.o
  .debug_loc     0x00000000000013b4       0x45 build/src/usb_hid_stub.o
- .debug_loc     0x00000000000013f9       0x3a build/src/platform_ch585_stub.o
- .debug_loc     0x0000000000001433      0x464 build/sdk/CH58x_gpio.o
- .debug_loc     0x0000000000001897       0xc6 build/sdk/CH58x_timer0.o
+ .debug_loc     0x00000000000013f9       0x9f build/src/platform_ch585_stub.o
+ .debug_loc     0x0000000000001498      0x464 build/sdk/CH58x_gpio.o
+ .debug_loc     0x00000000000018fc       0xc6 build/sdk/CH58x_timer0.o
 
 .debug_aranges  0x0000000000000000      0x2f8
  .debug_aranges
@@ -1183,19 +1183,19 @@ OUTPUT(build/dongle.elf elf32-littleriscv)
  .debug_macro   0x00000000000059f6       0x57 build/sdk/CH58x_gpio.o
  .debug_macro   0x0000000000005a4d      0x1b9 build/sdk/CH58x_timer0.o
 
-.debug_line     0x0000000000000000     0x63db
+.debug_line     0x0000000000000000     0x64a6
  .debug_line    0x0000000000000000      0x508 build/src/main.o
  .debug_line    0x0000000000000508      0x946 build/src/dongle_fsm.o
  .debug_line    0x0000000000000e4e      0x7c3 build/src/rf_protocol.o
  .debug_line    0x0000000000001611      0xb02 build/src/report_pipeline.o
  .debug_line    0x0000000000002113     0x20be build/src/rf_link_stub.o
  .debug_line    0x00000000000041d1      0x4e9 build/src/usb_hid_stub.o
- .debug_line    0x00000000000046ba      0x842 build/src/platform_ch585_stub.o
- .debug_line    0x0000000000004efc      0x265 build/src/ch585_startup_compat.o
- .debug_line    0x0000000000005161      0xb5e build/sdk/CH58x_gpio.o
- .debug_line    0x0000000000005cbf      0x71c build/sdk/CH58x_timer0.o
+ .debug_line    0x00000000000046ba      0x90d build/src/platform_ch585_stub.o
+ .debug_line    0x0000000000004fc7      0x265 build/src/ch585_startup_compat.o
+ .debug_line    0x000000000000522c      0xb5e build/sdk/CH58x_gpio.o
+ .debug_line    0x0000000000005d8a      0x71c build/sdk/CH58x_timer0.o
 
-.debug_str      0x0000000000000000    0x16fa0
+.debug_str      0x0000000000000000    0x16fb6
  .debug_str     0x0000000000000000     0x3b96 build/src/main.o
                                        0x3db1 (size before relaxing)
  .debug_str     0x0000000000003b96      0x3ab build/src/dongle_fsm.o
@@ -1208,13 +1208,13 @@ OUTPUT(build/dongle.elf elf32-littleriscv)
                                       0x16001 (size before relaxing)
  .debug_str     0x00000000000166ba       0x47 build/src/usb_hid_stub.o
                                        0x67e9 (size before relaxing)
- .debug_str     0x0000000000016701      0x5d5 build/src/platform_ch585_stub.o
-                                      0x15c70 (size before relaxing)
- .debug_str     0x0000000000016cd6       0x29 build/src/ch585_startup_compat.o
+ .debug_str     0x0000000000016701      0x5eb build/src/platform_ch585_stub.o
+                                      0x15c86 (size before relaxing)
+ .debug_str     0x0000000000016cec       0x29 build/src/ch585_startup_compat.o
                                        0x339b (size before relaxing)
- .debug_str     0x0000000000016cff      0x131 build/sdk/CH58x_gpio.o
+ .debug_str     0x0000000000016d15      0x131 build/sdk/CH58x_gpio.o
                                       0x1577e (size before relaxing)
- .debug_str     0x0000000000016e30      0x170 build/sdk/CH58x_timer0.o
+ .debug_str     0x0000000000016e46      0x170 build/sdk/CH58x_timer0.o
                                       0x1574c (size before relaxing)
 
 .comment        0x0000000000000000       0x33

@@ -1,0 +1,1239 @@
+Archive member included to satisfy reference by file (symbol)
+
+E:/Works/CH585EVT/EVT/EXAM/SRC/StdPeriphDriver/libISP585.a(ISP585.o)
+                              build/src/rfm_link.o (FLASH_EEPROM_CMD)
+d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memcpy.o)
+                              build/src/rfm_link.o (memcpy)
+d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memset.o)
+                              build/src/rfm_link.o (memset)
+
+Discarded input sections
+
+ .group         0x0000000000000000        0xc build/src/main.o
+ .group         0x0000000000000000        0xc build/src/main.o
+ .group         0x0000000000000000        0xc build/src/main.o
+ .group         0x0000000000000000        0xc build/src/main.o
+ .group         0x0000000000000000        0xc build/src/main.o
+ .group         0x0000000000000000        0xc build/src/main.o
+ .group         0x0000000000000000        0xc build/src/main.o
+ .group         0x0000000000000000        0xc build/src/main.o
+ .group         0x0000000000000000        0xc build/src/main.o
+ .group         0x0000000000000000        0xc build/src/main.o
+ .text          0x0000000000000000        0x0 build/src/main.o
+ .data          0x0000000000000000        0x0 build/src/main.o
+ .bss           0x0000000000000000        0x0 build/src/main.o
+ .group         0x0000000000000000        0xc build/src/rfm_protocol.o
+ .group         0x0000000000000000        0xc build/src/rfm_protocol.o
+ .group         0x0000000000000000        0xc build/src/rfm_protocol.o
+ .group         0x0000000000000000        0xc build/src/rfm_protocol.o
+ .group         0x0000000000000000        0xc build/src/rfm_protocol.o
+ .group         0x0000000000000000        0xc build/src/rfm_protocol.o
+ .group         0x0000000000000000        0xc build/src/rfm_protocol.o
+ .group         0x0000000000000000        0xc build/src/rfm_protocol.o
+ .group         0x0000000000000000        0xc build/src/rfm_protocol.o
+ .group         0x0000000000000000        0xc build/src/rfm_protocol.o
+ .text          0x0000000000000000        0x0 build/src/rfm_protocol.o
+ .data          0x0000000000000000        0x0 build/src/rfm_protocol.o
+ .bss           0x0000000000000000        0x0 build/src/rfm_protocol.o
+ .debug_macro   0x0000000000000000      0x766 build/src/rfm_protocol.o
+ .debug_macro   0x0000000000000000       0x22 build/src/rfm_protocol.o
+ .debug_macro   0x0000000000000000      0x174 build/src/rfm_protocol.o
+ .debug_macro   0x0000000000000000       0x22 build/src/rfm_protocol.o
+ .debug_macro   0x0000000000000000       0x8e build/src/rfm_protocol.o
+ .debug_macro   0x0000000000000000       0x51 build/src/rfm_protocol.o
+ .debug_macro   0x0000000000000000       0xef build/src/rfm_protocol.o
+ .debug_macro   0x0000000000000000       0x6a build/src/rfm_protocol.o
+ .debug_macro   0x0000000000000000      0x1df build/src/rfm_protocol.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_link.o
+ .text          0x0000000000000000        0x0 build/src/rfm_link.o
+ .data          0x0000000000000000        0x0 build/src/rfm_link.o
+ .bss           0x0000000000000000        0x0 build/src/rfm_link.o
+ .debug_macro   0x0000000000000000      0x766 build/src/rfm_link.o
+ .debug_macro   0x0000000000000000       0x22 build/src/rfm_link.o
+ .debug_macro   0x0000000000000000      0x174 build/src/rfm_link.o
+ .debug_macro   0x0000000000000000       0x22 build/src/rfm_link.o
+ .debug_macro   0x0000000000000000       0x8e build/src/rfm_link.o
+ .debug_macro   0x0000000000000000       0x51 build/src/rfm_link.o
+ .debug_macro   0x0000000000000000       0xef build/src/rfm_link.o
+ .debug_macro   0x0000000000000000       0x6a build/src/rfm_link.o
+ .debug_macro   0x0000000000000000      0x1df build/src/rfm_link.o
+ .debug_macro   0x0000000000000000       0x4c build/src/rfm_link.o
+ .debug_macro   0x0000000000000000       0x22 build/src/rfm_link.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/rfm_spi_bridge_stub.o
+ .text          0x0000000000000000        0x0 build/src/rfm_spi_bridge_stub.o
+ .data          0x0000000000000000        0x0 build/src/rfm_spi_bridge_stub.o
+ .bss           0x0000000000000000        0x0 build/src/rfm_spi_bridge_stub.o
+ .text.rfm_spi_bridge_inject_frame
+                0x0000000000000000       0x36 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000      0x766 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000      0x174 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x22 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x8e build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x51 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0xef build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x6a build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000      0x1df build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x58 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x19 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x34 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x34 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x58 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x1f build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x43 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x20 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000      0x18e build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000      0x330 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x10 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x35 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x22 build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000000000       0x4c build/src/rfm_spi_bridge_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/platform_ch584_stub.o
+ .text          0x0000000000000000        0x0 build/src/platform_ch584_stub.o
+ .data          0x0000000000000000        0x0 build/src/platform_ch584_stub.o
+ .bss           0x0000000000000000        0x0 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000      0x766 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x22 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x22 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x8e build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x51 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0xef build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x6a build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000      0x1df build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x58 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x19 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x34 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x34 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000      0x174 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x58 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x1f build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x43 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x20 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000      0x18e build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000      0x330 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x10 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x35 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000     0x2d68 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0xa4 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x3b build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0xd6 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000      0x10b build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000      0x19a build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x82 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x71 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x83 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x54 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000      0x1cc build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x51 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x8c build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x88 build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0xdb build/src/platform_ch584_stub.o
+ .debug_macro   0x0000000000000000       0x2e build/src/platform_ch584_stub.o
+ .group         0x0000000000000000        0xc build/src/ch58x_startup_compat.o
+ .group         0x0000000000000000        0xc build/src/ch58x_startup_compat.o
+ .group         0x0000000000000000        0xc build/src/ch58x_startup_compat.o
+ .group         0x0000000000000000        0xc build/src/ch58x_startup_compat.o
+ .group         0x0000000000000000        0xc build/src/ch58x_startup_compat.o
+ .group         0x0000000000000000        0xc build/src/ch58x_startup_compat.o
+ .group         0x0000000000000000        0xc build/src/ch58x_startup_compat.o
+ .text          0x0000000000000000        0x0 build/src/ch58x_startup_compat.o
+ .data          0x0000000000000000        0x0 build/src/ch58x_startup_compat.o
+ .bss           0x0000000000000000        0x0 build/src/ch58x_startup_compat.o
+ .debug_macro   0x0000000000000000      0x766 build/src/ch58x_startup_compat.o
+ .debug_macro   0x0000000000000000       0x22 build/src/ch58x_startup_compat.o
+ .debug_macro   0x0000000000000000       0x8e build/src/ch58x_startup_compat.o
+ .debug_macro   0x0000000000000000       0x51 build/src/ch58x_startup_compat.o
+ .debug_macro   0x0000000000000000       0xef build/src/ch58x_startup_compat.o
+ .debug_macro   0x0000000000000000       0x6a build/src/ch58x_startup_compat.o
+ .debug_macro   0x0000000000000000      0x1df build/src/ch58x_startup_compat.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_gpio.o
+ .text          0x0000000000000000        0x0 build/sdk/CH58x_gpio.o
+ .data          0x0000000000000000        0x0 build/sdk/CH58x_gpio.o
+ .bss           0x0000000000000000        0x0 build/sdk/CH58x_gpio.o
+ .text.GPIOA_ModeCfg
+                0x0000000000000000       0xa4 build/sdk/CH58x_gpio.o
+ .rodata.GPIOA_ModeCfg
+                0x0000000000000000       0x14 build/sdk/CH58x_gpio.o
+ .text.GPIOA_ITModeCfg
+                0x0000000000000000       0x82 build/sdk/CH58x_gpio.o
+ .text.GPIOB_ITModeCfg
+                0x0000000000000000       0x8a build/sdk/CH58x_gpio.o
+ .text.GPIOAGPPCfg
+                0x0000000000000000       0x1a build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000      0x766 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x3a build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x22 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x19 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x34 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x34 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000      0x174 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x58 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x1f build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x43 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x20 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000      0x18e build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000      0x330 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x10 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x35 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0xef build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x6a build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000      0x1df build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000     0x2d68 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0xa4 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x3b build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0xd6 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000      0x10b build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000      0x19a build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x82 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x71 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x83 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x54 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000      0x1cc build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x51 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x8c build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x88 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0xdb build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000000000       0x2e build/sdk/CH58x_gpio.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_timer0.o
+ .text          0x0000000000000000        0x0 build/sdk/CH58x_timer0.o
+ .data          0x0000000000000000        0x0 build/sdk/CH58x_timer0.o
+ .bss           0x0000000000000000        0x0 build/sdk/CH58x_timer0.o
+ .text.TMR0_EXTSingleCounterInit
+                0x0000000000000000       0x1a build/sdk/CH58x_timer0.o
+ .text.TMR0_PWMInit
+                0x0000000000000000       0x1a build/sdk/CH58x_timer0.o
+ .text.TMR0_CapInit
+                0x0000000000000000       0x1a build/sdk/CH58x_timer0.o
+ .text.TMR0_DMACfg
+                0x0000000000000000       0x2a build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000      0x766 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x3a build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x22 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x52 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x19 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x94 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x34 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x34 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000      0x174 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x57 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x58 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x1f build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x43 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x20 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000      0x18e build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000      0x330 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x10 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x35 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0xef build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x6a build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000      0x1df build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000     0x2d68 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0xa4 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x3b build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0xd6 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000      0x10b build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000      0x19a build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x82 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x71 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x83 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x54 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000      0x1cc build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x51 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x8c build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x88 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0xdb build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000000000       0x2e build/sdk/CH58x_timer0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_flash.o
+ .text          0x0000000000000000        0x0 build/sdk/CH58x_flash.o
+ .data          0x0000000000000000        0x0 build/sdk/CH58x_flash.o
+ .bss           0x0000000000000000        0x0 build/sdk/CH58x_flash.o
+ .text.FLASH_ROM_READ
+                0x0000000000000000       0x1c build/sdk/CH58x_flash.o
+ .text.UserOptionByteConfig
+                0x0000000000000000       0xdc build/sdk/CH58x_flash.o
+ .text.UserOptionByteClose_SWD
+                0x0000000000000000       0x7e build/sdk/CH58x_flash.o
+ .text.UserOptionByte_Active
+                0x0000000000000000       0x88 build/sdk/CH58x_flash.o
+ .text.GET_UNIQUE_ID
+                0x0000000000000000       0x5a build/sdk/CH58x_flash.o
+ .debug_info    0x0000000000000000     0x1064 build/sdk/CH58x_flash.o
+ .debug_abbrev  0x0000000000000000      0x34c build/sdk/CH58x_flash.o
+ .debug_loc     0x0000000000000000      0x266 build/sdk/CH58x_flash.o
+ .debug_aranges
+                0x0000000000000000       0x40 build/sdk/CH58x_flash.o
+ .debug_ranges  0x0000000000000000       0x30 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000      0x1e3 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000      0x766 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x3a build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x22 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x52 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x19 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x94 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x34 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x34 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000      0x174 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x57 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x58 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x1f build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x43 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x20 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000      0x18e build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000      0x330 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x10 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x35 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0xef build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x6a build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000      0x1df build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000     0x2d68 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0xa4 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x3b build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0xd6 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000      0x10b build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000      0x19a build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x82 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x71 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x83 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x54 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000      0x1cc build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x51 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x8c build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x88 build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0xdb build/sdk/CH58x_flash.o
+ .debug_macro   0x0000000000000000       0x2e build/sdk/CH58x_flash.o
+ .debug_line    0x0000000000000000      0xaa2 build/sdk/CH58x_flash.o
+ .debug_str     0x0000000000000000    0x157d6 build/sdk/CH58x_flash.o
+ .comment       0x0000000000000000       0x34 build/sdk/CH58x_flash.o
+ .debug_frame   0x0000000000000000       0xa4 build/sdk/CH58x_flash.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .group         0x0000000000000000        0xc build/sdk/CH58x_spi0.o
+ .text          0x0000000000000000        0x0 build/sdk/CH58x_spi0.o
+ .data          0x0000000000000000        0x0 build/sdk/CH58x_spi0.o
+ .bss           0x0000000000000000        0x0 build/sdk/CH58x_spi0.o
+ .text.SPI0_MasterDefInit
+                0x0000000000000000       0x32 build/sdk/CH58x_spi0.o
+ .text.SPI0_CLKCfg
+                0x0000000000000000       0x2a build/sdk/CH58x_spi0.o
+ .text.SPI0_DataMode
+                0x0000000000000000       0x6a build/sdk/CH58x_spi0.o
+ .text.SPI0_MasterSendByte
+                0x0000000000000000       0x2a build/sdk/CH58x_spi0.o
+ .text.SPI0_MasterRecvByte
+                0x0000000000000000       0x2a build/sdk/CH58x_spi0.o
+ .text.SPI0_MasterTrans
+                0x0000000000000000       0x4c build/sdk/CH58x_spi0.o
+ .text.SPI0_MasterRecv
+                0x0000000000000000       0x42 build/sdk/CH58x_spi0.o
+ .text.SPI0_MasterDMATrans
+                0x0000000000000000       0x42 build/sdk/CH58x_spi0.o
+ .text.SPI0_MasterDMARecv
+                0x0000000000000000       0x42 build/sdk/CH58x_spi0.o
+ .text.SPI0_SlaveRecvByte
+                0x0000000000000000       0x20 build/sdk/CH58x_spi0.o
+ .text.SPI0_SlaveSendByte
+                0x0000000000000000       0x2a build/sdk/CH58x_spi0.o
+ .highcode      0x0000000000000000       0x86 build/sdk/CH58x_spi0.o
+ .text.SPI0_SlaveDMARecv
+                0x0000000000000000        0x8 build/sdk/CH58x_spi0.o
+ .text.SPI0_SlaveDMATrans
+                0x0000000000000000        0x8 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000      0x766 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x3a build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x22 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x52 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x19 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x94 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x34 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x34 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000      0x174 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x57 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x58 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x1f build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x43 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x20 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000      0x18e build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000      0x330 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x10 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x35 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0xef build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x6a build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000      0x1df build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000     0x2d68 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0xa4 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x3b build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0xd6 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000      0x10b build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000      0x19a build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x82 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x71 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x83 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x54 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000      0x1cc build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x51 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x8c build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x88 build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0xdb build/sdk/CH58x_spi0.o
+ .debug_macro   0x0000000000000000       0x2e build/sdk/CH58x_spi0.o
+ .text          0x0000000000000000        0x0 build/sdk/startup_CH585.o
+ .data          0x0000000000000000        0x0 build/sdk/startup_CH585.o
+ .bss           0x0000000000000000        0x0 build/sdk/startup_CH585.o
+ .text          0x0000000000000000        0x0 E:/Works/CH585EVT/EVT/EXAM/SRC/StdPeriphDriver/libISP585.a(ISP585.o)
+ .data          0x0000000000000000        0x0 E:/Works/CH585EVT/EVT/EXAM/SRC/StdPeriphDriver/libISP585.a(ISP585.o)
+ .bss           0x0000000000000000        0x0 E:/Works/CH585EVT/EVT/EXAM/SRC/StdPeriphDriver/libISP585.a(ISP585.o)
+ .text          0x0000000000000000        0x0 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memcpy.o)
+ .data          0x0000000000000000        0x0 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memcpy.o)
+ .bss           0x0000000000000000        0x0 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memcpy.o)
+ .data          0x0000000000000000        0x0 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memset.o)
+ .bss           0x0000000000000000        0x0 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memset.o)
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+FLASH            0x0000000000000000 0x0000000000070000 xr
+RAM              0x0000000020000000 0x0000000000018000 xrw
+*default*        0x0000000000000000 0xffffffffffffffff
+
+Linker script and memory map
+
+LOAD build/src/main.o
+LOAD build/src/rfm_protocol.o
+LOAD build/src/rfm_link.o
+LOAD build/src/rfm_spi_bridge_stub.o
+LOAD build/src/platform_ch584_stub.o
+LOAD build/src/ch58x_startup_compat.o
+LOAD build/sdk/CH58x_gpio.o
+LOAD build/sdk/CH58x_timer0.o
+LOAD build/sdk/CH58x_flash.o
+LOAD build/sdk/CH58x_spi0.o
+LOAD build/sdk/startup_CH585.o
+LOAD E:/Works/CH585EVT/EVT/EXAM/SRC/StdPeriphDriver/libISP585.a
+LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/rv32imac/ilp32\libgcc.a
+START GROUP
+LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/rv32imac/ilp32\libgcc.a
+LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a
+LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libc.a
+END GROUP
+LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/rv32imac/ilp32\libgcc.a
+
+.init           0x0000000000000000        0x4
+                0x0000000000000000                _sinit = .
+                0x0000000000000000                . = ALIGN (0x4)
+ *(SORT_NONE(.init))
+ .init          0x0000000000000000        0x4 build/sdk/startup_CH585.o
+                0x0000000000000000                _start
+                0x0000000000000004                . = ALIGN (0x4)
+                0x0000000000000004                _einit = .
+
+.highcode_initlalign
+                0x0000000000000004        0x0
+                0x0000000000000004                . = ALIGN (0x4)
+                0x0000000000000004                PROVIDE (_highcode_init_lma = .)
+
+.highcode_init  0x0000000020000000      0x154 load address 0x0000000000000004
+                0x0000000020000000                PROVIDE (_highcode_init_vma_start = .)
+                0x0000000020000000                . = ALIGN (0x400)
+ *(.vector)
+ .vector        0x0000000020000000       0xa0 build/sdk/startup_CH585.o
+                0x0000000020000000                _vector_base
+ *(SORT_NONE(.vector_handler))
+ .vector_handler
+                0x00000000200000a0        0x2 build/sdk/startup_CH585.o
+                0x00000000200000a0                NFC_IRQHandler
+                0x00000000200000a0                HardFault_Handler
+                0x00000000200000a0                GPIOB_IRQHandler
+                0x00000000200000a0                GPIOA_IRQHandler
+                0x00000000200000a0                SysTick_Handler
+                0x00000000200000a0                NMI_Handler
+                0x00000000200000a0                UART1_IRQHandler
+                0x00000000200000a0                UART0_IRQHandler
+                0x00000000200000a0                BB_IRQHandler
+                0x00000000200000a0                Break_Point_Handler
+                0x00000000200000a0                Ecall_M_Mode_Handler
+                0x00000000200000a0                RTC_IRQHandler
+                0x00000000200000a0                LED_IRQHandler
+                0x00000000200000a0                UART2_IRQHandler
+                0x00000000200000a0                ADC_IRQHandler
+                0x00000000200000a0                TMR2_IRQHandler
+                0x00000000200000a0                USB_IRQHandler
+                0x00000000200000a0                I2C_IRQHandler
+                0x00000000200000a0                LLE_IRQHandler
+                0x00000000200000a0                WDOG_BAT_IRQHandler
+                0x00000000200000a0                Ecall_U_Mode_Handler
+                0x00000000200000a0                TMR3_IRQHandler
+                0x00000000200000a0                SW_Handler
+                0x00000000200000a0                SPI0_IRQHandler
+                0x00000000200000a0                USB2_HOST_IRQHandler
+                0x00000000200000a0                PWMX_SPI1_IRQHandler
+                0x00000000200000a0                UART3_IRQHandler
+                0x00000000200000a0                USB2_DEVICE_IRQHandler
+                0x00000000200000a0                TMR1_IRQHandler
+ *(.highcode_init)
+ .highcode_init
+                0x00000000200000a2        0x2 build/src/ch58x_startup_compat.o
+                0x00000000200000a2                highcode_init
+ .highcode_init
+                0x00000000200000a4       0xae build/sdk/startup_CH585.o
+ *(.highcode_init.*)
+                0x0000000020000154                . = ALIGN (0x4)
+ *fill*         0x0000000020000152        0x2 
+                0x0000000020000154                PROVIDE (_highcode_init_vma_end = .)
+
+.highcodelalign
+                0x0000000000000158        0x0
+                0x0000000000000158                . = ALIGN (0x4)
+                0x0000000000000158                PROVIDE (_highcode_lma = .)
+
+.highcode       0x0000000020000154      0x3f4 load address 0x0000000000000158
+                0x0000000020000154                . = ALIGN (0x4)
+                0x0000000020000154                PROVIDE (_highcode_vma_start = .)
+ *(.highcode)
+ .highcode      0x0000000020000154       0x20 build/src/platform_ch584_stub.o
+                0x0000000020000154                TMR0_IRQHandler
+ *(.highcode.*)
+ .highcode.FLASH_ROM_BEG
+                0x0000000020000174       0x12 E:/Works/CH585EVT/EVT/EXAM/SRC/StdPeriphDriver/libISP585.a(ISP585.o)
+                0x0000000020000174                FLASH_ROM_BEG
+ .highcode.FLASH_ROM_END
+                0x0000000020000186        0xe E:/Works/CH585EVT/EVT/EXAM/SRC/StdPeriphDriver/libISP585.a(ISP585.o)
+                0x0000000020000186                FLASH_ROM_END
+ .highcode.FLASH_ROM_IN
+                0x0000000020000194        0xe E:/Works/CH585EVT/EVT/EXAM/SRC/StdPeriphDriver/libISP585.a(ISP585.o)
+                0x0000000020000194                FLASH_ROM_IN
+ .highcode.FLASH_ROM_OUT
+                0x00000000200001a2        0xe E:/Works/CH585EVT/EVT/EXAM/SRC/StdPeriphDriver/libISP585.a(ISP585.o)
+                0x00000000200001a2                FLASH_ROM_OUT
+ .highcode.FLASH_ROM_ADDR
+                0x00000000200001b0       0x48 E:/Works/CH585EVT/EVT/EXAM/SRC/StdPeriphDriver/libISP585.a(ISP585.o)
+                0x00000000200001b0                FLASH_ROM_ADDR
+ .highcode.FLASH_ROM_WAIT
+                0x00000000200001f8       0x38 E:/Works/CH585EVT/EVT/EXAM/SRC/StdPeriphDriver/libISP585.a(ISP585.o)
+                0x00000000200001f8                FLASH_ROM_WAIT
+ .highcode.FLASH_EEPROM_CMD
+                0x0000000020000230      0x318 E:/Works/CH585EVT/EVT/EXAM/SRC/StdPeriphDriver/libISP585.a(ISP585.o)
+                0x0000000020000230                FLASH_EEPROM_CMD
+ *(.highcode_lp)
+ *(.highcode_lp.*)
+                0x0000000020000548                . = ALIGN (0x4)
+                0x0000000020000548                PROVIDE (_highcode_vma_end = .)
+
+.text           0x000000000000054c     0x13dc
+                0x000000000000054c                . = ALIGN (0x4)
+ *(SORT_NONE(.handle_reset))
+ .handle_reset  0x000000000000054c       0x42 build/sdk/startup_CH585.o
+                0x000000000000054c                handle_reset
+ *(.text)
+ .text          0x000000000000058e       0xa8 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memset.o)
+                0x000000000000058e                memset
+ *(.text.*)
+ .text.startup.main
+                0x0000000000000636       0x28 build/src/main.o
+                0x0000000000000636                main
+ .text.rfm_protocol_encode
+                0x000000000000065e       0xb0 build/src/rfm_protocol.o
+                0x000000000000065e                rfm_protocol_encode
+ .text.rfm_protocol_decode
+                0x000000000000070e       0xb0 build/src/rfm_protocol.o
+                0x000000000000070e                rfm_protocol_decode
+ .text.read_u32_le
+                0x00000000000007be       0x1e build/src/rfm_link.o
+ .text.report_period_us
+                0x00000000000007dc       0x32 build/src/rfm_link.o
+ .text.set_event
+                0x000000000000080e        0xc build/src/rfm_link.o
+ .text.change_state
+                0x000000000000081a       0x2c build/src/rfm_link.o
+ .text.is_packet_from_bonded_peer.part.0
+                0x0000000000000846       0x5a build/src/rfm_link.o
+ .text.rf_hw_read_frame
+                0x00000000000008a0        0x4 build/src/rfm_link.o
+                0x00000000000008a0                rf_hw_read_frame
+ .text.rf_hw_send_frame
+                0x00000000000008a4        0x4 build/src/rfm_link.o
+                0x00000000000008a4                rf_hw_send_frame
+ .text.rf_hw_set_channel
+                0x00000000000008a8        0x2 build/src/rfm_link.o
+                0x00000000000008a8                rf_hw_set_channel
+ .text.send_packet_retry
+                0x00000000000008aa      0x11a build/src/rfm_link.o
+ .text.on_conn_req
+                0x00000000000009c4      0x110 build/src/rfm_link.o
+ .text.rf_hw_set_tx_power
+                0x0000000000000ad4        0x2 build/src/rfm_link.o
+                0x0000000000000ad4                rf_hw_set_tx_power
+ .text.rf_hw_enable_link_guard
+                0x0000000000000ad6        0x2 build/src/rfm_link.o
+                0x0000000000000ad6                rf_hw_enable_link_guard
+ .text.rf_hw_bond_load
+                0x0000000000000ad8       0x2a build/src/rfm_link.o
+                0x0000000000000ad8                rf_hw_bond_load
+ .text.rf_hw_bond_store
+                0x0000000000000b02       0x82 build/src/rfm_link.o
+                0x0000000000000b02                rf_hw_bond_store
+ .text.rf_hw_bond_clear
+                0x0000000000000b84       0x30 build/src/rfm_link.o
+                0x0000000000000b84                rf_hw_bond_clear
+ .text.rfm_link_init
+                0x0000000000000bb4      0x1aa build/src/rfm_link.o
+                0x0000000000000bb4                rfm_link_init
+ .text.rfm_link_start_pairing
+                0x0000000000000d5e       0x2e build/src/rfm_link.o
+                0x0000000000000d5e                rfm_link_start_pairing
+ .text.rfm_link_stop_pairing
+                0x0000000000000d8c       0x18 build/src/rfm_link.o
+                0x0000000000000d8c                rfm_link_stop_pairing
+ .text.rfm_link_unbind
+                0x0000000000000da4       0x36 build/src/rfm_link.o
+                0x0000000000000da4                rfm_link_unbind
+ .text.rfm_link_set_report_rate
+                0x0000000000000dda       0x40 build/src/rfm_link.o
+                0x0000000000000dda                rfm_link_set_report_rate
+ .text.rfm_link_push_input
+                0x0000000000000e1a       0x38 build/src/rfm_link.o
+                0x0000000000000e1a                rfm_link_push_input
+ .text.rfm_link_get_status
+                0x0000000000000e52       0x4c build/src/rfm_link.o
+                0x0000000000000e52                rfm_link_get_status
+ .text.rfm_link_take_event
+                0x0000000000000e9e        0xc build/src/rfm_link.o
+                0x0000000000000e9e                rfm_link_take_event
+ .text.rfm_link_poll
+                0x0000000000000eaa      0x404 build/src/rfm_link.o
+                0x0000000000000eaa                rfm_link_poll
+ .text.spi_hw_try_read
+                0x00000000000012ae        0x4 build/src/rfm_spi_bridge_stub.o
+                0x00000000000012ae                spi_hw_try_read
+ .text.spi_hw_try_write
+                0x00000000000012b2        0x4 build/src/rfm_spi_bridge_stub.o
+                0x00000000000012b2                spi_hw_try_write
+ .text.emit_status_event
+                0x00000000000012b6       0xa8 build/src/rfm_spi_bridge_stub.o
+ .text.process_one_frame
+                0x000000000000135e       0xf8 build/src/rfm_spi_bridge_stub.o
+ .text.rfm_spi_bridge_init
+                0x0000000000001456       0x28 build/src/rfm_spi_bridge_stub.o
+                0x0000000000001456                rfm_spi_bridge_init
+ .text.rfm_spi_bridge_poll
+                0x000000000000147e       0x92 build/src/rfm_spi_bridge_stub.o
+                0x000000000000147e                rfm_spi_bridge_poll
+ .text.platform_clock_init
+                0x0000000000001510       0xf0 build/src/platform_ch584_stub.o
+                0x0000000000001510                platform_clock_init
+ .text.platform_gpio_init
+                0x0000000000001600       0x48 build/src/platform_ch584_stub.o
+                0x0000000000001600                platform_gpio_init
+ .text.platform_timer_init
+                0x0000000000001648       0x34 build/src/platform_ch584_stub.o
+                0x0000000000001648                platform_timer_init
+ .text.platform_spi_init
+                0x000000000000167c        0x2 build/src/platform_ch584_stub.o
+                0x000000000000167c                platform_spi_init
+ .text.platform_now_us
+                0x000000000000167e        0x6 build/src/platform_ch584_stub.o
+                0x000000000000167e                platform_now_us
+ .text.platform_irq_line_set
+                0x0000000000001684       0x18 build/src/platform_ch584_stub.o
+                0x0000000000001684                platform_irq_line_set
+ .text.platform_idle
+                0x000000000000169c        0x2 build/src/platform_ch584_stub.o
+                0x000000000000169c                platform_idle
+ .text.GPIOB_ModeCfg
+                0x000000000000169e       0xa2 build/sdk/CH58x_gpio.o
+                0x000000000000169e                GPIOB_ModeCfg
+ .text.GPIOPinRemap
+                0x0000000000001740       0x1a build/sdk/CH58x_gpio.o
+                0x0000000000001740                GPIOPinRemap
+ .text.GPIOADigitalCfg
+                0x000000000000175a       0x16 build/sdk/CH58x_gpio.o
+                0x000000000000175a                GPIOADigitalCfg
+ .text.GPIOBDigitalCfg
+                0x0000000000001770       0x50 build/sdk/CH58x_gpio.o
+                0x0000000000001770                GPIOBDigitalCfg
+ .text.TMR0_TimerInit
+                0x00000000000017c0       0x14 build/sdk/CH58x_timer0.o
+                0x00000000000017c0                TMR0_TimerInit
+ .text.SPI0_SlaveInit
+                0x00000000000017d4       0x20 build/sdk/CH58x_spi0.o
+                0x00000000000017d4                SPI0_SlaveInit
+ .text.memcpy   0x00000000000017f4       0xe2 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memcpy.o)
+                0x00000000000017f4                memcpy
+ *(.rodata)
+ *(.rodata*)
+ *fill*         0x00000000000018d6        0x2 
+ .rodata.change_state
+                0x00000000000018d8       0x14 build/src/rfm_link.o
+ .rodata.s_channel_plan
+                0x00000000000018ec       0x10 build/src/rfm_link.o
+ .rodata.process_one_frame
+                0x00000000000018fc       0x18 build/src/rfm_spi_bridge_stub.o
+ .rodata.GPIOB_ModeCfg
+                0x0000000000001914       0x14 build/sdk/CH58x_gpio.o
+ *(.sdata2.*)
+ *(.glue_7)
+ *(.glue_7t)
+ *(.gnu.linkonce.t.*)
+                0x0000000000001928                . = ALIGN (0x4)
+
+.rela.dyn       0x0000000000001928        0x0
+ .rela.text.send_packet_retry
+                0x0000000000001928        0x0 build/src/main.o
+ .rela.text.rfm_link_init
+                0x0000000000001928        0x0 build/src/main.o
+ .rela.text.rfm_link_unbind
+                0x0000000000001928        0x0 build/src/main.o
+ .rela.text.rfm_link_poll
+                0x0000000000001928        0x0 build/src/main.o
+ .rela.text.emit_status_event
+                0x0000000000001928        0x0 build/src/main.o
+ .rela.text.rfm_spi_bridge_poll
+                0x0000000000001928        0x0 build/src/main.o
+ .rela.init     0x0000000000001928        0x0 build/src/main.o
+ .rela.vector   0x0000000000001928        0x0 build/src/main.o
+ .rela.handle_reset
+                0x0000000000001928        0x0 build/src/main.o
+ .rela.highcode_init
+                0x0000000000001928        0x0 build/src/main.o
+
+.fini           0x0000000000001928        0x0
+ *(SORT_NONE(.fini))
+                0x0000000000001928                . = ALIGN (0x4)
+                [!provide]                        PROVIDE (_etext = .)
+                [!provide]                        PROVIDE (_eitcm = .)
+
+.preinit_array  0x0000000000001928        0x0
+                [!provide]                        PROVIDE (__preinit_array_start = .)
+ *(.preinit_array)
+                [!provide]                        PROVIDE (__preinit_array_end = .)
+
+.init_array     0x0000000000001928        0x0
+                [!provide]                        PROVIDE (__init_array_start = .)
+ *(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*))
+ *(.init_array EXCLUDE_FILE(*crtend?.o *crtend.o *crtbegin?.o *crtbegin.o) .ctors)
+                [!provide]                        PROVIDE (__init_array_end = .)
+
+.fini_array     0x0000000000001928        0x0
+                [!provide]                        PROVIDE (__fini_array_start = .)
+ *(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*))
+ *(.fini_array EXCLUDE_FILE(*crtend?.o *crtend.o *crtbegin?.o *crtbegin.o) .dtors)
+                [!provide]                        PROVIDE (__fini_array_end = .)
+
+.ctors
+ *crtbegin.o(.ctors)
+ *crtbegin?.o(.ctors)
+ *(EXCLUDE_FILE(*crtend?.o *crtend.o) .ctors)
+ *(SORT_BY_NAME(.ctors.*))
+ *(.ctors)
+
+.dtors
+ *crtbegin.o(.dtors)
+ *crtbegin?.o(.dtors)
+ *(EXCLUDE_FILE(*crtend?.o *crtend.o) .dtors)
+ *(SORT_BY_NAME(.dtors.*))
+ *(.dtors)
+
+.dlalign        0x0000000000001928        0x0
+                0x0000000000001928                . = ALIGN (0x4)
+                0x0000000000001928                PROVIDE (_data_lma = .)
+
+.data           0x0000000020000548        0x0 load address 0x0000000000001928
+                0x0000000020000548                . = ALIGN (0x4)
+                0x0000000020000548                PROVIDE (_data_vma = .)
+ *(.gnu.linkonce.r.*)
+ *(.data .data.*)
+ *(.gnu.linkonce.d.*)
+                0x0000000020000548                . = ALIGN (0x8)
+                0x0000000020000d48                PROVIDE (__global_pointer$ = (. + 0x800))
+ *(.sdata .sdata.*)
+ *(.gnu.linkonce.s.*)
+                0x0000000020000548                . = ALIGN (0x8)
+ *(.srodata.cst16)
+ *(.srodata.cst8)
+ *(.srodata.cst4)
+ *(.srodata.cst2)
+ *(.srodata .srodata.*)
+                0x0000000020000548                . = ALIGN (0x4)
+                0x0000000020000548                PROVIDE (_edata = .)
+
+.bss            0x0000000020000548       0xb8 load address 0x0000000000001928
+                0x0000000020000548                . = ALIGN (0x4)
+                0x0000000020000548                PROVIDE (_sbss = .)
+ *(.sbss*)
+ .sbss.s_connected
+                0x0000000020000548        0x1 build/src/rfm_link.o
+ *fill*         0x0000000020000549        0x3 
+ .sbss.s_event  0x000000002000054c        0x4 build/src/rfm_link.o
+ .sbss.s_has_bond
+                0x0000000020000550        0x1 build/src/rfm_link.o
+ .sbss.s_input_valid
+                0x0000000020000551        0x1 build/src/rfm_link.o
+ .sbss.s_last_rx_seq
+                0x0000000020000552        0x1 build/src/rfm_link.o
+ *fill*         0x0000000020000553        0x1 
+ .sbss.s_last_rx_us
+                0x0000000020000554        0x4 build/src/rfm_link.o
+ .sbss.s_lq_eval_deadline_us
+                0x0000000020000558        0x4 build/src/rfm_link.o
+ .sbss.s_lq_rx_fail
+                0x000000002000055c        0x2 build/src/rfm_link.o
+ .sbss.s_lq_rx_ok
+                0x000000002000055e        0x2 build/src/rfm_link.o
+ .sbss.s_lq_tx_fail
+                0x0000000020000560        0x2 build/src/rfm_link.o
+ *fill*         0x0000000020000562        0x2 
+ .sbss.s_mode_deadline_us
+                0x0000000020000564        0x4 build/src/rfm_link.o
+ .sbss.s_next_adv_us
+                0x0000000020000568        0x4 build/src/rfm_link.o
+ .sbss.s_next_report_us
+                0x000000002000056c        0x4 build/src/rfm_link.o
+ .sbss.s_next_scan_us
+                0x0000000020000570        0x4 build/src/rfm_link.o
+ .sbss.s_pair_ok_deadline_us
+                0x0000000020000574        0x4 build/src/rfm_link.o
+ .sbss.s_rate_hz
+                0x0000000020000578        0x4 build/src/rfm_link.o
+ .sbss.s_reject_count
+                0x000000002000057c        0x4 build/src/rfm_link.o
+ .sbss.s_scan_cursor
+                0x0000000020000580        0x1 build/src/rfm_link.o
+ *fill*         0x0000000020000581        0x3 
+ .sbss.s_state  0x0000000020000584        0x4 build/src/rfm_link.o
+ .sbss.s_tx_power_level
+                0x0000000020000588        0x1 build/src/rfm_link.o
+ .sbss.s_tx_seq
+                0x0000000020000589        0x1 build/src/rfm_link.o
+ *fill*         0x000000002000058a        0x2 
+ .sbss.s_next_periodic_status_us
+                0x000000002000058c        0x4 build/src/rfm_spi_bridge_stub.o
+ .sbss.s_now_us
+                0x0000000020000590        0x4 build/src/platform_ch584_stub.o
+ *(.gnu.linkonce.sb.*)
+ *(.bss*)
+ .bss.s_bond    0x0000000020000594       0x14 build/src/rfm_link.o
+ .bss.s_latest_input
+                0x00000000200005a8        0xf build/src/rfm_link.o
+ *fill*         0x00000000200005b7        0x1 
+ .bss.s_injected
+                0x00000000200005b8       0x48 build/src/rfm_spi_bridge_stub.o
+ *(.gnu.linkonce.b.*)
+ *(COMMON*)
+                0x0000000020000600                . = ALIGN (0x4)
+                0x0000000020000600                PROVIDE (_ebss = .)
+                [!provide]                        PROVIDE (_end = _ebss)
+                [!provide]                        PROVIDE (end = .)
+
+.stack          0x0000000020018000        0x0
+                0x0000000020018000                . = ALIGN (0x4)
+                0x0000000020018000                PROVIDE (_eusrstack = .)
+OUTPUT(build/rf_module.elf elf32-littleriscv)
+
+.debug_info     0x0000000000000000     0x7b10
+ .debug_info    0x0000000000000000      0x156 build/src/main.o
+ .debug_info    0x0000000000000156      0x33d build/src/rfm_protocol.o
+ .debug_info    0x0000000000000493     0x24cb build/src/rfm_link.o
+ .debug_info    0x000000000000295e     0x11d9 build/src/rfm_spi_bridge_stub.o
+ .debug_info    0x0000000000003b37     0x135a build/src/platform_ch584_stub.o
+ .debug_info    0x0000000000004e91       0x82 build/src/ch58x_startup_compat.o
+ .debug_info    0x0000000000004f13      0xeaf build/sdk/CH58x_gpio.o
+ .debug_info    0x0000000000005dc2      0xe04 build/sdk/CH58x_timer0.o
+ .debug_info    0x0000000000006bc6      0xf4a build/sdk/CH58x_spi0.o
+
+.debug_abbrev   0x0000000000000000     0x17de
+ .debug_abbrev  0x0000000000000000       0x69 build/src/main.o
+ .debug_abbrev  0x0000000000000069      0x16e build/src/rfm_protocol.o
+ .debug_abbrev  0x00000000000001d7      0x607 build/src/rfm_link.o
+ .debug_abbrev  0x00000000000007de      0x3f3 build/src/rfm_spi_bridge_stub.o
+ .debug_abbrev  0x0000000000000bd1      0x3bc build/src/platform_ch584_stub.o
+ .debug_abbrev  0x0000000000000f8d       0x47 build/src/ch58x_startup_compat.o
+ .debug_abbrev  0x0000000000000fd4      0x2ba build/sdk/CH58x_gpio.o
+ .debug_abbrev  0x000000000000128e      0x249 build/sdk/CH58x_timer0.o
+ .debug_abbrev  0x00000000000014d7      0x307 build/sdk/CH58x_spi0.o
+
+.debug_aranges  0x0000000000000000      0x300
+ .debug_aranges
+                0x0000000000000000       0x20 build/src/main.o
+ .debug_aranges
+                0x0000000000000020       0x28 build/src/rfm_protocol.o
+ .debug_aranges
+                0x0000000000000048       0xd0 build/src/rfm_link.o
+ .debug_aranges
+                0x0000000000000118       0x50 build/src/rfm_spi_bridge_stub.o
+ .debug_aranges
+                0x0000000000000168       0x58 build/src/platform_ch584_stub.o
+ .debug_aranges
+                0x00000000000001c0       0x20 build/src/ch58x_startup_compat.o
+ .debug_aranges
+                0x00000000000001e0       0x58 build/sdk/CH58x_gpio.o
+ .debug_aranges
+                0x0000000000000238       0x40 build/sdk/CH58x_timer0.o
+ .debug_aranges
+                0x0000000000000278       0x88 build/sdk/CH58x_spi0.o
+
+.debug_ranges   0x0000000000000000      0x570
+ .debug_ranges  0x0000000000000000       0x10 build/src/main.o
+ .debug_ranges  0x0000000000000010       0x18 build/src/rfm_protocol.o
+ .debug_ranges  0x0000000000000028      0x338 build/src/rfm_link.o
+ .debug_ranges  0x0000000000000360       0xb0 build/src/rfm_spi_bridge_stub.o
+ .debug_ranges  0x0000000000000410       0x60 build/src/platform_ch584_stub.o
+ .debug_ranges  0x0000000000000470       0x10 build/src/ch58x_startup_compat.o
+ .debug_ranges  0x0000000000000480       0x48 build/sdk/CH58x_gpio.o
+ .debug_ranges  0x00000000000004c8       0x30 build/sdk/CH58x_timer0.o
+ .debug_ranges  0x00000000000004f8       0x78 build/sdk/CH58x_spi0.o
+
+.debug_macro    0x0000000000000000     0x59ec
+ .debug_macro   0x0000000000000000       0x96 build/src/main.o
+ .debug_macro   0x0000000000000096      0x766 build/src/main.o
+ .debug_macro   0x00000000000007fc       0x22 build/src/main.o
+ .debug_macro   0x000000000000081e       0x22 build/src/main.o
+ .debug_macro   0x0000000000000840       0x8e build/src/main.o
+ .debug_macro   0x00000000000008ce       0x51 build/src/main.o
+ .debug_macro   0x000000000000091f       0xef build/src/main.o
+ .debug_macro   0x0000000000000a0e       0x6a build/src/main.o
+ .debug_macro   0x0000000000000a78      0x1df build/src/main.o
+ .debug_macro   0x0000000000000c57      0x174 build/src/main.o
+ .debug_macro   0x0000000000000dcb       0x4c build/src/main.o
+ .debug_macro   0x0000000000000e17       0x7a build/src/rfm_protocol.o
+ .debug_macro   0x0000000000000e91       0x22 build/src/rfm_protocol.o
+ .debug_macro   0x0000000000000eb3      0x248 build/src/rfm_link.o
+ .debug_macro   0x00000000000010fb       0x58 build/src/rfm_link.o
+ .debug_macro   0x0000000000001153       0x19 build/src/rfm_link.o
+ .debug_macro   0x000000000000116c       0x34 build/src/rfm_link.o
+ .debug_macro   0x00000000000011a0       0x34 build/src/rfm_link.o
+ .debug_macro   0x00000000000011d4       0x58 build/src/rfm_link.o
+ .debug_macro   0x000000000000122c       0x1f build/src/rfm_link.o
+ .debug_macro   0x000000000000124b       0x43 build/src/rfm_link.o
+ .debug_macro   0x000000000000128e       0x20 build/src/rfm_link.o
+ .debug_macro   0x00000000000012ae      0x18e build/src/rfm_link.o
+ .debug_macro   0x000000000000143c      0x330 build/src/rfm_link.o
+ .debug_macro   0x000000000000176c       0x10 build/src/rfm_link.o
+ .debug_macro   0x000000000000177c       0x35 build/src/rfm_link.o
+ .debug_macro   0x00000000000017b1       0x34 build/src/rfm_link.o
+ .debug_macro   0x00000000000017e5     0x2d68 build/src/rfm_link.o
+ .debug_macro   0x000000000000454d       0xa4 build/src/rfm_link.o
+ .debug_macro   0x00000000000045f1       0x3b build/src/rfm_link.o
+ .debug_macro   0x000000000000462c       0xd6 build/src/rfm_link.o
+ .debug_macro   0x0000000000004702      0x10b build/src/rfm_link.o
+ .debug_macro   0x000000000000480d      0x19a build/src/rfm_link.o
+ .debug_macro   0x00000000000049a7       0x82 build/src/rfm_link.o
+ .debug_macro   0x0000000000004a29       0x71 build/src/rfm_link.o
+ .debug_macro   0x0000000000004a9a       0x83 build/src/rfm_link.o
+ .debug_macro   0x0000000000004b1d       0x54 build/src/rfm_link.o
+ .debug_macro   0x0000000000004b71      0x1cc build/src/rfm_link.o
+ .debug_macro   0x0000000000004d3d       0x51 build/src/rfm_link.o
+ .debug_macro   0x0000000000004d8e       0x8c build/src/rfm_link.o
+ .debug_macro   0x0000000000004e1a       0x88 build/src/rfm_link.o
+ .debug_macro   0x0000000000004ea2       0xdb build/src/rfm_link.o
+ .debug_macro   0x0000000000004f7d       0x2e build/src/rfm_link.o
+ .debug_macro   0x0000000000004fab      0x15c build/src/rfm_spi_bridge_stub.o
+ .debug_macro   0x0000000000005107      0x1ea build/src/platform_ch584_stub.o
+ .debug_macro   0x00000000000052f1       0x3a build/src/platform_ch584_stub.o
+ .debug_macro   0x000000000000532b       0x59 build/src/ch58x_startup_compat.o
+ .debug_macro   0x0000000000005384      0x1b9 build/sdk/CH58x_gpio.o
+ .debug_macro   0x000000000000553d       0x52 build/sdk/CH58x_gpio.o
+ .debug_macro   0x000000000000558f       0x94 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000005623       0x57 build/sdk/CH58x_gpio.o
+ .debug_macro   0x000000000000567a      0x1b9 build/sdk/CH58x_timer0.o
+ .debug_macro   0x0000000000005833      0x1b9 build/sdk/CH58x_spi0.o
+
+.debug_line     0x0000000000000000     0x6657
+ .debug_line    0x0000000000000000      0x3a2 build/src/main.o
+ .debug_line    0x00000000000003a2      0x7c5 build/src/rfm_protocol.o
+ .debug_line    0x0000000000000b67     0x22b0 build/src/rfm_link.o
+ .debug_line    0x0000000000002e17      0xbc0 build/src/rfm_spi_bridge_stub.o
+ .debug_line    0x00000000000039d7      0x959 build/src/platform_ch584_stub.o
+ .debug_line    0x0000000000004330      0x263 build/src/ch58x_startup_compat.o
+ .debug_line    0x0000000000004593      0xb5e build/sdk/CH58x_gpio.o
+ .debug_line    0x00000000000050f1      0x71c build/sdk/CH58x_timer0.o
+ .debug_line    0x000000000000580d      0xe4a build/sdk/CH58x_spi0.o
+
+.debug_str      0x0000000000000000    0x16c6a
+ .debug_str     0x0000000000000000     0x3721 build/src/main.o
+                                       0x3902 (size before relaxing)
+ .debug_str     0x0000000000003721      0x1a1 build/src/rfm_protocol.o
+                                       0x38c6 (size before relaxing)
+ .debug_str     0x00000000000038c2    0x126d8 build/src/rfm_link.o
+                                      0x16212 (size before relaxing)
+ .debug_str     0x0000000000015f9a      0x1f5 build/src/rfm_spi_bridge_stub.o
+                                       0x6930 (size before relaxing)
+ .debug_str     0x000000000001618f      0x664 build/src/platform_ch584_stub.o
+                                      0x15d18 (size before relaxing)
+ .debug_str     0x00000000000167f3       0x29 build/src/ch58x_startup_compat.o
+                                       0x339d (size before relaxing)
+ .debug_str     0x000000000001681c      0x119 build/sdk/CH58x_gpio.o
+                                      0x15780 (size before relaxing)
+ .debug_str     0x0000000000016935      0x170 build/sdk/CH58x_timer0.o
+                                      0x1574e (size before relaxing)
+ .debug_str     0x0000000000016aa5      0x1c5 build/sdk/CH58x_spi0.o
+                                      0x1579d (size before relaxing)
+
+.comment        0x0000000000000000       0x33
+ .comment       0x0000000000000000       0x33 build/src/main.o
+                                         0x34 (size before relaxing)
+ .comment       0x0000000000000033       0x34 build/src/rfm_protocol.o
+ .comment       0x0000000000000033       0x34 build/src/rfm_link.o
+ .comment       0x0000000000000033       0x34 build/src/rfm_spi_bridge_stub.o
+ .comment       0x0000000000000033       0x34 build/src/platform_ch584_stub.o
+ .comment       0x0000000000000033       0x34 build/src/ch58x_startup_compat.o
+ .comment       0x0000000000000033       0x34 build/sdk/CH58x_gpio.o
+ .comment       0x0000000000000033       0x34 build/sdk/CH58x_timer0.o
+ .comment       0x0000000000000033       0x34 build/sdk/CH58x_spi0.o
+ .comment       0x0000000000000033       0x34 E:/Works/CH585EVT/EVT/EXAM/SRC/StdPeriphDriver/libISP585.a(ISP585.o)
+
+.debug_frame    0x0000000000000000      0x6e4
+ .debug_frame   0x0000000000000000       0x28 build/src/main.o
+ .debug_frame   0x0000000000000028       0x30 build/src/rfm_protocol.o
+ .debug_frame   0x0000000000000058      0x2c8 build/src/rfm_link.o
+ .debug_frame   0x0000000000000320       0xd0 build/src/rfm_spi_bridge_stub.o
+ .debug_frame   0x00000000000003f0       0xb4 build/src/platform_ch584_stub.o
+ .debug_frame   0x00000000000004a4       0x20 build/src/ch58x_startup_compat.o
+ .debug_frame   0x00000000000004c4       0x90 build/sdk/CH58x_gpio.o
+ .debug_frame   0x0000000000000554       0x60 build/sdk/CH58x_timer0.o
+ .debug_frame   0x00000000000005b4      0x110 build/sdk/CH58x_spi0.o
+ .debug_frame   0x00000000000006c4       0x20 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memcpy.o)
+
+.debug_loc      0x0000000000000000     0x1e5d
+ .debug_loc     0x0000000000000000      0x27b build/src/rfm_protocol.o
+ .debug_loc     0x000000000000027b      0xcdf build/src/rfm_link.o
+ .debug_loc     0x0000000000000f5a      0x76c build/src/rfm_spi_bridge_stub.o
+ .debug_loc     0x00000000000016c6       0x9f build/src/platform_ch584_stub.o
+ .debug_loc     0x0000000000001765      0x464 build/sdk/CH58x_gpio.o
+ .debug_loc     0x0000000000001bc9       0xc6 build/sdk/CH58x_timer0.o
+ .debug_loc     0x0000000000001c8f      0x1ce build/sdk/CH58x_spi0.o
