@@ -48,6 +48,16 @@ static void enable_gpio_clock(GPIO_TypeDef* port)
     else if (port == GPIOK) __HAL_RCC_GPIOK_CLK_ENABLE();
 }
 
+static void enable_tim_clock(TIM_TypeDef* tim)
+{
+#ifdef TIM2
+    if (tim == TIM2) { __HAL_RCC_TIM2_CLK_ENABLE(); return; }
+#endif
+#ifdef TIM12
+    if (tim == TIM12) { __HAL_RCC_TIM12_CLK_ENABLE(); return; }
+#endif
+}
+
 static void spi_gpio_init(void)
 {
     GPIO_InitTypeDef init = {0};
@@ -82,17 +92,21 @@ static void spi_gpio_init(void)
 static bool spi_clock_init(void)
 {
     RCC_PeriphCLKInitTypeDef clk = {0};
-    clk.PeriphClockSelection = RCC_PERIPHCLK_SPI5;
-    clk.Spi45ClockSelection = RCC_SPI45CLKSOURCE_D2PCLK2;
+    clk.PeriphClockSelection = RCC_PERIPHCLK_SPI1;
+#ifdef RCC_SPI123CLKSOURCE_D2PCLK2
+    clk.Spi123ClockSelection = RCC_SPI123CLKSOURCE_D2PCLK2;
+#else
+    clk.Spi123ClockSelection = RCC_SPI123CLKSOURCE_PLL;
+#endif
     return (HAL_RCCEx_PeriphCLKConfig(&clk) == HAL_OK);
 }
 
 static bool spi_hw_init(void)
 {
-    __HAL_RCC_SPI5_CLK_ENABLE();
+    __HAL_RCC_SPI1_CLK_ENABLE();
     if (!spi_clock_init()) return false;
-    __HAL_RCC_SPI5_FORCE_RESET();
-    __HAL_RCC_SPI5_RELEASE_RESET();
+    __HAL_RCC_SPI1_FORCE_RESET();
+    __HAL_RCC_SPI1_RELEASE_RESET();
 
     memset(&g_hspi, 0, sizeof(g_hspi));
     g_hspi.Instance = ST7789_SPI_INSTANCE;
@@ -227,12 +241,12 @@ static bool start_fill_async(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uin
     return true;
 }
 
-static bool backlight_tim12_init(void)
+static bool backlight_pwm_init(void)
 {
     if (g_bl_tim_ready) return true;
 
     enable_gpio_clock(ST7789_BL_PORT);
-    __HAL_RCC_TIM12_CLK_ENABLE();
+    enable_tim_clock(SPIST7789_BL_TIM_INSTANCE);
 
     GPIO_InitTypeDef init = {0};
     init.Pin = ST7789_BL_PIN;
@@ -322,8 +336,8 @@ void SPIST7789_Init(void)
 
     HAL_NVIC_SetPriority(ST7789_SPI_DMA_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(ST7789_SPI_DMA_IRQn);
-    HAL_NVIC_SetPriority(SPI5_IRQn, 5, 0);
-    HAL_NVIC_EnableIRQ(SPI5_IRQn);
+    HAL_NVIC_SetPriority(SPI1_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(SPI1_IRQn);
 
     (void)write_cmd_data(0x01, NULL, 0);
     HAL_Delay(150);
@@ -348,7 +362,7 @@ void SPIST7789_SetBacklight100(void)
 void SPIST7789_SetBacklight(uint8_t percent)
 {
     if (percent > 100u) percent = 100u;
-    if (!backlight_tim12_init()) {
+    if (!backlight_pwm_init()) {
         gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, (percent == 0u) ? ST7789_BL_OFF_STATE : ST7789_BL_ON_STATE);
         return;
     }

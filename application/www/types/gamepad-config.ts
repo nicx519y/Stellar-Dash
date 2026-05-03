@@ -81,14 +81,29 @@ export const PlatformLabelMap = new Map<Platform, { label: string, description: 
 
 export interface GlobalConfig {
     inputMode?: Platform;
+    connectionMode?: ConnectionMode;
+    wirelessReportRate?: WirelessReportRate;
     autoCalibrationEnabled?: boolean;
     manualCalibrationActive?: boolean;
+}
+
+export enum ConnectionMode {
+    USB = "USB",
+    RF24G = "RF24G",
+}
+
+export enum WirelessReportRate {
+    RATE_1K = "1K",
+    RATE_2K = "2K",
+    RATE_4K = "4K",
+    RATE_8K = "8K",
 }
 
 export interface ScreenControlFeatures {
     inputModeSwitch: boolean;
     profilesSwitch: boolean;
     socdModeSwitch: boolean;
+    connectionModeSwitch: boolean;
     buttonsPerformanceQuickSet: boolean;
     ledBrightnessAdjust: boolean;
     ledEffectSwitch: boolean;
@@ -124,6 +139,7 @@ export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
         inputModeSwitch: true,
         profilesSwitch: true,
         socdModeSwitch: true,
+        connectionModeSwitch: true,
         buttonsPerformanceQuickSet: true,
         ledBrightnessAdjust: true,
         ledEffectSwitch: true,
@@ -137,6 +153,7 @@ export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
         'inputModeSwitch',
         'profilesSwitch',
         'socdModeSwitch',
+        'connectionModeSwitch',
         'buttonsPerformanceQuickSet',
         'ledBrightnessAdjust',
         'ledEffectSwitch',
@@ -763,6 +780,7 @@ export const UI_TEXT = {
     SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH: "Input Mode Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_PROFILES_SWITCH: "Profiles Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH: "SOCD Mode Switch",
+    SETTINGS_SCREEN_CONTROL_FEATURE_CONNECTION_MODE_SWITCH: "Connection Mode Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_TOURNAMENT_MODE_SWITCH: "Tournament Mode Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET: "Buttons Performance",
     SETTINGS_SCREEN_CONTROL_FEATURE_LED_BRIGHTNESS_ADJUST: "LED Brightness Adjust",
@@ -1163,6 +1181,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH: "输入模式切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_PROFILES_SWITCH: "用户配置切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH: "SOCD 模式切换",
+    SETTINGS_SCREEN_CONTROL_FEATURE_CONNECTION_MODE_SWITCH: "连接模式切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_TOURNAMENT_MODE_SWITCH: "正常/比赛模式切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET: "按键性能预设",
     SETTINGS_SCREEN_CONTROL_FEATURE_LED_BRIGHTNESS_ADJUST: "LED 亮度调整",

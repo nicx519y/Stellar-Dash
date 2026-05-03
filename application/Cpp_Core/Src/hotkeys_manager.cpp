@@ -248,7 +248,8 @@ void HotkeysManager::runAction(GamepadHotkey hotkeyAction) {
 }
 
 void HotkeysManager::rebootSystem() {
-    WS2812B_Stop();
+    WS2812B_StopStrip(WS2812B_STRIP_KEYS);
+    WS2812B_StopStrip(WS2812B_STRIP_AMBIENT);
     NVIC_SystemReset();
 }
 

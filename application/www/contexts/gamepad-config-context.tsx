@@ -1421,11 +1421,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const updateGlobalConfig = async (globalConfig: GlobalConfig, immediate: boolean = true): Promise<void> => {
+    const updateGlobalConfig = async (nextGlobalConfig: GlobalConfig, immediate: boolean = true): Promise<void> => {
         try {
             // setIsLoading(true);
-            setGlobalConfig(globalConfig);
-            const data = await sendWebSocketRequest('update_global_config', { globalConfig }, immediate);
+            const merged = { ...globalConfig, ...nextGlobalConfig };
+            setGlobalConfig((prev) => ({ ...prev, ...nextGlobalConfig }));
+            const data = await sendWebSocketRequest('update_global_config', { globalConfig: merged }, immediate);
             return Promise.resolve();
         } catch (err) {
             setError('Failed to update global config');

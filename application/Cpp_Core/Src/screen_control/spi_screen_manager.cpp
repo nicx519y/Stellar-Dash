@@ -17,6 +17,8 @@
 #include "adc_btns/adc_manager.hpp"
 #include "adc_btns/adc_btns_worker.hpp"
 #include "gpio_btns/gpio_btns_worker.hpp"
+#include "power_manager.hpp"
+#include "connection_manager.hpp"
 
 extern "C" {
 #include "st7789.h"
@@ -57,6 +59,9 @@ static uint64_t g_perfAccFlushUs = 0;
 static uint32_t g_perfCalls = 0;
 static uint32_t g_perfFrames = 0;
 static uint32_t g_perfBlocked = 0;
+static uint32_t g_battUiLastSampleMs = 0;
+static uint8_t g_battUiSoc = 0;
+static PowerChargeState g_battUiChargeState = PowerChargeState::Unknown;
 
 static bool ok_flash_active(void) {
     return (uint32_t)(HAL_GetTick() - g_okFlashUntilMs) > 0x80000000u ? false : (HAL_GetTick() < g_okFlashUntilMs);
@@ -111,6 +116,64 @@ static uint8_t compute_backlight_percent(uint32_t nowMs) {
         return g_cfgBrightness;
     }
     return (uint8_t)(((uint32_t)g_cfgBrightness * elapsed) / SPI_SCREEN_BL_RAMP_MS);
+}
+
+static const char* get_connection_mode_label(void) {
+    if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB) {
+        if (CONNECTION_MANAGER.getLinkState() == ConnectionLinkState::Connected) return "USB";
+        return "USB?";
+    }
+    switch (CONNECTION_MANAGER.getLinkState()) {
+        case ConnectionLinkState::Connected: return "2.4G";
+        case ConnectionLinkState::Connecting: return "2.4~";
+        case ConnectionLinkState::Error: return "2.4!";
+        default: return "2.4?";
+    }
+}
+
+static void update_battery_ui_cache(uint32_t nowMs) {
+    if (g_battUiLastSampleMs != 0u && (uint32_t)(nowMs - g_battUiLastSampleMs) < 1000u) {
+        return;
+    }
+    g_battUiLastSampleMs = nowMs;
+    float soc = POWER_MANAGER.getTotalSocPercent();
+    if (soc < 0.0f) soc = 0.0f;
+    if (soc > 100.0f) soc = 100.0f;
+    g_battUiSoc = (uint8_t)(soc + 0.5f);
+    g_battUiChargeState = POWER_MANAGER.getChargeState();
+}
+
+static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_t h, uint32_t fg, uint32_t bg, uint32_t nowMs) {
+    const uint16_t bodyW = 22u;
+    const uint16_t bodyH = 12u;
+    const uint16_t headW = 2u;
+    const uint16_t headH = 6u;
+    const uint16_t x = (leftW > (uint16_t)(bodyW + headW + 2u)) ? (uint16_t)((leftW - (bodyW + headW + 2u)) / 2u) : 0u;
+    const uint16_t y = (h > (uint16_t)(bodyH + 8u)) ? (uint16_t)(h - bodyH - 8u) : 0u;
+    const uint16_t headX = (uint16_t)(x + bodyW + 1u);
+    const uint16_t headY = (uint16_t)(y + ((bodyH - headH) / 2u));
+
+    ST7789_DrawRect(lcd, x, y, bodyW, bodyH, fg);
+    ST7789_DrawRect(lcd, headX, headY, headW, headH, fg);
+
+    const uint16_t innerX = (uint16_t)(x + 2u);
+    const uint16_t innerY = (uint16_t)(y + 2u);
+    const uint16_t innerW = (uint16_t)(bodyW - 4u);
+    const uint16_t innerH = (uint16_t)(bodyH - 4u);
+    ST7789_FillRect(lcd, innerX, innerY, innerW, innerH, bg);
+    uint16_t fillW = (uint16_t)((uint32_t)innerW * (uint32_t)g_battUiSoc / 100u);
+    if (g_battUiSoc > 0u && fillW == 0u) fillW = 1u;
+    if (fillW > 0u) {
+        ST7789_FillRect(lcd, innerX, innerY, fillW, innerH, fg);
+    }
+
+    if (g_battUiChargeState == PowerChargeState::Charging && (((nowMs / 500u) & 0x1u) == 0u)) {
+        const uint16_t cx = (uint16_t)(x + bodyW / 2u);
+        const uint16_t cy = (uint16_t)(y + bodyH / 2u);
+        ST7789_DrawLine(lcd, (int)cx - 2, (int)cy - 3, (int)cx, (int)cy - 1, bg);
+        ST7789_DrawLine(lcd, (int)cx, (int)cy - 1, (int)cx - 1, (int)cy + 2, bg);
+        ST7789_DrawLine(lcd, (int)cx - 1, (int)cy + 2, (int)cx + 2, (int)cy, bg);
+    }
 }
 
 static uint32_t get_gamepad_activity_mask() {
@@ -416,6 +479,9 @@ void SPIScreenManager::renderBars() {
     ST7789_FillRect(&g_lcd, rightX, 0, rightW, h, barBg);
 
     const char* mode = ScreenMain_InputModeAbbrev(STORAGE_MANAGER.getInputMode());
+    const char* connMode = get_connection_mode_label();
+    const uint32_t nowMs = HAL_GetTick();
+    update_battery_ui_cache(nowMs);
 
     const ScreenMenuMeta* prev = (menuIndex > 0) ? ScreenMain_FindMenuMeta(menuIds[menuIndex - 1]) : nullptr;
     const ScreenMenuMeta* next = (menuIndex + 1 < menuCount) ? ScreenMain_FindMenuMeta(menuIds[menuIndex + 1]) : nullptr;
@@ -428,9 +494,13 @@ void SPIScreenManager::renderBars() {
 
     const uint8_t tokenScale = SPI_SCREEN_STATUS_BAR_TEXT_SCALE;
     const uint16_t tokenH = ScreenUI_CharCellH(tokenScale);
-    const uint16_t profileModeGap = 8u;
-    const uint16_t groupH = (uint16_t)(tokenH + profileModeGap + tokenH);
-    const uint16_t startY = (groupH < h) ? (uint16_t)((h - groupH) / 2u) : 0u;
+    const uint16_t leftTopY = 6u;
+    const uint16_t stackGap = 8u;
+    const uint16_t battBodyH = 12u;
+    const uint16_t battBottomMargin = 8u;
+    const uint16_t battY = (h > (uint16_t)(battBodyH + battBottomMargin)) ? (uint16_t)(h - battBodyH - battBottomMargin) : 0u;
+    const uint16_t connY = (battY > (uint16_t)(tokenH + stackGap)) ? (uint16_t)(battY - tokenH - stackGap) : leftTopY;
+    const uint16_t inputY = (connY > (uint16_t)(tokenH + stackGap)) ? (uint16_t)(connY - tokenH - stackGap) : (uint16_t)(leftTopY + tokenH + stackGap);
 
     uint8_t currentProfileIdx = 0xFF;
     uint8_t count = STORAGE_MANAGER.config.numProfilesMax;
@@ -445,8 +515,10 @@ void SPIScreenManager::renderBars() {
 
     char token[6] = "P?";
     if (currentProfileIdx != 0xFF) snprintf(token, sizeof(token), "P%u", (unsigned)(currentProfileIdx + 1u));
-    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, startY, leftW, tokenH, token, textColor, barBg, tokenScale);
-    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, (uint16_t)(startY + tokenH + profileModeGap), leftW, tokenH, mode, textColor, barBg, tokenScale);
+    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, leftTopY, leftW, tokenH, token, textColor, barBg, tokenScale);
+    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, inputY, leftW, tokenH, mode, textColor, barBg, tokenScale);
+    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, connY, leftW, tokenH, connMode, textColor, barBg, tokenScale);
+    render_left_battery_icon(&g_lcd, leftW, h, textColor, barBg, nowMs);
 
     if (g_inDetail) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH, "Back", textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
     else if (prev && prev->label) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH, prev->label, textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);

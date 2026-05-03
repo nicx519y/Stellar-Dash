@@ -1,6 +1,6 @@
 'use client';
 
-import { PlatformLabelMap, Platform } from '@/types/gamepad-config';
+import { PlatformLabelMap, Platform, ConnectionMode } from '@/types/gamepad-config';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { Card, Center, Icon, RadioCard, VStack } from '@chakra-ui/react';
 import { BsXbox } from "react-icons/bs";
@@ -24,6 +24,10 @@ export function InputModeSettingContent(props: {
     ]);
 
     const onInputModeChange = (detail: { value: Platform }) => {
+        if (globalConfig.connectionMode === ConnectionMode.RF24G && detail.value !== Platform.XINPUT) {
+            updateGlobalConfig({ ...globalConfig, inputMode: Platform.XINPUT });
+            return;
+        }
         updateGlobalConfig({ inputMode: detail.value as Platform });
     }
 
@@ -43,7 +47,12 @@ export function InputModeSettingContent(props: {
             >
                 <VStack w="180px" justifyContent="start" gap={2} >
                     {Array.from(PlatformLabelMap.entries()).map(([platform, { label }]) => (
-                        <RadioCard.Item key={platform} value={platform} w="100%" disabled={props.disabled}   >
+                        <RadioCard.Item
+                            key={platform}
+                            value={platform}
+                            w="100%"
+                            disabled={props.disabled || (globalConfig.connectionMode === ConnectionMode.RF24G && platform !== Platform.XINPUT)}
+                        >
                             <RadioCard.ItemHiddenInput />
                             <RadioCard.ItemControl>
                                 <Center w="35px" h="35px" >

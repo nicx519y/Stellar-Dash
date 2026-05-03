@@ -167,6 +167,8 @@ class ADCManager {
         
         // 通知采样完成 (由 HAL_ADC_ConvCpltCallback 调用)
         void notifyConversionComplete(ADC_HandleTypeDef *hadc);
+        
+        bool isDmaSamplingActive() const { return dmaSamplingActive; }
 
         void startSamplingNow();
         void startContinuousSampling();
@@ -221,6 +223,7 @@ class ADCManager {
         
         // 采样完成标志位掩码 (bit 0: ADC1, bit 1: ADC2, bit 2: ADC3)
         volatile uint8_t completionMask = 0;
+        volatile bool dmaSamplingActive = false;
         
         ADCIndexInfo samplingADCInfo;
 

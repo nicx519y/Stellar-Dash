@@ -746,6 +746,8 @@ void ADCManager::stopADCSamping()
         MC.unsubscribe(MessageId::DMA_ADC_CONV_CPLT, messageHandler);
         messageHandler = nullptr;
     }
+
+    dmaSamplingActive = false;
 }
 
 /**
@@ -867,6 +869,7 @@ void ADCManager::startContinuousSampling()
     stopADCSamping();
 
     // In calibration/webconfig mode, we start once and it runs continuously via circular DMA
+    dmaSamplingActive = true;
     HAL_ADC_Start_DMA(&hadc1, (uint32_t *)&ADC1_Values[0], NUM_ADC1_BUTTONS);
     HAL_ADC_Start_DMA(&hadc2, (uint32_t *)&ADC2_Values[0], NUM_ADC2_BUTTONS);
     HAL_ADC_Start_DMA(&hadc3, (uint32_t *)&ADC3_Values[0], NUM_ADC3_BUTTONS);
@@ -911,6 +914,7 @@ void ADCManager::startSamplingNow()
         return;
 
     completionMask = 0;
+    dmaSamplingActive = true;
 #if APPLICATION_DEBUG_PRINT == 1
     LATENCY_MONITOR.samplingStarted();
 #endif
@@ -941,6 +945,9 @@ void ADCManager::notifyConversionComplete(ADC_HandleTypeDef *hadc)
     if (this->adcMode != ADC_MODE_LOW_LATENCY && !samplingRateEnabled)
         return;
 
+    if (!dmaSamplingActive)
+        return;
+
     if (this->adcMode == ADC_MODE_LOW_LATENCY)
     {
         if (hadc->Instance == ADC1)
@@ -954,6 +961,11 @@ void ADCManager::notifyConversionComplete(ADC_HandleTypeDef *hadc)
         else if (hadc->Instance == ADC3)
         {
             completionMask |= 0x04;
+        }
+
+        if ((completionMask & 0x07) == 0x07)
+        {
+            dmaSamplingActive = false;
         }
     }
 

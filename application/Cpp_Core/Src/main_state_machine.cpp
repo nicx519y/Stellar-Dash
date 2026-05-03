@@ -4,6 +4,7 @@
 #include "adc_btns/adc_manager.hpp"
 #include "screen_control/spi_screen_manager.hpp"
 #include "tusb.h"
+#include "power_manager.hpp"
 
 #if APPLICATION_DEBUG_PRINT
     #include "board_cfg.h"
@@ -39,6 +40,7 @@ void MainStateMachine::setup()
             break;
     }
 
+    POWER_MANAGER.setup();
     state->setup();
     SPIScreenManager::getInstance().setup();
 
@@ -54,6 +56,7 @@ void MainStateMachine::setup()
     while(1) {
         
         state->loop();
+        POWER_MANAGER.loop();
 
 #if APPLICATION_DEBUG_PRINT
         uint32_t t0_cycles = DWT->CYCCNT;

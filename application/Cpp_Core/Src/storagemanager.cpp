@@ -73,5 +73,12 @@ void Storage::setInputMode(InputMode inputMode) {
 	config.inputMode = inputMode;
 }
 
+void Storage::setConnectionMode(ConnectionMode mode) {
+	config.connectionMode = mode;
+}
+
+void Storage::setWirelessReportRate(WirelessReportRate rate) {
+	config.wirelessReportRate = rate;
+}
 
 

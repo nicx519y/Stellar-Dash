@@ -28,6 +28,14 @@ public:
 	const InputMode getInputMode() {
 		return config.inputMode;
 	}
+	void setConnectionMode(ConnectionMode mode);
+	ConnectionMode getConnectionMode() const {
+		return config.connectionMode;
+	}
+	void setWirelessReportRate(WirelessReportRate rate);
+	WirelessReportRate getWirelessReportRate() const {
+		return config.wirelessReportRate;
+	}
 	GamepadProfile* getGamepadProfile(char* id);
 	GamepadProfile* getDefaultGamepadProfile() {
 		return getGamepadProfile(config.defaultProfileId);

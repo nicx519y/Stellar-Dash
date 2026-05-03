@@ -13,6 +13,8 @@
 #include "system_logger.h"
 #include "latency_monitor.hpp"
 #include "storagemanager.hpp"
+#include "connection_manager.hpp"
+#include "report_scheduler.hpp"
 
 static void on_default_profile_changed_input_workers(void) {
     ADC_BTNS_WORKER.setup();
@@ -27,6 +29,7 @@ void InputState::setup()
     /**************** 初始化USB end ******************* */
 
     InputMode inputMode = STORAGE_MANAGER.getInputMode();
+    const ConnectionMode connectionMode = STORAGE_MANAGER.getConnectionMode();
     // InputMode inputMode = InputMode::INPUT_MODE_PS5; // TODO: 需要根据实际情况修改
     // InputMode inputMode = InputMode::INPUT_MODE_XINPUT;
     LOG_INFO("INPUT", "Selected input mode: %d", static_cast<int>(inputMode));
@@ -39,43 +42,52 @@ void InputState::setup()
         return;
     }
 
-    LOG_DEBUG("INPUT", "Initializing driver manager");
-    DRIVER_MANAGER.setup(inputMode);
-    inputDriver = DRIVER_MANAGER.getDriver();
-    if (inputDriver != nullptr)
+    if (connectionMode == ConnectionMode::CONNECTION_MODE_USB)
     {
-        inputDriver->initializeAux();
-        LOG_DEBUG("INPUT", "Input driver auxiliary initialization completed");
-        APP_DBG("InputState::setup inputDriver->initializeAux() done");
-        // Check if we have a USB listener
-        USBListener *listener = inputDriver->get_usb_auth_listener();
-        if (listener != nullptr)
+        LOG_DEBUG("INPUT", "Initializing USB driver manager");
+        DRIVER_MANAGER.setup(inputMode);
+        inputDriver = DRIVER_MANAGER.getDriver();
+        if (inputDriver != nullptr)
         {
-            LOG_DEBUG("INPUT", "USB auth listener found, registering with host manager");
-            APP_DBG("InputState::setup listener: %p", listener);
-            USB_HOST_MANAGER.pushListener(listener);
+            inputDriver->initializeAux();
+            LOG_DEBUG("INPUT", "Input driver auxiliary initialization completed");
+            APP_DBG("InputState::setup inputDriver->initializeAux() done");
+            USBListener *listener = inputDriver->get_usb_auth_listener();
+            if (listener != nullptr)
+            {
+                LOG_DEBUG("INPUT", "USB auth listener found, registering with host manager");
+                APP_DBG("InputState::setup listener: %p", listener);
+                USB_HOST_MANAGER.pushListener(listener);
+            }
         }
+        else
+        {
+            LOG_ERROR("INPUT", "Failed to get input driver instance");
+        }
+
+        LOG_DEBUG("INPUT", "Starting USB host manager");
+        USB_HOST_MANAGER.start();
+
+        APP_DBG("tud_init start");
+        tud_init(TUD_OPT_RHPORT);
+        APP_DBG("tud_init done");
+        LOG_DEBUG("INPUT", "TinyUSB device stack initialized");
     }
     else
     {
-        LOG_ERROR("INPUT", "Failed to get input driver instance");
+        inputDriver = nullptr;
+        LOG_INFO("INPUT", "Running in RF24G mode, USB stack disabled");
     }
-
-    // 初始化USB主机
-    LOG_DEBUG("INPUT", "Starting USB host manager");
-    USB_HOST_MANAGER.start();
-
-    // 初始化TinyUSB设备栈
-    APP_DBG("tud_init start");
-    tud_init(TUD_OPT_RHPORT);
-    APP_DBG("tud_init done");
-    LOG_DEBUG("INPUT", "TinyUSB device stack initialized");
 
     STORAGE_MANAGER.registerDefaultProfileChangedCallback(on_default_profile_changed_input_workers);
 
     ADC_BTNS_WORKER.setup();
     GPIO_BTNS_WORKER.setup();
     GAMEPAD.setup();
+
+    CONNECTION_MANAGER.setup(connectionMode, STORAGE_MANAGER.getWirelessReportRate());
+    REPORT_SCHEDULER.start(CONNECTION_MANAGER.getAppliedReportRateHz());
+    ADCManager::getInstance().triggerSampling();
 
 #if HAS_LED == 1
     LOG_DEBUG("INPUT", "Initializing LED manager");
@@ -92,7 +104,15 @@ void InputState::setup()
 
 void InputState::loop()
 {
-    
+    CONNECTION_MANAGER.loop();
+
+    while (REPORT_SCHEDULER.consumeTick())
+    {
+        if (!ADCManager::getInstance().isDmaSamplingActive())
+        {
+            ADCManager::getInstance().triggerSampling();
+        }
+    }
 
     // 检查采样是否完成 (由SOF触发)
     if (ADCManager::getInstance().isSamplingDone())
@@ -108,7 +128,17 @@ void InputState::loop()
             LATENCY_MONITOR.processingCompleted();
 #endif
 
-            inputDriver->process(&GAMEPAD); // 处理游戏手柄数据，将按键数据映射到xinput协议 形成 report 数据，然后通过 usb 发送出去
+            if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB)
+            {
+                if (inputDriver != nullptr)
+                {
+                    inputDriver->process(&GAMEPAD);
+                }
+            }
+            else
+            {
+                CONNECTION_MANAGER.onReportReady(GAMEPAD.state);
+            }
         }
         else
         {
@@ -122,14 +152,19 @@ void InputState::loop()
 
         lastVirtualPinMask = virtualPinMask;
 
-        // 清除标志，等待下一次SOF
+        // 清除标志，等待下一次定时触发
         ADCManager::getInstance().clearSamplingDone();
     }
 
-    // 处理USB任务
-    tud_task(); // 设备模式任务
-    USB_HOST_MANAGER.process();
-    inputDriver->processAux();
+    if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB)
+    {
+        tud_task();
+        USB_HOST_MANAGER.process();
+        if (inputDriver != nullptr)
+        {
+            inputDriver->processAux();
+        }
+    }
 
 #if HAS_LED == 1
     LEDS_MANAGER.loop(virtualPinMask);

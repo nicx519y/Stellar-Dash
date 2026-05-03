@@ -10,7 +10,6 @@
 #include "drivermanager.hpp"
 #include "board_cfg.h"
 #include <stdio.h>
-#include "adc_btns/adc_manager.hpp"
 #include "latency_monitor.hpp"
 
 static bool usb_mounted;
@@ -49,15 +48,7 @@ void tud_mount_cb(void)
 {
 	usb_mounted = true;
 	usb_suspended = false;
-	// 只有在低延迟模式下才启用SOF回调
-	if (ADCManager::getInstance().getADCMode() == ADC_MODE_LOW_LATENCY)
-	{
-		tud_sof_cb_enable(true);
-	}
-	else
-	{
-		tud_sof_cb_enable(false);
-	}
+	tud_sof_cb_enable(false);
 }
 
 // Invoked when device is unmounted
@@ -82,29 +73,19 @@ void tud_suspend_cb(bool remote_wakeup_en)
 void tud_resume_cb(void)
 {
 	usb_suspended = false;
-	// 只有在低延迟模式下才启用SOF回调
-	if (ADCManager::getInstance().getADCMode() == ADC_MODE_LOW_LATENCY)
-	{
-		tud_sof_cb_enable(true);
-	}
-	else
-	{
-		tud_sof_cb_enable(false);
-	}
+	tud_sof_cb_enable(false);
 }
 
 // Invoked when a new (micro) frame started
 void tud_sof_cb(uint32_t frame_count)
 {
-	// 双重保险：只有在低延迟模式下才执行ADC逻辑
-	if (ADCManager::getInstance().getADCMode() == ADC_MODE_LOW_LATENCY)
-	{
 #if APPLICATION_DEBUG_PRINT == 1
-		LATENCY_MONITOR.sofTriggered();
+	LATENCY_MONITOR.sofTriggered();
 #endif
-		ADCManager::getInstance().triggerSampling();
+	GPDriver* driver = DriverManager::getInstance().getDriver();
+	if (driver != nullptr) {
+		driver->sof_cb(frame_count);
 	}
-	DriverManager::getInstance().getDriver()->sof_cb(frame_count);
 }
 
 // Vendor Controlled XFER occured

@@ -68,6 +68,7 @@ extern DMA_HandleTypeDef hdma_adc1;
 extern DMA_HandleTypeDef hdma_adc2;
 extern DMA_HandleTypeDef hdma_adc3;
 extern DMA_HandleTypeDef hdma_tim4_ch1;
+extern DMA_HandleTypeDef hdma_tim4_ch2;
 extern TIM_HandleTypeDef htim2;
 /* USER CODE BEGIN EV */
 
@@ -381,6 +382,11 @@ void DMA1_Stream2_IRQHandler(void)
   /* USER CODE END DMA1_Stream2_IRQn 1 */
 }
 
+void DMA1_Stream3_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(&hdma_tim4_ch2);
+}
+
 void DMA1_Stream4_IRQHandler(void)
 {
   SPIST7789_DMA_IRQHandler();
@@ -401,7 +407,7 @@ void DMA2_Stream4_IRQHandler(void)
   SPIST7789_DMA_IRQHandler();
 }
 
-void SPI5_IRQHandler(void)
+void SPI1_IRQHandler(void)
 {
   SPIST7789_SPI_IRQHandler();
 }

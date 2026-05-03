@@ -128,57 +128,70 @@
 #define ST7789_HEIGHT                           172u
 #define ST7789_DEFAULT_FPS                      12u
 
-#define ST7789_SCL_PORT                         GPIOK
-#define ST7789_SCL_PIN                          GPIO_PIN_0
+#define ST7789_SCL_PORT                         GPIOG
+#define ST7789_SCL_PIN                          GPIO_PIN_11
 
-#define ST7789_SDA_PORT                         GPIOJ
-#define ST7789_SDA_PIN                          GPIO_PIN_10
+#define ST7789_SDA_PORT                         GPIOD
+#define ST7789_SDA_PIN                          GPIO_PIN_7
 
-#define ST7789_SPI_MOSI_AF                      GPIO_AF5_SPI5
+#define ST7789_SPI_MOSI_AF                      GPIO_AF5_SPI1
 
-#define ST7789_CS_PORT                          GPIOH
-#define ST7789_CS_PIN                           GPIO_PIN_5
+#define ST7789_CS_PORT                          GPIOG
+#define ST7789_CS_PIN                           GPIO_PIN_10
 
 #define ST7789_DC_PORT                          GPIOJ
 #define ST7789_DC_PIN                           GPIO_PIN_11
 
-#define ST7789_BL_PORT                          GPIOH
-#define ST7789_BL_PIN                           GPIO_PIN_6
+#define ST7789_BL_PORT                          GPIOA
+#define ST7789_BL_PIN                           GPIO_PIN_1
 
-#define ST7789_SPI_INSTANCE                     SPI5
+#define ST7789_SPI_INSTANCE                     SPI1
 #define ST7789_SPI_DMA_STREAM                   DMA2_Stream2
-#define ST7789_SPI_DMA_REQUEST                  DMA_REQUEST_SPI5_TX
+#define ST7789_SPI_DMA_REQUEST                  DMA_REQUEST_SPI1_TX
 #define ST7789_SPI_DMA_IRQn                     DMA2_Stream2_IRQn
 
 #define ST7789_BL_ON_STATE                      GPIO_PIN_RESET
 #define ST7789_BL_OFF_STATE                     GPIO_PIN_SET
 
-#define SPIST7789_BL_TIM_INSTANCE               TIM12
-#define SPIST7789_BL_TIM_CHANNEL                TIM_CHANNEL_1
-#define SPIST7789_BL_TIM_AF                     GPIO_AF2_TIM12
+#define SPIST7789_BL_TIM_INSTANCE               TIM2
+#define SPIST7789_BL_TIM_CHANNEL                TIM_CHANNEL_2
+#define SPIST7789_BL_TIM_AF                     GPIO_AF1_TIM2
 
 #define SPIST7789_DMA_CHUNK_BYTES               1024u
 #define SPIST7789_Y_OFFSET                      34u
 
 /* ================= WS2812B LEDs (TIM4 PWM + DMA) ================= */
-#define WS2812B_ENABLE_SWITCH_PORT              GPIOC
-#define WS2812B_ENABLE_SWITCH_PIN               GPIO_PIN_12
+#define WS2812B_KEYS_ENABLE_SWITCH_PORT         GPIOC
+#define WS2812B_KEYS_ENABLE_SWITCH_PIN          GPIO_PIN_12
+
+#define WS2812B_AMBIENT_ENABLE_SWITCH_PORT      GPIOC
+#define WS2812B_AMBIENT_ENABLE_SWITCH_PIN       GPIO_PIN_11
 
 /* TIM4 PWM output for WS2812B data stream */
 #define WS2812B_TIM_INSTANCE                    TIM4
-#define WS2812B_TIM_CHANNEL                     TIM_CHANNEL_1
 #define WS2812B_TIM_PRESCALER                   0u
 #define WS2812B_TIM_PERIOD                      299u
 
-#define WS2812B_TIM_GPIO_PORT                   GPIOB
-#define WS2812B_TIM_GPIO_PIN                    GPIO_PIN_6
 #define WS2812B_TIM_GPIO_AF                     GPIO_AF2_TIM4
 
+#define WS2812B_KEYS_TIM_CHANNEL                TIM_CHANNEL_1
+#define WS2812B_KEYS_TIM_GPIO_PORT              GPIOB
+#define WS2812B_KEYS_TIM_GPIO_PIN               GPIO_PIN_6
+
+#define WS2812B_AMBIENT_TIM_CHANNEL             TIM_CHANNEL_2
+#define WS2812B_AMBIENT_TIM_GPIO_PORT           GPIOB
+#define WS2812B_AMBIENT_TIM_GPIO_PIN            GPIO_PIN_7
+
 /* TIM4_CH1 DMA configuration */
-#define WS2812B_TIM_DMA_INSTANCE                DMA1_Stream2
-#define WS2812B_TIM_DMA_REQUEST                 DMA_REQUEST_TIM4_CH1
-#define WS2812B_TIM_DMA_IRQn                    DMA1_Stream2_IRQn
-#define WS2812B_TIM_DMA_IRQn_PRIO               3u
+#define WS2812B_KEYS_TIM_DMA_INSTANCE           DMA1_Stream2
+#define WS2812B_KEYS_TIM_DMA_REQUEST            DMA_REQUEST_TIM4_CH1
+#define WS2812B_KEYS_TIM_DMA_IRQn               DMA1_Stream2_IRQn
+#define WS2812B_KEYS_TIM_DMA_IRQn_PRIO          3u
+
+#define WS2812B_AMBIENT_TIM_DMA_INSTANCE        DMA1_Stream3
+#define WS2812B_AMBIENT_TIM_DMA_REQUEST         DMA_REQUEST_TIM4_CH2
+#define WS2812B_AMBIENT_TIM_DMA_IRQn            DMA1_Stream3_IRQn
+#define WS2812B_AMBIENT_TIM_DMA_IRQn_PRIO       3u
 
 /* Additional DMA IRQs used by firmware */
 #define BOARD_DMA_STREAM4_IRQn                  DMA1_Stream4_IRQn
@@ -227,19 +240,43 @@
 #define USB_HOST_HS_IRQn                        OTG_HS_IRQn
 #define USB_HOST_HS_IRQn_PRIO                   2u
 
-/* ================= Misc Board Detect Pins ================= */
-#define BOARD_AMBIENT_LED_DETECT_PORT           GPIOB
-#define BOARD_AMBIENT_LED_DETECT_PIN            GPIO_PIN_7
-#define BOARD_AMBIENT_LED_DETECT_PIN_NUM        7u
+/* ================ POWER MANAGER ===============
+*/
+#define VBUS_STATUS_PORT                        GPIOG
+#define VBUS_STATUS_PIN                         GPIO_PIN_8
 
+#define BAT_STATUS_PORT                         GPIOB
+#define BAT_STATUS_PIN                          GPIO_PIN_8
+
+#define BAT_H1_CHANNEL_CTRL_PORT                GPIOH
+#define BAT_H1_CHANNEL_CTRL_PIN                 GPIO_PIN_14
+
+#define BAT_H2_CHANNEL_CTRL_PORT                GPIOH
+#define BAT_H2_CHANNEL_CTRL_PIN                 GPIO_PIN_15
+
+#define VBAT_SENSE_ADC_PORT                     GPIOA
+#define VBAT_SENSE_ADC_PIN                      GPIO_PIN_0
+#define VBAT_SENSE_ADC_CHANNEL                  ADC_CHANNEL_16
+
+#define VBAT_H1_SENSE_CTRL_PORT                 GPIOI
+#define VBAT_H1_SENSE_CTRL_PIN                  GPIO_PIN_1
+
+#define VBAT_BAT_SENSE_CTRL_PORT                GPIOA
+#define VBAT_BAT_SENSE_CTRL_PIN                 GPIO_PIN_15
+
+#define VBAT_H2_SENSE_CTRL_PORT                 GPIOI
+#define VBAT_H2_SENSE_CTRL_PIN                  GPIO_PIN_0
+
+
+// web config
 #define WEBCONFIG_IP_FIRST                  192
 #define WEBCONFIG_IP_SECOND                 168
 #define WEBCONFIG_IP_THIRD                  7
 #define WEBCONFIG_IP_FOURTH                 1
 #define WEBCONFIG_DOMAIN_NAME               "st-dash.usb"
 
-#define CONFIG_VERSION                      (uint32_t)0x00001A  //配置版本 三位版本号 0x aa bb cc
-#define ADC_MAPPING_VERSION                 (uint32_t)0x000001  //ADC值映射表版本
+#define CONFIG_VERSION                      (uint32_t)0x00001C  //配置版本 三位版本号 0x aa bb cc
+#define ADC_MAPPING_VERSION                 (uint32_t)0x000002  //ADC值映射表版本
 #define ADC_COMMON_VERSION                  (uint32_t)0x000001
 
 // 双槽地址偏移定义（相对于槽基地址的偏移）
@@ -313,6 +350,7 @@ static const ADC_PinConfig ADC3_PIN_MAP[] = {
     { GPIOH, GPIO_PIN_2,  ADC_CHANNEL_13, ADC_REGULAR_RANK_3, 13 },
     { GPIOH, GPIO_PIN_3,  ADC_CHANNEL_14, ADC_REGULAR_RANK_4, 10 },
     { GPIOH, GPIO_PIN_4,  ADC_CHANNEL_15, ADC_REGULAR_RANK_5, 11 },
+    { GPIOH, GPIO_PIN_5,  ADC_CHANNEL_16, ADC_REGULAR_RANK_6, 17 },
 };
 
 #define ADC1_PIN_MAP_SIZE (sizeof(ADC1_PIN_MAP)/sizeof(ADC_PinConfig))
@@ -335,19 +373,19 @@ struct gpio_pin_def {
 // GPIO按钮配置宏定义
 #define GPIO_BTN1_PORT              GPIOC
 #define GPIO_BTN1_PIN               GPIO_PIN_6
-#define GPIO_BTN1_VIRTUAL_PIN       17
+#define GPIO_BTN1_VIRTUAL_PIN       18
 
 #define GPIO_BTN2_PORT              GPIOC
 #define GPIO_BTN2_PIN               GPIO_PIN_7
-#define GPIO_BTN2_VIRTUAL_PIN       18
+#define GPIO_BTN2_VIRTUAL_PIN       19
 
 #define GPIO_BTN3_PORT              GPIOC
 #define GPIO_BTN3_PIN               GPIO_PIN_8
-#define GPIO_BTN3_VIRTUAL_PIN       19
+#define GPIO_BTN3_VIRTUAL_PIN       20
 
 #define GPIO_BTN4_PORT              GPIOC
 #define GPIO_BTN4_PIN               GPIO_PIN_9
-#define GPIO_BTN4_VIRTUAL_PIN       20
+#define GPIO_BTN4_VIRTUAL_PIN       21
 
 
 // 动态地址获取函数声明（需要在相应的.c文件中实现）
@@ -431,23 +469,24 @@ typedef struct Position {
     { 73.49f,   63.76f,   26.00f },        /* 4 */ \
     { 99.05f,   59.67f,   26.00f },        /* 5 */ \
     { 122.19f,  63.76f,   26.00f },       /* 6 */ \
-    { 141.44f,  77.23f,   26.00f },       /* 7 */ \
+    { 141.50f,  77.34f,   26.00f },       /* 7 */ \
     { 131.19f,  42.04f,   26.00f },       /* 8 */ \
     { 165.45f,  87.10f,   26.00f },       /* 9 */ \
     { 163.37f,  62.80f,   26.00f },       /* 10 */ \
-    { 185.51f,  73.05f,   26.00f },       /* 11 */ \
-    { 183.43f,  48.75f,   26.00f },       /* 12 */ \
-    { 209.01f,  66.10f,   26.00f },       /* 13 */ \
-    { 206.93f,  41.80f,   26.00f },       /* 14 */ \
-    { 233.44f,  67.98f,   26.00f },       /* 15 */ \
-    { 231.36f,  43.69f,   26.00f }       /* 16 */ 
+    { 161.29f,  38.50f,   26.00f },       /* 11 */ \
+    { 185.51f,  73.05f,   26.00f },       /* 12 */ \
+    { 183.43f,  48.75f,   26.00f },       /* 13 */ \
+    { 209.01f,  66.10f,   26.00f },       /* 14 */ \
+    { 206.93f,  41.80f,   26.00f },       /* 15 */ \
+    { 233.44f,  67.98f,   26.00f },       /* 16 */ \
+    { 231.36f,  43.69f,   26.00f }       /* 17 */ \
     
 
 #define HITBOX_GPIO_BUTTON_POS_DATA \
-    { 84.49f,   15.49f,   11.50f },        /* 17 */ \
-    { 62.49f,   15.49f,   11.50f },        /* 18 */ \
-    { 40.49f,   15.49f,   11.50f },        /* 19 */ \
-    { 18.48f,   15.49f,   11.50f }        /* 20 */
+    { 84.49f,   15.49f,   11.50f },        /* 18 */ \
+    { 62.49f,   15.49f,   11.50f },        /* 19 */ \
+    { 40.49f,   15.49f,   11.50f },        /* 20 */ \
+    { 18.48f,   15.49f,   11.50f }        /* 21 */
 
 #define HITBOX_AMBIENT_POS_DATA \
     { 35.10f, 35.10f, 5.40f },         /* 22 */ \
@@ -534,8 +573,8 @@ typedef struct {
 } DefaultHotkeyConfig;
 
 static const DefaultHotkeyConfig DEFAULT_HOTKEY_LIST[NUM_GAMEPAD_HOTKEYS] = {
-    { true,  GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG,           true,  19 }, // 0
-    { true,  GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION,         true,  18 }, // 1
+    { true,  GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG,           true,  20 }, // 0
+    { true,  GamepadHotkey::HOTKEY_INPUT_MODE_CALIBRATION,         true,  19 }, // 1
     { false, GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_NEXT,          false, 15 }, // 2
     { false, GamepadHotkey::HOTKEY_LEDS_EFFECTSTYLE_PREV,          false, 16 }, // 3
     { false, GamepadHotkey::HOTKEY_LEDS_BRIGHTNESS_UP,             false, 14 }, // 4

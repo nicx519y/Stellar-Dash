@@ -7,6 +7,7 @@ ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
         case 0:
         case 1:
         case 2:
+        case 3:
         case 11:
         case 5:
         case 7:
@@ -17,7 +18,6 @@ ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
             return SCREEN_DETAIL_SLIDER;
         case 9:
         case 10:
-        case 3:
             return SCREEN_DETAIL_INFO;
         default:
             return SCREEN_DETAIL_NONE;

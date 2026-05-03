@@ -23,7 +23,7 @@
 #include "bsp/board_api.h"
 #include "system_logger.h"
 
-bool g_has_led_around = false;
+bool g_has_led_around = true;
 
 #if SYSTEM_CHECK_ENABLE == 1
 /* 测试各个段 */

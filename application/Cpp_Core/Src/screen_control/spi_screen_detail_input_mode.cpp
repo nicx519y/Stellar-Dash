@@ -39,6 +39,9 @@ void ScreenDetailInputMode_Render(ST7789_Handle* lcd, uint8_t index, const Scree
 }
 
 void ScreenDetailInputMode_OnConfirm(uint8_t index) {
+    if (STORAGE_MANAGER.getConnectionMode() == CONNECTION_MODE_RF24G) {
+        index = 0;
+    }
     if (index < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0]))) {
         STORAGE_MANAGER.setInputMode(kInputModes[index]);
         STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);

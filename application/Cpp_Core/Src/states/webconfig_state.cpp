@@ -38,7 +38,8 @@ void WebConfigState::setup() {
 
     // 初始化LED管理器
     LEDS_MANAGER.setup();
-    WS2812B_SetAllLEDBrightness(0); // 设置所有LED亮度默认为0
+    WS2812B_SetAllLEDBrightnessStrip(WS2812B_STRIP_KEYS, 0);
+    WS2812B_SetAllLEDBrightnessStrip(WS2812B_STRIP_AMBIENT, 0);
 
     isRunning = true;
     workTime = MICROS_TIMER.micros();  // 微秒级

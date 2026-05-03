@@ -28,6 +28,8 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetGlobalConfig(con
     // 使用ConfigUtils获取输入模式字符串
     const char* modeStr = ConfigUtils::getInputModeString(config.inputMode);
     cJSON_AddStringToObject(globalConfigJSON, "inputMode", modeStr);
+    cJSON_AddStringToObject(globalConfigJSON, "connectionMode", ConfigUtils::getConnectionModeString(config.connectionMode));
+    cJSON_AddStringToObject(globalConfigJSON, "wirelessReportRate", ConfigUtils::getWirelessReportRateString(config.wirelessReportRate));
     
     // 添加自动校准模式状态
     cJSON_AddBoolToObject(globalConfigJSON, "autoCalibrationEnabled", config.autoCalibrationEnabled);
@@ -63,6 +65,20 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateGlobalConfig(
         if (inputModeItem && cJSON_IsString(inputModeItem)) {
             std::string modeStr = inputModeItem->valuestring;
             config.inputMode = ConfigUtils::getInputModeFromString(modeStr.c_str());
+        }
+
+        cJSON* connectionModeItem = cJSON_GetObjectItem(globalConfig, "connectionMode");
+        if (connectionModeItem && cJSON_IsString(connectionModeItem)) {
+            config.connectionMode = ConfigUtils::getConnectionModeFromString(connectionModeItem->valuestring);
+        }
+
+        cJSON* reportRateItem = cJSON_GetObjectItem(globalConfig, "wirelessReportRate");
+        if (reportRateItem && cJSON_IsString(reportRateItem)) {
+            config.wirelessReportRate = ConfigUtils::getWirelessReportRateFromString(reportRateItem->valuestring);
+        }
+
+        if (config.connectionMode == CONNECTION_MODE_RF24G) {
+            config.inputMode = INPUT_MODE_XINPUT;
         }
         
         // 更新自动校准模式
@@ -178,6 +194,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetScreenControlCon
     cJSON_AddBoolToObject(featuresJSON, "inputModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_INPUT_MODE_SWITCH) != 0);
     cJSON_AddBoolToObject(featuresJSON, "profilesSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_PROFILES_SWITCH) != 0);
     cJSON_AddBoolToObject(featuresJSON, "socdModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_SOCD_MODE_SWITCH) != 0);
+    cJSON_AddBoolToObject(featuresJSON, "connectionModeSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH) != 0);
     cJSON_AddBoolToObject(featuresJSON, "buttonsPerformanceQuickSet", (config.screenControl.featuresMask & SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET) != 0);
     cJSON_AddBoolToObject(featuresJSON, "ledBrightnessAdjust", (config.screenControl.featuresMask & SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST) != 0);
     cJSON_AddBoolToObject(featuresJSON, "ledEffectSwitch", (config.screenControl.featuresMask & SCREEN_FEATURE_LED_EFFECT_SWITCH) != 0);
@@ -193,6 +210,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetScreenControlCon
         {0, "inputModeSwitch"},
         {1, "profilesSwitch"},
         {2, "socdModeSwitch"},
+        {3, "connectionModeSwitch"},
         {11, "buttonsPerformanceQuickSet"},
         {4, "ledBrightnessAdjust"},
         {5, "ledEffectSwitch"},
@@ -269,6 +287,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateScreenControl
             {"inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
             {"profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
             {"socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
+            {"connectionModeSwitch", SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH},
             {"buttonsPerformanceQuickSet", SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET},
             {"ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
             {"ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
@@ -293,6 +312,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateScreenControl
             {"inputModeSwitch", 0},
             {"profilesSwitch", 1},
             {"socdModeSwitch", 2},
+            {"connectionModeSwitch", 3},
             {"buttonsPerformanceQuickSet", 11},
             {"ledBrightnessAdjust", 4},
             {"ledEffectSwitch", 5},
@@ -373,6 +393,8 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleExportAllConfig(con
         cJSON* globalConfigJSON = cJSON_CreateObject();
         const char* modeStr = ConfigUtils::getInputModeString(config.inputMode);
         cJSON_AddStringToObject(globalConfigJSON, "inputMode", modeStr);
+        cJSON_AddStringToObject(globalConfigJSON, "connectionMode", ConfigUtils::getConnectionModeString(config.connectionMode));
+        cJSON_AddStringToObject(globalConfigJSON, "wirelessReportRate", ConfigUtils::getWirelessReportRateString(config.wirelessReportRate));
         cJSON_AddBoolToObject(globalConfigJSON, "autoCalibrationEnabled", config.autoCalibrationEnabled);
         cJSON_AddStringToObject(globalConfigJSON, "defaultProfileId", config.defaultProfileId);
         sendPart("global", globalConfigJSON);
@@ -454,6 +476,15 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(co
         cJSON* item;
         if ((item = cJSON_GetObjectItem(globalConfigJSON, "inputMode")) && cJSON_IsString(item)) {
             config.inputMode = ConfigUtils::getInputModeFromString(item->valuestring);
+        }
+        if ((item = cJSON_GetObjectItem(globalConfigJSON, "connectionMode")) && cJSON_IsString(item)) {
+            config.connectionMode = ConfigUtils::getConnectionModeFromString(item->valuestring);
+        }
+        if ((item = cJSON_GetObjectItem(globalConfigJSON, "wirelessReportRate")) && cJSON_IsString(item)) {
+            config.wirelessReportRate = ConfigUtils::getWirelessReportRateFromString(item->valuestring);
+        }
+        if (config.connectionMode == CONNECTION_MODE_RF24G) {
+            config.inputMode = INPUT_MODE_XINPUT;
         }
         if ((item = cJSON_GetObjectItem(globalConfigJSON, "defaultProfileId")) && cJSON_IsString(item)) {
              strncpy(config.defaultProfileId, item->valuestring, sizeof(config.defaultProfileId) - 1);
@@ -537,6 +568,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(co
                 {"inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
                 {"profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
                 {"socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
+                {"connectionModeSwitch", SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH},
                 {"buttonsPerformanceQuickSet", SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET},
                 {"ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
                 {"ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
@@ -560,6 +592,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(co
                 {"inputModeSwitch", 0},
                 {"profilesSwitch", 1},
                 {"socdModeSwitch", 2},
+                {"connectionModeSwitch", 3},
                 {"buttonsPerformanceQuickSet", 11},
                 {"ledBrightnessAdjust", 4},
                 {"ledEffectSwitch", 5},

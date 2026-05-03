@@ -25,24 +25,6 @@ void board_init(void)
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE(); // USB ULPI NXT
 
-    // Detect ambient LEDs (board variant detect pin), input with pull-down
-    BOARD_AMBIENT_LED_DETECT_PORT->MODER &= ~(3U << (BOARD_AMBIENT_LED_DETECT_PIN_NUM * 2u));
-    BOARD_AMBIENT_LED_DETECT_PORT->MODER |= (0U << (BOARD_AMBIENT_LED_DETECT_PIN_NUM * 2u));
-    BOARD_AMBIENT_LED_DETECT_PORT->PUPDR &= ~(3U << (BOARD_AMBIENT_LED_DETECT_PIN_NUM * 2u));
-    BOARD_AMBIENT_LED_DETECT_PORT->PUPDR |= (2U << (BOARD_AMBIENT_LED_DETECT_PIN_NUM * 2u));
-
-    // 稍微延时确保电平稳定（可选，但通常读取寄存器很快）
-    __DSB();
-
-    // 读取电平
-    if ((BOARD_AMBIENT_LED_DETECT_PORT->IDR & (1U << BOARD_AMBIENT_LED_DETECT_PIN_NUM)) != 0) {
-        g_has_led_around = true;
-    } else {
-        g_has_led_around = false;
-    }
-    
-    APP_DBG("board init: g_has_led_around: %d", g_has_led_around);
-
     __HAL_RCC_GPIOC_CLK_ENABLE(); // USB ULPI NXT
     __HAL_RCC_GPIOD_CLK_ENABLE();
     __HAL_RCC_GPIOE_CLK_ENABLE();
@@ -115,7 +97,8 @@ void board_init(void)
     APP_DBG("board init: MX_ADC3_Init success.");
 
 #ifdef HAS_LED
-    WS2812B_Init();
+    WS2812B_InitStrip(WS2812B_STRIP_KEYS);
+    WS2812B_InitStrip(WS2812B_STRIP_AMBIENT);
     APP_DBG("board init: WS2812B_Init success.");
 #endif // HAS_LED
 }

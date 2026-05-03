@@ -13,6 +13,7 @@ import { HotkeySettingContent } from "./hotkey-setting-content";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { InputModeSettingContent } from "./input-mode-content";
+import { ConnectionModeSettingContent } from "./connection-mode-content";
 import { ScreenControlSettingContent } from "./screen-control-setting-content";
 import { openConfirm } from "@/components/dialog-confirm";
 import { useNavigationBlocker } from '@/hooks/use-navigation-blocker';
@@ -241,6 +242,7 @@ export function GlobalSettingContent() {
             disabled={calibrationActive}
         >
             <SideContent>
+                <ConnectionModeSettingContent disabled={calibrationActive} />
                 <InputModeSettingContent disabled={calibrationActive} />
             </SideContent>
 

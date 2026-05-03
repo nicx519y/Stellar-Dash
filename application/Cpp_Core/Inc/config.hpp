@@ -154,6 +154,9 @@ typedef struct
     uint32_t version;
     BootMode bootMode;
     InputMode inputMode;
+    ConnectionMode connectionMode;
+    WirelessReportRate wirelessReportRate;
+    uint8_t reservedConnection0;
     char defaultProfileId[16];
     uint8_t numProfilesMax;
     GamepadProfile profiles[NUM_PROFILES];
@@ -179,6 +182,11 @@ namespace ConfigUtils {
     // Mappings helpers
     const char* getInputModeString(InputMode mode);
     InputMode getInputModeFromString(const char* str);
+    const char* getConnectionModeString(ConnectionMode mode);
+    ConnectionMode getConnectionModeFromString(const char* str);
+    const char* getWirelessReportRateString(WirelessReportRate rate);
+    WirelessReportRate getWirelessReportRateFromString(const char* str);
+    uint16_t getWirelessReportRateHz(WirelessReportRate rate);
     const char* getGamepadHotkeyString(GamepadHotkey action);
     GamepadHotkey getGamepadHotkeyFromString(const char* str);
 };

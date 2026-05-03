@@ -35,6 +35,34 @@ static const std::map<std::string, InputMode> STRING_TO_INPUT_MODE = [](){
     return reverse_map;
 }();
 
+static const std::map<ConnectionMode, const char*> CONNECTION_MODE_STRINGS = {
+    {ConnectionMode::CONNECTION_MODE_USB, "USB"},
+    {ConnectionMode::CONNECTION_MODE_RF24G, "RF24G"},
+};
+
+static const std::map<std::string, ConnectionMode> STRING_TO_CONNECTION_MODE = [](){
+    std::map<std::string, ConnectionMode> reverse_map;
+    for(const auto& pair : CONNECTION_MODE_STRINGS) {
+        reverse_map[pair.second] = pair.first;
+    }
+    return reverse_map;
+}();
+
+static const std::map<WirelessReportRate, const char*> WIRELESS_RATE_STRINGS = {
+    {WirelessReportRate::RFM_RATE_1K, "1K"},
+    {WirelessReportRate::RFM_RATE_2K, "2K"},
+    {WirelessReportRate::RFM_RATE_4K, "4K"},
+    {WirelessReportRate::RFM_RATE_8K, "8K"},
+};
+
+static const std::map<std::string, WirelessReportRate> STRING_TO_WIRELESS_RATE = [](){
+    std::map<std::string, WirelessReportRate> reverse_map;
+    for(const auto& pair : WIRELESS_RATE_STRINGS) {
+        reverse_map[pair.second] = pair.first;
+    }
+    return reverse_map;
+}();
+
 static const std::map<std::string, GamepadHotkey> STRING_TO_GAMEPAD_HOTKEY = {
     {"WebConfigMode", GamepadHotkey::HOTKEY_INPUT_MODE_WEBCONFIG},
     {"NSwitchMode", GamepadHotkey::HOTKEY_INPUT_MODE_SWITCH},
@@ -79,6 +107,44 @@ InputMode getInputModeFromString(const char* str) {
         return it->second;
     }
     return InputMode::INPUT_MODE_XINPUT;
+}
+
+const char* getConnectionModeString(ConnectionMode mode) {
+    auto it = CONNECTION_MODE_STRINGS.find(mode);
+    if (it != CONNECTION_MODE_STRINGS.end()) {
+        return it->second;
+    }
+    return "USB";
+}
+
+ConnectionMode getConnectionModeFromString(const char* str) {
+    if (!str) return ConnectionMode::CONNECTION_MODE_USB;
+    auto it = STRING_TO_CONNECTION_MODE.find(str);
+    if (it != STRING_TO_CONNECTION_MODE.end()) {
+        return it->second;
+    }
+    return ConnectionMode::CONNECTION_MODE_USB;
+}
+
+const char* getWirelessReportRateString(WirelessReportRate rate) {
+    auto it = WIRELESS_RATE_STRINGS.find(rate);
+    if (it != WIRELESS_RATE_STRINGS.end()) {
+        return it->second;
+    }
+    return "1K";
+}
+
+WirelessReportRate getWirelessReportRateFromString(const char* str) {
+    if (!str) return WirelessReportRate::RFM_RATE_1K;
+    auto it = STRING_TO_WIRELESS_RATE.find(str);
+    if (it != STRING_TO_WIRELESS_RATE.end()) {
+        return it->second;
+    }
+    return WirelessReportRate::RFM_RATE_1K;
+}
+
+uint16_t getWirelessReportRateHz(WirelessReportRate rate) {
+    return static_cast<uint16_t>(rate);
 }
 
 const char* getGamepadHotkeyString(GamepadHotkey action) {
@@ -163,6 +229,7 @@ cJSON* buildScreenControlConfigJSON(Config& config) {
         {0, "inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
         {1, "profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
         {2, "socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
+        {3, "connectionModeSwitch", SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH},
         {11, "buttonsPerformanceQuickSet", SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET},
         {4, "ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
         {5, "ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
@@ -201,6 +268,8 @@ cJSON* toJSON(Config& config) {
     // 1. 全局配置
     cJSON* globalConfigJSON = cJSON_CreateObject();
     cJSON_AddStringToObject(globalConfigJSON, "inputMode", getInputModeString(config.inputMode));
+    cJSON_AddStringToObject(globalConfigJSON, "connectionMode", getConnectionModeString(config.connectionMode));
+    cJSON_AddStringToObject(globalConfigJSON, "wirelessReportRate", getWirelessReportRateString(config.wirelessReportRate));
     cJSON_AddStringToObject(globalConfigJSON, "defaultProfileId", config.defaultProfileId);
     
     cJSON_AddItemToObject(exportJSON, "globalConfig", globalConfigJSON);
@@ -236,6 +305,20 @@ bool fromJSON(Config& config, cJSON* json) {
         cJSON* inputModeItem = cJSON_GetObjectItem(globalConfig, "inputMode");
         if (inputModeItem && cJSON_IsString(inputModeItem)) {
             config.inputMode = getInputModeFromString(inputModeItem->valuestring);
+        }
+
+        cJSON* connectionModeItem = cJSON_GetObjectItem(globalConfig, "connectionMode");
+        if (connectionModeItem && cJSON_IsString(connectionModeItem)) {
+            config.connectionMode = getConnectionModeFromString(connectionModeItem->valuestring);
+        }
+
+        cJSON* reportRateItem = cJSON_GetObjectItem(globalConfig, "wirelessReportRate");
+        if (reportRateItem && cJSON_IsString(reportRateItem)) {
+            config.wirelessReportRate = getWirelessReportRateFromString(reportRateItem->valuestring);
+        }
+
+        if (config.connectionMode == CONNECTION_MODE_RF24G) {
+            config.inputMode = INPUT_MODE_XINPUT;
         }
 
         cJSON* defaultProfileId = cJSON_GetObjectItem(globalConfig, "defaultProfileId");
@@ -361,6 +444,7 @@ bool fromJSON(Config& config, cJSON* json) {
                 {"inputModeSwitch", SCREEN_FEATURE_INPUT_MODE_SWITCH},
                 {"profilesSwitch", SCREEN_FEATURE_PROFILES_SWITCH},
                 {"socdModeSwitch", SCREEN_FEATURE_SOCD_MODE_SWITCH},
+                {"connectionModeSwitch", SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH},
                 {"buttonsPerformanceQuickSet", SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET},
                 {"ledBrightnessAdjust", SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST},
                 {"ledEffectSwitch", SCREEN_FEATURE_LED_EFFECT_SWITCH},
@@ -384,6 +468,7 @@ bool fromJSON(Config& config, cJSON* json) {
             {"inputModeSwitch", 0},
             {"profilesSwitch", 1},
             {"socdModeSwitch", 2},
+            {"connectionModeSwitch", 3},
             {"buttonsPerformanceQuickSet", 11},
             {"ledBrightnessAdjust", 4},
             {"ledEffectSwitch", 5},
@@ -469,11 +554,11 @@ void ConfigUtils::makeDefaultProfile(GamepadProfile& profile, const char* id, bo
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R1] = 1 << 16;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L2] = 1 << 13;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R2] = 1 << 15;
-    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S1] = 1 << 18;
-    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S2] = 1 << 17;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S1] = 1 << 19;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_S2] = 1 << 18;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_L3] = 1 << 0;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_R3] = 1 << 2;
-    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A1] = 1 << 19;
+    profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A1] = 1 << 20;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_A2] = 0;
     profile.keysConfig.keyMapping[GameControllerButton::GAME_CONTROLLER_BUTTON_FN] = FN_BUTTON_VIRTUAL_PIN;
 
@@ -541,6 +626,9 @@ bool ConfigUtils::load(Config& config)
         config.version = CONFIG_VERSION;
         config.bootMode = BOOT_MODE_WEB_CONFIG;
         config.inputMode = InputMode::INPUT_MODE_XINPUT;
+        config.connectionMode = ConnectionMode::CONNECTION_MODE_USB;
+        config.wirelessReportRate = WirelessReportRate::RFM_RATE_1K;
+        config.reservedConnection0 = 0;
         strcpy(config.defaultProfileId, "profile-0");
         config.numProfilesMax = NUM_PROFILES;
         config.autoCalibrationEnabled = false; // 默认关闭自动校准
@@ -557,6 +645,7 @@ bool ConfigUtils::load(Config& config)
             SCREEN_FEATURE_INPUT_MODE_SWITCH |
             SCREEN_FEATURE_PROFILES_SWITCH |
             SCREEN_FEATURE_SOCD_MODE_SWITCH |
+            SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH |
             SCREEN_FEATURE_LED_BRIGHTNESS_ADJUST |
             SCREEN_FEATURE_LED_EFFECT_SWITCH |
             SCREEN_FEATURE_AMBIENT_BRIGHTNESS_ADJUST |

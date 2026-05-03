@@ -2,11 +2,8 @@
 #include "adc_btns/adc_manager.hpp"
 #include "board_cfg.h"
 
-// 添加WS2812B驱动头文件
 extern "C" {
 #include "pwm-ws2812b.h"
-// 声明WS2812B内部函数
-void LEDDataToDMABuffer(const uint16_t start, const uint16_t length);
 }
 
 // 移除全局实例定义，改为单例模式
@@ -59,14 +56,14 @@ ADCBtnsError ADCCalibrationManager::startManualCalibration() {
     calibrationActive = true;
     completionCheckExecuted = false; // 重置完成检查标志
 
-    if(WS2812B_GetState() != WS2812B_RUNNING) {
-        WS2812B_Init();
-        WS2812B_Start();
+    if(WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) != WS2812B_RUNNING) {
+        WS2812B_InitStrip(WS2812B_STRIP_KEYS);
+        WS2812B_StartStrip(WS2812B_STRIP_KEYS);
     }
 
-    if(WS2812B_GetState() == WS2812B_RUNNING) {
-        WS2812B_SetAllLEDColor(0, 0, 0);
-        WS2812B_SetAllLEDBrightness(0);
+    if(WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING) {
+        WS2812B_SetAllLEDColorStrip(WS2812B_STRIP_KEYS, 0, 0, 0);
+        WS2812B_SetAllLEDBrightnessStrip(WS2812B_STRIP_KEYS, 0);
     }
 
     // 启动ADC采样
@@ -127,8 +124,8 @@ ADCBtnsError ADCCalibrationManager::stopCalibration() {
     
     
     // 关闭LED
-    if(WS2812B_GetState() == WS2812B_RUNNING) {
-        WS2812B_Stop();
+    if(WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING) {
+        WS2812B_StopStrip(WS2812B_STRIP_KEYS);
     }
 
     APP_DBG("Manual calibration stopped, all LEDs OFF");
@@ -843,9 +840,8 @@ void ADCCalibrationManager::updateAllLEDs() {
     }
     
     // 确保WS2812B状态正确
-    if (WS2812B_GetState() == WS2812B_RUNNING) {
-        // 触发DMA缓冲区更新，使LED显示立即生效
-        LEDDataToDMABuffer(0, NUM_ADC_BUTTONS);
+    if (WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING) {
+        WS2812B_RefreshStrip(WS2812B_STRIP_KEYS, 0, NUM_ADC_BUTTONS);
         
         APP_DBG("All button LEDs updated");
     } else {
