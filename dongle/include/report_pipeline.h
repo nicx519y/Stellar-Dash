@@ -13,5 +13,7 @@ bool report_pipeline_get_latest(xinput_report_t *out_report);
 void report_pipeline_build_neutral(xinput_report_t *out_report);
 uint32_t report_pipeline_last_rx_us(void);
 uint32_t report_pipeline_invalid_count(void);
+uint32_t report_pipeline_rx_count(void);
+uint8_t report_pipeline_latest_seq(void);
 
 #endif /* REPORT_PIPELINE_H */

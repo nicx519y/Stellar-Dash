@@ -14,6 +14,7 @@
 #include "latency_monitor.hpp"
 #include "storagemanager.hpp"
 #include "connection_manager.hpp"
+#include "monitor_telemetry.hpp"
 #include "report_scheduler.hpp"
 
 static void on_default_profile_changed_input_workers(void) {
@@ -123,6 +124,8 @@ void InputState::loop()
         if ((virtualPinMask & FN_BUTTON_VIRTUAL_PIN) == 0)
         {
             GAMEPAD.read(virtualPinMask);
+            const uint32_t reportSeq = MonitorTelemetry_NextSequence();
+            MonitorTelemetry_OnReportReady(reportSeq);
 
 #if APPLICATION_DEBUG_PRINT == 1
             LATENCY_MONITOR.processingCompleted();
@@ -132,12 +135,13 @@ void InputState::loop()
             {
                 if (inputDriver != nullptr)
                 {
+                    MonitorTelemetry_SetPendingUsbSeq(reportSeq);
                     inputDriver->process(&GAMEPAD);
                 }
             }
             else
             {
-                CONNECTION_MANAGER.onReportReady(GAMEPAD.state);
+                CONNECTION_MANAGER.onReportReady(GAMEPAD.state, reportSeq);
             }
         }
         else

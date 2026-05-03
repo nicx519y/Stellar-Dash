@@ -17,7 +17,7 @@ public:
     RFTransport() = default;
     bool begin();
     bool setRate(uint16_t rateHz);
-    bool sendInput(const GamepadState& state);
+    bool sendInput(const GamepadState& state, uint32_t seq);
     RFTransportState getState() const { return state; }
 
 private:
@@ -25,7 +25,6 @@ private:
     static uint8_t encodeDpad(uint8_t dpad);
 
     RFTransportState state = RFTransportState::Disconnected;
-    uint8_t seq = 0;
 };
 
 #endif

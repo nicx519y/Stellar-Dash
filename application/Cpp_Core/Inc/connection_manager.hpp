@@ -25,7 +25,7 @@ public:
 
     void setup(ConnectionMode mode, WirelessReportRate wirelessRate);
     void loop();
-    void onReportReady(const GamepadState& state);
+    void onReportReady(const GamepadState& state, uint32_t seq);
 
     ConnectionMode getMode() const { return mode; }
     ConnectionLinkState getLinkState() const { return linkState; }

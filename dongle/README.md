@@ -13,6 +13,7 @@
 - `src/report_pipeline.c`：无线原始状态 -> XInput 报告映射（最新状态缓存）。
 - `src/rf_link_stub.c`：2.4G 链路抽象桩（广播/握手/绑定/连接事件入口）。
 - `src/usb_hid_stub.c`：USB XInput 设备接口桩。
+- `src/dongle_telemetry.c`：dongle 侧监控旁路帧（低频、非阻塞）。
 - `src/platform_ch585_stub.c`：板级时钟/GPIO/定时器。
 
 ## 2.4G 配对/连接机制设计
@@ -131,10 +132,20 @@
 - `RF_PKT_INPUT_DATA` 完整 payload 透传到 pipeline
 - latest-state 缓存与 `raw_input_state_t -> xinput_report_t` 映射
 - 断链/超时 neutral 报告保护
+- telemetry 旁路队列发送（默认 50Hz），主 XInput 上报优先
 
 待接入（你后续替换）：
 - `rf_link_stub.c` 中真实 2.4G 射频寄存器/中断/FIFO 驱动（当前已具备协议与校验流程，硬件收发仍为弱符号桩）
-- `usb_hid_stub.c` 中真实 XInput 描述符与端点发送逻辑（EP0/IN/OUT）
+- `usb_hid_stub.c` 中真实 XInput/Telemetry 描述符与端点发送逻辑（EP0/IN/OUT）
+
+USB 弱符号硬件对接点（`usb_hid_stub.c`）：
+- `usb_hw_ready()`
+- `usb_hw_can_send_xinput()`
+- `usb_hw_can_send_telemetry()`
+- `usb_hw_send_xinput_report(...)`
+- `usb_hw_send_telemetry_report(...)`
+
+建议策略：XInput 使用高优先级 IN 端点；Telemetry 使用独立低优先级 IN 端点，队列满直接丢弃 telemetry。
 
 ## 协议栈落地说明（当前代码）
 

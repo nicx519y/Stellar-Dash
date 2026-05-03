@@ -20,4 +20,8 @@ server/data/
 temp_package/
 common/__pycache__
 
+connect-monitor/node_modules
+connect-monitor/dist
+
+
 

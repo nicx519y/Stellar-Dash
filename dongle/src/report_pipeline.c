@@ -10,6 +10,8 @@ typedef struct {
     bool has_input;
     uint32_t last_rx_us;
     uint32_t invalid_count;
+    uint32_t rx_count;
+    uint8_t latest_seq;
 } report_pipeline_state_t;
 
 static report_pipeline_state_t s_state;
@@ -146,6 +148,8 @@ void report_pipeline_on_radio_packet(const uint8_t *packet, size_t len)
     map_raw_to_xinput(&s_state.raw, &s_state.xinput);
     s_state.has_input = true;
     s_state.last_rx_us = platform_now_us();
+    s_state.rx_count++;
+    s_state.latest_seq = s_state.raw.seq;
 }
 
 bool report_pipeline_get_latest(xinput_report_t *out_report)
@@ -177,4 +181,14 @@ uint32_t report_pipeline_last_rx_us(void)
 uint32_t report_pipeline_invalid_count(void)
 {
     return s_state.invalid_count;
+}
+
+uint32_t report_pipeline_rx_count(void)
+{
+    return s_state.rx_count;
+}
+
+uint8_t report_pipeline_latest_seq(void)
+{
+    return s_state.latest_seq;
 }

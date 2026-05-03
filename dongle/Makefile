@@ -14,6 +14,7 @@ STARTUP := $(SDK)/SRC/Startup/startup_CH585.S
 
 PROJECT_SRCS := \
 	src/main.c \
+	src/dongle_telemetry.c \
 	src/dongle_fsm.c \
 	src/rf_protocol.c \
 	src/report_pipeline.c \

@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "monitor_telemetry.hpp"
+
 extern "C" bool __attribute__((weak)) RF_Bridge_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint16_t* rxLen) {
     (void)tx;
     (void)txLen;
@@ -75,9 +77,9 @@ bool RFTransport::setRate(uint16_t rateHz) {
     return transferCommand(CMD_SET_RATE, payload, sizeof(payload));
 }
 
-bool RFTransport::sendInput(const GamepadState& gamepad) {
+bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
     uint8_t payload[INPUT_PAYLOAD_LEN] = {0};
-    payload[0] = seq++;
+    payload[0] = static_cast<uint8_t>(seq & 0xFFu);
     payload[1] = 0u;
 
     uint16_t buttons = (uint16_t)(gamepad.buttons & 0xFFFFu);
@@ -101,5 +103,7 @@ bool RFTransport::sendInput(const GamepadState& gamepad) {
     payload[13] = (uint8_t)(ry & 0xFF);
     payload[14] = (uint8_t)((ry >> 8) & 0xFF);
 
-    return transferCommand(CMD_INPUT_DATA, payload, sizeof(payload));
+    bool ok = transferCommand(CMD_INPUT_DATA, payload, sizeof(payload));
+    MonitorTelemetry_OnRfTransfer(seq, CMD_INPUT_DATA, sizeof(payload), ok);
+    return ok;
 }

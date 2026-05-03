@@ -5,7 +5,7 @@ E:/Works/CH585EVT/EVT/EXAM/SRC/StdPeriphDriver/libISP585.a(ISP585.o)
 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memcpy.o)
                               build/src/report_pipeline.o (memcpy)
 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memset.o)
-                              build/src/report_pipeline.o (memset)
+                              build/src/dongle_telemetry.o (memset)
 
 Discarded input sections
 
@@ -22,6 +22,41 @@ Discarded input sections
  .text          0x0000000000000000        0x0 build/src/main.o
  .data          0x0000000000000000        0x0 build/src/main.o
  .bss           0x0000000000000000        0x0 build/src/main.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .group         0x0000000000000000        0xc build/src/dongle_telemetry.o
+ .text          0x0000000000000000        0x0 build/src/dongle_telemetry.o
+ .data          0x0000000000000000        0x0 build/src/dongle_telemetry.o
+ .bss           0x0000000000000000        0x0 build/src/dongle_telemetry.o
+ .debug_macro   0x0000000000000000      0x766 build/src/dongle_telemetry.o
+ .debug_macro   0x0000000000000000       0x22 build/src/dongle_telemetry.o
+ .debug_macro   0x0000000000000000       0x22 build/src/dongle_telemetry.o
+ .debug_macro   0x0000000000000000       0x8e build/src/dongle_telemetry.o
+ .debug_macro   0x0000000000000000       0x51 build/src/dongle_telemetry.o
+ .debug_macro   0x0000000000000000       0xef build/src/dongle_telemetry.o
+ .debug_macro   0x0000000000000000       0x6a build/src/dongle_telemetry.o
+ .debug_macro   0x0000000000000000      0x1df build/src/dongle_telemetry.o
+ .debug_macro   0x0000000000000000      0x174 build/src/dongle_telemetry.o
+ .debug_macro   0x0000000000000000      0x11e build/src/dongle_telemetry.o
  .group         0x0000000000000000        0xc build/src/dongle_fsm.o
  .group         0x0000000000000000        0xc build/src/dongle_fsm.o
  .group         0x0000000000000000        0xc build/src/dongle_fsm.o
@@ -39,8 +74,6 @@ Discarded input sections
                 0x0000000000000000        0xc build/src/dongle_fsm.o
  .text.dongle_fsm_request_unpair
                 0x0000000000000000        0xc build/src/dongle_fsm.o
- .text.dongle_fsm_get_state
-                0x0000000000000000        0xa build/src/dongle_fsm.o
  .debug_macro   0x0000000000000000      0x766 build/src/dongle_fsm.o
  .debug_macro   0x0000000000000000       0x22 build/src/dongle_fsm.o
  .debug_macro   0x0000000000000000       0x22 build/src/dongle_fsm.o
@@ -98,8 +131,6 @@ Discarded input sections
  .text          0x0000000000000000        0x0 build/src/report_pipeline.o
  .data          0x0000000000000000        0x0 build/src/report_pipeline.o
  .bss           0x0000000000000000        0x0 build/src/report_pipeline.o
- .text.report_pipeline_invalid_count
-                0x0000000000000000        0xa build/src/report_pipeline.o
  .debug_macro   0x0000000000000000      0x766 build/src/report_pipeline.o
  .debug_macro   0x0000000000000000       0x22 build/src/report_pipeline.o
  .debug_macro   0x0000000000000000      0x174 build/src/report_pipeline.o
@@ -110,6 +141,18 @@ Discarded input sections
  .debug_macro   0x0000000000000000       0x6a build/src/report_pipeline.o
  .debug_macro   0x0000000000000000      0x1df build/src/report_pipeline.o
  .debug_macro   0x0000000000000000      0x11e build/src/report_pipeline.o
+ .debug_macro   0x0000000000000000       0x58 build/src/report_pipeline.o
+ .debug_macro   0x0000000000000000       0x19 build/src/report_pipeline.o
+ .debug_macro   0x0000000000000000       0x34 build/src/report_pipeline.o
+ .debug_macro   0x0000000000000000       0x34 build/src/report_pipeline.o
+ .debug_macro   0x0000000000000000       0x58 build/src/report_pipeline.o
+ .debug_macro   0x0000000000000000       0x1f build/src/report_pipeline.o
+ .debug_macro   0x0000000000000000       0x43 build/src/report_pipeline.o
+ .debug_macro   0x0000000000000000       0x20 build/src/report_pipeline.o
+ .debug_macro   0x0000000000000000      0x18e build/src/report_pipeline.o
+ .debug_macro   0x0000000000000000      0x330 build/src/report_pipeline.o
+ .debug_macro   0x0000000000000000       0x10 build/src/report_pipeline.o
+ .debug_macro   0x0000000000000000       0x35 build/src/report_pipeline.o
  .group         0x0000000000000000        0xc build/src/rf_link_stub.o
  .group         0x0000000000000000        0xc build/src/rf_link_stub.o
  .group         0x0000000000000000        0xc build/src/rf_link_stub.o
@@ -207,6 +250,7 @@ Discarded input sections
  .debug_macro   0x0000000000000000       0xef build/src/usb_hid_stub.o
  .debug_macro   0x0000000000000000       0x6a build/src/usb_hid_stub.o
  .debug_macro   0x0000000000000000      0x1df build/src/usb_hid_stub.o
+ .debug_macro   0x0000000000000000      0x11e build/src/usb_hid_stub.o
  .debug_macro   0x0000000000000000       0x58 build/src/usb_hid_stub.o
  .debug_macro   0x0000000000000000       0x19 build/src/usb_hid_stub.o
  .debug_macro   0x0000000000000000       0x34 build/src/usb_hid_stub.o
@@ -608,6 +652,7 @@ RAM              0x0000000020000000 0x0000000000020000 xrw
 Linker script and memory map
 
 LOAD build/src/main.o
+LOAD build/src/dongle_telemetry.o
 LOAD build/src/dongle_fsm.o
 LOAD build/src/rf_protocol.o
 LOAD build/src/report_pipeline.o
@@ -729,7 +774,7 @@ LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/compone
                 0x0000000020000548                . = ALIGN (0x4)
                 0x0000000020000548                PROVIDE (_highcode_vma_end = .)
 
-.text           0x000000000000054c     0x1470
+.text           0x000000000000054c     0x1744
                 0x000000000000054c                . = ALIGN (0x4)
  *(SORT_NONE(.handle_reset))
  .handle_reset  0x000000000000054c       0x42 build/sdk/startup_CH585.o
@@ -739,204 +784,260 @@ LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/compone
                 0x000000000000058e                memset
  *(.text.*)
  .text.startup.main
-                0x0000000000000636       0x92 build/src/main.o
+                0x0000000000000636       0xbc build/src/main.o
                 0x0000000000000636                main
+ .text.dongle_telemetry_init
+                0x00000000000006f2       0x1c build/src/dongle_telemetry.o
+                0x00000000000006f2                dongle_telemetry_init
+ .text.dongle_telemetry_on_report_sent
+                0x000000000000070e       0x20 build/src/dongle_telemetry.o
+                0x000000000000070e                dongle_telemetry_on_report_sent
+ .text.dongle_telemetry_tick
+                0x000000000000072e       0x9e build/src/dongle_telemetry.o
+                0x000000000000072e                dongle_telemetry_tick
  .text.led_apply
-                0x00000000000006c8        0x8 build/src/dongle_fsm.o
+                0x00000000000007cc        0x8 build/src/dongle_fsm.o
  .text.enter_state
-                0x00000000000006d0       0xc2 build/src/dongle_fsm.o
+                0x00000000000007d4       0xc2 build/src/dongle_fsm.o
  .text.dongle_fsm_init
-                0x0000000000000792        0xe build/src/dongle_fsm.o
-                0x0000000000000792                dongle_fsm_init
+                0x0000000000000896        0xe build/src/dongle_fsm.o
+                0x0000000000000896                dongle_fsm_init
  .text.dongle_fsm_tick
-                0x00000000000007a0      0x152 build/src/dongle_fsm.o
-                0x00000000000007a0                dongle_fsm_tick
+                0x00000000000008a4      0x152 build/src/dongle_fsm.o
+                0x00000000000008a4                dongle_fsm_tick
  .text.dongle_fsm_allow_report
-                0x00000000000008f2        0xc build/src/dongle_fsm.o
-                0x00000000000008f2                dongle_fsm_allow_report
+                0x00000000000009f6        0xc build/src/dongle_fsm.o
+                0x00000000000009f6                dongle_fsm_allow_report
+ .text.dongle_fsm_get_state
+                0x0000000000000a02        0x6 build/src/dongle_fsm.o
+                0x0000000000000a02                dongle_fsm_get_state
  .text.rf_protocol_encode
-                0x00000000000008fe       0xb0 build/src/rf_protocol.o
-                0x00000000000008fe                rf_protocol_encode
+                0x0000000000000a08       0xb0 build/src/rf_protocol.o
+                0x0000000000000a08                rf_protocol_encode
  .text.rf_protocol_decode
-                0x00000000000009ae       0xb0 build/src/rf_protocol.o
-                0x00000000000009ae                rf_protocol_decode
+                0x0000000000000ab8       0xb0 build/src/rf_protocol.o
+                0x0000000000000ab8                rf_protocol_decode
  .text.report_pipeline_init
-                0x0000000000000a5e        0xc build/src/report_pipeline.o
-                0x0000000000000a5e                report_pipeline_init
+                0x0000000000000b68        0xc build/src/report_pipeline.o
+                0x0000000000000b68                report_pipeline_init
  .text.report_pipeline_on_radio_packet
-                0x0000000000000a6a      0x1ce build/src/report_pipeline.o
-                0x0000000000000a6a                report_pipeline_on_radio_packet
+                0x0000000000000b74      0x1dc build/src/report_pipeline.o
+                0x0000000000000b74                report_pipeline_on_radio_packet
  .text.report_pipeline_get_latest
-                0x0000000000000c38       0x26 build/src/report_pipeline.o
-                0x0000000000000c38                report_pipeline_get_latest
+                0x0000000000000d50       0x26 build/src/report_pipeline.o
+                0x0000000000000d50                report_pipeline_get_latest
  .text.report_pipeline_build_neutral
-                0x0000000000000c5e       0x26 build/src/report_pipeline.o
-                0x0000000000000c5e                report_pipeline_build_neutral
+                0x0000000000000d76       0x28 build/src/report_pipeline.o
+                0x0000000000000d76                report_pipeline_build_neutral
  .text.report_pipeline_last_rx_us
-                0x0000000000000c84        0x6 build/src/report_pipeline.o
-                0x0000000000000c84                report_pipeline_last_rx_us
+                0x0000000000000d9e        0x6 build/src/report_pipeline.o
+                0x0000000000000d9e                report_pipeline_last_rx_us
+ .text.report_pipeline_invalid_count
+                0x0000000000000da4        0x6 build/src/report_pipeline.o
+                0x0000000000000da4                report_pipeline_invalid_count
+ .text.report_pipeline_rx_count
+                0x0000000000000daa        0x6 build/src/report_pipeline.o
+                0x0000000000000daa                report_pipeline_rx_count
+ .text.report_pipeline_latest_seq
+                0x0000000000000db0        0x6 build/src/report_pipeline.o
+                0x0000000000000db0                report_pipeline_latest_seq
  .text.derive_hop_idx
-                0x0000000000000c8a       0x22 build/src/rf_link_stub.o
+                0x0000000000000db6       0x22 build/src/rf_link_stub.o
  .text.set_event
-                0x0000000000000cac        0xc build/src/rf_link_stub.o
+                0x0000000000000dd8        0xc build/src/rf_link_stub.o
  .text.read_u32_le
-                0x0000000000000cb8       0x1e build/src/rf_link_stub.o
+                0x0000000000000de4       0x1e build/src/rf_link_stub.o
  .text.is_packet_from_bonded_peer.part.0
-                0x0000000000000cd6       0x4a build/src/rf_link_stub.o
+                0x0000000000000e02       0x4a build/src/rf_link_stub.o
  .text.rf_hw_set_channel
-                0x0000000000000d20        0x2 build/src/rf_link_stub.o
-                0x0000000000000d20                rf_hw_set_channel
+                0x0000000000000e4c        0x2 build/src/rf_link_stub.o
+                0x0000000000000e4c                rf_hw_set_channel
  .text.apply_channel
-                0x0000000000000d22       0x10 build/src/rf_link_stub.o
+                0x0000000000000e4e       0x10 build/src/rf_link_stub.o
  .text.scan_next_hop_idx
-                0x0000000000000d32       0x32 build/src/rf_link_stub.o
+                0x0000000000000e5e       0x32 build/src/rf_link_stub.o
  .text.rf_hw_set_tx_power
-                0x0000000000000d64        0x2 build/src/rf_link_stub.o
-                0x0000000000000d64                rf_hw_set_tx_power
+                0x0000000000000e90        0x2 build/src/rf_link_stub.o
+                0x0000000000000e90                rf_hw_set_tx_power
  .text.rf_hw_enable_link_guard
-                0x0000000000000d66        0x2 build/src/rf_link_stub.o
-                0x0000000000000d66                rf_hw_enable_link_guard
+                0x0000000000000e92        0x2 build/src/rf_link_stub.o
+                0x0000000000000e92                rf_hw_enable_link_guard
  .text.rf_hw_read_frame
-                0x0000000000000d68        0x4 build/src/rf_link_stub.o
-                0x0000000000000d68                rf_hw_read_frame
+                0x0000000000000e94        0x4 build/src/rf_link_stub.o
+                0x0000000000000e94                rf_hw_read_frame
  .text.rf_hw_send_frame
-                0x0000000000000d6c        0x4 build/src/rf_link_stub.o
-                0x0000000000000d6c                rf_hw_send_frame
+                0x0000000000000e98        0x4 build/src/rf_link_stub.o
+                0x0000000000000e98                rf_hw_send_frame
  .text.send_packet.part.2
-                0x0000000000000d70       0xac build/src/rf_link_stub.o
+                0x0000000000000e9c       0xac build/src/rf_link_stub.o
  .text.rf_hw_bond_load
-                0x0000000000000e1c       0x2a build/src/rf_link_stub.o
-                0x0000000000000e1c                rf_hw_bond_load
+                0x0000000000000f48       0x2a build/src/rf_link_stub.o
+                0x0000000000000f48                rf_hw_bond_load
  .text.rf_hw_bond_store
-                0x0000000000000e46       0x82 build/src/rf_link_stub.o
-                0x0000000000000e46                rf_hw_bond_store
+                0x0000000000000f72       0x82 build/src/rf_link_stub.o
+                0x0000000000000f72                rf_hw_bond_store
  .text.rf_hw_bond_clear
-                0x0000000000000ec8       0x30 build/src/rf_link_stub.o
-                0x0000000000000ec8                rf_hw_bond_clear
+                0x0000000000000ff4       0x30 build/src/rf_link_stub.o
+                0x0000000000000ff4                rf_hw_bond_clear
  .text.rf_link_init
-                0x0000000000000ef8      0x14a build/src/rf_link_stub.o
-                0x0000000000000ef8                rf_link_init
+                0x0000000000001024      0x14a build/src/rf_link_stub.o
+                0x0000000000001024                rf_link_init
  .text.rf_link_is_connected
-                0x0000000000001042        0x6 build/src/rf_link_stub.o
-                0x0000000000001042                rf_link_is_connected
+                0x000000000000116e        0x6 build/src/rf_link_stub.o
+                0x000000000000116e                rf_link_is_connected
  .text.rf_link_has_bond
-                0x0000000000001048        0x6 build/src/rf_link_stub.o
-                0x0000000000001048                rf_link_has_bond
+                0x0000000000001174        0x6 build/src/rf_link_stub.o
+                0x0000000000001174                rf_link_has_bond
  .text.rf_link_clear_bond
-                0x000000000000104e       0x2e build/src/rf_link_stub.o
-                0x000000000000104e                rf_link_clear_bond
+                0x000000000000117a       0x2e build/src/rf_link_stub.o
+                0x000000000000117a                rf_link_clear_bond
  .text.rf_link_poll
-                0x000000000000107c      0x50e build/src/rf_link_stub.o
-                0x000000000000107c                rf_link_poll
+                0x00000000000011a8      0x51a build/src/rf_link_stub.o
+                0x00000000000011a8                rf_link_poll
  .text.rf_link_start_pairing
-                0x000000000000158a       0x28 build/src/rf_link_stub.o
-                0x000000000000158a                rf_link_start_pairing
+                0x00000000000016c2       0x28 build/src/rf_link_stub.o
+                0x00000000000016c2                rf_link_start_pairing
  .text.rf_link_stop_pairing
-                0x00000000000015b2        0x2 build/src/rf_link_stub.o
-                0x00000000000015b2                rf_link_stop_pairing
+                0x00000000000016ea        0x2 build/src/rf_link_stub.o
+                0x00000000000016ea                rf_link_stop_pairing
  .text.rf_link_start_connect
-                0x00000000000015b4       0x3e build/src/rf_link_stub.o
-                0x00000000000015b4                rf_link_start_connect
+                0x00000000000016ec       0x3e build/src/rf_link_stub.o
+                0x00000000000016ec                rf_link_start_connect
  .text.rf_link_stop_connect
-                0x00000000000015f2        0x2 build/src/rf_link_stub.o
-                0x00000000000015f2                rf_link_stop_connect
+                0x000000000000172a        0x2 build/src/rf_link_stub.o
+                0x000000000000172a                rf_link_stop_connect
  .text.rf_link_take_event
-                0x00000000000015f4        0xc build/src/rf_link_stub.o
-                0x00000000000015f4                rf_link_take_event
+                0x000000000000172c        0xc build/src/rf_link_stub.o
+                0x000000000000172c                rf_link_take_event
+ .text.usb_hw_ready
+                0x0000000000001738        0x4 build/src/usb_hid_stub.o
+                0x0000000000001738                usb_hw_ready
+ .text.usb_hw_can_send_xinput
+                0x000000000000173c        0x4 build/src/usb_hid_stub.o
+                0x000000000000173c                usb_hw_can_send_xinput
+ .text.usb_hw_can_send_telemetry
+                0x0000000000001740        0x4 build/src/usb_hid_stub.o
+                0x0000000000001740                usb_hw_can_send_telemetry
+ .text.usb_hw_send_xinput_report
+                0x0000000000001744        0x4 build/src/usb_hid_stub.o
+                0x0000000000001744                usb_hw_send_xinput_report
+ .text.usb_hw_send_telemetry_report
+                0x0000000000001748        0x4 build/src/usb_hid_stub.o
+                0x0000000000001748                usb_hw_send_telemetry_report
  .text.usb_hid_init
-                0x0000000000001600       0x26 build/src/usb_hid_stub.o
-                0x0000000000001600                usb_hid_init
+                0x000000000000174c       0x3a build/src/usb_hid_stub.o
+                0x000000000000174c                usb_hid_init
+ .text.usb_hid_poll
+                0x0000000000001786       0x82 build/src/usb_hid_stub.o
+                0x0000000000001786                usb_hid_poll
  .text.usb_hid_ready
-                0x0000000000001626        0x6 build/src/usb_hid_stub.o
-                0x0000000000001626                usb_hid_ready
+                0x0000000000001808       0x1a build/src/usb_hid_stub.o
+                0x0000000000001808                usb_hid_ready
  .text.usb_hid_can_send
-                0x000000000000162c        0x4 build/src/usb_hid_stub.o
-                0x000000000000162c                usb_hid_can_send
+                0x0000000000001822       0x22 build/src/usb_hid_stub.o
+                0x0000000000001822                usb_hid_can_send
  .text.usb_hid_try_send_report
-                0x0000000000001630       0x1c build/src/usb_hid_stub.o
-                0x0000000000001630                usb_hid_try_send_report
+                0x0000000000001844       0x38 build/src/usb_hid_stub.o
+                0x0000000000001844                usb_hid_try_send_report
+ .text.usb_hid_try_send_telemetry
+                0x000000000000187c       0x9a build/src/usb_hid_stub.o
+                0x000000000000187c                usb_hid_try_send_telemetry
+ .text.usb_hid_report_sent_count
+                0x0000000000001916        0x6 build/src/usb_hid_stub.o
+                0x0000000000001916                usb_hid_report_sent_count
+ .text.usb_hid_telemetry_drop_count
+                0x000000000000191c        0x6 build/src/usb_hid_stub.o
+                0x000000000000191c                usb_hid_telemetry_drop_count
  .text.platform_clock_init
-                0x000000000000164c       0xf0 build/src/platform_ch585_stub.o
-                0x000000000000164c                platform_clock_init
+                0x0000000000001922       0xf0 build/src/platform_ch585_stub.o
+                0x0000000000001922                platform_clock_init
  .text.platform_gpio_init
-                0x000000000000173c       0x26 build/src/platform_ch585_stub.o
-                0x000000000000173c                platform_gpio_init
+                0x0000000000001a12       0x26 build/src/platform_ch585_stub.o
+                0x0000000000001a12                platform_gpio_init
  .text.platform_timer_init
-                0x0000000000001762       0x34 build/src/platform_ch585_stub.o
-                0x0000000000001762                platform_timer_init
+                0x0000000000001a38       0x34 build/src/platform_ch585_stub.o
+                0x0000000000001a38                platform_timer_init
  .text.platform_now_us
-                0x0000000000001796        0x6 build/src/platform_ch585_stub.o
-                0x0000000000001796                platform_now_us
+                0x0000000000001a6c        0x6 build/src/platform_ch585_stub.o
+                0x0000000000001a6c                platform_now_us
  .text.platform_led_set
-                0x000000000000179c       0x16 build/src/platform_ch585_stub.o
-                0x000000000000179c                platform_led_set
+                0x0000000000001a72       0x16 build/src/platform_ch585_stub.o
+                0x0000000000001a72                platform_led_set
  .text.platform_idle
-                0x00000000000017b2        0x2 build/src/platform_ch585_stub.o
-                0x00000000000017b2                platform_idle
+                0x0000000000001a88        0x2 build/src/platform_ch585_stub.o
+                0x0000000000001a88                platform_idle
  .text.GPIOA_ModeCfg
-                0x00000000000017b4       0xa2 build/sdk/CH58x_gpio.o
-                0x00000000000017b4                GPIOA_ModeCfg
+                0x0000000000001a8a       0xa2 build/sdk/CH58x_gpio.o
+                0x0000000000001a8a                GPIOA_ModeCfg
  .text.GPIOADigitalCfg
-                0x0000000000001856       0x16 build/sdk/CH58x_gpio.o
-                0x0000000000001856                GPIOADigitalCfg
+                0x0000000000001b2c       0x16 build/sdk/CH58x_gpio.o
+                0x0000000000001b2c                GPIOADigitalCfg
  .text.TMR0_TimerInit
-                0x000000000000186c       0x14 build/sdk/CH58x_timer0.o
-                0x000000000000186c                TMR0_TimerInit
- .text.memcpy   0x0000000000001880       0xe2 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memcpy.o)
-                0x0000000000001880                memcpy
+                0x0000000000001b42       0x14 build/sdk/CH58x_timer0.o
+                0x0000000000001b42                TMR0_TimerInit
+ .text.memcpy   0x0000000000001b56       0xe2 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memcpy.o)
+                0x0000000000001b56                memcpy
  *(.rodata)
  *(.rodata*)
- *fill*         0x0000000000001962        0x2 
+ *fill*         0x0000000000001c38        0x0 
  .rodata.dongle_fsm_tick
-                0x0000000000001964       0x14 build/src/dongle_fsm.o
+                0x0000000000001c38       0x14 build/src/dongle_fsm.o
  .rodata.report_pipeline_on_radio_packet
-                0x0000000000001978       0x20 build/src/report_pipeline.o
+                0x0000000000001c4c       0x20 build/src/report_pipeline.o
  .rodata.s_channel_plan
-                0x0000000000001998       0x10 build/src/rf_link_stub.o
+                0x0000000000001c6c       0x10 build/src/rf_link_stub.o
  .rodata.GPIOA_ModeCfg
-                0x00000000000019a8       0x14 build/sdk/CH58x_gpio.o
+                0x0000000000001c7c       0x14 build/sdk/CH58x_gpio.o
  *(.sdata2.*)
  *(.glue_7)
  *(.glue_7t)
  *(.gnu.linkonce.t.*)
-                0x00000000000019bc                . = ALIGN (0x4)
+                0x0000000000001c90                . = ALIGN (0x4)
 
-.rela.dyn       0x00000000000019bc        0x0
+.rela.dyn       0x0000000000001c90        0x0
  .rela.text.apply_channel
-                0x00000000000019bc        0x0 build/src/main.o
+                0x0000000000001c90        0x0 build/src/main.o
  .rela.text.send_packet.part.2
-                0x00000000000019bc        0x0 build/src/main.o
+                0x0000000000001c90        0x0 build/src/main.o
  .rela.text.rf_link_init
-                0x00000000000019bc        0x0 build/src/main.o
+                0x0000000000001c90        0x0 build/src/main.o
  .rela.text.rf_link_clear_bond
-                0x00000000000019bc        0x0 build/src/main.o
+                0x0000000000001c90        0x0 build/src/main.o
  .rela.text.rf_link_poll
-                0x00000000000019bc        0x0 build/src/main.o
- .rela.init     0x00000000000019bc        0x0 build/src/main.o
- .rela.vector   0x00000000000019bc        0x0 build/src/main.o
+                0x0000000000001c90        0x0 build/src/main.o
+ .rela.text.usb_hid_poll
+                0x0000000000001c90        0x0 build/src/main.o
+ .rela.text.usb_hid_ready
+                0x0000000000001c90        0x0 build/src/main.o
+ .rela.text.usb_hid_can_send
+                0x0000000000001c90        0x0 build/src/main.o
+ .rela.text.usb_hid_try_send_report
+                0x0000000000001c90        0x0 build/src/main.o
+ .rela.init     0x0000000000001c90        0x0 build/src/main.o
+ .rela.vector   0x0000000000001c90        0x0 build/src/main.o
  .rela.handle_reset
-                0x00000000000019bc        0x0 build/src/main.o
+                0x0000000000001c90        0x0 build/src/main.o
  .rela.highcode_init
-                0x00000000000019bc        0x0 build/src/main.o
+                0x0000000000001c90        0x0 build/src/main.o
 
-.fini           0x00000000000019bc        0x0
+.fini           0x0000000000001c90        0x0
  *(SORT_NONE(.fini))
-                0x00000000000019bc                . = ALIGN (0x4)
+                0x0000000000001c90                . = ALIGN (0x4)
                 [!provide]                        PROVIDE (_etext = .)
                 [!provide]                        PROVIDE (_eitcm = .)
 
-.preinit_array  0x00000000000019bc        0x0
+.preinit_array  0x0000000000001c90        0x0
                 [!provide]                        PROVIDE (__preinit_array_start = .)
  *(.preinit_array)
                 [!provide]                        PROVIDE (__preinit_array_end = .)
 
-.init_array     0x00000000000019bc        0x0
+.init_array     0x0000000000001c90        0x0
                 [!provide]                        PROVIDE (__init_array_start = .)
  *(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*))
  *(.init_array EXCLUDE_FILE(*crtend?.o *crtend.o *crtbegin?.o *crtbegin.o) .ctors)
                 [!provide]                        PROVIDE (__init_array_end = .)
 
-.fini_array     0x00000000000019bc        0x0
+.fini_array     0x0000000000001c90        0x0
                 [!provide]                        PROVIDE (__fini_array_start = .)
  *(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*))
  *(.fini_array EXCLUDE_FILE(*crtend?.o *crtend.o *crtbegin?.o *crtbegin.o) .dtors)
@@ -956,11 +1057,11 @@ LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/compone
  *(SORT_BY_NAME(.dtors.*))
  *(.dtors)
 
-.dlalign        0x00000000000019bc        0x0
-                0x00000000000019bc                . = ALIGN (0x4)
-                0x00000000000019bc                PROVIDE (_data_lma = .)
+.dlalign        0x0000000000001c90        0x0
+                0x0000000000001c90                . = ALIGN (0x4)
+                0x0000000000001c90                PROVIDE (_data_lma = .)
 
-.data           0x0000000020000548        0x0 load address 0x00000000000019bc
+.data           0x0000000020000548        0x0 load address 0x0000000000001c90
                 0x0000000020000548                . = ALIGN (0x4)
                 0x0000000020000548                PROVIDE (_data_vma = .)
  *(.gnu.linkonce.r.*)
@@ -979,7 +1080,7 @@ LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/compone
                 0x0000000020000548                . = ALIGN (0x4)
                 0x0000000020000548                PROVIDE (_edata = .)
 
-.bss            0x0000000020000548       0xa4 load address 0x00000000000019bc
+.bss            0x0000000020000548      0x1d8 load address 0x0000000000001c90
                 0x0000000020000548                . = ALIGN (0x4)
                 0x0000000020000548                PROVIDE (_sbss = .)
  *(.sbss*)
@@ -1035,20 +1136,34 @@ LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/compone
                 0x000000002000058d        0x1 build/src/rf_link_stub.o
  .sbss.s_tx_seq
                 0x000000002000058e        0x1 build/src/rf_link_stub.o
+ *fill*         0x000000002000058f        0x1 
+ .sbss.s_report_sent_count
+                0x0000000020000590        0x4 build/src/usb_hid_stub.o
+ .sbss.s_telemetry_drop_count
+                0x0000000020000594        0x4 build/src/usb_hid_stub.o
+ .sbss.s_tlm_count
+                0x0000000020000598        0x1 build/src/usb_hid_stub.o
+ .sbss.s_tlm_head
+                0x0000000020000599        0x1 build/src/usb_hid_stub.o
+ .sbss.s_tlm_tail
+                0x000000002000059a        0x1 build/src/usb_hid_stub.o
  .sbss.s_usb_configured
-                0x000000002000058f        0x1 build/src/usb_hid_stub.o
+                0x000000002000059b        0x1 build/src/usb_hid_stub.o
  .sbss.s_now_us
-                0x0000000020000590        0x4 build/src/platform_ch585_stub.o
+                0x000000002000059c        0x4 build/src/platform_ch585_stub.o
  *(.gnu.linkonce.sb.*)
  *(.bss*)
- .bss.s_state   0x0000000020000594       0x30 build/src/report_pipeline.o
- .bss.s_bond    0x00000000200005c4       0x14 build/src/rf_link_stub.o
+ .bss.s_tlm     0x00000000200005a0       0x10 build/src/dongle_telemetry.o
+ .bss.s_state   0x00000000200005b0       0x38 build/src/report_pipeline.o
+ .bss.s_bond    0x00000000200005e8       0x14 build/src/rf_link_stub.o
  .bss.s_last_report
-                0x00000000200005d8       0x14 build/src/usb_hid_stub.o
+                0x00000000200005fc       0x14 build/src/usb_hid_stub.o
+ .bss.s_tlm_queue
+                0x0000000020000610      0x110 build/src/usb_hid_stub.o
  *(.gnu.linkonce.b.*)
  *(COMMON*)
-                0x00000000200005ec                . = ALIGN (0x4)
-                0x00000000200005ec                PROVIDE (_ebss = .)
+                0x0000000020000720                . = ALIGN (0x4)
+                0x0000000020000720                PROVIDE (_ebss = .)
                 [!provide]                        PROVIDE (_end = _ebss)
                 [!provide]                        PROVIDE (end = .)
 
@@ -1057,169 +1172,179 @@ LOAD d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/compone
                 0x0000000020020000                PROVIDE (_eusrstack = .)
 OUTPUT(build/dongle.elf elf32-littleriscv)
 
-.debug_info     0x0000000000000000     0x795b
- .debug_info    0x0000000000000000      0x402 build/src/main.o
- .debug_info    0x0000000000000402      0x442 build/src/dongle_fsm.o
- .debug_info    0x0000000000000844      0x33d build/src/rf_protocol.o
- .debug_info    0x0000000000000b81      0xe91 build/src/report_pipeline.o
- .debug_info    0x0000000000001a12     0x245f build/src/rf_link_stub.o
- .debug_info    0x0000000000003e71      0xb08 build/src/usb_hid_stub.o
- .debug_info    0x0000000000004979     0x12ad build/src/platform_ch585_stub.o
- .debug_info    0x0000000000005c26       0x82 build/src/ch585_startup_compat.o
- .debug_info    0x0000000000005ca8      0xeaf build/sdk/CH58x_gpio.o
- .debug_info    0x0000000000006b57      0xe04 build/sdk/CH58x_timer0.o
+.debug_info     0x0000000000000000     0x89a3
+ .debug_info    0x0000000000000000      0x4ae build/src/main.o
+ .debug_info    0x00000000000004ae      0xc49 build/src/dongle_telemetry.o
+ .debug_info    0x00000000000010f7      0x442 build/src/dongle_fsm.o
+ .debug_info    0x0000000000001539      0x33d build/src/rf_protocol.o
+ .debug_info    0x0000000000001876      0xed7 build/src/report_pipeline.o
+ .debug_info    0x000000000000274d     0x245f build/src/rf_link_stub.o
+ .debug_info    0x0000000000004bac      0xe15 build/src/usb_hid_stub.o
+ .debug_info    0x00000000000059c1     0x12ad build/src/platform_ch585_stub.o
+ .debug_info    0x0000000000006c6e       0x82 build/src/ch585_startup_compat.o
+ .debug_info    0x0000000000006cf0      0xeaf build/sdk/CH58x_gpio.o
+ .debug_info    0x0000000000007b9f      0xe04 build/sdk/CH58x_timer0.o
 
-.debug_abbrev   0x0000000000000000     0x1a06
+.debug_abbrev   0x0000000000000000     0x1d1f
  .debug_abbrev  0x0000000000000000      0x16d build/src/main.o
- .debug_abbrev  0x000000000000016d      0x1a7 build/src/dongle_fsm.o
- .debug_abbrev  0x0000000000000314      0x16e build/src/rf_protocol.o
- .debug_abbrev  0x0000000000000482      0x353 build/src/report_pipeline.o
- .debug_abbrev  0x00000000000007d5      0x6cf build/src/rf_link_stub.o
- .debug_abbrev  0x0000000000000ea4      0x278 build/src/usb_hid_stub.o
- .debug_abbrev  0x000000000000111c      0x3a0 build/src/platform_ch585_stub.o
- .debug_abbrev  0x00000000000014bc       0x47 build/src/ch585_startup_compat.o
- .debug_abbrev  0x0000000000001503      0x2ba build/sdk/CH58x_gpio.o
- .debug_abbrev  0x00000000000017bd      0x249 build/sdk/CH58x_timer0.o
+ .debug_abbrev  0x000000000000016d      0x247 build/src/dongle_telemetry.o
+ .debug_abbrev  0x00000000000003b4      0x1a7 build/src/dongle_fsm.o
+ .debug_abbrev  0x000000000000055b      0x16e build/src/rf_protocol.o
+ .debug_abbrev  0x00000000000006c9      0x353 build/src/report_pipeline.o
+ .debug_abbrev  0x0000000000000a1c      0x6cf build/src/rf_link_stub.o
+ .debug_abbrev  0x00000000000010eb      0x34a build/src/usb_hid_stub.o
+ .debug_abbrev  0x0000000000001435      0x3a0 build/src/platform_ch585_stub.o
+ .debug_abbrev  0x00000000000017d5       0x47 build/src/ch585_startup_compat.o
+ .debug_abbrev  0x000000000000181c      0x2ba build/sdk/CH58x_gpio.o
+ .debug_abbrev  0x0000000000001ad6      0x249 build/sdk/CH58x_timer0.o
 
-.debug_loc      0x0000000000000000     0x19c2
- .debug_loc     0x0000000000000000       0x8e build/src/main.o
- .debug_loc     0x000000000000008e      0x21b build/src/dongle_fsm.o
- .debug_loc     0x00000000000002a9      0x27b build/src/rf_protocol.o
- .debug_loc     0x0000000000000524      0x1ee build/src/report_pipeline.o
- .debug_loc     0x0000000000000712      0xca2 build/src/rf_link_stub.o
- .debug_loc     0x00000000000013b4       0x45 build/src/usb_hid_stub.o
- .debug_loc     0x00000000000013f9       0x9f build/src/platform_ch585_stub.o
- .debug_loc     0x0000000000001498      0x464 build/sdk/CH58x_gpio.o
- .debug_loc     0x00000000000018fc       0xc6 build/sdk/CH58x_timer0.o
+.debug_loc      0x0000000000000000     0x1b63
+ .debug_loc     0x0000000000000000       0xcc build/src/main.o
+ .debug_loc     0x00000000000000cc       0x4e build/src/dongle_telemetry.o
+ .debug_loc     0x000000000000011a      0x21b build/src/dongle_fsm.o
+ .debug_loc     0x0000000000000335      0x27b build/src/rf_protocol.o
+ .debug_loc     0x00000000000005b0      0x1ee build/src/report_pipeline.o
+ .debug_loc     0x000000000000079e      0xca2 build/src/rf_link_stub.o
+ .debug_loc     0x0000000000001440      0x15a build/src/usb_hid_stub.o
+ .debug_loc     0x000000000000159a       0x9f build/src/platform_ch585_stub.o
+ .debug_loc     0x0000000000001639      0x464 build/sdk/CH58x_gpio.o
+ .debug_loc     0x0000000000001a9d       0xc6 build/sdk/CH58x_timer0.o
 
-.debug_aranges  0x0000000000000000      0x2f8
+.debug_aranges  0x0000000000000000      0x370
  .debug_aranges
                 0x0000000000000000       0x20 build/src/main.o
  .debug_aranges
-                0x0000000000000020       0x58 build/src/dongle_fsm.o
+                0x0000000000000020       0x30 build/src/dongle_telemetry.o
  .debug_aranges
-                0x0000000000000078       0x28 build/src/rf_protocol.o
+                0x0000000000000050       0x58 build/src/dongle_fsm.o
  .debug_aranges
-                0x00000000000000a0       0x48 build/src/report_pipeline.o
+                0x00000000000000a8       0x28 build/src/rf_protocol.o
  .debug_aranges
-                0x00000000000000e8       0xd0 build/src/rf_link_stub.o
+                0x00000000000000d0       0x58 build/src/report_pipeline.o
  .debug_aranges
-                0x00000000000001b8       0x38 build/src/usb_hid_stub.o
+                0x0000000000000128       0xd0 build/src/rf_link_stub.o
  .debug_aranges
-                0x00000000000001f0       0x50 build/src/platform_ch585_stub.o
+                0x00000000000001f8       0x70 build/src/usb_hid_stub.o
  .debug_aranges
-                0x0000000000000240       0x20 build/src/ch585_startup_compat.o
+                0x0000000000000268       0x50 build/src/platform_ch585_stub.o
  .debug_aranges
-                0x0000000000000260       0x58 build/sdk/CH58x_gpio.o
+                0x00000000000002b8       0x20 build/src/ch585_startup_compat.o
  .debug_aranges
-                0x00000000000002b8       0x40 build/sdk/CH58x_timer0.o
+                0x00000000000002d8       0x58 build/sdk/CH58x_gpio.o
+ .debug_aranges
+                0x0000000000000330       0x40 build/sdk/CH58x_timer0.o
 
-.debug_ranges   0x0000000000000000      0x6f0
- .debug_ranges  0x0000000000000000       0x58 build/src/main.o
- .debug_ranges  0x0000000000000058       0x70 build/src/dongle_fsm.o
- .debug_ranges  0x00000000000000c8       0x18 build/src/rf_protocol.o
- .debug_ranges  0x00000000000000e0      0x168 build/src/report_pipeline.o
- .debug_ranges  0x0000000000000248      0x3a0 build/src/rf_link_stub.o
- .debug_ranges  0x00000000000005e8       0x28 build/src/usb_hid_stub.o
- .debug_ranges  0x0000000000000610       0x58 build/src/platform_ch585_stub.o
- .debug_ranges  0x0000000000000668       0x10 build/src/ch585_startup_compat.o
- .debug_ranges  0x0000000000000678       0x48 build/sdk/CH58x_gpio.o
- .debug_ranges  0x00000000000006c0       0x30 build/sdk/CH58x_timer0.o
+.debug_ranges   0x0000000000000000      0x780
+ .debug_ranges  0x0000000000000000       0x68 build/src/main.o
+ .debug_ranges  0x0000000000000068       0x20 build/src/dongle_telemetry.o
+ .debug_ranges  0x0000000000000088       0x70 build/src/dongle_fsm.o
+ .debug_ranges  0x00000000000000f8       0x18 build/src/rf_protocol.o
+ .debug_ranges  0x0000000000000110      0x178 build/src/report_pipeline.o
+ .debug_ranges  0x0000000000000288      0x3a0 build/src/rf_link_stub.o
+ .debug_ranges  0x0000000000000628       0x78 build/src/usb_hid_stub.o
+ .debug_ranges  0x00000000000006a0       0x58 build/src/platform_ch585_stub.o
+ .debug_ranges  0x00000000000006f8       0x10 build/src/ch585_startup_compat.o
+ .debug_ranges  0x0000000000000708       0x48 build/sdk/CH58x_gpio.o
+ .debug_ranges  0x0000000000000750       0x30 build/sdk/CH58x_timer0.o
 
-.debug_macro    0x0000000000000000     0x5c06
- .debug_macro   0x0000000000000000       0xae build/src/main.o
- .debug_macro   0x00000000000000ae      0x766 build/src/main.o
- .debug_macro   0x0000000000000814       0x22 build/src/main.o
- .debug_macro   0x0000000000000836       0x22 build/src/main.o
- .debug_macro   0x0000000000000858       0x8e build/src/main.o
- .debug_macro   0x00000000000008e6       0x51 build/src/main.o
- .debug_macro   0x0000000000000937       0xef build/src/main.o
- .debug_macro   0x0000000000000a26       0x6a build/src/main.o
- .debug_macro   0x0000000000000a90      0x1df build/src/main.o
- .debug_macro   0x0000000000000c6f      0x11e build/src/main.o
- .debug_macro   0x0000000000000d8d      0x174 build/src/main.o
- .debug_macro   0x0000000000000f01       0xb0 build/src/dongle_fsm.o
- .debug_macro   0x0000000000000fb1       0x7a build/src/rf_protocol.o
- .debug_macro   0x000000000000102b       0x22 build/src/rf_protocol.o
- .debug_macro   0x000000000000104d      0x14a build/src/report_pipeline.o
- .debug_macro   0x0000000000001197       0x58 build/src/report_pipeline.o
- .debug_macro   0x00000000000011ef       0x19 build/src/report_pipeline.o
- .debug_macro   0x0000000000001208       0x34 build/src/report_pipeline.o
- .debug_macro   0x000000000000123c       0x34 build/src/report_pipeline.o
- .debug_macro   0x0000000000001270       0x58 build/src/report_pipeline.o
- .debug_macro   0x00000000000012c8       0x1f build/src/report_pipeline.o
- .debug_macro   0x00000000000012e7       0x43 build/src/report_pipeline.o
- .debug_macro   0x000000000000132a       0x20 build/src/report_pipeline.o
- .debug_macro   0x000000000000134a      0x18e build/src/report_pipeline.o
- .debug_macro   0x00000000000014d8      0x330 build/src/report_pipeline.o
- .debug_macro   0x0000000000001808       0x10 build/src/report_pipeline.o
- .debug_macro   0x0000000000001818       0x35 build/src/report_pipeline.o
- .debug_macro   0x000000000000184d      0x23f build/src/rf_link_stub.o
- .debug_macro   0x0000000000001a8c       0x34 build/src/rf_link_stub.o
- .debug_macro   0x0000000000001ac0     0x2d68 build/src/rf_link_stub.o
- .debug_macro   0x0000000000004828       0xa4 build/src/rf_link_stub.o
- .debug_macro   0x00000000000048cc       0x3b build/src/rf_link_stub.o
- .debug_macro   0x0000000000004907       0xd6 build/src/rf_link_stub.o
- .debug_macro   0x00000000000049dd      0x10b build/src/rf_link_stub.o
- .debug_macro   0x0000000000004ae8      0x19a build/src/rf_link_stub.o
- .debug_macro   0x0000000000004c82       0x82 build/src/rf_link_stub.o
- .debug_macro   0x0000000000004d04       0x71 build/src/rf_link_stub.o
- .debug_macro   0x0000000000004d75       0x83 build/src/rf_link_stub.o
- .debug_macro   0x0000000000004df8       0x54 build/src/rf_link_stub.o
- .debug_macro   0x0000000000004e4c      0x1cc build/src/rf_link_stub.o
- .debug_macro   0x0000000000005018       0x51 build/src/rf_link_stub.o
- .debug_macro   0x0000000000005069       0x8c build/src/rf_link_stub.o
- .debug_macro   0x00000000000050f5       0x88 build/src/rf_link_stub.o
- .debug_macro   0x000000000000517d       0xdb build/src/rf_link_stub.o
- .debug_macro   0x0000000000005258       0x2e build/src/rf_link_stub.o
- .debug_macro   0x0000000000005286      0x142 build/src/usb_hid_stub.o
- .debug_macro   0x00000000000053c8      0x118 build/src/usb_hid_stub.o
- .debug_macro   0x00000000000054e0      0x1e4 build/src/platform_ch585_stub.o
- .debug_macro   0x00000000000056c4       0x3a build/src/platform_ch585_stub.o
- .debug_macro   0x00000000000056fe       0x59 build/src/ch585_startup_compat.o
- .debug_macro   0x0000000000005757      0x1b9 build/sdk/CH58x_gpio.o
- .debug_macro   0x0000000000005910       0x52 build/sdk/CH58x_gpio.o
- .debug_macro   0x0000000000005962       0x94 build/sdk/CH58x_gpio.o
- .debug_macro   0x00000000000059f6       0x57 build/sdk/CH58x_gpio.o
- .debug_macro   0x0000000000005a4d      0x1b9 build/sdk/CH58x_timer0.o
+.debug_macro    0x0000000000000000     0x5c86
+ .debug_macro   0x0000000000000000       0xb8 build/src/main.o
+ .debug_macro   0x00000000000000b8      0x766 build/src/main.o
+ .debug_macro   0x000000000000081e       0x22 build/src/main.o
+ .debug_macro   0x0000000000000840       0x22 build/src/main.o
+ .debug_macro   0x0000000000000862       0x8e build/src/main.o
+ .debug_macro   0x00000000000008f0       0x51 build/src/main.o
+ .debug_macro   0x0000000000000941       0xef build/src/main.o
+ .debug_macro   0x0000000000000a30       0x6a build/src/main.o
+ .debug_macro   0x0000000000000a9a      0x1df build/src/main.o
+ .debug_macro   0x0000000000000c79      0x11e build/src/main.o
+ .debug_macro   0x0000000000000d97      0x174 build/src/main.o
+ .debug_macro   0x0000000000000f0b      0x17e build/src/dongle_telemetry.o
+ .debug_macro   0x0000000000001089       0x58 build/src/dongle_telemetry.o
+ .debug_macro   0x00000000000010e1       0x19 build/src/dongle_telemetry.o
+ .debug_macro   0x00000000000010fa       0x34 build/src/dongle_telemetry.o
+ .debug_macro   0x000000000000112e       0x34 build/src/dongle_telemetry.o
+ .debug_macro   0x0000000000001162       0x58 build/src/dongle_telemetry.o
+ .debug_macro   0x00000000000011ba       0x1f build/src/dongle_telemetry.o
+ .debug_macro   0x00000000000011d9       0x43 build/src/dongle_telemetry.o
+ .debug_macro   0x000000000000121c       0x20 build/src/dongle_telemetry.o
+ .debug_macro   0x000000000000123c      0x18e build/src/dongle_telemetry.o
+ .debug_macro   0x00000000000013ca      0x330 build/src/dongle_telemetry.o
+ .debug_macro   0x00000000000016fa       0x10 build/src/dongle_telemetry.o
+ .debug_macro   0x000000000000170a       0x35 build/src/dongle_telemetry.o
+ .debug_macro   0x000000000000173f       0xb0 build/src/dongle_fsm.o
+ .debug_macro   0x00000000000017ef       0x7a build/src/rf_protocol.o
+ .debug_macro   0x0000000000001869       0x22 build/src/rf_protocol.o
+ .debug_macro   0x000000000000188b      0x14a build/src/report_pipeline.o
+ .debug_macro   0x00000000000019d5      0x23f build/src/rf_link_stub.o
+ .debug_macro   0x0000000000001c14       0x34 build/src/rf_link_stub.o
+ .debug_macro   0x0000000000001c48     0x2d68 build/src/rf_link_stub.o
+ .debug_macro   0x00000000000049b0       0xa4 build/src/rf_link_stub.o
+ .debug_macro   0x0000000000004a54       0x3b build/src/rf_link_stub.o
+ .debug_macro   0x0000000000004a8f       0xd6 build/src/rf_link_stub.o
+ .debug_macro   0x0000000000004b65      0x10b build/src/rf_link_stub.o
+ .debug_macro   0x0000000000004c70      0x19a build/src/rf_link_stub.o
+ .debug_macro   0x0000000000004e0a       0x82 build/src/rf_link_stub.o
+ .debug_macro   0x0000000000004e8c       0x71 build/src/rf_link_stub.o
+ .debug_macro   0x0000000000004efd       0x83 build/src/rf_link_stub.o
+ .debug_macro   0x0000000000004f80       0x54 build/src/rf_link_stub.o
+ .debug_macro   0x0000000000004fd4      0x1cc build/src/rf_link_stub.o
+ .debug_macro   0x00000000000051a0       0x51 build/src/rf_link_stub.o
+ .debug_macro   0x00000000000051f1       0x8c build/src/rf_link_stub.o
+ .debug_macro   0x000000000000527d       0x88 build/src/rf_link_stub.o
+ .debug_macro   0x0000000000005305       0xdb build/src/rf_link_stub.o
+ .debug_macro   0x00000000000053e0       0x2e build/src/rf_link_stub.o
+ .debug_macro   0x000000000000540e      0x152 build/src/usb_hid_stub.o
+ .debug_macro   0x0000000000005560      0x1e4 build/src/platform_ch585_stub.o
+ .debug_macro   0x0000000000005744       0x3a build/src/platform_ch585_stub.o
+ .debug_macro   0x000000000000577e       0x59 build/src/ch585_startup_compat.o
+ .debug_macro   0x00000000000057d7      0x1b9 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000005990       0x52 build/sdk/CH58x_gpio.o
+ .debug_macro   0x00000000000059e2       0x94 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000005a76       0x57 build/sdk/CH58x_gpio.o
+ .debug_macro   0x0000000000005acd      0x1b9 build/sdk/CH58x_timer0.o
 
-.debug_line     0x0000000000000000     0x64a6
- .debug_line    0x0000000000000000      0x508 build/src/main.o
- .debug_line    0x0000000000000508      0x946 build/src/dongle_fsm.o
- .debug_line    0x0000000000000e4e      0x7c3 build/src/rf_protocol.o
- .debug_line    0x0000000000001611      0xb02 build/src/report_pipeline.o
- .debug_line    0x0000000000002113     0x20be build/src/rf_link_stub.o
- .debug_line    0x00000000000041d1      0x4e9 build/src/usb_hid_stub.o
- .debug_line    0x00000000000046ba      0x90d build/src/platform_ch585_stub.o
- .debug_line    0x0000000000004fc7      0x265 build/src/ch585_startup_compat.o
- .debug_line    0x000000000000522c      0xb5e build/sdk/CH58x_gpio.o
- .debug_line    0x0000000000005d8a      0x71c build/sdk/CH58x_timer0.o
+.debug_line     0x0000000000000000     0x70b6
+ .debug_line    0x0000000000000000      0x55c build/src/main.o
+ .debug_line    0x000000000000055c      0x69e build/src/dongle_telemetry.o
+ .debug_line    0x0000000000000bfa      0x946 build/src/dongle_fsm.o
+ .debug_line    0x0000000000001540      0x7c3 build/src/rf_protocol.o
+ .debug_line    0x0000000000001d03      0xb6a build/src/report_pipeline.o
+ .debug_line    0x000000000000286d     0x20be build/src/rf_link_stub.o
+ .debug_line    0x000000000000492b      0x99f build/src/usb_hid_stub.o
+ .debug_line    0x00000000000052ca      0x90d build/src/platform_ch585_stub.o
+ .debug_line    0x0000000000005bd7      0x265 build/src/ch585_startup_compat.o
+ .debug_line    0x0000000000005e3c      0xb5e build/sdk/CH58x_gpio.o
+ .debug_line    0x000000000000699a      0x71c build/sdk/CH58x_timer0.o
 
-.debug_str      0x0000000000000000    0x16fb6
- .debug_str     0x0000000000000000     0x3b96 build/src/main.o
-                                       0x3db1 (size before relaxing)
- .debug_str     0x0000000000003b96      0x3ab build/src/dongle_fsm.o
+.debug_str      0x0000000000000000    0x172ef
+ .debug_str     0x0000000000000000     0x3c0f build/src/main.o
+                                       0x3e2f (size before relaxing)
+ .debug_str     0x0000000000003c0f     0x2d41 build/src/dongle_telemetry.o
+                                       0x6a1d (size before relaxing)
+ .debug_str     0x0000000000006950      0x381 build/src/dongle_fsm.o
                                        0x3f71 (size before relaxing)
- .debug_str     0x0000000000003f41      0x1a5 build/src/rf_protocol.o
+ .debug_str     0x0000000000006cd1      0x19a build/src/rf_protocol.o
                                        0x38b6 (size before relaxing)
- .debug_str     0x00000000000040e6     0x2c3a build/src/report_pipeline.o
-                                       0x693a (size before relaxing)
- .debug_str     0x0000000000006d20     0xf99a build/src/rf_link_stub.o
+ .debug_str     0x0000000000006e6b       0xcb build/src/report_pipeline.o
+                                       0x6982 (size before relaxing)
+ .debug_str     0x0000000000006f36     0xf994 build/src/rf_link_stub.o
                                       0x16001 (size before relaxing)
- .debug_str     0x00000000000166ba       0x47 build/src/usb_hid_stub.o
-                                       0x67e9 (size before relaxing)
- .debug_str     0x0000000000016701      0x5eb build/src/platform_ch585_stub.o
+ .debug_str     0x00000000000168ca      0x170 build/src/usb_hid_stub.o
+                                       0x69b7 (size before relaxing)
+ .debug_str     0x0000000000016a3a      0x5eb build/src/platform_ch585_stub.o
                                       0x15c86 (size before relaxing)
- .debug_str     0x0000000000016cec       0x29 build/src/ch585_startup_compat.o
+ .debug_str     0x0000000000017025       0x29 build/src/ch585_startup_compat.o
                                        0x339b (size before relaxing)
- .debug_str     0x0000000000016d15      0x131 build/sdk/CH58x_gpio.o
+ .debug_str     0x000000000001704e      0x131 build/sdk/CH58x_gpio.o
                                       0x1577e (size before relaxing)
- .debug_str     0x0000000000016e46      0x170 build/sdk/CH58x_timer0.o
+ .debug_str     0x000000000001717f      0x170 build/sdk/CH58x_timer0.o
                                       0x1574c (size before relaxing)
 
 .comment        0x0000000000000000       0x33
  .comment       0x0000000000000000       0x33 build/src/main.o
                                          0x34 (size before relaxing)
+ .comment       0x0000000000000033       0x34 build/src/dongle_telemetry.o
  .comment       0x0000000000000033       0x34 build/src/dongle_fsm.o
  .comment       0x0000000000000033       0x34 build/src/rf_protocol.o
  .comment       0x0000000000000033       0x34 build/src/report_pipeline.o
@@ -1231,15 +1356,16 @@ OUTPUT(build/dongle.elf elf32-littleriscv)
  .comment       0x0000000000000033       0x34 build/sdk/CH58x_timer0.o
  .comment       0x0000000000000033       0x34 E:/Works/CH585EVT/EVT/EXAM/SRC/StdPeriphDriver/libISP585.a(ISP585.o)
 
-.debug_frame    0x0000000000000000      0x690
- .debug_frame   0x0000000000000000       0x30 build/src/main.o
- .debug_frame   0x0000000000000030       0xe0 build/src/dongle_fsm.o
- .debug_frame   0x0000000000000110       0x30 build/src/rf_protocol.o
- .debug_frame   0x0000000000000140       0xa4 build/src/report_pipeline.o
- .debug_frame   0x00000000000001e4      0x280 build/src/rf_link_stub.o
- .debug_frame   0x0000000000000464       0x5c build/src/usb_hid_stub.o
- .debug_frame   0x00000000000004c0       0xa0 build/src/platform_ch585_stub.o
- .debug_frame   0x0000000000000560       0x20 build/src/ch585_startup_compat.o
- .debug_frame   0x0000000000000580       0x90 build/sdk/CH58x_gpio.o
- .debug_frame   0x0000000000000610       0x60 build/sdk/CH58x_timer0.o
- .debug_frame   0x0000000000000670       0x20 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memcpy.o)
+.debug_frame    0x0000000000000000      0x810
+ .debug_frame   0x0000000000000000       0x34 build/src/main.o
+ .debug_frame   0x0000000000000034       0x58 build/src/dongle_telemetry.o
+ .debug_frame   0x000000000000008c       0xe0 build/src/dongle_fsm.o
+ .debug_frame   0x000000000000016c       0x30 build/src/rf_protocol.o
+ .debug_frame   0x000000000000019c       0xc4 build/src/report_pipeline.o
+ .debug_frame   0x0000000000000260      0x280 build/src/rf_link_stub.o
+ .debug_frame   0x00000000000004e0      0x160 build/src/usb_hid_stub.o
+ .debug_frame   0x0000000000000640       0xa0 build/src/platform_ch585_stub.o
+ .debug_frame   0x00000000000006e0       0x20 build/src/ch585_startup_compat.o
+ .debug_frame   0x0000000000000700       0x90 build/sdk/CH58x_gpio.o
+ .debug_frame   0x0000000000000790       0x60 build/sdk/CH58x_timer0.o
+ .debug_frame   0x00000000000007f0       0x20 d:/mounriverstudio2/mounriver_studio2/resources/app/resources/win32/components/wch/toolchain/risc-v embedded gcc/bin/../lib/gcc/riscv-none-embed/8.2.0/../../../../riscv-none-embed/lib/rv32imac/ilp32\libg.a(lib_a-memcpy.o)
