@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "dongle_config.h"
 #include "platform_port.h"
 #include "rf_protocol.h"
 
@@ -59,6 +60,7 @@ static uint16_t s_lq_rx_ok;
 static uint16_t s_lq_rx_fail;
 static uint16_t s_lq_tx_fail;
 static uint32_t s_lq_eval_deadline_us;
+static uint32_t s_next_heartbeat_us;
 static uint8_t s_tx_power_level;
 
 static const uint8_t s_channel_plan[] = {
@@ -72,6 +74,7 @@ static const uint8_t s_channel_plan[] = {
 #define RF_HOP_AUTO           (0xFFu)
 #define RF_CONNECT_RETRY_MAX  (2u)
 #define RF_HEARTBEAT_RETRY    (1u)
+#define RF_HEARTBEAT_INTERVAL_US (8000u)
 #define RF_LQ_EVAL_PERIOD_US  (200000u)
 #define RF_TX_PWR_MIN         (0u)
 #define RF_TX_PWR_MAX         (3u)
@@ -141,6 +144,12 @@ void rf_hw_enable_link_guard(uint8_t enable_crc, uint8_t enable_ack, uint8_t ena
     (void)enable_crc;
     (void)enable_ack;
     (void)enable_agc;
+}
+
+__attribute__((weak))
+bool rf_hw_init(void)
+{
+    return true;
 }
 
 static void apply_channel(uint8_t hop_idx)
@@ -501,6 +510,7 @@ static void on_packet_connecting(const rf_proto_frame_t *pkt, uint32_t now_us)
     s_connected = true;
     s_mode = RF_MODE_CONNECTED;
     s_last_rx_us = platform_now_us();
+    s_next_heartbeat_us = s_last_rx_us + RF_HEARTBEAT_INTERVAL_US;
     apply_channel(derive_hop_idx((uint8_t)(s_tx_seq + 1u)));
     set_event(RF_LINK_EVENT_CONNECT_DONE);
 }
@@ -534,6 +544,8 @@ static void on_packet_connected(const rf_proto_frame_t *pkt, uint32_t now_us)
 
 void rf_link_init(rf_packet_cb_t cb)
 {
+    uint32_t now_us;
+
     s_packet_cb = cb;
     s_connected = false;
     s_has_bond = false;
@@ -552,19 +564,23 @@ void rf_link_init(rf_packet_cb_t cb)
     s_lq_rx_ok = 0u;
     s_lq_rx_fail = 0u;
     s_lq_tx_fail = 0u;
-    s_lq_eval_deadline_us = platform_now_us() + RF_LQ_EVAL_PERIOD_US;
+    now_us = platform_now_us();
+    s_lq_eval_deadline_us = now_us + RF_LQ_EVAL_PERIOD_US;
+    s_next_heartbeat_us = now_us + RF_HEARTBEAT_INTERVAL_US;
 
+#if (DONGLE_DIAG_RF_INIT_PHASE >= 1u)
+    (void)rf_hw_init();
+#endif
+#if (DONGLE_DIAG_RF_INIT_PHASE >= 2u)
     rf_hw_enable_link_guard(1u, 1u, 1u);
+#endif
+#if (DONGLE_DIAG_RF_INIT_PHASE >= 3u)
     apply_tx_power(RF_TX_PWR_DEFAULT);
+#endif
+#if (DONGLE_DIAG_RF_INIT_PHASE >= 4u)
     apply_channel(0u);
+#endif
     (void)bond_store_load();
-
-    /*
-     * TODO: Replace with real CH585 2.4G init sequence:
-     * - RF clock and channel config
-     * - address/pairing config
-     * - RX FIFO and IRQ enable
-     */
 }
 
 void rf_link_poll(void)
@@ -573,12 +589,14 @@ void rf_link_poll(void)
     uint8_t raw[RF_PROTO_MAX_FRAME];
     rf_proto_frame_t pkt;
     size_t raw_len;
+    uint8_t frames_budget = 4u;
 
-    while (1) {
+    while (frames_budget > 0u) {
         raw_len = sizeof(raw);
         if (!rf_hw_read_frame(raw, &raw_len)) {
             break;
         }
+        frames_budget--;
         if (!rf_protocol_decode(raw, raw_len, &pkt)) {
             continue;
         }
@@ -623,9 +641,11 @@ void rf_link_poll(void)
             s_mode_deadline_us = now_us + 3000000u;
             s_next_conn_req_us = now_us;
             s_scan_cursor = normalize_hop_idx(s_bond.hop_seed);
+            s_next_heartbeat_us = now_us + RF_HEARTBEAT_INTERVAL_US;
             set_event(RF_LINK_EVENT_LINK_LOST);
-        } else if ((now_us & 0x7FFu) == 0u) {
+        } else if ((int32_t)(now_us - s_next_heartbeat_us) >= 0) {
             (void)send_packet_retry(RF_PKT_HEARTBEAT, 0, 0u, RF_HOP_AUTO, RF_HEARTBEAT_RETRY);
+            s_next_heartbeat_us += RF_HEARTBEAT_INTERVAL_US;
         }
     }
 
@@ -663,7 +683,10 @@ void rf_link_start_pairing(void)
 
 void rf_link_stop_pairing(void)
 {
-    /* TODO: Stop pairing scan/advertising windows. */
+    if (s_mode == RF_MODE_PAIRING) {
+        s_mode = RF_MODE_IDLE;
+        s_mode_deadline_us = 0u;
+    }
 }
 
 void rf_link_start_connect(void)
@@ -681,7 +704,11 @@ void rf_link_start_connect(void)
 
 void rf_link_stop_connect(void)
 {
-    /* TODO: Stop connect attempts. */
+    if (s_mode == RF_MODE_CONNECTING) {
+        s_mode = RF_MODE_IDLE;
+        s_mode_deadline_us = 0u;
+        s_next_conn_req_us = 0u;
+    }
 }
 
 rf_link_event_t rf_link_take_event(void)

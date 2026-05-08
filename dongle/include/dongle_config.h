@@ -1,11 +1,69 @@
-﻿#ifndef DONGLE_CONFIG_H
+#ifndef DONGLE_CONFIG_H
 #define DONGLE_CONFIG_H
 
 #include <stdint.h>
 
 #define PRODUCT_VID                    (0x045Eu)        // 0x045E 是 HBox 产品 ID 微软VID xinput模式
-#define PRODUCT_PID                    (0x585Fu)       
+#define PRODUCT_PID                    (0x028Eu)
 #define PRODUCT_BCD_DEVICE             (0x0100u)
+/* Bring-up mode switch. 0 = normal RF + USB runtime. */
+#define DONGLE_USB_ENUM_BRINGUP_ONLY   (0u)
+/* CH585 board uses PB13/PB12 USB2(USBHS) pins. */
+#define DONGLE_USE_USBHS_BACKEND       (1u)
+
+/*
+ * RF diagnostic switches:
+ * DONGLE_DIAG_STAGE:
+ *   0 = LED only
+ *   1 = + USB init/poll
+ *   2 = + FSM/telemetry (no RF)
+ *   3 = + RF path (split by DONGLE_DIAG_RF_STEP)
+ *   4 = + report flush path
+ *
+ * DONGLE_DIAG_RF_STEP (used when DONGLE_DIAG_STAGE >= 3):
+ *   1 = RF init only (no rf_link_poll)
+ *   2 = RF poll enabled + TX disabled (RX-only)
+ *   3 = RF poll enabled + TX enabled
+ */
+#ifndef DONGLE_DIAG_STAGE
+#define DONGLE_DIAG_STAGE              (4u)
+#endif
+
+#ifndef DONGLE_DIAG_RF_STEP
+#define DONGLE_DIAG_RF_STEP            (3u)
+#endif
+
+#ifndef DONGLE_DIAG_RF_TX_DISABLE
+#define DONGLE_DIAG_RF_TX_DISABLE      (((DONGLE_DIAG_STAGE) >= 3u) && ((DONGLE_DIAG_RF_STEP) < 3u))
+#endif
+
+/*
+ * rf_link_init() RF init phase (used when DONGLE_DIAG_STAGE >= 3):
+ *   0 = skip all rf_hw_init/guard/power/channel
+ *   1 = call rf_hw_init only
+ *   2 = + rf_hw_enable_link_guard
+ *   3 = + apply_tx_power
+ *   4 = + apply_channel
+ */
+#ifndef DONGLE_DIAG_RF_INIT_PHASE
+#define DONGLE_DIAG_RF_INIT_PHASE      (4u)
+#endif
+
+/*
+ * rf_hw_init() internal level:
+ *   0 = no-op (return true)
+ *   1 = RF_RoleInit only
+ *   2 = + RF_Config
+ *   3 = + RF_SetChannel (full rf_hw_init path)
+ */
+#ifndef DONGLE_DIAG_RF_HW_INIT_LEVEL
+#define DONGLE_DIAG_RF_HW_INIT_LEVEL   (3u)
+#endif
+
+/* Force a visible LED pattern from main loop to validate running image. */
+#ifndef DONGLE_DIAG_FORCE_LED_PATTERN
+#define DONGLE_DIAG_FORCE_LED_PATTERN  (0u)
+#endif
 
 #define REPORT_INTERVAL_US             (125u)      /* 8 kHz */
 #define DISCONNECTED_BLINK_INTERVAL_US (2000000u)

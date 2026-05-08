@@ -15,10 +15,10 @@ static volatile uint32_t s_now_us;
 void platform_clock_init(void)
 {
     /*
-     * Use the same essential register sequence as CH58x highcode_init
-     * to switch system clock away from default low-speed RC clock.
-     * This avoids the ~10x timing drift seen at default clock.
+     * Configure external crystal capacitance, then apply manual clock switch
+     * sequence compatible with generic riscv-none-embed-gcc toolchain.
      */
+    HSECFG_Capacitance(HSECap_18p);
     R32_SAFE_MODE_CTRL |= RB_XROM_312M_SEL;
     R8_SAFE_MODE_CTRL &= (uint8_t)(~RB_SAFE_AUTO_EN);
     sys_safe_access_enable();
@@ -72,6 +72,14 @@ void platform_timer_init(void)
     TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
     TMR0_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
     PFIC_EnableIRQ(TMR0_IRQn);
+    PFIC_EnableAllIRQ();
+}
+
+void platform_irq_ensure_enabled(void)
+{
+    /* Keep timer/global interrupt gate enabled in case RF ROM code toggles it. */
+    PFIC_EnableIRQ(TMR0_IRQn);
+    PFIC_EnableAllIRQ();
 }
 
 uint32_t platform_now_us(void)

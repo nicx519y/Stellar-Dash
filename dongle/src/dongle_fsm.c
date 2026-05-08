@@ -8,17 +8,11 @@
 #define PAIRING_TIMEOUT_US      (10000000u)
 #define PAIRED_HOLD_US          (500000u)
 #define CONNECTING_TIMEOUT_US   (3000000u)
+#define AUTO_PAIR_DELAY_US      (500000u)
+#define AUTO_PAIR_RETRY_US      (1500000u)
 
 /* LED patterns */
-#define LED_BLINK_ACTIVE_US     (250000u)
-#define LED_BLINK_GAP_US        (1000000u)
-
-typedef enum {
-    BLINK_PHASE_ON_1 = 0,
-    BLINK_PHASE_OFF_1,
-    BLINK_PHASE_ON_2,
-    BLINK_PHASE_OFF_GAP
-} blink_phase_t;
+#define LED_BLINK_FAST_US       (500000u)
 
 static dongle_state_t s_state;
 static uint32_t s_state_deadline_us;
@@ -26,7 +20,7 @@ static bool s_led_on;
 static uint32_t s_led_deadline_us;
 static bool s_pairing_req;
 static bool s_unpair_req;
-static blink_phase_t s_blink_phase;
+static uint32_t s_auto_pair_deadline_us;
 
 static void led_apply(bool on)
 {
@@ -43,14 +37,18 @@ static void enter_state(dongle_state_t new_state, uint32_t now_us)
         rf_link_stop_pairing();
         rf_link_stop_connect();
         s_state_deadline_us = 0u;
+        if (rf_link_has_bond()) {
+            s_auto_pair_deadline_us = 0u;
+        } else {
+            s_auto_pair_deadline_us = now_us + AUTO_PAIR_RETRY_US;
+        }
         s_led_deadline_us = now_us + DISCONNECTED_BLINK_INTERVAL_US;
-        led_apply(false);
+        led_apply(true);
         break;
     case DONGLE_STATE_PAIRING:
         rf_link_start_pairing();
         s_state_deadline_us = now_us + PAIRING_TIMEOUT_US;
-        s_blink_phase = BLINK_PHASE_ON_1;
-        s_led_deadline_us = now_us + LED_BLINK_ACTIVE_US;
+        s_led_deadline_us = now_us + LED_BLINK_FAST_US;
         led_apply(true);
         break;
     case DONGLE_STATE_PAIRED_OK:
@@ -62,8 +60,7 @@ static void enter_state(dongle_state_t new_state, uint32_t now_us)
     case DONGLE_STATE_CONNECTING:
         rf_link_start_connect();
         s_state_deadline_us = now_us + CONNECTING_TIMEOUT_US;
-        s_blink_phase = BLINK_PHASE_ON_1;
-        s_led_deadline_us = now_us + LED_BLINK_ACTIVE_US;
+        s_led_deadline_us = now_us + LED_BLINK_FAST_US;
         led_apply(true);
         break;
     case DONGLE_STATE_CONNECTED:
@@ -79,6 +76,7 @@ void dongle_fsm_init(uint32_t now_us)
 {
     s_pairing_req = false;
     s_unpair_req = false;
+    s_auto_pair_deadline_us = now_us + AUTO_PAIR_DELAY_US;
     enter_state(DONGLE_STATE_WAIT, now_us);
 }
 
@@ -94,39 +92,18 @@ void dongle_fsm_request_unpair(void)
 
 static void handle_led_pattern(uint32_t now_us)
 {
-    if ((int32_t)(now_us - s_led_deadline_us) < 0) {
-        return;
-    }
-
     if (s_state == DONGLE_STATE_WAIT) {
-        s_led_deadline_us += DISCONNECTED_BLINK_INTERVAL_US;
-        led_apply(!s_led_on);
+        bool on = (((now_us / DISCONNECTED_BLINK_INTERVAL_US) & 0x1u) == 0u);
+        if (on != s_led_on) {
+            led_apply(on);
+        }
         return;
     }
 
     if ((s_state == DONGLE_STATE_PAIRING) || (s_state == DONGLE_STATE_CONNECTING)) {
-        switch (s_blink_phase) {
-        case BLINK_PHASE_ON_1:
-            s_blink_phase = BLINK_PHASE_OFF_1;
-            led_apply(false);
-            s_led_deadline_us = now_us + LED_BLINK_ACTIVE_US;
-            break;
-        case BLINK_PHASE_OFF_1:
-            s_blink_phase = BLINK_PHASE_ON_2;
-            led_apply(true);
-            s_led_deadline_us = now_us + LED_BLINK_ACTIVE_US;
-            break;
-        case BLINK_PHASE_ON_2:
-            s_blink_phase = BLINK_PHASE_OFF_GAP;
-            led_apply(false);
-            s_led_deadline_us = now_us + LED_BLINK_GAP_US;
-            break;
-        case BLINK_PHASE_OFF_GAP:
-        default:
-            s_blink_phase = BLINK_PHASE_ON_1;
-            led_apply(true);
-            s_led_deadline_us = now_us + LED_BLINK_ACTIVE_US;
-            break;
+        bool on = (((now_us / LED_BLINK_FAST_US) & 0x1u) == 0u);
+        if (on != s_led_on) {
+            led_apply(on);
         }
     }
 }
@@ -150,6 +127,9 @@ void dongle_fsm_tick(uint32_t now_us)
             enter_state(DONGLE_STATE_PAIRING, now_us);
         } else if (rf_link_has_bond()) {
             enter_state(DONGLE_STATE_CONNECTING, now_us);
+        } else if ((s_auto_pair_deadline_us != 0u) &&
+                   ((int32_t)(now_us - s_auto_pair_deadline_us) >= 0)) {
+            enter_state(DONGLE_STATE_PAIRING, now_us);
         }
         break;
 
