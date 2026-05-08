@@ -53,6 +53,9 @@ static void enable_tim_clock(TIM_TypeDef* tim)
 #ifdef TIM2
     if (tim == TIM2) { __HAL_RCC_TIM2_CLK_ENABLE(); return; }
 #endif
+#ifdef TIM5
+    if (tim == TIM5) { __HAL_RCC_TIM5_CLK_ENABLE(); return; }
+#endif
 #ifdef TIM12
     if (tim == TIM12) { __HAL_RCC_TIM12_CLK_ENABLE(); return; }
 #endif

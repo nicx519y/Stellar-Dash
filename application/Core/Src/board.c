@@ -97,8 +97,9 @@ void board_init(void)
     APP_DBG("board init: MX_ADC3_Init success.");
 
 #ifdef HAS_LED
-    WS2812B_InitStrip(WS2812B_STRIP_KEYS);
-    WS2812B_InitStrip(WS2812B_STRIP_AMBIENT);
+    // WS2812B_InitStrip(WS2812B_STRIP_KEYS);
+    // WS2812B_InitStrip(WS2812B_STRIP_AMBIENT);
+    WS2812B_Init();
     APP_DBG("board init: WS2812B_Init success.");
 #endif // HAS_LED
 }

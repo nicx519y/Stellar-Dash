@@ -2,34 +2,14 @@
 
 #include <string.h>
 
+#include "log_utils.h"
 #include "platform_port.h"
 #include "rfm_config.h"
-#include "rfm_link.h"
+#include "rfm_spi_port.h"
 
-typedef struct {
-    uint8_t buf[RFM_SPI_MAX_FRAME];
-    size_t len;
-    bool pending;
-} injected_frame_t;
-
-static injected_frame_t s_injected;
-static uint32_t s_next_periodic_status_us;
-
-__attribute__((weak))
-bool spi_hw_try_read(uint8_t *buf, size_t *inout_len)
-{
-    (void)buf;
-    (void)inout_len;
-    return false;
-}
-
-__attribute__((weak))
-bool spi_hw_try_write(const uint8_t *buf, size_t len)
-{
-    (void)buf;
-    (void)len;
-    return true;
-}
+static uint32_t s_rx_count;
+static uint32_t s_tx_count;
+static const uint16_t k_default_rate_hz = 1000u;
 
 static uint8_t frame_checksum(const uint8_t *buf, size_t len)
 {
@@ -41,108 +21,122 @@ static uint8_t frame_checksum(const uint8_t *buf, size_t len)
     return s;
 }
 
-static bool send_event_frame(spi_evt_t evt, const uint8_t *payload, uint8_t payload_len)
+static bool is_valid_host_cmd(uint8_t cmd)
 {
-    uint8_t out[RFM_SPI_MAX_FRAME];
-    size_t i;
-    size_t total;
-
-    if ((payload_len + 4u) > RFM_SPI_MAX_FRAME) {
+    switch ((spi_cmd_t)cmd) {
+    case SPI_CMD_GET_STATUS:
+    case SPI_CMD_START_PAIR:
+    case SPI_CMD_STOP_PAIR:
+    case SPI_CMD_UNBIND:
+    case SPI_CMD_SET_RATE:
+    case SPI_CMD_INPUT_DATA:
+        return true;
+    default:
         return false;
     }
+}
 
-    out[0] = RFM_SPI_SYNC;
-    out[1] = (uint8_t)evt;
-    out[2] = payload_len;
+static void log_hex8_inline(uint8_t v)
+{
+    log_hex8(v);
+}
+
+static bool send_frame(spi_evt_t evt, const uint8_t *payload, uint8_t payload_len)
+{
+    uint8_t out[RFM_SPI_MAX_FRAME];
+    size_t frame_total;
+    size_t wire_total;
+    size_t i;
+    uint8_t csum;
+
+    /*
+     * Keep one leading dummy byte for SPI turn-around tolerance.
+     * Wire bytes: FF | A5 evt len payload... csum
+     */
+    out[0] = 0xFFu; /* guard byte, not part of frame */
+    out[1] = RFM_SPI_SYNC;
+    out[2] = (uint8_t)evt;
+    out[3] = payload_len;
     for (i = 0u; i < payload_len; ++i) {
-        out[3 + i] = payload[i];
+        out[4u + i] = payload[i];
     }
-    total = (size_t)(3u + payload_len + 1u);
-    out[total - 1u] = frame_checksum(out, total - 1u);
-    return spi_hw_try_write(out, total);
-}
+    frame_total = (size_t)(3u + payload_len + 1u);
+    csum = frame_checksum(&out[1], frame_total - 1u);
+    out[1u + frame_total - 1u] = csum;
+    wire_total = frame_total + 1u;
 
-static void emit_status_event(spi_evt_t evt)
-{
-    rfm_status_t st;
-    uint8_t payload[17];
-
-    st = rfm_link_get_status();
-    payload[0] = (uint8_t)st.state;
-    payload[1] = st.connected ? 1u : 0u;
-    payload[2] = st.has_bond ? 1u : 0u;
-    payload[3] = (uint8_t)(st.rate_hz & 0xFFu);
-    payload[4] = (uint8_t)((st.rate_hz >> 8) & 0xFFu);
-    payload[5] = st.tx_power_level;
-    payload[6] = (uint8_t)(st.rx_ok & 0xFFu);
-    payload[7] = (uint8_t)((st.rx_ok >> 8) & 0xFFu);
-    payload[8] = (uint8_t)(st.rx_fail & 0xFFu);
-    payload[9] = (uint8_t)((st.rx_fail >> 8) & 0xFFu);
-    payload[10] = (uint8_t)(st.tx_fail & 0xFFu);
-    payload[11] = (uint8_t)((st.tx_fail >> 8) & 0xFFu);
-    payload[12] = (uint8_t)(st.reject_count & 0xFFu);
-    payload[13] = (uint8_t)((st.reject_count >> 8) & 0xFFu);
-    payload[14] = (uint8_t)((st.reject_count >> 16) & 0xFFu);
-    payload[15] = (uint8_t)((st.reject_count >> 24) & 0xFFu);
-    payload[16] = 0u;
-
-    if (send_event_frame(evt, payload, sizeof(payload))) {
+    if (rfm_spi_port_try_write(out, wire_total)) {
+        s_tx_count++;
+        log_raw("[RFM][SPI] TX evt=");
+        log_hex8_inline((uint8_t)evt);
+        log_raw(" len=");
+        log_hex8_inline(payload_len);
+        log_raw("\r\n");
         platform_irq_line_set(true);
+        return true;
     }
+    log_raw("[RFM][SPI] TX failed\r\n");
+    return false;
 }
 
-static void handle_set_rate(const uint8_t *payload, uint8_t len)
+static bool send_status_frame(uint8_t cmd_tag)
 {
-    bool ok = false;
-    uint16_t hz;
+    uint8_t payload[17] = {0};
+    payload[0] = 0u; /* state: IDLE */
+    payload[1] = 0u; /* connected */
+    payload[2] = 0u; /* hasBond */
+    payload[3] = (uint8_t)(k_default_rate_hz & 0xFFu);
+    payload[4] = (uint8_t)((k_default_rate_hz >> 8) & 0xFFu);
+    payload[5] = 0u; /* txPower */
+    payload[6] = 0u; /* rxOk lo */
+    payload[7] = 0u; /* rxOk hi */
+    payload[8] = 0u; /* rxFail lo */
+    payload[9] = 0u; /* rxFail hi */
+    payload[10] = 0u; /* txFail lo */
+    payload[11] = 0u; /* txFail hi */
+    payload[12] = 0u; /* rejectCount b0 */
+    payload[13] = 0u; /* rejectCount b1 */
+    payload[14] = 0u; /* rejectCount b2 */
+    payload[15] = 0u; /* rejectCount b3 */
+    payload[16] = cmd_tag; /* debug tag, currently ignored by STM32 parser */
+    return send_frame(SPI_EVT_STATUS, payload, (uint8_t)sizeof(payload));
+}
 
-    if (len < 2u) {
-        emit_status_event(SPI_EVT_ERROR);
-        return;
-    }
-
-    hz = (uint16_t)((uint16_t)payload[0] | ((uint16_t)payload[1] << 8));
-    if (hz == 1000u) {
-        ok = rfm_link_set_report_rate(RFM_RATE_1K);
-    } else if (hz == 2000u) {
-        ok = rfm_link_set_report_rate(RFM_RATE_2K);
-    } else if (hz == 4000u) {
-        ok = rfm_link_set_report_rate(RFM_RATE_4K);
-    } else if (hz == 8000u) {
-        ok = rfm_link_set_report_rate(RFM_RATE_8K);
-    }
-
-    emit_status_event(ok ? SPI_EVT_RATE_APPLIED : SPI_EVT_ERROR);
+static bool send_short_event(spi_evt_t evt, uint8_t cmd_tag)
+{
+    uint8_t payload[1];
+    payload[0] = cmd_tag;
+    return send_frame(evt, payload, 1u);
 }
 
 static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
 {
+    /* Host has started a new command transaction, clear pending event IRQ first. */
+    platform_irq_line_set(false);
+    (void)payload;
+    (void)len;
+    s_rx_count++;
+    log_raw("[RFM][SPI] RX cmd=");
+    log_hex8_inline(cmd);
+    log_raw(" len=");
+    log_hex8_inline(len);
+    log_raw("\r\n");
+
     switch ((spi_cmd_t)cmd) {
     case SPI_CMD_GET_STATUS:
-        emit_status_event(SPI_EVT_STATUS);
-        break;
-    case SPI_CMD_START_PAIR:
-        rfm_link_start_pairing();
-        emit_status_event(SPI_EVT_STATE_CHANGED);
-        break;
-    case SPI_CMD_STOP_PAIR:
-        rfm_link_stop_pairing();
-        emit_status_event(SPI_EVT_STATE_CHANGED);
-        break;
-    case SPI_CMD_UNBIND:
-        rfm_link_unbind();
-        emit_status_event(SPI_EVT_STATE_CHANGED);
+        (void)send_status_frame(cmd);
         break;
     case SPI_CMD_SET_RATE:
-        handle_set_rate(payload, len);
+        (void)send_short_event(SPI_EVT_RATE_APPLIED, cmd);
         break;
+    case SPI_CMD_START_PAIR:
+    case SPI_CMD_STOP_PAIR:
+    case SPI_CMD_UNBIND:
     case SPI_CMD_INPUT_DATA:
-        if (!rfm_link_push_input(payload, len)) {
-            emit_status_event(SPI_EVT_ERROR);
-        }
+        (void)send_short_event(SPI_EVT_STATE_CHANGED, cmd);
         break;
     default:
-        emit_status_event(SPI_EVT_ERROR);
+        (void)send_short_event(SPI_EVT_ERROR, cmd);
         break;
     }
 }
@@ -151,16 +145,28 @@ static void process_one_frame(const uint8_t *buf, size_t len)
 {
     uint8_t payload_len;
     if ((buf == 0) || (len < 4u)) {
+        log_raw("[RFM][SPI] RX short frame\r\n");
         return;
     }
     if (buf[0] != RFM_SPI_SYNC) {
+        log_raw("[RFM][SPI] RX bad sync\r\n");
         return;
     }
     payload_len = buf[2];
     if (len != (size_t)(3u + payload_len + 1u)) {
+        log_raw("[RFM][SPI] RX bad len\r\n");
         return;
     }
     if (frame_checksum(buf, len - 1u) != buf[len - 1u]) {
+        log_raw("[RFM][SPI] RX bad checksum\r\n");
+        return;
+    }
+
+    /* In SPI bring-up, discard echoed event/noise frames (0x8x etc.) without replying. */
+    if (!is_valid_host_cmd(buf[1])) {
+        log_raw("[RFM][SPI] RX ignored non-cmd=");
+        log_hex8_inline(buf[1]);
+        log_raw("\r\n");
         return;
     }
 
@@ -169,58 +175,27 @@ static void process_one_frame(const uint8_t *buf, size_t len)
 
 void rfm_spi_bridge_init(void)
 {
-    memset(&s_injected, 0, sizeof(s_injected));
-    s_next_periodic_status_us = platform_now_us() + 20000u;
+    s_rx_count = 0u;
+    s_tx_count = 0u;
     platform_irq_line_set(false);
+    log_raw("[RFM][SPI] bridge init ok\r\n");
 }
 
 void rfm_spi_bridge_inject_frame(const uint8_t *buf, size_t len)
 {
-    size_t i;
-    if ((buf == 0) || (len > sizeof(s_injected.buf))) {
+    if (buf == 0) {
         return;
     }
-    for (i = 0u; i < len; ++i) {
-        s_injected.buf[i] = buf[i];
-    }
-    s_injected.len = len;
-    s_injected.pending = true;
+    process_one_frame(buf, len);
 }
 
 void rfm_spi_bridge_poll(void)
 {
     uint8_t rx[RFM_SPI_MAX_FRAME];
     size_t rx_len;
-    rfm_event_t ev;
-    uint32_t now_us = platform_now_us();
-
-    platform_irq_line_set(false);
-
-    if (s_injected.pending) {
-        process_one_frame(s_injected.buf, s_injected.len);
-        s_injected.pending = false;
-    }
 
     rx_len = sizeof(rx);
-    if (spi_hw_try_read(rx, &rx_len)) {
+    if (rfm_spi_port_try_read(rx, &rx_len)) {
         process_one_frame(rx, rx_len);
-    }
-
-    ev = rfm_link_take_event();
-    if (ev != RFM_EVENT_NONE) {
-        if (ev == RFM_EVENT_LINK_QUALITY_WARN) {
-            emit_status_event(SPI_EVT_LINK_WARN);
-        } else if (ev == RFM_EVENT_RATE_APPLIED) {
-            emit_status_event(SPI_EVT_RATE_APPLIED);
-        } else if (ev == RFM_EVENT_ERROR) {
-            emit_status_event(SPI_EVT_ERROR);
-        } else {
-            emit_status_event(SPI_EVT_STATE_CHANGED);
-        }
-    }
-
-    if ((int32_t)(now_us - s_next_periodic_status_us) >= 0) {
-        emit_status_event(SPI_EVT_STATUS);
-        s_next_periodic_status_us = now_us + 20000u;
     }
 }

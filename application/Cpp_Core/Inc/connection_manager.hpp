@@ -33,10 +33,14 @@ public:
 
 private:
     ConnectionManager() = default;
+    void updateRfLinkStateFromStatus();
+    bool tryRfBringup(bool isRetry);
 
     ConnectionMode mode = ConnectionMode::CONNECTION_MODE_USB;
     ConnectionLinkState linkState = ConnectionLinkState::Disconnected;
     uint16_t appliedReportRateHz = 1000;
+    uint32_t lastRfStatusPollMs = 0;
+    uint32_t lastRfBeginRetryMs = 0;
     RFTransport rfTransport;
 };
 

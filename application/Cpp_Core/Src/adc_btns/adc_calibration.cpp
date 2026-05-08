@@ -56,15 +56,15 @@ ADCBtnsError ADCCalibrationManager::startManualCalibration() {
     calibrationActive = true;
     completionCheckExecuted = false; // 重置完成检查标志
 
-    if(WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) != WS2812B_RUNNING) {
-        WS2812B_InitStrip(WS2812B_STRIP_KEYS);
-        WS2812B_StartStrip(WS2812B_STRIP_KEYS);
-    }
+    // if(WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) != WS2812B_RUNNING) {
+    //     WS2812B_InitStrip(WS2812B_STRIP_KEYS);
+    //     WS2812B_StartStrip(WS2812B_STRIP_KEYS);
+    // }
 
-    if(WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING) {
-        WS2812B_SetAllLEDColorStrip(WS2812B_STRIP_KEYS, 0, 0, 0);
-        WS2812B_SetAllLEDBrightnessStrip(WS2812B_STRIP_KEYS, 0);
-    }
+    // if(WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING) {
+    //     WS2812B_SetAllLEDColorStrip(WS2812B_STRIP_KEYS, 0, 0, 0);
+    //     WS2812B_SetAllLEDBrightnessStrip(WS2812B_STRIP_KEYS, 0);
+    // }
 
     // 启动ADC采样
     ADC_MANAGER.startADCSamping(false);
@@ -124,9 +124,9 @@ ADCBtnsError ADCCalibrationManager::stopCalibration() {
     
     
     // 关闭LED
-    if(WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING) {
-        WS2812B_StopStrip(WS2812B_STRIP_KEYS);
-    }
+    // if(WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING) {
+    //     WS2812B_StopStrip(WS2812B_STRIP_KEYS);
+    // }
 
     APP_DBG("Manual calibration stopped, all LEDs OFF");
     
@@ -839,14 +839,7 @@ void ADCCalibrationManager::updateAllLEDs() {
         updateButtonLED(i, buttonStates[i].ledColor);
     }
     
-    // 确保WS2812B状态正确
-    if (WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING) {
-        WS2812B_RefreshStrip(WS2812B_STRIP_KEYS, 0, NUM_ADC_BUTTONS);
-        
-        APP_DBG("All button LEDs updated");
-    } else {
-        APP_ERR("WS2812B not running, LED update skipped");
-    }
+    
 }
 
 /**

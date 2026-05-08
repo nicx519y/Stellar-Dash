@@ -76,29 +76,6 @@ void PowerManager::loop()
     {
         processVoltageMeasurement();
     }
-
-    if (!vbus_present && !switch_in_progress)
-    {
-        if (h1_mv > 0 && h2_mv > 0)
-        {
-            const uint32_t active_mv = (active_discharge == PowerBatteryId::H1) ? h1_mv : h2_mv;
-            const uint32_t other_mv = (active_discharge == PowerBatteryId::H1) ? h2_mv : h1_mv;
-            const uint32_t vdiff = (other_mv > active_mv) ? (other_mv - active_mv) : 0u;
-            if (vdiff >= POWER_SWITCH_DIFF_MV)
-            {
-                switch_confirm_count++;
-                if (switch_confirm_count >= POWER_SWITCH_CONFIRM_COUNT)
-                {
-                    switch_confirm_count = 0;
-                    requestSwitchTo((active_discharge == PowerBatteryId::H1) ? PowerBatteryId::H2 : PowerBatteryId::H1);
-                }
-            }
-            else
-            {
-                switch_confirm_count = 0;
-            }
-        }
-    }
 }
 
 PowerChargeState PowerManager::getChargeState() const

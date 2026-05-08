@@ -564,6 +564,11 @@ void rfm_link_init(void)
         change_state(RFM_STATE_CONNECTING);
         s_mode_deadline_us = platform_now_us() + RFM_CONNECT_TIMEOUT_US;
         s_next_scan_us = platform_now_us();
+    } else {
+        /* Avoid first-pair deadlock when host has not issued START_PAIR yet. */
+        s_mode_deadline_us = platform_now_us() + RFM_PAIR_TIMEOUT_US;
+        s_next_adv_us = platform_now_us();
+        change_state(RFM_STATE_PAIRING);
     }
 }
 

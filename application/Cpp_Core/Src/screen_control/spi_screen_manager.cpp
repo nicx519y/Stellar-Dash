@@ -161,18 +161,18 @@ static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_
     const uint16_t innerW = (uint16_t)(bodyW - 4u);
     const uint16_t innerH = (uint16_t)(bodyH - 4u);
     ST7789_FillRect(lcd, innerX, innerY, innerW, innerH, bg);
-    uint16_t fillW = (uint16_t)((uint32_t)innerW * (uint32_t)g_battUiSoc / 100u);
+    const uint16_t baseFillW = (uint16_t)((uint32_t)innerW * (uint32_t)g_battUiSoc / 100u);
+    uint16_t fillW = baseFillW;
+    if (g_battUiChargeState == PowerChargeState::Charging && baseFillW < innerW) {
+        const uint32_t periodMs = 1200u;
+        const uint32_t t = (periodMs == 0u) ? 0u : (nowMs % periodMs);
+        const uint32_t span = (uint32_t)(innerW - baseFillW);
+        const uint32_t add = (span * t) / periodMs;
+        fillW = (uint16_t)(baseFillW + (uint16_t)add);
+    }
     if (g_battUiSoc > 0u && fillW == 0u) fillW = 1u;
     if (fillW > 0u) {
         ST7789_FillRect(lcd, innerX, innerY, fillW, innerH, fg);
-    }
-
-    if (g_battUiChargeState == PowerChargeState::Charging && (((nowMs / 500u) & 0x1u) == 0u)) {
-        const uint16_t cx = (uint16_t)(x + bodyW / 2u);
-        const uint16_t cy = (uint16_t)(y + bodyH / 2u);
-        ST7789_DrawLine(lcd, (int)cx - 2, (int)cy - 3, (int)cx, (int)cy - 1, bg);
-        ST7789_DrawLine(lcd, (int)cx, (int)cy - 1, (int)cx - 1, (int)cy + 2, bg);
-        ST7789_DrawLine(lcd, (int)cx - 1, (int)cy + 2, (int)cx + 2, (int)cy, bg);
     }
 }
 

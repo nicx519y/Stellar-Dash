@@ -16,6 +16,14 @@ import re
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+# Windows 控制台经常是 GBK，避免输出 Unicode 符号导致打印异常中断流程
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(errors="replace")
+        sys.stderr.reconfigure(errors="replace")
+    except Exception:
+        pass
+
 class BuildTool:
     def __init__(self):
         self.project_root = Path(__file__).parent.parent
@@ -636,13 +644,13 @@ class BuildTool:
         
     def _flash_using_makefile(self, slot: str) -> bool:
         """使用Makefile的flash目标进行烧录"""
+        temp_files = []
         try:
             makefile_path = self.application_dir / "Makefile"
             if not makefile_path.exists():
                 return False
                 
             # 对于特定槽，需要临时复制文件
-            temp_files = []
             hex_file = None
             
             if slot == "A":
@@ -682,31 +690,26 @@ class BuildTool:
             result = subprocess.run(
                 cmd,
                 cwd=self.application_dir,
-                capture_output=True,
-                text=True,
+                capture_output=False,
                 timeout=120
             )
             
-            # 恢复备份文件
-            for backup_path in temp_files:
-                if backup_path and backup_path.exists():
-                    original_path = backup_path.with_suffix('')
-                    shutil.move(backup_path, original_path)
-                    
             if result.returncode == 0:
-                print(f"✓ Makefile烧录成功")
-                if "wrote" in result.stdout:
-                    for line in result.stdout.split('\n'):
-                        if "wrote" in line:
-                            print(f"  {line.strip()}")
+                print("Makefile烧录成功")
                 return True
             else:
-                print(f"Makefile烧录失败: {result.stderr}")
+                print("Makefile烧录失败")
                 return False
                 
         except Exception as e:
             print(f"Makefile烧录异常: {e}")
             return False
+        finally:
+            # 无论成功失败都恢复备份，避免污染后续烧录
+            for backup_path in temp_files:
+                if backup_path and backup_path.exists():
+                    original_path = backup_path.with_suffix('')
+                    shutil.move(backup_path, original_path)
     
     def _flash_using_openocd(self, slot: str) -> bool:
         """使用手动OpenOCD配置进行烧录"""
@@ -740,6 +743,7 @@ class BuildTool:
                     
             print(f"使用OpenOCD配置: {openocd_cfg}")
             print(f"烧录HEX文件: {hex_file}")
+            hex_file_posix = str(hex_file).replace('\\', '/')
             
             # 使用与Makefile相同的OpenOCD命令
             cmd = [
@@ -749,8 +753,8 @@ class BuildTool:
                 "-c", "init",
                 "-c", "halt", 
                 "-c", "reset init",
-                "-c", f"flash write_image erase {hex_file} 0x00000000",
-                "-c", f"flash verify_image {hex_file} 0x00000000",
+                "-c", f"flash write_image erase \"{hex_file_posix}\" 0x00000000",
+                "-c", f"flash verify_image \"{hex_file_posix}\" 0x00000000",
                 "-c", "reset run",
                 "-c", "shutdown"
             ]
@@ -758,22 +762,15 @@ class BuildTool:
             result = subprocess.run(
                 cmd,
                 cwd=self.application_dir,
-                capture_output=True,
-                text=True,
+                capture_output=False,
                 timeout=120
             )
             
             if result.returncode == 0:
-                print(f"✓ OpenOCD烧录成功")
-                if "wrote" in result.stdout:
-                    for line in result.stdout.split('\n'):
-                        if "wrote" in line:
-                            print(f"  {line.strip()}")
+                print("OpenOCD烧录成功")
                 return True
             else:
-                print(f"OpenOCD烧录失败:")
-                print(f"stdout: {result.stdout}")
-                print(f"stderr: {result.stderr}")
+                print("OpenOCD烧录失败")
                 return False
                 
         except Exception as e:

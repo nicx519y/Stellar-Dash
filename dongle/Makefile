@@ -32,9 +32,12 @@ CFLAGS := $(CPU_FLAGS) $(COMMON_FLAGS) $(INCLUDES) -DCH585 -DCH58xBLE_ROM
 ASFLAGS := $(CPU_FLAGS) $(INCLUDES) -x assembler-with-cpp
 LDFLAGS := $(CPU_FLAGS) -T$(LDSCRIPT) -Wl,--gc-sections -Wl,-Map=$(BUILD_DIR)/$(TARGET).map -nostartfiles
 SDK_LIBS := $(SDK)/SRC/StdPeriphDriver/libISP585.a
+BLE_LIB := $(SDK)/BLE/LIB/libCH58xBLE.a
 
 OBJS :=
 OBJS += $(BUILD_DIR)/sdk/CH58x_gpio.o
+OBJS += $(BUILD_DIR)/sdk/CH58x_adc.o
+OBJS += $(BUILD_DIR)/sdk/CH58x_timer0.o
 OBJS += $(BUILD_DIR)/sdk/CH58x_timer2.o
 OBJS += $(BUILD_DIR)/sdk/CH58x_clk.o
 OBJS += $(BUILD_DIR)/sdk/CH58x_usbdev.o
@@ -42,7 +45,14 @@ OBJS += $(BUILD_DIR)/sdk/CH58x_uart0.o
 OBJS += $(BUILD_DIR)/sdk/CH58x_uart2.o
 OBJS += $(BUILD_DIR)/sdk/CH58x_sys.o
 OBJS += $(BUILD_DIR)/sdk/startup_CH585.o
+OBJS += $(BUILD_DIR)/sdk/BLE_HAL_MCU.o
+OBJS += $(BUILD_DIR)/sdk/BLE_HAL_RTC.o
 OBJS += $(BUILD_DIR)/user/main.o
+OBJS += $(BUILD_DIR)/user/dongle_fsm.o
+OBJS += $(BUILD_DIR)/user/platform_ch585_stub.o
+OBJS += $(BUILD_DIR)/user/rf_hw_ch58.o
+OBJS += $(BUILD_DIR)/user/rf_link_stub.o
+OBJS += $(BUILD_DIR)/user/rf_protocol.o
 OBJS += $(BUILD_DIR)/user/UART.o
 OBJS += $(BUILD_DIR)/user/log_utils.o
 OBJS += $(BUILD_DIR)/user/usbd_compatibility_hid_shim.o
@@ -73,6 +83,12 @@ $(BUILD_DIR)/usbhs: | $(BUILD_DIR)
 $(BUILD_DIR)/sdk/CH58x_gpio.o: $(SDK)/SRC/StdPeriphDriver/CH58x_gpio.c | $(BUILD_DIR)/sdk
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD_DIR)/sdk/CH58x_adc.o: $(SDK)/SRC/StdPeriphDriver/CH58x_adc.c | $(BUILD_DIR)/sdk
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/sdk/CH58x_timer0.o: $(SDK)/SRC/StdPeriphDriver/CH58x_timer0.c | $(BUILD_DIR)/sdk
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD_DIR)/sdk/CH58x_timer2.o: $(SDK)/SRC/StdPeriphDriver/CH58x_timer2.c | $(BUILD_DIR)/sdk
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -94,7 +110,28 @@ $(BUILD_DIR)/sdk/CH58x_sys.o: $(SDK)/SRC/StdPeriphDriver/CH58x_sys.c | $(BUILD_D
 $(BUILD_DIR)/sdk/startup_CH585.o: $(STARTUP) | $(BUILD_DIR)/sdk
 	$(CC) $(ASFLAGS) -c $< -o $@
 
+$(BUILD_DIR)/sdk/BLE_HAL_MCU.o: $(SDK)/BLE/HAL/MCU.c | $(BUILD_DIR)/sdk
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/sdk/BLE_HAL_RTC.o: $(SDK)/BLE/HAL/RTC.c | $(BUILD_DIR)/sdk
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD_DIR)/user/main.o: src/main_official_1slog.c | $(BUILD_DIR)/user
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/user/dongle_fsm.o: src/dongle_fsm.c | $(BUILD_DIR)/user
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/user/platform_ch585_stub.o: src/platform_ch585_stub.c | $(BUILD_DIR)/user
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/user/rf_hw_ch58.o: src/rf_hw_ch58.c | $(BUILD_DIR)/user
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/user/rf_link_stub.o: src/rf_link_stub.c | $(BUILD_DIR)/user
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/user/rf_protocol.o: src/rf_protocol.c | $(BUILD_DIR)/user
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/user/UART.o: $(USBHS_USER_DIR)/UART.c | $(BUILD_DIR)/user
@@ -113,7 +150,7 @@ $(BUILD_DIR)/usbhs/usb_desc.o: src/usb_desc_xinput.c | $(BUILD_DIR)/usbhs
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/$(TARGET).elf: $(OBJS) $(LDSCRIPT)
-	$(CC) $(LDFLAGS) $(OBJS) $(SDK_LIBS) -o $@
+	$(CC) $(LDFLAGS) $(OBJS) $(BLE_LIB) $(SDK_LIBS) -o $@
 	$(SIZE) $@
 
 $(BUILD_DIR)/$(TARGET).hex: $(BUILD_DIR)/$(TARGET).elf

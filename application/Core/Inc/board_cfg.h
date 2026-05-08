@@ -53,7 +53,7 @@
 #endif
 
 /* Debug print configuration */
-#define APPLICATION_DEBUG_PRINT  0   // 设置为 0 可以关闭所有调试打印
+#define APPLICATION_DEBUG_PRINT  1   // 设置为 0 可以关闭所有调试打印
 
 #if APPLICATION_DEBUG_PRINT
     #define APP_DBG(fmt, ...) printf("[APP] " fmt "\r\n", ##__VA_ARGS__)
@@ -153,9 +153,9 @@
 #define ST7789_BL_ON_STATE                      GPIO_PIN_RESET
 #define ST7789_BL_OFF_STATE                     GPIO_PIN_SET
 
-#define SPIST7789_BL_TIM_INSTANCE               TIM2
+#define SPIST7789_BL_TIM_INSTANCE               TIM5
 #define SPIST7789_BL_TIM_CHANNEL                TIM_CHANNEL_2
-#define SPIST7789_BL_TIM_AF                     GPIO_AF1_TIM2
+#define SPIST7789_BL_TIM_AF                     GPIO_AF2_TIM5
 
 #define SPIST7789_DMA_CHUNK_BYTES               1024u
 #define SPIST7789_Y_OFFSET                      34u
@@ -240,6 +240,24 @@
 #define USB_HOST_HS_IRQn                        OTG_HS_IRQn
 #define USB_HOST_HS_IRQn_PRIO                   2u
 
+/* ================= RF Bridge (STM32 <-> CH584) =================
+ * SPI4 master:
+ *  MISO: PE5  (AF5)
+ *  NSS : PE11 (GPIO output, software CS)
+ *  SCK : PE12 (AF5)
+ *  MOSI: PE14 (AF5)
+ */
+#define RF_BRIDGE_SPI_INSTANCE                  SPI4
+#define RF_BRIDGE_SPI_GPIO_PORT                 GPIOE
+#define RF_BRIDGE_SPI_MISO_PIN                  GPIO_PIN_5
+#define RF_BRIDGE_SPI_NSS_PIN                   GPIO_PIN_11
+#define RF_BRIDGE_SPI_SCK_PIN                   GPIO_PIN_12
+#define RF_BRIDGE_SPI_MOSI_PIN                  GPIO_PIN_14
+#define RF_BRIDGE_SPI_AF                        GPIO_AF5_SPI4
+#define RF_BRIDGE_IRQ_GPIO_PORT                 GPIOE
+#define RF_BRIDGE_IRQ_PIN                       GPIO_PIN_10
+#define RF_BRIDGE_SPI_TIMEOUT_MS                5u
+
 /* ================ POWER MANAGER ===============
 */
 #define VBUS_STATUS_PORT                        GPIOG
@@ -275,7 +293,7 @@
 #define WEBCONFIG_IP_FOURTH                 1
 #define WEBCONFIG_DOMAIN_NAME               "st-dash.usb"
 
-#define CONFIG_VERSION                      (uint32_t)0x00001C  //配置版本 三位版本号 0x aa bb cc
+#define CONFIG_VERSION                      (uint32_t)0x00001B  //配置版本 三位版本号 0x aa bb cc
 #define ADC_MAPPING_VERSION                 (uint32_t)0x000002  //ADC值映射表版本
 #define ADC_COMMON_VERSION                  (uint32_t)0x000001
 

@@ -1,11 +1,14 @@
 #include "configs/common_command_handler.hpp"
 #include "board_cfg.h"
 #include "system_logger.h"
+#include "adc_btns/adc_calibration.hpp"
 #include "configs/webconfig_btns_manager.hpp"
 #include "configs/websocket_server.hpp"
 
 // 获取按键管理器实例  
 #define WEBCONFIG_BTNS_MANAGER WebConfigBtnsManager::getInstance()
+// 获取校准管理器实例
+#define ADC_CALIBRATION_MANAGER ADCCalibrationManager::getInstance()
 
 // ============================================================================
 // CommonCommandHandler 单例实现
@@ -142,6 +145,16 @@ ButtonStateBinaryData CommonCommandHandler::buildButtonStateBinaryData() {
 WebSocketDownstreamMessage CommonCommandHandler::handleStartButtonMonitoring(const WebSocketUpstreamMessage& request) {
     // 获取按键管理器实例并开始监控
     WebConfigBtnsManager& btnsManager = WEBCONFIG_BTNS_MANAGER;
+
+    if (ADC_CALIBRATION_MANAGER.isCalibrationActive()) {
+        return create_error_response(request.getCid(), request.getCommand(), 2, "Calibration is active, button monitoring is not allowed");
+    }
+
+    if (!ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated(false)) {
+        return create_error_response(request.getCid(), request.getCommand(), 2, "Manual calibration is not completed, button monitoring is not allowed");
+    }
+
+    btnsManager.enableTestMode(false);
     
     // 启动按键工作器
     btnsManager.startButtonWorkers();
@@ -190,6 +203,8 @@ WebSocketDownstreamMessage CommonCommandHandler::handleStartButtonMonitoring(con
 WebSocketDownstreamMessage CommonCommandHandler::handleStopButtonMonitoring(const WebSocketUpstreamMessage& request) {
     // 获取按键管理器实例
     WebConfigBtnsManager& btnsManager = WEBCONFIG_BTNS_MANAGER;
+
+    btnsManager.enableTestMode(false);
     
     // 停止按键工作器（真正停止ADC和GPIO按键采样）
     btnsManager.stopButtonWorkers();

@@ -6,6 +6,7 @@
 #include "system_logger.h"
 #include <string>
 #include "storagemanager.hpp"
+#include "qspi-w25q64.h"
 
 /**
  * @brief 处理WebSocket命令的统一入口
@@ -846,9 +847,21 @@ cJSON* FirmwareCommandHandler::createFirmwareMetadataJSON() {
     }
 
     const FirmwareMetadata* metadata = manager->GetCurrentMetadata();
+    FirmwareMetadata raw_metadata;
+    bool metadata_validated = (metadata != nullptr);
+
     if (!metadata) {
-        LOG_ERROR("WebSocket", "createFirmwareMetadataJSON: Failed to get firmware metadata");
-        return nullptr;
+        memset(&raw_metadata, 0, sizeof(raw_metadata));
+        uint32_t flash_address = METADATA_ADDR - EXTERNAL_FLASH_BASE;
+        int8_t result = QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(
+            reinterpret_cast<uint8_t*>(&raw_metadata),
+            flash_address,
+            sizeof(FirmwareMetadata)
+        );
+
+        if (result == QSPI_W25Qxx_OK) {
+            metadata = &raw_metadata;
+        }
     }
 
     cJSON* data = cJSON_CreateObject();
@@ -857,25 +870,64 @@ cJSON* FirmwareCommandHandler::createFirmwareMetadataJSON() {
         return nullptr;
     }
 
+    cJSON_AddBoolToObject(data, "metadataValidated", metadata_validated);
+
     // 当前槽位信息
-    cJSON_AddStringToObject(data, "currentSlot", 
-        metadata->target_slot == FIRMWARE_SLOT_A ? "A" : "B");
-    cJSON_AddStringToObject(data, "targetSlot", 
-        manager->GetTargetUpgradeSlot() == FIRMWARE_SLOT_A ? "A" : "B");
-    cJSON_AddStringToObject(data, "version", metadata->firmware_version);
-    cJSON_AddStringToObject(data, "buildDate", metadata->build_date);
+    const char* currentSlot =
+        (metadata && metadata->target_slot == static_cast<uint8_t>(FIRMWARE_SLOT_B)) ? "B" : "A";
+    const char* targetSlot = (currentSlot[0] == 'A') ? "B" : "A";
+
+    cJSON_AddStringToObject(data, "currentSlot", currentSlot);
+    cJSON_AddStringToObject(data, "targetSlot", targetSlot);
+
+    if (metadata) {
+        char version_buf[sizeof(metadata->firmware_version) + 1];
+        memcpy(version_buf, metadata->firmware_version, sizeof(metadata->firmware_version));
+        version_buf[sizeof(metadata->firmware_version)] = '\0';
+
+        char build_date_buf[sizeof(metadata->build_date) + 1];
+        memcpy(build_date_buf, metadata->build_date, sizeof(metadata->build_date));
+        build_date_buf[sizeof(metadata->build_date)] = '\0';
+
+        cJSON_AddStringToObject(data, "version", version_buf);
+        cJSON_AddStringToObject(data, "buildDate", build_date_buf);
+    } else {
+        cJSON_AddStringToObject(data, "version", "");
+        cJSON_AddStringToObject(data, "buildDate", "");
+    }
     
     // 组件信息
     cJSON* componentsArray = cJSON_CreateArray();
     if (componentsArray) {
-        for (uint32_t i = 0; i < metadata->component_count; i++) {
-            cJSON* componentObj = cJSON_CreateObject();
-            if (componentObj) {
-                cJSON_AddStringToObject(componentObj, "name", metadata->components[i].name);
-                cJSON_AddStringToObject(componentObj, "file", metadata->components[i].file);
+        if (metadata) {
+            uint32_t count = metadata->component_count;
+            if (count > FIRMWARE_COMPONENT_COUNT) {
+                count = FIRMWARE_COMPONENT_COUNT;
+            }
+
+            for (uint32_t i = 0; i < count; i++) {
+                cJSON* componentObj = cJSON_CreateObject();
+                if (!componentObj) {
+                    continue;
+                }
+
+                char name_buf[sizeof(metadata->components[i].name) + 1];
+                memcpy(name_buf, metadata->components[i].name, sizeof(metadata->components[i].name));
+                name_buf[sizeof(metadata->components[i].name)] = '\0';
+
+                char file_buf[sizeof(metadata->components[i].file) + 1];
+                memcpy(file_buf, metadata->components[i].file, sizeof(metadata->components[i].file));
+                file_buf[sizeof(metadata->components[i].file)] = '\0';
+
+                char sha256_buf[sizeof(metadata->components[i].sha256) + 1];
+                memcpy(sha256_buf, metadata->components[i].sha256, sizeof(metadata->components[i].sha256));
+                sha256_buf[sizeof(metadata->components[i].sha256)] = '\0';
+
+                cJSON_AddStringToObject(componentObj, "name", name_buf);
+                cJSON_AddStringToObject(componentObj, "file", file_buf);
                 cJSON_AddNumberToObject(componentObj, "address", metadata->components[i].address);
                 cJSON_AddNumberToObject(componentObj, "size", metadata->components[i].size);
-                cJSON_AddStringToObject(componentObj, "sha256", metadata->components[i].sha256);
+                cJSON_AddStringToObject(componentObj, "sha256", sha256_buf);
                 cJSON_AddBoolToObject(componentObj, "active", metadata->components[i].active);
                 cJSON_AddItemToArray(componentsArray, componentObj);
             }

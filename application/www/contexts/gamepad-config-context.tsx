@@ -1537,6 +1537,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const startButtonMonitoring = async (immediate: boolean = true): Promise<void> => {
         try {
+            const completed = await checkIsManualCalibrationCompleted(immediate);
+            if (!completed) {
+                setButtonMonitoringActive(false);
+                return Promise.reject(new Error("Manual calibration not completed"));
+            }
+
             // setIsLoading(true);
             const data = await sendWebSocketRequest('start_button_monitoring', {}, immediate);
             setButtonMonitoringActive(data.isActive ?? true);

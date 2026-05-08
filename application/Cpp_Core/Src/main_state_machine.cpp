@@ -64,20 +64,6 @@ void MainStateMachine::setup()
 
         SPIScreenManager::getInstance().loop();
 
-#if APPLICATION_DEBUG_PRINT
-        uint32_t dt_cycles = DWT->CYCCNT - t0_cycles;
-        uint32_t dt = (cycles_per_us > 0u) ? (dt_cycles / cycles_per_us) : 0u;
-        screen_loop_acc_us += (uint64_t)dt;
-        screen_loop_count++;
-        uint32_t now_ms = HAL_GetTick();
-        if ((uint32_t)(now_ms - screen_loop_last_log_ms) >= 1000u) {
-            uint32_t avg_us = (screen_loop_count > 0u) ? (uint32_t)(screen_loop_acc_us / screen_loop_count) : 0u;
-            APP_DBG("[MAIN] SPI screen loop avg=%lu us count=%lu", (unsigned long)avg_us, (unsigned long)screen_loop_count);
-            screen_loop_acc_us = 0;
-            screen_loop_count = 0;
-            screen_loop_last_log_ms = now_ms;
-        }
-#endif
     }
 
 }

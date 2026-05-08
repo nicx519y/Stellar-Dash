@@ -25,17 +25,11 @@ typedef enum
 
 typedef enum
 {
-  WS2812B_STRIP_KEYS    = 0,
+  WS2812B_STRIP_KEYS = 0,
   WS2812B_STRIP_AMBIENT = 1
 } WS2812B_Strip;
 
 void WS2812B_InitStrip(WS2812B_Strip strip);
-
-WS2812B_StateTypeDef WS2812B_StartStrip(WS2812B_Strip strip);
-
-WS2812B_StateTypeDef WS2812B_StopStrip(WS2812B_Strip strip);
-
-WS2812B_StateTypeDef WS2812B_GetStateStrip(WS2812B_Strip strip);
 
 void WS2812B_SetAllLEDBrightnessStrip(WS2812B_Strip strip, const uint8_t brightness);
 
@@ -46,6 +40,12 @@ void WS2812B_SetLEDBrightnessStrip(WS2812B_Strip strip, const uint8_t brightness
 void WS2812B_SetLEDColorStrip(WS2812B_Strip strip, const uint8_t r, const uint8_t g, const uint8_t b, const uint16_t index);
 
 void WS2812B_RefreshStrip(WS2812B_Strip strip, const uint16_t start, const uint16_t length);
+
+WS2812B_StateTypeDef WS2812B_StartStrip(WS2812B_Strip strip);
+
+WS2812B_StateTypeDef WS2812B_StopStrip(WS2812B_Strip strip);
+
+WS2812B_StateTypeDef WS2812B_GetStateStrip(WS2812B_Strip strip);
 
 void WS2812B_Init(void);
 
