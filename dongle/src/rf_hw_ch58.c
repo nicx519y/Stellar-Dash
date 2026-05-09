@@ -92,7 +92,8 @@ static bool rf_init_once(void)
     memset(&cfg, 0, sizeof(cfg));
 
 #if (DONGLE_DIAG_RF_HW_INIT_LEVEL >= 2u)
-    cfg.LLEMode = LLE_MODE_BASIC;
+    /* Align RF bring-up with official RF_PHY_Hop example. */
+    cfg.LLEMode = LLE_MODE_AUTO;
     cfg.Channel = s_current_channel;
     cfg.accessAddress = RF_ACCESS_ADDR;
     cfg.CRCInit = RF_CRC_INIT;

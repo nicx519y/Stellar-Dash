@@ -4,7 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "dongle_config.h"
+#if DONGLE_USE_USBHS_BACKEND
 #include "ch585_usbhs_device.h"
+#else
+#include "CH58x_common.h"
+#endif
 
 /*
  * In XInput+CDC composite mode:
@@ -21,7 +26,7 @@ void cdc_log_printf(const char *fmt, ...)
     uint8_t busy;
     va_list args;
 
-    if ((fmt == 0) || (USBHS_DevEnumStatus == 0u)) {
+    if (fmt == 0) {
         return;
     }
 
@@ -36,12 +41,20 @@ void cdc_log_printf(const char *fmt, ...)
         buf[len] = '\0';
     }
 
+#if DONGLE_USE_USBHS_BACKEND
+    if (USBHS_DevEnumStatus == 0u) {
+        return;
+    }
     busy = (uint8_t)(USBHS_Endp_Busy[CDC_LOG_EP] & DEF_UEP_BUSY);
     if (busy != 0u) {
         return;
     }
 
     (void)USBHS_Endp_DataUp(CDC_LOG_EP, (uint8_t *)buf, (uint16_t)len, DEF_UEP_CPY_LOAD);
+#else
+    (void)busy;
+    UART0_SendString((uint8_t *)buf, (uint16_t)len);
+#endif
 }
 
 void cdc_log_alive_tick(uint32_t sec_counter)

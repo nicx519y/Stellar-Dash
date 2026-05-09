@@ -14,6 +14,20 @@ typedef enum {
     APP_STATE_USB_ACTIVE
 } app_state_t;
 
+static volatile uint32_t s_rx_input_packets = 0u;
+
+static void on_rf_input_packet(const uint8_t *packet, size_t len)
+{
+    (void)packet;
+    if (len == 0u) {
+        return;
+    }
+    s_rx_input_packets++;
+    if ((s_rx_input_packets % 128u) == 0u) {
+        PRINT("RF INPUT packets=%lu\r\n", (unsigned long)s_rx_input_packets);
+    }
+}
+
 void DebugInit(void)
 {
     GPIOA_SetBits(GPIO_Pin_14);
@@ -59,7 +73,7 @@ int main(void)
     rf_role_status = RF_RoleInit();
     PRINT("RF_RoleInit status=%u\r\n", (unsigned int)rf_role_status);
 
-    rf_link_init(0);
+    rf_link_init(on_rf_input_packet);
     dongle_fsm_init(platform_now_us());
 
     while(1)

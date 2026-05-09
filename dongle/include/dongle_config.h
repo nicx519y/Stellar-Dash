@@ -4,12 +4,12 @@
 #include <stdint.h>
 
 #define PRODUCT_VID                    (0x045Eu)        // 0x045E 是 HBox 产品 ID 微软VID xinput模式
-#define PRODUCT_PID                    (0x028Eu)
+#define PRODUCT_PID                    (0x02FFu)
 #define PRODUCT_BCD_DEVICE             (0x0100u)
 /* Bring-up mode switch. 0 = normal RF + USB runtime. */
 #define DONGLE_USB_ENUM_BRINGUP_ONLY   (0u)
-/* CH585 board uses PB13/PB12 USB2(USBHS) pins. */
 #define DONGLE_USE_USBHS_BACKEND       (1u)
+#define DONGLE_USB_FORCE_FULLSPEED     (1u)
 
 /*
  * RF diagnostic switches:

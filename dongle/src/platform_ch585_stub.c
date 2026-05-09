@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "CH58x_common.h"
+#include "dongle_config.h"
 
 /* PA10 = LED_EN, active low */
 #define LED_EN_PIN GPIO_Pin_10
@@ -79,6 +80,11 @@ void platform_irq_ensure_enabled(void)
 {
     /* Keep timer/global interrupt gate enabled in case RF ROM code toggles it. */
     PFIC_EnableIRQ(TMR0_IRQn);
+#if DONGLE_USE_USBHS_BACKEND
+    PFIC_EnableIRQ(USB2_DEVICE_IRQn);
+#else
+    PFIC_EnableIRQ(USB_IRQn);
+#endif
     PFIC_EnableAllIRQ();
 }
 

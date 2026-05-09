@@ -53,6 +53,9 @@ OBJS += $(BUILD_DIR)/user/platform_ch585_stub.o
 OBJS += $(BUILD_DIR)/user/rf_hw_ch58.o
 OBJS += $(BUILD_DIR)/user/rf_link_stub.o
 OBJS += $(BUILD_DIR)/user/rf_protocol.o
+OBJS += $(BUILD_DIR)/user/report_pipeline.o
+OBJS += $(BUILD_DIR)/user/dongle_telemetry.o
+OBJS += $(BUILD_DIR)/user/usb_hid_stub.o
 OBJS += $(BUILD_DIR)/user/UART.o
 OBJS += $(BUILD_DIR)/user/log_utils.o
 OBJS += $(BUILD_DIR)/user/usbd_compatibility_hid_shim.o
@@ -116,7 +119,7 @@ $(BUILD_DIR)/sdk/BLE_HAL_MCU.o: $(SDK)/BLE/HAL/MCU.c | $(BUILD_DIR)/sdk
 $(BUILD_DIR)/sdk/BLE_HAL_RTC.o: $(SDK)/BLE/HAL/RTC.c | $(BUILD_DIR)/sdk
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/user/main.o: src/main_official_1slog.c | $(BUILD_DIR)/user
+$(BUILD_DIR)/user/main.o: src/main.c | $(BUILD_DIR)/user
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/user/dongle_fsm.o: src/dongle_fsm.c | $(BUILD_DIR)/user
@@ -132,6 +135,15 @@ $(BUILD_DIR)/user/rf_link_stub.o: src/rf_link_stub.c | $(BUILD_DIR)/user
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/user/rf_protocol.o: src/rf_protocol.c | $(BUILD_DIR)/user
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/user/report_pipeline.o: src/report_pipeline.c | $(BUILD_DIR)/user
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/user/dongle_telemetry.o: src/dongle_telemetry.c | $(BUILD_DIR)/user
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/user/usb_hid_stub.o: src/usb_hid_stub.c | $(BUILD_DIR)/user
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/user/UART.o: $(USBHS_USER_DIR)/UART.c | $(BUILD_DIR)/user

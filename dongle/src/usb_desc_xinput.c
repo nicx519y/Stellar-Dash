@@ -1,4 +1,5 @@
 #include "usb_desc.h"
+#include "dongle_config.h"
 
 /*
  * USBHS descriptor set tuned for Xbox360-compatible XInput interface shape.
@@ -7,7 +8,10 @@
 
 const uint8_t MyDevDescr[] = {
     0x12u, 0x01u, 0x00u, 0x02u, 0xEFu, 0x02u, 0x01u, DEF_USBD_UEP0_SIZE,
-    0x86u, 0x1Au, 0x0Cu, 0xFEu, 0x10u, 0x01u, 0x01u, 0x02u, 0x03u, 0x01u
+    (uint8_t)(PRODUCT_VID & 0xFFu), (uint8_t)((PRODUCT_VID >> 8) & 0xFFu),
+    (uint8_t)(PRODUCT_PID & 0xFFu), (uint8_t)((PRODUCT_PID >> 8) & 0xFFu),
+    (uint8_t)(PRODUCT_BCD_DEVICE & 0xFFu), (uint8_t)((PRODUCT_BCD_DEVICE >> 8) & 0xFFu),
+    0x01u, 0x02u, 0x03u, 0x01u
 };
 
 const uint8_t MyCfgDescr_HS[] = {

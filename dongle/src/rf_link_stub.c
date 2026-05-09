@@ -62,6 +62,7 @@ static uint16_t s_lq_tx_fail;
 static uint32_t s_lq_eval_deadline_us;
 static uint32_t s_next_heartbeat_us;
 static uint8_t s_tx_power_level;
+static uint8_t s_loopback_echo_divider;
 
 static const uint8_t s_channel_plan[] = {
     2u, 5u, 8u, 11u, 14u, 17u, 20u, 23u,
@@ -79,6 +80,13 @@ static const uint8_t s_channel_plan[] = {
 #define RF_TX_PWR_MIN         (0u)
 #define RF_TX_PWR_MAX         (3u)
 #define RF_TX_PWR_DEFAULT     (2u)
+#define RF_DIRECT_LINK_TEST      (1u)
+#define RF_DIRECT_BOND_PEER_UID  (0x584D0001u)
+#define RF_DIRECT_BOND_NONCE_A   (0x13572468u)
+#define RF_DIRECT_BOND_NONCE_B   (0x24681357u)
+#define RF_DIRECT_BOND_HOP_SEED  (0u)
+#define RF_SINGLE_CHANNEL_TEST   (1u)
+#define RF_FIXED_HOP_IDX         (0u)
 
 #ifdef CH585
 #define BOND_NVM_ADDR         (0u)
@@ -119,11 +127,16 @@ static uint8_t normalize_hop_idx(uint8_t hop_idx)
 
 static uint8_t derive_hop_idx(uint8_t seq)
 {
+#if RF_SINGLE_CHANNEL_TEST
+    (void)seq;
+    return RF_FIXED_HOP_IDX;
+#else
     uint8_t n = channel_plan_size();
     if ((n == 0u) || !s_has_bond || !s_bond.valid) {
         return 0u;
     }
     return (uint8_t)((s_bond.hop_seed + seq) % n);
+#endif
 }
 
 __attribute__((weak))
@@ -183,6 +196,11 @@ static void drop_power(void)
 
 static uint8_t scan_next_hop_idx(void)
 {
+#if RF_SINGLE_CHANNEL_TEST
+    s_scan_cursor = RF_FIXED_HOP_IDX;
+    apply_channel(RF_FIXED_HOP_IDX);
+    return RF_FIXED_HOP_IDX;
+#else
     uint8_t idx = normalize_hop_idx(s_scan_cursor);
     s_scan_cursor = (uint8_t)(idx + 1u);
     if (s_scan_cursor >= channel_plan_size()) {
@@ -190,6 +208,7 @@ static uint8_t scan_next_hop_idx(void)
     }
     apply_channel(idx);
     return idx;
+#endif
 }
 
 static bool is_packet_from_bonded_peer(const rf_proto_frame_t *pkt)
@@ -534,12 +553,29 @@ static void on_packet_connected(const rf_proto_frame_t *pkt, uint32_t now_us)
         s_last_data_seq = pkt->hdr.seq;
         s_has_last_data_seq = true;
         s_packet_cb(pkt->payload, pkt->payload_len);
+        s_loopback_echo_divider++;
+        if ((s_loopback_echo_divider & 0x1Fu) == 0u) {
+            uint8_t echo[2];
+            echo[0] = pkt->hdr.seq;
+            echo[1] = pkt->payload[0];
+            (void)send_packet_retry(RF_PKT_CTRL_CMD, echo, sizeof(echo), RF_HOP_AUTO, 0u);
+        }
         return;
     }
 
     if (pkt->hdr.type == RF_PKT_UNBIND) {
         rf_link_clear_bond();
     }
+}
+
+static void apply_direct_bond_profile(void)
+{
+    s_bond.peer_uid = RF_DIRECT_BOND_PEER_UID;
+    s_bond.nonce_local = RF_DIRECT_BOND_NONCE_A;
+    s_bond.nonce_peer = RF_DIRECT_BOND_NONCE_B;
+    s_bond.hop_seed = normalize_hop_idx(RF_DIRECT_BOND_HOP_SEED);
+    s_bond.valid = true;
+    s_has_bond = true;
 }
 
 void rf_link_init(rf_packet_cb_t cb)
@@ -567,6 +603,7 @@ void rf_link_init(rf_packet_cb_t cb)
     now_us = platform_now_us();
     s_lq_eval_deadline_us = now_us + RF_LQ_EVAL_PERIOD_US;
     s_next_heartbeat_us = now_us + RF_HEARTBEAT_INTERVAL_US;
+    s_loopback_echo_divider = 0u;
 
 #if (DONGLE_DIAG_RF_INIT_PHASE >= 1u)
     (void)rf_hw_init();
@@ -580,7 +617,12 @@ void rf_link_init(rf_packet_cb_t cb)
 #if (DONGLE_DIAG_RF_INIT_PHASE >= 4u)
     apply_channel(0u);
 #endif
+#if RF_DIRECT_LINK_TEST
+    /* RF bring-up test mode: ignore NVM bond and force fixed profile. */
+    apply_direct_bond_profile();
+#else
     (void)bond_store_load();
+#endif
 }
 
 void rf_link_poll(void)

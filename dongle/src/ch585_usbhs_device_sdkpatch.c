@@ -13,6 +13,7 @@
 #include <ch585_usbhs_device.h>
 #include "usb_desc.h"
 #include "usbd_compatibility_hid.h"
+#include "dongle_config.h"
 
 extern const uint8_t MyXsm3Info[];
 
@@ -162,11 +163,19 @@ void USBHS_Device_Endp_Init ( void )
     R16_U2EP_RX_EN = RB_EP0_EN | RB_EP1_EN | RB_EP4_EN;
 
     R32_U2EP0_MAX_LEN  = DEF_USBD_UEP0_SIZE;
+#if defined(DONGLE_USB_FORCE_FULLSPEED) && (DONGLE_USB_FORCE_FULLSPEED != 0u)
+    R32_U2EP1_MAX_LEN  = DEF_USBD_FS_PACK_SIZE;
+    R32_U2EP2_MAX_LEN  = DEF_USBD_FS_PACK_SIZE;
+    R32_U2EP3_MAX_LEN  = DEF_USBD_FS_PACK_SIZE;
+    R32_U2EP4_MAX_LEN  = DEF_USBD_FS_PACK_SIZE;
+    R32_U2EP5_MAX_LEN  = DEF_USBD_FS_PACK_SIZE;
+#else
     R32_U2EP1_MAX_LEN  = DEF_USB_EP1_HS_SIZE;
     R32_U2EP2_MAX_LEN  = DEF_USB_EP2_HS_SIZE;
     R32_U2EP3_MAX_LEN  = DEF_USB_EP3_HS_SIZE;
     R32_U2EP4_MAX_LEN  = DEF_USB_EP4_HS_SIZE;
     R32_U2EP5_MAX_LEN  = DEF_USB_EP5_HS_SIZE;
+#endif
 
     R32_U2EP0_DMA    = (uint32_t)(uint8_t *)USBHS_EP0_Buf;
     R32_U2EP1_RX_DMA = (uint32_t)(uint8_t *)USBHS_EP1_Rx_Buf;
@@ -207,7 +216,15 @@ void USBHS_Device_Init ( FunctionalState sta )
         R8_USB2_CTRL = USBHS_UD_RST_LINK | USBHS_UD_PHY_SUSPENDM;
         R8_USB2_INT_EN = USBHS_UDIE_BUS_RST | USBHS_UDIE_SUSPEND | USBHS_UDIE_BUS_SLEEP | USBHS_UDIE_LPM_ACT | USBHS_UDIE_TRANSFER | USBHS_UDIE_LINK_RDY;
         USBHS_Device_Endp_Init();
+#if defined(DONGLE_USB_FORCE_FULLSPEED) && (DONGLE_USB_FORCE_FULLSPEED != 0u)
+#ifdef USBHS_UD_SPEED_FULL
+        R8_USB2_BASE_MODE = USBHS_UD_SPEED_FULL;
+#else
+        R8_USB2_BASE_MODE = 0u;
+#endif
+#else
         R8_USB2_BASE_MODE = USBHS_UD_SPEED_HIGH;
+#endif
         R8_USB2_CTRL = USBHS_UD_DEV_EN | USBHS_UD_DMA_EN | USBHS_UD_LPM_EN | USBHS_UD_PHY_SUSPENDM;
         PFIC_EnableIRQ( USB2_DEVICE_IRQn );
     }
