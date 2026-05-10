@@ -15,6 +15,12 @@
 #include "CONFIG.h"
 #include "HAL.h"
 #include "RF_PHY.h"
+#include "rfm_spi_bridge.h"
+
+/* 1: only run SPI bridge for link bring-up; 0: run normal RF TX flow */
+#ifndef RFM_SPI_ONLY_MODE
+#define RFM_SPI_ONLY_MODE 1
+#endif
 
 /*********************************************************************
  * GLOBAL TYPEDEFS
@@ -38,7 +44,10 @@ void Main_Circulation()
 {
     while(1)
     {
+        rfm_spi_bridge_poll();
+#if (RFM_SPI_ONLY_MODE == 0)
         RF_TxMainLoopProcess();
+#endif
         TMOS_SystemProcess();
     }
 }
@@ -74,7 +83,12 @@ int main(void)
     CH58x_BLEInit();
     HAL_Init();
     RF_RoleInit();
+#if (RFM_SPI_ONLY_MODE == 0)
     RF_Init();
+#else
+    PRINT("[RFM] SPI-only mode enabled, RF TX paused.\n");
+#endif
+    rfm_spi_bridge_init();
     Main_Circulation();
 }
 
