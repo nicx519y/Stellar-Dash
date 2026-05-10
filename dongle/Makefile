@@ -26,9 +26,9 @@ INCLUDES := \
 	-I$(SDK)/SRC/StdPeriphDriver/inc \
 	-I$(SDK)/SRC/RVMSIS
 
-CPU_FLAGS := -march=rv32imac -mabi=ilp32
-COMMON_FLAGS := -Os -g3 -ffunction-sections -fdata-sections -Wall -Wextra
-CFLAGS := $(CPU_FLAGS) $(COMMON_FLAGS) $(INCLUDES) -DCH585 -DCH58xBLE_ROM
+CPU_FLAGS := -march=rv32imcbxw -mabi=ilp32
+COMMON_FLAGS := -Os -g3 -ffunction-sections -fdata-sections -Wall -Wextra -fno-common -fsigned-char
+CFLAGS := $(CPU_FLAGS) $(COMMON_FLAGS) $(INCLUDES) -std=gnu99 -DCH585 -DCH58xBLE_ROM -DDEBUG=0 -DCLK_OSC32K=2
 ASFLAGS := $(CPU_FLAGS) $(INCLUDES) -x assembler-with-cpp
 LDFLAGS := $(CPU_FLAGS) -T$(LDSCRIPT) -Wl,--gc-sections -Wl,-Map=$(BUILD_DIR)/$(TARGET).map -nostartfiles
 SDK_LIBS := $(SDK)/SRC/StdPeriphDriver/libISP585.a
@@ -47,6 +47,7 @@ OBJS += $(BUILD_DIR)/sdk/CH58x_sys.o
 OBJS += $(BUILD_DIR)/sdk/startup_CH585.o
 OBJS += $(BUILD_DIR)/sdk/BLE_HAL_MCU.o
 OBJS += $(BUILD_DIR)/sdk/BLE_HAL_RTC.o
+OBJS += $(BUILD_DIR)/sdk/ble_task_scheduler.o
 OBJS += $(BUILD_DIR)/user/main.o
 OBJS += $(BUILD_DIR)/user/dongle_fsm.o
 OBJS += $(BUILD_DIR)/user/platform_ch585_stub.o
@@ -118,6 +119,9 @@ $(BUILD_DIR)/sdk/BLE_HAL_MCU.o: $(SDK)/BLE/HAL/MCU.c | $(BUILD_DIR)/sdk
 
 $(BUILD_DIR)/sdk/BLE_HAL_RTC.o: $(SDK)/BLE/HAL/RTC.c | $(BUILD_DIR)/sdk
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/sdk/ble_task_scheduler.o: $(SDK)/BLE/LIB/ble_task_scheduler.S | $(BUILD_DIR)/sdk
+	$(CC) $(ASFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/user/main.o: src/main.c | $(BUILD_DIR)/user
 	$(CC) $(CFLAGS) -c $< -o $@

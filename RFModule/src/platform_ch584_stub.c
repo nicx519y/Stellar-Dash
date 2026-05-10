@@ -11,6 +11,7 @@
 
 #define US_TICK_STEP      10u
 #define TMR0_PERIOD_10US  (FREQ_SYS / 100000u)
+#define PLATFORM_SOFT_TIMEBASE 1u
 
 static volatile uint32_t s_now_us;
 static bool s_spi_tx_pending;
@@ -176,10 +177,17 @@ void platform_gpio_init(void)
 void platform_timer_init(void)
 {
     s_now_us = 0u;
-
+#if !PLATFORM_SOFT_TIMEBASE
     TMR0_TimerInit(TMR0_PERIOD_10US);
     TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
-    TMR0_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
+    /*
+     * Keep TMR0 in polling mode:
+     * platform_now_us() consumes CYC_END flag directly.
+     * Enabling IRQ here without ISR may trigger reset loop after RF stack
+     * turns on global interrupts.
+     */
+    TMR0_ITCfg(DISABLE, TMR0_3_IT_CYC_END);
+#endif
 }
 
 void platform_spi_init(void)
@@ -195,10 +203,14 @@ void platform_spi_init(void)
 
 uint32_t platform_now_us(void)
 {
+#if PLATFORM_SOFT_TIMEBASE
+    s_now_us += US_TICK_STEP;
+#else
     while (TMR0_GetITFlag(TMR0_3_IT_CYC_END)) {
         TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
         s_now_us += US_TICK_STEP;
     }
+#endif
     return s_now_us;
 }
 

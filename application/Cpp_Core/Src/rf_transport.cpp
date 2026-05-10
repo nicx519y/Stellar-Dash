@@ -109,10 +109,10 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
         }
     } else {
         if (!(evt == EVT_STATUS && payloadLen == 1u && frame[3] == CMD_GET_STATUS)) {
-            APP_DBG("[RF_BRIDGE] short evt frame evt=0x%02X payload=%u tag=0x%02X",
-                    (unsigned int)evt,
-                    (unsigned int)payloadLen,
-                    (unsigned int)(payloadLen > 0u ? frame[3] : 0u));
+            // APP_DBG("[RF_BRIDGE] short evt frame evt=0x%02X payload=%u tag=0x%02X",
+            //         (unsigned int)evt,
+            //         (unsigned int)payloadLen,
+            //         (unsigned int)(payloadLen > 0u ? frame[3] : 0u));
         }
     }
 
@@ -122,9 +122,9 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
     }
     lastLoggedStatus = status;
 
-    APP_DBG("[RF_BRIDGE] event=%s state=%s connected=%u hasBond=%u rate=%u reject=%lu",
-            eventToString(evt), linkStateToString(status.state), status.connected ? 1u : 0u,
-            status.hasBond ? 1u : 0u, status.rateHz, status.rejectCount);
+    // APP_DBG("[RF_BRIDGE] event=%s state=%s connected=%u hasBond=%u rate=%u reject=%lu",
+    //         eventToString(evt), linkStateToString(status.state), status.connected ? 1u : 0u,
+    //         status.hasBond ? 1u : 0u, status.rateHz, status.rejectCount);
 
     return true;
 }

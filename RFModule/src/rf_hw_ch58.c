@@ -7,6 +7,7 @@
 #include "platform_port.h"
 #include "rfm_protocol.h"
 #include "CH58xBLE_ROM.h"
+#include "log_utils.h"
 
 #define RF_ACCESS_ADDR   (0x71764129u)
 #define RF_CRC_INIT      (0x555555u)
@@ -76,7 +77,6 @@ static bool rf_init_once(void)
     }
 
     memset(&cfg, 0, sizeof(cfg));
-    (void)RF_RoleInit();
 
     cfg.LLEMode = LLE_MODE_BASIC;
     cfg.Channel = s_current_channel;
@@ -90,12 +90,17 @@ static bool rf_init_once(void)
     cfg.RxMaxlen = RFM_PROTO_MAX_FRAME;
     cfg.TxMaxlen = RFM_PROTO_MAX_FRAME;
 
+    log_raw("[RFM][RF] config...\r\n");
     st = RF_Config(&cfg);
     if (st != 0u) {
+        log_raw("[RFM][RF] config fail\r\n");
         return false;
     }
+    log_raw("[RFM][RF] config ok\r\n");
 
+    log_raw("[RFM][RF] set ch...\r\n");
     RF_SetChannel(s_current_channel);
+    log_raw("[RFM][RF] set ch ok\r\n");
     s_need_rx_rearm = true;
     s_rf_inited = true;
     return true;
@@ -111,9 +116,13 @@ static void rf_rearm_rx_if_needed(void)
     }
 
     RF_Shut();
+    log_raw("[RFM][RF] rx arm...\r\n");
     if (RF_Rx(0, 0u, RF_PKT_MATCH_ALL, RF_PKT_MATCH_ALL) == 0u) {
         s_rx_active = true;
         s_need_rx_rearm = false;
+        log_raw("[RFM][RF] rx arm ok\r\n");
+    } else {
+        log_raw("[RFM][RF] rx arm fail\r\n");
     }
 }
 

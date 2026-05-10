@@ -65,5 +65,7 @@ bool rfm_link_push_input(const uint8_t *payload, size_t len);
 rfm_status_t rfm_link_get_status(void);
 /* 读取并清除一个待处理事件 */
 rfm_event_t rfm_link_take_event(void);
+/* 获取并清除回环确认计数（测试用途） */
+uint32_t rfm_link_take_loopback_echo_count(void);
 
 #endif /* RFM_LINK_H */

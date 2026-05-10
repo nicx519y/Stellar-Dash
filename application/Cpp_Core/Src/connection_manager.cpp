@@ -8,12 +8,12 @@
 
 bool ConnectionManager::tryRfBringup(bool isRetry) {
     bool ok = rfTransport.begin();
-    APP_DBG("[RF_BRIDGE] rf begin %sresult: %d", isRetry ? "retry " : "", ok);
+    // APP_DBG("[RF_BRIDGE] rf begin %sresult: %d", isRetry ? "retry " : "", ok);
 
     if (ok) {
         const RFModuleStatus& st = rfTransport.getStatus();
-        APP_DBG("[RF_BRIDGE] initial state=%u connected=%u hasBond=%u rate=%u",
-                static_cast<uint8_t>(st.state), st.connected ? 1u : 0u, st.hasBond ? 1u : 0u, st.rateHz);
+        // APP_DBG("[RF_BRIDGE] initial state=%u connected=%u hasBond=%u rate=%u",
+        //         static_cast<uint8_t>(st.state), st.connected ? 1u : 0u, st.hasBond ? 1u : 0u, st.rateHz);
     }
     /*
      * SPI bring-up mode:
@@ -30,7 +30,7 @@ bool ConnectionManager::tryRfBringup(bool isRetry) {
         }
         linkState = nextState;
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1001u, "rf begin/setRate failed");
-        APP_DBG("[RF_BRIDGE] rf setup failed");
+        // APP_DBG("[RF_BRIDGE] rf setup failed");
     }
     return ok;
 }

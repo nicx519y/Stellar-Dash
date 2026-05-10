@@ -1,62 +1,67 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "CH58x_common.h"
+#include "HAL.h"
 #include "dongle_config.h"
 #include "log_utils.h"
 #include "platform_port.h"
 #include "usb_hid_if.h"
 
+__attribute__((aligned(4))) uint32_t MEM_BUF[BLE_MEMHEAP_SIZE / 4];
+
 int main(void)
 {
-    uint32_t now_us;
-    uint32_t next_toggle_us;
-    uint32_t next_alive_us = 0u;
-    uint32_t alive_sec = 0u;
-    bool led_on;
-    bool cdc_boot_banner_sent = false;
-
     platform_clock_init();
     platform_gpio_init();
-    platform_timer_init();
-    cdc_log_printf("[boot] clock/gpio/timer ok\r\n");
 
-    led_on = true;
-    platform_led_set(led_on);
-    next_toggle_us = platform_now_us() + 500000u;
+    platform_led_set(true);
+    DelayMs(1000);
+    platform_led_set(false);
+    DelayMs(1000);
+
+    // platform_timer_init();
+
+    
+
+    // platform_wdt_disable();
+
+
+#ifdef DEBUG
+    GPIOA_SetBits(GPIO_Pin_14);
+    GPIOPinRemap(ENABLE, RB_PIN_UART0);
+    GPIOA_ModeCfg(GPIO_Pin_15, GPIO_ModeIN_PU);
+    GPIOA_ModeCfg(GPIO_Pin_14, GPIO_ModeOut_PP_5mA);
+    UART0_DefInit();
+#endif
+
+    PRINT("start.\r\n");
+    PRINT("%s\r\n", VER_LIB);
+
+    // platform_led_set(true);
+    // DelayMs(1000);
+    // platform_led_set(false);
+    
+    
+
+    CH58x_BLEInit();
+
+    platform_led_set(true);
+    DelayMs(4000);
+    platform_led_set(false);
+    DelayMs(4000);
+
+    HAL_Init();
 
     usb_hid_init();
+
+    
+
     cdc_log_printf("[boot] USB full-speed XInput+CDC init\r\n");
 
     while (1) {
         platform_irq_ensure_enabled();
-        now_us = platform_now_us();
-
-        if ((int32_t)(now_us - next_toggle_us) >= 0) {
-            next_toggle_us += 500000u;
-            led_on = !led_on;
-            platform_led_set(led_on);
-        }
-
+        TMOS_SystemProcess();
         usb_hid_poll();
-        if (!cdc_boot_banner_sent && usb_hid_ready()) {
-            cdc_boot_banner_sent = true;
-            cdc_log_printf("[boot] XInput+CDC ready\r\n");
-        }
-
-        if (next_alive_us == 0u) {
-            next_alive_us = now_us + 1000000u;
-        }
-        if ((int32_t)(now_us - next_alive_us) >= 0) {
-            next_alive_us += 1000000u;
-            alive_sec++;
-            cdc_log_alive_tick(alive_sec);
-        }
-
-#if DONGLE_DIAG_FORCE_LED_PATTERN
-        /* 100ms fast blink: if this is not visible, current firmware likely not running. */
-        platform_led_set((((now_us / 100000u) & 0x1u) == 0u));
-#endif
-
-        platform_idle();
     }
 }

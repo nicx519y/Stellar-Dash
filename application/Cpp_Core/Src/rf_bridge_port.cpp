@@ -61,7 +61,7 @@ static void rf_flush_stale_if_irq_high() {
     rf_cs_set(false);
     (void)HAL_SPI_TransmitReceive(&s_rf_hspi, txDummy, rxDummy, sizeof(txDummy), RF_BRIDGE_SPI_TIMEOUT_MS);
     rf_cs_set(true);
-    APP_DBG("[RF_BRIDGE] stale flush before tx");
+    // APP_DBG("[RF_BRIDGE] stale flush before tx");
 }
 
 static bool rf_spi_init_once() {
@@ -80,7 +80,7 @@ static bool rf_spi_init_once() {
     clk.Spi45ClockSelection = RCC_SPI45CLKSOURCE_PCLK2;
 #endif
     if (HAL_RCCEx_PeriphCLKConfig(&clk) != HAL_OK) {
-        APP_DBG("[RF_BRIDGE] spi4 periph clock config failed");
+        // APP_DBG("[RF_BRIDGE] spi4 periph clock config failed");
         return false;
     }
 
@@ -135,36 +135,36 @@ static bool rf_spi_init_once() {
     s_rf_hspi.Init.IOSwap = SPI_IO_SWAP_DISABLE;
 
     if (HAL_SPI_Init(&s_rf_hspi) != HAL_OK) {
-        APP_DBG("[RF_BRIDGE] spi4 init failed");
+        // APP_DBG("[RF_BRIDGE] spi4 init failed");
         return false;
     }
 
     s_rf_spi_ready = true;
-    APP_DBG("[RF_BRIDGE] spi4 init ok (SCK=%u MISO=%u MOSI=%u NSS=%u)",
-            (unsigned int)RF_BRIDGE_SPI_SCK_PIN,
-            (unsigned int)RF_BRIDGE_SPI_MISO_PIN,
-            (unsigned int)RF_BRIDGE_SPI_MOSI_PIN,
-            (unsigned int)RF_BRIDGE_SPI_NSS_PIN);
+    // APP_DBG("[RF_BRIDGE] spi4 init ok (SCK=%u MISO=%u MOSI=%u NSS=%u)",
+    //         (unsigned int)RF_BRIDGE_SPI_SCK_PIN,
+    //         (unsigned int)RF_BRIDGE_SPI_MISO_PIN,
+    //         (unsigned int)RF_BRIDGE_SPI_MOSI_PIN,
+    //         (unsigned int)RF_BRIDGE_SPI_NSS_PIN);
     return true;
 }
 } // namespace
 
 bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint16_t* rxLen) {
     if ((tx == nullptr) || (txLen == 0u)) {
-        APP_DBG("[RF_BRIDGE] transfer invalid tx args");
+        // APP_DBG("[RF_BRIDGE] transfer invalid tx args");
         if (rxLen != nullptr) *rxLen = 0u;
         return false;
     }
 
     if (!rf_spi_init_once()) {
-        APP_DBG("[RF_BRIDGE] transfer spi init not ready");
+        // APP_DBG("[RF_BRIDGE] transfer spi init not ready");
         if (rxLen != nullptr) *rxLen = 0u;
         return false;
     }
 
-    if (txLen >= 2u && tx[0] == 0xA5u && tx[1] != 0x06u) {
-        APP_DBG("[RF_BRIDGE] tx cmd=0x%02X len=%u", (unsigned int)tx[1], (unsigned int)txLen);
-    }
+    // if (txLen >= 2u && tx[0] == 0xA5u && tx[1] != 0x06u) {
+    //     APP_DBG("[RF_BRIDGE] tx cmd=0x%02X len=%u", (unsigned int)tx[1], (unsigned int)txLen);
+    // }
 
     rf_flush_stale_if_irq_high();
 
@@ -172,7 +172,7 @@ bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint1
     const HAL_StatusTypeDef tx_st = HAL_SPI_Transmit(&s_rf_hspi, const_cast<uint8_t*>(tx), txLen, RF_BRIDGE_SPI_TIMEOUT_MS);
     rf_cs_set(true);
     if (tx_st != HAL_OK) {
-        APP_DBG("[RF_BRIDGE] tx failed status=%u", (unsigned int)tx_st);
+        // APP_DBG("[RF_BRIDGE] tx failed status=%u", (unsigned int)tx_st);
         if (rxLen != nullptr) *rxLen = 0u;
         return false;
     }
@@ -189,15 +189,15 @@ bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint1
         for (uint16_t i = 0u; i < kProbeLen; ++i) txDummy[i] = 0xFFu;
 
         if (*rxLen < kMinFrameLen) {
-            APP_DBG("[RF_BRIDGE] rx cap too small: %u", (unsigned int)(*rxLen));
+            // APP_DBG("[RF_BRIDGE] rx cap too small: %u", (unsigned int)(*rxLen));
             *rxLen = 0u;
             return false;
         }
         memset(rx, 0, *rxLen);
 
         if (!rf_wait_irq_high(20u)) {
-            APP_DBG("[RF_BRIDGE] irq wait timeout before readback, irq=%u",
-                    (unsigned int)(HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) == GPIO_PIN_SET ? 1u : 0u));
+            // APP_DBG("[RF_BRIDGE] irq wait timeout before readback, irq=%u",
+            //         (unsigned int)(HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) == GPIO_PIN_SET ? 1u : 0u));
             *rxLen = 0u;
             return false;
         }
@@ -205,7 +205,7 @@ bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint1
         rf_cs_set(false);
         if (HAL_SPI_TransmitReceive(&s_rf_hspi, txDummy, probe, kProbeLen, RF_BRIDGE_SPI_TIMEOUT_MS) != HAL_OK) {
             rf_cs_set(true);
-            APP_DBG("[RF_BRIDGE] rx short frame read failed");
+            // APP_DBG("[RF_BRIDGE] rx short frame read failed");
             *rxLen = 0u;
             return false;
         }
@@ -227,15 +227,15 @@ bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint1
         }
 
         if (!found) {
-            APP_DBG("[RF_BRIDGE] rx short frame invalid window: %02X %02X %02X %02X %02X %02X %02X %02X",
-                    (unsigned int)probe[0], (unsigned int)probe[1], (unsigned int)probe[2], (unsigned int)probe[3],
-                    (unsigned int)probe[4], (unsigned int)probe[5], (unsigned int)probe[6], (unsigned int)probe[7]);
-            *rxLen = 0u;
+            // APP_DBG("[RF_BRIDGE] rx short frame invalid window: %02X %02X %02X %02X %02X %02X %02X %02X",
+            //         (unsigned int)probe[0], (unsigned int)probe[1], (unsigned int)probe[2], (unsigned int)probe[3],
+            //         (unsigned int)probe[4], (unsigned int)probe[5], (unsigned int)probe[6], (unsigned int)probe[7]);
+            // *rxLen = 0u;
             return false;
         }
 
-        APP_DBG("[RF_BRIDGE] rx evt=0x%02X payload=%u total=%u",
-                (unsigned int)rx[1], (unsigned int)rx[2], (unsigned int)(*rxLen));
+        // APP_DBG("[RF_BRIDGE] rx evt=0x%02X payload=%u total=%u",
+        //         (unsigned int)rx[1], (unsigned int)rx[2], (unsigned int)(*rxLen));
     } else if (rxLen != nullptr) {
         *rxLen = 0u;
     }

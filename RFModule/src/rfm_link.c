@@ -5,6 +5,7 @@
 
 #include "platform_port.h"
 #include "rfm_protocol.h"
+#include "log_utils.h"
 
 #if defined(CH585) || defined(CH584)
 #include "CH58x_common.h"
@@ -22,6 +23,13 @@
 #define RFM_TX_PWR_MIN            (0u)
 #define RFM_TX_PWR_MAX            (3u)
 #define RFM_TX_PWR_DEFAULT        (2u)
+#define RFM_DIRECT_LINK_TEST      (1u)
+#define RFM_DIRECT_BOND_PEER_UID  (0x584D0001u)
+#define RFM_DIRECT_BOND_NONCE_A   (0x13572468u)
+#define RFM_DIRECT_BOND_NONCE_B   (0x24681357u)
+#define RFM_DIRECT_BOND_HOP_SEED  (0u)
+#define RFM_SINGLE_CHANNEL_TEST   (1u)
+#define RFM_FIXED_HOP_IDX         (0u)
 
 #if defined(CH585) || defined(CH584)
 #define RFM_BOND_NVM_ADDR         (0u)
@@ -81,6 +89,7 @@ static uint16_t s_lq_rx_ok;
 static uint16_t s_lq_rx_fail;
 static uint16_t s_lq_tx_fail;
 static uint32_t s_lq_eval_deadline_us;
+static uint32_t s_loopback_echo_count;
 
 __attribute__((weak))
 bool rf_hw_read_frame(uint8_t *buf, size_t *inout_len)
@@ -205,10 +214,15 @@ static uint32_t calc_auth_tag(uint32_t peer_uid, uint32_t nonce_local, uint32_t 
 
 static uint8_t derive_hop_idx(uint8_t seq)
 {
+#if RFM_SINGLE_CHANNEL_TEST
+    (void)seq;
+    return RFM_FIXED_HOP_IDX;
+#else
     if (!s_has_bond || !s_bond.valid) {
         return 0u;
     }
     return (uint8_t)((s_bond.hop_seed + seq) % RFM_CHANNEL_TABLE_SIZE);
+#endif
 }
 
 static void apply_channel(uint8_t hop_idx)
@@ -498,9 +512,24 @@ static void on_connected_downlink(const rfm_proto_frame_t *pkt, uint32_t now_us)
         return;
     }
 
+    if (pkt->hdr.type == RFM_PKT_CTRL_CMD) {
+        s_loopback_echo_count++;
+        return;
+    }
+
     if (pkt->hdr.type == RFM_PKT_CONN_REQ) {
         on_conn_req(pkt, now_us);
     }
+}
+
+static void apply_direct_bond_profile(void)
+{
+    s_bond.peer_uid = RFM_DIRECT_BOND_PEER_UID;
+    s_bond.nonce_local = RFM_DIRECT_BOND_NONCE_A;
+    s_bond.nonce_peer = RFM_DIRECT_BOND_NONCE_B;
+    s_bond.hop_seed = (uint8_t)(RFM_DIRECT_BOND_HOP_SEED % RFM_CHANNEL_TABLE_SIZE);
+    s_bond.valid = true;
+    s_has_bond = true;
 }
 
 static void eval_link_quality(uint32_t now_us)
@@ -555,11 +584,23 @@ void rfm_link_init(void)
     s_lq_rx_fail = 0u;
     s_lq_tx_fail = 0u;
     s_lq_eval_deadline_us = platform_now_us() + RFM_LQ_EVAL_PERIOD_US;
+    s_loopback_echo_count = 0u;
 
     rf_hw_enable_link_guard(1u, 1u, 1u);
+    log_raw("[RFM][LINK] guard ok\r\n");
     apply_tx_power(RFM_TX_PWR_DEFAULT);
+    log_raw("[RFM][LINK] pwr ok\r\n");
     apply_channel(0u);
+    log_raw("[RFM][LINK] ch0 ok\r\n");
 
+#if RFM_DIRECT_LINK_TEST
+    /* RF bring-up test mode: ignore NVM bond and force fixed profile. */
+    apply_direct_bond_profile();
+    log_raw("[RFM][LINK] direct bond\r\n");
+    change_state(RFM_STATE_CONNECTING);
+    s_mode_deadline_us = platform_now_us() + RFM_CONNECT_TIMEOUT_US;
+    s_next_scan_us = platform_now_us();
+#else
     if (bond_store_load()) {
         change_state(RFM_STATE_CONNECTING);
         s_mode_deadline_us = platform_now_us() + RFM_CONNECT_TIMEOUT_US;
@@ -570,6 +611,7 @@ void rfm_link_init(void)
         s_next_adv_us = platform_now_us();
         change_state(RFM_STATE_PAIRING);
     }
+#endif
 }
 
 void rfm_link_start_pairing(void)
@@ -646,6 +688,13 @@ rfm_event_t rfm_link_take_event(void)
     return ev;
 }
 
+uint32_t rfm_link_take_loopback_echo_count(void)
+{
+    uint32_t n = s_loopback_echo_count;
+    s_loopback_echo_count = 0u;
+    return n;
+}
+
 void rfm_link_poll(void)
 {
     uint32_t now_us = platform_now_us();
@@ -696,9 +745,15 @@ void rfm_link_poll(void)
 
     if ((s_state == RFM_STATE_CONNECTING) || (s_state == RFM_STATE_RECONNECTING)) {
         if ((int32_t)(now_us - s_next_scan_us) >= 0) {
+#if RFM_SINGLE_CHANNEL_TEST
+            apply_channel(RFM_FIXED_HOP_IDX);
+            s_scan_cursor = RFM_FIXED_HOP_IDX;
+            s_next_scan_us = now_us + RFM_SCAN_STEP_US;
+#else
             apply_channel(s_scan_cursor);
             s_scan_cursor = (uint8_t)((s_scan_cursor + 1u) % RFM_CHANNEL_TABLE_SIZE);
             s_next_scan_us = now_us + RFM_SCAN_STEP_US;
+#endif
         }
         if ((s_state == RFM_STATE_CONNECTING) && ((int32_t)(now_us - s_mode_deadline_us) >= 0)) {
             change_state(RFM_STATE_RECONNECTING);

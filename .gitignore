@@ -23,5 +23,11 @@ common/__pycache__
 connect-monitor/node_modules
 connect-monitor/dist
 
+dongle
+RFMoudle
+
+RF_PHY_Hop/TX/build_tx
+RF_PHY_Hop/RX/build_rx
+
 
 
