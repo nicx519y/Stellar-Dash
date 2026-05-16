@@ -1,0 +1,28 @@
+#ifndef RFM_SPI_PORT_INTERNAL_H
+#define RFM_SPI_PORT_INTERNAL_H
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+void rfm_spi_port_init(void);
+void rfm_spi_port_set_irq(bool asserted);
+size_t rfm_spi_port_drain(uint8_t *buf, size_t max_len);
+uint32_t rfm_spi_port_rx_ring_overrun_count(void);
+uint32_t rfm_spi_port_rx_backlog_drop_count(void);
+uint32_t rfm_spi_port_rx_backlog_drop_bytes(void);
+uint32_t rfm_spi_port_rx_byte_count(void);
+uint32_t rfm_spi_port_rx_dma_pos(void);
+uint32_t rfm_spi_port_rx_fifo_ov_count(void);
+uint32_t rfm_spi_port_rx_max_available(void);
+uint32_t rfm_spi_port_rx_take_max_available(void);
+uint32_t rfm_spi_port_rx_take_near_full_count(void);
+uint32_t rfm_spi_port_rx_take_full_clip_count(void);
+uint32_t rfm_spi_port_rx_bad_irq_count(void);
+uint32_t rfm_spi_port_rx_isr_count(void);
+uint32_t rfm_spi_port_rx_last_flags(void);
+uint32_t rfm_spi_port_rx_direct_count(void);
+bool rfm_spi_port_try_read(uint8_t *buf, size_t *inout_len);
+bool rfm_spi_port_try_write(const uint8_t *buf, size_t len);
+
+#endif

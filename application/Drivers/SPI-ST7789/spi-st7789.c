@@ -6,6 +6,7 @@
 #include "stm32h7xx_hal_gpio.h"
 #include "stm32h7xx_hal_gpio_ex.h"
 #include "stm32h7xx_hal_rcc_ex.h"
+#include "rf_bridge_port_internal.h"
 
 static SPI_HandleTypeDef g_hspi;
 static DMA_HandleTypeDef g_dma;
@@ -295,12 +296,17 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef* hspi)
 {
     if (hspi == &g_hspi) {
         g_spi_txc_flag = true;
+        return;
     }
+    RFBridgePort_SPI_TxCpltCallback(hspi);
 }
 
 void HAL_SPI_ErrorCallback(SPI_HandleTypeDef* hspi)
 {
-    if (hspi != &g_hspi) return;
+    if (hspi != &g_hspi) {
+        RFBridgePort_SPI_ErrorCallback(hspi);
+        return;
+    }
     cs_high();
     g_busy = false;
     g_dma_err_flag = 1;

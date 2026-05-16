@@ -41,6 +41,12 @@ private:
     uint16_t appliedReportRateHz = 1000;
     uint32_t lastRfStatusPollMs = 0;
     uint32_t lastRfBeginRetryMs = 0;
+    uint32_t rfStatLastMs = 0;
+    uint32_t rfSendWin = 0;
+    uint32_t rfSendOkWin = 0;
+    uint32_t rfSendFailWin = 0;
+    uint32_t rfSendTotal = 0;
+    uint32_t rfLastSeq = 0;
     RFTransport rfTransport;
 };
 

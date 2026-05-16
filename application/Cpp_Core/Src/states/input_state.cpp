@@ -17,7 +17,20 @@
 #include "monitor_telemetry.hpp"
 #include "report_scheduler.hpp"
 
+#ifndef RF24G_SPI_BRINGUP_FASTPATH
+#define RF24G_SPI_BRINGUP_FASTPATH 1
+#endif
+
+#ifndef RF24G_SPI_BRINGUP_TX_ONLY
+#define RF24G_SPI_BRINGUP_TX_ONLY 1
+#endif
+
 static void on_default_profile_changed_input_workers(void) {
+#if RF24G_SPI_BRINGUP_TX_ONLY
+    if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_RF24G) {
+        return;
+    }
+#endif
     ADC_BTNS_WORKER.setup();
     GPIO_BTNS_WORKER.setup();
 }
@@ -83,6 +96,16 @@ void InputState::setup()
 
     STORAGE_MANAGER.registerDefaultProfileChangedCallback(on_default_profile_changed_input_workers);
 
+#if RF24G_SPI_BRINGUP_TX_ONLY
+    if (connectionMode == ConnectionMode::CONNECTION_MODE_RF24G)
+    {
+        APP_DBG("[INPUT] RF24G SPI bring-up TX-only: ADC/GPIO/gamepad workers paused");
+        isRunning = true;
+        Logger_Flush();
+        return;
+    }
+#endif
+
     ADC_BTNS_WORKER.setup();
     GPIO_BTNS_WORKER.setup();
     GAMEPAD.setup();
@@ -107,11 +130,31 @@ void InputState::loop()
 {
     CONNECTION_MANAGER.loop();
 
+#if RF24G_SPI_BRINGUP_TX_ONLY
+    if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_RF24G)
+    {
+        if (REPORT_SCHEDULER.consumeLatestTick())
+        {
+            const uint32_t reportSeq = MonitorTelemetry_NextSequence();
+            MonitorTelemetry_OnReportReady(reportSeq);
+            CONNECTION_MANAGER.onReportReady(GAMEPAD.state, reportSeq);
+        }
+        return;
+    }
+#endif
+
     while (REPORT_SCHEDULER.consumeTick())
     {
         if (!ADCManager::getInstance().isDmaSamplingActive())
         {
             ADCManager::getInstance().triggerSampling();
+        }
+
+        if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_RF24G)
+        {
+            const uint32_t reportSeq = MonitorTelemetry_NextSequence();
+            MonitorTelemetry_OnReportReady(reportSeq);
+            CONNECTION_MANAGER.onReportReady(GAMEPAD.state, reportSeq);
         }
     }
 
@@ -124,24 +167,21 @@ void InputState::loop()
         if ((virtualPinMask & FN_BUTTON_VIRTUAL_PIN) == 0)
         {
             GAMEPAD.read(virtualPinMask);
-            const uint32_t reportSeq = MonitorTelemetry_NextSequence();
-            MonitorTelemetry_OnReportReady(reportSeq);
-
-#if APPLICATION_DEBUG_PRINT == 1
-            LATENCY_MONITOR.processingCompleted();
-#endif
 
             if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB)
             {
+                const uint32_t reportSeq = MonitorTelemetry_NextSequence();
+                MonitorTelemetry_OnReportReady(reportSeq);
+
+#if APPLICATION_DEBUG_PRINT == 1
+                LATENCY_MONITOR.processingCompleted();
+#endif
+
                 if (inputDriver != nullptr)
                 {
                     MonitorTelemetry_SetPendingUsbSeq(reportSeq);
                     inputDriver->process(&GAMEPAD);
                 }
-            }
-            else
-            {
-                CONNECTION_MANAGER.onReportReady(GAMEPAD.state, reportSeq);
             }
         }
         else
@@ -171,7 +211,11 @@ void InputState::loop()
     }
 
 #if HAS_LED == 1
-    LEDS_MANAGER.loop(virtualPinMask);
+    if (!(RF24G_SPI_BRINGUP_FASTPATH &&
+          CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_RF24G))
+    {
+        LEDS_MANAGER.loop(virtualPinMask);
+    }
 #endif
 
 #if APPLICATION_DEBUG_PRINT == 1

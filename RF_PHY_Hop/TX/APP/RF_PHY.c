@@ -7,13 +7,17 @@
 #include "RF_PHY.h"
 #include "HAL.h"
 #include "wchrf.h"
+#include "rfm_config.h"
+#include "rfm_input_stream.h"
+
+#include <string.h>
 
 #ifndef RF_HOP_MODE
 #define RF_HOP_MODE 1
 #endif
 
 #define RF_TEST_FREQUENCY           16
-#define RF_TEST_DATA_LEN            10
+#define RF_TEST_DATA_LEN            RFM_RF_INPUT_PAYLOAD_LEN
 #define RF_REPORT_PPS               8000
 #define RF_STAT_PRINT_PERIOD_MS     5000
 #define TMR0_FREE_RUN_END           0x03FFFFFFUL
@@ -37,6 +41,8 @@ typedef struct
     volatile uint32_t rx_total;
     volatile uint32_t rx_ok;
     volatile uint32_t rx_fail;
+    volatile uint32_t spi_rx_total;
+    volatile uint32_t spi_rx_win;
 } rf_stat_t;
 
 static rfRoleParam_t gParm;
@@ -51,6 +57,8 @@ static RF_DMADESCTypeDef gRxDesc;
 static rfBoundHost_t gFastHostCfg;
 static volatile uint8_t g_fast_started = 0;
 static volatile uint8_t g_basic_started = 0;
+static uint8_t g_spi_last_payload[RFM_RF_INPUT_PAYLOAD_LEN] = {0};
+static uint8_t g_spi_has_payload = 0;
 
 void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id);
 
@@ -75,17 +83,51 @@ static void rf_rx_start(void)
 __HIGH_CODE
 static void rf_fill_payload(void)
 {
+    uint8_t i;
+    uint8_t payload[RFM_RF_INPUT_PAYLOAD_LEN];
+
     TxBuf[0]++;
     TxBuf[1] = RF_TEST_DATA_LEN;
-    TxBuf[2] = 2;
-    TxBuf[3] = 3;
-    TxBuf[4] = 4;
-    TxBuf[5] = 5;
-    TxBuf[6] = 6;
-    TxBuf[7] = 7;
-    TxBuf[8] = 8;
-    TxBuf[9] = 9;
-    TxBuf[10] = 0;
+
+    if(rfm_input_stream_take_latest(payload, RFM_RF_INPUT_PAYLOAD_LEN))
+    {
+        memcpy(g_spi_last_payload, payload, RFM_RF_INPUT_PAYLOAD_LEN);
+        g_spi_has_payload = 1;
+    }
+
+    if(g_spi_has_payload != 0u)
+    {
+        for(i = 0; i < RFM_RF_INPUT_PAYLOAD_LEN; ++i)
+        {
+            TxBuf[2 + i] = g_spi_last_payload[i];
+        }
+        return;
+    }
+
+    for(i = 0; i < RFM_RF_INPUT_PAYLOAD_LEN; ++i)
+    {
+        TxBuf[2 + i] = (uint8_t)(i + 1u);
+    }
+}
+
+bool RF_SPI_FastWriteInput(const uint8_t *payload, uint8_t len)
+{
+    if((payload == NULL) || (len != RFM_RF_INPUT_PAYLOAD_LEN))
+    {
+        return false;
+    }
+    if(!rfm_input_stream_push(payload, len))
+    {
+        return false;
+    }
+    gStat.spi_rx_total++;
+    gStat.spi_rx_win++;
+    return true;
+}
+
+bool RF_SPI_FastWriteInput15(const uint8_t payload[15])
+{
+    return RF_SPI_FastWriteInput(payload, 15u);
 }
 
 __HIGH_CODE
@@ -232,9 +274,15 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
         uint32_t tx_ok = gStat.tx_ok;
         uint32_t tx_try = gStat.tx_try;
         uint32_t sent_rate = (sched_due_win != 0) ? ((sched_sent_win * 100U) / sched_due_win) : 0;
+        uint32_t spi_rx_win = gStat.spi_rx_win;
+        uint32_t spi_rx_total = gStat.spi_rx_total;
+        uint32_t spi_drop = rfm_input_stream_drop_count();
 
         PRINT("[5s] tick:%lu due:%lu sent:%lu miss:%lu txok:%lu/%lu sent_rate:%lu%%\n",
               tmr_tick_win, sched_due_win, sched_sent_win, sched_miss_win, tx_ok, tx_try, sent_rate);
+        PRINT("[5s][SPI] rx_entries:%lu total:%lu drop:%lu last_seq:%u\n",
+              spi_rx_win, spi_rx_total, spi_drop,
+              (unsigned int)(g_spi_has_payload != 0u ? g_spi_last_payload[0] : 0u));
 
         gStat.tmr_tick_win = 0;
         gStat.sched_due_win = 0;
@@ -246,6 +294,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
         gStat.rx_total = 0;
         gStat.rx_ok = 0;
         gStat.rx_fail = 0;
+        gStat.spi_rx_win = 0;
 
         tmos_start_task(taskID, SBP_RF_STAT_EVT, MS1_TO_SYSTEM_TIME(RF_STAT_PRINT_PERIOD_MS));
         return events ^ SBP_RF_STAT_EVT;
@@ -314,6 +363,9 @@ void RF_Init(void)
     tmos_start_task(taskID, SBP_RF_STAT_EVT, MS1_TO_SYSTEM_TIME(RF_STAT_PRINT_PERIOD_MS));
 
     PRINT("RF FAST 8K TX mode start.\n");
+    rfm_input_stream_init();
+    memset(g_spi_last_payload, 0, sizeof(g_spi_last_payload));
+    g_spi_has_payload = 0u;
     TMR0_TimerInit(TMR0_FREE_RUN_END);
     g_tmr_prev_cnt = TMR0_GetCurrentTimer();
     g_tmr_acc_tick = 0;

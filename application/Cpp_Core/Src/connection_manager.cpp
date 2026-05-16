@@ -10,11 +10,7 @@ bool ConnectionManager::tryRfBringup(bool isRetry) {
     bool ok = rfTransport.begin();
     // APP_DBG("[RF_BRIDGE] rf begin %sresult: %d", isRetry ? "retry " : "", ok);
 
-    if (ok) {
-        const RFModuleStatus& st = rfTransport.getStatus();
-        // APP_DBG("[RF_BRIDGE] initial state=%u connected=%u hasBond=%u rate=%u",
-        //         static_cast<uint8_t>(st.state), st.connected ? 1u : 0u, st.hasBond ? 1u : 0u, st.rateHz);
-    }
+    // APP_DBG("[RF_BRIDGE] initial status read %s", ok ? "ok" : "failed");
     /*
      * SPI bring-up mode:
      * keep only GET_STATUS path to validate transport stability first.
@@ -64,6 +60,12 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
     appliedReportRateHz = 1000;
     linkState = ConnectionLinkState::Disconnected;
     lastRfStatusPollMs = HAL_GetTick();
+    rfStatLastMs = HAL_GetTick();
+    rfSendWin = 0u;
+    rfSendOkWin = 0u;
+    rfSendFailWin = 0u;
+    rfSendTotal = 0u;
+    rfLastSeq = 0u;
 
     if (mode == ConnectionMode::CONNECTION_MODE_USB) {
         appliedReportRateHz = 1000;
@@ -76,9 +78,16 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
         return;
     }
 
-    appliedReportRateHz = ConfigUtils::getWirelessReportRateHz(wirelessRate);
+    (void)wirelessRate;
+    appliedReportRateHz = 8000u;
     MonitorTelemetry_Init(mode, appliedReportRateHz);
-    (void)tryRfBringup(false);
+    /*
+     * 8K SPI bring-up path: stream INPUT_DATA as a one-way fast path.
+     * Status readback depends on the CH584 IRQ response line and must not
+     * gate the 125us input cadence while the board link is being validated.
+     */
+    linkState = ConnectionLinkState::Connected;
+    MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(linkState));
     lastRfBeginRetryMs = HAL_GetTick();
 }
 
@@ -92,36 +101,40 @@ void ConnectionManager::loop() {
         return;
     }
 
-    const uint32_t nowMs = HAL_GetTick();
-    if (linkState == ConnectionLinkState::Error) {
-        if ((nowMs - lastRfBeginRetryMs) >= 1000u) {
-            lastRfBeginRetryMs = nowMs;
-            (void)tryRfBringup(true);
-        }
-        return;
-    }
-
-    if ((nowMs - lastRfStatusPollMs) >= 200u) {
-        lastRfStatusPollMs = nowMs;
-        if (rfTransport.pollStatus()) {
-            updateRfLinkStateFromStatus();
-        } else {
-            ConnectionLinkState nextState = ConnectionLinkState::Error;
-            if (linkState != nextState) {
-                MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
-            }
-            linkState = nextState;
-            MonitorTelemetry_OnError("CONNECTION_MANAGER", 1003u, "rf pollStatus failed");
-            APP_DBG("[RF_BRIDGE] rf poll status failed");
-        }
-    }
+    // RF24G 8K data streaming is intentionally independent from status readback.
 }
 
 void ConnectionManager::onReportReady(const GamepadState& state, uint32_t seq) {
     if (mode != ConnectionMode::CONNECTION_MODE_RF24G) return;
-    if (!rfTransport.getStatus().connected) return;
 
     bool ok = rfTransport.sendInput(state, seq);
+    rfSendWin++;
+    rfLastSeq = seq;
+    if (ok) {
+        rfSendOkWin++;
+        rfSendTotal++;
+    } else {
+        rfSendFailWin++;
+    }
+
+    const uint32_t nowMs = HAL_GetTick();
+    const uint32_t elapsed = nowMs - rfStatLastMs;
+    if (elapsed >= 5000u) {
+        const uint32_t hz = (elapsed != 0u) ? ((rfSendOkWin * 1000u) / elapsed) : 0u;
+        APP_DBG("[RF_SEND][5s] calls:%lu ok:%lu fail:%lu hz:%lu total:%lu last_seq:%lu rate:%u",
+                rfSendWin,
+                rfSendOkWin,
+                rfSendFailWin,
+                hz,
+                rfSendTotal,
+                rfLastSeq,
+                appliedReportRateHz);
+        rfStatLastMs = nowMs;
+        rfSendWin = 0u;
+        rfSendOkWin = 0u;
+        rfSendFailWin = 0u;
+    }
+
     ConnectionLinkState nextState = ok ? ConnectionLinkState::Connected : ConnectionLinkState::Error;
     if (linkState != nextState) {
         MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));

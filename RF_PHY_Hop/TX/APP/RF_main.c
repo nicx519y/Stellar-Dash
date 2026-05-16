@@ -49,6 +49,7 @@ void Main_Circulation()
         RF_TxMainLoopProcess();
 #endif
         TMOS_SystemProcess();
+        rfm_spi_bridge_poll();
     }
 }
 

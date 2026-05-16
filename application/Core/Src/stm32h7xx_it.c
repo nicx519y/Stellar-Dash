@@ -29,6 +29,7 @@
 #include "rotary-encoder.h"
 #include "st7789.h"
 #include "spi-st7789.h"
+#include "rf_bridge_port_internal.h"
 #include <stdio.h>
 /* USER CODE END Includes */
 
@@ -71,7 +72,6 @@ extern DMA_HandleTypeDef hdma_tim4_ch1;
 extern DMA_HandleTypeDef hdma_tim4_ch2;
 extern TIM_HandleTypeDef htim2;
 /* USER CODE BEGIN EV */
-
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -405,6 +405,16 @@ void DMA2_Stream2_IRQHandler(void)
 void DMA2_Stream4_IRQHandler(void)
 {
   SPIST7789_DMA_IRQHandler();
+}
+
+void DMA2_Stream5_IRQHandler(void)
+{
+  RFBridgePort_DMA_IRQHandler();
+}
+
+void SPI4_IRQHandler(void)
+{
+  RFBridgePort_SPI_IRQHandler();
 }
 
 void SPI1_IRQHandler(void)

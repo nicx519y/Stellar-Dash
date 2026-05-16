@@ -13,6 +13,9 @@
 #ifndef CENTRAL_H
 #define CENTRAL_H
 
+#include <stdbool.h>
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -28,6 +31,8 @@ extern "C" {
 
 extern void RF_Init(void);
 extern void RF_TxMainLoopProcess(void);
+extern bool RF_SPI_FastWriteInput(const uint8_t *payload, uint8_t len);
+extern bool RF_SPI_FastWriteInput15(const uint8_t payload[15]);
 
 #ifdef __cplusplus
 }
