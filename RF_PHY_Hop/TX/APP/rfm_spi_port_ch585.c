@@ -10,6 +10,8 @@
 #define US_TICK_STEP                  (10u)
 #define SPI_RX_DMA_RING_SIZE          (65536u)
 #define SPI_RX_TOTAL_CNT              (0u)
+#define SPI_RX_BACKLOG_DROP_THRESHOLD (4096u)
+#define SPI_RX_BACKLOG_KEEP_BYTES     (19u * 64u)
 
 static uint8_t s_spi_tx_buf[96];
 static uint16_t s_spi_tx_len;
@@ -200,6 +202,24 @@ size_t rfm_spi_port_drain(uint8_t *buf, size_t max_len)
         available = SPI_RX_DMA_RING_SIZE;
     } else if (available > s_spi_rx_max_available) {
         s_spi_rx_max_available = available;
+    }
+
+    if (available > SPI_RX_BACKLOG_DROP_THRESHOLD) {
+        uint32_t keep = SPI_RX_BACKLOG_KEEP_BYTES;
+        uint32_t drop;
+
+        if (keep > max_len) {
+            keep = (uint32_t)max_len;
+        }
+        if (keep > available) {
+            keep = available;
+        }
+
+        drop = available - keep;
+        s_spi_rx_read_abs += drop;
+        s_spi_rx_backlog_drop_count++;
+        s_spi_rx_backlog_drop_bytes += drop;
+        available = keep;
     }
 
     if (available > (SPI_RX_DMA_RING_SIZE - 4096u)) {

@@ -7,16 +7,6 @@
 #include "rfm_config.h"
 #include "rfm_spi_port_internal.h"
 
-#ifndef RFM_SPI_CTRL_LOG
-#define RFM_SPI_CTRL_LOG 0
-#endif
-
-#if RFM_SPI_CTRL_LOG
-#define RFM_SPI_LOG(...) PRINT(__VA_ARGS__)
-#else
-#define RFM_SPI_LOG(...) ((void)0)
-#endif
-
 static uint32_t s_rx_count;
 static uint32_t s_tx_count;
 static uint32_t s_raw_bytes_win;
@@ -152,11 +142,9 @@ static bool send_frame(spi_evt_t evt, const uint8_t *payload, uint8_t payload_le
 
     if (rfm_spi_port_try_write(out, frame_total)) {
         s_tx_count++;
-        RFM_SPI_LOG("[RFM][SPI] TX evt=0x%02X len=%u\n", (unsigned int)evt, (unsigned int)payload_len);
         rfm_spi_port_set_irq(true);
         return true;
     }
-    RFM_SPI_LOG("[RFM][SPI] TX failed\n");
     return false;
 }
 
@@ -196,10 +184,6 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
     (void)payload;
     (void)len;
     s_rx_count++;
-    if ((spi_cmd_t)cmd != SPI_CMD_INPUT_DATA) {
-        RFM_SPI_LOG("[RFM][SPI] RX cmd=0x%02X len=%u\n", (unsigned int)cmd, (unsigned int)len);
-    }
-
     switch ((spi_cmd_t)cmd) {
     case SPI_CMD_GET_STATUS:
         (void)send_status_frame(cmd);
@@ -225,28 +209,23 @@ static void process_one_frame(const uint8_t *buf, size_t len)
 {
     uint8_t payload_len;
     if ((buf == 0) || (len < 4u)) {
-        RFM_SPI_LOG("[RFM][SPI] RX short frame\n");
         return;
     }
     if (buf[0] != RFM_SPI_SYNC) {
         if (buf[0] == 0xFFu) {
             return;
         }
-        RFM_SPI_LOG("[RFM][SPI] RX bad sync\n");
         return;
     }
     payload_len = buf[2];
     if (len != (size_t)(3u + payload_len + 1u)) {
-        RFM_SPI_LOG("[RFM][SPI] RX bad len\n");
         return;
     }
     if (frame_checksum(buf, len - 1u) != buf[len - 1u]) {
-        RFM_SPI_LOG("[RFM][SPI] RX bad checksum\n");
         return;
     }
 
     if (!is_valid_host_cmd(buf[1])) {
-        RFM_SPI_LOG("[RFM][SPI] RX ignored non-cmd=0x%02X\n", (unsigned int)buf[1]);
         return;
     }
 
@@ -416,36 +395,6 @@ static void diag_clear_win(void)
     s_bad_checksum_win = 0u;
 }
 
-static void diag_print_recent_4s(void)
-{
-    uint8_t offset;
-
-    PRINT("[4x1s][SPI_BRIDGE] recent completed seconds\n");
-    for (offset = 4u; offset >= 1u; --offset) {
-        uint8_t idx = (uint8_t)((s_diag_bucket_head + 5u - offset) % 5u);
-        const spi_diag_bucket_t *b = &s_diag_buckets[idx];
-        PRINT("[1s-%u] dt:%lu raw:%lu ok:%lu rx:%lu bytes:%lu ov:%lu drop:%lu/%lu max:%lu near:%lu clip:%lu irq:%lu bad:%lu/%lu/%lu/%lu flg:0x%02lX\n",
-              (unsigned int)offset,
-              b->dt_ms,
-              b->raw,
-              b->frame_ok,
-              b->rx_delta,
-              b->rx_bytes,
-              b->ring_ov,
-              b->drop_count,
-              b->drop_bytes,
-              b->max_avail,
-              b->near_full,
-              b->full_clip,
-              b->dma_irq,
-              b->bad_sync,
-              b->bad_cmd,
-              b->bad_len,
-              b->bad_checksum,
-              b->flags);
-    }
-}
-
 static void bridge_diag_tick_1s(void)
 {
     uint32_t now = TMOS_GetSystemClock();
@@ -457,6 +406,7 @@ static void bridge_diag_tick_1s(void)
     uint32_t direct_count;
     uint32_t backlog_drop_count;
     uint32_t backlog_drop_bytes;
+    uint32_t dt_ticks;
     uint32_t dt_ms;
     spi_diag_bucket_t *bucket;
 
@@ -475,9 +425,13 @@ static void bridge_diag_tick_1s(void)
         (void)rfm_spi_port_rx_take_max_available();
         return;
     }
-    dt_ms = now - s_last_diag_ms;
-    if (dt_ms < MS1_TO_SYSTEM_TIME(1000u)) {
+    dt_ticks = now - s_last_diag_ms;
+    if (dt_ticks < MS1_TO_SYSTEM_TIME(1000u)) {
         return;
+    }
+    dt_ms = (uint32_t)(((uint64_t)dt_ticks * SYSTEM_TIME_MICROSEN) / 1000u);
+    if (dt_ms == 0u) {
+        dt_ms = 1u;
     }
 
     ring_ov_count = rfm_spi_port_rx_ring_overrun_count();
@@ -531,7 +485,6 @@ static void bridge_diag_tick_1s(void)
     s_diag_bucket_count++;
     if ((s_diag_bucket_count >= 4u) &&
         ((uint32_t)(now - s_last_print_time) >= MS1_TO_SYSTEM_TIME(5000u))) {
-        diag_print_recent_4s();
         s_last_print_time = now;
     }
 }
@@ -564,7 +517,6 @@ void rfm_spi_bridge_init(void)
     fast_parser_reset();
     rfm_spi_port_init();
     rfm_spi_port_set_irq(false);
-    RFM_SPI_LOG("[RFM][SPI] bridge init ok\n");
 }
 
 void rfm_spi_bridge_poll(void)

@@ -19,7 +19,7 @@
 
 /* 1: only run SPI bridge for link bring-up; 0: run normal RF TX flow */
 #ifndef RFM_SPI_ONLY_MODE
-#define RFM_SPI_ONLY_MODE 1
+#define RFM_SPI_ONLY_MODE 0
 #endif
 
 /*********************************************************************
@@ -86,8 +86,6 @@ int main(void)
     RF_RoleInit();
 #if (RFM_SPI_ONLY_MODE == 0)
     RF_Init();
-#else
-    PRINT("[RFM] SPI-only mode enabled, RF TX paused.\n");
 #endif
     rfm_spi_bridge_init();
     Main_Circulation();

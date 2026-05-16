@@ -35,6 +35,7 @@ LINKER_SCRIPT := $(LD_DIR)/Link.ld
 DEFINES := \
 	-DDEBUG=0 \
 	-DCLK_OSC32K=2 \
+	-DRF_8K=1 \
 	$(MODE_DEFINE)
 
 INCLUDES := \

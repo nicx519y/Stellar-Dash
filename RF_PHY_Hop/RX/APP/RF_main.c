@@ -15,6 +15,9 @@
 #include "CONFIG.h"
 #include "HAL.h"
 #include "RF_PHY.h"
+#include "ch585_usbhs_device.h"
+#include <stdio.h>
+#include <string.h>
 
 void RF_USB_CompositeInit(void);
 
@@ -34,6 +37,34 @@ const uint8_t MacAddr[6] = {0x84, 0xC2, 0xE4, 0x03, 0x02, 0x02};
 void LED_Ctrl(uint8_t on);
 void LED_Ctrl_Blink(void);
 
+static uint8_t RX_MainSendCdc(const char *msg)
+{
+    uint16_t len;
+
+    if(USBHS_DevEnumStatus == 0)
+    {
+        return FALSE;
+    }
+    if((USBHS_Endp_Busy[DEF_UEP5] & DEF_UEP_BUSY) != 0)
+    {
+        return FALSE;
+    }
+
+    len = (uint16_t)strlen(msg);
+    if(len > 64u)
+    {
+        len = 64u;
+    }
+    (void)USBHS_Endp_DataUp(DEF_UEP5, (uint8_t *)msg, len, DEF_UEP_CPY_LOAD);
+    return TRUE;
+}
+
+static void RX_MainLog(const char *msg)
+{
+    PRINT("%s", msg);
+    (void)RX_MainSendCdc(msg);
+}
+
 /*********************************************************************
  * @fn      Main_Circulation
  *
@@ -45,10 +76,59 @@ __HIGH_CODE
 __attribute__((noinline))
 void Main_Circulation()
 {
+    static uint32_t last_log = 0;
+    static uint32_t rf_init_deadline = 0;
+    static uint8_t rf_init_started = FALSE;
+    static uint8_t rf_init_done = FALSE;
+    static uint8_t pending_log = FALSE;
+    static char pending_msg[96];
+
     while(1)
     {
+        uint32_t now = TMOS_GetSystemClock();
         LED_Ctrl_Blink();
         TMOS_SystemProcess();
+
+        if(rf_init_deadline == 0u)
+        {
+            rf_init_deadline = now + 3000u;
+        }
+
+        if((rf_init_started == FALSE) &&
+           (USBHS_DevEnumStatus != 0u) &&
+           ((int32_t)(now - rf_init_deadline) >= 0))
+        {
+            rf_init_started = TRUE;
+            RX_MainLog("[RX][MAIN] rf_init_begin\r\n");
+            RF_Init();
+            rf_init_done = TRUE;
+            RX_MainLog("[RX][MAIN] rf_init_done\r\n");
+        }
+
+        if(pending_log != FALSE)
+        {
+            if(RX_MainSendCdc(pending_msg) != FALSE)
+            {
+                pending_log = FALSE;
+            }
+        }
+
+        if((uint32_t)(now - last_log) >= 5000u)
+        {
+            last_log = now;
+            if(rf_init_done)
+            {
+                if(RF_GetStatsLine(pending_msg, sizeof(pending_msg)) > 0u)
+                {
+                    PRINT("%s", pending_msg);
+                    pending_log = TRUE;
+                }
+            }
+            else
+            {
+                RX_MainLog("[RX][MAIN] alive rf:0\r\n");
+            }
+        }
     }
 }
 
@@ -150,8 +230,6 @@ int main(void)
 
     CH58x_BLEInit();
     HAL_Init();
-    RF_SetRoleInitStatus(RF_RoleInit());
-    RF_Init();
     RF_USB_CompositeInit();
     Main_Circulation();
 }
