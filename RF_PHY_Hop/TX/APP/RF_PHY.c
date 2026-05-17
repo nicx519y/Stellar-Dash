@@ -21,7 +21,7 @@
 #define RF_TEST_PROTOCOL_PACKET     0
 #endif
 #ifndef RF_TEST_ENABLE_HOP
-#define RF_TEST_ENABLE_HOP          0
+#define RF_TEST_ENABLE_HOP          1
 #endif
 #if (RF_TEST_PROTOCOL_PACKET == 1)
 #define RF_TEST_DATA_LEN            12
@@ -155,6 +155,13 @@ static uint8_t rf_hop_channel_for_seq(uint8_t seq)
 #endif
 }
 
+static void rf_tx_prepare_channel_for_seq(uint8_t seq)
+{
+    gTxParam.frequency = rf_hop_channel_for_seq(seq);
+    gTxParam.whiteChannel = gTxParam.frequency;
+    g_low_channel = (uint8_t)gTxParam.frequency;
+}
+
 __HIGH_CODE
 static void rf_tx_start(void)
 {
@@ -167,8 +174,8 @@ static void rf_tx_start(void)
         gStat.tx_start_fail++;
         return;
     }
-    gTxParam.frequency = rf_hop_channel_for_seq(g_tx_last_seq);
-    g_low_channel = (uint8_t)gTxParam.frequency;
+
+    rf_tx_prepare_channel_for_seq(g_tx_seq);
     gTxParam.txDMA = (uint32_t)TxBuf;
     ret_parm = RFIP_SetTxParm(&gTxParam);
     if(ret_parm != SUCCESS)
@@ -401,8 +408,7 @@ static void rf_basic_start_tx(void)
     gTxParam.accessAddress = gParm.accessAddress;
     gTxParam.crcInit = gParm.crcInit;
     gTxParam.properties = gParm.properties;
-    gTxParam.frequency = RF_TEST_FREQUENCY;
-    gTxParam.whiteChannel = RF_TEST_FREQUENCY;
+    rf_tx_prepare_channel_for_seq(g_tx_seq);
     gTxParam.sendTime = (uint8_t)gParm.sendTime;
     gTxParam.sendCount = 1;
     gTxParam.txDMA = (uint32_t)TxBuf;
@@ -416,6 +422,10 @@ static void rf_basic_start_tx(void)
     gRxParam.timeOut = 0;
 
     g_basic_started = 1;
+    if(RFIP_SetTxParm(&gTxParam) != SUCCESS)
+    {
+        gStat.tx_parm_fail++;
+    }
     RF_LINK_LOG("[TX][RFIP] cfg:%u ch:%u pps:%u len:%u\r\n",
                 (unsigned int)g_low_config_ret,
                 (unsigned int)g_low_channel,
@@ -633,6 +643,12 @@ void RF_Init(void)
     {
         g_tick_per_evt = 1;
     }
+#if (RF_USE_LOW_LEVEL_BASIC == 1)
+    rf_low_level_basic_start_tx();
+#else
+    rf_basic_start_tx();
+#endif
+
 #if (RF_TX_USE_TMR0_IRQ == 1)
     TMR0_TimerInit(g_tick_per_evt);
     TMR0_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
@@ -642,12 +658,6 @@ void RF_Init(void)
     TMR0_TimerInit(TMR0_FREE_RUN_END);
     g_tmr_prev_cnt = TMR0_GetCurrentTimer();
     g_tmr_acc_tick = 0;
-#endif
-
-#if (RF_USE_LOW_LEVEL_BASIC == 1)
-    rf_low_level_basic_start_tx();
-#else
-    rf_basic_start_tx();
 #endif
 }
 

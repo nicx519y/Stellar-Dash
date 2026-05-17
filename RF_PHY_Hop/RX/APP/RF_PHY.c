@@ -21,7 +21,7 @@
 #define RF_TEST_PROTOCOL_PACKET     0
 #endif
 #ifndef RF_TEST_ENABLE_HOP
-#define RF_TEST_ENABLE_HOP          0
+#define RF_TEST_ENABLE_HOP          1
 #endif
 #ifndef RF_TEST_ENABLE_RF_RX
 #define RF_TEST_ENABLE_RF_RX        1
@@ -50,7 +50,7 @@
 #define RF_BUTTON_BYTES             3u
 #define RF_RX_FAST_REACQUIRE_MISS   8u
 #if (RF_TEST_ENABLE_HOP == 1)
-#define RF_RX_TIMEOUT_HALF_US       500u
+#define RF_RX_TIMEOUT_HALF_US       5000u
 #else
 #define RF_RX_TIMEOUT_HALF_US       10000u
 #endif
@@ -104,6 +104,10 @@ static volatile uint8_t g_low_config_ret = 0xFFu;
 static volatile uint8_t g_low_channel = RF_TEST_FREQUENCY;
 static volatile uint8_t g_low_rx_ret = 0xFFu;
 static volatile uint8_t g_rx_restart_pending = 0u;
+static volatile uint32_t g_rx_restart_mark_tmr = 0;
+static volatile uint32_t g_rx_restart_delay_sum = 0;
+static volatile uint32_t g_rx_restart_delay_max = 0;
+static volatile uint32_t g_rx_restart_delay_cnt = 0;
 static uint32_t g_last_stat_clock = 0;
 static uint8_t g_rx_expected_seq = 0u;
 static uint8_t g_rx_has_seq = 0u;
@@ -167,7 +171,12 @@ static uint8_t rf_hop_index_for_seq(uint8_t seq)
 
 static void rf_rx_set_channel(uint8_t channel)
 {
+    if(gRxParam.frequency == channel)
+    {
+        return;
+    }
     gRxParam.frequency = channel;
+    gRxParam.whiteChannel = channel;
     g_low_channel = channel;
 }
 
@@ -200,6 +209,15 @@ static void rf_rx_advance_reacquire_channel(void)
 #else
     rf_rx_set_channel(RF_TEST_FREQUENCY);
 #endif
+}
+
+static void rf_rx_request_restart(void)
+{
+    if(g_rx_restart_pending == 0u)
+    {
+        g_rx_restart_mark_tmr = TMR0_GetCurrentTimer();
+    }
+    g_rx_restart_pending = 1u;
 }
 
 static uint8_t rf_rx_validate_packet(void)
@@ -456,29 +474,39 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
             gStat.rx_fail++;
             rf_rx_advance_reacquire_channel();
         }
-        g_rx_restart_pending = 1u;
+        rf_rx_request_restart();
     }
     if(sta & RF_STATE_RX_CRCERR)
     {
         gStat.rx_total++;
         gStat.rx_fail++;
         rf_rx_advance_reacquire_channel();
-        g_rx_restart_pending = 1u;
+        rf_rx_request_restart();
     }
     if(sta & RF_STATE_TIMEOUT)
     {
         gStat.rx_fail++;
         rf_rx_advance_reacquire_channel();
-        g_rx_restart_pending = 1u;
+        rf_rx_request_restart();
     }
 }
 
 void RF_Service(void)
 {
+    uint32_t delay_ticks;
+
     if(g_rx_restart_pending == 0u)
     {
         return;
     }
+
+    delay_ticks = rf_tmr0_delta(TMR0_GetCurrentTimer(), g_rx_restart_mark_tmr);
+    g_rx_restart_delay_sum += delay_ticks;
+    if(delay_ticks > g_rx_restart_delay_max)
+    {
+        g_rx_restart_delay_max = delay_ticks;
+    }
+    g_rx_restart_delay_cnt++;
 
     g_rx_restart_pending = 0u;
     rf_rx_start();
@@ -576,6 +604,12 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     uint32_t fail_total;
     uint32_t ok_delta;
     uint32_t fail_delta;
+    uint32_t delay_sum;
+    uint32_t delay_max;
+    uint32_t delay_cnt;
+    uint32_t delay_avg_us;
+    uint32_t delay_max_us;
+    uint32_t sys_clock;
     int n;
 
     if((buf == NULL) || (len == 0u))
@@ -603,19 +637,33 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
 
     ok_delta = ok_total - last_ok;
     fail_delta = fail_total - last_fail;
+    delay_sum = g_rx_restart_delay_sum;
+    delay_max = g_rx_restart_delay_max;
+    delay_cnt = g_rx_restart_delay_cnt;
+    g_rx_restart_delay_sum = 0u;
+    g_rx_restart_delay_max = 0u;
+    g_rx_restart_delay_cnt = 0u;
+    sys_clock = GetSysClock();
+    if((delay_cnt == 0u) || (sys_clock == 0u))
+    {
+        delay_avg_us = 0u;
+        delay_max_us = 0u;
+    }
+    else
+    {
+        delay_avg_us = (uint32_t)((((uint64_t)delay_sum * 1000000u) / sys_clock) / delay_cnt);
+        delay_max_us = (uint32_t)(((uint64_t)delay_max * 1000000u) / sys_clock);
+    }
     n = snprintf(buf, len,
-                 "[RX5] m%u h%u l%u dt%lu ok%lu fl%lu hz%lu gp%lu rq%lu c%u r%u\r\n",
-                 RF_TEST_PROTOCOL_PACKET,
-                 RF_TEST_ENABLE_HOP,
-                 RF_TEST_DATA_LEN,
+                 "[R5]d%lu o%lu f%lu h%lu g%lu q%lu a%lu m%lu\r\n",
                  dt_ms,
                  ok_delta,
                  fail_delta,
                  (uint32_t)(((uint64_t)ok_delta * 1000u) / dt_ms),
                  gStat.rx_seq_gap,
                  gStat.rx_reacquire,
-                 (unsigned int)g_low_channel,
-                 (unsigned int)g_low_rx_ret);
+                 delay_avg_us,
+                 delay_max_us);
 
     last_clock = now_clock;
     last_ok = ok_total;
@@ -637,6 +685,7 @@ void RF_Init(void)
     g_ret_role_init = RF_RoleInit();
     taskID = TMOS_ProcessEventRegister(RF_ProcessEvent);
     g_task_id_dbg = taskID;
+    TMR0_TimerInit(TMR0_FREE_RUN_END);
 
     PFIC_EnableIRQ(BLEB_IRQn);
     PFIC_EnableIRQ(BLEL_IRQn);

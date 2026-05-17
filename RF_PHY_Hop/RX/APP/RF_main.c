@@ -30,7 +30,6 @@ void RF_USB_CompositeInit(void);
 #ifndef RF_TEST_HEARTBEAT_LOG
 #define RF_TEST_HEARTBEAT_LOG 0
 #endif
-
 /*********************************************************************
  * GLOBAL TYPEDEFS
  */
@@ -64,7 +63,12 @@ static uint8_t RX_MainSendCdc(const char *msg)
     {
         len = DEF_USB_EP5_HS_SIZE;
     }
-    return (USBHS_Endp_DataUp(DEF_UEP5, (uint8_t *)msg, len, DEF_UEP_CPY_LOAD) == 0u) ? TRUE : FALSE;
+    if(USBHS_Endp_DataUp(DEF_UEP5, (uint8_t *)msg, len, DEF_UEP_CPY_LOAD) == 0u)
+    {
+        return TRUE;
+    }
+
+    return FALSE;
 }
 
 static void RX_MainFlushLog(void)
@@ -91,8 +95,19 @@ static void RX_MainLog(const char *msg)
 
 static void RX_MainLogRealtime(const char *msg)
 {
-    PRINT("%s", msg);
     (void)RX_MainSendCdc(msg);
+}
+
+static void RX_MainLogStats(void)
+{
+    char stats_msg[64];
+
+    if(RF_GetStatsLine(stats_msg, sizeof(stats_msg)) == 0u)
+    {
+        return;
+    }
+
+    RX_MainLogRealtime(stats_msg);
 }
 
 /*********************************************************************
@@ -113,7 +128,6 @@ void Main_Circulation()
 #if (RF_TEST_HEARTBEAT_LOG == 1)
     static uint32_t last_beat = 0;
 #endif
-    static char stats_msg[128];
 
     while(1)
     {
@@ -143,7 +157,9 @@ void Main_Circulation()
             RX_MainLog("[RX][MAIN] rf_init_begin\r\n");
             RF_Init();
             rf_init_done = TRUE;
+            last_log = TMOS_GetSystemClock();
             RX_MainLog("[RX][MAIN] rf_init_done\r\n");
+            continue;
         }
 
         if((uint32_t)(now - last_log) >= MS1_TO_SYSTEM_TIME(5000u))
@@ -151,10 +167,7 @@ void Main_Circulation()
             last_log = now;
             if(rf_init_done)
             {
-                if(RF_GetStatsLine(stats_msg, sizeof(stats_msg)) > 0u)
-                {
-                    RX_MainLogRealtime(stats_msg);
-                }
+                RX_MainLogStats();
             }
             else
             {
