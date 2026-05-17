@@ -16,12 +16,14 @@
 #define RF_HOP_MODE 1
 #endif
 
+#ifndef RF_TEST_FREQUENCY
 #define RF_TEST_FREQUENCY           16
+#endif
 #ifndef RF_TEST_PROTOCOL_PACKET
 #define RF_TEST_PROTOCOL_PACKET     0
 #endif
 #ifndef RF_TEST_ENABLE_HOP
-#define RF_TEST_ENABLE_HOP          1
+#define RF_TEST_ENABLE_HOP          0
 #endif
 #if (RF_TEST_PROTOCOL_PACKET == 1)
 #define RF_TEST_DATA_LEN            12
@@ -80,6 +82,7 @@ typedef struct
     volatile uint32_t tx_idle;
     volatile uint32_t tx_start_fail;
     volatile uint32_t tx_parm_fail;
+    volatile uint32_t tx_seq_rollback;
     volatile uint32_t tx_cb_other;
     volatile uint32_t payload_update;
     volatile uint32_t rx_total;
@@ -167,11 +170,14 @@ static void rf_tx_start(void)
 {
     bStatus_t ret_start;
     bStatus_t ret_parm;
+    uint8_t retry_seq = g_tx_last_seq;
 
     ret_start = RFIP_SetTxStart();
     if(ret_start != SUCCESS)
     {
+        g_tx_seq = retry_seq;
         gStat.tx_start_fail++;
+        gStat.tx_seq_rollback++;
         return;
     }
 
@@ -180,7 +186,10 @@ static void rf_tx_start(void)
     ret_parm = RFIP_SetTxParm(&gTxParam);
     if(ret_parm != SUCCESS)
     {
+        g_tx_seq = retry_seq;
         gStat.tx_parm_fail++;
+        gStat.tx_seq_rollback++;
+        return;
     }
 }
 
@@ -478,6 +487,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
         uint32_t tx_idle = gStat.tx_idle;
         uint32_t tx_start_fail = gStat.tx_start_fail;
         uint32_t tx_parm_fail = gStat.tx_parm_fail;
+        uint32_t tx_seq_rollback = gStat.tx_seq_rollback;
         uint32_t payload_update = gStat.payload_update;
         uint32_t spi_rx_win = gStat.spi_rx_win;
         uint32_t spi_rx_total = gStat.spi_rx_total;
@@ -490,7 +500,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
             dt_ms = 1u;
         }
 
-        RF_LINK_LOG("[TX][5s] mode:%u hop:%u len:%u dt:%lums irq:%lu sent:%lu upd:%lu upd_hz:%lu txok:%lu fail:%lu idle:%lu sf:%lu pf:%lu spi:%lu/%lu basic:%u cfg:%u ch:%u txret:%u\n",
+        RF_LINK_LOG("[TX][5s] mode:%u hop:%u len:%u dt:%lums irq:%lu sent:%lu upd:%lu upd_hz:%lu txok:%lu fail:%lu idle:%lu sf:%lu pf:%lu rb:%lu spi:%lu/%lu basic:%u cfg:%u ch:%u txret:%u\n",
                     RF_TEST_PROTOCOL_PACKET,
                     RF_TEST_ENABLE_HOP,
                     RF_TEST_DATA_LEN,
@@ -504,6 +514,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
                     tx_idle,
                     tx_start_fail,
                     tx_parm_fail,
+                    tx_seq_rollback,
                     spi_rx_win,
                     spi_rx_total,
                     (unsigned int)g_basic_started,
@@ -522,6 +533,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
         gStat.tx_idle = 0;
         gStat.tx_start_fail = 0;
         gStat.tx_parm_fail = 0;
+        gStat.tx_seq_rollback = 0;
         gStat.tx_cb_other = 0;
         gStat.payload_update = 0;
         gStat.rx_total = 0;

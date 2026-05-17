@@ -16,12 +16,14 @@
 #define RF_HOP_MODE 2
 #endif
 
+#ifndef RF_TEST_FREQUENCY
 #define RF_TEST_FREQUENCY           16
+#endif
 #ifndef RF_TEST_PROTOCOL_PACKET
 #define RF_TEST_PROTOCOL_PACKET     0
 #endif
 #ifndef RF_TEST_ENABLE_HOP
-#define RF_TEST_ENABLE_HOP          1
+#define RF_TEST_ENABLE_HOP          0
 #endif
 #ifndef RF_TEST_ENABLE_RF_RX
 #define RF_TEST_ENABLE_RF_RX        1
@@ -31,11 +33,16 @@
 #else
 #define RF_TEST_DATA_LEN            4
 #endif
+#ifndef RF_REPORT_PPS
 #define RF_REPORT_PPS               8000
+#endif
 #define RF_STAT_PRINT_PERIOD_MS     5000
 #define TMR0_FREE_RUN_END           0x03FFFFFFUL
 #define RF_USE_LOW_LEVEL_BASIC      0
 #define RF_LINK_DEBUG_LOG           1
+#ifndef RF_RX_RESTART_IN_CALLBACK
+#define RF_RX_RESTART_IN_CALLBACK   1
+#endif
 
 #define RF_PKT_MAGIC                0xA7u
 #define RF_PKT_TYPE_DATA            0x01u
@@ -82,6 +89,8 @@ typedef struct
     volatile uint32_t rx_total;
     volatile uint32_t rx_ok;
     volatile uint32_t rx_fail;
+    volatile uint32_t rx_crcerr;
+    volatile uint32_t rx_timeout;
     volatile uint32_t rx_bad_magic;
     volatile uint32_t rx_bad_session;
     volatile uint32_t rx_bad_crc;
@@ -119,6 +128,8 @@ static const uint8_t g_hop_channels[RF_HOP_CHANNEL_COUNT] = {
 };
 
 void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id);
+static void rf_rx_start(void);
+static uint32_t rf_tmr0_delta(uint32_t now, uint32_t prev);
 
 __attribute__((__aligned__(4))) static uint8_t TxBuf[64];
 __attribute__((__aligned__(4))) static uint8_t RxBuf[264];
@@ -213,11 +224,25 @@ static void rf_rx_advance_reacquire_channel(void)
 
 static void rf_rx_request_restart(void)
 {
+#if (RF_RX_RESTART_IN_CALLBACK == 1)
+    uint32_t delay_ticks;
+    uint32_t mark_tmr = TMR0_GetCurrentTimer();
+
+    rf_rx_start();
+    delay_ticks = rf_tmr0_delta(TMR0_GetCurrentTimer(), mark_tmr);
+    g_rx_restart_delay_sum += delay_ticks;
+    if(delay_ticks > g_rx_restart_delay_max)
+    {
+        g_rx_restart_delay_max = delay_ticks;
+    }
+    g_rx_restart_delay_cnt++;
+#else
     if(g_rx_restart_pending == 0u)
     {
         g_rx_restart_mark_tmr = TMR0_GetCurrentTimer();
     }
     g_rx_restart_pending = 1u;
+#endif
 }
 
 static uint8_t rf_rx_validate_packet(void)
@@ -480,12 +505,14 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
     {
         gStat.rx_total++;
         gStat.rx_fail++;
+        gStat.rx_crcerr++;
         rf_rx_advance_reacquire_channel();
         rf_rx_request_restart();
     }
     if(sta & RF_STATE_TIMEOUT)
     {
         gStat.rx_fail++;
+        gStat.rx_timeout++;
         rf_rx_advance_reacquire_channel();
         rf_rx_request_restart();
     }
@@ -597,13 +624,22 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     static uint32_t last_clock = 0;
     static uint32_t last_ok = 0;
     static uint32_t last_fail = 0;
+    static uint32_t last_gap = 0;
+    static uint32_t last_crcerr = 0;
+    static uint32_t last_timeout = 0;
     uint32_t now_clock;
     uint32_t dt_ticks;
     uint32_t dt_ms;
     uint32_t ok_total;
     uint32_t fail_total;
+    uint32_t gap_total;
+    uint32_t crcerr_total;
+    uint32_t timeout_total;
     uint32_t ok_delta;
     uint32_t fail_delta;
+    uint32_t gap_delta;
+    uint32_t crcerr_delta;
+    uint32_t timeout_delta;
     uint32_t delay_sum;
     uint32_t delay_max;
     uint32_t delay_cnt;
@@ -620,12 +656,18 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     now_clock = TMOS_GetSystemClock();
     ok_total = gStat.rx_ok;
     fail_total = gStat.rx_fail;
+    gap_total = gStat.rx_seq_gap;
+    crcerr_total = gStat.rx_crcerr;
+    timeout_total = gStat.rx_timeout;
 
     if(last_clock == 0u)
     {
         last_clock = g_last_stat_clock;
         last_ok = 0u;
         last_fail = 0u;
+        last_gap = 0u;
+        last_crcerr = 0u;
+        last_timeout = 0u;
     }
 
     dt_ticks = now_clock - last_clock;
@@ -637,6 +679,9 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
 
     ok_delta = ok_total - last_ok;
     fail_delta = fail_total - last_fail;
+    gap_delta = gap_total - last_gap;
+    crcerr_delta = crcerr_total - last_crcerr;
+    timeout_delta = timeout_total - last_timeout;
     delay_sum = g_rx_restart_delay_sum;
     delay_max = g_rx_restart_delay_max;
     delay_cnt = g_rx_restart_delay_cnt;
@@ -655,19 +700,23 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
         delay_max_us = (uint32_t)(((uint64_t)delay_max * 1000000u) / sys_clock);
     }
     n = snprintf(buf, len,
-                 "[R5]d%lu o%lu f%lu h%lu g%lu q%lu a%lu m%lu\r\n",
+                 "[R5]d%lu o%lu f%lu h%lu g%lu c%lu t%lu a%lu m%lu\r\n",
                  dt_ms,
                  ok_delta,
                  fail_delta,
                  (uint32_t)(((uint64_t)ok_delta * 1000u) / dt_ms),
-                 gStat.rx_seq_gap,
-                 gStat.rx_reacquire,
+                 gap_delta,
+                 crcerr_delta,
+                 timeout_delta,
                  delay_avg_us,
                  delay_max_us);
 
     last_clock = now_clock;
     last_ok = ok_total;
     last_fail = fail_total;
+    last_gap = gap_total;
+    last_crcerr = crcerr_total;
+    last_timeout = timeout_total;
 
     if(n <= 0)
     {
