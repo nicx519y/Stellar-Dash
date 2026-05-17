@@ -20,6 +20,7 @@ extern "C" {
 #endif
 
 extern void RF_Init(void);
+extern void RF_Service(void);
 extern uint16_t RF_GetStatsLine(char *buf, uint16_t len);
 
 #ifdef __cplusplus

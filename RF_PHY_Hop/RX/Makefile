@@ -36,7 +36,8 @@ DEFINES := \
 	-DDEBUG=0 \
 	-DCLK_OSC32K=2 \
 	-DRF_8K=1 \
-	$(MODE_DEFINE)
+	$(MODE_DEFINE) \
+	$(EXTRA_DEFINES)
 
 INCLUDES := \
 	-I$(APP_DIR)/include \

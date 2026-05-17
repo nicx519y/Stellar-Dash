@@ -1,4 +1,4 @@
-# RF24G RFIP 4B 8K Implementation
+# RF24G RFIP 4B Payload 8K Implementation
 
 Date: 2026-05-17
 
@@ -6,16 +6,18 @@ This document records the current working RF implementation in `RF_PHY_Hop/TX` a
 
 ## Current Status
 
-The working RF path is **fixed-channel RFIP Basic**, not WCH FAST Bound.
+The working RF path is **self-managed hopping over RFIP Basic**.
 
-- RF channel: `16`
+- RF channels: `{4, 8, 12, 16, 20, 24, 28, 32, 36}`
+- Hop dwell: `16` packets per channel
 - RF PHY: `LLE_MODE_PHY_2M`
 - RF access address: `0x71764129`
 - RF CRC init: `0x555555`
-- RF payload length: `4` bytes
+- RF packet length: `12` bytes
+- RF input payload length: `4` bytes
 - RF cadence: `8000 Hz`
 - TX input source: STM32 application sends 15-byte `INPUT_DATA` frames over SPI
-- TX RF payload: currently uses the first 4 bytes of the latest SPI payload
+- TX RF payload: currently uses the first 4 bytes of the latest SPI payload inside a protocol packet
 - Pairing/binding: disabled for this working path
 
 The verified working result is approximately:
@@ -27,9 +29,7 @@ RX hz ~= 7980, fail very low
 
 ## Why This Path
 
-`RFBound_Start8kHost()` / `RFBound_Start8kDevice()` are WCH FAST Bound APIs implemented inside the closed WCH library. They can start, but binding was not stable in this project.
-
-The current path avoids FAST Bound and uses the lower-level RFIP Basic flow:
+The current path uses the lower-level RFIP Basic flow:
 
 ```text
 RFRole_BasicInit()
@@ -39,7 +39,7 @@ RFIP_SetTxParm()
 RFIP_SetRx()
 ```
 
-The previous 15-byte RF payload did not fit reliably at 8K. A 4-byte payload works for the Hitbox product because all buttons are 1-bit states.
+The previous 15-byte RF payload did not fit reliably at 8K. A 4-byte input payload works for the Hitbox product because all buttons are 1-bit states. The RF packet is now 12 bytes because it includes a protocol header, sequence number, hop epoch, and CRC16.
 
 ## Data Flow
 
@@ -65,15 +65,19 @@ rfm_spi_bridge.c
   -> RFIP_SetTxParm()
 ```
 
-Current RF TX packet format:
+Current RFIP TX DMA layout:
 
 ```text
 TxBuf[0] = 0x55
-TxBuf[1] = 4
-TxBuf[2] = latest_spi_payload[0]
-TxBuf[3] = latest_spi_payload[1]
-TxBuf[4] = latest_spi_payload[2]
-TxBuf[5] = latest_spi_payload[3]
+TxBuf[1] = 12
+TxBuf[2] = magic        (0xA7)
+TxBuf[3] = type         (DATA=0x01)
+TxBuf[4] = session_id   (0x21)
+TxBuf[5] = seq
+TxBuf[6] = hop_epoch    (0)
+TxBuf[7] = flags
+TxBuf[8..11] = latest_spi_payload[0..3]
+TxBuf[12..13] = crc16 over TxBuf[2..11]
 ```
 
 The `0x55 + len + payload` layout follows the WCH `RF_Basic` RFIP example.
@@ -114,11 +118,11 @@ Important configuration:
 
 ```c
 #define RF_TEST_FREQUENCY           16
-#define RF_TEST_DATA_LEN            4
+#define RF_TEST_DATA_LEN            12
 #define RF_REPORT_PPS               8000
-#define RF_USE_FAST_8K              0
 #define RF_USE_LOW_LEVEL_BASIC      0
 #define RF_TX_USE_TMR0_IRQ          1
+#define RF_HOP_DWELL_PACKETS        16
 ```
 
 Public functions:
@@ -148,9 +152,10 @@ Internal functions:
   - Updates TX cadence counters.
 - `rf_fill_payload()`
   - Pulls latest SPI payload via `rfm_input_stream_take_latest()`.
-  - Builds RFIP DMA buffer with 4-byte payload.
+  - Builds the 12-byte RFIP DATA packet with 4-byte input payload, `seq`, and CRC16.
 - `rf_tx_start()`
   - Calls `RFIP_SetTxStart()`.
+  - Selects the RF channel from `seq / 16`.
   - Calls `RFIP_SetTxParm(&gTxParam)`.
 - `RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)`
   - Counts `RF_STATE_TX_FINISH`, `RF_STATE_TIMEOUT`, and `RF_STATE_TX_IDLE`.
@@ -208,9 +213,10 @@ Important configuration:
 
 ```c
 #define RF_TEST_FREQUENCY           16
-#define RF_TEST_DATA_LEN            4
-#define RF_USE_FAST_8K              0
+#define RF_TEST_DATA_LEN            12
 #define RF_USE_LOW_LEVEL_BASIC      0
+#define RF_HOP_DWELL_PACKETS        16
+#define RF_RX_TIMEOUT_HALF_US       1000
 ```
 
 Public functions:
@@ -231,8 +237,11 @@ Internal functions:
 - `rf_rx_start()`
   - Calls `RFIP_SetRx(&gRxParam)`.
 - `RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)`
-  - Counts receive success and failure.
-  - Schedules RX re-arm through `SBP_RF_RF_RX_EVT`.
+  - Validates the 12-byte RFIP DATA packet.
+  - Checks magic/type/session/hop epoch/CRC16.
+  - Tracks sequence gaps and duplicate packets.
+  - Tunes RX to the next expected channel after valid packets.
+  - Advances reacquire scanning after CRC errors, invalid packets, or timeouts.
 - `RF_ProcessEvent(uint8_t task_id, uint16_t events)`
   - Re-arms RX after callbacks.
 
@@ -276,6 +285,31 @@ make -C RF_PHY_Hop\TX -j4
 make -C RF_PHY_Hop\RX -j4
 ```
 
+Default build is validation mode B because validation mode A showed very low TX finish callbacks with 12-byte packets:
+
+```text
+RF_TEST_PROTOCOL_PACKET=0
+RF_TEST_ENABLE_HOP=0
+```
+
+Use this to confirm the old 4-byte fixed-channel baseline before changing one variable at a time.
+
+Validation modes:
+
+```powershell
+# A: 12B protocol packet, fixed channel.
+make -C RF_PHY_Hop\TX clean; make -C RF_PHY_Hop\TX -j4 EXTRA_DEFINES="-DRF_TEST_PROTOCOL_PACKET=1 -DRF_TEST_ENABLE_HOP=0"
+make -C RF_PHY_Hop\RX clean; make -C RF_PHY_Hop\RX -j4 EXTRA_DEFINES="-DRF_TEST_PROTOCOL_PACKET=1 -DRF_TEST_ENABLE_HOP=0"
+
+# B: old 4B fixed-channel baseline. Default.
+make -C RF_PHY_Hop\TX clean; make -C RF_PHY_Hop\TX -j4
+make -C RF_PHY_Hop\RX clean; make -C RF_PHY_Hop\RX -j4
+
+# C: 12B protocol packet with self-managed hopping.
+make -C RF_PHY_Hop\TX clean; make -C RF_PHY_Hop\TX -j4 EXTRA_DEFINES="-DRF_TEST_PROTOCOL_PACKET=1 -DRF_TEST_ENABLE_HOP=1"
+make -C RF_PHY_Hop\RX clean; make -C RF_PHY_Hop\RX -j4 EXTRA_DEFINES="-DRF_TEST_PROTOCOL_PACKET=1 -DRF_TEST_ENABLE_HOP=1"
+```
+
 ## Current Logs
 
 TX 5-second log:
@@ -298,7 +332,7 @@ Important TX fields:
 RX 5-second log:
 
 ```text
-[RX][5s] dt:... ok:... fail:... hz:... cfg:0 r:0
+[RX][5s] dt:... ok:... fail:... hz:... gap:... ch:... cfg:0 r:0
 ```
 
 Important RX fields:
@@ -306,13 +340,14 @@ Important RX fields:
 - `ok`: valid RX packets in the stats window.
 - `fail`: CRC/error packets in the stats window.
 - `hz`: valid RX packet rate.
+- `gap`: sequence gap count.
+- `ch`: current receive channel.
 - `cfg`: RF init return code.
 - `r`: `RFIP_SetRx()` return code.
 
 ## Known Limitations and Next Steps
 
-- TX currently uses `latest_spi_payload[0..3]` as the 4-byte RF payload. A formal Hitbox bitmask mapping still needs to be defined.
+- TX currently uses `latest_spi_payload[0..3]` as the 4-byte input payload. A formal Hitbox bitmask mapping still needs to be defined.
 - RX currently counts packets only. It still needs to decode the 4-byte payload and feed XInput state.
-- The current path is fixed channel only. Channel hopping/recovery is not implemented in this working 4B/8K path.
-- FAST Bound code remains in source behind disabled macros for reference/debug, but it is not the working production candidate.
+- Pair/Search and adaptive channel masks are not implemented yet; the current hop schedule uses a fixed session and fixed table.
 - Debug logs are still verbose. They are useful during bring-up and should be gated or reduced before release.

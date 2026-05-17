@@ -680,9 +680,9 @@ void USB2_DEVICE_IRQHandler( void )
                                                         R8_U2EP4_TX_CTRL = USBHS_UEP_T_RES_NAK;
                                                     break;
 
-                                                case (DEF_UEP5 | DEF_UEP_OUT):
-                                                        /* Set End-point 5 OUT ACK */
-                                                        R8_U2EP5_RX_CTRL = USBHS_UEP_R_RES_ACK;
+                                                case (DEF_UEP5 | DEF_UEP_IN):
+                                                        /* Set End-point 5 IN NAK */
+                                                        R8_U2EP5_TX_CTRL = USBHS_UEP_T_RES_NAK;
                                                     break;
 
                                                 case (DEF_UEP6 | DEF_UEP_IN):
@@ -769,9 +769,9 @@ void USB2_DEVICE_IRQHandler( void )
                                                         R8_U2EP4_TX_CTRL = ( R8_U2EP4_TX_CTRL & ~USBHS_UEP_T_RES_MASK ) | USBHS_UEP_T_RES_STALL;
                                                     break;
 
-                                                case (DEF_UEP5 | DEF_UEP_OUT):
-                                                        /* Set End-point 5 OUT STALL */
-                                                        R8_U2EP5_RX_CTRL = ( R8_U2EP5_RX_CTRL & ~USBHS_UEP_R_RES_MASK ) | USBHS_UEP_R_RES_STALL;
+                                                case (DEF_UEP5 | DEF_UEP_IN):
+                                                        /* Set End-point 5 IN STALL */
+                                                        R8_U2EP5_TX_CTRL = ( R8_U2EP5_TX_CTRL & ~USBHS_UEP_T_RES_MASK ) | USBHS_UEP_T_RES_STALL;
                                                     break;
 
                                                 case (DEF_UEP6 | DEF_UEP_IN):
@@ -841,8 +841,8 @@ void USB2_DEVICE_IRQHandler( void )
                                                 }
                                                 break;
 
-                                            case (DEF_UEP5 | DEF_UEP_OUT):
-                                                if( ( (R8_U2EP5_RX_CTRL) & USBHS_UEP_R_RES_MASK ) == USBHS_UEP_R_RES_STALL )
+                                            case (DEF_UEP5 | DEF_UEP_IN):
+                                                if( ( (R8_U2EP5_TX_CTRL) & USBHS_UEP_T_RES_MASK ) == USBHS_UEP_T_RES_STALL )
                                                 {
                                                     USBHS_EP0_Buf[ 0 ] = 0x01;
                                                 }

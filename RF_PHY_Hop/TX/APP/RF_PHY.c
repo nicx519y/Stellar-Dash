@@ -17,22 +17,35 @@
 #endif
 
 #define RF_TEST_FREQUENCY           16
+#ifndef RF_TEST_PROTOCOL_PACKET
+#define RF_TEST_PROTOCOL_PACKET     0
+#endif
+#ifndef RF_TEST_ENABLE_HOP
+#define RF_TEST_ENABLE_HOP          0
+#endif
+#if (RF_TEST_PROTOCOL_PACKET == 1)
+#define RF_TEST_DATA_LEN            12
+#else
 #define RF_TEST_DATA_LEN            4
+#endif
 #define RF_REPORT_PPS               8000
 #define RF_STAT_PRINT_PERIOD_MS     5000
 #define TMR0_FREE_RUN_END           0x03FFFFFFUL
-#define RF_USE_FAST_8K              0
 #define RF_USE_LOW_LEVEL_BASIC      0
 #define RF_TX_USE_TMR0_IRQ          1
-#define RF_FAST_TX_AS_HOST          0
-#define RF_FAST_AUTO_RESTART        1
-#define RF_FAST_USE_EXPLICIT_INFO   1
-#define RF_FAST_USE_FREQUENCY_LIST  0
-#define RF_FAST_RESTART_DELAY_MS    50
-#define RF_FAST_BOUND_TIMEOUT_MS    1000
 #define RF_LINK_DEBUG_LOG           1
 
-#define SBP_RF_START_DEVICE_EVT      1
+#define RF_PKT_MAGIC                0xA7u
+#define RF_PKT_TYPE_DATA            0x01u
+#define RF_PKT_SESSION_ID           0x21u
+#define RF_PKT_HOP_EPOCH            0u
+#define RF_PKT_FLAGS_NONE           0u
+#define RF_PKT_HEADER_LEN           6u
+#define RF_PKT_INPUT_PAYLOAD_LEN    4u
+#define RF_PKT_CRC_LEN              2u
+#define RF_HOP_DWELL_PACKETS        16u
+#define RF_HOP_CHANNEL_COUNT        9u
+
 #define SBP_RF_STAT_EVT              (1 << 5)
 
 #if (RF_LINK_DEBUG_LOG == 1)
@@ -79,38 +92,20 @@ static uint32_t g_tmr_prev_cnt = 0;
 static uint32_t g_tmr_acc_tick = 0;
 #endif
 static uint32_t g_tick_per_evt = 1;
-static RF_DMADESCTypeDef gTxDesc;
-static RF_DMADESCTypeDef gRxDesc;
-#if (RF_FAST_TX_AS_HOST == 1)
-static rfBoundHost_t gFastHostCfg;
-#else
-static rfBoundDevice_t gFastDevCfg;
-#endif
-static uint32_t gBoundFrequencyList[1] = {RF_TEST_FREQUENCY};
-static rfHostBoundFre_t gBoundFreList;
-static const uint8_t gFastTxOwnInfo[6] = {0x48, 0x42, 0x4F, 0x58, 0x54, 0x58};
-static const uint8_t gFastRxPeerInfo[6] = {0x48, 0x42, 0x4F, 0x58, 0x52, 0x58};
-static volatile uint8_t g_fast_started = 0;
 static volatile uint8_t g_basic_started = 0;
 static uint8_t g_spi_last_payload[RFM_RF_INPUT_PAYLOAD_LEN] = {0};
 static uint8_t g_spi_has_payload = 0;
 static uint32_t g_last_stat_clock = 0;
-static volatile uint32_t g_bound_cb_count = 0;
-static volatile uint8_t g_bound_status = 0xFFu;
-static volatile uint8_t g_bound_role = 0xFFu;
-static volatile uint8_t g_bound_id = 0xFFu;
-static volatile uint8_t g_bound_type = 0xFFu;
-static volatile uint8_t g_bound_hop = 0xFFu;
-static volatile uint8_t g_fast_switch_ret = 0xFFu;
-static volatile uint8_t g_fast_init_ret = 0xFFu;
-static volatile uint8_t g_fast_freq_ret = 0xFFu;
-static volatile uint8_t g_fast_start_ret = 0xFFu;
-static volatile uint32_t g_bound_restart_count = 0;
-static volatile uint32_t g_bound_fail_count = 0;
 static volatile uint8_t g_low_config_ret = 0xFFu;
 static volatile uint8_t g_low_channel = RF_TEST_FREQUENCY;
 static volatile uint8_t g_low_tx_ret = 0xFFu;
 static volatile uint8_t g_low_tx_inflight = 0;
+static uint8_t g_tx_seq = 0u;
+static uint8_t g_tx_last_seq = 0u;
+
+static const uint8_t g_hop_channels[RF_HOP_CHANNEL_COUNT] = {
+    4u, 8u, 12u, 16u, 20u, 24u, 28u, 32u, 36u
+};
 
 void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id);
 static void rf_fill_payload(void);
@@ -118,7 +113,42 @@ static void rf_fill_payload(void);
 __attribute__((__aligned__(4))) static uint8_t TxBuf[64];
 __attribute__((__aligned__(4))) static uint8_t RxBuf[264];
 
-#if ((RF_USE_FAST_8K == 0) || (RF_TX_USE_TMR0_IRQ == 0))
+static uint16_t rf_crc16_ccitt(const uint8_t *data, uint8_t len)
+{
+    uint16_t crc = 0xFFFFu;
+    uint8_t i;
+    uint8_t bit;
+
+    for(i = 0u; i < len; ++i)
+    {
+        crc ^= (uint16_t)data[i] << 8;
+        for(bit = 0u; bit < 8u; ++bit)
+        {
+            if((crc & 0x8000u) != 0u)
+            {
+                crc = (uint16_t)((crc << 1) ^ 0x1021u);
+            }
+            else
+            {
+                crc <<= 1;
+            }
+        }
+    }
+
+    return crc;
+}
+
+static uint8_t rf_hop_channel_for_seq(uint8_t seq)
+{
+#if (RF_TEST_ENABLE_HOP == 1)
+    uint8_t index = (uint8_t)((seq / RF_HOP_DWELL_PACKETS) % RF_HOP_CHANNEL_COUNT);
+    return g_hop_channels[index];
+#else
+    (void)seq;
+    return RF_TEST_FREQUENCY;
+#endif
+}
+
 __HIGH_CODE
 static void rf_tx_start(void)
 {
@@ -131,6 +161,8 @@ static void rf_tx_start(void)
         gStat.tx_start_fail++;
         return;
     }
+    gTxParam.frequency = rf_hop_channel_for_seq(g_tx_last_seq);
+    g_low_channel = (uint8_t)gTxParam.frequency;
     gTxParam.txDMA = (uint32_t)TxBuf;
     ret_parm = RFIP_SetTxParm(&gTxParam);
     if(ret_parm != SUCCESS)
@@ -138,7 +170,6 @@ static void rf_tx_start(void)
         gStat.tx_parm_fail++;
     }
 }
-#endif
 
 #if (RF_TX_USE_TMR0_IRQ == 1)
 __INTERRUPT
@@ -155,13 +186,9 @@ void TMR0_IRQHandler(void)
         gStat.sched_due_total++;
         gStat.sched_sent_win++;
         gStat.sched_sent_total++;
-#if (RF_USE_FAST_8K == 1)
-        gStat.payload_update++;
-#else
         gStat.tx_try++;
         gStat.payload_update++;
         rf_tx_start();
-#endif
     }
 }
 #endif
@@ -172,6 +199,8 @@ static void rf_fill_payload(void)
     uint8_t i;
     uint8_t payload[RFM_RF_INPUT_PAYLOAD_LEN];
     uint8_t has_payload;
+    uint8_t *packet = &TxBuf[2];
+    uint16_t crc;
 
     TxBuf[0] = 0x55;
     TxBuf[1] = RF_TEST_DATA_LEN;
@@ -184,6 +213,37 @@ static void rf_fill_payload(void)
         g_spi_has_payload = 1;
     }
 
+#if (RF_TEST_PROTOCOL_PACKET == 1)
+    packet[0] = RF_PKT_MAGIC;
+    packet[1] = RF_PKT_TYPE_DATA;
+    packet[2] = RF_PKT_SESSION_ID;
+    packet[3] = g_tx_seq;
+    packet[4] = RF_PKT_HOP_EPOCH;
+    packet[5] = RF_PKT_FLAGS_NONE;
+    g_tx_last_seq = g_tx_seq;
+    g_tx_seq++;
+
+    if(g_spi_has_payload != 0u)
+    {
+        for(i = 0; i < RF_PKT_INPUT_PAYLOAD_LEN; ++i)
+        {
+            packet[RF_PKT_HEADER_LEN + i] = g_spi_last_payload[i];
+        }
+    }
+    else
+    {
+        for(i = 0; i < RF_PKT_INPUT_PAYLOAD_LEN; ++i)
+        {
+            packet[RF_PKT_HEADER_LEN + i] = (uint8_t)(i + 1u);
+        }
+    }
+
+    crc = rf_crc16_ccitt(packet, (uint8_t)(RF_TEST_DATA_LEN - RF_PKT_CRC_LEN));
+    packet[RF_TEST_DATA_LEN - 2u] = (uint8_t)(crc & 0xFFu);
+    packet[RF_TEST_DATA_LEN - 1u] = (uint8_t)(crc >> 8);
+#else
+    (void)packet;
+    (void)crc;
     if(g_spi_has_payload != 0u)
     {
         for(i = 0; i < RF_TEST_DATA_LEN; ++i)
@@ -197,6 +257,7 @@ static void rf_fill_payload(void)
     {
         TxBuf[2 + i] = (uint8_t)(i + 1u);
     }
+#endif
 }
 
 bool RF_SPI_FastWriteInput(const uint8_t *payload, uint8_t len)
@@ -303,44 +364,6 @@ static void rf_low_level_tx_once(void)
 }
 #endif
 
-__HIGH_CODE
-static void rf_bound_callback(staBound_t *sta)
-{
-    if(sta != NULL)
-    {
-        g_bound_status = sta->status;
-        g_bound_role = sta->role;
-        g_bound_id = sta->devId;
-        g_bound_type = sta->devType;
-        g_bound_hop = sta->hop;
-        g_bound_cb_count++;
-        if(sta->status != BOUND_STA_SUCCESS)
-        {
-            g_bound_fail_count++;
-#if (RF_FAST_AUTO_RESTART == 1)
-            g_fast_started = 0;
-            tmos_start_task(taskID, SBP_RF_START_DEVICE_EVT, MS1_TO_SYSTEM_TIME(RF_FAST_RESTART_DELAY_MS));
-#endif
-        }
-        RF_LINK_LOG("[TX][BOUND] sta:%u role:%u id:%u type:%u hop:%u cb:%lu fail:%lu\n",
-                    sta->status, sta->role, sta->devId, sta->devType, sta->hop,
-                    g_bound_cb_count, g_bound_fail_count);
-    }
-}
-
-static void rf_dma_desc_init(void)
-{
-    gTxDesc.Status = STA_DMA_ENABLE | (sizeof(TxBuf) & STA_LEN_MASK);
-    gTxDesc.BufferSize = sizeof(TxBuf);
-    gTxDesc.BufferAddr = (uint32_t)TxBuf;
-    gTxDesc.NextDescAddr = (uint32_t)&gTxDesc;
-
-    gRxDesc.Status = STA_DMA_ENABLE | (sizeof(RxBuf) & STA_LEN_MASK);
-    gRxDesc.BufferSize = sizeof(RxBuf);
-    gRxDesc.BufferAddr = (uint32_t)RxBuf;
-    gRxDesc.NextDescAddr = (uint32_t)&gRxDesc;
-}
-
 static void rf_basic_start_tx(void)
 {
     rfRoleConfig_t conf = {0};
@@ -383,79 +406,6 @@ static void rf_basic_start_tx(void)
                 (unsigned int)g_low_channel,
                 RF_REPORT_PPS,
                 RF_TEST_DATA_LEN);
-}
-
-static void rf_fast_start(void)
-{
-    rfRoleConfig_t conf = {0};
-    bStatus_t ret;
-
-    rf_fill_payload();
-    rf_dma_desc_init();
-    RFBound_Stop();
-
-    ret = RFRole_SwitchMode(RFIP_MODE_RF_FAST);
-    g_fast_switch_ret = (uint8_t)ret;
-    RF_LINK_LOG("[TX][FAST] switch:%u\n", ret);
-
-    conf.TxPower = BLE_TX_POWER;
-    conf.pTx = &gTxDesc;
-    conf.pRx = &gRxDesc;
-    conf.rfProcessCB = RF_ProcessCallBack;
-    conf.processMask = RF_STATE_TX_FINISH | RF_STATE_TIMEOUT | RF_STATE_TX_IDLE;
-    ret = RFRole_FastInit(&conf);
-    g_fast_init_ret = (uint8_t)ret;
-    RF_LINK_LOG("[TX][FAST] init:%u\n", ret);
-
-#if (RF_FAST_USE_FREQUENCY_LIST == 1)
-    tmos_memset(&gBoundFreList, 0, sizeof(gBoundFreList));
-    gBoundFreList.number = 1;
-    gBoundFreList.pFrequency = gBoundFrequencyList;
-    ret = RFBound_SetFrequencyList(&gBoundFreList);
-    g_fast_freq_ret = (uint8_t)ret;
-    RF_LINK_LOG("[TX][FAST] freq:%u ch:%lu\n", ret, gBoundFrequencyList[0]);
-#else
-    g_fast_freq_ret = 0xFEu;
-    RF_LINK_LOG("[TX][FAST] freq:skip\n");
-#endif
-
-#if (RF_FAST_TX_AS_HOST == 1)
-    tmos_memset(&gFastHostCfg, 0, sizeof(gFastHostCfg));
-    gFastHostCfg.hop = RF_HOP_OFF;
-    gFastHostCfg.periTime = 8;
-    gFastHostCfg.devType = 0;
-    gFastHostCfg.timeout = 1000;
-#if (RF_FAST_USE_EXPLICIT_INFO == 1)
-    memcpy(gFastHostCfg.OwnInfo, gFastTxOwnInfo, sizeof(gFastHostCfg.OwnInfo));
-    memcpy(gFastHostCfg.PeerInfo, gFastRxPeerInfo, sizeof(gFastHostCfg.PeerInfo));
-#endif
-    gFastHostCfg.rfBoundCB = rf_bound_callback;
-    gFastHostCfg.ChannelMap = 0x1FFFFFFFUL;
-    ret = RFBound_Start8kHost(&gFastHostCfg);
-    g_fast_start_ret = (uint8_t)ret;
-    RF_LINK_LOG("[TX][FAST] start_host:%u explicit:%u\n", ret, RF_FAST_USE_EXPLICIT_INFO);
-#else
-    tmos_memset(&gFastDevCfg, 0, sizeof(gFastDevCfg));
-    gFastDevCfg.devType = 0;
-    gFastDevCfg.deviceId = RF_ROLE_ID_INVALD;
-    gFastDevCfg.speed = 8;
-    gFastDevCfg.timeout = RF_FAST_BOUND_TIMEOUT_MS;
-#if (RF_FAST_USE_EXPLICIT_INFO == 1)
-    memcpy(gFastDevCfg.OwnInfo, gFastTxOwnInfo, sizeof(gFastDevCfg.OwnInfo));
-    memcpy(gFastDevCfg.PeerInfo, gFastRxPeerInfo, sizeof(gFastDevCfg.PeerInfo));
-#endif
-    gFastDevCfg.rfBoundCB = rf_bound_callback;
-    ret = RFBound_Start8kDevice(&gFastDevCfg);
-    g_fast_start_ret = (uint8_t)ret;
-    RF_LINK_LOG("[TX][FAST] start_device:%u explicit:%u\n", ret, RF_FAST_USE_EXPLICIT_INFO);
-#endif
-
-    g_fast_started = (ret == SUCCESS) ? 1 : 0;
-    if(g_fast_started == 0)
-    {
-        RF_LINK_LOG("[TX][FAST] fallback_basic\n");
-        rf_basic_start_tx();
-    }
 }
 
 __HIGH_CODE
@@ -515,7 +465,10 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
             dt_ms = 1u;
         }
 
-        RF_LINK_LOG("[TX][5s] dt:%lums irq:%lu sent:%lu upd:%lu upd_hz:%lu txok:%lu fail:%lu idle:%lu sf:%lu pf:%lu spi:%lu/%lu bound:%lu bfail:%lu sta:%u role:%u id:%u type:%u hop:%u start:%u basic:%u cfg:%u ch:%u txret:%u\n",
+        RF_LINK_LOG("[TX][5s] mode:%u hop:%u len:%u dt:%lums irq:%lu sent:%lu upd:%lu upd_hz:%lu txok:%lu fail:%lu idle:%lu sf:%lu pf:%lu spi:%lu/%lu basic:%u cfg:%u ch:%u txret:%u\n",
+                    RF_TEST_PROTOCOL_PACKET,
+                    RF_TEST_ENABLE_HOP,
+                    RF_TEST_DATA_LEN,
                     dt_ms,
                     tmr_irq_win,
                     sched_sent_win,
@@ -528,14 +481,6 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
                     tx_parm_fail,
                     spi_rx_win,
                     spi_rx_total,
-                    g_bound_cb_count,
-                    g_bound_fail_count,
-                    (unsigned int)g_bound_status,
-                    (unsigned int)g_bound_role,
-                    (unsigned int)g_bound_id,
-                    (unsigned int)g_bound_type,
-                    (unsigned int)g_bound_hop,
-                    (unsigned int)g_fast_start_ret,
                     (unsigned int)g_basic_started,
                     (unsigned int)g_low_config_ret,
                     (unsigned int)g_low_channel,
@@ -562,13 +507,6 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
 
         tmos_start_task(taskID, SBP_RF_STAT_EVT, MS1_TO_SYSTEM_TIME(RF_STAT_PRINT_PERIOD_MS));
         return events ^ SBP_RF_STAT_EVT;
-    }
-
-    if(events & SBP_RF_START_DEVICE_EVT)
-    {
-        g_bound_restart_count++;
-        rf_fast_start();
-        return events ^ SBP_RF_START_DEVICE_EVT;
     }
 
     return 0;
@@ -621,7 +559,7 @@ void RF_TxMainLoopProcess(void)
     uint32_t delta;
     uint32_t due;
 
-    if((g_fast_started == 0) && (g_basic_started == 0))
+    if(g_basic_started == 0)
     {
         return;
     }
@@ -693,9 +631,6 @@ void RF_Init(void)
 
 #if (RF_USE_LOW_LEVEL_BASIC == 1)
     rf_low_level_basic_start_tx();
-#elif (RF_USE_FAST_8K == 1)
-    RF_LINK_LOG("[TX][FAST] start_evt:%u\n",
-                (unsigned int)tmos_set_event(taskID, SBP_RF_START_DEVICE_EVT));
 #else
     rf_basic_start_tx();
 #endif
