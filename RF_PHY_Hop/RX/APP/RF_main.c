@@ -60,9 +60,9 @@ static uint8_t RX_MainSendCdc(const char *msg)
     }
 
     len = (uint16_t)strlen(msg);
-    if(len > 64u)
+    if(len > DEF_USB_EP5_HS_SIZE)
     {
-        len = 64u;
+        len = DEF_USB_EP5_HS_SIZE;
     }
     return (USBHS_Endp_DataUp(DEF_UEP5, (uint8_t *)msg, len, DEF_UEP_CPY_LOAD) == 0u) ? TRUE : FALSE;
 }
@@ -87,6 +87,12 @@ static void RX_MainLog(const char *msg)
     s_main_pending_msg[sizeof(s_main_pending_msg) - 1u] = '\0';
     s_main_pending_log = TRUE;
     RX_MainFlushLog();
+}
+
+static void RX_MainLogRealtime(const char *msg)
+{
+    PRINT("%s", msg);
+    (void)RX_MainSendCdc(msg);
 }
 
 /*********************************************************************
@@ -147,12 +153,12 @@ void Main_Circulation()
             {
                 if(RF_GetStatsLine(stats_msg, sizeof(stats_msg)) > 0u)
                 {
-                    RX_MainLog(stats_msg);
+                    RX_MainLogRealtime(stats_msg);
                 }
             }
             else
             {
-                RX_MainLog("[RX][MAIN] alive rf:0\r\n");
+                RX_MainLogRealtime("[RX][MAIN] alive rf:0\r\n");
             }
         }
 

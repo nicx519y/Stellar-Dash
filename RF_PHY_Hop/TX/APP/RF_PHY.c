@@ -28,7 +28,9 @@
 #else
 #define RF_TEST_DATA_LEN            4
 #endif
+#ifndef RF_REPORT_PPS
 #define RF_REPORT_PPS               8000
+#endif
 #define RF_STAT_PRINT_PERIOD_MS     5000
 #define TMR0_FREE_RUN_END           0x03FFFFFFUL
 #define RF_USE_LOW_LEVEL_BASIC      0
@@ -45,6 +47,7 @@
 #define RF_PKT_CRC_LEN              2u
 #define RF_HOP_DWELL_PACKETS        16u
 #define RF_HOP_CHANNEL_COUNT        9u
+#define RF_TX_SEND_TIME             (20u * 2u)
 
 #define SBP_RF_STAT_EVT              (1 << 5)
 
@@ -382,13 +385,15 @@ static void rf_basic_start_tx(void)
     gParm.accessAddress = 0x71764129;
     gParm.crcInit = 0x555555;
     gParm.properties = LLE_MODE_PHY_2M;
-    gParm.sendTime = 20 * 2;
+    gParm.sendTime = RF_TX_SEND_TIME;
     RFRole_SetParam(&gParm);
 
     gTxParam.accessAddress = gParm.accessAddress;
     gTxParam.crcInit = gParm.crcInit;
     gTxParam.properties = gParm.properties;
     gTxParam.frequency = RF_TEST_FREQUENCY;
+    gTxParam.whiteChannel = RF_TEST_FREQUENCY;
+    gTxParam.sendTime = (uint8_t)gParm.sendTime;
     gTxParam.sendCount = 1;
     gTxParam.txDMA = (uint32_t)TxBuf;
 

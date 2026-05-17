@@ -44,6 +44,7 @@
 #define RF_PKT_CRC_LEN              2u
 #define RF_HOP_DWELL_PACKETS        16u
 #define RF_HOP_CHANNEL_COUNT        9u
+#define RF_TX_SEND_TIME             (20u * 2u)
 #define RF_RX_FAST_REACQUIRE_MISS   8u
 #define RF_RX_TIMEOUT_HALF_US       10000u
 
@@ -558,7 +559,7 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     ok_delta = ok_total - last_ok;
     fail_delta = fail_total - last_fail;
     n = snprintf(buf, len,
-                 "[RX][5s] m:%u h:%u l:%u dt:%lu ok:%lu fl:%lu hz:%lu ch:%u r:%u\r\n",
+                 "[RX5] m%u h%u l%u dt%lu ok%lu fl%lu hz%lu c%u r%u\r\n",
                  RF_TEST_PROTOCOL_PACKET,
                  RF_TEST_ENABLE_HOP,
                  RF_TEST_DATA_LEN,
@@ -616,13 +617,15 @@ void RF_Init(void)
     gParm.accessAddress = 0x71764129;
     gParm.crcInit = 0x555555;
     gParm.properties = LLE_MODE_PHY_2M;
-    gParm.sendTime = 20 * 2;
+    gParm.sendTime = RF_TX_SEND_TIME;
     RFRole_SetParam(&gParm);
 
     gTxParam.accessAddress = gParm.accessAddress;
     gTxParam.crcInit = gParm.crcInit;
     gTxParam.properties = gParm.properties;
     gTxParam.frequency = RF_TEST_FREQUENCY;
+    gTxParam.whiteChannel = RF_TEST_FREQUENCY;
+    gTxParam.sendTime = (uint8_t)gParm.sendTime;
     gTxParam.sendCount = 1;
     gTxParam.txDMA = (uint32_t)TxBuf;
 
@@ -630,6 +633,7 @@ void RF_Init(void)
     gRxParam.crcInit = gParm.crcInit;
     gRxParam.properties = gParm.properties;
     gRxParam.frequency = RF_TEST_FREQUENCY;
+    gRxParam.whiteChannel = RF_TEST_FREQUENCY;
     gRxParam.rxDMA = (uint32_t)RxBuf;
     gRxParam.rxMaxLen = RF_TEST_DATA_LEN;
     gRxParam.timeOut = RF_RX_TIMEOUT_HALF_US;
