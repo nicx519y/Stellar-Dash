@@ -26,9 +26,9 @@ static uint32_t s_last_backlog_drop_count;
 static uint32_t s_last_backlog_drop_bytes;
 static uint32_t s_last_print_time;
 static const uint16_t k_default_rate_hz = 8000u;
-static uint8_t s_poll_rx[19u * 64u];
+static uint8_t s_poll_rx[(3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u) * 16u];
 
-#define SPI_POLL_MAX_BATCHES          16u
+#define SPI_POLL_MAX_BATCHES          1u
 
 typedef struct {
     uint32_t dt_ms;
@@ -94,7 +94,7 @@ typedef enum {
 } fast_parse_state_t;
 
 static fast_parse_state_t s_fast_state;
-static uint8_t s_fast_payload[15];
+static uint8_t s_fast_payload[RFM_RF_INPUT_PAYLOAD_LEN];
 static uint8_t s_fast_payload_idx;
 static uint8_t s_fast_sum;
 
@@ -282,7 +282,7 @@ static void fast_parser_feed_byte(uint8_t b)
         break;
 
     case FAST_LEN:
-        if (b != 15u) {
+        if (b != RFM_RF_INPUT_PAYLOAD_LEN) {
             s_bad_len_win++;
             fast_parser_reset();
             if (b == RFM_SPI_SYNC) {
@@ -485,6 +485,71 @@ static void bridge_diag_tick_1s(void)
     s_diag_bucket_count++;
     if ((s_diag_bucket_count >= 4u) &&
         ((uint32_t)(now - s_last_print_time) >= MS1_TO_SYSTEM_TIME(5000u))) {
+        uint32_t raw_sum = 0u;
+        uint32_t frame_sum = 0u;
+        uint32_t bad_sync_sum = 0u;
+        uint32_t bad_cmd_sum = 0u;
+        uint32_t bad_len_sum = 0u;
+        uint32_t bad_checksum_sum = 0u;
+        uint32_t rx_sum = 0u;
+        uint32_t rx_bytes_sum = 0u;
+        uint32_t drop_count_sum = 0u;
+        uint32_t drop_bytes_sum = 0u;
+        uint32_t dt_sum = 0u;
+        uint32_t frame_hz = 0u;
+        uint32_t raw_bps = 0u;
+        uint32_t max_avail = 0u;
+        uint32_t near_full_sum = 0u;
+        uint32_t full_clip_sum = 0u;
+        uint32_t dma_irq_sum = 0u;
+        uint32_t flags = 0u;
+        uint8_t i;
+
+        for (i = 0u; i < 5u; ++i) {
+            raw_sum += s_diag_buckets[i].raw;
+            frame_sum += s_diag_buckets[i].frame_ok;
+            bad_sync_sum += s_diag_buckets[i].bad_sync;
+            bad_cmd_sum += s_diag_buckets[i].bad_cmd;
+            bad_len_sum += s_diag_buckets[i].bad_len;
+            bad_checksum_sum += s_diag_buckets[i].bad_checksum;
+            rx_sum += s_diag_buckets[i].rx_delta;
+            rx_bytes_sum += s_diag_buckets[i].rx_bytes;
+            drop_count_sum += s_diag_buckets[i].drop_count;
+            drop_bytes_sum += s_diag_buckets[i].drop_bytes;
+            dt_sum += s_diag_buckets[i].dt_ms;
+            if (s_diag_buckets[i].max_avail > max_avail) {
+                max_avail = s_diag_buckets[i].max_avail;
+            }
+            near_full_sum += s_diag_buckets[i].near_full;
+            full_clip_sum += s_diag_buckets[i].full_clip;
+            dma_irq_sum += s_diag_buckets[i].dma_irq;
+            flags = s_diag_buckets[i].flags;
+        }
+
+        if (dt_sum != 0u) {
+            frame_hz = (uint32_t)(((uint64_t)frame_sum * 1000u) / dt_sum);
+            raw_bps = (uint32_t)(((uint64_t)raw_sum * 1000u) / dt_sum);
+        }
+
+        PRINT("[SPI][win] dt:%lums raw:%lu raw_Bps:%lu frame:%lu frame_hz:%lu rx:%lu bytes:%lu bad:%lu/%lu/%lu/%lu drop:%lu/%lu max:%lu near:%lu full:%lu irq:%lu flags:%02lX\n",
+              dt_sum,
+              raw_sum,
+              raw_bps,
+              frame_sum,
+              frame_hz,
+              rx_sum,
+              rx_bytes_sum,
+              bad_sync_sum,
+              bad_cmd_sum,
+              bad_len_sum,
+              bad_checksum_sum,
+              drop_count_sum,
+              drop_bytes_sum,
+              max_avail,
+              near_full_sum,
+              full_clip_sum,
+              dma_irq_sum,
+              flags);
         s_last_print_time = now;
     }
 }
@@ -521,18 +586,5 @@ void rfm_spi_bridge_init(void)
 
 void rfm_spi_bridge_poll(void)
 {
-    size_t n;
-    size_t i;
-    uint8_t batches = 0u;
-
-    do {
-        n = rfm_spi_port_drain(s_poll_rx, sizeof(s_poll_rx));
-        s_raw_bytes_win += (uint32_t)n;
-        for (i = 0u; i < n; ++i) {
-            fast_parser_feed_byte(s_poll_rx[i]);
-        }
-        batches++;
-    } while ((n == sizeof(s_poll_rx)) && (batches < SPI_POLL_MAX_BATCHES));
-
-    bridge_diag_tick_1s();
+    (void)bridge_diag_tick_1s;
 }

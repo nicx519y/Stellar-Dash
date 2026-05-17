@@ -8,6 +8,9 @@
 void rfm_spi_port_init(void);
 void rfm_spi_port_set_irq(bool asserted);
 size_t rfm_spi_port_drain(uint8_t *buf, size_t max_len);
+bool rfm_spi_port_peek_latest_input(uint8_t *payload, uint8_t len);
+uint32_t rfm_spi_port_rx_peek_ok_count(void);
+uint32_t rfm_spi_port_rx_peek_miss_count(void);
 uint32_t rfm_spi_port_rx_ring_overrun_count(void);
 uint32_t rfm_spi_port_rx_backlog_drop_count(void);
 uint32_t rfm_spi_port_rx_backlog_drop_bytes(void);

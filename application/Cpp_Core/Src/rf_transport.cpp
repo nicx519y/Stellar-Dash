@@ -20,7 +20,7 @@ static constexpr uint8_t EVT_STATE_CHANGED = 0x82u;
 static constexpr uint8_t EVT_RATE_APPLIED = 0x83u;
 static constexpr uint8_t EVT_LINK_WARN = 0x84u;
 static constexpr uint8_t EVT_ERROR = 0x85u;
-static constexpr uint8_t INPUT_PAYLOAD_LEN = 15u;
+static constexpr uint8_t INPUT_PAYLOAD_LEN = 12u;
 static constexpr uint8_t STATUS_PAYLOAD_LEN = 17u;
 static constexpr uint16_t RX_BUF_LEN = 32u;
 
@@ -223,28 +223,24 @@ bool RFTransport::pollStatus() {
 bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
     uint8_t payload[INPUT_PAYLOAD_LEN] = {0};
     payload[0] = static_cast<uint8_t>(seq & 0xFFu);
-    payload[1] = 0u;
 
     uint16_t buttons = (uint16_t)(gamepad.buttons & 0xFFFFu);
-    payload[2] = (uint8_t)(buttons & 0xFFu);
-    payload[3] = (uint8_t)((buttons >> 8) & 0xFFu);
-    payload[4] = encodeDpad(gamepad.dpad);
-    payload[5] = gamepad.lt;
-    payload[6] = gamepad.rt;
+    payload[1] = (uint8_t)(buttons & 0xFFu);
+    payload[2] = (uint8_t)((buttons >> 8) & 0xFFu);
+    payload[3] = encodeDpad(gamepad.dpad);
+    payload[4] = gamepad.lt;
+    payload[5] = gamepad.rt;
 
     int16_t lx = (int16_t)((int32_t)gamepad.lx - 32768);
     int16_t ly = (int16_t)((int32_t)gamepad.ly - 32768);
     int16_t rx = (int16_t)((int32_t)gamepad.rx - 32768);
-    int16_t ry = (int16_t)((int32_t)gamepad.ry - 32768);
 
-    payload[7] = (uint8_t)(lx & 0xFF);
-    payload[8] = (uint8_t)((lx >> 8) & 0xFF);
-    payload[9] = (uint8_t)(ly & 0xFF);
-    payload[10] = (uint8_t)((ly >> 8) & 0xFF);
-    payload[11] = (uint8_t)(rx & 0xFF);
-    payload[12] = (uint8_t)((rx >> 8) & 0xFF);
-    payload[13] = (uint8_t)(ry & 0xFF);
-    payload[14] = (uint8_t)((ry >> 8) & 0xFF);
+    payload[6] = (uint8_t)(lx & 0xFF);
+    payload[7] = (uint8_t)((lx >> 8) & 0xFF);
+    payload[8] = (uint8_t)(ly & 0xFF);
+    payload[9] = (uint8_t)((ly >> 8) & 0xFF);
+    payload[10] = (uint8_t)(rx & 0xFF);
+    payload[11] = (uint8_t)((rx >> 8) & 0xFF);
 
     bool ok = transferCommand(CMD_INPUT_DATA, payload, sizeof(payload), false);
     MonitorTelemetry_OnRfTransfer(seq, CMD_INPUT_DATA, sizeof(payload), ok);

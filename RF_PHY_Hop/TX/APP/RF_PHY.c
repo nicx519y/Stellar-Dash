@@ -9,6 +9,7 @@
 #include "wchrf.h"
 #include "rfm_config.h"
 #include "rfm_input_stream.h"
+#include "rfm_spi_port_internal.h"
 
 #include <string.h>
 
@@ -28,7 +29,7 @@
 #if (RF_TEST_PROTOCOL_PACKET == 1)
 #define RF_TEST_DATA_LEN            12
 #else
-#define RF_TEST_DATA_LEN            4
+#define RF_TEST_DATA_LEN            12
 #endif
 #ifndef RF_REPORT_PPS
 #define RF_REPORT_PPS               8000
@@ -53,6 +54,9 @@
 #define RF_LINK_ACCESS_ADDRESS      0x71764129UL
 #define RF_LINK_CRC_INIT            0x555555UL
 #define RF_BUTTON_BYTES             3u
+#define RF_SEQ_OFFSET               0u
+#define RF_DATA_OFFSET              1u
+#define RF_DATA_BYTES               (RF_TEST_DATA_LEN - RF_DATA_OFFSET)
 
 #define SBP_RF_STAT_EVT              (1 << 5)
 
@@ -105,6 +109,8 @@ static volatile uint8_t g_basic_started = 0;
 static uint8_t g_spi_last_payload[RFM_RF_INPUT_PAYLOAD_LEN] = {0};
 static uint8_t g_spi_has_payload = 0;
 static uint32_t g_last_stat_clock = 0;
+static uint32_t g_last_peek_ok = 0;
+static uint32_t g_last_peek_miss = 0;
 static volatile uint8_t g_low_config_ret = 0xFFu;
 static volatile uint8_t g_low_channel = RF_TEST_FREQUENCY;
 static volatile uint8_t g_low_tx_ret = 0xFFu;
@@ -227,7 +233,11 @@ static void rf_fill_payload(void)
     TxBuf[0] = 0x55;
     TxBuf[1] = RF_TEST_DATA_LEN;
 
-    has_payload = rfm_input_stream_take_latest(payload, RFM_RF_INPUT_PAYLOAD_LEN) ? 1u : 0u;
+    has_payload = rfm_spi_port_peek_latest_input(payload, RFM_RF_INPUT_PAYLOAD_LEN) ? 1u : 0u;
+    if(has_payload == 0u)
+    {
+        has_payload = rfm_input_stream_take_latest(payload, RFM_RF_INPUT_PAYLOAD_LEN) ? 1u : 0u;
+    }
 
     if(has_payload != 0u)
     {
@@ -268,22 +278,22 @@ static void rf_fill_payload(void)
     (void)crc;
     if(g_spi_has_payload != 0u)
     {
-        for(i = 0; i < RF_BUTTON_BYTES; ++i)
+        TxBuf[2u + RF_SEQ_OFFSET] = g_tx_seq;
+        for(i = 0; i < RF_DATA_BYTES; ++i)
         {
-            TxBuf[2 + i] = g_spi_last_payload[i];
+            TxBuf[2u + RF_DATA_OFFSET + i] = g_spi_last_payload[RF_DATA_OFFSET + i];
         }
-        TxBuf[4] &= 0x1Fu;
-        TxBuf[5] = g_tx_seq;
+        TxBuf[2u + RF_DATA_OFFSET + 2u] &= 0x1Fu;
         g_tx_last_seq = g_tx_seq;
         g_tx_seq++;
         return;
     }
 
-    for(i = 0; i < RF_BUTTON_BYTES; ++i)
+    TxBuf[2u + RF_SEQ_OFFSET] = g_tx_seq;
+    for(i = 0; i < RF_DATA_BYTES; ++i)
     {
-        TxBuf[2 + i] = 0u;
+        TxBuf[2u + RF_DATA_OFFSET + i] = 0u;
     }
-    TxBuf[5] = g_tx_seq;
     g_tx_last_seq = g_tx_seq;
     g_tx_seq++;
 #endif
@@ -482,43 +492,37 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
     {
         uint32_t tmr_irq_win = gStat.tmr_irq_win;
         uint32_t sched_sent_win = gStat.sched_sent_win;
-        uint32_t tx_ok = gStat.tx_ok;
-        uint32_t tx_fail = gStat.tx_fail;
-        uint32_t tx_idle = gStat.tx_idle;
         uint32_t tx_start_fail = gStat.tx_start_fail;
         uint32_t tx_parm_fail = gStat.tx_parm_fail;
         uint32_t tx_seq_rollback = gStat.tx_seq_rollback;
         uint32_t payload_update = gStat.payload_update;
-        uint32_t spi_rx_win = gStat.spi_rx_win;
-        uint32_t spi_rx_total = gStat.spi_rx_total;
+        uint32_t peek_ok_total = rfm_spi_port_rx_peek_ok_count();
+        uint32_t peek_miss_total = rfm_spi_port_rx_peek_miss_count();
+        uint32_t peek_ok = peek_ok_total - g_last_peek_ok;
+        uint32_t peek_miss = peek_miss_total - g_last_peek_miss;
         uint32_t now_clock = TMOS_GetSystemClock();
         uint32_t dt_ticks = now_clock - g_last_stat_clock;
         uint32_t dt_ms = (uint32_t)(((uint64_t)dt_ticks * SYSTEM_TIME_MICROSEN) / 1000u);
+        uint32_t peek_hz;
 
         if(dt_ms == 0u)
         {
             dt_ms = 1u;
         }
+        peek_hz = (uint32_t)(((uint64_t)peek_ok * 1000u) / dt_ms);
 
-        RF_LINK_LOG("[TX][5s] mode:%u hop:%u len:%u dt:%lums irq:%lu sent:%lu upd:%lu upd_hz:%lu txok:%lu fail:%lu idle:%lu sf:%lu pf:%lu rb:%lu spi:%lu/%lu basic:%u cfg:%u ch:%u txret:%u\n",
-                    RF_TEST_PROTOCOL_PACKET,
-                    RF_TEST_ENABLE_HOP,
+        RF_LINK_LOG("[TX][win] len:%u dt:%lums irq:%lu sent:%lu upd_hz:%lu peek:%lu/%lu peek_hz:%lu sf:%lu pf:%lu rb:%lu ch:%u txret:%u\n",
                     RF_TEST_DATA_LEN,
                     dt_ms,
                     tmr_irq_win,
                     sched_sent_win,
-                    payload_update,
                     (uint32_t)(((uint64_t)payload_update * 1000u) / dt_ms),
-                    tx_ok,
-                    tx_fail,
-                    tx_idle,
+                    peek_ok,
+                    peek_miss,
+                    peek_hz,
                     tx_start_fail,
                     tx_parm_fail,
                     tx_seq_rollback,
-                    spi_rx_win,
-                    spi_rx_total,
-                    (unsigned int)g_basic_started,
-                    (unsigned int)g_low_config_ret,
                     (unsigned int)g_low_channel,
                     (unsigned int)g_low_tx_ret);
 
@@ -540,6 +544,8 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
         gStat.rx_ok = 0;
         gStat.rx_fail = 0;
         gStat.spi_rx_win = 0;
+        g_last_peek_ok = peek_ok_total;
+        g_last_peek_miss = peek_miss_total;
         g_last_stat_clock = now_clock;
 
         tmos_start_task(taskID, SBP_RF_STAT_EVT, MS1_TO_SYSTEM_TIME(RF_STAT_PRINT_PERIOD_MS));
@@ -649,6 +655,8 @@ void RF_Init(void)
     rfm_input_stream_init();
     memset(g_spi_last_payload, 0, sizeof(g_spi_last_payload));
     g_spi_has_payload = 0u;
+    g_last_peek_ok = 0u;
+    g_last_peek_miss = 0u;
     g_last_stat_clock = TMOS_GetSystemClock();
     g_tick_per_evt = GetSysClock() / RF_REPORT_PPS;
     if(g_tick_per_evt == 0)

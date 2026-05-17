@@ -31,7 +31,7 @@
 #if (RF_TEST_PROTOCOL_PACKET == 1)
 #define RF_TEST_DATA_LEN            12
 #else
-#define RF_TEST_DATA_LEN            4
+#define RF_TEST_DATA_LEN            12
 #endif
 #ifndef RF_REPORT_PPS
 #define RF_REPORT_PPS               8000
@@ -55,6 +55,7 @@
 #define RF_LINK_ACCESS_ADDRESS      0x71764129UL
 #define RF_LINK_CRC_INIT            0x555555UL
 #define RF_BUTTON_BYTES             3u
+#define RF_SEQ_OFFSET               0u
 #define RF_RX_FAST_REACQUIRE_MISS   8u
 #if (RF_TEST_ENABLE_HOP == 1)
 #define RF_RX_TIMEOUT_HALF_US       5000u
@@ -312,7 +313,7 @@ static uint8_t rf_rx_validate_packet(void)
         return 0u;
     }
 
-    seq = RxBuf[2u + RF_BUTTON_BYTES];
+    seq = RxBuf[2u + RF_SEQ_OFFSET];
     if(g_rx_has_seq == 0u)
     {
         g_rx_has_seq = 1u;

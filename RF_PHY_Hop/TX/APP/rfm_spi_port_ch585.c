@@ -3,15 +3,18 @@
 #include <string.h>
 
 #include "CH58x_common.h"
+#include "rfm_config.h"
 
 #define SPI_PINS                      (GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15)
 #define SPI_IRQ_PIN                   (GPIO_Pin_11)
 #define SPI_TX_PENDING_RECOVER_US     (50000u)
 #define US_TICK_STEP                  (10u)
-#define SPI_RX_DMA_RING_SIZE          (65536u)
 #define SPI_RX_TOTAL_CNT              (0u)
-#define SPI_RX_BACKLOG_DROP_THRESHOLD (4096u)
-#define SPI_RX_BACKLOG_KEEP_BYTES     (19u * 64u)
+#define SPI_RX_FRAME_BYTES            (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
+#define SPI_RX_DMA_RING_SIZE          (SPI_RX_FRAME_BYTES * 2u)
+#define SPI_RX_BACKLOG_DROP_THRESHOLD (SPI_RX_FRAME_BYTES * 16u)
+#define SPI_RX_BACKLOG_KEEP_BYTES     (SPI_RX_FRAME_BYTES * 8u)
+#define SPI_INPUT_CMD                 (0x06u)
 
 static uint8_t s_spi_tx_buf[96];
 static uint16_t s_spi_tx_len;
@@ -36,6 +39,8 @@ static volatile uint32_t s_spi_rx_isr_count;
 static volatile uint32_t s_spi_rx_fifo_ov_count;
 static volatile uint32_t s_spi_rx_bad_irq_count;
 static volatile uint32_t s_spi_rx_last_flags;
+static volatile uint32_t s_spi_rx_peek_ok_count;
+static volatile uint32_t s_spi_rx_peek_miss_count;
 
 static void spi_rx_dma_loop_start(uint8_t flush_fifo)
 {
@@ -72,6 +77,49 @@ static uint32_t spi_rx_dma_pos(void)
     return now;
 }
 
+static bool spi_rx_validate_frame(uint32_t start, uint8_t *payload)
+{
+    if (s_spi_rx_dma_buf[start] != RFM_SPI_SYNC) {
+        return false;
+    }
+    if (s_spi_rx_dma_buf[start + 1u] != SPI_INPUT_CMD) {
+        return false;
+    }
+    if (s_spi_rx_dma_buf[start + 2u] != RFM_RF_INPUT_PAYLOAD_LEN) {
+        return false;
+    }
+
+    memcpy(payload, &s_spi_rx_dma_buf[start + 3u], RFM_RF_INPUT_PAYLOAD_LEN);
+    return true;
+}
+
+bool rfm_spi_port_peek_latest_input(uint8_t *payload, uint8_t len)
+{
+    uint32_t write_pos;
+    uint32_t start;
+
+    if ((payload == 0) || (len != RFM_RF_INPUT_PAYLOAD_LEN)) {
+        s_spi_rx_peek_miss_count++;
+        return false;
+    }
+
+    write_pos = spi_rx_dma_pos();
+    start = (write_pos < SPI_RX_FRAME_BYTES) ? SPI_RX_FRAME_BYTES : 0u;
+    if (spi_rx_validate_frame(start, payload)) {
+        s_spi_rx_peek_ok_count++;
+        return true;
+    }
+
+    start = (start == 0u) ? SPI_RX_FRAME_BYTES : 0u;
+    if (spi_rx_validate_frame(start, payload)) {
+        s_spi_rx_peek_ok_count++;
+        return true;
+    }
+
+    s_spi_rx_peek_miss_count++;
+    return false;
+}
+
 static void spi_rx_restart_after_tx(void)
 {
     PFIC_DisableIRQ(SPI0_IRQn);
@@ -80,7 +128,7 @@ static void spi_rx_restart_after_tx(void)
     s_spi_rx_seen_wrap_count = 0u;
     s_spi_rx_read_abs = s_spi_rx_base_abs;
     spi_rx_dma_loop_start(1u);
-    SPI0_ITCfg(ENABLE, SPI0_IT_DMA_END | SPI0_IT_FIFO_OV);
+    SPI0_ITCfg(ENABLE, SPI0_IT_FIFO_OV);
     PFIC_EnableIRQ(SPI0_IRQn);
 }
 
@@ -127,9 +175,11 @@ void rfm_spi_port_init(void)
     s_spi_rx_fifo_ov_count = 0u;
     s_spi_rx_bad_irq_count = 0u;
     s_spi_rx_last_flags = 0u;
+    s_spi_rx_peek_ok_count = 0u;
+    s_spi_rx_peek_miss_count = 0u;
 
     spi_rx_dma_loop_start(1u);
-    SPI0_ITCfg(ENABLE, SPI0_IT_DMA_END | SPI0_IT_FIFO_OV);
+    SPI0_ITCfg(ENABLE, SPI0_IT_FIFO_OV);
     PFIC_EnableIRQ(SPI0_IRQn);
 }
 
@@ -335,6 +385,16 @@ uint32_t rfm_spi_port_rx_last_flags(void)
 uint32_t rfm_spi_port_rx_direct_count(void)
 {
     return 0u;
+}
+
+uint32_t rfm_spi_port_rx_peek_ok_count(void)
+{
+    return s_spi_rx_peek_ok_count;
+}
+
+uint32_t rfm_spi_port_rx_peek_miss_count(void)
+{
+    return s_spi_rx_peek_miss_count;
 }
 
 bool rfm_spi_port_try_read(uint8_t *buf, size_t *inout_len)

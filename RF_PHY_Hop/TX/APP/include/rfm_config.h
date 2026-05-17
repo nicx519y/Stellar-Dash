@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define RFM_RF_INPUT_PAYLOAD_LEN      (15u)
+#define RFM_RF_INPUT_PAYLOAD_LEN      (12u)
 #define RFM_SPI_MAX_FRAME             (64u)
 #define RFM_SPI_SYNC                  (0xA5u)
 
