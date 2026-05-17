@@ -45,8 +45,15 @@
 #define RF_HOP_DWELL_PACKETS        16u
 #define RF_HOP_CHANNEL_COUNT        9u
 #define RF_TX_SEND_TIME             (20u * 2u)
+#define RF_LINK_ACCESS_ADDRESS      0x71764129UL
+#define RF_LINK_CRC_INIT            0x555555UL
+#define RF_BUTTON_BYTES             3u
 #define RF_RX_FAST_REACQUIRE_MISS   8u
+#if (RF_TEST_ENABLE_HOP == 1)
+#define RF_RX_TIMEOUT_HALF_US       500u
+#else
 #define RF_RX_TIMEOUT_HALF_US       10000u
+#endif
 
 #define SBP_RF_RF_RX_EVT             4
 #define SBP_RF_STAT_EVT              (1 << 5)
@@ -174,6 +181,12 @@ static void rf_rx_advance_reacquire_channel(void)
 {
 #if (RF_TEST_ENABLE_HOP == 1)
     g_rx_miss_count++;
+    if((g_rx_has_seq != 0u) && (g_rx_miss_count <= RF_RX_FAST_REACQUIRE_MISS))
+    {
+        g_rx_expected_seq++;
+        rf_rx_tune_for_expected_seq();
+        return;
+    }
     if(g_rx_miss_count > RF_RX_FAST_REACQUIRE_MISS)
     {
         gStat.rx_reacquire++;
@@ -248,7 +261,39 @@ static uint8_t rf_rx_validate_packet(void)
     rf_rx_tune_for_expected_seq();
     return 1u;
 #else
-    return (RxBuf[1] == RF_TEST_DATA_LEN) ? 1u : 0u;
+    uint8_t seq;
+    uint8_t delta;
+
+    if(RxBuf[1] != RF_TEST_DATA_LEN)
+    {
+        return 0u;
+    }
+
+    seq = RxBuf[2u + RF_BUTTON_BYTES];
+    if(g_rx_has_seq == 0u)
+    {
+        g_rx_has_seq = 1u;
+    }
+    else
+    {
+        delta = (uint8_t)(seq - g_rx_expected_seq);
+        if(delta == 0u)
+        {
+        }
+        else if(delta == 0xFFu)
+        {
+            gStat.rx_dup++;
+        }
+        else
+        {
+            gStat.rx_seq_gap += delta;
+        }
+    }
+
+    g_rx_expected_seq = (uint8_t)(seq + 1u);
+    g_rx_miss_count = 0u;
+    rf_rx_tune_for_expected_seq();
+    return 1u;
 #endif
 }
 
@@ -370,8 +415,8 @@ static void rf_low_level_basic_start_rx(void)
     tmos_memset(&cfg, 0, sizeof(cfg));
     cfg.LLEMode = LLE_MODE_BASIC;
     cfg.Channel = RF_TEST_FREQUENCY;
-    cfg.accessAddress = 0x71764129;
-    cfg.CRCInit = 0x555555;
+    cfg.accessAddress = RF_LINK_ACCESS_ADDRESS;
+    cfg.CRCInit = RF_LINK_CRC_INIT;
     cfg.rfStatusCB = rf_low_status_cb;
     cfg.ChannelMap = 0xFFFFFFFFUL;
     cfg.RxMaxlen = 251;
@@ -559,7 +604,7 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     ok_delta = ok_total - last_ok;
     fail_delta = fail_total - last_fail;
     n = snprintf(buf, len,
-                 "[RX5] m%u h%u l%u dt%lu ok%lu fl%lu hz%lu c%u r%u\r\n",
+                 "[RX5] m%u h%u l%u dt%lu ok%lu fl%lu hz%lu gp%lu rq%lu c%u r%u\r\n",
                  RF_TEST_PROTOCOL_PACKET,
                  RF_TEST_ENABLE_HOP,
                  RF_TEST_DATA_LEN,
@@ -567,6 +612,8 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
                  ok_delta,
                  fail_delta,
                  (uint32_t)(((uint64_t)ok_delta * 1000u) / dt_ms),
+                 gStat.rx_seq_gap,
+                 gStat.rx_reacquire,
                  (unsigned int)g_low_channel,
                  (unsigned int)g_low_rx_ret);
 
@@ -614,8 +661,8 @@ void RF_Init(void)
         return;
     }
 
-    gParm.accessAddress = 0x71764129;
-    gParm.crcInit = 0x555555;
+    gParm.accessAddress = RF_LINK_ACCESS_ADDRESS;
+    gParm.crcInit = RF_LINK_CRC_INIT;
     gParm.properties = LLE_MODE_PHY_2M;
     gParm.sendTime = RF_TX_SEND_TIME;
     RFRole_SetParam(&gParm);

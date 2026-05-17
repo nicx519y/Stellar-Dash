@@ -48,6 +48,9 @@
 #define RF_HOP_DWELL_PACKETS        16u
 #define RF_HOP_CHANNEL_COUNT        9u
 #define RF_TX_SEND_TIME             (20u * 2u)
+#define RF_LINK_ACCESS_ADDRESS      0x71764129UL
+#define RF_LINK_CRC_INIT            0x555555UL
+#define RF_BUTTON_BYTES             3u
 
 #define SBP_RF_STAT_EVT              (1 << 5)
 
@@ -249,17 +252,24 @@ static void rf_fill_payload(void)
     (void)crc;
     if(g_spi_has_payload != 0u)
     {
-        for(i = 0; i < RF_TEST_DATA_LEN; ++i)
+        for(i = 0; i < RF_BUTTON_BYTES; ++i)
         {
             TxBuf[2 + i] = g_spi_last_payload[i];
         }
+        TxBuf[4] &= 0x1Fu;
+        TxBuf[5] = g_tx_seq;
+        g_tx_last_seq = g_tx_seq;
+        g_tx_seq++;
         return;
     }
 
-    for(i = 0; i < RF_TEST_DATA_LEN; ++i)
+    for(i = 0; i < RF_BUTTON_BYTES; ++i)
     {
-        TxBuf[2 + i] = (uint8_t)(i + 1u);
+        TxBuf[2 + i] = 0u;
     }
+    TxBuf[5] = g_tx_seq;
+    g_tx_last_seq = g_tx_seq;
+    g_tx_seq++;
 #endif
 }
 
@@ -323,8 +333,8 @@ static void rf_low_level_basic_start_tx(void)
     tmos_memset(&cfg, 0, sizeof(cfg));
     cfg.LLEMode = LLE_MODE_BASIC;
     cfg.Channel = RF_TEST_FREQUENCY;
-    cfg.accessAddress = 0x71764129;
-    cfg.CRCInit = 0x555555;
+    cfg.accessAddress = RF_LINK_ACCESS_ADDRESS;
+    cfg.CRCInit = RF_LINK_CRC_INIT;
     cfg.rfStatusCB = rf_low_status_cb;
     cfg.ChannelMap = 0xFFFFFFFFUL;
     cfg.RxMaxlen = 251;
@@ -382,8 +392,8 @@ static void rf_basic_start_tx(void)
         return;
     }
 
-    gParm.accessAddress = 0x71764129;
-    gParm.crcInit = 0x555555;
+    gParm.accessAddress = RF_LINK_ACCESS_ADDRESS;
+    gParm.crcInit = RF_LINK_CRC_INIT;
     gParm.properties = LLE_MODE_PHY_2M;
     gParm.sendTime = RF_TX_SEND_TIME;
     RFRole_SetParam(&gParm);
