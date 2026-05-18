@@ -281,7 +281,7 @@ static void rf_fill_payload(void)
         TxBuf[2u + RF_SEQ_OFFSET] = g_tx_seq;
         for(i = 0; i < RF_DATA_BYTES; ++i)
         {
-            TxBuf[2u + RF_DATA_OFFSET + i] = g_spi_last_payload[RF_DATA_OFFSET + i];
+            TxBuf[2u + RF_DATA_OFFSET + i] = g_spi_last_payload[i];
         }
         TxBuf[2u + RF_DATA_OFFSET + 2u] &= 0x1Fu;
         g_tx_last_seq = g_tx_seq;
