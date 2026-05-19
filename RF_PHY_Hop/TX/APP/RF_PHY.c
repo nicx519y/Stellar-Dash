@@ -58,7 +58,7 @@
 #define RF_PKT_INPUT_PAYLOAD_LEN    4u
 #define RF_PKT_CRC_LEN              2u
 #define RF_HOP_DWELL_PACKETS        16u     /* 旧的匀速跳频 dwell 参数；当前智能跳频路径不依赖它。 */
-#define RF_HOP_CHANNEL_COUNT        9u      /* 固定跳频表长度，TX/RX 必须一致。 */
+#define RF_HOP_CHANNEL_COUNT        33u     /* 智能跳频候选频道数；4..36 连续频道，包含单数频道，TX/RX 必须一致。 */
 #define RF_TX_SEND_TIME             (20u * 2u) /* RFIP 发送时序参数；改动会影响空口占用和稳定性。 */
 #define RF_LINK_ACCESS_ADDRESS      0x71764129UL /* 固定 access address，TX/RX 必须一致。 */
 #define RF_LINK_CRC_INIT            0x555555UL   /* 固定 CRC init，TX/RX 必须一致。 */
@@ -187,7 +187,10 @@ static uint8_t g_tx_seq = 0u;
 static uint8_t g_tx_last_seq = 0u;
 
 static const uint8_t g_hop_channels[RF_HOP_CHANNEL_COUNT] = {
-    4u, 8u, 12u, 16u, 20u, 24u, 28u, 32u, 36u
+    4u, 5u, 6u, 7u, 8u, 9u, 10u, 11u, 12u, 13u, 14u,
+    15u, 16u, 17u, 18u, 19u, 20u, 21u, 22u, 23u, 24u,
+    25u, 26u, 27u, 28u, 29u, 30u, 31u, 32u, 33u, 34u,
+    35u, 36u
 };
 
 void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id);

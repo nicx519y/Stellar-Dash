@@ -51,6 +51,7 @@
 #define RF_QUALITY_BAD_WINDOWS 2u         /* 连续多少个差窗口后挂起一次质量跳频请求。 */
 #define RF_QUALITY_HOP_COOLDOWN_MS 30000u /* 质量触发跳频后的冷却时间，避免频繁横跳。 */
 #define RF_ACK_SWITCH_LOCK_MS 200u        /* 收到 ACK 并切频道后锁定新频道的时间；锁定期 timeout/CRCERR 不扫描回旧频道。 */
+#define RF_REV_SWITCH_FALLBACK_MS 10u     /* 收到 ACK 后如果旧频道立刻变差，最多等这么久就按 ACK 指定频道本地切换。 */
 #define TMR0_FREE_RUN_END 0x03FFFFFFUL
 #define RF_USE_LOW_LEVEL_BASIC 0
 #define RF_LINK_DEBUG_LOG 1
@@ -64,7 +65,7 @@
 #define RF_PKT_HOP_EPOCH 0u
 #define RF_PKT_CRC_LEN 2u
 #define RF_HOP_DWELL_PACKETS 16u            /* 旧的匀速跳频 dwell 参数；当前智能跳频路径不依赖它。 */
-#define RF_HOP_CHANNEL_COUNT 9u             /* 固定跳频表长度，TX/RX 必须一致。 */
+#define RF_HOP_CHANNEL_COUNT 33u            /* 智能跳频候选频道数；4..36 连续频道，包含单数频道，TX/RX 必须一致。 */
 #define RF_TX_SEND_TIME (20u * 2u)          /* RFIP 发送时序参数；改动会影响反向包空口占用。 */
 #define RF_LINK_ACCESS_ADDRESS 0x71764129UL /* 固定 access address，TX/RX 必须一致。 */
 #define RF_LINK_CRC_INIT 0x555555UL         /* 固定 CRC init，TX/RX 必须一致。 */
@@ -193,6 +194,7 @@ static uint8_t g_rev_switch_seq = 0u;
 static uint8_t g_rev_switch_epoch = 0u;
 static uint32_t g_rev_req_next_clock = 0u;
 static uint32_t g_rev_ack_deadline_clock = 0u;
+static uint32_t g_rev_switch_deadline_clock = 0u;
 static uint8_t g_rx_rev_countdown = RF_REV_COUNTDOWN_FAR;
 static uint8_t g_rx_rev_countdown_armed = 0u;
 static uint8_t g_quality_bad_windows = 0u;
@@ -201,8 +203,11 @@ static uint32_t g_quality_last_trigger_clock = 0u;
 static uint32_t g_ack_switch_lock_until_clock = 0u;
 static uint8_t g_rx_last_packet_was_ack = 0u;
 
-static const uint8_t g_hop_channels[RF_HOP_CHANNEL_COUNT] = {
-    4u, 8u, 12u, 16u, 20u, 24u, 28u, 32u, 36u};
+static uint8_t g_hop_channels[RF_HOP_CHANNEL_COUNT] = {
+    4u, 5u, 6u, 7u, 8u, 9u, 10u, 11u, 12u, 13u, 14u,
+    15u, 16u, 17u, 18u, 19u, 20u, 21u, 22u, 23u, 24u,
+    25u, 26u, 27u, 28u, 29u, 30u, 31u, 32u, 33u, 34u,
+    35u, 36u};
 
 void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id);
 static void rf_rx_start(void);
@@ -285,6 +290,31 @@ static uint8_t rf_hop_channel_valid(uint8_t channel)
     return 0u;
 }
 
+static void rf_hop_demote_channel(uint8_t channel)
+{
+    uint8_t i;
+    uint8_t pos = RF_HOP_CHANNEL_COUNT;
+
+    for (i = 0u; i < RF_HOP_CHANNEL_COUNT; ++i)
+    {
+        if (g_hop_channels[i] == channel)
+        {
+            pos = i;
+            break;
+        }
+    }
+    if (pos >= (RF_HOP_CHANNEL_COUNT - 1u))
+    {
+        return;
+    }
+
+    for (i = pos; i < (RF_HOP_CHANNEL_COUNT - 1u); ++i)
+    {
+        g_hop_channels[i] = g_hop_channels[i + 1u];
+    }
+    g_hop_channels[RF_HOP_CHANNEL_COUNT - 1u] = channel;
+}
+
 static void rf_rx_set_channel(uint8_t channel)
 {
     if (gRxParam.frequency == channel)
@@ -329,6 +359,36 @@ static uint8_t rf_ack_switch_lock_active(void)
 static uint8_t rf_seq_reached(uint8_t current, uint8_t target)
 {
     return ((uint8_t)(current - target) < 0x80u) ? 1u : 0u;
+}
+
+static void rf_rev_switch_commit(void)
+{
+    if (g_rev_switch_pending == 0u)
+    {
+        return;
+    }
+
+    if (g_low_channel != g_rev_switch_channel)
+    {
+        gStat.rev_ack_switch++;
+    }
+    rf_rx_set_channel(g_rev_switch_channel);
+    g_rev_switch_pending = 0u;
+    g_rev_switch_deadline_clock = 0u;
+    g_ack_switch_lock_until_clock = TMOS_GetSystemClock() + MS1_TO_SYSTEM_TIME(RF_ACK_SWITCH_LOCK_MS);
+}
+
+static void rf_rev_switch_check_fallback(void)
+{
+    if (g_rev_switch_pending == 0u)
+    {
+        return;
+    }
+    if ((int32_t)(TMOS_GetSystemClock() - g_rev_switch_deadline_clock) < 0)
+    {
+        return;
+    }
+    rf_rev_switch_commit();
 }
 
 static void rf_rx_tune_for_expected_seq(void)
@@ -618,15 +678,10 @@ static uint8_t rf_rx_validate_packet(void)
         g_rev_switch_channel = ack_channel;
         g_rev_switch_seq = ack_switch_seq;
         g_rev_switch_epoch = ack_epoch;
+        g_rev_switch_deadline_clock = TMOS_GetSystemClock() + MS1_TO_SYSTEM_TIME(RF_REV_SWITCH_FALLBACK_MS);
         if (rf_seq_reached(g_rx_expected_seq, g_rev_switch_seq) != 0u)
         {
-            if (g_low_channel != g_rev_switch_channel)
-            {
-                gStat.rev_ack_switch++;
-            }
-            rf_rx_set_channel(g_rev_switch_channel);
-            g_rev_switch_pending = 0u;
-            g_ack_switch_lock_until_clock = TMOS_GetSystemClock() + MS1_TO_SYSTEM_TIME(RF_ACK_SWITCH_LOCK_MS);
+            rf_rev_switch_commit();
         }
         g_rx_last_packet_was_ack = 1u;
         (void)packet[RF_REV_ACK_REASON_OFFSET];
@@ -656,13 +711,7 @@ static uint8_t rf_rx_validate_packet(void)
     }
     if ((g_rev_switch_pending != 0u) && (rf_seq_reached(g_rx_expected_seq, g_rev_switch_seq) != 0u))
     {
-        if (g_low_channel != g_rev_switch_channel)
-        {
-            gStat.rev_ack_switch++;
-        }
-        rf_rx_set_channel(g_rev_switch_channel);
-        g_rev_switch_pending = 0u;
-        g_ack_switch_lock_until_clock = TMOS_GetSystemClock() + MS1_TO_SYSTEM_TIME(RF_ACK_SWITCH_LOCK_MS);
+        rf_rev_switch_commit();
     }
     return 1u;
 #endif
@@ -774,6 +823,7 @@ static void rf_rev_req_schedule_retry(void)
     }
     else
     {
+        rf_hop_demote_channel(g_rev_req_next_channel);
         rf_rx_start();
     }
 }
@@ -962,6 +1012,7 @@ void RF_Service(void)
     uint32_t now_clock = TMOS_GetSystemClock();
 
     rf_rev_req_check_ack_timeout();
+    rf_rev_switch_check_fallback();
 
     if ((g_rev_req_pending != 0u) &&
         (g_rev_req_active == 0u) &&
@@ -1126,6 +1177,7 @@ void RF_Init(void)
     g_rev_switch_epoch = 0u;
     g_rev_req_next_clock = 0u;
     g_rev_ack_deadline_clock = 0u;
+    g_rev_switch_deadline_clock = 0u;
     g_rx_rev_countdown = RF_REV_COUNTDOWN_FAR;
     g_rx_rev_countdown_armed = 1u;
     g_ack_switch_lock_until_clock = 0u;
