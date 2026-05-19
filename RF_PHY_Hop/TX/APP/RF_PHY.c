@@ -35,13 +35,15 @@
 #define RF_REPORT_PPS               8000
 #endif
 #define RF_STAT_PRINT_PERIOD_MS     5000
-#define RF_REV_LISTEN_WINDOW_MS     20
-#define RF_REV_LISTEN_TIMEOUT_US    (RF_REV_LISTEN_WINDOW_MS * 1000u)
-#define RF_REV_PERIOD_MS            20000u
-#define RF_REV_PERIOD_PACKETS       (RF_REPORT_PPS * RF_REV_PERIOD_MS / 1000u)
-#define RF_REV_LISTEN_PACKETS       (RF_REPORT_PPS * RF_REV_LISTEN_WINDOW_MS / 1000u)
-#define RF_REV_COUNTDOWN_LEAD_MS    200u
-#define RF_REV_COUNTDOWN_FAR        0xFFu
+
+/* 反向链路窗口参数：TX 每 RF_REV_PERIOD_MS 打开一次 RX 窗口，用来接收 RX 发来的跳频请求。 */
+#define RF_REV_LISTEN_WINDOW_MS     200     /* 真正停止正向 TX 并打开 RX 的时间；200ms 用于完整反向握手。 */
+#define RF_REV_LISTEN_TIMEOUT_US    50000u  /* RFIP 单次 RX 超时，受 uint16 限制；200ms 逻辑窗口内会自动重启 RX。 */
+#define RF_REV_PERIOD_MS            20000u  /* TX 打开反向监听窗口的周期；越大固定损耗越低，但质量触发响应越慢。 */
+#define RF_REV_PERIOD_PACKETS       (RF_REPORT_PPS * RF_REV_PERIOD_MS / 1000u) /* 20s 对应的 8K tick 数。 */
+#define RF_REV_LISTEN_PACKETS       (RF_REPORT_PPS * RF_REV_LISTEN_WINDOW_MS / 1000u) /* 5ms 对应的 8K tick 数。 */
+#define RF_REV_COUNTDOWN_LEAD_MS    200u    /* 提前多久在 air[1] 广播倒计时，RX 用它对齐反向发送 burst。 */
+#define RF_REV_COUNTDOWN_FAR        0xFFu   /* 不在倒计时窗口内时发送的控制值。 */
 #define TMR0_FREE_RUN_END           0x03FFFFFFUL
 #define RF_USE_LOW_LEVEL_BASIC      0
 #define RF_TX_USE_TMR0_IRQ          1
@@ -55,11 +57,11 @@
 #define RF_PKT_HEADER_LEN           6u
 #define RF_PKT_INPUT_PAYLOAD_LEN    4u
 #define RF_PKT_CRC_LEN              2u
-#define RF_HOP_DWELL_PACKETS        16u
-#define RF_HOP_CHANNEL_COUNT        9u
-#define RF_TX_SEND_TIME             (20u * 2u)
-#define RF_LINK_ACCESS_ADDRESS      0x71764129UL
-#define RF_LINK_CRC_INIT            0x555555UL
+#define RF_HOP_DWELL_PACKETS        16u     /* 旧的匀速跳频 dwell 参数；当前智能跳频路径不依赖它。 */
+#define RF_HOP_CHANNEL_COUNT        9u      /* 固定跳频表长度，TX/RX 必须一致。 */
+#define RF_TX_SEND_TIME             (20u * 2u) /* RFIP 发送时序参数；改动会影响空口占用和稳定性。 */
+#define RF_LINK_ACCESS_ADDRESS      0x71764129UL /* 固定 access address，TX/RX 必须一致。 */
+#define RF_LINK_CRC_INIT            0x555555UL   /* 固定 CRC init，TX/RX 必须一致。 */
 #define RF_BUTTON_BYTES             3u
 #define RF_SEQ_OFFSET               0u
 #define RF_HOP_ADV_OFFSET           1u
@@ -70,12 +72,23 @@
 #define RF_HOP_ADV_EPOCH_OFFSET     2u
 #define RF_HOP_ADV_CHANNEL_OFFSET   3u
 #define RF_HOP_ADV_SWITCH_OFFSET    4u
-#define RF_HOP_ADV_REPEAT_PACKETS   32u
-#define RF_HOP_SWITCH_DELAY_PACKETS 200u
-#define RF_REV_REQ_MARK             0xC3u
+#define RF_HOP_ADV_REPEAT_PACKETS   32u     /* 旧 HOP_ADV 连发次数；当前 RX 反向请求跳频路径基本不使用。 */
+#define RF_HOP_SWITCH_DELAY_PACKETS 200u    /* TX 收到跳频请求后延迟多少个 8K 包再切频道，200 包约 25ms。 */
+#define RF_REV_REQ_MARK             0xC3u   /* RX 反向跳频请求包标记。 */
 #define RF_REV_REQ_EPOCH_OFFSET     1u
 #define RF_REV_REQ_CHANNEL_OFFSET   2u
 #define RF_REV_REQ_REASON_OFFSET    3u
+#define RF_REV_REQ_TIME_LO_OFFSET   4u
+#define RF_REV_REQ_TIME_HI_OFFSET   5u
+#define RF_REV_ACK_MARK             0xC4u   /* TX 正向 ACK 标记，ACK 会回带 RX 反向包时间戳。 */
+#define RF_REV_ACK_TIME_LO_OFFSET   2u
+#define RF_REV_ACK_TIME_HI_OFFSET   3u
+#define RF_REV_ACK_CHANNEL_OFFSET   4u
+#define RF_REV_ACK_REASON_OFFSET    5u
+#define RF_REV_ACK_EPOCH_OFFSET     6u
+#define RF_REV_ACK_SWITCH_OFFSET    7u
+#define RF_REV_ACK_REPEAT_PACKETS   32u     /* 在旧频道连续广播 HOP_ACK 的包数；32 包约 4ms。 */
+#define RF_REV_SWITCH_DELAY_PACKETS 64u     /* 预约切换延迟；64 包约 8ms，保证 RX 有时间收到多个 ACK。 */
 
 #define SBP_RF_STAT_EVT              (1 << 5)
 
@@ -121,6 +134,7 @@ typedef struct
     volatile uint32_t rev_bad_mark;
     volatile uint32_t rev_crcerr;
     volatile uint32_t rev_start_fail;
+    volatile uint32_t rev_ack_tx;
     volatile uint32_t hop_done;
 } rf_stat_t;
 
@@ -155,6 +169,17 @@ static volatile uint8_t g_rev_listen_pending = 0u;
 static volatile uint8_t g_rev_last_len = 0u;
 static volatile uint8_t g_rev_last_mark = 0u;
 static volatile uint8_t g_rev_last_rxret = 0xFFu;
+static volatile uint8_t g_rev_ack_pending = 0u;
+static volatile uint8_t g_rev_ack_loaded = 0u;
+static volatile uint8_t g_rev_ack_armed = 0u;
+static volatile uint8_t g_rev_ack_tx_active = 0u;
+static volatile uint8_t g_rev_ack_channel = RF_TEST_FREQUENCY;
+static volatile uint8_t g_rev_ack_reason = 0u;
+static volatile uint8_t g_rev_ack_epoch = 0u;
+static volatile uint16_t g_rev_ack_time = 0u;
+static volatile uint8_t g_rev_ack_switch_seq = 0u;
+static volatile uint8_t g_rev_ack_repeat_remaining = 0u;
+static volatile uint8_t g_rev_hop_pending = 0u;
 static volatile uint16_t g_rev_listen_ticks_remaining = 0u;
 static uint32_t g_tx_rev_packets_to_window = RF_REV_PERIOD_PACKETS;
 static uint8_t g_tx_hop_index = 3u;
@@ -363,6 +388,7 @@ static uint8_t rf_tx_handle_reverse_packet(void)
 {
     const uint8_t *packet = &RxBuf[2];
     uint8_t next_channel;
+    uint16_t rx_time;
 
     g_rev_last_len = RxBuf[1];
     g_rev_last_mark = packet[0];
@@ -379,9 +405,23 @@ static uint8_t rf_tx_handle_reverse_packet(void)
 
     gStat.rev_rx++;
     next_channel = packet[RF_REV_REQ_CHANNEL_OFFSET];
-    rf_tx_begin_requested_hop(next_channel);
-    (void)packet[RF_REV_REQ_EPOCH_OFFSET];
-    (void)packet[RF_REV_REQ_REASON_OFFSET];
+    if(rf_hop_channel_valid(next_channel) == 0u)
+    {
+        gStat.rev_bad_mark++;
+        return 0u;
+    }
+
+    rx_time = (uint16_t)packet[RF_REV_REQ_TIME_LO_OFFSET] |
+              ((uint16_t)packet[RF_REV_REQ_TIME_HI_OFFSET] << 8);
+    g_rev_ack_time = rx_time;
+    g_rev_ack_channel = next_channel;
+    g_rev_ack_reason = packet[RF_REV_REQ_REASON_OFFSET];
+    g_rev_ack_epoch = packet[RF_REV_REQ_EPOCH_OFFSET];
+    g_rev_ack_switch_seq = (uint8_t)(g_tx_seq + RF_REV_SWITCH_DELAY_PACKETS);
+    g_rev_ack_repeat_remaining = RF_REV_ACK_REPEAT_PACKETS;
+    g_rev_hop_pending = 1u;
+    g_rev_ack_pending = 1u;
+    gStat.rev_accept++;
     return 1u;
 }
 
@@ -391,10 +431,14 @@ static void rf_tx_start(void)
     bStatus_t ret_start;
     bStatus_t ret_parm;
     uint8_t retry_seq = g_tx_last_seq;
-
     ret_start = RFIP_SetTxStart();
     if(ret_start != SUCCESS)
     {
+        if(g_rev_ack_loaded != 0u)
+        {
+            g_rev_ack_pending = 1u;
+            g_rev_ack_loaded = 0u;
+        }
         g_tx_seq = retry_seq;
         gStat.tx_start_fail++;
         gStat.tx_seq_rollback++;
@@ -406,10 +450,21 @@ static void rf_tx_start(void)
     ret_parm = RFIP_SetTxParm(&gTxParam);
     if(ret_parm != SUCCESS)
     {
+        if(g_rev_ack_loaded != 0u)
+        {
+            g_rev_ack_pending = 1u;
+            g_rev_ack_loaded = 0u;
+        }
         g_tx_seq = retry_seq;
         gStat.tx_parm_fail++;
         gStat.tx_seq_rollback++;
         return;
+    }
+    if(g_rev_ack_loaded != 0u)
+    {
+        g_rev_ack_loaded = 0u;
+        g_rev_ack_armed = 1u;
+        gStat.rev_ack_tx++;
     }
 }
 
@@ -428,7 +483,36 @@ static uint8_t rf_tx_reverse_countdown_field(void)
     {
         countdown_ms = 254u;
     }
+    /* countdown 和控制标记共用 air[1]，避开保留标记值，防止 RX 把普通倒计时包误判成控制包。 */
+    if((countdown_ms == RF_HOP_ADV_MARK) || (countdown_ms == RF_REV_ACK_MARK))
+    {
+        countdown_ms--;
+    }
     return (uint8_t)countdown_ms;
+}
+
+static void rf_tx_fill_ack_payload(void)
+{
+    TxBuf[2u + RF_HOP_ADV_OFFSET] = RF_REV_ACK_MARK;
+    TxBuf[2u + RF_REV_ACK_TIME_LO_OFFSET] = (uint8_t)(g_rev_ack_time & 0xFFu);
+    TxBuf[2u + RF_REV_ACK_TIME_HI_OFFSET] = (uint8_t)(g_rev_ack_time >> 8);
+    TxBuf[2u + RF_REV_ACK_CHANNEL_OFFSET] = g_rev_ack_channel;
+    TxBuf[2u + RF_REV_ACK_REASON_OFFSET] = g_rev_ack_reason;
+    TxBuf[2u + RF_REV_ACK_EPOCH_OFFSET] = g_rev_ack_epoch;
+    TxBuf[2u + RF_REV_ACK_SWITCH_OFFSET] = g_rev_ack_switch_seq;
+    if(g_rev_ack_repeat_remaining != 0u)
+    {
+        g_rev_ack_repeat_remaining--;
+    }
+    if(g_rev_ack_repeat_remaining != 0u)
+    {
+        g_rev_ack_pending = 1u;
+    }
+    else
+    {
+        g_rev_ack_pending = 0u;
+    }
+    g_rev_ack_loaded = 1u;
 }
 
 static void rf_tx_advance_reverse_time(void)
@@ -550,6 +634,10 @@ static void rf_fill_payload(void)
             memcpy(rf_data, g_spi_last_payload, RFM_RF_INPUT_PAYLOAD_LEN);
         }
         TxBuf[2u + RF_DATA_OFFSET + 2u] &= 0x1Fu;
+        if(g_rev_ack_pending != 0u)
+        {
+            rf_tx_fill_ack_payload();
+        }
         if(hop_active != 0u)
         {
             if(seq == g_tx_hop_switch_seq)
@@ -564,7 +652,16 @@ static void rf_fill_payload(void)
                 hop_adv = 1u;
             }
         }
-        if(hop_adv != 0u)
+        if((g_rev_hop_pending != 0u) && (seq == g_rev_ack_switch_seq))
+        {
+            g_tx_channel = g_rev_ack_channel;
+            g_tx_hop_index = rf_hop_index_for_channel(g_tx_channel);
+            g_low_channel = g_tx_channel;
+            g_tx_hop_active = 0u;
+            g_rev_hop_pending = 0u;
+            gStat.hop_done++;
+        }
+        if((hop_adv != 0u) && (g_rev_ack_tx_active == 0u))
         {
             TxBuf[2u + RF_HOP_ADV_OFFSET] = RF_HOP_ADV_MARK;
             TxBuf[2u + RF_HOP_ADV_EPOCH_OFFSET] = g_tx_hop_epoch;
@@ -583,6 +680,10 @@ static void rf_fill_payload(void)
     {
         TxBuf[2u + RF_DATA_OFFSET + i] = 0u;
     }
+    if(g_rev_ack_pending != 0u)
+    {
+        rf_tx_fill_ack_payload();
+    }
     if(hop_active != 0u)
     {
         if(seq == g_tx_hop_switch_seq)
@@ -592,13 +693,22 @@ static void rf_fill_payload(void)
             g_tx_hop_active = 0u;
             gStat.hop_done++;
         }
-        else if(g_tx_hop_silent == 0u)
+        else if((g_tx_hop_silent == 0u) && (g_rev_ack_tx_active == 0u))
         {
             TxBuf[2u + RF_HOP_ADV_OFFSET] = RF_HOP_ADV_MARK;
             TxBuf[2u + RF_HOP_ADV_EPOCH_OFFSET] = g_tx_hop_epoch;
             TxBuf[2u + RF_HOP_ADV_CHANNEL_OFFSET] = g_tx_hop_next_channel;
             TxBuf[2u + RF_HOP_ADV_SWITCH_OFFSET] = g_tx_hop_switch_seq;
         }
+    }
+    if((g_rev_hop_pending != 0u) && (seq == g_rev_ack_switch_seq))
+    {
+        g_tx_channel = g_rev_ack_channel;
+        g_tx_hop_index = rf_hop_index_for_channel(g_tx_channel);
+        g_low_channel = g_tx_channel;
+        g_tx_hop_active = 0u;
+        g_rev_hop_pending = 0u;
+        gStat.hop_done++;
     }
     g_tx_last_seq = seq;
     g_tx_seq = (uint8_t)(seq + 1u);
@@ -768,6 +878,15 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
     if(sta & RF_STATE_TX_FINISH)
     {
         gStat.tx_ok++;
+        if(g_rev_ack_tx_active != 0u)
+        {
+            g_tx_channel = g_rev_ack_channel;
+            g_tx_hop_index = rf_hop_index_for_channel(g_tx_channel);
+            g_low_channel = g_tx_channel;
+            g_tx_hop_active = 0u;
+            g_rev_ack_tx_active = 0u;
+            gStat.hop_done++;
+        }
     }
     if(sta & RF_STATE_RX)
     {
@@ -798,7 +917,14 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
         if(g_rev_listen_active != 0u)
         {
             gStat.rev_listen_timeout++;
-            rf_tx_finish_reverse_listen(1u);
+            if(g_rev_listen_ticks_remaining != 0u)
+            {
+                rf_tx_restart_reverse_listen();
+            }
+            else
+            {
+                rf_tx_finish_reverse_listen(1u);
+            }
             return;
         }
         gStat.tx_fail++;
@@ -848,13 +974,14 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
         uint32_t rev_bad_mark = gStat.rev_bad_mark;
         uint32_t rev_crcerr = gStat.rev_crcerr;
         uint32_t rev_start_fail = gStat.rev_start_fail;
+        uint32_t rev_ack_tx = gStat.rev_ack_tx;
         uint32_t hop_done = gStat.hop_done;
 
         if(dt_ms == 0u)
         {
             dt_ms = 1u;
         }
-        RF_LINK_LOG("[TX][win] l:%u dt:%lums irq:%lu hz:%lu pk:%lu/%lu ch:%u cd:%u rq:%lu/%lu bad:%lu/%lu crc:%lu lm:%u/%u rr:%u hp:%lu ls:%lu/%lu e:%lu/%lu/%lu/%lu\n",
+        RF_LINK_LOG("[TX][win] l:%u dt:%lums irq:%lu hz:%lu pk:%lu/%lu ch:%u cd:%u rq:%lu/%lu ack:%lu bad:%lu/%lu crc:%lu lm:%u/%u rr:%u hp:%lu ls:%lu/%lu e:%lu/%lu/%lu/%lu\n",
                     RF_TEST_DATA_LEN,
                     dt_ms,
                     tmr_irq_win,
@@ -865,6 +992,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
                     (unsigned int)rf_tx_reverse_countdown_field(),
                     rev_accept,
                     rev_rx,
+                    rev_ack_tx,
                     rev_bad_len,
                     rev_bad_mark,
                     rev_crcerr,
@@ -905,6 +1033,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
         gStat.rev_bad_mark = 0;
         gStat.rev_crcerr = 0;
         gStat.rev_start_fail = 0;
+        gStat.rev_ack_tx = 0;
         gStat.hop_done = 0;
         g_last_peek_ok = peek_ok_total;
         g_last_peek_miss = peek_miss_total;
@@ -1026,6 +1155,12 @@ void RF_Init(void)
     g_rev_listen_paused = 0u;
     g_rev_listen_pending = 0u;
     g_rev_listen_ticks_remaining = 0u;
+    g_rev_ack_pending = 0u;
+    g_rev_ack_loaded = 0u;
+    g_rev_ack_armed = 0u;
+    g_rev_ack_tx_active = 0u;
+    g_rev_ack_repeat_remaining = 0u;
+    g_rev_hop_pending = 0u;
     g_tx_rev_packets_to_window = RF_REV_PERIOD_PACKETS;
     memset(g_spi_last_payload, 0, sizeof(g_spi_last_payload));
     g_spi_has_payload = 0u;

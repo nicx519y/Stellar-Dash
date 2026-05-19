@@ -30,6 +30,8 @@ void RF_USB_CompositeInit(void);
 #ifndef RF_TEST_HEARTBEAT_LOG
 #define RF_TEST_HEARTBEAT_LOG 0
 #endif
+#define RX_MAIN_TMR0_WRAP        0x04000000UL
+#define RX_MAIN_LOG_PERIOD_TICKS (FREQ_SYS * 5u)
 /*********************************************************************
  * GLOBAL TYPEDEFS
  */
@@ -44,6 +46,28 @@ void LED_Ctrl_Blink(void);
 
 static uint8_t s_main_pending_log = FALSE;
 static char s_main_pending_msg[128];
+
+static uint8_t RX_MainTmr0Elapsed(uint32_t now, uint32_t *last, uint32_t *acc, uint32_t period)
+{
+    uint32_t delta;
+
+    if(now >= *last)
+    {
+        delta = now - *last;
+    }
+    else
+    {
+        delta = (RX_MAIN_TMR0_WRAP - *last) + now;
+    }
+    *last = now;
+    *acc += delta;
+    if(*acc < period)
+    {
+        return FALSE;
+    }
+    *acc -= period;
+    return TRUE;
+}
 
 static uint8_t RX_MainSendCdc(const char *msg)
 {
@@ -121,7 +145,8 @@ __HIGH_CODE
 __attribute__((noinline))
 void Main_Circulation()
 {
-    static uint32_t last_log = 0;
+    static uint32_t last_log_tmr = 0;
+    static uint32_t log_acc_tmr = 0;
     static uint32_t rf_init_deadline = 0;
     static uint8_t rf_init_started = FALSE;
     static uint8_t rf_init_done = FALSE;
@@ -132,6 +157,7 @@ void Main_Circulation()
     while(1)
     {
         uint32_t now = TMOS_GetSystemClock();
+        uint32_t now_tmr = TMR0_GetCurrentTimer();
         LED_Ctrl_Blink();
 #if (RF_TEST_BYPASS_TMOS_AFTER_RF == 1)
         if(rf_init_done)
@@ -157,14 +183,14 @@ void Main_Circulation()
             RX_MainLog("[RX][MAIN] rf_init_begin\r\n");
             RF_Init();
             rf_init_done = TRUE;
-            last_log = TMOS_GetSystemClock();
+            last_log_tmr = TMR0_GetCurrentTimer();
+            log_acc_tmr = 0u;
             RX_MainLog("[RX][MAIN] rf_init_done\r\n");
             continue;
         }
 
-        if((uint32_t)(now - last_log) >= MS1_TO_SYSTEM_TIME(5000u))
+        if(RX_MainTmr0Elapsed(now_tmr, &last_log_tmr, &log_acc_tmr, RX_MAIN_LOG_PERIOD_TICKS) != FALSE)
         {
-            last_log = now;
             if(rf_init_done)
             {
                 RX_MainLogStats();

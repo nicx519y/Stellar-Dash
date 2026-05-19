@@ -89,8 +89,8 @@ Parameters:
 - `RF_REPORT_PPS = 8000`
 - `RF_REV_PERIOD_MS = 20000`
 - `RF_REV_COUNTDOWN_LEAD_MS = 200`
-- `RF_REV_LISTEN_WINDOW_MS = 20`
-- `RF_REV_LISTEN_PACKETS = 160`
+- `RF_REV_LISTEN_WINDOW_MS = 200`
+- `RF_REV_LISTEN_PACKETS = 1600`
 - `RF_TEST_DATA_LEN = 12`
 - RF PHY: `LLE_MODE_PHY_2M`
 - Access address: `0x71764129`
@@ -102,8 +102,8 @@ TMR0 behavior:
 Every 125 us:
   if reverse RX window is active:
     do not TX
-    count down the 20ms RX window
-    close RX when 160 ticks expire
+    count down the 200ms RX window
+    close RX when 1600 ticks expire
   else if reverse RX is pending:
     do not TX
     RFRole_Stop()
@@ -116,11 +116,11 @@ Every 125 us:
 
 This avoids the earlier race where TMOS opened RX while TMR0 continued to transmit.
 
-Expected TX impact of one 20ms reverse window:
+Expected TX impact of one 200ms reverse handshake window:
 
 ```text
-8000/s * 20ms = 160 skipped TX packets
-5s log hz should drop from about 7980 to about 7950 when ls:1 appears
+8000/s * 200ms = 1600 skipped TX packets if no request/ACK is received
+When TX receives a reverse request, it sends one forward ACK and exits the window early
 ```
 
 ## Reverse Hop Request
@@ -129,9 +129,9 @@ Current test does not use TX-side CCA. RX triggers hop through the reverse-link 
 
 RX reverse request parameters:
 
-- `RF_REV_REQ_REPEAT = 32`
-- `RF_REV_REQ_INTERVAL_MS = 2`
-- `RF_REV_REQ_START_COUNTDOWN_MS = 20`
+- `RF_REV_REQ_REPEAT = 220`
+- `RF_REV_REQ_INTERVAL_MS = 1`
+- `RF_REV_REQ_START_COUNTDOWN_MS = 2`
 - Reverse request marker: `0xC3`
 - RX quality trigger: `tr:1`
 - RX quality trigger threshold: `h < 7600` or `g > 2500` for 2 consecutive 5s windows
@@ -156,11 +156,12 @@ Validated behavior:
 
 ```text
 TX sends countdown in air[1]
-RX sees cd <= 20ms and starts a 32-packet reverse burst only if a quality request is pending
-TX opens a 20ms reverse RX window from the TMR0 state machine
-TX accepts one valid reverse request
-TX switches channel
-RX follows the new channel
+RX sees cd <= 2ms and starts sending reverse request packets only if a quality request is pending
+TX opens a 200ms reverse RX window from the TMR0 state machine
+TX accepts one valid reverse request carrying RX timestamp t
+TX exits RX, sends one forward ACK carrying t and the accepted channel
+TX switches channel after the ACK is sent
+RX receives the ACK, computes reverse RTT from t, and switches channel
 ```
 
 Representative successful logs:
@@ -191,11 +192,12 @@ Fields:
 - `l`: RF air payload length, baseline `12`
 - `dt`: stats window in ms
 - `irq`: TMR0 ISR count, target about `40000 / 5s`
-- `hz`: payload TX rate; about `7980` normally, about `7950` during one 20ms reverse window
+- `hz`: payload TX rate; about `7980` normally, lower during a reverse handshake window
 - `pk`: SPI latest-frame peek `ok/miss`, miss should be near `0`
 - `ch`: current TX RF channel
 - `cd`: current reverse-window countdown field
 - `rq`: accepted valid reverse requests / valid reverse packets received
+- `ack`: forward ACK packets sent by TX
 - `bad`: invalid reverse length / invalid reverse marker
 - `crc`: reverse-window CRCERR count
 - `lm`: last reverse RX length / marker
@@ -207,21 +209,21 @@ Fields:
 Healthy reverse-hop success pattern:
 
 ```text
-hz ~= 7950
+TX sends `ack:1`
 ls:1/0 or ls:1/1
 rq:1/1
 hp:1
 e:0/0/0/0
 ```
 
-`ls:1/0` can be normal when a valid reverse request is received before the 20ms window expires. TX still opens periodic reverse windows, but RX no longer sends periodic test requests.
+`ls:1/0` can be normal when a valid reverse request is received before the 200ms window expires. TX still opens periodic reverse windows, but RX no longer sends periodic test requests.
 
 ### RX Log
 
 Current compact RX format:
 
 ```text
-[R5]h%lu g%lu c%lu t%lu ch%u hp%lu tr%u rq%lu
+[R5]h%lu g%lu c%lu t%lu ch%u hp%lu tr%u rq%lu ak%lu/%lu
 ```
 
 Fields:
@@ -234,6 +236,7 @@ Fields:
 - `hp`: RX channel changes in this window
 - `tr`: last reverse request trigger reason, `1` RX quality
 - `rq`: reverse request burst count
+- `ak`: ACK count in this log window / last reverse request RTT in ms
 
 Use `hp`, `h`, `g`, `c`, and `t` together to estimate hop cost. A hop window should show `hp:1`; the same window's `h/g/c/t` is the first coarse loss estimate for that hop.
 
@@ -241,7 +244,7 @@ Use `hp`, `h`, `g`, `c`, and `t` together to estimate hop cost. A hop window sho
 
 - If TX `pk` miss is near `0`, SPI-to-TX handoff is healthy.
 - If TX `irq` is about `40000/5s`, TMR0 cadence is healthy.
-- If TX `hz` drops to about `7950` with `ls:1`, the 20ms reverse RX window really happened.
+- If TX `hz` drops with `ls:1`, the reverse RX window really happened.
 - If TX shows `rq:1/1 hp:1`, reverse hop request succeeded.
 - If TX shows high `crc` but no `rq`, TX is hearing something in the reverse window but the reverse RF packet is not valid.
 - If RX `hp:1` appears, compare that line's `h/g/c/t` against adjacent windows to estimate hop loss.
@@ -256,7 +259,7 @@ trigger after 2 consecutive bad windows
 cool down quality-triggered requests for 30s
 ```
 
-The quality trigger does not transmit immediately. It arms a pending request and waits for the next TX countdown/reverse-window opportunity. This keeps reverse packets aligned with the TX listen window.
+The quality trigger does not transmit immediately. It arms a pending request and waits for the next TX countdown/reverse-window opportunity. If a reverse request is missed, the pending request remains armed and retries at the next TX reverse window. The quality cooldown starts only after RX actually changes channel.
 
 The earlier periodic RX request trigger has been removed to avoid confusing channel-quality evaluation. TX still advertises countdown windows, but RX only transmits a reverse request when a quality-triggered request is pending.
 
