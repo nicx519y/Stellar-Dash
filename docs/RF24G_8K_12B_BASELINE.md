@@ -330,6 +330,51 @@ This baseline intentionally does not include:
 
 Those features can be reintroduced later, but each should be validated against this baseline first.
 
+## Smart Hop Test Mode
+
+Current hop bring-up deliberately does not use CCA yet. The TX test firmware starts a channel switch every 5 seconds so the downstream hop path can be validated first.
+
+Air control layout:
+
+```text
+air[0] = seq
+air[1] = 0x00 for normal data, 0xA5 for HOP_ADV
+air[2] = hop epoch when HOP_ADV
+air[3] = next channel when HOP_ADV
+air[4] = switch seq when HOP_ADV
+air[2..11] = normal 10B input data when air[1] is 0
+```
+
+TX behavior:
+
+```text
+Every 5 seconds:
+  choose the next channel from {4, 8, 12, 16, 20, 24, 28, 32, 36}
+  set switch_seq = current seq + 48
+  alternate between:
+    HOP_ADV mode: advertise next channel until switch_seq
+    silent mode: switch without HOP_ADV to test RX reacquire
+```
+
+RX behavior:
+
+```text
+If HOP_ADV is received:
+  remember next channel and switch_seq
+  switch channel when the expected seq reaches switch_seq
+
+If HOP_ADV is missed:
+  after consecutive misses, enter scan mode
+  scan the fixed channel table until a valid packet is received
+```
+
+Diagnostic additions:
+
+```text
+TX [win]: ch/current channel, hop/pending hop, next/next channel, sw/switch seq, sil/silent hop flag
+RX [R5]: ch/current channel, ph/pending HOP_ADV flag
+```
+
 ## Build Reference
 
 Build the RF prototype:
