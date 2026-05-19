@@ -20,7 +20,7 @@ static constexpr uint8_t EVT_STATE_CHANGED = 0x82u;
 static constexpr uint8_t EVT_RATE_APPLIED = 0x83u;
 static constexpr uint8_t EVT_LINK_WARN = 0x84u;
 static constexpr uint8_t EVT_ERROR = 0x85u;
-static constexpr uint8_t INPUT_PAYLOAD_LEN = 11u;
+static constexpr uint8_t INPUT_PAYLOAD_LEN = 10u;
 static constexpr uint8_t STATUS_PAYLOAD_LEN = 17u;
 static constexpr uint16_t RX_BUF_LEN = 32u;
 
@@ -239,7 +239,6 @@ bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
     payload[7] = (uint8_t)(ly & 0xFF);
     payload[8] = (uint8_t)((ly >> 8) & 0xFF);
     payload[9] = (uint8_t)(rx & 0xFF);
-    payload[10] = (uint8_t)((rx >> 8) & 0xFF);
 
     bool ok = transferCommand(CMD_INPUT_DATA, payload, sizeof(payload), false);
     MonitorTelemetry_OnRfTransfer(seq, CMD_INPUT_DATA, sizeof(payload), ok);

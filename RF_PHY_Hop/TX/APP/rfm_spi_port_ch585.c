@@ -41,6 +41,7 @@ static volatile uint32_t s_spi_rx_bad_irq_count;
 static volatile uint32_t s_spi_rx_last_flags;
 static volatile uint32_t s_spi_rx_peek_ok_count;
 static volatile uint32_t s_spi_rx_peek_miss_count;
+static uint32_t s_spi_rx_frame_phase = SPI_RX_DMA_RING_SIZE;
 
 static void spi_rx_dma_loop_start(uint8_t flush_fifo)
 {
@@ -77,25 +78,83 @@ static uint32_t spi_rx_dma_pos(void)
     return now;
 }
 
+static uint8_t spi_rx_dma_byte(uint32_t pos)
+{
+    if (pos >= SPI_RX_DMA_RING_SIZE) {
+        pos -= SPI_RX_DMA_RING_SIZE;
+    }
+    return s_spi_rx_dma_buf[pos];
+}
+
 static bool spi_rx_validate_frame(uint32_t start, uint8_t *payload)
 {
-    if (s_spi_rx_dma_buf[start] != RFM_SPI_SYNC) {
+    uint8_t i;
+
+    if (spi_rx_dma_byte(start) != RFM_SPI_SYNC) {
         return false;
     }
-    if (s_spi_rx_dma_buf[start + 1u] != SPI_INPUT_CMD) {
+    if (spi_rx_dma_byte(start + 1u) != SPI_INPUT_CMD) {
         return false;
     }
-    if (s_spi_rx_dma_buf[start + 2u] != RFM_RF_INPUT_PAYLOAD_LEN) {
+    if (spi_rx_dma_byte(start + 2u) != RFM_RF_INPUT_PAYLOAD_LEN) {
         return false;
     }
 
-    memcpy(payload, &s_spi_rx_dma_buf[start + 3u], RFM_RF_INPUT_PAYLOAD_LEN);
+    for (i = 0u; i < RFM_RF_INPUT_PAYLOAD_LEN; ++i) {
+        payload[i] = spi_rx_dma_byte(start + 3u + i);
+    }
     return true;
+}
+
+static bool spi_rx_copy_frame_fast(uint32_t start, uint8_t *payload)
+{
+    uint32_t payload_start;
+    uint32_t first_len;
+
+    if (s_spi_rx_dma_buf[start] != RFM_SPI_SYNC) {
+        return false;
+    }
+    if (spi_rx_dma_byte(start + 1u) != SPI_INPUT_CMD) {
+        return false;
+    }
+    if (spi_rx_dma_byte(start + 2u) != RFM_RF_INPUT_PAYLOAD_LEN) {
+        return false;
+    }
+
+    payload_start = start + 3u;
+    if (payload_start >= SPI_RX_DMA_RING_SIZE) {
+        payload_start -= SPI_RX_DMA_RING_SIZE;
+    }
+    if ((payload_start + RFM_RF_INPUT_PAYLOAD_LEN) <= SPI_RX_DMA_RING_SIZE) {
+        memcpy(payload, &s_spi_rx_dma_buf[payload_start], RFM_RF_INPUT_PAYLOAD_LEN);
+        return true;
+    }
+
+    first_len = SPI_RX_DMA_RING_SIZE - payload_start;
+    memcpy(payload, &s_spi_rx_dma_buf[payload_start], first_len);
+    memcpy(&payload[first_len], s_spi_rx_dma_buf, RFM_RF_INPUT_PAYLOAD_LEN - first_len);
+    return true;
+}
+
+static bool spi_rx_resync_phase(uint8_t *payload)
+{
+    uint32_t pos;
+
+    for (pos = 0u; pos < SPI_RX_DMA_RING_SIZE; ++pos) {
+        if (spi_rx_validate_frame(pos, payload)) {
+            s_spi_rx_frame_phase = pos % SPI_RX_FRAME_BYTES;
+            return true;
+        }
+    }
+
+    s_spi_rx_frame_phase = SPI_RX_DMA_RING_SIZE;
+    return false;
 }
 
 bool rfm_spi_port_peek_latest_input(uint8_t *payload, uint8_t len)
 {
     uint32_t write_pos;
+    uint32_t rel_pos;
     uint32_t start;
 
     if ((payload == 0) || (len != RFM_RF_INPUT_PAYLOAD_LEN)) {
@@ -104,14 +163,34 @@ bool rfm_spi_port_peek_latest_input(uint8_t *payload, uint8_t len)
     }
 
     write_pos = spi_rx_dma_pos();
-    start = (write_pos < SPI_RX_FRAME_BYTES) ? SPI_RX_FRAME_BYTES : 0u;
-    if (spi_rx_validate_frame(start, payload)) {
-        s_spi_rx_peek_ok_count++;
-        return true;
+    if (s_spi_rx_frame_phase < SPI_RX_FRAME_BYTES) {
+        rel_pos = (write_pos >= s_spi_rx_frame_phase) ?
+                  (write_pos - s_spi_rx_frame_phase) :
+                  (write_pos + SPI_RX_DMA_RING_SIZE - s_spi_rx_frame_phase);
+        start = (rel_pos < SPI_RX_FRAME_BYTES) ?
+                (s_spi_rx_frame_phase + SPI_RX_FRAME_BYTES) :
+                s_spi_rx_frame_phase;
+        if (start >= SPI_RX_DMA_RING_SIZE) {
+            start -= SPI_RX_DMA_RING_SIZE;
+        }
+        if (spi_rx_copy_frame_fast(start, payload)) {
+            s_spi_rx_peek_ok_count++;
+            return true;
+        }
+
+        start = (start == s_spi_rx_frame_phase) ?
+                (s_spi_rx_frame_phase + SPI_RX_FRAME_BYTES) :
+                s_spi_rx_frame_phase;
+        if (start >= SPI_RX_DMA_RING_SIZE) {
+            start -= SPI_RX_DMA_RING_SIZE;
+        }
+        if (spi_rx_copy_frame_fast(start, payload)) {
+            s_spi_rx_peek_ok_count++;
+            return true;
+        }
     }
 
-    start = (start == 0u) ? SPI_RX_FRAME_BYTES : 0u;
-    if (spi_rx_validate_frame(start, payload)) {
+    if (spi_rx_resync_phase(payload)) {
         s_spi_rx_peek_ok_count++;
         return true;
     }
@@ -127,6 +206,7 @@ static void spi_rx_restart_after_tx(void)
     s_spi_rx_dma_wrap_count = 0u;
     s_spi_rx_seen_wrap_count = 0u;
     s_spi_rx_read_abs = s_spi_rx_base_abs;
+    s_spi_rx_frame_phase = SPI_RX_DMA_RING_SIZE;
     spi_rx_dma_loop_start(1u);
     SPI0_ITCfg(ENABLE, SPI0_IT_FIFO_OV);
     PFIC_EnableIRQ(SPI0_IRQn);

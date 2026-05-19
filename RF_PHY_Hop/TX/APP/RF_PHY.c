@@ -55,8 +55,10 @@
 #define RF_LINK_CRC_INIT            0x555555UL
 #define RF_BUTTON_BYTES             3u
 #define RF_SEQ_OFFSET               0u
-#define RF_DATA_OFFSET              1u
+#define RF_HOP_ADV_OFFSET           1u
+#define RF_DATA_OFFSET              2u
 #define RF_DATA_BYTES               (RF_TEST_DATA_LEN - RF_DATA_OFFSET)
+#define RF_HOP_ADV_IDLE             0u
 
 #define SBP_RF_STAT_EVT              (1 << 5)
 
@@ -225,23 +227,23 @@ __HIGH_CODE
 static void rf_fill_payload(void)
 {
     uint8_t i;
-    uint8_t payload[RFM_RF_INPUT_PAYLOAD_LEN];
     uint8_t has_payload;
     uint8_t *packet = &TxBuf[2];
+    uint8_t *rf_data = &TxBuf[2u + RF_DATA_OFFSET];
     uint16_t crc;
 
     TxBuf[0] = 0x55;
     TxBuf[1] = RF_TEST_DATA_LEN;
 
-    has_payload = rfm_spi_port_peek_latest_input(payload, RFM_RF_INPUT_PAYLOAD_LEN) ? 1u : 0u;
+    has_payload = rfm_spi_port_peek_latest_input(rf_data, RFM_RF_INPUT_PAYLOAD_LEN) ? 1u : 0u;
     if(has_payload == 0u)
     {
-        has_payload = rfm_input_stream_take_latest(payload, RFM_RF_INPUT_PAYLOAD_LEN) ? 1u : 0u;
+        has_payload = rfm_input_stream_take_latest(rf_data, RFM_RF_INPUT_PAYLOAD_LEN) ? 1u : 0u;
     }
 
     if(has_payload != 0u)
     {
-        memcpy(g_spi_last_payload, payload, RFM_RF_INPUT_PAYLOAD_LEN);
+        memcpy(g_spi_last_payload, rf_data, RFM_RF_INPUT_PAYLOAD_LEN);
         g_spi_has_payload = 1;
     }
 
@@ -279,9 +281,10 @@ static void rf_fill_payload(void)
     if(g_spi_has_payload != 0u)
     {
         TxBuf[2u + RF_SEQ_OFFSET] = g_tx_seq;
-        for(i = 0; i < RF_DATA_BYTES; ++i)
+        TxBuf[2u + RF_HOP_ADV_OFFSET] = RF_HOP_ADV_IDLE;
+        if(has_payload == 0u)
         {
-            TxBuf[2u + RF_DATA_OFFSET + i] = g_spi_last_payload[i];
+            memcpy(rf_data, g_spi_last_payload, RFM_RF_INPUT_PAYLOAD_LEN);
         }
         TxBuf[2u + RF_DATA_OFFSET + 2u] &= 0x1Fu;
         g_tx_last_seq = g_tx_seq;
@@ -290,6 +293,7 @@ static void rf_fill_payload(void)
     }
 
     TxBuf[2u + RF_SEQ_OFFSET] = g_tx_seq;
+    TxBuf[2u + RF_HOP_ADV_OFFSET] = RF_HOP_ADV_IDLE;
     for(i = 0; i < RF_DATA_BYTES; ++i)
     {
         TxBuf[2u + RF_DATA_OFFSET + i] = 0u;
