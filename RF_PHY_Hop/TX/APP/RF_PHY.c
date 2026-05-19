@@ -119,6 +119,7 @@ typedef struct
     volatile uint32_t rev_accept;
     volatile uint32_t rev_bad_len;
     volatile uint32_t rev_bad_mark;
+    volatile uint32_t rev_crcerr;
     volatile uint32_t rev_start_fail;
     volatile uint32_t hop_done;
 } rf_stat_t;
@@ -787,7 +788,7 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
     {
         if(g_rev_listen_active != 0u)
         {
-            gStat.rev_bad_mark++;
+            gStat.rev_crcerr++;
             rf_tx_restart_reverse_listen();
         }
         return;
@@ -845,6 +846,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
         uint32_t rev_accept = gStat.rev_accept;
         uint32_t rev_bad_len = gStat.rev_bad_len;
         uint32_t rev_bad_mark = gStat.rev_bad_mark;
+        uint32_t rev_crcerr = gStat.rev_crcerr;
         uint32_t rev_start_fail = gStat.rev_start_fail;
         uint32_t hop_done = gStat.hop_done;
 
@@ -852,7 +854,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
         {
             dt_ms = 1u;
         }
-        RF_LINK_LOG("[TX][win] l:%u dt:%lums irq:%lu hz:%lu pk:%lu/%lu ch:%u cd:%u rq:%lu/%lu bad:%lu/%lu lm:%u/%u rr:%u hp:%lu ls:%lu/%lu e:%lu/%lu/%lu/%lu\n",
+        RF_LINK_LOG("[TX][win] l:%u dt:%lums irq:%lu hz:%lu pk:%lu/%lu ch:%u cd:%u rq:%lu/%lu bad:%lu/%lu crc:%lu lm:%u/%u rr:%u hp:%lu ls:%lu/%lu e:%lu/%lu/%lu/%lu\n",
                     RF_TEST_DATA_LEN,
                     dt_ms,
                     tmr_irq_win,
@@ -865,6 +867,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
                     rev_rx,
                     rev_bad_len,
                     rev_bad_mark,
+                    rev_crcerr,
                     (unsigned int)g_rev_last_len,
                     (unsigned int)g_rev_last_mark,
                     (unsigned int)g_rev_last_rxret,
@@ -900,6 +903,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
         gStat.rev_accept = 0;
         gStat.rev_bad_len = 0;
         gStat.rev_bad_mark = 0;
+        gStat.rev_crcerr = 0;
         gStat.rev_start_fail = 0;
         gStat.hop_done = 0;
         g_last_peek_ok = peek_ok_total;

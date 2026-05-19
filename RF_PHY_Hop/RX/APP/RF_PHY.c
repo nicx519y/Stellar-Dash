@@ -113,6 +113,7 @@ typedef struct
     volatile uint32_t rx_seq_gap;
     volatile uint32_t rx_dup;
     volatile uint32_t rx_reacquire;
+    volatile uint32_t hop_done;
     volatile uint32_t rev_req_sent;
     volatile uint32_t rev_req_ok;
     volatile uint32_t rev_req_fail;
@@ -252,6 +253,7 @@ static void rf_rx_set_channel(uint8_t channel)
     gRxParam.whiteChannel = channel;
     g_low_channel = channel;
     g_rx_scan_index = rf_hop_index_for_channel(channel);
+    gStat.hop_done++;
 }
 
 static uint8_t rf_next_channel_after(uint8_t channel)
@@ -796,6 +798,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
         uint32_t rx_bad_crc = gStat.rx_bad_crc;
         uint32_t rx_seq_gap = gStat.rx_seq_gap;
         uint32_t rx_reacquire = gStat.rx_reacquire;
+        uint32_t hop_done = gStat.hop_done;
         uint32_t tx_ok = gStat.tx_ok;
         uint32_t rev_req_sent = gStat.rev_req_sent;
         uint32_t rev_req_ok = gStat.rev_req_ok;
@@ -811,7 +814,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
             dt_ms = 1u;
         }
 
-        rx_debug_log("[RX]d%lu o%lu f%lu h%lu g%lu c%lu t%lu rq%lu/%lu/%lu/%lu sy%lu cd%u ch%u hp%u\r\n",
+        rx_debug_log("[RX]d%lu o%lu f%lu h%lu g%lu c%lu t%lu rq%lu/%lu/%lu/%lu sy%lu cd%u ch%u hp%lu ph%u\r\n",
                      dt_ms,
                      rx_ok,
                      rx_fail,
@@ -826,6 +829,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
                      rev_sync_seen,
                      (unsigned int)g_rx_rev_countdown,
                      (unsigned int)g_low_channel,
+                     hop_done,
                      (unsigned int)g_rx_pending_hop);
         (void)rx_total;
         (void)tx_ok;
@@ -846,6 +850,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
         gStat.rx_seq_gap = 0;
         gStat.rx_dup = 0;
         gStat.rx_reacquire = 0;
+        gStat.hop_done = 0;
         gStat.rev_req_sent = 0;
         gStat.rev_req_ok = 0;
         gStat.rev_req_fail = 0;
@@ -870,22 +875,23 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
 {
     static uint32_t last_clock = 0;
     static uint32_t last_ok = 0;
-    static uint32_t last_fail = 0;
     static uint32_t last_gap = 0;
     static uint32_t last_crcerr = 0;
     static uint32_t last_timeout = 0;
+    static uint32_t last_hop = 0;
     uint32_t now_clock;
     uint32_t dt_ticks;
     uint32_t dt_ms;
     uint32_t ok_total;
-    uint32_t fail_total;
     uint32_t gap_total;
     uint32_t crcerr_total;
     uint32_t timeout_total;
+    uint32_t hop_total;
     uint32_t ok_delta;
     uint32_t gap_delta;
     uint32_t crcerr_delta;
     uint32_t timeout_delta;
+    uint32_t hop_delta;
     uint32_t rev_req_sent;
     uint32_t rev_req_ok;
     int n;
@@ -897,10 +903,10 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
 
     now_clock = TMOS_GetSystemClock();
     ok_total = gStat.rx_ok;
-    fail_total = gStat.rx_fail;
     gap_total = gStat.rx_seq_gap;
     crcerr_total = gStat.rx_crcerr;
     timeout_total = gStat.rx_timeout;
+    hop_total = gStat.hop_done;
     rev_req_sent = gStat.rev_req_sent;
     rev_req_ok = gStat.rev_req_ok;
 
@@ -908,10 +914,10 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     {
         last_clock = g_last_stat_clock;
         last_ok = 0u;
-        last_fail = 0u;
         last_gap = 0u;
         last_crcerr = 0u;
         last_timeout = 0u;
+        last_hop = 0u;
     }
 
     dt_ticks = now_clock - last_clock;
@@ -925,16 +931,18 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     gap_delta = gap_total - last_gap;
     crcerr_delta = crcerr_total - last_crcerr;
     timeout_delta = timeout_total - last_timeout;
+    hop_delta = hop_total - last_hop;
     g_rx_restart_delay_sum = 0u;
     g_rx_restart_delay_max = 0u;
     g_rx_restart_delay_cnt = 0u;
     n = snprintf(buf, len,
-                 "[R5]h%lu g%lu c%lu t%lu ch%u cd%u sy%lu rq%lu/%lu r%u/%u\r\n",
+                 "[R5]h%lu g%lu c%lu t%lu ch%u hp%lu cd%u sy%lu rq%lu/%lu r%u/%u\r\n",
                  (uint32_t)(((uint64_t)ok_delta * 1000u) / dt_ms),
                  gap_delta,
                  crcerr_delta,
                  timeout_delta,
                  (unsigned int)g_low_channel,
+                 hop_delta,
                  (unsigned int)g_rx_rev_countdown,
                  gStat.rev_sync_seen,
                  rev_req_sent,
@@ -944,10 +952,10 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
 
     last_clock = now_clock;
     last_ok = ok_total;
-    last_fail = fail_total;
     last_gap = gap_total;
     last_crcerr = crcerr_total;
     last_timeout = timeout_total;
+    last_hop = hop_total;
 
     if(n <= 0)
     {
