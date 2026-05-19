@@ -125,7 +125,7 @@ Expected TX impact of one 20ms reverse window:
 
 ## Reverse Hop Request
 
-Current test does not use TX-side CCA. RX periodically triggers hop through the reverse-link path so the downstream mechanism can be validated first.
+Current test does not use TX-side CCA. RX triggers hop through the reverse-link path only after sustained poor receive quality.
 
 RX reverse request parameters:
 
@@ -133,6 +133,9 @@ RX reverse request parameters:
 - `RF_REV_REQ_INTERVAL_MS = 2`
 - `RF_REV_REQ_START_COUNTDOWN_MS = 20`
 - Reverse request marker: `0xC3`
+- RX quality trigger: `tr:1`
+- RX quality trigger threshold: `h < 7600` or `g > 2500` for 2 consecutive 5s windows
+- RX quality trigger cooldown: `30000 ms`
 
 Reverse request payload:
 
@@ -153,7 +156,7 @@ Validated behavior:
 
 ```text
 TX sends countdown in air[1]
-RX sees cd <= 20ms and starts a 32-packet reverse burst
+RX sees cd <= 20ms and starts a 32-packet reverse burst only if a quality request is pending
 TX opens a 20ms reverse RX window from the TMR0 state machine
 TX accepts one valid reverse request
 TX switches channel
@@ -211,14 +214,14 @@ hp:1
 e:0/0/0/0
 ```
 
-`ls:1/0` can be normal when a valid reverse request is received before the 20ms window expires.
+`ls:1/0` can be normal when a valid reverse request is received before the 20ms window expires. TX still opens periodic reverse windows, but RX no longer sends periodic test requests.
 
 ### RX Log
 
 Current compact RX format:
 
 ```text
-[R5]h%lu g%lu c%lu t%lu ch%u hp%lu cd%u sy%lu rq%lu/%lu r%u/%u
+[R5]h%lu g%lu c%lu t%lu ch%u hp%lu tr%u rq%lu
 ```
 
 Fields:
@@ -229,10 +232,8 @@ Fields:
 - `t`: timeout count
 - `ch`: current RX RF channel
 - `hp`: RX channel changes in this window
-- `cd`: last countdown byte received from TX
-- `sy`: reverse-window sync trigger count
-- `rq`: reverse request sent / TX_FINISH ok
-- `r`: reverse request active / remaining packets
+- `tr`: last reverse request trigger reason, `1` RX quality
+- `rq`: reverse request burst count
 
 Use `hp`, `h`, `g`, `c`, and `t` together to estimate hop cost. A hop window should show `hp:1`; the same window's `h/g/c/t` is the first coarse loss estimate for that hop.
 
@@ -245,13 +246,27 @@ Use `hp`, `h`, `g`, `c`, and `t` together to estimate hop cost. A hop window sho
 - If TX shows high `crc` but no `rq`, TX is hearing something in the reverse window but the reverse RF packet is not valid.
 - If RX `hp:1` appears, compare that line's `h/g/c/t` against adjacent windows to estimate hop loss.
 
+## RX Quality Trigger
+
+The first automatic trigger is intentionally conservative. Every 5s RX statistics window is evaluated:
+
+```text
+bad window if h < 7600 or g > 2500
+trigger after 2 consecutive bad windows
+cool down quality-triggered requests for 30s
+```
+
+The quality trigger does not transmit immediately. It arms a pending request and waits for the next TX countdown/reverse-window opportunity. This keeps reverse packets aligned with the TX listen window.
+
+The earlier periodic RX request trigger has been removed to avoid confusing channel-quality evaluation. TX still advertises countdown windows, but RX only transmits a reverse request when a quality-triggered request is pending.
+
 ## Next Tuning Steps
 
 Do these after this baseline remains stable:
 
-1. Add RX-side automatic trigger using packet quality, not TX CCA.
-2. Start with conservative trigger thresholds, for example sustained `h < 7600` over two 5s windows.
-3. Add hop cooldown, for example no more than one automatic hop per 30s.
+1. Observe whether `tr:1` appears only on genuinely poor channels.
+2. If quality trigger is too sensitive, lower the `h` threshold or require 3 consecutive bad windows.
+3. If it reacts too slowly, reduce the consecutive-window requirement or add a short-window detector.
 4. Keep fixed channel-table order first.
 5. Only after trigger behavior is stable, consider channel scoring based on RX history.
 

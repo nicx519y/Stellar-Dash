@@ -41,6 +41,10 @@
 #define RF_REV_REQ_INTERVAL_MS      2
 #define RF_REV_REQ_START_COUNTDOWN_MS 20u
 #define RF_REV_COUNTDOWN_FAR        0xFFu
+#define RF_QUALITY_MIN_HZ           7600u
+#define RF_QUALITY_MAX_GAP          2500u
+#define RF_QUALITY_BAD_WINDOWS      2u
+#define RF_QUALITY_HOP_COOLDOWN_MS  30000u
 #define TMR0_FREE_RUN_END           0x03FFFFFFUL
 #define RF_USE_LOW_LEVEL_BASIC      0
 #define RF_LINK_DEBUG_LOG           1
@@ -69,6 +73,9 @@
 #define RF_REV_REQ_EPOCH_OFFSET     1u
 #define RF_REV_REQ_CHANNEL_OFFSET   2u
 #define RF_REV_REQ_REASON_OFFSET    3u
+#define RF_REV_TRIGGER_PERIODIC     0u
+#define RF_REV_TRIGGER_QUALITY      1u
+#define RF_REV_TRIGGER_MANUAL       2u
 #define RF_RX_REACQUIRE_MISS        6u
 #define RF_RX_FAST_REACQUIRE_MISS   8u
 #if (RF_TEST_ENABLE_HOP == 1)
@@ -119,6 +126,7 @@ typedef struct
     volatile uint32_t rev_req_fail;
     volatile uint32_t rev_req_burst;
     volatile uint32_t rev_sync_seen;
+    volatile uint32_t rev_quality_trigger;
 } rf_stat_t;
 
 static rfRoleParam_t gParm;
@@ -153,10 +161,15 @@ static uint8_t g_rev_req_active = 0u;
 static uint8_t g_rev_req_remaining = 0u;
 static uint8_t g_rev_req_epoch = 0u;
 static uint8_t g_rev_req_next_channel = RF_TEST_FREQUENCY;
+static uint8_t g_rev_req_reason = RF_REV_TRIGGER_PERIODIC;
+static uint8_t g_rev_last_trigger_reason = RF_REV_TRIGGER_PERIODIC;
 static uint8_t g_rev_req_pending = 0u;
 static uint32_t g_rev_req_next_clock = 0u;
 static uint8_t g_rx_rev_countdown = RF_REV_COUNTDOWN_FAR;
 static uint8_t g_rx_rev_countdown_armed = 0u;
+static uint8_t g_quality_bad_windows = 0u;
+static uint8_t g_quality_request_pending = 0u;
+static uint32_t g_quality_last_trigger_clock = 0u;
 
 static const uint8_t g_hop_channels[RF_HOP_CHANNEL_COUNT] = {
     4u, 8u, 12u, 16u, 20u, 24u, 28u, 32u, 36u
@@ -356,7 +369,7 @@ static void rf_rx_request_restart(void)
 #endif
 }
 
-static void rf_rev_req_begin(void)
+static void rf_rev_req_begin(uint8_t reason)
 {
     if((g_rev_req_active != 0u) || (g_rev_req_remaining != 0u))
     {
@@ -365,10 +378,52 @@ static void rf_rev_req_begin(void)
 
     g_rev_req_epoch++;
     g_rev_req_next_channel = rf_next_channel_after(g_low_channel);
+    g_rev_req_reason = reason;
+    g_rev_last_trigger_reason = reason;
+    if(reason == RF_REV_TRIGGER_QUALITY)
+    {
+        g_quality_request_pending = 0u;
+        g_quality_last_trigger_clock = TMOS_GetSystemClock();
+    }
     g_rev_req_remaining = RF_REV_REQ_REPEAT;
     g_rev_req_pending = 1u;
     g_rev_req_next_clock = TMOS_GetSystemClock();
     gStat.rev_req_burst++;
+}
+
+static void rf_rx_quality_window_update(uint32_t rx_hz, uint32_t gap_delta)
+{
+    uint32_t now_clock = TMOS_GetSystemClock();
+
+    if((rx_hz < RF_QUALITY_MIN_HZ) || (gap_delta > RF_QUALITY_MAX_GAP))
+    {
+        if(g_quality_bad_windows < RF_QUALITY_BAD_WINDOWS)
+        {
+            g_quality_bad_windows++;
+        }
+    }
+    else
+    {
+        g_quality_bad_windows = 0u;
+    }
+
+    if(g_quality_bad_windows < RF_QUALITY_BAD_WINDOWS)
+    {
+        return;
+    }
+    if(g_quality_request_pending != 0u)
+    {
+        return;
+    }
+    if((uint32_t)(now_clock - g_quality_last_trigger_clock) <
+       MS1_TO_SYSTEM_TIME(RF_QUALITY_HOP_COOLDOWN_MS))
+    {
+        return;
+    }
+
+    g_quality_request_pending = 1u;
+    g_quality_bad_windows = 0u;
+    gStat.rev_quality_trigger++;
 }
 
 static void rf_rx_update_countdown(uint8_t countdown)
@@ -385,8 +440,11 @@ static void rf_rx_update_countdown(uint8_t countdown)
        (countdown <= RF_REV_REQ_START_COUNTDOWN_MS))
     {
         g_rx_rev_countdown_armed = 0u;
-        gStat.rev_sync_seen++;
-        rf_rev_req_begin();
+        if(g_quality_request_pending != 0u)
+        {
+            gStat.rev_sync_seen++;
+            rf_rev_req_begin(RF_REV_TRIGGER_QUALITY);
+        }
     }
 }
 
@@ -575,7 +633,7 @@ static void rf_fill_payload(void)
     TxBuf[2] = RF_REV_REQ_MARK;
     TxBuf[2u + RF_REV_REQ_EPOCH_OFFSET] = g_rev_req_epoch;
     TxBuf[2u + RF_REV_REQ_CHANNEL_OFFSET] = g_rev_req_next_channel;
-    TxBuf[2u + RF_REV_REQ_REASON_OFFSET] = 1u;
+    TxBuf[2u + RF_REV_REQ_REASON_OFFSET] = g_rev_req_reason;
     TxBuf[6] = g_low_channel;
     TxBuf[7] = g_rx_expected_seq;
     for(i = 8u; i < (2u + RF_TEST_DATA_LEN); ++i)
@@ -805,6 +863,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
         uint32_t rev_req_fail = gStat.rev_req_fail;
         uint32_t rev_req_burst = gStat.rev_req_burst;
         uint32_t rev_sync_seen = gStat.rev_sync_seen;
+        uint32_t rev_quality_trigger = gStat.rev_quality_trigger;
         uint32_t now_clock = TMOS_GetSystemClock();
         uint32_t dt_ticks = now_clock - g_last_stat_clock;
         uint32_t dt_ms = (uint32_t)(((uint64_t)dt_ticks * SYSTEM_TIME_MICROSEN) / 1000u);
@@ -814,7 +873,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
             dt_ms = 1u;
         }
 
-        rx_debug_log("[RX]d%lu o%lu f%lu h%lu g%lu c%lu t%lu rq%lu/%lu/%lu/%lu sy%lu cd%u ch%u hp%lu ph%u\r\n",
+        rx_debug_log("[RX]d%lu o%lu f%lu h%lu g%lu c%lu t%lu rq%lu/%lu/%lu/%lu sy%lu q%lu tr%u cd%u ch%u hp%lu ph%u\r\n",
                      dt_ms,
                      rx_ok,
                      rx_fail,
@@ -827,6 +886,8 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
                      rev_req_ok,
                      rev_req_fail,
                      rev_sync_seen,
+                     rev_quality_trigger,
+                     (unsigned int)g_rev_last_trigger_reason,
                      (unsigned int)g_rx_rev_countdown,
                      (unsigned int)g_low_channel,
                      hop_done,
@@ -856,6 +917,7 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
         gStat.rev_req_fail = 0;
         gStat.rev_req_burst = 0;
         gStat.rev_sync_seen = 0;
+        gStat.rev_quality_trigger = 0;
         g_last_stat_clock = now_clock;
 
         tmos_start_task(taskID, SBP_RF_STAT_EVT, MS1_TO_SYSTEM_TIME(RF_STAT_PRINT_PERIOD_MS));
@@ -892,8 +954,8 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     uint32_t crcerr_delta;
     uint32_t timeout_delta;
     uint32_t hop_delta;
-    uint32_t rev_req_sent;
-    uint32_t rev_req_ok;
+    uint32_t rx_hz;
+    uint32_t rev_req_burst;
     int n;
 
     if((buf == NULL) || (len == 0u))
@@ -907,8 +969,7 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     crcerr_total = gStat.rx_crcerr;
     timeout_total = gStat.rx_timeout;
     hop_total = gStat.hop_done;
-    rev_req_sent = gStat.rev_req_sent;
-    rev_req_ok = gStat.rev_req_ok;
+    rev_req_burst = gStat.rev_req_burst;
 
     if(last_clock == 0u)
     {
@@ -932,23 +993,21 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     crcerr_delta = crcerr_total - last_crcerr;
     timeout_delta = timeout_total - last_timeout;
     hop_delta = hop_total - last_hop;
+    rx_hz = (uint32_t)(((uint64_t)ok_delta * 1000u) / dt_ms);
+    rf_rx_quality_window_update(rx_hz, gap_delta);
     g_rx_restart_delay_sum = 0u;
     g_rx_restart_delay_max = 0u;
     g_rx_restart_delay_cnt = 0u;
     n = snprintf(buf, len,
-                 "[R5]h%lu g%lu c%lu t%lu ch%u hp%lu cd%u sy%lu rq%lu/%lu r%u/%u\r\n",
-                 (uint32_t)(((uint64_t)ok_delta * 1000u) / dt_ms),
+                 "[R5]h%lu g%lu c%lu t%lu ch%u hp%lu tr%u rq%lu\r\n",
+                 rx_hz,
                  gap_delta,
                  crcerr_delta,
                  timeout_delta,
                  (unsigned int)g_low_channel,
                  hop_delta,
-                 (unsigned int)g_rx_rev_countdown,
-                 gStat.rev_sync_seen,
-                 rev_req_sent,
-                 rev_req_ok,
-                 (unsigned int)g_rev_req_active,
-                 (unsigned int)g_rev_req_remaining);
+                 (unsigned int)g_rev_last_trigger_reason,
+                 rev_req_burst);
 
     last_clock = now_clock;
     last_ok = ok_total;
@@ -990,10 +1049,15 @@ void RF_Init(void)
     g_rev_req_remaining = 0u;
     g_rev_req_epoch = 0u;
     g_rev_req_next_channel = RF_TEST_FREQUENCY;
+    g_rev_req_reason = RF_REV_TRIGGER_PERIODIC;
+    g_rev_last_trigger_reason = RF_REV_TRIGGER_PERIODIC;
     g_rev_req_pending = 0u;
     g_rev_req_next_clock = 0u;
     g_rx_rev_countdown = RF_REV_COUNTDOWN_FAR;
     g_rx_rev_countdown_armed = 1u;
+    g_quality_bad_windows = 0u;
+    g_quality_request_pending = 0u;
+    g_quality_last_trigger_clock = TMOS_GetSystemClock();
 
 #if (RF_USE_LOW_LEVEL_BASIC == 1)
     rf_low_level_basic_start_rx();
