@@ -1,1203 +1,938 @@
 /********************************** (C) COPYRIGHT *******************************
  * File Name          : RF_PHY.c
- * Description        : 8K test flow based on WCH RF_Basic style
+ * Description        : RX side for the 12-byte RF hop protocol.
  *******************************************************************************/
 
 #include "CONFIG.h"
 #include "RF_PHY.h"
 #include "HAL.h"
 #include "wchrf.h"
-#include "ch585_usbhs_device.h"
-#include <stdarg.h>
+#include "rf_hop_protocol.h"
+
 #include <stdio.h>
 #include <string.h>
 
 #ifndef RF_HOP_MODE
-#define RF_HOP_MODE 2
+#define RF_HOP_MODE                    2
+#endif
+
+#ifndef RF_REPORT_PPS
+#define RF_REPORT_PPS                  RFH_DEFAULT_RATE_HZ
+#endif
+
+#ifndef RF_RX_PACKET_TIMEOUT_MS
+#define RF_RX_PACKET_TIMEOUT_MS        0u
+#endif
+
+#ifndef RF_RX_LINK_IDLE_TIMEOUT_MS
+#define RF_RX_LINK_IDLE_TIMEOUT_MS     3000u
+#endif
+
+#ifndef RF_ACK_WINDOW_US
+#define RF_ACK_WINDOW_US               RFH_DEFAULT_ACK_WINDOW_US
+#endif
+
+#ifndef RF_CONNECT_PREFER_CHANNEL_A
+#define RF_CONNECT_PREFER_CHANNEL_A    1u
+#endif
+
+#ifndef RF_HOP_CONFIRM_ACK_TIMEOUT_MS
+#define RF_HOP_CONFIRM_ACK_TIMEOUT_MS  RFH_HOP_CONFIRM_ACK_TIMEOUT_MS_DEFAULT
 #endif
 
 #ifndef RF_TEST_FREQUENCY
-#define RF_TEST_FREQUENCY 16
-#endif
-#ifndef RF_TEST_PROTOCOL_PACKET
-#define RF_TEST_PROTOCOL_PACKET 0
-#endif
-#ifndef RF_TEST_ENABLE_HOP
-#define RF_TEST_ENABLE_HOP 0
-#endif
-#ifndef RF_TEST_ENABLE_RF_RX
-#define RF_TEST_ENABLE_RF_RX 1
-#endif
-#if (RF_TEST_PROTOCOL_PACKET == 1)
-#define RF_TEST_DATA_LEN 12
-#else
-#define RF_TEST_DATA_LEN 12
-#endif
-#ifndef RF_REPORT_PPS
-#define RF_REPORT_PPS 8000
-#endif
-#define RF_STAT_PRINT_PERIOD_MS 5000
-
-/* RX 反向请求 burst 参数：只有质量触发 pending 后，RX 才会在 TX 反向窗口前发送这些包。 */
-#define RF_REV_REQ_REPEAT 220u            /* 反向握手最多发送多少个请求包；200ms TX 窗口下留少量余量。 */
-#define RF_REV_REQ_INTERVAL_MS 1          /* burst 内两个反向包的间隔；5ms TX 窗口建议 1ms。 */
-#define RF_REV_REQ_START_COUNTDOWN_MS 2u  /* 当 TX 倒计时接近 0 时开始发，目标是对齐 TX 反向 RX 开窗。 */
-#define RF_REV_ACK_TIMEOUT_MS 8u          /* RX 发出反向请求后等待 TX 正向 ACK 的时间，超时后才重试发送。 */
-#define RF_REV_COUNTDOWN_FAR 0xFFu        /* TX 尚未接近反向窗口时的 cd 值。 */
-
-/* RX 质量触发参数：用于判断当前频道是否需要跳频。 */
-#define RF_QUALITY_MIN_HZ 7980u           /* 5s 窗口内有效接收频率低于该值，认为质量差。 */
-#define RF_QUALITY_MAX_GAP 2500u          /* 5s 窗口内 seq gap 高于该值，认为质量差。 */
-#define RF_QUALITY_BAD_WINDOWS 2u         /* 连续多少个差窗口后挂起一次质量跳频请求。 */
-#define RF_QUALITY_HOP_COOLDOWN_MS 30000u /* 质量触发跳频后的冷却时间，避免频繁横跳。 */
-#define RF_ACK_SWITCH_LOCK_MS 200u        /* 收到 ACK 并切频道后锁定新频道的时间；锁定期 timeout/CRCERR 不扫描回旧频道。 */
-#define RF_REV_SWITCH_FALLBACK_MS 10u     /* 收到 ACK 后如果旧频道立刻变差，最多等这么久就按 ACK 指定频道本地切换。 */
-#define TMR0_FREE_RUN_END 0x03FFFFFFUL
-#define RF_USE_LOW_LEVEL_BASIC 0
-#define RF_LINK_DEBUG_LOG 1
-#ifndef RF_RX_RESTART_IN_CALLBACK
-#define RF_RX_RESTART_IN_CALLBACK 1
+#define RF_TEST_FREQUENCY              RFH_DEFAULT_CHANNEL_A
 #endif
 
-#define RF_PKT_MAGIC 0xA7u
-#define RF_PKT_TYPE_DATA 0x01u
-#define RF_PKT_SESSION_ID 0x21u
-#define RF_PKT_HOP_EPOCH 0u
-#define RF_PKT_CRC_LEN 2u
-#define RF_HOP_DWELL_PACKETS 16u            /* 旧的匀速跳频 dwell 参数；当前智能跳频路径不依赖它。 */
-#define RF_HOP_CHANNEL_COUNT 33u            /* 智能跳频候选频道数；4..36 连续频道，包含单数频道，TX/RX 必须一致。 */
-#define RF_TX_SEND_TIME (20u * 2u)          /* RFIP 发送时序参数；改动会影响反向包空口占用。 */
-#define RF_LINK_ACCESS_ADDRESS 0x71764129UL /* 固定 access address，TX/RX 必须一致。 */
-#define RF_LINK_CRC_INIT 0x555555UL         /* 固定 CRC init，TX/RX 必须一致。 */
-#define RF_BUTTON_BYTES 3u
-#define RF_SEQ_OFFSET 0u
-#define RF_HOP_ADV_OFFSET 1u
-#define RF_HOP_ADV_MARK 0xA5u
-#define RF_HOP_ADV_EPOCH_OFFSET 2u
-#define RF_HOP_ADV_CHANNEL_OFFSET 3u
-#define RF_HOP_ADV_SWITCH_OFFSET 4u
-#define RF_REV_REQ_MARK 0xC3u /* RX 反向跳频请求包标记。 */
-#define RF_REV_REQ_EPOCH_OFFSET 1u
-#define RF_REV_REQ_CHANNEL_OFFSET 2u
-#define RF_REV_REQ_REASON_OFFSET 3u
-#define RF_REV_REQ_TIME_LO_OFFSET 4u
-#define RF_REV_REQ_TIME_HI_OFFSET 5u
-#define RF_REV_ACK_MARK 0xC4u
-#define RF_REV_ACK_TIME_LO_OFFSET 2u
-#define RF_REV_ACK_TIME_HI_OFFSET 3u
-#define RF_REV_ACK_CHANNEL_OFFSET 4u
-#define RF_REV_ACK_REASON_OFFSET 5u
-#define RF_REV_ACK_EPOCH_OFFSET 6u
-#define RF_REV_ACK_SWITCH_OFFSET 7u
-#define RF_REV_TRIGGER_PERIODIC 0u
-#define RF_REV_TRIGGER_QUALITY 1u
-#define RF_REV_TRIGGER_MANUAL 2u
-#define RF_RX_REACQUIRE_MISS 6u      /* 连续丢包超过该值后进入/推进重捕获扫描。 */
-#define RF_RX_FAST_REACQUIRE_MISS 8u /* 保留的快速重捕获阈值，当前主路径较少使用。 */
-#define RF_RX_ENABLE_REACQUIRE_SCAN 0u /* 调试智能跳频主流程时关闭兜底扫描，避免 timeout/CRCERR 把 RX 带到其它频道。 */
-#if (RF_TEST_ENABLE_HOP == 1)
-#define RF_RX_TIMEOUT_HALF_US 5000u /* 匀速跳频模式下 RX timeout，单位沿用 WCH RFIP 命名。 */
-#else
-#define RF_RX_TIMEOUT_HALF_US 10000u /* 当前固定/智能跳频模式下 RX timeout。 */
-#endif
+#define RF_STAT_PRINT_PERIOD_MS        5000u
+#define RF_TX_SEND_TIME                (20u * 2u)
+#define RF_LINK_ACCESS_ADDRESS         0x71764129UL
+#define RF_LINK_CRC_INIT               0x555555UL
+/* WCH rfipRx_t.timeOut: 0 means no timeout; connected RX must stay armed. */
+#define RFIP_RX_NO_TIMEOUT             0u
+#define RF_CONNECTED_RX_TIMEOUT_US     RFIP_RX_NO_TIMEOUT
+#define RF_DUAL_RX_DWELL_US            2000u
+#define RF_ACK_SCHEDULE_TICKS          48u
+#define RF_ACK_TX_LEAD_US              80u
+#define RF_ACK_TX_POST_GUARD_US        RFH_ACK_RX_POST_GUARD_US_DEFAULT
+#define RF_ACK_TX_SAFETY_MAX           8u
+#define RF_ACK_RX_PRE_GUARD_US         RFH_ACK_RX_PRE_GUARD_US_DEFAULT
+#define RF_ACK_RX_POST_GUARD_US        RFH_ACK_RX_POST_GUARD_US_DEFAULT
+#define TMR0_FREE_RUN_END              0x03FFFFFFUL
+#define TMR0_FREE_RUN_WRAP             0x04000000UL
 
-#define SBP_RF_RF_RX_EVT 4
-#define SBP_RF_STAT_EVT (1 << 5)
-#define SBP_RF_REV_REQ_EVT (1 << 6)
+#define SBP_RF_RF_RX_EVT               4
+#define SBP_RF_STAT_EVT                (1 << 5)
 
-#if (RF_LINK_DEBUG_LOG == 1)
-#define RF_LINK_LOG(...) PRINT(__VA_ARGS__)
-#else
-#define RF_LINK_LOG(...) ((void)0)
-#endif
-
-uint8_t taskID;
+typedef enum {
+    RX_UNCONNECTED = 0u,
+    RX_CONNECT_ACK_PENDING,
+    RX_COMM,
+    RX_HOP_RESERVED,
+    RX_HOP_CONFIRM_ACK_PENDING
+} rx_state_t;
 
 typedef struct
 {
-    volatile uint32_t tmr_tick_win;
-    volatile uint32_t tmr_tick_total;
-    volatile uint32_t sched_due_win;
-    volatile uint32_t sched_due_total;
-    volatile uint32_t sched_sent_win;
-    volatile uint32_t sched_sent_total;
-    volatile uint32_t sched_miss_win;
-    volatile uint32_t sched_miss_total;
-    volatile uint32_t tx_try;
-    volatile uint32_t tx_ok;
-    volatile uint32_t tx_fail;
-    volatile uint32_t rx_total;
     volatile uint32_t rx_ok;
-    volatile uint32_t rx_fail;
+    volatile uint32_t rx_bad_len;
+    volatile uint32_t rx_bad_type;
+    volatile uint32_t rx_bad_connect;
+    volatile uint32_t rx_ignored_data;
     volatile uint32_t rx_crcerr;
     volatile uint32_t rx_timeout;
-    volatile uint32_t rx_bad_magic;
-    volatile uint32_t rx_bad_session;
-    volatile uint32_t rx_bad_crc;
-    volatile uint32_t rx_seq_gap;
-    volatile uint32_t rx_dup;
-    volatile uint32_t rx_reacquire;
+    volatile uint32_t rx_arm_try;
+    volatile uint32_t rx_arm_ok;
+    volatile uint32_t rx_arm_fail;
+    volatile uint32_t tx_ack_try;
+    volatile uint32_t tx_ack_start_fail;
+    volatile uint32_t tx_ack_parm_fail;
+    volatile uint32_t tx_ack_ok;
+    volatile uint32_t tx_ack_fail;
+    volatile uint32_t connect_rx;
+    volatile uint32_t data_rx;
+    volatile uint32_t scan_switch;
+    volatile uint32_t hop_cmd_rx;
     volatile uint32_t hop_done;
-    volatile uint32_t rev_req_sent;
-    volatile uint32_t rev_req_ok;
-    volatile uint32_t rev_req_fail;
-    volatile uint32_t rev_req_burst;
-    volatile uint32_t rev_sync_seen;
-    volatile uint32_t rev_quality_trigger;
-    volatile uint32_t rev_ack_rx;
-    volatile uint32_t rev_ack_latency_us;
-    volatile uint32_t rev_ack_switch;
-    volatile uint32_t rx_scan_switch;
 } rf_stat_t;
+
+uint8_t taskID;
 
 static rfRoleParam_t gParm;
 static rfipTx_t gTxParam;
 static rfipRx_t gRxParam;
 static rf_stat_t gStat = {0};
-static uint32_t g_tmr_prev_cnt = 0;
-static uint32_t g_tmr_acc_tick = 0;
-static uint32_t g_tick_per_evt = 1;
-static volatile uint8_t g_ret_role_init = 0xFF;
-static volatile uint8_t g_task_id_dbg = 0xFF;
-static volatile uint8_t g_basic_started = 0;
-static volatile uint8_t g_low_config_ret = 0xFFu;
-static volatile uint8_t g_low_channel = RF_TEST_FREQUENCY;
-static volatile uint8_t g_low_rx_ret = 0xFFu;
-static volatile uint8_t g_rx_restart_pending = 0u;
-static volatile uint32_t g_rx_restart_mark_tmr = 0;
-static volatile uint32_t g_rx_restart_delay_sum = 0;
-static volatile uint32_t g_rx_restart_delay_max = 0;
-static volatile uint32_t g_rx_restart_delay_cnt = 0;
-static uint32_t g_last_stat_clock = 0;
-static uint8_t g_rx_expected_seq = 0u;
-static uint8_t g_rx_has_seq = 0u;
-static uint8_t g_rx_miss_count = 0u;
-static uint8_t g_rx_scan_index = 0u;
-static uint8_t g_rx_scan_active = 0u;
-static uint8_t g_rx_pending_hop = 0u;
-static uint8_t g_rx_pending_epoch = 0u;
-static uint8_t g_rx_pending_channel = RF_TEST_FREQUENCY;
-static uint8_t g_rx_pending_switch_seq = 0u;
-static uint8_t g_rev_req_active = 0u;
-static uint8_t g_rev_req_remaining = 0u;
-static uint8_t g_rev_req_epoch = 0u;
-static uint8_t g_rev_req_next_channel = RF_TEST_FREQUENCY;
-static uint8_t g_rev_req_reason = RF_REV_TRIGGER_PERIODIC;
-static uint8_t g_rev_last_trigger_reason = RF_REV_TRIGGER_PERIODIC;
-static uint16_t g_rev_req_time = 0u;
-static uint8_t g_rev_ack_last_channel = RF_TEST_FREQUENCY;
-static uint8_t g_rev_req_pending = 0u;
-static uint8_t g_rev_wait_ack = 0u;
-static uint8_t g_rev_switch_pending = 0u;
-static uint8_t g_rev_switch_channel = RF_TEST_FREQUENCY;
-static uint8_t g_rev_switch_seq = 0u;
-static uint8_t g_rev_switch_epoch = 0u;
-static uint32_t g_rev_req_next_clock = 0u;
-static uint32_t g_rev_ack_deadline_clock = 0u;
-static uint32_t g_rev_switch_deadline_clock = 0u;
-static uint8_t g_rx_rev_countdown = RF_REV_COUNTDOWN_FAR;
-static uint8_t g_rx_rev_countdown_armed = 0u;
-static uint8_t g_quality_bad_windows = 0u;
-static uint8_t g_quality_request_pending = 0u;
-static uint32_t g_quality_last_trigger_clock = 0u;
-static uint32_t g_ack_switch_lock_until_clock = 0u;
-static uint8_t g_rx_last_packet_was_ack = 0u;
-
-static uint8_t g_hop_channels[RF_HOP_CHANNEL_COUNT] = {
-    4u, 5u, 6u, 7u, 8u, 9u, 10u, 11u, 12u, 13u, 14u,
-    15u, 16u, 17u, 18u, 19u, 20u, 21u, 22u, 23u, 24u,
-    25u, 26u, 27u, 28u, 29u, 30u, 31u, 32u, 33u, 34u,
-    35u, 36u};
-
-void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id);
-static void rf_rx_start(void);
-static uint32_t rf_tmr0_delta(uint32_t now, uint32_t prev);
 
 __attribute__((__aligned__(4))) static uint8_t TxBuf[64];
 __attribute__((__aligned__(4))) static uint8_t RxBuf[264];
 
-static uint16_t rf_crc16_ccitt(const uint8_t *data, uint8_t len)
+static volatile uint8_t g_ret_role_init = 0xFFu;
+static volatile uint8_t g_low_config_ret = 0xFFu;
+static volatile uint8_t g_low_rx_ret = 0xFFu;
+static volatile uint8_t g_low_tx_ret = 0xFFu;
+static volatile uint8_t g_basic_started = 0u;
+static volatile uint8_t g_ack_tx_active = 0u;
+
+static volatile rx_state_t g_state = RX_UNCONNECTED;
+static rx_state_t g_ack_success_next_state = RX_COMM;
+static uint8_t g_rx_channel = RF_TEST_FREQUENCY;
+static uint8_t g_scan_channel_a = RFH_DEFAULT_CHANNEL_A;
+static uint8_t g_scan_channel_b = RFH_DEFAULT_CHANNEL_B;
+static uint8_t g_ack_channel = RFH_DEFAULT_CHANNEL_A;
+static uint8_t g_ack_tx_channel = RFH_DEFAULT_CHANNEL_A;
+static uint8_t g_old_channel = RFH_DEFAULT_CHANNEL_A;
+static uint8_t g_target_channel = RFH_DEFAULT_CHANNEL_A;
+static uint8_t g_hop_seq = 0u;
+static uint8_t g_pending_ack_cmd = RFH_CMD_NONE;
+
+static uint16_t g_report_hz = RF_REPORT_PPS;
+static uint8_t g_rate_code = RFH_RATE_8K;
+static uint8_t g_ack_window_ms = RFH_DEFAULT_ACK_WINDOW_MS;
+static uint8_t g_ack_window_packets = 8u;
+static uint32_t g_tick_per_evt = 1u;
+static uint8_t g_ack_pending = 0u;
+static uint8_t g_ack_repeat_remaining = 0u;
+static uint32_t g_ack_due_tmr = 0u;
+static uint32_t g_ack_until_tmr = 0u;
+static uint32_t g_last_rx_packet_clock = 0u;
+static uint32_t g_log_last_clock = 0u;
+static uint32_t g_hop_due_clock = 0u;
+static uint32_t g_hop_confirm_deadline_clock = 0u;
+static uint16_t g_rx_since_ack = 0u;
+static uint16_t g_last_ack_loss_permille = 1000u;
+static uint16_t g_last_ack_expected = 0u;
+static uint16_t g_last_ack_rx_count = 0u;
+static uint8_t g_last_ack_cmd = RFH_CMD_NONE;
+
+static uint32_t g_log_rx_ok = 0u;
+static uint32_t g_log_ack_ok = 0u;
+static uint8_t g_log_hop_events = 0u;
+static uint8_t g_log_unconnected_events = 0u;
+static uint8_t g_log_errors = 0u;
+static uint8_t g_log_app_timeout_events = 0u;
+static uint8_t g_log_data_resync_events = 0u;
+
+static uint8_t g_diag_pending = 0u;
+static uint32_t g_diag_rx_arm_try = 0u;
+static uint32_t g_diag_rx_arm_ok = 0u;
+static uint32_t g_diag_rx_arm_fail = 0u;
+static uint32_t g_diag_rx_ok = 0u;
+static uint32_t g_diag_rx_crcerr = 0u;
+static uint32_t g_diag_rx_timeout = 0u;
+static uint32_t g_diag_rx_bad_len = 0u;
+static uint32_t g_diag_rx_bad_type = 0u;
+static uint32_t g_diag_rx_bad_connect = 0u;
+static uint32_t g_diag_rx_ignored_data = 0u;
+static uint32_t g_diag_tx_ack_try = 0u;
+static uint32_t g_diag_tx_ack_fail = 0u;
+static uint8_t g_diag_app_timeout_events = 0u;
+static uint8_t g_diag_data_resync_events = 0u;
+static volatile uint32_t g_rx_progress_count = 0u;
+static uint32_t g_rx_progress_seen_count = 0u;
+static uint32_t g_rx_progress_clock = 0u;
+
+void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id);
+
+static uint8_t rx_time_reached(uint32_t now, uint32_t deadline)
 {
-    uint16_t crc = 0xFFFFu;
-    uint8_t i;
-    uint8_t bit;
-
-    for (i = 0u; i < len; ++i)
-    {
-        crc ^= (uint16_t)data[i] << 8;
-        for (bit = 0u; bit < 8u; ++bit)
-        {
-            if ((crc & 0x8000u) != 0u)
-            {
-                crc = (uint16_t)((crc << 1) ^ 0x1021u);
-            }
-            else
-            {
-                crc <<= 1;
-            }
-        }
-    }
-
-    return crc;
+    return ((int32_t)(now - deadline) >= 0) ? 1u : 0u;
 }
 
-static uint8_t rf_hop_channel_for_seq(uint8_t seq)
+static uint8_t rx_tmr_reached(uint32_t now, uint32_t deadline)
 {
-#if (RF_TEST_ENABLE_HOP == 1)
-    uint8_t index = (uint8_t)((seq / RF_HOP_DWELL_PACKETS) % RF_HOP_CHANNEL_COUNT);
-    return g_hop_channels[index];
-#else
-    (void)seq;
-    return RF_TEST_FREQUENCY;
-#endif
-}
-
-static uint8_t rf_hop_index_for_seq(uint8_t seq)
-{
-#if (RF_TEST_ENABLE_HOP == 1)
-    return (uint8_t)((seq / RF_HOP_DWELL_PACKETS) % RF_HOP_CHANNEL_COUNT);
-#else
-    (void)seq;
-    return 0u;
-#endif
-}
-
-static uint8_t rf_hop_index_for_channel(uint8_t channel)
-{
-    uint8_t i;
-
-    for (i = 0u; i < RF_HOP_CHANNEL_COUNT; ++i)
+    if(now >= deadline)
     {
-        if (g_hop_channels[i] == channel)
-        {
-            return i;
-        }
-    }
-    return 0u;
-}
-
-static uint8_t rf_hop_channel_valid(uint8_t channel)
-{
-    uint8_t i;
-
-    for (i = 0u; i < RF_HOP_CHANNEL_COUNT; ++i)
-    {
-        if (g_hop_channels[i] == channel)
-        {
-            return 1u;
-        }
-    }
-    return 0u;
-}
-
-static void rf_hop_demote_channel(uint8_t channel)
-{
-    uint8_t i;
-    uint8_t pos = RF_HOP_CHANNEL_COUNT;
-
-    for (i = 0u; i < RF_HOP_CHANNEL_COUNT; ++i)
-    {
-        if (g_hop_channels[i] == channel)
-        {
-            pos = i;
-            break;
-        }
-    }
-    if (pos >= (RF_HOP_CHANNEL_COUNT - 1u))
-    {
-        return;
-    }
-
-    for (i = pos; i < (RF_HOP_CHANNEL_COUNT - 1u); ++i)
-    {
-        g_hop_channels[i] = g_hop_channels[i + 1u];
-    }
-    g_hop_channels[RF_HOP_CHANNEL_COUNT - 1u] = channel;
-}
-
-static void rf_rx_set_channel(uint8_t channel)
-{
-    if (gRxParam.frequency == channel)
-    {
-        return;
-    }
-    gRxParam.frequency = channel;
-    gRxParam.whiteChannel = channel;
-    g_low_channel = channel;
-    g_rx_scan_index = rf_hop_index_for_channel(channel);
-    gStat.hop_done++;
-    if (g_quality_request_pending != 0u)
-    {
-        g_quality_request_pending = 0u;
-        g_quality_bad_windows = 0u;
-        g_quality_last_trigger_clock = TMOS_GetSystemClock();
-    }
-}
-
-static uint8_t rf_next_channel_after(uint8_t channel)
-{
-    uint8_t index = rf_hop_index_for_channel(channel);
-
-    index++;
-    if (index >= RF_HOP_CHANNEL_COUNT)
-    {
-        index = 0u;
-    }
-    return g_hop_channels[index];
-}
-
-static uint16_t rf_now_us16(void)
-{
-    return (uint16_t)((uint64_t)TMOS_GetSystemClock() * SYSTEM_TIME_MICROSEN);
-}
-
-static uint8_t rf_ack_switch_lock_active(void)
-{
-    return ((int32_t)(TMOS_GetSystemClock() - g_ack_switch_lock_until_clock) < 0) ? 1u : 0u;
-}
-
-static uint8_t rf_seq_reached(uint8_t current, uint8_t target)
-{
-    return ((uint8_t)(current - target) < 0x80u) ? 1u : 0u;
-}
-
-static void rf_rev_switch_commit(void)
-{
-    if (g_rev_switch_pending == 0u)
-    {
-        return;
-    }
-
-    if (g_low_channel != g_rev_switch_channel)
-    {
-        gStat.rev_ack_switch++;
-    }
-    rf_rx_set_channel(g_rev_switch_channel);
-    g_rev_switch_pending = 0u;
-    g_rev_switch_deadline_clock = 0u;
-    g_ack_switch_lock_until_clock = TMOS_GetSystemClock() + MS1_TO_SYSTEM_TIME(RF_ACK_SWITCH_LOCK_MS);
-}
-
-static void rf_rev_switch_check_fallback(void)
-{
-    if (g_rev_switch_pending == 0u)
-    {
-        return;
-    }
-    if ((int32_t)(TMOS_GetSystemClock() - g_rev_switch_deadline_clock) < 0)
-    {
-        return;
-    }
-    rf_rev_switch_commit();
-}
-
-static void rf_rx_tune_for_expected_seq(void)
-{
-#if (RF_TEST_ENABLE_HOP == 1)
-    rf_rx_set_channel(rf_hop_channel_for_seq(g_rx_expected_seq));
-    g_rx_scan_index = rf_hop_index_for_seq(g_rx_expected_seq);
-#else
-    g_rx_scan_index = rf_hop_index_for_channel(g_low_channel);
-#endif
-}
-
-static void rf_rx_advance_reacquire_channel(void)
-{
-#if (RF_RX_ENABLE_REACQUIRE_SCAN == 0)
-    g_rx_miss_count++;
-    g_rx_scan_active = 0u;
-    return;
-#endif
-#if (RF_TEST_ENABLE_HOP == 1)
-    g_rx_miss_count++;
-    if ((g_rx_has_seq != 0u) && (g_rx_miss_count <= RF_RX_FAST_REACQUIRE_MISS))
-    {
-        g_rx_expected_seq++;
-        rf_rx_tune_for_expected_seq();
-        return;
-    }
-    if (g_rx_miss_count > RF_RX_FAST_REACQUIRE_MISS)
-    {
-        gStat.rx_reacquire++;
-    }
-    g_rx_scan_index++;
-    if (g_rx_scan_index >= RF_HOP_CHANNEL_COUNT)
-    {
-        g_rx_scan_index = 0u;
-    }
-    gStat.rx_scan_switch++;
-    rf_rx_set_channel(g_hop_channels[g_rx_scan_index]);
-#else
-    g_rx_miss_count++;
-    g_rx_scan_active = 1u;
-    if (g_rx_pending_hop != 0u)
-    {
-        uint8_t dist = (uint8_t)(g_rx_pending_switch_seq - g_rx_expected_seq);
-        if (dist <= g_rx_miss_count)
-        {
-            rf_rx_set_channel(g_rx_pending_channel);
-            g_rx_pending_hop = 0u;
-            g_rx_scan_active = 0u;
-            return;
-        }
-    }
-
-    if (g_rx_miss_count <= RF_RX_REACQUIRE_MISS)
-    {
-        return;
-    }
-
-    g_rx_scan_active = 1u;
-    gStat.rx_reacquire++;
-    g_rx_scan_index++;
-    if (g_rx_scan_index >= RF_HOP_CHANNEL_COUNT)
-    {
-        g_rx_scan_index = 0u;
-    }
-    gStat.rx_scan_switch++;
-    rf_rx_set_channel(g_hop_channels[g_rx_scan_index]);
-#endif
-}
-
-static void rf_rx_request_restart(void)
-{
-    if (g_rev_req_active != 0u)
-    {
-        return;
-    }
-#if (RF_RX_RESTART_IN_CALLBACK == 1)
-    uint32_t delay_ticks;
-    uint32_t mark_tmr = TMR0_GetCurrentTimer();
-
-    rf_rx_start();
-    delay_ticks = rf_tmr0_delta(TMR0_GetCurrentTimer(), mark_tmr);
-    g_rx_restart_delay_sum += delay_ticks;
-    if (delay_ticks > g_rx_restart_delay_max)
-    {
-        g_rx_restart_delay_max = delay_ticks;
-    }
-    g_rx_restart_delay_cnt++;
-#else
-    if (g_rx_restart_pending == 0u)
-    {
-        g_rx_restart_mark_tmr = TMR0_GetCurrentTimer();
-    }
-    g_rx_restart_pending = 1u;
-#endif
-}
-
-static void rf_rev_req_begin(uint8_t reason)
-{
-    if ((g_rev_req_active != 0u) || (g_rev_req_remaining != 0u))
-    {
-        return;
-    }
-
-    g_rev_req_epoch++;
-    g_rev_req_next_channel = rf_next_channel_after(g_low_channel);
-    g_rev_req_reason = reason;
-    g_rev_last_trigger_reason = reason;
-    g_rev_req_time = rf_now_us16();
-    g_rev_req_remaining = RF_REV_REQ_REPEAT;
-    g_rev_req_pending = 1u;
-    g_rev_req_next_clock = TMOS_GetSystemClock();
-    gStat.rev_req_burst++;
-}
-
-static void rf_rx_quality_window_update(uint32_t rx_hz, uint32_t gap_delta)
-{
-    uint32_t now_clock = TMOS_GetSystemClock();
-
-    if ((rx_hz < RF_QUALITY_MIN_HZ) || (gap_delta > RF_QUALITY_MAX_GAP))
-    {
-        if (g_quality_bad_windows < RF_QUALITY_BAD_WINDOWS)
-        {
-            g_quality_bad_windows++;
-        }
-    }
-    else
-    {
-        g_quality_bad_windows = 0u;
-    }
-
-    if (g_quality_bad_windows < RF_QUALITY_BAD_WINDOWS)
-    {
-        return;
-    }
-    if (g_quality_request_pending != 0u)
-    {
-        return;
-    }
-    if ((uint32_t)(now_clock - g_quality_last_trigger_clock) <
-        MS1_TO_SYSTEM_TIME(RF_QUALITY_HOP_COOLDOWN_MS))
-    {
-        return;
-    }
-
-    g_quality_request_pending = 1u;
-    g_quality_bad_windows = 0u;
-    gStat.rev_quality_trigger++;
-}
-
-static void rf_rx_update_countdown(uint8_t countdown)
-{
-    g_rx_rev_countdown = countdown;
-
-    if (countdown == RF_REV_COUNTDOWN_FAR)
-    {
-        g_rx_rev_countdown_armed = 1u;
-        return;
-    }
-
-    if ((g_rx_rev_countdown_armed != 0u) &&
-        (countdown <= RF_REV_REQ_START_COUNTDOWN_MS))
-    {
-        g_rx_rev_countdown_armed = 0u;
-        if (g_quality_request_pending != 0u)
-        {
-            gStat.rev_sync_seen++;
-            rf_rev_req_begin(RF_REV_TRIGGER_QUALITY);
-        }
-    }
-}
-
-static uint8_t rf_rx_validate_packet(void)
-{
-#if (RF_TEST_PROTOCOL_PACKET == 1)
-    const uint8_t *packet = &RxBuf[2];
-    uint16_t expected_crc;
-    uint16_t packet_crc;
-    uint8_t seq;
-    uint8_t delta;
-
-    if (RxBuf[1] != RF_TEST_DATA_LEN)
-    {
-        return 0u;
-    }
-    if ((packet[0] != RF_PKT_MAGIC) || (packet[1] != RF_PKT_TYPE_DATA))
-    {
-        gStat.rx_bad_magic++;
-        return 0u;
-    }
-    if ((packet[2] != RF_PKT_SESSION_ID) || (packet[4] != RF_PKT_HOP_EPOCH))
-    {
-        gStat.rx_bad_session++;
-        return 0u;
-    }
-
-    packet_crc = (uint16_t)packet[RF_TEST_DATA_LEN - 2u] |
-                 ((uint16_t)packet[RF_TEST_DATA_LEN - 1u] << 8);
-    expected_crc = rf_crc16_ccitt(packet, (uint8_t)(RF_TEST_DATA_LEN - RF_PKT_CRC_LEN));
-    if (packet_crc != expected_crc)
-    {
-        gStat.rx_bad_crc++;
-        return 0u;
-    }
-
-    seq = packet[3];
-    if (g_rx_has_seq == 0u)
-    {
-        g_rx_has_seq = 1u;
-    }
-    else
-    {
-        delta = (uint8_t)(seq - g_rx_expected_seq);
-        if (delta == 0u)
-        {
-        }
-        else if (delta == 0xFFu)
-        {
-            gStat.rx_dup++;
-        }
-        else
-        {
-            gStat.rx_seq_gap += delta;
-        }
-    }
-
-    g_rx_expected_seq = (uint8_t)(seq + 1u);
-    g_rx_miss_count = 0u;
-    rf_rx_tune_for_expected_seq();
-    return 1u;
-#else
-    uint8_t seq;
-    uint8_t delta;
-    const uint8_t *packet = &RxBuf[2];
-
-    g_rx_last_packet_was_ack = 0u;
-    if (RxBuf[1] != RF_TEST_DATA_LEN)
-    {
-        return 0u;
-    }
-
-    seq = packet[RF_SEQ_OFFSET];
-    if (g_rx_has_seq == 0u)
-    {
-        g_rx_has_seq = 1u;
-    }
-    else
-    {
-        delta = (uint8_t)(seq - g_rx_expected_seq);
-        if (delta == 0u)
-        {
-        }
-        else if (delta == 0xFFu)
-        {
-            gStat.rx_dup++;
-        }
-        else
-        {
-            gStat.rx_seq_gap += delta;
-        }
-    }
-
-    g_rx_expected_seq = (uint8_t)(seq + 1u);
-    g_rx_miss_count = 0u;
-    g_rx_scan_active = 0u;
-    rf_rx_tune_for_expected_seq();
-
-    if ((packet[RF_HOP_ADV_OFFSET] == RF_REV_ACK_MARK) && (g_rev_wait_ack != 0u))
-    {
-        uint16_t ack_time = (uint16_t)packet[RF_REV_ACK_TIME_LO_OFFSET] |
-                            ((uint16_t)packet[RF_REV_ACK_TIME_HI_OFFSET] << 8);
-        uint8_t ack_channel = packet[RF_REV_ACK_CHANNEL_OFFSET];
-        uint8_t ack_epoch = packet[RF_REV_ACK_EPOCH_OFFSET];
-        uint8_t ack_switch_seq = packet[RF_REV_ACK_SWITCH_OFFSET];
-        if ((ack_epoch != g_rev_req_epoch) || (rf_hop_channel_valid(ack_channel) == 0u))
-        {
-            return 1u;
-        }
-        gStat.rev_ack_rx++;
-        gStat.rev_ack_latency_us = (uint16_t)(rf_now_us16() - ack_time);
-        g_rev_ack_last_channel = ack_channel;
-        g_rev_req_pending = 0u;
-        g_rev_req_active = 0u;
-        g_rev_wait_ack = 0u;
-        g_rev_req_remaining = 0u;
-        g_rev_switch_pending = 1u;
-        g_rev_switch_channel = ack_channel;
-        g_rev_switch_seq = ack_switch_seq;
-        g_rev_switch_epoch = ack_epoch;
-        g_rev_switch_deadline_clock = TMOS_GetSystemClock() + MS1_TO_SYSTEM_TIME(RF_REV_SWITCH_FALLBACK_MS);
-        if (rf_seq_reached(g_rx_expected_seq, g_rev_switch_seq) != 0u)
-        {
-            rf_rev_switch_commit();
-        }
-        g_rx_last_packet_was_ack = 1u;
-        (void)packet[RF_REV_ACK_REASON_OFFSET];
         return 1u;
     }
+    return ((deadline - now) > (TMR0_FREE_RUN_WRAP / 2u)) ? 1u : 0u;
+}
 
-    if (packet[RF_HOP_ADV_OFFSET] == RF_HOP_ADV_MARK)
+static uint8_t rx_tmr_before(uint32_t a, uint32_t b)
+{
+    if(a <= b)
     {
-        uint8_t next_channel = packet[RF_HOP_ADV_CHANNEL_OFFSET];
-        if (rf_hop_channel_valid(next_channel) != 0u)
-        {
-            g_rx_pending_hop = 1u;
-            g_rx_pending_epoch = packet[RF_HOP_ADV_EPOCH_OFFSET];
-            g_rx_pending_channel = next_channel;
-            g_rx_pending_switch_seq = packet[RF_HOP_ADV_SWITCH_OFFSET];
-        }
+        return ((b - a) < (TMR0_FREE_RUN_WRAP / 2u)) ? 1u : 0u;
+    }
+    return ((a - b) > (TMR0_FREE_RUN_WRAP / 2u)) ? 1u : 0u;
+}
+
+static uint32_t rx_tmr_add(uint32_t base, uint32_t delta)
+{
+    base += delta;
+    while(base >= TMR0_FREE_RUN_WRAP)
+    {
+        base -= TMR0_FREE_RUN_WRAP;
+    }
+    return base;
+}
+
+static uint32_t rx_us_to_tmr_cycles(uint16_t us)
+{
+    uint32_t cycles_per_us = GetSysClock() / 1000000u;
+
+    if(cycles_per_us == 0u)
+    {
+        cycles_per_us = 1u;
+    }
+    return (uint32_t)us * cycles_per_us;
+}
+
+static uint8_t rx_is_seek_scanning_state(void)
+{
+    return ((g_state == RX_UNCONNECTED) ||
+            ((g_state == RX_CONNECT_ACK_PENDING) &&
+             (g_pending_ack_cmd == RFH_CMD_CONNECT_REQ))) ? 1u : 0u;
+}
+
+static const char *rx_state_code(void)
+{
+    switch(g_state)
+    {
+    case RX_UNCONNECTED:
+        return "U";
+    case RX_CONNECT_ACK_PENDING:
+        return "PA";
+    case RX_COMM:
+        return "C";
+    case RX_HOP_RESERVED:
+        return "HR";
+    case RX_HOP_CONFIRM_ACK_PENDING:
+    default:
+        return "CA";
+    }
+}
+
+static void rx_log_note_error(void)
+{
+    if(g_log_errors < 99u)
+    {
+        g_log_errors++;
+    }
+}
+
+static void rx_log_note_hop_event(void)
+{
+    if(g_log_hop_events < 99u)
+    {
+        g_log_hop_events++;
+    }
+}
+
+static void rx_log_note_unconnected(void)
+{
+    if(g_log_unconnected_events < 99u)
+    {
+        g_log_unconnected_events++;
+    }
+}
+
+#if ((RF_RX_PACKET_TIMEOUT_MS > 0u) || (RF_RX_LINK_IDLE_TIMEOUT_MS > 0u))
+static void rx_log_note_app_timeout(void)
+{
+    if(g_log_app_timeout_events < 99u)
+    {
+        g_log_app_timeout_events++;
+    }
+}
+#endif
+
+static void rx_log_note_data_resync(void)
+{
+    if(g_log_data_resync_events < 99u)
+    {
+        g_log_data_resync_events++;
+    }
+}
+
+static void rx_note_packet_progress(void)
+{
+    g_rx_progress_count++;
+}
+
+static uint16_t rx_expected_packets_per_ack(void)
+{
+    uint32_t silent_packets;
+
+    silent_packets = (uint32_t)rfh_packets_for_us(g_report_hz,
+                                                   RF_ACK_RX_PRE_GUARD_US) +
+                     (uint32_t)g_ack_window_packets +
+                     (uint32_t)rfh_packets_for_us(g_report_hz,
+                                                  RF_ACK_RX_POST_GUARD_US);
+    if(silent_packets >= g_report_hz)
+    {
+        return 1u;
+    }
+    return (uint16_t)(g_report_hz - silent_packets);
+}
+
+static uint32_t rx_expected_packets_for_elapsed_ms(uint32_t elapsed_ms)
+{
+    uint32_t expected;
+
+    if(elapsed_ms == 0u)
+    {
+        elapsed_ms = 1u;
+    }
+    expected = (uint32_t)(((uint64_t)rx_expected_packets_per_ack() *
+                           elapsed_ms) / 1000u);
+    return (expected == 0u) ? 1u : expected;
+}
+
+static uint32_t rx_log_elapsed_ms(uint32_t now_clock)
+{
+    uint32_t elapsed_ticks;
+    uint32_t elapsed_ms;
+
+    if(g_log_last_clock == 0u)
+    {
+        return RF_STAT_PRINT_PERIOD_MS;
+    }
+
+    elapsed_ticks = now_clock - g_log_last_clock;
+    if((int32_t)elapsed_ticks <= 0)
+    {
+        return RF_STAT_PRINT_PERIOD_MS;
+    }
+
+    elapsed_ms = (uint32_t)(((uint64_t)elapsed_ticks * SYSTEM_TIME_MICROSEN) /
+                            1000u);
+    if((elapsed_ms < 1000u) || (elapsed_ms > 10000u))
+    {
+        return RF_STAT_PRINT_PERIOD_MS;
+    }
+
+    return elapsed_ms;
+}
+
+static uint16_t rx_calc_loss_permille(uint32_t rx_count, uint32_t expected)
+{
+    uint32_t lost;
+
+    if(expected == 0u)
+    {
+        return 0u;
+    }
+    if(rx_count >= expected)
+    {
+        return 0u;
+    }
+    lost = expected - rx_count;
+    return (uint16_t)((lost * 1000u) / expected);
+}
+
+static void rx_apply_rate(uint8_t rate_code, uint8_t ack_window_ms)
+{
+    if(rate_code > RFH_RATE_8K)
+    {
+        rate_code = RFH_RATE_8K;
+    }
+    g_rate_code = rate_code;
+    g_report_hz = rfh_rate_hz_from_code(rate_code);
+    g_ack_window_ms = (ack_window_ms == 0u) ? RFH_DEFAULT_ACK_WINDOW_MS : ack_window_ms;
+    g_ack_window_packets = rfh_ack_window_packets_us(g_report_hz,
+                                                     RF_ACK_WINDOW_US);
+    g_tick_per_evt = GetSysClock() / g_report_hz;
+    if(g_tick_per_evt == 0u)
+    {
+        g_tick_per_evt = 1u;
+    }
+}
+
+static void rx_set_channel(uint8_t channel)
+{
+    if(rfh_channel_valid(channel) == 0u)
+    {
+        return;
+    }
+    g_rx_channel = channel;
+    gRxParam.frequency = channel;
+    gRxParam.whiteChannel = channel;
+}
+
+static uint8_t rx_scan_next_channel(uint8_t channel)
+{
+    if(rfh_channel_valid(channel) == 0u)
+    {
+        return RFH_MIN_CHANNEL;
+    }
+    channel++;
+    if(channel > RFH_MAX_CHANNEL)
+    {
+        channel = RFH_MIN_CHANNEL;
+    }
+    return channel;
+}
+
+static uint8_t rx_scan_random_channel(void)
+{
+    uint32_t rnd = tmos_rand();
+    uint8_t span = (uint8_t)(RFH_MAX_CHANNEL - RFH_MIN_CHANNEL + 1u);
+
+    rnd ^= TMOS_GetSystemClock();
+    return (uint8_t)(RFH_MIN_CHANNEL + (uint8_t)(rnd % span));
+}
+
+static void rx_enter_state(rx_state_t next)
+{
+    if(g_state == next)
+    {
+        return;
+    }
+
+    g_state = next;
+    switch(next)
+    {
+    case RX_UNCONNECTED:
+        g_ack_pending = 0u;
+        g_ack_repeat_remaining = 0u;
+        g_ack_until_tmr = 0u;
+        g_pending_ack_cmd = RFH_CMD_NONE;
+        g_rx_since_ack = 0u;
+        g_scan_channel_a = RFH_MIN_CHANNEL;
+        g_scan_channel_b = RFH_MAX_CHANNEL;
+        rx_set_channel(rx_scan_random_channel());
+        rx_log_note_unconnected();
+        break;
+    case RX_COMM:
+        g_ack_success_next_state = RX_COMM;
+        g_pending_ack_cmd = RFH_CMD_NONE;
+        g_last_rx_packet_clock = TMOS_GetSystemClock();
+        break;
+    case RX_CONNECT_ACK_PENDING:
+        break;
+    case RX_HOP_RESERVED:
+        rx_log_note_hop_event();
+        break;
+    case RX_HOP_CONFIRM_ACK_PENDING:
+    default:
+        rx_log_note_hop_event();
+        break;
+    }
+}
+
+static void rx_toggle_seek_channel(void)
+{
+    if((g_state == RX_UNCONNECTED) ||
+       ((g_state == RX_CONNECT_ACK_PENDING) &&
+        (g_pending_ack_cmd == RFH_CMD_CONNECT_REQ)))
+    {
+        rx_set_channel(rx_scan_next_channel(g_rx_channel));
     }
     else
     {
-        rf_rx_update_countdown(packet[RF_HOP_ADV_OFFSET]);
+        if(g_rx_channel == g_scan_channel_a)
+        {
+            rx_set_channel(g_scan_channel_b);
+        }
+        else
+        {
+            rx_set_channel(g_scan_channel_a);
+        }
+    }
+    gStat.scan_switch++;
+}
+
+__HIGH_CODE
+static void rx_start_rx(void)
+{
+    if((g_basic_started == 0u) || (g_ack_tx_active != 0u))
+    {
+        return;
     }
 
-    if ((g_rx_pending_hop != 0u) && (g_rx_expected_seq == g_rx_pending_switch_seq))
+    gRxParam.frequency = g_rx_channel;
+    gRxParam.whiteChannel = g_rx_channel;
+    gRxParam.rxDMA = (uint32_t)RxBuf;
+    gRxParam.rxMaxLen = RFH_AIR_PACKET_LEN;
+    gRxParam.timeOut = (rx_is_seek_scanning_state() != 0u) ?
+                       RF_DUAL_RX_DWELL_US :
+                       RF_CONNECTED_RX_TIMEOUT_US;
+    gStat.rx_arm_try++;
+    g_low_rx_ret = (uint8_t)RFIP_SetRx(&gRxParam);
+    if(g_low_rx_ret != SUCCESS)
     {
-        rf_rx_set_channel(g_rx_pending_channel);
-        g_rx_pending_hop = 0u;
+        gStat.rx_arm_fail++;
+        rx_log_note_error();
     }
-    if ((g_rev_switch_pending != 0u) && (rf_seq_reached(g_rx_expected_seq, g_rev_switch_seq) != 0u))
+    else
     {
-        rf_rev_switch_commit();
+        gStat.rx_arm_ok++;
     }
+}
+
+static void rx_schedule_ack(uint8_t countdown_ticks)
+{
+    uint32_t now_tmr;
+    uint32_t delay_cycles;
+    uint32_t lead_cycles;
+    uint32_t window_cycles;
+    uint32_t post_guard_cycles;
+    uint32_t due_tmr;
+    uint32_t until_tmr;
+
+    if(countdown_ticks == RFH_ACK_COUNTDOWN_FAR)
+    {
+        return;
+    }
+    if(countdown_ticks > RF_ACK_SCHEDULE_TICKS)
+    {
+        return;
+    }
+
+    delay_cycles = (uint32_t)countdown_ticks * g_tick_per_evt;
+    window_cycles = (uint32_t)g_ack_window_packets * g_tick_per_evt;
+    post_guard_cycles = rx_us_to_tmr_cycles(RF_ACK_TX_POST_GUARD_US);
+    lead_cycles = rx_us_to_tmr_cycles(RF_ACK_TX_LEAD_US);
+    now_tmr = TMR0_GetCurrentTimer();
+    until_tmr = rx_tmr_add(now_tmr, delay_cycles + window_cycles + post_guard_cycles);
+    if(delay_cycles > lead_cycles)
+    {
+        delay_cycles -= lead_cycles;
+    }
+    else
+    {
+        delay_cycles = 0u;
+    }
+
+    due_tmr = rx_tmr_add(now_tmr, delay_cycles);
+    if((g_ack_pending == 0u) || (rx_tmr_before(due_tmr, g_ack_due_tmr) != 0u))
+    {
+        g_ack_due_tmr = due_tmr;
+        g_ack_until_tmr = until_tmr;
+        g_ack_channel = g_rx_channel;
+        g_ack_tx_channel = g_rx_channel;
+    }
+    g_ack_pending = 1u;
+}
+
+static void rx_prepare_command_ack(uint8_t cmd, rx_state_t next_state, uint8_t countdown_ticks)
+{
+    g_pending_ack_cmd = cmd;
+    g_ack_success_next_state = next_state;
+    rx_schedule_ack(countdown_ticks);
+    if((cmd == RFH_CMD_CONNECT_REQ) || (cmd == RFH_CMD_HOP_PREPARE))
+    {
+        rx_enter_state(RX_CONNECT_ACK_PENDING);
+    }
+    else if(cmd == RFH_CMD_HOP_CONFIRM)
+    {
+        rx_enter_state(RX_HOP_CONFIRM_ACK_PENDING);
+    }
+}
+
+static void rx_fill_ack_packet(void)
+{
+    uint8_t *air = &TxBuf[2];
+    uint8_t *data = &air[RFH_DATA_OFFSET];
+    uint16_t expected = rx_expected_packets_per_ack();
+    uint16_t loss_permille = rx_calc_loss_permille(g_rx_since_ack, expected);
+    uint8_t flags = RFH_FLAG_LINK_OK;
+
+    if(g_pending_ack_cmd != RFH_CMD_NONE)
+    {
+        flags |= RFH_FLAG_CMD_ACK;
+    }
+
+    TxBuf[0] = RFH_WCH_PREAMBLE;
+    TxBuf[1] = RFH_AIR_PACKET_LEN;
+    air[RFH_HDR0_OFFSET] = rfh_make_header0(RFH_PKT_ACK, g_rate_code, flags);
+    air[RFH_HDR1_OFFSET] = (loss_permille > 255u) ? 255u : (uint8_t)loss_permille;
+    rfh_put_u16(&data[RFH_ACK_LOSS_PERMILLE_LO], loss_permille);
+    rfh_put_u16(&data[RFH_ACK_RX_COUNT_LO], g_rx_since_ack);
+    rfh_put_u16(&data[RFH_ACK_EXPECTED_COUNT_LO], expected);
+    data[RFH_ACK_CMD_ID] = g_pending_ack_cmd;
+    data[RFH_ACK_FLAGS] = flags;
+    data[RFH_ACK_CHANNEL] = g_ack_channel;
+    data[RFH_ACK_STATUS] = (g_state == RX_UNCONNECTED) ?
+                           RFH_ACK_STATUS_SEEK :
+                           RFH_ACK_STATUS_CONNECTED;
+
+    g_last_ack_loss_permille = loss_permille;
+    g_last_ack_expected = expected;
+    g_last_ack_rx_count = g_rx_since_ack;
+    g_last_ack_cmd = g_pending_ack_cmd;
+}
+
+__HIGH_CODE
+static uint8_t rx_start_ack_tx_loaded(void)
+{
+    bStatus_t ret_start;
+    bStatus_t ret_parm;
+
+    if((g_basic_started == 0u) || (g_ack_tx_active != 0u))
+    {
+        return 0u;
+    }
+
+    gStat.tx_ack_try++;
+    ret_start = RFIP_SetTxStart();
+    g_low_tx_ret = (uint8_t)ret_start;
+    if(ret_start != SUCCESS)
+    {
+        gStat.tx_ack_start_fail++;
+        gStat.tx_ack_fail++;
+        rx_log_note_error();
+        return 0u;
+    }
+
+    ret_parm = RFIP_SetTxParm(&gTxParam);
+    if(ret_parm != SUCCESS)
+    {
+        gStat.tx_ack_parm_fail++;
+        gStat.tx_ack_fail++;
+        rx_log_note_error();
+        return 0u;
+    }
+    g_ack_tx_active = 1u;
     return 1u;
-#endif
 }
 
-static void rx_debug_log(const char *fmt, ...)
+static void rx_after_ack_done(uint8_t success)
 {
-    char msg[128];
-    va_list ap;
-    int len;
+    rx_state_t next_state = g_ack_success_next_state;
 
-    va_start(ap, fmt);
-    len = vsnprintf(msg, sizeof(msg), fmt, ap);
-    va_end(ap);
+    g_ack_tx_active = 0u;
+    g_ack_pending = 0u;
+    g_ack_repeat_remaining = 0u;
+    g_ack_until_tmr = 0u;
+    g_rx_since_ack = 0u;
+    g_pending_ack_cmd = RFH_CMD_NONE;
 
-    if (len <= 0)
+    if(success != 0u)
     {
-        return;
-    }
-    if (len >= (int)sizeof(msg))
-    {
-        len = (int)sizeof(msg) - 1;
-    }
-
-    PRINT("%s", msg);
-
-    if (USBHS_DevEnumStatus == 0)
-    {
-        return;
-    }
-    if ((USBHS_Endp_Busy[DEF_UEP5] & DEF_UEP_BUSY) != 0)
-    {
-        return;
-    }
-    (void)USBHS_Endp_DataUp(DEF_UEP5, (uint8_t *)msg, (uint16_t)len, DEF_UEP_CPY_LOAD);
-}
-
-__HIGH_CODE
-static void rf_tx_start(void)
-{
-    RFIP_SetTxStart();
-    gTxParam.txDMA = (uint32_t)TxBuf;
-    RFIP_SetTxParm(&gTxParam);
-}
-
-__HIGH_CODE
-static void rf_rx_start(void)
-{
-    if (g_rev_req_active != 0u)
-    {
-        return;
-    }
-#if (RF_USE_LOW_LEVEL_BASIC == 1)
-    RF_Shut();
-    g_low_rx_ret = RF_Rx(NULL, 0, 0xFF, 0xFF);
-#else
-    gRxParam.timeOut = (g_rx_scan_active != 0u) ? 2000u : RF_RX_TIMEOUT_HALF_US;
-    g_low_rx_ret = RFIP_SetRx(&gRxParam);
-#endif
-}
-
-__HIGH_CODE
-static void rf_fill_payload(void)
-{
-    uint8_t i;
-
-    g_rev_req_time = rf_now_us16();
-    TxBuf[0] = 0x55;
-    TxBuf[1] = RF_TEST_DATA_LEN;
-    TxBuf[2] = RF_REV_REQ_MARK;
-    TxBuf[2u + RF_REV_REQ_EPOCH_OFFSET] = g_rev_req_epoch;
-    TxBuf[2u + RF_REV_REQ_CHANNEL_OFFSET] = g_rev_req_next_channel;
-    TxBuf[2u + RF_REV_REQ_REASON_OFFSET] = g_rev_req_reason;
-    TxBuf[2u + RF_REV_REQ_TIME_LO_OFFSET] = (uint8_t)(g_rev_req_time & 0xFFu);
-    TxBuf[2u + RF_REV_REQ_TIME_HI_OFFSET] = (uint8_t)(g_rev_req_time >> 8);
-    TxBuf[8] = g_low_channel;
-    TxBuf[9] = g_rx_expected_seq;
-    for (i = 10u; i < (2u + RF_TEST_DATA_LEN); ++i)
-    {
-        TxBuf[i] = 0u;
-    }
-}
-
-static void rf_rev_req_tx_once(void)
-{
-    if ((g_basic_started == 0u) || (g_rev_req_remaining == 0u) || (g_rev_wait_ack != 0u))
-    {
-        g_rev_req_active = 0u;
-        rf_rx_start();
-        return;
-    }
-
-    g_rev_req_active = 1u;
-    rf_fill_payload();
-    gTxParam.frequency = g_low_channel;
-    gTxParam.whiteChannel = g_low_channel;
-    gTxParam.txDMA = (uint32_t)TxBuf;
-    gStat.rev_req_sent++;
-    rf_tx_start();
-}
-
-static void rf_rev_req_schedule_retry(void)
-{
-    g_rev_wait_ack = 0u;
-    if (g_rev_req_remaining != 0u)
-    {
-        g_rev_req_pending = 1u;
-        g_rev_req_next_clock = TMOS_GetSystemClock() + MS1_TO_SYSTEM_TIME(RF_REV_REQ_INTERVAL_MS);
+        if(next_state == RX_HOP_RESERVED)
+        {
+            rx_set_channel(g_old_channel);
+            rx_enter_state(RX_HOP_RESERVED);
+        }
+        else if(next_state == RX_COMM)
+        {
+            rx_set_channel(g_ack_channel);
+            rx_enter_state(RX_COMM);
+        }
     }
     else
     {
-        rf_hop_demote_channel(g_rev_req_next_channel);
-        rf_rx_start();
+        rx_log_note_error();
+        if((g_state == RX_CONNECT_ACK_PENDING) || (g_state == RX_HOP_CONFIRM_ACK_PENDING))
+        {
+            rx_enter_state(RX_UNCONNECTED);
+        }
     }
-}
 
-static void rf_rev_req_check_ack_timeout(void)
-{
-    if (g_rev_wait_ack == 0u)
-    {
-        return;
-    }
-    if ((int32_t)(TMOS_GetSystemClock() - g_rev_ack_deadline_clock) < 0)
-    {
-        return;
-    }
-    rf_rev_req_schedule_retry();
+    rx_start_rx();
 }
 
 __HIGH_CODE
-static uint32_t rf_tmr0_delta(uint32_t now, uint32_t prev)
+static void rx_send_ack(void)
 {
-    if (now >= prev)
+    if((g_basic_started == 0u) || (g_ack_tx_active != 0u))
     {
-        return now - prev;
-    }
-
-    return (TMR0_FREE_RUN_END + 1U - prev) + now;
-}
-
-#if (RF_USE_LOW_LEVEL_BASIC == 1)
-static void rf_low_status_cb(uint8_t sta, uint8_t crc, uint8_t *rxBuf)
-{
-    if (sta == RX_MODE_RX_DATA)
-    {
-        gStat.rx_total++;
-        if ((crc == 0u) && (rxBuf != NULL))
-        {
-            gStat.rx_ok++;
-        }
-        else
-        {
-            gStat.rx_fail++;
-        }
-        tmos_set_event(taskID, SBP_RF_RF_RX_EVT);
         return;
     }
 
-    if (sta == RX_MODE_TX_FINISH)
-    {
-        tmos_set_event(taskID, SBP_RF_RF_RX_EVT);
-        return;
-    }
+    rx_fill_ack_packet();
+    (void)RFRole_Stop();
+    gTxParam.frequency = g_ack_tx_channel;
+    gTxParam.whiteChannel = g_ack_tx_channel;
+    gTxParam.txDMA = (uint32_t)TxBuf;
+    g_ack_pending = 0u;
+    g_ack_repeat_remaining = (RF_ACK_TX_SAFETY_MAX > 0u) ?
+                             (RF_ACK_TX_SAFETY_MAX - 1u) :
+                             0u;
 
-    if ((sta == RX_MODE_TX_FAIL) || (sta == TX_MODE_TX_FAIL) || (sta == TX_MODE_RX_TIMEOUT))
+    if(rx_start_ack_tx_loaded() == 0u)
     {
-        gStat.rx_fail++;
-        tmos_set_event(taskID, SBP_RF_RF_RX_EVT);
-        return;
+        rx_after_ack_done(0u);
     }
 }
 
-static void rf_low_level_basic_start_rx(void)
+static uint8_t rx_handle_connect(const uint8_t *air)
 {
-    rfConfig_t cfg;
+    const uint8_t *data = &air[RFH_DATA_OFFSET];
 
-    tmos_memset(&cfg, 0, sizeof(cfg));
-    cfg.LLEMode = LLE_MODE_BASIC;
-    cfg.Channel = RF_TEST_FREQUENCY;
-    cfg.accessAddress = RF_LINK_ACCESS_ADDRESS;
-    cfg.CRCInit = RF_LINK_CRC_INIT;
-    cfg.rfStatusCB = rf_low_status_cb;
-    cfg.ChannelMap = 0xFFFFFFFFUL;
-    cfg.RxMaxlen = 251;
-    cfg.TxMaxlen = RF_TEST_DATA_LEN;
-#if (CLK_OSC32K != 0)
-    cfg.HeartPeriod = 4;
+    if(rfh_get_u32(&data[RFH_CONNECT_SESSION0]) != RFH_CONNECT_SESSION_ID)
+    {
+        gStat.rx_bad_connect++;
+        rx_log_note_error();
+        return 0u;
+    }
+    if(data[RFH_CONNECT_VERSION] != RFH_PROTOCOL_VERSION)
+    {
+        gStat.rx_bad_connect++;
+        rx_log_note_error();
+        return 0u;
+    }
+
+    g_scan_channel_a = data[RFH_CONNECT_CH_A];
+    g_scan_channel_b = data[RFH_CONNECT_CH_B];
+    if(rfh_channel_valid(g_scan_channel_a) == 0u)
+    {
+        g_scan_channel_a = RFH_DEFAULT_CHANNEL_A;
+    }
+    if(rfh_channel_valid(g_scan_channel_b) == 0u)
+    {
+        g_scan_channel_b = RFH_DEFAULT_CHANNEL_B;
+    }
+    if(g_scan_channel_b == g_scan_channel_a)
+    {
+        g_scan_channel_b = (g_scan_channel_a == RFH_DEFAULT_CHANNEL_A) ?
+                           RFH_DEFAULT_CHANNEL_B :
+                           RFH_DEFAULT_CHANNEL_A;
+    }
+    rx_apply_rate(data[RFH_CONNECT_RATE], data[RFH_CONNECT_ACK_WINDOW_MS]);
+    rx_note_packet_progress();
+    g_rx_since_ack = 0u;
+    g_last_rx_packet_clock = TMOS_GetSystemClock();
+    gStat.connect_rx++;
+    rx_prepare_command_ack(RFH_CMD_CONNECT_REQ, RX_COMM, air[RFH_HDR1_OFFSET]);
+#if (RF_CONNECT_PREFER_CHANNEL_A != 0u)
+    g_ack_channel = g_scan_channel_a;
 #endif
-
-    g_low_config_ret = RF_Config(&cfg);
-    RF_SetChannel(RF_TEST_FREQUENCY);
-    g_basic_started = (g_low_config_ret == SUCCESS) ? 1u : 0u;
-    rx_debug_log("[RX][BASIC] cfg:%u ch:%u len:%u\r\n",
-                 (unsigned int)g_low_config_ret,
-                 (unsigned int)g_low_channel,
-                 RF_TEST_DATA_LEN);
-    if (g_basic_started != 0u)
-    {
-        rf_rx_start();
-    }
+    return 1u;
 }
-#endif
 
-__HIGH_CODE
-void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
+static void rx_handle_hop_prepare(const uint8_t *air)
 {
-    (void)id;
+    const uint8_t *data = &air[RFH_DATA_OFFSET];
+    uint8_t channel = data[RFH_HOP_CMD_CHANNEL];
+    uint16_t delay_ms;
 
-    if (sta & RF_STATE_RX)
+    if(rfh_channel_valid(channel) == 0u)
     {
-        gStat.rx_total++;
-        if (rf_rx_validate_packet() != 0u)
-        {
-            gStat.rx_ok++;
-            if (g_rx_last_packet_was_ack == 0u)
-            {
-                g_ack_switch_lock_until_clock = 0u;
-            }
-        }
-        else
-        {
-            gStat.rx_fail++;
-            if (rf_ack_switch_lock_active() != 0u)
-            {
-                rf_rx_request_restart();
-                return;
-            }
-            rf_rx_advance_reacquire_channel();
-        }
-        rf_rx_request_restart();
+        rx_log_note_error();
+        return;
     }
-    if (sta & RF_STATE_RX_CRCERR)
+
+    delay_ms = rfh_get_u16(&data[RFH_HOP_CMD_DELAY_LO_MS]);
+    g_old_channel = g_rx_channel;
+    g_target_channel = channel;
+    g_hop_seq = data[RFH_HOP_CMD_SEQ];
+    g_hop_due_clock = TMOS_GetSystemClock() + MS1_TO_SYSTEM_TIME(delay_ms);
+    g_hop_confirm_deadline_clock = g_hop_due_clock +
+                                   MS1_TO_SYSTEM_TIME(RF_HOP_CONFIRM_ACK_TIMEOUT_MS);
+    gStat.hop_cmd_rx++;
+    rx_prepare_command_ack(RFH_CMD_HOP_PREPARE, RX_HOP_RESERVED, air[RFH_HDR1_OFFSET]);
+}
+
+static void rx_handle_hop_confirm(const uint8_t *air)
+{
+    const uint8_t *data = &air[RFH_DATA_OFFSET];
+    uint8_t channel = data[RFH_HOP_CMD_CHANNEL];
+    uint8_t seq = data[RFH_HOP_CMD_SEQ];
+
+    if((channel != g_rx_channel) || (channel != g_target_channel))
     {
-        gStat.rx_total++;
-        gStat.rx_fail++;
-        gStat.rx_crcerr++;
-        if (rf_ack_switch_lock_active() != 0u)
-        {
-            rf_rx_request_restart();
-            return;
-        }
-        rf_rx_advance_reacquire_channel();
-        rf_rx_request_restart();
+        rx_log_note_error();
+        return;
     }
-    if (sta & RF_STATE_TIMEOUT)
+    if(seq != g_hop_seq)
     {
-        if (g_rev_wait_ack != 0u)
-        {
-            rf_rev_req_schedule_retry();
-            return;
-        }
-        if (g_rev_req_active != 0u)
-        {
-            gStat.rev_req_fail++;
-            if (g_rev_req_remaining != 0u)
-            {
-                g_rev_req_remaining--;
-            }
-            g_rev_req_active = 0u;
-            rf_rx_start();
-            if (g_rev_req_remaining != 0u)
-            {
-                g_rev_req_pending = 1u;
-                g_rev_req_next_clock = TMOS_GetSystemClock() + MS1_TO_SYSTEM_TIME(RF_REV_REQ_INTERVAL_MS);
-            }
-            return;
-        }
-        gStat.rx_fail++;
-        gStat.rx_timeout++;
-        if (rf_ack_switch_lock_active() != 0u)
-        {
-            rf_rx_request_restart();
-            return;
-        }
-        rf_rx_advance_reacquire_channel();
-        rf_rx_request_restart();
+        rx_log_note_error();
+        return;
     }
-    if (sta & RF_STATE_TX_FINISH)
+
+    gStat.hop_cmd_rx++;
+    rx_prepare_command_ack(RFH_CMD_HOP_CONFIRM, RX_COMM, air[RFH_HDR1_OFFSET]);
+}
+
+static void rx_handle_command(const uint8_t *air)
+{
+    const uint8_t *data = &air[RFH_DATA_OFFSET];
+    uint8_t flags = rfh_flags(air[RFH_HDR0_OFFSET]);
+
+    if((flags & RFH_FLAG_CMD_PRESENT) == 0u)
     {
-        if (g_rev_req_active != 0u)
-        {
-            gStat.rev_req_ok++;
-            if (g_rev_req_remaining != 0u)
-            {
-                g_rev_req_remaining--;
-            }
-            g_rev_req_active = 0u;
-            g_rev_wait_ack = 1u;
-            g_rev_ack_deadline_clock = TMOS_GetSystemClock() + MS1_TO_SYSTEM_TIME(RF_REV_ACK_TIMEOUT_MS);
-            rf_rx_start();
-        }
+        return;
+    }
+
+    switch(data[RFH_CMD_SLOT_ID])
+    {
+    case RFH_CMD_HOP_PREPARE:
+        rx_handle_hop_prepare(air);
+        break;
+    case RFH_CMD_HOP_CONFIRM:
+        rx_handle_hop_confirm(air);
+        break;
+    case RFH_CMD_HOP_CANCEL:
+        rx_enter_state(RX_COMM);
+        break;
+    default:
+        rx_log_note_error();
+        break;
     }
 }
 
-void RF_Service(void)
+static uint8_t rx_handle_data(const uint8_t *air)
 {
-    uint32_t delay_ticks;
+    if(g_state == RX_UNCONNECTED)
+    {
+        if((rfh_flags(air[RFH_HDR0_OFFSET]) & RFH_FLAG_LINK_OK) == 0u)
+        {
+            gStat.rx_ignored_data++;
+            return 0u;
+        }
+
+        rx_log_note_data_resync();
+        rx_enter_state(RX_COMM);
+    }
+
+    rx_apply_rate(rfh_rate_code(air[RFH_HDR0_OFFSET]), g_ack_window_ms);
+    rx_note_packet_progress();
+    g_last_rx_packet_clock = TMOS_GetSystemClock();
+    if(g_rx_since_ack < 0xFFFFu)
+    {
+        g_rx_since_ack++;
+    }
+    gStat.data_rx++;
+    g_log_rx_ok++;
+    rx_handle_command(air);
+    rx_schedule_ack(air[RFH_HDR1_OFFSET]);
+    return 1u;
+}
+
+static uint8_t rx_process_air_packet(const uint8_t *rx_buf)
+{
+    const uint8_t *air = &rx_buf[2];
+    uint8_t type;
+
+    if(rx_buf[1] != RFH_AIR_PACKET_LEN)
+    {
+        gStat.rx_bad_len++;
+        rx_log_note_error();
+        return 0u;
+    }
+
+    type = rfh_packet_type(air[RFH_HDR0_OFFSET]);
+    switch(type)
+    {
+    case RFH_PKT_CONNECT:
+        return rx_handle_connect(air);
+    case RFH_PKT_DATA:
+        return rx_handle_data(air);
+    default:
+        gStat.rx_bad_type++;
+        rx_log_note_error();
+        return 0u;
+    }
+}
+
+static void rx_service_timers(uint8_t check_idle_timeout)
+{
     uint32_t now_clock = TMOS_GetSystemClock();
+#if (RF_RX_LINK_IDLE_TIMEOUT_MS > 0u)
+    uint32_t progress_count;
+#endif
 
-    rf_rev_req_check_ack_timeout();
-    rf_rev_switch_check_fallback();
-
-    if ((g_rev_req_pending != 0u) &&
-        (g_rev_req_active == 0u) &&
-        (g_rev_wait_ack == 0u) &&
-        (g_rev_req_remaining != 0u) &&
-        ((int32_t)(now_clock - g_rev_req_next_clock) >= 0))
+    if((g_ack_pending != 0u) &&
+       (g_ack_tx_active == 0u) &&
+       (rx_tmr_reached(TMR0_GetCurrentTimer(), g_ack_due_tmr) != 0u))
     {
-        g_rev_req_pending = 0u;
-        rf_rev_req_tx_once();
-    }
-
-    if (g_rx_restart_pending == 0u)
-    {
+        rx_send_ack();
         return;
     }
 
-    delay_ticks = rf_tmr0_delta(TMR0_GetCurrentTimer(), g_rx_restart_mark_tmr);
-    g_rx_restart_delay_sum += delay_ticks;
-    if (delay_ticks > g_rx_restart_delay_max)
+#if (RF_RX_LINK_IDLE_TIMEOUT_MS > 0u)
+    if(check_idle_timeout != 0u)
     {
-        g_rx_restart_delay_max = delay_ticks;
-    }
-    g_rx_restart_delay_cnt++;
-
-    g_rx_restart_pending = 0u;
-    rf_rx_start();
-}
-
-uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
-{
-    if (events & SYS_EVENT_MSG)
-    {
-        uint8_t *pMsg;
-
-        if ((pMsg = tmos_msg_receive(task_id)) != NULL)
+        progress_count = g_rx_progress_count;
+        if((g_rx_progress_clock == 0u) ||
+           (progress_count != g_rx_progress_seen_count))
         {
-            tmos_msg_deallocate(pMsg);
+            g_rx_progress_seen_count = progress_count;
+            g_rx_progress_clock = now_clock;
         }
-        return (events ^ SYS_EVENT_MSG);
-    }
 
-    if (events & SBP_RF_STAT_EVT)
+        if((g_state != RX_UNCONNECTED) &&
+           (g_ack_tx_active == 0u) &&
+           (rx_time_reached(now_clock,
+                            g_rx_progress_clock +
+                            MS1_TO_SYSTEM_TIME(RF_RX_LINK_IDLE_TIMEOUT_MS)) != 0u))
+        {
+            rx_log_note_app_timeout();
+            rx_enter_state(RX_UNCONNECTED);
+            (void)RFRole_Stop();
+            rx_start_rx();
+            return;
+        }
+    }
+#endif
+
+    if((g_state == RX_HOP_RESERVED) &&
+       (rx_time_reached(now_clock, g_hop_due_clock) != 0u) &&
+       (g_rx_channel != g_target_channel))
     {
-        /* 旧的内部窗口统计会清零 gStat，和 RF_GetStatsLine() 的 [R5] 统计相互干扰。 */
-        return events ^ SBP_RF_STAT_EVT;
+        rx_set_channel(g_target_channel);
+        gStat.hop_done++;
+        rx_log_note_hop_event();
+        (void)RFRole_Stop();
+        rx_start_rx();
+        return;
     }
 
-    if (events & SBP_RF_RF_RX_EVT)
+    if((g_state == RX_HOP_RESERVED) &&
+       (g_rx_channel == g_target_channel) &&
+       (rx_time_reached(now_clock, g_hop_confirm_deadline_clock) != 0u))
     {
-        rf_rx_start();
-        return events ^ SBP_RF_RF_RX_EVT;
+        rx_enter_state(RX_UNCONNECTED);
+        (void)RFRole_Stop();
+        rx_start_rx();
+        return;
     }
-
-    return 0;
 }
 
-uint16_t RF_GetStatsLine(char *buf, uint16_t len)
+static void rx_basic_start(void)
 {
-    uint32_t dt_ms;
-    uint32_t ok_win;
-    uint32_t gap_win;
-    uint32_t crcerr_win;
-    uint32_t timeout_win;
-    uint32_t ack_win;
-    uint32_t ack_switch_win;
-    uint32_t rx_hz;
-    uint32_t rev_req_burst;
-    int n;
-
-    if ((buf == NULL) || (len == 0u))
-    {
-        return 0;
-    }
-
-    dt_ms = RF_STAT_PRINT_PERIOD_MS;
-    ok_win = gStat.rx_ok;
-    gap_win = gStat.rx_seq_gap;
-    crcerr_win = gStat.rx_crcerr;
-    timeout_win = gStat.rx_timeout;
-    ack_win = gStat.rev_ack_rx;
-    ack_switch_win = gStat.rev_ack_switch;
-    rev_req_burst = gStat.rev_req_burst;
-
-    rx_hz = (uint32_t)(((uint64_t)ok_win * 1000u) / dt_ms);
-    rf_rx_quality_window_update(rx_hz, gap_win);
-    g_rx_restart_delay_sum = 0u;
-    g_rx_restart_delay_max = 0u;
-    g_rx_restart_delay_cnt = 0u;
-    n = snprintf(buf, len,
-                 "[R5]h%lu o%lu g%lu c%lu t%lu ch%u sw%lu tr%u rq%lu ak%lu/%luu\r\n",
-                 rx_hz,
-                 ok_win,
-                 gap_win,
-                 crcerr_win,
-                 timeout_win,
-                 (unsigned int)g_low_channel,
-                 ack_switch_win,
-                 (unsigned int)g_rev_last_trigger_reason,
-                 rev_req_burst,
-                 ack_win,
-                 gStat.rev_ack_latency_us);
-
-    gStat.rx_total = 0;
-    gStat.rx_ok = 0;
-    gStat.rx_fail = 0;
-    gStat.rx_crcerr = 0;
-    gStat.rx_timeout = 0;
-    gStat.rx_bad_magic = 0;
-    gStat.rx_bad_session = 0;
-    gStat.rx_bad_crc = 0;
-    gStat.rx_seq_gap = 0;
-    gStat.rx_dup = 0;
-    gStat.rx_reacquire = 0;
-    gStat.hop_done = 0;
-    gStat.rev_req_sent = 0;
-    gStat.rev_req_ok = 0;
-    gStat.rev_req_fail = 0;
-    gStat.rev_req_burst = 0;
-    gStat.rev_sync_seen = 0;
-    gStat.rev_quality_trigger = 0;
-    gStat.rev_ack_rx = 0;
-    gStat.rev_ack_switch = 0;
-
-    if (n <= 0)
-    {
-        return 0;
-    }
-    if (n >= (int)len)
-    {
-        return (uint16_t)(len - 1u);
-    }
-    return (uint16_t)n;
-}
-
-void RF_Init(void)
-{
-    g_ret_role_init = RF_RoleInit();
-    taskID = TMOS_ProcessEventRegister(RF_ProcessEvent);
-    g_task_id_dbg = taskID;
-    TMR0_TimerInit(TMR0_FREE_RUN_END);
-
-    PFIC_EnableIRQ(BLEB_IRQn);
-    PFIC_EnableIRQ(BLEL_IRQn);
-
-    g_last_stat_clock = TMOS_GetSystemClock();
-    g_rx_scan_active = 0u;
-    g_rx_pending_hop = 0u;
-    g_rx_pending_epoch = 0u;
-    g_rx_pending_channel = RF_TEST_FREQUENCY;
-    g_rx_pending_switch_seq = 0u;
-    g_rev_req_active = 0u;
-    g_rev_req_remaining = 0u;
-    g_rev_req_epoch = 0u;
-    g_rev_req_next_channel = RF_TEST_FREQUENCY;
-    g_rev_req_reason = RF_REV_TRIGGER_PERIODIC;
-    g_rev_last_trigger_reason = RF_REV_TRIGGER_PERIODIC;
-    g_rev_req_pending = 0u;
-    g_rev_wait_ack = 0u;
-    g_rev_switch_pending = 0u;
-    g_rev_switch_channel = RF_TEST_FREQUENCY;
-    g_rev_switch_seq = 0u;
-    g_rev_switch_epoch = 0u;
-    g_rev_req_next_clock = 0u;
-    g_rev_ack_deadline_clock = 0u;
-    g_rev_switch_deadline_clock = 0u;
-    g_rx_rev_countdown = RF_REV_COUNTDOWN_FAR;
-    g_rx_rev_countdown_armed = 1u;
-    g_ack_switch_lock_until_clock = 0u;
-    g_rx_last_packet_was_ack = 0u;
-    g_quality_bad_windows = 0u;
-    g_quality_request_pending = 0u;
-    g_quality_last_trigger_clock = TMOS_GetSystemClock();
-
-#if (RF_USE_LOW_LEVEL_BASIC == 1)
-    rf_low_level_basic_start_rx();
-#else
     rfRoleConfig_t conf = {0};
     bStatus_t ret;
 
     conf.TxPower = BLE_TX_POWER;
     conf.rfProcessCB = RF_ProcessCallBack;
-    conf.processMask = RF_STATE_RX | RF_STATE_RX_CRCERR | RF_STATE_TX_FINISH | RF_STATE_TIMEOUT;
+    conf.processMask = RF_STATE_RX | RF_STATE_RX_CRCERR |
+                       RF_STATE_TX_FINISH | RF_STATE_TIMEOUT;
     ret = RFRole_BasicInit(&conf);
     g_low_config_ret = (uint8_t)ret;
-    if (ret != SUCCESS)
+    if(ret != SUCCESS)
     {
         return;
     }
@@ -1211,35 +946,338 @@ void RF_Init(void)
     gTxParam.accessAddress = gParm.accessAddress;
     gTxParam.crcInit = gParm.crcInit;
     gTxParam.properties = gParm.properties;
-    gTxParam.frequency = RF_TEST_FREQUENCY;
-    gTxParam.whiteChannel = RF_TEST_FREQUENCY;
+    gTxParam.frequency = g_rx_channel;
+    gTxParam.whiteChannel = g_rx_channel;
     gTxParam.sendTime = (uint8_t)gParm.sendTime;
-    gTxParam.sendCount = 1;
+    gTxParam.sendCount = 1u;
     gTxParam.txDMA = (uint32_t)TxBuf;
 
     gRxParam.accessAddress = gParm.accessAddress;
     gRxParam.crcInit = gParm.crcInit;
     gRxParam.properties = gParm.properties;
-    gRxParam.frequency = RF_TEST_FREQUENCY;
-    gRxParam.whiteChannel = RF_TEST_FREQUENCY;
+    gRxParam.frequency = g_rx_channel;
+    gRxParam.whiteChannel = g_rx_channel;
     gRxParam.rxDMA = (uint32_t)RxBuf;
-    gRxParam.rxMaxLen = RF_TEST_DATA_LEN;
-    gRxParam.timeOut = RF_RX_TIMEOUT_HALF_US;
+    gRxParam.rxMaxLen = RFH_AIR_PACKET_LEN;
+    gRxParam.timeOut = RF_DUAL_RX_DWELL_US;
 
-    rf_rx_tune_for_expected_seq();
-#if (RF_TEST_ENABLE_RF_RX == 1)
-    rf_rx_start();
     g_basic_started = 1u;
-#else
-    g_low_rx_ret = 0xFEu;
-    g_basic_started = 0u;
-#endif
-    rx_debug_log("[RX][RFIP] cfg:%u ch:%u rxret:%u rxen:%u\r\n",
-                 (unsigned int)g_low_config_ret,
-                 (unsigned int)g_low_channel,
-                 (unsigned int)g_low_rx_ret,
-                 RF_TEST_ENABLE_RF_RX);
-#endif
+    rx_start_rx();
+    PRINT("[RX][RFH] cfg:%u scan:%u-%u rate:%u ack:%uus len:%u\r\n",
+          (unsigned int)g_low_config_ret,
+          RFH_MIN_CHANNEL,
+          RFH_MAX_CHANNEL,
+          (unsigned int)g_report_hz,
+          (unsigned int)RF_ACK_WINDOW_US,
+          RFH_AIR_PACKET_LEN);
+}
+
+__HIGH_CODE
+void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
+{
+    uint8_t rx_snapshot[RFH_AIR_PACKET_LEN + 2u];
+    uint8_t i;
+
+    (void)id;
+
+    if(sta & RF_STATE_RX)
+    {
+        for(i = 0u; i < (uint8_t)sizeof(rx_snapshot); i++)
+        {
+            rx_snapshot[i] = RxBuf[i];
+        }
+
+        if(g_ack_tx_active == 0u)
+        {
+            rx_start_rx();
+        }
+
+        if(rx_process_air_packet(rx_snapshot) != 0u)
+        {
+            gStat.rx_ok++;
+        }
+        rx_service_timers(0u);
+    }
+    if(sta & RF_STATE_RX_CRCERR)
+    {
+        gStat.rx_crcerr++;
+        rx_log_note_error();
+        if(rx_is_seek_scanning_state() != 0u)
+        {
+            rx_toggle_seek_channel();
+        }
+        rx_start_rx();
+    }
+    if(sta & RF_STATE_TIMEOUT)
+    {
+        gStat.rx_timeout++;
+        if(rx_is_seek_scanning_state() != 0u)
+        {
+            rx_toggle_seek_channel();
+        }
+        rx_start_rx();
+    }
+    if(sta & RF_STATE_TX_FINISH)
+    {
+        if(g_ack_tx_active != 0u)
+        {
+            gStat.tx_ack_ok++;
+            g_log_ack_ok++;
+            g_ack_tx_active = 0u;
+            if((g_ack_repeat_remaining != 0u) &&
+               (rx_tmr_reached(TMR0_GetCurrentTimer(), g_ack_until_tmr) == 0u))
+            {
+                g_ack_repeat_remaining--;
+                if(rx_start_ack_tx_loaded() != 0u)
+                {
+                    return;
+                }
+            }
+            rx_after_ack_done(1u);
+        }
+    }
+}
+
+void RF_Service(void)
+{
+    if(g_basic_started == 0u)
+    {
+        return;
+    }
+    rx_service_timers(1u);
+}
+
+uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
+{
+    if(events & SYS_EVENT_MSG)
+    {
+        uint8_t *pMsg;
+
+        if((pMsg = tmos_msg_receive(task_id)) != NULL)
+        {
+            tmos_msg_deallocate(pMsg);
+        }
+        return (events ^ SYS_EVENT_MSG);
+    }
+
+    if(events & SBP_RF_STAT_EVT)
+    {
+        return (events ^ SBP_RF_STAT_EVT);
+    }
+
+    if(events & SBP_RF_RF_RX_EVT)
+    {
+        rx_start_rx();
+        return (events ^ SBP_RF_RF_RX_EVT);
+    }
+
+    return 0u;
+}
+
+void RF_StartPacketLossScan(void)
+{
+    g_rx_since_ack = 0u;
+}
+
+void RF_StartQualityScoreScan(void)
+{
+}
+
+uint8_t RF_IsQualityScoreScanActive(void)
+{
+    return 0u;
+}
+
+uint8_t RF_HasPendingStatsLine(void)
+{
+    return g_diag_pending;
+}
+
+uint16_t RF_GetStatsLine(char *buf, uint16_t len)
+{
+    int n;
+    uint32_t now_clock;
+    uint32_t elapsed_ms;
+    uint32_t expected;
+    uint16_t loss;
+    uint32_t ack_ok = (g_log_ack_ok > 99u) ? 99u : g_log_ack_ok;
+
+    if((buf == NULL) || (len == 0u))
+    {
+        return 0u;
+    }
+    if(g_diag_pending != 0u)
+    {
+        g_diag_pending = 0u;
+        n = snprintf(buf, len,
+                     "RD A=%lu/%lu P=%lu/%lu/%lu B=%lu/%lu/%lu/%lu K=%lu/%lu U=%u/%u\r\n",
+                     (unsigned long)g_diag_rx_arm_try,
+                     (unsigned long)g_diag_rx_arm_fail,
+                     (unsigned long)g_diag_rx_ok,
+                     (unsigned long)g_diag_rx_crcerr,
+                     (unsigned long)g_diag_rx_timeout,
+                     (unsigned long)g_diag_rx_bad_len,
+                     (unsigned long)g_diag_rx_bad_type,
+                     (unsigned long)g_diag_rx_bad_connect,
+                     (unsigned long)g_diag_rx_ignored_data,
+                     (unsigned long)g_diag_tx_ack_try,
+                     (unsigned long)g_diag_tx_ack_fail,
+                     (unsigned int)g_diag_app_timeout_events,
+                     (unsigned int)g_diag_data_resync_events);
+        if(n <= 0)
+        {
+            return 0u;
+        }
+        if(n >= (int)len)
+        {
+            return (uint16_t)(len - 1u);
+        }
+        return (uint16_t)n;
+    }
+
+    now_clock = TMOS_GetSystemClock();
+    elapsed_ms = rx_log_elapsed_ms(now_clock);
+    expected = rx_expected_packets_for_elapsed_ms(elapsed_ms);
+    loss = rx_calc_loss_permille(g_log_rx_ok, expected);
+
+    if(rx_is_seek_scanning_state() != 0u)
+    {
+        loss = 1000u;
+    }
+
+    if(rx_is_seek_scanning_state() != 0u)
+    {
+        n = snprintf(buf, len,
+                     "R5 S=%s C=%u/%u L=%03u P=%lu/%lu A=%lu U=%u E=%u\r\n",
+                     rx_state_code(),
+                     (unsigned int)g_scan_channel_a,
+                     (unsigned int)g_scan_channel_b,
+                     (unsigned int)loss,
+                     g_log_rx_ok,
+                     expected,
+                     ack_ok,
+                     (unsigned int)g_log_unconnected_events,
+                     (unsigned int)g_log_errors);
+    }
+    else if((g_state == RX_HOP_RESERVED) || (g_state == RX_HOP_CONFIRM_ACK_PENDING))
+    {
+        n = snprintf(buf, len,
+                     "R5 S=%s C=%u>%u L=%03u P=%lu/%lu A=%lu U=%u E=%u\r\n",
+                     rx_state_code(),
+                     (unsigned int)g_old_channel,
+                     (unsigned int)g_target_channel,
+                     (unsigned int)loss,
+                     g_log_rx_ok,
+                     expected,
+                     ack_ok,
+                     (unsigned int)g_log_unconnected_events,
+                     (unsigned int)g_log_errors);
+    }
+    else
+    {
+        n = snprintf(buf, len,
+                     "R5 S=%s C=%u L=%03u P=%lu/%lu A=%lu U=%u E=%u\r\n",
+                     rx_state_code(),
+                     (unsigned int)g_rx_channel,
+                     (unsigned int)loss,
+                     g_log_rx_ok,
+                     expected,
+                     ack_ok,
+                     (unsigned int)g_log_unconnected_events,
+                     (unsigned int)g_log_errors);
+    }
+
+    g_diag_rx_arm_try = gStat.rx_arm_try;
+    g_diag_rx_arm_ok = gStat.rx_arm_ok;
+    g_diag_rx_arm_fail = gStat.rx_arm_fail;
+    g_diag_rx_ok = gStat.rx_ok;
+    g_diag_rx_crcerr = gStat.rx_crcerr;
+    g_diag_rx_timeout = gStat.rx_timeout;
+    g_diag_rx_bad_len = gStat.rx_bad_len;
+    g_diag_rx_bad_type = gStat.rx_bad_type;
+    g_diag_rx_bad_connect = gStat.rx_bad_connect;
+    g_diag_rx_ignored_data = gStat.rx_ignored_data;
+    g_diag_tx_ack_try = gStat.tx_ack_try;
+    g_diag_tx_ack_fail = gStat.tx_ack_fail;
+    g_diag_app_timeout_events = g_log_app_timeout_events;
+    g_diag_data_resync_events = g_log_data_resync_events;
+    g_diag_pending = 1u;
+
+    gStat.rx_ok = 0u;
+    gStat.rx_bad_len = 0u;
+    gStat.rx_bad_type = 0u;
+    gStat.rx_bad_connect = 0u;
+    gStat.rx_ignored_data = 0u;
+    gStat.rx_crcerr = 0u;
+    gStat.rx_timeout = 0u;
+    gStat.rx_arm_try = 0u;
+    gStat.rx_arm_ok = 0u;
+    gStat.rx_arm_fail = 0u;
+    gStat.tx_ack_try = 0u;
+    gStat.tx_ack_start_fail = 0u;
+    gStat.tx_ack_parm_fail = 0u;
+    gStat.tx_ack_ok = 0u;
+    gStat.tx_ack_fail = 0u;
+    gStat.connect_rx = 0u;
+    gStat.data_rx = 0u;
+    gStat.scan_switch = 0u;
+    gStat.hop_cmd_rx = 0u;
+    gStat.hop_done = 0u;
+    g_log_rx_ok = 0u;
+    g_log_ack_ok = 0u;
+    g_log_hop_events = 0u;
+    g_log_unconnected_events = 0u;
+    g_log_errors = 0u;
+    g_log_app_timeout_events = 0u;
+    g_log_data_resync_events = 0u;
+    g_log_last_clock = now_clock;
+
+    if(n <= 0)
+    {
+        return 0u;
+    }
+    if(n >= (int)len)
+    {
+        return (uint16_t)(len - 1u);
+    }
+    return (uint16_t)n;
+}
+
+void RF_Init(void)
+{
+    g_ret_role_init = RF_RoleInit();
+    taskID = TMOS_ProcessEventRegister(RF_ProcessEvent);
+    TMR0_TimerInit(TMR0_FREE_RUN_END);
+
+    PFIC_EnableIRQ(BLEB_IRQn);
+    PFIC_EnableIRQ(BLEL_IRQn);
+
+    (void)g_ret_role_init;
+    memset(TxBuf, 0, sizeof(TxBuf));
+    memset(RxBuf, 0, sizeof(RxBuf));
+    rx_apply_rate(rfh_rate_code_from_hz(RF_REPORT_PPS), RFH_DEFAULT_ACK_WINDOW_MS);
+    g_rx_channel = RFH_MIN_CHANNEL;
+    g_scan_channel_a = RFH_MIN_CHANNEL;
+    g_scan_channel_b = RFH_MAX_CHANNEL;
+    g_ack_channel = RFH_MIN_CHANNEL;
+    g_ack_tx_channel = RFH_MIN_CHANNEL;
+    g_old_channel = RFH_MIN_CHANNEL;
+    g_target_channel = RFH_MIN_CHANNEL;
+    g_ack_tx_active = 0u;
+    g_ack_pending = 0u;
+    g_ack_repeat_remaining = 0u;
+    g_ack_due_tmr = 0u;
+    g_ack_until_tmr = 0u;
+    g_rx_since_ack = 0u;
+    g_pending_ack_cmd = RFH_CMD_NONE;
+    g_rx_progress_count = 0u;
+    g_rx_progress_seen_count = 0u;
+    g_state = RX_COMM;
+    rx_enter_state(RX_UNCONNECTED);
+    g_last_rx_packet_clock = TMOS_GetSystemClock();
+    g_rx_progress_clock = g_last_rx_packet_clock;
+    g_log_last_clock = g_last_rx_packet_clock;
+    rx_basic_start();
 }
 
 /******************************** endfile @ RF_PHY ******************************/

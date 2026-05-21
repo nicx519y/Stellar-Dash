@@ -1,0 +1,827 @@
+# RF PHY Hop 8K Wireless 设计文档
+
+> 当前目标：暂停开机信道排序机制，先把 8K 2.4G 链路收敛为“TX 主导、每秒 ACK 窗口、显式状态机、可预约跳频”的通信模型。
+
+## 1. 需求 Diff
+
+### 1.1 原始需求
+
+- TX -> RX 单向高速数据发送。
+- 每秒打开一个 ACK 窗口，RX 在窗口内回传丢包率和命令应答。
+- 空口包固定 12 byte：前 2 byte 为包头，后 10 byte 为数据载体。
+- 包类型包括连接请求包、正向数据包、ACK 包。
+- 支持 1K / 2K / 4K / 8K 上报率，默认 8K。
+- 支持双频道冗余模式，避免 TX/RX 卡死在坏频道。
+
+### 1.2 新增需求
+
+- TX 和 RX 都要显式实现状态机。
+- 状态至少包含：
+  - 未连接状态
+  - 通信状态
+  - 预约跳频状态
+- TX 在通信状态中，如果超过一定 ACK 周期没有收到有效 ACK，则回到未连接状态。
+- RX 在通信状态中，如果超过一定时间没有收到 TX 正向包，则回到未连接状态。
+- 未连接状态下，TX 通过双频道冗余模式发送连接请求包，RX 通过双频道冗余模式扫描频道。
+- TX 只有收到“连接请求命令”的 ACK 后，才能从未连接状态进入通信状态。
+- 预约跳频必须是命令确认流程：
+  - TX 因丢包率超过阈值发起预约跳频命令。
+  - RX 识别预约跳频命令后，ACK 中必须携带该命令号。
+  - TX 收到该命令 ACK 后，才进入预约跳频状态。
+  - 到达预约时间后，TX/RX 切到新频道。
+  - 新频道上 TX 携带跳频确认命令，RX ACK 该命令后，双方回到通信状态。
+
+### 1.3 当前代码实现状态
+
+已实现：
+
+- 共享 12B 空口协议定义：`Common/include/rf_hop_protocol.h`
+- TX 定时发送模型：`TMR0_IRQHandler()` 按 1K/2K/4K/8K 节拍驱动。
+- TX 每秒最后 ACK 窗口切 RX。
+- TX 未连接时双频道 A/B 冗余发送连接请求包。
+- RX 未连接时双频道 A/B 扫描。
+- RX ACK 包携带丢包率、接收数量、期望数量、命令号字段。
+- RX 已能解析 HOP 命令字段并预约本地切频道。
+
+待补实现：
+
+- 连接请求 ACK 必须携带连接命令号，TX 必须校验该命令号。
+- TX ACK 缺失计数与回退未连接状态。
+- RX 正向包超时计数与回退未连接状态。
+- TX 根据 ACK 丢包率阈值选择新频道并发起预约跳频命令。
+- 预约跳频的完整两阶段命令：
+  - `HOP_PREPARE`
+  - `HOP_CONFIRM`
+- 预约跳频失败时的恢复策略。
+- 双频道冗余频道从固定 A/B 扩展为可携带 old/new 或 ca/cb。
+
+## 2. 术语
+
+| 名称 | 说明 |
+|---|---|
+| TX | 发送端，接收 STM32/SPI 输入并通过 2.4G 发给 RX |
+| RX | 接收端 / dongle，接收 RF 数据并通过 USB 上报 PC |
+| ACK 窗口 | 每秒最后 `RF_ACK_WINDOW_MS`，TX 暂停正向发送并切到 RX，RX 在该窗口内发 ACK |
+| ACK 周期 | 两个 ACK 窗口之间的 1 秒统计窗口 |
+| 正向包 | TX -> RX 的连接请求包或输入数据包 |
+| ACK 包 | RX -> TX 的反向包，只在 ACK 窗口发送 |
+| 双频道冗余 | TX/RX 使用两个频道 ca/cb，以 2ms 为周期进行冗余发送/监听 |
+| 预约跳频 | TX 提前通知 RX 在未来某个时间切换到新频道 |
+
+## 3. 可配置参数
+
+| 宏 | 默认值 | 说明 |
+|---|---:|---|
+| `RF_REPORT_PPS` | `8000` | 正向发送频率，可为 1000/2000/4000/8000 |
+| `RF_ACK_WINDOW_MS` | `1` | 每秒末尾 ACK 窗口长度 |
+| `RF_ACK_MISS_LIMIT` | 建议 `3` | TX 连续多少个 ACK 周期无有效 ACK 后回未连接 |
+| `RF_RX_PACKET_TIMEOUT_MS` | `100` | RX 通信状态多久未收到正向包后回未连接 |
+| `RF_HOP_LOSS_THRESHOLD_PERMILLE` | 建议 `30` | ACK 丢包率超过该值触发跳频，单位千分比 |
+| `RF_HOP_COOLDOWN_MS` | `10000` | 每次进入通信状态后的跳频冷却时间，冷却期内不发起新的跳频 |
+| `RF_HOP_PREPARE_ADVANCE_MS` | `1000` | 跳频命令提前多久发出 |
+| `RF_HOP_PREPARE_ACK_TIMEOUT_MS` | `1000` | TX 等待 `HOP_PREPARE` ACK 的最长时间 |
+| `RF_HOP_CONFIRM_ACK_TIMEOUT_MS` | `1000` | TX 等待 `HOP_CONFIRM` ACK 的最长时间 |
+| `RF_DUAL_PERIOD_MS` | `2` | 双频道冗余周期 |
+| `RF_ACK_TX_SAFETY_MAX` | `64` | RX 在 ACK 窗口内连续发送 ACK 的安全上限；正常以窗口结束时间停止 |
+| `RF_ACK_RX_TIMEOUT_US` | `0` | TX ACK RX 由 8K timer 控制窗口结束，RFIP RX timeout 关闭 |
+| `RF_ACK_RX_PRE_GUARD_MS` | `2` | TX 在 ACK 预约窗口前提前进入 RX 的保护时间 |
+| `RF_ACK_RX_POST_GUARD_MS` | `2` | TX 在 ACK 预约窗口后继续保持 RX 的保护时间 |
+| `RF_CONNECTED_RX_TIMEOUT_US` | `0` | RX 通信态 RFIP 接收不设硬 timeout，由链路超时状态机判断断开 |
+
+## 4. 空口包体设计
+
+WCH RFIP DMA buffer 仍保留本地前缀：
+
+| Buffer byte | 含义 |
+|---:|---|
+| `0` | WCH 示例前缀，当前为 `0x55` |
+| `1` | 空口 payload 长度，固定 `12` |
+| `2..13` | RFH 空口包，固定 `12 byte` |
+
+本文档的“空口包”均指 `buffer[2..13]` 的 12 byte。
+
+### 4.1 通用格式
+
+| Byte | 名称 | 说明 |
+|---:|---|---|
+| `0` | `hdr0` | 包类型、速率、标志位 |
+| `1` | `hdr1` | 类型相关字段，正向包中用于 ACK 倒计时 |
+| `2..11` | `payload[10]` | 类型相关载荷 |
+
+### 4.2 `hdr0` 位定义
+
+| Bits | 名称 | 说明 |
+|---:|---|---|
+| `7..6` | `type` | 包类型 |
+| `5..4` | `rate` | 速率编码 |
+| `3..0` | `flags` | 标志位 |
+
+#### 包类型
+
+| 编码 | 名称 | 方向 | 说明 |
+|---:|---|---|---|
+| `0` | `CONNECT` | TX -> RX | 未连接状态下的连接请求 |
+| `1` | `DATA` | TX -> RX | 通信状态下的正向输入数据 |
+| `2` | `ACK` | RX -> TX | ACK 窗口内的反向应答 |
+| `3` | `RESERVED` | - | 保留 |
+
+#### 速率编码
+
+| 编码 | 速率 |
+|---:|---:|
+| `0` | `1K` |
+| `1` | `2K` |
+| `2` | `4K` |
+| `3` | `8K` |
+
+#### flags
+
+| Bit | 名称 | 说明 |
+|---:|---|---|
+| `0` | `CMD_PRESENT` | payload 中携带命令槽 |
+| `1` | `CMD_ACK` | ACK payload 中的 `cmd_id` 有效 |
+| `2` | `DUAL_REDUNDANT` | 当前包属于双频道冗余模式 |
+| `3` | `LINK_OK` | 发送端认为链路已进入通信状态 |
+
+### 4.3 `hdr1` 定义
+
+| 包类型 | `hdr1` 含义 |
+|---|---|
+| `CONNECT` | ACK 窗口倒计时，单位为当前 report tick；`0` 表示窗口已到；`0xFF` 表示距离窗口还很远 |
+| `DATA` | ACK 窗口倒计时，单位为当前 report tick；`0` 表示窗口已到；`0xFF` 表示距离窗口还很远 |
+| `ACK` | 丢包率低 8 bit 的快速观察值；完整值以 payload 为准 |
+
+## 5. 包类型载荷设计
+
+### 5.1 CONNECT 包
+
+方向：TX -> RX
+
+用途：未连接状态下请求建链，同时下发通信速率、ACK 窗口和双频道参数。
+
+| Payload byte | 名称 | 说明 |
+|---:|---|---|
+| `0..3` | `session_id` | 固定 magic，当前建议 `0x484F5031` |
+| `4` | `rate` | 速率编码 |
+| `5` | `channel_a` | 双频道冗余频道 A |
+| `6` | `channel_b` | 双频道冗余频道 B |
+| `7` | `ack_window_ms` | ACK 窗口长度 |
+| `8` | `options` | 连接选项，bit2 表示双频道 |
+| `9` | `version` | 协议版本，当前 `1` |
+
+CONNECT 包隐含命令号：`CMD_CONNECT_REQ`。
+
+### 5.2 DATA 包：普通输入数据
+
+方向：TX -> RX
+
+当 `CMD_PRESENT=0` 时，payload 全部作为输入数据载体：
+
+| Payload byte | 名称 | 说明 |
+|---:|---|---|
+| `0..9` | `input_data` | 当前 TX SPI 输入的最新 10B 数据 |
+
+说明：
+
+- 当前 `RF_PHY_Hop/TX` 的 SPI 输入桥就是 10B payload。
+- 后续如果要扩展为 15B XInput 原始负载，需要引入聚合包或多包分片，本设计当前不处理。
+
+### 5.3 DATA 包：命令槽
+
+当 `CMD_PRESENT=1` 时，payload 采用命令槽格式。
+
+| Payload byte | 名称 | 说明 |
+|---:|---|---|
+| `0` | `cmd_id` | 通信命令号 |
+| `1` | `arg0` | 命令参数 0 |
+| `2` | `arg1` | 命令参数 1 |
+| `3` | `arg2` | 命令参数 2 |
+| `4` | `arg3` | 命令参数 3 |
+| `5..9` | `cmd_data` | 命令扩展参数 |
+
+对于需要同时传输输入数据和命令的周期：
+
+- 命令优先。
+- 当前周期输入数据可丢弃或沿用上一帧，优先保证状态切换一致性。
+
+### 5.4 ACK 包
+
+方向：RX -> TX
+
+| Payload byte | 名称 | 说明 |
+|---:|---|---|
+| `0..1` | `loss_permille` | 上一 ACK 到本 ACK 之间的丢包率，千分比，小端 |
+| `2..3` | `rx_count` | 本窗口内 RX 收到的有效正向包数量 |
+| `4..5` | `expected_count` | 本窗口理论应收到的包数量 |
+| `6` | `cmd_id` | 被 ACK 的命令号，无命令时为 `0` |
+| `7` | `ack_flags` | ACK 标志 |
+| `8` | `channel` | RX 当前通信频道 |
+| `9` | `status` | RX 当前链路状态 |
+
+ACK 有效性要求：
+
+- `type == ACK`
+- `rate` 与当前连接速率一致或可被 TX 接受
+- 处于命令等待状态时，`cmd_id` 必须等于 TX 等待的命令号
+- 连接状态切换时，CONNECT ACK 必须携带 `CMD_CONNECT_REQ`
+- RX 应从 ACK 窗口开始前少量提前量开始发 ACK，并持续重发到 ACK 窗口结束；不能只发送单个 ACK 包。
+- TX 在 ACK 窗口内每次收到 ACK、坏包或 CRCERR 后必须重新 armed RX，直到 timer 判定窗口结束。
+
+## 6. 通信命令号
+
+| 命令号 | 名称 | 方向 | 说明 |
+|---:|---|---|---|
+| `0x00` | `CMD_NONE` | - | 无命令 |
+| `0x01` | `CMD_CONNECT_REQ` | TX -> RX | CONNECT 包隐含命令，RX ACK 时回带 |
+| `0x10` | `CMD_HOP_PREPARE` | TX -> RX | 预约跳频准备命令 |
+| `0x11` | `CMD_HOP_CONFIRM` | TX -> RX | 新频道跳频确认命令 |
+| `0x12` | `CMD_HOP_CANCEL` | TX -> RX | 取消预约跳频，预留 |
+| `0x20` | `CMD_RATE_UPDATE` | TX -> RX | 运行时速率更新，预留 |
+| `0x7F` | `CMD_RECONNECT` | TX -> RX | 强制重连，预留 |
+
+### 6.1 `CMD_HOP_PREPARE`
+
+DATA 命令槽格式：
+
+| Payload byte | 名称 | 说明 |
+|---:|---|---|
+| `0` | `0x10` | `CMD_HOP_PREPARE` |
+| `1` | `target_channel` | 目标频道 |
+| `2..3` | `delay_ms` | 从 RX 解析命令时刻开始计算的切换延迟 |
+| `4` | `hop_seq` | 本次跳频事务编号 |
+| `5..9` | reserved | 保留 |
+
+ACK 要求：
+
+- RX 在最近 ACK 窗口回复 ACK。
+- ACK 的 `cmd_id == 0x10`。
+- ACK 的 `channel` 仍为旧频道。
+
+### 6.2 `CMD_HOP_CONFIRM`
+
+DATA 命令槽格式：
+
+| Payload byte | 名称 | 说明 |
+|---:|---|---|
+| `0` | `0x11` | `CMD_HOP_CONFIRM` |
+| `1` | `target_channel` | 当前新频道 |
+| `2..3` | `hop_seq` | 本次跳频事务编号，小端或低字节有效 |
+| `4` | `old_channel` | 原频道 |
+| `5..9` | reserved | 保留 |
+
+ACK 要求：
+
+- RX 在新频道收到 `CMD_HOP_CONFIRM` 后，在最近 ACK 窗口回复。
+- ACK 的 `cmd_id == 0x11`。
+- ACK 的 `channel == target_channel`。
+- TX 收到后，双方正式回到通信状态。
+
+## 7. TX 状态机设计
+
+### 7.1 TX 状态列表
+
+| 状态 | 说明 |
+|---|---|
+| `TX_UNCONNECTED` | 未连接，双频道冗余发送 CONNECT |
+| `TX_COMM` | 通信中，固定频道发送 DATA |
+| `TX_HOP_PREPARE_ACK_WAIT` | 已决定跳频，旧频道发送 `CMD_HOP_PREPARE`，等待 ACK |
+| `TX_HOP_RESERVED` | 已收到 `CMD_HOP_PREPARE` ACK，等待预约时间到达 |
+| `TX_HOP_CONFIRM_ACK_WAIT` | 已切到新频道，发送 `CMD_HOP_CONFIRM`，等待 ACK |
+| `TX_RECOVERY_DUAL` | 跳频失败或 ACK 长时间丢失后的双频道恢复态，可复用未连接流程 |
+
+当前代码已实现 `TX_UNCONNECTED` 与 `TX_COMM` 的基础行为；后续应把当前 `TX_LINK_SEEK/TX_LINK_CONNECTED` 扩展为以上完整状态。
+
+### 7.2 TX 状态流转枚举
+
+#### `TX_UNCONNECTED`
+
+进入条件：
+
+- TX 上电默认进入。
+- `TX_COMM` 中连续 `RF_ACK_MISS_LIMIT` 个 ACK 周期没有有效 ACK。
+- `TX_HOP_CONFIRM_ACK_WAIT` 超时且恢复失败。
+- 用户或上层强制重连。
+
+行为：
+
+- 每个发送 tick 发送 CONNECT 包。
+- 双频道冗余：
+  - 2ms 为一个周期。
+  - 第 1ms 在 `channel_a` 重复发送。
+  - 第 2ms 在 `channel_b` 重复发送。
+- 每秒最后 ACK 窗口进入 RX，并叠加前后保护时间。
+- 未连接 ACK 接收窗口内，TX 按约 0.5ms 小片在 `channel_a/channel_b` 之间轮换监听，避免 RX 锁在任一频道后 ACK 无法返回。
+
+流转：
+
+| 事件 | 条件 | 下一个状态 | 动作 |
+|---|---|---|---|
+| 收到 ACK | `cmd_id == CMD_CONNECT_REQ` 且 `status == connected` | `TX_COMM` | 缓存 ACK 中的 `channel/rate`，清零 ACK miss |
+| 收到 ACK | cmd 不匹配 | `TX_UNCONNECTED` | 丢弃 ACK，继续双频道连接 |
+| ACK 窗口超时 | - | `TX_UNCONNECTED` | 继续双频道连接 |
+| RF TX 失败 | - | `TX_UNCONNECTED` | 统计错误，下一 tick 重试 |
+
+#### `TX_COMM`
+
+进入条件：
+
+- `TX_UNCONNECTED` 收到连接 ACK。
+- `TX_HOP_CONFIRM_ACK_WAIT` 收到确认 ACK。
+
+行为：
+
+- 使用当前频道发送 DATA 包。
+- 每秒最后 ACK 窗口切 RX。
+- 每次进入该状态时刷新 `hop_cooldown_until = now + RF_HOP_COOLDOWN_MS`。
+- 冷却期内即使 ACK 丢包率超过阈值，也不发起新的预约跳频，只记录统计。
+- 每个 ACK 周期统计：
+  - 是否收到 ACK。
+  - ACK 中的丢包率。
+  - ACK 中是否携带命令确认。
+
+流转：
+
+| 事件 | 条件 | 下一个状态 | 动作 |
+|---|---|---|---|
+| 收到 ACK | 丢包率低于阈值 | `TX_COMM` | 清零 ACK miss |
+| 收到 ACK | 丢包率高于阈值但仍在冷却期 | `TX_COMM` | 只记录高丢包事件，不发起跳频 |
+| 收到 ACK | 丢包率高于 `RF_HOP_LOSS_THRESHOLD_PERMILLE` 且冷却期已过 | `TX_HOP_PREPARE_ACK_WAIT` | 选择新频道，开始发送 `CMD_HOP_PREPARE` |
+| ACK 周期结束 | 未收到 ACK | `TX_COMM` 或 `TX_UNCONNECTED` | ACK miss +1；达到阈值进入未连接 |
+| RF TX 失败 | 偶发 | `TX_COMM` | 统计错误，下一 tick 继续 |
+| 上层强制跳频 | 参数合法 | `TX_HOP_PREPARE_ACK_WAIT` | 发送预约跳频 |
+
+#### `TX_HOP_PREPARE_ACK_WAIT`
+
+进入条件：
+
+- `TX_COMM` 中丢包率超过阈值。
+- 上层强制跳频。
+
+行为：
+
+- 仍在旧频道发送 DATA 包。
+- DATA 包带 `CMD_PRESENT` 和 `CMD_HOP_PREPARE`。
+- `delay_ms` 建议为 `RF_HOP_PREPARE_ADVANCE_MS`。
+- 命令可连续重复多个包，直到收到 ACK 或超时。
+
+流转：
+
+| 事件 | 条件 | 下一个状态 | 动作 |
+|---|---|---|---|
+| 收到 ACK | `cmd_id == CMD_HOP_PREPARE` | `TX_HOP_RESERVED` | 记录切换截止时间 |
+| 收到 ACK | cmd 不匹配 | `TX_HOP_PREPARE_ACK_WAIT` | 继续等待 |
+| ACK 超时 | 未收到 prepare ACK | `TX_COMM` | 放弃本次跳频，保留旧频道 |
+| ACK miss 达阈值 | 链路疑似断开 | `TX_UNCONNECTED` | 清空跳频事务 |
+
+#### `TX_HOP_RESERVED`
+
+进入条件：
+
+- `CMD_HOP_PREPARE` 已被 RX ACK。
+
+行为：
+
+- 切换时间到达前，仍在旧频道发送普通 DATA。
+- 到达预约时间后，TX 切到目标新频道。
+
+流转：
+
+| 事件 | 条件 | 下一个状态 | 动作 |
+|---|---|---|---|
+| 到达预约时间 | - | `TX_HOP_CONFIRM_ACK_WAIT` | 切新频道，开始发送 `CMD_HOP_CONFIRM` |
+| ACK 连续缺失 | 未到预约时间但链路断开 | `TX_UNCONNECTED` | 清空跳频事务 |
+| 上层取消 | - | `TX_COMM` | 可选发送 `CMD_HOP_CANCEL` |
+
+#### `TX_HOP_CONFIRM_ACK_WAIT`
+
+进入条件：
+
+- `TX_HOP_RESERVED` 到达预约时间并切到新频道。
+
+行为：
+
+- 在新频道发送 `CMD_HOP_CONFIRM`。
+- 等待 RX 在 ACK 窗口回复 `CMD_HOP_CONFIRM` ACK。
+
+流转：
+
+| 事件 | 条件 | 下一个状态 | 动作 |
+|---|---|---|---|
+| 收到 ACK | `cmd_id == CMD_HOP_CONFIRM` 且 `channel == target_channel` | `TX_COMM` | 新频道生效 |
+| ACK 超时 | 短暂超时 | `TX_HOP_CONFIRM_ACK_WAIT` | 继续重复 confirm |
+| ACK 超时 | 达到确认失败阈值 | `TX_RECOVERY_DUAL` | old/new 双频道恢复 |
+
+#### `TX_RECOVERY_DUAL`
+
+进入条件：
+
+- 跳频确认失败。
+- 通信状态 ACK 长时间丢失，但希望优先在 old/new 两频道恢复。
+
+行为：
+
+- 使用 old/new 作为双频道，而不是默认 A/B。
+- 发送 CONNECT 或 HOP_CONFIRM 恢复包。
+- ACK 窗口仍按 A/B 或 old/new 分半监听。
+
+流转：
+
+| 事件 | 条件 | 下一个状态 | 动作 |
+|---|---|---|---|
+| 收到 CONNECT ACK | `cmd_id == CMD_CONNECT_REQ` | `TX_COMM` | 以 ACK channel 为通信频道 |
+| 收到 HOP_CONFIRM ACK | `cmd_id == CMD_HOP_CONFIRM` | `TX_COMM` | 以 target channel 为通信频道 |
+| 恢复超时 | - | `TX_UNCONNECTED` | 回默认双频道连接 |
+
+## 8. RX 状态机设计
+
+### 8.1 RX 状态列表
+
+| 状态 | 说明 |
+|---|---|
+| `RX_UNCONNECTED` | 未连接，双频道扫描 CONNECT |
+| `RX_CONNECT_ACK_PENDING` | 已收到 CONNECT，等待最近 ACK 窗口发连接 ACK |
+| `RX_COMM` | 通信中，固定频道接收 DATA |
+| `RX_HOP_RESERVED` | 已 ACK `CMD_HOP_PREPARE`，等待预约时间 |
+| `RX_HOP_CONFIRM_ACK_PENDING` | 新频道收到 `CMD_HOP_CONFIRM`，等待 ACK |
+
+当前代码已实现 `RX_UNCONNECTED/RX_COMM` 的基础行为，并可解析 hop prepare 的简化字段；后续应补齐 ACK 后再切换状态和 confirm 阶段。
+
+### 8.2 RX 状态流转枚举
+
+#### `RX_UNCONNECTED`
+
+进入条件：
+
+- RX 上电默认进入。
+- `RX_COMM` 中超过 `RF_RX_PACKET_TIMEOUT_MS` 没有收到 TX 正向包。
+- `RX_HOP_RESERVED` 或 `RX_HOP_CONFIRM_ACK_PENDING` 超时失败。
+
+行为：
+
+- 双频道扫描：
+  - 每 2ms 切换监听频道。
+  - 默认扫描 CONNECT 中约定的 `channel_a/channel_b`，初始为固定 A/B。
+- 收到 CONNECT 后缓存当前频道、速率、ACK 窗口，并进入 ACK pending；pending 期间仍继续双频道扫描，避免 TX/RX 只锁在一个频道。
+
+流转：
+
+| 事件 | 条件 | 下一个状态 | 动作 |
+|---|---|---|---|
+| 收到 CONNECT | session/version/rate 合法 | `RX_CONNECT_ACK_PENDING` | 缓存频道与速率，准备 ACK `CMD_CONNECT_REQ` |
+| 收到 DATA | 未连接时非 CONNECT | `RX_UNCONNECTED` | 丢弃 |
+| RX timeout | 当前 dwell 未收到包 | `RX_UNCONNECTED` | 切换到另一个冗余频道 |
+| CRC/bad packet | - | `RX_UNCONNECTED` | 统计错误，继续扫描 |
+
+#### `RX_CONNECT_ACK_PENDING`
+
+进入条件：
+
+- `RX_UNCONNECTED` 收到合法 CONNECT。
+
+行为：
+
+- 根据 CONNECT 包头中的 ACK 倒计时，在最近 ACK 窗口发送 ACK。
+- ACK 发射频道固定为触发本次 ACK 的 CONNECT 接收频道；若该频道是 `channel_b`，ACK 应落在 TX ACK 窗口的后半段。
+- 在 ACK 发送前继续按 A/B dwell 扫描，后续合法 CONNECT 可刷新更早的 ACK 计划。
+- ACK 中 `cmd_id = CMD_CONNECT_REQ`。
+- ACK 在整个 ACK 窗口内连续发送，直到窗口结束或达到安全上限。
+
+流转：
+
+| 事件 | 条件 | 下一个状态 | 动作 |
+|---|---|---|---|
+| ACK 发送完成 | - | `RX_COMM` | 切到本次 ACK 发射频道，清零统计并进入通信接收 |
+| ACK 发送失败 | 可重试 | `RX_CONNECT_ACK_PENDING` | 在窗口内继续重试 |
+| ACK 窗口错过 | 超过窗口 | `RX_UNCONNECTED` | 回双频道扫描 |
+| 收到新的 CONNECT | 同一 session | `RX_CONNECT_ACK_PENDING` | 刷新倒计时并继续 ACK |
+
+#### `RX_COMM`
+
+进入条件：
+
+- 连接 ACK 发送完成。
+- `RX_HOP_CONFIRM_ACK_PENDING` 发送 confirm ACK 完成。
+
+行为：
+
+- 固定频道接收 DATA。
+- 统计 `rx_count`，用于 ACK 丢包率计算。
+- 根据正向包 `hdr1` 推算 ACK 发送时间。
+- ACK 窗口发送 ACK。
+
+流转：
+
+| 事件 | 条件 | 下一个状态 | 动作 |
+|---|---|---|---|
+| 收到 DATA | 无命令 | `RX_COMM` | 更新统计，刷新包超时计时 |
+| 收到 DATA | `CMD_HOP_PREPARE` 合法 | `RX_HOP_RESERVED` 或 ACK pending 子状态 | ACK 命令，缓存目标频道和切换时间 |
+| ACK 到时 | - | `RX_COMM` | 发送 ACK，清零本窗口统计 |
+| 包超时 | 超过 `RF_RX_PACKET_TIMEOUT_MS` | `RX_UNCONNECTED` | 清空连接上下文 |
+| CRC/bad packet | 偶发 | `RX_COMM` | 统计错误，不立即断链 |
+
+#### `RX_HOP_RESERVED`
+
+进入条件：
+
+- RX 已识别 `CMD_HOP_PREPARE` 并成功 ACK。
+
+行为：
+
+- 预约时间到达前，仍在旧频道接收 DATA。
+- 到达预约时间后，切到目标新频道。
+- 等待新频道上的 `CMD_HOP_CONFIRM`。
+
+流转：
+
+| 事件 | 条件 | 下一个状态 | 动作 |
+|---|---|---|---|
+| 到达预约时间 | - | `RX_HOP_RESERVED` | 本地切到新频道，等待 confirm |
+| 收到 `CMD_HOP_CONFIRM` | hop_seq/channel 匹配 | `RX_HOP_CONFIRM_ACK_PENDING` | 准备 ACK confirm |
+| 收到重复 `CMD_HOP_PREPARE` | 同一 hop_seq | `RX_HOP_RESERVED` | 重复 ACK prepare |
+| 收到 `CMD_HOP_CANCEL` | 可选 | `RX_COMM` | 回旧频道 |
+| confirm 超时 | 新频道无确认包 | `RX_UNCONNECTED` | 双频道扫描恢复 |
+
+#### `RX_HOP_CONFIRM_ACK_PENDING`
+
+进入条件：
+
+- 新频道收到合法 `CMD_HOP_CONFIRM`。
+
+行为：
+
+- 在最近 ACK 窗口发送 ACK。
+- ACK 中 `cmd_id = CMD_HOP_CONFIRM`，`channel = target_channel`。
+
+流转：
+
+| 事件 | 条件 | 下一个状态 | 动作 |
+|---|---|---|---|
+| ACK 发送完成 | - | `RX_COMM` | 新频道正式生效 |
+| ACK 发送失败 | 可重试 | `RX_HOP_CONFIRM_ACK_PENDING` | 窗口内继续重发 |
+| 后续收到普通 DATA | 已完成 ACK 或 TX 已进入通信 | `RX_COMM` | 新频道通信继续 |
+| ACK 超时 | 无法确认 | `RX_UNCONNECTED` | 回双频道扫描 |
+
+## 9. ACK 统计设计
+
+RX 在每个 ACK 周期内维护：
+
+- `rx_count`：有效接收正向包数量。
+- `expected_count`：理论应接收数量。
+- `loss_permille = (expected_count - rx_count) * 1000 / expected_count`。
+
+`expected_count` 建议：
+
+```text
+expected_count = report_hz - ack_window_packets
+ack_window_packets = report_hz / 1000 * ack_window_ms
+```
+
+TX 收到 ACK 后：
+
+- 校验 ACK 类型和命令号。
+- 读取 `loss_permille`。
+- 若无命令等待，使用丢包率判断是否触发跳频。
+- 若正在等待命令 ACK，只接受匹配的 `cmd_id`。
+
+## 10. 日志设计
+
+### 10.1 基本要求
+
+- TX 和 RX 各自每 5s 打印一次日志。
+- 日志只使用 ASCII，单行以 `\r\n` 结束。
+- 为兼容 USB CDC Full Speed 小包，单行建议控制在 62 个可见字符以内，加 `\r\n` 后不超过 64 byte。
+- 5s 窗口内发生过的关键事件必须能从日志看出来：
+  - 跳频事件
+  - 进入未连接状态
+  - 当前/目标频道
+  - 丢包率
+  - ACK 或收包情况
+- 日志是窗口统计，打印后清零窗口计数；连续状态类字段不清零。
+- 数值过大时允许饱和显示，例如 `9999`，避免撑爆行长。
+
+### 10.2 状态编码
+
+| 编码 | TX 含义 | RX 含义 |
+|---|---|---|
+| `U` | 未连接 / 双频道连接请求 | 未连接 / 双频道扫描 |
+| `C` | 通信状态 | 通信状态 |
+| `PA` | 等待 `HOP_PREPARE` ACK | 连接 ACK 或命令 ACK 待发送 |
+| `HR` | 跳频已预约，等待切换时间 | 跳频已预约，等待切换时间 |
+| `CA` | 已切新频道，等待 `HOP_CONFIRM` ACK | 已收到 confirm，等待 ACK |
+| `RD` | 双频道恢复 | 保留 |
+
+### 10.3 频道字段
+
+| 格式 | 含义 |
+|---|---|
+| `C=16` | 当前固定通信频道为 16 |
+| `C=16/24` | 双频道冗余或扫描频道为 16 和 24 |
+| `C=16>24` | 正在从 16 预约/确认跳到 24 |
+
+### 10.4 TX 日志格式
+
+格式：
+
+```text
+T5 S=<s> C=<ch> R=<r> L=<l> A=<ok>/<exp> M=<m> H=<h> U=<u> E=<e>\r\n
+```
+
+示例：
+
+```text
+T5 S=C C=16 R=8K L=012 A=5/5 M=0 H=0 U=0 E=0
+T5 S=HR C=16>24 R=8K L=045 A=4/5 M=0 H=1 U=0 E=0
+T5 S=U C=16/24 R=8K L=1000 A=0/5 M=3 H=0 U=1 E=2
+```
+
+字段：
+
+| 字段 | 含义 |
+|---|---|
+| `T5` | TX 5s 窗口日志 |
+| `S` | TX 当前状态编码 |
+| `C` | 当前频道/双频道/跳频 old->new |
+| `R` | 当前速率：`1K/2K/4K/8K` |
+| `L` | 最近一次有效 ACK 上报的丢包率，千分比 `0..1000` |
+| `A` | 本 5s 窗口收到的有效 ACK 数 / 期望 ACK 数，8K 默认约 `5/5` |
+| `M` | 当前连续 ACK miss 周期数 |
+| `H` | 本 5s 窗口内跳频相关事件次数，包括 prepare/commit/confirm |
+| `U` | 本 5s 窗口内进入未连接状态次数 |
+| `E` | 本 5s 窗口内 RF/API/坏 ACK 聚合错误数 |
+
+TX 日志生成规则：
+
+- `A=<ok>/<exp>` 中 `exp` 按 5s 内应出现的 ACK 周期数计算，默认 5。
+- `M` 不随日志清零，它表示当前连续 miss。
+- `H/U/E` 打印后清零。
+- 冷却期内因高丢包未发起跳频时，不增加 `H`，但可增加内部 `cooldown_blocked` 计数；如果后续需要观察，可临时替换 `E` 或增加调试版日志。
+
+### 10.5 RX 日志格式
+
+格式：
+
+```text
+R5 S=<s> C=<ch> R=<r> L=<l> P=<rx>/<exp> A=<a> H=<h> U=<u> E=<e>\r\n
+```
+
+示例：
+
+```text
+R5 S=C C=16 R=8K L=011 P=39560/39960 A=5 H=0 U=0 E=1
+R5 S=CA C=16>24 R=8K L=020 P=39100/39960 A=4 H=1 U=0 E=0
+R5 S=U C=16/24 R=8K L=1000 P=0/39960 A=0 H=0 U=1 E=5
+```
+
+字段：
+
+| 字段 | 含义 |
+|---|---|
+| `R5` | RX 5s 窗口日志 |
+| `S` | RX 当前状态编码 |
+| `C` | 当前频道/双频道/跳频 old->new |
+| `R` | 当前速率：`1K/2K/4K/8K` |
+| `L` | RX 根据本 5s 窗口 `P` 计算出的丢包率，千分比 `0..1000` |
+| `P` | 本 5s 窗口有效正向包数 / 理论正向包数 |
+| `A` | 本 5s 窗口 ACK 发送成功次数 |
+| `H` | 本 5s 窗口跳频相关事件次数 |
+| `U` | 本 5s 窗口进入未连接状态次数 |
+| `E` | 本 5s 窗口 CRC、坏包、RF API 失败、ACK 发送失败聚合错误数 |
+
+RX 日志生成规则：
+
+- `P` 的 `exp` 应扣除 ACK 窗口内理论不接收的正向包。
+- RX 在未连接状态下仍打印 `R5`，用于确认扫描频道和是否持续收不到 CONNECT。
+- `A/H/U/E` 打印后清零。
+- `L` 在未连接状态可显示 `1000`，表示本窗口没有有效正向链路。
+
+### 10.6 推荐实现函数
+
+| 函数 | 端 | 说明 |
+|---|---|---|
+| `tx_log_5s_emit()` | TX | 每 5s 生成并打印 TX 短日志 |
+| `tx_log_note_hop_event()` | TX | 记录跳频 prepare/commit/confirm 事件 |
+| `tx_log_note_unconnected()` | TX | 记录进入未连接状态 |
+| `tx_log_note_error()` | TX | 记录聚合错误 |
+| `rx_log_5s_emit(buf, len)` | RX | 每 5s 生成 RX 短日志，可复用 `RF_GetStatsLine()` |
+| `rx_log_note_hop_event()` | RX | 记录跳频 prepare/commit/confirm 事件 |
+| `rx_log_note_unconnected()` | RX | 记录进入未连接状态 |
+| `rx_log_note_error()` | RX | 记录聚合错误 |
+
+## 11. 函数设计
+
+### 11.1 共享协议函数
+
+当前已实现于 `Common/include/rf_hop_protocol.h`：
+
+| 函数 | 说明 |
+|---|---|
+| `rfh_make_header0(type, rate, flags)` | 生成 `hdr0` |
+| `rfh_packet_type(header0)` | 解析包类型 |
+| `rfh_rate_code(header0)` | 解析速率编码 |
+| `rfh_flags(header0)` | 解析 flags |
+| `rfh_rate_hz_from_code(code)` | rate code -> Hz |
+| `rfh_rate_code_from_hz(hz)` | Hz -> rate code |
+| `rfh_channel_valid(channel)` | 校验频道范围 |
+| `rfh_ack_window_packets(report_hz, ack_window_ms)` | 计算 ACK 窗口包数 |
+| `rfh_ack_countdown_ticks(packet_pos, report_hz, ack_window_ms)` | 计算正向包 ACK tick 倒计时 |
+| `rfh_put_u16/get_u16` | 小端 16-bit 编解码 |
+| `rfh_put_u32/get_u32` | 小端 32-bit 编解码 |
+
+后续建议新增：
+
+| 函数 | 说明 |
+|---|---|
+| `rfh_fill_connect(...)` | 统一填充 CONNECT 包 |
+| `rfh_fill_ack(...)` | 统一填充 ACK 包 |
+| `rfh_fill_hop_prepare(...)` | 统一填充跳频准备命令 |
+| `rfh_fill_hop_confirm(...)` | 统一填充跳频确认命令 |
+| `rfh_parse_command(...)` | 统一解析 DATA 命令槽 |
+
+### 11.2 TX 函数设计
+
+当前已实现：
+
+| 函数 | 说明 |
+|---|---|
+| `rf_fill_connect_packet()` | 填充 CONNECT 包 |
+| `rf_fill_data_packet()` | 填充普通 DATA 包 |
+| `rf_in_ack_window()` | 判断当前 tick 是否处于 ACK 窗口 |
+| `rf_ack_channel_for_tick()` | 未连接 ACK 窗口内选择 A/B 监听频道 |
+| `rf_start_tx_packet()` | 启动 RFIP TX |
+| `rf_start_ack_rx()` | ACK 窗口启动 RFIP RX |
+| `rf_handle_ack_packet()` | 解析 ACK |
+| `TMR0_IRQHandler()` | TX 速率节拍主驱动 |
+| `RF_SPI_FastWriteInput()` | SPI 输入写入最新 10B 数据 |
+
+后续需要新增或重构：
+
+| 函数 | 说明 |
+|---|---|
+| `tx_enter_state(next, reason)` | TX 状态切换统一入口 |
+| `tx_ack_period_close()` | 每个 ACK 周期结束时更新 miss/loss |
+| `tx_validate_ack(expected_cmd)` | 按状态校验 ACK |
+| `tx_select_hop_channel(loss)` | 根据丢包率选择目标频道 |
+| `tx_start_hop_prepare(channel)` | 创建跳频事务 |
+| `tx_fill_data_with_command(cmd)` | DATA 包命令槽填充 |
+| `tx_on_hop_prepare_ack()` | 处理 prepare ACK |
+| `tx_on_hop_switch_due()` | 到点切新频道 |
+| `tx_on_hop_confirm_ack()` | 处理 confirm ACK |
+| `tx_enter_recovery_dual(old, target)` | 跳频失败进入恢复双频道 |
+| `tx_log_5s_emit()` | 生成 62 字符以内 TX 5s 短日志 |
+
+### 11.3 RX 函数设计
+
+当前已实现：
+
+| 函数 | 说明 |
+|---|---|
+| `rf_rx_start()` | 启动 RFIP RX |
+| `rf_toggle_seek_channel()` | 未连接扫描时切 A/B |
+| `rf_schedule_ack()` | 根据 `hdr1` 安排 ACK |
+| `rf_fill_ack_packet()` | 填充 ACK |
+| `rf_send_ack()` | 发送 ACK |
+| `rf_handle_connect()` | 处理 CONNECT |
+| `rf_handle_data()` | 处理 DATA |
+| `rf_handle_hop_command()` | 解析简化跳频命令 |
+| `RF_Service()` | RX 主循环服务，处理 ACK due 和跳频 due |
+| `RF_GetStatsLine()` | 输出 RX 统计 |
+
+后续需要新增或重构：
+
+| 函数 | 说明 |
+|---|---|
+| `rx_enter_state(next, reason)` | RX 状态切换统一入口 |
+| `rx_packet_timeout_check(now)` | 通信状态包超时检测 |
+| `rx_prepare_connect_ack()` | CONNECT ACK 准备 |
+| `rx_validate_connect()` | CONNECT 参数校验 |
+| `rx_handle_hop_prepare()` | 处理 `CMD_HOP_PREPARE` |
+| `rx_send_command_ack(cmd_id)` | 命令 ACK 发送 |
+| `rx_commit_hop_if_due(now)` | 到点切目标频道 |
+| `rx_handle_hop_confirm()` | 处理 `CMD_HOP_CONFIRM` |
+| `rx_enter_unconnected_scan()` | 回到双频道扫描 |
+| `rx_log_5s_emit()` | 生成 62 字符以内 RX 5s 短日志 |
+
+## 12. 实现顺序建议
+
+1. 把命令号写入共享协议头。
+2. 让 CONNECT ACK 回带 `CMD_CONNECT_REQ`，TX 校验后才进入通信状态。
+3. TX 增加 ACK miss 计数；RX 增加通信包超时计数。
+4. TX 每次进入通信状态时刷新 `RF_HOP_COOLDOWN_MS` 冷却截止时间。
+5. TX/RX 增加 5s 短日志，先覆盖状态、频道、丢包率、跳频事件、未连接事件。
+6. TX 增加丢包率阈值判断；只有冷却期结束后才发送 `CMD_HOP_PREPARE`。
+7. RX 将当前简化 hop parser 改成 `CMD_HOP_PREPARE` parser，并 ACK 命令。
+8. TX 收到 prepare ACK 后进入 `TX_HOP_RESERVED`。
+9. 到点切新频道并发送 `CMD_HOP_CONFIRM`。
+10. RX 新频道确认并 ACK；TX 收到 confirm ACK 后进入通信状态，并重新开始 10s 冷却。
+11. 为跳频失败实现 `TX_RECOVERY_DUAL` 和 RX 回未连接扫描。
+
+## 13. 关键约束
+
+- ACK 窗口是链路同步核心，所有反向信息都必须塞进 ACK 包。
+- 未连接状态下不能假设 TX/RX 在同一个频道，因此 ACK 窗口也必须考虑双频道。
+- 命令必须幂等：RX 可能重复收到同一命令，重复 ACK 不应造成状态错乱。
+- 状态切换必须只在明确事件上发生，不能由单个 CRC 错误立即断链。
+- 跳频准备 ACK 未收到时，TX 必须留在旧频道通信，不能提前切走。
+- 跳频确认 ACK 未收到时，TX/RX 必须有恢复路径，否则双方可能分别停在 old/new。
+- 每次进入通信状态都必须启动跳频冷却计时，冷却期内不得发起新的主动跳频。
+- TX/RX 5s 日志必须保持短行输出，默认不超过 62 个可见 ASCII 字符，避免 USB CDC 小包截断或阻塞。

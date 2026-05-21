@@ -20,6 +20,7 @@ SIZE    := "$(TOOLCHAIN_PREFIX)size"
 RM      := if exist "$(subst /,\,$(OUT_DIR))" rmdir /s /q "$(subst /,\,$(OUT_DIR))"
 
 APP_DIR      := APP
+COMMON_INC_DIR := ../Common/include
 HAL_DIR      := $(BLE_SDK_DIR)/HAL
 LIB_DIR      := $(BLE_SDK_DIR)/LIB
 SRC_ROOT_DIR := $(SDK_ROOT_MAKE)/SRC
@@ -41,6 +42,7 @@ DEFINES := \
 
 INCLUDES := \
 	-I$(APP_DIR)/include \
+	-I$(COMMON_INC_DIR) \
 	-I$(HAL_DIR)/include \
 	$(PROFILE_INCLUDE) \
 	-I$(DRIVER_DIR)/inc \

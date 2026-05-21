@@ -32,6 +32,7 @@ void RF_USB_CompositeInit(void);
 #endif
 #define RX_MAIN_TMR0_WRAP        0x04000000UL
 #define RX_MAIN_LOG_PERIOD_TICKS (FREQ_SYS * 5u)
+#define RX_MAIN_PENDING_LOG_PERIOD_TICKS (FREQ_SYS * 1u)
 /*********************************************************************
  * GLOBAL TYPEDEFS
  */
@@ -124,14 +125,14 @@ static void RX_MainLogRealtime(const char *msg)
 
 static void RX_MainLogStats(void)
 {
-    char stats_msg[64];
+    char stats_msg[192];
 
     if(RF_GetStatsLine(stats_msg, sizeof(stats_msg)) == 0u)
     {
         return;
     }
 
-    RX_MainLogRealtime(stats_msg);
+    RX_MainLog(stats_msg);
 }
 
 /*********************************************************************
@@ -147,6 +148,8 @@ void Main_Circulation()
 {
     static uint32_t last_log_tmr = 0;
     static uint32_t log_acc_tmr = 0;
+    static uint32_t last_pending_log_tmr = 0;
+    static uint32_t pending_log_acc_tmr = 0;
     static uint32_t rf_init_deadline = 0;
     static uint8_t rf_init_started = FALSE;
     static uint8_t rf_init_done = FALSE;
@@ -185,11 +188,33 @@ void Main_Circulation()
             rf_init_done = TRUE;
             last_log_tmr = TMR0_GetCurrentTimer();
             log_acc_tmr = 0u;
+            last_pending_log_tmr = last_log_tmr;
+            pending_log_acc_tmr = 0u;
             RX_MainLog("[RX][MAIN] rf_init_done\r\n");
             continue;
         }
 
-        if(RX_MainTmr0Elapsed(now_tmr, &last_log_tmr, &log_acc_tmr, RX_MAIN_LOG_PERIOD_TICKS) != FALSE)
+        if((rf_init_done) && (RF_HasPendingStatsLine() != 0u))
+        {
+            if(RX_MainTmr0Elapsed(now_tmr,
+                                  &last_pending_log_tmr,
+                                  &pending_log_acc_tmr,
+                                  RX_MAIN_PENDING_LOG_PERIOD_TICKS) != FALSE)
+            {
+                RX_MainLogStats();
+                continue;
+            }
+        }
+        else
+        {
+            last_pending_log_tmr = now_tmr;
+            pending_log_acc_tmr = 0u;
+        }
+
+        if(RX_MainTmr0Elapsed(now_tmr,
+                              &last_log_tmr,
+                              &log_acc_tmr,
+                              RX_MAIN_LOG_PERIOD_TICKS) != FALSE)
         {
             if(rf_init_done)
             {

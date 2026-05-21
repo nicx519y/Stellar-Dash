@@ -21,6 +21,10 @@ extern "C" {
 
 extern void RF_Init(void);
 extern void RF_Service(void);
+extern void RF_StartPacketLossScan(void);
+extern void RF_StartQualityScoreScan(void);
+extern uint8_t RF_IsQualityScoreScanActive(void);
+extern uint8_t RF_HasPendingStatsLine(void);
 extern uint16_t RF_GetStatsLine(char *buf, uint16_t len);
 
 #ifdef __cplusplus
