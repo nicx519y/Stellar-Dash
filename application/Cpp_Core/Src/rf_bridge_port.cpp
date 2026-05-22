@@ -23,7 +23,7 @@ namespace {
 #endif
 
 #ifndef RF_BRIDGE_INPUT_DMA_FASTPATH
-#define RF_BRIDGE_INPUT_DMA_FASTPATH 0
+#define RF_BRIDGE_INPUT_DMA_FASTPATH 1
 #endif
 
 static SPI_HandleTypeDef s_rf_hspi = {};
@@ -239,7 +239,45 @@ static bool rf_spi_dma_start_locked(const uint8_t* tx, uint16_t txLen) {
     return true;
 }
 
-[[maybe_unused]] static bool rf_spi_dma_enqueue_latest(const uint8_t* tx, uint16_t txLen, uint8_t seq) {
+static bool rf_spi_dma_start_pending_from_isr() {
+    uint8_t next_buf[sizeof(s_dma_active_buf)];
+    uint16_t next_len;
+
+    if (!s_dma_pending || (s_dma_pending_len == 0u) || (s_dma_pending_len > sizeof(next_buf))) {
+        s_dma_busy = false;
+        s_dma_pending = false;
+        s_dma_pending_len = 0u;
+        return false;
+    }
+
+    next_len = s_dma_pending_len;
+    memcpy(next_buf, s_dma_pending_buf, next_len);
+    s_dma_pending = false;
+    s_dma_pending_len = 0u;
+    if (!rf_spi_dma_start_locked(next_buf, next_len)) {
+        s_dma_busy = false;
+        return false;
+    }
+    return true;
+}
+
+static bool rf_spi_dma_wait_idle_and_drop_pending(uint32_t timeoutMs) {
+    const uint32_t start = HAL_GetTick();
+
+    __disable_irq();
+    s_dma_pending = false;
+    s_dma_pending_len = 0u;
+    __enable_irq();
+
+    while (s_dma_busy) {
+        if ((HAL_GetTick() - start) >= timeoutMs) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool rf_spi_dma_enqueue_latest(const uint8_t* tx, uint16_t txLen, uint8_t seq) {
     if ((tx == nullptr) || (txLen == 0u) || (txLen > sizeof(s_dma_pending_buf))) {
         return false;
     }
@@ -251,6 +289,9 @@ static bool rf_spi_dma_start_locked(const uint8_t* tx, uint16_t txLen) {
     __disable_irq();
     if (!s_dma_busy) {
         s_dma_busy = true;
+        if (s_dma_pending) {
+            s_diag_dma_overwrite++;
+        }
         s_dma_pending = false;
         s_dma_pending_len = 0u;
         __enable_irq();
@@ -396,9 +437,11 @@ extern "C" void RFBridgePort_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
     rf_cs_set(true);
     s_diag_dma_done++;
 
-    __disable_irq();
-    s_dma_busy = false;
-    __enable_irq();
+    if (!rf_spi_dma_start_pending_from_isr()) {
+        __disable_irq();
+        s_dma_busy = false;
+        __enable_irq();
+    }
 }
 
 extern "C" void RFBridgePort_SPI_ErrorCallback(SPI_HandleTypeDef *hspi) {
@@ -436,6 +479,10 @@ bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint1
     const bool is_input_fast_path = (txLen >= 2u) && (tx[0] == 0xA5u) && (cmd == 0x06u);
     const uint8_t input_seq = (is_input_fast_path && txLen >= 4u) ? tx[3] : 0u;
     if (!is_input_fast_path) {
+        if (!rf_spi_dma_wait_idle_and_drop_pending(RF_BRIDGE_SPI_TIMEOUT_MS)) {
+            if (rxLen != nullptr) *rxLen = 0u;
+            return false;
+        }
         rf_flush_stale_if_irq_high();
     }
 
