@@ -179,12 +179,13 @@ CONNECT 包隐含命令号：`CMD_CONNECT_REQ`。
 
 | Payload byte | 名称 | 说明 |
 |---:|---|---|
-| `0..9` | `input_data` | 当前 TX SPI 输入的最新 10B 数据 |
+| `0..9` | `hitbox_input` | 当前 TX SPI 输入的最新 10B 全按键状态 |
 
 说明：
 
-- 当前 `RF_PHY_Hop/TX` 的 SPI 输入桥就是 10B payload。
-- 后续如果要扩展为 15B XInput 原始负载，需要引入聚合包或多包分片，本设计当前不处理。
+- HBox 是 hitbox 产品，输入全部为 0/1 按键状态，不传输摇杆轴和线性扳机采样值。
+- 当前 `RF_PHY_Hop/TX` 的 SPI 输入桥仍保持 10B payload；RX 根据该 10B 按键状态生成 XInput report。
+- SOCD、四方向过滤、宏输出等逻辑必须在 STM32 application 侧完成，RX 只做“已处理按键状态 -> XInput 字段”的确定性映射。
 
 ### 5.3 DATA 包：命令槽
 
@@ -226,6 +227,81 @@ ACK 有效性要求：
 - 连接状态切换时，CONNECT ACK 必须携带 `CMD_CONNECT_REQ`
 - RX 应从 ACK 窗口开始前少量提前量开始发 ACK，并持续重发到 ACK 窗口结束；不能只发送单个 ACK 包。
 - TX 在 ACK 窗口内每次收到 ACK、坏包或 CRCERR 后必须重新 armed RX，直到 timer 判定窗口结束。
+
+### 5.5 SPI 传输数据包到 RX XInput 数据转换
+
+本节定义 STM32 application 通过 SPI 发给 RF TX 的 `INPUT_DATA(10B)`，以及该 10B 数据在 RX/dongle 侧如何生成 XInput 上报。
+
+#### 5.5.1 SPI 帧格式
+
+STM32 -> RF TX 仍使用已有 SPI 命令帧：
+
+| Byte | 名称 | 说明 |
+|---:|---|---|
+| `0` | `sync` | 固定 `0xA5` |
+| `1` | `cmd` | 固定 `0x06`，即 `INPUT_DATA` |
+| `2` | `len` | 固定 `10` |
+| `3..12` | `payload` | `hitbox_input[10]` |
+| `13` | `checksum8` | `sync + cmd + len + payload` 的 8-bit sum |
+
+RF TX 校验 SPI 帧后，将 `payload[10]` 原样放入普通 DATA 空口包的 `payload[0..9]`。
+
+#### 5.5.2 `hitbox_input[10]` 格式
+
+| Payload byte | 名称 | 说明 |
+|---:|---|---|
+| `0` | `seq` | 8-bit 输入序号，每次 application 生成报告递增，允许回绕 |
+| `1` | `format_flags` | bit7..4 为格式版本，当前 `1`；bit0 表示已完成 SOCD/四方向处理，必须为 `1`；其余位保留 |
+| `2..5` | `key_mask` | 小端 32-bit 按键位图，位定义见下表 |
+| `6..8` | `reserved` | 当前写 `0`，RX 忽略；保留给延迟统计/电量/扩展按键 |
+| `9` | `crc8` | 对 byte `0..8` 计算 CRC-8/ATM，poly `0x07`，init `0x00` |
+
+`key_mask` 使用 `application/Cpp_Core/Src/gamepad.cpp` 中 `Gamepad::buildMacroMaskFromCurrentState()` 的位序，且必须来自 `Gamepad::process()` 之后的状态：
+
+| Bit | HBox 输入 | XInput 输出 |
+|---:|---|---|
+| `0` | Up | `buttons1.XBOX_MASK_UP` |
+| `1` | Down | `buttons1.XBOX_MASK_DOWN` |
+| `2` | Left | `buttons1.XBOX_MASK_LEFT` |
+| `3` | Right | `buttons1.XBOX_MASK_RIGHT` |
+| `4` | B1 | `buttons2.XBOX_MASK_A` |
+| `5` | B2 | `buttons2.XBOX_MASK_B` |
+| `6` | B3 | `buttons2.XBOX_MASK_X` |
+| `7` | B4 | `buttons2.XBOX_MASK_Y` |
+| `8` | L1 | `buttons2.XBOX_MASK_LB` |
+| `9` | R1 | `buttons2.XBOX_MASK_RB` |
+| `10` | L2 | `lt = 0xFF`，释放为 `0x00` |
+| `11` | R2 | `rt = 0xFF`，释放为 `0x00` |
+| `12` | S1 | `buttons1.XBOX_MASK_BACK` |
+| `13` | S2 | `buttons1.XBOX_MASK_START` |
+| `14` | L3 | `buttons1.XBOX_MASK_LS` |
+| `15` | R3 | `buttons1.XBOX_MASK_RS` |
+| `16` | A1 | `buttons2.XBOX_MASK_HOME` |
+| `17` | A2 | XInput 无对应标准键，RX 默认忽略，可后续用于厂商扩展 |
+| `18..31` | Reserved | 当前必须为 `0`，RX 忽略 |
+
+#### 5.5.3 RX 生成 XInput report
+
+RX 收到普通 DATA 包后，如果 `CMD_PRESENT=0`，按以下顺序处理：
+
+1. 校验 `format_flags` 的版本与 processed 标志。
+2. 校验 `crc8`；失败则丢弃该输入包，只计错误，不更新上报状态。
+3. 读取 `key_mask`，生成 20B XInput report：
+   - `report_id = 0`
+   - `report_size = 20`
+   - `buttons1/buttons2` 按上表映射
+   - `lt/rt` 只允许 `0x00` 或 `0xFF`
+   - `lx/ly/rx/ry = 0`，保持摇杆中位
+   - `reserved[6] = 0`
+4. 只有 report 相比上一次发生变化，或需要断连清零/保活时，才提交 USB IN。
+
+#### 5.5.4 丢包、重复包和断连策略
+
+- 每个 DATA 包都是完整按键快照，不依赖上一包，因此丢包不需要重传。
+- RX 可用 `seq` 做丢包/重复包统计；重复 `seq` 且 `key_mask` 未变化时可直接忽略。
+- 命令包占用 DATA payload 时，RX 保持上一帧按键状态，不因单个命令包清零。
+- 超过 `INPUT_STALE_TIMEOUT_US` 未收到有效输入快照时，RX 必须生成一次全释放 XInput report，避免按键卡死。
+- RX 不执行 SOCD、反向、四方向过滤或宏逻辑；这些都属于 application 侧输入处理结果。
 
 ## 6. 通信命令号
 
@@ -736,6 +812,8 @@ RX 日志生成规则：
 | `rfh_fill_hop_prepare(...)` | 统一填充跳频准备命令 |
 | `rfh_fill_hop_confirm(...)` | 统一填充跳频确认命令 |
 | `rfh_parse_command(...)` | 统一解析 DATA 命令槽 |
+| `rfh_input_crc8(...)` | 计算 `hitbox_input[0..8]` 的 CRC-8/ATM |
+| `rfh_parse_hitbox_input(...)` | 校验并解析 10B hitbox 输入快照 |
 
 ### 11.2 TX 函数设计
 
@@ -767,6 +845,7 @@ RX 日志生成规则：
 | `tx_on_hop_switch_due()` | 到点切新频道 |
 | `tx_on_hop_confirm_ack()` | 处理 confirm ACK |
 | `tx_enter_recovery_dual(old, target)` | 跳频失败进入恢复双频道 |
+| `tx_build_hitbox_input_payload()` | 从 application 侧已处理按键状态生成 10B `hitbox_input` |
 | `tx_log_5s_emit()` | 生成 62 字符以内 TX 5s 短日志 |
 
 ### 11.3 RX 函数设计
@@ -799,21 +878,28 @@ RX 日志生成规则：
 | `rx_commit_hop_if_due(now)` | 到点切目标频道 |
 | `rx_handle_hop_confirm()` | 处理 `CMD_HOP_CONFIRM` |
 | `rx_enter_unconnected_scan()` | 回到双频道扫描 |
+| `rx_parse_hitbox_input()` | 校验 DATA payload 并提取 `key_mask` |
+| `rx_key_mask_to_xinput_report()` | 将 hitbox `key_mask` 映射为 20B XInput report |
+| `rx_clear_xinput_on_stale()` | 输入超时后生成全释放 XInput report |
 | `rx_log_5s_emit()` | 生成 62 字符以内 RX 5s 短日志 |
 
 ## 12. 实现顺序建议
 
-1. 把命令号写入共享协议头。
-2. 让 CONNECT ACK 回带 `CMD_CONNECT_REQ`，TX 校验后才进入通信状态。
-3. TX 增加 ACK miss 计数；RX 增加通信包超时计数。
-4. TX 每次进入通信状态时刷新 `RF_HOP_COOLDOWN_MS` 冷却截止时间。
-5. TX/RX 增加 5s 短日志，先覆盖状态、频道、丢包率、跳频事件、未连接事件。
-6. TX 增加丢包率阈值判断；只有冷却期结束后才发送 `CMD_HOP_PREPARE`。
-7. RX 将当前简化 hop parser 改成 `CMD_HOP_PREPARE` parser，并 ACK 命令。
-8. TX 收到 prepare ACK 后进入 `TX_HOP_RESERVED`。
-9. 到点切新频道并发送 `CMD_HOP_CONFIRM`。
-10. RX 新频道确认并 ACK；TX 收到 confirm ACK 后进入通信状态，并重新开始 10s 冷却。
-11. 为跳频失败实现 `TX_RECOVERY_DUAL` 和 RX 回未连接扫描。
+1. 固化 `hitbox_input[10]` 常量、CRC-8/ATM、`key_mask` 位定义。
+2. application 侧 `RFTransport::sendInput()` 改为发送已处理 hitbox key-mask，不再打包摇杆和线性扳机字段。
+3. RF TX 保持 SPI `INPUT_DATA(10B)` 快路径，将 10B payload 原样放入普通 DATA 包。
+4. RX 增加 `rx_parse_hitbox_input()` 与 `rx_key_mask_to_xinput_report()`，先完成按键到 XInput 的闭环。
+5. 把命令号写入共享协议头。
+6. 让 CONNECT ACK 回带 `CMD_CONNECT_REQ`，TX 校验后才进入通信状态。
+7. TX 增加 ACK miss 计数；RX 增加通信包超时计数和输入 stale 清零。
+8. TX 每次进入通信状态时刷新 `RF_HOP_COOLDOWN_MS` 冷却截止时间。
+9. TX/RX 增加 5s 短日志，先覆盖状态、频道、丢包率、跳频事件、未连接事件。
+10. TX 增加丢包率阈值判断；只有冷却期结束后才发送 `CMD_HOP_PREPARE`。
+11. RX 将当前简化 hop parser 改成 `CMD_HOP_PREPARE` parser，并 ACK 命令。
+12. TX 收到 prepare ACK 后进入 `TX_HOP_RESERVED`。
+13. 到点切新频道并发送 `CMD_HOP_CONFIRM`。
+14. RX 新频道确认并 ACK；TX 收到 confirm ACK 后进入通信状态，并重新开始 10s 冷却。
+15. 为跳频失败实现 `TX_RECOVERY_DUAL` 和 RX 回未连接扫描。
 
 ## 13. 关键约束
 
@@ -821,6 +907,8 @@ RX 日志生成规则：
 - 未连接状态下不能假设 TX/RX 在同一个频道，因此 ACK 窗口也必须考虑双频道。
 - 命令必须幂等：RX 可能重复收到同一命令，重复 ACK 不应造成状态错乱。
 - 状态切换必须只在明确事件上发生，不能由单个 CRC 错误立即断链。
+- RX 只消费 application 侧已处理后的 hitbox key-mask，不得在 dongle 侧再次执行 SOCD、反向或宏逻辑。
+- 输入包必须是完整状态快照；丢包时保持上一帧，输入 stale 超时后清零，避免按键卡死。
 - 跳频准备 ACK 未收到时，TX 必须留在旧频道通信，不能提前切走。
 - 跳频确认 ACK 未收到时，TX/RX 必须有恢复路径，否则双方可能分别停在 old/new。
 - 每次进入通信状态都必须启动跳频冷却计时，冷却期内不得发起新的主动跳频。

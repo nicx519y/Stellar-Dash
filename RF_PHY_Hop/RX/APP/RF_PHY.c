@@ -21,7 +21,7 @@
 #endif
 
 #ifndef RF_RX_PACKET_TIMEOUT_MS
-#define RF_RX_PACKET_TIMEOUT_MS        0u
+#define RF_RX_PACKET_TIMEOUT_MS        RFH_RX_PACKET_TIMEOUT_MS_DEFAULT
 #endif
 
 #ifndef RF_RX_LINK_IDLE_TIMEOUT_MS
@@ -38,6 +38,10 @@
 
 #ifndef RF_HOP_CONFIRM_ACK_TIMEOUT_MS
 #define RF_HOP_CONFIRM_ACK_TIMEOUT_MS  RFH_HOP_CONFIRM_ACK_TIMEOUT_MS_DEFAULT
+#endif
+
+#ifndef RF_RX_CONFIRM_ACK_FAIL_LIMIT
+#define RF_RX_CONFIRM_ACK_FAIL_LIMIT   3u
 #endif
 
 #ifndef RF_TEST_FREQUENCY
@@ -124,6 +128,7 @@ static uint8_t g_old_channel = RFH_DEFAULT_CHANNEL_A;
 static uint8_t g_target_channel = RFH_DEFAULT_CHANNEL_A;
 static uint8_t g_hop_seq = 0u;
 static uint8_t g_pending_ack_cmd = RFH_CMD_NONE;
+static uint8_t g_confirm_ack_fail_count = 0u;
 
 static uint16_t g_report_hz = RF_REPORT_PPS;
 static uint8_t g_rate_code = RFH_RATE_8K;
@@ -222,6 +227,12 @@ static uint8_t rx_is_seek_scanning_state(void)
     return ((g_state == RX_UNCONNECTED) ||
             ((g_state == RX_CONNECT_ACK_PENDING) &&
              (g_pending_ack_cmd == RFH_CMD_CONNECT_REQ))) ? 1u : 0u;
+}
+
+static uint8_t rx_is_packet_timeout_state(void)
+{
+    return ((g_state == RX_HOP_RESERVED) ||
+            (g_state == RX_HOP_CONFIRM_ACK_PENDING)) ? 1u : 0u;
 }
 
 static const char *rx_state_code(void)
@@ -427,6 +438,8 @@ static void rx_enter_state(rx_state_t next)
         g_ack_repeat_remaining = 0u;
         g_ack_until_tmr = 0u;
         g_pending_ack_cmd = RFH_CMD_NONE;
+        g_hop_seq = 0u;
+        g_confirm_ack_fail_count = 0u;
         g_rx_since_ack = 0u;
         g_scan_channel_a = RFH_MIN_CHANNEL;
         g_scan_channel_b = RFH_MAX_CHANNEL;
@@ -436,6 +449,7 @@ static void rx_enter_state(rx_state_t next)
     case RX_COMM:
         g_ack_success_next_state = RX_COMM;
         g_pending_ack_cmd = RFH_CMD_NONE;
+        g_confirm_ack_fail_count = 0u;
         g_last_rx_packet_clock = TMOS_GetSystemClock();
         break;
     case RX_CONNECT_ACK_PENDING:
@@ -630,6 +644,7 @@ static uint8_t rx_start_ack_tx_loaded(void)
 static void rx_after_ack_done(uint8_t success)
 {
     rx_state_t next_state = g_ack_success_next_state;
+    uint8_t ack_cmd = g_pending_ack_cmd;
 
     g_ack_tx_active = 0u;
     g_ack_pending = 0u;
@@ -640,6 +655,10 @@ static void rx_after_ack_done(uint8_t success)
 
     if(success != 0u)
     {
+        if(ack_cmd == RFH_CMD_HOP_CONFIRM)
+        {
+            g_confirm_ack_fail_count = 0u;
+        }
         if(next_state == RX_HOP_RESERVED)
         {
             rx_set_channel(g_old_channel);
@@ -654,6 +673,20 @@ static void rx_after_ack_done(uint8_t success)
     else
     {
         rx_log_note_error();
+        if((ack_cmd == RFH_CMD_HOP_CONFIRM) &&
+           (g_state == RX_HOP_CONFIRM_ACK_PENDING))
+        {
+            if(g_confirm_ack_fail_count < 255u)
+            {
+                g_confirm_ack_fail_count++;
+            }
+            if(g_confirm_ack_fail_count < RF_RX_CONFIRM_ACK_FAIL_LIMIT)
+            {
+                rx_prepare_command_ack(RFH_CMD_HOP_CONFIRM, RX_COMM, 0u);
+                rx_start_rx();
+                return;
+            }
+        }
         if((g_state == RX_CONNECT_ACK_PENDING) || (g_state == RX_HOP_CONFIRM_ACK_PENDING))
         {
             rx_enter_state(RX_UNCONNECTED);
@@ -724,6 +757,8 @@ static uint8_t rx_handle_connect(const uint8_t *air)
     rx_note_packet_progress();
     g_rx_since_ack = 0u;
     g_last_rx_packet_clock = TMOS_GetSystemClock();
+    g_hop_seq = 0u;
+    g_confirm_ack_fail_count = 0u;
     gStat.connect_rx++;
     rx_prepare_command_ack(RFH_CMD_CONNECT_REQ, RX_COMM, air[RFH_HDR1_OFFSET]);
 #if (RF_CONNECT_PREFER_CHANNEL_A != 0u)
@@ -736,9 +771,35 @@ static void rx_handle_hop_prepare(const uint8_t *air)
 {
     const uint8_t *data = &air[RFH_DATA_OFFSET];
     uint8_t channel = data[RFH_HOP_CMD_CHANNEL];
+    uint8_t seq = data[RFH_HOP_CMD_SEQ];
     uint16_t delay_ms;
 
-    if(rfh_channel_valid(channel) == 0u)
+    if((rfh_channel_valid(channel) == 0u) ||
+       (channel == g_rx_channel) ||
+       (seq == 0u))
+    {
+        rx_log_note_error();
+        return;
+    }
+    if((g_state == RX_HOP_RESERVED) ||
+       ((g_state == RX_CONNECT_ACK_PENDING) &&
+        (g_pending_ack_cmd == RFH_CMD_HOP_PREPARE)))
+    {
+        if((seq != g_hop_seq) || (channel != g_target_channel))
+        {
+            rx_log_note_error();
+            return;
+        }
+    }
+    else if(g_state == RX_COMM)
+    {
+        if(seq == g_hop_seq)
+        {
+            rx_log_note_error();
+            return;
+        }
+    }
+    else
     {
         rx_log_note_error();
         return;
@@ -747,7 +808,7 @@ static void rx_handle_hop_prepare(const uint8_t *air)
     delay_ms = rfh_get_u16(&data[RFH_HOP_CMD_DELAY_LO_MS]);
     g_old_channel = g_rx_channel;
     g_target_channel = channel;
-    g_hop_seq = data[RFH_HOP_CMD_SEQ];
+    g_hop_seq = seq;
     g_hop_due_clock = TMOS_GetSystemClock() + MS1_TO_SYSTEM_TIME(delay_ms);
     g_hop_confirm_deadline_clock = g_hop_due_clock +
                                    MS1_TO_SYSTEM_TIME(RF_HOP_CONFIRM_ACK_TIMEOUT_MS);
@@ -760,8 +821,18 @@ static void rx_handle_hop_confirm(const uint8_t *air)
     const uint8_t *data = &air[RFH_DATA_OFFSET];
     uint8_t channel = data[RFH_HOP_CMD_CHANNEL];
     uint8_t seq = data[RFH_HOP_CMD_SEQ];
+    uint8_t old_channel = data[RFH_HOP_CONFIRM_OLD_CHANNEL];
 
-    if((channel != g_rx_channel) || (channel != g_target_channel))
+    if((g_state != RX_HOP_RESERVED) &&
+       (g_state != RX_HOP_CONFIRM_ACK_PENDING) &&
+       !((g_state == RX_COMM) && (seq == g_hop_seq)))
+    {
+        rx_log_note_error();
+        return;
+    }
+    if((channel != g_rx_channel) ||
+       (channel != g_target_channel) ||
+       (old_channel != g_old_channel))
     {
         rx_log_note_error();
         return;
@@ -773,6 +844,7 @@ static void rx_handle_hop_confirm(const uint8_t *air)
     }
 
     gStat.hop_cmd_rx++;
+    g_confirm_ack_fail_count = 0u;
     rx_prepare_command_ack(RFH_CMD_HOP_CONFIRM, RX_COMM, air[RFH_HDR1_OFFSET]);
 }
 
@@ -871,6 +943,23 @@ static void rx_service_timers(uint8_t check_idle_timeout)
         rx_send_ack();
         return;
     }
+
+#if (RF_RX_PACKET_TIMEOUT_MS > 0u)
+    if((check_idle_timeout != 0u) &&
+       (rx_is_packet_timeout_state() != 0u) &&
+       (g_ack_pending == 0u) &&
+       (g_ack_tx_active == 0u) &&
+       (rx_time_reached(now_clock,
+                        g_last_rx_packet_clock +
+                        MS1_TO_SYSTEM_TIME(RF_RX_PACKET_TIMEOUT_MS)) != 0u))
+    {
+        rx_log_note_app_timeout();
+        rx_enter_state(RX_UNCONNECTED);
+        (void)RFRole_Stop();
+        rx_start_rx();
+        return;
+    }
+#endif
 
 #if (RF_RX_LINK_IDLE_TIMEOUT_MS > 0u)
     if(check_idle_timeout != 0u)

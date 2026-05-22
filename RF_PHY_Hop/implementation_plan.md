@@ -704,3 +704,6 @@ R5 S=<s> C=<ch> R=<r> L=<l> P=<rx>/<exp> A=<a> H=<h> U=<u> E=<e>\r\n
 - prepare ACK 未收到时 TX 不切频道。
 - confirm ACK 收到后双方进入通信状态并刷新冷却。
 - 跳频失败后双方能通过恢复或未连接扫描重新建链。
+
+
+## SPI传输数据包 到 RX Xinput 数据转换

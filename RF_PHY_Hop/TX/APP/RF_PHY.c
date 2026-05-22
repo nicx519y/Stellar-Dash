@@ -623,6 +623,13 @@ static void tx_fill_hop_confirm_packet(uint8_t *air)
     data[RFH_HOP_CONFIRM_OLD_CHANNEL] = g_old_channel;
 }
 
+static void tx_fill_recovery_hop_confirm_packet(void)
+{
+    TxBuf[0] = RFH_WCH_PREAMBLE;
+    TxBuf[1] = RFH_AIR_PACKET_LEN;
+    tx_fill_hop_confirm_packet(&TxBuf[2]);
+}
+
 static void tx_fill_data_packet(void)
 {
     uint8_t *air = &TxBuf[2];
@@ -815,9 +822,15 @@ static uint8_t tx_accept_ack(const uint8_t *air, const uint8_t *data)
         }
         break;
     case TX_RECOVERY_DUAL:
-        if((cmd == RFH_CMD_CONNECT_REQ) || (cmd == RFH_CMD_HOP_CONFIRM))
+        if((cmd == RFH_CMD_CONNECT_REQ) && (status == RFH_ACK_STATUS_CONNECTED))
         {
             g_current_channel = channel;
+            tx_enter_state(TX_COMM);
+            return 1u;
+        }
+        if((cmd == RFH_CMD_HOP_CONFIRM) && (channel == g_target_channel))
+        {
+            g_current_channel = g_target_channel;
             tx_enter_state(TX_COMM);
             return 1u;
         }
@@ -855,7 +868,7 @@ static void tx_service_timers(void)
     if((g_state == TX_HOP_PREPARE_ACK_WAIT) &&
        (tx_time_reached(now, g_wait_ack_deadline_clock) != 0u))
     {
-        tx_enter_state(TX_RECOVERY_DUAL);
+        tx_enter_state(TX_COMM);
         return;
     }
     if((g_state == TX_HOP_RESERVED) &&
@@ -895,13 +908,22 @@ static uint8_t tx_channel_for_state(void)
     }
 }
 
-static void tx_fill_packet_for_state(void)
+static void tx_fill_packet_for_state(uint8_t channel)
 {
     switch(g_state)
     {
     case TX_UNCONNECTED:
-    case TX_RECOVERY_DUAL:
         tx_fill_connect_packet();
+        break;
+    case TX_RECOVERY_DUAL:
+        if((channel == g_target_channel) && ((g_second_pos & 1u) == 0u))
+        {
+            tx_fill_recovery_hop_confirm_packet();
+        }
+        else
+        {
+            tx_fill_connect_packet();
+        }
         break;
     case TX_COMM:
     case TX_HOP_PREPARE_ACK_WAIT:
@@ -1073,7 +1095,7 @@ void TMR0_IRQHandler(void)
 
     tx_stop_ack_rx();
     channel = tx_channel_for_state();
-    tx_fill_packet_for_state();
+    tx_fill_packet_for_state(channel);
     tx_start_tx_packet(channel);
     tx_advance_tick();
 }
