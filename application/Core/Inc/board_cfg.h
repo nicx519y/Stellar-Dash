@@ -55,16 +55,8 @@
 /* Debug print configuration */
 #define APPLICATION_DEBUG_PRINT  1   // 设置为 0 可以关闭所有调试打印
 
-/*
- * RF24G SPI payload echo bring-up.
- * Keep this enabled only while validating STM32 -> RFModule -> RX payloads.
- */
-#ifndef RF24G_SPI_PAYLOAD_ECHO_TEST
-#define RF24G_SPI_PAYLOAD_ECHO_TEST 1
-#endif
-
 #ifndef RF24G_SPI_TEST_FORCE_RF24G
-#define RF24G_SPI_TEST_FORCE_RF24G RF24G_SPI_PAYLOAD_ECHO_TEST
+#define RF24G_SPI_TEST_FORCE_RF24G 0
 #endif
 
 #if APPLICATION_DEBUG_PRINT

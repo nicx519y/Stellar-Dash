@@ -2,15 +2,8 @@
 
 #include <string.h>
 
-#include "board_cfg.h"
 #include "monitor_telemetry.hpp"
 #include "rf_bridge_port.hpp"
-#include "system_logger.h"
-#include "stm32h7xx_hal.h"
-
-#ifndef RF24G_SPI_PAYLOAD_ECHO_TEST
-#define RF24G_SPI_PAYLOAD_ECHO_TEST 1
-#endif
 
 namespace {
 static constexpr uint8_t RF_SYNC = 0xA5u;
@@ -31,8 +24,6 @@ static constexpr uint8_t INPUT_FLAG_PROCESSED = 0x01u;
 static constexpr uint8_t INPUT_FLAGS = static_cast<uint8_t>((INPUT_FORMAT_VERSION << 4) | INPUT_FLAG_PROCESSED);
 static constexpr uint8_t STATUS_PAYLOAD_LEN = 17u;
 static constexpr uint16_t RX_BUF_LEN = 32u;
-static constexpr uint32_t INPUT_KEY_MASK_VALID = 0x0003FFFFu;
-static constexpr uint32_t SPI_PAYLOAD_TEST_PERIOD_MS = 5000u;
 
 static uint8_t frameChecksum(const uint8_t* buf, uint16_t len) {
     uint8_t s = 0u;
@@ -255,51 +246,6 @@ bool RFTransport::pollStatus() {
 
 bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
     uint8_t payload[INPUT_PAYLOAD_LEN] = {0};
-
-#if (RF24G_SPI_PAYLOAD_ECHO_TEST == 1)
-    static uint8_t testPayload[INPUT_PAYLOAD_LEN] = {0};
-    static uint32_t testLastUpdateMs = 0u;
-    static uint32_t testRng = 0x48424F58u;
-    static uint8_t testSeq = 0u;
-    static bool testInitialized = false;
-    const uint32_t nowMs = HAL_GetTick();
-
-    (void)gamepad;
-    if (!testInitialized ||
-        ((nowMs - testLastUpdateMs) >= SPI_PAYLOAD_TEST_PERIOD_MS)) {
-        testInitialized = true;
-        testLastUpdateMs = nowMs;
-        testRng = (testRng * 1664525u) + 1013904223u;
-        const uint32_t keyMask = testRng & INPUT_KEY_MASK_VALID;
-        testRng = (testRng * 1664525u) + 1013904223u;
-        testSeq++;
-
-        testPayload[0] = testSeq;
-        testPayload[1] = INPUT_FLAGS;
-        testPayload[2] = static_cast<uint8_t>(keyMask & 0xFFu);
-        testPayload[3] = static_cast<uint8_t>((keyMask >> 8) & 0xFFu);
-        testPayload[4] = static_cast<uint8_t>((keyMask >> 16) & 0xFFu);
-        testPayload[5] = static_cast<uint8_t>((keyMask >> 24) & 0xFFu);
-        testPayload[6] = static_cast<uint8_t>(testRng & 0xFFu);
-        testPayload[7] = static_cast<uint8_t>((testRng >> 8) & 0xFFu);
-        testPayload[8] = static_cast<uint8_t>((testRng >> 16) & 0xFFu);
-        testPayload[9] = inputCrc8(testPayload, 9u);
-
-        APP_DBG("[RF_SPI_TEST] AI D=%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
-                testPayload[0],
-                testPayload[1],
-                testPayload[2],
-                testPayload[3],
-                testPayload[4],
-                testPayload[5],
-                testPayload[6],
-                testPayload[7],
-                testPayload[8],
-                testPayload[9]);
-    }
-
-    memcpy(payload, testPayload, sizeof(payload));
-#else
     const uint32_t keyMask = buildHitboxKeyMask(gamepad);
 
     payload[0] = static_cast<uint8_t>(seq & 0xFFu);
@@ -309,7 +255,6 @@ bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
     payload[4] = static_cast<uint8_t>((keyMask >> 16) & 0xFFu);
     payload[5] = static_cast<uint8_t>((keyMask >> 24) & 0xFFu);
     payload[9] = inputCrc8(payload, 9u);
-#endif
 
     bool ok = transferCommand(CMD_INPUT_DATA, payload, sizeof(payload), false);
     MonitorTelemetry_OnRfTransfer(seq, CMD_INPUT_DATA, sizeof(payload), ok);
