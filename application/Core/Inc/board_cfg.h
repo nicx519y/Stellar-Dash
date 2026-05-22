@@ -59,6 +59,10 @@
 #define RF24G_SPI_TEST_FORCE_RF24G 0
 #endif
 
+#ifndef RF24G_FORCE_REPORT_RATE_HZ
+#define RF24G_FORCE_REPORT_RATE_HZ 4000u
+#endif
+
 #if APPLICATION_DEBUG_PRINT
     #define APP_DBG(fmt, ...) printf("[APP] " fmt "\r\n", ##__VA_ARGS__)
 #else

@@ -11,6 +11,10 @@
 #define RFM_SPI_INPUT_DIRECT_DMA      1u
 #endif
 
+#ifndef RFM_FORCE_REPORT_RATE_HZ
+#define RFM_FORCE_REPORT_RATE_HZ      4000u
+#endif
+
 typedef enum {
     RFM_RATE_1K = 1000,
     RFM_RATE_2K = 2000,

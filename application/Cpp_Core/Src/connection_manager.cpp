@@ -4,7 +4,31 @@
 #include "monitor_telemetry.hpp"
 #include "usbdriver.hpp"
 #include "system_logger.h"
+#include "board_cfg.h"
 #include "stm32h7xx_hal.h"
+
+namespace {
+static uint16_t clampRfReportRateHz(uint16_t rateHz) {
+    switch (rateHz) {
+    case 1000u:
+    case 2000u:
+    case 4000u:
+    case 8000u:
+        return rateHz;
+    default:
+        return 1000u;
+    }
+}
+
+static uint16_t getRfReportRateHz(WirelessReportRate wirelessRate) {
+#if RF24G_FORCE_REPORT_RATE_HZ != 0
+    (void)wirelessRate;
+    return clampRfReportRateHz(static_cast<uint16_t>(RF24G_FORCE_REPORT_RATE_HZ));
+#else
+    return clampRfReportRateHz(ConfigUtils::getWirelessReportRateHz(wirelessRate));
+#endif
+}
+}
 
 bool ConnectionManager::tryRfBringup(bool isRetry) {
     bool ok = rfTransport.begin();
@@ -78,13 +102,12 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
         return;
     }
 
-    (void)wirelessRate;
-    appliedReportRateHz = 8000u;
+    appliedReportRateHz = getRfReportRateHz(wirelessRate);
     MonitorTelemetry_Init(mode, appliedReportRateHz);
     /*
-     * 8K SPI bring-up path: stream INPUT_DATA as a one-way fast path.
+     * SPI bring-up path: stream INPUT_DATA as a one-way fast path.
      * Status readback depends on the CH584 IRQ response line and must not
-     * gate the 125us input cadence while the board link is being validated.
+     * gate the input cadence while the board link is being validated.
      */
     linkState = ConnectionLinkState::Connected;
     MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(linkState));

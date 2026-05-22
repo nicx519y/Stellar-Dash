@@ -49,7 +49,7 @@
 #endif
 
 #ifndef RF_HOP_COOLDOWN_MS
-#define RF_HOP_COOLDOWN_MS             RFH_HOP_COOLDOWN_MS_DEFAULT
+#define RF_HOP_COOLDOWN_MS             2000u
 #endif
 
 #ifndef RF_HOP_PREPARE_ADVANCE_MS
@@ -1264,7 +1264,11 @@ void RF_Init(void)
     memset(g_spi_input_log_payload, 0, sizeof(g_spi_input_log_payload));
     g_spi_input_log_valid = 0u;
     g_spi_input_log_clock = 0u;
+#if (RFM_FORCE_REPORT_RATE_HZ != 0u)
+    g_report_hz = RFM_FORCE_REPORT_RATE_HZ;
+#else
     g_report_hz = RF_REPORT_PPS;
+#endif
     if((g_report_hz != 1000u) && (g_report_hz != 2000u) &&
        (g_report_hz != 4000u) && (g_report_hz != 8000u))
     {

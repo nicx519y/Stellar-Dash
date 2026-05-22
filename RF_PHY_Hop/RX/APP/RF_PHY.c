@@ -35,7 +35,7 @@
 #endif
 
 #ifndef RF_CONNECT_PREFER_CHANNEL_A
-#define RF_CONNECT_PREFER_CHANNEL_A    1u
+#define RF_CONNECT_PREFER_CHANNEL_A    0u
 #endif
 
 #ifndef RF_HOP_CONFIRM_ACK_TIMEOUT_MS
@@ -265,6 +265,22 @@ static const char *rx_state_code(void)
     case RX_HOP_CONFIRM_ACK_PENDING:
     default:
         return "CA";
+    }
+}
+
+static const char *rx_rate_code(void)
+{
+    switch(g_rate_code)
+    {
+    case RFH_RATE_1K:
+        return "1K";
+    case RFH_RATE_2K:
+        return "2K";
+    case RFH_RATE_4K:
+        return "4K";
+    case RFH_RATE_8K:
+    default:
+        return "8K";
     }
 }
 
@@ -1574,10 +1590,12 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     if(rx_is_seek_scanning_state() != 0u)
     {
         n = snprintf(buf, len,
-                     "R5 S=%s C=%u/%u L=%03u P=%lu/%lu A=%lu U=%u E=%u\r\n",
+                     "R5 S=%s C=%u/%u R=%s T=%lu L=%03u P=%lu/%lu A=%lu U=%u E=%u\r\n",
                      rx_state_code(),
                      (unsigned int)g_scan_channel_a,
                      (unsigned int)g_scan_channel_b,
+                     rx_rate_code(),
+                     elapsed_ms,
                      (unsigned int)loss,
                      g_log_rx_ok,
                      expected,
@@ -1588,10 +1606,12 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     else if((g_state == RX_HOP_RESERVED) || (g_state == RX_HOP_CONFIRM_ACK_PENDING))
     {
         n = snprintf(buf, len,
-                     "R5 S=%s C=%u>%u L=%03u P=%lu/%lu A=%lu U=%u E=%u\r\n",
+                     "R5 S=%s C=%u>%u R=%s T=%lu L=%03u P=%lu/%lu A=%lu U=%u E=%u\r\n",
                      rx_state_code(),
                      (unsigned int)g_old_channel,
                      (unsigned int)g_target_channel,
+                     rx_rate_code(),
+                     elapsed_ms,
                      (unsigned int)loss,
                      g_log_rx_ok,
                      expected,
@@ -1602,9 +1622,11 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     else
     {
         n = snprintf(buf, len,
-                     "R5 S=%s C=%u L=%03u P=%lu/%lu A=%lu U=%u E=%u\r\n",
+                     "R5 S=%s C=%u R=%s T=%lu L=%03u P=%lu/%lu A=%lu U=%u E=%u\r\n",
                      rx_state_code(),
                      (unsigned int)g_rx_channel,
+                     rx_rate_code(),
+                     elapsed_ms,
                      (unsigned int)loss,
                      g_log_rx_ok,
                      expected,
