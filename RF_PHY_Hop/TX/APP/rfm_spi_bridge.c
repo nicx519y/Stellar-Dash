@@ -24,9 +24,10 @@ static uint32_t s_last_direct_count;
 static uint32_t s_last_backlog_drop_count;
 static uint32_t s_last_backlog_drop_bytes;
 static const uint16_t k_default_rate_hz = 8000u;
-static uint8_t s_poll_rx[(3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u) * 16u];
+static uint8_t s_poll_rx[(3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u) * 8u];
 
 #define SPI_POLL_MAX_BATCHES          1u
+#define SPI_INPUT_FRAME_BYTES         (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
 static uint32_t s_last_rx_count;
 
 typedef enum {
@@ -219,6 +220,41 @@ static void parser_start_frame(void)
     s_parse_idx = 1u;
     s_parse_payload_len = 0u;
     s_parse_state = PARSE_CMD;
+}
+
+static bool find_latest_input_frame(const uint8_t *buf, size_t len, uint8_t *payload)
+{
+    size_t i;
+    bool found = false;
+
+    if ((buf == 0) || (payload == 0) || (len < SPI_INPUT_FRAME_BYTES)) {
+        return false;
+    }
+
+    for (i = 0u; i <= (len - SPI_INPUT_FRAME_BYTES); ++i) {
+        uint8_t sum;
+        size_t j;
+
+        if ((buf[i] != RFM_SPI_SYNC) ||
+            (buf[i + 1u] != (uint8_t)SPI_CMD_INPUT_DATA) ||
+            (buf[i + 2u] != RFM_RF_INPUT_PAYLOAD_LEN)) {
+            continue;
+        }
+
+        sum = 0u;
+        for (j = 0u; j < (SPI_INPUT_FRAME_BYTES - 1u); ++j) {
+            sum = (uint8_t)(sum + buf[i + j]);
+        }
+        if (sum != buf[i + SPI_INPUT_FRAME_BYTES - 1u]) {
+            s_bad_checksum_win++;
+            continue;
+        }
+
+        memcpy(payload, &buf[i + 3u], RFM_RF_INPUT_PAYLOAD_LEN);
+        found = true;
+    }
+
+    return found;
 }
 
 static void fast_parser_reset(void)
@@ -473,6 +509,12 @@ void rfm_spi_bridge_init(void)
 void rfm_spi_bridge_poll(void)
 {
     uint8_t batch;
+    uint8_t latest_payload[RFM_RF_INPUT_PAYLOAD_LEN];
+
+    if(RFM_SPI_INPUT_DIRECT_DMA != 0u) {
+        rfm_spi_port_service();
+        return;
+    }
 
     for (batch = 0u; batch < SPI_POLL_MAX_BATCHES; ++batch) {
         size_t n = sizeof(s_poll_rx);
@@ -482,6 +524,14 @@ void rfm_spi_bridge_poll(void)
             break;
         }
         s_raw_bytes_win += (uint32_t)n;
+        if (find_latest_input_frame(s_poll_rx, n, latest_payload)) {
+            s_frame_ok_win++;
+            s_rx_count++;
+            (void)RF_SPI_FastWriteInput(latest_payload,
+                                        (uint8_t)sizeof(latest_payload));
+            continue;
+        }
+
         for (i = 0u; i < n; ++i) {
             parser_feed_byte(s_poll_rx[i]);
         }

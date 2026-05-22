@@ -10,6 +10,7 @@
 #include "rfm_config.h"
 #include "rfm_input_stream.h"
 #include "rfm_spi_bridge.h"
+#include "rfm_spi_port_internal.h"
 #include "rf_hop_protocol.h"
 
 #include <stdbool.h>
@@ -163,6 +164,9 @@ static uint32_t g_recovery_deadline_clock = 0u;
 
 static uint8_t g_last_payload[RFH_AIR_DATA_LEN] = {0};
 static uint8_t g_has_payload = 0u;
+static uint8_t g_spi_input_log_payload[RFH_AIR_DATA_LEN] = {0};
+static uint8_t g_spi_input_log_valid = 0u;
+static uint32_t g_spi_input_log_clock = 0u;
 static uint16_t g_last_ack_loss_permille = 1000u;
 static uint16_t g_last_ack_rx_count = 0u;
 static uint16_t g_last_ack_expected = 0u;
@@ -243,6 +247,40 @@ static void tx_log_note_error(void)
     {
         g_log_errors++;
     }
+}
+
+static void tx_log_spi_input_payload(const uint8_t *payload)
+{
+    uint32_t now;
+
+    if(payload == NULL)
+    {
+        return;
+    }
+
+    now = TMOS_GetSystemClock();
+    if((g_spi_input_log_valid != 0u) &&
+       (tx_time_reached(now,
+                        g_spi_input_log_clock +
+                        MS1_TO_SYSTEM_TIME(RF_STAT_PRINT_PERIOD_MS)) == 0u))
+    {
+        return;
+    }
+
+    memcpy(g_spi_input_log_payload, payload, sizeof(g_spi_input_log_payload));
+    g_spi_input_log_valid = 1u;
+    g_spi_input_log_clock = now;
+    RF_LINK_LOG("SI D=%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\r\n",
+                (unsigned int)g_spi_input_log_payload[0],
+                (unsigned int)g_spi_input_log_payload[1],
+                (unsigned int)g_spi_input_log_payload[2],
+                (unsigned int)g_spi_input_log_payload[3],
+                (unsigned int)g_spi_input_log_payload[4],
+                (unsigned int)g_spi_input_log_payload[5],
+                (unsigned int)g_spi_input_log_payload[6],
+                (unsigned int)g_spi_input_log_payload[7],
+                (unsigned int)g_spi_input_log_payload[8],
+                (unsigned int)g_spi_input_log_payload[9]);
 }
 
 static void tx_log_note_hop_event(void)
@@ -545,6 +583,18 @@ static uint8_t tx_load_latest_payload(uint8_t *dst)
 {
     uint8_t has_payload;
 
+#if (RFM_SPI_INPUT_DIRECT_DMA != 0u)
+    has_payload = rfm_spi_port_peek_latest_input(dst, RFH_AIR_DATA_LEN) ? 1u : 0u;
+    if(has_payload != 0u)
+    {
+        memcpy(g_last_payload, dst, RFH_AIR_DATA_LEN);
+        g_has_payload = 1u;
+        gStat.spi_rx_total++;
+        gStat.spi_rx_win++;
+        gStat.payload_update++;
+        return 1u;
+    }
+#else
     has_payload = rfm_input_stream_take_latest(dst, RFH_AIR_DATA_LEN) ? 1u : 0u;
     if(has_payload != 0u)
     {
@@ -553,6 +603,7 @@ static uint8_t tx_load_latest_payload(uint8_t *dst)
         gStat.payload_update++;
         return 1u;
     }
+#endif
     if(g_has_payload != 0u)
     {
         memcpy(dst, g_last_payload, RFH_AIR_DATA_LEN);
@@ -1151,6 +1202,10 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
 
     if(events & SBP_RF_STAT_EVT)
     {
+        if(g_has_payload != 0u)
+        {
+            tx_log_spi_input_payload(g_last_payload);
+        }
         rfm_spi_bridge_diag_emit(RF_STAT_PRINT_PERIOD_MS);
         tx_log_5s_emit();
         gStat.tx_try = 0u;
@@ -1185,16 +1240,14 @@ bool RF_SPI_FastWriteInput(const uint8_t *payload, uint8_t len)
         return false;
     }
 
-    PFIC_DisableIRQ(TMR0_IRQn);
     if(!rfm_input_stream_push(payload, len))
     {
-        PFIC_EnableIRQ(TMR0_IRQn);
         return false;
     }
-    PFIC_EnableIRQ(TMR0_IRQn);
 
     gStat.spi_rx_total++;
     gStat.spi_rx_win++;
+    tx_log_spi_input_payload(payload);
     return true;
 }
 
@@ -1208,6 +1261,9 @@ void RF_Init(void)
     rfm_input_stream_init();
     memset(g_last_payload, 0, sizeof(g_last_payload));
     g_has_payload = 0u;
+    memset(g_spi_input_log_payload, 0, sizeof(g_spi_input_log_payload));
+    g_spi_input_log_valid = 0u;
+    g_spi_input_log_clock = 0u;
     g_report_hz = RF_REPORT_PPS;
     if((g_report_hz != 1000u) && (g_report_hz != 2000u) &&
        (g_report_hz != 4000u) && (g_report_hz != 8000u))

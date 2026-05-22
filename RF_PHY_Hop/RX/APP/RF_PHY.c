@@ -160,6 +160,8 @@ static uint8_t g_log_app_timeout_events = 0u;
 static uint8_t g_log_data_resync_events = 0u;
 
 static uint8_t g_diag_pending = 0u;
+static uint8_t g_input_payload_line_pending = 0u;
+static uint8_t g_stats_separator_line_pending = 0u;
 static uint32_t g_diag_rx_arm_try = 0u;
 static uint32_t g_diag_rx_arm_ok = 0u;
 static uint32_t g_diag_rx_arm_fail = 0u;
@@ -529,6 +531,25 @@ static void rx_service_hitbox_input(void)
     memcpy(local_payload, g_input_payload_buffer[active_index], RF_INPUT_PAYLOAD_LEN);
     g_input_payload_served_generation = generation;
     rx_handle_hitbox_input(local_payload);
+}
+
+static void rx_copy_latest_input_payload(uint8_t *dst)
+{
+    uint8_t active_index;
+
+    if(dst == NULL)
+    {
+        return;
+    }
+
+    if(g_input_payload_generation == 0u)
+    {
+        memset(dst, 0, RF_INPUT_PAYLOAD_LEN);
+        return;
+    }
+
+    active_index = g_input_payload_active_index;
+    memcpy(dst, g_input_payload_buffer[active_index], RF_INPUT_PAYLOAD_LEN);
 }
 
 static void rx_clear_xinput_on_stale(uint32_t now_clock)
@@ -1447,7 +1468,9 @@ uint8_t RF_IsQualityScoreScanActive(void)
 
 uint8_t RF_HasPendingStatsLine(void)
 {
-    return g_diag_pending;
+    return ((g_diag_pending != 0u) ||
+            (g_input_payload_line_pending != 0u) ||
+            (g_stats_separator_line_pending != 0u)) ? 1u : 0u;
 }
 
 uint16_t RF_GetStatsLine(char *buf, uint16_t len)
@@ -1458,11 +1481,14 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     uint32_t expected;
     uint16_t loss;
     uint32_t ack_ok = (g_log_ack_ok > 99u) ? 99u : g_log_ack_ok;
+    uint8_t latest_input[RF_INPUT_PAYLOAD_LEN];
+    char latest_hex[(RF_INPUT_PAYLOAD_LEN * 2u) + 1u];
 
     if((buf == NULL) || (len == 0u))
     {
         return 0u;
     }
+
     if(g_diag_pending != 0u)
     {
         g_diag_pending = 0u;
@@ -1481,6 +1507,49 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
                      (unsigned long)g_diag_tx_ack_fail,
                      (unsigned int)g_diag_app_timeout_events,
                      (unsigned int)g_diag_data_resync_events);
+        if(n <= 0)
+        {
+            return 0u;
+        }
+        if(n >= (int)len)
+        {
+            return (uint16_t)(len - 1u);
+        }
+        return (uint16_t)n;
+    }
+
+    if(g_input_payload_line_pending != 0u)
+    {
+        g_input_payload_line_pending = 0u;
+        rx_copy_latest_input_payload(latest_input);
+        (void)snprintf(latest_hex, sizeof(latest_hex),
+                       "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
+                       (unsigned int)latest_input[0],
+                       (unsigned int)latest_input[1],
+                       (unsigned int)latest_input[2],
+                       (unsigned int)latest_input[3],
+                       (unsigned int)latest_input[4],
+                       (unsigned int)latest_input[5],
+                       (unsigned int)latest_input[6],
+                       (unsigned int)latest_input[7],
+                       (unsigned int)latest_input[8],
+                       (unsigned int)latest_input[9]);
+        n = snprintf(buf, len, "RI D=%s\r\n", latest_hex);
+        if(n <= 0)
+        {
+            return 0u;
+        }
+        if(n >= (int)len)
+        {
+            return (uint16_t)(len - 1u);
+        }
+        return (uint16_t)n;
+    }
+
+    if(g_stats_separator_line_pending != 0u)
+    {
+        g_stats_separator_line_pending = 0u;
+        n = snprintf(buf, len, "----------------\r\n");
         if(n <= 0)
         {
             return 0u;
@@ -1559,6 +1628,8 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     g_diag_app_timeout_events = g_log_app_timeout_events;
     g_diag_data_resync_events = g_log_data_resync_events;
     g_diag_pending = 1u;
+    g_input_payload_line_pending = 1u;
+    g_stats_separator_line_pending = 1u;
 
     gStat.rx_ok = 0u;
     gStat.rx_bad_len = 0u;

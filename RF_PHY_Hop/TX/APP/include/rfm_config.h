@@ -7,6 +7,10 @@
 #define RFM_SPI_MAX_FRAME             (64u)
 #define RFM_SPI_SYNC                  (0xA5u)
 
+#ifndef RFM_SPI_INPUT_DIRECT_DMA
+#define RFM_SPI_INPUT_DIRECT_DMA      1u
+#endif
+
 typedef enum {
     RFM_RATE_1K = 1000,
     RFM_RATE_2K = 2000,

@@ -10,11 +10,12 @@
 #define SPI_TX_PENDING_RECOVER_US     (50000u)
 #define US_TICK_STEP                  (10u)
 #define SPI_RX_FRAME_BYTES            (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
-#define SPI_RX_DMA_RING_SIZE          (SPI_RX_FRAME_BYTES * 2u)
+#define SPI_RX_DMA_RING_FRAMES        (128u)
+#define SPI_RX_DMA_RING_SIZE          (SPI_RX_FRAME_BYTES * SPI_RX_DMA_RING_FRAMES)
 #define SPI_RX_TOTAL_CNT              (SPI_RX_DMA_RING_SIZE)
-#define SPI_RX_BACKLOG_DROP_THRESHOLD (SPI_RX_FRAME_BYTES * 16u)
-#define SPI_RX_BACKLOG_KEEP_BYTES     (SPI_RX_FRAME_BYTES * 8u)
-#define SPI_RX_NEAR_FULL_THRESHOLD    (SPI_RX_DMA_RING_SIZE - SPI_RX_FRAME_BYTES)
+#define SPI_RX_PEEK_SCAN_FRAMES       (3u)
+#define SPI_RX_PEEK_SCAN_BYTES        (SPI_RX_FRAME_BYTES * SPI_RX_PEEK_SCAN_FRAMES)
+#define SPI_RX_NEAR_FULL_THRESHOLD    (SPI_RX_DMA_RING_SIZE - (SPI_RX_FRAME_BYTES * 16u))
 #define SPI_INPUT_CMD                 (0x06u)
 
 static uint8_t s_spi_tx_buf[96];
@@ -29,6 +30,7 @@ static volatile uint32_t s_spi_rx_dma_wrap_count;
 static uint32_t s_spi_rx_base_abs;
 static uint32_t s_spi_rx_read_abs;
 static uint32_t s_spi_rx_seen_wrap_count;
+static uint32_t s_spi_rx_last_write_pos;
 static volatile uint32_t s_spi_rx_total_bytes;
 static volatile uint32_t s_spi_rx_ring_overrun_count;
 static volatile uint32_t s_spi_rx_backlog_drop_count;
@@ -87,6 +89,15 @@ static uint8_t spi_rx_dma_byte(uint32_t pos)
     return s_spi_rx_dma_buf[pos];
 }
 
+static uint32_t spi_rx_ring_sub(uint32_t pos, uint32_t delta)
+{
+    delta %= SPI_RX_DMA_RING_SIZE;
+    if (pos >= delta) {
+        return pos - delta;
+    }
+    return SPI_RX_DMA_RING_SIZE - (delta - pos);
+}
+
 static bool spi_rx_copy_frame_fast(uint32_t start, uint8_t *payload)
 {
     uint32_t payload_start;
@@ -125,30 +136,77 @@ static bool spi_rx_copy_frame_fast(uint32_t start, uint8_t *payload)
     return true;
 }
 
-static uint32_t spi_rx_latest_complete_slot(void)
+static uint32_t spi_rx_write_abs_snapshot(uint32_t *available_out)
 {
-    uint32_t write_pos = spi_rx_dma_pos();
+    uint32_t wraps;
+    uint32_t write_pos;
+    uint32_t write_local_abs;
+    uint32_t write_abs;
+    uint32_t available;
+    uint8_t flags;
 
-    if (write_pos < SPI_RX_FRAME_BYTES) {
-        return SPI_RX_FRAME_BYTES;
+    PFIC_DisableIRQ(SPI0_IRQn);
+    flags = R8_SPI0_INT_FLAG;
+    write_pos = spi_rx_dma_pos();
+
+    if ((flags & (RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END)) != 0u) {
+        R8_SPI0_INT_FLAG = (uint8_t)(flags & (RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END));
+        s_spi_rx_dma_wrap_count++;
+        s_spi_rx_last_flags = flags;
+    } else if (write_pos < s_spi_rx_last_write_pos) {
+        s_spi_rx_dma_wrap_count++;
     }
-    return 0u;
+    s_spi_rx_last_write_pos = write_pos;
+    wraps = s_spi_rx_dma_wrap_count;
+    PFIC_EnableIRQ(SPI0_IRQn);
+
+    write_local_abs = (wraps * SPI_RX_DMA_RING_SIZE) + write_pos;
+    write_abs = s_spi_rx_base_abs + write_local_abs;
+    if (write_abs < s_spi_rx_read_abs) {
+        s_spi_rx_read_abs = write_abs;
+    }
+
+    available = write_abs - s_spi_rx_read_abs;
+    if (available > SPI_RX_DMA_RING_SIZE) {
+        s_spi_rx_ring_overrun_count += available - SPI_RX_DMA_RING_SIZE;
+        s_spi_rx_full_clip_count++;
+        s_spi_rx_read_abs = write_abs - SPI_RX_DMA_RING_SIZE;
+        available = SPI_RX_DMA_RING_SIZE;
+    } else if (available > s_spi_rx_max_available) {
+        s_spi_rx_max_available = available;
+    }
+
+    if (available_out != 0) {
+        *available_out = available;
+    }
+    return write_abs;
 }
 
 bool rfm_spi_port_peek_latest_input(uint8_t *payload, uint8_t len)
 {
-    uint32_t start;
+    uint32_t write_pos;
+    uint32_t scan_len;
+    uint32_t offset;
 
     if ((payload == 0) || (len != RFM_RF_INPUT_PAYLOAD_LEN)) {
         s_spi_rx_peek_miss_count++;
         return false;
     }
 
-    start = spi_rx_latest_complete_slot();
-    if (spi_rx_copy_frame_fast(start, payload)) {
-        s_spi_rx_peek_ok_count++;
-        s_spi_rx_direct_count++;
-        return true;
+    write_pos = spi_rx_dma_pos();
+    scan_len = SPI_RX_PEEK_SCAN_BYTES;
+    if (scan_len > SPI_RX_DMA_RING_SIZE) {
+        scan_len = SPI_RX_DMA_RING_SIZE;
+    }
+
+    for (offset = SPI_RX_FRAME_BYTES; offset <= scan_len; ++offset) {
+        uint32_t start = spi_rx_ring_sub(write_pos, offset);
+
+        if (spi_rx_copy_frame_fast(start, payload)) {
+            s_spi_rx_peek_ok_count++;
+            s_spi_rx_direct_count++;
+            return true;
+        }
     }
 
     s_spi_rx_peek_miss_count++;
@@ -162,6 +220,7 @@ static void spi_rx_restart_after_tx(void)
     s_spi_rx_dma_wrap_count = 0u;
     s_spi_rx_seen_wrap_count = 0u;
     s_spi_rx_read_abs = s_spi_rx_base_abs;
+    s_spi_rx_last_write_pos = 0u;
     memset(s_spi_rx_dma_buf, 0xFF, sizeof(s_spi_rx_dma_buf));
     spi_rx_dma_loop_start(1u);
     SPI0_ITCfg(ENABLE, SPI0_IT_FIFO_OV);
@@ -200,6 +259,7 @@ void rfm_spi_port_init(void)
     s_spi_rx_base_abs = 0u;
     s_spi_rx_seen_wrap_count = 0u;
     s_spi_rx_read_abs = 0u;
+    s_spi_rx_last_write_pos = 0u;
     s_spi_rx_total_bytes = 0u;
     s_spi_rx_ring_overrun_count = 0u;
     s_spi_rx_backlog_drop_count = 0u;
@@ -230,16 +290,35 @@ void rfm_spi_port_set_irq(bool asserted)
     }
 }
 
+void rfm_spi_port_service(void)
+{
+    uint32_t available;
+
+    if (s_spi_tx_pending != 0u) {
+        spi_tx_fill_fifo();
+        if ((R8_SPI0_INT_FLAG & RB_SPI_IF_CNT_END) != 0u) {
+            R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END;
+            s_spi_tx_pending = 0u;
+            rfm_spi_port_set_irq(false);
+            spi_rx_restart_after_tx();
+        } else if (GPIOB_ReadPortPin(GPIO_Pin_12) &&
+                   ((int32_t)(spi_now_us() - (s_spi_tx_start_us + SPI_TX_PENDING_RECOVER_US)) >= 0)) {
+            s_spi_tx_pending = 0u;
+            rfm_spi_port_set_irq(false);
+            spi_rx_restart_after_tx();
+        }
+        return;
+    }
+
+    (void)spi_rx_write_abs_snapshot(&available);
+}
+
 size_t rfm_spi_port_drain(uint8_t *buf, size_t max_len)
 {
     size_t n = 0u;
-    uint32_t wraps;
-    uint32_t write_pos;
-    uint32_t write_local_abs;
     uint32_t write_abs;
     uint32_t available;
     uint32_t read_pos;
-    uint32_t read_local_abs;
     uint32_t chunk;
 
     if ((buf == 0) || (max_len == 0u)) {
@@ -265,56 +344,19 @@ size_t rfm_spi_port_drain(uint8_t *buf, size_t max_len)
         }
     }
 
-    PFIC_DisableIRQ(SPI0_IRQn);
-    wraps = s_spi_rx_dma_wrap_count;
-    write_pos = spi_rx_dma_pos();
-    PFIC_EnableIRQ(SPI0_IRQn);
+    write_abs = spi_rx_write_abs_snapshot(&available);
 
-    read_local_abs = s_spi_rx_read_abs - s_spi_rx_base_abs;
-    if ((write_pos < (read_local_abs % SPI_RX_DMA_RING_SIZE)) &&
-        (wraps == s_spi_rx_seen_wrap_count)) {
-        wraps++;
-    }
+    if (available > max_len) {
+        uint32_t drop = available - (uint32_t)max_len;
 
-    write_local_abs = (wraps * SPI_RX_DMA_RING_SIZE) + write_pos;
-    write_abs = s_spi_rx_base_abs + write_local_abs;
-    if (write_abs < s_spi_rx_read_abs) {
-        s_spi_rx_read_abs = write_abs;
-    }
-
-    available = write_abs - s_spi_rx_read_abs;
-    if (available > SPI_RX_DMA_RING_SIZE) {
-        s_spi_rx_ring_overrun_count += available - SPI_RX_DMA_RING_SIZE;
-        s_spi_rx_full_clip_count++;
-        s_spi_rx_read_abs = write_abs - SPI_RX_DMA_RING_SIZE;
-        available = SPI_RX_DMA_RING_SIZE;
-    } else if (available > s_spi_rx_max_available) {
-        s_spi_rx_max_available = available;
-    }
-
-    if (available > SPI_RX_BACKLOG_DROP_THRESHOLD) {
-        uint32_t keep = SPI_RX_BACKLOG_KEEP_BYTES;
-        uint32_t drop;
-
-        if (keep > max_len) {
-            keep = (uint32_t)max_len;
-        }
-        if (keep > available) {
-            keep = available;
-        }
-
-        drop = available - keep;
         s_spi_rx_read_abs += drop;
         s_spi_rx_backlog_drop_count++;
         s_spi_rx_backlog_drop_bytes += drop;
-        available = keep;
+        available = (uint32_t)max_len;
     }
 
     if (available > SPI_RX_NEAR_FULL_THRESHOLD) {
         s_spi_rx_near_full_count++;
-    }
-    if (available > max_len) {
-        available = (uint32_t)max_len;
     }
 
     while (n < available) {
@@ -455,8 +497,12 @@ __attribute__((interrupt("WCH-Interrupt-fast"), section(".highcode")))
 void SPI0_IRQHandler(void)
 {
     const uint8_t flags = R8_SPI0_INT_FLAG;
-    const uint8_t active = (uint8_t)(flags & (RB_SPI_IF_DMA_END | RB_SPI_IF_FIFO_OV));
-    const uint8_t noise = (uint8_t)(flags & (RB_SPI_IF_BYTE_END | RB_SPI_IF_FIFO_HF | RB_SPI_IF_FST_BYTE));
+    const uint8_t active = (uint8_t)(flags & RB_SPI_IF_FIFO_OV);
+    const uint8_t noise = (uint8_t)(flags & (RB_SPI_IF_CNT_END |
+                                             RB_SPI_IF_DMA_END |
+                                             RB_SPI_IF_BYTE_END |
+                                             RB_SPI_IF_FIFO_HF |
+                                             RB_SPI_IF_FST_BYTE));
 
     s_spi_rx_last_flags = flags;
 
@@ -476,13 +522,6 @@ void SPI0_IRQHandler(void)
         s_spi_rx_fifo_ov_count++;
         s_spi_rx_ring_overrun_count++;
         spi_rx_dma_loop_start(1u);
-        return;
-    }
-
-    if ((active & RB_SPI_IF_DMA_END) != 0u) {
-        R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END;
-        s_spi_rx_isr_count++;
-        s_spi_rx_dma_wrap_count++;
         return;
     }
 

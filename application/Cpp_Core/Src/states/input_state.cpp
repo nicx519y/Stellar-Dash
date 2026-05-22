@@ -16,6 +16,7 @@
 #include "connection_manager.hpp"
 #include "monitor_telemetry.hpp"
 #include "report_scheduler.hpp"
+#include "board_cfg.h"
 
 #ifndef RF24G_SPI_BRINGUP_FASTPATH
 #define RF24G_SPI_BRINGUP_FASTPATH 1
@@ -43,7 +44,11 @@ void InputState::setup()
     /**************** 初始化USB end ******************* */
 
     InputMode inputMode = STORAGE_MANAGER.getInputMode();
-    const ConnectionMode connectionMode = STORAGE_MANAGER.getConnectionMode();
+    ConnectionMode connectionMode = STORAGE_MANAGER.getConnectionMode();
+#if RF24G_SPI_TEST_FORCE_RF24G
+    connectionMode = ConnectionMode::CONNECTION_MODE_RF24G;
+    APP_DBG("[RF_SPI_TEST] force connection mode RF24G");
+#endif
     // InputMode inputMode = InputMode::INPUT_MODE_PS5; // TODO: 需要根据实际情况修改
     // InputMode inputMode = InputMode::INPUT_MODE_XINPUT;
     APP_DBG("[INPUT] Selected input mode: %d", static_cast<int>(inputMode));

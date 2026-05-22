@@ -5,10 +5,7 @@
 #include "screen_control/spi_screen_manager.hpp"
 #include "tusb.h"
 #include "power_manager.hpp"
-
-#if APPLICATION_DEBUG_PRINT
-    #include "board_cfg.h"
-#endif
+#include "board_cfg.h"
 
 #ifndef RF24G_SPI_BRINGUP_FASTPATH
 #define RF24G_SPI_BRINGUP_FASTPATH 1
@@ -21,6 +18,10 @@ void MainStateMachine::setup()
     APP_DBG("Storage initConfig success.");
 
     BootMode bootMode = STORAGE_MANAGER.getBootMode();
+#if RF24G_SPI_TEST_FORCE_RF24G
+    bootMode = BootMode::BOOT_MODE_INPUT;
+    APP_DBG("[RF_SPI_TEST] force boot mode INPUT");
+#endif
     // BootMode bootMode = BOOT_MODE_INPUT;
     // BootMode bootMode = BOOT_MODE_WEB_CONFIG;
     // LOG_INFO("MAIN_STATE_MACHINE", "BootMode: %d", bootMode);
@@ -50,7 +51,13 @@ void MainStateMachine::setup()
     const bool rf24gFastPath =
 #if RF24G_SPI_BRINGUP_FASTPATH
         (bootMode == BootMode::BOOT_MODE_INPUT) &&
-        (STORAGE_MANAGER.getConnectionMode() == ConnectionMode::CONNECTION_MODE_RF24G);
+        (
+#if RF24G_SPI_TEST_FORCE_RF24G
+            true
+#else
+            STORAGE_MANAGER.getConnectionMode() == ConnectionMode::CONNECTION_MODE_RF24G
+#endif
+        );
 #else
         false;
 #endif
