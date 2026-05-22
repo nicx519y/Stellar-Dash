@@ -51,7 +51,8 @@ private:
     bool parseEventFrame(const uint8_t* frame, uint16_t len);
     bool parseStatusPayload(const uint8_t* payload, uint8_t len);
     bool hasStatusChangedForLog() const;
-    static uint8_t encodeDpad(uint8_t dpad);
+    static uint8_t inputCrc8(const uint8_t* data, uint8_t len);
+    static uint32_t buildHitboxKeyMask(const GamepadState& state);
 
     RFTransportState state = RFTransportState::Disconnected;
     RFModuleStatus status = {};

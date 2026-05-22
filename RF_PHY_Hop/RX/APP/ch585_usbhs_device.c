@@ -226,6 +226,7 @@ void USBHS_Device_Init ( FunctionalState sta )
         R8_USB2_BASE_MODE = USBHS_UD_SPEED_HIGH;
 #endif
         R8_USB2_CTRL = USBHS_UD_DEV_EN | USBHS_UD_DMA_EN | USBHS_UD_LPM_EN | USBHS_UD_PHY_SUSPENDM;
+        PFIC_SetPriority( USB2_DEVICE_IRQn, 0xF0 );
         PFIC_EnableIRQ( USB2_DEVICE_IRQn );
     }
     else

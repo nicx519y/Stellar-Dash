@@ -34,6 +34,15 @@ function isLatency(ev: MonitorEvent): ev is LatencyEvent {
 
 function calcRateFromPackets(packets: PacketRow[], channel: "USB" | "RF", direction: "TX" | "RX", windowMs: number) {
   const t = nowMs();
+  const measuredWindowMs = Math.max(windowMs, 6500);
+  for (let i = packets.length - 1; i >= 0; i--) {
+    const p = packets[i];
+    if (t - p.timestampMs > measuredWindowMs) break;
+    if (p.channel === channel && p.direction === direction && typeof p.rateHz === "number") {
+      return p.rateHz;
+    }
+  }
+
   let count = 0;
   for (let i = packets.length - 1; i >= 0; i--) {
     const p = packets[i];
@@ -143,7 +152,7 @@ export function useMonitorStream() {
       const latencyHz = calcHzFromLatency(latenciesRef.current).estimatedHz || 0;
       const usbHz = calcRateFromPackets(packetRowsRef.current, "USB", "TX", 1000);
       const rfHz = calcRateFromPackets(packetRowsRef.current, "RF", "RX", 1000);
-      const hz = latencyHz > 0 ? latencyHz : Math.max(usbHz, rfHz);
+      const hz = rfHz > 0 ? rfHz : latencyHz > 0 ? latencyHz : usbHz;
       setRateSeries((prev) => {
         const next = prev.concat({ tMs: nowMs(), hz });
         return next.length > MAX_RATE_POINTS ? next.slice(-MAX_RATE_POINTS) : next;

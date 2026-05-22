@@ -38,6 +38,9 @@ export function PacketsPanel({ items }: { items: Array<PacketEvent & { id?: stri
                 <Table.ColumnHeader color="gray.300" textAlign="end">
                   Seq
                 </Table.ColumnHeader>
+                <Table.ColumnHeader color="gray.300" textAlign="end">
+                  统计
+                </Table.ColumnHeader>
               </Table.Row>
             </Table.Header>
             <Table.Body>
@@ -56,6 +59,13 @@ export function PacketsPanel({ items }: { items: Array<PacketEvent & { id?: stri
                   </Table.Cell>
                   <Table.Cell color="gray.200" textAlign="end">
                     {typeof p.seq === "number" ? p.seq : "-"}
+                  </Table.Cell>
+                  <Table.Cell color="gray.200" textAlign="end">
+                    {typeof p.sampleCount === "number"
+                      ? `${p.sampleCount}/${p.expectedCount ?? "-"}`
+                      : typeof p.rateHz === "number"
+                        ? `${p.rateHz.toFixed(1)}Hz`
+                        : "-"}
                   </Table.Cell>
                 </Table.Row>
               ))}

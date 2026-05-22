@@ -13,6 +13,165 @@ export interface ParsedDongleFrame {
   errorMessage?: string;
 }
 
+let rfHopCumulativeRx = 0;
+let lastRfHopR5AtMs = 0;
+
+function parseKvLine(text: string): Map<string, string> {
+  const map = new Map<string, string>();
+  const parts = text.split(/\s+/).slice(1);
+  for (const part of parts) {
+    const idx = part.indexOf("=");
+    if (idx <= 0) continue;
+    map.set(part.substring(0, idx), part.substring(idx + 1));
+  }
+  return map;
+}
+
+function parsePair(value: string | undefined): [number, number] {
+  if (!value) return [0, 0];
+  const [a, b] = value.split("/");
+  return [Number(a ?? "0") || 0, Number(b ?? "0") || 0];
+}
+
+function parseQuad(value: string | undefined): [number, number, number, number] {
+  if (!value) return [0, 0, 0, 0];
+  const parts = value.split("/");
+  return [
+    Number(parts[0] ?? "0") || 0,
+    Number(parts[1] ?? "0") || 0,
+    Number(parts[2] ?? "0") || 0,
+    Number(parts[3] ?? "0") || 0,
+  ];
+}
+
+function inferRfTargetRateHz(expectedCount: number): number {
+  const perFiveSeconds = expectedCount / 5;
+  if (perFiveSeconds >= 30000 / 5) return 8000;
+  if (perFiveSeconds >= 15000 / 5) return 4000;
+  if (perFiveSeconds >= 7500 / 5) return 2000;
+  return 1000;
+}
+
+function rfStateToLinkState(state: string): "Disconnected" | "Connecting" | "Connected" | "Error" {
+  if (state === "C") return "Connected";
+  if (state === "U") return "Disconnected";
+  if (state === "PA" || state === "HR" || state === "CA" || state === "RD") return "Connecting";
+  return "Error";
+}
+
+function parseChannelNumber(channelText: string | undefined): number | undefined {
+  if (!channelText) return undefined;
+  const first = channelText.split(/[/>]/)[0];
+  const n = Number(first);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function parseRfHopR5Line(text: string, timestampMs: number): MonitorEvent[] {
+  const map = parseKvLine(text);
+  const stateCode = map.get("S") ?? "U";
+  const channelText = map.get("C") ?? "";
+  const lossPermille = Number(map.get("L") ?? "1000") || 0;
+  const [rxCount, expectedCount] = parsePair(map.get("P"));
+  const ackCount = Number(map.get("A") ?? "0") || 0;
+  const unconnectedCount = Number(map.get("U") ?? "0") || 0;
+  const errorCount = Number(map.get("E") ?? "0") || 0;
+  const targetRateHz = inferRfTargetRateHz(expectedCount);
+
+  const elapsedMs = lastRfHopR5AtMs > 0 ? timestampMs - lastRfHopR5AtMs : 0;
+  lastRfHopR5AtMs = timestampMs;
+  const actualRateHz =
+    elapsedMs >= 1000 && elapsedMs <= 10000
+      ? (rxCount * 1000) / elapsedMs
+      : expectedCount > 0
+        ? (rxCount * targetRateHz) / expectedCount
+        : 0;
+
+  rfHopCumulativeRx += rxCount;
+  const channelNumber = parseChannelNumber(channelText);
+  const events: MonitorEvent[] = [
+    {
+      kind: "device_status",
+      timestampMs,
+      mode: "RF24G",
+      state: rfStateToLinkState(stateCode),
+      targetRateHz,
+      actualRateHz,
+    },
+    {
+      kind: "packet",
+      timestampMs,
+      channel: "RF",
+      direction: "RX",
+      seq: rfHopCumulativeRx,
+      messageType: `RFH_R5_${stateCode}`,
+      payloadLen: 0,
+      sampleCount: rxCount,
+      expectedCount,
+      sampleWindowMs: elapsedMs || 5000,
+      rateHz: actualRateHz,
+      lossPermille,
+      channelNumber,
+    },
+    {
+      kind: "latency",
+      timestampMs,
+      seq: rfHopCumulativeRx,
+    },
+  ];
+
+  if (errorCount > 0 || unconnectedCount > 0) {
+    events.push({
+      kind: "error",
+      timestampMs,
+      source: "RF_PHY_HOP_RX",
+      code: errorCount > 0 ? "RFH_R5_ERROR" : "RFH_R5_UNCONNECTED",
+      level: errorCount > 0 ? "WARN" : "INFO",
+      message: `state=${stateCode} ch=${channelText} loss=${lossPermille} rx=${rxCount}/${expectedCount} ack=${ackCount} unconnected=${unconnectedCount} errors=${errorCount}`,
+      count: errorCount || unconnectedCount,
+    });
+  }
+
+  return events;
+}
+
+function parseRfHopRdLine(text: string, timestampMs: number): MonitorEvent[] {
+  const map = parseKvLine(text);
+  const [armTry, armFail] = parsePair(map.get("A"));
+  const pParts = (map.get("P") ?? "").split("/");
+  const rxOk = Number(pParts[0] ?? "0") || 0;
+  const crcErr = Number(pParts[1] ?? "0") || 0;
+  const rxTimeout = Number(pParts[2] ?? "0") || 0;
+  const [badLen, badType, badConnect, ignoredData] = parseQuad(map.get("B"));
+  const [ackTry, ackFail] = parsePair(map.get("K"));
+  const [appTimeout, dataResync] = parsePair(map.get("U"));
+
+  const errorCount = armFail + crcErr + rxTimeout + badLen + badType + badConnect + ignoredData + ackFail + appTimeout + dataResync;
+  const events: MonitorEvent[] = [
+    {
+      kind: "packet",
+      timestampMs,
+      channel: "RF",
+      direction: "RX",
+      messageType: "RFH_RD",
+      payloadLen: 0,
+      sampleCount: rxOk,
+      expectedCount: armTry,
+    },
+  ];
+
+  events.push({
+    kind: "error",
+    timestampMs,
+    source: "RF_PHY_HOP_RX",
+    code: "RFH_RD_DIAG",
+    level: errorCount > 0 ? "WARN" : "INFO",
+    message: `arm=${armTry}/${armFail} pkt=${rxOk}/${crcErr}/${rxTimeout} bad=${badLen}/${badType}/${badConnect}/${ignoredData} ack=${ackTry}/${ackFail} stale=${appTimeout}/${dataResync}`,
+    count: errorCount,
+  });
+
+  return events;
+}
+
 /**
  * Phase 1 简化解析器:
  * 输入一行文本，输出统一监控事件列表。
@@ -23,6 +182,13 @@ export interface ParsedDongleFrame {
  */
 export function parseDongleTelemetryLine(line: string, timestampMs = Date.now()): MonitorEvent[] {
   const text = line.trim();
+  if (text.startsWith("R5 ")) {
+    return parseRfHopR5Line(text, timestampMs);
+  }
+  if (text.startsWith("RD ")) {
+    return parseRfHopRdLine(text, timestampMs);
+  }
+
   if (!text.startsWith("MON|")) {
     return [];
   }

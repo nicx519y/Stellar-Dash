@@ -40,7 +40,8 @@ export function App() {
 
   const usbStatus = useMemo(() => latestStatus(events, "USB"), [events]);
   const rfStatus = useMemo(() => latestStatus(events, "RF24G"), [events]);
-  const reportHz = latency.estimatedHz > 0 ? latency.estimatedHz : Math.max(packets.usbTxPerSec, packets.rfRxPerSec);
+  const rfActualHz = rfStatus?.actualRateHz ?? 0;
+  const reportHz = rfActualHz > 0 ? rfActualHz : latency.estimatedHz > 0 ? latency.estimatedHz : Math.max(packets.usbTxPerSec, packets.rfRxPerSec);
 
   return (
     <Box w="100vw" h="100vh" bg="#0b0f16" color="gray.50" overflow="hidden">

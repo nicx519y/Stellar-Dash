@@ -4,9 +4,11 @@ import path from "node:path";
 import { MonitorEventBus } from "./pipeline/event-bus";
 import { parseDongleTelemetryLine } from "./sources/dongle-telemetry-source";
 import { startHidTelemetrySource } from "./sources/hid-telemetry-source";
+import { startSerialTelemetrySource } from "./sources/serial-telemetry-source";
 
 const eventBus = new MonitorEventBus();
 let stopHidSource: (() => void) | null = null;
+let stopSerialSource: (() => void) | null = null;
 let mainWindow: BrowserWindow | null = null;
 const pendingEvents: unknown[] = [];
 let paused = false;
@@ -58,6 +60,11 @@ app.whenReady().then(() => {
       eventBus.publish(event);
     }
   });
+  stopSerialSource = startSerialTelemetrySource((event) => {
+    if (!paused) {
+      eventBus.publish(event);
+    }
+  });
   eventBus.subscribe((event) => {
     pendingEvents.push(event);
   });
@@ -83,10 +90,21 @@ ipcMain.handle("monitor:setPaused", (_evt, nextPaused: boolean) => {
       stopHidSource();
       stopHidSource = null;
     }
+    if (stopSerialSource) {
+      stopSerialSource();
+      stopSerialSource = null;
+    }
     return;
   }
   if (!stopHidSource) {
     stopHidSource = startHidTelemetrySource((event) => {
+      if (!paused) {
+        eventBus.publish(event);
+      }
+    });
+  }
+  if (!stopSerialSource) {
+    stopSerialSource = startSerialTelemetrySource((event) => {
       if (!paused) {
         eventBus.publish(event);
       }
@@ -105,6 +123,10 @@ app.on("window-all-closed", () => {
   if (stopHidSource) {
     stopHidSource();
     stopHidSource = null;
+  }
+  if (stopSerialSource) {
+    stopSerialSource();
+    stopSerialSource = null;
   }
   app.quit();
 });

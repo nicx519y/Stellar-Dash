@@ -209,10 +209,14 @@ MON|TYPE=ERROR|SRC=DONGLE|CODE=RF_CRC_FAIL|MSG=crc mismatch
 
 - `MONITOR_VID`：目标 USB VID（默认 `0x045E`）
 - `MONITOR_PID`：目标 USB PID（可选）
+- `MONITOR_SERIAL_PATH`：指定 CDC 串口路径（可选，如 `COM8`；多个用 `,` 或 `;` 分隔）
+- `MONITOR_SERIAL_VID` / `MONITOR_SERIAL_PID`：CDC 串口匹配 VID/PID（默认复用 `MONITOR_VID` / `MONITOR_PID`）
+- `MONITOR_SERIAL_BAUD`：CDC 串口波特率（默认 `115200`）
 
 依赖：
 
 - `node-hid` 为可选依赖，未安装时不影响项目基础启动
+- `serialport` 为可选依赖，用于采集 `RF_PHY_Hop/RX` 的 CDC 文本日志（`R5` / `RD`）
 
 ## 9. 目录与模块索引
 

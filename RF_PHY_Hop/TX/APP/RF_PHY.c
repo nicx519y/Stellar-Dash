@@ -10,7 +10,6 @@
 #include "rfm_config.h"
 #include "rfm_input_stream.h"
 #include "rfm_spi_bridge.h"
-#include "rfm_spi_port_internal.h"
 #include "rf_hop_protocol.h"
 
 #include <stdbool.h>
@@ -545,20 +544,10 @@ static void tx_advance_tick(void)
 static uint8_t tx_load_latest_payload(uint8_t *dst)
 {
     uint8_t has_payload;
-    uint8_t direct_payload;
 
-    direct_payload = rfm_spi_port_peek_latest_input(dst, RFH_AIR_DATA_LEN) ? 1u : 0u;
-    has_payload = direct_payload;
-    if(has_payload == 0u)
-    {
-        has_payload = rfm_input_stream_take_latest(dst, RFH_AIR_DATA_LEN) ? 1u : 0u;
-    }
+    has_payload = rfm_input_stream_take_latest(dst, RFH_AIR_DATA_LEN) ? 1u : 0u;
     if(has_payload != 0u)
     {
-        if(direct_payload != 0u)
-        {
-            gStat.spi_rx_win++;
-        }
         memcpy(g_last_payload, dst, RFH_AIR_DATA_LEN);
         g_has_payload = 1u;
         gStat.payload_update++;

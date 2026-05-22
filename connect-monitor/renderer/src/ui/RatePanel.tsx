@@ -18,7 +18,8 @@ export function RatePanel({
   rfStatus: DeviceStatusEvent | null;
 }) {
   const fallbackHz = Math.max(packets.usbTxPerSec, packets.rfRxPerSec);
-  const reportHz = latency.estimatedHz > 0 ? latency.estimatedHz : fallbackHz;
+  const rfActualHz = rfStatus?.actualRateHz ?? 0;
+  const reportHz = rfActualHz > 0 ? rfActualHz : latency.estimatedHz > 0 ? latency.estimatedHz : fallbackHz;
 
   return (
     <VStack gap={4} align="stretch">
@@ -37,7 +38,7 @@ export function RatePanel({
         <Card.Root variant="outline" bg="rgba(255,255,255,0.02)" borderColor="rgba(255,255,255,0.08)" flex="1">
           <Card.Body>
             <Stat.Root>
-              <Stat.Label>RF 监控包速率</Stat.Label>
+              <Stat.Label>RF 实收速率</Stat.Label>
               <Stat.ValueText>{packets.rfRxPerSec.toFixed(1)} pkt/s</Stat.ValueText>
               <Stat.HelpText>Target {rfStatus?.targetRateHz ?? 0} Hz</Stat.HelpText>
             </Stat.Root>
@@ -50,11 +51,13 @@ export function RatePanel({
               <Stat.Label>上报率估计</Stat.Label>
               <Stat.ValueText>{reportHz.toFixed(1)} Hz</Stat.ValueText>
               <Stat.HelpText>
-                {latency.estimatedHz > 0
-                  ? `latency.seq Δ (Seq ${latency.lastSeq} @ ${
+                {rfActualHz > 0
+                  ? `RF telemetry (${rfActualHz.toFixed(1)} Hz)`
+                  : latency.estimatedHz > 0
+                    ? `latency.seq Δ (Seq ${latency.lastSeq} @ ${
                       latency.lastAtMs ? new Date(latency.lastAtMs).toLocaleTimeString() : "-"
                     })`
-                  : "1s 滑窗包速率"}
+                    : "1s 滑窗包速率"}
               </Stat.HelpText>
             </Stat.Root>
           </Card.Body>
@@ -64,7 +67,7 @@ export function RatePanel({
       <Card.Root variant="outline" bg="rgba(255,255,255,0.02)" borderColor="rgba(255,255,255,0.08)">
         <Card.Body>
           <Text fontSize="sm" color="gray.300">
-            说明：折线图与“上报率”优先使用 latency.seq 增量估计；没有 latency 时回退到 1 秒滑窗的监控包速率（USB TX / RF RX 取较大者）。
+            说明：RF_PHY_Hop 的 CDC 日志会直接给出窗口内实收包数；没有 RF 窗口统计时，再回退到 latency.seq 增量或 1 秒滑窗的监控包速率。
           </Text>
         </Card.Body>
       </Card.Root>

@@ -72,34 +72,33 @@
 
 #define XINPUT_ENDPOINT_SIZE           (20u)
 
-/* RF input payload (little-endian): seq, flags, buttons16, dpad, lt, rt, lx, ly, rx, ry */
-#define RF_INPUT_PAYLOAD_LEN           (15u)
+/* RF input payload: seq, format_flags, key_mask32, reserved[3], crc8. */
+#define RF_INPUT_PAYLOAD_LEN           (10u)
+#define RF_INPUT_FORMAT_VERSION        (1u)
+#define RF_INPUT_FORMAT_VERSION_SHIFT  (4u)
+#define RF_INPUT_FORMAT_VERSION_MASK   (0xF0u)
+#define RF_INPUT_FLAG_PROCESSED        (0x01u)
+#define RF_INPUT_KEY_MASK_VALID        (0x0003FFFFUL)
 
-/* Raw buttons bit layout from 2.4G device payload. */
-#define RAW_BTN_A                      (1u << 0)
-#define RAW_BTN_B                      (1u << 1)
-#define RAW_BTN_X                      (1u << 2)
-#define RAW_BTN_Y                      (1u << 3)
-#define RAW_BTN_LB                     (1u << 4)
-#define RAW_BTN_RB                     (1u << 5)
-#define RAW_BTN_BACK                   (1u << 6)
-#define RAW_BTN_START                  (1u << 7)
-#define RAW_BTN_L3                     (1u << 8)
-#define RAW_BTN_R3                     (1u << 9)
-#define RAW_BTN_HOME                   (1u << 10)
-#define RAW_BTN_LT_DIGITAL             (1u << 11)
-#define RAW_BTN_RT_DIGITAL             (1u << 12)
-
-/* Raw dpad values. */
-#define RAW_DPAD_CENTER                (0u)
-#define RAW_DPAD_UP                    (1u)
-#define RAW_DPAD_UP_RIGHT              (2u)
-#define RAW_DPAD_RIGHT                 (3u)
-#define RAW_DPAD_DOWN_RIGHT            (4u)
-#define RAW_DPAD_DOWN                  (5u)
-#define RAW_DPAD_DOWN_LEFT             (6u)
-#define RAW_DPAD_LEFT                  (7u)
-#define RAW_DPAD_UP_LEFT               (8u)
+/* Hitbox key_mask bit layout; matches Gamepad::buildMacroMaskFromCurrentState(). */
+#define HBOX_KEY_UP                    (1UL << 0)
+#define HBOX_KEY_DOWN                  (1UL << 1)
+#define HBOX_KEY_LEFT                  (1UL << 2)
+#define HBOX_KEY_RIGHT                 (1UL << 3)
+#define HBOX_KEY_B1                    (1UL << 4)
+#define HBOX_KEY_B2                    (1UL << 5)
+#define HBOX_KEY_B3                    (1UL << 6)
+#define HBOX_KEY_B4                    (1UL << 7)
+#define HBOX_KEY_L1                    (1UL << 8)
+#define HBOX_KEY_R1                    (1UL << 9)
+#define HBOX_KEY_L2                    (1UL << 10)
+#define HBOX_KEY_R2                    (1UL << 11)
+#define HBOX_KEY_S1                    (1UL << 12)
+#define HBOX_KEY_S2                    (1UL << 13)
+#define HBOX_KEY_L3                    (1UL << 14)
+#define HBOX_KEY_R3                    (1UL << 15)
+#define HBOX_KEY_A1                    (1UL << 16)
+#define HBOX_KEY_A2                    (1UL << 17)
 
 /* XInput buttons1 masks. */
 #define XBOX_MASK_UP                   (1u << 0)
@@ -120,17 +119,12 @@
 #define XBOX_MASK_X                    (1u << 6)
 #define XBOX_MASK_Y                    (1u << 7)
 
-typedef struct {
+typedef struct __attribute__((packed, aligned(1))) {
     uint8_t seq;
-    uint8_t flags;
-    uint16_t buttons;
-    uint8_t dpad;
-    uint8_t lt;
-    uint8_t rt;
-    int16_t lx;
-    int16_t ly;
-    int16_t rx;
-    int16_t ry;
+    uint8_t format_flags;
+    uint32_t key_mask;
+    uint8_t reserved[3];
+    uint8_t crc8;
 } raw_input_state_t;
 
 typedef struct __attribute__((packed, aligned(1))) {

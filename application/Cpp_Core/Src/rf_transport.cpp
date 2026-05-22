@@ -21,6 +21,9 @@ static constexpr uint8_t EVT_RATE_APPLIED = 0x83u;
 static constexpr uint8_t EVT_LINK_WARN = 0x84u;
 static constexpr uint8_t EVT_ERROR = 0x85u;
 static constexpr uint8_t INPUT_PAYLOAD_LEN = 10u;
+static constexpr uint8_t INPUT_FORMAT_VERSION = 1u;
+static constexpr uint8_t INPUT_FLAG_PROCESSED = 0x01u;
+static constexpr uint8_t INPUT_FLAGS = static_cast<uint8_t>((INPUT_FORMAT_VERSION << 4) | INPUT_FLAG_PROCESSED);
 static constexpr uint8_t STATUS_PAYLOAD_LEN = 17u;
 static constexpr uint16_t RX_BUF_LEN = 32u;
 
@@ -175,21 +178,44 @@ bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t l
     return true;
 }
 
-uint8_t RFTransport::encodeDpad(uint8_t dpad) {
-    const bool up = (dpad & GAMEPAD_MASK_UP) != 0u;
-    const bool down = (dpad & GAMEPAD_MASK_DOWN) != 0u;
-    const bool left = (dpad & GAMEPAD_MASK_LEFT) != 0u;
-    const bool right = (dpad & GAMEPAD_MASK_RIGHT) != 0u;
+uint8_t RFTransport::inputCrc8(const uint8_t* data, uint8_t len) {
+    uint8_t crc = 0u;
+    for (uint8_t i = 0u; i < len; i++) {
+        crc = static_cast<uint8_t>(crc ^ data[i]);
+        for (uint8_t bit = 0u; bit < 8u; bit++) {
+            if ((crc & 0x80u) != 0u) {
+                crc = static_cast<uint8_t>((crc << 1) ^ 0x07u);
+            } else {
+                crc = static_cast<uint8_t>(crc << 1);
+            }
+        }
+    }
+    return crc;
+}
 
-    if (up && right) return 2u;
-    if (right && down) return 4u;
-    if (down && left) return 6u;
-    if (left && up) return 8u;
-    if (up) return 1u;
-    if (right) return 3u;
-    if (down) return 5u;
-    if (left) return 7u;
-    return 0u;
+uint32_t RFTransport::buildHitboxKeyMask(const GamepadState& gamepad) {
+    uint32_t mask = 0u;
+
+    mask |= ((gamepad.dpad & GAMEPAD_MASK_UP) != 0u) ? (1UL << 0) : 0u;
+    mask |= ((gamepad.dpad & GAMEPAD_MASK_DOWN) != 0u) ? (1UL << 1) : 0u;
+    mask |= ((gamepad.dpad & GAMEPAD_MASK_LEFT) != 0u) ? (1UL << 2) : 0u;
+    mask |= ((gamepad.dpad & GAMEPAD_MASK_RIGHT) != 0u) ? (1UL << 3) : 0u;
+    mask |= ((gamepad.buttons & GAMEPAD_MASK_B1) != 0u) ? (1UL << 4) : 0u;
+    mask |= ((gamepad.buttons & GAMEPAD_MASK_B2) != 0u) ? (1UL << 5) : 0u;
+    mask |= ((gamepad.buttons & GAMEPAD_MASK_B3) != 0u) ? (1UL << 6) : 0u;
+    mask |= ((gamepad.buttons & GAMEPAD_MASK_B4) != 0u) ? (1UL << 7) : 0u;
+    mask |= ((gamepad.buttons & GAMEPAD_MASK_L1) != 0u) ? (1UL << 8) : 0u;
+    mask |= ((gamepad.buttons & GAMEPAD_MASK_R1) != 0u) ? (1UL << 9) : 0u;
+    mask |= ((gamepad.buttons & GAMEPAD_MASK_L2) != 0u) ? (1UL << 10) : 0u;
+    mask |= ((gamepad.buttons & GAMEPAD_MASK_R2) != 0u) ? (1UL << 11) : 0u;
+    mask |= ((gamepad.buttons & GAMEPAD_MASK_S1) != 0u) ? (1UL << 12) : 0u;
+    mask |= ((gamepad.buttons & GAMEPAD_MASK_S2) != 0u) ? (1UL << 13) : 0u;
+    mask |= ((gamepad.buttons & GAMEPAD_MASK_L3) != 0u) ? (1UL << 14) : 0u;
+    mask |= ((gamepad.buttons & GAMEPAD_MASK_R3) != 0u) ? (1UL << 15) : 0u;
+    mask |= ((gamepad.buttons & GAMEPAD_MASK_A1) != 0u) ? (1UL << 16) : 0u;
+    mask |= ((gamepad.buttons & GAMEPAD_MASK_A2) != 0u) ? (1UL << 17) : 0u;
+
+    return mask;
 }
 
 bool RFTransport::begin() {
@@ -222,23 +248,15 @@ bool RFTransport::pollStatus() {
 
 bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
     uint8_t payload[INPUT_PAYLOAD_LEN] = {0};
+    const uint32_t keyMask = buildHitboxKeyMask(gamepad);
 
-    uint16_t buttons = (uint16_t)(gamepad.buttons & 0xFFFFu);
-    payload[0] = (uint8_t)(buttons & 0xFFu);
-    payload[1] = (uint8_t)((buttons >> 8) & 0xFFu);
-    payload[2] = encodeDpad(gamepad.dpad);
-    payload[3] = gamepad.lt;
-    payload[4] = gamepad.rt;
-
-    int16_t lx = (int16_t)((int32_t)gamepad.lx - 32768);
-    int16_t ly = (int16_t)((int32_t)gamepad.ly - 32768);
-    int16_t rx = (int16_t)((int32_t)gamepad.rx - 32768);
-
-    payload[5] = (uint8_t)(lx & 0xFF);
-    payload[6] = (uint8_t)((lx >> 8) & 0xFF);
-    payload[7] = (uint8_t)(ly & 0xFF);
-    payload[8] = (uint8_t)((ly >> 8) & 0xFF);
-    payload[9] = (uint8_t)(rx & 0xFF);
+    payload[0] = static_cast<uint8_t>(seq & 0xFFu);
+    payload[1] = INPUT_FLAGS;
+    payload[2] = static_cast<uint8_t>(keyMask & 0xFFu);
+    payload[3] = static_cast<uint8_t>((keyMask >> 8) & 0xFFu);
+    payload[4] = static_cast<uint8_t>((keyMask >> 16) & 0xFFu);
+    payload[5] = static_cast<uint8_t>((keyMask >> 24) & 0xFFu);
+    payload[9] = inputCrc8(payload, 9u);
 
     bool ok = transferCommand(CMD_INPUT_DATA, payload, sizeof(payload), false);
     MonitorTelemetry_OnRfTransfer(seq, CMD_INPUT_DATA, sizeof(payload), ok);

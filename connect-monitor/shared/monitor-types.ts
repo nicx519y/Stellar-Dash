@@ -20,6 +20,12 @@ export interface PacketEvent {
   messageType: string;
   payloadLen: number;
   payloadHex?: string;
+  sampleCount?: number;
+  expectedCount?: number;
+  sampleWindowMs?: number;
+  rateHz?: number;
+  lossPermille?: number;
+  channelNumber?: number;
 }
 
 export interface LatencyEvent {

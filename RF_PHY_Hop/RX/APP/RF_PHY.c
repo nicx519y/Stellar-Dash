@@ -8,6 +8,8 @@
 #include "HAL.h"
 #include "wchrf.h"
 #include "rf_hop_protocol.h"
+#include "dongle_config.h"
+#include "ch585_usbhs_device.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -175,6 +177,17 @@ static uint8_t g_diag_data_resync_events = 0u;
 static volatile uint32_t g_rx_progress_count = 0u;
 static uint32_t g_rx_progress_seen_count = 0u;
 static uint32_t g_rx_progress_clock = 0u;
+static xinput_report_t g_current_xinput_report;
+static xinput_report_t g_pending_xinput_report;
+static uint8_t g_input_payload_buffer[2][RF_INPUT_PAYLOAD_LEN];
+static volatile uint8_t g_input_payload_active_index = 0u;
+static volatile uint32_t g_input_payload_generation = 0u;
+static uint32_t g_input_payload_served_generation = 0u;
+static uint8_t g_xinput_pending = 0u;
+static uint8_t g_input_seen_valid = 0u;
+static uint8_t g_last_input_seq = 0u;
+static uint32_t g_last_input_key_mask = 0u;
+static uint32_t g_last_valid_input_clock = 0u;
 
 void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id);
 
@@ -298,6 +311,244 @@ static void rx_log_note_data_resync(void)
 static void rx_note_packet_progress(void)
 {
     g_rx_progress_count++;
+}
+
+static uint32_t rx_input_stale_ticks(void)
+{
+    uint32_t ticks = (INPUT_STALE_TIMEOUT_US + SYSTEM_TIME_MICROSEN - 1u) /
+                     SYSTEM_TIME_MICROSEN;
+    return (ticks == 0u) ? 1u : ticks;
+}
+
+static uint8_t rx_input_crc8(const uint8_t *data, uint8_t len)
+{
+    uint8_t crc = 0u;
+    uint8_t i;
+    uint8_t bit;
+
+    for(i = 0u; i < len; i++)
+    {
+        crc ^= data[i];
+        for(bit = 0u; bit < 8u; bit++)
+        {
+            if((crc & 0x80u) != 0u)
+            {
+                crc = (uint8_t)((crc << 1) ^ 0x07u);
+            }
+            else
+            {
+                crc = (uint8_t)(crc << 1);
+            }
+        }
+    }
+
+    return crc;
+}
+
+static void rx_make_clear_xinput_report(xinput_report_t *report)
+{
+    memset(report, 0, sizeof(*report));
+    report->report_id = 0u;
+    report->report_size = XINPUT_ENDPOINT_SIZE;
+}
+
+static void rx_xinput_init(void)
+{
+    rx_make_clear_xinput_report(&g_current_xinput_report);
+    rx_make_clear_xinput_report(&g_pending_xinput_report);
+    memset(g_input_payload_buffer, 0, sizeof(g_input_payload_buffer));
+    g_input_payload_active_index = 0u;
+    g_input_payload_generation = 0u;
+    g_input_payload_served_generation = 0u;
+    g_xinput_pending = 0u;
+    g_input_seen_valid = 0u;
+    g_last_input_seq = 0u;
+    g_last_input_key_mask = 0u;
+    g_last_valid_input_clock = TMOS_GetSystemClock();
+}
+
+static uint8_t rx_try_submit_xinput_report(const xinput_report_t *report)
+{
+    if(USBHS_DevEnumStatus == 0u)
+    {
+        return 0u;
+    }
+    if((USBHS_Endp_Busy[DEF_UEP2] & DEF_UEP_BUSY) != 0u)
+    {
+        return 0u;
+    }
+    return (USBHS_Endp_DataUp(DEF_UEP2,
+                              (uint8_t *)report,
+                              (uint16_t)sizeof(*report),
+                              DEF_UEP_CPY_LOAD) == 0u) ? 1u : 0u;
+}
+
+static void rx_queue_xinput_report(const xinput_report_t *report)
+{
+    if(memcmp(&g_current_xinput_report, report, sizeof(*report)) == 0)
+    {
+        return;
+    }
+
+    memcpy(&g_current_xinput_report, report, sizeof(*report));
+    if(rx_try_submit_xinput_report(report) != 0u)
+    {
+        g_xinput_pending = 0u;
+        return;
+    }
+
+    memcpy(&g_pending_xinput_report, report, sizeof(*report));
+    g_xinput_pending = 1u;
+}
+
+static void rx_flush_xinput_pending(void)
+{
+    if(g_xinput_pending == 0u)
+    {
+        return;
+    }
+    if(rx_try_submit_xinput_report(&g_pending_xinput_report) != 0u)
+    {
+        g_xinput_pending = 0u;
+    }
+}
+
+static uint8_t rx_parse_hitbox_input(const uint8_t *data,
+                                     uint8_t *seq,
+                                     uint32_t *key_mask)
+{
+    uint8_t flags;
+    uint8_t version;
+
+    if((data == NULL) || (seq == NULL) || (key_mask == NULL))
+    {
+        return 0u;
+    }
+
+    flags = data[1];
+    version = (uint8_t)((flags & RF_INPUT_FORMAT_VERSION_MASK) >>
+                        RF_INPUT_FORMAT_VERSION_SHIFT);
+    if((version != RF_INPUT_FORMAT_VERSION) ||
+       ((flags & RF_INPUT_FLAG_PROCESSED) == 0u))
+    {
+        return 0u;
+    }
+    if(rx_input_crc8(data, 9u) != data[9])
+    {
+        return 0u;
+    }
+
+    *seq = data[0];
+    *key_mask = ((uint32_t)data[2]) |
+                ((uint32_t)data[3] << 8) |
+                ((uint32_t)data[4] << 16) |
+                ((uint32_t)data[5] << 24);
+    *key_mask &= RF_INPUT_KEY_MASK_VALID;
+    return 1u;
+}
+
+static void rx_key_mask_to_xinput_report(uint32_t key_mask,
+                                         xinput_report_t *report)
+{
+    rx_make_clear_xinput_report(report);
+
+    report->buttons1 |= (key_mask & HBOX_KEY_UP) ? XBOX_MASK_UP : 0u;
+    report->buttons1 |= (key_mask & HBOX_KEY_DOWN) ? XBOX_MASK_DOWN : 0u;
+    report->buttons1 |= (key_mask & HBOX_KEY_LEFT) ? XBOX_MASK_LEFT : 0u;
+    report->buttons1 |= (key_mask & HBOX_KEY_RIGHT) ? XBOX_MASK_RIGHT : 0u;
+    report->buttons1 |= (key_mask & HBOX_KEY_S2) ? XBOX_MASK_START : 0u;
+    report->buttons1 |= (key_mask & HBOX_KEY_S1) ? XBOX_MASK_BACK : 0u;
+    report->buttons1 |= (key_mask & HBOX_KEY_L3) ? XBOX_MASK_LS : 0u;
+    report->buttons1 |= (key_mask & HBOX_KEY_R3) ? XBOX_MASK_RS : 0u;
+
+    report->buttons2 |= (key_mask & HBOX_KEY_L1) ? XBOX_MASK_LB : 0u;
+    report->buttons2 |= (key_mask & HBOX_KEY_R1) ? XBOX_MASK_RB : 0u;
+    report->buttons2 |= (key_mask & HBOX_KEY_A1) ? XBOX_MASK_HOME : 0u;
+    report->buttons2 |= (key_mask & HBOX_KEY_B1) ? XBOX_MASK_A : 0u;
+    report->buttons2 |= (key_mask & HBOX_KEY_B2) ? XBOX_MASK_B : 0u;
+    report->buttons2 |= (key_mask & HBOX_KEY_B3) ? XBOX_MASK_X : 0u;
+    report->buttons2 |= (key_mask & HBOX_KEY_B4) ? XBOX_MASK_Y : 0u;
+
+    report->lt = (key_mask & HBOX_KEY_L2) ? 0xFFu : 0u;
+    report->rt = (key_mask & HBOX_KEY_R2) ? 0xFFu : 0u;
+}
+
+static void rx_handle_hitbox_input(const uint8_t *data)
+{
+    uint8_t seq;
+    uint32_t key_mask;
+    xinput_report_t report;
+
+    if(rx_parse_hitbox_input(data, &seq, &key_mask) == 0u)
+    {
+        rx_log_note_error();
+        return;
+    }
+
+    g_input_seen_valid = 1u;
+    g_last_valid_input_clock = TMOS_GetSystemClock();
+    if((seq == g_last_input_seq) && (key_mask == g_last_input_key_mask))
+    {
+        return;
+    }
+
+    g_last_input_seq = seq;
+    g_last_input_key_mask = key_mask;
+    rx_key_mask_to_xinput_report(key_mask, &report);
+    rx_queue_xinput_report(&report);
+}
+
+static void rx_capture_hitbox_input(const uint8_t *data)
+{
+    uint8_t next_index;
+
+    if(data == NULL)
+    {
+        return;
+    }
+
+    next_index = (uint8_t)(g_input_payload_active_index ^ 1u);
+    memcpy(g_input_payload_buffer[next_index], data, RF_INPUT_PAYLOAD_LEN);
+    g_input_payload_active_index = next_index;
+    g_input_payload_generation++;
+}
+
+static void rx_service_hitbox_input(void)
+{
+    uint8_t local_payload[RF_INPUT_PAYLOAD_LEN];
+    uint32_t generation;
+    uint8_t active_index;
+
+    generation = g_input_payload_generation;
+    if(generation == g_input_payload_served_generation)
+    {
+        return;
+    }
+
+    active_index = g_input_payload_active_index;
+    memcpy(local_payload, g_input_payload_buffer[active_index], RF_INPUT_PAYLOAD_LEN);
+    g_input_payload_served_generation = generation;
+    rx_handle_hitbox_input(local_payload);
+}
+
+static void rx_clear_xinput_on_stale(uint32_t now_clock)
+{
+    xinput_report_t report;
+
+    if(g_input_seen_valid == 0u)
+    {
+        return;
+    }
+    if(rx_time_reached(now_clock,
+                       g_last_valid_input_clock + rx_input_stale_ticks()) == 0u)
+    {
+        return;
+    }
+
+    g_input_seen_valid = 0u;
+    g_last_input_key_mask = 0u;
+    rx_make_clear_xinput_report(&report);
+    rx_queue_xinput_report(&report);
 }
 
 static uint16_t rx_expected_packets_per_ack(void)
@@ -877,6 +1128,8 @@ static void rx_handle_command(const uint8_t *air)
 
 static uint8_t rx_handle_data(const uint8_t *air)
 {
+    uint8_t flags;
+
     if(g_state == RX_UNCONNECTED)
     {
         if((rfh_flags(air[RFH_HDR0_OFFSET]) & RFH_FLAG_LINK_OK) == 0u)
@@ -898,7 +1151,15 @@ static uint8_t rx_handle_data(const uint8_t *air)
     }
     gStat.data_rx++;
     g_log_rx_ok++;
-    rx_handle_command(air);
+    flags = rfh_flags(air[RFH_HDR0_OFFSET]);
+    if((flags & RFH_FLAG_CMD_PRESENT) != 0u)
+    {
+        rx_handle_command(air);
+    }
+    else
+    {
+        rx_capture_hitbox_input(&air[RFH_DATA_OFFSET]);
+    }
     rx_schedule_ack(air[RFH_HDR1_OFFSET]);
     return 1u;
 }
@@ -942,6 +1203,13 @@ static void rx_service_timers(uint8_t check_idle_timeout)
     {
         rx_send_ack();
         return;
+    }
+
+    if(check_idle_timeout != 0u)
+    {
+        rx_service_hitbox_input();
+        rx_flush_xinput_pending();
+        rx_clear_xinput_on_stale(now_clock);
     }
 
 #if (RF_RX_PACKET_TIMEOUT_MS > 0u)
@@ -1338,12 +1606,15 @@ void RF_Init(void)
     taskID = TMOS_ProcessEventRegister(RF_ProcessEvent);
     TMR0_TimerInit(TMR0_FREE_RUN_END);
 
+    PFIC_SetPriority(BLEB_IRQn, 0x00);
+    PFIC_SetPriority(BLEL_IRQn, 0x00);
     PFIC_EnableIRQ(BLEB_IRQn);
     PFIC_EnableIRQ(BLEL_IRQn);
 
     (void)g_ret_role_init;
     memset(TxBuf, 0, sizeof(TxBuf));
     memset(RxBuf, 0, sizeof(RxBuf));
+    rx_xinput_init();
     rx_apply_rate(rfh_rate_code_from_hz(RF_REPORT_PPS), RFH_DEFAULT_ACK_WINDOW_MS);
     g_rx_channel = RFH_MIN_CHANNEL;
     g_scan_channel_a = RFH_MIN_CHANNEL;
