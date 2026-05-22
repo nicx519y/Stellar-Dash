@@ -15,7 +15,6 @@ static uint32_t s_bad_sync_win;
 static uint32_t s_bad_cmd_win;
 static uint32_t s_bad_len_win;
 static uint32_t s_bad_checksum_win;
-static uint32_t s_last_diag_ms;
 static uint32_t s_last_ring_ov_count;
 static uint32_t s_last_rx_byte_count;
 static uint32_t s_last_fifo_ov_count;
@@ -24,35 +23,10 @@ static uint32_t s_last_bad_irq_count;
 static uint32_t s_last_direct_count;
 static uint32_t s_last_backlog_drop_count;
 static uint32_t s_last_backlog_drop_bytes;
-static uint32_t s_last_print_time;
 static const uint16_t k_default_rate_hz = 8000u;
 static uint8_t s_poll_rx[(3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u) * 16u];
 
 #define SPI_POLL_MAX_BATCHES          1u
-
-typedef struct {
-    uint32_t dt_ms;
-    uint32_t raw;
-    uint32_t frame_ok;
-    uint32_t bad_sync;
-    uint32_t bad_cmd;
-    uint32_t bad_len;
-    uint32_t bad_checksum;
-    uint32_t rx_delta;
-    uint32_t rx_bytes;
-    uint32_t ring_ov;
-    uint32_t max_avail;
-    uint32_t near_full;
-    uint32_t full_clip;
-    uint32_t drop_count;
-    uint32_t drop_bytes;
-    uint32_t dma_irq;
-    uint32_t flags;
-} spi_diag_bucket_t;
-
-static spi_diag_bucket_t s_diag_buckets[5];
-static uint8_t s_diag_bucket_head;
-static uint32_t s_diag_bucket_count;
 static uint32_t s_last_rx_count;
 
 typedef enum {
@@ -254,6 +228,7 @@ static void fast_parser_reset(void)
     s_fast_sum = 0u;
 }
 
+__attribute__((unused))
 static void fast_parser_feed_byte(uint8_t b)
 {
     switch (s_fast_state) {
@@ -395,9 +370,8 @@ static void diag_clear_win(void)
     s_bad_checksum_win = 0u;
 }
 
-static void bridge_diag_tick_1s(void)
+void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
 {
-    uint32_t now = TMOS_GetSystemClock();
     uint32_t ring_ov_count;
     uint32_t rx_byte_count;
     uint32_t fifo_ov_count;
@@ -406,32 +380,18 @@ static void bridge_diag_tick_1s(void)
     uint32_t direct_count;
     uint32_t backlog_drop_count;
     uint32_t backlog_drop_bytes;
-    uint32_t dt_ticks;
-    uint32_t dt_ms;
-    spi_diag_bucket_t *bucket;
+    uint32_t raw_sum;
+    uint32_t frame_sum;
+    uint32_t bad_sync_sum;
+    uint32_t bad_cmd_sum;
+    uint32_t bad_len_sum;
+    uint32_t bad_checksum_sum;
+    uint32_t direct_sum;
+    uint32_t dma_irq_sum;
+    uint32_t flags;
 
-    if (s_last_diag_ms == 0u) {
-        s_last_diag_ms = now;
-        s_last_print_time = now;
-        s_last_ring_ov_count = rfm_spi_port_rx_ring_overrun_count();
-        s_last_rx_byte_count = rfm_spi_port_rx_byte_count();
-        s_last_fifo_ov_count = rfm_spi_port_rx_fifo_ov_count();
-        s_last_irq_count = rfm_spi_port_rx_isr_count();
-        s_last_bad_irq_count = rfm_spi_port_rx_bad_irq_count();
-        s_last_direct_count = rfm_spi_port_rx_direct_count();
-        s_last_backlog_drop_count = rfm_spi_port_rx_backlog_drop_count();
-        s_last_backlog_drop_bytes = rfm_spi_port_rx_backlog_drop_bytes();
-        s_last_rx_count = s_rx_count;
-        (void)rfm_spi_port_rx_take_max_available();
-        return;
-    }
-    dt_ticks = now - s_last_diag_ms;
-    if (dt_ticks < MS1_TO_SYSTEM_TIME(1000u)) {
-        return;
-    }
-    dt_ms = (uint32_t)(((uint64_t)dt_ticks * SYSTEM_TIME_MICROSEN) / 1000u);
-    if (dt_ms == 0u) {
-        dt_ms = 1u;
+    if (elapsed_ms == 0u) {
+        elapsed_ms = 1u;
     }
 
     ring_ov_count = rfm_spi_port_rx_ring_overrun_count();
@@ -443,24 +403,15 @@ static void bridge_diag_tick_1s(void)
     backlog_drop_count = rfm_spi_port_rx_backlog_drop_count();
     backlog_drop_bytes = rfm_spi_port_rx_backlog_drop_bytes();
 
-    bucket = &s_diag_buckets[s_diag_bucket_head];
-    bucket->dt_ms = dt_ms;
-    bucket->raw = s_raw_bytes_win;
-    bucket->frame_ok = s_frame_ok_win;
-    bucket->bad_sync = s_bad_sync_win;
-    bucket->bad_cmd = s_bad_cmd_win;
-    bucket->bad_len = s_bad_len_win;
-    bucket->bad_checksum = s_bad_checksum_win;
-    bucket->rx_delta = s_rx_count - s_last_rx_count;
-    bucket->rx_bytes = rx_byte_count - s_last_rx_byte_count;
-    bucket->ring_ov = ring_ov_count - s_last_ring_ov_count;
-    bucket->drop_count = backlog_drop_count - s_last_backlog_drop_count;
-    bucket->drop_bytes = backlog_drop_bytes - s_last_backlog_drop_bytes;
-    bucket->max_avail = rfm_spi_port_rx_take_max_available();
-    bucket->near_full = rfm_spi_port_rx_take_near_full_count();
-    bucket->full_clip = rfm_spi_port_rx_take_full_clip_count();
-    bucket->dma_irq = irq_count - s_last_irq_count;
-    bucket->flags = rfm_spi_port_rx_last_flags();
+    raw_sum = s_raw_bytes_win;
+    frame_sum = s_frame_ok_win;
+    bad_sync_sum = s_bad_sync_win;
+    bad_cmd_sum = s_bad_cmd_win;
+    bad_len_sum = s_bad_len_win;
+    bad_checksum_sum = s_bad_checksum_win;
+    direct_sum = direct_count - s_last_direct_count;
+    dma_irq_sum = irq_count - s_last_irq_count;
+    flags = rfm_spi_port_rx_last_flags();
 
     s_last_ring_ov_count = ring_ov_count;
     s_last_rx_byte_count = rx_byte_count;
@@ -471,87 +422,27 @@ static void bridge_diag_tick_1s(void)
     s_last_backlog_drop_count = backlog_drop_count;
     s_last_backlog_drop_bytes = backlog_drop_bytes;
     s_last_rx_count = s_rx_count;
-    s_last_diag_ms = now;
     diag_clear_win();
 
     (void)fifo_ov_count;
     (void)bad_irq_count;
     (void)direct_count;
+    (void)ring_ov_count;
+    (void)rx_byte_count;
+    (void)backlog_drop_count;
+    (void)backlog_drop_bytes;
 
-    s_diag_bucket_head++;
-    if (s_diag_bucket_head >= 5u) {
-        s_diag_bucket_head = 0u;
-    }
-    s_diag_bucket_count++;
-    if ((s_diag_bucket_count >= 4u) &&
-        ((uint32_t)(now - s_last_print_time) >= MS1_TO_SYSTEM_TIME(5000u))) {
-        uint32_t raw_sum = 0u;
-        uint32_t frame_sum = 0u;
-        uint32_t bad_sync_sum = 0u;
-        uint32_t bad_cmd_sum = 0u;
-        uint32_t bad_len_sum = 0u;
-        uint32_t bad_checksum_sum = 0u;
-        uint32_t rx_sum = 0u;
-        uint32_t rx_bytes_sum = 0u;
-        uint32_t drop_count_sum = 0u;
-        uint32_t drop_bytes_sum = 0u;
-        uint32_t dt_sum = 0u;
-        uint32_t frame_hz = 0u;
-        uint32_t raw_bps = 0u;
-        uint32_t max_avail = 0u;
-        uint32_t near_full_sum = 0u;
-        uint32_t full_clip_sum = 0u;
-        uint32_t dma_irq_sum = 0u;
-        uint32_t flags = 0u;
-        uint8_t i;
-
-        for (i = 0u; i < 5u; ++i) {
-            raw_sum += s_diag_buckets[i].raw;
-            frame_sum += s_diag_buckets[i].frame_ok;
-            bad_sync_sum += s_diag_buckets[i].bad_sync;
-            bad_cmd_sum += s_diag_buckets[i].bad_cmd;
-            bad_len_sum += s_diag_buckets[i].bad_len;
-            bad_checksum_sum += s_diag_buckets[i].bad_checksum;
-            rx_sum += s_diag_buckets[i].rx_delta;
-            rx_bytes_sum += s_diag_buckets[i].rx_bytes;
-            drop_count_sum += s_diag_buckets[i].drop_count;
-            drop_bytes_sum += s_diag_buckets[i].drop_bytes;
-            dt_sum += s_diag_buckets[i].dt_ms;
-            if (s_diag_buckets[i].max_avail > max_avail) {
-                max_avail = s_diag_buckets[i].max_avail;
-            }
-            near_full_sum += s_diag_buckets[i].near_full;
-            full_clip_sum += s_diag_buckets[i].full_clip;
-            dma_irq_sum += s_diag_buckets[i].dma_irq;
-            flags = s_diag_buckets[i].flags;
-        }
-
-        if (dt_sum != 0u) {
-            frame_hz = (uint32_t)(((uint64_t)frame_sum * 1000u) / dt_sum);
-            raw_bps = (uint32_t)(((uint64_t)raw_sum * 1000u) / dt_sum);
-        }
-
-        PRINT("[SPI][win] dt:%lums raw:%lu raw_Bps:%lu frame:%lu frame_hz:%lu rx:%lu bytes:%lu bad:%lu/%lu/%lu/%lu drop:%lu/%lu max:%lu near:%lu full:%lu irq:%lu flags:%02lX\n",
-              dt_sum,
-              raw_sum,
-              raw_bps,
-              frame_sum,
-              frame_hz,
-              rx_sum,
-              rx_bytes_sum,
-              bad_sync_sum,
-              bad_cmd_sum,
-              bad_len_sum,
-              bad_checksum_sum,
-              drop_count_sum,
-              drop_bytes_sum,
-              max_avail,
-              near_full_sum,
-              full_clip_sum,
-              dma_irq_sum,
-              flags);
-        s_last_print_time = now;
-    }
+    PRINT("[SPI][win] dt:%lums dir:%lu raw:%lu frame:%lu bad:%lu/%lu/%lu/%lu irq:%lu flags:%02lX\n",
+          elapsed_ms,
+          direct_sum,
+          raw_sum,
+          frame_sum,
+          bad_sync_sum,
+          bad_cmd_sum,
+          bad_len_sum,
+          bad_checksum_sum,
+          dma_irq_sum,
+          flags);
 }
 
 void rfm_spi_bridge_init(void)
@@ -564,7 +455,6 @@ void rfm_spi_bridge_init(void)
     s_bad_cmd_win = 0u;
     s_bad_len_win = 0u;
     s_bad_checksum_win = 0u;
-    s_last_diag_ms = 0u;
     s_last_ring_ov_count = 0u;
     s_last_rx_byte_count = 0u;
     s_last_fifo_ov_count = 0u;
@@ -573,11 +463,7 @@ void rfm_spi_bridge_init(void)
     s_last_direct_count = 0u;
     s_last_backlog_drop_count = 0u;
     s_last_backlog_drop_bytes = 0u;
-    s_last_print_time = 0u;
-    s_diag_bucket_head = 0u;
-    s_diag_bucket_count = 0u;
     s_last_rx_count = 0u;
-    memset(s_diag_buckets, 0, sizeof(s_diag_buckets));
     parser_reset();
     fast_parser_reset();
     rfm_spi_port_init();
@@ -586,5 +472,18 @@ void rfm_spi_bridge_init(void)
 
 void rfm_spi_bridge_poll(void)
 {
-    (void)bridge_diag_tick_1s;
+    uint8_t batch;
+
+    for (batch = 0u; batch < SPI_POLL_MAX_BATCHES; ++batch) {
+        size_t n = sizeof(s_poll_rx);
+        size_t i;
+
+        if (!rfm_spi_port_try_read(s_poll_rx, &n)) {
+            break;
+        }
+        s_raw_bytes_win += (uint32_t)n;
+        for (i = 0u; i < n; ++i) {
+            parser_feed_byte(s_poll_rx[i]);
+        }
+    }
 }

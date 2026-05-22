@@ -22,6 +22,10 @@ namespace {
 #define RF_BRIDGE_SPI_BAUD_PRESCALER SPI_BAUDRATEPRESCALER_32
 #endif
 
+#ifndef RF_BRIDGE_INPUT_DMA_FASTPATH
+#define RF_BRIDGE_INPUT_DMA_FASTPATH 0
+#endif
+
 static SPI_HandleTypeDef s_rf_hspi = {};
 static DMA_HandleTypeDef s_rf_dma_tx = {};
 static bool s_rf_spi_ready = false;
@@ -235,7 +239,7 @@ static bool rf_spi_dma_start_locked(const uint8_t* tx, uint16_t txLen) {
     return true;
 }
 
-static bool rf_spi_dma_enqueue_latest(const uint8_t* tx, uint16_t txLen, uint8_t seq) {
+[[maybe_unused]] static bool rf_spi_dma_enqueue_latest(const uint8_t* tx, uint16_t txLen, uint8_t seq) {
     if ((tx == nullptr) || (txLen == 0u) || (txLen > sizeof(s_dma_pending_buf))) {
         return false;
     }
@@ -437,7 +441,19 @@ bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint1
 
     bool tx_ok = false;
     if (is_input_fast_path) {
+#if RF_BRIDGE_INPUT_DMA_FASTPATH
         tx_ok = rf_spi_dma_enqueue_latest(tx, txLen, input_seq);
+#else
+        if (s_dma_busy) {
+            if (rxLen != nullptr) *rxLen = 0u;
+            return false;
+        }
+        rf_cs_set(false);
+        const HAL_StatusTypeDef tx_st = HAL_SPI_Transmit(&s_rf_hspi, const_cast<uint8_t*>(tx), txLen, RF_BRIDGE_SPI_TIMEOUT_MS);
+        rf_cs_set(true);
+        tx_ok = (tx_st == HAL_OK);
+        (void)input_seq;
+#endif
     } else {
         if (s_dma_busy) {
             if (rxLen != nullptr) *rxLen = 0u;
