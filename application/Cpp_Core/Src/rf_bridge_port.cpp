@@ -209,6 +209,7 @@ static bool rf_dma_init_once() {
         return false;
     }
 
+    __HAL_DMA_DISABLE_IT(&s_rf_dma_tx, DMA_IT_HT);
     __HAL_LINKDMA(&s_rf_hspi, hdmatx, s_rf_dma_tx);
     HAL_NVIC_SetPriority(DMA2_Stream5_IRQn, 1u, 0u);
     HAL_NVIC_EnableIRQ(DMA2_Stream5_IRQn);
@@ -235,6 +236,7 @@ static bool rf_spi_dma_start_locked(const uint8_t* tx, uint16_t txLen) {
         s_diag_dma_start_fail++;
         return false;
     }
+    __HAL_DMA_DISABLE_IT(&s_rf_dma_tx, DMA_IT_HT);
     s_dma_busy = true;
     return true;
 }

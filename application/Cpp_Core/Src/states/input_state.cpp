@@ -26,6 +26,10 @@
 #define RF24G_SPI_BRINGUP_TX_ONLY 1
 #endif
 
+#ifndef RF24G_SPI_BRINGUP_TX_CATCHUP_LIMIT
+#define RF24G_SPI_BRINGUP_TX_CATCHUP_LIMIT 2u
+#endif
+
 static void on_default_profile_changed_input_workers(void) {
 #if RF24G_SPI_BRINGUP_TX_ONLY
     if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_RF24G) {
@@ -138,11 +142,14 @@ void InputState::loop()
 #if RF24G_SPI_BRINGUP_TX_ONLY
     if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_RF24G)
     {
-        if (REPORT_SCHEDULER.consumeLatestTick())
+        uint8_t sent = 0u;
+        while ((sent < RF24G_SPI_BRINGUP_TX_CATCHUP_LIMIT) &&
+               REPORT_SCHEDULER.consumeTick())
         {
             const uint32_t reportSeq = MonitorTelemetry_NextSequence();
             MonitorTelemetry_OnReportReady(reportSeq);
             CONNECTION_MANAGER.onReportReady(GAMEPAD.state, reportSeq);
+            sent++;
         }
         return;
     }
