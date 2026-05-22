@@ -2,6 +2,8 @@
 
 #include "config.hpp"
 #include "monitor_telemetry.hpp"
+#include "report_scheduler.hpp"
+#include "storagemanager.hpp"
 #include "usbdriver.hpp"
 #include "system_logger.h"
 #include "board_cfg.h"
@@ -28,6 +30,8 @@ static uint16_t getRfReportRateHz(WirelessReportRate wirelessRate) {
     return clampRfReportRateHz(ConfigUtils::getWirelessReportRateHz(wirelessRate));
 #endif
 }
+
+static constexpr uint32_t kRfRateApplyRetryMs = 500u;
 }
 
 bool ConnectionManager::tryRfBringup(bool isRetry) {
@@ -82,6 +86,8 @@ void ConnectionManager::updateRfLinkStateFromStatus() {
 void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirelessRate) {
     mode = connMode;
     appliedReportRateHz = 1000;
+    requestedReportRateHz = 1000;
+    rateApplyPending = false;
     linkState = ConnectionLinkState::Disconnected;
     lastRfStatusPollMs = HAL_GetTick();
     rfStatLastMs = HAL_GetTick();
@@ -102,16 +108,84 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
         return;
     }
 
-    appliedReportRateHz = getRfReportRateHz(wirelessRate);
+    requestedReportRateHz = getRfReportRateHz(wirelessRate);
+    appliedReportRateHz = requestedReportRateHz;
     MonitorTelemetry_Init(mode, appliedReportRateHz);
+    bool rateOk = rfTransport.setRate(requestedReportRateHz);
+    rateApplyPending = !rateOk;
+    if (!rateOk) {
+        ConnectionLinkState nextState = ConnectionLinkState::Error;
+        if (linkState != nextState) {
+            MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
+        }
+        linkState = nextState;
+        MonitorTelemetry_OnError("CONNECTION_MANAGER", 1003u, "rf setRate failed");
+        APP_ERR("[RF_BRIDGE] setRate failed, requested:%u", appliedReportRateHz);
+    } else {
+        linkState = ConnectionLinkState::Connected;
+        MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(linkState));
+        APP_DBG("[RF_BRIDGE] rate applied:%u", appliedReportRateHz);
+    }
     /*
      * SPI bring-up path: stream INPUT_DATA as a one-way fast path.
      * Status readback depends on the CH584 IRQ response line and must not
      * gate the input cadence while the board link is being validated.
      */
-    linkState = ConnectionLinkState::Connected;
-    MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(linkState));
     lastRfBeginRetryMs = HAL_GetTick();
+}
+
+bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate, bool persist) {
+    const uint16_t nextRateHz = getRfReportRateHz(wirelessRate);
+    requestedReportRateHz = nextRateHz;
+
+    if (mode != ConnectionMode::CONNECTION_MODE_RF24G) {
+        if (persist) {
+            STORAGE_MANAGER.setWirelessReportRate(wirelessRate);
+            (void)STORAGE_MANAGER.saveConfig();
+        }
+        return false;
+    }
+
+    if (nextRateHz == appliedReportRateHz) {
+        if (persist) {
+            STORAGE_MANAGER.setWirelessReportRate(wirelessRate);
+            return STORAGE_MANAGER.saveConfig();
+        }
+        return true;
+    }
+
+    if (!rfTransport.setRate(nextRateHz)) {
+        rateApplyPending = true;
+        ConnectionLinkState nextState = ConnectionLinkState::Error;
+        if (linkState != nextState) {
+            MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
+        }
+        linkState = nextState;
+        MonitorTelemetry_OnError("CONNECTION_MANAGER", 1004u, "runtime rf setRate failed");
+        APP_ERR("[RF_BRIDGE] runtime setRate failed, requested:%u", nextRateHz);
+        return false;
+    }
+
+    appliedReportRateHz = nextRateHz;
+    rateApplyPending = false;
+    if (REPORT_SCHEDULER.isStarted()) {
+        REPORT_SCHEDULER.setRate(appliedReportRateHz);
+    }
+    if (persist) {
+        STORAGE_MANAGER.setWirelessReportRate(wirelessRate);
+        if (!STORAGE_MANAGER.saveConfig()) {
+            return false;
+        }
+    }
+
+    MonitorTelemetry_Init(mode, appliedReportRateHz);
+    ConnectionLinkState nextState = ConnectionLinkState::Connected;
+    if (linkState != nextState) {
+        MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
+    }
+    linkState = nextState;
+    APP_DBG("[RF_BRIDGE] runtime rate applied:%u", appliedReportRateHz);
+    return true;
 }
 
 void ConnectionManager::loop() {
@@ -122,6 +196,24 @@ void ConnectionManager::loop() {
         }
         linkState = nextState;
         return;
+    }
+
+    if (rateApplyPending && ((HAL_GetTick() - lastRfBeginRetryMs) >= kRfRateApplyRetryMs)) {
+        lastRfBeginRetryMs = HAL_GetTick();
+        if (rfTransport.setRate(requestedReportRateHz)) {
+            appliedReportRateHz = requestedReportRateHz;
+            rateApplyPending = false;
+            if (REPORT_SCHEDULER.isStarted()) {
+                REPORT_SCHEDULER.setRate(appliedReportRateHz);
+            }
+            MonitorTelemetry_Init(mode, appliedReportRateHz);
+            ConnectionLinkState nextState = ConnectionLinkState::Connected;
+            if (linkState != nextState) {
+                MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
+            }
+            linkState = nextState;
+            APP_DBG("[RF_BRIDGE] retry rate applied:%u", appliedReportRateHz);
+        }
     }
 
     // RF24G 8K data streaming is intentionally independent from status readback.

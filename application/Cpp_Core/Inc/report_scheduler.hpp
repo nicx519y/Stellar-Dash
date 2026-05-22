@@ -17,6 +17,7 @@ public:
     void stop();
     void setRate(uint16_t rateHz);
     uint16_t getRate() const { return runningRateHz; }
+    bool isStarted() const { return started; }
     bool consumeTick();
     bool consumeLatestTick();
     void onTimerIrq();

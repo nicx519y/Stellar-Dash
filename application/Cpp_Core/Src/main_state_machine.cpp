@@ -7,10 +7,6 @@
 #include "power_manager.hpp"
 #include "board_cfg.h"
 
-#ifndef RF24G_SPI_BRINGUP_FASTPATH
-#define RF24G_SPI_BRINGUP_FASTPATH 1
-#endif
-
 void MainStateMachine::setup()
 {
     APP_DBG("MainStateMachine::setup");
@@ -48,45 +44,14 @@ void MainStateMachine::setup()
     POWER_MANAGER.setup();
     state->setup();
 
-    const bool rf24gFastPath =
-#if RF24G_SPI_BRINGUP_FASTPATH
-        (bootMode == BootMode::BOOT_MODE_INPUT) &&
-        (
-#if RF24G_SPI_TEST_FORCE_RF24G
-            true
-#else
-            STORAGE_MANAGER.getConnectionMode() == ConnectionMode::CONNECTION_MODE_RF24G
-#endif
-        );
-#else
-        false;
-#endif
-
-    if (!rf24gFastPath) {
-        SPIScreenManager::getInstance().setup();
-    } else {
-        APP_DBG("[RF_BRIDGE] RF24G fast path: screen loop disabled for 8K SPI bring-up");
-    }
-
-    uint32_t lastPowerLoopMs = HAL_GetTick();
+    SPIScreenManager::getInstance().setup();
 
     while(1) {
         
         state->loop();
 
-        if (rf24gFastPath) {
-            const uint32_t nowMs = HAL_GetTick();
-            if ((uint32_t)(nowMs - lastPowerLoopMs) >= 1000u) {
-                lastPowerLoopMs = nowMs;
-                POWER_MANAGER.loop();
-            }
-        } else {
-            POWER_MANAGER.loop();
-        }
-
-        if (!rf24gFastPath) {
-            SPIScreenManager::getInstance().loop();
-        }
+        POWER_MANAGER.loop();
+        SPIScreenManager::getInstance().loop();
 
     }
 

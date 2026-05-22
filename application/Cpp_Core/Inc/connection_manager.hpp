@@ -26,6 +26,7 @@ public:
     void setup(ConnectionMode mode, WirelessReportRate wirelessRate);
     void loop();
     void onReportReady(const GamepadState& state, uint32_t seq);
+    bool applyWirelessReportRate(WirelessReportRate wirelessRate, bool persist);
 
     ConnectionMode getMode() const { return mode; }
     ConnectionLinkState getLinkState() const { return linkState; }
@@ -39,6 +40,8 @@ private:
     ConnectionMode mode = ConnectionMode::CONNECTION_MODE_USB;
     ConnectionLinkState linkState = ConnectionLinkState::Disconnected;
     uint16_t appliedReportRateHz = 1000;
+    uint16_t requestedReportRateHz = 1000;
+    bool rateApplyPending = false;
     uint32_t lastRfStatusPollMs = 0;
     uint32_t lastRfBeginRetryMs = 0;
     uint32_t rfStatLastMs = 0;

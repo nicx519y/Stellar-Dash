@@ -12,7 +12,7 @@
 #endif
 
 #ifndef RFM_FORCE_REPORT_RATE_HZ
-#define RFM_FORCE_REPORT_RATE_HZ      4000u
+#define RFM_FORCE_REPORT_RATE_HZ      0u
 #endif
 
 typedef enum {

@@ -23,7 +23,6 @@ static uint32_t s_last_bad_irq_count;
 static uint32_t s_last_direct_count;
 static uint32_t s_last_backlog_drop_count;
 static uint32_t s_last_backlog_drop_bytes;
-static const uint16_t k_default_rate_hz = 8000u;
 static uint8_t s_poll_rx[(3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u) * 8u];
 
 #define SPI_POLL_MAX_BATCHES          1u
@@ -123,14 +122,16 @@ static bool send_frame(spi_evt_t evt, const uint8_t *payload, uint8_t payload_le
     return false;
 }
 
-static bool send_status_frame(uint8_t cmd_tag)
+static bool send_status_frame(spi_evt_t evt, uint8_t cmd_tag)
 {
     uint8_t payload[17] = {0};
+    uint16_t report_hz = RF_GetReportRateHz();
+
     payload[0] = 4u; /* Connected */
     payload[1] = 1u;
     payload[2] = 1u;
-    payload[3] = (uint8_t)(k_default_rate_hz & 0xFFu);
-    payload[4] = (uint8_t)((k_default_rate_hz >> 8) & 0xFFu);
+    payload[3] = (uint8_t)(report_hz & 0xFFu);
+    payload[4] = (uint8_t)((report_hz >> 8) & 0xFFu);
     payload[5] = 0u;
     payload[6] = 0u;
     payload[7] = 0u;
@@ -143,7 +144,7 @@ static bool send_status_frame(uint8_t cmd_tag)
     payload[14] = 0u;
     payload[15] = 0u;
     payload[16] = cmd_tag;
-    return send_frame(SPI_EVT_STATUS, payload, (uint8_t)sizeof(payload));
+    return send_frame(evt, payload, (uint8_t)sizeof(payload));
 }
 
 static bool send_short_event(spi_evt_t evt, uint8_t cmd_tag)
@@ -156,15 +157,20 @@ static bool send_short_event(spi_evt_t evt, uint8_t cmd_tag)
 static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
 {
     rfm_spi_port_set_irq(false);
-    (void)payload;
-    (void)len;
     s_rx_count++;
     switch ((spi_cmd_t)cmd) {
     case SPI_CMD_GET_STATUS:
-        (void)send_status_frame(cmd);
+        (void)send_status_frame(SPI_EVT_STATUS, cmd);
         break;
     case SPI_CMD_SET_RATE:
-        (void)send_short_event(SPI_EVT_RATE_APPLIED, cmd);
+        if ((payload != 0) && (len == 2u)) {
+            uint16_t hz = (uint16_t)payload[0] | ((uint16_t)payload[1] << 8);
+            if (RF_SetReportRateHz(hz)) {
+                (void)send_status_frame(SPI_EVT_RATE_APPLIED, cmd);
+                break;
+            }
+        }
+        (void)send_short_event(SPI_EVT_ERROR, cmd);
         break;
     case SPI_CMD_START_PAIR:
     case SPI_CMD_STOP_PAIR:
@@ -510,9 +516,17 @@ void rfm_spi_bridge_poll(void)
 {
     uint8_t batch;
     uint8_t latest_payload[RFM_RF_INPUT_PAYLOAD_LEN];
+    uint8_t control_frame[RFM_SPI_MAX_FRAME];
+    uint8_t control_len;
 
     if(RFM_SPI_INPUT_DIRECT_DMA != 0u) {
         rfm_spi_port_service();
+        control_len = (uint8_t)sizeof(control_frame);
+        if(rfm_spi_port_peek_latest_control_frame(control_frame, &control_len)) {
+            s_raw_bytes_win += control_len;
+            s_frame_ok_win++;
+            process_one_frame(control_frame, control_len);
+        }
         return;
     }
 

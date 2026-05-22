@@ -10,6 +10,7 @@ void rfm_spi_port_set_irq(bool asserted);
 void rfm_spi_port_service(void);
 size_t rfm_spi_port_drain(uint8_t *buf, size_t max_len);
 bool rfm_spi_port_peek_latest_input(uint8_t *payload, uint8_t len);
+bool rfm_spi_port_peek_latest_control_frame(uint8_t *frame, uint8_t *inout_len);
 uint32_t rfm_spi_port_rx_peek_ok_count(void);
 uint32_t rfm_spi_port_rx_peek_miss_count(void);
 uint32_t rfm_spi_port_rx_ring_overrun_count(void);

@@ -23,6 +23,8 @@ extern "C" {
 extern void RF_Init(void);
 extern void RF_TxMainLoopProcess(void);
 extern bool RF_SPI_FastWriteInput(const uint8_t *payload, uint8_t len);
+extern bool RF_SetReportRateHz(uint16_t hz);
+extern uint16_t RF_GetReportRateHz(void);
 
 #ifdef __cplusplus
 }

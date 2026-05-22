@@ -15,6 +15,7 @@
 #define SPI_RX_TOTAL_CNT              (SPI_RX_DMA_RING_SIZE)
 #define SPI_RX_PEEK_SCAN_FRAMES       (3u)
 #define SPI_RX_PEEK_SCAN_BYTES        (SPI_RX_FRAME_BYTES * SPI_RX_PEEK_SCAN_FRAMES)
+#define SPI_RX_CONTROL_SCAN_BYTES     (RFM_SPI_MAX_FRAME * 8u)
 #define SPI_RX_NEAR_FULL_THRESHOLD    (SPI_RX_DMA_RING_SIZE - (SPI_RX_FRAME_BYTES * 16u))
 #define SPI_INPUT_CMD                 (0x06u)
 
@@ -45,6 +46,9 @@ static volatile uint32_t s_spi_rx_last_flags;
 static volatile uint32_t s_spi_rx_peek_ok_count;
 static volatile uint32_t s_spi_rx_peek_miss_count;
 static volatile uint32_t s_spi_rx_direct_count;
+static uint32_t s_spi_rx_control_scan_abs;
+
+static uint32_t spi_rx_write_abs_snapshot(uint32_t *available_out);
 
 static void spi_rx_dma_loop_start(uint8_t flush_fifo)
 {
@@ -136,6 +140,160 @@ static bool spi_rx_copy_frame_fast(uint32_t start, uint8_t *payload)
     return true;
 }
 
+static uint8_t spi_rx_host_cmd_valid(uint8_t cmd)
+{
+    switch(cmd)
+    {
+    case 0x01u:
+    case 0x02u:
+    case 0x03u:
+    case 0x04u:
+    case 0x05u:
+    case 0x06u:
+        return 1u;
+    default:
+        return 0u;
+    }
+}
+
+static uint32_t spi_rx_abs_pos(uint32_t abs_pos)
+{
+    return (abs_pos - s_spi_rx_base_abs) % SPI_RX_DMA_RING_SIZE;
+}
+
+static uint8_t spi_rx_abs_byte(uint32_t abs_pos)
+{
+    return spi_rx_dma_byte(spi_rx_abs_pos(abs_pos));
+}
+
+static uint8_t spi_rx_frame_checksum_valid(uint32_t start_abs, uint8_t total)
+{
+    uint8_t sum = 0u;
+    uint8_t i;
+
+    for(i = 0u; i < (uint8_t)(total - 1u); ++i)
+    {
+        sum = (uint8_t)(sum + spi_rx_abs_byte(start_abs + i));
+    }
+
+    return (sum == spi_rx_abs_byte(start_abs + total - 1u)) ? 1u : 0u;
+}
+
+static void spi_rx_copy_abs_frame(uint32_t start_abs, uint8_t total, uint8_t *frame)
+{
+    uint8_t i;
+
+    for(i = 0u; i < total; ++i)
+    {
+        frame[i] = spi_rx_abs_byte(start_abs + i);
+    }
+}
+
+bool rfm_spi_port_peek_latest_control_frame(uint8_t *frame, uint8_t *inout_len)
+{
+    uint32_t available;
+    uint32_t write_abs;
+    uint32_t oldest_abs;
+    uint32_t scan_end_abs;
+
+    if((frame == 0) || (inout_len == 0) || (*inout_len < 4u))
+    {
+        return false;
+    }
+    if(s_spi_tx_pending != 0u)
+    {
+        return false;
+    }
+
+    write_abs = spi_rx_write_abs_snapshot(&available);
+    if((write_abs - s_spi_rx_base_abs) > SPI_RX_DMA_RING_SIZE)
+    {
+        oldest_abs = write_abs - SPI_RX_DMA_RING_SIZE;
+    }
+    else
+    {
+        oldest_abs = s_spi_rx_base_abs;
+    }
+
+    if(s_spi_rx_control_scan_abs < oldest_abs)
+    {
+        s_spi_rx_control_scan_abs = oldest_abs;
+    }
+    if(s_spi_rx_control_scan_abs > write_abs)
+    {
+        s_spi_rx_control_scan_abs = write_abs;
+    }
+
+    scan_end_abs = write_abs;
+    if((scan_end_abs - s_spi_rx_control_scan_abs) > SPI_RX_CONTROL_SCAN_BYTES)
+    {
+        scan_end_abs = s_spi_rx_control_scan_abs + SPI_RX_CONTROL_SCAN_BYTES;
+    }
+
+    while(s_spi_rx_control_scan_abs < scan_end_abs)
+    {
+        uint8_t cmd;
+        uint8_t payload_len;
+        uint8_t total;
+        uint32_t remaining;
+
+        if(spi_rx_abs_byte(s_spi_rx_control_scan_abs) != RFM_SPI_SYNC)
+        {
+            s_spi_rx_control_scan_abs++;
+            continue;
+        }
+
+        remaining = write_abs - s_spi_rx_control_scan_abs;
+        if(remaining < 3u)
+        {
+            break;
+        }
+
+        cmd = spi_rx_abs_byte(s_spi_rx_control_scan_abs + 1u);
+        if(spi_rx_host_cmd_valid(cmd) == 0u)
+        {
+            s_spi_rx_control_scan_abs++;
+            continue;
+        }
+
+        payload_len = spi_rx_abs_byte(s_spi_rx_control_scan_abs + 2u);
+        total = (uint8_t)(3u + payload_len + 1u);
+        if((total < 4u) || (total > RFM_SPI_MAX_FRAME))
+        {
+            s_spi_rx_control_scan_abs++;
+            continue;
+        }
+        if(remaining < (uint32_t)total)
+        {
+            break;
+        }
+        if(spi_rx_frame_checksum_valid(s_spi_rx_control_scan_abs, total) == 0u)
+        {
+            s_spi_rx_control_scan_abs++;
+            continue;
+        }
+
+        if(cmd == SPI_INPUT_CMD)
+        {
+            s_spi_rx_control_scan_abs += total;
+            continue;
+        }
+
+        if(total > *inout_len)
+        {
+            return false;
+        }
+
+        spi_rx_copy_abs_frame(s_spi_rx_control_scan_abs, total, frame);
+        s_spi_rx_control_scan_abs += total;
+        *inout_len = total;
+        return true;
+    }
+
+    (void)available;
+    return false;
+}
+
 static uint32_t spi_rx_write_abs_snapshot(uint32_t *available_out)
 {
     uint32_t wraps;
@@ -179,6 +337,7 @@ static uint32_t spi_rx_write_abs_snapshot(uint32_t *available_out)
     if (available_out != 0) {
         *available_out = available;
     }
+    s_spi_rx_total_bytes = write_abs;
     return write_abs;
 }
 
@@ -220,6 +379,7 @@ static void spi_rx_restart_after_tx(void)
     s_spi_rx_dma_wrap_count = 0u;
     s_spi_rx_seen_wrap_count = 0u;
     s_spi_rx_read_abs = s_spi_rx_base_abs;
+    s_spi_rx_control_scan_abs = s_spi_rx_base_abs;
     s_spi_rx_last_write_pos = 0u;
     memset(s_spi_rx_dma_buf, 0xFF, sizeof(s_spi_rx_dma_buf));
     spi_rx_dma_loop_start(1u);
@@ -274,6 +434,7 @@ void rfm_spi_port_init(void)
     s_spi_rx_peek_ok_count = 0u;
     s_spi_rx_peek_miss_count = 0u;
     s_spi_rx_direct_count = 0u;
+    s_spi_rx_control_scan_abs = 0u;
     memset(s_spi_rx_dma_buf, 0xFF, sizeof(s_spi_rx_dma_buf));
 
     spi_rx_dma_loop_start(1u);

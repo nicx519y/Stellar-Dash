@@ -1,6 +1,7 @@
 #include "screen_control/spi_screen_detail_entries.hpp"
 
 #include "storagemanager.hpp"
+#include "connection_manager.hpp"
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
 
 struct ConnectionSettingItem {
@@ -55,6 +56,9 @@ void ScreenDetailTournament_OnConfirm(uint8_t index) {
     if (item.mode == CONNECTION_MODE_RF24G) {
         STORAGE_MANAGER.setWirelessReportRate(item.rate);
         STORAGE_MANAGER.setInputMode(INPUT_MODE_XINPUT);
+        if (CONNECTION_MANAGER.getMode() == CONNECTION_MODE_RF24G) {
+            (void)CONNECTION_MANAGER.applyWirelessReportRate(item.rate, false);
+        }
     }
     ScreenUI_RequestDeferredSave(500u);
 }

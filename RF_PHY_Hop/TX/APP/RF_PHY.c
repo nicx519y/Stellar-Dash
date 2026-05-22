@@ -241,6 +241,70 @@ static const char *tx_rate_code(void)
     }
 }
 
+static uint8_t tx_report_rate_valid(uint16_t hz)
+{
+    return ((hz == 1000u) || (hz == 2000u) ||
+            (hz == 4000u) || (hz == 8000u)) ? 1u : 0u;
+}
+
+static void tx_apply_report_rate_hz(uint16_t hz, uint8_t restart_timer)
+{
+    g_report_hz = hz;
+    g_rate_code = rfh_rate_code_from_hz(g_report_hz);
+    g_ack_window_ms = RF_ACK_WINDOW_MS;
+    if(g_ack_window_ms == 0u)
+    {
+        g_ack_window_ms = RFH_DEFAULT_ACK_WINDOW_MS;
+    }
+    g_ack_window_packets = rfh_ack_window_packets_us(g_report_hz,
+                                                     RF_ACK_WINDOW_US);
+    g_second_pos = 0u;
+    g_dual_pos = 0u;
+    g_ack_seen_this_period = 0u;
+    g_ack_period_close_pending = 0u;
+    g_ack_miss_count = 0u;
+    g_ack_rx_active = 0u;
+    g_tick_per_evt = GetSysClock() / g_report_hz;
+    if(g_tick_per_evt == 0u)
+    {
+        g_tick_per_evt = 1u;
+    }
+
+    if(restart_timer == 0u)
+    {
+        return;
+    }
+
+    PFIC_DisableIRQ(TMR0_IRQn);
+    TMR0_ITCfg(DISABLE, TMR0_3_IT_CYC_END);
+    TMR0_TimerInit(g_tick_per_evt);
+    TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
+    TMR0_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
+    PFIC_EnableIRQ(TMR0_IRQn);
+}
+
+bool RF_SetReportRateHz(uint16_t hz)
+{
+    if(tx_report_rate_valid(hz) == 0u)
+    {
+        return false;
+    }
+
+    if(g_report_hz == hz)
+    {
+        return true;
+    }
+
+    tx_apply_report_rate_hz(hz, 1u);
+    RF_LINK_LOG("[TX][RFH] rate_applied:%u\r\n", (unsigned int)g_report_hz);
+    return true;
+}
+
+uint16_t RF_GetReportRateHz(void)
+{
+    return g_report_hz;
+}
+
 static void tx_log_note_error(void)
 {
     if(g_log_errors < 99u)
@@ -1264,26 +1328,17 @@ void RF_Init(void)
     memset(g_spi_input_log_payload, 0, sizeof(g_spi_input_log_payload));
     g_spi_input_log_valid = 0u;
     g_spi_input_log_clock = 0u;
+    uint16_t initial_report_hz;
 #if (RFM_FORCE_REPORT_RATE_HZ != 0u)
-    g_report_hz = RFM_FORCE_REPORT_RATE_HZ;
+    initial_report_hz = RFM_FORCE_REPORT_RATE_HZ;
 #else
-    g_report_hz = RF_REPORT_PPS;
+    initial_report_hz = RF_REPORT_PPS;
 #endif
-    if((g_report_hz != 1000u) && (g_report_hz != 2000u) &&
-       (g_report_hz != 4000u) && (g_report_hz != 8000u))
+    if(tx_report_rate_valid(initial_report_hz) == 0u)
     {
-        g_report_hz = RFH_DEFAULT_RATE_HZ;
+        initial_report_hz = RFH_DEFAULT_RATE_HZ;
     }
-    g_rate_code = rfh_rate_code_from_hz(g_report_hz);
-    g_ack_window_ms = RF_ACK_WINDOW_MS;
-    if(g_ack_window_ms == 0u)
-    {
-        g_ack_window_ms = RFH_DEFAULT_ACK_WINDOW_MS;
-    }
-    g_ack_window_packets = rfh_ack_window_packets_us(g_report_hz,
-                                                     RF_ACK_WINDOW_US);
-    g_second_pos = 0u;
-    g_dual_pos = 0u;
+    tx_apply_report_rate_hz(initial_report_hz, 0u);
     g_current_channel = RFH_DISCOVERY_CHANNEL_A;
     g_radio_channel = RFH_DISCOVERY_CHANNEL_A;
     g_ack_rx_channel = RFH_DISCOVERY_CHANNEL_A;
@@ -1306,11 +1361,6 @@ void RF_Init(void)
     tmos_start_task(taskID, SBP_RF_STAT_EVT, MS1_TO_SYSTEM_TIME(RF_STAT_PRINT_PERIOD_MS));
     tx_basic_start();
 
-    g_tick_per_evt = GetSysClock() / g_report_hz;
-    if(g_tick_per_evt == 0u)
-    {
-        g_tick_per_evt = 1u;
-    }
     TMR0_TimerInit(g_tick_per_evt);
     TMR0_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
     PFIC_SetPriority(TMR0_IRQn, 0x80);
