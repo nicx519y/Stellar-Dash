@@ -1159,8 +1159,8 @@ TX 侧状态：
 
 | 状态 | 说明 |
 |---|---|
-| `TX_PAIRING` | 已收到 `START_PAIR`，停止普通空口输入发送，切到公共配对地址；当前实现尚未发送真实 `PAIR_OFFER` |
-| `TX_PAIR_CONFIRM_WAIT` | 目标状态：已收到 RX 接受，切到候选工作地址等待 `PAIR_DONE`；当前尚未实现 |
+| `TX_PAIRING` | 已收到 `START_PAIR`，停止普通空口输入发送，切到公共配对地址并按 TDD 周期发送 `PAIR_OFFER` |
+| `TX_PAIR_CONFIRM_WAIT` | 已收到 RX 接受，在公共配对地址发送 `PAIR_CONFIRM`，在候选工作地址等待 `PAIR_DONE` |
 
 当前 `RF_StartPairing()` 行为：
 
@@ -1178,12 +1178,12 @@ TX 侧状态：
 - timeout 后执行 `RF_StopPairing()`，并调用 `rfm_spi_bridge_emit_state_changed(START_PAIR)` 让 STM32 通过 IRQ/event 服务读出状态变化。
 - `RF_StopPairing()` 后 TX 回到普通未连接/连接中流程，因此 STM32 可能收到 `state=Connecting`；STM32 在 pairing active 时将 `Connecting` 解释为 `Timeout`。
 
-后续完整配对握手还需要补：
+当前完整配对握手已按第 15 章落地，后续仍可增强：
 
-1. 生成 `session_nonce` 和候选 `link_access_address`。
-2. 在 `TX_PAIRING` 中按 TDD 周期发送 `PAIR_OFFER` 并打开 `PAIR_ACCEPT` RX window。
-3. 收到 `PAIR_ACCEPT` 后进入 `TX_PAIR_CONFIRM_WAIT`。
-4. 收到 `PAIR_DONE` 后写入 TX bond 并上报 `PairOk`。
+1. 增加 per-device secret 或 HMAC，避免明文 Just Works 被近场恶意设备抢配。
+2. 增加 factory params 读写工具，把产品 ID、本机 ID hash 和公共配对地址 override 纳入量产流程。
+3. 增加 RX 侧清 bond 入口，例如 PB22 超长按 10s。
+4. 将 TX SPI bridge 的单 pending frame 扩展成小型异步事件队列。
 
 `RF_StopPairing()` 行为：
 
@@ -1259,10 +1259,10 @@ RX pairing 行为：
 1. 停止普通扫描、普通 ACK、普通 HOP。
 2. 切到 `RFH_PAIR_ACCESS_ADDRESS`。
 3. 在 `RFH_PAIR_CHANNEL_A/B` 间扫描。
-4. 收到合法 `PAIR_OFFER` 后记录 `session_nonce` 和候选 `link_access_address`。
+4. 收到合法 `PAIR_OFFER` 后记录 `session_nonce` 和 `tx_id_hash`。
 5. 在收到 offer 的同一频道回 `PAIR_ACCEPT`。
-6. 切到候选 `link_access_address`，进入 `RX_PAIR_CONFIRM_WAIT`。
-7. 收到合法 `PAIR_CONFIRM` 后先标记 pending bond，在主循环写 EEPROM/Flash。
+6. 进入 `RX_PAIR_CONFIRM_WAIT`，继续在公共配对地址等待 `PAIR_CONFIRM`。
+7. 收到合法 `PAIR_CONFIRM` 后取得候选 `link_access_address`，先标记 pending bond，在主循环写 EEPROM/Flash。
 8. 确认本地 bond 写入成功后，才发送 `PAIR_DONE`。
 
 RX 写入 bond 前不能让 TX 误判成功。`PAIR_DONE` 必须表示 RX 本地 bond 已经提交成功。
@@ -1316,32 +1316,32 @@ RX pairing timeout：
 
 本节为后续真实 `PAIR_OFFER/PAIR_ACCEPT/PAIR_CONFIRM/PAIR_DONE` 握手目标。CH58x RF 当前按半双工使用，同一时刻只能 TX 或 RX。配对模式不能连续发包，必须显式留出 RX window。
 
-推荐 discovery 周期：
+推荐 discovery 周期。第一版窗口取 100ms，牺牲一点配对速度，换取更宽松的 MCU 主循环调度与射频收发切换余量：
 
 ```text
-16ms pairing discovery cycle
+400ms pairing discovery cycle
 
-0..4ms     ch A: TX sends PAIR_OFFER burst
-4..8ms     ch A: TX opens RX window for PAIR_ACCEPT
-8..12ms    ch B: TX sends PAIR_OFFER burst
-12..16ms   ch B: TX opens RX window for PAIR_ACCEPT
+0..100ms      ch A: TX sends PAIR_OFFER burst
+100..200ms    ch A: TX opens RX window for PAIR_ACCEPT
+200..300ms    ch B: TX sends PAIR_OFFER burst
+300..400ms    ch B: TX opens RX window for PAIR_ACCEPT
 repeat until accept or timeout
 ```
 
 RX 规则：
 
 - RX 在 `RFH_PAIR_CHANNEL_A/B` 间扫描。
-- RX 在哪个频道收到 `PAIR_OFFER`，就在哪个频道回 `PAIR_ACCEPT`。
+- RX 在哪个频道收到 `PAIR_OFFER`，就按 offer 的 `hdr1` 对齐到 TX 的接收窗口后，在同一频道回 `PAIR_ACCEPT`；不能收到后立即发送。
 - TX 发完 ch A offer 就只在 ch A 收 accept，发完 ch B offer 就只在 ch B 收 accept。
 - 第一版不建议 TX 在一个 accept window 内再扫两个频道，避免应答窗口过短导致丢包。
 
 Confirm 周期：
 
 ```text
-8ms pairing confirm cycle
+200ms pairing confirm cycle
 
-0..4ms   TX sends PAIR_CONFIRM burst on proposed accessAddress
-4..8ms   TX opens RX window for PAIR_DONE
+0..100ms      TX sends PAIR_CONFIRM burst on public pairing accessAddress
+100..200ms    TX opens RX window on proposed accessAddress for PAIR_DONE
 repeat until PAIR_DONE or confirm timeout
 ```
 
@@ -1418,3 +1418,268 @@ Bond 写 Flash/EEPROM 必须放在主循环状态推进里做，不得在 RF ISR
 - 配对期间必须停止普通 DATA/CONNECT/HOP 空口行为，避免 pairing address 和普通工作地址状态互相污染。
 - `PAIR_DONE` 只能在 RX bond 写入成功后发送；否则容易出现 TX/RX 单边写入。
 - 第一版是物理双确认加短时窗口的明文 Just Works 配对，不具备抗恶意配对能力；如需安全绑定，后续应加入 per-device secret、短码确认或消息认证码。
+
+## 15. 配对握手定稿补充
+
+本章补齐 14 章中仍然模糊的量产参数、公共配对地址、握手包语义、最终 `accessAddress` 生成、Flash 提交流程和 TX 通知 STM32 方式。后续实现真实配对握手时，以本章为准；14.8 中“`PAIR_OFFER` 直接携带候选 `accessAddress`”的简化说法应调整为本章的两阶段方案：先交换 TX/RX 短 ID，再由 TX 生成最终地址，并在公共配对地址上的 `PAIR_CONFIRM` 中下发。RX 写入 bond 后，再切到最终工作地址发送 `PAIR_DONE`。
+
+### 15.1 公共配对 access address
+
+公共配对地址定义为产品族级常量：
+
+```c
+#define RFH_PAIR_ACCESS_ADDRESS        0x6D5A3C17UL
+#define RFH_PAIR_ACCESS_ADDRESS_MAGIC  0x52485041UL /* "RHPA" */
+```
+
+选择 `0x6D5A3C17` 的原因：
+
+- 避开 `0x00000000 / 0xFFFFFFFF / 0x55555555 / 0xAAAAAAAA` 等 RFIP 不推荐值。
+- 连续 0/1 长度不超过 6 bit。
+- bit transition 数位于有效范围内，既不是低翻转同步图案，也不是过高翻转图案。
+- 与当前默认工作地址 `0x71764129` 不同。
+
+该地址只用于短时 discovery 和握手，不是最终通信地址，也不是安全密钥。第一版所有 HBox TX/RX 使用同一个产品族公共配对地址，这样未绑定的 TX/RX 才能互相发现；不要为每台设备烧录不同的公共配对地址，否则未预配对设备无法进入同一个 discovery 空间。
+
+量产烧录建议：
+
+- `RFH_PAIR_ACCESS_ADDRESS` 作为 TX/RX 固件共享编译常量，普通开发版直接随固件烧录。
+- 预留一个 factory params 区，烧录时写入 `rfh_factory_params_t`，用于覆盖默认公共配对地址、写入产品 ID 和本机唯一 ID。
+- 如果 factory params 校验失败，固件回退到编译常量 `0x6D5A3C17`。
+- factory override 只能按产品族或封闭批次使用，不能按单台设备随机化公共配对地址。
+
+建议 factory params 结构：
+
+```c
+typedef struct {
+    uint32_t magic;               /* RFH_PAIR_ACCESS_ADDRESS_MAGIC */
+    uint16_t version;             /* 1 */
+    uint16_t length;
+    uint32_t product_id;          /* HBox RF product family id */
+    uint32_t pair_access_address; /* default 0x6D5A3C17 */
+    uint32_t device_id_hash;      /* chip uid / factory serial hash */
+    uint32_t factory_counter;
+    uint32_t checksum;
+} rfh_factory_params_t;
+```
+
+### 15.2 本机 ID 与短 hash
+
+TX/RX 都需要一个稳定的 `local_id_hash`：
+
+- 优先使用 CH58x 芯片唯一 ID、厂测序列号或烧录工具写入的 `device_id_hash`。
+- 如果当前平台暂时没有可靠唯一 ID，可用 factory params 中的 `device_id_hash`，没有则退化为固件编译常量加 Flash 地址 hash；退化方案只适合开发，不适合量产。
+- `local_id_hash` 不是密钥，只用于减少旧包误接受、辅助生成唯一工作地址和日志排查。
+
+建议 hash 使用 FNV-1a32 或已有 CRC32，输入至少包含：
+
+- 芯片 UID 或 factory serial。
+- 固件角色：`"TX"` 或 `"RX"`。
+- 产品 ID：`"HBOX-RF-HOP"` 或对应整数 product id。
+
+### 15.3 配对包语义
+
+仍复用 12B 空口包，并定义 `type=3` 为 `PAIR`：
+
+```c
+#define RFH_PKT_PAIR                  3u
+#define RFH_PAIR_PROTO_VERSION        1u
+
+#define RFH_CMD_PAIR_OFFER            0x30u
+#define RFH_CMD_PAIR_ACCEPT           0x31u
+#define RFH_CMD_PAIR_CONFIRM          0x32u
+#define RFH_CMD_PAIR_DONE             0x33u
+#define RFH_CMD_PAIR_REJECT           0x34u
+```
+
+通用格式：
+
+| Byte | 字段 | 说明 |
+|---:|---|---|
+| `0` | `hdr0` | `type=PAIR`，rate 填当前目标速率 |
+| `1` | `hdr1` | discovery 阶段为距离应答窗口的毫秒倒计时；confirm 阶段为 `session_nonce` low byte |
+| `2` | `cmd_id` | `OFFER / ACCEPT / CONFIRM / DONE / REJECT` |
+| `3..6` | `session_nonce` | TX 每次 `START_PAIR` 新生成，RX 原样回传 |
+| `7..10` | `arg32` | 命令相关 32-bit 参数，小端 |
+| `11` | `meta` | 协议版本、rate、状态码或错误码 |
+
+各命令参数：
+
+| 命令 | 方向 | `arg32` | `meta` |
+|---|---|---|---|
+| `PAIR_OFFER` | TX -> RX | `tx_id_hash` | bit7..4=`RFH_PAIR_PROTO_VERSION`，bit1..0=`rate_code` |
+| `PAIR_ACCEPT` | RX -> TX | `rx_id_hash` | `0` 表示接受，非 0 表示原因码 |
+| `PAIR_CONFIRM` | TX -> RX | `link_access_address` | bit1..0=`rate_code`，bit7 表示要求 RX 写入 bond |
+| `PAIR_DONE` | RX -> TX | `bond_confirm32` | `0` 表示 RX 已写入 bond |
+| `PAIR_REJECT` | 双向 | `reject_reason` | 错误码 |
+
+`bond_confirm32` 用于避免 TX 把旧的 `PAIR_DONE` 当成本次会话成功：
+
+```text
+bond_confirm32 = FNV1A32("HBOX_PAIR_DONE",
+                         session_nonce,
+                         tx_id_hash,
+                         rx_id_hash,
+                         link_access_address)
+```
+
+TX 必须校验 `session_nonce`、`rx_id_hash` 和 `bond_confirm32` 全部匹配，才允许写入本地 bond 并上报 `PairOk`。
+
+### 15.4 握手流程
+
+配对入口：
+
+1. STM32 屏幕点击 `Pair 2.4G`，通过 SPI 给 TX 发送 `START_PAIR`。
+2. TX 停止普通 `CONNECT/DATA/HOP/ACK` 流程，切到 `RFH_PAIR_ACCESS_ADDRESS`，生成 `session_nonce`，进入 `TX_PAIRING`。
+3. RX 侧 PB22 长按 5s，停止普通扫描/通信，切到同一个 `RFH_PAIR_ACCESS_ADDRESS`，进入 `RX_PAIRING`。
+
+Discovery 阶段：
+
+1. TX 按 400ms TDD 周期在 `RFH_PAIR_CHANNEL_A/B` 上发送 `PAIR_OFFER(session_nonce, tx_id_hash)`。
+2. RX 只接受 `type=PAIR`、`cmd=PAIR_OFFER`、协议版本匹配、公共配对地址匹配的包。
+3. RX 记录 `session_nonce` 和 `tx_id_hash`，读取 `PAIR_OFFER.hdr1` 的毫秒倒计时，并严格等到 TX 的 accept window 后，在同一频道重复发送 `PAIR_ACCEPT(session_nonce, rx_id_hash)`。
+4. TX 收到合法 `PAIR_ACCEPT` 后，根据 TX/RX ID 和本次 session 生成 `link_access_address`，但此时仍保持公共配对地址，进入 `TX_PAIR_CONFIRM_WAIT`。
+5. RX 发送 accept 后进入 `RX_PAIR_CONFIRM_WAIT`，继续在公共配对地址上等待 `PAIR_CONFIRM`；收到 confirm 前不得写 bond。
+
+Confirm 阶段：
+
+1. TX 在公共配对地址上按 200ms confirm 周期的前半段重复发送 `PAIR_CONFIRM(session_nonce, link_access_address)`。
+2. RX 在公共配对地址上收到合法 confirm 后校验 `link_access_address`，创建 pending bond，并在主循环写入 Flash/EEPROM。
+3. RX 本地 bond 写入且读回校验成功后，切到 `link_access_address`，发送 `PAIR_DONE(session_nonce, bond_confirm32)`。
+4. TX 收到合法 `PAIR_DONE` 后写入 TX bond；TX 写入且读回校验成功后，配对才算成功。
+5. TX 切回普通工作流程，使用新的 `link_access_address` 进入 `TX_UNCONNECTED`，等待现有 CONNECT 流程建链。
+6. RX 发送若干轮 `PAIR_DONE` 后也回到 `RX_UNCONNECTED`，使用新 bond 地址扫描 CONNECT。
+
+### 15.5 工作 access address 生成
+
+最终通信地址由 TX 生成，RX 负责校验和持久化。TX 生成 seed：
+
+```text
+seed = FNV1A32("HBOX_LINK_AA_V1",
+               session_nonce,
+               tx_id_hash,
+               rx_id_hash,
+               tx_pair_counter,
+               tmos_clock_low32,
+               tmr0_counter_sample)
+```
+
+然后调用：
+
+```c
+link_access_address = rfh_access_address_from_seed(seed);
+```
+
+`rfh_access_address_from_seed()` 必须循环扰动 seed，直到得到合法地址：
+
+```c
+uint32_t rfh_access_address_from_seed(uint32_t seed)
+{
+    uint32_t aa = seed;
+    for(uint8_t i = 0; i < 32u; ++i) {
+        aa ^= aa << 13;
+        aa ^= aa >> 17;
+        aa ^= aa << 5;
+        aa ^= 0xA5A55A5AUL + (uint32_t)i * 0x9E3779B9UL;
+        if(rfh_access_address_valid(aa)) {
+            return aa;
+        }
+    }
+    return 0x6D35B8C9UL; /* 最后兜底值也必须通过 valid 检查 */
+}
+```
+
+`rfh_access_address_valid()` 规则：
+
+- 不允许 `0x00000000 / 0xFFFFFFFF / 0x55555555 / 0xAAAAAAAA`。
+- 不允许等于 `RFH_PAIR_ACCESS_ADDRESS`。
+- 不允许等于默认未绑定工作地址 `RFH_LINK_ACCESS_ADDRESS_DEFAULT`，除非当前明确处于无 bond 兼容模式。
+- 连续 0 或连续 1 不超过 6 bit。
+- bit transition 数建议 `8..24`。
+
+唯一性说明：
+
+- 该方案不是密码学意义上的唯一，但同时混入 TX ID、RX ID、session nonce、pair counter 和运行时计数，32-bit 地址碰撞概率足够低。
+- 如果后续加入安全绑定，应保留本流程，把 seed 改为 `HMAC(per_device_secret, tx_id, rx_id, nonce)` 的输出。
+
+### 15.6 Bond 写入与回滚
+
+TX/RX bond 至少保存：
+
+| 字段 | 说明 |
+|---|---|
+| `magic/version/length` | 记录格式 |
+| `link_access_address` | 最终通信地址 |
+| `channel_a/channel_b` | 普通未连接/恢复频道，第一版沿用默认 A/B |
+| `rate_code` | 配对时目标速率 |
+| `local_id_hash` | 本机短 ID |
+| `peer_id_hash` | 对端短 ID |
+| `pair_counter` | 本机成功配对次数 |
+| `bond_confirm32` | 最近一次成功确认值 |
+| `checksum` | FNV-1a32 或 CRC32 |
+
+提交流程必须是 RX 先提交，TX 后提交：
+
+1. RX 收到 `PAIR_CONFIRM` 后只创建 pending bond，不立即宣布成功。
+2. RX 在主循环擦写 Flash/EEPROM，并读回 `rfh_bond_record_valid()`。
+3. RX 写入成功后才发送 `PAIR_DONE`。
+4. TX 收到合法 `PAIR_DONE` 后写入 TX bond，并读回校验。
+5. TX 写入失败时不得上报 `PairOk`，必须上报 `Error/FlashFail`，并恢复旧 bond 或默认地址。
+
+异常恢复：
+
+- TX 未收到 `PAIR_DONE`：TX 不写 bond，配对超时；RX 若已写入新 bond，用户重新长按 PB22 可再次进入公共配对地址覆盖 bond。
+- RX 写 bond 失败：RX 发送 `PAIR_REJECT` 或保持不发 `PAIR_DONE`，TX 最终 timeout。
+- TX 写 bond 失败：TX 通过 STM32 事件上报失败；RX 已写入新 bond 的情况下，需要用户重新配对或 RX 侧提供后续 `UNBIND` 入口。
+- `UNBIND` 第一版只保证清 TX bond；RX 可通过重新配对覆盖。后续可增加 RX PB22 超长按 10s 清 bond。
+
+### 15.7 TX 如何通知 STM32 配对完成
+
+TX 只有在以下条件全部满足后，才允许通知 STM32 `PairOk`：
+
+- 已收到合法 `PAIR_DONE`。
+- `bond_confirm32` 校验通过。
+- TX 本地 bond 写入成功并读回校验通过。
+- RF 层已把普通工作地址切到新 `link_access_address`。
+
+通知方式沿用 14.4 的后台 IRQ/event 服务：
+
+1. TX 将 RF 状态置为 `PairOk`，`hasBond=1`。
+2. TX 入队一个异步 `STATE_CHANGED` 事件，`cmdTag=START_PAIR(0x02)`。
+3. TX 拉高 IRQ 线。
+4. STM32 `EXTI15_10_IRQHandler` 只置 pending 标志。
+5. STM32 主循环中的 `ConnectionManager::serviceRfEvents()` 通过 SPI clock 出事件帧。
+6. `RFTransport::parseEventFrame()` 更新 `RFModuleStatus.state=PairOk`。
+7. 屏幕配对页显示 `Pair OK`，可在短延迟后自动退出；第一版建议同时切到 `RF24G + XINPUT`。
+
+事件 payload 建议继续使用 14.3 的 status payload，并明确状态码：
+
+| `state` | 含义 |
+|---:|---|
+| `0` | Idle |
+| `1` | Pairing |
+| `2` | PairOk |
+| `3` | Connecting |
+| `4` | Connected |
+| `5` | Reconnecting |
+| `6` | PairTimeout |
+| `7` | PairFailed |
+
+失败事件：
+
+- 配对 60s 超时：TX 调用 `RF_StopPairing()`，入队 `STATE_CHANGED(state=PairTimeout, cmdTag=START_PAIR)`。
+- 收到非法包过多、地址非法或协议版本不匹配：可入队 `ERROR(state=PairFailed)`，错误码放在 `cmdTag` 或扩展字段。
+- TX Flash 写失败：必须入队 `ERROR(state=PairFailed)`，不能伪装成 timeout。
+
+`GET_STATUS` 仅作为诊断兜底，不作为配对成功的主路径。屏幕配对页以异步 event 为准，STM32 本地 65s timeout 只用于防止事件丢失后 UI 卡死。
+
+### 15.8 实现顺序建议
+
+1. 在 `rf_hop_protocol.h` 补齐 `RFH_PKT_PAIR`、配对命令号、`RFH_PAIR_ACCESS_ADDRESS`、`RFH_LINK_ACCESS_ADDRESS_DEFAULT`、`rfh_access_address_valid()`。
+2. 将 `rf_hop_bond.h` 扩展到包含 `local_id_hash/peer_id_hash/pair_counter/bond_confirm32` 的 v2 record，并保留 v1 无效或迁移策略。
+3. TX 实现 `PAIR_OFFER/PAIR_ACCEPT` discovery TDD，先不写 Flash，只打印 `tx_id/rx_id/session`。
+4. RX 实现公共配对地址扫描和 `PAIR_ACCEPT`。
+5. TX 实现 `link_access_address` 生成和 `PAIR_CONFIRM`。
+6. RX 实现 pending bond 写入、读回校验和 `PAIR_DONE`。
+7. TX 实现收到 `PAIR_DONE` 后写 bond、切地址、发 `PairOk` 事件。
+8. 最后接入重启加载 bond、`UNBIND`、失败事件和日志计数。

@@ -7,7 +7,7 @@
 #include "rf_hop_protocol.h"
 
 #define RFH_BOND_MAGIC                  0x48424652UL
-#define RFH_BOND_VERSION                1u
+#define RFH_BOND_VERSION                2u
 #define RFH_BOND_EEPROM_ADDR_DEFAULT    0x6000u
 #define RFH_BOND_EEPROM_ERASE_SIZE      4096u
 
@@ -21,6 +21,10 @@ typedef struct
     uint8_t channel_b;
     uint8_t rate_code;
     uint8_t reserved;
+    uint32_t local_id_hash;
+    uint32_t peer_id_hash;
+    uint32_t pair_counter;
+    uint32_t bond_confirm32;
     uint32_t checksum;
 } rfh_bond_record_t;
 
@@ -62,7 +66,11 @@ static inline void rfh_bond_record_init(rfh_bond_record_t *record,
                                         uint32_t link_access_address,
                                         uint8_t channel_a,
                                         uint8_t channel_b,
-                                        uint8_t rate_code)
+                                        uint8_t rate_code,
+                                        uint32_t local_id_hash,
+                                        uint32_t peer_id_hash,
+                                        uint32_t pair_counter,
+                                        uint32_t bond_confirm32)
 {
     if(record == 0)
     {
@@ -77,28 +85,11 @@ static inline void rfh_bond_record_init(rfh_bond_record_t *record,
     record->channel_a = channel_a;
     record->channel_b = channel_b;
     record->rate_code = rate_code;
+    record->local_id_hash = local_id_hash;
+    record->peer_id_hash = peer_id_hash;
+    record->pair_counter = pair_counter;
+    record->bond_confirm32 = bond_confirm32;
     record->checksum = rfh_bond_checksum(record);
-}
-
-static inline uint32_t rfh_access_address_from_seed(uint32_t seed)
-{
-    uint32_t address;
-
-    seed ^= seed << 13;
-    seed ^= seed >> 17;
-    seed ^= seed << 5;
-    address = seed ^ 0xA5A55A5AUL;
-
-    if((address == RFH_LINK_ACCESS_ADDRESS_DEFAULT) ||
-       (rfh_access_address_valid(address) == 0u))
-    {
-        address = RFH_LINK_ACCESS_ADDRESS_DEFAULT ^ 0x13579BDFUL;
-    }
-    if(rfh_access_address_valid(address) == 0u)
-    {
-        address = 0x6D35B8C9UL;
-    }
-    return address;
 }
 
 #endif

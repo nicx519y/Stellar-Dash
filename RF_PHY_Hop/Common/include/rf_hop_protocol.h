@@ -40,6 +40,22 @@
 #define RFH_DUAL_PERIOD_MS            2u
 #define RFH_CONNECT_SESSION_ID         0x484F5031UL
 #define RFH_PROTOCOL_VERSION           1u
+#define RFH_LINK_ACCESS_ADDRESS_DEFAULT 0x71764129UL
+
+#define RFH_PAIR_ACCESS_ADDRESS        0x6D5A3C17UL
+#define RFH_PAIR_ACCESS_ADDRESS_MAGIC  0x52485041UL
+#define RFH_PAIR_CHANNEL_A             RFH_DISCOVERY_CHANNEL_A
+#define RFH_PAIR_CHANNEL_B             RFH_DISCOVERY_CHANNEL_B
+#define RFH_PAIR_WINDOW_MS             60000u
+#define RFH_PAIR_CONFIRM_TIMEOUT_MS    3000u
+#define RFH_PAIR_PROTO_VERSION         1u
+#define RFH_PAIR_ACCEPT_TICK_US        1000u
+#define RFH_PAIR_TX_WINDOW_MS          100u
+#define RFH_PAIR_ACCEPT_GUARD_MS       4u
+#define RFH_PAIR_ACCEPT_BURSTS         32u
+#define RFH_PAIR_DISCOVERY_CYCLE_MS    (RFH_PAIR_TX_WINDOW_MS * 4u)
+#define RFH_PAIR_CONFIRM_CYCLE_MS      (RFH_PAIR_TX_WINDOW_MS * 2u)
+#define RFH_PAIR_DONE_BURSTS           64u
 
 #define RFH_ACK_MISS_LIMIT_DEFAULT                 3u
 #define RFH_RX_PACKET_TIMEOUT_MS_DEFAULT           100u
@@ -56,6 +72,11 @@
 #define RFH_CMD_HOP_CONFIRM           0x11u
 #define RFH_CMD_HOP_CANCEL            0x12u
 #define RFH_CMD_RATE_UPDATE           0x20u
+#define RFH_CMD_PAIR_OFFER            0x30u
+#define RFH_CMD_PAIR_ACCEPT           0x31u
+#define RFH_CMD_PAIR_CONFIRM          0x32u
+#define RFH_CMD_PAIR_DONE             0x33u
+#define RFH_CMD_PAIR_REJECT           0x34u
 #define RFH_CMD_RECONNECT             0x7Fu
 
 #define RFH_ACK_STATUS_SEEK           0u
@@ -64,7 +85,8 @@
 typedef enum {
     RFH_PKT_CONNECT = 0u,
     RFH_PKT_DATA = 1u,
-    RFH_PKT_ACK = 2u
+    RFH_PKT_ACK = 2u,
+    RFH_PKT_PAIR = 3u
 } rfh_packet_type_t;
 
 typedef enum {
@@ -121,6 +143,124 @@ enum {
     RFH_ACK_CHANNEL = 8u,
     RFH_ACK_STATUS = 9u
 };
+
+enum {
+    RFH_PAIR_CMD_ID = 0u,
+    RFH_PAIR_SESSION0 = 1u,
+    RFH_PAIR_SESSION1 = 2u,
+    RFH_PAIR_SESSION2 = 3u,
+    RFH_PAIR_SESSION3 = 4u,
+    RFH_PAIR_ARG0 = 5u,
+    RFH_PAIR_ARG1 = 6u,
+    RFH_PAIR_ARG2 = 7u,
+    RFH_PAIR_ARG3 = 8u,
+    RFH_PAIR_META = 9u
+};
+
+#define RFH_PAIR_META_VERSION_SHIFT    4u
+#define RFH_PAIR_META_VERSION_MASK     0xF0u
+#define RFH_PAIR_META_RATE_MASK        0x03u
+#define RFH_PAIR_META_WRITE_BOND       0x80u
+
+static inline uint32_t rfh_fnv1a32_bytes(const uint8_t *bytes, uint32_t len)
+{
+    uint32_t hash = 2166136261UL;
+    uint32_t i;
+
+    for(i = 0u; i < len; ++i)
+    {
+        hash ^= bytes[i];
+        hash *= 16777619UL;
+    }
+    return hash;
+}
+
+static inline uint32_t rfh_fnv1a32_mix_u32(uint32_t hash, uint32_t value)
+{
+    hash ^= (uint8_t)(value & 0xFFu);
+    hash *= 16777619UL;
+    hash ^= (uint8_t)((value >> 8) & 0xFFu);
+    hash *= 16777619UL;
+    hash ^= (uint8_t)((value >> 16) & 0xFFu);
+    hash *= 16777619UL;
+    hash ^= (uint8_t)(value >> 24);
+    hash *= 16777619UL;
+    return hash;
+}
+
+static inline uint8_t rfh_access_address_valid(uint32_t aa)
+{
+    uint8_t i;
+    uint8_t transitions = 0u;
+    uint8_t run_len = 1u;
+    uint8_t prev = (uint8_t)(aa & 1u);
+    uint8_t bit;
+
+    if((aa == 0x00000000UL) ||
+       (aa == 0xFFFFFFFFUL) ||
+       (aa == 0x55555555UL) ||
+       (aa == 0xAAAAAAAAUL) ||
+       (aa == RFH_PAIR_ACCESS_ADDRESS) ||
+       (aa == RFH_LINK_ACCESS_ADDRESS_DEFAULT))
+    {
+        return 0u;
+    }
+
+    for(i = 1u; i < 32u; ++i)
+    {
+        bit = (uint8_t)((aa >> i) & 1u);
+        if(bit == prev)
+        {
+            run_len++;
+            if(run_len > 6u)
+            {
+                return 0u;
+            }
+        }
+        else
+        {
+            transitions++;
+            run_len = 1u;
+            prev = bit;
+        }
+    }
+
+    return ((transitions >= 8u) && (transitions <= 24u)) ? 1u : 0u;
+}
+
+static inline uint32_t rfh_access_address_from_seed(uint32_t seed)
+{
+    uint8_t i;
+    uint32_t aa = seed;
+
+    for(i = 0u; i < 32u; ++i)
+    {
+        aa ^= aa << 13;
+        aa ^= aa >> 17;
+        aa ^= aa << 5;
+        aa ^= 0xA5A55A5AUL + ((uint32_t)i * 0x9E3779B9UL);
+        if(rfh_access_address_valid(aa) != 0u)
+        {
+            return aa;
+        }
+    }
+    return 0x6D35B8C9UL;
+}
+
+static inline uint32_t rfh_pair_confirm32(uint32_t session_nonce,
+                                          uint32_t tx_id_hash,
+                                          uint32_t rx_id_hash,
+                                          uint32_t link_access_address)
+{
+    static const uint8_t tag[] = "HBOX_PAIR_DONE";
+    uint32_t hash = rfh_fnv1a32_bytes(tag, (uint32_t)(sizeof(tag) - 1u));
+
+    hash = rfh_fnv1a32_mix_u32(hash, session_nonce);
+    hash = rfh_fnv1a32_mix_u32(hash, tx_id_hash);
+    hash = rfh_fnv1a32_mix_u32(hash, rx_id_hash);
+    hash = rfh_fnv1a32_mix_u32(hash, link_access_address);
+    return hash;
+}
 
 static inline uint8_t rfh_make_header0(uint8_t type, uint8_t rate, uint8_t flags)
 {

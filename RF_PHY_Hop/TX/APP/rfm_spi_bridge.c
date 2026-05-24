@@ -24,6 +24,8 @@ static uint32_t s_last_direct_count;
 static uint32_t s_last_backlog_drop_count;
 static uint32_t s_last_backlog_drop_bytes;
 static uint8_t s_poll_rx[(3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u) * 8u];
+static uint8_t s_state_changed_retry_pending;
+static uint8_t s_state_changed_retry_cmd_tag;
 
 #define SPI_POLL_MAX_BATCHES          1u
 #define SPI_INPUT_FRAME_BYTES         (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
@@ -148,8 +150,22 @@ static bool send_status_frame(spi_evt_t evt, uint8_t cmd_tag)
     uint16_t rx_fail = RF_GetRxFailCount();
     uint16_t tx_fail = RF_GetTxFailCount();
     uint32_t reject_count = RF_GetRejectCount();
+    uint8_t pending_state = 0u;
+    bool sent;
 
-    payload[0] = RF_GetLinkStateCode();
+    if(evt == SPI_EVT_STATE_CHANGED)
+    {
+        pending_state = RF_PeekPendingEventStateCode();
+        payload[0] = pending_state;
+    }
+    else
+    {
+        payload[0] = RF_GetLinkStateCode();
+    }
+    if(payload[0] == 0u)
+    {
+        payload[0] = RF_GetLinkStateCode();
+    }
     payload[1] = RF_IsConnected();
     payload[2] = RF_HasBond();
     put_u16(&payload[3], report_hz);
@@ -159,12 +175,35 @@ static bool send_status_frame(spi_evt_t evt, uint8_t cmd_tag)
     put_u16(&payload[10], tx_fail);
     put_u32(&payload[12], reject_count);
     payload[16] = cmd_tag;
-    return send_frame(evt, payload, (uint8_t)sizeof(payload));
+    sent = send_frame(evt, payload, (uint8_t)sizeof(payload));
+    if((sent != false) && (evt == SPI_EVT_STATE_CHANGED) && (pending_state != 0u))
+    {
+        RF_ClearPendingEventStateCode(pending_state);
+    }
+    return sent;
+}
+
+static void try_send_pending_state_changed(void)
+{
+    if(s_state_changed_retry_pending == 0u)
+    {
+        return;
+    }
+    if(rfm_spi_port_tx_pending() != 0u)
+    {
+        return;
+    }
+    if(send_status_frame(SPI_EVT_STATE_CHANGED, s_state_changed_retry_cmd_tag))
+    {
+        s_state_changed_retry_pending = 0u;
+    }
 }
 
 void rfm_spi_bridge_emit_state_changed(uint8_t cmd_tag)
 {
-    (void)send_status_frame(SPI_EVT_STATE_CHANGED, cmd_tag);
+    s_state_changed_retry_cmd_tag = cmd_tag;
+    s_state_changed_retry_pending = 1u;
+    try_send_pending_state_changed();
 }
 
 static bool send_error_event(uint8_t cmd_tag, uint8_t reason)
@@ -577,6 +616,8 @@ void rfm_spi_bridge_init(void)
     s_last_backlog_drop_count = 0u;
     s_last_backlog_drop_bytes = 0u;
     s_last_rx_count = 0u;
+    s_state_changed_retry_pending = 0u;
+    s_state_changed_retry_cmd_tag = 0u;
     parser_reset();
     fast_parser_reset();
     rfm_spi_port_init();
@@ -592,11 +633,13 @@ void rfm_spi_bridge_poll(void)
 
     if(RFM_SPI_INPUT_DIRECT_DMA != 0u) {
         rfm_spi_port_service();
+        try_send_pending_state_changed();
         control_len = (uint8_t)sizeof(control_frame);
         if(rfm_spi_port_peek_latest_control_frame(control_frame, &control_len)) {
             s_raw_bytes_win += control_len;
             s_frame_ok_win++;
             process_one_frame(control_frame, control_len);
+            try_send_pending_state_changed();
         }
         return;
     }
@@ -621,4 +664,5 @@ void rfm_spi_bridge_poll(void)
             parser_feed_byte(s_poll_rx[i]);
         }
     }
+    try_send_pending_state_changed();
 }

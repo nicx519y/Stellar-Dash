@@ -26,7 +26,9 @@ typedef enum {
     RF_LINK_STATE_PAIR_OK = 2u,
     RF_LINK_STATE_CONNECTING = 3u,
     RF_LINK_STATE_CONNECTED = 4u,
-    RF_LINK_STATE_RECONNECTING = 5u
+    RF_LINK_STATE_RECONNECTING = 5u,
+    RF_LINK_STATE_PAIR_TIMEOUT = 6u,
+    RF_LINK_STATE_PAIR_FAILED = 7u
 } rf_link_state_code_t;
 
 extern void RF_Init(void);
@@ -38,6 +40,9 @@ extern bool RF_StartPairing(void);
 extern bool RF_StopPairing(void);
 extern bool RF_Unbind(void);
 extern uint8_t RF_GetLinkStateCode(void);
+extern uint8_t RF_ConsumePendingEventStateCode(void);
+extern uint8_t RF_PeekPendingEventStateCode(void);
+extern void RF_ClearPendingEventStateCode(uint8_t state_code);
 extern uint8_t RF_IsConnected(void);
 extern uint8_t RF_HasBond(void);
 extern uint16_t RF_GetRxOkCount(void);
