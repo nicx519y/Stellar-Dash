@@ -140,6 +140,9 @@ static volatile uint8_t g_low_rx_ret = 0xFFu;
 static volatile uint8_t g_has_bond = 0u;
 static volatile uint32_t g_reject_count = 0u;
 static volatile uint32_t g_pairing_deadline_clock = 0u;
+static volatile uint32_t g_pairing_elapsed_ticks = 0u;
+static volatile uint32_t g_pairing_timeout_ticks = 0u;
+static volatile uint8_t g_pairing_timeout_pending = 0u;
 static uint32_t g_link_access_address = RF_LINK_ACCESS_ADDRESS;
 static uint32_t g_active_access_address = RF_LINK_ACCESS_ADDRESS;
 
@@ -472,6 +475,9 @@ static void tx_enter_state(tx_state_t next)
     {
     case TX_UNCONNECTED:
         g_pairing_deadline_clock = 0u;
+        g_pairing_elapsed_ticks = 0u;
+        g_pairing_timeout_ticks = 0u;
+        g_pairing_timeout_pending = 0u;
         g_expected_ack_cmd = RFH_CMD_CONNECT_REQ;
         g_ack_miss_count = 0u;
         g_ack_seen_this_period = 0u;
@@ -488,6 +494,13 @@ static void tx_enter_state(tx_state_t next)
         g_current_channel = RFH_DISCOVERY_CHANNEL_A;
         g_ack_rx_channel = RFH_DISCOVERY_CHANNEL_A;
         g_pairing_deadline_clock = now + MS1_TO_SYSTEM_TIME(RF_PAIR_WINDOW_MS);
+        g_pairing_elapsed_ticks = 0u;
+        g_pairing_timeout_ticks = ((uint32_t)g_report_hz * RF_PAIR_WINDOW_MS + 999u) / 1000u;
+        if(g_pairing_timeout_ticks == 0u)
+        {
+            g_pairing_timeout_ticks = 1u;
+        }
+        g_pairing_timeout_pending = 0u;
         break;
     case TX_COMM:
         g_expected_ack_cmd = RFH_CMD_NONE;
@@ -848,6 +861,15 @@ static void tx_advance_tick(void)
     if(g_dual_pos >= dual_period)
     {
         g_dual_pos = 0u;
+    }
+
+    if((tx_pairing_active() != 0u) && (g_pairing_timeout_pending == 0u))
+    {
+        g_pairing_elapsed_ticks++;
+        if(g_pairing_elapsed_ticks >= g_pairing_timeout_ticks)
+        {
+            g_pairing_timeout_pending = 1u;
+        }
     }
 }
 
@@ -1517,11 +1539,11 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
 __HIGH_CODE
 void RF_TxMainLoopProcess(void)
 {
-    if((tx_pairing_active() != 0u) &&
-       (tx_time_reached(TMOS_GetSystemClock(), g_pairing_deadline_clock) != 0u))
+    if((tx_pairing_active() != 0u) && (g_pairing_timeout_pending != 0u))
     {
         RF_LINK_LOG("[TX][RFH] pairing:timeout\r\n");
         (void)RF_StopPairing();
+        rfm_spi_bridge_emit_state_changed(0x02u);
     }
 }
 
@@ -1580,6 +1602,9 @@ void RF_Init(void)
     g_has_bond = 0u;
     g_reject_count = 0u;
     g_pairing_deadline_clock = 0u;
+    g_pairing_elapsed_ticks = 0u;
+    g_pairing_timeout_ticks = 0u;
+    g_pairing_timeout_pending = 0u;
     g_link_access_address = RF_LINK_ACCESS_ADDRESS;
     g_active_access_address = g_link_access_address;
     g_log_ack_ok = 0u;

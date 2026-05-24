@@ -162,6 +162,11 @@ static bool send_status_frame(spi_evt_t evt, uint8_t cmd_tag)
     return send_frame(evt, payload, (uint8_t)sizeof(payload));
 }
 
+void rfm_spi_bridge_emit_state_changed(uint8_t cmd_tag)
+{
+    (void)send_status_frame(SPI_EVT_STATE_CHANGED, cmd_tag);
+}
+
 static bool send_error_event(uint8_t cmd_tag, uint8_t reason)
 {
     uint8_t payload[2];

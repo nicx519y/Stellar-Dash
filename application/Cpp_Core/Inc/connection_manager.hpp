@@ -48,6 +48,7 @@ public:
     const RFModuleStatus& getRfModuleStatus() const { return rfTransport.getStatus(); }
     uint8_t getRfPairingLastErrorCommand() const { return rfPairingLastErrorCommand; }
     uint8_t getRfPairingLastErrorReason() const { return rfPairingLastErrorReason; }
+    uint32_t getRfPairingStartedAtMs() const { return rfPairingStartedAtMs; }
 
 private:
     ConnectionManager() = default;
@@ -74,6 +75,7 @@ private:
     bool rfPairSucceeded = false;
     RfPairingState rfPairingState = RfPairingState::Idle;
     uint32_t rfPairingLastEventCounter = 0;
+    uint32_t rfPairingStartedAtMs = 0;
     uint8_t rfPairingLastErrorCommand = 0;
     uint8_t rfPairingLastErrorReason = 0;
     RFTransport rfTransport;

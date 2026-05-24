@@ -136,9 +136,9 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
     }
     lastLoggedStatus = status;
 
-    // APP_DBG("[RF_BRIDGE] event=%s state=%s connected=%u hasBond=%u rate=%u reject=%lu",
-    //         eventToString(evt), linkStateToString(status.state), status.connected ? 1u : 0u,
-    //         status.hasBond ? 1u : 0u, status.rateHz, status.rejectCount);
+    APP_DBG("[RF_BRIDGE] event=%s state=%s connected=%u hasBond=%u rate=%u reject=%lu",
+            eventToString(evt), linkStateToString(status.state), status.connected ? 1u : 0u,
+            status.hasBond ? 1u : 0u, status.rateHz, status.rejectCount);
 
     return true;
 }

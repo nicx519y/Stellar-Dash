@@ -32,6 +32,7 @@ static uint16_t getRfReportRateHz(WirelessReportRate wirelessRate) {
 }
 
 static constexpr uint32_t kRfRateApplyRetryMs = 500u;
+static constexpr uint32_t kRfPairingLocalTimeoutMs = 65000u;
 static constexpr uint8_t kRfCmdStartPair = 0x02u;
 static constexpr uint8_t kRfCmdStopPair = 0x03u;
 }
@@ -87,12 +88,21 @@ void ConnectionManager::updateRfLinkStateFromStatus() {
 
 void ConnectionManager::updatePairingStateFromStatus() {
     const RFModuleStatus& st = rfTransport.getStatus();
+    const RfPairingState prevState = rfPairingState;
+    const bool prevActive = rfPairingActive;
 
     if (st.lastEvent == 0x85u) {
         rfPairingActive = false;
         rfPairingState = RfPairingState::TxError;
         rfPairingLastErrorCommand = st.lastErrorCommand;
         rfPairingLastErrorReason = st.lastErrorReason;
+        APP_DBG("[RF_PAIR] state evt:0x%02X rf:%u active:%u->%u pair:%u->%u",
+                (unsigned int)st.lastEvent,
+                (unsigned int)st.state,
+                (unsigned int)(prevActive ? 1u : 0u),
+                (unsigned int)(rfPairingActive ? 1u : 0u),
+                (unsigned int)prevState,
+                (unsigned int)rfPairingState);
         return;
     }
 
@@ -121,6 +131,16 @@ void ConnectionManager::updatePairingStateFromStatus() {
     default:
         break;
     }
+
+    if (prevState != rfPairingState || prevActive != rfPairingActive) {
+        APP_DBG("[RF_PAIR] state evt:0x%02X rf:%u active:%u->%u pair:%u->%u",
+                (unsigned int)st.lastEvent,
+                (unsigned int)st.state,
+                (unsigned int)(prevActive ? 1u : 0u),
+                (unsigned int)(rfPairingActive ? 1u : 0u),
+                (unsigned int)prevState,
+                (unsigned int)rfPairingState);
+    }
 }
 
 void ConnectionManager::serviceRfEvents() {
@@ -136,6 +156,10 @@ void ConnectionManager::serviceRfEvents() {
     updateRfLinkStateFromStatus();
     if (rfTransport.getStatus().eventCounter != rfPairingLastEventCounter) {
         rfPairingLastEventCounter = rfTransport.getStatus().eventCounter;
+        APP_DBG("[RF_PAIR] event evt:0x%02X rf:%u events:%lu",
+                (unsigned int)rfTransport.getStatus().lastEvent,
+                (unsigned int)rfTransport.getStatus().state,
+                (unsigned long)rfTransport.getStatus().eventCounter);
         updatePairingStateFromStatus();
     }
 }
@@ -158,6 +182,7 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
     rfPairSucceeded = false;
     rfPairingState = RfPairingState::Idle;
     rfPairingLastEventCounter = 0u;
+    rfPairingStartedAtMs = 0u;
     rfPairingLastErrorCommand = 0u;
     rfPairingLastErrorReason = 0u;
 
@@ -260,6 +285,7 @@ bool ConnectionManager::startRfPairing() {
     rfPairingActive = true;
     rfPairSucceeded = false;
     rfPairingState = RfPairingState::Starting;
+    rfPairingStartedAtMs = HAL_GetTick();
     rfPairingLastErrorCommand = 0u;
     rfPairingLastErrorReason = 0u;
 
@@ -323,6 +349,14 @@ bool ConnectionManager::stopRfPairing() {
 
 void ConnectionManager::loop() {
     serviceRfEvents();
+
+    if (rfPairingActive &&
+        rfPairingStartedAtMs != 0u &&
+        (HAL_GetTick() - rfPairingStartedAtMs) >= kRfPairingLocalTimeoutMs) {
+        APP_DBG("[RF_PAIR] local timeout active:1 pair:%u", (unsigned int)rfPairingState);
+        rfPairingActive = false;
+        rfPairingState = RfPairingState::Timeout;
+    }
 
     if (mode == ConnectionMode::CONNECTION_MODE_USB) {
         ConnectionLinkState nextState = get_usb_mounted() ? ConnectionLinkState::Connected : ConnectionLinkState::Disconnected;

@@ -8,6 +8,10 @@
 #include "system_logger.h"
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
 
+extern "C" uint32_t HAL_GetTick(void);
+
+static constexpr uint32_t kPairPageLocalTimeoutMs = 65000u;
+
 enum class ConnectionSettingKind : uint8_t {
     Setting = 0,
     Action = 1,
@@ -100,6 +104,26 @@ static void renderPairingPage(ST7789_Handle* lcd, const ScreenUiStyle& style) {
 }
 
 void ScreenDetailTournament_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
+    if (g_pairPageActive) {
+        RfPairingState pairState = CONNECTION_MANAGER.getRfPairingState();
+        const uint32_t startedAt = CONNECTION_MANAGER.getRfPairingStartedAtMs();
+        if ((pairState == RfPairingState::PairModeOn ||
+             pairState == RfPairingState::Starting) &&
+            startedAt != 0u &&
+            (uint32_t)(HAL_GetTick() - startedAt) >= kPairPageLocalTimeoutMs) {
+            APP_DBG("[SCREEN][PAIR] local timeout leave state:%u", (unsigned int)pairState);
+            pairState = RfPairingState::Timeout;
+        }
+        if (pairState == RfPairingState::Timeout ||
+            pairState == RfPairingState::PairOk) {
+            APP_DBG("[SCREEN][PAIR] auto leave state:%u", (unsigned int)pairState);
+            g_pairPageActive = false;
+        } else {
+            renderPairingPage(lcd, style);
+            return;
+        }
+    }
+
     if (g_pairPageActive) {
         renderPairingPage(lcd, style);
         return;
