@@ -913,3 +913,326 @@ RX 日志生成规则：
 - 跳频确认 ACK 未收到时，TX/RX 必须有恢复路径，否则双方可能分别停在 old/new。
 - 每次进入通信状态都必须启动跳频冷却计时，冷却期内不得发起新的主动跳频。
 - TX/RX 5s 日志必须保持短行输出，默认不超过 62 个可见 ASCII 字符，避免 USB CDC 小包截断或阻塞。
+
+## 14. 配对模式与 STM32 屏幕入口设计
+
+本节记录当前确认后的配对设计，用于把 STM32 屏幕入口、STM32 -> TX SPI 控制、TX/RX 空口配对和最终 bond 持久化串成一个闭环。
+
+### 14.1 目标与边界
+
+- STM32 是 SPI master，TX 是 SPI slave。STM32 通过 SPI 命令通知 TX 进入配对模式。
+- TX 收到 `START_PAIR` 后必须通过 SPI readback 明确告知 STM32：配对模式开启成功或失败。
+- STM32 屏幕主菜单 `Connection` 中新增 `Pair 2.4G` 入口；点击后进入专用配对页，并显示 TX 返回的开启状态。
+- TX/RX 进入配对模式后停止普通输入链路，切换到配对专用 `accessAddress`，使用双频道 TDD 周期交换配对包。
+- 配对成功后 TX/RX 持久化同一组 bond 参数，下次上电使用 bond 的 `link_access_address` 建链。
+
+### 14.2 STM32 -> TX SPI 控制协议
+
+继续复用现有 SPI bridge 帧格式：
+
+| Byte | 字段 | 说明 |
+|---:|---|---|
+| `0` | `sync` | 固定 `0xA5` |
+| `1` | `cmd/evt` | STM32->TX 为命令，TX->STM32 为事件 |
+| `2` | `len` | payload 长度 |
+| `3..` | `payload` | 命令或事件负载 |
+| `last` | `checksum8` | 从 `sync` 到 payload 末尾累加取低 8 bit |
+
+当前 STM32 -> TX 命令号：
+
+| 命令 | 值 | 说明 |
+|---|---:|---|
+| `GET_STATUS` | `0x01` | 读取 TX 当前状态 |
+| `START_PAIR` | `0x02` | 请求 TX 开启配对模式 |
+| `STOP_PAIR` | `0x03` | 请求 TX 取消配对模式 |
+| `UNBIND` | `0x04` | 清除 TX bond |
+| `SET_RATE` | `0x05` | 设置 1K/2K/4K/8K 上报率 |
+| `INPUT_DATA` | `0x06` | 10B 输入快照 |
+
+`START_PAIR` 第一包固定为：
+
+```text
+A5 02 00 A7
+```
+
+其中 `0xA7 = 0xA5 + 0x02 + 0x00`。
+
+`START_PAIR` 不应塞进 `INPUT_DATA(0x06)` payload。`INPUT_DATA` 是高速输入快路径，TX 会把其 payload 当作按键快照转成普通 DATA 空口包；配对必须走控制命令通道。
+
+### 14.3 TX -> STM32 SPI 反向回包
+
+SPI 物理层是 master/slave 模型，TX 不能主动产生 SPI clock，因此“TX 反向回包”必须按以下方式实现：
+
+1. TX 解析到控制命令后，在本地准备事件帧。
+2. TX 将 IRQ 线拉高，通知 STM32 有事件待读。
+3. STM32 拉低 CS，发送 dummy byte，通过 `TransmitReceive` clock 出 TX 事件帧。
+4. TX 完成事件帧输出后释放 IRQ，恢复接收 STM32 后续命令。
+
+当前端口已经支持控制命令后的同步 readback：STM32 对 `GET_STATUS / START_PAIR / STOP_PAIR / UNBIND / SET_RATE` 发送后会尝试读取 TX 事件帧。配对开启结果应使用这个同步 readback 返回。
+
+TX -> STM32 事件号：
+
+| 事件 | 值 | 说明 |
+|---|---:|---|
+| `STATUS` | `0x81` | 状态查询结果 |
+| `STATE_CHANGED` | `0x82` | 状态变化 |
+| `RATE_APPLIED` | `0x83` | 速率已应用 |
+| `LINK_WARN` | `0x84` | 链路警告 |
+| `ERROR` | `0x85` | 命令失败或内部错误 |
+
+`START_PAIR` 返回建议：
+
+| 场景 | 事件 | payload |
+|---|---|---|
+| 开启成功 | `STATE_CHANGED(0x82)` | 完整 17B status payload，`state=Pairing` |
+| 已在配对中 | `STATE_CHANGED(0x82)` | 完整 17B status payload，`state=Pairing`，幂等成功 |
+| 开启失败 | `ERROR(0x85)` | `cmd=START_PAIR` + `reason` |
+
+`GET_STATUS / STATE_CHANGED / RATE_APPLIED` 的完整 status payload 固定为 17B：
+
+| Byte | 字段 | 说明 |
+|---:|---|---|
+| `0` | `state` | `0=Idle, 1=Pairing, 2=PairOk, 3=Connecting, 4=Connected, 5=Reconnecting` |
+| `1` | `connected` | 当前是否已普通链路连接 |
+| `2` | `hasBond` | 是否已有有效 bond |
+| `3..4` | `report_hz` | 小端 `1000/2000/4000/8000` |
+| `5` | `txPowerLevel` | 当前 TX power 档位 |
+| `6..7` | `rxOk` | 近期 ACK/RX 成功计数 |
+| `8..9` | `rxFail` | 近期 ACK/RX 失败计数 |
+| `10..11` | `txFail` | TX 失败计数 |
+| `12..15` | `rejectCount` | 丢弃非法包/非法状态计数 |
+| `16` | `cmdTag` | 触发本状态帧的命令号 |
+
+注意：`rfm_spi_bridge.c` 当前 status payload 不应继续 hardcode `Connected/hasBond=1`，必须改成读取 RF 层真实状态，否则 STM32 配对页无法判断 `Pairing / PairOk / Timeout / Error`。
+
+### 14.4 STM32 屏幕入口与配对页
+
+`Connection` 菜单新增一项：
+
+| 菜单项 | 行为 |
+|---|---|
+| `USB` | 保持现有 USB 配置 |
+| `2.4G 1K/2K/4K/8K` | 保持现有 RF24G 速率配置 |
+| `Pair 2.4G` | 动作项，不直接改速率；进入配对页并发送 `START_PAIR` |
+
+`Pair 2.4G` 是动作项，不是配置项。它不应直接修改 `connectionMode` 或 `wirelessReportRate`；配对成功后是否自动切到 `RF24G + XINPUT` 可以作为第一版产品策略，建议成功后自动切换，符合用户点击配对入口的预期。
+
+配对页建议做成 `screen_manager` 的专用轻量页面或 overlay，不塞进普通列表详情。页面状态：
+
+| 状态 | 显示 | 来源 |
+|---|---|---|
+| `Starting` | `Starting...` | 点击入口后，正在发送 `START_PAIR` |
+| `PairModeOn` | `Pair mode on` / `Waiting RX...` | TX 返回 `state=Pairing` |
+| `TxError` | `TX Error` | TX 返回 `ERROR` 或 SPI readback 失败 |
+| `PairOk` | `Pair OK` | `GET_STATUS` 看到 `state=PairOk` |
+| `Timeout` | `Timeout` | STM32 配对页计时超时 |
+| `Canceled` | 返回 `Connection` | 用户点击/长按取消 |
+
+`ConnectionManager` 建议新增 API：
+
+```cpp
+bool startRfPairing();
+bool stopRfPairing();
+bool isRfPairing() const;
+bool hasRfPairSucceeded() const;
+RFModuleStatus getRfStatus() const;
+```
+
+配对页期间建议每 `100..200ms` 调用 `pollStatus()`。虽然 TX 可以通过 IRQ 推异步事件，但第一版更稳的方案是配对页主动轮询 `GET_STATUS`，直到 `PairOk / Idle / Error / Timeout`。
+
+如果当前已经在 `RF24G` 高速输入模式，配对页期间 STM32 应暂停或抑制 `INPUT_DATA` 发送，避免 8K 输入流占用 SPI 总线。`ConnectionManager::onReportReady()` 可在 `rfPairingActive` 时直接返回。
+
+### 14.5 TX 配对状态机
+
+TX 侧新增状态：
+
+| 状态 | 说明 |
+|---|---|
+| `TX_PAIRING` | 已收到 `START_PAIR`，正在公共配对地址上发送 `PAIR_OFFER` |
+| `TX_PAIR_CONFIRM_WAIT` | 已收到 RX 接受，切到候选工作地址等待 `PAIR_DONE` |
+
+`RF_StartPairing()` 行为：
+
+1. 如果已在 `TX_PAIRING/TX_PAIR_CONFIRM_WAIT`，返回成功，保持当前 pairing session。
+2. 停止普通 `DATA / CONNECT / HOP` 发送和 ACK 事务。
+3. 清理跳频事务、ACK miss 统计、普通连接临时状态。
+4. 生成 `session_nonce` 和候选 `link_access_address`。
+5. 将 `gParm/gTxParam/gRxParam.accessAddress` 切到 `RFH_PAIR_ACCESS_ADDRESS`。
+6. 进入 `TX_PAIRING`，启动配对窗口计时，默认 `60s`。
+7. 通过 SPI 返回完整 status payload，`state=Pairing`。
+
+`RF_StopPairing()` 行为：
+
+1. 停止 pairing TDD 周期。
+2. 恢复当前有效 bond 地址；无 bond 则恢复默认地址。
+3. 回到 `TX_UNCONNECTED`，让现有 CONNECT 流程重新建链。
+4. 通过 SPI 返回完整 status payload。
+
+配对成功行为：
+
+1. TX 收到 `PAIR_DONE` 后才写入本地 bond。
+2. TX 切回普通 `link_access_address`。
+3. TX 发布 `PairOk` 状态，通过 SPI `STATE_CHANGED` 可选主动上报；STM32 第一版仍以 `GET_STATUS` 轮询为准。
+4. TX 回到 `TX_UNCONNECTED`，由现有 CONNECT 流程重新建链。
+
+配对期间收到 `INPUT_DATA` 可以继续更新 latest input buffer，但 RF 空口不得发送普通 DATA，也不得发起普通 HOP。
+
+### 14.6 RX 配对状态机
+
+RX 侧新增状态：
+
+| 状态 | 说明 |
+|---|---|
+| `RX_PAIRING` | PB22 长按触发，使用公共配对地址扫描 `PAIR_OFFER` |
+| `RX_PAIR_CONFIRM_WAIT` | 已接受候选地址，切到候选地址等待 `PAIR_CONFIRM` |
+
+RX 入口：
+
+- PB22 配置为输入上拉。
+- 上电后必须先观察到 PB22 稳定高电平，再接受高到低长按，避免插电按住误触发。
+- 低电平 debounce 建议 `30ms`。
+- 低电平持续 `5000ms` 后进入 `RX_PAIRING`。
+
+RX pairing 行为：
+
+1. 停止普通扫描、普通 ACK、普通 HOP。
+2. 切到 `RFH_PAIR_ACCESS_ADDRESS`。
+3. 在 `RFH_PAIR_CHANNEL_A/B` 间扫描。
+4. 收到合法 `PAIR_OFFER` 后记录 `session_nonce` 和候选 `link_access_address`。
+5. 在收到 offer 的同一频道回 `PAIR_ACCEPT`。
+6. 切到候选 `link_access_address`，进入 `RX_PAIR_CONFIRM_WAIT`。
+7. 收到合法 `PAIR_CONFIRM` 后先标记 pending bond，在主循环写 EEPROM/Flash。
+8. 确认本地 bond 写入成功后，才发送 `PAIR_DONE`。
+
+RX 写入 bond 前不能让 TX 误判成功。`PAIR_DONE` 必须表示 RX 本地 bond 已经提交成功。
+
+### 14.7 配对空口包
+
+复用 12B 空口包，新增 packet type：
+
+```c
+#define RFH_PKT_PAIR 3u
+```
+
+配对包格式：
+
+| Byte | 字段 | 说明 |
+|---:|---|---|
+| `0` | `hdr0` | `type=PAIR`，rate 可填当前档位 |
+| `1` | `hdr1` | pairing TDD 倒计时或 session low byte |
+| `2` | `cmd_id` | `PAIR_OFFER / PAIR_ACCEPT / PAIR_CONFIRM / PAIR_DONE` |
+| `3..6` | `session_nonce` | TX 生成，RX 原样回传 |
+| `7..10` | `arg32` | `OFFER/CONFIRM` 为候选 `accessAddress`；`ACCEPT/DONE` 为 `rx_id_hash` |
+| `11` | `meta` | rate/status/error 压缩字段 |
+
+建议共享常量：
+
+```c
+#define RFH_PAIR_ACCESS_ADDRESS        0x6D5A3C17UL
+#define RFH_PAIR_CHANNEL_A             RFH_DISCOVERY_CHANNEL_A
+#define RFH_PAIR_CHANNEL_B             RFH_DISCOVERY_CHANNEL_B
+#define RFH_PAIR_WINDOW_MS             60000u
+#define RFH_PAIR_CONFIRM_TIMEOUT_MS    3000u
+
+#define RFH_CMD_PAIR_OFFER             0x30u
+#define RFH_CMD_PAIR_ACCEPT            0x31u
+#define RFH_CMD_PAIR_CONFIRM           0x32u
+#define RFH_CMD_PAIR_DONE              0x33u
+```
+
+`RFH_PAIR_ACCESS_ADDRESS` 只用于发现与协商，不作为最终工作地址。最终 `link_access_address` 由 TX 生成，需通过 `rfh_access_address_valid()` 校验，并且不能等于默认地址或 pairing 地址。
+
+第一版建议固定 `channel_a/channel_b = RFH_DEFAULT_CHANNEL_A/B`，配对只交换新的 `link_access_address`。信道优化仍交给现有 HOP 状态机，避免 12B 配对包负载过紧。
+
+### 14.8 配对 TDD 双频道周期
+
+CH58x RF 当前按半双工使用，同一时刻只能 TX 或 RX。配对模式不能连续发包，必须显式留出 RX window。
+
+推荐 discovery 周期：
+
+```text
+16ms pairing discovery cycle
+
+0..4ms     ch A: TX sends PAIR_OFFER burst
+4..8ms     ch A: TX opens RX window for PAIR_ACCEPT
+8..12ms    ch B: TX sends PAIR_OFFER burst
+12..16ms   ch B: TX opens RX window for PAIR_ACCEPT
+repeat until accept or timeout
+```
+
+RX 规则：
+
+- RX 在 `RFH_PAIR_CHANNEL_A/B` 间扫描。
+- RX 在哪个频道收到 `PAIR_OFFER`，就在哪个频道回 `PAIR_ACCEPT`。
+- TX 发完 ch A offer 就只在 ch A 收 accept，发完 ch B offer 就只在 ch B 收 accept。
+- 第一版不建议 TX 在一个 accept window 内再扫两个频道，避免应答窗口过短导致丢包。
+
+Confirm 周期：
+
+```text
+8ms pairing confirm cycle
+
+0..4ms   TX sends PAIR_CONFIRM burst on proposed accessAddress
+4..8ms   TX opens RX window for PAIR_DONE
+repeat until PAIR_DONE or confirm timeout
+```
+
+RX 收到 `PAIR_CONFIRM` 后：
+
+1. 标记 pending bond。
+2. 在主循环写入 EEPROM/Flash。
+3. 写入成功后，在后续 done window 内重复发送 `PAIR_DONE`。
+
+TX 收到 `PAIR_DONE` 后再写自己的 bond，并将状态置为 `PairOk`。
+
+### 14.9 Bond 与 access address
+
+Bond 至少包含：
+
+| 字段 | 说明 |
+|---|---|
+| `magic/version/length` | 格式识别与迁移 |
+| `link_access_address` | 配对后的普通链路地址 |
+| `channel_a/channel_b` | 普通未连接/恢复时使用的双频道 |
+| `rate_code` | 初始工作速率；运行时仍由 STM32 `SET_RATE` 更新 |
+| `local_id_hash` | 本机短 ID，可后续加入 |
+| `peer_id_hash` | 对端短 ID，可后续加入 |
+| `pair_counter` | 成功配对计数，可后续加入 |
+| `checksum` | FNV-1a 或 CRC32 |
+
+必须补齐共享协议基础：
+
+- `RFH_LINK_ACCESS_ADDRESS_DEFAULT`。
+- `rfh_access_address_valid(uint32_t aa)`。
+- `rfh_access_address_from_seed(uint32_t seed)`。
+
+`rfh_access_address_valid()` 建议规则：
+
+- 不能是 `0x00000000 / 0xFFFFFFFF / 0x55555555 / 0xAAAAAAAA`。
+- 不能等于 `RFH_PAIR_ACCESS_ADDRESS` 或默认工作地址。
+- 连续 0 或连续 1 不超过 6 bit。
+- bit transition 数建议 `8..24`。
+
+Bond 写 Flash/EEPROM 必须放在主循环状态推进里做，不得在 RF ISR 或高速 SPI ISR 中执行。
+
+### 14.10 推荐实现顺序
+
+1. 补齐 `RFH_LINK_ACCESS_ADDRESS_DEFAULT`、`RFH_PAIR_ACCESS_ADDRESS`、`RFH_PKT_PAIR`、`rfh_access_address_valid()` 等共享协议定义。
+2. TX/RX 启动时加载 bond；无 bond 时继续使用当前默认地址，保证现有链路不回退。
+3. TX 增加真实 RF 状态 API：`RF_StartPairing()`、`RF_StopPairing()`、`RF_Unbind()`、`RF_GetLinkStateCode()`、`RF_HasBond()`。
+4. `rfm_spi_bridge.c` 将 `START_PAIR/STOP_PAIR/UNBIND/GET_STATUS` 接入真实 RF 状态，不再 hardcode status payload。
+5. STM32 `ConnectionManager` 增加 pairing API，并在 pairing active 时抑制 `INPUT_DATA`。
+6. 屏幕 `Connection` 增加 `Pair 2.4G` 动作项和专用配对页；配对页用 `GET_STATUS` 轮询 TX 状态。
+7. TX 增加 `TX_PAIRING/TX_PAIR_CONFIRM_WAIT`，先验证 `START_PAIR` 后能进入 pairing 并 60s 超时退出。
+8. RX 增加 PB22 长按 5s 入口和 `RX_PAIRING/RX_PAIR_CONFIRM_WAIT`，先验证可进入/超时退出。
+9. 实现 `PAIR_OFFER/PAIR_ACCEPT/PAIR_CONFIRM/PAIR_DONE` TDD 空口握手。
+10. 实现双方 bond 写入、重启加载和 `UNBIND` 清除。
+
+### 14.11 关键风险
+
+- TX 不能主动 SPI 推包，必须通过 IRQ + STM32 clock readback；第一版配对结果建议以 STM32 轮询 `GET_STATUS` 为主。
+- 配对 TDD 不能连续发送 offer，必须留 accept/done RX window，否则半双工会导致 RX 应答被 TX 自己的发送覆盖。
+- `START_PAIR` 必须是幂等命令，重复收到不能重置 session 导致 RX/TX 状态错位。
+- 配对期间必须停止普通 DATA/CONNECT/HOP 空口行为，避免 pairing address 和普通工作地址状态互相污染。
+- `PAIR_DONE` 只能在 RX bond 写入成功后发送；否则容易出现 TX/RX 单边写入。
+- 第一版是物理双确认加短时窗口的明文 Just Works 配对，不具备抗恶意配对能力；如需安全绑定，后续应加入 per-device secret、短码确认或消息认证码。
