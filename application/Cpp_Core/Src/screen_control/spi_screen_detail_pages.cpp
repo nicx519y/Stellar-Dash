@@ -73,8 +73,16 @@ bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
         case 8: ScreenDetailScreenBrightness_OnConfirm(index); return false;
         case 9: ScreenDetailWebConfig_OnConfirm(index); return true;
         case 10: ScreenDetailCalibration_OnConfirm(index); return true;
-        case 3: ScreenDetailTournament_OnConfirm(index); return true;
+        case 3: return ScreenDetailTournament_OnConfirm(index);
         default: return false;
+    }
+}
+
+bool ScreenDetail_OnBack(uint8_t menuId) {
+    switch (menuId) {
+        case 3: return ScreenDetailTournament_OnBack();
+        case 11: return !ScreenDetailButtonsPerformance_OnBack();
+        default: return true;
     }
 }
 

@@ -2,8 +2,10 @@
 
 #include <string.h>
 
+#include "board_cfg.h"
 #include "monitor_telemetry.hpp"
 #include "rf_bridge_port.hpp"
+#include "system_logger.h"
 
 namespace {
 static constexpr uint8_t RF_SYNC = 0xA5u;
@@ -102,6 +104,17 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
     }
 
     const uint8_t evt = frame[1];
+    status.lastEvent = evt;
+    status.eventCounter++;
+    if (evt == EVT_ERROR) {
+        status.errorCounter++;
+        status.lastErrorCommand = (payloadLen >= 1u) ? frame[3] : 0u;
+        status.lastErrorReason = (payloadLen >= 2u) ? frame[4] : 0u;
+        state = RFTransportState::Error;
+    } else {
+        state = RFTransportState::Connected;
+    }
+
     bool statusOk = false;
     if (payloadLen >= STATUS_PAYLOAD_LEN) {
         statusOk = parseStatusPayload(&frame[3], payloadLen);
@@ -136,6 +149,10 @@ bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t l
         return false;
     }
 
+    if (cmd != CMD_INPUT_DATA) {
+        (void)serviceEvents();
+    }
+
     uint8_t frame[4u + 24u + 1u] = {0};
     frame[0] = RF_SYNC;
     frame[1] = cmd;
@@ -159,19 +176,50 @@ bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t l
                               (cmd == CMD_SET_RATE);
     uint8_t rxBuf[RX_BUF_LEN] = {0};
     uint16_t rxLen = wantReadback ? RX_BUF_LEN : 0u;
+    if (cmd != CMD_INPUT_DATA) {
+        APP_DBG("[RF_TRANSPORT] cmd=0x%02X payload=%u readback:%u",
+                (unsigned int)cmd,
+                (unsigned int)len,
+                (unsigned int)(wantReadback ? 1u : 0u));
+    }
     bool ok = RFBridgePort_Transfer(frame, (uint16_t)(totalNoChecksum + 1u), rxBuf, &rxLen);
     if (!ok) {
+        if (cmd != CMD_INPUT_DATA) {
+            APP_ERR("[RF_TRANSPORT] cmd=0x%02X transfer failed", (unsigned int)cmd);
+        }
         state = RFTransportState::Error;
         return false;
     }
 
     if (rxLen > 0u) {
         if (!parseEventFrame(rxBuf, rxLen)) {
+            if (cmd != CMD_INPUT_DATA) {
+                APP_ERR("[RF_TRANSPORT] cmd=0x%02X parse failed rxLen:%u",
+                        (unsigned int)cmd,
+                        (unsigned int)rxLen);
+            }
+            state = RFTransportState::Error;
+            return false;
+        }
+        if (status.lastEvent == EVT_ERROR) {
+            if (cmd != CMD_INPUT_DATA) {
+                APP_ERR("[RF_TRANSPORT] cmd=0x%02X tx error err_cmd:0x%02X reason:0x%02X",
+                        (unsigned int)cmd,
+                        (unsigned int)status.lastErrorCommand,
+                        (unsigned int)status.lastErrorReason);
+            }
             state = RFTransportState::Error;
             return false;
         }
     }
 
+    if (cmd != CMD_INPUT_DATA) {
+        APP_DBG("[RF_TRANSPORT] cmd=0x%02X ok rxLen:%u evt:0x%02X state:%u",
+                (unsigned int)cmd,
+                (unsigned int)rxLen,
+                (unsigned int)status.lastEvent,
+                (unsigned int)status.state);
+    }
     state = RFTransportState::Connected;
     return true;
 }
@@ -242,6 +290,35 @@ bool RFTransport::setRate(uint16_t rateHz) {
 
 bool RFTransport::pollStatus() {
     return transferCommand(CMD_GET_STATUS, nullptr, 0u, true);
+}
+
+uint8_t RFTransport::serviceEvents(uint8_t drainLimit) {
+    if ((drainLimit == 0u) || !RFBridgePort_IsReady()) {
+        return 0u;
+    }
+
+    uint8_t drained = 0u;
+    while (drained < drainLimit) {
+        if (!RFBridgePort_HasPendingEvent()) {
+            break;
+        }
+
+        uint8_t rxBuf[RX_BUF_LEN] = {0};
+        uint16_t rxLen = RX_BUF_LEN;
+        if (!RFBridgePort_ReadEvent(rxBuf, &rxLen)) {
+            state = RFTransportState::Error;
+            break;
+        }
+        if (rxLen == 0u) {
+            break;
+        }
+        if (!parseEventFrame(rxBuf, rxLen)) {
+            state = RFTransportState::Error;
+            break;
+        }
+        drained++;
+    }
+    return drained;
 }
 
 bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {

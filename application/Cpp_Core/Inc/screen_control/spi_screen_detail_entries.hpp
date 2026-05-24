@@ -65,7 +65,8 @@ void ScreenDetailCalibration_OnConfirm(uint8_t index);
 uint8_t ScreenDetailTournament_InitIndex(void);
 void ScreenDetailTournament_Rotate(uint8_t* ioIndex, int8_t det);
 void ScreenDetailTournament_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style);
-void ScreenDetailTournament_OnConfirm(uint8_t index);
+bool ScreenDetailTournament_OnConfirm(uint8_t index);
+bool ScreenDetailTournament_OnBack(void);
 
 uint8_t ScreenDetailButtonsPerformance_InitIndex(void);
 void ScreenDetailButtonsPerformance_Rotate(uint8_t* ioIndex, int8_t det);

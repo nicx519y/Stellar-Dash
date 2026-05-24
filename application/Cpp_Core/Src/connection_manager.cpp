@@ -32,6 +32,8 @@ static uint16_t getRfReportRateHz(WirelessReportRate wirelessRate) {
 }
 
 static constexpr uint32_t kRfRateApplyRetryMs = 500u;
+static constexpr uint8_t kRfCmdStartPair = 0x02u;
+static constexpr uint8_t kRfCmdStopPair = 0x03u;
 }
 
 bool ConnectionManager::tryRfBringup(bool isRetry) {
@@ -83,6 +85,61 @@ void ConnectionManager::updateRfLinkStateFromStatus() {
     linkState = nextState;
 }
 
+void ConnectionManager::updatePairingStateFromStatus() {
+    const RFModuleStatus& st = rfTransport.getStatus();
+
+    if (st.lastEvent == 0x85u) {
+        rfPairingActive = false;
+        rfPairingState = RfPairingState::TxError;
+        rfPairingLastErrorCommand = st.lastErrorCommand;
+        rfPairingLastErrorReason = st.lastErrorReason;
+        return;
+    }
+
+    if (!rfPairingActive &&
+        rfPairingState != RfPairingState::Starting &&
+        rfPairingState != RfPairingState::PairModeOn) {
+        return;
+    }
+
+    switch (st.state) {
+    case RFLinkState::Pairing:
+        rfPairingActive = true;
+        rfPairingState = RfPairingState::PairModeOn;
+        break;
+    case RFLinkState::PairOk:
+        rfPairingActive = false;
+        rfPairSucceeded = true;
+        rfPairingState = RfPairingState::PairOk;
+        break;
+    case RFLinkState::Idle:
+        if (rfPairingState == RfPairingState::PairModeOn || rfPairingActive) {
+            rfPairingActive = false;
+            rfPairingState = RfPairingState::Timeout;
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+void ConnectionManager::serviceRfEvents() {
+    if (!rfEventServiceEnabled && !rfPairingActive) {
+        return;
+    }
+
+    const uint8_t drained = rfTransport.serviceEvents();
+    if (drained == 0u) {
+        return;
+    }
+
+    updateRfLinkStateFromStatus();
+    if (rfTransport.getStatus().eventCounter != rfPairingLastEventCounter) {
+        rfPairingLastEventCounter = rfTransport.getStatus().eventCounter;
+        updatePairingStateFromStatus();
+    }
+}
+
 void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirelessRate) {
     mode = connMode;
     appliedReportRateHz = 1000;
@@ -96,6 +153,13 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
     rfSendFailWin = 0u;
     rfSendTotal = 0u;
     rfLastSeq = 0u;
+    rfEventServiceEnabled = (mode == ConnectionMode::CONNECTION_MODE_RF24G);
+    rfPairingActive = false;
+    rfPairSucceeded = false;
+    rfPairingState = RfPairingState::Idle;
+    rfPairingLastEventCounter = 0u;
+    rfPairingLastErrorCommand = 0u;
+    rfPairingLastErrorReason = 0u;
 
     if (mode == ConnectionMode::CONNECTION_MODE_USB) {
         appliedReportRateHz = 1000;
@@ -188,7 +252,78 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
     return true;
 }
 
+bool ConnectionManager::startRfPairing() {
+    APP_DBG("[RF_PAIR] start request mode:%u link:%u",
+            (unsigned int)mode,
+            (unsigned int)linkState);
+    rfEventServiceEnabled = true;
+    rfPairingActive = true;
+    rfPairSucceeded = false;
+    rfPairingState = RfPairingState::Starting;
+    rfPairingLastErrorCommand = 0u;
+    rfPairingLastErrorReason = 0u;
+
+    (void)rfTransport.serviceEvents();
+    const bool ok = rfTransport.startPair();
+    rfPairingLastEventCounter = rfTransport.getStatus().eventCounter;
+
+    if (!ok) {
+        const RFModuleStatus& st = rfTransport.getStatus();
+        APP_ERR("[RF_PAIR] start failed last_evt:0x%02X err_cmd:0x%02X reason:0x%02X events:%lu",
+                (unsigned int)st.lastEvent,
+                (unsigned int)st.lastErrorCommand,
+                (unsigned int)st.lastErrorReason,
+                (unsigned long)st.eventCounter);
+        rfPairingActive = false;
+        rfPairingState = RfPairingState::TxError;
+        rfPairingLastErrorCommand = (st.lastErrorCommand != 0u) ? st.lastErrorCommand : kRfCmdStartPair;
+        rfPairingLastErrorReason = st.lastErrorReason;
+        ConnectionLinkState nextState = ConnectionLinkState::Error;
+        if (mode == ConnectionMode::CONNECTION_MODE_RF24G && linkState != nextState) {
+            MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
+        }
+        if (mode == ConnectionMode::CONNECTION_MODE_RF24G) {
+            linkState = nextState;
+        }
+        MonitorTelemetry_OnError("CONNECTION_MANAGER", 1005u, "rf startPair failed");
+        return false;
+    }
+
+    APP_DBG("[RF_PAIR] start ok events:%lu state:%u",
+            (unsigned long)rfTransport.getStatus().eventCounter,
+            (unsigned int)rfTransport.getStatus().state);
+    updateRfLinkStateFromStatus();
+    updatePairingStateFromStatus();
+    if (rfPairingState == RfPairingState::Starting) {
+        rfPairingState = RfPairingState::PairModeOn;
+    }
+    return true;
+}
+
+bool ConnectionManager::stopRfPairing() {
+    rfEventServiceEnabled = true;
+    const bool ok = rfTransport.stopPair();
+    rfPairingLastEventCounter = rfTransport.getStatus().eventCounter;
+    if (ok) {
+        rfPairingActive = false;
+        if (rfPairingState == RfPairingState::PairModeOn ||
+            rfPairingState == RfPairingState::Starting) {
+            rfPairingState = RfPairingState::Idle;
+        }
+        updateRfLinkStateFromStatus();
+    } else {
+        const RFModuleStatus& st = rfTransport.getStatus();
+        rfPairingActive = false;
+        rfPairingState = RfPairingState::TxError;
+        rfPairingLastErrorCommand = (st.lastErrorCommand != 0u) ? st.lastErrorCommand : kRfCmdStopPair;
+        rfPairingLastErrorReason = st.lastErrorReason;
+    }
+    return ok;
+}
+
 void ConnectionManager::loop() {
+    serviceRfEvents();
+
     if (mode == ConnectionMode::CONNECTION_MODE_USB) {
         ConnectionLinkState nextState = get_usb_mounted() ? ConnectionLinkState::Connected : ConnectionLinkState::Disconnected;
         if (linkState != nextState) {
@@ -221,6 +356,7 @@ void ConnectionManager::loop() {
 
 void ConnectionManager::onReportReady(const GamepadState& state, uint32_t seq) {
     if (mode != ConnectionMode::CONNECTION_MODE_RF24G) return;
+    if (rfPairingActive) return;
 
     bool ok = rfTransport.sendInput(state, seq);
     rfSendWin++;

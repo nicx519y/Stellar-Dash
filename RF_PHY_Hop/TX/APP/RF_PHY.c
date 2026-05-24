@@ -75,6 +75,8 @@
 #define RF_STAT_PRINT_PERIOD_MS        5000u
 #define RF_TX_SEND_TIME                (20u * 2u)
 #define RF_LINK_ACCESS_ADDRESS         0x71764129UL
+#define RF_PAIR_ACCESS_ADDRESS         0x6D5A3C17UL
+#define RF_PAIR_WINDOW_MS              60000u
 #define RF_LINK_CRC_INIT               0x555555UL
 /* WCH rfipRx_t.timeOut: 0 means no timeout; keep RX armed until a packet/error. */
 #define RFIP_RX_NO_TIMEOUT             0u
@@ -93,6 +95,7 @@
 
 typedef enum {
     TX_UNCONNECTED = 0u,
+    TX_PAIRING,
     TX_COMM,
     TX_HOP_PREPARE_ACK_WAIT,
     TX_HOP_RESERVED,
@@ -134,6 +137,11 @@ static volatile uint8_t g_ack_rx_active = 0u;
 static volatile uint8_t g_low_config_ret = 0xFFu;
 static volatile uint8_t g_low_tx_ret = 0xFFu;
 static volatile uint8_t g_low_rx_ret = 0xFFu;
+static volatile uint8_t g_has_bond = 0u;
+static volatile uint32_t g_reject_count = 0u;
+static volatile uint32_t g_pairing_deadline_clock = 0u;
+static uint32_t g_link_access_address = RF_LINK_ACCESS_ADDRESS;
+static uint32_t g_active_access_address = RF_LINK_ACCESS_ADDRESS;
 
 static uint8_t g_current_channel = RF_TEST_FREQUENCY;
 static uint8_t g_radio_channel = RF_TEST_FREQUENCY;
@@ -211,6 +219,8 @@ static const char *tx_state_code(void)
     {
     case TX_UNCONNECTED:
         return "U";
+    case TX_PAIRING:
+        return "P";
     case TX_COMM:
         return "C";
     case TX_HOP_PREPARE_ACK_WAIT:
@@ -311,6 +321,10 @@ static void tx_log_note_error(void)
     {
         g_log_errors++;
     }
+    if(g_reject_count < 0xFFFFFFFFUL)
+    {
+        g_reject_count++;
+    }
 }
 
 static void tx_log_spi_input_payload(const uint8_t *payload)
@@ -402,6 +416,48 @@ static void tx_prepare_random_connect_channels(void)
 #endif
 }
 
+static uint8_t tx_pairing_active(void)
+{
+    return (g_state == TX_PAIRING) ? 1u : 0u;
+}
+
+static uint16_t tx_saturate_u16(uint32_t value)
+{
+    return (value > 65535u) ? 65535u : (uint16_t)value;
+}
+
+static void tx_apply_radio_access_address(uint32_t access_address)
+{
+    g_active_access_address = access_address;
+    gParm.accessAddress = access_address;
+    gTxParam.accessAddress = access_address;
+    gRxParam.accessAddress = access_address;
+    if(g_basic_started != 0u)
+    {
+        RFRole_SetParam(&gParm);
+    }
+}
+
+static void tx_stop_radio_activity(void)
+{
+    if(g_basic_started != 0u)
+    {
+        (void)RFRole_Stop();
+    }
+    g_ack_rx_active = 0u;
+}
+
+static void tx_clear_link_transaction_state(void)
+{
+    g_expected_ack_cmd = RFH_CMD_NONE;
+    g_ack_miss_count = 0u;
+    g_ack_seen_this_period = 0u;
+    g_ack_period_close_pending = 0u;
+    g_wait_ack_deadline_clock = 0u;
+    g_hop_due_clock = 0u;
+    g_recovery_deadline_clock = 0u;
+}
+
 static void tx_enter_state(tx_state_t next)
 {
     uint32_t now = TMOS_GetSystemClock();
@@ -415,6 +471,7 @@ static void tx_enter_state(tx_state_t next)
     switch(next)
     {
     case TX_UNCONNECTED:
+        g_pairing_deadline_clock = 0u;
         g_expected_ack_cmd = RFH_CMD_CONNECT_REQ;
         g_ack_miss_count = 0u;
         g_ack_seen_this_period = 0u;
@@ -423,6 +480,14 @@ static void tx_enter_state(tx_state_t next)
         g_dual_channel_b = g_connect_channel_b;
         g_current_channel = g_connect_channel_a;
         tx_log_note_unconnected();
+        break;
+    case TX_PAIRING:
+        tx_clear_link_transaction_state();
+        g_dual_channel_a = RFH_DISCOVERY_CHANNEL_A;
+        g_dual_channel_b = RFH_DISCOVERY_CHANNEL_B;
+        g_current_channel = RFH_DISCOVERY_CHANNEL_A;
+        g_ack_rx_channel = RFH_DISCOVERY_CHANNEL_A;
+        g_pairing_deadline_clock = now + MS1_TO_SYSTEM_TIME(RF_PAIR_WINDOW_MS);
         break;
     case TX_COMM:
         g_expected_ack_cmd = RFH_CMD_NONE;
@@ -457,6 +522,141 @@ static void tx_enter_state(tx_state_t next)
     }
 }
 
+uint8_t RF_GetLinkStateCode(void)
+{
+    switch(g_state)
+    {
+    case TX_PAIRING:
+        return RF_LINK_STATE_PAIRING;
+    case TX_COMM:
+    case TX_HOP_PREPARE_ACK_WAIT:
+    case TX_HOP_RESERVED:
+    case TX_HOP_CONFIRM_ACK_WAIT:
+        return RF_LINK_STATE_CONNECTED;
+    case TX_RECOVERY_DUAL:
+        return RF_LINK_STATE_RECONNECTING;
+    case TX_UNCONNECTED:
+    default:
+        return (g_basic_started == 0u) ?
+               RF_LINK_STATE_IDLE :
+               RF_LINK_STATE_CONNECTING;
+    }
+}
+
+uint8_t RF_IsConnected(void)
+{
+    return ((g_state == TX_COMM) ||
+            (g_state == TX_HOP_PREPARE_ACK_WAIT) ||
+            (g_state == TX_HOP_RESERVED) ||
+            (g_state == TX_HOP_CONFIRM_ACK_WAIT)) ? 1u : 0u;
+}
+
+uint8_t RF_HasBond(void)
+{
+    return g_has_bond;
+}
+
+uint16_t RF_GetRxOkCount(void)
+{
+    return tx_saturate_u16(gStat.rx_ack);
+}
+
+uint16_t RF_GetRxFailCount(void)
+{
+    return tx_saturate_u16(gStat.rx_bad_ack);
+}
+
+uint16_t RF_GetTxFailCount(void)
+{
+    return tx_saturate_u16(gStat.tx_fail);
+}
+
+uint32_t RF_GetRejectCount(void)
+{
+    return g_reject_count;
+}
+
+bool RF_StartPairing(void)
+{
+    uint8_t guard_timer = (g_basic_started != 0u) ? 1u : 0u;
+
+    if(tx_pairing_active() != 0u)
+    {
+        RF_LINK_LOG("[TX][RFH] pairing:start already\r\n");
+        return true;
+    }
+
+    if(guard_timer != 0u)
+    {
+        PFIC_DisableIRQ(TMR0_IRQn);
+    }
+
+    tx_stop_radio_activity();
+    tx_clear_link_transaction_state();
+    tx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
+    tx_enter_state(TX_PAIRING);
+
+    if(guard_timer != 0u)
+    {
+        PFIC_EnableIRQ(TMR0_IRQn);
+    }
+
+    RF_LINK_LOG("[TX][RFH] pairing:start\r\n");
+    return true;
+}
+
+bool RF_StopPairing(void)
+{
+    uint8_t guard_timer = (g_basic_started != 0u) ? 1u : 0u;
+
+    if(tx_pairing_active() == 0u)
+    {
+        RF_LINK_LOG("[TX][RFH] pairing:stop idle\r\n");
+        return true;
+    }
+
+    if(guard_timer != 0u)
+    {
+        PFIC_DisableIRQ(TMR0_IRQn);
+    }
+
+    tx_stop_radio_activity();
+    tx_apply_radio_access_address(g_link_access_address);
+    tx_enter_state(TX_UNCONNECTED);
+
+    if(guard_timer != 0u)
+    {
+        PFIC_EnableIRQ(TMR0_IRQn);
+    }
+
+    RF_LINK_LOG("[TX][RFH] pairing:stop\r\n");
+    return true;
+}
+
+bool RF_Unbind(void)
+{
+    uint8_t guard_timer = (g_basic_started != 0u) ? 1u : 0u;
+
+    if(guard_timer != 0u)
+    {
+        PFIC_DisableIRQ(TMR0_IRQn);
+    }
+
+    g_has_bond = 0u;
+    g_link_access_address = RF_LINK_ACCESS_ADDRESS;
+    tx_stop_radio_activity();
+    tx_apply_radio_access_address(g_link_access_address);
+    tx_enter_state(TX_UNCONNECTED);
+
+    if(guard_timer != 0u)
+    {
+        PFIC_EnableIRQ(TMR0_IRQn);
+    }
+
+    RF_LINK_LOG("[TX][RFH] unbind\r\n");
+    return true;
+}
+
 static uint16_t tx_ticks_per_ms(void)
 {
     uint16_t ticks = (uint16_t)(g_report_hz / 1000u);
@@ -469,6 +669,11 @@ static uint8_t tx_in_ack_window(void)
     uint16_t pre_packets;
     uint16_t post_packets;
     uint16_t ext_start;
+
+    if(tx_pairing_active() != 0u)
+    {
+        return 0u;
+    }
 
     if(g_ack_window_packets >= g_report_hz)
     {
@@ -585,7 +790,10 @@ static void tx_start_hop_prepare(uint8_t target)
 
 static void tx_on_ack_period_close(void)
 {
-    if((g_state != TX_UNCONNECTED) && (g_state != TX_RECOVERY_DUAL))
+    if((g_state == TX_COMM) ||
+       (g_state == TX_HOP_PREPARE_ACK_WAIT) ||
+       (g_state == TX_HOP_RESERVED) ||
+       (g_state == TX_HOP_CONFIRM_ACK_WAIT))
     {
         if(g_log_ack_expected < 255u)
         {
@@ -999,6 +1207,8 @@ static uint8_t tx_channel_for_state(void)
 {
     switch(g_state)
     {
+    case TX_PAIRING:
+        return RFH_DISCOVERY_CHANNEL_A;
     case TX_UNCONNECTED:
     case TX_RECOVERY_DUAL:
         return tx_dual_channel_for_tick();
@@ -1016,6 +1226,9 @@ static void tx_fill_packet_for_state(uint8_t channel)
 {
     switch(g_state)
     {
+    case TX_PAIRING:
+        memset(TxBuf, 0, 2u + RFH_AIR_PACKET_LEN);
+        break;
     case TX_UNCONNECTED:
         tx_fill_connect_packet();
         break;
@@ -1054,7 +1267,9 @@ static void tx_log_5s_emit(void)
         ack_exp = 5u;
     }
 
-    if((g_state == TX_UNCONNECTED) || (g_state == TX_RECOVERY_DUAL))
+    if((g_state == TX_UNCONNECTED) ||
+       (g_state == TX_PAIRING) ||
+       (g_state == TX_RECOVERY_DUAL))
     {
         RF_LINK_LOG("T5 S=%s C=%u/%u R=%s L=%03u A=%u/%u M=%u H=%u U=%u E=%u\r\n",
                     tx_state_code(),
@@ -1136,7 +1351,7 @@ static void tx_basic_start(void)
         return;
     }
 
-    gParm.accessAddress = RF_LINK_ACCESS_ADDRESS;
+    gParm.accessAddress = g_active_access_address;
     gParm.crcInit = RF_LINK_CRC_INIT;
     gParm.properties = LLE_MODE_PHY_2M;
     gParm.sendTime = RF_TX_SEND_TIME;
@@ -1190,6 +1405,13 @@ void TMR0_IRQHandler(void)
     }
 
     tx_service_timers();
+    if(tx_pairing_active() != 0u)
+    {
+        tx_stop_ack_rx();
+        tx_advance_tick();
+        return;
+    }
+
     if(tx_in_ack_window() != 0u)
     {
         tx_start_ack_rx(tx_ack_channel_for_tick());
@@ -1295,6 +1517,12 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
 __HIGH_CODE
 void RF_TxMainLoopProcess(void)
 {
+    if((tx_pairing_active() != 0u) &&
+       (tx_time_reached(TMOS_GetSystemClock(), g_pairing_deadline_clock) != 0u))
+    {
+        RF_LINK_LOG("[TX][RFH] pairing:timeout\r\n");
+        (void)RF_StopPairing();
+    }
 }
 
 bool RF_SPI_FastWriteInput(const uint8_t *payload, uint8_t len)
@@ -1349,6 +1577,11 @@ void RF_Init(void)
     g_old_channel = RFH_DISCOVERY_CHANNEL_A;
     g_target_channel = RFH_DISCOVERY_CHANNEL_A;
     g_ack_rx_active = 0u;
+    g_has_bond = 0u;
+    g_reject_count = 0u;
+    g_pairing_deadline_clock = 0u;
+    g_link_access_address = RF_LINK_ACCESS_ADDRESS;
+    g_active_access_address = g_link_access_address;
     g_log_ack_ok = 0u;
     g_log_ack_expected = 0u;
     g_ack_period_close_pending = 0u;

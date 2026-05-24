@@ -437,6 +437,17 @@ void EXTI9_5_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles EXTI line[15:10] interrupts.
+  */
+void EXTI15_10_IRQHandler(void)
+{
+  if (__HAL_GPIO_EXTI_GET_IT(RF_BRIDGE_IRQ_PIN) != RESET) {
+    __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
+    RFBridgePort_IRQ_IRQHandler();
+  }
+}
+
+/**
   * @brief This function handles TIM2 global interrupt.
   */
 void TIM2_IRQHandler(void)

@@ -14,6 +14,15 @@ enum class ConnectionLinkState : uint8_t {
     Error = 3,
 };
 
+enum class RfPairingState : uint8_t {
+    Idle = 0,
+    Starting = 1,
+    PairModeOn = 2,
+    TxError = 3,
+    PairOk = 4,
+    Timeout = 5,
+};
+
 class ConnectionManager {
 public:
     ConnectionManager(ConnectionManager const&) = delete;
@@ -27,13 +36,23 @@ public:
     void loop();
     void onReportReady(const GamepadState& state, uint32_t seq);
     bool applyWirelessReportRate(WirelessReportRate wirelessRate, bool persist);
+    bool startRfPairing();
+    bool stopRfPairing();
 
     ConnectionMode getMode() const { return mode; }
     ConnectionLinkState getLinkState() const { return linkState; }
     uint16_t getAppliedReportRateHz() const { return appliedReportRateHz; }
+    bool isRfPairing() const { return rfPairingActive; }
+    bool hasRfPairSucceeded() const { return rfPairSucceeded || rfPairingState == RfPairingState::PairOk; }
+    RfPairingState getRfPairingState() const { return rfPairingState; }
+    const RFModuleStatus& getRfModuleStatus() const { return rfTransport.getStatus(); }
+    uint8_t getRfPairingLastErrorCommand() const { return rfPairingLastErrorCommand; }
+    uint8_t getRfPairingLastErrorReason() const { return rfPairingLastErrorReason; }
 
 private:
     ConnectionManager() = default;
+    void serviceRfEvents();
+    void updatePairingStateFromStatus();
     void updateRfLinkStateFromStatus();
     bool tryRfBringup(bool isRetry);
 
@@ -50,6 +69,13 @@ private:
     uint32_t rfSendFailWin = 0;
     uint32_t rfSendTotal = 0;
     uint32_t rfLastSeq = 0;
+    bool rfEventServiceEnabled = false;
+    bool rfPairingActive = false;
+    bool rfPairSucceeded = false;
+    RfPairingState rfPairingState = RfPairingState::Idle;
+    uint32_t rfPairingLastEventCounter = 0;
+    uint8_t rfPairingLastErrorCommand = 0;
+    uint8_t rfPairingLastErrorReason = 0;
     RFTransport rfTransport;
 };
 

@@ -9,6 +9,7 @@ extern "C" {
 
 void RFBridgePort_DMA_IRQHandler(void);
 void RFBridgePort_SPI_IRQHandler(void);
+void RFBridgePort_IRQ_IRQHandler(void);
 void RFBridgePort_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi);
 void RFBridgePort_SPI_ErrorCallback(SPI_HandleTypeDef *hspi);
 

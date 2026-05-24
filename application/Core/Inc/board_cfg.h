@@ -264,6 +264,8 @@
 #define RF_BRIDGE_SPI_AF                        GPIO_AF5_SPI4
 #define RF_BRIDGE_IRQ_GPIO_PORT                 GPIOE
 #define RF_BRIDGE_IRQ_PIN                       GPIO_PIN_10
+#define RF_BRIDGE_IRQ_EXTI_IRQn                 EXTI15_10_IRQn
+#define RF_BRIDGE_IRQ_EXTI_IRQn_PRIO            4u
 #define RF_BRIDGE_SPI_TIMEOUT_MS                5u
 
 /* ================ POWER MANAGER ===============

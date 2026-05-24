@@ -968,7 +968,7 @@ SPI 物理层是 master/slave 模型，TX 不能主动产生 SPI clock，因此�
 3. STM32 拉低 CS，发送 dummy byte，通过 `TransmitReceive` clock 出 TX 事件帧。
 4. TX 完成事件帧输出后释放 IRQ，恢复接收 STM32 后续命令。
 
-当前端口已经支持控制命令后的同步 readback：STM32 对 `GET_STATUS / START_PAIR / STOP_PAIR / UNBIND / SET_RATE` 发送后会尝试读取 TX 事件帧。配对开启结果应使用这个同步 readback 返回。
+当前端口已经支持控制命令后的同步 readback：STM32 对 `GET_STATUS / START_PAIR / STOP_PAIR / UNBIND / SET_RATE` 发送后会等待 TX 拉高 IRQ，再由 STM32 主动 clock 出 TX 事件帧。配对开启结果应使用这个同步 readback 返回。
 
 TX -> STM32 事件号：
 
@@ -1005,7 +1005,68 @@ TX -> STM32 事件号：
 
 注意：`rfm_spi_bridge.c` 当前 status payload 不应继续 hardcode `Connected/hasBond=1`，必须改成读取 RF 层真实状态，否则 STM32 配对页无法判断 `Pairing / PairOk / Timeout / Error`。
 
-### 14.4 STM32 屏幕入口与配对页
+### 14.4 STM32 后台 IRQ/event 服务
+
+为了让 TX 可以随时向 STM32 回传 `PairOk / PairTimeout / LinkWarn / Error` 等状态，STM32 侧需要实现后台 IRQ/event 服务。该服务和 `GET_STATUS` 使用同一条底层反向链路，但由 TX 的 IRQ 触发，而不是只在 STM32 主动发命令后读取。
+
+硬件入口：
+
+- 当前 RF IRQ 线为 `PE10`，属于 `EXTI15_10_IRQn`。
+- `rf_bridge_port.cpp` 初始化时应将 `RF_BRIDGE_IRQ_PIN` 从普通输入改为 `GPIO_MODE_IT_RISING`，保留下拉。
+- `board_cfg.h` 建议补充：
+
+```c
+#define RF_BRIDGE_IRQ_EXTI_IRQn        EXTI15_10_IRQn
+#define RF_BRIDGE_IRQ_EXTI_IRQn_PRIO   4u
+```
+
+中断处理原则：
+
+- `EXTI15_10_IRQHandler` 只清 EXTI pending，并调用 `RFBridgePort_IRQ_IRQHandler()`。
+- `RFBridgePort_IRQ_IRQHandler()` 只递增/置位 `s_irq_event_pending`，不得在 ISR 内做 SPI `TransmitReceive`。
+- 真正 SPI 读事件必须在主循环服务中执行，避免在中断里阻塞、抢占 DMA 或破坏输入节拍。
+
+STM32 侧建议新增端口 API：
+
+```cpp
+void RFBridgePort_IRQ_IRQHandler(void);
+void RFBridgePort_Service(void);
+bool RFBridgePort_TryReadEvent(uint8_t* rx, uint16_t* inoutLen);
+```
+
+`RFBridgePort_Service()` 行为：
+
+1. 如果 `s_irq_event_pending == 0` 且 IRQ 引脚不是高电平，直接返回。
+2. 进入 RF bridge control/event 临界区，阻止新的 `INPUT_DATA` DMA fastpath 启动。
+3. 等待当前 input DMA 完成，并丢弃 pending latest input；事件读取优先于输入快照。
+4. 使用 dummy `0xFF` clock 出 TX 当前事件帧，复用现有 readback 的 prefetch/tail/校验逻辑。
+5. 将合法事件交给 `RFTransport::processEventFrame()` 或放入一个小事件队列。
+6. 若 IRQ 仍为高，最多继续 drain `RF_BRIDGE_EVENT_DRAIN_LIMIT` 帧，避免一次服务长时间占用 SPI。
+7. 退出临界区，恢复 `INPUT_DATA` fastpath。
+
+命令同步 readback 与异步 event service 必须共用同一把 RF bridge bus lock：
+
+- `RFBridgePort_Transfer(GET_STATUS/START_PAIR/...)` 正在等待命令响应时，后台 event service 不能抢 SPI。
+- 后台 event service 正在 drain 事件时，`INPUT_DATA` 只能丢弃/延后，不应插队。
+- 如果上层正准备发送控制命令，而 IRQ 已经为高，建议先 drain TX 事件，再发新命令，避免 TX slave 侧单帧待发缓冲被覆盖。
+
+TX 侧也需要配套事件队列。当前 `rfm_spi_port_try_write()` 是单 pending TX frame 模型，不适合作为“随时状态回传”的唯一缓冲。建议在 `rfm_spi_bridge.c` 增加小型事件队列：
+
+| 队列 | 建议深度 | 内容 |
+|---|---:|---|
+| command response | 1 | 紧跟 STM32 命令的响应，优先级最高 |
+| async event queue | 4 | `PairOk / PairTimeout / LinkWarn / Error` 等异步事件 |
+
+TX 发送规则：
+
+- 命令响应优先于异步事件。
+- 当 `s_spi_tx_pending == 0` 且队列非空时，装载下一帧到 SPI TX FIFO，并拉高 IRQ。
+- STM32 读完一帧后，如果队列仍非空，TX 保持或重新拉高 IRQ，让 STM32 继续 drain。
+- 如果 async queue 满，低优先级 `LINK_WARN` 可合并或覆盖；`PairOk / PairTimeout / Error` 不应丢弃。
+
+`GET_STATUS` 只保留为显式诊断/调试命令，不参与配对页结果判断。配对完成、超时和失败必须统一通过后台 event service 捕获 TX 的异步 `STATE_CHANGED/ERROR`。
+
+### 14.5 STM32 屏幕入口与配对页
 
 `Connection` 菜单新增一项：
 
@@ -1024,8 +1085,8 @@ TX -> STM32 事件号：
 | `Starting` | `Starting...` | 点击入口后，正在发送 `START_PAIR` |
 | `PairModeOn` | `Pair mode on` / `Waiting RX...` | TX 返回 `state=Pairing` |
 | `TxError` | `TX Error` | TX 返回 `ERROR` 或 SPI readback 失败 |
-| `PairOk` | `Pair OK` | `GET_STATUS` 看到 `state=PairOk` |
-| `Timeout` | `Timeout` | STM32 配对页计时超时 |
+| `PairOk` | `Pair OK` | 后台 `STATE_CHANGED` 事件 |
+| `Timeout` | `Timeout` | 后台 `STATE_CHANGED` 或 `ERROR` 事件 |
 | `Canceled` | 返回 `Connection` | 用户点击/长按取消 |
 
 `ConnectionManager` 建议新增 API：
@@ -1038,11 +1099,11 @@ bool hasRfPairSucceeded() const;
 RFModuleStatus getRfStatus() const;
 ```
 
-配对页期间建议每 `100..200ms` 调用 `pollStatus()`。虽然 TX 可以通过 IRQ 推异步事件，但第一版更稳的方案是配对页主动轮询 `GET_STATUS`，直到 `PairOk / Idle / Error / Timeout`。
+配对页状态只由后台 IRQ/event 服务更新：TX 配对成功、超时或失败后主动排队 `STATE_CHANGED/ERROR`，STM32 后台服务读出事件并更新 `RFModuleStatus`。配对页不做 `GET_STATUS` 兜底轮询，避免两套状态来源互相打架。
 
 如果当前已经在 `RF24G` 高速输入模式，配对页期间 STM32 应暂停或抑制 `INPUT_DATA` 发送，避免 8K 输入流占用 SPI 总线。`ConnectionManager::onReportReady()` 可在 `rfPairingActive` 时直接返回。
 
-### 14.5 TX 配对状态机
+### 14.6 TX 配对状态机
 
 TX 侧新增状态：
 
@@ -1072,12 +1133,12 @@ TX 侧新增状态：
 
 1. TX 收到 `PAIR_DONE` 后才写入本地 bond。
 2. TX 切回普通 `link_access_address`。
-3. TX 发布 `PairOk` 状态，通过 SPI `STATE_CHANGED` 可选主动上报；STM32 第一版仍以 `GET_STATUS` 轮询为准。
+3. TX 发布 `PairOk` 状态，并通过后台 SPI 事件队列上报 `STATE_CHANGED`；STM32 配对页只由后台 event service 更新结果。
 4. TX 回到 `TX_UNCONNECTED`，由现有 CONNECT 流程重新建链。
 
 配对期间收到 `INPUT_DATA` 可以继续更新 latest input buffer，但 RF 空口不得发送普通 DATA，也不得发起普通 HOP。
 
-### 14.6 RX 配对状态机
+### 14.7 RX 配对状态机
 
 RX 侧新增状态：
 
@@ -1106,7 +1167,7 @@ RX pairing 行为：
 
 RX 写入 bond 前不能让 TX 误判成功。`PAIR_DONE` 必须表示 RX 本地 bond 已经提交成功。
 
-### 14.7 配对空口包
+### 14.8 配对空口包
 
 复用 12B 空口包，新增 packet type：
 
@@ -1144,7 +1205,7 @@ RX 写入 bond 前不能让 TX 误判成功。`PAIR_DONE` 必须表示 RX 本地
 
 第一版建议固定 `channel_a/channel_b = RFH_DEFAULT_CHANNEL_A/B`，配对只交换新的 `link_access_address`。信道优化仍交给现有 HOP 状态机，避免 12B 配对包负载过紧。
 
-### 14.8 配对 TDD 双频道周期
+### 14.9 配对 TDD 双频道周期
 
 CH58x RF 当前按半双工使用，同一时刻只能 TX 或 RX。配对模式不能连续发包，必须显式留出 RX window。
 
@@ -1185,7 +1246,7 @@ RX 收到 `PAIR_CONFIRM` 后：
 
 TX 收到 `PAIR_DONE` 后再写自己的 bond，并将状态置为 `PairOk`。
 
-### 14.9 Bond 与 access address
+### 14.10 Bond 与 access address
 
 Bond 至少包含：
 
@@ -1215,22 +1276,27 @@ Bond 至少包含：
 
 Bond 写 Flash/EEPROM 必须放在主循环状态推进里做，不得在 RF ISR 或高速 SPI ISR 中执行。
 
-### 14.10 推荐实现顺序
+### 14.11 推荐实现顺序
 
 1. 补齐 `RFH_LINK_ACCESS_ADDRESS_DEFAULT`、`RFH_PAIR_ACCESS_ADDRESS`、`RFH_PKT_PAIR`、`rfh_access_address_valid()` 等共享协议定义。
 2. TX/RX 启动时加载 bond；无 bond 时继续使用当前默认地址，保证现有链路不回退。
 3. TX 增加真实 RF 状态 API：`RF_StartPairing()`、`RF_StopPairing()`、`RF_Unbind()`、`RF_GetLinkStateCode()`、`RF_HasBond()`。
 4. `rfm_spi_bridge.c` 将 `START_PAIR/STOP_PAIR/UNBIND/GET_STATUS` 接入真实 RF 状态，不再 hardcode status payload。
-5. STM32 `ConnectionManager` 增加 pairing API，并在 pairing active 时抑制 `INPUT_DATA`。
-6. 屏幕 `Connection` 增加 `Pair 2.4G` 动作项和专用配对页；配对页用 `GET_STATUS` 轮询 TX 状态。
-7. TX 增加 `TX_PAIRING/TX_PAIR_CONFIRM_WAIT`，先验证 `START_PAIR` 后能进入 pairing 并 60s 超时退出。
-8. RX 增加 PB22 长按 5s 入口和 `RX_PAIRING/RX_PAIR_CONFIRM_WAIT`，先验证可进入/超时退出。
-9. 实现 `PAIR_OFFER/PAIR_ACCEPT/PAIR_CONFIRM/PAIR_DONE` TDD 空口握手。
-10. 实现双方 bond 写入、重启加载和 `UNBIND` 清除。
+5. STM32 RF bridge 增加 `EXTI15_10` IRQ 标记、后台 `RFBridgePort_Service()`、事件读取 bus lock 和事件队列转发。
+6. TX SPI bridge 增加异步 event queue，确保 `PairOk / PairTimeout / Error` 可在任意时刻排队等待 STM32 读取。
+7. STM32 `ConnectionManager` 增加 pairing API，并在 pairing active 或 event drain 时抑制 `INPUT_DATA`。
+8. 屏幕 `Connection` 增加 `Pair 2.4G` 动作项和专用配对页；配对页只消费后台事件，不做 `GET_STATUS` 兜底。
+9. TX 增加 `TX_PAIRING/TX_PAIR_CONFIRM_WAIT`，先验证 `START_PAIR` 后能进入 pairing 并 60s 超时退出。
+10. RX 增加 PB22 长按 5s 入口和 `RX_PAIRING/RX_PAIR_CONFIRM_WAIT`，先验证可进入/超时退出。
+11. 实现 `PAIR_OFFER/PAIR_ACCEPT/PAIR_CONFIRM/PAIR_DONE` TDD 空口握手。
+12. 实现双方 bond 写入、重启加载和 `UNBIND` 清除。
 
-### 14.11 关键风险
+### 14.12 关键风险
 
-- TX 不能主动 SPI 推包，必须通过 IRQ + STM32 clock readback；第一版配对结果建议以 STM32 轮询 `GET_STATUS` 为主。
+- TX 不能主动 SPI 推包，所有 TX->STM32 数据都必须通过“TX 拉 IRQ + STM32 发起 SPI read clock”完成。`GET_STATUS` 和异步事件共用这条底层链路；如果该链路不通，两者都会失败。
+- 后台 event service 必须只在主循环读 SPI；EXTI ISR 内不能做阻塞 SPI 操作。
+- 事件读取必须和 `INPUT_DATA` DMA fastpath 共享 bus lock，否则会出现 CS/SCK 交错、DMA 半帧、事件帧校验失败等问题。
+- TX 侧必须有异步事件队列或等价保护；单 pending frame 模型可能在新事件到来时覆盖尚未被 STM32 读走的旧事件。
 - 配对 TDD 不能连续发送 offer，必须留 accept/done RX window，否则半双工会导致 RX 应答被 TX 自己的发送覆盖。
 - `START_PAIR` 必须是幂等命令，重复收到不能重置 session 导致 RX/TX 状态错位。
 - 配对期间必须停止普通 DATA/CONNECT/HOP 空口行为，避免 pairing address 和普通工作地址状态互相污染。

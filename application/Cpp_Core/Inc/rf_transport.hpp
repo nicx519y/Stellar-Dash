@@ -31,6 +31,11 @@ struct RFModuleStatus {
     uint16_t rxFail = 0;
     uint16_t txFail = 0;
     uint32_t rejectCount = 0;
+    uint8_t lastEvent = 0;
+    uint8_t lastErrorCommand = 0;
+    uint8_t lastErrorReason = 0;
+    uint32_t eventCounter = 0;
+    uint32_t errorCounter = 0;
 };
 
 class RFTransport {
@@ -43,6 +48,7 @@ public:
     bool setRate(uint16_t rateHz);
     bool sendInput(const GamepadState& state, uint32_t seq);
     bool pollStatus();
+    uint8_t serviceEvents(uint8_t drainLimit = 4u);
     const RFModuleStatus& getStatus() const { return status; }
     RFTransportState getState() const { return state; }
 

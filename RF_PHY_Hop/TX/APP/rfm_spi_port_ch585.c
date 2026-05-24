@@ -15,7 +15,7 @@
 #define SPI_RX_TOTAL_CNT              (SPI_RX_DMA_RING_SIZE)
 #define SPI_RX_PEEK_SCAN_FRAMES       (3u)
 #define SPI_RX_PEEK_SCAN_BYTES        (SPI_RX_FRAME_BYTES * SPI_RX_PEEK_SCAN_FRAMES)
-#define SPI_RX_CONTROL_SCAN_BYTES     (RFM_SPI_MAX_FRAME * 8u)
+#define SPI_RX_CONTROL_SCAN_BYTES     (SPI_RX_DMA_RING_SIZE)
 #define SPI_RX_NEAR_FULL_THRESHOLD    (SPI_RX_DMA_RING_SIZE - (SPI_RX_FRAME_BYTES * 16u))
 #define SPI_INPUT_CMD                 (0x06u)
 
@@ -24,6 +24,7 @@ static uint16_t s_spi_tx_len;
 static uint16_t s_spi_tx_pos;
 static uint8_t s_spi_tx_pending;
 static uint32_t s_spi_tx_start_us;
+static volatile uint32_t s_spi_tx_recover_count;
 static volatile uint32_t s_now_us;
 
 __attribute__((aligned(4))) static uint8_t s_spi_rx_dma_buf[SPI_RX_DMA_RING_SIZE];
@@ -194,6 +195,7 @@ bool rfm_spi_port_peek_latest_control_frame(uint8_t *frame, uint8_t *inout_len)
     uint32_t available;
     uint32_t write_abs;
     uint32_t oldest_abs;
+    uint32_t latest_scan_abs;
     uint32_t scan_end_abs;
 
     if((frame == 0) || (inout_len == 0) || (*inout_len < 4u))
@@ -222,6 +224,16 @@ bool rfm_spi_port_peek_latest_control_frame(uint8_t *frame, uint8_t *inout_len)
     if(s_spi_rx_control_scan_abs > write_abs)
     {
         s_spi_rx_control_scan_abs = write_abs;
+    }
+
+    latest_scan_abs = oldest_abs;
+    if((write_abs - latest_scan_abs) > SPI_RX_CONTROL_SCAN_BYTES)
+    {
+        latest_scan_abs = write_abs - SPI_RX_CONTROL_SCAN_BYTES;
+    }
+    if(s_spi_rx_control_scan_abs < latest_scan_abs)
+    {
+        s_spi_rx_control_scan_abs = latest_scan_abs;
     }
 
     scan_end_abs = write_abs;
@@ -412,6 +424,7 @@ void rfm_spi_port_init(void)
 
     s_spi_tx_pending = 0u;
     s_spi_tx_start_us = 0u;
+    s_spi_tx_recover_count = 0u;
     s_spi_tx_len = 0u;
     s_spi_tx_pos = 0u;
     s_now_us = 0u;
@@ -465,6 +478,7 @@ void rfm_spi_port_service(void)
         } else if (GPIOB_ReadPortPin(GPIO_Pin_12) &&
                    ((int32_t)(spi_now_us() - (s_spi_tx_start_us + SPI_TX_PENDING_RECOVER_US)) >= 0)) {
             s_spi_tx_pending = 0u;
+            s_spi_tx_recover_count++;
             rfm_spi_port_set_irq(false);
             spi_rx_restart_after_tx();
         }
@@ -492,6 +506,7 @@ size_t rfm_spi_port_drain(uint8_t *buf, size_t max_len)
             if (GPIOB_ReadPortPin(GPIO_Pin_12) &&
                 ((int32_t)(spi_now_us() - (s_spi_tx_start_us + SPI_TX_PENDING_RECOVER_US)) >= 0)) {
                 s_spi_tx_pending = 0u;
+                s_spi_tx_recover_count++;
                 rfm_spi_port_set_irq(false);
                 spi_rx_restart_after_tx();
             } else {
@@ -638,6 +653,16 @@ uint32_t rfm_spi_port_rx_peek_miss_count(void)
     return s_spi_rx_peek_miss_count;
 }
 
+uint8_t rfm_spi_port_tx_pending(void)
+{
+    return s_spi_tx_pending;
+}
+
+uint32_t rfm_spi_port_tx_recover_count(void)
+{
+    return s_spi_tx_recover_count;
+}
+
 bool rfm_spi_port_try_read(uint8_t *buf, size_t *inout_len)
 {
     size_t n;
@@ -697,6 +722,9 @@ bool rfm_spi_port_try_write(const uint8_t *buf, size_t len)
     size_t i;
 
     if ((buf == 0) || (len == 0u) || (len > 4095u) || (len > sizeof(s_spi_tx_buf))) {
+        return false;
+    }
+    if (s_spi_tx_pending != 0u) {
         return false;
     }
 

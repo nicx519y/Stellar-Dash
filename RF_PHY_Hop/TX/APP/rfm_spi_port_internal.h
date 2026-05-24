@@ -27,6 +27,8 @@ uint32_t rfm_spi_port_rx_bad_irq_count(void);
 uint32_t rfm_spi_port_rx_isr_count(void);
 uint32_t rfm_spi_port_rx_last_flags(void);
 uint32_t rfm_spi_port_rx_direct_count(void);
+uint8_t rfm_spi_port_tx_pending(void);
+uint32_t rfm_spi_port_tx_recover_count(void);
 bool rfm_spi_port_try_read(uint8_t *buf, size_t *inout_len);
 bool rfm_spi_port_try_write(const uint8_t *buf, size_t len);
 
