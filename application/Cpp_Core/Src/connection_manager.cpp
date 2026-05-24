@@ -128,6 +128,12 @@ void ConnectionManager::updatePairingStateFromStatus() {
             rfPairingState = RfPairingState::Timeout;
         }
         break;
+    case RFLinkState::Connecting:
+        if (rfPairingState == RfPairingState::PairModeOn || rfPairingActive) {
+            rfPairingActive = false;
+            rfPairingState = RfPairingState::Timeout;
+        }
+        break;
     default:
         break;
     }

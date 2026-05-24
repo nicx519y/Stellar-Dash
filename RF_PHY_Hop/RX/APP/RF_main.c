@@ -33,6 +33,8 @@ void RF_USB_CompositeInit(void);
 #define RX_MAIN_TMR0_WRAP        0x04000000UL
 #define RX_MAIN_LOG_PERIOD_TICKS (FREQ_SYS * 5u)
 #define RX_MAIN_PENDING_LOG_PERIOD_TICKS (FREQ_SYS * 1u)
+#define RX_LED_PAIR_TOGGLE_MS    250u
+#define RX_LED_COMM_TOGGLE_MS    1000u
 /*********************************************************************
  * GLOBAL TYPEDEFS
  */
@@ -43,7 +45,7 @@ const uint8_t MacAddr[6] = {0x84, 0xC2, 0xE4, 0x03, 0x02, 0x02};
 #endif
 
 void LED_Ctrl(uint8_t on);
-void LED_Ctrl_Blink(void);
+void LED_Ctrl_Service(void);
 
 static uint8_t s_main_pending_log = FALSE;
 static char s_main_pending_msg[128];
@@ -161,7 +163,7 @@ void Main_Circulation()
     {
         uint32_t now = TMOS_GetSystemClock();
         uint32_t now_tmr = TMR0_GetCurrentTimer();
-        LED_Ctrl_Blink();
+        LED_Ctrl_Service();
 #if (RF_TEST_BYPASS_TMOS_AFTER_RF == 1)
         if(rf_init_done)
         {
@@ -251,6 +253,8 @@ void Main_Circulation()
 void LED_Ctrl(uint8_t on)
 {
     static uint8_t led_inited = FALSE;
+    static uint8_t led_output = FALSE;
+    static uint8_t led_output_valid = FALSE;
 
     if(!led_inited)
     {
@@ -259,6 +263,13 @@ void LED_Ctrl(uint8_t on)
         led_inited = TRUE;
     }
 
+    if((led_output_valid != FALSE) && (led_output == on))
+    {
+        return;
+    }
+
+    led_output = on;
+    led_output_valid = TRUE;
     if(on)
     {
         GPIOA_ResetBits(GPIO_Pin_10);
@@ -269,33 +280,136 @@ void LED_Ctrl(uint8_t on)
     }
 }
 
+static uint32_t LED_ToggleCyclesForMode(rf_indicator_mode_t mode)
+{
+    uint32_t ms;
+    uint32_t cycles_per_ms;
+    uint32_t cycles;
+
+    switch(mode)
+    {
+    case RF_INDICATOR_BLINK_500MS:
+        ms = RX_LED_PAIR_TOGGLE_MS;
+        break;
+    case RF_INDICATOR_BLINK_2000MS:
+        ms = RX_LED_COMM_TOGGLE_MS;
+        break;
+    case RF_INDICATOR_OFF:
+    case RF_INDICATOR_SOLID_ON:
+    default:
+        return 0u;
+    }
+
+    cycles_per_ms = GetSysClock() / 1000u;
+    if(cycles_per_ms == 0u)
+    {
+        cycles_per_ms = 1u;
+    }
+    cycles = cycles_per_ms * ms;
+    return (cycles == 0u) ? 1u : cycles;
+}
+
+static uint8_t LED_TmrElapsed(uint32_t now,
+                              uint32_t *last,
+                              uint32_t *acc,
+                              uint32_t period)
+{
+    uint32_t delta;
+
+    if(period == 0u)
+    {
+        return FALSE;
+    }
+    if(now >= *last)
+    {
+        delta = now - *last;
+    }
+    else
+    {
+        delta = (RX_MAIN_TMR0_WRAP - *last) + now;
+    }
+
+    *last = now;
+    *acc += delta;
+    if(*acc < period)
+    {
+        return FALSE;
+    }
+
+    *acc -= period;
+    return TRUE;
+}
+
+static void LED_ApplyMode(rf_indicator_mode_t mode,
+                          uint8_t *led_state,
+                          uint32_t *toggle_cycles,
+                          uint32_t *last_tmr,
+                          uint32_t *acc_tmr)
+{
+    *toggle_cycles = LED_ToggleCyclesForMode(mode);
+    *last_tmr = TMR0_GetCurrentTimer();
+    *acc_tmr = 0u;
+
+    switch(mode)
+    {
+    case RF_INDICATOR_SOLID_ON:
+        *led_state = TRUE;
+        LED_Ctrl(TRUE);
+        break;
+    case RF_INDICATOR_BLINK_500MS:
+    case RF_INDICATOR_BLINK_2000MS:
+        *led_state = TRUE;
+        LED_Ctrl(TRUE);
+        break;
+    case RF_INDICATOR_OFF:
+    default:
+        *led_state = FALSE;
+        LED_Ctrl(FALSE);
+        break;
+    }
+}
+
 /*********************************************************************
- * @fn      LED_Ctrl_Blink
+ * @fn      LED_Ctrl_Service
  *
- * @brief   非阻塞闪烁，间隔 300ms 自动翻转
+ * @brief   状态指示灯模式服务，闪烁节拍轮询 TMR0 free-run 计数器
  *
  * @return  none
  */
-void LED_Ctrl_Blink(void)
+void LED_Ctrl_Service(void)
 {
-    static uint8_t  blink_started = FALSE;
-    static uint8_t  led_state = FALSE;
-    static uint32_t last_tick = 0;
-    uint32_t now = TMOS_GetSystemClock();
+    static rf_indicator_mode_t last_mode = RF_INDICATOR_OFF;
+    static uint8_t service_started = FALSE;
+    static uint8_t led_state = FALSE;
+    static uint32_t toggle_cycles = 0u;
+    static uint32_t last_tmr = 0u;
+    static uint32_t acc_tmr = 0u;
+    rf_indicator_mode_t mode = RF_GetIndicatorMode();
+    uint32_t now_tmr;
 
-    if(!blink_started)
+    if((service_started == FALSE) || (mode != last_mode))
     {
-        blink_started = TRUE;
-        led_state = FALSE;
-        LED_Ctrl(led_state);
-        last_tick = now;
+        service_started = TRUE;
+        last_mode = mode;
+        LED_ApplyMode(mode,
+                      &led_state,
+                      &toggle_cycles,
+                      &last_tmr,
+                      &acc_tmr);
         return;
     }
 
-    if((uint32_t)(now - last_tick) >= 300)
+    if((mode == RF_INDICATOR_OFF) ||
+       (mode == RF_INDICATOR_SOLID_ON) ||
+       (toggle_cycles == 0u))
     {
-        last_tick = now;
-        led_state = !led_state;
+        return;
+    }
+
+    now_tmr = TMR0_GetCurrentTimer();
+    if(LED_TmrElapsed(now_tmr, &last_tmr, &acc_tmr, toggle_cycles) != FALSE)
+    {
+        led_state = (led_state == FALSE) ? TRUE : FALSE;
         LED_Ctrl(led_state);
     }
 }

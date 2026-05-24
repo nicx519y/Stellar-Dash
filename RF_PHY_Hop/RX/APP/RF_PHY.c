@@ -53,6 +53,8 @@
 #define RF_STAT_PRINT_PERIOD_MS        5000u
 #define RF_TX_SEND_TIME                (20u * 2u)
 #define RF_LINK_ACCESS_ADDRESS         0x71764129UL
+#define RF_PAIR_ACCESS_ADDRESS         0x6D5A3C17UL
+#define RF_PAIR_WINDOW_MS              60000u
 #define RF_LINK_CRC_INIT               0x555555UL
 /* WCH rfipRx_t.timeOut: 0 means no timeout; connected RX must stay armed. */
 #define RFIP_RX_NO_TIMEOUT             0u
@@ -66,6 +68,9 @@
 #define RF_ACK_RX_POST_GUARD_US        RFH_ACK_RX_POST_GUARD_US_DEFAULT
 #define TMR0_FREE_RUN_END              0x03FFFFFFUL
 #define TMR0_FREE_RUN_WRAP             0x04000000UL
+#define RX_PAIR_BUTTON_PIN             GPIO_Pin_22
+#define RX_PAIR_BUTTON_DEBOUNCE_MS     30u
+#define RX_PAIR_BUTTON_HOLD_MS         5000u
 
 #define SBP_RF_RF_RX_EVT               4
 #define SBP_RF_STAT_EVT                (1 << 5)
@@ -75,8 +80,18 @@ typedef enum {
     RX_CONNECT_ACK_PENDING,
     RX_COMM,
     RX_HOP_RESERVED,
-    RX_HOP_CONFIRM_ACK_PENDING
+    RX_HOP_CONFIRM_ACK_PENDING,
+    RX_PAIRING,
+    RX_PAIR_CONFIRM_WAIT
 } rx_state_t;
+
+typedef enum {
+    PB22_ARM_WAIT_HIGH = 0u,
+    PB22_IDLE_HIGH,
+    PB22_DEBOUNCE_LOW,
+    PB22_HOLDING_LOW,
+    PB22_WAIT_RELEASE
+} pb22_pair_button_state_t;
 
 typedef struct
 {
@@ -131,6 +146,15 @@ static uint8_t g_target_channel = RFH_DEFAULT_CHANNEL_A;
 static uint8_t g_hop_seq = 0u;
 static uint8_t g_pending_ack_cmd = RFH_CMD_NONE;
 static uint8_t g_confirm_ack_fail_count = 0u;
+static rx_state_t g_pair_restore_state = RX_UNCONNECTED;
+static uint8_t g_pair_restore_channel = RFH_DEFAULT_CHANNEL_A;
+static uint8_t g_pair_restore_scan_channel_a = RFH_DEFAULT_CHANNEL_A;
+static uint8_t g_pair_restore_scan_channel_b = RFH_DEFAULT_CHANNEL_B;
+static uint8_t g_pair_restore_ack_channel = RFH_DEFAULT_CHANNEL_A;
+static uint32_t g_pairing_started_clock = 0u;
+static pb22_pair_button_state_t g_pb22_state = PB22_ARM_WAIT_HIGH;
+static uint32_t g_pb22_mark_clock = 0u;
+static uint32_t g_pb22_press_start_clock = 0u;
 
 static uint16_t g_report_hz = RF_REPORT_PPS;
 static uint8_t g_rate_code = RFH_RATE_8K;
@@ -198,6 +222,17 @@ static uint8_t rx_time_reached(uint32_t now, uint32_t deadline)
     return ((int32_t)(now - deadline) >= 0) ? 1u : 0u;
 }
 
+static uint8_t rx_pairing_active(void)
+{
+    return ((g_state == RX_PAIRING) ||
+            (g_state == RX_PAIR_CONFIRM_WAIT)) ? 1u : 0u;
+}
+
+static uint8_t rx_pb22_pressed(void)
+{
+    return (GPIOB_ReadPortPin(RX_PAIR_BUTTON_PIN) == 0u) ? 1u : 0u;
+}
+
 static uint8_t rx_tmr_reached(uint32_t now, uint32_t deadline)
 {
     if(now >= deadline)
@@ -240,6 +275,7 @@ static uint32_t rx_us_to_tmr_cycles(uint16_t us)
 static uint8_t rx_is_seek_scanning_state(void)
 {
     return ((g_state == RX_UNCONNECTED) ||
+            (g_state == RX_PAIRING) ||
             ((g_state == RX_CONNECT_ACK_PENDING) &&
              (g_pending_ack_cmd == RFH_CMD_CONNECT_REQ))) ? 1u : 0u;
 }
@@ -263,8 +299,12 @@ static const char *rx_state_code(void)
     case RX_HOP_RESERVED:
         return "HR";
     case RX_HOP_CONFIRM_ACK_PENDING:
-    default:
         return "CA";
+    case RX_PAIRING:
+        return "RP";
+    case RX_PAIR_CONFIRM_WAIT:
+    default:
+        return "RC";
     }
 }
 
@@ -688,6 +728,17 @@ static void rx_set_channel(uint8_t channel)
     gRxParam.whiteChannel = channel;
 }
 
+static void rx_apply_radio_access_address(uint32_t access_address)
+{
+    gParm.accessAddress = access_address;
+    gTxParam.accessAddress = access_address;
+    gRxParam.accessAddress = access_address;
+    if(g_basic_started != 0u)
+    {
+        RFRole_SetParam(&gParm);
+    }
+}
+
 static uint8_t rx_scan_next_channel(uint8_t channel)
 {
     if(rfh_channel_valid(channel) == 0u)
@@ -713,6 +764,8 @@ static uint8_t rx_scan_random_channel(void)
 
 static void rx_enter_state(rx_state_t next)
 {
+    uint32_t now = TMOS_GetSystemClock();
+
     if(g_state == next)
     {
         return;
@@ -738,7 +791,7 @@ static void rx_enter_state(rx_state_t next)
         g_ack_success_next_state = RX_COMM;
         g_pending_ack_cmd = RFH_CMD_NONE;
         g_confirm_ack_fail_count = 0u;
-        g_last_rx_packet_clock = TMOS_GetSystemClock();
+        g_last_rx_packet_clock = now;
         break;
     case RX_CONNECT_ACK_PENDING:
         break;
@@ -746,14 +799,43 @@ static void rx_enter_state(rx_state_t next)
         rx_log_note_hop_event();
         break;
     case RX_HOP_CONFIRM_ACK_PENDING:
-    default:
         rx_log_note_hop_event();
+        break;
+    case RX_PAIRING:
+        g_ack_pending = 0u;
+        g_ack_repeat_remaining = 0u;
+        g_ack_until_tmr = 0u;
+        g_pending_ack_cmd = RFH_CMD_NONE;
+        g_hop_seq = 0u;
+        g_confirm_ack_fail_count = 0u;
+        g_rx_since_ack = 0u;
+        g_scan_channel_a = RFH_DISCOVERY_CHANNEL_A;
+        g_scan_channel_b = RFH_DISCOVERY_CHANNEL_B;
+        g_pairing_started_clock = now;
+        rx_set_channel(RFH_DISCOVERY_CHANNEL_A);
+        break;
+    case RX_PAIR_CONFIRM_WAIT:
+    default:
         break;
     }
 }
 
 static void rx_toggle_seek_channel(void)
 {
+    if(g_state == RX_PAIRING)
+    {
+        if(g_rx_channel == g_scan_channel_a)
+        {
+            rx_set_channel(g_scan_channel_b);
+        }
+        else
+        {
+            rx_set_channel(g_scan_channel_a);
+        }
+        gStat.scan_switch++;
+        return;
+    }
+
     if((g_state == RX_UNCONNECTED) ||
        ((g_state == RX_CONNECT_ACK_PENDING) &&
         (g_pending_ack_cmd == RFH_CMD_CONNECT_REQ)))
@@ -800,6 +882,225 @@ static void rx_start_rx(void)
     {
         gStat.rx_arm_ok++;
     }
+}
+
+static void rx_stop_radio_activity(void)
+{
+    if(g_basic_started != 0u)
+    {
+        (void)RFRole_Stop();
+    }
+    g_ack_tx_active = 0u;
+}
+
+static void rx_clear_link_transaction_state(void)
+{
+    g_ack_pending = 0u;
+    g_ack_repeat_remaining = 0u;
+    g_ack_until_tmr = 0u;
+    g_pending_ack_cmd = RFH_CMD_NONE;
+    g_ack_success_next_state = RX_COMM;
+    g_hop_seq = 0u;
+    g_confirm_ack_fail_count = 0u;
+    g_rx_since_ack = 0u;
+}
+
+static rx_state_t rx_pair_restore_target_state(void)
+{
+    switch(g_pair_restore_state)
+    {
+    case RX_COMM:
+    case RX_HOP_RESERVED:
+    case RX_HOP_CONFIRM_ACK_PENDING:
+        return RX_COMM;
+    case RX_UNCONNECTED:
+    case RX_CONNECT_ACK_PENDING:
+    case RX_PAIRING:
+    case RX_PAIR_CONFIRM_WAIT:
+    default:
+        return RX_UNCONNECTED;
+    }
+}
+
+uint8_t RF_StartPairing(void)
+{
+    if(g_basic_started == 0u)
+    {
+        return 0u;
+    }
+    if(rx_pairing_active() != 0u)
+    {
+        return 1u;
+    }
+
+    g_pair_restore_state = g_state;
+    g_pair_restore_channel = g_rx_channel;
+    g_pair_restore_scan_channel_a = g_scan_channel_a;
+    g_pair_restore_scan_channel_b = g_scan_channel_b;
+    g_pair_restore_ack_channel = g_ack_channel;
+
+    rx_stop_radio_activity();
+    rx_clear_link_transaction_state();
+    rx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
+    rx_enter_state(RX_PAIRING);
+    rx_start_rx();
+    PRINT("[RX][RFH] pairing:start\r\n");
+    return 1u;
+}
+
+uint8_t RF_StopPairing(void)
+{
+    rx_state_t restore_state;
+    uint32_t now;
+
+    if(g_basic_started == 0u)
+    {
+        return 0u;
+    }
+    if(rx_pairing_active() == 0u)
+    {
+        return 1u;
+    }
+
+    now = TMOS_GetSystemClock();
+    restore_state = rx_pair_restore_target_state();
+    rx_stop_radio_activity();
+    rx_clear_link_transaction_state();
+    rx_apply_radio_access_address(RF_LINK_ACCESS_ADDRESS);
+    g_scan_channel_a = g_pair_restore_scan_channel_a;
+    g_scan_channel_b = g_pair_restore_scan_channel_b;
+    g_ack_channel = g_pair_restore_ack_channel;
+
+    if(restore_state == RX_COMM)
+    {
+        rx_enter_state(RX_COMM);
+        rx_set_channel(g_pair_restore_channel);
+        g_rx_progress_clock = now;
+        g_rx_progress_seen_count = g_rx_progress_count;
+    }
+    else
+    {
+        rx_enter_state(RX_UNCONNECTED);
+    }
+
+    g_pairing_started_clock = 0u;
+    rx_start_rx();
+    PRINT("[RX][RFH] pairing:stop restore:%s\r\n", rx_state_code());
+    return 1u;
+}
+
+uint8_t RF_IsPairingActive(void)
+{
+    return rx_pairing_active();
+}
+
+rf_indicator_mode_t RF_GetIndicatorMode(void)
+{
+    if(g_basic_started == 0u)
+    {
+        return RF_INDICATOR_OFF;
+    }
+    if(rx_pairing_active() != 0u)
+    {
+        return RF_INDICATOR_BLINK_500MS;
+    }
+    if(g_state == RX_UNCONNECTED)
+    {
+        return RF_INDICATOR_SOLID_ON;
+    }
+    return RF_INDICATOR_BLINK_2000MS;
+}
+
+static void rx_pair_button_init(void)
+{
+    GPIOB_ModeCfg(RX_PAIR_BUTTON_PIN, GPIO_ModeIN_PU);
+    g_pb22_state = PB22_ARM_WAIT_HIGH;
+    g_pb22_mark_clock = TMOS_GetSystemClock();
+    g_pb22_press_start_clock = g_pb22_mark_clock;
+}
+
+static void rx_pair_button_service(uint32_t now)
+{
+    uint8_t pressed = rx_pb22_pressed();
+
+    switch(g_pb22_state)
+    {
+    case PB22_ARM_WAIT_HIGH:
+        if(pressed == 0u)
+        {
+            if(rx_time_reached(now,
+                               g_pb22_mark_clock +
+                               MS1_TO_SYSTEM_TIME(RX_PAIR_BUTTON_DEBOUNCE_MS)) != 0u)
+            {
+                g_pb22_state = PB22_IDLE_HIGH;
+            }
+        }
+        else
+        {
+            g_pb22_mark_clock = now;
+        }
+        break;
+    case PB22_IDLE_HIGH:
+        if(pressed != 0u)
+        {
+            g_pb22_press_start_clock = now;
+            g_pb22_state = PB22_DEBOUNCE_LOW;
+        }
+        break;
+    case PB22_DEBOUNCE_LOW:
+        if(pressed == 0u)
+        {
+            g_pb22_state = PB22_IDLE_HIGH;
+        }
+        else if(rx_time_reached(now,
+                                g_pb22_press_start_clock +
+                                MS1_TO_SYSTEM_TIME(RX_PAIR_BUTTON_DEBOUNCE_MS)) != 0u)
+        {
+            g_pb22_state = PB22_HOLDING_LOW;
+        }
+        break;
+    case PB22_HOLDING_LOW:
+        if(pressed == 0u)
+        {
+            g_pb22_state = PB22_IDLE_HIGH;
+        }
+        else if(rx_time_reached(now,
+                                g_pb22_press_start_clock +
+                                MS1_TO_SYSTEM_TIME(RX_PAIR_BUTTON_HOLD_MS)) != 0u)
+        {
+            if(rx_pairing_active() == 0u)
+            {
+                (void)RF_StartPairing();
+            }
+            g_pb22_state = PB22_WAIT_RELEASE;
+        }
+        break;
+    case PB22_WAIT_RELEASE:
+    default:
+        if(pressed == 0u)
+        {
+            g_pb22_mark_clock = now;
+            g_pb22_state = PB22_ARM_WAIT_HIGH;
+        }
+        break;
+    }
+}
+
+static void rx_pairing_service(uint32_t now)
+{
+    if(rx_pairing_active() == 0u)
+    {
+        return;
+    }
+    if(rx_time_reached(now,
+                       g_pairing_started_clock +
+                       MS1_TO_SYSTEM_TIME(RF_PAIR_WINDOW_MS)) == 0u)
+    {
+        return;
+    }
+
+    PRINT("[RX][RFH] pairing:timeout\r\n");
+    (void)RF_StopPairing();
 }
 
 static void rx_schedule_ack(uint8_t countdown_ticks)
@@ -1206,6 +1507,11 @@ static uint8_t rx_process_air_packet(const uint8_t *rx_buf)
     const uint8_t *air = &rx_buf[2];
     uint8_t type;
 
+    if(rx_pairing_active() != 0u)
+    {
+        return 0u;
+    }
+
     if(rx_buf[1] != RFH_AIR_PACKET_LEN)
     {
         gStat.rx_bad_len++;
@@ -1247,6 +1553,12 @@ static void rx_service_timers(uint8_t check_idle_timeout)
         rx_service_hitbox_input();
         rx_flush_xinput_pending();
         rx_clear_xinput_on_stale(now_clock);
+    }
+
+    if((check_idle_timeout != 0u) && (rx_pairing_active() != 0u))
+    {
+        rx_pairing_service(now_clock);
+        return;
     }
 
 #if (RF_RX_PACKET_TIMEOUT_MS > 0u)
@@ -1434,10 +1746,14 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
 
 void RF_Service(void)
 {
+    uint32_t now_clock;
+
     if(g_basic_started == 0u)
     {
         return;
     }
+    now_clock = TMOS_GetSystemClock();
+    rx_pair_button_service(now_clock);
     rx_service_timers(1u);
 }
 
@@ -1708,6 +2024,7 @@ void RF_Init(void)
     memset(TxBuf, 0, sizeof(TxBuf));
     memset(RxBuf, 0, sizeof(RxBuf));
     rx_xinput_init();
+    rx_pair_button_init();
     rx_apply_rate(rfh_rate_code_from_hz(RF_REPORT_PPS), RFH_DEFAULT_ACK_WINDOW_MS);
     g_rx_channel = RFH_MIN_CHANNEL;
     g_scan_channel_a = RFH_MIN_CHANNEL;
@@ -1725,6 +2042,12 @@ void RF_Init(void)
     g_pending_ack_cmd = RFH_CMD_NONE;
     g_rx_progress_count = 0u;
     g_rx_progress_seen_count = 0u;
+    g_pair_restore_state = RX_UNCONNECTED;
+    g_pair_restore_channel = RFH_DEFAULT_CHANNEL_A;
+    g_pair_restore_scan_channel_a = RFH_DEFAULT_CHANNEL_A;
+    g_pair_restore_scan_channel_b = RFH_DEFAULT_CHANNEL_B;
+    g_pair_restore_ack_channel = RFH_DEFAULT_CHANNEL_A;
+    g_pairing_started_clock = 0u;
     g_state = RX_COMM;
     rx_enter_state(RX_UNCONNECTED);
     g_last_rx_packet_clock = TMOS_GetSystemClock();

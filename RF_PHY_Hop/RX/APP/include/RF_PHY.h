@@ -19,8 +19,21 @@
 extern "C" {
 #endif
 
+typedef enum
+{
+    RF_INDICATOR_OFF = 0u,
+    RF_INDICATOR_SOLID_ON,
+    /* Blink names describe the full on+off cycle. */
+    RF_INDICATOR_BLINK_500MS,
+    RF_INDICATOR_BLINK_2000MS
+} rf_indicator_mode_t;
+
 extern void RF_Init(void);
 extern void RF_Service(void);
+extern uint8_t RF_StartPairing(void);
+extern uint8_t RF_StopPairing(void);
+extern uint8_t RF_IsPairingActive(void);
+extern rf_indicator_mode_t RF_GetIndicatorMode(void);
 extern void RF_StartPacketLossScan(void);
 extern void RF_StartQualityScoreScan(void);
 extern uint8_t RF_IsQualityScoreScanActive(void);
