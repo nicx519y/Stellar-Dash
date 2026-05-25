@@ -174,8 +174,9 @@ static uint16_t g_pair_accept_bursts_remaining = 0u;
 static uint32_t g_pair_accept_due_tmr = 0u;
 static uint8_t g_has_bond = 0u;
 static pb22_pair_button_state_t g_pb22_state = PB22_ARM_WAIT_HIGH;
-static uint32_t g_pb22_mark_clock = 0u;
-static uint32_t g_pb22_press_start_clock = 0u;
+static uint32_t g_pb22_last_tmr = 0u;
+static uint32_t g_pb22_stable_cycles = 0u;
+static uint32_t g_pb22_hold_cycles = 0u;
 
 static uint16_t g_report_hz = RF_REPORT_PPS;
 static uint8_t g_rate_code = RFH_RATE_8K;
@@ -394,6 +395,15 @@ static uint32_t rx_tmr_add(uint32_t base, uint32_t delta)
         base -= TMR0_FREE_RUN_WRAP;
     }
     return base;
+}
+
+static uint32_t rx_tmr_delta(uint32_t now, uint32_t last)
+{
+    if(now >= last)
+    {
+        return now - last;
+    }
+    return (TMR0_FREE_RUN_WRAP - last) + now;
 }
 
 static uint32_t rx_us_to_tmr_cycles(uint16_t us)
@@ -1212,71 +1222,101 @@ static void rx_pair_button_init(void)
 {
     GPIOB_ModeCfg(RX_PAIR_BUTTON_PIN, GPIO_ModeIN_PU);
     g_pb22_state = PB22_ARM_WAIT_HIGH;
-    g_pb22_mark_clock = TMOS_GetSystemClock();
-    g_pb22_press_start_clock = g_pb22_mark_clock;
+    g_pb22_last_tmr = TMR0_GetCurrentTimer();
+    g_pb22_stable_cycles = 0u;
+    g_pb22_hold_cycles = 0u;
 }
 
 static void rx_pair_button_service(uint32_t now)
 {
+    uint32_t now_tmr = TMR0_GetCurrentTimer();
+    uint32_t delta_tmr = rx_tmr_delta(now_tmr, g_pb22_last_tmr);
+    uint32_t debounce_cycles = rx_ms_to_tmr_cycles(RX_PAIR_BUTTON_DEBOUNCE_MS);
+    uint32_t hold_cycles = rx_ms_to_tmr_cycles(RX_PAIR_BUTTON_HOLD_MS);
     uint8_t pressed = rx_pb22_pressed();
+    (void)now;
+
+    g_pb22_last_tmr = now_tmr;
 
     switch(g_pb22_state)
     {
     case PB22_ARM_WAIT_HIGH:
         if(pressed == 0u)
         {
-            if(rx_time_reached(now,
-                               g_pb22_mark_clock +
-                               MS1_TO_SYSTEM_TIME(RX_PAIR_BUTTON_DEBOUNCE_MS)) != 0u)
+            if(g_pb22_stable_cycles < debounce_cycles)
+            {
+                g_pb22_stable_cycles += delta_tmr;
+            }
+            if(g_pb22_stable_cycles >= debounce_cycles)
             {
                 g_pb22_state = PB22_IDLE_HIGH;
             }
         }
         else
         {
-            g_pb22_mark_clock = now;
+            g_pb22_stable_cycles = 0u;
         }
         break;
     case PB22_IDLE_HIGH:
         if(pressed != 0u)
         {
-            g_pb22_press_start_clock = now;
+            g_pb22_stable_cycles = 0u;
+            g_pb22_hold_cycles = 0u;
             g_pb22_state = PB22_DEBOUNCE_LOW;
         }
         break;
     case PB22_DEBOUNCE_LOW:
         if(pressed == 0u)
         {
+            g_pb22_stable_cycles = 0u;
+            g_pb22_hold_cycles = 0u;
             g_pb22_state = PB22_IDLE_HIGH;
         }
-        else if(rx_time_reached(now,
-                                g_pb22_press_start_clock +
-                                MS1_TO_SYSTEM_TIME(RX_PAIR_BUTTON_DEBOUNCE_MS)) != 0u)
+        else
         {
-            g_pb22_state = PB22_HOLDING_LOW;
+            if(g_pb22_stable_cycles < debounce_cycles)
+            {
+                g_pb22_stable_cycles += delta_tmr;
+            }
+            if(g_pb22_hold_cycles < hold_cycles)
+            {
+                g_pb22_hold_cycles += delta_tmr;
+            }
+            if(g_pb22_stable_cycles >= debounce_cycles)
+            {
+                g_pb22_state = PB22_HOLDING_LOW;
+            }
         }
         break;
     case PB22_HOLDING_LOW:
         if(pressed == 0u)
         {
+            g_pb22_stable_cycles = 0u;
+            g_pb22_hold_cycles = 0u;
             g_pb22_state = PB22_IDLE_HIGH;
         }
-        else if(rx_time_reached(now,
-                                g_pb22_press_start_clock +
-                                MS1_TO_SYSTEM_TIME(RX_PAIR_BUTTON_HOLD_MS)) != 0u)
+        else
         {
-            if(rx_pairing_active() == 0u)
+            if(g_pb22_hold_cycles < hold_cycles)
             {
-                (void)RF_StartPairing();
+                g_pb22_hold_cycles += delta_tmr;
             }
-            g_pb22_state = PB22_WAIT_RELEASE;
+            if(g_pb22_hold_cycles >= hold_cycles)
+            {
+                if(rx_pairing_active() == 0u)
+                {
+                    (void)RF_StartPairing();
+                }
+                g_pb22_state = PB22_WAIT_RELEASE;
+            }
         }
         break;
     case PB22_WAIT_RELEASE:
     default:
         if(pressed == 0u)
         {
-            g_pb22_mark_clock = now;
+            g_pb22_stable_cycles = 0u;
+            g_pb22_hold_cycles = 0u;
             g_pb22_state = PB22_ARM_WAIT_HIGH;
         }
         break;
