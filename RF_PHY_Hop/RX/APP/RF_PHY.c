@@ -56,6 +56,7 @@
 #define RF_LINK_ACCESS_ADDRESS         RFH_LINK_ACCESS_ADDRESS_DEFAULT
 #define RF_PAIR_ACCESS_ADDRESS         RFH_PAIR_ACCESS_ADDRESS
 #define RF_PAIR_WINDOW_MS              RFH_PAIR_WINDOW_MS
+#define RF_PAIR_RX_DWELL_MS            RFH_PAIR_TX_WINDOW_MS
 #define RF_LINK_CRC_INIT               0x555555UL
 /* WCH rfipRx_t.timeOut: 0 means no timeout; connected RX must stay armed. */
 #define RFIP_RX_NO_TIMEOUT             0u
@@ -154,6 +155,7 @@ static uint8_t g_pair_restore_scan_channel_a = RFH_DEFAULT_CHANNEL_A;
 static uint8_t g_pair_restore_scan_channel_b = RFH_DEFAULT_CHANNEL_B;
 static uint8_t g_pair_restore_ack_channel = RFH_DEFAULT_CHANNEL_A;
 static uint32_t g_pairing_started_clock = 0u;
+static uint32_t g_pair_scan_due_clock = 0u;
 static uint32_t g_link_access_address = RF_LINK_ACCESS_ADDRESS;
 static uint32_t g_local_id_hash = 0u;
 static uint32_t g_peer_id_hash = 0u;
@@ -163,12 +165,12 @@ static uint32_t g_pair_confirm32 = 0u;
 static uint32_t g_pair_counter = 0u;
 static uint8_t g_pair_bond_write_pending = 0u;
 static uint8_t g_pair_done_ready = 0u;
-static uint8_t g_pair_done_bursts_remaining = 0u;
+static uint16_t g_pair_done_bursts_remaining = 0u;
 static uint8_t g_pair_done_pending = 0u;
 static uint32_t g_pair_done_due_tmr = 0u;
 static uint8_t g_pair_accept_pending = 0u;
 static uint8_t g_pair_accept_channel = RFH_PAIR_CHANNEL_A;
-static uint8_t g_pair_accept_bursts_remaining = 0u;
+static uint16_t g_pair_accept_bursts_remaining = 0u;
 static uint32_t g_pair_accept_due_tmr = 0u;
 static uint8_t g_has_bond = 0u;
 static pb22_pair_button_state_t g_pb22_state = PB22_ARM_WAIT_HIGH;
@@ -177,6 +179,8 @@ static uint32_t g_pb22_press_start_clock = 0u;
 
 static uint16_t g_report_hz = RF_REPORT_PPS;
 static uint8_t g_rate_code = RFH_RATE_8K;
+static uint8_t g_pair_restore_rate_code = RFH_RATE_8K;
+static uint8_t g_pair_link_rate_code = RFH_RATE_8K;
 static uint8_t g_ack_window_ms = RFH_DEFAULT_ACK_WINDOW_MS;
 static uint8_t g_ack_window_packets = 8u;
 static uint32_t g_tick_per_evt = 1u;
@@ -343,7 +347,7 @@ static uint8_t rx_write_current_pair_bond(void)
                          g_pair_proposed_access_address,
                          RFH_DEFAULT_CHANNEL_A,
                          RFH_DEFAULT_CHANNEL_B,
-                         g_rate_code,
+                         g_pair_link_rate_code,
                          g_local_id_hash,
                          g_peer_id_hash,
                          next_counter,
@@ -412,6 +416,21 @@ static uint32_t rx_ms_to_tmr_cycles(uint16_t ms)
         cycles_per_ms = 1u;
     }
     return (uint32_t)ms * cycles_per_ms;
+}
+
+static uint16_t rx_pair_bursts_for_ms(uint16_t ms)
+{
+    uint32_t bursts = ((uint32_t)g_report_hz * (uint32_t)ms + 999u) / 1000u;
+
+    if(bursts == 0u)
+    {
+        bursts = 1u;
+    }
+    if(bursts > 1000u)
+    {
+        bursts = 1000u;
+    }
+    return (uint16_t)bursts;
 }
 
 static uint8_t rx_is_seek_scanning_state(void)
@@ -962,6 +981,7 @@ static void rx_enter_state(rx_state_t next)
         g_scan_channel_a = RFH_PAIR_CHANNEL_A;
         g_scan_channel_b = RFH_PAIR_CHANNEL_B;
         g_pairing_started_clock = now;
+        g_pair_scan_due_clock = now + MS1_TO_SYSTEM_TIME(RF_PAIR_RX_DWELL_MS);
         rx_set_channel(RFH_PAIR_CHANNEL_A);
         break;
     case RX_PAIR_CONFIRM_WAIT:
@@ -1018,9 +1038,16 @@ static void rx_start_rx(void)
     gRxParam.whiteChannel = g_rx_channel;
     gRxParam.rxDMA = (uint32_t)RxBuf;
     gRxParam.rxMaxLen = RFH_AIR_PACKET_LEN;
-    gRxParam.timeOut = (rx_is_seek_scanning_state() != 0u) ?
-                       RF_DUAL_RX_DWELL_US :
-                       RF_CONNECTED_RX_TIMEOUT_US;
+    if(g_state == RX_PAIRING)
+    {
+        gRxParam.timeOut = RFIP_RX_NO_TIMEOUT;
+    }
+    else
+    {
+        gRxParam.timeOut = (rx_is_seek_scanning_state() != 0u) ?
+                           RF_DUAL_RX_DWELL_US :
+                           RF_CONNECTED_RX_TIMEOUT_US;
+    }
     gStat.rx_arm_try++;
     g_low_rx_ret = (uint8_t)RFIP_SetRx(&gRxParam);
     if(g_low_rx_ret != SUCCESS)
@@ -1089,9 +1116,12 @@ uint8_t RF_StartPairing(void)
     g_pair_restore_scan_channel_a = g_scan_channel_a;
     g_pair_restore_scan_channel_b = g_scan_channel_b;
     g_pair_restore_ack_channel = g_ack_channel;
+    g_pair_restore_rate_code = g_rate_code;
+    g_pair_link_rate_code = g_rate_code;
 
     rx_stop_radio_activity();
     rx_clear_link_transaction_state();
+    rx_apply_rate(RFH_RATE_1K, g_ack_window_ms);
     g_peer_id_hash = 0u;
     g_pair_session_nonce = 0u;
     g_pair_proposed_access_address = RF_LINK_ACCESS_ADDRESS;
@@ -1128,6 +1158,7 @@ uint8_t RF_StopPairing(void)
     restore_state = rx_pair_restore_target_state();
     rx_stop_radio_activity();
     rx_clear_link_transaction_state();
+    rx_apply_rate(g_pair_restore_rate_code, g_ack_window_ms);
     rx_apply_radio_access_address(g_link_access_address);
     g_scan_channel_a = g_pair_restore_scan_channel_a;
     g_scan_channel_b = g_pair_restore_scan_channel_b;
@@ -1146,6 +1177,7 @@ uint8_t RF_StopPairing(void)
     }
 
     g_pairing_started_clock = 0u;
+    g_pair_scan_due_clock = 0u;
     g_pair_accept_pending = 0u;
     g_pair_accept_bursts_remaining = 0u;
     g_pair_done_pending = 0u;
@@ -1257,6 +1289,17 @@ static void rx_pairing_service(uint32_t now)
     {
         return;
     }
+    if((g_state == RX_PAIRING) &&
+       (g_scan_channel_a != g_scan_channel_b) &&
+       (g_pair_tx_active == 0u) &&
+       (rx_time_reached(now, g_pair_scan_due_clock) != 0u))
+    {
+        (void)RFRole_Stop();
+        rx_toggle_seek_channel();
+        g_pair_scan_due_clock = now + MS1_TO_SYSTEM_TIME(RF_PAIR_RX_DWELL_MS);
+        rx_start_rx();
+        return;
+    }
     if((g_pair_accept_pending != 0u) &&
        (g_pair_tx_active == 0u) &&
        (rx_tmr_reached(TMR0_GetCurrentTimer(), g_pair_accept_due_tmr) != 0u))
@@ -1265,7 +1308,8 @@ static void rx_pairing_service(uint32_t now)
         rx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
         if(g_pair_accept_bursts_remaining == 0u)
         {
-            g_pair_accept_bursts_remaining = RFH_PAIR_ACCEPT_BURSTS;
+            g_pair_accept_bursts_remaining =
+                rx_pair_bursts_for_ms(RFH_PAIR_RESPONSE_BURST_MS);
         }
         if(rx_send_pair_accept(g_pair_accept_channel) == 0u)
         {
@@ -1280,7 +1324,8 @@ static void rx_pairing_service(uint32_t now)
         if(rx_write_current_pair_bond() != 0u)
         {
             g_pair_done_ready = 1u;
-            g_pair_done_bursts_remaining = RFH_PAIR_DONE_BURSTS;
+            g_pair_done_bursts_remaining =
+                rx_pair_bursts_for_ms(RFH_PAIR_RESPONSE_BURST_MS);
             PRINT("[RX][RFH] pairing:bond_ok aa:%08lX\r\n",
                   (unsigned long)g_link_access_address);
             if(rx_tmr_reached(TMR0_GetCurrentTimer(), g_pair_done_due_tmr) != 0u)
@@ -1290,7 +1335,7 @@ static void rx_pairing_service(uint32_t now)
             else
             {
                 g_pair_done_pending = 1u;
-                rx_apply_radio_access_address(g_pair_proposed_access_address);
+                rx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
                 rx_set_channel(RFH_PAIR_CHANNEL_A);
                 rx_start_rx();
             }
@@ -1310,6 +1355,7 @@ static void rx_pairing_service(uint32_t now)
         return;
     }
     if((g_pair_done_ready != 0u) &&
+       (g_pair_done_pending == 0u) &&
        (g_pair_tx_active == 0u) &&
        (g_pair_done_bursts_remaining != 0u))
     {
@@ -1525,7 +1571,8 @@ static void rx_schedule_pair_accept(uint8_t countdown_ms, uint8_t channel)
     g_pair_accept_channel = channel;
     g_pair_accept_due_tmr = rx_tmr_add(now_tmr, delay_cycles);
     g_pair_accept_pending = 1u;
-    g_pair_accept_bursts_remaining = RFH_PAIR_ACCEPT_BURSTS;
+    g_pair_accept_bursts_remaining =
+        rx_pair_bursts_for_ms(RFH_PAIR_RESPONSE_BURST_MS);
 }
 
 static void rx_send_pair_done(void)
@@ -1534,7 +1581,7 @@ static void rx_send_pair_done(void)
     {
         return;
     }
-    rx_apply_radio_access_address(g_pair_proposed_access_address);
+    rx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
     rx_set_channel(RFH_PAIR_CHANNEL_A);
     rx_fill_pair_packet(RFH_CMD_PAIR_DONE, g_pair_confirm32, 0u);
     if(rx_start_pair_tx_loaded(RFH_PAIR_CHANNEL_A) == 0u)
@@ -1565,6 +1612,22 @@ static uint8_t rx_pair_common_valid(const uint8_t *air, uint8_t expected_cmd)
     return 1u;
 }
 
+static uint8_t rx_pair_offer_allowed(void)
+{
+    if(g_state == RX_PAIRING)
+    {
+        return 1u;
+    }
+    if((g_state == RX_PAIR_CONFIRM_WAIT) &&
+       (g_pair_bond_write_pending == 0u) &&
+       (g_pair_done_pending == 0u) &&
+       (g_pair_done_ready == 0u))
+    {
+        return 1u;
+    }
+    return 0u;
+}
+
 static uint8_t rx_handle_pair_offer(const uint8_t *air)
 {
     const uint8_t *data = &air[RFH_DATA_OFFSET];
@@ -1582,6 +1645,11 @@ static uint8_t rx_handle_pair_offer(const uint8_t *air)
         return 0u;
     }
 
+    if(countdown_ms < RFH_PAIR_ACCEPT_MIN_COUNTDOWN_MS)
+    {
+        return 0u;
+    }
+
     g_pair_session_nonce = rfh_get_u32(&data[RFH_PAIR_SESSION0]);
     g_peer_id_hash = rfh_get_u32(&data[RFH_PAIR_ARG0]);
     if((g_pair_session_nonce == 0u) || (g_peer_id_hash == 0u))
@@ -1589,9 +1657,14 @@ static uint8_t rx_handle_pair_offer(const uint8_t *air)
         rx_log_note_error();
         return 0u;
     }
-    rx_apply_rate((uint8_t)(meta & RFH_PAIR_META_RATE_MASK), g_ack_window_ms);
+    g_pair_link_rate_code = (uint8_t)(meta & RFH_PAIR_META_RATE_MASK);
+    if(g_pair_link_rate_code > RFH_RATE_8K)
+    {
+        g_pair_link_rate_code = RFH_RATE_8K;
+    }
     g_pair_done_ready = 0u;
     g_pair_bond_write_pending = 0u;
+    g_pair_done_pending = 0u;
     rx_schedule_pair_accept(countdown_ms, g_rx_channel);
     rx_enter_state(RX_PAIR_CONFIRM_WAIT);
     rx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
@@ -1659,7 +1732,7 @@ static uint8_t rx_process_pair_packet(const uint8_t *rx_buf)
     switch(data[RFH_PAIR_CMD_ID])
     {
     case RFH_CMD_PAIR_OFFER:
-        if(g_state == RX_PAIRING)
+        if(rx_pair_offer_allowed() != 0u)
         {
             return rx_handle_pair_offer(air);
         }
@@ -2186,12 +2259,10 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
                 g_pair_accept_bursts_remaining--;
                 if(g_pair_accept_bursts_remaining != 0u)
                 {
-                    rx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
-                    if(rx_send_pair_accept(g_pair_accept_channel) != 0u)
-                    {
-                        return;
-                    }
-                    g_pair_accept_bursts_remaining = 0u;
+                    g_pair_accept_due_tmr =
+                        rx_tmr_add(TMR0_GetCurrentTimer(), rx_ms_to_tmr_cycles(1u));
+                    g_pair_accept_pending = 1u;
+                    return;
                 }
                 rx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
                 rx_set_channel(RFH_PAIR_CHANNEL_A);
@@ -2204,10 +2275,17 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
                 if(g_pair_done_bursts_remaining == 0u)
                 {
                     rx_stop_radio_activity();
+                    rx_apply_rate(g_pair_link_rate_code, g_ack_window_ms);
                     rx_apply_radio_access_address(g_link_access_address);
                     rx_enter_state(RX_UNCONNECTED);
                     rx_start_rx();
                     PRINT("[RX][RFH] pairing:done\r\n");
+                }
+                else
+                {
+                    g_pair_done_due_tmr =
+                        rx_tmr_add(TMR0_GetCurrentTimer(), rx_ms_to_tmr_cycles(1u));
+                    g_pair_done_pending = 1u;
                 }
             }
             else if(g_state == RX_PAIR_CONFIRM_WAIT)
@@ -2518,6 +2596,8 @@ void RF_Init(void)
     rx_xinput_init();
     rx_pair_button_init();
     rx_apply_rate(rfh_rate_code_from_hz(RF_REPORT_PPS), RFH_DEFAULT_ACK_WINDOW_MS);
+    g_pair_restore_rate_code = g_rate_code;
+    g_pair_link_rate_code = g_rate_code;
     g_rx_channel = RFH_MIN_CHANNEL;
     g_scan_channel_a = RFH_MIN_CHANNEL;
     g_scan_channel_b = RFH_MAX_CHANNEL;
@@ -2549,6 +2629,7 @@ void RF_Init(void)
     g_pair_restore_scan_channel_b = RFH_DEFAULT_CHANNEL_B;
     g_pair_restore_ack_channel = RFH_DEFAULT_CHANNEL_A;
     g_pairing_started_clock = 0u;
+    g_pair_scan_due_clock = 0u;
     g_state = RX_COMM;
     rx_enter_state(RX_UNCONNECTED);
     g_last_rx_packet_clock = TMOS_GetSystemClock();

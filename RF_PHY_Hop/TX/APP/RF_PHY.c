@@ -174,7 +174,9 @@ static uint8_t g_ack_seen_this_period = 0u;
 static uint8_t g_ack_period_close_pending = 0u;
 
 static uint16_t g_report_hz = RF_REPORT_PPS;
+static uint16_t g_configured_report_hz = RF_REPORT_PPS;
 static uint8_t g_rate_code = RFH_RATE_8K;
+static uint8_t g_pair_link_rate_code = RFH_RATE_8K;
 static uint8_t g_ack_window_ms = RF_ACK_WINDOW_MS;
 static uint8_t g_ack_window_packets = 8u;
 static uint16_t g_second_pos = 0u;
@@ -203,6 +205,7 @@ static uint8_t g_log_unconnected_events = 0u;
 static uint8_t g_log_errors = 0u;
 
 void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id);
+static uint8_t tx_pairing_active(void);
 static void tx_start_pair_rx(uint8_t channel);
 static void tx_stop_pair_rx(void);
 static uint16_t tx_pair_discovery_cycle_ticks(void);
@@ -325,6 +328,14 @@ bool RF_SetReportRateHz(uint16_t hz)
     if(tx_report_rate_valid(hz) == 0u)
     {
         return false;
+    }
+
+    g_configured_report_hz = hz;
+    if(tx_pairing_active() != 0u)
+    {
+        g_pair_link_rate_code = rfh_rate_code_from_hz(g_configured_report_hz);
+        RF_LINK_LOG("[TX][RFH] rate_defer:%u pair:1000\r\n", (unsigned int)g_configured_report_hz);
+        return true;
     }
 
     if(g_report_hz == hz)
@@ -581,7 +592,7 @@ static uint8_t tx_write_current_pair_bond(void)
                          g_pair_proposed_access_address,
                          RFH_DEFAULT_CHANNEL_A,
                          RFH_DEFAULT_CHANNEL_B,
-                         g_rate_code,
+                         g_pair_link_rate_code,
                          g_local_id_hash,
                          g_peer_id_hash,
                          next_counter,
@@ -814,6 +825,8 @@ bool RF_StartPairing(void)
     g_pair_done_pending = 0u;
     g_pending_event_state_code = 0u;
     g_peer_id_hash = 0u;
+    g_pair_link_rate_code = rfh_rate_code_from_hz(g_configured_report_hz);
+    tx_apply_report_rate_hz(1000u, 1u);
     g_pair_session_nonce = tx_generate_session_nonce();
     g_pair_proposed_access_address = RF_LINK_ACCESS_ADDRESS;
     g_pair_confirm32 = 0u;
@@ -849,6 +862,7 @@ bool RF_StopPairing(void)
     tx_stop_radio_activity();
     g_pair_rx_active = 0u;
     g_pair_done_pending = 0u;
+    tx_apply_report_rate_hz(g_configured_report_hz, 1u);
     tx_apply_radio_access_address(g_link_access_address);
     tx_enter_state(TX_UNCONNECTED);
 
@@ -874,6 +888,7 @@ bool RF_Unbind(void)
     g_link_access_address = RF_LINK_ACCESS_ADDRESS;
     g_pair_counter = 0u;
     g_peer_id_hash = 0u;
+    g_pair_link_rate_code = rfh_rate_code_from_hz(g_configured_report_hz);
     tx_bond_clear();
     tx_stop_radio_activity();
     tx_apply_radio_access_address(g_link_access_address);
@@ -1640,7 +1655,7 @@ static void tx_pairing_tick_service(void)
         }
         else
         {
-            tx_apply_radio_access_address(g_pair_proposed_access_address);
+            tx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
             tx_start_pair_rx(RFH_PAIR_CHANNEL_A);
         }
     }
@@ -1854,6 +1869,7 @@ void RF_TxMainLoopProcess(void)
                         (unsigned long)g_link_access_address,
                         (unsigned long)g_peer_id_hash);
             tx_stop_radio_activity();
+            tx_apply_report_rate_hz(g_configured_report_hz, 1u);
             tx_apply_radio_access_address(g_link_access_address);
             g_pending_event_state_code = RF_LINK_STATE_PAIR_OK;
             tx_enter_state(TX_UNCONNECTED);
@@ -2019,7 +2035,7 @@ static void tx_fill_pair_packet(uint8_t cmd, uint32_t arg32, uint8_t meta)
 static void tx_fill_pair_offer_packet(uint16_t pos)
 {
     uint8_t meta = (uint8_t)((RFH_PAIR_PROTO_VERSION << RFH_PAIR_META_VERSION_SHIFT) |
-                             (g_rate_code & RFH_PAIR_META_RATE_MASK));
+                             (g_pair_link_rate_code & RFH_PAIR_META_RATE_MASK));
 
     tx_fill_pair_packet(RFH_CMD_PAIR_OFFER, g_local_id_hash, meta);
     TxBuf[2u + RFH_HDR1_OFFSET] = tx_pair_accept_countdown_ticks(pos);
@@ -2028,7 +2044,7 @@ static void tx_fill_pair_offer_packet(uint16_t pos)
 static void tx_fill_pair_confirm_packet(uint16_t pos)
 {
     uint8_t meta = (uint8_t)(RFH_PAIR_META_WRITE_BOND |
-                             (g_rate_code & RFH_PAIR_META_RATE_MASK));
+                             (g_pair_link_rate_code & RFH_PAIR_META_RATE_MASK));
 
     tx_fill_pair_packet(RFH_CMD_PAIR_CONFIRM, g_pair_proposed_access_address, meta);
     TxBuf[2u + RFH_HDR1_OFFSET] = tx_pair_done_countdown_ticks(pos);
@@ -2183,6 +2199,8 @@ void RF_Init(void)
     {
         initial_report_hz = RFH_DEFAULT_RATE_HZ;
     }
+    g_configured_report_hz = initial_report_hz;
+    g_pair_link_rate_code = rfh_rate_code_from_hz(g_configured_report_hz);
     tx_apply_report_rate_hz(initial_report_hz, 0u);
     g_current_channel = RFH_DISCOVERY_CHANNEL_A;
     g_radio_channel = RFH_DISCOVERY_CHANNEL_A;

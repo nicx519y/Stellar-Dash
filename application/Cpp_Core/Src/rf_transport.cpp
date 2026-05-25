@@ -43,6 +43,8 @@ static const char* linkStateToString(RFLinkState st) {
     case RFLinkState::Connecting: return "CONNECTING";
     case RFLinkState::Connected: return "CONNECTED";
     case RFLinkState::Reconnecting: return "RECONNECTING";
+    case RFLinkState::PairTimeout: return "PAIR_TIMEOUT";
+    case RFLinkState::PairFailed: return "PAIR_FAILED";
     default: return "UNKNOWN";
     }
 }
@@ -112,6 +114,8 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
         status.lastErrorReason = (payloadLen >= 2u) ? frame[4] : 0u;
         state = RFTransportState::Error;
     } else {
+        status.lastErrorCommand = 0u;
+        status.lastErrorReason = 0u;
         state = RFTransportState::Connected;
     }
 

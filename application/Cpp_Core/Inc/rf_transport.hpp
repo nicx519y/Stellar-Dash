@@ -19,6 +19,8 @@ enum class RFLinkState : uint8_t {
     Connecting = 3,
     Connected = 4,
     Reconnecting = 5,
+    PairTimeout = 6,
+    PairFailed = 7,
 };
 
 struct RFModuleStatus {

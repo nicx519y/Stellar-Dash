@@ -35,6 +35,7 @@ static constexpr uint32_t kRfRateApplyRetryMs = 500u;
 static constexpr uint32_t kRfPairingLocalTimeoutMs = 65000u;
 static constexpr uint8_t kRfCmdStartPair = 0x02u;
 static constexpr uint8_t kRfCmdStopPair = 0x03u;
+static constexpr uint8_t kRfEvtError = 0x85u;
 }
 
 bool ConnectionManager::tryRfBringup(bool isRetry) {
@@ -91,7 +92,7 @@ void ConnectionManager::updatePairingStateFromStatus() {
     const RfPairingState prevState = rfPairingState;
     const bool prevActive = rfPairingActive;
 
-    if (st.lastEvent == 0x85u) {
+    if (st.lastEvent == kRfEvtError) {
         rfPairingActive = false;
         rfPairingState = RfPairingState::TxError;
         rfPairingLastErrorCommand = st.lastErrorCommand;
@@ -121,6 +122,16 @@ void ConnectionManager::updatePairingStateFromStatus() {
         rfPairingActive = false;
         rfPairSucceeded = true;
         rfPairingState = RfPairingState::PairOk;
+        break;
+    case RFLinkState::PairTimeout:
+        rfPairingActive = false;
+        rfPairingState = RfPairingState::Timeout;
+        break;
+    case RFLinkState::PairFailed:
+        rfPairingActive = false;
+        rfPairingState = RfPairingState::TxError;
+        rfPairingLastErrorCommand = kRfCmdStartPair;
+        rfPairingLastErrorReason = 2u;
         break;
     case RFLinkState::Idle:
         if (rfPairingState == RfPairingState::PairModeOn || rfPairingActive) {
@@ -296,6 +307,7 @@ bool ConnectionManager::startRfPairing() {
     rfPairingLastErrorReason = 0u;
 
     (void)rfTransport.serviceEvents();
+    const uint32_t errorsBeforeStart = rfTransport.getStatus().errorCounter;
     const bool ok = rfTransport.startPair();
     rfPairingLastEventCounter = rfTransport.getStatus().eventCounter;
 
@@ -306,6 +318,22 @@ bool ConnectionManager::startRfPairing() {
                 (unsigned int)st.lastErrorCommand,
                 (unsigned int)st.lastErrorReason,
                 (unsigned long)st.eventCounter);
+        if (!(st.lastEvent == kRfEvtError && st.errorCounter != errorsBeforeStart)) {
+            APP_DBG("[RF_PAIR] start readback ambiguous, keep waiting evt:0x%02X errors:%lu->%lu",
+                    (unsigned int)st.lastEvent,
+                    (unsigned long)errorsBeforeStart,
+                    (unsigned long)st.errorCounter);
+            rfPairingActive = true;
+            rfPairingState = RfPairingState::PairModeOn;
+            ConnectionLinkState nextState = ConnectionLinkState::Connecting;
+            if (mode == ConnectionMode::CONNECTION_MODE_RF24G && linkState != nextState) {
+                MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
+            }
+            if (mode == ConnectionMode::CONNECTION_MODE_RF24G) {
+                linkState = nextState;
+            }
+            return true;
+        }
         rfPairingActive = false;
         rfPairingState = RfPairingState::TxError;
         rfPairingLastErrorCommand = (st.lastErrorCommand != 0u) ? st.lastErrorCommand : kRfCmdStartPair;
