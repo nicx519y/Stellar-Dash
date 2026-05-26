@@ -123,8 +123,9 @@ extern volatile uint8_t  USBHS_Endp_Busy[ ];
 extern __attribute__ ((aligned(4))) uint8_t USBHS_EP0_Buf[ DEF_USBD_UEP0_SIZE ];
 extern __attribute__ ((aligned(4))) uint8_t USBHS_EP2_Tx_Buf[ DEF_USB_EP2_HS_SIZE ];
 extern __attribute__ ((aligned(4))) uint8_t USBHS_EP3_Tx_Buf[ DEF_USB_EP3_HS_SIZE ];
-extern __attribute__ ((aligned(4))) uint8_t USBHS_EP4_Tx_Buf[ DEF_USB_EP2_HS_SIZE ];
 extern __attribute__ ((aligned(4))) uint8_t USBHS_EP4_Rx_Buf[ DEF_USB_EP2_HS_SIZE ];
+extern __attribute__ ((aligned(4))) uint8_t USBHS_EP5_Tx_Buf[ DEF_USB_EP5_HS_SIZE ];
+extern __attribute__ ((aligned(4))) uint8_t USBHS_EP6_Tx_Buf[ DEF_USB_EP6_HS_SIZE ];
 
 /********************************************************************************/
 /* Function Declaration */

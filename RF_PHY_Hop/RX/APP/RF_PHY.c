@@ -11,6 +11,7 @@
 #include "rf_hop_protocol.h"
 #include "dongle_config.h"
 #include "ch585_usbhs_device.h"
+#include "usbd_compatibility_hid.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -73,6 +74,8 @@
 #define RX_PAIR_BUTTON_PIN             GPIO_Pin_22
 #define RX_PAIR_BUTTON_DEBOUNCE_MS     30u
 #define RX_PAIR_BUTTON_HOLD_MS         5000u
+#define RX_HID_REPORT_MAGIC            0x48u
+#define RX_HID_REPORT_VERSION          0x01u
 
 #define SBP_RF_RF_RX_EVT               4
 #define SBP_RF_STAT_EVT                (1 << 5)
@@ -229,11 +232,14 @@ static uint32_t g_rx_progress_seen_count = 0u;
 static uint32_t g_rx_progress_clock = 0u;
 static xinput_report_t g_current_xinput_report;
 static xinput_report_t g_pending_xinput_report;
+static uint8_t g_current_hid_report[HID_ENDPOINT_SIZE];
+static uint8_t g_pending_hid_report[HID_ENDPOINT_SIZE];
 static uint8_t g_input_payload_buffer[2][RF_INPUT_PAYLOAD_LEN];
 static volatile uint8_t g_input_payload_active_index = 0u;
 static volatile uint32_t g_input_payload_generation = 0u;
 static uint32_t g_input_payload_served_generation = 0u;
 static uint8_t g_xinput_pending = 0u;
+static uint8_t g_hid_pending = 0u;
 static uint8_t g_input_seen_valid = 0u;
 static uint8_t g_last_input_seq = 0u;
 static uint32_t g_last_input_key_mask = 0u;
@@ -581,10 +587,26 @@ static void rx_make_clear_xinput_report(xinput_report_t *report)
     report->report_size = XINPUT_ENDPOINT_SIZE;
 }
 
+static void rx_make_clear_hid_report(uint8_t *report)
+{
+    memset(report, 0, HID_ENDPOINT_SIZE);
+    report[0] = RX_HID_REPORT_MAGIC;
+    report[1] = RX_HID_REPORT_VERSION;
+}
+
+static void rx_hid_init(void)
+{
+    rx_make_clear_hid_report(g_current_hid_report);
+    rx_make_clear_hid_report(g_pending_hid_report);
+    memcpy(HID_Report_Buffer, g_current_hid_report, HID_ENDPOINT_SIZE);
+    g_hid_pending = 0u;
+}
+
 static void rx_xinput_init(void)
 {
     rx_make_clear_xinput_report(&g_current_xinput_report);
     rx_make_clear_xinput_report(&g_pending_xinput_report);
+    rx_hid_init();
     memset(g_input_payload_buffer, 0, sizeof(g_input_payload_buffer));
     g_input_payload_active_index = 0u;
     g_input_payload_generation = 0u;
@@ -612,6 +634,22 @@ static uint8_t rx_try_submit_xinput_report(const xinput_report_t *report)
                               DEF_UEP_CPY_LOAD) == 0u) ? 1u : 0u;
 }
 
+static uint8_t rx_try_submit_hid_report(const uint8_t *report)
+{
+    if(USBHS_DevEnumStatus == 0u)
+    {
+        return 0u;
+    }
+    if((USBHS_Endp_Busy[DEF_UEP6] & DEF_UEP_BUSY) != 0u)
+    {
+        return 0u;
+    }
+    return (USBHS_Endp_DataUp(DEF_UEP6,
+                              (uint8_t *)report,
+                              HID_ENDPOINT_SIZE,
+                              DEF_UEP_CPY_LOAD) == 0u) ? 1u : 0u;
+}
+
 static void rx_queue_xinput_report(const xinput_report_t *report)
 {
     if(memcmp(&g_current_xinput_report, report, sizeof(*report)) == 0)
@@ -630,6 +668,25 @@ static void rx_queue_xinput_report(const xinput_report_t *report)
     g_xinput_pending = 1u;
 }
 
+static void rx_queue_hid_report(const uint8_t *report)
+{
+    if(memcmp(g_current_hid_report, report, HID_ENDPOINT_SIZE) == 0)
+    {
+        return;
+    }
+
+    memcpy(g_current_hid_report, report, HID_ENDPOINT_SIZE);
+    memcpy(HID_Report_Buffer, report, HID_ENDPOINT_SIZE);
+    if(rx_try_submit_hid_report(report) != 0u)
+    {
+        g_hid_pending = 0u;
+        return;
+    }
+
+    memcpy(g_pending_hid_report, report, HID_ENDPOINT_SIZE);
+    g_hid_pending = 1u;
+}
+
 static void rx_flush_xinput_pending(void)
 {
     if(g_xinput_pending == 0u)
@@ -640,6 +697,39 @@ static void rx_flush_xinput_pending(void)
     {
         g_xinput_pending = 0u;
     }
+}
+
+static void rx_flush_hid_pending(void)
+{
+    if(g_hid_pending == 0u)
+    {
+        return;
+    }
+    if(rx_try_submit_hid_report(g_pending_hid_report) != 0u)
+    {
+        g_hid_pending = 0u;
+    }
+}
+
+static void rx_make_hid_report(uint8_t seq,
+                               uint8_t flags,
+                               uint32_t key_mask,
+                               const uint8_t *raw_payload,
+                               uint8_t *report)
+{
+    rx_make_clear_hid_report(report);
+    report[2] = seq;
+    report[3] = flags;
+    report[4] = (uint8_t)(key_mask & 0xFFu);
+    report[5] = (uint8_t)((key_mask >> 8) & 0xFFu);
+    report[6] = (uint8_t)((key_mask >> 16) & 0xFFu);
+    report[7] = (uint8_t)((key_mask >> 24) & 0xFFu);
+    if(raw_payload != NULL)
+    {
+        memcpy(&report[8], raw_payload, RF_INPUT_PAYLOAD_LEN);
+    }
+    report[18] = (uint8_t)(g_report_hz & 0xFFu);
+    report[19] = (uint8_t)((g_report_hz >> 8) & 0xFFu);
 }
 
 static uint8_t rx_parse_hitbox_input(const uint8_t *data,
@@ -707,6 +797,7 @@ static void rx_handle_hitbox_input(const uint8_t *data)
     uint8_t seq;
     uint32_t key_mask;
     xinput_report_t report;
+    uint8_t hid_report[HID_ENDPOINT_SIZE];
 
     if(rx_parse_hitbox_input(data, &seq, &key_mask) == 0u)
     {
@@ -724,7 +815,9 @@ static void rx_handle_hitbox_input(const uint8_t *data)
     g_last_input_seq = seq;
     g_last_input_key_mask = key_mask;
     rx_key_mask_to_xinput_report(key_mask, &report);
+    rx_make_hid_report(seq, data[1], key_mask, data, hid_report);
     rx_queue_xinput_report(&report);
+    rx_queue_hid_report(hid_report);
 }
 
 static void rx_capture_hitbox_input(const uint8_t *data)
@@ -782,6 +875,7 @@ static void rx_copy_latest_input_payload(uint8_t *dst)
 static void rx_clear_xinput_on_stale(uint32_t now_clock)
 {
     xinput_report_t report;
+    uint8_t hid_report[HID_ENDPOINT_SIZE];
 
     if(g_input_seen_valid == 0u)
     {
@@ -796,7 +890,9 @@ static void rx_clear_xinput_on_stale(uint32_t now_clock)
     g_input_seen_valid = 0u;
     g_last_input_key_mask = 0u;
     rx_make_clear_xinput_report(&report);
+    rx_make_clear_hid_report(hid_report);
     rx_queue_xinput_report(&report);
+    rx_queue_hid_report(hid_report);
 }
 
 static uint16_t rx_expected_packets_per_ack(void)
@@ -2113,6 +2209,7 @@ static void rx_service_timers(uint8_t check_idle_timeout)
     {
         rx_service_hitbox_input();
         rx_flush_xinput_pending();
+        rx_flush_hid_pending();
         rx_clear_xinput_on_stale(now_clock);
     }
 

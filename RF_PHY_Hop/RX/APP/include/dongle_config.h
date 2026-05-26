@@ -71,6 +71,7 @@
 #define INPUT_STALE_TIMEOUT_US         (50000u)
 
 #define XINPUT_ENDPOINT_SIZE           (20u)
+#define HID_ENDPOINT_SIZE              (32u)
 
 /* RF input payload: seq, format_flags, key_mask32, reserved[3], crc8. */
 #define RF_INPUT_PAYLOAD_LEN           (10u)

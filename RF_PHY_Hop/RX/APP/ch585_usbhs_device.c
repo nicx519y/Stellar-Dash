@@ -62,6 +62,7 @@ __attribute__ ((aligned(4))) uint8_t USBHS_EP2_Tx_Buf[ DEF_USBD_HS_PACK_SIZE ];
 __attribute__ ((aligned(4))) uint8_t USBHS_EP3_Tx_Buf[ DEF_USBD_HS_PACK_SIZE ];
 __attribute__ ((aligned(4))) uint8_t USBHS_EP4_Rx_Buf[ DEF_USBD_HS_PACK_SIZE ];
 __attribute__ ((aligned(4))) uint8_t USBHS_EP5_Tx_Buf[ DEF_USBD_HS_PACK_SIZE ];
+__attribute__ ((aligned(4))) uint8_t USBHS_EP6_Tx_Buf[ DEF_USBD_HS_PACK_SIZE ];
 
 /* Endpoint tx busy flag */
 volatile uint8_t  USBHS_Endp_Busy[ DEF_UEP_NUM ];
@@ -72,6 +73,8 @@ volatile uint8_t  USBHS_Endp_Busy[ DEF_UEP_NUM ];
 #define MS_OS_DESC_COMPAT_ID_INDEX    0x0004u
 #define MS_OS_DESC_EXT_PROP_INDEX     0x0005u
 #define XINPUT_TELEMETRY_REPORT_DESC_LEN 21u
+#define VENDOR_HID_INTERFACE          0x03u
+#define VENDOR_HID_DESC_OFFSET        124u
 
 static const uint8_t s_ms_os_string_desc[] = {
     0x12u, 0x03u, 'M', 0x00u, 'S', 0x00u, 'F', 0x00u, 'T', 0x00u,
@@ -159,7 +162,7 @@ void USBHS_Device_Endp_Init ( void )
 {
     uint8_t i = 0;
 
-    R16_U2EP_TX_EN = RB_EP0_EN | RB_EP2_EN | RB_EP3_EN | RB_EP5_EN;
+    R16_U2EP_TX_EN = RB_EP0_EN | RB_EP2_EN | RB_EP3_EN | RB_EP5_EN | RB_EP6_EN;
     R16_U2EP_RX_EN = RB_EP0_EN | RB_EP1_EN | RB_EP4_EN;
 
     R32_U2EP0_MAX_LEN  = DEF_USBD_UEP0_SIZE;
@@ -169,12 +172,14 @@ void USBHS_Device_Endp_Init ( void )
     R32_U2EP3_MAX_LEN  = DEF_USBD_FS_PACK_SIZE;
     R32_U2EP4_MAX_LEN  = DEF_USBD_FS_PACK_SIZE;
     R32_U2EP5_MAX_LEN  = DEF_USBD_FS_PACK_SIZE;
+    R32_U2EP6_MAX_LEN  = DEF_USBD_FS_PACK_SIZE;
 #else
     R32_U2EP1_MAX_LEN  = DEF_USB_EP1_HS_SIZE;
     R32_U2EP2_MAX_LEN  = DEF_USB_EP2_HS_SIZE;
     R32_U2EP3_MAX_LEN  = DEF_USB_EP3_HS_SIZE;
     R32_U2EP4_MAX_LEN  = DEF_USB_EP4_HS_SIZE;
     R32_U2EP5_MAX_LEN  = DEF_USB_EP5_HS_SIZE;
+    R32_U2EP6_MAX_LEN  = DEF_USB_EP6_HS_SIZE;
 #endif
 
     R32_U2EP0_DMA    = (uint32_t)(uint8_t *)USBHS_EP0_Buf;
@@ -183,6 +188,7 @@ void USBHS_Device_Endp_Init ( void )
     R32_U2EP3_TX_DMA = (uint32_t)(uint8_t *)USBHS_EP3_Tx_Buf;
     R32_U2EP4_RX_DMA = (uint32_t)(uint8_t *)USBHS_EP4_Rx_Buf;
     R32_U2EP5_TX_DMA = (uint32_t)(uint8_t *)USBHS_EP5_Tx_Buf;
+    R32_U2EP6_TX_DMA = (uint32_t)(uint8_t *)USBHS_EP6_Tx_Buf;
 
     R8_U2EP0_TX_CTRL = USBHS_UEP_T_RES_NAK;
     R8_U2EP0_RX_CTRL = USBHS_UEP_R_RES_ACK;
@@ -191,6 +197,7 @@ void USBHS_Device_Endp_Init ( void )
     R8_U2EP3_TX_CTRL = USBHS_UEP_T_RES_NAK;
     R8_U2EP4_RX_CTRL = USBHS_UEP_R_RES_ACK;
     R8_U2EP5_TX_CTRL = USBHS_UEP_T_RES_NAK;
+    R8_U2EP6_TX_CTRL = USBHS_UEP_T_RES_NAK;
 
     /* Clear End-points Busy Status */
     for( i=0; i < DEF_UEP_NUM; i++ )
@@ -362,8 +369,12 @@ void USB2_DEVICE_IRQHandler( void )
 
                                     case HID_GET_REPORT:                            /* 0x01: GET_REPORT */
                                         Hid_Report_Ptr = 0;
+                                        if(USBHS_SetupReqLen > HID_ENDPOINT_SIZE)
+                                        {
+                                            USBHS_SetupReqLen = HID_ENDPOINT_SIZE;
+                                        }
                                         len = (USBHS_SetupReqLen >= DEF_USBD_UEP0_SIZE) ? DEF_USBD_UEP0_SIZE : USBHS_SetupReqLen;
-                                        memset(USBHS_EP0_Buf, 0, len);
+                                        memcpy(USBHS_EP0_Buf, HID_Report_Buffer, len);
                                         break;
 
                                     case HID_SET_IDLE:                              /* 0x0A: SET_IDLE */
@@ -584,7 +595,19 @@ void USB2_DEVICE_IRQHandler( void )
                                             }
                                             break;
                                         case USB_DESCR_TYP_HID:
-                                            if( USBHS_SetupReqIndex == 0x00 )
+                                            if( (uint8_t)(USBHS_SetupReqIndex & 0xFFu) == VENDOR_HID_INTERFACE )
+                                            {
+                                                if( USBHS_DevSpeed == USBHS_SPEED_HIGH )
+                                                {
+                                                    pUSBHS_Descr = &MyCfgDescr_HS[VENDOR_HID_DESC_OFFSET];
+                                                }
+                                                else
+                                                {
+                                                    pUSBHS_Descr = &MyCfgDescr_FS[VENDOR_HID_DESC_OFFSET];
+                                                }
+                                                len = pUSBHS_Descr[0];
+                                            }
+                                            else if( USBHS_SetupReqIndex == 0x00 )
                                             {
                                                 if( USBHS_DevSpeed == USBHS_SPEED_HIGH )
                                                 {
@@ -598,7 +621,6 @@ void USB2_DEVICE_IRQHandler( void )
                                             }
                                             else
                                             {
-                                                /* Composite layout has no legacy IF4 HID descriptor. */
                                                 errflag = 0xFF;
                                             }
                                             break;
@@ -1060,6 +1082,13 @@ void USB2_DEVICE_IRQHandler( void )
                     R8_U2EP5_TX_CTRL = (R8_U2EP5_TX_CTRL & ~USBHS_UEP_T_RES_MASK) | USBHS_UEP_T_RES_NAK;
                     USBHS_Endp_Busy[ DEF_UEP5 ] &= ~DEF_UEP_BUSY;
                     R8_U2EP5_TX_CTRL &= ~USBHS_UEP_T_DONE;
+                    break;
+                case DEF_UEP6:
+                    R16_U2EP6_T_LEN = 0;
+                    R8_U2EP6_TX_CTRL ^= USBHS_UEP_T_TOG_DATA1;
+                    R8_U2EP6_TX_CTRL = (R8_U2EP6_TX_CTRL & ~USBHS_UEP_T_RES_MASK) | USBHS_UEP_T_RES_NAK;
+                    USBHS_Endp_Busy[ DEF_UEP6 ] &= ~DEF_UEP_BUSY;
+                    R8_U2EP6_TX_CTRL &= ~USBHS_UEP_T_DONE;
                     break;
                 default :
                     break;
