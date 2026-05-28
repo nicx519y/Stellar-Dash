@@ -5,12 +5,25 @@ import type { MonitorEvent, PacketEvent, ErrorEvent, LatencyEvent } from "../../
 type PacketRow = PacketEvent & { id: string };
 type ErrorRow = ErrorEvent & { id: string };
 type RatePoint = { tMs: number; hz: number };
+type LossPoint = { tMs: number; value: number };
+export type ChannelSwitchRow = {
+  id: string;
+  timestampMs: number;
+  from?: number;
+  to?: number;
+  target?: number;
+  state?: string;
+  reason: string;
+  lossPercent?: number;
+  rateHz?: number;
+};
 
-const MAX_ROWS = 100;
-const MAX_EVENTS = 800;
-const MAX_LATENCIES = 200;
-const MAX_RATE_POINTS = 100;
-const RATE_SAMPLE_INTERVAL_MS = 250;
+const MAX_ROWS = 500;
+const MAX_EVENTS = 500;
+const MAX_LATENCIES = 500;
+const MAX_RATE_POINTS = 600;
+const MAX_LOSS_POINTS = 600;
+const MAX_CHANNEL_ROWS = 500;
 
 function nowMs() {
   return Date.now();
@@ -92,19 +105,47 @@ function calcHzFromLatency(latencies: LatencyEvent[]) {
   return { estimatedHz: (ds * 1000) / dt, lastSeq, lastAtMs };
 }
 
+function describeChannelReason(prev: PacketEvent | null, curr: PacketEvent) {
+  const state = curr.rfStateCode ?? "";
+  const prevState = prev?.rfStateCode ?? "";
+  const loss = curr.lossPermille ?? prev?.lossPermille ?? 0;
+  if ((state === "HR" || state === "CA" || prevState === "HR" || prevState === "CA") && curr.targetChannelNumber === curr.channelNumber) {
+    return "Scheduled hop reached target channel";
+  }
+  if ((curr.unconnectedEvents ?? 0) > 0 || state === "U" || state === "PA" || prevState === "U" || prevState === "PA") {
+    return "Channel changed after disconnect/reconnect";
+  }
+  if (loss > 30) {
+    return "Channel changed after high packet loss";
+  }
+  return "Channel changed";
+}
+
+function rfPacketEvents(batch: MonitorEvent[]) {
+  return batch.filter(isPacket).filter((p) => p.channel === "RF" && p.direction === "RX");
+}
+
+function isHopIntent(packet: PacketEvent) {
+  return (
+    (packet.rfStateCode === "HR" || packet.rfStateCode === "CA") &&
+    typeof packet.oldChannelNumber === "number" &&
+    typeof packet.targetChannelNumber === "number" &&
+    packet.oldChannelNumber !== packet.targetChannelNumber
+  );
+}
+
 export function useMonitorStream() {
   const [events, setEvents] = React.useState<MonitorEvent[]>([]);
   const [packetRows, setPacketRows] = React.useState<PacketRow[]>([]);
   const [errorRows, setErrorRows] = React.useState<ErrorRow[]>([]);
   const [latencies, setLatencies] = React.useState<LatencyEvent[]>([]);
   const [rateSeries, setRateSeries] = React.useState<RatePoint[]>([]);
+  const [lossSeries, setLossSeries] = React.useState<LossPoint[]>([]);
+  const [channelSwitches, setChannelSwitches] = React.useState<ChannelSwitchRow[]>([]);
   const [paused, setPausedState] = React.useState(false);
   const pausedRef = React.useRef(false);
   pausedRef.current = paused;
-  const packetRowsRef = React.useRef<PacketRow[]>([]);
-  packetRowsRef.current = packetRows;
-  const latenciesRef = React.useRef<LatencyEvent[]>([]);
-  latenciesRef.current = latencies;
+  const lastRfPacketRef = React.useRef<PacketEvent | null>(null);
 
   React.useEffect(() => {
     let unsub: (() => void) | null = null;
@@ -133,6 +174,97 @@ export function useMonitorStream() {
         const next = prev.concat(add);
         return next.length > MAX_LATENCIES ? next.slice(-MAX_LATENCIES) : next;
       });
+      const rfPackets = rfPacketEvents(batch);
+      const trendPackets = rfPackets.filter(
+        (p) => typeof p.rateHz === "number" && typeof p.lossPermille === "number",
+      );
+      setRateSeries((prev) => {
+        const add = trendPackets.map((p) => ({ tMs: p.timestampMs, hz: p.rateHz ?? 0 }));
+        if (add.length === 0) return prev;
+        const next = prev.concat(add);
+        return next.length > MAX_RATE_POINTS ? next.slice(-MAX_RATE_POINTS) : next;
+      });
+      setLossSeries((prev) => {
+        const add = trendPackets.map((p) => ({ tMs: p.timestampMs, value: (p.lossPermille ?? 0) / 10 }));
+        if (add.length === 0) return prev;
+        const next = prev.concat(add);
+        return next.length > MAX_LOSS_POINTS ? next.slice(-MAX_LOSS_POINTS) : next;
+      });
+      const channelRows: ChannelSwitchRow[] = [];
+      for (const p of rfPackets) {
+        const prev = lastRfPacketRef.current;
+        if (typeof p.channelNumber !== "number") {
+          lastRfPacketRef.current = p;
+          continue;
+        }
+
+        if (!prev || typeof prev.channelNumber !== "number") {
+          channelRows.push({
+            id: formatId("ch"),
+            timestampMs: p.timestampMs,
+            from: p.oldChannelNumber,
+            to: p.channelNumber,
+            target: p.targetChannelNumber,
+            state: p.rfStateCode,
+            reason: "Current channel",
+            lossPercent: typeof p.lossPermille === "number" ? p.lossPermille / 10 : undefined,
+            rateHz: p.rateHz,
+          });
+        } else if (p.channelNumber !== prev.channelNumber) {
+          channelRows.push({
+            id: formatId("ch"),
+            timestampMs: p.timestampMs,
+            from: prev.channelNumber,
+            to: p.channelNumber,
+            target: p.targetChannelNumber,
+            state: p.rfStateCode,
+            reason: describeChannelReason(prev, p),
+            lossPercent: typeof p.lossPermille === "number" ? p.lossPermille / 10 : undefined,
+            rateHz: p.rateHz,
+          });
+        } else if (
+          isHopIntent(p) &&
+          (!isHopIntent(prev) ||
+            prev.oldChannelNumber !== p.oldChannelNumber ||
+            prev.targetChannelNumber !== p.targetChannelNumber ||
+            prev.rfStateCode !== p.rfStateCode)
+        ) {
+          channelRows.push({
+            id: formatId("hop"),
+            timestampMs: p.timestampMs,
+            from: p.oldChannelNumber,
+            to: p.targetChannelNumber,
+            target: p.targetChannelNumber,
+            state: p.rfStateCode,
+            reason: "Received hop request/ack flow",
+            lossPercent: typeof p.lossPermille === "number" ? p.lossPermille / 10 : undefined,
+            rateHz: p.rateHz,
+          });
+        } else if (
+          typeof p.targetChannelNumber === "number" &&
+          p.targetChannelNumber !== p.channelNumber &&
+          p.targetChannelNumber !== prev.targetChannelNumber
+        ) {
+          channelRows.push({
+            id: formatId("target"),
+            timestampMs: p.timestampMs,
+            from: p.channelNumber,
+            to: p.targetChannelNumber,
+            target: p.targetChannelNumber,
+            state: p.rfStateCode,
+            reason: "Target channel changed",
+            lossPercent: typeof p.lossPermille === "number" ? p.lossPermille / 10 : undefined,
+            rateHz: p.rateHz,
+          });
+        }
+        lastRfPacketRef.current = p;
+      }
+      if (channelRows.length > 0) {
+        setChannelSwitches((prev) => {
+          const next = prev.concat(channelRows);
+          return next.length > MAX_CHANNEL_ROWS ? next.slice(-MAX_CHANNEL_ROWS) : next;
+        });
+      }
     };
 
     if (window.connectMonitorApi?.onEvents) {
@@ -145,31 +277,15 @@ export function useMonitorStream() {
     };
   }, []);
 
-  React.useEffect(() => {
-    let timer: number | null = null;
-    const tick = () => {
-      if (pausedRef.current) return;
-      const latencyHz = calcHzFromLatency(latenciesRef.current).estimatedHz || 0;
-      const usbHz = calcRateFromPackets(packetRowsRef.current, "USB", "TX", 1000);
-      const rfHz = calcRateFromPackets(packetRowsRef.current, "RF", "RX", 1000);
-      const hz = rfHz > 0 ? rfHz : latencyHz > 0 ? latencyHz : usbHz;
-      setRateSeries((prev) => {
-        const next = prev.concat({ tMs: nowMs(), hz });
-        return next.length > MAX_RATE_POINTS ? next.slice(-MAX_RATE_POINTS) : next;
-      });
-    };
-    timer = window.setInterval(tick, RATE_SAMPLE_INTERVAL_MS);
-    return () => {
-      if (timer != null) window.clearInterval(timer);
-    };
-  }, []);
-
   const clear = React.useCallback(() => {
     setEvents([]);
     setPacketRows([]);
     setErrorRows([]);
     setLatencies([]);
     setRateSeries([]);
+    setLossSeries([]);
+    setChannelSwitches([]);
+    lastRfPacketRef.current = null;
     if (window.connectMonitorApi?.clear) {
       window.connectMonitorApi.clear().catch(() => {});
     }
@@ -184,6 +300,17 @@ export function useMonitorStream() {
       }
     }
   }, []);
+
+  const loadOlderEvents = React.useCallback(async () => {
+    if (!window.connectMonitorApi?.queryEvents || events.length === 0) return;
+    const before = events[0].timestampMs;
+    const older = await window.connectMonitorApi.queryEvents(before, 500);
+    if (older.length === 0) return;
+    setEvents((prev) => {
+      const next = older.concat(prev);
+      return next.length > MAX_EVENTS ? next.slice(0, MAX_EVENTS) : next;
+    });
+  }, [events]);
 
   React.useEffect(() => {
     if (window.connectMonitorApi?.getPaused) {
@@ -213,5 +340,5 @@ export function useMonitorStream() {
 
   const latency = React.useMemo(() => calcHzFromLatency(latencies), [latencies]);
 
-  return { events, packets, errors, latency, rateSeries, paused, setPaused, clear };
+  return { events, packets, errors, latency, rateSeries, lossSeries, channelSwitches, paused, setPaused, clear, loadOlderEvents };
 }

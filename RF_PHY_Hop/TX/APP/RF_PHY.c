@@ -21,6 +21,10 @@
 #define RF_HOP_MODE                    1
 #endif
 
+#ifndef RF_SERIAL_LOG
+#define RF_SERIAL_LOG                  0
+#endif
+
 #ifndef RF_REPORT_PPS
 #define RF_REPORT_PPS                  RFH_DEFAULT_RATE_HZ
 #endif
@@ -50,7 +54,19 @@
 #endif
 
 #ifndef RF_HOP_COOLDOWN_MS
-#define RF_HOP_COOLDOWN_MS             2000u
+#define RF_HOP_COOLDOWN_MS             RFH_HOP_COOLDOWN_MS_DEFAULT
+#endif
+
+#ifndef RF_HOP_LOSS_WINDOW_SECONDS
+#define RF_HOP_LOSS_WINDOW_SECONDS     10u
+#endif
+
+#ifndef RF_HOP_LOSS_AVG_WEIGHT
+#define RF_HOP_LOSS_AVG_WEIGHT         5u
+#endif
+
+#ifndef RF_HOP_LOSS_RECENT_WEIGHT
+#define RF_HOP_LOSS_RECENT_WEIGHT      1u
 #endif
 
 #ifndef RF_HOP_PREPARE_ADVANCE_MS
@@ -84,7 +100,7 @@
 #define RF_ACK_RX_TIMEOUT_US           RFIP_RX_NO_TIMEOUT
 #define RF_ACK_RX_PRE_GUARD_US         RFH_ACK_RX_PRE_GUARD_US_DEFAULT
 #define RF_ACK_RX_POST_GUARD_US        RFH_ACK_RX_POST_GUARD_US_DEFAULT
-#define RF_LINK_DEBUG_LOG              1
+#define RF_LINK_DEBUG_LOG              RF_SERIAL_LOG
 
 #define SBP_RF_STAT_EVT                (1 << 5)
 
@@ -197,6 +213,13 @@ static uint16_t g_last_ack_rx_count = 0u;
 static uint16_t g_last_ack_expected = 0u;
 static uint8_t g_last_ack_status = 0u;
 static uint8_t g_last_ack_cmd = RFH_CMD_NONE;
+static uint16_t g_loss_window[RF_HOP_LOSS_WINDOW_SECONDS] = {0};
+static uint32_t g_loss_window_sum = 0u;
+static uint16_t g_loss_recent_permille = 0u;
+static uint16_t g_loss_score_permille = 0u;
+static uint8_t g_loss_window_head = 0u;
+static uint8_t g_loss_window_count = 0u;
+static uint8_t g_loss_sample_seen_this_period = 0u;
 
 static uint8_t g_log_ack_ok = 0u;
 static uint8_t g_log_ack_expected = 0u;
@@ -220,6 +243,76 @@ static void tx_handle_pair_packet(void);
 static uint8_t tx_time_reached(uint32_t now, uint32_t deadline)
 {
     return ((int32_t)(now - deadline) >= 0) ? 1u : 0u;
+}
+
+static void tx_loss_window_reset(void)
+{
+    memset(g_loss_window, 0, sizeof(g_loss_window));
+    g_loss_window_sum = 0u;
+    g_loss_recent_permille = 0u;
+    g_loss_score_permille = 0u;
+    g_loss_window_head = 0u;
+    g_loss_window_count = 0u;
+    g_loss_sample_seen_this_period = 0u;
+}
+
+static void tx_loss_window_push(uint16_t loss_permille)
+{
+    if(loss_permille > 1000u)
+    {
+        loss_permille = 1000u;
+    }
+
+    if(g_loss_window_count >= RF_HOP_LOSS_WINDOW_SECONDS)
+    {
+        g_loss_window_sum -= g_loss_window[g_loss_window_head];
+    }
+    else
+    {
+        g_loss_window_count++;
+    }
+
+    g_loss_window[g_loss_window_head] = loss_permille;
+    g_loss_window_sum += loss_permille;
+    g_loss_recent_permille = loss_permille;
+    g_loss_window_head++;
+    if(g_loss_window_head >= RF_HOP_LOSS_WINDOW_SECONDS)
+    {
+        g_loss_window_head = 0u;
+    }
+
+    g_loss_sample_seen_this_period = 1u;
+}
+
+static uint16_t tx_loss_window_average(void)
+{
+    if(g_loss_window_count == 0u)
+    {
+        return 0u;
+    }
+    return (uint16_t)(g_loss_window_sum / g_loss_window_count);
+}
+
+static uint16_t tx_loss_score_permille(void)
+{
+    uint32_t avg_loss;
+    uint32_t total_weight;
+    uint32_t score;
+
+    avg_loss = tx_loss_window_average();
+    total_weight = RF_HOP_LOSS_AVG_WEIGHT + RF_HOP_LOSS_RECENT_WEIGHT;
+    if(total_weight == 0u)
+    {
+        return 0u;
+    }
+    score = ((RF_HOP_LOSS_AVG_WEIGHT * avg_loss) +
+             (RF_HOP_LOSS_RECENT_WEIGHT * g_loss_recent_permille)) /
+            total_weight;
+    if(score > 1000u)
+    {
+        score = 1000u;
+    }
+    return (uint16_t)score;
 }
 
 static uint16_t tx_ms_until(uint32_t deadline)
@@ -302,6 +395,7 @@ static void tx_apply_report_rate_hz(uint16_t hz, uint8_t restart_timer)
     g_dual_pos = 0u;
     g_ack_seen_this_period = 0u;
     g_ack_period_close_pending = 0u;
+    g_loss_sample_seen_this_period = 0u;
     g_ack_miss_count = 0u;
     g_ack_rx_active = 0u;
     g_tick_per_evt = GetSysClock() / g_report_hz;
@@ -643,6 +737,7 @@ static void tx_clear_link_transaction_state(void)
     g_ack_miss_count = 0u;
     g_ack_seen_this_period = 0u;
     g_ack_period_close_pending = 0u;
+    g_loss_sample_seen_this_period = 0u;
     g_wait_ack_deadline_clock = 0u;
     g_hop_due_clock = 0u;
     g_recovery_deadline_clock = 0u;
@@ -661,6 +756,7 @@ static void tx_enter_state(tx_state_t next)
     switch(next)
     {
     case TX_UNCONNECTED:
+        tx_loss_window_reset();
         g_pairing_deadline_clock = 0u;
         g_pairing_elapsed_ticks = 0u;
         g_pairing_timeout_ticks = 0u;
@@ -1045,6 +1141,18 @@ static void tx_on_ack_period_close(void)
         {
             g_log_ack_expected++;
         }
+        if((g_state == TX_COMM) &&
+           (g_ack_seen_this_period != 0u) &&
+           (g_loss_sample_seen_this_period != 0u))
+        {
+            g_loss_score_permille = tx_loss_score_permille();
+            if((RF_AUTO_HOP_ENABLE != 0u) &&
+               (g_loss_score_permille > RF_HOP_LOSS_THRESHOLD_PERMILLE) &&
+               (tx_time_reached(TMOS_GetSystemClock(), g_hop_cooldown_until) != 0u))
+            {
+                tx_start_hop_prepare(tx_next_channel(g_current_channel));
+            }
+        }
         if(g_ack_seen_this_period == 0u)
         {
             if(g_ack_miss_count < 255u)
@@ -1058,6 +1166,7 @@ static void tx_on_ack_period_close(void)
         }
     }
     g_ack_seen_this_period = 0u;
+    g_loss_sample_seen_this_period = 0u;
 }
 
 static void tx_advance_tick(void)
@@ -1332,6 +1441,7 @@ static uint8_t tx_accept_ack(const uint8_t *air, const uint8_t *data)
     uint8_t cmd = data[RFH_ACK_CMD_ID];
     uint8_t status = data[RFH_ACK_STATUS];
     uint8_t channel = data[RFH_ACK_CHANNEL];
+    uint8_t first_ack_this_period;
 
     if(rfh_packet_type(air[RFH_HDR0_OFFSET]) != RFH_PKT_ACK)
     {
@@ -1342,6 +1452,7 @@ static uint8_t tx_accept_ack(const uint8_t *air, const uint8_t *data)
         return 0u;
     }
 
+    first_ack_this_period = (g_ack_seen_this_period == 0u) ? 1u : 0u;
     g_last_ack_loss_permille = rfh_get_u16(&data[RFH_ACK_LOSS_PERMILLE_LO]);
     g_last_ack_rx_count = rfh_get_u16(&data[RFH_ACK_RX_COUNT_LO]);
     g_last_ack_expected = rfh_get_u16(&data[RFH_ACK_EXPECTED_COUNT_LO]);
@@ -1349,12 +1460,16 @@ static uint8_t tx_accept_ack(const uint8_t *air, const uint8_t *data)
     g_last_ack_status = status;
     g_ack_miss_count = 0u;
     gStat.rx_ack++;
-    if(g_ack_seen_this_period == 0u)
+    if(first_ack_this_period != 0u)
     {
         g_ack_seen_this_period = 1u;
         if(g_log_ack_ok < 255u)
         {
             g_log_ack_ok++;
+        }
+        if(g_state == TX_COMM)
+        {
+            tx_loss_window_push(g_last_ack_loss_permille);
         }
     }
 
@@ -1369,12 +1484,6 @@ static uint8_t tx_accept_ack(const uint8_t *air, const uint8_t *data)
         }
         break;
     case TX_COMM:
-        if((RF_AUTO_HOP_ENABLE != 0u) &&
-           (g_last_ack_loss_permille >= RF_HOP_LOSS_THRESHOLD_PERMILLE) &&
-           (tx_time_reached(TMOS_GetSystemClock(), g_hop_cooldown_until) != 0u))
-        {
-            tx_start_hop_prepare(tx_next_channel(g_current_channel));
-        }
         return 1u;
     case TX_HOP_PREPARE_ACK_WAIT:
         if(cmd == RFH_CMD_HOP_PREPARE)
@@ -1528,6 +1637,8 @@ static void tx_fill_packet_for_state(uint8_t channel)
 static void tx_log_5s_emit(void)
 {
     uint16_t loss = g_last_ack_loss_permille;
+    uint16_t loss_avg = tx_loss_window_average();
+    uint16_t loss_score = tx_loss_score_permille();
     uint8_t ack_exp = g_log_ack_expected;
     uint8_t ack_ok = (g_log_ack_ok > 99u) ? 99u : g_log_ack_ok;
 
@@ -1588,6 +1699,13 @@ static void tx_log_5s_emit(void)
                     (unsigned int)g_log_unconnected_events,
                     (unsigned int)g_log_errors);
     }
+
+    RF_LINK_LOG("TH R=%03u G=%03u S=%03u N=%u M=%u\r\n",
+                (unsigned int)g_loss_recent_permille,
+                (unsigned int)loss_avg,
+                (unsigned int)loss_score,
+                (unsigned int)g_loss_window_count,
+                (unsigned int)g_ack_miss_count);
 
     RF_LINK_LOG("TD X=%lu/%lu/%lu/%lu RA=%lu/%lu A=%lu/%lu SPI=%lu/%lu\r\n",
                 (unsigned long)gStat.tx_try,

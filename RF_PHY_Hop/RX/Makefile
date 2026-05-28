@@ -1,6 +1,7 @@
 PROJECT := RF_PHY_Hop_RX
 OUT_DIR := build_rx
 MODE_DEFINE := -DRF_HOP_MODE=2
+SERIAL_LOG ?= 0
 
 # Toolchain prefix, e.g. riscv-none-embed- or riscv32-wch-elf-
 PREFIX ?= riscv32-wch-elf-
@@ -34,10 +35,11 @@ PROFILE_INCLUDE := $(if $(wildcard $(PROFILE_DIR)/include),-I$(PROFILE_DIR)/incl
 LINKER_SCRIPT := $(LD_DIR)/Link.ld
 
 DEFINES := \
-	-DDEBUG=0 \
 	-DCLK_OSC32K=2 \
 	-DRF_8K=1 \
 	$(MODE_DEFINE) \
+	-DRF_SERIAL_LOG=$(SERIAL_LOG) \
+	$(if $(filter 1,$(SERIAL_LOG)),-DDEBUG,) \
 	$(EXTRA_DEFINES)
 
 INCLUDES := \

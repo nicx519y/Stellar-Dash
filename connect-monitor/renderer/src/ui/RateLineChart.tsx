@@ -1,14 +1,20 @@
 import { Box } from "@chakra-ui/react";
 
 export type RatePoint = { tMs: number; hz: number };
+export type TrendPoint = { tMs: number; value: number };
 
-function buildPolyline(points: RatePoint[]): { d: string; min: number; max: number; last: number } {
+function pointValue(point: RatePoint | TrendPoint): number {
+  return "value" in point ? point.value : point.hz;
+}
+
+function buildPolyline(points: Array<RatePoint | TrendPoint>): { d: string; min: number; max: number; last: number } {
   if (points.length === 0) return { d: "", min: 0, max: 0, last: 0 };
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
   for (const p of points) {
-    if (p.hz < min) min = p.hz;
-    if (p.hz > max) max = p.hz;
+    const value = pointValue(p);
+    if (value < min) min = value;
+    if (value > max) max = value;
   }
   if (!Number.isFinite(min) || !Number.isFinite(max)) {
     min = 0;
@@ -27,14 +33,24 @@ function buildPolyline(points: RatePoint[]): { d: string; min: number; max: numb
   const path: string[] = [];
   for (let i = 0; i < n; i++) {
     const x = i * stepX;
-    const yNorm = (points[i].hz - yMin) / (yMax - yMin);
+    const yNorm = (pointValue(points[i]) - yMin) / (yMax - yMin);
     const y = h - yNorm * h;
     path.push(`${x.toFixed(2)},${y.toFixed(2)}`);
   }
-  return { d: path.join(" "), min, max, last: points[n - 1].hz };
+  return { d: path.join(" "), min, max, last: pointValue(points[n - 1]) };
 }
 
-export function RateLineChart({ points }: { points: RatePoint[] }) {
+export function RateLineChart({
+  points,
+  id = "rateLine",
+  from = "rgba(66,153,225,0.85)",
+  to = "rgba(56,178,172,0.85)",
+}: {
+  points: Array<RatePoint | TrendPoint>;
+  id?: string;
+  from?: string;
+  to?: string;
+}) {
   const { d } = buildPolyline(points);
   return (
     <Box
@@ -48,9 +64,9 @@ export function RateLineChart({ points }: { points: RatePoint[] }) {
     >
       <svg viewBox="0 0 100 40" width="100%" height="100%" preserveAspectRatio="none">
         <defs>
-          <linearGradient id="rateLine" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="rgba(66,153,225,0.85)" />
-            <stop offset="100%" stopColor="rgba(56,178,172,0.85)" />
+          <linearGradient id={id} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor={from} />
+            <stop offset="100%" stopColor={to} />
           </linearGradient>
         </defs>
         <path d="M0 40 H100" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
@@ -59,7 +75,7 @@ export function RateLineChart({ points }: { points: RatePoint[] }) {
         {d ? (
           <polyline
             fill="none"
-            stroke="url(#rateLine)"
+            stroke={`url(#${id})`}
             strokeWidth="1.2"
             strokeLinejoin="round"
             strokeLinecap="round"

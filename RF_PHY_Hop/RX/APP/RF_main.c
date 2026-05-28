@@ -30,9 +30,12 @@ void RF_USB_CompositeInit(void);
 #ifndef RF_TEST_HEARTBEAT_LOG
 #define RF_TEST_HEARTBEAT_LOG 0
 #endif
+#ifndef RF_SERIAL_LOG
+#define RF_SERIAL_LOG 0
+#endif
 #define RX_MAIN_TMR0_WRAP        0x04000000UL
 #define RX_MAIN_LOG_PERIOD_TICKS (FREQ_SYS * 5u)
-#define RX_MAIN_PENDING_LOG_PERIOD_TICKS (FREQ_SYS * 1u)
+#define RX_MAIN_HID_TELEMETRY_PERIOD_TICKS (FREQ_SYS / 10u)
 #define RX_LED_PAIR_TOGGLE_MS    250u
 #define RX_LED_COMM_TOGGLE_MS    1000u
 /*********************************************************************
@@ -100,6 +103,7 @@ static uint8_t RX_MainSendCdc(const char *msg)
 
 static void RX_MainFlushLog(void)
 {
+#if (RF_SERIAL_LOG == 1)
     if(s_main_pending_log == FALSE)
     {
         return;
@@ -109,20 +113,29 @@ static void RX_MainFlushLog(void)
     {
         s_main_pending_log = FALSE;
     }
+#endif
 }
 
 static void RX_MainLog(const char *msg)
 {
+#if (RF_SERIAL_LOG == 1)
     PRINT("%s", msg);
     strncpy(s_main_pending_msg, msg, sizeof(s_main_pending_msg) - 1u);
     s_main_pending_msg[sizeof(s_main_pending_msg) - 1u] = '\0';
     s_main_pending_log = TRUE;
     RX_MainFlushLog();
+#else
+    (void)msg;
+#endif
 }
 
 static void RX_MainLogRealtime(const char *msg)
 {
+#if (RF_SERIAL_LOG == 1)
     (void)RX_MainSendCdc(msg);
+#else
+    (void)msg;
+#endif
 }
 
 static void RX_MainLogStats(void)
@@ -150,8 +163,8 @@ void Main_Circulation()
 {
     static uint32_t last_log_tmr = 0;
     static uint32_t log_acc_tmr = 0;
-    static uint32_t last_pending_log_tmr = 0;
-    static uint32_t pending_log_acc_tmr = 0;
+    static uint32_t last_hid_telemetry_tmr = 0;
+    static uint32_t hid_telemetry_acc_tmr = 0;
     static uint32_t rf_init_deadline = 0;
     static uint8_t rf_init_started = FALSE;
     static uint8_t rf_init_done = FALSE;
@@ -190,27 +203,19 @@ void Main_Circulation()
             rf_init_done = TRUE;
             last_log_tmr = TMR0_GetCurrentTimer();
             log_acc_tmr = 0u;
-            last_pending_log_tmr = last_log_tmr;
-            pending_log_acc_tmr = 0u;
+            last_hid_telemetry_tmr = last_log_tmr;
+            hid_telemetry_acc_tmr = 0u;
             RX_MainLog("[RX][MAIN] rf_init_done\r\n");
             continue;
         }
 
-        if((rf_init_done) && (RF_HasPendingStatsLine() != 0u))
+        if((rf_init_done) &&
+           (RX_MainTmr0Elapsed(now_tmr,
+                               &last_hid_telemetry_tmr,
+                               &hid_telemetry_acc_tmr,
+                               RX_MAIN_HID_TELEMETRY_PERIOD_TICKS) != FALSE))
         {
-            if(RX_MainTmr0Elapsed(now_tmr,
-                                  &last_pending_log_tmr,
-                                  &pending_log_acc_tmr,
-                                  RX_MAIN_PENDING_LOG_PERIOD_TICKS) != FALSE)
-            {
-                RX_MainLogStats();
-                continue;
-            }
-        }
-        else
-        {
-            last_pending_log_tmr = now_tmr;
-            pending_log_acc_tmr = 0u;
+            (void)RF_TrySendTelemetryReport();
         }
 
         if(RX_MainTmr0Elapsed(now_tmr,

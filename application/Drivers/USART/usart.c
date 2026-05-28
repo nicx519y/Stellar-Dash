@@ -173,8 +173,12 @@ void USART1_Init(void)
   */
 PUTCHAR_PROTOTYPE
 {
+#if APPLICATION_SERIAL_PRINT
 	uint8_t temp[1] = {ch};
 	HAL_UART_Transmit(&huart1, temp, 1, 0xFFFF);
+#else
+	(void)ch;
+#endif
 	return ch;
 }
 

@@ -26,6 +26,11 @@ export interface PacketEvent {
   rateHz?: number;
   lossPermille?: number;
   channelNumber?: number;
+  rfStateCode?: string;
+  oldChannelNumber?: number;
+  targetChannelNumber?: number;
+  unconnectedEvents?: number;
+  errorEvents?: number;
 }
 
 export interface LatencyEvent {

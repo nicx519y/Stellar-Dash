@@ -1,6 +1,10 @@
-import { Badge, Card, HStack, Table, Text } from "@chakra-ui/react";
+import { Badge, Button } from "@chakra-ui/react";
+import { GrDocumentDownload } from "react-icons/gr";
 
 import type { ErrorEvent } from "../../../shared/monitor-types";
+import { buildErrorLogMarkdown, exportMarkdown } from "./logExport";
+import { toolbarActionButtonProps } from "./panelStyles";
+import { VirtualTable, type VirtualColumn } from "./VirtualTable";
 
 function fmtTime(ms: number) {
   const d = new Date(ms);
@@ -15,45 +19,36 @@ function levelColor(level: string) {
 }
 
 export function ErrorsPanel({ items }: { items: Array<ErrorEvent & { id?: string }> }) {
-  const rows = items.slice(-100).reverse();
+  const rows = items.slice(-500).reverse();
+  const handleExport = () => {
+    void exportMarkdown("error-log.md", buildErrorLogMarkdown(items));
+  };
+  const columns: Array<VirtualColumn<ErrorEvent & { id?: string }>> = [
+    { key: "time", header: "Time", width: "130px", render: (e) => fmtTime(e.timestampMs) },
+    {
+      key: "level",
+      header: "Level",
+      width: "90px",
+      render: (e) => <Badge colorPalette={levelColor(e.level)}>{e.level}</Badge>,
+    },
+    { key: "source", header: "Source", width: "120px", render: (e) => e.source },
+    { key: "code", header: "Code", width: "150px", render: (e) => e.code },
+    { key: "message", header: "Message", width: "490px", render: (e) => e.message },
+  ];
 
   return (
-    <Card.Root variant="outline" bg="rgba(255,255,255,0.02)" borderColor="rgba(255,255,255,0.08)">
-      <Card.Header>
-        <HStack justify="space-between">
-          <Text fontSize="sm" color="gray.400">
-            最近 {rows.length} / 100
-          </Text>
-        </HStack>
-      </Card.Header>
-      <Card.Body p={0}>
-        <Table.ScrollArea maxH="560px">
-          <Table.Root size="sm" variant="line" stickyHeader striped>
-            <Table.Header>
-              <Table.Row>
-                <Table.ColumnHeader color="gray.300">时间</Table.ColumnHeader>
-                <Table.ColumnHeader color="gray.300">级别</Table.ColumnHeader>
-                <Table.ColumnHeader color="gray.300">来源</Table.ColumnHeader>
-                <Table.ColumnHeader color="gray.300">代码</Table.ColumnHeader>
-                <Table.ColumnHeader color="gray.300">消息</Table.ColumnHeader>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {rows.map((e, idx) => (
-                <Table.Row key={(e as any).id ?? `${e.timestampMs}-${idx}`}>
-                  <Table.Cell color="gray.200">{fmtTime(e.timestampMs)}</Table.Cell>
-                  <Table.Cell>
-                    <Badge colorPalette={levelColor(e.level)}>{e.level}</Badge>
-                  </Table.Cell>
-                  <Table.Cell color="gray.200">{e.source}</Table.Cell>
-                  <Table.Cell color="gray.200">{e.code}</Table.Cell>
-                  <Table.Cell color="gray.200">{e.message}</Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table.Root>
-        </Table.ScrollArea>
-      </Card.Body>
-    </Card.Root>
+    <VirtualTable
+      title="Errors"
+      countText={`Recent ${rows.length} / 500`}
+      action={
+        <Button {...toolbarActionButtonProps} onClick={handleExport}>
+          <GrDocumentDownload />
+          Export
+        </Button>
+      }
+      items={rows}
+      columns={columns}
+      rowKey={(e, idx) => e.id ?? `${e.timestampMs}-${idx}`}
+    />
   );
 }

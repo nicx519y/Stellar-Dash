@@ -173,9 +173,9 @@ function parseRfHopRdLine(text: string, timestampMs: number): MonitorEvent[] {
 }
 
 /**
- * Phase 1 简化解析器:
- * 输入一行文本，输出统一监控事件列表。
- * 约定 dongle/app 侧后续输出:
+ * Phase 1 simplified parser:
+ * Accepts one text line and returns normalized monitor events.
+ * Expected dongle/application output:
  * MON|TYPE=STATUS|MODE=RF24G|STATE=Connected|TARGET=2000|ACTUAL=1980
  * MON|TYPE=LATENCY|SEQ=12|D2U=850|D2R=410|R2U=220
  * MON|TYPE=ERROR|SRC=DONGLE|CODE=RF_CRC_FAIL|MSG=crc mismatch

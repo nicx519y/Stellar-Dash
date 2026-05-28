@@ -39,6 +39,7 @@ extern void RF_StartQualityScoreScan(void);
 extern uint8_t RF_IsQualityScoreScanActive(void);
 extern uint8_t RF_HasPendingStatsLine(void);
 extern uint16_t RF_GetStatsLine(char *buf, uint16_t len);
+extern uint8_t RF_TrySendTelemetryReport(void);
 
 #ifdef __cplusplus
 }

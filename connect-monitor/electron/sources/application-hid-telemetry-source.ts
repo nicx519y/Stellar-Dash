@@ -1,8 +1,8 @@
 import type { MonitorEvent } from "../pipeline/types";
 
 /**
- * 解析 application 在 XInput 模式下的 HID telemetry 帧（MON1, 32 bytes）。
- * 帧布局参考 application/Cpp_Core/Src/drivers/xinput/XInputDriver.cpp 的 XInputTelemetryFrame。
+ * Parse the application HID telemetry frame in XInput mode (MON1, 32 bytes).
+ * Frame layout follows XInputTelemetryFrame in application/Cpp_Core/Src/drivers/xinput/XInputDriver.cpp.
  */
 export function parseApplicationHidTelemetryFrame(report: Uint8Array, timestampMs = Date.now()): MonitorEvent[] {
   if (report.length < 32) {

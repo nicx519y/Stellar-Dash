@@ -76,6 +76,7 @@
 #define RX_PAIR_BUTTON_HOLD_MS         5000u
 #define RX_HID_REPORT_MAGIC            0x48u
 #define RX_HID_REPORT_VERSION          0x01u
+#define RX_HID_TELEMETRY_MAGIC         0x314D4852UL /* "RHM1" */
 
 #define SBP_RF_RF_RX_EVT               4
 #define SBP_RF_STAT_EVT                (1 << 5)
@@ -210,9 +211,6 @@ static uint8_t g_log_errors = 0u;
 static uint8_t g_log_app_timeout_events = 0u;
 static uint8_t g_log_data_resync_events = 0u;
 
-static uint8_t g_diag_pending = 0u;
-static uint8_t g_input_payload_line_pending = 0u;
-static uint8_t g_stats_separator_line_pending = 0u;
 static uint32_t g_diag_rx_arm_try = 0u;
 static uint32_t g_diag_rx_arm_ok = 0u;
 static uint32_t g_diag_rx_arm_fail = 0u;
@@ -230,6 +228,9 @@ static uint8_t g_diag_data_resync_events = 0u;
 static volatile uint32_t g_rx_progress_count = 0u;
 static uint32_t g_rx_progress_seen_count = 0u;
 static uint32_t g_rx_progress_clock = 0u;
+static uint32_t g_hid_telemetry_last_clock = 0u;
+static uint32_t g_hid_telemetry_last_rx_count = 0u;
+static uint32_t g_hid_telemetry_seq = 0u;
 static xinput_report_t g_current_xinput_report;
 static xinput_report_t g_pending_xinput_report;
 static uint8_t g_current_hid_report[HID_ENDPOINT_SIZE];
@@ -248,6 +249,7 @@ static uint32_t g_last_valid_input_clock = 0u;
 void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id);
 static uint8_t rx_send_pair_accept(uint8_t channel);
 static void rx_send_pair_done(void);
+static uint16_t rx_calc_loss_permille(uint32_t rx_count, uint32_t expected);
 
 static uint8_t rx_time_reached(uint32_t now, uint32_t deadline)
 {
@@ -853,25 +855,6 @@ static void rx_service_hitbox_input(void)
     rx_handle_hitbox_input(local_payload);
 }
 
-static void rx_copy_latest_input_payload(uint8_t *dst)
-{
-    uint8_t active_index;
-
-    if(dst == NULL)
-    {
-        return;
-    }
-
-    if(g_input_payload_generation == 0u)
-    {
-        memset(dst, 0, RF_INPUT_PAYLOAD_LEN);
-        return;
-    }
-
-    active_index = g_input_payload_active_index;
-    memcpy(dst, g_input_payload_buffer[active_index], RF_INPUT_PAYLOAD_LEN);
-}
-
 static void rx_clear_xinput_on_stale(uint32_t now_clock)
 {
     xinput_report_t report;
@@ -922,6 +905,92 @@ static uint32_t rx_expected_packets_for_elapsed_ms(uint32_t elapsed_ms)
     expected = (uint32_t)(((uint64_t)rx_expected_packets_per_ack() *
                            elapsed_ms) / 1000u);
     return (expected == 0u) ? 1u : expected;
+}
+
+static void rx_put_u16(uint8_t *dst, uint16_t value)
+{
+    dst[0] = (uint8_t)(value & 0xFFu);
+    dst[1] = (uint8_t)((value >> 8) & 0xFFu);
+}
+
+static void rx_put_u32(uint8_t *dst, uint32_t value)
+{
+    dst[0] = (uint8_t)(value & 0xFFu);
+    dst[1] = (uint8_t)((value >> 8) & 0xFFu);
+    dst[2] = (uint8_t)((value >> 16) & 0xFFu);
+    dst[3] = (uint8_t)((value >> 24) & 0xFFu);
+}
+
+uint8_t RF_TrySendTelemetryReport(void)
+{
+    uint8_t report[HID_ENDPOINT_SIZE];
+    uint32_t now_clock;
+    uint32_t elapsed_ticks;
+    uint32_t elapsed_ms;
+    uint32_t rx_count;
+    uint32_t rx_delta;
+    uint32_t expected;
+    uint32_t seq;
+    uint16_t loss;
+
+    if(g_basic_started == 0u)
+    {
+        return 0u;
+    }
+
+    now_clock = TMOS_GetSystemClock();
+    rx_count = g_rx_progress_count;
+    if(g_hid_telemetry_last_clock == 0u)
+    {
+        g_hid_telemetry_last_clock = now_clock;
+        g_hid_telemetry_last_rx_count = rx_count;
+        return 0u;
+    }
+
+    elapsed_ticks = now_clock - g_hid_telemetry_last_clock;
+    elapsed_ms = (uint32_t)(((uint64_t)elapsed_ticks * SYSTEM_TIME_MICROSEN) /
+                            1000u);
+    if(elapsed_ms == 0u)
+    {
+        return 0u;
+    }
+
+    rx_delta = rx_count - g_hid_telemetry_last_rx_count;
+    expected = rx_expected_packets_for_elapsed_ms(elapsed_ms);
+    loss = rx_calc_loss_permille(rx_delta, expected);
+    if(rx_is_seek_scanning_state() != 0u)
+    {
+        loss = 1000u;
+    }
+
+    memset(report, 0, sizeof(report));
+    seq = g_hid_telemetry_seq + 1u;
+    rx_put_u32(&report[0], RX_HID_TELEMETRY_MAGIC);
+    rx_put_u32(&report[4], seq);
+    rx_put_u16(&report[8], (elapsed_ms > 65535u) ? 65535u : (uint16_t)elapsed_ms);
+    rx_put_u16(&report[10], g_report_hz);
+    rx_put_u32(&report[12], rx_delta);
+    rx_put_u32(&report[16], expected);
+    rx_put_u16(&report[20], loss);
+    report[22] = (uint8_t)g_state;
+    report[23] = g_rx_channel;
+    report[24] = g_old_channel;
+    report[25] = g_target_channel;
+    report[26] = g_rate_code;
+    report[27] = g_log_unconnected_events;
+    report[28] = g_log_errors;
+
+    if(rx_try_submit_hid_report(report) == 0u)
+    {
+        g_hid_telemetry_last_clock = now_clock;
+        g_hid_telemetry_last_rx_count = rx_count;
+        return 0u;
+    }
+
+    g_hid_telemetry_seq = seq;
+    g_hid_telemetry_last_clock = now_clock;
+    g_hid_telemetry_last_rx_count = rx_count;
+    return 1u;
 }
 
 static uint32_t rx_log_elapsed_ms(uint32_t now_clock)
@@ -2507,9 +2576,7 @@ uint8_t RF_IsQualityScoreScanActive(void)
 
 uint8_t RF_HasPendingStatsLine(void)
 {
-    return ((g_diag_pending != 0u) ||
-            (g_input_payload_line_pending != 0u) ||
-            (g_stats_separator_line_pending != 0u)) ? 1u : 0u;
+    return 0u;
 }
 
 uint16_t RF_GetStatsLine(char *buf, uint16_t len)
@@ -2520,84 +2587,10 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     uint32_t expected;
     uint16_t loss;
     uint32_t ack_ok = (g_log_ack_ok > 99u) ? 99u : g_log_ack_ok;
-    uint8_t latest_input[RF_INPUT_PAYLOAD_LEN];
-    char latest_hex[(RF_INPUT_PAYLOAD_LEN * 2u) + 1u];
 
     if((buf == NULL) || (len == 0u))
     {
         return 0u;
-    }
-
-    if(g_diag_pending != 0u)
-    {
-        g_diag_pending = 0u;
-        n = snprintf(buf, len,
-                     "RD A=%lu/%lu P=%lu/%lu/%lu B=%lu/%lu/%lu/%lu K=%lu/%lu U=%u/%u\r\n",
-                     (unsigned long)g_diag_rx_arm_try,
-                     (unsigned long)g_diag_rx_arm_fail,
-                     (unsigned long)g_diag_rx_ok,
-                     (unsigned long)g_diag_rx_crcerr,
-                     (unsigned long)g_diag_rx_timeout,
-                     (unsigned long)g_diag_rx_bad_len,
-                     (unsigned long)g_diag_rx_bad_type,
-                     (unsigned long)g_diag_rx_bad_connect,
-                     (unsigned long)g_diag_rx_ignored_data,
-                     (unsigned long)g_diag_tx_ack_try,
-                     (unsigned long)g_diag_tx_ack_fail,
-                     (unsigned int)g_diag_app_timeout_events,
-                     (unsigned int)g_diag_data_resync_events);
-        if(n <= 0)
-        {
-            return 0u;
-        }
-        if(n >= (int)len)
-        {
-            return (uint16_t)(len - 1u);
-        }
-        return (uint16_t)n;
-    }
-
-    if(g_input_payload_line_pending != 0u)
-    {
-        g_input_payload_line_pending = 0u;
-        rx_copy_latest_input_payload(latest_input);
-        (void)snprintf(latest_hex, sizeof(latest_hex),
-                       "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
-                       (unsigned int)latest_input[0],
-                       (unsigned int)latest_input[1],
-                       (unsigned int)latest_input[2],
-                       (unsigned int)latest_input[3],
-                       (unsigned int)latest_input[4],
-                       (unsigned int)latest_input[5],
-                       (unsigned int)latest_input[6],
-                       (unsigned int)latest_input[7],
-                       (unsigned int)latest_input[8],
-                       (unsigned int)latest_input[9]);
-        n = snprintf(buf, len, "RI D=%s\r\n", latest_hex);
-        if(n <= 0)
-        {
-            return 0u;
-        }
-        if(n >= (int)len)
-        {
-            return (uint16_t)(len - 1u);
-        }
-        return (uint16_t)n;
-    }
-
-    if(g_stats_separator_line_pending != 0u)
-    {
-        g_stats_separator_line_pending = 0u;
-        n = snprintf(buf, len, "----------------\r\n");
-        if(n <= 0)
-        {
-            return 0u;
-        }
-        if(n >= (int)len)
-        {
-            return (uint16_t)(len - 1u);
-        }
-        return (uint16_t)n;
     }
 
     now_clock = TMOS_GetSystemClock();
@@ -2672,10 +2665,6 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     g_diag_tx_ack_fail = gStat.tx_ack_fail;
     g_diag_app_timeout_events = g_log_app_timeout_events;
     g_diag_data_resync_events = g_log_data_resync_events;
-    g_diag_pending = 1u;
-    g_input_payload_line_pending = 1u;
-    g_stats_separator_line_pending = 1u;
-
     gStat.rx_ok = 0u;
     gStat.rx_bad_len = 0u;
     gStat.rx_bad_type = 0u;
