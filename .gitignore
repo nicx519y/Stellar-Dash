@@ -22,6 +22,10 @@ common/__pycache__
 
 connect-monitor/node_modules
 connect-monitor/dist
+connect-monitor/build
+connect-monitor/release-builds
+connect-monitor/.next
+connect-monitor/installer-builds
 
 dongle
 RFMoudle

@@ -9,6 +9,8 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "build:renderer": "vite build --config renderer/vite.config.ts",
     "build": "npm run build:renderer && npm run build:electron",
+    "package:win": "npm run build && electron-packager . RF-Monitor --platform=win32 --arch=x64 --out=release-builds --overwrite --prune=true",
+    "installer:win": "npm run build && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ electron-builder --win nsis --x64",
     "start": "electron dist/electron/main.js",
     "start:mock": "cross-env MONITOR_MOCK=1 electron dist/electron/main.js",
     "dev:renderer": "vite --config renderer/vite.config.ts",
@@ -23,6 +25,8 @@
     "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",
     "electron": "^33.2.0",
+    "electron-builder": "^26.8.1",
+    "electron-packager": "^17.1.2",
     "typescript": "^5.8.0",
     "vite": "^6.0.5"
   },
@@ -37,5 +41,43 @@
   "optionalDependencies": {
     "node-hid": "^3.1.2",
     "serialport": "^12.0.0"
+  },
+  "build": {
+    "appId": "com.hbox.rfmonitor",
+    "productName": "RF-Monitor",
+    "directories": {
+      "output": "installer-builds"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/node-hid/**/*",
+      "node_modules/serialport/**/*",
+      "node_modules/@serialport/**/*"
+    ],
+    "electronDist": "node_modules/electron/dist",
+    "electronVersion": "33.4.11",
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RF-Monitor"
+    }
   }
 }
