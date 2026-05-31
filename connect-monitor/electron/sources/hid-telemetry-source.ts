@@ -11,6 +11,18 @@ function normalizeHexId(value: string | number | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function publishRfDeviceMissing(publish: PublishFn): void {
+  publish({
+    kind: "device_status",
+    timestampMs: Date.now(),
+    mode: "RF24G",
+    state: "Disconnected",
+    statusLabel: "设备未接入",
+    targetRateHz: 0,
+    actualRateHz: 0,
+  });
+}
+
 export function startHidTelemetrySource(publish: PublishFn): () => void {
   let HID: any;
   try {
@@ -30,21 +42,33 @@ export function startHidTelemetrySource(publish: PublishFn): () => void {
     return false;
   });
 
+  if (devices.length === 0) {
+    publishRfDeviceMissing(publish);
+  }
+
   const opened: any[] = [];
   for (const dev of devices) {
     try {
       const handle = dev.path ? new HID.HID(dev.path) : new HID.HID(dev.vendorId, dev.productId);
       handle.on("data", (buf: Uint8Array) => {
-        const appEvents = parseApplicationHidTelemetryFrame(buf);
-        if (appEvents.length > 0) {
-          for (const ev of appEvents) publish(ev);
-          return;
+        try {
+          const appEvents = parseApplicationHidTelemetryFrame(buf);
+          if (appEvents.length > 0) {
+            for (const ev of appEvents) publish(ev);
+            return;
+          }
+          const dongleEvents = parseDongleHidTelemetryFrame(buf);
+          for (const ev of dongleEvents) publish(ev);
+        } catch (_err) {
+          publishRfDeviceMissing(publish);
         }
-        const dongleEvents = parseDongleHidTelemetryFrame(buf);
-        for (const ev of dongleEvents) publish(ev);
+      });
+      handle.on("error", () => {
+        publishRfDeviceMissing(publish);
       });
       opened.push(handle);
     } catch (_err) {
+      publishRfDeviceMissing(publish);
       // ignore a single device open failure to keep monitor running
     }
   }

@@ -1,6 +1,6 @@
 {
   "name": "connect-monitor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "HBox USB/RF connection monitor client",
   "main": "dist/electron/main.js",

@@ -7,6 +7,7 @@ export interface DeviceStatusEvent {
   timestampMs: number;
   mode: ConnectionMode;
   state: LinkState;
+  statusLabel?: string;
   targetRateHz: number;
   actualRateHz: number;
 }

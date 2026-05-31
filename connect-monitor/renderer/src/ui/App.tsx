@@ -162,6 +162,7 @@ function MetricCard({
   value,
   unit,
   status,
+  statusLabel,
   target,
   alert,
 }: {
@@ -170,6 +171,7 @@ function MetricCard({
   value: string;
   unit: string;
   status?: string;
+  statusLabel?: string;
   target?: string;
   alert?: boolean;
 }) {
@@ -185,7 +187,7 @@ function MetricCard({
         </Text>
         {status || target ? (
           <HStack mt={2} justify="space-between">
-            {status ? <Badge colorPalette={badgeColor(status)}>{status}</Badge> : <Box />}
+            {status ? <Badge colorPalette={badgeColor(status)}>{statusLabel ?? status}</Badge> : <Box />}
             {target ? (
               <Text fontSize="sm" color="gray.400">
                 {target}
@@ -414,6 +416,7 @@ export function App() {
           <MetricCard
             title="RF Connection"
             status={rfStatus?.state ?? "Disconnected"}
+            statusLabel={rfStatus?.statusLabel}
             target={`Target ${rfStatus?.targetRateHz ?? 0} Hz`}
             value={packets.rfRxPerSec.toFixed(1)}
             unit="pkt/s"
