@@ -187,6 +187,12 @@ class ADCManager {
             return ADCBufferInfoList;
         }
 
+        inline uint32_t readBatteryRawValue() const
+        {
+            SCB_CleanInvalidateDCache_by_Addr(adcBufferInfo[1].buffer, adcBufferInfo[1].size);
+            return ADC2_Values[ADC2_BATTERY_DMA_INDEX];
+        }
+
         inline void ADCValuesTestPrint() {
             const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& adcValues = readADCValues();
 
@@ -208,7 +214,7 @@ class ADCManager {
 
         // ADC DMA 缓冲区必须保持静态
         static __attribute__((section("._RAM_D1_Area"))) uint32_t ADC1_Values[NUM_ADC1_BUTTONS];
-        static __attribute__((section("._RAM_D1_Area"))) uint32_t ADC2_Values[NUM_ADC2_BUTTONS];
+        static __attribute__((section("._RAM_D1_Area"))) uint32_t ADC2_Values[ADC2_DMA_PIN_MAP_SIZE];
         static __attribute__((section("._RAM_D3_Area"))) uint32_t ADC3_Values[NUM_ADC3_BUTTONS];
         static uint32_t ADC_Values_Result[NUM_ADC_BUTTONS];
 

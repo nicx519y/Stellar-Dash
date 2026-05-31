@@ -37,7 +37,8 @@ typedef enum {
     SPI_CMD_STOP_PAIR = 0x03,
     SPI_CMD_UNBIND = 0x04,
     SPI_CMD_SET_RATE = 0x05,
-    SPI_CMD_INPUT_DATA = 0x06
+    SPI_CMD_INPUT_DATA = 0x06,
+    SPI_CMD_SET_RADIO = 0x07
 } spi_cmd_t;
 
 typedef enum {
@@ -107,6 +108,7 @@ static bool is_valid_host_cmd(uint8_t cmd)
     case SPI_CMD_UNBIND:
     case SPI_CMD_SET_RATE:
     case SPI_CMD_INPUT_DATA:
+    case SPI_CMD_SET_RADIO:
         return true;
     default:
         return false;
@@ -283,6 +285,17 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
         break;
     case SPI_CMD_INPUT_DATA:
         (void)RF_SPI_FastWriteInput(payload, len);
+        break;
+    case SPI_CMD_SET_RADIO:
+        if ((payload != 0) && (len == 1u) && (payload[0] <= 1u)) {
+            if (RF_SetRadioEnabled(payload[0] != 0u)) {
+                (void)send_status_frame(SPI_EVT_STATE_CHANGED, cmd);
+                break;
+            }
+            (void)send_error_event(cmd, 2u);
+            break;
+        }
+        (void)send_error_event(cmd, 1u);
         break;
     default:
         (void)send_error_event(cmd, 3u);

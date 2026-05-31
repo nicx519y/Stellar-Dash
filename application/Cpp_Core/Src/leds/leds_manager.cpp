@@ -14,6 +14,47 @@ static void on_default_profile_changed_leds(void) {
     LEDsManager::getInstance().refreshDefaultProfile();
 }
 
+namespace {
+    constexpr uint16_t KEY_LED_GLOBAL_BASE = 0;
+    constexpr uint16_t KEY_LED_GLOBAL_COUNT = NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS;
+    constexpr uint16_t AMBIENT_LED_GLOBAL_BASE = KEY_LED_GLOBAL_COUNT;
+    constexpr uint16_t AMBIENT_LED_GLOBAL_COUNT = NUM_LED - AMBIENT_LED_GLOBAL_BASE;
+
+    void clearKeyLeds()
+    {
+        WS2812B_SetLEDBrightness(0, KEY_LED_GLOBAL_BASE, KEY_LED_GLOBAL_COUNT);
+        for (uint16_t i = KEY_LED_GLOBAL_BASE; i < KEY_LED_GLOBAL_COUNT; i++) {
+            WS2812B_SetLEDColor(0, 0, 0, i);
+        }
+    }
+
+    void clearAmbientLeds()
+    {
+        WS2812B_SetLEDBrightness(0, AMBIENT_LED_GLOBAL_BASE, AMBIENT_LED_GLOBAL_COUNT);
+        for (uint16_t i = AMBIENT_LED_GLOBAL_BASE; i < NUM_LED; i++) {
+            WS2812B_SetLEDColor(0, 0, 0, i);
+        }
+    }
+
+    void setKeyLedPower(bool enabled)
+    {
+        if (enabled) {
+            WS2812B_StartStrip(WS2812B_STRIP_KEYS);
+        } else {
+            WS2812B_StopStrip(WS2812B_STRIP_KEYS);
+        }
+    }
+
+    void setAmbientLedPower(bool enabled)
+    {
+        if (enabled) {
+            WS2812B_StartStrip(WS2812B_STRIP_AMBIENT);
+        } else {
+            WS2812B_StopStrip(WS2812B_STRIP_AMBIENT);
+        }
+    }
+}
+
 
 LEDsManager::LEDsManager()
 {
@@ -60,45 +101,41 @@ void LEDsManager::setup()
     WS2812B_SetAllLEDBrightness(0);
     WS2812B_SetAllLEDColor(0, 0, 0);
 
-    if(!opts->ledEnabled) {
-        WS2812B_Stop();
+    updateColorsFromConfig();
+    animationStartTime = HAL_GetTick();
+    aroundLedAnimationStartTime = HAL_GetTick();
+
+    if (!opts->ledEnabled) {
+        clearKeyLeds();
+        setKeyLedPower(false);
     } else {
-        WS2812B_Start();
-        // 设置初始亮度
+        setKeyLedPower(true);
         setLedsBrightness(opts->ledBrightness);
-        // 更新颜色配置
-        updateColorsFromConfig();
 
-        // 初始化动画
-        animationStartTime = HAL_GetTick();
-
-        // 对于静态效果，直接设置颜色
         if (opts->ledEffect == LEDEffect::STATIC) {
-            WS2812B_SetAllLEDColor(backgroundColor1.r, backgroundColor1.g, backgroundColor1.b);
+            for (uint16_t i = KEY_LED_GLOBAL_BASE; i < KEY_LED_GLOBAL_COUNT; i++) {
+                WS2812B_SetLEDColor(backgroundColor1.r, backgroundColor1.g, backgroundColor1.b, i);
+            }
         }
+    }
 
-        if (g_has_led_around) {
-            // 初始化环绕灯
-            aroundLedAnimationStartTime = HAL_GetTick();
-            
-            // 根据配置设置环绕灯
-            if (!opts->aroundLedEnabled) {
-                // 环绕灯关闭，设置为黑色
-                for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
-                    WS2812B_SetLEDColor(0, 0, 0, i);
-                }
-                setAmbientLightBrightness(0);
-            } else {
-                // 环绕灯开启，设置初始状态
-                if (opts->aroundLedEffect == AroundLEDEffect::AROUND_STATIC) {
-                    RGBColor aroundColor = hexToRGB(opts->aroundLedColor1);
-                    for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
-                        WS2812B_SetLEDColor(aroundColor.r, aroundColor.g, aroundColor.b, i);
-                    }
-                    setAmbientLightBrightness(opts->aroundLedBrightness);
+    if (g_has_led_around) {
+        if (!opts->aroundLedEnabled) {
+            clearAmbientLeds();
+            setAmbientLedPower(false);
+        } else {
+            setAmbientLedPower(true);
+            setAmbientLightBrightness(opts->aroundLedBrightness);
+
+            if (!opts->aroundLedSyncToMainLed && opts->aroundLedEffect == AroundLEDEffect::AROUND_STATIC) {
+                RGBColor aroundColor = hexToRGB(opts->aroundLedColor1);
+                for (uint16_t i = AMBIENT_LED_GLOBAL_BASE; i < NUM_LED; i++) {
+                    WS2812B_SetLEDColor(aroundColor.r, aroundColor.g, aroundColor.b, i);
                 }
             }
         }
+    } else {
+        setAmbientLedPower(false);
     }
 
 }
@@ -128,7 +165,7 @@ void LEDsManager::refreshDefaultProfile()
  */
 void LEDsManager::loop(uint32_t virtualPinMask)
 {
-    if(!opts->ledEnabled) {
+    if(!opts->ledEnabled && !(g_has_led_around && opts->aroundLedEnabled)) {
         return;
     }
 
@@ -182,12 +219,11 @@ void LEDsManager::loop(uint32_t virtualPinMask)
         // 环绕灯处理
         if (!opts->aroundLedEnabled) {
             // 模式1：环绕灯关闭 - 设置为黑色，亮度为0
-            for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
-                WS2812B_SetLEDColor(0, 0, 0, i);
-            }
-            setAmbientLightBrightness(0);
+            clearAmbientLeds();
+            setAmbientLedPower(false);
         } else if (opts->aroundLedSyncToMainLed) {
             // 模式2：环绕灯同步到主LED - 使用主LED配置和动画
+            setAmbientLedPower(true);
             
             // 在同步模式下，动画算法需要处理所有LED（主LED + 环绕LED）
             // 为每个环绕LED计算颜色并设置（索引从按钮LED数量开始）
@@ -201,17 +237,24 @@ void LEDsManager::loop(uint32_t virtualPinMask)
             setAmbientLightBrightness(opts->aroundLedBrightness);
         } else {
             // 模式3：环绕灯独立模式 - 使用环绕灯独立配置
+            setAmbientLedPower(true);
             processAroundLedAnimation();
         }
     }
     
     // 为每个主LED（按钮LED）计算颜色并设置
-    for (uint8_t i = 0; i < (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
-        params.index = i;
-        params.pressed = (virtualPinMask & (1 << i)) != 0;
-        
-        RGBColor color = algorithm(params);
-        WS2812B_SetLEDColor(color.r, color.g, color.b, i);
+    if (opts->ledEnabled) {
+        setKeyLedPower(true);
+        for (uint8_t i = 0; i < (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
+            params.index = i;
+            params.pressed = (virtualPinMask & (1 << i)) != 0;
+            
+            RGBColor color = algorithm(params);
+            WS2812B_SetLEDColor(color.r, color.g, color.b, i);
+        }
+    } else {
+        clearKeyLeds();
+        setKeyLedPower(false);
     }
 }
 
@@ -368,8 +411,23 @@ void LEDsManager::enableSwitch() {
         STORAGE_MANAGER.saveConfig();
     }
     
-    deinit();
-    setup();
+    updateColorsFromConfig();
+    animationStartTime = HAL_GetTick();
+
+    if (!opts->ledEnabled) {
+        clearKeyLeds();
+        setKeyLedPower(false);
+        return;
+    }
+
+    setKeyLedPower(true);
+    setLedsBrightness(opts->ledBrightness);
+
+    if (opts->ledEffect == LEDEffect::STATIC) {
+        for (uint16_t i = KEY_LED_GLOBAL_BASE; i < KEY_LED_GLOBAL_COUNT; i++) {
+            WS2812B_SetLEDColor(backgroundColor1.r, backgroundColor1.g, backgroundColor1.b, i);
+        }
+    }
 }
 
 void LEDsManager::setLedsBrightness(uint8_t brightness) {
@@ -726,8 +784,22 @@ void LEDsManager::ambientLightEnableSwitch() {
         STORAGE_MANAGER.saveConfig();
     }
     
-    deinit();
-    setup();
+    if (!g_has_led_around || !opts->aroundLedEnabled) {
+        clearAmbientLeds();
+        setAmbientLedPower(false);
+        return;
+    }
+
+    aroundLedAnimationStartTime = HAL_GetTick();
+    setAmbientLedPower(true);
+    setAmbientLightBrightness(opts->aroundLedBrightness);
+
+    if (!opts->aroundLedSyncToMainLed && opts->aroundLedEffect == AroundLEDEffect::AROUND_STATIC) {
+        RGBColor aroundColor = hexToRGB(opts->aroundLedColor1);
+        for (uint16_t i = AMBIENT_LED_GLOBAL_BASE; i < NUM_LED; i++) {
+            WS2812B_SetLEDColor(aroundColor.r, aroundColor.g, aroundColor.b, i);
+        }
+    }
 }
 
 

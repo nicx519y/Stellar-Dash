@@ -67,6 +67,7 @@ void InputState::setup()
 
     if (connectionMode == ConnectionMode::CONNECTION_MODE_USB)
     {
+        CONNECTION_MANAGER.setup(connectionMode, STORAGE_MANAGER.getWirelessReportRate());
         APP_DBG("[INPUT] Initializing USB driver manager");
         DRIVER_MANAGER.setup(inputMode);
         inputDriver = DRIVER_MANAGER.getDriver();

@@ -22,10 +22,8 @@
 
 #define LED_DEFAULT_BRIGHTNESS 128
 
-/* Keys strip physical LED count: ADC1/2/3 map sum (GPIO keys excluded). */
 enum {
-    WS2812B_KEYS_LED_COUNT = (NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS + NUM_ADC3_BUTTONS),
-    WS2812B_KEYS_LOGICAL_LED_COUNT = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS),
+    WS2812B_KEYS_LED_COUNT = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS),
     WS2812B_AMBIENT_LED_COUNT = NUM_LED_AROUND
 };
 
@@ -190,12 +188,7 @@ static bool map_global_index(uint16_t globalIndex, WS2812B_Strip* strip, uint16_
         return true;
     }
 
-    if (globalIndex < (uint16_t)WS2812B_KEYS_LOGICAL_LED_COUNT) {
-        /* Legacy GPIO key indices exist logically but have no physical key LEDs. */
-        return false;
-    }
-
-    uint16_t ambientGlobalBase = (uint16_t)WS2812B_KEYS_LOGICAL_LED_COUNT;
+    uint16_t ambientGlobalBase = (uint16_t)WS2812B_KEYS_LED_COUNT;
     uint16_t ambientGlobalEnd = (uint16_t)(ambientGlobalBase + WS2812B_AMBIENT_LED_COUNT);
 
     if (globalIndex < ambientGlobalEnd) {
@@ -315,6 +308,7 @@ void WS2812B_InitStrip(WS2812B_Strip strip)
             (unsigned)(WS2812B_TIM_PERIOD + 1u),
             (unsigned long)((1000000000ull * (unsigned long long)LOW_CCR_CODE) / (unsigned long long)timClkHz),
             (unsigned long)((1000000000ull * (unsigned long long)HIGH_CCR_CODE) / (unsigned long long)timClkHz));
+    (void)timClkHz;
 
     *initialized = true;
 }

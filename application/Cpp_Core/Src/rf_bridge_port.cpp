@@ -745,7 +745,7 @@ bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint1
 
     const bool should_try_readback = (txLen >= 2u) &&
                                      ((cmd == 0x01u) || (cmd == 0x02u) || (cmd == 0x03u) ||
-                                      (cmd == 0x04u) || (cmd == 0x05u));
+                                      (cmd == 0x04u) || (cmd == 0x05u) || (cmd == 0x07u));
     if (should_try_readback && (rx != nullptr) && (rxLen != nullptr) && (*rxLen != 0u)) {
         if (*rxLen < 4u) {
             *rxLen = 0u;

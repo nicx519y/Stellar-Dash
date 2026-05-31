@@ -62,6 +62,8 @@ private:
     uint16_t appliedReportRateHz = 1000;
     uint16_t requestedReportRateHz = 1000;
     bool rateApplyPending = false;
+    bool rfRadioEnabled = false;
+    bool rfInputStreamingEnabled = false;
     uint32_t lastRfStatusPollMs = 0;
     uint32_t lastRfBeginRetryMs = 0;
     uint32_t rfStatLastMs = 0;

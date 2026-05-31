@@ -150,6 +150,7 @@ __attribute__((__aligned__(4))) static uint8_t TxBuf[64];
 __attribute__((__aligned__(4))) static uint8_t RxBuf[264];
 
 static volatile uint8_t g_basic_started = 0u;
+static volatile uint8_t g_radio_enabled = 0u;
 static volatile tx_state_t g_state = TX_UNCONNECTED;
 static volatile uint8_t g_ack_rx_active = 0u;
 static volatile uint8_t g_low_config_ret = 0xFFu;
@@ -239,6 +240,8 @@ static uint8_t tx_pair_confirm_tx_slot(uint16_t pos);
 static void tx_fill_pair_offer_packet(uint16_t pos);
 static void tx_fill_pair_confirm_packet(uint16_t pos);
 static void tx_handle_pair_packet(void);
+static void tx_basic_start(void);
+static void tx_enter_state(tx_state_t next);
 
 static uint8_t tx_time_reached(uint32_t now, uint32_t deadline)
 {
@@ -425,6 +428,12 @@ bool RF_SetReportRateHz(uint16_t hz)
     }
 
     g_configured_report_hz = hz;
+    if(g_radio_enabled == 0u)
+    {
+        tx_apply_report_rate_hz(hz, 0u);
+        return true;
+    }
+
     if(tx_pairing_active() != 0u)
     {
         g_pair_link_rate_code = rfh_rate_code_from_hz(g_configured_report_hz);
@@ -731,6 +740,22 @@ static void tx_stop_radio_activity(void)
     g_pair_rx_active = 0u;
 }
 
+static void tx_timer_stop(void)
+{
+    PFIC_DisableIRQ(TMR0_IRQn);
+    TMR0_ITCfg(DISABLE, TMR0_3_IT_CYC_END);
+    TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
+}
+
+static void tx_timer_start(void)
+{
+    TMR0_TimerInit(g_tick_per_evt);
+    TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
+    TMR0_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
+    PFIC_SetPriority(TMR0_IRQn, 0x80);
+    PFIC_EnableIRQ(TMR0_IRQn);
+}
+
 static void tx_clear_link_transaction_state(void)
 {
     g_expected_ack_cmd = RFH_CMD_NONE;
@@ -741,6 +766,28 @@ static void tx_clear_link_transaction_state(void)
     g_wait_ack_deadline_clock = 0u;
     g_hop_due_clock = 0u;
     g_recovery_deadline_clock = 0u;
+}
+
+static void tx_reset_radio_session_state(void)
+{
+    tx_clear_link_transaction_state();
+    tx_loss_window_reset();
+    rfm_input_stream_init();
+    memset(g_last_payload, 0, sizeof(g_last_payload));
+    g_has_payload = 0u;
+    g_spi_input_log_valid = 0u;
+    g_pairing_deadline_clock = 0u;
+    g_pairing_elapsed_ticks = 0u;
+    g_pairing_timeout_ticks = 0u;
+    g_pairing_timeout_pending = 0u;
+    g_pair_rx_active = 0u;
+    g_pair_done_pending = 0u;
+    g_pending_event_state_code = 0u;
+    g_ack_rx_active = 0u;
+    tx_apply_report_rate_hz(g_configured_report_hz, 0u);
+    tx_apply_radio_access_address(g_link_access_address);
+    g_state = TX_COMM;
+    tx_enter_state(TX_UNCONNECTED);
 }
 
 static void tx_enter_state(tx_state_t next)
@@ -826,6 +873,11 @@ static void tx_enter_state(tx_state_t next)
 
 uint8_t RF_GetLinkStateCode(void)
 {
+    if(g_radio_enabled == 0u)
+    {
+        return RF_LINK_STATE_IDLE;
+    }
+
     switch(g_state)
     {
     case TX_PAIRING:
@@ -869,6 +921,11 @@ void RF_ClearPendingEventStateCode(uint8_t state_code)
 
 uint8_t RF_IsConnected(void)
 {
+    if(g_radio_enabled == 0u)
+    {
+        return 0u;
+    }
+
     return ((g_state == TX_COMM) ||
             (g_state == TX_HOP_PREPARE_ACK_WAIT) ||
             (g_state == TX_HOP_RESERVED) ||
@@ -903,6 +960,11 @@ uint32_t RF_GetRejectCount(void)
 bool RF_StartPairing(void)
 {
     uint8_t guard_timer = (g_basic_started != 0u) ? 1u : 0u;
+
+    if(g_radio_enabled == 0u)
+    {
+        return false;
+    }
 
     if(tx_pairing_active() != 0u)
     {
@@ -944,6 +1006,11 @@ bool RF_StopPairing(void)
 {
     uint8_t guard_timer = (g_basic_started != 0u) ? 1u : 0u;
 
+    if(g_radio_enabled == 0u)
+    {
+        return false;
+    }
+
     if(tx_pairing_active() == 0u)
     {
         RF_LINK_LOG("[TX][RFH] pairing:stop idle\r\n");
@@ -975,6 +1042,11 @@ bool RF_Unbind(void)
 {
     uint8_t guard_timer = (g_basic_started != 0u) ? 1u : 0u;
 
+    if(g_radio_enabled == 0u)
+    {
+        return false;
+    }
+
     if(guard_timer != 0u)
     {
         PFIC_DisableIRQ(TMR0_IRQn);
@@ -996,6 +1068,47 @@ bool RF_Unbind(void)
     }
 
     RF_LINK_LOG("[TX][RFH] unbind\r\n");
+    return true;
+}
+
+bool RF_SetRadioEnabled(bool enabled)
+{
+    if(enabled == false)
+    {
+        g_radio_enabled = 0u;
+        tx_timer_stop();
+        tx_stop_radio_activity();
+        PFIC_DisableIRQ(BLEB_IRQn);
+        PFIC_DisableIRQ(BLEL_IRQn);
+        tx_reset_radio_session_state();
+        RF_LINK_LOG("[TX][RFH] radio:off\r\n");
+        return true;
+    }
+
+    if(g_radio_enabled != 0u)
+    {
+        return true;
+    }
+
+    tx_timer_stop();
+    tx_stop_radio_activity();
+    tx_reset_radio_session_state();
+    PFIC_EnableIRQ(BLEB_IRQn);
+    PFIC_EnableIRQ(BLEL_IRQn);
+    if(g_basic_started == 0u)
+    {
+        tx_basic_start();
+    }
+    if(g_basic_started == 0u)
+    {
+        PFIC_DisableIRQ(BLEB_IRQn);
+        PFIC_DisableIRQ(BLEL_IRQn);
+        return false;
+    }
+
+    g_radio_enabled = 1u;
+    tx_timer_start();
+    RF_LINK_LOG("[TX][RFH] radio:on\r\n");
     return true;
 }
 
@@ -1842,6 +1955,11 @@ void TMR0_IRQHandler(void)
 
     TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
 
+    if(g_radio_enabled == 0u)
+    {
+        return;
+    }
+
     if(g_basic_started == 0u)
     {
         tx_advance_tick();
@@ -1875,6 +1993,11 @@ __HIGH_CODE
 void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
 {
     (void)id;
+
+    if(g_radio_enabled == 0u)
+    {
+        return;
+    }
 
     if(sta & RF_STATE_TX_FINISH)
     {
@@ -1978,6 +2101,11 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
 __HIGH_CODE
 void RF_TxMainLoopProcess(void)
 {
+    if(g_radio_enabled == 0u)
+    {
+        return;
+    }
+
     if(g_pair_done_pending != 0u)
     {
         g_pair_done_pending = 0u;
@@ -2278,6 +2406,11 @@ static void tx_handle_pair_packet(void)
 
 bool RF_SPI_FastWriteInput(const uint8_t *payload, uint8_t len)
 {
+    if(g_radio_enabled == 0u)
+    {
+        return false;
+    }
+
     if((payload == NULL) || (len != RFH_AIR_DATA_LEN))
     {
         return false;
@@ -2297,9 +2430,6 @@ bool RF_SPI_FastWriteInput(const uint8_t *payload, uint8_t len)
 void RF_Init(void)
 {
     taskID = TMOS_ProcessEventRegister(RF_ProcessEvent);
-
-    PFIC_EnableIRQ(BLEB_IRQn);
-    PFIC_EnableIRQ(BLEL_IRQn);
 
     rfm_input_stream_init();
     memset(g_last_payload, 0, sizeof(g_last_payload));
@@ -2349,14 +2479,11 @@ void RF_Init(void)
     g_log_errors = 0u;
     g_state = TX_COMM;
     tx_enter_state(TX_UNCONNECTED);
+    g_basic_started = 0u;
+    g_radio_enabled = 0u;
 
     tmos_start_task(taskID, SBP_RF_STAT_EVT, MS1_TO_SYSTEM_TIME(RF_STAT_PRINT_PERIOD_MS));
-    tx_basic_start();
-
-    TMR0_TimerInit(g_tick_per_evt);
-    TMR0_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
-    PFIC_SetPriority(TMR0_IRQn, 0x80);
-    PFIC_EnableIRQ(TMR0_IRQn);
+    tx_timer_stop();
 }
 
 /******************************** endfile @ RF_PHY ******************************/

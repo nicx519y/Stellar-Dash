@@ -61,7 +61,8 @@ static uint32_t g_perfFrames = 0;
 static uint32_t g_perfBlocked = 0;
 static uint32_t g_battUiLastSampleMs = 0;
 static uint8_t g_battUiSoc = 0;
-static PowerChargeState g_battUiChargeState = PowerChargeState::Unknown;
+static bool g_battUiCharging = false;
+static bool g_battUiFastCharging = false;
 
 static bool ok_flash_active(void) {
     return (uint32_t)(HAL_GetTick() - g_okFlashUntilMs) > 0x80000000u ? false : (HAL_GetTick() < g_okFlashUntilMs);
@@ -136,11 +137,12 @@ static void update_battery_ui_cache(uint32_t nowMs) {
         return;
     }
     g_battUiLastSampleMs = nowMs;
-    float soc = POWER_MANAGER.getTotalSocPercent();
+    float soc = POWER_MANAGER.getBatterySocPercent();
     if (soc < 0.0f) soc = 0.0f;
     if (soc > 100.0f) soc = 100.0f;
     g_battUiSoc = (uint8_t)(soc + 0.5f);
-    g_battUiChargeState = POWER_MANAGER.getChargeState();
+    g_battUiCharging = POWER_MANAGER.isCharging();
+    g_battUiFastCharging = POWER_MANAGER.isFastCharging();
 }
 
 static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_t h, uint32_t fg, uint32_t bg, uint32_t nowMs) {
@@ -163,7 +165,7 @@ static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_
     ST7789_FillRect(lcd, innerX, innerY, innerW, innerH, bg);
     const uint16_t baseFillW = (uint16_t)((uint32_t)innerW * (uint32_t)g_battUiSoc / 100u);
     uint16_t fillW = baseFillW;
-    if (g_battUiChargeState == PowerChargeState::Charging && baseFillW < innerW) {
+    if (g_battUiCharging && baseFillW < innerW) {
         const uint32_t periodMs = 1200u;
         const uint32_t t = (periodMs == 0u) ? 0u : (nowMs % periodMs);
         const uint32_t span = (uint32_t)(innerW - baseFillW);
@@ -173,6 +175,13 @@ static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_
     if (g_battUiSoc > 0u && fillW == 0u) fillW = 1u;
     if (fillW > 0u) {
         ST7789_FillRect(lcd, innerX, innerY, fillW, innerH, fg);
+    }
+    if (g_battUiFastCharging) {
+        const uint16_t charW = 6u;
+        const uint16_t charH = 8u;
+        const uint16_t sx = (uint16_t)(innerX + ((innerW > charW) ? ((innerW - charW) / 2u) : 0u));
+        const uint16_t sy = (uint16_t)(innerY + ((innerH > charH) ? ((innerH - charH) / 2u) : 0u));
+        ST7789_DrawString(lcd, sx, sy, "S", fg, bg, 1);
     }
 }
 

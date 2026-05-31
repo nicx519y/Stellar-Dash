@@ -53,8 +53,8 @@
 #endif
 
 /* Debug print configuration */
-#define APPLICATION_SERIAL_PRINT 0   // 设置为 1 可以恢复 USART1 串口 printf 输出
-#define APPLICATION_DEBUG_PRINT  0   // 设置为 1 可以恢复 APP_DBG/APP_ERR 调试打印
+#define APPLICATION_SERIAL_PRINT 1   // 设置为 1 可以恢复 USART1 串口 printf 输出
+#define APPLICATION_DEBUG_PRINT  1   // 设置为 1 可以恢复 APP_DBG/APP_ERR 调试打印
 
 #ifndef RF24G_SPI_TEST_FORCE_RF24G
 #define RF24G_SPI_TEST_FORCE_RF24G 0
@@ -227,8 +227,8 @@
 #define ROTENC_A_PIN                            GPIO_PIN_8
 #define ROTENC_B_PORT                           GPIOH
 #define ROTENC_B_PIN                            GPIO_PIN_9
-#define ROTENC_BTN_PORT                         GPIOH
-#define ROTENC_BTN_PIN                          GPIO_PIN_7
+#define ROTENC_BTN_PORT                         GPIOA
+#define ROTENC_BTN_PIN                          GPIO_PIN_0
 #define ROTENC_EXTI_IRQn                        EXTI9_5_IRQn
 
 /* ================= USB =================
@@ -274,27 +274,17 @@
 #define VBUS_STATUS_PORT                        GPIOG
 #define VBUS_STATUS_PIN                         GPIO_PIN_8
 
-#define BAT_STATUS_PORT                         GPIOB
-#define BAT_STATUS_PIN                          GPIO_PIN_8
-
-#define BAT_H1_CHANNEL_CTRL_PORT                GPIOH
-#define BAT_H1_CHANNEL_CTRL_PIN                 GPIO_PIN_14
-
-#define BAT_H2_CHANNEL_CTRL_PORT                GPIOH
-#define BAT_H2_CHANNEL_CTRL_PIN                 GPIO_PIN_15
+#define FAST_CHARGING_STATUS_PORT               GPIOG
+#define FAST_CHARGING_STATUS_PIN                GPIO_PIN_9
 
 #define VBAT_SENSE_ADC_PORT                     GPIOA
-#define VBAT_SENSE_ADC_PIN                      GPIO_PIN_0
-#define VBAT_SENSE_ADC_CHANNEL                  ADC_CHANNEL_16
+#define VBAT_SENSE_ADC_PIN                      GPIO_PIN_4
+#define VBAT_SENSE_ADC_CHANNEL                  ADC_CHANNEL_18
 
-#define VBAT_H1_SENSE_CTRL_PORT                 GPIOI
-#define VBAT_H1_SENSE_CTRL_PIN                  GPIO_PIN_1
-
-#define VBAT_BAT_SENSE_CTRL_PORT                GPIOA
-#define VBAT_BAT_SENSE_CTRL_PIN                 GPIO_PIN_15
-
-#define VBAT_H2_SENSE_CTRL_PORT                 GPIOI
-#define VBAT_H2_SENSE_CTRL_PIN                  GPIO_PIN_0
+#define POWER_WAKEUP_PORT                       GPIOA
+#define POWER_WAKEUP_PIN                        GPIO_PIN_0
+#define POWER_WAKEUP_PWR_PIN                    PWR_WAKEUP_PIN1
+#define POWER_WAKEUP_FLAG                       PWR_WAKEUP_FLAG1
 
 
 // web config
@@ -373,6 +363,16 @@ static const ADC_PinConfig ADC2_PIN_MAP[] = {
     { GPIOA, GPIO_PIN_2,  ADC_CHANNEL_14, ADC_REGULAR_RANK_6, 9 },
 };
 
+static const ADC_PinConfig ADC2_DMA_PIN_MAP[] = {
+    { GPIOF, GPIO_PIN_13, ADC_CHANNEL_2,  ADC_REGULAR_RANK_1, 1 },
+    { GPIOF, GPIO_PIN_14, ADC_CHANNEL_6,  ADC_REGULAR_RANK_2, 3 },
+    { GPIOC, GPIO_PIN_1,  ADC_CHANNEL_11, ADC_REGULAR_RANK_3, 14 },
+    { GPIOC, GPIO_PIN_2,  ADC_CHANNEL_12, ADC_REGULAR_RANK_4, 12 },
+    { GPIOC, GPIO_PIN_3,  ADC_CHANNEL_13, ADC_REGULAR_RANK_5, 8 },
+    { GPIOA, GPIO_PIN_2,  ADC_CHANNEL_14, ADC_REGULAR_RANK_6, 9 },
+    { VBAT_SENSE_ADC_PORT, VBAT_SENSE_ADC_PIN, VBAT_SENSE_ADC_CHANNEL, ADC_REGULAR_RANK_7, 0xFF },
+};
+
 static const ADC_PinConfig ADC3_PIN_MAP[] = {
     { GPIOF, GPIO_PIN_5,  ADC_CHANNEL_4,  ADC_REGULAR_RANK_1, 16 },
     { GPIOF, GPIO_PIN_4,  ADC_CHANNEL_9,  ADC_REGULAR_RANK_2, 15 },
@@ -384,6 +384,8 @@ static const ADC_PinConfig ADC3_PIN_MAP[] = {
 
 #define ADC1_PIN_MAP_SIZE (sizeof(ADC1_PIN_MAP)/sizeof(ADC_PinConfig))
 #define ADC2_PIN_MAP_SIZE (sizeof(ADC2_PIN_MAP)/sizeof(ADC_PinConfig))
+#define ADC2_DMA_PIN_MAP_SIZE (sizeof(ADC2_DMA_PIN_MAP)/sizeof(ADC_PinConfig))
+#define ADC2_BATTERY_DMA_INDEX ADC2_PIN_MAP_SIZE
 #define ADC3_PIN_MAP_SIZE (sizeof(ADC3_PIN_MAP)/sizeof(ADC_PinConfig))
 
 #define ADC_CALIBRATION_MANAGER_REQUIRED_SAMPLES 80 // 校准管理器需要的采样数量

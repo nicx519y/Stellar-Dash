@@ -98,8 +98,12 @@ export function LEDsSettingContent() {
 
     const aroundLedConfigIsEnabled = useMemo<boolean>(() => {
         // 如果同步主灯，则氛围灯配置无效
-        return hasAroundLed && aroundLedEnabled && ledEnabled && !aroundLedSyncToMainLed;
-    }, [hasAroundLed, aroundLedEnabled, ledEnabled, aroundLedSyncToMainLed]);
+        return hasAroundLed && aroundLedEnabled && !aroundLedSyncToMainLed;
+    }, [hasAroundLed, aroundLedEnabled, aroundLedSyncToMainLed]);
+
+    const effectiveAroundLedSyncToMainLed = useMemo<boolean>(() => {
+        return ledEnabled && aroundLedSyncToMainLed;
+    }, [ledEnabled, aroundLedSyncToMainLed]);
 
     const disabledKeys = useMemo<number[]>(() => {
         return defaultProfile.keysConfig?.keysEnableTag?.map((_, index) => index).filter((_, index) => !defaultProfile.keysConfig?.keysEnableTag?.[index]) ?? [];
@@ -269,7 +273,7 @@ export function LEDsSettingContent() {
             ledAnimationSpeed: ledAnimationSpeed,
 
             aroundLedEnabled: aroundLedEnabled,
-            aroundLedSyncToMainLed: aroundLedSyncToMainLed,
+            aroundLedSyncToMainLed: effectiveAroundLedSyncToMainLed,
             aroundLedTriggerByButton: aroundLedTriggerByButton,
             aroundLedEffectStyle: aroundLedEffectStyle,
             aroundLedColors: [aroundLedColor1.toString('hex'), aroundLedColor2.toString('hex'), aroundLedColor3.toString('hex')],
@@ -302,7 +306,7 @@ export function LEDsSettingContent() {
             ledAnimationSpeed: ledAnimationSpeed,
 
             aroundLedEnabled: aroundLedEnabled,
-            aroundLedSyncToMainLed: aroundLedSyncToMainLed,
+            aroundLedSyncToMainLed: effectiveAroundLedSyncToMainLed,
             aroundLedTriggerByButton: aroundLedTriggerByButton,
             aroundLedEffectStyle: aroundLedEffectStyle,
             aroundLedColors: [aroundLedColor1.toString('hex'), aroundLedColor2.toString('hex'), aroundLedColor3.toString('hex')],
@@ -333,10 +337,11 @@ export function LEDsSettingContent() {
             setColor3(parseColor(ledsConfigs.ledColors?.[2] ?? defaultFrontColor.toString('css')));
             setLedBrightness(ledsConfigs.ledBrightness ?? 75);
             setLedAnimationSpeed(ledsConfigs.ledAnimationSpeed ?? 3);
-            setLedEnabled(ledsConfigs.ledEnabled ?? true);
+            const nextLedEnabled = ledsConfigs.ledEnabled ?? true;
+            setLedEnabled(nextLedEnabled);
 
             setAroundLedEnabled(ledsConfigs.aroundLedEnabled ?? false);
-            setAroundLedSyncToMainLed(ledsConfigs.aroundLedSyncToMainLed ?? false);
+            setAroundLedSyncToMainLed(nextLedEnabled ? (ledsConfigs.aroundLedSyncToMainLed ?? false) : false);
             setAroundLedTriggerByButton(ledsConfigs.aroundLedTriggerByButton ?? false);
             setAroundLedEffectStyle(ledsConfigs.aroundLedEffectStyle ?? AroundLedsEffectStyle.STATIC);
             setAroundLedColor1(parseColor(ledsConfigs.aroundLedColors?.[0] ?? defaultFrontColor.toString('css')));
@@ -395,7 +400,7 @@ export function LEDsSettingContent() {
 
                     hasAroundLed: hasAroundLed,
                     aroundLedEnabled: aroundLedEnabled,
-                    aroundLedSyncToMainLed: aroundLedSyncToMainLed,
+                    aroundLedSyncToMainLed: effectiveAroundLedSyncToMainLed,
                     aroundLedTriggerByButton: aroundLedTriggerByButton,
                     aroundLedEffectStyle: aroundLedEffectStyle,
                     aroundLedColors: [
@@ -438,7 +443,11 @@ export function LEDsSettingContent() {
 
                                         <Switch.Root colorPalette={"green"} checked={ledEnabled}
                                             onCheckedChange={() => {
-                                                setLedEnabled(!ledEnabled);
+                                                const nextLedEnabled = !ledEnabled;
+                                                setLedEnabled(nextLedEnabled);
+                                                if (!nextLedEnabled) {
+                                                    setAroundLedSyncToMainLed(false);
+                                                }
                                                 setNeedUpdate(true);
                                                 setNeedPreview(true);
                                             }}
@@ -653,7 +662,6 @@ export function LEDsSettingContent() {
                                         <Grid templateColumns="repeat(3, 1fr)" gap={10} w="100%">
                                             {/* 是否开启氛围灯 */}
                                             <Switch.Root colorPalette={"green"}
-                                                disabled={!ledEnabled}
                                                 checked={aroundLedEnabled}
                                                 onCheckedChange={() => {
                                                     setAroundLedEnabled(!aroundLedEnabled);
@@ -670,7 +678,7 @@ export function LEDsSettingContent() {
                                             {/* 氛围灯是否同步主灯 */}
                                             <Switch.Root colorPalette={"green"}
                                                 disabled={!ledEnabled || !aroundLedEnabled}
-                                                checked={aroundLedSyncToMainLed}
+                                                checked={effectiveAroundLedSyncToMainLed}
                                                 onCheckedChange={() => {
                                                     setAroundLedSyncToMainLed(!aroundLedSyncToMainLed);
                                                     setNeedUpdate(true);

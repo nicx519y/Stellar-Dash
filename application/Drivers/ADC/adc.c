@@ -191,7 +191,7 @@ void MX_ADC2_Init(void)
 
     /** Common config */
     hadc2.Instance = ADC2;
-    configure_adc_common(&hadc2, (uint32_t)ADC2_PIN_MAP_SIZE);
+    configure_adc_common(&hadc2, (uint32_t)ADC2_DMA_PIN_MAP_SIZE);
 
     if (HAL_ADC_Init(&hadc2) != HAL_OK)
     {
@@ -203,9 +203,9 @@ void MX_ADC2_Init(void)
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;
     sConfig.OffsetSignedSaturation = DISABLE;
-    for (uint32_t i = 0; i < (uint32_t)ADC2_PIN_MAP_SIZE; i++) {
-        sConfig.Channel = ADC2_PIN_MAP[i].channel;
-        sConfig.Rank = ADC2_PIN_MAP[i].rank;
+    for (uint32_t i = 0; i < (uint32_t)ADC2_DMA_PIN_MAP_SIZE; i++) {
+        sConfig.Channel = ADC2_DMA_PIN_MAP[i].channel;
+        sConfig.Rank = ADC2_DMA_PIN_MAP[i].rank;
         if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK) {
             Error_Handler();
         }
@@ -332,10 +332,10 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
 
         GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
         GPIO_InitStruct.Pull = GPIO_NOPULL;
-        for (uint32_t i = 0; i < (uint32_t)ADC2_PIN_MAP_SIZE; i++) {
-            enable_gpio_clock(ADC2_PIN_MAP[i].port);
-            GPIO_InitStruct.Pin = ADC2_PIN_MAP[i].pin;
-            HAL_GPIO_Init(ADC2_PIN_MAP[i].port, &GPIO_InitStruct);
+        for (uint32_t i = 0; i < (uint32_t)ADC2_DMA_PIN_MAP_SIZE; i++) {
+            enable_gpio_clock(ADC2_DMA_PIN_MAP[i].port);
+            GPIO_InitStruct.Pin = ADC2_DMA_PIN_MAP[i].pin;
+            HAL_GPIO_Init(ADC2_DMA_PIN_MAP[i].port, &GPIO_InitStruct);
         }
 
         /* ADC2 DMA Init */
@@ -430,8 +430,8 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef *adcHandle)
             __HAL_RCC_ADC12_CLK_DISABLE();
         }
 
-        for (uint32_t i = 0; i < (uint32_t)ADC2_PIN_MAP_SIZE; i++) {
-            HAL_GPIO_DeInit(ADC2_PIN_MAP[i].port, ADC2_PIN_MAP[i].pin);
+        for (uint32_t i = 0; i < (uint32_t)ADC2_DMA_PIN_MAP_SIZE; i++) {
+            HAL_GPIO_DeInit(ADC2_DMA_PIN_MAP[i].port, ADC2_DMA_PIN_MAP[i].pin);
         }
 
         /* ADC2 DMA DeInit */

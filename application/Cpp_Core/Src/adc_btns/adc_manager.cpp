@@ -31,7 +31,7 @@
 
 // 定义静态 ADC DMA 缓冲区
 __attribute__((section(".DMA_Section"))) uint32_t ADCManager::ADC1_Values[NUM_ADC1_BUTTONS];
-__attribute__((section(".DMA_Section"))) uint32_t ADCManager::ADC2_Values[NUM_ADC2_BUTTONS];
+__attribute__((section(".DMA_Section"))) uint32_t ADCManager::ADC2_Values[ADC2_DMA_PIN_MAP_SIZE];
 // ADC3 BDMA 只能访问 _RAM_D3_Area 区域
 __attribute__((section(".BDMA_Section"))) uint32_t ADCManager::ADC3_Values[NUM_ADC3_BUTTONS];
 
@@ -871,7 +871,7 @@ void ADCManager::startContinuousSampling()
     // In calibration/webconfig mode, we start once and it runs continuously via circular DMA
     dmaSamplingActive = true;
     HAL_ADC_Start_DMA(&hadc1, (uint32_t *)&ADC1_Values[0], NUM_ADC1_BUTTONS);
-    HAL_ADC_Start_DMA(&hadc2, (uint32_t *)&ADC2_Values[0], NUM_ADC2_BUTTONS);
+    HAL_ADC_Start_DMA(&hadc2, (uint32_t *)&ADC2_Values[0], ADC2_DMA_PIN_MAP_SIZE);
     HAL_ADC_Start_DMA(&hadc3, (uint32_t *)&ADC3_Values[0], NUM_ADC3_BUTTONS);
 }
 
@@ -919,7 +919,7 @@ void ADCManager::startSamplingNow()
     LATENCY_MONITOR.samplingStarted();
 #endif
     HAL_ADC_Start_DMA(&hadc1, (uint32_t *)&ADC1_Values[0], NUM_ADC1_BUTTONS);
-    HAL_ADC_Start_DMA(&hadc2, (uint32_t *)&ADC2_Values[0], NUM_ADC2_BUTTONS);
+    HAL_ADC_Start_DMA(&hadc2, (uint32_t *)&ADC2_Values[0], ADC2_DMA_PIN_MAP_SIZE);
     HAL_ADC_Start_DMA(&hadc3, (uint32_t *)&ADC3_Values[0], NUM_ADC3_BUTTONS);
 }
 

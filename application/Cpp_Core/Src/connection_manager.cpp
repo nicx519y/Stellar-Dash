@@ -194,6 +194,8 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
     rfSendFailWin = 0u;
     rfSendTotal = 0u;
     rfLastSeq = 0u;
+    rfRadioEnabled = false;
+    rfInputStreamingEnabled = false;
     rfEventServiceEnabled = (mode == ConnectionMode::CONNECTION_MODE_RF24G);
     rfPairingActive = false;
     rfPairSucceeded = false;
@@ -204,6 +206,7 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
     rfPairingLastErrorReason = 0u;
 
     if (mode == ConnectionMode::CONNECTION_MODE_USB) {
+        (void)rfTransport.setRadioEnabled(false);
         appliedReportRateHz = 1000;
         MonitorTelemetry_Init(mode, appliedReportRateHz);
         ConnectionLinkState nextState = get_usb_mounted() ? ConnectionLinkState::Connected : ConnectionLinkState::Disconnected;
@@ -215,8 +218,21 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
     }
 
     requestedReportRateHz = getRfReportRateHz(wirelessRate);
-    appliedReportRateHz = requestedReportRateHz;
     MonitorTelemetry_Init(mode, appliedReportRateHz);
+    rfRadioEnabled = rfTransport.setRadioEnabled(true);
+    if (!rfRadioEnabled) {
+        rateApplyPending = false;
+        appliedReportRateHz = 1000;
+        requestedReportRateHz = 1000;
+        ConnectionLinkState nextState = ConnectionLinkState::Error;
+        if (linkState != nextState) {
+            MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
+        }
+        linkState = nextState;
+        MonitorTelemetry_OnError("CONNECTION_MANAGER", 1006u, "rf radio enable failed");
+        APP_ERR("[RF_BRIDGE] radio enable failed");
+        return;
+    }
     bool rateOk = rfTransport.setRate(requestedReportRateHz);
     rateApplyPending = !rateOk;
     if (!rateOk) {
@@ -226,8 +242,10 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
         }
         linkState = nextState;
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1003u, "rf setRate failed");
-        APP_ERR("[RF_BRIDGE] setRate failed, requested:%u", appliedReportRateHz);
+        APP_ERR("[RF_BRIDGE] setRate failed, requested:%u", requestedReportRateHz);
     } else {
+        appliedReportRateHz = requestedReportRateHz;
+        rfInputStreamingEnabled = true;
         linkState = ConnectionLinkState::Connected;
         MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(linkState));
         APP_DBG("[RF_BRIDGE] rate applied:%u", appliedReportRateHz);
@@ -252,7 +270,11 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
         return false;
     }
 
-    if (nextRateHz == appliedReportRateHz) {
+    if (!rfRadioEnabled) {
+        return false;
+    }
+
+    if (nextRateHz == appliedReportRateHz && rfInputStreamingEnabled && !rateApplyPending) {
         if (persist) {
             STORAGE_MANAGER.setWirelessReportRate(wirelessRate);
             return STORAGE_MANAGER.saveConfig();
@@ -262,6 +284,7 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
 
     if (!rfTransport.setRate(nextRateHz)) {
         rateApplyPending = true;
+        rfInputStreamingEnabled = false;
         ConnectionLinkState nextState = ConnectionLinkState::Error;
         if (linkState != nextState) {
             MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
@@ -274,6 +297,7 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
 
     appliedReportRateHz = nextRateHz;
     rateApplyPending = false;
+    rfInputStreamingEnabled = true;
     if (REPORT_SCHEDULER.isStarted()) {
         REPORT_SCHEDULER.setRate(appliedReportRateHz);
     }
@@ -295,6 +319,10 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
 }
 
 bool ConnectionManager::startRfPairing() {
+    if (mode != ConnectionMode::CONNECTION_MODE_RF24G || !rfRadioEnabled) {
+        return false;
+    }
+
     APP_DBG("[RF_PAIR] start request mode:%u link:%u",
             (unsigned int)mode,
             (unsigned int)linkState);
@@ -361,6 +389,10 @@ bool ConnectionManager::startRfPairing() {
 }
 
 bool ConnectionManager::stopRfPairing() {
+    if (mode != ConnectionMode::CONNECTION_MODE_RF24G || !rfRadioEnabled) {
+        return false;
+    }
+
     rfEventServiceEnabled = true;
     const bool ok = rfTransport.stopPair();
     rfPairingLastEventCounter = rfTransport.getStatus().eventCounter;
@@ -406,6 +438,7 @@ void ConnectionManager::loop() {
         if (rfTransport.setRate(requestedReportRateHz)) {
             appliedReportRateHz = requestedReportRateHz;
             rateApplyPending = false;
+            rfInputStreamingEnabled = true;
             if (REPORT_SCHEDULER.isStarted()) {
                 REPORT_SCHEDULER.setRate(appliedReportRateHz);
             }
@@ -424,6 +457,7 @@ void ConnectionManager::loop() {
 
 void ConnectionManager::onReportReady(const GamepadState& state, uint32_t seq) {
     if (mode != ConnectionMode::CONNECTION_MODE_RF24G) return;
+    if (!rfRadioEnabled || !rfInputStreamingEnabled) return;
     if (rfPairingActive) return;
 
     bool ok = rfTransport.sendInput(state, seq);

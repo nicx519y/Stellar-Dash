@@ -15,6 +15,7 @@ static constexpr uint8_t CMD_STOP_PAIR = 0x03u;
 static constexpr uint8_t CMD_UNBIND = 0x04u;
 static constexpr uint8_t CMD_SET_RATE = 0x05u;
 static constexpr uint8_t CMD_INPUT_DATA = 0x06u;
+static constexpr uint8_t CMD_SET_RADIO = 0x07u;
 static constexpr uint8_t EVT_STATUS = 0x81u;
 static constexpr uint8_t EVT_STATE_CHANGED = 0x82u;
 static constexpr uint8_t EVT_RATE_APPLIED = 0x83u;
@@ -177,7 +178,8 @@ bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t l
                               (cmd == CMD_START_PAIR) ||
                               (cmd == CMD_STOP_PAIR) ||
                               (cmd == CMD_UNBIND) ||
-                              (cmd == CMD_SET_RATE);
+                              (cmd == CMD_SET_RATE) ||
+                              (cmd == CMD_SET_RADIO);
     uint8_t rxBuf[RX_BUF_LEN] = {0};
     uint16_t rxLen = wantReadback ? RX_BUF_LEN : 0u;
     if (cmd != CMD_INPUT_DATA) {
@@ -282,6 +284,13 @@ bool RFTransport::stopPair() {
 
 bool RFTransport::unbind() {
     return transferCommand(CMD_UNBIND, nullptr, 0u, true);
+}
+
+bool RFTransport::setRadioEnabled(bool enabled) {
+    uint8_t payload[1] = {
+        static_cast<uint8_t>(enabled ? 1u : 0u),
+    };
+    return transferCommand(CMD_SET_RADIO, payload, sizeof(payload), true);
 }
 
 bool RFTransport::setRate(uint16_t rateHz) {

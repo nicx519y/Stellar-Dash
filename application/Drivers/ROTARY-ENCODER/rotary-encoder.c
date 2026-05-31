@@ -32,6 +32,17 @@ static RotEnc_State g_rotenc = {0};
 #define ROTENC_BOOT_IGNORE_MS 1000u
 #endif
 
+static void rotenc_enable_gpio_clock(GPIO_TypeDef* port) {
+    if (port == GPIOA) __HAL_RCC_GPIOA_CLK_ENABLE();
+    else if (port == GPIOB) __HAL_RCC_GPIOB_CLK_ENABLE();
+    else if (port == GPIOC) __HAL_RCC_GPIOC_CLK_ENABLE();
+    else if (port == GPIOD) __HAL_RCC_GPIOD_CLK_ENABLE();
+    else if (port == GPIOE) __HAL_RCC_GPIOE_CLK_ENABLE();
+    else if (port == GPIOF) __HAL_RCC_GPIOF_CLK_ENABLE();
+    else if (port == GPIOG) __HAL_RCC_GPIOG_CLK_ENABLE();
+    else if (port == GPIOH) __HAL_RCC_GPIOH_CLK_ENABLE();
+}
+
 static uint8_t rotenc_read_ab(void) {
 
     uint8_t a = (HAL_GPIO_ReadPin(ROTENC_A_PORT, ROTENC_A_PIN) == GPIO_PIN_SET) ? 1u : 0u;
@@ -45,7 +56,9 @@ static bool rotenc_read_button_raw_down(void) {
 }
 
 void RotEnc_Init(void) {
-    __HAL_RCC_GPIOH_CLK_ENABLE();
+    rotenc_enable_gpio_clock(ROTENC_A_PORT);
+    if (ROTENC_B_PORT != ROTENC_A_PORT) rotenc_enable_gpio_clock(ROTENC_B_PORT);
+    if (ROTENC_BTN_PORT != ROTENC_A_PORT && ROTENC_BTN_PORT != ROTENC_B_PORT) rotenc_enable_gpio_clock(ROTENC_BTN_PORT);
 
     GPIO_InitTypeDef GPIO_Init = {0};
     GPIO_Init.Mode = GPIO_MODE_IT_RISING_FALLING;
