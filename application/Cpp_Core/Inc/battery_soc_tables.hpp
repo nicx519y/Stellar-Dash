@@ -19,7 +19,7 @@ struct VoltageSocPoint {
 
 // Empirical Li-ion voltage-to-SOC tables. Update these points after hardware calibration.
 static constexpr VoltageSocPoint DISCHARGE_TABLE[] = {
-    {3000u, 0.0f},
+    {3150u, 0.0f},
     {3300u, 10.0f},
     {3600u, 30.0f},
     {3800u, 60.0f},
@@ -29,7 +29,7 @@ static constexpr VoltageSocPoint DISCHARGE_TABLE[] = {
 
 // Charging terminal voltage is higher than relaxed/discharge voltage, so the same voltage maps lower.
 static constexpr VoltageSocPoint SLOW_CHARGE_TABLE[] = {
-    {3000u, 0.0f},
+    {3150u, 0.0f},
     {3380u, 10.0f},
     {3680u, 30.0f},
     {3900u, 60.0f},
@@ -40,7 +40,7 @@ static constexpr VoltageSocPoint SLOW_CHARGE_TABLE[] = {
 
 // Fast charge has more terminal-voltage lift, so the curve is more conservative.
 static constexpr VoltageSocPoint FAST_CHARGE_TABLE[] = {
-    {3000u, 0.0f},
+    {3150u, 0.0f},
     {3450u, 10.0f},
     {3750u, 30.0f},
     {4020u, 60.0f},

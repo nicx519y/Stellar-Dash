@@ -3,6 +3,8 @@
 #include "board_cfg.h"
 #include "adc_btns/adc_manager.hpp"
 #include "battery_soc_tables.hpp"
+#include "connection_manager.hpp"
+#include "system_logger.h"
 
 #include "stm32h7xx_hal.h"
 
@@ -12,6 +14,9 @@ static constexpr uint32_t POWER_VREF_MV = 3300u;
 static constexpr uint32_t POWER_ADC_FULL_SCALE = 65535u;
 static constexpr uint32_t POWER_STATUS_POLL_INTERVAL_MS = 50u;
 static constexpr uint32_t POWER_STATUS_LOG_INTERVAL_MS = 5000u;
+static constexpr uint32_t BATTERY_EMPTY_MV = 3150u;
+static constexpr uint32_t RUN_LOW_SLEEP_MV = 3150u;
+static constexpr uint32_t RUN_PA0_SLEEP_HOLD_MS = 8000u;
 
 static battery_soc::Profile select_soc_profile(bool charging, bool fast_charging)
 {
@@ -52,6 +57,11 @@ void PowerManager::setup()
 
 void PowerManager::loop()
 {
+    if (standby_sleep_in_progress)
+    {
+        return;
+    }
+
     const uint32_t now = HAL_GetTick();
     if ((uint32_t)(now - last_mode_poll_ms) < POWER_STATUS_POLL_INTERVAL_MS)
     {
@@ -61,11 +71,34 @@ void PowerManager::loop()
     last_mode_poll_ms = now;
     vbus_present = readVbusPresent();
     fast_charging_pin_high = readFastChargingPin();
+    const bool power_button_pressed = readPowerButtonPressed();
+    if (power_button_pressed)
+    {
+        if (power_button_pressed_since_ms == 0u)
+        {
+            power_button_pressed_since_ms = now;
+        }
+        else if ((uint32_t)(now - power_button_pressed_since_ms) >= RUN_PA0_SLEEP_HOLD_MS)
+        {
+            requestStandbySleep("PA0 long press");
+            return;
+        }
+    }
+    else
+    {
+        power_button_pressed_since_ms = 0u;
+    }
+
+    const uint32_t batt_mv = rawToBattMv(ADCManager::getInstance().readBatteryRawValue());
+    if (!isCharging() && batt_mv != 0u && batt_mv <= RUN_LOW_SLEEP_MV)
+    {
+        requestStandbySleep("low battery");
+        return;
+    }
 
     if ((uint32_t)(now - last_status_log_ms) >= POWER_STATUS_LOG_INTERVAL_MS)
     {
         last_status_log_ms = now;
-        const uint32_t batt_mv = rawToBattMv(ADCManager::getInstance().readBatteryRawValue());
         const battery_soc::Profile soc_profile = select_soc_profile(isCharging(), isFastCharging());
         APP_DBG("[POWER][5s] PG8(VBUS)=%u PG9(FAST)=%u BAT=%lumV SOC=%.1f%% SOC_MODE=%s",
                 vbus_present ? 1u : 0u,
@@ -88,8 +121,12 @@ bool PowerManager::isFastCharging() const
 
 float PowerManager::getBatterySocPercent() const
 {
-    const uint32_t raw = ADCManager::getInstance().readBatteryRawValue();
-    return socFromMv(rawToBattMv(raw));
+    return socFromMv(getBatteryVoltageMv());
+}
+
+uint32_t PowerManager::getBatteryVoltageMv() const
+{
+    return rawToBattMv(ADCManager::getInstance().readBatteryRawValue());
 }
 
 void PowerManager::configureWakeup()
@@ -145,6 +182,7 @@ void PowerManager::configureGpios()
 {
     enable_gpio_clock(VBUS_STATUS_PORT);
     enable_gpio_clock(FAST_CHARGING_STATUS_PORT);
+    enable_gpio_clock(POWER_WAKEUP_PORT);
 
     GPIO_InitTypeDef init = {0};
     init.Mode = GPIO_MODE_INPUT;
@@ -157,6 +195,10 @@ void PowerManager::configureGpios()
     init.Pull = GPIO_PULLDOWN;
     init.Pin = FAST_CHARGING_STATUS_PIN;
     HAL_GPIO_Init(FAST_CHARGING_STATUS_PORT, &init);
+
+    init.Pull = GPIO_PULLUP;
+    init.Pin = POWER_WAKEUP_PIN;
+    HAL_GPIO_Init(POWER_WAKEUP_PORT, &init);
 }
 
 bool PowerManager::readVbusPresent() const
@@ -167,6 +209,11 @@ bool PowerManager::readVbusPresent() const
 bool PowerManager::readFastChargingPin() const
 {
     return (HAL_GPIO_ReadPin(FAST_CHARGING_STATUS_PORT, FAST_CHARGING_STATUS_PIN) == GPIO_PIN_SET);
+}
+
+bool PowerManager::readPowerButtonPressed() const
+{
+    return (HAL_GPIO_ReadPin(POWER_WAKEUP_PORT, POWER_WAKEUP_PIN) == GPIO_PIN_RESET);
 }
 
 uint32_t PowerManager::rawToBattMv(uint32_t raw) const
@@ -181,5 +228,17 @@ uint32_t PowerManager::rawToBattMv(uint32_t raw) const
 
 float PowerManager::socFromMv(uint32_t mv) const
 {
+    if (mv <= BATTERY_EMPTY_MV)
+    {
+        return 0.0f;
+    }
     return battery_soc::lookupSocPercent(select_soc_profile(isCharging(), isFastCharging()), mv);
+}
+
+void PowerManager::requestStandbySleep(const char* reason)
+{
+    standby_sleep_in_progress = true;
+    APP_DBG("[POWER] enter standby reason:%s", reason != nullptr ? reason : "unknown");
+    (void)CONNECTION_MANAGER.prepareRfForStandby();
+    enterStandbySleep();
 }

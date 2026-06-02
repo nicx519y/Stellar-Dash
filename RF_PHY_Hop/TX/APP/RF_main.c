@@ -16,6 +16,7 @@
 #include "HAL.h"
 #include "RF_PHY.h"
 #include "rfm_spi_bridge.h"
+#include "rfm_spi_port_internal.h"
 
 /* 1: only run SPI bridge for link bring-up; 0: run normal RF TX flow */
 #ifndef RFM_SPI_ONLY_MODE
@@ -50,6 +51,13 @@ void Main_Circulation()
 #endif
         TMOS_SystemProcess();
         rfm_spi_bridge_poll();
+        if(rfm_spi_bridge_take_sleep_request())
+        {
+            PRINT("[PWR] sleep enter\r\n");
+            rfm_spi_port_enter_gpio_wake_sleep();
+            PRINT("[PWR] wake\r\n");
+            rfm_spi_bridge_init();
+        }
     }
 }
 

@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "CONFIG.h"
 #include "CH58x_common.h"
 #include "rfm_config.h"
 
@@ -152,6 +153,7 @@ static uint8_t spi_rx_host_cmd_valid(uint8_t cmd)
     case 0x05u:
     case 0x06u:
     case 0x07u:
+    case 0x08u:
         return 1u;
     default:
         return 0u;
@@ -414,6 +416,8 @@ void rfm_spi_port_init(void)
     GPIOPinRemap(ENABLE, RB_PIN_SPI0);
     GPIOADigitalCfg(ENABLE, (uint16_t)0xFFFFu);
     GPIOBDigitalCfg(ENABLE, SPI_PINS | SPI_IRQ_PIN);
+    PFIC_DisableIRQ(GPIO_B_IRQn);
+    GPIOB_ClearITFlagBit(SPI_IRQ_PIN);
     GPIOB_ModeCfg(SPI_IRQ_PIN, GPIO_ModeOut_PP_5mA);
     GPIOB_ResetBits(SPI_IRQ_PIN);
 
@@ -454,6 +458,33 @@ void rfm_spi_port_init(void)
     spi_rx_dma_loop_start(1u);
     SPI0_ITCfg(ENABLE, SPI0_IT_FIFO_OV);
     PFIC_EnableIRQ(SPI0_IRQn);
+}
+
+void rfm_spi_port_enter_gpio_wake_sleep(void)
+{
+    rfm_spi_port_set_irq(false);
+    SPI0_ITCfg(DISABLE, SPI0_IT_CNT_END | SPI0_IT_DMA_END | SPI0_IT_FIFO_OV);
+    PFIC_DisableIRQ(SPI0_IRQn);
+    R8_SPI0_CTRL_CFG &= (uint8_t)(~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP));
+    R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END | RB_SPI_IF_FIFO_OV |
+                       RB_SPI_IF_FIFO_HF | RB_SPI_IF_BYTE_END | RB_SPI_IF_FST_BYTE;
+
+    GPIOB_ModeCfg(SPI_IRQ_PIN, GPIO_ModeIN_PD);
+    GPIOB_ClearITFlagBit(SPI_IRQ_PIN);
+    GPIOB_ITModeCfg(SPI_IRQ_PIN, GPIO_ITMode_RiseEdge);
+    PFIC_EnableIRQ(GPIO_B_IRQn);
+    PWR_PeriphWakeUpCfg(ENABLE, RB_SLP_GPIO_WAKE, Long_Delay);
+
+    LowPower_Sleep(RB_PWR_RAM96K | RB_PWR_RAM32K);
+    DelayUs(300);
+    PWR_PeriphWakeUpCfg(DISABLE, RB_SLP_GPIO_WAKE, Long_Delay);
+    GPIOB_ClearITFlagBit(SPI_IRQ_PIN);
+    PFIC_DisableIRQ(GPIO_B_IRQn);
+
+#if(defined(DCDC_ENABLE)) && (DCDC_ENABLE == TRUE)
+    PWR_DCDCCfg(ENABLE);
+#endif
+    SetSysClock(SYSCLK_FREQ);
 }
 
 void rfm_spi_port_set_irq(bool asserted)
@@ -716,6 +747,12 @@ void SPI0_IRQHandler(void)
         R8_SPI0_INT_FLAG = flags;
     }
     s_spi_rx_bad_irq_count++;
+}
+
+__attribute__((interrupt("WCH-Interrupt-fast"), section(".highcode")))
+void GPIOB_IRQHandler(void)
+{
+    GPIOB_ClearITFlagBit(SPI_IRQ_PIN);
 }
 
 bool rfm_spi_port_try_write(const uint8_t *buf, size_t len)

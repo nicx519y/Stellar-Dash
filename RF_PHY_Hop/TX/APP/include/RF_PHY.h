@@ -40,6 +40,7 @@ extern bool RF_StartPairing(void);
 extern bool RF_StopPairing(void);
 extern bool RF_Unbind(void);
 extern bool RF_SetRadioEnabled(bool enabled);
+extern bool RF_PrepareSleep(void);
 extern uint8_t RF_GetLinkStateCode(void);
 extern uint8_t RF_ConsumePendingEventStateCode(void);
 extern uint8_t RF_PeekPendingEventStateCode(void);

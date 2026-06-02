@@ -38,6 +38,7 @@ public:
     bool applyWirelessReportRate(WirelessReportRate wirelessRate, bool persist);
     bool startRfPairing();
     bool stopRfPairing();
+    bool prepareRfForStandby();
 
     ConnectionMode getMode() const { return mode; }
     ConnectionLinkState getLinkState() const { return linkState; }

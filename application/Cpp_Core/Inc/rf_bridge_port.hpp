@@ -9,5 +9,7 @@ bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint1
 bool RFBridgePort_IsReady(void);
 bool RFBridgePort_HasPendingEvent(void);
 bool RFBridgePort_ReadEvent(uint8_t* rx, uint16_t* rxLen);
+bool RFBridgePort_WaitIdle(uint32_t timeoutMs);
+void RFBridgePort_PulseWake(uint32_t highMs);
 
 #endif

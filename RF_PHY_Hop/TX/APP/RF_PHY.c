@@ -1112,6 +1112,18 @@ bool RF_SetRadioEnabled(bool enabled)
     return true;
 }
 
+bool RF_PrepareSleep(void)
+{
+    g_radio_enabled = 0u;
+    tx_timer_stop();
+    tx_stop_radio_activity();
+    PFIC_DisableIRQ(BLEB_IRQn);
+    PFIC_DisableIRQ(BLEL_IRQn);
+    tx_reset_radio_session_state();
+    RF_LINK_LOG("[TX][RFH] sleep:prepared\r\n");
+    return true;
+}
+
 static uint16_t tx_ticks_per_ms(void)
 {
     uint16_t ticks = (uint16_t)(g_report_hz / 1000u);

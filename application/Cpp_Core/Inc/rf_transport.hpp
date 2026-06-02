@@ -48,6 +48,7 @@ public:
     bool stopPair();
     bool unbind();
     bool setRadioEnabled(bool enabled);
+    bool enterSleep();
     bool setRate(uint16_t rateHz);
     bool sendInput(const GamepadState& state, uint32_t seq);
     bool pollStatus();

@@ -7,6 +7,7 @@
 #include "usbdriver.hpp"
 #include "system_logger.h"
 #include "board_cfg.h"
+#include "rf_bridge_port.hpp"
 #include "stm32h7xx_hal.h"
 
 namespace {
@@ -36,6 +37,8 @@ static constexpr uint32_t kRfPairingLocalTimeoutMs = 65000u;
 static constexpr uint8_t kRfCmdStartPair = 0x02u;
 static constexpr uint8_t kRfCmdStopPair = 0x03u;
 static constexpr uint8_t kRfEvtError = 0x85u;
+static constexpr uint32_t kRfStandbyAckTotalTimeoutMs = 100u;
+static constexpr uint8_t kRfStandbyMaxAttempts = 2u;
 }
 
 bool ConnectionManager::tryRfBringup(bool isRetry) {
@@ -411,6 +414,37 @@ bool ConnectionManager::stopRfPairing() {
         rfPairingLastErrorReason = st.lastErrorReason;
     }
     return ok;
+}
+
+bool ConnectionManager::prepareRfForStandby() {
+    rfInputStreamingEnabled = false;
+    rfEventServiceEnabled = false;
+    rfPairingActive = false;
+    rateApplyPending = false;
+
+    (void)RFBridgePort_WaitIdle(20u);
+
+    bool ack = false;
+    const uint32_t start = HAL_GetTick();
+    for (uint8_t attempt = 0u; attempt < kRfStandbyMaxAttempts; ++attempt) {
+        if ((uint32_t)(HAL_GetTick() - start) >= kRfStandbyAckTotalTimeoutMs) {
+            break;
+        }
+        if (rfTransport.enterSleep()) {
+            ack = true;
+            break;
+        }
+    }
+
+    rfRadioEnabled = false;
+    linkState = ConnectionLinkState::Disconnected;
+    if (ack) {
+        APP_DBG("[POWER][RF] sleep ack ok");
+        HAL_Delay(10u);
+    } else {
+        APP_ERR("[POWER][RF] sleep ack timeout");
+    }
+    return ack;
 }
 
 void ConnectionManager::loop() {

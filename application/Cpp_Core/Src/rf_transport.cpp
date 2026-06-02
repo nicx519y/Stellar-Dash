@@ -16,11 +16,13 @@ static constexpr uint8_t CMD_UNBIND = 0x04u;
 static constexpr uint8_t CMD_SET_RATE = 0x05u;
 static constexpr uint8_t CMD_INPUT_DATA = 0x06u;
 static constexpr uint8_t CMD_SET_RADIO = 0x07u;
+static constexpr uint8_t CMD_ENTER_SLEEP = 0x08u;
 static constexpr uint8_t EVT_STATUS = 0x81u;
 static constexpr uint8_t EVT_STATE_CHANGED = 0x82u;
 static constexpr uint8_t EVT_RATE_APPLIED = 0x83u;
 static constexpr uint8_t EVT_LINK_WARN = 0x84u;
 static constexpr uint8_t EVT_ERROR = 0x85u;
+static constexpr uint8_t EVT_SLEEP_ACK = 0x86u;
 static constexpr uint8_t INPUT_PAYLOAD_LEN = 10u;
 static constexpr uint8_t INPUT_FORMAT_VERSION = 1u;
 static constexpr uint8_t INPUT_FLAG_PROCESSED = 0x01u;
@@ -57,6 +59,7 @@ static const char* eventToString(uint8_t evt) {
     case EVT_RATE_APPLIED: return "RATE_APPLIED";
     case EVT_LINK_WARN: return "LINK_WARN";
     case EVT_ERROR: return "ERROR";
+    case EVT_SLEEP_ACK: return "SLEEP_ACK";
     default: return "UNKNOWN";
     }
 }
@@ -127,7 +130,8 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
             return false;
         }
     } else {
-        if (!(evt == EVT_STATUS && payloadLen == 1u && frame[3] == CMD_GET_STATUS)) {
+        if (!((evt == EVT_STATUS && payloadLen == 1u && frame[3] == CMD_GET_STATUS) ||
+              (evt == EVT_SLEEP_ACK && payloadLen >= 1u && frame[3] == CMD_ENTER_SLEEP))) {
             // APP_DBG("[RF_BRIDGE] short evt frame evt=0x%02X payload=%u tag=0x%02X",
             //         (unsigned int)evt,
             //         (unsigned int)payloadLen,
@@ -179,7 +183,8 @@ bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t l
                               (cmd == CMD_STOP_PAIR) ||
                               (cmd == CMD_UNBIND) ||
                               (cmd == CMD_SET_RATE) ||
-                              (cmd == CMD_SET_RADIO);
+                              (cmd == CMD_SET_RADIO) ||
+                              (cmd == CMD_ENTER_SLEEP);
     uint8_t rxBuf[RX_BUF_LEN] = {0};
     uint16_t rxLen = wantReadback ? RX_BUF_LEN : 0u;
     if (cmd != CMD_INPUT_DATA) {
@@ -291,6 +296,11 @@ bool RFTransport::setRadioEnabled(bool enabled) {
         static_cast<uint8_t>(enabled ? 1u : 0u),
     };
     return transferCommand(CMD_SET_RADIO, payload, sizeof(payload), true);
+}
+
+bool RFTransport::enterSleep() {
+    const bool ok = transferCommand(CMD_ENTER_SLEEP, nullptr, 0u, true);
+    return ok && (status.lastEvent == EVT_SLEEP_ACK);
 }
 
 bool RFTransport::setRate(uint16_t rateHz) {

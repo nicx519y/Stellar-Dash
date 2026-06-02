@@ -36,6 +36,11 @@ void floatTest(void);
 
 void UserLEDClose(void);
 void enableFPU(void);
+static void EarlyStandbyWakeGate(void);
+static void ConfigurePowerWakePinForStandby(void);
+static void EnterEarlyStandby(void);
+static bool IsPowerWakePressed(void);
+static void PulseRfWakeLine(void);
 
 /**
   * @brief  The application entry point.
@@ -48,6 +53,7 @@ int main(void)
     __enable_irq(); 
     enableFPU(); // 使能FPU
     HAL_Init();
+    EarlyStandbyWakeGate();
     HAL_Delay(200); // 延时200ms 等待时钟稳定，并且验证时钟配置是否正确 中断是否可用
     UserLEDClose(); // 关闭LED 表示已经进入main函数
 
@@ -127,6 +133,96 @@ void enableFPU(void)
     
     __DSB();
     __ISB();
+}
+
+static void EnableGpioClock(GPIO_TypeDef *port)
+{
+    if (port == GPIOA) { __HAL_RCC_GPIOA_CLK_ENABLE(); }
+    else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
+    else if (port == GPIOC) { __HAL_RCC_GPIOC_CLK_ENABLE(); }
+    else if (port == GPIOD) { __HAL_RCC_GPIOD_CLK_ENABLE(); }
+    else if (port == GPIOE) { __HAL_RCC_GPIOE_CLK_ENABLE(); }
+    else if (port == GPIOF) { __HAL_RCC_GPIOF_CLK_ENABLE(); }
+    else if (port == GPIOG) { __HAL_RCC_GPIOG_CLK_ENABLE(); }
+    else if (port == GPIOH) { __HAL_RCC_GPIOH_CLK_ENABLE(); }
+    else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
+    else if (port == GPIOJ) { __HAL_RCC_GPIOJ_CLK_ENABLE(); }
+    else if (port == GPIOK) { __HAL_RCC_GPIOK_CLK_ENABLE(); }
+}
+
+static void ConfigurePowerWakePinForStandby(void)
+{
+    EnableGpioClock(POWER_WAKEUP_PORT);
+
+    GPIO_InitTypeDef init = {0};
+    init.Mode = GPIO_MODE_INPUT;
+    init.Pull = GPIO_PULLUP;
+    init.Speed = GPIO_SPEED_FREQ_LOW;
+    init.Pin = POWER_WAKEUP_PIN;
+    HAL_GPIO_Init(POWER_WAKEUP_PORT, &init);
+
+    HAL_PWREx_DisableWakeUpPin(POWER_WAKEUP_PWR_PIN);
+    HAL_PWREx_ClearWakeupFlag(POWER_WAKEUP_FLAG);
+
+    PWREx_WakeupPinTypeDef wakeup = {0};
+    wakeup.WakeUpPin = POWER_WAKEUP_PWR_PIN;
+    wakeup.PinPolarity = PWR_PIN_POLARITY_LOW;
+    wakeup.PinPull = PWR_PIN_PULL_UP;
+    HAL_PWREx_EnableWakeUpPin(&wakeup);
+}
+
+static void EnterEarlyStandby(void)
+{
+    ConfigurePowerWakePinForStandby();
+    HAL_SuspendTick();
+    HAL_PWREx_EnterSTANDBYMode(PWR_D1_DOMAIN);
+    while (1) {
+    }
+}
+
+static bool IsPowerWakePressed(void)
+{
+    return HAL_GPIO_ReadPin(POWER_WAKEUP_PORT, POWER_WAKEUP_PIN) == GPIO_PIN_RESET;
+}
+
+static void PulseRfWakeLine(void)
+{
+    EnableGpioClock(RF_BRIDGE_IRQ_GPIO_PORT);
+
+    GPIO_InitTypeDef init = {0};
+    init.Mode = GPIO_MODE_OUTPUT_OD;
+    init.Pull = GPIO_PULLUP;
+    init.Speed = GPIO_SPEED_FREQ_LOW;
+    init.Pin = RF_BRIDGE_IRQ_PIN;
+    HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &init);
+
+    HAL_GPIO_WritePin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN, GPIO_PIN_SET);
+    HAL_Delay(10);
+    HAL_GPIO_WritePin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN, GPIO_PIN_RESET);
+
+    init.Mode = GPIO_MODE_INPUT;
+    init.Pull = GPIO_PULLDOWN;
+    HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &init);
+}
+
+static void EarlyStandbyWakeGate(void)
+{
+    if (__HAL_PWR_GET_FLAG(PWR_FLAG_SB) == RESET) {
+        return;
+    }
+
+    ConfigurePowerWakePinForStandby();
+    const uint32_t start = HAL_GetTick();
+    while ((uint32_t)(HAL_GetTick() - start) < 5000u) {
+        if (!IsPowerWakePressed()) {
+            EnterEarlyStandby();
+        }
+    }
+
+    HAL_PWREx_DisableWakeUpPin(POWER_WAKEUP_PWR_PIN);
+    HAL_PWREx_ClearWakeupFlag(POWER_WAKEUP_FLAG);
+    __HAL_PWR_CLEAR_FLAG(PWR_CPU_FLAGS);
+    PulseRfWakeLine();
 }
 
 #if SYSTEM_CHECK_ENABLE == 1

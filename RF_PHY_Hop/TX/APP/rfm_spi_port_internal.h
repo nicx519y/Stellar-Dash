@@ -31,5 +31,6 @@ uint8_t rfm_spi_port_tx_pending(void);
 uint32_t rfm_spi_port_tx_recover_count(void);
 bool rfm_spi_port_try_read(uint8_t *buf, size_t *inout_len);
 bool rfm_spi_port_try_write(const uint8_t *buf, size_t len);
+void rfm_spi_port_enter_gpio_wake_sleep(void);
 
 #endif

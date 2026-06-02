@@ -118,7 +118,8 @@ static bool rf_wait_irq_low(uint32_t timeoutMs) {
 }
 
 static bool rf_is_valid_evt(uint8_t evt) {
-    return (evt == 0x81u) || (evt == 0x82u) || (evt == 0x83u) || (evt == 0x84u) || (evt == 0x85u);
+    return (evt == 0x81u) || (evt == 0x82u) || (evt == 0x83u) ||
+           (evt == 0x84u) || (evt == 0x85u) || (evt == 0x86u);
 }
 
 static uint8_t rf_checksum8(const uint8_t* data, uint16_t len) {
@@ -745,7 +746,8 @@ bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint1
 
     const bool should_try_readback = (txLen >= 2u) &&
                                      ((cmd == 0x01u) || (cmd == 0x02u) || (cmd == 0x03u) ||
-                                      (cmd == 0x04u) || (cmd == 0x05u) || (cmd == 0x07u));
+                                      (cmd == 0x04u) || (cmd == 0x05u) || (cmd == 0x07u) ||
+                                      (cmd == 0x08u));
     if (should_try_readback && (rx != nullptr) && (rxLen != nullptr) && (*rxLen != 0u)) {
         if (*rxLen < 4u) {
             *rxLen = 0u;
@@ -776,4 +778,37 @@ bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint1
     }
 
     return true;
+}
+
+bool RFBridgePort_WaitIdle(uint32_t timeoutMs) {
+    if (!s_rf_spi_ready) {
+        return true;
+    }
+    return rf_spi_dma_wait_idle_and_drop_pending(timeoutMs);
+}
+
+void RFBridgePort_PulseWake(uint32_t highMs) {
+    rf_enable_gpio_clock(RF_BRIDGE_IRQ_GPIO_PORT);
+
+    HAL_NVIC_DisableIRQ(RF_BRIDGE_IRQ_EXTI_IRQn);
+    __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
+
+    GPIO_InitTypeDef init = {};
+    init.Mode = GPIO_MODE_OUTPUT_OD;
+    init.Pull = GPIO_PULLUP;
+    init.Speed = GPIO_SPEED_FREQ_LOW;
+    init.Alternate = 0u;
+    init.Pin = RF_BRIDGE_IRQ_PIN;
+    HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &init);
+
+    HAL_GPIO_WritePin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN, GPIO_PIN_SET);
+    HAL_Delay(highMs);
+    HAL_GPIO_WritePin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN, GPIO_PIN_RESET);
+
+    init.Mode = GPIO_MODE_IT_RISING;
+    init.Pull = GPIO_PULLDOWN;
+    HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &init);
+    __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
+    HAL_NVIC_SetPriority(RF_BRIDGE_IRQ_EXTI_IRQn, RF_BRIDGE_IRQ_EXTI_IRQn_PRIO, 0u);
+    HAL_NVIC_EnableIRQ(RF_BRIDGE_IRQ_EXTI_IRQn);
 }

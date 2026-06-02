@@ -13,6 +13,7 @@
 #include "screen_control/spi_screen_detail_entries.hpp"
 #include "screen_control/spi_screen_detail_pages.hpp"
 #include "screen_control/spi_screen_standby.hpp"
+#include "screen_control/spi_screen_icons.hpp"
 #include "adc_btns/adc_calibration.hpp"
 #include "adc_btns/adc_manager.hpp"
 #include "adc_btns/adc_btns_worker.hpp"
@@ -119,19 +120,6 @@ static uint8_t compute_backlight_percent(uint32_t nowMs) {
     return (uint8_t)(((uint32_t)g_cfgBrightness * elapsed) / SPI_SCREEN_BL_RAMP_MS);
 }
 
-static const char* get_connection_mode_label(void) {
-    if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB) {
-        if (CONNECTION_MANAGER.getLinkState() == ConnectionLinkState::Connected) return "USB";
-        return "USB?";
-    }
-    switch (CONNECTION_MANAGER.getLinkState()) {
-        case ConnectionLinkState::Connected: return "2.4G";
-        case ConnectionLinkState::Connecting: return "2.4~";
-        case ConnectionLinkState::Error: return "2.4!";
-        default: return "2.4?";
-    }
-}
-
 static void update_battery_ui_cache(uint32_t nowMs) {
     if (g_battUiLastSampleMs != 0u && (uint32_t)(nowMs - g_battUiLastSampleMs) < 1000u) {
         return;
@@ -163,25 +151,33 @@ static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_
     const uint16_t innerW = (uint16_t)(bodyW - 4u);
     const uint16_t innerH = (uint16_t)(bodyH - 4u);
     ST7789_FillRect(lcd, innerX, innerY, innerW, innerH, bg);
-    const uint16_t baseFillW = (uint16_t)((uint32_t)innerW * (uint32_t)g_battUiSoc / 100u);
-    uint16_t fillW = baseFillW;
-    if (g_battUiCharging && baseFillW < innerW) {
-        const uint32_t periodMs = 1200u;
-        const uint32_t t = (periodMs == 0u) ? 0u : (nowMs % periodMs);
-        const uint32_t span = (uint32_t)(innerW - baseFillW);
-        const uint32_t add = (span * t) / periodMs;
-        fillW = (uint16_t)(baseFillW + (uint16_t)add);
+
+    uint8_t baseBars = 0u;
+    if (g_battUiSoc >= 67u) {
+        baseBars = 3u;
+    } else if (g_battUiSoc >= 34u) {
+        baseBars = 2u;
+    } else if (g_battUiSoc >= 1u) {
+        baseBars = 1u;
     }
-    if (g_battUiSoc > 0u && fillW == 0u) fillW = 1u;
-    if (fillW > 0u) {
-        ST7789_FillRect(lcd, innerX, innerY, fillW, innerH, fg);
+
+    uint8_t visibleBars = baseBars;
+    if (g_battUiCharging) {
+        const uint32_t phase = (nowMs / 300u) % 2u;
+        if (phase == 0u) {
+            visibleBars = 3u;
+        } else {
+            visibleBars = (baseBars > 0u) ? (uint8_t)(baseBars - 1u) : 0u;
+        }
     }
-    if (g_battUiFastCharging) {
-        const uint16_t charW = 6u;
-        const uint16_t charH = 8u;
-        const uint16_t sx = (uint16_t)(innerX + ((innerW > charW) ? ((innerW - charW) / 2u) : 0u));
-        const uint16_t sy = (uint16_t)(innerY + ((innerH > charH) ? ((innerH - charH) / 2u) : 0u));
-        ST7789_DrawString(lcd, sx, sy, "S", fg, bg, 1);
+
+    const uint16_t gap = 2u;
+    const uint16_t barW = (uint16_t)((innerW - (gap * 2u)) / 3u);
+    for (uint8_t i = 0u; i < 3u; ++i) {
+        const uint16_t bx = (uint16_t)(innerX + (uint16_t)i * (barW + gap));
+        if (i < visibleBars) {
+            ST7789_FillRect(lcd, bx, innerY, barW, innerH, fg);
+        }
     }
 }
 
@@ -489,8 +485,6 @@ void SPIScreenManager::renderBars() {
     ST7789_FillRect(&g_lcd, 0, 0, leftW, h, barBg);
     ST7789_FillRect(&g_lcd, rightX, 0, rightW, h, barBg);
 
-    const char* mode = ScreenMain_InputModeAbbrev(STORAGE_MANAGER.getInputMode());
-    const char* connMode = get_connection_mode_label();
     const uint32_t nowMs = HAL_GetTick();
     update_battery_ui_cache(nowMs);
 
@@ -505,13 +499,14 @@ void SPIScreenManager::renderBars() {
 
     const uint8_t tokenScale = SPI_SCREEN_STATUS_BAR_TEXT_SCALE;
     const uint16_t tokenH = ScreenUI_CharCellH(tokenScale);
+    const uint16_t iconH = 24u;
     const uint16_t leftTopY = 6u;
     const uint16_t stackGap = 8u;
     const uint16_t battBodyH = 12u;
     const uint16_t battBottomMargin = 8u;
     const uint16_t battY = (h > (uint16_t)(battBodyH + battBottomMargin)) ? (uint16_t)(h - battBodyH - battBottomMargin) : 0u;
-    const uint16_t connY = (battY > (uint16_t)(tokenH + stackGap)) ? (uint16_t)(battY - tokenH - stackGap) : leftTopY;
-    const uint16_t inputY = (connY > (uint16_t)(tokenH + stackGap)) ? (uint16_t)(connY - tokenH - stackGap) : (uint16_t)(leftTopY + tokenH + stackGap);
+    const uint16_t connY = (battY > (uint16_t)(iconH + stackGap)) ? (uint16_t)(battY - iconH - stackGap) : leftTopY;
+    const uint16_t inputY = (connY > (uint16_t)(iconH + stackGap)) ? (uint16_t)(connY - iconH - stackGap) : (uint16_t)(leftTopY + tokenH + stackGap);
 
     uint8_t currentProfileIdx = 0xFF;
     uint8_t count = STORAGE_MANAGER.config.numProfilesMax;
@@ -527,8 +522,8 @@ void SPIScreenManager::renderBars() {
     char token[6] = "P?";
     if (currentProfileIdx != 0xFF) snprintf(token, sizeof(token), "P%u", (unsigned)(currentProfileIdx + 1u));
     ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, leftTopY, leftW, tokenH, token, textColor, barBg, tokenScale);
-    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, inputY, leftW, tokenH, mode, textColor, barBg, tokenScale);
-    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, connY, leftW, tokenH, connMode, textColor, barBg, tokenScale);
+    ScreenIcon_DrawInputModeLogo(&g_lcd, 0, inputY, leftW, iconH, STORAGE_MANAGER.getInputMode(), textColor, barBg);
+    ScreenIcon_DrawConnectionMode(&g_lcd, 0, connY, leftW, iconH, CONNECTION_MANAGER.getMode(), CONNECTION_MANAGER.getLinkState(), textColor, barBg, nowMs);
     render_left_battery_icon(&g_lcd, leftW, h, textColor, barBg, nowMs);
 
     if (g_inDetail) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH, "Back", textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);

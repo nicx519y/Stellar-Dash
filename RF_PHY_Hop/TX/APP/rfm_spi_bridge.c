@@ -30,6 +30,7 @@ static uint8_t s_state_changed_retry_cmd_tag;
 #define SPI_POLL_MAX_BATCHES          1u
 #define SPI_INPUT_FRAME_BYTES         (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
 static uint32_t s_last_rx_count;
+static uint8_t s_sleep_request_pending;
 
 typedef enum {
     SPI_CMD_GET_STATUS = 0x01,
@@ -38,7 +39,8 @@ typedef enum {
     SPI_CMD_UNBIND = 0x04,
     SPI_CMD_SET_RATE = 0x05,
     SPI_CMD_INPUT_DATA = 0x06,
-    SPI_CMD_SET_RADIO = 0x07
+    SPI_CMD_SET_RADIO = 0x07,
+    SPI_CMD_ENTER_SLEEP = 0x08
 } spi_cmd_t;
 
 typedef enum {
@@ -46,7 +48,8 @@ typedef enum {
     SPI_EVT_STATE_CHANGED = 0x82,
     SPI_EVT_RATE_APPLIED = 0x83,
     SPI_EVT_LINK_WARN = 0x84,
-    SPI_EVT_ERROR = 0x85
+    SPI_EVT_ERROR = 0x85,
+    SPI_EVT_SLEEP_ACK = 0x86
 } spi_evt_t;
 
 typedef enum {
@@ -109,6 +112,7 @@ static bool is_valid_host_cmd(uint8_t cmd)
     case SPI_CMD_SET_RATE:
     case SPI_CMD_INPUT_DATA:
     case SPI_CMD_SET_RADIO:
+    case SPI_CMD_ENTER_SLEEP:
         return true;
     default:
         return false;
@@ -216,6 +220,14 @@ static bool send_error_event(uint8_t cmd_tag, uint8_t reason)
     return send_frame(SPI_EVT_ERROR, payload, (uint8_t)sizeof(payload));
 }
 
+static bool send_sleep_ack_event(uint8_t cmd_tag)
+{
+    uint8_t payload[2];
+    payload[0] = cmd_tag;
+    payload[1] = 0u;
+    return send_frame(SPI_EVT_SLEEP_ACK, payload, (uint8_t)sizeof(payload));
+}
+
 static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
 {
     rfm_spi_port_set_irq(false);
@@ -290,6 +302,19 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
         if ((payload != 0) && (len == 1u) && (payload[0] <= 1u)) {
             if (RF_SetRadioEnabled(payload[0] != 0u)) {
                 (void)send_status_frame(SPI_EVT_STATE_CHANGED, cmd);
+                break;
+            }
+            (void)send_error_event(cmd, 2u);
+            break;
+        }
+        (void)send_error_event(cmd, 1u);
+        break;
+    case SPI_CMD_ENTER_SLEEP:
+        if(len == 0u)
+        {
+            if(RF_PrepareSleep() && send_sleep_ack_event(cmd))
+            {
+                s_sleep_request_pending = 1u;
                 break;
             }
             (void)send_error_event(cmd, 2u);
@@ -631,6 +656,7 @@ void rfm_spi_bridge_init(void)
     s_last_rx_count = 0u;
     s_state_changed_retry_pending = 0u;
     s_state_changed_retry_cmd_tag = 0u;
+    s_sleep_request_pending = 0u;
     parser_reset();
     fast_parser_reset();
     rfm_spi_port_init();
@@ -678,4 +704,18 @@ void rfm_spi_bridge_poll(void)
         }
     }
     try_send_pending_state_changed();
+}
+
+bool rfm_spi_bridge_take_sleep_request(void)
+{
+    if(s_sleep_request_pending == 0u)
+    {
+        return false;
+    }
+    if(rfm_spi_port_tx_pending() != 0u)
+    {
+        return false;
+    }
+    s_sleep_request_pending = 0u;
+    return true;
 }
