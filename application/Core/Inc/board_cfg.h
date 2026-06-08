@@ -53,8 +53,8 @@
 #endif
 
 /* Debug print configuration */
-#define APPLICATION_SERIAL_PRINT 0   // 设置为 1 可以恢复 USART1 串口 printf 输出
-#define APPLICATION_DEBUG_PRINT  0   // 设置为 1 可以恢复 APP_DBG/APP_ERR 调试打印
+#define APPLICATION_SERIAL_PRINT 1   // 设置为 1 可以恢复 USART1 串口 printf 输出
+#define APPLICATION_DEBUG_PRINT  1   // 设置为 1 可以恢复 APP_DBG/APP_ERR 调试打印
 
 #ifndef RF24G_SPI_TEST_FORCE_RF24G
 #define RF24G_SPI_TEST_FORCE_RF24G 0
@@ -227,8 +227,8 @@
 #define ROTENC_A_PIN                            GPIO_PIN_8
 #define ROTENC_B_PORT                           GPIOH
 #define ROTENC_B_PIN                            GPIO_PIN_9
-#define ROTENC_BTN_PORT                         GPIOH
-#define ROTENC_BTN_PIN                          GPIO_PIN_7
+#define ROTENC_BTN_PORT                         GPIOA
+#define ROTENC_BTN_PIN                          GPIO_PIN_0
 #define ROTENC_EXTI_IRQn                        EXTI9_5_IRQn
 
 /* ================= USB =================
