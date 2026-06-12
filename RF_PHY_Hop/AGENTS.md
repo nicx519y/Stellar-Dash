@@ -829,6 +829,81 @@ T8 c0 h39 p10 hz8000 due39959 tx39939 fin10 aq10 ack10 to0 fail0 e0/0 dr20 st0
 - `dr20~38`，比 `100ms` ACK burst 版本的 `dr118~154` 明显更低。
 - 当前可把 `8K DATA + 500ms ACK + 3 包 request burst + 1200us TX ACK RX timeout` 作为可用基线。
 
+## 当前落地：跳频决策 + 稳定过渡
+
+当前 `RF_AUTO_ACK_DEMO_ENABLE=1` 的默认路径已在上述可用基线上加入第一版智能跳频：
+
+- 数据面仍保持 `8K DATA no-ack`。
+- 控制面仍使用 `500ms` 低频 ACK、`3` 包 request burst、`1200us` TX ACK RX timeout。
+- ACK token/remaining 字段移到 air payload `byte10/byte11`，为 `CMD_HOP_PREPARE` / `CMD_HOP_CONFIRM` 让出标准 command slots。
+
+### 跳频决策
+
+RX 在每个 ACK 周期统计：
+
+- `seq` 间隙推导出的 missing packet。
+- `RF_STATE_RX_CRCERR` 推导出的 CRC bad packet。
+- `quality_permille = bad * 1000 / expected`。
+
+RX ACK payload 使用共享 ACK 字段：
+
+- `loss_permille`：当前 quality score。
+- `rx_count/expected_count`：当前窗口统计。
+- `cmd_id`：被 ACK 的命令号。
+- `channel`：RX 当前 ACK 发送频道。
+- `status`：当前复用为 `hop_seq`。
+
+TX 触发跳频的第一版条件：
+
+- `quality_permille >= 180`，且不在 `10s` cooldown 内。
+- 或连续 `2` 个 ACK 控制周期 miss，且不在 cooldown 内。
+
+候选频道第一版按固定表轮换：
+
+```text
+39 -> 16 -> 24 -> 32 -> 39
+```
+
+后续可把候选选择替换为 RSSI/CCA/历史 score 表，但跳频事务不需要再改。
+
+### 跳频稳定性保证
+
+TX 状态：
+
+```text
+COMM
+-> HOP_PREPARE_ACK_WAIT
+-> HOP_CONFIRM_ACK_WAIT
+-> COMM
+```
+
+失败恢复：
+
+```text
+HOP_PREPARE_ACK_WAIT timeout -> COMM(old)
+HOP_CONFIRM_ACK_WAIT timeout -> RECOVERY_DUAL(old,target)
+RECOVERY_DUAL timeout -> COMM(old)
+```
+
+稳定性规则：
+
+- TX 未收到 `CMD_HOP_PREPARE` ACK 前，绝不切离 old channel。
+- RX 收到 `CMD_HOP_PREPARE` 并发出 ACK 后，不永久单边切 target，而是进入 `PREPARED_DUAL`，按 `2ms` dwell 在 old/target 间扫描。
+- TX 收到 prepare ACK 后切 target，并重复发送 `CMD_HOP_CONFIRM`。
+- RX 在 target 收到 confirm 后 ACK `CMD_HOP_CONFIRM`，ACK 发完才把 target 视为正式通信频道。
+- TX 收到 confirm ACK 后才完成跳频并进入 `10s` cooldown。
+- prepare/confirm 都带 `hop_seq`；重复命令幂等，重复 ACK 不会创建新事务。
+
+日志字段变化：
+
+- TX：`T8 c0 S<M/P/C/R> h<current>><target> q<quality> ... H<hop_events> ...`
+- RX：`R8 c0 S<M/D> h<current>><target> ... H<hop_events> ...`
+
+状态字母：
+
+- TX `M`：普通通信，`P`：等待 prepare ACK，`C`：等待 confirm ACK，`R`：old/target 双频道恢复。
+- RX `M`：普通通信，`D`：prepare 后 old/target 双频道扫描等待 confirm。
+
 构建：
 
 ```bash
