@@ -2,6 +2,11 @@
 
 本文件只保留当前 `RF_PHY_Hop/` 调试阶段对后续协议设计有用的结论。旧的跳频、配对、多速率历史设计不要作为当前实现依据。
 
+阅读优先级：
+
+- 现在默认实现以“当前落地：跳频决策 + 稳定过渡”和“HID telemetry / connect-monitor 调试”两节为准。
+- 前面的固定频道、窗口扫描、auto ACK、RFIP 探针内容是形成当前方案的实验记录，除非要回归定位，否则不要把它当作当前运行配置。
+
 ## 当前测试前提
 
 - 固定频道：`channel 16`
@@ -918,6 +923,125 @@ make -C RF_PHY_Hop/TX clean
 make -C RF_PHY_Hop/TX EXTRA_DEFINES=-DRF_AUTO_ACK_DEMO_ENABLE=0
 make -C RF_PHY_Hop/RX clean
 make -C RF_PHY_Hop/RX EXTRA_DEFINES=-DRF_AUTO_ACK_DEMO_ENABLE=0
+```
+
+## HID telemetry / connect-monitor 调试
+
+当前 RX 调试不要依赖 CDC 串口持续输出。串口文本会占用 USB/格式化时间，可能干扰 RX 本身的性能观测；默认改为 HID telemetry。
+
+### 固件侧
+
+关键文件：
+
+- `RF_PHY_Hop/RX/APP/RF_PHY.c`
+- `RF_PHY_Hop/RX/APP/RF_main.c`
+- `RF_PHY_Hop/RX/APP/usb_desc_xinput.c`
+- `RF_PHY_Hop/RX/APP/include/dongle_config.h`
+- `RF_PHY_Hop/RX/Makefile`
+
+默认配置：
+
+- `RF_SERIAL_LOG=0`，由 `RF_PHY_Hop/RX/Makefile` 下发。
+- CDC 文本日志代码仍保留，但只有显式 `SERIAL_LOG=1` 构建时才会格式化和发送。
+- HID telemetry 走 vendor HID interface，endpoint `0x86` / `DEF_UEP6`，包长 `32B`。
+- 当前调试 VID/PID：`0x1A86:0xFE0C`，由 `DONGLE_USB_DEBUG_CDC_ID=1` 选择。
+- 发布/XInput 兼容 VID/PID：`0x045E:0x02FF`，由 `DONGLE_USB_DEBUG_CDC_ID=0` 选择。
+- vendor HID report descriptor 使用 usage page `0xFF00`。
+
+`RF_main.c` 每 `100ms` 调一次：
+
+```c
+RF_TrySendTelemetryReport();
+```
+
+发送函数会先检查：
+
+- USB 已枚举：`USBHS_DevEnumStatus != 0`
+- HID endpoint 不 busy：`USBHS_Endp_Busy[DEF_UEP6]` 没有 `DEF_UEP_BUSY`
+
+如果 endpoint busy，本次 telemetry 直接跳过，不阻塞 RF 接收。
+
+### `RHM1` HID 帧格式
+
+当前 RF_PHY_Hop RX telemetry 使用 `RHM1` magic，小端 `0x314D4852`，总长 `32B`：
+
+| Offset | Size | 含义 |
+|---:|---:|---|
+| `0` | `u32` | magic：`RHM1` |
+| `4` | `u32` | telemetry seq |
+| `8` | `u16` | 上一个 telemetry 窗口 elapsed ms |
+| `10` | `u16` | target report rate，当前 `8000` |
+| `12` | `u32` | 窗口内 RX OK packet count |
+| `16` | `u32` | 窗口内 expected packet count |
+| `20` | `u16` | loss permille |
+| `22` | `u8` | hop/RX state：`2=COMM`，`3=PREPARED_DUAL` |
+| `23` | `u8` | current channel |
+| `24` | `u8` | old channel |
+| `25` | `u8` | target channel |
+| `26` | `u8` | rate code |
+| `27` | `u8` | hop event count，饱和到 `255` |
+| `28` | `u8` | error event count，饱和到 `255` |
+| `29..31` | `u8[3]` | reserved |
+
+成功提交 HID 后，RX 会递增 telemetry seq，并扣减本窗口已经上报的 `rx_ok/expected/bad/hop_events/errors` 计数。
+
+### connect-monitor 侧
+
+`connect-monitor` 当前默认用 HID，不开串口：
+
+- HID source：`connect-monitor/electron/sources/hid-telemetry-source.ts`
+- RF_PHY_Hop HID parser：`connect-monitor/electron/sources/dongle-hid-telemetry-source.ts`
+- 串口 source：`connect-monitor/electron/sources/serial-telemetry-source.ts`
+- 串口只有设置 `MONITOR_SERIAL_ENABLE=1` 或 `MONITOR_SERIAL_PATH` 时才启动。
+
+HID 枚举默认匹配：
+
+- `0x045E:0x02FF`
+- `0x1A86:0xFE0C`
+- 或 manufacturer/product 包含 `HBox`
+
+并且会避开同一复合设备上的 generic desktop controller HID interface，只打开 telemetry interface。
+
+`connect-monitor` 可以看到：
+
+- RF connection state：`Connected/Connecting/Disconnected/Error`
+- target rate / actual telemetry window rate
+- RF packet loss：由 `rx_count/expected_count` 推导
+- 当前 channel、old channel、target channel
+- hop state：`RFH_RHM1_C` / `RFH_RHM1_HR`
+- hop events / error events
+- packet log、channel events/error log、Markdown export
+
+如果 UI 显示“设备未接入”，优先确认 PC 是否枚举到 HID：
+
+```powershell
+cd connect-monitor
+node -e "const HID=require('node-hid'); console.table(HID.devices().map(d=>({vid:'0x'+(d.vendorId||0).toString(16),pid:'0x'+(d.productId||0).toString(16),usagePage:d.usagePage&&('0x'+d.usagePage.toString(16)),usage:d.usage&&('0x'+d.usage.toString(16)),manufacturer:d.manufacturer,product:d.product})))"
+```
+
+正常应能看到类似：
+
+```text
+vid=0x1a86 pid=0xfe0c usagePage=0xff00 manufacturer="HBox RF" product="HBox XInput + CDC Dongle"
+```
+
+也可能看到同设备的 controller interface：
+
+```text
+vid=0x1a86 pid=0xfe0c usagePage=0x1 usage=0x5 product="Controller (HBox XInput + CDC Dongle)"
+```
+
+这是手柄接口，不是 telemetry 接口；monitor 会过滤掉它。
+
+常用验证：
+
+```bash
+make -C RF_PHY_Hop/RX clean
+make -C RF_PHY_Hop/RX
+cd connect-monitor
+npm run typecheck
+npm run build
+npm start
 ```
 
 ### 后续参数回归顺序
