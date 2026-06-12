@@ -23,11 +23,19 @@
 #if (RF_AUTO_ACK_DEMO_ENABLE == 1u)
 
 #define RF_AUTO_DEMO_PACKET_LEN        RFH_AIR_PACKET_LEN
+#define RF_AUTO_DEMO_DMA_LEN           (RF_AUTO_DEMO_PACKET_LEN + 2u)
 #define RF_AUTO_DEMO_DATA_TYPE         0xFFu
 #define RF_AUTO_DEMO_ACK_TYPE          0xFFu
 #define RF_AUTO_DEMO_CHANNEL           39u
 #define RF_AUTO_DEMO_FREQUENCY_KHZ     2480000UL
-#define RF_AUTO_DEMO_LLE_MODE          LLE_MODE_AUTO
+#define RF_AUTO_DEMO_PHY_PROPS         LLE_MODE_PHY_2M
+#define RF_AUTO_DEMO_SEND_ACK_ENABLE   1u
+#define RF_AUTO_DEMO_ACK_BIT           0u
+#define RF_AUTO_DEMO_REPORT_HZ         8000u
+#define RF_AUTO_DEMO_RATE_CODE         RFH_RATE_8K
+#define RF_AUTO_DEMO_ACK_TX_DELAY_US   60u
+#define RF_AUTO_DEMO_ACK_TOKEN_OFFSET  4u
+#define RF_AUTO_DEMO_ACK_REMAIN_OFFSET 5u
 #define RF_LINK_CRC_INIT               0x555555UL
 #define TMR0_FREE_RUN_WRAP             0x04000000UL
 
@@ -38,32 +46,84 @@ typedef struct
     volatile uint32_t data_ok;
     volatile uint32_t data_crc_err;
     volatile uint32_t data_type_err;
+    volatile uint32_t ack_req;
     volatile uint32_t ack_finish;
     volatile uint32_t ack_fail;
+    volatile uint32_t tx_parm_fail;
 } rf_auto_demo_stat_t;
 
 uint8_t taskID;
 
-__attribute__((__aligned__(4))) static uint8_t TxBuf[RF_AUTO_DEMO_PACKET_LEN];
+static rfRoleParam_t gParm;
+#if (RF_AUTO_DEMO_SEND_ACK_ENABLE != 0u)
+static rfipTx_t gTxParam;
+#endif
+static rfipRx_t gRxParam;
+#if (RF_AUTO_DEMO_SEND_ACK_ENABLE != 0u)
+__attribute__((__aligned__(4))) static uint8_t TxBuf[RF_AUTO_DEMO_DMA_LEN];
+#endif
+__attribute__((__aligned__(4))) static uint8_t RxBuf[264];
 
 static rf_auto_demo_stat_t g_demo_stat;
 static volatile uint8_t g_demo_config_ret = 0xFFu;
+static volatile uint8_t g_demo_tx_start_ret = 0xFFu;
+static volatile uint8_t g_demo_tx_parm_ret = 0xFFu;
+static volatile uint8_t g_demo_rx_ret = 0xFFu;
 static volatile uint8_t g_demo_rearm_pending = 0u;
 static volatile uint8_t g_demo_rx_active = 0u;
+static volatile uint8_t g_demo_ack_pending = 0u;
+static uint32_t g_demo_ack_delay_tmr = 1u;
+static uint32_t g_demo_slot_tmr = 1u;
+static uint8_t g_demo_last_ack_token = 0u;
+static uint8_t g_demo_have_ack_token = 0u;
+#if (RF_AUTO_DEMO_SEND_ACK_ENABLE != 0u)
 static uint8_t g_demo_ack_seq = 0u;
+#endif
+
+static uint32_t demo_us_to_tmr_cycles(uint32_t us)
+{
+    uint32_t cycles_per_us = GetSysClock() / 1000000u;
+    uint32_t cycles;
+
+    if(cycles_per_us == 0u)
+    {
+        cycles_per_us = 1u;
+    }
+
+    cycles = cycles_per_us * us;
+    return (cycles == 0u) ? 1u : cycles;
+}
+
+static void demo_ack_timer_cancel(void)
+{
+    TMR1_ITCfg(DISABLE, TMR0_3_IT_CYC_END);
+    TMR1_ClearITFlag(TMR0_3_IT_CYC_END);
+    TMR1_Disable();
+}
+
+static void demo_ack_timer_arm(uint32_t cycles)
+{
+    demo_ack_timer_cancel();
+    TMR1_TimerInit(cycles);
+    TMR1_ClearITFlag(TMR0_3_IT_CYC_END);
+    TMR1_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
+}
 
 static void demo_fill_ack_packet(void)
 {
     uint8_t i;
+    uint8_t *air = &TxBuf[2];
 
     memset(TxBuf, 0, sizeof(TxBuf));
-    TxBuf[0] = rfh_make_header0(RFH_PKT_ACK, RFH_RATE_8K, RFH_FLAG_LINK_OK);
-    TxBuf[1] = g_demo_ack_seq;
-    TxBuf[2] = (uint8_t)(g_demo_stat.data_ok & 0xFFu);
-    TxBuf[3] = (uint8_t)((g_demo_stat.data_ok >> 8) & 0xFFu);
+    TxBuf[0] = RFH_WCH_PREAMBLE;
+    TxBuf[1] = RF_AUTO_DEMO_PACKET_LEN;
+    air[0] = rfh_make_header0(RFH_PKT_ACK, RF_AUTO_DEMO_RATE_CODE, RFH_FLAG_LINK_OK);
+    air[1] = g_demo_ack_seq;
+    air[2] = (uint8_t)(g_demo_stat.data_ok & 0xFFu);
+    air[3] = (uint8_t)((g_demo_stat.data_ok >> 8) & 0xFFu);
     for(i = 4u; i < RF_AUTO_DEMO_PACKET_LEN; i++)
     {
-        TxBuf[i] = (uint8_t)(0xC0u + i);
+        air[i] = (uint8_t)(0xC0u + i);
     }
 }
 
@@ -80,16 +140,17 @@ static void demo_arm_rx(void)
         return;
     }
 
-    demo_fill_ack_packet();
-    ret = RF_Rx(TxBuf,
-                RF_AUTO_DEMO_PACKET_LEN,
-                RF_AUTO_DEMO_DATA_TYPE,
-                RF_AUTO_DEMO_ACK_TYPE);
+    g_demo_tx_parm_ret = SUCCESS;
+
+    ret = RFIP_SetRx(&gRxParam);
+    g_demo_rx_ret = (uint8_t)ret;
     g_demo_stat.rx_arm++;
     if(ret == SUCCESS)
     {
         g_demo_rx_active = 1u;
+#if (RF_AUTO_DEMO_SEND_ACK_ENABLE != 0u)
         g_demo_ack_seq++;
+#endif
     }
     else
     {
@@ -98,42 +159,109 @@ static void demo_arm_rx(void)
     }
 }
 
-static void RF_AutoDemoStatusCallBack(uint8_t sta, uint8_t rsr, uint8_t *rxBuf)
+static void demo_send_ack(void)
 {
-    switch(sta)
+    bStatus_t ret;
+
+    g_demo_ack_pending = 0u;
+    (void)RFRole_Stop();
+    g_demo_rx_active = 0u;
+    demo_fill_ack_packet();
+    gTxParam.txDMA = (uint32_t)TxBuf;
+    g_demo_tx_start_ret = (uint8_t)RFIP_SetTxStart();
+    if(g_demo_tx_start_ret != SUCCESS)
     {
-        case RX_MODE_RX_DATA:
-            g_demo_rx_active = 0u;
-            if(rsr == 0u)
+        g_demo_stat.ack_fail++;
+        g_demo_rearm_pending = 1u;
+        return;
+    }
+
+    ret = RFIP_SetTxParm(&gTxParam);
+    g_demo_tx_parm_ret = (uint8_t)ret;
+    if(ret != SUCCESS)
+    {
+        g_demo_stat.tx_parm_fail++;
+        g_demo_stat.ack_fail++;
+        g_demo_rearm_pending = 1u;
+    }
+}
+
+static void demo_schedule_ack(uint8_t remaining_slots)
+{
+    g_demo_ack_pending = 1u;
+    demo_ack_timer_arm(g_demo_ack_delay_tmr + ((uint32_t)remaining_slots * g_demo_slot_tmr));
+}
+
+__INTERRUPT
+__HIGH_CODE
+void TMR1_IRQHandler(void)
+{
+    if(TMR1_GetITFlag(TMR0_3_IT_CYC_END) == 0u)
+    {
+        return;
+    }
+
+    TMR1_ClearITFlag(TMR0_3_IT_CYC_END);
+    TMR1_ITCfg(DISABLE, TMR0_3_IT_CYC_END);
+    if(g_demo_ack_pending != 0u)
+    {
+        demo_send_ack();
+    }
+}
+
+__HIGH_CODE
+void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
+{
+    (void)id;
+
+    if(sta & RF_STATE_RX)
+    {
+        const uint8_t *air = &RxBuf[2];
+        uint8_t request_ack = 0u;
+
+        g_demo_rx_active = 0u;
+        g_demo_stat.data_ok++;
+        if((RxBuf[1] == RF_AUTO_DEMO_PACKET_LEN) &&
+           (rfh_packet_type(air[RFH_HDR0_OFFSET]) == RFH_PKT_DATA) &&
+           ((air[RFH_HDR0_OFFSET] & RFH_FLAG_CMD_ACK) != 0u))
+        {
+            request_ack = 1u;
+        }
+
+        if(request_ack != 0u)
+        {
+            uint8_t token = air[RF_AUTO_DEMO_ACK_TOKEN_OFFSET];
+            uint8_t remaining = air[RF_AUTO_DEMO_ACK_REMAIN_OFFSET];
+            if((g_demo_have_ack_token == 0u) || (token != g_demo_last_ack_token))
             {
-                g_demo_stat.data_ok++;
+                g_demo_have_ack_token = 1u;
+                g_demo_last_ack_token = token;
+                g_demo_stat.ack_req++;
             }
-            else
-            {
-                if((rsr & (1u << 0)) != 0u)
-                {
-                    g_demo_stat.data_crc_err++;
-                }
-                if((rsr & (1u << 1)) != 0u)
-                {
-                    g_demo_stat.data_type_err++;
-                }
-            }
-            (void)rxBuf;
-            break;
-
-        case RX_MODE_TX_FINISH:
-            g_demo_stat.ack_finish++;
-            g_demo_rearm_pending = 1u;
-            break;
-
-        case RX_MODE_TX_FAIL:
-            g_demo_stat.ack_fail++;
-            g_demo_rearm_pending = 1u;
-            break;
-
-        default:
-            break;
+            demo_schedule_ack(remaining);
+            demo_arm_rx();
+        }
+        else
+        {
+            demo_arm_rx();
+        }
+    }
+    if(sta & RF_STATE_RX_CRCERR)
+    {
+        g_demo_rx_active = 0u;
+        g_demo_stat.data_crc_err++;
+        demo_arm_rx();
+    }
+    if(sta & RF_STATE_TX_FINISH)
+    {
+        g_demo_stat.ack_finish++;
+        demo_arm_rx();
+    }
+    if(sta & RF_STATE_TIMEOUT)
+    {
+        g_demo_rx_active = 0u;
+        g_demo_stat.ack_fail++;
+        demo_arm_rx();
     }
 }
 
@@ -214,16 +342,17 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
 
     written = snprintf(buf,
                        len,
-                       "RA c%u m%02X r%lu/%lu d%lu a%lu/%lu e%lu/%lu v%u\r\n",
+                       "R8 c%u d%lu q%lu a%lu/%lu e%lu/%lu x%u/%u/%u v%u\r\n",
                        (unsigned int)g_demo_config_ret,
-                       (unsigned int)RF_AUTO_DEMO_LLE_MODE,
-                       (unsigned long)g_demo_stat.rx_arm,
-                       (unsigned long)g_demo_stat.rx_arm_fail,
                        (unsigned long)g_demo_stat.data_ok,
+                       (unsigned long)g_demo_stat.ack_req,
                        (unsigned long)g_demo_stat.ack_finish,
                        (unsigned long)g_demo_stat.ack_fail,
                        (unsigned long)g_demo_stat.data_crc_err,
                        (unsigned long)g_demo_stat.data_type_err,
+                       (unsigned int)g_demo_rx_ret,
+                       (unsigned int)g_demo_tx_start_ret,
+                       (unsigned int)g_demo_tx_parm_ret,
                        (unsigned int)g_demo_rx_active);
     if(written < 0)
     {
@@ -235,8 +364,10 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     g_demo_stat.data_ok = 0u;
     g_demo_stat.data_crc_err = 0u;
     g_demo_stat.data_type_err = 0u;
+    g_demo_stat.ack_req = 0u;
     g_demo_stat.ack_finish = 0u;
     g_demo_stat.ack_fail = 0u;
+    g_demo_stat.tx_parm_fail = 0u;
 
     return (uint16_t)((written >= (int)len) ? (len - 1u) : (uint16_t)written);
 }
@@ -248,23 +379,57 @@ uint8_t RF_TrySendTelemetryReport(void)
 
 void RF_Init(void)
 {
-    rfConfig_t rf_config;
+    rfRoleConfig_t conf;
 
     taskID = TMOS_ProcessEventRegister(RF_ProcessEvent);
     PFIC_EnableIRQ(BLEB_IRQn);
     PFIC_EnableIRQ(BLEL_IRQn);
 
     TMR0_TimerInit(TMR0_FREE_RUN_WRAP - 1u);
+    g_demo_ack_delay_tmr = demo_us_to_tmr_cycles(RF_AUTO_DEMO_ACK_TX_DELAY_US);
+    g_demo_slot_tmr = demo_us_to_tmr_cycles(RFH_SLOT_US);
+    demo_ack_timer_cancel();
+    PFIC_SetPriority(TMR1_IRQn, 0x80);
+    PFIC_EnableIRQ(TMR1_IRQn);
 
-    memset(&rf_config, 0, sizeof(rf_config));
-    rf_config.accessAddress = RFH_LINK_ACCESS_ADDRESS_DEFAULT;
-    rf_config.CRCInit = RF_LINK_CRC_INIT;
-    rf_config.Channel = RF_AUTO_DEMO_CHANNEL;
-    rf_config.Frequency = RF_AUTO_DEMO_FREQUENCY_KHZ;
-    rf_config.LLEMode = RF_AUTO_DEMO_LLE_MODE;
-    rf_config.rfStatusCB = RF_AutoDemoStatusCallBack;
-    rf_config.RxMaxlen = RF_AUTO_DEMO_PACKET_LEN;
-    g_demo_config_ret = RF_Config(&rf_config);
+    memset(&conf, 0, sizeof(conf));
+    conf.TxPower = BLE_TX_POWER;
+    conf.rfProcessCB = RF_ProcessCallBack;
+    conf.processMask = RF_STATE_RX | RF_STATE_RX_CRCERR |
+                       RF_STATE_TX_FINISH | RF_STATE_TIMEOUT | RF_STATE_TX_IDLE;
+    g_demo_config_ret = (uint8_t)RFRole_BasicInit(&conf);
+
+    memset(&gParm, 0, sizeof(gParm));
+    gParm.accessAddress = RFH_LINK_ACCESS_ADDRESS_DEFAULT;
+    gParm.crcInit = RF_LINK_CRC_INIT;
+    gParm.frequency = RF_AUTO_DEMO_CHANNEL;
+    gParm.properties = RF_AUTO_DEMO_PHY_PROPS | RF_AUTO_DEMO_ACK_BIT;
+    gParm.rxMaxLen = RF_AUTO_DEMO_PACKET_LEN;
+    gParm.sendTime = RFH_TX_SEND_TIME_UNITS;
+    RFRole_SetParam(&gParm);
+
+#if (RF_AUTO_DEMO_SEND_ACK_ENABLE != 0u)
+    memset(&gTxParam, 0, sizeof(gTxParam));
+    gTxParam.accessAddress = gParm.accessAddress;
+    gTxParam.crcInit = gParm.crcInit;
+    gTxParam.frequency = RF_AUTO_DEMO_CHANNEL;
+    gTxParam.properties = RF_AUTO_DEMO_PHY_PROPS;
+    gTxParam.whiteChannel = RF_AUTO_DEMO_CHANNEL;
+    gTxParam.sendTime = (uint8_t)gParm.sendTime;
+    gTxParam.sendCount = 1u;
+    gTxParam.txDMA = (uint32_t)TxBuf;
+#endif
+
+    memset(&gRxParam, 0, sizeof(gRxParam));
+    gRxParam.accessAddress = gParm.accessAddress;
+    gRxParam.crcInit = gParm.crcInit;
+    gRxParam.frequency = RF_AUTO_DEMO_CHANNEL;
+    gRxParam.properties = RF_AUTO_DEMO_PHY_PROPS | RF_AUTO_DEMO_ACK_BIT;
+    gRxParam.rxDMA = (uint32_t)RxBuf;
+    gRxParam.whiteChannel = RF_AUTO_DEMO_CHANNEL;
+    gRxParam.rxMaxLen = RF_AUTO_DEMO_PACKET_LEN;
+    gRxParam.timeOut = 0u;
+
     demo_arm_rx();
 }
 

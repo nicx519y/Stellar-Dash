@@ -176,7 +176,7 @@ Main_Circulation();
 - `CRCInit = 0x555555`
 - DATA/ACK packet type：`0xFF`（广播/接收全部类型，先绕开官方库 type 匹配规则）
 - payload 长度：`12B`
-- TX 侧约每 `1ms` 调一次 `RF_Tx(data, 12, 0xFF, 0xFF)`
+- TX 侧使用 `TMR0` 产生 `1K` report tick，主循环消费 pending tick 后调用 `RF_Tx(data, 12, 0xFF, 0xFF)`
 - RX 侧常驻 `RF_Rx(ack, 12, 0xFF, 0xFF)`，收到 DATA 后由官方库自动回 ACK
 
 TX 初始化：
@@ -207,6 +207,31 @@ RF_Tx(tx_buf, 12, 0xFF, 0xFF);
 - 第 3 个参数是 TX packet type。
 - 第 4 个参数是 auto wait ACK 时要接收的 ACK packet type。
 - `0xFF` 为广播/接收全部匹配类型；当前先用它绕开 packet type 规则。
+
+TX 1K 调度：
+
+```c
+TMR0_TimerInit(GetSysClock() / 1000);
+TMR0_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
+
+void TMR0_IRQHandler(void)
+{
+    TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
+    pending_reports++;
+}
+
+void RF_TxMainLoopProcess(void)
+{
+    if((pending_reports != 0) && (tx_busy == 0))
+    {
+        pending_reports--;
+        RF_Tx(tx_buf, 12, 0xFF, 0xFF);
+        tx_busy = 1;
+    }
+}
+```
+
+注意：不要在 TMR0 IRQ 中直接调用 `RF_Tx()`；IRQ 只产生 pending tick，实际 RF API 在主循环调用。
 
 RX 初始化与 arm：
 
@@ -259,10 +284,13 @@ RF_Rx(ack_buf, 12, 0xFF, 0xFF);
 
 - TX 串口每 5s 打印 `TA ...`：
   - `cfg=0` 表示 `RF_Config()` 成功
+  - `hz=1000` 表示当前 1K report tick
+  - `due` 为 TMR0 产生的 report tick 数
   - `start` 为发起 `RF_Tx()` 次数
   - `fin` 为 `TX_MODE_TX_FINISH`
   - `ack` 为 `TX_MODE_RX_DATA`
   - `tout` 为 `TX_MODE_RX_TIMEOUT`
+  - `dr` 为 pending report 队列溢出丢弃数
 - RX CDC/日志每 5s 打印短格式 `RA c0 m01 r0/0 d0 a0/0 e0/0 v1`：
   - `c0` 表示 `RF_Config()` 成功
   - `m01` 表示当前 `LLEMode`
@@ -293,6 +321,513 @@ TA cfg=0 ch=39 mode=01 start=331 fin=330 ack=314 tout=12 fail=0 crc=4 type=0 bus
 ```text
 ack_ok / (ack_ok + timeout + crc_error) ~= 94%
 ```
+
+### 1K 调度实测结论
+
+已将 TX 侧改为 `TMR0` 产生 `1K` report tick，主循环消费 pending tick 后调用 `RF_Tx()`。实测日志：
+
+```text
+RA c0 m01 hz1000 r326/0 d326 a326/0 e0/0 v1
+TA c0 h39 m01 hz1000 due5005 tx329 fin328 ack325 to2 fail0 e1/0 dr4677 b1
+```
+
+解读：
+
+- `due5005` 说明 `1K` report tick 本身是准的。
+- `tx329` / `RA d326` 说明 `RF_Tx/RF_Rx` 高层 auto ACK 事务吞吐约 `330/5s`，即约 `65Hz`。
+- `dr4677` 说明绝大多数 `1K` pending report 因 TX 仍 busy 被丢弃。
+- 因此：`RF_Tx/RF_Rx` 高层 API 适合证明 auto ACK 机制可用，但不适合作为 `1K/2K/4K/8K` 高速上报底座。
+
+后续若要实现真正 `1K` 上报，有两个方向：
+
+1. 研究 `RFIP` low-level auto ACK：`rfipTx_t.properties bit1 = wait ack`，`rfipRx_t.properties bit1 = send ack`，避开 `RF_Tx/RF_Rx` 包装层开销。
+2. 或者采用 `1K DATA no-ack + 低频 auto ACK`：输入报告保持 `1K` 单向发送，ACK 仅用于链路质量/命令确认。
+
+## RFIP low-level auto ACK 直接 bit1 探针结论
+
+曾将 `RF_AUTO_ACK_DEMO_ENABLE=1` 从高层 `RF_Tx/RF_Rx` 切到 RFIP 低层 auto ACK 探针，目标是验证官方 `properties bit1` 能否把 auto wait ACK / auto send ACK 跑到 `1K` 量级。
+
+实测失败日志：
+
+```text
+RI c0 p02 hz1000 r0/0 d0 a0/0 e0/0 tp0 rt0/0 v0
+TI c0 h39 p02 hz1000 due5004 tx0 fin0 ack0 to0 fail0 e0/0 dr5004 b1 r0/0 s1
+```
+
+解读：
+
+- `TI ... b1 s1` 表示 TX 只成功提交过第一个 RFIP TX，随后没有 `RF_STATE_TX_FINISH/RX/TIMEOUT` 回调，busy 永久卡住。
+- `dr5004` 表示 1K tick 正常，但 pending 全部因为 busy 被丢弃。
+- `RI ... v0` 表示 RX 没有维持接收态。
+- 这不是空中链路丢包，更像 RFIP auto ACK 调用顺序/库状态机不成立。
+- 官方 `RF_Basic` 示例中的 WAIT_ACK 逻辑是在 RX 回调里手动 `RFIP_SetTxStart()+RFIP_SetTxParm()` 发 ACK，不是完全依赖 RFIP 自动回 ACK。
+
+结论：RFIP `properties bit1` 的直接 auto ACK 路径暂不作为 1K 数据面底座。当前默认实现已切到 RFIP `1K DATA no-ack` 探针，先证明正向 1K 数据面。
+
+固定参数：
+
+- `channel 39`
+- `1M PHY`：`properties bit0=0`
+- `auto ACK bit`：`properties bit1=1`
+- `accessAddress = RFH_LINK_ACCESS_ADDRESS_DEFAULT`
+- `crcInit = 0x555555`
+- air payload 长度：`12B`
+- RFIP TX DMA buffer 格式：`0x55 + len + 12B payload`
+- TX 侧仍用 `TMR0` 产生 `1K` pending report，主循环调用 RFIP API
+
+TX 初始化关键调用：
+
+```c
+rfRoleConfig_t conf;
+memset(&conf, 0, sizeof(conf));
+conf.TxPower = BLE_TX_POWER;
+conf.rfProcessCB = RF_ProcessCallBack;
+conf.processMask = RF_STATE_RX |
+                   RF_STATE_RX_CRCERR |
+                   RF_STATE_TX_FINISH |
+                   RF_STATE_TIMEOUT |
+                   RF_STATE_TX_IDLE;
+RFRole_BasicInit(&conf);
+
+gParm.accessAddress = RFH_LINK_ACCESS_ADDRESS_DEFAULT;
+gParm.crcInit = 0x555555;
+gParm.frequency = 39;
+gParm.properties = (1u << 1);   /* TX wait ACK */
+gParm.rxMaxLen = 12;
+gParm.sendTime = RFH_TX_SEND_TIME_UNITS;
+RFRole_SetParam(&gParm);
+```
+
+TX 每次发送关键调用：
+
+```c
+TxBuf[0] = RFH_WCH_PREAMBLE;
+TxBuf[1] = 12;
+/* TxBuf[2..13] is air payload */
+
+gTxParam.txDMA = (uint32_t)TxBuf;
+RFIP_SetTxStart();
+RFIP_SetTxParm(&gTxParam);
+```
+
+TX 侧还会预置一次 `RFIP_SetRx(&gRxParam)`，用于给 auto wait ACK 路径提供 RX DMA/maxLen 参数；这是黑盒库行为假设，需要实测确认。
+
+RX 初始化关键调用：
+
+```c
+gParm.accessAddress = RFH_LINK_ACCESS_ADDRESS_DEFAULT;
+gParm.crcInit = 0x555555;
+gParm.frequency = 39;
+gParm.properties = (1u << 1);   /* RX send ACK */
+gParm.rxMaxLen = 12;
+gParm.sendTime = RFH_TX_SEND_TIME_UNITS;
+RFRole_SetParam(&gParm);
+
+gRxParam.properties = (1u << 1); /* RX receive DATA then auto send ACK */
+gRxParam.rxDMA = (uint32_t)RxBuf;
+gRxParam.rxMaxLen = 12;
+```
+
+RX 每次 arm 前先准备 ACK TX DMA，再进入 RX：
+
+```c
+TxBuf[0] = RFH_WCH_PREAMBLE;
+TxBuf[1] = 12;
+/* TxBuf[2..13] is ACK air payload */
+
+gTxParam.txDMA = (uint32_t)TxBuf;
+RFIP_SetTxParm(&gTxParam);  /* 预置 ACK payload，不调用 RFIP_SetTxStart() */
+RFIP_SetRx(&gRxParam);
+```
+
+这里最关键的不确定点是：`RFIP_SetTxParm()` 在未调用 `RFIP_SetTxStart()` 时是否只预置 ACK TX 参数。若它会立即触发 TX，或库内部 auto ACK 不从这个 TX 参数取 payload，日志会暴露。
+
+### RFIP 探针日志判读
+
+该历史探针 TX 日志前缀为 `TI`：
+
+```text
+TI c0 h39 p02 hz1000 due5000 tx5000 fin5000 ack4980 to20 fail0 e0/0 dr0 b0 r0/0 s10
+```
+
+字段：
+
+- `c`：`RFRole_BasicInit()` 返回值，`0` 为成功。
+- `p02`：`properties`，`bit1=1` 表示 auto ACK。
+- `due`：1K 定时器产生的 report tick。
+- `tx`：实际发起 RFIP TX 次数。
+- `fin`：`RF_STATE_TX_FINISH`。
+- `ack`：TX 后自动 wait ACK 收到 `RF_STATE_RX`。
+- `to`：ACK timeout。
+- `dr`：pending report 队列溢出；真正 1K 可用时应接近 `0`。
+- `b`：TX busy 状态。
+- `r`：`RFIP_SetTxStart()/RFIP_SetTxParm()` 返回值，`0/0` 为成功。
+
+该历史探针 RX 日志前缀为 `RI`：
+
+```text
+RI c0 p02 hz1000 r5000/0 d5000 a5000/0 e0/0 tp0 rt0/0 v1
+```
+
+字段：
+
+- `r`：`RFIP_SetRx()` arm 次数/失败次数。
+- `d`：收到 DATA 的 `RF_STATE_RX` 次数。
+- `a`：自动 ACK 发完/失败，即 `RF_STATE_TX_FINISH/RF_STATE_TIMEOUT`。
+- `e`：DATA CRC/type 错误。
+- `tp`：预置 ACK `RFIP_SetTxParm()` 失败次数。
+- `rt`：最近一次 `RFIP_SetRx()/RFIP_SetTxParm()` 返回值。
+- `v`：当前 RX active。
+
+判定：
+
+- 若 RFIP auto ACK 跑通，`TI due/tx/ack` 与 `RI d/a` 应接近 `5000/5s`，`dr` 接近 `0`。
+- 若 RX 能收到 DATA 但 TX 收不到 ACK，常见形态是 `RI d` 上升、`RI a` 不上升或 `TI ack` 不上升。
+- 若 `rt` 或 `r` 非 `0`，先看 API 调用顺序/状态是否被库拒绝。
+- 若 `TI tx` 仍只有约 `330/5s` 且 `dr` 很大，说明 RFIP 路径仍被 busy/timeout 卡住，需要转向 `1K DATA no-ack + 低频 ACK`。
+
+## 当前默认实现：RFIP 1K DATA no-ack 探针
+
+当前 `RF_AUTO_ACK_DEMO_ENABLE=1` 默认走 RFIP 单向数据面：
+
+- TX：`RFIP_SetTxStart() + RFIP_SetTxParm()`，`properties bit1=0`，不 wait ACK。
+- RX：`RFIP_SetRx()` 常驻接收，收到 `RF_STATE_RX` 后主循环 rearm。
+- RFIP TX DMA buffer 格式仍为 `0x55 + len + 12B payload`。
+- TX 当前按官方 `RF_Basic` 风格在 `TMR0` ISR 中直接每 `1ms` 提交一次 RFIP TX，不等 `RF_STATE_TX_FINISH` 回调。
+- 曾试过主循环 pending + 等 `RF_STATE_TX_FINISH` 后发下一包，实测仍只有约 `330/5s`。
+
+TX 日志前缀为 `TN`：
+
+```text
+TN c0 h39 p00 hz1000 due5000 tx5000 fin5000 ack0 to0 fail0 e0/0 dr0 st0 b0 r0/0 s10
+```
+
+字段重点：
+
+- `p00`：不 wait ACK。
+- `due`：1K tick 数，5s 应约 `5000`。
+- `tx`：实际发起 TX 次数。
+- `fin`：`RF_STATE_TX_FINISH`，no-ack 模式下应接近 `tx`。
+- `dr`：pending 溢出；若 1K 跑满应接近 `0`。
+- `st`：TX 提交后超过 `10ms` 没回调的 watchdog 次数；正常应为 `0`。
+
+RX 日志前缀为 `RN`：
+
+```text
+RN c0 p00 hz1000 r5000/0 d5000 a0/0 e0/0 tp0 rt0/0 v1
+```
+
+字段重点：
+
+- `r`：RX arm 次数/失败次数。
+- `d`：收到 DATA 次数。
+- `a`：当前 no-ack 模式下应为 `0/0`。
+- `rt`：最近一次 `RFIP_SetRx()/RFIP_SetTxParm()` 返回值；no-ack 下 `tx_parm_ret` 固定为 `0`。
+
+判定：
+
+- 若 `TN due/tx/fin` 与 `RN d` 接近 `5000/5s`，说明 1K 正向数据面可用。
+- 若 `TN tx/fin` 接近 `5000` 但 `RN d` 低，问题在空中接收/包格式/频道参数。
+- 若 `TN st` 上升或 `fin` 很低，问题仍在 RFIP TX 状态机。
+
+主循环门控 no-ack 实测日志：
+
+```text
+RN c0 p00 hz1000 r324/0 d324 a0/0 e0/0 tp0 rt0/0 v1
+TN c0 h39 p00 hz1000 due5009 tx330 fin329 ack0 to0 fail0 e0/0 dr4680 st0 b1 r0/0 s199
+```
+
+解读：
+
+- RFIP no-ack 正向链路能收，RX `d` 与 TX `tx/fin` 基本一致。
+- 但 `tx330/5s` 仍只有约 `66Hz`，`dr4680` 表示 1K pending 大量被 busy 门控丢掉。
+- 这说明瓶颈不是 ACK，而是“等 RF_STATE_TX_FINISH 再发下一包”的门控导致单次事务约 `15ms`。
+- 当前代码已改成 ISR 每 tick 强制提交，用来确认 RFIP 是否能接受 1ms 连续 TX。
+
+ISR 强制 1K TX 实测日志：
+
+```text
+RN c0 p00 hz1000 r4795/0 d4769 a0/0 e25/0 tp0 rt0/0 v1
+RN c0 p00 hz1000 r4810/0 d4774 a0/0 e35/0 tp0 rt0/0 v1
+RN c0 p00 hz1000 r4890/0 d4853 a0/0 e36/0 tp0 rt0/0 v1
+
+TN c0 h39 p00 hz1000 due4995 tx4995 fin4995 ack0 to0 fail0 e0/0 dr0 st0 b0 r0/0
+TN c0 h39 p00 hz1000 due4995 tx4995 fin4995 ack0 to0 fail0 e0/0 dr0 st0 b0 r0/0
+TN c0 h39 p00 hz1000 due4995 tx4995 fin4995 ack0 to0 fail0 e0/0 dr0 st0 b0 r0/0
+```
+
+解读：
+
+- TX 已证明可按 `1K` 连续提交并完成：`due4995 tx4995 fin4995 fail0 dr0 st0`。
+- RX 收到 `4769~4853/4995`，约 `95.5%~97.2%`。
+- RX CRC 错误约 `25~36/5s`，约 `0.5%~0.7%`。
+- 当前 `1K DATA no-ack` 数据面已经可用；剩余丢包主要来自 RX rearm 死区、CRC 错误或射频环境。
+- 下一步优化优先级：RX 侧按官方 `RF_Basic` 风格在 `RF_STATE_RX/RX_CRCERR` 回调里立即 `RFIP_SetRx()` rearm，减少主循环 rearm 死区；然后再评估是否切 `2M PHY` 或调整频道。
+
+## 当前试验：1K DATA + 100ms 手动 ACK
+
+当前代码在 `1K DATA no-ack` 数据面上加了一个低频反向 ACK：
+
+- TX 仍然每 `1ms` 在 `TMR0` ISR 中提交一次 DATA。
+- 每 `100` 个 DATA 包，TX 在 DATA header flags 里置 `RFH_FLAG_CMD_ACK`。
+- 这个 DATA 包发完后，TX 在 `RF_STATE_TX_FINISH` 回调中立即 `RFIP_SetRx()`，开一个 `800us` ACK RX 窗口。
+- RX 收到带 `RFH_FLAG_CMD_ACK` 的 DATA 后，在 `RF_STATE_RX` 回调中立即手动发送 ACK：`RFIP_SetTxStart() + RFIP_SetTxParm()`。
+- RX 的 ACK 发完后，在 `RF_STATE_TX_FINISH` 回调中重新 arm RX。
+- 这不是 RFIP auto ACK bit1；`properties bit1` 仍为 `0`。ACK 是应用层按 100ms 节拍手动插入的低频控制面。
+
+TX 日志前缀为 `T1`：
+
+```text
+T1 c0 h39 p00 hz1000 due4995 tx4995 fin4995 aq49 ack49 to0 fail0 e0/0 dr0 st0 b0 r0/0/0 s83
+```
+
+字段：
+
+- `aq`：TX 发出的 ACK request 数，5s 内理论约 `50`。
+- `ack`：TX 在 ACK RX 窗口收到的 ACK 数。
+- `to`：ACK RX timeout。
+- `r`：最近一次 `RFIP_SetTxStart()/RFIP_SetTxParm()/RFIP_SetRx()` 返回值。
+
+RX 日志前缀为 `R1`：
+
+```text
+R1 c0 d4770 q48 a48/0 e30/0 x0/0/0 v1
+```
+
+字段：
+
+- `d`：RX 收到的 DATA 数。
+- `q`：RX 收到的 ACK request 数。
+- `a`：ACK TX finish/fail。
+- `e`：CRC/type 错误。
+- `x`：最近一次 `RFIP_SetRx()/RFIP_SetTxStart()/RFIP_SetTxParm()` 返回值。
+- `v`：当前 RX active。
+
+判定：
+
+- 若 `T1 aq`、`R1 q`、`R1 a`、`T1 ack` 接近一致，说明 100ms 低频 ACK 通路可用。
+- 若 `R1 q/a` 正常但 `T1 ack` 低，说明 TX ACK RX 窗口太短或切 RX 太晚，可把 `RF_AUTO_DEMO_ACK_RX_TIMEOUT_US` 从 `800us` 加到 `1200~2000us` 试。
+- 若 `R1 q` 明显低于 `T1 aq`，说明 ACK request DATA 本身丢失，先看 RX 正向接收率。
+
+## 当前试验：8K DATA + 500ms 手动 ACK
+
+当前已把上一节方案提升到 `8K`：
+
+- `RF_AUTO_DEMO_REPORT_HZ = 8000`
+- `RF_AUTO_DEMO_RATE_CODE = RFH_RATE_8K`
+- `RF_AUTO_DEMO_PHY_PROPS = LLE_MODE_PHY_2M`
+- ACK 间隔已从 `100ms` 降频到 `500ms`：`RF_AUTO_DEMO_ACK_INTERVAL_TICKS = 4000`
+- ACK 仍使用修正后的 `3` 包 request burst：同一 `ack_token`、携带 `remaining_slots`，RX 对同一 token 只回一次 ACK
+- TX ACK RX timeout 当前为 `1200us`
+
+8K 下 ACK 窗口会跨多个 `125us` DATA tick。当前 TX 策略：
+
+- 正常情况下 TMR0 每 `125us` 提交一个 DATA。
+- 每 `4000` 个 tick 请求一次逻辑 ACK。
+- 每次逻辑 ACK 连续发 `3` 个 ACK request DATA 包，用来提高 RX 捕获 request 的概率。
+- 发完 ACK request DATA 后，TX 打开 ACK RX 窗口。
+- ACK RX active 或等待切 ACK RX 时，TMR0 不再提交 DATA，并把这些被让出的 tick 记入 `dr`。
+
+因此 `8K + 500ms ACK` 的理论 TX 数不会严格等于 `due`，每次 ACK burst + ACK RX 窗口会牺牲少量 DATA tick。5s 内理论 `aq` 约 `10`，因此 ACK 相关 `dr` 应明显低于 `100ms` 版本。
+
+TX 日志前缀为 `T8`：
+
+```text
+T8 c0 h39 p10 hz8000 due39960 tx39620 fin39620 aq49 ack45 to4 fail0 e0/0 dr340 st0 b0 r0/0/0
+```
+
+RX 日志前缀为 `R8`：
+
+```text
+R8 c0 d38000 q48 a48/0 e120/0 x0/0/0 v1
+```
+
+判定：
+
+- `T8 due` 5s 理论约 `40000`。
+- `T8 tx + dr` 应接近 `due`。
+- `T8 aq` 5s 理论约 `10`。
+- `R8 q/a` 与 `T8 aq` 接近，说明 RX 收到 ACK request 并发出 ACK。
+- `T8 ack` 接近 `R8 a`，说明 TX 侧 ACK RX 窗口足够。
+- 若 `T8 fail` 上升，说明 8K 下 RFIP 不接受当前提交节奏。
+- 若 `R8 d` 明显低于 `T8 tx`，优先看 RX rearm 死区、CRC 错误和 2M 信道质量。
+
+### 1200us ACK RX 窗口实测
+
+把 TX ACK RX timeout 从 `800us` 加到 `1200us` 后，实测 ACK 成功率没有稳定提升：
+
+```text
+R8 c0 d39292 q49 a49/0 e151/0 x0/0/0 v1
+R8 c0 d39296 q50 a50/0 e178/0 x0/0/0 v1
+
+T8 c0 h39 p10 hz8000 due39980 tx39646 fin50 aq50 ack37 to13 fail0 e0/0 dr334 st0
+T8 c0 h39 p10 hz8000 due39985 tx39795 fin50 aq50 ack45 to5 fail0 e0/0 dr190 st0
+T8 c0 h39 p10 hz8000 due39970 tx39512 fin49 aq49 ack29 to20 fail0 e0/0 dr458 st0
+T8 c0 h39 p10 hz8000 due39987 tx39869 fin50 aq50 ack49 to1 fail0 e0/0 dr118 st0
+```
+
+解读：
+
+- RX 基本都收到了 ACK request，并且基本都成功发出 ACK：`R8 q/a` 接近一致。
+- TX 收 ACK 波动很大：`ack29~49/50`。
+- 单纯拉长 TX ACK RX 窗口不是稳定解法；问题更像 RX ACK 发得太早，TX 尚未完成 TX->RX 切换。
+- `80us` RX ACK 延迟有改善但仍不稳定：
+
+```text
+R8 c0 d38532 q48 a48/0 e141/0 x0/0/0 v1
+R8 c0 d38416 q45 a45/0 e140/0 x0/0/0 v1
+R8 c0 d38551 q46 a46/0 e157/0 x0/0/0 v1
+
+T8 c0 h39 p10 hz8000 due39985 tx39725 fin49 aq49 ack40 to9 fail0 e0/0 dr260 st0
+T8 c0 h39 p10 hz8000 due39981 tx39773 fin50 aq50 ack44 to6 fail0 e0/0 dr208 st0
+T8 c0 h39 p10 hz8000 due39984 tx39830 fin50 aq50 ack47 to3 fail0 e0/0 dr154 st0
+```
+
+解读：
+
+- 相比未延迟或只拉长 TX ACK RX 窗口，`80us` 延迟把最差 ACK 从约 `29/49` 改善到 `40/49`。
+- RX 仍然基本是 `q == a`，说明 ACK 发送侧没有失败。
+- TX 侧仍有 `to3~9/50`，说明 ACK 时序还没收敛。
+- `120us` RX ACK 延迟反而退步：
+
+```text
+R8 c0 d38814 q48 a48/0 e125/0 x0/0/0 v1
+R8 c0 d38884 q48 a48/0 e110/0 x0/0/0 v1
+R8 c0 d39095 q47 a47/0 e109/0 x0/0/0 v1
+
+T8 c0 h39 p10 hz8000 due39987 tx39670 fin49 aq49 ack38 to11 fail0 e0/0 dr317 st0
+T8 c0 h39 p10 hz8000 due39991 tx39688 fin50 aq50 ack40 to9 fail0 e1/0 dr303 st0
+T8 c0 h39 p10 hz8000 due39980 tx39677 fin50 aq50 ack41 to9 fail0 e0/0 dr303 st0
+```
+
+解读：
+
+- RX 仍然是 `q == a`，ACK 发送侧没有失败。
+- TX ACK 从 `80us` 时的 `ack40~47/50` 退到 `ack38~41/50`。
+- 说明 ACK 不是越晚越好，`120us` 已经开始错过 TX ACK RX 窗口的有效区间。
+- 当前下一轮试验：RX ACK 延迟改为 `60us`；TX ACK RX timeout 继续保持 `1200us`。
+
+`60us` RX ACK 延迟仍不稳定：
+
+```text
+T8 c0 h39 p10 hz8000 due39984 tx39742 fin49 aq49 ack41 to8 fail0 e0/0 dr242 st0
+T8 c0 h39 p10 hz8000 due39978 tx39590 fin50 aq50 ack34 to16 fail0 e0/0 dr388 st0
+T8 c0 h39 p10 hz8000 due39983 tx39793 fin50 aq50 ack45 to5 fail0 e0/0 dr190 st0
+T8 c0 h39 p10 hz8000 due39979 tx39753 fin50 aq50 ack43 to7 fail0 e0/0 dr226 st0
+
+R8 c0 d38444 q46 a46/0 e145/0 x0/0/0 v1
+R8 c0 d38308 q47 a47/0 e137/0 x0/0/0 v1
+R8 c0 d38748 q46 a46/0 e111/0 x0/0/0 v1
+R8 c0 d38890 q48 a48/0 e104/0 x0/0/0 v1
+```
+
+解读：
+
+- `60us` 与 `80us/120us` 一样仍有明显波动，最低 `ack34/50`。
+- 简单调 `mDelayuS()` 不再是稳定方向；回调内 busy delay 会阻塞 RF callback 本身，也会放大库状态机切换抖动。
+- 当前下一轮试验：收到 ACK request 后只记录 `ack_pending + ack_due_tmr` 并退出 RF callback；主循环 `RF_Service()` 用 TMR0 free-run 到点再调用 `RFIP_SetTxStart()+RFIP_SetTxParm()` 发 ACK。ACK 延迟先保持 `60us`，观察“离开 RF callback 后再发 ACK”是否比回调内忙等稳定。
+
+主循环 TMR0 deadline 版本仍未改善：
+
+```text
+R8 c0 d39067 q50 a50/0 e155/0 x0/0/0 v1
+R8 c0 d38929 q47 a47/0 e132/0 x0/0/0 v1
+R8 c0 d38966 q47 a47/0 e113/0 x0/0/0 v1
+R8 c0 d38653 q43 a43/0 e139/0 x0/0/0 v1
+
+T8 c0 h39 p10 hz8000 due39987 tx39689 fin50 aq50 ack39 to11 fail0 e0/0 dr298 st0
+T8 c0 h39 p10 hz8000 due39983 tx39705 fin49 aq49 ack39 to10 fail0 e0/0 dr278 st0
+T8 c0 h39 p10 hz8000 due39976 tx39660 fin50 aq50 ack37 to12 fail0 e1/0 dr316 st0
+T8 c0 h39 p10 hz8000 due39990 tx39818 fin50 aq50 ack44 to4 fail0 e2/0 dr172 st0
+```
+
+解读：
+
+- 离开 RF callback 后由主循环轮询到点发 ACK，仍只有 `ack37~44/50`。
+- 这说明主循环轮询抖动太大，无法稳定命中 TX 的 ACK RX 窗口。
+- 当前下一轮试验：改为 TMR1 一次性中断延迟 ACK。RX callback 收到 ACK request 后只 arm TMR1；TMR1 IRQ 到点后关闭自身并调用 `RFIP_SetTxStart()+RFIP_SetTxParm()` 发 ACK。ACK 延迟先保持 `60us`，目标是去掉 callback busy wait 和主循环轮询抖动。
+
+TMR1 一次性中断版本有改善但仍不稳：
+
+```text
+R8 c0 d38616 q42 a42/0 e187/0 x0/0/0 v1
+R8 c0 d38676 q42 a42/0 e143/0 x0/0/0 v1
+R8 c0 d38703 q47 a47/0 e190/0 x0/0/0 v1
+R8 c0 d38764 q48 a48/0 e147/0 x0/0/0 v1
+
+T8 c0 h39 p10 hz8000 due39983 tx39811 fin50 aq50 ack46 to4 fail0 e0/0 dr172 st0
+T8 c0 h39 p10 hz8000 due39979 tx39735 fin50 aq50 ack42 to8 fail0 e0/0 dr244 st0
+T8 c0 h39 p10 hz8000 due39983 tx39847 fin50 aq50 ack47 to3 fail0 e0/0 dr136 st0
+T8 c0 h39 p10 hz8000 due39978 tx39610 fin49 aq49 ack34 to15 fail0 e0/0 dr368 st0
+```
+
+解读：
+
+- TMR1 定时比主循环轮询略好，能到 `ack46~47/50`，但仍会掉到 `34/49`。
+- 这说明问题不只是 ACK 延迟精度，而是协议没有给反向 ACK 一个确定空中时隙。
+- 当前下一轮试验：TX 每 100ms 连续发 `3` 个 ACK request 包，包内携带 `ack_token` 和 `remaining_slots`；RX 只对每个 token 回一次 ACK，并按 `remaining_slots * 125us + 60us` 延迟 ACK，使 ACK 落在 request burst 结束后的固定空槽。TX 仍只统计一次逻辑 `aq`。
+
+第一版 burst 实测反而退步：
+
+```text
+R8 c0 d38488 q46 a46/0 e186/0 x0/0/0 v1
+R8 c0 d38460 q49 a49/0 e170/0 x0/0/0 v1
+R8 c0 d38249 q47 a47/0 e145/0 x0/0/0 v1
+R8 c0 d38275 q43 a43/0 e131/0 x0/0/0 v1
+
+T8 c0 h39 p10 hz8000 due40049 tx39807 fin49 aq49 ack41 to8 fail0 e0/0 dr242 st0
+T8 c0 h39 p10 hz8000 due40043 tx39693 fin49 aq49 ack33 to14 fail0 e2/0 dr350 st0
+T8 c0 h39 p10 hz8000 due40043 tx39531 fin49 aq49 ack24 to23 fail0 e2/0 dr512 st0
+T8 c0 h39 p10 hz8000 due40043 tx39783 fin49 aq49 ack40 to9 fail0 e0/0 dr260 st0
+```
+
+解读：
+
+- 第一版 burst 的 RX 逻辑有缺陷：收到第一个 token 后只等待 TMR1 发 ACK，没有重新 arm RX，因此后续两个 request 并没有提高命中率。
+- 当前修正：同一 token 的每个 request 都刷新 ACK 定时，并立即 `RFIP_SetRx()` 继续听 burst 后续 request；TMR1 到点发 ACK 前先 `RFRole_Stop()`，避免 RX active 状态下直接切 TX。
+
+修正后的 burst 版本明显改善：
+
+```text
+R8 c0 d37981 q48 a48/0 e366/0 x0/0/0 v1
+R8 c0 d37971 q47 a48/0 e297/0 x0/0/0 v1
+R8 c0 d38122 q47 a47/0 e370/0 x0/0/0 v1
+
+T8 c0 h39 p10 hz8000 due39924 tx39772 fin49 aq49 ack44 to3 fail0 e2/0 dr152 st0
+T8 c0 h39 p10 hz8000 due40045 tx39927 fin50 aq50 ack49 to1 fail0 e0/0 dr118 st0
+T8 c0 h39 p10 hz8000 due40048 tx39912 fin50 aq50 ack48 to2 fail0 e0/0 dr136 st0
+T8 c0 h39 p10 hz8000 due40045 tx39891 fin50 aq50 ack45 to3 fail0 e2/0 dr154 st0
+```
+
+解读：
+
+- TX ACK 成功率提升到 `44~49/50`，是目前所有方案里最好的。
+- `R8 q` 仍是逻辑 ACK token 计数，不是 request burst 原始包数；`q47~48` 表示 5s 内多数逻辑 ACK token 都被 RX 捕获。
+- `dr118~154` 说明 TX 侧 ACK 让出的 DATA tick 可控，比单纯拉长窗口时的最坏 `dr300~500` 更好。
+- 代价是 RX DATA 收包数降到约 `37900~38100/5s`，且 `e297~370` 偏高；这与 burst/rearm/ACK TX 切换增加有关。
+- 当前已将该版本从 `100ms` ACK 降频到 `500ms` ACK。保持 `3` 包 burst 和 `1200us` TX ACK RX timeout，下一轮先确认 5s 内 `aq` 约 `10`、`ack` 接近 `aq`，再考虑把 TX ACK RX timeout 收到 `900~1000us`。
+
+`500ms` ACK 实测效果很好：
+
+```text
+R8 c0 d38557 q10 a10/0 e232/0 x0/0/0 v1
+R8 c0 d38476 q10 a10/0 e247/0 x0/0/0 v1
+R8 c0 d38479 q10 a10/0 e247/0 x0/0/0 v1
+R8 c0 d38566 q10 a10/0 e191/0 x0/0/0 v1
+
+T8 c0 h39 p10 hz8000 due39959 tx39921 fin10 aq10 ack9 to1 fail0 e0/0 dr38 st0
+T8 c0 h39 p10 hz8000 due39963 tx39925 fin10 aq10 ack9 to1 fail0 e0/0 dr38 st0
+T8 c0 h39 p10 hz8000 due39961 tx39941 fin10 aq10 ack10 to0 fail0 e0/0 dr20 st0
+T8 c0 h39 p10 hz8000 due39959 tx39939 fin10 aq10 ack10 to0 fail0 e0/0 dr20 st0
+```
+
+解读：
+
+- 5s 内理论 `aq=10`，实测稳定为 `aq10`。
+- RX `q10 a10/0`，说明每个逻辑 ACK token 都被 RX 捕获并成功发出 ACK。
+- TX `ack9~10/10`，ACK 成功率约 `90~100%`。
+- `dr20~38`，比 `100ms` ACK burst 版本的 `dr118~154` 明显更低。
+- 当前可把 `8K DATA + 500ms ACK + 3 包 request burst + 1200us TX ACK RX timeout` 作为可用基线。
 
 构建：
 
