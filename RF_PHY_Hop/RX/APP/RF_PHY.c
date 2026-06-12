@@ -40,6 +40,7 @@
 #define RF_AUTO_DEMO_HOP_DUAL_DWELL_MS 2u
 #define RF_AUTO_DEMO_HOP_DUAL_TIMEOUT_MS 3000u
 #define RF_LINK_CRC_INIT               0x555555UL
+#define RX_HID_TELEMETRY_MAGIC         0x314D4852UL
 #define TMR0_FREE_RUN_WRAP             0x04000000UL
 
 typedef struct
@@ -103,6 +104,13 @@ static uint32_t g_demo_window_crc = 0u;
 static uint32_t g_demo_dual_switch_clock = 0u;
 static uint32_t g_demo_dual_deadline_clock = 0u;
 static uint8_t g_demo_dual_side = 0u;
+static uint32_t g_demo_hid_telemetry_seq = 0u;
+static uint32_t g_demo_hid_last_tmr = 0u;
+static volatile uint32_t g_demo_hid_rx_ok = 0u;
+static volatile uint32_t g_demo_hid_expected = 0u;
+static volatile uint32_t g_demo_hid_bad = 0u;
+static volatile uint32_t g_demo_hid_hop_events = 0u;
+static volatile uint32_t g_demo_hid_errors = 0u;
 #if (RF_AUTO_DEMO_SEND_ACK_ENABLE != 0u)
 static uint8_t g_demo_ack_seq = 0u;
 #endif
@@ -275,6 +283,7 @@ static void demo_note_data_seq(uint8_t seq)
     {
         g_demo_have_data_seq = 1u;
         g_demo_window_expected++;
+        g_demo_hid_expected++;
     }
     else
     {
@@ -284,14 +293,17 @@ static void demo_note_data_seq(uint8_t seq)
             diff = 1u;
         }
         g_demo_window_expected += diff;
+        g_demo_hid_expected += diff;
         if(diff > 1u)
         {
             g_demo_window_missing += (uint32_t)(diff - 1u);
+            g_demo_hid_bad += (uint32_t)(diff - 1u);
         }
     }
 
     g_demo_last_data_seq = seq;
     g_demo_window_rx_ok++;
+    g_demo_hid_rx_ok++;
 }
 
 static void demo_prepare_command_ack(uint8_t cmd, uint8_t seq)
@@ -316,6 +328,7 @@ static void demo_handle_hop_command(const uint8_t *air)
         demo_prepare_command_ack(RFH_CMD_HOP_PREPARE, seq);
         g_demo_after_ack_action = 1u;
         g_demo_stat.hop_event++;
+        g_demo_hid_hop_events++;
     }
     else if(cmd == RFH_CMD_HOP_CONFIRM)
     {
@@ -324,6 +337,7 @@ static void demo_handle_hop_command(const uint8_t *air)
         demo_prepare_command_ack(RFH_CMD_HOP_CONFIRM, seq);
         g_demo_after_ack_action = 2u;
         g_demo_stat.hop_event++;
+        g_demo_hid_hop_events++;
     }
 }
 
@@ -384,6 +398,8 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
            (rfh_packet_type(air[RFH_HDR0_OFFSET]) != RFH_PKT_DATA))
         {
             g_demo_stat.data_type_err++;
+            g_demo_hid_bad++;
+            g_demo_hid_errors++;
             demo_arm_rx();
             return;
         }
@@ -426,6 +442,9 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
         g_demo_stat.data_crc_err++;
         g_demo_window_expected++;
         g_demo_window_crc++;
+        g_demo_hid_expected++;
+        g_demo_hid_bad++;
+        g_demo_hid_errors++;
         demo_arm_rx();
     }
     if(sta & RF_STATE_TX_FINISH)
@@ -438,6 +457,7 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
     {
         g_demo_rx_active = 0u;
         g_demo_stat.ack_fail++;
+        g_demo_hid_errors++;
         g_demo_after_ack_action = 0u;
         g_demo_pending_ack_cmd = RFH_CMD_NONE;
         g_demo_pending_ack_seq = 0u;
@@ -579,9 +599,125 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     return (uint16_t)((written >= (int)len) ? (len - 1u) : (uint16_t)written);
 }
 
+static void demo_put_u16(uint8_t *dst, uint16_t value)
+{
+    dst[0] = (uint8_t)(value & 0xFFu);
+    dst[1] = (uint8_t)(value >> 8);
+}
+
+static void demo_put_u32(uint8_t *dst, uint32_t value)
+{
+    dst[0] = (uint8_t)(value & 0xFFu);
+    dst[1] = (uint8_t)((value >> 8) & 0xFFu);
+    dst[2] = (uint8_t)((value >> 16) & 0xFFu);
+    dst[3] = (uint8_t)(value >> 24);
+}
+
+static uint16_t demo_loss_permille(uint32_t bad, uint32_t expected)
+{
+    if(expected == 0u)
+    {
+        return 0u;
+    }
+    if(bad > expected)
+    {
+        bad = expected;
+    }
+    return (uint16_t)((bad * 1000u) / expected);
+}
+
+static uint16_t demo_hid_elapsed_ms(void)
+{
+    uint32_t now = TMR0_GetCurrentTimer();
+    uint32_t delta;
+    uint32_t elapsed;
+
+    if(g_demo_hid_last_tmr == 0u)
+    {
+        g_demo_hid_last_tmr = now;
+        return 100u;
+    }
+
+    if(now >= g_demo_hid_last_tmr)
+    {
+        delta = now - g_demo_hid_last_tmr;
+    }
+    else
+    {
+        delta = (TMR0_FREE_RUN_WRAP - g_demo_hid_last_tmr) + now;
+    }
+    g_demo_hid_last_tmr = now;
+
+    elapsed = (delta * 1000u) / FREQ_SYS;
+    if(elapsed == 0u)
+    {
+        elapsed = 1u;
+    }
+    return (elapsed > 0xFFFFu) ? 0xFFFFu : (uint16_t)elapsed;
+}
+
+static uint8_t demo_hid_state_code(void)
+{
+    return (g_demo_rx_state == RF_AUTO_RX_PREPARED_DUAL) ? 3u : 2u;
+}
+
+static uint8_t demo_submit_hid_report(const uint8_t *report)
+{
+    if(USBHS_DevEnumStatus == 0u)
+    {
+        return 0u;
+    }
+    if((USBHS_Endp_Busy[DEF_UEP6] & DEF_UEP_BUSY) != 0u)
+    {
+        return 0u;
+    }
+
+    memcpy(HID_Report_Buffer, report, HID_ENDPOINT_SIZE);
+    return (USBHS_Endp_DataUp(DEF_UEP6,
+                              (uint8_t *)report,
+                              HID_ENDPOINT_SIZE,
+                              DEF_UEP_CPY_LOAD) == 0u) ? 1u : 0u;
+}
+
 uint8_t RF_TrySendTelemetryReport(void)
 {
-    return 0u;
+    uint8_t report[HID_ENDPOINT_SIZE];
+    uint32_t rx_ok = g_demo_hid_rx_ok;
+    uint32_t expected = g_demo_hid_expected;
+    uint32_t bad = g_demo_hid_bad;
+    uint32_t hop_events = g_demo_hid_hop_events;
+    uint32_t errors = g_demo_hid_errors;
+    uint16_t elapsed_ms = demo_hid_elapsed_ms();
+    uint16_t loss = demo_loss_permille(bad, expected);
+
+    memset(report, 0, sizeof(report));
+    demo_put_u32(&report[0], RX_HID_TELEMETRY_MAGIC);
+    demo_put_u32(&report[4], g_demo_hid_telemetry_seq + 1u);
+    demo_put_u16(&report[8], elapsed_ms);
+    demo_put_u16(&report[10], RF_AUTO_DEMO_REPORT_HZ);
+    demo_put_u32(&report[12], rx_ok);
+    demo_put_u32(&report[16], expected);
+    demo_put_u16(&report[20], loss);
+    report[22] = demo_hid_state_code();
+    report[23] = g_demo_current_channel;
+    report[24] = g_demo_old_channel;
+    report[25] = g_demo_target_channel;
+    report[26] = RF_AUTO_DEMO_RATE_CODE;
+    report[27] = (uint8_t)(hop_events > 0xFFu ? 0xFFu : hop_events);
+    report[28] = (uint8_t)(errors > 0xFFu ? 0xFFu : errors);
+
+    if(demo_submit_hid_report(report) == 0u)
+    {
+        return 0u;
+    }
+
+    g_demo_hid_telemetry_seq++;
+    g_demo_hid_rx_ok -= rx_ok;
+    g_demo_hid_expected -= expected;
+    g_demo_hid_bad -= bad;
+    g_demo_hid_hop_events -= hop_events;
+    g_demo_hid_errors -= errors;
+    return 1u;
 }
 
 void RF_Init(void)
@@ -593,6 +729,7 @@ void RF_Init(void)
     PFIC_EnableIRQ(BLEL_IRQn);
 
     TMR0_TimerInit(TMR0_FREE_RUN_WRAP - 1u);
+    g_demo_hid_last_tmr = TMR0_GetCurrentTimer();
     g_demo_ack_delay_tmr = demo_us_to_tmr_cycles(RF_AUTO_DEMO_ACK_TX_DELAY_US);
     g_demo_slot_tmr = demo_us_to_tmr_cycles(RFH_SLOT_US);
     demo_ack_timer_cancel();

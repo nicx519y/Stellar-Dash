@@ -44,6 +44,27 @@ function parseQuad(value: string | undefined): [number, number, number, number] 
   ];
 }
 
+function parseCompactNumberToken(token: string | undefined, prefix: string): number {
+  if (!token?.startsWith(prefix)) return 0;
+  const n = Number(token.slice(prefix.length));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function parseCompactPairToken(token: string | undefined, prefix: string): [number, number] {
+  if (!token?.startsWith(prefix)) return [0, 0];
+  return parsePair(token.slice(prefix.length));
+}
+
+function parseCompactTripleToken(token: string | undefined, prefix: string): [number, number, number] {
+  if (!token?.startsWith(prefix)) return [0, 0, 0];
+  const parts = token.slice(prefix.length).split("/");
+  return [
+    Number(parts[0] ?? "0") || 0,
+    Number(parts[1] ?? "0") || 0,
+    Number(parts[2] ?? "0") || 0,
+  ];
+}
+
 function inferRfTargetRateHz(expectedCount: number): number {
   const perFiveSeconds = expectedCount / 5;
   if (perFiveSeconds >= 30000 / 5) return 8000;
@@ -53,6 +74,8 @@ function inferRfTargetRateHz(expectedCount: number): number {
 }
 
 function rfStateToLinkState(state: string): "Disconnected" | "Connecting" | "Connected" | "Error" {
+  if (state === "M") return "Connected";
+  if (state === "D") return "Connecting";
   if (state === "C") return "Connected";
   if (state === "U") return "Disconnected";
   if (state === "PA" || state === "HR" || state === "CA" || state === "RD") return "Connecting";
@@ -134,6 +157,80 @@ function parseRfHopR5Line(text: string, timestampMs: number): MonitorEvent[] {
   return events;
 }
 
+function parseRfHopR8Line(text: string, timestampMs: number): MonitorEvent[] {
+  const parts = text.trim().split(/\s+/);
+  const configCode = parseCompactNumberToken(parts[1], "c");
+  const stateCode = parts[2]?.startsWith("S") ? parts[2].slice(1) : "M";
+  const channelText = parts[3]?.startsWith("h") ? parts[3].slice(1) : "";
+  const [channelRaw, targetRaw] = channelText.split(">");
+  const channelNumber = Number(channelRaw);
+  const targetChannelNumber = Number(targetRaw);
+  const dataOk = parseCompactNumberToken(parts[4], "d");
+  const ackReq = parseCompactNumberToken(parts[5], "q");
+  const [ackOk, ackFail] = parseCompactPairToken(parts[6], "a");
+  const [crcErr, typeErr] = parseCompactPairToken(parts[7], "e");
+  const hopEvents = parseCompactNumberToken(parts[8], "H");
+  const [rxRet, txStartRet, txParmRet] = parseCompactTripleToken(parts[9], "x");
+  const rxActive = parseCompactNumberToken(parts[10], "v");
+  const expectedCount = dataOk + crcErr + typeErr;
+  const lossPermille =
+    expectedCount > 0
+      ? Math.min(1000, Math.round(((crcErr + typeErr) * 1000) / expectedCount))
+      : undefined;
+  const actualRateHz = dataOk / 5;
+
+  const packet: MonitorEvent = {
+    kind: "packet",
+    timestampMs,
+    channel: "RF",
+    direction: "RX",
+    messageType: `RFH_R8_${stateCode || "M"}`,
+    payloadLen: 0,
+    sampleCount: dataOk,
+    expectedCount,
+    sampleWindowMs: 5000,
+    rateHz: actualRateHz,
+    lossPermille,
+    channelNumber: Number.isFinite(channelNumber) ? channelNumber : undefined,
+    rfStateCode: stateCode || "M",
+    targetChannelNumber: Number.isFinite(targetChannelNumber) ? targetChannelNumber : undefined,
+    unconnectedEvents: stateCode === "D" ? 1 : 0,
+    errorEvents: crcErr + typeErr + ackFail,
+  };
+
+  const events: MonitorEvent[] = [
+    {
+      kind: "device_status",
+      timestampMs,
+      mode: "RF24G",
+      state: rfStateToLinkState(stateCode),
+      targetRateHz: 8000,
+      actualRateHz,
+    },
+    packet,
+    {
+      kind: "latency",
+      timestampMs,
+      seq: dataOk,
+    },
+  ];
+
+  const errorCount = crcErr + typeErr + ackFail + (configCode === 0 ? 0 : 1);
+  if (errorCount > 0 || hopEvents > 0) {
+    events.push({
+      kind: "error",
+      timestampMs,
+      source: "RF_PHY_HOP_RX",
+      code: errorCount > 0 ? "RFH_R8_DIAG" : "RFH_R8_HOP",
+      level: errorCount > 0 ? "WARN" : "INFO",
+      message: `state=${stateCode} ch=${channelText} data=${dataOk} ack=${ackReq}/${ackOk}/${ackFail} err=${crcErr}/${typeErr} hop=${hopEvents} ret=${rxRet}/${txStartRet}/${txParmRet} active=${rxActive}`,
+      count: errorCount || hopEvents,
+    });
+  }
+
+  return events;
+}
+
 function parseRfHopRdLine(text: string, timestampMs: number): MonitorEvent[] {
   const map = parseKvLine(text);
   const [armTry, armFail] = parsePair(map.get("A"));
@@ -182,6 +279,9 @@ function parseRfHopRdLine(text: string, timestampMs: number): MonitorEvent[] {
  */
 export function parseDongleTelemetryLine(line: string, timestampMs = Date.now()): MonitorEvent[] {
   const text = line.trim();
+  if (text.startsWith("R8 ")) {
+    return parseRfHopR8Line(text, timestampMs);
+  }
   if (text.startsWith("R5 ")) {
     return parseRfHopR5Line(text, timestampMs);
   }

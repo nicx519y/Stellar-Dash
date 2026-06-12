@@ -76,7 +76,7 @@ function parseRfHopHidTelemetryFrame(view: DataView, report: Uint8Array, timesta
   const channel = view.getUint8(23);
   const oldChannel = view.getUint8(24);
   const targetChannel = view.getUint8(25);
-  const unconnectedEvents = view.getUint8(27);
+  const hopEvents = view.getUint8(27);
   const errorEvents = view.getUint8(28);
   const normalized = normalizeRfHopWindow(timestampMs, targetRateHz, rawElapsedMs, rxCount, rawExpectedCount);
   const elapsedMs = normalized.elapsedMs;
@@ -112,20 +112,20 @@ function parseRfHopHidTelemetryFrame(view: DataView, report: Uint8Array, timesta
       rfStateCode: stateCode,
       oldChannelNumber: oldChannel,
       targetChannelNumber: targetChannel,
-      unconnectedEvents,
+      unconnectedEvents: 0,
       errorEvents,
     },
   ];
 
-  if (unconnectedEvents > 0 || errorEvents > 0) {
+  if (hopEvents > 0 || errorEvents > 0) {
     events.push({
       kind: "error",
       timestampMs,
       source: "RF_PHY_HOP_RX",
-      code: errorEvents > 0 ? "RFH_HID_ERROR" : "RFH_HID_UNCONNECTED",
+      code: errorEvents > 0 ? "RFH_HID_ERROR" : "RFH_HID_HOP",
       level: errorEvents > 0 ? "WARN" : "INFO",
-      message: `state=${stateCode} ch=${channel} old=${oldChannel} target=${targetChannel} loss=${lossPermille} rx=${rxCount}/${expectedCount} unconnected=${unconnectedEvents} errors=${errorEvents}`,
-      count: errorEvents || unconnectedEvents,
+      message: `state=${stateCode} ch=${channel} old=${oldChannel} target=${targetChannel} loss=${lossPermille} rx=${rxCount}/${expectedCount} hop=${hopEvents} errors=${errorEvents}`,
+      count: errorEvents || hopEvents,
     });
   }
 

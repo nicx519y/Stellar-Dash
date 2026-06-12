@@ -109,7 +109,10 @@ function describeChannelReason(prev: PacketEvent | null, curr: PacketEvent) {
   const state = curr.rfStateCode ?? "";
   const prevState = prev?.rfStateCode ?? "";
   const loss = curr.lossPermille ?? prev?.lossPermille ?? 0;
-  if ((state === "HR" || state === "CA" || prevState === "HR" || prevState === "CA") && curr.targetChannelNumber === curr.channelNumber) {
+  if (
+    (state === "HR" || state === "CA" || state === "D" || prevState === "HR" || prevState === "CA" || prevState === "D") &&
+    curr.targetChannelNumber === curr.channelNumber
+  ) {
     return "Scheduled hop reached target channel";
   }
   if ((curr.unconnectedEvents ?? 0) > 0 || state === "U" || state === "PA" || prevState === "U" || prevState === "PA") {
@@ -127,7 +130,7 @@ function rfPacketEvents(batch: MonitorEvent[]) {
 
 function isHopIntent(packet: PacketEvent) {
   return (
-    (packet.rfStateCode === "HR" || packet.rfStateCode === "CA") &&
+    (packet.rfStateCode === "HR" || packet.rfStateCode === "CA" || packet.rfStateCode === "D") &&
     typeof packet.oldChannelNumber === "number" &&
     typeof packet.targetChannelNumber === "number" &&
     packet.oldChannelNumber !== packet.targetChannelNumber

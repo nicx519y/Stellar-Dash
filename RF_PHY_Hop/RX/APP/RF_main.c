@@ -51,8 +51,10 @@ const uint8_t MacAddr[6] = {0x84, 0xC2, 0xE4, 0x03, 0x02, 0x02};
 void LED_Ctrl(uint8_t on);
 void LED_Ctrl_Service(void);
 
+#if (RF_SERIAL_LOG == 1)
 static uint8_t s_main_pending_log = FALSE;
 static char s_main_pending_msg[128];
+#endif
 
 static uint8_t RX_MainTmr0Elapsed(uint32_t now, uint32_t *last, uint32_t *acc, uint32_t period)
 {
@@ -76,6 +78,7 @@ static uint8_t RX_MainTmr0Elapsed(uint32_t now, uint32_t *last, uint32_t *acc, u
     return TRUE;
 }
 
+#if (RF_SERIAL_LOG == 1)
 static uint8_t RX_MainSendCdc(const char *msg)
 {
     uint16_t len;
@@ -107,6 +110,7 @@ static uint8_t RX_MainSendCdc(const char *msg)
 
     return FALSE;
 }
+#endif
 
 static void RX_MainFlushLog(void)
 {
@@ -137,6 +141,7 @@ static void RX_MainLog(const char *msg)
 
 static void RX_MainLogStats(void)
 {
+#if (RF_SERIAL_LOG == 1)
     char stats_msg[64];
 
     if(RF_GetStatsLine(stats_msg, sizeof(stats_msg)) == 0u)
@@ -145,6 +150,7 @@ static void RX_MainLogStats(void)
     }
 
     RX_MainLog(stats_msg);
+#endif
 }
 
 /*********************************************************************

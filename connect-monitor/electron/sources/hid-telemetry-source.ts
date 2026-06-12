@@ -23,6 +23,37 @@ function publishRfDeviceMissing(publish: PublishFn): void {
   });
 }
 
+const defaultTargetUsbIds = [
+  { vendorId: 0x045e, productId: 0x02ff },
+  { vendorId: 0x1a86, productId: 0xfe0c },
+];
+
+function textIncludes(value: unknown, needle: string): boolean {
+  return typeof value === "string" && value.toLowerCase().includes(needle);
+}
+
+function matchesDefaultUsbId(device: any): boolean {
+  return defaultTargetUsbIds.some(
+    (id) => device.vendorId === id.vendorId && device.productId === id.productId,
+  );
+}
+
+function isLikelyHBoxDevice(device: any): boolean {
+  return textIncludes(device.manufacturer, "hbox") || textIncludes(device.product, "hbox");
+}
+
+function isGenericDesktopController(device: any): boolean {
+  return device.usagePage === 0x01 && (device.usage === 0x04 || device.usage === 0x05);
+}
+
+function isLikelyTelemetryInterface(device: any): boolean {
+  if (device.usagePage === 0xff00) return true;
+  if (isGenericDesktopController(device)) return false;
+  if (isLikelyHBoxDevice(device)) return true;
+  if (textIncludes(device.product, "controller")) return true;
+  return false;
+}
+
 export function startHidTelemetrySource(publish: PublishFn): () => void {
   let HID: any;
   try {
@@ -31,15 +62,21 @@ export function startHidTelemetrySource(publish: PublishFn): () => void {
     return () => {};
   }
 
-  const targetVid = normalizeHexId(process.env.MONITOR_VID) ?? 0x045e;
+  const targetVid = normalizeHexId(process.env.MONITOR_VID);
   const targetPid = normalizeHexId(process.env.MONITOR_PID) ?? null;
+  const hasExplicitUsbTarget = targetVid !== null || targetPid !== null;
 
   const devices = HID.devices().filter((d: any) => {
-    if (d.vendorId !== targetVid) return false;
+    if (hasExplicitUsbTarget) {
+      if (targetVid !== null && d.vendorId !== targetVid) return false;
+      if (targetPid !== null && d.productId !== targetPid) return false;
+      return !isGenericDesktopController(d);
+    }
+
+    if (matchesDefaultUsbId(d)) return isLikelyTelemetryInterface(d);
+    if (!isLikelyHBoxDevice(d)) return false;
     if (targetPid !== null && d.productId !== targetPid) return false;
-    if (d.usagePage === 0xff00) return true;
-    if (typeof d.product === "string" && d.product.toLowerCase().includes("controller")) return true;
-    return false;
+    return isLikelyTelemetryInterface(d);
   });
 
   if (devices.length === 0) {

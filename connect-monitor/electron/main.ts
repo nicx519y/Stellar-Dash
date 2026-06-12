@@ -100,11 +100,13 @@ app.whenReady().then(() => {
       eventBus.publish(event);
     }
   });
-  stopSerialSource = startSerialTelemetrySource((event) => {
-    if (!paused) {
-      eventBus.publish(event);
-    }
-  });
+  if (process.env.MONITOR_SERIAL_ENABLE === "1" || process.env.MONITOR_SERIAL_PATH) {
+    stopSerialSource = startSerialTelemetrySource((event) => {
+      if (!paused) {
+        eventBus.publish(event);
+      }
+    });
+  }
   eventBus.subscribe((event) => {
     pendingEvents.push(event);
   });
@@ -147,7 +149,7 @@ ipcMain.handle("monitor:setPaused", (_evt, nextPaused: boolean) => {
       }
     });
   }
-  if (!stopSerialSource) {
+  if (!stopSerialSource && (process.env.MONITOR_SERIAL_ENABLE === "1" || process.env.MONITOR_SERIAL_PATH)) {
     stopSerialSource = startSerialTelemetrySource((event) => {
       if (!paused) {
         eventBus.publish(event);
