@@ -3,8 +3,21 @@
 
 #include <stdint.h>
 
+/*
+ * Debug CDC logging is much easier to see when Windows does not bind the whole
+ * composite device through the XInput-compatible Microsoft VID/PID path.
+ */
+#ifndef DONGLE_USB_DEBUG_CDC_ID
+#define DONGLE_USB_DEBUG_CDC_ID        (1u)
+#endif
+
+#if (DONGLE_USB_DEBUG_CDC_ID != 0u)
+#define PRODUCT_VID                    (0x1A86u)
+#define PRODUCT_PID                    (0xFE0Cu)
+#else
 #define PRODUCT_VID                    (0x045Eu)        // 0x045E 是 HBox 产品 ID 微软VID xinput模式
 #define PRODUCT_PID                    (0x02FFu)
+#endif
 #define PRODUCT_BCD_DEVICE             (0x0100u)
 /* Bring-up mode switch. 0 = normal RF + USB runtime. */
 #define DONGLE_USB_ENUM_BRINGUP_ONLY   (0u)

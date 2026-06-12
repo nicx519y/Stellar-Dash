@@ -1,111 +1,301 @@
 /********************************** (C) COPYRIGHT *******************************
  * File Name          : RF_PHY.c
- * Description        : RX side for the 12-byte RF hop protocol.
+ * Description        : RX side for the fixed-channel 8K 7+1 ACK protocol.
  *******************************************************************************/
 
 #include "CONFIG.h"
 #include "RF_PHY.h"
 #include "HAL.h"
 #include "wchrf.h"
-#include "rf_hop_bond.h"
 #include "rf_hop_protocol.h"
 #include "dongle_config.h"
 #include "ch585_usbhs_device.h"
 #include "usbd_compatibility_hid.h"
 
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 
-#ifndef RF_HOP_MODE
-#define RF_HOP_MODE                    2
+#ifndef RF_AUTO_ACK_DEMO_ENABLE
+#define RF_AUTO_ACK_DEMO_ENABLE        1u
 #endif
 
-#ifndef RF_REPORT_PPS
-#define RF_REPORT_PPS                  RFH_DEFAULT_RATE_HZ
-#endif
+#if (RF_AUTO_ACK_DEMO_ENABLE == 1u)
 
-#ifndef RF_RX_PACKET_TIMEOUT_MS
-#define RF_RX_PACKET_TIMEOUT_MS        RFH_RX_PACKET_TIMEOUT_MS_DEFAULT
-#endif
-
-#ifndef RF_RX_LINK_IDLE_TIMEOUT_MS
-#define RF_RX_LINK_IDLE_TIMEOUT_MS     3000u
-#endif
-
-#ifndef RF_ACK_WINDOW_US
-#define RF_ACK_WINDOW_US               RFH_DEFAULT_ACK_WINDOW_US
-#endif
-
-#ifndef RF_CONNECT_PREFER_CHANNEL_A
-#define RF_CONNECT_PREFER_CHANNEL_A    0u
-#endif
-
-#ifndef RF_HOP_CONFIRM_ACK_TIMEOUT_MS
-#define RF_HOP_CONFIRM_ACK_TIMEOUT_MS  RFH_HOP_CONFIRM_ACK_TIMEOUT_MS_DEFAULT
-#endif
-
-#ifndef RF_RX_CONFIRM_ACK_FAIL_LIMIT
-#define RF_RX_CONFIRM_ACK_FAIL_LIMIT   3u
-#endif
-
-#ifndef RF_TEST_FREQUENCY
-#define RF_TEST_FREQUENCY              RFH_DEFAULT_CHANNEL_A
-#endif
-
-#define RF_STAT_PRINT_PERIOD_MS        5000u
-#define RF_TX_SEND_TIME                (20u * 2u)
-#define RF_LINK_ACCESS_ADDRESS         RFH_LINK_ACCESS_ADDRESS_DEFAULT
-#define RF_PAIR_ACCESS_ADDRESS         RFH_PAIR_ACCESS_ADDRESS
-#define RF_PAIR_WINDOW_MS              RFH_PAIR_WINDOW_MS
-#define RF_PAIR_RX_DWELL_MS            RFH_PAIR_TX_WINDOW_MS
+#define RF_AUTO_DEMO_PACKET_LEN        RFH_AIR_PACKET_LEN
+#define RF_AUTO_DEMO_DATA_TYPE         0xFFu
+#define RF_AUTO_DEMO_ACK_TYPE          0xFFu
+#define RF_AUTO_DEMO_CHANNEL           39u
+#define RF_AUTO_DEMO_FREQUENCY_KHZ     2480000UL
+#define RF_AUTO_DEMO_LLE_MODE          LLE_MODE_AUTO
 #define RF_LINK_CRC_INIT               0x555555UL
-/* WCH rfipRx_t.timeOut: 0 means no timeout; connected RX must stay armed. */
-#define RFIP_RX_NO_TIMEOUT             0u
-#define RF_CONNECTED_RX_TIMEOUT_US     RFIP_RX_NO_TIMEOUT
-#define RF_DUAL_RX_DWELL_US            2000u
-#define RF_ACK_SCHEDULE_TICKS          48u
-#define RF_ACK_TX_LEAD_US              80u
-#define RF_ACK_TX_POST_GUARD_US        RFH_ACK_RX_POST_GUARD_US_DEFAULT
-#define RF_ACK_TX_SAFETY_MAX           8u
-#define RF_ACK_RX_PRE_GUARD_US         RFH_ACK_RX_PRE_GUARD_US_DEFAULT
-#define RF_ACK_RX_POST_GUARD_US        RFH_ACK_RX_POST_GUARD_US_DEFAULT
-#define TMR0_FREE_RUN_END              0x03FFFFFFUL
 #define TMR0_FREE_RUN_WRAP             0x04000000UL
-#define RX_PAIR_BUTTON_PIN             GPIO_Pin_22
-#define RX_PAIR_BUTTON_DEBOUNCE_MS     30u
-#define RX_PAIR_BUTTON_HOLD_MS         5000u
+
+typedef struct
+{
+    volatile uint32_t rx_arm;
+    volatile uint32_t rx_arm_fail;
+    volatile uint32_t data_ok;
+    volatile uint32_t data_crc_err;
+    volatile uint32_t data_type_err;
+    volatile uint32_t ack_finish;
+    volatile uint32_t ack_fail;
+} rf_auto_demo_stat_t;
+
+uint8_t taskID;
+
+__attribute__((__aligned__(4))) static uint8_t TxBuf[RF_AUTO_DEMO_PACKET_LEN];
+
+static rf_auto_demo_stat_t g_demo_stat;
+static volatile uint8_t g_demo_config_ret = 0xFFu;
+static volatile uint8_t g_demo_rearm_pending = 0u;
+static volatile uint8_t g_demo_rx_active = 0u;
+static uint8_t g_demo_ack_seq = 0u;
+
+static void demo_fill_ack_packet(void)
+{
+    uint8_t i;
+
+    memset(TxBuf, 0, sizeof(TxBuf));
+    TxBuf[0] = rfh_make_header0(RFH_PKT_ACK, RFH_RATE_8K, RFH_FLAG_LINK_OK);
+    TxBuf[1] = g_demo_ack_seq;
+    TxBuf[2] = (uint8_t)(g_demo_stat.data_ok & 0xFFu);
+    TxBuf[3] = (uint8_t)((g_demo_stat.data_ok >> 8) & 0xFFu);
+    for(i = 4u; i < RF_AUTO_DEMO_PACKET_LEN; i++)
+    {
+        TxBuf[i] = (uint8_t)(0xC0u + i);
+    }
+}
+
+static void demo_arm_rx(void)
+{
+    bStatus_t ret;
+
+    if(g_demo_config_ret != SUCCESS)
+    {
+        return;
+    }
+    if(g_demo_rx_active != 0u)
+    {
+        return;
+    }
+
+    demo_fill_ack_packet();
+    ret = RF_Rx(TxBuf,
+                RF_AUTO_DEMO_PACKET_LEN,
+                RF_AUTO_DEMO_DATA_TYPE,
+                RF_AUTO_DEMO_ACK_TYPE);
+    g_demo_stat.rx_arm++;
+    if(ret == SUCCESS)
+    {
+        g_demo_rx_active = 1u;
+        g_demo_ack_seq++;
+    }
+    else
+    {
+        g_demo_stat.rx_arm_fail++;
+        g_demo_rearm_pending = 1u;
+    }
+}
+
+static void RF_AutoDemoStatusCallBack(uint8_t sta, uint8_t rsr, uint8_t *rxBuf)
+{
+    switch(sta)
+    {
+        case RX_MODE_RX_DATA:
+            g_demo_rx_active = 0u;
+            if(rsr == 0u)
+            {
+                g_demo_stat.data_ok++;
+            }
+            else
+            {
+                if((rsr & (1u << 0)) != 0u)
+                {
+                    g_demo_stat.data_crc_err++;
+                }
+                if((rsr & (1u << 1)) != 0u)
+                {
+                    g_demo_stat.data_type_err++;
+                }
+            }
+            (void)rxBuf;
+            break;
+
+        case RX_MODE_TX_FINISH:
+            g_demo_stat.ack_finish++;
+            g_demo_rearm_pending = 1u;
+            break;
+
+        case RX_MODE_TX_FAIL:
+            g_demo_stat.ack_fail++;
+            g_demo_rearm_pending = 1u;
+            break;
+
+        default:
+            break;
+    }
+}
+
+void RF_Service(void)
+{
+    if(g_demo_rearm_pending != 0u)
+    {
+        g_demo_rearm_pending = 0u;
+        demo_arm_rx();
+    }
+}
+
+uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
+{
+    if(events & SYS_EVENT_MSG)
+    {
+        uint8_t *pMsg;
+
+        if((pMsg = tmos_msg_receive(task_id)) != NULL)
+        {
+            tmos_msg_deallocate(pMsg);
+        }
+        return (events ^ SYS_EVENT_MSG);
+    }
+    return 0u;
+}
+
+uint8_t RF_StartPairing(void)
+{
+    return 1u;
+}
+
+uint8_t RF_StopPairing(void)
+{
+    return 1u;
+}
+
+uint8_t RF_IsPairingActive(void)
+{
+    return 0u;
+}
+
+rf_indicator_mode_t RF_GetIndicatorMode(void)
+{
+    if(g_demo_config_ret != SUCCESS)
+    {
+        return RF_INDICATOR_OFF;
+    }
+    return (g_demo_stat.data_ok != 0u) ? RF_INDICATOR_BLINK_500MS : RF_INDICATOR_BLINK_2000MS;
+}
+
+void RF_StartPacketLossScan(void)
+{
+}
+
+void RF_StartQualityScoreScan(void)
+{
+}
+
+uint8_t RF_IsQualityScoreScanActive(void)
+{
+    return 0u;
+}
+
+uint8_t RF_HasPendingStatsLine(void)
+{
+    return 1u;
+}
+
+uint16_t RF_GetStatsLine(char *buf, uint16_t len)
+{
+    int written;
+
+    if((buf == NULL) || (len == 0u))
+    {
+        return 0u;
+    }
+
+    written = snprintf(buf,
+                       len,
+                       "RA c%u m%02X r%lu/%lu d%lu a%lu/%lu e%lu/%lu v%u\r\n",
+                       (unsigned int)g_demo_config_ret,
+                       (unsigned int)RF_AUTO_DEMO_LLE_MODE,
+                       (unsigned long)g_demo_stat.rx_arm,
+                       (unsigned long)g_demo_stat.rx_arm_fail,
+                       (unsigned long)g_demo_stat.data_ok,
+                       (unsigned long)g_demo_stat.ack_finish,
+                       (unsigned long)g_demo_stat.ack_fail,
+                       (unsigned long)g_demo_stat.data_crc_err,
+                       (unsigned long)g_demo_stat.data_type_err,
+                       (unsigned int)g_demo_rx_active);
+    if(written < 0)
+    {
+        return 0u;
+    }
+
+    g_demo_stat.rx_arm = 0u;
+    g_demo_stat.rx_arm_fail = 0u;
+    g_demo_stat.data_ok = 0u;
+    g_demo_stat.data_crc_err = 0u;
+    g_demo_stat.data_type_err = 0u;
+    g_demo_stat.ack_finish = 0u;
+    g_demo_stat.ack_fail = 0u;
+
+    return (uint16_t)((written >= (int)len) ? (len - 1u) : (uint16_t)written);
+}
+
+uint8_t RF_TrySendTelemetryReport(void)
+{
+    return 0u;
+}
+
+void RF_Init(void)
+{
+    rfConfig_t rf_config;
+
+    taskID = TMOS_ProcessEventRegister(RF_ProcessEvent);
+    PFIC_EnableIRQ(BLEB_IRQn);
+    PFIC_EnableIRQ(BLEL_IRQn);
+
+    TMR0_TimerInit(TMR0_FREE_RUN_WRAP - 1u);
+
+    memset(&rf_config, 0, sizeof(rf_config));
+    rf_config.accessAddress = RFH_LINK_ACCESS_ADDRESS_DEFAULT;
+    rf_config.CRCInit = RF_LINK_CRC_INIT;
+    rf_config.Channel = RF_AUTO_DEMO_CHANNEL;
+    rf_config.Frequency = RF_AUTO_DEMO_FREQUENCY_KHZ;
+    rf_config.LLEMode = RF_AUTO_DEMO_LLE_MODE;
+    rf_config.rfStatusCB = RF_AutoDemoStatusCallBack;
+    rf_config.RxMaxlen = RF_AUTO_DEMO_PACKET_LEN;
+    g_demo_config_ret = RF_Config(&rf_config);
+    demo_arm_rx();
+}
+
+#else
+
+#define RF_TX_SEND_TIME                RFH_TX_SEND_TIME_UNITS
+#define RF_LINK_ACCESS_ADDRESS         RFH_LINK_ACCESS_ADDRESS_DEFAULT
+#define RF_LINK_CRC_INIT               0x555555UL
+#define RFIP_RX_NO_TIMEOUT             0u
+#define TMR0_FREE_RUN_WRAP             0x04000000UL
+#define RF_SWITCH_TEST_ENABLE          1u
+#define RF_SWITCH_TEST_SEND_US         125u
+#define RF_SWITCH_TEST_CYCLE_TICKS     8000u
+#define RF_SWITCH_TEST_DEFAULT_ACK_TICKS 800u
+#define RF_SWITCH_TEST_MARK_TX         0x54u
+#define RF_SWITCH_TEST_MARK_RX         0x52u
+#define RX_ACK_PHASE_SCAN_ENABLE       1u
+#define RX_ACK_MIN_ARM_US              1
 #define RX_HID_REPORT_MAGIC            0x48u
 #define RX_HID_REPORT_VERSION          0x01u
-#define RX_HID_TELEMETRY_MAGIC         0x314D4852UL /* "RHM1" */
+#define RX_HID_TELEMETRY_MAGIC         0x314D4852UL
 
 #define SBP_RF_RF_RX_EVT               4
 #define SBP_RF_STAT_EVT                (1 << 5)
-
-typedef enum {
-    RX_UNCONNECTED = 0u,
-    RX_CONNECT_ACK_PENDING,
-    RX_COMM,
-    RX_HOP_RESERVED,
-    RX_HOP_CONFIRM_ACK_PENDING,
-    RX_PAIRING,
-    RX_PAIR_CONFIRM_WAIT
-} rx_state_t;
-
-typedef enum {
-    PB22_ARM_WAIT_HIGH = 0u,
-    PB22_IDLE_HIGH,
-    PB22_DEBOUNCE_LOW,
-    PB22_HOLDING_LOW,
-    PB22_WAIT_RELEASE
-} pb22_pair_button_state_t;
 
 typedef struct
 {
     volatile uint32_t rx_ok;
     volatile uint32_t rx_bad_len;
     volatile uint32_t rx_bad_type;
-    volatile uint32_t rx_bad_connect;
-    volatile uint32_t rx_ignored_data;
+    volatile uint32_t rx_bad_slot;
     volatile uint32_t rx_crcerr;
     volatile uint32_t rx_timeout;
     volatile uint32_t rx_arm_try;
@@ -116,11 +306,6 @@ typedef struct
     volatile uint32_t tx_ack_parm_fail;
     volatile uint32_t tx_ack_ok;
     volatile uint32_t tx_ack_fail;
-    volatile uint32_t connect_rx;
-    volatile uint32_t data_rx;
-    volatile uint32_t scan_switch;
-    volatile uint32_t hop_cmd_rx;
-    volatile uint32_t hop_done;
 } rf_stat_t;
 
 uint8_t taskID;
@@ -133,103 +318,59 @@ static rf_stat_t gStat = {0};
 __attribute__((__aligned__(4))) static uint8_t TxBuf[64];
 __attribute__((__aligned__(4))) static uint8_t RxBuf[264];
 
-static volatile uint8_t g_ret_role_init = 0xFFu;
+static volatile uint8_t g_basic_started = 0u;
+static volatile uint8_t g_ack_tx_active = 0u;
 static volatile uint8_t g_low_config_ret = 0xFFu;
 static volatile uint8_t g_low_rx_ret = 0xFFu;
 static volatile uint8_t g_low_tx_ret = 0xFFu;
-static volatile uint8_t g_basic_started = 0u;
-static volatile uint8_t g_ack_tx_active = 0u;
-static volatile uint8_t g_pair_tx_active = 0u;
 
-static volatile rx_state_t g_state = RX_UNCONNECTED;
-static rx_state_t g_ack_success_next_state = RX_COMM;
-static uint8_t g_rx_channel = RF_TEST_FREQUENCY;
-static uint8_t g_scan_channel_a = RFH_DEFAULT_CHANNEL_A;
-static uint8_t g_scan_channel_b = RFH_DEFAULT_CHANNEL_B;
-static uint8_t g_ack_channel = RFH_DEFAULT_CHANNEL_A;
-static uint8_t g_ack_tx_channel = RFH_DEFAULT_CHANNEL_A;
-static uint8_t g_old_channel = RFH_DEFAULT_CHANNEL_A;
-static uint8_t g_target_channel = RFH_DEFAULT_CHANNEL_A;
-static uint8_t g_hop_seq = 0u;
-static uint8_t g_pending_ack_cmd = RFH_CMD_NONE;
-static uint8_t g_confirm_ack_fail_count = 0u;
-static rx_state_t g_pair_restore_state = RX_UNCONNECTED;
-static uint8_t g_pair_restore_channel = RFH_DEFAULT_CHANNEL_A;
-static uint8_t g_pair_restore_scan_channel_a = RFH_DEFAULT_CHANNEL_A;
-static uint8_t g_pair_restore_scan_channel_b = RFH_DEFAULT_CHANNEL_B;
-static uint8_t g_pair_restore_ack_channel = RFH_DEFAULT_CHANNEL_A;
-static uint32_t g_pairing_started_clock = 0u;
-static uint32_t g_pair_scan_due_clock = 0u;
-static uint32_t g_link_access_address = RF_LINK_ACCESS_ADDRESS;
-static uint32_t g_local_id_hash = 0u;
-static uint32_t g_peer_id_hash = 0u;
-static uint32_t g_pair_session_nonce = 0u;
-static uint32_t g_pair_proposed_access_address = RF_LINK_ACCESS_ADDRESS;
-static uint32_t g_pair_confirm32 = 0u;
-static uint32_t g_pair_counter = 0u;
-static uint8_t g_pair_bond_write_pending = 0u;
-static uint8_t g_pair_done_ready = 0u;
-static uint16_t g_pair_done_bursts_remaining = 0u;
-static uint8_t g_pair_done_pending = 0u;
-static uint32_t g_pair_done_due_tmr = 0u;
-static uint8_t g_pair_accept_pending = 0u;
-static uint8_t g_pair_accept_channel = RFH_PAIR_CHANNEL_A;
-static uint16_t g_pair_accept_bursts_remaining = 0u;
-static uint32_t g_pair_accept_due_tmr = 0u;
-static uint8_t g_has_bond = 0u;
-static pb22_pair_button_state_t g_pb22_state = PB22_ARM_WAIT_HIGH;
-static uint32_t g_pb22_last_tmr = 0u;
-static uint32_t g_pb22_stable_cycles = 0u;
-static uint32_t g_pb22_hold_cycles = 0u;
-
-static uint16_t g_report_hz = RF_REPORT_PPS;
-static uint8_t g_rate_code = RFH_RATE_8K;
-static uint8_t g_pair_restore_rate_code = RFH_RATE_8K;
-static uint8_t g_pair_link_rate_code = RFH_RATE_8K;
-static uint8_t g_ack_window_ms = RFH_DEFAULT_ACK_WINDOW_MS;
-static uint8_t g_ack_window_packets = 8u;
-static uint32_t g_tick_per_evt = 1u;
+static uint8_t g_group_valid = 0u;
+static uint8_t g_current_group = 0u;
+static uint8_t g_received_bitmap = 0u;
 static uint8_t g_ack_pending = 0u;
-static uint8_t g_ack_repeat_remaining = 0u;
-static uint32_t g_ack_due_tmr = 0u;
-static uint32_t g_ack_until_tmr = 0u;
-static uint32_t g_last_rx_packet_clock = 0u;
-static uint32_t g_log_last_clock = 0u;
-static uint32_t g_hop_due_clock = 0u;
-static uint32_t g_hop_confirm_deadline_clock = 0u;
-static uint16_t g_rx_since_ack = 0u;
-static uint16_t g_last_ack_loss_permille = 1000u;
-static uint16_t g_last_ack_expected = 0u;
-static uint16_t g_last_ack_rx_count = 0u;
-static uint8_t g_last_ack_cmd = RFH_CMD_NONE;
+static uint8_t g_ack_sent_for_group = 0u;
+static uint8_t g_pending_ack_bitmap = RFH_ACK_MISSING_MASK;
 
-static uint32_t g_log_rx_ok = 0u;
-static uint32_t g_log_ack_ok = 0u;
-static uint8_t g_log_hop_events = 0u;
-static uint8_t g_log_unconnected_events = 0u;
-static uint8_t g_log_errors = 0u;
-static uint8_t g_log_app_timeout_events = 0u;
-static uint8_t g_log_data_resync_events = 0u;
+static uint32_t g_total_groups = 0u;
+static uint32_t g_total_rx_data = 0u;
+static uint32_t g_total_expected_data = 0u;
+static uint32_t g_total_ack_tx = 0u;
+static uint32_t g_total_missing_packets = 0u;
+static uint32_t g_total_bad_seq = 0u;
+static uint32_t g_total_errors = 0u;
 
-static uint32_t g_diag_rx_arm_try = 0u;
-static uint32_t g_diag_rx_arm_ok = 0u;
-static uint32_t g_diag_rx_arm_fail = 0u;
-static uint32_t g_diag_rx_ok = 0u;
-static uint32_t g_diag_rx_crcerr = 0u;
-static uint32_t g_diag_rx_timeout = 0u;
-static uint32_t g_diag_rx_bad_len = 0u;
-static uint32_t g_diag_rx_bad_type = 0u;
-static uint32_t g_diag_rx_bad_connect = 0u;
-static uint32_t g_diag_rx_ignored_data = 0u;
-static uint32_t g_diag_tx_ack_try = 0u;
-static uint32_t g_diag_tx_ack_fail = 0u;
-static uint8_t g_diag_app_timeout_events = 0u;
-static uint8_t g_diag_data_resync_events = 0u;
-static volatile uint32_t g_rx_progress_count = 0u;
-static uint32_t g_rx_progress_seen_count = 0u;
-static uint32_t g_rx_progress_clock = 0u;
-static uint32_t g_hid_telemetry_last_clock = 0u;
-static uint32_t g_hid_telemetry_last_rx_count = 0u;
+static uint32_t g_log_groups = 0u;
+static uint32_t g_log_rx_data = 0u;
+static uint32_t g_log_expected_data = 0u;
+static uint32_t g_log_ack_tx = 0u;
+static uint32_t g_log_missing_packets = 0u;
+static uint32_t g_log_bad_seq = 0u;
+static uint32_t g_log_errors = 0u;
+static uint32_t g_log_first_slot_hist[RFH_DATA_SLOTS] = {0};
+static uint8_t g_log_first_slot_mask = 0u;
+
+#if (RX_ACK_PHASE_SCAN_ENABLE == 1)
+static const int16_t g_ack_phase_scan_offsets_us[] = {
+    -200, -175, -150, -125, -100, -75, -50, -25, 0,
+    25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300
+};
+static uint8_t g_ack_phase_scan_index = 0u;
+#endif
+
+#if (RF_SWITCH_TEST_ENABLE == 1)
+static uint16_t g_sw_tick = 0u;
+static uint8_t g_sw_role_tx = 0u;
+static uint8_t g_sw_rx_active = 0u;
+static uint8_t g_sw_seq = 0u;
+static uint32_t g_sw_log_tx = 0u;
+static uint32_t g_sw_log_rx = 0u;
+static uint32_t g_sw_log_bad = 0u;
+static uint32_t g_sw_log_switch = 0u;
+static uint32_t g_sw_log_sync = 0u;
+static uint32_t g_sw_total_rx = 0u;
+static uint16_t g_sw_ack_ticks = RF_SWITCH_TEST_DEFAULT_ACK_TICKS;
+#endif
+
 static uint32_t g_hid_telemetry_seq = 0u;
 static xinput_report_t g_current_xinput_report;
 static xinput_report_t g_pending_xinput_report;
@@ -247,307 +388,103 @@ static uint32_t g_last_input_key_mask = 0u;
 static uint32_t g_last_valid_input_clock = 0u;
 
 void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id);
-static uint8_t rx_send_pair_accept(uint8_t channel);
-static void rx_send_pair_done(void);
-static uint16_t rx_calc_loss_permille(uint32_t rx_count, uint32_t expected);
 
-static uint8_t rx_time_reached(uint32_t now, uint32_t deadline)
+static uint8_t rx_popcount7(uint8_t value)
 {
-    return ((int32_t)(now - deadline) >= 0) ? 1u : 0u;
-}
-
-static uint8_t rx_pairing_active(void)
-{
-    return ((g_state == RX_PAIRING) ||
-            (g_state == RX_PAIR_CONFIRM_WAIT)) ? 1u : 0u;
-}
-
-static uint32_t rx_make_local_id_hash(void)
-{
-    uint8_t mac[6] = {0};
-    static const uint8_t role_tag[] = "HBOX-RF-HOP-RX";
-    uint32_t hash = rfh_fnv1a32_bytes(role_tag, (uint32_t)(sizeof(role_tag) - 1u));
-
-    (void)GetMACAddress(mac);
-    hash = rfh_fnv1a32_mix_u32(hash,
-                               (uint32_t)mac[0] |
-                               ((uint32_t)mac[1] << 8) |
-                               ((uint32_t)mac[2] << 16) |
-                               ((uint32_t)mac[3] << 24));
-    hash = rfh_fnv1a32_mix_u32(hash,
-                               (uint32_t)mac[4] |
-                               ((uint32_t)mac[5] << 8) |
-                               0x52580000UL);
-    if(hash == 0u)
+    uint8_t count = 0u;
+    value &= RFH_ACK_MISSING_MASK;
+    while(value != 0u)
     {
-        hash = 0x52584F50UL;
+        count = (uint8_t)(count + (value & 1u));
+        value >>= 1;
     }
-    return hash;
+    return count;
 }
 
-static uint8_t rx_bond_read(rfh_bond_record_t *record)
+static uint16_t rx_loss_permille(uint32_t missing, uint32_t expected)
 {
-    if(record == NULL)
+    if(expected == 0u)
     {
         return 0u;
     }
-    memset(record, 0, sizeof(*record));
-    if(EEPROM_READ(RFH_BOND_EEPROM_ADDR_DEFAULT, record, sizeof(*record)) != 0u)
-    {
-        return 0u;
-    }
-    return rfh_bond_record_valid(record);
+    return (uint16_t)((missing * 1000u) / expected);
 }
 
-static uint8_t rx_bond_write(const rfh_bond_record_t *record)
+static void rx_note_error(void)
 {
-    rfh_bond_record_t verify;
-
-    if((record == NULL) || (rfh_bond_record_valid(record) == 0u))
-    {
-        return 0u;
-    }
-    if(EEPROM_ERASE(RFH_BOND_EEPROM_ADDR_DEFAULT, RFH_BOND_EEPROM_ERASE_SIZE) != 0u)
-    {
-        return 0u;
-    }
-    if(EEPROM_WRITE(RFH_BOND_EEPROM_ADDR_DEFAULT, (void *)record, sizeof(*record)) != 0u)
-    {
-        return 0u;
-    }
-    return rx_bond_read(&verify);
+    g_total_errors++;
+    g_log_errors++;
 }
 
-static void rx_load_bond_or_default(void)
+#if (RF_SWITCH_TEST_ENABLE != 1)
+static uint8_t rx_log_dominant_first_slot(void)
 {
-    rfh_bond_record_t record;
+    uint8_t i;
+    uint8_t best_slot = 0u;
+    uint32_t best_count = 0u;
 
-    g_local_id_hash = rx_make_local_id_hash();
-    if(rx_bond_read(&record) != 0u)
+    for(i = 0u; i < RFH_DATA_SLOTS; i++)
     {
-        g_has_bond = 1u;
-        g_link_access_address = record.link_access_address;
-        g_pair_counter = record.pair_counter;
-        g_peer_id_hash = record.peer_id_hash;
-        PRINT("[RX][RFH] bond:load aa:%08lX peer:%08lX pc:%lu\r\n",
-              (unsigned long)g_link_access_address,
-              (unsigned long)g_peer_id_hash,
-              (unsigned long)g_pair_counter);
-        return;
+        if(g_log_first_slot_hist[i] > best_count)
+        {
+            best_count = g_log_first_slot_hist[i];
+            best_slot = i;
+        }
     }
 
-    g_has_bond = 0u;
-    g_link_access_address = RF_LINK_ACCESS_ADDRESS;
-    g_pair_counter = 0u;
-    g_peer_id_hash = 0u;
+    return best_slot;
 }
+#endif
 
-static uint8_t rx_write_current_pair_bond(void)
-{
-    rfh_bond_record_t record;
-    uint32_t next_counter = g_pair_counter + 1u;
-
-    if(rfh_access_address_valid(g_pair_proposed_access_address) == 0u)
-    {
-        return 0u;
-    }
-
-    rfh_bond_record_init(&record,
-                         g_pair_proposed_access_address,
-                         RFH_DEFAULT_CHANNEL_A,
-                         RFH_DEFAULT_CHANNEL_B,
-                         g_pair_link_rate_code,
-                         g_local_id_hash,
-                         g_peer_id_hash,
-                         next_counter,
-                         g_pair_confirm32);
-    if(rx_bond_write(&record) == 0u)
-    {
-        return 0u;
-    }
-
-    g_has_bond = 1u;
-    g_pair_counter = next_counter;
-    g_link_access_address = g_pair_proposed_access_address;
-    return 1u;
-}
-
-static uint8_t rx_pb22_pressed(void)
-{
-    return (GPIOB_ReadPortPin(RX_PAIR_BUTTON_PIN) == 0u) ? 1u : 0u;
-}
-
-static uint8_t rx_tmr_reached(uint32_t now, uint32_t deadline)
-{
-    if(now >= deadline)
-    {
-        return 1u;
-    }
-    return ((deadline - now) > (TMR0_FREE_RUN_WRAP / 2u)) ? 1u : 0u;
-}
-
-static uint8_t rx_tmr_before(uint32_t a, uint32_t b)
-{
-    if(a <= b)
-    {
-        return ((b - a) < (TMR0_FREE_RUN_WRAP / 2u)) ? 1u : 0u;
-    }
-    return ((a - b) > (TMR0_FREE_RUN_WRAP / 2u)) ? 1u : 0u;
-}
-
-static uint32_t rx_tmr_add(uint32_t base, uint32_t delta)
-{
-    base += delta;
-    while(base >= TMR0_FREE_RUN_WRAP)
-    {
-        base -= TMR0_FREE_RUN_WRAP;
-    }
-    return base;
-}
-
-static uint32_t rx_tmr_delta(uint32_t now, uint32_t last)
-{
-    if(now >= last)
-    {
-        return now - last;
-    }
-    return (TMR0_FREE_RUN_WRAP - last) + now;
-}
-
-static uint32_t rx_us_to_tmr_cycles(uint16_t us)
+static uint32_t rx_us_to_tmr_cycles(uint32_t us)
 {
     uint32_t cycles_per_us = GetSysClock() / 1000000u;
-
+    uint32_t cycles;
     if(cycles_per_us == 0u)
     {
         cycles_per_us = 1u;
     }
-    return (uint32_t)us * cycles_per_us;
+    cycles = cycles_per_us * us;
+    return (cycles == 0u) ? 1u : cycles;
 }
 
-static uint32_t rx_ms_to_tmr_cycles(uint16_t ms)
+static void rx_ack_timer_cancel(void)
 {
-    uint32_t cycles_per_ms = GetSysClock() / 1000u;
-
-    if(cycles_per_ms == 0u)
-    {
-        cycles_per_ms = 1u;
-    }
-    return (uint32_t)ms * cycles_per_ms;
+    TMR1_ITCfg(DISABLE, TMR0_3_IT_CYC_END);
+    TMR1_ClearITFlag(TMR0_3_IT_CYC_END);
+    TMR1_Disable();
 }
 
-static uint16_t rx_pair_bursts_for_ms(uint16_t ms)
+static void rx_ack_timer_arm_us(uint32_t due_us)
 {
-    uint32_t bursts = ((uint32_t)g_report_hz * (uint32_t)ms + 999u) / 1000u;
+    uint32_t cycles = rx_us_to_tmr_cycles(due_us);
 
-    if(bursts == 0u)
-    {
-        bursts = 1u;
-    }
-    if(bursts > 1000u)
-    {
-        bursts = 1000u;
-    }
-    return (uint16_t)bursts;
+    rx_ack_timer_cancel();
+    TMR1_TimerInit(cycles);
+    TMR1_ClearITFlag(TMR0_3_IT_CYC_END);
+    TMR1_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
 }
 
-static uint8_t rx_is_seek_scanning_state(void)
+static int16_t rx_ack_phase_offset_us(void)
 {
-    return ((g_state == RX_UNCONNECTED) ||
-            (g_state == RX_PAIRING) ||
-            ((g_state == RX_CONNECT_ACK_PENDING) &&
-             (g_pending_ack_cmd == RFH_CMD_CONNECT_REQ))) ? 1u : 0u;
-}
-
-static uint8_t rx_is_packet_timeout_state(void)
-{
-    return ((g_state == RX_HOP_RESERVED) ||
-            (g_state == RX_HOP_CONFIRM_ACK_PENDING)) ? 1u : 0u;
-}
-
-static const char *rx_state_code(void)
-{
-    switch(g_state)
-    {
-    case RX_UNCONNECTED:
-        return "U";
-    case RX_CONNECT_ACK_PENDING:
-        return "PA";
-    case RX_COMM:
-        return "C";
-    case RX_HOP_RESERVED:
-        return "HR";
-    case RX_HOP_CONFIRM_ACK_PENDING:
-        return "CA";
-    case RX_PAIRING:
-        return "RP";
-    case RX_PAIR_CONFIRM_WAIT:
-    default:
-        return "RC";
-    }
-}
-
-static const char *rx_rate_code(void)
-{
-    switch(g_rate_code)
-    {
-    case RFH_RATE_1K:
-        return "1K";
-    case RFH_RATE_2K:
-        return "2K";
-    case RFH_RATE_4K:
-        return "4K";
-    case RFH_RATE_8K:
-    default:
-        return "8K";
-    }
-}
-
-static void rx_log_note_error(void)
-{
-    if(g_log_errors < 99u)
-    {
-        g_log_errors++;
-    }
-}
-
-static void rx_log_note_hop_event(void)
-{
-    if(g_log_hop_events < 99u)
-    {
-        g_log_hop_events++;
-    }
-}
-
-static void rx_log_note_unconnected(void)
-{
-    if(g_log_unconnected_events < 99u)
-    {
-        g_log_unconnected_events++;
-    }
-}
-
-#if ((RF_RX_PACKET_TIMEOUT_MS > 0u) || (RF_RX_LINK_IDLE_TIMEOUT_MS > 0u))
-static void rx_log_note_app_timeout(void)
-{
-    if(g_log_app_timeout_events < 99u)
-    {
-        g_log_app_timeout_events++;
-    }
-}
+#if (RX_ACK_PHASE_SCAN_ENABLE == 1)
+    return g_ack_phase_scan_offsets_us[g_ack_phase_scan_index];
+#else
+    return 0;
 #endif
-
-static void rx_log_note_data_resync(void)
-{
-    if(g_log_data_resync_events < 99u)
-    {
-        g_log_data_resync_events++;
-    }
 }
 
-static void rx_note_packet_progress(void)
+static void rx_ack_phase_scan_advance(void)
 {
-    g_rx_progress_count++;
+#if (RX_ACK_PHASE_SCAN_ENABLE == 1)
+    g_ack_phase_scan_index++;
+    if(g_ack_phase_scan_index >=
+       (uint8_t)(sizeof(g_ack_phase_scan_offsets_us) /
+                 sizeof(g_ack_phase_scan_offsets_us[0])))
+    {
+        g_ack_phase_scan_index = 0u;
+    }
+#endif
 }
 
 static uint32_t rx_input_stale_ticks(void)
@@ -578,7 +515,6 @@ static uint8_t rx_input_crc8(const uint8_t *data, uint8_t len)
             }
         }
     }
-
     return crc;
 }
 
@@ -594,30 +530,6 @@ static void rx_make_clear_hid_report(uint8_t *report)
     memset(report, 0, HID_ENDPOINT_SIZE);
     report[0] = RX_HID_REPORT_MAGIC;
     report[1] = RX_HID_REPORT_VERSION;
-}
-
-static void rx_hid_init(void)
-{
-    rx_make_clear_hid_report(g_current_hid_report);
-    rx_make_clear_hid_report(g_pending_hid_report);
-    memcpy(HID_Report_Buffer, g_current_hid_report, HID_ENDPOINT_SIZE);
-    g_hid_pending = 0u;
-}
-
-static void rx_xinput_init(void)
-{
-    rx_make_clear_xinput_report(&g_current_xinput_report);
-    rx_make_clear_xinput_report(&g_pending_xinput_report);
-    rx_hid_init();
-    memset(g_input_payload_buffer, 0, sizeof(g_input_payload_buffer));
-    g_input_payload_active_index = 0u;
-    g_input_payload_generation = 0u;
-    g_input_payload_served_generation = 0u;
-    g_xinput_pending = 0u;
-    g_input_seen_valid = 0u;
-    g_last_input_seq = 0u;
-    g_last_input_key_mask = 0u;
-    g_last_valid_input_clock = TMOS_GetSystemClock();
 }
 
 static uint8_t rx_try_submit_xinput_report(const xinput_report_t *report)
@@ -658,14 +570,12 @@ static void rx_queue_xinput_report(const xinput_report_t *report)
     {
         return;
     }
-
     memcpy(&g_current_xinput_report, report, sizeof(*report));
     if(rx_try_submit_xinput_report(report) != 0u)
     {
         g_xinput_pending = 0u;
         return;
     }
-
     memcpy(&g_pending_xinput_report, report, sizeof(*report));
     g_xinput_pending = 1u;
 }
@@ -676,7 +586,6 @@ static void rx_queue_hid_report(const uint8_t *report)
     {
         return;
     }
-
     memcpy(g_current_hid_report, report, HID_ENDPOINT_SIZE);
     memcpy(HID_Report_Buffer, report, HID_ENDPOINT_SIZE);
     if(rx_try_submit_hid_report(report) != 0u)
@@ -684,18 +593,14 @@ static void rx_queue_hid_report(const uint8_t *report)
         g_hid_pending = 0u;
         return;
     }
-
     memcpy(g_pending_hid_report, report, HID_ENDPOINT_SIZE);
     g_hid_pending = 1u;
 }
 
 static void rx_flush_xinput_pending(void)
 {
-    if(g_xinput_pending == 0u)
-    {
-        return;
-    }
-    if(rx_try_submit_xinput_report(&g_pending_xinput_report) != 0u)
+    if((g_xinput_pending != 0u) &&
+       (rx_try_submit_xinput_report(&g_pending_xinput_report) != 0u))
     {
         g_xinput_pending = 0u;
     }
@@ -703,11 +608,8 @@ static void rx_flush_xinput_pending(void)
 
 static void rx_flush_hid_pending(void)
 {
-    if(g_hid_pending == 0u)
-    {
-        return;
-    }
-    if(rx_try_submit_hid_report(g_pending_hid_report) != 0u)
+    if((g_hid_pending != 0u) &&
+       (rx_try_submit_hid_report(g_pending_hid_report) != 0u))
     {
         g_hid_pending = 0u;
     }
@@ -730,8 +632,8 @@ static void rx_make_hid_report(uint8_t seq,
     {
         memcpy(&report[8], raw_payload, RF_INPUT_PAYLOAD_LEN);
     }
-    report[18] = (uint8_t)(g_report_hz & 0xFFu);
-    report[19] = (uint8_t)((g_report_hz >> 8) & 0xFFu);
+    report[18] = (uint8_t)(RFH_FIXED_RATE_HZ & 0xFFu);
+    report[19] = (uint8_t)(RFH_FIXED_RATE_HZ >> 8);
 }
 
 static uint8_t rx_parse_hitbox_input(const uint8_t *data,
@@ -803,7 +705,7 @@ static void rx_handle_hitbox_input(const uint8_t *data)
 
     if(rx_parse_hitbox_input(data, &seq, &key_mask) == 0u)
     {
-        rx_log_note_error();
+        rx_note_error();
         return;
     }
 
@@ -825,12 +727,10 @@ static void rx_handle_hitbox_input(const uint8_t *data)
 static void rx_capture_hitbox_input(const uint8_t *data)
 {
     uint8_t next_index;
-
     if(data == NULL)
     {
         return;
     }
-
     next_index = (uint8_t)(g_input_payload_active_index ^ 1u);
     memcpy(g_input_payload_buffer[next_index], data, RF_INPUT_PAYLOAD_LEN);
     g_input_payload_active_index = next_index;
@@ -840,15 +740,13 @@ static void rx_capture_hitbox_input(const uint8_t *data)
 static void rx_service_hitbox_input(void)
 {
     uint8_t local_payload[RF_INPUT_PAYLOAD_LEN];
-    uint32_t generation;
+    uint32_t generation = g_input_payload_generation;
     uint8_t active_index;
 
-    generation = g_input_payload_generation;
     if(generation == g_input_payload_served_generation)
     {
         return;
     }
-
     active_index = g_input_payload_active_index;
     memcpy(local_payload, g_input_payload_buffer[active_index], RF_INPUT_PAYLOAD_LEN);
     g_input_payload_served_generation = generation;
@@ -864,8 +762,7 @@ static void rx_clear_xinput_on_stale(uint32_t now_clock)
     {
         return;
     }
-    if(rx_time_reached(now_clock,
-                       g_last_valid_input_clock + rx_input_stale_ticks()) == 0u)
+    if(((int32_t)(now_clock - (g_last_valid_input_clock + rx_input_stale_ticks()))) < 0)
     {
         return;
     }
@@ -878,330 +775,25 @@ static void rx_clear_xinput_on_stale(uint32_t now_clock)
     rx_queue_hid_report(hid_report);
 }
 
-static uint16_t rx_expected_packets_per_ack(void)
+static void rx_xinput_init(void)
 {
-    uint32_t silent_packets;
-
-    silent_packets = (uint32_t)rfh_packets_for_us(g_report_hz,
-                                                   RF_ACK_RX_PRE_GUARD_US) +
-                     (uint32_t)g_ack_window_packets +
-                     (uint32_t)rfh_packets_for_us(g_report_hz,
-                                                  RF_ACK_RX_POST_GUARD_US);
-    if(silent_packets >= g_report_hz)
-    {
-        return 1u;
-    }
-    return (uint16_t)(g_report_hz - silent_packets);
+    rx_make_clear_xinput_report(&g_current_xinput_report);
+    rx_make_clear_xinput_report(&g_pending_xinput_report);
+    rx_make_clear_hid_report(g_current_hid_report);
+    rx_make_clear_hid_report(g_pending_hid_report);
+    memcpy(HID_Report_Buffer, g_current_hid_report, HID_ENDPOINT_SIZE);
+    memset(g_input_payload_buffer, 0, sizeof(g_input_payload_buffer));
+    g_input_payload_active_index = 0u;
+    g_input_payload_generation = 0u;
+    g_input_payload_served_generation = 0u;
+    g_xinput_pending = 0u;
+    g_hid_pending = 0u;
+    g_input_seen_valid = 0u;
+    g_last_input_seq = 0u;
+    g_last_input_key_mask = 0u;
+    g_last_valid_input_clock = TMOS_GetSystemClock();
 }
 
-static uint32_t rx_expected_packets_for_elapsed_ms(uint32_t elapsed_ms)
-{
-    uint32_t expected;
-
-    if(elapsed_ms == 0u)
-    {
-        elapsed_ms = 1u;
-    }
-    expected = (uint32_t)(((uint64_t)rx_expected_packets_per_ack() *
-                           elapsed_ms) / 1000u);
-    return (expected == 0u) ? 1u : expected;
-}
-
-static void rx_put_u16(uint8_t *dst, uint16_t value)
-{
-    dst[0] = (uint8_t)(value & 0xFFu);
-    dst[1] = (uint8_t)((value >> 8) & 0xFFu);
-}
-
-static void rx_put_u32(uint8_t *dst, uint32_t value)
-{
-    dst[0] = (uint8_t)(value & 0xFFu);
-    dst[1] = (uint8_t)((value >> 8) & 0xFFu);
-    dst[2] = (uint8_t)((value >> 16) & 0xFFu);
-    dst[3] = (uint8_t)((value >> 24) & 0xFFu);
-}
-
-uint8_t RF_TrySendTelemetryReport(void)
-{
-    uint8_t report[HID_ENDPOINT_SIZE];
-    uint32_t now_clock;
-    uint32_t elapsed_ticks;
-    uint32_t elapsed_ms;
-    uint32_t rx_count;
-    uint32_t rx_delta;
-    uint32_t expected;
-    uint32_t seq;
-    uint16_t loss;
-
-    if(g_basic_started == 0u)
-    {
-        return 0u;
-    }
-
-    now_clock = TMOS_GetSystemClock();
-    rx_count = g_rx_progress_count;
-    if(g_hid_telemetry_last_clock == 0u)
-    {
-        g_hid_telemetry_last_clock = now_clock;
-        g_hid_telemetry_last_rx_count = rx_count;
-        return 0u;
-    }
-
-    elapsed_ticks = now_clock - g_hid_telemetry_last_clock;
-    elapsed_ms = (uint32_t)(((uint64_t)elapsed_ticks * SYSTEM_TIME_MICROSEN) /
-                            1000u);
-    if(elapsed_ms == 0u)
-    {
-        return 0u;
-    }
-
-    rx_delta = rx_count - g_hid_telemetry_last_rx_count;
-    expected = rx_expected_packets_for_elapsed_ms(elapsed_ms);
-    loss = rx_calc_loss_permille(rx_delta, expected);
-    if(rx_is_seek_scanning_state() != 0u)
-    {
-        loss = 1000u;
-    }
-
-    memset(report, 0, sizeof(report));
-    seq = g_hid_telemetry_seq + 1u;
-    rx_put_u32(&report[0], RX_HID_TELEMETRY_MAGIC);
-    rx_put_u32(&report[4], seq);
-    rx_put_u16(&report[8], (elapsed_ms > 65535u) ? 65535u : (uint16_t)elapsed_ms);
-    rx_put_u16(&report[10], g_report_hz);
-    rx_put_u32(&report[12], rx_delta);
-    rx_put_u32(&report[16], expected);
-    rx_put_u16(&report[20], loss);
-    report[22] = (uint8_t)g_state;
-    report[23] = g_rx_channel;
-    report[24] = g_old_channel;
-    report[25] = g_target_channel;
-    report[26] = g_rate_code;
-    report[27] = g_log_unconnected_events;
-    report[28] = g_log_errors;
-
-    if(rx_try_submit_hid_report(report) == 0u)
-    {
-        g_hid_telemetry_last_clock = now_clock;
-        g_hid_telemetry_last_rx_count = rx_count;
-        return 0u;
-    }
-
-    g_hid_telemetry_seq = seq;
-    g_hid_telemetry_last_clock = now_clock;
-    g_hid_telemetry_last_rx_count = rx_count;
-    return 1u;
-}
-
-static uint32_t rx_log_elapsed_ms(uint32_t now_clock)
-{
-    uint32_t elapsed_ticks;
-    uint32_t elapsed_ms;
-
-    if(g_log_last_clock == 0u)
-    {
-        return RF_STAT_PRINT_PERIOD_MS;
-    }
-
-    elapsed_ticks = now_clock - g_log_last_clock;
-    if((int32_t)elapsed_ticks <= 0)
-    {
-        return RF_STAT_PRINT_PERIOD_MS;
-    }
-
-    elapsed_ms = (uint32_t)(((uint64_t)elapsed_ticks * SYSTEM_TIME_MICROSEN) /
-                            1000u);
-    if((elapsed_ms < 1000u) || (elapsed_ms > 10000u))
-    {
-        return RF_STAT_PRINT_PERIOD_MS;
-    }
-
-    return elapsed_ms;
-}
-
-static uint16_t rx_calc_loss_permille(uint32_t rx_count, uint32_t expected)
-{
-    uint32_t lost;
-
-    if(expected == 0u)
-    {
-        return 0u;
-    }
-    if(rx_count >= expected)
-    {
-        return 0u;
-    }
-    lost = expected - rx_count;
-    return (uint16_t)((lost * 1000u) / expected);
-}
-
-static void rx_apply_rate(uint8_t rate_code, uint8_t ack_window_ms)
-{
-    if(rate_code > RFH_RATE_8K)
-    {
-        rate_code = RFH_RATE_8K;
-    }
-    g_rate_code = rate_code;
-    g_report_hz = rfh_rate_hz_from_code(rate_code);
-    g_ack_window_ms = (ack_window_ms == 0u) ? RFH_DEFAULT_ACK_WINDOW_MS : ack_window_ms;
-    g_ack_window_packets = rfh_ack_window_packets_us(g_report_hz,
-                                                     RF_ACK_WINDOW_US);
-    g_tick_per_evt = GetSysClock() / g_report_hz;
-    if(g_tick_per_evt == 0u)
-    {
-        g_tick_per_evt = 1u;
-    }
-}
-
-static void rx_set_channel(uint8_t channel)
-{
-    if(rfh_channel_valid(channel) == 0u)
-    {
-        return;
-    }
-    g_rx_channel = channel;
-    gRxParam.frequency = channel;
-    gRxParam.whiteChannel = channel;
-}
-
-static void rx_apply_radio_access_address(uint32_t access_address)
-{
-    gParm.accessAddress = access_address;
-    gTxParam.accessAddress = access_address;
-    gRxParam.accessAddress = access_address;
-    if(g_basic_started != 0u)
-    {
-        RFRole_SetParam(&gParm);
-    }
-}
-
-static uint8_t rx_scan_next_channel(uint8_t channel)
-{
-    if(rfh_channel_valid(channel) == 0u)
-    {
-        return RFH_MIN_CHANNEL;
-    }
-    channel++;
-    if(channel > RFH_MAX_CHANNEL)
-    {
-        channel = RFH_MIN_CHANNEL;
-    }
-    return channel;
-}
-
-static uint8_t rx_scan_random_channel(void)
-{
-    uint32_t rnd = tmos_rand();
-    uint8_t span = (uint8_t)(RFH_MAX_CHANNEL - RFH_MIN_CHANNEL + 1u);
-
-    rnd ^= TMOS_GetSystemClock();
-    return (uint8_t)(RFH_MIN_CHANNEL + (uint8_t)(rnd % span));
-}
-
-static void rx_enter_state(rx_state_t next)
-{
-    uint32_t now = TMOS_GetSystemClock();
-
-    if(g_state == next)
-    {
-        return;
-    }
-
-    g_state = next;
-    switch(next)
-    {
-    case RX_UNCONNECTED:
-        g_ack_pending = 0u;
-        g_ack_repeat_remaining = 0u;
-        g_ack_until_tmr = 0u;
-        g_pending_ack_cmd = RFH_CMD_NONE;
-        g_hop_seq = 0u;
-        g_confirm_ack_fail_count = 0u;
-        g_rx_since_ack = 0u;
-        g_scan_channel_a = RFH_MIN_CHANNEL;
-        g_scan_channel_b = RFH_MAX_CHANNEL;
-        rx_set_channel(rx_scan_random_channel());
-        rx_log_note_unconnected();
-        break;
-    case RX_COMM:
-        g_ack_success_next_state = RX_COMM;
-        g_pending_ack_cmd = RFH_CMD_NONE;
-        g_confirm_ack_fail_count = 0u;
-        g_last_rx_packet_clock = now;
-        break;
-    case RX_CONNECT_ACK_PENDING:
-        break;
-    case RX_HOP_RESERVED:
-        rx_log_note_hop_event();
-        break;
-    case RX_HOP_CONFIRM_ACK_PENDING:
-        rx_log_note_hop_event();
-        break;
-    case RX_PAIRING:
-        g_ack_pending = 0u;
-        g_ack_repeat_remaining = 0u;
-        g_ack_until_tmr = 0u;
-        g_pending_ack_cmd = RFH_CMD_NONE;
-        g_pair_tx_active = 0u;
-        g_pair_bond_write_pending = 0u;
-        g_pair_done_ready = 0u;
-        g_pair_done_bursts_remaining = 0u;
-        g_pair_done_pending = 0u;
-        g_pair_done_due_tmr = 0u;
-        g_pair_accept_pending = 0u;
-        g_pair_accept_bursts_remaining = 0u;
-        g_hop_seq = 0u;
-        g_confirm_ack_fail_count = 0u;
-        g_rx_since_ack = 0u;
-        g_scan_channel_a = RFH_PAIR_CHANNEL_A;
-        g_scan_channel_b = RFH_PAIR_CHANNEL_B;
-        g_pairing_started_clock = now;
-        g_pair_scan_due_clock = now + MS1_TO_SYSTEM_TIME(RF_PAIR_RX_DWELL_MS);
-        rx_set_channel(RFH_PAIR_CHANNEL_A);
-        break;
-    case RX_PAIR_CONFIRM_WAIT:
-    default:
-        break;
-    }
-}
-
-static void rx_toggle_seek_channel(void)
-{
-    if(g_state == RX_PAIRING)
-    {
-        if(g_rx_channel == g_scan_channel_a)
-        {
-            rx_set_channel(g_scan_channel_b);
-        }
-        else
-        {
-            rx_set_channel(g_scan_channel_a);
-        }
-        gStat.scan_switch++;
-        return;
-    }
-
-    if((g_state == RX_UNCONNECTED) ||
-       ((g_state == RX_CONNECT_ACK_PENDING) &&
-        (g_pending_ack_cmd == RFH_CMD_CONNECT_REQ)))
-    {
-        rx_set_channel(rx_scan_next_channel(g_rx_channel));
-    }
-    else
-    {
-        if(g_rx_channel == g_scan_channel_a)
-        {
-            rx_set_channel(g_scan_channel_b);
-        }
-        else
-        {
-            rx_set_channel(g_scan_channel_a);
-        }
-    }
-    gStat.scan_switch++;
-}
-
-__HIGH_CODE
 static void rx_start_rx(void)
 {
     if((g_basic_started == 0u) || (g_ack_tx_active != 0u))
@@ -1209,469 +801,277 @@ static void rx_start_rx(void)
         return;
     }
 
-    gRxParam.frequency = g_rx_channel;
-    gRxParam.whiteChannel = g_rx_channel;
+    gRxParam.frequency = RFH_FIXED_CHANNEL;
+    gRxParam.whiteChannel = RFH_FIXED_CHANNEL;
     gRxParam.rxDMA = (uint32_t)RxBuf;
     gRxParam.rxMaxLen = RFH_AIR_PACKET_LEN;
-    if(g_state == RX_PAIRING)
-    {
-        gRxParam.timeOut = RFIP_RX_NO_TIMEOUT;
-    }
-    else
-    {
-        gRxParam.timeOut = (rx_is_seek_scanning_state() != 0u) ?
-                           RF_DUAL_RX_DWELL_US :
-                           RF_CONNECTED_RX_TIMEOUT_US;
-    }
+    gRxParam.timeOut = RFIP_RX_NO_TIMEOUT;
     gStat.rx_arm_try++;
     g_low_rx_ret = (uint8_t)RFIP_SetRx(&gRxParam);
-    if(g_low_rx_ret != SUCCESS)
-    {
-        gStat.rx_arm_fail++;
-        rx_log_note_error();
-    }
-    else
+    if(g_low_rx_ret == SUCCESS)
     {
         gStat.rx_arm_ok++;
     }
+    else
+    {
+        gStat.rx_arm_fail++;
+        rx_note_error();
+    }
 }
 
-static void rx_stop_radio_activity(void)
+#if (RF_SWITCH_TEST_ENABLE == 1)
+static uint16_t rx_switch_tx_ticks(void)
 {
-    if(g_basic_started != 0u)
+    if(g_sw_ack_ticks >= RF_SWITCH_TEST_CYCLE_TICKS)
+    {
+        return (uint16_t)(RF_SWITCH_TEST_CYCLE_TICKS - 1u);
+    }
+    return (uint16_t)(RF_SWITCH_TEST_CYCLE_TICKS - g_sw_ack_ticks);
+}
+
+static uint16_t rx_switch_ack_window_us(void)
+{
+    return (uint16_t)(g_sw_ack_ticks * RFH_SLOT_US);
+}
+
+static void rx_switch_set_ack_ticks(uint16_t ack_ticks)
+{
+    if((ack_ticks == 0u) || (ack_ticks >= RF_SWITCH_TEST_CYCLE_TICKS))
+    {
+        return;
+    }
+    g_sw_ack_ticks = ack_ticks;
+}
+
+static void rx_switch_fill_packet(void)
+{
+    uint8_t *air = &TxBuf[2];
+    uint8_t *data = &air[RFH_DATA_OFFSET];
+    uint8_t seq = g_sw_seq++;
+
+    TxBuf[0] = RFH_WCH_PREAMBLE;
+    TxBuf[1] = RFH_AIR_PACKET_LEN;
+    air[RFH_HDR0_OFFSET] = rfh_make_header0(RFH_PKT_DATA,
+                                            RFH_RATE_8K,
+                                            RFH_FLAG_LINK_OK);
+    air[RFH_HDR1_OFFSET] = rfh_make_slot_header1((uint8_t)(seq >> 3),
+                                                 (uint8_t)(seq & RFH_SLOT_MASK));
+    memset(data, 0, RFH_AIR_DATA_LEN);
+    data[0] = RF_SWITCH_TEST_MARK_RX;
+    data[1] = seq;
+    data[2] = (uint8_t)(g_sw_tick & 0xFFu);
+    data[3] = (uint8_t)(g_sw_tick >> 8);
+    data[4] = (uint8_t)(g_sw_log_tx & 0xFFu);
+    data[5] = (uint8_t)((g_sw_log_tx >> 8) & 0xFFu);
+}
+
+static void rx_switch_sync_from_tx_tick(uint16_t tx_tick, uint16_t ack_ticks)
+{
+    uint16_t next_tick;
+    uint8_t role_tx;
+
+    if(tx_tick >= RF_SWITCH_TEST_CYCLE_TICKS)
+    {
+        return;
+    }
+
+    rx_switch_set_ack_ticks(ack_ticks);
+
+    next_tick = (uint16_t)(tx_tick + 1u);
+    if(next_tick >= RF_SWITCH_TEST_CYCLE_TICKS)
+    {
+        next_tick = 0u;
+    }
+
+    role_tx = (next_tick >= rx_switch_tx_ticks()) ? 1u : 0u;
+    if(role_tx != g_sw_role_tx)
     {
         (void)RFRole_Stop();
+        g_sw_rx_active = 0u;
+        g_sw_role_tx = role_tx;
+        g_sw_log_switch++;
     }
-    g_ack_tx_active = 0u;
-    g_pair_tx_active = 0u;
+
+    g_sw_tick = next_tick;
+    g_sw_log_sync++;
 }
 
-static void rx_clear_link_transaction_state(void)
+static void rx_switch_start_rx(void)
 {
-    g_ack_pending = 0u;
-    g_ack_repeat_remaining = 0u;
-    g_ack_until_tmr = 0u;
-    g_pending_ack_cmd = RFH_CMD_NONE;
-    g_ack_success_next_state = RX_COMM;
-    g_hop_seq = 0u;
-    g_confirm_ack_fail_count = 0u;
-    g_rx_since_ack = 0u;
-}
-
-static rx_state_t rx_pair_restore_target_state(void)
-{
-    switch(g_pair_restore_state)
+    if((g_basic_started == 0u) || (g_sw_rx_active != 0u))
     {
-    case RX_COMM:
-    case RX_HOP_RESERVED:
-    case RX_HOP_CONFIRM_ACK_PENDING:
-        return RX_COMM;
-    case RX_UNCONNECTED:
-    case RX_CONNECT_ACK_PENDING:
-    case RX_PAIRING:
-    case RX_PAIR_CONFIRM_WAIT:
-    default:
-        return RX_UNCONNECTED;
-    }
-}
-
-uint8_t RF_StartPairing(void)
-{
-    if(g_basic_started == 0u)
-    {
-        return 0u;
-    }
-    if(rx_pairing_active() != 0u)
-    {
-        return 1u;
+        return;
     }
 
-    g_pair_restore_state = g_state;
-    g_pair_restore_channel = g_rx_channel;
-    g_pair_restore_scan_channel_a = g_scan_channel_a;
-    g_pair_restore_scan_channel_b = g_scan_channel_b;
-    g_pair_restore_ack_channel = g_ack_channel;
-    g_pair_restore_rate_code = g_rate_code;
-    g_pair_link_rate_code = g_rate_code;
-
-    rx_stop_radio_activity();
-    rx_clear_link_transaction_state();
-    rx_apply_rate(RFH_RATE_1K, g_ack_window_ms);
-    g_peer_id_hash = 0u;
-    g_pair_session_nonce = 0u;
-    g_pair_proposed_access_address = RF_LINK_ACCESS_ADDRESS;
-    g_pair_confirm32 = 0u;
-    g_pair_bond_write_pending = 0u;
-    g_pair_done_ready = 0u;
-    g_pair_done_bursts_remaining = 0u;
-    g_pair_done_pending = 0u;
-    g_pair_done_due_tmr = 0u;
-    g_pair_accept_pending = 0u;
-    g_pair_accept_bursts_remaining = 0u;
-    rx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
-    rx_enter_state(RX_PAIRING);
-    rx_start_rx();
-    PRINT("[RX][RFH] pairing:start\r\n");
-    return 1u;
-}
-
-uint8_t RF_StopPairing(void)
-{
-    rx_state_t restore_state;
-    uint32_t now;
-
-    if(g_basic_started == 0u)
+    (void)RFRole_Stop();
+    gRxParam.frequency = RFH_FIXED_CHANNEL;
+    gRxParam.whiteChannel = RFH_FIXED_CHANNEL;
+    gRxParam.rxDMA = (uint32_t)RxBuf;
+    gRxParam.rxMaxLen = RFH_AIR_PACKET_LEN;
+    gRxParam.timeOut = RFIP_RX_NO_TIMEOUT;
+    gStat.rx_arm_try++;
+    g_low_rx_ret = (uint8_t)RFIP_SetRx(&gRxParam);
+    if(g_low_rx_ret == SUCCESS)
     {
-        return 0u;
-    }
-    if(rx_pairing_active() == 0u)
-    {
-        return 1u;
-    }
-
-    now = TMOS_GetSystemClock();
-    restore_state = rx_pair_restore_target_state();
-    rx_stop_radio_activity();
-    rx_clear_link_transaction_state();
-    rx_apply_rate(g_pair_restore_rate_code, g_ack_window_ms);
-    rx_apply_radio_access_address(g_link_access_address);
-    g_scan_channel_a = g_pair_restore_scan_channel_a;
-    g_scan_channel_b = g_pair_restore_scan_channel_b;
-    g_ack_channel = g_pair_restore_ack_channel;
-
-    if(restore_state == RX_COMM)
-    {
-        rx_enter_state(RX_COMM);
-        rx_set_channel(g_pair_restore_channel);
-        g_rx_progress_clock = now;
-        g_rx_progress_seen_count = g_rx_progress_count;
+        g_sw_rx_active = 1u;
+        gStat.rx_arm_ok++;
     }
     else
     {
-        rx_enter_state(RX_UNCONNECTED);
+        gStat.rx_arm_fail++;
+        g_sw_log_bad++;
+        rx_note_error();
     }
-
-    g_pairing_started_clock = 0u;
-    g_pair_scan_due_clock = 0u;
-    g_pair_accept_pending = 0u;
-    g_pair_accept_bursts_remaining = 0u;
-    g_pair_done_pending = 0u;
-    rx_start_rx();
-    PRINT("[RX][RFH] pairing:stop restore:%s\r\n", rx_state_code());
-    return 1u;
 }
 
-uint8_t RF_IsPairingActive(void)
+static void rx_switch_start_tx(void)
 {
-    return rx_pairing_active();
-}
+    bStatus_t ret_start;
+    bStatus_t ret_parm;
 
-rf_indicator_mode_t RF_GetIndicatorMode(void)
-{
     if(g_basic_started == 0u)
     {
-        return RF_INDICATOR_OFF;
-    }
-    if(rx_pairing_active() != 0u)
-    {
-        return RF_INDICATOR_BLINK_500MS;
-    }
-    if(g_state == RX_UNCONNECTED)
-    {
-        return RF_INDICATOR_SOLID_ON;
-    }
-    return RF_INDICATOR_BLINK_2000MS;
-}
-
-static void rx_pair_button_init(void)
-{
-    GPIOB_ModeCfg(RX_PAIR_BUTTON_PIN, GPIO_ModeIN_PU);
-    g_pb22_state = PB22_ARM_WAIT_HIGH;
-    g_pb22_last_tmr = TMR0_GetCurrentTimer();
-    g_pb22_stable_cycles = 0u;
-    g_pb22_hold_cycles = 0u;
-}
-
-static void rx_pair_button_service(uint32_t now)
-{
-    uint32_t now_tmr = TMR0_GetCurrentTimer();
-    uint32_t delta_tmr = rx_tmr_delta(now_tmr, g_pb22_last_tmr);
-    uint32_t debounce_cycles = rx_ms_to_tmr_cycles(RX_PAIR_BUTTON_DEBOUNCE_MS);
-    uint32_t hold_cycles = rx_ms_to_tmr_cycles(RX_PAIR_BUTTON_HOLD_MS);
-    uint8_t pressed = rx_pb22_pressed();
-    (void)now;
-
-    g_pb22_last_tmr = now_tmr;
-
-    switch(g_pb22_state)
-    {
-    case PB22_ARM_WAIT_HIGH:
-        if(pressed == 0u)
-        {
-            if(g_pb22_stable_cycles < debounce_cycles)
-            {
-                g_pb22_stable_cycles += delta_tmr;
-            }
-            if(g_pb22_stable_cycles >= debounce_cycles)
-            {
-                g_pb22_state = PB22_IDLE_HIGH;
-            }
-        }
-        else
-        {
-            g_pb22_stable_cycles = 0u;
-        }
-        break;
-    case PB22_IDLE_HIGH:
-        if(pressed != 0u)
-        {
-            g_pb22_stable_cycles = 0u;
-            g_pb22_hold_cycles = 0u;
-            g_pb22_state = PB22_DEBOUNCE_LOW;
-        }
-        break;
-    case PB22_DEBOUNCE_LOW:
-        if(pressed == 0u)
-        {
-            g_pb22_stable_cycles = 0u;
-            g_pb22_hold_cycles = 0u;
-            g_pb22_state = PB22_IDLE_HIGH;
-        }
-        else
-        {
-            if(g_pb22_stable_cycles < debounce_cycles)
-            {
-                g_pb22_stable_cycles += delta_tmr;
-            }
-            if(g_pb22_hold_cycles < hold_cycles)
-            {
-                g_pb22_hold_cycles += delta_tmr;
-            }
-            if(g_pb22_stable_cycles >= debounce_cycles)
-            {
-                g_pb22_state = PB22_HOLDING_LOW;
-            }
-        }
-        break;
-    case PB22_HOLDING_LOW:
-        if(pressed == 0u)
-        {
-            g_pb22_stable_cycles = 0u;
-            g_pb22_hold_cycles = 0u;
-            g_pb22_state = PB22_IDLE_HIGH;
-        }
-        else
-        {
-            if(g_pb22_hold_cycles < hold_cycles)
-            {
-                g_pb22_hold_cycles += delta_tmr;
-            }
-            if(g_pb22_hold_cycles >= hold_cycles)
-            {
-                if(rx_pairing_active() == 0u)
-                {
-                    (void)RF_StartPairing();
-                }
-                g_pb22_state = PB22_WAIT_RELEASE;
-            }
-        }
-        break;
-    case PB22_WAIT_RELEASE:
-    default:
-        if(pressed == 0u)
-        {
-            g_pb22_stable_cycles = 0u;
-            g_pb22_hold_cycles = 0u;
-            g_pb22_state = PB22_ARM_WAIT_HIGH;
-        }
-        break;
-    }
-}
-
-static void rx_pairing_service(uint32_t now)
-{
-    if(rx_pairing_active() == 0u)
-    {
         return;
     }
-    if((g_state == RX_PAIRING) &&
-       (g_scan_channel_a != g_scan_channel_b) &&
-       (g_pair_tx_active == 0u) &&
-       (rx_time_reached(now, g_pair_scan_due_clock) != 0u))
+    if(g_sw_rx_active != 0u)
     {
         (void)RFRole_Stop();
-        rx_toggle_seek_channel();
-        g_pair_scan_due_clock = now + MS1_TO_SYSTEM_TIME(RF_PAIR_RX_DWELL_MS);
-        rx_start_rx();
-        return;
-    }
-    if((g_pair_accept_pending != 0u) &&
-       (g_pair_tx_active == 0u) &&
-       (rx_tmr_reached(TMR0_GetCurrentTimer(), g_pair_accept_due_tmr) != 0u))
-    {
-        g_pair_accept_pending = 0u;
-        rx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
-        if(g_pair_accept_bursts_remaining == 0u)
-        {
-            g_pair_accept_bursts_remaining =
-                rx_pair_bursts_for_ms(RFH_PAIR_RESPONSE_BURST_MS);
-        }
-        if(rx_send_pair_accept(g_pair_accept_channel) == 0u)
-        {
-            g_pair_accept_bursts_remaining = 0u;
-        }
-        return;
-    }
-    if((g_pair_bond_write_pending != 0u) && (g_pair_tx_active == 0u))
-    {
-        g_pair_bond_write_pending = 0u;
-        rx_stop_radio_activity();
-        if(rx_write_current_pair_bond() != 0u)
-        {
-            g_pair_done_ready = 1u;
-            g_pair_done_bursts_remaining =
-                rx_pair_bursts_for_ms(RFH_PAIR_RESPONSE_BURST_MS);
-            PRINT("[RX][RFH] pairing:bond_ok aa:%08lX\r\n",
-                  (unsigned long)g_link_access_address);
-            if(rx_tmr_reached(TMR0_GetCurrentTimer(), g_pair_done_due_tmr) != 0u)
-            {
-                rx_send_pair_done();
-            }
-            else
-            {
-                g_pair_done_pending = 1u;
-                rx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
-                rx_set_channel(RFH_PAIR_CHANNEL_A);
-                rx_start_rx();
-            }
-            return;
-        }
-
-        PRINT("[RX][RFH] pairing:bond_fail\r\n");
-        (void)RF_StopPairing();
-        return;
-    }
-    if((g_pair_done_pending != 0u) &&
-       (g_pair_tx_active == 0u) &&
-       (rx_tmr_reached(TMR0_GetCurrentTimer(), g_pair_done_due_tmr) != 0u))
-    {
-        g_pair_done_pending = 0u;
-        rx_send_pair_done();
-        return;
-    }
-    if((g_pair_done_ready != 0u) &&
-       (g_pair_done_pending == 0u) &&
-       (g_pair_tx_active == 0u) &&
-       (g_pair_done_bursts_remaining != 0u))
-    {
-        rx_send_pair_done();
-        return;
-    }
-    if(rx_time_reached(now,
-                       g_pairing_started_clock +
-                       MS1_TO_SYSTEM_TIME(RF_PAIR_WINDOW_MS)) == 0u)
-    {
-        return;
+        g_sw_rx_active = 0u;
     }
 
-    PRINT("[RX][RFH] pairing:timeout\r\n");
-    (void)RF_StopPairing();
+    rx_switch_fill_packet();
+    gTxParam.frequency = RFH_FIXED_CHANNEL;
+    gTxParam.whiteChannel = RFH_FIXED_CHANNEL;
+    gTxParam.txDMA = (uint32_t)TxBuf;
+    gStat.tx_ack_try++;
+    ret_start = RFIP_SetTxStart();
+    g_low_tx_ret = (uint8_t)ret_start;
+    if(ret_start != SUCCESS)
+    {
+        gStat.tx_ack_start_fail++;
+        gStat.tx_ack_fail++;
+        g_sw_log_bad++;
+        rx_note_error();
+        return;
+    }
+    ret_parm = RFIP_SetTxParm(&gTxParam);
+    if(ret_parm != SUCCESS)
+    {
+        gStat.tx_ack_parm_fail++;
+        gStat.tx_ack_fail++;
+        g_sw_log_bad++;
+        rx_note_error();
+        return;
+    }
+    g_sw_log_tx++;
 }
 
-static void rx_schedule_ack(uint8_t countdown_ticks)
+static void rx_switch_handle_rx(void)
 {
-    uint32_t now_tmr;
-    uint32_t delay_cycles;
-    uint32_t lead_cycles;
-    uint32_t window_cycles;
-    uint32_t post_guard_cycles;
-    uint32_t due_tmr;
-    uint32_t until_tmr;
+    const uint8_t *air = &RxBuf[2];
+    const uint8_t *data = &air[RFH_DATA_OFFSET];
 
-    if(countdown_ticks == RFH_ACK_COUNTDOWN_FAR)
+    g_sw_rx_active = 0u;
+    if((RxBuf[1] == RFH_AIR_PACKET_LEN) &&
+       (rfh_packet_type(air[RFH_HDR0_OFFSET]) == RFH_PKT_DATA) &&
+       (rfh_rate_code(air[RFH_HDR0_OFFSET]) == RFH_RATE_8K) &&
+       (data[0] == RF_SWITCH_TEST_MARK_TX))
     {
+        uint16_t tx_tick = (uint16_t)data[2] |
+                           ((uint16_t)data[3] << 8);
+        uint16_t ack_ticks = (uint16_t)data[4] |
+                             ((uint16_t)data[5] << 8);
+
+        rx_switch_sync_from_tx_tick(tx_tick, ack_ticks);
+        g_sw_log_rx++;
+        g_sw_total_rx++;
         return;
     }
-    if(countdown_ticks > RF_ACK_SCHEDULE_TICKS)
+    g_sw_log_bad++;
+    rx_note_error();
+}
+
+static void rx_switch_tick(void)
+{
+    uint8_t role_tx = (g_sw_tick >= rx_switch_tx_ticks()) ? 1u : 0u;
+
+    if(role_tx != g_sw_role_tx)
     {
-        return;
+        g_sw_role_tx = role_tx;
+        g_sw_log_switch++;
+        (void)RFRole_Stop();
+        g_sw_rx_active = 0u;
     }
 
-    delay_cycles = (uint32_t)countdown_ticks * g_tick_per_evt;
-    window_cycles = (uint32_t)g_ack_window_packets * g_tick_per_evt;
-    post_guard_cycles = rx_us_to_tmr_cycles(RF_ACK_TX_POST_GUARD_US);
-    lead_cycles = rx_us_to_tmr_cycles(RF_ACK_TX_LEAD_US);
-    now_tmr = TMR0_GetCurrentTimer();
-    until_tmr = rx_tmr_add(now_tmr, delay_cycles + window_cycles + post_guard_cycles);
-    if(delay_cycles > lead_cycles)
+    if(g_sw_role_tx != 0u)
     {
-        delay_cycles -= lead_cycles;
+        rx_switch_start_tx();
     }
     else
     {
-        delay_cycles = 0u;
+        rx_switch_start_rx();
     }
 
-    due_tmr = rx_tmr_add(now_tmr, delay_cycles);
-    if((g_ack_pending == 0u) || (rx_tmr_before(due_tmr, g_ack_due_tmr) != 0u))
+    g_sw_tick++;
+    if(g_sw_tick >= RF_SWITCH_TEST_CYCLE_TICKS)
     {
-        g_ack_due_tmr = due_tmr;
-        g_ack_until_tmr = until_tmr;
-        g_ack_channel = g_rx_channel;
-        g_ack_tx_channel = g_rx_channel;
+        g_sw_tick = 0u;
+    }
+}
+#endif
+
+static void rx_schedule_ack_for_slot(uint8_t slot)
+{
+    uint32_t slots_until_ack;
+    int32_t due_us;
+
+    if((slot >= RFH_DATA_SLOTS) ||
+       (g_ack_sent_for_group != 0u) ||
+       (g_ack_tx_active != 0u))
+    {
+        return;
+    }
+
+    slots_until_ack = (uint32_t)(RFH_ACK_SLOT - slot);
+    due_us = (int32_t)(slots_until_ack * RFH_SLOT_US) +
+             (int32_t)RFH_ACK_TX_OFFSET_US -
+             (int32_t)RFH_RX_REPORT_DONE_US -
+             (int32_t)RFH_TX_SETUP_US +
+             (int32_t)rx_ack_phase_offset_us();
+    if(due_us < RX_ACK_MIN_ARM_US)
+    {
+        due_us = RX_ACK_MIN_ARM_US;
+    }
+    if(due_us > (int32_t)(RFH_GROUP_SLOTS * RFH_SLOT_US))
+    {
+        due_us = (int32_t)(RFH_GROUP_SLOTS * RFH_SLOT_US);
     }
     g_ack_pending = 1u;
-}
-
-static void rx_prepare_command_ack(uint8_t cmd, rx_state_t next_state, uint8_t countdown_ticks)
-{
-    g_pending_ack_cmd = cmd;
-    g_ack_success_next_state = next_state;
-    rx_schedule_ack(countdown_ticks);
-    if((cmd == RFH_CMD_CONNECT_REQ) || (cmd == RFH_CMD_HOP_PREPARE))
-    {
-        rx_enter_state(RX_CONNECT_ACK_PENDING);
-    }
-    else if(cmd == RFH_CMD_HOP_CONFIRM)
-    {
-        rx_enter_state(RX_HOP_CONFIRM_ACK_PENDING);
-    }
+    rx_ack_timer_arm_us((uint32_t)due_us);
 }
 
 static void rx_fill_ack_packet(void)
 {
     uint8_t *air = &TxBuf[2];
     uint8_t *data = &air[RFH_DATA_OFFSET];
-    uint16_t expected = rx_expected_packets_per_ack();
-    uint16_t loss_permille = rx_calc_loss_permille(g_rx_since_ack, expected);
-    uint8_t flags = RFH_FLAG_LINK_OK;
+    uint8_t rx_count;
 
-    if(g_pending_ack_cmd != RFH_CMD_NONE)
-    {
-        flags |= RFH_FLAG_CMD_ACK;
-    }
+    g_pending_ack_bitmap = (uint8_t)((~g_received_bitmap) & RFH_ACK_MISSING_MASK);
+    rx_count = rx_popcount7(g_received_bitmap);
 
     TxBuf[0] = RFH_WCH_PREAMBLE;
     TxBuf[1] = RFH_AIR_PACKET_LEN;
-    air[RFH_HDR0_OFFSET] = rfh_make_header0(RFH_PKT_ACK, g_rate_code, flags);
-    air[RFH_HDR1_OFFSET] = (loss_permille > 255u) ? 255u : (uint8_t)loss_permille;
-    rfh_put_u16(&data[RFH_ACK_LOSS_PERMILLE_LO], loss_permille);
-    rfh_put_u16(&data[RFH_ACK_RX_COUNT_LO], g_rx_since_ack);
-    rfh_put_u16(&data[RFH_ACK_EXPECTED_COUNT_LO], expected);
-    data[RFH_ACK_CMD_ID] = g_pending_ack_cmd;
-    data[RFH_ACK_FLAGS] = flags;
-    data[RFH_ACK_CHANNEL] = g_ack_channel;
-    data[RFH_ACK_STATUS] = (g_state == RX_UNCONNECTED) ?
-                           RFH_ACK_STATUS_SEEK :
-                           RFH_ACK_STATUS_CONNECTED;
-
-    g_last_ack_loss_permille = loss_permille;
-    g_last_ack_expected = expected;
-    g_last_ack_rx_count = g_rx_since_ack;
-    g_last_ack_cmd = g_pending_ack_cmd;
+    air[RFH_HDR0_OFFSET] = rfh_make_header0(RFH_PKT_ACK,
+                                            RFH_RATE_8K,
+                                            RFH_FLAG_LINK_OK);
+    air[RFH_HDR1_OFFSET] = rfh_make_slot_header1(g_current_group, RFH_ACK_SLOT);
+    memset(data, 0, RFH_AIR_DATA_LEN);
+    data[0] = g_pending_ack_bitmap;
+    data[1] = g_current_group;
+    data[2] = rx_count;
+    data[3] = RFH_FLAG_LINK_OK;
 }
 
-__HIGH_CODE
 static uint8_t rx_start_ack_tx_loaded(void)
 {
     bStatus_t ret_start;
@@ -1689,7 +1089,7 @@ static uint8_t rx_start_ack_tx_loaded(void)
     {
         gStat.tx_ack_start_fail++;
         gStat.tx_ack_fail++;
-        rx_log_note_error();
+        rx_note_error();
         return 0u;
     }
 
@@ -1698,660 +1098,122 @@ static uint8_t rx_start_ack_tx_loaded(void)
     {
         gStat.tx_ack_parm_fail++;
         gStat.tx_ack_fail++;
-        rx_log_note_error();
+        rx_note_error();
         return 0u;
     }
     g_ack_tx_active = 1u;
     return 1u;
 }
 
-static void rx_fill_pair_packet(uint8_t cmd, uint32_t arg32, uint8_t meta)
-{
-    uint8_t *air = &TxBuf[2];
-    uint8_t *data = &air[RFH_DATA_OFFSET];
-
-    TxBuf[0] = RFH_WCH_PREAMBLE;
-    TxBuf[1] = RFH_AIR_PACKET_LEN;
-    air[RFH_HDR0_OFFSET] = rfh_make_header0(RFH_PKT_PAIR, g_rate_code, 0u);
-    air[RFH_HDR1_OFFSET] = (uint8_t)(g_pair_session_nonce & 0xFFu);
-    memset(data, 0, RFH_AIR_DATA_LEN);
-    data[RFH_PAIR_CMD_ID] = cmd;
-    rfh_put_u32(&data[RFH_PAIR_SESSION0], g_pair_session_nonce);
-    rfh_put_u32(&data[RFH_PAIR_ARG0], arg32);
-    data[RFH_PAIR_META] = meta;
-}
-
-__HIGH_CODE
-static uint8_t rx_start_pair_tx_loaded(uint8_t channel)
-{
-    bStatus_t ret_start;
-    bStatus_t ret_parm;
-
-    if((g_basic_started == 0u) || (g_pair_tx_active != 0u))
-    {
-        return 0u;
-    }
-
-    (void)RFRole_Stop();
-    gTxParam.frequency = channel;
-    gTxParam.whiteChannel = channel;
-    gTxParam.txDMA = (uint32_t)TxBuf;
-    gStat.tx_ack_try++;
-    ret_start = RFIP_SetTxStart();
-    g_low_tx_ret = (uint8_t)ret_start;
-    if(ret_start != SUCCESS)
-    {
-        gStat.tx_ack_start_fail++;
-        gStat.tx_ack_fail++;
-        rx_log_note_error();
-        return 0u;
-    }
-
-    ret_parm = RFIP_SetTxParm(&gTxParam);
-    if(ret_parm != SUCCESS)
-    {
-        gStat.tx_ack_parm_fail++;
-        gStat.tx_ack_fail++;
-        rx_log_note_error();
-        return 0u;
-    }
-    g_pair_tx_active = 1u;
-    return 1u;
-}
-
-static uint8_t rx_send_pair_accept(uint8_t channel)
-{
-    uint8_t meta = 0u;
-
-    rx_fill_pair_packet(RFH_CMD_PAIR_ACCEPT, g_local_id_hash, meta);
-    return rx_start_pair_tx_loaded(channel);
-}
-
-static void rx_schedule_pair_accept(uint8_t countdown_ms, uint8_t channel)
-{
-    uint32_t now_tmr = TMR0_GetCurrentTimer();
-    uint32_t delay_cycles = rx_ms_to_tmr_cycles((uint16_t)countdown_ms +
-                                                RFH_PAIR_ACCEPT_GUARD_MS);
-
-    g_pair_accept_channel = channel;
-    g_pair_accept_due_tmr = rx_tmr_add(now_tmr, delay_cycles);
-    g_pair_accept_pending = 1u;
-    g_pair_accept_bursts_remaining =
-        rx_pair_bursts_for_ms(RFH_PAIR_RESPONSE_BURST_MS);
-}
-
-static void rx_send_pair_done(void)
-{
-    if((g_pair_done_ready == 0u) || (g_pair_done_bursts_remaining == 0u))
-    {
-        return;
-    }
-    rx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
-    rx_set_channel(RFH_PAIR_CHANNEL_A);
-    rx_fill_pair_packet(RFH_CMD_PAIR_DONE, g_pair_confirm32, 0u);
-    if(rx_start_pair_tx_loaded(RFH_PAIR_CHANNEL_A) == 0u)
-    {
-        rx_log_note_error();
-    }
-}
-
-static uint8_t rx_pair_common_valid(const uint8_t *air, uint8_t expected_cmd)
-{
-    const uint8_t *data = &air[RFH_DATA_OFFSET];
-
-    if(rfh_packet_type(air[RFH_HDR0_OFFSET]) != RFH_PKT_PAIR)
-    {
-        return 0u;
-    }
-    if(data[RFH_PAIR_CMD_ID] != expected_cmd)
-    {
-        return 0u;
-    }
-    if(expected_cmd != RFH_CMD_PAIR_OFFER)
-    {
-        if(rfh_get_u32(&data[RFH_PAIR_SESSION0]) != g_pair_session_nonce)
-        {
-            return 0u;
-        }
-    }
-    return 1u;
-}
-
-static uint8_t rx_pair_offer_allowed(void)
-{
-    if(g_state == RX_PAIRING)
-    {
-        return 1u;
-    }
-    if((g_state == RX_PAIR_CONFIRM_WAIT) &&
-       (g_pair_bond_write_pending == 0u) &&
-       (g_pair_done_pending == 0u) &&
-       (g_pair_done_ready == 0u))
-    {
-        return 1u;
-    }
-    return 0u;
-}
-
-static uint8_t rx_handle_pair_offer(const uint8_t *air)
-{
-    const uint8_t *data = &air[RFH_DATA_OFFSET];
-    uint8_t meta = data[RFH_PAIR_META];
-    uint8_t countdown_ms = air[RFH_HDR1_OFFSET];
-
-    if(rx_pair_common_valid(air, RFH_CMD_PAIR_OFFER) == 0u)
-    {
-        return 0u;
-    }
-    if(((meta & RFH_PAIR_META_VERSION_MASK) >> RFH_PAIR_META_VERSION_SHIFT) !=
-       RFH_PAIR_PROTO_VERSION)
-    {
-        rx_log_note_error();
-        return 0u;
-    }
-
-    if(countdown_ms < RFH_PAIR_ACCEPT_MIN_COUNTDOWN_MS)
-    {
-        return 0u;
-    }
-
-    g_pair_session_nonce = rfh_get_u32(&data[RFH_PAIR_SESSION0]);
-    g_peer_id_hash = rfh_get_u32(&data[RFH_PAIR_ARG0]);
-    if((g_pair_session_nonce == 0u) || (g_peer_id_hash == 0u))
-    {
-        rx_log_note_error();
-        return 0u;
-    }
-    g_pair_link_rate_code = (uint8_t)(meta & RFH_PAIR_META_RATE_MASK);
-    if(g_pair_link_rate_code > RFH_RATE_8K)
-    {
-        g_pair_link_rate_code = RFH_RATE_8K;
-    }
-    g_pair_done_ready = 0u;
-    g_pair_bond_write_pending = 0u;
-    g_pair_done_pending = 0u;
-    rx_schedule_pair_accept(countdown_ms, g_rx_channel);
-    rx_enter_state(RX_PAIR_CONFIRM_WAIT);
-    rx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
-    rx_set_channel(g_pair_accept_channel);
-    PRINT("[RX][RFH] pair:offer tx:%08lX nonce:%08lX wait:%ums\r\n",
-          (unsigned long)g_peer_id_hash,
-          (unsigned long)g_pair_session_nonce,
-          (unsigned int)countdown_ms);
-    return 1u;
-}
-
-static uint8_t rx_handle_pair_confirm(const uint8_t *air)
-{
-    const uint8_t *data = &air[RFH_DATA_OFFSET];
-    uint32_t proposed;
-    uint8_t countdown_ms = air[RFH_HDR1_OFFSET];
-
-    if(rx_pair_common_valid(air, RFH_CMD_PAIR_CONFIRM) == 0u)
-    {
-        return 0u;
-    }
-
-    proposed = rfh_get_u32(&data[RFH_PAIR_ARG0]);
-    if(rfh_access_address_valid(proposed) == 0u)
-    {
-        rx_log_note_error();
-        return 0u;
-    }
-
-    g_pair_proposed_access_address = proposed;
-    g_pair_confirm32 = rfh_pair_confirm32(g_pair_session_nonce,
-                                          g_peer_id_hash,
-                                          g_local_id_hash,
-                                          g_pair_proposed_access_address);
-    g_pair_accept_pending = 0u;
-    g_pair_accept_bursts_remaining = 0u;
-    g_pair_done_pending = 0u;
-    g_pair_done_due_tmr = rx_tmr_add(TMR0_GetCurrentTimer(),
-                                     rx_ms_to_tmr_cycles((uint16_t)countdown_ms +
-                                                         RFH_PAIR_ACCEPT_GUARD_MS));
-    g_pair_bond_write_pending = 1u;
-    PRINT("[RX][RFH] pair:confirm aa:%08lX wait:%ums\r\n",
-          (unsigned long)g_pair_proposed_access_address,
-          (unsigned int)countdown_ms);
-    return 1u;
-}
-
-static uint8_t rx_process_pair_packet(const uint8_t *rx_buf)
-{
-    const uint8_t *air = &rx_buf[2];
-    const uint8_t *data = &air[RFH_DATA_OFFSET];
-
-    if(rx_buf[1] != RFH_AIR_PACKET_LEN)
-    {
-        gStat.rx_bad_len++;
-        rx_log_note_error();
-        return 0u;
-    }
-    if(rfh_packet_type(air[RFH_HDR0_OFFSET]) != RFH_PKT_PAIR)
-    {
-        gStat.rx_bad_type++;
-        return 0u;
-    }
-
-    switch(data[RFH_PAIR_CMD_ID])
-    {
-    case RFH_CMD_PAIR_OFFER:
-        if(rx_pair_offer_allowed() != 0u)
-        {
-            return rx_handle_pair_offer(air);
-        }
-        break;
-    case RFH_CMD_PAIR_CONFIRM:
-        if(g_state == RX_PAIR_CONFIRM_WAIT)
-        {
-            return rx_handle_pair_confirm(air);
-        }
-        break;
-    default:
-        break;
-    }
-
-    rx_log_note_error();
-    return 0u;
-}
-
-static void rx_after_ack_done(uint8_t success)
-{
-    rx_state_t next_state = g_ack_success_next_state;
-    uint8_t ack_cmd = g_pending_ack_cmd;
-
-    g_ack_tx_active = 0u;
-    g_ack_pending = 0u;
-    g_ack_repeat_remaining = 0u;
-    g_ack_until_tmr = 0u;
-    g_rx_since_ack = 0u;
-    g_pending_ack_cmd = RFH_CMD_NONE;
-
-    if(success != 0u)
-    {
-        if(ack_cmd == RFH_CMD_HOP_CONFIRM)
-        {
-            g_confirm_ack_fail_count = 0u;
-        }
-        if(next_state == RX_HOP_RESERVED)
-        {
-            rx_set_channel(g_old_channel);
-            rx_enter_state(RX_HOP_RESERVED);
-        }
-        else if(next_state == RX_COMM)
-        {
-            rx_set_channel(g_ack_channel);
-            rx_enter_state(RX_COMM);
-        }
-    }
-    else
-    {
-        rx_log_note_error();
-        if((ack_cmd == RFH_CMD_HOP_CONFIRM) &&
-           (g_state == RX_HOP_CONFIRM_ACK_PENDING))
-        {
-            if(g_confirm_ack_fail_count < 255u)
-            {
-                g_confirm_ack_fail_count++;
-            }
-            if(g_confirm_ack_fail_count < RF_RX_CONFIRM_ACK_FAIL_LIMIT)
-            {
-                rx_prepare_command_ack(RFH_CMD_HOP_CONFIRM, RX_COMM, 0u);
-                rx_start_rx();
-                return;
-            }
-        }
-        if((g_state == RX_CONNECT_ACK_PENDING) || (g_state == RX_HOP_CONFIRM_ACK_PENDING))
-        {
-            rx_enter_state(RX_UNCONNECTED);
-        }
-    }
-
-    rx_start_rx();
-}
-
-__HIGH_CODE
 static void rx_send_ack(void)
 {
-    if((g_basic_started == 0u) || (g_ack_tx_active != 0u))
+    if((g_basic_started == 0u) ||
+       (g_ack_tx_active != 0u) ||
+       (g_group_valid == 0u) ||
+       (g_ack_sent_for_group != 0u))
     {
         return;
     }
 
     rx_fill_ack_packet();
     (void)RFRole_Stop();
-    gTxParam.frequency = g_ack_tx_channel;
-    gTxParam.whiteChannel = g_ack_tx_channel;
+    gTxParam.frequency = RFH_FIXED_CHANNEL;
+    gTxParam.whiteChannel = RFH_FIXED_CHANNEL;
     gTxParam.txDMA = (uint32_t)TxBuf;
     g_ack_pending = 0u;
-    g_ack_repeat_remaining = (RF_ACK_TX_SAFETY_MAX > 0u) ?
-                             (RF_ACK_TX_SAFETY_MAX - 1u) :
-                             0u;
-
     if(rx_start_ack_tx_loaded() == 0u)
     {
-        rx_after_ack_done(0u);
+        rx_start_rx();
     }
 }
 
-static uint8_t rx_handle_connect(const uint8_t *air)
+static void rx_begin_group(uint8_t group, uint8_t first_slot)
+{
+    if(g_group_valid != 0u)
+    {
+        uint8_t diff = rfh_group_diff(group, g_current_group);
+        if(diff > 1u)
+        {
+            g_total_bad_seq += (uint32_t)(diff - 1u);
+            g_log_bad_seq += (uint32_t)(diff - 1u);
+        }
+    }
+
+    g_group_valid = 1u;
+    g_current_group = group;
+    g_received_bitmap = 0u;
+    g_ack_pending = 0u;
+    g_ack_sent_for_group = 0u;
+    rx_ack_timer_cancel();
+
+    if(first_slot < RFH_DATA_SLOTS)
+    {
+        g_log_first_slot_hist[first_slot]++;
+        g_log_first_slot_mask |= (uint8_t)(1u << first_slot);
+    }
+}
+
+static uint8_t rx_process_data_packet(const uint8_t *air)
 {
     const uint8_t *data = &air[RFH_DATA_OFFSET];
+    uint8_t group = rfh_header_group_id(air[RFH_HDR1_OFFSET]);
+    uint8_t slot = rfh_header_slot_id(air[RFH_HDR1_OFFSET]);
+    uint8_t bit;
 
-    if(rfh_get_u32(&data[RFH_CONNECT_SESSION0]) != RFH_CONNECT_SESSION_ID)
+    if((rfh_packet_type(air[RFH_HDR0_OFFSET]) != RFH_PKT_DATA) ||
+       (rfh_rate_code(air[RFH_HDR0_OFFSET]) != RFH_RATE_8K) ||
+       (slot >= RFH_DATA_SLOTS))
     {
-        gStat.rx_bad_connect++;
-        rx_log_note_error();
+        gStat.rx_bad_slot++;
+        rx_note_error();
         return 0u;
     }
-    if(data[RFH_CONNECT_VERSION] != RFH_PROTOCOL_VERSION)
+
+    if((g_group_valid == 0u) || (group != g_current_group))
     {
-        gStat.rx_bad_connect++;
-        rx_log_note_error();
-        return 0u;
+        rx_begin_group(group, slot);
     }
 
-    g_scan_channel_a = data[RFH_CONNECT_CH_A];
-    g_scan_channel_b = data[RFH_CONNECT_CH_B];
-    if(rfh_channel_valid(g_scan_channel_a) == 0u)
+    bit = (uint8_t)(1u << slot);
+    if((g_received_bitmap & bit) == 0u)
     {
-        g_scan_channel_a = RFH_DEFAULT_CHANNEL_A;
-    }
-    if(rfh_channel_valid(g_scan_channel_b) == 0u)
-    {
-        g_scan_channel_b = RFH_DEFAULT_CHANNEL_B;
-    }
-    if(g_scan_channel_b == g_scan_channel_a)
-    {
-        g_scan_channel_b = (g_scan_channel_a == RFH_DEFAULT_CHANNEL_A) ?
-                           RFH_DEFAULT_CHANNEL_B :
-                           RFH_DEFAULT_CHANNEL_A;
-    }
-    rx_apply_rate(data[RFH_CONNECT_RATE], data[RFH_CONNECT_ACK_WINDOW_MS]);
-    rx_note_packet_progress();
-    g_rx_since_ack = 0u;
-    g_last_rx_packet_clock = TMOS_GetSystemClock();
-    g_hop_seq = 0u;
-    g_confirm_ack_fail_count = 0u;
-    gStat.connect_rx++;
-    rx_prepare_command_ack(RFH_CMD_CONNECT_REQ, RX_COMM, air[RFH_HDR1_OFFSET]);
-#if (RF_CONNECT_PREFER_CHANNEL_A != 0u)
-    g_ack_channel = g_scan_channel_a;
-#endif
-    return 1u;
-}
-
-static void rx_handle_hop_prepare(const uint8_t *air)
-{
-    const uint8_t *data = &air[RFH_DATA_OFFSET];
-    uint8_t channel = data[RFH_HOP_CMD_CHANNEL];
-    uint8_t seq = data[RFH_HOP_CMD_SEQ];
-    uint16_t delay_ms;
-
-    if((rfh_channel_valid(channel) == 0u) ||
-       (channel == g_rx_channel) ||
-       (seq == 0u))
-    {
-        rx_log_note_error();
-        return;
-    }
-    if((g_state == RX_HOP_RESERVED) ||
-       ((g_state == RX_CONNECT_ACK_PENDING) &&
-        (g_pending_ack_cmd == RFH_CMD_HOP_PREPARE)))
-    {
-        if((seq != g_hop_seq) || (channel != g_target_channel))
-        {
-            rx_log_note_error();
-            return;
-        }
-    }
-    else if(g_state == RX_COMM)
-    {
-        if(seq == g_hop_seq)
-        {
-            rx_log_note_error();
-            return;
-        }
-    }
-    else
-    {
-        rx_log_note_error();
-        return;
+        g_received_bitmap |= bit;
     }
 
-    delay_ms = rfh_get_u16(&data[RFH_HOP_CMD_DELAY_LO_MS]);
-    g_old_channel = g_rx_channel;
-    g_target_channel = channel;
-    g_hop_seq = seq;
-    g_hop_due_clock = TMOS_GetSystemClock() + MS1_TO_SYSTEM_TIME(delay_ms);
-    g_hop_confirm_deadline_clock = g_hop_due_clock +
-                                   MS1_TO_SYSTEM_TIME(RF_HOP_CONFIRM_ACK_TIMEOUT_MS);
-    gStat.hop_cmd_rx++;
-    rx_prepare_command_ack(RFH_CMD_HOP_PREPARE, RX_HOP_RESERVED, air[RFH_HDR1_OFFSET]);
-}
-
-static void rx_handle_hop_confirm(const uint8_t *air)
-{
-    const uint8_t *data = &air[RFH_DATA_OFFSET];
-    uint8_t channel = data[RFH_HOP_CMD_CHANNEL];
-    uint8_t seq = data[RFH_HOP_CMD_SEQ];
-    uint8_t old_channel = data[RFH_HOP_CONFIRM_OLD_CHANNEL];
-
-    if((g_state != RX_HOP_RESERVED) &&
-       (g_state != RX_HOP_CONFIRM_ACK_PENDING) &&
-       !((g_state == RX_COMM) && (seq == g_hop_seq)))
-    {
-        rx_log_note_error();
-        return;
-    }
-    if((channel != g_rx_channel) ||
-       (channel != g_target_channel) ||
-       (old_channel != g_old_channel))
-    {
-        rx_log_note_error();
-        return;
-    }
-    if(seq != g_hop_seq)
-    {
-        rx_log_note_error();
-        return;
-    }
-
-    gStat.hop_cmd_rx++;
-    g_confirm_ack_fail_count = 0u;
-    rx_prepare_command_ack(RFH_CMD_HOP_CONFIRM, RX_COMM, air[RFH_HDR1_OFFSET]);
-}
-
-static void rx_handle_command(const uint8_t *air)
-{
-    const uint8_t *data = &air[RFH_DATA_OFFSET];
-    uint8_t flags = rfh_flags(air[RFH_HDR0_OFFSET]);
-
-    if((flags & RFH_FLAG_CMD_PRESENT) == 0u)
-    {
-        return;
-    }
-
-    switch(data[RFH_CMD_SLOT_ID])
-    {
-    case RFH_CMD_HOP_PREPARE:
-        rx_handle_hop_prepare(air);
-        break;
-    case RFH_CMD_HOP_CONFIRM:
-        rx_handle_hop_confirm(air);
-        break;
-    case RFH_CMD_HOP_CANCEL:
-        rx_enter_state(RX_COMM);
-        break;
-    default:
-        rx_log_note_error();
-        break;
-    }
-}
-
-static uint8_t rx_handle_data(const uint8_t *air)
-{
-    uint8_t flags;
-
-    if(g_state == RX_UNCONNECTED)
-    {
-        if((rfh_flags(air[RFH_HDR0_OFFSET]) & RFH_FLAG_LINK_OK) == 0u)
-        {
-            gStat.rx_ignored_data++;
-            return 0u;
-        }
-
-        rx_log_note_data_resync();
-        rx_enter_state(RX_COMM);
-    }
-
-    rx_apply_rate(rfh_rate_code(air[RFH_HDR0_OFFSET]), g_ack_window_ms);
-    rx_note_packet_progress();
-    g_last_rx_packet_clock = TMOS_GetSystemClock();
-    if(g_rx_since_ack < 0xFFFFu)
-    {
-        g_rx_since_ack++;
-    }
-    gStat.data_rx++;
-    g_log_rx_ok++;
-    flags = rfh_flags(air[RFH_HDR0_OFFSET]);
-    if((flags & RFH_FLAG_CMD_PRESENT) != 0u)
-    {
-        rx_handle_command(air);
-    }
-    else
-    {
-        rx_capture_hitbox_input(&air[RFH_DATA_OFFSET]);
-    }
-    rx_schedule_ack(air[RFH_HDR1_OFFSET]);
+    rx_capture_hitbox_input(data);
+    rx_schedule_ack_for_slot(slot);
+    g_total_rx_data++;
+    g_log_rx_data++;
     return 1u;
 }
 
 static uint8_t rx_process_air_packet(const uint8_t *rx_buf)
 {
     const uint8_t *air = &rx_buf[2];
-    uint8_t type;
-
-    if(rx_pairing_active() != 0u)
-    {
-        return rx_process_pair_packet(rx_buf);
-    }
 
     if(rx_buf[1] != RFH_AIR_PACKET_LEN)
     {
         gStat.rx_bad_len++;
-        rx_log_note_error();
+        rx_note_error();
         return 0u;
     }
-
-    type = rfh_packet_type(air[RFH_HDR0_OFFSET]);
-    switch(type)
+    if(rfh_packet_type(air[RFH_HDR0_OFFSET]) != RFH_PKT_DATA)
     {
-    case RFH_PKT_CONNECT:
-        return rx_handle_connect(air);
-    case RFH_PKT_DATA:
-        return rx_handle_data(air);
-    default:
         gStat.rx_bad_type++;
-        rx_log_note_error();
+        rx_note_error();
         return 0u;
     }
+    return rx_process_data_packet(air);
 }
 
-static void rx_service_timers(uint8_t check_idle_timeout)
+static void rx_service_timers(void)
 {
     uint32_t now_clock = TMOS_GetSystemClock();
-#if (RF_RX_LINK_IDLE_TIMEOUT_MS > 0u)
-    uint32_t progress_count;
-#endif
 
-    if((g_ack_pending != 0u) &&
-       (g_ack_tx_active == 0u) &&
-       (rx_tmr_reached(TMR0_GetCurrentTimer(), g_ack_due_tmr) != 0u))
-    {
-        rx_send_ack();
-        return;
-    }
-
-    if(check_idle_timeout != 0u)
-    {
-        rx_service_hitbox_input();
-        rx_flush_xinput_pending();
-        rx_flush_hid_pending();
-        rx_clear_xinput_on_stale(now_clock);
-    }
-
-    if((check_idle_timeout != 0u) && (rx_pairing_active() != 0u))
-    {
-        rx_pairing_service(now_clock);
-        return;
-    }
-
-#if (RF_RX_PACKET_TIMEOUT_MS > 0u)
-    if((check_idle_timeout != 0u) &&
-       (rx_is_packet_timeout_state() != 0u) &&
-       (g_ack_pending == 0u) &&
-       (g_ack_tx_active == 0u) &&
-       (rx_time_reached(now_clock,
-                        g_last_rx_packet_clock +
-                        MS1_TO_SYSTEM_TIME(RF_RX_PACKET_TIMEOUT_MS)) != 0u))
-    {
-        rx_log_note_app_timeout();
-        rx_enter_state(RX_UNCONNECTED);
-        (void)RFRole_Stop();
-        rx_start_rx();
-        return;
-    }
-#endif
-
-#if (RF_RX_LINK_IDLE_TIMEOUT_MS > 0u)
-    if(check_idle_timeout != 0u)
-    {
-        progress_count = g_rx_progress_count;
-        if((g_rx_progress_clock == 0u) ||
-           (progress_count != g_rx_progress_seen_count))
-        {
-            g_rx_progress_seen_count = progress_count;
-            g_rx_progress_clock = now_clock;
-        }
-
-        if((g_state != RX_UNCONNECTED) &&
-           (g_ack_tx_active == 0u) &&
-           (rx_time_reached(now_clock,
-                            g_rx_progress_clock +
-                            MS1_TO_SYSTEM_TIME(RF_RX_LINK_IDLE_TIMEOUT_MS)) != 0u))
-        {
-            rx_log_note_app_timeout();
-            rx_enter_state(RX_UNCONNECTED);
-            (void)RFRole_Stop();
-            rx_start_rx();
-            return;
-        }
-    }
-#endif
-
-    if((g_state == RX_HOP_RESERVED) &&
-       (rx_time_reached(now_clock, g_hop_due_clock) != 0u) &&
-       (g_rx_channel != g_target_channel))
-    {
-        rx_set_channel(g_target_channel);
-        gStat.hop_done++;
-        rx_log_note_hop_event();
-        (void)RFRole_Stop();
-        rx_start_rx();
-        return;
-    }
-
-    if((g_state == RX_HOP_RESERVED) &&
-       (g_rx_channel == g_target_channel) &&
-       (rx_time_reached(now_clock, g_hop_confirm_deadline_clock) != 0u))
-    {
-        rx_enter_state(RX_UNCONNECTED);
-        (void)RFRole_Stop();
-        rx_start_rx();
-        return;
-    }
+    rx_service_hitbox_input();
+    rx_flush_xinput_pending();
+    rx_flush_hid_pending();
+    rx_clear_xinput_on_stale(now_clock);
 }
 
 static void rx_basic_start(void)
@@ -2370,7 +1232,7 @@ static void rx_basic_start(void)
         return;
     }
 
-    gParm.accessAddress = g_link_access_address;
+    gParm.accessAddress = RF_LINK_ACCESS_ADDRESS;
     gParm.crcInit = RF_LINK_CRC_INIT;
     gParm.properties = LLE_MODE_PHY_2M;
     gParm.sendTime = RF_TX_SEND_TIME;
@@ -2379,8 +1241,8 @@ static void rx_basic_start(void)
     gTxParam.accessAddress = gParm.accessAddress;
     gTxParam.crcInit = gParm.crcInit;
     gTxParam.properties = gParm.properties;
-    gTxParam.frequency = g_rx_channel;
-    gTxParam.whiteChannel = g_rx_channel;
+    gTxParam.frequency = RFH_FIXED_CHANNEL;
+    gTxParam.whiteChannel = RFH_FIXED_CHANNEL;
     gTxParam.sendTime = (uint8_t)gParm.sendTime;
     gTxParam.sendCount = 1u;
     gTxParam.txDMA = (uint32_t)TxBuf;
@@ -2388,22 +1250,67 @@ static void rx_basic_start(void)
     gRxParam.accessAddress = gParm.accessAddress;
     gRxParam.crcInit = gParm.crcInit;
     gRxParam.properties = gParm.properties;
-    gRxParam.frequency = g_rx_channel;
-    gRxParam.whiteChannel = g_rx_channel;
+    gRxParam.frequency = RFH_FIXED_CHANNEL;
+    gRxParam.whiteChannel = RFH_FIXED_CHANNEL;
     gRxParam.rxDMA = (uint32_t)RxBuf;
     gRxParam.rxMaxLen = RFH_AIR_PACKET_LEN;
-    gRxParam.timeOut = RF_DUAL_RX_DWELL_US;
+    gRxParam.timeOut = RFIP_RX_NO_TIMEOUT;
 
     g_basic_started = 1u;
+#if (RF_SWITCH_TEST_ENABLE == 1)
+    g_sw_role_tx = 0u;
+    g_sw_rx_active = 0u;
+    g_sw_tick = 0u;
+    rx_switch_start_rx();
+#else
     rx_start_rx();
-    PRINT("[RX][RFH] cfg:%u scan:%u-%u rate:%u ack:%uus len:%u\r\n",
-          (unsigned int)g_low_config_ret,
-          RFH_MIN_CHANNEL,
-          RFH_MAX_CHANNEL,
-          (unsigned int)g_report_hz,
-          (unsigned int)RF_ACK_WINDOW_US,
-          RFH_AIR_PACKET_LEN);
+#endif
+    (void)g_low_config_ret;
 }
+
+#if (RF_SWITCH_TEST_ENABLE == 1)
+__INTERRUPT
+__HIGH_CODE
+void TMR1_IRQHandler(void)
+{
+    if(TMR1_GetITFlag(TMR0_3_IT_CYC_END) == 0u)
+    {
+        return;
+    }
+
+    TMR1_ClearITFlag(TMR0_3_IT_CYC_END);
+    if(g_basic_started == 0u)
+    {
+        return;
+    }
+
+    rx_switch_tick();
+}
+#else
+__INTERRUPT
+__HIGH_CODE
+void TMR1_IRQHandler(void)
+{
+    if(TMR1_GetITFlag(TMR0_3_IT_CYC_END) == 0u)
+    {
+        return;
+    }
+
+    TMR1_ClearITFlag(TMR0_3_IT_CYC_END);
+    TMR1_ITCfg(DISABLE, TMR0_3_IT_CYC_END);
+    TMR1_Disable();
+
+    if((g_basic_started == 0u) ||
+       (g_ack_pending == 0u) ||
+       (g_ack_tx_active != 0u) ||
+       (g_ack_sent_for_group != 0u))
+    {
+        return;
+    }
+
+    rx_send_ack();
+}
+#endif
 
 __HIGH_CODE
 void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
@@ -2413,124 +1320,101 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
 
     (void)id;
 
+#if (RF_SWITCH_TEST_ENABLE == 1)
+    if(sta & RF_STATE_RX)
+    {
+        rx_switch_handle_rx();
+        if(g_sw_role_tx == 0u)
+        {
+            rx_switch_start_rx();
+        }
+    }
+    if(sta & RF_STATE_RX_CRCERR)
+    {
+        gStat.rx_crcerr++;
+        g_sw_rx_active = 0u;
+        g_sw_log_bad++;
+        rx_note_error();
+        if(g_sw_role_tx == 0u)
+        {
+            rx_switch_start_rx();
+        }
+    }
+    if(sta & RF_STATE_TIMEOUT)
+    {
+        gStat.rx_timeout++;
+        g_sw_rx_active = 0u;
+        if(g_sw_role_tx == 0u)
+        {
+            rx_switch_start_rx();
+        }
+    }
+    if(sta & RF_STATE_TX_FINISH)
+    {
+        gStat.tx_ack_ok++;
+    }
+    return;
+#endif
+
     if(sta & RF_STATE_RX)
     {
         for(i = 0u; i < (uint8_t)sizeof(rx_snapshot); i++)
         {
             rx_snapshot[i] = RxBuf[i];
         }
-
-        if(g_ack_tx_active == 0u)
-        {
-            rx_start_rx();
-        }
-
         if(rx_process_air_packet(rx_snapshot) != 0u)
         {
             gStat.rx_ok++;
         }
-        rx_service_timers(0u);
+        rx_service_timers();
+        if(g_ack_tx_active == 0u)
+        {
+            rx_start_rx();
+        }
     }
     if(sta & RF_STATE_RX_CRCERR)
     {
         gStat.rx_crcerr++;
-        rx_log_note_error();
-        if(rx_is_seek_scanning_state() != 0u)
-        {
-            rx_toggle_seek_channel();
-        }
+        rx_note_error();
         rx_start_rx();
     }
     if(sta & RF_STATE_TIMEOUT)
     {
         gStat.rx_timeout++;
-        if(rx_is_seek_scanning_state() != 0u)
-        {
-            rx_toggle_seek_channel();
-        }
         rx_start_rx();
     }
     if(sta & RF_STATE_TX_FINISH)
     {
-        if(g_pair_tx_active != 0u)
+        if(g_ack_tx_active != 0u)
         {
-            gStat.tx_ack_ok++;
-            g_log_ack_ok++;
-            g_pair_tx_active = 0u;
-            if((g_pair_accept_bursts_remaining != 0u) &&
-               (g_state == RX_PAIR_CONFIRM_WAIT) &&
-               (g_pair_bond_write_pending == 0u) &&
-               (g_pair_done_ready == 0u))
-            {
-                g_pair_accept_bursts_remaining--;
-                if(g_pair_accept_bursts_remaining != 0u)
-                {
-                    g_pair_accept_due_tmr =
-                        rx_tmr_add(TMR0_GetCurrentTimer(), rx_ms_to_tmr_cycles(1u));
-                    g_pair_accept_pending = 1u;
-                    return;
-                }
-                rx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
-                rx_set_channel(RFH_PAIR_CHANNEL_A);
-                rx_start_rx();
-                return;
-            }
-            if((g_pair_done_ready != 0u) && (g_pair_done_bursts_remaining != 0u))
-            {
-                g_pair_done_bursts_remaining--;
-                if(g_pair_done_bursts_remaining == 0u)
-                {
-                    rx_stop_radio_activity();
-                    rx_apply_rate(g_pair_link_rate_code, g_ack_window_ms);
-                    rx_apply_radio_access_address(g_link_access_address);
-                    rx_enter_state(RX_UNCONNECTED);
-                    rx_start_rx();
-                    PRINT("[RX][RFH] pairing:done\r\n");
-                }
-                else
-                {
-                    g_pair_done_due_tmr =
-                        rx_tmr_add(TMR0_GetCurrentTimer(), rx_ms_to_tmr_cycles(1u));
-                    g_pair_done_pending = 1u;
-                }
-            }
-            else if(g_state == RX_PAIR_CONFIRM_WAIT)
-            {
-                rx_apply_radio_access_address(RF_PAIR_ACCESS_ADDRESS);
-                rx_set_channel(RFH_PAIR_CHANNEL_A);
-                rx_start_rx();
-            }
-        }
-        else if(g_ack_tx_active != 0u)
-        {
-            gStat.tx_ack_ok++;
-            g_log_ack_ok++;
+            uint8_t missing = rx_popcount7(g_pending_ack_bitmap);
+
             g_ack_tx_active = 0u;
-            if((g_ack_repeat_remaining != 0u) &&
-               (rx_tmr_reached(TMR0_GetCurrentTimer(), g_ack_until_tmr) == 0u))
-            {
-                g_ack_repeat_remaining--;
-                if(rx_start_ack_tx_loaded() != 0u)
-                {
-                    return;
-                }
-            }
-            rx_after_ack_done(1u);
+            g_ack_sent_for_group = 1u;
+            gStat.tx_ack_ok++;
+            g_total_ack_tx++;
+            g_total_groups++;
+            g_total_expected_data += RFH_DATA_SLOTS;
+            g_total_missing_packets += missing;
+            g_log_ack_tx++;
+            g_log_groups++;
+            g_log_expected_data += RFH_DATA_SLOTS;
+            g_log_missing_packets += missing;
+            rx_start_rx();
         }
     }
 }
 
 void RF_Service(void)
 {
-    uint32_t now_clock;
-
     if(g_basic_started == 0u)
     {
         return;
     }
-    now_clock = TMOS_GetSystemClock();
-    rx_pair_button_service(now_clock);
-    rx_service_timers(1u);
+#if (RF_SWITCH_TEST_ENABLE == 1)
+    return;
+#endif
+    rx_service_timers();
 }
 
 uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
@@ -2560,9 +1444,32 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
     return 0u;
 }
 
+uint8_t RF_StartPairing(void)
+{
+    return 1u;
+}
+
+uint8_t RF_StopPairing(void)
+{
+    return 1u;
+}
+
+uint8_t RF_IsPairingActive(void)
+{
+    return 0u;
+}
+
+rf_indicator_mode_t RF_GetIndicatorMode(void)
+{
+    if(g_basic_started == 0u)
+    {
+        return RF_INDICATOR_OFF;
+    }
+    return RF_INDICATOR_BLINK_2000MS;
+}
+
 void RF_StartPacketLossScan(void)
 {
-    g_rx_since_ack = 0u;
 }
 
 void RF_StartQualityScoreScan(void)
@@ -2576,100 +1483,38 @@ uint8_t RF_IsQualityScoreScanActive(void)
 
 uint8_t RF_HasPendingStatsLine(void)
 {
-    return 0u;
+    return 1u;
 }
 
 uint16_t RF_GetStatsLine(char *buf, uint16_t len)
 {
-    int n;
-    uint32_t now_clock;
-    uint32_t elapsed_ms;
-    uint32_t expected;
-    uint16_t loss;
-    uint32_t ack_ok = (g_log_ack_ok > 99u) ? 99u : g_log_ack_ok;
+#if (RF_SWITCH_TEST_ENABLE == 1)
+    int written;
 
     if((buf == NULL) || (len == 0u))
     {
         return 0u;
     }
 
-    now_clock = TMOS_GetSystemClock();
-    elapsed_ms = rx_log_elapsed_ms(now_clock);
-    expected = rx_expected_packets_for_elapsed_ms(elapsed_ms);
-    loss = rx_calc_loss_permille(g_log_rx_ok, expected);
-
-    if(rx_is_seek_scanning_state() != 0u)
+    written = snprintf(buf,
+                       len,
+                       "RS W=%uus T=%lu R=%lu Y=%lu S=%lu B=%lu E=%lu\r\n",
+                       (unsigned int)rx_switch_ack_window_us(),
+                       (unsigned long)g_sw_log_tx,
+                       (unsigned long)g_sw_log_rx,
+                       (unsigned long)g_sw_log_sync,
+                       (unsigned long)g_sw_log_switch,
+                       (unsigned long)g_sw_log_bad,
+                       (unsigned long)g_log_errors);
+    if(written < 0)
     {
-        loss = 1000u;
+        return 0u;
     }
 
-    if(rx_is_seek_scanning_state() != 0u)
-    {
-        n = snprintf(buf, len,
-                     "R5 S=%s C=%u/%u R=%s T=%lu L=%03u P=%lu/%lu A=%lu U=%u E=%u\r\n",
-                     rx_state_code(),
-                     (unsigned int)g_scan_channel_a,
-                     (unsigned int)g_scan_channel_b,
-                     rx_rate_code(),
-                     elapsed_ms,
-                     (unsigned int)loss,
-                     g_log_rx_ok,
-                     expected,
-                     ack_ok,
-                     (unsigned int)g_log_unconnected_events,
-                     (unsigned int)g_log_errors);
-    }
-    else if((g_state == RX_HOP_RESERVED) || (g_state == RX_HOP_CONFIRM_ACK_PENDING))
-    {
-        n = snprintf(buf, len,
-                     "R5 S=%s C=%u>%u R=%s T=%lu L=%03u P=%lu/%lu A=%lu U=%u E=%u\r\n",
-                     rx_state_code(),
-                     (unsigned int)g_old_channel,
-                     (unsigned int)g_target_channel,
-                     rx_rate_code(),
-                     elapsed_ms,
-                     (unsigned int)loss,
-                     g_log_rx_ok,
-                     expected,
-                     ack_ok,
-                     (unsigned int)g_log_unconnected_events,
-                     (unsigned int)g_log_errors);
-    }
-    else
-    {
-        n = snprintf(buf, len,
-                     "R5 S=%s C=%u R=%s T=%lu L=%03u P=%lu/%lu A=%lu U=%u E=%u\r\n",
-                     rx_state_code(),
-                     (unsigned int)g_rx_channel,
-                     rx_rate_code(),
-                     elapsed_ms,
-                     (unsigned int)loss,
-                     g_log_rx_ok,
-                     expected,
-                     ack_ok,
-                     (unsigned int)g_log_unconnected_events,
-                     (unsigned int)g_log_errors);
-    }
-
-    g_diag_rx_arm_try = gStat.rx_arm_try;
-    g_diag_rx_arm_ok = gStat.rx_arm_ok;
-    g_diag_rx_arm_fail = gStat.rx_arm_fail;
-    g_diag_rx_ok = gStat.rx_ok;
-    g_diag_rx_crcerr = gStat.rx_crcerr;
-    g_diag_rx_timeout = gStat.rx_timeout;
-    g_diag_rx_bad_len = gStat.rx_bad_len;
-    g_diag_rx_bad_type = gStat.rx_bad_type;
-    g_diag_rx_bad_connect = gStat.rx_bad_connect;
-    g_diag_rx_ignored_data = gStat.rx_ignored_data;
-    g_diag_tx_ack_try = gStat.tx_ack_try;
-    g_diag_tx_ack_fail = gStat.tx_ack_fail;
-    g_diag_app_timeout_events = g_log_app_timeout_events;
-    g_diag_data_resync_events = g_log_data_resync_events;
     gStat.rx_ok = 0u;
     gStat.rx_bad_len = 0u;
     gStat.rx_bad_type = 0u;
-    gStat.rx_bad_connect = 0u;
-    gStat.rx_ignored_data = 0u;
+    gStat.rx_bad_slot = 0u;
     gStat.rx_crcerr = 0u;
     gStat.rx_timeout = 0u;
     gStat.rx_arm_try = 0u;
@@ -2680,88 +1525,161 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     gStat.tx_ack_parm_fail = 0u;
     gStat.tx_ack_ok = 0u;
     gStat.tx_ack_fail = 0u;
-    gStat.connect_rx = 0u;
-    gStat.data_rx = 0u;
-    gStat.scan_switch = 0u;
-    gStat.hop_cmd_rx = 0u;
-    gStat.hop_done = 0u;
-    g_log_rx_ok = 0u;
-    g_log_ack_ok = 0u;
-    g_log_hop_events = 0u;
-    g_log_unconnected_events = 0u;
+    g_sw_log_tx = 0u;
+    g_sw_log_rx = 0u;
+    g_sw_log_sync = 0u;
+    g_sw_log_switch = 0u;
+    g_sw_log_bad = 0u;
     g_log_errors = 0u;
-    g_log_app_timeout_events = 0u;
-    g_log_data_resync_events = 0u;
-    g_log_last_clock = now_clock;
 
-    if(n <= 0)
+    return (uint16_t)((written >= (int)len) ? (len - 1u) : (uint16_t)written);
+#else
+    uint16_t loss;
+    uint8_t first_slot;
+    int written;
+
+    if((buf == NULL) || (len == 0u))
     {
         return 0u;
     }
-    if(n >= (int)len)
+
+    loss = rx_loss_permille(g_log_missing_packets, g_log_expected_data);
+    first_slot = rx_log_dominant_first_slot();
+    written = snprintf(buf,
+                       len,
+                       "R5 O=%d G=%lu P=%lu A=%lu L=%03u F=%u/%02X E=%lu\r\n",
+                       (int)rx_ack_phase_offset_us(),
+                       (unsigned long)g_log_groups,
+                       (unsigned long)g_log_rx_data,
+                       (unsigned long)g_log_ack_tx,
+                       (unsigned int)loss,
+                       (unsigned int)first_slot,
+                       (unsigned int)g_log_first_slot_mask,
+                       (unsigned long)g_log_errors);
+    if(written < 0)
     {
-        return (uint16_t)(len - 1u);
+        return 0u;
     }
-    return (uint16_t)n;
+
+    gStat.rx_ok = 0u;
+    gStat.rx_bad_len = 0u;
+    gStat.rx_bad_type = 0u;
+    gStat.rx_bad_slot = 0u;
+    gStat.rx_crcerr = 0u;
+    gStat.rx_timeout = 0u;
+    gStat.rx_arm_try = 0u;
+    gStat.rx_arm_ok = 0u;
+    gStat.rx_arm_fail = 0u;
+    gStat.tx_ack_try = 0u;
+    gStat.tx_ack_start_fail = 0u;
+    gStat.tx_ack_parm_fail = 0u;
+    gStat.tx_ack_ok = 0u;
+    gStat.tx_ack_fail = 0u;
+    g_log_groups = 0u;
+    g_log_rx_data = 0u;
+    g_log_expected_data = 0u;
+    g_log_ack_tx = 0u;
+    g_log_missing_packets = 0u;
+    g_log_bad_seq = 0u;
+    g_log_errors = 0u;
+    memset(g_log_first_slot_hist, 0, sizeof(g_log_first_slot_hist));
+    g_log_first_slot_mask = 0u;
+    rx_ack_phase_scan_advance();
+
+    return (uint16_t)((written >= (int)len) ? (len - 1u) : (uint16_t)written);
+#endif
+}
+
+static void rx_put_u16(uint8_t *dst, uint16_t value)
+{
+    dst[0] = (uint8_t)(value & 0xFFu);
+    dst[1] = (uint8_t)(value >> 8);
+}
+
+static void rx_put_u32(uint8_t *dst, uint32_t value)
+{
+    dst[0] = (uint8_t)(value & 0xFFu);
+    dst[1] = (uint8_t)((value >> 8) & 0xFFu);
+    dst[2] = (uint8_t)((value >> 16) & 0xFFu);
+    dst[3] = (uint8_t)(value >> 24);
+}
+
+uint8_t RF_TrySendTelemetryReport(void)
+{
+    uint8_t report[HID_ENDPOINT_SIZE];
+    uint16_t loss = rx_loss_permille(g_total_missing_packets, g_total_expected_data);
+
+    memset(report, 0, sizeof(report));
+    g_hid_telemetry_seq++;
+    rx_put_u32(&report[0], RX_HID_TELEMETRY_MAGIC);
+    rx_put_u32(&report[4], g_hid_telemetry_seq);
+    rx_put_u16(&report[8], 100u);
+    rx_put_u16(&report[10], RFH_FIXED_RATE_HZ);
+    rx_put_u32(&report[12], g_total_rx_data);
+    rx_put_u32(&report[16], g_total_expected_data);
+    rx_put_u16(&report[20], loss);
+    report[22] = 1u;
+    report[23] = RFH_FIXED_CHANNEL;
+    report[24] = g_current_group;
+    report[25] = g_received_bitmap;
+    report[26] = RFH_RATE_8K;
+    report[27] = (uint8_t)(g_total_bad_seq & 0xFFu);
+    report[28] = (uint8_t)(g_total_errors & 0xFFu);
+
+    return rx_try_submit_hid_report(report);
 }
 
 void RF_Init(void)
 {
-    g_ret_role_init = RF_RoleInit();
-    taskID = TMOS_ProcessEventRegister(RF_ProcessEvent);
-    TMR0_TimerInit(TMR0_FREE_RUN_END);
+#if (RF_SWITCH_TEST_ENABLE == 1)
+    uint32_t tick_per_evt;
+#endif
 
-    PFIC_SetPriority(BLEB_IRQn, 0x00);
-    PFIC_SetPriority(BLEL_IRQn, 0x00);
+    taskID = TMOS_ProcessEventRegister(RF_ProcessEvent);
+
     PFIC_EnableIRQ(BLEB_IRQn);
     PFIC_EnableIRQ(BLEL_IRQn);
 
-    (void)g_ret_role_init;
-    memset(TxBuf, 0, sizeof(TxBuf));
-    memset(RxBuf, 0, sizeof(RxBuf));
+    TMR0_TimerInit(TMR0_FREE_RUN_WRAP - 1u);
+
     rx_xinput_init();
-    rx_pair_button_init();
-    rx_apply_rate(rfh_rate_code_from_hz(RF_REPORT_PPS), RFH_DEFAULT_ACK_WINDOW_MS);
-    g_pair_restore_rate_code = g_rate_code;
-    g_pair_link_rate_code = g_rate_code;
-    g_rx_channel = RFH_MIN_CHANNEL;
-    g_scan_channel_a = RFH_MIN_CHANNEL;
-    g_scan_channel_b = RFH_MAX_CHANNEL;
-    g_ack_channel = RFH_MIN_CHANNEL;
-    g_ack_tx_channel = RFH_MIN_CHANNEL;
-    g_old_channel = RFH_MIN_CHANNEL;
-    g_target_channel = RFH_MIN_CHANNEL;
-    g_ack_tx_active = 0u;
-    g_pair_tx_active = 0u;
+    g_group_valid = 0u;
+    g_current_group = 0u;
+    g_received_bitmap = 0u;
     g_ack_pending = 0u;
-    g_ack_repeat_remaining = 0u;
-    g_ack_due_tmr = 0u;
-    g_ack_until_tmr = 0u;
-    g_rx_since_ack = 0u;
-    g_pending_ack_cmd = RFH_CMD_NONE;
-    g_rx_progress_count = 0u;
-    g_rx_progress_seen_count = 0u;
-    g_pair_bond_write_pending = 0u;
-    g_pair_done_ready = 0u;
-    g_pair_done_bursts_remaining = 0u;
-    g_pair_done_pending = 0u;
-    g_pair_done_due_tmr = 0u;
-    g_pair_accept_pending = 0u;
-    g_pair_accept_bursts_remaining = 0u;
-    rx_load_bond_or_default();
-    g_pair_restore_state = RX_UNCONNECTED;
-    g_pair_restore_channel = RFH_DEFAULT_CHANNEL_A;
-    g_pair_restore_scan_channel_a = RFH_DEFAULT_CHANNEL_A;
-    g_pair_restore_scan_channel_b = RFH_DEFAULT_CHANNEL_B;
-    g_pair_restore_ack_channel = RFH_DEFAULT_CHANNEL_A;
-    g_pairing_started_clock = 0u;
-    g_pair_scan_due_clock = 0u;
-    g_state = RX_COMM;
-    rx_enter_state(RX_UNCONNECTED);
-    g_last_rx_packet_clock = TMOS_GetSystemClock();
-    g_rx_progress_clock = g_last_rx_packet_clock;
-    g_log_last_clock = g_last_rx_packet_clock;
+    g_ack_sent_for_group = 0u;
+    g_pending_ack_bitmap = RFH_ACK_MISSING_MASK;
+#if (RF_SWITCH_TEST_ENABLE == 1)
+    g_sw_tick = 0u;
+    g_sw_role_tx = 0u;
+    g_sw_rx_active = 0u;
+    g_sw_seq = 0u;
+    g_sw_log_tx = 0u;
+    g_sw_log_rx = 0u;
+    g_sw_log_bad = 0u;
+    g_sw_log_switch = 0u;
+    g_sw_log_sync = 0u;
+    g_sw_total_rx = 0u;
+    g_sw_ack_ticks = RF_SWITCH_TEST_DEFAULT_ACK_TICKS;
+#endif
+#if (RX_ACK_PHASE_SCAN_ENABLE == 1)
+    g_ack_phase_scan_index = 0u;
+#endif
+
     rx_basic_start();
+
+#if (RF_SWITCH_TEST_ENABLE == 1)
+    tick_per_evt = rx_us_to_tmr_cycles(RF_SWITCH_TEST_SEND_US);
+    TMR1_TimerInit(tick_per_evt);
+    TMR1_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
+    PFIC_SetPriority(TMR1_IRQn, 0x80);
+    PFIC_EnableIRQ(TMR1_IRQn);
+#else
+    TMR1_TimerInit(1u);
+    rx_ack_timer_cancel();
+    PFIC_SetPriority(TMR1_IRQn, 0x80);
+    PFIC_EnableIRQ(TMR1_IRQn);
+#endif
 }
 
-/******************************** endfile @ RF_PHY ******************************/
+#endif

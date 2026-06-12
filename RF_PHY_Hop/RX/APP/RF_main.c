@@ -16,6 +16,7 @@
 #include "HAL.h"
 #include "RF_PHY.h"
 #include "ch585_usbhs_device.h"
+#include "dongle_config.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -78,6 +79,7 @@ static uint8_t RX_MainTmr0Elapsed(uint32_t now, uint32_t *last, uint32_t *acc, u
 static uint8_t RX_MainSendCdc(const char *msg)
 {
     uint16_t len;
+    uint16_t max_len;
 
     if(USBHS_DevEnumStatus == 0)
     {
@@ -89,9 +91,14 @@ static uint8_t RX_MainSendCdc(const char *msg)
     }
 
     len = (uint16_t)strlen(msg);
-    if(len > DEF_USB_EP5_HS_SIZE)
+#if defined(DONGLE_USB_FORCE_FULLSPEED) && (DONGLE_USB_FORCE_FULLSPEED != 0u)
+    max_len = DEF_USB_EP5_FS_SIZE;
+#else
+    max_len = DEF_USB_EP5_HS_SIZE;
+#endif
+    if(len > max_len)
     {
-        len = DEF_USB_EP5_HS_SIZE;
+        len = max_len;
     }
     if(USBHS_Endp_DataUp(DEF_UEP5, (uint8_t *)msg, len, DEF_UEP_CPY_LOAD) == 0u)
     {
@@ -119,7 +126,6 @@ static void RX_MainFlushLog(void)
 static void RX_MainLog(const char *msg)
 {
 #if (RF_SERIAL_LOG == 1)
-    PRINT("%s", msg);
     strncpy(s_main_pending_msg, msg, sizeof(s_main_pending_msg) - 1u);
     s_main_pending_msg[sizeof(s_main_pending_msg) - 1u] = '\0';
     s_main_pending_log = TRUE;
@@ -129,18 +135,9 @@ static void RX_MainLog(const char *msg)
 #endif
 }
 
-static void RX_MainLogRealtime(const char *msg)
-{
-#if (RF_SERIAL_LOG == 1)
-    (void)RX_MainSendCdc(msg);
-#else
-    (void)msg;
-#endif
-}
-
 static void RX_MainLogStats(void)
 {
-    char stats_msg[192];
+    char stats_msg[64];
 
     if(RF_GetStatsLine(stats_msg, sizeof(stats_msg)) == 0u)
     {
@@ -198,14 +195,13 @@ void Main_Circulation()
            ((int32_t)(now - rf_init_deadline) >= 0))
         {
             rf_init_started = TRUE;
-            RX_MainLog("[RX][MAIN] rf_init_begin\r\n");
             RF_Init();
             rf_init_done = TRUE;
+            RX_MainLog("R0\r\n");
             last_log_tmr = TMR0_GetCurrentTimer();
             log_acc_tmr = 0u;
             last_hid_telemetry_tmr = last_log_tmr;
             hid_telemetry_acc_tmr = 0u;
-            RX_MainLog("[RX][MAIN] rf_init_done\r\n");
             continue;
         }
 
@@ -229,7 +225,6 @@ void Main_Circulation()
             }
             else
             {
-                RX_MainLogRealtime("[RX][MAIN] alive rf:0\r\n");
             }
         }
 
@@ -239,7 +234,6 @@ void Main_Circulation()
             if((uint32_t)(now - last_beat) >= MS1_TO_SYSTEM_TIME(5000u))
             {
                 last_beat = now;
-                RX_MainLog("[RX][MAIN] beat rf:1 bypass_tmos:1\r\n");
             }
         }
 #endif
@@ -445,9 +439,6 @@ int main(void)
     GPIOA_ModeCfg(GPIO_Pin_14, GPIO_ModeOut_PP_5mA);
     UART0_DefInit();
 #endif
-    PRINT("start.\n");
-    PRINT("%s\n", VER_LIB);
-
     LED_Ctrl(TRUE);
 
     DelayMs(1000);
@@ -456,6 +447,7 @@ int main(void)
 
     CH58x_BLEInit();
     HAL_Init();
+    RF_RoleInit();
     RF_USB_CompositeInit();
     Main_Circulation();
 }

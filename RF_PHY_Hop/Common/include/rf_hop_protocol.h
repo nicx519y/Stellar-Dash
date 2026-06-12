@@ -7,6 +7,21 @@
 #define RFH_AIR_DATA_LEN               10u
 #define RFH_WCH_PREAMBLE               0x55u
 
+#define RFH_FIXED_CHANNEL              16u
+#define RFH_FIXED_RATE_HZ              8000u
+#define RFH_GROUP_SLOTS                8u
+#define RFH_DATA_SLOTS                 7u
+#define RFH_ACK_SLOT                   7u
+#define RFH_SLOT_MASK                  0x07u
+#define RFH_GROUP_SHIFT                3u
+#define RFH_GROUP_MASK                 0xF8u
+#define RFH_ACK_MISSING_MASK           0x7Fu
+#define RFH_TX_SEND_TIME_UNITS         (20u * 2u)
+#define RFH_TX_SETUP_US                44u
+#define RFH_ACK_TX_OFFSET_US           16u
+#define RFH_RX_REPORT_DONE_US          132u
+#define RFH_SLOT_US                    125u
+
 #define RFH_HDR0_OFFSET                0u
 #define RFH_HDR1_OFFSET                1u
 #define RFH_DATA_OFFSET                2u
@@ -42,6 +57,12 @@
 #define RFH_CONNECT_SESSION_ID         0x484F5031UL
 #define RFH_PROTOCOL_VERSION           1u
 #define RFH_LINK_ACCESS_ADDRESS_DEFAULT 0x71764129UL
+
+#ifndef RFH_TEST_FIXED_BOND_ENABLE
+#define RFH_TEST_FIXED_BOND_ENABLE     1u
+#endif
+
+#define RFH_TEST_FIXED_ACCESS_ADDRESS  0x6D35B8C9UL
 
 #define RFH_PAIR_ACCESS_ADDRESS        0x6D5A3C17UL
 #define RFH_PAIR_ACCESS_ADDRESS_MAGIC  0x52485041UL
@@ -283,6 +304,27 @@ static inline uint8_t rfh_rate_code(uint8_t header0)
 static inline uint8_t rfh_flags(uint8_t header0)
 {
     return (uint8_t)(header0 & RFH_FLAG_MASK);
+}
+
+static inline uint8_t rfh_make_slot_header1(uint8_t group_id, uint8_t slot_id)
+{
+    return (uint8_t)(((group_id << RFH_GROUP_SHIFT) & RFH_GROUP_MASK) |
+                     (slot_id & RFH_SLOT_MASK));
+}
+
+static inline uint8_t rfh_header_group_id(uint8_t header1)
+{
+    return (uint8_t)((header1 & RFH_GROUP_MASK) >> RFH_GROUP_SHIFT);
+}
+
+static inline uint8_t rfh_header_slot_id(uint8_t header1)
+{
+    return (uint8_t)(header1 & RFH_SLOT_MASK);
+}
+
+static inline uint8_t rfh_group_diff(uint8_t newer, uint8_t older)
+{
+    return (uint8_t)((newer - older) & 0x1Fu);
 }
 
 static inline uint16_t rfh_rate_hz_from_code(uint8_t code)

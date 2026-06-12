@@ -217,6 +217,14 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
     requestedReportRateHz = getRfReportRateHz(wirelessRate);
     appliedReportRateHz = requestedReportRateHz;
     MonitorTelemetry_Init(mode, appliedReportRateHz);
+#if RF24G_SPI_TEST_FORCE_RF24G
+    rateApplyPending = false;
+    linkState = ConnectionLinkState::Connected;
+    MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(linkState));
+    APP_DBG("[RF_SPI_TEST] skip SET_RATE, force stream rate:%u", appliedReportRateHz);
+    lastRfBeginRetryMs = HAL_GetTick();
+    return;
+#endif
     bool rateOk = rfTransport.setRate(requestedReportRateHz);
     rateApplyPending = !rateOk;
     if (!rateOk) {

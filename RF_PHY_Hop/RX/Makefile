@@ -1,7 +1,7 @@
 PROJECT := RF_PHY_Hop_RX
 OUT_DIR := build_rx
 MODE_DEFINE := -DRF_HOP_MODE=2
-SERIAL_LOG ?= 0
+SERIAL_LOG ?= 1
 
 # Toolchain prefix, e.g. riscv-none-embed- or riscv32-wch-elf-
 PREFIX ?= riscv32-wch-elf-
@@ -39,7 +39,7 @@ DEFINES := \
 	-DRF_8K=1 \
 	$(MODE_DEFINE) \
 	-DRF_SERIAL_LOG=$(SERIAL_LOG) \
-	$(if $(filter 1,$(SERIAL_LOG)),-DDEBUG,) \
+	$(if $(filter 1,$(SERIAL_LOG)),-DDEBUG=Debug_UART0,) \
 	$(EXTRA_DEFINES)
 
 INCLUDES := \
