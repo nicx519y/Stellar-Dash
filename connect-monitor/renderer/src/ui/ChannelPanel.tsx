@@ -42,27 +42,26 @@ export function ChannelPanel({ items }: { items: ChannelSwitchRow[] }) {
     void exportMarkdown("channel-event-log.md", buildChannelEventLogMarkdown(items));
   };
   const columns: Array<VirtualColumn<ChannelSwitchRow>> = [
-    { key: "time", header: "Time", width: "130px", render: (row) => fmtTime(row.timestampMs) },
+    { key: "time", header: "Time", width: "16%", render: (row) => fmtTime(row.timestampMs) },
     {
       key: "type",
       header: "Type",
-      width: "130px",
+      width: "18%",
       render: (row) => <Badge colorPalette={typeColor(row.type)}>{formatType(row.type)}</Badge>,
     },
-    { key: "state", header: "State", width: "70px", render: (row) => row.state ?? "-" },
-    { key: "from", header: "From", width: "70px", align: "end", render: (row) => row.from ?? "-" },
-    { key: "to", header: "To", width: "70px", align: "end", render: (row) => row.to ?? "-" },
-    { key: "target", header: "Target", width: "80px", align: "end", render: (row) => row.target ?? "-" },
+    { key: "state", header: "State", width: "8%", render: (row) => row.state ?? "-" },
+    { key: "from", header: "From", width: "8%", align: "end", render: (row) => row.from ?? "-" },
+    { key: "to", header: "To", width: "8%", align: "end", render: (row) => row.to ?? "-" },
     {
       key: "reason",
       header: "Reason",
-      width: "180px",
+      width: "22%",
       render: (row) => <Badge colorPalette={reasonColor(row.reason)}>{row.reason}</Badge>,
     },
     {
       key: "score",
       header: "Score",
-      width: "110px",
+      width: "10%",
       align: "end",
       render: (row) =>
         typeof row.scorePermille === "number"
@@ -72,7 +71,7 @@ export function ChannelPanel({ items }: { items: ChannelSwitchRow[] }) {
     {
       key: "duration",
       header: "Duration",
-      width: "100px",
+      width: "10%",
       align: "end",
       render: (row) => (typeof row.durationMs === "number" ? `${row.durationMs}ms` : "-"),
     },

@@ -117,6 +117,7 @@ parser 会把 `RHM1` 转成：
   - `Reason` 只显示触发原因，例如 `Low quality score` 或 `ACK missed`。
   - `Score` 是链路质量分，`1000` 最好、`0` 最差；由固件上报的 bad score 反算为 `1000 - badScore`。
   - `Duration` 来自 finish 事件的 `RHM1[30..31]`，也就是 RX 从收到 prepare 到 confirm ACK 完成的耗时。
+  - `Target` 不单独显示，目标频道已由 `To` 表达。
   - `Loss` 和 `Rate` 不在 Channel Events 表显示，避免与跳频事件语义混在一起。
   - 双频道扫描期间采样到的 old/target channel 来回变化不会再生成普通 `Channel changed` 噪声。
 - error 表：hop/error event 摘要。

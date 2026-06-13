@@ -24,16 +24,16 @@ export function ErrorsPanel({ items }: { items: Array<ErrorEvent & { id?: string
     void exportMarkdown("error-log.md", buildErrorLogMarkdown(items));
   };
   const columns: Array<VirtualColumn<ErrorEvent & { id?: string }>> = [
-    { key: "time", header: "Time", width: "130px", render: (e) => fmtTime(e.timestampMs) },
+    { key: "time", header: "Time", width: "16%", render: (e) => fmtTime(e.timestampMs) },
     {
       key: "level",
       header: "Level",
-      width: "90px",
+      width: "10%",
       render: (e) => <Badge colorPalette={levelColor(e.level)}>{e.level}</Badge>,
     },
-    { key: "source", header: "Source", width: "120px", render: (e) => e.source },
-    { key: "code", header: "Code", width: "150px", render: (e) => e.code },
-    { key: "message", header: "Message", width: "490px", render: (e) => e.message },
+    { key: "source", header: "Source", width: "16%", render: (e) => e.source },
+    { key: "code", header: "Code", width: "18%", render: (e) => e.code },
+    { key: "message", header: "Message", width: "40%", render: (e) => e.message },
   ];
 
   return (

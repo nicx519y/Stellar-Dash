@@ -2,6 +2,7 @@
 
 #include "config.hpp"
 #include "monitor_telemetry.hpp"
+#include "rf_bridge_port.hpp"
 #include "report_scheduler.hpp"
 #include "storagemanager.hpp"
 #include "usbdriver.hpp"
@@ -204,6 +205,9 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
     rfPairingLastErrorReason = 0u;
 
     if (mode == ConnectionMode::CONNECTION_MODE_USB) {
+        if (RFBridgePort_IsReady()) {
+            (void)rfTransport.setRate(0u);
+        }
         appliedReportRateHz = 1000;
         MonitorTelemetry_Init(mode, appliedReportRateHz);
         ConnectionLinkState nextState = get_usb_mounted() ? ConnectionLinkState::Connected : ConnectionLinkState::Disconnected;

@@ -27,14 +27,14 @@ export function PacketsPanel({ items }: { items: Array<PacketEvent & { id?: stri
     void exportMarkdown("packet-log.md", buildPacketLogMarkdown(items));
   };
   const columns: Array<VirtualColumn<PacketEvent & { id?: string }>> = [
-    { key: "time", header: "Time", width: "130px", render: (p) => fmtTime(p.timestampMs) },
-    { key: "type", header: "Type", width: "150px", render: (p) => displayMessageType(p.messageType) },
-    { key: "len", header: "Length", width: "70px", align: "end", render: (p) => p.payloadLen },
-    { key: "seq", header: "Seq", width: "100px", align: "end", render: (p) => (typeof p.seq === "number" ? p.seq : "-") },
+    { key: "time", header: "Time", width: "14%", render: (p) => fmtTime(p.timestampMs) },
+    { key: "type", header: "Type", width: "18%", render: (p) => displayMessageType(p.messageType) },
+    { key: "len", header: "Length", width: "8%", align: "end", render: (p) => p.payloadLen },
+    { key: "seq", header: "Seq", width: "10%", align: "end", render: (p) => (typeof p.seq === "number" ? p.seq : "-") },
     {
       key: "stats",
       header: "Stats",
-      width: "150px",
+      width: "16%",
       align: "end",
       render: (p) =>
         typeof p.sampleCount === "number"
@@ -46,28 +46,28 @@ export function PacketsPanel({ items }: { items: Array<PacketEvent & { id?: stri
     {
       key: "loss",
       header: "Loss",
-      width: "90px",
+      width: "10%",
       align: "end",
       render: (p) => (typeof p.lossPermille === "number" ? `${(p.lossPermille / 10).toFixed(2)}%` : "-"),
     },
     {
       key: "rate",
       header: "Rate",
-      width: "100px",
+      width: "10%",
       align: "end",
       render: (p) => (typeof p.rateHz === "number" ? `${p.rateHz.toFixed(1)}Hz` : "-"),
     },
     {
       key: "channelNumber",
       header: "Channel",
-      width: "70px",
+      width: "7%",
       align: "end",
       render: (p) => (typeof p.channelNumber === "number" ? p.channelNumber : "-"),
     },
     {
       key: "target",
       header: "Target",
-      width: "70px",
+      width: "7%",
       align: "end",
       render: (p) => (typeof p.targetChannelNumber === "number" ? p.targetChannelNumber : "-"),
     },

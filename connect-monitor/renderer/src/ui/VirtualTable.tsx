@@ -154,11 +154,11 @@ export function VirtualTable<T>({
     <Box borderWidth="1px" borderRadius="md" overflow="hidden" {...panelSurfaceProps}>
       <PanelHeader title={title} meta={countText} action={action} />
       <Box overflowX="auto" css={scrollbarStyle}>
-        <Box minW="980px">
+        <Box w="100%" minW="0">
           <Box
             display="grid"
             gridTemplateColumns={templateColumns}
-            columnGap={3}
+            columnGap={0}
             px={3}
             py={2}
             bg="rgba(0,0,0,0.34)"
@@ -176,6 +176,10 @@ export function VirtualTable<T>({
                 color="gray.300"
                 fontWeight="semibold"
                 textAlign={column.align === "end" ? "end" : "start"}
+                minW={0}
+                overflow="hidden"
+                textOverflow="ellipsis"
+                whiteSpace="nowrap"
               >
                 {column.header}
               </Text>
@@ -216,7 +220,7 @@ export function VirtualTable<T>({
                         style={rowStyle}
                         display="grid"
                         gridTemplateColumns={templateColumns}
-                        columnGap={3}
+                        columnGap={0}
                         alignItems="center"
                         px={3}
                         h={`${ROW_HEIGHT}px`}
@@ -231,6 +235,7 @@ export function VirtualTable<T>({
                             color="gray.200"
                             fontSize="sm"
                             textAlign={column.align === "end" ? "end" : "start"}
+                            minW={0}
                             overflow="hidden"
                             textOverflow="ellipsis"
                             whiteSpace="nowrap"
