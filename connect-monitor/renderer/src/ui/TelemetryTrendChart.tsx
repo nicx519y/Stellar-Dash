@@ -67,10 +67,12 @@ export function TelemetryTrendChart({
   rateSeries,
   lossSeries,
   channelSwitches,
+  height = 360,
 }: {
   rateSeries: RatePoint[];
   lossSeries: LossPoint[];
   channelSwitches: ChannelSwitchRow[];
+  height?: number | string;
 }) {
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const chartRef = React.useRef<echarts.ECharts | null>(null);
@@ -336,11 +338,11 @@ export function TelemetryTrendChart({
     <Box
       ref={rootRef}
       w="100%"
-      h="360px"
+      h={typeof height === "number" ? `${height}px` : height}
+      flex="1"
+      minH={0}
       borderRadius="md"
-      bg="rgba(0,0,0,0.22)"
-      borderWidth="1px"
-      borderColor="rgba(92,255,138,0.14)"
+      bg="transparent"
     />
   );
 }

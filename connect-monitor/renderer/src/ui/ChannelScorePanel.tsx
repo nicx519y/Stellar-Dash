@@ -2,6 +2,7 @@ import { Badge, Box, HStack, Text, VStack } from "@chakra-ui/react";
 
 import type { ChannelScoreRow } from "./useMonitorStream";
 import { neonGreen, PanelHeader, panelSurfaceProps } from "./panelStyles";
+import { scrollbarStyle } from "./scrollbarStyle";
 
 function formatAge(updatedAtMs?: number) {
   if (!updatedAtMs) return "Waiting";
@@ -16,13 +17,36 @@ function scoreColor(score: number) {
   return "red";
 }
 
-export function ChannelScorePanel({ items }: { items: ChannelScoreRow[] }) {
+export function ChannelScorePanel({ items, fillHeight = false }: { items: ChannelScoreRow[]; fillHeight?: boolean }) {
   const updatedAtMs = items[0]?.updatedAtMs;
 
   return (
-    <Box borderWidth="1px" borderRadius="md" overflow="hidden" {...panelSurfaceProps}>
-      <PanelHeader title="Channel Scores" meta={formatAge(updatedAtMs)} />
-      <VStack align="stretch" gap={2} p={3} minH="530px">
+    <Box
+      borderWidth="1px"
+      borderRadius="md"
+      overflow="hidden"
+      h={fillHeight ? "100%" : undefined}
+      display="flex"
+      flexDirection="column"
+      minH={0}
+      {...panelSurfaceProps}
+    >
+      <PanelHeader
+        title="Channel Scores"
+        meta={formatAge(updatedAtMs)}
+        action={<Box w="1px" h="30px" opacity={0} />}
+        borderBottom
+        compact
+      />
+      <VStack
+        align="stretch"
+        gap={2}
+        p={3}
+        minH={fillHeight ? 0 : "530px"}
+        flex={fillHeight ? "1" : undefined}
+        overflowY={fillHeight ? "auto" : undefined}
+        css={fillHeight ? scrollbarStyle : undefined}
+      >
         {items.length === 0 ? (
           <Text fontSize="sm" color="gray.400">
             No score telemetry

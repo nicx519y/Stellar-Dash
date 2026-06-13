@@ -21,7 +21,7 @@ function displayMessageType(messageType: string) {
   return messageType;
 }
 
-export function PacketsPanel({ items }: { items: Array<PacketEvent & { id?: string }> }) {
+export function PacketsPanel({ items, fillHeight = false }: { items: Array<PacketEvent & { id?: string }>; fillHeight?: boolean }) {
   const rows = items.slice(-500).reverse();
   const handleExport = () => {
     void exportMarkdown("packet-log.md", buildPacketLogMarkdown(items));
@@ -86,6 +86,7 @@ export function PacketsPanel({ items }: { items: Array<PacketEvent & { id?: stri
       items={rows}
       columns={columns}
       rowKey={(p, idx) => p.id ?? `${p.timestampMs}-${idx}`}
+      maxHeight={fillHeight ? "100%" : 530}
     />
   );
 }

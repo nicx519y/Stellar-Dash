@@ -36,17 +36,21 @@ export function PanelHeader({
   meta,
   action,
   borderBottom = false,
+  compact = false,
 }: {
   title: string;
   meta?: React.ReactNode;
   action?: React.ReactNode;
   borderBottom?: boolean;
+  compact?: boolean;
 }) {
   return (
     <HStack
       justify="space-between"
       px={3}
-      py={4}
+      py={compact ? 0 : 4}
+      h={compact ? "42px" : undefined}
+      minH={compact ? "42px" : undefined}
       gap={4}
       position="relative"
       borderBottomWidth={borderBottom ? "1px" : "0"}
@@ -55,8 +59,8 @@ export function PanelHeader({
         content: '""',
         position: "absolute",
         left: 0,
-        top: "18px",
-        bottom: "18px",
+        top: compact ? "10px" : "18px",
+        bottom: compact ? "10px" : "18px",
         width: "3px",
         bg: neonGreen,
         boxShadow: "0 0 12px rgba(92,255,138,0.85)",
@@ -74,7 +78,7 @@ export function PanelHeader({
         {title}
       </Text>
       {meta || action ? (
-        <HStack gap={3} flexShrink={0}>
+        <HStack gap={3} flexShrink={0} h={compact ? "30px" : undefined} align="center">
           {meta ? (
             <Text fontSize="sm" lineHeight="1.25" color="gray.400" whiteSpace="nowrap">
               {meta}

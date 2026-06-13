@@ -48,7 +48,7 @@ export function VirtualTable<T>({
   columns: Array<VirtualColumn<T>>;
   rowKey: (item: T, index: number) => string;
   action?: React.ReactNode;
-  maxHeight?: number;
+  maxHeight?: number | string;
 }) {
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
   const scrollTopRef = React.useRef(0);
@@ -60,7 +60,8 @@ export function VirtualTable<T>({
   const [showBackToTop, setShowBackToTop] = React.useState(false);
   const templateColumns = columns.map((column) => column.width).join(" ");
   const totalHeight = items.length * ROW_HEIGHT;
-  const visibleCapacity = Math.ceil(maxHeight / ROW_HEIGHT);
+  const measuredMaxHeight = typeof maxHeight === "number" ? maxHeight : 530;
+  const visibleCapacity = Math.ceil(measuredMaxHeight / ROW_HEIGHT);
   const poolSize = visibleCapacity + OVERSCAN * 2;
   const maxStartIndex = Math.max(0, items.length - poolSize);
   const startIndex = clamp(Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN, 0, maxStartIndex);
@@ -151,10 +152,19 @@ export function VirtualTable<T>({
   }, [items, rowKey, setScrollTop]);
 
   return (
-    <Box borderWidth="1px" borderRadius="md" overflow="hidden" {...panelSurfaceProps}>
-      <PanelHeader title={title} meta={countText} action={action} />
-      <Box overflowX="auto" css={scrollbarStyle}>
-        <Box w="100%" minW="0">
+    <Box
+      borderWidth="1px"
+      borderRadius="md"
+      overflow="hidden"
+      h={typeof maxHeight === "number" ? undefined : "100%"}
+      display="flex"
+      flexDirection="column"
+      minH={0}
+      {...panelSurfaceProps}
+    >
+      <PanelHeader title={title} meta={countText} action={action} borderBottom compact />
+      <Box overflowX="auto" css={scrollbarStyle} flex="1" minH={0}>
+        <Box w="100%" minW="0" h={typeof maxHeight === "number" ? undefined : "100%"} display="flex" flexDirection="column">
           <Box
             display="grid"
             gridTemplateColumns={templateColumns}
@@ -185,16 +195,16 @@ export function VirtualTable<T>({
               </Text>
             ))}
           </Box>
-          <Box position="relative">
+          <Box position="relative" flex="1" minH={0}>
             <Box
               ref={scrollRef}
-              h={`${maxHeight}px`}
+              h={typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight}
               overflowY="auto"
               position="relative"
               css={tableScrollStyle}
               onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
             >
-              <Box h={`${totalHeight}px`} minH={`${maxHeight}px`} position="relative">
+              <Box h={`${totalHeight}px`} minH={typeof maxHeight === "number" ? `${maxHeight}px` : "100%"} position="relative">
                 <Box position="absolute" top={`${topPadding}px`} left={0} right={0}>
                   {poolRows.map(({ item, index, slot, itemKey }) => {
                     if (!item) {

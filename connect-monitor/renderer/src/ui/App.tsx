@@ -17,12 +17,11 @@ import { FaPause, FaPlay, FaRegWindowMaximize, FaRegWindowMinimize, FaRegWindowR
 import { GrClearOption } from "react-icons/gr";
 import { TfiClose } from "react-icons/tfi";
 import type { MonitorEvent } from "../../../shared/monitor-types";
-import circuitBoardBg from "../assets/circuit-board-bg.png";
 import rfMonitorLogo from "../assets/rf-monitor-logo.png";
 import { useMonitorStream } from "./useMonitorStream";
+import { ButtonsPanel } from "./ButtonsPanel";
 import { ChannelPanel } from "./ChannelPanel";
 import { ChannelScorePanel } from "./ChannelScorePanel";
-import { ErrorsPanel } from "./ErrorsPanel";
 import { PacketsPanel } from "./PacketsPanel";
 import { RatePanel } from "./RatePanel";
 import { neonGreen, panelSurfaceProps, toolbarActionButtonProps } from "./panelStyles";
@@ -212,79 +211,33 @@ function MetricCard({
   );
 }
 
-function InfoTabs({
+function TrafficPanels({
   packets,
   channelSwitches,
-  errors,
   channelScores,
 }: {
   packets: ReturnType<typeof useMonitorStream>["packets"];
   channelSwitches: ReturnType<typeof useMonitorStream>["channelSwitches"];
-  errors: ReturnType<typeof useMonitorStream>["errors"];
   channelScores: ReturnType<typeof useMonitorStream>["channelScores"];
 }) {
-  const [activeTab, setActiveTab] = useState<"traffic" | "errors">("traffic");
-  const triggerProps = {
-    px: 4,
-    h: "34px",
-    borderRadius: "6px",
-    color: "gray.300",
-    fontSize: "sm",
-    fontWeight: "semibold",
-    _hover: {
-      color: "gray.50",
-      bg: "rgba(92,255,138,0.08)",
-    },
-  } as const;
-
   return (
-    <Box>
-      <HStack
-        gap={2}
-        mb={3}
-        p={1}
-        w="fit-content"
-        borderWidth="1px"
-        borderRadius="8px"
-        borderColor="rgba(92,255,138,0.18)"
-        bg="rgba(5,12,18,0.76)"
-      >
-        <Button
-          {...triggerProps}
-          variant="ghost"
-          color={activeTab === "traffic" ? neonGreen : triggerProps.color}
-          bg={activeTab === "traffic" ? "rgba(92,255,138,0.12)" : "transparent"}
-          boxShadow={activeTab === "traffic" ? "inset 0 0 0 1px rgba(92,255,138,0.28), 0 0 12px rgba(92,255,138,0.16)" : undefined}
-          onClick={() => setActiveTab("traffic")}
-        >
-          Packets & Channel Events
-        </Button>
-        <Button
-          {...triggerProps}
-          variant="ghost"
-          color={activeTab === "errors" ? neonGreen : triggerProps.color}
-          bg={activeTab === "errors" ? "rgba(92,255,138,0.12)" : "transparent"}
-          boxShadow={activeTab === "errors" ? "inset 0 0 0 1px rgba(92,255,138,0.28), 0 0 12px rgba(92,255,138,0.16)" : undefined}
-          onClick={() => setActiveTab("errors")}
-        >
-          Errors
-        </Button>
-      </HStack>
-      {activeTab === "traffic" ? (
-        <Box display="grid" gridTemplateColumns={{ base: "1fr", xl: "minmax(0, 1fr) minmax(0, 1fr) 250px" }} gap={4} alignItems="start">
-          <PacketsPanel items={packets.items} />
-          <ChannelPanel items={channelSwitches} />
-          <ChannelScorePanel items={channelScores} />
-        </Box>
-      ) : (
-        <ErrorsPanel items={errors.items} />
-      )}
+    <Box
+      flex="1"
+      minH={0}
+      display="grid"
+      gridTemplateColumns={{ base: "1fr", xl: "minmax(0, 1fr) minmax(0, 1fr) 250px" }}
+      gap="10px"
+      alignItems="stretch"
+    >
+      <PacketsPanel items={packets.items} fillHeight />
+      <ChannelPanel items={channelSwitches} fillHeight />
+      <ChannelScorePanel items={channelScores} fillHeight />
     </Box>
   );
 }
 
 export function App() {
-  const { events, packets, errors, latency, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
+  const { events, packets, latency, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollState, setScrollState] = useState({ top: 0, client: 1, scroll: 1 });
 
@@ -293,7 +246,7 @@ export function App() {
   const rfActualHz = rfStatus?.actualRateHz ?? 0;
   const reportHz = rfActualHz > 0 ? rfActualHz : latency.estimatedHz > 0 ? latency.estimatedHz : Math.max(packets.usbTxPerSec, packets.rfRxPerSec);
   const latestLoss = lossSeries.length > 0 ? lossSeries[lossSeries.length - 1].value : 0;
-  const canScroll = scrollState.scroll > scrollState.client + 1;
+  const canScroll = false;
   const thumbHeightPct = canScroll ? Math.max(8, (scrollState.client / scrollState.scroll) * 100) : 100;
   const thumbTopPct = canScroll
     ? (scrollState.top / Math.max(1, scrollState.scroll - scrollState.client)) * (100 - thumbHeightPct)
@@ -323,7 +276,7 @@ export function App() {
       resizeObserver.disconnect();
       window.removeEventListener("resize", updateScrollState);
     };
-  }, [channelSwitches.length, errors.items.length, events.length, packets.items.length]);
+  }, [channelSwitches.length, events.length, packets.items.length]);
 
   return (
     <Box
@@ -339,18 +292,6 @@ export function App() {
         linear-gradient(135deg, #030b11 0%, #05242b 38%, #071b2c 68%, #02070f 100%)
       `}
       backgroundSize="auto, auto"
-      _before={{
-        content: '""',
-        position: "absolute",
-        inset: 0,
-        pointerEvents: "none",
-        zIndex: 0,
-        backgroundImage: `url(${circuitBoardBg})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        opacity: 1,
-        mixBlendMode: "screen",
-      }}
       _after={{
         content: '""',
         position: "absolute",
@@ -405,8 +346,11 @@ export function App() {
         zIndex={1}
         px={4}
         py={4}
-        overflow="auto"
+        overflow="hidden"
         h="calc(100vh - 70px)"
+        display="flex"
+        flexDirection="column"
+        minH={0}
         onScroll={(event) => {
           const scroller = event.currentTarget;
           setScrollState({
@@ -420,8 +364,9 @@ export function App() {
         <Box
           display="grid"
           gridTemplateColumns={{ base: "1fr", md: "1fr 1fr", lg: "repeat(4, 1fr)" }}
-          gap={3}
-          mb={4}
+          gap="10px"
+          mb="10px"
+          flexShrink={0}
         >
           <MetricCard
             title="USB Connection"
@@ -453,16 +398,31 @@ export function App() {
           />
         </Box>
 
-        <VStack gap={4} align="stretch">
-          <RatePanel
-            packets={packets}
-            latency={latency}
-            rateSeries={rateSeries}
-            lossSeries={lossSeries}
-            channelSwitches={channelSwitches}
-            rfStatus={rfStatus}
-          />
-          <InfoTabs packets={packets} channelSwitches={channelSwitches} errors={errors} channelScores={channelScores} />
+        <VStack gap="10px" align="stretch" flex="1" minH={0}>
+          <Box
+            display="grid"
+            gridTemplateColumns={{
+              base: "1fr",
+              xl: "minmax(0, 1fr) 624px",
+            }}
+            gap="10px"
+            alignItems="stretch"
+            h={{ base: "auto", xl: "420px" }}
+            flexShrink={0}
+          >
+            <RatePanel
+              packets={packets}
+              latency={latency}
+              rateSeries={rateSeries}
+              lossSeries={lossSeries}
+              channelSwitches={channelSwitches}
+              rfStatus={rfStatus}
+              chartHeight="100%"
+              compact
+            />
+            <ButtonsPanel compact />
+          </Box>
+          <TrafficPanels packets={packets} channelSwitches={channelSwitches} channelScores={channelScores} />
         </VStack>
       </Box>
       {canScroll ? (

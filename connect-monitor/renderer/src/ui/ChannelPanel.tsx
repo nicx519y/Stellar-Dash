@@ -40,7 +40,7 @@ function formatType(type: ChannelSwitchRow["type"]) {
   return map[type];
 }
 
-export function ChannelPanel({ items }: { items: ChannelSwitchRow[] }) {
+export function ChannelPanel({ items, fillHeight = false }: { items: ChannelSwitchRow[]; fillHeight?: boolean }) {
   const rows = items.slice(-500).reverse();
   const handleExport = () => {
     void exportMarkdown("channel-event-log.md", buildChannelEventLogMarkdown(items));
@@ -94,6 +94,7 @@ export function ChannelPanel({ items }: { items: ChannelSwitchRow[] }) {
       items={rows}
       columns={columns}
       rowKey={(row) => row.id}
+      maxHeight={fillHeight ? "100%" : 530}
     />
   );
 }
