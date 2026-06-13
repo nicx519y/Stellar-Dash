@@ -169,7 +169,7 @@ export function TelemetryTrendChart({
     chart.setOption(
       {
         backgroundColor: "transparent",
-        color: [neonGreen, "#ff6b6b", "#62f7ff"],
+        color: ["#62f7ff", "#ff6b6b", "#62f7ff"],
         animation: false,
         tooltip: {
           trigger: "axis",
@@ -270,6 +270,14 @@ export function TelemetryTrendChart({
             smooth: false,
             connectNulls: true,
             lineStyle: { width: 2 },
+            areaStyle: {
+              opacity: 0.42,
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: "rgba(0, 81, 255, 0.51)" },
+                { offset: 0.20, color: "rgba(0, 81, 255, 0.21)" },
+                { offset: 1, color: "rgba(0, 81, 255, 0.0)" },
+              ]),
+            },
             emphasis: { focus: "series" },
             data: sortedRateData(rateSeries),
             markLine: {
@@ -296,6 +304,14 @@ export function TelemetryTrendChart({
             smooth: false,
             connectNulls: true,
             lineStyle: { width: 2 },
+            areaStyle: {
+              opacity: 0.34,
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: "rgba(92,255,138,0.3)" },
+                { offset: 0.58, color: "rgba(92,255,138,0.13)" },
+                { offset: 1, color: "rgba(92,255,138,0)" },
+              ]),
+            },
             emphasis: { focus: "series" },
             data: sortedLossData(lossSeries),
           },

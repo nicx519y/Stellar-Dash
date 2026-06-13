@@ -6,7 +6,7 @@ export const panelBg = "rgba(5,12,18,0.76)";
 export const panelBorder = "rgba(92,255,138,0.18)";
 
 export const panelSurfaceProps = {
-  bg: panelBg,
+  bg: `linear-gradient(180deg, rgba(255,255,255,0.075) 0%, rgba(92,255,138,0.035) 48%, ${panelBg} 100%)`,
   borderColor: panelBorder,
   boxShadow: "0 0 0 1px rgba(92,255,138,0.04), 0 18px 42px rgba(0,0,0,0.32)",
 } as const;

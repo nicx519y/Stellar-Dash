@@ -403,7 +403,7 @@ export function App() {
             display="grid"
             gridTemplateColumns={{
               base: "1fr",
-              xl: "minmax(0, 1fr) 624px",
+              xl: "minmax(0, 1fr) 625px",
             }}
             gap="10px"
             alignItems="stretch"
