@@ -26,6 +26,8 @@ static uint32_t s_last_backlog_drop_bytes;
 static uint8_t s_poll_rx[(3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u) * 8u];
 static uint8_t s_state_changed_retry_pending;
 static uint8_t s_state_changed_retry_cmd_tag;
+static uint8_t s_last_direct_input[RFM_RF_INPUT_PAYLOAD_LEN];
+static uint8_t s_have_last_direct_input;
 
 #define SPI_POLL_MAX_BATCHES          1u
 #define SPI_INPUT_FRAME_BYTES         (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
@@ -581,6 +583,17 @@ void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
     (void)rx_byte_count;
     (void)backlog_drop_count;
     (void)backlog_drop_bytes;
+    (void)raw_sum;
+    (void)frame_sum;
+    (void)bad_sync_sum;
+    (void)bad_cmd_sum;
+    (void)bad_len_sum;
+    (void)bad_checksum_sum;
+    (void)direct_sum;
+    (void)dma_irq_sum;
+    (void)flags;
+    (void)tx_pending;
+    (void)tx_recover_count;
 
     PRINT("[SPI][win] dt:%lums dir:%lu raw:%lu frame:%lu bad:%lu/%lu/%lu/%lu irq:%lu flags:%02lX pend:%u rec:%lu\n",
           elapsed_ms,
@@ -618,6 +631,8 @@ void rfm_spi_bridge_init(void)
     s_last_rx_count = 0u;
     s_state_changed_retry_pending = 0u;
     s_state_changed_retry_cmd_tag = 0u;
+    s_have_last_direct_input = 0u;
+    memset(s_last_direct_input, 0, sizeof(s_last_direct_input));
     parser_reset();
     fast_parser_reset();
     rfm_spi_port_init();
@@ -634,6 +649,16 @@ void rfm_spi_bridge_poll(void)
     if(RFM_SPI_INPUT_DIRECT_DMA != 0u) {
         rfm_spi_port_service();
         try_send_pending_state_changed();
+        if(rfm_spi_port_peek_latest_input(latest_payload, (uint8_t)sizeof(latest_payload))) {
+            if((s_have_last_direct_input == 0u) ||
+               (memcmp(s_last_direct_input, latest_payload, sizeof(latest_payload)) != 0)) {
+                memcpy(s_last_direct_input, latest_payload, sizeof(latest_payload));
+                s_have_last_direct_input = 1u;
+                s_frame_ok_win++;
+                s_rx_count++;
+                (void)RF_SPI_FastWriteInput(latest_payload, (uint8_t)sizeof(latest_payload));
+            }
+        }
         control_len = (uint8_t)sizeof(control_frame);
         if(rfm_spi_port_peek_latest_control_frame(control_frame, &control_len)) {
             s_raw_bytes_win += control_len;

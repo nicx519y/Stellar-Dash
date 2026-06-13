@@ -21,6 +21,7 @@ import circuitBoardBg from "../assets/circuit-board-bg.png";
 import rfMonitorLogo from "../assets/rf-monitor-logo.png";
 import { useMonitorStream } from "./useMonitorStream";
 import { ChannelPanel } from "./ChannelPanel";
+import { ChannelScorePanel } from "./ChannelScorePanel";
 import { ErrorsPanel } from "./ErrorsPanel";
 import { PacketsPanel } from "./PacketsPanel";
 import { RatePanel } from "./RatePanel";
@@ -215,10 +216,12 @@ function InfoTabs({
   packets,
   channelSwitches,
   errors,
+  channelScores,
 }: {
   packets: ReturnType<typeof useMonitorStream>["packets"];
   channelSwitches: ReturnType<typeof useMonitorStream>["channelSwitches"];
   errors: ReturnType<typeof useMonitorStream>["errors"];
+  channelScores: ReturnType<typeof useMonitorStream>["channelScores"];
 }) {
   const [activeTab, setActiveTab] = useState<"traffic" | "errors">("traffic");
   const triggerProps = {
@@ -268,9 +271,10 @@ function InfoTabs({
         </Button>
       </HStack>
       {activeTab === "traffic" ? (
-        <Box display="grid" gridTemplateColumns={{ base: "1fr", xl: "1fr 1fr" }} gap={4} alignItems="start">
+        <Box display="grid" gridTemplateColumns={{ base: "1fr", xl: "minmax(0, 1fr) minmax(0, 1fr) 250px" }} gap={4} alignItems="start">
           <PacketsPanel items={packets.items} />
           <ChannelPanel items={channelSwitches} />
+          <ChannelScorePanel items={channelScores} />
         </Box>
       ) : (
         <ErrorsPanel items={errors.items} />
@@ -280,7 +284,7 @@ function InfoTabs({
 }
 
 export function App() {
-  const { events, packets, errors, latency, rateSeries, lossSeries, channelSwitches, paused, setPaused, clear } = useMonitorStream();
+  const { events, packets, errors, latency, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollState, setScrollState] = useState({ top: 0, client: 1, scroll: 1 });
 
@@ -458,7 +462,7 @@ export function App() {
             channelSwitches={channelSwitches}
             rfStatus={rfStatus}
           />
-          <InfoTabs packets={packets} channelSwitches={channelSwitches} errors={errors} />
+          <InfoTabs packets={packets} channelSwitches={channelSwitches} errors={errors} channelScores={channelScores} />
         </VStack>
       </Box>
       {canScroll ? (

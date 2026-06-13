@@ -6,10 +6,17 @@ type PacketRow = PacketEvent & { id: string };
 type ErrorRow = ErrorEvent & { id: string };
 type RatePoint = { tMs: number; hz: number };
 type LossPoint = { tMs: number; value: number };
+export type ChannelScoreRow = {
+  channel: number;
+  score: number;
+  rank: number;
+  active: boolean;
+  updatedAtMs: number;
+};
 export type ChannelSwitchRow = {
   id: string;
   timestampMs: number;
-  type: "current" | "channel_change" | "hop_start" | "hop_finish" | "target_change";
+  type: "current" | "channel_change" | "hop_start" | "hop_finish" | "target_change" | "link_lost" | "link_recovered";
   from?: number;
   to?: number;
   target?: number;
@@ -28,6 +35,12 @@ type HopSession = {
   target?: number;
   scorePermille?: number;
   badScorePermille?: number;
+  reason: string;
+};
+
+type LinkLossSession = {
+  startedAtMs: number;
+  from?: number;
   reason: string;
 };
 
@@ -180,11 +193,13 @@ export function useMonitorStream() {
   const [rateSeries, setRateSeries] = React.useState<RatePoint[]>([]);
   const [lossSeries, setLossSeries] = React.useState<LossPoint[]>([]);
   const [channelSwitches, setChannelSwitches] = React.useState<ChannelSwitchRow[]>([]);
+  const [channelScores, setChannelScores] = React.useState<ChannelScoreRow[]>([]);
   const [paused, setPausedState] = React.useState(false);
   const pausedRef = React.useRef(false);
   pausedRef.current = paused;
   const lastRfPacketRef = React.useRef<PacketEvent | null>(null);
   const hopSessionRef = React.useRef<HopSession | null>(null);
+  const linkLossSessionRef = React.useRef<LinkLossSession | null>(null);
 
   React.useEffect(() => {
     let unsub: (() => void) | null = null;
@@ -214,6 +229,29 @@ export function useMonitorStream() {
         return next.length > MAX_LATENCIES ? next.slice(-MAX_LATENCIES) : next;
       });
       const rfPackets = rfPacketEvents(batch);
+      let scorePacket: PacketEvent | undefined;
+      for (let i = rfPackets.length - 1; i >= 0; i--) {
+        const packet = rfPackets[i];
+        if (Array.isArray(packet.channelScores) && packet.channelScores.length > 0) {
+          scorePacket = packet;
+          break;
+        }
+      }
+      if (scorePacket?.channelScores) {
+        const activeChannel = scorePacket.channelNumber;
+        setChannelScores(
+          scorePacket.channelScores
+            .slice()
+            .sort((a, b) => a.score - b.score || a.channel - b.channel)
+            .map((entry, index) => ({
+              channel: entry.channel,
+              score: entry.score,
+              rank: index + 1,
+              active: entry.channel === activeChannel,
+              updatedAtMs: scorePacket.timestampMs,
+            })),
+        );
+      }
       const trendPackets = rfPackets.filter(
         (p) => typeof p.rateHz === "number" && typeof p.lossPermille === "number",
       );
@@ -231,10 +269,59 @@ export function useMonitorStream() {
       });
       const channelRows: ChannelSwitchRow[] = [];
       for (const p of rfPackets) {
+        if (p.messageType === "RFH_RHS1_SCORE") {
+          continue;
+        }
         const prev = lastRfPacketRef.current;
         const hopActive = isHopActivePacket(p);
         const hopSession = hopSessionRef.current;
+        const state = p.rfStateCode ?? "";
+        const prevState = prev?.rfStateCode ?? "";
         if (typeof p.channelNumber !== "number") {
+          lastRfPacketRef.current = p;
+          continue;
+        }
+
+        if (state === "U") {
+          if (!linkLossSessionRef.current) {
+            linkLossSessionRef.current = {
+              startedAtMs: p.timestampMs,
+              from: prev?.channelNumber,
+              reason: "No DATA timeout",
+            };
+            channelRows.push({
+              id: formatId("link-lost"),
+              timestampMs: p.timestampMs,
+              type: "link_lost",
+              from: prev?.channelNumber,
+              to: p.channelNumber,
+              target: p.targetChannelNumber,
+              state: p.rfStateCode,
+              reason: "No DATA timeout",
+              lossPercent: typeof p.lossPermille === "number" ? p.lossPermille / 10 : undefined,
+              rateHz: p.rateHz,
+            });
+          }
+          lastRfPacketRef.current = p;
+          continue;
+        }
+
+        if (linkLossSessionRef.current && state === "C") {
+          const session = linkLossSessionRef.current;
+          channelRows.push({
+            id: formatId("link-recovered"),
+            timestampMs: p.timestampMs,
+            type: "link_recovered",
+            from: session.from ?? prev?.channelNumber,
+            to: p.channelNumber,
+            target: p.targetChannelNumber,
+            state: p.rfStateCode,
+            reason: "DATA received again",
+            lossPercent: typeof p.lossPermille === "number" ? p.lossPermille / 10 : undefined,
+            durationMs: Math.max(0, p.timestampMs - session.startedAtMs),
+            rateHz: p.rateHz,
+          });
+          linkLossSessionRef.current = null;
           lastRfPacketRef.current = p;
           continue;
         }
@@ -445,8 +532,10 @@ export function useMonitorStream() {
     setRateSeries([]);
     setLossSeries([]);
     setChannelSwitches([]);
+    setChannelScores([]);
     lastRfPacketRef.current = null;
     hopSessionRef.current = null;
+    linkLossSessionRef.current = null;
     if (window.connectMonitorApi?.clear) {
       window.connectMonitorApi.clear().catch(() => {});
     }
@@ -501,5 +590,5 @@ export function useMonitorStream() {
 
   const latency = React.useMemo(() => calcHzFromLatency(latencies), [latencies]);
 
-  return { events, packets, errors, latency, rateSeries, lossSeries, channelSwitches, paused, setPaused, clear, loadOlderEvents };
+  return { events, packets, errors, latency, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear, loadOlderEvents };
 }

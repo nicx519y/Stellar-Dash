@@ -36,6 +36,8 @@ export interface PacketEvent {
   hopDurationMs?: number;
   unconnectedEvents?: number;
   errorEvents?: number;
+  channelScores?: Array<{ channel: number; score: number }>;
+  activeChannelScore?: number;
 }
 
 export interface LatencyEvent {

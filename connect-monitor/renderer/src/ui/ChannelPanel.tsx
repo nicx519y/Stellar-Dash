@@ -21,6 +21,8 @@ function reasonColor(reason: string) {
 function typeColor(type: ChannelSwitchRow["type"]) {
   if (type === "hop_start") return "blue";
   if (type === "hop_finish") return "green";
+  if (type === "link_lost") return "yellow";
+  if (type === "link_recovered") return "green";
   if (type === "channel_change" || type === "target_change") return "cyan";
   return "gray";
 }
@@ -31,6 +33,8 @@ function formatType(type: ChannelSwitchRow["type"]) {
     channel_change: "Channel Changed",
     hop_start: "Hop Started",
     hop_finish: "Hop Finished",
+    link_lost: "Link Lost",
+    link_recovered: "Link Recovered",
     target_change: "Target Changed",
   };
   return map[type];
@@ -50,14 +54,14 @@ export function ChannelPanel({ items }: { items: ChannelSwitchRow[] }) {
       render: (row) => <Badge colorPalette={typeColor(row.type)}>{formatType(row.type)}</Badge>,
     },
     { key: "state", header: "State", width: "8%", render: (row) => row.state ?? "-" },
-    { key: "from", header: "From", width: "8%", align: "end", render: (row) => row.from ?? "-" },
-    { key: "to", header: "To", width: "8%", align: "end", render: (row) => row.to ?? "-" },
     {
       key: "reason",
       header: "Reason",
       width: "22%",
       render: (row) => <Badge colorPalette={reasonColor(row.reason)}>{row.reason}</Badge>,
     },
+    { key: "from", header: "From", width: "8%", align: "end", render: (row) => row.from ?? "-" },
+    { key: "to", header: "To", width: "8%", align: "end", render: (row) => row.to ?? "-" },
     {
       key: "score",
       header: "Score",
