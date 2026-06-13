@@ -52,11 +52,9 @@ export function exportMarkdown(suggestedFileName: string, content: string) {
 export function buildPacketLogMarkdown(items: Array<PacketEvent & { id?: string }>) {
   const rows = items.slice(-LOG_LIMIT).reverse();
   const table = markdownTable(
-    ["Time", "Channel", "Direction", "Type", "Length", "Seq", "Samples", "Loss", "Rate", "Channel No.", "Target", "State", "Payload"],
+    ["Time", "Type", "Length", "Seq", "Samples", "Loss", "Rate", "Channel No.", "Target", "State", "Payload"],
     rows.map((p) => [
       formatDateTime(p.timestampMs),
-      p.channel,
-      p.direction,
       displayMessageType(p.messageType),
       p.payloadLen,
       typeof p.seq === "number" ? p.seq : undefined,
@@ -75,9 +73,10 @@ export function buildPacketLogMarkdown(items: Array<PacketEvent & { id?: string 
 export function buildChannelEventLogMarkdown(items: ChannelSwitchRow[]) {
   const rows = items.slice(-LOG_LIMIT).reverse();
   const table = markdownTable(
-    ["Time", "State", "From", "To", "Target", "Reason", "Score", "Duration", "Loss", "Rate"],
+    ["Time", "Type", "State", "From", "To", "Target", "Reason", "Score", "Duration"],
     rows.map((row) => [
       formatDateTime(row.timestampMs),
+      row.type,
       row.state,
       row.from,
       row.to,
@@ -85,8 +84,6 @@ export function buildChannelEventLogMarkdown(items: ChannelSwitchRow[]) {
       row.reason,
       typeof row.scorePermille === "number" ? `${row.scorePermille}/1000` : undefined,
       typeof row.durationMs === "number" ? `${row.durationMs} ms` : undefined,
-      typeof row.lossPercent === "number" ? `${row.lossPercent.toFixed(2)}%` : undefined,
-      typeof row.rateHz === "number" ? `${row.rateHz.toFixed(1)} Hz` : undefined,
     ]),
   );
   return `${documentHeader("Channel Event Log", rows.length)}${table}\n`;

@@ -13,10 +13,27 @@ function fmtTime(ms: number) {
 
 function reasonColor(reason: string) {
   const text = reason.toLowerCase();
-  if (text.includes("disconnect") || text.includes("reconnect")) return "red";
-  if (text.includes("high packet loss")) return "yellow";
-  if (text.includes("hop")) return "blue";
+  if (text.includes("disconnect") || text.includes("reconnect") || text.includes("ack")) return "red";
+  if (text.includes("loss") || text.includes("quality")) return "yellow";
   return "gray";
+}
+
+function typeColor(type: ChannelSwitchRow["type"]) {
+  if (type === "hop_start") return "blue";
+  if (type === "hop_finish") return "green";
+  if (type === "channel_change" || type === "target_change") return "cyan";
+  return "gray";
+}
+
+function formatType(type: ChannelSwitchRow["type"]) {
+  const map: Record<ChannelSwitchRow["type"], string> = {
+    current: "Current",
+    channel_change: "Channel Changed",
+    hop_start: "Hop Started",
+    hop_finish: "Hop Finished",
+    target_change: "Target Changed",
+  };
+  return map[type];
 }
 
 export function ChannelPanel({ items }: { items: ChannelSwitchRow[] }) {
@@ -26,6 +43,12 @@ export function ChannelPanel({ items }: { items: ChannelSwitchRow[] }) {
   };
   const columns: Array<VirtualColumn<ChannelSwitchRow>> = [
     { key: "time", header: "Time", width: "130px", render: (row) => fmtTime(row.timestampMs) },
+    {
+      key: "type",
+      header: "Type",
+      width: "130px",
+      render: (row) => <Badge colorPalette={typeColor(row.type)}>{formatType(row.type)}</Badge>,
+    },
     { key: "state", header: "State", width: "70px", render: (row) => row.state ?? "-" },
     { key: "from", header: "From", width: "70px", align: "end", render: (row) => row.from ?? "-" },
     { key: "to", header: "To", width: "70px", align: "end", render: (row) => row.to ?? "-" },
@@ -33,7 +56,7 @@ export function ChannelPanel({ items }: { items: ChannelSwitchRow[] }) {
     {
       key: "reason",
       header: "Reason",
-      width: "260px",
+      width: "180px",
       render: (row) => <Badge colorPalette={reasonColor(row.reason)}>{row.reason}</Badge>,
     },
     {
@@ -44,9 +67,7 @@ export function ChannelPanel({ items }: { items: ChannelSwitchRow[] }) {
       render: (row) =>
         typeof row.scorePermille === "number"
           ? `${row.scorePermille}/1000`
-          : typeof row.lossPercent === "number"
-            ? `${(row.lossPercent * 10).toFixed(0)}/1000`
-            : "-",
+          : "-",
     },
     {
       key: "duration",
@@ -54,20 +75,6 @@ export function ChannelPanel({ items }: { items: ChannelSwitchRow[] }) {
       width: "100px",
       align: "end",
       render: (row) => (typeof row.durationMs === "number" ? `${row.durationMs}ms` : "-"),
-    },
-    {
-      key: "loss",
-      header: "Loss",
-      width: "90px",
-      align: "end",
-      render: (row) => (typeof row.lossPercent === "number" ? `${row.lossPercent.toFixed(2)}%` : "-"),
-    },
-    {
-      key: "rate",
-      header: "Rate",
-      width: "100px",
-      align: "end",
-      render: (row) => (typeof row.rateHz === "number" ? `${row.rateHz.toFixed(1)}Hz` : "-"),
     },
   ];
 

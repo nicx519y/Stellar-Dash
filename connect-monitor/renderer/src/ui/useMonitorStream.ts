@@ -9,6 +9,7 @@ type LossPoint = { tMs: number; value: number };
 export type ChannelSwitchRow = {
   id: string;
   timestampMs: number;
+  type: "current" | "channel_change" | "hop_start" | "hop_finish" | "target_change";
   from?: number;
   to?: number;
   target?: number;
@@ -16,6 +17,7 @@ export type ChannelSwitchRow = {
   reason: string;
   lossPercent?: number;
   scorePermille?: number;
+  badScorePermille?: number;
   durationMs?: number;
   rateHz?: number;
 };
@@ -25,6 +27,8 @@ type HopSession = {
   from?: number;
   target?: number;
   scorePermille?: number;
+  badScorePermille?: number;
+  reason: string;
 };
 
 const MAX_ROWS = 500;
@@ -133,6 +137,17 @@ function describeChannelReason(prev: PacketEvent | null, curr: PacketEvent) {
   return "Channel changed";
 }
 
+function qualityScoreFromBadScore(badScorePermille?: number) {
+  if (typeof badScorePermille !== "number") return undefined;
+  return Math.max(0, Math.min(1000, 1000 - badScorePermille));
+}
+
+function describeHopReason(badScorePermille?: number) {
+  if (typeof badScorePermille !== "number") return "Unknown";
+  if (badScorePermille >= 1000) return "ACK missed";
+  return "Low quality score";
+}
+
 function rfPacketEvents(batch: MonitorEvent[]) {
   return batch.filter(isPacket).filter((p) => p.channel === "RF" && p.direction === "RX");
 }
@@ -155,11 +170,6 @@ function isHopActivePacket(packet: PacketEvent) {
     packet.rfStateCode === "RP" ||
     packet.rfStateCode === "RC"
   );
-}
-
-function formatScore(scorePermille?: number) {
-  if (typeof scorePermille !== "number") return "score=-";
-  return `score=${scorePermille}/1000 (${(scorePermille / 10).toFixed(1)}%)`;
 }
 
 export function useMonitorStream() {
@@ -230,23 +240,29 @@ export function useMonitorStream() {
         }
 
         if (p.hopEvent === "start") {
-          const scorePermille = p.hopScorePermille ?? p.hopEventValue ?? p.lossPermille;
+          const badScorePermille = p.hopScorePermille ?? p.hopEventValue ?? p.lossPermille;
+          const scorePermille = qualityScoreFromBadScore(badScorePermille);
+          const reason = describeHopReason(badScorePermille);
           hopSessionRef.current = {
             startedAtMs: p.timestampMs,
             from: p.oldChannelNumber ?? p.channelNumber,
             target: p.targetChannelNumber,
             scorePermille,
+            badScorePermille,
+            reason,
           };
           channelRows.push({
             id: formatId("hop-start"),
             timestampMs: p.timestampMs,
+            type: "hop_start",
             from: p.oldChannelNumber ?? p.channelNumber,
             to: p.targetChannelNumber,
             target: p.targetChannelNumber,
             state: p.rfStateCode,
-            reason: `Hop started (${formatScore(scorePermille)})`,
-            lossPercent: typeof scorePermille === "number" ? scorePermille / 10 : undefined,
+            reason,
+            lossPercent: typeof badScorePermille === "number" ? badScorePermille / 10 : undefined,
             scorePermille,
+            badScorePermille,
             rateHz: p.rateHz,
           });
           lastRfPacketRef.current = p;
@@ -262,16 +278,15 @@ export function useMonitorStream() {
           channelRows.push({
             id: formatId("hop-end"),
             timestampMs: p.timestampMs,
+            type: "hop_finish",
             from: session?.from ?? p.oldChannelNumber,
             to: p.channelNumber,
             target: session?.target ?? p.targetChannelNumber,
             state: p.rfStateCode,
-            reason:
-              typeof durationMs === "number"
-                ? `Hop finished (${durationMs}ms)`
-                : "Hop finished",
+            reason: session?.reason ?? "Completed",
             lossPercent: typeof p.lossPermille === "number" ? p.lossPermille / 10 : undefined,
             scorePermille: session?.scorePermille,
+            badScorePermille: session?.badScorePermille,
             durationMs,
             rateHz: p.rateHz,
           });
@@ -281,23 +296,29 @@ export function useMonitorStream() {
         }
 
         if (hopActive && !hopSession) {
-          const scorePermille = p.lossPermille;
+          const badScorePermille = p.lossPermille;
+          const scorePermille = qualityScoreFromBadScore(badScorePermille);
+          const reason = describeHopReason(badScorePermille);
           hopSessionRef.current = {
             startedAtMs: p.timestampMs,
             from: p.oldChannelNumber ?? p.channelNumber,
             target: p.targetChannelNumber,
             scorePermille,
+            badScorePermille,
+            reason,
           };
           channelRows.push({
             id: formatId("hop-start"),
             timestampMs: p.timestampMs,
+            type: "hop_start",
             from: p.oldChannelNumber ?? p.channelNumber,
             to: p.targetChannelNumber,
             target: p.targetChannelNumber,
             state: p.rfStateCode,
-            reason: `Hop started (${formatScore(scorePermille)})`,
-            lossPercent: typeof scorePermille === "number" ? scorePermille / 10 : undefined,
+            reason,
+            lossPercent: typeof badScorePermille === "number" ? badScorePermille / 10 : undefined,
             scorePermille,
+            badScorePermille,
             rateHz: p.rateHz,
           });
           lastRfPacketRef.current = p;
@@ -309,13 +330,15 @@ export function useMonitorStream() {
           channelRows.push({
             id: formatId("hop-end"),
             timestampMs: p.timestampMs,
+            type: "hop_finish",
             from: hopSession.from,
             to: p.channelNumber,
             target: hopSession.target ?? p.targetChannelNumber,
             state: p.rfStateCode,
-            reason: `Hop finished (${durationMs}ms)`,
+            reason: hopSession.reason,
             lossPercent: typeof p.lossPermille === "number" ? p.lossPermille / 10 : undefined,
             scorePermille: hopSession.scorePermille,
+            badScorePermille: hopSession.badScorePermille,
             durationMs,
             rateHz: p.rateHz,
           });
@@ -333,6 +356,7 @@ export function useMonitorStream() {
           channelRows.push({
             id: formatId("ch"),
             timestampMs: p.timestampMs,
+            type: "current",
             from: p.oldChannelNumber,
             to: p.channelNumber,
             target: p.targetChannelNumber,
@@ -345,6 +369,7 @@ export function useMonitorStream() {
           channelRows.push({
             id: formatId("ch"),
             timestampMs: p.timestampMs,
+            type: "channel_change",
             from: prev.channelNumber,
             to: p.channelNumber,
             target: p.targetChannelNumber,
@@ -363,12 +388,15 @@ export function useMonitorStream() {
           channelRows.push({
             id: formatId("hop"),
             timestampMs: p.timestampMs,
+            type: "hop_start",
             from: p.oldChannelNumber,
             to: p.targetChannelNumber,
             target: p.targetChannelNumber,
             state: p.rfStateCode,
-            reason: "Received hop request/ack flow",
+            reason: describeHopReason(p.lossPermille),
             lossPercent: typeof p.lossPermille === "number" ? p.lossPermille / 10 : undefined,
+            scorePermille: qualityScoreFromBadScore(p.lossPermille),
+            badScorePermille: p.lossPermille,
             rateHz: p.rateHz,
           });
         } else if (
@@ -379,6 +407,7 @@ export function useMonitorStream() {
           channelRows.push({
             id: formatId("target"),
             timestampMs: p.timestampMs,
+            type: "target_change",
             from: p.channelNumber,
             to: p.targetChannelNumber,
             target: p.targetChannelNumber,

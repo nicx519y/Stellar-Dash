@@ -1,4 +1,4 @@
-import { Badge, Button } from "@chakra-ui/react";
+import { Button } from "@chakra-ui/react";
 import { GrDocumentDownload } from "react-icons/gr";
 
 import type { PacketEvent } from "../../../shared/monitor-types";
@@ -9,10 +9,6 @@ import { VirtualTable, type VirtualColumn } from "./VirtualTable";
 function fmtTime(ms: number) {
   const d = new Date(ms);
   return d.toLocaleTimeString() + "." + String(d.getMilliseconds()).padStart(3, "0");
-}
-
-function dirColor(dir: string) {
-  return dir === "TX" ? "blue" : "purple";
 }
 
 function displayMessageType(messageType: string) {
@@ -32,18 +28,6 @@ export function PacketsPanel({ items }: { items: Array<PacketEvent & { id?: stri
   };
   const columns: Array<VirtualColumn<PacketEvent & { id?: string }>> = [
     { key: "time", header: "Time", width: "130px", render: (p) => fmtTime(p.timestampMs) },
-    {
-      key: "channel",
-      header: "Channel",
-      width: "72px",
-      render: (p) => <Badge colorPalette={p.channel === "USB" ? "green" : "orange"}>{p.channel}</Badge>,
-    },
-    {
-      key: "direction",
-      header: "Direction",
-      width: "72px",
-      render: (p) => <Badge colorPalette={dirColor(p.direction)}>{p.direction}</Badge>,
-    },
     { key: "type", header: "Type", width: "150px", render: (p) => displayMessageType(p.messageType) },
     { key: "len", header: "Length", width: "70px", align: "end", render: (p) => p.payloadLen },
     { key: "seq", header: "Seq", width: "100px", align: "end", render: (p) => (typeof p.seq === "number" ? p.seq : "-") },

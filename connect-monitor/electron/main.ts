@@ -48,7 +48,7 @@ function shutdownAndClearDatabase(): void {
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
-    height: 800,
+    height: 790,
     backgroundColor: "#0b0f16",
     frame: false,
     autoHideMenuBar: true,

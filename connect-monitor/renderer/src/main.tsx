@@ -16,7 +16,7 @@ globalStyle.textContent = `
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
-    background: #05080d !important;
+    background: #041012 !important;
   }
 
   body {

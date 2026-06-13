@@ -111,10 +111,13 @@ parser 会把 `RHM1` 转成：
 - `Report Rate`：telemetry window 内推导出的实际 packet rate。
 - `RF Packet Loss`：最近窗口丢包率。
 - 主图：report rate、packet loss、channel events。
-- packet 表：`RFH_RHM1_C` / `RFH_RHM1_HR`、seq、sample count、expected count、channel。
+- packet 表：`RFH_RHM1_C` / `RFH_RHM1_HR`、seq、sample count、expected count、RF channel/target；不再显示固定的 source channel 和 direction 列。
 - Channel Events：
-  - `Hop started (score=xxx/1000 (...%))`：优先由 `RHM1[29]=1` 生成，score 来自 `RHM1[30..31]`，也就是 TX 随 `HOP_PREPARE` 带给 RX 的触发分数。
-  - `Hop finished (xxxms)`：优先由 `RHM1[29]=2` 生成，duration 来自 `RHM1[30..31]`，也就是 RX 从收到 prepare 到 confirm ACK 完成的耗时。
+  - `Type` 独立显示 `Hop Started` / `Hop Finished` / `Channel Changed` 等事件类型。
+  - `Reason` 只显示触发原因，例如 `Low quality score` 或 `ACK missed`。
+  - `Score` 是链路质量分，`1000` 最好、`0` 最差；由固件上报的 bad score 反算为 `1000 - badScore`。
+  - `Duration` 来自 finish 事件的 `RHM1[30..31]`，也就是 RX 从收到 prepare 到 confirm ACK 完成的耗时。
+  - `Loss` 和 `Rate` 不在 Channel Events 表显示，避免与跳频事件语义混在一起。
   - 双频道扫描期间采样到的 old/target channel 来回变化不会再生成普通 `Channel changed` 噪声。
 - error 表：hop/error event 摘要。
 - Markdown export：把 packet/event 记录导出为调试日志。

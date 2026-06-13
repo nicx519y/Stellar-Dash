@@ -17,6 +17,7 @@ import { FaPause, FaPlay, FaRegWindowMaximize, FaRegWindowMinimize, FaRegWindowR
 import { GrClearOption } from "react-icons/gr";
 import { TfiClose } from "react-icons/tfi";
 import type { MonitorEvent } from "../../../shared/monitor-types";
+import circuitBoardBg from "../assets/circuit-board-bg.png";
 import rfMonitorLogo from "../assets/rf-monitor-logo.png";
 import { useMonitorStream } from "./useMonitorStream";
 import { ChannelPanel } from "./ChannelPanel";
@@ -326,23 +327,35 @@ export function App() {
       inset={0}
       w="auto"
       h="auto"
-      bg="#05080d"
+      bg="#041012"
       color="gray.50"
       overflow="hidden"
       backgroundImage={`
-        linear-gradient(rgba(92,255,138,0.08) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(92,255,138,0.07) 1px, transparent 1px),
-        repeating-linear-gradient(135deg, rgba(98,247,255,0.06) 0 1px, transparent 1px 18px),
-        linear-gradient(180deg, #05080d 0%, #0a1118 54%, #05080d 100%)
+        radial-gradient(ellipse at 50% 0%, rgba(39, 255, 171, 0.16) 0%, rgba(39, 255, 171, 0) 36%),
+        linear-gradient(135deg, #030b11 0%, #05242b 38%, #071b2c 68%, #02070f 100%)
       `}
-      backgroundSize="44px 44px, 44px 44px, 18px 18px, auto"
+      backgroundSize="auto, auto"
       _before={{
         content: '""',
         position: "absolute",
         inset: 0,
         pointerEvents: "none",
-        backgroundImage: "linear-gradient(90deg, transparent 0 72px, rgba(92,255,138,0.055) 72px 74px, transparent 74px 112px)",
-        opacity: 0.72,
+        zIndex: 0,
+        backgroundImage: `url(${circuitBoardBg})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        opacity: 1,
+        mixBlendMode: "screen",
+      }}
+      _after={{
+        content: '""',
+        position: "absolute",
+        inset: 0,
+        pointerEvents: "none",
+        zIndex: 0,
+        backgroundImage: `
+          radial-gradient(ellipse at center, rgba(0,0,0,1) 0%, rgba(0,0,0,95) 10%, rgba(0,0,0,0.9) 30%, rgba(0,0,0,0.8) 80%, rgba(0,0,0,0) 100%)
+        `,
       }}
     >
       <Flex
@@ -384,12 +397,12 @@ export function App() {
 
       <Box
         ref={scrollRef}
+        position="relative"
+        zIndex={1}
         px={4}
         py={4}
         overflow="auto"
-        h="calc(100vh - 76px)"
-        position="relative"
-        zIndex={1}
+        h="calc(100vh - 70px)"
         onScroll={(event) => {
           const scroller = event.currentTarget;
           setScrollState({
