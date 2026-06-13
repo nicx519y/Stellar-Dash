@@ -34,6 +34,8 @@ export interface PacketEvent {
   hopEventValue?: number;
   hopScorePermille?: number;
   hopDurationMs?: number;
+  maxSilentTicks?: number;
+  maxSilentMs?: number;
   unconnectedEvents?: number;
   errorEvents?: number;
   channelScores?: Array<{ channel: number; score: number }>;

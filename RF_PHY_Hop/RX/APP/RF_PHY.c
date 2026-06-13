@@ -33,6 +33,7 @@
 #define RF_AUTO_DEMO_INITIAL_CHANNEL   39u
 #define RF_AUTO_DEMO_HOP_DUAL_DWELL_MS 2u
 #define RF_AUTO_DEMO_HOP_DUAL_TIMEOUT_MS 3000u
+#define RF_AUTO_DEMO_RECOVERY_DWELL_MS 20u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_INIT 200u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_GOOD 20u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_BAD 1000u
@@ -44,6 +45,7 @@
 #define RX_HID_HOP_EVENT_NONE          0u
 #define RX_HID_HOP_EVENT_START         1u
 #define RX_HID_HOP_EVENT_FINISH        2u
+#define RX_HID_SILENT_TICKS_SAT        0xFFFEu
 #define TMR0_FREE_RUN_WRAP             0x04000000UL
 
 typedef struct
@@ -63,7 +65,8 @@ typedef struct
 typedef enum
 {
     RF_AUTO_RX_COMM = 0u,
-    RF_AUTO_RX_PREPARED_DUAL
+    RF_AUTO_RX_PREPARED_DUAL,
+    RF_AUTO_RX_RECOVERY_SCAN
 } rf_auto_rx_state_t;
 
 uint8_t taskID;
@@ -92,8 +95,8 @@ static uint8_t g_demo_last_ack_token = 0u;
 static uint8_t g_demo_have_ack_token = 0u;
 static uint16_t g_demo_report_hz = RF_AUTO_DEMO_REPORT_HZ;
 static uint8_t g_demo_rate_code = RF_AUTO_DEMO_RATE_CODE;
-static uint32_t g_demo_last_data_clock = 0u;
-static uint8_t g_demo_link_active = 0u;
+static volatile uint32_t g_demo_last_data_tmr = 0u;
+static volatile uint8_t g_demo_link_active = 0u;
 static uint8_t g_demo_current_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
 static uint8_t g_demo_old_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
 static uint8_t g_demo_target_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
@@ -111,13 +114,17 @@ static uint32_t g_demo_window_crc = 0u;
 static uint32_t g_demo_dual_switch_clock = 0u;
 static uint32_t g_demo_dual_deadline_clock = 0u;
 static uint8_t g_demo_dual_side = 0u;
+static uint32_t g_demo_recovery_scan_clock = 0u;
+static uint8_t g_demo_recovery_scan_rank = 0u;
 static uint32_t g_demo_hid_telemetry_seq = 0u;
-static uint32_t g_demo_hid_last_tmr = 0u;
+static uint32_t g_demo_hid_last_clock = 0u;
 static volatile uint32_t g_demo_hid_rx_ok = 0u;
 static volatile uint32_t g_demo_hid_expected = 0u;
 static volatile uint32_t g_demo_hid_bad = 0u;
 static volatile uint32_t g_demo_hid_hop_events = 0u;
 static volatile uint32_t g_demo_hid_errors = 0u;
+static volatile uint16_t g_demo_hid_max_silent_ticks = 0u;
+static volatile uint16_t g_demo_hid_link_lost_silent_ticks = 0u;
 static volatile uint8_t g_demo_hid_hop_start_pending = 0u;
 static volatile uint8_t g_demo_hid_hop_finish_pending = 0u;
 static volatile uint16_t g_demo_hid_hop_start_score = 0u;
@@ -134,24 +141,100 @@ static uint8_t g_demo_hid_score_div = 0u;
 
 static uint32_t demo_us_to_tmr_cycles(uint32_t us)
 {
-    uint32_t cycles_per_us = GetSysClock() / 1000000u;
-    uint32_t cycles;
+    uint64_t cycles = (uint64_t)GetSysClock() * (uint64_t)us;
 
-    if(cycles_per_us == 0u)
+    cycles = (cycles + 999999u) / 1000000u;
+    if(cycles == 0u)
     {
-        cycles_per_us = 1u;
+        return 1u;
+    }
+    return (cycles > 0xFFFFFFFFu) ? 0xFFFFFFFFu : (uint32_t)cycles;
+}
+
+static uint32_t demo_tmr0_elapsed_cycles(uint32_t start, uint32_t end)
+{
+    if(end >= start)
+    {
+        return end - start;
+    }
+    return (TMR0_FREE_RUN_WRAP - start) + end;
+}
+
+static uint16_t demo_tmr_cycles_to_system_ticks(uint32_t cycles)
+{
+    uint64_t denom = (uint64_t)GetSysClock() * (uint64_t)SYSTEM_TIME_MICROSEN;
+    uint64_t ticks;
+
+    if(denom == 0u)
+    {
+        return 0u;
+    }
+    ticks = (((uint64_t)cycles * 1000000u) + (denom - 1u)) / denom;
+    return (ticks > (uint64_t)RX_HID_SILENT_TICKS_SAT) ?
+           RX_HID_SILENT_TICKS_SAT : (uint16_t)ticks;
+}
+
+static uint8_t demo_snapshot_data_silent_cycles(uint32_t *cycles)
+{
+    uint32_t irq_status;
+    uint32_t last_tmr;
+    uint32_t now_tmr;
+    uint8_t active;
+
+    SYS_DisableAllIrq(&irq_status);
+    active = g_demo_link_active;
+    last_tmr = g_demo_last_data_tmr;
+    now_tmr = TMR0_GetCurrentTimer();
+    SYS_RecoverIrq(irq_status);
+
+    if(active == 0u)
+    {
+        return 0u;
     }
 
-    cycles = cycles_per_us * us;
-    return (cycles == 0u) ? 1u : cycles;
+    *cycles = demo_tmr0_elapsed_cycles(last_tmr, now_tmr);
+    return 1u;
+}
+
+static uint16_t demo_clock_delta_ticks(uint32_t start, uint32_t end)
+{
+    int32_t delta = (int32_t)(end - start);
+
+    if(delta <= 0)
+    {
+        return 0u;
+    }
+
+    return (delta > (int32_t)RX_HID_SILENT_TICKS_SAT) ?
+           RX_HID_SILENT_TICKS_SAT : (uint16_t)delta;
+}
+
+static uint16_t demo_ticks_to_ms(uint16_t ticks)
+{
+    uint64_t us;
+    uint32_t ms;
+
+    if(ticks == 0u)
+    {
+        return 0u;
+    }
+
+    us = (uint64_t)ticks * (uint64_t)SYSTEM_TIME_MICROSEN;
+    ms = (uint32_t)((us + 999u) / 1000u);
+    return (ms > 0xFFFFu) ? 0xFFFFu : (uint16_t)ms;
 }
 
 static uint16_t demo_clock_delta_ms(uint32_t start, uint32_t end)
 {
-    uint32_t delta = end - start;
-    uint32_t ms = ((delta * (uint32_t)SYSTEM_TIME_MICROSEN) + 999u) / 1000u;
+    return demo_ticks_to_ms(demo_clock_delta_ticks(start, end));
+}
 
-    return (ms > 0xFFFFu) ? 0xFFFFu : (uint16_t)ms;
+static void demo_note_hid_silent_ticks(uint16_t silent_ticks)
+{
+    if(silent_ticks > g_demo_hid_max_silent_ticks)
+    {
+        g_demo_hid_max_silent_ticks = silent_ticks;
+    }
 }
 
 static uint16_t demo_quality_permille(void)
@@ -189,6 +272,78 @@ static uint8_t demo_channel_index(uint8_t channel)
         }
     }
     return 0xFFu;
+}
+
+static uint8_t demo_recovery_scan_channel_by_rank(uint8_t rank)
+{
+    uint8_t i;
+    uint8_t selected = RF_AUTO_DEMO_INITIAL_CHANNEL;
+    uint16_t selected_score = 0u;
+    uint8_t selected_count = 0u;
+    uint8_t count = (uint8_t)(sizeof(g_demo_score_channels) / sizeof(g_demo_score_channels[0]));
+
+    if(count == 0u)
+    {
+        return RF_AUTO_DEMO_INITIAL_CHANNEL;
+    }
+    rank %= count;
+
+    while(selected_count <= rank)
+    {
+        uint8_t best_index = 0xFFu;
+        uint16_t best_score = 0xFFFFu;
+
+        for(i = 0u; i < count; i++)
+        {
+            uint16_t score = g_demo_channel_scores[i];
+            if((selected_count != 0u) && (score < selected_score))
+            {
+                continue;
+            }
+            if((selected_count != 0u) &&
+               (score == selected_score) &&
+               (g_demo_score_channels[i] <= selected))
+            {
+                continue;
+            }
+            if((best_index == 0xFFu) ||
+               (score < best_score) ||
+               ((score == best_score) &&
+                (g_demo_score_channels[i] < g_demo_score_channels[best_index])))
+            {
+                best_index = i;
+                best_score = score;
+            }
+        }
+
+        if(best_index == 0xFFu)
+        {
+            break;
+        }
+        selected = g_demo_score_channels[best_index];
+        selected_score = best_score;
+        selected_count++;
+    }
+
+    return selected;
+}
+
+static uint8_t demo_next_recovery_channel(void)
+{
+    uint8_t count = (uint8_t)(sizeof(g_demo_score_channels) / sizeof(g_demo_score_channels[0]));
+    uint8_t channel;
+
+    if(count == 0u)
+    {
+        return RF_AUTO_DEMO_INITIAL_CHANNEL;
+    }
+    channel = demo_recovery_scan_channel_by_rank(g_demo_recovery_scan_rank);
+    g_demo_recovery_scan_rank++;
+    if(g_demo_recovery_scan_rank >= count)
+    {
+        g_demo_recovery_scan_rank = 0u;
+    }
+    return channel;
 }
 
 static void demo_channel_score_update(uint8_t channel, uint16_t sample)
@@ -239,7 +394,15 @@ static void demo_set_channel(uint8_t channel)
 
 static char demo_rx_state_char(void)
 {
-    return (g_demo_rx_state == RF_AUTO_RX_PREPARED_DUAL) ? 'D' : 'M';
+    if(g_demo_rx_state == RF_AUTO_RX_PREPARED_DUAL)
+    {
+        return 'D';
+    }
+    if(g_demo_rx_state == RF_AUTO_RX_RECOVERY_SCAN)
+    {
+        return 'R';
+    }
+    return 'M';
 }
 
 static void demo_ack_timer_cancel(void)
@@ -345,7 +508,7 @@ static void demo_schedule_ack(uint8_t remaining_slots)
     demo_ack_timer_arm(g_demo_ack_delay_tmr + ((uint32_t)remaining_slots * g_demo_slot_tmr));
 }
 
-static void demo_note_data_seq(uint8_t seq)
+static uint8_t demo_note_data_seq(uint8_t seq)
 {
     uint8_t diff;
 
@@ -360,7 +523,7 @@ static void demo_note_data_seq(uint8_t seq)
         diff = (uint8_t)(seq - g_demo_last_data_seq);
         if(diff == 0u)
         {
-            diff = 1u;
+            return 0u;
         }
         g_demo_window_expected += diff;
         g_demo_hid_expected += diff;
@@ -374,6 +537,7 @@ static void demo_note_data_seq(uint8_t seq)
     g_demo_last_data_seq = seq;
     g_demo_window_rx_ok++;
     g_demo_hid_rx_ok++;
+    return 1u;
 }
 
 static void demo_prepare_command_ack(uint8_t cmd, uint8_t seq)
@@ -515,8 +679,20 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
         g_demo_stat.data_ok++;
         demo_channel_score_update(g_demo_current_channel,
                                   RF_AUTO_DEMO_CHANNEL_SCORE_GOOD);
-        g_demo_link_active = 1u;
-        g_demo_last_data_clock = TMOS_GetSystemClock();
+        {
+            uint32_t data_tmr = TMR0_GetCurrentTimer();
+            if(g_demo_have_data_seq != 0u)
+            {
+                demo_note_hid_silent_ticks(
+                    demo_tmr_cycles_to_system_ticks(
+                        demo_tmr0_elapsed_cycles(g_demo_last_data_tmr, data_tmr)));
+            }
+            g_demo_link_active = 1u;
+            g_demo_rx_state = RF_AUTO_RX_COMM;
+            g_demo_old_channel = g_demo_current_channel;
+            g_demo_target_channel = g_demo_current_channel;
+            g_demo_last_data_tmr = data_tmr;
+        }
         demo_note_data_seq(air[RFH_HDR1_OFFSET]);
 
         if((flags & RFH_FLAG_CMD_PRESENT) != 0u)
@@ -583,12 +759,39 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
 void RF_Service(void)
 {
     uint32_t now = TMOS_GetSystemClock();
+    uint32_t data_silent_cycles = 0u;
+    uint8_t enter_recovery_scan = 0u;
 
-    if((g_demo_link_active != 0u) &&
-       ((uint32_t)(now - g_demo_last_data_clock) >= MS1_TO_SYSTEM_TIME(RFH_RX_PACKET_TIMEOUT_MS_DEFAULT)))
+    if((demo_snapshot_data_silent_cycles(&data_silent_cycles) != 0u) &&
+       (data_silent_cycles >= demo_us_to_tmr_cycles(RFH_RX_PACKET_TIMEOUT_MS_DEFAULT * 1000u)))
     {
-        g_demo_link_active = 0u;
-        g_demo_hid_errors++;
+        uint32_t irq_status;
+
+        SYS_DisableAllIrq(&irq_status);
+        if(g_demo_link_active != 0u)
+        {
+            uint32_t verify_cycles = demo_tmr0_elapsed_cycles(g_demo_last_data_tmr,
+                                                              TMR0_GetCurrentTimer());
+            if(verify_cycles >= demo_us_to_tmr_cycles(RFH_RX_PACKET_TIMEOUT_MS_DEFAULT * 1000u))
+            {
+                uint16_t silent_ticks = demo_tmr_cycles_to_system_ticks(verify_cycles);
+                g_demo_link_active = 0u;
+                g_demo_rx_state = RF_AUTO_RX_RECOVERY_SCAN;
+                g_demo_recovery_scan_clock = now;
+                g_demo_recovery_scan_rank = 0u;
+                g_demo_hid_link_lost_silent_ticks = silent_ticks;
+                demo_note_hid_silent_ticks(silent_ticks);
+                g_demo_hid_errors++;
+                enter_recovery_scan = 1u;
+            }
+        }
+        SYS_RecoverIrq(irq_status);
+    }
+
+    if(enter_recovery_scan != 0u)
+    {
+        demo_set_channel(demo_next_recovery_channel());
+        demo_arm_rx();
     }
 
     if(g_demo_rearm_pending != 0u)
@@ -615,6 +818,15 @@ void RF_Service(void)
                              g_demo_old_channel : g_demo_target_channel);
             demo_arm_rx();
         }
+    }
+    else if((g_demo_rx_state == RF_AUTO_RX_RECOVERY_SCAN) &&
+            (g_demo_link_active == 0u) &&
+            ((uint32_t)(now - g_demo_recovery_scan_clock) >=
+             MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_RECOVERY_DWELL_MS)))
+    {
+        g_demo_recovery_scan_clock = now;
+        demo_set_channel(demo_next_recovery_channel());
+        demo_arm_rx();
     }
 }
 
@@ -735,42 +947,48 @@ static void demo_put_u32(uint8_t *dst, uint32_t value)
     dst[3] = (uint8_t)(value >> 24);
 }
 
-static uint16_t demo_loss_permille(uint32_t bad, uint32_t expected)
+static uint32_t demo_expected_from_elapsed(uint16_t elapsed_ms)
+{
+    uint32_t expected;
+
+    if((elapsed_ms == 0u) || (g_demo_report_hz == 0u))
+    {
+        return 0u;
+    }
+
+    expected = (((uint32_t)g_demo_report_hz * (uint32_t)elapsed_ms) + 500u) / 1000u;
+    return (expected == 0u) ? 1u : expected;
+}
+
+static uint16_t demo_rx_loss_permille(uint32_t rx_ok, uint32_t expected)
 {
     if(expected == 0u)
     {
         return 0u;
     }
-    if(bad > expected)
+    if(rx_ok >= expected)
     {
-        bad = expected;
+        return 0u;
     }
-    return (uint16_t)((bad * 1000u) / expected);
+    return (uint16_t)(((expected - rx_ok) * 1000u) / expected);
 }
 
 static uint16_t demo_hid_elapsed_ms(void)
 {
-    uint32_t now = TMR0_GetCurrentTimer();
+    uint32_t now = TMOS_GetSystemClock();
     uint32_t delta;
     uint32_t elapsed;
 
-    if(g_demo_hid_last_tmr == 0u)
+    if(g_demo_hid_last_clock == 0u)
     {
-        g_demo_hid_last_tmr = now;
+        g_demo_hid_last_clock = now;
         return 100u;
     }
 
-    if(now >= g_demo_hid_last_tmr)
-    {
-        delta = now - g_demo_hid_last_tmr;
-    }
-    else
-    {
-        delta = (TMR0_FREE_RUN_WRAP - g_demo_hid_last_tmr) + now;
-    }
-    g_demo_hid_last_tmr = now;
+    delta = now - g_demo_hid_last_clock;
+    g_demo_hid_last_clock = now;
 
-    elapsed = (delta * 1000u) / FREQ_SYS;
+    elapsed = ((delta * (uint32_t)SYSTEM_TIME_MICROSEN) + 999u) / 1000u;
     if(elapsed == 0u)
     {
         elapsed = 1u;
@@ -782,6 +1000,10 @@ static uint8_t demo_hid_state_code(void)
 {
     if(g_demo_link_active == 0u)
     {
+        if(g_demo_rx_state == RF_AUTO_RX_RECOVERY_SCAN)
+        {
+            return 5u;
+        }
         return 0u;
     }
     return (g_demo_rx_state == RF_AUTO_RX_PREPARED_DUAL) ? 3u : 2u;
@@ -832,14 +1054,17 @@ uint8_t RF_TrySendTelemetryReport(void)
 {
     uint8_t report[HID_ENDPOINT_SIZE];
     uint32_t rx_ok = g_demo_hid_rx_ok;
-    uint32_t expected = g_demo_hid_expected;
-    uint32_t bad = g_demo_hid_bad;
+    uint32_t seq_expected = g_demo_hid_expected;
+    uint32_t seq_bad = g_demo_hid_bad;
     uint32_t hop_events = g_demo_hid_hop_events;
     uint32_t errors = g_demo_hid_errors;
+    uint16_t max_silent_ticks = g_demo_hid_max_silent_ticks;
+    uint16_t link_lost_silent_ticks = g_demo_hid_link_lost_silent_ticks;
     uint8_t hop_event_code = RX_HID_HOP_EVENT_NONE;
     uint16_t hop_event_value = 0u;
-    uint16_t elapsed_ms = demo_hid_elapsed_ms();
-    uint16_t loss = demo_loss_permille(bad, expected);
+    uint16_t elapsed_ms;
+    uint32_t expected;
+    uint16_t loss;
 
     g_demo_hid_score_div++;
     if(g_demo_hid_score_div >= 5u)
@@ -850,6 +1075,22 @@ uint8_t RF_TrySendTelemetryReport(void)
            (demo_try_send_score_report() != 0u))
         {
             return 1u;
+        }
+    }
+
+    elapsed_ms = demo_hid_elapsed_ms();
+    expected = demo_expected_from_elapsed(elapsed_ms);
+    loss = demo_rx_loss_permille(rx_ok, expected);
+    if((g_demo_have_data_seq != 0u) && (g_demo_link_active != 0u))
+    {
+        uint32_t current_silent_cycles = 0u;
+        if(demo_snapshot_data_silent_cycles(&current_silent_cycles) != 0u)
+        {
+            uint16_t current_silent_ticks = demo_tmr_cycles_to_system_ticks(current_silent_cycles);
+            if(current_silent_ticks > max_silent_ticks)
+            {
+                max_silent_ticks = current_silent_ticks;
+            }
         }
     }
 
@@ -880,7 +1121,10 @@ uint8_t RF_TrySendTelemetryReport(void)
     report[27] = (uint8_t)(hop_events > 0xFFu ? 0xFFu : hop_events);
     report[28] = (uint8_t)(errors > 0xFFu ? 0xFFu : errors);
     report[29] = hop_event_code;
-    demo_put_u16(&report[30], hop_event_value);
+    demo_put_u16(&report[30],
+                 (hop_event_code == RX_HID_HOP_EVENT_NONE) ?
+                 ((link_lost_silent_ticks != 0u) ? link_lost_silent_ticks : max_silent_ticks) :
+                 hop_event_value);
 
     if(demo_submit_hid_report(report) == 0u)
     {
@@ -889,10 +1133,12 @@ uint8_t RF_TrySendTelemetryReport(void)
 
     g_demo_hid_telemetry_seq++;
     g_demo_hid_rx_ok -= rx_ok;
-    g_demo_hid_expected -= expected;
-    g_demo_hid_bad -= bad;
+    g_demo_hid_expected -= seq_expected;
+    g_demo_hid_bad -= seq_bad;
     g_demo_hid_hop_events -= hop_events;
     g_demo_hid_errors -= errors;
+    g_demo_hid_max_silent_ticks = 0u;
+    g_demo_hid_link_lost_silent_ticks = 0u;
     if(hop_event_code == RX_HID_HOP_EVENT_START)
     {
         g_demo_hid_hop_start_pending = 0u;
@@ -913,7 +1159,7 @@ void RF_Init(void)
     PFIC_EnableIRQ(BLEL_IRQn);
 
     TMR0_TimerInit(TMR0_FREE_RUN_WRAP - 1u);
-    g_demo_hid_last_tmr = TMR0_GetCurrentTimer();
+    g_demo_hid_last_clock = TMOS_GetSystemClock();
     g_demo_ack_delay_tmr = demo_us_to_tmr_cycles(RF_AUTO_DEMO_ACK_TX_DELAY_US);
     g_demo_slot_tmr = demo_us_to_tmr_cycles(RFH_SLOT_US);
     demo_ack_timer_cancel();
@@ -964,7 +1210,7 @@ void RF_Init(void)
     g_demo_target_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
     g_demo_report_hz = RF_AUTO_DEMO_REPORT_HZ;
     g_demo_rate_code = RF_AUTO_DEMO_RATE_CODE;
-    g_demo_last_data_clock = TMOS_GetSystemClock();
+    g_demo_last_data_tmr = TMR0_GetCurrentTimer();
     g_demo_link_active = 0u;
 
     demo_arm_rx();

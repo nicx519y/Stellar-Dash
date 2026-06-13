@@ -299,6 +299,7 @@ export function useMonitorStream() {
               state: p.rfStateCode,
               reason: "No DATA timeout",
               lossPercent: typeof p.lossPermille === "number" ? p.lossPermille / 10 : undefined,
+              durationMs: p.maxSilentMs,
               rateHz: p.rateHz,
             });
           }

@@ -20,6 +20,9 @@ function rfHopStateToLinkState(state: number): "Disconnected" | "Connecting" | "
   return "Error";
 }
 
+const RFH_TMOS_TICK_MS = 0.625;
+const RFH_SILENT_TICKS_INVALID = 0xffff;
+
 let lastRfHopHidTimestampMs = 0;
 let lastLegacyRfHopRxCount = 0;
 let lastLegacyRfHopExpectedCount = 0;
@@ -137,13 +140,24 @@ function parseRfHopHidTelemetryFrame(view: DataView, report: Uint8Array, timesta
   const hopEventCode = legacyFixedLayout ? 0 : rawHopEventCode;
   const hopEventValue = legacyFixedLayout ? 0 : view.getUint16(30, true);
   const hopEvent = hopEventCode === 1 ? "start" : hopEventCode === 2 ? "finish" : undefined;
+  const rawSilentTicks = !legacyFixedLayout && hopEventCode === 0 ? hopEventValue : undefined;
+  const maxSilentTicks =
+    typeof rawSilentTicks === "number" && rawSilentTicks !== RFH_SILENT_TICKS_INVALID
+      ? rawSilentTicks
+      : undefined;
+  const maxSilentMs =
+    typeof maxSilentTicks === "number" ? Math.round(maxSilentTicks * RFH_TMOS_TICK_MS) : undefined;
   const normalized = legacyFixedLayout
     ? { elapsedMs: legacyElapsedMs(rawElapsedMs, timestampMs), expectedCount: 0 }
     : normalizeRfHopWindow(timestampMs, targetRateHz, rawElapsedMs, rxCount, rawExpectedCount);
   const elapsedMs = normalized.elapsedMs;
   const windowCounts = legacyFixedLayout
     ? legacyWindowCounts(targetRateHz, elapsedMs, rxCount, rawExpectedCount, rawLossPermille)
-    : { sampleCount: rxCount, expectedCount: normalized.expectedCount };
+    : {
+        sampleCount:
+          normalized.expectedCount > 0 ? Math.min(rxCount, normalized.expectedCount) : rxCount,
+        expectedCount: normalized.expectedCount,
+      };
   if (!legacyFixedLayout) {
     haveLastLegacyRfHopTotals = false;
   }
@@ -184,6 +198,8 @@ function parseRfHopHidTelemetryFrame(view: DataView, report: Uint8Array, timesta
       hopEventValue: hopEvent ? hopEventValue : undefined,
       hopScorePermille: hopEvent === "start" ? hopEventValue : undefined,
       hopDurationMs: hopEvent === "finish" ? hopEventValue : undefined,
+      maxSilentTicks,
+      maxSilentMs,
       unconnectedEvents: 0,
       errorEvents,
     },

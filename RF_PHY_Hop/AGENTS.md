@@ -7,6 +7,121 @@
 - 现在默认实现以“当前落地：跳频决策 + 稳定过渡”和“HID telemetry / connect-monitor 调试”两节为准。
 - 前面的固定频道、窗口扫描、auto ACK、RFIP 探针内容是形成当前方案的实验记录，除非要回归定位，否则不要把它当作当前运行配置。
 
+## 当前权威实现快照
+
+当前默认工作模式是：
+
+- DATA 数据面：TX -> RX，`1K/2K/4K/8K` 可配置，当前常用 `8K`，slot 为 `125us`。
+- ACK 控制面：独立 `500ms` 周期，不随 DATA report rate 改变。
+- ACK 请求：TX 每个逻辑 ACK 周期发送 `3` 个 request burst，同一 `ack_token`，payload 带 `remaining_slots`。
+- ACK 响应：RX 对同一 token 只回一次 ACK；ACK 由 `TMR1` 一次性中断延迟发送，避免 RF callback 内 busy wait。
+- TX ACK RX timeout：当前基线 `1200us`。
+- RX ACK TX delay：当前通过 `remaining_slots * 125us + 60us` 让 ACK 落在 request burst 后的固定空槽。
+- RF 输入状态：TX 支持 `Off / 1K / 2K / 4K / 8K`；`Off` 是 TX 本地输入关闭，不是空口 rate code。
+- `SET_RATE` payload：`0=Off`，`1000/2000/4000/8000` 为 DATA report rate。
+
+当前关键原则：
+
+- `1K/2K/4K/8K` 只控制 DATA report rate。
+- RF 开启时 ACK 永远按时间保持 `500ms` 一次，不能写成 `rate/2 ticks`。
+- `Off` 时停 DATA、停 ACK control timer、不发 ACK request、不开 ACK RX window。
+- 从 `Off` 切回任意速率时，重新进入连接/恢复过程，并从 `now + 500ms` 初始化 ACK control cadence。
+
+## 当前 TX/RX 链路状态机
+
+TX 侧当前核心状态：
+
+```text
+COMM
+-> HOP_PREPARE_ACK_WAIT
+-> HOP_CONFIRM_ACK_WAIT
+-> COMM
+```
+
+失败恢复：
+
+```text
+HOP_PREPARE_ACK_WAIT timeout -> COMM(old)
+HOP_CONFIRM_ACK_WAIT timeout -> RECOVERY_DUAL(old,target)
+RECOVERY_DUAL timeout -> COMM(old)
+```
+
+TX 掉线/恢复经验：
+
+- ACK miss 不是每次都立即 hop；当前连续 `2` 次 ACK miss 才触发 hop/recovery，避免因单次 ACK 抖动过度跳频。
+- `RECOVERY_DUAL` 只在 TX 已经知道 old/target 的跳频事务里使用；TX 断电再上电后会从初始频道启动，不能指望 TX 单边把 RX 拉回来。
+- 因此 RX 侧必须有独立 recovery scan，处理“TX 重启回初始频道、RX 停在旧频道”的场景。
+
+RX 侧当前状态：
+
+```text
+COMM
+PREPARED_DUAL
+RECOVERY_SCAN
+```
+
+RX recovery scan 经验：
+
+- RX `Link Lost` 不只是置 `link_active=0`；现在会进入 `RECOVERY_SCAN`。
+- `RECOVERY_SCAN` 每 `20ms` 切换一个候选频道。
+- 候选频道来自当前质量分数表 `{39,16,24,32}`，按分数从好到坏轮询，而不是永远挑“当前最优非当前频道”，避免两个频道来回横跳。
+- 一旦 RX 收到合法 `RFH_PKT_DATA`，立即锁定当前频道并回到 `COMM`。
+- HID state code `5` 表示 RX recovery scan，connect-monitor 显示为 `RP`。
+
+## 频道质量分数经验
+
+当前频道表：
+
+```text
+39, 16, 24, 32
+```
+
+分数语义：
+
+- 内部记录的是 bad score，`0` 最好，`1000` 最差。
+- UI 侧显示时反算成质量分：`1000 - badScore`，所以 UI 中 `1000` 最好、`0` 最差。
+- ACK OK / DATA OK 对当前频道降 bad score。
+- ACK timeout / CRC error / type error 对当前频道升 bad score。
+- 这样设计的原因是：评分本质是“坏度/风险”，TX 的跳频触发直接看 bad score 是否超过阈值；UI 为了直觉显示再翻转成质量分。
+
+当前参数：
+
+- 初始 bad score：`200`
+- GOOD sample：`20`
+- BAD sample：`1000`
+- 平滑：`score = (old * 7 + sample) / 8`
+- TX 跳频阈值：bad score `>= 180`
+- TX hop cooldown：`10s`
+- 连续 ACK miss 跳频阈值：`2`
+
+## Link Lost 与 Duration 判定经验
+
+`Link Lost` 的真实含义：
+
+- RX 软件在超时时间内没有处理到合法 `RFH_PKT_DATA`。
+- 它不等价于“空口完全没有收到任何东西”。
+- CRC error、type error、非 DATA 包都不会刷新 `last DATA` 时间。
+
+当前阈值：
+
+- `RFH_RX_PACKET_TIMEOUT_MS_DEFAULT = 100ms`
+
+重要计时结论：
+
+- 不要用 `TMOS_GetSystemClock()` 直接做 RF callback 与主循环之间的 DATA silence 计时。
+- `TMOS_GetSystemClock()` 不是纯读；反汇编可见它会调用 timer callback 并累加全局 clock。
+- RX 主循环当前在 RF init 后还可能跳过 `TMOS_SystemProcess()`，所以 TMOS clock 不适合作为中断上下文与主循环共同使用的 DATA 间隔基准。
+- DATA silence 现在使用 `TMR0_GetCurrentTimer()` 硬件 free-run 计数。
+- 读 `last_data_tmr` 与 `now_tmr` 必须用短临界区快照；否则 RF RX 中断可能夹在两次读取之间，导致 `last > now` 被误判为跨 TMR0 一整圈。
+- `0x04000000 / 62.4MHz ~= 1075ms`；如果看到固定约 `1083ms` 的 Link Lost duration，通常是 TMR0 wrap/竞态假象，不是可信的 1s 无 DATA。
+- TMR0 cycles 与 TMOS tick/ms 换算要用 64-bit，不能用 `GetSysClock()/1000000` 截断 62.4MHz。
+
+HID telemetry 中的 silent duration：
+
+- 固件上传原始 silent ticks，`1 tick = 0.625ms`。
+- `0xFFFE` 是固件侧饱和值，不应直接当成“真实 40959ms 无 DATA”。
+- connect-monitor 会把 ticks 换算成 ms 展示；若出现固定饱和值，优先查计时/竞态/旧固件路径。
+
 ## 当前测试前提
 
 - 固定频道：`channel 16`
@@ -974,7 +1089,7 @@ RF_TrySendTelemetryReport();
 | `12` | `u32` | 窗口内 RX OK packet count |
 | `16` | `u32` | 窗口内 expected packet count |
 | `20` | `u16` | loss permille |
-| `22` | `u8` | hop/RX state：`2=COMM`，`3=PREPARED_DUAL` |
+| `22` | `u8` | hop/RX state：`0=U`，`2=COMM`，`3=PREPARED_DUAL`，`5=RECOVERY_SCAN` |
 | `23` | `u8` | current channel |
 | `24` | `u8` | old channel |
 | `25` | `u8` | target channel |
@@ -982,10 +1097,24 @@ RF_TrySendTelemetryReport();
 | `27` | `u8` | hop event count，饱和到 `255` |
 | `28` | `u8` | error event count，饱和到 `255` |
 | `29` | `u8` | latched hop event：`0=none`，`1=start`，`2=finish` |
-| `30..31` | `u16` | hop event value：start 时为触发分数 permille，finish 时为 RX 侧耗时 ms |
+| `30..31` | `u16` | 复用字段：`event=0` 时为 silent ticks；`event=1` 时为触发 bad score permille；`event=2` 时为 RX 侧 hop duration ms |
 
 成功提交 HID 后，RX 会递增 telemetry seq，并扣减本窗口已经上报的 `rx_ok/expected/bad/hop_events/errors` 计数。
 start/finish 事件按队列发送；若一次跳频在两个 HID telemetry 周期之间完成，RX 会先发 start 事件，再发 finish 事件，避免 monitor 漏掉 duration。
+
+### `RHS1` HID 帧格式
+
+RX 还会低频穿插发送 channel score telemetry，magic 为 `RHS1`，小端 `0x31534852`，总长 `32B`：
+
+| Offset | Size | 含义 |
+|---:|---:|---|
+| `0` | `u32` | magic：`RHS1` |
+| `4` | `u32` | score telemetry seq |
+| `8` | `u8` | entry count，当前 `4` |
+| `9..20` | `4 * (u8 + u16)` | channel + bad score，小端 |
+| `21` | `u8` | active channel |
+
+`RHS1` 上传固件内部 bad score：`0` 最好，`1000` 最差。connect-monitor 右侧 `Channel Scores` 卡片会显示反算后的质量分：`1000 - badScore`。
 
 ### connect-monitor 侧
 
@@ -1010,7 +1139,7 @@ HID 枚举默认匹配：
 - target rate / actual telemetry window rate
 - RF packet loss：由 `rx_count/expected_count` 推导
 - 当前 channel、old channel、target channel
-- hop state：`RFH_RHM1_C` / `RFH_RHM1_HR`
+- hop state：`RFH_RHM1_C` / `RFH_RHM1_HR` / `RFH_RHM1_RP`
 - hop events / error events
 - packet log、channel events/error log、Markdown export
 

@@ -2,6 +2,25 @@
 
 `connect-monitor` 是 HBox/RF_PHY_Hop 的 PC 侧调试客户端。当前重点是通过 HID telemetry 观察 RX/dongle 侧 RF 状态，不依赖 CDC 串口持续传输。
 
+## 当前权威观察口径
+
+当前 RF_PHY_Hop 调试优先看 HID telemetry：
+
+- `RHM1`：RX 主 telemetry，约每 `100ms` 尝试发送一次。
+- `RHS1`：RX 频道分数 telemetry，低频穿插发送。
+- `Report Rate`：由 monitor 根据 telemetry window 的 `sampleCount / elapsedMs` 计算，表示 RX 侧合法 DATA packet 速率，不是 HID 包频率。
+- `RF Packet Loss`：由 monitor 根据 `sampleCount/expectedCount` 重新计算，firmware 上报 loss 只作 fallback。
+- `expectedCount` 优先使用固件窗口值；若窗口异常，monitor 会用 host elapsed 或 target rate 推导，避免旧固件统计溢出导致百万 Hz 假值。
+- `Link Lost`：表示 RX 固件超过阈值未处理到合法 `RFH_PKT_DATA`；CRC/type error 不算合法 DATA。
+- `Link Lost Duration`：来自固件 silent ticks 换算，回答“上一个合法 DATA 到 RX 判定 lost 的间隔”。
+- `Link Recovered Duration`：来自 PC 侧事件时间差，回答“UI 看到 lost 到 recovered 的间隔”。
+
+不要混用这些口径：
+
+- Packet loss 是 telemetry 窗口内的包计数比例，不一定能反映一个孤立的 100ms DATA silence。
+- Link Lost duration 是固件侧判定瞬间的 silent measurement，不等于 Link Recovered 行显示的 lost session 持续时间。
+- Channel Scores 卡片显示的是质量分，已经从固件 bad score 翻转过。
+
 ## 当前数据源策略
 
 默认启动：
@@ -63,6 +82,7 @@ vid=0x1a86 pid=0xfe0c usagePage=0xff00 manufacturer="HBox RF" product="HBox XInp
 - `MON1`：application HID telemetry。
 - `DMN1`：dongle runtime telemetry。
 - `RHM1`：RF_PHY_Hop RX HID telemetry。
+- `RHS1`：RF_PHY_Hop RX channel score telemetry。
 
 当前 RF_PHY_Hop 主要使用 `RHM1`，magic 小端值为 `0x314D4852`，包长 `32B`。
 
@@ -85,22 +105,52 @@ vid=0x1a86 pid=0xfe0c usagePage=0xff00 manufacturer="HBox RF" product="HBox XInp
 | `27` | `u8` | hop event count |
 | `28` | `u8` | error event count |
 | `29` | `u8` | latched hop event：`0=none`，`1=start`，`2=finish` |
-| `30..31` | `u16` | hop event value：start 时为触发分数 permille，finish 时为 RX 侧耗时 ms |
+| `30..31` | `u16` | 复用字段：`event=0` 时为 silent ticks；`event=1` 时为触发 bad score permille；`event=2` 时为 RX 侧 hop duration ms |
 
 RF hop state mapping：
 
 | Code | UI suffix | Link state | 含义 |
 |---:|---|---|---|
+| `0` | `U` | `Disconnected` | RX 当前没有锁定合法 DATA |
 | `2` | `C` | `Connected` | 普通通信 |
 | `3` | `HR` | `Connecting` | prepared dual-channel scan / hop recovery |
+| `5` | `RP` | `Connecting` | RX recovery scan，Link Lost 后按频道表扫描重锁 |
+| `6` | `RC` | `Connecting` | recovery complete / reserved |
+
+`RHM1[30..31]` duration 经验：
+
+- `event=0` 时该字段不是 hop duration，而是 RX 固件记录的 DATA silence ticks。
+- `1 tick = 0.625ms`，monitor 解析后换算为 `maxSilentMs`。
+- Link Lost 行的 Duration 来自该字段，用来回答“从上一个合法 DATA 到 RX 判定 Link Lost 经过了多久”。
+- Link Recovered 行的 Duration 由 PC 侧事件时间计算，表示 UI 观察到的 lost -> recovered 间隔。
+- 如果看到固定约 `40959ms`，通常是固件侧 `0xFFFE` 饱和值；如果看到固定约 `1083ms`，通常是旧固件 TMR0 wrap/竞态问题。不要把这些值直接当作真实无 DATA 时长。
 
 parser 会把 `RHM1` 转成：
 
 - `device_status`：RF connection state、target rate、actual rate。
-- `packet`：`messageType=RFH_RHM1_C` 或 `RFH_RHM1_HR`，包含 rate/loss/channel/hop 字段；新固件还会带 `hopEvent`、`hopScorePermille`、`hopDurationMs`。
+- `packet`：`messageType=RFH_RHM1_C/RP/HR/...`，包含 rate/loss/channel/hop/silent 字段；新固件还会带 `hopEvent`、`hopScorePermille`、`hopDurationMs`、`maxSilentTicks/maxSilentMs`。
 - `error`：当 hop events 或 error events 非零时产生，用于日志面板和导出。
 
 实际丢包率以 `rx_count/expected_count` 重新计算，firmware 上报的 `loss_permille` 只作为 fallback。
+
+### `RHS1` 频道分数帧格式
+
+`RHS1` magic 小端值为 `0x31534852`，总长 `32B`：
+
+| Offset | Size | 含义 |
+|---:|---:|---|
+| `0` | `u32` | magic：`RHS1` |
+| `4` | `u32` | score telemetry seq |
+| `8` | `u8` | entry count，当前 `4` |
+| `9..20` | `4 * (u8 + u16)` | channel + bad score，小端 |
+| `21` | `u8` | active channel |
+
+频道分数语义：
+
+- 固件上传的是 bad score：`0` 最好，`1000` 最差。
+- UI 右侧 `Channel Scores` 卡片显示质量分：`1000 - badScore`，所以 `1000` 最好、`0` 最差。
+- 当前频道表：`39 / 16 / 24 / 32`。
+- 卡片按质量排行实时显示，并高亮当前 active channel。
 
 ## UI 能看到的指标
 
@@ -111,15 +161,21 @@ parser 会把 `RHM1` 转成：
 - `Report Rate`：telemetry window 内推导出的实际 packet rate。
 - `RF Packet Loss`：最近窗口丢包率。
 - 主图：report rate、packet loss、channel events。
-- packet 表：`RFH_RHM1_C` / `RFH_RHM1_HR`、seq、sample count、expected count、RF channel/target；不再显示固定的 source channel 和 direction 列。
+- packet 表：`RFH_RHM1_C` / `RFH_RHM1_RP` / `RFH_RHM1_HR` 等、seq、sample count、expected count、RF channel/target；不再显示固定的 source channel 和 direction 列。
 - Channel Events：
   - `Type` 独立显示 `Hop Started` / `Hop Finished` / `Channel Changed` 等事件类型。
   - `Reason` 只显示触发原因，例如 `Low quality score` 或 `ACK missed`。
   - `Score` 是链路质量分，`1000` 最好、`0` 最差；由固件上报的 bad score 反算为 `1000 - badScore`。
-  - `Duration` 来自 finish 事件的 `RHM1[30..31]`，也就是 RX 从收到 prepare 到 confirm ACK 完成的耗时。
+  - `Duration` 对 hop finish 来自 finish 事件的 `RHM1[30..31]`，也就是 RX 从收到 prepare 到 confirm ACK 完成的耗时。
+  - `Duration` 对 Link Lost 来自 `RHM1[30..31]` silent ticks 换算，用于判断 RX 判定 lost 前是否真的很久没有合法 DATA。
+  - `Duration` 对 Link Recovered 来自 PC 侧事件时间差，用于观察 lost session 在 UI 上持续多久。
   - `Target` 不单独显示，目标频道已由 `To` 表达。
   - `Loss` 和 `Rate` 不在 Channel Events 表显示，避免与跳频事件语义混在一起。
   - 双频道扫描期间采样到的 old/target channel 来回变化不会再生成普通 `Channel changed` 噪声。
+- `Channel Scores`：右侧 `250px` 卡片区域显示频道质量实时排行，数据来自 `RHS1`。
+  - UI 显示质量分：`1000` 最好、`0` 最差。
+  - 固件内部 bad score 正好相反：`0` 最好、`1000` 最差。
+  - 当前频道表为 `39 / 16 / 24 / 32`，active channel 会高亮。
 - error 表：hop/error event 摘要。
 - Markdown export：把 packet/event 记录导出为调试日志。
 
