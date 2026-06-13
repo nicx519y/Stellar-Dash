@@ -30,6 +30,10 @@ export interface PacketEvent {
   rfStateCode?: string;
   oldChannelNumber?: number;
   targetChannelNumber?: number;
+  hopEvent?: "start" | "finish";
+  hopEventValue?: number;
+  hopScorePermille?: number;
+  hopDurationMs?: number;
   unconnectedEvents?: number;
   errorEvents?: number;
 }

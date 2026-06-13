@@ -78,6 +78,9 @@ function parseRfHopHidTelemetryFrame(view: DataView, report: Uint8Array, timesta
   const targetChannel = view.getUint8(25);
   const hopEvents = view.getUint8(27);
   const errorEvents = view.getUint8(28);
+  const hopEventCode = view.getUint8(29);
+  const hopEventValue = view.getUint16(30, true);
+  const hopEvent = hopEventCode === 1 ? "start" : hopEventCode === 2 ? "finish" : undefined;
   const normalized = normalizeRfHopWindow(timestampMs, targetRateHz, rawElapsedMs, rxCount, rawExpectedCount);
   const elapsedMs = normalized.elapsedMs;
   const expectedCount = normalized.expectedCount;
@@ -112,6 +115,10 @@ function parseRfHopHidTelemetryFrame(view: DataView, report: Uint8Array, timesta
       rfStateCode: stateCode,
       oldChannelNumber: oldChannel,
       targetChannelNumber: targetChannel,
+      hopEvent,
+      hopEventValue: hopEvent ? hopEventValue : undefined,
+      hopScorePermille: hopEvent === "start" ? hopEventValue : undefined,
+      hopDurationMs: hopEvent === "finish" ? hopEventValue : undefined,
       unconnectedEvents: 0,
       errorEvents,
     },

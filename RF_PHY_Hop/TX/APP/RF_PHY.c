@@ -121,6 +121,7 @@ static uint8_t g_demo_target_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
 static uint8_t g_demo_hop_seq = 0u;
 static rf_auto_hop_state_t g_demo_hop_state = RF_AUTO_HOP_COMM;
 static uint16_t g_demo_last_quality = 0u;
+static uint16_t g_demo_hop_reason_score = 0u;
 static uint8_t g_demo_ack_miss_count = 0u;
 static uint32_t g_demo_hop_deadline_clock = 0u;
 static uint32_t g_demo_hop_cooldown_until = 0u;
@@ -210,7 +211,7 @@ static uint8_t demo_active_hop_cmd(void)
     return RFH_CMD_NONE;
 }
 
-static void demo_start_hop_prepare(uint32_t now)
+static void demo_start_hop_prepare(uint32_t now, uint16_t reason_score)
 {
     if(g_demo_hop_state != RF_AUTO_HOP_COMM)
     {
@@ -223,6 +224,7 @@ static void demo_start_hop_prepare(uint32_t now)
 
     g_demo_old_channel = g_demo_current_channel;
     g_demo_target_channel = demo_next_channel(g_demo_current_channel);
+    g_demo_hop_reason_score = reason_score;
     g_demo_hop_seq++;
     if(g_demo_hop_seq == 0u)
     {
@@ -340,7 +342,7 @@ static void demo_handle_ack_packet(void)
     else if((g_demo_hop_state == RF_AUTO_HOP_COMM) &&
             (g_demo_last_quality >= RF_AUTO_DEMO_HOP_SCORE_THRESHOLD))
     {
-        demo_start_hop_prepare(TMOS_GetSystemClock());
+        demo_start_hop_prepare(TMOS_GetSystemClock(), g_demo_last_quality);
     }
     else if(g_demo_hop_state != RF_AUTO_HOP_COMM)
     {
@@ -378,13 +380,14 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
         data[RFH_HOP_CMD_DELAY_HI_MS] = 0u;
         data[RFH_HOP_CMD_SEQ] = g_demo_hop_seq;
         data[RFH_HOP_CONFIRM_OLD_CHANNEL] = g_demo_old_channel;
+        rfh_put_u16(&data[RFH_HOP_CMD_SCORE_LO], g_demo_hop_reason_score);
     }
     else
     {
         data[0] = (uint8_t)(g_demo_stat.tx_start & 0xFFu);
         data[1] = (uint8_t)((g_demo_stat.tx_start >> 8) & 0xFFu);
     }
-    for(i = 8u; i < RF_AUTO_DEMO_ACK_TOKEN_OFFSET; i++)
+    for(i = 8u; (hop_cmd == RFH_CMD_NONE) && (i < RF_AUTO_DEMO_ACK_TOKEN_OFFSET); i++)
     {
         air[i] = (uint8_t)(0xA0u + i);
     }
@@ -542,7 +545,7 @@ static void demo_note_ack_timeout(void)
     {
         if(g_demo_ack_miss_count >= RF_AUTO_DEMO_HOP_ACK_MISS_THRESHOLD)
         {
-            demo_start_hop_prepare(TMOS_GetSystemClock());
+            demo_start_hop_prepare(TMOS_GetSystemClock(), 1000u);
         }
         return;
     }

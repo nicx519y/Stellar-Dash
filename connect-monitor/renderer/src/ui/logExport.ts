@@ -75,7 +75,7 @@ export function buildPacketLogMarkdown(items: Array<PacketEvent & { id?: string 
 export function buildChannelEventLogMarkdown(items: ChannelSwitchRow[]) {
   const rows = items.slice(-LOG_LIMIT).reverse();
   const table = markdownTable(
-    ["Time", "State", "From", "To", "Target", "Reason", "Loss", "Rate"],
+    ["Time", "State", "From", "To", "Target", "Reason", "Score", "Duration", "Loss", "Rate"],
     rows.map((row) => [
       formatDateTime(row.timestampMs),
       row.state,
@@ -83,6 +83,8 @@ export function buildChannelEventLogMarkdown(items: ChannelSwitchRow[]) {
       row.to,
       row.target,
       row.reason,
+      typeof row.scorePermille === "number" ? `${row.scorePermille}/1000` : undefined,
+      typeof row.durationMs === "number" ? `${row.durationMs} ms` : undefined,
       typeof row.lossPercent === "number" ? `${row.lossPercent.toFixed(2)}%` : undefined,
       typeof row.rateHz === "number" ? `${row.rateHz.toFixed(1)} Hz` : undefined,
     ]),

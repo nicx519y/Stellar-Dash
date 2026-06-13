@@ -12,9 +12,10 @@ function fmtTime(ms: number) {
 }
 
 function reasonColor(reason: string) {
-  if (reason.includes("disconnect") || reason.includes("reconnect")) return "red";
-  if (reason.includes("high packet loss")) return "yellow";
-  if (reason.includes("hop")) return "blue";
+  const text = reason.toLowerCase();
+  if (text.includes("disconnect") || text.includes("reconnect")) return "red";
+  if (text.includes("high packet loss")) return "yellow";
+  if (text.includes("hop")) return "blue";
   return "gray";
 }
 
@@ -32,8 +33,27 @@ export function ChannelPanel({ items }: { items: ChannelSwitchRow[] }) {
     {
       key: "reason",
       header: "Reason",
-      width: "180px",
+      width: "260px",
       render: (row) => <Badge colorPalette={reasonColor(row.reason)}>{row.reason}</Badge>,
+    },
+    {
+      key: "score",
+      header: "Score",
+      width: "110px",
+      align: "end",
+      render: (row) =>
+        typeof row.scorePermille === "number"
+          ? `${row.scorePermille}/1000`
+          : typeof row.lossPercent === "number"
+            ? `${(row.lossPercent * 10).toFixed(0)}/1000`
+            : "-",
+    },
+    {
+      key: "duration",
+      header: "Duration",
+      width: "100px",
+      align: "end",
+      render: (row) => (typeof row.durationMs === "number" ? `${row.durationMs}ms` : "-"),
     },
     {
       key: "loss",

@@ -84,7 +84,8 @@ vid=0x1a86 pid=0xfe0c usagePage=0xff00 manufacturer="HBox RF" product="HBox XInp
 | `26` | `u8` | rate code |
 | `27` | `u8` | hop event count |
 | `28` | `u8` | error event count |
-| `29..31` | `u8[3]` | reserved |
+| `29` | `u8` | latched hop event：`0=none`，`1=start`，`2=finish` |
+| `30..31` | `u16` | hop event value：start 时为触发分数 permille，finish 时为 RX 侧耗时 ms |
 
 RF hop state mapping：
 
@@ -96,7 +97,7 @@ RF hop state mapping：
 parser 会把 `RHM1` 转成：
 
 - `device_status`：RF connection state、target rate、actual rate。
-- `packet`：`messageType=RFH_RHM1_C` 或 `RFH_RHM1_HR`，包含 rate/loss/channel/hop 字段。
+- `packet`：`messageType=RFH_RHM1_C` 或 `RFH_RHM1_HR`，包含 rate/loss/channel/hop 字段；新固件还会带 `hopEvent`、`hopScorePermille`、`hopDurationMs`。
 - `error`：当 hop events 或 error events 非零时产生，用于日志面板和导出。
 
 实际丢包率以 `rx_count/expected_count` 重新计算，firmware 上报的 `loss_permille` 只作为 fallback。
@@ -111,6 +112,10 @@ parser 会把 `RHM1` 转成：
 - `RF Packet Loss`：最近窗口丢包率。
 - 主图：report rate、packet loss、channel events。
 - packet 表：`RFH_RHM1_C` / `RFH_RHM1_HR`、seq、sample count、expected count、channel。
+- Channel Events：
+  - `Hop started (score=xxx/1000 (...%))`：优先由 `RHM1[29]=1` 生成，score 来自 `RHM1[30..31]`，也就是 TX 随 `HOP_PREPARE` 带给 RX 的触发分数。
+  - `Hop finished (xxxms)`：优先由 `RHM1[29]=2` 生成，duration 来自 `RHM1[30..31]`，也就是 RX 从收到 prepare 到 confirm ACK 完成的耗时。
+  - 双频道扫描期间采样到的 old/target channel 来回变化不会再生成普通 `Channel changed` 噪声。
 - error 表：hop/error event 摘要。
 - Markdown export：把 packet/event 记录导出为调试日志。
 
@@ -200,4 +205,3 @@ RF_PHY_Hop 当前跳频实现记录见：
 - `../RF_PHY_Hop/AGENTS.md`
 - `../RF_PHY_Hop/RX/APP/RF_PHY.c`
 - `../RF_PHY_Hop/TX/APP/RF_PHY.c`
-

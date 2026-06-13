@@ -981,9 +981,11 @@ RF_TrySendTelemetryReport();
 | `26` | `u8` | rate code |
 | `27` | `u8` | hop event count，饱和到 `255` |
 | `28` | `u8` | error event count，饱和到 `255` |
-| `29..31` | `u8[3]` | reserved |
+| `29` | `u8` | latched hop event：`0=none`，`1=start`，`2=finish` |
+| `30..31` | `u16` | hop event value：start 时为触发分数 permille，finish 时为 RX 侧耗时 ms |
 
 成功提交 HID 后，RX 会递增 telemetry seq，并扣减本窗口已经上报的 `rx_ok/expected/bad/hop_events/errors` 计数。
+start/finish 事件按队列发送；若一次跳频在两个 HID telemetry 周期之间完成，RX 会先发 start 事件，再发 finish 事件，避免 monitor 漏掉 duration。
 
 ### connect-monitor 侧
 

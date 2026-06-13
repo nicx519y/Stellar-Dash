@@ -41,6 +41,9 @@
 #define RF_AUTO_DEMO_HOP_DUAL_TIMEOUT_MS 3000u
 #define RF_LINK_CRC_INIT               0x555555UL
 #define RX_HID_TELEMETRY_MAGIC         0x314D4852UL
+#define RX_HID_HOP_EVENT_NONE          0u
+#define RX_HID_HOP_EVENT_START         1u
+#define RX_HID_HOP_EVENT_FINISH        2u
 #define TMR0_FREE_RUN_WRAP             0x04000000UL
 
 typedef struct
@@ -111,6 +114,12 @@ static volatile uint32_t g_demo_hid_expected = 0u;
 static volatile uint32_t g_demo_hid_bad = 0u;
 static volatile uint32_t g_demo_hid_hop_events = 0u;
 static volatile uint32_t g_demo_hid_errors = 0u;
+static volatile uint8_t g_demo_hid_hop_start_pending = 0u;
+static volatile uint8_t g_demo_hid_hop_finish_pending = 0u;
+static volatile uint16_t g_demo_hid_hop_start_score = 0u;
+static volatile uint16_t g_demo_hid_hop_finish_duration_ms = 0u;
+static uint32_t g_demo_hop_start_clock = 0u;
+static uint8_t g_demo_hop_clock_valid = 0u;
 #if (RF_AUTO_DEMO_SEND_ACK_ENABLE != 0u)
 static uint8_t g_demo_ack_seq = 0u;
 #endif
@@ -127,6 +136,14 @@ static uint32_t demo_us_to_tmr_cycles(uint32_t us)
 
     cycles = cycles_per_us * us;
     return (cycles == 0u) ? 1u : cycles;
+}
+
+static uint16_t demo_clock_delta_ms(uint32_t start, uint32_t end)
+{
+    uint32_t delta = end - start;
+    uint32_t ms = ((delta * (uint32_t)SYSTEM_TIME_MICROSEN) + 999u) / 1000u;
+
+    return (ms > 0xFFFFu) ? 0xFFFFu : (uint16_t)ms;
 }
 
 static uint16_t demo_quality_permille(void)
@@ -318,6 +335,7 @@ static void demo_handle_hop_command(const uint8_t *air)
     uint8_t cmd = data[RFH_HOP_CMD_ID];
     uint8_t target = data[RFH_HOP_CMD_CHANNEL];
     uint8_t seq = data[RFH_HOP_CMD_SEQ];
+    uint16_t score = rfh_get_u16(&data[RFH_HOP_CMD_SCORE_LO]);
 
     if(cmd == RFH_CMD_HOP_PREPARE)
     {
@@ -329,6 +347,10 @@ static void demo_handle_hop_command(const uint8_t *air)
         g_demo_after_ack_action = 1u;
         g_demo_stat.hop_event++;
         g_demo_hid_hop_events++;
+        g_demo_hop_start_clock = TMOS_GetSystemClock();
+        g_demo_hop_clock_valid = 1u;
+        g_demo_hid_hop_start_score = score;
+        g_demo_hid_hop_start_pending = 1u;
     }
     else if(cmd == RFH_CMD_HOP_CONFIRM)
     {
@@ -354,10 +376,19 @@ static void demo_after_ack_finish(void)
     }
     else if(g_demo_after_ack_action == 2u)
     {
+        uint16_t duration_ms = 0u;
+
+        if(g_demo_hop_clock_valid != 0u)
+        {
+            duration_ms = demo_clock_delta_ms(g_demo_hop_start_clock, now);
+        }
         g_demo_rx_state = RF_AUTO_RX_COMM;
         demo_set_channel(g_demo_target_channel);
         g_demo_old_channel = g_demo_target_channel;
         g_demo_stat.hop_event++;
+        g_demo_hid_hop_finish_duration_ms = duration_ms;
+        g_demo_hid_hop_finish_pending = 1u;
+        g_demo_hop_clock_valid = 0u;
     }
 
     g_demo_after_ack_action = 0u;
@@ -687,8 +718,21 @@ uint8_t RF_TrySendTelemetryReport(void)
     uint32_t bad = g_demo_hid_bad;
     uint32_t hop_events = g_demo_hid_hop_events;
     uint32_t errors = g_demo_hid_errors;
+    uint8_t hop_event_code = RX_HID_HOP_EVENT_NONE;
+    uint16_t hop_event_value = 0u;
     uint16_t elapsed_ms = demo_hid_elapsed_ms();
     uint16_t loss = demo_loss_permille(bad, expected);
+
+    if(g_demo_hid_hop_start_pending != 0u)
+    {
+        hop_event_code = RX_HID_HOP_EVENT_START;
+        hop_event_value = g_demo_hid_hop_start_score;
+    }
+    else if(g_demo_hid_hop_finish_pending != 0u)
+    {
+        hop_event_code = RX_HID_HOP_EVENT_FINISH;
+        hop_event_value = g_demo_hid_hop_finish_duration_ms;
+    }
 
     memset(report, 0, sizeof(report));
     demo_put_u32(&report[0], RX_HID_TELEMETRY_MAGIC);
@@ -705,6 +749,8 @@ uint8_t RF_TrySendTelemetryReport(void)
     report[26] = RF_AUTO_DEMO_RATE_CODE;
     report[27] = (uint8_t)(hop_events > 0xFFu ? 0xFFu : hop_events);
     report[28] = (uint8_t)(errors > 0xFFu ? 0xFFu : errors);
+    report[29] = hop_event_code;
+    demo_put_u16(&report[30], hop_event_value);
 
     if(demo_submit_hid_report(report) == 0u)
     {
@@ -717,6 +763,14 @@ uint8_t RF_TrySendTelemetryReport(void)
     g_demo_hid_bad -= bad;
     g_demo_hid_hop_events -= hop_events;
     g_demo_hid_errors -= errors;
+    if(hop_event_code == RX_HID_HOP_EVENT_START)
+    {
+        g_demo_hid_hop_start_pending = 0u;
+    }
+    else if(hop_event_code == RX_HID_HOP_EVENT_FINISH)
+    {
+        g_demo_hid_hop_finish_pending = 0u;
+    }
     return 1u;
 }
 

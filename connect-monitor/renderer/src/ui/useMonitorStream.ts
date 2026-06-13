@@ -15,7 +15,16 @@ export type ChannelSwitchRow = {
   state?: string;
   reason: string;
   lossPercent?: number;
+  scorePermille?: number;
+  durationMs?: number;
   rateHz?: number;
+};
+
+type HopSession = {
+  startedAtMs: number;
+  from?: number;
+  target?: number;
+  scorePermille?: number;
 };
 
 const MAX_ROWS = 500;
@@ -137,6 +146,22 @@ function isHopIntent(packet: PacketEvent) {
   );
 }
 
+function isHopActivePacket(packet: PacketEvent) {
+  return (
+    isHopIntent(packet) ||
+    packet.rfStateCode === "HR" ||
+    packet.rfStateCode === "CA" ||
+    packet.rfStateCode === "D" ||
+    packet.rfStateCode === "RP" ||
+    packet.rfStateCode === "RC"
+  );
+}
+
+function formatScore(scorePermille?: number) {
+  if (typeof scorePermille !== "number") return "score=-";
+  return `score=${scorePermille}/1000 (${(scorePermille / 10).toFixed(1)}%)`;
+}
+
 export function useMonitorStream() {
   const [events, setEvents] = React.useState<MonitorEvent[]>([]);
   const [packetRows, setPacketRows] = React.useState<PacketRow[]>([]);
@@ -149,6 +174,7 @@ export function useMonitorStream() {
   const pausedRef = React.useRef(false);
   pausedRef.current = paused;
   const lastRfPacketRef = React.useRef<PacketEvent | null>(null);
+  const hopSessionRef = React.useRef<HopSession | null>(null);
 
   React.useEffect(() => {
     let unsub: (() => void) | null = null;
@@ -196,7 +222,109 @@ export function useMonitorStream() {
       const channelRows: ChannelSwitchRow[] = [];
       for (const p of rfPackets) {
         const prev = lastRfPacketRef.current;
+        const hopActive = isHopActivePacket(p);
+        const hopSession = hopSessionRef.current;
         if (typeof p.channelNumber !== "number") {
+          lastRfPacketRef.current = p;
+          continue;
+        }
+
+        if (p.hopEvent === "start") {
+          const scorePermille = p.hopScorePermille ?? p.hopEventValue ?? p.lossPermille;
+          hopSessionRef.current = {
+            startedAtMs: p.timestampMs,
+            from: p.oldChannelNumber ?? p.channelNumber,
+            target: p.targetChannelNumber,
+            scorePermille,
+          };
+          channelRows.push({
+            id: formatId("hop-start"),
+            timestampMs: p.timestampMs,
+            from: p.oldChannelNumber ?? p.channelNumber,
+            to: p.targetChannelNumber,
+            target: p.targetChannelNumber,
+            state: p.rfStateCode,
+            reason: `Hop started (${formatScore(scorePermille)})`,
+            lossPercent: typeof scorePermille === "number" ? scorePermille / 10 : undefined,
+            scorePermille,
+            rateHz: p.rateHz,
+          });
+          lastRfPacketRef.current = p;
+          continue;
+        }
+
+        if (p.hopEvent === "finish") {
+          const session = hopSessionRef.current;
+          const durationMs =
+            p.hopDurationMs ??
+            p.hopEventValue ??
+            (session ? Math.max(0, p.timestampMs - session.startedAtMs) : undefined);
+          channelRows.push({
+            id: formatId("hop-end"),
+            timestampMs: p.timestampMs,
+            from: session?.from ?? p.oldChannelNumber,
+            to: p.channelNumber,
+            target: session?.target ?? p.targetChannelNumber,
+            state: p.rfStateCode,
+            reason:
+              typeof durationMs === "number"
+                ? `Hop finished (${durationMs}ms)`
+                : "Hop finished",
+            lossPercent: typeof p.lossPermille === "number" ? p.lossPermille / 10 : undefined,
+            scorePermille: session?.scorePermille,
+            durationMs,
+            rateHz: p.rateHz,
+          });
+          hopSessionRef.current = null;
+          lastRfPacketRef.current = p;
+          continue;
+        }
+
+        if (hopActive && !hopSession) {
+          const scorePermille = p.lossPermille;
+          hopSessionRef.current = {
+            startedAtMs: p.timestampMs,
+            from: p.oldChannelNumber ?? p.channelNumber,
+            target: p.targetChannelNumber,
+            scorePermille,
+          };
+          channelRows.push({
+            id: formatId("hop-start"),
+            timestampMs: p.timestampMs,
+            from: p.oldChannelNumber ?? p.channelNumber,
+            to: p.targetChannelNumber,
+            target: p.targetChannelNumber,
+            state: p.rfStateCode,
+            reason: `Hop started (${formatScore(scorePermille)})`,
+            lossPercent: typeof scorePermille === "number" ? scorePermille / 10 : undefined,
+            scorePermille,
+            rateHz: p.rateHz,
+          });
+          lastRfPacketRef.current = p;
+          continue;
+        }
+
+        if (!hopActive && hopSession) {
+          const durationMs = Math.max(0, p.timestampMs - hopSession.startedAtMs);
+          channelRows.push({
+            id: formatId("hop-end"),
+            timestampMs: p.timestampMs,
+            from: hopSession.from,
+            to: p.channelNumber,
+            target: hopSession.target ?? p.targetChannelNumber,
+            state: p.rfStateCode,
+            reason: `Hop finished (${durationMs}ms)`,
+            lossPercent: typeof p.lossPermille === "number" ? p.lossPermille / 10 : undefined,
+            scorePermille: hopSession.scorePermille,
+            durationMs,
+            rateHz: p.rateHz,
+          });
+          hopSessionRef.current = null;
+          lastRfPacketRef.current = p;
+          continue;
+        }
+
+        if (hopActive) {
           lastRfPacketRef.current = p;
           continue;
         }
@@ -289,6 +417,7 @@ export function useMonitorStream() {
     setLossSeries([]);
     setChannelSwitches([]);
     lastRfPacketRef.current = null;
+    hopSessionRef.current = null;
     if (window.connectMonitorApi?.clear) {
       window.connectMonitorApi.clear().catch(() => {});
     }
