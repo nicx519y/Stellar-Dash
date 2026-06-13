@@ -8,7 +8,7 @@
  * composite device through the XInput-compatible Microsoft VID/PID path.
  */
 #ifndef DONGLE_USB_DEBUG_CDC_ID
-#define DONGLE_USB_DEBUG_CDC_ID        (1u)
+#define DONGLE_USB_DEBUG_CDC_ID        (0u)
 #endif
 
 #if (DONGLE_USB_DEBUG_CDC_ID != 0u)

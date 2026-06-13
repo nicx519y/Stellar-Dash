@@ -129,6 +129,8 @@ static volatile uint8_t g_demo_hid_hop_start_pending = 0u;
 static volatile uint8_t g_demo_hid_hop_finish_pending = 0u;
 static volatile uint16_t g_demo_hid_hop_start_score = 0u;
 static volatile uint16_t g_demo_hid_hop_finish_duration_ms = 0u;
+static volatile uint8_t g_demo_xinput_pending = 0u;
+static uint8_t g_demo_xinput_report[XINPUT_ENDPOINT_SIZE];
 static uint32_t g_demo_hop_start_clock = 0u;
 static uint8_t g_demo_hop_clock_valid = 0u;
 #if (RF_AUTO_DEMO_SEND_ACK_ENABLE != 0u)
@@ -540,6 +542,129 @@ static uint8_t demo_note_data_seq(uint8_t seq)
     return 1u;
 }
 
+static uint8_t demo_input_crc8(const uint8_t *data, uint8_t len)
+{
+    uint8_t crc = 0u;
+    uint8_t i;
+
+    for(i = 0u; i < len; i++)
+    {
+        uint8_t bit;
+
+        crc = (uint8_t)(crc ^ data[i]);
+        for(bit = 0u; bit < 8u; bit++)
+        {
+            if((crc & 0x80u) != 0u)
+            {
+                crc = (uint8_t)((crc << 1) ^ 0x07u);
+            }
+            else
+            {
+                crc = (uint8_t)(crc << 1);
+            }
+        }
+    }
+    return crc;
+}
+
+static uint32_t demo_input_key_mask(const uint8_t *payload)
+{
+    return ((uint32_t)payload[2]) |
+           ((uint32_t)payload[3] << 8) |
+           ((uint32_t)payload[4] << 16) |
+           ((uint32_t)payload[5] << 24);
+}
+
+static void demo_put_i16(uint8_t *dst, int16_t value)
+{
+    dst[0] = (uint8_t)((uint16_t)value & 0xFFu);
+    dst[1] = (uint8_t)(((uint16_t)value >> 8) & 0xFFu);
+}
+
+static void demo_capture_xinput_report(const uint8_t *payload)
+{
+    uint8_t report[XINPUT_ENDPOINT_SIZE];
+    uint8_t version;
+    uint32_t key_mask;
+
+    if(payload == 0)
+    {
+        return;
+    }
+    if(demo_input_crc8(payload, (uint8_t)(RF_INPUT_PAYLOAD_LEN - 1u)) !=
+       payload[RF_INPUT_PAYLOAD_LEN - 1u])
+    {
+        return;
+    }
+
+    version = (uint8_t)((payload[1] & RF_INPUT_FORMAT_VERSION_MASK) >>
+                        RF_INPUT_FORMAT_VERSION_SHIFT);
+    if((version != RF_INPUT_FORMAT_VERSION) ||
+       ((payload[1] & RF_INPUT_FLAG_PROCESSED) == 0u))
+    {
+        return;
+    }
+
+    key_mask = demo_input_key_mask(payload) & RF_INPUT_KEY_MASK_VALID;
+    memset(report, 0, sizeof(report));
+    report[0] = 0x00u;
+    report[1] = XINPUT_ENDPOINT_SIZE;
+    report[2] = (uint8_t)(((key_mask & HBOX_KEY_UP) != 0u) ? XBOX_MASK_UP : 0u) |
+                (uint8_t)(((key_mask & HBOX_KEY_DOWN) != 0u) ? XBOX_MASK_DOWN : 0u) |
+                (uint8_t)(((key_mask & HBOX_KEY_LEFT) != 0u) ? XBOX_MASK_LEFT : 0u) |
+                (uint8_t)(((key_mask & HBOX_KEY_RIGHT) != 0u) ? XBOX_MASK_RIGHT : 0u) |
+                (uint8_t)(((key_mask & HBOX_KEY_S2) != 0u) ? XBOX_MASK_START : 0u) |
+                (uint8_t)(((key_mask & HBOX_KEY_S1) != 0u) ? XBOX_MASK_BACK : 0u) |
+                (uint8_t)(((key_mask & HBOX_KEY_L3) != 0u) ? XBOX_MASK_LS : 0u) |
+                (uint8_t)(((key_mask & HBOX_KEY_R3) != 0u) ? XBOX_MASK_RS : 0u);
+    report[3] = (uint8_t)(((key_mask & HBOX_KEY_L1) != 0u) ? XBOX_MASK_LB : 0u) |
+                (uint8_t)(((key_mask & HBOX_KEY_R1) != 0u) ? XBOX_MASK_RB : 0u) |
+                (uint8_t)(((key_mask & HBOX_KEY_A1) != 0u) ? XBOX_MASK_HOME : 0u) |
+                (uint8_t)(((key_mask & HBOX_KEY_B1) != 0u) ? XBOX_MASK_A : 0u) |
+                (uint8_t)(((key_mask & HBOX_KEY_B2) != 0u) ? XBOX_MASK_B : 0u) |
+                (uint8_t)(((key_mask & HBOX_KEY_B3) != 0u) ? XBOX_MASK_X : 0u) |
+                (uint8_t)(((key_mask & HBOX_KEY_B4) != 0u) ? XBOX_MASK_Y : 0u);
+    report[4] = ((key_mask & HBOX_KEY_L2) != 0u) ? 0xFFu : 0x00u;
+    report[5] = ((key_mask & HBOX_KEY_R2) != 0u) ? 0xFFu : 0x00u;
+    demo_put_i16(&report[6], 0);
+    demo_put_i16(&report[8], 0);
+    demo_put_i16(&report[10], 0);
+    demo_put_i16(&report[12], 0);
+
+    memcpy(g_demo_xinput_report, report, sizeof(report));
+    g_demo_xinput_pending = 1u;
+}
+
+static void demo_service_xinput_report(void)
+{
+    uint8_t report[XINPUT_ENDPOINT_SIZE];
+    uint32_t irq_status;
+
+    if(USBHS_DevEnumStatus == 0u)
+    {
+        return;
+    }
+    if((USBHS_Endp_Busy[DEF_UEP2] & DEF_UEP_BUSY) != 0u)
+    {
+        return;
+    }
+
+    SYS_DisableAllIrq(&irq_status);
+    if(g_demo_xinput_pending == 0u)
+    {
+        SYS_RecoverIrq(irq_status);
+        return;
+    }
+    memcpy(report, g_demo_xinput_report, sizeof(report));
+    g_demo_xinput_pending = 0u;
+    SYS_RecoverIrq(irq_status);
+
+    (void)USBHS_Endp_DataUp(DEF_UEP2,
+                            report,
+                            XINPUT_ENDPOINT_SIZE,
+                            DEF_UEP_CPY_LOAD);
+}
+
 static void demo_prepare_command_ack(uint8_t cmd, uint8_t seq)
 {
     g_demo_pending_ack_cmd = cmd;
@@ -694,6 +819,10 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
             g_demo_last_data_tmr = data_tmr;
         }
         demo_note_data_seq(air[RFH_HDR1_OFFSET]);
+        if((flags & (RFH_FLAG_CMD_PRESENT | RFH_FLAG_CMD_ACK)) == 0u)
+        {
+            demo_capture_xinput_report(&air[RFH_DATA_OFFSET]);
+        }
 
         if((flags & RFH_FLAG_CMD_PRESENT) != 0u)
         {
@@ -799,6 +928,8 @@ void RF_Service(void)
         g_demo_rearm_pending = 0u;
         demo_arm_rx();
     }
+
+    demo_service_xinput_report();
 
     if(g_demo_rx_state == RF_AUTO_RX_PREPARED_DUAL)
     {
