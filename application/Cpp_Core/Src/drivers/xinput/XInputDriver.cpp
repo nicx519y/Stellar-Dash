@@ -110,11 +110,36 @@ static uint16_t xinput_open(uint8_t rhport, tusb_desc_interface_t const *itf_des
 
 static bool xinput_device_control_request(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
 {
-	(void)rhport;
-	(void)stage;
-	(void)request;
+	static uint8_t alternate = 0;
+	static uint16_t status = 0;
 
-	return true;
+	if (stage != CONTROL_STAGE_SETUP)
+	{
+		return true;
+	}
+
+	if (request->bmRequestType_bit.type != TUSB_REQ_TYPE_STANDARD)
+	{
+		return false;
+	}
+
+	switch (request->bRequest)
+	{
+	case TUSB_REQ_GET_INTERFACE:
+		alternate = 0;
+		return tud_control_xfer(rhport, request, &alternate, sizeof(alternate));
+
+	case TUSB_REQ_SET_INTERFACE:
+		alternate = (uint8_t)request->wValue;
+		return tud_control_status(rhport, request);
+
+	case TUSB_REQ_GET_STATUS:
+		status = 0;
+		return tud_control_xfer(rhport, request, &status, sizeof(status));
+
+	default:
+		return false;
+	}
 }
 
 static bool xinput_control_complete(uint8_t rhport, tusb_control_request_t const *request)

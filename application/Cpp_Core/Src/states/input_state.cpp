@@ -206,11 +206,7 @@ void InputState::loop()
     }
 
 #if HAS_LED == 1
-    if (!(RF24G_SPI_BRINGUP_FASTPATH &&
-          CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_RF24G))
-    {
-        LEDS_MANAGER.loop(virtualPinMask);
-    }
+    LEDS_MANAGER.loop(virtualPinMask);
 #endif
 
 #if APPLICATION_DEBUG_PRINT == 1
