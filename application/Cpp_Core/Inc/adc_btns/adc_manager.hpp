@@ -145,7 +145,7 @@ class ADCManager {
         void setADCMode(ADC_SamplingMode mode);
         ADC_SamplingMode getADCMode() const;
 
-        // 启动连续采样 (用于校准/WebConfig模式)
+        // 启动连续采样 (用于 INPUT/校准/WebConfig 模式)
         ADCBtnsError startADCSamping(bool enableSamplingRate = false, 
                                    uint8_t virtualPin = 0, 
                                    uint32_t samplingCountMax = 0);
@@ -181,7 +181,14 @@ class ADCManager {
         inline const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& readADCValues() const
         {
             for(uint8_t i = 0; i < NUM_ADC; i++) {
-                SCB_CleanInvalidateDCache_by_Addr(adcBufferInfo[i].buffer, adcBufferInfo[i].size);
+                uintptr_t start = reinterpret_cast<uintptr_t>(adcBufferInfo[i].buffer) & ~static_cast<uintptr_t>(31u);
+                uintptr_t end = (reinterpret_cast<uintptr_t>(adcBufferInfo[i].buffer) + adcBufferInfo[i].size + 31u) & ~static_cast<uintptr_t>(31u);
+                SCB_InvalidateDCache_by_Addr(reinterpret_cast<uint32_t*>(start), static_cast<int32_t>(end - start));
+
+                for (uint8_t j = 0; j < adcBufferInfo[i].count; j++) {
+                    const uint8_t virtualPin = adcBufferInfo[i].indexMap[j];
+                    ADC_Values_Result[virtualPin] = adcBufferInfo[i].buffer[j] >> ADC_VALUE_PUBLIC_RIGHT_SHIFT;
+                }
             }
 
             return ADCBufferInfoList;
@@ -207,9 +214,9 @@ class ADCManager {
         ~ADCManager();
 
         // ADC DMA 缓冲区必须保持静态
-        static __attribute__((section("._RAM_D1_Area"))) uint32_t ADC1_Values[NUM_ADC1_BUTTONS];
-        static __attribute__((section("._RAM_D1_Area"))) uint32_t ADC2_Values[NUM_ADC2_BUTTONS];
-        static __attribute__((section("._RAM_D3_Area"))) uint32_t ADC3_Values[NUM_ADC3_BUTTONS];
+        static __attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADC1_Values[NUM_ADC1_BUTTONS];
+        static __attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADC2_Values[NUM_ADC2_BUTTONS];
+        static __attribute__((section(".BDMA_Section"), aligned(32))) uint32_t ADC3_Values[NUM_ADC3_BUTTONS];
         static uint32_t ADC_Values_Result[NUM_ADC_BUTTONS];
 
         MessageHandler messageHandler;

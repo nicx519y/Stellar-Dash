@@ -10,6 +10,20 @@
 #include "latency_monitor.hpp"
 #include "delay_timer.h"
 
+namespace {
+static bool isCircularAdcMode(ADC_SamplingMode mode)
+{
+    return mode == ADC_MODE_INPUT_CONTINUOUS || mode == ADC_MODE_CONTINUOUS;
+}
+
+static void invalidateDmaBuffer(const ADCBufferInfo& info)
+{
+    uintptr_t start = reinterpret_cast<uintptr_t>(info.buffer) & ~static_cast<uintptr_t>(31u);
+    uintptr_t end = (reinterpret_cast<uintptr_t>(info.buffer) + info.size + 31u) & ~static_cast<uintptr_t>(31u);
+    SCB_InvalidateDCache_by_Addr(reinterpret_cast<uint32_t*>(start), static_cast<int32_t>(end - start));
+}
+}
+
 // 内存图
 /*
  * QSPI Flash 内存布局 (从 ADC_VALUES_MAPPING_ADDR 开始):
@@ -30,10 +44,10 @@
  */
 
 // 定义静态 ADC DMA 缓冲区
-__attribute__((section(".DMA_Section"))) uint32_t ADCManager::ADC1_Values[NUM_ADC1_BUTTONS];
-__attribute__((section(".DMA_Section"))) uint32_t ADCManager::ADC2_Values[NUM_ADC2_BUTTONS];
+__attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADCManager::ADC1_Values[NUM_ADC1_BUTTONS];
+__attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADCManager::ADC2_Values[NUM_ADC2_BUTTONS];
 // ADC3 BDMA 只能访问 _RAM_D3_Area 区域
-__attribute__((section(".BDMA_Section"))) uint32_t ADCManager::ADC3_Values[NUM_ADC3_BUTTONS];
+__attribute__((section(".BDMA_Section"), aligned(32))) uint32_t ADCManager::ADC3_Values[NUM_ADC3_BUTTONS];
 
 uint32_t ADCManager::ADC_Values_Result[NUM_ADC_BUTTONS];
 
@@ -177,20 +191,22 @@ ADCManager::ADCManager()
 
     for (uint8_t i = 0; i < NUM_ADC1_BUTTONS; i++)
     {
-        this->ADCBufferInfoList[i].valuePtr = &this->adcBufferInfo[0].buffer[i];
+        this->ADCBufferInfoList[i].valuePtr = &ADC_Values_Result[ADC1_BUTTONS_MAPPING[i]];
         this->ADCBufferInfoList[i].virtualPin = ADC1_BUTTONS_MAPPING[i];
     }
 
     for (uint8_t j = NUM_ADC1_BUTTONS; j < NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS; j++)
     {
-        this->ADCBufferInfoList[j].valuePtr = &this->adcBufferInfo[1].buffer[j - NUM_ADC1_BUTTONS];
-        this->ADCBufferInfoList[j].virtualPin = ADC2_BUTTONS_MAPPING[j - NUM_ADC1_BUTTONS];
+        const uint8_t index = j - NUM_ADC1_BUTTONS;
+        this->ADCBufferInfoList[j].valuePtr = &ADC_Values_Result[ADC2_BUTTONS_MAPPING[index]];
+        this->ADCBufferInfoList[j].virtualPin = ADC2_BUTTONS_MAPPING[index];
     }
 
     for (uint8_t k = NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS; k < NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS + NUM_ADC3_BUTTONS; k++)
     {
-        this->ADCBufferInfoList[k].valuePtr = &this->adcBufferInfo[2].buffer[k - NUM_ADC1_BUTTONS - NUM_ADC2_BUTTONS];
-        this->ADCBufferInfoList[k].virtualPin = ADC3_BUTTONS_MAPPING[k - NUM_ADC1_BUTTONS - NUM_ADC2_BUTTONS];
+        const uint8_t index = k - NUM_ADC1_BUTTONS - NUM_ADC2_BUTTONS;
+        this->ADCBufferInfoList[k].valuePtr = &ADC_Values_Result[ADC3_BUTTONS_MAPPING[index]];
+        this->ADCBufferInfoList[k].virtualPin = ADC3_BUTTONS_MAPPING[index];
     }
 
     // 使用 std::sort 按 virtualPin 排序
@@ -582,7 +598,7 @@ ADCBtnsError ADCManager::markMapping(const char *const id,
                                      const uint16_t samplingNoise,
                                      const uint16_t samplingFrequency)
 {
-    if (!id || !values || samplingNoise == 0 || samplingFrequency == 0)
+    if (!id || !values || samplingFrequency == 0)
         return ADCBtnsError::INVALID_PARAMS;
 
     int idx = findMappingById(id);
@@ -637,11 +653,8 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
                                          uint8_t virtualPin,
                                          uint32_t samplingCountMax)
 {
-    // 如果在低延迟模式下调用，可能不支持此功能，或者需要停止当前的SOF触发机制
-    // 这里假设此函数主要用于校准/WebConfig模式
-
-    // 如果不在校准模式，执行旧的初始化逻辑 (停止->校准->启动)
-    if (this->adcMode != ADC_MODE_CONTINUOUS)
+    // 如果不在循环 DMA 模式，执行旧的 one-shot 初始化逻辑。
+    if (!isCircularAdcMode(this->adcMode))
     {
         // 停止所有 ADC
         this->stopADCSamping();
@@ -674,6 +687,10 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
         }
     }
     // 如果在校准模式，ADC已经在运行连续采样，不需要停止或重新校准
+    else if (!dmaSamplingActive)
+    {
+        startContinuousSampling();
+    }
 
     // 如果启用采样率统计，则注册回调
     if (enableSamplingRate)
@@ -722,8 +739,9 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
 
 void ADCManager::stopADCSamping()
 {
-    // 如果是校准模式，不要停止DMA，只停止统计
-    if (this->adcMode != ADC_MODE_CONTINUOUS)
+    // 循环 DMA 模式下，stopADCSamping 只停止统计订阅，避免 WebConfig/Calibration
+    // 标记采样完成后把后台连续采样停掉。
+    if (!isCircularAdcMode(this->adcMode))
     {
         if (HAL_ADC_Stop_DMA(&hadc1) != HAL_OK)
         {
@@ -747,7 +765,11 @@ void ADCManager::stopADCSamping()
         messageHandler = nullptr;
     }
 
-    dmaSamplingActive = false;
+    samplingRateEnabled = false;
+    if (!isCircularAdcMode(this->adcMode))
+    {
+        dmaSamplingActive = false;
+    }
 }
 
 /**
@@ -769,9 +791,9 @@ void ADCManager::handleADCStats(ADC_HandleTypeDef *hadc)
 
     // 处理数据...
     const auto &info = adcBufferInfo[adcIndex];
-    SCB_CleanInvalidateDCache_by_Addr(info.buffer, info.size);
+    invalidateDmaBuffer(info);
 
-    uint32_t value = info.buffer[this->samplingADCInfo.indexInDMA];
+    uint32_t value = info.buffer[this->samplingADCInfo.indexInDMA] >> ADC_VALUE_PUBLIC_RIGHT_SHIFT;
 
     if (value == 0)
         return;
@@ -862,13 +884,14 @@ ADC_SamplingMode ADCManager::getADCMode() const
 
 void ADCManager::startContinuousSampling()
 {
-    if (this->adcMode != ADC_MODE_CONTINUOUS)
+    if (!isCircularAdcMode(this->adcMode))
         return;
 
-    // Stop any ongoing
-    stopADCSamping();
+    HAL_ADC_Stop_DMA(&hadc1);
+    HAL_ADC_Stop_DMA(&hadc2);
+    HAL_ADC_Stop_DMA(&hadc3);
 
-    // In calibration/webconfig mode, we start once and it runs continuously via circular DMA
+    completionMask = 0x07;
     dmaSamplingActive = true;
     HAL_ADC_Start_DMA(&hadc1, (uint32_t *)&ADC1_Values[0], NUM_ADC1_BUTTONS);
     HAL_ADC_Start_DMA(&hadc2, (uint32_t *)&ADC2_Values[0], NUM_ADC2_BUTTONS);
@@ -925,6 +948,9 @@ void ADCManager::startSamplingNow()
 
 bool ADCManager::isSamplingDone()
 {
+    if (isCircularAdcMode(this->adcMode))
+        return dmaSamplingActive;
+
     bool done = (completionMask & 0x07) == 0x07;
 #if APPLICATION_DEBUG_PRINT == 1
     if (done)
@@ -937,12 +963,15 @@ bool ADCManager::isSamplingDone()
 
 void ADCManager::clearSamplingDone()
 {
+    if (isCircularAdcMode(this->adcMode))
+        return;
+
     completionMask = 0;
 }
 
 void ADCManager::notifyConversionComplete(ADC_HandleTypeDef *hadc)
 {
-    if (this->adcMode != ADC_MODE_LOW_LATENCY && !samplingRateEnabled)
+    if (!isCircularAdcMode(this->adcMode) && this->adcMode != ADC_MODE_LOW_LATENCY && !samplingRateEnabled)
         return;
 
     if (!dmaSamplingActive)

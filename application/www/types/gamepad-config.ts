@@ -623,7 +623,7 @@ export const UI_TEXT = {
     // Settings Labels
     SETTINGS_SOCD_LABEL: "SOCD Mode",
     SETTINGS_PLATFORM_LABEL: "Platform",
-    SETTINGS_LEDS_ENABLE_LABEL: "Enable LEDs",
+    SETTINGS_LEDS_ENABLE_LABEL: "Enable Button LEDs",
     SETTINGS_LEDS_EFFECT_LABEL: "LED Effect Style",
     SETTINGS_LEDS_BRIGHTNESS_LABEL: "LED Brightness",
     SETTINGS_LEDS_ANIMATION_SPEED_LABEL: "LED Animation Speed",
@@ -691,6 +691,8 @@ export const UI_TEXT = {
     VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "Profile name cannot contain special characters",
     
     // Input Mode Settings
+    CONNECTION_MODE_TITLE: "Connection Mode",
+    CONNECTION_MODE_REPORT_RATE_LABEL: "Report Rate",
     INPUT_MODE_TITLE: "Input Mode",
 
     // Keys Settings
@@ -1025,7 +1027,7 @@ export const UI_TEXT_ZH = {
     // 设置标签
     SETTINGS_SOCD_LABEL: "SOCD模式",
     SETTINGS_PLATFORM_LABEL: "平台",
-    SETTINGS_LEDS_ENABLE_LABEL: "启用LED",
+    SETTINGS_LEDS_ENABLE_LABEL: "启用按键灯",
     SETTINGS_LEDS_EFFECT_LABEL: "LED效果样式",
     SETTINGS_LEDS_BRIGHTNESS_LABEL: "LED亮度",
     SETTINGS_LEDS_ANIMATION_SPEED_LABEL: "LED灯效动画速度",
@@ -1093,6 +1095,8 @@ export const UI_TEXT_ZH = {
     VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "配置名称不能包含特殊字符",
     
     // 输入模式
+    CONNECTION_MODE_TITLE: "连接模式",
+    CONNECTION_MODE_REPORT_RATE_LABEL: "上报率",
     INPUT_MODE_TITLE: "输入模式",
 
     // 按键设置

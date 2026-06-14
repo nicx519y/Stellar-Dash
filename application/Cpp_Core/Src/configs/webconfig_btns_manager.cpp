@@ -64,7 +64,8 @@ void WebConfigBtnsManager::startButtonWorkers() {
         setupButtonWorkers(); // 设置专用配置，并且开始ADC采样
         
         // 在WebConfig模式下，必须显式启动连续采样，因为setupButtonWorkers可能会根据模式判断而不启动
-        if (ADCManager::getInstance().getADCMode() == ADC_MODE_CONTINUOUS) {
+        if (ADCManager::getInstance().getADCMode() == ADC_MODE_INPUT_CONTINUOUS ||
+            ADCManager::getInstance().getADCMode() == ADC_MODE_CONTINUOUS) {
             ADCManager::getInstance().startContinuousSampling();
         }
         

@@ -1348,7 +1348,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setIsLoading(true);
             const data = await sendWebSocketRequest('ms_mark_mapping_step', {}, immediate);
             if (data.status) {
-                setMarkingStatus(data.status);
+                const status = data.status as StepInfo;
+                setMarkingStatus(status);
+                if (status.is_completed && status.id) {
+                    await fetchActiveMapping(status.id, immediate);
+                }
             }
             setError(null);
             return Promise.resolve();

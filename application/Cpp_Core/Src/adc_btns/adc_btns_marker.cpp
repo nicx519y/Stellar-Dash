@@ -102,8 +102,7 @@ ADCBtnsError ADCBtnsMarker::step() {
     APP_DBG("ADCBtnsMarker: step - index: %d, length: %d", step_info.index, step_info.length);
 
     if(step_info.index >= step_info.length - 1) {
-        markingFinish();
-        return ADCBtnsError::SUCCESS;
+        return markingFinish();
     }
 
     step_info.is_sampling = true;
@@ -138,12 +137,7 @@ void ADCBtnsMarker::stepFinish(const ADCChannelStats* const stats) {
  * 将标记值保存到映射中，并重置标记器
  */
 
-void ADCBtnsMarker::markingFinish() {
-
-    step_info.is_completed = true;
-    step_info.is_sampling = false;
-    step_info.is_marking = false;
-
+ADCBtnsError ADCBtnsMarker::markingFinish() {
     ADCBtnsError err = ADC_MANAGER.markMapping(step_info.id, 
         step_info.values.data(), 
         std::accumulate(step_info.noise_values.begin(), step_info.noise_values.end(), (uint32_t)0) / step_info.length, 
@@ -152,12 +146,18 @@ void ADCBtnsMarker::markingFinish() {
 
     if(err != ADCBtnsError::SUCCESS) {
         APP_ERR("ADCBtnsMarker: markingFinish - mark save failed. err: %d", static_cast<int>(err));
-        return;
+        return err;
     }
+
+    step_info.is_completed = true;
+    step_info.is_sampling = false;
+    step_info.is_marking = false;
 
     // 发送标记状态变化通知
     MSMarkCommandHandler& handler = getMarkingCommandHandler();
     handler.sendMarkingStatusNotification();
+
+    return ADCBtnsError::SUCCESS;
 }
 
 /**
@@ -174,8 +174,15 @@ cJSON* ADCBtnsMarker::getStepInfoJSON() const {
     cJSON_AddBoolToObject(json, "is_marking", step_info.is_marking);
     cJSON_AddBoolToObject(json, "is_completed", step_info.is_completed);
     cJSON_AddBoolToObject(json, "is_sampling", step_info.is_sampling);
-    cJSON_AddNumberToObject(json, "sampling_noise", std::accumulate(step_info.noise_values.begin(), step_info.noise_values.end(), (uint32_t)0) / (step_info.index + 1));
-    cJSON_AddNumberToObject(json, "sampling_frequency", std::accumulate(step_info.frequency_values.begin(), step_info.frequency_values.end(), (uint32_t)0) / (step_info.index + 1));
+    uint32_t completedSteps = step_info.index >= 0 ? static_cast<uint32_t>(step_info.index) + 1u : 0u;
+    uint32_t samplingNoise = 0;
+    uint32_t samplingFrequency = 0;
+    if (completedSteps > 0) {
+        samplingNoise = std::accumulate(step_info.noise_values.begin(), step_info.noise_values.end(), (uint32_t)0) / completedSteps;
+        samplingFrequency = std::accumulate(step_info.frequency_values.begin(), step_info.frequency_values.end(), (uint32_t)0) / completedSteps;
+    }
+    cJSON_AddNumberToObject(json, "sampling_noise", samplingNoise);
+    cJSON_AddNumberToObject(json, "sampling_frequency", samplingFrequency);
 
 
     cJSON* valuesJSON = cJSON_CreateArray();

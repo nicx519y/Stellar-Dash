@@ -346,7 +346,11 @@ interface SideContentProps {
 }
 
 export function SideContent({ children }: SideContentProps) {
-    return <>{children}</>;
+    return (
+        <Flex direction="column" gap={3} alignItems="stretch">
+            {children}
+        </Flex>
+    );
 }
 
 // 中间hitbox内容组件
@@ -422,4 +426,4 @@ export function BottomButtons({ config }: BottomButtonsProps) {
             </Card.Root>
         </Box>
     );
-} 
+}

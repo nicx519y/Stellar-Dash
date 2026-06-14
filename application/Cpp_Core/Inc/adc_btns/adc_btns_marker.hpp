@@ -50,7 +50,7 @@ class ADCBtnsMarker {
         StepInfo step_info;
 
         void stepFinish(const ADCChannelStats* const stats);
-        void markingFinish();
+        ADCBtnsError markingFinish();
         std::function<void(const void*)> messageHandler;
 };
 

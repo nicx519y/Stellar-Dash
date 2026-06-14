@@ -96,10 +96,18 @@ export function LEDsSettingContent() {
         return defaultProfile.ledsConfigs?.hasAroundLed ?? false;
     }, [defaultProfile.ledsConfigs?.hasAroundLed]);
 
+    const buttonAndAmbientLedEnabled = useMemo<boolean>(() => {
+        return hasAroundLed && ledEnabled && aroundLedEnabled;
+    }, [hasAroundLed, ledEnabled, aroundLedEnabled]);
+
+    const aroundLedSyncIsActive = useMemo<boolean>(() => {
+        return buttonAndAmbientLedEnabled && aroundLedSyncToMainLed;
+    }, [buttonAndAmbientLedEnabled, aroundLedSyncToMainLed]);
+
     const aroundLedConfigIsEnabled = useMemo<boolean>(() => {
-        // 如果同步主灯，则氛围灯配置无效
-        return hasAroundLed && aroundLedEnabled && ledEnabled && !aroundLedSyncToMainLed;
-    }, [hasAroundLed, aroundLedEnabled, ledEnabled, aroundLedSyncToMainLed]);
+        // 如果氛围灯正在同步按键灯，则独立配置无效
+        return hasAroundLed && aroundLedEnabled && !aroundLedSyncIsActive;
+    }, [hasAroundLed, aroundLedEnabled, aroundLedSyncIsActive]);
 
     const disabledKeys = useMemo<number[]>(() => {
         return defaultProfile.keysConfig?.keysEnableTag?.map((_, index) => index).filter((_, index) => !defaultProfile.keysConfig?.keysEnableTag?.[index]) ?? [];
@@ -653,7 +661,6 @@ export function LEDsSettingContent() {
                                         <Grid templateColumns="repeat(3, 1fr)" gap={10} w="100%">
                                             {/* 是否开启氛围灯 */}
                                             <Switch.Root colorPalette={"green"}
-                                                disabled={!ledEnabled}
                                                 checked={aroundLedEnabled}
                                                 onCheckedChange={() => {
                                                     setAroundLedEnabled(!aroundLedEnabled);
@@ -669,7 +676,7 @@ export function LEDsSettingContent() {
                                             </Switch.Root>
                                             {/* 氛围灯是否同步主灯 */}
                                             <Switch.Root colorPalette={"green"}
-                                                disabled={!ledEnabled || !aroundLedEnabled}
+                                                disabled={!buttonAndAmbientLedEnabled}
                                                 checked={aroundLedSyncToMainLed}
                                                 onCheckedChange={() => {
                                                     setAroundLedSyncToMainLed(!aroundLedSyncToMainLed);
@@ -685,7 +692,7 @@ export function LEDsSettingContent() {
                                             </Switch.Root>
                                             {/* 氛围灯是否触发按钮 */}
                                             <Switch.Root colorPalette={"green"}
-                                                disabled={!aroundLedConfigIsEnabled}
+                                                disabled={!buttonAndAmbientLedEnabled}
                                                 checked={aroundLedTriggerByButton}
                                                 onCheckedChange={() => {
                                                     setAroundLedTriggerByButton(!aroundLedTriggerByButton);

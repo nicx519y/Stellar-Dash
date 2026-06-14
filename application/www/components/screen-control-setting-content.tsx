@@ -974,6 +974,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                         {orderedFeatureItems.map((item) => (
                             <Table.Row
                                 key={item.key}
+                                height="40px"
                                 draggable={!disabled}
                                 bg={item.key === firstFeatureKey ? "bg.success" : undefined}
                                 borderTopWidth={dropIndicator?.key === item.key && dropIndicator.position === 'before' ? "2px" : undefined}
@@ -1036,7 +1037,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                                     setDropIndicator(null);
                                 }}
                             >
-                                <Table.Cell py={3}>
+                                <Table.Cell py={1} fontSize="11px">
                                     <HStack gap={2}>
                                         <Box color="gray.500" cursor={disabled ? "default" : "grab"}>
                                             <LuGripVertical />
@@ -1044,16 +1045,16 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                                         <Text>{item.label}</Text>
                                     </HStack>
                                 </Table.Cell>
-                                <Table.Cell py={3}>
+                                <Table.Cell py={1} fontSize="11px">
                                     <HStack gap={2}>
                                         <RadioGroup.Item value={item.key} >
                                             <RadioGroup.ItemHiddenInput />
                                             <RadioGroup.ItemIndicator />
-                                            {firstFeatureKey === item.key && <RadioGroup.ItemText fontSize="xs" color="gray.400" >{t.SETTINGS_SCREEN_CONTROL_FIRST_SCREEN_LABEL}</RadioGroup.ItemText>}
+                                            {firstFeatureKey === item.key && <RadioGroup.ItemText fontSize="11px" color="gray.400" >{t.SETTINGS_SCREEN_CONTROL_FIRST_SCREEN_LABEL}</RadioGroup.ItemText>}
                                         </RadioGroup.Item>
                                     </HStack>
                                 </Table.Cell>
-                                <Table.Cell py={3} textAlign="end">
+                                <Table.Cell py={1} fontSize="11px" textAlign="end">
                                     <Switch
                                         checked={features[item.key]}
                                         disabled={disabled}

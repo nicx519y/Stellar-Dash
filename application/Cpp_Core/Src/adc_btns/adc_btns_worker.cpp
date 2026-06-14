@@ -193,10 +193,11 @@ ADCBtnsError ADCBtnsWorker::setup()
     }
 
     // 根据当前模式启动采样
-    if (ADC_MANAGER.getADCMode() == ADC_MODE_CONTINUOUS) {
+    if (ADC_MANAGER.getADCMode() == ADC_MODE_INPUT_CONTINUOUS ||
+        ADC_MANAGER.getADCMode() == ADC_MODE_CONTINUOUS) {
         ADC_MANAGER.startContinuousSampling();
     } else {
-        // 低延迟模式不需要手动start，由SOF触发
+        // Legacy one-shot mode is triggered externally.
     }
 
     return ADCBtnsError::SUCCESS;

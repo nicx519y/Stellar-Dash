@@ -28,8 +28,8 @@ void MainStateMachine::setup()
             LOG_INFO("MAIN_STATE_MACHINE", "Entering WEB_CONFIG_STATE");
             break;
         case BootMode::BOOT_MODE_INPUT:
-            // 切换到低延迟模式 (SOF触发)
-            ADCManager::getInstance().setADCMode(ADC_MODE_LOW_LATENCY);
+            // INPUT uses continuous circular DMA; report ticks read the latest DMA data.
+            ADCManager::getInstance().setADCMode(ADC_MODE_INPUT_CONTINUOUS);
             
             state = &INPUT_STATE;
             LOG_INFO("MAIN_STATE_MACHINE", "Entering INPUT_STATE");

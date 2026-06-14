@@ -237,7 +237,8 @@ bool PowerManager::canUseAdcNow() const
     {
         return false;
     }
-    if (ADCManager::getInstance().getADCMode() == ADC_MODE_CONTINUOUS)
+    if (ADCManager::getInstance().getADCMode() == ADC_MODE_INPUT_CONTINUOUS ||
+        ADCManager::getInstance().getADCMode() == ADC_MODE_CONTINUOUS)
     {
         return false;
     }

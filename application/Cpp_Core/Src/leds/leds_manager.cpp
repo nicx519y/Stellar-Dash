@@ -60,21 +60,30 @@ void LEDsManager::setup()
     WS2812B_SetAllLEDBrightness(0);
     WS2812B_SetAllLEDColor(0, 0, 0);
 
-    if(!opts->ledEnabled) {
+    const bool aroundLedActive = g_has_led_around && opts->aroundLedEnabled;
+
+    if(!opts->ledEnabled && !aroundLedActive) {
         WS2812B_Stop();
     } else {
         WS2812B_Start();
-        // 设置初始亮度
-        setLedsBrightness(opts->ledBrightness);
-        // 更新颜色配置
+
         updateColorsFromConfig();
 
         // 初始化动画
         animationStartTime = HAL_GetTick();
 
-        // 对于静态效果，直接设置颜色
-        if (opts->ledEffect == LEDEffect::STATIC) {
-            WS2812B_SetAllLEDColor(backgroundColor1.r, backgroundColor1.g, backgroundColor1.b);
+        if (opts->ledEnabled) {
+            // 设置初始亮度
+            setLedsBrightness(opts->ledBrightness);
+
+            // 对于静态效果，直接设置按键灯颜色
+            if (opts->ledEffect == LEDEffect::STATIC) {
+                for (uint8_t i = 0; i < (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
+                    WS2812B_SetLEDColor(backgroundColor1.r, backgroundColor1.g, backgroundColor1.b, i);
+                }
+            }
+        } else {
+            setLedsBrightness(0);
         }
 
         if (g_has_led_around) {
@@ -128,7 +137,10 @@ void LEDsManager::refreshDefaultProfile()
  */
 void LEDsManager::loop(uint32_t virtualPinMask)
 {
-    if(!opts->ledEnabled) {
+    const bool aroundLedActive = g_has_led_around && opts->aroundLedEnabled;
+    const bool aroundLedSyncActive = aroundLedActive && opts->ledEnabled && opts->aroundLedSyncToMainLed;
+
+    if(!opts->ledEnabled && !aroundLedActive) {
         return;
     }
 
@@ -177,7 +189,7 @@ void LEDsManager::loop(uint32_t virtualPinMask)
     
     if (g_has_led_around) {
         // 设置环绕灯同步模式参数
-        params.global.aroundLedSyncMode = opts->aroundLedEnabled && opts->aroundLedSyncToMainLed;
+        params.global.aroundLedSyncMode = aroundLedSyncActive;
         
         // 环绕灯处理
         if (!opts->aroundLedEnabled) {
@@ -186,7 +198,7 @@ void LEDsManager::loop(uint32_t virtualPinMask)
                 WS2812B_SetLEDColor(0, 0, 0, i);
             }
             setAmbientLightBrightness(0);
-        } else if (opts->aroundLedSyncToMainLed) {
+        } else if (aroundLedSyncActive) {
             // 模式2：环绕灯同步到主LED - 使用主LED配置和动画
             
             // 在同步模式下，动画算法需要处理所有LED（主LED + 环绕LED）
@@ -205,13 +217,15 @@ void LEDsManager::loop(uint32_t virtualPinMask)
         }
     }
     
-    // 为每个主LED（按钮LED）计算颜色并设置
-    for (uint8_t i = 0; i < (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
-        params.index = i;
-        params.pressed = (virtualPinMask & (1 << i)) != 0;
-        
-        RGBColor color = algorithm(params);
-        WS2812B_SetLEDColor(color.r, color.g, color.b, i);
+    if (opts->ledEnabled) {
+        // 为每个主LED（按钮LED）计算颜色并设置
+        for (uint8_t i = 0; i < (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
+            params.index = i;
+            params.pressed = (virtualPinMask & (1 << i)) != 0;
+            
+            RGBColor color = algorithm(params);
+            WS2812B_SetLEDColor(color.r, color.g, color.b, i);
+        }
     }
 }
 
@@ -241,7 +255,7 @@ void LEDsManager::processButtonPress(uint32_t virtualPinMask)
     
     if (g_has_led_around) {
         // 检测按键按下用于环绕灯动画触发
-        if (newPressed != 0 && opts->aroundLedEnabled && !opts->aroundLedSyncToMainLed && 
+        if (newPressed != 0 && opts->aroundLedEnabled && !(opts->aroundLedSyncToMainLed && opts->ledEnabled) && 
             opts->aroundLedTriggerByButton) {
             // 任何按键按下时重置环绕灯动画
             uint32_t currentTime = HAL_GetTick();

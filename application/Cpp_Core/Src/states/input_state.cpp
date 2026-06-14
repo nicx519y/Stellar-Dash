@@ -65,6 +65,10 @@ void InputState::setup()
         return;
     }
 
+    int rate = static_cast<int>(STORAGE_MANAGER.getWirelessReportRate());
+    APP_DBG("[INPUT] Initializing connection manager, rate: %d", static_cast<int>(rate));
+    CONNECTION_MANAGER.setup(connectionMode, WirelessReportRate(rate));
+
     if (connectionMode == ConnectionMode::CONNECTION_MODE_USB)
     {
         APP_DBG("[INPUT] Initializing USB driver manager");
@@ -97,11 +101,9 @@ void InputState::setup()
     {
         inputDriver = nullptr;
         APP_DBG("[INPUT] Running in RF24G mode, USB stack disabled");
-        int rate = static_cast<int>(STORAGE_MANAGER.getWirelessReportRate());
-        APP_DBG("[INPUT] Initializing connection manager, rate: %d", static_cast<int>(rate));
-        CONNECTION_MANAGER.setup(connectionMode, WirelessReportRate(rate));
-        REPORT_SCHEDULER.start(CONNECTION_MANAGER.getAppliedReportRateHz());
     }
+
+    REPORT_SCHEDULER.start(CONNECTION_MANAGER.getAppliedReportRateHz());
 
     STORAGE_MANAGER.registerDefaultProfileChangedCallback(on_default_profile_changed_input_workers);
 
@@ -118,10 +120,6 @@ void InputState::setup()
     ADC_BTNS_WORKER.setup();
     GPIO_BTNS_WORKER.setup();
     GAMEPAD.setup();
-    
-    
-    ADCManager::getInstance().triggerSampling();
-
 #if HAS_LED == 1
     APP_DBG("Initializing LED manager");
     LEDS_MANAGER.setup();
@@ -157,22 +155,6 @@ void InputState::loop()
 
     while (REPORT_SCHEDULER.consumeTick())
     {
-        if (!ADCManager::getInstance().isDmaSamplingActive())
-        {
-            ADCManager::getInstance().triggerSampling();
-        }
-
-        if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_RF24G)
-        {
-            const uint32_t reportSeq = MonitorTelemetry_NextSequence();
-            MonitorTelemetry_OnReportReady(reportSeq);
-            CONNECTION_MANAGER.onReportReady(GAMEPAD.state, reportSeq);
-        }
-    }
-
-    // 检查采样是否完成 (由SOF触发)
-    if (ADCManager::getInstance().isSamplingDone())
-    {
         virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
 
         // 只有在没有按下FN键时才处理游戏手柄数据
@@ -180,11 +162,11 @@ void InputState::loop()
         {
             GAMEPAD.read(virtualPinMask);
 
+            const uint32_t reportSeq = MonitorTelemetry_NextSequence();
+            MonitorTelemetry_OnReportReady(reportSeq);
+
             if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB)
             {
-                const uint32_t reportSeq = MonitorTelemetry_NextSequence();
-                MonitorTelemetry_OnReportReady(reportSeq);
-
 #if APPLICATION_DEBUG_PRINT == 1
                 LATENCY_MONITOR.processingCompleted();
 #endif
@@ -194,6 +176,10 @@ void InputState::loop()
                     MonitorTelemetry_SetPendingUsbSeq(reportSeq);
                     inputDriver->process(&GAMEPAD);
                 }
+            }
+            else
+            {
+                CONNECTION_MANAGER.onReportReady(GAMEPAD.state, reportSeq);
             }
         }
         else
@@ -207,9 +193,6 @@ void InputState::loop()
         }
 
         lastVirtualPinMask = virtualPinMask;
-
-        // 清除标志，等待下一次定时触发
-        ADCManager::getInstance().clearSamplingDone();
     }
 
     if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB)

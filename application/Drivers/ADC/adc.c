@@ -70,6 +70,12 @@ DMA_HandleTypeDef hdma_adc3;
 
 static ADC_SamplingMode current_adc_mode = ADC_MODE_LOW_LATENCY;
 
+static uint8_t is_circular_dma_mode(void)
+{
+    return current_adc_mode == ADC_MODE_INPUT_CONTINUOUS ||
+           current_adc_mode == ADC_MODE_CONTINUOUS;
+}
+
 static void configure_adc_common(ADC_HandleTypeDef* hadc, uint32_t nbrOfConversion)
 {
     hadc->Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
@@ -78,7 +84,12 @@ static void configure_adc_common(ADC_HandleTypeDef* hadc, uint32_t nbrOfConversi
     hadc->Init.EOCSelection = ADC_EOC_SEQ_CONV;
     hadc->Init.LowPowerAutoWait = DISABLE;
 
-    if (current_adc_mode == ADC_MODE_CONTINUOUS) {
+    if (current_adc_mode == ADC_MODE_INPUT_CONTINUOUS) {
+        hadc->Init.ContinuousConvMode = ENABLE;
+        hadc->Init.ConversionDataManagement = ADC_CONVERSIONDATA_DMA_CIRCULAR;
+        hadc->Init.Oversampling.Ratio = BOARD_ADC_INPUT_OVERSAMPLE_RATIO;
+        hadc->Init.Oversampling.RightBitShift = BOARD_ADC_INPUT_RIGHT_SHIFT;
+    } else if (current_adc_mode == ADC_MODE_CONTINUOUS) {
         hadc->Init.ContinuousConvMode = ENABLE;
         hadc->Init.ConversionDataManagement = ADC_CONVERSIONDATA_DMA_CIRCULAR;
         hadc->Init.Oversampling.Ratio = BOARD_ADC_CONTINUOUS_OVERSAMPLE_RATIO;
@@ -112,7 +123,7 @@ static void configure_dma_common(DMA_HandleTypeDef* hdma, uint32_t request)
     hdma->Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
     hdma->Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
     
-    if (current_adc_mode == ADC_MODE_CONTINUOUS) {
+    if (is_circular_dma_mode()) {
         hdma->Init.Mode = DMA_CIRCULAR;
     } else {
         hdma->Init.Mode = DMA_NORMAL;
@@ -151,7 +162,9 @@ void MX_ADC1_Init(void)
         Error_Handler();
     }
 
-    sConfig.SamplingTime = BOARD_ADC_SAMPLE_TIME;
+    sConfig.SamplingTime = (current_adc_mode == ADC_MODE_INPUT_CONTINUOUS)
+                               ? BOARD_ADC_INPUT_SAMPLE_TIME
+                               : BOARD_ADC_SAMPLE_TIME;
     sConfig.SingleDiff = ADC_SINGLE_ENDED;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;
@@ -198,7 +211,9 @@ void MX_ADC2_Init(void)
         Error_Handler();
     }
 
-    sConfig.SamplingTime = BOARD_ADC_SAMPLE_TIME;
+    sConfig.SamplingTime = (current_adc_mode == ADC_MODE_INPUT_CONTINUOUS)
+                               ? BOARD_ADC_INPUT_SAMPLE_TIME
+                               : BOARD_ADC_SAMPLE_TIME;
     sConfig.SingleDiff = ADC_SINGLE_ENDED;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;
@@ -243,7 +258,9 @@ void MX_ADC3_Init(void)
         Error_Handler();
     }
 
-    sConfig.SamplingTime = BOARD_ADC_SAMPLE_TIME;
+    sConfig.SamplingTime = (current_adc_mode == ADC_MODE_INPUT_CONTINUOUS)
+                               ? BOARD_ADC_INPUT_SAMPLE_TIME
+                               : BOARD_ADC_SAMPLE_TIME;
     sConfig.SingleDiff = ADC_SINGLE_ENDED;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;

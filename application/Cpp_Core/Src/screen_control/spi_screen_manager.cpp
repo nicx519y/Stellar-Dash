@@ -391,7 +391,7 @@ void SPIScreenManager::loop() {
     refresh_screen_cfg_cache();
     ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgBackgroundImageId, g_cfgBg, g_cfgText);
     bool standbyAllowed = (STORAGE_MANAGER.getBootMode() == BootMode::BOOT_MODE_INPUT)
-        && (ADCManager::getInstance().getADCMode() == ADC_MODE_LOW_LATENCY);
+        && (ADCManager::getInstance().getADCMode() == ADC_MODE_INPUT_CONTINUOUS);
     bool standbyWasActive = ScreenStandby_IsActive();
     bool encoderEvent = (det != 0) || clicked || longPressed;
     bool anyActivity = encoderEvent || (inputMask != 0u);

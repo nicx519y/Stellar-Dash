@@ -42,8 +42,9 @@ extern ADC_HandleTypeDef hadc3;
 
 /* USER CODE BEGIN Private defines */
 typedef enum {
-    ADC_MODE_LOW_LATENCY = 0,   // Low latency mode: SOF triggered, 2x Oversampling
-    ADC_MODE_CONTINUOUS = 1     // Calibration/WebConfig mode: Continuous circular DMA, 16x Oversampling
+    ADC_MODE_LOW_LATENCY = 0,       // Legacy one-shot DMA mode
+    ADC_MODE_INPUT_CONTINUOUS = 1,  // Input mode: fast circular DMA, latest sample read by report tick
+    ADC_MODE_CONTINUOUS = 2         // Calibration/WebConfig mode: stable circular DMA, higher oversampling
 } ADC_SamplingMode;
 /* USER CODE END Private defines */
 

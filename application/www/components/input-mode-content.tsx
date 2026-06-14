@@ -3,6 +3,7 @@
 import { PlatformLabelMap, Platform, ConnectionMode } from '@/types/gamepad-config';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { Card, Center, Icon, RadioCard, VStack } from '@chakra-ui/react';
+import { useEffect } from 'react';
 import { BsXbox } from "react-icons/bs";
 import { FaWindows } from "react-icons/fa";
 import { SiNintendoswitch, SiPlaystation4, SiPlaystation5   } from "react-icons/si";
@@ -23,6 +24,12 @@ export function InputModeSettingContent(props: {
         [Platform.SWITCH, { icon: <SiNintendoswitch />, size: "2xl" }],
     ]);
 
+    useEffect(() => {
+        if (globalConfig.connectionMode === ConnectionMode.RF24G && globalConfig.inputMode !== Platform.XINPUT) {
+            updateGlobalConfig({ inputMode: Platform.XINPUT });
+        }
+    }, [globalConfig.connectionMode, globalConfig.inputMode, updateGlobalConfig]);
+
     const onInputModeChange = (detail: { value: Platform }) => {
         if (globalConfig.connectionMode === ConnectionMode.RF24G && detail.value !== Platform.XINPUT) {
             updateGlobalConfig({ ...globalConfig, inputMode: Platform.XINPUT });
@@ -32,15 +39,16 @@ export function InputModeSettingContent(props: {
     }
 
     return (
-        <Card.Root w="100%" h="100%" >
+        <Card.Root w="100%" h="100%" size="sm" >
             <Card.Header >
                 <Card.Title fontSize={"md"} >{t.INPUT_MODE_TITLE}</Card.Title>
             </Card.Header>
             <Card.Body>
             <RadioCard.Root 
-                value={globalConfig.inputMode} 
+                value={globalConfig.inputMode ?? Platform.XINPUT}
                 orientation="horizontal"
                 align="center"
+                size="sm"
                 variant={"solid"}
                 colorPalette={"green"}
                 onValueChange={(detail) => onInputModeChange(detail as { value: Platform })}
