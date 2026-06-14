@@ -78,9 +78,6 @@ int main(void)
     GPIOA_ModeCfg(GPIO_Pin_14, GPIO_ModeOut_PP_5mA);
     UART0_DefInit();
 #endif
-    PRINT("start.\n");
-    PRINT("%s\n", VER_LIB);
-
     CH58x_BLEInit();
     HAL_Init();
     RF_RoleInit();

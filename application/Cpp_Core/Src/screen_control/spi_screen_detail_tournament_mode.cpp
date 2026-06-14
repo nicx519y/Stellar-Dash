@@ -153,13 +153,25 @@ bool ScreenDetailTournament_OnConfirm(uint8_t index) {
         return false;
     }
 
+    const ConnectionMode runtimeMode = CONNECTION_MANAGER.getMode();
     STORAGE_MANAGER.setConnectionMode(item.mode);
     if (item.mode == CONNECTION_MODE_RF24G) {
         STORAGE_MANAGER.setWirelessReportRate(item.rate);
         STORAGE_MANAGER.setInputMode(INPUT_MODE_XINPUT);
-        if (CONNECTION_MANAGER.getMode() == CONNECTION_MODE_RF24G) {
-            (void)CONNECTION_MANAGER.applyWirelessReportRate(item.rate, false);
+        if (runtimeMode == CONNECTION_MODE_RF24G) {
+            if (!CONNECTION_MANAGER.applyWirelessReportRate(item.rate, false)) {
+                APP_ERR("[SCREEN][CONN] runtime rate apply failed:%u", (unsigned int)item.rate);
+            }
+        } else {
+            APP_DBG("[SCREEN][CONN] mode switch USB->RF24G requires reboot rate:%u",
+                    (unsigned int)item.rate);
+            ScreenUI_RequestRebootTo(3u, index);
+            return false;
         }
+    } else if (runtimeMode != CONNECTION_MODE_USB) {
+        APP_DBG("[SCREEN][CONN] mode switch RF24G->USB requires reboot");
+        ScreenUI_RequestRebootTo(3u, index);
+        return false;
     }
     ScreenUI_RequestDeferredSave(500u);
     return true;

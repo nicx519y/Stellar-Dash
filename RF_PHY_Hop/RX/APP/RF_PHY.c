@@ -153,6 +153,39 @@ static uint32_t demo_us_to_tmr_cycles(uint32_t us)
     return (cycles > 0xFFFFFFFFu) ? 0xFFFFFFFFu : (uint32_t)cycles;
 }
 
+static uint32_t demo_rate_to_slot_tmr_cycles(uint16_t hz)
+{
+    uint64_t cycles;
+
+    if(hz == 0u)
+    {
+        return demo_us_to_tmr_cycles(RFH_SLOT_US);
+    }
+
+    cycles = ((uint64_t)GetSysClock() + (uint64_t)hz - 1u) / (uint64_t)hz;
+    if(cycles == 0u)
+    {
+        return 1u;
+    }
+    return (cycles > 0xFFFFFFFFu) ? 0xFFFFFFFFu : (uint32_t)cycles;
+}
+
+static void demo_apply_rate_code(uint8_t rate_code)
+{
+    if(rate_code > RFH_RATE_8K)
+    {
+        return;
+    }
+    if(rate_code == g_demo_rate_code)
+    {
+        return;
+    }
+
+    g_demo_rate_code = rate_code;
+    g_demo_report_hz = rfh_rate_hz_from_code(rate_code);
+    g_demo_slot_tmr = demo_rate_to_slot_tmr_cycles(g_demo_report_hz);
+}
+
 static uint32_t demo_tmr0_elapsed_cycles(uint32_t start, uint32_t end)
 {
     if(end >= start)
@@ -708,8 +741,7 @@ static void demo_handle_command(const uint8_t *air)
         uint8_t rate_code = data[RFH_CMD_SLOT_ARG0];
         if(rate_code <= RFH_RATE_8K)
         {
-            g_demo_rate_code = rate_code;
-            g_demo_report_hz = rfh_rate_hz_from_code(rate_code);
+            demo_apply_rate_code(rate_code);
             demo_prepare_command_ack(RFH_CMD_RATE_UPDATE, data[RFH_CMD_SLOT_ARG3]);
         }
         else
@@ -795,11 +827,7 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
         }
 
         rate_code = rfh_rate_code(air[RFH_HDR0_OFFSET]);
-        if(rate_code <= RFH_RATE_8K)
-        {
-            g_demo_rate_code = rate_code;
-            g_demo_report_hz = rfh_rate_hz_from_code(rate_code);
-        }
+        demo_apply_rate_code(rate_code);
         flags = rfh_flags(air[RFH_HDR0_OFFSET]);
         g_demo_stat.data_ok++;
         demo_channel_score_update(g_demo_current_channel,
@@ -1292,7 +1320,7 @@ void RF_Init(void)
     TMR0_TimerInit(TMR0_FREE_RUN_WRAP - 1u);
     g_demo_hid_last_clock = TMOS_GetSystemClock();
     g_demo_ack_delay_tmr = demo_us_to_tmr_cycles(RF_AUTO_DEMO_ACK_TX_DELAY_US);
-    g_demo_slot_tmr = demo_us_to_tmr_cycles(RFH_SLOT_US);
+    g_demo_slot_tmr = demo_rate_to_slot_tmr_cycles(g_demo_report_hz);
     demo_ack_timer_cancel();
     PFIC_SetPriority(TMR1_IRQn, 0x80);
     PFIC_EnableIRQ(TMR1_IRQn);

@@ -57,12 +57,6 @@
 #define RF_AUTO_DEMO_CHANNEL_COOLDOWN_MS 10000u
 #define RF_LINK_CRC_INIT               0x555555UL
 
-#if (RF_SERIAL_LOG == 1)
-#define RF_AUTO_LOG(...)               PRINT(__VA_ARGS__)
-#else
-#define RF_AUTO_LOG(...)               ((void)0)
-#endif
-
 typedef struct
 {
     volatile uint32_t tx_start;
@@ -182,22 +176,6 @@ static void demo_reconfigure_report_timer(uint16_t hz)
 static uint16_t tx_saturate_u16(uint32_t value)
 {
     return (value > 0xFFFFu) ? 0xFFFFu : (uint16_t)value;
-}
-
-static char demo_hop_state_char(void)
-{
-    switch(g_demo_hop_state)
-    {
-    case RF_AUTO_HOP_PREPARE_ACK_WAIT:
-        return 'P';
-    case RF_AUTO_HOP_CONFIRM_ACK_WAIT:
-        return 'C';
-    case RF_AUTO_HOP_RECOVERY_DUAL:
-        return 'R';
-    case RF_AUTO_HOP_COMM:
-    default:
-        return 'M';
-    }
 }
 
 static uint8_t demo_channel_index(uint8_t channel)
@@ -558,32 +536,6 @@ static void demo_log_stats(uint32_t now)
         return;
     }
     g_demo_last_log_clock = now;
-
-    RF_AUTO_LOG("T8 c%u S%c h%u>%u q%u p%02X hz%u due%lu tx%lu fin%lu aq%lu ack%lu to%lu fail%lu e%lu/%lu dr%lu st%lu H%lu b%u r%u/%u/%u s%u\r\n",
-                (unsigned int)g_demo_config_ret,
-                demo_hop_state_char(),
-                (unsigned int)g_demo_current_channel,
-                (unsigned int)g_demo_target_channel,
-                (unsigned int)g_demo_last_quality,
-                (unsigned int)(RF_AUTO_DEMO_PHY_PROPS | RF_AUTO_DEMO_ACK_BIT),
-                (unsigned int)g_demo_report_hz,
-                (unsigned long)g_demo_stat.report_due,
-                (unsigned long)g_demo_stat.tx_start,
-                (unsigned long)g_demo_stat.tx_finish,
-                (unsigned long)g_demo_stat.ack_req,
-                (unsigned long)g_demo_stat.ack_ok,
-                (unsigned long)g_demo_stat.ack_timeout,
-                (unsigned long)g_demo_stat.tx_fail,
-                (unsigned long)g_demo_stat.ack_crc_err,
-                (unsigned long)g_demo_stat.ack_type_err,
-                (unsigned long)g_demo_stat.report_drop,
-                (unsigned long)g_demo_stat.tx_stuck,
-                (unsigned long)g_demo_stat.hop_event,
-                (unsigned int)g_demo_tx_busy,
-                (unsigned int)g_demo_tx_start_ret,
-                (unsigned int)g_demo_tx_parm_ret,
-                (unsigned int)g_demo_rx_ret,
-                (unsigned int)g_demo_seq);
 
     g_demo_stat.tx_start = 0u;
     g_demo_stat.tx_fail = 0u;
@@ -1144,12 +1096,4 @@ void RF_Init(void)
     g_demo_hop_cooldown_until = TMOS_GetSystemClock() +
                                 MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_HOP_COOLDOWN_MS);
 
-    RF_AUTO_LOG("T8 init cfg=%u ch=%u hz=%u prop=%02X ackMs=%u len=%u hopThr=%u\r\n",
-                (unsigned int)g_demo_config_ret,
-                (unsigned int)RF_AUTO_DEMO_INITIAL_CHANNEL,
-                (unsigned int)g_demo_report_hz,
-                (unsigned int)gParm.properties,
-                (unsigned int)RF_AUTO_DEMO_ACK_INTERVAL_MS,
-                (unsigned int)RF_AUTO_DEMO_PACKET_LEN,
-                (unsigned int)RF_AUTO_DEMO_HOP_SCORE_THRESHOLD);
 }

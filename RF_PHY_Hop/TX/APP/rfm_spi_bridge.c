@@ -28,6 +28,8 @@ static uint8_t s_state_changed_retry_pending;
 static uint8_t s_state_changed_retry_cmd_tag;
 static uint8_t s_last_direct_input[RFM_RF_INPUT_PAYLOAD_LEN];
 static uint8_t s_have_last_direct_input;
+static uint8_t s_last_logged_cmd;
+static uint8_t s_have_last_logged_cmd;
 
 #define SPI_POLL_MAX_BATCHES          1u
 #define SPI_INPUT_FRAME_BYTES         (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
@@ -49,6 +51,41 @@ typedef enum {
     SPI_EVT_LINK_WARN = 0x84,
     SPI_EVT_ERROR = 0x85
 } spi_evt_t;
+
+static const char *spi_cmd_name(uint8_t cmd)
+{
+    switch ((spi_cmd_t)cmd) {
+    case SPI_CMD_GET_STATUS:
+        return "GET_STATUS";
+    case SPI_CMD_START_PAIR:
+        return "START_PAIR";
+    case SPI_CMD_STOP_PAIR:
+        return "STOP_PAIR";
+    case SPI_CMD_UNBIND:
+        return "UNBIND";
+    case SPI_CMD_SET_RATE:
+        return "SET_RATE";
+    case SPI_CMD_INPUT_DATA:
+        return "INPUT_DATA";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+static void log_spi_command_once(uint8_t cmd, uint8_t len)
+{
+    if((s_have_last_logged_cmd != 0u) && (s_last_logged_cmd == cmd))
+    {
+        return;
+    }
+
+    s_last_logged_cmd = cmd;
+    s_have_last_logged_cmd = 1u;
+    PRINT("[SPI][cmd] cmd:%02X len:%u %s\r\n",
+          (unsigned int)cmd,
+          (unsigned int)len,
+          spi_cmd_name(cmd));
+}
 
 typedef enum {
     PARSE_WAIT_SYNC = 0,
@@ -137,10 +174,6 @@ static bool send_frame(spi_evt_t evt, const uint8_t *payload, uint8_t payload_le
         rfm_spi_port_set_irq(true);
         return true;
     }
-    PRINT("[SPI][tx_fail] evt:%02X len:%u pend:%u\r\n",
-          (unsigned int)evt,
-          (unsigned int)frame_total,
-          (unsigned int)rfm_spi_port_tx_pending());
     return false;
 }
 
@@ -220,10 +253,7 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
 {
     rfm_spi_port_set_irq(false);
     s_rx_count++;
-    if(cmd != SPI_CMD_INPUT_DATA)
-    {
-        PRINT("[SPI][cmd] cmd:%02X len:%u\r\n", (unsigned int)cmd, (unsigned int)len);
-    }
+    log_spi_command_once(cmd, len);
     switch ((spi_cmd_t)cmd) {
     case SPI_CMD_GET_STATUS:
         (void)send_status_frame(SPI_EVT_STATUS, cmd);
@@ -430,6 +460,7 @@ static void fast_parser_feed_byte(uint8_t b)
     case FAST_CHECKSUM:
         if (s_fast_sum == b) {
             s_frame_ok_win++;
+            log_spi_command_once((uint8_t)SPI_CMD_INPUT_DATA, RFM_RF_INPUT_PAYLOAD_LEN);
             (void)RF_SPI_FastWriteInput(s_fast_payload, (uint8_t)sizeof(s_fast_payload));
             s_rx_count++;
         } else {
@@ -594,20 +625,7 @@ void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
     (void)flags;
     (void)tx_pending;
     (void)tx_recover_count;
-
-    PRINT("[SPI][win] dt:%lums dir:%lu raw:%lu frame:%lu bad:%lu/%lu/%lu/%lu irq:%lu flags:%02lX pend:%u rec:%lu\n",
-          elapsed_ms,
-          direct_sum,
-          raw_sum,
-          frame_sum,
-          bad_sync_sum,
-          bad_cmd_sum,
-          bad_len_sum,
-          bad_checksum_sum,
-          dma_irq_sum,
-          flags,
-          (unsigned int)tx_pending,
-          tx_recover_count);
+    (void)elapsed_ms;
 }
 
 void rfm_spi_bridge_init(void)
@@ -632,6 +650,8 @@ void rfm_spi_bridge_init(void)
     s_state_changed_retry_pending = 0u;
     s_state_changed_retry_cmd_tag = 0u;
     s_have_last_direct_input = 0u;
+    s_last_logged_cmd = 0u;
+    s_have_last_logged_cmd = 0u;
     memset(s_last_direct_input, 0, sizeof(s_last_direct_input));
     parser_reset();
     fast_parser_reset();
@@ -656,6 +676,7 @@ void rfm_spi_bridge_poll(void)
                 s_have_last_direct_input = 1u;
                 s_frame_ok_win++;
                 s_rx_count++;
+                log_spi_command_once((uint8_t)SPI_CMD_INPUT_DATA, RFM_RF_INPUT_PAYLOAD_LEN);
                 (void)RF_SPI_FastWriteInput(latest_payload, (uint8_t)sizeof(latest_payload));
             }
         }
@@ -680,6 +701,7 @@ void rfm_spi_bridge_poll(void)
         if (find_latest_input_frame(s_poll_rx, n, latest_payload)) {
             s_frame_ok_win++;
             s_rx_count++;
+            log_spi_command_once((uint8_t)SPI_CMD_INPUT_DATA, RFM_RF_INPUT_PAYLOAD_LEN);
             (void)RF_SPI_FastWriteInput(latest_payload,
                                         (uint8_t)sizeof(latest_payload));
             continue;
