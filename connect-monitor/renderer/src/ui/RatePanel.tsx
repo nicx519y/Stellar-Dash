@@ -12,6 +12,9 @@ export function RatePanel({
   rateSeries,
   lossSeries,
   channelSwitches,
+  chartRateSeries,
+  chartLossSeries,
+  chartChannelSwitches,
   rfStatus,
   chartHeight = 360,
   compact = false,
@@ -21,14 +24,24 @@ export function RatePanel({
   rateSeries: RatePoint[];
   lossSeries: LossPoint[];
   channelSwitches: ChannelSwitchRow[];
+  chartRateSeries: RatePoint[];
+  chartLossSeries: LossPoint[];
+  chartChannelSwitches: ChannelSwitchRow[];
   rfStatus: DeviceStatusEvent | null;
   chartHeight?: number | string;
   compact?: boolean;
 }) {
+  const rfConnected = rfStatus?.state === "Connected";
   const fallbackHz = Math.max(packets.usbTxPerSec, packets.rfRxPerSec);
   const rfActualHz = rfStatus?.actualRateHz ?? 0;
-  const reportHz = rfActualHz > 0 ? rfActualHz : latency.estimatedHz > 0 ? latency.estimatedHz : fallbackHz;
-  const latestLoss = lossSeries.length > 0 ? lossSeries[lossSeries.length - 1].value : 0;
+  const reportHz = rfConnected
+    ? rfActualHz > 0
+      ? rfActualHz
+      : latency.estimatedHz > 0
+        ? latency.estimatedHz
+        : fallbackHz
+    : 0;
+  const latestLoss = rfConnected && lossSeries.length > 0 ? lossSeries[lossSeries.length - 1].value : 0;
 
   return (
     <Card.Root variant="outline" h="100%" display="flex" flexDirection="column" {...panelSurfaceProps}>
@@ -40,9 +53,9 @@ export function RatePanel({
       />
       <Card.Body px={3} pt={compact ? 1 : 0} pb={compact ? 2 : 3} flex="1" minH={0} display="flex">
         <TelemetryTrendChart
-          rateSeries={rateSeries}
-          lossSeries={lossSeries}
-          channelSwitches={channelSwitches}
+          rateSeries={chartRateSeries}
+          lossSeries={chartLossSeries}
+          channelSwitches={chartChannelSwitches}
           height={chartHeight}
         />
       </Card.Body>

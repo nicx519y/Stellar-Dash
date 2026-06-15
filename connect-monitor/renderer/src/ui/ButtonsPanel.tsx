@@ -2,7 +2,7 @@ import { Badge, Box, Card } from "@chakra-ui/react";
 import { useMemo } from "react";
 
 import { PanelHeader, panelSurfaceProps } from "./panelStyles";
-import { HITBOX_BUTTON_MAP, type HitboxButtonConfig } from "./hitboxButtonMap";
+import { HITBOX_BUTTON_MAP, StandardGamepadButton, UNMAPPED_GAMEPAD_BUTTON, type HitboxButtonConfig } from "./hitboxButtonMap";
 import { useGamepadButtons, type GamepadButtonState } from "./useGamepadButtons";
 
 const HITBOX_WIDTH = 787;
@@ -12,6 +12,31 @@ const COMPACT_CONTENT_SCALE = 1.25;
 const COMPACT_CONTENT_OFFSET_Y = 34;
 const LABEL_FONT_SIZE = 8;
 const BUTTON_FRAME_RADIUS_DISTANCE = 3;
+
+export type RfInputSnapshot = {
+  keyMask: number;
+  timestampMs: number;
+};
+
+const hboxMaskByGamepadButton: Record<number, number | undefined> = {
+  [StandardGamepadButton.A]: 1 << 4,
+  [StandardGamepadButton.B]: 1 << 5,
+  [StandardGamepadButton.X]: 1 << 6,
+  [StandardGamepadButton.Y]: 1 << 7,
+  [StandardGamepadButton.LeftBumper]: 1 << 8,
+  [StandardGamepadButton.RightBumper]: 1 << 9,
+  [StandardGamepadButton.LeftTrigger]: 1 << 10,
+  [StandardGamepadButton.RightTrigger]: 1 << 11,
+  [StandardGamepadButton.Back]: 1 << 12,
+  [StandardGamepadButton.Start]: 1 << 13,
+  [StandardGamepadButton.LeftStick]: 1 << 14,
+  [StandardGamepadButton.RightStick]: 1 << 15,
+  [StandardGamepadButton.DPadUp]: 1 << 0,
+  [StandardGamepadButton.DPadDown]: 1 << 1,
+  [StandardGamepadButton.DPadLeft]: 1 << 2,
+  [StandardGamepadButton.DPadRight]: 1 << 3,
+  [StandardGamepadButton.Guide]: 1 << 16,
+};
 
 const scaledHitboxLayout = HITBOX_BUTTON_MAP.map((item) => ({
   ...item,
@@ -42,6 +67,18 @@ function isButtonPressed(buttonStates: GamepadButtonState[], buttonIndex: number
 function buttonMeta(buttonStates: GamepadButtonState[]) {
   const pressed = buttonStates.filter((state) => state.isPressed).length;
   return `${pressed} pressed`;
+}
+
+function buttonStatesFromRfMask(keyMask: number): GamepadButtonState[] {
+  return HITBOX_BUTTON_MAP.map((button, buttonIndex) => {
+    const mask = button.gamepadButtonIndex !== UNMAPPED_GAMEPAD_BUTTON
+      ? hboxMaskByGamepadButton[button.gamepadButtonIndex]
+      : undefined;
+    return {
+      buttonIndex,
+      isPressed: typeof mask === "number" ? (keyMask & mask) !== 0 : false,
+    };
+  });
 }
 
 function HitboxPreview({ buttonStates, compact = false }: { buttonStates: GamepadButtonState[]; compact?: boolean }) {
@@ -127,9 +164,13 @@ function HitboxPreview({ buttonStates, compact = false }: { buttonStates: Gamepa
   );
 }
 
-export function ButtonsPanel({ compact = false }: { compact?: boolean }) {
+export function ButtonsPanel({ compact = false, rfInput }: { compact?: boolean; rfInput?: RfInputSnapshot | null }) {
   const gamepad = useGamepadButtons();
-  const meta = useMemo(() => buttonMeta(gamepad.buttonStates), [gamepad.buttonStates]);
+  const rfButtonStates = useMemo(() => rfInput ? buttonStatesFromRfMask(rfInput.keyMask) : null, [rfInput]);
+  const buttonStates = rfButtonStates ?? gamepad.buttonStates;
+  const connected = Boolean(rfInput) || gamepad.connected;
+  const sourceLabel = rfInput ? "RF Input" : gamepad.connected ? "XInput Connected" : "Disconnected";
+  const meta = useMemo(() => buttonMeta(buttonStates), [buttonStates]);
 
   return (
     <Card.Root variant="outline" overflow="hidden" h="100%" {...panelSurfaceProps}>
@@ -137,8 +178,8 @@ export function ButtonsPanel({ compact = false }: { compact?: boolean }) {
         title="Gamepad Buttons"
         meta={meta}
         action={
-          <Badge colorPalette={gamepad.connected ? "green" : "gray"}>
-            {gamepad.connected ? "XInput Connected" : "Disconnected"}
+          <Badge colorPalette={connected ? "green" : "gray"}>
+            {sourceLabel}
           </Badge>
         }
         borderBottom
@@ -152,7 +193,7 @@ export function ButtonsPanel({ compact = false }: { compact?: boolean }) {
         flex="1"
         minH={0}
       >
-        <HitboxPreview buttonStates={gamepad.buttonStates} compact={compact} />
+        <HitboxPreview buttonStates={buttonStates} compact={compact} />
       </Card.Body>
     </Card.Root>
   );

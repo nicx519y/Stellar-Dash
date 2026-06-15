@@ -36,7 +36,7 @@ void RF_USB_CompositeInit(void);
 #endif
 #define RX_MAIN_TMR0_WRAP        0x04000000UL
 #define RX_MAIN_LOG_PERIOD_TICKS (FREQ_SYS * 5u)
-#define RX_MAIN_HID_TELEMETRY_PERIOD_TICKS (FREQ_SYS / 10u)
+#define RX_MAIN_HID_TELEMETRY_PERIOD_MS 100u
 #define RX_LED_PAIR_TOGGLE_MS    250u
 #define RX_LED_COMM_TOGGLE_MS    1000u
 /*********************************************************************
@@ -166,8 +166,7 @@ void Main_Circulation()
 {
     static uint32_t last_log_tmr = 0;
     static uint32_t log_acc_tmr = 0;
-    static uint32_t last_hid_telemetry_tmr = 0;
-    static uint32_t hid_telemetry_acc_tmr = 0;
+    static uint32_t last_hid_telemetry_clock = 0;
     static uint32_t rf_init_deadline = 0;
     static uint8_t rf_init_started = FALSE;
     static uint8_t rf_init_done = FALSE;
@@ -206,17 +205,15 @@ void Main_Circulation()
             RX_MainLog("R0\r\n");
             last_log_tmr = TMR0_GetCurrentTimer();
             log_acc_tmr = 0u;
-            last_hid_telemetry_tmr = last_log_tmr;
-            hid_telemetry_acc_tmr = 0u;
+            last_hid_telemetry_clock = TMOS_GetSystemClock();
             continue;
         }
 
         if((rf_init_done) &&
-           (RX_MainTmr0Elapsed(now_tmr,
-                               &last_hid_telemetry_tmr,
-                               &hid_telemetry_acc_tmr,
-                               RX_MAIN_HID_TELEMETRY_PERIOD_TICKS) != FALSE))
+           ((uint32_t)(now - last_hid_telemetry_clock) >=
+            MS1_TO_SYSTEM_TIME(RX_MAIN_HID_TELEMETRY_PERIOD_MS)))
         {
+            last_hid_telemetry_clock = now;
             (void)RF_TrySendTelemetryReport();
         }
 

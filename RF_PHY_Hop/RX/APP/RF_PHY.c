@@ -42,9 +42,11 @@
 #define RF_LINK_CRC_INIT               0x555555UL
 #define RX_HID_TELEMETRY_MAGIC         0x314D4852UL
 #define RX_HID_SCORE_MAGIC             0x31534852UL
+#define RX_HID_INPUT_MAGIC             0x31494852UL
 #define RX_HID_HOP_EVENT_NONE          0u
 #define RX_HID_HOP_EVENT_START         1u
 #define RX_HID_HOP_EVENT_FINISH        2u
+#define RX_HID_INPUT_KEEPALIVE_DIV     5u
 #define RX_HID_SILENT_TICKS_SAT        0xFFFEu
 #define TMR0_FREE_RUN_WRAP             0x04000000UL
 
@@ -129,6 +131,13 @@ static volatile uint8_t g_demo_hid_hop_start_pending = 0u;
 static volatile uint8_t g_demo_hid_hop_finish_pending = 0u;
 static volatile uint16_t g_demo_hid_hop_start_score = 0u;
 static volatile uint16_t g_demo_hid_hop_finish_duration_ms = 0u;
+static volatile uint32_t g_demo_hid_input_key_mask = 0u;
+static volatile uint32_t g_demo_hid_input_report_seq = 0u;
+static volatile uint8_t g_demo_hid_input_seq = 0u;
+static volatile uint8_t g_demo_hid_input_flags = 0u;
+static volatile uint8_t g_demo_hid_input_valid = 0u;
+static volatile uint8_t g_demo_hid_input_changed = 0u;
+static uint8_t g_demo_hid_input_keepalive_div = 0u;
 static volatile uint8_t g_demo_xinput_pending = 0u;
 static uint8_t g_demo_xinput_report[XINPUT_ENDPOINT_SIZE];
 static uint32_t g_demo_hop_start_clock = 0u;
@@ -639,6 +648,15 @@ static void demo_capture_xinput_report(const uint8_t *payload)
     }
 
     key_mask = demo_input_key_mask(payload) & RF_INPUT_KEY_MASK_VALID;
+    if((g_demo_hid_input_valid == 0u) || (g_demo_hid_input_key_mask != key_mask))
+    {
+        g_demo_hid_input_changed = 1u;
+    }
+    g_demo_hid_input_key_mask = key_mask;
+    g_demo_hid_input_seq = payload[0];
+    g_demo_hid_input_flags = payload[1];
+    g_demo_hid_input_valid = 1u;
+
     memset(report, 0, sizeof(report));
     report[0] = 0x00u;
     report[1] = XINPUT_ENDPOINT_SIZE;
@@ -1209,6 +1227,40 @@ static uint8_t demo_try_send_score_report(void)
     return demo_submit_hid_report(report);
 }
 
+static uint8_t demo_try_send_input_report(void)
+{
+    uint8_t report[HID_ENDPOINT_SIZE];
+    uint32_t key_mask = g_demo_hid_input_key_mask;
+    uint8_t input_seq = g_demo_hid_input_seq;
+    uint8_t input_flags = g_demo_hid_input_flags;
+
+    if(g_demo_hid_input_valid == 0u)
+    {
+        return 0u;
+    }
+
+    memset(report, 0, sizeof(report));
+    demo_put_u32(&report[0], RX_HID_INPUT_MAGIC);
+    demo_put_u32(&report[4], g_demo_hid_input_report_seq + 1u);
+    demo_put_u32(&report[8], key_mask);
+    report[12] = input_seq;
+    report[13] = input_flags;
+    report[14] = demo_hid_state_code();
+    report[15] = g_demo_current_channel;
+    demo_put_u16(&report[16], g_demo_report_hz);
+    report[18] = g_demo_rate_code;
+    report[19] = g_demo_link_active;
+    report[20] = g_demo_last_data_seq;
+
+    if(demo_submit_hid_report(report) == 0u)
+    {
+        return 0u;
+    }
+
+    g_demo_hid_input_report_seq++;
+    return 1u;
+}
+
 uint8_t RF_TrySendTelemetryReport(void)
 {
     uint8_t report[HID_ENDPOINT_SIZE];
@@ -1224,6 +1276,24 @@ uint8_t RF_TrySendTelemetryReport(void)
     uint16_t elapsed_ms;
     uint32_t expected;
     uint16_t loss;
+
+    if((g_demo_link_active != 0u) &&
+       (g_demo_hid_hop_start_pending == 0u) &&
+       (g_demo_hid_hop_finish_pending == 0u) &&
+       (g_demo_hid_input_valid != 0u))
+    {
+        g_demo_hid_input_keepalive_div++;
+        if((g_demo_hid_input_changed != 0u) ||
+           (g_demo_hid_input_keepalive_div >= RX_HID_INPUT_KEEPALIVE_DIV))
+        {
+            if(demo_try_send_input_report() != 0u)
+            {
+                g_demo_hid_input_keepalive_div = 0u;
+                g_demo_hid_input_changed = 0u;
+                return 1u;
+            }
+        }
+    }
 
     g_demo_hid_score_div++;
     if(g_demo_hid_score_div >= 5u)

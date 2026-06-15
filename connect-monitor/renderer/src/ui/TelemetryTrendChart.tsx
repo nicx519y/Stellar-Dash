@@ -3,10 +3,14 @@ import * as echarts from "echarts";
 import * as React from "react";
 
 import type { ChannelSwitchRow } from "./useMonitorStream";
-import { neonGreen } from "./panelStyles";
 
 export type RatePoint = { tMs: number; hz: number };
 export type LossPoint = { tMs: number; value: number };
+
+type ChartPoint = [number, number];
+type EventPoint = [number, number, ChannelSwitchRow];
+
+const CHANNEL_EVENT_LIMIT = 80;
 const DEFAULT_WINDOW_MS = 30000;
 const MIN_WINDOW_MS = 3000;
 const FOLLOW_RIGHT_TOLERANCE_MS = 1200;
@@ -21,43 +25,74 @@ function formatChannel(row: ChannelSwitchRow) {
   return `${from}->${to}`;
 }
 
-function sortedRateData(points: RatePoint[]) {
-  return [...points]
-    .sort((a, b) => a.tMs - b.tMs)
-    .map((point) => [point.tMs, Number(point.hz.toFixed(2))]);
+function clampPercent(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
 }
 
-function sortedLossData(points: LossPoint[]) {
-  return [...points]
-    .sort((a, b) => a.tMs - b.tMs)
-    .map((point) => [point.tMs, Number(point.value.toFixed(3))]);
+function normalizeRateData(points: RatePoint[]): ChartPoint[] {
+  const latestByTime = new Map<number, number>();
+  for (const point of points) {
+    if (!Number.isFinite(point.tMs) || !Number.isFinite(point.hz)) continue;
+    latestByTime.set(Math.trunc(point.tMs), Math.max(0, point.hz));
+  }
+  return [...latestByTime.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([tMs, hz]) => [tMs, Number(hz.toFixed(2))]);
 }
 
-function tooltipFormatter(params: unknown, channelSwitches: ChannelSwitchRow[]) {
+function normalizeLossData(points: LossPoint[]): ChartPoint[] {
+  const latestByTime = new Map<number, number>();
+  for (const point of points) {
+    if (!Number.isFinite(point.tMs) || !Number.isFinite(point.value)) continue;
+    latestByTime.set(Math.trunc(point.tMs), clampPercent(point.value));
+  }
+  return [...latestByTime.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([tMs, value]) => [tMs, Number(value.toFixed(3))]);
+}
+
+function isChannelEventVisible(row: ChannelSwitchRow) {
+  return (
+    row.type === "channel_change" ||
+    row.type === "hop_start" ||
+    row.type === "hop_finish" ||
+    row.type === "target_change" ||
+    row.type === "link_lost" ||
+    row.type === "link_recovered"
+  );
+}
+
+function normalizeEventData(rows: ChannelSwitchRow[]): EventPoint[] {
+  return rows
+    .filter(isChannelEventVisible)
+    .slice(-CHANNEL_EVENT_LIMIT)
+    .filter((row) => Number.isFinite(row.timestampMs))
+    .map((row) => [Math.trunc(row.timestampMs), 1, row]);
+}
+
+function tooltipFormatter(params: unknown) {
   const items = Array.isArray(params) ? params : [params];
   const first = items[0] as { axisValue?: number | string; value?: unknown } | undefined;
-  const axisValue = Number(first?.axisValue ?? (Array.isArray(first?.value) ? first?.value[0] : Date.now()));
+  const axisValue = Number(first?.axisValue ?? (Array.isArray(first?.value) ? first.value[0] : Date.now()));
   const lines = [`<div style="margin-bottom:4px;color:#cbd5e0">${formatTime(axisValue)}</div>`];
 
   for (const item of items as Array<{ seriesName?: string; marker?: string; value?: unknown }>) {
     if (!Array.isArray(item.value)) continue;
-    const value = Number(item.value[1] ?? 0);
     if (item.seriesName === "Report Rate") {
-      lines.push(`${item.marker ?? ""}Report rate: ${value.toFixed(1)} Hz`);
-    } else if (item.seriesName === "Packet Loss") {
-      lines.push(`${item.marker ?? ""}Packet loss: ${value.toFixed(2)} %`);
-    } else if (item.seriesName === "Channel Events") {
-      const row = item.value[2] as ChannelSwitchRow | undefined;
-      if (row) {
-        lines.push(`${item.marker ?? ""}Channel: ${formatChannel(row)} ${row.reason}`);
-      }
+      lines.push(`${item.marker ?? ""}Report rate: ${Number(item.value[1] ?? 0).toFixed(1)} Hz`);
+      continue;
     }
-  }
-
-  const nearby = channelSwitches.filter((row) => Math.abs(row.timestampMs - axisValue) <= 750).slice(-3);
-  for (const row of nearby) {
-    const loss = typeof row.lossPercent === "number" ? `, loss ${row.lossPercent.toFixed(2)}%` : "";
-    lines.push(`<span style="color:#f6ad55">Channel switch ${formatChannel(row)}: ${row.reason}${loss}</span>`);
+    if (item.seriesName === "Packet Loss") {
+      lines.push(`${item.marker ?? ""}Packet loss: ${Number(item.value[1] ?? 0).toFixed(2)} %`);
+      continue;
+    }
+    if (item.seriesName === "Channel Events") {
+      const row = item.value[2] as ChannelSwitchRow | undefined;
+      if (!row) continue;
+      const loss = typeof row.lossPercent === "number" ? `, loss ${row.lossPercent.toFixed(2)}%` : "";
+      lines.push(`${item.marker ?? ""}Channel ${formatChannel(row)}: ${row.reason}${loss}`);
+    }
   }
 
   return lines.join("<br/>");
@@ -76,28 +111,37 @@ export function TelemetryTrendChart({
 }) {
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const chartRef = React.useRef<echarts.ECharts | null>(null);
+  const chartRangeRef = React.useRef({ maxTime: 0 });
   const suppressZoomEventRef = React.useRef(false);
-  const chartTimesRef = React.useRef({ minTime: 0, maxTime: 0 });
-  const windowRef = React.useRef({
-    initialized: false,
+  const zoomRef = React.useRef({
     followRight: true,
     start: 0,
     end: 0,
     span: DEFAULT_WINDOW_MS,
   });
 
-  const chartTimes = React.useMemo(() => {
-    const switchRows = channelSwitches.slice(-60);
-    const allTimes = [
-      ...rateSeries.map((point) => point.tMs),
-      ...lossSeries.map((point) => point.tMs),
-      ...switchRows.map((row) => row.timestampMs),
+  const chartData = React.useMemo(() => {
+    const rateData = normalizeRateData(rateSeries);
+    const lossData = normalizeLossData(lossSeries);
+    const eventData = normalizeEventData(channelSwitches);
+    const times = [
+      ...rateData.map(([tMs]) => tMs),
+      ...lossData.map(([tMs]) => tMs),
+      ...eventData.map(([tMs]) => tMs),
     ];
-    const maxTime = allTimes.length > 0 ? Math.max(...allTimes) : Date.now();
-    const minTime = allTimes.length > 0 ? Math.min(...allTimes) : maxTime - 1000;
-    return { minTime, maxTime };
+    const maxLoss = Math.max(5, ...lossData.map(([, value]) => value));
+    const minTime = times.length > 0 ? Math.min(...times) : Date.now() - 1000;
+    const maxTime = times.length > 0 ? Math.max(...times) : Date.now();
+    return {
+      rateData,
+      lossData,
+      eventData,
+      minTime,
+      maxTime: maxTime > minTime ? maxTime : minTime + 1000,
+      maxLoss: Math.min(100, Math.ceil(maxLoss * 1.2)),
+    };
   }, [channelSwitches, lossSeries, rateSeries]);
-  chartTimesRef.current = chartTimes;
+  chartRangeRef.current = { maxTime: chartData.maxTime };
 
   React.useEffect(() => {
     if (!rootRef.current) return;
@@ -110,16 +154,14 @@ export function TelemetryTrendChart({
       const start = Number((zoom as { startValue?: unknown } | undefined)?.startValue);
       const end = Number((zoom as { endValue?: unknown } | undefined)?.endValue);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
-      const span = Math.max(MIN_WINDOW_MS, end - start);
-      const { maxTime } = chartTimesRef.current;
-      windowRef.current = {
-        initialized: true,
-        followRight: maxTime - end <= FOLLOW_RIGHT_TOLERANCE_MS,
+      zoomRef.current = {
+        followRight: chartRangeRef.current.maxTime - end <= FOLLOW_RIGHT_TOLERANCE_MS,
         start,
         end,
-        span,
+        span: Math.max(MIN_WINDOW_MS, end - start),
       };
     });
+
     const resize = () => chart.resize();
     window.addEventListener("resize", resize);
     return () => {
@@ -133,44 +175,28 @@ export function TelemetryTrendChart({
     const chart = chartRef.current;
     if (!chart) return;
 
-    const switchRows = channelSwitches.slice(-60);
-    const maxLoss = Math.max(5, ...lossSeries.map((point) => point.value));
-    const zoomWindow = windowRef.current;
-    let zoomEnd = chartTimes.maxTime;
-    let zoomStart = Math.max(chartTimes.minTime, zoomEnd - DEFAULT_WINDOW_MS);
-    if (zoomWindow.initialized) {
-      if (zoomWindow.followRight) {
-        zoomEnd = chartTimes.maxTime;
-        zoomStart = Math.max(chartTimes.minTime, zoomEnd - zoomWindow.span);
-      } else {
-        zoomStart = Math.max(chartTimes.minTime, zoomWindow.start);
-        zoomEnd = Math.min(chartTimes.maxTime, zoomWindow.end);
-        if (zoomEnd - zoomStart < MIN_WINDOW_MS) {
-          zoomEnd = Math.min(chartTimes.maxTime, zoomStart + MIN_WINDOW_MS);
-        }
+    const zoom = zoomRef.current;
+    let zoomEnd = chartData.maxTime;
+    let zoomStart = Math.max(chartData.minTime, zoomEnd - zoom.span);
+    if (!zoom.followRight && zoom.end > zoom.start) {
+      zoomStart = Math.max(chartData.minTime, zoom.start);
+      zoomEnd = Math.min(chartData.maxTime, zoom.end);
+      if (zoomEnd - zoomStart < MIN_WINDOW_MS) {
+        zoomEnd = Math.min(chartData.maxTime, zoomStart + MIN_WINDOW_MS);
       }
     }
-    windowRef.current = {
-      initialized: true,
-      followRight: zoomWindow.followRight,
+    zoomRef.current = {
+      followRight: zoom.followRight,
       start: zoomStart,
       end: zoomEnd,
       span: Math.max(MIN_WINDOW_MS, zoomEnd - zoomStart),
     };
-    const markLines = switchRows.map((row) => ({
-      name: formatChannel(row),
-      xAxis: row.timestampMs,
-      label: {
-        formatter: formatChannel(row),
-      },
-    }));
-
     suppressZoomEventRef.current = true;
     chart.setOption(
       {
         backgroundColor: "transparent",
-        color: ["#62f7ff", "#ff6b6b", "#62f7ff"],
         animation: false,
+        color: ["#62f7ff", "#ff6b6b", "#f6ad55"],
         tooltip: {
           trigger: "axis",
           confine: true,
@@ -182,7 +208,7 @@ export function TelemetryTrendChart({
             lineStyle: { color: "rgba(92,255,138,0.34)" },
             crossStyle: { color: "rgba(92,255,138,0.22)" },
           },
-          formatter: (params: unknown) => tooltipFormatter(params, switchRows),
+          formatter: tooltipFormatter,
         },
         legend: {
           top: 0,
@@ -200,7 +226,7 @@ export function TelemetryTrendChart({
           {
             type: "inside",
             xAxisIndex: 0,
-            filterMode: "none",
+            filterMode: "filter",
             startValue: zoomStart,
             endValue: zoomEnd,
             minValueSpan: MIN_WINDOW_MS,
@@ -208,7 +234,7 @@ export function TelemetryTrendChart({
           {
             type: "slider",
             xAxisIndex: 0,
-            filterMode: "none",
+            filterMode: "filter",
             height: 18,
             bottom: 14,
             startValue: zoomStart,
@@ -216,8 +242,8 @@ export function TelemetryTrendChart({
             minValueSpan: MIN_WINDOW_MS,
             borderColor: "rgba(92,255,138,0.18)",
             fillerColor: "rgba(92,255,138,0.16)",
-            handleStyle: { color: neonGreen },
-            moveHandleStyle: { color: neonGreen },
+            handleStyle: { color: "#5cff8a" },
+            moveHandleStyle: { color: "#5cff8a" },
             textStyle: { color: "#a0aec0" },
             dataBackground: {
               lineStyle: { color: "rgba(92,255,138,0.35)" },
@@ -231,8 +257,8 @@ export function TelemetryTrendChart({
         ],
         xAxis: {
           type: "time",
-          min: chartTimes.minTime,
-          max: chartTimes.maxTime,
+          min: chartData.minTime,
+          max: chartData.maxTime,
           axisLabel: {
             color: "#a0aec0",
             formatter: (value: number) => formatTime(value),
@@ -245,20 +271,27 @@ export function TelemetryTrendChart({
             type: "value",
             name: "Hz",
             min: 0,
+            scale: false,
             axisLabel: { color: "#a0aec0" },
             nameTextStyle: { color: "#a0aec0" },
-            axisLine: { lineStyle: { color: "rgba(92,255,138,0.48)" } },
+            axisLine: { lineStyle: { color: "rgba(98,247,255,0.5)" } },
             splitLine: { show: true, lineStyle: { color: "rgba(92,255,138,0.08)" } },
           },
           {
             type: "value",
             name: "%",
             min: 0,
-            max: Math.ceil(maxLoss * 1.2),
+            max: chartData.maxLoss,
             axisLabel: { color: "#a0aec0", formatter: "{value}%" },
             nameTextStyle: { color: "#a0aec0" },
             axisLine: { lineStyle: { color: "rgba(255,107,107,0.5)" } },
             splitLine: { show: false },
+          },
+          {
+            type: "value",
+            min: 0,
+            max: 1,
+            show: false,
           },
         ],
         series: [
@@ -266,61 +299,36 @@ export function TelemetryTrendChart({
             name: "Report Rate",
             type: "line",
             yAxisIndex: 0,
+            data: chartData.rateData,
             showSymbol: false,
+            symbol: "none",
             smooth: false,
-            connectNulls: true,
+            clip: true,
             lineStyle: { width: 2 },
-            areaStyle: {
-              opacity: 0.42,
-              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: "rgba(0, 81, 255, 0.51)" },
-                { offset: 0.20, color: "rgba(0, 81, 255, 0.21)" },
-                { offset: 1, color: "rgba(0, 81, 255, 0.0)" },
-              ]),
-            },
-            emphasis: { focus: "series" },
-            data: sortedRateData(rateSeries),
-            markLine: {
-              silent: true,
-              symbol: "none",
-              label: {
-                color: "#b9ffe4",
-                fontSize: 11,
-                position: "insideEndTop",
-              },
-              lineStyle: {
-                color: "rgba(98,247,255,0.58)",
-                type: "dashed",
-                width: 1,
-              },
-              data: markLines,
-            },
           },
           {
             name: "Packet Loss",
             type: "line",
             yAxisIndex: 1,
+            data: chartData.lossData,
             showSymbol: false,
+            symbol: "none",
             smooth: false,
-            connectNulls: true,
+            clip: true,
             lineStyle: { width: 2 },
-            areaStyle: {
-              opacity: 0.34,
-              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: "rgba(92,255,138,0.3)" },
-                { offset: 0.58, color: "rgba(92,255,138,0.13)" },
-                { offset: 1, color: "rgba(92,255,138,0)" },
-              ]),
-            },
-            emphasis: { focus: "series" },
-            data: sortedLossData(lossSeries),
           },
           {
             name: "Channel Events",
             type: "scatter",
-            yAxisIndex: 1,
+            yAxisIndex: 2,
+            data: chartData.eventData,
             symbol: "pin",
-            symbolSize: 28,
+            symbolSize: 24,
+            itemStyle: {
+              color: "#f6ad55",
+              borderColor: "rgba(5,8,13,0.92)",
+              borderWidth: 1,
+            },
             label: {
               show: true,
               color: "#0b0f16",
@@ -330,15 +338,6 @@ export function TelemetryTrendChart({
                 return formatChannel(param.value[2] as ChannelSwitchRow);
               },
             },
-            itemStyle: {
-              color: "#62f7ff",
-              borderColor: "rgba(5,8,13,0.92)",
-              borderWidth: 1,
-            },
-            tooltip: {
-              trigger: "item",
-            },
-            data: switchRows.map((row) => [row.timestampMs, row.lossPercent ?? 0, row]),
           },
         ],
       },
@@ -348,7 +347,7 @@ export function TelemetryTrendChart({
     requestAnimationFrame(() => {
       suppressZoomEventRef.current = false;
     });
-  }, [channelSwitches, chartTimes.maxTime, chartTimes.minTime, lossSeries, rateSeries]);
+  }, [chartData]);
 
   return (
     <Box

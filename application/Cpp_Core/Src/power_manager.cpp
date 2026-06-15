@@ -14,6 +14,7 @@ static constexpr uint32_t POWER_ADC_FULL_SCALE = 65535u;
 static constexpr uint32_t POWER_MEAS_INTERVAL_MS = 1000u;
 static constexpr uint32_t POWER_MEAS_SETTLE_MS = 40u;
 static constexpr uint32_t POWER_ADC_TIMEOUT_MS = 10u;
+static constexpr uint32_t POWER_LOW_BATTERY_MV = 3200u;
 
 static constexpr uint32_t POWER_SWITCH_DIFF_MV = 120u;
 static constexpr uint8_t POWER_SWITCH_CONFIRM_COUNT = 3u;
@@ -39,6 +40,7 @@ void PowerManager::setup()
 {
     configureGpios();
     vbus_present = isVbusPresent();
+    fast_charging = isFastChargeDetected();
     last_mode_poll_ms = HAL_GetTick();
     last_voltage_update_ms = 0;
     meas_stage = MeasureStage::Idle;
@@ -58,6 +60,7 @@ void PowerManager::loop()
     {
         last_mode_poll_ms = now;
         vbus_present = isVbusPresent();
+        fast_charging = isFastChargeDetected();
     }
 
     processSwitch();
@@ -89,7 +92,7 @@ PowerChargeState PowerManager::getChargeState() const
 
 float PowerManager::getTotalSocPercent() const
 {
-    const float soc = (h1_soc + h2_soc) * 0.5f;
+    const float soc = (socFromMv(h1_mv) + socFromMv(h2_mv)) * 0.5f;
     if (soc < 0.0f) return 0.0f;
     if (soc > 100.0f) return 100.0f;
     return soc;
@@ -105,9 +108,20 @@ PowerBatteryId PowerManager::getActiveDischargeBattery() const
     return active_discharge;
 }
 
+bool PowerManager::isFastCharging() const
+{
+    return fast_charging;
+}
+
+bool PowerManager::isLowBattery() const
+{
+    return voltage_valid && (h1_mv < POWER_LOW_BATTERY_MV || h2_mv < POWER_LOW_BATTERY_MV);
+}
+
 void PowerManager::configureGpios()
 {
     enable_gpio_clock(VBUS_STATUS_PORT);
+    enable_gpio_clock(FAST_CHARGE_STATUS_PORT);
     enable_gpio_clock(BAT_STATUS_PORT);
     enable_gpio_clock(BAT_H1_CHANNEL_CTRL_PORT);
     enable_gpio_clock(BAT_H2_CHANNEL_CTRL_PORT);
@@ -123,6 +137,9 @@ void PowerManager::configureGpios()
     init.Speed = GPIO_SPEED_FREQ_LOW;
     init.Pin = VBUS_STATUS_PIN;
     HAL_GPIO_Init(VBUS_STATUS_PORT, &init);
+
+    init.Pin = FAST_CHARGE_STATUS_PIN;
+    HAL_GPIO_Init(FAST_CHARGE_STATUS_PORT, &init);
 
     init.Pin = BAT_STATUS_PIN;
     HAL_GPIO_Init(BAT_STATUS_PORT, &init);
@@ -161,6 +178,12 @@ void PowerManager::configureGpios()
 bool PowerManager::isVbusPresent() const
 {
     return (HAL_GPIO_ReadPin(VBUS_STATUS_PORT, VBUS_STATUS_PIN) == GPIO_PIN_SET);
+}
+
+bool PowerManager::isFastChargeDetected() const
+{
+    return isVbusPresent() &&
+           (HAL_GPIO_ReadPin(FAST_CHARGE_STATUS_PORT, FAST_CHARGE_STATUS_PIN) == GPIO_PIN_SET);
 }
 
 void PowerManager::setChannelStates(bool h1_on, bool h2_on)
@@ -260,9 +283,9 @@ void PowerManager::processVoltageMeasurement()
 
     if (meas_stage == MeasureStage::Setup)
     {
-        if (!configureAdc1ForBattery())
+        if (!configureAdcForBattery())
         {
-            restoreAdc1ForButtons();
+            restoreAdcForButtons();
             meas_stage = MeasureStage::Idle;
             return;
         }
@@ -289,7 +312,7 @@ void PowerManager::processVoltageMeasurement()
     {
         if (!startSingleAdc())
         {
-            restoreAdc1ForButtons();
+            restoreAdcForButtons();
             meas_stage = MeasureStage::Idle;
             return;
         }
@@ -304,7 +327,7 @@ void PowerManager::processVoltageMeasurement()
         {
             if ((uint32_t)(now - meas_stage_start_ms) > POWER_ADC_TIMEOUT_MS)
             {
-                restoreAdc1ForButtons();
+                restoreAdcForButtons();
                 meas_stage = MeasureStage::Idle;
             }
             return;
@@ -337,36 +360,37 @@ void PowerManager::processVoltageMeasurement()
         h2_soc = socFromMv(h2_mv);
 
         HAL_GPIO_WritePin(VBAT_H2_SENSE_CTRL_PORT, VBAT_H2_SENSE_CTRL_PIN, GPIO_PIN_RESET);
-        restoreAdc1ForButtons();
+        restoreAdcForButtons();
 
         last_voltage_update_ms = now;
+        voltage_valid = true;
         meas_stage = MeasureStage::Idle;
     }
 }
 
-bool PowerManager::configureAdc1ForBattery()
+bool PowerManager::configureAdcForBattery()
 {
     if (ADCManager::getInstance().getADCMode() == ADC_MODE_LOW_LATENCY)
     {
-        HAL_ADC_Stop_DMA(&hadc1);
+        HAL_ADC_Stop_DMA(&hadc2);
     }
 
-    hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
-    hadc1.Init.Resolution = ADC_RESOLUTION_16B;
-    hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
-    hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
-    hadc1.Init.LowPowerAutoWait = DISABLE;
-    hadc1.Init.ContinuousConvMode = DISABLE;
-    hadc1.Init.NbrOfConversion = 1;
-    hadc1.Init.DiscontinuousConvMode = DISABLE;
-    hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-    hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-    hadc1.Init.ConversionDataManagement = ADC_CONVERSIONDATA_DR;
-    hadc1.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
-    hadc1.Init.LeftBitShift = ADC_LEFTBITSHIFT_NONE;
-    hadc1.Init.OversamplingMode = DISABLE;
+    hadc2.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+    hadc2.Init.Resolution = ADC_RESOLUTION_16B;
+    hadc2.Init.ScanConvMode = ADC_SCAN_DISABLE;
+    hadc2.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+    hadc2.Init.LowPowerAutoWait = DISABLE;
+    hadc2.Init.ContinuousConvMode = DISABLE;
+    hadc2.Init.NbrOfConversion = 1;
+    hadc2.Init.DiscontinuousConvMode = DISABLE;
+    hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+    hadc2.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+    hadc2.Init.ConversionDataManagement = ADC_CONVERSIONDATA_DR;
+    hadc2.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
+    hadc2.Init.LeftBitShift = ADC_LEFTBITSHIFT_NONE;
+    hadc2.Init.OversamplingMode = DISABLE;
 
-    if (HAL_ADC_Init(&hadc1) != HAL_OK)
+    if (HAL_ADC_Init(&hadc2) != HAL_OK)
     {
         return false;
     }
@@ -379,7 +403,7 @@ bool PowerManager::configureAdc1ForBattery()
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;
     sConfig.OffsetSignedSaturation = DISABLE;
-    if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+    if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
     {
         return false;
     }
@@ -387,15 +411,15 @@ bool PowerManager::configureAdc1ForBattery()
     return true;
 }
 
-void PowerManager::restoreAdc1ForButtons()
+void PowerManager::restoreAdcForButtons()
 {
-    MX_ADC1_Init();
+    MX_ADC2_Init();
     adc_configured_for_batt = false;
 }
 
 bool PowerManager::startSingleAdc()
 {
-    if (HAL_ADC_Start(&hadc1) != HAL_OK)
+    if (HAL_ADC_Start(&hadc2) != HAL_OK)
     {
         return false;
     }
@@ -404,11 +428,11 @@ bool PowerManager::startSingleAdc()
 
 bool PowerManager::pollSingleAdcDone(uint32_t timeout_ms)
 {
-    const HAL_StatusTypeDef st = HAL_ADC_PollForConversion(&hadc1, timeout_ms);
+    const HAL_StatusTypeDef st = HAL_ADC_PollForConversion(&hadc2, timeout_ms);
     if (st == HAL_OK)
     {
-        adc_single_value = HAL_ADC_GetValue(&hadc1);
-        HAL_ADC_Stop(&hadc1);
+        adc_single_value = HAL_ADC_GetValue(&hadc2);
+        HAL_ADC_Stop(&hadc2);
         return true;
     }
     return false;
@@ -426,12 +450,22 @@ uint32_t PowerManager::rawToBattMv(uint32_t raw) const
 
 float PowerManager::socFromMv(uint32_t mv) const
 {
-    if (mv <= 3000u) return 0.0f;
-    if (mv >= 4200u) return 100.0f;
+    static constexpr uint32_t discharge_mv[] = {3000u, 3300u, 3600u, 3800u, 4000u, 4200u};
+    static constexpr uint32_t charge_mv[] = {3200u, 3500u, 3800u, 4000u, 4150u, 4200u};
+    static constexpr float curve_soc[] = {0.0f, 10.0f, 30.0f, 60.0f, 85.0f, 100.0f};
+    const uint32_t* curve_mv = vbus_present ? charge_mv : discharge_mv;
 
-    if (mv < 3300u) return (float)(mv - 3000u) * (10.0f / 300.0f);
-    if (mv < 3600u) return 10.0f + (float)(mv - 3300u) * (20.0f / 300.0f);
-    if (mv < 3800u) return 30.0f + (float)(mv - 3600u) * (30.0f / 200.0f);
-    if (mv < 4000u) return 60.0f + (float)(mv - 3800u) * (25.0f / 200.0f);
-    return 85.0f + (float)(mv - 4000u) * (15.0f / 200.0f);
+    if (mv <= curve_mv[0]) return curve_soc[0];
+    if (mv >= curve_mv[5]) return curve_soc[5];
+
+    for (uint8_t i = 0; i < 5u; i++)
+    {
+        if (mv < curve_mv[i + 1u])
+        {
+            const float span_mv = (float)(curve_mv[i + 1u] - curve_mv[i]);
+            const float span_soc = curve_soc[i + 1u] - curve_soc[i];
+            return curve_soc[i] + (float)(mv - curve_mv[i]) * (span_soc / span_mv);
+        }
+    }
+    return curve_soc[5];
 }

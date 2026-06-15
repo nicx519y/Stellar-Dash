@@ -40,6 +40,9 @@ export interface PacketEvent {
   errorEvents?: number;
   channelScores?: Array<{ channel: number; score: number }>;
   activeChannelScore?: number;
+  inputKeyMask?: number;
+  inputSeq?: number;
+  inputFlags?: number;
 }
 
 export interface LatencyEvent {

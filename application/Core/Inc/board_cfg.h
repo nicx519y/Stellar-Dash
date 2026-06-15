@@ -274,6 +274,9 @@
 #define VBUS_STATUS_PORT                        GPIOG
 #define VBUS_STATUS_PIN                         GPIO_PIN_8
 
+#define FAST_CHARGE_STATUS_PORT                 GPIOG
+#define FAST_CHARGE_STATUS_PIN                  GPIO_PIN_9
+
 #define BAT_STATUS_PORT                         GPIOB
 #define BAT_STATUS_PIN                          GPIO_PIN_8
 
@@ -284,8 +287,8 @@
 #define BAT_H2_CHANNEL_CTRL_PIN                 GPIO_PIN_15
 
 #define VBAT_SENSE_ADC_PORT                     GPIOA
-#define VBAT_SENSE_ADC_PIN                      GPIO_PIN_0
-#define VBAT_SENSE_ADC_CHANNEL                  ADC_CHANNEL_16
+#define VBAT_SENSE_ADC_PIN                      GPIO_PIN_4
+#define VBAT_SENSE_ADC_CHANNEL                  ADC_CHANNEL_18
 
 #define VBAT_H1_SENSE_CTRL_PORT                 GPIOI
 #define VBAT_H1_SENSE_CTRL_PIN                  GPIO_PIN_1

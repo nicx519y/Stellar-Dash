@@ -45,11 +45,15 @@ type LinkLossSession = {
 };
 
 const MAX_ROWS = 500;
+const MAX_INPUT_PACKET_ROWS = 500;
 const MAX_EVENTS = 500;
 const MAX_LATENCIES = 500;
-const MAX_RATE_POINTS = 600;
+const MAX_RATE_POINTS = 500;
 const MAX_LOSS_POINTS = 600;
 const MAX_CHANNEL_ROWS = 500;
+const MAX_CHART_RATE_POINTS = 500;
+const MAX_CHART_LOSS_POINTS = 500;
+const MAX_CHART_CHANNEL_ROWS = 300;
 
 function nowMs() {
   return Date.now();
@@ -165,6 +169,10 @@ function rfPacketEvents(batch: MonitorEvent[]) {
   return batch.filter(isPacket).filter((p) => p.channel === "RF" && p.direction === "RX");
 }
 
+function isRfInputPacket(packet: PacketEvent) {
+  return packet.messageType.startsWith("RFH_RHI1_") && packet.rfStateCode === "C";
+}
+
 function isHopIntent(packet: PacketEvent) {
   return (
     (packet.rfStateCode === "HR" || packet.rfStateCode === "CA" || packet.rfStateCode === "D") &&
@@ -188,11 +196,15 @@ function isHopActivePacket(packet: PacketEvent) {
 export function useMonitorStream() {
   const [events, setEvents] = React.useState<MonitorEvent[]>([]);
   const [packetRows, setPacketRows] = React.useState<PacketRow[]>([]);
+  const [inputPacketRows, setInputPacketRows] = React.useState<PacketRow[]>([]);
   const [errorRows, setErrorRows] = React.useState<ErrorRow[]>([]);
   const [latencies, setLatencies] = React.useState<LatencyEvent[]>([]);
   const [rateSeries, setRateSeries] = React.useState<RatePoint[]>([]);
   const [lossSeries, setLossSeries] = React.useState<LossPoint[]>([]);
   const [channelSwitches, setChannelSwitches] = React.useState<ChannelSwitchRow[]>([]);
+  const [chartRateSeries, setChartRateSeries] = React.useState<RatePoint[]>([]);
+  const [chartLossSeries, setChartLossSeries] = React.useState<LossPoint[]>([]);
+  const [chartChannelSwitches, setChartChannelSwitches] = React.useState<ChannelSwitchRow[]>([]);
   const [channelScores, setChannelScores] = React.useState<ChannelScoreRow[]>([]);
   const [paused, setPausedState] = React.useState(false);
   const pausedRef = React.useRef(false);
@@ -214,6 +226,15 @@ export function useMonitorStream() {
         const add = batch.filter(isPacket).map((p) => ({ ...p, id: formatId("pkt") }));
         const next = prev.concat(add);
         return next.length > MAX_ROWS ? next.slice(-MAX_ROWS) : next;
+      });
+      setInputPacketRows((prev) => {
+        const add = batch
+          .filter(isPacket)
+          .filter(isRfInputPacket)
+          .map((p) => ({ ...p, id: formatId("input-pkt") }));
+        if (add.length === 0) return prev;
+        const next = prev.concat(add);
+        return next.length > MAX_INPUT_PACKET_ROWS ? next.slice(-MAX_INPUT_PACKET_ROWS) : next;
       });
       setErrorRows((prev) => {
         const add = batch
@@ -267,9 +288,24 @@ export function useMonitorStream() {
         const next = prev.concat(add);
         return next.length > MAX_LOSS_POINTS ? next.slice(-MAX_LOSS_POINTS) : next;
       });
+      setChartRateSeries((prev) => {
+        const add = trendPackets.map((p) => ({ tMs: p.timestampMs, hz: p.rateHz ?? 0 }));
+        if (add.length === 0) return prev;
+        const next = prev.concat(add);
+        return next.length > MAX_CHART_RATE_POINTS ? next.slice(-MAX_CHART_RATE_POINTS) : next;
+      });
+      setChartLossSeries((prev) => {
+        const add = trendPackets.map((p) => ({ tMs: p.timestampMs, value: (p.lossPermille ?? 0) / 10 }));
+        if (add.length === 0) return prev;
+        const next = prev.concat(add);
+        return next.length > MAX_CHART_LOSS_POINTS ? next.slice(-MAX_CHART_LOSS_POINTS) : next;
+      });
       const channelRows: ChannelSwitchRow[] = [];
       for (const p of rfPackets) {
         if (p.messageType === "RFH_RHS1_SCORE") {
+          continue;
+        }
+        if (isRfInputPacket(p)) {
           continue;
         }
         const prev = lastRfPacketRef.current;
@@ -512,6 +548,10 @@ export function useMonitorStream() {
           const next = prev.concat(channelRows);
           return next.length > MAX_CHANNEL_ROWS ? next.slice(-MAX_CHANNEL_ROWS) : next;
         });
+        setChartChannelSwitches((prev) => {
+          const next = prev.concat(channelRows);
+          return next.length > MAX_CHART_CHANNEL_ROWS ? next.slice(-MAX_CHART_CHANNEL_ROWS) : next;
+        });
       }
     };
 
@@ -528,11 +568,15 @@ export function useMonitorStream() {
   const clear = React.useCallback(() => {
     setEvents([]);
     setPacketRows([]);
+    setInputPacketRows([]);
     setErrorRows([]);
     setLatencies([]);
     setRateSeries([]);
     setLossSeries([]);
     setChannelSwitches([]);
+    setChartRateSeries([]);
+    setChartLossSeries([]);
+    setChartChannelSwitches([]);
     setChannelScores([]);
     lastRfPacketRef.current = null;
     hopSessionRef.current = null;
@@ -574,11 +618,11 @@ export function useMonitorStream() {
 
   const packets = React.useMemo(() => {
     return {
-      items: packetRows,
+      items: inputPacketRows,
       usbTxPerSec: calcRateFromPackets(packetRows, "USB", "TX", 1000),
       rfRxPerSec: calcRateFromPackets(packetRows, "RF", "RX", 1000),
     };
-  }, [packetRows]);
+  }, [inputPacketRows, packetRows]);
 
   const errors = React.useMemo(() => {
     const windowSec = 30;
@@ -591,5 +635,23 @@ export function useMonitorStream() {
 
   const latency = React.useMemo(() => calcHzFromLatency(latencies), [latencies]);
 
-  return { events, packets, errors, latency, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear, loadOlderEvents };
+  return {
+    events,
+    packets,
+    errors,
+    latency,
+    rateSeries,
+    lossSeries,
+    channelSwitches,
+    chart: {
+      rateSeries: chartRateSeries,
+      lossSeries: chartLossSeries,
+      channelSwitches: chartChannelSwitches,
+    },
+    channelScores,
+    paused,
+    setPaused,
+    clear,
+    loadOlderEvents,
+  };
 }

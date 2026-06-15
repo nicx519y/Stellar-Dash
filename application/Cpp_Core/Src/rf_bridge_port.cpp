@@ -707,6 +707,11 @@ bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint1
 #if RF_BRIDGE_INPUT_DMA_FASTPATH
         tx_ok = rf_spi_dma_enqueue_latest(busTx, busTxLen, input_seq);
 #else
+        if (!rf_spi_dma_wait_idle_and_drop_pending(RF_BRIDGE_SPI_TIMEOUT_MS)) {
+            if (rxLen != nullptr) *rxLen = 0u;
+            return false;
+        }
+        rf_flush_stale_if_irq_high();
         if (s_dma_busy) {
             if (rxLen != nullptr) *rxLen = 0u;
             return false;

@@ -62,6 +62,8 @@ static uint32_t g_perfBlocked = 0;
 static uint32_t g_battUiLastSampleMs = 0;
 static uint8_t g_battUiSoc = 0;
 static PowerChargeState g_battUiChargeState = PowerChargeState::Unknown;
+static bool g_battUiFastCharging = false;
+static bool g_battUiLowBattery = false;
 
 static bool ok_flash_active(void) {
     return (uint32_t)(HAL_GetTick() - g_okFlashUntilMs) > 0x80000000u ? false : (HAL_GetTick() < g_okFlashUntilMs);
@@ -141,11 +143,61 @@ static void update_battery_ui_cache(uint32_t nowMs) {
     if (soc > 100.0f) soc = 100.0f;
     g_battUiSoc = (uint8_t)(soc + 0.5f);
     g_battUiChargeState = POWER_MANAGER.getChargeState();
+    g_battUiFastCharging = POWER_MANAGER.isFastCharging();
+    g_battUiLowBattery = POWER_MANAGER.isLowBattery();
+}
+
+static uint8_t battery_soc_to_blocks(uint8_t soc) {
+    if (soc == 0u) return 0u;
+    uint8_t blocks = (uint8_t)((soc + 24u) / 25u);
+    if (blocks > 4u) blocks = 4u;
+    return blocks;
+}
+
+static uint8_t battery_animated_blocks(uint8_t baseBlocks, uint32_t nowMs) {
+    if (baseBlocks >= 4u) return 4u;
+    if (g_battUiChargeState != PowerChargeState::Charging) return baseBlocks;
+
+    const uint32_t periodMs = 1200u;
+    const uint8_t steps = (uint8_t)(5u - baseBlocks);
+    uint8_t blocks = (uint8_t)(baseBlocks + ((nowMs % periodMs) * steps) / periodMs);
+    if (blocks > 4u) blocks = 4u;
+    return blocks;
+}
+
+static void render_fast_charge_bolt(ST7789_Handle* lcd, uint16_t bodyX, uint16_t bodyY, uint16_t bodyW, uint16_t bodyH, uint32_t fg, uint32_t bg) {
+    static constexpr uint8_t boltRows[] = {
+        0b00100u,
+        0b01100u,
+        0b11110u,
+        0b00110u,
+        0b01100u,
+        0b01000u,
+    };
+    const uint8_t scale = 2u;
+    const uint16_t boltW = 5u * scale;
+    const uint16_t boltH = (uint16_t)(sizeof(boltRows) * scale);
+    const uint16_t boltX = (uint16_t)(bodyX + (bodyW - boltW) / 2u);
+    const uint16_t boltY = (uint16_t)(bodyY + (bodyH - boltH) / 2u);
+
+    ST7789_FillRect(lcd, (uint16_t)(boltX - 1u), boltY, (uint16_t)(boltW + 2u), boltH, bg);
+    for (uint8_t row = 0; row < (uint8_t)sizeof(boltRows); row++) {
+        for (uint8_t col = 0; col < 5u; col++) {
+            if ((boltRows[row] & (uint8_t)(1u << (4u - col))) != 0u) {
+                ST7789_FillRect(lcd,
+                                (uint16_t)(boltX + col * scale),
+                                (uint16_t)(boltY + row * scale),
+                                scale,
+                                scale,
+                                fg);
+            }
+        }
+    }
 }
 
 static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_t h, uint32_t fg, uint32_t bg, uint32_t nowMs) {
-    const uint16_t bodyW = 22u;
-    const uint16_t bodyH = 12u;
+    const uint16_t bodyW = 30u;
+    const uint16_t bodyH = 14u;
     const uint16_t headW = 2u;
     const uint16_t headH = 6u;
     const uint16_t x = (leftW > (uint16_t)(bodyW + headW + 2u)) ? (uint16_t)((leftW - (bodyW + headW + 2u)) / 2u) : 0u;
@@ -153,26 +205,32 @@ static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_
     const uint16_t headX = (uint16_t)(x + bodyW + 1u);
     const uint16_t headY = (uint16_t)(y + ((bodyH - headH) / 2u));
 
-    ST7789_DrawRect(lcd, x, y, bodyW, bodyH, fg);
-    ST7789_DrawRect(lcd, headX, headY, headW, headH, fg);
+    const bool lowBorderVisible = !g_battUiLowBattery || ((nowMs % 700u) < 350u);
+    if (lowBorderVisible) {
+        ST7789_DrawRect(lcd, x, y, bodyW, bodyH, fg);
+        ST7789_DrawRect(lcd, headX, headY, headW, headH, fg);
+    }
 
     const uint16_t innerX = (uint16_t)(x + 2u);
     const uint16_t innerY = (uint16_t)(y + 2u);
     const uint16_t innerW = (uint16_t)(bodyW - 4u);
     const uint16_t innerH = (uint16_t)(bodyH - 4u);
     ST7789_FillRect(lcd, innerX, innerY, innerW, innerH, bg);
-    const uint16_t baseFillW = (uint16_t)((uint32_t)innerW * (uint32_t)g_battUiSoc / 100u);
-    uint16_t fillW = baseFillW;
-    if (g_battUiChargeState == PowerChargeState::Charging && baseFillW < innerW) {
-        const uint32_t periodMs = 1200u;
-        const uint32_t t = (periodMs == 0u) ? 0u : (nowMs % periodMs);
-        const uint32_t span = (uint32_t)(innerW - baseFillW);
-        const uint32_t add = (span * t) / periodMs;
-        fillW = (uint16_t)(baseFillW + (uint16_t)add);
+
+    if (g_battUiLowBattery) {
+        return;
     }
-    if (g_battUiSoc > 0u && fillW == 0u) fillW = 1u;
-    if (fillW > 0u) {
-        ST7789_FillRect(lcd, innerX, innerY, fillW, innerH, fg);
+
+    const uint8_t blockCount = battery_animated_blocks(battery_soc_to_blocks(g_battUiSoc), nowMs);
+    const uint16_t blockGap = 2u;
+    const uint16_t blockW = 5u;
+    for (uint8_t i = 0; i < blockCount; i++) {
+        const uint16_t blockX = (uint16_t)(innerX + i * (blockW + blockGap));
+        ST7789_FillRect(lcd, blockX, innerY, blockW, innerH, fg);
+    }
+
+    if (g_battUiFastCharging) {
+        render_fast_charge_bolt(lcd, x, y, bodyW, bodyH, fg, bg);
     }
 }
 
@@ -498,7 +556,7 @@ void SPIScreenManager::renderBars() {
     const uint16_t tokenH = ScreenUI_CharCellH(tokenScale);
     const uint16_t leftTopY = 6u;
     const uint16_t stackGap = 8u;
-    const uint16_t battBodyH = 12u;
+    const uint16_t battBodyH = 14u;
     const uint16_t battBottomMargin = 8u;
     const uint16_t battY = (h > (uint16_t)(battBodyH + battBottomMargin)) ? (uint16_t)(h - battBodyH - battBottomMargin) : 0u;
     const uint16_t connY = (battY > (uint16_t)(tokenH + stackGap)) ? (uint16_t)(battY - tokenH - stackGap) : leftTopY;

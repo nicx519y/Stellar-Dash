@@ -19,7 +19,7 @@ import { TfiClose } from "react-icons/tfi";
 import type { MonitorEvent } from "../../../shared/monitor-types";
 import rfMonitorLogo from "../assets/rf-monitor-logo.png";
 import { useMonitorStream } from "./useMonitorStream";
-import { ButtonsPanel } from "./ButtonsPanel";
+import { ButtonsPanel, type RfInputSnapshot } from "./ButtonsPanel";
 import { ChannelPanel } from "./ChannelPanel";
 import { ChannelScorePanel } from "./ChannelScorePanel";
 import { PacketsPanel } from "./PacketsPanel";
@@ -49,6 +49,29 @@ function latestStatus(events: MonitorEvent[], mode: "USB" | "RF24G") {
   return null;
 }
 
+function latestRfInput(events: MonitorEvent[]): RfInputSnapshot | null {
+  const now = Date.now();
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ev = events[i];
+    if (
+      ev.kind === "packet" &&
+      ev.channel === "RF" &&
+      ev.direction === "RX" &&
+      ev.rfStateCode === "C" &&
+      typeof ev.inputKeyMask === "number"
+    ) {
+      if (now - ev.timestampMs > 3000) {
+        return null;
+      }
+      return {
+        keyMask: ev.inputKeyMask,
+        timestampMs: ev.timestampMs,
+      };
+    }
+  }
+  return null;
+}
+
 function badgeColor(state: string) {
   if (state === "Connected") return "green";
   if (state === "Connecting") return "yellow";
@@ -61,13 +84,14 @@ function AppLogo() {
     <Image
       src={rfMonitorLogo}
       alt="RF-Monitor"
-      h="36px"
+      h="40px"
       w="auto"
       ml="-12px"
       maxW={{ base: "220px", md: "320px" }}
       objectFit="contain"
       display="block"
-      filter="drop-shadow(0 0 10px rgba(92,255,138,0.22))"
+      opacity={1}
+      filter="contrast(1.18) brightness(1.22)"
     />
   );
 }
@@ -237,15 +261,23 @@ function TrafficPanels({
 }
 
 export function App() {
-  const { events, packets, latency, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
+  const { events, packets, latency, chart, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollState, setScrollState] = useState({ top: 0, client: 1, scroll: 1 });
 
   const usbStatus = useMemo(() => latestStatus(events, "USB"), [events]);
   const rfStatus = useMemo(() => latestStatus(events, "RF24G"), [events]);
+  const rfInput = useMemo(() => latestRfInput(events), [events]);
+  const rfConnected = rfStatus?.state === "Connected";
   const rfActualHz = rfStatus?.actualRateHz ?? 0;
-  const reportHz = rfActualHz > 0 ? rfActualHz : latency.estimatedHz > 0 ? latency.estimatedHz : Math.max(packets.usbTxPerSec, packets.rfRxPerSec);
-  const latestLoss = lossSeries.length > 0 ? lossSeries[lossSeries.length - 1].value : 0;
+  const reportHz = rfConnected
+    ? rfActualHz > 0
+      ? rfActualHz
+      : latency.estimatedHz > 0
+        ? latency.estimatedHz
+        : Math.max(packets.usbTxPerSec, packets.rfRxPerSec)
+    : 0;
+  const latestLoss = rfConnected && lossSeries.length > 0 ? lossSeries[lossSeries.length - 1].value : 0;
   const canScroll = false;
   const thumbHeightPct = canScroll ? Math.max(8, (scrollState.client / scrollState.scroll) * 100) : 100;
   const thumbTopPct = canScroll
@@ -305,7 +337,7 @@ export function App() {
     >
       <Flex
         px={3}
-        py={2}
+        py={1}
         align="center"
         justify="space-between"
         position="relative"
@@ -380,7 +412,7 @@ export function App() {
             status={rfStatus?.state ?? "Disconnected"}
             statusLabel={rfStatus?.statusLabel}
             target={`Target ${rfStatus?.targetRateHz ?? 0} Hz`}
-            value={packets.rfRxPerSec.toFixed(1)}
+            value={(rfConnected ? packets.rfRxPerSec : 0).toFixed(1)}
             unit="pkt/s"
           />
           <MetricCard
@@ -416,11 +448,14 @@ export function App() {
               rateSeries={rateSeries}
               lossSeries={lossSeries}
               channelSwitches={channelSwitches}
+              chartRateSeries={chart.rateSeries}
+              chartLossSeries={chart.lossSeries}
+              chartChannelSwitches={chart.channelSwitches}
               rfStatus={rfStatus}
               chartHeight="100%"
               compact
             />
-            <ButtonsPanel compact />
+            <ButtonsPanel compact rfInput={rfInput} />
           </Box>
           <TrafficPanels packets={packets} channelSwitches={channelSwitches} channelScores={channelScores} />
         </VStack>

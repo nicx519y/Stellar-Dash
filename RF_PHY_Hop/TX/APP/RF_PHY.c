@@ -56,6 +56,9 @@
 #define RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_DEN 8u
 #define RF_AUTO_DEMO_CHANNEL_COOLDOWN_MS 10000u
 #define RF_LINK_CRC_INIT               0x555555UL
+#ifndef RF_TX_FORCE_INPUT_PAYLOAD_TEST
+#define RF_TX_FORCE_INPUT_PAYLOAD_TEST 1u
+#endif
 
 typedef struct
 {
@@ -469,6 +472,13 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
     uint8_t flags = RFH_FLAG_LINK_OK;
     uint8_t hop_cmd = demo_active_hop_cmd();
 
+#if (RF_TX_FORCE_INPUT_PAYLOAD_TEST != 0u)
+    request_ack = 0u;
+    ack_token = 0u;
+    ack_burst_left = 0u;
+    hop_cmd = RFH_CMD_NONE;
+#endif
+
     if(request_ack != 0u)
     {
         flags |= RFH_FLAG_CMD_ACK;
@@ -866,7 +876,14 @@ void RF_TxMainLoopProcess(void)
 
 bool RF_SPI_FastWriteInput(const uint8_t *payload, uint8_t len)
 {
-    return rfm_input_stream_push(payload, len);
+    if((payload == 0) || (len != RFH_AIR_DATA_LEN))
+    {
+        return false;
+    }
+
+    memcpy(g_demo_last_payload, payload, RFH_AIR_DATA_LEN);
+    g_demo_have_payload = 1u;
+    return true;
 }
 
 bool RF_SetReportRateHz(uint16_t hz)

@@ -20,10 +20,48 @@ function rfHopStateToLinkState(state: number): "Disconnected" | "Connecting" | "
   return "Error";
 }
 
+function parseRfHopInputFrame(view: DataView, report: Uint8Array, timestampMs: number): MonitorEvent[] {
+  const seq = view.getUint32(4, true);
+  const inputKeyMask = view.getUint32(8, true);
+  const inputSeq = view.getUint8(12);
+  const inputFlags = view.getUint8(13);
+  const state = view.getUint8(14);
+  const channel = view.getUint8(15);
+  const targetRateHz = view.getUint16(16, true);
+  const stateCode = rfHopStateCode(state);
+
+  return [
+    {
+      kind: "packet",
+      timestampMs,
+      channel: "RF",
+      direction: "RX",
+      seq,
+      messageType: `RFH_RHI1_${stateCode}`,
+      payloadLen: report.length,
+      payloadHex: hexReport(report),
+      channelNumber: channel,
+      rfStateCode: stateCode,
+      rateHz: targetRateHz,
+      inputKeyMask,
+      inputSeq,
+      inputFlags,
+    },
+  ];
+}
+
 const RFH_TMOS_TICK_MS = 0.625;
 const RFH_SILENT_TICKS_INVALID = 0xffff;
+const RFH_INPUT_MIN_REPEAT_MS = 450;
+
+function hexReport(report: Uint8Array) {
+  return Array.from(report, (byte) => byte.toString(16).padStart(2, "0").toUpperCase()).join(" ");
+}
 
 let lastRfHopHidTimestampMs = 0;
+let lastRfHopInputAcceptedTimestampMs = 0;
+let lastRfHopInputKeyMask = 0;
+let lastRfHopInputFlags = -1;
 let lastLegacyRfHopRxCount = 0;
 let lastLegacyRfHopExpectedCount = 0;
 let haveLastLegacyRfHopTotals = false;
@@ -185,6 +223,7 @@ function parseRfHopHidTelemetryFrame(view: DataView, report: Uint8Array, timesta
       seq,
       messageType: `RFH_RHM1_${stateCode}`,
       payloadLen: report.length,
+      payloadHex: hexReport(report),
       sampleCount,
       expectedCount,
       sampleWindowMs: elapsedMs,
@@ -245,6 +284,7 @@ function parseRfHopScoreFrame(view: DataView, report: Uint8Array, timestampMs: n
       seq,
       messageType: "RFH_RHS1_SCORE",
       payloadLen: report.length,
+      payloadHex: hexReport(report),
       channelNumber: activeChannel,
       channelScores,
       activeChannelScore: active?.score,
@@ -268,6 +308,20 @@ export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = D
   }
   if (magic === 0x31534852) {
     return parseRfHopScoreFrame(view, report, timestampMs);
+  }
+  if (magic === 0x31494852) {
+    const inputKeyMask = view.getUint32(8, true);
+    const inputFlags = view.getUint8(13);
+    const changed =
+      inputKeyMask !== lastRfHopInputKeyMask ||
+      inputFlags !== lastRfHopInputFlags;
+    if (!changed && timestampMs - lastRfHopInputAcceptedTimestampMs < RFH_INPUT_MIN_REPEAT_MS) {
+      return [];
+    }
+    lastRfHopInputAcceptedTimestampMs = timestampMs;
+    lastRfHopInputKeyMask = inputKeyMask;
+    lastRfHopInputFlags = inputFlags;
+    return parseRfHopInputFrame(view, report, timestampMs);
   }
 
   if (magic !== 0x314e4d44) {
@@ -308,6 +362,7 @@ export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = D
       seq: latestSeq,
       messageType: "DONGLE_DMN1",
       payloadLen: report.length,
+      payloadHex: hexReport(report),
     },
     {
       kind: "error",

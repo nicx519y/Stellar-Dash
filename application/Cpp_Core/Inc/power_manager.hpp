@@ -38,12 +38,15 @@ public:
     float getTotalSocPercent() const;
     PowerBatteryVoltages getVoltages() const;
     PowerBatteryId getActiveDischargeBattery() const;
+    bool isFastCharging() const;
+    bool isLowBattery() const;
 
 private:
     PowerManager() = default;
 
     void configureGpios();
     bool isVbusPresent() const;
+    bool isFastChargeDetected() const;
     void setChannelStates(bool h1_on, bool h2_on);
     void requestSwitchTo(PowerBatteryId target);
     void processSwitch();
@@ -51,8 +54,8 @@ private:
     bool canUseAdcNow() const;
     void startVoltageMeasurementCycle();
     void processVoltageMeasurement();
-    bool configureAdc1ForBattery();
-    void restoreAdc1ForButtons();
+    bool configureAdcForBattery();
+    void restoreAdcForButtons();
     bool startSingleAdc();
     bool pollSingleAdcDone(uint32_t timeout_ms);
     uint32_t rawToBattMv(uint32_t raw) const;
@@ -63,6 +66,7 @@ private:
 
     uint32_t last_mode_poll_ms = 0;
     bool vbus_present = false;
+    bool fast_charging = false;
     PowerBatteryId active_discharge = PowerBatteryId::H1;
     PowerBatteryId pending_switch = PowerBatteryId::H1;
     bool switch_in_progress = false;
@@ -82,6 +86,7 @@ private:
     uint32_t bat_mv = 0;
     float h1_soc = 0.0f;
     float h2_soc = 0.0f;
+    bool voltage_valid = false;
 
     uint32_t last_voltage_update_ms = 0;
     uint8_t switch_confirm_count = 0;
