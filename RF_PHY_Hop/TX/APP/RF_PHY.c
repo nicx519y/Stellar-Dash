@@ -57,7 +57,7 @@
 #define RF_AUTO_DEMO_CHANNEL_COOLDOWN_MS 10000u
 #define RF_LINK_CRC_INIT               0x555555UL
 #ifndef RF_TX_FORCE_INPUT_PAYLOAD_TEST
-#define RF_TX_FORCE_INPUT_PAYLOAD_TEST 1u
+#define RF_TX_FORCE_INPUT_PAYLOAD_TEST 0u
 #endif
 
 typedef struct
@@ -135,7 +135,7 @@ static uint32_t g_demo_tx_start_clock = 0u;
 #endif
 static uint32_t g_demo_last_log_clock = 0u;
 static uint8_t g_demo_last_payload[RFH_AIR_DATA_LEN] = {0};
-static uint8_t g_demo_have_payload = 0u;
+static volatile uint8_t g_demo_have_payload = 0u;
 
 static const uint8_t g_demo_hop_channels[] = { 39u, 16u, 24u, 32u };
 static uint16_t g_demo_channel_scores[sizeof(g_demo_hop_channels) / sizeof(g_demo_hop_channels[0])];
@@ -514,12 +514,13 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
     }
     else
     {
-        if(rfm_input_stream_take_latest(g_demo_last_payload, RFH_AIR_DATA_LEN))
-        {
-            g_demo_have_payload = 1u;
-        }
         if(g_demo_have_payload != 0u)
         {
+            memcpy(data, g_demo_last_payload, RFH_AIR_DATA_LEN);
+        }
+        else if(rfm_input_stream_take_latest(g_demo_last_payload, RFH_AIR_DATA_LEN))
+        {
+            g_demo_have_payload = 1u;
             memcpy(data, g_demo_last_payload, RFH_AIR_DATA_LEN);
         }
         else
@@ -876,13 +877,17 @@ void RF_TxMainLoopProcess(void)
 
 bool RF_SPI_FastWriteInput(const uint8_t *payload, uint8_t len)
 {
+    uint32_t irq_status;
+
     if((payload == 0) || (len != RFH_AIR_DATA_LEN))
     {
         return false;
     }
 
+    SYS_DisableAllIrq(&irq_status);
     memcpy(g_demo_last_payload, payload, RFH_AIR_DATA_LEN);
     g_demo_have_payload = 1u;
+    SYS_RecoverIrq(irq_status);
     return true;
 }
 
