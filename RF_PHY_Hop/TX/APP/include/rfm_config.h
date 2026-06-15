@@ -8,7 +8,7 @@
 #define RFM_SPI_SYNC                  (0xA5u)
 
 #ifndef RFM_SPI_INPUT_DIRECT_DMA
-#define RFM_SPI_INPUT_DIRECT_DMA      1u
+#define RFM_SPI_INPUT_DIRECT_DMA      0u
 #endif
 
 #ifndef RFM_FORCE_REPORT_RATE_HZ

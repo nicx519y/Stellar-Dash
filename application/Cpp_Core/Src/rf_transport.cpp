@@ -24,7 +24,6 @@ static constexpr uint8_t INPUT_PAYLOAD_LEN = 10u;
 static constexpr uint8_t INPUT_FORMAT_VERSION = 1u;
 static constexpr uint8_t INPUT_FLAG_PROCESSED = 0x01u;
 static constexpr uint8_t INPUT_FLAGS = static_cast<uint8_t>((INPUT_FORMAT_VERSION << 4) | INPUT_FLAG_PROCESSED);
-static constexpr uint32_t INPUT_TEST_KEY_MASK = (1UL << 4);
 static constexpr uint8_t STATUS_PAYLOAD_LEN = 17u;
 static constexpr uint16_t RX_BUF_LEN = 32u;
 
@@ -328,8 +327,7 @@ uint8_t RFTransport::serviceEvents(uint8_t drainLimit) {
 
 bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
     uint8_t payload[INPUT_PAYLOAD_LEN] = {0};
-    (void)gamepad;
-    const uint32_t keyMask = INPUT_TEST_KEY_MASK;
+    const uint32_t keyMask = buildHitboxKeyMask(gamepad);
 
     payload[0] = static_cast<uint8_t>(seq & 0xFFu);
     payload[1] = INPUT_FLAGS;

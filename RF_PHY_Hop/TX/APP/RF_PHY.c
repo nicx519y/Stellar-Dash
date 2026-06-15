@@ -59,6 +59,7 @@
 #ifndef RF_TX_FORCE_INPUT_PAYLOAD_TEST
 #define RF_TX_FORCE_INPUT_PAYLOAD_TEST 0u
 #endif
+#define RF_TX_DIRECT_INPUT_TEST_KEY_MASK 0x00000010UL
 
 typedef struct
 {
@@ -464,6 +465,44 @@ static void demo_handle_ack_packet(void)
     }
 }
 
+#if (RF_TX_FORCE_INPUT_PAYLOAD_TEST != 0u)
+static uint8_t demo_input_crc8(const uint8_t *data, uint8_t len)
+{
+    uint8_t crc = 0u;
+    uint8_t i;
+
+    for(i = 0u; i < len; ++i)
+    {
+        uint8_t bit;
+
+        crc = (uint8_t)(crc ^ data[i]);
+        for(bit = 0u; bit < 8u; ++bit)
+        {
+            if((crc & 0x80u) != 0u)
+            {
+                crc = (uint8_t)((crc << 1) ^ 0x07u);
+            }
+            else
+            {
+                crc = (uint8_t)(crc << 1);
+            }
+        }
+    }
+    return crc;
+}
+
+static void demo_fill_direct_input_payload(uint8_t *data)
+{
+    static uint8_t s_direct_input_seq;
+
+    memset(data, 0, RFH_AIR_DATA_LEN);
+    data[0] = s_direct_input_seq++;
+    data[1] = 0x11u;
+    rfh_put_u32(&data[2], RF_TX_DIRECT_INPUT_TEST_KEY_MASK);
+    data[9] = demo_input_crc8(data, (uint8_t)(RFH_AIR_DATA_LEN - 1u));
+}
+#endif
+
 static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t ack_burst_left)
 {
     uint8_t i;
@@ -471,13 +510,7 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
     uint8_t *data = &air[RFH_DATA_OFFSET];
     uint8_t flags = RFH_FLAG_LINK_OK;
     uint8_t hop_cmd = demo_active_hop_cmd();
-
-#if (RF_TX_FORCE_INPUT_PAYLOAD_TEST != 0u)
-    request_ack = 0u;
-    ack_token = 0u;
-    ack_burst_left = 0u;
-    hop_cmd = RFH_CMD_NONE;
-#endif
+    uint8_t has_input_payload = 0u;
 
     if(request_ack != 0u)
     {
@@ -514,22 +547,33 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
     }
     else
     {
+#if (RF_TX_FORCE_INPUT_PAYLOAD_TEST != 0u)
+        demo_fill_direct_input_payload(data);
+        has_input_payload = 1u;
+#else
         if(g_demo_have_payload != 0u)
         {
             memcpy(data, g_demo_last_payload, RFH_AIR_DATA_LEN);
+            has_input_payload = 1u;
         }
         else if(rfm_input_stream_take_latest(g_demo_last_payload, RFH_AIR_DATA_LEN))
         {
             g_demo_have_payload = 1u;
             memcpy(data, g_demo_last_payload, RFH_AIR_DATA_LEN);
+            has_input_payload = 1u;
         }
         else
         {
             data[0] = (uint8_t)(g_demo_stat.tx_start & 0xFFu);
             data[1] = (uint8_t)((g_demo_stat.tx_start >> 8) & 0xFFu);
         }
+#endif
     }
-    for(i = 8u; (hop_cmd == RFH_CMD_NONE) && (i < RF_AUTO_DEMO_ACK_TOKEN_OFFSET); i++)
+    for(i = 8u;
+        (has_input_payload == 0u) &&
+        (hop_cmd == RFH_CMD_NONE) &&
+        (i < RF_AUTO_DEMO_ACK_TOKEN_OFFSET);
+        i++)
     {
         air[i] = (uint8_t)(0xA0u + i);
     }

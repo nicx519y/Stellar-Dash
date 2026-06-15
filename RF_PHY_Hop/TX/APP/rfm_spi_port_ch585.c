@@ -18,8 +18,9 @@
 #define SPI_RX_CONTROL_SCAN_BYTES     (SPI_RX_DMA_RING_SIZE)
 #define SPI_RX_NEAR_FULL_THRESHOLD    (SPI_RX_DMA_RING_SIZE - (SPI_RX_FRAME_BYTES * 16u))
 #define SPI_INPUT_CMD                 (0x06u)
+#define SPI_RX_FIFO_RING_SIZE         (256u)
 #ifndef SPI_RX_DMA_INJECT_INPUT_TEST
-#define SPI_RX_DMA_INJECT_INPUT_TEST  1u
+#define SPI_RX_DMA_INJECT_INPUT_TEST  0u
 #endif
 
 static uint8_t s_spi_tx_buf[96];
@@ -52,10 +53,88 @@ static volatile uint32_t s_spi_rx_peek_miss_count;
 static volatile uint32_t s_spi_rx_direct_count;
 static uint32_t s_spi_rx_input_scan_abs;
 static uint32_t s_spi_rx_control_scan_abs;
+static uint8_t s_spi_rx_fifo_ring[SPI_RX_FIFO_RING_SIZE];
+static volatile uint16_t s_spi_rx_fifo_head;
+static volatile uint16_t s_spi_rx_fifo_tail;
 
 static uint32_t spi_rx_write_abs_snapshot(uint32_t *available_out);
 
-static void spi_rx_dma_loop_start(uint8_t flush_fifo)
+static void spi_rx_fifo_ring_reset(void)
+{
+    s_spi_rx_fifo_head = 0u;
+    s_spi_rx_fifo_tail = 0u;
+}
+
+static void spi_rx_fifo_ring_push(uint8_t value)
+{
+    uint16_t next = (uint16_t)(s_spi_rx_fifo_head + 1u);
+
+    if(next >= SPI_RX_FIFO_RING_SIZE)
+    {
+        next = 0u;
+    }
+    if(next == s_spi_rx_fifo_tail)
+    {
+        uint16_t tail = (uint16_t)(s_spi_rx_fifo_tail + 1u);
+
+        if(tail >= SPI_RX_FIFO_RING_SIZE)
+        {
+            tail = 0u;
+        }
+        s_spi_rx_fifo_tail = tail;
+        s_spi_rx_ring_overrun_count++;
+    }
+    s_spi_rx_fifo_ring[s_spi_rx_fifo_head] = value;
+    s_spi_rx_fifo_head = next;
+    s_spi_rx_total_bytes++;
+}
+
+static void spi_rx_fifo_drain_hw(void)
+{
+    while(R8_SPI0_FIFO_COUNT != 0u)
+    {
+        spi_rx_fifo_ring_push(R8_SPI0_FIFO);
+    }
+}
+
+static size_t spi_rx_fifo_ring_pop(uint8_t *buf, size_t max_len)
+{
+    size_t n = 0u;
+
+    PFIC_DisableIRQ(SPI0_IRQn);
+    while((n < max_len) && (s_spi_rx_fifo_tail != s_spi_rx_fifo_head))
+    {
+        uint16_t tail = s_spi_rx_fifo_tail;
+
+        buf[n++] = s_spi_rx_fifo_ring[tail];
+        tail = (uint16_t)(tail + 1u);
+        if(tail >= SPI_RX_FIFO_RING_SIZE)
+        {
+            tail = 0u;
+        }
+        s_spi_rx_fifo_tail = tail;
+    }
+    PFIC_EnableIRQ(SPI0_IRQn);
+
+    return n;
+}
+
+static void spi_rx_fifo_start(uint8_t flush_fifo)
+{
+    R8_SPI0_CTRL_CFG &= (uint8_t)(~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP));
+    R8_SPI0_CTRL_MOD = (uint8_t)((R8_SPI0_CTRL_MOD | RB_SPI_FIFO_DIR) & (uint8_t)(~RB_SPI_SLV_CMD_MOD));
+    R16_SPI0_TOTAL_CNT = 0xFFFFu;
+    R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END | RB_SPI_IF_FIFO_OV |
+                       RB_SPI_IF_FIFO_HF | RB_SPI_IF_BYTE_END | RB_SPI_IF_FST_BYTE;
+    if (flush_fifo != 0u) {
+        while (R8_SPI0_FIFO_COUNT != 0u) {
+            (void)R8_SPI0_FIFO;
+        }
+        spi_rx_fifo_ring_reset();
+    }
+}
+
+__attribute__((unused)) static void spi_rx_dma_loop_start(uint8_t flush_fifo)
 {
     R8_SPI0_CTRL_CFG &= (uint8_t)(~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP));
     R8_SPI0_CTRL_MOD = (uint8_t)((R8_SPI0_CTRL_MOD | RB_SPI_FIFO_DIR) & (uint8_t)(~RB_SPI_SLV_CMD_MOD));
@@ -473,8 +552,12 @@ static void spi_rx_restart_after_tx(void)
     s_spi_rx_control_scan_abs = s_spi_rx_base_abs;
     s_spi_rx_last_write_pos = 0u;
     memset(s_spi_rx_dma_buf, 0xFF, sizeof(s_spi_rx_dma_buf));
+#if (RFM_SPI_INPUT_DIRECT_DMA != 0u)
     spi_rx_dma_loop_start(1u);
-    SPI0_ITCfg(ENABLE, SPI0_IT_FIFO_OV);
+#else
+    spi_rx_fifo_start(1u);
+#endif
+    SPI0_ITCfg(ENABLE, SPI0_IT_FIFO_OV | SPI0_IT_FIFO_HF);
     PFIC_EnableIRQ(SPI0_IRQn);
 }
 
@@ -530,8 +613,12 @@ void rfm_spi_port_init(void)
     s_spi_rx_control_scan_abs = 0u;
     memset(s_spi_rx_dma_buf, 0xFF, sizeof(s_spi_rx_dma_buf));
 
+#if (RFM_SPI_INPUT_DIRECT_DMA != 0u)
     spi_rx_dma_loop_start(1u);
-    SPI0_ITCfg(ENABLE, SPI0_IT_FIFO_OV);
+#else
+    spi_rx_fifo_start(1u);
+#endif
+    SPI0_ITCfg(ENABLE, SPI0_IT_FIFO_OV | SPI0_IT_FIFO_HF);
     PFIC_EnableIRQ(SPI0_IRQn);
 }
 
@@ -565,7 +652,18 @@ void rfm_spi_port_service(void)
         return;
     }
 
+#if (RFM_SPI_INPUT_DIRECT_DMA != 0u)
     (void)spi_rx_write_abs_snapshot(&available);
+#else
+    (void)available;
+    spi_rx_fifo_drain_hw();
+    if ((R8_SPI0_INT_FLAG & RB_SPI_IF_FIFO_OV) != 0u) {
+        R8_SPI0_INT_FLAG = RB_SPI_IF_FIFO_OV;
+        s_spi_rx_fifo_ov_count++;
+        s_spi_rx_ring_overrun_count++;
+        spi_rx_fifo_start(1u);
+    }
+#endif
 }
 
 size_t rfm_spi_port_drain(uint8_t *buf, size_t max_len)
@@ -599,6 +697,21 @@ size_t rfm_spi_port_drain(uint8_t *buf, size_t max_len)
             spi_rx_restart_after_tx();
         }
     }
+
+#if (RFM_SPI_INPUT_DIRECT_DMA == 0u)
+    spi_rx_fifo_drain_hw();
+    if ((R8_SPI0_INT_FLAG & RB_SPI_IF_FIFO_OV) != 0u) {
+        R8_SPI0_INT_FLAG = RB_SPI_IF_FIFO_OV;
+        s_spi_rx_fifo_ov_count++;
+        s_spi_rx_ring_overrun_count++;
+        spi_rx_fifo_start(1u);
+    }
+    n = spi_rx_fifo_ring_pop(buf, max_len);
+    if ((uint32_t)n > s_spi_rx_max_available) {
+        s_spi_rx_max_available = (uint32_t)n;
+    }
+    return n;
+#endif
 
     write_abs = spi_rx_write_abs_snapshot(&available);
 
@@ -763,6 +876,31 @@ __attribute__((interrupt("WCH-Interrupt-fast"), section(".highcode")))
 void SPI0_IRQHandler(void)
 {
     const uint8_t flags = R8_SPI0_INT_FLAG;
+
+#if (RFM_SPI_INPUT_DIRECT_DMA == 0u)
+    const uint8_t rx_flags = (uint8_t)(flags & (RB_SPI_IF_FIFO_HF |
+                                                RB_SPI_IF_FIFO_OV |
+                                                RB_SPI_IF_BYTE_END |
+                                                RB_SPI_IF_FST_BYTE));
+
+    s_spi_rx_last_flags = flags;
+
+    if(flags == 0u)
+    {
+        return;
+    }
+    if((rx_flags & RB_SPI_IF_FIFO_OV) != 0u)
+    {
+        s_spi_rx_fifo_ov_count++;
+        s_spi_rx_ring_overrun_count++;
+    }
+    if((rx_flags & (RB_SPI_IF_FIFO_HF | RB_SPI_IF_BYTE_END | RB_SPI_IF_FST_BYTE)) != 0u)
+    {
+        spi_rx_fifo_drain_hw();
+    }
+    R8_SPI0_INT_FLAG = flags;
+    return;
+#else
     const uint8_t active = (uint8_t)(flags & RB_SPI_IF_FIFO_OV);
     const uint8_t noise = (uint8_t)(flags & (RB_SPI_IF_CNT_END |
                                              RB_SPI_IF_DMA_END |
@@ -795,6 +933,7 @@ void SPI0_IRQHandler(void)
         R8_SPI0_INT_FLAG = flags;
     }
     s_spi_rx_bad_irq_count++;
+#endif
 }
 
 bool rfm_spi_port_try_write(const uint8_t *buf, size_t len)
