@@ -37,8 +37,9 @@ function parseRfHopInputFrame(view: DataView, report: Uint8Array, timestampMs: n
   const airWindowRxOk = report.length >= 27 ? view.getUint16(25, true) : undefined;
   const airWindowExpected = report.length >= 29 ? view.getUint16(27, true) : undefined;
   const airWindowCrcErrors = report.length >= 31 ? view.getUint16(29, true) : undefined;
-  const airWindowTypeErrors = report.length >= 32 ? view.getUint8(31) >> 4 : undefined;
-  const airWindowTimeoutErrors = report.length >= 32 ? view.getUint8(31) & 0x0f : undefined;
+  const airWindowSeqGaps = report.length >= 32 ? view.getUint8(31) : undefined;
+  const airWindowTypeErrors = undefined;
+  const airWindowTimeoutErrors = undefined;
   const airDiagLooksSane =
     typeof airPendingCurrent === "number" &&
     typeof airPendingMax === "number" &&
@@ -78,6 +79,7 @@ function parseRfHopInputFrame(view: DataView, report: Uint8Array, timestampMs: n
       airWindowExpected: airDiagLooksSane ? airWindowExpected : undefined,
       airWindowErrors: airDiagLooksSane ? airWindowErrors : undefined,
       airWindowCrcErrors: airDiagLooksSane ? airWindowCrcErrors : undefined,
+      airWindowSeqGaps: airDiagLooksSane ? airWindowSeqGaps : undefined,
       airWindowTypeErrors: airDiagLooksSane ? airWindowTypeErrors : undefined,
       airWindowTimeoutErrors: airDiagLooksSane ? airWindowTimeoutErrors : undefined,
     },

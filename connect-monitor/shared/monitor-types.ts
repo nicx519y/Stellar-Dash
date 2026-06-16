@@ -53,6 +53,7 @@ export interface PacketEvent {
   airWindowExpected?: number;
   airWindowErrors?: number;
   airWindowCrcErrors?: number;
+  airWindowSeqGaps?: number;
   airWindowTypeErrors?: number;
   airWindowTimeoutErrors?: number;
 }

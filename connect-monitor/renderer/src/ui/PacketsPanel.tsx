@@ -106,8 +106,7 @@ function displayAirMeta(packet: PacketEvent) {
   const rawWindowRx = bytes.length >= 27 ? (bytes[25] ?? 0) | ((bytes[26] ?? 0) << 8) : undefined;
   const rawWindowExpected = bytes.length >= 29 ? (bytes[27] ?? 0) | ((bytes[28] ?? 0) << 8) : undefined;
   const rawCrcErrors = bytes.length >= 31 ? (bytes[29] ?? 0) | ((bytes[30] ?? 0) << 8) : undefined;
-  const rawTypeErrors = bytes.length >= 32 ? (bytes[31] ?? 0) >> 4 : undefined;
-  const rawTimeoutErrors = bytes.length >= 32 ? (bytes[31] ?? 0) & 0x0f : undefined;
+  const rawSeqGaps = bytes.length >= 32 ? bytes[31] : undefined;
   const eventPendingCurrent = packet.airPendingCurrent;
   const eventPendingMax = packet.airPendingMax;
   const eventLooksSane =
@@ -125,10 +124,7 @@ function displayAirMeta(packet: PacketEvent) {
     eventLooksSane && typeof packet.airWindowExpected === "number" ? packet.airWindowExpected : rawWindowExpected;
   const crcErrors =
     eventLooksSane && typeof packet.airWindowCrcErrors === "number" ? packet.airWindowCrcErrors : rawCrcErrors;
-  const typeErrors =
-    eventLooksSane && typeof packet.airWindowTypeErrors === "number" ? packet.airWindowTypeErrors : rawTypeErrors;
-  const timeoutErrors =
-    eventLooksSane && typeof packet.airWindowTimeoutErrors === "number" ? packet.airWindowTimeoutErrors : rawTimeoutErrors;
+  const seqGaps = eventLooksSane && typeof packet.airWindowSeqGaps === "number" ? packet.airWindowSeqGaps : rawSeqGaps;
 
   if (typeof pendingDrop !== "number" || typeof pendingCurrent !== "number" || typeof pendingMax !== "number") {
     return "-";
@@ -143,8 +139,8 @@ function displayAirMeta(packet: PacketEvent) {
       ? ` miss=${Math.max(0, windowExpected - Math.min(windowRx, windowExpected) - (crcErrors ?? 0))}`
       : "";
   const errorText =
-    typeof crcErrors === "number" || typeof typeErrors === "number" || typeof timeoutErrors === "number"
-      ? ` crc=${crcErrors ?? 0} type=${typeErrors ?? 0} to=${timeoutErrors ?? 0}`
+    typeof crcErrors === "number" || typeof seqGaps === "number"
+      ? ` gap=${seqGaps ?? 0} crc=${crcErrors ?? 0}`
       : "";
   return `pend=${pendingCurrent}/${pendingMax} drop=${pendingDrop}${lossText}${missingText}${errorText}`;
 }

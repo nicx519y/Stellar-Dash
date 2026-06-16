@@ -167,6 +167,7 @@ static volatile uint8_t g_demo_hid_input_flags = 0u;
 static volatile uint8_t g_demo_hid_input_valid = 0u;
 static uint32_t g_demo_air_diag_last_clock = 0u;
 static volatile uint32_t g_demo_air_diag_rx_ok = 0u;
+static volatile uint32_t g_demo_air_diag_seq_gap = 0u;
 static volatile uint32_t g_demo_air_diag_crc_errors = 0u;
 static volatile uint32_t g_demo_air_diag_type_errors = 0u;
 static volatile uint32_t g_demo_air_diag_timeout_errors = 0u;
@@ -740,6 +741,7 @@ static uint8_t demo_note_data_seq(uint8_t seq)
         {
             g_demo_window_missing += (uint32_t)(diff - 1u);
             g_demo_hid_bad += (uint32_t)(diff - 1u);
+            g_demo_air_diag_seq_gap += (uint32_t)(diff - 1u);
         }
     }
 
@@ -1591,6 +1593,7 @@ static uint8_t demo_try_send_input_report(void)
     uint32_t diag_elapsed_ms;
     uint32_t diag_expected;
     uint32_t diag_rx_ok = g_demo_air_diag_rx_ok;
+    uint32_t diag_seq_gap = g_demo_air_diag_seq_gap;
     uint32_t diag_crc_errors = g_demo_air_diag_crc_errors;
     uint32_t diag_type_errors = g_demo_air_diag_type_errors;
     uint32_t diag_timeout_errors = g_demo_air_diag_timeout_errors;
@@ -1640,8 +1643,7 @@ static uint8_t demo_try_send_input_report(void)
                  (diag_expected > 0xFFFFu) ? 0xFFFFu : (uint16_t)diag_expected);
     demo_put_u16(&report[29],
                  (diag_crc_errors > 0xFFFFu) ? 0xFFFFu : (uint16_t)diag_crc_errors);
-    report[31] = (uint8_t)(((diag_type_errors > 0x0Fu ? 0x0Fu : diag_type_errors) << 4) |
-                           (diag_timeout_errors > 0x0Fu ? 0x0Fu : diag_timeout_errors));
+    report[31] = (uint8_t)(diag_seq_gap > 0xFFu ? 0xFFu : diag_seq_gap);
 
     if(demo_submit_hid_report(report) == 0u)
     {
@@ -1654,6 +1656,8 @@ static uint8_t demo_try_send_input_report(void)
         SYS_DisableAllIrq(&irq_status);
         g_demo_air_diag_rx_ok = (g_demo_air_diag_rx_ok >= diag_rx_ok) ?
                                 (g_demo_air_diag_rx_ok - diag_rx_ok) : 0u;
+        g_demo_air_diag_seq_gap = (g_demo_air_diag_seq_gap >= diag_seq_gap) ?
+                                  (g_demo_air_diag_seq_gap - diag_seq_gap) : 0u;
         g_demo_air_diag_crc_errors = (g_demo_air_diag_crc_errors >= diag_crc_errors) ?
                                      (g_demo_air_diag_crc_errors - diag_crc_errors) : 0u;
         g_demo_air_diag_type_errors = (g_demo_air_diag_type_errors >= diag_type_errors) ?
@@ -1865,6 +1869,7 @@ void RF_Init(void)
     g_demo_hid_last_window_timeout_errors = 0u;
     g_demo_air_diag_last_clock = TMOS_GetSystemClock();
     g_demo_air_diag_rx_ok = 0u;
+    g_demo_air_diag_seq_gap = 0u;
     g_demo_air_diag_crc_errors = 0u;
     g_demo_air_diag_type_errors = 0u;
     g_demo_air_diag_timeout_errors = 0u;

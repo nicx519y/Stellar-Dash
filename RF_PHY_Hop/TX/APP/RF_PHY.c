@@ -44,15 +44,16 @@
 #define RF_AUTO_DEMO_ACK_REMAIN_OFFSET 11u
 #define RF_AUTO_DEMO_INITIAL_CHANNEL   39u
 #ifndef RF_AUTO_DEMO_AUTO_HOP_ENABLE
-#define RF_AUTO_DEMO_AUTO_HOP_ENABLE   0u
+#define RF_AUTO_DEMO_AUTO_HOP_ENABLE   1u
 #endif
 #define RF_AUTO_DEMO_HOP_SCORE_THRESHOLD 180u
-#define RF_AUTO_DEMO_HOP_ACK_MISS_THRESHOLD 2u
+#define RF_AUTO_DEMO_HOP_ACK_MISS_THRESHOLD 6u
 #define RF_AUTO_DEMO_HOP_COOLDOWN_MS   10000u
 #define RF_AUTO_DEMO_HOP_PREPARE_TIMEOUT_MS 1000u
 #define RF_AUTO_DEMO_HOP_CONFIRM_TIMEOUT_MS 1000u
 #define RF_AUTO_DEMO_HOP_RECOVERY_TIMEOUT_MS 3000u
 #define RF_AUTO_DEMO_HOP_RECOVERY_DWELL_MS 500u
+#define RF_AUTO_DEMO_ACK_MISS_SCORE    400u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_INIT 200u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_GOOD 20u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_BAD 1000u
@@ -221,6 +222,17 @@ static void demo_channel_score_update(uint8_t channel, uint16_t sample, uint32_t
     }
 }
 
+static uint16_t demo_channel_score_get(uint8_t channel)
+{
+    uint8_t idx = demo_channel_index(channel);
+
+    if(idx == 0xFFu)
+    {
+        return RF_AUTO_DEMO_CHANNEL_SCORE_BAD;
+    }
+    return g_demo_channel_scores[idx];
+}
+
 static void demo_channel_scores_init(void)
 {
     uint8_t i;
@@ -332,6 +344,11 @@ static void demo_start_hop_prepare(uint32_t now, uint16_t reason_score)
     g_demo_old_channel = g_demo_current_channel;
     demo_channel_score_update(g_demo_current_channel, reason_score, now);
     g_demo_target_channel = demo_next_channel(g_demo_current_channel, now);
+    if(g_demo_target_channel == g_demo_old_channel)
+    {
+        g_demo_hop_cooldown_until = now + MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_HOP_COOLDOWN_MS / 2u);
+        return;
+    }
     g_demo_hop_reason_score = reason_score;
     g_demo_hop_seq++;
     if(g_demo_hop_seq == 0u)
@@ -760,15 +777,20 @@ static void demo_ack_control_service(uint32_t now)
 
 static void demo_note_ack_timeout(void)
 {
+    uint32_t now = TMOS_GetSystemClock();
+    uint16_t current_score;
+
     demo_channel_score_update(g_demo_current_channel,
-                              RF_AUTO_DEMO_CHANNEL_SCORE_BAD,
-                              TMOS_GetSystemClock());
+                              RF_AUTO_DEMO_ACK_MISS_SCORE,
+                              now);
     g_demo_ack_miss_count++;
     if(g_demo_hop_state == RF_AUTO_HOP_COMM)
     {
-        if(g_demo_ack_miss_count >= RF_AUTO_DEMO_HOP_ACK_MISS_THRESHOLD)
+        current_score = demo_channel_score_get(g_demo_current_channel);
+        if((g_demo_ack_miss_count >= RF_AUTO_DEMO_HOP_ACK_MISS_THRESHOLD) &&
+           (current_score >= RF_AUTO_DEMO_HOP_SCORE_THRESHOLD))
         {
-            demo_start_hop_prepare(TMOS_GetSystemClock(), 1000u);
+            demo_start_hop_prepare(now, current_score);
         }
         return;
     }
