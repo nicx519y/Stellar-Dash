@@ -11,7 +11,8 @@
 #define US_TICK_STEP                  (10u)
 #define SPI_INPUT_CMD                 (0x06u)
 #define SPI_RX_FRAME_BYTES            (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
-#define SPI_RX_DMA_BUF_SIZE           SPI_RX_FRAME_BYTES
+#define SPI_RX_DMA_SLOT_COUNT         2u
+#define SPI_RX_DMA_BUF_SIZE           (SPI_RX_FRAME_BYTES * SPI_RX_DMA_SLOT_COUNT)
 #define SPI_CONTROL_SLOT_COUNT        2u
 
 static uint8_t s_spi_tx_buf[96];
@@ -25,6 +26,9 @@ static volatile uint32_t s_now_us;
 
 __attribute__((aligned(4))) static uint8_t s_spi_rx_dma_buf[SPI_RX_DMA_BUF_SIZE];
 static uint32_t s_spi_rx_dma_last_pos;
+static volatile uint8_t s_spi_rx_latest_payload[RFM_RF_INPUT_PAYLOAD_LEN];
+static volatile uint8_t s_spi_rx_latest_valid;
+static volatile uint32_t s_spi_rx_latest_gen;
 
 static volatile uint32_t s_spi_rx_total_bytes;
 static volatile uint32_t s_spi_rx_ring_overrun_count;
@@ -110,9 +114,48 @@ static uint8_t spi_rx_byte_at(uint32_t pos)
     return s_spi_rx_dma_buf[pos];
 }
 
-static uint8_t spi_rx_abs_byte(uint32_t abs_pos)
+static uint8_t spi_rx_slot_checksum_valid(uint32_t slot_start)
 {
-    return spi_rx_byte_at(abs_pos % SPI_RX_DMA_BUF_SIZE);
+    uint8_t sum = 0u;
+    uint8_t i;
+
+    for(i = 0u; i < (uint8_t)(SPI_RX_FRAME_BYTES - 1u); ++i)
+    {
+        sum = (uint8_t)(sum + spi_rx_byte_at(slot_start + i));
+    }
+
+    return (sum == spi_rx_byte_at(slot_start + SPI_RX_FRAME_BYTES - 1u)) ? 1u : 0u;
+}
+
+static void spi_rx_commit_latest_input(uint32_t slot_start)
+{
+    uint8_t i;
+
+    if(spi_rx_byte_at(slot_start + 0u) != RFM_SPI_SYNC)
+    {
+        return;
+    }
+    if(spi_rx_byte_at(slot_start + 1u) != SPI_INPUT_CMD)
+    {
+        return;
+    }
+    if(spi_rx_byte_at(slot_start + 2u) != RFM_RF_INPUT_PAYLOAD_LEN)
+    {
+        return;
+    }
+    if(spi_rx_slot_checksum_valid(slot_start) == 0u)
+    {
+        return;
+    }
+
+    s_spi_rx_latest_gen++;
+    for(i = 0u; i < RFM_RF_INPUT_PAYLOAD_LEN; ++i)
+    {
+        s_spi_rx_latest_payload[i] = spi_rx_byte_at(slot_start + 3u + i);
+    }
+    s_spi_rx_latest_valid = 1u;
+    s_spi_rx_latest_gen++;
+    s_spi_rx_direct_count++;
 }
 
 static void spi_control_parser_reset(void)
@@ -239,6 +282,14 @@ static void spi_rx_note_advance(uint32_t from, uint32_t delta)
         {
             pos = 0u;
         }
+        if(pos == SPI_RX_FRAME_BYTES)
+        {
+            spi_rx_commit_latest_input(0u);
+        }
+        else if(pos == 0u)
+        {
+            spi_rx_commit_latest_input(SPI_RX_FRAME_BYTES);
+        }
     }
 }
 
@@ -282,66 +333,6 @@ static void spi_rx_dma_poll(void)
     }
 }
 
-static uint8_t spi_rx_frame_checksum_valid(uint8_t total)
-{
-    uint8_t sum = 0u;
-    uint8_t i;
-
-    for(i = 0u; i < (uint8_t)(total - 1u); ++i)
-    {
-        sum = (uint8_t)(sum + spi_rx_abs_byte(i));
-    }
-
-    return (sum == spi_rx_abs_byte(total - 1u)) ? 1u : 0u;
-}
-
-static uint8_t spi_rx_copy_input_single(uint8_t *payload)
-{
-    uint32_t pos0;
-    uint32_t pos1;
-    uint8_t i;
-
-    if(payload == 0)
-    {
-        return 0u;
-    }
-
-    pos0 = spi_rx_dma_pos();
-    if(pos0 != 0u)
-    {
-        return 0u;
-    }
-
-    if(spi_rx_byte_at(0u) != RFM_SPI_SYNC)
-    {
-        return 0u;
-    }
-    if(spi_rx_byte_at(1u) != SPI_INPUT_CMD)
-    {
-        return 0u;
-    }
-    if(spi_rx_byte_at(2u) != RFM_RF_INPUT_PAYLOAD_LEN)
-    {
-        return 0u;
-    }
-    if(spi_rx_frame_checksum_valid(SPI_RX_FRAME_BYTES) == 0u)
-    {
-        return 0u;
-    }
-
-    for(i = 0u; i < RFM_RF_INPUT_PAYLOAD_LEN; ++i)
-    {
-        payload[i] = spi_rx_byte_at(3u + i);
-    }
-
-    pos1 = spi_rx_dma_pos();
-    if(pos1 != pos0)
-    {
-        return 0u;
-    }
-    return 1u;
-}
-
 static void spi_rx_dma_state_reset(void)
 {
     s_spi_rx_dma_last_pos = 0u;
@@ -372,7 +363,7 @@ static void spi_rx_dma_loop_start(uint8_t flush_fifo)
     R32_SPI0_DMA_BEG = (uint32_t)s_spi_rx_dma_buf;
     R32_SPI0_DMA_END = (uint32_t)(s_spi_rx_dma_buf + SPI_RX_DMA_BUF_SIZE);
     R32_SPI0_DMA_NOW = (uint32_t)s_spi_rx_dma_buf;
-    R16_SPI0_TOTAL_CNT = SPI_RX_DMA_BUF_SIZE;
+    R16_SPI0_TOTAL_CNT = SPI_RX_FRAME_BYTES;
     R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END | RB_SPI_IF_FIFO_OV |
                        RB_SPI_IF_FIFO_HF | RB_SPI_IF_BYTE_END | RB_SPI_IF_FST_BYTE;
     R8_SPI0_CTRL_CFG |= (uint8_t)(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP);
@@ -396,6 +387,8 @@ static void spi_tx_fill_fifo(void)
 
 void rfm_spi_port_init(void)
 {
+    uint8_t i;
+
     GPIOPinRemap(ENABLE, RB_PIN_SPI0);
     GPIOADigitalCfg(ENABLE, (uint16_t)0xFFFFu);
     GPIOBDigitalCfg(ENABLE, SPI_PINS | SPI_IRQ_PIN);
@@ -430,6 +423,12 @@ void rfm_spi_port_init(void)
     s_spi_rx_peek_ok_count = 0u;
     s_spi_rx_peek_miss_count = 0u;
     s_spi_rx_direct_count = 0u;
+    s_spi_rx_latest_valid = 0u;
+    s_spi_rx_latest_gen = 0u;
+    for(i = 0u; i < RFM_RF_INPUT_PAYLOAD_LEN; ++i)
+    {
+        s_spi_rx_latest_payload[i] = 0u;
+    }
 
     spi_rx_dma_loop_start(1u);
     SPI0_ITCfg(DISABLE, SPI0_IT_CNT_END | SPI0_IT_DMA_END | SPI0_IT_FIFO_OV |
@@ -478,7 +477,10 @@ void rfm_spi_port_service(void)
 
 bool rfm_spi_port_peek_latest_input(uint8_t *payload, uint8_t len)
 {
-    uint8_t parsed[RFM_RF_INPUT_PAYLOAD_LEN];
+    uint32_t gen0;
+    uint32_t gen1;
+    uint8_t attempts;
+    uint8_t i;
 
     if((payload == 0) || (len != RFM_RF_INPUT_PAYLOAD_LEN))
     {
@@ -491,16 +493,29 @@ bool rfm_spi_port_peek_latest_input(uint8_t *payload, uint8_t len)
         return false;
     }
 
-    if(spi_rx_copy_input_single(parsed) == 0u)
+    for(attempts = 0u; attempts < 3u; ++attempts)
     {
-        s_spi_rx_peek_miss_count++;
-        return false;
+        gen0 = s_spi_rx_latest_gen;
+        if(((gen0 & 1u) != 0u) || (s_spi_rx_latest_valid == 0u))
+        {
+            s_spi_rx_peek_miss_count++;
+            return false;
+        }
+
+        for(i = 0u; i < RFM_RF_INPUT_PAYLOAD_LEN; ++i)
+        {
+            payload[i] = s_spi_rx_latest_payload[i];
+        }
+        gen1 = s_spi_rx_latest_gen;
+        if((gen0 == gen1) && ((gen1 & 1u) == 0u))
+        {
+            s_spi_rx_peek_ok_count++;
+            return true;
+        }
     }
 
-    memcpy(payload, parsed, sizeof(parsed));
-    s_spi_rx_peek_ok_count++;
-    s_spi_rx_direct_count++;
-    return true;
+    s_spi_rx_peek_miss_count++;
+    return false;
 }
 
 bool rfm_spi_port_peek_latest_control_frame(uint8_t *frame, uint8_t *inout_len)
@@ -675,6 +690,11 @@ void SPI0_IRQHandler(void)
         s_spi_rx_fifo_ov_count++;
         s_spi_rx_ring_overrun_count++;
         spi_rx_dma_loop_start(1u);
+        return;
+    }
+    if((flags & (RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END)) != 0u)
+    {
+        R8_SPI0_INT_FLAG = (uint8_t)(flags & (RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END));
         return;
     }
 
