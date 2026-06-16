@@ -46,6 +46,15 @@ export interface PacketEvent {
   airRateCode?: number;
   airLastDataSeq?: number;
   airLinkActive?: boolean;
+  airPendingDrop?: number;
+  airPendingCurrent?: number;
+  airPendingMax?: number;
+  airWindowRxOk?: number;
+  airWindowExpected?: number;
+  airWindowErrors?: number;
+  airWindowCrcErrors?: number;
+  airWindowTypeErrors?: number;
+  airWindowTimeoutErrors?: number;
 }
 
 export interface LatencyEvent {

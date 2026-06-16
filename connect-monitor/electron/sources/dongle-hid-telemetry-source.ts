@@ -31,6 +31,25 @@ function parseRfHopInputFrame(view: DataView, report: Uint8Array, timestampMs: n
   const airRateCode = view.getUint8(18);
   const airLinkActive = view.getUint8(19) !== 0;
   const airLastDataSeq = view.getUint8(20);
+  const airPendingDrop = report.length >= 23 ? view.getUint16(21, true) : undefined;
+  const airPendingCurrent = report.length >= 24 ? view.getUint8(23) : undefined;
+  const airPendingMax = report.length >= 25 ? view.getUint8(24) : undefined;
+  const airWindowRxOk = report.length >= 27 ? view.getUint16(25, true) : undefined;
+  const airWindowExpected = report.length >= 29 ? view.getUint16(27, true) : undefined;
+  const airWindowCrcErrors = report.length >= 31 ? view.getUint16(29, true) : undefined;
+  const airWindowTypeErrors = report.length >= 32 ? view.getUint8(31) >> 4 : undefined;
+  const airWindowTimeoutErrors = report.length >= 32 ? view.getUint8(31) & 0x0f : undefined;
+  const airDiagLooksSane =
+    typeof airPendingCurrent === "number" &&
+    typeof airPendingMax === "number" &&
+    airPendingMax <= 16 &&
+    airPendingCurrent <= airPendingMax;
+  const airWindowErrors =
+    typeof airWindowCrcErrors === "number" ||
+    typeof airWindowTypeErrors === "number" ||
+    typeof airWindowTimeoutErrors === "number"
+      ? (airWindowCrcErrors ?? 0) + (airWindowTypeErrors ?? 0) + (airWindowTimeoutErrors ?? 0)
+      : undefined;
   const stateCode = rfHopStateCode(state);
 
   return [
@@ -52,6 +71,15 @@ function parseRfHopInputFrame(view: DataView, report: Uint8Array, timestampMs: n
       airRateCode,
       airLastDataSeq,
       airLinkActive,
+      airPendingDrop: airDiagLooksSane ? airPendingDrop : undefined,
+      airPendingCurrent: airDiagLooksSane ? airPendingCurrent : undefined,
+      airPendingMax: airDiagLooksSane ? airPendingMax : undefined,
+      airWindowRxOk: airDiagLooksSane ? airWindowRxOk : undefined,
+      airWindowExpected: airDiagLooksSane ? airWindowExpected : undefined,
+      airWindowErrors: airDiagLooksSane ? airWindowErrors : undefined,
+      airWindowCrcErrors: airDiagLooksSane ? airWindowCrcErrors : undefined,
+      airWindowTypeErrors: airDiagLooksSane ? airWindowTypeErrors : undefined,
+      airWindowTimeoutErrors: airDiagLooksSane ? airWindowTimeoutErrors : undefined,
     },
   ];
 }

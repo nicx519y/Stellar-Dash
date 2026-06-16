@@ -33,10 +33,6 @@ function payloadBytes(payloadHex: string | undefined) {
     .filter((byte) => Number.isFinite(byte) && byte >= 0 && byte <= 0xff);
 }
 
-function hexByte(value: number) {
-  return `0x${value.toString(16).toUpperCase().padStart(2, "0")}`;
-}
-
 function hexU32(value: number) {
   return `0x${(value >>> 0).toString(16).toUpperCase().padStart(8, "0")}`;
 }
@@ -98,35 +94,59 @@ function displayButtons(packet: PacketEvent) {
   return pressed.length > 0 ? pressed.join(" ") : "none";
 }
 
-function displayInputMeta(packet: PacketEvent) {
-  if (typeof rfInputKeyMask(packet) !== "number" && !packet.messageType.startsWith("RFH_RHI1_")) {
-    return "-";
-  }
-  const bytes = payloadBytes(packet.payloadHex);
-  const inputSeq = typeof packet.inputSeq === "number" ? packet.inputSeq : bytes[12];
-  const inputFlags = typeof packet.inputFlags === "number" ? packet.inputFlags : bytes[13];
-  if (typeof inputSeq !== "number" || typeof inputFlags !== "number") {
-    return "-";
-  }
-  return `seq=${hexByte(inputSeq)} flags=${hexByte(inputFlags)}`;
-}
-
 function displayAirMeta(packet: PacketEvent) {
   if (!packet.messageType.startsWith("RFH_RHI1_")) {
     return "-";
   }
 
   const bytes = payloadBytes(packet.payloadHex);
-  const rateHz = typeof packet.rateHz === "number" ? packet.rateHz : bytes.length >= 18 ? (bytes[16] | (bytes[17] << 8)) : undefined;
-  const rateCode = typeof packet.airRateCode === "number" ? packet.airRateCode : bytes[18];
-  const lastSeq = typeof packet.airLastDataSeq === "number" ? packet.airLastDataSeq : bytes[20];
+  const rawPendingDrop = bytes.length >= 23 ? (bytes[21] ?? 0) | ((bytes[22] ?? 0) << 8) : undefined;
+  const rawPendingCurrent = bytes.length >= 24 ? bytes[23] : undefined;
+  const rawPendingMax = bytes.length >= 25 ? bytes[24] : undefined;
+  const rawWindowRx = bytes.length >= 27 ? (bytes[25] ?? 0) | ((bytes[26] ?? 0) << 8) : undefined;
+  const rawWindowExpected = bytes.length >= 29 ? (bytes[27] ?? 0) | ((bytes[28] ?? 0) << 8) : undefined;
+  const rawCrcErrors = bytes.length >= 31 ? (bytes[29] ?? 0) | ((bytes[30] ?? 0) << 8) : undefined;
+  const rawTypeErrors = bytes.length >= 32 ? (bytes[31] ?? 0) >> 4 : undefined;
+  const rawTimeoutErrors = bytes.length >= 32 ? (bytes[31] ?? 0) & 0x0f : undefined;
+  const eventPendingCurrent = packet.airPendingCurrent;
+  const eventPendingMax = packet.airPendingMax;
+  const eventLooksSane =
+    typeof packet.airPendingDrop === "number" &&
+    typeof eventPendingCurrent === "number" &&
+    typeof eventPendingMax === "number" &&
+    eventPendingMax <= 16 &&
+    eventPendingCurrent <= eventPendingMax;
 
-  if (typeof rateHz !== "number" || typeof rateCode !== "number") {
+  const pendingDrop = eventLooksSane ? packet.airPendingDrop : rawPendingDrop;
+  const pendingCurrent = eventLooksSane ? eventPendingCurrent : rawPendingCurrent;
+  const pendingMax = eventLooksSane ? eventPendingMax : rawPendingMax;
+  const windowRx = eventLooksSane && typeof packet.airWindowRxOk === "number" ? packet.airWindowRxOk : rawWindowRx;
+  const windowExpected =
+    eventLooksSane && typeof packet.airWindowExpected === "number" ? packet.airWindowExpected : rawWindowExpected;
+  const crcErrors =
+    eventLooksSane && typeof packet.airWindowCrcErrors === "number" ? packet.airWindowCrcErrors : rawCrcErrors;
+  const typeErrors =
+    eventLooksSane && typeof packet.airWindowTypeErrors === "number" ? packet.airWindowTypeErrors : rawTypeErrors;
+  const timeoutErrors =
+    eventLooksSane && typeof packet.airWindowTimeoutErrors === "number" ? packet.airWindowTimeoutErrors : rawTimeoutErrors;
+
+  if (typeof pendingDrop !== "number" || typeof pendingCurrent !== "number" || typeof pendingMax !== "number") {
     return "-";
   }
 
-  const seqText = typeof lastSeq === "number" ? ` seq=${hexByte(lastSeq)}` : "";
-  return `${rateHz}Hz code=${rateCode}${seqText}`;
+  const lossText =
+    typeof windowRx === "number" && typeof windowExpected === "number" && windowExpected > 0
+      ? ` win=${windowRx}/${windowExpected} loss=${(((windowExpected - Math.min(windowRx, windowExpected)) * 100) / windowExpected).toFixed(1)}%`
+      : "";
+  const missingText =
+    typeof windowRx === "number" && typeof windowExpected === "number" && windowExpected > 0
+      ? ` miss=${Math.max(0, windowExpected - Math.min(windowRx, windowExpected) - (crcErrors ?? 0))}`
+      : "";
+  const errorText =
+    typeof crcErrors === "number" || typeof typeErrors === "number" || typeof timeoutErrors === "number"
+      ? ` crc=${crcErrors ?? 0} type=${typeErrors ?? 0} to=${timeoutErrors ?? 0}`
+      : "";
+  return `pend=${pendingCurrent}/${pendingMax} drop=${pendingDrop}${lossText}${missingText}${errorText}`;
 }
 
 export function PacketsPanel({ items, fillHeight = false }: { items: Array<PacketEvent & { id?: string }>; fillHeight?: boolean }) {
@@ -138,14 +158,13 @@ export function PacketsPanel({ items, fillHeight = false }: { items: Array<Packe
     void exportMarkdown("packet-log.md", buildPacketLogMarkdown(items));
   };
   const columns: Array<VirtualColumn<PacketEvent & { id?: string }>> = [
-    { key: "time", header: "Time", width: "145px", render: (p) => fmtTime(p.timestampMs) },
-    { key: "type", header: "Type", width: "140px", render: (p) => displayMessageType(p.messageType) },
-    { key: "cmd", header: "Cmd", width: "135px", render: (p) => displayCommand(p) },
-    { key: "keyMask", header: "KeyMask", width: "120px", render: (p) => displayKeyMask(p) },
-    { key: "buttons", header: "Buttons", width: "minmax(120px, 1fr)", render: (p) => displayButtons(p) },
-    { key: "inputMeta", header: "Input", width: "145px", render: (p) => displayInputMeta(p) },
-    { key: "air", header: "Air", width: "170px", render: (p) => displayAirMeta(p) },
-    { key: "seq", header: "Seq", width: "90px", align: "end", render: (p) => (typeof p.seq === "number" ? p.seq : "-") },
+    { key: "time", header: "Time", width: "11%", render: (p) => fmtTime(p.timestampMs) },
+    { key: "type", header: "Type", width: "12%", render: (p) => displayMessageType(p.messageType) },
+    { key: "cmd", header: "Cmd", width: "11%", render: (p) => displayCommand(p) },
+    { key: "keyMask", header: "KeyMask", width: "11%", render: (p) => displayKeyMask(p) },
+    { key: "buttons", header: "Buttons", width: "8%", render: (p) => displayButtons(p) },
+    { key: "air", header: "Air", width: "42%", render: (p) => displayAirMeta(p) },
+    { key: "seq", header: "Seq", width: "5%", align: "end", render: (p) => (typeof p.seq === "number" ? p.seq : "-") },
   ];
 
   return (

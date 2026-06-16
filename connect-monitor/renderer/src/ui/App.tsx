@@ -249,7 +249,7 @@ function TrafficPanels({
       flex="1"
       minH={0}
       display="grid"
-      gridTemplateColumns={{ base: "1fr", xl: "minmax(0, 1fr) minmax(0, 1fr) 250px" }}
+      gridTemplateColumns={{ base: "1fr", xl: "minmax(0, 1fr) 800px 250px" }}
       gap="10px"
       alignItems="stretch"
     >

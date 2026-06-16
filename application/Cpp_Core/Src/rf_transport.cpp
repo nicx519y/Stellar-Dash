@@ -95,6 +95,9 @@ bool RFTransport::hasStatusChangedForLog() const {
            (status.connected != lastLoggedStatus.connected) ||
            (status.hasBond != lastLoggedStatus.hasBond) ||
            (status.rateHz != lastLoggedStatus.rateHz) ||
+           (status.rxOk != lastLoggedStatus.rxOk) ||
+           (status.rxFail != lastLoggedStatus.rxFail) ||
+           (status.txFail != lastLoggedStatus.txFail) ||
            (status.lastCommandTag != lastLoggedStatus.lastCommandTag) ||
            (status.lastTransactionId != lastLoggedStatus.lastTransactionId) ||
            (status.lastResult != lastLoggedStatus.lastResult) ||
@@ -162,9 +165,12 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
     }
     lastLoggedStatus = status;
 
-    APP_DBG("[RF_BRIDGE] event=%s state=%s connected=%u hasBond=%u rate=%u cmd=0x%02X txn=%u result=%u reject=%lu",
+    APP_DBG("[RF_BRIDGE] event=%s state=%s connected=%u hasBond=%u rate=%u rxOk=%u rxFail=%u txFail=%u cmd=0x%02X txn=%u result=%u reject=%lu",
             eventToString(evt), linkStateToString(status.state), status.connected ? 1u : 0u,
             status.hasBond ? 1u : 0u, status.rateHz,
+            (unsigned int)status.rxOk,
+            (unsigned int)status.rxFail,
+            (unsigned int)status.txFail,
             (unsigned int)status.lastCommandTag,
             (unsigned int)status.lastTransactionId,
             (unsigned int)status.lastResult,
