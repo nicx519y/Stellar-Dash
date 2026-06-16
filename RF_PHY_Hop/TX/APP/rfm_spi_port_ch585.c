@@ -363,7 +363,7 @@ static void spi_rx_dma_loop_start(uint8_t flush_fifo)
     R32_SPI0_DMA_BEG = (uint32_t)s_spi_rx_dma_buf;
     R32_SPI0_DMA_END = (uint32_t)(s_spi_rx_dma_buf + SPI_RX_DMA_BUF_SIZE);
     R32_SPI0_DMA_NOW = (uint32_t)s_spi_rx_dma_buf;
-    R16_SPI0_TOTAL_CNT = SPI_RX_FRAME_BYTES;
+    R16_SPI0_TOTAL_CNT = SPI_RX_DMA_BUF_SIZE;
     R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END | RB_SPI_IF_FIFO_OV |
                        RB_SPI_IF_FIFO_HF | RB_SPI_IF_BYTE_END | RB_SPI_IF_FST_BYTE;
     R8_SPI0_CTRL_CFG |= (uint8_t)(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP);

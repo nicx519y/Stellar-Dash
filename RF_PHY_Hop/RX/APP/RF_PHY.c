@@ -823,14 +823,14 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
 
     if(sta & RF_STATE_RX)
     {
-        const uint8_t *air = &RxBuf[2];
+        uint8_t air_copy[RFH_AIR_PACKET_LEN];
+        const uint8_t *air = air_copy;
         uint8_t request_ack = 0u;
         uint8_t flags = 0u;
         uint8_t rate_code = 0u;
 
         g_demo_rx_active = 0u;
-        if((RxBuf[1] != RF_AUTO_DEMO_PACKET_LEN) ||
-           (rfh_packet_type(air[RFH_HDR0_OFFSET]) != RFH_PKT_DATA))
+        if(RxBuf[1] != RF_AUTO_DEMO_PACKET_LEN)
         {
             g_demo_stat.data_type_err++;
             demo_channel_score_update(g_demo_current_channel,
@@ -838,6 +838,18 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
             g_demo_hid_bad++;
             g_demo_hid_errors++;
             demo_arm_rx();
+            return;
+        }
+        memcpy(air_copy, &RxBuf[2], sizeof(air_copy));
+        demo_arm_rx();
+
+        if(rfh_packet_type(air[RFH_HDR0_OFFSET]) != RFH_PKT_DATA)
+        {
+            g_demo_stat.data_type_err++;
+            demo_channel_score_update(g_demo_current_channel,
+                                      RF_AUTO_DEMO_CHANNEL_SCORE_BAD);
+            g_demo_hid_bad++;
+            g_demo_hid_errors++;
             return;
         }
 
@@ -888,11 +900,6 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
                 g_demo_stat.ack_req++;
             }
             demo_schedule_ack(remaining);
-            demo_arm_rx();
-        }
-        else
-        {
-            demo_arm_rx();
         }
     }
     if(sta & RF_STATE_RX_CRCERR)
