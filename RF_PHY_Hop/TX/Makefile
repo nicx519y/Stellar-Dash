@@ -97,6 +97,9 @@ HAL_SRCS := $(wildcard $(HAL_DIR)/*.c)
 LIB_SRCS := $(wildcard $(LIB_DIR)/*.S)
 DRV_SRCS := $(wildcard $(DRIVER_DIR)/*.c)
 
+APP_EXCLUDE := \
+	$(APP_DIR)/rfm_input_stream.c
+
 # Keep consistent with current .cproject exclude rules.
 HAL_EXCLUDE := \
 	$(HAL_DIR)/KEY.c \
@@ -118,7 +121,7 @@ DRV_EXCLUDE := \
 
 STARTUP_SRCS := $(STARTUP_DIR)/startup_CH585.S
 
-SRCS := $(filter-out $(HAL_EXCLUDE) $(DRV_EXCLUDE),$(APP_SRCS) $(HAL_SRCS) $(LIB_SRCS) $(DRV_SRCS) $(STARTUP_SRCS))
+SRCS := $(filter-out $(APP_EXCLUDE) $(HAL_EXCLUDE) $(DRV_EXCLUDE),$(APP_SRCS) $(HAL_SRCS) $(LIB_SRCS) $(DRV_SRCS) $(STARTUP_SRCS))
 OBJS := $(patsubst %.c,$(OUT_DIR)/%.o,$(filter %.c,$(SRCS))) \
         $(patsubst %.S,$(OUT_DIR)/%.o,$(filter %.S,$(SRCS)))
 

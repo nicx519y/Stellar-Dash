@@ -43,6 +43,9 @@ export interface PacketEvent {
   inputKeyMask?: number;
   inputSeq?: number;
   inputFlags?: number;
+  airRateCode?: number;
+  airLastDataSeq?: number;
+  airLinkActive?: boolean;
 }
 
 export interface LatencyEvent {

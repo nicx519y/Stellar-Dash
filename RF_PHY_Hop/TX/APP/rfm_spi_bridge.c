@@ -30,9 +30,22 @@ static uint8_t s_last_direct_input[RFM_RF_INPUT_PAYLOAD_LEN];
 static uint8_t s_have_last_direct_input;
 static uint8_t s_last_logged_cmd;
 static uint8_t s_have_last_logged_cmd;
+static uint8_t s_last_control_valid;
+static uint8_t s_last_control_cmd;
+static uint8_t s_last_control_txn;
+static uint8_t s_last_control_response[RFM_SPI_MAX_FRAME];
+static uint8_t s_last_control_response_len;
 
 #define SPI_POLL_MAX_BATCHES          1u
 #define SPI_INPUT_FRAME_BYTES         (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
+#define SPI_STATUS_PAYLOAD_LEN        20u
+#define SPI_STATUS_CMD_TAG_OFFSET     16u
+#define SPI_STATUS_TXN_OFFSET         17u
+#define SPI_STATUS_RESULT_OFFSET      18u
+#define SPI_STATUS_REASON_OFFSET      19u
+#ifndef RFM_SPI_SIMULATE_SET_RATE_HZ
+#define RFM_SPI_SIMULATE_SET_RATE_HZ  0u
+#endif
 static uint32_t s_last_rx_count;
 
 typedef enum {
@@ -152,24 +165,47 @@ static bool is_valid_host_cmd(uint8_t cmd)
     }
 }
 
-static bool send_frame(spi_evt_t evt, const uint8_t *payload, uint8_t payload_len)
+static bool is_valid_report_rate_hz(uint16_t hz)
 {
-    uint8_t out[RFM_SPI_MAX_FRAME];
-    size_t frame_total;
-    size_t i;
-    uint8_t csum;
+    return ((hz == 0u) ||
+            (hz == 1000u) ||
+            (hz == 2000u) ||
+            (hz == 4000u) ||
+            (hz == 8000u)) ? true : false;
+}
+
+static uint8_t build_frame(spi_evt_t evt, const uint8_t *payload, uint8_t payload_len, uint8_t *out, uint8_t out_len)
+{
+    uint8_t frame_total;
+    uint8_t i;
+
+    if((out == 0) || (payload_len > (uint8_t)(RFM_SPI_MAX_FRAME - 4u)))
+    {
+        return 0u;
+    }
+    frame_total = (uint8_t)(3u + payload_len + 1u);
+    if(frame_total > out_len)
+    {
+        return 0u;
+    }
 
     out[0] = RFM_SPI_SYNC;
     out[1] = (uint8_t)evt;
     out[2] = payload_len;
-    for (i = 0u; i < payload_len; ++i) {
+    for(i = 0u; i < payload_len; ++i) {
         out[3u + i] = payload[i];
     }
-    frame_total = (size_t)(3u + payload_len + 1u);
-    csum = frame_checksum(out, frame_total - 1u);
-    out[frame_total - 1u] = csum;
+    out[frame_total - 1u] = frame_checksum(out, (size_t)(frame_total - 1u));
+    return frame_total;
+}
 
-    if (rfm_spi_port_try_write(out, frame_total)) {
+static bool write_frame(const uint8_t *frame, uint8_t frame_len)
+{
+    if((frame == 0) || (frame_len == 0u))
+    {
+        return false;
+    }
+    if (rfm_spi_port_try_write(frame, frame_len)) {
         s_tx_count++;
         rfm_spi_port_set_irq(true);
         return true;
@@ -177,9 +213,33 @@ static bool send_frame(spi_evt_t evt, const uint8_t *payload, uint8_t payload_le
     return false;
 }
 
-static bool send_status_frame(spi_evt_t evt, uint8_t cmd_tag)
+static void cache_control_response(uint8_t cmd_tag, uint8_t txn, const uint8_t *frame, uint8_t frame_len)
 {
-    uint8_t payload[17] = {0};
+    if((frame == 0) || (frame_len == 0u) || (frame_len > RFM_SPI_MAX_FRAME) || (txn == 0u))
+    {
+        return;
+    }
+    memcpy(s_last_control_response, frame, frame_len);
+    s_last_control_response_len = frame_len;
+    s_last_control_cmd = cmd_tag;
+    s_last_control_txn = txn;
+    s_last_control_valid = 1u;
+}
+
+static bool send_cached_control_response(void)
+{
+    if((s_last_control_valid == 0u) || (s_last_control_response_len == 0u))
+    {
+        return false;
+    }
+    return write_frame(s_last_control_response, s_last_control_response_len);
+}
+
+static bool send_status_frame(spi_evt_t evt, uint8_t cmd_tag, uint8_t txn, uint8_t result, uint8_t reason, uint8_t cache_response)
+{
+    uint8_t payload[SPI_STATUS_PAYLOAD_LEN] = {0};
+    uint8_t out[RFM_SPI_MAX_FRAME];
+    uint8_t frame_len;
     uint16_t report_hz = RF_GetReportRateHz();
     uint16_t rx_ok = RF_GetRxOkCount();
     uint16_t rx_fail = RF_GetRxFailCount();
@@ -209,8 +269,21 @@ static bool send_status_frame(spi_evt_t evt, uint8_t cmd_tag)
     put_u16(&payload[8], rx_fail);
     put_u16(&payload[10], tx_fail);
     put_u32(&payload[12], reject_count);
-    payload[16] = cmd_tag;
-    sent = send_frame(evt, payload, (uint8_t)sizeof(payload));
+    payload[SPI_STATUS_CMD_TAG_OFFSET] = cmd_tag;
+    payload[SPI_STATUS_TXN_OFFSET] = txn;
+    payload[SPI_STATUS_RESULT_OFFSET] = result;
+    payload[SPI_STATUS_REASON_OFFSET] = reason;
+
+    frame_len = build_frame(evt, payload, (uint8_t)sizeof(payload), out, (uint8_t)sizeof(out));
+    if(frame_len == 0u)
+    {
+        return false;
+    }
+    if(cache_response != 0u)
+    {
+        cache_control_response(cmd_tag, txn, out, frame_len);
+    }
+    sent = write_frame(out, frame_len);
     if((sent != false) && (evt == SPI_EVT_STATE_CHANGED) && (pending_state != 0u))
     {
         RF_ClearPendingEventStateCode(pending_state);
@@ -228,7 +301,7 @@ static void try_send_pending_state_changed(void)
     {
         return;
     }
-    if(send_status_frame(SPI_EVT_STATE_CHANGED, s_state_changed_retry_cmd_tag))
+    if(send_status_frame(SPI_EVT_STATE_CHANGED, s_state_changed_retry_cmd_tag, 0u, 0u, 0u, 0u))
     {
         s_state_changed_retry_pending = 0u;
     }
@@ -241,83 +314,112 @@ void rfm_spi_bridge_emit_state_changed(uint8_t cmd_tag)
     try_send_pending_state_changed();
 }
 
-static bool send_error_event(uint8_t cmd_tag, uint8_t reason)
+static bool send_error_event(uint8_t cmd_tag, uint8_t txn, uint8_t reason, uint8_t cache_response)
 {
-    uint8_t payload[2];
-    payload[0] = cmd_tag;
-    payload[1] = reason;
-    return send_frame(SPI_EVT_ERROR, payload, (uint8_t)sizeof(payload));
+    return send_status_frame(SPI_EVT_ERROR, cmd_tag, txn, reason, reason, cache_response);
 }
 
 static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
 {
+    uint8_t txn = 0u;
+    const uint8_t *args = payload;
+    uint8_t args_len = len;
+
     rfm_spi_port_set_irq(false);
     s_rx_count++;
     log_spi_command_once(cmd, len);
+
+    if(cmd == (uint8_t)SPI_CMD_INPUT_DATA)
+    {
+        (void)RF_SPI_FastWriteInput(payload, len);
+        return;
+    }
+
+    if((payload == 0) || (len == 0u))
+    {
+        (void)send_error_event(cmd, 0u, 1u, 0u);
+        return;
+    }
+
+    txn = payload[0];
+    args = &payload[1];
+    args_len = (uint8_t)(len - 1u);
+
+    if((txn != 0u) &&
+       (s_last_control_valid != 0u) &&
+       (s_last_control_cmd == cmd) &&
+       (s_last_control_txn == txn))
+    {
+        (void)send_cached_control_response();
+        return;
+    }
+
     switch ((spi_cmd_t)cmd) {
     case SPI_CMD_GET_STATUS:
-        (void)send_status_frame(SPI_EVT_STATUS, cmd);
+        if(args_len == 0u)
+        {
+            (void)send_status_frame(SPI_EVT_STATUS, cmd, txn, 0u, 0u, 1u);
+            break;
+        }
+        (void)send_error_event(cmd, txn, 1u, 1u);
         break;
     case SPI_CMD_SET_RATE:
-        if ((payload != 0) && (len == 2u)) {
-            uint16_t hz = (uint16_t)payload[0] | ((uint16_t)payload[1] << 8);
-            if (RF_SetReportRateHz(hz)) {
-                (void)send_status_frame(SPI_EVT_RATE_APPLIED, cmd);
+        if (args_len == 2u) {
+            uint16_t hz = (uint16_t)args[0] | ((uint16_t)args[1] << 8);
+            if (is_valid_report_rate_hz(hz) && RF_SetReportRateHz(hz)) {
+                (void)send_status_frame(SPI_EVT_RATE_APPLIED, cmd, txn, 0u, 0u, 1u);
                 break;
             }
         }
-        (void)send_error_event(cmd, 1u);
+        (void)send_error_event(cmd, txn, 1u, 1u);
         break;
     case SPI_CMD_START_PAIR:
-        if(len == 0u)
+        if(args_len == 0u)
         {
             if(RF_StartPairing())
             {
-                (void)send_status_frame(SPI_EVT_STATE_CHANGED, cmd);
+                (void)send_status_frame(SPI_EVT_STATE_CHANGED, cmd, txn, 0u, 0u, 1u);
             }
             else
             {
-                (void)send_error_event(cmd, 2u);
+                (void)send_error_event(cmd, txn, 2u, 1u);
             }
             break;
         }
-        (void)send_error_event(cmd, 1u);
+        (void)send_error_event(cmd, txn, 1u, 1u);
         break;
     case SPI_CMD_STOP_PAIR:
-        if(len == 0u)
+        if(args_len == 0u)
         {
             if(RF_StopPairing())
             {
-                (void)send_status_frame(SPI_EVT_STATE_CHANGED, cmd);
+                (void)send_status_frame(SPI_EVT_STATE_CHANGED, cmd, txn, 0u, 0u, 1u);
             }
             else
             {
-                (void)send_error_event(cmd, 2u);
+                (void)send_error_event(cmd, txn, 2u, 1u);
             }
             break;
         }
-        (void)send_error_event(cmd, 1u);
+        (void)send_error_event(cmd, txn, 1u, 1u);
         break;
     case SPI_CMD_UNBIND:
-        if(len == 0u)
+        if(args_len == 0u)
         {
             if(RF_Unbind())
             {
-                (void)send_status_frame(SPI_EVT_STATE_CHANGED, cmd);
+                (void)send_status_frame(SPI_EVT_STATE_CHANGED, cmd, txn, 0u, 0u, 1u);
             }
             else
             {
-                (void)send_error_event(cmd, 2u);
+                (void)send_error_event(cmd, txn, 2u, 1u);
             }
             break;
         }
-        (void)send_error_event(cmd, 1u);
-        break;
-    case SPI_CMD_INPUT_DATA:
-        (void)RF_SPI_FastWriteInput(payload, len);
+        (void)send_error_event(cmd, txn, 1u, 1u);
         break;
     default:
-        (void)send_error_event(cmd, 3u);
+        (void)send_error_event(cmd, txn, 3u, 1u);
         break;
     }
 }
@@ -628,6 +730,21 @@ void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
     (void)elapsed_ms;
 }
 
+static bool input_payload_state_changed(const uint8_t *prev, const uint8_t *curr)
+{
+    if((prev == 0) || (curr == 0))
+    {
+        return true;
+    }
+
+    /*
+     * Byte 0 is the STM32 input sequence and byte 9 is its CRC. At 8K those
+     * bytes change every frame even when the button state is identical. TX only
+     * needs the latest semantic state for RF repeats, so compare flags/key data.
+     */
+    return memcmp(&prev[1], &curr[1], RFM_RF_INPUT_PAYLOAD_LEN - 2u) != 0;
+}
+
 void rfm_spi_bridge_init(void)
 {
     s_rx_count = 0u;
@@ -652,11 +769,25 @@ void rfm_spi_bridge_init(void)
     s_have_last_direct_input = 0u;
     s_last_logged_cmd = 0u;
     s_have_last_logged_cmd = 0u;
+    s_last_control_valid = 0u;
+    s_last_control_cmd = 0u;
+    s_last_control_txn = 0u;
+    s_last_control_response_len = 0u;
     memset(s_last_direct_input, 0, sizeof(s_last_direct_input));
+    memset(s_last_control_response, 0, sizeof(s_last_control_response));
     parser_reset();
     fast_parser_reset();
     rfm_spi_port_init();
     rfm_spi_port_set_irq(false);
+#if (RFM_SPI_SIMULATE_SET_RATE_HZ != 0u)
+    {
+        uint8_t rate_payload[3];
+        rate_payload[0] = 1u;
+        rate_payload[1] = (uint8_t)(RFM_SPI_SIMULATE_SET_RATE_HZ & 0xFFu);
+        rate_payload[2] = (uint8_t)((RFM_SPI_SIMULATE_SET_RATE_HZ >> 8) & 0xFFu);
+        process_command((uint8_t)SPI_CMD_SET_RATE, rate_payload, (uint8_t)sizeof(rate_payload));
+    }
+#endif
 }
 
 void rfm_spi_bridge_poll(void)
@@ -671,7 +802,7 @@ void rfm_spi_bridge_poll(void)
         try_send_pending_state_changed();
         if(rfm_spi_port_peek_latest_input(latest_payload, (uint8_t)sizeof(latest_payload))) {
             if((s_have_last_direct_input == 0u) ||
-               (memcmp(s_last_direct_input, latest_payload, sizeof(latest_payload)) != 0)) {
+               input_payload_state_changed(s_last_direct_input, latest_payload)) {
                 memcpy(s_last_direct_input, latest_payload, sizeof(latest_payload));
                 s_have_last_direct_input = 1u;
                 s_frame_ok_win++;

@@ -9,19 +9,10 @@
 #define SPI_IRQ_PIN                   (GPIO_Pin_11)
 #define SPI_TX_PENDING_RECOVER_US     (50000u)
 #define US_TICK_STEP                  (10u)
-#define SPI_RX_FRAME_BYTES            (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
-#define SPI_RX_DMA_RING_FRAMES        (512u)
-#define SPI_RX_DMA_RING_SIZE          (SPI_RX_FRAME_BYTES * SPI_RX_DMA_RING_FRAMES)
-#define SPI_RX_TOTAL_CNT              (SPI_RX_DMA_RING_SIZE)
-#define SPI_RX_PEEK_SCAN_FRAMES       (256u)
-#define SPI_RX_PEEK_SCAN_BYTES        (SPI_RX_FRAME_BYTES * SPI_RX_PEEK_SCAN_FRAMES)
-#define SPI_RX_CONTROL_SCAN_BYTES     (SPI_RX_DMA_RING_SIZE)
-#define SPI_RX_NEAR_FULL_THRESHOLD    (SPI_RX_DMA_RING_SIZE - (SPI_RX_FRAME_BYTES * 16u))
 #define SPI_INPUT_CMD                 (0x06u)
-#define SPI_RX_FIFO_RING_SIZE         (256u)
-#ifndef SPI_RX_DMA_INJECT_INPUT_TEST
-#define SPI_RX_DMA_INJECT_INPUT_TEST  0u
-#endif
+#define SPI_RX_FRAME_BYTES            (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
+#define SPI_RX_DMA_BUF_SIZE           SPI_RX_FRAME_BYTES
+#define SPI_CONTROL_SLOT_COUNT        2u
 
 static uint8_t s_spi_tx_buf[96];
 static uint16_t s_spi_tx_len;
@@ -29,14 +20,12 @@ static uint16_t s_spi_tx_pos;
 static uint8_t s_spi_tx_pending;
 static uint32_t s_spi_tx_start_us;
 static volatile uint32_t s_spi_tx_recover_count;
+static volatile uint32_t s_spi_tx_done_count;
 static volatile uint32_t s_now_us;
 
-__attribute__((aligned(4))) static uint8_t s_spi_rx_dma_buf[SPI_RX_DMA_RING_SIZE];
-static volatile uint32_t s_spi_rx_dma_wrap_count;
-static uint32_t s_spi_rx_base_abs;
-static uint32_t s_spi_rx_read_abs;
-static uint32_t s_spi_rx_seen_wrap_count;
-static uint32_t s_spi_rx_last_write_pos;
+__attribute__((aligned(4))) static uint8_t s_spi_rx_dma_buf[SPI_RX_DMA_BUF_SIZE];
+static uint32_t s_spi_rx_dma_last_pos;
+
 static volatile uint32_t s_spi_rx_total_bytes;
 static volatile uint32_t s_spi_rx_ring_overrun_count;
 static volatile uint32_t s_spi_rx_backlog_drop_count;
@@ -51,242 +40,26 @@ static volatile uint32_t s_spi_rx_last_flags;
 static volatile uint32_t s_spi_rx_peek_ok_count;
 static volatile uint32_t s_spi_rx_peek_miss_count;
 static volatile uint32_t s_spi_rx_direct_count;
-static uint32_t s_spi_rx_input_scan_abs;
-static uint32_t s_spi_rx_control_scan_abs;
-static uint8_t s_spi_rx_fifo_ring[SPI_RX_FIFO_RING_SIZE];
-static volatile uint16_t s_spi_rx_fifo_head;
-static volatile uint16_t s_spi_rx_fifo_tail;
 
-static uint32_t spi_rx_write_abs_snapshot(uint32_t *available_out);
-
-static void spi_rx_fifo_ring_reset(void)
+typedef enum
 {
-    s_spi_rx_fifo_head = 0u;
-    s_spi_rx_fifo_tail = 0u;
-}
+    SPI_CONTROL_WAIT_SYNC = 0u,
+    SPI_CONTROL_CMD,
+    SPI_CONTROL_LEN,
+    SPI_CONTROL_PAYLOAD,
+    SPI_CONTROL_CHECKSUM
+} spi_control_parse_state_t;
 
-static void spi_rx_fifo_ring_push(uint8_t value)
-{
-    uint16_t next = (uint16_t)(s_spi_rx_fifo_head + 1u);
-
-    if(next >= SPI_RX_FIFO_RING_SIZE)
-    {
-        next = 0u;
-    }
-    if(next == s_spi_rx_fifo_tail)
-    {
-        uint16_t tail = (uint16_t)(s_spi_rx_fifo_tail + 1u);
-
-        if(tail >= SPI_RX_FIFO_RING_SIZE)
-        {
-            tail = 0u;
-        }
-        s_spi_rx_fifo_tail = tail;
-        s_spi_rx_ring_overrun_count++;
-    }
-    s_spi_rx_fifo_ring[s_spi_rx_fifo_head] = value;
-    s_spi_rx_fifo_head = next;
-    s_spi_rx_total_bytes++;
-}
-
-static void spi_rx_fifo_drain_hw(void)
-{
-    while(R8_SPI0_FIFO_COUNT != 0u)
-    {
-        spi_rx_fifo_ring_push(R8_SPI0_FIFO);
-    }
-}
-
-static size_t spi_rx_fifo_ring_pop(uint8_t *buf, size_t max_len)
-{
-    size_t n = 0u;
-
-    PFIC_DisableIRQ(SPI0_IRQn);
-    while((n < max_len) && (s_spi_rx_fifo_tail != s_spi_rx_fifo_head))
-    {
-        uint16_t tail = s_spi_rx_fifo_tail;
-
-        buf[n++] = s_spi_rx_fifo_ring[tail];
-        tail = (uint16_t)(tail + 1u);
-        if(tail >= SPI_RX_FIFO_RING_SIZE)
-        {
-            tail = 0u;
-        }
-        s_spi_rx_fifo_tail = tail;
-    }
-    PFIC_EnableIRQ(SPI0_IRQn);
-
-    return n;
-}
-
-static void spi_rx_fifo_start(uint8_t flush_fifo)
-{
-    R8_SPI0_CTRL_CFG &= (uint8_t)(~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP));
-    R8_SPI0_CTRL_MOD = (uint8_t)((R8_SPI0_CTRL_MOD | RB_SPI_FIFO_DIR) & (uint8_t)(~RB_SPI_SLV_CMD_MOD));
-    R16_SPI0_TOTAL_CNT = 0xFFFFu;
-    R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END | RB_SPI_IF_FIFO_OV |
-                       RB_SPI_IF_FIFO_HF | RB_SPI_IF_BYTE_END | RB_SPI_IF_FST_BYTE;
-    if (flush_fifo != 0u) {
-        while (R8_SPI0_FIFO_COUNT != 0u) {
-            (void)R8_SPI0_FIFO;
-        }
-        spi_rx_fifo_ring_reset();
-    }
-}
-
-__attribute__((unused)) static void spi_rx_dma_loop_start(uint8_t flush_fifo)
-{
-    R8_SPI0_CTRL_CFG &= (uint8_t)(~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP));
-    R8_SPI0_CTRL_MOD = (uint8_t)((R8_SPI0_CTRL_MOD | RB_SPI_FIFO_DIR) & (uint8_t)(~RB_SPI_SLV_CMD_MOD));
-    if (flush_fifo != 0u) {
-        while (R8_SPI0_FIFO_COUNT != 0u) {
-            (void)R8_SPI0_FIFO;
-        }
-    }
-
-    R32_SPI0_DMA_BEG = (uint32_t)s_spi_rx_dma_buf;
-    R32_SPI0_DMA_END = (uint32_t)(s_spi_rx_dma_buf + SPI_RX_DMA_RING_SIZE);
-    R32_SPI0_DMA_NOW = (uint32_t)s_spi_rx_dma_buf;
-    R16_SPI0_TOTAL_CNT = SPI_RX_TOTAL_CNT;
-    R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END | RB_SPI_IF_FIFO_OV |
-                       RB_SPI_IF_FIFO_HF | RB_SPI_IF_BYTE_END | RB_SPI_IF_FST_BYTE;
-    R8_SPI0_CTRL_CFG |= (uint8_t)(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP);
-}
-
-static uint32_t spi_rx_dma_pos(void)
-{
-    uint32_t now = R32_SPI0_DMA_NOW;
-    uint32_t beg = (uint32_t)s_spi_rx_dma_buf;
-    uint32_t end = (uint32_t)(s_spi_rx_dma_buf + SPI_RX_DMA_RING_SIZE);
-
-    if ((now < beg) || (now > end)) {
-        return 0u;
-    }
-    now -= beg;
-    if (now >= SPI_RX_DMA_RING_SIZE) {
-        now = 0u;
-    }
-    return now;
-}
-
-static uint8_t spi_rx_dma_byte(uint32_t pos)
-{
-    if (pos >= SPI_RX_DMA_RING_SIZE) {
-        pos -= SPI_RX_DMA_RING_SIZE;
-    }
-    return s_spi_rx_dma_buf[pos];
-}
-
-static uint32_t spi_rx_ring_sub(uint32_t pos, uint32_t delta)
-{
-    delta %= SPI_RX_DMA_RING_SIZE;
-    if (pos >= delta) {
-        return pos - delta;
-    }
-    return SPI_RX_DMA_RING_SIZE - (delta - pos);
-}
-
-static bool spi_rx_copy_input_frame_from_ring(uint32_t start, uint8_t *payload)
-{
-    uint8_t sum = 0u;
-    uint8_t i;
-
-    if (s_spi_rx_dma_buf[start] != RFM_SPI_SYNC) {
-        return false;
-    }
-    if (spi_rx_dma_byte(start + 1u) != SPI_INPUT_CMD) {
-        return false;
-    }
-    if (spi_rx_dma_byte(start + 2u) != RFM_RF_INPUT_PAYLOAD_LEN) {
-        return false;
-    }
-    for (i = 0u; i < (uint8_t)(SPI_RX_FRAME_BYTES - 1u); ++i) {
-        sum = (uint8_t)(sum + spi_rx_dma_byte(start + i));
-    }
-    if (sum != spi_rx_dma_byte(start + SPI_RX_FRAME_BYTES - 1u)) {
-        return false;
-    }
-
-    for (i = 0u; i < RFM_RF_INPUT_PAYLOAD_LEN; ++i) {
-        payload[i] = spi_rx_dma_byte(start + 3u + i);
-    }
-    return true;
-}
-
-#if (SPI_RX_DMA_INJECT_INPUT_TEST != 0u)
-static uint32_t s_spi_rx_inject_start;
-static uint8_t s_spi_rx_inject_valid;
-
-static uint8_t spi_rx_input_crc8(const uint8_t *data, uint8_t len)
-{
-    uint8_t crc = 0u;
-    uint8_t i;
-
-    for(i = 0u; i < len; ++i)
-    {
-        uint8_t bit;
-        crc = (uint8_t)(crc ^ data[i]);
-        for(bit = 0u; bit < 8u; ++bit)
-        {
-            if((crc & 0x80u) != 0u)
-            {
-                crc = (uint8_t)((crc << 1) ^ 0x07u);
-            }
-            else
-            {
-                crc = (uint8_t)(crc << 1);
-            }
-        }
-    }
-    return crc;
-}
-
-static void spi_rx_dma_write_byte(uint32_t pos, uint8_t value)
-{
-    if(pos >= SPI_RX_DMA_RING_SIZE)
-    {
-        pos -= SPI_RX_DMA_RING_SIZE;
-    }
-    s_spi_rx_dma_buf[pos] = value;
-}
-
-static void spi_rx_inject_input_test_frame(uint32_t write_pos)
-{
-    static uint8_t s_inject_seq;
-    uint8_t frame[SPI_RX_FRAME_BYTES];
-    uint8_t payload[RFM_RF_INPUT_PAYLOAD_LEN];
-    uint8_t sum = 0u;
-    uint32_t start;
-    uint8_t i;
-
-    memset(payload, 0, sizeof(payload));
-    payload[0] = s_inject_seq++;
-    payload[1] = 0x11u;
-    payload[2] = 0xFFu;
-    payload[3] = 0xFFu;
-    payload[4] = 0xFFu;
-    payload[5] = 0xFFu;
-    payload[9] = spi_rx_input_crc8(payload, (uint8_t)(RFM_RF_INPUT_PAYLOAD_LEN - 1u));
-
-    frame[0] = RFM_SPI_SYNC;
-    frame[1] = SPI_INPUT_CMD;
-    frame[2] = RFM_RF_INPUT_PAYLOAD_LEN;
-    memcpy(&frame[3], payload, RFM_RF_INPUT_PAYLOAD_LEN);
-    for(i = 0u; i < (uint8_t)(SPI_RX_FRAME_BYTES - 1u); ++i)
-    {
-        sum = (uint8_t)(sum + frame[i]);
-    }
-    frame[SPI_RX_FRAME_BYTES - 1u] = sum;
-
-    start = spi_rx_ring_sub(write_pos, SPI_RX_FRAME_BYTES);
-    for(i = 0u; i < SPI_RX_FRAME_BYTES; ++i)
-    {
-        spi_rx_dma_write_byte(start + i, frame[i]);
-    }
-    s_spi_rx_inject_start = start;
-    s_spi_rx_inject_valid = 1u;
-}
-#endif
+static spi_control_parse_state_t s_spi_control_state;
+static uint8_t s_spi_control_buf[RFM_SPI_MAX_FRAME];
+static uint8_t s_spi_control_idx;
+static uint8_t s_spi_control_payload_len;
+static uint8_t s_spi_control_sum;
+static uint8_t s_spi_control_slot[SPI_CONTROL_SLOT_COUNT][RFM_SPI_MAX_FRAME];
+static uint8_t s_spi_control_slot_len[SPI_CONTROL_SLOT_COUNT];
+static uint8_t s_spi_control_head;
+static uint8_t s_spi_control_tail;
+static uint8_t s_spi_control_count;
 
 static uint8_t spi_rx_host_cmd_valid(uint8_t cmd)
 {
@@ -304,271 +77,322 @@ static uint8_t spi_rx_host_cmd_valid(uint8_t cmd)
     }
 }
 
-static uint32_t spi_rx_abs_pos(uint32_t abs_pos)
+static uint32_t spi_now_us(void)
 {
-    return (abs_pos - s_spi_rx_base_abs) % SPI_RX_DMA_RING_SIZE;
+    s_now_us += US_TICK_STEP;
+    return s_now_us;
+}
+
+static uint32_t spi_rx_dma_pos(void)
+{
+    uint32_t now = R32_SPI0_DMA_NOW;
+    const uint32_t beg = (uint32_t)s_spi_rx_dma_buf;
+    const uint32_t end = (uint32_t)(s_spi_rx_dma_buf + SPI_RX_DMA_BUF_SIZE);
+
+    if((now < beg) || (now > end))
+    {
+        return 0u;
+    }
+    now -= beg;
+    if(now >= SPI_RX_DMA_BUF_SIZE)
+    {
+        now = 0u;
+    }
+    return now;
+}
+
+static uint8_t spi_rx_byte_at(uint32_t pos)
+{
+    if(pos >= SPI_RX_DMA_BUF_SIZE)
+    {
+        pos %= SPI_RX_DMA_BUF_SIZE;
+    }
+    return s_spi_rx_dma_buf[pos];
 }
 
 static uint8_t spi_rx_abs_byte(uint32_t abs_pos)
 {
-    return spi_rx_dma_byte(spi_rx_abs_pos(abs_pos));
+    return spi_rx_byte_at(abs_pos % SPI_RX_DMA_BUF_SIZE);
 }
 
-static uint8_t spi_rx_frame_checksum_valid(uint32_t start_abs, uint8_t total)
+static void spi_control_parser_reset(void)
+{
+    s_spi_control_state = SPI_CONTROL_WAIT_SYNC;
+    s_spi_control_idx = 0u;
+    s_spi_control_payload_len = 0u;
+    s_spi_control_sum = 0u;
+}
+
+static void spi_control_parser_start(void)
+{
+    s_spi_control_buf[0] = RFM_SPI_SYNC;
+    s_spi_control_idx = 1u;
+    s_spi_control_payload_len = 0u;
+    s_spi_control_sum = RFM_SPI_SYNC;
+    s_spi_control_state = SPI_CONTROL_CMD;
+}
+
+static void spi_control_slot_push(const uint8_t *frame, uint8_t len)
+{
+    if((frame == 0) || (len == 0u) || (len > RFM_SPI_MAX_FRAME))
+    {
+        return;
+    }
+
+    memcpy(s_spi_control_slot[s_spi_control_head], frame, len);
+    s_spi_control_slot_len[s_spi_control_head] = len;
+    s_spi_control_head++;
+    if(s_spi_control_head >= SPI_CONTROL_SLOT_COUNT)
+    {
+        s_spi_control_head = 0u;
+    }
+    if(s_spi_control_count < SPI_CONTROL_SLOT_COUNT)
+    {
+        s_spi_control_count++;
+    }
+    else
+    {
+        s_spi_control_tail = s_spi_control_head;
+        s_spi_rx_backlog_drop_count++;
+        s_spi_rx_backlog_drop_bytes += len;
+    }
+}
+
+static void spi_control_parser_feed(uint8_t b)
+{
+    switch(s_spi_control_state)
+    {
+    case SPI_CONTROL_WAIT_SYNC:
+        if(b == RFM_SPI_SYNC)
+        {
+            spi_control_parser_start();
+        }
+        break;
+
+    case SPI_CONTROL_CMD:
+        if(spi_rx_host_cmd_valid(b) == 0u)
+        {
+            if(b == RFM_SPI_SYNC)
+            {
+                spi_control_parser_start();
+            }
+            else
+            {
+                spi_control_parser_reset();
+            }
+            break;
+        }
+        s_spi_control_buf[s_spi_control_idx++] = b;
+        s_spi_control_sum = (uint8_t)(s_spi_control_sum + b);
+        s_spi_control_state = SPI_CONTROL_LEN;
+        break;
+
+    case SPI_CONTROL_LEN:
+        if(((uint16_t)3u + (uint16_t)b + (uint16_t)1u) > RFM_SPI_MAX_FRAME)
+        {
+            spi_control_parser_reset();
+            break;
+        }
+        s_spi_control_payload_len = b;
+        s_spi_control_buf[s_spi_control_idx++] = b;
+        s_spi_control_sum = (uint8_t)(s_spi_control_sum + b);
+        s_spi_control_state = (b == 0u) ? SPI_CONTROL_CHECKSUM : SPI_CONTROL_PAYLOAD;
+        break;
+
+    case SPI_CONTROL_PAYLOAD:
+        s_spi_control_buf[s_spi_control_idx++] = b;
+        s_spi_control_sum = (uint8_t)(s_spi_control_sum + b);
+        if(s_spi_control_idx >= (uint8_t)(3u + s_spi_control_payload_len))
+        {
+            s_spi_control_state = SPI_CONTROL_CHECKSUM;
+        }
+        break;
+
+    case SPI_CONTROL_CHECKSUM:
+        s_spi_control_buf[s_spi_control_idx++] = b;
+        if(s_spi_control_sum == b)
+        {
+            if(s_spi_control_buf[1] != SPI_INPUT_CMD)
+            {
+                spi_control_slot_push(s_spi_control_buf, s_spi_control_idx);
+            }
+        }
+        spi_control_parser_reset();
+        break;
+
+    default:
+        spi_control_parser_reset();
+        break;
+    }
+}
+
+static void spi_rx_note_advance(uint32_t from, uint32_t delta)
+{
+    uint32_t pos = from;
+    uint32_t i;
+
+    for(i = 0u; i < delta; ++i)
+    {
+        spi_control_parser_feed(spi_rx_byte_at(pos));
+        pos++;
+        if(pos >= SPI_RX_DMA_BUF_SIZE)
+        {
+            pos = 0u;
+        }
+    }
+}
+
+static void spi_rx_dma_poll(void)
+{
+    const uint32_t pos = spi_rx_dma_pos();
+    uint8_t flags;
+    uint8_t loop_end;
+    uint32_t delta;
+
+    flags = R8_SPI0_INT_FLAG;
+    loop_end = (uint8_t)(flags & (RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END));
+    if((flags & (RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END)) != 0u)
+    {
+        R8_SPI0_INT_FLAG = (uint8_t)(flags & (RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END));
+    }
+    s_spi_rx_last_flags = flags;
+
+    if((pos == s_spi_rx_dma_last_pos) && (loop_end != 0u))
+    {
+        delta = SPI_RX_DMA_BUF_SIZE;
+    }
+    else if(pos >= s_spi_rx_dma_last_pos)
+    {
+        delta = pos - s_spi_rx_dma_last_pos;
+    }
+    else
+    {
+        delta = (SPI_RX_DMA_BUF_SIZE - s_spi_rx_dma_last_pos) + pos;
+    }
+
+    if(delta != 0u)
+    {
+        spi_rx_note_advance(s_spi_rx_dma_last_pos, delta);
+        s_spi_rx_total_bytes += delta;
+        if(delta > s_spi_rx_max_available)
+        {
+            s_spi_rx_max_available = delta;
+        }
+        s_spi_rx_dma_last_pos = pos;
+    }
+}
+
+static uint8_t spi_rx_frame_checksum_valid(uint8_t total)
 {
     uint8_t sum = 0u;
     uint8_t i;
 
     for(i = 0u; i < (uint8_t)(total - 1u); ++i)
     {
-        sum = (uint8_t)(sum + spi_rx_abs_byte(start_abs + i));
+        sum = (uint8_t)(sum + spi_rx_abs_byte(i));
     }
 
-    return (sum == spi_rx_abs_byte(start_abs + total - 1u)) ? 1u : 0u;
+    return (sum == spi_rx_abs_byte(total - 1u)) ? 1u : 0u;
 }
 
-static void spi_rx_copy_abs_frame(uint32_t start_abs, uint8_t total, uint8_t *frame)
+static uint8_t spi_rx_copy_input_single(uint8_t *payload)
 {
+    uint32_t pos0;
+    uint32_t pos1;
     uint8_t i;
 
-    for(i = 0u; i < total; ++i)
+    if(payload == 0)
     {
-        frame[i] = spi_rx_abs_byte(start_abs + i);
+        return 0u;
     }
+
+    pos0 = spi_rx_dma_pos();
+    if(pos0 != 0u)
+    {
+        return 0u;
+    }
+
+    if(spi_rx_byte_at(0u) != RFM_SPI_SYNC)
+    {
+        return 0u;
+    }
+    if(spi_rx_byte_at(1u) != SPI_INPUT_CMD)
+    {
+        return 0u;
+    }
+    if(spi_rx_byte_at(2u) != RFM_RF_INPUT_PAYLOAD_LEN)
+    {
+        return 0u;
+    }
+    if(spi_rx_frame_checksum_valid(SPI_RX_FRAME_BYTES) == 0u)
+    {
+        return 0u;
+    }
+
+    for(i = 0u; i < RFM_RF_INPUT_PAYLOAD_LEN; ++i)
+    {
+        payload[i] = spi_rx_byte_at(3u + i);
+    }
+
+    pos1 = spi_rx_dma_pos();
+    if(pos1 != pos0)
+    {
+        return 0u;
+    }
+    return 1u;
 }
 
-bool rfm_spi_port_peek_latest_control_frame(uint8_t *frame, uint8_t *inout_len)
+static void spi_rx_dma_state_reset(void)
 {
-    uint32_t available;
-    uint32_t write_abs;
-    uint32_t oldest_abs;
-    uint32_t latest_scan_abs;
-    uint32_t scan_end_abs;
-
-    if((frame == 0) || (inout_len == 0) || (*inout_len < 4u))
-    {
-        return false;
-    }
-    if(s_spi_tx_pending != 0u)
-    {
-        return false;
-    }
-
-    write_abs = spi_rx_write_abs_snapshot(&available);
-    if((write_abs - s_spi_rx_base_abs) > SPI_RX_DMA_RING_SIZE)
-    {
-        oldest_abs = write_abs - SPI_RX_DMA_RING_SIZE;
-    }
-    else
-    {
-        oldest_abs = s_spi_rx_base_abs;
-    }
-
-    if(s_spi_rx_control_scan_abs < oldest_abs)
-    {
-        s_spi_rx_control_scan_abs = oldest_abs;
-    }
-    if(s_spi_rx_control_scan_abs > write_abs)
-    {
-        s_spi_rx_control_scan_abs = write_abs;
-    }
-
-    latest_scan_abs = oldest_abs;
-    if((write_abs - latest_scan_abs) > SPI_RX_CONTROL_SCAN_BYTES)
-    {
-        latest_scan_abs = write_abs - SPI_RX_CONTROL_SCAN_BYTES;
-    }
-    if(s_spi_rx_control_scan_abs < latest_scan_abs)
-    {
-        s_spi_rx_control_scan_abs = latest_scan_abs;
-    }
-
-    scan_end_abs = write_abs;
-    if((scan_end_abs - s_spi_rx_control_scan_abs) > SPI_RX_CONTROL_SCAN_BYTES)
-    {
-        scan_end_abs = s_spi_rx_control_scan_abs + SPI_RX_CONTROL_SCAN_BYTES;
-    }
-
-    while(s_spi_rx_control_scan_abs < scan_end_abs)
-    {
-        uint8_t cmd;
-        uint8_t payload_len;
-        uint8_t total;
-        uint32_t remaining;
-
-        if(spi_rx_abs_byte(s_spi_rx_control_scan_abs) != RFM_SPI_SYNC)
-        {
-            s_spi_rx_control_scan_abs++;
-            continue;
-        }
-
-        remaining = write_abs - s_spi_rx_control_scan_abs;
-        if(remaining < 3u)
-        {
-            break;
-        }
-
-        cmd = spi_rx_abs_byte(s_spi_rx_control_scan_abs + 1u);
-        if(spi_rx_host_cmd_valid(cmd) == 0u)
-        {
-            s_spi_rx_control_scan_abs++;
-            continue;
-        }
-
-        payload_len = spi_rx_abs_byte(s_spi_rx_control_scan_abs + 2u);
-        total = (uint8_t)(3u + payload_len + 1u);
-        if((total < 4u) || (total > RFM_SPI_MAX_FRAME))
-        {
-            s_spi_rx_control_scan_abs++;
-            continue;
-        }
-        if(remaining < (uint32_t)total)
-        {
-            break;
-        }
-        if(spi_rx_frame_checksum_valid(s_spi_rx_control_scan_abs, total) == 0u)
-        {
-            s_spi_rx_control_scan_abs++;
-            continue;
-        }
-
-        if(total > *inout_len)
-        {
-            return false;
-        }
-
-        spi_rx_copy_abs_frame(s_spi_rx_control_scan_abs, total, frame);
-        s_spi_rx_control_scan_abs += total;
-        *inout_len = total;
-        return true;
-    }
-
-    (void)available;
-    return false;
+    s_spi_rx_dma_last_pos = 0u;
+    s_spi_control_head = 0u;
+    s_spi_control_tail = 0u;
+    s_spi_control_count = 0u;
+    memset(s_spi_control_slot_len, 0, sizeof(s_spi_control_slot_len));
+    spi_control_parser_reset();
 }
 
-static uint32_t spi_rx_write_abs_snapshot(uint32_t *available_out)
+static void spi_rx_dma_loop_start(uint8_t flush_fifo)
 {
-    uint32_t wraps;
-    uint32_t write_pos;
-    uint32_t write_local_abs;
-    uint32_t write_abs;
-    uint32_t available;
-    uint8_t flags;
-
-    PFIC_DisableIRQ(SPI0_IRQn);
-    flags = R8_SPI0_INT_FLAG;
-    write_pos = spi_rx_dma_pos();
-
-    if ((flags & (RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END)) != 0u) {
-        R8_SPI0_INT_FLAG = (uint8_t)(flags & (RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END));
-        s_spi_rx_dma_wrap_count++;
-        s_spi_rx_last_flags = flags;
-    } else if (write_pos < s_spi_rx_last_write_pos) {
-        s_spi_rx_dma_wrap_count++;
-    }
-    s_spi_rx_last_write_pos = write_pos;
-    wraps = s_spi_rx_dma_wrap_count;
-    PFIC_EnableIRQ(SPI0_IRQn);
-
-    write_local_abs = (wraps * SPI_RX_DMA_RING_SIZE) + write_pos;
-    write_abs = s_spi_rx_base_abs + write_local_abs;
-    if (write_abs < s_spi_rx_read_abs) {
-        s_spi_rx_read_abs = write_abs;
-    }
-
-    available = write_abs - s_spi_rx_read_abs;
-    if (available > SPI_RX_DMA_RING_SIZE) {
-        s_spi_rx_ring_overrun_count += available - SPI_RX_DMA_RING_SIZE;
-        s_spi_rx_full_clip_count++;
-        s_spi_rx_read_abs = write_abs - SPI_RX_DMA_RING_SIZE;
-        available = SPI_RX_DMA_RING_SIZE;
-    } else if (available > s_spi_rx_max_available) {
-        s_spi_rx_max_available = available;
-    }
-
-    if (available_out != 0) {
-        *available_out = available;
-    }
-    s_spi_rx_total_bytes = write_abs;
-    return write_abs;
-}
-
-bool rfm_spi_port_peek_latest_input(uint8_t *payload, uint8_t len)
-{
-    uint32_t write_pos;
-    uint32_t scan_len;
-    uint32_t offset;
-
-    if ((payload == 0) || (len != RFM_RF_INPUT_PAYLOAD_LEN)) {
-        s_spi_rx_peek_miss_count++;
-        return false;
-    }
-
-    (void)spi_rx_write_abs_snapshot(0);
-    write_pos = spi_rx_dma_pos();
-#if (SPI_RX_DMA_INJECT_INPUT_TEST != 0u)
-    spi_rx_inject_input_test_frame(write_pos);
-    if((s_spi_rx_inject_valid != 0u) &&
-       spi_rx_copy_input_frame_from_ring(s_spi_rx_inject_start, payload))
+    R8_SPI0_CTRL_CFG &= (uint8_t)(~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP));
+    R8_SPI0_CTRL_MOD = (uint8_t)((R8_SPI0_CTRL_MOD | RB_SPI_FIFO_DIR) &
+                                 (uint8_t)(~RB_SPI_SLV_CMD_MOD));
+    if(flush_fifo != 0u)
     {
-        s_spi_rx_input_scan_abs = s_spi_rx_base_abs + write_pos;
-        s_spi_rx_peek_ok_count++;
-        s_spi_rx_direct_count++;
-        return true;
-    }
-#endif
-    scan_len = SPI_RX_PEEK_SCAN_BYTES;
-    if (scan_len > SPI_RX_DMA_RING_SIZE) {
-        scan_len = SPI_RX_DMA_RING_SIZE;
-    }
-
-    for (offset = SPI_RX_FRAME_BYTES; offset <= scan_len; ++offset) {
-        uint32_t start = spi_rx_ring_sub(write_pos, offset);
-        if (spi_rx_copy_input_frame_from_ring(start, payload)) {
-            s_spi_rx_input_scan_abs = s_spi_rx_base_abs + write_pos;
-            s_spi_rx_peek_ok_count++;
-            s_spi_rx_direct_count++;
-            return true;
+        while(R8_SPI0_FIFO_COUNT != 0u)
+        {
+            (void)R8_SPI0_FIFO;
         }
     }
 
-    if (scan_len > 0u) {
-        s_spi_rx_input_scan_abs = s_spi_rx_base_abs + write_pos;
-    }
+    memset(s_spi_rx_dma_buf, 0xFF, sizeof(s_spi_rx_dma_buf));
+    spi_rx_dma_state_reset();
+    s_spi_rx_total_bytes = 0u;
 
-    s_spi_rx_peek_miss_count++;
-    return false;
+    R32_SPI0_DMA_BEG = (uint32_t)s_spi_rx_dma_buf;
+    R32_SPI0_DMA_END = (uint32_t)(s_spi_rx_dma_buf + SPI_RX_DMA_BUF_SIZE);
+    R32_SPI0_DMA_NOW = (uint32_t)s_spi_rx_dma_buf;
+    R16_SPI0_TOTAL_CNT = SPI_RX_DMA_BUF_SIZE;
+    R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END | RB_SPI_IF_FIFO_OV |
+                       RB_SPI_IF_FIFO_HF | RB_SPI_IF_BYTE_END | RB_SPI_IF_FST_BYTE;
+    R8_SPI0_CTRL_CFG |= (uint8_t)(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP);
 }
 
 static void spi_rx_restart_after_tx(void)
 {
     PFIC_DisableIRQ(SPI0_IRQn);
-    s_spi_rx_base_abs = s_spi_rx_total_bytes;
-    s_spi_rx_dma_wrap_count = 0u;
-    s_spi_rx_seen_wrap_count = 0u;
-    s_spi_rx_read_abs = s_spi_rx_base_abs;
-    s_spi_rx_input_scan_abs = s_spi_rx_base_abs;
-    s_spi_rx_control_scan_abs = s_spi_rx_base_abs;
-    s_spi_rx_last_write_pos = 0u;
-    memset(s_spi_rx_dma_buf, 0xFF, sizeof(s_spi_rx_dma_buf));
-#if (RFM_SPI_INPUT_DIRECT_DMA != 0u)
     spi_rx_dma_loop_start(1u);
-#else
-    spi_rx_fifo_start(1u);
-#endif
-    SPI0_ITCfg(ENABLE, SPI0_IT_FIFO_OV | SPI0_IT_FIFO_HF);
-    PFIC_EnableIRQ(SPI0_IRQn);
+    SPI0_ITCfg(DISABLE, SPI0_IT_CNT_END | SPI0_IT_DMA_END | SPI0_IT_FIFO_OV |
+                         SPI0_IT_FIFO_HF | SPI0_IT_BYTE_END | SPI0_IT_FST_BYTE);
 }
 
 static void spi_tx_fill_fifo(void)
 {
-    while ((s_spi_tx_pos < s_spi_tx_len) && (R8_SPI0_FIFO_COUNT < SPI_FIFO_SIZE)) {
+    while((s_spi_tx_pos < s_spi_tx_len) && (R8_SPI0_FIFO_COUNT < SPI_FIFO_SIZE))
+    {
         R8_SPI0_FIFO = s_spi_tx_buf[s_spi_tx_pos++];
     }
 }
-
-static uint32_t spi_now_us(void) { s_now_us += US_TICK_STEP; return s_now_us; }
 
 void rfm_spi_port_init(void)
 {
@@ -582,19 +406,16 @@ void rfm_spi_port_init(void)
     GPIOB_ModeCfg(GPIO_Pin_15, GPIO_ModeOut_PP_5mA);
 
     SPI0_SlaveInit();
-    R8_SPI0_CTRL_MOD = (uint8_t)((R8_SPI0_CTRL_MOD | RB_SPI_FIFO_DIR) & (uint8_t)(~RB_SPI_SLV_CMD_MOD));
+    R8_SPI0_CTRL_MOD = (uint8_t)((R8_SPI0_CTRL_MOD | RB_SPI_FIFO_DIR) &
+                                 (uint8_t)(~RB_SPI_SLV_CMD_MOD));
 
     s_spi_tx_pending = 0u;
     s_spi_tx_start_us = 0u;
     s_spi_tx_recover_count = 0u;
+    s_spi_tx_done_count = 0u;
     s_spi_tx_len = 0u;
     s_spi_tx_pos = 0u;
     s_now_us = 0u;
-    s_spi_rx_dma_wrap_count = 0u;
-    s_spi_rx_base_abs = 0u;
-    s_spi_rx_seen_wrap_count = 0u;
-    s_spi_rx_read_abs = 0u;
-    s_spi_rx_last_write_pos = 0u;
     s_spi_rx_total_bytes = 0u;
     s_spi_rx_ring_overrun_count = 0u;
     s_spi_rx_backlog_drop_count = 0u;
@@ -609,41 +430,41 @@ void rfm_spi_port_init(void)
     s_spi_rx_peek_ok_count = 0u;
     s_spi_rx_peek_miss_count = 0u;
     s_spi_rx_direct_count = 0u;
-    s_spi_rx_input_scan_abs = 0u;
-    s_spi_rx_control_scan_abs = 0u;
-    memset(s_spi_rx_dma_buf, 0xFF, sizeof(s_spi_rx_dma_buf));
 
-#if (RFM_SPI_INPUT_DIRECT_DMA != 0u)
     spi_rx_dma_loop_start(1u);
-#else
-    spi_rx_fifo_start(1u);
-#endif
-    SPI0_ITCfg(ENABLE, SPI0_IT_FIFO_OV | SPI0_IT_FIFO_HF);
-    PFIC_EnableIRQ(SPI0_IRQn);
+    SPI0_ITCfg(DISABLE, SPI0_IT_CNT_END | SPI0_IT_DMA_END | SPI0_IT_FIFO_OV |
+                         SPI0_IT_FIFO_HF | SPI0_IT_BYTE_END | SPI0_IT_FST_BYTE);
+    PFIC_DisableIRQ(SPI0_IRQn);
 }
 
 void rfm_spi_port_set_irq(bool asserted)
 {
-    if (asserted) {
+    if(asserted)
+    {
         GPIOB_SetBits(SPI_IRQ_PIN);
-    } else {
+    }
+    else
+    {
         GPIOB_ResetBits(SPI_IRQ_PIN);
     }
 }
 
 void rfm_spi_port_service(void)
 {
-    uint32_t available;
-
-    if (s_spi_tx_pending != 0u) {
+    if(s_spi_tx_pending != 0u)
+    {
         spi_tx_fill_fifo();
-        if ((R8_SPI0_INT_FLAG & RB_SPI_IF_CNT_END) != 0u) {
+        if((R8_SPI0_INT_FLAG & RB_SPI_IF_CNT_END) != 0u)
+        {
             R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END;
             s_spi_tx_pending = 0u;
+            s_spi_tx_done_count++;
             rfm_spi_port_set_irq(false);
             spi_rx_restart_after_tx();
-        } else if (GPIOB_ReadPortPin(GPIO_Pin_12) &&
-                   ((int32_t)(spi_now_us() - (s_spi_tx_start_us + SPI_TX_PENDING_RECOVER_US)) >= 0)) {
+        }
+        else if(GPIOB_ReadPortPin(GPIO_Pin_12) &&
+                ((int32_t)(spi_now_us() - (s_spi_tx_start_us + SPI_TX_PENDING_RECOVER_US)) >= 0))
+        {
             s_spi_tx_pending = 0u;
             s_spi_tx_recover_count++;
             rfm_spi_port_set_irq(false);
@@ -652,97 +473,77 @@ void rfm_spi_port_service(void)
         return;
     }
 
-#if (RFM_SPI_INPUT_DIRECT_DMA != 0u)
-    (void)spi_rx_write_abs_snapshot(&available);
-#else
-    (void)available;
-    spi_rx_fifo_drain_hw();
-    if ((R8_SPI0_INT_FLAG & RB_SPI_IF_FIFO_OV) != 0u) {
-        R8_SPI0_INT_FLAG = RB_SPI_IF_FIFO_OV;
-        s_spi_rx_fifo_ov_count++;
-        s_spi_rx_ring_overrun_count++;
-        spi_rx_fifo_start(1u);
+    spi_rx_dma_poll();
+}
+
+bool rfm_spi_port_peek_latest_input(uint8_t *payload, uint8_t len)
+{
+    uint8_t parsed[RFM_RF_INPUT_PAYLOAD_LEN];
+
+    if((payload == 0) || (len != RFM_RF_INPUT_PAYLOAD_LEN))
+    {
+        s_spi_rx_peek_miss_count++;
+        return false;
     }
-#endif
+    if(s_spi_tx_pending != 0u)
+    {
+        s_spi_rx_peek_miss_count++;
+        return false;
+    }
+
+    if(spi_rx_copy_input_single(parsed) == 0u)
+    {
+        s_spi_rx_peek_miss_count++;
+        return false;
+    }
+
+    memcpy(payload, parsed, sizeof(parsed));
+    s_spi_rx_peek_ok_count++;
+    s_spi_rx_direct_count++;
+    return true;
+}
+
+bool rfm_spi_port_peek_latest_control_frame(uint8_t *frame, uint8_t *inout_len)
+{
+    uint8_t len;
+
+    if((frame == 0) || (inout_len == 0) || (*inout_len < 4u))
+    {
+        return false;
+    }
+    if(s_spi_tx_pending != 0u)
+    {
+        return false;
+    }
+
+    spi_rx_dma_poll();
+    if(s_spi_control_count == 0u)
+    {
+        return false;
+    }
+    len = s_spi_control_slot_len[s_spi_control_tail];
+    if((len == 0u) || (len > *inout_len))
+    {
+        return false;
+    }
+
+    memcpy(frame, s_spi_control_slot[s_spi_control_tail], len);
+    s_spi_control_slot_len[s_spi_control_tail] = 0u;
+    s_spi_control_tail++;
+    if(s_spi_control_tail >= SPI_CONTROL_SLOT_COUNT)
+    {
+        s_spi_control_tail = 0u;
+    }
+    s_spi_control_count--;
+    *inout_len = len;
+    return true;
 }
 
 size_t rfm_spi_port_drain(uint8_t *buf, size_t max_len)
 {
-    size_t n = 0u;
-    uint32_t write_abs;
-    uint32_t available;
-    uint32_t read_pos;
-    uint32_t chunk;
-
-    if ((buf == 0) || (max_len == 0u)) {
-        return 0u;
-    }
-
-    if (s_spi_tx_pending != 0u) {
-        spi_tx_fill_fifo();
-        if ((R8_SPI0_INT_FLAG & RB_SPI_IF_CNT_END) == 0u) {
-            if (GPIOB_ReadPortPin(GPIO_Pin_12) &&
-                ((int32_t)(spi_now_us() - (s_spi_tx_start_us + SPI_TX_PENDING_RECOVER_US)) >= 0)) {
-                s_spi_tx_pending = 0u;
-                s_spi_tx_recover_count++;
-                rfm_spi_port_set_irq(false);
-                spi_rx_restart_after_tx();
-            } else {
-                return 0u;
-            }
-        } else {
-            R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END;
-            s_spi_tx_pending = 0u;
-            rfm_spi_port_set_irq(false);
-            spi_rx_restart_after_tx();
-        }
-    }
-
-#if (RFM_SPI_INPUT_DIRECT_DMA == 0u)
-    spi_rx_fifo_drain_hw();
-    if ((R8_SPI0_INT_FLAG & RB_SPI_IF_FIFO_OV) != 0u) {
-        R8_SPI0_INT_FLAG = RB_SPI_IF_FIFO_OV;
-        s_spi_rx_fifo_ov_count++;
-        s_spi_rx_ring_overrun_count++;
-        spi_rx_fifo_start(1u);
-    }
-    n = spi_rx_fifo_ring_pop(buf, max_len);
-    if ((uint32_t)n > s_spi_rx_max_available) {
-        s_spi_rx_max_available = (uint32_t)n;
-    }
-    return n;
-#endif
-
-    write_abs = spi_rx_write_abs_snapshot(&available);
-
-    if (available > max_len) {
-        uint32_t drop = available - (uint32_t)max_len;
-
-        s_spi_rx_read_abs += drop;
-        s_spi_rx_backlog_drop_count++;
-        s_spi_rx_backlog_drop_bytes += drop;
-        available = (uint32_t)max_len;
-    }
-
-    if (available > SPI_RX_NEAR_FULL_THRESHOLD) {
-        s_spi_rx_near_full_count++;
-    }
-
-    while (n < available) {
-        read_pos = (s_spi_rx_read_abs - s_spi_rx_base_abs) % SPI_RX_DMA_RING_SIZE;
-        chunk = SPI_RX_DMA_RING_SIZE - read_pos;
-        if (chunk > (available - (uint32_t)n)) {
-            chunk = available - (uint32_t)n;
-        }
-        memcpy(&buf[n], &s_spi_rx_dma_buf[read_pos], chunk);
-        n += chunk;
-        s_spi_rx_read_abs += chunk;
-    }
-
-    s_spi_rx_seen_wrap_count = (s_spi_rx_read_abs - s_spi_rx_base_abs) / SPI_RX_DMA_RING_SIZE;
-    s_spi_rx_total_bytes = write_abs;
-
-    return n;
+    (void)buf;
+    (void)max_len;
+    return 0u;
 }
 
 uint32_t rfm_spi_port_rx_ring_overrun_count(void)
@@ -782,37 +583,22 @@ uint32_t rfm_spi_port_rx_max_available(void)
 
 uint32_t rfm_spi_port_rx_take_max_available(void)
 {
-    uint32_t max_value;
-
-    PFIC_DisableIRQ(SPI0_IRQn);
-    max_value = s_spi_rx_max_available;
+    const uint32_t max_value = s_spi_rx_max_available;
     s_spi_rx_max_available = 0u;
-    PFIC_EnableIRQ(SPI0_IRQn);
-
     return max_value;
 }
 
 uint32_t rfm_spi_port_rx_take_near_full_count(void)
 {
-    uint32_t count;
-
-    PFIC_DisableIRQ(SPI0_IRQn);
-    count = s_spi_rx_near_full_count;
+    const uint32_t count = s_spi_rx_near_full_count;
     s_spi_rx_near_full_count = 0u;
-    PFIC_EnableIRQ(SPI0_IRQn);
-
     return count;
 }
 
 uint32_t rfm_spi_port_rx_take_full_clip_count(void)
 {
-    uint32_t count;
-
-    PFIC_DisableIRQ(SPI0_IRQn);
-    count = s_spi_rx_full_clip_count;
+    const uint32_t count = s_spi_rx_full_clip_count;
     s_spi_rx_full_clip_count = 0u;
-    PFIC_EnableIRQ(SPI0_IRQn);
-
     return count;
 }
 
@@ -856,20 +642,19 @@ uint32_t rfm_spi_port_tx_recover_count(void)
     return s_spi_tx_recover_count;
 }
 
+uint32_t rfm_spi_port_tx_done_count(void)
+{
+    return s_spi_tx_done_count;
+}
+
 bool rfm_spi_port_try_read(uint8_t *buf, size_t *inout_len)
 {
-    size_t n;
-
-    if ((buf == 0) || (inout_len == 0) || (*inout_len == 0u)) {
-        return false;
+    (void)buf;
+    if(inout_len != 0)
+    {
+        *inout_len = 0u;
     }
-
-    n = rfm_spi_port_drain(buf, *inout_len);
-    if (n == 0u) {
-        return false;
-    }
-    *inout_len = n;
-    return true;
+    return false;
 }
 
 __attribute__((interrupt("WCH-Interrupt-fast"), section(".highcode")))
@@ -877,51 +662,15 @@ void SPI0_IRQHandler(void)
 {
     const uint8_t flags = R8_SPI0_INT_FLAG;
 
-#if (RFM_SPI_INPUT_DIRECT_DMA == 0u)
-    const uint8_t rx_flags = (uint8_t)(flags & (RB_SPI_IF_FIFO_HF |
-                                                RB_SPI_IF_FIFO_OV |
-                                                RB_SPI_IF_BYTE_END |
-                                                RB_SPI_IF_FST_BYTE));
-
+    s_spi_rx_isr_count++;
     s_spi_rx_last_flags = flags;
 
     if(flags == 0u)
     {
         return;
     }
-    if((rx_flags & RB_SPI_IF_FIFO_OV) != 0u)
+    if((flags & RB_SPI_IF_FIFO_OV) != 0u)
     {
-        s_spi_rx_fifo_ov_count++;
-        s_spi_rx_ring_overrun_count++;
-    }
-    if((rx_flags & (RB_SPI_IF_FIFO_HF | RB_SPI_IF_BYTE_END | RB_SPI_IF_FST_BYTE)) != 0u)
-    {
-        spi_rx_fifo_drain_hw();
-    }
-    R8_SPI0_INT_FLAG = flags;
-    return;
-#else
-    const uint8_t active = (uint8_t)(flags & RB_SPI_IF_FIFO_OV);
-    const uint8_t noise = (uint8_t)(flags & (RB_SPI_IF_CNT_END |
-                                             RB_SPI_IF_DMA_END |
-                                             RB_SPI_IF_BYTE_END |
-                                             RB_SPI_IF_FIFO_HF |
-                                             RB_SPI_IF_FST_BYTE));
-
-    s_spi_rx_last_flags = flags;
-
-    if (flags == 0u) {
-        return;
-    }
-
-    if (noise != 0u) {
-        R8_SPI0_INT_FLAG = noise;
-        if (active == 0u) {
-            return;
-        }
-    }
-
-    if ((active & RB_SPI_IF_FIFO_OV) != 0u) {
         R8_SPI0_INT_FLAG = RB_SPI_IF_FIFO_OV;
         s_spi_rx_fifo_ov_count++;
         s_spi_rx_ring_overrun_count++;
@@ -929,21 +678,20 @@ void SPI0_IRQHandler(void)
         return;
     }
 
-    if (flags != 0u) {
-        R8_SPI0_INT_FLAG = flags;
-    }
+    R8_SPI0_INT_FLAG = flags;
     s_spi_rx_bad_irq_count++;
-#endif
 }
 
 bool rfm_spi_port_try_write(const uint8_t *buf, size_t len)
 {
     size_t i;
 
-    if ((buf == 0) || (len == 0u) || (len > 4095u) || (len > sizeof(s_spi_tx_buf))) {
+    if((buf == 0) || (len == 0u) || (len > 4095u) || (len > sizeof(s_spi_tx_buf)))
+    {
         return false;
     }
-    if (s_spi_tx_pending != 0u) {
+    if(s_spi_tx_pending != 0u)
+    {
         return false;
     }
 
@@ -954,11 +702,13 @@ bool rfm_spi_port_try_write(const uint8_t *buf, size_t len)
     R16_SPI0_TOTAL_CNT = (uint16_t)len;
     R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END;
 
-    while (R8_SPI0_FIFO_COUNT != 0u) {
+    while(R8_SPI0_FIFO_COUNT != 0u)
+    {
         (void)R8_SPI0_FIFO;
     }
 
-    for (i = 0u; i < len; ++i) {
+    for(i = 0u; i < len; ++i)
+    {
         s_spi_tx_buf[i] = buf[i];
     }
     s_spi_tx_len = (uint16_t)len;

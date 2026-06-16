@@ -219,10 +219,10 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
     }
 
     requestedReportRateHz = getRfReportRateHz(wirelessRate);
-    appliedReportRateHz = requestedReportRateHz;
-    MonitorTelemetry_Init(mode, appliedReportRateHz);
+    MonitorTelemetry_Init(mode, requestedReportRateHz);
 #if RF24G_SPI_TEST_FORCE_RF24G
     rateApplyPending = false;
+    appliedReportRateHz = requestedReportRateHz;
     linkState = ConnectionLinkState::Connected;
     MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(linkState));
     APP_DBG("[RF_SPI_TEST] skip SET_RATE, force stream rate:%u", appliedReportRateHz);
@@ -238,8 +238,9 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
         }
         linkState = nextState;
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1003u, "rf setRate failed");
-        APP_ERR("[RF_BRIDGE] setRate failed, requested:%u", appliedReportRateHz);
+        APP_ERR("[RF_BRIDGE] setRate failed, requested:%u", requestedReportRateHz);
     } else {
+        appliedReportRateHz = requestedReportRateHz;
         linkState = ConnectionLinkState::Connected;
         MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(linkState));
         APP_DBG("[RF_BRIDGE] rate applied:%u", appliedReportRateHz);

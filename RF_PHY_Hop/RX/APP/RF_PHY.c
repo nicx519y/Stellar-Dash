@@ -132,11 +132,11 @@ static volatile uint8_t g_demo_hid_hop_finish_pending = 0u;
 static volatile uint16_t g_demo_hid_hop_start_score = 0u;
 static volatile uint16_t g_demo_hid_hop_finish_duration_ms = 0u;
 static volatile uint32_t g_demo_hid_input_key_mask = 0u;
+static volatile uint32_t g_demo_hid_input_window_mask = 0u;
 static volatile uint32_t g_demo_hid_input_report_seq = 0u;
 static volatile uint8_t g_demo_hid_input_seq = 0u;
 static volatile uint8_t g_demo_hid_input_flags = 0u;
 static volatile uint8_t g_demo_hid_input_valid = 0u;
-static volatile uint8_t g_demo_hid_input_changed = 0u;
 static uint8_t g_demo_hid_input_keepalive_div = 0u;
 static volatile uint8_t g_demo_xinput_pending = 0u;
 static uint8_t g_demo_xinput_report[XINPUT_ENDPOINT_SIZE];
@@ -648,11 +648,8 @@ static void demo_capture_xinput_report(const uint8_t *payload)
     }
 
     key_mask = demo_input_key_mask(payload) & RF_INPUT_KEY_MASK_VALID;
-    if((g_demo_hid_input_valid == 0u) || (g_demo_hid_input_key_mask != key_mask))
-    {
-        g_demo_hid_input_changed = 1u;
-    }
     g_demo_hid_input_key_mask = key_mask;
+    g_demo_hid_input_window_mask |= key_mask;
     g_demo_hid_input_seq = payload[0];
     g_demo_hid_input_flags = payload[1];
     g_demo_hid_input_valid = 1u;
@@ -1231,6 +1228,7 @@ static uint8_t demo_try_send_input_report(void)
 {
     uint8_t report[HID_ENDPOINT_SIZE];
     uint32_t key_mask = g_demo_hid_input_key_mask;
+    uint32_t report_key_mask = g_demo_hid_input_window_mask | key_mask;
     uint8_t input_seq = g_demo_hid_input_seq;
     uint8_t input_flags = g_demo_hid_input_flags;
 
@@ -1242,7 +1240,7 @@ static uint8_t demo_try_send_input_report(void)
     memset(report, 0, sizeof(report));
     demo_put_u32(&report[0], RX_HID_INPUT_MAGIC);
     demo_put_u32(&report[4], g_demo_hid_input_report_seq + 1u);
-    demo_put_u32(&report[8], key_mask);
+    demo_put_u32(&report[8], report_key_mask);
     report[12] = input_seq;
     report[13] = input_flags;
     report[14] = demo_hid_state_code();
@@ -1258,6 +1256,7 @@ static uint8_t demo_try_send_input_report(void)
     }
 
     g_demo_hid_input_report_seq++;
+    g_demo_hid_input_window_mask = key_mask;
     return 1u;
 }
 
@@ -1283,13 +1282,11 @@ uint8_t RF_TrySendTelemetryReport(void)
        (g_demo_hid_input_valid != 0u))
     {
         g_demo_hid_input_keepalive_div++;
-        if((g_demo_hid_input_changed != 0u) ||
-           (g_demo_hid_input_keepalive_div >= RX_HID_INPUT_KEEPALIVE_DIV))
+        if(g_demo_hid_input_keepalive_div >= RX_HID_INPUT_KEEPALIVE_DIV)
         {
             if(demo_try_send_input_report() != 0u)
             {
                 g_demo_hid_input_keepalive_div = 0u;
-                g_demo_hid_input_changed = 0u;
                 return 1u;
             }
         }

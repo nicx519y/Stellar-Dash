@@ -28,6 +28,9 @@ function parseRfHopInputFrame(view: DataView, report: Uint8Array, timestampMs: n
   const state = view.getUint8(14);
   const channel = view.getUint8(15);
   const targetRateHz = view.getUint16(16, true);
+  const airRateCode = view.getUint8(18);
+  const airLinkActive = view.getUint8(19) !== 0;
+  const airLastDataSeq = view.getUint8(20);
   const stateCode = rfHopStateCode(state);
 
   return [
@@ -46,22 +49,21 @@ function parseRfHopInputFrame(view: DataView, report: Uint8Array, timestampMs: n
       inputKeyMask,
       inputSeq,
       inputFlags,
+      airRateCode,
+      airLastDataSeq,
+      airLinkActive,
     },
   ];
 }
 
 const RFH_TMOS_TICK_MS = 0.625;
 const RFH_SILENT_TICKS_INVALID = 0xffff;
-const RFH_INPUT_MIN_REPEAT_MS = 450;
 
 function hexReport(report: Uint8Array) {
   return Array.from(report, (byte) => byte.toString(16).padStart(2, "0").toUpperCase()).join(" ");
 }
 
 let lastRfHopHidTimestampMs = 0;
-let lastRfHopInputAcceptedTimestampMs = 0;
-let lastRfHopInputKeyMask = 0;
-let lastRfHopInputFlags = -1;
 let lastLegacyRfHopRxCount = 0;
 let lastLegacyRfHopExpectedCount = 0;
 let haveLastLegacyRfHopTotals = false;
@@ -310,17 +312,6 @@ export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = D
     return parseRfHopScoreFrame(view, report, timestampMs);
   }
   if (magic === 0x31494852) {
-    const inputKeyMask = view.getUint32(8, true);
-    const inputFlags = view.getUint8(13);
-    const changed =
-      inputKeyMask !== lastRfHopInputKeyMask ||
-      inputFlags !== lastRfHopInputFlags;
-    if (!changed && timestampMs - lastRfHopInputAcceptedTimestampMs < RFH_INPUT_MIN_REPEAT_MS) {
-      return [];
-    }
-    lastRfHopInputAcceptedTimestampMs = timestampMs;
-    lastRfHopInputKeyMask = inputKeyMask;
-    lastRfHopInputFlags = inputFlags;
     return parseRfHopInputFrame(view, report, timestampMs);
   }
 

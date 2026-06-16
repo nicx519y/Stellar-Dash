@@ -24,8 +24,13 @@ static constexpr uint8_t INPUT_PAYLOAD_LEN = 10u;
 static constexpr uint8_t INPUT_FORMAT_VERSION = 1u;
 static constexpr uint8_t INPUT_FLAG_PROCESSED = 0x01u;
 static constexpr uint8_t INPUT_FLAGS = static_cast<uint8_t>((INPUT_FORMAT_VERSION << 4) | INPUT_FLAG_PROCESSED);
-static constexpr uint8_t STATUS_PAYLOAD_LEN = 17u;
+static constexpr uint8_t STATUS_PAYLOAD_LEN = 20u;
+static constexpr uint8_t STATUS_CMD_TAG_OFFSET = 16u;
+static constexpr uint8_t STATUS_TXN_OFFSET = 17u;
+static constexpr uint8_t STATUS_RESULT_OFFSET = 18u;
+static constexpr uint8_t STATUS_REASON_OFFSET = 19u;
 static constexpr uint16_t RX_BUF_LEN = 32u;
+static constexpr uint8_t CONTROL_RETRY_COUNT = 3u;
 
 static uint8_t frameChecksum(const uint8_t* buf, uint16_t len) {
     uint8_t s = 0u;
@@ -62,7 +67,7 @@ static const char* eventToString(uint8_t evt) {
 }
 
 bool RFTransport::parseStatusPayload(const uint8_t* payload, uint8_t len) {
-    if (payload == nullptr || len < STATUS_PAYLOAD_LEN) {
+    if (payload == nullptr || len < 17u) {
         return false;
     }
 
@@ -78,6 +83,10 @@ bool RFTransport::parseStatusPayload(const uint8_t* payload, uint8_t len) {
                          (static_cast<uint32_t>(payload[13]) << 8) |
                          (static_cast<uint32_t>(payload[14]) << 16) |
                          (static_cast<uint32_t>(payload[15]) << 24);
+    status.lastCommandTag = payload[STATUS_CMD_TAG_OFFSET];
+    status.lastTransactionId = (len > STATUS_TXN_OFFSET) ? payload[STATUS_TXN_OFFSET] : 0u;
+    status.lastResult = (len > STATUS_RESULT_OFFSET) ? payload[STATUS_RESULT_OFFSET] : 0u;
+    status.lastErrorReason = (len > STATUS_REASON_OFFSET) ? payload[STATUS_REASON_OFFSET] : status.lastResult;
     return true;
 }
 
@@ -86,6 +95,9 @@ bool RFTransport::hasStatusChangedForLog() const {
            (status.connected != lastLoggedStatus.connected) ||
            (status.hasBond != lastLoggedStatus.hasBond) ||
            (status.rateHz != lastLoggedStatus.rateHz) ||
+           (status.lastCommandTag != lastLoggedStatus.lastCommandTag) ||
+           (status.lastTransactionId != lastLoggedStatus.lastTransactionId) ||
+           (status.lastResult != lastLoggedStatus.lastResult) ||
            (status.rejectCount != lastLoggedStatus.rejectCount);
 }
 
@@ -108,19 +120,9 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
     const uint8_t evt = frame[1];
     status.lastEvent = evt;
     status.eventCounter++;
-    if (evt == EVT_ERROR) {
-        status.errorCounter++;
-        status.lastErrorCommand = (payloadLen >= 1u) ? frame[3] : 0u;
-        status.lastErrorReason = (payloadLen >= 2u) ? frame[4] : 0u;
-        state = RFTransportState::Error;
-    } else {
-        status.lastErrorCommand = 0u;
-        status.lastErrorReason = 0u;
-        state = RFTransportState::Connected;
-    }
 
     bool statusOk = false;
-    if (payloadLen >= STATUS_PAYLOAD_LEN) {
+    if (payloadLen >= 17u) {
         statusOk = parseStatusPayload(&frame[3], payloadLen);
         if (!statusOk) {
             return false;
@@ -134,98 +136,189 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
         }
     }
 
+    if (evt == EVT_ERROR) {
+        status.errorCounter++;
+        if (statusOk) {
+            status.lastErrorCommand = status.lastCommandTag;
+        } else {
+            status.lastErrorCommand = (payloadLen >= 1u) ? frame[3] : 0u;
+            status.lastErrorReason = (payloadLen >= 2u) ? frame[4] : 0u;
+            status.lastCommandTag = status.lastErrorCommand;
+            status.lastResult = status.lastErrorReason;
+            status.lastTransactionId = (payloadLen >= 3u) ? frame[5] : 0u;
+        }
+        state = RFTransportState::Error;
+    } else {
+        if (statusOk) {
+            status.lastErrorCommand = 0u;
+            status.lastErrorReason = 0u;
+        }
+        state = RFTransportState::Connected;
+    }
+
     const bool shouldLog = (evt != EVT_STATUS) || (statusOk && hasStatusChangedForLog());
     if (!shouldLog) {
         return true;
     }
     lastLoggedStatus = status;
 
-    APP_DBG("[RF_BRIDGE] event=%s state=%s connected=%u hasBond=%u rate=%u reject=%lu",
+    APP_DBG("[RF_BRIDGE] event=%s state=%s connected=%u hasBond=%u rate=%u cmd=0x%02X txn=%u result=%u reject=%lu",
             eventToString(evt), linkStateToString(status.state), status.connected ? 1u : 0u,
-            status.hasBond ? 1u : 0u, status.rateHz, status.rejectCount);
+            status.hasBond ? 1u : 0u, status.rateHz,
+            (unsigned int)status.lastCommandTag,
+            (unsigned int)status.lastTransactionId,
+            (unsigned int)status.lastResult,
+            status.rejectCount);
 
     return true;
 }
 
+uint8_t RFTransport::nextTransactionId() {
+    static uint8_t s_nextTxn = 0u;
+    s_nextTxn++;
+    if (s_nextTxn == 0u) {
+        s_nextTxn = 1u;
+    }
+    return s_nextTxn;
+}
+
+bool RFTransport::lastEventMatches(uint8_t cmd, uint8_t txn) const {
+    return (status.lastCommandTag == cmd) &&
+           (status.lastTransactionId == txn);
+}
+
 bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t len, bool forceReadback) {
+    (void)forceReadback;
+
+    if (cmd == CMD_INPUT_DATA) {
+        return sendInputFrame(payload, len);
+    }
+
+    if (len > 23u) {
+        state = RFTransportState::Error;
+        return false;
+    }
+
+    const uint8_t txn = nextTransactionId();
+    const uint8_t controlPayloadLen = static_cast<uint8_t>(len + 1u);
+
+    uint8_t frame[4u + 24u + 1u] = {0};
+    frame[0] = RF_SYNC;
+    frame[1] = cmd;
+    frame[2] = controlPayloadLen;
+    frame[3] = txn;
+    if (len > 0u && payload != nullptr) {
+        memcpy(&frame[4], payload, len);
+    }
+
+    uint8_t checksum = 0u;
+    const uint8_t totalNoChecksum = static_cast<uint8_t>(3u + controlPayloadLen);
+    for (uint8_t i = 0; i < totalNoChecksum; i++) {
+        checksum = (uint8_t)(checksum + frame[i]);
+    }
+    frame[totalNoChecksum] = checksum;
+
+    APP_DBG("[RF_TRANSPORT] ctrl cmd=0x%02X txn=%u payload=%u",
+            (unsigned int)cmd,
+            (unsigned int)txn,
+            (unsigned int)len);
+
+    for (uint8_t attempt = 0u; attempt < CONTROL_RETRY_COUNT; attempt++) {
+        uint8_t rxBuf[RX_BUF_LEN] = {0};
+        uint16_t rxLen = RX_BUF_LEN;
+        bool ok = RFBridgePort_ControlTransfer(frame,
+                                               static_cast<uint16_t>(totalNoChecksum + 1u),
+                                               rxBuf,
+                                               &rxLen);
+        if (!ok) {
+            APP_ERR("[RF_TRANSPORT] ctrl cmd=0x%02X txn=%u attempt=%u transfer failed",
+                    (unsigned int)cmd,
+                    (unsigned int)txn,
+                    (unsigned int)(attempt + 1u));
+            state = RFTransportState::Error;
+            continue;
+        }
+
+        if (!parseEventFrame(rxBuf, rxLen)) {
+            APP_ERR("[RF_TRANSPORT] ctrl cmd=0x%02X txn=%u attempt=%u parse failed rxLen:%u",
+                    (unsigned int)cmd,
+                    (unsigned int)txn,
+                    (unsigned int)(attempt + 1u),
+                    (unsigned int)rxLen);
+            state = RFTransportState::Error;
+            continue;
+        }
+
+        if (!lastEventMatches(cmd, txn)) {
+            APP_ERR("[RF_TRANSPORT] ctrl cmd=0x%02X txn=%u attempt=%u stale evt:0x%02X tag:0x%02X evt_txn:%u",
+                    (unsigned int)cmd,
+                    (unsigned int)txn,
+                    (unsigned int)(attempt + 1u),
+                    (unsigned int)status.lastEvent,
+                    (unsigned int)status.lastCommandTag,
+                    (unsigned int)status.lastTransactionId);
+            state = RFTransportState::Error;
+            continue;
+        }
+
+        if (status.lastEvent == EVT_ERROR) {
+            APP_ERR("[RF_TRANSPORT] ctrl cmd=0x%02X txn=%u error result:%u reason:0x%02X",
+                    (unsigned int)cmd,
+                    (unsigned int)txn,
+                    (unsigned int)status.lastResult,
+                    (unsigned int)status.lastErrorReason);
+            state = RFTransportState::Error;
+            return false;
+        }
+
+        if (status.lastResult != 0u) {
+            APP_ERR("[RF_TRANSPORT] ctrl cmd=0x%02X txn=%u nonzero result:%u",
+                    (unsigned int)cmd,
+                    (unsigned int)txn,
+                    (unsigned int)status.lastResult);
+            state = RFTransportState::Error;
+            return false;
+        }
+
+        APP_DBG("[RF_TRANSPORT] ctrl cmd=0x%02X txn=%u ok evt:0x%02X state:%u rate:%u",
+                (unsigned int)cmd,
+                (unsigned int)txn,
+                (unsigned int)status.lastEvent,
+                (unsigned int)status.state,
+                (unsigned int)status.rateHz);
+        state = RFTransportState::Connected;
+        return true;
+    }
+
+    state = RFTransportState::Error;
+    return false;
+}
+
+bool RFTransport::sendInputFrame(const uint8_t* payload, uint8_t len) {
     if (len > 24u) {
         state = RFTransportState::Error;
         return false;
     }
 
-    if (cmd != CMD_INPUT_DATA) {
-        (void)serviceEvents();
-    }
-
     uint8_t frame[4u + 24u + 1u] = {0};
     frame[0] = RF_SYNC;
-    frame[1] = cmd;
+    frame[1] = CMD_INPUT_DATA;
     frame[2] = len;
     if (len > 0u && payload != nullptr) {
         memcpy(&frame[3], payload, len);
     }
 
     uint8_t checksum = 0u;
-    const uint8_t totalNoChecksum = (uint8_t)(3u + len);
+    const uint8_t totalNoChecksum = static_cast<uint8_t>(3u + len);
     for (uint8_t i = 0; i < totalNoChecksum; i++) {
-        checksum = (uint8_t)(checksum + frame[i]);
+        checksum = static_cast<uint8_t>(checksum + frame[i]);
     }
     frame[totalNoChecksum] = checksum;
 
-    const bool wantReadback = forceReadback ||
-                              (cmd == CMD_GET_STATUS) ||
-                              (cmd == CMD_START_PAIR) ||
-                              (cmd == CMD_STOP_PAIR) ||
-                              (cmd == CMD_UNBIND) ||
-                              (cmd == CMD_SET_RATE);
-    uint8_t rxBuf[RX_BUF_LEN] = {0};
-    uint16_t rxLen = wantReadback ? RX_BUF_LEN : 0u;
-    if (cmd != CMD_INPUT_DATA) {
-        APP_DBG("[RF_TRANSPORT] cmd=0x%02X payload=%u readback:%u",
-                (unsigned int)cmd,
-                (unsigned int)len,
-                (unsigned int)(wantReadback ? 1u : 0u));
-    }
-    bool ok = RFBridgePort_Transfer(frame, (uint16_t)(totalNoChecksum + 1u), rxBuf, &rxLen);
-    if (!ok) {
-        if (cmd != CMD_INPUT_DATA) {
-            APP_ERR("[RF_TRANSPORT] cmd=0x%02X transfer failed", (unsigned int)cmd);
-        }
-        state = RFTransportState::Error;
-        return false;
-    }
-
-    if (rxLen > 0u) {
-        if (!parseEventFrame(rxBuf, rxLen)) {
-            if (cmd != CMD_INPUT_DATA) {
-                APP_ERR("[RF_TRANSPORT] cmd=0x%02X parse failed rxLen:%u",
-                        (unsigned int)cmd,
-                        (unsigned int)rxLen);
-            }
-            state = RFTransportState::Error;
-            return false;
-        }
-        if (status.lastEvent == EVT_ERROR) {
-            if (cmd != CMD_INPUT_DATA) {
-                APP_ERR("[RF_TRANSPORT] cmd=0x%02X tx error err_cmd:0x%02X reason:0x%02X",
-                        (unsigned int)cmd,
-                        (unsigned int)status.lastErrorCommand,
-                        (unsigned int)status.lastErrorReason);
-            }
-            state = RFTransportState::Error;
-            return false;
-        }
-    }
-
-    if (cmd != CMD_INPUT_DATA) {
-        APP_DBG("[RF_TRANSPORT] cmd=0x%02X ok rxLen:%u evt:0x%02X state:%u",
-                (unsigned int)cmd,
-                (unsigned int)rxLen,
-                (unsigned int)status.lastEvent,
-                (unsigned int)status.state);
-    }
-    state = RFTransportState::Connected;
-    return true;
+    const bool ok = RFBridgePort_SendInputLatest(frame,
+                                                 static_cast<uint16_t>(totalNoChecksum + 1u));
+    state = ok ? RFTransportState::Connected : RFTransportState::Error;
+    return ok;
 }
 
 uint8_t RFTransport::inputCrc8(const uint8_t* data, uint8_t len) {

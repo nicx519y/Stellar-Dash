@@ -111,6 +111,24 @@ function displayInputMeta(packet: PacketEvent) {
   return `seq=${hexByte(inputSeq)} flags=${hexByte(inputFlags)}`;
 }
 
+function displayAirMeta(packet: PacketEvent) {
+  if (!packet.messageType.startsWith("RFH_RHI1_")) {
+    return "-";
+  }
+
+  const bytes = payloadBytes(packet.payloadHex);
+  const rateHz = typeof packet.rateHz === "number" ? packet.rateHz : bytes.length >= 18 ? (bytes[16] | (bytes[17] << 8)) : undefined;
+  const rateCode = typeof packet.airRateCode === "number" ? packet.airRateCode : bytes[18];
+  const lastSeq = typeof packet.airLastDataSeq === "number" ? packet.airLastDataSeq : bytes[20];
+
+  if (typeof rateHz !== "number" || typeof rateCode !== "number") {
+    return "-";
+  }
+
+  const seqText = typeof lastSeq === "number" ? ` seq=${hexByte(lastSeq)}` : "";
+  return `${rateHz}Hz code=${rateCode}${seqText}`;
+}
+
 export function PacketsPanel({ items, fillHeight = false }: { items: Array<PacketEvent & { id?: string }>; fillHeight?: boolean }) {
   const rows = items
     .filter((packet) => packet.messageType.startsWith("RFH_RHI1_") && packet.rfStateCode === "C")
@@ -126,7 +144,7 @@ export function PacketsPanel({ items, fillHeight = false }: { items: Array<Packe
     { key: "keyMask", header: "KeyMask", width: "120px", render: (p) => displayKeyMask(p) },
     { key: "buttons", header: "Buttons", width: "minmax(120px, 1fr)", render: (p) => displayButtons(p) },
     { key: "inputMeta", header: "Input", width: "145px", render: (p) => displayInputMeta(p) },
-    { key: "len", header: "Length", width: "70px", align: "end", render: (p) => p.payloadLen },
+    { key: "air", header: "Air", width: "170px", render: (p) => displayAirMeta(p) },
     { key: "seq", header: "Seq", width: "90px", align: "end", render: (p) => (typeof p.seq === "number" ? p.seq : "-") },
   ];
 

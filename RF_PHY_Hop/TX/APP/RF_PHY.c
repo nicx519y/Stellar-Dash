@@ -8,8 +8,8 @@
 #include "HAL.h"
 #include "wchrf.h"
 #include "rfm_config.h"
-#include "rfm_input_stream.h"
 #include "rfm_spi_bridge.h"
+#include "rfm_spi_port_internal.h"
 #include "rf_hop_protocol.h"
 
 #include <stdbool.h>
@@ -551,14 +551,14 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
         demo_fill_direct_input_payload(data);
         has_input_payload = 1u;
 #else
-        if(g_demo_have_payload != 0u)
+        if(rfm_spi_port_peek_latest_input(data, RFH_AIR_DATA_LEN))
         {
-            memcpy(data, g_demo_last_payload, RFH_AIR_DATA_LEN);
+            memcpy(g_demo_last_payload, data, RFH_AIR_DATA_LEN);
+            g_demo_have_payload = 1u;
             has_input_payload = 1u;
         }
-        else if(rfm_input_stream_take_latest(g_demo_last_payload, RFH_AIR_DATA_LEN))
+        else if(g_demo_have_payload != 0u)
         {
-            g_demo_have_payload = 1u;
             memcpy(data, g_demo_last_payload, RFH_AIR_DATA_LEN);
             has_input_payload = 1u;
         }
@@ -1153,7 +1153,6 @@ void RF_Init(void)
     g_demo_target_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
     memset(g_demo_last_payload, 0, sizeof(g_demo_last_payload));
     g_demo_have_payload = 0u;
-    rfm_input_stream_init();
     g_demo_input_off = 0u;
     g_demo_report_hz = RF_AUTO_DEMO_REPORT_HZ;
     g_demo_rate_code = RF_AUTO_DEMO_RATE_CODE;
