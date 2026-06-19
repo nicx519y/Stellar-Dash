@@ -1,4 +1,4 @@
-import { Badge, Box, Button, HStack, Text, VStack } from "@chakra-ui/react";
+import { Badge, Box, HStack, Switch, Text, VStack } from "@chakra-ui/react";
 
 import type { ChannelScoreRow } from "./useMonitorStream";
 import { neonGreen, PanelHeader, panelSurfaceProps } from "./panelStyles";
@@ -42,22 +42,23 @@ export function ChannelScorePanel({
       <PanelHeader
         title="Channel Scores"
         action={
-          <Button
-            size="xs"
-            h="24px"
-            minW="52px"
-            borderRadius="6px"
-            variant="outline"
+          <Switch.Root
+            checked={autoHopEnabled}
             colorPalette={autoHopEnabled ? "green" : "blue"}
-            borderColor={autoHopEnabled ? "rgba(92,255,138,0.62)" : "rgba(96,165,250,0.66)"}
-            bg={autoHopEnabled ? "rgba(92,255,138,0.16)" : "rgba(96,165,250,0.15)"}
-            color={autoHopEnabled ? neonGreen : "blue.200"}
-            fontSize="11px"
-            lineHeight={1}
-            onClick={() => onAutoHopChange(!autoHopEnabled)}
+            size="sm"
+            display="flex"
+            alignItems="center"
+            gap={2}
+            onCheckedChange={(details) => onAutoHopChange(details.checked)}
           >
-            auto
-          </Button>
+            <Switch.HiddenInput />
+            <Switch.Control borderColor={autoHopEnabled ? "rgba(92,255,138,0.66)" : "rgba(96,165,250,0.66)"}>
+              <Switch.Thumb />
+            </Switch.Control>
+            <Switch.Label fontSize="11px" color={autoHopEnabled ? neonGreen : "blue.200"}>
+              auto
+            </Switch.Label>
+          </Switch.Root>
         }
         borderBottom
         compact

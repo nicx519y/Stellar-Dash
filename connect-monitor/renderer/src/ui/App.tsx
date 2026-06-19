@@ -8,6 +8,8 @@ import {
   HStack,
   IconButton,
   Image,
+  SegmentGroup,
+  Switch,
   Text,
   VStack,
 } from "@chakra-ui/react";
@@ -231,36 +233,83 @@ const defaultDebugConfig: DebugConfig = {
   manualChannel: null,
 };
 
-function DebugToggle({
+function DebugSwitch({
   label,
-  active,
-  onClick,
+  checked,
+  onCheckedChange,
 }: {
   label: string;
-  active: boolean;
-  onClick: () => void;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
 }) {
   return (
-    <Button
-      size="xs"
-      minW="54px"
-      h="24px"
-      px={2}
-      borderRadius="6px"
-      borderWidth="1px"
-      borderColor={active ? "rgba(92,255,138,0.66)" : "rgba(148,163,184,0.22)"}
-      bg={active ? "rgba(92,255,138,0.18)" : "rgba(8,18,16,0.74)"}
-      color={active ? neonGreen : "gray.300"}
-      fontSize="11px"
-      lineHeight={1}
-      _hover={{
-        bg: active ? "rgba(92,255,138,0.25)" : "rgba(92,255,138,0.1)",
-        borderColor: "rgba(92,255,138,0.54)",
-      }}
-      onClick={onClick}
+    <Switch.Root
+      checked={checked}
+      colorPalette="green"
+      size="sm"
+      display="flex"
+      alignItems="center"
+      gap={2}
+      onCheckedChange={(details) => onCheckedChange(details.checked)}
     >
-      {label}
-    </Button>
+      <Switch.HiddenInput />
+      <Switch.Control borderColor={checked ? "rgba(92,255,138,0.7)" : "rgba(148,163,184,0.3)"}>
+        <Switch.Thumb />
+      </Switch.Control>
+      <Switch.Label fontSize="11px" color={checked ? neonGreen : "gray.300"} whiteSpace="nowrap">
+        {label}
+      </Switch.Label>
+    </Switch.Root>
+  );
+}
+
+function PeriodSegmentedControl({
+  value,
+  onChange,
+}: {
+  value: DebugHidPeriodMs;
+  onChange: (period: DebugHidPeriodMs) => void;
+}) {
+  const periods: DebugHidPeriodMs[] = [100, 250, 500, 1000];
+
+  return (
+    <SegmentGroup.Root
+      value={String(value)}
+      size="xs"
+      colorPalette="green"
+      onValueChange={(details) => {
+        const next = Number(details.value);
+        if (next === 100 || next === 250 || next === 500 || next === 1000) {
+          onChange(next);
+        }
+      }}
+      display="flex"
+      alignItems="center"
+      borderWidth="1px"
+      borderColor="rgba(92,255,138,0.22)"
+      borderRadius="7px"
+      bg="rgba(0,0,0,0.22)"
+      p="2px"
+    >
+      <SegmentGroup.Indicator bg="rgba(92,255,138,0.2)" borderColor="rgba(92,255,138,0.48)" />
+      {periods.map((period) => (
+        <SegmentGroup.Item
+          key={period}
+          value={String(period)}
+          minW={period === 1000 ? "45px" : "36px"}
+          h="22px"
+          px={2}
+          borderRadius="5px"
+          cursor="pointer"
+          justifyContent="center"
+        >
+          <SegmentGroup.ItemHiddenInput />
+          <SegmentGroup.ItemText fontSize="11px" color={value === period ? neonGreen : "gray.300"}>
+            {period}
+          </SegmentGroup.ItemText>
+        </SegmentGroup.Item>
+      ))}
+    </SegmentGroup.Root>
   );
 }
 
@@ -273,10 +322,13 @@ function DebugControlCard({
   status: DebugApplyState;
   applyConfig: (next: DebugConfig) => void;
 }) {
-  const periods: DebugHidPeriodMs[] = [100, 250, 500, 1000];
-
   return (
-    <Card.Root variant="outline" {...panelSurfaceProps}>
+    <Card.Root
+      variant="outline"
+      bg="rgba(8,18,22,0.94)"
+      borderColor="rgba(92,255,138,0.24)"
+      boxShadow="0 0 0 1px rgba(92,255,138,0.05), 0 18px 36px rgba(0,0,0,0.34)"
+    >
       <Card.Body px={4} py={3}>
         <HStack justify="space-between" align="center">
           <Text fontSize="sm" color="gray.400">
@@ -286,37 +338,32 @@ function DebugControlCard({
         </HStack>
         <VStack align="stretch" gap={2} mt={3}>
           <HStack justify="space-between" gap={2}>
-            <DebugToggle
+            <DebugSwitch
               label="HID"
-              active={config.hidTelemetryEnabled}
-              onClick={() => applyConfig({ ...config, hidTelemetryEnabled: !config.hidTelemetryEnabled })}
+              checked={config.hidTelemetryEnabled}
+              onCheckedChange={(checked) => applyConfig({ ...config, hidTelemetryEnabled: checked })}
             />
-            <HStack gap={1}>
-              {periods.map((period) => (
-                <DebugToggle
-                  key={period}
-                  label={`${period}`}
-                  active={config.hidPeriodMs === period}
-                  onClick={() => applyConfig({ ...config, hidPeriodMs: period })}
-                />
-              ))}
-            </HStack>
+            <PeriodSegmentedControl
+              value={config.hidPeriodMs}
+              onChange={(period) => applyConfig({ ...config, hidPeriodMs: period })}
+            />
           </HStack>
+          <Box h="1px" my={1.5} bg="rgba(92,255,138,0.16)" />
           <HStack gap={2} flexWrap="wrap">
-            <DebugToggle
+            <DebugSwitch
               label="RX Log"
-              active={config.rxLogEnabled}
-              onClick={() => applyConfig({ ...config, rxLogEnabled: !config.rxLogEnabled })}
+              checked={config.rxLogEnabled}
+              onCheckedChange={(checked) => applyConfig({ ...config, rxLogEnabled: checked })}
             />
-            <DebugToggle
+            <DebugSwitch
               label="TX Log"
-              active={config.txLogEnabled}
-              onClick={() => applyConfig({ ...config, txLogEnabled: !config.txLogEnabled })}
+              checked={config.txLogEnabled}
+              onCheckedChange={(checked) => applyConfig({ ...config, txLogEnabled: checked })}
             />
-            <DebugToggle
+            <DebugSwitch
               label="STM32"
-              active={config.stm32LogEnabled}
-              onClick={() => applyConfig({ ...config, stm32LogEnabled: !config.stm32LogEnabled })}
+              checked={config.stm32LogEnabled}
+              onCheckedChange={(checked) => applyConfig({ ...config, stm32LogEnabled: checked })}
             />
           </HStack>
         </VStack>

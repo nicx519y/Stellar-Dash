@@ -156,6 +156,8 @@ export function VirtualTable<T>({
       borderWidth="1px"
       borderRadius="md"
       overflow="hidden"
+      w="100%"
+      flex="1"
       h={typeof maxHeight === "number" ? undefined : "100%"}
       display="flex"
       flexDirection="column"

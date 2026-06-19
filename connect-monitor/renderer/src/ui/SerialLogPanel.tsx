@@ -7,6 +7,8 @@ import { appendSerialLogLines, loadSerialLogLines } from "./serialLogStore";
 
 const LOG_SLOT_COUNT = 3;
 const MAX_LOG_ROWS = 500;
+const MIN_LOG_CARD_WIDTH = 500;
+const LOG_RESIZE_HANDLE_WIDTH = 10;
 
 function fmtTime(ms: number) {
   const d = new Date(ms);
@@ -165,7 +167,7 @@ function SerialLogCard({
     : recentRows.filter((row) => matchesLogFilter(row, filter.regex));
   const hasFilter = filterPattern.trim().length > 0;
   const countText = !selectedPort
-    ? "Select COM"
+    ? ""
     : filter.invalid
       ? "Invalid regex"
       : hasFilter
@@ -211,6 +213,9 @@ export function SerialLogPanel({ clearVersion = 0 }: { clearVersion?: number }) 
   const [selections, setSelections] = React.useState<string[]>(() => normalizeSelections([]));
   const [filterPatterns, setFilterPatterns] = React.useState<string[]>(() => normalizeSelections([]));
   const [logsByPort, setLogsByPort] = React.useState<Map<string, SerialLogLine[]>>(() => new Map());
+  const [cardFlex, setCardFlex] = React.useState<number[]>(() => Array.from({ length: LOG_SLOT_COUNT }, () => 1));
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const cardRefs = React.useRef<Array<HTMLDivElement | null>>([]);
 
   const refreshPorts = React.useCallback(() => {
     if (!window.connectMonitorApi) {
@@ -304,26 +309,106 @@ export function SerialLogPanel({ clearVersion = 0 }: { clearVersion?: number }) 
     });
   }, []);
 
+  const startResize = React.useCallback((dividerIndex: number, event: React.MouseEvent<HTMLDivElement>) => {
+    const leftIndex = dividerIndex;
+    const rightIndex = dividerIndex + 1;
+    const leftEl = cardRefs.current[leftIndex];
+    const rightEl = cardRefs.current[rightIndex];
+
+    if (!leftEl || !rightEl) {
+      return;
+    }
+
+    event.preventDefault();
+    const startX = event.clientX;
+    const containerWidth = containerRef.current?.getBoundingClientRect().width ?? 0;
+    const availableWidth = Math.max(
+      MIN_LOG_CARD_WIDTH * LOG_SLOT_COUNT,
+      containerWidth - ((LOG_SLOT_COUNT - 1) * LOG_RESIZE_HANDLE_WIDTH),
+    );
+    const startFlex = [...cardFlex];
+    const flexTotal = startFlex.reduce((sum, value) => sum + value, 0);
+    const pairFlexTotal = startFlex[leftIndex] + startFlex[rightIndex];
+    const minFlex = Math.min((MIN_LOG_CARD_WIDTH / availableWidth) * flexTotal, pairFlexTotal / 2);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientX - startX;
+      const deltaFlex = (delta / availableWidth) * flexTotal;
+      const leftFlex = Math.min(
+        Math.max(minFlex, startFlex[leftIndex] + deltaFlex),
+        Math.max(minFlex, pairFlexTotal - minFlex),
+      );
+      const rightFlex = Math.max(minFlex, pairFlexTotal - leftFlex);
+      const nextFlex = [...startFlex];
+
+      nextFlex[leftIndex] = leftFlex;
+      nextFlex[rightIndex] = rightFlex;
+      setCardFlex(nextFlex);
+    };
+
+    const onMouseUp = () => {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }, [cardFlex]);
+
   return (
     <Box
+      ref={containerRef}
       flex="1"
+      w="100%"
       minH={0}
-      display="grid"
-      gridTemplateColumns={{ base: "1fr", xl: "repeat(2, minmax(0, 1fr))" }}
-      gap="10px"
+      display="flex"
+      overflowX="auto"
       alignItems="stretch"
     >
       {selections.map((selectedPort, slot) => (
-        <SerialLogCard
-          key={slot}
-          slot={slot}
-          ports={ports}
-          selectedPort={selectedPort}
-          items={selectedPort ? logsByPort.get(selectedPort) ?? [] : []}
-          filterPattern={filterPatterns[slot] ?? ""}
-          onFilterChange={handleFilterChange}
-          onPortChange={handlePortChange}
-        />
+        <React.Fragment key={slot}>
+          <Box
+            ref={(node: HTMLDivElement | null) => {
+              cardRefs.current[slot] = node;
+            }}
+            minW={`${MIN_LOG_CARD_WIDTH}px`}
+            flex={`${cardFlex[slot] ?? 1} 1 0px`}
+            w={0}
+            display="flex"
+            minH={0}
+          >
+            <SerialLogCard
+              slot={slot}
+              ports={ports}
+              selectedPort={selectedPort}
+              items={selectedPort ? logsByPort.get(selectedPort) ?? [] : []}
+              filterPattern={filterPatterns[slot] ?? ""}
+              onFilterChange={handleFilterChange}
+              onPortChange={handlePortChange}
+            />
+          </Box>
+          {slot < LOG_SLOT_COUNT - 1 ? (
+            <Box
+              role="separator"
+              aria-orientation="vertical"
+              title="Drag to resize log panels"
+              w={`${LOG_RESIZE_HANDLE_WIDTH}px`}
+              flex={`0 0 ${LOG_RESIZE_HANDLE_WIDTH}px`}
+              cursor="col-resize"
+              display="flex"
+              alignItems="stretch"
+              justifyContent="center"
+              onMouseDown={(event) => startResize(slot, event)}
+              _hover={{ bg: "rgba(92,255,138,0.08)" }}
+            >
+              <Box w="1px" bg="rgba(92,255,138,0.24)" />
+            </Box>
+          ) : null}
+        </React.Fragment>
       ))}
     </Box>
   );
