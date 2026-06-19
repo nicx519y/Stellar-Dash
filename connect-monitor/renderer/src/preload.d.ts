@@ -1,4 +1,4 @@
-import type { MonitorEvent, SerialLogLine, SerialPortInfo } from "../../shared/monitor-types";
+import type { DebugConfig, DebugConfigStatus, MonitorEvent, SerialLogLine, SerialPortInfo } from "../../shared/monitor-types";
 
 declare global {
   interface Window {
@@ -11,6 +11,9 @@ declare global {
       setPaused(paused: boolean): Promise<void>;
       getPaused(): Promise<boolean>;
       exportMarkdown(request: { suggestedFileName: string; content: string }): Promise<{ canceled: boolean; filePath?: string }>;
+      getDebugConfig(): Promise<DebugConfig>;
+      setDebugConfig(config: DebugConfig): Promise<DebugConfigStatus>;
+      getDebugConfigStatus(): Promise<DebugConfigStatus>;
       listSerialPorts(): Promise<SerialPortInfo[]>;
       getSerialLogSelections(): Promise<string[]>;
       setSerialLogSelections(selections: Array<string | null | undefined>): Promise<string[]>;

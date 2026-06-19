@@ -11,6 +11,7 @@
 #include "rfm_spi_bridge.h"
 #include "rfm_spi_port_internal.h"
 #include "rf_hop_protocol.h"
+#include "rf_monitor_control.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -151,6 +152,12 @@ static uint32_t g_demo_tx_start_clock = 0u;
 static uint32_t g_demo_last_log_clock = 0u;
 static uint8_t g_demo_last_payload[RFH_AIR_DATA_LEN] = {0};
 static volatile uint8_t g_demo_have_payload = 0u;
+static volatile uint8_t g_monitor_tx_log_enabled = 0u;
+static volatile uint8_t g_monitor_status_pending = 0u;
+static uint8_t g_monitor_status_seq = 0u;
+static uint8_t g_monitor_status_flags = 0u;
+static uint8_t g_monitor_status_period_code = 0u;
+static uint8_t g_monitor_status_result = RFMON_APPLY_IDLE;
 
 static const uint8_t g_demo_hop_channels[] = { 39u, 16u, 24u, 32u };
 static uint16_t g_demo_channel_scores[sizeof(g_demo_hop_channels) / sizeof(g_demo_hop_channels[0])];
@@ -194,6 +201,11 @@ static void demo_reconfigure_report_timer(uint16_t hz)
 static uint16_t tx_saturate_u16(uint32_t value)
 {
     return (value > 0xFFFFu) ? 0xFFFFu : (uint16_t)value;
+}
+
+uint8_t RF_MonitorTxLogEnabled(void)
+{
+    return (g_monitor_tx_log_enabled != 0u) ? 1u : 0u;
 }
 
 static uint8_t demo_channel_index(uint8_t channel)
@@ -332,6 +344,12 @@ static void demo_apply_channel(uint8_t channel)
 
 static uint8_t demo_active_hop_cmd(void)
 {
+    if((g_monitor_status_pending != 0u) &&
+       (g_demo_hop_state == RF_AUTO_HOP_COMM) &&
+       (g_demo_rate_update_pending == 0u))
+    {
+        return RFH_CMD_MONITOR_CONFIG;
+    }
     if((g_demo_rate_update_pending != 0u) &&
        (g_demo_hop_state == RF_AUTO_HOP_COMM))
     {
@@ -501,6 +519,22 @@ static void demo_handle_ack_packet(void)
                               RF_AUTO_DEMO_CHANNEL_SCORE_GOOD,
                               TMOS_GetSystemClock());
 
+    if(cmd == RFH_CMD_MONITOR_CONFIG)
+    {
+        uint8_t flags = data[RFH_ACK_MON_FLAGS];
+        uint8_t period_code = data[RFH_ACK_MON_PERIOD_CODE];
+
+        g_monitor_tx_log_enabled = ((flags & RFMON_FLAG_TX_LOG) != 0u) ? 1u : 0u;
+        g_monitor_status_seq = seq;
+        g_monitor_status_flags = flags;
+        g_monitor_status_period_code = period_code;
+        g_monitor_status_result =
+            (rfm_spi_bridge_emit_monitor_config(seq, flags, period_code) != 0u) ?
+            RFMON_APPLY_APPLIED : RFMON_APPLY_PENDING;
+        g_monitor_status_pending = 1u;
+        return;
+    }
+
     if((cmd == RFH_CMD_HOP_PREPARE) ||
        (cmd == RFH_CMD_HOP_CONFIRM) ||
        (cmd == RFH_CMD_RATE_UPDATE))
@@ -604,6 +638,15 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
             data[RFH_CMD_SLOT_ARG0] = g_demo_rate_code;
             data[RFH_CMD_SLOT_ARG3] = g_demo_rate_update_seq;
         }
+        else if(hop_cmd == RFH_CMD_MONITOR_CONFIG)
+        {
+            data[RFH_CMD_SLOT_ID] = RFH_CMD_MONITOR_CONFIG;
+            data[RFH_CMD_SLOT_ARG0] = g_monitor_status_flags;
+            data[RFH_CMD_SLOT_ARG1] = g_monitor_status_period_code;
+            data[RFH_CMD_SLOT_ARG2] = g_monitor_status_result;
+            data[RFH_CMD_SLOT_ARG3] = g_monitor_status_seq;
+            g_monitor_status_pending = 0u;
+        }
         else
         {
             data[RFH_HOP_CMD_ID] = hop_cmd;
@@ -679,6 +722,10 @@ static void demo_log_stats(uint32_t now)
     g_demo_last_log_clock = now;
     elapsed_ms = (unsigned long)(((elapsed_ticks * (uint32_t)SYSTEM_TIME_MICROSEN) + 999u) / 1000u);
 #if (RF_SERIAL_LOG == 1)
+    if(RF_MonitorTxLogEnabled() == 0u)
+    {
+        return;
+    }
     rfm_spi_bridge_diag_emit(elapsed_ms);
 
     ack_fail = g_demo_stat.ack_timeout +

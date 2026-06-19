@@ -36,7 +36,6 @@ void RF_USB_CompositeInit(void);
 #endif
 #define RX_MAIN_TMR0_WRAP        0x04000000UL
 #define RX_MAIN_LOG_PERIOD_TICKS (FREQ_SYS * 5u)
-#define RX_MAIN_HID_TELEMETRY_PERIOD_MS 100u
 #define RX_LED_PAIR_TOGGLE_MS    250u
 #define RX_LED_COMM_TOGGLE_MS    1000u
 /*********************************************************************
@@ -127,6 +126,13 @@ static void RX_MainFlushLog(void)
 #if (RF_SERIAL_LOG == 1)
     uint16_t sent;
 
+    if(RF_IsRxSerialLogEnabled() == 0u)
+    {
+        s_main_pending_log = FALSE;
+        s_main_pending_offset = 0u;
+        return;
+    }
+
     if(s_main_pending_log == FALSE)
     {
         return;
@@ -156,6 +162,10 @@ static void RX_MainFlushLog(void)
 static void RX_MainLog(const char *msg)
 {
 #if (RF_SERIAL_LOG == 1)
+    if(RF_IsRxSerialLogEnabled() == 0u)
+    {
+        return;
+    }
     RX_MainFlushLog();
     if(s_main_pending_log != FALSE)
     {
@@ -176,6 +186,10 @@ static void RX_MainLogStats(void)
 #if (RF_SERIAL_LOG == 1)
     char stats_msg[192];
 
+    if(RF_IsRxSerialLogEnabled() == 0u)
+    {
+        return;
+    }
     if(RF_GetStatsLine(stats_msg, sizeof(stats_msg)) == 0u)
     {
         return;
@@ -242,8 +256,9 @@ void Main_Circulation()
         }
 
         if((rf_init_done) &&
+           (RF_GetTelemetryPeriodMs() != 0u) &&
            ((uint32_t)(now - last_hid_telemetry_clock) >=
-            MS1_TO_SYSTEM_TIME(RX_MAIN_HID_TELEMETRY_PERIOD_MS)))
+            MS1_TO_SYSTEM_TIME(RF_GetTelemetryPeriodMs())))
         {
             last_hid_telemetry_clock = now;
             (void)RF_TrySendTelemetryReport();

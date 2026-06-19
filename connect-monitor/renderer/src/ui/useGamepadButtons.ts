@@ -13,6 +13,11 @@ export type GamepadButtonsSnapshot = {
   buttonStates: GamepadButtonState[];
 };
 
+type PreferredGamepad = {
+  index: number;
+  id: string;
+};
+
 const PRESS_THRESHOLD = 0.5;
 const DEVICE_ID_HINT = /(xbox|xinput|controller|hbox)/i;
 
@@ -28,7 +33,12 @@ function getGamepads(): Gamepad[] {
   return Array.from(navigator.getGamepads()).filter((gamepad): gamepad is Gamepad => Boolean(gamepad));
 }
 
-function chooseGamepad(gamepads: Gamepad[]) {
+function chooseGamepad(gamepads: Gamepad[], preferred?: PreferredGamepad | null) {
+  if (preferred) {
+    const exact = gamepads.find((gamepad) => gamepad.index === preferred.index && gamepad.id === preferred.id);
+    if (exact) return exact;
+  }
+
   const standardGamepads = gamepads.filter((gamepad) => gamepad.mapping === "standard");
   return (
     standardGamepads.find((gamepad) => DEVICE_ID_HINT.test(gamepad.id)) ??
@@ -43,8 +53,8 @@ function isPressed(button: GamepadButton | undefined) {
   return Boolean(button && (button.pressed || button.value >= PRESS_THRESHOLD));
 }
 
-function readSnapshot(): GamepadButtonsSnapshot {
-  const gamepad = chooseGamepad(getGamepads());
+function readSnapshot(preferred?: PreferredGamepad | null): GamepadButtonsSnapshot & { selected?: PreferredGamepad } {
+  const gamepad = chooseGamepad(getGamepads(), preferred);
   if (!gamepad) {
     return {
       connected: false,
@@ -56,6 +66,10 @@ function readSnapshot(): GamepadButtonsSnapshot {
   return {
     connected: true,
     deviceId: gamepad.id,
+    selected: {
+      index: gamepad.index,
+      id: gamepad.id,
+    },
     buttonStates: HITBOX_BUTTON_MAP.map((button, buttonIndex) => ({
       buttonIndex,
       isPressed: button.gamepadButtonIndex !== UNMAPPED_GAMEPAD_BUTTON ? isPressed(gamepad.buttons[button.gamepadButtonIndex]) : false,
@@ -71,12 +85,18 @@ function snapshotSignature(snapshot: GamepadButtonsSnapshot) {
 export function useGamepadButtons(): GamepadButtonsSnapshot {
   const [snapshot, setSnapshot] = useState<GamepadButtonsSnapshot>(() => readSnapshot());
   const signatureRef = useRef(snapshotSignature(snapshot));
+  const preferredRef = useRef<PreferredGamepad | null>(null);
 
   useEffect(() => {
     let rafId = 0;
 
     const update = () => {
-      const nextSnapshot = readSnapshot();
+      const nextSnapshot = readSnapshot(preferredRef.current);
+      if (nextSnapshot.selected) {
+        preferredRef.current = nextSnapshot.selected;
+      } else if (!nextSnapshot.connected) {
+        preferredRef.current = null;
+      }
       const nextSignature = snapshotSignature(nextSnapshot);
       if (nextSignature !== signatureRef.current) {
         signatureRef.current = nextSignature;
@@ -86,7 +106,12 @@ export function useGamepadButtons(): GamepadButtonsSnapshot {
     };
 
     const handleGamepadChange = () => {
-      const nextSnapshot = readSnapshot();
+      const nextSnapshot = readSnapshot(preferredRef.current);
+      if (nextSnapshot.selected) {
+        preferredRef.current = nextSnapshot.selected;
+      } else if (!nextSnapshot.connected) {
+        preferredRef.current = null;
+      }
       const nextSignature = snapshotSignature(nextSnapshot);
       signatureRef.current = nextSignature;
       setSnapshot(nextSnapshot);

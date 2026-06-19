@@ -8,6 +8,7 @@
 #include "HAL.h"
 #include "wchrf.h"
 #include "rf_hop_protocol.h"
+#include "rf_monitor_control.h"
 #include "dongle_config.h"
 #include "ch585_usbhs_device.h"
 #include "usbd_compatibility_hid.h"
@@ -56,7 +57,7 @@
 #define RX_HID_HOP_EVENT_NONE          0u
 #define RX_HID_HOP_EVENT_START         1u
 #define RX_HID_HOP_EVENT_FINISH        2u
-#define RX_HID_INPUT_KEEPALIVE_DIV     5u
+#define RX_HID_INPUT_KEEPALIVE_DIV     3u
 #define RX_HID_SILENT_TICKS_SAT        0xFFFEu
 #define TMR0_FREE_RUN_WRAP             0x04000000UL
 
@@ -206,6 +207,203 @@ static volatile uint32_t g_demo_rssi_count = 0u;
 static volatile int8_t g_demo_rssi_last = 0;
 static volatile int8_t g_demo_rssi_min = 127;
 static volatile int8_t g_demo_rssi_max = -127;
+static volatile uint8_t g_monitor_hid_enabled = 0u;
+static volatile uint16_t g_monitor_hid_period_ms = RFMON_PERIOD_OFF;
+static volatile uint8_t g_monitor_rx_log_enabled = 0u;
+static volatile uint8_t g_monitor_seq = 0u;
+static volatile uint8_t g_monitor_rx_status = RFMON_APPLY_IDLE;
+static volatile uint8_t g_monitor_tx_status = RFMON_APPLY_IDLE;
+static volatile uint8_t g_monitor_stm32_status = RFMON_APPLY_IDLE;
+static volatile uint8_t g_monitor_tx_applied_seq = 0u;
+static volatile uint8_t g_monitor_stm32_applied_seq = 0u;
+static volatile uint8_t g_monitor_pending_seq = 0u;
+static volatile uint32_t g_monitor_pending_flags = 0u;
+static volatile uint16_t g_monitor_pending_period_ms = RFMON_PERIOD_OFF;
+static volatile uint8_t g_monitor_pending_retries = 0u;
+
+static void monitor_put_u16(uint8_t *dst, uint16_t value)
+{
+    dst[0] = (uint8_t)(value & 0xFFu);
+    dst[1] = (uint8_t)(value >> 8);
+}
+
+static uint16_t monitor_get_u16(const uint8_t *src)
+{
+    return (uint16_t)src[0] | ((uint16_t)src[1] << 8);
+}
+
+static void monitor_put_u32(uint8_t *dst, uint32_t value)
+{
+    dst[0] = (uint8_t)(value & 0xFFu);
+    dst[1] = (uint8_t)((value >> 8) & 0xFFu);
+    dst[2] = (uint8_t)((value >> 16) & 0xFFu);
+    dst[3] = (uint8_t)(value >> 24);
+}
+
+static uint32_t monitor_get_u32(const uint8_t *src)
+{
+    return (uint32_t)src[0] |
+           ((uint32_t)src[1] << 8) |
+           ((uint32_t)src[2] << 16) |
+           ((uint32_t)src[3] << 24);
+}
+
+static uint32_t monitor_current_flags(void)
+{
+    uint32_t flags = 0u;
+
+    if(g_monitor_hid_enabled != 0u)
+    {
+        flags |= RFMON_FLAG_HID_TELEMETRY;
+    }
+    if(g_monitor_rx_log_enabled != 0u)
+    {
+        flags |= RFMON_FLAG_RX_LOG;
+    }
+    flags |= g_monitor_pending_flags & (RFMON_FLAG_TX_LOG | RFMON_FLAG_STM32_LOG);
+    return flags;
+}
+
+static void monitor_mark_remote_pending(uint8_t seq, uint8_t target, uint32_t flags, uint16_t period_ms)
+{
+    g_monitor_pending_seq = seq;
+    g_monitor_pending_flags = flags & (RFMON_FLAG_TX_LOG | RFMON_FLAG_STM32_LOG);
+    g_monitor_pending_period_ms = period_ms;
+    g_monitor_pending_retries = 12u;
+    if((target == RFMON_TARGET_ALL) || (target == RFMON_TARGET_TX))
+    {
+        g_monitor_tx_status = RFMON_APPLY_PENDING;
+    }
+    else
+    {
+        g_monitor_tx_status = RFMON_APPLY_APPLIED;
+        g_monitor_tx_applied_seq = seq;
+    }
+    if((target == RFMON_TARGET_ALL) || (target == RFMON_TARGET_STM32))
+    {
+        g_monitor_stm32_status = RFMON_APPLY_PENDING;
+    }
+    else
+    {
+        g_monitor_stm32_status = RFMON_APPLY_APPLIED;
+        g_monitor_stm32_applied_seq = seq;
+    }
+}
+
+uint16_t RF_GetTelemetryPeriodMs(void)
+{
+    if(g_monitor_hid_enabled == 0u)
+    {
+        return 0u;
+    }
+    return g_monitor_hid_period_ms;
+}
+
+uint8_t RF_IsTelemetryEnabled(void)
+{
+    return (g_monitor_hid_enabled != 0u) ? 1u : 0u;
+}
+
+uint8_t RF_IsRxSerialLogEnabled(void)
+{
+    return (g_monitor_rx_log_enabled != 0u) ? 1u : 0u;
+}
+
+uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
+{
+    uint32_t magic;
+    uint32_t flags;
+    uint16_t period_ms;
+    uint16_t frame_crc;
+    uint16_t calc_crc;
+    uint8_t version;
+    uint8_t seq;
+    uint8_t target;
+    uint8_t cmd;
+
+    if((report == 0) || (len < RFMON_CTL_FRAME_SIZE))
+    {
+        return 0u;
+    }
+
+    magic = monitor_get_u32(&report[0]);
+    version = report[4];
+    seq = report[5];
+    target = report[6];
+    cmd = report[7];
+    flags = monitor_get_u32(&report[8]);
+    period_ms = monitor_get_u16(&report[12]);
+    frame_crc = monitor_get_u16(&report[14]);
+    calc_crc = rfmon_crc16_ccitt(report, 14u);
+
+    if((magic != RFMON_CTL_MAGIC) ||
+       (version != RFMON_CTL_VERSION) ||
+       (frame_crc != calc_crc) ||
+       (rfmon_period_valid(period_ms) == 0u))
+    {
+        g_monitor_rx_status = RFMON_APPLY_FAILED;
+        return 0u;
+    }
+
+    if(cmd == RFMON_CMD_GET_CONFIG)
+    {
+        return 1u;
+    }
+    if(cmd != RFMON_CMD_SET_CONFIG)
+    {
+        g_monitor_rx_status = RFMON_APPLY_FAILED;
+        return 0u;
+    }
+    if(target > RFMON_TARGET_STM32)
+    {
+        g_monitor_rx_status = RFMON_APPLY_FAILED;
+        return 0u;
+    }
+
+    g_monitor_seq = seq;
+    if((target == RFMON_TARGET_ALL) || (target == RFMON_TARGET_RX))
+    {
+        g_monitor_hid_enabled = ((flags & RFMON_FLAG_HID_TELEMETRY) != 0u) ? 1u : 0u;
+        g_monitor_hid_period_ms = g_monitor_hid_enabled ? period_ms : RFMON_PERIOD_OFF;
+        g_monitor_rx_log_enabled = ((flags & RFMON_FLAG_RX_LOG) != 0u) ? 1u : 0u;
+    }
+    g_monitor_rx_status = RFMON_APPLY_APPLIED;
+
+    if((target == RFMON_TARGET_ALL) ||
+       (target == RFMON_TARGET_TX) ||
+       (target == RFMON_TARGET_STM32))
+    {
+        monitor_mark_remote_pending(seq, target, flags, period_ms);
+    }
+    return 1u;
+}
+
+void RF_MonitorControlFillReport(uint8_t *report, uint16_t len)
+{
+    uint16_t crc;
+    uint32_t flags;
+
+    if((report == 0) || (len < RFMON_CTL_FRAME_SIZE))
+    {
+        return;
+    }
+
+    memset(report, 0, len);
+    flags = monitor_current_flags();
+    monitor_put_u32(&report[0], RFMON_CTL_MAGIC);
+    report[4] = RFMON_CTL_VERSION;
+    report[5] = g_monitor_seq;
+    report[6] = g_monitor_rx_status;
+    report[7] = g_monitor_tx_status;
+    monitor_put_u32(&report[8], flags);
+    monitor_put_u16(&report[12], g_monitor_hid_period_ms);
+    report[14] = g_monitor_stm32_status;
+    report[15] = g_monitor_tx_applied_seq;
+    report[16] = g_monitor_stm32_applied_seq;
+    report[17] = g_monitor_hid_enabled;
+    crc = rfmon_crc16_ccitt(report, 18u);
+    monitor_put_u16(&report[18], crc);
+}
 
 static uint32_t demo_us_to_tmr_cycles(uint32_t us)
 {
@@ -664,10 +862,33 @@ static void demo_fill_ack_packet(void)
     rfh_put_u16(&data[RFH_ACK_LOSS_PERMILLE_LO], quality);
     rfh_put_u16(&data[RFH_ACK_RX_COUNT_LO], rx_ok);
     rfh_put_u16(&data[RFH_ACK_EXPECTED_COUNT_LO], expected);
-    data[RFH_ACK_CMD_ID] = g_demo_pending_ack_cmd;
-    data[RFH_ACK_FLAGS] = (g_demo_pending_ack_cmd == RFH_CMD_NONE) ? 0u : RFH_FLAG_CMD_ACK;
-    data[RFH_ACK_CHANNEL] = g_demo_current_channel;
-    data[RFH_ACK_STATUS] = g_demo_pending_ack_seq;
+    if((g_demo_pending_ack_cmd == RFH_CMD_NONE) &&
+       (g_monitor_pending_retries != 0u))
+    {
+        data[RFH_ACK_CMD_ID] = RFH_CMD_MONITOR_CONFIG;
+        data[RFH_ACK_MON_FLAGS] = (uint8_t)(g_monitor_pending_flags & 0x0Fu);
+        data[RFH_ACK_MON_PERIOD_CODE] = rfmon_period_to_code(g_monitor_pending_period_ms);
+        data[RFH_ACK_MON_SEQ] = g_monitor_pending_seq;
+        g_monitor_pending_retries--;
+        if(g_monitor_pending_retries == 0u)
+        {
+            if(g_monitor_tx_status == RFMON_APPLY_PENDING)
+            {
+                g_monitor_tx_status = RFMON_APPLY_FAILED;
+            }
+            if(g_monitor_stm32_status == RFMON_APPLY_PENDING)
+            {
+                g_monitor_stm32_status = RFMON_APPLY_FAILED;
+            }
+        }
+    }
+    else
+    {
+        data[RFH_ACK_CMD_ID] = g_demo_pending_ack_cmd;
+        data[RFH_ACK_FLAGS] = (g_demo_pending_ack_cmd == RFH_CMD_NONE) ? 0u : RFH_FLAG_CMD_ACK;
+        data[RFH_ACK_CHANNEL] = g_demo_current_channel;
+        data[RFH_ACK_STATUS] = g_demo_pending_ack_seq;
+    }
     demo_reset_quality_window();
 }
 
@@ -1063,6 +1284,35 @@ static void demo_handle_command(const uint8_t *air)
             g_demo_hid_errors++;
             g_demo_hid_type_errors++;
             g_demo_air_diag_type_errors++;
+        }
+    }
+    else if(cmd == RFH_CMD_MONITOR_CONFIG)
+    {
+        uint8_t status_seq = data[RFH_CMD_SLOT_ARG3];
+        uint8_t status_flags = data[RFH_CMD_SLOT_ARG0];
+        uint8_t stm32_result = data[RFH_CMD_SLOT_ARG2];
+
+        if(status_seq == g_monitor_pending_seq)
+        {
+            if(g_monitor_tx_status == RFMON_APPLY_PENDING)
+            {
+                g_monitor_tx_status = RFMON_APPLY_APPLIED;
+                g_monitor_tx_applied_seq = status_seq;
+            }
+            if(stm32_result == RFMON_APPLY_APPLIED)
+            {
+                g_monitor_stm32_status = RFMON_APPLY_APPLIED;
+                g_monitor_stm32_applied_seq = status_seq;
+            }
+            else if(stm32_result == RFMON_APPLY_FAILED)
+            {
+                g_monitor_stm32_status = RFMON_APPLY_FAILED;
+            }
+            else if((status_flags & RFMON_FLAG_STM32_LOG) == 0u)
+            {
+                g_monitor_stm32_status = RFMON_APPLY_PENDING;
+            }
+            g_monitor_pending_retries = 0u;
         }
     }
 }
@@ -1755,6 +2005,11 @@ uint8_t RF_TrySendTelemetryReport(void)
     uint16_t elapsed_ms;
     uint32_t expected;
     uint16_t loss;
+
+    if(g_monitor_hid_enabled == 0u)
+    {
+        return 0u;
+    }
 
     if((g_demo_link_active != 0u) &&
        (g_demo_hid_hop_start_pending == 0u) &&

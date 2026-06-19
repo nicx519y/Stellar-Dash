@@ -6,6 +6,7 @@
 #include "RF_PHY.h"
 #include "rfm_config.h"
 #include "rfm_spi_port_internal.h"
+#include "rf_monitor_control.h"
 
 #ifndef RF_SERIAL_LOG
 #define RF_SERIAL_LOG 0
@@ -63,7 +64,8 @@ typedef enum {
     SPI_CMD_STOP_PAIR = 0x03,
     SPI_CMD_UNBIND = 0x04,
     SPI_CMD_SET_RATE = 0x05,
-    SPI_CMD_INPUT_DATA = 0x06
+    SPI_CMD_INPUT_DATA = 0x06,
+    SPI_CMD_SET_MONITOR_CONFIG = RFMON_SPI_CMD_SET_CONFIG
 } spi_cmd_t;
 
 typedef enum {
@@ -71,7 +73,8 @@ typedef enum {
     SPI_EVT_STATE_CHANGED = 0x82,
     SPI_EVT_RATE_APPLIED = 0x83,
     SPI_EVT_LINK_WARN = 0x84,
-    SPI_EVT_ERROR = 0x85
+    SPI_EVT_ERROR = 0x85,
+    SPI_EVT_MONITOR_CONFIG = RFMON_SPI_EVT_CONFIG_APPLIED
 } spi_evt_t;
 
 #if (RF_SERIAL_LOG == 1)
@@ -90,6 +93,8 @@ static const char *spi_cmd_name(uint8_t cmd)
         return "SET_RATE";
     case SPI_CMD_INPUT_DATA:
         return "INPUT_DATA";
+    case SPI_CMD_SET_MONITOR_CONFIG:
+        return "SET_MONITOR_CONFIG";
     default:
         return "UNKNOWN";
     }
@@ -99,6 +104,10 @@ static const char *spi_cmd_name(uint8_t cmd)
 static void log_spi_command_once(uint8_t cmd, uint8_t len)
 {
 #if (RF_SERIAL_LOG == 1)
+    if(RF_MonitorTxLogEnabled() == 0u)
+    {
+        return;
+    }
     if((s_have_last_logged_cmd != 0u) && (s_last_logged_cmd == cmd))
     {
         return;
@@ -175,6 +184,7 @@ static bool is_valid_host_cmd(uint8_t cmd)
     case SPI_CMD_UNBIND:
     case SPI_CMD_SET_RATE:
     case SPI_CMD_INPUT_DATA:
+    case SPI_CMD_SET_MONITOR_CONFIG:
         return true;
     default:
         return false;
@@ -330,6 +340,28 @@ void rfm_spi_bridge_emit_state_changed(uint8_t cmd_tag)
     try_send_pending_state_changed();
 }
 
+uint8_t rfm_spi_bridge_emit_monitor_config(uint8_t seq, uint8_t flags, uint8_t period_code)
+{
+    uint8_t payload[4];
+    uint8_t out[RFM_SPI_MAX_FRAME];
+    uint8_t frame_len;
+
+    payload[0] = seq;
+    payload[1] = flags;
+    payload[2] = period_code;
+    payload[3] = RFMON_APPLY_APPLIED;
+    frame_len = build_frame(SPI_EVT_MONITOR_CONFIG,
+                            payload,
+                            (uint8_t)sizeof(payload),
+                            out,
+                            (uint8_t)sizeof(out));
+    if(frame_len != 0u)
+    {
+        return write_frame(out, frame_len) ? 1u : 0u;
+    }
+    return 0u;
+}
+
 static bool send_error_event(uint8_t cmd_tag, uint8_t txn, uint8_t reason, uint8_t cache_response)
 {
     return send_status_frame(SPI_EVT_ERROR, cmd_tag, txn, reason, reason, cache_response);
@@ -386,6 +418,20 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
                 (void)send_status_frame(SPI_EVT_RATE_APPLIED, cmd, txn, 0u, 0u, 1u);
                 break;
             }
+        }
+        (void)send_error_event(cmd, txn, 1u, 1u);
+        break;
+    case SPI_CMD_SET_MONITOR_CONFIG:
+        if(args_len >= 3u)
+        {
+            uint8_t seq = args[0];
+            uint8_t flags = args[1];
+            uint8_t period_code = args[2];
+            if(rfm_spi_bridge_emit_monitor_config(seq, flags, period_code) == 0u)
+            {
+                (void)send_error_event(cmd, txn, 2u, 1u);
+            }
+            break;
         }
         (void)send_error_event(cmd, txn, 1u, 1u);
         break;
@@ -717,6 +763,10 @@ void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
     uint32_t latest_key;
     uint32_t rf_key;
 
+    if(RF_MonitorTxLogEnabled() == 0u)
+    {
+        return;
+    }
     if (elapsed_ms == 0u) {
         elapsed_ms = 1u;
     }

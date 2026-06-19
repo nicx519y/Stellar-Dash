@@ -1,7 +1,7 @@
 PROJECT := RF_PHY_Hop_TX
 OUT_DIR := build_tx
 MODE_DEFINE := -DRF_HOP_MODE=1
-SERIAL_LOG ?= 0
+SERIAL_LOG ?= 1
 
 # Toolchain prefix, e.g. riscv-none-embed- or riscv32-wch-elf-
 PREFIX ?= riscv32-wch-elf-

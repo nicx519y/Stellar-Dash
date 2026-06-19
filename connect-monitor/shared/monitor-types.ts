@@ -94,3 +94,23 @@ export interface SerialLogLine {
   portPath: string;
   text: string;
 }
+
+export type DebugApplyState = "Idle" | "Applying" | "Applied" | "Partial" | "Failed";
+export type DebugHidPeriodMs = 100 | 250 | 500 | 1000;
+
+export interface DebugConfig {
+  hidTelemetryEnabled: boolean;
+  hidPeriodMs: DebugHidPeriodMs;
+  rxLogEnabled: boolean;
+  txLogEnabled: boolean;
+  stm32LogEnabled: boolean;
+}
+
+export interface DebugConfigStatus {
+  state: DebugApplyState;
+  rxStatus: DebugApplyState;
+  txStatus: DebugApplyState;
+  stm32Status: DebugApplyState;
+  lastSeq: number;
+  message?: string;
+}

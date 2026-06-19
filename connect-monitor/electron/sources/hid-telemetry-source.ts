@@ -1,8 +1,31 @@
-import type { MonitorEvent } from "../pipeline/types";
+import type { DebugConfig, DebugConfigStatus, DebugApplyState, MonitorEvent } from "../../shared/monitor-types";
 import { parseApplicationHidTelemetryFrame } from "./application-hid-telemetry-source";
 import { parseDongleHidTelemetryFrame } from "./dongle-hid-telemetry-source";
 
 type PublishFn = (event: MonitorEvent) => void;
+type SourceOptions = {
+  onControlReady?: () => void;
+};
+
+const CTL_MAGIC = 0x314c5443;
+const CTL_VERSION = 1;
+const CTL_FRAME_SIZE = 32;
+const FLAG_HID_TELEMETRY = 0x01;
+const FLAG_RX_LOG = 0x02;
+const FLAG_TX_LOG = 0x04;
+const FLAG_STM32_LOG = 0x08;
+const APPLY_STATES: DebugApplyState[] = ["Idle", "Applied", "Applying", "Failed"];
+
+let activeControlHandles: any[] = [];
+let preferredControlHandle: any | null = null;
+let nextControlSeq = 1;
+let debugStatus: DebugConfigStatus = {
+  state: "Idle",
+  rxStatus: "Idle",
+  txStatus: "Idle",
+  stm32Status: "Idle",
+  lastSeq: 0,
+};
 
 function normalizeHexId(value: string | number | undefined): number | null {
   if (value === undefined) return null;
@@ -21,6 +44,168 @@ function publishRfDeviceMissing(publish: PublishFn): void {
     targetRateHz: 0,
     actualRateHz: 0,
   });
+}
+
+function putU16LE(buf: Buffer, offset: number, value: number): void {
+  buf[offset] = value & 0xff;
+  buf[offset + 1] = (value >> 8) & 0xff;
+}
+
+function putU32LE(buf: Buffer, offset: number, value: number): void {
+  buf[offset] = value & 0xff;
+  buf[offset + 1] = (value >> 8) & 0xff;
+  buf[offset + 2] = (value >> 16) & 0xff;
+  buf[offset + 3] = (value >> 24) & 0xff;
+}
+
+function getU16LE(data: Uint8Array, offset: number): number {
+  return data[offset] | (data[offset + 1] << 8);
+}
+
+function getU32LE(data: Uint8Array, offset: number): number {
+  return data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16) | (data[offset + 3] << 24);
+}
+
+function crc16Ccitt(data: Uint8Array, len: number): number {
+  let crc = 0xffff;
+  for (let i = 0; i < len; i++) {
+    crc ^= data[i] << 8;
+    for (let bit = 0; bit < 8; bit++) {
+      crc = (crc & 0x8000) !== 0 ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;
+    }
+  }
+  return crc & 0xffff;
+}
+
+function configFlags(config: DebugConfig): number {
+  return (config.hidTelemetryEnabled ? FLAG_HID_TELEMETRY : 0) |
+    (config.rxLogEnabled ? FLAG_RX_LOG : 0) |
+    (config.txLogEnabled ? FLAG_TX_LOG : 0) |
+    (config.stm32LogEnabled ? FLAG_STM32_LOG : 0);
+}
+
+function buildControlFrame(config: DebugConfig, seq: number): Buffer {
+  const frame = Buffer.alloc(CTL_FRAME_SIZE);
+  putU32LE(frame, 0, CTL_MAGIC);
+  frame[4] = CTL_VERSION;
+  frame[5] = seq & 0xff;
+  frame[6] = 0;
+  frame[7] = 1;
+  putU32LE(frame, 8, configFlags(config));
+  putU16LE(frame, 12, config.hidTelemetryEnabled ? config.hidPeriodMs : 0);
+  putU16LE(frame, 14, crc16Ccitt(frame, 14));
+  return frame;
+}
+
+function statusFromCode(code: number): DebugApplyState {
+  return APPLY_STATES[code] ?? "Failed";
+}
+
+function combineStatus(rxStatus: DebugApplyState, txStatus: DebugApplyState, stm32Status: DebugApplyState): DebugApplyState {
+  const states = [rxStatus, txStatus, stm32Status];
+  if (states.some((state) => state === "Failed")) return "Failed";
+  if (states.some((state) => state === "Applying")) return "Partial";
+  if (states.every((state) => state === "Applied" || state === "Idle")) return "Applied";
+  return "Applying";
+}
+
+function parseStatusReport(raw: Uint8Array): DebugConfigStatus | null {
+  const data = raw.length >= CTL_FRAME_SIZE + 1 && getU32LE(raw, 1) === CTL_MAGIC ? raw.subarray(1) : raw;
+  if (data.length < CTL_FRAME_SIZE) return null;
+  if (getU32LE(data, 0) !== CTL_MAGIC || data[4] !== CTL_VERSION) return null;
+  const crc = getU16LE(data, 18);
+  if (crc16Ccitt(data, 18) !== crc) return null;
+
+  const rxStatus = statusFromCode(data[6]);
+  const txStatus = statusFromCode(data[7]);
+  const stm32Status = statusFromCode(data[14]);
+  return {
+    state: combineStatus(rxStatus, txStatus, stm32Status),
+    rxStatus,
+    txStatus,
+    stm32Status,
+    lastSeq: data[5],
+  };
+}
+
+function refreshDebugStatus(handle: any): void {
+  if (!handle || typeof handle.getFeatureReport !== "function") return;
+  try {
+    const report = handle.getFeatureReport(0, CTL_FRAME_SIZE + 1);
+    const parsed = parseStatusReport(Uint8Array.from(report));
+    if (parsed) {
+      debugStatus = parsed;
+    }
+  } catch (_err) {
+    // Some HID backends do not support feature GET_REPORT on this interface.
+  }
+}
+
+function writeControlFrame(handle: any, frame: Buffer): boolean {
+  try {
+    if (typeof handle.sendFeatureReport === "function") {
+      handle.sendFeatureReport([0, ...frame]);
+      return true;
+    }
+  } catch (_err) {
+    // Fall through to interrupt OUT/control fallback below.
+  }
+
+  try {
+    if (typeof handle.write === "function") {
+      handle.write([0, ...frame]);
+      return true;
+    }
+  } catch (_err) {
+    return false;
+  }
+  return false;
+}
+
+export function getHidDebugConfigStatus(): DebugConfigStatus {
+  return debugStatus;
+}
+
+export function sendDebugConfig(config: DebugConfig): DebugConfigStatus {
+  const seq = nextControlSeq;
+  nextControlSeq = nextControlSeq === 255 ? 1 : nextControlSeq + 1;
+  const frame = buildControlFrame(config, seq);
+  const handles = preferredControlHandle
+    ? [preferredControlHandle, ...activeControlHandles.filter((handle) => handle !== preferredControlHandle)]
+    : [...activeControlHandles];
+
+  debugStatus = {
+    state: "Applying",
+    rxStatus: "Applying",
+    txStatus: config.txLogEnabled ? "Applying" : "Applying",
+    stm32Status: config.stm32LogEnabled ? "Applying" : "Applying",
+    lastSeq: seq,
+  };
+
+  if (handles.length === 0) {
+    debugStatus = {
+      ...debugStatus,
+      state: "Failed",
+      message: "No HID control device",
+    };
+    return debugStatus;
+  }
+
+  for (const handle of handles) {
+    if (!writeControlFrame(handle, frame)) {
+      continue;
+    }
+    preferredControlHandle = handle;
+    refreshDebugStatus(handle);
+    return debugStatus;
+  }
+
+  debugStatus = {
+    ...debugStatus,
+    state: "Failed",
+    message: "HID SET_REPORT failed on all interfaces",
+  };
+  return debugStatus;
 }
 
 const defaultTargetUsbIds = [
@@ -49,14 +234,19 @@ function isGenericDesktopController(device: any): boolean {
 }
 
 function isLikelyTelemetryInterface(device: any): boolean {
+  const interfaceNumber =
+    typeof device.interface === "number"
+      ? device.interface
+      : typeof device.interfaceNumber === "number"
+        ? device.interfaceNumber
+        : undefined;
+
   if (device.usagePage === 0xff00) return true;
-  if (isGenericDesktopController(device)) return false;
-  if (isLikelyHBoxDevice(device)) return true;
-  if (textIncludes(device.product, "controller")) return true;
+  if (interfaceNumber === 3 && isLikelyHBoxDevice(device)) return true;
   return false;
 }
 
-export function startHidTelemetrySource(publish: PublishFn): () => void {
+export function startHidTelemetrySource(publish: PublishFn, options: SourceOptions = {}): () => void {
   let HID: any;
   try {
     HID = require("node-hid");
@@ -98,6 +288,10 @@ export function startHidTelemetrySource(publish: PublishFn): () => void {
     if (idx >= 0) {
       opened.splice(idx, 1);
     }
+    activeControlHandles = activeControlHandles.filter((h) => h !== handle);
+    if (preferredControlHandle === handle) {
+      preferredControlHandle = null;
+    }
     try {
       handle.close();
     } catch (_err) {
@@ -135,6 +329,8 @@ export function startHidTelemetrySource(publish: PublishFn): () => void {
           publishRfDeviceMissing(publish);
         });
         opened.push(handle);
+        activeControlHandles.push(handle);
+        options.onControlReady?.();
       } catch (_err) {
         publishMissingThrottled();
         // ignore a single device open failure to keep monitor running
@@ -155,5 +351,7 @@ export function startHidTelemetrySource(publish: PublishFn): () => void {
     for (const h of [...opened]) {
       closeHandle(h);
     }
+    activeControlHandles = [];
+    preferredControlHandle = null;
   };
 }

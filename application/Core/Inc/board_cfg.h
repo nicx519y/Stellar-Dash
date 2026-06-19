@@ -29,6 +29,7 @@
 
 #include "stm32h750xx.h"
 #include "stm32h7xx_hal.h"
+#include "app_log_control.h"
 #include <stdbool.h>
 #include <stdio.h>
 
@@ -53,8 +54,8 @@
 #endif
 
 /* Debug print configuration */
-#define APPLICATION_SERIAL_PRINT 0   // 设置为 1 可以恢复 USART1 串口 printf 输出
-#define APPLICATION_DEBUG_PRINT  0   // 设置为 1 可以恢复 APP_DBG/APP_ERR 调试打印
+#define APPLICATION_SERIAL_PRINT 1   // 编译保留 USART1 printf，运行时默认关闭
+#define APPLICATION_DEBUG_PRINT  1   // 编译保留 APP_DBG/APP_ERR，运行时默认关闭
 
 #ifndef RF24G_SPI_TEST_FORCE_RF24G
 #define RF24G_SPI_TEST_FORCE_RF24G 0
@@ -65,13 +66,13 @@
 #endif
 
 #if APPLICATION_DEBUG_PRINT
-    #define APP_DBG(fmt, ...) printf("[APP] " fmt "\r\n", ##__VA_ARGS__)
+    #define APP_DBG(fmt, ...) AppLogControl_DebugPrintf("[APP] ", fmt, ##__VA_ARGS__)
 #else
     #define APP_DBG(fmt, ...) ((void)0)
 #endif
 
 #if APPLICATION_DEBUG_PRINT
-    #define APP_ERR(fmt, ...) printf("[APP][ERROR] " fmt "\r\n", ##__VA_ARGS__)
+    #define APP_ERR(fmt, ...) AppLogControl_DebugPrintf("[APP][ERROR] ", fmt, ##__VA_ARGS__)
 #else
     #define APP_ERR(fmt, ...) ((void)0)
 #endif

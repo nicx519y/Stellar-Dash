@@ -21,6 +21,7 @@
 
 
 #include "usart.h"
+#include "app_log_control.h"
 #include "stm32h750xx.h"
 #include "stm32h7xx_hal.h"
 
@@ -174,8 +175,11 @@ void USART1_Init(void)
 PUTCHAR_PROTOTYPE
 {
 #if APPLICATION_SERIAL_PRINT
-	uint8_t temp[1] = {ch};
-	HAL_UART_Transmit(&huart1, temp, 1, 0xFFFF);
+	if(AppLogControl_SerialEnabled() != 0u)
+	{
+		uint8_t temp[1] = {ch};
+		HAL_UART_Transmit(&huart1, temp, 1, 0xFFFF);
+	}
 #else
 	(void)ch;
 #endif

@@ -2,7 +2,7 @@ import type { SerialLogLine, SerialPortInfo } from "../../shared/monitor-types";
 
 type PublishSerialLogsFn = (lines: SerialLogLine[]) => void;
 
-const LOG_SLOT_COUNT = 2;
+const LOG_SLOT_COUNT = 3;
 
 function loadSerialPortCtor(): any | null {
   try {

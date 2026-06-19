@@ -40,6 +40,11 @@ extern uint8_t RF_IsQualityScoreScanActive(void);
 extern uint8_t RF_HasPendingStatsLine(void);
 extern uint16_t RF_GetStatsLine(char *buf, uint16_t len);
 extern uint8_t RF_TrySendTelemetryReport(void);
+extern uint16_t RF_GetTelemetryPeriodMs(void);
+extern uint8_t RF_IsTelemetryEnabled(void);
+extern uint8_t RF_IsRxSerialLogEnabled(void);
+extern uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len);
+extern void RF_MonitorControlFillReport(uint8_t *report, uint16_t len);
 
 #ifdef __cplusplus
 }

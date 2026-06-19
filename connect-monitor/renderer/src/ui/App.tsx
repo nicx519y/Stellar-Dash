@@ -16,10 +16,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FaListUl, FaPause, FaPlay, FaRegWindowMaximize, FaRegWindowMinimize, FaRegWindowRestore, FaTerminal } from "react-icons/fa";
 import { GrClearOption } from "react-icons/gr";
 import { TfiClose } from "react-icons/tfi";
-import type { MonitorEvent } from "../../../shared/monitor-types";
+import type { DebugApplyState, DebugConfig, DebugHidPeriodMs, MonitorEvent } from "../../../shared/monitor-types";
 import rfMonitorLogo from "../assets/rf-monitor-logo.png";
 import { useMonitorStream } from "./useMonitorStream";
-import { ButtonsPanel, type RfInputSnapshot } from "./ButtonsPanel";
+import { ButtonsPanel } from "./ButtonsPanel";
 import { ChannelPanel } from "./ChannelPanel";
 import { ChannelScorePanel } from "./ChannelScorePanel";
 import { PacketsPanel } from "./PacketsPanel";
@@ -51,33 +51,17 @@ function latestStatus(events: MonitorEvent[], mode: "USB" | "RF24G") {
   return null;
 }
 
-function latestRfInput(events: MonitorEvent[]): RfInputSnapshot | null {
-  const now = Date.now();
-  for (let i = events.length - 1; i >= 0; i--) {
-    const ev = events[i];
-    if (
-      ev.kind === "packet" &&
-      ev.channel === "RF" &&
-      ev.direction === "RX" &&
-      ev.rfStateCode === "C" &&
-      typeof ev.inputKeyMask === "number"
-    ) {
-      if (now - ev.timestampMs > 3000) {
-        return null;
-      }
-      return {
-        keyMask: ev.inputKeyMask,
-        timestampMs: ev.timestampMs,
-      };
-    }
-  }
-  return null;
-}
-
 function badgeColor(state: string) {
   if (state === "Connected") return "green";
   if (state === "Connecting") return "yellow";
   if (state === "Error") return "red";
+  return "gray";
+}
+
+function debugBadgeColor(state: DebugApplyState) {
+  if (state === "Applied") return "green";
+  if (state === "Applying" || state === "Partial") return "yellow";
+  if (state === "Failed") return "red";
   return "gray";
 }
 
@@ -237,6 +221,125 @@ function MetricCard({
   );
 }
 
+const defaultDebugConfig: DebugConfig = {
+  hidTelemetryEnabled: false,
+  hidPeriodMs: 500,
+  rxLogEnabled: false,
+  txLogEnabled: false,
+  stm32LogEnabled: false,
+};
+
+function DebugToggle({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      size="xs"
+      minW="54px"
+      h="24px"
+      px={2}
+      borderRadius="6px"
+      borderWidth="1px"
+      borderColor={active ? "rgba(92,255,138,0.66)" : "rgba(148,163,184,0.22)"}
+      bg={active ? "rgba(92,255,138,0.18)" : "rgba(8,18,16,0.74)"}
+      color={active ? neonGreen : "gray.300"}
+      fontSize="11px"
+      lineHeight={1}
+      _hover={{
+        bg: active ? "rgba(92,255,138,0.25)" : "rgba(92,255,138,0.1)",
+        borderColor: "rgba(92,255,138,0.54)",
+      }}
+      onClick={onClick}
+    >
+      {label}
+    </Button>
+  );
+}
+
+function DebugControlCard() {
+  const [config, setConfig] = useState<DebugConfig>(defaultDebugConfig);
+  const [status, setStatus] = useState<DebugApplyState>("Idle");
+  const periods: DebugHidPeriodMs[] = [100, 250, 500, 1000];
+
+  const applyConfig = (next: DebugConfig) => {
+    setConfig(next);
+    setStatus("Applying");
+    window.connectMonitorApi?.setDebugConfig?.(next)
+      .then((nextStatus) => setStatus(nextStatus.state))
+      .catch(() => setStatus("Failed"));
+  };
+
+  useEffect(() => {
+    window.connectMonitorApi?.getDebugConfig?.()
+      .then((saved) => setConfig(saved))
+      .catch(() => {});
+    window.connectMonitorApi?.getDebugConfigStatus?.()
+      .then((nextStatus) => setStatus(nextStatus.state))
+      .catch(() => {});
+    const timer = window.setInterval(() => {
+      window.connectMonitorApi?.getDebugConfigStatus?.()
+        .then((nextStatus) => setStatus(nextStatus.state))
+        .catch(() => {});
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <Card.Root variant="outline" {...panelSurfaceProps}>
+      <Card.Body px={4} py={3}>
+        <HStack justify="space-between" align="center">
+          <Text fontSize="sm" color="gray.400">
+            Debug Control
+          </Text>
+          <Badge colorPalette={debugBadgeColor(status)}>{status}</Badge>
+        </HStack>
+        <VStack align="stretch" gap={2} mt={3}>
+          <HStack justify="space-between" gap={2}>
+            <DebugToggle
+              label="HID"
+              active={config.hidTelemetryEnabled}
+              onClick={() => applyConfig({ ...config, hidTelemetryEnabled: !config.hidTelemetryEnabled })}
+            />
+            <HStack gap={1}>
+              {periods.map((period) => (
+                <DebugToggle
+                  key={period}
+                  label={`${period}`}
+                  active={config.hidPeriodMs === period}
+                  onClick={() => applyConfig({ ...config, hidPeriodMs: period })}
+                />
+              ))}
+            </HStack>
+          </HStack>
+          <HStack gap={2} flexWrap="wrap">
+            <DebugToggle
+              label="RX Log"
+              active={config.rxLogEnabled}
+              onClick={() => applyConfig({ ...config, rxLogEnabled: !config.rxLogEnabled })}
+            />
+            <DebugToggle
+              label="TX Log"
+              active={config.txLogEnabled}
+              onClick={() => applyConfig({ ...config, txLogEnabled: !config.txLogEnabled })}
+            />
+            <DebugToggle
+              label="STM32"
+              active={config.stm32LogEnabled}
+              onClick={() => applyConfig({ ...config, stm32LogEnabled: !config.stm32LogEnabled })}
+            />
+          </HStack>
+        </VStack>
+      </Card.Body>
+    </Card.Root>
+  );
+}
+
 function TrafficPanels({
   packets,
   channelSwitches,
@@ -319,9 +422,7 @@ export function App() {
   const [scrollState, setScrollState] = useState({ top: 0, client: 1, scroll: 1 });
   const [serialLogClearVersion, setSerialLogClearVersion] = useState(0);
 
-  const usbStatus = useMemo(() => latestStatus(events, "USB"), [events]);
   const rfStatus = useMemo(() => latestStatus(events, "RF24G"), [events]);
-  const rfInput = useMemo(() => latestRfInput(events), [events]);
   const rfConnected = rfStatus?.state === "Connected";
   const rfActualHz = rfStatus?.actualRateHz ?? 0;
   const reportHz = rfConnected
@@ -461,13 +562,7 @@ export function App() {
           mb="10px"
           flexShrink={0}
         >
-          <MetricCard
-            title="USB Connection"
-            status={usbStatus?.state ?? "Disconnected"}
-            target={`Target ${usbStatus?.targetRateHz ?? 0} Hz`}
-            value={packets.usbTxPerSec.toFixed(1)}
-            unit="pkt/s"
-          />
+          <DebugControlCard />
           <MetricCard
             title="RF Connection"
             status={rfStatus?.state ?? "Disconnected"}
@@ -516,7 +611,7 @@ export function App() {
               chartHeight="100%"
               compact
             />
-            <ButtonsPanel compact rfInput={rfInput} />
+            <ButtonsPanel compact />
           </Box>
           <TrafficPanels
             packets={packets}

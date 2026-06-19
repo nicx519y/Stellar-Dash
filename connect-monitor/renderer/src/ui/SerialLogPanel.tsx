@@ -5,7 +5,7 @@ import type { SerialLogLine, SerialPortInfo } from "../../../shared/monitor-type
 import { VirtualTable, type VirtualColumn } from "./VirtualTable";
 import { appendSerialLogLines, loadSerialLogLines } from "./serialLogStore";
 
-const LOG_SLOT_COUNT = 2;
+const LOG_SLOT_COUNT = 3;
 const MAX_LOG_ROWS = 500;
 
 function fmtTime(ms: number) {

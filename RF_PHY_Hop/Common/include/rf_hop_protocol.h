@@ -96,6 +96,7 @@
 #define RFH_CMD_HOP_CONFIRM           0x11u
 #define RFH_CMD_HOP_CANCEL            0x12u
 #define RFH_CMD_RATE_UPDATE           0x20u
+#define RFH_CMD_MONITOR_CONFIG        0x21u
 #define RFH_CMD_PAIR_OFFER            0x30u
 #define RFH_CMD_PAIR_ACCEPT           0x31u
 #define RFH_CMD_PAIR_CONFIRM          0x32u
@@ -168,6 +169,12 @@ enum {
     RFH_ACK_FLAGS = 7u,
     RFH_ACK_CHANNEL = 8u,
     RFH_ACK_STATUS = 9u
+};
+
+enum {
+    RFH_ACK_MON_FLAGS = RFH_ACK_FLAGS,
+    RFH_ACK_MON_PERIOD_CODE = RFH_ACK_CHANNEL,
+    RFH_ACK_MON_SEQ = RFH_ACK_STATUS
 };
 
 enum {

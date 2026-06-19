@@ -5,10 +5,10 @@ import path from "node:path";
 import { MonitorEventBus } from "./pipeline/event-bus";
 import { MonitorEventStore } from "./pipeline/event-store";
 import { parseDongleTelemetryLine } from "./sources/dongle-telemetry-source";
-import { startHidTelemetrySource } from "./sources/hid-telemetry-source";
+import { getHidDebugConfigStatus, sendDebugConfig, startHidTelemetrySource } from "./sources/hid-telemetry-source";
 import { SerialLogManager } from "./sources/serial-log-manager";
 import { startSerialTelemetrySource } from "./sources/serial-telemetry-source";
-import type { SerialLogLine } from "../shared/monitor-types";
+import type { DebugConfig, DebugConfigStatus, SerialLogLine } from "../shared/monitor-types";
 
 const eventStore = new MonitorEventStore(path.join(app.getPath("userData"), "db"));
 const eventBus = new MonitorEventBus(500, eventStore);
@@ -22,6 +22,14 @@ const serialLogManager = new SerialLogManager((lines) => {
 });
 let paused = false;
 let isShuttingDown = false;
+const debugConfigPath = path.join(app.getPath("userData"), "debug-config.json");
+let debugConfig: DebugConfig = {
+  hidTelemetryEnabled: false,
+  hidPeriodMs: 500,
+  rxLogEnabled: false,
+  txLogEnabled: false,
+  stm32LogEnabled: false,
+};
 
 type ExportMarkdownRequest = {
   suggestedFileName?: string;
@@ -42,6 +50,37 @@ function stopSources(): void {
 function clearRuntimeDatabase(): void {
   while (pendingEvents.length) pendingEvents.pop();
   eventBus.clear();
+}
+
+function sanitizeDebugConfig(value: unknown): DebugConfig {
+  const cfg = value as Partial<DebugConfig> | null | undefined;
+  const period = cfg?.hidPeriodMs;
+  const hidPeriodMs = period === 100 || period === 250 || period === 500 || period === 1000 ? period : 500;
+  return {
+    hidTelemetryEnabled: Boolean(cfg?.hidTelemetryEnabled),
+    hidPeriodMs,
+    rxLogEnabled: Boolean(cfg?.rxLogEnabled),
+    txLogEnabled: Boolean(cfg?.txLogEnabled),
+    stm32LogEnabled: Boolean(cfg?.stm32LogEnabled),
+  };
+}
+
+async function loadDebugConfig(): Promise<void> {
+  try {
+    const raw = await fs.readFile(debugConfigPath, "utf8");
+    debugConfig = sanitizeDebugConfig(JSON.parse(raw));
+  } catch (_err) {
+    debugConfig = sanitizeDebugConfig(debugConfig);
+  }
+}
+
+async function saveDebugConfig(config: DebugConfig): Promise<void> {
+  await fs.mkdir(path.dirname(debugConfigPath), { recursive: true });
+  await fs.writeFile(debugConfigPath, JSON.stringify(config, null, 2), "utf8");
+}
+
+function applyDebugConfigToDevice(): DebugConfigStatus {
+  return sendDebugConfig(debugConfig);
 }
 
 function shutdownAndClearDatabase(): void {
@@ -96,17 +135,21 @@ function bootstrapMockInput(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
+  await loadDebugConfig();
   clearRuntimeDatabase();
   if (process.env.MONITOR_MOCK === "1") {
     bootstrapMockInput();
   }
-  stopHidSource = startHidTelemetrySource((event) => {
-    if (!paused) {
-      eventBus.publish(event);
-    }
-  });
+  stopHidSource = startHidTelemetrySource(
+    (event) => {
+      if (!paused) {
+        eventBus.publish(event);
+      }
+    },
+    { onControlReady: applyDebugConfigToDevice },
+  );
   if (process.env.MONITOR_SERIAL_ENABLE === "1" || process.env.MONITOR_SERIAL_PATH) {
     stopSerialSource = startSerialTelemetrySource((event) => {
       if (!paused) {
@@ -150,11 +193,14 @@ ipcMain.handle("monitor:setPaused", (_evt, nextPaused: boolean) => {
     return;
   }
   if (!stopHidSource) {
-    stopHidSource = startHidTelemetrySource((event) => {
-      if (!paused) {
-        eventBus.publish(event);
-      }
-    });
+    stopHidSource = startHidTelemetrySource(
+      (event) => {
+        if (!paused) {
+          eventBus.publish(event);
+        }
+      },
+      { onControlReady: applyDebugConfigToDevice },
+    );
   }
   if (!stopSerialSource && (process.env.MONITOR_SERIAL_ENABLE === "1" || process.env.MONITOR_SERIAL_PATH)) {
     stopSerialSource = startSerialTelemetrySource((event) => {
@@ -182,6 +228,20 @@ ipcMain.handle("monitor:exportMarkdown", async (event, request: ExportMarkdownRe
   }
   await fs.writeFile(result.filePath, content, "utf8");
   return { canceled: false, filePath: result.filePath };
+});
+
+ipcMain.handle("monitor:getDebugConfig", () => {
+  return debugConfig;
+});
+
+ipcMain.handle("monitor:setDebugConfig", async (_event, nextConfig: unknown) => {
+  debugConfig = sanitizeDebugConfig(nextConfig);
+  await saveDebugConfig(debugConfig);
+  return applyDebugConfigToDevice();
+});
+
+ipcMain.handle("monitor:getDebugConfigStatus", () => {
+  return getHidDebugConfigStatus();
 });
 
 ipcMain.handle("serial:listPorts", () => {

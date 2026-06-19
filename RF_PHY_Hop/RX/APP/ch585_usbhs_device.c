@@ -11,6 +11,7 @@
 *******************************************************************************/
 
 #include <ch585_usbhs_device.h>
+#include "RF_PHY.h"
 #include "usb_desc.h"
 #include "usbd_compatibility_hid.h"
 #include "dongle_config.h"
@@ -72,7 +73,7 @@ volatile uint8_t  USBHS_Endp_Busy[ DEF_UEP_NUM ];
 #define MS_VENDOR_CODE                0x20u
 #define MS_OS_DESC_COMPAT_ID_INDEX    0x0004u
 #define MS_OS_DESC_EXT_PROP_INDEX     0x0005u
-#define XINPUT_TELEMETRY_REPORT_DESC_LEN 21u
+#define XINPUT_TELEMETRY_REPORT_DESC_LEN 29u
 #define VENDOR_HID_INTERFACE          0x03u
 #define VENDOR_HID_DESC_OFFSET        124u
 
@@ -373,6 +374,7 @@ void USB2_DEVICE_IRQHandler( void )
                                         {
                                             USBHS_SetupReqLen = HID_ENDPOINT_SIZE;
                                         }
+                                        RF_MonitorControlFillReport(HID_Report_Buffer, HID_ENDPOINT_SIZE);
                                         len = (USBHS_SetupReqLen >= DEF_USBD_UEP0_SIZE) ? DEF_USBD_UEP0_SIZE : USBHS_SetupReqLen;
                                         memcpy(USBHS_EP0_Buf, HID_Report_Buffer, len);
                                         break;
@@ -952,6 +954,10 @@ void USB2_DEVICE_IRQHandler( void )
                                 if (len >= 7u) {
                                     memcpy(s_cdc_line_coding, USBHS_EP0_Buf, 7u);
                                 }
+                            }
+                            else if( USBHS_SetupReqCode == HID_SET_REPORT )
+                            {
+                                (void)RF_MonitorControlHandleReport(USBHS_EP0_Buf, len);
                             }
                         }
                         else
