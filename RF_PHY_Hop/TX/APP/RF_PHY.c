@@ -258,6 +258,7 @@ static void demo_channel_scores_init(void)
     }
 }
 
+#if (RF_SERIAL_LOG == 1)
 static char demo_tx_state_char(void)
 {
     if(g_demo_hop_state == RF_AUTO_HOP_PREPARE_ACK_WAIT)
@@ -274,6 +275,7 @@ static char demo_tx_state_char(void)
     }
     return 'M';
 }
+#endif
 
 #if (RF_AUTO_DEMO_AUTO_HOP_ENABLE != 0u)
 static uint8_t demo_next_channel(uint8_t current, uint32_t now)
@@ -676,9 +678,9 @@ static void demo_log_stats(uint32_t now)
     elapsed_ticks = now - g_demo_last_log_clock;
     g_demo_last_log_clock = now;
     elapsed_ms = (unsigned long)(((elapsed_ticks * (uint32_t)SYSTEM_TIME_MICROSEN) + 999u) / 1000u);
+#if (RF_SERIAL_LOG == 1)
     rfm_spi_bridge_diag_emit(elapsed_ms);
 
-#if (RF_SERIAL_LOG == 1)
     ack_fail = g_demo_stat.ack_timeout +
                g_demo_stat.ack_crc_err +
                g_demo_stat.ack_type_err;
@@ -709,6 +711,8 @@ static void demo_log_stats(uint32_t now)
           (unsigned int)g_demo_tx_start_ret,
           (unsigned int)g_demo_tx_parm_ret,
           (unsigned int)g_demo_rx_ret);
+#else
+    (void)elapsed_ms;
 #endif
 
     g_demo_stat.tx_start = 0u;

@@ -7,6 +7,10 @@
 #include "rfm_config.h"
 #include "rfm_spi_port_internal.h"
 
+#ifndef RF_SERIAL_LOG
+#define RF_SERIAL_LOG 0
+#endif
+
 static uint32_t s_rx_count;
 static uint32_t s_tx_count;
 static uint32_t s_raw_bytes_win;
@@ -70,6 +74,7 @@ typedef enum {
     SPI_EVT_ERROR = 0x85
 } spi_evt_t;
 
+#if (RF_SERIAL_LOG == 1)
 static const char *spi_cmd_name(uint8_t cmd)
 {
     switch ((spi_cmd_t)cmd) {
@@ -89,9 +94,11 @@ static const char *spi_cmd_name(uint8_t cmd)
         return "UNKNOWN";
     }
 }
+#endif
 
 static void log_spi_command_once(uint8_t cmd, uint8_t len)
 {
+#if (RF_SERIAL_LOG == 1)
     if((s_have_last_logged_cmd != 0u) && (s_last_logged_cmd == cmd))
     {
         return;
@@ -103,6 +110,10 @@ static void log_spi_command_once(uint8_t cmd, uint8_t len)
           (unsigned int)cmd,
           (unsigned int)len,
           spi_cmd_name(cmd));
+#else
+    (void)cmd;
+    (void)len;
+#endif
 }
 
 typedef enum {
@@ -646,6 +657,7 @@ static void parser_feed_byte(uint8_t b)
     }
 }
 
+#if (RF_SERIAL_LOG == 1)
 static void diag_clear_win(void)
 {
     s_raw_bytes_win = 0u;
@@ -667,9 +679,11 @@ static uint32_t input_payload_key_mask(const uint8_t *payload)
            ((uint32_t)payload[4] << 16) |
            ((uint32_t)payload[5] << 24);
 }
+#endif
 
 void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
 {
+#if (RF_SERIAL_LOG == 1)
     uint32_t ring_ov_count;
     uint32_t rx_byte_count;
     uint32_t fifo_ov_count;
@@ -803,6 +817,9 @@ void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
     (void)tx_pending;
     (void)tx_recover_count;
     (void)elapsed_ms;
+#else
+    (void)elapsed_ms;
+#endif
 }
 
 static bool input_payload_state_changed(const uint8_t *prev, const uint8_t *curr)
