@@ -78,3 +78,19 @@ export interface ErrorEvent {
 }
 
 export type MonitorEvent = DeviceStatusEvent | PacketEvent | LatencyEvent | ErrorEvent;
+
+export interface SerialPortInfo {
+  path: string;
+  displayName: string;
+  manufacturer?: string;
+  friendlyName?: string;
+  vendorId?: string;
+  productId?: string;
+}
+
+export interface SerialLogLine {
+  id: string;
+  timestampMs: number;
+  portPath: string;
+  text: string;
+}

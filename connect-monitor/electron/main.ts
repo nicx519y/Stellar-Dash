@@ -6,7 +6,9 @@ import { MonitorEventBus } from "./pipeline/event-bus";
 import { MonitorEventStore } from "./pipeline/event-store";
 import { parseDongleTelemetryLine } from "./sources/dongle-telemetry-source";
 import { startHidTelemetrySource } from "./sources/hid-telemetry-source";
+import { SerialLogManager } from "./sources/serial-log-manager";
 import { startSerialTelemetrySource } from "./sources/serial-telemetry-source";
+import type { SerialLogLine } from "../shared/monitor-types";
 
 const eventStore = new MonitorEventStore(path.join(app.getPath("userData"), "db"));
 const eventBus = new MonitorEventBus(500, eventStore);
@@ -14,6 +16,10 @@ let stopHidSource: (() => void) | null = null;
 let stopSerialSource: (() => void) | null = null;
 let mainWindow: BrowserWindow | null = null;
 const pendingEvents: unknown[] = [];
+const pendingSerialLogs: SerialLogLine[] = [];
+const serialLogManager = new SerialLogManager((lines) => {
+  pendingSerialLogs.push(...lines);
+});
 let paused = false;
 let isShuttingDown = false;
 
@@ -42,6 +48,7 @@ function shutdownAndClearDatabase(): void {
   if (isShuttingDown) return;
   isShuttingDown = true;
   stopSources();
+  serialLogManager.dispose();
   clearRuntimeDatabase();
 }
 
@@ -177,6 +184,18 @@ ipcMain.handle("monitor:exportMarkdown", async (event, request: ExportMarkdownRe
   return { canceled: false, filePath: result.filePath };
 });
 
+ipcMain.handle("serial:listPorts", () => {
+  return serialLogManager.listPorts();
+});
+
+ipcMain.handle("serial:getLogSelections", () => {
+  return serialLogManager.getSelections();
+});
+
+ipcMain.handle("serial:setLogSelections", (_event, selections: Array<string | null | undefined>) => {
+  return serialLogManager.setSelections(Array.isArray(selections) ? selections : []);
+});
+
 ipcMain.handle("window:minimize", (event) => {
   BrowserWindow.fromWebContents(event.sender)?.minimize();
 });
@@ -206,6 +225,13 @@ setInterval(() => {
   if (pendingEvents.length === 0) return;
   const batch = pendingEvents.splice(0, pendingEvents.length);
   mainWindow.webContents.send("monitor:events", batch);
+}, 100);
+
+setInterval(() => {
+  if (!mainWindow) return;
+  if (pendingSerialLogs.length === 0) return;
+  const batch = pendingSerialLogs.splice(0, pendingSerialLogs.length);
+  mainWindow.webContents.send("serial:logs", batch);
 }, 100);
 
 app.on("window-all-closed", () => {

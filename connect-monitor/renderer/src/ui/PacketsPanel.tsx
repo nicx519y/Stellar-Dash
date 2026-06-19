@@ -125,11 +125,13 @@ function displayAirMeta(packet: PacketEvent) {
   const crcErrors =
     eventLooksSane && typeof packet.airWindowCrcErrors === "number" ? packet.airWindowCrcErrors : rawCrcErrors;
   const seqGaps = eventLooksSane && typeof packet.airWindowSeqGaps === "number" ? packet.airWindowSeqGaps : rawSeqGaps;
+  const rxKeyMask = rfInputKeyMask(packet);
 
   if (typeof pendingDrop !== "number" || typeof pendingCurrent !== "number" || typeof pendingMax !== "number") {
     return "-";
   }
 
+  const keyText = typeof rxKeyMask === "number" ? `rxKey=${hexU32(rxKeyMask)} ` : "";
   const lossText =
     typeof windowRx === "number" && typeof windowExpected === "number" && windowExpected > 0
       ? ` win=${windowRx}/${windowExpected} loss=${(((windowExpected - Math.min(windowRx, windowExpected)) * 100) / windowExpected).toFixed(1)}%`
@@ -142,7 +144,7 @@ function displayAirMeta(packet: PacketEvent) {
     typeof crcErrors === "number" || typeof seqGaps === "number"
       ? ` gap=${seqGaps ?? 0} crc=${crcErrors ?? 0}`
       : "";
-  return `pend=${pendingCurrent}/${pendingMax} drop=${pendingDrop}${lossText}${missingText}${errorText}`;
+  return `${keyText}pend=${pendingCurrent}/${pendingMax} drop=${pendingDrop}${lossText}${missingText}${errorText}`;
 }
 
 export function PacketsPanel({ items, fillHeight = false }: { items: Array<PacketEvent & { id?: string }>; fillHeight?: boolean }) {

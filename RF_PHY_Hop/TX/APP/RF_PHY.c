@@ -637,11 +637,17 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
 
 static void demo_log_stats(uint32_t now)
 {
+    uint32_t elapsed_ticks;
+    unsigned long elapsed_ms;
+
     if((uint32_t)(now - g_demo_last_log_clock) < MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_LOG_PERIOD_MS))
     {
         return;
     }
+    elapsed_ticks = now - g_demo_last_log_clock;
     g_demo_last_log_clock = now;
+    elapsed_ms = (unsigned long)(((elapsed_ticks * (uint32_t)SYSTEM_TIME_MICROSEN) + 999u) / 1000u);
+    rfm_spi_bridge_diag_emit(elapsed_ms);
 
     g_demo_stat.tx_start = 0u;
     g_demo_stat.tx_fail = 0u;

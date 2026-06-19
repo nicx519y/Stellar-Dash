@@ -13,7 +13,7 @@ import {
 } from "@chakra-ui/react";
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FaPause, FaPlay, FaRegWindowMaximize, FaRegWindowMinimize, FaRegWindowRestore } from "react-icons/fa";
+import { FaListUl, FaPause, FaPlay, FaRegWindowMaximize, FaRegWindowMinimize, FaRegWindowRestore, FaTerminal } from "react-icons/fa";
 import { GrClearOption } from "react-icons/gr";
 import { TfiClose } from "react-icons/tfi";
 import type { MonitorEvent } from "../../../shared/monitor-types";
@@ -24,6 +24,7 @@ import { ChannelPanel } from "./ChannelPanel";
 import { ChannelScorePanel } from "./ChannelScorePanel";
 import { PacketsPanel } from "./PacketsPanel";
 import { RatePanel } from "./RatePanel";
+import { SerialLogPanel } from "./SerialLogPanel";
 import { neonGreen, panelSurfaceProps, toolbarActionButtonProps } from "./panelStyles";
 import { scrollbarStyle } from "./scrollbarStyle";
 
@@ -244,18 +245,67 @@ function TrafficPanels({
   channelSwitches: ReturnType<typeof useMonitorStream>["channelSwitches"];
   channelScores: ReturnType<typeof useMonitorStream>["channelScores"];
 }) {
+  const [activeTab, setActiveTab] = useState<"traffic" | "log">("traffic");
+  const activeTabProps = {
+    variant: "solid",
+    colorPalette: "green",
+    bg: "rgba(92,255,138,0.18)",
+    color: neonGreen,
+    borderColor: "rgba(92,255,138,0.64)",
+    boxShadow: "0 0 14px rgba(92,255,138,0.18)",
+  } as const;
+
   return (
-    <Box
-      flex="1"
-      minH={0}
-      display="grid"
-      gridTemplateColumns={{ base: "1fr", xl: "minmax(0, 1fr) 800px 250px" }}
-      gap="10px"
-      alignItems="stretch"
-    >
-      <PacketsPanel items={packets.items} fillHeight />
-      <ChannelPanel items={channelSwitches} fillHeight />
-      <ChannelScorePanel items={channelScores} fillHeight />
+    <Box flex="1" minH={0} display="flex" flexDirection="column" gap="10px">
+      <HStack
+        role="tablist"
+        aria-label="Traffic view"
+        gap={2}
+        flexShrink={0}
+        p="3px"
+        alignSelf="flex-start"
+        borderWidth="1px"
+        borderRadius="8px"
+        borderColor="rgba(92,255,138,0.18)"
+        bg="rgba(0,0,0,0.28)"
+      >
+        <Button
+          {...toolbarActionButtonProps}
+          {...(activeTab === "traffic" ? activeTabProps : {})}
+          role="tab"
+          aria-selected={activeTab === "traffic"}
+          onClick={() => setActiveTab("traffic")}
+        >
+          <FaListUl />
+          Packets / Channel Events / Scores
+        </Button>
+        <Button
+          {...toolbarActionButtonProps}
+          {...(activeTab === "log" ? activeTabProps : {})}
+          role="tab"
+          aria-selected={activeTab === "log"}
+          onClick={() => setActiveTab("log")}
+        >
+          <FaTerminal />
+          Log
+        </Button>
+      </HStack>
+      {activeTab === "traffic" ? (
+        <Box
+          flex="1"
+          minH={0}
+          display="grid"
+          gridTemplateColumns={{ base: "1fr", xl: "minmax(0, 1fr) 800px 250px" }}
+          gap="10px"
+          alignItems="stretch"
+        >
+          <PacketsPanel items={packets.items} fillHeight />
+          <ChannelPanel items={channelSwitches} fillHeight />
+          <ChannelScorePanel items={channelScores} fillHeight />
+        </Box>
+      ) : (
+        <SerialLogPanel />
+      )}
     </Box>
   );
 }

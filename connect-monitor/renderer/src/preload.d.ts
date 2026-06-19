@@ -1,4 +1,4 @@
-import type { MonitorEvent } from "../../shared/monitor-types";
+import type { MonitorEvent, SerialLogLine, SerialPortInfo } from "../../shared/monitor-types";
 
 declare global {
   interface Window {
@@ -11,6 +11,10 @@ declare global {
       setPaused(paused: boolean): Promise<void>;
       getPaused(): Promise<boolean>;
       exportMarkdown(request: { suggestedFileName: string; content: string }): Promise<{ canceled: boolean; filePath?: string }>;
+      listSerialPorts(): Promise<SerialPortInfo[]>;
+      getSerialLogSelections(): Promise<string[]>;
+      setSerialLogSelections(selections: Array<string | null | undefined>): Promise<string[]>;
+      onSerialLogs(handler: (lines: SerialLogLine[]) => void): () => void;
       minimizeWindow(): Promise<void>;
       toggleMaximizeWindow(): Promise<boolean>;
       closeWindow(): Promise<void>;

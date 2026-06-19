@@ -21,13 +21,18 @@ static uint32_t s_last_fifo_ov_count;
 static uint32_t s_last_irq_count;
 static uint32_t s_last_bad_irq_count;
 static uint32_t s_last_direct_count;
+static uint32_t s_last_done_count;
+static uint32_t s_last_valid_frame_count;
+static uint32_t s_last_bad_frame_count;
 static uint32_t s_last_backlog_drop_count;
 static uint32_t s_last_backlog_drop_bytes;
 static uint8_t s_poll_rx[(3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u) * 8u];
 static uint8_t s_state_changed_retry_pending;
 static uint8_t s_state_changed_retry_cmd_tag;
 static uint8_t s_last_direct_input[RFM_RF_INPUT_PAYLOAD_LEN];
+static uint8_t s_last_latest_input[RFM_RF_INPUT_PAYLOAD_LEN];
 static uint8_t s_have_last_direct_input;
+static uint8_t s_have_last_latest_input;
 static uint8_t s_last_logged_cmd;
 static uint8_t s_have_last_logged_cmd;
 static uint8_t s_last_control_valid;
@@ -651,6 +656,18 @@ static void diag_clear_win(void)
     s_bad_checksum_win = 0u;
 }
 
+static uint32_t input_payload_key_mask(const uint8_t *payload)
+{
+    if(payload == 0)
+    {
+        return 0u;
+    }
+    return ((uint32_t)payload[2]) |
+           ((uint32_t)payload[3] << 8) |
+           ((uint32_t)payload[4] << 16) |
+           ((uint32_t)payload[5] << 24);
+}
+
 void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
 {
     uint32_t ring_ov_count;
@@ -659,6 +676,9 @@ void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
     uint32_t irq_count;
     uint32_t bad_irq_count;
     uint32_t direct_count;
+    uint32_t done_count;
+    uint32_t valid_frame_count;
+    uint32_t bad_frame_count;
     uint32_t backlog_drop_count;
     uint32_t backlog_drop_bytes;
     uint32_t raw_sum;
@@ -669,9 +689,19 @@ void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
     uint32_t bad_checksum_sum;
     uint32_t direct_sum;
     uint32_t dma_irq_sum;
+    uint32_t done_sum;
+    uint32_t valid_sum;
+    uint32_t bad_frame_sum;
+    uint32_t peek_ok_count;
+    uint32_t peek_miss_count;
+    uint32_t max_available;
+    uint32_t near_full_count;
+    uint32_t full_clip_count;
     uint32_t flags;
     uint8_t tx_pending;
     uint32_t tx_recover_count;
+    uint32_t latest_key;
+    uint32_t rf_key;
 
     if (elapsed_ms == 0u) {
         elapsed_ms = 1u;
@@ -683,8 +713,16 @@ void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
     irq_count = rfm_spi_port_rx_isr_count();
     bad_irq_count = rfm_spi_port_rx_bad_irq_count();
     direct_count = rfm_spi_port_rx_direct_count();
+    done_count = rfm_spi_port_rx_done_count();
+    valid_frame_count = rfm_spi_port_rx_valid_frame_count();
+    bad_frame_count = rfm_spi_port_rx_bad_frame_count();
     backlog_drop_count = rfm_spi_port_rx_backlog_drop_count();
     backlog_drop_bytes = rfm_spi_port_rx_backlog_drop_bytes();
+    peek_ok_count = rfm_spi_port_rx_peek_ok_count();
+    peek_miss_count = rfm_spi_port_rx_peek_miss_count();
+    max_available = rfm_spi_port_rx_take_max_available();
+    near_full_count = rfm_spi_port_rx_take_near_full_count();
+    full_clip_count = rfm_spi_port_rx_take_full_clip_count();
 
     raw_sum = s_raw_bytes_win;
     frame_sum = s_frame_ok_win;
@@ -694,9 +732,32 @@ void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
     bad_checksum_sum = s_bad_checksum_win;
     direct_sum = direct_count - s_last_direct_count;
     dma_irq_sum = irq_count - s_last_irq_count;
+    done_sum = done_count - s_last_done_count;
+    valid_sum = valid_frame_count - s_last_valid_frame_count;
+    bad_frame_sum = bad_frame_count - s_last_bad_frame_count;
     flags = rfm_spi_port_rx_last_flags();
     tx_pending = rfm_spi_port_tx_pending();
     tx_recover_count = rfm_spi_port_tx_recover_count();
+    latest_key = (s_have_last_latest_input != 0u) ?
+                 input_payload_key_mask(s_last_latest_input) : 0u;
+    rf_key = (s_have_last_direct_input != 0u) ?
+             input_payload_key_mask(s_last_direct_input) : 0u;
+
+    PRINT("[SPI][%lums] irq:%lu done:%lu ok:%lu bad:%lu dir:%lu key:%08lX rf:%08lX peek:%lu/%lu max:%lu ov:%lu tx:%u rec:%lu\r\n",
+          elapsed_ms,
+          (unsigned long)dma_irq_sum,
+          (unsigned long)done_sum,
+          (unsigned long)valid_sum,
+          (unsigned long)bad_frame_sum,
+          (unsigned long)direct_sum,
+          (unsigned long)latest_key,
+          (unsigned long)rf_key,
+          (unsigned long)peek_ok_count,
+          (unsigned long)peek_miss_count,
+          (unsigned long)max_available,
+          (unsigned long)fifo_ov_count,
+          (unsigned int)tx_pending,
+          (unsigned long)tx_recover_count);
 
     s_last_ring_ov_count = ring_ov_count;
     s_last_rx_byte_count = rx_byte_count;
@@ -704,6 +765,9 @@ void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
     s_last_irq_count = irq_count;
     s_last_bad_irq_count = bad_irq_count;
     s_last_direct_count = direct_count;
+    s_last_done_count = done_count;
+    s_last_valid_frame_count = valid_frame_count;
+    s_last_bad_frame_count = bad_frame_count;
     s_last_backlog_drop_count = backlog_drop_count;
     s_last_backlog_drop_bytes = backlog_drop_bytes;
     s_last_rx_count = s_rx_count;
@@ -712,6 +776,9 @@ void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
     (void)fifo_ov_count;
     (void)bad_irq_count;
     (void)direct_count;
+    (void)done_count;
+    (void)valid_frame_count;
+    (void)bad_frame_count;
     (void)ring_ov_count;
     (void)rx_byte_count;
     (void)backlog_drop_count;
@@ -724,6 +791,14 @@ void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
     (void)bad_checksum_sum;
     (void)direct_sum;
     (void)dma_irq_sum;
+    (void)done_sum;
+    (void)valid_sum;
+    (void)bad_frame_sum;
+    (void)peek_ok_count;
+    (void)peek_miss_count;
+    (void)max_available;
+    (void)near_full_count;
+    (void)full_clip_count;
     (void)flags;
     (void)tx_pending;
     (void)tx_recover_count;
@@ -761,12 +836,16 @@ void rfm_spi_bridge_init(void)
     s_last_irq_count = 0u;
     s_last_bad_irq_count = 0u;
     s_last_direct_count = 0u;
+    s_last_done_count = 0u;
+    s_last_valid_frame_count = 0u;
+    s_last_bad_frame_count = 0u;
     s_last_backlog_drop_count = 0u;
     s_last_backlog_drop_bytes = 0u;
     s_last_rx_count = 0u;
     s_state_changed_retry_pending = 0u;
     s_state_changed_retry_cmd_tag = 0u;
     s_have_last_direct_input = 0u;
+    s_have_last_latest_input = 0u;
     s_last_logged_cmd = 0u;
     s_have_last_logged_cmd = 0u;
     s_last_control_valid = 0u;
@@ -774,6 +853,7 @@ void rfm_spi_bridge_init(void)
     s_last_control_txn = 0u;
     s_last_control_response_len = 0u;
     memset(s_last_direct_input, 0, sizeof(s_last_direct_input));
+    memset(s_last_latest_input, 0, sizeof(s_last_latest_input));
     memset(s_last_control_response, 0, sizeof(s_last_control_response));
     parser_reset();
     fast_parser_reset();
@@ -801,6 +881,8 @@ void rfm_spi_bridge_poll(void)
         rfm_spi_port_service();
         try_send_pending_state_changed();
         if(rfm_spi_port_peek_latest_input(latest_payload, (uint8_t)sizeof(latest_payload))) {
+            memcpy(s_last_latest_input, latest_payload, sizeof(latest_payload));
+            s_have_last_latest_input = 1u;
             if((s_have_last_direct_input == 0u) ||
                input_payload_state_changed(s_last_direct_input, latest_payload)) {
                 memcpy(s_last_direct_input, latest_payload, sizeof(latest_payload));

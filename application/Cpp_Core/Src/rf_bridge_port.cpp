@@ -19,11 +19,11 @@ namespace {
 #endif
 
 #ifndef RF_BRIDGE_SPI_BAUD_PRESCALER
-#define RF_BRIDGE_SPI_BAUD_PRESCALER SPI_BAUDRATEPRESCALER_32
+#define RF_BRIDGE_SPI_BAUD_PRESCALER SPI_BAUDRATEPRESCALER_8
 #endif
 
 #ifndef RF_BRIDGE_INPUT_DMA_FASTPATH
-#define RF_BRIDGE_INPUT_DMA_FASTPATH 1
+#define RF_BRIDGE_INPUT_DMA_FASTPATH 0
 #endif
 
 #ifndef RF_BRIDGE_EVENT_DRAIN_LIMIT
@@ -64,6 +64,7 @@ static uint32_t s_diag_rx_io_fail = 0u;
 static uint32_t s_diag_dma_start_fail = 0u;
 static uint32_t s_diag_dma_overwrite = 0u;
 static uint32_t s_diag_dma_done = 0u;
+static uint32_t s_diag_input_blocking_done = 0u;
 static uint32_t s_diag_dma_irq = 0u;
 static uint32_t s_diag_spi_irq = 0u;
 static uint32_t s_diag_exti_irq = 0u;
@@ -191,7 +192,7 @@ static void rf_note_transfer(bool isInput, bool ok, uint8_t cmd, uint16_t txLen,
             (unsigned int)s_stat_last_cmd,
             (unsigned int)s_stat_last_seq,
             (unsigned int)txLen);
-    APP_DBG("[RF_BRIDGE][5s][diag] spi_init_fail:%lu tx_fail:%lu irq_timeout:%lu rx_invalid:%lu rx_io_fail:%lu dma_start_fail:%lu dma_overwrite:%lu dma_done:%lu dma_irq:%lu spi_irq:%lu exti_irq:%lu spi_err:%lu",
+    APP_DBG("[RF_BRIDGE][5s][diag] spi_init_fail:%lu tx_fail:%lu irq_timeout:%lu rx_invalid:%lu rx_io_fail:%lu dma_start_fail:%lu dma_overwrite:%lu dma_done:%lu input_block:%lu dma_irq:%lu spi_irq:%lu exti_irq:%lu spi_err:%lu",
             s_diag_spi_init_fail,
             s_diag_tx_fail,
             s_diag_irq_timeout,
@@ -200,6 +201,7 @@ static void rf_note_transfer(bool isInput, bool ok, uint8_t cmd, uint16_t txLen,
             s_diag_dma_start_fail,
             s_diag_dma_overwrite,
             s_diag_dma_done,
+            s_diag_input_blocking_done,
             s_diag_dma_irq,
             s_diag_spi_irq,
             s_diag_exti_irq,
@@ -308,6 +310,7 @@ static bool rf_spi_dma_wait_idle_and_drop_pending(uint32_t timeoutMs) {
     return true;
 }
 
+#if RF_BRIDGE_INPUT_DMA_FASTPATH
 static bool rf_spi_dma_enqueue_latest(const uint8_t* tx, uint16_t txLen, uint8_t seq) {
     if ((tx == nullptr) || (txLen == 0u) || (txLen > sizeof(s_dma_pending_buf))) {
         return false;
@@ -345,6 +348,7 @@ static bool rf_spi_dma_enqueue_latest(const uint8_t* tx, uint16_t txLen, uint8_t
     (void)seq;
     return true;
 }
+#endif
 
 static bool rf_spi_dma_transmit_blocking(const uint8_t* tx, uint16_t txLen, uint32_t timeoutMs) {
     if ((tx == nullptr) || (txLen == 0u) || (txLen > sizeof(s_dma_active_buf))) {
@@ -734,6 +738,9 @@ bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen) {
         return false;
     }
 
+#if !RF_BRIDGE_INPUT_DMA_FASTPATH
+    s_diag_input_blocking_done++;
+#endif
     rf_note_transfer(true, true, cmd, txLen, input_seq);
     return true;
 }

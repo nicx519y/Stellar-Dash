@@ -15,6 +15,16 @@ contextBridge.exposeInMainWorld("connectMonitorApi", {
   setPaused: (paused: boolean) => ipcRenderer.invoke("monitor:setPaused", paused),
   getPaused: () => ipcRenderer.invoke("monitor:getPaused"),
   exportMarkdown: (request: { suggestedFileName: string; content: string }) => ipcRenderer.invoke("monitor:exportMarkdown", request),
+  listSerialPorts: () => ipcRenderer.invoke("serial:listPorts"),
+  getSerialLogSelections: () => ipcRenderer.invoke("serial:getLogSelections"),
+  setSerialLogSelections: (selections: Array<string | null | undefined>) => ipcRenderer.invoke("serial:setLogSelections", selections),
+  onSerialLogs: (handler: (lines: unknown[]) => void) => {
+    const listener = (_event: unknown, lines: unknown[]) => {
+      handler(lines);
+    };
+    ipcRenderer.on("serial:logs", listener);
+    return () => ipcRenderer.off("serial:logs", listener);
+  },
   minimizeWindow: () => ipcRenderer.invoke("window:minimize"),
   toggleMaximizeWindow: () => ipcRenderer.invoke("window:toggleMaximize"),
   closeWindow: () => ipcRenderer.invoke("window:close"),
