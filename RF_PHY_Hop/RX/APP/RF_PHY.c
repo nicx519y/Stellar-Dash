@@ -22,12 +22,19 @@
 #define RF_AUTO_DEMO_ACK_TYPE          0xFFu
 #define RF_AUTO_DEMO_CHANNEL           39u
 #define RF_AUTO_DEMO_FREQUENCY_KHZ     2480000UL
+#ifndef RF_AUTO_DEMO_TX_POWER
+#define RF_AUTO_DEMO_TX_POWER          BLE_TX_POWER
+#endif
+#ifndef RF_AUTO_DEMO_PHY_PROPS
 #define RF_AUTO_DEMO_PHY_PROPS         LLE_MODE_PHY_2M
+#endif
 #define RF_AUTO_DEMO_SEND_ACK_ENABLE   1u
 #define RF_AUTO_DEMO_ACK_BIT           0u
 #define RF_AUTO_DEMO_REPORT_HZ         8000u
 #define RF_AUTO_DEMO_RATE_CODE         RFH_RATE_8K
+#ifndef RF_AUTO_DEMO_ACK_TX_DELAY_US
 #define RF_AUTO_DEMO_ACK_TX_DELAY_US   60u
+#endif
 #define RF_AUTO_DEMO_ACK_TOKEN_OFFSET  10u
 #define RF_AUTO_DEMO_ACK_REMAIN_OFFSET 11u
 #define RF_AUTO_DEMO_INITIAL_CHANNEL   39u
@@ -65,6 +72,8 @@ typedef struct
     volatile uint32_t ack_fail;
     volatile uint32_t tx_parm_fail;
     volatile uint32_t hop_event;
+    volatile uint32_t seq_gap;
+    volatile uint32_t pending_drop;
 } rf_auto_demo_stat_t;
 
 typedef enum
@@ -192,6 +201,11 @@ static volatile uint8_t g_demo_rx_pending_head = 0u;
 static volatile uint8_t g_demo_rx_pending_tail = 0u;
 static volatile uint32_t g_demo_rx_pending_drop = 0u;
 static volatile uint8_t g_demo_rx_pending_max_water = 0u;
+static volatile int32_t g_demo_rssi_sum = 0;
+static volatile uint32_t g_demo_rssi_count = 0u;
+static volatile int8_t g_demo_rssi_last = 0;
+static volatile int8_t g_demo_rssi_min = 127;
+static volatile int8_t g_demo_rssi_max = -127;
 
 static uint32_t demo_us_to_tmr_cycles(uint32_t us)
 {
@@ -464,6 +478,21 @@ static void demo_channel_scores_init(void)
     }
 }
 
+static void demo_note_rssi(int8_t rssi)
+{
+    g_demo_rssi_last = rssi;
+    g_demo_rssi_sum += rssi;
+    g_demo_rssi_count++;
+    if(rssi < g_demo_rssi_min)
+    {
+        g_demo_rssi_min = rssi;
+    }
+    if(rssi > g_demo_rssi_max)
+    {
+        g_demo_rssi_max = rssi;
+    }
+}
+
 static uint8_t demo_rx_pending_next(uint8_t index)
 {
     index++;
@@ -506,6 +535,7 @@ static void demo_queue_rx_pending_packet(const uint8_t *rx_buf)
     {
         g_demo_rx_pending_tail = demo_rx_pending_next(g_demo_rx_pending_tail);
         g_demo_rx_pending_drop++;
+        g_demo_stat.pending_drop++;
         g_demo_hid_errors++;
     }
 
@@ -539,6 +569,7 @@ static void demo_queue_rx_pending_crcerr(void)
     {
         g_demo_rx_pending_tail = demo_rx_pending_next(g_demo_rx_pending_tail);
         g_demo_rx_pending_drop++;
+        g_demo_stat.pending_drop++;
         g_demo_hid_errors++;
     }
 
@@ -740,6 +771,7 @@ static uint8_t demo_note_data_seq(uint8_t seq)
         if(diff > 1u)
         {
             g_demo_window_missing += (uint32_t)(diff - 1u);
+            g_demo_stat.seq_gap += (uint32_t)(diff - 1u);
             g_demo_hid_bad += (uint32_t)(diff - 1u);
             g_demo_air_diag_seq_gap += (uint32_t)(diff - 1u);
         }
@@ -1244,7 +1276,9 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
     {
         uint8_t completed_slot = g_demo_rx_active_slot;
         uint8_t *rx_buf;
+        int8_t rssi = RFIP_ReadRssi();
 
+        demo_note_rssi(rssi);
         g_demo_rx_active = 0u;
         if(completed_slot >= RF_RX_DMA_SLOT_COUNT)
         {
@@ -1256,6 +1290,9 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
     }
     if(sta & RF_STATE_RX_CRCERR)
     {
+        int8_t rssi = RFIP_ReadRssi();
+
+        demo_note_rssi(rssi);
         g_demo_rx_active = 0u;
         demo_arm_rx();
         demo_queue_rx_pending_crcerr();
@@ -1423,25 +1460,44 @@ uint8_t RF_HasPendingStatsLine(void)
 uint16_t RF_GetStatsLine(char *buf, uint16_t len)
 {
     int written;
+    uint32_t rssi_count;
+    int32_t rssi_avg;
+    int8_t rssi_min;
+    int8_t rssi_max;
 
     if((buf == NULL) || (len == 0u))
     {
         return 0u;
     }
 
+    rssi_count = g_demo_rssi_count;
+    rssi_avg = (rssi_count == 0u) ? 0 : (g_demo_rssi_sum / (int32_t)rssi_count);
+    rssi_min = (rssi_count == 0u) ? 0 : g_demo_rssi_min;
+    rssi_max = (rssi_count == 0u) ? 0 : g_demo_rssi_max;
+
     written = snprintf(buf,
                        len,
-                       "R8 c%u S%c h%u>%u d%lu q%lu a%lu/%lu e%lu/%lu H%lu x%u/%u/%u v%u\r\n",
+                       "R8 c%u S%c h%u>%u hz%u d%lu gap%lu q%lu a%lu/%lu e%lu/%lu p%lu w%u/%u rssi%ld/%d/%d/%d H%lu x%u/%u/%u v%u\r\n",
                        (unsigned int)g_demo_config_ret,
                        demo_rx_state_char(),
                        (unsigned int)g_demo_current_channel,
                        (unsigned int)g_demo_target_channel,
+                       (unsigned int)g_demo_report_hz,
                        (unsigned long)g_demo_stat.data_ok,
+                       (unsigned long)g_demo_stat.seq_gap,
                        (unsigned long)g_demo_stat.ack_req,
                        (unsigned long)g_demo_stat.ack_finish,
                        (unsigned long)g_demo_stat.ack_fail,
                        (unsigned long)g_demo_stat.data_crc_err,
                        (unsigned long)g_demo_stat.data_type_err,
+                       (unsigned long)g_demo_stat.pending_drop,
+                       (unsigned int)demo_rx_pending_water(g_demo_rx_pending_head,
+                                                           g_demo_rx_pending_tail),
+                       (unsigned int)g_demo_rx_pending_max_water,
+                       (long)rssi_avg,
+                       (int)rssi_min,
+                       (int)rssi_max,
+                       (int)g_demo_rssi_last,
                        (unsigned long)g_demo_stat.hop_event,
                        (unsigned int)g_demo_rx_ret,
                        (unsigned int)g_demo_tx_start_ret,
@@ -1462,6 +1518,14 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
     g_demo_stat.ack_fail = 0u;
     g_demo_stat.tx_parm_fail = 0u;
     g_demo_stat.hop_event = 0u;
+    g_demo_stat.seq_gap = 0u;
+    g_demo_stat.pending_drop = 0u;
+    g_demo_rx_pending_max_water = demo_rx_pending_water(g_demo_rx_pending_head,
+                                                        g_demo_rx_pending_tail);
+    g_demo_rssi_sum = 0;
+    g_demo_rssi_count = 0u;
+    g_demo_rssi_min = 127;
+    g_demo_rssi_max = -127;
 
     return (uint16_t)((written >= (int)len) ? (len - 1u) : (uint16_t)written);
 }
@@ -1818,7 +1882,7 @@ void RF_Init(void)
     PFIC_EnableIRQ(TMR1_IRQn);
 
     memset(&conf, 0, sizeof(conf));
-    conf.TxPower = BLE_TX_POWER;
+    conf.TxPower = RF_AUTO_DEMO_TX_POWER;
     conf.rfProcessCB = RF_ProcessCallBack;
     conf.processMask = RF_STATE_RX | RF_STATE_RX_CRCERR |
                        RF_STATE_TX_FINISH | RF_STATE_TIMEOUT | RF_STATE_TX_IDLE;

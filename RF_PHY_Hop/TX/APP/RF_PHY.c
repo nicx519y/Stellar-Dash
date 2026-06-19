@@ -26,7 +26,12 @@
 #define RF_AUTO_DEMO_ACK_TYPE          0xFFu
 #define RF_AUTO_DEMO_CHANNEL           39u
 #define RF_AUTO_DEMO_FREQUENCY_KHZ     2480000UL
+#ifndef RF_AUTO_DEMO_TX_POWER
+#define RF_AUTO_DEMO_TX_POWER          BLE_TX_POWER
+#endif
+#ifndef RF_AUTO_DEMO_PHY_PROPS
 #define RF_AUTO_DEMO_PHY_PROPS         LLE_MODE_PHY_2M
+#endif
 #define RF_AUTO_DEMO_WAIT_ACK_ENABLE   0u
 #define RF_AUTO_DEMO_ACK_BIT           (RF_AUTO_DEMO_WAIT_ACK_ENABLE ? PROP_WAIT_ACK : 0u)
 #define RF_AUTO_DEMO_REPORT_HZ         8000u
@@ -37,9 +42,13 @@
 #define RF_AUTO_DEMO_TX_IN_ISR         1u
 #define RF_AUTO_DEMO_ACK_INTERVAL_MS   500u
 #define RF_AUTO_DEMO_ACK_REQUEST_BURST 3u
+#ifndef RF_AUTO_DEMO_ACK_RX_TIMEOUT_US
 #define RF_AUTO_DEMO_ACK_RX_TIMEOUT_US 1200u
+#endif
 #define RF_AUTO_DEMO_ACK_RX_TIMEOUT_UNITS (RF_AUTO_DEMO_ACK_RX_TIMEOUT_US * 2u)
+#ifndef RF_AUTO_DEMO_TX_SEND_TIME_UNITS
 #define RF_AUTO_DEMO_TX_SEND_TIME_UNITS (4u * 2u)
+#endif
 #define RF_AUTO_DEMO_ACK_TOKEN_OFFSET  10u
 #define RF_AUTO_DEMO_ACK_REMAIN_OFFSET 11u
 #define RF_AUTO_DEMO_INITIAL_CHANNEL   39u
@@ -247,6 +256,23 @@ static void demo_channel_scores_init(void)
     {
         g_demo_channel_scores[i] = RF_AUTO_DEMO_CHANNEL_SCORE_GOOD;
     }
+}
+
+static char demo_tx_state_char(void)
+{
+    if(g_demo_hop_state == RF_AUTO_HOP_PREPARE_ACK_WAIT)
+    {
+        return 'P';
+    }
+    if(g_demo_hop_state == RF_AUTO_HOP_CONFIRM_ACK_WAIT)
+    {
+        return 'C';
+    }
+    if(g_demo_hop_state == RF_AUTO_HOP_RECOVERY_DUAL)
+    {
+        return 'R';
+    }
+    return 'M';
 }
 
 #if (RF_AUTO_DEMO_AUTO_HOP_ENABLE != 0u)
@@ -639,6 +665,9 @@ static void demo_log_stats(uint32_t now)
 {
     uint32_t elapsed_ticks;
     unsigned long elapsed_ms;
+#if (RF_SERIAL_LOG == 1)
+    uint32_t ack_fail;
+#endif
 
     if((uint32_t)(now - g_demo_last_log_clock) < MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_LOG_PERIOD_MS))
     {
@@ -648,6 +677,39 @@ static void demo_log_stats(uint32_t now)
     g_demo_last_log_clock = now;
     elapsed_ms = (unsigned long)(((elapsed_ticks * (uint32_t)SYSTEM_TIME_MICROSEN) + 999u) / 1000u);
     rfm_spi_bridge_diag_emit(elapsed_ms);
+
+#if (RF_SERIAL_LOG == 1)
+    ack_fail = g_demo_stat.ack_timeout +
+               g_demo_stat.ack_crc_err +
+               g_demo_stat.ack_type_err;
+    PRINT("[RF][TX][%lums] c%u S%c h%u>%u hz%u q%u sc%u due%lu tx%lu fin%lu dr%lu aq%lu ack%lu/%lu to%lu ce%lu te%lu fail%lu miss%u H%lu b%u rx%u rt%u/%u/%u\r\n",
+          elapsed_ms,
+          (unsigned int)g_demo_config_ret,
+          demo_tx_state_char(),
+          (unsigned int)g_demo_current_channel,
+          (unsigned int)g_demo_target_channel,
+          (unsigned int)g_demo_report_hz,
+          (unsigned int)g_demo_last_quality,
+          (unsigned int)demo_channel_score_get(g_demo_current_channel),
+          (unsigned long)g_demo_stat.report_due,
+          (unsigned long)g_demo_stat.tx_start,
+          (unsigned long)g_demo_stat.tx_finish,
+          (unsigned long)g_demo_stat.report_drop,
+          (unsigned long)g_demo_stat.ack_req,
+          (unsigned long)g_demo_stat.ack_ok,
+          (unsigned long)ack_fail,
+          (unsigned long)g_demo_stat.ack_timeout,
+          (unsigned long)g_demo_stat.ack_crc_err,
+          (unsigned long)g_demo_stat.ack_type_err,
+          (unsigned long)g_demo_stat.tx_fail,
+          (unsigned int)g_demo_ack_miss_count,
+          (unsigned long)g_demo_stat.hop_event,
+          (unsigned int)g_demo_tx_busy,
+          (unsigned int)g_demo_ack_rx_active,
+          (unsigned int)g_demo_tx_start_ret,
+          (unsigned int)g_demo_tx_parm_ret,
+          (unsigned int)g_demo_rx_ret);
+#endif
 
     g_demo_stat.tx_start = 0u;
     g_demo_stat.tx_fail = 0u;
@@ -1165,7 +1227,7 @@ void RF_Init(void)
     PFIC_EnableIRQ(BLEL_IRQn);
 
     memset(&conf, 0, sizeof(conf));
-    conf.TxPower = BLE_TX_POWER;
+    conf.TxPower = RF_AUTO_DEMO_TX_POWER;
     conf.rfProcessCB = RF_ProcessCallBack;
     conf.processMask = RF_STATE_RX | RF_STATE_RX_CRCERR |
                        RF_STATE_TX_FINISH | RF_STATE_TIMEOUT | RF_STATE_TX_IDLE;

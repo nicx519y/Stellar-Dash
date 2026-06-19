@@ -53,7 +53,8 @@ void LED_Ctrl_Service(void);
 
 #if (RF_SERIAL_LOG == 1)
 static uint8_t s_main_pending_log = FALSE;
-static char s_main_pending_msg[128];
+static char s_main_pending_msg[192];
+static uint16_t s_main_pending_offset = 0u;
 #endif
 
 static uint8_t RX_MainTmr0Elapsed(uint32_t now, uint32_t *last, uint32_t *acc, uint32_t period)
@@ -79,50 +80,75 @@ static uint8_t RX_MainTmr0Elapsed(uint32_t now, uint32_t *last, uint32_t *acc, u
 }
 
 #if (RF_SERIAL_LOG == 1)
-static uint8_t RX_MainSendCdc(const char *msg)
+static uint16_t RX_MainSendCdcChunk(const char *msg, uint16_t offset)
 {
     uint16_t len;
     uint16_t max_len;
+    uint16_t send_len;
 
     if(USBHS_DevEnumStatus == 0)
     {
-        return FALSE;
+        return 0u;
     }
     if((USBHS_Endp_Busy[DEF_UEP5] & DEF_UEP_BUSY) != 0)
     {
-        return FALSE;
+        return 0u;
     }
 
     len = (uint16_t)strlen(msg);
+    if(offset >= len)
+    {
+        return 0xFFFFu;
+    }
 #if defined(DONGLE_USB_FORCE_FULLSPEED) && (DONGLE_USB_FORCE_FULLSPEED != 0u)
     max_len = DEF_USB_EP5_FS_SIZE;
 #else
     max_len = DEF_USB_EP5_HS_SIZE;
 #endif
-    if(len > max_len)
+    send_len = (uint16_t)(len - offset);
+    if(send_len > max_len)
     {
-        len = max_len;
+        send_len = max_len;
     }
-    if(USBHS_Endp_DataUp(DEF_UEP5, (uint8_t *)msg, len, DEF_UEP_CPY_LOAD) == 0u)
+    if(USBHS_Endp_DataUp(DEF_UEP5,
+                         (uint8_t *)&msg[offset],
+                         send_len,
+                         DEF_UEP_CPY_LOAD) == 0u)
     {
-        return TRUE;
+        return send_len;
     }
 
-    return FALSE;
+    return 0u;
 }
 #endif
 
 static void RX_MainFlushLog(void)
 {
 #if (RF_SERIAL_LOG == 1)
+    uint16_t sent;
+
     if(s_main_pending_log == FALSE)
     {
         return;
     }
 
-    if(RX_MainSendCdc(s_main_pending_msg) != FALSE)
+    sent = RX_MainSendCdcChunk(s_main_pending_msg, s_main_pending_offset);
+    if(sent == 0u)
+    {
+        return;
+    }
+    if(sent == 0xFFFFu)
     {
         s_main_pending_log = FALSE;
+        s_main_pending_offset = 0u;
+        return;
+    }
+
+    s_main_pending_offset = (uint16_t)(s_main_pending_offset + sent);
+    if(s_main_pending_msg[s_main_pending_offset] == '\0')
+    {
+        s_main_pending_log = FALSE;
+        s_main_pending_offset = 0u;
     }
 #endif
 }
@@ -130,8 +156,14 @@ static void RX_MainFlushLog(void)
 static void RX_MainLog(const char *msg)
 {
 #if (RF_SERIAL_LOG == 1)
+    RX_MainFlushLog();
+    if(s_main_pending_log != FALSE)
+    {
+        return;
+    }
     strncpy(s_main_pending_msg, msg, sizeof(s_main_pending_msg) - 1u);
     s_main_pending_msg[sizeof(s_main_pending_msg) - 1u] = '\0';
+    s_main_pending_offset = 0u;
     s_main_pending_log = TRUE;
     RX_MainFlushLog();
 #else
@@ -142,7 +174,7 @@ static void RX_MainLog(const char *msg)
 static void RX_MainLogStats(void)
 {
 #if (RF_SERIAL_LOG == 1)
-    char stats_msg[64];
+    char stats_msg[192];
 
     if(RF_GetStatsLine(stats_msg, sizeof(stats_msg)) == 0u)
     {

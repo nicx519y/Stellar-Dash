@@ -1,4 +1,4 @@
-import { Box } from "@chakra-ui/react";
+import { Box, HStack } from "@chakra-ui/react";
 import * as React from "react";
 
 import type { SerialLogLine, SerialPortInfo } from "../../../shared/monitor-types";
@@ -30,6 +30,65 @@ function normalizeSelections(selections: string[]): string[] {
 
 function appendRows(current: SerialLogLine[] | undefined, lines: SerialLogLine[]) {
   return [...(current ?? []), ...lines].slice(-MAX_LOG_ROWS);
+}
+
+function buildLogFilter(pattern: string): { regex: RegExp | null; invalid: boolean } {
+  const trimmed = pattern.trim();
+  if (!trimmed) return { regex: null, invalid: false };
+
+  try {
+    if (trimmed.startsWith("/") && trimmed.lastIndexOf("/") > 0) {
+      const lastSlash = trimmed.lastIndexOf("/");
+      return {
+        regex: new RegExp(trimmed.slice(1, lastSlash), trimmed.slice(lastSlash + 1)),
+        invalid: false,
+      };
+    }
+    return { regex: new RegExp(trimmed), invalid: false };
+  } catch {
+    return { regex: null, invalid: true };
+  }
+}
+
+function matchesLogFilter(line: SerialLogLine, regex: RegExp | null) {
+  if (!regex) return true;
+  regex.lastIndex = 0;
+  return regex.test(line.text);
+}
+
+function RegexFilterInput({
+  slot,
+  value,
+  invalid,
+  onChange,
+}: {
+  slot: number;
+  value: string;
+  invalid: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <input
+      value={value}
+      title={invalid ? "Invalid regex" : "Regex filter"}
+      aria-label={`Log ${slot + 1} regex filter`}
+      placeholder="Regex"
+      onChange={(event) => onChange(event.currentTarget.value)}
+      style={{
+        width: "150px",
+        height: "28px",
+        padding: "0 8px",
+        borderWidth: "1px",
+        borderStyle: "solid",
+        borderRadius: "6px",
+        borderColor: invalid ? "rgba(255,96,96,0.72)" : "rgba(92,255,138,0.34)",
+        background: "rgba(8,18,16,0.86)",
+        color: "rgba(245,255,248,0.92)",
+        fontSize: "12px",
+        outline: "none",
+      }}
+    />
+  );
 }
 
 function PortSelector({
@@ -87,15 +146,31 @@ function SerialLogCard({
   ports,
   selectedPort,
   items,
+  filterPattern,
+  onFilterChange,
   onPortChange,
 }: {
   slot: number;
   ports: SerialPortInfo[];
   selectedPort: string;
   items: SerialLogLine[];
+  filterPattern: string;
+  onFilterChange: (slot: number, pattern: string) => void;
   onPortChange: (slot: number, portPath: string) => void;
 }) {
-  const rows = items.slice(-MAX_LOG_ROWS).reverse();
+  const filter = React.useMemo(() => buildLogFilter(filterPattern), [filterPattern]);
+  const recentRows = items.slice(-MAX_LOG_ROWS).reverse();
+  const rows = filter.invalid
+    ? []
+    : recentRows.filter((row) => matchesLogFilter(row, filter.regex));
+  const hasFilter = filterPattern.trim().length > 0;
+  const countText = !selectedPort
+    ? "Select COM"
+    : filter.invalid
+      ? "Invalid regex"
+      : hasFilter
+        ? `Matched ${rows.length} / ${recentRows.length}`
+        : `Recent ${rows.length} / ${MAX_LOG_ROWS}`;
   const columns = React.useMemo<Array<VirtualColumn<SerialLogLine>>>(
     () => [
       { key: "time", header: "Time", width: "110px", render: (row) => fmtTime(row.timestampMs) },
@@ -107,13 +182,21 @@ function SerialLogCard({
   return (
     <VirtualTable
       title={`Log ${slot + 1}`}
-      countText={selectedPort ? `Recent ${rows.length} / ${MAX_LOG_ROWS}` : "Select COM"}
+      countText={countText}
       action={
-        <PortSelector
-          ports={ports}
-          selectedPort={selectedPort}
-          onPortChange={(portPath) => onPortChange(slot, portPath)}
-        />
+        <HStack gap={2}>
+          <RegexFilterInput
+            slot={slot}
+            value={filterPattern}
+            invalid={filter.invalid}
+            onChange={(pattern) => onFilterChange(slot, pattern)}
+          />
+          <PortSelector
+            ports={ports}
+            selectedPort={selectedPort}
+            onPortChange={(portPath) => onPortChange(slot, portPath)}
+          />
+        </HStack>
       }
       items={rows}
       columns={columns}
@@ -123,9 +206,10 @@ function SerialLogCard({
   );
 }
 
-export function SerialLogPanel() {
+export function SerialLogPanel({ clearVersion = 0 }: { clearVersion?: number }) {
   const [ports, setPorts] = React.useState<SerialPortInfo[]>([]);
   const [selections, setSelections] = React.useState<string[]>(() => normalizeSelections([]));
+  const [filterPatterns, setFilterPatterns] = React.useState<string[]>(() => normalizeSelections([]));
   const [logsByPort, setLogsByPort] = React.useState<Map<string, SerialLogLine[]>>(() => new Map());
 
   const refreshPorts = React.useCallback(() => {
@@ -174,6 +258,10 @@ export function SerialLogPanel() {
   }, []);
 
   React.useEffect(() => {
+    setLogsByPort(new Map());
+  }, [clearVersion]);
+
+  React.useEffect(() => {
     let canceled = false;
     const selectedPorts = Array.from(new Set(selections.filter(Boolean)));
 
@@ -193,7 +281,7 @@ export function SerialLogPanel() {
     return () => {
       canceled = true;
     };
-  }, [selections]);
+  }, [selections, clearVersion]);
 
   const handlePortChange = React.useCallback((slot: number, portPath: string) => {
     setSelections((current) => {
@@ -204,6 +292,14 @@ export function SerialLogPanel() {
           .then((savedSelections) => setSelections(normalizeSelections(savedSelections)))
           .catch(() => {});
       }
+      return next;
+    });
+  }, []);
+
+  const handleFilterChange = React.useCallback((slot: number, pattern: string) => {
+    setFilterPatterns((current) => {
+      const next = normalizeSelections(current);
+      next[slot] = pattern;
       return next;
     });
   }, []);
@@ -224,6 +320,8 @@ export function SerialLogPanel() {
           ports={ports}
           selectedPort={selectedPort}
           items={selectedPort ? logsByPort.get(selectedPort) ?? [] : []}
+          filterPattern={filterPatterns[slot] ?? ""}
+          onFilterChange={handleFilterChange}
           onPortChange={handlePortChange}
         />
       ))}

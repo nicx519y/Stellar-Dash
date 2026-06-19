@@ -27,6 +27,7 @@ import { RatePanel } from "./RatePanel";
 import { SerialLogPanel } from "./SerialLogPanel";
 import { neonGreen, panelSurfaceProps, toolbarActionButtonProps } from "./panelStyles";
 import { scrollbarStyle } from "./scrollbarStyle";
+import { clearSerialLogLines } from "./serialLogStore";
 
 const appScrollStyle = {
   ...scrollbarStyle,
@@ -240,10 +241,12 @@ function TrafficPanels({
   packets,
   channelSwitches,
   channelScores,
+  serialLogClearVersion,
 }: {
   packets: ReturnType<typeof useMonitorStream>["packets"];
   channelSwitches: ReturnType<typeof useMonitorStream>["channelSwitches"];
   channelScores: ReturnType<typeof useMonitorStream>["channelScores"];
+  serialLogClearVersion: number;
 }) {
   const [activeTab, setActiveTab] = useState<"traffic" | "log">("traffic");
   const activeTabProps = {
@@ -304,7 +307,7 @@ function TrafficPanels({
           <ChannelScorePanel items={channelScores} fillHeight />
         </Box>
       ) : (
-        <SerialLogPanel />
+        <SerialLogPanel clearVersion={serialLogClearVersion} />
       )}
     </Box>
   );
@@ -314,6 +317,7 @@ export function App() {
   const { events, packets, latency, chart, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollState, setScrollState] = useState({ top: 0, client: 1, scroll: 1 });
+  const [serialLogClearVersion, setSerialLogClearVersion] = useState(0);
 
   const usbStatus = useMemo(() => latestStatus(events, "USB"), [events]);
   const rfStatus = useMemo(() => latestStatus(events, "RF24G"), [events]);
@@ -333,6 +337,13 @@ export function App() {
   const thumbTopPct = canScroll
     ? (scrollState.top / Math.max(1, scrollState.scroll - scrollState.client)) * (100 - thumbHeightPct)
     : 0;
+  const handleClearData = () => {
+    clear();
+    setSerialLogClearVersion((version) => version + 1);
+    void clearSerialLogLines()
+      .then(() => setSerialLogClearVersion((version) => version + 1))
+      .catch(() => {});
+  };
 
   useEffect(() => {
     const scroller = scrollRef.current;
@@ -412,7 +423,7 @@ export function App() {
             </Button>
             <Button
               {...toolbarActionButtonProps}
-              onClick={clear}
+              onClick={handleClearData}
             >
               <GrClearOption />
               Clear Data
@@ -507,7 +518,12 @@ export function App() {
             />
             <ButtonsPanel compact rfInput={rfInput} />
           </Box>
-          <TrafficPanels packets={packets} channelSwitches={channelSwitches} channelScores={channelScores} />
+          <TrafficPanels
+            packets={packets}
+            channelSwitches={channelSwitches}
+            channelScores={channelScores}
+            serialLogClearVersion={serialLogClearVersion}
+          />
         </VStack>
       </Box>
       {canScroll ? (

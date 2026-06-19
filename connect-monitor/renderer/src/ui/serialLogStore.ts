@@ -72,6 +72,21 @@ export async function appendSerialLogLines(lines: SerialLogLine[]): Promise<void
   });
 }
 
+export async function clearSerialLogLines(): Promise<void> {
+  const db = await openDatabase();
+
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error("Failed to clear serial logs"));
+    tx.onabort = () => reject(tx.error ?? new Error("Serial log clear was aborted"));
+
+    store.clear();
+  });
+}
+
 export async function loadSerialLogLines(portPath: string, limit = MAX_LOGS_PER_PORT): Promise<SerialLogLine[]> {
   if (!portPath || limit <= 0) return [];
   const db = await openDatabase();
