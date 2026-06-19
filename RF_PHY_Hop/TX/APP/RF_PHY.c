@@ -153,10 +153,12 @@ static uint32_t g_demo_last_log_clock = 0u;
 static uint8_t g_demo_last_payload[RFH_AIR_DATA_LEN] = {0};
 static volatile uint8_t g_demo_have_payload = 0u;
 static volatile uint8_t g_monitor_tx_log_enabled = 0u;
+static volatile uint8_t g_monitor_auto_hop_enabled = 1u;
+static volatile uint8_t g_monitor_manual_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
 static volatile uint8_t g_monitor_status_pending = 0u;
 static uint8_t g_monitor_status_seq = 0u;
 static uint8_t g_monitor_status_flags = 0u;
-static uint8_t g_monitor_status_period_code = 0u;
+static uint8_t g_monitor_status_manual_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
 static uint8_t g_monitor_status_result = RFMON_APPLY_IDLE;
 
 static const uint8_t g_demo_hop_channels[] = { 39u, 16u, 24u, 32u };
@@ -378,6 +380,10 @@ static void demo_start_hop_prepare(uint32_t now, uint16_t reason_score)
     (void)reason_score;
     return;
 #else
+    if(g_monitor_auto_hop_enabled == 0u)
+    {
+        return;
+    }
     if(g_demo_hop_state != RF_AUTO_HOP_COMM)
     {
         return;
@@ -406,6 +412,38 @@ static void demo_start_hop_prepare(uint32_t now, uint16_t reason_score)
     g_demo_force_ack_burst = 1u;
     g_demo_stat.hop_event++;
 #endif
+}
+
+static void demo_start_manual_hop(uint8_t target_channel)
+{
+    uint32_t now;
+
+    if(demo_channel_index(target_channel) == 0xFFu)
+    {
+        return;
+    }
+    if(g_demo_hop_state != RF_AUTO_HOP_COMM)
+    {
+        return;
+    }
+    if(target_channel == g_demo_current_channel)
+    {
+        return;
+    }
+
+    now = TMOS_GetSystemClock();
+    g_demo_old_channel = g_demo_current_channel;
+    g_demo_target_channel = target_channel;
+    g_demo_hop_reason_score = demo_channel_score_get(g_demo_current_channel);
+    g_demo_hop_seq++;
+    if(g_demo_hop_seq == 0u)
+    {
+        g_demo_hop_seq = 1u;
+    }
+    g_demo_hop_state = RF_AUTO_HOP_PREPARE_ACK_WAIT;
+    g_demo_hop_deadline_clock = now + MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_HOP_PREPARE_TIMEOUT_MS);
+    g_demo_force_ack_burst = 1u;
+    g_demo_stat.hop_event++;
 }
 
 static void demo_finish_hop(uint32_t now)
@@ -522,16 +560,25 @@ static void demo_handle_ack_packet(void)
     if(cmd == RFH_CMD_MONITOR_CONFIG)
     {
         uint8_t flags = data[RFH_ACK_MON_FLAGS];
-        uint8_t period_code = data[RFH_ACK_MON_PERIOD_CODE];
+        uint8_t manual_channel = data[RFH_ACK_MON_MANUAL_CHANNEL];
 
         g_monitor_tx_log_enabled = ((flags & RFMON_FLAG_TX_LOG) != 0u) ? 1u : 0u;
+        g_monitor_auto_hop_enabled = ((flags & RFMON_FLAG_AUTO_HOP) != 0u) ? 1u : 0u;
+        if(demo_channel_index(manual_channel) != 0xFFu)
+        {
+            g_monitor_manual_channel = manual_channel;
+        }
         g_monitor_status_seq = seq;
         g_monitor_status_flags = flags;
-        g_monitor_status_period_code = period_code;
+        g_monitor_status_manual_channel = g_monitor_manual_channel;
         g_monitor_status_result =
-            (rfm_spi_bridge_emit_monitor_config(seq, flags, period_code) != 0u) ?
+            (rfm_spi_bridge_emit_monitor_config(seq, flags, 0u) != 0u) ?
             RFMON_APPLY_APPLIED : RFMON_APPLY_PENDING;
         g_monitor_status_pending = 1u;
+        if(g_monitor_auto_hop_enabled == 0u)
+        {
+            demo_start_manual_hop(g_monitor_manual_channel);
+        }
         return;
     }
 
@@ -642,7 +689,7 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
         {
             data[RFH_CMD_SLOT_ID] = RFH_CMD_MONITOR_CONFIG;
             data[RFH_CMD_SLOT_ARG0] = g_monitor_status_flags;
-            data[RFH_CMD_SLOT_ARG1] = g_monitor_status_period_code;
+            data[RFH_CMD_SLOT_ARG1] = g_monitor_status_manual_channel;
             data[RFH_CMD_SLOT_ARG2] = g_monitor_status_result;
             data[RFH_CMD_SLOT_ARG3] = g_monitor_status_seq;
             g_monitor_status_pending = 0u;

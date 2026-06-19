@@ -19,6 +19,7 @@
 #define RFMON_FLAG_RX_LOG               0x00000002UL
 #define RFMON_FLAG_TX_LOG               0x00000004UL
 #define RFMON_FLAG_STM32_LOG            0x00000008UL
+#define RFMON_FLAG_AUTO_HOP             0x00000010UL
 
 #define RFMON_APPLY_IDLE                0u
 #define RFMON_APPLY_APPLIED             1u

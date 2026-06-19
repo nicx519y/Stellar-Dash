@@ -29,6 +29,8 @@ let debugConfig: DebugConfig = {
   rxLogEnabled: false,
   txLogEnabled: false,
   stm32LogEnabled: false,
+  autoHopEnabled: true,
+  manualChannel: null,
 };
 
 type ExportMarkdownRequest = {
@@ -56,12 +58,17 @@ function sanitizeDebugConfig(value: unknown): DebugConfig {
   const cfg = value as Partial<DebugConfig> | null | undefined;
   const period = cfg?.hidPeriodMs;
   const hidPeriodMs = period === 100 || period === 250 || period === 500 || period === 1000 ? period : 500;
+  const manualChannel = typeof cfg?.manualChannel === "number" && [16, 24, 32, 39].includes(cfg.manualChannel)
+    ? cfg.manualChannel
+    : null;
   return {
     hidTelemetryEnabled: Boolean(cfg?.hidTelemetryEnabled),
     hidPeriodMs,
     rxLogEnabled: Boolean(cfg?.rxLogEnabled),
     txLogEnabled: Boolean(cfg?.txLogEnabled),
     stm32LogEnabled: Boolean(cfg?.stm32LogEnabled),
+    autoHopEnabled: cfg?.autoHopEnabled !== false,
+    manualChannel,
   };
 }
 

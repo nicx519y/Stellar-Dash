@@ -210,6 +210,8 @@ static volatile int8_t g_demo_rssi_max = -127;
 static volatile uint8_t g_monitor_hid_enabled = 0u;
 static volatile uint16_t g_monitor_hid_period_ms = RFMON_PERIOD_OFF;
 static volatile uint8_t g_monitor_rx_log_enabled = 0u;
+static volatile uint8_t g_monitor_auto_hop_enabled = 1u;
+static volatile uint8_t g_monitor_manual_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
 static volatile uint8_t g_monitor_seq = 0u;
 static volatile uint8_t g_monitor_rx_status = RFMON_APPLY_IDLE;
 static volatile uint8_t g_monitor_tx_status = RFMON_APPLY_IDLE;
@@ -260,14 +262,32 @@ static uint32_t monitor_current_flags(void)
     {
         flags |= RFMON_FLAG_RX_LOG;
     }
+    if(g_monitor_auto_hop_enabled != 0u)
+    {
+        flags |= RFMON_FLAG_AUTO_HOP;
+    }
     flags |= g_monitor_pending_flags & (RFMON_FLAG_TX_LOG | RFMON_FLAG_STM32_LOG);
     return flags;
+}
+
+static uint8_t monitor_channel_valid(uint8_t channel)
+{
+    uint8_t i;
+
+    for(i = 0u; i < (uint8_t)(sizeof(g_demo_score_channels) / sizeof(g_demo_score_channels[0])); i++)
+    {
+        if(g_demo_score_channels[i] == channel)
+        {
+            return 1u;
+        }
+    }
+    return 0u;
 }
 
 static void monitor_mark_remote_pending(uint8_t seq, uint8_t target, uint32_t flags, uint16_t period_ms)
 {
     g_monitor_pending_seq = seq;
-    g_monitor_pending_flags = flags & (RFMON_FLAG_TX_LOG | RFMON_FLAG_STM32_LOG);
+    g_monitor_pending_flags = flags & (RFMON_FLAG_TX_LOG | RFMON_FLAG_STM32_LOG | RFMON_FLAG_AUTO_HOP);
     g_monitor_pending_period_ms = period_ms;
     g_monitor_pending_retries = 12u;
     if((target == RFMON_TARGET_ALL) || (target == RFMON_TARGET_TX))
@@ -316,6 +336,7 @@ uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
     uint16_t period_ms;
     uint16_t frame_crc;
     uint16_t calc_crc;
+    uint8_t manual_channel;
     uint8_t version;
     uint8_t seq;
     uint8_t target;
@@ -334,6 +355,7 @@ uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
     flags = monitor_get_u32(&report[8]);
     period_ms = monitor_get_u16(&report[12]);
     frame_crc = monitor_get_u16(&report[14]);
+    manual_channel = report[16];
     calc_crc = rfmon_crc16_ccitt(report, 14u);
 
     if((magic != RFMON_CTL_MAGIC) ||
@@ -366,6 +388,16 @@ uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
         g_monitor_hid_enabled = ((flags & RFMON_FLAG_HID_TELEMETRY) != 0u) ? 1u : 0u;
         g_monitor_hid_period_ms = g_monitor_hid_enabled ? period_ms : RFMON_PERIOD_OFF;
         g_monitor_rx_log_enabled = ((flags & RFMON_FLAG_RX_LOG) != 0u) ? 1u : 0u;
+    }
+    if((target == RFMON_TARGET_ALL) ||
+       (target == RFMON_TARGET_RX) ||
+       (target == RFMON_TARGET_TX))
+    {
+        g_monitor_auto_hop_enabled = ((flags & RFMON_FLAG_AUTO_HOP) != 0u) ? 1u : 0u;
+        if(monitor_channel_valid(manual_channel) != 0u)
+        {
+            g_monitor_manual_channel = manual_channel;
+        }
     }
     g_monitor_rx_status = RFMON_APPLY_APPLIED;
 
@@ -866,8 +898,8 @@ static void demo_fill_ack_packet(void)
        (g_monitor_pending_retries != 0u))
     {
         data[RFH_ACK_CMD_ID] = RFH_CMD_MONITOR_CONFIG;
-        data[RFH_ACK_MON_FLAGS] = (uint8_t)(g_monitor_pending_flags & 0x0Fu);
-        data[RFH_ACK_MON_PERIOD_CODE] = rfmon_period_to_code(g_monitor_pending_period_ms);
+        data[RFH_ACK_MON_FLAGS] = (uint8_t)(g_monitor_pending_flags & 0xFFu);
+        data[RFH_ACK_MON_MANUAL_CHANNEL] = g_monitor_manual_channel;
         data[RFH_ACK_MON_SEQ] = g_monitor_pending_seq;
         g_monitor_pending_retries--;
         if(g_monitor_pending_retries == 0u)

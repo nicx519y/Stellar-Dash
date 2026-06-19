@@ -227,6 +227,8 @@ const defaultDebugConfig: DebugConfig = {
   rxLogEnabled: false,
   txLogEnabled: false,
   stm32LogEnabled: false,
+  autoHopEnabled: true,
+  manualChannel: null,
 };
 
 function DebugToggle({
@@ -262,33 +264,16 @@ function DebugToggle({
   );
 }
 
-function DebugControlCard() {
-  const [config, setConfig] = useState<DebugConfig>(defaultDebugConfig);
-  const [status, setStatus] = useState<DebugApplyState>("Idle");
+function DebugControlCard({
+  config,
+  status,
+  applyConfig,
+}: {
+  config: DebugConfig;
+  status: DebugApplyState;
+  applyConfig: (next: DebugConfig) => void;
+}) {
   const periods: DebugHidPeriodMs[] = [100, 250, 500, 1000];
-
-  const applyConfig = (next: DebugConfig) => {
-    setConfig(next);
-    setStatus("Applying");
-    window.connectMonitorApi?.setDebugConfig?.(next)
-      .then((nextStatus) => setStatus(nextStatus.state))
-      .catch(() => setStatus("Failed"));
-  };
-
-  useEffect(() => {
-    window.connectMonitorApi?.getDebugConfig?.()
-      .then((saved) => setConfig(saved))
-      .catch(() => {});
-    window.connectMonitorApi?.getDebugConfigStatus?.()
-      .then((nextStatus) => setStatus(nextStatus.state))
-      .catch(() => {});
-    const timer = window.setInterval(() => {
-      window.connectMonitorApi?.getDebugConfigStatus?.()
-        .then((nextStatus) => setStatus(nextStatus.state))
-        .catch(() => {});
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   return (
     <Card.Root variant="outline" {...panelSurfaceProps}>
@@ -345,11 +330,15 @@ function TrafficPanels({
   channelSwitches,
   channelScores,
   serialLogClearVersion,
+  debugConfig,
+  applyDebugConfig,
 }: {
   packets: ReturnType<typeof useMonitorStream>["packets"];
   channelSwitches: ReturnType<typeof useMonitorStream>["channelSwitches"];
   channelScores: ReturnType<typeof useMonitorStream>["channelScores"];
   serialLogClearVersion: number;
+  debugConfig: DebugConfig;
+  applyDebugConfig: (next: DebugConfig) => void;
 }) {
   const [activeTab, setActiveTab] = useState<"traffic" | "log">("traffic");
   const activeTabProps = {
@@ -407,7 +396,24 @@ function TrafficPanels({
         >
           <PacketsPanel items={packets.items} fillHeight />
           <ChannelPanel items={channelSwitches} fillHeight />
-          <ChannelScorePanel items={channelScores} fillHeight />
+          <ChannelScorePanel
+            items={channelScores}
+            fillHeight
+            autoHopEnabled={debugConfig.autoHopEnabled}
+            onAutoHopChange={(enabled) => {
+              const activeChannel = channelScores.find((item) => item.active)?.channel ?? debugConfig.manualChannel;
+              applyDebugConfig({
+                ...debugConfig,
+                autoHopEnabled: enabled,
+                manualChannel: enabled ? debugConfig.manualChannel : activeChannel,
+              });
+            }}
+            onManualChannelSelect={(channel) => applyDebugConfig({
+              ...debugConfig,
+              autoHopEnabled: false,
+              manualChannel: channel,
+            })}
+          />
         </Box>
       ) : (
         <SerialLogPanel clearVersion={serialLogClearVersion} />
@@ -421,6 +427,8 @@ export function App() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollState, setScrollState] = useState({ top: 0, client: 1, scroll: 1 });
   const [serialLogClearVersion, setSerialLogClearVersion] = useState(0);
+  const [debugConfig, setDebugConfig] = useState<DebugConfig>(defaultDebugConfig);
+  const [debugStatus, setDebugStatus] = useState<DebugApplyState>("Idle");
 
   const rfStatus = useMemo(() => latestStatus(events, "RF24G"), [events]);
   const rfConnected = rfStatus?.state === "Connected";
@@ -444,6 +452,13 @@ export function App() {
     void clearSerialLogLines()
       .then(() => setSerialLogClearVersion((version) => version + 1))
       .catch(() => {});
+  };
+  const applyDebugConfig = (next: DebugConfig) => {
+    setDebugConfig(next);
+    setDebugStatus("Applying");
+    window.connectMonitorApi?.setDebugConfig?.(next)
+      .then((nextStatus) => setDebugStatus(nextStatus.state))
+      .catch(() => setDebugStatus("Failed"));
   };
 
   useEffect(() => {
@@ -471,6 +486,21 @@ export function App() {
       window.removeEventListener("resize", updateScrollState);
     };
   }, [channelSwitches.length, events.length, packets.items.length]);
+
+  useEffect(() => {
+    window.connectMonitorApi?.getDebugConfig?.()
+      .then((saved) => setDebugConfig({ ...defaultDebugConfig, ...saved }))
+      .catch(() => {});
+    window.connectMonitorApi?.getDebugConfigStatus?.()
+      .then((nextStatus) => setDebugStatus(nextStatus.state))
+      .catch(() => {});
+    const timer = window.setInterval(() => {
+      window.connectMonitorApi?.getDebugConfigStatus?.()
+        .then((nextStatus) => setDebugStatus(nextStatus.state))
+        .catch(() => {});
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <Box
@@ -562,7 +592,11 @@ export function App() {
           mb="10px"
           flexShrink={0}
         >
-          <DebugControlCard />
+          <DebugControlCard
+            config={debugConfig}
+            status={debugStatus}
+            applyConfig={applyDebugConfig}
+          />
           <MetricCard
             title="RF Connection"
             status={rfStatus?.state ?? "Disconnected"}
@@ -618,6 +652,8 @@ export function App() {
             channelSwitches={channelSwitches}
             channelScores={channelScores}
             serialLogClearVersion={serialLogClearVersion}
+            debugConfig={debugConfig}
+            applyDebugConfig={applyDebugConfig}
           />
         </VStack>
       </Box>

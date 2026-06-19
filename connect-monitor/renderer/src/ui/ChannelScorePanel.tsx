@@ -1,15 +1,8 @@
-import { Badge, Box, HStack, Text, VStack } from "@chakra-ui/react";
+import { Badge, Box, Button, HStack, Text, VStack } from "@chakra-ui/react";
 
 import type { ChannelScoreRow } from "./useMonitorStream";
 import { neonGreen, PanelHeader, panelSurfaceProps } from "./panelStyles";
 import { scrollbarStyle } from "./scrollbarStyle";
-
-function formatAge(updatedAtMs?: number) {
-  if (!updatedAtMs) return "Waiting";
-  const ageMs = Math.max(0, Date.now() - updatedAtMs);
-  if (ageMs < 1000) return "Live";
-  return `${(ageMs / 1000).toFixed(1)}s`;
-}
 
 function scoreColor(score: number) {
   if (score <= 120) return "green";
@@ -17,8 +10,23 @@ function scoreColor(score: number) {
   return "red";
 }
 
-export function ChannelScorePanel({ items, fillHeight = false }: { items: ChannelScoreRow[]; fillHeight?: boolean }) {
-  const updatedAtMs = items[0]?.updatedAtMs;
+export function ChannelScorePanel({
+  items,
+  fillHeight = false,
+  autoHopEnabled,
+  onAutoHopChange,
+  onManualChannelSelect,
+}: {
+  items: ChannelScoreRow[];
+  fillHeight?: boolean;
+  autoHopEnabled: boolean;
+  onAutoHopChange: (enabled: boolean) => void;
+  onManualChannelSelect: (channel: number) => void;
+}) {
+  const activeBorder = autoHopEnabled ? "rgba(92,255,138,0.58)" : "rgba(96,165,250,0.66)";
+  const activeBg = autoHopEnabled ? "rgba(92,255,138,0.11)" : "rgba(96,165,250,0.14)";
+  const activeShadow = autoHopEnabled ? "0 0 14px rgba(92,255,138,0.16)" : "0 0 16px rgba(96,165,250,0.22)";
+  const activePalette = autoHopEnabled ? "green" : "blue";
 
   return (
     <Box
@@ -33,8 +41,24 @@ export function ChannelScorePanel({ items, fillHeight = false }: { items: Channe
     >
       <PanelHeader
         title="Channel Scores"
-        meta={formatAge(updatedAtMs)}
-        action={<Box w="1px" h="30px" opacity={0} />}
+        action={
+          <Button
+            size="xs"
+            h="24px"
+            minW="52px"
+            borderRadius="6px"
+            variant="outline"
+            colorPalette={autoHopEnabled ? "green" : "blue"}
+            borderColor={autoHopEnabled ? "rgba(92,255,138,0.62)" : "rgba(96,165,250,0.66)"}
+            bg={autoHopEnabled ? "rgba(92,255,138,0.16)" : "rgba(96,165,250,0.15)"}
+            color={autoHopEnabled ? neonGreen : "blue.200"}
+            fontSize="11px"
+            lineHeight={1}
+            onClick={() => onAutoHopChange(!autoHopEnabled)}
+          >
+            auto
+          </Button>
+        }
         borderBottom
         compact
       />
@@ -57,15 +81,22 @@ export function ChannelScorePanel({ items, fillHeight = false }: { items: Channe
               key={item.channel}
               borderWidth="1px"
               borderRadius="md"
-              borderColor={item.active ? "rgba(92,255,138,0.58)" : "rgba(92,255,138,0.12)"}
-              bg={item.active ? "rgba(92,255,138,0.11)" : "rgba(0,0,0,0.16)"}
+              borderColor={item.active ? activeBorder : "rgba(92,255,138,0.12)"}
+              bg={item.active ? activeBg : "rgba(0,0,0,0.16)"}
               px={3}
               py={2}
-              boxShadow={item.active ? "0 0 14px rgba(92,255,138,0.16)" : undefined}
+              boxShadow={item.active ? activeShadow : undefined}
+              cursor={autoHopEnabled ? "default" : "pointer"}
+              _hover={autoHopEnabled ? undefined : { borderColor: "rgba(96,165,250,0.5)", bg: item.active ? activeBg : "rgba(96,165,250,0.08)" }}
+              onClick={() => {
+                if (!autoHopEnabled) {
+                  onManualChannelSelect(item.channel);
+                }
+              }}
             >
               <HStack justify="space-between" align="center">
                 <HStack gap={2}>
-                  <Badge colorPalette={item.active ? "green" : "gray"}>#{item.rank}</Badge>
+                  <Badge colorPalette={item.active ? activePalette : "gray"}>#{item.rank}</Badge>
                   <Text fontSize="sm" color="gray.100" fontWeight="semibold">
                     CH {item.channel}
                   </Text>

@@ -14,6 +14,7 @@ const FLAG_HID_TELEMETRY = 0x01;
 const FLAG_RX_LOG = 0x02;
 const FLAG_TX_LOG = 0x04;
 const FLAG_STM32_LOG = 0x08;
+const FLAG_AUTO_HOP = 0x10;
 const APPLY_STATES: DebugApplyState[] = ["Idle", "Applied", "Applying", "Failed"];
 
 let activeControlHandles: any[] = [];
@@ -81,7 +82,8 @@ function configFlags(config: DebugConfig): number {
   return (config.hidTelemetryEnabled ? FLAG_HID_TELEMETRY : 0) |
     (config.rxLogEnabled ? FLAG_RX_LOG : 0) |
     (config.txLogEnabled ? FLAG_TX_LOG : 0) |
-    (config.stm32LogEnabled ? FLAG_STM32_LOG : 0);
+    (config.stm32LogEnabled ? FLAG_STM32_LOG : 0) |
+    (config.autoHopEnabled ? FLAG_AUTO_HOP : 0);
 }
 
 function buildControlFrame(config: DebugConfig, seq: number): Buffer {
@@ -94,6 +96,7 @@ function buildControlFrame(config: DebugConfig, seq: number): Buffer {
   putU32LE(frame, 8, configFlags(config));
   putU16LE(frame, 12, config.hidTelemetryEnabled ? config.hidPeriodMs : 0);
   putU16LE(frame, 14, crc16Ccitt(frame, 14));
+  frame[16] = typeof config.manualChannel === "number" ? config.manualChannel : 0xff;
   return frame;
 }
 

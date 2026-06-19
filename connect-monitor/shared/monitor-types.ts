@@ -104,6 +104,8 @@ export interface DebugConfig {
   rxLogEnabled: boolean;
   txLogEnabled: boolean;
   stm32LogEnabled: boolean;
+  autoHopEnabled: boolean;
+  manualChannel: number | null;
 }
 
 export interface DebugConfigStatus {
