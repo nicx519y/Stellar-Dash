@@ -47,6 +47,8 @@ static volatile uint32_t s_spi_rx_done_count;
 static volatile uint32_t s_spi_rx_valid_frame_count;
 static volatile uint32_t s_spi_rx_bad_frame_count;
 static volatile uint8_t s_spi_rx_wrap_pending;
+static volatile uint8_t s_spi_rx_input_seq_valid;
+static volatile uint8_t s_spi_rx_last_input_seq;
 
 typedef enum
 {
@@ -147,6 +149,28 @@ static void spi_rx_commit_latest_payload(const uint8_t *payload)
     s_spi_rx_direct_count++;
 }
 
+static uint8_t spi_rx_input_seq_fresh(const uint8_t *payload)
+{
+    const uint8_t seq = payload[0];
+    uint8_t diff;
+
+    if(s_spi_rx_input_seq_valid == 0u)
+    {
+        s_spi_rx_input_seq_valid = 1u;
+        s_spi_rx_last_input_seq = seq;
+        return 1u;
+    }
+
+    diff = (uint8_t)(seq - s_spi_rx_last_input_seq);
+    if((diff == 0u) || (diff >= 128u))
+    {
+        return 0u;
+    }
+
+    s_spi_rx_last_input_seq = seq;
+    return 1u;
+}
+
 static void spi_control_parser_reset(void)
 {
     s_spi_control_state = SPI_CONTROL_WAIT_SYNC;
@@ -243,17 +267,21 @@ static void spi_control_parser_feed(uint8_t b)
 
     case SPI_CONTROL_CHECKSUM:
         s_spi_control_buf[s_spi_control_idx++] = b;
-        s_spi_rx_done_count++;
         if(s_spi_control_sum == b)
         {
             if((s_spi_control_buf[1] == SPI_INPUT_CMD) &&
                (s_spi_control_payload_len == RFM_RF_INPUT_PAYLOAD_LEN))
             {
-                s_spi_rx_valid_frame_count++;
-                spi_rx_commit_latest_payload(&s_spi_control_buf[3]);
+                if(spi_rx_input_seq_fresh(&s_spi_control_buf[3]) != 0u)
+                {
+                    s_spi_rx_done_count++;
+                    s_spi_rx_valid_frame_count++;
+                    spi_rx_commit_latest_payload(&s_spi_control_buf[3]);
+                }
             }
             else if(s_spi_control_buf[1] != SPI_INPUT_CMD)
             {
+                s_spi_rx_done_count++;
                 spi_control_slot_push(s_spi_control_buf, s_spi_control_idx);
             }
             else
@@ -346,6 +374,8 @@ static void spi_rx_dma_state_reset(void)
     s_spi_control_head = 0u;
     s_spi_control_tail = 0u;
     s_spi_control_count = 0u;
+    s_spi_rx_input_seq_valid = 0u;
+    s_spi_rx_last_input_seq = 0u;
     memset(s_spi_control_slot_len, 0, sizeof(s_spi_control_slot_len));
     spi_control_parser_reset();
 }
@@ -438,6 +468,8 @@ void rfm_spi_port_init(void)
     s_spi_rx_valid_frame_count = 0u;
     s_spi_rx_bad_frame_count = 0u;
     s_spi_rx_wrap_pending = 0u;
+    s_spi_rx_input_seq_valid = 0u;
+    s_spi_rx_last_input_seq = 0u;
     s_spi_rx_latest_valid = 0u;
     s_spi_rx_latest_gen = 0u;
     for(i = 0u; i < RFM_RF_INPUT_PAYLOAD_LEN; ++i)
