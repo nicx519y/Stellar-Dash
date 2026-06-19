@@ -347,6 +347,15 @@ uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
         return 0u;
     }
 
+    if((monitor_get_u32(&report[0]) != RFMON_CTL_MAGIC) &&
+       (len >= (RFMON_CTL_FRAME_SIZE + 1u)) &&
+       (report[0] == 0u) &&
+       (monitor_get_u32(&report[1]) == RFMON_CTL_MAGIC))
+    {
+        report = &report[1];
+        len--;
+    }
+
     magic = monitor_get_u32(&report[0]);
     version = report[4];
     seq = report[5];
@@ -1271,6 +1280,35 @@ static void demo_prepare_command_ack(uint8_t cmd, uint8_t seq)
     g_demo_pending_ack_seq = seq;
 }
 
+static void demo_enter_manual_dual_scan(uint8_t target)
+{
+    uint32_t now;
+
+    if(monitor_channel_valid(target) == 0u)
+    {
+        return;
+    }
+    if(target == g_demo_current_channel)
+    {
+        g_demo_rx_state = RF_AUTO_RX_COMM;
+        g_demo_old_channel = target;
+        g_demo_target_channel = target;
+        return;
+    }
+
+    now = TMOS_GetSystemClock();
+    g_demo_old_channel = g_demo_current_channel;
+    g_demo_target_channel = target;
+    g_demo_rx_state = RF_AUTO_RX_PREPARED_DUAL;
+    g_demo_dual_switch_clock = now;
+    g_demo_dual_deadline_clock = now + MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_HOP_DUAL_TIMEOUT_MS);
+    g_demo_dual_side = 0u;
+    g_demo_stat.hop_event++;
+    g_demo_hid_hop_events++;
+    g_demo_hid_hop_start_score = demo_quality_permille();
+    g_demo_hid_hop_start_pending = 1u;
+}
+
 static void demo_handle_command(const uint8_t *air)
 {
     const uint8_t *data = &air[RFH_DATA_OFFSET];
@@ -1322,7 +1360,13 @@ static void demo_handle_command(const uint8_t *air)
     {
         uint8_t status_seq = data[RFH_CMD_SLOT_ARG3];
         uint8_t status_flags = data[RFH_CMD_SLOT_ARG0];
+        uint8_t manual_channel = data[RFH_CMD_SLOT_ARG1];
         uint8_t stm32_result = data[RFH_CMD_SLOT_ARG2];
+
+        if((status_flags & RFMON_FLAG_AUTO_HOP) == 0u)
+        {
+            demo_enter_manual_dual_scan(manual_channel);
+        }
 
         if(status_seq == g_monitor_pending_seq)
         {
