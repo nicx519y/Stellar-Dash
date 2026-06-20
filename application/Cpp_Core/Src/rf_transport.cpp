@@ -33,6 +33,7 @@ static constexpr uint8_t INPUT_FORMAT_VERSION = 1u;
 static constexpr uint8_t INPUT_FLAG_PROCESSED = 0x01u;
 static constexpr uint8_t INPUT_FLAG_SYNC_ECHO = 0x02u;
 static constexpr uint8_t INPUT_FLAGS = static_cast<uint8_t>((INPUT_FORMAT_VERSION << 4) | INPUT_FLAG_PROCESSED);
+static constexpr uint8_t INPUT_AGE_US_OFFSET = 6u;
 static constexpr uint8_t INPUT_CRC_OFFSET = 9u;
 static constexpr uint8_t STATUS_PAYLOAD_LEN = 20u;
 static constexpr uint8_t STATUS_CMD_TAG_OFFSET = 16u;
@@ -49,6 +50,9 @@ struct PendingTimeSyncEcho {
 };
 
 PendingTimeSyncEcho g_pendingTimeSyncEcho;
+
+bool g_haveLastInputKeyMask = false;
+uint32_t g_lastInputKeyMask = 0u;
 
 static uint8_t frameChecksum(const uint8_t* buf, uint16_t len) {
     uint8_t s = 0u;
@@ -83,6 +87,15 @@ static const char* eventToString(uint8_t evt) {
     case EVT_TIME_SYNC: return "TIME_SYNC";
     default: return "UNKNOWN";
     }
+}
+
+static void putU16(uint8_t* dst, uint16_t value) {
+    dst[0] = static_cast<uint8_t>(value & 0xFFu);
+    dst[1] = static_cast<uint8_t>(value >> 8);
+}
+
+static uint16_t saturateAgeUs(uint32_t value) {
+    return value > 0xFFFFu ? 0xFFFFu : static_cast<uint16_t>(value);
 }
 
 }
@@ -484,6 +497,7 @@ uint8_t RFTransport::serviceEvents(uint8_t drainLimit) {
 bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
     uint8_t payload[INPUT_PAYLOAD_LEN] = {0};
     const uint32_t keyMask = buildHitboxKeyMask(gamepad);
+    uint16_t ageUs = 0u;
 
     payload[0] = static_cast<uint8_t>(seq & 0xFFu);
     payload[1] = INPUT_FLAGS;
@@ -491,6 +505,18 @@ bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
     payload[3] = static_cast<uint8_t>((keyMask >> 8) & 0xFFu);
     payload[4] = static_cast<uint8_t>((keyMask >> 16) & 0xFFu);
     payload[5] = static_cast<uint8_t>((keyMask >> 24) & 0xFFu);
+    if (!g_haveLastInputKeyMask || keyMask != g_lastInputKeyMask) {
+        uint32_t readyUs = 0u;
+        if (MonitorTelemetry_GetReportReadyUs(seq, &readyUs)) {
+            ageUs = saturateAgeUs(MICROS_TIMER.micros() - readyUs);
+            if (ageUs == 0u) {
+                ageUs = 1u;
+            }
+        }
+        g_haveLastInputKeyMask = true;
+        g_lastInputKeyMask = keyMask;
+    }
+    putU16(&payload[INPUT_AGE_US_OFFSET], ageUs);
     payload[INPUT_CRC_OFFSET] = inputCrc8(payload, INPUT_CRC_OFFSET);
 
     bool ok = transferCommand(CMD_INPUT_DATA, payload, sizeof(payload), false);

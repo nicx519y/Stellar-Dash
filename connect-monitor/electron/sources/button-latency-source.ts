@@ -123,54 +123,33 @@ class ButtonLatencyTracker {
   }
 
   handleLatencyPacket(packet: PacketEvent, publish: PublishFn) {
-    const pcT3Us = packet.hostMonoUs ?? nowMonoUs();
-    const hasSyncEcho = typeof packet.syncSeq === "number" && packet.syncSeq !== 0;
-    if (hasSyncEcho) {
-      this.handleSyncEcho(packet, pcT3Us, publish);
-    }
-    if (typeof packet.sampleTickUs !== "number" || packet.sampleTickUs === 0 || typeof packet.inputKeyMask !== "number") {
-      this.publishStatus(this.locked ? "Locked" : "Syncing", publish);
+    const latencyUs = typeof packet.latencyUs === "number" ? packet.latencyUs : packet.sampleTickUs;
+    if (typeof latencyUs !== "number" || latencyUs === 0 || typeof packet.inputKeyMask !== "number") {
+      this.publishStatus("Waiting edge", publish);
       return;
     }
-
     const standardMask = hboxMaskToStandardMask(packet.inputKeyMask);
-    if (this.lastInputStandardMask === null) {
-      if (standardMask === 0) {
-        this.lastInputStandardMask = standardMask;
-        this.publishStatus(this.locked ? "Locked" : "Syncing", publish);
-        return;
-      }
-      this.lastInputStandardMask = 0;
-    }
-    if (standardMask === this.lastInputStandardMask) {
-      this.publishStatus(this.locked ? "Locked" : "Syncing", publish);
+    const previousStandardMask = this.lastInputStandardMask ?? (standardMask === 0 ? standardMask : 0);
+    this.lastInputStandardMask = standardMask;
+    if (((previousStandardMask ^ standardMask) >>> 0) === 0) {
+      this.publishStatus("Live", publish);
       return;
     }
-    if (!this.locked) {
-      this.lastInputStandardMask = standardMask;
-      this.publishStatus("Syncing", publish);
-      return;
-    }
-
-    const sampleExtUs = this.unwrapStmUs(packet.sampleTickUs);
-    const samplePcUs = (this.fitA * sampleExtUs) + this.fitB;
-    this.pendingInputs.push({
+    publish({
+      kind: "button_latency",
+      timestampMs: Date.now(),
       inputSeq: packet.inputSeq ?? 0,
       keyMask: packet.inputKeyMask >>> 0,
       standardMask,
-      previousStandardMask: this.lastInputStandardMask,
-      sampleTickUs: packet.sampleTickUs,
-      samplePcUs,
-      syncRttUs: this.latestRttUs,
-      createdAtUs: pcT3Us,
+      previousStandardMask,
+      action: describeAction(previousStandardMask, standardMask),
+      latencyMs: latencyUs / 1000,
+      sampleTickUs: latencyUs,
+      samplePcUs: 0,
+      xinputPcUs: 0,
+      confidence: "high",
     });
-    if (this.pendingInputs.length > MAX_PENDING_INPUTS) {
-      this.pendingInputs = this.pendingInputs.slice(-MAX_PENDING_INPUTS);
-    }
-    this.lastInputStandardMask = standardMask;
-    if (!this.tryMatchPendingInput(publish)) {
-      this.publishStatus("No match", publish);
-    }
+    this.publishStatus("Live", publish, true);
   }
 
   handleXinputSnapshot(snapshot: XinputSnapshot, publish: PublishFn) {

@@ -5,7 +5,7 @@
 
 #define RFH_AIR_PACKET_LEN             12u
 #define RFH_AIR_DATA_LEN               10u
-#define RFH_INPUT_AIR_DATA_LEN         3u
+#define RFH_INPUT_AIR_DATA_LEN         5u
 #define RFH_INPUT_AIR_PACKET_LEN       (RFH_DATA_OFFSET + RFH_INPUT_AIR_DATA_LEN)
 #define RFH_WCH_PREAMBLE               0x55u
 

@@ -358,6 +358,7 @@ function parseRfHopLatencyFrame(view: DataView, report: Uint8Array, timestampMs:
       airLinkActive,
       hostMonoUs,
       sampleTickUs,
+      latencyUs: sampleTickUs,
       syncSeq,
       syncRxTickUs,
       syncTxTickUs,

@@ -721,6 +721,8 @@ static void demo_encode_short_input_payload(uint8_t *dst, const uint8_t *src)
     dst[0] = src[RFMON_INPUT_KEY_MASK_OFFSET];
     dst[1] = src[RFMON_INPUT_KEY_MASK_OFFSET + 1u];
     dst[2] = src[RFMON_INPUT_KEY_MASK_OFFSET + 2u];
+    dst[3] = src[RFMON_INPUT_SAMPLE_TICK_OFFSET];
+    dst[4] = src[RFMON_INPUT_SAMPLE_TICK_OFFSET + 1u];
 }
 
 static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t ack_burst_left)

@@ -386,7 +386,7 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
       buttonLatencyTracker.publishStatus("No HID telemetry", publish);
       return;
     }
-    buttonLatencyTracker.publishStatus("Syncing", publish);
+    buttonLatencyTracker.publishStatus("Waiting edge", publish);
   }, 50);
 
   return () => {

@@ -58,6 +58,7 @@ export interface PacketEvent {
   airWindowTimeoutErrors?: number;
   hostMonoUs?: number;
   sampleTickUs?: number;
+  latencyUs?: number;
   syncSeq?: number;
   syncRxTickUs?: number;
   syncTxTickUs?: number;
@@ -91,7 +92,7 @@ export interface ButtonLatencyEvent {
 export interface ButtonLatencyStatusEvent {
   kind: "button_latency_status";
   timestampMs: number;
-  status: "Syncing" | "No HID telemetry" | "No XInput" | "No match" | "Locked";
+  status: "Syncing" | "No HID telemetry" | "No XInput" | "No match" | "Locked" | "Waiting edge" | "Live";
   syncRttUs?: number;
   clockSamples?: number;
 }

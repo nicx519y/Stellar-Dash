@@ -189,6 +189,12 @@ static volatile uint8_t g_demo_hid_latency_input_flags = 0u;
 static volatile uint8_t g_demo_hid_latency_sync_seq = 0u;
 static volatile uint32_t g_demo_hid_latency_sync_rx_tick_us = 0u;
 static volatile uint32_t g_demo_hid_latency_sync_tx_tick_us = 0u;
+static volatile uint8_t g_demo_xinput_latency_pending = 0u;
+static volatile uint16_t g_demo_xinput_latency_age_us = 0u;
+static volatile uint32_t g_demo_xinput_latency_rx_tmr = 0u;
+static volatile uint32_t g_demo_xinput_latency_key_mask = 0u;
+static volatile uint8_t g_demo_xinput_latency_input_seq = 0u;
+static volatile uint8_t g_demo_xinput_latency_input_flags = 0u;
 static uint32_t g_demo_air_diag_last_clock = 0u;
 static volatile uint32_t g_demo_air_diag_rx_ok = 0u;
 static volatile uint32_t g_demo_air_diag_seq_gap = 0u;
@@ -535,6 +541,20 @@ static uint16_t demo_tmr_cycles_to_system_ticks(uint32_t cycles)
     ticks = (((uint64_t)cycles * 1000000u) + (denom - 1u)) / denom;
     return (ticks > (uint64_t)RX_HID_SILENT_TICKS_SAT) ?
            RX_HID_SILENT_TICKS_SAT : (uint16_t)ticks;
+}
+
+static uint32_t demo_tmr_cycles_to_us_saturated(uint32_t cycles)
+{
+    uint64_t us;
+    uint32_t sys_clock = GetSysClock();
+
+    if(sys_clock == 0u)
+    {
+        return 0u;
+    }
+    us = (((uint64_t)cycles * 1000000u) + ((uint64_t)sys_clock - 1u)) /
+         (uint64_t)sys_clock;
+    return (us > 0xFFFFFFFFu) ? 0xFFFFFFFFu : (uint32_t)us;
 }
 
 static uint8_t demo_snapshot_data_silent_cycles(uint32_t *cycles)
@@ -1113,6 +1133,11 @@ static uint32_t demo_input_sample_tick_us(const uint8_t *payload)
     return monitor_get_u32(&payload[RF_INPUT_SAMPLE_TICK_OFFSET]);
 }
 
+static uint16_t demo_input_age_us(const uint8_t *payload)
+{
+    return monitor_get_u16(&payload[RF_INPUT_SAMPLE_TICK_OFFSET]);
+}
+
 static uint8_t demo_decode_short_input_payload(uint8_t *dst, uint8_t seq, const uint8_t *src)
 {
     if((dst == 0) || (src == 0))
@@ -1127,8 +1152,8 @@ static uint8_t demo_decode_short_input_payload(uint8_t *dst, uint8_t seq, const 
     dst[3] = src[1];
     dst[4] = src[2];
     dst[5] = 0u;
-    dst[6] = 0u;
-    dst[7] = 0u;
+    dst[6] = src[3];
+    dst[7] = src[4];
     dst[8] = 0u;
     dst[RF_INPUT_CRC_OFFSET] = demo_input_crc8(dst, (uint8_t)(RF_INPUT_PAYLOAD_LEN - 1u));
     return 1u;
@@ -1172,22 +1197,82 @@ static void demo_queue_latency_sync_echo(uint8_t sync_seq,
 
 static void demo_queue_latency_input(uint8_t input_seq,
                                      uint32_t key_mask,
-                                     uint32_t sample_tick_us)
+                                     uint32_t latency_us,
+                                     uint8_t input_flags)
 {
-    if(sample_tick_us == 0u)
+    if(latency_us == 0u)
     {
         return;
     }
     g_demo_hid_latency_key_mask = key_mask & RF_INPUT_KEY_MASK_VALID;
-    g_demo_hid_latency_sample_tick_us = sample_tick_us;
+    g_demo_hid_latency_sample_tick_us = latency_us;
     g_demo_hid_latency_input_seq = input_seq;
-    g_demo_hid_latency_input_flags =
-        (uint8_t)((RF_INPUT_FORMAT_VERSION_V2 << RF_INPUT_FORMAT_VERSION_SHIFT) |
-                  RF_INPUT_FLAG_PROCESSED);
+    g_demo_hid_latency_input_flags = input_flags;
     g_demo_hid_latency_sync_seq = 0u;
     g_demo_hid_latency_sync_rx_tick_us = 0u;
     g_demo_hid_latency_sync_tx_tick_us = 0u;
     g_demo_hid_latency_pending = 1u;
+}
+
+static void demo_queue_xinput_latency_pending(const uint8_t *payload, uint32_t rx_tmr)
+{
+    uint16_t age_us;
+    uint32_t irq_status;
+
+    if(payload == 0)
+    {
+        return;
+    }
+    age_us = demo_input_age_us(payload);
+    if(age_us == 0u)
+    {
+        return;
+    }
+
+    SYS_DisableAllIrq(&irq_status);
+    g_demo_xinput_latency_age_us = age_us;
+    g_demo_xinput_latency_rx_tmr = rx_tmr;
+    g_demo_xinput_latency_key_mask = demo_input_key_mask(payload);
+    g_demo_xinput_latency_input_seq = payload[RF_INPUT_SEQ_OFFSET];
+    g_demo_xinput_latency_input_flags = payload[RF_INPUT_FLAGS_OFFSET];
+    g_demo_xinput_latency_pending = 1u;
+    SYS_RecoverIrq(irq_status);
+}
+
+static void demo_complete_xinput_latency_if_pending(uint32_t submit_tmr)
+{
+    uint16_t age_us;
+    uint32_t rx_tmr;
+    uint32_t key_mask;
+    uint8_t input_seq;
+    uint8_t input_flags;
+    uint32_t irq_status;
+    uint32_t wait_us;
+    uint64_t latency_us;
+
+    SYS_DisableAllIrq(&irq_status);
+    if(g_demo_xinput_latency_pending == 0u)
+    {
+        SYS_RecoverIrq(irq_status);
+        return;
+    }
+    age_us = g_demo_xinput_latency_age_us;
+    rx_tmr = g_demo_xinput_latency_rx_tmr;
+    key_mask = g_demo_xinput_latency_key_mask;
+    input_seq = g_demo_xinput_latency_input_seq;
+    input_flags = g_demo_xinput_latency_input_flags;
+    g_demo_xinput_latency_pending = 0u;
+    SYS_RecoverIrq(irq_status);
+
+    wait_us = demo_tmr_cycles_to_us_saturated(
+        demo_tmr0_elapsed_cycles(rx_tmr, submit_tmr));
+    latency_us = (uint64_t)age_us + (uint64_t)wait_us;
+    if(latency_us > 0xFFFFFFFFu)
+    {
+        latency_us = 0xFFFFFFFFu;
+    }
+
+    demo_queue_latency_input(input_seq, key_mask, (uint32_t)latency_us, input_flags);
 }
 
 static void demo_queue_input_payload(const uint8_t *payload)
@@ -1362,6 +1447,7 @@ static void demo_service_xinput_report(void)
 {
     uint8_t report[XINPUT_ENDPOINT_SIZE];
     uint32_t irq_status;
+    uint32_t submit_tmr;
 
     if(USBHS_DevEnumStatus == 0u)
     {
@@ -1382,10 +1468,14 @@ static void demo_service_xinput_report(void)
     g_demo_xinput_pending = 0u;
     SYS_RecoverIrq(irq_status);
 
-    (void)USBHS_Endp_DataUp(DEF_UEP2,
-                            report,
-                            XINPUT_ENDPOINT_SIZE,
-                            DEF_UEP_CPY_LOAD);
+    submit_tmr = TMR0_GetCurrentTimer();
+    if(USBHS_Endp_DataUp(DEF_UEP2,
+                         report,
+                         XINPUT_ENDPOINT_SIZE,
+                         DEF_UEP_CPY_LOAD) == 0u)
+    {
+        demo_complete_xinput_latency_if_pending(submit_tmr);
+    }
 }
 
 static void demo_prepare_command_ack(uint8_t cmd, uint8_t seq)
@@ -1515,7 +1605,9 @@ static void demo_handle_command(const uint8_t *air)
     {
         demo_queue_latency_input(data[RFH_LATENCY_INPUT_SEQ],
                                  rfh_get_u32(&data[RFH_LATENCY_KEY_MASK]),
-                                 rfh_get_u32(&data[RFH_LATENCY_SAMPLE_TICK]));
+                                 rfh_get_u32(&data[RFH_LATENCY_SAMPLE_TICK]),
+                                 (uint8_t)((RF_INPUT_FORMAT_VERSION_V2 << RF_INPUT_FORMAT_VERSION_SHIFT) |
+                                           RF_INPUT_FLAG_PROCESSED));
     }
 }
 
@@ -1572,6 +1664,7 @@ void TMR1_IRQHandler(void)
 static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
 {
     const uint8_t *air;
+    uint32_t data_tmr = 0u;
     uint8_t request_ack = 0u;
     uint8_t flags = 0u;
     uint8_t rate_code = 0u;
@@ -1643,7 +1736,7 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
     demo_channel_score_update(pending->channel,
                               RF_AUTO_DEMO_CHANNEL_SCORE_GOOD);
     {
-        uint32_t data_tmr = TMR0_GetCurrentTimer();
+        data_tmr = TMR0_GetCurrentTimer();
         if(g_demo_have_data_seq != 0u)
         {
             demo_note_hid_silent_cycles(
@@ -1674,6 +1767,7 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
                 return;
             }
             demo_queue_input_payload(input_payload);
+            demo_queue_xinput_latency_pending(input_payload, data_tmr);
         }
         else
         {

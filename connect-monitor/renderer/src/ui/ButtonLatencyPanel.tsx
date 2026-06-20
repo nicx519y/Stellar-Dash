@@ -4,8 +4,9 @@ import { useMemo } from "react";
 import type { ButtonLatencyEvent, ButtonLatencyStatusEvent } from "../../../shared/monitor-types";
 import { HITBOX_BUTTON_MAP, UNMAPPED_GAMEPAD_BUTTON } from "./hitboxButtonMap";
 import { PanelHeader, panelSurfaceProps } from "./panelStyles";
+import { scrollbarStyle } from "./scrollbarStyle";
 
-const MAX_LATENCY_ROWS = 500;
+const MAX_LATENCY_ROWS = 300;
 const standardButtonLabels = new Map<number, string>();
 for (const button of HITBOX_BUTTON_MAP) {
   if (button.gamepadButtonIndex !== UNMAPPED_GAMEPAD_BUTTON && button.label && !standardButtonLabels.has(button.gamepadButtonIndex)) {
@@ -22,10 +23,6 @@ function formatTime(ms: number) {
   return `${d.toLocaleTimeString()}.${String(d.getMilliseconds()).padStart(3, "0")}`;
 }
 
-function formatRtt(value: number | undefined) {
-  return typeof value === "number" ? `${(value / 1000).toFixed(2)}ms` : "-";
-}
-
 function changedButtonLabels(row: ButtonLatencyEvent) {
   const changed = (row.previousStandardMask ^ row.standardMask) >>> 0;
   const labels: string[] = [];
@@ -37,9 +34,13 @@ function changedButtonLabels(row: ButtonLatencyEvent) {
   return labels.length > 0 ? labels.join("+") : "State";
 }
 
+function hasChangedButtons(row: ButtonLatencyEvent) {
+  return ((row.previousStandardMask ^ row.standardMask) >>> 0) !== 0;
+}
+
 function statusColor(status: ButtonLatencyStatusEvent["status"] | undefined) {
-  if (status === "Locked") return "green";
-  if (status === "Syncing" || status === "No match") return "yellow";
+  if (status === "Locked" || status === "Live") return "green";
+  if (status === "Syncing" || status === "No match" || status === "Waiting edge") return "yellow";
   return "gray";
 }
 
@@ -50,20 +51,20 @@ export function ButtonLatencyPanel({
   rows: ButtonLatencyEvent[];
   status: ButtonLatencyStatusEvent | null;
 }) {
-  const latest = rows[rows.length - 1];
+  const visibleRows = useMemo(() => rows.filter(hasChangedButtons), [rows]);
   const average = useMemo(() => {
-    if (rows.length === 0) return null;
-    const recent = rows.slice(-50);
+    if (visibleRows.length === 0) return null;
+    const recent = visibleRows.slice(-50);
     return recent.reduce((sum, row) => sum + row.latencyMs, 0) / recent.length;
-  }, [rows]);
-  const displayRows = rows.slice(-MAX_LATENCY_ROWS).reverse();
-  const headerText = average === null ? (status?.status ?? "Syncing") : `${formatLatency(average)}ms`;
+  }, [visibleRows]);
+  const displayRows = visibleRows.slice(-MAX_LATENCY_ROWS).reverse();
+  const headerText = average === null ? (status?.status ?? "Waiting edge") : `${formatLatency(average)}ms`;
 
   return (
     <Card.Root variant="outline" overflow="hidden" h="100%" minW="250px" w="250px" {...panelSurfaceProps}>
       <PanelHeader
         title="Button Latency"
-        meta={`${rows.length}/${MAX_LATENCY_ROWS}`}
+        meta={`${visibleRows.length}/${MAX_LATENCY_ROWS}`}
         action={<Badge colorPalette={average === null ? statusColor(status?.status) : "green"}>{headerText}</Badge>}
         borderBottom
         compact
@@ -72,14 +73,14 @@ export function ButtonLatencyPanel({
         <Box px={3} py={2} borderBottomWidth="1px" borderColor="rgba(92,255,138,0.08)">
           <HStack justify="space-between" gap={2}>
             <Text fontSize="10px" color="gray.500">
-              {status?.status ?? "Syncing"}
+              {status?.status ?? "Waiting edge"}
             </Text>
             <Text fontSize="10px" color="gray.500">
-              RTT {formatRtt(status?.syncRttUs)}
+              RX firmware
             </Text>
           </HStack>
         </Box>
-        <VStack align="stretch" gap={0} flex="1" minH={0} overflowY="auto">
+        <VStack align="stretch" gap={0} flex="1" minH={0} overflowY="auto" css={scrollbarStyle}>
           {displayRows.length === 0 ? (
             <Box px={3} py={4}>
               <Text fontSize="sm" color="gray.400">
@@ -109,7 +110,7 @@ export function ButtonLatencyPanel({
                     {formatTime(row.timestampMs)}
                   </Text>
                   <Text fontSize="10px" color="gray.500">
-                    seq {row.inputSeq} rtt {formatRtt(row.syncRttUs)}
+                    seq {row.inputSeq}
                   </Text>
                 </HStack>
               </Box>
