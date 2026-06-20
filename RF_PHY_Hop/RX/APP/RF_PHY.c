@@ -44,6 +44,8 @@
 #define RF_AUTO_DEMO_RECOVERY_DWELL_MS 20u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_INIT 200u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_GOOD 20u
+#define RF_AUTO_DEMO_CHANNEL_SCORE_LOSS_WARN 180u
+#define RF_AUTO_DEMO_CHANNEL_SCORE_LOSS_BAD 400u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_BAD 1000u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_NUM 7u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_DEN 8u
@@ -150,6 +152,9 @@ static uint32_t g_demo_window_expected = 0u;
 static uint32_t g_demo_window_missing = 0u;
 static uint32_t g_demo_window_rx_ok = 0u;
 static uint32_t g_demo_window_crc = 0u;
+static uint32_t g_demo_ack_irq_sum_us = 0u;
+static uint8_t g_demo_ack_irq_count = 0u;
+static uint16_t g_demo_ack_irq_max_us = 0u;
 static uint32_t g_demo_dual_switch_clock = 0u;
 static uint32_t g_demo_dual_deadline_clock = 0u;
 static uint8_t g_demo_dual_side = 0u;
@@ -639,12 +644,41 @@ static uint16_t demo_quality_permille(void)
     return (uint16_t)((bad * 1000u) / g_demo_window_expected);
 }
 
+static uint16_t demo_window_loss_score_sample(uint16_t loss_permille)
+{
+    if(loss_permille >= 180u)
+    {
+        return RF_AUTO_DEMO_CHANNEL_SCORE_LOSS_BAD;
+    }
+    if(loss_permille >= 50u)
+    {
+        return RF_AUTO_DEMO_CHANNEL_SCORE_LOSS_WARN;
+    }
+    return RF_AUTO_DEMO_CHANNEL_SCORE_GOOD;
+}
+
 static void demo_reset_quality_window(void)
 {
     g_demo_window_expected = 0u;
     g_demo_window_missing = 0u;
     g_demo_window_rx_ok = 0u;
     g_demo_window_crc = 0u;
+    g_demo_ack_irq_sum_us = 0u;
+    g_demo_ack_irq_count = 0u;
+    g_demo_ack_irq_max_us = 0u;
+}
+
+static void demo_note_ack_irq_latency(uint16_t rx_irq_us)
+{
+    if(g_demo_ack_irq_count != 0xFFu)
+    {
+        g_demo_ack_irq_sum_us += rx_irq_us;
+        g_demo_ack_irq_count++;
+    }
+    if(rx_irq_us > g_demo_ack_irq_max_us)
+    {
+        g_demo_ack_irq_max_us = rx_irq_us;
+    }
 }
 
 static uint8_t demo_channel_index(uint8_t channel)
@@ -941,17 +975,29 @@ static void demo_fill_ack_packet(void)
     uint8_t *air = &TxBuf[2];
     uint8_t *data = &air[RFH_DATA_OFFSET];
     uint16_t quality = demo_quality_permille();
-    uint16_t rx_ok = (g_demo_window_rx_ok > 0xFFFFu) ? 0xFFFFu : (uint16_t)g_demo_window_rx_ok;
-    uint16_t expected = (g_demo_window_expected > 0xFFFFu) ? 0xFFFFu : (uint16_t)g_demo_window_expected;
+    uint16_t score_sample = demo_window_loss_score_sample(quality);
+    uint16_t avg_irq_us = 0u;
+    uint16_t max_irq_us = 0u;
+
+    if(g_demo_ack_irq_count != 0u)
+    {
+        uint32_t avg_us = (g_demo_ack_irq_sum_us +
+                           ((uint32_t)g_demo_ack_irq_count / 2u)) /
+                          (uint32_t)g_demo_ack_irq_count;
+
+        avg_irq_us = (avg_us > 0xFFFFu) ? 0xFFFFu : (uint16_t)avg_us;
+        max_irq_us = g_demo_ack_irq_max_us;
+    }
 
     memset(TxBuf, 0, sizeof(TxBuf));
     TxBuf[0] = RFH_WCH_PREAMBLE;
     TxBuf[1] = RF_AUTO_DEMO_PACKET_LEN;
     air[0] = rfh_make_header0(RFH_PKT_ACK, g_demo_rate_code, RFH_FLAG_LINK_OK);
     air[1] = g_demo_ack_seq;
+    demo_channel_score_update(g_demo_current_channel, score_sample);
     rfh_put_u16(&data[RFH_ACK_LOSS_PERMILLE_LO], quality);
-    rfh_put_u16(&data[RFH_ACK_RX_COUNT_LO], rx_ok);
-    rfh_put_u16(&data[RFH_ACK_EXPECTED_COUNT_LO], expected);
+    rfh_put_u16(&data[RFH_ACK_AVG_IRQ_US_LO], avg_irq_us);
+    rfh_put_u16(&data[RFH_ACK_MAX_IRQ_US_LO], max_irq_us);
     if((g_demo_pending_ack_cmd == RFH_CMD_NONE) &&
        (g_monitor_sync_pending_retries != 0u))
     {
@@ -1269,6 +1315,7 @@ static void demo_queue_latency_input_v2(uint8_t input_seq,
     g_demo_hid_latency_rx_epwait_us = rx_epwait_us;
     g_demo_hid_latency_rx_submit_us = rx_submit_us;
     g_demo_hid_latency_v2 = 1u;
+    demo_note_ack_irq_latency(rx_irq_us);
 }
 
 static void demo_queue_xinput_latency_pending(const uint8_t *payload,
@@ -1875,8 +1922,6 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
         return 0u;
     }
     g_demo_stat.data_ok++;
-    demo_channel_score_update(pending->channel,
-                              RF_AUTO_DEMO_CHANNEL_SCORE_GOOD);
     {
         data_tmr = pending->rx_tmr;
         if(g_demo_have_data_seq != 0u)

@@ -212,8 +212,8 @@ CONNECT 包隐含命令号：`CMD_CONNECT_REQ`。
 | Payload byte | 名称 | 说明 |
 |---:|---|---|
 | `0..1` | `loss_permille` | 上一 ACK 到本 ACK 之间的丢包率，千分比，小端 |
-| `2..3` | `rx_count` | 本窗口内 RX 收到的有效正向包数量 |
-| `4..5` | `expected_count` | 本窗口理论应收到的包数量 |
+| `2..3` | `avg_irq_us` | 本窗口内按键 Latency 路径产生的平均 RX IRQ queue wait，单位 us；无按键边沿时为 `0` |
+| `4..5` | `max_irq_us` | 同窗口最大 RX IRQ queue wait，单位 us；无按键边沿时为 `0` |
 | `6` | `cmd_id` | 被 ACK 的命令号，无命令时为 `0` |
 | `7` | `ack_flags` | ACK 标志 |
 | `8` | `channel` | RX 当前通信频道 |
@@ -666,6 +666,11 @@ RX 在每个 ACK 周期内维护：
 - `rx_count`：有效接收正向包数量。
 - `expected_count`：理论应接收数量。
 - `loss_permille = (expected_count - rx_count) * 1000 / expected_count`。
+- `avg_irq_us/max_irq_us`：复用 connect-monitor Latency 卡片中的按键边沿 `rx_irq_us`，统计当前 ACK 窗口内平均/最大 RX IRQ queue wait。
+
+ACK payload 只直接携带 `loss_permille` 与 `avg_irq_us/max_irq_us`；`rx_count/expected_count` 留在 RX/HID telemetry 侧用于诊断与 UI 计算。
+
+RX score telemetry 也按 ACK window 的 `loss_permille` 更新当前频道 bad score，不再按每个 DATA OK 刷 GOOD sample，避免 8K 包量导致 Channel Scores 虚高。
 
 `expected_count` 建议：
 

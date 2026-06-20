@@ -310,7 +310,8 @@ RX recovery scan 经验：
 
 - 内部记录的是 bad score，`0` 最好，`1000` 最差。
 - UI 侧显示时反算成质量分：`1000 - badScore`，所以 UI 中 `1000` 最好、`0` 最差。
-- ACK OK / DATA OK 对当前频道降 bad score。
+- RX score telemetry 不再用每个 DATA OK 降 bad score；改为每个 ACK window 按 `loss_permille` 更新一次，避免 8K 好包量把分数冲满。
+- TX ACK OK 按 ACK window 风险更新当前频道 bad score。
 - ACK timeout / CRC error / type error 对当前频道升 bad score。
 - 这样设计的原因是：评分本质是“坏度/风险”，TX 的跳频触发直接看 bad score 是否超过阈值；UI 为了直觉显示再翻转成质量分。
 
@@ -318,10 +319,16 @@ RX recovery scan 经验：
 
 - 初始 bad score：`200`
 - GOOD sample：`20`
+- ACK miss / latency trigger sample：`400`
+- latency warn sample：`180`
 - BAD sample：`1000`
 - 平滑：`score = (old * 7 + sample) / 8`
 - TX 跳频触发阈值：bad score / ACK window bad permille `>= 180`
+- TX sustained loss 触发阈值：`loss_permille >= 50` 连续 `3` 个 ACK 窗口，约 `1.5s`
+- TX latency good 基线：`avg_irq_us <= 800`，不会触发跳频。
+- `avg_irq_us >= 1000` 记为 warn；`avg_irq_us >= 1500` 连续 2 个 ACK 窗口才触发跳频；`avg_irq_us >= 2500` 记为 bad 并给频道 cooldown
 - TX 选目标频道时要求候选 bad score 至少好 `40`，当前风险 `>= 400` 时允许强制跳到最优候选
+- 若 7 个频道都已尝试且都不达标，则停在当前 bad score 最低的频道，不持续绕圈
 - TX hop cooldown：`10s`
 - 连续 ACK miss 跳频阈值：`6`
 
@@ -1199,7 +1206,7 @@ RX 在每个 ACK 周期统计：
 RX ACK payload 使用共享 ACK 字段：
 
 - `loss_permille`：当前 quality score。
-- `rx_count/expected_count`：当前窗口统计。
+- `avg_irq_us/max_irq_us`：当前 ACK 窗口内按键 Latency 路径产生的 RX IRQ queue wait，复用 connect-monitor Latency 卡片中的 `rx_irq_us`，无按键边沿时为 `0`。
 - `cmd_id`：被 ACK 的命令号。
 - `channel`：RX 当前 ACK 发送频道。
 - `status`：当前复用为 `hop_seq`。
@@ -1207,6 +1214,8 @@ RX ACK payload 使用共享 ACK 字段：
 TX 触发跳频的第一版条件：
 
 - `quality_permille >= 180`，且不在 `10s` cooldown 内。
+- `quality_permille >= 50` 连续 3 个 ACK 窗口，且不在 `10s` cooldown 内。
+- `avg_irq_us >= 1500` 连续 2 个 ACK 窗口，且不在 `10s` cooldown 内。
 - 或连续 `6` 个 ACK 控制周期 miss，且不在 cooldown 内。
 
 候选频道来自共享 7 频道表，并按 bad score 选择：
