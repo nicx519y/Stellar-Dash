@@ -62,6 +62,10 @@ export interface PacketEvent {
   latencyStm32Us?: number;
   latencyTxUs?: number;
   latencyRxUs?: number;
+  latencyRxIrqUs?: number;
+  latencyRxDecodeUs?: number;
+  latencyRxEpWaitUs?: number;
+  latencyRxSubmitUs?: number;
   latencyStageFlags?: number;
   syncSeq?: number;
   syncRxTickUs?: number;
@@ -89,6 +93,11 @@ export interface ButtonLatencyEvent {
   stm32Ms?: number;
   txMs?: number;
   rxMs?: number;
+  rxIrqMs?: number;
+  rxDecodeMs?: number;
+  rxEpWaitMs?: number;
+  rxSubmitMs?: number;
+  latencyFrame?: string;
   sampleTickUs: number;
   samplePcUs: number;
   xinputPcUs: number;

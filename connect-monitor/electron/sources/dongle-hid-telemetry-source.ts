@@ -370,6 +370,54 @@ function parseRfHopLatencyFrame(view: DataView, report: Uint8Array, timestampMs:
   ];
 }
 
+function parseRfHopLatencyV2Frame(view: DataView, report: Uint8Array, timestampMs: number, hostMonoUs?: number): MonitorEvent[] {
+  const seq = view.getUint32(4, true);
+  const inputSeq = view.getUint8(8);
+  const inputFlags = view.getUint8(9);
+  const inputKeyMask = view.getUint32(10, true);
+  const latencyStm32Us = view.getUint16(14, true);
+  const latencyTxUs = view.getUint16(16, true);
+  const latencyRxUs = view.getUint16(18, true);
+  const latencyRxIrqUs = view.getUint16(20, true);
+  const latencyRxDecodeUs = view.getUint16(22, true);
+  const latencyRxEpWaitUs = view.getUint16(24, true);
+  const latencyRxSubmitUs = view.getUint16(26, true);
+  const latencyStageFlags = view.getUint8(28);
+  const state = view.getUint8(29);
+  const channel = view.getUint8(30);
+  const stateCode = rfHopStateCode(state);
+  const latencyUs = latencyStm32Us + latencyTxUs + latencyRxUs;
+
+  return [
+    {
+      kind: "packet",
+      timestampMs,
+      channel: "RF",
+      direction: "RX",
+      seq,
+      messageType: "RFH_RHL2",
+      payloadLen: report.length,
+      payloadHex: hexReport(report),
+      channelNumber: channel,
+      rfStateCode: stateCode,
+      inputKeyMask,
+      inputSeq,
+      inputFlags,
+      hostMonoUs,
+      sampleTickUs: latencyUs,
+      latencyUs,
+      latencyStm32Us,
+      latencyTxUs,
+      latencyRxUs,
+      latencyRxIrqUs,
+      latencyRxDecodeUs,
+      latencyRxEpWaitUs,
+      latencyRxSubmitUs,
+      latencyStageFlags,
+    },
+  ];
+}
+
 /**
  * Parse the dongle HID telemetry frame (DMN1, 32 bytes).
  * Frame layout is defined in dongle/src/dongle_telemetry.c.
@@ -392,6 +440,9 @@ export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = D
   }
   if (magic === 0x314c4852) {
     return parseRfHopLatencyFrame(view, report, timestampMs, hostMonoUs);
+  }
+  if (magic === 0x324c4852) {
+    return parseRfHopLatencyV2Frame(view, report, timestampMs, hostMonoUs);
   }
 
   if (magic !== 0x314e4d44) {

@@ -351,7 +351,7 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
             }
             const dongleEvents = parseDongleHidTelemetryFrame(buf, Date.now(), hostMonoUs);
             for (const ev of dongleEvents) {
-              if (ev.kind === "packet" && ev.messageType === "RFH_RHL1") {
+              if (ev.kind === "packet" && (ev.messageType === "RFH_RHL1" || ev.messageType === "RFH_RHL2")) {
                 buttonLatencyTracker.handleLatencyPacket(ev, publish);
               }
               publish(ev);

@@ -675,7 +675,7 @@ export function App() {
             display="grid"
             gridTemplateColumns={{
               base: "1fr",
-              xl: "minmax(0, 1fr) 425px 625px",
+              xl: "minmax(400px, 1fr) 725px 625px",
             }}
             gap="10px"
             alignItems="stretch"

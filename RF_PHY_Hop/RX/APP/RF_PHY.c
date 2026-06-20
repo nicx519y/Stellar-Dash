@@ -55,6 +55,7 @@
 #define RX_HID_SCORE_MAGIC             0x31534852UL
 #define RX_HID_INPUT_MAGIC             0x31494852UL
 #define RX_HID_LATENCY_MAGIC           0x314C4852UL
+#define RX_HID_LATENCY_V2_MAGIC        0x324C4852UL
 #define RX_HID_HOP_EVENT_NONE          0u
 #define RX_HID_HOP_EVENT_START         1u
 #define RX_HID_HOP_EVENT_FINISH        2u
@@ -192,16 +193,23 @@ static volatile uint32_t g_demo_hid_latency_sample_tick_us = 0u;
 static volatile uint16_t g_demo_hid_latency_stm32_us = 0u;
 static volatile uint16_t g_demo_hid_latency_tx_us = 0u;
 static volatile uint16_t g_demo_hid_latency_rx_us = 0u;
+static volatile uint16_t g_demo_hid_latency_rx_irq_us = 0u;
+static volatile uint16_t g_demo_hid_latency_rx_decode_us = 0u;
+static volatile uint16_t g_demo_hid_latency_rx_epwait_us = 0u;
+static volatile uint16_t g_demo_hid_latency_rx_submit_us = 0u;
 static volatile uint8_t g_demo_hid_latency_stage_flags = 0u;
 static volatile uint8_t g_demo_hid_latency_input_seq = 0u;
 static volatile uint8_t g_demo_hid_latency_input_flags = 0u;
 static volatile uint8_t g_demo_hid_latency_sync_seq = 0u;
 static volatile uint32_t g_demo_hid_latency_sync_rx_tick_us = 0u;
 static volatile uint32_t g_demo_hid_latency_sync_tx_tick_us = 0u;
+static volatile uint8_t g_demo_hid_latency_v2 = 0u;
 static volatile uint8_t g_demo_xinput_latency_pending = 0u;
 static volatile uint8_t g_demo_xinput_latency_stm32_q8 = 0u;
 static volatile uint8_t g_demo_xinput_latency_tx_q8 = 0u;
 static volatile uint32_t g_demo_xinput_latency_rx_tmr = 0u;
+static volatile uint32_t g_demo_xinput_latency_process_tmr = 0u;
+static volatile uint32_t g_demo_xinput_latency_report_tmr = 0u;
 static volatile uint32_t g_demo_xinput_latency_key_mask = 0u;
 static volatile uint8_t g_demo_xinput_latency_input_seq = 0u;
 static volatile uint8_t g_demo_xinput_latency_input_flags = 0u;
@@ -1226,6 +1234,10 @@ static void demo_queue_latency_sync_echo(uint8_t sync_seq,
     g_demo_hid_latency_stm32_us = 0u;
     g_demo_hid_latency_tx_us = 0u;
     g_demo_hid_latency_rx_us = 0u;
+    g_demo_hid_latency_rx_irq_us = 0u;
+    g_demo_hid_latency_rx_decode_us = 0u;
+    g_demo_hid_latency_rx_epwait_us = 0u;
+    g_demo_hid_latency_rx_submit_us = 0u;
     g_demo_hid_latency_stage_flags = 0u;
     g_demo_hid_latency_input_seq = g_demo_hid_input_seq;
     g_demo_hid_latency_input_flags =
@@ -1235,6 +1247,7 @@ static void demo_queue_latency_sync_echo(uint8_t sync_seq,
     g_demo_hid_latency_sync_seq = sync_seq;
     g_demo_hid_latency_sync_rx_tick_us = sync_rx_tick_us;
     g_demo_hid_latency_sync_tx_tick_us = sync_tx_tick_us;
+    g_demo_hid_latency_v2 = 0u;
     g_demo_hid_latency_pending = 1u;
 }
 
@@ -1256,16 +1269,51 @@ static void demo_queue_latency_input(uint8_t input_seq,
     g_demo_hid_latency_stm32_us = stm32_us;
     g_demo_hid_latency_tx_us = tx_us;
     g_demo_hid_latency_rx_us = rx_us;
+    g_demo_hid_latency_rx_irq_us = 0u;
+    g_demo_hid_latency_rx_decode_us = 0u;
+    g_demo_hid_latency_rx_epwait_us = 0u;
+    g_demo_hid_latency_rx_submit_us = 0u;
     g_demo_hid_latency_stage_flags = stage_flags;
     g_demo_hid_latency_input_seq = input_seq;
     g_demo_hid_latency_input_flags = input_flags;
     g_demo_hid_latency_sync_seq = 0u;
     g_demo_hid_latency_sync_rx_tick_us = 0u;
     g_demo_hid_latency_sync_tx_tick_us = 0u;
+    g_demo_hid_latency_v2 = 0u;
     g_demo_hid_latency_pending = 1u;
 }
 
-static void demo_queue_xinput_latency_pending(const uint8_t *payload, uint32_t rx_tmr)
+static void demo_queue_latency_input_v2(uint8_t input_seq,
+                                        uint32_t key_mask,
+                                        uint32_t latency_us,
+                                        uint16_t stm32_us,
+                                        uint16_t tx_us,
+                                        uint16_t rx_us,
+                                        uint16_t rx_irq_us,
+                                        uint16_t rx_decode_us,
+                                        uint16_t rx_epwait_us,
+                                        uint16_t rx_submit_us,
+                                        uint8_t stage_flags,
+                                        uint8_t input_flags)
+{
+    demo_queue_latency_input(input_seq,
+                             key_mask,
+                             latency_us,
+                             stm32_us,
+                             tx_us,
+                             rx_us,
+                             stage_flags,
+                             input_flags);
+    g_demo_hid_latency_rx_irq_us = rx_irq_us;
+    g_demo_hid_latency_rx_decode_us = rx_decode_us;
+    g_demo_hid_latency_rx_epwait_us = rx_epwait_us;
+    g_demo_hid_latency_rx_submit_us = rx_submit_us;
+    g_demo_hid_latency_v2 = 1u;
+}
+
+static void demo_queue_xinput_latency_pending(const uint8_t *payload,
+                                              uint32_t rx_tmr,
+                                              uint32_t process_tmr)
 {
     uint8_t stm32_age_q8;
     uint8_t tx_wait_q8;
@@ -1286,6 +1334,8 @@ static void demo_queue_xinput_latency_pending(const uint8_t *payload, uint32_t r
     g_demo_xinput_latency_stm32_q8 = stm32_age_q8;
     g_demo_xinput_latency_tx_q8 = tx_wait_q8;
     g_demo_xinput_latency_rx_tmr = rx_tmr;
+    g_demo_xinput_latency_process_tmr = process_tmr;
+    g_demo_xinput_latency_report_tmr = 0u;
     g_demo_xinput_latency_key_mask = demo_input_key_mask(payload);
     g_demo_xinput_latency_input_seq = payload[RF_INPUT_SEQ_OFFSET];
     g_demo_xinput_latency_input_flags = payload[RF_INPUT_FLAGS_OFFSET];
@@ -1293,19 +1343,30 @@ static void demo_queue_xinput_latency_pending(const uint8_t *payload, uint32_t r
     SYS_RecoverIrq(irq_status);
 }
 
-static void demo_complete_xinput_latency_if_pending(uint32_t submit_tmr)
+static void demo_complete_xinput_latency_if_pending(uint32_t submit_tmr,
+                                                    uint32_t submit_done_tmr)
 {
     uint8_t stm32_age_q8;
     uint8_t tx_wait_q8;
     uint32_t rx_tmr;
+    uint32_t process_tmr;
+    uint32_t report_tmr;
     uint32_t key_mask;
     uint8_t input_seq;
     uint8_t input_flags;
     uint32_t irq_status;
     uint32_t wait_us;
+    uint32_t irq_us;
+    uint32_t decode_us;
+    uint32_t epwait_us;
+    uint32_t submit_us;
     uint16_t stm32_us;
     uint16_t tx_us;
     uint16_t rx_us;
+    uint16_t rx_irq_us;
+    uint16_t rx_decode_us;
+    uint16_t rx_epwait_us;
+    uint16_t rx_submit_us;
     uint8_t stage_flags = RX_LATENCY_STAGE_FLAG_SPLIT;
     uint64_t latency_us;
 
@@ -1318,17 +1379,35 @@ static void demo_complete_xinput_latency_if_pending(uint32_t submit_tmr)
     stm32_age_q8 = g_demo_xinput_latency_stm32_q8;
     tx_wait_q8 = g_demo_xinput_latency_tx_q8;
     rx_tmr = g_demo_xinput_latency_rx_tmr;
+    process_tmr = g_demo_xinput_latency_process_tmr;
+    report_tmr = g_demo_xinput_latency_report_tmr;
     key_mask = g_demo_xinput_latency_key_mask;
     input_seq = g_demo_xinput_latency_input_seq;
     input_flags = g_demo_xinput_latency_input_flags;
     g_demo_xinput_latency_pending = 0u;
     SYS_RecoverIrq(irq_status);
 
+    if(report_tmr == 0u)
+    {
+        report_tmr = submit_tmr;
+    }
     wait_us = demo_tmr_cycles_to_us_saturated(
         demo_tmr0_elapsed_cycles(rx_tmr, submit_tmr));
+    irq_us = demo_tmr_cycles_to_us_saturated(
+        demo_tmr0_elapsed_cycles(rx_tmr, process_tmr));
+    decode_us = demo_tmr_cycles_to_us_saturated(
+        demo_tmr0_elapsed_cycles(process_tmr, report_tmr));
+    epwait_us = demo_tmr_cycles_to_us_saturated(
+        demo_tmr0_elapsed_cycles(report_tmr, submit_tmr));
+    submit_us = demo_tmr_cycles_to_us_saturated(
+        demo_tmr0_elapsed_cycles(submit_tmr, submit_done_tmr));
     stm32_us = demo_latency_q8_decode(stm32_age_q8);
     tx_us = demo_latency_q8_decode(tx_wait_q8);
     rx_us = demo_saturate_u16(wait_us);
+    rx_irq_us = demo_saturate_u16(irq_us);
+    rx_decode_us = demo_saturate_u16(decode_us);
+    rx_epwait_us = demo_saturate_u16(epwait_us);
+    rx_submit_us = demo_saturate_u16(submit_us);
     if(stm32_age_q8 == 255u)
     {
         stage_flags |= RX_LATENCY_STAGE_FLAG_STM32_SAT;
@@ -1341,20 +1420,29 @@ static void demo_complete_xinput_latency_if_pending(uint32_t submit_tmr)
     {
         stage_flags |= RX_LATENCY_STAGE_FLAG_RX_SAT;
     }
+    if((irq_us > 0xFFFFu) || (decode_us > 0xFFFFu) ||
+       (epwait_us > 0xFFFFu) || (submit_us > 0xFFFFu))
+    {
+        stage_flags |= RX_LATENCY_STAGE_FLAG_RX_SAT;
+    }
     latency_us = (uint64_t)stm32_us + (uint64_t)tx_us + (uint64_t)rx_us;
     if(latency_us > 0xFFFFFFFFu)
     {
         latency_us = 0xFFFFFFFFu;
     }
 
-    demo_queue_latency_input(input_seq,
-                             key_mask,
-                             (uint32_t)latency_us,
-                             stm32_us,
-                             tx_us,
-                             rx_us,
-                             stage_flags,
-                             input_flags);
+    demo_queue_latency_input_v2(input_seq,
+                                key_mask,
+                                (uint32_t)latency_us,
+                                stm32_us,
+                                tx_us,
+                                rx_us,
+                                rx_irq_us,
+                                rx_decode_us,
+                                rx_epwait_us,
+                                rx_submit_us,
+                                stage_flags,
+                                input_flags);
 }
 
 static void demo_queue_input_payload(const uint8_t *payload)
@@ -1429,6 +1517,7 @@ static void demo_capture_xinput_report(const uint8_t *payload)
     uint8_t version;
     uint32_t key_mask;
     uint32_t previous_key_mask;
+    uint32_t irq_status;
 
     if(payload == 0)
     {
@@ -1471,12 +1560,17 @@ static void demo_capture_xinput_report(const uint8_t *payload)
         g_demo_hid_latency_stm32_us = 0u;
         g_demo_hid_latency_tx_us = 0u;
         g_demo_hid_latency_rx_us = 0u;
+        g_demo_hid_latency_rx_irq_us = 0u;
+        g_demo_hid_latency_rx_decode_us = 0u;
+        g_demo_hid_latency_rx_epwait_us = 0u;
+        g_demo_hid_latency_rx_submit_us = 0u;
         g_demo_hid_latency_stage_flags = 0u;
         g_demo_hid_latency_input_seq = payload[0];
         g_demo_hid_latency_input_flags = payload[1];
         g_demo_hid_latency_sync_seq = 0u;
         g_demo_hid_latency_sync_rx_tick_us = 0u;
         g_demo_hid_latency_sync_tx_tick_us = 0u;
+        g_demo_hid_latency_v2 = 0u;
         g_demo_hid_latency_pending = 1u;
     }
 
@@ -1509,6 +1603,12 @@ static void demo_capture_xinput_report(const uint8_t *payload)
 
     memcpy(g_demo_xinput_report, report, sizeof(report));
     g_demo_xinput_pending = 1u;
+    SYS_DisableAllIrq(&irq_status);
+    if(g_demo_xinput_latency_pending != 0u)
+    {
+        g_demo_xinput_latency_report_tmr = TMR0_GetCurrentTimer();
+    }
+    SYS_RecoverIrq(irq_status);
 }
 
 static void demo_process_pending_input_payload(void)
@@ -1534,6 +1634,7 @@ static void demo_service_xinput_report(void)
     uint8_t report[XINPUT_ENDPOINT_SIZE];
     uint32_t irq_status;
     uint32_t submit_tmr;
+    uint32_t submit_done_tmr;
 
     if(USBHS_DevEnumStatus == 0u)
     {
@@ -1560,7 +1661,8 @@ static void demo_service_xinput_report(void)
                          XINPUT_ENDPOINT_SIZE,
                          DEF_UEP_CPY_LOAD) == 0u)
     {
-        demo_complete_xinput_latency_if_pending(submit_tmr);
+        submit_done_tmr = TMR0_GetCurrentTimer();
+        demo_complete_xinput_latency_if_pending(submit_tmr, submit_done_tmr);
     }
 }
 
@@ -1755,6 +1857,7 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
 {
     const uint8_t *air;
     uint32_t data_tmr = 0u;
+    uint32_t process_tmr;
     uint8_t request_ack = 0u;
     uint8_t flags = 0u;
     uint8_t rate_code = 0u;
@@ -1765,6 +1868,7 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
         return;
     }
 
+    process_tmr = TMR0_GetCurrentTimer();
     if(pending->kind == RF_RX_PENDING_CRCERR)
     {
         g_demo_stat.data_crc_err++;
@@ -1857,7 +1961,7 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
                 return;
             }
             demo_queue_input_payload(input_payload);
-            demo_queue_xinput_latency_pending(input_payload, data_tmr);
+            demo_queue_xinput_latency_pending(input_payload, data_tmr, process_tmr);
         }
         else
         {
@@ -2305,10 +2409,15 @@ static uint8_t demo_try_send_latency_report(void)
     uint16_t stm32_us;
     uint16_t tx_us;
     uint16_t rx_us;
+    uint16_t rx_irq_us;
+    uint16_t rx_decode_us;
+    uint16_t rx_epwait_us;
+    uint16_t rx_submit_us;
     uint8_t stage_flags;
     uint8_t input_seq;
     uint8_t input_flags;
     uint8_t sync_seq;
+    uint8_t latency_v2;
     uint32_t irq_status;
 
     SYS_DisableAllIrq(&irq_status);
@@ -2322,29 +2431,55 @@ static uint8_t demo_try_send_latency_report(void)
     stm32_us = g_demo_hid_latency_stm32_us;
     tx_us = g_demo_hid_latency_tx_us;
     rx_us = g_demo_hid_latency_rx_us;
+    rx_irq_us = g_demo_hid_latency_rx_irq_us;
+    rx_decode_us = g_demo_hid_latency_rx_decode_us;
+    rx_epwait_us = g_demo_hid_latency_rx_epwait_us;
+    rx_submit_us = g_demo_hid_latency_rx_submit_us;
     stage_flags = g_demo_hid_latency_stage_flags;
     input_seq = g_demo_hid_latency_input_seq;
     input_flags = g_demo_hid_latency_input_flags;
     sync_seq = g_demo_hid_latency_sync_seq;
+    latency_v2 = g_demo_hid_latency_v2;
     SYS_RecoverIrq(irq_status);
 
     memset(report, 0, sizeof(report));
-    demo_put_u32(&report[0], RX_HID_LATENCY_MAGIC);
-    demo_put_u32(&report[4], g_demo_hid_latency_seq + 1u);
-    report[8] = input_seq;
-    report[9] = input_flags;
-    demo_put_u32(&report[10], key_mask);
-    demo_put_u32(&report[14], sample_tick_us);
-    demo_put_u16(&report[18], stm32_us);
-    demo_put_u16(&report[20], tx_us);
-    demo_put_u16(&report[22], rx_us);
-    report[24] = stage_flags;
-    report[25] = sync_seq;
-    report[26] = 0u;
-    report[27] = demo_hid_state_code();
-    report[28] = g_demo_current_channel;
-    report[29] = g_demo_rate_code;
-    report[30] = g_demo_link_active;
+    if(latency_v2 != 0u)
+    {
+        demo_put_u32(&report[0], RX_HID_LATENCY_V2_MAGIC);
+        demo_put_u32(&report[4], g_demo_hid_latency_seq + 1u);
+        report[8] = input_seq;
+        report[9] = input_flags;
+        demo_put_u32(&report[10], key_mask);
+        demo_put_u16(&report[14], stm32_us);
+        demo_put_u16(&report[16], tx_us);
+        demo_put_u16(&report[18], rx_us);
+        demo_put_u16(&report[20], rx_irq_us);
+        demo_put_u16(&report[22], rx_decode_us);
+        demo_put_u16(&report[24], rx_epwait_us);
+        demo_put_u16(&report[26], rx_submit_us);
+        report[28] = stage_flags;
+        report[29] = demo_hid_state_code();
+        report[30] = g_demo_current_channel;
+    }
+    else
+    {
+        demo_put_u32(&report[0], RX_HID_LATENCY_MAGIC);
+        demo_put_u32(&report[4], g_demo_hid_latency_seq + 1u);
+        report[8] = input_seq;
+        report[9] = input_flags;
+        demo_put_u32(&report[10], key_mask);
+        demo_put_u32(&report[14], sample_tick_us);
+        demo_put_u16(&report[18], stm32_us);
+        demo_put_u16(&report[20], tx_us);
+        demo_put_u16(&report[22], rx_us);
+        report[24] = stage_flags;
+        report[25] = sync_seq;
+        report[26] = 0u;
+        report[27] = demo_hid_state_code();
+        report[28] = g_demo_current_channel;
+        report[29] = g_demo_rate_code;
+        report[30] = g_demo_link_active;
+    }
     report[31] = (uint8_t)demo_input_crc8(report, 31u);
 
     if(demo_submit_hid_report(report) == 0u)

@@ -9,7 +9,8 @@ import { scrollbarStyle } from "./scrollbarStyle";
 const MAX_LATENCY_ROWS = 300;
 const LATENCY_ROW_HEIGHT = 30;
 const LATENCY_ROW_OVERSCAN = 5;
-const LATENCY_TABLE_COLUMNS = "minmax(62px, 1.15fr) repeat(3, minmax(52px, 0.85fr)) minmax(58px, 0.95fr) 42px";
+const LATENCY_TABLE_COLUMNS =
+  "minmax(62px, 1.05fr) repeat(2, minmax(48px, 0.7fr)) repeat(4, minmax(54px, 0.76fr)) minmax(54px, 0.76fr) minmax(58px, 0.82fr)";
 const standardButtonLabels = new Map<number, string>();
 for (const button of HITBOX_BUTTON_MAP) {
   if (button.gamepadButtonIndex !== UNMAPPED_GAMEPAD_BUTTON && button.label && !standardButtonLabels.has(button.gamepadButtonIndex)) {
@@ -115,7 +116,7 @@ function LatencyVirtualList({ rows }: { rows: ButtonLatencyEvent[] }) {
         borderColor="rgba(92,255,138,0.12)"
         bg="rgba(92,255,138,0.045)"
       >
-        {["Button", "STM32", "TX", "RX", "Total", "Seq"].map((label, index) => (
+        {["Button", "STM32", "TX", "IRQ", "Decode", "EPWait", "Submit", "RX", "Total"].map((label, index) => (
           <Text key={label} fontSize="sm" color="gray.500" fontWeight="semibold" textAlign={index === 0 ? "left" : "right"}>
             {label}
           </Text>
@@ -147,14 +148,17 @@ function LatencyVirtualList({ rows }: { rows: ButtonLatencyEvent[] }) {
                   borderColor="rgba(92,255,138,0.08)"
                   bg={index % 2 === 0 ? "rgba(0,0,0,0.12)" : "rgba(92,255,138,0.035)"}
                 >
-                  <Text fontSize="sm" color="gray.100" fontWeight="semibold" minW={0} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                  <Text fontSize="sm" color="gray.100" minW={0} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
                     {changedButtonLabels(row)}
                   </Text>
                   <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.stm32Ms)}</Text>
                   <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.txMs)}</Text>
+                  <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.rxIrqMs)}</Text>
+                  <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.rxDecodeMs)}</Text>
+                  <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.rxEpWaitMs)}</Text>
+                  <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.rxSubmitMs)}</Text>
                   <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.rxMs)}</Text>
                   <Text fontSize="sm" color="green.200" fontWeight="semibold" textAlign="right">{formatLatency(row.latencyMs)}ms</Text>
-                  <Text fontSize="sm" color="gray.500" textAlign="right">{row.inputSeq}</Text>
                 </Box>
               );
             })}
@@ -180,6 +184,12 @@ export function ButtonLatencyPanel({
   }, [visibleRows]);
   const displayRows = visibleRows.slice(-MAX_LATENCY_ROWS).reverse();
   const headerText = average === null ? (status?.status ?? "Waiting edge") : `${formatLatency(average)}ms`;
+  const latestFrame = visibleRows.length > 0 ? visibleRows[visibleRows.length - 1].latencyFrame : undefined;
+  const splitLabel = latestFrame === "RFH_RHL2"
+    ? "RHL2 split latency"
+    : latestFrame === "RFH_RHL1"
+      ? "RHL1: RX split unavailable"
+      : "Split latency";
 
   return (
     <Card.Root variant="outline" overflow="hidden" h="100%" minW={0} w="100%" {...panelSurfaceProps}>
@@ -197,7 +207,7 @@ export function ButtonLatencyPanel({
               {status?.status ?? "Waiting edge"}
             </Text>
             <Text fontSize="10px" color="gray.500">
-              Split latency
+              {splitLabel}
             </Text>
           </HStack>
         </Box>
