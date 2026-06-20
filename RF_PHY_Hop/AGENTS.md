@@ -27,6 +27,234 @@
 - `Off` 时停 DATA、停 ACK control timer、不发 ACK request、不开 ACK RX window。
 - 从 `Off` 切回任意速率时，重新进入连接/恢复过程，并从 `now + 500ms` 初始化 ACK control cadence。
 
+## 当前传输协议快照（SPI / RF / HID）
+
+本节记录当前正在验证的协议形态，优先级高于后面的历史实验记录。三个通道的职责分工是：
+
+- SPI：`application(STM32)` -> `TX(CH584M)` 的本地有线输入与控制桥。
+- RF：`TX(CH584M)` -> `RX(CH585F dongle)` 的 2.4G 空口输入、ACK 控制、跳频控制。
+- HID：`RX(CH585F dongle)` -> `connect-monitor(PC)` 的调试控制与 telemetry，不参与实际 XInput 输入数据面。
+
+### SPI：STM32 application -> TX RF module
+
+SPI 外层帧保持 RFModule bridge 设计：
+
+```text
+sync        u8   0xA5
+cmd/evt     u8
+len         u8
+payload     len bytes
+checksum8   u8   sum(cmd/evt + len + payload)
+```
+
+STM32 -> TX 当前命令：
+
+| cmd | 名称 | 作用 |
+|---:|---|---|
+| `0x01` | `GET_STATUS` | 查询 TX/RF 状态 |
+| `0x02` | `START_PAIR` | 开始配对 |
+| `0x03` | `STOP_PAIR` | 停止配对 |
+| `0x04` | `UNBIND` | 清除绑定 |
+| `0x05` | `SET_RATE` | 设置 RF DATA report rate，payload 为 `0/1000/2000/4000/8000` |
+| `0x06` | `INPUT_DATA` | 发送一帧输入状态 |
+| `0x07` | `SET_MONITOR_CONFIG` | 下发 monitor 配置，控制 HID telemetry、日志、auto hop |
+
+TX -> STM32 当前事件：
+
+| evt | 名称 | 作用 |
+|---:|---|---|
+| `0x81` | `STATUS` | TX/RF 当前状态 |
+| `0x82` | `STATE_CHANGED` | 连接/配对/跳频状态变化 |
+| `0x83` | `RATE_APPLIED` | 速率设置已应用 |
+| `0x84` | `LINK_WARN` | 链路告警 |
+| `0x85` | `ERROR` | 错误事件 |
+| `0x86` | `MONITOR_CONFIG` | monitor 配置应用结果 |
+| `0x87` | `TIME_SYNC` | 旧 time-sync 事件保留，当前端到端 latency 方案不依赖它 |
+
+`INPUT_DATA` payload 当前固定 `10B`，不扩包：
+
+```text
+offset  size  name
+0       1     seq
+1       1     flags        bit0=processed, high nibble 可放 input format version
+2       4     key_mask     little-endian，当前 hitbox key state
+6       2     age_us       little-endian
+8       1     reserved
+9       1     crc8         对 offset 0..8 计算
+```
+
+`age_us` 的含义：
+
+- 只在 `key_mask` 发生变化时填写；稳定重复帧填 `0`。
+- STM32 在 ADC 采样完成、形成本次输入状态时记录 `report_ready_us`。
+- `RFTransport::sendInput()` 发送 SPI 包时计算 `age_us = now_us - report_ready_us`。
+- `age_us` 饱和到 `0xFFFF`；如果边沿测得 `0us`，会提升为 `1us`，避免和“无边沿”混淆。
+
+SPI 这层的作用是把“输入状态”和“STM32 阶段已消耗时间”一起交给 TX，同时保持 payload 仍为 `10B`，避免先在 STM32->TX 链路上引入新的变量。
+
+### RF：TX -> RX 空口包体
+
+RF 全长 DATA 包仍是 `12B`：
+
+```text
+offset  size  name
+0       1     hdr0   type/rate/flags
+1       1     hdr1   group/slot 或 seq 相关信息
+2       10    data
+```
+
+正常输入包当前统一使用短包 `7B`：
+
+```text
+offset  size  name
+0       1     hdr0
+1       1     hdr1
+2       1     key_mask[0]
+3       1     key_mask[1]
+4       1     key_mask[2]
+5       1     stm32_age_q8
+6       1     tx_wait_q8
+```
+
+等价常量：
+
+```text
+RFH_INPUT_AIR_DATA_LEN   = 5
+RFH_INPUT_AIR_PACKET_LEN = RFH_DATA_OFFSET + RFH_INPUT_AIR_DATA_LEN = 7
+```
+
+短包字段含义：
+
+- `key_mask[0..2]`：当前输入状态低 `24bit`，足够覆盖当前 hitbox 按键。
+- `stm32_age_q8`：STM32 阶段耗时的压缩值，从 SPI `age_us` 编码而来。
+- `tx_wait_q8`：TX 从缓存到最新 SPI input 到填充 RF 短包之间的等待耗时压缩值。
+- `stm32_age_q8 == 0` 表示本包不是按键边沿，RX 不生成 latency telemetry。
+
+`q8` 压缩格式：
+
+```text
+0        = invalid / no edge
+1..128   ~= 4us step，约 4..512us
+129..224 ~= 16us step，约 528..2048us
+225..255 ~= 128us step，约 2176..6016us
+```
+
+TX 编码规则：
+
+```text
+us == 0      -> 0
+us <= 512    -> (us + 2) / 4
+us <= 2048   -> 128 + (us - 512 + 8) / 16
+otherwise    -> 224 + (us - 2048 + 64) / 128, saturate to 255
+```
+
+RX 解码规则：
+
+```text
+code == 0    -> 0
+code <= 128  -> code * 4
+code <= 224  -> 512 + (code - 128) * 16
+otherwise    -> 2048 + (code - 224) * 128
+```
+
+当前 RF 输入短包的作用是：用 `7B` 验证空口丢包率，同时携带 latency 拆分信息。它不是完整输入协议扩展，只保留低 24bit key mask 和两个压缩耗时字段，空口 CRC 仍由 PHY/硬件承担，不额外加 payload CRC。
+
+TX 侧注意点：
+
+- TX 从 SPI payload offset `6..7` 读取 `age_us`，编码成 `stm32_age_q8`。
+- TX 只在 `stm32_age_q8 != 0` 时计算并携带 `tx_wait_q8`。
+- 发送一次带边沿的 RF 包后，TX 会清掉本地缓存里的 age 字段，避免同一个按键边沿被重复上报 latency。
+- 因为 SPI latest input 是 peek 语义，TX 判断“是否新输入”时应比较 `seq + key_mask[0..2]`，不要把清 age 后的缓存变化当成新的输入。
+
+RX 侧注意点：
+
+- RX 收到 `7B` 短包后，会补成内部 `10B` input payload：`key_mask[0..2]` 放到原 key mask 位置，`stm32_age_q8` / `tx_wait_q8` 放到原 latency 字段位置。
+- RX 在 RF callback 时记录 `rx_tmr`，等 `USBHS_Endp_DataUp()` 成功后计算 RX 本地等待。
+- latency 拆分公式：
+
+```text
+stm32_us = q8_decode(stm32_age_q8)
+tx_us    = q8_decode(tx_wait_q8)
+rx_us    = RF callback -> USBHS_Endp_DataUp success
+total_us = stm32_us + tx_us + rx_us
+```
+
+### HID：RX dongle -> connect-monitor
+
+HID 分成 control 和 telemetry 两类：
+
+- control：PC -> RX，通过 HID `SET_REPORT/GET_REPORT` 下发配置；即使 telemetry 关闭也应保持可用。
+- telemetry：RX -> PC，通过 vendor HID endpoint `0x86` / `DEF_UEP6` 上报 `32B` 调试帧；默认关闭，由 connect-monitor 打开。
+
+HID control 固定 `32B`：
+
+```text
+magic       u32  "CTL1" = 0x314C5443
+version     u8   1
+seq         u8
+target      u8   0=ALL, 1=RX, 2=TX, 3=STM32
+cmd         u8   1=SET_CONFIG, 2=GET_CONFIG, 3=TIME_SYNC(legacy)
+flags       u32  bit0=hidTelemetry, bit1=rxLog, bit2=txLog, bit3=stm32Log, bit4=autoHop
+periodMs    u16  0/100/250/500/1000
+crc16       u16  CCITT
+reserved    ...
+```
+
+control 的作用：
+
+- RX 立即应用 `hidTelemetry`、`periodMs`、`rxLog`、`autoHop` 等本地配置。
+- TX/STM32 相关配置由 RX 通过 RF ACK control 字段低频转发给 TX。
+- TX 再通过 SPI bridge 把 STM32 log 配置传给 application。
+- 设备断电不保存这些配置，默认 HID telemetry 和各串口日志都关闭。
+
+当前 telemetry magic：
+
+| magic | 名称 | 作用 |
+|---|---|---|
+| `RHM1` | RF monitor | 上报 RX RF 窗口统计、有效包、expected、gap、RSSI、loss、状态等 |
+| `RHS1` | RF channel scores | 上报频道质量分、当前频道、auto/manual hop 状态 |
+| `RHI1` | RF input mirror | 上报输入镜像/当前 key mask，供 monitor 辅助显示 |
+| `RHL1` | RF latency | 按键边沿 latency 拆分上报，供 Button Latency 表格显示 |
+
+`RHL1` 当前固定 `32B`：
+
+```text
+offset  size  name
+0       4     magic = "RHL1"
+4       4     latency_seq
+8       1     input_seq
+9       1     input_flags
+10      4     key_mask
+14      4     total_latency_us
+18      2     stm32_age_us
+20      2     tx_wait_us
+22      2     rx_wait_us
+24      1     stage_flags
+25      1     sync_seq/reserved
+26      1     reserved
+27      1     state_code
+28      1     current_channel
+29      1     rate_code
+30      1     link_active
+31      1     crc8 over offset 0..30
+```
+
+`stage_flags`：
+
+```text
+bit0 = split latency fields valid
+bit1 = stm32_age_q8 saturated
+bit2 = tx_wait_q8 saturated
+bit3 = rx_wait_us saturated
+```
+
+HID telemetry 的作用边界：
+
+- `RHM1/RHS1/RHI1` 用于 connect-monitor 的 report rate、packet loss、channel scores、packets/events/scores 面板。
+- `RHL1` 只在按键边沿且 HID telemetry 开启时发送；不按键不应持续刷 latency 行。
+- HID telemetry 关闭时不发送周期包和 latency 包，但 XInput 输入链路应继续正常工作。
+- Gamepad Buttons 面板的按键响应应来自 PC 侧 XInput/Gamepad 观测，不应依赖低频 HID telemetry。
+
 ## 当前 TX/RX 链路状态机
 
 TX 侧当前核心状态：

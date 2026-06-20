@@ -44,7 +44,7 @@ export function RatePanel({
   const latestLoss = rfConnected && lossSeries.length > 0 ? lossSeries[lossSeries.length - 1].value : 0;
 
   return (
-    <Card.Root variant="outline" h="100%" display="flex" flexDirection="column" {...panelSurfaceProps}>
+    <Card.Root variant="outline" h="100%" minW={0} display="flex" flexDirection="column" {...panelSurfaceProps}>
       <PanelHeader
         title="Report Rate / Packet Loss / Channel Events"
         meta={`${reportHz.toFixed(1)} Hz · ${latestLoss.toFixed(2)} %`}

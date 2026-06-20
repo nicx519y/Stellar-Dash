@@ -116,7 +116,7 @@ function LatencyVirtualList({ rows }: { rows: ButtonLatencyEvent[] }) {
         bg="rgba(92,255,138,0.045)"
       >
         {["Button", "STM32", "TX", "RX", "Total", "Seq"].map((label, index) => (
-          <Text key={label} fontSize="9px" color="gray.500" fontWeight="semibold" textAlign={index === 0 ? "left" : "right"}>
+          <Text key={label} fontSize="sm" color="gray.500" fontWeight="semibold" textAlign={index === 0 ? "left" : "right"}>
             {label}
           </Text>
         ))}
@@ -147,14 +147,14 @@ function LatencyVirtualList({ rows }: { rows: ButtonLatencyEvent[] }) {
                   borderColor="rgba(92,255,138,0.08)"
                   bg={index % 2 === 0 ? "rgba(0,0,0,0.12)" : "rgba(92,255,138,0.035)"}
                 >
-                  <Text fontSize="11px" color="gray.100" fontWeight="semibold" minW={0} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                  <Text fontSize="sm" color="gray.100" fontWeight="semibold" minW={0} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
                     {changedButtonLabels(row)}
                   </Text>
-                  <Text fontSize="10px" color="gray.200" textAlign="right">{formatLatencyPart(row.stm32Ms)}</Text>
-                  <Text fontSize="10px" color="gray.200" textAlign="right">{formatLatencyPart(row.txMs)}</Text>
-                  <Text fontSize="10px" color="gray.200" textAlign="right">{formatLatencyPart(row.rxMs)}</Text>
-                  <Text fontSize="10px" color="green.200" fontWeight="semibold" textAlign="right">{formatLatency(row.latencyMs)}ms</Text>
-                  <Text fontSize="10px" color="gray.500" textAlign="right">{row.inputSeq}</Text>
+                  <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.stm32Ms)}</Text>
+                  <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.txMs)}</Text>
+                  <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.rxMs)}</Text>
+                  <Text fontSize="sm" color="green.200" fontWeight="semibold" textAlign="right">{formatLatency(row.latencyMs)}ms</Text>
+                  <Text fontSize="sm" color="gray.500" textAlign="right">{row.inputSeq}</Text>
                 </Box>
               );
             })}
@@ -182,7 +182,7 @@ export function ButtonLatencyPanel({
   const headerText = average === null ? (status?.status ?? "Waiting edge") : `${formatLatency(average)}ms`;
 
   return (
-    <Card.Root variant="outline" overflow="hidden" h="100%" minW="400px" w="400px" {...panelSurfaceProps}>
+    <Card.Root variant="outline" overflow="hidden" h="100%" minW={0} w="100%" {...panelSurfaceProps}>
       <PanelHeader
         title="Latency"
         meta={`${visibleRows.length}/${MAX_LATENCY_ROWS}`}
