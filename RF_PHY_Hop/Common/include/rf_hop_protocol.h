@@ -102,12 +102,18 @@
 #define RFH_CMD_TIME_SYNC             0x22u
 #define RFH_CMD_TIME_SYNC_ECHO        0x23u
 #define RFH_CMD_LATENCY_INPUT         0x24u
+#define RFH_CMD_SCORE_HINT            0x25u
 #define RFH_CMD_PAIR_OFFER            0x30u
 #define RFH_CMD_PAIR_ACCEPT           0x31u
 #define RFH_CMD_PAIR_CONFIRM          0x32u
 #define RFH_CMD_PAIR_DONE             0x33u
 #define RFH_CMD_PAIR_REJECT           0x34u
 #define RFH_CMD_RECONNECT             0x7Fu
+
+#define RFH_PAIR_REJECT_BAD_VERSION   1u
+#define RFH_PAIR_REJECT_BAD_STATE     2u
+#define RFH_PAIR_REJECT_BAD_ADDRESS   3u
+#define RFH_PAIR_REJECT_BOND_FAILED   4u
 
 #define RFH_ACK_STATUS_SEEK           0u
 #define RFH_ACK_STATUS_CONNECTED      1u
@@ -288,10 +294,10 @@ static inline uint8_t rfh_access_address_valid(uint32_t aa)
 
 static inline uint32_t rfh_access_address_from_seed(uint32_t seed)
 {
-    uint8_t i;
+    uint16_t i;
     uint32_t aa = seed;
 
-    for(i = 0u; i < 32u; ++i)
+    for(i = 0u; i < 256u; ++i)
     {
         aa ^= aa << 13;
         aa ^= aa >> 17;
@@ -302,7 +308,18 @@ static inline uint32_t rfh_access_address_from_seed(uint32_t seed)
             return aa;
         }
     }
-    return 0x6D35B8C9UL;
+
+    /*
+     * Extremely unlikely fallback. Keep it seed-derived so production builds
+     * never collapse back to a fleet-wide working access address.
+     */
+    aa = seed ^ (seed << 7) ^ (seed >> 9) ^ 0xD3C5A7B9UL;
+    aa ^= (aa << 11) | (aa >> 21);
+    if(rfh_access_address_valid(aa) == 0u)
+    {
+        aa ^= 0x5A5AA5A5UL;
+    }
+    return aa;
 }
 
 static inline uint32_t rfh_pair_confirm32(uint32_t session_nonce,

@@ -2,6 +2,18 @@
 
 > 目标：给 `RF_PHY_Hop` 的 TX/RX 增加独立配对模式，用于生成、交换、持久化 TX/RX 的专属 `accessAddress`，并通过 STM32 屏幕完成 TX 侧入口与配对结果反馈。
 
+## 0. 当前落地说明
+
+当前代码已按 `design.md` 第 15 章的两阶段方案落地：`PAIR_OFFER` 携带 `tx_id_hash`，`PAIR_ACCEPT` 携带 `rx_id_hash`，TX 在收到 RX 短 ID 后生成最终 `link_access_address`，再通过 `PAIR_CONFIRM` 下发；RX 写入本地 bond 成功后，才在新的工作地址上发送 `PAIR_DONE(bond_confirm32)`。本文件前文中“`PAIR_OFFER` 直接携带候选 `accessAddress`”的早期简化描述不再作为实现依据。
+
+当前实现文件：
+
+- `Common/include/rf_hop_protocol.h`：pair 命令、reject reason、access address 生成/校验。
+- `Common/include/rf_hop_bond.h`：bond record 与 checksum。
+- `TX/APP/RF_PHY.c`：TX pairing master 状态机、bond 持久化、`START_PAIR/STOP_PAIR/UNBIND`。
+- `RX/APP/RF_PHY.c`：RX pairing scan/confirm 状态机、bond 持久化。
+- `RX/APP/RF_main.c`：PB22 低电平长按 5s 进入 RX pairing。
+
 ## 1. 需求边界
 
 ### 1.1 用户入口

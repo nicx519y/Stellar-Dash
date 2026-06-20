@@ -8,6 +8,7 @@
 #include "HAL.h"
 #include "wchrf.h"
 #include "rf_hop_protocol.h"
+#include "rf_hop_bond.h"
 #include "rf_monitor_control.h"
 #include "dongle_config.h"
 #include "ch585_usbhs_device.h"
@@ -45,6 +46,10 @@
 #define RF_AUTO_DEMO_HOP_DUAL_DWELL_MS 2u
 #define RF_AUTO_DEMO_HOP_DUAL_TIMEOUT_MS 3000u
 #define RF_AUTO_DEMO_RECOVERY_DWELL_MS 20u
+#define RF_AUTO_DEMO_PAIR_TX_REJECT_REASON_DEFAULT RFH_PAIR_REJECT_BAD_STATE
+#define RF_AUTO_DEMO_PAIR_AFTER_ACCEPT 1u
+#define RF_AUTO_DEMO_PAIR_AFTER_DONE   2u
+#define RF_AUTO_DEMO_PAIR_AFTER_REJECT 3u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_INIT RF_AUTO_DEMO_CHANNEL_SCORE_GOOD
 #define RF_AUTO_DEMO_CHANNEL_SCORE_GOOD 20u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_LOSS_WARN 180u
@@ -95,7 +100,9 @@ typedef enum
     RF_AUTO_RX_CONNECT_ACK_PENDING,
     RF_AUTO_RX_COMM,
     RF_AUTO_RX_PREPARED_DUAL,
-    RF_AUTO_RX_RECOVERY_SCAN
+    RF_AUTO_RX_RECOVERY_SCAN,
+    RF_AUTO_RX_PAIRING,
+    RF_AUTO_RX_PAIR_CONFIRM_WAIT
 } rf_auto_rx_state_t;
 
 typedef enum
@@ -141,6 +148,12 @@ static uint8_t g_demo_last_ack_token = 0u;
 static uint8_t g_demo_have_ack_token = 0u;
 static uint16_t g_demo_report_hz = RF_AUTO_DEMO_REPORT_HZ;
 static uint8_t g_demo_rate_code = RF_AUTO_DEMO_RATE_CODE;
+static uint8_t g_demo_has_bond = 0u;
+static uint8_t g_demo_bond_channel_a = RF_AUTO_DEMO_DISCOVERY_CHANNEL_A;
+static uint8_t g_demo_bond_channel_b = RF_AUTO_DEMO_DISCOVERY_CHANNEL_B;
+static uint32_t g_demo_local_id_hash = 0u;
+static uint32_t g_demo_link_access_address = RFH_LINK_ACCESS_ADDRESS_DEFAULT;
+static rfh_bond_record_t g_demo_bond;
 static volatile uint32_t g_demo_last_data_tmr = 0u;
 static volatile uint8_t g_demo_link_active = 0u;
 static uint8_t g_demo_current_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
@@ -165,6 +178,17 @@ static uint32_t g_demo_dual_deadline_clock = 0u;
 static uint8_t g_demo_dual_side = 0u;
 static uint32_t g_demo_recovery_scan_clock = 0u;
 static uint8_t g_demo_recovery_scan_rank = 0u;
+static volatile uint8_t g_demo_pair_tx_active = 0u;
+static uint8_t g_demo_pair_after_tx_action = 0u;
+static uint8_t g_demo_pair_scan_side = 0u;
+static uint32_t g_demo_pair_scan_clock = 0u;
+static uint32_t g_demo_pair_deadline_clock = 0u;
+static uint32_t g_demo_pair_confirm_deadline_clock = 0u;
+static uint32_t g_demo_pair_session = 0u;
+static uint32_t g_demo_pair_tx_id_hash = 0u;
+static uint32_t g_demo_pair_rx_id_hash = 0u;
+static uint32_t g_demo_pair_link_access_address = 0u;
+static uint32_t g_demo_pair_done_confirm32 = 0u;
 static uint32_t g_demo_hid_telemetry_seq = 0u;
 static uint32_t g_demo_hid_last_clock = 0u;
 static volatile uint16_t g_demo_hid_last_window_rx_ok = 0u;
@@ -245,6 +269,7 @@ static uint8_t g_demo_ack_seq = 0u;
 static uint16_t g_demo_channel_scores[RFH_HOP_CHANNEL_COUNT];
 static uint32_t g_demo_hid_score_seq = 0u;
 static uint8_t g_demo_hid_score_div = 0u;
+static uint8_t g_demo_ack_score_hint_index = 0u;
 static rf_rx_pending_t g_demo_rx_pending[RF_RX_PENDING_DEPTH];
 static volatile uint8_t g_demo_rx_pending_head = 0u;
 static volatile uint8_t g_demo_rx_pending_tail = 0u;
@@ -268,6 +293,200 @@ static volatile uint32_t g_monitor_pending_flags = 0u;
 static volatile uint8_t g_monitor_pending_retries = 0u;
 static volatile uint8_t g_monitor_sync_pending_retries = 0u;
 static volatile uint8_t g_monitor_sync_seq = 0u;
+
+static uint32_t demo_hash_bytes(uint32_t hash, const uint8_t *bytes, uint8_t len)
+{
+    uint8_t i;
+
+    for(i = 0u; i < len; i++)
+    {
+        hash ^= bytes[i];
+        hash *= 16777619UL;
+    }
+    return hash;
+}
+
+static uint32_t demo_make_local_id_hash(void)
+{
+    static const uint8_t tag[] = "HBOX-RF-HOP:RX";
+    uint8_t mac[8] __attribute__((aligned(4))) = {0};
+    uint32_t hash = 2166136261UL;
+
+    (void)GetMACAddress(mac);
+    hash = demo_hash_bytes(hash, tag, (uint8_t)(sizeof(tag) - 1u));
+    hash = demo_hash_bytes(hash, mac, 6u);
+    hash = rfh_fnv1a32_mix_u32(hash, chip_info);
+    return (hash == 0u) ? 0x52584A31UL : hash;
+}
+
+static void demo_select_unpaired_address(void)
+{
+    uint32_t seed;
+
+    g_demo_has_bond = 0u;
+    memset(&g_demo_bond, 0, sizeof(g_demo_bond));
+    g_demo_bond_channel_a = RF_AUTO_DEMO_DISCOVERY_CHANNEL_A;
+    g_demo_bond_channel_b = RF_AUTO_DEMO_DISCOVERY_CHANNEL_B;
+#if (RFH_TEST_FIXED_BOND_ENABLE != 0u)
+    rfh_bond_record_init(&g_demo_bond,
+                         RFH_TEST_FIXED_ACCESS_ADDRESS,
+                         RF_AUTO_DEMO_DISCOVERY_CHANNEL_A,
+                         RF_AUTO_DEMO_DISCOVERY_CHANNEL_B,
+                         g_demo_rate_code,
+                         g_demo_local_id_hash,
+                         0u,
+                         0u,
+                         0u);
+    g_demo_has_bond = 1u;
+    g_demo_link_access_address = RFH_TEST_FIXED_ACCESS_ADDRESS;
+    return;
+#endif
+    seed = rfh_fnv1a32_mix_u32(g_demo_local_id_hash, 0x52584E42UL);
+    g_demo_link_access_address = rfh_access_address_from_seed(seed);
+    if(rfh_access_address_valid(g_demo_link_access_address) == 0u)
+    {
+        seed = rfh_fnv1a32_mix_u32(seed, TMOS_GetSystemClock());
+        g_demo_link_access_address = rfh_access_address_from_seed(seed);
+    }
+}
+
+static void demo_apply_loaded_bond(const rfh_bond_record_t *record)
+{
+    g_demo_bond = *record;
+    g_demo_has_bond = 1u;
+    g_demo_link_access_address = record->link_access_address;
+    g_demo_bond_channel_a = record->channel_a;
+    g_demo_bond_channel_b = record->channel_b;
+    if(record->rate_code <= RFH_RATE_8K)
+    {
+        g_demo_rate_code = record->rate_code;
+        g_demo_report_hz = rfh_rate_hz_from_code(record->rate_code);
+    }
+}
+
+static void demo_load_bond(void)
+{
+    rfh_bond_record_t record __attribute__((aligned(4)));
+
+#if (RFH_TEST_FIXED_BOND_ENABLE != 0u)
+    demo_select_unpaired_address();
+    return;
+#endif
+
+    memset(&record, 0, sizeof(record));
+    if((EEPROM_READ(RFH_BOND_EEPROM_ADDR_DEFAULT, &record, sizeof(record)) == 0u) &&
+       (rfh_bond_record_valid(&record) != 0u) &&
+       (record.local_id_hash == g_demo_local_id_hash))
+    {
+        demo_apply_loaded_bond(&record);
+        return;
+    }
+    demo_select_unpaired_address();
+}
+
+static uint8_t demo_write_bond_record(const rfh_bond_record_t *record)
+{
+    rfh_bond_record_t write_record __attribute__((aligned(4)));
+    rfh_bond_record_t verify __attribute__((aligned(4)));
+
+    if((record == 0) || (rfh_bond_record_valid(record) == 0u))
+    {
+        return 0u;
+    }
+
+    memcpy(&write_record, record, sizeof(write_record));
+    if(EEPROM_ERASE(RFH_BOND_EEPROM_ADDR_DEFAULT, RFH_BOND_EEPROM_ERASE_SIZE) != 0u)
+    {
+        return 0u;
+    }
+    if(EEPROM_WRITE(RFH_BOND_EEPROM_ADDR_DEFAULT,
+                    &write_record,
+                    sizeof(write_record)) != 0u)
+    {
+        return 0u;
+    }
+    memset(&verify, 0, sizeof(verify));
+    if(EEPROM_READ(RFH_BOND_EEPROM_ADDR_DEFAULT, &verify, sizeof(verify)) != 0u)
+    {
+        return 0u;
+    }
+    return (memcmp(&verify, &write_record, sizeof(write_record)) == 0) ? 1u : 0u;
+}
+
+static uint8_t demo_save_bond(uint32_t link_access_address,
+                              uint32_t peer_id_hash,
+                              uint32_t bond_confirm32)
+{
+    rfh_bond_record_t record __attribute__((aligned(4)));
+    uint32_t pair_counter = (g_demo_has_bond != 0u) ?
+                            (g_demo_bond.pair_counter + 1u) : 1u;
+
+#if (RFH_TEST_FIXED_BOND_ENABLE != 0u)
+    (void)link_access_address;
+    (void)peer_id_hash;
+    (void)bond_confirm32;
+    demo_select_unpaired_address();
+    return 1u;
+#endif
+
+    rfh_bond_record_init(&record,
+                         link_access_address,
+                         RF_AUTO_DEMO_DISCOVERY_CHANNEL_A,
+                         RF_AUTO_DEMO_DISCOVERY_CHANNEL_B,
+                         g_demo_rate_code,
+                         g_demo_local_id_hash,
+                         peer_id_hash,
+                         pair_counter,
+                         bond_confirm32);
+    if(demo_write_bond_record(&record) == 0u)
+    {
+        return 0u;
+    }
+    demo_apply_loaded_bond(&record);
+    return 1u;
+}
+
+static uint8_t demo_apply_access_address(uint32_t access_address)
+{
+    if((access_address != RFH_PAIR_ACCESS_ADDRESS) &&
+       (rfh_access_address_valid(access_address) == 0u))
+    {
+        return 0u;
+    }
+
+    (void)RFRole_Stop();
+    g_demo_rx_active = 0u;
+    gParm.accessAddress = access_address;
+    RFRole_SetParam(&gParm);
+#if (RF_AUTO_DEMO_SEND_ACK_ENABLE != 0u)
+    gTxParam.accessAddress = access_address;
+#endif
+    gRxParam.accessAddress = access_address;
+    return 1u;
+}
+
+static uint8_t demo_pair_is_active(void)
+{
+    return ((g_demo_rx_state == RF_AUTO_RX_PAIRING) ||
+            (g_demo_rx_state == RF_AUTO_RX_PAIR_CONFIRM_WAIT)) ? 1u : 0u;
+}
+
+static uint8_t demo_pair_meta(uint8_t write_bond)
+{
+    uint8_t meta = (uint8_t)(((uint8_t)RFH_PAIR_PROTO_VERSION << RFH_PAIR_META_VERSION_SHIFT) |
+                             (g_demo_rate_code & RFH_PAIR_META_RATE_MASK));
+    if(write_bond != 0u)
+    {
+        meta |= RFH_PAIR_META_WRITE_BOND;
+    }
+    return meta;
+}
+
+static uint8_t demo_pair_meta_valid(uint8_t meta)
+{
+    return (((meta & RFH_PAIR_META_VERSION_MASK) >> RFH_PAIR_META_VERSION_SHIFT) ==
+            RFH_PAIR_PROTO_VERSION) ? 1u : 0u;
+}
 
 static void monitor_put_u16(uint8_t *dst, uint16_t value)
 {
@@ -965,6 +1184,14 @@ static char demo_rx_state_char(void)
     {
         return 'R';
     }
+    if(g_demo_rx_state == RF_AUTO_RX_PAIRING)
+    {
+        return 'O';
+    }
+    if(g_demo_rx_state == RF_AUTO_RX_PAIR_CONFIRM_WAIT)
+    {
+        return 'F';
+    }
     return 'M';
 }
 
@@ -1038,10 +1265,29 @@ static void demo_fill_ack_packet(void)
     }
     else
     {
-        data[RFH_ACK_CMD_ID] = g_demo_pending_ack_cmd;
-        data[RFH_ACK_FLAGS] = (g_demo_pending_ack_cmd == RFH_CMD_NONE) ? 0u : RFH_FLAG_CMD_ACK;
-        data[RFH_ACK_CHANNEL] = g_demo_current_channel;
-        data[RFH_ACK_STATUS] = g_demo_pending_ack_seq;
+        if((g_demo_pending_ack_cmd == RFH_CMD_NONE) &&
+           (g_demo_ack_score_hint_index < RFH_HOP_CHANNEL_COUNT))
+        {
+            uint16_t score = g_demo_channel_scores[g_demo_ack_score_hint_index];
+
+            data[RFH_ACK_CMD_ID] = RFH_CMD_SCORE_HINT;
+            data[RFH_ACK_FLAGS] = 0u;
+            data[RFH_ACK_CHANNEL] = rfh_hop_channel_at(g_demo_ack_score_hint_index);
+            data[RFH_ACK_STATUS] = (score >= 1000u) ? 250u :
+                                   (uint8_t)((score + 2u) / 4u);
+            g_demo_ack_score_hint_index++;
+            if(g_demo_ack_score_hint_index >= RFH_HOP_CHANNEL_COUNT)
+            {
+                g_demo_ack_score_hint_index = 0u;
+            }
+        }
+        else
+        {
+            data[RFH_ACK_CMD_ID] = g_demo_pending_ack_cmd;
+            data[RFH_ACK_FLAGS] = (g_demo_pending_ack_cmd == RFH_CMD_NONE) ? 0u : RFH_FLAG_CMD_ACK;
+            data[RFH_ACK_CHANNEL] = g_demo_current_channel;
+            data[RFH_ACK_STATUS] = g_demo_pending_ack_seq;
+        }
     }
     demo_reset_quality_window();
 }
@@ -1094,8 +1340,8 @@ static void demo_arm_rx(void)
 static uint8_t demo_discovery_channel(uint8_t side)
 {
     return ((side & 1u) == 0u) ?
-           RF_AUTO_DEMO_DISCOVERY_CHANNEL_B :
-           RF_AUTO_DEMO_DISCOVERY_CHANNEL_A;
+           g_demo_bond_channel_b :
+           g_demo_bond_channel_a;
 }
 
 static uint8_t demo_manual_fixed_channel(uint8_t *channel)
@@ -1199,6 +1445,239 @@ static void demo_schedule_ack(uint8_t remaining_slots)
 {
     g_demo_ack_pending = 1u;
     demo_ack_timer_arm(g_demo_ack_delay_tmr + ((uint32_t)remaining_slots * g_demo_slot_tmr));
+}
+
+static void demo_fill_pair_packet(uint8_t cmd, uint32_t arg32)
+{
+    uint8_t *air = &TxBuf[2];
+    uint8_t *data = &air[RFH_DATA_OFFSET];
+    uint8_t meta = demo_pair_meta(0u);
+
+    memset(TxBuf, 0, sizeof(TxBuf));
+    TxBuf[0] = RFH_WCH_PREAMBLE;
+    TxBuf[1] = RF_AUTO_DEMO_PACKET_LEN;
+    air[RFH_HDR0_OFFSET] = rfh_make_header0(RFH_PKT_PAIR, g_demo_rate_code, 0u);
+    air[RFH_HDR1_OFFSET] = (uint8_t)g_demo_pair_session;
+    data[RFH_PAIR_CMD_ID] = cmd;
+    rfh_put_u32(&data[RFH_PAIR_SESSION0], g_demo_pair_session);
+    rfh_put_u32(&data[RFH_PAIR_ARG0], arg32);
+    if(cmd == RFH_CMD_PAIR_DONE)
+    {
+        meta = demo_pair_meta(1u);
+    }
+    data[RFH_PAIR_META] = meta;
+}
+
+static uint8_t demo_send_pair_packet(uint8_t cmd,
+                                     uint32_t arg32,
+                                     uint32_t access_address,
+                                     uint8_t after_action)
+{
+    bStatus_t ret;
+
+    if((g_demo_config_ret != SUCCESS) || (demo_pair_is_active() == 0u))
+    {
+        return 0u;
+    }
+
+    (void)RFRole_Stop();
+    g_demo_rx_active = 0u;
+    g_demo_pair_tx_active = 1u;
+    g_demo_pair_after_tx_action = after_action;
+    demo_fill_pair_packet(cmd, arg32);
+    gTxParam.txDMA = (uint32_t)TxBuf;
+    gTxParam.accessAddress = access_address;
+    gTxParam.frequency = RFH_PAIR_CHANNEL_A;
+    gTxParam.whiteChannel = RFH_PAIR_CHANNEL_A;
+    g_demo_tx_start_ret = (uint8_t)RFIP_SetTxStart();
+    if(g_demo_tx_start_ret != SUCCESS)
+    {
+        g_demo_pair_tx_active = 0u;
+        g_demo_pair_after_tx_action = 0u;
+        g_demo_stat.ack_fail++;
+        return 0u;
+    }
+    ret = RFIP_SetTxParm(&gTxParam);
+    g_demo_tx_parm_ret = (uint8_t)ret;
+    if(ret != SUCCESS)
+    {
+        g_demo_pair_tx_active = 0u;
+        g_demo_pair_after_tx_action = 0u;
+        g_demo_stat.tx_parm_fail++;
+        g_demo_stat.ack_fail++;
+        return 0u;
+    }
+    return 1u;
+}
+
+static void demo_abort_pairing(uint32_t now)
+{
+    g_demo_pair_tx_active = 0u;
+    g_demo_pair_after_tx_action = 0u;
+    g_demo_ack_pending = 0u;
+    demo_ack_timer_cancel();
+    (void)demo_apply_access_address(g_demo_link_access_address);
+    demo_enter_rx_unconnected(now);
+}
+
+static void demo_after_pair_tx_finish(void)
+{
+    uint8_t action = g_demo_pair_after_tx_action;
+
+    g_demo_pair_tx_active = 0u;
+    g_demo_pair_after_tx_action = 0u;
+
+    if(action == RF_AUTO_DEMO_PAIR_AFTER_ACCEPT)
+    {
+        (void)demo_apply_access_address(RFH_PAIR_ACCESS_ADDRESS);
+        demo_set_channel(RFH_PAIR_CHANNEL_A);
+        demo_arm_rx();
+    }
+    else if(action == RF_AUTO_DEMO_PAIR_AFTER_DONE)
+    {
+        (void)demo_apply_access_address(g_demo_link_access_address);
+        demo_enter_rx_unconnected(TMOS_GetSystemClock());
+    }
+    else if(action == RF_AUTO_DEMO_PAIR_AFTER_REJECT)
+    {
+        demo_abort_pairing(TMOS_GetSystemClock());
+    }
+}
+
+static uint8_t demo_process_pair_packet(const rf_rx_pending_t *pending)
+{
+    const uint8_t *air;
+    const uint8_t *data;
+    uint8_t cmd;
+    uint8_t meta;
+    uint32_t session;
+    uint32_t arg32;
+
+    if((pending == 0) || (pending->len != RF_AUTO_DEMO_PACKET_LEN))
+    {
+        return 0u;
+    }
+    if(demo_pair_is_active() == 0u)
+    {
+        return 0u;
+    }
+
+    air = pending->air;
+    data = &air[RFH_DATA_OFFSET];
+    if(rfh_packet_type(air[RFH_HDR0_OFFSET]) != RFH_PKT_PAIR)
+    {
+        return 0u;
+    }
+
+    cmd = data[RFH_PAIR_CMD_ID];
+    session = rfh_get_u32(&data[RFH_PAIR_SESSION0]);
+    arg32 = rfh_get_u32(&data[RFH_PAIR_ARG0]);
+    meta = data[RFH_PAIR_META];
+    if(demo_pair_meta_valid(meta) == 0u)
+    {
+        (void)demo_send_pair_packet(RFH_CMD_PAIR_REJECT,
+                                    RFH_PAIR_REJECT_BAD_VERSION,
+                                    RFH_PAIR_ACCESS_ADDRESS,
+                                    RF_AUTO_DEMO_PAIR_AFTER_REJECT);
+        return 1u;
+    }
+
+    if((g_demo_rx_state == RF_AUTO_RX_PAIRING) &&
+       (cmd == RFH_CMD_PAIR_OFFER) &&
+       (arg32 != 0u))
+    {
+        g_demo_pair_session = session;
+        g_demo_pair_tx_id_hash = arg32;
+        g_demo_pair_rx_id_hash = g_demo_local_id_hash;
+        g_demo_pair_link_access_address = 0u;
+        g_demo_pair_done_confirm32 = 0u;
+        g_demo_rx_state = RF_AUTO_RX_PAIR_CONFIRM_WAIT;
+        g_demo_pair_confirm_deadline_clock =
+            TMOS_GetSystemClock() + MS1_TO_SYSTEM_TIME(RFH_PAIR_CONFIRM_TIMEOUT_MS);
+        (void)demo_send_pair_packet(RFH_CMD_PAIR_ACCEPT,
+                                    g_demo_pair_rx_id_hash,
+                                    RFH_PAIR_ACCESS_ADDRESS,
+                                    RF_AUTO_DEMO_PAIR_AFTER_ACCEPT);
+        g_demo_stat.hop_event++;
+        return 1u;
+    }
+
+    if((g_demo_rx_state == RF_AUTO_RX_PAIR_CONFIRM_WAIT) &&
+       (cmd == RFH_CMD_PAIR_CONFIRM) &&
+       (session == g_demo_pair_session) &&
+       ((meta & RFH_PAIR_META_WRITE_BOND) != 0u))
+    {
+        g_demo_pair_link_access_address = arg32;
+        if(rfh_access_address_valid(g_demo_pair_link_access_address) == 0u)
+        {
+            (void)demo_send_pair_packet(RFH_CMD_PAIR_REJECT,
+                                        RFH_PAIR_REJECT_BAD_ADDRESS,
+                                        RFH_PAIR_ACCESS_ADDRESS,
+                                        RF_AUTO_DEMO_PAIR_AFTER_REJECT);
+            return 1u;
+        }
+        g_demo_pair_done_confirm32 =
+            rfh_pair_confirm32(g_demo_pair_session,
+                               g_demo_pair_tx_id_hash,
+                               g_demo_pair_rx_id_hash,
+                               g_demo_pair_link_access_address);
+        if(demo_save_bond(g_demo_pair_link_access_address,
+                          g_demo_pair_tx_id_hash,
+                          g_demo_pair_done_confirm32) == 0u)
+        {
+            (void)demo_send_pair_packet(RFH_CMD_PAIR_REJECT,
+                                        RFH_PAIR_REJECT_BOND_FAILED,
+                                        RFH_PAIR_ACCESS_ADDRESS,
+                                        RF_AUTO_DEMO_PAIR_AFTER_REJECT);
+            return 1u;
+        }
+        (void)demo_apply_access_address(g_demo_pair_link_access_address);
+        (void)demo_send_pair_packet(RFH_CMD_PAIR_DONE,
+                                    g_demo_pair_done_confirm32,
+                                    g_demo_pair_link_access_address,
+                                    RF_AUTO_DEMO_PAIR_AFTER_DONE);
+        g_demo_stat.hop_event++;
+        return 1u;
+    }
+
+    return 1u;
+}
+
+static void demo_service_pairing(uint32_t now)
+{
+    if(demo_pair_is_active() == 0u)
+    {
+        return;
+    }
+    if((int32_t)(now - g_demo_pair_deadline_clock) >= 0)
+    {
+        demo_abort_pairing(now);
+        return;
+    }
+    if((g_demo_rx_state == RF_AUTO_RX_PAIR_CONFIRM_WAIT) &&
+       (g_demo_pair_tx_active == 0u) &&
+       ((int32_t)(now - g_demo_pair_confirm_deadline_clock) >= 0))
+    {
+        g_demo_rx_state = RF_AUTO_RX_PAIRING;
+        g_demo_pair_session = 0u;
+        g_demo_pair_tx_id_hash = 0u;
+        g_demo_pair_link_access_address = 0u;
+        (void)demo_apply_access_address(RFH_PAIR_ACCESS_ADDRESS);
+        demo_set_channel(RFH_PAIR_CHANNEL_A);
+        demo_arm_rx();
+        return;
+    }
+    if((g_demo_rx_state == RF_AUTO_RX_PAIRING) &&
+       (g_demo_pair_tx_active == 0u) &&
+       ((uint32_t)(now - g_demo_pair_scan_clock) >=
+        MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_DISCOVERY_SCAN_DWELL_MS)))
+    {
+        g_demo_pair_scan_clock = now;
+        g_demo_pair_scan_side ^= 1u;
+        demo_set_channel((g_demo_pair_scan_side == 0u) ?
+                         RFH_PAIR_CHANNEL_A : RFH_PAIR_CHANNEL_B);
+        demo_arm_rx();
+    }
 }
 
 static uint8_t demo_note_data_seq(uint8_t seq)
@@ -2064,6 +2543,10 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
 
     air = pending->air;
     packet_type = rfh_packet_type(air[RFH_HDR0_OFFSET]);
+    if(packet_type == RFH_PKT_PAIR)
+    {
+        return demo_process_pair_packet(pending);
+    }
     if(packet_type == RFH_PKT_CONNECT)
     {
         return demo_process_connect_packet(pending);
@@ -2259,6 +2742,11 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
     }
     if(sta & RF_STATE_TX_FINISH)
     {
+        if(g_demo_pair_tx_active != 0u)
+        {
+            demo_after_pair_tx_finish();
+            return;
+        }
         g_demo_stat.ack_finish++;
         demo_after_ack_finish();
         demo_arm_rx();
@@ -2266,6 +2754,11 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
     if(sta & RF_STATE_TIMEOUT)
     {
         g_demo_rx_active = 0u;
+        if(demo_pair_is_active() != 0u)
+        {
+            demo_arm_rx();
+            return;
+        }
         g_demo_stat.ack_fail++;
         demo_channel_score_update(g_demo_current_channel,
                                   RF_AUTO_DEMO_CHANNEL_SCORE_BAD);
@@ -2294,6 +2787,12 @@ void RF_Service(void)
 
     demo_service_xinput_fast_path();
     demo_process_pending_rx_packets();
+
+    if(demo_pair_is_active() != 0u)
+    {
+        demo_service_pairing(now);
+        return;
+    }
 
     if((g_demo_rx_state == RF_AUTO_RX_COMM) &&
        (demo_snapshot_data_silent_cycles(&data_silent_cycles) != 0u) &&
@@ -2394,17 +2893,53 @@ uint16_t RF_ProcessEvent(uint8_t task_id, uint16_t events)
 
 uint8_t RF_StartPairing(void)
 {
+    uint32_t now = TMOS_GetSystemClock();
+
+    if(g_demo_config_ret != SUCCESS)
+    {
+        return 0u;
+    }
+    if(demo_pair_is_active() != 0u)
+    {
+        return 1u;
+    }
+
+    g_demo_link_active = 0u;
+    g_demo_pair_tx_active = 0u;
+    g_demo_pair_after_tx_action = 0u;
+    g_demo_pair_scan_side = 0u;
+    g_demo_pair_scan_clock = now;
+    g_demo_pair_deadline_clock = now + MS1_TO_SYSTEM_TIME(RFH_PAIR_WINDOW_MS);
+    g_demo_pair_confirm_deadline_clock = 0u;
+    g_demo_pair_session = 0u;
+    g_demo_pair_tx_id_hash = 0u;
+    g_demo_pair_rx_id_hash = g_demo_local_id_hash;
+    g_demo_pair_link_access_address = 0u;
+    g_demo_pair_done_confirm32 = 0u;
+    g_demo_have_ack_token = 0u;
+    g_demo_pending_ack_cmd = RFH_CMD_NONE;
+    g_demo_after_ack_action = 0u;
+    g_demo_ack_pending = 0u;
+    demo_ack_timer_cancel();
+    g_demo_rx_state = RF_AUTO_RX_PAIRING;
+    (void)demo_apply_access_address(RFH_PAIR_ACCESS_ADDRESS);
+    demo_set_channel(RFH_PAIR_CHANNEL_A);
+    demo_arm_rx();
     return 1u;
 }
 
 uint8_t RF_StopPairing(void)
 {
+    if(demo_pair_is_active() != 0u)
+    {
+        demo_abort_pairing(TMOS_GetSystemClock());
+    }
     return 1u;
 }
 
 uint8_t RF_IsPairingActive(void)
 {
-    return 0u;
+    return demo_pair_is_active();
 }
 
 rf_indicator_mode_t RF_GetIndicatorMode(void)
@@ -2412,6 +2947,10 @@ rf_indicator_mode_t RF_GetIndicatorMode(void)
     if(g_demo_config_ret != SUCCESS)
     {
         return RF_INDICATOR_OFF;
+    }
+    if(demo_pair_is_active() != 0u)
+    {
+        return RF_INDICATOR_BLINK_500MS;
     }
     return (g_demo_stat.data_ok != 0u) ? RF_INDICATOR_BLINK_500MS : RF_INDICATOR_BLINK_2000MS;
 }
@@ -2572,6 +3111,10 @@ static uint16_t demo_hid_elapsed_ms(void)
 
 static uint8_t demo_hid_state_code(void)
 {
+    if(demo_pair_is_active() != 0u)
+    {
+        return 1u;
+    }
     if(g_demo_link_active == 0u)
     {
         if(g_demo_rx_state == RF_AUTO_RX_RECOVERY_SCAN)
@@ -2970,10 +3513,13 @@ void RF_Init(void)
     g_demo_config_ret = (uint8_t)RFRole_BasicInit(&conf);
     demo_channel_scores_init();
 
+    g_demo_local_id_hash = demo_make_local_id_hash();
+    demo_load_bond();
+
     memset(&gParm, 0, sizeof(gParm));
-    gParm.accessAddress = RFH_LINK_ACCESS_ADDRESS_DEFAULT;
+    gParm.accessAddress = g_demo_link_access_address;
     gParm.crcInit = RF_LINK_CRC_INIT;
-    gParm.frequency = RF_AUTO_DEMO_INITIAL_CHANNEL;
+    gParm.frequency = demo_discovery_channel(0u);
     gParm.properties = RF_AUTO_DEMO_PHY_PROPS | RF_AUTO_DEMO_ACK_BIT;
     gParm.rxMaxLen = RF_AUTO_DEMO_PACKET_LEN;
     gParm.sendTime = RFH_TX_SEND_TIME_UNITS;
@@ -2983,9 +3529,9 @@ void RF_Init(void)
     memset(&gTxParam, 0, sizeof(gTxParam));
     gTxParam.accessAddress = gParm.accessAddress;
     gTxParam.crcInit = gParm.crcInit;
-    gTxParam.frequency = RF_AUTO_DEMO_INITIAL_CHANNEL;
+    gTxParam.frequency = gParm.frequency;
     gTxParam.properties = RF_AUTO_DEMO_PHY_PROPS;
-    gTxParam.whiteChannel = RF_AUTO_DEMO_INITIAL_CHANNEL;
+    gTxParam.whiteChannel = gParm.frequency;
     gTxParam.sendTime = (uint8_t)gParm.sendTime;
     gTxParam.sendCount = 1u;
     gTxParam.txDMA = (uint32_t)TxBuf;
@@ -2994,14 +3540,14 @@ void RF_Init(void)
     memset(&gRxParam, 0, sizeof(gRxParam));
     gRxParam.accessAddress = gParm.accessAddress;
     gRxParam.crcInit = gParm.crcInit;
-    gRxParam.frequency = RF_AUTO_DEMO_INITIAL_CHANNEL;
+    gRxParam.frequency = gParm.frequency;
     gRxParam.properties = RF_AUTO_DEMO_PHY_PROPS | RF_AUTO_DEMO_ACK_BIT;
     gRxParam.rxDMA = (uint32_t)RxBuf[0];
-    gRxParam.whiteChannel = RF_AUTO_DEMO_INITIAL_CHANNEL;
+    gRxParam.whiteChannel = gParm.frequency;
     gRxParam.rxMaxLen = RF_AUTO_DEMO_PACKET_LEN;
     gRxParam.timeOut = 0u;
 
-    g_demo_current_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
+    g_demo_current_channel = gParm.frequency;
     g_demo_old_channel = demo_discovery_channel(0u);
     g_demo_target_channel = demo_discovery_channel(0u);
     g_demo_report_hz = RF_AUTO_DEMO_REPORT_HZ;
@@ -3027,6 +3573,8 @@ void RF_Init(void)
     g_demo_last_data_tmr = TMR0_GetCurrentTimer();
     g_demo_link_active = 0u;
     g_demo_rx_state = RF_AUTO_RX_UNCONNECTED;
+    g_demo_pair_tx_active = 0u;
+    g_demo_pair_after_tx_action = 0u;
     g_demo_dual_side = 0u;
     g_demo_dual_switch_clock = TMOS_GetSystemClock();
 
