@@ -329,10 +329,12 @@ function parseRfHopLatencyFrame(view: DataView, report: Uint8Array, timestampMs:
   const inputSeq = view.getUint8(8);
   const inputFlags = view.getUint8(9);
   const inputKeyMask = view.getUint32(10, true);
-  const sampleTickUs = view.getUint32(14, true);
-  const syncSeq = view.getUint8(18);
-  const syncRxTickUs = view.getUint32(19, true);
-  const syncTxTickUs = view.getUint32(23, true);
+  const latencyUs = view.getUint32(14, true);
+  const latencyStm32Us = view.getUint16(18, true);
+  const latencyTxUs = view.getUint16(20, true);
+  const latencyRxUs = view.getUint16(22, true);
+  const latencyStageFlags = view.getUint8(24);
+  const syncSeq = view.getUint8(25);
   const state = view.getUint8(27);
   const channel = view.getUint8(28);
   const airRateCode = view.getUint8(29);
@@ -357,11 +359,13 @@ function parseRfHopLatencyFrame(view: DataView, report: Uint8Array, timestampMs:
       airRateCode,
       airLinkActive,
       hostMonoUs,
-      sampleTickUs,
-      latencyUs: sampleTickUs,
+      sampleTickUs: latencyUs,
+      latencyUs,
+      latencyStm32Us,
+      latencyTxUs,
+      latencyRxUs,
+      latencyStageFlags,
       syncSeq,
-      syncRxTickUs,
-      syncTxTickUs,
     },
   ];
 }

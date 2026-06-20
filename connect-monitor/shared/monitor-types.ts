@@ -59,6 +59,10 @@ export interface PacketEvent {
   hostMonoUs?: number;
   sampleTickUs?: number;
   latencyUs?: number;
+  latencyStm32Us?: number;
+  latencyTxUs?: number;
+  latencyRxUs?: number;
+  latencyStageFlags?: number;
   syncSeq?: number;
   syncRxTickUs?: number;
   syncTxTickUs?: number;
@@ -82,6 +86,9 @@ export interface ButtonLatencyEvent {
   previousStandardMask: number;
   action: "press" | "release" | "change";
   latencyMs: number;
+  stm32Ms?: number;
+  txMs?: number;
+  rxMs?: number;
   sampleTickUs: number;
   samplePcUs: number;
   xinputPcUs: number;

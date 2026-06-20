@@ -224,6 +224,29 @@ static uint16_t tx_saturate_u16(uint32_t value)
     return (value > 0xFFFFu) ? 0xFFFFu : (uint16_t)value;
 }
 
+static uint8_t tx_latency_q8_encode(uint32_t us)
+{
+    uint32_t code;
+
+    if(us == 0u)
+    {
+        return 0u;
+    }
+    if(us <= 512u)
+    {
+        code = (us + 2u) / 4u;
+        return (code == 0u) ? 1u : (uint8_t)((code > 128u) ? 128u : code);
+    }
+    if(us <= 2048u)
+    {
+        code = 128u + ((us - 512u + 8u) / 16u);
+        return (uint8_t)((code > 224u) ? 224u : code);
+    }
+
+    code = 224u + ((us - 2048u + 64u) / 128u);
+    return (uint8_t)((code > 255u) ? 255u : code);
+}
+
 static uint32_t tx_cycles_to_us_saturated(uint32_t cycles)
 {
     uint64_t us;
@@ -243,22 +266,16 @@ static uint32_t tx_now_cycles(void)
     return g_demo_tmr_epoch_cycles + TMR0_GetCurrentTimer();
 }
 
-static uint8_t demo_input_payload_equal(const uint8_t *a, const uint8_t *b)
+static uint8_t demo_input_payload_same_input(const uint8_t *a, const uint8_t *b)
 {
-    uint8_t i;
-
     if((a == 0) || (b == 0))
     {
         return 0u;
     }
-    for(i = 0u; i < RFM_RF_INPUT_PAYLOAD_LEN; i++)
-    {
-        if(a[i] != b[i])
-        {
-            return 0u;
-        }
-    }
-    return 1u;
+    return ((a[RFMON_INPUT_SEQ_OFFSET] == b[RFMON_INPUT_SEQ_OFFSET]) &&
+            (a[RFMON_INPUT_KEY_MASK_OFFSET] == b[RFMON_INPUT_KEY_MASK_OFFSET]) &&
+            (a[RFMON_INPUT_KEY_MASK_OFFSET + 1u] == b[RFMON_INPUT_KEY_MASK_OFFSET + 1u]) &&
+            (a[RFMON_INPUT_KEY_MASK_OFFSET + 2u] == b[RFMON_INPUT_KEY_MASK_OFFSET + 2u])) ? 1u : 0u;
 }
 
 static void demo_store_last_payload(const uint8_t *payload, uint32_t now_cycles)
@@ -769,27 +786,30 @@ static void demo_fill_direct_input_payload(uint8_t *data)
 
 static void demo_encode_short_input_payload(uint8_t *dst, const uint8_t *src)
 {
-    uint16_t age_us;
+    uint16_t stm32_age_us;
+    uint8_t stm32_age_q8;
+    uint8_t tx_wait_q8 = 0u;
 
     if((dst == 0) || (src == 0))
     {
         return;
     }
 
-    age_us = rfh_get_u16(&src[RFMON_INPUT_SAMPLE_TICK_OFFSET]);
-    if((age_us != 0u) && (g_demo_last_payload_tmr_valid != 0u))
+    stm32_age_us = rfh_get_u16(&src[RFMON_INPUT_SAMPLE_TICK_OFFSET]);
+    stm32_age_q8 = tx_latency_q8_encode(stm32_age_us);
+    if((stm32_age_q8 != 0u) && (g_demo_last_payload_tmr_valid != 0u))
     {
         uint32_t tx_wait_us = tx_cycles_to_us_saturated(
             tx_now_cycles() - g_demo_last_payload_tmr);
-        uint32_t total_age_us = (uint32_t)age_us + tx_wait_us;
 
-        age_us = tx_saturate_u16(total_age_us);
+        tx_wait_q8 = tx_latency_q8_encode(tx_wait_us);
     }
 
     dst[0] = src[RFMON_INPUT_KEY_MASK_OFFSET];
     dst[1] = src[RFMON_INPUT_KEY_MASK_OFFSET + 1u];
     dst[2] = src[RFMON_INPUT_KEY_MASK_OFFSET + 2u];
-    rfh_put_u16(&dst[3], age_us);
+    dst[3] = stm32_age_q8;
+    dst[4] = tx_wait_q8;
 }
 
 static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t ack_burst_left)
@@ -877,7 +897,7 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
             if(rfm_spi_port_peek_latest_input(input_payload, RFM_RF_INPUT_PAYLOAD_LEN))
             {
                 if((g_demo_have_payload == 0u) ||
-                   (demo_input_payload_equal(g_demo_last_payload, input_payload) == 0u))
+                   (demo_input_payload_same_input(g_demo_last_payload, input_payload) == 0u))
                 {
                     demo_store_last_payload(input_payload, tx_now_cycles());
                 }

@@ -7,8 +7,9 @@ import { PanelHeader, panelSurfaceProps } from "./panelStyles";
 import { scrollbarStyle } from "./scrollbarStyle";
 
 const MAX_LATENCY_ROWS = 300;
-const LATENCY_ROW_HEIGHT = 62;
+const LATENCY_ROW_HEIGHT = 30;
 const LATENCY_ROW_OVERSCAN = 5;
+const LATENCY_TABLE_COLUMNS = "minmax(62px, 1.15fr) repeat(3, minmax(52px, 0.85fr)) minmax(58px, 0.95fr) 42px";
 const standardButtonLabels = new Map<number, string>();
 for (const button of HITBOX_BUTTON_MAP) {
   if (button.gamepadButtonIndex !== UNMAPPED_GAMEPAD_BUTTON && button.label && !standardButtonLabels.has(button.gamepadButtonIndex)) {
@@ -20,11 +21,16 @@ function formatLatency(value: number) {
   return value < 10 ? value.toFixed(2) : value.toFixed(1);
 }
 
+function formatLatencyPart(value: number | undefined) {
+  if (typeof value !== "number") return "-";
+  if (value < 1) return `${Math.round(value * 1000)}us`;
+  return `${formatLatency(value)}ms`;
+}
+
 function formatTime(ms: number) {
   const d = new Date(ms);
   return `${d.toLocaleTimeString()}.${String(d.getMilliseconds()).padStart(3, "0")}`;
 }
-
 function changedButtonLabels(row: ButtonLatencyEvent) {
   const changed = (row.previousStandardMask ^ row.standardMask) >>> 0;
   const labels: string[] = [];
@@ -86,7 +92,7 @@ function LatencyVirtualList({ rows }: { rows: ButtonLatencyEvent[] }) {
   }
 
   const totalHeight = rows.length * LATENCY_ROW_HEIGHT;
-  const effectiveViewportHeight = viewportHeight || LATENCY_ROW_HEIGHT * 6;
+  const effectiveViewportHeight = viewportHeight || LATENCY_ROW_HEIGHT * 10;
   const maxScrollTop = Math.max(0, totalHeight - effectiveViewportHeight);
   const effectiveScrollTop = clamp(scrollTop, 0, maxScrollTop);
   const visibleCapacity = Math.ceil(effectiveViewportHeight / LATENCY_ROW_HEIGHT);
@@ -97,48 +103,62 @@ function LatencyVirtualList({ rows }: { rows: ButtonLatencyEvent[] }) {
   const visibleRows = rows.slice(startIndex, endIndex);
 
   return (
-    <Box
-      ref={scrollRef}
-      flex="1"
-      minH={0}
-      overflowY="auto"
-      position="relative"
-      css={scrollbarStyle}
-      onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
-    >
-      <Box h={`${totalHeight}px`} minH="100%" position="relative">
-        <Box position="absolute" top={`${startIndex * LATENCY_ROW_HEIGHT}px`} left={0} right={0}>
-          {visibleRows.map((row, offset) => {
-            const index = startIndex + offset;
-            return (
-              <Box
-                key={latencyRowKey(row)}
-                h={`${LATENCY_ROW_HEIGHT}px`}
-                px={3}
-                py={2}
-                borderBottomWidth="1px"
-                borderColor="rgba(92,255,138,0.08)"
-                bg={index % 2 === 0 ? "rgba(0,0,0,0.12)" : "rgba(92,255,138,0.035)"}
-              >
-                <HStack justify="space-between" align="center" gap={2}>
-                  <Text fontSize="12px" color="gray.100" fontWeight="semibold" minW={0} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+    <Box flex="1" minH={0} display="flex" flexDirection="column">
+      <Box
+        display="grid"
+        gridTemplateColumns={LATENCY_TABLE_COLUMNS}
+        gap={2}
+        px={3}
+        h="26px"
+        alignItems="center"
+        borderBottomWidth="1px"
+        borderColor="rgba(92,255,138,0.12)"
+        bg="rgba(92,255,138,0.045)"
+      >
+        {["Button", "STM32", "TX", "RX", "Total", "Seq"].map((label, index) => (
+          <Text key={label} fontSize="9px" color="gray.500" fontWeight="semibold" textAlign={index === 0 ? "left" : "right"}>
+            {label}
+          </Text>
+        ))}
+      </Box>
+      <Box
+        ref={scrollRef}
+        flex="1"
+        minH={0}
+        overflowY="auto"
+        position="relative"
+        css={scrollbarStyle}
+        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      >
+        <Box h={`${totalHeight}px`} minH="100%" position="relative">
+          <Box position="absolute" top={`${startIndex * LATENCY_ROW_HEIGHT}px`} left={0} right={0}>
+            {visibleRows.map((row, offset) => {
+              const index = startIndex + offset;
+              return (
+                <Box
+                  key={latencyRowKey(row)}
+                  h={`${LATENCY_ROW_HEIGHT}px`}
+                  px={3}
+                  display="grid"
+                  gridTemplateColumns={LATENCY_TABLE_COLUMNS}
+                  gap={2}
+                  alignItems="center"
+                  borderBottomWidth="1px"
+                  borderColor="rgba(92,255,138,0.08)"
+                  bg={index % 2 === 0 ? "rgba(0,0,0,0.12)" : "rgba(92,255,138,0.035)"}
+                >
+                  <Text fontSize="11px" color="gray.100" fontWeight="semibold" minW={0} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
                     {changedButtonLabels(row)}
                   </Text>
-                  <Badge colorPalette={row.confidence === "high" ? "green" : row.confidence === "medium" ? "yellow" : "gray"}>
-                    {formatLatency(row.latencyMs)}ms
-                  </Badge>
-                </HStack>
-                <HStack justify="space-between" mt={1} gap={2}>
-                  <Text fontSize="10px" color="gray.500">
-                    {formatTime(row.timestampMs)}
-                  </Text>
-                  <Text fontSize="10px" color="gray.500">
-                    seq {row.inputSeq}
-                  </Text>
-                </HStack>
-              </Box>
-            );
-          })}
+                  <Text fontSize="10px" color="gray.200" textAlign="right">{formatLatencyPart(row.stm32Ms)}</Text>
+                  <Text fontSize="10px" color="gray.200" textAlign="right">{formatLatencyPart(row.txMs)}</Text>
+                  <Text fontSize="10px" color="gray.200" textAlign="right">{formatLatencyPart(row.rxMs)}</Text>
+                  <Text fontSize="10px" color="green.200" fontWeight="semibold" textAlign="right">{formatLatency(row.latencyMs)}ms</Text>
+                  <Text fontSize="10px" color="gray.500" textAlign="right">{row.inputSeq}</Text>
+                </Box>
+              );
+            })}
+          </Box>
         </Box>
       </Box>
     </Box>
@@ -162,7 +182,7 @@ export function ButtonLatencyPanel({
   const headerText = average === null ? (status?.status ?? "Waiting edge") : `${formatLatency(average)}ms`;
 
   return (
-    <Card.Root variant="outline" overflow="hidden" h="100%" minW="250px" w="250px" {...panelSurfaceProps}>
+    <Card.Root variant="outline" overflow="hidden" h="100%" minW="400px" w="400px" {...panelSurfaceProps}>
       <PanelHeader
         title="Latency"
         meta={`${visibleRows.length}/${MAX_LATENCY_ROWS}`}
@@ -177,7 +197,7 @@ export function ButtonLatencyPanel({
               {status?.status ?? "Waiting edge"}
             </Text>
             <Text fontSize="10px" color="gray.500">
-              RX firmware
+              Split latency
             </Text>
           </HStack>
         </Box>
