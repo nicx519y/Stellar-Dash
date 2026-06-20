@@ -44,8 +44,8 @@
 
 #define RFH_DEFAULT_CHANNEL_A          16u
 #define RFH_DEFAULT_CHANNEL_B          24u
-#define RFH_DISCOVERY_CHANNEL_A        RFH_DEFAULT_CHANNEL_A
-#define RFH_DISCOVERY_CHANNEL_B        RFH_DEFAULT_CHANNEL_B
+#define RFH_DISCOVERY_CHANNEL_A        14u
+#define RFH_DISCOVERY_CHANNEL_B        39u
 #define RFH_PAIR_CHANNEL_FIXED         12u
 #define RFH_MIN_CHANNEL                0u
 #define RFH_MAX_CHANNEL                39u

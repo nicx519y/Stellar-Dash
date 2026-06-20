@@ -670,7 +670,7 @@ RX 在每个 ACK 周期内维护：
 
 ACK payload 只直接携带 `loss_permille` 与 `avg_irq_us/max_irq_us`；`rx_count/expected_count` 留在 RX/HID telemetry 侧用于诊断与 UI 计算。
 
-RX score telemetry 也按 ACK window 的 `loss_permille` 更新当前频道 bad score，不再按每个 DATA OK 刷 GOOD sample，避免 8K 包量导致 Channel Scores 虚高。
+RX score telemetry 也按 ACK window 的 `loss_permille` 更新当前频道 bad score，不再按每个 DATA OK 刷 GOOD sample，避免 8K 包量导致 Channel Bad Scores 虚高。
 
 `expected_count` 建议：
 

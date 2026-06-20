@@ -38,13 +38,14 @@
 #endif
 #define RF_AUTO_DEMO_ACK_TOKEN_OFFSET  10u
 #define RF_AUTO_DEMO_ACK_REMAIN_OFFSET 11u
-#define RF_AUTO_DEMO_DISCOVERY_ANCHOR_CHANNEL 39u
-#define RF_AUTO_DEMO_INITIAL_CHANNEL   RF_AUTO_DEMO_DISCOVERY_ANCHOR_CHANNEL
-#define RF_AUTO_DEMO_DISCOVERY_SCAN_DWELL_MS 8u
+#define RF_AUTO_DEMO_DISCOVERY_CHANNEL_A RFH_DISCOVERY_CHANNEL_A
+#define RF_AUTO_DEMO_DISCOVERY_CHANNEL_B RFH_DISCOVERY_CHANNEL_B
+#define RF_AUTO_DEMO_INITIAL_CHANNEL   RF_AUTO_DEMO_DISCOVERY_CHANNEL_B
+#define RF_AUTO_DEMO_DISCOVERY_SCAN_DWELL_MS RFH_DUAL_PERIOD_MS
 #define RF_AUTO_DEMO_HOP_DUAL_DWELL_MS 2u
 #define RF_AUTO_DEMO_HOP_DUAL_TIMEOUT_MS 3000u
 #define RF_AUTO_DEMO_RECOVERY_DWELL_MS 20u
-#define RF_AUTO_DEMO_CHANNEL_SCORE_INIT 200u
+#define RF_AUTO_DEMO_CHANNEL_SCORE_INIT RF_AUTO_DEMO_CHANNEL_SCORE_GOOD
 #define RF_AUTO_DEMO_CHANNEL_SCORE_GOOD 20u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_LOSS_WARN 180u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_LOSS_BAD 400u
@@ -1092,17 +1093,9 @@ static void demo_arm_rx(void)
 
 static uint8_t demo_discovery_channel(uint8_t side)
 {
-    static const uint8_t channels[] = {
-        RF_AUTO_DEMO_DISCOVERY_ANCHOR_CHANNEL,
-        RFH_DISCOVERY_CHANNEL_A,
-        RFH_DISCOVERY_CHANNEL_B,
-        2u,
-        11u,
-        14u,
-        27u,
-        35u
-    };
-    return channels[side % (uint8_t)(sizeof(channels) / sizeof(channels[0]))];
+    return ((side & 1u) == 0u) ?
+           RF_AUTO_DEMO_DISCOVERY_CHANNEL_B :
+           RF_AUTO_DEMO_DISCOVERY_CHANNEL_A;
 }
 
 static uint8_t demo_manual_fixed_channel(uint8_t *channel)
@@ -1121,7 +1114,7 @@ static uint8_t demo_manual_fixed_channel(uint8_t *channel)
 
 static void demo_enter_rx_unconnected(uint32_t now)
 {
-    uint8_t anchor_channel = RF_AUTO_DEMO_DISCOVERY_ANCHOR_CHANNEL;
+    uint8_t anchor_channel = demo_discovery_channel(0u);
 
     (void)demo_manual_fixed_channel(&anchor_channel);
     g_demo_link_active = 0u;
@@ -3009,8 +3002,8 @@ void RF_Init(void)
     gRxParam.timeOut = 0u;
 
     g_demo_current_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
-    g_demo_old_channel = RF_AUTO_DEMO_DISCOVERY_ANCHOR_CHANNEL;
-    g_demo_target_channel = RF_AUTO_DEMO_DISCOVERY_ANCHOR_CHANNEL;
+    g_demo_old_channel = demo_discovery_channel(0u);
+    g_demo_target_channel = demo_discovery_channel(0u);
     g_demo_report_hz = RF_AUTO_DEMO_REPORT_HZ;
     g_demo_rate_code = RF_AUTO_DEMO_RATE_CODE;
     g_demo_hid_last_window_rx_ok = 0u;

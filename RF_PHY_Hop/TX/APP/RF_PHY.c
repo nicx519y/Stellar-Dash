@@ -56,8 +56,10 @@
 #endif
 #define RF_AUTO_DEMO_ACK_TOKEN_OFFSET  10u
 #define RF_AUTO_DEMO_ACK_REMAIN_OFFSET 11u
-#define RF_AUTO_DEMO_DISCOVERY_ANCHOR_CHANNEL 39u
-#define RF_AUTO_DEMO_INITIAL_CHANNEL   RF_AUTO_DEMO_DISCOVERY_ANCHOR_CHANNEL
+#define RF_AUTO_DEMO_DISCOVERY_CHANNEL_A RFH_DISCOVERY_CHANNEL_A
+#define RF_AUTO_DEMO_DISCOVERY_CHANNEL_B RFH_DISCOVERY_CHANNEL_B
+#define RF_AUTO_DEMO_INITIAL_CHANNEL   RF_AUTO_DEMO_DISCOVERY_CHANNEL_B
+#define RF_AUTO_DEMO_DISCOVERY_DWELL_MS RFH_DUAL_PERIOD_MS
 #ifndef RF_AUTO_DEMO_AUTO_HOP_ENABLE
 #define RF_AUTO_DEMO_AUTO_HOP_ENABLE   1u
 #endif
@@ -82,7 +84,7 @@
 #define RF_AUTO_DEMO_MANUAL_SWITCH_GRACE_MS RF_AUTO_DEMO_HOP_RECOVERY_TIMEOUT_MS
 #define RF_AUTO_DEMO_HOP_RECOVERY_DWELL_MS 500u
 #define RF_AUTO_DEMO_ACK_MISS_SCORE    400u
-#define RF_AUTO_DEMO_CHANNEL_SCORE_INIT 200u
+#define RF_AUTO_DEMO_CHANNEL_SCORE_INIT RF_AUTO_DEMO_CHANNEL_SCORE_GOOD
 #define RF_AUTO_DEMO_CHANNEL_SCORE_GOOD 20u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_BAD 1000u
 #define RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_NUM 7u
@@ -457,6 +459,11 @@ static uint8_t demo_next_channel(uint8_t current,
         {
             continue;
         }
+        if((allow_best_available == 0u) &&
+           ((g_demo_channel_tried_mask & (uint8_t)(1u << i)) != 0u))
+        {
+            continue;
+        }
         if(g_demo_channel_scores[i] < fallback_score)
         {
             fallback_score = g_demo_channel_scores[i];
@@ -517,6 +524,13 @@ static void demo_apply_channel(uint8_t channel)
     g_demo_pause_tx = 0u;
 }
 
+static uint8_t demo_discovery_channel(uint8_t side)
+{
+    return ((side & 1u) == 0u) ?
+           RF_AUTO_DEMO_DISCOVERY_CHANNEL_B :
+           RF_AUTO_DEMO_DISCOVERY_CHANNEL_A;
+}
+
 static uint8_t demo_manual_fixed_channel(uint8_t *channel)
 {
     if((g_monitor_auto_hop_enabled == 0u) &&
@@ -533,7 +547,7 @@ static uint8_t demo_manual_fixed_channel(uint8_t *channel)
 
 static void demo_enter_tx_unconnected(uint32_t now)
 {
-    uint8_t anchor_channel = RF_AUTO_DEMO_DISCOVERY_ANCHOR_CHANNEL;
+    uint8_t anchor_channel = demo_discovery_channel(0u);
 
     (void)demo_manual_fixed_channel(&anchor_channel);
     g_demo_link_state = RF_AUTO_TX_UNCONNECTED;
@@ -587,14 +601,30 @@ static void demo_enter_tx_comm(uint32_t now, uint8_t channel)
 
 static void demo_service_link(uint32_t now)
 {
-    uint8_t anchor_channel = RF_AUTO_DEMO_DISCOVERY_ANCHOR_CHANNEL;
+    uint8_t anchor_channel;
 
     if(g_demo_link_state != RF_AUTO_TX_UNCONNECTED)
     {
         return;
     }
-    (void)now;
-    (void)demo_manual_fixed_channel(&anchor_channel);
+    if(demo_manual_fixed_channel(&anchor_channel) == 0u)
+    {
+        if((g_demo_tx_busy != 0u) ||
+           (g_demo_ack_rx_active != 0u) ||
+           (g_demo_wait_ack_after_tx != 0u) ||
+           (g_demo_pause_tx != 0u))
+        {
+            return;
+        }
+        if((uint32_t)(now - g_demo_discovery_switch_clock) <
+           MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_DISCOVERY_DWELL_MS))
+        {
+            return;
+        }
+        g_demo_discovery_switch_clock = now;
+        g_demo_discovery_side ^= 1u;
+        anchor_channel = demo_discovery_channel(g_demo_discovery_side);
+    }
     if(g_demo_current_channel != anchor_channel)
     {
         demo_apply_channel(anchor_channel);
@@ -1093,8 +1123,8 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
     uint8_t i;
     uint8_t *air = &TxBuf[2];
     uint8_t *data = &air[RFH_DATA_OFFSET];
-    uint8_t connect_channel_a = RF_AUTO_DEMO_DISCOVERY_ANCHOR_CHANNEL;
-    uint8_t connect_channel_b = RFH_DISCOVERY_CHANNEL_B;
+    uint8_t connect_channel_a = RF_AUTO_DEMO_DISCOVERY_CHANNEL_A;
+    uint8_t connect_channel_b = RF_AUTO_DEMO_DISCOVERY_CHANNEL_B;
     uint8_t flags = (g_demo_link_state == RF_AUTO_TX_COMM) ?
                     RFH_FLAG_LINK_OK : RFH_FLAG_DUAL_REDUNDANT;
     uint8_t hop_cmd = demo_active_hop_cmd();
@@ -1116,9 +1146,9 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
     if(g_demo_link_state == RF_AUTO_TX_UNCONNECTED)
     {
         (void)demo_manual_fixed_channel(&connect_channel_a);
-        connect_channel_b = (connect_channel_a == RFH_DISCOVERY_CHANNEL_B) ?
-                            RF_AUTO_DEMO_DISCOVERY_ANCHOR_CHANNEL :
-                            RFH_DISCOVERY_CHANNEL_B;
+        connect_channel_b = (connect_channel_a == RF_AUTO_DEMO_DISCOVERY_CHANNEL_B) ?
+                            RF_AUTO_DEMO_DISCOVERY_CHANNEL_A :
+                            RF_AUTO_DEMO_DISCOVERY_CHANNEL_B;
         air[0] = rfh_make_header0(RFH_PKT_CONNECT, g_demo_rate_code, flags);
         air[1] = g_demo_seq;
         rfh_put_u32(&data[RFH_CONNECT_SESSION0], RFH_CONNECT_SESSION_ID);
@@ -1952,8 +1982,8 @@ void RF_Init(void)
     PFIC_EnableIRQ(TMR0_IRQn);
 
     g_demo_current_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
-    g_demo_old_channel = RF_AUTO_DEMO_DISCOVERY_ANCHOR_CHANNEL;
-    g_demo_target_channel = RF_AUTO_DEMO_DISCOVERY_ANCHOR_CHANNEL;
+    g_demo_old_channel = demo_discovery_channel(0u);
+    g_demo_target_channel = demo_discovery_channel(0u);
     memset(g_demo_last_payload, 0, sizeof(g_demo_last_payload));
     g_demo_have_payload = 0u;
     g_demo_last_payload_tmr = 0u;

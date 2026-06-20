@@ -5,8 +5,8 @@ import { neonGreen, PanelHeader, panelSurfaceProps } from "./panelStyles";
 import { scrollbarStyle } from "./scrollbarStyle";
 
 function scoreColor(score: number) {
-  if (score >= 880) return "green";
-  if (score >= 640) return "yellow";
+  if (score <= 120) return "green";
+  if (score <= 400) return "yellow";
   return "red";
 }
 
@@ -40,7 +40,7 @@ export function ChannelScorePanel({
       {...panelSurfaceProps}
     >
       <PanelHeader
-        title="Channel Scores"
+        title="Channel Bad Scores"
         action={
           <Switch.Root
             checked={autoHopEnabled}
@@ -110,7 +110,7 @@ export function ChannelScorePanel({
                 <Box
                   h="100%"
                   w={`${Math.max(2, Math.min(100, item.score / 10))}%`}
-                  bg={item.score >= 880 ? neonGreen : item.score >= 640 ? "rgba(255,214,92,0.86)" : "rgba(255,96,96,0.86)"}
+                  bg={item.score <= 120 ? neonGreen : item.score <= 400 ? "rgba(255,214,92,0.86)" : "rgba(255,96,96,0.86)"}
                 />
               </Box>
             </Box>

@@ -212,7 +212,7 @@ control 的作用：
 | magic | 名称 | 作用 |
 |---|---|---|
 | `RHM1` | RF monitor | 上报 RX RF 窗口统计、有效包、expected、gap、RSSI、loss、状态等 |
-| `RHS1` | RF channel scores | 上报频道质量分、当前频道、auto/manual hop 状态 |
+| `RHS1` | RF channel scores | 上报频道 bad score、当前频道、auto/manual hop 状态 |
 | `RHI1` | RF input mirror | 上报输入镜像/当前 key mask，供 monitor 辅助显示 |
 | `RHL1` | RF latency | 按键边沿 latency 拆分上报，供 Button Latency 表格显示 |
 
@@ -292,11 +292,11 @@ RX recovery scan 经验：
 
 - RX `Link Lost` 不只是置 `link_active=0`；现在会进入 `RECOVERY_SCAN`。
 - `RECOVERY_SCAN` 每 `20ms` 切换一个候选频道。
-- 候选频道来自共享质量分数表 `{2,11,14,24,27,35,39}`，按分数从好到坏轮询，而不是永远挑“当前最优非当前频道”，避免两个频道来回横跳。
+- 候选频道来自共享 bad score 表 `{2,11,14,24,27,35,39}`，按 bad score 从低到高轮询，而不是永远挑“当前最优非当前频道”，避免两个频道来回横跳。
 - 一旦 RX 收到合法 `RFH_PKT_DATA`，立即锁定当前频道并回到 `COMM`。
 - HID state code `5` 表示 RX recovery scan，connect-monitor 显示为 `RP`。
 
-## 频道质量分数经验
+## 频道 bad score 经验
 
 当前频道表：
 
@@ -309,15 +309,15 @@ RX recovery scan 经验：
 分数语义：
 
 - 内部记录的是 bad score，`0` 最好，`1000` 最差。
-- UI 侧显示时反算成质量分：`1000 - badScore`，所以 UI 中 `1000` 最好、`0` 最差。
+- connect-monitor Channel Bad Scores 直接显示 bad score，`0` 最好，`1000` 最差。
 - RX score telemetry 不再用每个 DATA OK 降 bad score；改为每个 ACK window 按 `loss_permille` 更新一次，避免 8K 好包量把分数冲满。
 - TX ACK OK 按 ACK window 风险更新当前频道 bad score。
 - ACK timeout / CRC error / type error 对当前频道升 bad score。
-- 这样设计的原因是：评分本质是“坏度/风险”，TX 的跳频触发直接看 bad score 是否超过阈值；UI 为了直觉显示再翻转成质量分。
+- 这样设计的原因是：评分本质是“坏度/风险”，TX 的跳频选择直接按 bad score 越低越好。
 
 当前参数：
 
-- 初始 bad score：`200`
+- 初始 bad score：`20`
 - GOOD sample：`20`
 - ACK miss / latency trigger sample：`400`
 - latency warn sample：`180`
@@ -1355,7 +1355,7 @@ RX 还会低频穿插发送 channel score telemetry，magic 为 `RHS1`，小端 
 | `30` | `u8` | active channel |
 | `31` | `u8` | format version / flags，当前 `1` |
 
-`RHS1` 上传固件内部 bad score：`0` 最好，`1000` 最差。connect-monitor 右侧 `Channel Scores` 卡片会显示反算后的质量分：`1000 - badScore`。
+`RHS1` 上传固件内部 bad score：`0` 最好，`1000` 最差。connect-monitor 右侧 `Channel Bad Scores` 卡片直接显示该 bad score，分数越低越好。
 
 ### connect-monitor 侧
 

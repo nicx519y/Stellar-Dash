@@ -19,7 +19,7 @@
 
 - Packet loss 是 telemetry 窗口内的包计数比例，不一定能反映一个孤立的 100ms DATA silence。
 - Link Lost duration 是固件侧判定瞬间的 silent measurement，不等于 Link Recovered 行显示的 lost session 持续时间。
-- Channel Scores 卡片显示的是质量分，已经从固件 bad score 翻转过。
+- Channel Bad Scores 卡片直接显示固件 bad score：`0` 最好，`1000` 最差。
 
 ## 当前数据源策略
 
@@ -149,9 +149,9 @@ parser 会把 `RHM1` 转成：
 频道分数语义：
 
 - 固件上传的是 bad score：`0` 最好，`1000` 最差。
-- UI 右侧 `Channel Scores` 卡片显示质量分：`1000 - badScore`，所以 `1000` 最好、`0` 最差。
+- UI 右侧 `Channel Bad Scores` 卡片直接显示 bad score，所以 `0` 最好、`1000` 最差。
 - 当前频道表：`2 / 11 / 14 / 24 / 27 / 35 / 39`。
-- 卡片按质量排行实时显示，并高亮当前 active channel。
+- 卡片按 bad score 从低到高实时显示，并高亮当前 active channel。
 
 ## UI 能看到的指标
 
@@ -166,16 +166,15 @@ parser 会把 `RHM1` 转成：
 - Channel Events：
   - `Type` 独立显示 `Hop Started` / `Hop Finished` / `Channel Changed` 等事件类型。
   - `Reason` 只显示触发原因，例如 `Low quality score` 或 `ACK missed`。
-  - `Score` 是链路质量分，`1000` 最好、`0` 最差；由固件上报的 bad score 反算为 `1000 - badScore`。
+  - `Score` 是链路 bad score，`0` 最好、`1000` 最差。
   - `Duration` 对 hop finish 来自 finish 事件的 `RHM1[30..31]`，也就是 RX 从收到 prepare 到 confirm ACK 完成的耗时。
   - `Duration` 对 Link Lost 来自 `RHM1[30..31]` silent ticks 换算，用于判断 RX 判定 lost 前是否真的很久没有合法 DATA。
   - `Duration` 对 Link Recovered 来自 PC 侧事件时间差，用于观察 lost session 在 UI 上持续多久。
   - `Target` 不单独显示，目标频道已由 `To` 表达。
   - `Loss` 和 `Rate` 不在 Channel Events 表显示，避免与跳频事件语义混在一起。
   - 双频道扫描期间采样到的 old/target channel 来回变化不会再生成普通 `Channel changed` 噪声。
-- `Channel Scores`：右侧 `250px` 卡片区域显示频道质量实时排行，数据来自 `RHS1`。
-  - UI 显示质量分：`1000` 最好、`0` 最差。
-  - 固件内部 bad score 正好相反：`0` 最好、`1000` 最差。
+- `Channel Bad Scores`：右侧 `250px` 卡片区域显示频道 bad score 实时排行，数据来自 `RHS1`。
+  - UI 直接显示固件 bad score：`0` 最好、`1000` 最差。
   - 当前频道表为 `2 / 11 / 14 / 24 / 27 / 35 / 39`，active channel 会高亮。
 - error 表：hop/error event 摘要。
 - Markdown export：把 packet/event 记录导出为调试日志。
