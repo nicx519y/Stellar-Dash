@@ -1,4 +1,5 @@
 import type { DebugConfig, DebugConfigStatus, DebugApplyState, MonitorEvent } from "../../shared/monitor-types";
+import { buttonLatencyTracker, monotonicNowUsForMonitor } from "./button-latency-source";
 import { parseApplicationHidTelemetryFrame } from "./application-hid-telemetry-source";
 import { parseDongleHidTelemetryFrame } from "./dongle-hid-telemetry-source";
 
@@ -20,6 +21,8 @@ const APPLY_STATES: DebugApplyState[] = ["Idle", "Applied", "Applying", "Failed"
 let activeControlHandles: any[] = [];
 let preferredControlHandle: any | null = null;
 let nextControlSeq = 1;
+let nextTimeSyncSeq = 1;
+let currentHidTelemetryEnabled = false;
 let debugStatus: DebugConfigStatus = {
   state: "Idle",
   rxStatus: "Idle",
@@ -100,6 +103,17 @@ function buildControlFrame(config: DebugConfig, seq: number): Buffer {
   return frame;
 }
 
+function buildTimeSyncFrame(seq: number): Buffer {
+  const frame = Buffer.alloc(CTL_FRAME_SIZE);
+  putU32LE(frame, 0, CTL_MAGIC);
+  frame[4] = CTL_VERSION;
+  frame[5] = seq & 0xff;
+  frame[6] = 0;
+  frame[7] = 3;
+  putU16LE(frame, 14, crc16Ccitt(frame, 14));
+  return frame;
+}
+
 function statusFromCode(code: number): DebugApplyState {
   return APPLY_STATES[code] ?? "Failed";
 }
@@ -170,6 +184,7 @@ export function getHidDebugConfigStatus(): DebugConfigStatus {
 }
 
 export function sendDebugConfig(config: DebugConfig): DebugConfigStatus {
+  currentHidTelemetryEnabled = Boolean(config.hidTelemetryEnabled);
   const seq = nextControlSeq;
   nextControlSeq = nextControlSeq === 255 ? 1 : nextControlSeq + 1;
   const frame = buildControlFrame(config, seq);
@@ -209,6 +224,17 @@ export function sendDebugConfig(config: DebugConfig): DebugConfigStatus {
     message: "HID SET_REPORT failed on all interfaces",
   };
   return debugStatus;
+}
+
+function sendTimeSync(handle: any): void {
+  if (!currentHidTelemetryEnabled || !handle) return;
+  const seq = nextTimeSyncSeq;
+  nextTimeSyncSeq = nextTimeSyncSeq === 255 ? 1 : nextTimeSyncSeq + 1;
+  const frame = buildTimeSyncFrame(seq);
+  const pcT0Us = monotonicNowUsForMonitor();
+  if (writeControlFrame(handle, frame)) {
+    buttonLatencyTracker.noteTimeSyncSent(seq, pcT0Us);
+  }
 }
 
 const defaultTargetUsbIds = [
@@ -263,6 +289,7 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
   const opened: any[] = [];
   let stopped = false;
   let lastMissingStatusAt = 0;
+  let lastTimeSyncAt = 0;
 
   const publishMissingThrottled = () => {
     const now = Date.now();
@@ -316,13 +343,19 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
         const handle = dev.path ? new HID.HID(dev.path) : new HID.HID(dev.vendorId, dev.productId);
         handle.on("data", (buf: Uint8Array) => {
           try {
+            const hostMonoUs = monotonicNowUsForMonitor();
             const appEvents = parseApplicationHidTelemetryFrame(buf);
             if (appEvents.length > 0) {
               for (const ev of appEvents) publish(ev);
               return;
             }
-            const dongleEvents = parseDongleHidTelemetryFrame(buf);
-            for (const ev of dongleEvents) publish(ev);
+            const dongleEvents = parseDongleHidTelemetryFrame(buf, Date.now(), hostMonoUs);
+            for (const ev of dongleEvents) {
+              if (ev.kind === "packet" && ev.messageType === "RFH_RHL1") {
+                buttonLatencyTracker.handleLatencyPacket(ev, publish);
+              }
+              publish(ev);
+            }
           } catch (_err) {
             publishRfDeviceMissing(publish);
           }
@@ -333,6 +366,7 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
         });
         opened.push(handle);
         activeControlHandles.push(handle);
+        buttonLatencyTracker.reset();
         options.onControlReady?.();
       } catch (_err) {
         publishMissingThrottled();
@@ -347,10 +381,18 @@ export function startHidTelemetrySource(publish: PublishFn, options: SourceOptio
 
   scanAndOpen();
   const rescanTimer = setInterval(scanAndOpen, DEVICE_RESCAN_INTERVAL_MS);
+  const timeSyncTimer = setInterval(() => {
+    if (!currentHidTelemetryEnabled) {
+      buttonLatencyTracker.publishStatus("No HID telemetry", publish);
+      return;
+    }
+    buttonLatencyTracker.publishStatus("Syncing", publish);
+  }, 50);
 
   return () => {
     stopped = true;
     clearInterval(rescanTimer);
+    clearInterval(timeSyncTimer);
     for (const h of [...opened]) {
       closeHandle(h);
     }

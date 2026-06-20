@@ -56,6 +56,11 @@ export interface PacketEvent {
   airWindowSeqGaps?: number;
   airWindowTypeErrors?: number;
   airWindowTimeoutErrors?: number;
+  hostMonoUs?: number;
+  sampleTickUs?: number;
+  syncSeq?: number;
+  syncRxTickUs?: number;
+  syncTxTickUs?: number;
 }
 
 export interface LatencyEvent {
@@ -65,6 +70,30 @@ export interface LatencyEvent {
   deviceToUsbSubmitUs?: number;
   deviceToRfUs?: number;
   rfToUsbSubmitUs?: number;
+}
+
+export interface ButtonLatencyEvent {
+  kind: "button_latency";
+  timestampMs: number;
+  inputSeq: number;
+  keyMask: number;
+  standardMask: number;
+  previousStandardMask: number;
+  action: "press" | "release" | "change";
+  latencyMs: number;
+  sampleTickUs: number;
+  samplePcUs: number;
+  xinputPcUs: number;
+  syncRttUs?: number;
+  confidence: "high" | "medium" | "low";
+}
+
+export interface ButtonLatencyStatusEvent {
+  kind: "button_latency_status";
+  timestampMs: number;
+  status: "Syncing" | "No HID telemetry" | "No XInput" | "No match" | "Locked";
+  syncRttUs?: number;
+  clockSamples?: number;
 }
 
 export interface ErrorEvent {
@@ -77,7 +106,7 @@ export interface ErrorEvent {
   count?: number;
 }
 
-export type MonitorEvent = DeviceStatusEvent | PacketEvent | LatencyEvent | ErrorEvent;
+export type MonitorEvent = DeviceStatusEvent | PacketEvent | LatencyEvent | ButtonLatencyEvent | ButtonLatencyStatusEvent | ErrorEvent;
 
 export interface SerialPortInfo {
   path: string;

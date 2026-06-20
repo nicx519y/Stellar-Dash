@@ -5,6 +5,7 @@ import path from "node:path";
 import { MonitorEventBus } from "./pipeline/event-bus";
 import { MonitorEventStore } from "./pipeline/event-store";
 import { parseDongleTelemetryLine } from "./sources/dongle-telemetry-source";
+import { startNativeXinputSource } from "./sources/button-latency-source";
 import { getHidDebugConfigStatus, sendDebugConfig, startHidTelemetrySource } from "./sources/hid-telemetry-source";
 import { SerialLogManager } from "./sources/serial-log-manager";
 import { startSerialTelemetrySource } from "./sources/serial-telemetry-source";
@@ -14,6 +15,7 @@ const eventStore = new MonitorEventStore(path.join(app.getPath("userData"), "db"
 const eventBus = new MonitorEventBus(500, eventStore);
 let stopHidSource: (() => void) | null = null;
 let stopSerialSource: (() => void) | null = null;
+let stopXinputSource: (() => void) | null = null;
 let mainWindow: BrowserWindow | null = null;
 const pendingEvents: unknown[] = [];
 const pendingSerialLogs: SerialLogLine[] = [];
@@ -46,6 +48,10 @@ function stopSources(): void {
   if (stopSerialSource) {
     stopSerialSource();
     stopSerialSource = null;
+  }
+  if (stopXinputSource) {
+    stopXinputSource();
+    stopXinputSource = null;
   }
 }
 
@@ -157,6 +163,11 @@ app.whenReady().then(async () => {
     },
     { onControlReady: applyDebugConfigToDevice },
   );
+  stopXinputSource = startNativeXinputSource((event) => {
+    if (!paused) {
+      eventBus.publish(event);
+    }
+  });
   if (process.env.MONITOR_SERIAL_ENABLE === "1" || process.env.MONITOR_SERIAL_PATH) {
     stopSerialSource = startSerialTelemetrySource((event) => {
       if (!paused) {
@@ -197,6 +208,10 @@ ipcMain.handle("monitor:setPaused", (_evt, nextPaused: boolean) => {
       stopSerialSource();
       stopSerialSource = null;
     }
+    if (stopXinputSource) {
+      stopXinputSource();
+      stopXinputSource = null;
+    }
     return;
   }
   if (!stopHidSource) {
@@ -211,6 +226,13 @@ ipcMain.handle("monitor:setPaused", (_evt, nextPaused: boolean) => {
   }
   if (!stopSerialSource && (process.env.MONITOR_SERIAL_ENABLE === "1" || process.env.MONITOR_SERIAL_PATH)) {
     stopSerialSource = startSerialTelemetrySource((event) => {
+      if (!paused) {
+        eventBus.publish(event);
+      }
+    });
+  }
+  if (!stopXinputSource) {
+    stopXinputSource = startNativeXinputSource((event) => {
       if (!paused) {
         eventBus.publish(event);
       }

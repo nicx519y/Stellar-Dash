@@ -97,6 +97,9 @@
 #define RFH_CMD_HOP_CANCEL            0x12u
 #define RFH_CMD_RATE_UPDATE           0x20u
 #define RFH_CMD_MONITOR_CONFIG        0x21u
+#define RFH_CMD_TIME_SYNC             0x22u
+#define RFH_CMD_TIME_SYNC_ECHO        0x23u
+#define RFH_CMD_LATENCY_INPUT         0x24u
 #define RFH_CMD_PAIR_OFFER            0x30u
 #define RFH_CMD_PAIR_ACCEPT           0x31u
 #define RFH_CMD_PAIR_CONFIRM          0x32u
@@ -145,6 +148,20 @@ enum {
     RFH_CMD_SLOT_DATA2 = 7u,
     RFH_CMD_SLOT_DATA3 = 8u,
     RFH_CMD_SLOT_DATA4 = 9u
+};
+
+enum {
+    RFH_TIME_SYNC_ECHO_CMD_ID = 0u,
+    RFH_TIME_SYNC_ECHO_SEQ = 1u,
+    RFH_TIME_SYNC_ECHO_RX_TICK = 2u,
+    RFH_TIME_SYNC_ECHO_TX_TICK = 6u
+};
+
+enum {
+    RFH_LATENCY_CMD_ID = 0u,
+    RFH_LATENCY_INPUT_SEQ = 1u,
+    RFH_LATENCY_KEY_MASK = 2u,
+    RFH_LATENCY_SAMPLE_TICK = 6u
 };
 
 enum {

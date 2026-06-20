@@ -324,11 +324,52 @@ function parseRfHopScoreFrame(view: DataView, report: Uint8Array, timestampMs: n
   ];
 }
 
+function parseRfHopLatencyFrame(view: DataView, report: Uint8Array, timestampMs: number, hostMonoUs?: number): MonitorEvent[] {
+  const seq = view.getUint32(4, true);
+  const inputSeq = view.getUint8(8);
+  const inputFlags = view.getUint8(9);
+  const inputKeyMask = view.getUint32(10, true);
+  const sampleTickUs = view.getUint32(14, true);
+  const syncSeq = view.getUint8(18);
+  const syncRxTickUs = view.getUint32(19, true);
+  const syncTxTickUs = view.getUint32(23, true);
+  const state = view.getUint8(27);
+  const channel = view.getUint8(28);
+  const airRateCode = view.getUint8(29);
+  const airLinkActive = view.getUint8(30) !== 0;
+  const stateCode = rfHopStateCode(state);
+
+  return [
+    {
+      kind: "packet",
+      timestampMs,
+      channel: "RF",
+      direction: "RX",
+      seq,
+      messageType: "RFH_RHL1",
+      payloadLen: report.length,
+      payloadHex: hexReport(report),
+      channelNumber: channel,
+      rfStateCode: stateCode,
+      inputKeyMask,
+      inputSeq,
+      inputFlags,
+      airRateCode,
+      airLinkActive,
+      hostMonoUs,
+      sampleTickUs,
+      syncSeq,
+      syncRxTickUs,
+      syncTxTickUs,
+    },
+  ];
+}
+
 /**
  * Parse the dongle HID telemetry frame (DMN1, 32 bytes).
  * Frame layout is defined in dongle/src/dongle_telemetry.c.
  */
-export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = Date.now()): MonitorEvent[] {
+export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = Date.now(), hostMonoUs?: number): MonitorEvent[] {
   if (report.length < 32) {
     return [];
   }
@@ -343,6 +384,9 @@ export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = D
   }
   if (magic === 0x31494852) {
     return parseRfHopInputFrame(view, report, timestampMs);
+  }
+  if (magic === 0x314c4852) {
+    return parseRfHopLatencyFrame(view, report, timestampMs, hostMonoUs);
   }
 
   if (magic !== 0x314e4d44) {

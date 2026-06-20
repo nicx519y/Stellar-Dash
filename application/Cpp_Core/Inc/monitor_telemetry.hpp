@@ -44,6 +44,7 @@ struct MonitorTelemetryFrameV1 {
 void MonitorTelemetry_Init(ConnectionMode mode, uint16_t targetRateHz);
 uint32_t MonitorTelemetry_NextSequence();
 void MonitorTelemetry_OnReportReady(uint32_t seq);
+bool MonitorTelemetry_GetReportReadyUs(uint32_t seq, uint32_t* outReadyUs);
 void MonitorTelemetry_SetPendingUsbSeq(uint32_t seq);
 void MonitorTelemetry_OnUsbReportSubmitted(uint16_t reportLen);
 void MonitorTelemetry_OnRfTransfer(uint32_t seq, uint8_t cmd, uint8_t payloadLen, bool ok);

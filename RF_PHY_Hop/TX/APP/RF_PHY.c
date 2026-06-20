@@ -150,8 +150,12 @@ static uint8_t g_demo_recovery_side = 0u;
 static uint32_t g_demo_tx_start_clock = 0u;
 #endif
 static uint32_t g_demo_last_log_clock = 0u;
-static uint8_t g_demo_last_payload[RFH_AIR_DATA_LEN] = {0};
+static uint8_t g_demo_last_payload[RFM_RF_INPUT_PAYLOAD_LEN] = {0};
 static volatile uint8_t g_demo_have_payload = 0u;
+static volatile uint8_t g_monitor_latency_pending = 0u;
+static uint8_t g_monitor_latency_input_seq = 0u;
+static uint32_t g_monitor_latency_key_mask = 0u;
+static uint32_t g_monitor_latency_sample_tick_us = 0u;
 static volatile uint8_t g_monitor_tx_log_enabled = 0u;
 static volatile uint8_t g_monitor_auto_hop_enabled = 1u;
 static volatile uint8_t g_monitor_manual_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
@@ -164,6 +168,10 @@ static uint8_t g_monitor_status_seq = 0u;
 static uint8_t g_monitor_status_flags = 0u;
 static uint8_t g_monitor_status_manual_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
 static uint8_t g_monitor_status_result = RFMON_APPLY_IDLE;
+static volatile uint8_t g_monitor_sync_echo_pending = 0u;
+static uint8_t g_monitor_sync_echo_seq = 0u;
+static uint32_t g_monitor_sync_echo_rx_tick_us = 0u;
+static uint32_t g_monitor_sync_echo_tx_tick_us = 0u;
 
 static const uint8_t g_demo_hop_channels[] = { 39u, 16u, 24u, 32u };
 static uint16_t g_demo_channel_scores[sizeof(g_demo_hop_channels) / sizeof(g_demo_hop_channels[0])];
@@ -360,6 +368,16 @@ static uint8_t demo_active_hop_cmd(void)
        (g_demo_hop_state == RF_AUTO_HOP_COMM))
     {
         return RFH_CMD_RATE_UPDATE;
+    }
+    if((g_monitor_sync_echo_pending != 0u) &&
+       (g_demo_hop_state == RF_AUTO_HOP_COMM))
+    {
+        return RFH_CMD_TIME_SYNC_ECHO;
+    }
+    if((g_monitor_latency_pending != 0u) &&
+       (g_demo_hop_state == RF_AUTO_HOP_COMM))
+    {
+        return RFH_CMD_LATENCY_INPUT;
     }
     if(g_demo_hop_state == RF_AUTO_HOP_PREPARE_ACK_WAIT)
     {
@@ -628,6 +646,12 @@ static void demo_handle_ack_packet(void)
         return;
     }
 
+    if(cmd == RFH_CMD_TIME_SYNC)
+    {
+        (void)rfm_spi_bridge_emit_time_sync(seq);
+        return;
+    }
+
     if((cmd == RFH_CMD_HOP_PREPARE) ||
        (cmd == RFH_CMD_HOP_CONFIRM) ||
        (cmd == RFH_CMD_RATE_UPDATE))
@@ -679,11 +703,11 @@ static void demo_fill_direct_input_payload(uint8_t *data)
 {
     static uint8_t s_direct_input_seq;
 
-    memset(data, 0, RFH_AIR_DATA_LEN);
+    memset(data, 0, RFM_RF_INPUT_PAYLOAD_LEN);
     data[0] = s_direct_input_seq++;
     data[1] = 0x11u;
     rfh_put_u32(&data[2], RF_TX_DIRECT_INPUT_TEST_KEY_MASK);
-    data[9] = demo_input_crc8(data, (uint8_t)(RFH_AIR_DATA_LEN - 1u));
+    data[RFMON_INPUT_CRC_OFFSET] = demo_input_crc8(data, (uint8_t)(RFM_RF_INPUT_PAYLOAD_LEN - 1u));
 }
 #endif
 
@@ -694,9 +718,9 @@ static void demo_encode_short_input_payload(uint8_t *dst, const uint8_t *src)
         return;
     }
 
-    dst[0] = src[2];
-    dst[1] = src[3];
-    dst[2] = src[4];
+    dst[0] = src[RFMON_INPUT_KEY_MASK_OFFSET];
+    dst[1] = src[RFMON_INPUT_KEY_MASK_OFFSET + 1u];
+    dst[2] = src[RFMON_INPUT_KEY_MASK_OFFSET + 2u];
 }
 
 static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t ack_burst_left)
@@ -708,7 +732,7 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
     uint8_t hop_cmd = demo_active_hop_cmd();
     uint8_t has_input_payload = 0u;
     uint8_t use_short_input = 0u;
-    uint8_t input_payload[RFH_AIR_DATA_LEN];
+    uint8_t input_payload[RFM_RF_INPUT_PAYLOAD_LEN];
 
     if(request_ack != 0u)
     {
@@ -740,6 +764,26 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
             data[RFH_CMD_SLOT_ARG3] = g_monitor_status_seq;
             g_monitor_status_pending = 0u;
         }
+        else if(hop_cmd == RFH_CMD_TIME_SYNC_ECHO)
+        {
+            data[RFH_TIME_SYNC_ECHO_CMD_ID] = RFH_CMD_TIME_SYNC_ECHO;
+            data[RFH_TIME_SYNC_ECHO_SEQ] = g_monitor_sync_echo_seq;
+            rfh_put_u32(&data[RFH_TIME_SYNC_ECHO_RX_TICK],
+                        g_monitor_sync_echo_rx_tick_us);
+            rfh_put_u32(&data[RFH_TIME_SYNC_ECHO_TX_TICK],
+                        g_monitor_sync_echo_tx_tick_us);
+            g_monitor_sync_echo_pending = 0u;
+        }
+        else if(hop_cmd == RFH_CMD_LATENCY_INPUT)
+        {
+            data[RFH_LATENCY_CMD_ID] = RFH_CMD_LATENCY_INPUT;
+            data[RFH_LATENCY_INPUT_SEQ] = g_monitor_latency_input_seq;
+            rfh_put_u32(&data[RFH_LATENCY_KEY_MASK],
+                        g_monitor_latency_key_mask);
+            rfh_put_u32(&data[RFH_LATENCY_SAMPLE_TICK],
+                        g_monitor_latency_sample_tick_us);
+            g_monitor_latency_pending = 0u;
+        }
         else
         {
             data[RFH_HOP_CMD_ID] = hop_cmd;
@@ -761,19 +805,19 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
             has_input_payload = 1u;
             use_short_input = 1u;
 #else
-            if(rfm_spi_port_peek_latest_input(input_payload, RFH_AIR_DATA_LEN))
+            if(rfm_spi_port_peek_latest_input(input_payload, RFM_RF_INPUT_PAYLOAD_LEN))
             {
-                memcpy(g_demo_last_payload, input_payload, RFH_AIR_DATA_LEN);
+                memcpy(g_demo_last_payload, input_payload, RFM_RF_INPUT_PAYLOAD_LEN);
                 demo_encode_short_input_payload(data, input_payload);
+                use_short_input = 1u;
                 g_demo_have_payload = 1u;
                 has_input_payload = 1u;
-                use_short_input = 1u;
             }
             else if(g_demo_have_payload != 0u)
             {
                 demo_encode_short_input_payload(data, g_demo_last_payload);
-                has_input_payload = 1u;
                 use_short_input = 1u;
+                has_input_payload = 1u;
             }
             else
             {
@@ -1200,14 +1244,23 @@ bool RF_SPI_FastWriteInput(const uint8_t *payload, uint8_t len)
 {
     uint32_t irq_status;
 
-    if((payload == 0) || (len != RFH_AIR_DATA_LEN))
+    if((payload == 0) || (len != RFM_RF_INPUT_PAYLOAD_LEN))
     {
         return false;
     }
 
     SYS_DisableAllIrq(&irq_status);
-    memcpy(g_demo_last_payload, payload, RFH_AIR_DATA_LEN);
+    memcpy(g_demo_last_payload, payload, RFM_RF_INPUT_PAYLOAD_LEN);
     g_demo_have_payload = 1u;
+    if((payload[RFMON_INPUT_FLAGS_OFFSET] & RFMON_INPUT_FLAG_SYNC_ECHO) != 0u)
+    {
+        g_monitor_sync_echo_seq = payload[RFMON_SPI_INPUT_SYNC_SEQ_OFFSET];
+        g_monitor_sync_echo_rx_tick_us =
+            rfh_get_u32(&payload[RFMON_SPI_INPUT_SYNC_RX_TICK_OFFSET]);
+        g_monitor_sync_echo_tx_tick_us =
+            rfh_get_u32(&payload[RFMON_SPI_INPUT_SYNC_TX_TICK_OFFSET]);
+        g_monitor_sync_echo_pending = 1u;
+    }
     SYS_RecoverIrq(irq_status);
     return true;
 }
@@ -1430,6 +1483,14 @@ void RF_Init(void)
     g_demo_target_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
     memset(g_demo_last_payload, 0, sizeof(g_demo_last_payload));
     g_demo_have_payload = 0u;
+    g_monitor_latency_pending = 0u;
+    g_monitor_latency_input_seq = 0u;
+    g_monitor_latency_key_mask = 0u;
+    g_monitor_latency_sample_tick_us = 0u;
+    g_monitor_sync_echo_pending = 0u;
+    g_monitor_sync_echo_seq = 0u;
+    g_monitor_sync_echo_rx_tick_us = 0u;
+    g_monitor_sync_echo_tx_tick_us = 0u;
     g_demo_input_off = 0u;
     g_demo_report_hz = RF_AUTO_DEMO_REPORT_HZ;
     g_demo_rate_code = RF_AUTO_DEMO_RATE_CODE;

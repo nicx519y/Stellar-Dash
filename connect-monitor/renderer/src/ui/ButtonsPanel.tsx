@@ -3,7 +3,7 @@ import { useMemo } from "react";
 
 import { PanelHeader, panelSurfaceProps } from "./panelStyles";
 import { HITBOX_BUTTON_MAP, type HitboxButtonConfig } from "./hitboxButtonMap";
-import { useGamepadButtons, type GamepadButtonState } from "./useGamepadButtons";
+import type { GamepadButtonsSnapshot, GamepadButtonState } from "./useGamepadButtons";
 
 const HITBOX_WIDTH = 787;
 const HITBOX_HEIGHT = 489;
@@ -127,8 +127,7 @@ function HitboxPreview({ buttonStates, compact = false }: { buttonStates: Gamepa
   );
 }
 
-export function ButtonsPanel({ compact = false }: { compact?: boolean }) {
-  const gamepad = useGamepadButtons();
+export function ButtonsPanel({ compact = false, gamepad }: { compact?: boolean; gamepad: GamepadButtonsSnapshot }) {
   const buttonStates = gamepad.buttonStates;
   const connected = gamepad.connected;
   const sourceLabel = gamepad.connected ? "XInput Connected" : "Disconnected";

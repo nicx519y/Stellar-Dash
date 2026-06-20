@@ -10,6 +10,7 @@ export type GamepadButtonState = {
 export type GamepadButtonsSnapshot = {
   connected: boolean;
   deviceId: string | null;
+  timestampMs: number;
   buttonStates: GamepadButtonState[];
 };
 
@@ -59,6 +60,7 @@ function readSnapshot(preferred?: PreferredGamepad | null): GamepadButtonsSnapsh
     return {
       connected: false,
       deviceId: null,
+      timestampMs: Date.now(),
       buttonStates: releasedButtonStates,
     };
   }
@@ -66,6 +68,7 @@ function readSnapshot(preferred?: PreferredGamepad | null): GamepadButtonsSnapsh
   return {
     connected: true,
     deviceId: gamepad.id,
+    timestampMs: Date.now(),
     selected: {
       index: gamepad.index,
       id: gamepad.id,

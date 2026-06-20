@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "board_cfg.h"
+#include "micro_timer.hpp"
 #include "monitor_telemetry.hpp"
 #include "rf_bridge_port.hpp"
 #include "system_logger.h"
@@ -25,11 +26,14 @@ static constexpr uint8_t EVT_RATE_APPLIED = 0x83u;
 static constexpr uint8_t EVT_LINK_WARN = 0x84u;
 static constexpr uint8_t EVT_ERROR = 0x85u;
 static constexpr uint8_t EVT_MONITOR_CONFIG = 0x86u;
+static constexpr uint8_t EVT_TIME_SYNC = 0x87u;
 static constexpr uint8_t RFMON_FLAG_STM32_LOG = 0x08u;
 static constexpr uint8_t INPUT_PAYLOAD_LEN = 10u;
 static constexpr uint8_t INPUT_FORMAT_VERSION = 1u;
 static constexpr uint8_t INPUT_FLAG_PROCESSED = 0x01u;
+static constexpr uint8_t INPUT_FLAG_SYNC_ECHO = 0x02u;
 static constexpr uint8_t INPUT_FLAGS = static_cast<uint8_t>((INPUT_FORMAT_VERSION << 4) | INPUT_FLAG_PROCESSED);
+static constexpr uint8_t INPUT_CRC_OFFSET = 9u;
 static constexpr uint8_t STATUS_PAYLOAD_LEN = 20u;
 static constexpr uint8_t STATUS_CMD_TAG_OFFSET = 16u;
 static constexpr uint8_t STATUS_TXN_OFFSET = 17u;
@@ -37,6 +41,14 @@ static constexpr uint8_t STATUS_RESULT_OFFSET = 18u;
 static constexpr uint8_t STATUS_REASON_OFFSET = 19u;
 static constexpr uint16_t RX_BUF_LEN = 32u;
 static constexpr uint8_t CONTROL_RETRY_COUNT = 3u;
+
+struct PendingTimeSyncEcho {
+    bool pending = false;
+    uint8_t seq = 0u;
+    uint32_t rxTickUs = 0u;
+};
+
+PendingTimeSyncEcho g_pendingTimeSyncEcho;
 
 static uint8_t frameChecksum(const uint8_t* buf, uint16_t len) {
     uint8_t s = 0u;
@@ -68,9 +80,11 @@ static const char* eventToString(uint8_t evt) {
     case EVT_LINK_WARN: return "LINK_WARN";
     case EVT_ERROR: return "ERROR";
     case EVT_MONITOR_CONFIG: return "MONITOR_CONFIG";
+    case EVT_TIME_SYNC: return "TIME_SYNC";
     default: return "UNKNOWN";
     }
 }
+
 }
 
 bool RFTransport::parseStatusPayload(const uint8_t* payload, uint8_t len) {
@@ -149,6 +163,21 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
                 static_cast<unsigned int>(seq),
                 static_cast<unsigned int>(enabled),
                 static_cast<unsigned int>(result));
+        return true;
+    }
+
+    if (evt == EVT_TIME_SYNC) {
+        if (payloadLen < 1u) {
+            return false;
+        }
+        g_pendingTimeSyncEcho.pending = true;
+        g_pendingTimeSyncEcho.seq = frame[3];
+        g_pendingTimeSyncEcho.rxTickUs = MICROS_TIMER.micros();
+        status.lastCommandTag = EVT_TIME_SYNC;
+        status.lastTransactionId = frame[3];
+        status.lastResult = 0u;
+        status.lastErrorReason = 0u;
+        state = RFTransportState::Connected;
         return true;
     }
 
@@ -462,7 +491,7 @@ bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
     payload[3] = static_cast<uint8_t>((keyMask >> 8) & 0xFFu);
     payload[4] = static_cast<uint8_t>((keyMask >> 16) & 0xFFu);
     payload[5] = static_cast<uint8_t>((keyMask >> 24) & 0xFFu);
-    payload[9] = inputCrc8(payload, 9u);
+    payload[INPUT_CRC_OFFSET] = inputCrc8(payload, INPUT_CRC_OFFSET);
 
     bool ok = transferCommand(CMD_INPUT_DATA, payload, sizeof(payload), false);
     MonitorTelemetry_OnRfTransfer(seq, CMD_INPUT_DATA, sizeof(payload), ok);

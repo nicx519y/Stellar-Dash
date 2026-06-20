@@ -78,6 +78,10 @@
 #define DONGLE_DIAG_FORCE_LED_PATTERN  (0u)
 #endif
 
+#ifndef DONGLE_RF_ENABLE_GUIDE_BUTTON
+#define DONGLE_RF_ENABLE_GUIDE_BUTTON  (0u)
+#endif
+
 #define REPORT_INTERVAL_US             (125u)      /* 8 kHz */
 #define DISCONNECTED_BLINK_INTERVAL_US (2000000u)
 #define RADIO_PACKET_MAX_BYTES         (16u)
@@ -86,13 +90,21 @@
 #define XINPUT_ENDPOINT_SIZE           (20u)
 #define HID_ENDPOINT_SIZE              (32u)
 
-/* RF input payload: seq, format_flags, key_mask32, reserved[3], crc8. */
+/* RF input payload v2: seq, flags, key_mask32, sample_tick_us. */
 #define RF_INPUT_PAYLOAD_LEN           (10u)
-#define RF_INPUT_FORMAT_VERSION        (1u)
+#define RF_INPUT_FORMAT_VERSION        (2u)
+#define RF_INPUT_FORMAT_VERSION_V1     (1u)
+#define RF_INPUT_FORMAT_VERSION_V2     (2u)
 #define RF_INPUT_FORMAT_VERSION_SHIFT  (4u)
 #define RF_INPUT_FORMAT_VERSION_MASK   (0xF0u)
 #define RF_INPUT_FLAG_PROCESSED        (0x01u)
+#define RF_INPUT_FLAG_SYNC_ECHO        (0x02u)
 #define RF_INPUT_KEY_MASK_VALID        (0x0003FFFFUL)
+#define RF_INPUT_SEQ_OFFSET            (0u)
+#define RF_INPUT_FLAGS_OFFSET          (1u)
+#define RF_INPUT_KEY_MASK_OFFSET       (2u)
+#define RF_INPUT_SAMPLE_TICK_OFFSET    (6u)
+#define RF_INPUT_CRC_OFFSET            (9u)
 
 /* Hitbox key_mask bit layout; matches Gamepad::buildMacroMaskFromCurrentState(). */
 #define HBOX_KEY_UP                    (1UL << 0)
@@ -137,7 +149,10 @@ typedef struct __attribute__((packed, aligned(1))) {
     uint8_t seq;
     uint8_t format_flags;
     uint32_t key_mask;
-    uint8_t reserved[3];
+    uint32_t sample_tick_us;
+    uint8_t sync_seq;
+    uint32_t sync_rx_tick_us;
+    uint32_t sync_tx_tick_us;
     uint8_t crc8;
 } raw_input_state_t;
 

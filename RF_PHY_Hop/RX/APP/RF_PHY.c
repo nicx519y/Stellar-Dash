@@ -54,6 +54,7 @@
 #define RX_HID_TELEMETRY_MAGIC         0x314D4852UL
 #define RX_HID_SCORE_MAGIC             0x31534852UL
 #define RX_HID_INPUT_MAGIC             0x31494852UL
+#define RX_HID_LATENCY_MAGIC           0x314C4852UL
 #define RX_HID_HOP_EVENT_NONE          0u
 #define RX_HID_HOP_EVENT_START         1u
 #define RX_HID_HOP_EVENT_FINISH        2u
@@ -175,6 +176,19 @@ static volatile uint32_t g_demo_hid_input_report_seq = 0u;
 static volatile uint8_t g_demo_hid_input_seq = 0u;
 static volatile uint8_t g_demo_hid_input_flags = 0u;
 static volatile uint8_t g_demo_hid_input_valid = 0u;
+static volatile uint32_t g_demo_hid_input_sample_tick_us = 0u;
+static volatile uint8_t g_demo_hid_input_sync_seq = 0u;
+static volatile uint32_t g_demo_hid_input_sync_rx_tick_us = 0u;
+static volatile uint32_t g_demo_hid_input_sync_tx_tick_us = 0u;
+static volatile uint8_t g_demo_hid_latency_pending = 0u;
+static volatile uint32_t g_demo_hid_latency_seq = 0u;
+static volatile uint32_t g_demo_hid_latency_key_mask = 0u;
+static volatile uint32_t g_demo_hid_latency_sample_tick_us = 0u;
+static volatile uint8_t g_demo_hid_latency_input_seq = 0u;
+static volatile uint8_t g_demo_hid_latency_input_flags = 0u;
+static volatile uint8_t g_demo_hid_latency_sync_seq = 0u;
+static volatile uint32_t g_demo_hid_latency_sync_rx_tick_us = 0u;
+static volatile uint32_t g_demo_hid_latency_sync_tx_tick_us = 0u;
 static uint32_t g_demo_air_diag_last_clock = 0u;
 static volatile uint32_t g_demo_air_diag_rx_ok = 0u;
 static volatile uint32_t g_demo_air_diag_seq_gap = 0u;
@@ -222,6 +236,8 @@ static volatile uint8_t g_monitor_pending_seq = 0u;
 static volatile uint32_t g_monitor_pending_flags = 0u;
 static volatile uint16_t g_monitor_pending_period_ms = RFMON_PERIOD_OFF;
 static volatile uint8_t g_monitor_pending_retries = 0u;
+static volatile uint8_t g_monitor_sync_pending_retries = 0u;
+static volatile uint8_t g_monitor_sync_seq = 0u;
 
 static void monitor_put_u16(uint8_t *dst, uint16_t value)
 {
@@ -378,6 +394,13 @@ uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
 
     if(cmd == RFMON_CMD_GET_CONFIG)
     {
+        return 1u;
+    }
+    if(cmd == RFMON_CMD_TIME_SYNC)
+    {
+        g_monitor_seq = seq;
+        g_monitor_sync_seq = seq;
+        g_monitor_sync_pending_retries = 6u;
         return 1u;
     }
     if(cmd != RFMON_CMD_SET_CONFIG)
@@ -904,6 +927,15 @@ static void demo_fill_ack_packet(void)
     rfh_put_u16(&data[RFH_ACK_RX_COUNT_LO], rx_ok);
     rfh_put_u16(&data[RFH_ACK_EXPECTED_COUNT_LO], expected);
     if((g_demo_pending_ack_cmd == RFH_CMD_NONE) &&
+       (g_monitor_sync_pending_retries != 0u))
+    {
+        data[RFH_ACK_CMD_ID] = RFH_CMD_TIME_SYNC;
+        data[RFH_ACK_FLAGS] = RFH_FLAG_CMD_ACK;
+        data[RFH_ACK_CHANNEL] = g_demo_current_channel;
+        data[RFH_ACK_STATUS] = g_monitor_sync_seq;
+        g_monitor_sync_pending_retries--;
+    }
+    else if((g_demo_pending_ack_cmd == RFH_CMD_NONE) &&
        (g_monitor_pending_retries != 0u))
     {
         data[RFH_ACK_CMD_ID] = RFH_CMD_MONITOR_CONFIG;
@@ -1073,10 +1105,12 @@ static uint8_t demo_input_crc8(const uint8_t *data, uint8_t len)
 
 static uint32_t demo_input_key_mask(const uint8_t *payload)
 {
-    return ((uint32_t)payload[2]) |
-           ((uint32_t)payload[3] << 8) |
-           ((uint32_t)payload[4] << 16) |
-           ((uint32_t)payload[5] << 24);
+    return monitor_get_u32(&payload[RF_INPUT_KEY_MASK_OFFSET]);
+}
+
+static uint32_t demo_input_sample_tick_us(const uint8_t *payload)
+{
+    return monitor_get_u32(&payload[RF_INPUT_SAMPLE_TICK_OFFSET]);
 }
 
 static uint8_t demo_decode_short_input_payload(uint8_t *dst, uint8_t seq, const uint8_t *src)
@@ -1087,7 +1121,7 @@ static uint8_t demo_decode_short_input_payload(uint8_t *dst, uint8_t seq, const 
     }
 
     dst[0] = seq;
-    dst[1] = (uint8_t)((RF_INPUT_FORMAT_VERSION << RF_INPUT_FORMAT_VERSION_SHIFT) |
+    dst[1] = (uint8_t)((RF_INPUT_FORMAT_VERSION_V1 << RF_INPUT_FORMAT_VERSION_SHIFT) |
                        RF_INPUT_FLAG_PROCESSED);
     dst[2] = src[0];
     dst[3] = src[1];
@@ -1096,8 +1130,64 @@ static uint8_t demo_decode_short_input_payload(uint8_t *dst, uint8_t seq, const 
     dst[6] = 0u;
     dst[7] = 0u;
     dst[8] = 0u;
-    dst[9] = demo_input_crc8(dst, (uint8_t)(RF_INPUT_PAYLOAD_LEN - 1u));
+    dst[RF_INPUT_CRC_OFFSET] = demo_input_crc8(dst, (uint8_t)(RF_INPUT_PAYLOAD_LEN - 1u));
     return 1u;
+}
+
+static uint8_t demo_decode_v1_input_payload(uint8_t *dst, const uint8_t *src)
+{
+    uint8_t crc;
+
+    if((dst == 0) || (src == 0))
+    {
+        return 0u;
+    }
+    crc = demo_input_crc8(src, (uint8_t)(RFMON_INPUT_PAYLOAD_V1_LEN - 1u));
+    if(crc != src[RFMON_INPUT_PAYLOAD_V1_LEN - 1u])
+    {
+        return 0u;
+    }
+    memset(dst, 0, RF_INPUT_PAYLOAD_LEN);
+    memcpy(dst, src, RFMON_INPUT_PAYLOAD_V1_LEN - 1u);
+    dst[RF_INPUT_CRC_OFFSET] = demo_input_crc8(dst, (uint8_t)(RF_INPUT_PAYLOAD_LEN - 1u));
+    return 1u;
+}
+
+static void demo_queue_latency_sync_echo(uint8_t sync_seq,
+                                         uint32_t sync_rx_tick_us,
+                                         uint32_t sync_tx_tick_us)
+{
+    g_demo_hid_latency_key_mask = g_demo_hid_input_key_mask;
+    g_demo_hid_latency_sample_tick_us = 0u;
+    g_demo_hid_latency_input_seq = g_demo_hid_input_seq;
+    g_demo_hid_latency_input_flags =
+        (uint8_t)((RF_INPUT_FORMAT_VERSION_V2 << RF_INPUT_FORMAT_VERSION_SHIFT) |
+                  RF_INPUT_FLAG_PROCESSED |
+                  RF_INPUT_FLAG_SYNC_ECHO);
+    g_demo_hid_latency_sync_seq = sync_seq;
+    g_demo_hid_latency_sync_rx_tick_us = sync_rx_tick_us;
+    g_demo_hid_latency_sync_tx_tick_us = sync_tx_tick_us;
+    g_demo_hid_latency_pending = 1u;
+}
+
+static void demo_queue_latency_input(uint8_t input_seq,
+                                     uint32_t key_mask,
+                                     uint32_t sample_tick_us)
+{
+    if(sample_tick_us == 0u)
+    {
+        return;
+    }
+    g_demo_hid_latency_key_mask = key_mask & RF_INPUT_KEY_MASK_VALID;
+    g_demo_hid_latency_sample_tick_us = sample_tick_us;
+    g_demo_hid_latency_input_seq = input_seq;
+    g_demo_hid_latency_input_flags =
+        (uint8_t)((RF_INPUT_FORMAT_VERSION_V2 << RF_INPUT_FORMAT_VERSION_SHIFT) |
+                  RF_INPUT_FLAG_PROCESSED);
+    g_demo_hid_latency_sync_seq = 0u;
+    g_demo_hid_latency_sync_rx_tick_us = 0u;
+    g_demo_hid_latency_sync_tx_tick_us = 0u;
+    g_demo_hid_latency_pending = 1u;
 }
 
 static void demo_queue_input_payload(const uint8_t *payload)
@@ -1171,31 +1261,53 @@ static void demo_capture_xinput_report(const uint8_t *payload)
     uint8_t report[XINPUT_ENDPOINT_SIZE];
     uint8_t version;
     uint32_t key_mask;
+    uint32_t previous_key_mask;
 
     if(payload == 0)
-    {
-        return;
-    }
-    if(demo_input_crc8(payload, (uint8_t)(RF_INPUT_PAYLOAD_LEN - 1u)) !=
-       payload[RF_INPUT_PAYLOAD_LEN - 1u])
     {
         return;
     }
 
     version = (uint8_t)((payload[1] & RF_INPUT_FORMAT_VERSION_MASK) >>
                         RF_INPUT_FORMAT_VERSION_SHIFT);
-    if((version != RF_INPUT_FORMAT_VERSION) ||
+    if(((version != RF_INPUT_FORMAT_VERSION_V1) &&
+        (version != RF_INPUT_FORMAT_VERSION_V2)) ||
        ((payload[1] & RF_INPUT_FLAG_PROCESSED) == 0u))
     {
         return;
     }
+    if((version == RF_INPUT_FORMAT_VERSION_V1) &&
+       (demo_input_crc8(payload, (uint8_t)(RF_INPUT_PAYLOAD_LEN - 1u)) !=
+        payload[RF_INPUT_PAYLOAD_LEN - 1u]))
+    {
+        return;
+    }
 
+    previous_key_mask = g_demo_hid_input_key_mask;
     key_mask = demo_input_key_mask(payload) & RF_INPUT_KEY_MASK_VALID;
     g_demo_hid_input_key_mask = key_mask;
     g_demo_hid_input_window_mask |= key_mask;
     g_demo_hid_input_seq = payload[0];
     g_demo_hid_input_flags = payload[1];
+    g_demo_hid_input_sample_tick_us =
+        (version == RF_INPUT_FORMAT_VERSION_V2) ? demo_input_sample_tick_us(payload) : 0u;
+    g_demo_hid_input_sync_seq = 0u;
+    g_demo_hid_input_sync_rx_tick_us = 0u;
+    g_demo_hid_input_sync_tx_tick_us = 0u;
     g_demo_hid_input_valid = 1u;
+    if((key_mask != previous_key_mask) &&
+       (version == RF_INPUT_FORMAT_VERSION_V2) &&
+       (g_demo_hid_input_sample_tick_us != 0u))
+    {
+        g_demo_hid_latency_key_mask = key_mask;
+        g_demo_hid_latency_sample_tick_us = g_demo_hid_input_sample_tick_us;
+        g_demo_hid_latency_input_seq = payload[0];
+        g_demo_hid_latency_input_flags = payload[1];
+        g_demo_hid_latency_sync_seq = 0u;
+        g_demo_hid_latency_sync_rx_tick_us = 0u;
+        g_demo_hid_latency_sync_tx_tick_us = 0u;
+        g_demo_hid_latency_pending = 1u;
+    }
 
     memset(report, 0, sizeof(report));
     report[0] = 0x00u;
@@ -1210,11 +1322,13 @@ static void demo_capture_xinput_report(const uint8_t *payload)
                 (uint8_t)(((key_mask & HBOX_KEY_R3) != 0u) ? XBOX_MASK_RS : 0u);
     report[3] = (uint8_t)(((key_mask & HBOX_KEY_L1) != 0u) ? XBOX_MASK_LB : 0u) |
                 (uint8_t)(((key_mask & HBOX_KEY_R1) != 0u) ? XBOX_MASK_RB : 0u) |
-                (uint8_t)(((key_mask & HBOX_KEY_A1) != 0u) ? XBOX_MASK_HOME : 0u) |
                 (uint8_t)(((key_mask & HBOX_KEY_B1) != 0u) ? XBOX_MASK_A : 0u) |
                 (uint8_t)(((key_mask & HBOX_KEY_B2) != 0u) ? XBOX_MASK_B : 0u) |
                 (uint8_t)(((key_mask & HBOX_KEY_B3) != 0u) ? XBOX_MASK_X : 0u) |
                 (uint8_t)(((key_mask & HBOX_KEY_B4) != 0u) ? XBOX_MASK_Y : 0u);
+#if (DONGLE_RF_ENABLE_GUIDE_BUTTON != 0u)
+    report[3] |= (uint8_t)(((key_mask & HBOX_KEY_A1) != 0u) ? XBOX_MASK_HOME : 0u);
+#endif
     report[4] = ((key_mask & HBOX_KEY_L2) != 0u) ? 0xFFu : 0x00u;
     report[5] = ((key_mask & HBOX_KEY_R2) != 0u) ? 0xFFu : 0x00u;
     demo_put_i16(&report[6], 0);
@@ -1391,6 +1505,18 @@ static void demo_handle_command(const uint8_t *air)
             g_monitor_pending_retries = 0u;
         }
     }
+    else if(cmd == RFH_CMD_TIME_SYNC_ECHO)
+    {
+        demo_queue_latency_sync_echo(data[RFH_TIME_SYNC_ECHO_SEQ],
+                                     rfh_get_u32(&data[RFH_TIME_SYNC_ECHO_RX_TICK]),
+                                     rfh_get_u32(&data[RFH_TIME_SYNC_ECHO_TX_TICK]));
+    }
+    else if(cmd == RFH_CMD_LATENCY_INPUT)
+    {
+        demo_queue_latency_input(data[RFH_LATENCY_INPUT_SEQ],
+                                 rfh_get_u32(&data[RFH_LATENCY_KEY_MASK]),
+                                 rfh_get_u32(&data[RFH_LATENCY_SAMPLE_TICK]));
+    }
 }
 
 static void demo_after_ack_finish(void)
@@ -1472,6 +1598,7 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
     }
 
     if((pending->len != RF_AUTO_DEMO_PACKET_LEN) &&
+       (pending->len != (uint8_t)(RFH_DATA_OFFSET + RFMON_INPUT_PAYLOAD_V1_LEN)) &&
        (pending->len != RFH_INPUT_AIR_PACKET_LEN))
     {
         g_demo_stat.data_type_err++;
@@ -1550,7 +1677,18 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
         }
         else
         {
-            demo_queue_input_payload(&air[RFH_DATA_OFFSET]);
+            if(demo_decode_v1_input_payload(input_payload,
+                                             &air[RFH_DATA_OFFSET]) == 0u)
+            {
+                /*
+                 * Full packets without a command can also be idle/fill traffic.
+                 * Only legacy v1 input with payload CRC is accepted here; v2
+                 * latency uses RFH_CMD_LATENCY_INPUT so fill bytes cannot
+                 * accidentally become Guide/Home or other buttons.
+                 */
+                return;
+            }
+            demo_queue_input_payload(input_payload);
         }
     }
 
@@ -1973,6 +2111,61 @@ static uint8_t demo_try_send_score_report(void)
     return demo_submit_hid_report(report);
 }
 
+static uint8_t demo_try_send_latency_report(void)
+{
+    uint8_t report[HID_ENDPOINT_SIZE];
+    uint32_t key_mask;
+    uint32_t sample_tick_us;
+    uint32_t sync_rx_tick_us;
+    uint32_t sync_tx_tick_us;
+    uint8_t input_seq;
+    uint8_t input_flags;
+    uint8_t sync_seq;
+    uint32_t irq_status;
+
+    SYS_DisableAllIrq(&irq_status);
+    if(g_demo_hid_latency_pending == 0u)
+    {
+        SYS_RecoverIrq(irq_status);
+        return 0u;
+    }
+    key_mask = g_demo_hid_latency_key_mask;
+    sample_tick_us = g_demo_hid_latency_sample_tick_us;
+    input_seq = g_demo_hid_latency_input_seq;
+    input_flags = g_demo_hid_latency_input_flags;
+    sync_seq = g_demo_hid_latency_sync_seq;
+    sync_rx_tick_us = g_demo_hid_latency_sync_rx_tick_us;
+    sync_tx_tick_us = g_demo_hid_latency_sync_tx_tick_us;
+    SYS_RecoverIrq(irq_status);
+
+    memset(report, 0, sizeof(report));
+    demo_put_u32(&report[0], RX_HID_LATENCY_MAGIC);
+    demo_put_u32(&report[4], g_demo_hid_latency_seq + 1u);
+    report[8] = input_seq;
+    report[9] = input_flags;
+    demo_put_u32(&report[10], key_mask);
+    demo_put_u32(&report[14], sample_tick_us);
+    report[18] = sync_seq;
+    demo_put_u32(&report[19], sync_rx_tick_us);
+    demo_put_u32(&report[23], sync_tx_tick_us);
+    report[27] = demo_hid_state_code();
+    report[28] = g_demo_current_channel;
+    report[29] = g_demo_rate_code;
+    report[30] = g_demo_link_active;
+    report[31] = (uint8_t)demo_input_crc8(report, 31u);
+
+    if(demo_submit_hid_report(report) == 0u)
+    {
+        return 0u;
+    }
+
+    SYS_DisableAllIrq(&irq_status);
+    g_demo_hid_latency_pending = 0u;
+    SYS_RecoverIrq(irq_status);
+    g_demo_hid_latency_seq++;
+    return 1u;
+}
+
 static uint8_t demo_try_send_input_report(void)
 {
     uint8_t report[HID_ENDPOINT_SIZE];
@@ -2085,6 +2278,11 @@ uint8_t RF_TrySendTelemetryReport(void)
     if(g_monitor_hid_enabled == 0u)
     {
         return 0u;
+    }
+
+    if(demo_try_send_latency_report() != 0u)
+    {
+        return 1u;
     }
 
     if((g_demo_link_active != 0u) &&

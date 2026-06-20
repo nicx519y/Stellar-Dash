@@ -21,6 +21,7 @@ import { TfiClose } from "react-icons/tfi";
 import type { DebugApplyState, DebugConfig, DebugHidPeriodMs, MonitorEvent } from "../../../shared/monitor-types";
 import rfMonitorLogo from "../assets/rf-monitor-logo.png";
 import { useMonitorStream } from "./useMonitorStream";
+import { ButtonLatencyPanel } from "./ButtonLatencyPanel";
 import { ButtonsPanel } from "./ButtonsPanel";
 import { ChannelPanel } from "./ChannelPanel";
 import { ChannelScorePanel } from "./ChannelScorePanel";
@@ -30,6 +31,7 @@ import { SerialLogPanel } from "./SerialLogPanel";
 import { neonGreen, panelSurfaceProps, toolbarActionButtonProps } from "./panelStyles";
 import { scrollbarStyle } from "./scrollbarStyle";
 import { clearSerialLogLines } from "./serialLogStore";
+import { useGamepadButtons } from "./useGamepadButtons";
 
 const appScrollStyle = {
   ...scrollbarStyle,
@@ -470,7 +472,8 @@ function TrafficPanels({
 }
 
 export function App() {
-  const { events, packets, latency, chart, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
+  const { events, packets, latency, buttonLatency, chart, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
+  const gamepad = useGamepadButtons();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollState, setScrollState] = useState({ top: 0, client: 1, scroll: 1 });
   const [serialLogClearVersion, setSerialLogClearVersion] = useState(0);
@@ -672,7 +675,7 @@ export function App() {
             display="grid"
             gridTemplateColumns={{
               base: "1fr",
-              xl: "minmax(0, 1fr) 625px",
+              xl: "minmax(0, 1fr) 250px 625px",
             }}
             gap="10px"
             alignItems="stretch"
@@ -692,7 +695,8 @@ export function App() {
               chartHeight="100%"
               compact
             />
-            <ButtonsPanel compact />
+            <ButtonLatencyPanel rows={buttonLatency.items} status={buttonLatency.status} />
+            <ButtonsPanel compact gamepad={gamepad} />
           </Box>
           <TrafficPanels
             packets={packets}

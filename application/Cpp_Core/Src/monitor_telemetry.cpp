@@ -82,6 +82,10 @@ void MonitorTelemetry_OnReportReady(uint32_t seq) {
     }
 }
 
+bool MonitorTelemetry_GetReportReadyUs(uint32_t seq, uint32_t* outReadyUs) {
+    return query_report_ready_time(seq, outReadyUs);
+}
+
 void MonitorTelemetry_SetPendingUsbSeq(uint32_t seq) {
     g_pendingUsbSeq = seq;
     g_hasPendingUsbSeq = true;

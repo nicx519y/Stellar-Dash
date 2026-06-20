@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import type { MonitorEvent, PacketEvent, ErrorEvent, LatencyEvent } from "../../../shared/monitor-types";
+import type { ButtonLatencyEvent, ButtonLatencyStatusEvent, MonitorEvent, PacketEvent, ErrorEvent, LatencyEvent } from "../../../shared/monitor-types";
 
 type PacketRow = PacketEvent & { id: string };
 type ErrorRow = ErrorEvent & { id: string };
@@ -48,6 +48,7 @@ const MAX_ROWS = 500;
 const MAX_INPUT_PACKET_ROWS = 500;
 const MAX_EVENTS = 500;
 const MAX_LATENCIES = 500;
+const MAX_BUTTON_LATENCIES = 500;
 const MAX_RATE_POINTS = 500;
 const MAX_LOSS_POINTS = 600;
 const MAX_CHANNEL_ROWS = 500;
@@ -73,6 +74,14 @@ function isError(ev: MonitorEvent): ev is ErrorEvent {
 
 function isLatency(ev: MonitorEvent): ev is LatencyEvent {
   return ev.kind === "latency";
+}
+
+function isButtonLatency(ev: MonitorEvent): ev is ButtonLatencyEvent {
+  return ev.kind === "button_latency";
+}
+
+function isButtonLatencyStatus(ev: MonitorEvent): ev is ButtonLatencyStatusEvent {
+  return ev.kind === "button_latency_status";
 }
 
 function calcRateFromPackets(packets: PacketRow[], channel: "USB" | "RF", direction: "TX" | "RX", windowMs: number) {
@@ -199,6 +208,8 @@ export function useMonitorStream() {
   const [inputPacketRows, setInputPacketRows] = React.useState<PacketRow[]>([]);
   const [errorRows, setErrorRows] = React.useState<ErrorRow[]>([]);
   const [latencies, setLatencies] = React.useState<LatencyEvent[]>([]);
+  const [buttonLatencies, setButtonLatencies] = React.useState<ButtonLatencyEvent[]>([]);
+  const [buttonLatencyStatus, setButtonLatencyStatus] = React.useState<ButtonLatencyStatusEvent | null>(null);
   const [rateSeries, setRateSeries] = React.useState<RatePoint[]>([]);
   const [lossSeries, setLossSeries] = React.useState<LossPoint[]>([]);
   const [channelSwitches, setChannelSwitches] = React.useState<ChannelSwitchRow[]>([]);
@@ -249,6 +260,16 @@ export function useMonitorStream() {
         const next = prev.concat(add);
         return next.length > MAX_LATENCIES ? next.slice(-MAX_LATENCIES) : next;
       });
+      setButtonLatencies((prev) => {
+        const add = batch.filter(isButtonLatency);
+        if (add.length === 0) return prev;
+        const next = prev.concat(add);
+        return next.length > MAX_BUTTON_LATENCIES ? next.slice(-MAX_BUTTON_LATENCIES) : next;
+      });
+      const latestButtonLatencyStatus = batch.filter(isButtonLatencyStatus).at(-1);
+      if (latestButtonLatencyStatus) {
+        setButtonLatencyStatus(latestButtonLatencyStatus);
+      }
       const rfPackets = rfPacketEvents(batch);
       let scorePacket: PacketEvent | undefined;
       for (let i = rfPackets.length - 1; i >= 0; i--) {
@@ -571,6 +592,8 @@ export function useMonitorStream() {
     setInputPacketRows([]);
     setErrorRows([]);
     setLatencies([]);
+    setButtonLatencies([]);
+    setButtonLatencyStatus(null);
     setRateSeries([]);
     setLossSeries([]);
     setChannelSwitches([]);
@@ -634,12 +657,17 @@ export function useMonitorStream() {
   }, [errorRows]);
 
   const latency = React.useMemo(() => calcHzFromLatency(latencies), [latencies]);
+  const buttonLatency = React.useMemo(() => ({
+    items: buttonLatencies,
+    status: buttonLatencyStatus,
+  }), [buttonLatencies, buttonLatencyStatus]);
 
   return {
     events,
     packets,
     errors,
     latency,
+    buttonLatency,
     rateSeries,
     lossSeries,
     channelSwitches,

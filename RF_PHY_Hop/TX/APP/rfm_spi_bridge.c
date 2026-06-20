@@ -74,7 +74,8 @@ typedef enum {
     SPI_EVT_RATE_APPLIED = 0x83,
     SPI_EVT_LINK_WARN = 0x84,
     SPI_EVT_ERROR = 0x85,
-    SPI_EVT_MONITOR_CONFIG = RFMON_SPI_EVT_CONFIG_APPLIED
+    SPI_EVT_MONITOR_CONFIG = RFMON_SPI_EVT_CONFIG_APPLIED,
+    SPI_EVT_TIME_SYNC = RFMON_SPI_EVT_TIME_SYNC
 } spi_evt_t;
 
 #if (RF_SERIAL_LOG == 1)
@@ -351,6 +352,25 @@ uint8_t rfm_spi_bridge_emit_monitor_config(uint8_t seq, uint8_t flags, uint8_t p
     payload[2] = period_code;
     payload[3] = RFMON_APPLY_APPLIED;
     frame_len = build_frame(SPI_EVT_MONITOR_CONFIG,
+                            payload,
+                            (uint8_t)sizeof(payload),
+                            out,
+                            (uint8_t)sizeof(out));
+    if(frame_len != 0u)
+    {
+        return write_frame(out, frame_len) ? 1u : 0u;
+    }
+    return 0u;
+}
+
+uint8_t rfm_spi_bridge_emit_time_sync(uint8_t seq)
+{
+    uint8_t payload[1];
+    uint8_t out[RFM_SPI_MAX_FRAME];
+    uint8_t frame_len;
+
+    payload[0] = seq;
+    frame_len = build_frame(SPI_EVT_TIME_SYNC,
                             payload,
                             (uint8_t)sizeof(payload),
                             out,
@@ -880,11 +900,10 @@ static bool input_payload_state_changed(const uint8_t *prev, const uint8_t *curr
     }
 
     /*
-     * Byte 0 is the STM32 input sequence and byte 9 is its CRC. At 8K those
-     * bytes change every frame even when the button state is identical. TX only
-     * needs the latest semantic state for RF repeats, so compare flags/key data.
+     * Sequence, sample_tick_us and CRC change at report cadence. RF only needs
+     * a fresh payload when semantic key state or one-shot sync echo changes.
      */
-    return memcmp(&prev[1], &curr[1], RFM_RF_INPUT_PAYLOAD_LEN - 2u) != 0;
+    return (prev[1] != curr[1]) || (memcmp(&prev[2], &curr[2], 4u) != 0);
 }
 
 void rfm_spi_bridge_init(void)
