@@ -96,6 +96,7 @@ typedef struct
     uint8_t kind;
     uint8_t len;
     uint8_t channel;
+    uint32_t rx_tmr;
     uint8_t air[RFH_AIR_PACKET_LEN];
 } rf_rx_pending_t;
 
@@ -800,7 +801,7 @@ static void demo_note_rx_pending_water(uint8_t head, uint8_t tail)
     }
 }
 
-static void demo_queue_rx_pending_packet(const uint8_t *rx_buf)
+static void demo_queue_rx_pending_packet(const uint8_t *rx_buf, uint32_t rx_tmr)
 {
     uint8_t head;
     uint8_t next;
@@ -825,6 +826,7 @@ static void demo_queue_rx_pending_packet(const uint8_t *rx_buf)
     pending->kind = RF_RX_PENDING_PACKET;
     pending->len = rx_buf[1];
     pending->channel = g_demo_current_channel;
+    pending->rx_tmr = rx_tmr;
     if(rx_buf[1] <= RF_AUTO_DEMO_PACKET_LEN)
     {
         memcpy(pending->air, &rx_buf[2], rx_buf[1]);
@@ -841,7 +843,7 @@ static void demo_queue_rx_pending_packet(const uint8_t *rx_buf)
     demo_note_rx_pending_water(next, g_demo_rx_pending_tail);
 }
 
-static void demo_queue_rx_pending_crcerr(void)
+static void demo_queue_rx_pending_crcerr(uint32_t rx_tmr)
 {
     uint8_t head = g_demo_rx_pending_head;
     uint8_t next = demo_rx_pending_next(head);
@@ -859,6 +861,7 @@ static void demo_queue_rx_pending_crcerr(void)
     pending->kind = RF_RX_PENDING_CRCERR;
     pending->len = 0u;
     pending->channel = g_demo_current_channel;
+    pending->rx_tmr = rx_tmr;
     memset(pending->air, 0, sizeof(pending->air));
     g_demo_rx_pending_head = next;
     demo_note_rx_pending_water(next, g_demo_rx_pending_tail);
@@ -1736,7 +1739,7 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
     demo_channel_score_update(pending->channel,
                               RF_AUTO_DEMO_CHANNEL_SCORE_GOOD);
     {
-        data_tmr = TMR0_GetCurrentTimer();
+        data_tmr = pending->rx_tmr;
         if(g_demo_have_data_seq != 0u)
         {
             demo_note_hid_silent_cycles(
@@ -1834,6 +1837,7 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
     {
         uint8_t completed_slot = g_demo_rx_active_slot;
         uint8_t *rx_buf;
+        uint32_t rx_tmr = TMR0_GetCurrentTimer();
         int8_t rssi = RFIP_ReadRssi();
 
         demo_note_rssi(rssi);
@@ -1844,16 +1848,17 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
         }
         rx_buf = RxBuf[completed_slot];
         demo_arm_rx();
-        demo_queue_rx_pending_packet(rx_buf);
+        demo_queue_rx_pending_packet(rx_buf, rx_tmr);
     }
     if(sta & RF_STATE_RX_CRCERR)
     {
+        uint32_t rx_tmr = TMR0_GetCurrentTimer();
         int8_t rssi = RFIP_ReadRssi();
 
         demo_note_rssi(rssi);
         g_demo_rx_active = 0u;
         demo_arm_rx();
-        demo_queue_rx_pending_crcerr();
+        demo_queue_rx_pending_crcerr(rx_tmr);
     }
     if(sta & RF_STATE_TX_FINISH)
     {

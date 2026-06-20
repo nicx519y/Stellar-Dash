@@ -152,6 +152,10 @@ static uint32_t g_demo_tx_start_clock = 0u;
 static uint32_t g_demo_last_log_clock = 0u;
 static uint8_t g_demo_last_payload[RFM_RF_INPUT_PAYLOAD_LEN] = {0};
 static volatile uint8_t g_demo_have_payload = 0u;
+static volatile uint32_t g_demo_tmr_epoch_cycles = 0u;
+static uint32_t g_demo_report_tmr_cycles = 1u;
+static uint32_t g_demo_last_payload_tmr = 0u;
+static uint8_t g_demo_last_payload_tmr_valid = 0u;
 static volatile uint8_t g_monitor_latency_pending = 0u;
 static uint8_t g_monitor_latency_input_seq = 0u;
 static uint32_t g_monitor_latency_key_mask = 0u;
@@ -207,6 +211,9 @@ static void demo_reconfigure_report_timer(uint16_t hz)
     {
         tick_per_evt = 1u;
     }
+    g_demo_report_tmr_cycles = tick_per_evt;
+    g_demo_tmr_epoch_cycles = 0u;
+    g_demo_last_payload_tmr_valid = 0u;
     TMR0_TimerInit(tick_per_evt);
     TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
     TMR0_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
@@ -215,6 +222,55 @@ static void demo_reconfigure_report_timer(uint16_t hz)
 static uint16_t tx_saturate_u16(uint32_t value)
 {
     return (value > 0xFFFFu) ? 0xFFFFu : (uint16_t)value;
+}
+
+static uint32_t tx_cycles_to_us_saturated(uint32_t cycles)
+{
+    uint64_t us;
+    uint32_t sys_clock = GetSysClock();
+
+    if(sys_clock == 0u)
+    {
+        return 0u;
+    }
+    us = (((uint64_t)cycles * 1000000u) + ((uint64_t)sys_clock - 1u)) /
+         (uint64_t)sys_clock;
+    return (us > 0xFFFFFFFFu) ? 0xFFFFFFFFu : (uint32_t)us;
+}
+
+static uint32_t tx_now_cycles(void)
+{
+    return g_demo_tmr_epoch_cycles + TMR0_GetCurrentTimer();
+}
+
+static uint8_t demo_input_payload_equal(const uint8_t *a, const uint8_t *b)
+{
+    uint8_t i;
+
+    if((a == 0) || (b == 0))
+    {
+        return 0u;
+    }
+    for(i = 0u; i < RFM_RF_INPUT_PAYLOAD_LEN; i++)
+    {
+        if(a[i] != b[i])
+        {
+            return 0u;
+        }
+    }
+    return 1u;
+}
+
+static void demo_store_last_payload(const uint8_t *payload, uint32_t now_cycles)
+{
+    if(payload == 0)
+    {
+        return;
+    }
+    memcpy(g_demo_last_payload, payload, RFM_RF_INPUT_PAYLOAD_LEN);
+    g_demo_last_payload_tmr = now_cycles;
+    g_demo_last_payload_tmr_valid = 1u;
+    g_demo_have_payload = 1u;
 }
 
 uint8_t RF_MonitorTxLogEnabled(void)
@@ -713,16 +769,27 @@ static void demo_fill_direct_input_payload(uint8_t *data)
 
 static void demo_encode_short_input_payload(uint8_t *dst, const uint8_t *src)
 {
+    uint16_t age_us;
+
     if((dst == 0) || (src == 0))
     {
         return;
     }
 
+    age_us = rfh_get_u16(&src[RFMON_INPUT_SAMPLE_TICK_OFFSET]);
+    if((age_us != 0u) && (g_demo_last_payload_tmr_valid != 0u))
+    {
+        uint32_t tx_wait_us = tx_cycles_to_us_saturated(
+            tx_now_cycles() - g_demo_last_payload_tmr);
+        uint32_t total_age_us = (uint32_t)age_us + tx_wait_us;
+
+        age_us = tx_saturate_u16(total_age_us);
+    }
+
     dst[0] = src[RFMON_INPUT_KEY_MASK_OFFSET];
     dst[1] = src[RFMON_INPUT_KEY_MASK_OFFSET + 1u];
     dst[2] = src[RFMON_INPUT_KEY_MASK_OFFSET + 2u];
-    dst[3] = src[RFMON_INPUT_SAMPLE_TICK_OFFSET];
-    dst[4] = src[RFMON_INPUT_SAMPLE_TICK_OFFSET + 1u];
+    rfh_put_u16(&dst[3], age_us);
 }
 
 static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t ack_burst_left)
@@ -809,15 +876,20 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
 #else
             if(rfm_spi_port_peek_latest_input(input_payload, RFM_RF_INPUT_PAYLOAD_LEN))
             {
-                memcpy(g_demo_last_payload, input_payload, RFM_RF_INPUT_PAYLOAD_LEN);
-                demo_encode_short_input_payload(data, input_payload);
+                if((g_demo_have_payload == 0u) ||
+                   (demo_input_payload_equal(g_demo_last_payload, input_payload) == 0u))
+                {
+                    demo_store_last_payload(input_payload, tx_now_cycles());
+                }
+                demo_encode_short_input_payload(data, g_demo_last_payload);
+                rfh_put_u16(&g_demo_last_payload[RFMON_INPUT_SAMPLE_TICK_OFFSET], 0u);
                 use_short_input = 1u;
-                g_demo_have_payload = 1u;
                 has_input_payload = 1u;
             }
             else if(g_demo_have_payload != 0u)
             {
                 demo_encode_short_input_payload(data, g_demo_last_payload);
+                rfh_put_u16(&g_demo_last_payload[RFMON_INPUT_SAMPLE_TICK_OFFSET], 0u);
                 use_short_input = 1u;
                 has_input_payload = 1u;
             }
@@ -1108,6 +1180,7 @@ void TMR0_IRQHandler(void)
     }
 
     TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
+    g_demo_tmr_epoch_cycles += g_demo_report_tmr_cycles;
     if(g_demo_input_off != 0u)
     {
         return;
@@ -1252,8 +1325,7 @@ bool RF_SPI_FastWriteInput(const uint8_t *payload, uint8_t len)
     }
 
     SYS_DisableAllIrq(&irq_status);
-    memcpy(g_demo_last_payload, payload, RFM_RF_INPUT_PAYLOAD_LEN);
-    g_demo_have_payload = 1u;
+    demo_store_last_payload(payload, tx_now_cycles());
     if((payload[RFMON_INPUT_FLAGS_OFFSET] & RFMON_INPUT_FLAG_SYNC_ECHO) != 0u)
     {
         g_monitor_sync_echo_seq = payload[RFMON_SPI_INPUT_SYNC_SEQ_OFFSET];
@@ -1474,6 +1546,9 @@ void RF_Init(void)
     {
         tick_per_evt = 1u;
     }
+    g_demo_report_tmr_cycles = tick_per_evt;
+    g_demo_tmr_epoch_cycles = 0u;
+    g_demo_last_payload_tmr_valid = 0u;
     TMR0_TimerInit(tick_per_evt);
     TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
     TMR0_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
@@ -1485,6 +1560,8 @@ void RF_Init(void)
     g_demo_target_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
     memset(g_demo_last_payload, 0, sizeof(g_demo_last_payload));
     g_demo_have_payload = 0u;
+    g_demo_last_payload_tmr = 0u;
+    g_demo_last_payload_tmr_valid = 0u;
     g_monitor_latency_pending = 0u;
     g_monitor_latency_input_seq = 0u;
     g_monitor_latency_key_mask = 0u;
