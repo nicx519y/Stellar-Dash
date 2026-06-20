@@ -51,6 +51,7 @@
 #define RF_RX_DMA_SLOT_COUNT           2u
 #define RF_RX_PENDING_DEPTH            16u
 #define RF_RX_PENDING_DRAIN_MAX        16u
+#define RF_RX_PENDING_REPORT_CHUNK     2u
 #define RX_HID_TELEMETRY_MAGIC         0x314D4852UL
 #define RX_HID_SCORE_MAGIC             0x31534852UL
 #define RX_HID_INPUT_MAGIC             0x31494852UL
@@ -1604,7 +1605,8 @@ static void demo_capture_xinput_report(const uint8_t *payload)
     memcpy(g_demo_xinput_report, report, sizeof(report));
     g_demo_xinput_pending = 1u;
     SYS_DisableAllIrq(&irq_status);
-    if(g_demo_xinput_latency_pending != 0u)
+    if((g_demo_xinput_latency_pending != 0u) &&
+       (g_demo_xinput_latency_report_tmr == 0u))
     {
         g_demo_xinput_latency_report_tmr = TMR0_GetCurrentTimer();
     }
@@ -1853,7 +1855,7 @@ void TMR1_IRQHandler(void)
     }
 }
 
-static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
+static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
 {
     const uint8_t *air;
     uint32_t data_tmr = 0u;
@@ -1861,11 +1863,12 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
     uint8_t request_ack = 0u;
     uint8_t flags = 0u;
     uint8_t rate_code = 0u;
+    uint8_t input_queued = 0u;
     uint8_t input_payload[RF_INPUT_PAYLOAD_LEN];
 
     if(pending == 0)
     {
-        return;
+        return 0u;
     }
 
     process_tmr = TMR0_GetCurrentTimer();
@@ -1881,7 +1884,7 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
         g_demo_hid_errors++;
         g_demo_hid_crc_errors++;
         g_demo_air_diag_crc_errors++;
-        return;
+        return 0u;
     }
 
     if((pending->len != RF_AUTO_DEMO_PACKET_LEN) &&
@@ -1895,7 +1898,7 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
         g_demo_hid_errors++;
         g_demo_hid_type_errors++;
         g_demo_air_diag_type_errors++;
-        return;
+        return 0u;
     }
 
     air = pending->air;
@@ -1908,7 +1911,7 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
         g_demo_hid_errors++;
         g_demo_hid_type_errors++;
         g_demo_air_diag_type_errors++;
-        return;
+        return 0u;
     }
 
     rate_code = rfh_rate_code(air[RFH_HDR0_OFFSET]);
@@ -1924,7 +1927,7 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
         g_demo_hid_errors++;
         g_demo_hid_type_errors++;
         g_demo_air_diag_type_errors++;
-        return;
+        return 0u;
     }
     g_demo_stat.data_ok++;
     demo_channel_score_update(pending->channel,
@@ -1958,10 +1961,11 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
                 g_demo_hid_errors++;
                 g_demo_hid_type_errors++;
                 g_demo_air_diag_type_errors++;
-                return;
+                return 0u;
             }
             demo_queue_input_payload(input_payload);
             demo_queue_xinput_latency_pending(input_payload, data_tmr, process_tmr);
+            input_queued = 1u;
         }
         else
         {
@@ -1974,9 +1978,10 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
                  * latency uses RFH_CMD_LATENCY_INPUT so fill bytes cannot
                  * accidentally become Guide/Home or other buttons.
                  */
-                return;
+                return 0u;
             }
             demo_queue_input_payload(input_payload);
+            input_queued = 1u;
         }
     }
 
@@ -2002,20 +2007,52 @@ static void demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
         }
         demo_schedule_ack(remaining);
     }
+
+    return input_queued;
+}
+
+static void demo_service_xinput_fast_path(void)
+{
+    demo_process_pending_input_payload();
+    demo_service_xinput_report();
 }
 
 static void demo_process_pending_rx_packets(void)
 {
     uint8_t i;
+    uint8_t chunk_count = 0u;
+    uint8_t input_seen = 0u;
     rf_rx_pending_t pending;
 
     for(i = 0u; i < RF_RX_PENDING_DRAIN_MAX; i++)
     {
         if(demo_pop_rx_pending(&pending) == 0u)
         {
+            if(input_seen != 0u)
+            {
+                demo_service_xinput_fast_path();
+            }
             return;
         }
-        demo_process_rx_pending_packet(&pending);
+        if(demo_process_rx_pending_packet(&pending) != 0u)
+        {
+            input_seen = 1u;
+        }
+        chunk_count++;
+        if(chunk_count >= RF_RX_PENDING_REPORT_CHUNK)
+        {
+            chunk_count = 0u;
+            if(input_seen != 0u)
+            {
+                input_seen = 0u;
+                demo_service_xinput_fast_path();
+            }
+        }
+    }
+
+    if(input_seen != 0u)
+    {
+        demo_service_xinput_fast_path();
     }
 }
 
@@ -2079,6 +2116,7 @@ void RF_Service(void)
     uint32_t data_silent_cycles = 0u;
     uint8_t enter_recovery_scan = 0u;
 
+    demo_service_xinput_fast_path();
     demo_process_pending_rx_packets();
 
     if((demo_snapshot_data_silent_cycles(&data_silent_cycles) != 0u) &&
@@ -2121,8 +2159,7 @@ void RF_Service(void)
         demo_arm_rx();
     }
 
-    demo_process_pending_input_payload();
-    demo_service_xinput_report();
+    demo_service_xinput_fast_path();
 
     if(g_demo_rx_state == RF_AUTO_RX_PREPARED_DUAL)
     {
