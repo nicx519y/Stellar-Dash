@@ -29,7 +29,7 @@
 
 #include "stm32h750xx.h"
 #include "stm32h7xx_hal.h"
-#include "app_log_control.h"
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 
@@ -54,8 +54,13 @@
 #endif
 
 /* Debug print configuration */
-#define APPLICATION_SERIAL_PRINT 1   // 编译保留 USART1 printf，运行时默认关闭
-#define APPLICATION_DEBUG_PRINT  1   // 编译保留 APP_DBG/APP_ERR，运行时默认关闭
+#ifndef APPLICATION_SERIAL_PRINT
+#define APPLICATION_SERIAL_PRINT 1   // 编译期使能 USART1 printf 输出
+#endif
+
+#ifndef APPLICATION_DEBUG_PRINT
+#define APPLICATION_DEBUG_PRINT  1   // 编译期使能 APP_DBG/APP_ERR 输出
+#endif
 
 #ifndef RF24G_SPI_TEST_FORCE_RF24G
 #define RF24G_SPI_TEST_FORCE_RF24G 0
@@ -66,13 +71,23 @@
 #endif
 
 #if APPLICATION_DEBUG_PRINT
-    #define APP_DBG(fmt, ...) AppLogControl_DebugPrintf("[APP] ", fmt, ##__VA_ARGS__)
+static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
+{
+    va_list args;
+
+    printf("%s", prefix);
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+    printf("\r\n");
+}
+    #define APP_DBG(fmt, ...) AppLog_Printf("[APP] ", fmt, ##__VA_ARGS__)
 #else
     #define APP_DBG(fmt, ...) ((void)0)
 #endif
 
 #if APPLICATION_DEBUG_PRINT
-    #define APP_ERR(fmt, ...) AppLogControl_DebugPrintf("[APP][ERROR] ", fmt, ##__VA_ARGS__)
+    #define APP_ERR(fmt, ...) AppLog_Printf("[APP][ERROR] ", fmt, ##__VA_ARGS__)
 #else
     #define APP_ERR(fmt, ...) ((void)0)
 #endif

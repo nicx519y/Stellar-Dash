@@ -12,9 +12,6 @@ const CTL_MAGIC = 0x314c5443;
 const CTL_VERSION = 1;
 const CTL_FRAME_SIZE = 32;
 const FLAG_HID_TELEMETRY = 0x01;
-const FLAG_RX_LOG = 0x02;
-const FLAG_TX_LOG = 0x04;
-const FLAG_STM32_LOG = 0x08;
 const FLAG_AUTO_HOP = 0x10;
 const APPLY_STATES: DebugApplyState[] = ["Idle", "Applied", "Applying", "Failed"];
 
@@ -27,7 +24,6 @@ let debugStatus: DebugConfigStatus = {
   state: "Idle",
   rxStatus: "Idle",
   txStatus: "Idle",
-  stm32Status: "Idle",
   lastSeq: 0,
 };
 
@@ -83,9 +79,6 @@ function crc16Ccitt(data: Uint8Array, len: number): number {
 
 function configFlags(config: DebugConfig): number {
   return (config.hidTelemetryEnabled ? FLAG_HID_TELEMETRY : 0) |
-    (config.rxLogEnabled ? FLAG_RX_LOG : 0) |
-    (config.txLogEnabled ? FLAG_TX_LOG : 0) |
-    (config.stm32LogEnabled ? FLAG_STM32_LOG : 0) |
     (config.autoHopEnabled ? FLAG_AUTO_HOP : 0);
 }
 
@@ -118,8 +111,8 @@ function statusFromCode(code: number): DebugApplyState {
   return APPLY_STATES[code] ?? "Failed";
 }
 
-function combineStatus(rxStatus: DebugApplyState, txStatus: DebugApplyState, stm32Status: DebugApplyState): DebugApplyState {
-  const states = [rxStatus, txStatus, stm32Status];
+function combineStatus(rxStatus: DebugApplyState, txStatus: DebugApplyState): DebugApplyState {
+  const states = [rxStatus, txStatus];
   if (states.some((state) => state === "Failed")) return "Failed";
   if (states.some((state) => state === "Applying")) return "Partial";
   if (states.every((state) => state === "Applied" || state === "Idle")) return "Applied";
@@ -135,12 +128,10 @@ function parseStatusReport(raw: Uint8Array): DebugConfigStatus | null {
 
   const rxStatus = statusFromCode(data[6]);
   const txStatus = statusFromCode(data[7]);
-  const stm32Status = statusFromCode(data[14]);
   return {
-    state: combineStatus(rxStatus, txStatus, stm32Status),
+    state: combineStatus(rxStatus, txStatus),
     rxStatus,
     txStatus,
-    stm32Status,
     lastSeq: data[5],
   };
 }
@@ -195,8 +186,7 @@ export function sendDebugConfig(config: DebugConfig): DebugConfigStatus {
   debugStatus = {
     state: "Applying",
     rxStatus: "Applying",
-    txStatus: config.txLogEnabled ? "Applying" : "Applying",
-    stm32Status: config.stm32LogEnabled ? "Applying" : "Applying",
+    txStatus: "Applying",
     lastSeq: seq,
   };
 

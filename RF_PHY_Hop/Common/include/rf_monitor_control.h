@@ -10,16 +10,12 @@
 #define RFMON_TARGET_ALL                0u
 #define RFMON_TARGET_RX                 1u
 #define RFMON_TARGET_TX                 2u
-#define RFMON_TARGET_STM32              3u
 
 #define RFMON_CMD_SET_CONFIG            1u
 #define RFMON_CMD_GET_CONFIG            2u
 #define RFMON_CMD_TIME_SYNC             3u
 
 #define RFMON_FLAG_HID_TELEMETRY        0x00000001UL
-#define RFMON_FLAG_RX_LOG               0x00000002UL
-#define RFMON_FLAG_TX_LOG               0x00000004UL
-#define RFMON_FLAG_STM32_LOG            0x00000008UL
 #define RFMON_FLAG_AUTO_HOP             0x00000010UL
 
 #define RFMON_APPLY_IDLE                0u
@@ -33,8 +29,6 @@
 #define RFMON_PERIOD_500MS              500u
 #define RFMON_PERIOD_1000MS             1000u
 
-#define RFMON_SPI_CMD_SET_CONFIG        0x07u
-#define RFMON_SPI_EVT_CONFIG_APPLIED    0x86u
 #define RFMON_SPI_EVT_TIME_SYNC         0x87u
 
 #define RFMON_INPUT_PAYLOAD_V1_LEN      10u

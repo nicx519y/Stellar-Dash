@@ -126,13 +126,6 @@ static void RX_MainFlushLog(void)
 #if (RF_SERIAL_LOG == 1)
     uint16_t sent;
 
-    if(RF_IsRxSerialLogEnabled() == 0u)
-    {
-        s_main_pending_log = FALSE;
-        s_main_pending_offset = 0u;
-        return;
-    }
-
     if(s_main_pending_log == FALSE)
     {
         return;
@@ -162,10 +155,6 @@ static void RX_MainFlushLog(void)
 static void RX_MainLog(const char *msg)
 {
 #if (RF_SERIAL_LOG == 1)
-    if(RF_IsRxSerialLogEnabled() == 0u)
-    {
-        return;
-    }
     RX_MainFlushLog();
     if(s_main_pending_log != FALSE)
     {
@@ -186,10 +175,6 @@ static void RX_MainLogStats(void)
 #if (RF_SERIAL_LOG == 1)
     char stats_msg[192];
 
-    if(RF_IsRxSerialLogEnabled() == 0u)
-    {
-        return;
-    }
     if(RF_GetStatsLine(stats_msg, sizeof(stats_msg)) == 0u)
     {
         return;

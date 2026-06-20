@@ -276,7 +276,7 @@ RECOVERY_DUAL timeout -> COMM(old)
 
 TX 掉线/恢复经验：
 
-- ACK miss 不是每次都立即 hop；当前连续 `2` 次 ACK miss 才触发 hop/recovery，避免因单次 ACK 抖动过度跳频。
+- ACK miss 不是每次都立即 hop；当前连续 `6` 次 ACK miss 才触发 hop/recovery，避免因单次 ACK 抖动过度跳频。
 - `RECOVERY_DUAL` 只在 TX 已经知道 old/target 的跳频事务里使用；TX 断电再上电后会从初始频道启动，不能指望 TX 单边把 RX 拉回来。
 - 因此 RX 侧必须有独立 recovery scan，处理“TX 重启回初始频道、RX 停在旧频道”的场景。
 
@@ -292,7 +292,7 @@ RX recovery scan 经验：
 
 - RX `Link Lost` 不只是置 `link_active=0`；现在会进入 `RECOVERY_SCAN`。
 - `RECOVERY_SCAN` 每 `20ms` 切换一个候选频道。
-- 候选频道来自当前质量分数表 `{39,16,24,32}`，按分数从好到坏轮询，而不是永远挑“当前最优非当前频道”，避免两个频道来回横跳。
+- 候选频道来自共享质量分数表 `{2,11,14,24,27,35,39}`，按分数从好到坏轮询，而不是永远挑“当前最优非当前频道”，避免两个频道来回横跳。
 - 一旦 RX 收到合法 `RFH_PKT_DATA`，立即锁定当前频道并回到 `COMM`。
 - HID state code `5` 表示 RX recovery scan，connect-monitor 显示为 `RP`。
 
@@ -301,8 +301,10 @@ RX recovery scan 经验：
 当前频道表：
 
 ```text
-39, 16, 24, 32
+2, 11, 14, 24, 27, 35, 39
 ```
+
+频道号使用 WCH 线性频道 `f = 2402 + ch * 2 MHz`。默认表避开 Wi-Fi 1/6/11 常见中心拥挤区附近的 `5/6, 17/18, 30/31`，但不是完整避开 20MHz Wi-Fi 占用带宽；现场干扰继续交给 bad score 自适应淘汰。
 
 分数语义：
 
@@ -318,9 +320,10 @@ RX recovery scan 经验：
 - GOOD sample：`20`
 - BAD sample：`1000`
 - 平滑：`score = (old * 7 + sample) / 8`
-- TX 跳频阈值：bad score `>= 180`
+- TX 跳频触发阈值：bad score / ACK window bad permille `>= 180`
+- TX 选目标频道时要求候选 bad score 至少好 `40`，当前风险 `>= 400` 时允许强制跳到最优候选
 - TX hop cooldown：`10s`
-- 连续 ACK miss 跳频阈值：`2`
+- 连续 ACK miss 跳频阈值：`6`
 
 ## Link Lost 与 Duration 判定经验
 
@@ -1204,15 +1207,15 @@ RX ACK payload 使用共享 ACK 字段：
 TX 触发跳频的第一版条件：
 
 - `quality_permille >= 180`，且不在 `10s` cooldown 内。
-- 或连续 `2` 个 ACK 控制周期 miss，且不在 cooldown 内。
+- 或连续 `6` 个 ACK 控制周期 miss，且不在 cooldown 内。
 
-候选频道第一版按固定表轮换：
+候选频道来自共享 7 频道表，并按 bad score 选择：
 
 ```text
-39 -> 16 -> 24 -> 32 -> 39
+2, 11, 14, 24, 27, 35, 39
 ```
 
-后续可把候选选择替换为 RSSI/CCA/历史 score 表，但跳频事务不需要再改。
+TX 排除当前频道和仍在 cooldown 的频道，选择 bad score 最低的候选；候选需要比当前风险至少好 `40`，当前风险 `>= 400` 时允许强制跳到最优候选。后续可继续加入 RSSI/CCA 主动探测，但跳频事务不需要再改。
 
 ### 跳频稳定性保证
 
@@ -1338,9 +1341,10 @@ RX 还会低频穿插发送 channel score telemetry，magic 为 `RHS1`，小端 
 |---:|---:|---|
 | `0` | `u32` | magic：`RHS1` |
 | `4` | `u32` | score telemetry seq |
-| `8` | `u8` | entry count，当前 `4` |
-| `9..20` | `4 * (u8 + u16)` | channel + bad score，小端 |
-| `21` | `u8` | active channel |
+| `8` | `u8` | entry count，当前 `7` |
+| `9..29` | `7 * (u8 + u16)` | channel + bad score，小端 |
+| `30` | `u8` | active channel |
+| `31` | `u8` | format version / flags，当前 `1` |
 
 `RHS1` 上传固件内部 bad score：`0` 最好，`1000` 最差。connect-monitor 右侧 `Channel Scores` 卡片会显示反算后的质量分：`1000 - badScore`。
 

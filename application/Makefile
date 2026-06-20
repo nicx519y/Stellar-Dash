@@ -21,6 +21,9 @@ TARGET = application
 ######################################
 # debug build?
 DEBUG = 1
+# compile-time log switches
+APP_SERIAL_LOG ?= 1
+APP_DEBUG_LOG ?= 1
 # optimization
 OPT = -Og
 
@@ -218,7 +221,9 @@ AS_DEFS =
 # C defines
 C_DEFS =  \
 -DUSE_HAL_DRIVER \
--DSTM32H750xx
+-DSTM32H750xx \
+-DAPPLICATION_SERIAL_PRINT=$(APP_SERIAL_LOG) \
+-DAPPLICATION_DEBUG_PRINT=$(APP_DEBUG_LOG)
 
 
 

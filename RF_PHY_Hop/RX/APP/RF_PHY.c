@@ -232,8 +232,7 @@ static uint8_t g_demo_hop_clock_valid = 0u;
 #if (RF_AUTO_DEMO_SEND_ACK_ENABLE != 0u)
 static uint8_t g_demo_ack_seq = 0u;
 #endif
-static const uint8_t g_demo_score_channels[] = { 39u, 16u, 24u, 32u };
-static uint16_t g_demo_channel_scores[sizeof(g_demo_score_channels) / sizeof(g_demo_score_channels[0])];
+static uint16_t g_demo_channel_scores[RFH_HOP_CHANNEL_COUNT];
 static uint32_t g_demo_hid_score_seq = 0u;
 static uint8_t g_demo_hid_score_div = 0u;
 static rf_rx_pending_t g_demo_rx_pending[RF_RX_PENDING_DEPTH];
@@ -248,18 +247,14 @@ static volatile int8_t g_demo_rssi_min = 127;
 static volatile int8_t g_demo_rssi_max = -127;
 static volatile uint8_t g_monitor_hid_enabled = 0u;
 static volatile uint16_t g_monitor_hid_period_ms = RFMON_PERIOD_OFF;
-static volatile uint8_t g_monitor_rx_log_enabled = 0u;
 static volatile uint8_t g_monitor_auto_hop_enabled = 1u;
 static volatile uint8_t g_monitor_manual_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
 static volatile uint8_t g_monitor_seq = 0u;
 static volatile uint8_t g_monitor_rx_status = RFMON_APPLY_IDLE;
 static volatile uint8_t g_monitor_tx_status = RFMON_APPLY_IDLE;
-static volatile uint8_t g_monitor_stm32_status = RFMON_APPLY_IDLE;
 static volatile uint8_t g_monitor_tx_applied_seq = 0u;
-static volatile uint8_t g_monitor_stm32_applied_seq = 0u;
 static volatile uint8_t g_monitor_pending_seq = 0u;
 static volatile uint32_t g_monitor_pending_flags = 0u;
-static volatile uint16_t g_monitor_pending_period_ms = RFMON_PERIOD_OFF;
 static volatile uint8_t g_monitor_pending_retries = 0u;
 static volatile uint8_t g_monitor_sync_pending_retries = 0u;
 static volatile uint8_t g_monitor_sync_seq = 0u;
@@ -299,37 +294,23 @@ static uint32_t monitor_current_flags(void)
     {
         flags |= RFMON_FLAG_HID_TELEMETRY;
     }
-    if(g_monitor_rx_log_enabled != 0u)
-    {
-        flags |= RFMON_FLAG_RX_LOG;
-    }
     if(g_monitor_auto_hop_enabled != 0u)
     {
         flags |= RFMON_FLAG_AUTO_HOP;
     }
-    flags |= g_monitor_pending_flags & (RFMON_FLAG_TX_LOG | RFMON_FLAG_STM32_LOG);
     return flags;
 }
 
 static uint8_t monitor_channel_valid(uint8_t channel)
 {
-    uint8_t i;
-
-    for(i = 0u; i < (uint8_t)(sizeof(g_demo_score_channels) / sizeof(g_demo_score_channels[0])); i++)
-    {
-        if(g_demo_score_channels[i] == channel)
-        {
-            return 1u;
-        }
-    }
-    return 0u;
+    return rfh_hop_channel_valid(channel);
 }
 
 static void monitor_mark_remote_pending(uint8_t seq, uint8_t target, uint32_t flags, uint16_t period_ms)
 {
+    (void)period_ms;
     g_monitor_pending_seq = seq;
-    g_monitor_pending_flags = flags & (RFMON_FLAG_TX_LOG | RFMON_FLAG_STM32_LOG | RFMON_FLAG_AUTO_HOP);
-    g_monitor_pending_period_ms = period_ms;
+    g_monitor_pending_flags = flags & RFMON_FLAG_AUTO_HOP;
     g_monitor_pending_retries = 12u;
     if((target == RFMON_TARGET_ALL) || (target == RFMON_TARGET_TX))
     {
@@ -339,15 +320,6 @@ static void monitor_mark_remote_pending(uint8_t seq, uint8_t target, uint32_t fl
     {
         g_monitor_tx_status = RFMON_APPLY_APPLIED;
         g_monitor_tx_applied_seq = seq;
-    }
-    if((target == RFMON_TARGET_ALL) || (target == RFMON_TARGET_STM32))
-    {
-        g_monitor_stm32_status = RFMON_APPLY_PENDING;
-    }
-    else
-    {
-        g_monitor_stm32_status = RFMON_APPLY_APPLIED;
-        g_monitor_stm32_applied_seq = seq;
     }
 }
 
@@ -363,11 +335,6 @@ uint16_t RF_GetTelemetryPeriodMs(void)
 uint8_t RF_IsTelemetryEnabled(void)
 {
     return (g_monitor_hid_enabled != 0u) ? 1u : 0u;
-}
-
-uint8_t RF_IsRxSerialLogEnabled(void)
-{
-    return (g_monitor_rx_log_enabled != 0u) ? 1u : 0u;
 }
 
 uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
@@ -433,7 +400,7 @@ uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
         g_monitor_rx_status = RFMON_APPLY_FAILED;
         return 0u;
     }
-    if(target > RFMON_TARGET_STM32)
+    if(target > RFMON_TARGET_TX)
     {
         g_monitor_rx_status = RFMON_APPLY_FAILED;
         return 0u;
@@ -444,7 +411,6 @@ uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
     {
         g_monitor_hid_enabled = ((flags & RFMON_FLAG_HID_TELEMETRY) != 0u) ? 1u : 0u;
         g_monitor_hid_period_ms = g_monitor_hid_enabled ? period_ms : RFMON_PERIOD_OFF;
-        g_monitor_rx_log_enabled = ((flags & RFMON_FLAG_RX_LOG) != 0u) ? 1u : 0u;
     }
     if((target == RFMON_TARGET_ALL) ||
        (target == RFMON_TARGET_RX) ||
@@ -459,8 +425,7 @@ uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
     g_monitor_rx_status = RFMON_APPLY_APPLIED;
 
     if((target == RFMON_TARGET_ALL) ||
-       (target == RFMON_TARGET_TX) ||
-       (target == RFMON_TARGET_STM32))
+       (target == RFMON_TARGET_TX))
     {
         monitor_mark_remote_pending(seq, target, flags, period_ms);
     }
@@ -486,9 +451,7 @@ void RF_MonitorControlFillReport(uint8_t *report, uint16_t len)
     report[7] = g_monitor_tx_status;
     monitor_put_u32(&report[8], flags);
     monitor_put_u16(&report[12], g_monitor_hid_period_ms);
-    report[14] = g_monitor_stm32_status;
     report[15] = g_monitor_tx_applied_seq;
-    report[16] = g_monitor_stm32_applied_seq;
     report[17] = g_monitor_hid_enabled;
     crc = rfmon_crc16_ccitt(report, 18u);
     monitor_put_u16(&report[18], crc);
@@ -688,9 +651,9 @@ static uint8_t demo_channel_index(uint8_t channel)
 {
     uint8_t i;
 
-    for(i = 0u; i < (uint8_t)(sizeof(g_demo_score_channels) / sizeof(g_demo_score_channels[0])); i++)
+    for(i = 0u; i < RFH_HOP_CHANNEL_COUNT; i++)
     {
-        if(g_demo_score_channels[i] == channel)
+        if(rfh_hop_channel_at(i) == channel)
         {
             return i;
         }
@@ -704,7 +667,7 @@ static uint8_t demo_recovery_scan_channel_by_rank(uint8_t rank)
     uint8_t selected = RF_AUTO_DEMO_INITIAL_CHANNEL;
     uint16_t selected_score = 0u;
     uint8_t selected_count = 0u;
-    uint8_t count = (uint8_t)(sizeof(g_demo_score_channels) / sizeof(g_demo_score_channels[0]));
+    uint8_t count = RFH_HOP_CHANNEL_COUNT;
 
     if(count == 0u)
     {
@@ -726,14 +689,14 @@ static uint8_t demo_recovery_scan_channel_by_rank(uint8_t rank)
             }
             if((selected_count != 0u) &&
                (score == selected_score) &&
-               (g_demo_score_channels[i] <= selected))
+               (rfh_hop_channel_at(i) <= selected))
             {
                 continue;
             }
             if((best_index == 0xFFu) ||
                (score < best_score) ||
                ((score == best_score) &&
-                (g_demo_score_channels[i] < g_demo_score_channels[best_index])))
+                (rfh_hop_channel_at(i) < rfh_hop_channel_at(best_index))))
             {
                 best_index = i;
                 best_score = score;
@@ -744,7 +707,7 @@ static uint8_t demo_recovery_scan_channel_by_rank(uint8_t rank)
         {
             break;
         }
-        selected = g_demo_score_channels[best_index];
+        selected = rfh_hop_channel_at(best_index);
         selected_score = best_score;
         selected_count++;
     }
@@ -754,7 +717,7 @@ static uint8_t demo_recovery_scan_channel_by_rank(uint8_t rank)
 
 static uint8_t demo_next_recovery_channel(void)
 {
-    uint8_t count = (uint8_t)(sizeof(g_demo_score_channels) / sizeof(g_demo_score_channels[0]));
+    uint8_t count = RFH_HOP_CHANNEL_COUNT;
     uint8_t channel;
 
     if(count == 0u)
@@ -790,7 +753,7 @@ static void demo_channel_scores_init(void)
 {
     uint8_t i;
 
-    for(i = 0u; i < (uint8_t)(sizeof(g_demo_score_channels) / sizeof(g_demo_score_channels[0])); i++)
+    for(i = 0u; i < RFH_HOP_CHANNEL_COUNT; i++)
     {
         g_demo_channel_scores[i] = RF_AUTO_DEMO_CHANNEL_SCORE_INIT;
     }
@@ -1011,10 +974,6 @@ static void demo_fill_ack_packet(void)
             if(g_monitor_tx_status == RFMON_APPLY_PENDING)
             {
                 g_monitor_tx_status = RFMON_APPLY_FAILED;
-            }
-            if(g_monitor_stm32_status == RFMON_APPLY_PENDING)
-            {
-                g_monitor_stm32_status = RFMON_APPLY_FAILED;
             }
         }
     }
@@ -1755,7 +1714,6 @@ static void demo_handle_command(const uint8_t *air)
         uint8_t status_seq = data[RFH_CMD_SLOT_ARG3];
         uint8_t status_flags = data[RFH_CMD_SLOT_ARG0];
         uint8_t manual_channel = data[RFH_CMD_SLOT_ARG1];
-        uint8_t stm32_result = data[RFH_CMD_SLOT_ARG2];
 
         if((status_flags & RFMON_FLAG_AUTO_HOP) == 0u)
         {
@@ -1768,19 +1726,6 @@ static void demo_handle_command(const uint8_t *air)
             {
                 g_monitor_tx_status = RFMON_APPLY_APPLIED;
                 g_monitor_tx_applied_seq = status_seq;
-            }
-            if(stm32_result == RFMON_APPLY_APPLIED)
-            {
-                g_monitor_stm32_status = RFMON_APPLY_APPLIED;
-                g_monitor_stm32_applied_seq = status_seq;
-            }
-            else if(stm32_result == RFMON_APPLY_FAILED)
-            {
-                g_monitor_stm32_status = RFMON_APPLY_FAILED;
-            }
-            else if((status_flags & RFMON_FLAG_STM32_LOG) == 0u)
-            {
-                g_monitor_stm32_status = RFMON_APPLY_PENDING;
             }
             g_monitor_pending_retries = 0u;
         }
@@ -2419,7 +2364,7 @@ static uint8_t demo_try_send_score_report(void)
 {
     uint8_t report[HID_ENDPOINT_SIZE];
     uint8_t i;
-    uint8_t count = (uint8_t)(sizeof(g_demo_score_channels) / sizeof(g_demo_score_channels[0]));
+    uint8_t count = RFH_HOP_CHANNEL_COUNT;
     uint8_t active_index = demo_channel_index(g_demo_current_channel);
 
     memset(report, 0, sizeof(report));
@@ -2429,11 +2374,12 @@ static uint8_t demo_try_send_score_report(void)
     for(i = 0u; i < count; i++)
     {
         uint8_t offset = (uint8_t)(9u + (i * 3u));
-        report[offset] = g_demo_score_channels[i];
+        report[offset] = rfh_hop_channel_at(i);
         demo_put_u16(&report[(uint8_t)(offset + 1u)], g_demo_channel_scores[i]);
     }
-    report[21] = (active_index == 0xFFu) ? g_demo_current_channel :
-                 g_demo_score_channels[active_index];
+    report[30] = (active_index == 0xFFu) ? g_demo_current_channel :
+                 rfh_hop_channel_at(active_index);
+    report[31] = 1u;
 
     return demo_submit_hid_report(report);
 }

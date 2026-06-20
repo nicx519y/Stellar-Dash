@@ -340,8 +340,11 @@ export class MonitorStreamProcessor {
 
     const activeChannel = scorePacket.channelNumber;
     this.channelScores = scorePacket.channelScores
-      .slice()
-      .sort((a, b) => a.score - b.score || a.channel - b.channel)
+      .map((entry) => ({
+        channel: entry.channel,
+        score: qualityScoreFromBadScore(entry.score) ?? 0,
+      }))
+      .sort((a, b) => b.score - a.score || a.channel - b.channel)
       .map((entry, index) => ({
         channel: entry.channel,
         score: entry.score,

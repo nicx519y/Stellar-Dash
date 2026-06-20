@@ -49,7 +49,6 @@ extern uint16_t RF_GetRxOkCount(void);
 extern uint16_t RF_GetRxFailCount(void);
 extern uint16_t RF_GetTxFailCount(void);
 extern uint32_t RF_GetRejectCount(void);
-extern uint8_t RF_MonitorTxLogEnabled(void);
 
 #ifdef __cplusplus
 }

@@ -141,15 +141,16 @@ parser 会把 `RHM1` 转成：
 |---:|---:|---|
 | `0` | `u32` | magic：`RHS1` |
 | `4` | `u32` | score telemetry seq |
-| `8` | `u8` | entry count，当前 `4` |
-| `9..20` | `4 * (u8 + u16)` | channel + bad score，小端 |
-| `21` | `u8` | active channel |
+| `8` | `u8` | entry count，当前 `7` |
+| `9..29` | `7 * (u8 + u16)` | channel + bad score，小端 |
+| `30` | `u8` | active channel |
+| `31` | `u8` | format version / flags，当前 `1` |
 
 频道分数语义：
 
 - 固件上传的是 bad score：`0` 最好，`1000` 最差。
 - UI 右侧 `Channel Scores` 卡片显示质量分：`1000 - badScore`，所以 `1000` 最好、`0` 最差。
-- 当前频道表：`39 / 16 / 24 / 32`。
+- 当前频道表：`2 / 11 / 14 / 24 / 27 / 35 / 39`。
 - 卡片按质量排行实时显示，并高亮当前 active channel。
 
 ## UI 能看到的指标
@@ -175,7 +176,7 @@ parser 会把 `RHM1` 转成：
 - `Channel Scores`：右侧 `250px` 卡片区域显示频道质量实时排行，数据来自 `RHS1`。
   - UI 显示质量分：`1000` 最好、`0` 最差。
   - 固件内部 bad score 正好相反：`0` 最好、`1000` 最差。
-  - 当前频道表为 `39 / 16 / 24 / 32`，active channel 会高亮。
+  - 当前频道表为 `2 / 11 / 14 / 24 / 27 / 35 / 39`，active channel 会高亮。
 - error 表：hop/error event 摘要。
 - Markdown export：把 packet/event 记录导出为调试日志。
 

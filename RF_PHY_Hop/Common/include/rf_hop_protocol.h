@@ -47,8 +47,10 @@
 #define RFH_DISCOVERY_CHANNEL_A        RFH_DEFAULT_CHANNEL_A
 #define RFH_DISCOVERY_CHANNEL_B        RFH_DEFAULT_CHANNEL_B
 #define RFH_PAIR_CHANNEL_FIXED         12u
-#define RFH_MIN_CHANNEL                4u
-#define RFH_MAX_CHANNEL                36u
+#define RFH_MIN_CHANNEL                0u
+#define RFH_MAX_CHANNEL                39u
+#define RFH_HOP_CHANNEL_COUNT          7u
+#define RFH_HOP_CHANNELS              { 2u, 11u, 14u, 24u, 27u, 35u, 39u }
 
 #define RFH_DEFAULT_RATE_HZ            8000u
 #define RFH_DEFAULT_ACK_WINDOW_MS      1u
@@ -392,6 +394,27 @@ static inline uint8_t rfh_rate_code_from_hz(uint16_t hz)
 static inline uint8_t rfh_channel_valid(uint8_t channel)
 {
     return ((channel >= RFH_MIN_CHANNEL) && (channel <= RFH_MAX_CHANNEL)) ? 1u : 0u;
+}
+
+static inline uint8_t rfh_hop_channel_at(uint8_t index)
+{
+    static const uint8_t channels[RFH_HOP_CHANNEL_COUNT] = RFH_HOP_CHANNELS;
+
+    return (index < RFH_HOP_CHANNEL_COUNT) ? channels[index] : channels[0];
+}
+
+static inline uint8_t rfh_hop_channel_valid(uint8_t channel)
+{
+    uint8_t i;
+
+    for(i = 0u; i < RFH_HOP_CHANNEL_COUNT; i++)
+    {
+        if(rfh_hop_channel_at(i) == channel)
+        {
+            return 1u;
+        }
+    }
+    return 0u;
 }
 
 static inline uint8_t rfh_ack_window_packets(uint16_t report_hz, uint8_t ack_window_ms)

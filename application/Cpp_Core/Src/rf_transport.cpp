@@ -8,10 +8,6 @@
 #include "rf_bridge_port.hpp"
 #include "system_logger.h"
 
-extern "C" {
-#include "app_log_control.h"
-}
-
 namespace {
 static constexpr uint8_t RF_SYNC = 0xA5u;
 static constexpr uint8_t CMD_GET_STATUS = 0x01u;
@@ -27,7 +23,6 @@ static constexpr uint8_t EVT_LINK_WARN = 0x84u;
 static constexpr uint8_t EVT_ERROR = 0x85u;
 static constexpr uint8_t EVT_MONITOR_CONFIG = 0x86u;
 static constexpr uint8_t EVT_TIME_SYNC = 0x87u;
-static constexpr uint8_t RFMON_FLAG_STM32_LOG = 0x08u;
 static constexpr uint8_t INPUT_PAYLOAD_LEN = 10u;
 static constexpr uint8_t INPUT_FORMAT_VERSION = 1u;
 static constexpr uint8_t INPUT_FLAG_PROCESSED = 0x01u;
@@ -163,18 +158,14 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
             return false;
         }
         const uint8_t seq = frame[3];
-        const uint8_t flags = frame[4];
         const uint8_t result = frame[6];
-        const uint8_t enabled = (flags & RFMON_FLAG_STM32_LOG) != 0u ? 1u : 0u;
-        AppLogControl_Set(enabled, enabled);
         status.lastCommandTag = EVT_MONITOR_CONFIG;
         status.lastTransactionId = seq;
         status.lastResult = result;
         status.lastErrorReason = 0u;
         state = RFTransportState::Connected;
-        APP_DBG("[RF_BRIDGE] monitor config seq=%u stm32Log=%u result=%u",
+        APP_DBG("[RF_BRIDGE] monitor config seq=%u result=%u",
                 static_cast<unsigned int>(seq),
-                static_cast<unsigned int>(enabled),
                 static_cast<unsigned int>(result));
         return true;
     }

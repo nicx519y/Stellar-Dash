@@ -228,9 +228,6 @@ function MetricCard({
 const defaultDebugConfig: DebugConfig = {
   hidTelemetryEnabled: false,
   hidPeriodMs: 500,
-  rxLogEnabled: false,
-  txLogEnabled: false,
-  stm32LogEnabled: false,
   autoHopEnabled: true,
   manualChannel: null,
 };
@@ -318,11 +315,17 @@ function PeriodSegmentedControl({
 function DebugControlCard({
   config,
   status,
+  paused,
   applyConfig,
+  onPauseToggle,
+  onClearData,
 }: {
   config: DebugConfig;
   status: DebugApplyState;
+  paused: boolean;
   applyConfig: (next: DebugConfig) => void;
+  onPauseToggle: () => void;
+  onClearData: () => void;
 }) {
   return (
     <Card.Root
@@ -351,22 +354,25 @@ function DebugControlCard({
             />
           </HStack>
           <Box h="1px" my={1.5} bg="rgba(92,255,138,0.16)" />
-          <HStack gap={2} flexWrap="wrap">
-            <DebugSwitch
-              label="RX Log"
-              checked={config.rxLogEnabled}
-              onCheckedChange={(checked) => applyConfig({ ...config, rxLogEnabled: checked })}
-            />
-            <DebugSwitch
-              label="TX Log"
-              checked={config.txLogEnabled}
-              onCheckedChange={(checked) => applyConfig({ ...config, txLogEnabled: checked })}
-            />
-            <DebugSwitch
-              label="STM32"
-              checked={config.stm32LogEnabled}
-              onCheckedChange={(checked) => applyConfig({ ...config, stm32LogEnabled: checked })}
-            />
+          <HStack gap={2} align="center">
+            <Button
+              {...toolbarActionButtonProps}
+              w="200px"
+              variant={paused ? "solid" : toolbarActionButtonProps.variant}
+              colorPalette={paused ? "yellow" : "green"}
+              onClick={onPauseToggle}
+            >
+              {paused ? <FaPlay /> : <FaPause />}
+              {paused ? "Start Listening" : "Pause Listening"}
+            </Button>
+            <Button
+              {...toolbarActionButtonProps}
+              w="200px"
+              onClick={onClearData}
+            >
+              <GrClearOption />
+              Clear Data
+            </Button>
           </HStack>
         </VStack>
       </Card.Body>
@@ -591,25 +597,7 @@ export function App() {
         style={dragRegionStyle}
       >
         <AppLogo />
-        <HStack gap={4} style={noDragRegionStyle}>
-          <HStack gap={3}>
-            <Button
-              {...toolbarActionButtonProps}
-              variant={paused ? "solid" : toolbarActionButtonProps.variant}
-              colorPalette={paused ? "yellow" : "green"}
-              onClick={() => setPaused(!paused)}
-            >
-              {paused ? <FaPlay /> : <FaPause />}
-              {paused ? "Start Listening" : "Pause Listening"}
-            </Button>
-            <Button
-              {...toolbarActionButtonProps}
-              onClick={handleClearData}
-            >
-              <GrClearOption />
-              Clear Data
-            </Button>
-          </HStack>
+        <HStack gap={3} style={noDragRegionStyle}>
           <WindowControls />
         </HStack>
       </Flex>
@@ -645,7 +633,10 @@ export function App() {
           <DebugControlCard
             config={debugConfig}
             status={debugStatus}
+            paused={paused}
             applyConfig={applyDebugConfig}
+            onPauseToggle={() => setPaused(!paused)}
+            onClearData={handleClearData}
           />
           <MetricCard
             title="RF Connection"

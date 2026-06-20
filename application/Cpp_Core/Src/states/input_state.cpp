@@ -40,6 +40,49 @@ static void on_default_profile_changed_input_workers(void) {
     GPIO_BTNS_WORKER.setup();
 }
 
+static void process_input_report_tick(GPDriver* inputDriver,
+                                      uint32_t& virtualPinMask,
+                                      uint32_t& lastVirtualPinMask) {
+    virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
+
+    // 只有在没有按下FN键时才处理游戏手柄数据
+    if ((virtualPinMask & FN_BUTTON_VIRTUAL_PIN) == 0)
+    {
+        GAMEPAD.read(virtualPinMask);
+
+        const uint32_t reportSeq = MonitorTelemetry_NextSequence();
+        MonitorTelemetry_OnReportReady(reportSeq);
+
+        if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB)
+        {
+#if APPLICATION_DEBUG_PRINT == 1
+            LATENCY_MONITOR.processingCompleted();
+#endif
+
+            if (inputDriver != nullptr)
+            {
+                MonitorTelemetry_SetPendingUsbSeq(reportSeq);
+                inputDriver->process(&GAMEPAD);
+            }
+        }
+        else
+        {
+            CONNECTION_MANAGER.onReportReady(GAMEPAD.state, reportSeq);
+        }
+    }
+    else
+    {
+        // 更新热键状态，处理hold和click逻辑
+        HOTKEYS_MANAGER.updateHotkeyState(virtualPinMask, lastVirtualPinMask);
+
+#if APPLICATION_DEBUG_PRINT == 1
+        LATENCY_MONITOR.processingCompleted();
+#endif
+    }
+
+    lastVirtualPinMask = virtualPinMask;
+}
+
 void InputState::setup()
 {
     LOG_INFO("INPUT", "Starting input state setup");
@@ -153,46 +196,19 @@ void InputState::loop()
     }
 #endif
 
-    while (REPORT_SCHEDULER.consumeTick())
+    if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_RF24G)
     {
-        virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
-
-        // 只有在没有按下FN键时才处理游戏手柄数据
-        if ((virtualPinMask & FN_BUTTON_VIRTUAL_PIN) == 0)
+        if (REPORT_SCHEDULER.consumeLatestTick())
         {
-            GAMEPAD.read(virtualPinMask);
-
-            const uint32_t reportSeq = MonitorTelemetry_NextSequence();
-            MonitorTelemetry_OnReportReady(reportSeq);
-
-            if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB)
-            {
-#if APPLICATION_DEBUG_PRINT == 1
-                LATENCY_MONITOR.processingCompleted();
-#endif
-
-                if (inputDriver != nullptr)
-                {
-                    MonitorTelemetry_SetPendingUsbSeq(reportSeq);
-                    inputDriver->process(&GAMEPAD);
-                }
-            }
-            else
-            {
-                CONNECTION_MANAGER.onReportReady(GAMEPAD.state, reportSeq);
-            }
+            process_input_report_tick(inputDriver, virtualPinMask, lastVirtualPinMask);
         }
-        else
+    }
+    else
+    {
+        while (REPORT_SCHEDULER.consumeTick())
         {
-            // 更新热键状态，处理hold和click逻辑
-            HOTKEYS_MANAGER.updateHotkeyState(virtualPinMask, lastVirtualPinMask);
-
-#if APPLICATION_DEBUG_PRINT == 1
-            LATENCY_MONITOR.processingCompleted();
-#endif
+            process_input_report_tick(inputDriver, virtualPinMask, lastVirtualPinMask);
         }
-
-        lastVirtualPinMask = virtualPinMask;
     }
 
     if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB)

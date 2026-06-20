@@ -57,6 +57,8 @@
 #define RF_AUTO_DEMO_AUTO_HOP_ENABLE   1u
 #endif
 #define RF_AUTO_DEMO_HOP_SCORE_THRESHOLD 180u
+#define RF_AUTO_DEMO_HOP_SCORE_IMPROVE_MIN 40u
+#define RF_AUTO_DEMO_HOP_FORCE_SCORE    400u
 #define RF_AUTO_DEMO_HOP_ACK_MISS_THRESHOLD 6u
 #define RF_AUTO_DEMO_HOP_COOLDOWN_MS   10000u
 #define RF_AUTO_DEMO_HOP_PREPARE_TIMEOUT_MS 1000u
@@ -160,7 +162,6 @@ static volatile uint8_t g_monitor_latency_pending = 0u;
 static uint8_t g_monitor_latency_input_seq = 0u;
 static uint32_t g_monitor_latency_key_mask = 0u;
 static uint32_t g_monitor_latency_sample_tick_us = 0u;
-static volatile uint8_t g_monitor_tx_log_enabled = 0u;
 static volatile uint8_t g_monitor_auto_hop_enabled = 1u;
 static volatile uint8_t g_monitor_manual_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
 static volatile uint8_t g_monitor_manual_pending = 0u;
@@ -177,9 +178,8 @@ static uint8_t g_monitor_sync_echo_seq = 0u;
 static uint32_t g_monitor_sync_echo_rx_tick_us = 0u;
 static uint32_t g_monitor_sync_echo_tx_tick_us = 0u;
 
-static const uint8_t g_demo_hop_channels[] = { 39u, 16u, 24u, 32u };
-static uint16_t g_demo_channel_scores[sizeof(g_demo_hop_channels) / sizeof(g_demo_hop_channels[0])];
-static uint32_t g_demo_channel_cooldown_until[sizeof(g_demo_hop_channels) / sizeof(g_demo_hop_channels[0])];
+static uint16_t g_demo_channel_scores[RFH_HOP_CHANNEL_COUNT];
+static uint32_t g_demo_channel_cooldown_until[RFH_HOP_CHANNEL_COUNT];
 
 static uint8_t demo_rate_valid(uint16_t hz)
 {
@@ -290,18 +290,13 @@ static void demo_store_last_payload(const uint8_t *payload, uint32_t now_cycles)
     g_demo_have_payload = 1u;
 }
 
-uint8_t RF_MonitorTxLogEnabled(void)
-{
-    return (g_monitor_tx_log_enabled != 0u) ? 1u : 0u;
-}
-
 static uint8_t demo_channel_index(uint8_t channel)
 {
     uint8_t i;
 
-    for(i = 0u; i < (uint8_t)(sizeof(g_demo_hop_channels) / sizeof(g_demo_hop_channels[0])); i++)
+    for(i = 0u; i < RFH_HOP_CHANNEL_COUNT; i++)
     {
-        if(g_demo_hop_channels[i] == channel)
+        if(rfh_hop_channel_at(i) == channel)
         {
             return i;
         }
@@ -345,7 +340,7 @@ static void demo_channel_scores_init(void)
 {
     uint8_t i;
 
-    for(i = 0u; i < (uint8_t)(sizeof(g_demo_hop_channels) / sizeof(g_demo_hop_channels[0])); i++)
+    for(i = 0u; i < RFH_HOP_CHANNEL_COUNT; i++)
     {
         g_demo_channel_scores[i] = RF_AUTO_DEMO_CHANNEL_SCORE_INIT;
         g_demo_channel_cooldown_until[i] = 0u;
@@ -377,23 +372,18 @@ static char demo_tx_state_char(void)
 #endif
 
 #if (RF_AUTO_DEMO_AUTO_HOP_ENABLE != 0u)
-static uint8_t demo_next_channel(uint8_t current, uint32_t now)
+static uint8_t demo_next_channel(uint8_t current, uint32_t now, uint16_t current_risk_score)
 {
     uint8_t i;
     uint8_t best = current;
-    uint8_t fallback = current;
     uint16_t best_score = 0xFFFFu;
 
-    for(i = 0u; i < (uint8_t)(sizeof(g_demo_hop_channels) / sizeof(g_demo_hop_channels[0])); i++)
+    for(i = 0u; i < RFH_HOP_CHANNEL_COUNT; i++)
     {
-        uint8_t channel = g_demo_hop_channels[i];
+        uint8_t channel = rfh_hop_channel_at(i);
         if(channel == current)
         {
             continue;
-        }
-        if(fallback == current)
-        {
-            fallback = channel;
         }
         if((int32_t)(now - g_demo_channel_cooldown_until[i]) < 0)
         {
@@ -406,7 +396,19 @@ static uint8_t demo_next_channel(uint8_t current, uint32_t now)
         }
     }
 
-    return (best == current) ? fallback : best;
+    if(best == current)
+    {
+        return current;
+    }
+    if(((uint32_t)best_score + RF_AUTO_DEMO_HOP_SCORE_IMPROVE_MIN) < current_risk_score)
+    {
+        return best;
+    }
+    if(current_risk_score >= RF_AUTO_DEMO_HOP_FORCE_SCORE)
+    {
+        return best;
+    }
+    return current;
 }
 #endif
 
@@ -490,7 +492,7 @@ static void demo_start_hop_prepare(uint32_t now, uint16_t reason_score)
 
     g_demo_old_channel = g_demo_current_channel;
     demo_channel_score_update(g_demo_current_channel, reason_score, now);
-    g_demo_target_channel = demo_next_channel(g_demo_current_channel, now);
+    g_demo_target_channel = demo_next_channel(g_demo_current_channel, now, reason_score);
     if(g_demo_target_channel == g_demo_old_channel)
     {
         g_demo_hop_cooldown_until = now + MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_HOP_COOLDOWN_MS / 2u);
@@ -698,7 +700,6 @@ static void demo_handle_ack_packet(void)
         uint8_t flags = data[RFH_ACK_MON_FLAGS];
         uint8_t manual_channel = data[RFH_ACK_MON_MANUAL_CHANNEL];
 
-        g_monitor_tx_log_enabled = ((flags & RFMON_FLAG_TX_LOG) != 0u) ? 1u : 0u;
         g_monitor_auto_hop_enabled = ((flags & RFMON_FLAG_AUTO_HOP) != 0u) ? 1u : 0u;
         if(demo_channel_index(manual_channel) != 0xFFu)
         {
@@ -707,9 +708,7 @@ static void demo_handle_ack_packet(void)
         g_monitor_status_seq = seq;
         g_monitor_status_flags = flags;
         g_monitor_status_manual_channel = g_monitor_manual_channel;
-        g_monitor_status_result =
-            (rfm_spi_bridge_emit_monitor_config(seq, flags, 0u) != 0u) ?
-            RFMON_APPLY_APPLIED : RFMON_APPLY_PENDING;
+        g_monitor_status_result = RFMON_APPLY_APPLIED;
         g_monitor_status_pending = 1u;
         if(g_monitor_auto_hop_enabled == 0u)
         {
@@ -953,10 +952,6 @@ static void demo_log_stats(uint32_t now)
     g_demo_last_log_clock = now;
     elapsed_ms = (unsigned long)(((elapsed_ticks * (uint32_t)SYSTEM_TIME_MICROSEN) + 999u) / 1000u);
 #if (RF_SERIAL_LOG == 1)
-    if(RF_MonitorTxLogEnabled() == 0u)
-    {
-        return;
-    }
     rfm_spi_bridge_diag_emit(elapsed_ms);
 
     ack_fail = g_demo_stat.ack_timeout +

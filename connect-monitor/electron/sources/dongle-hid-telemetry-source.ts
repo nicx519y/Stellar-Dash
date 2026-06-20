@@ -142,7 +142,7 @@ function calcLossPermille(rxCount: number, expectedCount: number) {
 }
 
 function isRfChannel(value: number) {
-  return value >= 4 && value <= 39;
+  return value >= 0 && value <= 39;
 }
 
 function legacyWindowCounts(
@@ -293,8 +293,9 @@ function parseRfHopHidTelemetryFrame(view: DataView, report: Uint8Array, timesta
 
 function parseRfHopScoreFrame(view: DataView, report: Uint8Array, timestampMs: number): MonitorEvent[] {
   const seq = view.getUint32(4, true);
-  const count = Math.min(view.getUint8(8), 4);
-  const activeChannel = view.getUint8(21);
+  const version = view.getUint8(31);
+  const count = Math.min(view.getUint8(8), version === 1 ? 7 : 4);
+  const activeChannel = version === 1 ? view.getUint8(30) : view.getUint8(21);
   const channelScores: Array<{ channel: number; score: number }> = [];
 
   for (let i = 0; i < count; i++) {

@@ -58,6 +58,7 @@ void board_init(void)
     APP_DBG("board init: HCLK: %lu", HAL_RCC_GetHCLKFreq());
     APP_DBG("board init: PCLK1: %lu", HAL_RCC_GetPCLK1Freq());
     APP_DBG("board init: PCLK2: %lu", HAL_RCC_GetPCLK2Freq());
+    APP_DBG("DBGMCU REVID: 0x%lx", HAL_GetREVID());
 
     QSPI_W25Qxx_Init(); // 初始化QSPI Flash不执行 因为bootloader已经初始化
     APP_DBG("board init: QSPI_W25Qxx_Init success.");
@@ -183,7 +184,7 @@ void SystemClock_Config(void)
     PeriphClkInitStruct.PLL3.PLL3N = 15;
     PeriphClkInitStruct.PLL3.PLL3P = 2;
     PeriphClkInitStruct.PLL3.PLL3Q = 4;
-    PeriphClkInitStruct.PLL3.PLL3R = 5;
+    PeriphClkInitStruct.PLL3.PLL3R = 4;
     PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_3;
     PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOMEDIUM;
     PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
@@ -209,7 +210,7 @@ void PeriphCommonClock_Config(void)
     PeriphClkInitStruct.PLL3.PLL3N = 15;
     PeriphClkInitStruct.PLL3.PLL3P = 2;
     PeriphClkInitStruct.PLL3.PLL3Q = 4;
-    PeriphClkInitStruct.PLL3.PLL3R = 5;
+    PeriphClkInitStruct.PLL3.PLL3R = 4;
     PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_3;
     PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOMEDIUM;
     PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
