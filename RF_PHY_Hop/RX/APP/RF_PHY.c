@@ -43,7 +43,7 @@
 #define RF_AUTO_DEMO_DISCOVERY_CHANNEL_A RFH_DISCOVERY_CHANNEL_A
 #define RF_AUTO_DEMO_DISCOVERY_CHANNEL_B RFH_DISCOVERY_CHANNEL_B
 #define RF_AUTO_DEMO_INITIAL_CHANNEL   RF_AUTO_DEMO_DISCOVERY_CHANNEL_B
-#define RF_AUTO_DEMO_DISCOVERY_SCAN_DWELL_MS RFH_DUAL_PERIOD_MS
+#define RF_AUTO_DEMO_DISCOVERY_SCAN_DWELL_MS 3u
 #define RF_AUTO_DEMO_HOP_DUAL_DWELL_MS 2u
 #define RF_AUTO_DEMO_HOP_DUAL_TIMEOUT_MS 3000u
 #define RF_AUTO_DEMO_HOP_CONFIRM_ACK_KEEP_TOKENS 6u
@@ -3874,6 +3874,7 @@ void RF_Init(void)
 
     g_demo_local_id_hash = demo_make_local_id_hash();
     demo_load_bond();
+    g_demo_slot_tmr = demo_rate_to_slot_tmr_cycles(g_demo_report_hz);
 
     memset(&gParm, 0, sizeof(gParm));
     gParm.accessAddress = g_demo_link_access_address;
@@ -3909,8 +3910,6 @@ void RF_Init(void)
     g_demo_current_channel = gParm.frequency;
     g_demo_old_channel = demo_discovery_channel(0u);
     g_demo_target_channel = demo_discovery_channel(0u);
-    g_demo_report_hz = RF_AUTO_DEMO_REPORT_HZ;
-    g_demo_rate_code = RF_AUTO_DEMO_RATE_CODE;
     g_demo_hid_last_window_rx_ok = 0u;
     g_demo_hid_last_window_expected = 0u;
     g_demo_hid_last_window_errors = 0u;

@@ -52,6 +52,7 @@
 #ifndef RF_AUTO_DEMO_CONNECT_ACK_RX_TIMEOUT_US
 #define RF_AUTO_DEMO_CONNECT_ACK_RX_TIMEOUT_US 5000u
 #endif
+#define RF_AUTO_DEMO_ACK_RX_STUCK_MS   20u
 #define RF_AUTO_DEMO_ACK_RX_TIMEOUT_UNITS (RF_AUTO_DEMO_ACK_RX_TIMEOUT_US * 2u)
 #define RF_AUTO_DEMO_CONNECT_ACK_RX_TIMEOUT_UNITS (RF_AUTO_DEMO_CONNECT_ACK_RX_TIMEOUT_US * 2u)
 #ifndef RF_AUTO_DEMO_TX_SEND_TIME_UNITS
@@ -187,6 +188,7 @@ static volatile uint8_t g_demo_rx_ret = 0xFFu;
 static volatile uint8_t g_demo_tx_busy = 0u;
 static volatile uint8_t g_demo_ack_rx_active = 0u;
 static volatile uint8_t g_demo_wait_ack_after_tx = 0u;
+static volatile uint32_t g_demo_ack_rx_start_clock = 0u;
 static volatile uint8_t g_demo_pause_tx = 0u;
 static volatile uint8_t g_demo_force_ack_burst = 0u;
 static volatile uint8_t g_pending_event_state_code = 0u;
@@ -2022,6 +2024,7 @@ static void demo_arm_pair_rx(void)
     g_demo_rx_ret = (uint8_t)RFIP_SetRx(&gRxParam);
     if(g_demo_rx_ret == SUCCESS)
     {
+        g_demo_ack_rx_start_clock = TMOS_GetSystemClock();
         g_demo_ack_rx_active = 1u;
     }
     else
@@ -2352,6 +2355,7 @@ static void demo_arm_ack_rx(void)
     g_demo_rx_ret = (uint8_t)RFIP_SetRx(&gRxParam);
     if(g_demo_rx_ret == SUCCESS)
     {
+        g_demo_ack_rx_start_clock = TMOS_GetSystemClock();
         g_demo_ack_rx_active = 1u;
     }
     else
@@ -2456,6 +2460,25 @@ static void demo_note_ack_timeout(void)
     }
 
     g_demo_force_ack_burst = 1u;
+}
+
+static void demo_check_ack_rx_stuck(uint32_t now)
+{
+    if(g_demo_ack_rx_active == 0u)
+    {
+        return;
+    }
+    if((uint32_t)(now - g_demo_ack_rx_start_clock) <
+       MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_ACK_RX_STUCK_MS))
+    {
+        return;
+    }
+
+    (void)RFRole_Stop();
+    g_demo_ack_rx_active = 0u;
+    g_demo_tx_busy = 0u;
+    g_demo_stat.ack_timeout++;
+    demo_note_ack_timeout();
 }
 
 static void demo_service_rank_promotion(uint32_t now)
@@ -2750,6 +2773,7 @@ void RF_TxMainLoopProcess(void)
     demo_check_tx_stuck(now);
     demo_try_send();
 #endif
+    demo_check_ack_rx_stuck(now);
     demo_score_windows_service(now);
     demo_service_link(now);
     demo_ack_control_service(now);
@@ -3107,8 +3131,6 @@ void RF_Init(void)
     g_monitor_sync_echo_rx_tick_us = 0u;
     g_monitor_sync_echo_tx_tick_us = 0u;
     g_demo_input_off = 0u;
-    g_demo_report_hz = RF_AUTO_DEMO_REPORT_HZ;
-    g_demo_rate_code = RF_AUTO_DEMO_RATE_CODE;
     g_demo_last_avg_irq_us = 0u;
     g_demo_last_max_irq_us = 0u;
     g_demo_irq_bad_window_count = 0u;
