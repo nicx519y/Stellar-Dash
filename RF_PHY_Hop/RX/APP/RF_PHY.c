@@ -9,6 +9,7 @@
 #include "wchrf.h"
 #include "rf_hop_protocol.h"
 #include "rf_hop_bond.h"
+#include "rf_hop_score.h"
 #include "rf_monitor_control.h"
 #include "dongle_config.h"
 #include "ch585_usbhs_device.h"
@@ -50,13 +51,27 @@
 #define RF_AUTO_DEMO_PAIR_AFTER_ACCEPT 1u
 #define RF_AUTO_DEMO_PAIR_AFTER_DONE   2u
 #define RF_AUTO_DEMO_PAIR_AFTER_REJECT 3u
-#define RF_AUTO_DEMO_CHANNEL_SCORE_INIT RF_AUTO_DEMO_CHANNEL_SCORE_GOOD
-#define RF_AUTO_DEMO_CHANNEL_SCORE_GOOD 20u
-#define RF_AUTO_DEMO_CHANNEL_SCORE_LOSS_WARN 180u
-#define RF_AUTO_DEMO_CHANNEL_SCORE_LOSS_BAD 400u
-#define RF_AUTO_DEMO_CHANNEL_SCORE_BAD 1000u
-#define RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_NUM 7u
-#define RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_DEN 8u
+/*
+ * 频道评分可调项：
+ * 分数越低越好，越高越差，最终限制在 0..1000。
+ * 指标值按 0..1000 归一化后，以“指标值 * WEIGHT / 100”累加到 SCORE_BASE。
+ * 调大某项 WEIGHT 会放大该指标对坏分的影响。
+ */
+#define RF_AUTO_DEMO_SCORE_BASE        20u   /* 无异常时的基础坏分 */
+#define RF_AUTO_DEMO_SCORE_LOSS_WEIGHT 300u  /* 丢包/坏包率权重 */
+#define RF_AUTO_DEMO_SCORE_CRC_WEIGHT  100u  /* CRC 错误权重 */
+#define RF_AUTO_DEMO_SCORE_TYPE_WEIGHT 100u  /* 包类型/格式错误权重 */
+#define RF_AUTO_DEMO_SCORE_TIMEOUT_WEIGHT 40u /* 正向包超时权重 */
+#define RF_AUTO_DEMO_SCORE_IRQ_WEIGHT  300u  /* RX IRQ 延迟权重 */
+
+
+#define RF_AUTO_DEMO_CHANNEL_SCORE_INIT RF_AUTO_DEMO_SCORE_BASE /* 初始频道分 */
+#define RF_AUTO_DEMO_CHANNEL_SCORE_GOOD RF_AUTO_DEMO_SCORE_BASE /* 明确好样本分 */
+#define RF_AUTO_DEMO_CHANNEL_SCORE_BAD 1000u /* 饱和坏分 */
+#define RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_NUM 7u /* EMA 旧分权重 */
+#define RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_DEN 8u /* EMA 总权重：7/8旧 + 1/8新 */
+
+
 #define RF_LINK_CRC_INIT               0x555555UL
 #define RF_RX_DMA_SLOT_COUNT           2u
 #define RF_RX_PENDING_DEPTH            16u
@@ -868,17 +883,49 @@ static uint16_t demo_quality_permille(void)
     return (uint16_t)((bad * 1000u) / g_demo_window_expected);
 }
 
+static const rfh_score_weights_t g_demo_score_weights = {
+    RF_AUTO_DEMO_SCORE_BASE,
+    RF_AUTO_DEMO_SCORE_LOSS_WEIGHT,
+    RF_AUTO_DEMO_SCORE_CRC_WEIGHT,
+    RF_AUTO_DEMO_SCORE_TYPE_WEIGHT,
+    RF_AUTO_DEMO_SCORE_TIMEOUT_WEIGHT,
+    RF_AUTO_DEMO_SCORE_IRQ_WEIGHT
+};
+
+static uint16_t demo_score_from_metrics(uint16_t loss_permille,
+                                        uint16_t crc_permille,
+                                        uint16_t type_permille,
+                                        uint16_t timeout_permille,
+                                        uint16_t irq_permille)
+{
+    rfh_score_metrics_t metrics;
+
+    metrics.loss_permille = loss_permille;
+    metrics.crc_permille = crc_permille;
+    metrics.type_permille = type_permille;
+    metrics.timeout_permille = timeout_permille;
+    metrics.irq_permille = irq_permille;
+    return rfh_score_from_metrics(&metrics, &g_demo_score_weights);
+}
+
 static uint16_t demo_window_loss_score_sample(uint16_t loss_permille)
 {
-    if(loss_permille >= 180u)
-    {
-        return RF_AUTO_DEMO_CHANNEL_SCORE_LOSS_BAD;
-    }
-    if(loss_permille >= 50u)
-    {
-        return RF_AUTO_DEMO_CHANNEL_SCORE_LOSS_WARN;
-    }
-    return RF_AUTO_DEMO_CHANNEL_SCORE_GOOD;
+    return demo_score_from_metrics(loss_permille, 0u, 0u, 0u, 0u);
+}
+
+static uint16_t demo_crc_score_sample(void)
+{
+    return demo_score_from_metrics(0u, 1000u, 0u, 0u, 0u);
+}
+
+static uint16_t demo_type_score_sample(void)
+{
+    return demo_score_from_metrics(0u, 0u, 1000u, 0u, 0u);
+}
+
+static uint16_t demo_timeout_score_sample(void)
+{
+    return demo_score_from_metrics(0u, 0u, 0u, 1000u, 0u);
 }
 
 static void demo_reset_quality_window(void)
@@ -994,17 +1041,18 @@ static uint8_t demo_next_recovery_channel(void)
 static void demo_channel_score_update(uint8_t channel, uint16_t sample)
 {
     uint8_t idx = demo_channel_index(channel);
-    uint32_t score;
 
     if(idx == 0xFFu)
     {
         return;
     }
 
-    score = ((uint32_t)g_demo_channel_scores[idx] * RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_NUM) +
-            (uint32_t)sample;
-    score /= RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_DEN;
-    g_demo_channel_scores[idx] = (score > 1000u) ? 1000u : (uint16_t)score;
+    g_demo_channel_scores[idx] =
+        rfh_score_ema(g_demo_channel_scores[idx],
+                      sample,
+                      RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_NUM,
+                      (uint16_t)(RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_DEN -
+                                 RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_NUM));
 }
 
 static void demo_channel_scores_init(void)
@@ -2460,7 +2508,7 @@ static uint8_t demo_process_connect_packet(const rf_rx_pending_t *pending)
     {
         g_demo_stat.data_type_err++;
         demo_channel_score_update(pending->channel,
-                                  RF_AUTO_DEMO_CHANNEL_SCORE_BAD);
+                                  demo_type_score_sample());
         g_demo_hid_errors++;
         g_demo_hid_type_errors++;
         g_demo_air_diag_type_errors++;
@@ -2516,7 +2564,7 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
     {
         g_demo_stat.data_crc_err++;
         demo_channel_score_update(pending->channel,
-                                  RF_AUTO_DEMO_CHANNEL_SCORE_BAD);
+                                  demo_crc_score_sample());
         g_demo_window_expected++;
         g_demo_window_crc++;
         g_demo_hid_expected++;
@@ -2533,7 +2581,7 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
     {
         g_demo_stat.data_type_err++;
         demo_channel_score_update(pending->channel,
-                                  RF_AUTO_DEMO_CHANNEL_SCORE_BAD);
+                                  demo_type_score_sample());
         g_demo_hid_bad++;
         g_demo_hid_errors++;
         g_demo_hid_type_errors++;
@@ -2560,7 +2608,7 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
     {
         g_demo_stat.data_type_err++;
         demo_channel_score_update(pending->channel,
-                                  RF_AUTO_DEMO_CHANNEL_SCORE_BAD);
+                                  demo_type_score_sample());
         g_demo_hid_bad++;
         g_demo_hid_errors++;
         g_demo_hid_type_errors++;
@@ -2576,7 +2624,7 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
     {
         g_demo_stat.data_type_err++;
         demo_channel_score_update(pending->channel,
-                                  RF_AUTO_DEMO_CHANNEL_SCORE_BAD);
+                                  demo_type_score_sample());
         g_demo_hid_bad++;
         g_demo_hid_errors++;
         g_demo_hid_type_errors++;
@@ -2608,7 +2656,7 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
             {
                 g_demo_stat.data_type_err++;
                 demo_channel_score_update(pending->channel,
-                                          RF_AUTO_DEMO_CHANNEL_SCORE_BAD);
+                                          demo_type_score_sample());
                 g_demo_hid_bad++;
                 g_demo_hid_errors++;
                 g_demo_hid_type_errors++;
@@ -2761,7 +2809,7 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
         }
         g_demo_stat.ack_fail++;
         demo_channel_score_update(g_demo_current_channel,
-                                  RF_AUTO_DEMO_CHANNEL_SCORE_BAD);
+                                  demo_timeout_score_sample());
         g_demo_hid_errors++;
         g_demo_hid_timeout_errors++;
         g_demo_air_diag_timeout_errors++;
