@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { HitboxBounds, HitboxOptions, HitboxSummary } from "../shared/monitor-types";
 
 contextBridge.exposeInMainWorld("connectMonitorApi", {
   getVersion: () => "0.1.0",
@@ -38,5 +39,25 @@ contextBridge.exposeInMainWorld("connectMonitorApi", {
     };
     ipcRenderer.on("window:state", listener);
     return () => ipcRenderer.off("window:state", listener);
+  },
+  setHitboxBounds: (bounds: HitboxBounds) => {
+    ipcRenderer.send("hitbox:setBounds", bounds);
+  },
+  onHitboxSummary: (handler: (summary: HitboxSummary) => void) => {
+    const listener = (_event: unknown, summary: HitboxSummary) => {
+      handler(summary);
+    };
+    ipcRenderer.on("hitbox:summary", listener);
+    return () => ipcRenderer.off("hitbox:summary", listener);
+  },
+  publishHitboxSummary: (summary: HitboxSummary) => {
+    ipcRenderer.send("hitbox:summary", summary);
+  },
+  onHitboxOptions: (handler: (options: HitboxOptions) => void) => {
+    const listener = (_event: unknown, options: HitboxOptions) => {
+      handler(options);
+    };
+    ipcRenderer.on("hitbox:options", listener);
+    return () => ipcRenderer.off("hitbox:options", listener);
   },
 });

@@ -9,6 +9,12 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, "..", "dist", "renderer"),
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        hitbox: path.resolve(__dirname, "hitbox.html"),
+      },
+    },
   },
   server: {
     port: 5173,

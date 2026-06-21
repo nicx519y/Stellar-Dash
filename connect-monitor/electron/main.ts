@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, Menu, ipcMain, dialog, WebContentsView, type Rectangle } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -8,13 +8,14 @@ import { parseDongleTelemetryLine } from "./sources/dongle-telemetry-source";
 import { getHidDebugConfigStatus, sendDebugConfig, startHidTelemetrySource } from "./sources/hid-telemetry-source";
 import { SerialLogManager } from "./sources/serial-log-manager";
 import { startSerialTelemetrySource } from "./sources/serial-telemetry-source";
-import type { DebugConfig, DebugConfigStatus, SerialLogLine } from "../shared/monitor-types";
+import type { DebugConfig, DebugConfigStatus, HitboxBounds, HitboxOptions, HitboxSummary, SerialLogLine } from "../shared/monitor-types";
 
 const eventStore = new MonitorEventStore(path.join(app.getPath("userData"), "db"));
 const eventBus = new MonitorEventBus(500, eventStore);
 let stopHidSource: (() => void) | null = null;
 let stopSerialSource: (() => void) | null = null;
 let mainWindow: BrowserWindow | null = null;
+let hitboxView: WebContentsView | null = null;
 const pendingEvents: unknown[] = [];
 const pendingSerialLogs: SerialLogLine[] = [];
 const serialLogManager = new SerialLogManager((lines) => {
@@ -35,6 +36,86 @@ type ExportMarkdownRequest = {
   suggestedFileName?: string;
   content?: string;
 };
+
+type SanitizedHitboxBounds = {
+  rect: Rectangle;
+  visible: boolean;
+  options: HitboxOptions;
+};
+
+function rendererUrl(pageName: string): string | null {
+  const devUrl = process.env.VITE_DEV_SERVER_URL;
+  if (!devUrl) return null;
+  return new URL(pageName, devUrl.endsWith("/") ? devUrl : `${devUrl}/`).toString();
+}
+
+function loadHitboxRenderer(view: WebContentsView): void {
+  const devHitboxUrl = rendererUrl("hitbox.html");
+  if (devHitboxUrl) {
+    view.webContents.loadURL(devHitboxUrl).catch(() => {});
+    return;
+  }
+  view.webContents.loadFile(path.join(__dirname, "..", "renderer", "hitbox.html")).catch(() => {});
+}
+
+function sanitizeNumber(value: unknown): number | null {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : null;
+}
+
+function sanitizeHitboxBounds(value: unknown): SanitizedHitboxBounds | null {
+  const bounds = value as Partial<HitboxBounds> | null | undefined;
+  const rawX = sanitizeNumber(bounds?.x);
+  const rawY = sanitizeNumber(bounds?.y);
+  const rawWidth = sanitizeNumber(bounds?.width);
+  const rawHeight = sanitizeNumber(bounds?.height);
+  if (rawX === null || rawY === null || rawWidth === null || rawHeight === null) {
+    return null;
+  }
+
+  const contentBounds = mainWindow?.getContentBounds();
+  const maxWidth = Math.max(1, contentBounds?.width ?? 4096);
+  const maxHeight = Math.max(1, contentBounds?.height ?? 4096);
+  const x = Math.max(0, Math.min(Math.round(rawX), maxWidth));
+  const y = Math.max(0, Math.min(Math.round(rawY), maxHeight));
+  const width = Math.max(0, Math.min(Math.round(rawWidth), maxWidth - x));
+  const height = Math.max(0, Math.min(Math.round(rawHeight), maxHeight - y));
+  const visible = bounds?.visible !== false && width >= 2 && height >= 2;
+
+  return {
+    rect: { x, y, width: Math.max(1, width), height: Math.max(1, height) },
+    visible,
+    options: { compact: bounds?.compact !== false },
+  };
+}
+
+function sanitizeHitboxSummary(value: unknown): HitboxSummary {
+  const summary = value as Partial<HitboxSummary> | null | undefined;
+  const pressedCount = sanitizeNumber(summary?.pressedCount);
+  const timestampMs = sanitizeNumber(summary?.timestampMs);
+  return {
+    connected: Boolean(summary?.connected),
+    deviceId: typeof summary?.deviceId === "string" && summary.deviceId.length > 0 ? summary.deviceId.slice(0, 256) : null,
+    pressedCount: Math.max(0, Math.min(32, Math.round(pressedCount ?? 0))),
+    timestampMs: timestampMs ?? Date.now(),
+  };
+}
+
+function createHitboxView(win: BrowserWindow): void {
+  const view = new WebContentsView({
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false,
+    },
+  });
+  view.setBackgroundColor("#00000000");
+  view.setVisible(false);
+  win.contentView.addChildView(view);
+  hitboxView = view;
+  loadHitboxRenderer(view);
+}
 
 function stopSources(): void {
   if (stopHidSource) {
@@ -115,7 +196,15 @@ function createWindow(): void {
   });
 
   mainWindow = win;
-  const devUrl = process.env.VITE_DEV_SERVER_URL;
+  createHitboxView(win);
+  win.on("closed", () => {
+    if (mainWindow === win) {
+      mainWindow = null;
+    }
+    hitboxView = null;
+  });
+
+  const devUrl = rendererUrl("index.html");
   if (devUrl) {
     win.loadURL(devUrl);
   } else {
@@ -280,6 +369,29 @@ ipcMain.handle("window:close", (event) => {
 ipcMain.handle("window:getState", (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   return { maximized: Boolean(win?.isMaximized()) };
+});
+
+ipcMain.on("hitbox:setBounds", (event, bounds: unknown) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents || !hitboxView) return;
+  const nextBounds = sanitizeHitboxBounds(bounds);
+  if (!nextBounds) {
+    hitboxView.setVisible(false);
+    return;
+  }
+
+  if (!nextBounds.visible) {
+    hitboxView.setVisible(false);
+    return;
+  }
+
+  hitboxView.setBounds(nextBounds.rect);
+  hitboxView.setVisible(true);
+  hitboxView.webContents.send("hitbox:options", nextBounds.options);
+});
+
+ipcMain.on("hitbox:summary", (event, summary: unknown) => {
+  if (!mainWindow || !hitboxView || event.sender !== hitboxView.webContents) return;
+  mainWindow.webContents.send("hitbox:summary", sanitizeHitboxSummary(summary));
 });
 
 setInterval(() => {

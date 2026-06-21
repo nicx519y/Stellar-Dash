@@ -31,7 +31,6 @@ import { SerialLogPanel } from "./SerialLogPanel";
 import { neonGreen, panelSurfaceProps, toolbarActionButtonProps } from "./panelStyles";
 import { scrollbarStyle } from "./scrollbarStyle";
 import { clearSerialLogLines } from "./serialLogStore";
-import { useGamepadButtons } from "./useGamepadButtons";
 
 const appScrollStyle = {
   ...scrollbarStyle,
@@ -479,7 +478,6 @@ function TrafficPanels({
 
 export function App() {
   const { events, packets, latency, buttonLatency, chart, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
-  const gamepad = useGamepadButtons();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollState, setScrollState] = useState({ top: 0, client: 1, scroll: 1 });
   const [serialLogClearVersion, setSerialLogClearVersion] = useState(0);
@@ -687,7 +685,7 @@ export function App() {
               compact
             />
             <ButtonLatencyPanel rows={buttonLatency.items} status={buttonLatency.status} />
-            <ButtonsPanel compact gamepad={gamepad} />
+            <ButtonsPanel compact />
           </Box>
           <TrafficPanels
             packets={packets}

@@ -158,3 +158,23 @@ export interface DebugConfigStatus {
   lastSeq: number;
   message?: string;
 }
+
+export interface HitboxBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visible: boolean;
+  compact: boolean;
+}
+
+export interface HitboxOptions {
+  compact: boolean;
+}
+
+export interface HitboxSummary {
+  connected: boolean;
+  deviceId: string | null;
+  pressedCount: number;
+  timestampMs: number;
+}

@@ -1,4 +1,13 @@
-import type { DebugConfig, DebugConfigStatus, MonitorEvent, SerialLogLine, SerialPortInfo } from "../../shared/monitor-types";
+import type {
+  DebugConfig,
+  DebugConfigStatus,
+  HitboxBounds,
+  HitboxOptions,
+  HitboxSummary,
+  MonitorEvent,
+  SerialLogLine,
+  SerialPortInfo,
+} from "../../shared/monitor-types";
 
 declare global {
   interface Window {
@@ -23,6 +32,10 @@ declare global {
       closeWindow(): Promise<void>;
       getWindowState(): Promise<{ maximized: boolean }>;
       onWindowState(handler: (state: { maximized: boolean }) => void): () => void;
+      setHitboxBounds(bounds: HitboxBounds): void;
+      onHitboxSummary(handler: (summary: HitboxSummary) => void): () => void;
+      publishHitboxSummary(summary: HitboxSummary): void;
+      onHitboxOptions(handler: (options: HitboxOptions) => void): () => void;
     };
   }
 }
