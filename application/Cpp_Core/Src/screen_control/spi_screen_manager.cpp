@@ -21,6 +21,7 @@
 #include "connection_manager.hpp"
 
 extern "C" {
+#include "qspi-w25q64.h"
 #include "st7789.h"
 #include "spi-st7789.h"
 #include "rotary-encoder.h"
@@ -195,14 +196,66 @@ static void render_fast_charge_bolt(ST7789_Handle* lcd, uint16_t bodyX, uint16_t
     }
 }
 
-static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_t h, uint32_t fg, uint32_t bg, uint32_t nowMs) {
-    const uint16_t bodyW = 30u;
+static bool screen_style_is_light(void) {
+    return STORAGE_MANAGER.config.screenControl.screenStyle == SCREEN_STYLE_LIGHT;
+}
+
+static const char* get_connection_mode_icon_name(void) {
+    if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB) {
+        return screen_style_is_light() ? "USB_light" : "USB_dark";
+    }
+    return screen_style_is_light() ? "wireless_light" : "wireless_dark";
+}
+
+static const char* get_input_mode_icon_name(InputMode mode) {
+    const bool light = screen_style_is_light();
+    switch (mode) {
+        case InputMode::INPUT_MODE_PS4:
+        case InputMode::INPUT_MODE_PS5:
+            return light ? "playstation_light" : "playstation_dark";
+        case InputMode::INPUT_MODE_XBOX:
+            return light ? "xbox_light" : "xbox_dark";
+        case InputMode::INPUT_MODE_SWITCH:
+            return light ? "NS_light" : "NS_dark";
+        case InputMode::INPUT_MODE_XINPUT:
+        default:
+            return light ? "PC_light" : "PC_dark";
+    }
+}
+
+static bool ensure_assets_mmap(void) {
+    if (QSPI_W25Qxx_IsMemoryMappedMode()) return true;
+    return QSPI_W25Qxx_EnterMemoryMappedMode() == QSPI_W25Qxx_OK && QSPI_W25Qxx_IsMemoryMappedMode();
+}
+
+static bool render_centered_asset_icon(ST7789_Handle* lcd,
+                                       uint16_t x,
+                                       uint16_t y,
+                                       uint16_t w,
+                                       uint16_t h,
+                                       const char* assetName) {
+    if (!lcd || !assetName || !ensure_assets_mmap()) return false;
+
+    ST7789_AssetInfo info;
+    memset(&info, 0, sizeof(info));
+    if (!ST7789_Assets_Find(assetName, &info)) return false;
+    if (info.type != ST7789_ASSET_TYPE_RGB565LE || !info.data || info.width == 0u || info.height == 0u) return false;
+
+    const uint16_t drawX = (info.width < w) ? (uint16_t)(x + (w - info.width) / 2u) : x;
+    const uint16_t drawY = (info.height < h) ? (uint16_t)(y + (h - info.height) / 2u) : y;
+    ST7789_DrawBitmap(lcd, drawX, drawY, info.width, info.height, info.data, ST7789_BITMAP_RGB565_LE, (uint32_t)info.width * 2u);
+    return true;
+}
+
+static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_t bodyY, uint32_t fg, uint32_t bg, uint32_t nowMs) {
+    const uint16_t bodyW = 26u;
     const uint16_t bodyH = 14u;
     const uint16_t headW = 2u;
     const uint16_t headH = 6u;
-    const uint16_t x = (leftW > (uint16_t)(bodyW + headW + 2u)) ? (uint16_t)((leftW - (bodyW + headW + 2u)) / 2u) : 0u;
-    const uint16_t y = (h > (uint16_t)(bodyH + 8u)) ? (uint16_t)(h - bodyH - 8u) : 0u;
-    const uint16_t headX = (uint16_t)(x + bodyW + 1u);
+    const uint16_t totalW = (uint16_t)(bodyW + headW);
+    const uint16_t x = (leftW > totalW) ? (uint16_t)((leftW - totalW) / 2u) : 0u;
+    const uint16_t y = bodyY;
+    const uint16_t headX = (uint16_t)(x + bodyW);
     const uint16_t headY = (uint16_t)(y + ((bodyH - headH) / 2u));
 
     const bool lowBorderVisible = !g_battUiLowBattery || ((nowMs % 700u) < 350u);
@@ -222,8 +275,8 @@ static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_
     }
 
     const uint8_t blockCount = battery_animated_blocks(battery_soc_to_blocks(g_battUiSoc), nowMs);
-    const uint16_t blockGap = 2u;
-    const uint16_t blockW = 5u;
+    const uint16_t blockGap = 1u;
+    const uint16_t blockW = 4u;
     for (uint8_t i = 0; i < blockCount; i++) {
         const uint16_t blockX = (uint16_t)(innerX + i * (blockW + blockGap));
         ST7789_FillRect(lcd, blockX, innerY, blockW, innerH, fg);
@@ -241,8 +294,8 @@ static uint32_t get_gamepad_activity_mask() {
 static void refresh_screen_cfg_cache(void) {
     const ScreenControlConfig& sc = STORAGE_MANAGER.config.screenControl;
 
-    uint32_t bg = ScreenUI_RGB888(sc.backgroundColor);
-    uint32_t text = ScreenUI_RGB888(sc.textColor);
+    uint32_t bg = (sc.screenStyle == SCREEN_STYLE_LIGHT) ? 0xFFFFFFu : 0x000000u;
+    uint32_t text = (sc.screenStyle == SCREEN_STYLE_LIGHT) ? 0x000000u : 0xFFFFFFu;
     if (bg != g_cfgBg || text != g_cfgText) {
         g_cfgBg = bg;
         g_cfgText = text;
@@ -538,8 +591,8 @@ void SPIScreenManager::renderBars() {
     ST7789_FillRect(&g_lcd, 0, 0, leftW, h, barBg);
     ST7789_FillRect(&g_lcd, rightX, 0, rightW, h, barBg);
 
-    const char* mode = ScreenMain_InputModeAbbrev(STORAGE_MANAGER.getInputMode());
-    const char* connMode = get_connection_mode_label();
+    const InputMode inputMode = STORAGE_MANAGER.getInputMode();
+    const char* mode = ScreenMain_InputModeAbbrev(inputMode);
     const uint32_t nowMs = HAL_GetTick();
     update_battery_ui_cache(nowMs);
 
@@ -554,13 +607,16 @@ void SPIScreenManager::renderBars() {
 
     const uint8_t tokenScale = SPI_SCREEN_STATUS_BAR_TEXT_SCALE;
     const uint16_t tokenH = ScreenUI_CharCellH(tokenScale);
-    const uint16_t leftTopY = 6u;
-    const uint16_t stackGap = 8u;
+    const uint16_t statusIconH = 32u;
     const uint16_t battBodyH = 14u;
-    const uint16_t battBottomMargin = 8u;
-    const uint16_t battY = (h > (uint16_t)(battBodyH + battBottomMargin)) ? (uint16_t)(h - battBodyH - battBottomMargin) : 0u;
-    const uint16_t connY = (battY > (uint16_t)(tokenH + stackGap)) ? (uint16_t)(battY - tokenH - stackGap) : leftTopY;
-    const uint16_t inputY = (connY > (uint16_t)(tokenH + stackGap)) ? (uint16_t)(connY - tokenH - stackGap) : (uint16_t)(leftTopY + tokenH + stackGap);
+    const uint16_t leftTopY = (areaH > tokenH) ? (uint16_t)(topY + (areaH - tokenH) / 2u) : topY;
+    const uint16_t battY = (botH > battBodyH) ? (uint16_t)(botY + (botH - battBodyH) / 2u) : botY;
+    const uint16_t inputY = (h > statusIconH) ? (uint16_t)((h - statusIconH) / 2u) : 0u;
+    const uint16_t inputCenterY = (uint16_t)(inputY + statusIconH / 2u);
+    const uint16_t battCenterY = (uint16_t)(battY + battBodyH / 2u);
+    int32_t connYCalc = ((int32_t)inputCenterY + (int32_t)battCenterY) / 2 - (int32_t)(statusIconH / 2u);
+    if (connYCalc < 0) connYCalc = 0;
+    const uint16_t connY = (uint16_t)connYCalc;
 
     uint8_t currentProfileIdx = 0xFF;
     uint8_t count = STORAGE_MANAGER.config.numProfilesMax;
@@ -576,9 +632,13 @@ void SPIScreenManager::renderBars() {
     char token[6] = "P?";
     if (currentProfileIdx != 0xFF) snprintf(token, sizeof(token), "P%u", (unsigned)(currentProfileIdx + 1u));
     ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, leftTopY, leftW, tokenH, token, textColor, barBg, tokenScale);
-    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, inputY, leftW, tokenH, mode, textColor, barBg, tokenScale);
-    ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, connY, leftW, tokenH, connMode, textColor, barBg, tokenScale);
-    render_left_battery_icon(&g_lcd, leftW, h, textColor, barBg, nowMs);
+    if (!render_centered_asset_icon(&g_lcd, 0, inputY, leftW, statusIconH, get_input_mode_icon_name(inputMode))) {
+        ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, inputY, leftW, statusIconH, mode, textColor, barBg, tokenScale);
+    }
+    if (!render_centered_asset_icon(&g_lcd, 0, connY, leftW, statusIconH, get_connection_mode_icon_name())) {
+        ScreenUI_DrawStringCenteredInBox(&g_lcd, 0, connY, leftW, statusIconH, get_connection_mode_label(), textColor, barBg, tokenScale);
+    }
+    render_left_battery_icon(&g_lcd, leftW, battY, textColor, barBg, nowMs);
 
     if (g_inDetail) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH, "Back", textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
     else if (prev && prev->label) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH, prev->label, textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);

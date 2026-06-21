@@ -63,8 +63,7 @@ class MockDataStore {
 
     this.screenControl = {
       brightness: 100,
-      backgroundColor: 0x000000,
-      textColor: 0xFFFFFF,
+      screenStyle: "dark",
       backgroundImageId: "",
       currentPageId: 0,
       features: {

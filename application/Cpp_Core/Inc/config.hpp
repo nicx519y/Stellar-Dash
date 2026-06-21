@@ -134,13 +134,19 @@ typedef struct
 #define SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET (1u << 11)
 #define SCREEN_FEATURE_COUNT                      12u
 
+typedef enum
+{
+    SCREEN_STYLE_DARK = 0,
+    SCREEN_STYLE_LIGHT = 1
+} ScreenStyle;
+
 typedef struct
 {
     uint8_t brightness;              // 屏幕亮度（0-100）
     uint8_t standbyDisplay;          // 待机显示：0 None, 1 BackgroundImage, 2 ButtonLayout
     uint8_t reserved0[2];            // 保留字节（对齐）
-    uint32_t backgroundColor;        // 背景颜色（RGB888：0x000000-0xFFFFFF）
-    uint32_t textColor;              // 文字颜色（RGB888：0x000000-0xFFFFFF）
+    uint8_t screenStyle;             // 屏幕风格：0 Dark, 1 Light
+    uint8_t reservedStyle[7];        // 保留旧颜色字段占位，用于兼容迁移
     char backgroundImageId[32];      // 背景图片资源ID（对应 assets 索引名）
     uint16_t currentPageId;          // 当前页面ID
     uint16_t reserved1;              // 保留字节（对齐）
@@ -187,6 +193,8 @@ namespace ConfigUtils {
     const char* getWirelessReportRateString(WirelessReportRate rate);
     WirelessReportRate getWirelessReportRateFromString(const char* str);
     uint16_t getWirelessReportRateHz(WirelessReportRate rate);
+    const char* getScreenStyleString(uint8_t style);
+    uint8_t getScreenStyleFromString(const char* str);
     const char* getGamepadHotkeyString(GamepadHotkey action);
     GamepadHotkey getGamepadHotkeyFromString(const char* str);
 };

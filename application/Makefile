@@ -22,8 +22,8 @@ TARGET = application
 # debug build?
 DEBUG = 1
 # compile-time log switches
-APP_SERIAL_LOG ?= 1
-APP_DEBUG_LOG ?= 1
+APP_SERIAL_LOG = 0
+APP_DEBUG_LOG = 0
 # optimization
 OPT = -Og
 

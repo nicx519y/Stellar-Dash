@@ -12,6 +12,7 @@
 #include "system_logger.h"
 
 #define CONFIG_ADDR_ORIGIN  CONFIG_ADDR
+#define CONFIG_VERSION_SCREEN_STYLE_MIGRATE_FROM 0x00001Bu
 
 // ============================================================================
 // ConfigUtils Mappings
@@ -147,6 +148,65 @@ uint16_t getWirelessReportRateHz(WirelessReportRate rate) {
     return static_cast<uint16_t>(rate);
 }
 
+const char* getScreenStyleString(uint8_t style) {
+    return (style == SCREEN_STYLE_LIGHT) ? "light" : "dark";
+}
+
+uint8_t getScreenStyleFromString(const char* str) {
+    if (!str) return SCREEN_STYLE_DARK;
+    if (strcmp(str, "light") == 0) return SCREEN_STYLE_LIGHT;
+    return SCREEN_STYLE_DARK;
+}
+
+static uint32_t color_luma(uint32_t rgb) {
+    uint32_t r = (rgb >> 16) & 0xFFu;
+    uint32_t g = (rgb >> 8) & 0xFFu;
+    uint32_t b = rgb & 0xFFu;
+    return r * 299u + g * 587u + b * 114u;
+}
+
+static uint8_t infer_screen_style_from_colors(uint32_t bg, uint32_t fg) {
+    return (color_luma(bg) > color_luma(fg)) ? SCREEN_STYLE_LIGHT : SCREEN_STYLE_DARK;
+}
+
+static uint32_t read_legacy_screen_bg(const ScreenControlConfig& sc) {
+    return ((uint32_t)sc.screenStyle) |
+           ((uint32_t)sc.reservedStyle[0] << 8) |
+           ((uint32_t)sc.reservedStyle[1] << 16) |
+           ((uint32_t)sc.reservedStyle[2] << 24);
+}
+
+static uint32_t read_legacy_screen_fg(const ScreenControlConfig& sc) {
+    return ((uint32_t)sc.reservedStyle[3]) |
+           ((uint32_t)sc.reservedStyle[4] << 8) |
+           ((uint32_t)sc.reservedStyle[5] << 16) |
+           ((uint32_t)sc.reservedStyle[6] << 24);
+}
+
+static void sanitize_screen_style(ScreenControlConfig& sc) {
+    if (sc.screenStyle != SCREEN_STYLE_LIGHT) {
+        sc.screenStyle = SCREEN_STYLE_DARK;
+    }
+    memset(sc.reservedStyle, 0, sizeof(sc.reservedStyle));
+}
+
+static void parse_screen_style_json(ScreenControlConfig& sc, cJSON* screenControl) {
+    if (!screenControl) return;
+    cJSON* item = cJSON_GetObjectItem(screenControl, "screenStyle");
+    if (item && cJSON_IsString(item)) {
+        sc.screenStyle = getScreenStyleFromString(item->valuestring);
+        sanitize_screen_style(sc);
+        return;
+    }
+
+    cJSON* bg = cJSON_GetObjectItem(screenControl, "backgroundColor");
+    cJSON* fg = cJSON_GetObjectItem(screenControl, "textColor");
+    if (bg && fg && cJSON_IsNumber(bg) && cJSON_IsNumber(fg)) {
+        sc.screenStyle = infer_screen_style_from_colors((uint32_t)bg->valuedouble, (uint32_t)fg->valuedouble);
+        sanitize_screen_style(sc);
+    }
+}
+
 const char* getGamepadHotkeyString(GamepadHotkey action) {
     auto it = GAMEPAD_HOTKEY_TO_STRING.find(action);
     if (it != GAMEPAD_HOTKEY_TO_STRING.end()) {
@@ -220,8 +280,7 @@ cJSON* buildScreenControlConfigJSON(Config& config) {
         default: standbyDisplayStr2 = "none"; break;
     }
     cJSON_AddStringToObject(screenControlJSON, "standbyDisplay", standbyDisplayStr2);
-    cJSON_AddNumberToObject(screenControlJSON, "backgroundColor", config.screenControl.backgroundColor);
-    cJSON_AddNumberToObject(screenControlJSON, "textColor", config.screenControl.textColor);
+    cJSON_AddStringToObject(screenControlJSON, "screenStyle", getScreenStyleString(config.screenControl.screenStyle));
     cJSON_AddStringToObject(screenControlJSON, "backgroundImageId", config.screenControl.backgroundImageId);
     cJSON_AddNumberToObject(screenControlJSON, "currentPageId", config.screenControl.currentPageId);
     cJSON* featuresJSON = cJSON_CreateObject();
@@ -421,12 +480,7 @@ bool fromJSON(Config& config, cJSON* json) {
             else if (strcmp(item->valuestring, "buttonLayout") == 0) config.screenControl.standbyDisplay = 2;
             else config.screenControl.standbyDisplay = 0;
         }
-        if ((item = cJSON_GetObjectItem(screenControl, "backgroundColor")) && cJSON_IsNumber(item)) {
-            config.screenControl.backgroundColor = (uint32_t)item->valuedouble;
-        }
-        if ((item = cJSON_GetObjectItem(screenControl, "textColor")) && cJSON_IsNumber(item)) {
-            config.screenControl.textColor = (uint32_t)item->valuedouble;
-        }
+        parse_screen_style_json(config.screenControl, screenControl);
         if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageId")) && cJSON_IsString(item)) {
             strncpy(config.screenControl.backgroundImageId, item->valuestring, sizeof(config.screenControl.backgroundImageId) - 1);
             config.screenControl.backgroundImageId[sizeof(config.screenControl.backgroundImageId) - 1] = '\0';
@@ -465,10 +519,10 @@ bool fromJSON(Config& config, cJSON* json) {
 
         cJSON* featuresOrder = cJSON_GetObjectItem(screenControl, "featuresOrder");
         struct { const char* key; uint8_t id; } orderMap[] = {
+            {"connectionModeSwitch", 3},
             {"inputModeSwitch", 0},
             {"profilesSwitch", 1},
             {"socdModeSwitch", 2},
-            {"connectionModeSwitch", 3},
             {"buttonsPerformanceQuickSet", 11},
             {"ledBrightnessAdjust", 4},
             {"ledEffectSwitch", 5},
@@ -508,7 +562,7 @@ bool fromJSON(Config& config, cJSON* json) {
             }
         } else {
             for (uint32_t i = 0; i < SCREEN_FEATURE_COUNT; i++) {
-                config.screenControl.featuresOrder[i] = (uint8_t)i;
+                config.screenControl.featuresOrder[i] = orderMap[i].id;
             }
         }
     }
@@ -616,9 +670,21 @@ bool ConfigUtils::load(Config& config)
     fjResult = fromStorage(config);
 
     if(fjResult == true && config.version == CONFIG_VERSION) { // 版本号一致
+        sanitize_screen_style(config.screenControl);
         uint32_t ver = config.version;
         APP_DBG("Config Version: %d.%d.%d", (ver>>16) & 0xff, (ver>>8) & 0xff, ver & 0xff);
         return true;
+    } else if (fjResult == true && config.version == CONFIG_VERSION_SCREEN_STYLE_MIGRATE_FROM) {
+        uint32_t oldBg = read_legacy_screen_bg(config.screenControl);
+        uint32_t oldFg = read_legacy_screen_fg(config.screenControl);
+        config.screenControl.screenStyle = infer_screen_style_from_colors(oldBg, oldFg);
+        sanitize_screen_style(config.screenControl);
+        config.version = CONFIG_VERSION;
+        APP_DBG("ConfigUtils::load - migrated screen style from bg=0x%06lx fg=0x%06lx style=%u",
+                (unsigned long)(oldBg & 0xFFFFFFu),
+                (unsigned long)(oldFg & 0xFFFFFFu),
+                (unsigned int)config.screenControl.screenStyle);
+        return save(config);
     } else {
 
         APP_DBG("init config, version: %d.%d.%d", (CONFIG_VERSION>>16) & 0xff, (CONFIG_VERSION>>8) & 0xff, CONFIG_VERSION & 0xff);
@@ -636,8 +702,8 @@ bool ConfigUtils::load(Config& config)
         config.screenControl.brightness = 100;
         config.screenControl.standbyDisplay = 0;
         memset(config.screenControl.reserved0, 0, sizeof(config.screenControl.reserved0));
-        config.screenControl.backgroundColor = 0x000000;
-        config.screenControl.textColor = 0xFFFFFF;
+        config.screenControl.screenStyle = SCREEN_STYLE_DARK;
+        memset(config.screenControl.reservedStyle, 0, sizeof(config.screenControl.reservedStyle));
         config.screenControl.backgroundImageId[0] = '\0';
         config.screenControl.currentPageId = 0;
         config.screenControl.reserved1 = 0;
@@ -654,9 +720,8 @@ bool ConfigUtils::load(Config& config)
             SCREEN_FEATURE_WEB_CONFIG_ENTRY |
             SCREEN_FEATURE_CALIBRATION_MODE_SWITCH |
             SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET;
-        for (uint32_t i = 0; i < SCREEN_FEATURE_COUNT; i++) {
-            config.screenControl.featuresOrder[i] = (uint8_t)i;
-        }
+        const uint8_t defaultFeatureOrder[SCREEN_FEATURE_COUNT] = {3, 0, 1, 2, 11, 4, 5, 6, 7, 8, 9, 10};
+        memcpy(config.screenControl.featuresOrder, defaultFeatureOrder, sizeof(config.screenControl.featuresOrder));
         config.screenControl.reserved2 = 0;
 
         APP_DBG("ConfigUtils::load - base config init done");

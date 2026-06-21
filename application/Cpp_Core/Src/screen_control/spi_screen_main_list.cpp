@@ -4,7 +4,7 @@
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
 
 static const ScreenMenuMeta kMenuMeta[] = {
-    {0, SCREEN_FEATURE_INPUT_MODE_SWITCH, "Input Mode"},
+    {0, SCREEN_FEATURE_INPUT_MODE_SWITCH, "Platform"},
     {1, SCREEN_FEATURE_PROFILES_SWITCH, "Profiles"},
     {2, SCREEN_FEATURE_SOCD_MODE_SWITCH, "SOCD"},
     {3, SCREEN_FEATURE_TOURNAMENT_MODE_SWITCH, "Connection"},

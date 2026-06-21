@@ -1349,7 +1349,7 @@ class ReleaseManager:
         elif not progress:
             print("正在生成/复制系统图片资源...")
 
-        assets_dir = self.application_dir / "assets" / "icons"
+        assets_dir = self.application_dir / "assets" / "sysicons"
         if not assets_dir.exists():
             raise FileNotFoundError(f"未找到 assets 目录: {assets_dir}")
 
@@ -2698,9 +2698,9 @@ class ReleaseManager:
 
     def flash_system_assets(self) -> bool:
         try:
-            icons_dir = self.application_dir / "assets" / "icons"
+            icons_dir = self.application_dir / "assets" / "sysicons"
             if not icons_dir.exists():
-                print(f"错误: 未找到 icons 目录: {icons_dir}")
+                print(f"错误: 未找到 sysicons 目录: {icons_dir}")
                 return False
 
             packer = self.tools_dir / "pack_assets.py"

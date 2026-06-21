@@ -16,6 +16,35 @@ GlobalConfigCommandHandler& GlobalConfigCommandHandler::getInstance() {
     return instance;
 }
 
+static uint32_t screen_color_luma(uint32_t rgb) {
+    uint32_t r = (rgb >> 16) & 0xFFu;
+    uint32_t g = (rgb >> 8) & 0xFFu;
+    uint32_t b = rgb & 0xFFu;
+    return r * 299u + g * 587u + b * 114u;
+}
+
+static uint8_t infer_screen_style_from_json_colors(uint32_t bg, uint32_t fg) {
+    return (screen_color_luma(bg) > screen_color_luma(fg)) ? SCREEN_STYLE_LIGHT : SCREEN_STYLE_DARK;
+}
+
+static void set_screen_style_from_json(ScreenControlConfig& sc, cJSON* screenControl) {
+    if (!screenControl) return;
+    cJSON* item = cJSON_GetObjectItem(screenControl, "screenStyle");
+    if (item && cJSON_IsString(item)) {
+        sc.screenStyle = ConfigUtils::getScreenStyleFromString(item->valuestring);
+    } else {
+        cJSON* bg = cJSON_GetObjectItem(screenControl, "backgroundColor");
+        cJSON* fg = cJSON_GetObjectItem(screenControl, "textColor");
+        if (bg && fg && cJSON_IsNumber(bg) && cJSON_IsNumber(fg)) {
+            sc.screenStyle = infer_screen_style_from_json_colors((uint32_t)bg->valuedouble, (uint32_t)fg->valuedouble);
+        }
+    }
+    if (sc.screenStyle != SCREEN_STYLE_LIGHT) {
+        sc.screenStyle = SCREEN_STYLE_DARK;
+    }
+    memset(sc.reservedStyle, 0, sizeof(sc.reservedStyle));
+}
+
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetGlobalConfig(const WebSocketUpstreamMessage& request) {
     // LOG_INFO("WebSocket", "Handling get_global_config command, cid: %d", request.getCid());
 
@@ -185,8 +214,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetScreenControlCon
         default: standbyDisplayStr = "none"; break;
     }
     cJSON_AddStringToObject(screenControlJSON, "standbyDisplay", standbyDisplayStr);
-    cJSON_AddNumberToObject(screenControlJSON, "backgroundColor", config.screenControl.backgroundColor);
-    cJSON_AddNumberToObject(screenControlJSON, "textColor", config.screenControl.textColor);
+    cJSON_AddStringToObject(screenControlJSON, "screenStyle", ConfigUtils::getScreenStyleString(config.screenControl.screenStyle));
     cJSON_AddStringToObject(screenControlJSON, "backgroundImageId", config.screenControl.backgroundImageId);
     cJSON_AddNumberToObject(screenControlJSON, "currentPageId", config.screenControl.currentPageId);
 
@@ -264,12 +292,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateScreenControl
         else if (strcmp(item->valuestring, "buttonLayout") == 0) config.screenControl.standbyDisplay = 2;
         else config.screenControl.standbyDisplay = 0;
     }
-    if ((item = cJSON_GetObjectItem(screenControl, "backgroundColor")) && cJSON_IsNumber(item)) {
-        config.screenControl.backgroundColor = (uint32_t)item->valuedouble;
-    }
-    if ((item = cJSON_GetObjectItem(screenControl, "textColor")) && cJSON_IsNumber(item)) {
-        config.screenControl.textColor = (uint32_t)item->valuedouble;
-    }
+    set_screen_style_from_json(config.screenControl, screenControl);
     if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageId")) && cJSON_IsString(item)) {
         strncpy(config.screenControl.backgroundImageId, item->valuestring, sizeof(config.screenControl.backgroundImageId) - 1);
         config.screenControl.backgroundImageId[sizeof(config.screenControl.backgroundImageId) - 1] = '\0';
@@ -309,10 +332,10 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateScreenControl
     cJSON* featuresOrder = cJSON_GetObjectItem(screenControl, "featuresOrder");
     if (featuresOrder && cJSON_IsArray(featuresOrder)) {
         struct { const char* key; uint8_t id; } orderMap[] = {
+            {"connectionModeSwitch", 3},
             {"inputModeSwitch", 0},
             {"profilesSwitch", 1},
             {"socdModeSwitch", 2},
-            {"connectionModeSwitch", 3},
             {"buttonsPerformanceQuickSet", 11},
             {"ledBrightnessAdjust", 4},
             {"ledEffectSwitch", 5},
@@ -541,12 +564,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(co
             if (v > 100) v = 100;
             config.screenControl.brightness = (uint8_t)v;
         }
-        if ((item = cJSON_GetObjectItem(screenControl, "backgroundColor")) && cJSON_IsNumber(item)) {
-            config.screenControl.backgroundColor = (uint32_t)item->valuedouble;
-        }
-        if ((item = cJSON_GetObjectItem(screenControl, "textColor")) && cJSON_IsNumber(item)) {
-            config.screenControl.textColor = (uint32_t)item->valuedouble;
-        }
+        set_screen_style_from_json(config.screenControl, screenControl);
         if ((item = cJSON_GetObjectItem(screenControl, "backgroundImageId")) && cJSON_IsString(item)) {
             strncpy(config.screenControl.backgroundImageId, item->valuestring, sizeof(config.screenControl.backgroundImageId) - 1);
             config.screenControl.backgroundImageId[sizeof(config.screenControl.backgroundImageId) - 1] = '\0';
@@ -589,10 +607,10 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(co
         cJSON* featuresOrder = cJSON_GetObjectItem(screenControl, "featuresOrder");
         if (featuresOrder && cJSON_IsArray(featuresOrder)) {
             struct { const char* key; uint8_t id; } orderMap[] = {
+                {"connectionModeSwitch", 3},
                 {"inputModeSwitch", 0},
                 {"profilesSwitch", 1},
                 {"socdModeSwitch", 2},
-                {"connectionModeSwitch", 3},
                 {"buttonsPerformanceQuickSet", 11},
                 {"ledBrightnessAdjust", 4},
                 {"ledEffectSwitch", 5},

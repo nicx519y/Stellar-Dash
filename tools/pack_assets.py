@@ -60,7 +60,7 @@ def _gif_get_canvas_size(data: bytes):
     return w, h
 
 
-_re_dim = re.compile(r'^(?P<name>.+?)[_\\-](?P<w>\\d{1,4})x(?P<h>\\d{1,4})$', re.IGNORECASE)
+_re_dim = re.compile(r'^(?P<name>.+?)[_-](?P<w>\d{1,4})x(?P<h>\d{1,4})$', re.IGNORECASE)
 
 
 def _parse_rgb565_name(stem: str):

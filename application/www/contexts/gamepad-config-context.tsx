@@ -1461,9 +1461,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 }
                 return next as ScreenControlConfig['featuresOrder'];
             };
+            const normalizeScreenStyle = (style: unknown): ScreenControlConfig['screenStyle'] => {
+                return style === 'light' ? 'light' : 'dark';
+            };
             const merged = {
                 ...DEFAULT_SCREEN_CONTROL_CONFIG,
                 ...remote,
+                screenStyle: normalizeScreenStyle(remote.screenStyle),
                 features: {
                     ...DEFAULT_SCREEN_CONTROL_CONFIG.features,
                     ...(remote.features ?? {})

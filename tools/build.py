@@ -484,7 +484,7 @@ class BuildTool:
         return self._flash_web_resources_using_openocd(slot, webres_address, physical_address)
 
     def build_system_assets(self) -> Optional[Path]:
-        assets_dir = self.application_dir / "assets" / "icons"
+        assets_dir = self.application_dir / "assets" / "sysicons"
         if not assets_dir.exists():
             print(f"未找到 assets 目录: {assets_dir}")
             return None
@@ -599,13 +599,13 @@ class BuildTool:
         print("烧录 系统图片资源 (assets)")
         print("=" * 50)
 
-        assets_dir = self.application_dir / "assets" / "icons"
+        assets_dir = self.application_dir / "assets" / "sysicons"
         if not assets_dir.exists():
             if allow_missing:
-                print(f"未找到 icons 目录: {assets_dir}")
+                print(f"未找到 sysicons 目录: {assets_dir}")
                 print("跳过系统图片资源烧录")
                 return True
-            print(f"未找到 icons 目录: {assets_dir}")
+            print(f"未找到 sysicons 目录: {assets_dir}")
             return False
 
         out_file = self.build_system_assets()

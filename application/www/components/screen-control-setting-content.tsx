@@ -1,31 +1,16 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Grid, VStack, HStack, Portal, Color, parseColor, Table, Image, Box, Flex, Text, Input, Spinner, RadioCard, RadioGroup } from '@chakra-ui/react';
+import { Grid, VStack, HStack, Table, Image, Box, Flex, Text, Input, Spinner, RadioCard, RadioGroup } from '@chakra-ui/react';
 import { Slider } from '@/components/ui/slider';
-import { Field } from '@/components/ui/field';
 import { Switch } from '@/components/ui/switch';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
-import { DEFAULT_SCREEN_CONTROL_CONFIG, ScreenControlConfig, ScreenControlFeatureKey, ScreenControlFeatures, StandbyDisplay } from '@/types/gamepad-config';
+import { DEFAULT_SCREEN_CONTROL_CONFIG, ScreenControlConfig, ScreenControlFeatureKey, ScreenControlFeatures, ScreenStyle, StandbyDisplay } from '@/types/gamepad-config';
 import { useLanguage } from '@/contexts/language-context';
-import { ColorPicker } from '@chakra-ui/react';
 import { LuCheck, LuUpload, LuGripVertical } from "react-icons/lu";
 import { TitleLabel } from './ui/title-label';
 import { processGifToRGB565Sequence, processImageToRGB565, rgb565ToPngDataUrl } from '@/lib/screen-control-image';
 
-
-
-function toHex6(v: number): string {
-    const x = (v >>> 0) & 0xFFFFFF;
-    return `#${x.toString(16).padStart(6, '0')}`;
-}
-
-function parseHex6(s: string, fallback: number): number {
-    const t = s.trim();
-    const m = t.startsWith('#') ? t.slice(1) : t;
-    if (!/^[0-9a-fA-F]{6}$/.test(m)) return fallback;
-    return parseInt(m, 16) >>> 0;
-}
 
 type ScreenControlSettingContentProps = {
     disabled?: boolean;
@@ -36,8 +21,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     const { screenControl, updateScreenControl, sendBinaryMessage, onBinaryMessage, wsConnected } = useGamepadConfig();
     const [brightness, setBrightness] = useState<number>(screenControl.brightness ?? 100);
     const [standbyDisplay, setStandbyDisplay] = useState<StandbyDisplay>(screenControl.standbyDisplay ?? 'none');
-    const [bgColor, setBgColor] = useState<Color>(parseColor(toHex6(screenControl.backgroundColor ?? 0)));
-    const [textColor, setTextColor] = useState<Color>(parseColor(toHex6(screenControl.textColor ?? 0xFFFFFF)));
+    const [screenStyle, setScreenStyle] = useState<ScreenStyle>(screenControl.screenStyle ?? 'dark');
     const [backgroundImageId, setBackgroundImageId] = useState<string>(screenControl.backgroundImageId ?? '');
     const [currentPageId, setCurrentPageId] = useState<string>(String(screenControl.currentPageId ?? 0));
     const [features, setFeatures] = useState(screenControl.features);
@@ -46,13 +30,6 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     );
     const [dropIndicator, setDropIndicator] = useState<{ key: ScreenControlFeatureKey; position: 'before' | 'after' } | null>(null);
     const { t } = useLanguage();
-    
-    // 颜色队列状态
-    const defaultColorSwatches = [
-        '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#FFFFFF', '#000000'
-    ];
-    const [colorSwatches, setColorSwatches] = useState<string[]>(defaultColorSwatches);
-    const [tempSelectedColors, setTempSelectedColors] = useState<{ bg?: string; text?: string }>({});
     const SYSTEM_BG_ID = 'SYSTEM_DEFAULT';
     const USER_BG_ID = 'USER_IMAGE';
     const [userAsset, setUserAsset] = useState<{ id: string; name: string; width: number; height: number; previewUrl: string; frames?: string[]; fps?: number; frameCount?: number } | null>(null);
@@ -97,9 +74,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     useEffect(() => {
         setBrightness(screenControl.brightness ?? 100);
         setStandbyDisplay(screenControl.standbyDisplay ?? 'none');
-        setBgColor(parseColor(toHex6(screenControl.backgroundColor ?? 0)));
-        setTextColor(parseColor(toHex6(screenControl.textColor ?? 0xFFFFFF)));
-
+        setScreenStyle(screenControl.screenStyle ?? 'dark');
         setBackgroundImageId(screenControl.backgroundImageId ?? '');
         setCurrentPageId(String(screenControl.currentPageId ?? 0));
         setFeatures(screenControl.features);
@@ -163,42 +138,19 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         };
     }, []);
 
-    const handleColorChange = (type: 'bg' | 'text', newColor: Color) => {
-        const hexColor = newColor.toString('hex');
-        if (type === 'bg') {
-            setBgColor(newColor);
-        } else {
-            setTextColor(newColor);
-        }
-        setTempSelectedColors(prev => ({
-            ...prev,
-            [type]: hexColor
-        }));
-    };
-
-    const handleColorPickerClose = (type: 'bg' | 'text') => {
-        const selectedColor = tempSelectedColors[type];
-        if (selectedColor && !colorSwatches.includes(selectedColor)) {
-            setColorSwatches(prev => [selectedColor, ...prev.slice(0, 7)]);
-        }
-    };
-
     const nextConfig: ScreenControlConfig = useMemo(() => {
         const b = Math.max(0, Math.min(100, brightness | 0));
-        const bg = parseHex6(bgColor.toString('hex'), screenControl.backgroundColor ?? 0);
-        const fg = parseHex6(textColor.toString('hex'), screenControl.textColor ?? 0xFFFFFF);
         const pid = Math.max(0, Math.min(65535, parseInt(currentPageId || '0', 10) || 0));
         return {
             brightness: b,
             standbyDisplay,
-            backgroundColor: bg,
-            textColor: fg,
+            screenStyle,
             backgroundImageId,
             currentPageId: pid,
             features,
             featuresOrder,
         };
-    }, [brightness, standbyDisplay, bgColor, textColor, backgroundImageId, currentPageId, features, featuresOrder, screenControl.backgroundColor, screenControl.textColor]);
+    }, [brightness, standbyDisplay, screenStyle, backgroundImageId, currentPageId, features, featuresOrder]);
 
     const push = async () => {
         await updateScreenControl(nextConfig, true);
@@ -763,89 +715,31 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                     onValueChangeEnd={() => void push()}
                 />
 
-                <Grid templateColumns="repeat(2, 1fr)" gap={4}>
-                    <Field label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_COLOR_LABEL}>
-                        <ColorPicker.Root size="xs"
-                            value={bgColor}
-                            onValueChange={(e: { value: Color }) => handleColorChange('bg', e.value)}
-                            onValueChangeEnd={() => void push()}
-                            onOpenChange={(details: { open: boolean }) => {
-                                if (!details.open) handleColorPickerClose('bg');
-                            }}
-                            maxW="200px"
-                            disabled={disabled}
-                        >
-                            <ColorPicker.HiddenInput />
-                            <ColorPicker.Control>
-                                <ColorPicker.Input />
-                                <ColorPicker.Trigger />
-                            </ColorPicker.Control>
-                            <Portal>
-                                <ColorPicker.Positioner>
-                                    <ColorPicker.Content>
-                                        <ColorPicker.Area />
-                                        <HStack>
-                                            <ColorPicker.EyeDropper size="sm" variant="outline" />
-                                            <ColorPicker.ChannelSlider channel="hue" />
-                                        </HStack>
-                                        <ColorPicker.SwatchGroup gap={.5} p={0.5} >
-                                            {colorSwatches.map((item) => (
-                                                <ColorPicker.SwatchTrigger key={item} value={item}>
-                                                    <ColorPicker.Swatch value={item} boxSize="5">
-                                                        <ColorPicker.SwatchIndicator>
-                                                            <LuCheck />
-                                                        </ColorPicker.SwatchIndicator>
-                                                    </ColorPicker.Swatch>
-                                                </ColorPicker.SwatchTrigger>
-                                            ))}
-                                        </ColorPicker.SwatchGroup>
-                                    </ColorPicker.Content>
-                                </ColorPicker.Positioner>
-                            </Portal>
-                        </ColorPicker.Root>
-                    </Field>
-                    <Field label={t.SETTINGS_SCREEN_CONTROL_TEXT_COLOR_LABEL}>
-                        <ColorPicker.Root size="xs"
-                            value={textColor}
-                            onValueChange={(e: { value: Color }) => handleColorChange('text', e.value)}
-                            onValueChangeEnd={() => void push()}
-                            onOpenChange={(details: { open: boolean }) => {
-                                if (!details.open) handleColorPickerClose('text');
-                            }}
-                            maxW="200px"
-                            disabled={disabled}
-                        >
-                            <ColorPicker.HiddenInput />
-                            <ColorPicker.Control>
-                                <ColorPicker.Input />
-                                <ColorPicker.Trigger />
-                            </ColorPicker.Control>
-                            <Portal>
-                                <ColorPicker.Positioner>
-                                    <ColorPicker.Content>
-                                        <ColorPicker.Area />
-                                        <HStack>
-                                            <ColorPicker.EyeDropper size="sm" variant="outline" />
-                                            <ColorPicker.ChannelSlider channel="hue" />
-                                        </HStack>
-                                        <ColorPicker.SwatchGroup gap={.5} p={0.5} >
-                                            {colorSwatches.map((item) => (
-                                                <ColorPicker.SwatchTrigger key={item} value={item}>
-                                                    <ColorPicker.Swatch value={item} boxSize="5">
-                                                        <ColorPicker.SwatchIndicator>
-                                                            <LuCheck />
-                                                        </ColorPicker.SwatchIndicator>
-                                                    </ColorPicker.Swatch>
-                                                </ColorPicker.SwatchTrigger>
-                                            ))}
-                                        </ColorPicker.SwatchGroup>
-                                    </ColorPicker.Content>
-                                </ColorPicker.Positioner>
-                            </Portal>
-                        </ColorPicker.Root>
-                    </Field>
-                   
-                </Grid>
+                <RadioCard.Root
+                    size="sm"
+                    value={screenStyle}
+                    variant="subtle"
+                    onValueChange={(d) => {
+                        const v = (d as { value: ScreenStyle }).value;
+                        if (!v || v === screenStyle) return;
+                        setScreenStyle(v);
+                        void updateScreenControl({ ...nextConfig, screenStyle: v }, true);
+                    }}
+                >
+                    <HStack>
+                        {[
+                            { value: 'dark', label: 'Dark' },
+                            { value: 'light', label: 'Light' },
+                        ].map(opt => (
+                            <RadioCard.Item w="180px" key={opt.value} value={opt.value as ScreenStyle} disabled={disabled}>
+                                <RadioCard.ItemHiddenInput />
+                                <RadioCard.ItemControl>
+                                    <RadioCard.ItemText>{opt.label}</RadioCard.ItemText>
+                                </RadioCard.ItemControl>
+                            </RadioCard.Item>
+                        ))}
+                    </HStack>
+                </RadioCard.Root>
 
                 <TitleLabel title={t.SETTINGS_SCREEN_CONTROL_STANDBY_DISPLAY_LABEL} />
                 <VStack align="start" gap={1}>

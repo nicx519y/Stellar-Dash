@@ -115,13 +115,13 @@ export interface ScreenControlFeatures {
 }
 
 export type StandbyDisplay = 'none' | 'backgroundImage' | 'buttonLayout';
+export type ScreenStyle = 'dark' | 'light';
 export type ScreenControlFeatureKey = keyof ScreenControlFeatures;
 
 export interface ScreenControlConfig {
     brightness: number;
     standbyDisplay: StandbyDisplay;
-    backgroundColor: number;
-    textColor: number;
+    screenStyle: ScreenStyle;
     backgroundImageId: string;
     currentPageId: number;
     features: ScreenControlFeatures;
@@ -131,8 +131,7 @@ export interface ScreenControlConfig {
 export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
     brightness: 100,
     standbyDisplay: 'none',
-    backgroundColor: 0x000000,
-    textColor: 0xFFFFFF,
+    screenStyle: 'dark',
     backgroundImageId: "",
     currentPageId: 0,
     features: {
@@ -150,10 +149,10 @@ export const DEFAULT_SCREEN_CONTROL_CONFIG: ScreenControlConfig = {
         calibrationModeSwitch: true,
     },
     featuresOrder: [
+        'connectionModeSwitch',
         'inputModeSwitch',
         'profilesSwitch',
         'socdModeSwitch',
-        'connectionModeSwitch',
         'buttonsPerformanceQuickSet',
         'ledBrightnessAdjust',
         'ledEffectSwitch',
@@ -693,7 +692,7 @@ export const UI_TEXT = {
     // Input Mode Settings
     CONNECTION_MODE_TITLE: "Connection Mode",
     CONNECTION_MODE_REPORT_RATE_LABEL: "Report Rate",
-    INPUT_MODE_TITLE: "Input Mode",
+    INPUT_MODE_TITLE: "Platform",
 
     // Keys Settings
     SETTINGS_KEYS_TITLE: "KEYS SETTINGS",
@@ -779,7 +778,7 @@ export const UI_TEXT = {
     SETTINGS_SCREEN_CONTROL_BRIGHTNESS_LABEL: "Brightness",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_COLOR_LABEL: "Background Color",
     SETTINGS_SCREEN_CONTROL_TEXT_COLOR_LABEL: "Text Color",
-    SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH: "Input Mode Switch",
+    SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH: "Platform Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_PROFILES_SWITCH: "Profiles Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH: "SOCD Mode Switch",
     SETTINGS_SCREEN_CONTROL_FEATURE_CONNECTION_MODE_SWITCH: "Connection Mode Switch",
@@ -1097,7 +1096,7 @@ export const UI_TEXT_ZH = {
     // 输入模式
     CONNECTION_MODE_TITLE: "连接模式",
     CONNECTION_MODE_REPORT_RATE_LABEL: "上报率",
-    INPUT_MODE_TITLE: "输入模式",
+    INPUT_MODE_TITLE: "Platform",
 
     // 按键设置
     SETTINGS_KEYS_TITLE: "按键设置",
@@ -1182,7 +1181,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_SCREEN_CONTROL_BRIGHTNESS_LABEL: "屏幕亮度",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_COLOR_LABEL: "背景颜色",
     SETTINGS_SCREEN_CONTROL_TEXT_COLOR_LABEL: "文字颜色",
-    SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH: "输入模式切换",
+    SETTINGS_SCREEN_CONTROL_FEATURE_INPUT_MODE_SWITCH: "Platform 切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_PROFILES_SWITCH: "用户配置切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_SOCD_MODE_SWITCH: "SOCD 模式切换",
     SETTINGS_SCREEN_CONTROL_FEATURE_CONNECTION_MODE_SWITCH: "连接模式切换",

@@ -78,7 +78,7 @@ def _run_node_makefsdata() -> int:
 
 def _run_pack_assets() -> int:
     out_file = _project_root() / "application" / "build" / "system_assets.bin"
-    in_dir = _project_root() / "application" / "assets" / "icons"
+    in_dir = _project_root() / "application" / "assets" / "sysicons"
     assets_fix = _tools_dir() / "assets_fix.py"
     if assets_fix.exists():
         fit_arg = "320x170"
