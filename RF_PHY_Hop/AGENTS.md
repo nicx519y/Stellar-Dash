@@ -1295,7 +1295,9 @@ RECOVERY_DUAL timeout -> COMM(old)
 - TX 收到 confirm ACK 后才完成跳频并进入 `10s` cooldown。
 - prepare/confirm 都带 `hop_seq`；重复命令幂等，重复 ACK 不会创建新事务。
 - `HOP_PREPARE` 等 ACK 超时为 `1000ms`；失败后回 old channel，并给半个 cooldown。
-- `HOP_CONFIRM` 等 ACK 超时为 `1000ms`；失败后进入 `RECOVERY_DUAL(old,target)`。
+- `HOP_CONFIRM` 等 ACK 超时为 `2500ms`，覆盖多次 `500ms` ACK 机会；失败后才进入 `RECOVERY_DUAL(old,target)`。
+- RX 收到合法 `HOP_CONFIRM` 时，要求实际接收频道等于 target channel，然后立即锁定 target/COMM，不再继续 old/target 双扫。
+- RX 会在 target 上额外保留 `6` 个 confirm ACK token；即使第一次 confirm ACK 丢失，后续 ACK token 仍会继续回 `CMD_HOP_CONFIRM` ACK。
 - `RECOVERY_DUAL` 总时长 `3000ms`，old/target 每 `500ms` 切换一次；connect-monitor 里看到约 `3000ms` 的 hop duration，通常就是 confirm 失败后的 recovery，而不是正常跳频耗时。
 - 手动切频道后的 ACK 宽限期跟 recovery 一样是 `3000ms`；手动切频道不受自动跳频稳定保护拦截。
 
