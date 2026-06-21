@@ -63,7 +63,7 @@
 #define RF_AUTO_DEMO_DISCOVERY_CHANNEL_A RFH_DISCOVERY_CHANNEL_A
 #define RF_AUTO_DEMO_DISCOVERY_CHANNEL_B RFH_DISCOVERY_CHANNEL_B
 #define RF_AUTO_DEMO_INITIAL_CHANNEL   RF_AUTO_DEMO_DISCOVERY_CHANNEL_B
-#define RF_AUTO_DEMO_DISCOVERY_DWELL_MS RFH_DUAL_PERIOD_MS
+#define RF_AUTO_DEMO_DISCOVERY_DWELL_MS RFH_CONNECT_DWELL_MS
 
 /*
  * 自动跳频条件可调项：
@@ -155,6 +155,13 @@ typedef enum
 
 typedef enum
 {
+    RF_AUTO_CONNECT_SYN_TX = 0u,
+    RF_AUTO_CONNECT_SYN_ACK_RX,
+    RF_AUTO_CONNECT_FINAL_TX
+} rf_auto_connect_phase_t;
+
+typedef enum
+{
     RF_AUTO_PAIR_IDLE = 0u,
     RF_AUTO_PAIR_OFFERING,
     RF_AUTO_PAIR_CONFIRM_WAIT
@@ -192,6 +199,9 @@ static volatile uint32_t g_demo_ack_rx_start_clock = 0u;
 static volatile uint8_t g_demo_pause_tx = 0u;
 static volatile uint8_t g_demo_force_ack_burst = 0u;
 static volatile uint8_t g_pending_event_state_code = 0u;
+static volatile rf_auto_connect_phase_t g_demo_connect_phase = RF_AUTO_CONNECT_SYN_TX;
+static volatile uint32_t g_demo_connect_phase_clock = 0u;
+static volatile uint8_t g_demo_connect_packet_stage = RFH_CONNECT_STAGE_SYN;
 #if (RF_AUTO_DEMO_TX_IN_ISR == 0u)
 static volatile uint32_t g_demo_pending_reports = 0u;
 #endif
@@ -1002,6 +1012,23 @@ static char demo_tx_state_char(void)
     }
     return 'M';
 }
+
+static char demo_tx_connect_phase_char(void)
+{
+    if(g_demo_connect_phase == RF_AUTO_CONNECT_SYN_TX)
+    {
+        return 's';
+    }
+    if(g_demo_connect_phase == RF_AUTO_CONNECT_SYN_ACK_RX)
+    {
+        return 'a';
+    }
+    if(g_demo_connect_phase == RF_AUTO_CONNECT_FINAL_TX)
+    {
+        return 'f';
+    }
+    return '-';
+}
 #endif
 
 #if (RF_AUTO_DEMO_AUTO_HOP_ENABLE != 0u)
@@ -1229,6 +1256,9 @@ static void demo_enter_tx_unconnected(uint32_t now)
     g_demo_ack_rx_active = 0u;
     g_demo_wait_ack_after_tx = 0u;
     g_demo_force_ack_burst = 1u;
+    g_demo_connect_phase = RF_AUTO_CONNECT_SYN_TX;
+    g_demo_connect_phase_clock = now;
+    g_demo_connect_packet_stage = RFH_CONNECT_STAGE_SYN;
     g_monitor_manual_switch_after_status = 0u;
     g_monitor_manual_switch_grace_active = 0u;
     g_demo_discovery_side = 0u;
@@ -1283,6 +1313,10 @@ static void demo_service_link(uint32_t now)
         return;
     }
     if(g_demo_has_bond == 0u)
+    {
+        return;
+    }
+    if(g_demo_connect_phase != RF_AUTO_CONNECT_SYN_TX)
     {
         return;
     }
@@ -1636,11 +1670,18 @@ static void demo_handle_ack_packet(void)
 
     if(g_demo_link_state == RF_AUTO_TX_UNCONNECTED)
     {
-        if((cmd == RFH_CMD_CONNECT_REQ) &&
+        if((g_demo_connect_phase == RF_AUTO_CONNECT_SYN_ACK_RX) &&
+           (cmd == RFH_CMD_CONNECT_REQ) &&
            ((ack_flags & RFH_FLAG_CMD_ACK) != 0u) &&
            (seq == RFH_ACK_STATUS_CONNECTED))
         {
-            demo_enter_tx_comm(now, channel);
+            if(rfh_channel_valid(channel) != 0u)
+            {
+                demo_apply_channel(channel);
+            }
+            g_demo_connect_phase = RF_AUTO_CONNECT_FINAL_TX;
+            g_demo_connect_phase_clock = now;
+            g_demo_connect_packet_stage = RFH_CONNECT_STAGE_FINAL;
         }
         else
         {
@@ -1855,13 +1896,10 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
         data[RFH_CONNECT_CH_A] = connect_channel_a;
         data[RFH_CONNECT_CH_B] = connect_channel_b;
         data[RFH_CONNECT_ACK_WINDOW_MS] = RFH_DEFAULT_ACK_WINDOW_MS;
-        data[RFH_CONNECT_OPTIONS] = RFH_FLAG_DUAL_REDUNDANT;
+        data[RFH_CONNECT_OPTIONS] = g_demo_connect_packet_stage;
         data[RFH_CONNECT_VERSION] = RFH_PROTOCOL_VERSION;
-        if(request_ack != 0u)
-        {
-            air[RF_AUTO_DEMO_ACK_TOKEN_OFFSET] = ack_token;
-            air[RF_AUTO_DEMO_ACK_REMAIN_OFFSET] = ack_burst_left;
-        }
+        (void)ack_token;
+        (void)ack_burst_left;
         TxBuf[1] = RF_AUTO_DEMO_PACKET_LEN;
         return;
     }
@@ -2232,10 +2270,11 @@ static void demo_log_stats(uint32_t now)
     ack_fail = g_demo_stat.ack_timeout +
                g_demo_stat.ack_crc_err +
                g_demo_stat.ack_type_err;
-    PRINT("[RF][TX][%lums] c%u S%c h%u>%u hz%u q%u irq%u/%u sc%u due%lu tx%lu fin%lu dr%lu aq%lu ack%lu/%lu to%lu ce%lu te%lu fail%lu miss%u H%lu b%u rx%u rt%u/%u/%u\r\n",
+    PRINT("[RF][TX][%lums] c%u S%c p%c h%u>%u hz%u q%u irq%u/%u sc%u due%lu tx%lu fin%lu dr%lu aq%lu ack%lu/%lu to%lu ce%lu te%lu fail%lu miss%u H%lu b%u rx%u rt%u/%u/%u\r\n",
           elapsed_ms,
           (unsigned int)g_demo_config_ret,
           demo_tx_state_char(),
+          demo_tx_connect_phase_char(),
           (unsigned int)g_demo_current_channel,
           (unsigned int)g_demo_target_channel,
           (unsigned int)g_demo_report_hz,
@@ -2481,6 +2520,79 @@ static void demo_check_ack_rx_stuck(uint32_t now)
     demo_note_ack_timeout();
 }
 
+static void demo_service_connect_phase(uint32_t now)
+{
+    if((g_demo_link_state != RF_AUTO_TX_UNCONNECTED) ||
+       (g_demo_has_bond == 0u) ||
+       (demo_pair_is_active() != 0u))
+    {
+        return;
+    }
+
+    if(g_demo_connect_phase == RF_AUTO_CONNECT_SYN_TX)
+    {
+        if((uint32_t)(now - g_demo_connect_phase_clock) <
+           MS1_TO_SYSTEM_TIME(RFH_CONNECT_WINDOW_MS))
+        {
+            return;
+        }
+        (void)RFRole_Stop();
+        g_demo_tx_busy = 0u;
+        g_demo_wait_ack_after_tx = 0u;
+        g_demo_ack_rx_active = 0u;
+        g_demo_connect_phase = RF_AUTO_CONNECT_SYN_ACK_RX;
+        g_demo_connect_phase_clock = now;
+        return;
+    }
+
+    if(g_demo_connect_phase == RF_AUTO_CONNECT_SYN_ACK_RX)
+    {
+        uint8_t listen_channel;
+
+        if((uint32_t)(now - g_demo_connect_phase_clock) >=
+           MS1_TO_SYSTEM_TIME(RFH_CONNECT_WINDOW_MS))
+        {
+            (void)RFRole_Stop();
+            g_demo_ack_rx_active = 0u;
+            g_demo_tx_busy = 0u;
+            g_demo_connect_phase = RF_AUTO_CONNECT_SYN_TX;
+            g_demo_connect_phase_clock = now;
+            g_demo_connect_packet_stage = RFH_CONNECT_STAGE_SYN;
+            return;
+        }
+
+        if(demo_manual_fixed_channel(&listen_channel) == 0u)
+        {
+            if((uint32_t)(now - g_demo_discovery_switch_clock) >=
+               MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_DISCOVERY_DWELL_MS))
+            {
+                g_demo_discovery_switch_clock = now;
+                g_demo_discovery_side ^= 1u;
+            }
+            listen_channel = demo_discovery_channel(g_demo_discovery_side);
+        }
+        if((g_demo_ack_rx_active == 0u) &&
+           (g_demo_tx_busy == 0u) &&
+           (g_demo_current_channel != listen_channel))
+        {
+            demo_apply_channel(listen_channel);
+        }
+        if((g_demo_ack_rx_active == 0u) &&
+           (g_demo_tx_busy == 0u) &&
+           (g_demo_wait_ack_after_tx == 0u))
+        {
+            demo_arm_ack_rx();
+        }
+        return;
+    }
+
+    if((uint32_t)(now - g_demo_connect_phase_clock) >=
+       MS1_TO_SYSTEM_TIME(RFH_CONNECT_FINAL_TX_MS))
+    {
+        demo_enter_tx_comm(now, g_demo_current_channel);
+    }
+}
+
 static void demo_service_rank_promotion(uint32_t now)
 {
 #if (RF_AUTO_DEMO_AUTO_HOP_ENABLE == 0u)
@@ -2616,26 +2728,18 @@ void TMR0_IRQHandler(void)
 
         if(g_demo_link_state == RF_AUTO_TX_UNCONNECTED)
         {
-            if(g_demo_ack_burst_left == 0u)
+            if(g_demo_connect_phase == RF_AUTO_CONNECT_SYN_ACK_RX)
             {
-                g_demo_ack_token++;
-                if(g_demo_ack_token == 0u)
-                {
-                    g_demo_ack_token = 1u;
-                }
-                g_demo_active_ack_token = g_demo_ack_token;
-                g_demo_ack_burst_left = RF_AUTO_DEMO_CONNECT_REQUEST_BURST;
-                g_demo_stat.ack_req++;
+                return;
             }
             request_ack = 1u;
-            ack_token = g_demo_active_ack_token;
-            g_demo_ack_burst_left--;
-            ack_burst_left = g_demo_ack_burst_left;
+            ack_token = 0u;
+            ack_burst_left = 0u;
+            g_demo_connect_packet_stage =
+                (g_demo_connect_phase == RF_AUTO_CONNECT_FINAL_TX) ?
+                RFH_CONNECT_STAGE_FINAL :
+                RFH_CONNECT_STAGE_SYN;
             g_demo_force_ack_burst = 0u;
-            if(g_demo_ack_burst_left == 0u)
-            {
-                g_demo_wait_ack_after_tx = 1u;
-            }
         }
         else if(g_demo_ack_burst_left != 0u)
         {
@@ -2774,6 +2878,7 @@ void RF_TxMainLoopProcess(void)
     demo_try_send();
 #endif
     demo_check_ack_rx_stuck(now);
+    demo_service_connect_phase(now);
     demo_score_windows_service(now);
     demo_service_link(now);
     demo_ack_control_service(now);

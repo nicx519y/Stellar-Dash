@@ -27,6 +27,118 @@
 - `Off` 时停 DATA、停 ACK control timer、不发 ACK request、不开 ACK RX window。
 - 从 `Off` 切回任意速率时，重新进入连接/恢复过程，并从 `now + 500ms` 初始化 ACK control cadence。
 
+## 当前已配对重连协议（权威）
+
+本节是正式 bond 模式下的已配对重连设计，覆盖两种上电顺序：
+
+- RX 先上电，TX 后上电。
+- TX 先上电，几十秒后 RX 再上电。
+
+实现前提：
+
+- `RFH_TEST_FIXED_BOND_ENABLE` 默认必须保持 `0u`，正式版本使用 flash bond 中的 `link_access_address`。
+- 重连只在 `g_demo_has_bond != 0` 时走本节协议；未配对设备必须先走 pairing。
+- 发现/重连阶段只用 bond 下发的双发现频道，当前默认是 `14 / 39`。
+
+### 空口 CONNECT 包
+
+CONNECT 包仍使用 `RFH_PKT_CONNECT`，payload 里复用 `RFH_CONNECT_OPTIONS` 作为连接阶段：
+
+```text
+RFH_CONNECT_STAGE_SYN   = 1
+RFH_CONNECT_STAGE_FINAL = 3
+```
+
+关键常量：
+
+```text
+RFH_CONNECT_WINDOW_MS              = 500
+RFH_CONNECT_SUPERFRAME_MS          = 1000
+RFH_CONNECT_DWELL_MS               = 10
+RFH_CONNECT_RESPONSE_INTERVAL_MS   = 5
+RFH_CONNECT_FINAL_TX_MS            = 1000
+RFH_CONNECT_FINAL_WAIT_MS          = 1000
+```
+
+### TX 侧重连状态机
+
+TX 未连接且已有 bond 时进入三阶段循环：
+
+```text
+SYN_TX      500ms：双发现频道发送 SYN
+SYN_ACK_RX  500ms：双发现频道监听 CONNECT ACK
+FINAL_TX   1000ms：收到 ACK 后，在 ACK 所在频道发送 FINAL
+COMM              ：FINAL_TX 结束后进入 DATA 通信
+```
+
+规则：
+
+- `SYN_TX` 阶段 TX 按 `RFH_CONNECT_DWELL_MS = 10ms` 在发现双频道之间切换发送 SYN。
+- `SYN_ACK_RX` 阶段 TX 也必须按 `10ms` 在双频道之间切换监听 ACK；不能只固定监听当前频道。
+- TX 只在 `SYN_ACK_RX` 阶段接受 `RFH_CMD_CONNECT_REQ + RFH_FLAG_CMD_ACK + RFH_ACK_STATUS_CONNECTED`。
+- TX 收到 ACK 后切到 ACK 所在频道，进入 `FINAL_TX`，CONNECT 包阶段改为 `FINAL`。
+- `FINAL_TX` 期间不要再做发现频道切换；FINAL 的作用是让 RX 锁定同一工作频道。
+- `FINAL_TX` 结束后 TX 才进入 `COMM` 并开始发真实 DATA。
+
+### RX 侧重连状态机
+
+RX 未连接且已有 bond 时持续扫描双发现频道：
+
+```text
+UNCONNECTED_SCAN
+-> 收到 SYN
+CONNECT_ACK_PENDING/SYN：固定在收到 SYN 的频道，连续回 CONNECT ACK 1000ms
+CONNECT_ACK_PENDING/WAIT_FINAL：继续在该频道等待 FINAL 1000ms
+-> 收到 FINAL
+COMM：锁定 FINAL 所在频道，但 link_active 仍为 0
+-> 收到真实 DATA
+link_active = 1，connect-monitor 显示 Link Recovered
+```
+
+规则：
+
+- RX 初始扫描 dwell 当前是 `3ms`，TX 发送/监听 dwell 是 `10ms`；两者在双频道上可以周期性相遇。
+- RX 收到 SYN 后，ACK 回复窗口必须覆盖完整 `RFH_CONNECT_SUPERFRAME_MS = 1000ms`，不能只回 `500ms`；否则若 SYN 落在 TX 前半秒早期，TX 后半秒监听时可能错过 ACK。
+- RX 在 `CONNECT_ACK_PENDING` 期间遇到普通 RF timeout 不能直接退回 `UNCONNECTED`；应继续由握手服务自己的 FINAL wait 超时收口。
+- RX 只有在 `CONNECT_ACK_PENDING` 状态下才接受 FINAL；孤立 FINAL 必须丢弃。
+- RX 收到 FINAL 后只进入 `COMM` 并锁定频道，不得设置 `link_active=1`。
+- 只有收到合法 `RFH_PKT_DATA` 才能设置 `link_active=1`，否则会出现 `Link Recovered` 后约 `100ms` 又 `Link Lost` 的假恢复。
+- 普通 DATA 在 `UNCONNECTED` 或 `CONNECT_ACK_PENDING` 状态下必须被拒绝，避免绕过三次握手。
+
+### 三次握手语义
+
+这套机制不是 BLE 式完全同步时钟，而是用对等窗口保证迟早相遇：
+
+```text
+1. TX -> RX：SYN，声明 session/rate/发现双频道。
+2. RX -> TX：CONNECT ACK，确认 SYN 已在某个频道被收到。
+3. TX -> RX：FINAL，确认 TX 已收到 ACK，并让 RX 锁定最终工作频道。
+```
+
+成功条件：
+
+- RX 先上电：RX 扫描中等待；TX 上电后 SYN 总能被 RX 捕获。
+- TX 先上电：TX 周期性 `SYN_TX/SYN_ACK_RX`；RX 后上电后先捕获 SYN，再用 1 秒 ACK 窗口覆盖 TX 的监听半窗。
+- FINAL 后 TX 延迟进入 DATA 是允许的；RX 不得把 FINAL 当作 DATA 链路恢复。
+
+### 调试字段
+
+串口/状态行中当前保留了连接阶段字符：
+
+- TX `p`：`s=SYN_TX`，`a=SYN_ACK_RX`，`f=FINAL_TX`，`-=其它/未知`。
+- RX `g`：`s=正在回 CONNECT ACK`，`w=等待 FINAL`，`-=非连接握手阶段`。
+
+connect-monitor 判断链路恢复以 `link_active` 为准；`link_active` 只代表“最近收到过合法 DATA”，不代表刚完成 CONNECT FINAL。
+
+### 后续可优化点
+
+当前参数优先保证两个上电顺序稳定连接；若需要缩短重连时间，可按实测逐步调小：
+
+- `RFH_CONNECT_FINAL_TX_MS` 可从 `1000ms` 逐步压缩，但压缩前必须确认 RX 不再出现 `Recovered -> 100ms Lost`。
+- `RFH_CONNECT_SUPERFRAME_MS` 与 TX `SYN_TX/SYN_ACK_RX` 的两个 `500ms` 窗口要成对调整，不能只改 RX 或 TX 一侧。
+- TX/RX 双频道 dwell 可继续优化，但 TX 发送 dwell、TX 监听 dwell、RX 扫描 dwell 必须保证在最坏相位下仍有同频道重叠。
+- 不建议把 CONNECT ACK 完成、FINAL 接收、DATA 接收三件事合并成一个“connected”事件；这三个边界分开是这次稳定性的关键。
+
 ## 当前传输协议快照（SPI / RF / HID）
 
 本节记录当前正在验证的协议形态，优先级高于后面的历史实验记录。三个通道的职责分工是：

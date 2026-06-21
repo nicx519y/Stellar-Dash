@@ -165,6 +165,9 @@ static uint8_t g_demo_rx_next_slot = 0u;
 static volatile uint8_t g_demo_ack_pending = 0u;
 static uint32_t g_demo_ack_delay_tmr = 1u;
 static uint32_t g_demo_slot_tmr = 1u;
+static volatile uint8_t g_demo_connect_stage = 0u;
+static uint32_t g_demo_connect_until_clock = 0u;
+static uint32_t g_demo_connect_next_tx_clock = 0u;
 static uint8_t g_demo_last_ack_token = 0u;
 static uint8_t g_demo_have_ack_token = 0u;
 static uint16_t g_demo_report_hz = RF_AUTO_DEMO_REPORT_HZ;
@@ -1419,6 +1422,19 @@ static char demo_rx_state_char(void)
     return 'M';
 }
 
+static char demo_rx_connect_stage_char(void)
+{
+    if(g_demo_connect_stage == RFH_CONNECT_STAGE_SYN)
+    {
+        return 's';
+    }
+    if(g_demo_rx_state == RF_AUTO_RX_CONNECT_ACK_PENDING)
+    {
+        return 'w';
+    }
+    return '-';
+}
+
 static void demo_ack_timer_cancel(void)
 {
     TMR1_ITCfg(DISABLE, TMR0_3_IT_CYC_END);
@@ -1605,6 +1621,9 @@ static void demo_enter_rx_unconnected(uint32_t now)
     g_demo_pending_ack_seq = 0u;
     g_demo_after_ack_action = 0u;
     g_demo_confirm_ack_keep_count = 0u;
+    g_demo_connect_stage = 0u;
+    g_demo_connect_until_clock = 0u;
+    g_demo_connect_next_tx_clock = 0u;
     g_demo_have_ack_token = 0u;
     g_demo_old_channel = anchor_channel;
     g_demo_target_channel = anchor_channel;
@@ -2695,11 +2714,11 @@ static void demo_after_ack_finish(void)
 
     if(g_demo_pending_ack_cmd == RFH_CMD_CONNECT_REQ)
     {
-        g_demo_rx_state = RF_AUTO_RX_COMM;
-        g_demo_link_active = 1u;
-        g_demo_old_channel = g_demo_current_channel;
-        g_demo_target_channel = g_demo_current_channel;
-        g_demo_last_data_tmr = TMR0_GetCurrentTimer();
+        /* CONNECT ACK completion must not mark the DATA link recovered.
+         * SYN only opens the ACK window; FINAL enters COMM; DATA sets
+         * link_active. Keeping those edges separate avoids a 100ms false
+         * Link Lost while TX is still sending FINAL packets.
+         */
     }
     else if(g_demo_after_ack_action == 1u)
     {
@@ -2733,6 +2752,44 @@ static void demo_after_ack_finish(void)
     g_demo_pending_ack_seq = 0u;
 }
 
+static void demo_service_connect_handshake(uint32_t now)
+{
+    if((g_demo_rx_state != RF_AUTO_RX_CONNECT_ACK_PENDING) ||
+       ((g_demo_connect_stage != RFH_CONNECT_STAGE_SYN) &&
+        (g_demo_connect_stage != 0u)))
+    {
+        return;
+    }
+    if(g_demo_connect_stage == 0u)
+    {
+        if((int32_t)(now - g_demo_connect_until_clock) >= 0)
+        {
+            demo_enter_rx_unconnected(now);
+        }
+        return;
+    }
+    if((int32_t)(now - g_demo_connect_until_clock) >= 0)
+    {
+        g_demo_connect_stage = 0u;
+        g_demo_connect_until_clock = now + MS1_TO_SYSTEM_TIME(RFH_CONNECT_FINAL_WAIT_MS);
+        demo_arm_rx();
+        return;
+    }
+    if((int32_t)(now - g_demo_connect_next_tx_clock) < 0)
+    {
+        return;
+    }
+    if((g_demo_ack_pending != 0u) || (g_demo_pair_tx_active != 0u))
+    {
+        return;
+    }
+
+    demo_prepare_command_ack(RFH_CMD_CONNECT_REQ, RFH_ACK_STATUS_CONNECTED);
+    g_demo_connect_next_tx_clock =
+        now + MS1_TO_SYSTEM_TIME(RFH_CONNECT_RESPONSE_INTERVAL_MS);
+    demo_send_ack();
+}
+
 __INTERRUPT
 __HIGH_CODE
 void TMR1_IRQHandler(void)
@@ -2760,6 +2817,8 @@ static uint8_t demo_process_connect_packet(const rf_rx_pending_t *pending)
     uint8_t channel_b;
     uint8_t remaining;
     uint8_t token;
+    uint8_t connect_stage;
+    uint32_t now = TMOS_GetSystemClock();
 
     if(g_demo_has_bond == 0u)
     {
@@ -2783,6 +2842,7 @@ static uint8_t demo_process_connect_packet(const rf_rx_pending_t *pending)
     rate_code = data[RFH_CONNECT_RATE];
     channel_a = data[RFH_CONNECT_CH_A];
     channel_b = data[RFH_CONNECT_CH_B];
+    connect_stage = data[RFH_CONNECT_OPTIONS];
 
     if((rfh_get_u32(&data[RFH_CONNECT_SESSION0]) != RFH_CONNECT_SESSION_ID) ||
        (rate_code > RFH_RATE_8K) ||
@@ -2809,12 +2869,40 @@ static uint8_t demo_process_connect_packet(const rf_rx_pending_t *pending)
     }
 
     demo_apply_rate_code(rate_code);
+
+    if(connect_stage == RFH_CONNECT_STAGE_FINAL)
+    {
+        if(g_demo_rx_state != RF_AUTO_RX_CONNECT_ACK_PENDING)
+        {
+            return 0u;
+        }
+        g_demo_rx_state = RF_AUTO_RX_COMM;
+        g_demo_link_active = 0u;
+        g_demo_old_channel = pending->channel;
+        g_demo_target_channel = pending->channel;
+        g_demo_last_data_tmr = pending->rx_tmr;
+        g_demo_have_data_seq = 0u;
+        g_demo_connect_stage = 0u;
+        g_demo_ack_pending = 0u;
+        demo_ack_timer_cancel();
+        demo_reset_quality_window();
+        return 0u;
+    }
+
+    if(connect_stage != RFH_CONNECT_STAGE_SYN)
+    {
+        return 0u;
+    }
+
     g_demo_rx_state = RF_AUTO_RX_CONNECT_ACK_PENDING;
-    g_demo_link_active = 1u;
+    g_demo_link_active = 0u;
     g_demo_old_channel = pending->channel;
     g_demo_target_channel = pending->channel;
     g_demo_last_data_tmr = pending->rx_tmr;
     g_demo_have_data_seq = 0u;
+    g_demo_connect_stage = RFH_CONNECT_STAGE_SYN;
+    g_demo_connect_until_clock = now + MS1_TO_SYSTEM_TIME(RFH_CONNECT_SUPERFRAME_MS);
+    g_demo_connect_next_tx_clock = now;
     demo_reset_quality_window();
     demo_prepare_command_ack(RFH_CMD_CONNECT_REQ, RFH_ACK_STATUS_CONNECTED);
 
@@ -2826,7 +2914,8 @@ static uint8_t demo_process_connect_packet(const rf_rx_pending_t *pending)
         g_demo_last_ack_token = token;
         g_demo_stat.ack_req++;
     }
-    demo_schedule_ack(remaining);
+    (void)remaining;
+    (void)token;
     return 0u;
 }
 
@@ -3124,7 +3213,7 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
         g_demo_pending_ack_seq = 0u;
         if(g_demo_rx_state == RF_AUTO_RX_CONNECT_ACK_PENDING)
         {
-            demo_enter_rx_unconnected(TMOS_GetSystemClock());
+            demo_arm_rx();
         }
         else
         {
@@ -3190,6 +3279,7 @@ void RF_Service(void)
     }
 
     demo_service_xinput_fast_path();
+    demo_service_connect_handshake(now);
     demo_service_unconnected_scan(now);
 
     if(g_demo_rx_state == RF_AUTO_RX_PREPARED_DUAL)
@@ -3352,9 +3442,10 @@ uint16_t RF_GetStatsLine(char *buf, uint16_t len)
 
     written = snprintf(buf,
                        len,
-                       "R8 c%u S%c h%u>%u hz%u d%lu gap%lu q%lu a%lu/%lu e%lu/%lu p%lu w%u/%u rssi%ld/%d/%d/%d H%lu x%u/%u/%u v%u\r\n",
+                       "R8 c%u S%c g%c h%u>%u hz%u d%lu gap%lu q%lu a%lu/%lu e%lu/%lu p%lu w%u/%u rssi%ld/%d/%d/%d H%lu x%u/%u/%u v%u\r\n",
                        (unsigned int)g_demo_config_ret,
                        demo_rx_state_char(),
+                       demo_rx_connect_stage_char(),
                        (unsigned int)g_demo_current_channel,
                        (unsigned int)g_demo_target_channel,
                        (unsigned int)g_demo_report_hz,
