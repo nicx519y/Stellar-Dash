@@ -45,6 +45,7 @@
 #define RF_AUTO_DEMO_TX_IN_ISR         1u
 #define RF_AUTO_DEMO_ACK_INTERVAL_MS   500u
 #define RF_AUTO_DEMO_ACK_REQUEST_BURST 3u
+#define RF_AUTO_DEMO_CONNECT_REQUEST_BURST 16u
 #ifndef RF_AUTO_DEMO_ACK_RX_TIMEOUT_US
 #define RF_AUTO_DEMO_ACK_RX_TIMEOUT_US 1200u
 #endif
@@ -2576,19 +2577,26 @@ void TMR0_IRQHandler(void)
 
         if(g_demo_link_state == RF_AUTO_TX_UNCONNECTED)
         {
-            g_demo_ack_token++;
-            if(g_demo_ack_token == 0u)
+            if(g_demo_ack_burst_left == 0u)
             {
-                g_demo_ack_token = 1u;
+                g_demo_ack_token++;
+                if(g_demo_ack_token == 0u)
+                {
+                    g_demo_ack_token = 1u;
+                }
+                g_demo_active_ack_token = g_demo_ack_token;
+                g_demo_ack_burst_left = RF_AUTO_DEMO_CONNECT_REQUEST_BURST;
+                g_demo_stat.ack_req++;
             }
-            g_demo_active_ack_token = g_demo_ack_token;
             request_ack = 1u;
             ack_token = g_demo_active_ack_token;
-            ack_burst_left = 0u;
-            g_demo_ack_burst_left = 0u;
+            g_demo_ack_burst_left--;
+            ack_burst_left = g_demo_ack_burst_left;
             g_demo_force_ack_burst = 0u;
-            g_demo_wait_ack_after_tx = 1u;
-            g_demo_stat.ack_req++;
+            if(g_demo_ack_burst_left == 0u)
+            {
+                g_demo_wait_ack_after_tx = 1u;
+            }
         }
         else if(g_demo_ack_burst_left != 0u)
         {
