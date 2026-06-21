@@ -25,7 +25,8 @@ typedef enum
     RF_INDICATOR_SOLID_ON,
     /* Blink names describe the full on+off cycle. */
     RF_INDICATOR_BLINK_500MS,
-    RF_INDICATOR_BLINK_2000MS
+    RF_INDICATOR_BLINK_2000MS,
+    RF_INDICATOR_PAIRING
 } rf_indicator_mode_t;
 
 extern void RF_Init(void);

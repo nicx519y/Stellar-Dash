@@ -1233,7 +1233,13 @@ static void demo_enter_tx_unconnected(uint32_t now)
     g_demo_discovery_switch_clock = now;
     g_demo_old_channel = anchor_channel;
     g_demo_target_channel = anchor_channel;
-    g_pending_event_state_code = RF_LINK_STATE_CONNECTING;
+    g_pending_event_state_code = (g_demo_has_bond != 0u) ?
+                                 RF_LINK_STATE_CONNECTING :
+                                 RF_LINK_STATE_IDLE;
+    if(g_demo_has_bond == 0u)
+    {
+        return;
+    }
     if(g_demo_current_channel != anchor_channel)
     {
         demo_apply_channel(anchor_channel);
@@ -1271,6 +1277,10 @@ static void demo_service_link(uint32_t now)
     uint8_t anchor_channel;
 
     if(g_demo_link_state != RF_AUTO_TX_UNCONNECTED)
+    {
+        return;
+    }
+    if(g_demo_has_bond == 0u)
     {
         return;
     }
@@ -2289,7 +2299,9 @@ static void demo_try_send(void)
 {
     bStatus_t ret;
 
-    if((g_demo_config_ret != SUCCESS) || (g_demo_input_off != 0u))
+    if((g_demo_config_ret != SUCCESS) ||
+       (g_demo_input_off != 0u) ||
+       (g_demo_has_bond == 0u))
     {
         return;
     }
@@ -2553,6 +2565,10 @@ void TMR0_IRQHandler(void)
         return;
     }
     if(g_demo_input_off != 0u)
+    {
+        return;
+    }
+    if(g_demo_has_bond == 0u)
     {
         return;
     }
@@ -2821,7 +2837,9 @@ bool RF_SetReportRateHz(uint16_t hz)
     {
         g_demo_rate_update_pending = 0u;
         g_demo_force_ack_burst = 1u;
-        g_pending_event_state_code = RF_LINK_STATE_CONNECTING;
+        g_pending_event_state_code = (g_demo_has_bond != 0u) ?
+                                     RF_LINK_STATE_CONNECTING :
+                                     RF_LINK_STATE_IDLE;
     }
     return true;
 }
@@ -2881,7 +2899,10 @@ bool RF_StopPairing(void)
 {
     if(demo_pair_is_active() != 0u)
     {
-        demo_finish_pairing(TMOS_GetSystemClock(), RF_LINK_STATE_CONNECTING);
+        demo_finish_pairing(TMOS_GetSystemClock(),
+                            (g_demo_has_bond != 0u) ?
+                            RF_LINK_STATE_CONNECTING :
+                            RF_LINK_STATE_IDLE);
     }
     else
     {
@@ -2896,7 +2917,10 @@ bool RF_Unbind(void)
 
     if(demo_pair_is_active() != 0u)
     {
-        demo_finish_pairing(now, RF_LINK_STATE_CONNECTING);
+        demo_finish_pairing(now,
+                            (g_demo_has_bond != 0u) ?
+                            RF_LINK_STATE_CONNECTING :
+                            RF_LINK_STATE_IDLE);
     }
     if(demo_clear_bond() == 0u)
     {
@@ -2905,7 +2929,7 @@ bool RF_Unbind(void)
     }
     (void)demo_apply_access_address(g_demo_link_access_address);
     demo_enter_tx_unconnected(now);
-    g_pending_event_state_code = RF_LINK_STATE_CONNECTING;
+    g_pending_event_state_code = RF_LINK_STATE_IDLE;
     return true;
 }
 
@@ -2921,7 +2945,9 @@ uint8_t RF_GetLinkStateCode(void)
     }
     if(g_demo_link_state == RF_AUTO_TX_UNCONNECTED)
     {
-        return RF_LINK_STATE_CONNECTING;
+        return (g_demo_has_bond != 0u) ?
+               RF_LINK_STATE_CONNECTING :
+               RF_LINK_STATE_IDLE;
     }
     return (g_demo_hop_state == RF_AUTO_HOP_RECOVERY_DUAL) ?
            RF_LINK_STATE_RECONNECTING : RF_LINK_STATE_CONNECTED;
@@ -3043,7 +3069,9 @@ void RF_Init(void)
     gRxParam.rxMaxLen = RF_AUTO_DEMO_PACKET_LEN;
     gRxParam.timeOut = RF_AUTO_DEMO_ACK_RX_TIMEOUT_UNITS;
 
-    g_pending_event_state_code = RF_LINK_STATE_CONNECTING;
+    g_pending_event_state_code = (g_demo_has_bond != 0u) ?
+                                 RF_LINK_STATE_CONNECTING :
+                                 RF_LINK_STATE_IDLE;
 #if (RF_AUTO_DEMO_TX_IN_ISR == 0u)
     g_demo_pending_reports = 0u;
 #endif

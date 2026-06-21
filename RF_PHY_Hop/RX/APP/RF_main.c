@@ -36,8 +36,11 @@ void RF_USB_CompositeInit(void);
 #endif
 #define RX_MAIN_TMR0_WRAP        0x04000000UL
 #define RX_MAIN_LOG_PERIOD_TICKS (FREQ_SYS * 5u)
-#define RX_LED_PAIR_TOGGLE_MS    250u
-#define RX_LED_COMM_TOGGLE_MS    1000u
+#define RX_LED_FAST_TOGGLE_MS    250u
+#define RX_LED_PAIR_TOGGLE_MS    500u
+#define RX_LED_IDLE_LONG_TOGGLE_MS 800u
+#define RX_LED_IDLE_SHORT_TOGGLE_MS 150u
+#define RX_LED_COMM_PATTERN_STEPS 4u
 #define RX_PAIR_BUTTON_PIN       GPIO_Pin_22
 #define RX_PAIR_BUTTON_DEBOUNCE_MS 30u
 #define RX_PAIR_BUTTON_HOLD_MS   5000u
@@ -380,7 +383,7 @@ void LED_Ctrl(uint8_t on)
     }
 }
 
-static uint32_t LED_ToggleCyclesForMode(rf_indicator_mode_t mode)
+static uint32_t LED_ToggleCyclesForMode(rf_indicator_mode_t mode, uint8_t pattern_step)
 {
     uint32_t ms;
     uint32_t cycles_per_ms;
@@ -389,10 +392,15 @@ static uint32_t LED_ToggleCyclesForMode(rf_indicator_mode_t mode)
     switch(mode)
     {
     case RF_INDICATOR_BLINK_500MS:
-        ms = RX_LED_PAIR_TOGGLE_MS;
+        ms = RX_LED_FAST_TOGGLE_MS;
         break;
     case RF_INDICATOR_BLINK_2000MS:
-        ms = RX_LED_COMM_TOGGLE_MS;
+        ms = ((pattern_step == 1u) || (pattern_step == 2u)) ?
+             RX_LED_IDLE_SHORT_TOGGLE_MS :
+             RX_LED_IDLE_LONG_TOGGLE_MS;
+        break;
+    case RF_INDICATOR_PAIRING:
+        ms = RX_LED_PAIR_TOGGLE_MS;
         break;
     case RF_INDICATOR_OFF:
     case RF_INDICATOR_SOLID_ON:
@@ -444,9 +452,11 @@ static void LED_ApplyMode(rf_indicator_mode_t mode,
                           uint8_t *led_state,
                           uint32_t *toggle_cycles,
                           uint32_t *last_tmr,
-                          uint32_t *acc_tmr)
+                          uint32_t *acc_tmr,
+                          uint8_t *pattern_step)
 {
-    *toggle_cycles = LED_ToggleCyclesForMode(mode);
+    *pattern_step = 0u;
+    *toggle_cycles = LED_ToggleCyclesForMode(mode, *pattern_step);
     *last_tmr = TMR0_GetCurrentTimer();
     *acc_tmr = 0u;
 
@@ -458,6 +468,7 @@ static void LED_ApplyMode(rf_indicator_mode_t mode,
         break;
     case RF_INDICATOR_BLINK_500MS:
     case RF_INDICATOR_BLINK_2000MS:
+    case RF_INDICATOR_PAIRING:
         *led_state = TRUE;
         LED_Ctrl(TRUE);
         break;
@@ -484,6 +495,7 @@ void LED_Ctrl_Service(void)
     static uint32_t toggle_cycles = 0u;
     static uint32_t last_tmr = 0u;
     static uint32_t acc_tmr = 0u;
+    static uint8_t pattern_step = 0u;
     rf_indicator_mode_t mode = RF_GetIndicatorMode();
     uint32_t now_tmr;
 
@@ -495,7 +507,8 @@ void LED_Ctrl_Service(void)
                       &led_state,
                       &toggle_cycles,
                       &last_tmr,
-                      &acc_tmr);
+                      &acc_tmr,
+                      &pattern_step);
         return;
     }
 
@@ -511,6 +524,15 @@ void LED_Ctrl_Service(void)
     {
         led_state = (led_state == FALSE) ? TRUE : FALSE;
         LED_Ctrl(led_state);
+        if(mode == RF_INDICATOR_BLINK_2000MS)
+        {
+            pattern_step++;
+            if(pattern_step >= RX_LED_COMM_PATTERN_STEPS)
+            {
+                pattern_step = 0u;
+            }
+            toggle_cycles = LED_ToggleCyclesForMode(mode, pattern_step);
+        }
     }
 }
 

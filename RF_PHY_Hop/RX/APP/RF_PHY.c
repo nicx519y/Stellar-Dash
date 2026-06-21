@@ -52,6 +52,7 @@
 #define RF_AUTO_DEMO_PAIR_AFTER_ACCEPT 1u
 #define RF_AUTO_DEMO_PAIR_AFTER_DONE   2u
 #define RF_AUTO_DEMO_PAIR_AFTER_REJECT 3u
+#define RF_AUTO_DEMO_PAIR_DONE_REPEAT_COUNT 6u
 /*
  * 频道评分可调项：
  * 分数越低越好，越高越差，最终限制在 0..1000。
@@ -212,6 +213,7 @@ static uint32_t g_demo_pair_tx_id_hash = 0u;
 static uint32_t g_demo_pair_rx_id_hash = 0u;
 static uint32_t g_demo_pair_link_access_address = 0u;
 static uint32_t g_demo_pair_done_confirm32 = 0u;
+static uint8_t g_demo_pair_done_repeat_left = 0u;
 static uint32_t g_demo_hid_telemetry_seq = 0u;
 static uint32_t g_demo_hid_last_clock = 0u;
 static volatile uint16_t g_demo_hid_last_window_rx_ok = 0u;
@@ -1530,6 +1532,12 @@ static void demo_enter_rx_unconnected(uint32_t now)
     {
         return;
     }
+    if(g_demo_has_bond == 0u)
+    {
+        (void)RFRole_Stop();
+        g_demo_rx_active = 0u;
+        return;
+    }
     demo_set_channel(anchor_channel);
     demo_arm_rx();
 }
@@ -1543,6 +1551,10 @@ static void demo_service_unconnected_scan(uint32_t now)
         return;
     }
     if(g_demo_rx_state != RF_AUTO_RX_UNCONNECTED)
+    {
+        return;
+    }
+    if(g_demo_has_bond == 0u)
     {
         return;
     }
@@ -1667,6 +1679,7 @@ static void demo_abort_pairing(uint32_t now)
 {
     g_demo_pair_tx_active = 0u;
     g_demo_pair_after_tx_action = 0u;
+    g_demo_pair_done_repeat_left = 0u;
     g_demo_ack_pending = 0u;
     demo_ack_timer_cancel();
     (void)demo_apply_access_address(g_demo_link_access_address);
@@ -1688,6 +1701,18 @@ static void demo_after_pair_tx_finish(void)
     }
     else if(action == RF_AUTO_DEMO_PAIR_AFTER_DONE)
     {
+        if(g_demo_pair_done_repeat_left != 0u)
+        {
+            g_demo_pair_done_repeat_left--;
+        }
+        if(g_demo_pair_done_repeat_left != 0u)
+        {
+            (void)demo_send_pair_packet(RFH_CMD_PAIR_DONE,
+                                        g_demo_pair_done_confirm32,
+                                        g_demo_pair_link_access_address,
+                                        RF_AUTO_DEMO_PAIR_AFTER_DONE);
+            return;
+        }
         (void)demo_apply_access_address(g_demo_link_access_address);
         demo_enter_rx_unconnected(TMOS_GetSystemClock());
     }
@@ -1744,6 +1769,7 @@ static uint8_t demo_process_pair_packet(const rf_rx_pending_t *pending)
         g_demo_pair_rx_id_hash = g_demo_local_id_hash;
         g_demo_pair_link_access_address = 0u;
         g_demo_pair_done_confirm32 = 0u;
+        g_demo_pair_done_repeat_left = 0u;
         g_demo_rx_state = RF_AUTO_RX_PAIR_CONFIRM_WAIT;
         g_demo_pair_confirm_deadline_clock =
             TMOS_GetSystemClock() + MS1_TO_SYSTEM_TIME(RFH_PAIR_CONFIRM_TIMEOUT_MS);
@@ -1784,6 +1810,7 @@ static uint8_t demo_process_pair_packet(const rf_rx_pending_t *pending)
                                         RF_AUTO_DEMO_PAIR_AFTER_REJECT);
             return 1u;
         }
+        g_demo_pair_done_repeat_left = RF_AUTO_DEMO_PAIR_DONE_REPEAT_COUNT;
         (void)demo_apply_access_address(g_demo_pair_link_access_address);
         (void)demo_send_pair_packet(RFH_CMD_PAIR_DONE,
                                     g_demo_pair_done_confirm32,
@@ -1815,6 +1842,7 @@ static void demo_service_pairing(uint32_t now)
         g_demo_pair_session = 0u;
         g_demo_pair_tx_id_hash = 0u;
         g_demo_pair_link_access_address = 0u;
+        g_demo_pair_done_repeat_left = 0u;
         (void)demo_apply_access_address(RFH_PAIR_ACCESS_ADDRESS);
         demo_set_channel(RFH_PAIR_CHANNEL_A);
         demo_arm_rx();
@@ -2605,6 +2633,10 @@ static uint8_t demo_process_connect_packet(const rf_rx_pending_t *pending)
     uint8_t remaining;
     uint8_t token;
 
+    if(g_demo_has_bond == 0u)
+    {
+        return 0u;
+    }
     if((pending == 0) || (pending->len != RF_AUTO_DEMO_PACKET_LEN))
     {
         g_demo_stat.data_type_err++;
@@ -3087,6 +3119,7 @@ uint8_t RF_StartPairing(void)
     g_demo_pair_rx_id_hash = g_demo_local_id_hash;
     g_demo_pair_link_access_address = 0u;
     g_demo_pair_done_confirm32 = 0u;
+    g_demo_pair_done_repeat_left = 0u;
     g_demo_have_ack_token = 0u;
     g_demo_pending_ack_cmd = RFH_CMD_NONE;
     g_demo_after_ack_action = 0u;
@@ -3121,7 +3154,7 @@ rf_indicator_mode_t RF_GetIndicatorMode(void)
     }
     if(demo_pair_is_active() != 0u)
     {
-        return RF_INDICATOR_BLINK_500MS;
+        return RF_INDICATOR_PAIRING;
     }
     return (g_demo_stat.data_ok != 0u) ? RF_INDICATOR_BLINK_500MS : RF_INDICATOR_BLINK_2000MS;
 }
@@ -3746,8 +3779,12 @@ void RF_Init(void)
     g_demo_rx_state = RF_AUTO_RX_UNCONNECTED;
     g_demo_pair_tx_active = 0u;
     g_demo_pair_after_tx_action = 0u;
+    g_demo_pair_done_repeat_left = 0u;
     g_demo_dual_side = 0u;
     g_demo_dual_switch_clock = TMOS_GetSystemClock();
 
-    demo_arm_rx();
+    if(g_demo_has_bond != 0u)
+    {
+        demo_arm_rx();
+    }
 }

@@ -108,6 +108,22 @@ void ConnectionManager::updatePairingStateFromStatus() {
         return;
     }
 
+    if (st.state == RFLinkState::PairOk) {
+        rfPairingActive = false;
+        rfPairSucceeded = true;
+        rfPairingState = RfPairingState::PairOk;
+        if (prevState != rfPairingState || prevActive != rfPairingActive) {
+            APP_DBG("[RF_PAIR] state evt:0x%02X rf:%u active:%u->%u pair:%u->%u",
+                    (unsigned int)st.lastEvent,
+                    (unsigned int)st.state,
+                    (unsigned int)(prevActive ? 1u : 0u),
+                    (unsigned int)(rfPairingActive ? 1u : 0u),
+                    (unsigned int)prevState,
+                    (unsigned int)rfPairingState);
+        }
+        return;
+    }
+
     if (!rfPairingActive &&
         rfPairingState != RfPairingState::Starting &&
         rfPairingState != RfPairingState::PairModeOn) {
@@ -118,11 +134,6 @@ void ConnectionManager::updatePairingStateFromStatus() {
     case RFLinkState::Pairing:
         rfPairingActive = true;
         rfPairingState = RfPairingState::PairModeOn;
-        break;
-    case RFLinkState::PairOk:
-        rfPairingActive = false;
-        rfPairSucceeded = true;
-        rfPairingState = RfPairingState::PairOk;
         break;
     case RFLinkState::PairTimeout:
         rfPairingActive = false;

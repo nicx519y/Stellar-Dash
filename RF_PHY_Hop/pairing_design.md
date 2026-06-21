@@ -4,7 +4,7 @@
 
 ## 0. 当前落地说明
 
-当前代码已按 `design.md` 第 15 章的两阶段方案落地：`PAIR_OFFER` 携带 `tx_id_hash`，`PAIR_ACCEPT` 携带 `rx_id_hash`，TX 在收到 RX 短 ID 后生成最终 `link_access_address`，再通过 `PAIR_CONFIRM` 下发；RX 写入本地 bond 成功后，才在新的工作地址上发送 `PAIR_DONE(bond_confirm32)`。本文件前文中“`PAIR_OFFER` 直接携带候选 `accessAddress`”的早期简化描述不再作为实现依据。
+当前代码按 `design.md` 第 15 章的两阶段方案落地：`PAIR_OFFER` 携带 `tx_id_hash`，`PAIR_ACCEPT` 携带 `rx_id_hash`，TX 在收到 RX 短 ID 后生成最终 `link_access_address`，再通过 `PAIR_CONFIRM` 下发；RX 写入本地 bond 成功后，才在新的工作地址上发送 `PAIR_DONE(bond_confirm32)`。`RFH_PAIR_ACCESS_ADDRESS` 是产品族固定公共配对地址，只用于发现和握手；正式工作地址必须来自 bond。`RFH_TEST_FIXED_BOND_ENABLE` 仅是开发调试开关，默认关闭。
 
 当前实现文件：
 
@@ -26,9 +26,10 @@
 
 ### 1.2 工程约束
 
-- TX/RX 必须新增独立配对状态，避免污染当前 `UNCONNECTED / COMM / HOP_* / RECOVERY` 链路状态。
-- 配对期间暂停正常输入空口发送、跳频事务和普通连接事务。
-- 配对完成后，TX/RX 都持久化同一组 bond 参数，下次上电直接用 bond 的 `accessAddress` 建链。
+- TX/RX 必须使用独立配对状态，避免污染当前 `UNCONNECTED / COMM / HOP_* / RECOVERY` 链路状态。
+- 配对期间暂停正常输入空口发送、跳频事务和普通连接事务，只使用公共配对 `accessAddress`。
+- 配对完成后，TX/RX 都持久化同一组 bond 参数，下次上电直接用 bond 的 `link_access_address` 建链。
+- 无有效 bond 时，普通 CONNECT/DATA 链路不启动；只有进入 pairing 后才切到公共配对地址。
 - 当前只做 1 TX : 1 RX 绑定，后续多接收器/多设备再扩展 bond 表。
 
 ## 2. 参考方案摘要
@@ -48,13 +49,13 @@
 
 TX 侧新增：
 
-- `TX_PAIRING`：收到 STM32 `START_PAIR` 后进入，停止普通 DATA/CONNECT/HOP。
-- `TX_PAIR_CONFIRM_WAIT`：RX 已接受候选 bond，TX 切到新 `accessAddress` 等待最终 `PAIR_DONE`。
+- `TX_PAIRING`：收到 STM32 `START_PAIR` 后进入，停止普通 DATA/CONNECT/HOP，使用公共配对地址发送 `PAIR_OFFER`。
+- `TX_PAIR_CONFIRM_WAIT`：TX 已收到 `PAIR_ACCEPT`，生成 `link_access_address`，继续在公共配对地址发送 `PAIR_CONFIRM`，并在新工作地址等待 `PAIR_DONE`。
 
 RX 侧新增：
 
-- `RX_PAIRING`：PB22 长按触发，切到公共 discovery 参数，监听 TX 配对请求。
-- `RX_PAIR_CONFIRM_WAIT`：RX 临时切到候选 `accessAddress`，等待 TX confirm，成功后写 bond。
+- `RX_PAIRING`：PB22 长按触发，切到公共配对地址，监听 TX `PAIR_OFFER`。
+- `RX_PAIR_CONFIRM_WAIT`：RX 继续在公共配对地址等待 `PAIR_CONFIRM`，校验并写入 `link_access_address` 后，再切到新工作地址发送 `PAIR_DONE`。
 
 这些状态独立于现有链路状态。退出配对后不恢复到中间跳频状态，统一进入 `UNCONNECTED`，让现有 CONNECT 流程重新建链。
 
@@ -104,16 +105,10 @@ CH585/CH584 侧可用 Data-Flash/EEPROM 保存，地址沿用 `RFH_BOND_EEPROM_A
 | `1` | `seq` | 配对会话低 8 bit |
 | `2` | `cmd_id` | `PAIR_OFFER/ACCEPT/CONFIRM/DONE` |
 | `3..6` | `session_nonce` | TX 生成，RX 原样回传 |
-| `7..10` | `arg32` | `OFFER/CONFIRM` 为候选 `accessAddress`；`ACCEPT/DONE` 为 `rx_id_hash` |
+| `7..10` | `arg32` | `OFFER=tx_id_hash`；`ACCEPT=rx_id_hash`；`CONFIRM=link_access_address`；`DONE=bond_confirm32` |
 | `11` | `meta` | ch/rate/status 压缩字段，或错误码 |
 
-`PAIR_OFFER` 需要携带候选工作参数，但 10B payload 空间有限，建议这样压缩：
-
-- `arg32 = proposed_access_address`
-- `meta[1:0] = rate_code`
-- `meta[4:2] = channel_a - RFH_MIN_CHANNEL` 的低 3 bit 不够，不建议压太多
-
-更稳妥的方式是让第一版固定 `channel_a/channel_b = RFH_DEFAULT_CHANNEL_A/B`，配对只交换 `accessAddress`。跳频/信道优化仍交给现有 HOP 状态机。这样 12B 足够，风险也低。
+`PAIR_OFFER` 不携带候选工作地址。第一阶段只交换 TX/RX 短 ID 和 session；TX 收到 `PAIR_ACCEPT` 后再生成最终 `link_access_address`，并在 `PAIR_CONFIRM` 中下发。信道优化仍交给现有 HOP 状态机，配对阶段只保存默认发现信道和速率。
 
 ### 4.1 握手流程
 
@@ -124,21 +119,22 @@ sequenceDiagram
     participant RX
 
     STM32->>TX: SPI START_PAIR
-    TX->>TX: enter TX_PAIRING, generate session/new AA
+    TX->>TX: enter TX_PAIRING, generate session
     RX->>RX: PB22 low 5s, enter RX_PAIRING
     loop discovery window, A/B channels
-        TX->>RX: PAIR_OFFER(session, proposed AA)
+        TX->>RX: PAIR_OFFER(session, tx_id_hash)
         RX-->>TX: PAIR_ACCEPT(session, rx_id_hash)
     end
-    TX->>TX: switch temp AA, enter TX_PAIR_CONFIRM_WAIT
-    RX->>RX: switch temp AA, enter RX_PAIR_CONFIRM_WAIT
+    TX->>TX: generate link_access_address
+    RX->>RX: enter RX_PAIR_CONFIRM_WAIT
     loop confirm window
-        TX->>RX: PAIR_CONFIRM(session, proposed AA)
+        TX->>RX: PAIR_CONFIRM(session, link_access_address)
         RX->>RX: mark pending bond
     end
     RX->>RX: write bond in main loop
+    RX->>RX: switch to link_access_address
     loop done window
-        RX-->>TX: PAIR_DONE(session, rx_id_hash)
+        RX-->>TX: PAIR_DONE(session, bond_confirm32)
     end
     TX->>TX: write bond after PAIR_DONE
     TX->>STM32: SPI STATE_CHANGED / PairOk
@@ -203,25 +199,25 @@ if PAIR_OFFER received:
 - `PAIR_OFFER.hdr1` 不再表示普通 ACK 倒计时，而表示“距离 TX 打开 accept RX window 的 250us tick 数”。
 - RX 收到 offer 后不马上回包，而是按 `hdr1` 对齐到 TX 的 listen slot。
 - TX 的 accept window 至少 4ms，RX 的 accept burst 建议 1..2ms，前后各留 250us guard。
-- TX 每个 burst 内重复发同一个 `session_nonce/proposed_access_address`，RX 用 nonce 去重。
+- TX 每个 burst 内重复发同一个 `session_nonce/tx_id_hash`，RX 用 nonce 去重。
 
 #### 4.3.3 配对 confirm 窗口
 
-TX 收到 `PAIR_ACCEPT` 后，双方切到候选 `accessAddress`，但 TX 仍然主导时序：
+TX 收到 `PAIR_ACCEPT` 后生成 `link_access_address`，但双方仍先停留在公共配对地址完成 confirm：
 
 ```text
-TX confirm cycle on proposed AA
+TX confirm cycle
 
-0..4ms   TX PAIR_CONFIRM burst
-4..8ms   RX PAIR_DONE window
+0..4ms   TX sends PAIR_CONFIRM on public pairing AA
+4..8ms   TX opens RX window on generated link AA for PAIR_DONE
 repeat until PAIR_DONE or confirm timeout
 ```
 
 RX confirm 处理：
 
-- RX 收到 `PAIR_CONFIRM` 后，先把候选 bond 标记为 pending。
+- RX 收到 `PAIR_CONFIRM` 后，先把 `link_access_address` 对应的 bond 标记为 pending。
 - RX 在主循环执行 EEPROM 写入；写入期间可暂停 RF。
-- TX 会继续重复 confirm cycle，所以 RX 写入完成后回到 RF RX，等待下一轮 `PAIR_CONFIRM`。
+- TX 会继续重复 confirm cycle；RX 写入完成后切到 `link_access_address`，在 done window 内发送 `PAIR_DONE`。
 - RX 确认本地 bond 写入成功后，才在后续 done window 内重复发送 `PAIR_DONE`。
 - TX 收到 `PAIR_DONE` 后再写自己的 bond，并通过 SPI 上报 `PairOk`。
 
@@ -248,7 +244,7 @@ extern bool RF_GetBonded(void);
 - 保存当前状态用于日志，不在退出时恢复中间状态。
 - 停止当前 ACK RX 或发送流程。
 - 切换 `gParm/gTxParam/gRxParam.accessAddress` 到 `RFH_PAIR_ACCESS_ADDRESS`。
-- 生成 `session_nonce` 和 `proposed_access_address`。
+- 生成 `session_nonce`；`link_access_address` 等收到 `PAIR_ACCEPT(rx_id_hash)` 后再生成。
 - 进入 `TX_PAIRING`。
 
 `RF_StopPairing()` 负责取消 pairing，回到 `TX_UNCONNECTED`。
@@ -292,9 +288,9 @@ RX 进入 pairing 后：
 - 停止普通 scan/comm/hop。
 - 切换到 `RFH_PAIR_ACCESS_ADDRESS`。
 - 在 `RFH_PAIR_CHANNEL_A/B` 间扫描。
-- 收到合法 `PAIR_OFFER` 后临时记录候选 `accessAddress`，回 `PAIR_ACCEPT`。
-- 切到候选 `accessAddress` 等 `PAIR_CONFIRM`。
-- 收到 confirm 后先把候选 bond 标记为 pending，在主循环里写入 EEPROM；写入成功后再重复发送 `PAIR_DONE` 若干次，提高 TX 收到成功事件的概率。
+- 收到合法 `PAIR_OFFER` 后记录 `session_nonce/tx_id_hash`，回 `PAIR_ACCEPT(rx_id_hash)`。
+- 继续在公共配对地址等待 `PAIR_CONFIRM(link_access_address)`。
+- 收到 confirm 后先把 bond 标记为 pending，在主循环里写入 EEPROM；写入成功后切到 `link_access_address`，再重复发送 `PAIR_DONE` 若干次，提高 TX 收到成功事件的概率。
 
 LED 建议：
 

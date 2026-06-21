@@ -63,9 +63,13 @@
 #define RFH_LINK_ACCESS_ADDRESS_DEFAULT 0x71764129UL
 
 #ifndef RFH_TEST_FIXED_BOND_ENABLE
-#define RFH_TEST_FIXED_BOND_ENABLE     1u
+#define RFH_TEST_FIXED_BOND_ENABLE     0u
 #endif
 
+/*
+ * Development-only fixed working address. Product pairing must use
+ * RFH_PAIR_ACCESS_ADDRESS for discovery, then store a generated link address.
+ */
 #define RFH_TEST_FIXED_ACCESS_ADDRESS  0x6D35B8C9UL
 
 #define RFH_PAIR_ACCESS_ADDRESS        0x6D5A3C17UL
@@ -224,7 +228,7 @@ enum {
 #define RFH_PAIR_META_VERSION_SHIFT    4u
 #define RFH_PAIR_META_VERSION_MASK     0xF0u
 #define RFH_PAIR_META_RATE_MASK        0x03u
-#define RFH_PAIR_META_WRITE_BOND       0x80u
+#define RFH_PAIR_META_WRITE_BOND       0x08u
 
 static inline uint32_t rfh_fnv1a32_bytes(const uint8_t *bytes, uint32_t len)
 {

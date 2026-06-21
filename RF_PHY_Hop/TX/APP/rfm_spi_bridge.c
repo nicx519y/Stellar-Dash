@@ -34,6 +34,8 @@ static uint32_t s_last_backlog_drop_bytes;
 static uint8_t s_poll_rx[(3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u) * 8u];
 static uint8_t s_state_changed_retry_pending;
 static uint8_t s_state_changed_retry_cmd_tag;
+static uint8_t s_state_changed_retry_state;
+static uint8_t s_state_changed_retry_left;
 static uint8_t s_last_direct_input[RFM_RF_INPUT_PAYLOAD_LEN];
 static uint8_t s_last_latest_input[RFM_RF_INPUT_PAYLOAD_LEN];
 static uint8_t s_have_last_direct_input;
@@ -53,6 +55,7 @@ static uint8_t s_last_control_response_len;
 #define SPI_STATUS_TXN_OFFSET         17u
 #define SPI_STATUS_RESULT_OFFSET      18u
 #define SPI_STATUS_REASON_OFFSET      19u
+#define SPI_PAIR_OK_EVENT_REPEAT_COUNT 6u
 #ifndef RFM_SPI_SIMULATE_SET_RATE_HZ
 #define RFM_SPI_SIMULATE_SET_RATE_HZ  0u
 #endif
@@ -253,7 +256,14 @@ static bool send_cached_control_response(void)
     return write_frame(s_last_control_response, s_last_control_response_len);
 }
 
-static bool send_status_frame(spi_evt_t evt, uint8_t cmd_tag, uint8_t txn, uint8_t result, uint8_t reason, uint8_t cache_response)
+static bool send_status_frame_ex(spi_evt_t evt,
+                                 uint8_t cmd_tag,
+                                 uint8_t txn,
+                                 uint8_t result,
+                                 uint8_t reason,
+                                 uint8_t cache_response,
+                                 uint8_t forced_state,
+                                 uint8_t clear_pending_state)
 {
     uint8_t payload[SPI_STATUS_PAYLOAD_LEN] = {0};
     uint8_t out[RFM_SPI_MAX_FRAME];
@@ -268,7 +278,11 @@ static bool send_status_frame(spi_evt_t evt, uint8_t cmd_tag, uint8_t txn, uint8
 
     if(evt == SPI_EVT_STATE_CHANGED)
     {
-        pending_state = RF_PeekPendingEventStateCode();
+        pending_state = forced_state;
+        if(pending_state == 0u)
+        {
+            pending_state = RF_PeekPendingEventStateCode();
+        }
         payload[0] = pending_state;
     }
     else
@@ -302,11 +316,26 @@ static bool send_status_frame(spi_evt_t evt, uint8_t cmd_tag, uint8_t txn, uint8
         cache_control_response(cmd_tag, txn, out, frame_len);
     }
     sent = write_frame(out, frame_len);
-    if((sent != false) && (evt == SPI_EVT_STATE_CHANGED) && (pending_state != 0u))
+    if((sent != false) &&
+       (evt == SPI_EVT_STATE_CHANGED) &&
+       (pending_state != 0u) &&
+       (clear_pending_state != 0u))
     {
         RF_ClearPendingEventStateCode(pending_state);
     }
     return sent;
+}
+
+static bool send_status_frame(spi_evt_t evt, uint8_t cmd_tag, uint8_t txn, uint8_t result, uint8_t reason, uint8_t cache_response)
+{
+    return send_status_frame_ex(evt,
+                                cmd_tag,
+                                txn,
+                                result,
+                                reason,
+                                cache_response,
+                                0u,
+                                1u);
 }
 
 static void try_send_pending_state_changed(void)
@@ -319,15 +348,43 @@ static void try_send_pending_state_changed(void)
     {
         return;
     }
-    if(send_status_frame(SPI_EVT_STATE_CHANGED, s_state_changed_retry_cmd_tag, 0u, 0u, 0u, 0u))
+    if(s_state_changed_retry_left == 0u)
     {
         s_state_changed_retry_pending = 0u;
+        s_state_changed_retry_state = 0u;
+        return;
+    }
+    if(send_status_frame_ex(SPI_EVT_STATE_CHANGED,
+                            s_state_changed_retry_cmd_tag,
+                            0u,
+                            0u,
+                            0u,
+                            0u,
+                            s_state_changed_retry_state,
+                            (s_state_changed_retry_left <= 1u) ? 1u : 0u))
+    {
+        s_state_changed_retry_left--;
+        if(s_state_changed_retry_left == 0u)
+        {
+            s_state_changed_retry_pending = 0u;
+            s_state_changed_retry_cmd_tag = 0u;
+            s_state_changed_retry_state = 0u;
+        }
     }
 }
 
 void rfm_spi_bridge_emit_state_changed(uint8_t cmd_tag)
 {
+    uint8_t state = RF_PeekPendingEventStateCode();
+    if(state == 0u)
+    {
+        state = RF_GetLinkStateCode();
+    }
     s_state_changed_retry_cmd_tag = cmd_tag;
+    s_state_changed_retry_state = state;
+    s_state_changed_retry_left = (state == RF_LINK_STATE_PAIR_OK) ?
+                                 SPI_PAIR_OK_EVENT_REPEAT_COUNT :
+                                 1u;
     s_state_changed_retry_pending = 1u;
     try_send_pending_state_changed();
 }
@@ -881,6 +938,8 @@ void rfm_spi_bridge_init(void)
     s_last_rx_count = 0u;
     s_state_changed_retry_pending = 0u;
     s_state_changed_retry_cmd_tag = 0u;
+    s_state_changed_retry_state = 0u;
+    s_state_changed_retry_left = 0u;
     s_have_last_direct_input = 0u;
     s_have_last_latest_input = 0u;
     s_last_logged_cmd = 0u;

@@ -1514,7 +1514,7 @@ TX/RX 都需要一个稳定的 `local_id_hash`：
 |---|---|---|---|
 | `PAIR_OFFER` | TX -> RX | `tx_id_hash` | bit7..4=`RFH_PAIR_PROTO_VERSION`，bit1..0=`rate_code` |
 | `PAIR_ACCEPT` | RX -> TX | `rx_id_hash` | `0` 表示接受，非 0 表示原因码 |
-| `PAIR_CONFIRM` | TX -> RX | `link_access_address` | bit1..0=`rate_code`，bit7 表示要求 RX 写入 bond |
+| `PAIR_CONFIRM` | TX -> RX | `link_access_address` | bit1..0=`rate_code`，bit3 表示要求 RX 写入 bond |
 | `PAIR_DONE` | RX -> TX | `bond_confirm32` | `0` 表示 RX 已写入 bond |
 | `PAIR_REJECT` | 双向 | `reject_reason` | 错误码 |
 
