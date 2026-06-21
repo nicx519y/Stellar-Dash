@@ -320,6 +320,75 @@ static volatile uint8_t g_monitor_pending_retries = 0u;
 static volatile uint8_t g_monitor_sync_pending_retries = 0u;
 static volatile uint8_t g_monitor_sync_seq = 0u;
 
+static uint8_t demo_hid_stats_enabled(void)
+{
+    return (g_monitor_hid_enabled != 0u) ? 1u : 0u;
+}
+
+static void demo_hid_clear_report_state(void)
+{
+    uint32_t irq_status;
+    uint32_t now = TMOS_GetSystemClock();
+
+    SYS_DisableAllIrq(&irq_status);
+    g_demo_hid_last_clock = now;
+    g_demo_hid_last_window_rx_ok = 0u;
+    g_demo_hid_last_window_expected = 0u;
+    g_demo_hid_last_window_errors = 0u;
+    g_demo_hid_last_window_crc_errors = 0u;
+    g_demo_hid_last_window_type_errors = 0u;
+    g_demo_hid_last_window_timeout_errors = 0u;
+    g_demo_hid_rx_ok = 0u;
+    g_demo_hid_expected = 0u;
+    g_demo_hid_bad = 0u;
+    g_demo_hid_hop_events = 0u;
+    g_demo_hid_errors = 0u;
+    g_demo_hid_crc_errors = 0u;
+    g_demo_hid_type_errors = 0u;
+    g_demo_hid_timeout_errors = 0u;
+    g_demo_hid_max_silent_cycles = 0u;
+    g_demo_hid_link_lost_silent_ticks = 0u;
+    g_demo_hid_hop_start_pending = 0u;
+    g_demo_hid_hop_finish_pending = 0u;
+    g_demo_hid_hop_start_score = 0u;
+    g_demo_hid_hop_finish_duration_ms = 0u;
+    g_demo_hid_input_key_mask = 0u;
+    g_demo_hid_input_window_mask = 0u;
+    g_demo_hid_input_seq = 0u;
+    g_demo_hid_input_flags = 0u;
+    g_demo_hid_input_valid = 0u;
+    g_demo_hid_input_sample_tick_us = 0u;
+    g_demo_hid_input_sync_seq = 0u;
+    g_demo_hid_input_sync_rx_tick_us = 0u;
+    g_demo_hid_input_sync_tx_tick_us = 0u;
+    g_demo_hid_latency_pending = 0u;
+    g_demo_hid_latency_key_mask = 0u;
+    g_demo_hid_latency_sample_tick_us = 0u;
+    g_demo_hid_latency_stm32_us = 0u;
+    g_demo_hid_latency_tx_us = 0u;
+    g_demo_hid_latency_rx_us = 0u;
+    g_demo_hid_latency_rx_irq_us = 0u;
+    g_demo_hid_latency_rx_decode_us = 0u;
+    g_demo_hid_latency_rx_epwait_us = 0u;
+    g_demo_hid_latency_rx_submit_us = 0u;
+    g_demo_hid_latency_stage_flags = 0u;
+    g_demo_hid_latency_input_seq = 0u;
+    g_demo_hid_latency_input_flags = 0u;
+    g_demo_hid_latency_sync_seq = 0u;
+    g_demo_hid_latency_sync_rx_tick_us = 0u;
+    g_demo_hid_latency_sync_tx_tick_us = 0u;
+    g_demo_hid_latency_v2 = 0u;
+    g_demo_air_diag_last_clock = 0u;
+    g_demo_air_diag_rx_ok = 0u;
+    g_demo_air_diag_seq_gap = 0u;
+    g_demo_air_diag_crc_errors = 0u;
+    g_demo_air_diag_type_errors = 0u;
+    g_demo_air_diag_timeout_errors = 0u;
+    g_demo_hid_input_keepalive_div = 0u;
+    g_demo_hid_score_div = 0u;
+    SYS_RecoverIrq(irq_status);
+}
+
 static uint32_t demo_hash_bytes(uint32_t hash, const uint8_t *bytes, uint8_t len)
 {
     uint8_t i;
@@ -604,6 +673,7 @@ uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
     uint8_t seq;
     uint8_t target;
     uint8_t cmd;
+    uint8_t next_hid_enabled;
 
     if((report == 0) || (len < RFMON_CTL_FRAME_SIZE))
     {
@@ -664,8 +734,10 @@ uint8_t RF_MonitorControlHandleReport(const uint8_t *report, uint16_t len)
     g_monitor_seq = seq;
     if((target == RFMON_TARGET_ALL) || (target == RFMON_TARGET_RX))
     {
-        g_monitor_hid_enabled = ((flags & RFMON_FLAG_HID_TELEMETRY) != 0u) ? 1u : 0u;
-        g_monitor_hid_period_ms = g_monitor_hid_enabled ? period_ms : RFMON_PERIOD_OFF;
+        next_hid_enabled = ((flags & RFMON_FLAG_HID_TELEMETRY) != 0u) ? 1u : 0u;
+        g_monitor_hid_enabled = next_hid_enabled;
+        g_monitor_hid_period_ms = next_hid_enabled ? period_ms : RFMON_PERIOD_OFF;
+        demo_hid_clear_report_state();
     }
     if((target == RFMON_TARGET_ALL) ||
        (target == RFMON_TARGET_RX) ||
@@ -873,6 +945,10 @@ static uint16_t demo_clock_delta_ms(uint32_t start, uint32_t end)
 
 static void demo_note_hid_silent_cycles(uint32_t silent_cycles)
 {
+    if(demo_hid_stats_enabled() == 0u)
+    {
+        return;
+    }
     if(silent_cycles > g_demo_hid_max_silent_cycles)
     {
         g_demo_hid_max_silent_cycles = silent_cycles;
@@ -1221,7 +1297,10 @@ static void demo_queue_rx_pending_packet(const uint8_t *rx_buf, uint32_t rx_tmr)
         g_demo_rx_pending_tail = demo_rx_pending_next(g_demo_rx_pending_tail);
         g_demo_rx_pending_drop++;
         g_demo_stat.pending_drop++;
-        g_demo_hid_errors++;
+        if(demo_hid_stats_enabled() != 0u)
+        {
+            g_demo_hid_errors++;
+        }
     }
 
     pending = &g_demo_rx_pending[head];
@@ -1256,7 +1335,10 @@ static void demo_queue_rx_pending_crcerr(uint32_t rx_tmr)
         g_demo_rx_pending_tail = demo_rx_pending_next(g_demo_rx_pending_tail);
         g_demo_rx_pending_drop++;
         g_demo_stat.pending_drop++;
-        g_demo_hid_errors++;
+        if(demo_hid_stats_enabled() != 0u)
+        {
+            g_demo_hid_errors++;
+        }
     }
 
     pending = &g_demo_rx_pending[head];
@@ -1869,7 +1951,10 @@ static uint8_t demo_note_data_seq(uint8_t seq)
     {
         g_demo_have_data_seq = 1u;
         g_demo_window_expected++;
-        g_demo_hid_expected++;
+        if(demo_hid_stats_enabled() != 0u)
+        {
+            g_demo_hid_expected++;
+        }
     }
     else
     {
@@ -1879,20 +1964,29 @@ static uint8_t demo_note_data_seq(uint8_t seq)
             return 0u;
         }
         g_demo_window_expected += diff;
-        g_demo_hid_expected += diff;
+        if(demo_hid_stats_enabled() != 0u)
+        {
+            g_demo_hid_expected += diff;
+        }
         if(diff > 1u)
         {
             g_demo_window_missing += (uint32_t)(diff - 1u);
             g_demo_stat.seq_gap += (uint32_t)(diff - 1u);
-            g_demo_hid_bad += (uint32_t)(diff - 1u);
-            g_demo_air_diag_seq_gap += (uint32_t)(diff - 1u);
+            if(demo_hid_stats_enabled() != 0u)
+            {
+                g_demo_hid_bad += (uint32_t)(diff - 1u);
+                g_demo_air_diag_seq_gap += (uint32_t)(diff - 1u);
+            }
         }
     }
 
     g_demo_last_data_seq = seq;
     g_demo_window_rx_ok++;
-    g_demo_hid_rx_ok++;
-    g_demo_air_diag_rx_ok++;
+    if(demo_hid_stats_enabled() != 0u)
+    {
+        g_demo_hid_rx_ok++;
+        g_demo_air_diag_rx_ok++;
+    }
     return 1u;
 }
 
@@ -1985,6 +2079,11 @@ static void demo_queue_latency_sync_echo(uint8_t sync_seq,
                                          uint32_t sync_rx_tick_us,
                                          uint32_t sync_tx_tick_us)
 {
+    if(demo_hid_stats_enabled() == 0u)
+    {
+        return;
+    }
+
     g_demo_hid_latency_key_mask = g_demo_hid_input_key_mask;
     g_demo_hid_latency_sample_tick_us = 0u;
     g_demo_hid_latency_stm32_us = 0u;
@@ -2020,6 +2119,10 @@ static void demo_queue_latency_input(uint8_t input_seq,
     {
         return;
     }
+    if(demo_hid_stats_enabled() == 0u)
+    {
+        return;
+    }
     g_demo_hid_latency_key_mask = key_mask & RF_INPUT_KEY_MASK_VALID;
     g_demo_hid_latency_sample_tick_us = latency_us;
     g_demo_hid_latency_stm32_us = stm32_us;
@@ -2052,19 +2155,22 @@ static void demo_queue_latency_input_v2(uint8_t input_seq,
                                         uint8_t stage_flags,
                                         uint8_t input_flags)
 {
-    demo_queue_latency_input(input_seq,
-                             key_mask,
-                             latency_us,
-                             stm32_us,
-                             tx_us,
-                             rx_us,
-                             stage_flags,
-                             input_flags);
-    g_demo_hid_latency_rx_irq_us = rx_irq_us;
-    g_demo_hid_latency_rx_decode_us = rx_decode_us;
-    g_demo_hid_latency_rx_epwait_us = rx_epwait_us;
-    g_demo_hid_latency_rx_submit_us = rx_submit_us;
-    g_demo_hid_latency_v2 = 1u;
+    if(demo_hid_stats_enabled() != 0u)
+    {
+        demo_queue_latency_input(input_seq,
+                                 key_mask,
+                                 latency_us,
+                                 stm32_us,
+                                 tx_us,
+                                 rx_us,
+                                 stage_flags,
+                                 input_flags);
+        g_demo_hid_latency_rx_irq_us = rx_irq_us;
+        g_demo_hid_latency_rx_decode_us = rx_decode_us;
+        g_demo_hid_latency_rx_epwait_us = rx_epwait_us;
+        g_demo_hid_latency_rx_submit_us = rx_submit_us;
+        g_demo_hid_latency_v2 = 1u;
+    }
     demo_note_ack_irq_latency(rx_irq_us);
 }
 
@@ -2296,39 +2402,43 @@ static void demo_capture_xinput_report(const uint8_t *payload)
         return;
     }
 
-    previous_key_mask = g_demo_hid_input_key_mask;
     key_mask = demo_input_key_mask(payload) & RF_INPUT_KEY_MASK_VALID;
-    g_demo_hid_input_key_mask = key_mask;
-    g_demo_hid_input_window_mask |= key_mask;
-    g_demo_hid_input_seq = payload[0];
-    g_demo_hid_input_flags = payload[1];
-    g_demo_hid_input_sample_tick_us =
-        (version == RF_INPUT_FORMAT_VERSION_V2) ? demo_input_sample_tick_us(payload) : 0u;
-    g_demo_hid_input_sync_seq = 0u;
-    g_demo_hid_input_sync_rx_tick_us = 0u;
-    g_demo_hid_input_sync_tx_tick_us = 0u;
-    g_demo_hid_input_valid = 1u;
-    if((key_mask != previous_key_mask) &&
-       (version == RF_INPUT_FORMAT_VERSION_V2) &&
-       (g_demo_hid_input_sample_tick_us != 0u))
+
+    if(demo_hid_stats_enabled() != 0u)
     {
-        g_demo_hid_latency_key_mask = key_mask;
-        g_demo_hid_latency_sample_tick_us = g_demo_hid_input_sample_tick_us;
-        g_demo_hid_latency_stm32_us = 0u;
-        g_demo_hid_latency_tx_us = 0u;
-        g_demo_hid_latency_rx_us = 0u;
-        g_demo_hid_latency_rx_irq_us = 0u;
-        g_demo_hid_latency_rx_decode_us = 0u;
-        g_demo_hid_latency_rx_epwait_us = 0u;
-        g_demo_hid_latency_rx_submit_us = 0u;
-        g_demo_hid_latency_stage_flags = 0u;
-        g_demo_hid_latency_input_seq = payload[0];
-        g_demo_hid_latency_input_flags = payload[1];
-        g_demo_hid_latency_sync_seq = 0u;
-        g_demo_hid_latency_sync_rx_tick_us = 0u;
-        g_demo_hid_latency_sync_tx_tick_us = 0u;
-        g_demo_hid_latency_v2 = 0u;
-        g_demo_hid_latency_pending = 1u;
+        previous_key_mask = g_demo_hid_input_key_mask;
+        g_demo_hid_input_key_mask = key_mask;
+        g_demo_hid_input_window_mask |= key_mask;
+        g_demo_hid_input_seq = payload[0];
+        g_demo_hid_input_flags = payload[1];
+        g_demo_hid_input_sample_tick_us =
+            (version == RF_INPUT_FORMAT_VERSION_V2) ? demo_input_sample_tick_us(payload) : 0u;
+        g_demo_hid_input_sync_seq = 0u;
+        g_demo_hid_input_sync_rx_tick_us = 0u;
+        g_demo_hid_input_sync_tx_tick_us = 0u;
+        g_demo_hid_input_valid = 1u;
+        if((key_mask != previous_key_mask) &&
+           (version == RF_INPUT_FORMAT_VERSION_V2) &&
+           (g_demo_hid_input_sample_tick_us != 0u))
+        {
+            g_demo_hid_latency_key_mask = key_mask;
+            g_demo_hid_latency_sample_tick_us = g_demo_hid_input_sample_tick_us;
+            g_demo_hid_latency_stm32_us = 0u;
+            g_demo_hid_latency_tx_us = 0u;
+            g_demo_hid_latency_rx_us = 0u;
+            g_demo_hid_latency_rx_irq_us = 0u;
+            g_demo_hid_latency_rx_decode_us = 0u;
+            g_demo_hid_latency_rx_epwait_us = 0u;
+            g_demo_hid_latency_rx_submit_us = 0u;
+            g_demo_hid_latency_stage_flags = 0u;
+            g_demo_hid_latency_input_seq = payload[0];
+            g_demo_hid_latency_input_flags = payload[1];
+            g_demo_hid_latency_sync_seq = 0u;
+            g_demo_hid_latency_sync_rx_tick_us = 0u;
+            g_demo_hid_latency_sync_tx_tick_us = 0u;
+            g_demo_hid_latency_v2 = 0u;
+            g_demo_hid_latency_pending = 1u;
+        }
     }
 
     memset(report, 0, sizeof(report));
@@ -2454,9 +2564,12 @@ static void demo_enter_manual_dual_scan(uint8_t target)
     g_demo_dual_deadline_clock = now + MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_HOP_DUAL_TIMEOUT_MS);
     g_demo_dual_side = 0u;
     g_demo_stat.hop_event++;
-    g_demo_hid_hop_events++;
-    g_demo_hid_hop_start_score = demo_quality_permille();
-    g_demo_hid_hop_start_pending = 1u;
+    if(demo_hid_stats_enabled() != 0u)
+    {
+        g_demo_hid_hop_events++;
+        g_demo_hid_hop_start_score = demo_quality_permille();
+        g_demo_hid_hop_start_pending = 1u;
+    }
 }
 
 static void demo_handle_command(const uint8_t *air, uint8_t rx_channel)
@@ -2477,19 +2590,25 @@ static void demo_handle_command(const uint8_t *air, uint8_t rx_channel)
         demo_prepare_command_ack(RFH_CMD_HOP_PREPARE, seq);
         g_demo_after_ack_action = 1u;
         g_demo_stat.hop_event++;
-        g_demo_hid_hop_events++;
         g_demo_hop_start_clock = TMOS_GetSystemClock();
         g_demo_hop_clock_valid = 1u;
-        g_demo_hid_hop_start_score = score;
-        g_demo_hid_hop_start_pending = 1u;
+        if(demo_hid_stats_enabled() != 0u)
+        {
+            g_demo_hid_hop_events++;
+            g_demo_hid_hop_start_score = score;
+            g_demo_hid_hop_start_pending = 1u;
+        }
     }
     else if(cmd == RFH_CMD_HOP_CONFIRM)
     {
         if((monitor_channel_valid(target) == 0u) || (target != rx_channel))
         {
-            g_demo_hid_errors++;
-            g_demo_hid_type_errors++;
-            g_demo_air_diag_type_errors++;
+            if(demo_hid_stats_enabled() != 0u)
+            {
+                g_demo_hid_errors++;
+                g_demo_hid_type_errors++;
+                g_demo_air_diag_type_errors++;
+            }
             return;
         }
         g_demo_target_channel = target;
@@ -2506,7 +2625,10 @@ static void demo_handle_command(const uint8_t *air, uint8_t rx_channel)
         demo_prepare_command_ack(RFH_CMD_HOP_CONFIRM, seq);
         g_demo_after_ack_action = 2u;
         g_demo_stat.hop_event++;
-        g_demo_hid_hop_events++;
+        if(demo_hid_stats_enabled() != 0u)
+        {
+            g_demo_hid_hop_events++;
+        }
     }
     else if(cmd == RFH_CMD_RATE_UPDATE)
     {
@@ -2518,9 +2640,12 @@ static void demo_handle_command(const uint8_t *air, uint8_t rx_channel)
         }
         else
         {
-            g_demo_hid_errors++;
-            g_demo_hid_type_errors++;
-            g_demo_air_diag_type_errors++;
+            if(demo_hid_stats_enabled() != 0u)
+            {
+                g_demo_hid_errors++;
+                g_demo_hid_type_errors++;
+                g_demo_air_diag_type_errors++;
+            }
         }
     }
     else if(cmd == RFH_CMD_MONITOR_CONFIG)
@@ -2595,8 +2720,11 @@ static void demo_after_ack_finish(void)
         demo_set_channel(g_demo_target_channel);
         g_demo_old_channel = g_demo_target_channel;
         g_demo_stat.hop_event++;
-        g_demo_hid_hop_finish_duration_ms = duration_ms;
-        g_demo_hid_hop_finish_pending = 1u;
+        if(demo_hid_stats_enabled() != 0u)
+        {
+            g_demo_hid_hop_finish_duration_ms = duration_ms;
+            g_demo_hid_hop_finish_pending = 1u;
+        }
         g_demo_hop_clock_valid = 0u;
     }
 
@@ -2640,9 +2768,12 @@ static uint8_t demo_process_connect_packet(const rf_rx_pending_t *pending)
     if((pending == 0) || (pending->len != RF_AUTO_DEMO_PACKET_LEN))
     {
         g_demo_stat.data_type_err++;
-        g_demo_hid_errors++;
-        g_demo_hid_type_errors++;
-        g_demo_air_diag_type_errors++;
+        if(demo_hid_stats_enabled() != 0u)
+        {
+            g_demo_hid_errors++;
+            g_demo_hid_type_errors++;
+            g_demo_air_diag_type_errors++;
+        }
         return 0u;
     }
 
@@ -2663,9 +2794,12 @@ static uint8_t demo_process_connect_packet(const rf_rx_pending_t *pending)
         g_demo_stat.data_type_err++;
         demo_channel_score_update(pending->channel,
                                   demo_type_score_sample());
-        g_demo_hid_errors++;
-        g_demo_hid_type_errors++;
-        g_demo_air_diag_type_errors++;
+        if(demo_hid_stats_enabled() != 0u)
+        {
+            g_demo_hid_errors++;
+            g_demo_hid_type_errors++;
+            g_demo_air_diag_type_errors++;
+        }
         return 0u;
     }
 
@@ -2721,11 +2855,14 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
                                   demo_crc_score_sample());
         g_demo_window_expected++;
         g_demo_window_crc++;
-        g_demo_hid_expected++;
-        g_demo_hid_bad++;
-        g_demo_hid_errors++;
-        g_demo_hid_crc_errors++;
-        g_demo_air_diag_crc_errors++;
+        if(demo_hid_stats_enabled() != 0u)
+        {
+            g_demo_hid_expected++;
+            g_demo_hid_bad++;
+            g_demo_hid_errors++;
+            g_demo_hid_crc_errors++;
+            g_demo_air_diag_crc_errors++;
+        }
         return 0u;
     }
 
@@ -2736,10 +2873,13 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
         g_demo_stat.data_type_err++;
         demo_channel_score_update(pending->channel,
                                   demo_type_score_sample());
-        g_demo_hid_bad++;
-        g_demo_hid_errors++;
-        g_demo_hid_type_errors++;
-        g_demo_air_diag_type_errors++;
+        if(demo_hid_stats_enabled() != 0u)
+        {
+            g_demo_hid_bad++;
+            g_demo_hid_errors++;
+            g_demo_hid_type_errors++;
+            g_demo_air_diag_type_errors++;
+        }
         return 0u;
     }
 
@@ -2763,10 +2903,13 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
         g_demo_stat.data_type_err++;
         demo_channel_score_update(pending->channel,
                                   demo_type_score_sample());
-        g_demo_hid_bad++;
-        g_demo_hid_errors++;
-        g_demo_hid_type_errors++;
-        g_demo_air_diag_type_errors++;
+        if(demo_hid_stats_enabled() != 0u)
+        {
+            g_demo_hid_bad++;
+            g_demo_hid_errors++;
+            g_demo_hid_type_errors++;
+            g_demo_air_diag_type_errors++;
+        }
         return 0u;
     }
 
@@ -2779,10 +2922,13 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
         g_demo_stat.data_type_err++;
         demo_channel_score_update(pending->channel,
                                   demo_type_score_sample());
-        g_demo_hid_bad++;
-        g_demo_hid_errors++;
-        g_demo_hid_type_errors++;
-        g_demo_air_diag_type_errors++;
+        if(demo_hid_stats_enabled() != 0u)
+        {
+            g_demo_hid_bad++;
+            g_demo_hid_errors++;
+            g_demo_hid_type_errors++;
+            g_demo_air_diag_type_errors++;
+        }
         return 0u;
     }
     g_demo_stat.data_ok++;
@@ -2811,10 +2957,13 @@ static uint8_t demo_process_rx_pending_packet(const rf_rx_pending_t *pending)
                 g_demo_stat.data_type_err++;
                 demo_channel_score_update(pending->channel,
                                           demo_type_score_sample());
-                g_demo_hid_bad++;
-                g_demo_hid_errors++;
-                g_demo_hid_type_errors++;
-                g_demo_air_diag_type_errors++;
+                if(demo_hid_stats_enabled() != 0u)
+                {
+                    g_demo_hid_bad++;
+                    g_demo_hid_errors++;
+                    g_demo_hid_type_errors++;
+                    g_demo_air_diag_type_errors++;
+                }
                 return 0u;
             }
             demo_queue_input_payload(input_payload);
@@ -2964,9 +3113,12 @@ void RF_ProcessCallBack(rfRole_States_t sta, uint8_t id)
         g_demo_stat.ack_fail++;
         demo_channel_score_update(g_demo_current_channel,
                                   demo_timeout_score_sample());
-        g_demo_hid_errors++;
-        g_demo_hid_timeout_errors++;
-        g_demo_air_diag_timeout_errors++;
+        if(demo_hid_stats_enabled() != 0u)
+        {
+            g_demo_hid_errors++;
+            g_demo_hid_timeout_errors++;
+            g_demo_air_diag_timeout_errors++;
+        }
         g_demo_after_ack_action = 0u;
         g_demo_pending_ack_cmd = RFH_CMD_NONE;
         g_demo_pending_ack_seq = 0u;
@@ -3012,11 +3164,14 @@ void RF_Service(void)
             {
                 uint16_t silent_ticks = demo_tmr_cycles_to_system_ticks(verify_cycles);
                 g_demo_link_active = 0u;
-                g_demo_hid_link_lost_silent_ticks = silent_ticks;
-                demo_note_hid_silent_cycles(verify_cycles);
-                g_demo_hid_errors++;
-                g_demo_hid_timeout_errors++;
-                g_demo_air_diag_timeout_errors++;
+                if(demo_hid_stats_enabled() != 0u)
+                {
+                    g_demo_hid_link_lost_silent_ticks = silent_ticks;
+                    demo_note_hid_silent_cycles(verify_cycles);
+                    g_demo_hid_errors++;
+                    g_demo_hid_timeout_errors++;
+                    g_demo_air_diag_timeout_errors++;
+                }
                 enter_unconnected = 1u;
             }
         }
