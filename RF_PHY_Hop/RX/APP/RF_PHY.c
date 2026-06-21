@@ -57,20 +57,16 @@
  * 指标值按 0..1000 归一化后，以“指标值 * WEIGHT / 100”累加到 SCORE_BASE。
  * 调大某项 WEIGHT 会放大该指标对坏分的影响。
  */
-#define RF_AUTO_DEMO_SCORE_BASE        20u   /* 无异常时的基础坏分 */
-#define RF_AUTO_DEMO_SCORE_LOSS_WEIGHT 300u  /* 丢包/坏包率权重 */
-#define RF_AUTO_DEMO_SCORE_CRC_WEIGHT  100u  /* CRC 错误权重 */
-#define RF_AUTO_DEMO_SCORE_TYPE_WEIGHT 100u  /* 包类型/格式错误权重 */
-#define RF_AUTO_DEMO_SCORE_TIMEOUT_WEIGHT 40u /* 正向包超时权重 */
-#define RF_AUTO_DEMO_SCORE_IRQ_WEIGHT  300u  /* RX IRQ 延迟权重 */
-
-
-#define RF_AUTO_DEMO_CHANNEL_SCORE_INIT RF_AUTO_DEMO_SCORE_BASE /* 初始频道分 */
-#define RF_AUTO_DEMO_CHANNEL_SCORE_GOOD RF_AUTO_DEMO_SCORE_BASE /* 明确好样本分 */
+#define RF_AUTO_DEMO_SCORE_BASE        0u    /* 无异常时坏分为 0 */
+#define RF_AUTO_DEMO_SCORE_LOSS_WEIGHT 200u  /* 丢包/坏包率权重 */
+#define RF_AUTO_DEMO_SCORE_CRC_WEIGHT  50u  /* CRC 错误权重 */
+#define RF_AUTO_DEMO_SCORE_TYPE_WEIGHT 50u  /* 包类型/格式错误权重 */
+#define RF_AUTO_DEMO_SCORE_TIMEOUT_WEIGHT 20u /* 正向包超时权重 */
+#define RF_AUTO_DEMO_SCORE_IRQ_WEIGHT  200u  /* RX IRQ 延迟权重 */
+#define RF_AUTO_DEMO_SCORE_WINDOW_MS   10000u /* 活动频道评分时间窗口：10 秒内所有事件样本求平均后更新一次分数 */
+#define RF_AUTO_DEMO_CHANNEL_SCORE_INIT RF_AUTO_DEMO_SCORE_BASE /* 初始频道坏分 */
+#define RF_AUTO_DEMO_CHANNEL_SCORE_GOOD RF_AUTO_DEMO_SCORE_BASE /* 明确好样本坏分 */
 #define RF_AUTO_DEMO_CHANNEL_SCORE_BAD 1000u /* 饱和坏分 */
-#define RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_NUM 7u /* EMA 旧分权重 */
-#define RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_DEN 8u /* EMA 总权重：7/8旧 + 1/8新 */
-
 
 #define RF_LINK_CRC_INIT               0x555555UL
 #define RF_RX_DMA_SLOT_COUNT           2u
@@ -134,6 +130,14 @@ typedef struct
     uint32_t rx_tmr;
     uint8_t air[RFH_AIR_PACKET_LEN];
 } rf_rx_pending_t;
+
+typedef struct
+{
+    uint32_t window_start_clock;
+    uint32_t sample_score_sum;
+    uint32_t sample_count;
+    uint8_t active;
+} rf_score_window_t;
 
 uint8_t taskID;
 
@@ -282,6 +286,7 @@ static uint8_t g_demo_hop_clock_valid = 0u;
 static uint8_t g_demo_ack_seq = 0u;
 #endif
 static uint16_t g_demo_channel_scores[RFH_HOP_CHANNEL_COUNT];
+static rf_score_window_t g_demo_score_windows[RFH_HOP_CHANNEL_COUNT];
 static uint32_t g_demo_hid_score_seq = 0u;
 static uint8_t g_demo_hid_score_div = 0u;
 static uint8_t g_demo_ack_score_hint_index = 0u;
@@ -1038,30 +1043,112 @@ static uint8_t demo_next_recovery_channel(void)
     return channel;
 }
 
-static void demo_channel_score_update(uint8_t channel, uint16_t sample)
+static void demo_score_window_reset_by_index(uint8_t idx, uint32_t now)
 {
-    uint8_t idx = demo_channel_index(channel);
-
-    if(idx == 0xFFu)
+    if(idx >= RFH_HOP_CHANNEL_COUNT)
     {
         return;
     }
 
-    g_demo_channel_scores[idx] =
-        rfh_score_ema(g_demo_channel_scores[idx],
-                      sample,
-                      RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_NUM,
-                      (uint16_t)(RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_DEN -
-                                 RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_NUM));
+    g_demo_score_windows[idx].window_start_clock = now;
+    g_demo_score_windows[idx].sample_score_sum = 0u;
+    g_demo_score_windows[idx].sample_count = 0u;
+    g_demo_score_windows[idx].active = 1u;
+}
+
+static void demo_channel_score_apply_sample_by_index(uint8_t idx, uint16_t sample)
+{
+    if(idx >= RFH_HOP_CHANNEL_COUNT)
+    {
+        return;
+    }
+
+    g_demo_channel_scores[idx] = rfh_score_clamp(sample);
+}
+
+static void demo_score_window_flush_by_index(uint8_t idx, uint32_t now, uint8_t force)
+{
+    uint32_t elapsed;
+
+    if(idx >= RFH_HOP_CHANNEL_COUNT)
+    {
+        return;
+    }
+
+    if(g_demo_score_windows[idx].active == 0u)
+    {
+        demo_score_window_reset_by_index(idx, now);
+        return;
+    }
+
+    elapsed = now - g_demo_score_windows[idx].window_start_clock;
+    if((force == 0u) &&
+       (elapsed < MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_SCORE_WINDOW_MS)))
+    {
+        return;
+    }
+
+    if(g_demo_score_windows[idx].sample_count != 0u)
+    {
+        uint16_t sample = rfh_score_clamp(
+            (g_demo_score_windows[idx].sample_score_sum +
+             (g_demo_score_windows[idx].sample_count / 2u)) /
+            g_demo_score_windows[idx].sample_count);
+
+        demo_channel_score_apply_sample_by_index(idx,
+                                                 sample);
+    }
+    demo_score_window_reset_by_index(idx, now);
+}
+
+static void demo_score_window_reset_channel(uint8_t channel, uint32_t now)
+{
+    uint8_t idx = demo_channel_index(channel);
+
+    if(idx != 0xFFu)
+    {
+        demo_score_window_reset_by_index(idx, now);
+    }
+}
+
+static void demo_score_windows_service(uint32_t now)
+{
+    uint8_t idx = demo_channel_index(g_demo_current_channel);
+
+    if(idx != 0xFFu)
+    {
+        demo_score_window_flush_by_index(idx, now, 0u);
+    }
+}
+
+static void demo_channel_score_update(uint8_t channel, uint16_t sample)
+{
+    uint8_t idx = demo_channel_index(channel);
+    uint32_t now = TMOS_GetSystemClock();
+
+    if((idx == 0xFFu) || (channel != g_demo_current_channel))
+    {
+        return;
+    }
+
+    demo_score_window_flush_by_index(idx, now, 0u);
+    if(g_demo_score_windows[idx].active == 0u)
+    {
+        demo_score_window_reset_by_index(idx, now);
+    }
+    g_demo_score_windows[idx].sample_score_sum += rfh_score_clamp(sample);
+    g_demo_score_windows[idx].sample_count++;
 }
 
 static void demo_channel_scores_init(void)
 {
     uint8_t i;
+    uint32_t now = TMOS_GetSystemClock();
 
     for(i = 0u; i < RFH_HOP_CHANNEL_COUNT; i++)
     {
         g_demo_channel_scores[i] = RF_AUTO_DEMO_CHANNEL_SCORE_INIT;
+        demo_score_window_reset_by_index(i, now);
     }
     i = demo_channel_index(RF_AUTO_DEMO_INITIAL_CHANNEL);
     if(i != 0xFFu)
@@ -1212,6 +1299,7 @@ static void demo_set_channel(uint8_t channel)
     gRxParam.frequency = channel;
     gRxParam.whiteChannel = channel;
     g_demo_current_channel = channel;
+    demo_score_window_reset_channel(channel, TMOS_GetSystemClock());
 }
 
 static char demo_rx_state_char(void)
@@ -2835,6 +2923,7 @@ void RF_Service(void)
 
     demo_service_xinput_fast_path();
     demo_process_pending_rx_packets();
+    demo_score_windows_service(now);
 
     if(demo_pair_is_active() != 0u)
     {

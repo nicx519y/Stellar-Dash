@@ -11,7 +11,7 @@ type ChartPoint = [number, number];
 type EventPoint = [number, number, ChannelSwitchRow];
 
 const CHANNEL_EVENT_LIMIT = 80;
-const DEFAULT_WINDOW_MS = 30000;
+const DEFAULT_WINDOW_MS = 5000;
 const MIN_WINDOW_MS = 3000;
 const FOLLOW_RIGHT_TOLERANCE_MS = 1200;
 
@@ -111,7 +111,7 @@ export function TelemetryTrendChart({
 }) {
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const chartRef = React.useRef<echarts.ECharts | null>(null);
-  const chartRangeRef = React.useRef({ maxTime: 0 });
+  const chartRangeRef = React.useRef({ minTime: 0, maxTime: 0 });
   const suppressZoomEventRef = React.useRef(false);
   const zoomRef = React.useRef({
     followRight: true,
@@ -141,7 +141,7 @@ export function TelemetryTrendChart({
       maxLoss: Math.min(100, Math.ceil(maxLoss * 1.2)),
     };
   }, [channelSwitches, lossSeries, rateSeries]);
-  chartRangeRef.current = { maxTime: chartData.maxTime };
+  chartRangeRef.current = { minTime: chartData.minTime, maxTime: chartData.maxTime };
 
   React.useEffect(() => {
     if (!rootRef.current) return;
@@ -151,8 +151,18 @@ export function TelemetryTrendChart({
       if (suppressZoomEventRef.current) return;
       const dataZoom = chart.getOption().dataZoom;
       const zoom = Array.isArray(dataZoom) ? dataZoom[0] : undefined;
-      const start = Number((zoom as { startValue?: unknown } | undefined)?.startValue);
-      const end = Number((zoom as { endValue?: unknown } | undefined)?.endValue);
+      let start = Number((zoom as { startValue?: unknown } | undefined)?.startValue);
+      let end = Number((zoom as { endValue?: unknown } | undefined)?.endValue);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) {
+        const startPercent = Number((zoom as { start?: unknown } | undefined)?.start);
+        const endPercent = Number((zoom as { end?: unknown } | undefined)?.end);
+        const range = chartRangeRef.current;
+        const rangeSpan = Math.max(1, range.maxTime - range.minTime);
+        if (Number.isFinite(startPercent) && Number.isFinite(endPercent)) {
+          start = range.minTime + (rangeSpan * startPercent) / 100;
+          end = range.minTime + (rangeSpan * endPercent) / 100;
+        }
+      }
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
       zoomRef.current = {
         followRight: chartRangeRef.current.maxTime - end <= FOLLOW_RIGHT_TOLERANCE_MS,
@@ -176,10 +186,16 @@ export function TelemetryTrendChart({
     if (!chart) return;
 
     const zoom = zoomRef.current;
+    const desiredSpan = Math.max(MIN_WINDOW_MS, zoom.span);
+    const axisMinTime = Math.min(chartData.minTime, chartData.maxTime - desiredSpan);
+    const zoomBoundsData: ChartPoint[] = [
+      [axisMinTime, 0],
+      [chartData.maxTime, 0],
+    ];
     let zoomEnd = chartData.maxTime;
-    let zoomStart = Math.max(chartData.minTime, zoomEnd - zoom.span);
+    let zoomStart = Math.max(axisMinTime, zoomEnd - desiredSpan);
     if (!zoom.followRight && zoom.end > zoom.start) {
-      zoomStart = Math.max(chartData.minTime, zoom.start);
+      zoomStart = Math.max(axisMinTime, zoom.start);
       zoomEnd = Math.min(chartData.maxTime, zoom.end);
       if (zoomEnd - zoomStart < MIN_WINDOW_MS) {
         zoomEnd = Math.min(chartData.maxTime, zoomStart + MIN_WINDOW_MS);
@@ -191,6 +207,7 @@ export function TelemetryTrendChart({
       end: zoomEnd,
       span: Math.max(MIN_WINDOW_MS, zoomEnd - zoomStart),
     };
+    chartRangeRef.current = { minTime: axisMinTime, maxTime: chartData.maxTime };
     suppressZoomEventRef.current = true;
     chart.setOption(
       {
@@ -227,6 +244,7 @@ export function TelemetryTrendChart({
             type: "inside",
             xAxisIndex: 0,
             filterMode: "filter",
+            rangeMode: ["value", "value"],
             startValue: zoomStart,
             endValue: zoomEnd,
             minValueSpan: MIN_WINDOW_MS,
@@ -235,6 +253,7 @@ export function TelemetryTrendChart({
             type: "slider",
             xAxisIndex: 0,
             filterMode: "filter",
+            rangeMode: ["value", "value"],
             height: 18,
             bottom: 14,
             startValue: zoomStart,
@@ -257,7 +276,7 @@ export function TelemetryTrendChart({
         ],
         xAxis: {
           type: "time",
-          min: chartData.minTime,
+          min: axisMinTime,
           max: chartData.maxTime,
           axisLabel: {
             color: "#a0aec0",
@@ -295,6 +314,19 @@ export function TelemetryTrendChart({
           },
         ],
         series: [
+          {
+            name: "__Zoom Bounds",
+            type: "line",
+            yAxisIndex: 2,
+            data: zoomBoundsData,
+            showSymbol: false,
+            symbol: "none",
+            silent: true,
+            tooltip: { show: false },
+            lineStyle: { opacity: 0 },
+            itemStyle: { opacity: 0 },
+            emphasis: { disabled: true },
+          },
           {
             name: "Report Rate",
             type: "line",

@@ -62,30 +62,39 @@
 #define RF_AUTO_DEMO_DISCOVERY_CHANNEL_B RFH_DISCOVERY_CHANNEL_B
 #define RF_AUTO_DEMO_INITIAL_CHANNEL   RF_AUTO_DEMO_DISCOVERY_CHANNEL_B
 #define RF_AUTO_DEMO_DISCOVERY_DWELL_MS RFH_DUAL_PERIOD_MS
+
+/*
+ * 自动跳频条件可调项：
+ * - 丢包率单位是 permille，50 = 5%，1000 = 100%。
+ * - 分数越低越好，越高越差，评分达到阈值说明当前频道风险较高。
+ * - ACK 丢失、丢包率、IRQ 延迟都会触发跳频；冷却和改善阈值决定是否换到候选频道。
+ */
 #ifndef RF_AUTO_DEMO_AUTO_HOP_ENABLE
-#define RF_AUTO_DEMO_AUTO_HOP_ENABLE   1u
+#define RF_AUTO_DEMO_AUTO_HOP_ENABLE   1u    /* 1=启用自动跳频，0=只接受手动切频道 */
 #endif
-#define RF_AUTO_DEMO_HOP_SCORE_THRESHOLD 180u
-#define RF_AUTO_DEMO_HOP_LOSS_SUSTAINED_THRESHOLD 50u
-#define RF_AUTO_DEMO_HOP_LOSS_SUSTAINED_WINDOWS 3u
-#define RF_AUTO_DEMO_HOP_SCORE_IMPROVE_MIN 40u
-#define RF_AUTO_DEMO_HOP_FORCE_SCORE    400u
-#define RF_AUTO_DEMO_HOP_IRQ_GOOD_US   800u
-#define RF_AUTO_DEMO_HOP_IRQ_THRESHOLD_US 1500u
-#define RF_AUTO_DEMO_HOP_IRQ_WARN_US    1000u
-#define RF_AUTO_DEMO_HOP_IRQ_BAD_US     2500u
-#define RF_AUTO_DEMO_IRQ_HOP_WINDOWS    2u
-#define RF_AUTO_DEMO_HOP_ACK_MISS_THRESHOLD 6u
+#define RF_AUTO_DEMO_HOP_LOSS_TRIGGER_PERMILLE 70u /* ACK 上报丢包率超过 7% 时立即跳频 */
+#define RF_AUTO_DEMO_HOP_ACK_MISS_THRESHOLD 8u /* 连续丢 ACK 达到该次数后，按评分触发跳频 */
 #define RF_AUTO_DEMO_LINK_ACK_MISS_LIMIT \
-    (RF_AUTO_DEMO_HOP_ACK_MISS_THRESHOLD + RFH_ACK_MISS_LIMIT_DEFAULT)
-#define RF_AUTO_DEMO_HOP_COOLDOWN_MS   10000u
-#define RF_AUTO_DEMO_RANK_PROMOTE_MS   RF_AUTO_DEMO_HOP_COOLDOWN_MS
-#define RF_AUTO_DEMO_FRONT_HALF_COUNT  ((RFH_HOP_CHANNEL_COUNT + 1u) / 2u)
-#define RF_AUTO_DEMO_HOP_PREPARE_TIMEOUT_MS 1000u
-#define RF_AUTO_DEMO_HOP_CONFIRM_TIMEOUT_MS 1000u
-#define RF_AUTO_DEMO_HOP_RECOVERY_TIMEOUT_MS 3000u
-#define RF_AUTO_DEMO_MANUAL_SWITCH_GRACE_MS RF_AUTO_DEMO_HOP_RECOVERY_TIMEOUT_MS
-#define RF_AUTO_DEMO_HOP_RECOVERY_DWELL_MS 500u
+    (RF_AUTO_DEMO_HOP_ACK_MISS_THRESHOLD + RFH_ACK_MISS_LIMIT_DEFAULT) /* 超过该次数认为链路断开 */
+#define RF_AUTO_DEMO_HOP_SCORE_THRESHOLD 180u /* ACK 超时/评分兜底跳频阈值 */
+#define RF_AUTO_DEMO_HOP_IRQ_THRESHOLD_US 1500u /* 平均 IRQ 延迟达到该值后计入跳频窗口 */
+#define RF_AUTO_DEMO_IRQ_HOP_WINDOWS    2u    /* IRQ 延迟连续异常窗口数，达到后触发跳频 */
+#define RF_AUTO_DEMO_HOP_IRQ_GOOD_US   800u  /* IRQ 延迟恢复到该值以下时清除异常窗口 */
+#define RF_AUTO_DEMO_HOP_IRQ_WARN_US    1000u /* IRQ 评分开始升高的延迟 */
+#define RF_AUTO_DEMO_HOP_IRQ_BAD_US     2500u /* IRQ 评分达到满坏分的延迟 */
+#define RF_AUTO_DEMO_HOP_FORCE_SCORE    400u  /* 当前频道坏分达到该值时，无视普通跳频冷却 */
+#define RF_AUTO_DEMO_HOP_SCORE_IMPROVE_MIN 40u /* 候选频道至少低这么多分才优先切换 */
+#define RF_AUTO_DEMO_HOP_COOLDOWN_MS   10000u /* 一次跳频完成后的普通冷却时间 */
+#define RF_AUTO_DEMO_CHANNEL_COOLDOWN_MS 10000u /* 频道被打满坏分后，暂不选回的时间 */
+#define RF_AUTO_DEMO_HOP_STABLE_LOSS_MAX_PERMILLE 50u /* 稳定保护：10 秒内丢包率一直低于 5% 则不跳频 */
+#define RF_AUTO_DEMO_HOP_STABLE_IRQ_AVG_US 1200u /* 稳定保护：10 秒内按键/IRQ 平均延迟低于 1.2ms 则不跳频 */
+#define RF_AUTO_DEMO_RANK_PROMOTE_MS   RF_AUTO_DEMO_HOP_COOLDOWN_MS /* 停留在排行榜后半区超过该时间则尝试上移 */
+#define RF_AUTO_DEMO_FRONT_HALF_COUNT  ((RFH_HOP_CHANNEL_COUNT + 1u) / 2u) /* 排行榜前半区频道数量 */
+#define RF_AUTO_DEMO_HOP_PREPARE_TIMEOUT_MS 1000u /* HOP_PREPARE 等 ACK 的超时 */
+#define RF_AUTO_DEMO_HOP_CONFIRM_TIMEOUT_MS 1000u /* HOP_CONFIRM 等 ACK 的超时 */
+#define RF_AUTO_DEMO_HOP_RECOVERY_TIMEOUT_MS 3000u /* 跳频握手失败后的双频道恢复总时长 */
+#define RF_AUTO_DEMO_MANUAL_SWITCH_GRACE_MS RF_AUTO_DEMO_HOP_RECOVERY_TIMEOUT_MS /* 手动切频道后的 ACK 宽限期 */
+#define RF_AUTO_DEMO_HOP_RECOVERY_DWELL_MS 500u /* 恢复期在旧/新频道之间切换的停留时间 */
 #define RF_AUTO_DEMO_PAIR_RX_TIMEOUT_US 30000u
 #define RF_AUTO_DEMO_PAIR_RX_TIMEOUT_UNITS (RF_AUTO_DEMO_PAIR_RX_TIMEOUT_US * 2u)
 /*
@@ -94,19 +103,17 @@
  * 指标值按 0..1000 归一化后，以“指标值 * WEIGHT / 100”累加到 SCORE_BASE。
  * 调大某项 WEIGHT 会放大该指标对坏分的影响。
  */
-#define RF_AUTO_DEMO_SCORE_BASE        20u   /* 无异常时的基础坏分 */
+#define RF_AUTO_DEMO_SCORE_BASE        0u    /* 无异常时坏分为 0 */
 #define RF_AUTO_DEMO_SCORE_LOSS_WEIGHT 200u  /* 丢包/坏包率权重 */
 #define RF_AUTO_DEMO_SCORE_CRC_WEIGHT  100u  /* CRC 错误权重 */
 #define RF_AUTO_DEMO_SCORE_TYPE_WEIGHT 100u  /* 包类型/格式错误权重 */
 #define RF_AUTO_DEMO_SCORE_TIMEOUT_WEIGHT 40u /* ACK/链路超时权重 */
 #define RF_AUTO_DEMO_SCORE_IRQ_WEIGHT  100u  /* RX IRQ 延迟权重 */
-#define RF_AUTO_DEMO_CHANNEL_SCORE_INIT RF_AUTO_DEMO_SCORE_BASE /* 初始频道分 */
-#define RF_AUTO_DEMO_CHANNEL_SCORE_GOOD RF_AUTO_DEMO_SCORE_BASE /* 明确好样本分 */
+#define RF_AUTO_DEMO_SCORE_WINDOW_MS   10000u /* 活动频道评分时间窗口：10 秒内所有事件样本求平均后更新一次分数 */
+#define RF_AUTO_DEMO_CHANNEL_SCORE_INIT RF_AUTO_DEMO_SCORE_BASE /* 初始频道坏分 */
+#define RF_AUTO_DEMO_CHANNEL_SCORE_GOOD RF_AUTO_DEMO_SCORE_BASE /* 明确好样本坏分 */
 #define RF_AUTO_DEMO_CHANNEL_SCORE_UNKNOWN 600u /* TX 未测量/未同步频道分 */
 #define RF_AUTO_DEMO_CHANNEL_SCORE_BAD 1000u /* 饱和坏分 */
-#define RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_NUM 7u /* EMA 旧分权重 */
-#define RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_DEN 8u /* EMA 总权重：7/8旧 + 1/8新 */
-#define RF_AUTO_DEMO_CHANNEL_COOLDOWN_MS 10000u
 #define RF_LINK_CRC_INIT               0x555555UL
 #ifndef RF_TX_FORCE_INPUT_PAYLOAD_TEST
 #define RF_TX_FORCE_INPUT_PAYLOAD_TEST 0u
@@ -150,6 +157,18 @@ typedef enum
     RF_AUTO_PAIR_OFFERING,
     RF_AUTO_PAIR_CONFIRM_WAIT
 } rf_auto_pair_state_t;
+
+typedef struct
+{
+    uint32_t window_start_clock;
+    uint32_t sample_score_sum;
+    uint32_t sample_count;
+    uint16_t max_loss_permille;
+    uint32_t irq_sum_us;
+    uint32_t quality_sample_count;
+    uint8_t active;
+    uint8_t last_window_stable;
+} rf_score_window_t;
 
 uint8_t taskID;
 
@@ -204,7 +223,6 @@ static uint16_t g_demo_last_avg_irq_us = 0u;
 static uint16_t g_demo_last_max_irq_us = 0u;
 static uint16_t g_demo_hop_reason_score = 0u;
 static uint8_t g_demo_ack_miss_count = 0u;
-static uint8_t g_demo_loss_bad_window_count = 0u;
 static uint8_t g_demo_irq_bad_window_count = 0u;
 static uint32_t g_demo_hop_deadline_clock = 0u;
 static uint32_t g_demo_hop_cooldown_until = 0u;
@@ -255,6 +273,7 @@ static uint32_t g_monitor_sync_echo_tx_tick_us = 0u;
 
 static uint16_t g_demo_channel_scores[RFH_HOP_CHANNEL_COUNT];
 static uint32_t g_demo_channel_cooldown_until[RFH_HOP_CHANNEL_COUNT];
+static rf_score_window_t g_demo_score_windows[RFH_HOP_CHANNEL_COUNT];
 static uint8_t g_demo_channel_tried_mask = 0u;
 static uint8_t g_demo_channel_score_known_mask = 0u;
 
@@ -672,30 +691,202 @@ static uint16_t demo_score_irq_sample(uint16_t avg_irq_us)
     return demo_score_from_metrics(0u, 0u, 0u, 0u, irq_permille);
 }
 
-static void demo_channel_score_update(uint8_t channel, uint16_t sample, uint32_t now)
+static void demo_score_window_reset_by_index(uint8_t idx, uint32_t now)
 {
-    uint8_t idx = demo_channel_index(channel);
-
-    if(idx == 0xFFu)
+    if(idx >= RFH_HOP_CHANNEL_COUNT)
     {
         return;
     }
 
-    g_demo_channel_scores[idx] =
-        rfh_score_ema(g_demo_channel_scores[idx],
-                      sample,
-                      RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_NUM,
-                      (uint16_t)(RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_DEN -
-                                 RF_AUTO_DEMO_CHANNEL_SCORE_ALPHA_NUM));
+    g_demo_score_windows[idx].window_start_clock = now;
+    g_demo_score_windows[idx].sample_score_sum = 0u;
+    g_demo_score_windows[idx].sample_count = 0u;
+    g_demo_score_windows[idx].max_loss_permille = 0u;
+    g_demo_score_windows[idx].irq_sum_us = 0u;
+    g_demo_score_windows[idx].quality_sample_count = 0u;
+    g_demo_score_windows[idx].active = 1u;
+    g_demo_score_windows[idx].last_window_stable = 0u;
+}
+
+static void demo_channel_score_apply_sample_by_index(uint8_t idx,
+                                                     uint16_t sample,
+                                                     uint32_t now)
+{
+    if(idx >= RFH_HOP_CHANNEL_COUNT)
+    {
+        return;
+    }
+
+    g_demo_channel_scores[idx] = rfh_score_clamp(sample);
     if(idx < 8u)
     {
         g_demo_channel_score_known_mask |= (uint8_t)(1u << idx);
     }
-    if(sample >= RF_AUTO_DEMO_CHANNEL_SCORE_BAD)
+    if(g_demo_channel_scores[idx] >= RF_AUTO_DEMO_CHANNEL_SCORE_BAD)
     {
         g_demo_channel_cooldown_until[idx] =
             now + MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_CHANNEL_COOLDOWN_MS);
     }
+}
+
+static void demo_channel_score_mark_known_by_index(uint8_t idx)
+{
+    if(idx < 8u)
+    {
+        g_demo_channel_score_known_mask |= (uint8_t)(1u << idx);
+    }
+}
+
+static void demo_score_window_flush_by_index(uint8_t idx, uint32_t now, uint8_t force)
+{
+    uint32_t elapsed;
+    uint8_t stable = 0u;
+
+    if(idx >= RFH_HOP_CHANNEL_COUNT)
+    {
+        return;
+    }
+
+    if(g_demo_score_windows[idx].active == 0u)
+    {
+        demo_score_window_reset_by_index(idx, now);
+        return;
+    }
+
+    elapsed = now - g_demo_score_windows[idx].window_start_clock;
+    if((force == 0u) &&
+       (elapsed < MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_SCORE_WINDOW_MS)))
+    {
+        return;
+    }
+
+    if(g_demo_score_windows[idx].sample_count != 0u)
+    {
+        uint16_t sample = rfh_score_clamp(
+            (g_demo_score_windows[idx].sample_score_sum +
+             (g_demo_score_windows[idx].sample_count / 2u)) /
+            g_demo_score_windows[idx].sample_count);
+
+        demo_channel_score_apply_sample_by_index(idx,
+                                                 sample,
+                                                 now);
+    }
+    if(g_demo_score_windows[idx].quality_sample_count != 0u)
+    {
+        uint32_t avg_irq_us =
+            (g_demo_score_windows[idx].irq_sum_us +
+             (g_demo_score_windows[idx].quality_sample_count / 2u)) /
+            g_demo_score_windows[idx].quality_sample_count;
+
+        if((g_demo_score_windows[idx].max_loss_permille < RF_AUTO_DEMO_HOP_STABLE_LOSS_MAX_PERMILLE) &&
+           (avg_irq_us < RF_AUTO_DEMO_HOP_STABLE_IRQ_AVG_US))
+        {
+            stable = 1u;
+        }
+    }
+    demo_score_window_reset_by_index(idx, now);
+    g_demo_score_windows[idx].last_window_stable = stable;
+}
+
+static void demo_score_window_reset_channel(uint8_t channel, uint32_t now)
+{
+    uint8_t idx = demo_channel_index(channel);
+
+    if(idx != 0xFFu)
+    {
+        demo_score_window_reset_by_index(idx, now);
+    }
+}
+
+static void demo_score_windows_service(uint32_t now)
+{
+    uint8_t idx = demo_channel_index(g_demo_current_channel);
+
+    if(idx != 0xFFu)
+    {
+        demo_score_window_flush_by_index(idx, now, 0u);
+    }
+}
+
+static void demo_channel_score_update(uint8_t channel, uint16_t sample, uint32_t now)
+{
+    uint8_t idx = demo_channel_index(channel);
+
+    if((idx == 0xFFu) || (channel != g_demo_current_channel))
+    {
+        return;
+    }
+
+    demo_score_window_flush_by_index(idx, now, 0u);
+    if(g_demo_score_windows[idx].active == 0u)
+    {
+        demo_score_window_reset_by_index(idx, now);
+    }
+    g_demo_score_windows[idx].sample_score_sum += rfh_score_clamp(sample);
+    g_demo_score_windows[idx].sample_count++;
+}
+
+static void demo_score_window_note_quality(uint8_t channel,
+                                           uint16_t loss_permille,
+                                           uint16_t irq_us,
+                                           uint32_t now)
+{
+    uint8_t idx = demo_channel_index(channel);
+
+    if((idx == 0xFFu) || (channel != g_demo_current_channel))
+    {
+        return;
+    }
+
+    demo_score_window_flush_by_index(idx, now, 0u);
+    if(g_demo_score_windows[idx].active == 0u)
+    {
+        demo_score_window_reset_by_index(idx, now);
+    }
+    if(loss_permille > g_demo_score_windows[idx].max_loss_permille)
+    {
+        g_demo_score_windows[idx].max_loss_permille = loss_permille;
+    }
+    g_demo_score_windows[idx].irq_sum_us += irq_us;
+    g_demo_score_windows[idx].quality_sample_count++;
+}
+
+static uint8_t demo_stable_window_blocks_hop(void)
+{
+    uint8_t idx = demo_channel_index(g_demo_current_channel);
+    uint32_t now;
+    uint32_t elapsed;
+
+    if(idx == 0xFFu)
+    {
+        return 0u;
+    }
+    if((g_demo_score_windows[idx].quality_sample_count != 0u) &&
+       (g_demo_score_windows[idx].max_loss_permille >= RF_AUTO_DEMO_HOP_STABLE_LOSS_MAX_PERMILLE))
+    {
+        return 0u;
+    }
+    if(g_demo_score_windows[idx].quality_sample_count != 0u)
+    {
+        uint32_t avg_irq_us =
+            (g_demo_score_windows[idx].irq_sum_us +
+             (g_demo_score_windows[idx].quality_sample_count / 2u)) /
+            g_demo_score_windows[idx].quality_sample_count;
+
+        if(avg_irq_us >= RF_AUTO_DEMO_HOP_STABLE_IRQ_AVG_US)
+        {
+            return 0u;
+        }
+    }
+
+    now = TMOS_GetSystemClock();
+    elapsed = now - g_demo_score_windows[idx].window_start_clock;
+    if(elapsed < MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_SCORE_WINDOW_MS))
+    {
+        return 1u;
+    }
+
+    return (g_demo_score_windows[idx].last_window_stable != 0u) ? 1u : 0u;
 }
 
 static void demo_channel_mark_tried(uint8_t channel)
@@ -737,6 +928,10 @@ static uint16_t demo_channel_score_effective_by_index(uint8_t idx)
     {
         return RF_AUTO_DEMO_CHANNEL_SCORE_BAD;
     }
+    if(rfh_hop_channel_at(idx) == g_demo_current_channel)
+    {
+        return g_demo_channel_scores[idx];
+    }
     if((idx >= 8u) ||
        ((g_demo_channel_score_known_mask & (uint8_t)(1u << idx)) == 0u))
     {
@@ -748,26 +943,27 @@ static uint16_t demo_channel_score_effective_by_index(uint8_t idx)
 static void demo_channel_score_set(uint8_t channel, uint16_t score)
 {
     uint8_t idx = demo_channel_index(channel);
+    uint32_t now = TMOS_GetSystemClock();
 
     if(idx == 0xFFu)
     {
         return;
     }
     g_demo_channel_scores[idx] = (score > 1000u) ? 1000u : score;
-    if(idx < 8u)
-    {
-        g_demo_channel_score_known_mask |= (uint8_t)(1u << idx);
-    }
+    demo_score_window_reset_by_index(idx, now);
+    demo_channel_score_mark_known_by_index(idx);
 }
 
 static void demo_channel_scores_init(void)
 {
     uint8_t i;
+    uint32_t now = TMOS_GetSystemClock();
 
     for(i = 0u; i < RFH_HOP_CHANNEL_COUNT; i++)
     {
         g_demo_channel_scores[i] = RF_AUTO_DEMO_CHANNEL_SCORE_INIT;
         g_demo_channel_cooldown_until[i] = 0u;
+        demo_score_window_reset_by_index(i, now);
     }
     i = demo_channel_index(RF_AUTO_DEMO_INITIAL_CHANNEL);
     if(i != 0xFFu)
@@ -775,6 +971,7 @@ static void demo_channel_scores_init(void)
         g_demo_channel_scores[i] = RF_AUTO_DEMO_CHANNEL_SCORE_GOOD;
     }
     g_demo_channel_score_known_mask = 0u;
+    demo_channel_score_mark_known_by_index(i);
 }
 
 #if (RF_SERIAL_LOG == 1)
@@ -987,6 +1184,8 @@ static void demo_apply_channel(uint8_t channel)
 
     g_demo_current_channel = channel;
     g_demo_channel_enter_clock = TMOS_GetSystemClock();
+    demo_score_window_reset_channel(channel, g_demo_channel_enter_clock);
+    demo_channel_score_mark_known_by_index(demo_channel_index(channel));
     g_demo_ack_rx_active = 0u;
     g_demo_wait_ack_after_tx = 0u;
     g_demo_pause_tx = 0u;
@@ -1021,7 +1220,6 @@ static void demo_enter_tx_unconnected(uint32_t now)
     g_demo_link_state = RF_AUTO_TX_UNCONNECTED;
     g_demo_hop_state = RF_AUTO_HOP_COMM;
     g_demo_ack_miss_count = 0u;
-    g_demo_loss_bad_window_count = 0u;
     g_demo_irq_bad_window_count = 0u;
     g_demo_rate_update_pending = 0u;
     g_demo_ack_burst_left = 0u;
@@ -1056,7 +1254,6 @@ static void demo_enter_tx_comm(uint32_t now, uint8_t channel)
     g_demo_old_channel = channel;
     g_demo_target_channel = channel;
     g_demo_ack_miss_count = 0u;
-    g_demo_loss_bad_window_count = 0u;
     g_demo_irq_bad_window_count = 0u;
     g_demo_force_ack_burst = 0u;
     g_demo_ack_burst_left = 0u;
@@ -1152,6 +1349,10 @@ static void demo_begin_hop_prepare(uint32_t now,
     {
         return;
     }
+    if(demo_stable_window_blocks_hop() != 0u)
+    {
+        return;
+    }
 
     g_demo_old_channel = g_demo_current_channel;
     g_demo_target_channel = target_channel;
@@ -1185,6 +1386,10 @@ static void demo_start_hop_prepare(uint32_t now, uint16_t reason_score)
         return;
     }
     if(g_demo_hop_state != RF_AUTO_HOP_COMM)
+    {
+        return;
+    }
+    if(demo_stable_window_blocks_hop() != 0u)
     {
         return;
     }
@@ -1290,7 +1495,6 @@ static void demo_apply_pending_manual_switch(void)
     demo_channel_mark_tried(target_channel);
     demo_apply_channel(target_channel);
     g_demo_ack_miss_count = 0u;
-    g_demo_loss_bad_window_count = 0u;
     g_demo_irq_bad_window_count = 0u;
     g_demo_force_ack_burst = 1u;
     g_monitor_manual_switch_grace_active = 1u;
@@ -1307,7 +1511,6 @@ static void demo_finish_hop(uint32_t now)
     demo_channel_mark_tried(g_demo_current_channel);
     demo_channel_score_update(g_demo_current_channel, RF_AUTO_DEMO_CHANNEL_SCORE_GOOD, now);
     g_demo_ack_miss_count = 0u;
-    g_demo_loss_bad_window_count = 0u;
     g_demo_irq_bad_window_count = 0u;
     g_demo_force_ack_burst = 0u;
     g_demo_hop_cooldown_until = now + MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_HOP_COOLDOWN_MS);
@@ -1320,8 +1523,9 @@ static void demo_enter_recovery(uint32_t now)
     g_demo_hop_deadline_clock = now + MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_HOP_RECOVERY_TIMEOUT_MS);
     g_demo_recovery_switch_clock = now;
     g_demo_recovery_side = 0u;
-    demo_apply_channel(g_demo_old_channel);
     demo_channel_score_update(g_demo_target_channel, demo_score_timeout_sample(), now);
+    demo_score_window_flush_by_index(demo_channel_index(g_demo_target_channel), now, 1u);
+    demo_apply_channel(g_demo_old_channel);
     g_demo_force_ack_burst = 1u;
     g_demo_stat.hop_event++;
 }
@@ -1433,34 +1637,26 @@ static void demo_handle_ack_packet(void)
         return;
     }
 
+    demo_score_window_note_quality(g_demo_current_channel,
+                                   g_demo_last_quality,
+                                   g_demo_last_avg_irq_us,
+                                   now);
     g_demo_ack_miss_count = 0u;
     g_monitor_manual_switch_grace_active = 0u;
     risk_score = RF_AUTO_DEMO_CHANNEL_SCORE_GOOD;
-    if(g_demo_last_quality >= RF_AUTO_DEMO_HOP_SCORE_THRESHOLD)
+    if(g_demo_last_quality > RF_AUTO_DEMO_HOP_LOSS_TRIGGER_PERMILLE)
     {
         risk_score = demo_score_loss_sample(g_demo_last_quality);
-        if(risk_score < demo_score_timeout_sample())
+        if(risk_score < RF_AUTO_DEMO_HOP_FORCE_SCORE)
         {
-            risk_score = demo_score_timeout_sample();
+            risk_score = RF_AUTO_DEMO_HOP_FORCE_SCORE;
         }
         should_hop = 1u;
     }
-    else if(g_demo_last_quality >= RF_AUTO_DEMO_HOP_LOSS_SUSTAINED_THRESHOLD)
+    else if(g_demo_last_quality >= RF_AUTO_DEMO_HOP_SCORE_THRESHOLD)
     {
         risk_score = demo_score_loss_sample(g_demo_last_quality);
-        if(g_demo_loss_bad_window_count != 0xFFu)
-        {
-            g_demo_loss_bad_window_count++;
-        }
-        if(g_demo_loss_bad_window_count >= RF_AUTO_DEMO_HOP_LOSS_SUSTAINED_WINDOWS)
-        {
-            risk_score = demo_score_timeout_sample();
-            should_hop = 1u;
-        }
-    }
-    else
-    {
-        g_demo_loss_bad_window_count = 0u;
+        should_hop = 1u;
     }
     irq_score = demo_irq_latency_score(g_demo_last_avg_irq_us);
     if(irq_score > risk_score)
@@ -2194,6 +2390,7 @@ static void demo_note_ack_timeout(void)
 {
     uint32_t now = TMOS_GetSystemClock();
     uint16_t current_score;
+    uint16_t timeout_score = demo_score_timeout_sample();
 
     if(g_demo_link_state == RF_AUTO_TX_UNCONNECTED)
     {
@@ -2214,7 +2411,7 @@ static void demo_note_ack_timeout(void)
     }
 
     demo_channel_score_update(g_demo_current_channel,
-                              demo_score_timeout_sample(),
+                              timeout_score,
                               now);
     g_demo_ack_miss_count++;
 
@@ -2270,6 +2467,10 @@ static void demo_service_rank_promotion(uint32_t now)
         return;
     }
     if((int32_t)(now - g_demo_hop_cooldown_until) < 0)
+    {
+        return;
+    }
+    if(demo_stable_window_blocks_hop() != 0u)
     {
         return;
     }
@@ -2525,6 +2726,7 @@ void RF_TxMainLoopProcess(void)
     demo_check_tx_stuck(now);
     demo_try_send();
 #endif
+    demo_score_windows_service(now);
     demo_service_link(now);
     demo_ack_control_service(now);
     demo_service_hop(now);
@@ -2873,7 +3075,6 @@ void RF_Init(void)
     g_demo_rate_code = RF_AUTO_DEMO_RATE_CODE;
     g_demo_last_avg_irq_us = 0u;
     g_demo_last_max_irq_us = 0u;
-    g_demo_loss_bad_window_count = 0u;
     g_demo_irq_bad_window_count = 0u;
     g_demo_link_state = RF_AUTO_TX_UNCONNECTED;
     g_demo_pair_state = RF_AUTO_PAIR_IDLE;

@@ -160,7 +160,7 @@ function qualityScoreFromBadScore(badScorePermille?: number) {
 
 function describeHopReason(badScorePermille?: number) {
   if (typeof badScorePermille !== "number") return "Unknown";
-  if (badScorePermille >= 1000) return "ACK missed";
+  if (badScorePermille >= 1000) return "Max bad score";
   return "Low quality score";
 }
 

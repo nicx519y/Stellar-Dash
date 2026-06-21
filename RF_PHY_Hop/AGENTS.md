@@ -276,7 +276,7 @@ RECOVERY_DUAL timeout -> COMM(old)
 
 TX 掉线/恢复经验：
 
-- ACK miss 不是每次都立即 hop；当前连续 `6` 次 ACK miss 才触发 hop/recovery，避免因单次 ACK 抖动过度跳频。
+- ACK miss 不是每次都立即 hop；单次 ACK timeout 只进入 10 秒评分窗口。当前连续 `8` 次 ACK miss，且当前频道 bad score 已达到跳频阈值时，才按评分触发自动跳频。
 - `RECOVERY_DUAL` 只在 TX 已经知道 old/target 的跳频事务里使用；TX 断电再上电后会从初始频道启动，不能指望 TX 单边把 RX 拉回来。
 - 因此 RX 侧必须有独立 recovery scan，处理“TX 重启回初始频道、RX 停在旧频道”的场景。
 
@@ -308,29 +308,57 @@ RX recovery scan 经验：
 
 分数语义：
 
-- 内部记录的是 bad score，`0` 最好，`1000` 最差。
+- 当前使用 bad score 模型，`0` 最好，`1000` 最差。
 - connect-monitor Channel Bad Scores 直接显示 bad score，`0` 最好，`1000` 最差。
-- RX score telemetry 不再用每个 DATA OK 降 bad score；改为每个 ACK window 按 `loss_permille` 更新一次，避免 8K 好包量把分数冲满。
-- TX ACK OK 按 ACK window 风险更新当前频道 bad score。
-- ACK timeout / CRC error / type error 对当前频道升 bad score。
-- 这样设计的原因是：评分本质是“坏度/风险”，TX 的跳频选择直接按 bad score 越低越好。
+- 初始分、健康分都是 `0`；没有“减分修复”动作，频道变好只能在新的活动窗口里覆盖出更低的 bad score。
+- 评分复杂度封装在 `Common/include/rf_hop_score.h`，上层只暴露各指标权重。
+- 评分公式为：
+
+```text
+score = base
+      + loss_permille   * loss_weight    / 100
+      + crc_permille    * crc_weight     / 100
+      + type_permille   * type_weight    / 100
+      + timeout_permille* timeout_weight / 100
+      + irq_permille    * irq_weight     / 100
+
+score clamp 到 0..1000
+```
+
+- 活动频道每 `10s` 结算一次评分窗口；窗口内所有事件样本取平均后，直接覆盖该频道 bad score。
+- 不活动频道不参与窗口结算，分数保持不动。
+- 窗口内没有事件样本时，不覆盖原频道分数。
+- 当前通信频道始终视为已知频道，避免未测频道默认分造成误跳。
+- TX 端未知/未同步候选频道可用 `600` 作为保守 bad score；真正测过以后由窗口结果覆盖。
+- HOP_CONFIRM 失败时，会先强制结算 target 频道窗口，再回到 old channel，避免失败 target 立刻被反复重试。
 
 当前参数：
 
-- 初始 bad score：`20`
-- GOOD sample：`20`
-- ACK miss / latency trigger sample：`400`
-- latency warn sample：`180`
-- BAD sample：`1000`
-- 平滑：`score = (old * 7 + sample) / 8`
-- TX 跳频触发阈值：bad score / ACK window bad permille `>= 180`
-- TX sustained loss 触发阈值：`loss_permille >= 50` 连续 `3` 个 ACK 窗口，约 `1.5s`
-- TX latency good 基线：`avg_irq_us <= 800`，不会触发跳频。
-- `avg_irq_us >= 1000` 记为 warn；`avg_irq_us >= 1500` 连续 2 个 ACK 窗口才触发跳频；`avg_irq_us >= 2500` 记为 bad 并给频道 cooldown
-- TX 选目标频道时要求候选 bad score 至少好 `40`，当前风险 `>= 400` 时允许强制跳到最优候选
-- 若 7 个频道都已尝试且都不达标，则停在当前 bad score 最低的频道，不持续绕圈
-- TX hop cooldown：`10s`
-- 连续 ACK miss 跳频阈值：`6`
+- TX 初始 bad score：`0`
+- TX health/good bad score：`0`
+- TX 未知频道 bad score：`600`
+- TX 最大 bad score：`1000`
+- TX 窗口长度：`10000ms`
+- TX 评分权重：loss `200`，CRC `100`，type `100`，timeout `40`，IRQ `100`
+- RX 初始 bad score：`0`
+- RX health/good bad score：`0`
+- RX 最大 bad score：`1000`
+- RX 窗口长度：`10000ms`
+- RX 评分权重：loss `200`，CRC `50`，type `50`，timeout `20`，IRQ `200`
+- TX 跳频评分阈值：当前频道 bad score `>= 180`
+- TX ACK 上报丢包率立即跳频阈值：`loss_permille > 70`，即超过 `7%`
+- TX 连续 ACK miss 评分触发阈值：`8`
+- TX 认为链路断开的 ACK miss 上限：跳频阈值 `8` + 默认链路 miss limit
+- TX IRQ 触发阈值：`avg_irq_us >= 1500` 连续 `2` 个窗口/事件
+- TX IRQ good 基线：`avg_irq_us <= 800`
+- TX IRQ warn 计分起点：`avg_irq_us >= 1000`
+- TX IRQ bad 计分起点：`avg_irq_us >= 2500`
+- TX 强制跳频风险分：`400`
+- TX 选目标频道时要求候选 bad score 至少好 `40`；当前风险 `>= 400` 时允许强制跳到最优候选。
+- TX hop cooldown：`10000ms`
+- 单频道重试 cooldown：`10000ms`
+- 排名提升检查周期：`10000ms`
+- 排名提升只要求当前频道位于排行榜后半部分时，尝试移动到前半部分更优频道。
 
 ## Link Lost 与 Duration 判定经验
 
@@ -1211,12 +1239,13 @@ RX ACK payload 使用共享 ACK 字段：
 - `channel`：RX 当前 ACK 发送频道。
 - `status`：当前复用为 `hop_seq`。
 
-TX 触发跳频的第一版条件：
+TX 自动跳频触发条件集中由配置宏控制：
 
-- `quality_permille >= 180`，且不在 `10s` cooldown 内。
-- `quality_permille >= 50` 连续 3 个 ACK 窗口，且不在 `10s` cooldown 内。
-- `avg_irq_us >= 1500` 连续 2 个 ACK 窗口，且不在 `10s` cooldown 内。
-- 或连续 `6` 个 ACK 控制周期 miss，且不在 cooldown 内。
+- ACK 上报丢包率超过 `7%`：立即请求跳频，并把当前窗口风险至少拉到 `400`，但不直接写死成 `1000`。
+- 连续 ACK miss 达到 `8` 次：只有当前频道 10 秒窗口结算出的 bad score 已达到 `180` 时，才按评分触发跳频；单次 ACK timeout 只累计到评分窗口。
+- IRQ/按键延迟：`avg_irq_us >= 1500` 连续 `2` 个窗口/事件触发跳频；`avg_irq_us <= 800` 会清掉 IRQ bad 计数。
+- 排名提升：当前活动频道在排行榜后半部分停留超过 `10s`，且稳定保护不拦截时，尝试迁移到前半部分更优频道。
+- 连接断开：ACK miss 超过跳频阈值 `8` 加默认链路 miss limit 后，才进入未连接/重连路径。
 
 候选频道来自共享 7 频道表，并按 bad score 选择：
 
@@ -1224,7 +1253,19 @@ TX 触发跳频的第一版条件：
 2, 11, 14, 24, 27, 35, 39
 ```
 
-TX 排除当前频道和仍在 cooldown 的频道，选择 bad score 最低的候选；候选需要比当前风险至少好 `40`，当前风险 `>= 400` 时允许强制跳到最优候选。后续可继续加入 RSSI/CCA 主动探测，但跳频事务不需要再改。
+TX 排除当前频道和仍在 cooldown 的频道，选择 bad score 最低的候选；候选需要比当前风险至少好 `40`，当前风险 `>= 400` 时允许强制跳到最优候选。如果没有更优候选，则停在当前频道并给当前决策半个 cooldown，避免持续绕圈。
+
+### 跳频稳定保护
+
+稳定保护是自动跳频的最高优先级兜底；手动切频道不受该保护限制。
+
+保护条件：
+
+- 当前 10 秒窗口还没满，且窗口内没有观察到坏指标时，不允许自动跳频。
+- 当前 10 秒窗口内最大丢包率低于 `5%`，且 IRQ/按键平均延迟低于 `1.2ms`，不允许自动跳频。
+- 一个 10 秒窗口稳定结束后，保护会延续到下一个窗口；直到新窗口观察到丢包率 `>= 5%` 或平均 IRQ/按键延迟 `>= 1.2ms`，保护才失效。
+
+这条保护同时在跳频请求入口、排名提升入口、最终 `begin hop prepare` 前生效；即使前面误触发了自动跳频，最后准备发送 hop prepare 时仍会再挡一次。
 
 ### 跳频稳定性保证
 
@@ -1253,6 +1294,10 @@ RECOVERY_DUAL timeout -> COMM(old)
 - RX 在 target 收到 confirm 后 ACK `CMD_HOP_CONFIRM`，ACK 发完才把 target 视为正式通信频道。
 - TX 收到 confirm ACK 后才完成跳频并进入 `10s` cooldown。
 - prepare/confirm 都带 `hop_seq`；重复命令幂等，重复 ACK 不会创建新事务。
+- `HOP_PREPARE` 等 ACK 超时为 `1000ms`；失败后回 old channel，并给半个 cooldown。
+- `HOP_CONFIRM` 等 ACK 超时为 `1000ms`；失败后进入 `RECOVERY_DUAL(old,target)`。
+- `RECOVERY_DUAL` 总时长 `3000ms`，old/target 每 `500ms` 切换一次；connect-monitor 里看到约 `3000ms` 的 hop duration，通常就是 confirm 失败后的 recovery，而不是正常跳频耗时。
+- 手动切频道后的 ACK 宽限期跟 recovery 一样是 `3000ms`；手动切频道不受自动跳频稳定保护拦截。
 
 日志字段变化：
 
