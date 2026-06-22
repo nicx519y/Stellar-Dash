@@ -1,171 +1,85 @@
 import { Badge, Box, Card, HStack, Text } from "@chakra-ui/react";
 import * as React from "react";
 
-import type { ButtonLatencyEvent, ButtonLatencyStatusEvent } from "../../../shared/monitor-types";
-import { HITBOX_BUTTON_MAP, UNMAPPED_GAMEPAD_BUTTON } from "./hitboxButtonMap";
+import type { ButtonLatencyEvent, ButtonLatencyStatusEvent, LatencyTableBounds } from "../../../shared/monitor-types";
+import { buildLatencyTableSummary } from "./latencyTableModel";
 import { PanelHeader, panelSurfaceProps } from "./panelStyles";
-import { scrollbarStyle } from "./scrollbarStyle";
 
-const MAX_LATENCY_ROWS = 300;
-const LATENCY_ROW_HEIGHT = 30;
-const LATENCY_ROW_OVERSCAN = 5;
-const LATENCY_TABLE_COLUMNS =
-  "minmax(62px, 1.05fr) repeat(2, minmax(48px, 0.7fr)) repeat(4, minmax(54px, 0.76fr)) minmax(54px, 0.76fr) minmax(58px, 0.82fr)";
-const standardButtonLabels = new Map<number, string>();
-for (const button of HITBOX_BUTTON_MAP) {
-  if (button.gamepadButtonIndex !== UNMAPPED_GAMEPAD_BUTTON && button.label && !standardButtonLabels.has(button.gamepadButtonIndex)) {
-    standardButtonLabels.set(button.gamepadButtonIndex, button.label);
-  }
+function hiddenBounds(): LatencyTableBounds {
+  return {
+    x: 0,
+    y: 0,
+    width: 1,
+    height: 1,
+    visible: false,
+  };
 }
 
-function formatLatency(value: number) {
-  return value < 10 ? value.toFixed(2) : value.toFixed(1);
-}
+function LatencyTableViewSlot() {
+  const slotRef = React.useRef<HTMLDivElement | null>(null);
+  const frameRef = React.useRef<number | null>(null);
 
-function formatLatencyPart(value: number | undefined) {
-  if (typeof value !== "number") return "-";
-  if (value < 1) return `${Math.round(value * 1000)}us`;
-  return `${formatLatency(value)}ms`;
-}
+  const syncBounds = React.useCallback(() => {
+    if (frameRef.current !== null) return;
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = null;
+      const slot = slotRef.current;
+      if (!slot) {
+        window.connectMonitorApi?.setLatencyTableBounds?.(hiddenBounds());
+        return;
+      }
 
-function formatTime(ms: number) {
-  const d = new Date(ms);
-  return `${d.toLocaleTimeString()}.${String(d.getMilliseconds()).padStart(3, "0")}`;
-}
-function changedButtonLabels(row: ButtonLatencyEvent) {
-  const changed = (row.previousStandardMask ^ row.standardMask) >>> 0;
-  const labels: string[] = [];
-  for (let bit = 0; bit < 17; bit += 1) {
-    if ((changed & (1 << bit)) !== 0) {
-      labels.push(standardButtonLabels.get(bit) ?? `B${bit}`);
-    }
-  }
-  return labels.length > 0 ? labels.join("+") : "State";
-}
+      const rect = slot.getBoundingClientRect();
+      const visible =
+        rect.width >= 2 &&
+        rect.height >= 2 &&
+        rect.right > 0 &&
+        rect.bottom > 0 &&
+        rect.left < window.innerWidth &&
+        rect.top < window.innerHeight;
 
-function hasChangedButtons(row: ButtonLatencyEvent) {
-  return ((row.previousStandardMask ^ row.standardMask) >>> 0) !== 0;
-}
-
-function statusColor(status: ButtonLatencyStatusEvent["status"] | undefined) {
-  if (status === "Locked" || status === "Live") return "green";
-  if (status === "Syncing" || status === "No match" || status === "Waiting edge") return "yellow";
-  return "gray";
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function latencyRowKey(row: ButtonLatencyEvent) {
-  return `${row.timestampMs}-${row.inputSeq}-${row.sampleTickUs}`;
-}
-
-function LatencyVirtualList({ rows }: { rows: ButtonLatencyEvent[] }) {
-  const scrollRef = React.useRef<HTMLDivElement | null>(null);
-  const [scrollTop, setScrollTop] = React.useState(0);
-  const [viewportHeight, setViewportHeight] = React.useState(0);
-
-  React.useLayoutEffect(() => {
-    const scroller = scrollRef.current;
-    if (!scroller) return;
-
-    const updateViewportHeight = () => {
-      setViewportHeight(scroller.clientHeight);
-    };
-    updateViewportHeight();
-
-    const resizeObserver = new ResizeObserver(updateViewportHeight);
-    resizeObserver.observe(scroller);
-    return () => resizeObserver.disconnect();
+      window.connectMonitorApi?.setLatencyTableBounds?.({
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+        visible,
+      });
+    });
   }, []);
 
-  if (rows.length === 0) {
-    return (
-      <Box flex="1" minH={0} overflowY="auto" css={scrollbarStyle}>
-        <Box px={3} py={4}>
-          <Text fontSize="sm" color="gray.400">
-            No latency samples
-          </Text>
-        </Box>
-      </Box>
-    );
-  }
+  React.useLayoutEffect(() => {
+    syncBounds();
 
-  const totalHeight = rows.length * LATENCY_ROW_HEIGHT;
-  const effectiveViewportHeight = viewportHeight || LATENCY_ROW_HEIGHT * 10;
-  const maxScrollTop = Math.max(0, totalHeight - effectiveViewportHeight);
-  const effectiveScrollTop = clamp(scrollTop, 0, maxScrollTop);
-  const visibleCapacity = Math.ceil(effectiveViewportHeight / LATENCY_ROW_HEIGHT);
-  const poolSize = visibleCapacity + LATENCY_ROW_OVERSCAN * 2;
-  const maxStartIndex = Math.max(0, rows.length - poolSize);
-  const startIndex = clamp(Math.floor(effectiveScrollTop / LATENCY_ROW_HEIGHT) - LATENCY_ROW_OVERSCAN, 0, maxStartIndex);
-  const endIndex = Math.min(rows.length, startIndex + poolSize);
-  const visibleRows = rows.slice(startIndex, endIndex);
+    const resizeObserver = new ResizeObserver(syncBounds);
+    if (slotRef.current) {
+      resizeObserver.observe(slotRef.current);
+    }
+    resizeObserver.observe(document.body);
+    window.addEventListener("resize", syncBounds);
+    window.addEventListener("scroll", syncBounds, true);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", syncBounds);
+      window.removeEventListener("scroll", syncBounds, true);
+      if (frameRef.current !== null) {
+        window.cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
+      window.connectMonitorApi?.setLatencyTableBounds?.(hiddenBounds());
+    };
+  }, [syncBounds]);
 
   return (
-    <Box flex="1" minH={0} display="flex" flexDirection="column">
-      <Box
-        display="grid"
-        gridTemplateColumns={LATENCY_TABLE_COLUMNS}
-        gap={2}
-        px={3}
-        h="26px"
-        alignItems="center"
-        borderBottomWidth="1px"
-        borderColor="rgba(92,255,138,0.12)"
-        bg="rgba(92,255,138,0.045)"
-      >
-        {["Button", "STM32", "TX", "IRQ", "Decode", "EPWait", "Submit", "RX", "Total"].map((label, index) => (
-          <Text key={label} fontSize="sm" color="gray.500" fontWeight="semibold" textAlign={index === 0 ? "left" : "right"}>
-            {label}
-          </Text>
-        ))}
-      </Box>
-      <Box
-        ref={scrollRef}
-        flex="1"
-        minH={0}
-        overflowY="auto"
-        position="relative"
-        css={scrollbarStyle}
-        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
-      >
-        <Box h={`${totalHeight}px`} minH="100%" position="relative">
-          <Box position="absolute" top={`${startIndex * LATENCY_ROW_HEIGHT}px`} left={0} right={0}>
-            {visibleRows.map((row, offset) => {
-              const index = startIndex + offset;
-              return (
-                <Box
-                  key={latencyRowKey(row)}
-                  h={`${LATENCY_ROW_HEIGHT}px`}
-                  px={3}
-                  display="grid"
-                  gridTemplateColumns={LATENCY_TABLE_COLUMNS}
-                  gap={2}
-                  alignItems="center"
-                  borderBottomWidth="1px"
-                  borderColor="rgba(92,255,138,0.08)"
-                  bg={index % 2 === 0 ? "rgba(0,0,0,0.12)" : "rgba(92,255,138,0.035)"}
-                >
-                  <Text fontSize="sm" color="gray.100" minW={0} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-                    {changedButtonLabels(row)}
-                  </Text>
-                  <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.stm32Ms)}</Text>
-                  <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.txMs)}</Text>
-                  <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.rxIrqMs)}</Text>
-                  <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.rxDecodeMs)}</Text>
-                  <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.rxEpWaitMs)}</Text>
-                  <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.rxSubmitMs)}</Text>
-                  <Text fontSize="sm" color="gray.200" textAlign="right">{formatLatencyPart(row.rxMs)}</Text>
-                  <Text fontSize="sm" color="green.200" fontWeight="semibold" textAlign="right">{formatLatency(row.latencyMs)}ms</Text>
-                </Box>
-              );
-            })}
-          </Box>
-        </Box>
-      </Box>
-    </Box>
+    <Box
+      ref={slotRef}
+      flex="1"
+      minH={0}
+      w="100%"
+      position="relative"
+      overflow="hidden"
+    />
   );
 }
 
@@ -176,27 +90,14 @@ export function ButtonLatencyPanel({
   rows: ButtonLatencyEvent[];
   status: ButtonLatencyStatusEvent | null;
 }) {
-  const visibleRows = React.useMemo(() => rows.filter(hasChangedButtons), [rows]);
-  const average = React.useMemo(() => {
-    if (visibleRows.length === 0) return null;
-    const recent = visibleRows.slice(-50);
-    return recent.reduce((sum, row) => sum + row.latencyMs, 0) / recent.length;
-  }, [visibleRows]);
-  const displayRows = visibleRows.slice(-MAX_LATENCY_ROWS).reverse();
-  const headerText = average === null ? (status?.status ?? "Waiting edge") : `${formatLatency(average)}ms`;
-  const latestFrame = visibleRows.length > 0 ? visibleRows[visibleRows.length - 1].latencyFrame : undefined;
-  const splitLabel = latestFrame === "RFH_RHL2"
-    ? "RHL2 split latency"
-    : latestFrame === "RFH_RHL1"
-      ? "RHL1: RX split unavailable"
-      : "Split latency";
+  const table = React.useMemo(() => buildLatencyTableSummary(rows, status), [rows, status]);
 
   return (
     <Card.Root variant="outline" overflow="hidden" h="100%" minW={0} w="100%" {...panelSurfaceProps}>
       <PanelHeader
         title="Latency"
-        meta={`${visibleRows.length}/${MAX_LATENCY_ROWS}`}
-        action={<Badge colorPalette={average === null ? statusColor(status?.status) : "green"}>{headerText}</Badge>}
+        meta={`${table.visibleCount}/${table.maxRows}`}
+        action={<Badge colorPalette={table.badgeColor}>{table.headerText}</Badge>}
         borderBottom
         compact
       />
@@ -204,14 +105,14 @@ export function ButtonLatencyPanel({
         <Box px={3} py={2} borderBottomWidth="1px" borderColor="rgba(92,255,138,0.08)">
           <HStack justify="space-between" gap={2}>
             <Text fontSize="10px" color="gray.500">
-              {status?.status ?? "Waiting edge"}
+              {table.statusText}
             </Text>
             <Text fontSize="10px" color="gray.500">
-              {splitLabel}
+              {table.splitLabel}
             </Text>
           </HStack>
         </Box>
-        <LatencyVirtualList rows={displayRows} />
+        <LatencyTableViewSlot />
       </Card.Body>
     </Card.Root>
   );

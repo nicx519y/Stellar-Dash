@@ -13,6 +13,7 @@ export default defineConfig({
       input: {
         main: path.resolve(__dirname, "index.html"),
         hitbox: path.resolve(__dirname, "hitbox.html"),
+        latencyTable: path.resolve(__dirname, "latency-table.html"),
       },
     },
   },

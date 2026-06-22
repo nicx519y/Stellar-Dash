@@ -4,6 +4,7 @@ import type {
   HitboxBounds,
   HitboxOptions,
   HitboxSummary,
+  LatencyTableBounds,
   MonitorEvent,
   SerialLogLine,
   SerialPortInfo,
@@ -14,6 +15,7 @@ declare global {
     connectMonitorApi: {
       getVersion(): string;
       onEvents(handler: (events: MonitorEvent[]) => void): () => void;
+      onMonitorCleared(handler: () => void): () => void;
       getSnapshot(limit?: number): Promise<MonitorEvent[]>;
       queryEvents(beforeTimestampMs: number, limit?: number): Promise<MonitorEvent[]>;
       clear(): Promise<void>;
@@ -33,6 +35,7 @@ declare global {
       getWindowState(): Promise<{ maximized: boolean }>;
       onWindowState(handler: (state: { maximized: boolean }) => void): () => void;
       setHitboxBounds(bounds: HitboxBounds): void;
+      setLatencyTableBounds(bounds: LatencyTableBounds): void;
       onHitboxSummary(handler: (summary: HitboxSummary) => void): () => void;
       publishHitboxSummary(summary: HitboxSummary): void;
       onHitboxOptions(handler: (options: HitboxOptions) => void): () => void;

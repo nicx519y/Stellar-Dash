@@ -168,6 +168,14 @@ export interface HitboxBounds {
   compact: boolean;
 }
 
+export interface LatencyTableBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  visible: boolean;
+}
+
 export interface HitboxOptions {
   compact: boolean;
 }

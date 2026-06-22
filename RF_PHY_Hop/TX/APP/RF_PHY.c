@@ -347,8 +347,18 @@ static void demo_apply_loaded_bond(const rfh_bond_record_t *record)
     g_demo_bond = *record;
     g_demo_has_bond = 1u;
     g_demo_link_access_address = record->link_access_address;
-    g_demo_bond_channel_a = record->channel_a;
-    g_demo_bond_channel_b = record->channel_b;
+    if((rfh_hop_channel_valid(record->channel_a) != 0u) &&
+       (rfh_hop_channel_valid(record->channel_b) != 0u) &&
+       (record->channel_a != record->channel_b))
+    {
+        g_demo_bond_channel_a = record->channel_a;
+        g_demo_bond_channel_b = record->channel_b;
+    }
+    else
+    {
+        g_demo_bond_channel_a = RF_AUTO_DEMO_DISCOVERY_CHANNEL_A;
+        g_demo_bond_channel_b = RF_AUTO_DEMO_DISCOVERY_CHANNEL_B;
+    }
     if(record->rate_code <= RFH_RATE_8K)
     {
         g_demo_rate_code = record->rate_code;
@@ -1274,7 +1284,7 @@ static void demo_enter_tx_unconnected(uint32_t now)
 
 static void demo_enter_tx_comm(uint32_t now, uint8_t channel)
 {
-    if(rfh_channel_valid(channel) == 0u)
+    if(demo_channel_index(channel) == 0xFFu)
     {
         channel = g_demo_current_channel;
     }

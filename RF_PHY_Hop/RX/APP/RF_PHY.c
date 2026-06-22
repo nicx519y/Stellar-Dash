@@ -36,7 +36,7 @@
 #define RF_AUTO_DEMO_REPORT_HZ         8000u
 #define RF_AUTO_DEMO_RATE_CODE         RFH_RATE_8K
 #ifndef RF_AUTO_DEMO_ACK_TX_DELAY_US
-#define RF_AUTO_DEMO_ACK_TX_DELAY_US   60u
+#define RF_AUTO_DEMO_ACK_TX_DELAY_US   30u
 #endif
 #define RF_AUTO_DEMO_ACK_TOKEN_OFFSET  10u
 #define RF_AUTO_DEMO_ACK_REMAIN_OFFSET 11u
@@ -453,8 +453,18 @@ static void demo_apply_loaded_bond(const rfh_bond_record_t *record)
     g_demo_bond = *record;
     g_demo_has_bond = 1u;
     g_demo_link_access_address = record->link_access_address;
-    g_demo_bond_channel_a = record->channel_a;
-    g_demo_bond_channel_b = record->channel_b;
+    if((rfh_hop_channel_valid(record->channel_a) != 0u) &&
+       (rfh_hop_channel_valid(record->channel_b) != 0u) &&
+       (record->channel_a != record->channel_b))
+    {
+        g_demo_bond_channel_a = record->channel_a;
+        g_demo_bond_channel_b = record->channel_b;
+    }
+    else
+    {
+        g_demo_bond_channel_a = RF_AUTO_DEMO_DISCOVERY_CHANNEL_A;
+        g_demo_bond_channel_b = RF_AUTO_DEMO_DISCOVERY_CHANNEL_B;
+    }
     if(record->rate_code <= RFH_RATE_8K)
     {
         g_demo_rate_code = record->rate_code;
@@ -2821,8 +2831,8 @@ static uint8_t demo_process_connect_packet(const rf_rx_pending_t *pending)
 
     if((rfh_get_u32(&data[RFH_CONNECT_SESSION0]) != RFH_CONNECT_SESSION_ID) ||
        (rate_code > RFH_RATE_8K) ||
-       (rfh_channel_valid(channel_a) == 0u) ||
-       (rfh_channel_valid(channel_b) == 0u) ||
+       (monitor_channel_valid(channel_a) == 0u) ||
+       (monitor_channel_valid(channel_b) == 0u) ||
        (channel_a == channel_b) ||
        (data[RFH_CONNECT_ACK_WINDOW_MS] == 0u))
     {

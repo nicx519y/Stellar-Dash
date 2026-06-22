@@ -40,6 +40,7 @@ export function useMonitorStream() {
     const worker = createMonitorWorker();
     workerRef.current = worker;
     let unsub: (() => void) | null = null;
+    let unsubCleared: (() => void) | null = null;
 
     worker.onmessage = (event: MessageEvent<MonitorStreamWorkerResponse>) => {
       if (event.data.type === "snapshot") {
@@ -56,9 +57,16 @@ export function useMonitorStream() {
       unsub = window.connectMonitorApi.onEvents(handler);
       window.connectMonitorApi.getSnapshot(200).then((snap) => handler(snap)).catch(() => {});
     }
+    if (window.connectMonitorApi?.onMonitorCleared) {
+      unsubCleared = window.connectMonitorApi.onMonitorCleared(() => {
+        setSnapshot(createEmptyMonitorStreamSnapshot());
+        postWorkerMessage(worker, { type: "reset" });
+      });
+    }
 
     return () => {
       if (unsub) unsub();
+      if (unsubCleared) unsubCleared();
       worker.terminate();
       if (workerRef.current === worker) {
         workerRef.current = null;

@@ -43,14 +43,14 @@
 #define RFH_ACK_COUNTDOWN_FAR          0xFFu
 
 #define RFH_DEFAULT_CHANNEL_A          16u
-#define RFH_DEFAULT_CHANNEL_B          24u
+#define RFH_DEFAULT_CHANNEL_B          39u
 #define RFH_DISCOVERY_CHANNEL_A        16u
 #define RFH_DISCOVERY_CHANNEL_B        39u
 #define RFH_PAIR_CHANNEL_FIXED         12u
 #define RFH_MIN_CHANNEL                0u
 #define RFH_MAX_CHANNEL                39u
 #define RFH_HOP_CHANNEL_COUNT          7u
-#define RFH_HOP_CHANNELS              { 2u, 10u, 16u, 22u, 28u, 34u, 39u }
+#define RFH_HOP_CHANNELS              { 10u, 16u, 22u, 24u, 28u, 34u, 39u }
 
 #define RFH_DEFAULT_RATE_HZ            8000u
 #define RFH_DEFAULT_ACK_WINDOW_MS      1u

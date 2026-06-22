@@ -16,7 +16,7 @@
 - ACK 请求：TX 每个逻辑 ACK 周期发送 `3` 个 request burst，同一 `ack_token`，payload 带 `remaining_slots`。
 - ACK 响应：RX 对同一 token 只回一次 ACK；ACK 由 `TMR1` 一次性中断延迟发送，避免 RF callback 内 busy wait。
 - TX ACK RX timeout：当前基线 `1200us`。
-- RX ACK TX delay：当前通过 `remaining_slots * 125us + 60us` 让 ACK 落在 request burst 后的固定空槽。
+- RX ACK TX delay：当前通过 `remaining_slots * 125us + 30us` 让 ACK 落在 request burst 后的固定空槽。
 - RF 输入状态：TX 支持 `Off / 1K / 2K / 4K / 8K`；`Off` 是 TX 本地输入关闭，不是空口 rate code。
 - `SET_RATE` payload：`0=Off`，`1000/2000/4000/8000` 为 DATA report rate。
 
@@ -39,6 +39,7 @@
 - `RFH_TEST_FIXED_BOND_ENABLE` 默认必须保持 `0u`，正式版本使用 flash bond 中的 `link_access_address`。
 - 重连只在 `g_demo_has_bond != 0` 时走本节协议；未配对设备必须先走 pairing。
 - 发现/重连阶段只用 bond 下发的双发现频道，当前默认是 `16 / 39`。
+- 旧 bond 记录里如果保存了已不在当前 hop 表里的发现频道，加载时只保留 `link_access_address`，发现频道会运行时迁移回当前默认 `16 / 39`，避免 RHS1 active channel 跑到频道表外。
 
 ### 空口 CONNECT 包
 
@@ -413,10 +414,10 @@ RX recovery scan 经验：
 当前频道表：
 
 ```text
-2, 10, 16, 22, 28, 34, 39
+10, 16, 22, 24, 28, 34, 39
 ```
 
-频道号使用 WCH 线性频道 `f = 2402 + ch * 2 MHz`。当前表按约 `12MHz` 间隔覆盖 2.4G 频段，低频侧使用非黑名单频道 `2`，并保留 `16 / 39` 作为发现/重连频道；现场干扰继续交给 bad score 自适应淘汰。
+频道号使用 WCH 线性频道 `f = 2402 + ch * 2 MHz`。当前表保留 `16 / 39` 作为发现/重连频道，并重新纳入 `24`，移除低频侧 `2`；`RFH_DEFAULT_CHANNEL_B` 也保持为 `39`，避免默认/旧路径落到表外频道；现场干扰继续交给 bad score 自适应淘汰。
 
 分数语义：
 
@@ -1362,7 +1363,7 @@ TX 自动跳频触发条件集中由配置宏控制：
 候选频道来自共享 7 频道表，并按 bad score 选择：
 
 ```text
-2, 10, 16, 22, 28, 34, 39
+10, 16, 22, 24, 28, 34, 39
 ```
 
 TX 排除当前频道和仍在 cooldown 的频道，选择 bad score 最低的候选；候选需要比当前风险至少好 `40`，当前风险 `>= 600` 时允许强制跳到最优候选。如果没有更优候选，则停在当前频道并给当前决策半个 cooldown，避免持续绕圈。

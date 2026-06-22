@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { HitboxBounds, HitboxOptions, HitboxSummary } from "../shared/monitor-types";
+import type { HitboxBounds, HitboxOptions, HitboxSummary, LatencyTableBounds } from "../shared/monitor-types";
 
 contextBridge.exposeInMainWorld("connectMonitorApi", {
   getVersion: () => "0.1.0",
@@ -9,6 +9,13 @@ contextBridge.exposeInMainWorld("connectMonitorApi", {
     };
     ipcRenderer.on("monitor:events", listener);
     return () => ipcRenderer.off("monitor:events", listener);
+  },
+  onMonitorCleared: (handler: () => void) => {
+    const listener = () => {
+      handler();
+    };
+    ipcRenderer.on("monitor:cleared", listener);
+    return () => ipcRenderer.off("monitor:cleared", listener);
   },
   getSnapshot: (limit?: number) => ipcRenderer.invoke("monitor:getSnapshot", limit),
   queryEvents: (beforeTimestampMs: number, limit?: number) => ipcRenderer.invoke("monitor:queryEvents", beforeTimestampMs, limit),
@@ -42,6 +49,9 @@ contextBridge.exposeInMainWorld("connectMonitorApi", {
   },
   setHitboxBounds: (bounds: HitboxBounds) => {
     ipcRenderer.send("hitbox:setBounds", bounds);
+  },
+  setLatencyTableBounds: (bounds: LatencyTableBounds) => {
+    ipcRenderer.send("latencyTable:setBounds", bounds);
   },
   onHitboxSummary: (handler: (summary: HitboxSummary) => void) => {
     const listener = (_event: unknown, summary: HitboxSummary) => {

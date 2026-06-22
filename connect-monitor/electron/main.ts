@@ -8,7 +8,15 @@ import { parseDongleTelemetryLine } from "./sources/dongle-telemetry-source";
 import { getHidDebugConfigStatus, sendDebugConfig, startHidTelemetrySource } from "./sources/hid-telemetry-source";
 import { SerialLogManager } from "./sources/serial-log-manager";
 import { startSerialTelemetrySource } from "./sources/serial-telemetry-source";
-import type { DebugConfig, DebugConfigStatus, HitboxBounds, HitboxOptions, HitboxSummary, SerialLogLine } from "../shared/monitor-types";
+import type {
+  DebugConfig,
+  DebugConfigStatus,
+  HitboxBounds,
+  HitboxOptions,
+  HitboxSummary,
+  LatencyTableBounds,
+  SerialLogLine,
+} from "../shared/monitor-types";
 
 const eventStore = new MonitorEventStore(path.join(app.getPath("userData"), "db"));
 const eventBus = new MonitorEventBus(500, eventStore);
@@ -16,6 +24,7 @@ let stopHidSource: (() => void) | null = null;
 let stopSerialSource: (() => void) | null = null;
 let mainWindow: BrowserWindow | null = null;
 let hitboxView: WebContentsView | null = null;
+let latencyTableView: WebContentsView | null = null;
 const pendingEvents: unknown[] = [];
 const pendingSerialLogs: SerialLogLine[] = [];
 const serialLogManager = new SerialLogManager((lines) => {
@@ -42,6 +51,11 @@ type SanitizedHitboxBounds = {
   options: HitboxOptions;
 };
 
+type SanitizedLatencyTableBounds = {
+  rect: Rectangle;
+  visible: boolean;
+};
+
 function rendererUrl(pageName: string): string | null {
   const devUrl = process.env.VITE_DEV_SERVER_URL;
   if (!devUrl) return null;
@@ -55,6 +69,15 @@ function loadHitboxRenderer(view: WebContentsView): void {
     return;
   }
   view.webContents.loadFile(path.join(__dirname, "..", "renderer", "hitbox.html")).catch(() => {});
+}
+
+function loadLatencyTableRenderer(view: WebContentsView): void {
+  const devLatencyTableUrl = rendererUrl("latency-table.html");
+  if (devLatencyTableUrl) {
+    view.webContents.loadURL(devLatencyTableUrl).catch(() => {});
+    return;
+  }
+  view.webContents.loadFile(path.join(__dirname, "..", "renderer", "latency-table.html")).catch(() => {});
 }
 
 function sanitizeNumber(value: unknown): number | null {
@@ -88,6 +111,31 @@ function sanitizeHitboxBounds(value: unknown): SanitizedHitboxBounds | null {
   };
 }
 
+function sanitizeLatencyTableBounds(value: unknown): SanitizedLatencyTableBounds | null {
+  const bounds = value as Partial<LatencyTableBounds> | null | undefined;
+  const rawX = sanitizeNumber(bounds?.x);
+  const rawY = sanitizeNumber(bounds?.y);
+  const rawWidth = sanitizeNumber(bounds?.width);
+  const rawHeight = sanitizeNumber(bounds?.height);
+  if (rawX === null || rawY === null || rawWidth === null || rawHeight === null) {
+    return null;
+  }
+
+  const contentBounds = mainWindow?.getContentBounds();
+  const maxWidth = Math.max(1, contentBounds?.width ?? 4096);
+  const maxHeight = Math.max(1, contentBounds?.height ?? 4096);
+  const x = Math.max(0, Math.min(Math.round(rawX), maxWidth));
+  const y = Math.max(0, Math.min(Math.round(rawY), maxHeight));
+  const width = Math.max(0, Math.min(Math.round(rawWidth), maxWidth - x));
+  const height = Math.max(0, Math.min(Math.round(rawHeight), maxHeight - y));
+  const visible = bounds?.visible !== false && width >= 2 && height >= 2;
+
+  return {
+    rect: { x, y, width: Math.max(1, width), height: Math.max(1, height) },
+    visible,
+  };
+}
+
 function sanitizeHitboxSummary(value: unknown): HitboxSummary {
   const summary = value as Partial<HitboxSummary> | null | undefined;
   const pressedCount = sanitizeNumber(summary?.pressedCount);
@@ -116,6 +164,22 @@ function createHitboxView(win: BrowserWindow): void {
   loadHitboxRenderer(view);
 }
 
+function createLatencyTableView(win: BrowserWindow): void {
+  const view = new WebContentsView({
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false,
+    },
+  });
+  view.setBackgroundColor("#00000000");
+  view.setVisible(false);
+  win.contentView.addChildView(view);
+  latencyTableView = view;
+  loadLatencyTableRenderer(view);
+}
+
 function stopSources(): void {
   if (stopHidSource) {
     stopHidSource();
@@ -130,6 +194,11 @@ function stopSources(): void {
 function clearRuntimeDatabase(): void {
   while (pendingEvents.length) pendingEvents.pop();
   eventBus.clear();
+}
+
+function broadcastMonitorCleared(): void {
+  mainWindow?.webContents.send("monitor:cleared");
+  latencyTableView?.webContents.send("monitor:cleared");
 }
 
 function sanitizeDebugConfig(value: unknown): DebugConfig {
@@ -198,11 +267,13 @@ function createWindow(): void {
 
   mainWindow = win;
   createHitboxView(win);
+  createLatencyTableView(win);
   win.on("closed", () => {
     if (mainWindow === win) {
       mainWindow = null;
     }
     hitboxView = null;
+    latencyTableView = null;
   });
 
   const devUrl = rendererUrl("index.html");
@@ -266,6 +337,7 @@ ipcMain.handle("monitor:queryEvents", (_evt, beforeTimestampMs: number, limit?: 
 ipcMain.handle("monitor:clear", () => {
   while (pendingEvents.length) pendingEvents.pop();
   eventBus.clear();
+  broadcastMonitorCleared();
 });
 
 ipcMain.handle("monitor:getPaused", () => paused);
@@ -390,6 +462,23 @@ ipcMain.on("hitbox:setBounds", (event, bounds: unknown) => {
   hitboxView.webContents.send("hitbox:options", nextBounds.options);
 });
 
+ipcMain.on("latencyTable:setBounds", (event, bounds: unknown) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents || !latencyTableView) return;
+  const nextBounds = sanitizeLatencyTableBounds(bounds);
+  if (!nextBounds) {
+    latencyTableView.setVisible(false);
+    return;
+  }
+
+  if (!nextBounds.visible) {
+    latencyTableView.setVisible(false);
+    return;
+  }
+
+  latencyTableView.setBounds(nextBounds.rect);
+  latencyTableView.setVisible(true);
+});
+
 ipcMain.on("hitbox:summary", (event, summary: unknown) => {
   if (!mainWindow || !hitboxView || event.sender !== hitboxView.webContents) return;
   mainWindow.webContents.send("hitbox:summary", sanitizeHitboxSummary(summary));
@@ -400,6 +489,7 @@ setInterval(() => {
   if (pendingEvents.length === 0) return;
   const batch = pendingEvents.splice(0, pendingEvents.length);
   mainWindow.webContents.send("monitor:events", batch);
+  latencyTableView?.webContents.send("monitor:events", batch);
 }, 100);
 
 setInterval(() => {
