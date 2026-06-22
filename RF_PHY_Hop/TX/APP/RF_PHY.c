@@ -1668,6 +1668,20 @@ static void demo_handle_ack_packet(void)
             g_demo_connect_phase_clock = now;
             g_demo_connect_packet_stage = RFH_CONNECT_STAGE_FINAL;
         }
+        else if((g_demo_connect_phase == RF_AUTO_CONNECT_FINAL_TX) &&
+                (cmd == RFH_CMD_CONNECT_REQ) &&
+                ((ack_flags & RFH_FLAG_CMD_ACK) != 0u) &&
+                (seq == RFH_ACK_STATUS_FINAL_READY))
+        {
+            if(rfh_channel_valid(channel) != 0u)
+            {
+                demo_enter_tx_comm(now, channel);
+            }
+            else
+            {
+                demo_enter_tx_comm(now, g_demo_current_channel);
+            }
+        }
         else
         {
             g_demo_stat.ack_type_err++;
@@ -2726,6 +2740,8 @@ void TMR0_IRQHandler(void)
                 (g_demo_connect_phase == RF_AUTO_CONNECT_FINAL_TX) ?
                 RFH_CONNECT_STAGE_FINAL :
                 RFH_CONNECT_STAGE_SYN;
+            g_demo_wait_ack_after_tx =
+                (g_demo_connect_phase == RF_AUTO_CONNECT_FINAL_TX) ? 1u : 0u;
             g_demo_force_ack_burst = 0u;
         }
         else if(g_demo_ack_burst_left != 0u)

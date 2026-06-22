@@ -2857,7 +2857,14 @@ static uint8_t demo_process_connect_packet(const rf_rx_pending_t *pending)
 
     if(connect_stage == RFH_CONNECT_STAGE_FINAL)
     {
-        if(g_demo_rx_state != RF_AUTO_RX_CONNECT_ACK_PENDING)
+        uint8_t entering_comm =
+            (g_demo_rx_state == RF_AUTO_RX_CONNECT_ACK_PENDING) ? 1u : 0u;
+        uint8_t duplicate_final =
+            ((g_demo_rx_state == RF_AUTO_RX_COMM) &&
+             (g_demo_link_active == 0u) &&
+             (pending->channel == g_demo_current_channel)) ? 1u : 0u;
+
+        if((entering_comm == 0u) && (duplicate_final == 0u))
         {
             return 0u;
         }
@@ -2870,7 +2877,12 @@ static uint8_t demo_process_connect_packet(const rf_rx_pending_t *pending)
         g_demo_connect_stage = 0u;
         g_demo_ack_pending = 0u;
         demo_ack_timer_cancel();
-        demo_reset_quality_window();
+        if(entering_comm != 0u)
+        {
+            demo_reset_quality_window();
+        }
+        demo_prepare_command_ack(RFH_CMD_CONNECT_REQ, RFH_ACK_STATUS_FINAL_READY);
+        demo_schedule_ack(0u);
         return 0u;
     }
 

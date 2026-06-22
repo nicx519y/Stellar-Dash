@@ -67,7 +67,7 @@
 #define RFH_CONNECT_SUPERFRAME_MS      (RFH_CONNECT_WINDOW_MS * 2u)
 #define RFH_CONNECT_DWELL_MS           10u
 #define RFH_CONNECT_RESPONSE_INTERVAL_MS 5u
-#define RFH_CONNECT_FINAL_TX_MS        1000u
+#define RFH_CONNECT_FINAL_TX_MS        500u
 #define RFH_CONNECT_FINAL_WAIT_MS      1000u
 
 #ifndef RFH_TEST_FIXED_BOND_ENABLE
@@ -129,6 +129,7 @@
 
 #define RFH_ACK_STATUS_SEEK           0u
 #define RFH_ACK_STATUS_CONNECTED      1u
+#define RFH_ACK_STATUS_FINAL_READY    2u
 
 typedef enum {
     RFH_PKT_CONNECT = 0u,
