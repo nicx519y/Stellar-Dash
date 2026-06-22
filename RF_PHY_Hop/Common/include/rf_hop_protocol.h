@@ -44,13 +44,13 @@
 
 #define RFH_DEFAULT_CHANNEL_A          16u
 #define RFH_DEFAULT_CHANNEL_B          24u
-#define RFH_DISCOVERY_CHANNEL_A        14u
+#define RFH_DISCOVERY_CHANNEL_A        16u
 #define RFH_DISCOVERY_CHANNEL_B        39u
 #define RFH_PAIR_CHANNEL_FIXED         12u
 #define RFH_MIN_CHANNEL                0u
 #define RFH_MAX_CHANNEL                39u
 #define RFH_HOP_CHANNEL_COUNT          7u
-#define RFH_HOP_CHANNELS              { 2u, 11u, 14u, 24u, 27u, 35u, 39u }
+#define RFH_HOP_CHANNELS              { 2u, 10u, 16u, 22u, 28u, 34u, 39u }
 
 #define RFH_DEFAULT_RATE_HZ            8000u
 #define RFH_DEFAULT_ACK_WINDOW_MS      1u
@@ -63,7 +63,7 @@
 #define RFH_LINK_ACCESS_ADDRESS_DEFAULT 0x71764129UL
 #define RFH_CONNECT_STAGE_SYN          1u
 #define RFH_CONNECT_STAGE_FINAL        3u
-#define RFH_CONNECT_WINDOW_MS          500u
+#define RFH_CONNECT_WINDOW_MS          50u
 #define RFH_CONNECT_SUPERFRAME_MS      (RFH_CONNECT_WINDOW_MS * 2u)
 #define RFH_CONNECT_DWELL_MS           10u
 #define RFH_CONNECT_RESPONSE_INTERVAL_MS 5u

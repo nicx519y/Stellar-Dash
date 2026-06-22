@@ -24,7 +24,6 @@ const serialLogManager = new SerialLogManager((lines) => {
 let paused = false;
 let isShuttingDown = false;
 const debugConfigPath = path.join(app.getPath("userData"), "debug-config.json");
-const allowedManualChannels = [2, 11, 14, 24, 27, 35, 39];
 let debugConfig: DebugConfig = {
   hidTelemetryEnabled: false,
   hidPeriodMs: 500,
@@ -137,13 +136,15 @@ function sanitizeDebugConfig(value: unknown): DebugConfig {
   const cfg = value as Partial<DebugConfig> | null | undefined;
   const period = cfg?.hidPeriodMs;
   const hidPeriodMs = period === 100 || period === 250 || period === 500 || period === 1000 ? period : 500;
-  const manualChannel = typeof cfg?.manualChannel === "number" && allowedManualChannels.includes(cfg.manualChannel)
-    ? cfg.manualChannel
+  const rawManualChannel = typeof cfg?.manualChannel === "number" ? cfg.manualChannel : NaN;
+  const manualChannel = Number.isInteger(rawManualChannel) && rawManualChannel >= 0 && rawManualChannel <= 39
+    ? rawManualChannel
     : null;
+  const autoHopEnabled = cfg?.autoHopEnabled !== false || manualChannel === null;
   return {
     hidTelemetryEnabled: Boolean(cfg?.hidTelemetryEnabled),
     hidPeriodMs,
-    autoHopEnabled: cfg?.autoHopEnabled !== false,
+    autoHopEnabled,
     manualChannel,
   };
 }

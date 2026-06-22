@@ -150,7 +150,7 @@ parser 会把 `RHM1` 转成：
 
 - 固件上传的是 bad score：`0` 最好，`1000` 最差。
 - UI 右侧 `Channel Bad Scores` 卡片直接显示 bad score，所以 `0` 最好、`1000` 最差。
-- 当前频道表：`2 / 11 / 14 / 24 / 27 / 35 / 39`。
+- 当前频道表来自固件 `RHS1` 上报。
 - 卡片按 bad score 从低到高实时显示，并高亮当前 active channel。
 
 ## UI 能看到的指标
@@ -175,7 +175,9 @@ parser 会把 `RHM1` 转成：
   - 双频道扫描期间采样到的 old/target channel 来回变化不会再生成普通 `Channel changed` 噪声。
 - `Channel Bad Scores`：右侧 `250px` 卡片区域显示频道 bad score 实时排行，数据来自 `RHS1`。
   - UI 直接显示固件 bad score：`0` 最好、`1000` 最差。
-  - 当前频道表为 `2 / 11 / 14 / 24 / 27 / 35 / 39`，active channel 会高亮。
+  - 当前频道表来自固件 `RHS1` 上报，active channel 会高亮。
+  - 手动切频道不再在 monitor 内维护频道白名单；UI 可选项来自固件上报的频道分数列表，主进程只做 `0..39` 范围防呆。
+  - 关闭 auto hop 时必须带有效 manual channel；若 active channel 丢失，UI 用当前 `RHS1` 列表第一项兜底，避免下发 `0xFF` 空频道。
 - error 表：hop/error event 摘要。
 - Markdown export：把 packet/event 记录导出为调试日志。
 

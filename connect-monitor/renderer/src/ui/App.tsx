@@ -455,11 +455,18 @@ function TrafficPanels({
             fillHeight
             autoHopEnabled={debugConfig.autoHopEnabled}
             onAutoHopChange={(enabled) => {
-              const activeChannel = channelScores.find((item) => item.active)?.channel ?? debugConfig.manualChannel;
+              const activeChannel = channelScores.find((item) => item.active)?.channel;
+              const currentManualChannel = channelScores.some((item) => item.channel === debugConfig.manualChannel)
+                ? debugConfig.manualChannel
+                : null;
+              const fallbackChannel = activeChannel ?? currentManualChannel ?? channelScores[0]?.channel ?? null;
+              if (!enabled && fallbackChannel === null) {
+                return;
+              }
               applyDebugConfig({
                 ...debugConfig,
                 autoHopEnabled: enabled,
-                manualChannel: enabled ? debugConfig.manualChannel : activeChannel,
+                manualChannel: enabled ? debugConfig.manualChannel : fallbackChannel,
               });
             }}
             onManualChannelSelect={(channel) => applyDebugConfig({

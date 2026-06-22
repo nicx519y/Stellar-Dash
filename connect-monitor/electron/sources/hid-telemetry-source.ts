@@ -176,6 +176,17 @@ export function getHidDebugConfigStatus(): DebugConfigStatus {
 
 export function sendDebugConfig(config: DebugConfig): DebugConfigStatus {
   currentHidTelemetryEnabled = Boolean(config.hidTelemetryEnabled);
+  if (!config.autoHopEnabled && typeof config.manualChannel !== "number") {
+    debugStatus = {
+      state: "Failed",
+      rxStatus: "Failed",
+      txStatus: "Failed",
+      lastSeq: nextControlSeq,
+      message: "Manual channel required when auto hop is disabled",
+    };
+    return debugStatus;
+  }
+
   const seq = nextControlSeq;
   nextControlSeq = nextControlSeq === 255 ? 1 : nextControlSeq + 1;
   const frame = buildControlFrame(config, seq);

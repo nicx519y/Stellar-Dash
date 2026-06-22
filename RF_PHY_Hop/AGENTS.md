@@ -38,7 +38,7 @@
 
 - `RFH_TEST_FIXED_BOND_ENABLE` 默认必须保持 `0u`，正式版本使用 flash bond 中的 `link_access_address`。
 - 重连只在 `g_demo_has_bond != 0` 时走本节协议；未配对设备必须先走 pairing。
-- 发现/重连阶段只用 bond 下发的双发现频道，当前默认是 `14 / 39`。
+- 发现/重连阶段只用 bond 下发的双发现频道，当前默认是 `16 / 39`。
 
 ### 空口 CONNECT 包
 
@@ -52,8 +52,8 @@ RFH_CONNECT_STAGE_FINAL = 3
 关键常量：
 
 ```text
-RFH_CONNECT_WINDOW_MS              = 500
-RFH_CONNECT_SUPERFRAME_MS          = 1000
+RFH_CONNECT_WINDOW_MS              = 50
+RFH_CONNECT_SUPERFRAME_MS          = 100
 RFH_CONNECT_DWELL_MS               = 10
 RFH_CONNECT_RESPONSE_INTERVAL_MS   = 5
 RFH_CONNECT_FINAL_TX_MS            = 1000
@@ -65,8 +65,8 @@ RFH_CONNECT_FINAL_WAIT_MS          = 1000
 TX 未连接且已有 bond 时进入三阶段循环：
 
 ```text
-SYN_TX      500ms：双发现频道发送 SYN
-SYN_ACK_RX  500ms：双发现频道监听 CONNECT ACK
+SYN_TX      50ms：双发现频道发送 SYN
+SYN_ACK_RX  50ms：双发现频道监听 CONNECT ACK
 FINAL_TX   1000ms：收到 ACK 后，在 ACK 所在频道发送 FINAL
 COMM              ：FINAL_TX 结束后进入 DATA 通信
 ```
@@ -98,7 +98,7 @@ link_active = 1，connect-monitor 显示 Link Recovered
 规则：
 
 - RX 初始扫描 dwell 当前是 `3ms`，TX 发送/监听 dwell 是 `10ms`；两者在双频道上可以周期性相遇。
-- RX 收到 SYN 后，ACK 回复窗口必须覆盖完整 `RFH_CONNECT_SUPERFRAME_MS = 1000ms`，不能只回 `500ms`；否则若 SYN 落在 TX 前半秒早期，TX 后半秒监听时可能错过 ACK。
+- RX 收到 SYN 后，ACK 回复窗口必须覆盖完整 `RFH_CONNECT_SUPERFRAME_MS = 100ms`，不能只回 `50ms`；否则若 SYN 落在 TX 发送半窗早期，TX 监听半窗可能错过 ACK。
 - RX 在 `CONNECT_ACK_PENDING` 期间遇到普通 RF timeout 不能直接退回 `UNCONNECTED`；应继续由握手服务自己的 FINAL wait 超时收口。
 - RX 只有在 `CONNECT_ACK_PENDING` 状态下才接受 FINAL；孤立 FINAL 必须丢弃。
 - RX 收到 FINAL 后只进入 `COMM` 并锁定频道，不得设置 `link_active=1`。
@@ -135,7 +135,7 @@ connect-monitor 判断链路恢复以 `link_active` 为准；`link_active` 只�
 当前参数优先保证两个上电顺序稳定连接；若需要缩短重连时间，可按实测逐步调小：
 
 - `RFH_CONNECT_FINAL_TX_MS` 可从 `1000ms` 逐步压缩，但压缩前必须确认 RX 不再出现 `Recovered -> 100ms Lost`。
-- `RFH_CONNECT_SUPERFRAME_MS` 与 TX `SYN_TX/SYN_ACK_RX` 的两个 `500ms` 窗口要成对调整，不能只改 RX 或 TX 一侧。
+- `RFH_CONNECT_SUPERFRAME_MS` 与 TX `SYN_TX/SYN_ACK_RX` 的两个 `50ms` 窗口要成对调整，不能只改 RX 或 TX 一侧。
 - TX/RX 双频道 dwell 可继续优化，但 TX 发送 dwell、TX 监听 dwell、RX 扫描 dwell 必须保证在最坏相位下仍有同频道重叠。
 - 不建议把 CONNECT ACK 完成、FINAL 接收、DATA 接收三件事合并成一个“connected”事件；这三个边界分开是这次稳定性的关键。
 
@@ -404,7 +404,7 @@ RX recovery scan 经验：
 
 - RX `Link Lost` 不只是置 `link_active=0`；现在会进入 `RECOVERY_SCAN`。
 - `RECOVERY_SCAN` 每 `20ms` 切换一个候选频道。
-- 候选频道来自共享 bad score 表 `{2,11,14,24,27,35,39}`，按 bad score 从低到高轮询，而不是永远挑“当前最优非当前频道”，避免两个频道来回横跳。
+- 候选频道来自共享 bad score 表 `{2,10,16,22,28,34,39}`，按 bad score 从低到高轮询，而不是永远挑“当前最优非当前频道”，避免两个频道来回横跳。
 - 一旦 RX 收到合法 `RFH_PKT_DATA`，立即锁定当前频道并回到 `COMM`。
 - HID state code `5` 表示 RX recovery scan，connect-monitor 显示为 `RP`。
 
@@ -413,10 +413,10 @@ RX recovery scan 经验：
 当前频道表：
 
 ```text
-2, 11, 14, 24, 27, 35, 39
+2, 10, 16, 22, 28, 34, 39
 ```
 
-频道号使用 WCH 线性频道 `f = 2402 + ch * 2 MHz`。默认表避开 Wi-Fi 1/6/11 常见中心拥挤区附近的 `5/6, 17/18, 30/31`，但不是完整避开 20MHz Wi-Fi 占用带宽；现场干扰继续交给 bad score 自适应淘汰。
+频道号使用 WCH 线性频道 `f = 2402 + ch * 2 MHz`。当前表按约 `12MHz` 间隔覆盖 2.4G 频段，低频侧使用非黑名单频道 `2`，并保留 `16 / 39` 作为发现/重连频道；现场干扰继续交给 bad score 自适应淘汰。
 
 分数语义：
 
@@ -465,8 +465,8 @@ score clamp 到 0..1000
 - TX IRQ good 基线：`avg_irq_us <= 800`
 - TX IRQ warn 计分起点：`avg_irq_us >= 1000`
 - TX IRQ bad 计分起点：`avg_irq_us >= 2500`
-- TX 强制跳频风险分：`400`
-- TX 选目标频道时要求候选 bad score 至少好 `40`；当前风险 `>= 400` 时允许强制跳到最优候选。
+- TX 强制跳频风险分：`600`
+- TX 选目标频道时要求候选 bad score 至少好 `40`；当前风险 `>= 600` 时允许强制跳到最优候选。
 - TX hop cooldown：`10000ms`
 - 单频道重试 cooldown：`10000ms`
 - 排名提升检查周期：`10000ms`
@@ -1362,10 +1362,10 @@ TX 自动跳频触发条件集中由配置宏控制：
 候选频道来自共享 7 频道表，并按 bad score 选择：
 
 ```text
-2, 11, 14, 24, 27, 35, 39
+2, 10, 16, 22, 28, 34, 39
 ```
 
-TX 排除当前频道和仍在 cooldown 的频道，选择 bad score 最低的候选；候选需要比当前风险至少好 `40`，当前风险 `>= 400` 时允许强制跳到最优候选。如果没有更优候选，则停在当前频道并给当前决策半个 cooldown，避免持续绕圈。
+TX 排除当前频道和仍在 cooldown 的频道，选择 bad score 最低的候选；候选需要比当前风险至少好 `40`，当前风险 `>= 600` 时允许强制跳到最优候选。如果没有更优候选，则停在当前频道并给当前决策半个 cooldown，避免持续绕圈。
 
 ### 跳频稳定保护
 
@@ -1411,7 +1411,9 @@ RECOVERY_DUAL timeout -> COMM(old)
 - RX 收到合法 `HOP_CONFIRM` 时，要求实际接收频道等于 target channel，然后立即锁定 target/COMM，不再继续 old/target 双扫。
 - RX 会在 target 上额外保留 `6` 个 confirm ACK token；即使第一次 confirm ACK 丢失，后续 ACK token 仍会继续回 `CMD_HOP_CONFIRM` ACK。
 - `RECOVERY_DUAL` 总时长 `3000ms`，old/target 每 `500ms` 切换一次；connect-monitor 里看到约 `3000ms` 的 hop duration，通常就是 confirm 失败后的 recovery，而不是正常跳频耗时。
-- 手动切频道后的 ACK 宽限期跟 recovery 一样是 `3000ms`；手动切频道不受自动跳频稳定保护拦截。
+- 手动切频道不受自动跳频稳定保护拦截，但必须复用正式跳频握手：`HOP_PREPARE -> ACK -> HOP_CONFIRM -> ACK`。
+- `MONITOR_CONFIG` 只同步 monitor 配置/应用状态，不再触发 RX 自行进入 old/target 双扫；避免 TX 未确认切换时 RX 单边跑到 manual channel。
+- monitor 关闭 auto hop 时必须带 hop 表内有效 manual channel；RX/TX 收到 `auto off + invalid manual` 会返回 `RFMON_APPLY_FAILED`，不会进入固定频道模式。
 
 日志字段变化：
 
