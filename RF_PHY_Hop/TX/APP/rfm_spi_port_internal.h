@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 void rfm_spi_port_init(void);
+void rfm_spi_port_sleep_until_nss_wake(void);
 void rfm_spi_port_set_irq(bool asserted);
 void rfm_spi_port_service(void);
 size_t rfm_spi_port_drain(uint8_t *buf, size_t max_len);

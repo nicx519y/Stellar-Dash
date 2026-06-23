@@ -47,6 +47,7 @@ static uint8_t s_last_control_cmd;
 static uint8_t s_last_control_txn;
 static uint8_t s_last_control_response[RFM_SPI_MAX_FRAME];
 static uint8_t s_last_control_response_len;
+static uint8_t s_real_sleep_pending;
 
 #define SPI_POLL_MAX_BATCHES          1u
 #define SPI_INPUT_FRAME_BYTES         (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
@@ -444,7 +445,13 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
        (s_last_control_cmd == cmd) &&
        (s_last_control_txn == txn))
     {
-        (void)send_cached_control_response();
+        if(send_cached_control_response() &&
+           (cmd == (uint8_t)SPI_CMD_SET_RATE) &&
+           (args_len == 2u) &&
+           ((((uint16_t)args[0]) | ((uint16_t)args[1] << 8)) == 0u))
+        {
+            s_real_sleep_pending = 1u;
+        }
         return;
     }
 
@@ -461,7 +468,13 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
         if (args_len == 2u) {
             uint16_t hz = (uint16_t)args[0] | ((uint16_t)args[1] << 8);
             if (is_valid_report_rate_hz(hz) && RF_SetReportRateHz(hz)) {
-                (void)send_status_frame(SPI_EVT_RATE_APPLIED, cmd, txn, 0u, 0u, 1u);
+                if(send_status_frame(SPI_EVT_RATE_APPLIED, cmd, txn, 0u, 0u, 1u))
+                {
+                    if(hz == 0u)
+                    {
+                        s_real_sleep_pending = 1u;
+                    }
+                }
                 break;
             }
         }
@@ -948,6 +961,7 @@ void rfm_spi_bridge_init(void)
     s_last_control_cmd = 0u;
     s_last_control_txn = 0u;
     s_last_control_response_len = 0u;
+    s_real_sleep_pending = 0u;
     memset(s_last_direct_input, 0, sizeof(s_last_direct_input));
     memset(s_last_latest_input, 0, sizeof(s_last_latest_input));
     memset(s_last_control_response, 0, sizeof(s_last_control_response));
@@ -976,6 +990,19 @@ void rfm_spi_bridge_poll(void)
     if(RFM_SPI_INPUT_DIRECT_DMA != 0u) {
         rfm_spi_port_service();
         try_send_pending_state_changed();
+        if((s_real_sleep_pending != 0u) && (rfm_spi_port_tx_pending() == 0u)) {
+            s_real_sleep_pending = 0u;
+#if (RF_SERIAL_LOG == 1)
+            PRINT("[PM] entering halt sleep, wake=NSS/PB12 falling edge\r\n");
+#endif
+            rfm_spi_port_sleep_until_nss_wake();
+            parser_reset();
+            fast_parser_reset();
+#if (RF_SERIAL_LOG == 1)
+            PRINT("[PM] woke from NSS, SPI restored\r\n");
+#endif
+            return;
+        }
         if(rfm_spi_port_peek_latest_input(latest_payload, (uint8_t)sizeof(latest_payload))) {
             memcpy(s_last_latest_input, latest_payload, sizeof(latest_payload));
             s_have_last_latest_input = 1u;

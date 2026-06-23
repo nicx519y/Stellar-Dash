@@ -4,6 +4,7 @@
 
 #include "CH58x_common.h"
 #include "rfm_config.h"
+#include "wchrf.h"
 
 #define SPI_PINS                      (GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15)
 #define SPI_IRQ_PIN                   (GPIO_Pin_11)
@@ -478,6 +479,43 @@ void rfm_spi_port_init(void)
     }
 
     spi_rx_dma_loop_start(1u);
+}
+
+void rfm_spi_port_sleep_until_nss_wake(void)
+{
+    rfm_spi_port_set_irq(false);
+    PFIC_DisableIRQ(SPI0_IRQn);
+    SPI0_ITCfg(DISABLE, SPI0_IT_CNT_END | SPI0_IT_DMA_END | SPI0_IT_FIFO_OV |
+                         SPI0_IT_FIFO_HF | SPI0_IT_BYTE_END | SPI0_IT_FST_BYTE);
+    R8_SPI0_CTRL_CFG &= (uint8_t)(~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP));
+    R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END | RB_SPI_IF_FIFO_OV |
+                       RB_SPI_IF_FIFO_HF | RB_SPI_IF_BYTE_END | RB_SPI_IF_FST_BYTE;
+    s_spi_tx_pending = 0u;
+    s_spi_tx_len = 0u;
+    s_spi_tx_pos = 0u;
+
+    while(R8_SPI0_FIFO_COUNT != 0u)
+    {
+        (void)R8_SPI0_FIFO;
+    }
+
+    GPIOPinRemap(DISABLE, RB_PIN_SPI0);
+    GPIOBDigitalCfg(ENABLE, SPI_PINS | SPI_IRQ_PIN);
+    GPIOB_ModeCfg(GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15, GPIO_ModeIN_PU);
+    GPIOB_ModeCfg(SPI_IRQ_PIN, GPIO_ModeOut_PP_5mA);
+    GPIOB_ResetBits(SPI_IRQ_PIN);
+
+    GPIOB_ClearITFlagBit(GPIO_Pin_12);
+    GPIOB_ITModeCfg(GPIO_Pin_12, GPIO_ITMode_FallEdge);
+    PWR_PeriphWakeUpCfg(ENABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Short_Delay);
+
+    LowPower_Halt_WFE();
+
+    SetSysClock(SYSCLK_FREQ);
+    RFIP_WakeUpRegInit();
+    GPIOB_ClearITFlagBit(GPIO_Pin_12);
+    PWR_PeriphWakeUpCfg(DISABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Short_Delay);
+    rfm_spi_port_init();
 }
 
 void rfm_spi_port_set_irq(bool asserted)

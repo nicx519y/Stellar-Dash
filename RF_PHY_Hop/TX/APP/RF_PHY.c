@@ -2919,8 +2919,20 @@ bool RF_SetReportRateHz(uint16_t hz)
     uint32_t now = TMOS_GetSystemClock();
     uint8_t was_off = g_demo_input_off;
 
+#if (RF_SERIAL_LOG == 1)
+    PRINT("[RF][CTRL] SET_RATE hz:%u was_off:%u state:%u bond:%u\r\n",
+          (unsigned int)hz,
+          (unsigned int)was_off,
+          (unsigned int)g_demo_link_state,
+          (unsigned int)g_demo_has_bond);
+#endif
+
     if(demo_rate_valid(hz) == 0u)
     {
+#if (RF_SERIAL_LOG == 1)
+        PRINT("[RF][CTRL] SET_RATE reject invalid:%u\r\n",
+              (unsigned int)hz);
+#endif
         return false;
     }
 
@@ -2942,6 +2954,9 @@ bool RF_SetReportRateHz(uint16_t hz)
         demo_reconfigure_report_timer(0u);
         (void)RFRole_Stop();
         g_pending_event_state_code = RF_LINK_STATE_IDLE;
+#if (RF_SERIAL_LOG == 1)
+        PRINT("[RF][CTRL] RF input off, radio stopped\r\n");
+#endif
         return true;
     }
 
@@ -2972,6 +2987,13 @@ bool RF_SetReportRateHz(uint16_t hz)
                                      RF_LINK_STATE_CONNECTING :
                                      RF_LINK_STATE_IDLE;
     }
+#if (RF_SERIAL_LOG == 1)
+    PRINT("[RF][CTRL] RF wake/rate applied hz:%u code:%u was_off:%u state:%u\r\n",
+          (unsigned int)g_demo_report_hz,
+          (unsigned int)g_demo_rate_code,
+          (unsigned int)was_off,
+          (unsigned int)g_demo_link_state);
+#endif
     return true;
 }
 
