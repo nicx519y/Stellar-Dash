@@ -1,7 +1,6 @@
 import { Badge, Box, HStack, Switch, Text, VStack } from "@chakra-ui/react";
 
 import type { ChannelScoreRow } from "./useMonitorStream";
-import { ClearDataIconButton } from "./panelActions";
 import { neonGreen, PanelHeader, panelSurfaceProps } from "./panelStyles";
 import { scrollbarStyle } from "./scrollbarStyle";
 
@@ -17,14 +16,12 @@ export function ChannelScorePanel({
   autoHopEnabled,
   onAutoHopChange,
   onManualChannelSelect,
-  onClearData,
 }: {
   items: ChannelScoreRow[];
   fillHeight?: boolean;
   autoHopEnabled: boolean;
   onAutoHopChange: (enabled: boolean) => void;
   onManualChannelSelect: (channel: number) => void;
-  onClearData?: () => void;
 }) {
   const activeBorder = autoHopEnabled ? "rgba(92,255,138,0.58)" : "rgba(96,165,250,0.66)";
   const activeBg = autoHopEnabled ? "rgba(92,255,138,0.11)" : "rgba(96,165,250,0.14)";
@@ -63,7 +60,6 @@ export function ChannelScorePanel({
                 auto
               </Switch.Label>
             </Switch.Root>
-            {onClearData ? <ClearDataIconButton label="Clear channel score data" onClick={onClearData} /> : null}
           </HStack>
         }
         borderBottom
