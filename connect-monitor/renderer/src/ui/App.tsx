@@ -23,11 +23,13 @@ import rfMonitorLogo from "../assets/rf-monitor-logo.png";
 import { useMonitorStream } from "./useMonitorStream";
 import { ButtonLatencyPanel } from "./ButtonLatencyPanel";
 import { ButtonsPanel } from "./ButtonsPanel";
+import { publishCardClear } from "./cardClear";
 import { ChannelPanel } from "./ChannelPanel";
 import { ChannelScorePanel } from "./ChannelScorePanel";
 import { PacketsPanel } from "./PacketsPanel";
 import { RatePanel } from "./RatePanel";
 import { SerialLogPanel } from "./SerialLogPanel";
+import { ClearDataIconButton } from "./panelActions";
 import { neonGreen, panelSurfaceProps, toolbarActionButtonProps } from "./panelStyles";
 import { scrollbarStyle } from "./scrollbarStyle";
 import { clearSerialLogLines } from "./serialLogStore";
@@ -179,6 +181,7 @@ function MetricCard({
   statusLabel,
   target,
   alert,
+  onClearData,
 }: {
   title: string;
   subtitle?: string;
@@ -188,15 +191,22 @@ function MetricCard({
   statusLabel?: string;
   target?: string;
   alert?: boolean;
+  onClearData?: () => void;
 }) {
   return (
     <Card.Root
       variant="outline"
       {...panelSurfaceProps}
       borderColor={alert ? "rgba(255,96,96,0.48)" : panelSurfaceProps.borderColor}
+      position="relative"
     >
+      {onClearData ? (
+        <Box position="absolute" top="8px" right="8px" zIndex={1}>
+          <ClearDataIconButton label={`Clear ${title} data`} onClick={onClearData} />
+        </Box>
+      ) : null}
       <Card.Body px={4} py={4}>
-        <Text fontSize="sm" color="gray.400">
+        <Text fontSize="sm" color="gray.400" pr={onClearData ? "34px" : undefined}>
           {title}
         </Text>
         {status || target ? (
@@ -341,7 +351,7 @@ function DebugControlCard({
           <Badge colorPalette={debugBadgeColor(status)}>{status}</Badge>
         </HStack>
         <VStack align="stretch" gap={2} mt={3}>
-          <HStack justify="space-between" gap={2}>
+          <HStack justify="space-between" gap={2} align="center">
             <DebugSwitch
               label="HID"
               checked={config.hidTelemetryEnabled}
@@ -351,12 +361,9 @@ function DebugControlCard({
               value={config.hidPeriodMs}
               onChange={(period) => applyConfig({ ...config, hidPeriodMs: period })}
             />
-          </HStack>
-          <Box h="1px" my={1.5} bg="rgba(92,255,138,0.16)" />
-          <HStack gap={2} align="center">
             <Button
               {...toolbarActionButtonProps}
-              w="200px"
+              w="134px"
               variant={paused ? "solid" : toolbarActionButtonProps.variant}
               colorPalette={paused ? "yellow" : "green"}
               onClick={onPauseToggle}
@@ -364,13 +371,16 @@ function DebugControlCard({
               {paused ? <FaPlay /> : <FaPause />}
               {paused ? "Start Listening" : "Pause Listening"}
             </Button>
+          </HStack>
+          <Box h="1px" my={1.5} bg="rgba(92,255,138,0.16)" />
+          <HStack gap={2} align="center">
             <Button
               {...toolbarActionButtonProps}
-              w="200px"
+              w="100%"
               onClick={onClearData}
             >
               <GrClearOption />
-              Clear Data
+              Clear All Data
             </Button>
           </HStack>
         </VStack>
@@ -386,6 +396,9 @@ function TrafficPanels({
   serialLogClearVersion,
   debugConfig,
   applyDebugConfig,
+  onClearPackets,
+  onClearChannelEvents,
+  onClearChannelScores,
 }: {
   packets: ReturnType<typeof useMonitorStream>["packets"];
   channelSwitches: ReturnType<typeof useMonitorStream>["channelSwitches"];
@@ -393,6 +406,9 @@ function TrafficPanels({
   serialLogClearVersion: number;
   debugConfig: DebugConfig;
   applyDebugConfig: (next: DebugConfig) => void;
+  onClearPackets: () => void;
+  onClearChannelEvents: () => void;
+  onClearChannelScores: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<"traffic" | "log">("traffic");
   const activeTabProps = {
@@ -448,12 +464,13 @@ function TrafficPanels({
           gap="10px"
           alignItems="stretch"
         >
-          <PacketsPanel items={packets.items} fillHeight />
-          <ChannelPanel items={channelSwitches} fillHeight />
+          <PacketsPanel items={packets.items} fillHeight onClearData={onClearPackets} />
+          <ChannelPanel items={channelSwitches} fillHeight onClearData={onClearChannelEvents} />
           <ChannelScorePanel
             items={channelScores}
             fillHeight
             autoHopEnabled={debugConfig.autoHopEnabled}
+            onClearData={onClearChannelScores}
             onAutoHopChange={(enabled) => {
               const activeChannel = channelScores.find((item) => item.active)?.channel;
               const currentManualChannel = channelScores.some((item) => item.channel === debugConfig.manualChannel)
@@ -483,25 +500,101 @@ function TrafficPanels({
   );
 }
 
+type DataCardKey =
+  | "rfConnection"
+  | "reportRate"
+  | "packetLoss"
+  | "trend"
+  | "latency"
+  | "packets"
+  | "channelEvents"
+  | "channelScores";
+
+type DataCardClearMarks = Partial<Record<DataCardKey, number>>;
+
+function after(timestampMs: number, clearAfterMs: number | undefined) {
+  return timestampMs >= (clearAfterMs ?? 0);
+}
+
 export function App() {
   const { events, packets, latency, buttonLatency, chart, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollState, setScrollState] = useState({ top: 0, client: 1, scroll: 1 });
   const [serialLogClearVersion, setSerialLogClearVersion] = useState(0);
+  const [cardClearMarks, setCardClearMarks] = useState<DataCardClearMarks>({});
   const [debugConfig, setDebugConfig] = useState<DebugConfig>(defaultDebugConfig);
   const [debugStatus, setDebugStatus] = useState<DebugApplyState>("Idle");
 
-  const rfStatus = useMemo(() => latestStatus(events, "RF24G"), [events]);
+  const markCardCleared = (key: DataCardKey) => {
+    const timestampMs = key === "latency" ? publishCardClear("latency") : Date.now();
+    setCardClearMarks((current) => ({ ...current, [key]: timestampMs }));
+  };
+
+  const rfConnectionEvents = useMemo(
+    () => events.filter((event) => after(event.timestampMs, cardClearMarks.rfConnection)),
+    [events, cardClearMarks.rfConnection],
+  );
+  const rfStatus = useMemo(() => latestStatus(rfConnectionEvents, "RF24G"), [rfConnectionEvents]);
   const rfConnected = rfStatus?.state === "Connected";
-  const rfActualHz = rfStatus?.actualRateHz ?? 0;
-  const reportHz = rfConnected
-    ? rfActualHz > 0
-      ? rfActualHz
-      : latency.estimatedHz > 0
-        ? latency.estimatedHz
-        : Math.max(packets.usbTxPerSec, packets.rfRxPerSec)
+  const rfConnectionRate = rfConnected && rfConnectionEvents.length > 0 ? packets.rfRxPerSec : 0;
+  const reportRateSeries = useMemo(
+    () => rateSeries.filter((point) => after(point.tMs, cardClearMarks.reportRate)),
+    [rateSeries, cardClearMarks.reportRate],
+  );
+  const reportHz = rfConnected && reportRateSeries.length > 0
+    ? reportRateSeries[reportRateSeries.length - 1].hz
     : 0;
-  const latestLoss = rfConnected && lossSeries.length > 0 ? lossSeries[lossSeries.length - 1].value : 0;
+  const packetLossSeries = useMemo(
+    () => lossSeries.filter((point) => after(point.tMs, cardClearMarks.packetLoss)),
+    [lossSeries, cardClearMarks.packetLoss],
+  );
+  const latestLoss = rfConnected && packetLossSeries.length > 0 ? packetLossSeries[packetLossSeries.length - 1].value : 0;
+  const trendPackets = useMemo(() => {
+    const items = packets.items.filter((packet) => after(packet.timestampMs, cardClearMarks.trend));
+    return {
+      ...packets,
+      items,
+      usbTxPerSec: items.length > 0 ? packets.usbTxPerSec : 0,
+      rfRxPerSec: items.length > 0 ? packets.rfRxPerSec : 0,
+    };
+  }, [packets, cardClearMarks.trend]);
+  const trendRateSeries = useMemo(
+    () => rateSeries.filter((point) => after(point.tMs, cardClearMarks.trend)),
+    [rateSeries, cardClearMarks.trend],
+  );
+  const trendLossSeries = useMemo(
+    () => lossSeries.filter((point) => after(point.tMs, cardClearMarks.trend)),
+    [lossSeries, cardClearMarks.trend],
+  );
+  const trendChannelSwitches = useMemo(
+    () => channelSwitches.filter((row) => after(row.timestampMs, cardClearMarks.trend)),
+    [channelSwitches, cardClearMarks.trend],
+  );
+  const trendChart = useMemo(() => ({
+    rateSeries: chart.rateSeries.filter((point) => after(point.tMs, cardClearMarks.trend)),
+    lossSeries: chart.lossSeries.filter((point) => after(point.tMs, cardClearMarks.trend)),
+    channelSwitches: chart.channelSwitches.filter((row) => after(row.timestampMs, cardClearMarks.trend)),
+  }), [chart, cardClearMarks.trend]);
+  const latencyRows = useMemo(
+    () => buttonLatency.items.filter((row) => after(row.timestampMs, cardClearMarks.latency)),
+    [buttonLatency.items, cardClearMarks.latency],
+  );
+  const latencyStatus = buttonLatency.status && after(buttonLatency.status.timestampMs, cardClearMarks.latency)
+    ? buttonLatency.status
+    : null;
+  const packetRows = useMemo(
+    () => packets.items.filter((packet) => after(packet.timestampMs, cardClearMarks.packets)),
+    [packets.items, cardClearMarks.packets],
+  );
+  const visiblePackets = useMemo(() => ({ ...packets, items: packetRows }), [packets, packetRows]);
+  const visibleChannelSwitches = useMemo(
+    () => channelSwitches.filter((row) => after(row.timestampMs, cardClearMarks.channelEvents)),
+    [channelSwitches, cardClearMarks.channelEvents],
+  );
+  const visibleChannelScores = useMemo(
+    () => channelScores.filter((row) => after(row.updatedAtMs, cardClearMarks.channelScores)),
+    [channelScores, cardClearMarks.channelScores],
+  );
   const canScroll = false;
   const thumbHeightPct = canScroll ? Math.max(8, (scrollState.client / scrollState.scroll) * 100) : 100;
   const thumbTopPct = canScroll
@@ -509,6 +602,7 @@ export function App() {
     : 0;
   const handleClearData = () => {
     clear();
+    setCardClearMarks({});
     setSerialLogClearVersion((version) => version + 1);
     void clearSerialLogLines()
       .then(() => setSerialLogClearVersion((version) => version + 1))
@@ -648,14 +742,16 @@ export function App() {
             status={rfStatus?.state ?? "Disconnected"}
             statusLabel={rfStatus?.statusLabel}
             target={`Target ${rfStatus?.targetRateHz ?? 0} Hz`}
-            value={(rfConnected ? packets.rfRxPerSec : 0).toFixed(1)}
+            value={rfConnectionRate.toFixed(1)}
             unit="pkt/s"
+            onClearData={() => markCardCleared("rfConnection")}
           />
           <MetricCard
             title="Report Rate"
             subtitle="HID telemetry / Monitoring packet rate"
             value={reportHz.toFixed(1)}
             unit="Hz"
+            onClearData={() => markCardCleared("reportRate")}
           />
           <MetricCard
             title="RF Packet Loss"
@@ -663,6 +759,7 @@ export function App() {
             value={latestLoss.toFixed(2)}
             unit="%"
             alert={latestLoss >= 3}
+            onClearData={() => markCardCleared("packetLoss")}
           />
         </Box>
 
@@ -679,28 +776,36 @@ export function App() {
             flexShrink={0}
           >
             <RatePanel
-              packets={packets}
+              packets={trendPackets}
               latency={latency}
-              rateSeries={rateSeries}
-              lossSeries={lossSeries}
-              channelSwitches={channelSwitches}
-              chartRateSeries={chart.rateSeries}
-              chartLossSeries={chart.lossSeries}
-              chartChannelSwitches={chart.channelSwitches}
+              rateSeries={trendRateSeries}
+              lossSeries={trendLossSeries}
+              channelSwitches={trendChannelSwitches}
+              chartRateSeries={trendChart.rateSeries}
+              chartLossSeries={trendChart.lossSeries}
+              chartChannelSwitches={trendChart.channelSwitches}
               rfStatus={rfStatus}
               chartHeight="100%"
               compact
+              onClearData={() => markCardCleared("trend")}
             />
-            <ButtonLatencyPanel rows={buttonLatency.items} status={buttonLatency.status} />
+            <ButtonLatencyPanel
+              rows={latencyRows}
+              status={latencyStatus}
+              onClearData={() => markCardCleared("latency")}
+            />
             <ButtonsPanel compact />
           </Box>
           <TrafficPanels
-            packets={packets}
-            channelSwitches={channelSwitches}
-            channelScores={channelScores}
+            packets={visiblePackets}
+            channelSwitches={visibleChannelSwitches}
+            channelScores={visibleChannelScores}
             serialLogClearVersion={serialLogClearVersion}
             debugConfig={debugConfig}
             applyDebugConfig={applyDebugConfig}
+            onClearPackets={() => markCardCleared("packets")}
+            onClearChannelEvents={() => markCardCleared("channelEvents")}
+            onClearChannelScores={() => markCardCleared("channelScores")}
           />
         </VStack>
       </Box>

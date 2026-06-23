@@ -2,6 +2,7 @@ import { Box, HStack } from "@chakra-ui/react";
 import * as React from "react";
 
 import type { SerialLogLine, SerialPortInfo } from "../../../shared/monitor-types";
+import { ClearDataIconButton, ListeningToggleIconButton } from "./panelActions";
 import { VirtualTable, type VirtualColumn } from "./VirtualTable";
 import { appendSerialLogLines, loadSerialLogLines } from "./serialLogStore";
 
@@ -9,6 +10,11 @@ const LOG_SLOT_COUNT = 3;
 const MAX_LOG_ROWS = 500;
 const MIN_LOG_CARD_WIDTH = 500;
 const LOG_RESIZE_HANDLE_WIDTH = 10;
+
+type PauseRange = {
+  startMs: number;
+  endMs: number;
+};
 
 function fmtTime(ms: number) {
   const d = new Date(ms);
@@ -28,6 +34,22 @@ function isSerialLogLine(value: unknown): value is SerialLogLine {
 
 function normalizeSelections(selections: string[]): string[] {
   return Array.from({ length: LOG_SLOT_COUNT }, (_unused, slot) => selections[slot] ?? "");
+}
+
+function normalizeBooleans(values: boolean[], fallback: boolean): boolean[] {
+  return Array.from({ length: LOG_SLOT_COUNT }, (_unused, slot) => values[slot] ?? fallback);
+}
+
+function normalizeNumbers(values: number[], fallback: number): number[] {
+  return Array.from({ length: LOG_SLOT_COUNT }, (_unused, slot) => values[slot] ?? fallback);
+}
+
+function normalizeNullableNumbers(values: Array<number | null>, fallback: number | null): Array<number | null> {
+  return Array.from({ length: LOG_SLOT_COUNT }, (_unused, slot) => values[slot] ?? fallback);
+}
+
+function createPauseRangeSlots(): PauseRange[][] {
+  return Array.from({ length: LOG_SLOT_COUNT }, () => []);
 }
 
 function appendRows(current: SerialLogLine[] | undefined, lines: SerialLogLine[]) {
@@ -56,6 +78,23 @@ function matchesLogFilter(line: SerialLogLine, regex: RegExp | null) {
   if (!regex) return true;
   regex.lastIndex = 0;
   return regex.test(line.text);
+}
+
+function isInsidePauseRange(line: SerialLogLine, ranges: PauseRange[]) {
+  return ranges.some((range) => line.timestampMs >= range.startMs && line.timestampMs < range.endMs);
+}
+
+function filterSlotRows(
+  rows: SerialLogLine[],
+  clearAfterMs: number,
+  pauseRanges: PauseRange[],
+  pausedAtMs: number | null,
+) {
+  return rows.filter((row) => (
+    row.timestampMs >= clearAfterMs &&
+    (pausedAtMs === null || row.timestampMs <= pausedAtMs) &&
+    !isInsidePauseRange(row, pauseRanges)
+  ));
 }
 
 function RegexFilterInput({
@@ -151,6 +190,9 @@ function SerialLogCard({
   filterPattern,
   onFilterChange,
   onPortChange,
+  listening,
+  onClearData,
+  onListeningToggle,
 }: {
   slot: number;
   ports: SerialPortInfo[];
@@ -159,6 +201,9 @@ function SerialLogCard({
   filterPattern: string;
   onFilterChange: (slot: number, pattern: string) => void;
   onPortChange: (slot: number, portPath: string) => void;
+  listening: boolean;
+  onClearData: (slot: number) => void;
+  onListeningToggle: (slot: number) => void;
 }) {
   const filter = React.useMemo(() => buildLogFilter(filterPattern), [filterPattern]);
   const recentRows = items.slice(-MAX_LOG_ROWS).reverse();
@@ -187,6 +232,14 @@ function SerialLogCard({
       countText={countText}
       action={
         <HStack gap={2}>
+          <ListeningToggleIconButton
+            listening={listening}
+            onToggle={() => onListeningToggle(slot)}
+          />
+          <ClearDataIconButton
+            label={`Clear log ${slot + 1} data`}
+            onClick={() => onClearData(slot)}
+          />
           <RegexFilterInput
             slot={slot}
             value={filterPattern}
@@ -213,6 +266,10 @@ export function SerialLogPanel({ clearVersion = 0 }: { clearVersion?: number }) 
   const [selections, setSelections] = React.useState<string[]>(() => normalizeSelections([]));
   const [filterPatterns, setFilterPatterns] = React.useState<string[]>(() => normalizeSelections([]));
   const [logsByPort, setLogsByPort] = React.useState<Map<string, SerialLogLine[]>>(() => new Map());
+  const [listeningSlots, setListeningSlots] = React.useState<boolean[]>(() => normalizeBooleans([], true));
+  const [clearAfterSlots, setClearAfterSlots] = React.useState<number[]>(() => normalizeNumbers([], 0));
+  const [pausedAtSlots, setPausedAtSlots] = React.useState<Array<number | null>>(() => normalizeNullableNumbers([], null));
+  const [pauseRangesBySlot, setPauseRangesBySlot] = React.useState<PauseRange[][]>(() => createPauseRangeSlots());
   const [cardFlex, setCardFlex] = React.useState<number[]>(() => Array.from({ length: LOG_SLOT_COUNT }, () => 1));
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const cardRefs = React.useRef<Array<HTMLDivElement | null>>([]);
@@ -309,6 +366,60 @@ export function SerialLogPanel({ clearVersion = 0 }: { clearVersion?: number }) 
     });
   }, []);
 
+  const handleClearSlot = React.useCallback((slot: number) => {
+    const now = Date.now();
+    setClearAfterSlots((current) => {
+      const next = normalizeNumbers(current, 0);
+      next[slot] = now;
+      return next;
+    });
+    setPauseRangesBySlot((current) => {
+      const next = current.map((ranges) => ranges.slice());
+      next[slot] = [];
+      return next;
+    });
+    setPausedAtSlots((current) => {
+      const next = normalizeNullableNumbers(current, null);
+      if (listeningSlots[slot] === false) {
+        next[slot] = now;
+      }
+      return next;
+    });
+  }, [listeningSlots]);
+
+  const handleListeningToggle = React.useCallback((slot: number) => {
+    const now = Date.now();
+    const wasListening = listeningSlots[slot] ?? true;
+    setListeningSlots((current) => {
+      const next = normalizeBooleans(current, true);
+      next[slot] = !wasListening;
+      return next;
+    });
+
+    if (wasListening) {
+      setPausedAtSlots((current) => {
+        const next = normalizeNullableNumbers(current, null);
+        next[slot] = now;
+        return next;
+      });
+      return;
+    }
+
+    setPausedAtSlots((current) => {
+      const next = normalizeNullableNumbers(current, null);
+      const pausedAtMs = next[slot];
+      next[slot] = null;
+      if (typeof pausedAtMs === "number") {
+        setPauseRangesBySlot((rangesCurrent) => {
+          const rangesNext = rangesCurrent.map((ranges) => ranges.slice());
+          rangesNext[slot] = [...(rangesNext[slot] ?? []), { startMs: pausedAtMs, endMs: now }];
+          return rangesNext;
+        });
+      }
+      return next;
+    });
+  }, [listeningSlots]);
+
   const startResize = React.useCallback((dividerIndex: number, event: React.MouseEvent<HTMLDivElement>) => {
     const leftIndex = dividerIndex;
     const rightIndex = dividerIndex + 1;
@@ -385,10 +496,18 @@ export function SerialLogPanel({ clearVersion = 0 }: { clearVersion?: number }) 
               slot={slot}
               ports={ports}
               selectedPort={selectedPort}
-              items={selectedPort ? logsByPort.get(selectedPort) ?? [] : []}
+              items={filterSlotRows(
+                selectedPort ? logsByPort.get(selectedPort) ?? [] : [],
+                clearAfterSlots[slot] ?? 0,
+                pauseRangesBySlot[slot] ?? [],
+                pausedAtSlots[slot] ?? null,
+              )}
               filterPattern={filterPatterns[slot] ?? ""}
               onFilterChange={handleFilterChange}
               onPortChange={handlePortChange}
+              listening={listeningSlots[slot] ?? true}
+              onClearData={handleClearSlot}
+              onListeningToggle={handleListeningToggle}
             />
           </Box>
           {slot < LOG_SLOT_COUNT - 1 ? (

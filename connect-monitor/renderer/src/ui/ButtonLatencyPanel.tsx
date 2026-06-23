@@ -3,6 +3,7 @@ import * as React from "react";
 
 import type { ButtonLatencyEvent, ButtonLatencyStatusEvent, LatencyTableBounds } from "../../../shared/monitor-types";
 import { buildLatencyTableSummary } from "./latencyTableModel";
+import { ClearDataIconButton } from "./panelActions";
 import { PanelHeader, panelSurfaceProps } from "./panelStyles";
 
 function hiddenBounds(): LatencyTableBounds {
@@ -86,9 +87,11 @@ function LatencyTableViewSlot() {
 export function ButtonLatencyPanel({
   rows,
   status,
+  onClearData,
 }: {
   rows: ButtonLatencyEvent[];
   status: ButtonLatencyStatusEvent | null;
+  onClearData?: () => void;
 }) {
   const table = React.useMemo(() => buildLatencyTableSummary(rows, status), [rows, status]);
 
@@ -97,7 +100,12 @@ export function ButtonLatencyPanel({
       <PanelHeader
         title="Latency"
         meta={`${table.visibleCount}/${table.maxRows}`}
-        action={<Badge colorPalette={table.badgeColor}>{table.headerText}</Badge>}
+        action={
+          <HStack gap={2}>
+            <Badge colorPalette={table.badgeColor}>{table.headerText}</Badge>
+            {onClearData ? <ClearDataIconButton label="Clear latency data" onClick={onClearData} /> : null}
+          </HStack>
+        }
         borderBottom
         compact
       />

@@ -1,8 +1,9 @@
-import { Button } from "@chakra-ui/react";
+import { Button, HStack } from "@chakra-ui/react";
 import { GrDocumentDownload } from "react-icons/gr";
 
 import type { PacketEvent } from "../../../shared/monitor-types";
 import { buildPacketLogMarkdown, exportMarkdown } from "./logExport";
+import { ClearDataIconButton } from "./panelActions";
 import { toolbarActionButtonProps } from "./panelStyles";
 import { VirtualTable, type VirtualColumn } from "./VirtualTable";
 
@@ -147,7 +148,15 @@ function displayAirMeta(packet: PacketEvent) {
   return `${keyText}pend=${pendingCurrent}/${pendingMax} drop=${pendingDrop}${lossText}${missingText}${errorText}`;
 }
 
-export function PacketsPanel({ items, fillHeight = false }: { items: Array<PacketEvent & { id?: string }>; fillHeight?: boolean }) {
+export function PacketsPanel({
+  items,
+  fillHeight = false,
+  onClearData,
+}: {
+  items: Array<PacketEvent & { id?: string }>;
+  fillHeight?: boolean;
+  onClearData?: () => void;
+}) {
   const rows = items
     .filter((packet) => packet.messageType.startsWith("RFH_RHI1_") && packet.rfStateCode === "C")
     .slice(-500)
@@ -170,10 +179,13 @@ export function PacketsPanel({ items, fillHeight = false }: { items: Array<Packe
       title="Packets"
       countText={`Recent ${rows.length} / 500`}
       action={
-        <Button {...toolbarActionButtonProps} onClick={handleExport}>
-          <GrDocumentDownload />
-          Export
-        </Button>
+        <HStack gap={2}>
+          <Button {...toolbarActionButtonProps} onClick={handleExport}>
+            <GrDocumentDownload />
+            Export
+          </Button>
+          {onClearData ? <ClearDataIconButton label="Clear packet data" onClick={onClearData} /> : null}
+        </HStack>
       }
       items={rows}
       columns={columns}

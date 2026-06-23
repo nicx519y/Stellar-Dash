@@ -9,7 +9,7 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "build:renderer": "vite build --config renderer/vite.config.ts",
     "build": "npm run build:renderer && npm run build:electron",
-    "package:win": "npm run build && electron-packager . RF-Monitor --platform=win32 --arch=x64 --out=release-builds --overwrite --prune=true",
+    "package:win": "npm run build && electron-packager . RF-Monitor --platform=win32 --arch=x64 --out=release-builds --overwrite --prune=true --icon=resources/icon.ico",
     "installer:win": "npm run build && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ electron-builder --win nsis --x64",
     "start": "electron dist/electron/main.js",
     "start:mock": "cross-env MONITOR_MOCK=1 electron dist/electron/main.js",
@@ -51,6 +51,7 @@
     },
     "files": [
       "dist/**/*",
+      "resources/**/*",
       "package.json"
     ],
     "asarUnpack": [
@@ -62,6 +63,7 @@
     "electronVersion": "33.4.11",
     "npmRebuild": false,
     "win": {
+      "icon": "resources/icon.ico",
       "target": [
         {
           "target": "nsis",

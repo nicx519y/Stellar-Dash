@@ -30,6 +30,7 @@ const pendingSerialLogs: SerialLogLine[] = [];
 const serialLogManager = new SerialLogManager((lines) => {
   pendingSerialLogs.push(...lines);
 });
+const appIconPath = path.resolve(__dirname, "..", "..", "resources", "icon.ico");
 let paused = false;
 let isShuttingDown = false;
 const debugConfigPath = path.join(app.getPath("userData"), "debug-config.json");
@@ -251,6 +252,7 @@ function createWindow(): void {
     backgroundColor: "#0b0f16",
     frame: false,
     autoHideMenuBar: true,
+    icon: appIconPath,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

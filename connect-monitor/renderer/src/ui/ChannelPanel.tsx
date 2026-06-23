@@ -1,7 +1,8 @@
-import { Badge, Button } from "@chakra-ui/react";
+import { Badge, Button, HStack } from "@chakra-ui/react";
 import { GrDocumentDownload } from "react-icons/gr";
 
 import { buildChannelEventLogMarkdown, exportMarkdown } from "./logExport";
+import { ClearDataIconButton } from "./panelActions";
 import { toolbarActionButtonProps } from "./panelStyles";
 import type { ChannelSwitchRow } from "./useMonitorStream";
 import { VirtualTable, type VirtualColumn } from "./VirtualTable";
@@ -40,7 +41,15 @@ function formatType(type: ChannelSwitchRow["type"]) {
   return map[type];
 }
 
-export function ChannelPanel({ items, fillHeight = false }: { items: ChannelSwitchRow[]; fillHeight?: boolean }) {
+export function ChannelPanel({
+  items,
+  fillHeight = false,
+  onClearData,
+}: {
+  items: ChannelSwitchRow[];
+  fillHeight?: boolean;
+  onClearData?: () => void;
+}) {
   const rows = items.slice(-500).reverse();
   const handleExport = () => {
     void exportMarkdown("channel-event-log.md", buildChannelEventLogMarkdown(items));
@@ -86,10 +95,13 @@ export function ChannelPanel({ items, fillHeight = false }: { items: ChannelSwit
       title="Channel Events"
       countText={`Recent ${rows.length} / 500`}
       action={
-        <Button {...toolbarActionButtonProps} onClick={handleExport}>
-          <GrDocumentDownload />
-          Export
-        </Button>
+        <HStack gap={2}>
+          <Button {...toolbarActionButtonProps} onClick={handleExport}>
+            <GrDocumentDownload />
+            Export
+          </Button>
+          {onClearData ? <ClearDataIconButton label="Clear channel event data" onClick={onClearData} /> : null}
+        </HStack>
       }
       items={rows}
       columns={columns}

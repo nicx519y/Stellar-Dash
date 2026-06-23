@@ -31,6 +31,13 @@ export const toolbarActionButtonProps = {
   css: toolbarActionButtonIconStyle,
 } as const;
 
+export const toolbarIconButtonProps = {
+  ...toolbarActionButtonProps,
+  minW: "28px",
+  w: "28px",
+  px: 0,
+} as const;
+
 export function PanelHeader({
   title,
   meta,

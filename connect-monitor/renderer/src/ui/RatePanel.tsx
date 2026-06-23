@@ -4,6 +4,7 @@ import type { DeviceStatusEvent, PacketEvent } from "../../../shared/monitor-typ
 import type { ChannelSwitchRow } from "./useMonitorStream";
 import type { LossPoint, RatePoint } from "./TelemetryTrendChart";
 import { TelemetryTrendChart } from "./TelemetryTrendChart";
+import { ClearDataIconButton } from "./panelActions";
 import { PanelHeader, panelSurfaceProps } from "./panelStyles";
 
 export function RatePanel({
@@ -18,6 +19,7 @@ export function RatePanel({
   rfStatus,
   chartHeight = 360,
   compact = false,
+  onClearData,
 }: {
   packets: { items: Array<PacketEvent & { id?: string }>; usbTxPerSec: number; rfRxPerSec: number };
   latency: { estimatedHz: number; lastSeq: number; lastAtMs: number };
@@ -30,6 +32,7 @@ export function RatePanel({
   rfStatus: DeviceStatusEvent | null;
   chartHeight?: number | string;
   compact?: boolean;
+  onClearData?: () => void;
 }) {
   const rfConnected = rfStatus?.state === "Connected";
   const fallbackHz = Math.max(packets.usbTxPerSec, packets.rfRxPerSec);
@@ -48,6 +51,7 @@ export function RatePanel({
       <PanelHeader
         title="Report Rate / Packet Loss / Channel Events"
         meta={`${reportHz.toFixed(1)} Hz · ${latestLoss.toFixed(2)} %`}
+        action={onClearData ? <ClearDataIconButton label="Clear chart data" onClick={onClearData} /> : undefined}
         compact={compact}
         borderBottom
       />

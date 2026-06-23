@@ -3,6 +3,7 @@ import * as React from "react";
 
 import { buildLatencyTableSnapshot } from "./latencyTableModel";
 import type { LatencyTableSnapshot } from "./latencyTableTypes";
+import { readCardClearAfter, subscribeCardClear } from "./cardClear";
 import { scrollbarStyle } from "./scrollbarStyle";
 import { useMonitorStream } from "./useMonitorStream";
 
@@ -125,10 +126,20 @@ function LatencyVirtualList({ rows }: { rows: LatencyTableSnapshot["rows"] }) {
 
 export function LatencyTableContentView() {
   const { buttonLatency } = useMonitorStream();
-  const table = React.useMemo(
-    () => buildLatencyTableSnapshot(buttonLatency.items, buttonLatency.status),
-    [buttonLatency.items, buttonLatency.status],
+  const [clearAfterMs, setClearAfterMs] = React.useState(() => readCardClearAfter("latency"));
+  const rows = React.useMemo(
+    () => buttonLatency.items.filter((row) => row.timestampMs >= clearAfterMs),
+    [buttonLatency.items, clearAfterMs],
   );
+  const status = buttonLatency.status && buttonLatency.status.timestampMs >= clearAfterMs
+    ? buttonLatency.status
+    : null;
+  const table = React.useMemo(
+    () => buildLatencyTableSnapshot(rows, status),
+    [rows, status],
+  );
+
+  React.useEffect(() => subscribeCardClear("latency", setClearAfterMs), []);
 
   return (
     <Box w="100%" h="100%" minW={0} minH={0} display="flex" flexDirection="column" overflow="hidden">
