@@ -15,6 +15,7 @@
 #include "CONFIG.h"
 #include "HAL.h"
 #include "RF_PHY.h"
+#include "rfm_config.h"
 #include "rfm_spi_bridge.h"
 
 /* 1: only run SPI bridge for link bring-up; 0: run normal RF TX flow */
@@ -71,7 +72,7 @@ int main(void)
     GPIOA_ModeCfg(GPIO_Pin_All, GPIO_ModeIN_PU);
     GPIOB_ModeCfg(GPIO_Pin_All, GPIO_ModeIN_PU);
 #endif
-#ifdef DEBUG
+#if defined(DEBUG) || (RFM_TX_LOG_ENABLE == 1u)
     GPIOA_SetBits(GPIO_Pin_14);
     GPIOPinRemap(ENABLE, RB_PIN_UART0);
     GPIOA_ModeCfg(GPIO_Pin_15, GPIO_ModeIN_PU);

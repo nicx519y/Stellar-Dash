@@ -19,10 +19,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#ifndef RF_SERIAL_LOG
-#define RF_SERIAL_LOG                  0
-#endif
-
 #define RF_AUTO_DEMO_PACKET_LEN        RFH_AIR_PACKET_LEN
 #define RF_AUTO_DEMO_DMA_LEN           (RF_AUTO_DEMO_PACKET_LEN + 2u)
 #define RF_AUTO_DEMO_DATA_TYPE         0xFFu
@@ -993,7 +989,7 @@ static void demo_channel_scores_init(void)
     demo_channel_score_mark_known_by_index(i);
 }
 
-#if (RF_SERIAL_LOG == 1)
+#if 0
 static char demo_tx_state_char(void)
 {
     if(g_demo_pair_state == RF_AUTO_PAIR_OFFERING)
@@ -2265,7 +2261,7 @@ static void demo_log_stats(uint32_t now)
 {
     uint32_t elapsed_ticks;
     unsigned long elapsed_ms;
-#if (RF_SERIAL_LOG == 1)
+#if 0
     uint32_t ack_fail;
 #endif
 
@@ -2276,7 +2272,7 @@ static void demo_log_stats(uint32_t now)
     elapsed_ticks = now - g_demo_last_log_clock;
     g_demo_last_log_clock = now;
     elapsed_ms = (unsigned long)(((elapsed_ticks * (uint32_t)SYSTEM_TIME_MICROSEN) + 999u) / 1000u);
-#if (RF_SERIAL_LOG == 1)
+#if 0
     rfm_spi_bridge_diag_emit(elapsed_ms);
 
     ack_fail = g_demo_stat.ack_timeout +
@@ -2919,7 +2915,7 @@ bool RF_SetReportRateHz(uint16_t hz)
     uint32_t now = TMOS_GetSystemClock();
     uint8_t was_off = g_demo_input_off;
 
-#if (RF_SERIAL_LOG == 1)
+#if 0
     PRINT("[RF][CTRL] SET_RATE hz:%u was_off:%u state:%u bond:%u\r\n",
           (unsigned int)hz,
           (unsigned int)was_off,
@@ -2929,7 +2925,7 @@ bool RF_SetReportRateHz(uint16_t hz)
 
     if(demo_rate_valid(hz) == 0u)
     {
-#if (RF_SERIAL_LOG == 1)
+#if 0
         PRINT("[RF][CTRL] SET_RATE reject invalid:%u\r\n",
               (unsigned int)hz);
 #endif
@@ -2954,7 +2950,7 @@ bool RF_SetReportRateHz(uint16_t hz)
         demo_reconfigure_report_timer(0u);
         (void)RFRole_Stop();
         g_pending_event_state_code = RF_LINK_STATE_IDLE;
-#if (RF_SERIAL_LOG == 1)
+#if 0
         PRINT("[RF][CTRL] RF input off, radio stopped\r\n");
 #endif
         return true;
@@ -2987,7 +2983,7 @@ bool RF_SetReportRateHz(uint16_t hz)
                                      RF_LINK_STATE_CONNECTING :
                                      RF_LINK_STATE_IDLE;
     }
-#if (RF_SERIAL_LOG == 1)
+#if 0
     PRINT("[RF][CTRL] RF wake/rate applied hz:%u code:%u was_off:%u state:%u\r\n",
           (unsigned int)g_demo_report_hz,
           (unsigned int)g_demo_rate_code,

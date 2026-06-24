@@ -8,16 +8,6 @@
 #include "stm32h7xx_hal.h"
 
 namespace {
-#ifndef RF_BRIDGE_DIAG_LOG
-#define RF_BRIDGE_DIAG_LOG 0
-#endif
-
-#if RF_BRIDGE_DIAG_LOG
-#define RF_BRIDGE_DIAG_PRINT(...) APP_DBG(__VA_ARGS__)
-#else
-#define RF_BRIDGE_DIAG_PRINT(...) ((void)0)
-#endif
-
 #ifndef RF_BRIDGE_SPI_BAUD_PRESCALER
 #define RF_BRIDGE_SPI_BAUD_PRESCALER SPI_BAUDRATEPRESCALER_8
 #endif
@@ -173,47 +163,7 @@ static void rf_note_transfer(bool isInput, bool ok, uint8_t cmd, uint16_t txLen,
         }
     }
 
-    const uint32_t elapsed = now - s_stat_last_ms;
-    if (elapsed < 5000u) {
-        (void)txLen;
-        return;
-    }
-
-    const uint32_t inputHz = (elapsed != 0u) ? ((s_stat_input_ok_win * 1000u) / elapsed) : 0u;
-    APP_DBG("[RF_BRIDGE][5s] tx:%lu ok:%lu fail:%lu input:%lu input_ok:%lu input_fail:%lu input_hz:%lu total_input:%lu last_cmd:0x%02X last_seq:%u txLen:%u",
-            s_stat_tx_win,
-            s_stat_tx_ok_win,
-            s_stat_tx_fail_win,
-            s_stat_input_win,
-            s_stat_input_ok_win,
-            s_stat_input_fail_win,
-            inputHz,
-            s_stat_input_total,
-            (unsigned int)s_stat_last_cmd,
-            (unsigned int)s_stat_last_seq,
-            (unsigned int)txLen);
-    APP_DBG("[RF_BRIDGE][5s][diag] spi_init_fail:%lu tx_fail:%lu irq_timeout:%lu rx_invalid:%lu rx_io_fail:%lu dma_start_fail:%lu dma_overwrite:%lu dma_done:%lu input_block:%lu dma_irq:%lu spi_irq:%lu exti_irq:%lu spi_err:%lu",
-            s_diag_spi_init_fail,
-            s_diag_tx_fail,
-            s_diag_irq_timeout,
-            s_diag_rx_invalid,
-            s_diag_rx_io_fail,
-            s_diag_dma_start_fail,
-            s_diag_dma_overwrite,
-            s_diag_dma_done,
-            s_diag_input_blocking_done,
-            s_diag_dma_irq,
-            s_diag_spi_irq,
-            s_diag_exti_irq,
-            s_diag_spi_err);
-
-    s_stat_last_ms = now;
-    s_stat_tx_win = 0u;
-    s_stat_tx_ok_win = 0u;
-    s_stat_tx_fail_win = 0u;
-    s_stat_input_win = 0u;
-    s_stat_input_ok_win = 0u;
-    s_stat_input_fail_win = 0u;
+    (void)txLen;
 }
 
 static bool rf_dma_init_once() {
@@ -393,13 +343,13 @@ static void rf_flush_stale_if_irq_high() {
     rf_cs_set(true);
     (void)rf_wait_irq_low(RF_BRIDGE_IRQ_LOW_TIMEOUT_MS);
     s_diag_dma_done++;
-    // APP_DBG("[RF_BRIDGE] stale flush before tx");
 }
 
 static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd) {
     static constexpr uint16_t kMinFrameLen = 4u;
     static constexpr uint16_t kPrefetchLen = 4u;
     static constexpr uint16_t kTailBufLen = 64u;
+    (void)diagCmd;
 
     if ((rx == nullptr) || (rxLen == nullptr) || (*rxLen < kMinFrameLen)) {
         if (rxLen != nullptr) {
@@ -418,7 +368,6 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd) {
     if (HAL_SPI_TransmitReceive(&s_rf_hspi, preTx, preRx, kPrefetchLen, RF_BRIDGE_SPI_TIMEOUT_MS) != HAL_OK) {
         rf_cs_set(true);
         s_diag_rx_io_fail++;
-        RF_BRIDGE_DIAG_PRINT("[RF_BRIDGE][DIAG] rx_io_fail=%lu cmd=0x%02X", s_diag_rx_io_fail, (unsigned int)diagCmd);
         *rxLen = 0u;
         return false;
     }
@@ -431,13 +380,6 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd) {
     } else {
         rf_cs_set(true);
         s_diag_rx_invalid++;
-        RF_BRIDGE_DIAG_PRINT("[RF_BRIDGE][DIAG] rx_invalid=%lu cmd=0x%02X head=%02X %02X %02X %02X",
-                             s_diag_rx_invalid,
-                             (unsigned int)diagCmd,
-                             (unsigned int)preRx[0],
-                             (unsigned int)preRx[1],
-                             (unsigned int)preRx[2],
-                             (unsigned int)preRx[3]);
         *rxLen = 0u;
         return false;
     }
@@ -447,13 +389,6 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd) {
     if ((total < kMinFrameLen) || (total > *rxLen)) {
         rf_cs_set(true);
         s_diag_rx_invalid++;
-        RF_BRIDGE_DIAG_PRINT("[RF_BRIDGE][DIAG] rx_invalid=%lu cmd=0x%02X head=%02X %02X %02X %02X",
-                             s_diag_rx_invalid,
-                             (unsigned int)diagCmd,
-                             (unsigned int)preRx[0],
-                             (unsigned int)preRx[1],
-                             (unsigned int)preRx[2],
-                             (unsigned int)preRx[3]);
         *rxLen = 0u;
         return false;
     }
@@ -487,7 +422,6 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd) {
                                         RF_BRIDGE_SPI_TIMEOUT_MS) != HAL_OK) {
                 rf_cs_set(true);
                 s_diag_rx_io_fail++;
-                RF_BRIDGE_DIAG_PRINT("[RF_BRIDGE][DIAG] rx_io_fail=%lu cmd=0x%02X", s_diag_rx_io_fail, (unsigned int)diagCmd);
                 *rxLen = 0u;
                 return false;
             }
@@ -499,13 +433,6 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd) {
 
     if (rf_checksum8(rx, static_cast<uint16_t>(total - 1u)) != rx[total - 1u]) {
         s_diag_rx_invalid++;
-        RF_BRIDGE_DIAG_PRINT("[RF_BRIDGE][DIAG] rx_invalid=%lu cmd=0x%02X head=%02X %02X %02X %02X",
-                             s_diag_rx_invalid,
-                             (unsigned int)diagCmd,
-                             (unsigned int)rx[0],
-                             (unsigned int)rx[1],
-                             (unsigned int)rx[2],
-                             (unsigned int)rx[3]);
         *rxLen = 0u;
         return false;
     }
@@ -530,7 +457,6 @@ static bool rf_spi_init_once() {
     clk.Spi45ClockSelection = RCC_SPI45CLKSOURCE_PCLK2;
 #endif
     if (HAL_RCCEx_PeriphCLKConfig(&clk) != HAL_OK) {
-        // APP_DBG("[RF_BRIDGE] spi4 periph clock config failed");
         return false;
     }
 
@@ -588,7 +514,6 @@ static bool rf_spi_init_once() {
     s_rf_hspi.Init.IOSwap = SPI_IO_SWAP_DISABLE;
 
     if (HAL_SPI_Init(&s_rf_hspi) != HAL_OK) {
-        // APP_DBG("[RF_BRIDGE] spi4 init failed");
         return false;
     }
 
@@ -597,11 +522,6 @@ static bool rf_spi_init_once() {
     }
 
     s_rf_spi_ready = true;
-    // APP_DBG("[RF_BRIDGE] spi4 init ok (SCK=%u MISO=%u MOSI=%u NSS=%u)",
-    //         (unsigned int)RF_BRIDGE_SPI_SCK_PIN,
-    //         (unsigned int)RF_BRIDGE_SPI_MISO_PIN,
-    //         (unsigned int)RF_BRIDGE_SPI_MOSI_PIN,
-    //         (unsigned int)RF_BRIDGE_SPI_NSS_PIN);
     return true;
 }
 } // namespace
@@ -697,7 +617,6 @@ bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen) {
 
     if (!rf_spi_init_once()) {
         s_diag_spi_init_fail++;
-        RF_BRIDGE_DIAG_PRINT("[RF_BRIDGE][DIAG] spi_init_fail=%lu", s_diag_spi_init_fail);
         return false;
     }
 
@@ -731,10 +650,6 @@ bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen) {
     if (!tx_ok) {
         s_diag_tx_fail++;
         rf_note_transfer(true, false, cmd, txLen, input_seq);
-        RF_BRIDGE_DIAG_PRINT("[RF_BRIDGE][DIAG] input_tx_fail=%lu cmd=0x%02X len=%u",
-                             s_diag_tx_fail,
-                             (unsigned int)cmd,
-                             (unsigned int)txLen);
         return false;
     }
 
@@ -758,7 +673,6 @@ bool RFBridgePort_ControlTransfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx
 
     if (!rf_spi_init_once()) {
         s_diag_spi_init_fail++;
-        RF_BRIDGE_DIAG_PRINT("[RF_BRIDGE][DIAG] spi_init_fail=%lu", s_diag_spi_init_fail);
         *rxLen = 0u;
         return false;
     }
@@ -790,10 +704,6 @@ bool RFBridgePort_ControlTransfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx
     if (!tx_ok) {
         s_diag_tx_fail++;
         rf_note_transfer(false, false, cmd, busTxLen, 0u);
-        RF_BRIDGE_DIAG_PRINT("[RF_BRIDGE][DIAG] ctrl_tx_fail=%lu cmd=0x%02X len=%u",
-                             s_diag_tx_fail,
-                             (unsigned int)cmd,
-                             (unsigned int)busTxLen);
         *rxLen = 0u;
         return false;
     }
@@ -803,13 +713,6 @@ bool RFBridgePort_ControlTransfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx
     const bool irq_ready = rf_wait_irq_high(20u);
     if (!irq_ready) {
         s_diag_irq_timeout++;
-        APP_ERR("[RF_BRIDGE] ctrl cmd=0x%02X irq timeout irq_now:%u",
-                (unsigned int)cmd,
-                (unsigned int)(HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) == GPIO_PIN_SET ? 1u : 0u));
-        RF_BRIDGE_DIAG_PRINT("[RF_BRIDGE][DIAG] irq_timeout=%lu cmd=0x%02X irq_now=%u",
-                             s_diag_irq_timeout,
-                             (unsigned int)cmd,
-                             (unsigned int)(HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) == GPIO_PIN_SET ? 1u : 0u));
         *rxLen = 0u;
         return false;
     }

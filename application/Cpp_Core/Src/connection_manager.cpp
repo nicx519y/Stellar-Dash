@@ -40,10 +40,9 @@ static constexpr uint8_t kRfEvtError = 0x85u;
 }
 
 bool ConnectionManager::tryRfBringup(bool isRetry) {
+    (void)isRetry;
     bool ok = rfTransport.begin();
-    // APP_DBG("[RF_BRIDGE] rf begin %sresult: %d", isRetry ? "retry " : "", ok);
 
-    // APP_DBG("[RF_BRIDGE] initial status read %s", ok ? "ok" : "failed");
     /*
      * SPI bring-up mode:
      * keep only GET_STATUS path to validate transport stability first.
@@ -59,7 +58,6 @@ bool ConnectionManager::tryRfBringup(bool isRetry) {
         }
         linkState = nextState;
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1001u, "rf begin/setRate failed");
-        // APP_DBG("[RF_BRIDGE] rf setup failed");
     }
     return ok;
 }
@@ -90,21 +88,12 @@ void ConnectionManager::updateRfLinkStateFromStatus() {
 
 void ConnectionManager::updatePairingStateFromStatus() {
     const RFModuleStatus& st = rfTransport.getStatus();
-    const RfPairingState prevState = rfPairingState;
-    const bool prevActive = rfPairingActive;
 
     if (st.lastEvent == kRfEvtError) {
         rfPairingActive = false;
         rfPairingState = RfPairingState::TxError;
         rfPairingLastErrorCommand = st.lastErrorCommand;
         rfPairingLastErrorReason = st.lastErrorReason;
-        APP_DBG("[RF_PAIR] state evt:0x%02X rf:%u active:%u->%u pair:%u->%u",
-                (unsigned int)st.lastEvent,
-                (unsigned int)st.state,
-                (unsigned int)(prevActive ? 1u : 0u),
-                (unsigned int)(rfPairingActive ? 1u : 0u),
-                (unsigned int)prevState,
-                (unsigned int)rfPairingState);
         return;
     }
 
@@ -112,15 +101,6 @@ void ConnectionManager::updatePairingStateFromStatus() {
         rfPairingActive = false;
         rfPairSucceeded = true;
         rfPairingState = RfPairingState::PairOk;
-        if (prevState != rfPairingState || prevActive != rfPairingActive) {
-            APP_DBG("[RF_PAIR] state evt:0x%02X rf:%u active:%u->%u pair:%u->%u",
-                    (unsigned int)st.lastEvent,
-                    (unsigned int)st.state,
-                    (unsigned int)(prevActive ? 1u : 0u),
-                    (unsigned int)(rfPairingActive ? 1u : 0u),
-                    (unsigned int)prevState,
-                    (unsigned int)rfPairingState);
-        }
         return;
     }
 
@@ -161,15 +141,6 @@ void ConnectionManager::updatePairingStateFromStatus() {
         break;
     }
 
-    if (prevState != rfPairingState || prevActive != rfPairingActive) {
-        APP_DBG("[RF_PAIR] state evt:0x%02X rf:%u active:%u->%u pair:%u->%u",
-                (unsigned int)st.lastEvent,
-                (unsigned int)st.state,
-                (unsigned int)(prevActive ? 1u : 0u),
-                (unsigned int)(rfPairingActive ? 1u : 0u),
-                (unsigned int)prevState,
-                (unsigned int)rfPairingState);
-    }
 }
 
 void ConnectionManager::serviceRfEvents() {
@@ -185,10 +156,6 @@ void ConnectionManager::serviceRfEvents() {
     updateRfLinkStateFromStatus();
     if (rfTransport.getStatus().eventCounter != rfPairingLastEventCounter) {
         rfPairingLastEventCounter = rfTransport.getStatus().eventCounter;
-        APP_DBG("[RF_PAIR] event evt:0x%02X rf:%u events:%lu",
-                (unsigned int)rfTransport.getStatus().lastEvent,
-                (unsigned int)rfTransport.getStatus().state,
-                (unsigned long)rfTransport.getStatus().eventCounter);
         updatePairingStateFromStatus();
     }
 }
@@ -236,7 +203,6 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
     appliedReportRateHz = requestedReportRateHz;
     linkState = ConnectionLinkState::Connected;
     MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(linkState));
-    APP_DBG("[RF_SPI_TEST] skip SET_RATE, force stream rate:%u", appliedReportRateHz);
     lastRfBeginRetryMs = HAL_GetTick();
     return;
 #endif
@@ -249,12 +215,10 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
         }
         linkState = nextState;
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1003u, "rf setRate failed");
-        APP_ERR("[RF_BRIDGE] setRate failed, requested:%u", requestedReportRateHz);
     } else {
         appliedReportRateHz = requestedReportRateHz;
         linkState = ConnectionLinkState::Connected;
         MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(linkState));
-        APP_DBG("[RF_BRIDGE] rate applied:%u", appliedReportRateHz);
     }
     /*
      * SPI bring-up path: stream INPUT_DATA as a one-way fast path.
@@ -292,7 +256,6 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
         }
         linkState = nextState;
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1004u, "runtime rf setRate failed");
-        APP_ERR("[RF_BRIDGE] runtime setRate failed, requested:%u", nextRateHz);
         return false;
     }
 
@@ -314,14 +277,10 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
         MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
     }
     linkState = nextState;
-    APP_DBG("[RF_BRIDGE] runtime rate applied:%u", appliedReportRateHz);
     return true;
 }
 
 bool ConnectionManager::startRfPairing() {
-    APP_DBG("[RF_PAIR] start request mode:%u link:%u",
-            (unsigned int)mode,
-            (unsigned int)linkState);
     rfEventServiceEnabled = true;
     rfPairingActive = true;
     rfPairSucceeded = false;
@@ -337,16 +296,7 @@ bool ConnectionManager::startRfPairing() {
 
     if (!ok) {
         const RFModuleStatus& st = rfTransport.getStatus();
-        APP_ERR("[RF_PAIR] start failed last_evt:0x%02X err_cmd:0x%02X reason:0x%02X events:%lu",
-                (unsigned int)st.lastEvent,
-                (unsigned int)st.lastErrorCommand,
-                (unsigned int)st.lastErrorReason,
-                (unsigned long)st.eventCounter);
         if (!(st.lastEvent == kRfEvtError && st.errorCounter != errorsBeforeStart)) {
-            APP_DBG("[RF_PAIR] start readback ambiguous, keep waiting evt:0x%02X errors:%lu->%lu",
-                    (unsigned int)st.lastEvent,
-                    (unsigned long)errorsBeforeStart,
-                    (unsigned long)st.errorCounter);
             rfPairingActive = true;
             rfPairingState = RfPairingState::PairModeOn;
             ConnectionLinkState nextState = ConnectionLinkState::Connecting;
@@ -373,9 +323,6 @@ bool ConnectionManager::startRfPairing() {
         return false;
     }
 
-    APP_DBG("[RF_PAIR] start ok events:%lu state:%u",
-            (unsigned long)rfTransport.getStatus().eventCounter,
-            (unsigned int)rfTransport.getStatus().state);
     updateRfLinkStateFromStatus();
     updatePairingStateFromStatus();
     if (rfPairingState == RfPairingState::Starting) {
@@ -411,7 +358,6 @@ void ConnectionManager::loop() {
     if (rfPairingActive &&
         rfPairingStartedAtMs != 0u &&
         (HAL_GetTick() - rfPairingStartedAtMs) >= kRfPairingLocalTimeoutMs) {
-        APP_DBG("[RF_PAIR] local timeout active:1 pair:%u", (unsigned int)rfPairingState);
         rfPairingActive = false;
         rfPairingState = RfPairingState::Timeout;
     }
@@ -439,7 +385,6 @@ void ConnectionManager::loop() {
                 MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
             }
             linkState = nextState;
-            APP_DBG("[RF_BRIDGE] retry rate applied:%u", appliedReportRateHz);
         }
     }
 
@@ -458,24 +403,6 @@ void ConnectionManager::onReportReady(const GamepadState& state, uint32_t seq) {
         rfSendTotal++;
     } else {
         rfSendFailWin++;
-    }
-
-    const uint32_t nowMs = HAL_GetTick();
-    const uint32_t elapsed = nowMs - rfStatLastMs;
-    if (elapsed >= 5000u) {
-        const uint32_t hz = (elapsed != 0u) ? ((rfSendOkWin * 1000u) / elapsed) : 0u;
-        APP_DBG("[RF_SEND][5s] calls:%lu ok:%lu fail:%lu hz:%lu total:%lu last_seq:%lu rate:%u",
-                rfSendWin,
-                rfSendOkWin,
-                rfSendFailWin,
-                hz,
-                rfSendTotal,
-                rfLastSeq,
-                appliedReportRateHz);
-        rfStatLastMs = nowMs;
-        rfSendWin = 0u;
-        rfSendOkWin = 0u;
-        rfSendFailWin = 0u;
     }
 
     ConnectionLinkState nextState = ok ? ConnectionLinkState::Connected : ConnectionLinkState::Error;

@@ -1,5 +1,7 @@
 #include "rfm_spi_bridge.h"
 
+#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "HAL.h"
@@ -7,10 +9,6 @@
 #include "rfm_config.h"
 #include "rfm_spi_port_internal.h"
 #include "rf_monitor_control.h"
-
-#ifndef RF_SERIAL_LOG
-#define RF_SERIAL_LOG 0
-#endif
 
 static uint32_t s_rx_count;
 static uint32_t s_tx_count;
@@ -40,8 +38,6 @@ static uint8_t s_last_direct_input[RFM_RF_INPUT_PAYLOAD_LEN];
 static uint8_t s_last_latest_input[RFM_RF_INPUT_PAYLOAD_LEN];
 static uint8_t s_have_last_direct_input;
 static uint8_t s_have_last_latest_input;
-static uint8_t s_last_logged_cmd;
-static uint8_t s_have_last_logged_cmd;
 static uint8_t s_last_control_valid;
 static uint8_t s_last_control_cmd;
 static uint8_t s_last_control_txn;
@@ -80,7 +76,39 @@ typedef enum {
     SPI_EVT_TIME_SYNC = RFMON_SPI_EVT_TIME_SYNC
 } spi_evt_t;
 
-#if (RF_SERIAL_LOG == 1)
+#if (RFM_TX_LOG_ENABLE == 1u)
+static void spi_log_write(const char *buf)
+{
+    if(buf == 0)
+    {
+        return;
+    }
+    while(*buf != '\0')
+    {
+        while(R8_UART0_TFC == UART_FIFO_SIZE)
+        {
+        }
+        R8_UART0_THR = (uint8_t)*buf++;
+    }
+}
+
+static void spi_log_printf(const char *fmt, ...)
+{
+    char line[128];
+    va_list args;
+    int n;
+
+    va_start(args, fmt);
+    n = vsnprintf(line, sizeof(line), fmt, args);
+    va_end(args);
+    if(n <= 0)
+    {
+        return;
+    }
+    line[sizeof(line) - 1u] = '\0';
+    spi_log_write(line);
+}
+
 static const char *spi_cmd_name(uint8_t cmd)
 {
     switch ((spi_cmd_t)cmd) {
@@ -102,22 +130,37 @@ static const char *spi_cmd_name(uint8_t cmd)
 }
 #endif
 
-static void log_spi_command_once(uint8_t cmd, uint8_t len)
+static void log_spi_command_received(uint8_t cmd, const uint8_t *payload, uint8_t len)
 {
-#if (RF_SERIAL_LOG == 1)
-    if((s_have_last_logged_cmd != 0u) && (s_last_logged_cmd == cmd))
+#if (RFM_TX_LOG_ENABLE == 1u)
+    uint8_t txn = 0u;
+    uint8_t args_len = len;
+    uint16_t hz = 0u;
+
+    if(cmd == (uint8_t)SPI_CMD_INPUT_DATA)
     {
         return;
     }
 
-    s_last_logged_cmd = cmd;
-    s_have_last_logged_cmd = 1u;
-    PRINT("[SPI][cmd] cmd:%02X len:%u %s\r\n",
-          (unsigned int)cmd,
-          (unsigned int)len,
-          spi_cmd_name(cmd));
+    if((payload != 0) && (len != 0u))
+    {
+        txn = payload[0];
+        args_len = (uint8_t)(len - 1u);
+        if((cmd == (uint8_t)SPI_CMD_SET_RATE) && (args_len == 2u))
+        {
+            hz = (uint16_t)payload[1] | ((uint16_t)payload[2] << 8);
+        }
+    }
+
+    spi_log_printf("[SPI][RX_CMD] cmd=0x%02X %s txn=%u args_len=%u hz=%u\r\n",
+                   (unsigned int)cmd,
+                   spi_cmd_name(cmd),
+                   (unsigned int)txn,
+                   (unsigned int)args_len,
+                   (unsigned int)hz);
 #else
     (void)cmd;
+    (void)payload;
     (void)len;
 #endif
 }
@@ -422,7 +465,7 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
 
     rfm_spi_port_set_irq(false);
     s_rx_count++;
-    log_spi_command_once(cmd, len);
+    log_spi_command_received(cmd, payload, len);
 
     if(cmd == (uint8_t)SPI_CMD_INPUT_DATA)
     {
@@ -669,7 +712,6 @@ static void fast_parser_feed_byte(uint8_t b)
     case FAST_CHECKSUM:
         if (s_fast_sum == b) {
             s_frame_ok_win++;
-            log_spi_command_once((uint8_t)SPI_CMD_INPUT_DATA, RFM_RF_INPUT_PAYLOAD_LEN);
             (void)RF_SPI_FastWriteInput(s_fast_payload, (uint8_t)sizeof(s_fast_payload));
             s_rx_count++;
         } else {
@@ -748,7 +790,7 @@ static void parser_feed_byte(uint8_t b)
     }
 }
 
-#if (RF_SERIAL_LOG == 1)
+#if 0
 static void diag_clear_win(void)
 {
     s_raw_bytes_win = 0u;
@@ -774,7 +816,7 @@ static uint32_t input_payload_key_mask(const uint8_t *payload)
 
 void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
 {
-#if (RF_SERIAL_LOG == 1)
+#if 0
     uint32_t ring_ov_count;
     uint32_t rx_byte_count;
     uint32_t fifo_ov_count;
@@ -955,8 +997,6 @@ void rfm_spi_bridge_init(void)
     s_state_changed_retry_left = 0u;
     s_have_last_direct_input = 0u;
     s_have_last_latest_input = 0u;
-    s_last_logged_cmd = 0u;
-    s_have_last_logged_cmd = 0u;
     s_last_control_valid = 0u;
     s_last_control_cmd = 0u;
     s_last_control_txn = 0u;
@@ -969,6 +1009,9 @@ void rfm_spi_bridge_init(void)
     fast_parser_reset();
     rfm_spi_port_init();
     rfm_spi_port_set_irq(false);
+#if (RFM_TX_LOG_ENABLE == 1u)
+    spi_log_printf("[SPI][LOG] ready\r\n");
+#endif
 #if (RFM_SPI_SIMULATE_SET_RATE_HZ != 0u)
     {
         uint8_t rate_payload[3];
@@ -992,13 +1035,13 @@ void rfm_spi_bridge_poll(void)
         try_send_pending_state_changed();
         if((s_real_sleep_pending != 0u) && (rfm_spi_port_tx_pending() == 0u)) {
             s_real_sleep_pending = 0u;
-#if (RF_SERIAL_LOG == 1)
+#if 0
             PRINT("[PM] entering halt sleep, wake=NSS/PB12 falling edge\r\n");
 #endif
             rfm_spi_port_sleep_until_nss_wake();
             parser_reset();
             fast_parser_reset();
-#if (RF_SERIAL_LOG == 1)
+#if 0
             PRINT("[PM] woke from NSS, SPI restored\r\n");
 #endif
             return;
@@ -1012,7 +1055,6 @@ void rfm_spi_bridge_poll(void)
                 s_have_last_direct_input = 1u;
                 s_frame_ok_win++;
                 s_rx_count++;
-                log_spi_command_once((uint8_t)SPI_CMD_INPUT_DATA, RFM_RF_INPUT_PAYLOAD_LEN);
                 (void)RF_SPI_FastWriteInput(latest_payload, (uint8_t)sizeof(latest_payload));
             }
         }
@@ -1037,7 +1079,6 @@ void rfm_spi_bridge_poll(void)
         if (find_latest_input_frame(s_poll_rx, n, latest_payload)) {
             s_frame_ok_win++;
             s_rx_count++;
-            log_spi_command_once((uint8_t)SPI_CMD_INPUT_DATA, RFM_RF_INPUT_PAYLOAD_LEN);
             (void)RF_SPI_FastWriteInput(latest_payload,
                                         (uint8_t)sizeof(latest_payload));
             continue;

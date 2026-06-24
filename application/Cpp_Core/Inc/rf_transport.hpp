@@ -64,13 +64,11 @@ private:
     bool parseStatusPayload(const uint8_t* payload, uint8_t len);
     bool lastEventMatches(uint8_t cmd, uint8_t txn) const;
     static uint8_t nextTransactionId();
-    bool hasStatusChangedForLog() const;
     static uint8_t inputCrc8(const uint8_t* data, uint8_t len);
     static uint32_t buildHitboxKeyMask(const GamepadState& state);
 
     RFTransportState state = RFTransportState::Disconnected;
     RFModuleStatus status = {};
-    RFModuleStatus lastLoggedStatus = {};
 };
 
 #endif

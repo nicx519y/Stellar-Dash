@@ -15,6 +15,10 @@
 #define RFM_FORCE_REPORT_RATE_HZ      0u
 #endif
 
+#ifndef RFM_TX_LOG_ENABLE
+#define RFM_TX_LOG_ENABLE             1u
+#endif
+
 typedef enum {
     RFM_RATE_1K = 1000,
     RFM_RATE_2K = 2000,
