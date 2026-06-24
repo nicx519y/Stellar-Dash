@@ -38,6 +38,7 @@ public:
     bool applyWirelessReportRate(WirelessReportRate wirelessRate, bool persist);
     bool startRfPairing();
     bool stopRfPairing();
+    bool sleepRfModule();
 
     ConnectionMode getMode() const { return mode; }
     ConnectionLinkState getLinkState() const { return linkState; }
@@ -56,14 +57,17 @@ private:
     void updatePairingStateFromStatus();
     void updateRfLinkStateFromStatus();
     bool tryRfBringup(bool isRetry);
+    bool tryRfSleepCommand();
 
     ConnectionMode mode = ConnectionMode::CONNECTION_MODE_USB;
     ConnectionLinkState linkState = ConnectionLinkState::Disconnected;
     uint16_t appliedReportRateHz = 1000;
     uint16_t requestedReportRateHz = 1000;
     bool rateApplyPending = false;
+    bool rfSleepPending = false;
     uint32_t lastRfStatusPollMs = 0;
     uint32_t lastRfBeginRetryMs = 0;
+    uint32_t lastRfSleepRetryMs = 0;
     uint32_t rfStatLastMs = 0;
     uint32_t rfSendWin = 0;
     uint32_t rfSendOkWin = 0;

@@ -984,6 +984,7 @@ RX 日志生成规则：
 | `UNBIND` | `0x04` | 清除 TX bond |
 | `SET_RATE` | `0x05` | 设置 1K/2K/4K/8K 上报率 |
 | `INPUT_DATA` | `0x06` | 10B 输入快照 |
+| `SLEEP` | `0x08` | 调通阶段只回 ACK，不实际进入睡眠 |
 
 `START_PAIR` 第一包固定为：
 
@@ -1004,7 +1005,7 @@ SPI 物理层是 master/slave 模型，TX 不能主动产生 SPI clock，因此�
 3. STM32 拉低 CS，发送 dummy byte，通过 `TransmitReceive` clock 出 TX 事件帧。
 4. TX 完成事件帧输出后释放 IRQ，恢复接收 STM32 后续命令。
 
-当前端口已经支持控制命令后的同步 readback：STM32 对 `GET_STATUS / START_PAIR / STOP_PAIR / UNBIND / SET_RATE` 发送后会等待 TX 拉高 IRQ，再由 STM32 主动 clock 出 TX 事件帧。配对开启结果应使用这个同步 readback 返回。
+当前端口已经支持控制命令后的同步 readback：STM32 对 `GET_STATUS / START_PAIR / STOP_PAIR / UNBIND / SET_RATE / SLEEP` 发送后会等待 TX 拉高 IRQ，再由 STM32 主动 clock 出 TX 事件帧。配对开启结果应使用这个同步 readback 返回。
 
 TX -> STM32 事件号：
 
@@ -1123,6 +1124,7 @@ TX 发送规则：
 | `USB` | 保持现有 USB 配置 |
 | `2.4G 1K/2K/4K/8K` | 保持现有 RF24G 速率配置 |
 | `Pair 2.4G` | 动作项，不直接改速率；进入配对页并发送 `START_PAIR` |
+| `Sleep 2.4G` | 动作项，不直接改速率；发送 `SLEEP` 并等待 ACK，调通阶段 TX 不实际睡眠 |
 
 `Pair 2.4G` 是动作项，不是配置项。它不应直接修改 `connectionMode` 或 `wirelessReportRate`；配对成功后是否自动切到 `RF24G + XINPUT` 可以作为第一版产品策略，建议成功后自动切换，符合用户点击配对入口的预期。
 

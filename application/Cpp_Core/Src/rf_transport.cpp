@@ -17,6 +17,7 @@ static constexpr uint8_t CMD_STOP_PAIR = 0x03u;
 static constexpr uint8_t CMD_UNBIND = 0x04u;
 static constexpr uint8_t CMD_SET_RATE = 0x05u;
 static constexpr uint8_t CMD_INPUT_DATA = 0x06u;
+static constexpr uint8_t CMD_SLEEP = 0x08u;
 static constexpr uint8_t EVT_STATUS = 0x81u;
 static constexpr uint8_t EVT_STATE_CHANGED = 0x82u;
 static constexpr uint8_t EVT_RATE_APPLIED = 0x83u;
@@ -367,6 +368,10 @@ bool RFTransport::stopPair() {
 
 bool RFTransport::unbind() {
     return transferCommand(CMD_UNBIND, nullptr, 0u, true);
+}
+
+bool RFTransport::sleep() {
+    return transferCommand(CMD_SLEEP, nullptr, 0u, true);
 }
 
 bool RFTransport::setRate(uint16_t rateHz) {

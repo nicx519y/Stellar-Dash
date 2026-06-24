@@ -16,7 +16,8 @@ static constexpr uint32_t kPairPageSuccessHoldMs = 5000u;
 
 enum class ConnectionSettingKind : uint8_t {
     Setting = 0,
-    Action = 1,
+    PairAction = 1,
+    SleepAction = 2,
 };
 
 struct ConnectionSettingItem {
@@ -32,7 +33,8 @@ static const ConnectionSettingItem kConnectionItems[] = {
     {ConnectionSettingKind::Setting, CONNECTION_MODE_RF24G, RFM_RATE_2K, "2.4G 2K"},
     {ConnectionSettingKind::Setting, CONNECTION_MODE_RF24G, RFM_RATE_4K, "2.4G 4K"},
     {ConnectionSettingKind::Setting, CONNECTION_MODE_RF24G, RFM_RATE_8K, "2.4G 8K"},
-    {ConnectionSettingKind::Action, CONNECTION_MODE_RF24G, RFM_RATE_1K, "Pair 2.4G"},
+    {ConnectionSettingKind::PairAction, CONNECTION_MODE_RF24G, RFM_RATE_1K, "Pair 2.4G"},
+    {ConnectionSettingKind::SleepAction, CONNECTION_MODE_RF24G, RFM_RATE_1K, "Sleep 2.4G"},
 };
 
 static bool g_pairPageActive = false;
@@ -212,12 +214,17 @@ bool ScreenDetailTournament_OnConfirm(uint8_t index) {
     }
     if (index >= connectionItemCount()) return false;
     const ConnectionSettingItem& item = kConnectionItems[index];
-    if (item.kind == ConnectionSettingKind::Action) {
+    if (item.kind == ConnectionSettingKind::PairAction) {
         APP_DBG("[SCREEN][PAIR] action selected");
         g_pairPageActive = true;
         g_pairPageSuccessAtMs = 0u;
         g_pairPageSuccessConsumed = false;
         (void)CONNECTION_MANAGER.startRfPairing();
+        return false;
+    }
+    if (item.kind == ConnectionSettingKind::SleepAction) {
+        APP_DBG("[SCREEN][CONN] sleep action selected");
+        (void)CONNECTION_MANAGER.sleepRfModule();
         return false;
     }
 

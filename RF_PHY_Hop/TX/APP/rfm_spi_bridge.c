@@ -64,7 +64,8 @@ typedef enum {
     SPI_CMD_STOP_PAIR = 0x03,
     SPI_CMD_UNBIND = 0x04,
     SPI_CMD_SET_RATE = 0x05,
-    SPI_CMD_INPUT_DATA = 0x06
+    SPI_CMD_INPUT_DATA = 0x06,
+    SPI_CMD_SLEEP = 0x08
 } spi_cmd_t;
 
 typedef enum {
@@ -124,6 +125,8 @@ static const char *spi_cmd_name(uint8_t cmd)
         return "SET_RATE";
     case SPI_CMD_INPUT_DATA:
         return "INPUT_DATA";
+    case SPI_CMD_SLEEP:
+        return "SLEEP";
     default:
         return "UNKNOWN";
     }
@@ -224,6 +227,7 @@ static bool is_valid_host_cmd(uint8_t cmd)
     case SPI_CMD_UNBIND:
     case SPI_CMD_SET_RATE:
     case SPI_CMD_INPUT_DATA:
+    case SPI_CMD_SLEEP:
         return true;
     default:
         return false;
@@ -564,6 +568,18 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
             {
                 (void)send_error_event(cmd, txn, 2u, 1u);
             }
+            break;
+        }
+        (void)send_error_event(cmd, txn, 1u, 1u);
+        break;
+    case SPI_CMD_SLEEP:
+        if(args_len == 0u)
+        {
+            if(send_status_frame(SPI_EVT_STATUS, cmd, txn, 0u, 0u, 1u))
+            {
+                break;
+            }
+            (void)send_error_event(cmd, txn, 2u, 1u);
             break;
         }
         (void)send_error_event(cmd, txn, 1u, 1u);
@@ -1035,14 +1051,14 @@ void rfm_spi_bridge_poll(void)
         try_send_pending_state_changed();
         if((s_real_sleep_pending != 0u) && (rfm_spi_port_tx_pending() == 0u)) {
             s_real_sleep_pending = 0u;
-#if 0
-            PRINT("[PM] entering halt sleep, wake=NSS/PB12 falling edge\r\n");
+#if (RFM_TX_LOG_ENABLE == 1u)
+            spi_log_printf("[SPI][SLEEP] enter wake=NSS/PB12\r\n");
 #endif
             rfm_spi_port_sleep_until_nss_wake();
             parser_reset();
             fast_parser_reset();
-#if 0
-            PRINT("[PM] woke from NSS, SPI restored\r\n");
+#if (RFM_TX_LOG_ENABLE == 1u)
+            spi_log_printf("[SPI][SLEEP] wake spi_restored\r\n");
 #endif
             return;
         }

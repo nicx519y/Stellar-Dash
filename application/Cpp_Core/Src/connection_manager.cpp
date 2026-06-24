@@ -33,9 +33,11 @@ static uint16_t getRfReportRateHz(WirelessReportRate wirelessRate) {
 }
 
 static constexpr uint32_t kRfRateApplyRetryMs = 500u;
+static constexpr uint32_t kRfSleepRetryMs = 500u;
 static constexpr uint32_t kRfPairingLocalTimeoutMs = 65000u;
 static constexpr uint8_t kRfCmdStartPair = 0x02u;
 static constexpr uint8_t kRfCmdStopPair = 0x03u;
+static constexpr uint8_t kRfCmdSleep = 0x08u;
 static constexpr uint8_t kRfEvtError = 0x85u;
 }
 
@@ -165,8 +167,10 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
     appliedReportRateHz = 1000;
     requestedReportRateHz = 1000;
     rateApplyPending = false;
+    rfSleepPending = false;
     linkState = ConnectionLinkState::Disconnected;
     lastRfStatusPollMs = HAL_GetTick();
+    lastRfSleepRetryMs = HAL_GetTick();
     rfStatLastMs = HAL_GetTick();
     rfSendWin = 0u;
     rfSendOkWin = 0u;
@@ -352,6 +356,36 @@ bool ConnectionManager::stopRfPairing() {
     return ok;
 }
 
+bool ConnectionManager::tryRfSleepCommand() {
+    const bool ok = rfTransport.sleep();
+    if (ok) {
+        rfSleepPending = false;
+    } else {
+        const RFModuleStatus& st = rfTransport.getStatus();
+        rfPairingLastErrorCommand = (st.lastErrorCommand != 0u) ? st.lastErrorCommand : kRfCmdSleep;
+        rfPairingLastErrorReason = st.lastErrorReason;
+        ConnectionLinkState nextState = ConnectionLinkState::Error;
+        if (mode == ConnectionMode::CONNECTION_MODE_RF24G && linkState != nextState) {
+            MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
+        }
+        if (mode == ConnectionMode::CONNECTION_MODE_RF24G) {
+            linkState = nextState;
+        }
+    }
+    return ok;
+}
+
+bool ConnectionManager::sleepRfModule() {
+    rfEventServiceEnabled = true;
+    rfSleepPending = true;
+    lastRfSleepRetryMs = HAL_GetTick();
+    const bool ok = tryRfSleepCommand();
+    if (!ok) {
+        MonitorTelemetry_OnError("CONNECTION_MANAGER", 1006u, "rf sleep failed");
+    }
+    return ok;
+}
+
 void ConnectionManager::loop() {
     serviceRfEvents();
 
@@ -360,6 +394,11 @@ void ConnectionManager::loop() {
         (HAL_GetTick() - rfPairingStartedAtMs) >= kRfPairingLocalTimeoutMs) {
         rfPairingActive = false;
         rfPairingState = RfPairingState::Timeout;
+    }
+
+    if (rfSleepPending && ((HAL_GetTick() - lastRfSleepRetryMs) >= kRfSleepRetryMs)) {
+        lastRfSleepRetryMs = HAL_GetTick();
+        (void)tryRfSleepCommand();
     }
 
     if (mode == ConnectionMode::CONNECTION_MODE_USB) {

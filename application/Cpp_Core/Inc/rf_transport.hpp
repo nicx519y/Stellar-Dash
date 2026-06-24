@@ -50,6 +50,7 @@ public:
     bool startPair();
     bool stopPair();
     bool unbind();
+    bool sleep();
     bool setRate(uint16_t rateHz);
     bool sendInput(const GamepadState& state, uint32_t seq);
     bool pollStatus();

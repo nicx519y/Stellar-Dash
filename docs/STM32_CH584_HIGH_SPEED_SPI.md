@@ -115,6 +115,7 @@ STM32 -> CH584 命令：
 | `UNBIND` | `0x04` | 解绑 |
 | `SET_RATE` | `0x05` | 设置无线/输入速率 |
 | `INPUT_DATA` | `0x06` | 高频输入数据 |
+| `SLEEP` | `0x08` | 调通阶段只回 ACK，不实际进入睡眠 |
 
 CH584 -> STM32 事件：
 
@@ -187,6 +188,7 @@ CH584 -> STM32 事件：
 - `STOP_PAIR`
 - `UNBIND`
 - `SET_RATE`
+- `SLEEP`
 
 这些命令可以等待 CH584 IRQ 后再读事件帧，优先保证控制语义清楚，不与高频输入快路径混在一起。
 
@@ -418,4 +420,3 @@ make -C RF_PHY_Hop\TX -j4
 - CH584 `RF_PHY_Hop/TX` 构建通过。
 - STM32 linker 的 RWX LOAD segment warning 为既有问题。
 - CH58x SDK/既有 unused warning 与 SPI 封装和 DMA ring 实现无关。
-

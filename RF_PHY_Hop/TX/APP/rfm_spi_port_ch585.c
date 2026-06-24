@@ -83,6 +83,7 @@ static uint8_t spi_rx_host_cmd_valid(uint8_t cmd)
     case 0x04u:
     case 0x05u:
     case 0x06u:
+    case 0x08u:
         return 1u;
     default:
         return 0u;

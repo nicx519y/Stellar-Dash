@@ -171,6 +171,7 @@ STM32 -> TX 当前命令：
 | `0x05` | `SET_RATE` | 设置 RF DATA report rate，payload 为 `0/1000/2000/4000/8000` |
 | `0x06` | `INPUT_DATA` | 发送一帧输入状态 |
 | `0x07` | `SET_MONITOR_CONFIG` | 下发 monitor 配置，控制 HID telemetry、日志、auto hop |
+| `0x08` | `SLEEP` | 调通阶段只回 ACK，不实际进入睡眠 |
 
 TX -> STM32 当前事件：
 
