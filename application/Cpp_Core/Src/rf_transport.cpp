@@ -6,8 +6,10 @@
 #include "board_cfg.h"
 #include "micro_timer.hpp"
 #include "monitor_telemetry.hpp"
+#include "rf_command_transaction.hpp"
 #include "rf_bridge_port.hpp"
 #include "system_logger.h"
+#include "stm32h7xx_hal.h"
 
 namespace {
 static constexpr uint8_t RF_SYNC = 0xA5u;
@@ -38,8 +40,7 @@ static constexpr uint8_t STATUS_TXN_OFFSET = 17u;
 static constexpr uint8_t STATUS_RESULT_OFFSET = 18u;
 static constexpr uint8_t STATUS_REASON_OFFSET = 19u;
 static constexpr uint16_t RX_BUF_LEN = 32u;
-static constexpr uint8_t CONTROL_RETRY_COUNT = 3u;
-
+static constexpr uint32_t COMMAND_RESULT_TIMEOUT_MS = 200u;
 #ifndef RF_SPI_PROTOCOL_LOG
 #define RF_SPI_PROTOCOL_LOG APPLICATION_SERIAL_PRINT
 #endif
@@ -184,18 +185,59 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
     return true;
 }
 
-uint8_t RFTransport::nextTransactionId() {
-    static uint8_t s_nextTxn = 0u;
-    s_nextTxn++;
-    if (s_nextTxn == 0u) {
-        s_nextTxn = 1u;
-    }
-    return s_nextTxn;
-}
-
 bool RFTransport::lastEventMatches(uint8_t cmd, uint8_t txn) const {
     return (status.lastCommandTag == cmd) &&
            (status.lastTransactionId == txn);
+}
+
+bool RFTransport::waitCommandResult(uint8_t cmd, uint8_t txn, uint32_t timeoutMs) {
+    const uint32_t start = HAL_GetTick();
+
+    RF_SPI_LOG("[RF_SPI][RESULT_WAIT] cmd=0x%02X txn=%u timeout_ms=%lu",
+            (unsigned int)cmd,
+            (unsigned int)txn,
+            (unsigned long)timeoutMs);
+    while ((HAL_GetTick() - start) < timeoutMs) {
+        if (!RFBridgePort_HasPendingEvent()) {
+            continue;
+        }
+
+        uint8_t rxBuf[RX_BUF_LEN] = {0};
+        uint16_t rxLen = RX_BUF_LEN;
+        if (!RFBridgePort_ReadEvent(rxBuf, &rxLen)) {
+            state = RFTransportState::Error;
+            return false;
+        }
+        if (rxLen == 0u) {
+            continue;
+        }
+        if (!parseEventFrame(rxBuf, rxLen)) {
+            state = RFTransportState::Error;
+            return false;
+        }
+
+        RF_SPI_LOG("[RF_SPI][RESULT_RECV] cmd=0x%02X txn=%u evt=0x%02X result=%u reason=%u",
+                (unsigned int)cmd,
+                (unsigned int)txn,
+                (unsigned int)status.lastEvent,
+                (unsigned int)status.lastResult,
+                (unsigned int)status.lastErrorReason);
+        if (!lastEventMatches(cmd, txn)) {
+            continue;
+        }
+        if ((status.lastEvent == EVT_ERROR) || (status.lastResult != 0u)) {
+            state = RFTransportState::Error;
+            return false;
+        }
+        state = RFTransportState::Connected;
+        return true;
+    }
+
+    RF_SPI_LOG("[RF_SPI][RESULT_TIMEOUT] cmd=0x%02X txn=%u",
+            (unsigned int)cmd,
+            (unsigned int)txn);
+    state = RFTransportState::Error;
+    return false;
 }
 
 bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t len, bool forceReadback) {
@@ -210,81 +252,40 @@ bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t l
         return false;
     }
 
-    const uint8_t txn = nextTransactionId();
-    const uint8_t controlPayloadLen = static_cast<uint8_t>(len + 1u);
-
-    uint8_t frame[4u + 24u + 1u] = {0};
-    frame[0] = RF_SYNC;
-    frame[1] = cmd;
-    frame[2] = controlPayloadLen;
-    frame[3] = txn;
-    if (len > 0u && payload != nullptr) {
-        memcpy(&frame[4], payload, len);
-    }
-
-    uint8_t checksum = 0u;
-    const uint8_t totalNoChecksum = static_cast<uint8_t>(3u + controlPayloadLen);
-    for (uint8_t i = 0; i < totalNoChecksum; i++) {
-        checksum = (uint8_t)(checksum + frame[i]);
-    }
-    frame[totalNoChecksum] = checksum;
     const uint16_t logRateHz =
         ((cmd == CMD_SET_RATE) && (len == 2u) && (payload != nullptr)) ?
         static_cast<uint16_t>(payload[0] | (payload[1] << 8)) :
         0u;
 
-    for (uint8_t attempt = 0u; attempt < CONTROL_RETRY_COUNT; attempt++) {
-        uint8_t rxBuf[RX_BUF_LEN] = {0};
-        uint16_t rxLen = RX_BUF_LEN;
-        RF_SPI_LOG("[RF_SPI][TX_CMD] cmd=0x%02X txn=%u attempt=%u payload_len=%u frame_len=%u rate=%u",
-                (unsigned int)cmd,
-                (unsigned int)txn,
-                (unsigned int)(attempt + 1u),
-                (unsigned int)len,
-                (unsigned int)(totalNoChecksum + 1u),
-                (unsigned int)logRateHz);
-        bool ok = RFBridgePort_ControlTransfer(frame,
-                                               static_cast<uint16_t>(totalNoChecksum + 1u),
-                                               rxBuf,
-                                               &rxLen);
-        if (!ok) {
-            state = RFTransportState::Error;
-            continue;
-        }
-
-        if (!parseEventFrame(rxBuf, rxLen)) {
-            state = RFTransportState::Error;
-            continue;
-        }
-
-        if (!lastEventMatches(cmd, txn)) {
-            state = RFTransportState::Error;
-            continue;
-        }
-
-        if (status.lastEvent == EVT_ERROR) {
-            state = RFTransportState::Error;
-            return false;
-        }
-
-        if (status.lastResult != 0u) {
-            state = RFTransportState::Error;
-            return false;
-        }
-
-        RF_SPI_LOG("[RF_SPI][ACK] cmd=0x%02X txn=%u attempt=%u evt=0x%02X result=%u rate=%u",
-                (unsigned int)cmd,
-                (unsigned int)txn,
-                (unsigned int)(attempt + 1u),
-                (unsigned int)status.lastEvent,
-                (unsigned int)status.lastResult,
-                (unsigned int)status.rateHz);
-        state = RFTransportState::Connected;
-        return true;
+    RFCommandTransactionResult txnResult = {};
+    RF_SPI_LOG("[RF_SPI][TX_CMD] cmd=0x%02X payload_len=%u rate=%u",
+            (unsigned int)cmd,
+            (unsigned int)len,
+            (unsigned int)logRateHz);
+    if (!RFCommandTransaction::send(cmd, payload, len, txnResult)) {
+        state = RFTransportState::Error;
+        return false;
     }
 
-    state = RFTransportState::Error;
-    return false;
+    if (!parseEventFrame(txnResult.ackFrame, txnResult.ackLen) ||
+        !lastEventMatches(cmd, txnResult.txn)) {
+        state = RFTransportState::Error;
+        return false;
+    }
+
+    if ((status.lastEvent == EVT_ERROR) || (status.lastResult != 0u)) {
+        state = RFTransportState::Error;
+        return false;
+    }
+
+    RF_SPI_LOG("[RF_SPI][ACK] cmd=0x%02X txn=%u attempt=%u evt=0x%02X result=%u rate=%u",
+            (unsigned int)cmd,
+            (unsigned int)txnResult.txn,
+            (unsigned int)txnResult.attempts,
+            (unsigned int)status.lastEvent,
+            (unsigned int)status.lastResult,
+            (unsigned int)status.rateHz);
+    return waitCommandResult(cmd, txnResult.txn, COMMAND_RESULT_TIMEOUT_MS);
 }
 
 bool RFTransport::sendInputFrame(const uint8_t* payload, uint8_t len) {

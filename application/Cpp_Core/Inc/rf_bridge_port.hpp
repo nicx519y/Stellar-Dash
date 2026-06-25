@@ -7,6 +7,11 @@
 // Upper-layer RF transport should only use this API.
 bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint16_t* rxLen);
 bool RFBridgePort_ControlTransfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint16_t* rxLen);
+bool RFBridgePort_ControlTransferWithTimeout(const uint8_t* tx,
+                                             uint16_t txLen,
+                                             uint8_t* rx,
+                                             uint16_t* rxLen,
+                                             uint32_t ackTimeoutMs);
 bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen);
 bool RFBridgePort_IsReady(void);
 bool RFBridgePort_HasPendingEvent(void);

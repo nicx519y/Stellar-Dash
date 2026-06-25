@@ -64,7 +64,7 @@ private:
     bool parseEventFrame(const uint8_t* frame, uint16_t len);
     bool parseStatusPayload(const uint8_t* payload, uint8_t len);
     bool lastEventMatches(uint8_t cmd, uint8_t txn) const;
-    static uint8_t nextTransactionId();
+    bool waitCommandResult(uint8_t cmd, uint8_t txn, uint32_t timeoutMs);
     static uint8_t inputCrc8(const uint8_t* data, uint8_t len);
     static uint32_t buildHitboxKeyMask(const GamepadState& state);
 

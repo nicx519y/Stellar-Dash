@@ -10,6 +10,8 @@
 #include "board_cfg.h"
 #include "stm32h7xx_hal.h"
 
+#include <stdio.h>
+
 namespace {
 static uint16_t clampRfReportRateHz(uint16_t rateHz) {
     switch (rateHz) {
@@ -32,7 +34,6 @@ static uint16_t getRfReportRateHz(WirelessReportRate wirelessRate) {
 #endif
 }
 
-static constexpr uint32_t kRfRateApplyRetryMs = 500u;
 static constexpr uint32_t kRfSleepRetryMs = 500u;
 static constexpr uint32_t kRfPairingLocalTimeoutMs = 65000u;
 static constexpr uint8_t kRfCmdStartPair = 0x02u;
@@ -201,6 +202,11 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
     }
 
     requestedReportRateHz = getRfReportRateHz(wirelessRate);
+    printf("[RF_RATE] setup mode=%u requested=%u applied=%u enum=%u\r\n",
+            (unsigned int)mode,
+            (unsigned int)requestedReportRateHz,
+            (unsigned int)appliedReportRateHz,
+            (unsigned int)wirelessRate);
     MonitorTelemetry_Init(mode, requestedReportRateHz);
 #if RF24G_SPI_TEST_FORCE_RF24G
     rateApplyPending = false;
@@ -211,7 +217,11 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
     return;
 #endif
     bool rateOk = rfTransport.setRate(requestedReportRateHz);
-    rateApplyPending = !rateOk;
+    rateApplyPending = false;
+    printf("[RF_RATE] setup setRate result=%u requested=%u applied=%u\r\n",
+            (unsigned int)rateOk,
+            (unsigned int)requestedReportRateHz,
+            (unsigned int)appliedReportRateHz);
     if (!rateOk) {
         ConnectionLinkState nextState = ConnectionLinkState::Error;
         if (linkState != nextState) {
@@ -234,9 +244,21 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
 
 bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate, bool persist) {
     const uint16_t nextRateHz = getRfReportRateHz(wirelessRate);
+    const uint16_t previousRequestedHz = requestedReportRateHz;
+    const uint16_t previousAppliedHz = appliedReportRateHz;
     requestedReportRateHz = nextRateHz;
+    printf("[RF_RATE] apply begin mode=%u enum=%u target=%u prev_req=%u prev_applied=%u persist=%u\r\n",
+            (unsigned int)mode,
+            (unsigned int)wirelessRate,
+            (unsigned int)nextRateHz,
+            (unsigned int)previousRequestedHz,
+            (unsigned int)previousAppliedHz,
+            (unsigned int)persist);
 
     if (mode != ConnectionMode::CONNECTION_MODE_RF24G) {
+        printf("[RF_RATE] apply skip not-rf mode=%u target=%u\r\n",
+                (unsigned int)mode,
+                (unsigned int)nextRateHz);
         if (persist) {
             STORAGE_MANAGER.setWirelessReportRate(wirelessRate);
             (void)STORAGE_MANAGER.saveConfig();
@@ -245,6 +267,22 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
     }
 
     if (nextRateHz == appliedReportRateHz) {
+        printf("[RF_RATE] apply re-send same target=%u applied=%u\r\n",
+                (unsigned int)nextRateHz,
+                (unsigned int)appliedReportRateHz);
+        const bool rateOk = rfTransport.setRate(nextRateHz);
+        printf("[RF_RATE] apply setRate result=%u target=%u same=1\r\n",
+                (unsigned int)rateOk,
+                (unsigned int)nextRateHz);
+        if (!rateOk) {
+            ConnectionLinkState nextState = ConnectionLinkState::Error;
+            if (linkState != nextState) {
+                MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
+            }
+            linkState = nextState;
+            MonitorTelemetry_OnError("CONNECTION_MANAGER", 1004u, "runtime rf setRate failed");
+            return false;
+        }
         if (persist) {
             STORAGE_MANAGER.setWirelessReportRate(wirelessRate);
             return STORAGE_MANAGER.saveConfig();
@@ -252,8 +290,13 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
         return true;
     }
 
-    if (!rfTransport.setRate(nextRateHz)) {
-        rateApplyPending = true;
+    const bool rateOk = rfTransport.setRate(nextRateHz);
+    printf("[RF_RATE] apply setRate result=%u target=%u same=0 prev_applied=%u\r\n",
+            (unsigned int)rateOk,
+            (unsigned int)nextRateHz,
+            (unsigned int)previousAppliedHz);
+    if (!rateOk) {
+        rateApplyPending = false;
         ConnectionLinkState nextState = ConnectionLinkState::Error;
         if (linkState != nextState) {
             MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
@@ -265,6 +308,9 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
 
     appliedReportRateHz = nextRateHz;
     rateApplyPending = false;
+    printf("[RF_RATE] apply complete target=%u applied=%u\r\n",
+            (unsigned int)nextRateHz,
+            (unsigned int)appliedReportRateHz);
     if (REPORT_SCHEDULER.isStarted()) {
         REPORT_SCHEDULER.setRate(appliedReportRateHz);
     }
@@ -300,21 +346,13 @@ bool ConnectionManager::startRfPairing() {
 
     if (!ok) {
         const RFModuleStatus& st = rfTransport.getStatus();
-        if (!(st.lastEvent == kRfEvtError && st.errorCounter != errorsBeforeStart)) {
-            rfPairingActive = true;
-            rfPairingState = RfPairingState::PairModeOn;
-            ConnectionLinkState nextState = ConnectionLinkState::Connecting;
-            if (mode == ConnectionMode::CONNECTION_MODE_RF24G && linkState != nextState) {
-                MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
-            }
-            if (mode == ConnectionMode::CONNECTION_MODE_RF24G) {
-                linkState = nextState;
-            }
-            return true;
-        }
         rfPairingActive = false;
         rfPairingState = RfPairingState::TxError;
-        rfPairingLastErrorCommand = (st.lastErrorCommand != 0u) ? st.lastErrorCommand : kRfCmdStartPair;
+        rfPairingLastErrorCommand = ((st.lastEvent == kRfEvtError) &&
+                                     (st.errorCounter != errorsBeforeStart) &&
+                                     (st.lastErrorCommand != 0u)) ?
+                                    st.lastErrorCommand :
+                                    kRfCmdStartPair;
         rfPairingLastErrorReason = st.lastErrorReason;
         ConnectionLinkState nextState = ConnectionLinkState::Error;
         if (mode == ConnectionMode::CONNECTION_MODE_RF24G && linkState != nextState) {
@@ -408,23 +446,6 @@ void ConnectionManager::loop() {
         }
         linkState = nextState;
         return;
-    }
-
-    if (rateApplyPending && ((HAL_GetTick() - lastRfBeginRetryMs) >= kRfRateApplyRetryMs)) {
-        lastRfBeginRetryMs = HAL_GetTick();
-        if (rfTransport.setRate(requestedReportRateHz)) {
-            appliedReportRateHz = requestedReportRateHz;
-            rateApplyPending = false;
-            if (REPORT_SCHEDULER.isStarted()) {
-                REPORT_SCHEDULER.setRate(appliedReportRateHz);
-            }
-            MonitorTelemetry_Init(mode, appliedReportRateHz);
-            ConnectionLinkState nextState = ConnectionLinkState::Connected;
-            if (linkState != nextState) {
-                MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
-            }
-            linkState = nextState;
-        }
     }
 
     // RF24G 8K data streaming is intentionally independent from status readback.

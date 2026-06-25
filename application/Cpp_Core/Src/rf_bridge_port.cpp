@@ -660,7 +660,11 @@ bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen) {
     return true;
 }
 
-bool RFBridgePort_ControlTransfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint16_t* rxLen) {
+bool RFBridgePort_ControlTransferWithTimeout(const uint8_t* tx,
+                                             uint16_t txLen,
+                                             uint8_t* rx,
+                                             uint16_t* rxLen,
+                                             uint32_t ackTimeoutMs) {
     if ((tx == nullptr) || (txLen == 0u)) {
         if (rxLen != nullptr) *rxLen = 0u;
         return false;
@@ -710,7 +714,7 @@ bool RFBridgePort_ControlTransfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx
 
     rf_note_transfer(false, true, cmd, busTxLen, 0u);
 
-    const bool irq_ready = rf_wait_irq_high(20u);
+    const bool irq_ready = rf_wait_irq_high(ackTimeoutMs);
     if (!irq_ready) {
         s_diag_irq_timeout++;
         *rxLen = 0u;
@@ -724,6 +728,10 @@ bool RFBridgePort_ControlTransfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx
     rf_consume_irq_pending_marker();
     (void)rf_wait_irq_low(RF_BRIDGE_IRQ_LOW_TIMEOUT_MS);
     return true;
+}
+
+bool RFBridgePort_ControlTransfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint16_t* rxLen) {
+    return RFBridgePort_ControlTransferWithTimeout(tx, txLen, rx, rxLen, 20u);
 }
 
 bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint16_t* rxLen) {
