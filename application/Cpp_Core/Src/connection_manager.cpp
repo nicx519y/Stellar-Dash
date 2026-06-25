@@ -447,6 +447,10 @@ void ConnectionManager::loop() {
 
 void ConnectionManager::onReportReady(const GamepadState& state, uint32_t seq) {
     if (mode != ConnectionMode::CONNECTION_MODE_RF24G) return;
+
+    if (rfPairingActive || RFBridgePort_HasPendingEvent()) {
+        serviceRfEvents();
+    }
     if (rfPairingActive) return;
 
     bool ok = rfTransport.sendInput(state, seq);

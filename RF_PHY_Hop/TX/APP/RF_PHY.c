@@ -2184,7 +2184,7 @@ static void demo_handle_pair_packet(void)
     g_demo_stat.ack_type_err++;
 }
 
-static void demo_finish_pairing(uint32_t now, uint8_t state_code)
+static void demo_finish_pairing(uint32_t now, uint8_t state_code, uint8_t emit_state_changed)
 {
     g_demo_pair_state = RF_AUTO_PAIR_IDLE;
     g_demo_pair_wait_rx_after_tx = 0u;
@@ -2197,7 +2197,10 @@ static void demo_finish_pairing(uint32_t now, uint8_t state_code)
     (void)demo_apply_access_address(g_demo_link_access_address);
     demo_enter_tx_unconnected(now);
     g_pending_event_state_code = state_code;
-    rfm_spi_bridge_emit_state_changed(0x02u);
+    if(emit_state_changed != 0u)
+    {
+        rfm_spi_bridge_emit_state_changed(0x02u);
+    }
 }
 
 static void demo_service_pairing(uint32_t now)
@@ -2211,18 +2214,18 @@ static void demo_service_pairing(uint32_t now)
     {
         if(g_pending_event_state_code == RF_LINK_STATE_PAIR_FAILED)
         {
-            demo_finish_pairing(now, RF_LINK_STATE_PAIR_FAILED);
+            demo_finish_pairing(now, RF_LINK_STATE_PAIR_FAILED, 1u);
             return;
         }
         if(demo_save_bond(g_demo_pair_link_access_address,
                           g_demo_pair_rx_id_hash,
                           g_demo_pair_done_confirm32) != 0u)
         {
-            demo_finish_pairing(now, RF_LINK_STATE_PAIR_OK);
+            demo_finish_pairing(now, RF_LINK_STATE_PAIR_OK, 1u);
         }
         else
         {
-            demo_finish_pairing(now, RF_LINK_STATE_PAIR_FAILED);
+            demo_finish_pairing(now, RF_LINK_STATE_PAIR_FAILED, 1u);
         }
         return;
     }
@@ -3024,7 +3027,8 @@ bool RF_StopPairing(void)
         demo_finish_pairing(TMOS_GetSystemClock(),
                             (g_demo_has_bond != 0u) ?
                             RF_LINK_STATE_CONNECTING :
-                            RF_LINK_STATE_IDLE);
+                            RF_LINK_STATE_IDLE,
+                            0u);
     }
     else
     {
@@ -3042,7 +3046,8 @@ bool RF_Unbind(void)
         demo_finish_pairing(now,
                             (g_demo_has_bond != 0u) ?
                             RF_LINK_STATE_CONNECTING :
-                            RF_LINK_STATE_IDLE);
+                            RF_LINK_STATE_IDLE,
+                            0u);
     }
     if(demo_clear_bond() == 0u)
     {
