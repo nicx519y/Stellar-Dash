@@ -156,14 +156,6 @@ void ScreenDetailTournament_Render(ST7789_Handle* lcd, uint8_t index, const Scre
         RfPairingState pairState = (g_pairPageSuccessAtMs != 0u) ?
                                    RfPairingState::PairOk :
                                    currentPairState;
-        const uint32_t startedAt = CONNECTION_MANAGER.getRfPairingStartedAtMs();
-        if ((pairState == RfPairingState::PairModeOn ||
-             pairState == RfPairingState::Starting) &&
-            startedAt != 0u &&
-            (uint32_t)(now - startedAt) >= kPairPageLocalTimeoutMs) {
-            APP_DBG("[SCREEN][PAIR] local timeout leave state:%u", (unsigned int)pairState);
-            pairState = RfPairingState::Timeout;
-        }
         if (pairState == RfPairingState::PairOk) {
             if (g_pairPageSuccessAtMs == 0u) {
                 g_pairPageSuccessAtMs = now;

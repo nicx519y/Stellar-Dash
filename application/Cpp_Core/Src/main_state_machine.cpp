@@ -6,6 +6,7 @@
 #include "tusb.h"
 #include "power_manager.hpp"
 #include "board_cfg.h"
+#include "connection_manager.hpp"
 
 void MainStateMachine::setup()
 {
@@ -50,6 +51,7 @@ void MainStateMachine::setup()
         
         state->loop();
 
+        CONNECTION_MANAGER.loop();
         POWER_MANAGER.loop();
         SPIScreenManager::getInstance().loop();
 

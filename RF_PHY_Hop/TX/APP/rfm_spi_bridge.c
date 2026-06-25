@@ -9,6 +9,7 @@
 #include "rfm_config.h"
 #include "rfm_spi_command_txn.h"
 #include "rfm_spi_port_internal.h"
+#include "rfm_spi_reliable_event.h"
 #include "rf_monitor_control.h"
 
 static uint32_t s_rx_count;
@@ -31,10 +32,6 @@ static uint32_t s_last_bad_frame_count;
 static uint32_t s_last_backlog_drop_count;
 static uint32_t s_last_backlog_drop_bytes;
 static uint8_t s_poll_rx[(3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u) * 8u];
-static uint8_t s_state_changed_retry_pending;
-static uint8_t s_state_changed_retry_cmd_tag;
-static uint8_t s_state_changed_retry_state;
-static uint8_t s_state_changed_retry_left;
 static uint8_t s_last_direct_input[RFM_RF_INPUT_PAYLOAD_LEN];
 static uint8_t s_last_latest_input[RFM_RF_INPUT_PAYLOAD_LEN];
 static uint8_t s_have_last_direct_input;
@@ -51,12 +48,12 @@ static uint8_t s_real_sleep_pending;
 
 #define SPI_POLL_MAX_BATCHES          1u
 #define SPI_INPUT_FRAME_BYTES         (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
-#define SPI_STATUS_PAYLOAD_LEN        20u
+#define SPI_STATUS_PAYLOAD_LEN        21u
 #define SPI_STATUS_CMD_TAG_OFFSET     16u
 #define SPI_STATUS_TXN_OFFSET         17u
 #define SPI_STATUS_RESULT_OFFSET      18u
 #define SPI_STATUS_REASON_OFFSET      19u
-#define SPI_PAIR_OK_EVENT_REPEAT_COUNT 6u
+#define SPI_STATUS_EVENT_SEQ_OFFSET   20u
 #ifndef RFM_SPI_SIMULATE_SET_RATE_HZ
 #define RFM_SPI_SIMULATE_SET_RATE_HZ  0u
 #endif
@@ -69,6 +66,7 @@ typedef enum {
     SPI_CMD_UNBIND = 0x04,
     SPI_CMD_SET_RATE = 0x05,
     SPI_CMD_INPUT_DATA = 0x06,
+    SPI_CMD_EVENT_ACK = 0x07,
     SPI_CMD_SLEEP = 0x08
 } spi_cmd_t;
 
@@ -129,6 +127,8 @@ static const char *spi_cmd_name(uint8_t cmd)
         return "SET_RATE";
     case SPI_CMD_INPUT_DATA:
         return "INPUT_DATA";
+    case SPI_CMD_EVENT_ACK:
+        return "EVENT_ACK";
     case SPI_CMD_SLEEP:
         return "SLEEP";
     default:
@@ -146,6 +146,15 @@ static void log_spi_command_received(uint8_t cmd, const uint8_t *payload, uint8_
 
     if(cmd == (uint8_t)SPI_CMD_INPUT_DATA)
     {
+        return;
+    }
+    if(cmd == (uint8_t)SPI_CMD_EVENT_ACK)
+    {
+        uint8_t seq = ((payload != 0) && (len >= 1u)) ? payload[0] : 0u;
+        spi_log_printf("[SPI][RX_CMD] cmd=0x%02X EVENT_ACK seq=%u len=%u\r\n",
+                       (unsigned int)cmd,
+                       (unsigned int)seq,
+                       (unsigned int)len);
         return;
     }
 
@@ -231,6 +240,7 @@ static bool is_valid_host_cmd(uint8_t cmd)
     case SPI_CMD_UNBIND:
     case SPI_CMD_SET_RATE:
     case SPI_CMD_INPUT_DATA:
+    case SPI_CMD_EVENT_ACK:
     case SPI_CMD_SLEEP:
         return true;
     default:
@@ -337,25 +347,24 @@ static void try_send_pending_event_frame(void)
     }
 }
 
-static bool send_status_frame_ex(spi_evt_t evt,
-                                 uint8_t cmd_tag,
-                                 uint8_t txn,
-                                 uint8_t result,
-                                 uint8_t reason,
-                                 uint8_t cache_response,
-                                 uint8_t forced_state,
-                                 uint8_t clear_pending_state)
+static uint8_t build_status_frame_ex(spi_evt_t evt,
+                                      uint8_t cmd_tag,
+                                      uint8_t txn,
+                                      uint8_t result,
+                                      uint8_t reason,
+                                      uint8_t event_seq,
+                                      uint8_t forced_state,
+                                      uint8_t *out,
+                                      uint8_t out_len,
+                                      uint8_t *pending_state_out)
 {
     uint8_t payload[SPI_STATUS_PAYLOAD_LEN] = {0};
-    uint8_t out[RFM_SPI_MAX_FRAME];
-    uint8_t frame_len;
     uint16_t report_hz = RF_GetReportRateHz();
     uint16_t rx_ok = RF_GetRxOkCount();
     uint16_t rx_fail = RF_GetRxFailCount();
     uint16_t tx_fail = RF_GetTxFailCount();
     uint32_t reject_count = RF_GetRejectCount();
     uint8_t pending_state = 0u;
-    bool sent;
 
     if(evt == SPI_EVT_STATE_CHANGED)
     {
@@ -386,8 +395,40 @@ static bool send_status_frame_ex(spi_evt_t evt,
     payload[SPI_STATUS_TXN_OFFSET] = txn;
     payload[SPI_STATUS_RESULT_OFFSET] = result;
     payload[SPI_STATUS_REASON_OFFSET] = reason;
+    payload[SPI_STATUS_EVENT_SEQ_OFFSET] = event_seq;
 
-    frame_len = build_frame(evt, payload, (uint8_t)sizeof(payload), out, (uint8_t)sizeof(out));
+    if(pending_state_out != 0)
+    {
+        *pending_state_out = pending_state;
+    }
+    return build_frame(evt, payload, (uint8_t)sizeof(payload), out, out_len);
+}
+
+static bool send_status_frame_ex(spi_evt_t evt,
+                                 uint8_t cmd_tag,
+                                 uint8_t txn,
+                                 uint8_t result,
+                                 uint8_t reason,
+                                 uint8_t cache_response,
+                                 uint8_t event_seq,
+                                 uint8_t forced_state,
+                                 uint8_t clear_pending_state)
+{
+    uint8_t out[RFM_SPI_MAX_FRAME];
+    uint8_t frame_len;
+    uint8_t pending_state = 0u;
+    bool sent;
+
+    frame_len = build_status_frame_ex(evt,
+                                      cmd_tag,
+                                      txn,
+                                      result,
+                                      reason,
+                                      event_seq,
+                                      forced_state,
+                                      out,
+                                      (uint8_t)sizeof(out),
+                                      &pending_state);
     if(frame_len == 0u)
     {
         return false;
@@ -414,58 +455,53 @@ static bool send_status_frame(spi_evt_t evt, uint8_t cmd_tag, uint8_t txn, uint8
                                 reason,
                                 cache_response,
                                 0u,
+                                0u,
                                 1u);
 }
 
-static void try_send_pending_state_changed(void)
+static void reliable_event_complete(uint8_t evt, uint8_t seq, uint8_t user)
 {
-    if(s_state_changed_retry_pending == 0u)
+    (void)seq;
+    if(evt == (uint8_t)SPI_EVT_STATE_CHANGED)
     {
-        return;
-    }
-    if(rfm_spi_port_tx_pending() != 0u)
-    {
-        return;
-    }
-    if(s_state_changed_retry_left == 0u)
-    {
-        s_state_changed_retry_pending = 0u;
-        s_state_changed_retry_state = 0u;
-        return;
-    }
-    if(send_status_frame_ex(SPI_EVT_STATE_CHANGED,
-                            s_state_changed_retry_cmd_tag,
-                            0u,
-                            0u,
-                            0u,
-                            0u,
-                            s_state_changed_retry_state,
-                            (s_state_changed_retry_left <= 1u) ? 1u : 0u))
-    {
-        s_state_changed_retry_left--;
-        if(s_state_changed_retry_left == 0u)
-        {
-            s_state_changed_retry_pending = 0u;
-            s_state_changed_retry_cmd_tag = 0u;
-            s_state_changed_retry_state = 0u;
-        }
+        RF_ClearPendingEventStateCode(user);
     }
 }
 
 void rfm_spi_bridge_emit_state_changed(uint8_t cmd_tag)
 {
     uint8_t state = RF_PeekPendingEventStateCode();
+    uint8_t seq;
+    uint8_t frame[RFM_SPI_MAX_FRAME];
+    uint8_t frame_len;
+
     if(state == 0u)
     {
         state = RF_GetLinkStateCode();
     }
-    s_state_changed_retry_cmd_tag = cmd_tag;
-    s_state_changed_retry_state = state;
-    s_state_changed_retry_left = (state == RF_LINK_STATE_PAIR_OK) ?
-                                 SPI_PAIR_OK_EVENT_REPEAT_COUNT :
-                                 1u;
-    s_state_changed_retry_pending = 1u;
-    try_send_pending_state_changed();
+    seq = rfm_spi_reliable_event_next_seq();
+    frame_len = build_status_frame_ex(SPI_EVT_STATE_CHANGED,
+                                      cmd_tag,
+                                      0u,
+                                      0u,
+                                      0u,
+                                      seq,
+                                      state,
+                                      frame,
+                                      (uint8_t)sizeof(frame),
+                                      0);
+    if(frame_len == 0u)
+    {
+        return;
+    }
+    if(rfm_spi_reliable_event_schedule((uint8_t)SPI_EVT_STATE_CHANGED,
+                                       seq,
+                                       state,
+                                       frame,
+                                       frame_len))
+    {
+        rfm_spi_reliable_event_poll(rfm_spi_command_txn_has_pending_ack());
+    }
 }
 
 uint8_t rfm_spi_bridge_emit_time_sync(uint8_t seq)
@@ -490,6 +526,11 @@ uint8_t rfm_spi_bridge_emit_time_sync(uint8_t seq)
 static bool send_error_event(uint8_t cmd_tag, uint8_t txn, uint8_t reason, uint8_t cache_response)
 {
     return send_status_frame(SPI_EVT_ERROR, cmd_tag, txn, reason, reason, cache_response);
+}
+
+static void handle_event_ack(uint8_t seq)
+{
+    (void)rfm_spi_reliable_event_handle_ack(seq);
 }
 
 static void save_pending_control_command(uint8_t cmd, uint8_t txn, const uint8_t *args, uint8_t args_len)
@@ -562,7 +603,7 @@ static void execute_pending_control_command(void)
     case SPI_CMD_START_PAIR:
         if(RF_StartPairing())
         {
-            (void)send_status_frame(SPI_EVT_STATE_CHANGED, cmd, txn, 0u, 0u, 0u);
+            (void)send_status_frame(SPI_EVT_STATUS, cmd, txn, 0u, 0u, 0u);
         }
         else
         {
@@ -615,6 +656,15 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
     if(cmd == (uint8_t)SPI_CMD_INPUT_DATA)
     {
         (void)RF_SPI_FastWriteInput(payload, len);
+        return;
+    }
+
+    if(cmd == (uint8_t)SPI_CMD_EVENT_ACK)
+    {
+        if((payload != 0) && (len == 1u))
+        {
+            handle_event_ack(payload[0]);
+        }
         return;
     }
 
@@ -1114,10 +1164,6 @@ void rfm_spi_bridge_init(void)
     s_last_backlog_drop_count = 0u;
     s_last_backlog_drop_bytes = 0u;
     s_last_rx_count = 0u;
-    s_state_changed_retry_pending = 0u;
-    s_state_changed_retry_cmd_tag = 0u;
-    s_state_changed_retry_state = 0u;
-    s_state_changed_retry_left = 0u;
     s_have_last_direct_input = 0u;
     s_have_last_latest_input = 0u;
     s_pending_control_valid = 0u;
@@ -1134,6 +1180,7 @@ void rfm_spi_bridge_init(void)
     parser_reset();
     fast_parser_reset();
     rfm_spi_command_txn_init();
+    rfm_spi_reliable_event_init(reliable_event_complete);
     rfm_spi_port_init();
     rfm_spi_port_set_irq(false);
 #if (RFM_TX_LOG_ENABLE == 1u)
@@ -1162,7 +1209,7 @@ void rfm_spi_bridge_poll(void)
         rfm_spi_command_txn_poll();
         execute_pending_control_command();
         try_send_pending_event_frame();
-        try_send_pending_state_changed();
+        rfm_spi_reliable_event_poll(rfm_spi_command_txn_has_pending_ack());
         if((s_real_sleep_pending != 0u) &&
            (rfm_spi_port_tx_pending() == 0u) &&
            (rfm_spi_command_txn_has_pending_ack() == false)) {
@@ -1198,7 +1245,7 @@ void rfm_spi_bridge_poll(void)
             rfm_spi_command_txn_poll();
             execute_pending_control_command();
             try_send_pending_event_frame();
-            try_send_pending_state_changed();
+            rfm_spi_reliable_event_poll(rfm_spi_command_txn_has_pending_ack());
         }
         return;
     }
@@ -1226,5 +1273,5 @@ void rfm_spi_bridge_poll(void)
     rfm_spi_command_txn_poll();
     execute_pending_control_command();
     try_send_pending_event_frame();
-    try_send_pending_state_changed();
+    rfm_spi_reliable_event_poll(rfm_spi_command_txn_has_pending_ack());
 }

@@ -109,7 +109,13 @@ static bool rf_wait_irq_low(uint32_t timeoutMs) {
 }
 
 static bool rf_is_valid_evt(uint8_t evt) {
-    return (evt == 0x81u) || (evt == 0x82u) || (evt == 0x83u) || (evt == 0x84u) || (evt == 0x85u);
+    return (evt == 0x81u) ||
+           (evt == 0x82u) ||
+           (evt == 0x83u) ||
+           (evt == 0x84u) ||
+           (evt == 0x85u) ||
+           (evt == 0x86u) ||
+           (evt == 0x87u);
 }
 
 static uint8_t rf_checksum8(const uint8_t* data, uint16_t len) {
@@ -330,25 +336,9 @@ static bool rf_spi_dma_transmit_blocking(const uint8_t* tx, uint16_t txLen, uint
     return true;
 }
 
-static void rf_flush_stale_if_irq_high() {
-    if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) != GPIO_PIN_SET) {
-        return;
-    }
-    uint8_t txDummy[32];
-    uint8_t rxDummy[32];
-    memset(txDummy, 0xFF, sizeof(txDummy));
-    memset(rxDummy, 0x00, sizeof(rxDummy));
-    rf_cs_set(false);
-    (void)HAL_SPI_TransmitReceive(&s_rf_hspi, txDummy, rxDummy, sizeof(txDummy), RF_BRIDGE_SPI_TIMEOUT_MS);
-    rf_cs_set(true);
-    (void)rf_wait_irq_low(RF_BRIDGE_IRQ_LOW_TIMEOUT_MS);
-    s_diag_dma_done++;
-}
-
 static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd) {
     static constexpr uint16_t kMinFrameLen = 4u;
-    static constexpr uint16_t kPrefetchLen = 4u;
-    static constexpr uint16_t kTailBufLen = 64u;
+    static constexpr uint16_t kMaxScanLen = 16u;
     (void)diagCmd;
 
     if ((rx == nullptr) || (rxLen == nullptr) || (*rxLen < kMinFrameLen)) {
@@ -358,86 +348,130 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd) {
         return false;
     }
 
-    uint8_t preTx[kPrefetchLen] = {0xFFu, 0xFFu, 0xFFu, 0xFFu};
-    uint8_t preRx[kPrefetchLen] = {0};
-    uint8_t tailTx[kTailBufLen] = {0};
-    uint8_t tailRx[kTailBufLen] = {0};
+    uint8_t raw[64] = {0};
+    uint8_t txByte = 0xFFu;
+    uint16_t rawLen = 0u;
+    uint16_t start = 0u;
+    uint16_t total = 0u;
+    bool foundStart = false;
 
     memset(rx, 0, *rxLen);
+    HAL_Delay(1u);
     rf_cs_set(false);
-    if (HAL_SPI_TransmitReceive(&s_rf_hspi, preTx, preRx, kPrefetchLen, RF_BRIDGE_SPI_TIMEOUT_MS) != HAL_OK) {
-        rf_cs_set(true);
-        s_diag_rx_io_fail++;
-        *rxLen = 0u;
-        return false;
-    }
 
-    uint16_t start = 0u;
-    if ((preRx[0] == 0xA5u) && rf_is_valid_evt(preRx[1])) {
-        start = 0u;
-    } else if ((preRx[1] == 0xA5u) && rf_is_valid_evt(preRx[2])) {
-        start = 1u;
-    } else {
-        rf_cs_set(true);
-        s_diag_rx_invalid++;
-        *rxLen = 0u;
-        return false;
-    }
-
-    const uint8_t payloadLen = preRx[start + 2u];
-    const uint16_t total = static_cast<uint16_t>(3u + payloadLen + 1u);
-    if ((total < kMinFrameLen) || (total > *rxLen)) {
-        rf_cs_set(true);
-        s_diag_rx_invalid++;
-        *rxLen = 0u;
-        return false;
-    }
-
-    const uint16_t prefetched = static_cast<uint16_t>(kPrefetchLen - start);
-    memcpy(rx, &preRx[start], prefetched);
-
-    const uint16_t remain = static_cast<uint16_t>(total - prefetched);
-    if (remain > 0u) {
-        if (remain > kTailBufLen) {
+    while (rawLen < sizeof(raw)) {
+        if (HAL_SPI_TransmitReceive(&s_rf_hspi,
+                                    &txByte,
+                                    &raw[rawLen],
+                                    1u,
+                                    RF_BRIDGE_SPI_TIMEOUT_MS) != HAL_OK) {
             rf_cs_set(true);
+            s_diag_rx_io_fail++;
             *rxLen = 0u;
             return false;
         }
-        for (uint16_t i = 0u; i < remain; ++i) {
-            tailTx[i] = 0xFFu;
+        rawLen++;
+
+        if (!foundStart && (rawLen >= 3u)) {
+            const uint16_t scanLimit = (rawLen > kMaxScanLen) ? kMaxScanLen : rawLen;
+            for (uint16_t i = 0u; (i + 2u) < scanLimit; ++i) {
+                if ((raw[i] == 0xA5u) && rf_is_valid_evt(raw[i + 1u])) {
+                    const uint8_t payloadLen = raw[i + 2u];
+                    total = static_cast<uint16_t>(3u + payloadLen + 1u);
+                    if ((total < kMinFrameLen) || (total > *rxLen) ||
+                        ((i + total) > sizeof(raw))) {
+                        rf_cs_set(true);
+                        s_diag_rx_invalid++;
+                        *rxLen = 0u;
+                        printf("[RF_PORT][READ_EVT_RAW] bad_len start=%u payload=%u total=%u cap=%u raw=%02X %02X %02X %02X %02X %02X %02X %02X\r\n",
+                               (unsigned int)i,
+                               (unsigned int)payloadLen,
+                               (unsigned int)total,
+                               (unsigned int)*rxLen,
+                               (unsigned int)raw[0],
+                               (unsigned int)raw[1],
+                               (unsigned int)raw[2],
+                               (unsigned int)raw[3],
+                               (unsigned int)raw[4],
+                               (unsigned int)raw[5],
+                               (unsigned int)raw[6],
+                               (unsigned int)raw[7]);
+                        return false;
+                    }
+                    start = i;
+                    foundStart = true;
+                    break;
+                }
+            }
+            if (!foundStart && (rawLen >= kMaxScanLen)) {
+                break;
+            }
         }
-        uint16_t tailOffset = 0u;
-        while (tailOffset < remain) {
-            uint16_t chunk = static_cast<uint16_t>(remain - tailOffset);
-            if (chunk > RF_BRIDGE_EVENT_RX_CHUNK) {
-                chunk = RF_BRIDGE_EVENT_RX_CHUNK;
-            }
-            if (RF_BRIDGE_EVENT_RX_GAP_MS != 0u) {
-                HAL_Delay(RF_BRIDGE_EVENT_RX_GAP_MS);
-            }
-            if (HAL_SPI_TransmitReceive(&s_rf_hspi,
-                                        &tailTx[tailOffset],
-                                        &tailRx[tailOffset],
-                                        chunk,
-                                        RF_BRIDGE_SPI_TIMEOUT_MS) != HAL_OK) {
-                rf_cs_set(true);
-                s_diag_rx_io_fail++;
-                *rxLen = 0u;
-                return false;
-            }
-            tailOffset = static_cast<uint16_t>(tailOffset + chunk);
+
+        if (foundStart && (rawLen >= static_cast<uint16_t>(start + total))) {
+            break;
         }
-        memcpy(&rx[prefetched], tailRx, remain);
+        if (RF_BRIDGE_EVENT_RX_GAP_MS != 0u) {
+            HAL_Delay(RF_BRIDGE_EVENT_RX_GAP_MS);
+        }
     }
     rf_cs_set(true);
 
+    if (!foundStart || (rawLen < static_cast<uint16_t>(start + total))) {
+        s_diag_rx_invalid++;
+        *rxLen = 0u;
+        printf("[RF_PORT][READ_EVT_RAW] invalid raw=%02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\r\n",
+               (unsigned int)raw[0],
+               (unsigned int)raw[1],
+               (unsigned int)raw[2],
+               (unsigned int)raw[3],
+               (unsigned int)raw[4],
+               (unsigned int)raw[5],
+               (unsigned int)raw[6],
+               (unsigned int)raw[7],
+               (unsigned int)raw[8],
+               (unsigned int)raw[9],
+               (unsigned int)raw[10],
+               (unsigned int)raw[11],
+               (unsigned int)raw[12],
+               (unsigned int)raw[13],
+               (unsigned int)raw[14],
+               (unsigned int)raw[15]);
+        return false;
+    }
+
+    memcpy(rx, &raw[start], total);
     if (rf_checksum8(rx, static_cast<uint16_t>(total - 1u)) != rx[total - 1u]) {
         s_diag_rx_invalid++;
         *rxLen = 0u;
+        printf("[RF_PORT][READ_EVT_RAW] bad_sum start=%u total=%u got=%02X calc=%02X head=%02X %02X %02X %02X %02X %02X %02X %02X\r\n",
+               (unsigned int)start,
+               (unsigned int)total,
+               (unsigned int)rx[total - 1u],
+               (unsigned int)rf_checksum8(rx, static_cast<uint16_t>(total - 1u)),
+               (unsigned int)rx[0],
+               (unsigned int)rx[1],
+               (unsigned int)rx[2],
+               (unsigned int)rx[3],
+               (unsigned int)rx[4],
+               (unsigned int)rx[5],
+               (unsigned int)rx[6],
+               (unsigned int)rx[7]);
         return false;
     }
 
     *rxLen = total;
+    printf("[RF_PORT][READ_EVT_RAW] ok start=%u total=%u head=%02X %02X %02X %02X %02X %02X %02X %02X\r\n",
+           (unsigned int)start,
+           (unsigned int)total,
+           (unsigned int)rx[0],
+           (unsigned int)rx[1],
+           (unsigned int)rx[2],
+           (unsigned int)rx[3],
+           (unsigned int)rx[4],
+           (unsigned int)rx[5],
+           (unsigned int)rx[6],
+           (unsigned int)rx[7]);
     return true;
 }
 
@@ -589,6 +623,7 @@ bool RFBridgePort_ReadEvent(uint8_t* rx, uint16_t* rxLen) {
 
     if (!s_rf_spi_ready) {
         *rxLen = 0u;
+        printf("[RF_PORT][READ_EVT] not_ready\r\n");
         return false;
     }
 
@@ -599,6 +634,7 @@ bool RFBridgePort_ReadEvent(uint8_t* rx, uint16_t* rxLen) {
 
     if (!rf_spi_dma_wait_idle_and_drop_pending(RF_BRIDGE_SPI_TIMEOUT_MS)) {
         *rxLen = 0u;
+        printf("[RF_PORT][READ_EVT] dma_busy_timeout\r\n");
         return false;
     }
 
@@ -606,6 +642,11 @@ bool RFBridgePort_ReadEvent(uint8_t* rx, uint16_t* rxLen) {
     const bool ok = rf_read_event_frame(rx, rxLen, 0x00u);
     if (ok && (*rxLen > 0u)) {
         (void)rf_wait_irq_low(RF_BRIDGE_IRQ_LOW_TIMEOUT_MS);
+        printf("[RF_PORT][READ_EVT] ok evt=0x%02X len=%u\r\n",
+               (unsigned int)((*rxLen >= 2u) ? rx[1] : 0u),
+               (unsigned int)*rxLen);
+    } else {
+        printf("[RF_PORT][READ_EVT] fail len=%u\r\n", (unsigned int)*rxLen);
     }
     return ok;
 }
@@ -634,7 +675,9 @@ bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen) {
     if (!rf_spi_dma_wait_idle_and_drop_pending(RF_BRIDGE_SPI_TIMEOUT_MS)) {
         return false;
     }
-    rf_flush_stale_if_irq_high();
+    if (rf_has_pending_event_signal()) {
+        return false;
+    }
     if (s_dma_busy) {
         return false;
     }
@@ -686,6 +729,21 @@ bool RFBridgePort_ControlTransferWithTimeout(const uint8_t* tx,
     const uint8_t* busTx = tx;
     uint16_t busTxLen = txLen;
 
+    if (rf_has_pending_event_signal()) {
+        if (!rf_spi_dma_wait_idle_and_drop_pending(RF_BRIDGE_SPI_TIMEOUT_MS)) {
+            *rxLen = 0u;
+            return false;
+        }
+        const bool readOk = rf_read_event_frame(rx, rxLen, cmd);
+        if (readOk && (*rxLen > 0u)) {
+            rf_consume_irq_pending_marker();
+            (void)rf_wait_irq_low(RF_BRIDGE_IRQ_LOW_TIMEOUT_MS);
+            return true;
+        }
+        *rxLen = 0u;
+        return false;
+    }
+
     if (txLen < RF_BRIDGE_MIN_CONTROL_TX_BYTES) {
         memset(controlTxBuf, 0xFF, sizeof(controlTxBuf));
         memcpy(controlTxBuf, tx, txLen);
@@ -697,8 +755,6 @@ bool RFBridgePort_ControlTransferWithTimeout(const uint8_t* tx,
         *rxLen = 0u;
         return false;
     }
-    rf_flush_stale_if_irq_high();
-
     if (s_dma_busy) {
         *rxLen = 0u;
         return false;
@@ -732,6 +788,52 @@ bool RFBridgePort_ControlTransferWithTimeout(const uint8_t* tx,
 
 bool RFBridgePort_ControlTransfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint16_t* rxLen) {
     return RFBridgePort_ControlTransferWithTimeout(tx, txLen, rx, rxLen, 20u);
+}
+
+bool RFBridgePort_SendNoResponse(const uint8_t* tx, uint16_t txLen) {
+    if ((tx == nullptr) || (txLen == 0u)) {
+        return false;
+    }
+
+    if (!rf_spi_init_once()) {
+        s_diag_spi_init_fail++;
+        return false;
+    }
+
+    const uint8_t cmd = (txLen >= 2u) ? tx[1] : 0u;
+    uint8_t controlTxBuf[RF_BRIDGE_MIN_CONTROL_TX_BYTES] = {0};
+    const uint8_t* busTx = tx;
+    uint16_t busTxLen = txLen;
+
+    if (txLen < RF_BRIDGE_MIN_CONTROL_TX_BYTES) {
+        memset(controlTxBuf, 0xFF, sizeof(controlTxBuf));
+        memcpy(controlTxBuf, tx, txLen);
+        busTx = controlTxBuf;
+        busTxLen = RF_BRIDGE_MIN_CONTROL_TX_BYTES;
+    }
+
+    if (!rf_spi_dma_wait_idle_and_drop_pending(RF_BRIDGE_SPI_TIMEOUT_MS)) {
+        return false;
+    }
+    if (s_dma_busy) {
+        return false;
+    }
+
+    const bool txOk = rf_spi_dma_transmit_blocking(busTx, busTxLen, RF_BRIDGE_SPI_TIMEOUT_MS);
+    if (!txOk) {
+        s_diag_tx_fail++;
+        rf_note_transfer(false, false, cmd, busTxLen, 0u);
+        printf("[RF_PORT][NO_RESP] cmd=0x%02X ok=0 len=%u\r\n",
+               (unsigned int)cmd,
+               (unsigned int)busTxLen);
+        return false;
+    }
+
+    rf_note_transfer(false, true, cmd, busTxLen, 0u);
+    printf("[RF_PORT][NO_RESP] cmd=0x%02X ok=1 len=%u\r\n",
+           (unsigned int)cmd,
+           (unsigned int)busTxLen);
+    return true;
 }
 
 bool RFBridgePort_Transfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint16_t* rxLen) {

@@ -5,6 +5,7 @@
 
 #include "board_cfg.h"
 #include "rf_bridge_port.hpp"
+#include "rf_reliable_event.hpp"
 
 namespace {
 static constexpr uint8_t RF_SYNC = 0xA5u;
@@ -142,6 +143,8 @@ bool RFCommandTransaction::send(uint8_t cmd,
                        (unsigned int)ackEvent(ack, ackLen),
                        (unsigned int)ackLen);
         if (!ackMatches(cmd, txn, ack, ackLen)) {
+            (void)RFReliableEvent::completeFrameIfNeeded(ack, ackLen);
+            RFReliableEvent::poll();
             RF_CMD_TXN_LOG("ACK_MISMATCH cmd=0x%02X txn=%u attempt=%u evt=0x%02X len=%u",
                            (unsigned int)cmd,
                            (unsigned int)txn,

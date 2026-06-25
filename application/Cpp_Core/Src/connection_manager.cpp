@@ -35,7 +35,6 @@ static uint16_t getRfReportRateHz(WirelessReportRate wirelessRate) {
 }
 
 static constexpr uint32_t kRfSleepRetryMs = 500u;
-static constexpr uint32_t kRfPairingLocalTimeoutMs = 65000u;
 static constexpr uint8_t kRfCmdStartPair = 0x02u;
 static constexpr uint8_t kRfCmdStopPair = 0x03u;
 static constexpr uint8_t kRfCmdSleep = 0x08u;
@@ -119,8 +118,8 @@ void ConnectionManager::updatePairingStateFromStatus() {
         rfPairingState = RfPairingState::PairModeOn;
         break;
     case RFLinkState::PairTimeout:
-        rfPairingActive = false;
-        rfPairingState = RfPairingState::Timeout;
+        rfPairingActive = true;
+        rfPairingState = RfPairingState::PairModeOn;
         break;
     case RFLinkState::PairFailed:
         rfPairingActive = false;
@@ -129,16 +128,8 @@ void ConnectionManager::updatePairingStateFromStatus() {
         rfPairingLastErrorReason = 2u;
         break;
     case RFLinkState::Idle:
-        if (rfPairingState == RfPairingState::PairModeOn || rfPairingActive) {
-            rfPairingActive = false;
-            rfPairingState = RfPairingState::Timeout;
-        }
         break;
     case RFLinkState::Connecting:
-        if (rfPairingState == RfPairingState::PairModeOn || rfPairingActive) {
-            rfPairingActive = false;
-            rfPairingState = RfPairingState::Timeout;
-        }
         break;
     default:
         break;
@@ -346,11 +337,21 @@ bool ConnectionManager::startRfPairing() {
 
     if (!ok) {
         const RFModuleStatus& st = rfTransport.getStatus();
+        if (!(st.lastEvent == kRfEvtError && st.errorCounter != errorsBeforeStart)) {
+            rfPairingActive = true;
+            rfPairingState = RfPairingState::Starting;
+            ConnectionLinkState nextState = ConnectionLinkState::Connecting;
+            if (mode == ConnectionMode::CONNECTION_MODE_RF24G && linkState != nextState) {
+                MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
+            }
+            if (mode == ConnectionMode::CONNECTION_MODE_RF24G) {
+                linkState = nextState;
+            }
+            return true;
+        }
         rfPairingActive = false;
         rfPairingState = RfPairingState::TxError;
-        rfPairingLastErrorCommand = ((st.lastEvent == kRfEvtError) &&
-                                     (st.errorCounter != errorsBeforeStart) &&
-                                     (st.lastErrorCommand != 0u)) ?
+        rfPairingLastErrorCommand = (st.lastErrorCommand != 0u) ?
                                     st.lastErrorCommand :
                                     kRfCmdStartPair;
         rfPairingLastErrorReason = st.lastErrorReason;
@@ -426,13 +427,6 @@ bool ConnectionManager::sleepRfModule() {
 
 void ConnectionManager::loop() {
     serviceRfEvents();
-
-    if (rfPairingActive &&
-        rfPairingStartedAtMs != 0u &&
-        (HAL_GetTick() - rfPairingStartedAtMs) >= kRfPairingLocalTimeoutMs) {
-        rfPairingActive = false;
-        rfPairingState = RfPairingState::Timeout;
-    }
 
     if (rfSleepPending && ((HAL_GetTick() - lastRfSleepRetryMs) >= kRfSleepRetryMs)) {
         lastRfSleepRetryMs = HAL_GetTick();

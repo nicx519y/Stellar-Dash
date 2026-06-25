@@ -97,6 +97,25 @@ function filterSlotRows(
   ));
 }
 
+function isAcceptedByListeningSlot(
+  line: SerialLogLine,
+  selections: string[],
+  listeningSlots: boolean[],
+  pauseRangesBySlot: PauseRange[][],
+  pausedAtSlots: Array<number | null>,
+) {
+  for (let slot = 0; slot < LOG_SLOT_COUNT; slot += 1) {
+    if (selections[slot] !== line.portPath) continue;
+    const pausedAtMs = pausedAtSlots[slot] ?? null;
+    const listening = listeningSlots[slot] ?? true;
+    if (!listening && pausedAtMs === null) continue;
+    if (pausedAtMs !== null && line.timestampMs > pausedAtMs) continue;
+    if (isInsidePauseRange(line, pauseRangesBySlot[slot] ?? [])) continue;
+    return true;
+  }
+  return false;
+}
+
 function RegexFilterInput({
   slot,
   value,
@@ -271,8 +290,17 @@ export function SerialLogPanel({ clearVersion = 0 }: { clearVersion?: number }) 
   const [pausedAtSlots, setPausedAtSlots] = React.useState<Array<number | null>>(() => normalizeNullableNumbers([], null));
   const [pauseRangesBySlot, setPauseRangesBySlot] = React.useState<PauseRange[][]>(() => createPauseRangeSlots());
   const [cardFlex, setCardFlex] = React.useState<number[]>(() => Array.from({ length: LOG_SLOT_COUNT }, () => 1));
+  const selectionsRef = React.useRef(selections);
+  const listeningSlotsRef = React.useRef(listeningSlots);
+  const pausedAtSlotsRef = React.useRef(pausedAtSlots);
+  const pauseRangesBySlotRef = React.useRef(pauseRangesBySlot);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const cardRefs = React.useRef<Array<HTMLDivElement | null>>([]);
+
+  selectionsRef.current = selections;
+  listeningSlotsRef.current = listeningSlots;
+  pausedAtSlotsRef.current = pausedAtSlots;
+  pauseRangesBySlotRef.current = pauseRangesBySlot;
 
   const refreshPorts = React.useCallback(() => {
     if (!window.connectMonitorApi) {
@@ -300,12 +328,20 @@ export function SerialLogPanel({ clearVersion = 0 }: { clearVersion?: number }) 
     const unsubscribe = window.connectMonitorApi.onSerialLogs((rawLines) => {
       const lines = rawLines.filter(isSerialLogLine);
       if (lines.length === 0) return;
+      const acceptedLines = lines.filter((line) => isAcceptedByListeningSlot(
+        line,
+        selectionsRef.current,
+        listeningSlotsRef.current,
+        pauseRangesBySlotRef.current,
+        pausedAtSlotsRef.current,
+      ));
+      if (acceptedLines.length === 0) return;
 
-      void appendSerialLogLines(lines).catch(() => {});
+      void appendSerialLogLines(acceptedLines).catch(() => {});
       setLogsByPort((current) => {
         const next = new Map(current);
         const grouped = new Map<string, SerialLogLine[]>();
-        for (const line of lines) {
+        for (const line of acceptedLines) {
           const group = grouped.get(line.portPath) ?? [];
           group.push(line);
           grouped.set(line.portPath, group);

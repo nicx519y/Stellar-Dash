@@ -178,8 +178,6 @@ void InputState::setup()
 
 void InputState::loop()
 {
-    CONNECTION_MANAGER.loop();
-
 #if RF24G_SPI_BRINGUP_TX_ONLY
     if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_RF24G)
     {

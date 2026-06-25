@@ -61,7 +61,8 @@ public:
 private:
     bool transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t len, bool forceReadback = false);
     bool sendInputFrame(const uint8_t* payload, uint8_t len);
-    bool parseEventFrame(const uint8_t* frame, uint16_t len);
+    bool parseEventFrame(const uint8_t* frame, uint16_t len, bool* applied = nullptr);
+    void processCompletedReliableEvents();
     bool parseStatusPayload(const uint8_t* payload, uint8_t len);
     bool lastEventMatches(uint8_t cmd, uint8_t txn) const;
     bool waitCommandResult(uint8_t cmd, uint8_t txn, uint32_t timeoutMs);

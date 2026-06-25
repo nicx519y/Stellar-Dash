@@ -1,5 +1,7 @@
 #include "rfm_spi_port_internal.h"
 
+#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "CH58x_common.h"
@@ -23,6 +25,44 @@ static uint32_t s_spi_tx_start_us;
 static volatile uint32_t s_spi_tx_recover_count;
 static volatile uint32_t s_spi_tx_done_count;
 static volatile uint32_t s_now_us;
+
+#if (RFM_TX_LOG_ENABLE == 1u)
+static void spi_port_log_write(const char *buf)
+{
+    if(buf == 0)
+    {
+        return;
+    }
+    while(*buf != '\0')
+    {
+        while(R8_UART0_TFC == UART_FIFO_SIZE)
+        {
+        }
+        R8_UART0_THR = (uint8_t)*buf++;
+    }
+}
+
+static void spi_port_log_printf(const char *fmt, ...)
+{
+    char line[128];
+    va_list args;
+    int n;
+
+    va_start(args, fmt);
+    n = vsnprintf(line, sizeof(line), fmt, args);
+    va_end(args);
+    if(n <= 0)
+    {
+        return;
+    }
+    line[sizeof(line) - 1u] = '\0';
+    spi_port_log_write(line);
+}
+
+#define SPI_PORT_LOG(fmt, ...) spi_port_log_printf("[SPI][PORT] " fmt "\r\n", ##__VA_ARGS__)
+#else
+#define SPI_PORT_LOG(fmt, ...) ((void)0)
+#endif
 
 __attribute__((aligned(4))) static uint8_t s_spi_rx_dma_buf[SPI_RX_DMA_BUF_SIZE];
 static uint32_t s_spi_rx_dma_last_pos;
@@ -83,6 +123,7 @@ static uint8_t spi_rx_host_cmd_valid(uint8_t cmd)
     case 0x04u:
     case 0x05u:
     case 0x06u:
+    case 0x07u:
     case 0x08u:
         return 1u;
     default:
@@ -838,5 +879,19 @@ bool rfm_spi_port_try_write(const uint8_t *buf, size_t len)
     spi_tx_fill_fifo();
     s_spi_tx_pending = 1u;
     s_spi_tx_start_us = spi_now_us();
+    if((len >= 2u) && (buf[0] == RFM_SPI_SYNC) && (buf[1] == 0x82u))
+    {
+        SPI_PORT_LOG("TX_FRAME evt=0x%02X len=%u head=%02X %02X %02X %02X %02X %02X %02X %02X",
+                     (unsigned int)buf[1],
+                     (unsigned int)len,
+                     (unsigned int)buf[0],
+                     (unsigned int)buf[1],
+                     (unsigned int)((len > 2u) ? buf[2] : 0u),
+                     (unsigned int)((len > 3u) ? buf[3] : 0u),
+                     (unsigned int)((len > 4u) ? buf[4] : 0u),
+                     (unsigned int)((len > 5u) ? buf[5] : 0u),
+                     (unsigned int)((len > 6u) ? buf[6] : 0u),
+                     (unsigned int)((len > 7u) ? buf[7] : 0u));
+    }
     return true;
 }

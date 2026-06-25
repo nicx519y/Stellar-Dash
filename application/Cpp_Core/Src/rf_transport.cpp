@@ -8,6 +8,7 @@
 #include "monitor_telemetry.hpp"
 #include "rf_command_transaction.hpp"
 #include "rf_bridge_port.hpp"
+#include "rf_reliable_event.hpp"
 #include "system_logger.h"
 #include "stm32h7xx_hal.h"
 
@@ -34,7 +35,7 @@ static constexpr uint8_t INPUT_FLAG_SYNC_ECHO = 0x02u;
 static constexpr uint8_t INPUT_FLAGS = static_cast<uint8_t>((INPUT_FORMAT_VERSION << 4) | INPUT_FLAG_PROCESSED);
 static constexpr uint8_t INPUT_AGE_US_OFFSET = 6u;
 static constexpr uint8_t INPUT_CRC_OFFSET = 9u;
-static constexpr uint8_t STATUS_PAYLOAD_LEN = 20u;
+static constexpr uint8_t STATUS_PAYLOAD_LEN = 21u;
 static constexpr uint8_t STATUS_CMD_TAG_OFFSET = 16u;
 static constexpr uint8_t STATUS_TXN_OFFSET = 17u;
 static constexpr uint8_t STATUS_RESULT_OFFSET = 18u;
@@ -105,7 +106,10 @@ bool RFTransport::parseStatusPayload(const uint8_t* payload, uint8_t len) {
     return true;
 }
 
-bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
+bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len, bool* applied) {
+    if (applied != nullptr) {
+        *applied = false;
+    }
     if (frame == nullptr || len < 4u) {
         return false;
     }
@@ -122,13 +126,13 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
     }
 
     const uint8_t evt = frame[1];
-    status.lastEvent = evt;
-    status.eventCounter++;
 
     if (evt == EVT_MONITOR_CONFIG) {
         if (payloadLen < 4u) {
             return false;
         }
+        status.lastEvent = evt;
+        status.eventCounter++;
         const uint8_t seq = frame[3];
         const uint8_t result = frame[6];
         status.lastCommandTag = EVT_MONITOR_CONFIG;
@@ -136,6 +140,9 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
         status.lastResult = result;
         status.lastErrorReason = 0u;
         state = RFTransportState::Connected;
+        if (applied != nullptr) {
+            *applied = true;
+        }
         return true;
     }
 
@@ -143,6 +150,8 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
         if (payloadLen < 1u) {
             return false;
         }
+        status.lastEvent = evt;
+        status.eventCounter++;
         g_pendingTimeSyncEcho.pending = true;
         g_pendingTimeSyncEcho.seq = frame[3];
         g_pendingTimeSyncEcho.rxTickUs = MICROS_TIMER.micros();
@@ -151,7 +160,15 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
         status.lastResult = 0u;
         status.lastErrorReason = 0u;
         state = RFTransportState::Connected;
+        if (applied != nullptr) {
+            *applied = true;
+        }
         return true;
+    }
+
+    if ((evt == EVT_STATE_CHANGED) && (payloadLen > STATUS_PAYLOAD_LEN - 1u) &&
+        (frame[3u + STATUS_PAYLOAD_LEN - 1u] != 0u)) {
+        return RFReliableEvent::completeIfNeeded(evt, &frame[3], payloadLen);
     }
 
     bool statusOk = false;
@@ -182,7 +199,49 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len) {
         state = RFTransportState::Connected;
     }
 
+    status.lastEvent = evt;
+    status.eventCounter++;
+    if (applied != nullptr) {
+        *applied = true;
+    }
     return true;
+}
+
+void RFTransport::processCompletedReliableEvents() {
+    uint8_t evt = 0u;
+    uint8_t payload[STATUS_PAYLOAD_LEN] = {0};
+    uint8_t payloadLen = 0u;
+
+    while (RFReliableEvent::popCompleted(&evt, payload, &payloadLen, sizeof(payload))) {
+        bool statusOk = false;
+        if (payloadLen >= 17u) {
+            statusOk = parseStatusPayload(payload, payloadLen);
+            if (!statusOk) {
+                state = RFTransportState::Error;
+                return;
+            }
+        }
+
+        status.lastEvent = evt;
+        status.eventCounter++;
+        if (evt == EVT_ERROR) {
+            status.errorCounter++;
+            status.lastErrorCommand = statusOk ? status.lastCommandTag :
+                                      ((payloadLen >= 1u) ? payload[0] : 0u);
+            state = RFTransportState::Error;
+        } else {
+            if (statusOk) {
+                status.lastErrorCommand = 0u;
+                status.lastErrorReason = 0u;
+            }
+            state = RFTransportState::Connected;
+        }
+
+        RF_SPI_LOG("[RF_SPI][REL_EVT_APPLY] evt=0x%02X state=%u counter=%lu",
+                (unsigned int)evt,
+                (unsigned int)((payloadLen > 0u) ? payload[0] : 0u),
+                (unsigned long)status.eventCounter);
+    }
 }
 
 bool RFTransport::lastEventMatches(uint8_t cmd, uint8_t txn) const {
@@ -198,6 +257,8 @@ bool RFTransport::waitCommandResult(uint8_t cmd, uint8_t txn, uint32_t timeoutMs
             (unsigned int)txn,
             (unsigned long)timeoutMs);
     while ((HAL_GetTick() - start) < timeoutMs) {
+        RFReliableEvent::poll();
+        processCompletedReliableEvents();
         if (!RFBridgePort_HasPendingEvent()) {
             continue;
         }
@@ -211,9 +272,15 @@ bool RFTransport::waitCommandResult(uint8_t cmd, uint8_t txn, uint32_t timeoutMs
         if (rxLen == 0u) {
             continue;
         }
-        if (!parseEventFrame(rxBuf, rxLen)) {
+        bool applied = false;
+        if (!parseEventFrame(rxBuf, rxLen, &applied)) {
             state = RFTransportState::Error;
             return false;
+        }
+        RFReliableEvent::poll();
+        processCompletedReliableEvents();
+        if (!applied) {
+            continue;
         }
 
         RF_SPI_LOG("[RF_SPI][RESULT_RECV] cmd=0x%02X txn=%u evt=0x%02X result=%u reason=%u",
@@ -267,7 +334,9 @@ bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t l
         return false;
     }
 
-    if (!parseEventFrame(txnResult.ackFrame, txnResult.ackLen) ||
+    bool ackApplied = false;
+    if (!parseEventFrame(txnResult.ackFrame, txnResult.ackLen, &ackApplied) ||
+        !ackApplied ||
         !lastEventMatches(cmd, txnResult.txn)) {
         state = RFTransportState::Error;
         return false;
@@ -388,12 +457,22 @@ bool RFTransport::pollStatus() {
 }
 
 uint8_t RFTransport::serviceEvents(uint8_t drainLimit) {
-    if ((drainLimit == 0u) || !RFBridgePort_IsReady()) {
+    RFReliableEvent::poll();
+    processCompletedReliableEvents();
+
+    if (drainLimit == 0u) {
+        return 0u;
+    }
+    if (!RFBridgePort_IsReady()) {
+        RF_SPI_LOG("[RF_SPI][EVT_SERVICE] not_ready");
         return 0u;
     }
 
     uint8_t drained = 0u;
     while (drained < drainLimit) {
+        RFReliableEvent::poll();
+        processCompletedReliableEvents();
+
         if (!RFBridgePort_HasPendingEvent()) {
             break;
         }
@@ -401,18 +480,30 @@ uint8_t RFTransport::serviceEvents(uint8_t drainLimit) {
         uint8_t rxBuf[RX_BUF_LEN] = {0};
         uint16_t rxLen = RX_BUF_LEN;
         if (!RFBridgePort_ReadEvent(rxBuf, &rxLen)) {
+            RF_SPI_LOG("[RF_SPI][EVT_READ_FAIL] drained=%u", (unsigned int)drained);
             state = RFTransportState::Error;
             break;
         }
         if (rxLen == 0u) {
             break;
         }
-        if (!parseEventFrame(rxBuf, rxLen)) {
+        RF_SPI_LOG("[RF_SPI][EVT_READ] evt=0x%02X len=%u",
+                (unsigned int)((rxLen >= 2u) ? rxBuf[1] : 0u),
+                (unsigned int)rxLen);
+        bool applied = false;
+        if (!parseEventFrame(rxBuf, rxLen, &applied)) {
+            RF_SPI_LOG("[RF_SPI][EVT_PARSE_FAIL] evt=0x%02X len=%u",
+                    (unsigned int)((rxLen >= 2u) ? rxBuf[1] : 0u),
+                    (unsigned int)rxLen);
             state = RFTransportState::Error;
             break;
         }
+        RFReliableEvent::poll();
+        processCompletedReliableEvents();
         drained++;
     }
+    RFReliableEvent::poll();
+    processCompletedReliableEvents();
     return drained;
 }
 

@@ -8,6 +8,7 @@
 #include "HAL.h"
 #include "wchrf.h"
 #include "rf_hop_protocol.h"
+#include "rf_pairing_protocol.h"
 #include "rf_hop_bond.h"
 #include "rf_hop_score.h"
 #include "rf_monitor_control.h"
@@ -577,23 +578,6 @@ static uint8_t demo_pair_is_active(void)
 {
     return ((g_demo_rx_state == RF_AUTO_RX_PAIRING) ||
             (g_demo_rx_state == RF_AUTO_RX_PAIR_CONFIRM_WAIT)) ? 1u : 0u;
-}
-
-static uint8_t demo_pair_meta(uint8_t write_bond)
-{
-    uint8_t meta = (uint8_t)(((uint8_t)RFH_PAIR_PROTO_VERSION << RFH_PAIR_META_VERSION_SHIFT) |
-                             (g_demo_rate_code & RFH_PAIR_META_RATE_MASK));
-    if(write_bond != 0u)
-    {
-        meta |= RFH_PAIR_META_WRITE_BOND;
-    }
-    return meta;
-}
-
-static uint8_t demo_pair_meta_valid(uint8_t meta)
-{
-    return (((meta & RFH_PAIR_META_VERSION_MASK) >> RFH_PAIR_META_VERSION_SHIFT) ==
-            RFH_PAIR_PROTO_VERSION) ? 1u : 0u;
 }
 
 static void monitor_put_u16(uint8_t *dst, uint16_t value)
@@ -1735,22 +1719,18 @@ static void demo_schedule_ack(uint8_t remaining_slots)
 static void demo_fill_pair_packet(uint8_t cmd, uint32_t arg32)
 {
     uint8_t *air = &TxBuf[2];
-    uint8_t *data = &air[RFH_DATA_OFFSET];
-    uint8_t meta = demo_pair_meta(0u);
+    uint8_t write_bond = (cmd == RFH_CMD_PAIR_DONE) ? 1u : 0u;
 
     memset(TxBuf, 0, sizeof(TxBuf));
     TxBuf[0] = RFH_WCH_PREAMBLE;
     TxBuf[1] = RF_AUTO_DEMO_PACKET_LEN;
-    air[RFH_HDR0_OFFSET] = rfh_make_header0(RFH_PKT_PAIR, g_demo_rate_code, 0u);
-    air[RFH_HDR1_OFFSET] = (uint8_t)g_demo_pair_session;
-    data[RFH_PAIR_CMD_ID] = cmd;
-    rfh_put_u32(&data[RFH_PAIR_SESSION0], g_demo_pair_session);
-    rfh_put_u32(&data[RFH_PAIR_ARG0], arg32);
-    if(cmd == RFH_CMD_PAIR_DONE)
-    {
-        meta = demo_pair_meta(1u);
-    }
-    data[RFH_PAIR_META] = meta;
+    (void)rf_pair_encode_air(air,
+                             g_demo_rate_code,
+                             (uint8_t)g_demo_pair_session,
+                             cmd,
+                             g_demo_pair_session,
+                             arg32,
+                             write_bond);
 }
 
 static uint8_t demo_send_pair_packet(uint8_t cmd,
@@ -1845,11 +1825,7 @@ static void demo_after_pair_tx_finish(void)
 static uint8_t demo_process_pair_packet(const rf_rx_pending_t *pending)
 {
     const uint8_t *air;
-    const uint8_t *data;
-    uint8_t cmd;
-    uint8_t meta;
-    uint32_t session;
-    uint32_t arg32;
+    rf_pair_packet_t packet;
 
     if((pending == 0) || (pending->len != RF_AUTO_DEMO_PACKET_LEN))
     {
@@ -1861,17 +1837,12 @@ static uint8_t demo_process_pair_packet(const rf_rx_pending_t *pending)
     }
 
     air = pending->air;
-    data = &air[RFH_DATA_OFFSET];
     if(rfh_packet_type(air[RFH_HDR0_OFFSET]) != RFH_PKT_PAIR)
     {
         return 0u;
     }
 
-    cmd = data[RFH_PAIR_CMD_ID];
-    session = rfh_get_u32(&data[RFH_PAIR_SESSION0]);
-    arg32 = rfh_get_u32(&data[RFH_PAIR_ARG0]);
-    meta = data[RFH_PAIR_META];
-    if(demo_pair_meta_valid(meta) == 0u)
+    if(rf_pair_decode_air(air, pending->len, &packet) == 0u)
     {
         (void)demo_send_pair_packet(RFH_CMD_PAIR_REJECT,
                                     RFH_PAIR_REJECT_BAD_VERSION,
@@ -1881,11 +1852,11 @@ static uint8_t demo_process_pair_packet(const rf_rx_pending_t *pending)
     }
 
     if((g_demo_rx_state == RF_AUTO_RX_PAIRING) &&
-       (cmd == RFH_CMD_PAIR_OFFER) &&
-       (arg32 != 0u))
+       (packet.cmd == RFH_CMD_PAIR_OFFER) &&
+       (packet.arg != 0u))
     {
-        g_demo_pair_session = session;
-        g_demo_pair_tx_id_hash = arg32;
+        g_demo_pair_session = packet.session;
+        g_demo_pair_tx_id_hash = packet.arg;
         g_demo_pair_rx_id_hash = g_demo_local_id_hash;
         g_demo_pair_link_access_address = 0u;
         g_demo_pair_done_confirm32 = 0u;
@@ -1902,11 +1873,11 @@ static uint8_t demo_process_pair_packet(const rf_rx_pending_t *pending)
     }
 
     if((g_demo_rx_state == RF_AUTO_RX_PAIR_CONFIRM_WAIT) &&
-       (cmd == RFH_CMD_PAIR_CONFIRM) &&
-       (session == g_demo_pair_session) &&
-       ((meta & RFH_PAIR_META_WRITE_BOND) != 0u))
+       (packet.cmd == RFH_CMD_PAIR_CONFIRM) &&
+       (packet.session == g_demo_pair_session) &&
+       (packet.write_bond != 0u))
     {
-        g_demo_pair_link_access_address = arg32;
+        g_demo_pair_link_access_address = packet.arg;
         if(rfh_access_address_valid(g_demo_pair_link_access_address) == 0u)
         {
             (void)demo_send_pair_packet(RFH_CMD_PAIR_REJECT,
@@ -1947,11 +1918,6 @@ static void demo_service_pairing(uint32_t now)
 {
     if(demo_pair_is_active() == 0u)
     {
-        return;
-    }
-    if((int32_t)(now - g_demo_pair_deadline_clock) >= 0)
-    {
-        demo_abort_pairing(now);
         return;
     }
     if((g_demo_rx_state == RF_AUTO_RX_PAIR_CONFIRM_WAIT) &&
@@ -3354,7 +3320,7 @@ uint8_t RF_StartPairing(void)
     g_demo_pair_after_tx_action = 0u;
     g_demo_pair_scan_side = 0u;
     g_demo_pair_scan_clock = now;
-    g_demo_pair_deadline_clock = now + MS1_TO_SYSTEM_TIME(RFH_PAIR_WINDOW_MS);
+    g_demo_pair_deadline_clock = 0u;
     g_demo_pair_confirm_deadline_clock = 0u;
     g_demo_pair_session = 0u;
     g_demo_pair_tx_id_hash = 0u;
