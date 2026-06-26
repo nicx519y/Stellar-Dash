@@ -123,7 +123,10 @@ bool rfm_spi_command_txn_resend_if_duplicate(uint8_t cmd, uint8_t txn)
         return false;
     }
 
-    schedule_cached_ack(TMOS_GetSystemClock());
+    if(s_phase != CMD_TXN_WAIT_ACK_DUE)
+    {
+        schedule_cached_ack(TMOS_GetSystemClock());
+    }
     CMD_TXN_LOG("RECV_CMD_DUP cmd=0x%02X txn=%u ack_delay_ms=%u",
                 (unsigned int)cmd,
                 (unsigned int)txn,

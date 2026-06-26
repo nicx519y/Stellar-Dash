@@ -31,29 +31,9 @@ function openDatabase(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
-function trimPortInTransaction(store: IDBObjectStore, portPath: string) {
-  const range = IDBKeyRange.only(portPath);
-  const countRequest = store.index(PORT_INDEX).count(range);
-
-  countRequest.onsuccess = () => {
-    let excess = Math.max(0, Number(countRequest.result) - MAX_LOGS_PER_PORT);
-    if (excess <= 0) return;
-
-    const cursorRequest = store.index(PORT_INDEX).openCursor(range, "next");
-    cursorRequest.onsuccess = () => {
-      const cursor = cursorRequest.result;
-      if (!cursor || excess <= 0) return;
-      cursor.delete();
-      excess -= 1;
-      cursor.continue();
-    };
-  };
-}
-
 export async function appendSerialLogLines(lines: SerialLogLine[]): Promise<void> {
   if (lines.length === 0) return;
   const db = await openDatabase();
-  const touchedPorts = new Set(lines.map((line) => line.portPath).filter(Boolean));
 
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
@@ -65,9 +45,6 @@ export async function appendSerialLogLines(lines: SerialLogLine[]): Promise<void
 
     for (const line of lines) {
       store.put(line);
-    }
-    for (const portPath of touchedPorts) {
-      trimPortInTransaction(store, portPath);
     }
   });
 }
@@ -102,6 +79,30 @@ export async function loadSerialLogLines(portPath: string, limit = MAX_LOGS_PER_
       const cursor = request.result;
       if (!cursor || rows.length >= limit) {
         resolve(rows.reverse());
+        return;
+      }
+      rows.push(cursor.value as SerialLogLine);
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error ?? new Error("Failed to load serial logs"));
+  });
+}
+
+export async function loadAllSerialLogLines(portPath: string): Promise<SerialLogLine[]> {
+  if (!portPath) return [];
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const range = IDBKeyRange.only(portPath);
+    const request = store.index(PORT_INDEX).openCursor(range, "next");
+    const rows: SerialLogLine[] = [];
+
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        resolve(rows);
         return;
       }
       rows.push(cursor.value as SerialLogLine);

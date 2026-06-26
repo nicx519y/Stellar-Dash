@@ -1,5 +1,6 @@
 import { IconButton } from "@chakra-ui/react";
 import { FaPause, FaPlay } from "react-icons/fa";
+import { GrDocumentDownload } from "react-icons/gr";
 import { GrClearOption } from "react-icons/gr";
 
 import { toolbarIconButtonProps } from "./panelStyles";
@@ -47,6 +48,28 @@ export function ListeningToggleIconButton({
       onClick={onToggle}
     >
       {listening ? <FaPause /> : <FaPlay />}
+    </IconButton>
+  );
+}
+
+export function ExportMarkdownIconButton({
+  label,
+  disabled = false,
+  onClick,
+}: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <IconButton
+      {...toolbarIconButtonProps}
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <GrDocumentDownload />
     </IconButton>
   );
 }

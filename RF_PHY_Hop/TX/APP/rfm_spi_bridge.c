@@ -48,7 +48,7 @@ static uint8_t s_real_sleep_pending;
 
 #define SPI_POLL_MAX_BATCHES          1u
 #define SPI_INPUT_FRAME_BYTES         (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
-#define SPI_STATUS_PAYLOAD_LEN        21u
+#define SPI_STATUS_PAYLOAD_LEN        23u
 #define SPI_STATUS_CMD_TAG_OFFSET     16u
 #define SPI_STATUS_TXN_OFFSET         17u
 #define SPI_STATUS_RESULT_OFFSET      18u
@@ -66,7 +66,6 @@ typedef enum {
     SPI_CMD_UNBIND = 0x04,
     SPI_CMD_SET_RATE = 0x05,
     SPI_CMD_INPUT_DATA = 0x06,
-    SPI_CMD_EVENT_ACK = 0x07,
     SPI_CMD_SLEEP = 0x08
 } spi_cmd_t;
 
@@ -127,8 +126,6 @@ static const char *spi_cmd_name(uint8_t cmd)
         return "SET_RATE";
     case SPI_CMD_INPUT_DATA:
         return "INPUT_DATA";
-    case SPI_CMD_EVENT_ACK:
-        return "EVENT_ACK";
     case SPI_CMD_SLEEP:
         return "SLEEP";
     default:
@@ -146,15 +143,6 @@ static void log_spi_command_received(uint8_t cmd, const uint8_t *payload, uint8_
 
     if(cmd == (uint8_t)SPI_CMD_INPUT_DATA)
     {
-        return;
-    }
-    if(cmd == (uint8_t)SPI_CMD_EVENT_ACK)
-    {
-        uint8_t seq = ((payload != 0) && (len >= 1u)) ? payload[0] : 0u;
-        spi_log_printf("[SPI][RX_CMD] cmd=0x%02X EVENT_ACK seq=%u len=%u\r\n",
-                       (unsigned int)cmd,
-                       (unsigned int)seq,
-                       (unsigned int)len);
         return;
     }
 
@@ -240,7 +228,6 @@ static bool is_valid_host_cmd(uint8_t cmd)
     case SPI_CMD_UNBIND:
     case SPI_CMD_SET_RATE:
     case SPI_CMD_INPUT_DATA:
-    case SPI_CMD_EVENT_ACK:
     case SPI_CMD_SLEEP:
         return true;
     default:
@@ -528,11 +515,6 @@ static bool send_error_event(uint8_t cmd_tag, uint8_t txn, uint8_t reason, uint8
     return send_status_frame(SPI_EVT_ERROR, cmd_tag, txn, reason, reason, cache_response);
 }
 
-static void handle_event_ack(uint8_t seq)
-{
-    (void)rfm_spi_reliable_event_handle_ack(seq);
-}
-
 static void save_pending_control_command(uint8_t cmd, uint8_t txn, const uint8_t *args, uint8_t args_len)
 {
     uint8_t i;
@@ -656,15 +638,6 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
     if(cmd == (uint8_t)SPI_CMD_INPUT_DATA)
     {
         (void)RF_SPI_FastWriteInput(payload, len);
-        return;
-    }
-
-    if(cmd == (uint8_t)SPI_CMD_EVENT_ACK)
-    {
-        if((payload != 0) && (len == 1u))
-        {
-            handle_event_ack(payload[0]);
-        }
         return;
     }
 

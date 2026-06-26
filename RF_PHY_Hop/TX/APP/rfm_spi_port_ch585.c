@@ -10,7 +10,7 @@
 
 #define SPI_PINS                      (GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15)
 #define SPI_IRQ_PIN                   (GPIO_Pin_11)
-#define SPI_TX_PENDING_RECOVER_US     (50000u)
+#define SPI_TX_PENDING_RECOVER_US     (2000u)
 #define US_TICK_STEP                  (10u)
 #define SPI_INPUT_CMD                 (0x06u)
 #define SPI_RX_FRAME_BYTES            (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
@@ -582,16 +582,16 @@ void rfm_spi_port_service(void)
             R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END;
             s_spi_tx_pending = 0u;
             s_spi_tx_done_count++;
-            rfm_spi_port_set_irq(false);
             spi_rx_restart_after_tx();
+            rfm_spi_port_set_irq(false);
         }
         else if(GPIOB_ReadPortPin(GPIO_Pin_12) &&
                 ((int32_t)(spi_now_us() - (s_spi_tx_start_us + SPI_TX_PENDING_RECOVER_US)) >= 0))
         {
             s_spi_tx_pending = 0u;
             s_spi_tx_recover_count++;
-            rfm_spi_port_set_irq(false);
             spi_rx_restart_after_tx();
+            rfm_spi_port_set_irq(false);
         }
         return;
     }

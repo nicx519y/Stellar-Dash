@@ -29,7 +29,7 @@ namespace {
 #endif
 
 #ifndef RF_BRIDGE_IRQ_LOW_TIMEOUT_MS
-#define RF_BRIDGE_IRQ_LOW_TIMEOUT_MS 20u
+#define RF_BRIDGE_IRQ_LOW_TIMEOUT_MS 80u
 #endif
 
 #ifndef RF_BRIDGE_MIN_CONTROL_TX_BYTES
@@ -216,15 +216,19 @@ static bool rf_spi_dma_start_locked(const uint8_t* tx, uint16_t txLen) {
 
     SPI_TypeDef* spi = s_rf_hspi.Instance;
     spi->IFCR = SPI_IFCR_EOTC | SPI_IFCR_TXTFC | SPI_IFCR_UDRC | SPI_IFCR_OVRC | SPI_IFCR_TIFREC | SPI_IFCR_MODFC;
+    __disable_irq();
+    s_dma_busy = true;
+    __enable_irq();
     rf_cs_set(false);
     if (HAL_SPI_Transmit_DMA(&s_rf_hspi, s_dma_active_buf, txLen) != HAL_OK) {
         rf_cs_set(true);
+        __disable_irq();
         s_dma_busy = false;
+        __enable_irq();
         s_diag_dma_start_fail++;
         return false;
     }
     __HAL_DMA_DISABLE_IT(&s_rf_dma_tx, DMA_IT_HT);
-    s_dma_busy = true;
     return true;
 }
 
@@ -475,6 +479,27 @@ static bool rf_read_event_frame(uint8_t* rx, uint16_t* rxLen, uint8_t diagCmd) {
     return true;
 }
 
+static bool rf_spi_transmit_polling(const uint8_t* tx, uint16_t txLen, uint32_t timeoutMs) {
+    if ((tx == nullptr) || (txLen == 0u)) {
+        return false;
+    }
+
+    if (!rf_spi_dma_wait_idle_and_drop_pending(timeoutMs)) {
+        return false;
+    }
+    if (s_dma_busy) {
+        return false;
+    }
+
+    rf_cs_set(false);
+    const HAL_StatusTypeDef st = HAL_SPI_Transmit(&s_rf_hspi,
+                                                  const_cast<uint8_t*>(tx),
+                                                  txLen,
+                                                  timeoutMs);
+    rf_cs_set(true);
+    return st == HAL_OK;
+}
+
 static bool rf_spi_init_once() {
     if (s_rf_spi_ready) {
         return true;
@@ -703,11 +728,12 @@ bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen) {
     return true;
 }
 
-bool RFBridgePort_ControlTransferWithTimeout(const uint8_t* tx,
+static bool rf_control_transfer_with_timeout(const uint8_t* tx,
                                              uint16_t txLen,
                                              uint8_t* rx,
                                              uint16_t* rxLen,
-                                             uint32_t ackTimeoutMs) {
+                                             uint32_t ackTimeoutMs,
+                                             bool allowEventPreempt) {
     if ((tx == nullptr) || (txLen == 0u)) {
         if (rxLen != nullptr) *rxLen = 0u;
         return false;
@@ -730,18 +756,27 @@ bool RFBridgePort_ControlTransferWithTimeout(const uint8_t* tx,
     uint16_t busTxLen = txLen;
 
     if (rf_has_pending_event_signal()) {
-        if (!rf_spi_dma_wait_idle_and_drop_pending(RF_BRIDGE_SPI_TIMEOUT_MS)) {
+        if (!allowEventPreempt) {
+            rf_consume_irq_pending_marker();
+            if (!rf_wait_irq_low(RF_BRIDGE_IRQ_LOW_TIMEOUT_MS)) {
+                *rxLen = 0u;
+                return false;
+            }
+            HAL_Delay(1u);
+        } else {
+            if (!rf_spi_dma_wait_idle_and_drop_pending(RF_BRIDGE_SPI_TIMEOUT_MS)) {
+                *rxLen = 0u;
+                return false;
+            }
+            const bool readOk = rf_read_event_frame(rx, rxLen, cmd);
+            if (readOk && (*rxLen > 0u)) {
+                rf_consume_irq_pending_marker();
+                (void)rf_wait_irq_low(RF_BRIDGE_IRQ_LOW_TIMEOUT_MS);
+                return true;
+            }
             *rxLen = 0u;
             return false;
         }
-        const bool readOk = rf_read_event_frame(rx, rxLen, cmd);
-        if (readOk && (*rxLen > 0u)) {
-            rf_consume_irq_pending_marker();
-            (void)rf_wait_irq_low(RF_BRIDGE_IRQ_LOW_TIMEOUT_MS);
-            return true;
-        }
-        *rxLen = 0u;
-        return false;
     }
 
     if (txLen < RF_BRIDGE_MIN_CONTROL_TX_BYTES) {
@@ -749,6 +784,15 @@ bool RFBridgePort_ControlTransferWithTimeout(const uint8_t* tx,
         memcpy(controlTxBuf, tx, txLen);
         busTx = controlTxBuf;
         busTxLen = RF_BRIDGE_MIN_CONTROL_TX_BYTES;
+    }
+
+    if (!allowEventPreempt && rf_has_pending_event_signal()) {
+        rf_consume_irq_pending_marker();
+        if (!rf_wait_irq_low(RF_BRIDGE_IRQ_LOW_TIMEOUT_MS)) {
+            *rxLen = 0u;
+            return false;
+        }
+        HAL_Delay(1u);
     }
 
     if (!rf_spi_dma_wait_idle_and_drop_pending(RF_BRIDGE_SPI_TIMEOUT_MS)) {
@@ -760,7 +804,9 @@ bool RFBridgePort_ControlTransferWithTimeout(const uint8_t* tx,
         return false;
     }
 
-    bool tx_ok = rf_spi_dma_transmit_blocking(busTx, busTxLen, RF_BRIDGE_SPI_TIMEOUT_MS);
+    bool tx_ok = allowEventPreempt
+            ? rf_spi_dma_transmit_blocking(busTx, busTxLen, RF_BRIDGE_SPI_TIMEOUT_MS)
+            : rf_spi_transmit_polling(busTx, busTxLen, RF_BRIDGE_SPI_TIMEOUT_MS);
     if (!tx_ok) {
         s_diag_tx_fail++;
         rf_note_transfer(false, false, cmd, busTxLen, 0u);
@@ -769,6 +815,9 @@ bool RFBridgePort_ControlTransferWithTimeout(const uint8_t* tx,
     }
 
     rf_note_transfer(false, true, cmd, busTxLen, 0u);
+    if (!allowEventPreempt) {
+        HAL_Delay(1u);
+    }
 
     const bool irq_ready = rf_wait_irq_high(ackTimeoutMs);
     if (!irq_ready) {
@@ -784,6 +833,22 @@ bool RFBridgePort_ControlTransferWithTimeout(const uint8_t* tx,
     rf_consume_irq_pending_marker();
     (void)rf_wait_irq_low(RF_BRIDGE_IRQ_LOW_TIMEOUT_MS);
     return true;
+}
+
+bool RFBridgePort_ControlTransferWithTimeout(const uint8_t* tx,
+                                             uint16_t txLen,
+                                             uint8_t* rx,
+                                             uint16_t* rxLen,
+                                             uint32_t ackTimeoutMs) {
+    return rf_control_transfer_with_timeout(tx, txLen, rx, rxLen, ackTimeoutMs, true);
+}
+
+bool RFBridgePort_ControlTransferForceTxWithTimeout(const uint8_t* tx,
+                                                    uint16_t txLen,
+                                                    uint8_t* rx,
+                                                    uint16_t* rxLen,
+                                                    uint32_t ackTimeoutMs) {
+    return rf_control_transfer_with_timeout(tx, txLen, rx, rxLen, ackTimeoutMs, false);
 }
 
 bool RFBridgePort_ControlTransfer(const uint8_t* tx, uint16_t txLen, uint8_t* rx, uint16_t* rxLen) {

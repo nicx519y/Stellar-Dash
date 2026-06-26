@@ -35,11 +35,12 @@ static constexpr uint8_t INPUT_FLAG_SYNC_ECHO = 0x02u;
 static constexpr uint8_t INPUT_FLAGS = static_cast<uint8_t>((INPUT_FORMAT_VERSION << 4) | INPUT_FLAG_PROCESSED);
 static constexpr uint8_t INPUT_AGE_US_OFFSET = 6u;
 static constexpr uint8_t INPUT_CRC_OFFSET = 9u;
-static constexpr uint8_t STATUS_PAYLOAD_LEN = 21u;
+static constexpr uint8_t STATUS_PAYLOAD_LEN = 23u;
 static constexpr uint8_t STATUS_CMD_TAG_OFFSET = 16u;
 static constexpr uint8_t STATUS_TXN_OFFSET = 17u;
 static constexpr uint8_t STATUS_RESULT_OFFSET = 18u;
 static constexpr uint8_t STATUS_REASON_OFFSET = 19u;
+static constexpr uint8_t STATUS_EVENT_SEQ_OFFSET = 20u;
 static constexpr uint16_t RX_BUF_LEN = 32u;
 static constexpr uint32_t COMMAND_RESULT_TIMEOUT_MS = 200u;
 #ifndef RF_SPI_PROTOCOL_LOG
@@ -166,8 +167,9 @@ bool RFTransport::parseEventFrame(const uint8_t* frame, uint16_t len, bool* appl
         return true;
     }
 
-    if ((evt == EVT_STATE_CHANGED) && (payloadLen > STATUS_PAYLOAD_LEN - 1u) &&
-        (frame[3u + STATUS_PAYLOAD_LEN - 1u] != 0u)) {
+    if ((evt == EVT_STATE_CHANGED) &&
+        (payloadLen > STATUS_EVENT_SEQ_OFFSET) &&
+        (frame[3u + STATUS_EVENT_SEQ_OFFSET] != 0u)) {
         return RFReliableEvent::completeIfNeeded(evt, &frame[3], payloadLen);
     }
 

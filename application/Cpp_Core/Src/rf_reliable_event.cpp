@@ -4,18 +4,14 @@
 #include <string.h>
 
 #include "board_cfg.h"
-#include "rf_bridge_port.hpp"
 #include "stm32h7xx_hal.h"
 
 namespace {
 static constexpr uint8_t RF_SYNC = 0xA5u;
-static constexpr uint8_t CMD_EVENT_ACK = 0x07u;
 static constexpr uint8_t EVT_STATE_CHANGED = 0x82u;
 static constexpr uint8_t STATUS_EVENT_SEQ_OFFSET = 20u;
+static constexpr uint8_t STATUS_EVENT_COMPLETE_MS_OFFSET = 21u;
 static constexpr uint8_t MAX_PAYLOAD_LEN = 24u;
-static constexpr uint32_t T1_MS = 50u;
-static constexpr uint32_t ACK_DELAY_MS = T1_MS / 2u;
-static constexpr uint32_t ACK_RETRY_DELAY_MS = 5u;
 
 #ifndef RF_RELIABLE_EVENT_LOG
 #define RF_RELIABLE_EVENT_LOG APPLICATION_SERIAL_PRINT
@@ -35,32 +31,22 @@ static uint8_t checksum8(const uint8_t* data, uint16_t len) {
     return sum;
 }
 
-static bool sendAck(uint8_t seq) {
-    uint8_t frame[5] = {
-        RF_SYNC,
-        CMD_EVENT_ACK,
-        1u,
-        seq,
-        0u,
-    };
-
-    frame[4] = checksum8(frame, 4u);
-    return RFBridgePort_SendNoResponse(frame, static_cast<uint16_t>(sizeof(frame)));
-}
-
 static bool due(uint32_t now, uint32_t deadline) {
     return static_cast<int32_t>(now - deadline) >= 0;
 }
 
+static uint16_t readU16(const uint8_t* src) {
+    return static_cast<uint16_t>(src[0] | (static_cast<uint16_t>(src[1]) << 8));
+}
+
 struct PendingEvent {
     bool active = false;
-    bool ackPending = false;
-    bool completeAfterAck = false;
+    bool shouldPublish = false;
     uint8_t evt = 0u;
     uint8_t seq = 0u;
     uint8_t payload[MAX_PAYLOAD_LEN] = {0};
     uint8_t payloadLen = 0u;
-    uint32_t ackDueMs = 0u;
+    uint32_t completeDeadlineMs = 0u;
 };
 
 struct CompletedEvent {
@@ -77,38 +63,15 @@ bool g_haveLastCompleted = false;
 uint8_t g_lastCompletedEvt = 0u;
 uint8_t g_lastCompletedSeq = 0u;
 
-static void storePending(uint8_t evt, const uint8_t* payload, uint8_t payloadLen) {
-    const uint8_t seq = payload[STATUS_EVENT_SEQ_OFFSET];
-    const uint32_t now = HAL_GetTick();
-    const bool duplicate = g_pending.active &&
-                           (g_pending.evt == evt) &&
-                           (g_pending.seq == seq);
-    const bool keepPendingAckDue = duplicate && g_pending.ackPending;
-    const uint32_t pendingAckDueMs = g_pending.ackDueMs;
-    const bool alreadyCompleted =
-            (g_completed.available && (g_completed.evt == evt) && (g_completed.seq == seq)) ||
-            (g_haveLastCompleted && (g_lastCompletedEvt == evt) && (g_lastCompletedSeq == seq));
-
-    g_pending.active = true;
-    g_pending.ackPending = true;
-    g_pending.completeAfterAck = !alreadyCompleted;
-    g_pending.evt = evt;
-    g_pending.seq = seq;
-    g_pending.payloadLen = payloadLen;
-    memcpy(g_pending.payload, payload, payloadLen);
-    g_pending.ackDueMs = keepPendingAckDue ? pendingAckDueMs : (now + ACK_DELAY_MS);
-
-    RF_REL_EVT_LOG("%s evt=0x%02X seq=%u state=%u ack_due_in_ms=%ld complete_after_ack=%u",
-            duplicate ? "RECV_DUP" : "RECV_EVT",
-            (unsigned int)evt,
-            (unsigned int)seq,
-            (unsigned int)payload[0],
-            (long)(g_pending.ackDueMs - now),
-            (unsigned int)(g_pending.completeAfterAck ? 1u : 0u));
+static bool isReliableEventPayload(uint8_t evt, const uint8_t* payload, uint8_t payloadLen) {
+    return (evt == EVT_STATE_CHANGED) &&
+           (payload != nullptr) &&
+           (payloadLen > static_cast<uint8_t>(STATUS_EVENT_COMPLETE_MS_OFFSET + 1u)) &&
+           (payload[STATUS_EVENT_SEQ_OFFSET] != 0u);
 }
 
 static bool publishPendingComplete() {
-    if (!g_pending.completeAfterAck) {
+    if (!g_pending.shouldPublish) {
         return true;
     }
     if (g_completed.available) {
@@ -130,13 +93,35 @@ static bool publishPendingComplete() {
     return true;
 }
 
-static void completePendingAfterAck() {
-    g_pending.ackPending = false;
-    if (!publishPendingComplete()) {
+static void storePending(uint8_t evt, const uint8_t* payload, uint8_t payloadLen) {
+    const uint8_t seq = payload[STATUS_EVENT_SEQ_OFFSET];
+    const uint16_t completeInMs = readU16(&payload[STATUS_EVENT_COMPLETE_MS_OFFSET]);
+    const uint32_t now = HAL_GetTick();
+    const bool duplicate = g_pending.active &&
+                           (g_pending.evt == evt) &&
+                           (g_pending.seq == seq);
+    const bool alreadyCompleted =
+            (g_completed.available && (g_completed.evt == evt) && (g_completed.seq == seq)) ||
+            (g_haveLastCompleted && (g_lastCompletedEvt == evt) && (g_lastCompletedSeq == seq));
+
+    if (alreadyCompleted) {
         return;
     }
 
-    g_pending = PendingEvent{};
+    g_pending.active = true;
+    g_pending.shouldPublish = true;
+    g_pending.evt = evt;
+    g_pending.seq = seq;
+    g_pending.payloadLen = payloadLen;
+    memcpy(g_pending.payload, payload, payloadLen);
+    g_pending.completeDeadlineMs = now + completeInMs;
+
+    RF_REL_EVT_LOG("%s evt=0x%02X seq=%u state=%u complete_in_ms=%u",
+            duplicate ? "RECV_DUP" : "RECV_EVT",
+            (unsigned int)evt,
+            (unsigned int)seq,
+            (unsigned int)payload[0],
+            (unsigned int)completeInMs);
 }
 }
 
@@ -158,14 +143,7 @@ bool completeFrameIfNeeded(const uint8_t* frame, uint16_t frameLen) {
 }
 
 bool completeIfNeeded(uint8_t evt, const uint8_t* payload, uint8_t payloadLen) {
-    if ((evt != EVT_STATE_CHANGED) ||
-        (payload == nullptr) ||
-        (payloadLen <= STATUS_EVENT_SEQ_OFFSET)) {
-        return true;
-    }
-
-    const uint8_t seq = payload[STATUS_EVENT_SEQ_OFFSET];
-    if (seq == 0u) {
+    if (!isReliableEventPayload(evt, payload, payloadLen)) {
         return true;
     }
     if (payloadLen > MAX_PAYLOAD_LEN) {
@@ -183,27 +161,14 @@ void poll() {
     }
 
     const uint32_t now = HAL_GetTick();
-    if (!g_pending.ackPending && publishPendingComplete()) {
-        g_pending = PendingEvent{};
+    if (!due(now, g_pending.completeDeadlineMs)) {
+        return;
+    }
+    if (!publishPendingComplete()) {
         return;
     }
 
-    if (g_pending.ackPending && due(now, g_pending.ackDueMs)) {
-        const bool ackOk = sendAck(g_pending.seq);
-        RF_REL_EVT_LOG("SEND_ACK evt=0x%02X seq=%u ok=%u",
-                (unsigned int)g_pending.evt,
-                (unsigned int)g_pending.seq,
-                (unsigned int)ackOk);
-        if (ackOk) {
-            completePendingAfterAck();
-        } else {
-            RF_REL_EVT_LOG("ACK_FAIL evt=0x%02X seq=%u",
-                    (unsigned int)g_pending.evt,
-                    (unsigned int)g_pending.seq);
-            g_pending.ackDueMs = now + ACK_RETRY_DELAY_MS;
-        }
-        return;
-    }
+    g_pending = PendingEvent{};
 }
 
 bool popCompleted(uint8_t* evt, uint8_t* payload, uint8_t* payloadLen, uint8_t payloadCapacity) {

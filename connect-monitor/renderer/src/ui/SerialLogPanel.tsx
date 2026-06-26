@@ -2,9 +2,10 @@ import { Box, HStack } from "@chakra-ui/react";
 import * as React from "react";
 
 import type { SerialLogLine, SerialPortInfo } from "../../../shared/monitor-types";
-import { ClearDataIconButton, ListeningToggleIconButton } from "./panelActions";
+import { buildSerialLogMarkdown, exportMarkdown } from "./logExport";
+import { ClearDataIconButton, ExportMarkdownIconButton, ListeningToggleIconButton } from "./panelActions";
 import { VirtualTable, type VirtualColumn } from "./VirtualTable";
-import { appendSerialLogLines, loadSerialLogLines } from "./serialLogStore";
+import { appendSerialLogLines, loadAllSerialLogLines, loadSerialLogLines } from "./serialLogStore";
 
 const LOG_SLOT_COUNT = 3;
 const MAX_LOG_ROWS = 500;
@@ -82,6 +83,11 @@ function matchesLogFilter(line: SerialLogLine, regex: RegExp | null) {
 
 function isInsidePauseRange(line: SerialLogLine, ranges: PauseRange[]) {
   return ranges.some((range) => line.timestampMs >= range.startMs && line.timestampMs < range.endMs);
+}
+
+function serialLogFileName(portPath: string) {
+  const safePort = portPath.trim().replace(/[^a-z0-9._-]+/gi, "_").replace(/^_+|_+$/g, "");
+  return `${safePort || "serial"}-log.md`;
 }
 
 function filterSlotRows(
@@ -244,6 +250,12 @@ function SerialLogCard({
     ],
     [],
   );
+  const handleExport = React.useCallback(() => {
+    if (!selectedPort) return;
+    void loadAllSerialLogLines(selectedPort)
+      .then((rows) => exportMarkdown(serialLogFileName(selectedPort), buildSerialLogMarkdown(rows, selectedPort)))
+      .catch(() => {});
+  }, [selectedPort]);
 
   return (
     <VirtualTable
@@ -254,6 +266,11 @@ function SerialLogCard({
           <ListeningToggleIconButton
             listening={listening}
             onToggle={() => onListeningToggle(slot)}
+          />
+          <ExportMarkdownIconButton
+            label={`Export log ${slot + 1} data`}
+            disabled={!selectedPort}
+            onClick={handleExport}
           />
           <ClearDataIconButton
             label={`Clear log ${slot + 1} data`}

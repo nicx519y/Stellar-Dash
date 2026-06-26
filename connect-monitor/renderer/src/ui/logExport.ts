@@ -1,4 +1,4 @@
-import type { ErrorEvent, PacketEvent } from "../../../shared/monitor-types";
+import type { ErrorEvent, PacketEvent, SerialLogLine } from "../../../shared/monitor-types";
 import type { ChannelSwitchRow } from "./useMonitorStream";
 
 const LOG_LIMIT = 500;
@@ -25,12 +25,12 @@ function markdownTable(headers: string[], rows: unknown[][]) {
   return [header, separator, body].join("\n");
 }
 
-function documentHeader(title: string, count: number) {
+function documentHeader(title: string, count: number, limit: number | null = LOG_LIMIT) {
   return [
     `# ${title}`,
     "",
     `Generated: ${formatDateTime(Date.now())}`,
-    `Entries: ${count} / ${LOG_LIMIT}`,
+    limit === null ? `Entries: ${count}` : `Entries: ${count} / ${limit}`,
     "",
   ].join("\n");
 }
@@ -102,4 +102,24 @@ export function buildErrorLogMarkdown(items: Array<ErrorEvent & { id?: string }>
     ]),
   );
   return `${documentHeader("Error Log", rows.length)}${table}\n`;
+}
+
+export function buildSerialLogMarkdown(items: SerialLogLine[], portPath: string) {
+  const rows = items.slice();
+  const table = markdownTable(
+    ["Time", "Port", "Log"],
+    rows.map((line) => [
+      formatDateTime(line.timestampMs),
+      line.portPath || portPath,
+      line.text,
+    ]),
+  );
+
+  return [
+    documentHeader("Serial Log", rows.length, null),
+    `Port: ${mdCell(portPath)}`,
+    "",
+    table,
+    "",
+  ].join("\n");
 }

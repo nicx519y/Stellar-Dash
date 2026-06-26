@@ -41,6 +41,33 @@ static constexpr uint8_t kRfCmdSleep = 0x08u;
 static constexpr uint8_t kRfEvtError = 0x85u;
 }
 
+void ConnectionManager::activateRfModeAfterPairSuccess() {
+    if (mode != ConnectionMode::CONNECTION_MODE_RF24G) {
+        mode = ConnectionMode::CONNECTION_MODE_RF24G;
+        rfEventServiceEnabled = true;
+        STORAGE_MANAGER.setConnectionMode(ConnectionMode::CONNECTION_MODE_RF24G);
+        STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_XINPUT);
+    }
+
+    requestedReportRateHz = getRfReportRateHz(STORAGE_MANAGER.getWirelessReportRate());
+    if (rfTransport.setRate(requestedReportRateHz)) {
+        appliedReportRateHz = requestedReportRateHz;
+    } else if (appliedReportRateHz == 0u) {
+        appliedReportRateHz = requestedReportRateHz;
+    }
+
+    if (REPORT_SCHEDULER.isStarted()) {
+        REPORT_SCHEDULER.setRate(appliedReportRateHz);
+    }
+    MonitorTelemetry_Init(mode, appliedReportRateHz);
+
+    ConnectionLinkState nextState = ConnectionLinkState::Connected;
+    if (linkState != nextState) {
+        MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
+    }
+    linkState = nextState;
+}
+
 bool ConnectionManager::tryRfBringup(bool isRetry) {
     (void)isRetry;
     bool ok = rfTransport.begin();
@@ -103,6 +130,7 @@ void ConnectionManager::updatePairingStateFromStatus() {
         rfPairingActive = false;
         rfPairSucceeded = true;
         rfPairingState = RfPairingState::PairOk;
+        activateRfModeAfterPairSuccess();
         return;
     }
 
@@ -142,10 +170,7 @@ void ConnectionManager::serviceRfEvents() {
         return;
     }
 
-    const uint8_t drained = rfTransport.serviceEvents();
-    if (drained == 0u) {
-        return;
-    }
+    (void)rfTransport.serviceEvents();
 
     updateRfLinkStateFromStatus();
     if (rfTransport.getStatus().eventCounter != rfPairingLastEventCounter) {

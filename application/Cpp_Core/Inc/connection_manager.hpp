@@ -56,6 +56,7 @@ private:
     void serviceRfEvents();
     void updatePairingStateFromStatus();
     void updateRfLinkStateFromStatus();
+    void activateRfModeAfterPairSuccess();
     bool tryRfBringup(bool isRetry);
     bool tryRfSleepCommand();
 
