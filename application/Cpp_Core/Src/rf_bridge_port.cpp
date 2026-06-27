@@ -32,6 +32,14 @@ namespace {
 #define RF_BRIDGE_IRQ_LOW_TIMEOUT_MS 80u
 #endif
 
+#ifndef RF_BRIDGE_WAKE_PULSE_MS
+#define RF_BRIDGE_WAKE_PULSE_MS 1u
+#endif
+
+#ifndef RF_BRIDGE_WAKE_SETTLE_MS
+#define RF_BRIDGE_WAKE_SETTLE_MS 2u
+#endif
+
 #ifndef RF_BRIDGE_MIN_CONTROL_TX_BYTES
 #define RF_BRIDGE_MIN_CONTROL_TX_BYTES 14u
 #endif
@@ -115,7 +123,9 @@ static bool rf_is_valid_evt(uint8_t evt) {
            (evt == 0x84u) ||
            (evt == 0x85u) ||
            (evt == 0x86u) ||
-           (evt == 0x87u);
+           (evt == 0x87u) ||
+           (evt == 0x88u) ||
+           (evt == 0x89u);
 }
 
 static uint8_t rf_checksum8(const uint8_t* data, uint16_t len) {
@@ -725,6 +735,28 @@ bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen) {
     s_diag_input_blocking_done++;
 #endif
     rf_note_transfer(true, true, cmd, txLen, input_seq);
+    return true;
+}
+
+bool RFBridgePort_WakePulse(void) {
+    if (!rf_spi_init_once()) {
+        s_diag_spi_init_fail++;
+        return false;
+    }
+
+    if (!rf_spi_dma_wait_idle_and_drop_pending(RF_BRIDGE_SPI_TIMEOUT_MS)) {
+        return false;
+    }
+    if (s_dma_busy) {
+        return false;
+    }
+
+    rf_cs_set(true);
+    HAL_Delay(1u);
+    rf_cs_set(false);
+    HAL_Delay(RF_BRIDGE_WAKE_PULSE_MS);
+    rf_cs_set(true);
+    HAL_Delay(RF_BRIDGE_WAKE_SETTLE_MS);
     return true;
 }
 

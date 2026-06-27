@@ -16,6 +16,10 @@ public:
                      const uint8_t* args,
                      uint8_t argsLen,
                      RFCommandTransactionResult& result);
+    static bool sendScheduled(uint8_t cmd,
+                              const uint8_t* args,
+                              uint8_t argsLen,
+                              RFCommandTransactionResult& result);
 
 private:
     static uint8_t nextTransactionId();

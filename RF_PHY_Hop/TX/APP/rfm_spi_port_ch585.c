@@ -25,6 +25,9 @@ static uint32_t s_spi_tx_start_us;
 static volatile uint32_t s_spi_tx_recover_count;
 static volatile uint32_t s_spi_tx_done_count;
 static volatile uint32_t s_now_us;
+static uint8_t s_sleep_idle_valid;
+static uint32_t s_sleep_idle_pos;
+static uint32_t s_sleep_idle_since_us;
 
 #if (RFM_TX_LOG_ENABLE == 1u)
 static void spi_port_log_write(const char *buf)
@@ -493,6 +496,9 @@ void rfm_spi_port_init(void)
     s_spi_tx_len = 0u;
     s_spi_tx_pos = 0u;
     s_now_us = 0u;
+    s_sleep_idle_valid = 0u;
+    s_sleep_idle_pos = 0u;
+    s_sleep_idle_since_us = 0u;
     s_spi_rx_total_bytes = 0u;
     s_spi_rx_ring_overrun_count = 0u;
     s_spi_rx_backlog_drop_count = 0u;
@@ -523,6 +529,31 @@ void rfm_spi_port_init(void)
     spi_rx_dma_loop_start(1u);
 }
 
+bool rfm_spi_port_sleep_ready(uint16_t stable_us)
+{
+    const uint32_t now_us = spi_now_us();
+    const uint32_t pos = spi_rx_dma_pos();
+
+    spi_rx_dma_poll();
+    if((s_spi_tx_pending != 0u) ||
+       (s_spi_control_count != 0u) ||
+       (GPIOB_ReadPortPin(GPIO_Pin_12) == 0u))
+    {
+        s_sleep_idle_valid = 0u;
+        return false;
+    }
+
+    if((s_sleep_idle_valid == 0u) || (s_sleep_idle_pos != pos))
+    {
+        s_sleep_idle_valid = 1u;
+        s_sleep_idle_pos = pos;
+        s_sleep_idle_since_us = now_us;
+        return false;
+    }
+
+    return ((uint32_t)(now_us - s_sleep_idle_since_us) >= (uint32_t)stable_us);
+}
+
 void rfm_spi_port_sleep_until_nss_wake(void)
 {
     rfm_spi_port_set_irq(false);
@@ -548,6 +579,11 @@ void rfm_spi_port_sleep_until_nss_wake(void)
     GPIOB_ResetBits(SPI_IRQ_PIN);
 
     GPIOB_ClearITFlagBit(GPIO_Pin_12);
+    if(GPIOB_ReadPortPin(GPIO_Pin_12) == 0u)
+    {
+        rfm_spi_port_init();
+        return;
+    }
     GPIOB_ITModeCfg(GPIO_Pin_12, GPIO_ITMode_FallEdge);
     PWR_PeriphWakeUpCfg(ENABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Short_Delay);
 

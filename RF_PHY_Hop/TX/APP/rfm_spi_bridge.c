@@ -41,14 +41,27 @@ static uint8_t s_pending_control_cmd;
 static uint8_t s_pending_control_txn;
 static uint8_t s_pending_control_args[23u];
 static uint8_t s_pending_control_args_len;
+static uint8_t s_pending_scheduled_valid;
+static uint8_t s_pending_scheduled_cmd;
+static uint8_t s_pending_scheduled_seq;
+static uint8_t s_pending_scheduled_args[23u];
+static uint8_t s_pending_scheduled_args_len;
+static uint32_t s_pending_scheduled_due_clock;
+static uint8_t s_last_scheduled_complete_cmd;
+static uint8_t s_last_scheduled_complete_seq;
 static uint8_t s_pending_event_valid;
 static uint8_t s_pending_event_frame[RFM_SPI_MAX_FRAME];
 static uint8_t s_pending_event_frame_len;
 static uint8_t s_real_sleep_pending;
 
+#define SPI_SLEEP_IDLE_STABLE_US      20000u
 #define SPI_POLL_MAX_BATCHES          1u
 #define SPI_INPUT_FRAME_BYTES         (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
 #define SPI_STATUS_PAYLOAD_LEN        23u
+#define SPI_CONTROL_DRAIN_MAX         4u
+#define SPI_SCHEDULED_SEQ_OFFSET      0u
+#define SPI_SCHEDULED_COMPLETE_OFFSET 1u
+#define SPI_SCHEDULED_ARGS_OFFSET     3u
 #define SPI_STATUS_CMD_TAG_OFFSET     16u
 #define SPI_STATUS_TXN_OFFSET         17u
 #define SPI_STATUS_RESULT_OFFSET      18u
@@ -75,6 +88,8 @@ typedef enum {
     SPI_EVT_RATE_APPLIED = 0x83,
     SPI_EVT_LINK_WARN = 0x84,
     SPI_EVT_ERROR = 0x85,
+    SPI_EVT_WAKEUP_COMPLETE = 0x88,
+    SPI_EVT_SLEEP_ENTERING = 0x89,
     SPI_EVT_TIME_SYNC = RFMON_SPI_EVT_TIME_SYNC
 } spi_evt_t;
 
@@ -205,6 +220,25 @@ static uint8_t frame_checksum(const uint8_t *buf, size_t len)
     return s;
 }
 
+static uint32_t ticks_from_ms_local(uint16_t ms)
+{
+    uint32_t ticks;
+
+    ticks = (((uint32_t)ms * 1000u) + ((uint32_t)SYSTEM_TIME_MICROSEN - 1u)) /
+            (uint32_t)SYSTEM_TIME_MICROSEN;
+    return (ticks == 0u) ? 1u : ticks;
+}
+
+static uint16_t get_u16(const uint8_t *src)
+{
+    return (uint16_t)src[0] | ((uint16_t)src[1] << 8);
+}
+
+static uint8_t clock_due_local(uint32_t now, uint32_t due)
+{
+    return (((int32_t)(now - due)) >= 0) ? 1u : 0u;
+}
+
 static void put_u16(uint8_t *dst, uint16_t value)
 {
     dst[0] = (uint8_t)(value & 0xFFu);
@@ -242,6 +276,34 @@ static bool is_valid_report_rate_hz(uint16_t hz)
             (hz == 2000u) ||
             (hz == 4000u) ||
             (hz == 8000u)) ? true : false;
+}
+
+static bool is_scheduled_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
+{
+    uint8_t args_len;
+
+    if((payload == 0) || (len < SPI_SCHEDULED_ARGS_OFFSET))
+    {
+        return false;
+    }
+    if(payload[SPI_SCHEDULED_SEQ_OFFSET] == 0u)
+    {
+        return false;
+    }
+
+    args_len = (uint8_t)(len - SPI_SCHEDULED_ARGS_OFFSET);
+    switch ((spi_cmd_t)cmd) {
+    case SPI_CMD_SET_RATE:
+        return (args_len == 2u) &&
+               is_valid_report_rate_hz(get_u16(&payload[SPI_SCHEDULED_ARGS_OFFSET]));
+    case SPI_CMD_START_PAIR:
+    case SPI_CMD_STOP_PAIR:
+    case SPI_CMD_UNBIND:
+    case SPI_CMD_SLEEP:
+        return args_len == 0u;
+    default:
+        return false;
+    }
 }
 
 static uint8_t build_frame(spi_evt_t evt, const uint8_t *payload, uint8_t payload_len, uint8_t *out, uint8_t out_len)
@@ -515,6 +577,148 @@ static bool send_error_event(uint8_t cmd_tag, uint8_t txn, uint8_t reason, uint8
     return send_status_frame(SPI_EVT_ERROR, cmd_tag, txn, reason, reason, cache_response);
 }
 
+static void save_pending_scheduled_command(uint8_t cmd,
+                                           uint8_t seq,
+                                           const uint8_t *args,
+                                           uint8_t args_len,
+                                           uint16_t complete_ms)
+{
+    uint8_t i;
+
+    if((seq == 0u) || (args_len > (uint8_t)sizeof(s_pending_scheduled_args)))
+    {
+        return;
+    }
+
+    s_pending_scheduled_valid = 1u;
+    s_pending_scheduled_cmd = cmd;
+    s_pending_scheduled_seq = seq;
+    s_pending_scheduled_args_len = args_len;
+    for(i = 0u; i < args_len; ++i)
+    {
+        s_pending_scheduled_args[i] = (args == 0) ? 0u : args[i];
+    }
+    s_pending_scheduled_due_clock = TMOS_GetSystemClock() + ticks_from_ms_local(complete_ms);
+}
+
+static bool execute_control_action(uint8_t cmd, const uint8_t *args, uint8_t args_len)
+{
+    switch ((spi_cmd_t)cmd) {
+    case SPI_CMD_SET_RATE:
+        if(args_len == 2u)
+        {
+            uint16_t hz = (uint16_t)args[0] | ((uint16_t)args[1] << 8);
+            if(is_valid_report_rate_hz(hz) && RF_SetReportRateHz(hz))
+            {
+                if(hz == 0u)
+                {
+                    s_real_sleep_pending = 1u;
+                }
+                return true;
+            }
+        }
+        return false;
+
+    case SPI_CMD_START_PAIR:
+        return (args_len == 0u) ? RF_StartPairing() : false;
+
+    case SPI_CMD_STOP_PAIR:
+        return (args_len == 0u) ? RF_StopPairing() : false;
+
+    case SPI_CMD_UNBIND:
+        return (args_len == 0u) ? RF_Unbind() : false;
+
+    case SPI_CMD_SLEEP:
+        if((args_len == 0u) && RF_PrepareSleep())
+        {
+            s_real_sleep_pending = 1u;
+            return true;
+        }
+        return false;
+
+    default:
+        return false;
+    }
+}
+
+static void process_scheduled_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
+{
+    uint8_t seq;
+    uint16_t complete_ms;
+    const uint8_t *args;
+    uint8_t args_len;
+
+    if(is_scheduled_command(cmd, payload, len) == false)
+    {
+        return;
+    }
+
+    seq = payload[SPI_SCHEDULED_SEQ_OFFSET];
+    complete_ms = get_u16(&payload[SPI_SCHEDULED_COMPLETE_OFFSET]);
+    args = &payload[SPI_SCHEDULED_ARGS_OFFSET];
+    args_len = (uint8_t)(len - SPI_SCHEDULED_ARGS_OFFSET);
+
+    if((s_last_scheduled_complete_cmd == cmd) &&
+       (s_last_scheduled_complete_seq == seq))
+    {
+        return;
+    }
+    if((s_pending_scheduled_valid != 0u) &&
+       (s_pending_scheduled_cmd == cmd) &&
+       (s_pending_scheduled_seq == seq))
+    {
+        return;
+    }
+
+    save_pending_scheduled_command(cmd, seq, args, args_len, complete_ms);
+#if (RFM_TX_LOG_ENABLE == 1u)
+    spi_log_printf("[SPI][SCHED_CMD] RECV cmd=0x%02X seq=%u complete_ms=%u args_len=%u\r\n",
+                   (unsigned int)cmd,
+                   (unsigned int)seq,
+                   (unsigned int)complete_ms,
+                   (unsigned int)args_len);
+#endif
+}
+
+static void execute_pending_scheduled_command(void)
+{
+    uint8_t cmd;
+    uint8_t seq;
+    uint8_t args_len;
+    uint8_t args[23u];
+
+    if(s_pending_scheduled_valid == 0u)
+    {
+        return;
+    }
+    if(clock_due_local(TMOS_GetSystemClock(), s_pending_scheduled_due_clock) == 0u)
+    {
+        return;
+    }
+
+    cmd = s_pending_scheduled_cmd;
+    seq = s_pending_scheduled_seq;
+    args_len = s_pending_scheduled_args_len;
+    memcpy(args, s_pending_scheduled_args, args_len);
+    s_pending_scheduled_valid = 0u;
+    s_last_scheduled_complete_cmd = cmd;
+    s_last_scheduled_complete_seq = seq;
+#if (RFM_TX_LOG_ENABLE == 1u)
+    spi_log_printf("[SPI][SCHED_CMD] COMPLETE cmd=0x%02X seq=%u args_len=%u\r\n",
+                   (unsigned int)cmd,
+                   (unsigned int)seq,
+                   (unsigned int)args_len);
+#endif
+    if(!execute_control_action(cmd, args, args_len))
+    {
+#if (RFM_TX_LOG_ENABLE == 1u)
+        spi_log_printf("[SPI][SCHED_CMD] EXEC_FAIL cmd=0x%02X seq=%u\r\n",
+                       (unsigned int)cmd,
+                       (unsigned int)seq);
+#endif
+    }
+}
+
 static void save_pending_control_command(uint8_t cmd, uint8_t txn, const uint8_t *args, uint8_t args_len)
 {
     uint8_t i;
@@ -616,7 +820,17 @@ static void execute_pending_control_command(void)
         break;
 
     case SPI_CMD_SLEEP:
-        (void)send_status_frame(SPI_EVT_STATUS, cmd, txn, 0u, 0u, 0u);
+        if(RF_PrepareSleep())
+        {
+            if(send_status_frame(SPI_EVT_SLEEP_ENTERING, cmd, txn, 0u, 0u, 0u))
+            {
+                s_real_sleep_pending = 1u;
+            }
+        }
+        else
+        {
+            (void)send_error_event(cmd, txn, 2u, 0u);
+        }
         break;
 
     default:
@@ -633,13 +847,20 @@ static void process_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
 
     rfm_spi_port_set_irq(false);
     s_rx_count++;
-    log_spi_command_received(cmd, payload, len);
 
     if(cmd == (uint8_t)SPI_CMD_INPUT_DATA)
     {
         (void)RF_SPI_FastWriteInput(payload, len);
         return;
     }
+
+    if(is_scheduled_command(cmd, payload, len))
+    {
+        process_scheduled_command(cmd, payload, len);
+        return;
+    }
+
+    log_spi_command_received(cmd, payload, len);
 
     if((payload == 0) || (len == 0u))
     {
@@ -745,6 +966,31 @@ static void process_one_frame(const uint8_t *buf, size_t len)
     }
 
     process_command(buf[1], &buf[3], payload_len);
+}
+
+static void process_control_frame_queue(uint8_t max_frames)
+{
+    uint8_t i;
+
+    for(i = 0u; i < max_frames; ++i)
+    {
+        uint8_t control_frame[RFM_SPI_MAX_FRAME];
+        uint8_t control_len = (uint8_t)sizeof(control_frame);
+
+        if(rfm_spi_port_peek_latest_control_frame(control_frame, &control_len) == false)
+        {
+            break;
+        }
+
+        s_raw_bytes_win += control_len;
+        s_frame_ok_win++;
+        process_one_frame(control_frame, control_len);
+        rfm_spi_command_txn_poll();
+        execute_pending_scheduled_command();
+        execute_pending_control_command();
+        try_send_pending_event_frame();
+        rfm_spi_reliable_event_poll(rfm_spi_command_txn_has_pending_ack());
+    }
 }
 
 static void parser_reset(void)
@@ -1143,12 +1389,20 @@ void rfm_spi_bridge_init(void)
     s_pending_control_cmd = 0u;
     s_pending_control_txn = 0u;
     s_pending_control_args_len = 0u;
+    s_pending_scheduled_valid = 0u;
+    s_pending_scheduled_cmd = 0u;
+    s_pending_scheduled_seq = 0u;
+    s_pending_scheduled_args_len = 0u;
+    s_pending_scheduled_due_clock = 0u;
+    s_last_scheduled_complete_cmd = 0u;
+    s_last_scheduled_complete_seq = 0u;
     s_pending_event_valid = 0u;
     s_pending_event_frame_len = 0u;
     s_real_sleep_pending = 0u;
     memset(s_last_direct_input, 0, sizeof(s_last_direct_input));
     memset(s_last_latest_input, 0, sizeof(s_last_latest_input));
     memset(s_pending_control_args, 0, sizeof(s_pending_control_args));
+    memset(s_pending_scheduled_args, 0, sizeof(s_pending_scheduled_args));
     memset(s_pending_event_frame, 0, sizeof(s_pending_event_frame));
     parser_reset();
     fast_parser_reset();
@@ -1174,31 +1428,16 @@ void rfm_spi_bridge_poll(void)
 {
     uint8_t batch;
     uint8_t latest_payload[RFM_RF_INPUT_PAYLOAD_LEN];
-    uint8_t control_frame[RFM_SPI_MAX_FRAME];
-    uint8_t control_len;
 
     if(RFM_SPI_INPUT_DIRECT_DMA != 0u) {
         rfm_spi_port_service();
         rfm_spi_command_txn_poll();
+        execute_pending_scheduled_command();
         execute_pending_control_command();
         try_send_pending_event_frame();
         rfm_spi_reliable_event_poll(rfm_spi_command_txn_has_pending_ack());
-        if((s_real_sleep_pending != 0u) &&
-           (rfm_spi_port_tx_pending() == 0u) &&
-           (rfm_spi_command_txn_has_pending_ack() == false)) {
-            s_real_sleep_pending = 0u;
-#if (RFM_TX_LOG_ENABLE == 1u)
-            spi_log_printf("[SPI][SLEEP] enter wake=NSS/PB12\r\n");
-#endif
-            rfm_spi_port_sleep_until_nss_wake();
-            parser_reset();
-            fast_parser_reset();
-#if (RFM_TX_LOG_ENABLE == 1u)
-            spi_log_printf("[SPI][SLEEP] wake spi_restored\r\n");
-#endif
-            return;
-        }
-        if(rfm_spi_port_peek_latest_input(latest_payload, (uint8_t)sizeof(latest_payload))) {
+        if((s_real_sleep_pending == 0u) &&
+           rfm_spi_port_peek_latest_input(latest_payload, (uint8_t)sizeof(latest_payload))) {
             memcpy(s_last_latest_input, latest_payload, sizeof(latest_payload));
             s_have_last_latest_input = 1u;
             if((s_have_last_direct_input == 0u) ||
@@ -1210,15 +1449,31 @@ void rfm_spi_bridge_poll(void)
                 (void)RF_SPI_FastWriteInput(latest_payload, (uint8_t)sizeof(latest_payload));
             }
         }
-        control_len = (uint8_t)sizeof(control_frame);
-        if(rfm_spi_port_peek_latest_control_frame(control_frame, &control_len)) {
-            s_raw_bytes_win += control_len;
-            s_frame_ok_win++;
-            process_one_frame(control_frame, control_len);
-            rfm_spi_command_txn_poll();
-            execute_pending_control_command();
-            try_send_pending_event_frame();
-            rfm_spi_reliable_event_poll(rfm_spi_command_txn_has_pending_ack());
+        process_control_frame_queue((uint8_t)SPI_CONTROL_DRAIN_MAX);
+        if((s_real_sleep_pending != 0u) &&
+           (rfm_spi_port_tx_pending() == 0u) &&
+           (s_pending_scheduled_valid == 0u) &&
+           (s_pending_event_valid == 0u) &&
+           (rfm_spi_command_txn_has_pending_ack() == false) &&
+           (rfm_spi_reliable_event_has_pending() == false) &&
+           rfm_spi_port_sleep_ready((uint16_t)SPI_SLEEP_IDLE_STABLE_US)) {
+            s_real_sleep_pending = 0u;
+#if (RFM_TX_LOG_ENABLE == 1u)
+            spi_log_printf("[SPI][SLEEP] enter wake=NSS/PB12\r\n");
+#endif
+            rfm_spi_port_sleep_until_nss_wake();
+            parser_reset();
+            fast_parser_reset();
+#if (RFM_TX_LOG_ENABLE == 1u)
+            spi_log_printf("[SPI][SLEEP] wake spi_restored\r\n");
+#endif
+            (void)send_status_frame(SPI_EVT_WAKEUP_COMPLETE,
+                                    (uint8_t)SPI_CMD_SLEEP,
+                                    0u,
+                                    0u,
+                                    0u,
+                                    0u);
+            return;
         }
         return;
     }
@@ -1244,6 +1499,7 @@ void rfm_spi_bridge_poll(void)
         }
     }
     rfm_spi_command_txn_poll();
+    execute_pending_scheduled_command();
     execute_pending_control_command();
     try_send_pending_event_frame();
     rfm_spi_reliable_event_poll(rfm_spi_command_txn_has_pending_ack());

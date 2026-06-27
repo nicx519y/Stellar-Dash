@@ -28,6 +28,8 @@ static constexpr uint8_t EVT_LINK_WARN = 0x84u;
 static constexpr uint8_t EVT_ERROR = 0x85u;
 static constexpr uint8_t EVT_MONITOR_CONFIG = 0x86u;
 static constexpr uint8_t EVT_TIME_SYNC = 0x87u;
+static constexpr uint8_t EVT_WAKEUP_COMPLETE = 0x88u;
+static constexpr uint8_t EVT_SLEEP_ENTERING = 0x89u;
 static constexpr uint8_t INPUT_PAYLOAD_LEN = 10u;
 static constexpr uint8_t INPUT_FORMAT_VERSION = 1u;
 static constexpr uint8_t INPUT_FLAG_PROCESSED = 0x01u;
@@ -70,6 +72,14 @@ static uint8_t frameChecksum(const uint8_t* buf, uint16_t len) {
         s = static_cast<uint8_t>(s + buf[i]);
     }
     return s;
+}
+
+static bool isScheduledControlCommand(uint8_t cmd) {
+    return (cmd == CMD_START_PAIR) ||
+           (cmd == CMD_STOP_PAIR) ||
+           (cmd == CMD_UNBIND) ||
+           (cmd == CMD_SET_RATE) ||
+           (cmd == CMD_SLEEP);
 }
 
 static void putU16(uint8_t* dst, uint16_t value) {
@@ -309,6 +319,54 @@ bool RFTransport::waitCommandResult(uint8_t cmd, uint8_t txn, uint32_t timeoutMs
     return false;
 }
 
+bool RFTransport::waitWakeupComplete(uint32_t timeoutMs) {
+    const uint32_t start = HAL_GetTick();
+
+    RF_SPI_LOG("[RF_SPI][WAKE_WAIT] timeout_ms=%lu", (unsigned long)timeoutMs);
+    while ((HAL_GetTick() - start) < timeoutMs) {
+        RFReliableEvent::poll();
+        processCompletedReliableEvents();
+
+        if (!RFBridgePort_HasPendingEvent()) {
+            continue;
+        }
+
+        uint8_t rxBuf[RX_BUF_LEN] = {0};
+        uint16_t rxLen = RX_BUF_LEN;
+        if (!RFBridgePort_ReadEvent(rxBuf, &rxLen)) {
+            state = RFTransportState::Error;
+            return false;
+        }
+        if (rxLen == 0u) {
+            continue;
+        }
+
+        bool applied = false;
+        if (!parseEventFrame(rxBuf, rxLen, &applied)) {
+            state = RFTransportState::Error;
+            return false;
+        }
+        if (!applied) {
+            continue;
+        }
+
+        RF_SPI_LOG("[RF_SPI][WAKE_EVT] evt=0x%02X result=%u",
+                (unsigned int)status.lastEvent,
+                (unsigned int)status.lastResult);
+        if (status.lastEvent == EVT_WAKEUP_COMPLETE && status.lastResult == 0u) {
+            state = RFTransportState::Connected;
+            return true;
+        }
+        if (status.lastEvent == EVT_ERROR) {
+            state = RFTransportState::Error;
+            return false;
+        }
+    }
+
+    state = RFTransportState::Error;
+    return false;
+}
+
 bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t len, bool forceReadback) {
     (void)forceReadback;
 
@@ -331,6 +389,19 @@ bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t l
             (unsigned int)cmd,
             (unsigned int)len,
             (unsigned int)logRateHz);
+    if (isScheduledControlCommand(cmd)) {
+        if (!RFCommandTransaction::sendScheduled(cmd, payload, len, txnResult)) {
+            state = RFTransportState::Error;
+            return false;
+        }
+        status.lastCommandTag = cmd;
+        status.lastTransactionId = txnResult.txn;
+        status.lastResult = 0u;
+        status.lastErrorReason = 0u;
+        state = RFTransportState::Connected;
+        return true;
+    }
+
     if (!RFCommandTransaction::send(cmd, payload, len, txnResult)) {
         state = RFTransportState::Error;
         return false;
@@ -444,6 +515,14 @@ bool RFTransport::unbind() {
 
 bool RFTransport::sleep() {
     return transferCommand(CMD_SLEEP, nullptr, 0u, true);
+}
+
+bool RFTransport::wake() {
+    if (!RFBridgePort_WakePulse()) {
+        state = RFTransportState::Error;
+        return false;
+    }
+    return waitWakeupComplete(250u);
 }
 
 bool RFTransport::setRate(uint16_t rateHz) {

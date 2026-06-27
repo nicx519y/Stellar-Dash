@@ -19,6 +19,7 @@ bool RFBridgePort_ControlTransferForceTxWithTimeout(const uint8_t* tx,
                                                     uint32_t ackTimeoutMs);
 bool RFBridgePort_SendNoResponse(const uint8_t* tx, uint16_t txLen);
 bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen);
+bool RFBridgePort_WakePulse(void);
 bool RFBridgePort_IsReady(void);
 bool RFBridgePort_HasPendingEvent(void);
 bool RFBridgePort_ReadEvent(uint8_t* rx, uint16_t* rxLen);

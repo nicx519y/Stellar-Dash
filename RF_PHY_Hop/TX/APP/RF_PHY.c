@@ -2969,6 +2969,11 @@ bool RF_SetReportRateHz(uint16_t hz)
     return true;
 }
 
+bool RF_PrepareSleep(void)
+{
+    return RF_SetReportRateHz(0u);
+}
+
 uint16_t RF_GetReportRateHz(void)
 {
     return g_demo_report_hz;

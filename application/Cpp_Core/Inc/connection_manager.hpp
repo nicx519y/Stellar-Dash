@@ -39,6 +39,7 @@ public:
     bool startRfPairing();
     bool stopRfPairing();
     bool sleepRfModule();
+    bool wakeRfModule();
 
     ConnectionMode getMode() const { return mode; }
     ConnectionLinkState getLinkState() const { return linkState; }
@@ -66,6 +67,8 @@ private:
     uint16_t requestedReportRateHz = 1000;
     bool rateApplyPending = false;
     bool rfSleepPending = false;
+    bool rfSleeping = false;
+    bool rfWakeInProgress = false;
     uint32_t lastRfStatusPollMs = 0;
     uint32_t lastRfBeginRetryMs = 0;
     uint32_t lastRfSleepRetryMs = 0;

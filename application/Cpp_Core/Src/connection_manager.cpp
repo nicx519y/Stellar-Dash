@@ -38,6 +38,7 @@ static constexpr uint32_t kRfSleepRetryMs = 500u;
 static constexpr uint8_t kRfCmdStartPair = 0x02u;
 static constexpr uint8_t kRfCmdStopPair = 0x03u;
 static constexpr uint8_t kRfCmdSleep = 0x08u;
+static constexpr uint8_t kRfEvtWakeupComplete = 0x88u;
 static constexpr uint8_t kRfEvtError = 0x85u;
 }
 
@@ -185,6 +186,8 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
     requestedReportRateHz = 1000;
     rateApplyPending = false;
     rfSleepPending = false;
+    rfSleeping = false;
+    rfWakeInProgress = false;
     linkState = ConnectionLinkState::Disconnected;
     lastRfStatusPollMs = HAL_GetTick();
     lastRfSleepRetryMs = HAL_GetTick();
@@ -424,6 +427,14 @@ bool ConnectionManager::tryRfSleepCommand() {
     const bool ok = rfTransport.sleep();
     if (ok) {
         rfSleepPending = false;
+        rfSleeping = true;
+        ConnectionLinkState nextState = ConnectionLinkState::Disconnected;
+        if (mode == ConnectionMode::CONNECTION_MODE_RF24G && linkState != nextState) {
+            MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
+        }
+        if (mode == ConnectionMode::CONNECTION_MODE_RF24G) {
+            linkState = nextState;
+        }
     } else {
         const RFModuleStatus& st = rfTransport.getStatus();
         rfPairingLastErrorCommand = (st.lastErrorCommand != 0u) ? st.lastErrorCommand : kRfCmdSleep;
@@ -442,12 +453,68 @@ bool ConnectionManager::tryRfSleepCommand() {
 bool ConnectionManager::sleepRfModule() {
     rfEventServiceEnabled = true;
     rfSleepPending = true;
+    rfSleeping = false;
+    rfWakeInProgress = false;
     lastRfSleepRetryMs = HAL_GetTick();
     const bool ok = tryRfSleepCommand();
     if (!ok) {
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1006u, "rf sleep failed");
     }
     return ok;
+}
+
+bool ConnectionManager::wakeRfModule() {
+    rfSleepPending = false;
+    rfWakeInProgress = true;
+    rfEventServiceEnabled = true;
+
+    const bool wakeOk = rfTransport.wake();
+    if (!wakeOk || rfTransport.getStatus().lastEvent != kRfEvtWakeupComplete) {
+        rfWakeInProgress = false;
+        const RFModuleStatus& st = rfTransport.getStatus();
+        rfPairingLastErrorCommand = (st.lastErrorCommand != 0u) ? st.lastErrorCommand : kRfCmdSleep;
+        rfPairingLastErrorReason = st.lastErrorReason;
+        ConnectionLinkState nextState = ConnectionLinkState::Error;
+        if (mode == ConnectionMode::CONNECTION_MODE_RF24G && linkState != nextState) {
+            MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
+        }
+        if (mode == ConnectionMode::CONNECTION_MODE_RF24G) {
+            linkState = nextState;
+        }
+        MonitorTelemetry_OnError("CONNECTION_MANAGER", 1007u, "rf wake failed");
+        return false;
+    }
+
+    bool restoreOk = true;
+    if (mode == ConnectionMode::CONNECTION_MODE_RF24G) {
+        requestedReportRateHz = getRfReportRateHz(STORAGE_MANAGER.getWirelessReportRate());
+        restoreOk = rfTransport.setRate(requestedReportRateHz);
+        if (restoreOk) {
+            appliedReportRateHz = requestedReportRateHz;
+            if (REPORT_SCHEDULER.isStarted()) {
+                REPORT_SCHEDULER.setRate(appliedReportRateHz);
+            }
+            MonitorTelemetry_Init(mode, appliedReportRateHz);
+        }
+    } else {
+        restoreOk = rfTransport.pollStatus();
+    }
+
+    rfWakeInProgress = false;
+    if (restoreOk) {
+        rfSleeping = false;
+    }
+    ConnectionLinkState nextState = restoreOk ? ConnectionLinkState::Connected : ConnectionLinkState::Error;
+    if (mode == ConnectionMode::CONNECTION_MODE_RF24G && linkState != nextState) {
+        MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
+    }
+    if (mode == ConnectionMode::CONNECTION_MODE_RF24G) {
+        linkState = nextState;
+    }
+    if (!restoreOk) {
+        MonitorTelemetry_OnError("CONNECTION_MANAGER", 1008u, "rf wake restore failed");
+    }
+    return restoreOk;
 }
 
 void ConnectionManager::loop() {
@@ -472,6 +539,7 @@ void ConnectionManager::loop() {
 
 void ConnectionManager::onReportReady(const GamepadState& state, uint32_t seq) {
     if (mode != ConnectionMode::CONNECTION_MODE_RF24G) return;
+    if (rfSleepPending || rfSleeping || rfWakeInProgress) return;
 
     if (rfPairingActive || RFBridgePort_HasPendingEvent()) {
         serviceRfEvents();

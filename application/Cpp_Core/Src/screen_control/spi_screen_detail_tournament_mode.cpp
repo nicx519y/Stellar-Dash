@@ -18,6 +18,7 @@ enum class ConnectionSettingKind : uint8_t {
     Setting = 0,
     PairAction = 1,
     SleepAction = 2,
+    WakeAction = 3,
 };
 
 struct ConnectionSettingItem {
@@ -35,6 +36,7 @@ static const ConnectionSettingItem kConnectionItems[] = {
     {ConnectionSettingKind::Setting, CONNECTION_MODE_RF24G, RFM_RATE_8K, "2.4G 8K"},
     {ConnectionSettingKind::PairAction, CONNECTION_MODE_RF24G, RFM_RATE_1K, "Pair 2.4G"},
     {ConnectionSettingKind::SleepAction, CONNECTION_MODE_RF24G, RFM_RATE_1K, "Sleep 2.4G"},
+    {ConnectionSettingKind::WakeAction, CONNECTION_MODE_RF24G, RFM_RATE_1K, "Wake 2.4G"},
 };
 
 static bool g_pairPageActive = false;
@@ -217,6 +219,11 @@ bool ScreenDetailTournament_OnConfirm(uint8_t index) {
     if (item.kind == ConnectionSettingKind::SleepAction) {
         APP_DBG("[SCREEN][CONN] sleep action selected");
         (void)CONNECTION_MANAGER.sleepRfModule();
+        return false;
+    }
+    if (item.kind == ConnectionSettingKind::WakeAction) {
+        APP_DBG("[SCREEN][CONN] wake action selected");
+        (void)CONNECTION_MANAGER.wakeRfModule();
         return false;
     }
 
