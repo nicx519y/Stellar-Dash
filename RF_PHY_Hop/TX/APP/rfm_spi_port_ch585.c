@@ -10,7 +10,8 @@
 
 #define SPI_PINS                      (GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15)
 #define SPI_IRQ_PIN                   (GPIO_Pin_11)
-#define SPI_WAKE_PIN                  (GPIO_Pin_22)
+#define SPI_WAKE_PIN                  (GPIO_Pin_11)
+#define SPI_WAKE_USE_INTX             0u
 #define SPI_TX_PENDING_RECOVER_US     (2000u)
 #define US_TICK_STEP                  (10u)
 #define SPI_INPUT_CMD                 (0x06u)
@@ -624,17 +625,21 @@ void rfm_spi_port_sleep_until_nss_wake(void)
 
     GPIOPinRemap(DISABLE, RB_PIN_SPI0);
     GPIOBDigitalCfg(ENABLE, SPI_PINS | SPI_IRQ_PIN | SPI_WAKE_PIN);
+#if (SPI_WAKE_USE_INTX != 0u)
     GPIOPinRemap(ENABLE, RB_PIN_INTX);
+#endif
     GPIOB_ModeCfg(GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15, GPIO_ModeIN_PU);
     GPIOB_ModeCfg(SPI_IRQ_PIN, GPIO_ModeOut_PP_5mA);
     GPIOB_ResetBits(SPI_IRQ_PIN);
     GPIOB_ModeCfg(SPI_WAKE_PIN, GPIO_ModeIN_PU);
 
     clear_wake_it_flag();
-    SPI_PORT_LOG("SLEEP_PREP pb22=%u mode=idle_lowlevel", GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u);
+    SPI_PORT_LOG("SLEEP_PREP pb11=%u mode=sleep_lowlevel", GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u);
     if(GPIOB_ReadPortPin(SPI_WAKE_PIN) == 0u)
     {
+#if (SPI_WAKE_USE_INTX != 0u)
         GPIOPinRemap(DISABLE, RB_PIN_INTX);
+#endif
         rfm_spi_port_init();
         return;
     }
@@ -642,13 +647,13 @@ void rfm_spi_port_sleep_until_nss_wake(void)
     PFIC_EnableIRQ(GPIO_B_IRQn);
     PWR_PeriphWakeUpCfg(ENABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Long_Delay);
 
-    SPI_PORT_LOG("SLEEP_ENTER_IDLE pb22=%u irq_count=%lu",
+    SPI_PORT_LOG("SLEEP_ENTER_SLEEP pb11=%u irq_count=%lu",
                  GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u,
                  (uint32_t)s_wake_irq_count);
     SPI_PORT_LOG_FLUSH();
     DelayMs(100);
-    LowPower_Idle();
-    SPI_PORT_LOG("WAKE_RETURN_IDLE pb22=%u irq_count=%lu",
+    LowPower_Sleep(RB_PWR_RAM32K | RB_PWR_RAM96K | RB_PWR_EXTEND);
+    SPI_PORT_LOG("WAKE_RETURN_SLEEP pb11=%u irq_count=%lu",
                  GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u,
                  (uint32_t)s_wake_irq_count);
 
@@ -658,7 +663,9 @@ void rfm_spi_port_sleep_until_nss_wake(void)
     PFIC_DisableIRQ(GPIO_B_IRQn);
     clear_wake_it_flag();
     PWR_PeriphWakeUpCfg(DISABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Long_Delay);
+#if (SPI_WAKE_USE_INTX != 0u)
     GPIOPinRemap(DISABLE, RB_PIN_INTX);
+#endif
     rfm_spi_port_init();
 }
 

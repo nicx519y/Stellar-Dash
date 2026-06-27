@@ -1488,7 +1488,7 @@ void rfm_spi_bridge_poll(void)
                 s_real_sleep_pending = 0u;
                 s_sleep_gate_log_armed = 0u;
 #if (RFM_TX_LOG_ENABLE == 1u)
-                spi_log_printf("[SPI][SLEEP] enter wake=PB22/IDLE\r\n");
+                spi_log_printf("[SPI][SLEEP] enter wake=PB11/SLEEP\r\n");
 #endif
                 rfm_spi_port_sleep_until_nss_wake();
                 parser_reset();

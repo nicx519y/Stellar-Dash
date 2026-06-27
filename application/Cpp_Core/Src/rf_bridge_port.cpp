@@ -93,7 +93,7 @@ static void rf_configure_irq_input(void) {
 
     GPIO_InitTypeDef init = {};
     init.Mode = GPIO_MODE_IT_RISING;
-    init.Pull = GPIO_PULLDOWN;
+    init.Pull = GPIO_PULLUP;
     init.Speed = GPIO_SPEED_FREQ_LOW;
     init.Alternate = 0u;
     init.Pin = RF_BRIDGE_IRQ_PIN;
@@ -101,6 +101,21 @@ static void rf_configure_irq_input(void) {
     __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
     HAL_NVIC_SetPriority(RF_BRIDGE_IRQ_EXTI_IRQn, RF_BRIDGE_IRQ_EXTI_IRQn_PRIO, 0u);
     HAL_NVIC_EnableIRQ(RF_BRIDGE_IRQ_EXTI_IRQn);
+}
+
+static void rf_configure_irq_output(bool high) {
+    HAL_NVIC_DisableIRQ(RF_BRIDGE_IRQ_EXTI_IRQn);
+    __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
+    rf_enable_gpio_clock(RF_BRIDGE_IRQ_GPIO_PORT);
+
+    GPIO_InitTypeDef init = {};
+    init.Mode = GPIO_MODE_OUTPUT_PP;
+    init.Pull = GPIO_NOPULL;
+    init.Speed = GPIO_SPEED_FREQ_LOW;
+    init.Alternate = 0u;
+    init.Pin = RF_BRIDGE_IRQ_PIN;
+    HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &init);
+    HAL_GPIO_WritePin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN, high ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 
 static bool rf_wait_irq_high(uint32_t timeoutMs) {
@@ -750,6 +765,10 @@ bool RFBridgePort_WakePulse(void) {
     }
 
     rf_cs_set(true);
+    rf_configure_irq_output(true);
+    HAL_Delay(2u);
+    rf_configure_irq_output(false);
+    HAL_Delay(20u);
     rf_configure_irq_input();
     return true;
 }
