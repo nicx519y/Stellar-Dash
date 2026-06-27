@@ -522,7 +522,7 @@ bool RFTransport::wake() {
         state = RFTransportState::Error;
         return false;
     }
-    return waitWakeupComplete(250u);
+    return waitWakeupComplete(60000u);
 }
 
 bool RFTransport::setRate(uint16_t rateHz) {

@@ -8,11 +8,13 @@
 void rfm_spi_port_init(void);
 void rfm_spi_port_sleep_until_nss_wake(void);
 bool rfm_spi_port_sleep_ready(uint16_t stable_us);
+uint8_t rfm_spi_port_sleep_block_flags(void);
 void rfm_spi_port_set_irq(bool asserted);
 void rfm_spi_port_service(void);
 size_t rfm_spi_port_drain(uint8_t *buf, size_t max_len);
 bool rfm_spi_port_peek_latest_input(uint8_t *payload, uint8_t len);
 bool rfm_spi_port_peek_latest_control_frame(uint8_t *frame, uint8_t *inout_len);
+void rfm_spi_port_discard_control_frames(void);
 uint32_t rfm_spi_port_rx_peek_ok_count(void);
 uint32_t rfm_spi_port_rx_peek_miss_count(void);
 uint32_t rfm_spi_port_rx_ring_overrun_count(void);

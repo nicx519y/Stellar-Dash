@@ -10,6 +10,7 @@
 
 #define SPI_PINS                      (GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15)
 #define SPI_IRQ_PIN                   (GPIO_Pin_11)
+#define SPI_WAKE_PIN                  (GPIO_Pin_22)
 #define SPI_TX_PENDING_RECOVER_US     (2000u)
 #define US_TICK_STEP                  (10u)
 #define SPI_INPUT_CMD                 (0x06u)
@@ -28,6 +29,9 @@ static volatile uint32_t s_now_us;
 static uint8_t s_sleep_idle_valid;
 static uint32_t s_sleep_idle_pos;
 static uint32_t s_sleep_idle_since_us;
+static volatile uint32_t s_wake_irq_count;
+static uint8_t s_sleep_block_flags;
+static uint8_t s_sleep_rx_quiesced;
 
 #if (RFM_TX_LOG_ENABLE == 1u)
 static void spi_port_log_write(const char *buf)
@@ -62,9 +66,18 @@ static void spi_port_log_printf(const char *fmt, ...)
     spi_port_log_write(line);
 }
 
+static void spi_port_log_flush(void)
+{
+    while((R8_UART0_LSR & RB_LSR_TX_ALL_EMP) == 0u)
+    {
+    }
+}
+
 #define SPI_PORT_LOG(fmt, ...) spi_port_log_printf("[SPI][PORT] " fmt "\r\n", ##__VA_ARGS__)
+#define SPI_PORT_LOG_FLUSH() spi_port_log_flush()
 #else
 #define SPI_PORT_LOG(fmt, ...) ((void)0)
+#define SPI_PORT_LOG_FLUSH() ((void)0)
 #endif
 
 __attribute__((aligned(4))) static uint8_t s_spi_rx_dma_buf[SPI_RX_DMA_BUF_SIZE];
@@ -478,7 +491,7 @@ void rfm_spi_port_init(void)
 
     GPIOPinRemap(ENABLE, RB_PIN_SPI0);
     GPIOADigitalCfg(ENABLE, (uint16_t)0xFFFFu);
-    GPIOBDigitalCfg(ENABLE, SPI_PINS | SPI_IRQ_PIN);
+    GPIOBDigitalCfg(ENABLE, SPI_PINS | SPI_IRQ_PIN | SPI_WAKE_PIN);
     GPIOB_ModeCfg(SPI_IRQ_PIN, GPIO_ModeOut_PP_5mA);
     GPIOB_ResetBits(SPI_IRQ_PIN);
 
@@ -499,6 +512,7 @@ void rfm_spi_port_init(void)
     s_sleep_idle_valid = 0u;
     s_sleep_idle_pos = 0u;
     s_sleep_idle_since_us = 0u;
+    s_sleep_rx_quiesced = 0u;
     s_spi_rx_total_bytes = 0u;
     s_spi_rx_ring_overrun_count = 0u;
     s_spi_rx_backlog_drop_count = 0u;
@@ -529,12 +543,35 @@ void rfm_spi_port_init(void)
     spi_rx_dma_loop_start(1u);
 }
 
+static void clear_wake_it_flag(void)
+{
+    const uint16_t low_pin_mask = (uint16_t)(SPI_WAKE_PIN & 0xFFFFu);
+    const uint16_t remap_pin_mask = (uint16_t)((SPI_WAKE_PIN & (GPIO_Pin_22 | GPIO_Pin_23)) >> 14);
+    R16_PB_INT_IF = (uint16_t)(low_pin_mask | remap_pin_mask);
+}
+
 bool rfm_spi_port_sleep_ready(uint16_t stable_us)
 {
     const uint32_t now_us = spi_now_us();
     const uint32_t pos = spi_rx_dma_pos();
 
-    spi_rx_dma_poll();
+    if(s_sleep_rx_quiesced == 0u)
+    {
+        spi_rx_dma_poll();
+    }
+    s_sleep_block_flags = 0u;
+    if(s_spi_tx_pending != 0u)
+    {
+        s_sleep_block_flags |= 0x01u;
+    }
+    if(s_spi_control_count != 0u)
+    {
+        s_sleep_block_flags |= 0x02u;
+    }
+    if(GPIOB_ReadPortPin(GPIO_Pin_12) == 0u)
+    {
+        s_sleep_block_flags |= 0x04u;
+    }
     if((s_spi_tx_pending != 0u) ||
        (s_spi_control_count != 0u) ||
        (GPIOB_ReadPortPin(GPIO_Pin_12) == 0u))
@@ -548,10 +585,23 @@ bool rfm_spi_port_sleep_ready(uint16_t stable_us)
         s_sleep_idle_valid = 1u;
         s_sleep_idle_pos = pos;
         s_sleep_idle_since_us = now_us;
+        s_sleep_block_flags |= 0x08u;
         return false;
     }
 
-    return ((uint32_t)(now_us - s_sleep_idle_since_us) >= (uint32_t)stable_us);
+    if(((uint32_t)(now_us - s_sleep_idle_since_us) < (uint32_t)stable_us))
+    {
+        s_sleep_block_flags |= 0x10u;
+        return false;
+    }
+
+    s_sleep_block_flags = 0u;
+    return true;
+}
+
+uint8_t rfm_spi_port_sleep_block_flags(void)
+{
+    return s_sleep_block_flags;
 }
 
 void rfm_spi_port_sleep_until_nss_wake(void)
@@ -573,27 +623,52 @@ void rfm_spi_port_sleep_until_nss_wake(void)
     }
 
     GPIOPinRemap(DISABLE, RB_PIN_SPI0);
-    GPIOBDigitalCfg(ENABLE, SPI_PINS | SPI_IRQ_PIN);
+    GPIOBDigitalCfg(ENABLE, SPI_PINS | SPI_IRQ_PIN | SPI_WAKE_PIN);
+    GPIOPinRemap(ENABLE, RB_PIN_INTX);
     GPIOB_ModeCfg(GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15, GPIO_ModeIN_PU);
     GPIOB_ModeCfg(SPI_IRQ_PIN, GPIO_ModeOut_PP_5mA);
     GPIOB_ResetBits(SPI_IRQ_PIN);
+    GPIOB_ModeCfg(SPI_WAKE_PIN, GPIO_ModeIN_PU);
 
-    GPIOB_ClearITFlagBit(GPIO_Pin_12);
-    if(GPIOB_ReadPortPin(GPIO_Pin_12) == 0u)
+    clear_wake_it_flag();
+    SPI_PORT_LOG("SLEEP_PREP pb22=%u mode=idle_lowlevel", GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u);
+    if(GPIOB_ReadPortPin(SPI_WAKE_PIN) == 0u)
     {
+        GPIOPinRemap(DISABLE, RB_PIN_INTX);
         rfm_spi_port_init();
         return;
     }
-    GPIOB_ITModeCfg(GPIO_Pin_12, GPIO_ITMode_FallEdge);
-    PWR_PeriphWakeUpCfg(ENABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Short_Delay);
+    GPIOB_ITModeCfg(SPI_WAKE_PIN, GPIO_ITMode_LowLevel);
+    PFIC_EnableIRQ(GPIO_B_IRQn);
+    PWR_PeriphWakeUpCfg(ENABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Long_Delay);
 
-    LowPower_Halt_WFE();
+    SPI_PORT_LOG("SLEEP_ENTER_IDLE pb22=%u irq_count=%lu",
+                 GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u,
+                 (uint32_t)s_wake_irq_count);
+    SPI_PORT_LOG_FLUSH();
+    DelayMs(100);
+    LowPower_Idle();
+    SPI_PORT_LOG("WAKE_RETURN_IDLE pb22=%u irq_count=%lu",
+                 GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u,
+                 (uint32_t)s_wake_irq_count);
 
     SetSysClock(SYSCLK_FREQ);
+
     RFIP_WakeUpRegInit();
-    GPIOB_ClearITFlagBit(GPIO_Pin_12);
-    PWR_PeriphWakeUpCfg(DISABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Short_Delay);
+    PFIC_DisableIRQ(GPIO_B_IRQn);
+    clear_wake_it_flag();
+    PWR_PeriphWakeUpCfg(DISABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Long_Delay);
+    GPIOPinRemap(DISABLE, RB_PIN_INTX);
     rfm_spi_port_init();
+}
+
+__INTERRUPT
+__HIGH_CODE
+void GPIOB_IRQHandler(void)
+{
+    s_wake_irq_count++;
+    clear_wake_it_flag();
+    PFIC_DisableIRQ(GPIO_B_IRQn);
 }
 
 void rfm_spi_port_set_irq(bool asserted)
@@ -712,6 +787,33 @@ bool rfm_spi_port_peek_latest_control_frame(uint8_t *frame, uint8_t *inout_len)
     s_spi_control_count--;
     *inout_len = len;
     return true;
+}
+
+void rfm_spi_port_discard_control_frames(void)
+{
+    uint8_t i;
+
+    if(s_sleep_rx_quiesced == 0u)
+    {
+        R8_SPI0_CTRL_CFG &= (uint8_t)(~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP));
+        R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END | RB_SPI_IF_FIFO_OV |
+                           RB_SPI_IF_FIFO_HF | RB_SPI_IF_BYTE_END | RB_SPI_IF_FST_BYTE;
+        while(R8_SPI0_FIFO_COUNT != 0u)
+        {
+            (void)R8_SPI0_FIFO;
+        }
+        s_spi_rx_dma_last_pos = spi_rx_dma_pos();
+        s_sleep_idle_valid = 0u;
+        s_sleep_rx_quiesced = 1u;
+    }
+    for(i = 0u; i < SPI_CONTROL_SLOT_COUNT; ++i)
+    {
+        s_spi_control_slot_len[i] = 0u;
+    }
+    s_spi_control_head = 0u;
+    s_spi_control_tail = 0u;
+    s_spi_control_count = 0u;
+    spi_control_parser_reset();
 }
 
 size_t rfm_spi_port_drain(uint8_t *buf, size_t max_len)

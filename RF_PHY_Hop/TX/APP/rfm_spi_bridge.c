@@ -53,8 +53,11 @@ static uint8_t s_pending_event_valid;
 static uint8_t s_pending_event_frame[RFM_SPI_MAX_FRAME];
 static uint8_t s_pending_event_frame_len;
 static uint8_t s_real_sleep_pending;
+static uint8_t s_sleep_gate_log_armed;
+static uint32_t s_sleep_gate_last_log_clock;
 
 #define SPI_SLEEP_IDLE_STABLE_US      20000u
+#define SPI_SLEEP_GATE_LOG_MS         200u
 #define SPI_POLL_MAX_BATCHES          1u
 #define SPI_INPUT_FRAME_BYTES         (3u + RFM_RF_INPUT_PAYLOAD_LEN + 1u)
 #define SPI_STATUS_PAYLOAD_LEN        23u
@@ -227,6 +230,12 @@ static uint32_t ticks_from_ms_local(uint16_t ms)
     ticks = (((uint32_t)ms * 1000u) + ((uint32_t)SYSTEM_TIME_MICROSEN - 1u)) /
             (uint32_t)SYSTEM_TIME_MICROSEN;
     return (ticks == 0u) ? 1u : ticks;
+}
+
+static void mark_real_sleep_pending(void)
+{
+    s_real_sleep_pending = 1u;
+    s_sleep_gate_log_armed = 0u;
 }
 
 static uint16_t get_u16(const uint8_t *src)
@@ -612,7 +621,7 @@ static bool execute_control_action(uint8_t cmd, const uint8_t *args, uint8_t arg
             {
                 if(hz == 0u)
                 {
-                    s_real_sleep_pending = 1u;
+                    mark_real_sleep_pending();
                 }
                 return true;
             }
@@ -631,7 +640,7 @@ static bool execute_control_action(uint8_t cmd, const uint8_t *args, uint8_t arg
     case SPI_CMD_SLEEP:
         if((args_len == 0u) && RF_PrepareSleep())
         {
-            s_real_sleep_pending = 1u;
+            mark_real_sleep_pending();
             return true;
         }
         return false;
@@ -778,7 +787,7 @@ static void execute_pending_control_command(void)
                 if(send_status_frame(SPI_EVT_RATE_APPLIED, cmd, txn, 0u, 0u, 0u) &&
                    (hz == 0u))
                 {
-                    s_real_sleep_pending = 1u;
+                    mark_real_sleep_pending();
                 }
                 break;
             }
@@ -824,7 +833,7 @@ static void execute_pending_control_command(void)
         {
             if(send_status_frame(SPI_EVT_SLEEP_ENTERING, cmd, txn, 0u, 0u, 0u))
             {
-                s_real_sleep_pending = 1u;
+                mark_real_sleep_pending();
             }
         }
         else
@@ -1449,31 +1458,70 @@ void rfm_spi_bridge_poll(void)
                 (void)RF_SPI_FastWriteInput(latest_payload, (uint8_t)sizeof(latest_payload));
             }
         }
-        process_control_frame_queue((uint8_t)SPI_CONTROL_DRAIN_MAX);
-        if((s_real_sleep_pending != 0u) &&
-           (rfm_spi_port_tx_pending() == 0u) &&
-           (s_pending_scheduled_valid == 0u) &&
-           (s_pending_event_valid == 0u) &&
-           (rfm_spi_command_txn_has_pending_ack() == false) &&
-           (rfm_spi_reliable_event_has_pending() == false) &&
-           rfm_spi_port_sleep_ready((uint16_t)SPI_SLEEP_IDLE_STABLE_US)) {
-            s_real_sleep_pending = 0u;
+        if(s_real_sleep_pending != 0u) {
+            rfm_spi_port_discard_control_frames();
+        } else {
+            process_control_frame_queue((uint8_t)SPI_CONTROL_DRAIN_MAX);
+        }
+        if(s_real_sleep_pending != 0u) {
+            const uint8_t tx_ok = (rfm_spi_port_tx_pending() == 0u) ? 1u : 0u;
+            const uint8_t sched_ok = (s_pending_scheduled_valid == 0u) ? 1u : 0u;
+            const uint8_t evt_ok = (s_pending_event_valid == 0u) ? 1u : 0u;
+            const uint8_t ack_ok = (rfm_spi_command_txn_has_pending_ack() == false) ? 1u : 0u;
+            const uint8_t rel_ok = (rfm_spi_reliable_event_has_pending() == false) ? 1u : 0u;
+            uint8_t spi_ok = 0u;
+
+            if((tx_ok != 0u) &&
+               (sched_ok != 0u) &&
+               (evt_ok != 0u) &&
+               (ack_ok != 0u) &&
+               (rel_ok != 0u)) {
+                spi_ok = rfm_spi_port_sleep_ready((uint16_t)SPI_SLEEP_IDLE_STABLE_US) ? 1u : 0u;
+            }
+
+            if((tx_ok != 0u) &&
+               (sched_ok != 0u) &&
+               (evt_ok != 0u) &&
+               (ack_ok != 0u) &&
+               (rel_ok != 0u) &&
+               (spi_ok != 0u)) {
+                s_real_sleep_pending = 0u;
+                s_sleep_gate_log_armed = 0u;
 #if (RFM_TX_LOG_ENABLE == 1u)
-            spi_log_printf("[SPI][SLEEP] enter wake=NSS/PB12\r\n");
+                spi_log_printf("[SPI][SLEEP] enter wake=PB22/IDLE\r\n");
 #endif
-            rfm_spi_port_sleep_until_nss_wake();
-            parser_reset();
-            fast_parser_reset();
+                rfm_spi_port_sleep_until_nss_wake();
+                parser_reset();
+                fast_parser_reset();
 #if (RFM_TX_LOG_ENABLE == 1u)
-            spi_log_printf("[SPI][SLEEP] wake spi_restored\r\n");
+                spi_log_printf("[SPI][SLEEP] wake spi_restored\r\n");
 #endif
-            (void)send_status_frame(SPI_EVT_WAKEUP_COMPLETE,
-                                    (uint8_t)SPI_CMD_SLEEP,
-                                    0u,
-                                    0u,
-                                    0u,
-                                    0u);
-            return;
+                (void)send_status_frame(SPI_EVT_WAKEUP_COMPLETE,
+                                        (uint8_t)SPI_CMD_SLEEP,
+                                        0u,
+                                        0u,
+                                        0u,
+                                        0u);
+                return;
+            }
+#if (RFM_TX_LOG_ENABLE == 1u)
+            {
+                const uint32_t now = TMOS_GetSystemClock();
+                if((s_sleep_gate_log_armed == 0u) ||
+                   ((uint32_t)(now - s_sleep_gate_last_log_clock) >= MS1_TO_SYSTEM_TIME(SPI_SLEEP_GATE_LOG_MS))) {
+                    s_sleep_gate_log_armed = 1u;
+                    s_sleep_gate_last_log_clock = now;
+                    spi_log_printf("[SPI][SLEEP_GATE] tx=%u sched=%u evt=%u ack=%u rel=%u spi=%u spi_flags=0x%02X\r\n",
+                                   (unsigned int)tx_ok,
+                                   (unsigned int)sched_ok,
+                                   (unsigned int)evt_ok,
+                                   (unsigned int)ack_ok,
+                                   (unsigned int)rel_ok,
+                                   (unsigned int)spi_ok,
+                                   (unsigned int)rfm_spi_port_sleep_block_flags());
+                }
+            }
+#endif
         }
         return;
     }

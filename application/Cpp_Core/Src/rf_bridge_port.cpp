@@ -32,14 +32,6 @@ namespace {
 #define RF_BRIDGE_IRQ_LOW_TIMEOUT_MS 80u
 #endif
 
-#ifndef RF_BRIDGE_WAKE_PULSE_MS
-#define RF_BRIDGE_WAKE_PULSE_MS 1u
-#endif
-
-#ifndef RF_BRIDGE_WAKE_SETTLE_MS
-#define RF_BRIDGE_WAKE_SETTLE_MS 2u
-#endif
-
 #ifndef RF_BRIDGE_MIN_CONTROL_TX_BYTES
 #define RF_BRIDGE_MIN_CONTROL_TX_BYTES 14u
 #endif
@@ -94,6 +86,21 @@ static void rf_enable_gpio_clock(GPIO_TypeDef* port) {
 
 static void rf_cs_set(bool high) {
     HAL_GPIO_WritePin(RF_BRIDGE_SPI_GPIO_PORT, RF_BRIDGE_SPI_NSS_PIN, high ? GPIO_PIN_SET : GPIO_PIN_RESET);
+}
+
+static void rf_configure_irq_input(void) {
+    rf_enable_gpio_clock(RF_BRIDGE_IRQ_GPIO_PORT);
+
+    GPIO_InitTypeDef init = {};
+    init.Mode = GPIO_MODE_IT_RISING;
+    init.Pull = GPIO_PULLDOWN;
+    init.Speed = GPIO_SPEED_FREQ_LOW;
+    init.Alternate = 0u;
+    init.Pin = RF_BRIDGE_IRQ_PIN;
+    HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &init);
+    __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
+    HAL_NVIC_SetPriority(RF_BRIDGE_IRQ_EXTI_IRQn, RF_BRIDGE_IRQ_EXTI_IRQn_PRIO, 0u);
+    HAL_NVIC_EnableIRQ(RF_BRIDGE_IRQ_EXTI_IRQn);
 }
 
 static bool rf_wait_irq_high(uint32_t timeoutMs) {
@@ -545,16 +552,7 @@ static bool rf_spi_init_once() {
     HAL_GPIO_Init(RF_BRIDGE_SPI_GPIO_PORT, &init);
     rf_cs_set(true);
 
-    rf_enable_gpio_clock(RF_BRIDGE_IRQ_GPIO_PORT);
-    init.Mode = GPIO_MODE_IT_RISING;
-    init.Pull = GPIO_PULLDOWN;
-    init.Speed = GPIO_SPEED_FREQ_LOW;
-    init.Alternate = 0u;
-    init.Pin = RF_BRIDGE_IRQ_PIN;
-    HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &init);
-    __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
-    HAL_NVIC_SetPriority(RF_BRIDGE_IRQ_EXTI_IRQn, RF_BRIDGE_IRQ_EXTI_IRQn_PRIO, 0u);
-    HAL_NVIC_EnableIRQ(RF_BRIDGE_IRQ_EXTI_IRQn);
+    rf_configure_irq_input();
 
     __HAL_RCC_SPI4_FORCE_RESET();
     __HAL_RCC_SPI4_RELEASE_RESET();
@@ -752,11 +750,7 @@ bool RFBridgePort_WakePulse(void) {
     }
 
     rf_cs_set(true);
-    HAL_Delay(1u);
-    rf_cs_set(false);
-    HAL_Delay(RF_BRIDGE_WAKE_PULSE_MS);
-    rf_cs_set(true);
-    HAL_Delay(RF_BRIDGE_WAKE_SETTLE_MS);
+    rf_configure_irq_input();
     return true;
 }
 
