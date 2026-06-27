@@ -429,6 +429,7 @@ bool ConnectionManager::tryRfSleepCommand() {
         rfSleepPending = false;
         rfSleeping = true;
         rfEventServiceEnabled = false;
+        (void)RFBridgePort_PrepareWakeLineIdle();
         ConnectionLinkState nextState = ConnectionLinkState::Disconnected;
         if (mode == ConnectionMode::CONNECTION_MODE_RF24G && linkState != nextState) {
             MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));

@@ -328,23 +328,25 @@ bool RFTransport::waitWakeupComplete(uint32_t timeoutMs) {
         processCompletedReliableEvents();
 
         if (!RFBridgePort_HasPendingEvent()) {
+            HAL_Delay(1u);
             continue;
         }
 
         uint8_t rxBuf[RX_BUF_LEN] = {0};
         uint16_t rxLen = RX_BUF_LEN;
         if (!RFBridgePort_ReadEvent(rxBuf, &rxLen)) {
-            state = RFTransportState::Error;
-            return false;
+            HAL_Delay(1u);
+            continue;
         }
         if (rxLen == 0u) {
+            HAL_Delay(1u);
             continue;
         }
 
         bool applied = false;
         if (!parseEventFrame(rxBuf, rxLen, &applied)) {
-            state = RFTransportState::Error;
-            return false;
+            HAL_Delay(1u);
+            continue;
         }
         if (!applied) {
             continue;
@@ -522,7 +524,7 @@ bool RFTransport::wake() {
         state = RFTransportState::Error;
         return false;
     }
-    return waitWakeupComplete(60000u);
+    return waitWakeupComplete(2000u);
 }
 
 bool RFTransport::setRate(uint16_t rateHz) {

@@ -1496,6 +1496,7 @@ void rfm_spi_bridge_poll(void)
 #if (RFM_TX_LOG_ENABLE == 1u)
                 spi_log_printf("[SPI][SLEEP] wake spi_restored\r\n");
 #endif
+                DelayMs(30);
                 (void)send_status_frame(SPI_EVT_WAKEUP_COMPLETE,
                                         (uint8_t)SPI_CMD_SLEEP,
                                         0u,

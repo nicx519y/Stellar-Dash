@@ -551,6 +551,12 @@ static void clear_wake_it_flag(void)
     R16_PB_INT_IF = (uint16_t)(low_pin_mask | remap_pin_mask);
 }
 
+static void clear_wake_pending(void)
+{
+    clear_wake_it_flag();
+    PFIC_ClearPendingIRQ(GPIO_B_IRQn);
+}
+
 bool rfm_spi_port_sleep_ready(uint16_t stable_us)
 {
     const uint32_t now_us = spi_now_us();
@@ -633,8 +639,9 @@ void rfm_spi_port_sleep_until_nss_wake(void)
     GPIOB_ResetBits(SPI_IRQ_PIN);
     GPIOB_ModeCfg(SPI_WAKE_PIN, GPIO_ModeIN_PU);
 
-    clear_wake_it_flag();
-    SPI_PORT_LOG("SLEEP_PREP pb11=%u mode=sleep_lowlevel", GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u);
+    s_wake_irq_count = 0u;
+    clear_wake_pending();
+    SPI_PORT_LOG("SLEEP_PREP pb11=%u mode=sleep_falledge", GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u);
     if(GPIOB_ReadPortPin(SPI_WAKE_PIN) == 0u)
     {
 #if (SPI_WAKE_USE_INTX != 0u)
@@ -643,8 +650,8 @@ void rfm_spi_port_sleep_until_nss_wake(void)
         rfm_spi_port_init();
         return;
     }
-    GPIOB_ITModeCfg(SPI_WAKE_PIN, GPIO_ITMode_LowLevel);
-    PFIC_EnableIRQ(GPIO_B_IRQn);
+    GPIOB_ITModeCfg(SPI_WAKE_PIN, GPIO_ITMode_FallEdge);
+    clear_wake_pending();
     PWR_PeriphWakeUpCfg(ENABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Long_Delay);
 
     SPI_PORT_LOG("SLEEP_ENTER_SLEEP pb11=%u irq_count=%lu",
@@ -652,16 +659,30 @@ void rfm_spi_port_sleep_until_nss_wake(void)
                  (uint32_t)s_wake_irq_count);
     SPI_PORT_LOG_FLUSH();
     DelayMs(100);
+    if(GPIOB_ReadPortPin(SPI_WAKE_PIN) == 0u)
+    {
+        SPI_PORT_LOG("SLEEP_ABORT_WAKE_LOW");
+        PWR_PeriphWakeUpCfg(DISABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Long_Delay);
+#if (SPI_WAKE_USE_INTX != 0u)
+        GPIOPinRemap(DISABLE, RB_PIN_INTX);
+#endif
+        rfm_spi_port_init();
+        return;
+    }
+    s_wake_irq_count = 0u;
+    clear_wake_pending();
+    PFIC_EnableIRQ(GPIO_B_IRQn);
     LowPower_Sleep(RB_PWR_RAM32K | RB_PWR_RAM96K | RB_PWR_EXTEND);
+
+    SetSysClock(SYSCLK_FREQ);
+    DelayUs(300);
     SPI_PORT_LOG("WAKE_RETURN_SLEEP pb11=%u irq_count=%lu",
                  GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u,
                  (uint32_t)s_wake_irq_count);
 
-    SetSysClock(SYSCLK_FREQ);
-
     RFIP_WakeUpRegInit();
     PFIC_DisableIRQ(GPIO_B_IRQn);
-    clear_wake_it_flag();
+    clear_wake_pending();
     PWR_PeriphWakeUpCfg(DISABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Long_Delay);
 #if (SPI_WAKE_USE_INTX != 0u)
     GPIOPinRemap(DISABLE, RB_PIN_INTX);
@@ -674,7 +695,7 @@ __HIGH_CODE
 void GPIOB_IRQHandler(void)
 {
     s_wake_irq_count++;
-    clear_wake_it_flag();
+    clear_wake_pending();
     PFIC_DisableIRQ(GPIO_B_IRQn);
 }
 

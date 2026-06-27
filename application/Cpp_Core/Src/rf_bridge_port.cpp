@@ -93,7 +93,7 @@ static void rf_configure_irq_input(void) {
 
     GPIO_InitTypeDef init = {};
     init.Mode = GPIO_MODE_IT_RISING;
-    init.Pull = GPIO_PULLUP;
+    init.Pull = GPIO_PULLDOWN;
     init.Speed = GPIO_SPEED_FREQ_LOW;
     init.Alternate = 0u;
     init.Pin = RF_BRIDGE_IRQ_PIN;
@@ -748,6 +748,17 @@ bool RFBridgePort_SendInputLatest(const uint8_t* tx, uint16_t txLen) {
     s_diag_input_blocking_done++;
 #endif
     rf_note_transfer(true, true, cmd, txLen, input_seq);
+    return true;
+}
+
+bool RFBridgePort_PrepareWakeLineIdle(void) {
+    if (!rf_spi_init_once()) {
+        s_diag_spi_init_fail++;
+        return false;
+    }
+
+    rf_cs_set(true);
+    rf_configure_irq_output(true);
     return true;
 }
 
