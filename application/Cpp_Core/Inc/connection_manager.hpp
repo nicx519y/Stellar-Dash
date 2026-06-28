@@ -58,7 +58,7 @@ public:
     bool stopRfPairing();
     bool initializeRfPowerForMode(ConnectionMode mode, WirelessReportRate wirelessRate);
     bool ensureRfSleeping(RfPowerReason reason);
-    bool ensureRfAwake(RfPowerReason reason);
+    bool wakeRfFromSleep(RfPowerReason reason);
     bool restoreRfRuntime(WirelessReportRate wirelessRate);
     bool sleepRfModule();
     bool wakeRfModule();
@@ -86,6 +86,8 @@ private:
     bool tryRfBringup(bool isRetry);
     bool tryRfSleepCommand();
     bool checkAndResleepAfterUnexpectedWake(RfPowerReason reason);
+    bool requireRfCommandReady(RfPowerReason reason);
+    bool enterRfModeAfterColdBoot(ConnectionMode connMode, WirelessReportRate wirelessRate);
     void loadRfPowerStateHint();
     void setRfPowerState(RfPowerState state, bool persist);
     bool rfPowerStateBlocksSpi() const;

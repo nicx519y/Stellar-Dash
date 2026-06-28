@@ -41,6 +41,21 @@ function serialLogId(portPath: string, timestampMs: number, seq: number): string
   return `${portPath}|${timePart}|${seqPart}`;
 }
 
+function serialErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function isExpectedDisconnectedSerialError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("port is not open") ||
+    normalized.includes("file not found") ||
+    normalized.includes("cannot find the file") ||
+    normalized.includes("cannot find path") ||
+    normalized.includes("no such file or directory")
+  );
+}
+
 export class SerialLogManager {
   private readonly selections: string[] = Array.from({ length: LOG_SLOT_COUNT }, () => "");
   private readonly opened = new Map<string, { port: any; lineBuffer: string }>();
@@ -149,7 +164,10 @@ export class SerialLogManager {
     });
 
     port.on("error", (err: unknown) => {
-      this.publishText(path, `[serial] ${err instanceof Error ? err.message : String(err)}`);
+      const message = serialErrorMessage(err);
+      if (!isExpectedDisconnectedSerialError(message)) {
+        this.publishText(path, `[serial] ${message}`);
+      }
     });
 
     port.on("close", () => {
@@ -164,7 +182,10 @@ export class SerialLogManager {
       } catch (_closeErr) {
       }
       if (err) {
-        this.publishText(path, `[serial] ${err instanceof Error ? err.message : String(err)}`);
+        const message = serialErrorMessage(err);
+        if (!isExpectedDisconnectedSerialError(message)) {
+          this.publishText(path, `[serial] ${message}`);
+        }
       }
     });
   }

@@ -127,7 +127,7 @@ bool PowerManager::prepareSystemSleep()
 
 bool PowerManager::restoreSystemWake()
 {
-    if (!CONNECTION_MANAGER.ensureRfAwake(RfPowerReason::SystemWake))
+    if (!CONNECTION_MANAGER.wakeRfFromSleep(RfPowerReason::SystemWake))
     {
         return false;
     }

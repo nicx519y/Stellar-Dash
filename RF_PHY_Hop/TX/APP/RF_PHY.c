@@ -8,6 +8,7 @@
 #include "HAL.h"
 #include "wchrf.h"
 #include "rfm_config.h"
+#include "rfm_cold_boot.h"
 #include "rfm_spi_bridge.h"
 #include "rfm_spi_port_internal.h"
 #include "rf_hop_protocol.h"
@@ -34,8 +35,8 @@
 #endif
 #define RF_AUTO_DEMO_WAIT_ACK_ENABLE   0u
 #define RF_AUTO_DEMO_ACK_BIT           (RF_AUTO_DEMO_WAIT_ACK_ENABLE ? PROP_WAIT_ACK : 0u)
-#define RF_AUTO_DEMO_REPORT_HZ         8000u
-#define RF_AUTO_DEMO_RATE_CODE         RFH_RATE_8K
+#define RF_AUTO_DEMO_REPORT_HZ         RFM_COLD_BOOT_INITIAL_REPORT_HZ
+#define RF_AUTO_DEMO_RATE_CODE         RFM_COLD_BOOT_INITIAL_RATE_CODE
 #define RF_AUTO_DEMO_LOG_PERIOD_MS     5000u
 #define RF_AUTO_DEMO_PENDING_MAX       4u
 #define RF_AUTO_DEMO_TX_STUCK_MS       10u
@@ -207,7 +208,7 @@ static uint8_t g_demo_ack_token = 0u;
 static uint8_t g_demo_active_ack_token = 0u;
 static uint16_t g_demo_report_hz = RF_AUTO_DEMO_REPORT_HZ;
 static uint8_t g_demo_rate_code = RF_AUTO_DEMO_RATE_CODE;
-static uint8_t g_demo_input_off = 0u;
+static uint8_t g_demo_input_off = RFM_COLD_BOOT_INITIAL_INPUT_OFF;
 static uint8_t g_demo_rate_update_pending = 0u;
 static uint8_t g_demo_rate_update_seq = 0u;
 static uint8_t g_demo_ack_clock_armed = 0u;
@@ -356,11 +357,13 @@ static void demo_apply_loaded_bond(const rfh_bond_record_t *record)
         g_demo_bond_channel_a = RF_AUTO_DEMO_DISCOVERY_CHANNEL_A;
         g_demo_bond_channel_b = RF_AUTO_DEMO_DISCOVERY_CHANNEL_B;
     }
+#if (RFM_COLD_BOOT_WAIT_HOST_RATE == 0u)
     if(record->rate_code <= RFH_RATE_8K)
     {
         g_demo_rate_code = record->rate_code;
         g_demo_report_hz = rfh_rate_hz_from_code(record->rate_code);
     }
+#endif
 }
 
 static void demo_load_bond(void)
@@ -2994,9 +2997,13 @@ bool RF_StartPairing(void)
     }
     if(g_demo_report_hz == 0u)
     {
+#if (RFM_COLD_BOOT_WAIT_HOST_RATE != 0u)
+        return false;
+#else
         g_demo_report_hz = RF_AUTO_DEMO_REPORT_HZ;
         g_demo_rate_code = RF_AUTO_DEMO_RATE_CODE;
         demo_reconfigure_report_timer(g_demo_report_hz);
+#endif
     }
 
     g_demo_input_off = 0u;
@@ -3209,17 +3216,21 @@ void RF_Init(void)
 #endif
     g_demo_last_log_clock = TMOS_GetSystemClock();
 
-    tick_per_evt = GetSysClock() / g_demo_report_hz;
-    if(tick_per_evt == 0u)
+    tick_per_evt = 0u;
+    if(g_demo_report_hz != 0u)
     {
-        tick_per_evt = 1u;
+        tick_per_evt = GetSysClock() / g_demo_report_hz;
+        if(tick_per_evt == 0u)
+        {
+            tick_per_evt = 1u;
+        }
+        g_demo_report_tmr_cycles = tick_per_evt;
+        g_demo_tmr_epoch_cycles = 0u;
+        g_demo_last_payload_tmr_valid = 0u;
+        TMR0_TimerInit(tick_per_evt);
+        TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
+        TMR0_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
     }
-    g_demo_report_tmr_cycles = tick_per_evt;
-    g_demo_tmr_epoch_cycles = 0u;
-    g_demo_last_payload_tmr_valid = 0u;
-    TMR0_TimerInit(tick_per_evt);
-    TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
-    TMR0_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
     PFIC_SetPriority(TMR0_IRQn, 0x80);
     PFIC_EnableIRQ(TMR0_IRQn);
 
@@ -3238,7 +3249,7 @@ void RF_Init(void)
     g_monitor_sync_echo_seq = 0u;
     g_monitor_sync_echo_rx_tick_us = 0u;
     g_monitor_sync_echo_tx_tick_us = 0u;
-    g_demo_input_off = 0u;
+    g_demo_input_off = RFM_COLD_BOOT_INITIAL_INPUT_OFF;
     g_demo_last_avg_irq_us = 0u;
     g_demo_last_max_irq_us = 0u;
     g_demo_irq_bad_window_count = 0u;

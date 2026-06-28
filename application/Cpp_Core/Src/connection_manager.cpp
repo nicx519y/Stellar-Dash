@@ -2,6 +2,7 @@
 
 #include "config.hpp"
 #include "monitor_telemetry.hpp"
+#include "rf_boot_ready.hpp"
 #include "rf_bridge_port.hpp"
 #include "report_scheduler.hpp"
 #include "storagemanager.hpp"
@@ -35,6 +36,7 @@ static uint16_t getRfReportRateHz(WirelessReportRate wirelessRate) {
 }
 
 static constexpr uint32_t kRfSleepRetryMs = 500u;
+static constexpr uint32_t kRfBootReadyTimeoutMs = 1500u;
 static constexpr uint8_t kRfCmdStartPair = 0x02u;
 static constexpr uint8_t kRfCmdStopPair = 0x03u;
 static constexpr uint8_t kRfCmdSleep = 0x08u;
@@ -375,7 +377,7 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
         return false;
     }
 
-    if (!ensureRfAwake(RfPowerReason::RfMode)) {
+    if (!requireRfCommandReady(RfPowerReason::RfMode)) {
         return false;
     }
 
@@ -444,7 +446,15 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
 }
 
 bool ConnectionManager::startRfPairing() {
-    if (!ensureRfAwake(RfPowerReason::Manual)) {
+    if (!requireRfCommandReady(RfPowerReason::Manual)) {
+        if (!wakeRfFromSleep(RfPowerReason::Manual)) {
+            rfPairingActive = false;
+            rfPairingState = RfPairingState::TxError;
+            return false;
+        }
+    }
+
+    if (!requireRfCommandReady(RfPowerReason::Manual)) {
         rfPairingActive = false;
         rfPairingState = RfPairingState::TxError;
         return false;
@@ -630,13 +640,37 @@ bool ConnectionManager::ensureRfSleeping(RfPowerReason reason) {
     return ok;
 }
 
-bool ConnectionManager::ensureRfAwake(RfPowerReason reason) {
+bool ConnectionManager::requireRfCommandReady(RfPowerReason reason) {
+    if ((rfPowerState == RfPowerState::Awake) && !rfPowerStateIsBootHint()) {
+        rfEventServiceEnabled = true;
+        printf("[RF_PWR][CMD_READY] reason=%s state=%s\r\n",
+               rfPowerReasonName(reason),
+               rfPowerStateName(rfPowerState));
+        return true;
+    }
+
+    printf("[RF_PWR][CMD_BLOCKED] reason=%s state=%s hint=%u\r\n",
+           rfPowerReasonName(reason),
+           rfPowerStateName(rfPowerState),
+           (unsigned int)rfPowerStateIsBootHint());
+    return false;
+}
+
+bool ConnectionManager::wakeRfFromSleep(RfPowerReason reason) {
     if ((rfPowerState == RfPowerState::Awake) && !rfPowerStateIsBootHint()) {
         rfEventServiceEnabled = true;
         printf("[RF_PWR][WAKE_SKIP] reason=%s state=%s\r\n",
                rfPowerReasonName(reason),
                rfPowerStateName(rfPowerState));
         return true;
+    }
+
+    if (rfPowerState != RfPowerState::Sleeping) {
+        printf("[RF_PWR][WAKE_NOT_SLEEPING] reason=%s state=%s hint=%u\r\n",
+               rfPowerReasonName(reason),
+               rfPowerStateName(rfPowerState),
+               (unsigned int)rfPowerStateIsBootHint());
+        return false;
     }
 
     printf("[RF_PWR][WAKE_BEGIN] reason=%s mode=%u state=%s hint=%u\r\n",
@@ -649,16 +683,9 @@ bool ConnectionManager::ensureRfAwake(RfPowerReason reason) {
 
     const bool wakeOk = rfTransport.wake();
     if (!wakeOk || rfTransport.getStatus().lastEvent != kRfEvtWakeupComplete) {
-        if (rfTransport.pollStatus()) {
-            setRfPowerState(RfPowerState::Awake, true);
-            rfEventServiceEnabled = true;
-            printf("[RF_PWR][WAKE_STATUS_OK] reason=%s\r\n", rfPowerReasonName(reason));
-            return true;
-        }
-
         setRfPowerState(RfPowerState::Error, false);
         const RFModuleStatus& st = rfTransport.getStatus();
-        rfPairingLastErrorCommand = (st.lastErrorCommand != 0u) ? st.lastErrorCommand : kRfCmdSleep;
+        rfPairingLastErrorCommand = st.lastErrorCommand;
         rfPairingLastErrorReason = st.lastErrorReason;
         ConnectionLinkState nextState = ConnectionLinkState::Error;
         if (mode == ConnectionMode::CONNECTION_MODE_RF24G && linkState != nextState) {
@@ -675,6 +702,27 @@ bool ConnectionManager::ensureRfAwake(RfPowerReason reason) {
     setRfPowerState(RfPowerState::Awake, true);
     printf("[RF_PWR][WAKE_OK] reason=%s\r\n", rfPowerReasonName(reason));
     return true;
+}
+
+bool ConnectionManager::enterRfModeAfterColdBoot(ConnectionMode connMode, WirelessReportRate wirelessRate) {
+    rfEventServiceEnabled = true;
+    requestedReportRateHz = getRfReportRateHz(wirelessRate);
+
+    if (!RFBootReady::waitForModuleReady(kRfBootReadyTimeoutMs)) {
+        MonitorTelemetry_OnError("CONNECTION_MANAGER", 1010u, "rf boot ready timeout");
+        printf("[RF_BOOT][READY_FAIL] mode=%u rate=%u\r\n",
+               (unsigned int)connMode,
+               (unsigned int)requestedReportRateHz);
+        return false;
+    }
+
+    setRfPowerState(RfPowerState::Awake, true);
+    rfEventServiceEnabled = true;
+    printf("[RF_BOOT][COMMAND_READY] mode=%u rate=%u\r\n",
+           (unsigned int)connMode,
+           (unsigned int)requestedReportRateHz);
+
+    return restoreRfRuntime(wirelessRate);
 }
 
 bool ConnectionManager::restoreRfRuntime(WirelessReportRate wirelessRate) {
@@ -727,14 +775,7 @@ bool ConnectionManager::initializeRfPowerForMode(ConnectionMode connMode, Wirele
         return ensureRfSleeping(RfPowerReason::UsbMode);
     }
 
-    rfEventServiceEnabled = true;
-    requestedReportRateHz = getRfReportRateHz(wirelessRate);
-
-    if (!ensureRfAwake(RfPowerReason::RfMode)) {
-        return false;
-    }
-
-    return restoreRfRuntime(wirelessRate);
+    return enterRfModeAfterColdBoot(connMode, wirelessRate);
 }
 
 bool ConnectionManager::sleepRfModule() {
@@ -742,7 +783,7 @@ bool ConnectionManager::sleepRfModule() {
 }
 
 bool ConnectionManager::wakeRfModule() {
-    if (!ensureRfAwake(RfPowerReason::Manual)) {
+    if (!wakeRfFromSleep(RfPowerReason::Manual)) {
         return false;
     }
 

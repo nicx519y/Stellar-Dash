@@ -6,6 +6,7 @@
 
 #include "HAL.h"
 #include "RF_PHY.h"
+#include "rfm_cold_boot.h"
 #include "rfm_config.h"
 #include "rfm_spi_command_txn.h"
 #include "rfm_spi_port_internal.h"
@@ -1418,7 +1419,7 @@ void rfm_spi_bridge_init(void)
     rfm_spi_command_txn_init();
     rfm_spi_reliable_event_init(reliable_event_complete);
     rfm_spi_port_init();
-    rfm_spi_port_set_irq(false);
+    rfm_cold_boot_signal_ready();
 #if (RFM_TX_LOG_ENABLE == 1u)
     spi_log_printf("[SPI][LOG] ready\r\n");
 #endif
