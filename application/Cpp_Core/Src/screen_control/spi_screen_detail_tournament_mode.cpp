@@ -5,6 +5,7 @@
 #include "board_cfg.h"
 #include "storagemanager.hpp"
 #include "connection_manager.hpp"
+#include "states/input_state.hpp"
 #include "system_logger.h"
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
 #include "screen_control/spi_screen_ui_common.hpp"
@@ -213,24 +214,51 @@ bool ScreenDetailTournament_OnConfirm(uint8_t index) {
         return false;
     }
     const ConnectionMode runtimeMode = CONNECTION_MANAGER.getMode();
-    STORAGE_MANAGER.setConnectionMode(item.mode);
+    const ConnectionMode previousMode = STORAGE_MANAGER.getConnectionMode();
+    const WirelessReportRate previousRate = STORAGE_MANAGER.getWirelessReportRate();
+    const InputMode previousInputMode = STORAGE_MANAGER.getInputMode();
     if (item.mode == CONNECTION_MODE_RF24G) {
-        STORAGE_MANAGER.setWirelessReportRate(item.rate);
-        STORAGE_MANAGER.setInputMode(INPUT_MODE_XINPUT);
         if (runtimeMode == CONNECTION_MODE_RF24G) {
             if (!CONNECTION_MANAGER.applyWirelessReportRate(item.rate, false)) {
                 APP_ERR("[SCREEN][CONN] runtime rate apply failed:%u", (unsigned int)item.rate);
+                return false;
             }
         } else {
-            APP_DBG("[SCREEN][CONN] mode switch USB->RF24G requires reboot rate:%u",
+            APP_DBG("[SCREEN][CONN] runtime switch USB->RF24G rate:%u",
                     (unsigned int)item.rate);
-            ScreenUI_RequestRebootTo(3u, index);
+            if (!INPUT_STATE.disconnectUsbRuntime()) {
+                APP_ERR("[SCREEN][CONN] usb runtime disconnect failed");
+                return false;
+            }
+            if (!CONNECTION_MANAGER.switchOutputToRf(item.rate)) {
+                APP_ERR("[SCREEN][CONN] switch to RF24G failed:%u", (unsigned int)item.rate);
+                (void)INPUT_STATE.connectUsbRuntime();
+                STORAGE_MANAGER.setConnectionMode(previousMode);
+                STORAGE_MANAGER.setWirelessReportRate(previousRate);
+                STORAGE_MANAGER.setInputMode(previousInputMode);
+                return false;
+            }
+        }
+        STORAGE_MANAGER.setConnectionMode(item.mode);
+        STORAGE_MANAGER.setWirelessReportRate(item.rate);
+        STORAGE_MANAGER.setInputMode(INPUT_MODE_XINPUT);
+    } else if (runtimeMode != CONNECTION_MODE_USB) {
+        APP_DBG("[SCREEN][CONN] runtime switch RF24G->USB");
+        if (!CONNECTION_MANAGER.switchOutputToUsb()) {
+            APP_ERR("[SCREEN][CONN] switch to USB failed");
             return false;
         }
-    } else if (runtimeMode != CONNECTION_MODE_USB) {
-        APP_DBG("[SCREEN][CONN] mode switch RF24G->USB requires reboot");
-        ScreenUI_RequestRebootTo(3u, index);
-        return false;
+        if (!INPUT_STATE.connectUsbRuntime()) {
+            APP_ERR("[SCREEN][CONN] usb runtime connect failed");
+            (void)CONNECTION_MANAGER.switchOutputToRf(previousRate);
+            STORAGE_MANAGER.setConnectionMode(previousMode);
+            STORAGE_MANAGER.setWirelessReportRate(previousRate);
+            STORAGE_MANAGER.setInputMode(previousInputMode);
+            return false;
+        }
+        STORAGE_MANAGER.setConnectionMode(item.mode);
+    } else {
+        STORAGE_MANAGER.setConnectionMode(item.mode);
     }
     ScreenUI_RequestDeferredSave(500u);
     return true;

@@ -17,6 +17,7 @@
 #include "monitor_telemetry.hpp"
 #include "report_scheduler.hpp"
 #include "board_cfg.h"
+#include "tusb.h"
 
 #ifndef RF24G_SPI_BRINGUP_FASTPATH
 #define RF24G_SPI_BRINGUP_FASTPATH 1
@@ -114,31 +115,7 @@ void InputState::setup()
 
     if (connectionMode == ConnectionMode::CONNECTION_MODE_USB)
     {
-        APP_DBG("[INPUT] Initializing USB driver manager");
-        DRIVER_MANAGER.setup(inputMode);
-        inputDriver = DRIVER_MANAGER.getDriver();
-        if (inputDriver != nullptr)
-        {
-            inputDriver->initializeAux();
-            APP_DBG("[INPUT] Input driver auxiliary initialization completed");
-            USBListener *listener = inputDriver->get_usb_auth_listener();
-            if (listener != nullptr)
-            {
-                APP_DBG("[INPUT] USB auth listener found, registering with host manager");
-                USB_HOST_MANAGER.pushListener(listener);
-            }
-        }
-        else
-        {
-            APP_ERR("[INPUT] Input driver error - Failed to get input driver instance");
-        }
-
-        APP_DBG("[INPUT] Starting USB host manager");
-        USB_HOST_MANAGER.start();
-
-        APP_DBG("[INPUT] tud_init start");
-        tud_init(TUD_OPT_RHPORT);
-        APP_DBG("[INPUT] TinyUSB device stack initialized");
+        (void)ensureUsbRuntime(inputMode);
 
         (void)CONNECTION_MANAGER.initializeRfPowerForMode(connectionMode, WirelessReportRate(rate));
     }
@@ -148,7 +125,7 @@ void InputState::setup()
         APP_DBG("[INPUT] Running in RF24G mode, USB stack disabled");
     }
 
-    REPORT_SCHEDULER.start(CONNECTION_MANAGER.getAppliedReportRateHz());
+    REPORT_SCHEDULER.start(1000u);
 
     STORAGE_MANAGER.registerDefaultProfileChangedCallback(on_default_profile_changed_input_workers);
 
@@ -211,7 +188,7 @@ void InputState::loop()
         }
     }
 
-    if (CONNECTION_MANAGER.getMode() == ConnectionMode::CONNECTION_MODE_USB)
+    if (usbRuntimeInitialized)
     {
         tud_task();
         USB_HOST_MANAGER.process();
@@ -228,6 +205,110 @@ void InputState::loop()
 #if APPLICATION_DEBUG_PRINT == 1
     LATENCY_MONITOR.process();
 #endif
+}
+
+bool InputState::ensureUsbRuntime(InputMode inputMode)
+{
+    if (usbRuntimeInitialized)
+    {
+        return connectUsbRuntime();
+    }
+
+    APP_DBG("[INPUT][USB_RT] init begin mode:%u", (unsigned int)inputMode);
+    DRIVER_MANAGER.setup(inputMode);
+    inputDriver = DRIVER_MANAGER.getDriver();
+    if (inputDriver == nullptr)
+    {
+        APP_ERR("[INPUT][USB_RT] driver setup failed");
+        return false;
+    }
+
+    inputDriver->initializeAux();
+    APP_DBG("[INPUT][USB_RT] driver aux initialized");
+
+    if (!usbAuthListenerRegistered)
+    {
+        USBListener *listener = inputDriver->get_usb_auth_listener();
+        if (listener != nullptr)
+        {
+            USB_HOST_MANAGER.pushListener(listener);
+            usbAuthListenerRegistered = true;
+            APP_DBG("[INPUT][USB_RT] auth listener registered");
+        }
+    }
+
+    if (!usbHostStarted)
+    {
+        USB_HOST_MANAGER.start();
+        usbHostStarted = true;
+    }
+
+    if (!tud_inited())
+    {
+        APP_DBG("[INPUT][USB_RT] tud_init start");
+        if (!tud_init(TUD_OPT_RHPORT))
+        {
+            APP_ERR("[INPUT][USB_RT] tud_init failed");
+            return false;
+        }
+    }
+
+    usbRuntimeInitialized = true;
+    return connectUsbRuntime();
+}
+
+void InputState::sendUsbNeutralReport()
+{
+    if (!usbRuntimeInitialized || inputDriver == nullptr)
+    {
+        return;
+    }
+
+    GAMEPAD.clearState();
+    for (uint8_t i = 0; i < 4u; i++)
+    {
+        inputDriver->process(&GAMEPAD);
+        tud_task();
+        HAL_Delay(1u);
+    }
+}
+
+bool InputState::disconnectUsbRuntime()
+{
+    if (!usbRuntimeInitialized)
+    {
+        return true;
+    }
+
+    APP_DBG("[INPUT][USB_RT] disconnect begin");
+    sendUsbNeutralReport();
+    tud_task();
+    const bool ok = tud_disconnect();
+    usbRuntimeConnected = false;
+    APP_DBG("[INPUT][USB_RT] disconnect result:%u", (unsigned int)ok);
+    return ok;
+}
+
+bool InputState::connectUsbRuntime()
+{
+    if (!usbRuntimeInitialized)
+    {
+        return ensureUsbRuntime(STORAGE_MANAGER.getInputMode());
+    }
+
+    if (!tud_inited())
+    {
+        if (!tud_init(TUD_OPT_RHPORT))
+        {
+            APP_ERR("[INPUT][USB_RT] tud_init failed during connect");
+            return false;
+        }
+    }
+
+    const bool ok = tud_connect();
+    usbRuntimeConnected = ok;
+    APP_DBG("[INPUT][USB_RT] connect result:%u", (unsigned int)ok);
+    return ok;
 }
 
 void InputState::reset()

@@ -57,6 +57,8 @@ public:
     bool startRfPairing();
     bool stopRfPairing();
     bool initializeRfPowerForMode(ConnectionMode mode, WirelessReportRate wirelessRate);
+    bool switchOutputToRf(WirelessReportRate wirelessRate);
+    bool switchOutputToUsb();
     bool ensureRfSleeping(RfPowerReason reason);
     bool wakeRfFromSleep(RfPowerReason reason);
     bool restoreRfRuntime(WirelessReportRate wirelessRate);

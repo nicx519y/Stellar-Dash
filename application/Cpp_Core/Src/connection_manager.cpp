@@ -4,7 +4,6 @@
 #include "monitor_telemetry.hpp"
 #include "rf_boot_ready.hpp"
 #include "rf_bridge_port.hpp"
-#include "report_scheduler.hpp"
 #include "storagemanager.hpp"
 #include "usbdriver.hpp"
 #include "system_logger.h"
@@ -149,9 +148,6 @@ void ConnectionManager::activateRfModeAfterPairSuccess() {
         appliedReportRateHz = requestedReportRateHz;
     }
 
-    if (REPORT_SCHEDULER.isStarted()) {
-        REPORT_SCHEDULER.setRate(appliedReportRateHz);
-    }
     MonitorTelemetry_Init(mode, appliedReportRateHz);
 
     ConnectionLinkState nextState = ConnectionLinkState::Connected;
@@ -426,9 +422,6 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
     printf("[RF_RATE] apply complete target=%u applied=%u\r\n",
             (unsigned int)nextRateHz,
             (unsigned int)appliedReportRateHz);
-    if (REPORT_SCHEDULER.isStarted()) {
-        REPORT_SCHEDULER.setRate(appliedReportRateHz);
-    }
     if (persist) {
         STORAGE_MANAGER.setWirelessReportRate(wirelessRate);
         if (!STORAGE_MANAGER.saveConfig()) {
@@ -736,9 +729,6 @@ bool ConnectionManager::restoreRfRuntime(WirelessReportRate wirelessRate) {
         restoreOk = rfTransport.setRate(requestedReportRateHz);
         if (restoreOk) {
             appliedReportRateHz = requestedReportRateHz;
-            if (REPORT_SCHEDULER.isStarted()) {
-                REPORT_SCHEDULER.setRate(appliedReportRateHz);
-            }
             MonitorTelemetry_Init(mode, appliedReportRateHz);
         }
     } else {
@@ -776,6 +766,66 @@ bool ConnectionManager::initializeRfPowerForMode(ConnectionMode connMode, Wirele
     }
 
     return enterRfModeAfterColdBoot(connMode, wirelessRate);
+}
+
+bool ConnectionManager::switchOutputToRf(WirelessReportRate wirelessRate) {
+    const uint16_t targetHz = getRfReportRateHz(wirelessRate);
+    printf("[RF_MODE][SWITCH_TO_RF] begin mode=%u state=%s target=%u\r\n",
+           (unsigned int)mode,
+           rfPowerStateName(rfPowerState),
+           (unsigned int)targetHz);
+
+    if (mode == ConnectionMode::CONNECTION_MODE_RF24G) {
+        return applyWirelessReportRate(wirelessRate, false);
+    }
+
+    if (!wakeRfFromSleep(RfPowerReason::RfMode)) {
+        printf("[RF_MODE][SWITCH_TO_RF] wake_fail state=%s\r\n",
+               rfPowerStateName(rfPowerState));
+        return false;
+    }
+
+    const ConnectionMode previousMode = mode;
+    mode = ConnectionMode::CONNECTION_MODE_RF24G;
+    rfEventServiceEnabled = true;
+    requestedReportRateHz = targetHz;
+
+    if (!restoreRfRuntime(wirelessRate)) {
+        mode = previousMode;
+        printf("[RF_MODE][SWITCH_TO_RF] restore_fail target=%u\r\n",
+               (unsigned int)targetHz);
+        return false;
+    }
+
+    printf("[RF_MODE][SWITCH_TO_RF] ok target=%u\r\n", (unsigned int)targetHz);
+    return true;
+}
+
+bool ConnectionManager::switchOutputToUsb() {
+    printf("[RF_MODE][SWITCH_TO_USB] begin mode=%u state=%s\r\n",
+           (unsigned int)mode,
+           rfPowerStateName(rfPowerState));
+
+    if (!ensureRfSleeping(RfPowerReason::UsbMode)) {
+        printf("[RF_MODE][SWITCH_TO_USB] sleep_fail state=%s\r\n",
+               rfPowerStateName(rfPowerState));
+        return false;
+    }
+
+    mode = ConnectionMode::CONNECTION_MODE_USB;
+    rfEventServiceEnabled = false;
+    requestedReportRateHz = 1000u;
+    appliedReportRateHz = 1000u;
+    MonitorTelemetry_Init(mode, appliedReportRateHz);
+
+    ConnectionLinkState nextState = get_usb_mounted() ? ConnectionLinkState::Connected : ConnectionLinkState::Disconnected;
+    if (linkState != nextState) {
+        MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
+    }
+    linkState = nextState;
+
+    printf("[RF_MODE][SWITCH_TO_USB] ok\r\n");
+    return true;
 }
 
 bool ConnectionManager::sleepRfModule() {
