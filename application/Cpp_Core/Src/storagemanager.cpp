@@ -81,4 +81,7 @@ void Storage::setWirelessReportRate(WirelessReportRate rate) {
 	config.wirelessReportRate = rate;
 }
 
+void Storage::setRfPowerStateHint(uint8_t hint) {
+	config.reservedConnection0 = hint;
+}
 

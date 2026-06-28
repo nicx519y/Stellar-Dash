@@ -429,6 +429,10 @@ bool RFTransport::transferCommand(uint8_t cmd, const uint8_t* payload, uint8_t l
             (unsigned int)status.lastEvent,
             (unsigned int)status.lastResult,
             (unsigned int)status.rateHz);
+    if (cmd == CMD_GET_STATUS) {
+        state = RFTransportState::Connected;
+        return true;
+    }
     return waitCommandResult(cmd, txnResult.txn, COMMAND_RESULT_TIMEOUT_MS);
 }
 

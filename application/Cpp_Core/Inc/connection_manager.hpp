@@ -23,6 +23,24 @@ enum class RfPairingState : uint8_t {
     Timeout = 5,
 };
 
+enum class RfPowerReason : uint8_t {
+    Boot = 0,
+    UsbMode = 1,
+    RfMode = 2,
+    SystemSleep = 3,
+    SystemWake = 4,
+    Manual = 5,
+};
+
+enum class RfPowerState : uint8_t {
+    Unknown = 0,
+    Awake = 1,
+    SleepPending = 2,
+    Sleeping = 3,
+    WakePending = 4,
+    Error = 5,
+};
+
 class ConnectionManager {
 public:
     ConnectionManager(ConnectionManager const&) = delete;
@@ -38,6 +56,10 @@ public:
     bool applyWirelessReportRate(WirelessReportRate wirelessRate, bool persist);
     bool startRfPairing();
     bool stopRfPairing();
+    bool initializeRfPowerForMode(ConnectionMode mode, WirelessReportRate wirelessRate);
+    bool ensureRfSleeping(RfPowerReason reason);
+    bool ensureRfAwake(RfPowerReason reason);
+    bool restoreRfRuntime(WirelessReportRate wirelessRate);
     bool sleepRfModule();
     bool wakeRfModule();
 
@@ -46,6 +68,9 @@ public:
     uint16_t getAppliedReportRateHz() const { return appliedReportRateHz; }
     bool isRfPairing() const { return rfPairingActive; }
     bool hasRfPairSucceeded() const { return rfPairSucceeded || rfPairingState == RfPairingState::PairOk; }
+    bool isRfSleeping() const { return rfPowerState == RfPowerState::Sleeping; }
+    bool isRfWakeInProgress() const { return rfPowerState == RfPowerState::WakePending; }
+    RfPowerState getRfPowerState() const { return rfPowerState; }
     RfPairingState getRfPairingState() const { return rfPairingState; }
     const RFModuleStatus& getRfModuleStatus() const { return rfTransport.getStatus(); }
     uint8_t getRfPairingLastErrorCommand() const { return rfPairingLastErrorCommand; }
@@ -60,15 +85,19 @@ private:
     void activateRfModeAfterPairSuccess();
     bool tryRfBringup(bool isRetry);
     bool tryRfSleepCommand();
+    bool checkAndResleepAfterUnexpectedWake(RfPowerReason reason);
+    void loadRfPowerStateHint();
+    void setRfPowerState(RfPowerState state, bool persist);
+    bool rfPowerStateBlocksSpi() const;
+    bool rfPowerStateIsBootHint() const { return rfPowerStateFromPersistedHint; }
 
     ConnectionMode mode = ConnectionMode::CONNECTION_MODE_USB;
     ConnectionLinkState linkState = ConnectionLinkState::Disconnected;
     uint16_t appliedReportRateHz = 1000;
     uint16_t requestedReportRateHz = 1000;
     bool rateApplyPending = false;
-    bool rfSleepPending = false;
-    bool rfSleeping = false;
-    bool rfWakeInProgress = false;
+    RfPowerState rfPowerState = RfPowerState::Unknown;
+    bool rfPowerStateFromPersistedHint = false;
     uint32_t lastRfStatusPollMs = 0;
     uint32_t lastRfBeginRetryMs = 0;
     uint32_t lastRfSleepRetryMs = 0;

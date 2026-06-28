@@ -3,6 +3,8 @@
 #include "board_cfg.h"
 #include "adc.h"
 #include "adc_btns/adc_manager.hpp"
+#include "connection_manager.hpp"
+#include "storagemanager.hpp"
 
 #include "stm32h7xx_hal.h"
 
@@ -116,6 +118,27 @@ bool PowerManager::isFastCharging() const
 bool PowerManager::isLowBattery() const
 {
     return voltage_valid && (h1_mv < POWER_LOW_BATTERY_MV || h2_mv < POWER_LOW_BATTERY_MV);
+}
+
+bool PowerManager::prepareSystemSleep()
+{
+    return CONNECTION_MANAGER.ensureRfSleeping(RfPowerReason::SystemSleep);
+}
+
+bool PowerManager::restoreSystemWake()
+{
+    if (!CONNECTION_MANAGER.ensureRfAwake(RfPowerReason::SystemWake))
+    {
+        return false;
+    }
+
+    const ConnectionMode mode = STORAGE_MANAGER.getConnectionMode();
+    if (mode == ConnectionMode::CONNECTION_MODE_RF24G)
+    {
+        return CONNECTION_MANAGER.restoreRfRuntime(STORAGE_MANAGER.getWirelessReportRate());
+    }
+
+    return CONNECTION_MANAGER.ensureRfSleeping(RfPowerReason::UsbMode);
 }
 
 void PowerManager::configureGpios()

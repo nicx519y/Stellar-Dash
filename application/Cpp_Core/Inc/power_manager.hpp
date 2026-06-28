@@ -40,6 +40,8 @@ public:
     PowerBatteryId getActiveDischargeBattery() const;
     bool isFastCharging() const;
     bool isLowBattery() const;
+    bool prepareSystemSleep();
+    bool restoreSystemWake();
 
 private:
     PowerManager() = default;

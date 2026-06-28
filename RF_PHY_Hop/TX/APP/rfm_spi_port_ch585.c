@@ -10,7 +10,7 @@
 
 #define SPI_PINS                      (GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15)
 #define SPI_IRQ_PIN                   (GPIO_Pin_11)
-#define SPI_WAKE_PIN                  (GPIO_Pin_11)
+#define SPI_WAKE_PIN                  (GPIO_Pin_15)
 #define SPI_WAKE_USE_INTX             0u
 #define SPI_TX_PENDING_RECOVER_US     (2000u)
 #define US_TICK_STEP                  (10u)
@@ -641,7 +641,7 @@ void rfm_spi_port_sleep_until_nss_wake(void)
 
     s_wake_irq_count = 0u;
     clear_wake_pending();
-    SPI_PORT_LOG("SLEEP_PREP pb11=%u mode=sleep_falledge", GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u);
+    SPI_PORT_LOG("SLEEP_PREP pb15=%u mode=sleep_falledge", GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u);
     if(GPIOB_ReadPortPin(SPI_WAKE_PIN) == 0u)
     {
 #if (SPI_WAKE_USE_INTX != 0u)
@@ -654,7 +654,7 @@ void rfm_spi_port_sleep_until_nss_wake(void)
     clear_wake_pending();
     PWR_PeriphWakeUpCfg(ENABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Long_Delay);
 
-    SPI_PORT_LOG("SLEEP_ENTER_SLEEP pb11=%u irq_count=%lu",
+    SPI_PORT_LOG("SLEEP_ENTER_SLEEP pb15=%u irq_count=%lu",
                  GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u,
                  (uint32_t)s_wake_irq_count);
     SPI_PORT_LOG_FLUSH();
@@ -676,7 +676,7 @@ void rfm_spi_port_sleep_until_nss_wake(void)
 
     SetSysClock(SYSCLK_FREQ);
     DelayUs(300);
-    SPI_PORT_LOG("WAKE_RETURN_SLEEP pb11=%u irq_count=%lu",
+    SPI_PORT_LOG("WAKE_RETURN_SLEEP pb15=%u irq_count=%lu",
                  GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u,
                  (uint32_t)s_wake_irq_count);
 

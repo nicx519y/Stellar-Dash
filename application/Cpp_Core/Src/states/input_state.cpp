@@ -139,6 +139,8 @@ void InputState::setup()
         APP_DBG("[INPUT] tud_init start");
         tud_init(TUD_OPT_RHPORT);
         APP_DBG("[INPUT] TinyUSB device stack initialized");
+
+        (void)CONNECTION_MANAGER.initializeRfPowerForMode(connectionMode, WirelessReportRate(rate));
     }
     else
     {

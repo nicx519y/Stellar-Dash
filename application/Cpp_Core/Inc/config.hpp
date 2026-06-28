@@ -162,6 +162,8 @@ typedef struct
     InputMode inputMode;
     ConnectionMode connectionMode;
     WirelessReportRate wirelessReportRate;
+    // Persisted RF power hint. It is a boot-time hint only; runtime must
+    // still converge CH584 to the target connection-mode policy.
     uint8_t reservedConnection0;
     char defaultProfileId[16];
     uint8_t numProfilesMax;

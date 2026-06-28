@@ -103,19 +103,29 @@ static void rf_configure_irq_input(void) {
     HAL_NVIC_EnableIRQ(RF_BRIDGE_IRQ_EXTI_IRQn);
 }
 
-static void rf_configure_irq_output(bool high) {
-    HAL_NVIC_DisableIRQ(RF_BRIDGE_IRQ_EXTI_IRQn);
-    __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
-    rf_enable_gpio_clock(RF_BRIDGE_IRQ_GPIO_PORT);
+static void rf_configure_miso_af(void) {
+    rf_enable_gpio_clock(RF_BRIDGE_SPI_GPIO_PORT);
 
     GPIO_InitTypeDef init = {};
-    init.Mode = GPIO_MODE_OUTPUT_PP;
+    init.Mode = GPIO_MODE_AF_PP;
+    init.Pull = GPIO_NOPULL;
+    init.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    init.Alternate = RF_BRIDGE_SPI_AF;
+    init.Pin = RF_BRIDGE_SPI_MISO_PIN;
+    HAL_GPIO_Init(RF_BRIDGE_SPI_GPIO_PORT, &init);
+}
+
+static void rf_configure_miso_wake_drive_low(void) {
+    rf_enable_gpio_clock(RF_BRIDGE_SPI_GPIO_PORT);
+
+    GPIO_InitTypeDef init = {};
+    init.Mode = GPIO_MODE_OUTPUT_OD;
     init.Pull = GPIO_NOPULL;
     init.Speed = GPIO_SPEED_FREQ_LOW;
     init.Alternate = 0u;
-    init.Pin = RF_BRIDGE_IRQ_PIN;
-    HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &init);
-    HAL_GPIO_WritePin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN, high ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    init.Pin = RF_BRIDGE_SPI_MISO_PIN;
+    HAL_GPIO_Init(RF_BRIDGE_SPI_GPIO_PORT, &init);
+    HAL_GPIO_WritePin(RF_BRIDGE_SPI_GPIO_PORT, RF_BRIDGE_SPI_MISO_PIN, GPIO_PIN_RESET);
 }
 
 static bool rf_wait_irq_high(uint32_t timeoutMs) {
@@ -758,7 +768,7 @@ bool RFBridgePort_PrepareWakeLineIdle(void) {
     }
 
     rf_cs_set(true);
-    rf_configure_irq_output(true);
+    rf_configure_irq_input();
     return true;
 }
 
@@ -775,12 +785,13 @@ bool RFBridgePort_WakePulse(void) {
         return false;
     }
 
-    rf_cs_set(true);
-    rf_configure_irq_output(true);
-    HAL_Delay(2u);
-    rf_configure_irq_output(false);
-    HAL_Delay(20u);
     rf_configure_irq_input();
+    rf_cs_set(true);
+    HAL_Delay(2u);
+    rf_configure_miso_wake_drive_low();
+    HAL_Delay(20u);
+    rf_configure_miso_af();
+    HAL_Delay(2u);
     return true;
 }
 

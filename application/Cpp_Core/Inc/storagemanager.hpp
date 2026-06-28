@@ -36,6 +36,10 @@ public:
 	WirelessReportRate getWirelessReportRate() const {
 		return config.wirelessReportRate;
 	}
+	void setRfPowerStateHint(uint8_t hint);
+	uint8_t getRfPowerStateHint() const {
+		return config.reservedConnection0;
+	}
 	GamepadProfile* getGamepadProfile(char* id);
 	GamepadProfile* getDefaultGamepadProfile() {
 		return getGamepadProfile(config.defaultProfileId);
