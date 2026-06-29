@@ -15,13 +15,27 @@
 #include "stm32h7xx_hal.h"
 #include "stm32h7xx_hal_pwr_ex.h"
 
-#ifndef SYSTEM_SLEEP_HOLD_MS
-#define SYSTEM_SLEEP_HOLD_MS 5000u
+#ifndef SYSTEM_SLEEP_ENTER_HOLD_MS
+#define SYSTEM_SLEEP_ENTER_HOLD_MS 5000u
+#endif
+
+#ifndef SYSTEM_SLEEP_WAKE_HOLD_MS
+#define SYSTEM_SLEEP_WAKE_HOLD_MS 3000u
 #endif
 
 #ifndef SYSTEM_SLEEP_WKUP1_PULL
-#define SYSTEM_SLEEP_WKUP1_PULL PWR_PIN_NO_PULL
+#define SYSTEM_SLEEP_WKUP1_PULL PWR_PIN_PULL_UP
 #endif
+
+#ifndef SYSTEM_SLEEP_RELEASE_DEBOUNCE_MS
+#define SYSTEM_SLEEP_RELEASE_DEBOUNCE_MS 50u
+#endif
+
+#ifndef SYSTEM_SLEEP_BKP_INDEX
+#define SYSTEM_SLEEP_BKP_INDEX 15u
+#endif
+
+#define SYSTEM_SLEEP_BKP_ENTRY_HELD 0x48534C50u
 
 namespace {
 
@@ -34,9 +48,38 @@ static bool s_sleepEntering = false;
 static bool s_rotaryHoldActive = false;
 static uint32_t s_rotaryHoldStartMs = 0;
 
+static void reset_runtime_hold()
+{
+    s_rotaryHoldActive = false;
+    s_rotaryHoldStartMs = 0;
+}
+
 static bool is_pa0_down()
 {
     return HAL_GPIO_ReadPin(ROTENC_BTN_PORT, ROTENC_BTN_PIN) == GPIO_PIN_RESET;
+}
+
+static void bkp_write(uint32_t idx, uint32_t val)
+{
+    HAL_PWR_EnableBkUpAccess();
+    volatile uint32_t* base = &RTC->BKP0R;
+    base[idx] = val;
+}
+
+static uint32_t bkp_read(uint32_t idx)
+{
+    volatile uint32_t* base = &RTC->BKP0R;
+    return base[idx];
+}
+
+static bool standby_entry_had_pa0_held()
+{
+    return bkp_read(SYSTEM_SLEEP_BKP_INDEX) == SYSTEM_SLEEP_BKP_ENTRY_HELD;
+}
+
+static void mark_standby_entry_pa0_state(bool pa0Held)
+{
+    bkp_write(SYSTEM_SLEEP_BKP_INDEX, pa0Held ? SYSTEM_SLEEP_BKP_ENTRY_HELD : 0u);
 }
 
 static void init_pa0_input_for_hold_check()
@@ -62,6 +105,20 @@ static void configure_wkup1_for_standby()
     wakePin.PinPolarity = PWR_PIN_POLARITY_LOW;
     wakePin.PinPull = SYSTEM_SLEEP_WKUP1_PULL;
     HAL_PWREx_EnableWakeUpPin(&wakePin);
+}
+
+static void wait_pa0_release_for_rearm()
+{
+    if (!is_pa0_down()) {
+        return;
+    }
+
+    LOG_INFO("SYSTEM_SLEEP", "Waiting PA0 release before re-arming Standby");
+    Logger_Flush();
+    while (is_pa0_down()) {
+        HAL_Delay(5u);
+    }
+    HAL_Delay(SYSTEM_SLEEP_RELEASE_DEBOUNCE_MS);
 }
 
 static void stop_adcs()
@@ -108,6 +165,8 @@ static void stop_usb()
 
 [[noreturn]] static void enter_standby_now()
 {
+    init_pa0_input_for_hold_check();
+    mark_standby_entry_pa0_state(is_pa0_down());
     configure_wkup1_for_standby();
     HAL_SuspendTick();
     HAL_PWR_EnterSTANDBYMode();
@@ -134,18 +193,13 @@ static void request_standby()
 #endif
     stop_usb();
 
+    reset_runtime_hold();
     if (!CONNECTION_MANAGER.ensureRfSleeping(RfPowerReason::SystemSleep)) {
         LOG_ERROR("SYSTEM_SLEEP", "CH584 sleep command failed; entering Standby anyway");
     }
     Logger_Flush();
 
     enter_standby_now();
-}
-
-static void reset_runtime_hold()
-{
-    s_rotaryHoldActive = false;
-    s_rotaryHoldStartMs = 0;
 }
 
 }
@@ -163,6 +217,7 @@ extern "C" void SystemSleep_ConfirmWakeHoldOrReturnStandby(void)
         SystemSleep_CaptureBootFlags();
     }
     if (!s_bootedFromStandby || !s_wakeupFromPa0) {
+        mark_standby_entry_pa0_state(false);
         (void)HAL_PWREx_ClearWakeupFlag(PWR_WAKEUP_FLAG_ALL);
         __HAL_PWR_CLEAR_FLAG(PWR_FLAG_SB);
         return;
@@ -170,9 +225,17 @@ extern "C" void SystemSleep_ConfirmWakeHoldOrReturnStandby(void)
 
     init_pa0_input_for_hold_check();
 
+    if (standby_entry_had_pa0_held()) {
+        mark_standby_entry_pa0_state(false);
+        LOG_INFO("SYSTEM_SLEEP", "Ignoring wake from sleep-entry PA0 hold");
+        wait_pa0_release_for_rearm();
+        enter_standby_now();
+    }
+
     const uint32_t start = HAL_GetTick();
-    while ((uint32_t)(HAL_GetTick() - start) < SYSTEM_SLEEP_HOLD_MS) {
+    while ((uint32_t)(HAL_GetTick() - start) < SYSTEM_SLEEP_WAKE_HOLD_MS) {
         if (!is_pa0_down()) {
+            mark_standby_entry_pa0_state(false);
             enter_standby_now();
         }
         HAL_Delay(5u);
@@ -181,6 +244,7 @@ extern "C" void SystemSleep_ConfirmWakeHoldOrReturnStandby(void)
     s_wakeHoldConfirmed = true;
     s_waitPa0Release = true;
     reset_runtime_hold();
+    mark_standby_entry_pa0_state(false);
     (void)HAL_PWREx_ClearWakeupFlag(PWR_WAKEUP_FLAG_ALL);
     __HAL_PWR_CLEAR_FLAG(PWR_FLAG_SB);
 }
@@ -239,7 +303,7 @@ extern "C" void SystemSleep_UpdateRotaryHold(uint32_t nowMs)
         return;
     }
 
-    if ((uint32_t)(nowMs - s_rotaryHoldStartMs) >= SYSTEM_SLEEP_HOLD_MS) {
+    if ((uint32_t)(nowMs - s_rotaryHoldStartMs) >= SYSTEM_SLEEP_ENTER_HOLD_MS) {
         request_standby();
     }
 }

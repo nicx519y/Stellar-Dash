@@ -324,7 +324,16 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
     lastRfBeginRetryMs = HAL_GetTick();
     return;
 #endif
-    bool rateOk = initializeRfPowerForMode(mode, wirelessRate);
+    bool rateOk = false;
+    if ((rfPowerState == RfPowerState::Sleeping) && rfPowerStateIsBootHint()) {
+        printf("[RF_PWR][SETUP_WAKE_FROM_HINT] mode=%u rate=%u\r\n",
+               (unsigned int)mode,
+               (unsigned int)requestedReportRateHz);
+        rateOk = wakeRfFromSleep(RfPowerReason::SystemWake) &&
+                 restoreRfRuntime(wirelessRate);
+    } else {
+        rateOk = initializeRfPowerForMode(mode, wirelessRate);
+    }
     rateApplyPending = false;
     printf("[RF_RATE] setup setRate result=%u requested=%u applied=%u\r\n",
             (unsigned int)rateOk,
