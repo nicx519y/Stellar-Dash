@@ -7,6 +7,7 @@
 #include "power_manager.hpp"
 #include "board_cfg.h"
 #include "connection_manager.hpp"
+#include "system_sleep_manager.hpp"
 
 void MainStateMachine::setup()
 {
@@ -44,6 +45,7 @@ void MainStateMachine::setup()
 
     POWER_MANAGER.setup();
     state->setup();
+    SystemSleep_HandleWakeRecovery();
 
     SPIScreenManager::getInstance().setup();
 

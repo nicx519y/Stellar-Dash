@@ -22,6 +22,7 @@
 #include "qspi-w25q64.h"
 #include "bsp/board_api.h"
 #include "system_logger.h"
+#include "system_sleep_manager.hpp"
 
 bool g_has_led_around = true;
 
@@ -48,6 +49,8 @@ int main(void)
     __enable_irq(); 
     enableFPU(); // 使能FPU
     HAL_Init();
+    SystemSleep_CaptureBootFlags();
+    SystemSleep_ConfirmWakeHoldOrReturnStandby();
     HAL_Delay(200); // 延时200ms 等待时钟稳定，并且验证时钟配置是否正确 中断是否可用
     UserLEDClose(); // 关闭LED 表示已经进入main函数
 

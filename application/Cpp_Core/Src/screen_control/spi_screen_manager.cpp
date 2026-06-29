@@ -19,6 +19,7 @@
 #include "gpio_btns/gpio_btns_worker.hpp"
 #include "power_manager.hpp"
 #include "connection_manager.hpp"
+#include "system_sleep_manager.hpp"
 
 extern "C" {
 #include "qspi-w25q64.h"
@@ -497,6 +498,11 @@ void SPIScreenManager::loop() {
     int8_t det = RotEnc_GetDetentDelta();
     bool clicked = RotEnc_WasButtonClicked();
     bool longPressed = RotEnc_WasButtonLongPressed();
+    SystemSleep_UpdateRotaryHold(nowMs);
+    if (SystemSleep_ShouldSuppressRotaryLongAction()) {
+        clicked = false;
+        longPressed = false;
+    }
     uint32_t inputMask = get_gamepad_activity_mask();
 
     refresh_screen_cfg_cache();

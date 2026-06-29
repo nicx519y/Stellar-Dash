@@ -36,6 +36,7 @@ static uint16_t getRfReportRateHz(WirelessReportRate wirelessRate) {
 
 static constexpr uint32_t kRfSleepRetryMs = 500u;
 static constexpr uint32_t kRfBootReadyTimeoutMs = 1500u;
+static constexpr uint32_t kRfPostSleepSettleMs = 150u;
 static constexpr uint8_t kRfCmdStartPair = 0x02u;
 static constexpr uint8_t kRfCmdStopPair = 0x03u;
 static constexpr uint8_t kRfCmdSleep = 0x08u;
@@ -625,6 +626,7 @@ bool ConnectionManager::ensureRfSleeping(RfPowerReason reason) {
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1006u, "rf sleep failed");
         printf("[RF_PWR][SLEEP_FAIL] reason=%s\r\n", rfPowerReasonName(reason));
     } else {
+        HAL_Delay(kRfPostSleepSettleMs);
         printf("[RF_PWR][SLEEP_OK] reason=%s\r\n", rfPowerReasonName(reason));
         if (!checkAndResleepAfterUnexpectedWake(reason)) {
             return false;
@@ -762,7 +764,15 @@ bool ConnectionManager::initializeRfPowerForMode(ConnectionMode connMode, Wirele
     if (connMode == ConnectionMode::CONNECTION_MODE_USB) {
         appliedReportRateHz = 1000u;
         requestedReportRateHz = 1000u;
-        return ensureRfSleeping(RfPowerReason::UsbMode);
+        if (!RFBootReady::waitForModuleReady(kRfBootReadyTimeoutMs)) {
+            MonitorTelemetry_OnError("CONNECTION_MANAGER", 1011u, "rf boot ready timeout in usb mode");
+            printf("[RF_BOOT][READY_FAIL_USB] mode=%u\r\n", (unsigned int)connMode);
+            return false;
+        }
+        setRfPowerState(RfPowerState::Awake, true);
+        rfEventServiceEnabled = false;
+        printf("[RF_BOOT][USB_READY_IDLE] mode=%u\r\n", (unsigned int)connMode);
+        return true;
     }
 
     return enterRfModeAfterColdBoot(connMode, wirelessRate);
