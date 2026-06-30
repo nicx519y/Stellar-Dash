@@ -7,7 +7,7 @@
 #include "system_logger.h"
 #include "stm32h7xx_hal.h"
 
-#if !APPLICATION_SERIAL_PRINT
+#if !APP_LOG_VERBOSE
 #define printf(...) ((void)0)
 #endif
 

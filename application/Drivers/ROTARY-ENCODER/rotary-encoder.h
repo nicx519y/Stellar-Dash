@@ -23,7 +23,7 @@ extern "C" {
 #endif
 
 #ifndef ROTENC_DEBUG_PRINT
-#define ROTENC_DEBUG_PRINT 1
+#define ROTENC_DEBUG_PRINT 0
 #endif
 
 void RotEnc_Init(void);

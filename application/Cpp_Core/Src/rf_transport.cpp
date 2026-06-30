@@ -46,7 +46,7 @@ static constexpr uint8_t STATUS_EVENT_SEQ_OFFSET = 20u;
 static constexpr uint16_t RX_BUF_LEN = 32u;
 static constexpr uint32_t COMMAND_RESULT_TIMEOUT_MS = 200u;
 #ifndef RF_SPI_PROTOCOL_LOG
-#define RF_SPI_PROTOCOL_LOG APPLICATION_SERIAL_PRINT
+#define RF_SPI_PROTOCOL_LOG 0
 #endif
 
 #if RF_SPI_PROTOCOL_LOG

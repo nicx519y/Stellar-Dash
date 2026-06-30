@@ -12,7 +12,7 @@
 
 #include <stdio.h>
 
-#if !APPLICATION_SERIAL_PRINT
+#if !APP_LOG_VERBOSE
 #define printf(...) ((void)0)
 #endif
 

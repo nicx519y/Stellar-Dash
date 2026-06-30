@@ -53,13 +53,20 @@
     #define FPU_FPDSCR_RMode_RN    (0x0 << 22) // 舍入模式为 Round to Nearest (RN)  
 #endif
 
-/* Debug print configuration */
+/* Debug print configuration.
+ * Makefile builds set these with -D from APP_LOG_ENABLE/APP_LOG_VERBOSE.
+ * The defaults below are only for IDE or ad-hoc builds that do not pass them.
+ */
 #ifndef APPLICATION_SERIAL_PRINT
 #define APPLICATION_SERIAL_PRINT 0   // 编译期使能 USART1 printf 输出
 #endif
 
 #ifndef APPLICATION_DEBUG_PRINT
 #define APPLICATION_DEBUG_PRINT  0   // 编译期使能 APP_DBG/APP_ERR 输出
+#endif
+
+#ifndef APP_LOG_VERBOSE
+#define APP_LOG_VERBOSE 0
 #endif
 
 #ifndef RF24G_SPI_TEST_FORCE_RF24G
@@ -92,7 +99,9 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
     #define APP_ERR(fmt, ...) ((void)0)
 #endif
 
+#ifndef USB_DEBUG_PRINT
 #define USB_DEBUG_PRINT 0
+#endif
 
 #if USB_DEBUG_PRINT
     #define USB_DBG(fmt, ...) printf("[USB] " fmt "\r\n", ##__VA_ARGS__)

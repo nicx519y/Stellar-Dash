@@ -21,6 +21,8 @@
 // #include "usbhostmanager.hpp"
 
 void DriverManager::setup(InputMode mode) { 
+    driver = nullptr;
+
     switch (mode) {
         case INPUT_MODE_CONFIG:
             driver = new NetDriver();
@@ -71,11 +73,15 @@ void DriverManager::setup(InputMode mode) {
         //     driver = new XboxOriginalDriver();
         //     break;
         default:
-            return;
+            driver = new XInputDriver();
+            mode = INPUT_MODE_XINPUT;
+            break;
     }
 
     // Initialize our chosen driver
-    driver->initialize();
-    inputMode = mode;
+    if (driver != nullptr) {
+        driver->initialize();
+        inputMode = mode;
+    }
 
 }

@@ -60,7 +60,9 @@ extern "C"
 // Common Configuration
 //--------------------------------------------------------------------
 
+#ifndef CFG_TUSB_DEBUG
 #define CFG_TUSB_DEBUG 0                       // 调试级别，0表示禁用调试输出
+#endif
 
 #define CFG_TUD_MAX_SPEED BOARD_TUD_MAX_SPEED  // 设备模式最大速度与板级设置保持一致
 

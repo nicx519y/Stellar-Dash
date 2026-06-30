@@ -15,6 +15,11 @@
 static bool usb_mounted;
 static bool usb_suspended;
 
+static GPDriver *get_active_driver()
+{
+	return DriverManager::getInstance().getDriver();
+}
+
 bool get_usb_mounted(void)
 {
 	return usb_mounted;
@@ -27,20 +32,30 @@ bool get_usb_suspended(void)
 
 const usbd_class_driver_t *usbd_app_driver_get_cb(uint8_t *driver_count)
 {
+	GPDriver *driver = get_active_driver();
+	if (driver == nullptr) {
+		*driver_count = 0;
+		return nullptr;
+	}
+
 	*driver_count = 1;
-	return DriverManager::getInstance().getDriver()->get_class_driver();
+	return driver->get_class_driver();
 }
 
 uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer, uint16_t reqlen)
 {
-	return DriverManager::getInstance().getDriver()->get_report(report_id, report_type, buffer, reqlen);
+	GPDriver *driver = get_active_driver();
+	return (driver != nullptr) ? driver->get_report(report_id, report_type, buffer, reqlen) : 0;
 }
 
 // Invoked when received SET_REPORT control request or
 // received data on OUT endpoint ( Report ID = 0, Type = 0 )
 void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const *buffer, uint16_t bufsize)
 {
-	DriverManager::getInstance().getDriver()->set_report(report_id, report_type, buffer, bufsize);
+	GPDriver *driver = get_active_driver();
+	if (driver != nullptr) {
+		driver->set_report(report_id, report_type, buffer, bufsize);
+	}
 }
 
 // Invoked when device is mounted
@@ -82,7 +97,7 @@ void tud_sof_cb(uint32_t frame_count)
 #if APPLICATION_DEBUG_PRINT == 1
 	LATENCY_MONITOR.sofTriggered();
 #endif
-	GPDriver* driver = DriverManager::getInstance().getDriver();
+	GPDriver* driver = get_active_driver();
 	if (driver != nullptr) {
 		driver->sof_cb(frame_count);
 	}
@@ -92,21 +107,24 @@ void tud_sof_cb(uint32_t frame_count)
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage,
 								tusb_control_request_t const *request)
 {
-	return DriverManager::getInstance().getDriver()->vendor_control_xfer_cb(rhport, stage, request);
+	GPDriver *driver = get_active_driver();
+	return (driver != nullptr) ? driver->vendor_control_xfer_cb(rhport, stage, request) : false;
 }
 
 // Invoked when received GET STRING DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
-	return DriverManager::getInstance().getDriver()->get_descriptor_string_cb(index, langid);
+	GPDriver *driver = get_active_driver();
+	return (driver != nullptr) ? driver->get_descriptor_string_cb(index, langid) : nullptr;
 }
 
 // Invoked when received GET DEVICE DESCRIPTOR
 // Application return pointer to descriptor
 uint8_t const *tud_descriptor_device_cb()
 {
-	return DriverManager::getInstance().getDriver()->get_descriptor_device_cb();
+	GPDriver *driver = get_active_driver();
+	return (driver != nullptr) ? driver->get_descriptor_device_cb() : nullptr;
 }
 
 // Invoked when sent report to host via interrupt endpoint
@@ -125,7 +143,8 @@ void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const *tud_hid_descriptor_report_cb(uint8_t itf)
 {
-	return DriverManager::getInstance().getDriver()->get_hid_descriptor_report_cb(itf);
+	GPDriver *driver = get_active_driver();
+	return (driver != nullptr) ? driver->get_hid_descriptor_report_cb(itf) : nullptr;
 }
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -133,12 +152,14 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t itf)
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const *tud_descriptor_configuration_cb(uint8_t index)
 {
-	return DriverManager::getInstance().getDriver()->get_descriptor_configuration_cb(index);
+	GPDriver *driver = get_active_driver();
+	return (driver != nullptr) ? driver->get_descriptor_configuration_cb(index) : nullptr;
 }
 
 uint8_t const *tud_descriptor_device_qualifier_cb()
 {
-	return DriverManager::getInstance().getDriver()->get_descriptor_device_qualifier_cb();
+	GPDriver *driver = get_active_driver();
+	return (driver != nullptr) ? driver->get_descriptor_device_qualifier_cb() : nullptr;
 }
 
 #endif
