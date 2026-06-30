@@ -260,7 +260,7 @@ static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_
     const uint16_t headX = (uint16_t)(x + bodyW);
     const uint16_t headY = (uint16_t)(y + ((bodyH - headH) / 2u));
 
-    const bool lowBorderVisible = !g_battUiLowBattery || ((nowMs % 700u) < 350u);
+    const bool lowBorderVisible = !g_battUiLowBattery || ((nowMs % 1000u) < 500u);
     if (lowBorderVisible) {
         ST7789_DrawRect(lcd, x, y, bodyW, bodyH, fg);
         ST7789_DrawRect(lcd, headX, headY, headW, headH, fg);

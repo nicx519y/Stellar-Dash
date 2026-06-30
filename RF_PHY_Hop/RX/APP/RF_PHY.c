@@ -49,6 +49,7 @@
 #define RF_AUTO_DEMO_HOP_DUAL_TIMEOUT_MS 3000u
 #define RF_AUTO_DEMO_HOP_CONFIRM_ACK_KEEP_TOKENS 6u
 #define RF_AUTO_DEMO_RECOVERY_DWELL_MS 20u
+#define RF_AUTO_DEMO_RECOVERY_SCAN_TIMEOUT_MS 1000u
 #define RF_AUTO_DEMO_PAIR_TX_REJECT_REASON_DEFAULT RFH_PAIR_REJECT_BAD_STATE
 #define RF_AUTO_DEMO_PAIR_AFTER_ACCEPT 1u
 #define RF_AUTO_DEMO_PAIR_AFTER_DONE   2u
@@ -206,6 +207,7 @@ static uint32_t g_demo_dual_switch_clock = 0u;
 static uint32_t g_demo_dual_deadline_clock = 0u;
 static uint8_t g_demo_dual_side = 0u;
 static uint32_t g_demo_recovery_scan_clock = 0u;
+static uint32_t g_demo_recovery_scan_deadline_clock = 0u;
 static uint8_t g_demo_recovery_scan_rank = 0u;
 static volatile uint8_t g_demo_pair_tx_active = 0u;
 static uint8_t g_demo_pair_after_tx_action = 0u;
@@ -1647,6 +1649,54 @@ static void demo_enter_rx_unconnected(uint32_t now)
         return;
     }
     demo_set_channel(anchor_channel);
+    demo_arm_rx();
+}
+
+static void demo_enter_rx_recovery_scan(uint32_t now)
+{
+    uint8_t first_channel = g_demo_target_channel;
+
+    if((g_demo_config_ret != SUCCESS) || (g_demo_has_bond == 0u))
+    {
+        demo_enter_rx_unconnected(now);
+        return;
+    }
+    if(demo_manual_fixed_channel(&first_channel) == 0u)
+    {
+        if(monitor_channel_valid(first_channel) == 0u)
+        {
+            first_channel = g_demo_current_channel;
+        }
+        if(monitor_channel_valid(first_channel) == 0u)
+        {
+            first_channel = RF_AUTO_DEMO_INITIAL_CHANNEL;
+        }
+    }
+
+    g_demo_link_active = 0u;
+    g_demo_rx_state = RF_AUTO_RX_RECOVERY_SCAN;
+    g_demo_pending_ack_cmd = RFH_CMD_NONE;
+    g_demo_pending_ack_seq = 0u;
+    g_demo_after_ack_action = 0u;
+    g_demo_confirm_ack_keep_count = 0u;
+    g_demo_have_ack_token = 0u;
+    g_demo_recovery_scan_rank = demo_channel_index(first_channel);
+    if(g_demo_recovery_scan_rank == 0xFFu)
+    {
+        g_demo_recovery_scan_rank = 0u;
+    }
+    else
+    {
+        g_demo_recovery_scan_rank++;
+        if(g_demo_recovery_scan_rank >= RFH_HOP_CHANNEL_COUNT)
+        {
+            g_demo_recovery_scan_rank = 0u;
+        }
+    }
+    g_demo_recovery_scan_clock = now;
+    g_demo_recovery_scan_deadline_clock =
+        now + MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_RECOVERY_SCAN_TIMEOUT_MS);
+    demo_set_channel(first_channel);
     demo_arm_rx();
 }
 
@@ -3236,7 +3286,7 @@ void RF_Service(void)
 
     if(enter_unconnected != 0u)
     {
-        demo_enter_rx_unconnected(now);
+        demo_enter_rx_recovery_scan(now);
     }
 
     if(g_demo_rearm_pending != 0u)
@@ -3285,6 +3335,11 @@ void RF_Service(void)
             ((uint32_t)(now - g_demo_recovery_scan_clock) >=
              MS1_TO_SYSTEM_TIME(RF_AUTO_DEMO_RECOVERY_DWELL_MS)))
     {
+        if((int32_t)(now - g_demo_recovery_scan_deadline_clock) >= 0)
+        {
+            demo_enter_rx_unconnected(now);
+            return;
+        }
         g_demo_recovery_scan_clock = now;
         demo_set_channel(demo_next_recovery_channel());
         demo_arm_rx();
