@@ -33,6 +33,12 @@ type HidDeviceInfo = {
 type Summary = {
   samples: number;
   scores: number;
+  rssiFrames: number;
+  rssiSampleTotal: number;
+  rssiAvgWeightedSum: number;
+  rssiMin?: number;
+  rssiMax?: number;
+  rssiLast?: number;
   rxTotal: number;
   expectedTotal: number;
   lossPermilleSum: number;
@@ -203,6 +209,9 @@ function packetLine(packet: PacketEvent): string {
     const scores = packet.channelScores?.map((entry) => `${entry.channel}${entry.channel === packet.channelNumber ? "*" : ""}:${entry.score}`).join(" ") ?? "-";
     return `${fmtTime(packet.timestampMs)} SCORE active=${packet.channelNumber ?? "-"} score=${packet.activeChannelScore ?? "-"} ${scores}`;
   }
+  if (packet.messageType.startsWith("RFH_RHR1_")) {
+    return `${fmtTime(packet.timestampMs)} RSSI state=${packet.rfStateCode ?? "-"} ch=${packet.channelNumber ?? "-"} last=${packet.rssiLast ?? "-"} avg=${packet.rssiAvg ?? "-"} min=${packet.rssiMin ?? "-"} max=${packet.rssiMax ?? "-"} n=${packet.rssiSamples ?? 0} seq=${packet.seq ?? "-"}`;
+  }
 
   const actualRate = typeof packet.rateHz === "number" ? Math.round(packet.rateHz) : "-";
   const targetRate = packet.targetRateHz ?? "-";
@@ -225,6 +234,25 @@ function updateSummary(summary: Summary, packet: PacketEvent): void {
   if (packet.messageType === "RFH_RHS1_SCORE") {
     summary.scores++;
     summary.latestScores = packet.channelScores;
+    return;
+  }
+  if (packet.messageType.startsWith("RFH_RHR1_")) {
+    const samples = Math.max(1, packet.rssiSamples ?? 1);
+    summary.rssiFrames++;
+    summary.rssiSampleTotal += packet.rssiSamples ?? 0;
+    if (typeof packet.rssiAvg === "number") {
+      summary.rssiAvgWeightedSum += packet.rssiAvg * samples;
+    }
+    if (typeof packet.rssiMin === "number") {
+      summary.rssiMin = typeof summary.rssiMin === "number" ? Math.min(summary.rssiMin, packet.rssiMin) : packet.rssiMin;
+    }
+    if (typeof packet.rssiMax === "number") {
+      summary.rssiMax = typeof summary.rssiMax === "number" ? Math.max(summary.rssiMax, packet.rssiMax) : packet.rssiMax;
+    }
+    summary.rssiLast = packet.rssiLast;
+    summary.lastChannel = packet.channelNumber;
+    summary.lastTargetChannel = packet.targetChannelNumber;
+    summary.lastState = packet.rfStateCode;
     return;
   }
 
@@ -257,6 +285,9 @@ function buildSummary(): Summary {
   return {
     samples: 0,
     scores: 0,
+    rssiFrames: 0,
+    rssiSampleTotal: 0,
+    rssiAvgWeightedSum: 0,
     rxTotal: 0,
     expectedTotal: 0,
     lossPermilleSum: 0,
@@ -274,6 +305,10 @@ function buildSummary(): Summary {
 function printSummary(summary: Summary, json: boolean): void {
   const avgLossPermille = summary.samples > 0 ? summary.lossPermilleSum / summary.samples : 0;
   const avgRateHz = summary.rateSamples > 0 ? summary.rateHzSum / summary.rateSamples : 0;
+  const avgRssi =
+    summary.rssiFrames > 0
+      ? summary.rssiAvgWeightedSum / Math.max(1, summary.rssiSampleTotal || summary.rssiFrames)
+      : undefined;
   const totalLossPermille =
     summary.expectedTotal > 0
       ? Math.max(0, Math.min(1000, ((summary.expectedTotal - summary.rxTotal) * 1000) / summary.expectedTotal))
@@ -282,6 +317,7 @@ function printSummary(summary: Summary, json: boolean): void {
     type: "summary",
     samples: summary.samples,
     scoreFrames: summary.scores,
+    rssiFrames: summary.rssiFrames,
     rxTotal: summary.rxTotal,
     expectedTotal: summary.expectedTotal,
     totalLossPercent: Number((totalLossPermille / 10).toFixed(2)),
@@ -297,6 +333,10 @@ function printSummary(summary: Summary, json: boolean): void {
     lastChannel: summary.lastChannel,
     lastTargetChannel: summary.lastTargetChannel,
     latestScores: summary.latestScores,
+    rssiAverage: typeof avgRssi === "number" ? Number(avgRssi.toFixed(1)) : undefined,
+    rssiMin: summary.rssiMin,
+    rssiMax: summary.rssiMax,
+    rssiLast: summary.rssiLast,
   };
 
   if (json) {
@@ -305,7 +345,7 @@ function printSummary(summary: Summary, json: boolean): void {
   }
 
   console.log(
-    `SUMMARY samples=${output.samples} scores=${output.scoreFrames} rx=${output.rxTotal}/${output.expectedTotal} totalLoss=${output.totalLossPercent}% avgLoss=${output.averageLossPercent}% maxLoss=${output.maxLossPercent}% avgRate=${output.averageRateHz}Hz switches=${output.channelSwitches} hop=${output.hopStarts}/${output.hopFinishes} err=${output.errorEvents} maxSilent=${output.maxSilentMs}ms last=${output.lastState ?? "-"}/${output.lastChannel ?? "-"}->${output.lastTargetChannel ?? "-"}`,
+    `SUMMARY samples=${output.samples} scores=${output.scoreFrames} rssi=${output.rssiFrames} rx=${output.rxTotal}/${output.expectedTotal} totalLoss=${output.totalLossPercent}% avgLoss=${output.averageLossPercent}% maxLoss=${output.maxLossPercent}% avgRate=${output.averageRateHz}Hz rssiAvg=${output.rssiAverage ?? "-"} rssiMin=${output.rssiMin ?? "-"} rssiMax=${output.rssiMax ?? "-"} rssiLast=${output.rssiLast ?? "-"} switches=${output.channelSwitches} hop=${output.hopStarts}/${output.hopFinishes} err=${output.errorEvents} maxSilent=${output.maxSilentMs}ms last=${output.lastState ?? "-"}/${output.lastChannel ?? "-"}->${output.lastTargetChannel ?? "-"}`,
   );
   if (output.latestScores && output.latestScores.length > 0) {
     console.log(`SCORES ${output.latestScores.map((entry) => `${entry.channel}:${entry.score}`).join(" ")}`);
@@ -357,7 +397,9 @@ async function main(): Promise<number> {
         const events = parseDongleHidTelemetryFrame(buf, Date.now());
         for (const event of events) {
           if (event.kind !== "packet") continue;
-          if (!event.messageType.startsWith("RFH_RHM1_") && event.messageType !== "RFH_RHS1_SCORE") continue;
+          if (!event.messageType.startsWith("RFH_RHM1_") &&
+            event.messageType !== "RFH_RHS1_SCORE" &&
+            !event.messageType.startsWith("RFH_RHR1_")) continue;
           updateSummary(summary, event);
           if (options.json) {
             console.log(JSON.stringify({ type: "packet", ...event }));

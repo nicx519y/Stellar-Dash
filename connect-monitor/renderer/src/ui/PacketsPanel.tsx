@@ -20,11 +20,14 @@ function displayMessageType(messageType: string) {
     return `SERIAL_R5_${messageType.slice("RFH_R5_".length)}`;
   }
   if (messageType === "RFH_RHS1_SCORE") return "RHS1 SCORE";
+  if (messageType.startsWith("RFH_RHR1_")) return `RHR1 ${messageType.slice("RFH_RHR1_".length)}`;
   return messageType;
 }
 
 function isQualityPacket(packet: PacketEvent) {
-  return packet.messageType.startsWith("RFH_RHM1_") || packet.messageType === "RFH_RHS1_SCORE";
+  return packet.messageType.startsWith("RFH_RHM1_") ||
+    packet.messageType === "RFH_RHS1_SCORE" ||
+    packet.messageType.startsWith("RFH_RHR1_");
 }
 
 function fmtHz(value: number | undefined) {
@@ -58,6 +61,15 @@ function displayRate(packet: PacketEvent) {
   const target = fmtHz(packet.targetRateHz);
   if (actual === "-" && target === "-") return "-";
   return `${actual} / ${target}`;
+}
+
+function displayRssi(packet: PacketEvent) {
+  if (typeof packet.rssiLast !== "number") return "-";
+  const avg = typeof packet.rssiAvg === "number" ? packet.rssiAvg : "-";
+  const min = typeof packet.rssiMin === "number" ? packet.rssiMin : "-";
+  const max = typeof packet.rssiMax === "number" ? packet.rssiMax : "-";
+  const samples = typeof packet.rssiSamples === "number" ? ` n=${packet.rssiSamples}` : "";
+  return `${packet.rssiLast} avg=${avg} min=${min} max=${max}${samples}`;
 }
 
 function displayWindow(packet: PacketEvent) {
@@ -100,15 +112,16 @@ export function PacketsPanel({
     void exportMarkdown("packet-log.md", buildPacketLogMarkdown(items));
   };
   const columns: Array<VirtualColumn<PacketEvent & { id?: string }>> = [
-    { key: "time", header: "Time", width: "10%", render: (p) => fmtTime(p.timestampMs) },
-    { key: "type", header: "Type", width: "9%", render: (p) => displayMessageType(p.messageType) },
-    { key: "state", header: "State", width: "6%", render: (p) => displayState(p) },
-    { key: "channel", header: "Channel", width: "12%", render: (p) => displayChannel(p) },
-    { key: "rate", header: "Rate", width: "12%", render: (p) => displayRate(p) },
-    { key: "loss", header: "Loss", width: "7%", align: "end", render: (p) => fmtLoss(p) },
-    { key: "window", header: "RX/Expected", width: "12%", render: (p) => displayWindow(p) },
-    { key: "events", header: "Events", width: "15%", render: (p) => displayEvents(p) },
-    { key: "scores", header: "Scores", width: "12%", render: (p) => displayScores(p) },
+    { key: "time", header: "Time", width: "9%", render: (p) => fmtTime(p.timestampMs) },
+    { key: "type", header: "Type", width: "8%", render: (p) => displayMessageType(p.messageType) },
+    { key: "state", header: "State", width: "5%", render: (p) => displayState(p) },
+    { key: "channel", header: "Channel", width: "11%", render: (p) => displayChannel(p) },
+    { key: "rate", header: "Rate", width: "10%", render: (p) => displayRate(p) },
+    { key: "loss", header: "Loss", width: "6%", align: "end", render: (p) => fmtLoss(p) },
+    { key: "rssi", header: "RSSI", width: "13%", render: (p) => displayRssi(p) },
+    { key: "window", header: "RX/Expected", width: "11%", render: (p) => displayWindow(p) },
+    { key: "events", header: "Events", width: "12%", render: (p) => displayEvents(p) },
+    { key: "scores", header: "Scores", width: "10%", render: (p) => displayScores(p) },
     { key: "seq", header: "Seq", width: "5%", align: "end", render: (p) => (typeof p.seq === "number" ? p.seq : "-") },
   ];
 

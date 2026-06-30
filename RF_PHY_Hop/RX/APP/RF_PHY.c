@@ -78,6 +78,7 @@
 #define RF_RX_PENDING_REPORT_CHUNK     2u
 #define RX_HID_TELEMETRY_MAGIC         0x314D4852UL
 #define RX_HID_SCORE_MAGIC             0x31534852UL
+#define RX_HID_RSSI_MAGIC              0x31524852UL
 #define RX_HID_INPUT_MAGIC             0x31494852UL
 #define RX_HID_LATENCY_MAGIC           0x314C4852UL
 #define RX_HID_LATENCY_V2_MAGIC        0x324C4852UL
@@ -299,6 +300,8 @@ static uint16_t g_demo_channel_scores[RFH_HOP_CHANNEL_COUNT];
 static rf_score_window_t g_demo_score_windows[RFH_HOP_CHANNEL_COUNT];
 static uint32_t g_demo_hid_score_seq = 0u;
 static uint8_t g_demo_hid_score_div = 0u;
+static uint32_t g_demo_hid_rssi_seq = 0u;
+static uint8_t g_demo_hid_rssi_div = 0u;
 static uint8_t g_demo_ack_score_hint_index = 0u;
 static rf_rx_pending_t g_demo_rx_pending[RF_RX_PENDING_DEPTH];
 static volatile uint8_t g_demo_rx_pending_head = 0u;
@@ -390,6 +393,7 @@ static void demo_hid_clear_report_state(void)
     g_demo_air_diag_timeout_errors = 0u;
     g_demo_hid_input_keepalive_div = 0u;
     g_demo_hid_score_div = 0u;
+    g_demo_hid_rssi_div = 0u;
     SYS_RecoverIrq(irq_status);
 }
 
@@ -3581,6 +3585,78 @@ static uint8_t demo_try_send_score_report(void)
     return demo_submit_hid_report(report);
 }
 
+static uint8_t demo_try_send_rssi_report(void)
+{
+    uint8_t report[HID_ENDPOINT_SIZE];
+    uint32_t irq_status;
+    int32_t rssi_sum;
+    uint32_t rssi_count;
+    int8_t rssi_avg;
+    int8_t rssi_min;
+    int8_t rssi_max;
+    int8_t rssi_last;
+
+    SYS_DisableAllIrq(&irq_status);
+    rssi_sum = g_demo_rssi_sum;
+    rssi_count = g_demo_rssi_count;
+    rssi_min = g_demo_rssi_min;
+    rssi_max = g_demo_rssi_max;
+    rssi_last = g_demo_rssi_last;
+    SYS_RecoverIrq(irq_status);
+
+    if(rssi_count == 0u)
+    {
+        rssi_avg = rssi_last;
+        rssi_min = rssi_last;
+        rssi_max = rssi_last;
+    }
+    else
+    {
+        rssi_avg = (int8_t)(rssi_sum / (int32_t)rssi_count);
+    }
+
+    memset(report, 0, sizeof(report));
+    demo_put_u32(&report[0], RX_HID_RSSI_MAGIC);
+    demo_put_u32(&report[4], ++g_demo_hid_rssi_seq);
+    demo_put_u16(&report[8],
+                 (rssi_count > 0xFFFFu) ? 0xFFFFu : (uint16_t)rssi_count);
+    report[10] = (uint8_t)rssi_avg;
+    report[11] = (uint8_t)rssi_min;
+    report[12] = (uint8_t)rssi_max;
+    report[13] = (uint8_t)rssi_last;
+    report[14] = demo_hid_state_code();
+    report[15] = g_demo_current_channel;
+    report[16] = g_demo_old_channel;
+    report[17] = g_demo_target_channel;
+    demo_put_u16(&report[18], g_demo_report_hz);
+    report[20] = g_demo_rate_code;
+    report[21] = g_demo_link_active;
+
+    if(demo_submit_hid_report(report) == 0u)
+    {
+        return 0u;
+    }
+
+    SYS_DisableAllIrq(&irq_status);
+    if(g_demo_rssi_count >= rssi_count)
+    {
+        g_demo_rssi_sum -= rssi_sum;
+        g_demo_rssi_count -= rssi_count;
+    }
+    else
+    {
+        g_demo_rssi_sum = 0;
+        g_demo_rssi_count = 0u;
+    }
+    if(g_demo_rssi_count == 0u)
+    {
+        g_demo_rssi_min = 127;
+        g_demo_rssi_max = -127;
+    }
+    SYS_RecoverIrq(irq_status);
+    return 1u;
+}
+
 static uint8_t demo_try_send_latency_report(void)
 {
     uint8_t report[HID_ENDPOINT_SIZE];
@@ -3816,6 +3892,18 @@ uint8_t RF_TrySendTelemetryReport(void)
         if((g_demo_hid_hop_start_pending == 0u) &&
            (g_demo_hid_hop_finish_pending == 0u) &&
            (demo_try_send_score_report() != 0u))
+        {
+            return 1u;
+        }
+    }
+
+    g_demo_hid_rssi_div++;
+    if(g_demo_hid_rssi_div >= 4u)
+    {
+        g_demo_hid_rssi_div = 0u;
+        if((g_demo_hid_hop_start_pending == 0u) &&
+           (g_demo_hid_hop_finish_pending == 0u) &&
+           (demo_try_send_rssi_report() != 0u))
         {
             return 1u;
         }

@@ -41,6 +41,11 @@ export interface PacketEvent {
   errorEvents?: number;
   channelScores?: Array<{ channel: number; score: number }>;
   activeChannelScore?: number;
+  rssiSamples?: number;
+  rssiAvg?: number;
+  rssiMin?: number;
+  rssiMax?: number;
+  rssiLast?: number;
   inputKeyMask?: number;
   inputSeq?: number;
   inputFlags?: number;

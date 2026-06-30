@@ -326,6 +326,48 @@ function parseRfHopScoreFrame(view: DataView, report: Uint8Array, timestampMs: n
   ];
 }
 
+function parseRfHopRssiFrame(view: DataView, report: Uint8Array, timestampMs: number): MonitorEvent[] {
+  const seq = view.getUint32(4, true);
+  const samples = view.getUint16(8, true);
+  const rssiAvg = view.getInt8(10);
+  const rssiMin = view.getInt8(11);
+  const rssiMax = view.getInt8(12);
+  const rssiLast = view.getInt8(13);
+  const state = view.getUint8(14);
+  const channel = view.getUint8(15);
+  const oldChannel = view.getUint8(16);
+  const targetChannel = view.getUint8(17);
+  const targetRateHz = view.getUint16(18, true);
+  const airRateCode = view.getUint8(20);
+  const airLinkActive = view.getUint8(21) !== 0;
+  const stateCode = rfHopStateCode(state);
+
+  return [
+    {
+      kind: "packet",
+      timestampMs,
+      channel: "RF",
+      direction: "RX",
+      seq,
+      messageType: `RFH_RHR1_${stateCode}`,
+      payloadLen: report.length,
+      payloadHex: hexReport(report),
+      channelNumber: channel,
+      rfStateCode: stateCode,
+      oldChannelNumber: oldChannel,
+      targetChannelNumber: targetChannel,
+      targetRateHz,
+      airRateCode,
+      airLinkActive,
+      rssiSamples: samples,
+      rssiAvg,
+      rssiMin,
+      rssiMax,
+      rssiLast,
+    },
+  ];
+}
+
 function parseRfHopLatencyFrame(view: DataView, report: Uint8Array, timestampMs: number, hostMonoUs?: number): MonitorEvent[] {
   const seq = view.getUint32(4, true);
   const inputSeq = view.getUint8(8);
@@ -436,6 +478,9 @@ export function parseDongleHidTelemetryFrame(report: Uint8Array, timestampMs = D
   }
   if (magic === 0x31534852) {
     return parseRfHopScoreFrame(view, report, timestampMs);
+  }
+  if (magic === 0x31524852) {
+    return parseRfHopRssiFrame(view, report, timestampMs);
   }
   if (magic === 0x31494852) {
     return parseRfHopInputFrame(view, report, timestampMs);

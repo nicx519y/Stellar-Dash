@@ -17,8 +17,9 @@ import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FaListUl, FaPause, FaPlay, FaRegWindowMaximize, FaRegWindowMinimize, FaRegWindowRestore, FaTerminal } from "react-icons/fa";
 import { GrClearOption } from "react-icons/gr";
+import { LuWifi, LuWifiHigh, LuWifiLow, LuWifiZero } from "react-icons/lu";
 import { TfiClose } from "react-icons/tfi";
-import type { DebugApplyState, DebugConfig, DebugHidPeriodMs, MonitorEvent } from "../../../shared/monitor-types";
+import type { DebugApplyState, DebugConfig, DebugHidPeriodMs, MonitorEvent, PacketEvent } from "../../../shared/monitor-types";
 import rfMonitorLogo from "../assets/rf-monitor-logo.png";
 import { useMonitorStream } from "./useMonitorStream";
 import { ButtonLatencyPanel } from "./ButtonLatencyPanel";
@@ -67,6 +68,39 @@ function debugBadgeColor(state: DebugApplyState) {
   if (state === "Applying" || state === "Partial") return "yellow";
   if (state === "Failed") return "red";
   return "gray";
+}
+
+function latestRssiPacket(packets: Array<PacketEvent & { id?: string }>) {
+  for (let i = packets.length - 1; i >= 0; i--) {
+    const packet = packets[i];
+    if (packet.messageType.startsWith("RFH_RHR1_") && typeof packet.rssiLast === "number") {
+      return packet;
+    }
+  }
+  return null;
+}
+
+function displayRssiValue(packet: PacketEvent | null) {
+  return typeof packet?.rssiLast === "number" ? String(packet.rssiLast) : "--";
+}
+
+function displayRssiDetail(packet: PacketEvent | null) {
+  return typeof packet?.rssiAvg === "number" ? `avg ${packet.rssiAvg}` : "avg --";
+}
+
+function rssiSignalLevel(packet: PacketEvent | null) {
+  const rssi = packet?.rssiLast;
+  if (typeof rssi !== "number") return 0;
+  if (rssi >= -60) return 3;
+  if (rssi >= -70) return 2;
+  if (rssi >= -80) return 1;
+  return 0;
+}
+
+function RssiSignalIcon({ level }: { level: number }) {
+  const icons = [LuWifiZero, LuWifiLow, LuWifiHigh, LuWifi] as const;
+  const Icon = icons[Math.max(0, Math.min(3, level))];
+  return <Icon aria-hidden size={18} />;
 }
 
 function AppLogo() {
@@ -180,6 +214,10 @@ function MetricCard({
   statusLabel,
   target,
   alert,
+  cornerLabel,
+  cornerValue,
+  cornerDetail,
+  cornerSignalLevel,
 }: {
   title: string;
   subtitle?: string;
@@ -189,6 +227,10 @@ function MetricCard({
   statusLabel?: string;
   target?: string;
   alert?: boolean;
+  cornerLabel?: string;
+  cornerValue?: string;
+  cornerDetail?: string;
+  cornerSignalLevel?: number;
 }) {
   return (
     <Card.Root
@@ -196,7 +238,7 @@ function MetricCard({
       {...panelSurfaceProps}
       borderColor={alert ? "rgba(255,96,96,0.48)" : panelSurfaceProps.borderColor}
     >
-      <Card.Body px={4} py={4}>
+      <Card.Body px={4} py={4} position="relative">
         <Text fontSize="sm" color="gray.400">
           {title}
         </Text>
@@ -220,6 +262,24 @@ function MetricCard({
         <Text fontSize="sm" color={alert ? "red.200" : neonGreen}>
           {unit}
         </Text>
+        {cornerLabel ? (
+          <Box position="absolute" right={4} bottom={3} textAlign="right">
+            <Text fontSize="10px" color="gray.500" lineHeight="1">
+              {cornerLabel}
+            </Text>
+            <HStack gap={1} justify="flex-end" color={neonGreen} lineHeight="1.15">
+              {typeof cornerSignalLevel === "number" ? <RssiSignalIcon level={cornerSignalLevel} /> : null}
+              <Text fontSize="lg" fontWeight="700">
+                {cornerValue ?? "--"}
+              </Text>
+            </HStack>
+            {cornerDetail ? (
+              <Text fontSize="10px" color="gray.400" lineHeight="1">
+                {cornerDetail}
+              </Text>
+            ) : null}
+          </Box>
+        ) : null}
       </Card.Body>
     </Card.Root>
   );
@@ -515,6 +575,7 @@ export function App() {
   };
 
   const rfStatus = useMemo(() => latestStatus(events, "RF24G"), [events]);
+  const rfRssi = useMemo(() => latestRssiPacket(packets.items), [packets.items]);
   const rfConnected = rfStatus?.state === "Connected";
   const rfActualHz = rfStatus?.actualRateHz ?? 0;
   const reportHz = rfConnected
@@ -716,6 +777,10 @@ export function App() {
             target={`Target ${rfStatus?.targetRateHz ?? 0} Hz`}
             value={(rfConnected ? packets.rfRxPerSec : 0).toFixed(1)}
             unit="pkt/s"
+            cornerLabel="RSSI"
+            cornerValue={displayRssiValue(rfRssi)}
+            cornerDetail={displayRssiDetail(rfRssi)}
+            cornerSignalLevel={rssiSignalLevel(rfRssi)}
           />
           <MetricCard
             title="Report Rate"
