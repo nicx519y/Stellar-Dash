@@ -12,6 +12,10 @@
 
 #include <stdio.h>
 
+#if !APPLICATION_SERIAL_PRINT
+#define printf(...) ((void)0)
+#endif
+
 namespace {
 static uint16_t clampRfReportRateHz(uint16_t rateHz) {
     switch (rateHz) {

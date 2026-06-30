@@ -7,6 +7,10 @@
 #include "system_logger.h"
 #include "stm32h7xx_hal.h"
 
+#if !APPLICATION_SERIAL_PRINT
+#define printf(...) ((void)0)
+#endif
+
 namespace {
 #ifndef RF_BRIDGE_SPI_BAUD_PRESCALER
 #define RF_BRIDGE_SPI_BAUD_PRESCALER SPI_BAUDRATEPRESCALER_8

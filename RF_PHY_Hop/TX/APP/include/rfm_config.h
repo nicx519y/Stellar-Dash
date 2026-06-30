@@ -16,7 +16,7 @@
 #endif
 
 #ifndef RFM_TX_LOG_ENABLE
-#define RFM_TX_LOG_ENABLE             1u
+#define RFM_TX_LOG_ENABLE             0u
 #endif
 
 typedef enum {

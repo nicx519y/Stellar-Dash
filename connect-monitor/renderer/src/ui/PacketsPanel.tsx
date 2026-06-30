@@ -14,138 +14,73 @@ function fmtTime(ms: number) {
 
 function displayMessageType(messageType: string) {
   if (messageType.startsWith("RFH_RHM1_")) {
-    return `HID_TELE_${messageType.slice("RFH_RHM1_".length)}`;
-  }
-  if (messageType.startsWith("RFH_RHI1_")) {
-    return `HID_INPUT_${messageType.slice("RFH_RHI1_".length)}`;
+    return `RHM1 ${messageType.slice("RFH_RHM1_".length)}`;
   }
   if (messageType.startsWith("RFH_R5_")) {
     return `SERIAL_R5_${messageType.slice("RFH_R5_".length)}`;
   }
+  if (messageType === "RFH_RHS1_SCORE") return "RHS1 SCORE";
   return messageType;
 }
 
-function payloadBytes(payloadHex: string | undefined) {
-  if (!payloadHex) return [];
-  return payloadHex
-    .trim()
-    .split(/\s+/)
-    .map((part) => Number.parseInt(part, 16))
-    .filter((byte) => Number.isFinite(byte) && byte >= 0 && byte <= 0xff);
+function isQualityPacket(packet: PacketEvent) {
+  return packet.messageType.startsWith("RFH_RHM1_") || packet.messageType === "RFH_RHS1_SCORE";
 }
 
-function hexU32(value: number) {
-  return `0x${(value >>> 0).toString(16).toUpperCase().padStart(8, "0")}`;
+function fmtHz(value: number | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "-";
+  return `${Math.round(value)}Hz`;
 }
 
-function rfInputKeyMask(packet: PacketEvent) {
-  if (typeof packet.inputKeyMask === "number") {
-    return packet.inputKeyMask >>> 0;
+function fmtLoss(packet: PacketEvent) {
+  if (typeof packet.lossPermille !== "number") return "-";
+  return `${(packet.lossPermille / 10).toFixed(1)}%`;
+}
+
+function displayState(packet: PacketEvent) {
+  return packet.rfStateCode ?? (packet.messageType === "RFH_RHS1_SCORE" ? "score" : "-");
+}
+
+function displayChannel(packet: PacketEvent) {
+  if (packet.messageType === "RFH_RHS1_SCORE") {
+    const active = typeof packet.channelNumber === "number" ? `active=${packet.channelNumber}` : "active=-";
+    const score = typeof packet.activeChannelScore === "number" ? ` score=${packet.activeChannelScore}` : "";
+    return `${active}${score}`;
   }
-  const bytes = payloadBytes(packet.payloadHex);
-  if (bytes.length >= 12 && bytes[0] === 0x52 && bytes[1] === 0x48 && bytes[2] === 0x49 && bytes[3] === 0x31) {
-    return ((bytes[8] ?? 0) |
-      ((bytes[9] ?? 0) << 8) |
-      ((bytes[10] ?? 0) << 16) |
-      ((bytes[11] ?? 0) << 24)) >>> 0;
-  }
-  return undefined;
+  const current = typeof packet.channelNumber === "number" ? packet.channelNumber : "-";
+  const target = typeof packet.targetChannelNumber === "number" ? packet.targetChannelNumber : "-";
+  const old = typeof packet.oldChannelNumber === "number" ? packet.oldChannelNumber : "-";
+  return `${current} -> ${target} old=${old}`;
 }
 
-function displayCommand(packet: PacketEvent) {
-  if (typeof rfInputKeyMask(packet) === "number" || packet.messageType.startsWith("RFH_RHI1_")) {
-    return "0x06 INPUT_DATA";
-  }
-  if (packet.messageType.startsWith("RFH_RHM1_")) return "RHM1 TELE";
-  if (packet.messageType === "RFH_RHS1_SCORE") return "RHS1 SCORE";
-  if (packet.messageType === "DONGLE_DMN1") return "DMN1";
-  return "-";
+function displayRate(packet: PacketEvent) {
+  const actual = fmtHz(packet.rateHz);
+  const target = fmtHz(packet.targetRateHz);
+  if (actual === "-" && target === "-") return "-";
+  return `${actual} / ${target}`;
 }
 
-const hboxButtons = [
-  ["UP", 0],
-  ["DOWN", 1],
-  ["LEFT", 2],
-  ["RIGHT", 3],
-  ["B1", 4],
-  ["B2", 5],
-  ["B3", 6],
-  ["B4", 7],
-  ["L1", 8],
-  ["R1", 9],
-  ["L2", 10],
-  ["R2", 11],
-  ["S1", 12],
-  ["S2", 13],
-  ["L3", 14],
-  ["R3", 15],
-  ["A1", 16],
-  ["A2", 17],
-] as const;
-
-function displayKeyMask(packet: PacketEvent) {
-  const mask = rfInputKeyMask(packet);
-  return typeof mask === "number" ? hexU32(mask) : "-";
+function displayWindow(packet: PacketEvent) {
+  const rx = typeof packet.sampleCount === "number" ? packet.sampleCount : "-";
+  const expected = typeof packet.expectedCount === "number" ? packet.expectedCount : "-";
+  const elapsed = typeof packet.sampleWindowMs === "number" ? `${packet.sampleWindowMs}ms` : "-";
+  return `${rx}/${expected} ${elapsed}`;
 }
 
-function displayButtons(packet: PacketEvent) {
-  const mask = rfInputKeyMask(packet);
-  if (typeof mask !== "number") return "-";
-  const pressed = hboxButtons.filter(([, bit]) => (mask & (1 << bit)) !== 0).map(([label]) => label);
-  return pressed.length > 0 ? pressed.join(" ") : "none";
+function displayEvents(packet: PacketEvent) {
+  const parts: string[] = [];
+  if (typeof packet.errorEvents === "number") parts.push(`err=${packet.errorEvents}`);
+  if (typeof packet.maxSilentMs === "number") parts.push(`silent=${packet.maxSilentMs}ms`);
+  if (packet.hopEvent === "start") parts.push(`hop=start score=${packet.hopScorePermille ?? packet.hopEventValue ?? "-"}`);
+  if (packet.hopEvent === "finish") parts.push(`hop=finish ${packet.hopDurationMs ?? packet.hopEventValue ?? "-"}ms`);
+  return parts.length > 0 ? parts.join(" ") : "-";
 }
 
-function displayAirMeta(packet: PacketEvent) {
-  if (!packet.messageType.startsWith("RFH_RHI1_")) {
-    return "-";
-  }
-
-  const bytes = payloadBytes(packet.payloadHex);
-  const rawPendingDrop = bytes.length >= 23 ? (bytes[21] ?? 0) | ((bytes[22] ?? 0) << 8) : undefined;
-  const rawPendingCurrent = bytes.length >= 24 ? bytes[23] : undefined;
-  const rawPendingMax = bytes.length >= 25 ? bytes[24] : undefined;
-  const rawWindowRx = bytes.length >= 27 ? (bytes[25] ?? 0) | ((bytes[26] ?? 0) << 8) : undefined;
-  const rawWindowExpected = bytes.length >= 29 ? (bytes[27] ?? 0) | ((bytes[28] ?? 0) << 8) : undefined;
-  const rawCrcErrors = bytes.length >= 31 ? (bytes[29] ?? 0) | ((bytes[30] ?? 0) << 8) : undefined;
-  const rawSeqGaps = bytes.length >= 32 ? bytes[31] : undefined;
-  const eventPendingCurrent = packet.airPendingCurrent;
-  const eventPendingMax = packet.airPendingMax;
-  const eventLooksSane =
-    typeof packet.airPendingDrop === "number" &&
-    typeof eventPendingCurrent === "number" &&
-    typeof eventPendingMax === "number" &&
-    eventPendingMax <= 16 &&
-    eventPendingCurrent <= eventPendingMax;
-
-  const pendingDrop = eventLooksSane ? packet.airPendingDrop : rawPendingDrop;
-  const pendingCurrent = eventLooksSane ? eventPendingCurrent : rawPendingCurrent;
-  const pendingMax = eventLooksSane ? eventPendingMax : rawPendingMax;
-  const windowRx = eventLooksSane && typeof packet.airWindowRxOk === "number" ? packet.airWindowRxOk : rawWindowRx;
-  const windowExpected =
-    eventLooksSane && typeof packet.airWindowExpected === "number" ? packet.airWindowExpected : rawWindowExpected;
-  const crcErrors =
-    eventLooksSane && typeof packet.airWindowCrcErrors === "number" ? packet.airWindowCrcErrors : rawCrcErrors;
-  const seqGaps = eventLooksSane && typeof packet.airWindowSeqGaps === "number" ? packet.airWindowSeqGaps : rawSeqGaps;
-  const rxKeyMask = rfInputKeyMask(packet);
-
-  if (typeof pendingDrop !== "number" || typeof pendingCurrent !== "number" || typeof pendingMax !== "number") {
-    return "-";
-  }
-
-  const keyText = typeof rxKeyMask === "number" ? `rxKey=${hexU32(rxKeyMask)} ` : "";
-  const lossText =
-    typeof windowRx === "number" && typeof windowExpected === "number" && windowExpected > 0
-      ? ` win=${windowRx}/${windowExpected} loss=${(((windowExpected - Math.min(windowRx, windowExpected)) * 100) / windowExpected).toFixed(1)}%`
-      : "";
-  const missingText =
-    typeof windowRx === "number" && typeof windowExpected === "number" && windowExpected > 0
-      ? ` miss=${Math.max(0, windowExpected - Math.min(windowRx, windowExpected) - (crcErrors ?? 0))}`
-      : "";
-  const errorText =
-    typeof crcErrors === "number" || typeof seqGaps === "number"
-      ? ` gap=${seqGaps ?? 0} crc=${crcErrors ?? 0}`
-      : "";
-  return `${keyText}pend=${pendingCurrent}/${pendingMax} drop=${pendingDrop}${lossText}${missingText}${errorText}`;
+function displayScores(packet: PacketEvent) {
+  if (!packet.channelScores || packet.channelScores.length === 0) return "-";
+  return packet.channelScores
+    .map((entry) => `${entry.channel}${entry.channel === packet.channelNumber ? "*" : ""}:${entry.score}`)
+    .join(" ");
 }
 
 export function PacketsPanel({
@@ -158,26 +93,29 @@ export function PacketsPanel({
   onClearData?: () => void;
 }) {
   const rows = items
-    .filter((packet) => packet.messageType.startsWith("RFH_RHI1_") && packet.rfStateCode === "C")
+    .filter(isQualityPacket)
     .slice(-500)
     .reverse();
   const handleExport = () => {
     void exportMarkdown("packet-log.md", buildPacketLogMarkdown(items));
   };
   const columns: Array<VirtualColumn<PacketEvent & { id?: string }>> = [
-    { key: "time", header: "Time", width: "11%", render: (p) => fmtTime(p.timestampMs) },
-    { key: "type", header: "Type", width: "12%", render: (p) => displayMessageType(p.messageType) },
-    { key: "cmd", header: "Cmd", width: "11%", render: (p) => displayCommand(p) },
-    { key: "keyMask", header: "KeyMask", width: "11%", render: (p) => displayKeyMask(p) },
-    { key: "buttons", header: "Buttons", width: "8%", render: (p) => displayButtons(p) },
-    { key: "air", header: "Air", width: "42%", render: (p) => displayAirMeta(p) },
+    { key: "time", header: "Time", width: "10%", render: (p) => fmtTime(p.timestampMs) },
+    { key: "type", header: "Type", width: "9%", render: (p) => displayMessageType(p.messageType) },
+    { key: "state", header: "State", width: "6%", render: (p) => displayState(p) },
+    { key: "channel", header: "Channel", width: "12%", render: (p) => displayChannel(p) },
+    { key: "rate", header: "Rate", width: "12%", render: (p) => displayRate(p) },
+    { key: "loss", header: "Loss", width: "7%", align: "end", render: (p) => fmtLoss(p) },
+    { key: "window", header: "RX/Expected", width: "12%", render: (p) => displayWindow(p) },
+    { key: "events", header: "Events", width: "15%", render: (p) => displayEvents(p) },
+    { key: "scores", header: "Scores", width: "12%", render: (p) => displayScores(p) },
     { key: "seq", header: "Seq", width: "5%", align: "end", render: (p) => (typeof p.seq === "number" ? p.seq : "-") },
   ];
 
   return (
     <VirtualTable
-      title="Packets"
-      countText={`Recent ${rows.length} / 500`}
+      title="RF Quality Packets"
+      countText={`Recent quality ${rows.length} / 500`}
       action={
         <HStack gap={2}>
           <Button {...toolbarActionButtonProps} onClick={handleExport}>

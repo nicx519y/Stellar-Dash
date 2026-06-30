@@ -226,8 +226,8 @@ function MetricCard({
 }
 
 const defaultDebugConfig: DebugConfig = {
-  hidTelemetryEnabled: false,
-  hidPeriodMs: 500,
+  hidTelemetryEnabled: true,
+  hidPeriodMs: 250,
   autoHopEnabled: true,
   manualChannel: null,
 };

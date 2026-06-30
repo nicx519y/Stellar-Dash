@@ -55,11 +55,11 @@
 
 /* Debug print configuration */
 #ifndef APPLICATION_SERIAL_PRINT
-#define APPLICATION_SERIAL_PRINT 1   // 编译期使能 USART1 printf 输出
+#define APPLICATION_SERIAL_PRINT 0   // 编译期使能 USART1 printf 输出
 #endif
 
 #ifndef APPLICATION_DEBUG_PRINT
-#define APPLICATION_DEBUG_PRINT  1   // 编译期使能 APP_DBG/APP_ERR 输出
+#define APPLICATION_DEBUG_PRINT  0   // 编译期使能 APP_DBG/APP_ERR 输出
 #endif
 
 #ifndef RF24G_SPI_TEST_FORCE_RF24G

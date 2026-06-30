@@ -65,6 +65,10 @@ function parseCompactTripleToken(token: string | undefined, prefix: string): [nu
   ];
 }
 
+function findCompactToken(parts: string[], prefix: string): string | undefined {
+  return parts.find((part) => part.startsWith(prefix));
+}
+
 function inferRfTargetRateHz(expectedCount: number): number {
   const perFiveSeconds = expectedCount / 5;
   if (perFiveSeconds >= 30000 / 5) return 8000;
@@ -159,23 +163,29 @@ function parseRfHopR5Line(text: string, timestampMs: number): MonitorEvent[] {
 
 function parseRfHopR8Line(text: string, timestampMs: number): MonitorEvent[] {
   const parts = text.trim().split(/\s+/);
-  const configCode = parseCompactNumberToken(parts[1], "c");
-  const stateCode = parts[2]?.startsWith("S") ? parts[2].slice(1) : "M";
-  const channelText = parts[3]?.startsWith("h") ? parts[3].slice(1) : "";
+  const configCode = parseCompactNumberToken(findCompactToken(parts, "c"), "c");
+  const stateCode = findCompactToken(parts, "S")?.slice(1) || "M";
+  const connectStage = findCompactToken(parts, "g")?.slice(1);
+  const channelText = findCompactToken(parts, "h")?.slice(1) ?? "";
   const [channelRaw, targetRaw] = channelText.split(">");
   const channelNumber = Number(channelRaw);
   const targetChannelNumber = Number(targetRaw);
-  const dataOk = parseCompactNumberToken(parts[4], "d");
-  const ackReq = parseCompactNumberToken(parts[5], "q");
-  const [ackOk, ackFail] = parseCompactPairToken(parts[6], "a");
-  const [crcErr, typeErr] = parseCompactPairToken(parts[7], "e");
-  const hopEvents = parseCompactNumberToken(parts[8], "H");
-  const [rxRet, txStartRet, txParmRet] = parseCompactTripleToken(parts[9], "x");
-  const rxActive = parseCompactNumberToken(parts[10], "v");
-  const expectedCount = dataOk + crcErr + typeErr;
+  const targetRateHz = parseCompactNumberToken(findCompactToken(parts, "hz"), "hz") || 8000;
+  const dataOk = parseCompactNumberToken(findCompactToken(parts, "d"), "d");
+  const seqGap = parseCompactNumberToken(findCompactToken(parts, "gap"), "gap");
+  const ackReq = parseCompactNumberToken(findCompactToken(parts, "q"), "q");
+  const [ackOk, ackFail] = parseCompactPairToken(findCompactToken(parts, "a"), "a");
+  const [crcErr, typeErr] = parseCompactPairToken(findCompactToken(parts, "e"), "e");
+  const pendingDrop = parseCompactNumberToken(findCompactToken(parts, "p"), "p");
+  const [pendingCurrent, pendingMax] = parseCompactPairToken(findCompactToken(parts, "w"), "w");
+  const rssiText = findCompactToken(parts, "rssi")?.slice("rssi".length);
+  const hopEvents = parseCompactNumberToken(findCompactToken(parts, "H"), "H");
+  const [rxRet, txStartRet, txParmRet] = parseCompactTripleToken(findCompactToken(parts, "x"), "x");
+  const rxActive = parseCompactNumberToken(findCompactToken(parts, "v"), "v");
+  const expectedCount = dataOk + seqGap + crcErr + typeErr;
   const lossPermille =
     expectedCount > 0
-      ? Math.min(1000, Math.round(((crcErr + typeErr) * 1000) / expectedCount))
+      ? Math.min(1000, Math.round(((seqGap + crcErr + typeErr) * 1000) / expectedCount))
       : undefined;
   const actualRateHz = dataOk / 5;
 
@@ -196,6 +206,15 @@ function parseRfHopR8Line(text: string, timestampMs: number): MonitorEvent[] {
     targetChannelNumber: Number.isFinite(targetChannelNumber) ? targetChannelNumber : undefined,
     unconnectedEvents: stateCode === "D" ? 1 : 0,
     errorEvents: crcErr + typeErr + ackFail,
+    airPendingDrop: pendingDrop,
+    airPendingCurrent: pendingCurrent,
+    airPendingMax: pendingMax,
+    airWindowRxOk: dataOk,
+    airWindowExpected: expectedCount,
+    airWindowErrors: seqGap + crcErr + typeErr,
+    airWindowCrcErrors: crcErr,
+    airWindowSeqGaps: seqGap,
+    airWindowTypeErrors: typeErr,
   };
 
   const events: MonitorEvent[] = [
@@ -204,7 +223,7 @@ function parseRfHopR8Line(text: string, timestampMs: number): MonitorEvent[] {
       timestampMs,
       mode: "RF24G",
       state: rfStateToLinkState(stateCode),
-      targetRateHz: 8000,
+      targetRateHz,
       actualRateHz,
     },
     packet,
@@ -223,7 +242,7 @@ function parseRfHopR8Line(text: string, timestampMs: number): MonitorEvent[] {
       source: "RF_PHY_HOP_RX",
       code: errorCount > 0 ? "RFH_R8_DIAG" : "RFH_R8_HOP",
       level: errorCount > 0 ? "WARN" : "INFO",
-      message: `state=${stateCode} ch=${channelText} data=${dataOk} ack=${ackReq}/${ackOk}/${ackFail} err=${crcErr}/${typeErr} hop=${hopEvents} ret=${rxRet}/${txStartRet}/${txParmRet} active=${rxActive}`,
+      message: `state=${stateCode} stage=${connectStage ?? "-"} ch=${channelText} hz=${targetRateHz} data=${dataOk} gap=${seqGap} ack=${ackReq}/${ackOk}/${ackFail} err=${crcErr}/${typeErr} pend=${pendingCurrent}/${pendingMax} drop=${pendingDrop} rssi=${rssiText ?? "-"} hop=${hopEvents} ret=${rxRet}/${txStartRet}/${txParmRet} active=${rxActive}`,
       count: errorCount || hopEvents,
     });
   }

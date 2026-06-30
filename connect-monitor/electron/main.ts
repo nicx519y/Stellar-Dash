@@ -35,8 +35,8 @@ let paused = false;
 let isShuttingDown = false;
 const debugConfigPath = path.join(app.getPath("userData"), "debug-config.json");
 let debugConfig: DebugConfig = {
-  hidTelemetryEnabled: false,
-  hidPeriodMs: 500,
+  hidTelemetryEnabled: true,
+  hidPeriodMs: 250,
   autoHopEnabled: true,
   manualChannel: null,
 };

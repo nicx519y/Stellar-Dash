@@ -25,6 +25,7 @@ export interface PacketEvent {
   expectedCount?: number;
   sampleWindowMs?: number;
   rateHz?: number;
+  targetRateHz?: number;
   lossPermille?: number;
   channelNumber?: number;
   rfStateCode?: string;

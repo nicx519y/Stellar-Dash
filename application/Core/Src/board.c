@@ -50,8 +50,10 @@ void board_init(void)
     NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 #endif
 
+#if APPLICATION_SERIAL_PRINT
     USART1_Init(); // USART for debug
     APP_DBG("board init: USART1_Init success.");
+#endif
 
     // 验证时钟配置
     APP_DBG("board init: SYSCLK: %lu", HAL_RCC_GetSysClockFreq());

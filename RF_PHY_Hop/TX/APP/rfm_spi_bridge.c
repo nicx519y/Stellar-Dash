@@ -1292,6 +1292,7 @@ void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
     rf_key = (s_have_last_direct_input != 0u) ?
              input_payload_key_mask(s_last_direct_input) : 0u;
 
+#if (RFM_TX_LOG_ENABLE == 1u)
     PRINT("[SPI][%lums] irq:%lu done:%lu ok:%lu bad:%lu dir:%lu key:%08lX rf:%08lX peek:%lu/%lu max:%lu ov:%lu tx:%u rec:%lu\r\n",
           elapsed_ms,
           (unsigned long)dma_irq_sum,
@@ -1307,6 +1308,7 @@ void rfm_spi_bridge_diag_emit(unsigned long elapsed_ms)
           (unsigned long)fifo_ov_count,
           (unsigned int)tx_pending,
           (unsigned long)tx_recover_count);
+#endif
 
     s_last_ring_ov_count = ring_ov_count;
     s_last_rx_byte_count = rx_byte_count;

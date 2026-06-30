@@ -260,6 +260,7 @@ function parseRfHopHidTelemetryFrame(view: DataView, report: Uint8Array, timesta
       expectedCount,
       sampleWindowMs: elapsedMs,
       rateHz: actualRateHz,
+      targetRateHz,
       lossPermille,
       channelNumber: channel,
       rfStateCode: stateCode,

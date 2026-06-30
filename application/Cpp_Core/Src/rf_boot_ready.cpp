@@ -5,6 +5,10 @@
 #include "board_cfg.h"
 #include "stm32h7xx_hal.h"
 
+#if !APPLICATION_SERIAL_PRINT
+#define printf(...) ((void)0)
+#endif
+
 namespace {
 
 #ifndef RF_BOOT_READY_STABLE_MS

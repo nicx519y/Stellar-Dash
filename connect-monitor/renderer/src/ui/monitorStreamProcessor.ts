@@ -296,7 +296,7 @@ export class MonitorStreamProcessor {
     return {
       events: this.events,
       packets: {
-        items: this.inputPacketRows,
+        items: this.packetRows,
         usbTxPerSec: calcRateFromPackets(this.packetRows, "USB", "TX", 1000),
         rfRxPerSec: calcRateFromPackets(this.packetRows, "RF", "RX", 1000),
       },
