@@ -273,6 +273,11 @@ extern "C" void SystemSleep_HandleWakeRecovery(void)
     }
 }
 
+extern "C" void SystemSleep_RequestStandby(void)
+{
+    request_standby();
+}
+
 extern "C" void SystemSleep_UpdateRotaryHold(uint32_t nowMs)
 {
     if (s_sleepEntering) {

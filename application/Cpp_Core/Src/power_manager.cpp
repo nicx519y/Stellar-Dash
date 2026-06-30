@@ -5,10 +5,9 @@
 #include "adc_btns/adc_manager.hpp"
 #include "connection_manager.hpp"
 #include "storagemanager.hpp"
+#include "system_sleep_manager.hpp"
 
 #include "stm32h7xx_hal.h"
-
-bool get_usb_mounted(void);
 
 static constexpr uint32_t POWER_VREF_MV = 3300u;
 static constexpr uint32_t POWER_ADC_FULL_SCALE = 65535u;
@@ -16,7 +15,15 @@ static constexpr uint32_t POWER_ADC_FULL_SCALE = 65535u;
 static constexpr uint32_t POWER_MEAS_INTERVAL_MS = 1000u;
 static constexpr uint32_t POWER_MEAS_SETTLE_MS = 40u;
 static constexpr uint32_t POWER_ADC_TIMEOUT_MS = 10u;
-static constexpr uint32_t POWER_LOW_BATTERY_MV = 3200u;
+static constexpr uint32_t POWER_FULL_BATTERY_MV = 4200u;
+static constexpr uint32_t POWER_LOW_BATTERY_MV = 3450u;
+static constexpr uint32_t POWER_FORCE_SLEEP_MV = 3200u;
+static constexpr uint32_t POWER_DISCHARGE_CUTOFF_MV = 2750u;
+static constexpr uint8_t POWER_FORCE_SLEEP_CONFIRM_COUNT = 3u;
+
+static_assert(POWER_DISCHARGE_CUTOFF_MV < POWER_FORCE_SLEEP_MV, "Force sleep must stay above cell cutoff");
+static_assert(POWER_FORCE_SLEEP_MV < POWER_LOW_BATTERY_MV, "Low warning must stay above force sleep");
+static_assert(POWER_LOW_BATTERY_MV < POWER_FULL_BATTERY_MV, "Low warning must stay below full charge");
 
 static constexpr uint32_t POWER_SWITCH_DIFF_MV = 120u;
 static constexpr uint8_t POWER_SWITCH_CONFIRM_COUNT = 3u;
@@ -48,6 +55,7 @@ void PowerManager::setup()
     meas_stage = MeasureStage::Idle;
     switch_in_progress = false;
     switch_confirm_count = 0;
+    low_sleep_confirm_count = 0;
     last_switch_complete_ms = HAL_GetTick();
     switch_phase = 0;
 
@@ -63,6 +71,10 @@ void PowerManager::loop()
         last_mode_poll_ms = now;
         vbus_present = isVbusPresent();
         fast_charging = isFastChargeDetected();
+        if (vbus_present)
+        {
+            low_sleep_confirm_count = 0;
+        }
     }
 
     processSwitch();
@@ -279,12 +291,8 @@ void PowerManager::processSwitch()
 
 bool PowerManager::canUseAdcNow() const
 {
-    if (get_usb_mounted())
-    {
-        return false;
-    }
-    if (ADCManager::getInstance().getADCMode() == ADC_MODE_INPUT_CONTINUOUS ||
-        ADCManager::getInstance().getADCMode() == ADC_MODE_CONTINUOUS)
+    if (ADCManager::getInstance().getADCMode() == ADC_MODE_LOW_LATENCY &&
+        ADCManager::getInstance().isDmaSamplingActive())
     {
         return false;
     }
@@ -387,16 +395,41 @@ void PowerManager::processVoltageMeasurement()
 
         last_voltage_update_ms = now;
         voltage_valid = true;
+        processLowVoltageProtection();
         meas_stage = MeasureStage::Idle;
+    }
+}
+
+void PowerManager::processLowVoltageProtection()
+{
+    if (!voltage_valid || vbus_present)
+    {
+        low_sleep_confirm_count = 0;
+        return;
+    }
+
+    if (h1_mv <= POWER_FORCE_SLEEP_MV || h2_mv <= POWER_FORCE_SLEEP_MV)
+    {
+        if (low_sleep_confirm_count < POWER_FORCE_SLEEP_CONFIRM_COUNT)
+        {
+            low_sleep_confirm_count++;
+        }
+        if (low_sleep_confirm_count >= POWER_FORCE_SLEEP_CONFIRM_COUNT)
+        {
+            SystemSleep_RequestStandby();
+        }
+    }
+    else
+    {
+        low_sleep_confirm_count = 0;
     }
 }
 
 bool PowerManager::configureAdcForBattery()
 {
-    if (ADCManager::getInstance().getADCMode() == ADC_MODE_LOW_LATENCY)
-    {
-        HAL_ADC_Stop_DMA(&hadc2);
-    }
+    adc_mode_before_batt = ADCManager::getInstance().getADCMode();
+    HAL_ADC_Stop_DMA(&hadc2);
+    HAL_ADC_Stop(&hadc2);
 
     hadc2.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
     hadc2.Init.Resolution = ADC_RESOLUTION_16B;
@@ -437,6 +470,11 @@ bool PowerManager::configureAdcForBattery()
 void PowerManager::restoreAdcForButtons()
 {
     MX_ADC2_Init();
+    if (adc_mode_before_batt == ADC_MODE_INPUT_CONTINUOUS ||
+        adc_mode_before_batt == ADC_MODE_CONTINUOUS)
+    {
+        ADCManager::getInstance().startContinuousSampling();
+    }
     adc_configured_for_batt = false;
 }
 
@@ -473,15 +511,33 @@ uint32_t PowerManager::rawToBattMv(uint32_t raw) const
 
 float PowerManager::socFromMv(uint32_t mv) const
 {
-    static constexpr uint32_t discharge_mv[] = {3000u, 3300u, 3600u, 3800u, 4000u, 4200u};
-    static constexpr uint32_t charge_mv[] = {3200u, 3500u, 3800u, 4000u, 4150u, 4200u};
-    static constexpr float curve_soc[] = {0.0f, 10.0f, 30.0f, 60.0f, 85.0f, 100.0f};
+    static constexpr uint32_t discharge_mv[] = {
+        POWER_FORCE_SLEEP_MV, 3300u, POWER_LOW_BATTERY_MV, 3600u, 3700u,
+        3800u, 3900u, 4000u, 4100u, POWER_FULL_BATTERY_MV
+    };
+    static constexpr float discharge_soc[] = {
+        0.0f, 5.0f, 10.0f, 20.0f, 35.0f,
+        50.0f, 65.0f, 80.0f, 90.0f, 100.0f
+    };
+    static constexpr uint32_t charge_mv[] = {
+        POWER_FORCE_SLEEP_MV, 3500u, 3700u, 3800u, 3900u,
+        4000u, 4100u, 4150u, POWER_FULL_BATTERY_MV
+    };
+    static constexpr float charge_soc[] = {
+        0.0f, 10.0f, 25.0f, 40.0f, 55.0f,
+        70.0f, 85.0f, 95.0f, 100.0f
+    };
+
     const uint32_t* curve_mv = vbus_present ? charge_mv : discharge_mv;
+    const float* curve_soc = vbus_present ? charge_soc : discharge_soc;
+    const uint8_t curve_count = vbus_present
+        ? (uint8_t)(sizeof(charge_mv) / sizeof(charge_mv[0]))
+        : (uint8_t)(sizeof(discharge_mv) / sizeof(discharge_mv[0]));
 
     if (mv <= curve_mv[0]) return curve_soc[0];
-    if (mv >= curve_mv[5]) return curve_soc[5];
+    if (mv >= curve_mv[curve_count - 1u]) return curve_soc[curve_count - 1u];
 
-    for (uint8_t i = 0; i < 5u; i++)
+    for (uint8_t i = 0; i < (uint8_t)(curve_count - 1u); i++)
     {
         if (mv < curve_mv[i + 1u])
         {
@@ -490,5 +546,5 @@ float PowerManager::socFromMv(uint32_t mv) const
             return curve_soc[i] + (float)(mv - curve_mv[i]) * (span_soc / span_mv);
         }
     }
-    return curve_soc[5];
+    return curve_soc[curve_count - 1u];
 }

@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "adc.h"
+
 enum class PowerChargeState : uint8_t {
     Discharging = 0,
     Charging = 1,
@@ -56,6 +58,7 @@ private:
     bool canUseAdcNow() const;
     void startVoltageMeasurementCycle();
     void processVoltageMeasurement();
+    void processLowVoltageProtection();
     bool configureAdcForBattery();
     void restoreAdcForButtons();
     bool startSingleAdc();
@@ -81,6 +84,7 @@ private:
     uint32_t meas_stage_start_ms = 0;
     uint32_t meas_cycle_start_ms = 0;
     bool adc_configured_for_batt = false;
+    ADC_SamplingMode adc_mode_before_batt = ADC_MODE_LOW_LATENCY;
     uint32_t adc_single_value = 0;
 
     uint32_t h1_mv = 0;
@@ -92,6 +96,7 @@ private:
 
     uint32_t last_voltage_update_ms = 0;
     uint8_t switch_confirm_count = 0;
+    uint8_t low_sleep_confirm_count = 0;
 };
 
 #define POWER_MANAGER PowerManager::getInstance()

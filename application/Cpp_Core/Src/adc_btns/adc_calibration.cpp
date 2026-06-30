@@ -56,15 +56,19 @@ ADCBtnsError ADCCalibrationManager::startManualCalibration() {
     calibrationActive = true;
     completionCheckExecuted = false; // 重置完成检查标志
 
-    // if(WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) != WS2812B_RUNNING) {
-    //     WS2812B_InitStrip(WS2812B_STRIP_KEYS);
-    //     WS2812B_StartStrip(WS2812B_STRIP_KEYS);
-    // }
+#if HAS_LED == 1
+    if (WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) != WS2812B_RUNNING) {
+        WS2812B_InitStrip(WS2812B_STRIP_KEYS);
+        if (WS2812B_StartStrip(WS2812B_STRIP_KEYS) != WS2812B_RUNNING) {
+            APP_ERR("Failed to start key LEDs for calibration");
+        }
+    }
 
-    // if(WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING) {
-    //     WS2812B_SetAllLEDColorStrip(WS2812B_STRIP_KEYS, 0, 0, 0);
-    //     WS2812B_SetAllLEDBrightnessStrip(WS2812B_STRIP_KEYS, 0);
-    // }
+    if (WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING) {
+        WS2812B_SetAllLEDColorStrip(WS2812B_STRIP_KEYS, 0, 0, 0);
+        WS2812B_SetAllLEDBrightnessStrip(WS2812B_STRIP_KEYS, 0);
+    }
+#endif
 
     // 启动ADC采样
     ADC_MANAGER.startADCSamping(false);
