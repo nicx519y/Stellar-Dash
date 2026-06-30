@@ -310,5 +310,5 @@ extern "C" void SystemSleep_UpdateRotaryHold(uint32_t nowMs)
 
 extern "C" bool SystemSleep_ShouldSuppressRotaryLongAction(void)
 {
-    return s_sleepEntering || s_waitPa0Release || s_rotaryHoldActive;
+    return s_sleepEntering || s_waitPa0Release;
 }

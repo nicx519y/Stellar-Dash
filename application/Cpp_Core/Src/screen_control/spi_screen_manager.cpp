@@ -5,6 +5,7 @@
 
 #include "system_logger.h"
 #include "stm32h7xx.h"
+#include "brightness_curve.hpp"
 #include "micro_timer.hpp"
 #include "storagemanager.hpp"
 #include "screen_control/spi_screen_ui_common.hpp"
@@ -565,7 +566,7 @@ void SPIScreenManager::loop() {
         g_lcd.dirty_y1 = (uint16_t)(ST7789_HEIGHT - 1u);
         g_menu_full_refresh_pending = false;
     }
-    ST7789_SetBacklight(&g_lcd, compute_backlight_percent(nowMs));
+    ST7789_SetBacklight(&g_lcd, BrightnessCurve_ApplyPercent(compute_backlight_percent(nowMs)));
     if (standbyNowActive) {
         ScreenStandby_Render(&g_lcd, inputMask);
     } else {

@@ -1,6 +1,7 @@
 #include "leds/leds_manager.hpp"
 #include <algorithm>
 #include "board_cfg.h"
+#include "brightness_curve.hpp"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -387,12 +388,14 @@ void LEDsManager::enableSwitch() {
 }
 
 void LEDsManager::setLedsBrightness(uint8_t brightness) {
-    const uint8_t b = (uint8_t)((float_t)(brightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
+    const uint8_t curved = BrightnessCurve_ApplyPercent(brightness);
+    const uint8_t b = (uint8_t)((float_t)(curved) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
     WS2812B_SetLEDBrightnessByMask(b, 0, enabledKeysMask); // 根据启用按键掩码设置亮度，未启用的按键亮度为0
 }
 
 void LEDsManager::setAmbientLightBrightness(uint8_t brightness) {
-    const uint8_t b = (uint8_t)((float_t)(brightness) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
+    const uint8_t curved = BrightnessCurve_ApplyPercent(brightness);
+    const uint8_t b = (uint8_t)((float_t)(curved) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
     WS2812B_SetLEDBrightness(b, NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS, NUM_LED - (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS));
 }
 
