@@ -33,8 +33,10 @@ static uint8_t endpoint_out = 0;
 static uint8_t xinput_out_buffer[XINPUT_OUT_SIZE] = {};
 static XInputAuthData *xinputAuthData = nullptr;
 static uint32_t telemetry_last_sent_ms = 0;
+static uint32_t telemetry_power_last_sent_ms = 0;
 
-static void xinput_send_telemetry_frame(void);
+static bool xinput_send_telemetry_frame(void);
+static bool xinput_send_power_telemetry_frame(void);
 
 // Move to Proto Enums
 typedef enum
@@ -279,10 +281,19 @@ void XInputDriver::process(Gamepad *gamepad)
 	}
 
 	const uint32_t now_ms = HAL_GetTick();
-	if ((now_ms - telemetry_last_sent_ms) >= 10u)
+	bool power_telemetry_sent = false;
+	if ((now_ms - telemetry_power_last_sent_ms) >= 1000u)
 	{
-		telemetry_last_sent_ms = now_ms;
-		xinput_send_telemetry_frame();
+		if (xinput_send_power_telemetry_frame()) {
+			telemetry_power_last_sent_ms = now_ms;
+			power_telemetry_sent = true;
+		}
+	}
+	if (!power_telemetry_sent && (now_ms - telemetry_last_sent_ms) >= 10u)
+	{
+		if (xinput_send_telemetry_frame()) {
+			telemetry_last_sent_ms = now_ms;
+		}
 	}
 
 	// 以下是player led 和  震动反馈的处理逻辑，hitbox不需要
@@ -469,16 +480,30 @@ uint16_t XInputDriver::GetJoystickMidValue()
 	return GAMEPAD_JOYSTICK_MID;
 }
 
-static void xinput_send_telemetry_frame(void)
+static bool xinput_send_telemetry_frame(void)
 {
 	if (!tud_ready() || !tud_hid_n_ready(0))
 	{
-		return;
+		return false;
 	}
 
 	MonitorTelemetryFrameV1 frame = {};
 	if (!MonitorTelemetry_FillFrameV1(&frame)) {
-		return;
+		return false;
 	}
-	tud_hid_n_report(0, 0, &frame, sizeof(frame));
+	return tud_hid_n_report(0, 0, &frame, sizeof(frame));
+}
+
+static bool xinput_send_power_telemetry_frame(void)
+{
+	if (!tud_ready() || !tud_hid_n_ready(0))
+	{
+		return false;
+	}
+
+	MonitorPowerFrameV1 frame = {};
+	if (!MonitorTelemetry_FillPowerFrameV1(&frame)) {
+		return false;
+	}
+	return tud_hid_n_report(0, 0, &frame, sizeof(frame));
 }

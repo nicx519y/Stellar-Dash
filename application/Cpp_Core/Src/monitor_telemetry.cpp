@@ -3,11 +3,16 @@
 #include <string.h>
 
 #include "micro_timer.hpp"
+#include "power_manager.hpp"
+#include "stm32h7xx_hal.h"
 #include "system_logger.h"
 
 namespace {
 constexpr uint32_t SAMPLE_SLOT_COUNT = 128u;
 constexpr uint32_t LOG_SAMPLE_INTERVAL = 200u;
+constexpr uint8_t POWER_FLAG_VALID = 0x01u;
+constexpr uint8_t POWER_FLAG_LOW_BATTERY = 0x02u;
+constexpr uint8_t POWER_FLAG_FAST_CHARGING = 0x04u;
 
 struct ReportTimestampSlot {
     uint32_t seq;
@@ -172,5 +177,43 @@ bool MonitorTelemetry_FillFrameV1(MonitorTelemetryFrameV1* out) {
     out->avgRfLatencyUs = (uint16_t)(snapshot.avgRfLatencyUs & 0xFFFFu);
     out->rfTransferOkLow16 = (uint16_t)(snapshot.rfTransferOk & 0xFFFFu);
     out->rfTransferFailLow16 = (uint16_t)(snapshot.rfTransferFail & 0xFFFFu);
+    return true;
+}
+
+bool MonitorTelemetry_FillPowerFrameV1(MonitorPowerFrameV1* out) {
+    if (out == nullptr) {
+        return false;
+    }
+
+    MonitorTelemetrySnapshot snapshot = {};
+    MonitorTelemetry_GetSnapshot(&snapshot);
+
+    const PowerBatteryVoltages voltages = POWER_MANAGER.getVoltages();
+    const float soc = POWER_MANAGER.getTotalSocPercent();
+    const bool valid = POWER_MANAGER.isVoltageValid();
+    uint8_t flags = 0u;
+    if (valid) {
+        flags |= POWER_FLAG_VALID;
+    }
+    if (POWER_MANAGER.isLowBattery()) {
+        flags |= POWER_FLAG_LOW_BATTERY;
+    }
+    if (POWER_MANAGER.isFastCharging()) {
+        flags |= POWER_FLAG_FAST_CHARGING;
+    }
+
+    out->magic = 0x4D4F4E50u;
+    out->seq = snapshot.totalReports;
+    out->timestampMs = HAL_GetTick();
+    out->h1Mv = (uint16_t)(voltages.h1_mv & 0xFFFFu);
+    out->h2Mv = (uint16_t)(voltages.h2_mv & 0xFFFFu);
+    out->batMv = (uint16_t)(voltages.bat_mv & 0xFFFFu);
+    out->socPermille = (uint16_t)((soc <= 0.0f) ? 0u : ((soc >= 100.0f) ? 1000u : (uint16_t)(soc * 10.0f + 0.5f)));
+    out->activeBattery = static_cast<uint8_t>(POWER_MANAGER.getActiveDischargeBattery());
+    out->chargeState = static_cast<uint8_t>(POWER_MANAGER.getChargeState());
+    out->flags = flags;
+    out->reserved0 = 0u;
+    out->reserved1 = 0u;
+    out->reserved2 = 0u;
     return true;
 }

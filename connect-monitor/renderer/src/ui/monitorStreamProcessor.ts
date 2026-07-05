@@ -5,6 +5,7 @@ import type {
   LatencyEvent,
   MonitorEvent,
   PacketEvent,
+  PowerStatusEvent,
 } from "../../../shared/monitor-types";
 import type {
   ChannelScoreRow,
@@ -72,6 +73,10 @@ function isButtonLatency(ev: MonitorEvent): ev is ButtonLatencyEvent {
 
 function isButtonLatencyStatus(ev: MonitorEvent): ev is ButtonLatencyStatusEvent {
   return ev.kind === "button_latency_status";
+}
+
+function isPowerStatus(ev: MonitorEvent): ev is PowerStatusEvent {
+  return ev.kind === "power_status";
 }
 
 function calcRateFromPackets(packets: PacketRow[], channel: "USB" | "RF", direction: "TX" | "RX", windowMs: number) {
@@ -200,6 +205,7 @@ export class MonitorStreamProcessor {
   private latencies: LatencyEvent[] = [];
   private buttonLatencies: ButtonLatencyEvent[] = [];
   private buttonLatencyStatus: ButtonLatencyStatusEvent | null = null;
+  private powerStatus: PowerStatusEvent | null = null;
   private rateSeries: RatePoint[] = [];
   private lossSeries: LossPoint[] = [];
   private channelSwitches: ChannelSwitchRow[] = [];
@@ -245,6 +251,11 @@ export class MonitorStreamProcessor {
       this.buttonLatencyStatus = latestButtonLatencyStatus;
     }
 
+    const latestPowerStatus = batch.filter(isPowerStatus).at(-1);
+    if (latestPowerStatus) {
+      this.powerStatus = latestPowerStatus;
+    }
+
     const rfPackets = rfPacketEvents(batch);
     this.updateChannelScores(rfPackets);
 
@@ -278,6 +289,7 @@ export class MonitorStreamProcessor {
     this.latencies = [];
     this.buttonLatencies = empty.buttonLatency.items;
     this.buttonLatencyStatus = null;
+    this.powerStatus = null;
     this.rateSeries = empty.rateSeries;
     this.lossSeries = empty.lossSeries;
     this.channelSwitches = empty.channelSwitches;
@@ -310,6 +322,7 @@ export class MonitorStreamProcessor {
         items: this.buttonLatencies,
         status: this.buttonLatencyStatus,
       },
+      powerStatus: this.powerStatus,
       rateSeries: this.rateSeries,
       lossSeries: this.lossSeries,
       channelSwitches: this.channelSwitches,

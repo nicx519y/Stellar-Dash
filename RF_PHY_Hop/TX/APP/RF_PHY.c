@@ -315,6 +315,10 @@ static volatile uint8_t g_monitor_sync_echo_pending = 0u;
 static uint8_t g_monitor_sync_echo_seq = 0u;
 static uint32_t g_monitor_sync_echo_rx_tick_us = 0u;
 static uint32_t g_monitor_sync_echo_tx_tick_us = 0u;
+static volatile uint8_t g_monitor_battery_pending = 0u;
+static uint8_t g_monitor_battery_status = 0u;
+static uint8_t g_monitor_battery_sent_status = 0u;
+static uint32_t g_monitor_battery_last_queue_clock = 0u;
 
 static uint16_t g_demo_channel_scores[RFH_HOP_CHANNEL_COUNT];
 static uint32_t g_demo_channel_cooldown_until[RFH_HOP_CHANNEL_COUNT];
@@ -674,6 +678,39 @@ static void demo_store_last_payload(const uint8_t *payload, uint32_t now_cycles)
     g_demo_last_payload_tmr = now_cycles;
     g_demo_last_payload_tmr_valid = 1u;
     g_demo_have_payload = 1u;
+}
+
+static void demo_note_battery_status(const uint8_t *payload)
+{
+    uint32_t now;
+    uint8_t status;
+
+    if(payload == 0)
+    {
+        return;
+    }
+    if(((payload[RFMON_INPUT_FLAGS_OFFSET] & RFMON_INPUT_FLAG_BATTERY_CODE) == 0u) ||
+       ((payload[RFMON_INPUT_BATTERY_CODE_OFFSET] & RFMON_INPUT_BATTERY_SHORT_CODE_MASK) == 0u))
+    {
+        return;
+    }
+
+    status = (uint8_t)(payload[RFMON_INPUT_BATTERY_CODE_OFFSET] &
+                       RFMON_INPUT_BATTERY_SHORT_CODE_MASK);
+    if((payload[RFMON_INPUT_FLAGS_OFFSET] & RFMON_INPUT_FLAG_BATTERY_H2) != 0u)
+    {
+        status = (uint8_t)(status | RFMON_INPUT_BATTERY_SHORT_H2_MASK);
+    }
+    g_monitor_battery_status = status;
+    now = TMOS_GetSystemClock();
+    if((g_monitor_battery_pending == 0u) &&
+       (status != g_monitor_battery_sent_status) &&
+       ((g_monitor_battery_last_queue_clock == 0u) ||
+        ((uint32_t)(now - g_monitor_battery_last_queue_clock) >= MS1_TO_SYSTEM_TIME(1000u))))
+    {
+        g_monitor_battery_pending = 1u;
+        g_monitor_battery_last_queue_clock = now;
+    }
 }
 
 static uint8_t demo_channel_index(uint8_t channel)
@@ -1463,6 +1500,11 @@ static uint8_t demo_active_hop_cmd(void)
     {
         return (g_demo_current_channel == g_demo_old_channel) ?
                RFH_CMD_HOP_PREPARE : RFH_CMD_HOP_CONFIRM;
+    }
+    if((g_monitor_battery_pending != 0u) &&
+       (g_demo_hop_state == RF_AUTO_HOP_COMM))
+    {
+        return RFH_CMD_BATTERY_STATUS;
     }
     return RFH_CMD_NONE;
 }
@@ -2317,6 +2359,13 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
                         g_monitor_latency_sample_tick_us);
             g_monitor_latency_pending = 0u;
         }
+        else if(hop_cmd == RFH_CMD_BATTERY_STATUS)
+        {
+            data[RFH_CMD_SLOT_ID] = RFH_CMD_BATTERY_STATUS;
+            data[RFH_CMD_SLOT_ARG0] = g_monitor_battery_status;
+            g_monitor_battery_sent_status = g_monitor_battery_status;
+            g_monitor_battery_pending = 0u;
+        }
         else
         {
             data[RFH_HOP_CMD_ID] = hop_cmd;
@@ -2340,6 +2389,7 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
 #else
             if(rfm_spi_port_peek_latest_input(input_payload, RFM_RF_INPUT_PAYLOAD_LEN))
             {
+                demo_note_battery_status(input_payload);
                 if((g_demo_have_payload == 0u) ||
                    (demo_input_payload_same_input(g_demo_last_payload, input_payload) == 0u))
                 {
@@ -3256,6 +3306,7 @@ bool RF_SPI_FastWriteInput(const uint8_t *payload, uint8_t len)
 
     SYS_DisableAllIrq(&irq_status);
     demo_store_last_payload(payload, tx_now_cycles());
+    demo_note_battery_status(payload);
     if((payload[RFMON_INPUT_FLAGS_OFFSET] & RFMON_INPUT_FLAG_SYNC_ECHO) != 0u)
     {
         g_monitor_sync_echo_seq = payload[RFMON_SPI_INPUT_SYNC_SEQ_OFFSET];

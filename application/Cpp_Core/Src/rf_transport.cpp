@@ -6,6 +6,7 @@
 #include "board_cfg.h"
 #include "micro_timer.hpp"
 #include "monitor_telemetry.hpp"
+#include "power_manager.hpp"
 #include "rf_command_transaction.hpp"
 #include "rf_bridge_port.hpp"
 #include "rf_reliable_event.hpp"
@@ -34,9 +35,15 @@ static constexpr uint8_t INPUT_PAYLOAD_LEN = 10u;
 static constexpr uint8_t INPUT_FORMAT_VERSION = 1u;
 static constexpr uint8_t INPUT_FLAG_PROCESSED = 0x01u;
 static constexpr uint8_t INPUT_FLAG_SYNC_ECHO = 0x02u;
-static constexpr uint8_t INPUT_FLAGS = static_cast<uint8_t>((INPUT_FORMAT_VERSION << 4) | INPUT_FLAG_PROCESSED);
+static constexpr uint8_t INPUT_FLAG_BATTERY_CODE = 0x04u;
+static constexpr uint8_t INPUT_FLAG_BATTERY_H2 = 0x08u;
+static constexpr uint8_t INPUT_BASE_FLAGS = static_cast<uint8_t>((INPUT_FORMAT_VERSION << 4) | INPUT_FLAG_PROCESSED);
 static constexpr uint8_t INPUT_AGE_US_OFFSET = 6u;
+static constexpr uint8_t INPUT_BATTERY_CODE_OFFSET = 8u;
 static constexpr uint8_t INPUT_CRC_OFFSET = 9u;
+static constexpr uint16_t INPUT_BATTERY_BASE_MV = 3000u;
+static constexpr uint16_t INPUT_BATTERY_STEP_MV = 10u;
+static constexpr uint8_t INPUT_BATTERY_MAX_CODE = 0x7Fu;
 static constexpr uint8_t STATUS_PAYLOAD_LEN = 23u;
 static constexpr uint8_t STATUS_CMD_TAG_OFFSET = 16u;
 static constexpr uint8_t STATUS_TXN_OFFSET = 17u;
@@ -89,6 +96,16 @@ static void putU16(uint8_t* dst, uint16_t value) {
 
 static uint16_t saturateAgeUs(uint32_t value) {
     return value > 0xFFFFu ? 0xFFFFu : static_cast<uint16_t>(value);
+}
+
+static uint8_t encodeBatteryMv(uint32_t mv) {
+    if (mv < INPUT_BATTERY_BASE_MV) {
+        return 1u;
+    }
+
+    const uint32_t code = ((mv - INPUT_BATTERY_BASE_MV) + (INPUT_BATTERY_STEP_MV / 2u)) /
+                          INPUT_BATTERY_STEP_MV + 1u;
+    return code > INPUT_BATTERY_MAX_CODE ? INPUT_BATTERY_MAX_CODE : static_cast<uint8_t>(code);
 }
 
 }
@@ -598,9 +615,9 @@ bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
     uint8_t payload[INPUT_PAYLOAD_LEN] = {0};
     const uint32_t keyMask = buildHitboxKeyMask(gamepad);
     uint16_t ageUs = 0u;
+    uint8_t flags = INPUT_BASE_FLAGS;
 
     payload[0] = static_cast<uint8_t>(seq & 0xFFu);
-    payload[1] = INPUT_FLAGS;
     payload[2] = static_cast<uint8_t>(keyMask & 0xFFu);
     payload[3] = static_cast<uint8_t>((keyMask >> 8) & 0xFFu);
     payload[4] = static_cast<uint8_t>((keyMask >> 16) & 0xFFu);
@@ -617,6 +634,19 @@ bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
         g_lastInputKeyMask = keyMask;
     }
     putU16(&payload[INPUT_AGE_US_OFFSET], ageUs);
+    if (POWER_MANAGER.isVoltageValid()) {
+        const PowerBatteryVoltages voltages = POWER_MANAGER.getVoltages();
+        const PowerBatteryId activeBattery = POWER_MANAGER.getActiveDischargeBattery();
+        const uint32_t activeMv = (activeBattery == PowerBatteryId::H2) ? voltages.h2_mv : voltages.h1_mv;
+        if (activeMv > 0u) {
+            payload[INPUT_BATTERY_CODE_OFFSET] = encodeBatteryMv(activeMv);
+            flags = static_cast<uint8_t>(flags | INPUT_FLAG_BATTERY_CODE);
+            if (activeBattery == PowerBatteryId::H2) {
+                flags = static_cast<uint8_t>(flags | INPUT_FLAG_BATTERY_H2);
+            }
+        }
+    }
+    payload[1] = flags;
     payload[INPUT_CRC_OFFSET] = inputCrc8(payload, INPUT_CRC_OFFSET);
 
     bool ok = transferCommand(CMD_INPUT_DATA, payload, sizeof(payload), false);

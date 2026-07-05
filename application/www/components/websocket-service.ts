@@ -39,6 +39,12 @@ export interface TriggerConfigs {
 
 export interface GlobalConfig {
   inputMode: string;
+  connectionMode?: string;
+  wirelessReportRate?: string;
+  power?: {
+    wakeHoldMs: number;
+    autoStandbyMs: number;
+  };
   autoCalibrationEnabled: boolean;
   manualCalibrationActive: boolean;
 }

@@ -122,6 +122,11 @@ PowerBatteryId PowerManager::getActiveDischargeBattery() const
     return active_discharge;
 }
 
+bool PowerManager::isVoltageValid() const
+{
+    return voltage_valid;
+}
+
 bool PowerManager::isFastCharging() const
 {
     return fast_charging;

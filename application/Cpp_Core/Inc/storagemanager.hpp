@@ -36,6 +36,12 @@ public:
 	WirelessReportRate getWirelessReportRate() const {
 		return config.wirelessReportRate;
 	}
+	uint32_t getWakeHoldMs() const {
+		return config.power.wakeHoldMs;
+	}
+	uint32_t getAutoStandbyMs() const {
+		return config.power.autoStandbyMs;
+	}
 	void setRfPowerStateHint(uint8_t hint);
 	uint8_t getRfPowerStateHint() const {
 		return config.reservedConnection0;

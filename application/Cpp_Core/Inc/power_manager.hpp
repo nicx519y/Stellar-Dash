@@ -40,6 +40,7 @@ public:
     float getTotalSocPercent() const;
     PowerBatteryVoltages getVoltages() const;
     PowerBatteryId getActiveDischargeBattery() const;
+    bool isVoltageValid() const;
     bool isFastCharging() const;
     bool isLowBattery() const;
     bool prepareSystemSleep();

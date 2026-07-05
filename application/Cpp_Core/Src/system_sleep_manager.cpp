@@ -23,6 +23,10 @@
 #define SYSTEM_SLEEP_WAKE_HOLD_MS 3000u
 #endif
 
+#ifndef SYSTEM_SLEEP_AUTO_STANDBY_NONE_MS
+#define SYSTEM_SLEEP_AUTO_STANDBY_NONE_MS 0u
+#endif
+
 #ifndef SYSTEM_SLEEP_WKUP1_PULL
 #define SYSTEM_SLEEP_WKUP1_PULL PWR_PIN_PULL_UP
 #endif
@@ -33,6 +37,10 @@
 
 #ifndef SYSTEM_SLEEP_BKP_INDEX
 #define SYSTEM_SLEEP_BKP_INDEX 15u
+#endif
+
+#ifndef SYSTEM_SLEEP_BKP_WAKE_HOLD_INDEX
+#define SYSTEM_SLEEP_BKP_WAKE_HOLD_INDEX 14u
 #endif
 
 #define SYSTEM_SLEEP_BKP_ENTRY_HELD 0x48534C50u
@@ -47,6 +55,7 @@ static bool s_waitPa0Release = false;
 static bool s_sleepEntering = false;
 static bool s_rotaryHoldActive = false;
 static uint32_t s_rotaryHoldStartMs = 0;
+static uint32_t s_lastActivityMs = 0;
 
 static void reset_runtime_hold()
 {
@@ -77,9 +86,41 @@ static bool standby_entry_had_pa0_held()
     return bkp_read(SYSTEM_SLEEP_BKP_INDEX) == SYSTEM_SLEEP_BKP_ENTRY_HELD;
 }
 
+static uint32_t sanitize_wake_hold_ms(uint32_t value)
+{
+    if (value < 1000u || value > 5000u) {
+        return SYSTEM_SLEEP_WAKE_HOLD_MS;
+    }
+    return (value / 1000u) * 1000u;
+}
+
+static uint32_t sanitize_auto_standby_ms(uint32_t value)
+{
+    switch (value) {
+        case 0u:
+        case 30000u:
+        case 60000u:
+        case 120000u:
+        case 300000u:
+            return value;
+        default:
+            return SYSTEM_SLEEP_AUTO_STANDBY_NONE_MS;
+    }
+}
+
 static void mark_standby_entry_pa0_state(bool pa0Held)
 {
     bkp_write(SYSTEM_SLEEP_BKP_INDEX, pa0Held ? SYSTEM_SLEEP_BKP_ENTRY_HELD : 0u);
+}
+
+static uint32_t wake_hold_ms_from_backup()
+{
+    return sanitize_wake_hold_ms(bkp_read(SYSTEM_SLEEP_BKP_WAKE_HOLD_INDEX));
+}
+
+static void mark_wake_hold_ms_for_next_boot(uint32_t wakeHoldMs)
+{
+    bkp_write(SYSTEM_SLEEP_BKP_WAKE_HOLD_INDEX, sanitize_wake_hold_ms(wakeHoldMs));
 }
 
 static void init_pa0_input_for_hold_check()
@@ -194,6 +235,7 @@ static void request_standby()
     stop_usb();
 
     reset_runtime_hold();
+    mark_wake_hold_ms_for_next_boot(STORAGE_MANAGER.getWakeHoldMs());
     if (!CONNECTION_MANAGER.ensureRfSleeping(RfPowerReason::SystemSleep)) {
         LOG_ERROR("SYSTEM_SLEEP", "CH584 sleep command failed; entering Standby anyway");
     }
@@ -232,8 +274,9 @@ extern "C" void SystemSleep_ConfirmWakeHoldOrReturnStandby(void)
         enter_standby_now();
     }
 
+    const uint32_t wakeHoldMs = wake_hold_ms_from_backup();
     const uint32_t start = HAL_GetTick();
-    while ((uint32_t)(HAL_GetTick() - start) < SYSTEM_SLEEP_WAKE_HOLD_MS) {
+    while ((uint32_t)(HAL_GetTick() - start) < wakeHoldMs) {
         if (!is_pa0_down()) {
             mark_standby_entry_pa0_state(false);
             enter_standby_now();
@@ -243,6 +286,7 @@ extern "C" void SystemSleep_ConfirmWakeHoldOrReturnStandby(void)
 
     s_wakeHoldConfirmed = true;
     s_waitPa0Release = true;
+    s_lastActivityMs = HAL_GetTick();
     reset_runtime_hold();
     mark_standby_entry_pa0_state(false);
     (void)HAL_PWREx_ClearWakeupFlag(PWR_WAKEUP_FLAG_ALL);
@@ -309,6 +353,51 @@ extern "C" void SystemSleep_UpdateRotaryHold(uint32_t nowMs)
     }
 
     if ((uint32_t)(nowMs - s_rotaryHoldStartMs) >= SYSTEM_SLEEP_ENTER_HOLD_MS) {
+        request_standby();
+    }
+}
+
+extern "C" void SystemSleep_NotifyButtonActivity(uint32_t nowMs, uint32_t inputMask)
+{
+    if (inputMask != 0u) {
+        s_lastActivityMs = nowMs;
+    }
+}
+
+extern "C" void SystemSleep_NotifyScreenActivity(uint32_t nowMs)
+{
+    s_lastActivityMs = nowMs;
+}
+
+extern "C" void SystemSleep_UpdateAutoStandby(uint32_t nowMs)
+{
+    if (s_sleepEntering) {
+        return;
+    }
+
+    if (STORAGE_MANAGER.getBootMode() != BootMode::BOOT_MODE_INPUT) {
+        s_lastActivityMs = nowMs;
+        return;
+    }
+
+    const uint32_t autoStandbyMs = sanitize_auto_standby_ms(STORAGE_MANAGER.getAutoStandbyMs());
+    if (autoStandbyMs == SYSTEM_SLEEP_AUTO_STANDBY_NONE_MS) {
+        s_lastActivityMs = nowMs;
+        return;
+    }
+
+    if (s_waitPa0Release) {
+        s_lastActivityMs = nowMs;
+        return;
+    }
+
+    if (s_lastActivityMs == 0u) {
+        s_lastActivityMs = nowMs;
+        return;
+    }
+
+    if ((uint32_t)(nowMs - s_lastActivityMs) >= autoStandbyMs) {
+        LOG_INFO("SYSTEM_SLEEP", "Auto Standby timeout: %lu ms", (unsigned long)autoStandbyMs);
         request_standby();
     }
 }

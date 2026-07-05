@@ -115,6 +115,7 @@
 #define RFH_CMD_TIME_SYNC_ECHO        0x23u
 #define RFH_CMD_LATENCY_INPUT         0x24u
 #define RFH_CMD_SCORE_HINT            0x25u
+#define RFH_CMD_BATTERY_STATUS        0x26u
 #define RFH_CMD_PAIR_OFFER            0x30u
 #define RFH_CMD_PAIR_ACCEPT           0x31u
 #define RFH_CMD_PAIR_CONFIRM          0x32u

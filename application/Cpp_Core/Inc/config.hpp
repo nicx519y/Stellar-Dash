@@ -157,6 +157,12 @@ typedef struct
 
 typedef struct
 {
+    uint32_t wakeHoldMs;             // PA0 低电平长按唤醒确认时间
+    uint32_t autoStandbyMs;          // 无按键/屏幕操作自动进入 Standby，0 表示关闭
+} PowerConfig;
+
+typedef struct
+{
     uint32_t version;
     BootMode bootMode;
     InputMode inputMode;
@@ -172,6 +178,7 @@ typedef struct
     bool autoCalibrationEnabled;
     uint8_t reserved0[3];
     ScreenControlConfig screenControl;
+    PowerConfig power;
 } Config;
 
 namespace ConfigUtils {

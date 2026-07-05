@@ -5,6 +5,7 @@ import type {
   LatencyEvent,
   MonitorEvent,
   PacketEvent,
+  PowerStatusEvent,
 } from "../../../shared/monitor-types";
 
 export type PacketRow = PacketEvent & { id: string };
@@ -65,6 +66,7 @@ export type MonitorStreamSnapshot = {
   errors: ErrorSummary;
   latency: LatencySummary;
   buttonLatency: ButtonLatencySummary;
+  powerStatus: PowerStatusEvent | null;
   rateSeries: RatePoint[];
   lossSeries: LossPoint[];
   channelSwitches: ChannelSwitchRow[];
@@ -109,6 +111,7 @@ export function createEmptyMonitorStreamSnapshot(): MonitorStreamSnapshot {
       items: [],
       status: null,
     },
+    powerStatus: null,
     rateSeries: [],
     lossSeries: [],
     channelSwitches: [],

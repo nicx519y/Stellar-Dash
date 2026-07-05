@@ -119,6 +119,19 @@ export interface ButtonLatencyStatusEvent {
   clockSamples?: number;
 }
 
+export interface PowerStatusEvent {
+  kind: "power_status";
+  timestampMs: number;
+  h1Mv: number;
+  h2Mv: number;
+  batMv: number;
+  socPercent: number;
+  activeBattery: "H1" | "H2";
+  chargeState: "Discharging" | "Charging" | "Full" | "Fault" | "Unknown";
+  valid: boolean;
+  lowBattery: boolean;
+}
+
 export interface ErrorEvent {
   kind: "error";
   timestampMs: number;
@@ -129,7 +142,14 @@ export interface ErrorEvent {
   count?: number;
 }
 
-export type MonitorEvent = DeviceStatusEvent | PacketEvent | LatencyEvent | ButtonLatencyEvent | ButtonLatencyStatusEvent | ErrorEvent;
+export type MonitorEvent =
+  | DeviceStatusEvent
+  | PacketEvent
+  | LatencyEvent
+  | ButtonLatencyEvent
+  | ButtonLatencyStatusEvent
+  | PowerStatusEvent
+  | ErrorEvent;
 
 export interface SerialPortInfo {
   path: string;

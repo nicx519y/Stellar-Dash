@@ -24,6 +24,12 @@ class MockDataStore {
   constructor() {
     this.globalConfig = {
       inputMode: "XINPUT",
+      connectionMode: "USB",
+      wirelessReportRate: "1K",
+      power: {
+        wakeHoldMs: 3000,
+        autoStandbyMs: 0
+      },
       autoCalibrationEnabled: true,
       manualCalibrationActive: false
     };

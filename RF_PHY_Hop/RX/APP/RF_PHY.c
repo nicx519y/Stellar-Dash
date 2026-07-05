@@ -249,6 +249,8 @@ static volatile uint32_t g_demo_hid_input_report_seq = 0u;
 static volatile uint8_t g_demo_hid_input_seq = 0u;
 static volatile uint8_t g_demo_hid_input_flags = 0u;
 static volatile uint8_t g_demo_hid_input_valid = 0u;
+static volatile uint8_t g_demo_hid_input_battery_code = 0u;
+static volatile uint8_t g_demo_hid_input_battery_flags = 0u;
 static volatile uint32_t g_demo_hid_input_sample_tick_us = 0u;
 static volatile uint8_t g_demo_hid_input_sync_seq = 0u;
 static volatile uint32_t g_demo_hid_input_sync_rx_tick_us = 0u;
@@ -366,6 +368,8 @@ static void demo_hid_clear_report_state(void)
     g_demo_hid_input_seq = 0u;
     g_demo_hid_input_flags = 0u;
     g_demo_hid_input_valid = 0u;
+    g_demo_hid_input_battery_code = 0u;
+    g_demo_hid_input_battery_flags = 0u;
     g_demo_hid_input_sample_tick_us = 0u;
     g_demo_hid_input_sync_seq = 0u;
     g_demo_hid_input_sync_rx_tick_us = 0u;
@@ -2469,6 +2473,13 @@ static void demo_capture_xinput_report(const uint8_t *payload)
         g_demo_hid_input_window_mask |= key_mask;
         g_demo_hid_input_seq = payload[0];
         g_demo_hid_input_flags = payload[1];
+        if((payload[1] & RFMON_INPUT_FLAG_BATTERY_CODE) != 0u)
+        {
+            g_demo_hid_input_battery_code = payload[RFMON_INPUT_BATTERY_CODE_OFFSET];
+            g_demo_hid_input_battery_flags =
+                (uint8_t)(payload[1] & (RFMON_INPUT_FLAG_BATTERY_CODE |
+                                        RFMON_INPUT_FLAG_BATTERY_H2));
+        }
         g_demo_hid_input_sample_tick_us =
             (version == RF_INPUT_FORMAT_VERSION_V2) ? demo_input_sample_tick_us(payload) : 0u;
         g_demo_hid_input_sync_seq = 0u;
@@ -2710,6 +2721,22 @@ static void demo_handle_command(const uint8_t *air, uint8_t rx_channel)
                                  0u,
                                  (uint8_t)((RF_INPUT_FORMAT_VERSION_V2 << RF_INPUT_FORMAT_VERSION_SHIFT) |
                                            RF_INPUT_FLAG_PROCESSED));
+    }
+    else if(cmd == RFH_CMD_BATTERY_STATUS)
+    {
+        uint8_t status = data[RFH_CMD_SLOT_ARG0];
+        uint8_t code = (uint8_t)(status & RFMON_INPUT_BATTERY_SHORT_CODE_MASK);
+
+        if(code != 0u)
+        {
+            g_demo_hid_input_battery_code = code;
+            g_demo_hid_input_battery_flags = RFMON_INPUT_FLAG_BATTERY_CODE;
+            if((status & RFMON_INPUT_BATTERY_SHORT_H2_MASK) != 0u)
+            {
+                g_demo_hid_input_battery_flags =
+                    (uint8_t)(g_demo_hid_input_battery_flags | RFMON_INPUT_FLAG_BATTERY_H2);
+            }
+        }
     }
 }
 
@@ -3821,6 +3848,8 @@ static uint8_t demo_try_send_input_report(void)
     uint32_t diag_timeout_errors = g_demo_air_diag_timeout_errors;
     uint8_t input_seq = g_demo_hid_input_seq;
     uint8_t input_flags = g_demo_hid_input_flags;
+    uint8_t input_battery_code = g_demo_hid_input_battery_code;
+    uint8_t input_battery_flags = g_demo_hid_input_battery_flags;
 
     if(g_demo_hid_input_valid == 0u)
     {
@@ -3848,7 +3877,7 @@ static uint8_t demo_try_send_input_report(void)
     demo_put_u32(&report[4], g_demo_hid_input_report_seq + 1u);
     demo_put_u32(&report[8], report_key_mask);
     report[12] = input_seq;
-    report[13] = input_flags;
+    report[13] = (uint8_t)(input_flags | input_battery_flags);
     report[14] = demo_hid_state_code();
     report[15] = g_demo_current_channel;
     demo_put_u16(&report[16], g_demo_report_hz);
@@ -3865,7 +3894,9 @@ static uint8_t demo_try_send_input_report(void)
                  (diag_expected > 0xFFFFu) ? 0xFFFFu : (uint16_t)diag_expected);
     demo_put_u16(&report[29],
                  (diag_crc_errors > 0xFFFFu) ? 0xFFFFu : (uint16_t)diag_crc_errors);
-    report[31] = (uint8_t)(diag_seq_gap > 0xFFu ? 0xFFu : diag_seq_gap);
+    report[31] = ((input_battery_flags & RFMON_INPUT_FLAG_BATTERY_CODE) != 0u) ?
+                 input_battery_code :
+                 (uint8_t)(diag_seq_gap > 0xFFu ? 0xFFu : diag_seq_gap);
 
     if(demo_submit_hid_report(report) == 0u)
     {

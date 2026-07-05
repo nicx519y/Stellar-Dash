@@ -20,6 +20,23 @@ function rfHopStateToLinkState(state: number): "Disconnected" | "Connecting" | "
   return "Error";
 }
 
+const RFH_INPUT_FLAG_BATTERY_CODE = 0x04;
+const RFH_INPUT_FLAG_BATTERY_H2 = 0x08;
+const RFH_INPUT_BATTERY_BASE_MV = 3000;
+const RFH_INPUT_BATTERY_STEP_MV = 10;
+
+function decodeRfHopBatteryMv(code: number) {
+  if (code <= 0) return 0;
+  return RFH_INPUT_BATTERY_BASE_MV + (code - 1) * RFH_INPUT_BATTERY_STEP_MV;
+}
+
+function estimateSocPercent(mv: number) {
+  if (mv <= 0) return 0;
+  if (mv <= 3300) return 0;
+  if (mv >= 4200) return 100;
+  return Math.round(((mv - 3300) * 100) / 900);
+}
+
 function parseRfHopInputFrame(view: DataView, report: Uint8Array, timestampMs: number): MonitorEvent[] {
   const seq = view.getUint32(4, true);
   const inputKeyMask = view.getUint32(8, true);
@@ -37,7 +54,11 @@ function parseRfHopInputFrame(view: DataView, report: Uint8Array, timestampMs: n
   const airWindowRxOk = report.length >= 27 ? view.getUint16(25, true) : undefined;
   const airWindowExpected = report.length >= 29 ? view.getUint16(27, true) : undefined;
   const airWindowCrcErrors = report.length >= 31 ? view.getUint16(29, true) : undefined;
-  const airWindowSeqGaps = report.length >= 32 ? view.getUint8(31) : undefined;
+  const batteryCode = report.length >= 32 ? view.getUint8(31) : 0;
+  const batteryValid = (inputFlags & RFH_INPUT_FLAG_BATTERY_CODE) !== 0 && batteryCode > 0;
+  const activeBattery = (inputFlags & RFH_INPUT_FLAG_BATTERY_H2) !== 0 ? "H2" : "H1";
+  const batteryMv = batteryValid ? decodeRfHopBatteryMv(batteryCode) : 0;
+  const airWindowSeqGaps = batteryValid ? undefined : report.length >= 32 ? view.getUint8(31) : undefined;
   const airWindowTypeErrors = undefined;
   const airWindowTimeoutErrors = undefined;
   const airDiagLooksSane =
@@ -53,7 +74,7 @@ function parseRfHopInputFrame(view: DataView, report: Uint8Array, timestampMs: n
       : undefined;
   const stateCode = rfHopStateCode(state);
 
-  return [
+  const events: MonitorEvent[] = [
     {
       kind: "packet",
       timestampMs,
@@ -84,6 +105,23 @@ function parseRfHopInputFrame(view: DataView, report: Uint8Array, timestampMs: n
       airWindowTimeoutErrors: airDiagLooksSane ? airWindowTimeoutErrors : undefined,
     },
   ];
+
+  if (batteryValid) {
+    events.push({
+      kind: "power_status",
+      timestampMs,
+      h1Mv: activeBattery === "H1" ? batteryMv : 0,
+      h2Mv: activeBattery === "H2" ? batteryMv : 0,
+      batMv: batteryMv,
+      socPercent: estimateSocPercent(batteryMv),
+      activeBattery,
+      chargeState: "Discharging",
+      valid: true,
+      lowBattery: batteryMv > 0 && batteryMv <= 3300,
+    });
+  }
+
+  return events;
 }
 
 const RFH_TMOS_TICK_MS = 0.625;

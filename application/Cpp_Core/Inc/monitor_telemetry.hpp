@@ -41,6 +41,25 @@ struct MonitorTelemetryFrameV1 {
     uint16_t rfTransferFailLow16;
 };
 
+struct MonitorPowerFrameV1 {
+    uint32_t magic; /* "MONP" */
+    uint32_t seq;
+    uint32_t timestampMs;
+    uint16_t h1Mv;
+    uint16_t h2Mv;
+    uint16_t batMv;
+    uint16_t socPermille;
+    uint8_t activeBattery;
+    uint8_t chargeState;
+    uint8_t flags;
+    uint8_t reserved0;
+    uint32_t reserved1;
+    uint32_t reserved2;
+};
+
+static_assert(sizeof(MonitorTelemetryFrameV1) == 32, "MonitorTelemetryFrameV1 must stay 32 bytes");
+static_assert(sizeof(MonitorPowerFrameV1) == 32, "MonitorPowerFrameV1 must stay 32 bytes");
+
 void MonitorTelemetry_Init(ConnectionMode mode, uint16_t targetRateHz);
 uint32_t MonitorTelemetry_NextSequence();
 void MonitorTelemetry_OnReportReady(uint32_t seq);
@@ -52,5 +71,6 @@ void MonitorTelemetry_OnLinkStateChanged(ConnectionMode mode, uint8_t linkState)
 void MonitorTelemetry_OnError(const char* source, uint32_t code, const char* message);
 void MonitorTelemetry_GetSnapshot(MonitorTelemetrySnapshot* out);
 bool MonitorTelemetry_FillFrameV1(MonitorTelemetryFrameV1* out);
+bool MonitorTelemetry_FillPowerFrameV1(MonitorPowerFrameV1* out);
 
 #endif

@@ -16,6 +16,7 @@
 #include "connection_manager.hpp"
 #include "monitor_telemetry.hpp"
 #include "report_scheduler.hpp"
+#include "system_sleep_manager.hpp"
 #include "board_cfg.h"
 #include "tusb.h"
 
@@ -45,6 +46,7 @@ static void process_input_report_tick(GPDriver* inputDriver,
                                       uint32_t& virtualPinMask,
                                       uint32_t& lastVirtualPinMask) {
     virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();
+    SystemSleep_NotifyButtonActivity(HAL_GetTick(), virtualPinMask);
 
     // 只有在没有按下FN键时才处理游戏手柄数据
     if ((virtualPinMask & FN_BUTTON_VIRTUAL_PIN) == 0)

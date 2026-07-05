@@ -13,6 +13,9 @@
 
 #define CONFIG_ADDR_ORIGIN  CONFIG_ADDR
 #define CONFIG_VERSION_SCREEN_STYLE_MIGRATE_FROM 0x00001Bu
+#define CONFIG_VERSION_POWER_MIGRATE_FROM 0x00001Cu
+#define DEFAULT_POWER_WAKE_HOLD_MS 3000u
+#define DEFAULT_POWER_AUTO_STANDBY_MS 0u
 
 // ============================================================================
 // ConfigUtils Mappings
@@ -190,6 +193,62 @@ static void sanitize_screen_style(ScreenControlConfig& sc) {
     memset(sc.reservedStyle, 0, sizeof(sc.reservedStyle));
 }
 
+static uint32_t clamp_power_wake_hold_ms(uint32_t value) {
+    if (value < 1000u) return 1000u;
+    if (value > 5000u) return 5000u;
+    return (value / 1000u) * 1000u;
+}
+
+static uint32_t sanitize_power_auto_standby_ms(uint32_t value) {
+    switch (value) {
+        case 0u:
+        case 30000u:
+        case 60000u:
+        case 120000u:
+        case 300000u:
+            return value;
+        default:
+            return DEFAULT_POWER_AUTO_STANDBY_MS;
+    }
+}
+
+static void init_power_defaults(PowerConfig& power) {
+    power.wakeHoldMs = DEFAULT_POWER_WAKE_HOLD_MS;
+    power.autoStandbyMs = DEFAULT_POWER_AUTO_STANDBY_MS;
+}
+
+static void sanitize_power_config(PowerConfig& power) {
+    power.wakeHoldMs = clamp_power_wake_hold_ms(power.wakeHoldMs);
+    power.autoStandbyMs = sanitize_power_auto_standby_ms(power.autoStandbyMs);
+}
+
+static void add_power_json(cJSON* globalConfigJSON, const PowerConfig& power) {
+    cJSON* powerJSON = cJSON_CreateObject();
+    cJSON_AddNumberToObject(powerJSON, "wakeHoldMs", power.wakeHoldMs);
+    cJSON_AddNumberToObject(powerJSON, "autoStandbyMs", power.autoStandbyMs);
+    cJSON_AddItemToObject(globalConfigJSON, "power", powerJSON);
+}
+
+static void parse_power_json(PowerConfig& power, cJSON* globalConfig) {
+    if (!globalConfig) return;
+    cJSON* powerJSON = cJSON_GetObjectItem(globalConfig, "power");
+    if (!powerJSON || !cJSON_IsObject(powerJSON)) return;
+
+    cJSON* wakeHoldItem = cJSON_GetObjectItem(powerJSON, "wakeHoldMs");
+    if (wakeHoldItem && cJSON_IsNumber(wakeHoldItem)) {
+        int v = wakeHoldItem->valueint;
+        power.wakeHoldMs = (v > 0) ? (uint32_t)v : DEFAULT_POWER_WAKE_HOLD_MS;
+    }
+
+    cJSON* autoStandbyItem = cJSON_GetObjectItem(powerJSON, "autoStandbyMs");
+    if (autoStandbyItem && cJSON_IsNumber(autoStandbyItem)) {
+        int v = autoStandbyItem->valueint;
+        power.autoStandbyMs = (v > 0) ? (uint32_t)v : 0u;
+    }
+
+    sanitize_power_config(power);
+}
+
 static void parse_screen_style_json(ScreenControlConfig& sc, cJSON* screenControl) {
     if (!screenControl) return;
     cJSON* item = cJSON_GetObjectItem(screenControl, "screenStyle");
@@ -330,6 +389,8 @@ cJSON* toJSON(Config& config) {
     cJSON_AddStringToObject(globalConfigJSON, "connectionMode", getConnectionModeString(config.connectionMode));
     cJSON_AddStringToObject(globalConfigJSON, "wirelessReportRate", getWirelessReportRateString(config.wirelessReportRate));
     cJSON_AddStringToObject(globalConfigJSON, "defaultProfileId", config.defaultProfileId);
+    sanitize_power_config(config.power);
+    add_power_json(globalConfigJSON, config.power);
     
     cJSON_AddItemToObject(exportJSON, "globalConfig", globalConfigJSON);
 
@@ -389,6 +450,8 @@ bool fromJSON(Config& config, cJSON* json) {
                 APP_DBG("ConfigUtils::fromJSON - defaultProfileId too long");
             }
         }
+
+        parse_power_json(config.power, globalConfig);
     }
 
     // 2. 快捷键配置
@@ -671,6 +734,7 @@ bool ConfigUtils::load(Config& config)
 
     if(fjResult == true && config.version == CONFIG_VERSION) { // 版本号一致
         sanitize_screen_style(config.screenControl);
+        sanitize_power_config(config.power);
         uint32_t ver = config.version;
         APP_DBG("Config Version: %d.%d.%d", (ver>>16) & 0xff, (ver>>8) & 0xff, ver & 0xff);
         return true;
@@ -679,11 +743,18 @@ bool ConfigUtils::load(Config& config)
         uint32_t oldFg = read_legacy_screen_fg(config.screenControl);
         config.screenControl.screenStyle = infer_screen_style_from_colors(oldBg, oldFg);
         sanitize_screen_style(config.screenControl);
+        init_power_defaults(config.power);
         config.version = CONFIG_VERSION;
         APP_DBG("ConfigUtils::load - migrated screen style from bg=0x%06lx fg=0x%06lx style=%u",
                 (unsigned long)(oldBg & 0xFFFFFFu),
                 (unsigned long)(oldFg & 0xFFFFFFu),
                 (unsigned int)config.screenControl.screenStyle);
+        return save(config);
+    } else if (fjResult == true && config.version == CONFIG_VERSION_POWER_MIGRATE_FROM) {
+        sanitize_screen_style(config.screenControl);
+        init_power_defaults(config.power);
+        config.version = CONFIG_VERSION;
+        APP_DBG("ConfigUtils::load - migrated power config defaults");
         return save(config);
     } else {
 
@@ -723,6 +794,7 @@ bool ConfigUtils::load(Config& config)
         const uint8_t defaultFeatureOrder[SCREEN_FEATURE_COUNT] = {3, 0, 1, 2, 11, 4, 5, 6, 7, 8, 9, 10};
         memcpy(config.screenControl.featuresOrder, defaultFeatureOrder, sizeof(config.screenControl.featuresOrder));
         config.screenControl.reserved2 = 0;
+        init_power_defaults(config.power);
 
         APP_DBG("ConfigUtils::load - base config init done");
 

@@ -45,6 +45,50 @@ static void set_screen_style_from_json(ScreenControlConfig& sc, cJSON* screenCon
     memset(sc.reservedStyle, 0, sizeof(sc.reservedStyle));
 }
 
+static uint32_t clamp_power_wake_hold_ms(uint32_t value) {
+    if (value < 1000u) return 1000u;
+    if (value > 5000u) return 5000u;
+    return (value / 1000u) * 1000u;
+}
+
+static uint32_t sanitize_power_auto_standby_ms(uint32_t value) {
+    switch (value) {
+        case 0u:
+        case 30000u:
+        case 60000u:
+        case 120000u:
+        case 300000u:
+            return value;
+        default:
+            return 0u;
+    }
+}
+
+static void add_power_json(cJSON* globalConfigJSON, const PowerConfig& power) {
+    cJSON* powerJSON = cJSON_CreateObject();
+    cJSON_AddNumberToObject(powerJSON, "wakeHoldMs", power.wakeHoldMs);
+    cJSON_AddNumberToObject(powerJSON, "autoStandbyMs", power.autoStandbyMs);
+    cJSON_AddItemToObject(globalConfigJSON, "power", powerJSON);
+}
+
+static void parse_power_json(PowerConfig& power, cJSON* globalConfigJSON) {
+    if (!globalConfigJSON) return;
+    cJSON* powerJSON = cJSON_GetObjectItem(globalConfigJSON, "power");
+    if (!powerJSON || !cJSON_IsObject(powerJSON)) return;
+
+    cJSON* wakeHoldItem = cJSON_GetObjectItem(powerJSON, "wakeHoldMs");
+    if (wakeHoldItem && cJSON_IsNumber(wakeHoldItem)) {
+        int v = wakeHoldItem->valueint;
+        if (v > 0) power.wakeHoldMs = clamp_power_wake_hold_ms((uint32_t)v);
+    }
+
+    cJSON* autoStandbyItem = cJSON_GetObjectItem(powerJSON, "autoStandbyMs");
+    if (autoStandbyItem && cJSON_IsNumber(autoStandbyItem)) {
+        int v = autoStandbyItem->valueint;
+        power.autoStandbyMs = sanitize_power_auto_standby_ms(v > 0 ? (uint32_t)v : 0u);
+    }
+}
+
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetGlobalConfig(const WebSocketUpstreamMessage& request) {
     // LOG_INFO("WebSocket", "Handling get_global_config command, cid: %d", request.getCid());
 
@@ -62,6 +106,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetGlobalConfig(con
     
     // 添加自动校准模式状态
     cJSON_AddBoolToObject(globalConfigJSON, "autoCalibrationEnabled", config.autoCalibrationEnabled);
+    add_power_json(globalConfigJSON, config.power);
     
     // 添加手动校准状态
     cJSON_AddBoolToObject(globalConfigJSON, "manualCalibrationActive", ADC_CALIBRATION_MANAGER.isCalibrationActive());
@@ -115,6 +160,8 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateGlobalConfig(
         if (autoCalibrationItem) {
             config.autoCalibrationEnabled = cJSON_IsTrue(autoCalibrationItem);
         }
+
+        parse_power_json(config.power, globalConfig);
     }
 
     // 保存配置
@@ -420,6 +467,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleExportAllConfig(con
         cJSON_AddStringToObject(globalConfigJSON, "wirelessReportRate", ConfigUtils::getWirelessReportRateString(config.wirelessReportRate));
         cJSON_AddBoolToObject(globalConfigJSON, "autoCalibrationEnabled", config.autoCalibrationEnabled);
         cJSON_AddStringToObject(globalConfigJSON, "defaultProfileId", config.defaultProfileId);
+        add_power_json(globalConfigJSON, config.power);
         sendPart("global", globalConfigJSON);
     }
 
@@ -515,6 +563,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(co
         if ((item = cJSON_GetObjectItem(globalConfigJSON, "autoCalibrationEnabled"))) {
              config.autoCalibrationEnabled = cJSON_IsTrue(item);
         }
+        parse_power_json(config.power, globalConfigJSON);
     } else if (section == "hotkeys") {
         if (cJSON_IsArray(dataItem)) {
             int index = 0;

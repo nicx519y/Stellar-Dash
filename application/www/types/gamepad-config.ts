@@ -83,8 +83,14 @@ export interface GlobalConfig {
     inputMode?: Platform;
     connectionMode?: ConnectionMode;
     wirelessReportRate?: WirelessReportRate;
+    power?: PowerConfig;
     autoCalibrationEnabled?: boolean;
     manualCalibrationActive?: boolean;
+}
+
+export interface PowerConfig {
+    wakeHoldMs: number;
+    autoStandbyMs: number;
 }
 
 export enum ConnectionMode {
@@ -693,6 +699,10 @@ export const UI_TEXT = {
     CONNECTION_MODE_TITLE: "Connection Mode",
     CONNECTION_MODE_REPORT_RATE_LABEL: "Report Rate",
     INPUT_MODE_TITLE: "Platform",
+    POWER_TITLE: "Power",
+    POWER_WAKE_HOLD_LABEL: "Long Press Wake",
+    POWER_AUTO_STANDBY_LABEL: "Auto Standby",
+    POWER_AUTO_STANDBY_NONE: "None",
 
     // Keys Settings
     SETTINGS_KEYS_TITLE: "KEYS SETTINGS",
@@ -1096,7 +1106,11 @@ export const UI_TEXT_ZH = {
     // 输入模式
     CONNECTION_MODE_TITLE: "连接模式",
     CONNECTION_MODE_REPORT_RATE_LABEL: "上报率",
-    INPUT_MODE_TITLE: "Platform",
+    INPUT_MODE_TITLE: "平台",
+    POWER_TITLE: "电源",
+    POWER_WAKE_HOLD_LABEL: "长按唤醒时长",
+    POWER_AUTO_STANDBY_LABEL: "自动进入待机时长",
+    POWER_AUTO_STANDBY_NONE: "无自动待机",
 
     // 按键设置
     SETTINGS_KEYS_TITLE: "按键设置",
@@ -1112,7 +1126,7 @@ export const UI_TEXT_ZH = {
     KEYS_MAPPING_TITLE_MACROS: "动态宏",
     MACRO_FIELD_RECORD_BUTTON: "录制",
     MACRO_DIALOG_TITLE: "录制宏",
-    c: "- 点击[开始录制]后，在设备上按键即可录制。点击[结束录制]或达到宏容量后会自动停止。\n- 可手动调整左侧的帧数，代表每一行指令的执行时间。\n- 可点击每个指令槽位，红色槽位在运行时会自动替换为宏触发之前的按键指令。",
+    MACRO_DIALOG_MESSAGE: "- 点击[开始录制]后，在设备上按键即可录制。点击[结束录制]或达到宏容量后会自动停止。\n- 可手动调整左侧的帧数，代表每一行指令的执行时间。\n- 可点击每个指令槽位，红色槽位在运行时会自动替换为宏触发之前的按键指令。",
     MACRO_DIALOG_BUTTON_START: "开始录制",
     MACRO_DIALOG_BUTTON_STOP: "结束录制",
     MACRO_DIALOG_BUTTON_CLOSE: "关闭",

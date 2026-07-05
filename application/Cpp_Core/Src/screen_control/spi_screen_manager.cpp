@@ -523,6 +523,13 @@ void SPIScreenManager::loop() {
     }
     bool standbyNowActive = ScreenStandby_IsActive();
     bool wokeFromStandby = standbyWasActive && !standbyNowActive;
+    if (inputMask != 0u) {
+        SystemSleep_NotifyButtonActivity(nowMs, inputMask);
+    }
+    if (encoderEvent) {
+        SystemSleep_NotifyScreenActivity(nowMs);
+    }
+    SystemSleep_UpdateAutoStandby(nowMs);
     if (standbyWasActive && !standbyNowActive) {
         g_menu_full_refresh_pending = true;
     }

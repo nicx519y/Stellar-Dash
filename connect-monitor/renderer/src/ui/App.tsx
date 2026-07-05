@@ -88,6 +88,10 @@ function displayRssiDetail(packet: PacketEvent | null) {
   return typeof packet?.rssiAvg === "number" ? `avg ${packet.rssiAvg}` : "avg --";
 }
 
+function displayMillivolts(mv?: number) {
+  return typeof mv === "number" && Number.isFinite(mv) && mv > 0 ? (mv / 1000).toFixed(2) : "--";
+}
+
 function rssiSignalLevel(packet: PacketEvent | null) {
   const rssi = packet?.rssiLast;
   if (typeof rssi !== "number") return 0;
@@ -213,7 +217,12 @@ function MetricCard({
   status,
   statusLabel,
   target,
+  detail,
   alert,
+  cornerPrefixLabel,
+  cornerPrefixValue,
+  cornerPrefixDetail,
+  cornerPrefixAlert,
   cornerLabel,
   cornerValue,
   cornerDetail,
@@ -226,7 +235,12 @@ function MetricCard({
   status?: string;
   statusLabel?: string;
   target?: string;
+  detail?: string;
   alert?: boolean;
+  cornerPrefixLabel?: string;
+  cornerPrefixValue?: string;
+  cornerPrefixDetail?: string;
+  cornerPrefixAlert?: boolean;
   cornerLabel?: string;
   cornerValue?: string;
   cornerDetail?: string;
@@ -262,23 +276,47 @@ function MetricCard({
         <Text fontSize="sm" color={alert ? "red.200" : neonGreen}>
           {unit}
         </Text>
-        {cornerLabel ? (
-          <Box position="absolute" right={4} bottom={3} textAlign="right">
-            <Text fontSize="10px" color="gray.500" lineHeight="1">
-              {cornerLabel}
-            </Text>
-            <HStack gap={1} justify="flex-end" color={neonGreen} lineHeight="1.15">
-              {typeof cornerSignalLevel === "number" ? <RssiSignalIcon level={cornerSignalLevel} /> : null}
-              <Text fontSize="lg" fontWeight="700">
-                {cornerValue ?? "--"}
-              </Text>
-            </HStack>
-            {cornerDetail ? (
-              <Text fontSize="10px" color="gray.400" lineHeight="1">
-                {cornerDetail}
-              </Text>
+        {detail ? (
+          <Text mt={2} fontSize="xs" color="gray.400" lineHeight="1.25" maxW="calc(100% - 64px)">
+            {detail}
+          </Text>
+        ) : null}
+        {cornerLabel || cornerPrefixLabel ? (
+          <HStack position="absolute" right={4} bottom={3} gap={5} align="flex-end">
+            {cornerPrefixLabel ? (
+              <Box textAlign="right">
+                <Text fontSize="10px" color="gray.500" lineHeight="1">
+                  {cornerPrefixLabel}
+                </Text>
+                <Text fontSize="lg" color={cornerPrefixAlert ? "red.200" : neonGreen} lineHeight="1.15">
+                  {cornerPrefixValue ?? "--"}
+                </Text>
+                {cornerPrefixDetail ? (
+                  <Text fontSize="10px" color="gray.400" lineHeight="1">
+                    {cornerPrefixDetail}
+                  </Text>
+                ) : null}
+              </Box>
             ) : null}
-          </Box>
+            {cornerLabel ? (
+              <Box textAlign="right">
+                <Text fontSize="10px" color="gray.500" lineHeight="1">
+                  {cornerLabel}
+                </Text>
+                <HStack gap={1} justify="flex-end" color={neonGreen} lineHeight="1.15">
+                  {typeof cornerSignalLevel === "number" ? <RssiSignalIcon level={cornerSignalLevel} /> : null}
+                  <Text fontSize="lg">
+                    {cornerValue ?? "--"}
+                  </Text>
+                </HStack>
+                {cornerDetail ? (
+                  <Text fontSize="10px" color="gray.400" lineHeight="1">
+                    {cornerDetail}
+                  </Text>
+                ) : null}
+              </Box>
+            ) : null}
+          </HStack>
         ) : null}
       </Card.Body>
     </Card.Root>
@@ -561,7 +599,7 @@ function after(timestampMs: number, clearAfterMs: number | undefined) {
 }
 
 export function App() {
-  const { events, packets, latency, buttonLatency, chart, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
+  const { events, packets, latency, buttonLatency, powerStatus, chart, rateSeries, lossSeries, channelSwitches, channelScores, paused, setPaused, clear } = useMonitorStream();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollState, setScrollState] = useState({ top: 0, client: 1, scroll: 1 });
   const [serialLogClearVersion, setSerialLogClearVersion] = useState(0);
@@ -586,6 +624,12 @@ export function App() {
         : Math.max(packets.usbTxPerSec, packets.rfRxPerSec)
     : 0;
   const latestLoss = rfConnected && lossSeries.length > 0 ? lossSeries[lossSeries.length - 1].value : 0;
+  const powerValid = Boolean(powerStatus?.valid);
+  const activeBatteryMv = powerStatus?.activeBattery === "H2" ? powerStatus.h2Mv : powerStatus?.h1Mv;
+  const batteryVoltageText = powerValid ? `${displayMillivolts(activeBatteryMv)}V` : "--V";
+  const batteryCornerDetail = powerStatus
+    ? `${powerStatus.activeBattery} ${powerStatus.valid ? `${powerStatus.socPercent.toFixed(0)}%` : "--%"}`
+    : "No data";
   const trendPackets = useMemo(() => {
     const items = packets.items.filter((packet) => after(packet.timestampMs, cardClearMarks.trend));
     return {
@@ -777,6 +821,10 @@ export function App() {
             target={`Target ${rfStatus?.targetRateHz ?? 0} Hz`}
             value={(rfConnected ? packets.rfRxPerSec : 0).toFixed(1)}
             unit="pkt/s"
+            cornerPrefixLabel="BAT"
+            cornerPrefixValue={batteryVoltageText}
+            cornerPrefixDetail={batteryCornerDetail}
+            cornerPrefixAlert={Boolean(powerStatus?.lowBattery)}
             cornerLabel="RSSI"
             cornerValue={displayRssiValue(rfRssi)}
             cornerDetail={displayRssiDetail(rfRssi)}

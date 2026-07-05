@@ -13,10 +13,11 @@ export default function KeymappingField(
         isActive: boolean,
         disabled?: boolean,
         onClick: () => void,
+        maxKeys?: number,
     }
 ) {
     const { colorMode } = useColorMode();
-    const { value, changeValue, label, isActive, disabled, onClick } = props;  
+    const { value, changeValue, label, isActive, disabled, onClick, maxKeys = 4 } = props;  
 
     const isDisabled = useMemo(() => {
         return disabled ?? false;
@@ -42,7 +43,7 @@ export default function KeymappingField(
                     onClick={onClick}
                     width={170}
                     showTags={true}
-                    maxKeys={4}
+                    maxKeys={maxKeys}
                 />
             </VStack>
         </>
