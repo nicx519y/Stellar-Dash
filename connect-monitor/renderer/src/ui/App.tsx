@@ -92,6 +92,21 @@ function displayMillivolts(mv?: number) {
   return typeof mv === "number" && Number.isFinite(mv) && mv > 0 ? (mv / 1000).toFixed(2) : "--";
 }
 
+const VOLTAGE_SAMPLE_INTERVAL_MS = 60 * 60 * 1000;
+const MAX_VOLTAGE_HISTORY_POINTS = 240;
+const VOLTAGE_AXIS_LABEL_FONT_SIZE = "9px";
+
+type VoltageHistoryPoint = {
+  tMs: number;
+  mv: number;
+};
+
+function formatDurationHours(ms: number) {
+  if (!Number.isFinite(ms) || ms <= 0) return "0h";
+  const hours = ms / VOLTAGE_SAMPLE_INTERVAL_MS;
+  return hours < 10 ? `${hours.toFixed(1)}h` : `${Math.round(hours)}h`;
+}
+
 function rssiSignalLevel(packet: PacketEvent | null) {
   const rssi = packet?.rssiLast;
   if (typeof rssi !== "number") return 0;
@@ -256,14 +271,14 @@ function MetricCard({
         <Text fontSize="sm" color="gray.400">
           {title}
         </Text>
+        {target ? (
+          <Text position="absolute" top={4} right={4} fontSize="xs" color="gray.400">
+            {target}
+          </Text>
+        ) : null}
         {status || target ? (
           <HStack mt={2} justify="space-between">
             {status ? <Badge colorPalette={badgeColor(status)}>{statusLabel ?? status}</Badge> : <Box />}
-            {target ? (
-              <Text fontSize="sm" color="gray.400">
-                {target}
-              </Text>
-            ) : null}
           </HStack>
         ) : (
           <Text fontSize="sm" color="gray.400" mt={2}>
@@ -282,7 +297,7 @@ function MetricCard({
           </Text>
         ) : null}
         {cornerLabel || cornerPrefixLabel ? (
-          <HStack position="absolute" right={4} bottom={3} gap={5} align="flex-end">
+          <HStack position="absolute" right={4} bottom={6} gap={5} align="flex-end">
             {cornerPrefixLabel ? (
               <Box textAlign="right">
                 <Text fontSize="10px" color="gray.500" lineHeight="1">
@@ -318,6 +333,236 @@ function MetricCard({
             ) : null}
           </HStack>
         ) : null}
+      </Card.Body>
+    </Card.Root>
+  );
+}
+
+function RateLossMetricCard({
+  reportHz,
+  packetLoss,
+}: {
+  reportHz: number;
+  packetLoss: number;
+}) {
+  const lossAlert = packetLoss >= 3;
+
+  const MetricSection = ({
+    title,
+    value,
+    unit,
+    description,
+    alert,
+  }: {
+    title: string;
+    value: string;
+    unit: string;
+    description: string;
+    alert?: boolean;
+  }) => (
+    <HStack h="100%" justify="space-between" align="center" gap={3}>
+      <Box>
+        <Text fontSize="sm" color="gray.400">
+          {title}
+        </Text>
+        <HStack mt={1} gap={1.5} align="baseline">
+          <Heading size="lg" color={alert ? "red.200" : "gray.50"} lineHeight="1.05">
+            {value}
+          </Heading>
+          <Text fontSize="sm" color={alert ? "red.200" : neonGreen}>
+            {unit}
+          </Text>
+        </HStack>
+      </Box>
+      <Text fontSize="xs" color="gray.400" textAlign="right" maxW="170px" lineHeight="1.2">
+        {description}
+      </Text>
+    </HStack>
+  );
+
+  return (
+    <Card.Root
+      variant="outline"
+      {...panelSurfaceProps}
+      borderColor={lossAlert ? "rgba(255,96,96,0.48)" : panelSurfaceProps.borderColor}
+    >
+      <Card.Body px={4} py={0} position="relative" h="100%">
+        <Box position="absolute" left={4} right={4} top="50%" h="1px" bg="rgba(92,255,138,0.18)" transform="translateY(-0.5px)" />
+        <Box h="50%" py={2}>
+          <MetricSection
+            title="Report Rate"
+            value={reportHz.toFixed(1)}
+            unit="Hz"
+            description="HID telemetry / Monitoring packet rate"
+          />
+        </Box>
+        <Box h="50%" py={2}>
+          <MetricSection
+            title="RF Packet Loss"
+            value={packetLoss.toFixed(2)}
+            unit="%"
+            description="Recent telemetry window packet loss rate"
+            alert={lossAlert}
+          />
+        </Box>
+      </Card.Body>
+    </Card.Root>
+  );
+}
+
+function VoltageTimelineCard({
+  points,
+}: {
+  points: VoltageHistoryPoint[];
+}) {
+  const chartBoxRef = useRef<HTMLDivElement | null>(null);
+  const [chartSize, setChartSize] = useState({ width: 176, height: 72 });
+
+  useEffect(() => {
+    const node = chartBoxRef.current;
+    if (!node) return;
+
+    const updateSize = () => {
+      const rect = node.getBoundingClientRect();
+      setChartSize({
+        width: Math.max(120, Math.round(rect.width)),
+        height: Math.max(56, Math.round(rect.height)),
+      });
+    };
+
+    updateSize();
+    const resizeObserver = new ResizeObserver(updateSize);
+    resizeObserver.observe(node);
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  const chart = useMemo(() => {
+    const margin = { left: 12, right: 12, top: 18, bottom: 10 };
+    const plotWidth = Math.max(1, chartSize.width - margin.left - margin.right);
+    const plotHeight = Math.max(1, chartSize.height - margin.top - margin.bottom);
+    const gridY = [
+      margin.top,
+      margin.top + plotHeight / 2,
+      margin.top + plotHeight,
+    ];
+
+    if (points.length === 0) {
+      return {
+        polyline: "",
+        dots: [] as Array<{ x: number; y: number }>,
+        gridY,
+        axisPath: `M${margin.left} ${margin.top} V${margin.top + plotHeight} H${margin.left + plotWidth}`,
+        minMv: 0,
+        maxMv: 0,
+        durationMs: 0,
+      };
+    }
+
+    const minMv = Math.min(...points.map((point) => point.mv));
+    const maxMv = Math.max(...points.map((point) => point.mv));
+    const yPad = Math.max(40, Math.round((maxMv - minMv) * 0.12));
+    const yMin = Math.max(0, minMv - yPad);
+    const yMax = Math.max(yMin + 1, maxMv + yPad);
+    const startMs = points[0].tMs;
+    const endMs = points[points.length - 1].tMs;
+    const spanMs = Math.max(1, endMs - startMs);
+    const dots = points.map((point, index) => {
+      const x = points.length === 1 ?
+        margin.left + plotWidth * 0.5 :
+        margin.left + ((point.tMs - startMs) / spanMs) * plotWidth;
+      const yNorm = (point.mv - yMin) / (yMax - yMin);
+      const y = margin.top + plotHeight - yNorm * plotHeight;
+      return { x, y, index };
+    });
+
+    return {
+      polyline: dots.map((dot) => `${dot.x.toFixed(2)},${dot.y.toFixed(2)}`).join(" "),
+      dots,
+      gridY,
+      axisPath: `M${margin.left} ${margin.top} V${margin.top + plotHeight} H${margin.left + plotWidth}`,
+      minMv,
+      maxMv,
+      durationMs: endMs - startMs,
+    };
+  }, [chartSize.height, chartSize.width, points]);
+
+  return (
+    <Card.Root variant="outline" {...panelSurfaceProps}>
+      <Card.Body px={4} py={3}>
+        <HStack justify="space-between" align="flex-start">
+          <Text fontSize="sm" color="gray.400">
+            Voltage Timeline
+          </Text>
+          <Text fontSize="sm" color="gray.400" textAlign="right" lineHeight="1.2">
+            {points.length} samples
+          </Text>
+        </HStack>
+
+        <Box ref={chartBoxRef} mt={3} h="70px" position="relative">
+          <svg viewBox={`0 0 ${chartSize.width} ${chartSize.height}`} width="100%" height="100%" preserveAspectRatio="none">
+            {chart.gridY.map((y, index) => (
+              <path
+                key={`grid-${index}-${y}`}
+                d={`M12 ${y.toFixed(2)} H${Math.max(12, chartSize.width - 12)}`}
+                stroke={index === 1 ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.06)"}
+                strokeWidth="0.8"
+              />
+            ))}
+            <path d={chart.axisPath} stroke="rgba(92,255,138,0.2)" strokeWidth="0.8" fill="none" />
+            {chart.polyline ? (
+              <polyline
+                points={chart.polyline}
+                fill="none"
+                stroke={neonGreen}
+                strokeWidth="1.4"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            ) : null}
+            {chart.dots.map((dot, index) => (
+              <circle
+                key={`${index}-${dot.x}-${dot.y}`}
+                cx={dot.x}
+                cy={dot.y}
+                r="1.9"
+                fill={neonGreen}
+                stroke="rgba(0,0,0,0.65)"
+                strokeWidth="0.8"
+              />
+            ))}
+          </svg>
+          {chart.dots.map((dot, index) => (
+            <Text
+              key={`label-${index}-${dot.x}-${dot.y}`}
+              position="absolute"
+              left={`${Math.max(24, Math.min(chartSize.width - 24, dot.x))}px`}
+              top={`${Math.max(0, dot.y - 14)}px`}
+              transform="translateX(-50%)"
+              fontSize={VOLTAGE_AXIS_LABEL_FONT_SIZE}
+              lineHeight="1"
+              color="gray.300"
+              textShadow="0 1px 2px rgba(0,0,0,0.95)"
+              pointerEvents="none"
+              whiteSpace="nowrap"
+            >
+              {displayMillivolts(points[index]?.mv)}
+            </Text>
+          ))}
+          {points.length === 0 ? (
+            <Text position="absolute" inset={0} display="flex" alignItems="center" justifyContent="center" fontSize="xs" color="gray.500">
+              No data
+            </Text>
+          ) : null}
+        </Box>
+
+        <HStack justify="space-between" mt={0.5} color="gray.500" fontSize={VOLTAGE_AXIS_LABEL_FONT_SIZE} lineHeight="1">
+          <Text>0h</Text>
+          <Text>{formatDurationHours(chart.durationMs)}</Text>
+        </HStack>
+        <HStack justify="space-between" mt={0.5} color="gray.400" fontSize={VOLTAGE_AXIS_LABEL_FONT_SIZE} lineHeight="1">
+          <Text>{chart.minMv > 0 ? displayMillivolts(chart.minMv) : "--"}V</Text>
+          <Text>{chart.maxMv > 0 ? displayMillivolts(chart.maxMv) : "--"}V</Text>
+        </HStack>
       </Card.Body>
     </Card.Root>
   );
@@ -606,6 +851,7 @@ export function App() {
   const [cardClearMarks, setCardClearMarks] = useState<DataCardClearMarks>({});
   const [debugConfig, setDebugConfig] = useState<DebugConfig>(defaultDebugConfig);
   const [debugStatus, setDebugStatus] = useState<DebugApplyState>("Idle");
+  const [voltageHistory, setVoltageHistory] = useState<VoltageHistoryPoint[]>([]);
 
   const markCardCleared = (key: DataCardKey) => {
     const timestampMs = key === "latency" ? publishCardClear("latency") : Date.now();
@@ -630,6 +876,24 @@ export function App() {
   const batteryCornerDetail = powerStatus
     ? `${powerStatus.activeBattery} ${powerStatus.valid ? `${powerStatus.socPercent.toFixed(0)}%` : "--%"}`
     : "No data";
+
+  useEffect(() => {
+    if (!powerValid || typeof activeBatteryMv !== "number" || activeBatteryMv <= 0 || !powerStatus) {
+      return;
+    }
+
+    setVoltageHistory((current) => {
+      const timestampMs = powerStatus.timestampMs;
+      const last = current[current.length - 1];
+      if (last && timestampMs - last.tMs < VOLTAGE_SAMPLE_INTERVAL_MS) {
+        return current;
+      }
+
+      const next = current.concat({ tMs: timestampMs, mv: activeBatteryMv });
+      return next.length > MAX_VOLTAGE_HISTORY_POINTS ? next.slice(-MAX_VOLTAGE_HISTORY_POINTS) : next;
+    });
+  }, [activeBatteryMv, powerStatus, powerValid]);
+
   const trendPackets = useMemo(() => {
     const items = packets.items.filter((packet) => after(packet.timestampMs, cardClearMarks.trend));
     return {
@@ -680,6 +944,7 @@ export function App() {
   const handleClearData = () => {
     clear();
     setCardClearMarks({});
+    setVoltageHistory([]);
     setSerialLogClearVersion((version) => version + 1);
     void clearSerialLogLines()
       .then(() => setSerialLogClearVersion((version) => version + 1))
@@ -830,19 +1095,8 @@ export function App() {
             cornerDetail={displayRssiDetail(rfRssi)}
             cornerSignalLevel={rssiSignalLevel(rfRssi)}
           />
-          <MetricCard
-            title="Report Rate"
-            subtitle="HID telemetry / Monitoring packet rate"
-            value={reportHz.toFixed(1)}
-            unit="Hz"
-          />
-          <MetricCard
-            title="RF Packet Loss"
-            subtitle="Recent telemetry window packet loss rate"
-            value={latestLoss.toFixed(2)}
-            unit="%"
-            alert={latestLoss >= 3}
-          />
+          <RateLossMetricCard reportHz={reportHz} packetLoss={latestLoss} />
+          <VoltageTimelineCard points={voltageHistory} />
         </Box>
 
         <VStack gap="10px" align="stretch" flex="1" minH={0}>

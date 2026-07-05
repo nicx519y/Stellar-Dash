@@ -317,7 +317,6 @@ static uint32_t g_monitor_sync_echo_rx_tick_us = 0u;
 static uint32_t g_monitor_sync_echo_tx_tick_us = 0u;
 static volatile uint8_t g_monitor_battery_pending = 0u;
 static uint8_t g_monitor_battery_status = 0u;
-static uint8_t g_monitor_battery_sent_status = 0u;
 static uint32_t g_monitor_battery_last_queue_clock = 0u;
 
 static uint16_t g_demo_channel_scores[RFH_HOP_CHANNEL_COUNT];
@@ -704,7 +703,6 @@ static void demo_note_battery_status(const uint8_t *payload)
     g_monitor_battery_status = status;
     now = TMOS_GetSystemClock();
     if((g_monitor_battery_pending == 0u) &&
-       (status != g_monitor_battery_sent_status) &&
        ((g_monitor_battery_last_queue_clock == 0u) ||
         ((uint32_t)(now - g_monitor_battery_last_queue_clock) >= MS1_TO_SYSTEM_TIME(1000u))))
     {
@@ -2363,7 +2361,6 @@ static void demo_fill_tx_packet(uint8_t request_ack, uint8_t ack_token, uint8_t 
         {
             data[RFH_CMD_SLOT_ID] = RFH_CMD_BATTERY_STATUS;
             data[RFH_CMD_SLOT_ARG0] = g_monitor_battery_status;
-            g_monitor_battery_sent_status = g_monitor_battery_status;
             g_monitor_battery_pending = 0u;
         }
         else
