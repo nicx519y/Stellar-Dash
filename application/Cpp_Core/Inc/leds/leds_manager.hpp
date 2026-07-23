@@ -41,7 +41,7 @@ class LEDsManager {
         
         // 配置管理函数
         void setTemporaryConfig(const LEDProfile& tempConfig, uint32_t enabledKeysMask);
-        void restoreDefaultConfig();
+        void restoreDefaultConfig(bool restartRuntime = true);
         bool isUsingTemporaryConfig() const;
         
         // 测试函数
@@ -54,6 +54,7 @@ class LEDsManager {
         LEDProfile* opts;
         LEDProfile temporaryConfig;  // 临时配置存储
         bool usingTemporaryConfig;   // 是否正在使用临时配置
+        bool runtimeEnabled;         // physical role currently owns the LED power rail
         uint32_t enabledKeysMask; // 启用按键掩码
         RGBColor frontColor;
         RGBColor backgroundColor1;

@@ -32,8 +32,8 @@ namespace {
 #define RF_BRIDGE_EVENT_RX_GAP_MS 1u
 #endif
 
-#ifndef RF_BRIDGE_IRQ_LOW_TIMEOUT_MS
-#define RF_BRIDGE_IRQ_LOW_TIMEOUT_MS 80u
+#ifndef RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS
+#define RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS 80u
 #endif
 
 #ifndef RF_BRIDGE_MIN_CONTROL_TX_BYTES
@@ -96,15 +96,28 @@ static void rf_configure_irq_input(void) {
     rf_enable_gpio_clock(RF_BRIDGE_IRQ_GPIO_PORT);
 
     GPIO_InitTypeDef init = {};
-    init.Mode = GPIO_MODE_IT_RISING;
-    init.Pull = GPIO_PULLDOWN;
+    init.Mode = GPIO_MODE_IT_FALLING;
+    init.Pull = GPIO_PULLUP;
     init.Speed = GPIO_SPEED_FREQ_LOW;
     init.Alternate = 0u;
     init.Pin = RF_BRIDGE_IRQ_PIN;
     HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &init);
     __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
+    SET_BIT(EXTI_D1->IMR1, RF_BRIDGE_IRQ_PIN);
     HAL_NVIC_SetPriority(RF_BRIDGE_IRQ_EXTI_IRQn, RF_BRIDGE_IRQ_EXTI_IRQn_PRIO, 0u);
     HAL_NVIC_EnableIRQ(RF_BRIDGE_IRQ_EXTI_IRQn);
+}
+
+static void rf_mask_irq_line(void) {
+    /*
+     * EXTI15_10 is shared with MAX17048 ALERT# on PC13.  Mask only PE10;
+     * disabling the NVIC vector would also suppress the fuel-gauge alert.
+     * GPIO_MODE_INPUT alone does not remove a previous EXTI configuration.
+     */
+    CLEAR_BIT(EXTI_D1->IMR1, RF_BRIDGE_IRQ_PIN);
+    CLEAR_BIT(EXTI->RTSR1, RF_BRIDGE_IRQ_PIN);
+    CLEAR_BIT(EXTI->FTSR1, RF_BRIDGE_IRQ_PIN);
+    __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
 }
 
 static void rf_configure_miso_af(void) {
@@ -132,24 +145,28 @@ static void rf_configure_miso_wake_drive_low(void) {
     HAL_GPIO_WritePin(RF_BRIDGE_SPI_GPIO_PORT, RF_BRIDGE_SPI_MISO_PIN, GPIO_PIN_RESET);
 }
 
-static bool rf_wait_irq_high(uint32_t timeoutMs) {
+static bool rf_wait_irq_asserted(uint32_t timeoutMs) {
     const uint32_t start = HAL_GetTick();
     while ((HAL_GetTick() - start) < timeoutMs) {
-        if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) == GPIO_PIN_SET) {
+        if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
+            RF_BRIDGE_IRQ_ASSERTED_STATE) {
             return true;
         }
     }
-    return false;
+    return HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
+           RF_BRIDGE_IRQ_ASSERTED_STATE;
 }
 
-static bool rf_wait_irq_low(uint32_t timeoutMs) {
+static bool rf_wait_irq_deasserted(uint32_t timeoutMs) {
     const uint32_t start = HAL_GetTick();
     while ((HAL_GetTick() - start) < timeoutMs) {
-        if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) == GPIO_PIN_RESET) {
+        if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
+            RF_BRIDGE_IRQ_DEASSERTED_STATE) {
             return true;
         }
     }
-    return HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) == GPIO_PIN_RESET;
+    return HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
+           RF_BRIDGE_IRQ_DEASSERTED_STATE;
 }
 
 static bool rf_is_valid_evt(uint8_t evt) {
@@ -173,7 +190,8 @@ static uint8_t rf_checksum8(const uint8_t* data, uint16_t len) {
 }
 
 static bool rf_has_pending_event_signal() {
-    return HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) == GPIO_PIN_SET;
+    return HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
+           RF_BRIDGE_IRQ_ASSERTED_STATE;
 }
 
 static void rf_consume_irq_pending_marker() {
@@ -622,6 +640,80 @@ static bool rf_spi_init_once() {
 }
 } // namespace
 
+void RFBridgePort_Shutdown(void) {
+    /*
+     * SPI4 is shared by the mutually-exclusive RF and UsbBoardLink roles.
+     * Tear down only the board port; no RF framing, queue, timing, or state
+     * machine semantics are changed here.
+     */
+    rf_mask_irq_line();
+
+    if (!s_rf_spi_ready && !s_rf_dma_ready) {
+        const uint32_t primask = __get_PRIMASK();
+        __disable_irq();
+        s_dma_busy = false;
+        s_dma_pending = false;
+        s_dma_pending_len = 0u;
+        s_irq_event_pending = 0u;
+        if (primask == 0u) {
+            __enable_irq();
+        }
+        return;
+    }
+
+    HAL_NVIC_DisableIRQ(DMA2_Stream5_IRQn);
+    HAL_NVIC_DisableIRQ(SPI4_IRQn);
+    HAL_NVIC_ClearPendingIRQ(DMA2_Stream5_IRQn);
+    HAL_NVIC_ClearPendingIRQ(SPI4_IRQn);
+
+    rf_enable_gpio_clock(RF_BRIDGE_SPI_GPIO_PORT);
+    rf_enable_gpio_clock(RF_BRIDGE_IRQ_GPIO_PORT);
+    rf_cs_set(true);
+
+    if (s_rf_hspi.Instance != nullptr) {
+        (void)HAL_SPI_Abort(&s_rf_hspi);
+    }
+    if (s_rf_dma_tx.Instance != nullptr) {
+        (void)HAL_DMA_Abort(&s_rf_dma_tx);
+        (void)HAL_DMA_DeInit(&s_rf_dma_tx);
+    }
+    if (s_rf_hspi.Instance != nullptr) {
+        (void)HAL_SPI_DeInit(&s_rf_hspi);
+    }
+
+    __HAL_RCC_SPI4_FORCE_RESET();
+    __HAL_RCC_SPI4_RELEASE_RESET();
+
+    GPIO_InitTypeDef init = {};
+    init.Pin = RF_BRIDGE_SPI_NSS_PIN | RF_BRIDGE_SPI_SCK_PIN |
+               RF_BRIDGE_SPI_MOSI_PIN | RF_BRIDGE_SPI_MISO_PIN;
+    init.Mode = GPIO_MODE_ANALOG;
+    init.Pull = GPIO_NOPULL;
+    init.Speed = GPIO_SPEED_FREQ_LOW;
+    init.Alternate = 0u;
+    HAL_GPIO_Init(RF_BRIDGE_SPI_GPIO_PORT, &init);
+
+    init.Pin = RF_BRIDGE_IRQ_PIN;
+    init.Mode = GPIO_MODE_INPUT;
+    init.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(RF_BRIDGE_IRQ_GPIO_PORT, &init);
+    __HAL_GPIO_EXTI_CLEAR_IT(RF_BRIDGE_IRQ_PIN);
+
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    s_rf_spi_ready = false;
+    s_rf_dma_ready = false;
+    s_dma_busy = false;
+    s_dma_pending = false;
+    s_dma_pending_len = 0u;
+    s_irq_event_pending = 0u;
+    memset(&s_rf_hspi, 0, sizeof(s_rf_hspi));
+    memset(&s_rf_dma_tx, 0, sizeof(s_rf_dma_tx));
+    if (primask == 0u) {
+        __enable_irq();
+    }
+}
+
 extern "C" void RFBridgePort_DMA_IRQHandler(void) {
     s_diag_dma_irq++;
     HAL_DMA_IRQHandler(&s_rf_dma_tx);
@@ -703,7 +795,7 @@ bool RFBridgePort_ReadEvent(uint8_t* rx, uint16_t* rxLen) {
     rf_consume_irq_pending_marker();
     const bool ok = rf_read_event_frame(rx, rxLen, 0x00u);
     if (ok && (*rxLen > 0u)) {
-        (void)rf_wait_irq_low(RF_BRIDGE_IRQ_LOW_TIMEOUT_MS);
+        (void)rf_wait_irq_deasserted(RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS);
         printf("[RF_PORT][READ_EVT] ok evt=0x%02X len=%u\r\n",
                (unsigned int)((*rxLen >= 2u) ? rx[1] : 0u),
                (unsigned int)*rxLen);
@@ -829,7 +921,7 @@ static bool rf_control_transfer_with_timeout(const uint8_t* tx,
     if (rf_has_pending_event_signal()) {
         if (!allowEventPreempt) {
             rf_consume_irq_pending_marker();
-            if (!rf_wait_irq_low(RF_BRIDGE_IRQ_LOW_TIMEOUT_MS)) {
+            if (!rf_wait_irq_deasserted(RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS)) {
                 *rxLen = 0u;
                 return false;
             }
@@ -842,7 +934,7 @@ static bool rf_control_transfer_with_timeout(const uint8_t* tx,
             const bool readOk = rf_read_event_frame(rx, rxLen, cmd);
             if (readOk && (*rxLen > 0u)) {
                 rf_consume_irq_pending_marker();
-                (void)rf_wait_irq_low(RF_BRIDGE_IRQ_LOW_TIMEOUT_MS);
+                (void)rf_wait_irq_deasserted(RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS);
                 return true;
             }
             *rxLen = 0u;
@@ -859,7 +951,7 @@ static bool rf_control_transfer_with_timeout(const uint8_t* tx,
 
     if (!allowEventPreempt && rf_has_pending_event_signal()) {
         rf_consume_irq_pending_marker();
-        if (!rf_wait_irq_low(RF_BRIDGE_IRQ_LOW_TIMEOUT_MS)) {
+        if (!rf_wait_irq_deasserted(RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS)) {
             *rxLen = 0u;
             return false;
         }
@@ -890,7 +982,7 @@ static bool rf_control_transfer_with_timeout(const uint8_t* tx,
         HAL_Delay(1u);
     }
 
-    const bool irq_ready = rf_wait_irq_high(ackTimeoutMs);
+    const bool irq_ready = rf_wait_irq_asserted(ackTimeoutMs);
     if (!irq_ready) {
         s_diag_irq_timeout++;
         *rxLen = 0u;
@@ -902,7 +994,7 @@ static bool rf_control_transfer_with_timeout(const uint8_t* tx,
         return false;
     }
     rf_consume_irq_pending_marker();
-    (void)rf_wait_irq_low(RF_BRIDGE_IRQ_LOW_TIMEOUT_MS);
+    (void)rf_wait_irq_deasserted(RF_BRIDGE_IRQ_DEASSERT_TIMEOUT_MS);
     return true;
 }
 

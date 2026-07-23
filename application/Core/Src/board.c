@@ -1,15 +1,15 @@
 #include "stm32h7xx_hal.h"
 #include "board_cfg.h"
-#include "bsp/board_api.h"
+#include "board.h"
 #include "qspi-w25q64.h"
 #include "usart.h"
-#include "usb.h"
 #include "adc.h"
 #include "dma.h"
 #include "bdma.h"
 #include "tim.h"
 #include "pwm-ws2812b.h"
 #include "utils.h"
+#include "board_power.hpp"
 
 UART_HandleTypeDef UartHandle;
 
@@ -18,37 +18,24 @@ void PeriphCommonClock_Config(void);
 
 void board_init(void)
 {
-    // Implemented in board.h
     SystemClock_Config();
     PeriphCommonClock_Config();
 
     // Enable All GPIOs clocks
     __HAL_RCC_GPIOA_CLK_ENABLE();
-    __HAL_RCC_GPIOB_CLK_ENABLE(); // USB ULPI NXT
-
-    __HAL_RCC_GPIOC_CLK_ENABLE(); // USB ULPI NXT
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_GPIOC_CLK_ENABLE();
     __HAL_RCC_GPIOD_CLK_ENABLE();
     __HAL_RCC_GPIOE_CLK_ENABLE();
     __HAL_RCC_GPIOF_CLK_ENABLE();
     __HAL_RCC_GPIOG_CLK_ENABLE();
-    __HAL_RCC_GPIOH_CLK_ENABLE(); // USB ULPI NXT
+    __HAL_RCC_GPIOH_CLK_ENABLE();
 #ifdef __HAL_RCC_GPIOI_CLK_ENABLE
-    __HAL_RCC_GPIOI_CLK_ENABLE(); // USB ULPI NXT
+    __HAL_RCC_GPIOI_CLK_ENABLE();
 #endif
     __HAL_RCC_GPIOJ_CLK_ENABLE();
 
-#if CFG_TUSB_OS == OPT_OS_NONE
-    // HAL 库会在 HAL_Init() 中自动配置 SysTick
-#elif CFG_TUSB_OS == OPT_OS_FREERTOS
-    // Explicitly disable systick to prevent its ISR runs before scheduler start
-    SysTick->CTRL &= ~1U;
-
-    // If freeRTOS is used, IRQ priority is limit by max syscall ( smaller is higher )
-#ifdef USB_OTG_FS_PERIPH_BASE
-    NVIC_SetPriority(OTG_FS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-#endif
-    NVIC_SetPriority(OTG_HS_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
-#endif
+    BoardPower_Initialize();
 
 #if APPLICATION_SERIAL_PRINT
     USART1_Init(); // USART for debug
@@ -69,15 +56,6 @@ void board_init(void)
 
     MX_TIM2_Init(); // RF/USB report scheduler timer, reconfigured by ReportScheduler at runtime
     APP_DBG("board init: MX_TIM2_Init success.");
-
-    USB_clock_init();
-
-    USB_Device_Init();
-
-    /* Initialize USB Host */
-    USB_Host_Init();
-
-    APP_DBG("board init: USB_init success.");
 
     MX_DMA_Init();
 
@@ -116,7 +94,6 @@ void SystemClock_Config(void)
 
     RCC_OscInitTypeDef RCC_OscInitStruct = {0};
     RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-    RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
 
     // 更新 SystemCoreClock 变量
     SystemCoreClockUpdate();
@@ -144,17 +121,16 @@ void SystemClock_Config(void)
     /** Initializes the RCC Oscillators according to the specified parameters
      * in the RCC_OscInitTypeDef structure.
      */
-    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48 | RCC_OSCILLATORTYPE_HSE;
+    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
     RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-    RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
     RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-    RCC_OscInitStruct.PLL.PLLM = 2;
-    RCC_OscInitStruct.PLL.PLLN = 80;
+    RCC_OscInitStruct.PLL.PLLM = 5;
+    RCC_OscInitStruct.PLL.PLLN = 192;
     RCC_OscInitStruct.PLL.PLLP = 2;
     RCC_OscInitStruct.PLL.PLLQ = 2;
     RCC_OscInitStruct.PLL.PLLR = 2;
-    RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_3;
+    RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
     RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
     RCC_OscInitStruct.PLL.PLLFRACN = 0;
     if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
@@ -179,22 +155,6 @@ void SystemClock_Config(void)
 
     
 
-    /** Configure peripheral clock */
-    PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART1 | RCC_PERIPHCLK_ADC;
-    PeriphClkInitStruct.Usart16ClockSelection = RCC_USART16CLKSOURCE_D2PCLK2;
-    PeriphClkInitStruct.PLL3.PLL3M = 2;
-    PeriphClkInitStruct.PLL3.PLL3N = 15;
-    PeriphClkInitStruct.PLL3.PLL3P = 2;
-    PeriphClkInitStruct.PLL3.PLL3Q = 4;
-    PeriphClkInitStruct.PLL3.PLL3R = 4;
-    PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_3;
-    PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOMEDIUM;
-    PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
-    PeriphClkInitStruct.AdcClockSelection = RCC_ADCCLKSOURCE_PLL3;  // ADC时钟频率 HSE: 24MHz，ADC时钟频率 = HSE / PLL3.PLL3M * PLL3.PLL3N / PLL3.PLL3R = 24MHz / 2 * 15 / 4 = 45MHz
-    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
-    {
-        Error_Handler();
-    }
 }
 
 /**
@@ -207,13 +167,14 @@ void PeriphCommonClock_Config(void)
 
     /** Initializes the peripherals clock
      */
-    PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_ADC;
-    PeriphClkInitStruct.PLL3.PLL3M = 2;
-    PeriphClkInitStruct.PLL3.PLL3N = 15;
+    PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART1 | RCC_PERIPHCLK_ADC;
+    PeriphClkInitStruct.Usart16ClockSelection = RCC_USART16CLKSOURCE_D2PCLK2;
+    PeriphClkInitStruct.PLL3.PLL3M = 5;
+    PeriphClkInitStruct.PLL3.PLL3N = 36;
     PeriphClkInitStruct.PLL3.PLL3P = 2;
     PeriphClkInitStruct.PLL3.PLL3Q = 4;
     PeriphClkInitStruct.PLL3.PLL3R = 4;
-    PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_3;
+    PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_2;
     PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOMEDIUM;
     PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
     PeriphClkInitStruct.AdcClockSelection = RCC_ADCCLKSOURCE_PLL3;

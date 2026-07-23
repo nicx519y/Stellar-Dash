@@ -24,5 +24,6 @@ bool RFBridgePort_WakePulse(void);
 bool RFBridgePort_IsReady(void);
 bool RFBridgePort_HasPendingEvent(void);
 bool RFBridgePort_ReadEvent(uint8_t* rx, uint16_t* rxLen);
+void RFBridgePort_Shutdown(void);
 
 #endif

@@ -2,15 +2,18 @@
 
 #include "adc.h"
 #include "board_cfg.h"
+#include "board_mode.hpp"
+#include "ch585_role_bootstrap.hpp"
 #include "connection_manager.hpp"
 #include "leds/leds_manager.hpp"
 #include "report_scheduler.hpp"
+#include "screen_control/spi_screen_manager.hpp"
 #include "spi-st7789.h"
 #include "storagemanager.hpp"
 #include "system_logger.h"
-#include "tusb.h"
-#include "usb.h"
+#include "usb_board_link.hpp"
 #include "usbhostmanager.hpp"
+#include "board_power.hpp"
 
 #include "stm32h7xx_hal.h"
 #include "stm32h7xx_hal_pwr_ex.h"
@@ -174,34 +177,13 @@ static void stop_adcs()
 
 static void stop_screen()
 {
-    (void)SPIST7789_WaitDone(200u);
-    SPIST7789_SetBacklight(0u);
-    (void)SPIST7789_WaitDone(50u);
+    SPIScreenManager::getInstance().shutdown();
 }
 
 static void stop_usb()
 {
-    if (tud_inited()) {
-        (void)tud_disconnect();
-        for (uint8_t i = 0; i < 10u; ++i) {
-            tud_task();
-            HAL_Delay(1u);
-        }
-        (void)tud_deinit(TUD_OPT_RHPORT);
-    }
-
     USB_HOST_MANAGER.shutdown();
-    HAL_NVIC_DisableIRQ(USB_DEV_FS_IRQn);
-    HAL_NVIC_DisableIRQ(USB_HOST_HS_IRQn);
-#ifdef __HAL_RCC_USB2_OTG_FS_CLK_DISABLE
-    __HAL_RCC_USB2_OTG_FS_CLK_DISABLE();
-#endif
-#ifdef __HAL_RCC_USB_OTG_HS_CLK_DISABLE
-    __HAL_RCC_USB_OTG_HS_CLK_DISABLE();
-#endif
-#ifdef __HAL_RCC_USB1_OTG_HS_CLK_DISABLE
-    __HAL_RCC_USB1_OTG_HS_CLK_DISABLE();
-#endif
+    USB_BOARD_LINK.shutdown();
 }
 
 [[noreturn]] static void enter_standby_now()
@@ -236,9 +218,15 @@ static void request_standby()
 
     reset_runtime_hold();
     mark_wake_hold_ms_for_next_boot(STORAGE_MANAGER.getWakeHoldMs());
-    if (!CONNECTION_MANAGER.ensureRfSleeping(RfPowerReason::SystemSleep)) {
-        LOG_ERROR("SYSTEM_SLEEP", "CH584 sleep command failed; entering Standby anyway");
+    if (BOARD_MODE.isStable() &&
+        BOARD_MODE.current() == BoardMode::Rf &&
+        CH585_ROLE_BOOTSTRAP.isLocked() &&
+        CH585_ROLE_BOOTSTRAP.role() == Ch585Role::Rf &&
+        !CONNECTION_MANAGER.ensureRfSleeping(RfPowerReason::SystemSleep)) {
+        LOG_ERROR("SYSTEM_SLEEP", "CH585 RF sleep command failed; entering Standby anyway");
     }
+    CH585_ROLE_BOOTSTRAP.shutdown();
+    BOARD_POWER.prepareForStandby();
     Logger_Flush();
 
     enter_standby_now();
@@ -301,19 +289,17 @@ extern "C" void SystemSleep_HandleWakeRecovery(void)
 
     LOG_INFO("SYSTEM_SLEEP", "Standby wake confirmed, restoring runtime");
 
-#if HAS_LED == 1
-    LEDS_MANAGER.setup();
-#endif
-
-    const ConnectionMode mode = STORAGE_MANAGER.getConnectionMode();
-    if (mode == ConnectionMode::CONNECTION_MODE_RF24G) {
-        if (!CONNECTION_MANAGER.wakeRfFromSleep(RfPowerReason::SystemWake)) {
-            LOG_ERROR("SYSTEM_SLEEP", "CH584 wake failed after Standby");
-        } else if (!CONNECTION_MANAGER.restoreRfRuntime(STORAGE_MANAGER.getWirelessReportRate())) {
-            LOG_ERROR("SYSTEM_SLEEP", "CH584 runtime restore failed after Standby");
-        }
-    } else {
-        (void)CONNECTION_MANAGER.ensureRfSleeping(RfPowerReason::UsbMode);
+    /*
+     * Standby resets the STM32 and PI10 is shut down before entry. The active
+     * state has already cold-bootstrapped CH585 from the physical switch by
+     * the time this hook runs, so never replay a persisted RF wake command
+     * into a USB-locked CH585.
+     */
+    if (!BOARD_MODE.isStable() ||
+        (BOARD_MODE.current() != BoardMode::Rf &&
+         BOARD_MODE.current() != BoardMode::Usb)) {
+        CH585_ROLE_BOOTSTRAP.shutdown();
+        BOARD_POWER.enterSafeState();
     }
 }
 

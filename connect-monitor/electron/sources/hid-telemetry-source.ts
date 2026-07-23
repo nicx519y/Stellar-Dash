@@ -239,6 +239,7 @@ function sendTimeSync(handle: any): void {
 }
 
 const defaultTargetUsbIds = [
+  { vendorId: 0x045e, productId: 0x028e },
   { vendorId: 0x045e, productId: 0x02ff },
   { vendorId: 0x1a86, productId: 0xfe0c },
 ];

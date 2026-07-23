@@ -1,5 +1,6 @@
 #include "pwm-ws2812b.h"
 #include "board_cfg.h"
+#include "board_power.hpp"
 
 /* WS2812B-Mini-V3J data protocol (datasheet):
 |-------------------------------------------|
@@ -32,7 +33,6 @@ enum {
     WS2812B_AMBIENT_DMA_BUFFER_LEN = (int)WS2812B_DMA_BUFFER_LEN_FOR(WS2812B_AMBIENT_LED_COUNT)
 };
 
-static bool g_power_gpio_initialized = false;
 static bool g_keys_initialized = false;
 static bool g_ambient_initialized = false;
 
@@ -101,34 +101,13 @@ static uint16_t strip_tim_channel(WS2812B_Strip strip)
     return (strip == WS2812B_STRIP_AMBIENT) ? (uint16_t)WS2812B_AMBIENT_TIM_CHANNEL : (uint16_t)WS2812B_KEYS_TIM_CHANNEL;
 }
 
-static void strip_power_write(WS2812B_Strip strip, GPIO_PinState state)
+static void strip_power_write(WS2812B_Strip strip, bool enabled)
 {
     if (strip == WS2812B_STRIP_AMBIENT) {
-        HAL_GPIO_WritePin(WS2812B_AMBIENT_ENABLE_SWITCH_PORT, WS2812B_AMBIENT_ENABLE_SWITCH_PIN, state);
+        BoardPower_SetAmbientLedEnabled(enabled);
     } else {
-        HAL_GPIO_WritePin(WS2812B_KEYS_ENABLE_SWITCH_PORT, WS2812B_KEYS_ENABLE_SWITCH_PIN, state);
+        BoardPower_SetKeyLedEnabled(enabled);
     }
-}
-
-static void power_gpio_init_once(void)
-{
-    if (g_power_gpio_initialized) {
-        return;
-    }
-
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-    __HAL_RCC_GPIOC_CLK_ENABLE();
-
-    GPIO_InitStruct.Pin = WS2812B_KEYS_ENABLE_SWITCH_PIN | WS2812B_AMBIENT_ENABLE_SWITCH_PIN;
-    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-    HAL_GPIO_WritePin(WS2812B_KEYS_ENABLE_SWITCH_PORT, WS2812B_KEYS_ENABLE_SWITCH_PIN, GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(WS2812B_AMBIENT_ENABLE_SWITCH_PORT, WS2812B_AMBIENT_ENABLE_SWITCH_PIN, GPIO_PIN_RESET);
-
-    g_power_gpio_initialized = true;
 }
 
 static void led_data_to_dma_buffer(WS2812B_Strip strip, const uint16_t start, const uint16_t length)
@@ -284,8 +263,7 @@ void WS2812B_InitStrip(WS2812B_Strip strip)
         return;
     }
 
-    power_gpio_init_once();
-    strip_power_write(strip, GPIO_PIN_RESET);
+    strip_power_write(strip, false);
 
     memset(dma_buf, 0, dma_len * sizeof(uint32_t));
     memset(br, LED_DEFAULT_BRIGHTNESS, led_count * sizeof(uint8_t));
@@ -308,6 +286,7 @@ void WS2812B_InitStrip(WS2812B_Strip strip)
             (unsigned)(WS2812B_TIM_PERIOD + 1u),
             (unsigned long)((1000000000ull * (unsigned long long)LOW_CCR_CODE) / (unsigned long long)timClkHz),
             (unsigned long)((1000000000ull * (unsigned long long)HIGH_CCR_CODE) / (unsigned long long)timClkHz));
+    (void)timClkHz;
 
     *initialized = true;
 }
@@ -321,7 +300,7 @@ WS2812B_StateTypeDef WS2812B_StartStrip(WS2812B_Strip strip)
     }
 
     WS2812B_InitStrip(strip);
-    strip_power_write(strip, GPIO_PIN_SET);
+    strip_power_write(strip, true);
 
     uint16_t ch = strip_tim_channel(strip);
     uint32_t* dma_buf = strip_dma_buffer(strip);
@@ -329,6 +308,9 @@ WS2812B_StateTypeDef WS2812B_StartStrip(WS2812B_Strip strip)
 
     HAL_StatusTypeDef state = HAL_TIM_PWM_Start_DMA(&htim4, ch, (uint32_t *)dma_buf, dma_len);
     *st = (state == HAL_OK) ? WS2812B_RUNNING : WS2812B_ERROR;
+    if (state != HAL_OK) {
+        strip_power_write(strip, false);
+    }
     return *st;
 }
 
@@ -337,12 +319,13 @@ WS2812B_StateTypeDef WS2812B_StopStrip(WS2812B_Strip strip)
     WS2812B_StateTypeDef* st = (strip == WS2812B_STRIP_AMBIENT) ? &g_ambient_state : &g_keys_state;
 
     if (*st != WS2812B_RUNNING) {
+        strip_power_write(strip, false);
         return *st;
     }
 
     uint16_t ch = strip_tim_channel(strip);
     HAL_StatusTypeDef state = HAL_TIM_PWM_Stop_DMA(&htim4, ch);
-    strip_power_write(strip, GPIO_PIN_RESET);
+    strip_power_write(strip, false);
 
     *st = (state == HAL_OK) ? WS2812B_STOP : WS2812B_ERROR;
     return *st;

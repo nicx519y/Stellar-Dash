@@ -1,10 +1,15 @@
-all: application bootloader
+.PHONY: all check-rf-freeze application bootloader clean FORCE
 
-application: FORCE
+all: check-rf-freeze application bootloader
+
+check-rf-freeze:
+	python tools/check_rf_frozen.py --require-rx-binary
+
+application: check-rf-freeze FORCE
 	@echo "Building application..."
 	$(MAKE) -C application -j16
 
-bootloader: FORCE
+bootloader: check-rf-freeze FORCE
 	@echo "Building bootloader..."
 	$(MAKE) -C bootloader -j16
 

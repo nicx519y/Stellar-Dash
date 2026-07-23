@@ -14,6 +14,7 @@ public:
 
     void setup();
     void loop();
+    void shutdown();
 
     bool menuPrev();
     bool menuNext();

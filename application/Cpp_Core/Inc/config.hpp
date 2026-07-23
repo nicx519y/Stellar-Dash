@@ -161,6 +161,25 @@ typedef struct
     uint32_t autoStandbyMs;          // 无按键/屏幕操作自动进入 Standby，0 表示关闭
 } PowerConfig;
 
+/*
+ * Latest-PCB immutable layout snapshot.
+ *
+ * This deliberately occupies the same three bytes as the former reserved0[]
+ * member so a V1 configuration can be migrated without changing sizeof(Config)
+ * or shifting any following fields in QSPI.
+ */
+typedef struct
+{
+    uint8_t batteryPackCount;         // 单个 1S2P 电池包
+    uint8_t keyLedCount;              // 18 Hall + 4 GPIO = 22
+    uint8_t ambientLedCount;          // 40 颗环境灯
+} HardwareLayoutConfig;
+
+#ifdef __cplusplus
+static_assert(sizeof(HardwareLayoutConfig) == 3u,
+              "HardwareLayoutConfig must preserve the former reserved0[3] layout");
+#endif
+
 typedef struct
 {
     uint32_t version;
@@ -176,7 +195,7 @@ typedef struct
     GamepadProfile profiles[NUM_PROFILES];
     GamepadHotkeyEntry hotkeys[NUM_GAMEPAD_HOTKEYS];
     bool autoCalibrationEnabled;
-    uint8_t reserved0[3];
+    HardwareLayoutConfig hardware;
     ScreenControlConfig screenControl;
     PowerConfig power;
 } Config;

@@ -15,6 +15,7 @@ export function InputModeSettingContent(props: {
     }) {
     const { globalConfig, updateGlobalConfig } = useGamepadConfig();
     const { t } = useLanguage();
+    const physicalRf = (globalConfig.physicalConnectionMode ?? globalConfig.connectionMode) === ConnectionMode.RF24G;
 
     const platformIcons = new Map<Platform, { icon: React.ReactNode, size: string }>([
         [Platform.XINPUT, { icon: <FaWindows />, size: "2xl" }],
@@ -25,13 +26,13 @@ export function InputModeSettingContent(props: {
     ]);
 
     useEffect(() => {
-        if (globalConfig.connectionMode === ConnectionMode.RF24G && globalConfig.inputMode !== Platform.XINPUT) {
+        if (physicalRf && globalConfig.inputMode !== Platform.XINPUT) {
             updateGlobalConfig({ inputMode: Platform.XINPUT });
         }
-    }, [globalConfig.connectionMode, globalConfig.inputMode, updateGlobalConfig]);
+    }, [physicalRf, globalConfig.inputMode, updateGlobalConfig]);
 
     const onInputModeChange = (detail: { value: Platform }) => {
-        if (globalConfig.connectionMode === ConnectionMode.RF24G && detail.value !== Platform.XINPUT) {
+        if (physicalRf && detail.value !== Platform.XINPUT) {
             updateGlobalConfig({ ...globalConfig, inputMode: Platform.XINPUT });
             return;
         }
@@ -59,7 +60,7 @@ export function InputModeSettingContent(props: {
                             key={platform}
                             value={platform}
                             w="100%"
-                            disabled={props.disabled || (globalConfig.connectionMode === ConnectionMode.RF24G && platform !== Platform.XINPUT)}
+                            disabled={props.disabled || (physicalRf && platform !== Platform.XINPUT)}
                         >
                             <RadioCard.ItemHiddenInput />
                             <RadioCard.ItemControl>

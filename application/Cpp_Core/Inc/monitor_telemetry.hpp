@@ -57,8 +57,31 @@ struct MonitorPowerFrameV1 {
     uint32_t reserved2;
 };
 
+/*
+ * Latest-PCB power/CH585 status.  V1 remains available for existing monitor
+ * clients; V2 uses a new magic so the two layouts cannot be confused.
+ */
+struct MonitorPowerFrameV2 {
+    uint32_t magic; /* "MPW2" */
+    uint32_t seq;
+    uint32_t timestampMs;
+    uint16_t cellMv;
+    uint16_t socPermille;
+    uint16_t vbusMv;
+    uint16_t chargeCurrentMa;
+    uint16_t faultBits;
+    uint8_t chargeState;
+    uint8_t ch585Role; /* 0 unknown, 1 RF, 2 USB, 3 maintenance */
+    uint8_t ch585VersionMajor;
+    uint8_t ch585VersionMinor;
+    uint8_t ch585VersionPatch;
+    uint8_t flags;
+    uint32_t reserved;
+};
+
 static_assert(sizeof(MonitorTelemetryFrameV1) == 32, "MonitorTelemetryFrameV1 must stay 32 bytes");
 static_assert(sizeof(MonitorPowerFrameV1) == 32, "MonitorPowerFrameV1 must stay 32 bytes");
+static_assert(sizeof(MonitorPowerFrameV2) == 32, "MonitorPowerFrameV2 must stay 32 bytes");
 
 void MonitorTelemetry_Init(ConnectionMode mode, uint16_t targetRateHz);
 uint32_t MonitorTelemetry_NextSequence();
@@ -69,8 +92,10 @@ void MonitorTelemetry_OnUsbReportSubmitted(uint16_t reportLen);
 void MonitorTelemetry_OnRfTransfer(uint32_t seq, uint8_t cmd, uint8_t payloadLen, bool ok);
 void MonitorTelemetry_OnLinkStateChanged(ConnectionMode mode, uint8_t linkState);
 void MonitorTelemetry_OnError(const char* source, uint32_t code, const char* message);
+void MonitorTelemetry_SetCh585Status(uint8_t role, uint8_t versionMajor, uint8_t versionMinor, uint8_t versionPatch);
 void MonitorTelemetry_GetSnapshot(MonitorTelemetrySnapshot* out);
 bool MonitorTelemetry_FillFrameV1(MonitorTelemetryFrameV1* out);
 bool MonitorTelemetry_FillPowerFrameV1(MonitorPowerFrameV1* out);
+bool MonitorTelemetry_FillPowerFrameV2(MonitorPowerFrameV2* out);
 
 #endif

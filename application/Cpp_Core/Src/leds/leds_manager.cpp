@@ -1,6 +1,7 @@
 #include "leds/leds_manager.hpp"
 #include <algorithm>
 #include "board_cfg.h"
+#include "board_power.hpp"
 #include "brightness_curve.hpp"
 
 #ifndef M_PI
@@ -32,6 +33,7 @@ LEDsManager::LEDsManager()
     }
 
     usingTemporaryConfig = false;
+    runtimeEnabled = false;
     animationStartTime = 0;
     lastButtonState = 0;
     rippleCount = 0;
@@ -56,6 +58,11 @@ LEDsManager::LEDsManager()
 
 void LEDsManager::setup()
 {
+    if (BOARD_POWER.isSafeLatched()) {
+        runtimeEnabled = false;
+        return;
+    }
+    runtimeEnabled = true;
     WS2812B_Init();
 
     WS2812B_SetAllLEDBrightness(0);
@@ -117,6 +124,7 @@ void LEDsManager::refreshDefaultProfile()
 {
     if (usingTemporaryConfig) return;
 
+    const bool shouldRestart = runtimeEnabled;
     opts = &STORAGE_MANAGER.getDefaultGamepadProfile()->ledsConfigs;
     const bool* enabledKeys = STORAGE_MANAGER.getDefaultGamepadProfile()->keysConfig.keysEnableTag;
     enabledKeysMask = 0;
@@ -128,8 +136,10 @@ void LEDsManager::refreshDefaultProfile()
         }
     }
 
-    deinit();
-    setup();
+    if (shouldRestart) {
+        deinit();
+        setup();
+    }
 }
 
 /**
@@ -138,6 +148,9 @@ void LEDsManager::refreshDefaultProfile()
  */
 void LEDsManager::loop(uint32_t virtualPinMask)
 {
+    if (!runtimeEnabled || BOARD_POWER.isSafeLatched()) {
+        return;
+    }
     const bool aroundLedActive = g_has_led_around && opts->aroundLedEnabled;
     const bool aroundLedSyncActive = aroundLedActive && opts->ledEnabled && opts->aroundLedSyncToMainLed;
 
@@ -315,6 +328,7 @@ float LEDsManager::getAnimationProgress()
 
 void LEDsManager::deinit()
 {
+    runtimeEnabled = false;
     HAL_Delay(50); // 等待最后一帧发送完成
     WS2812B_Stop();
 }
@@ -501,15 +515,17 @@ void LEDsManager::setTemporaryConfig(const LEDProfile& tempConfig, uint32_t enab
 /**
  * @brief 恢复使用默认存储配置
  */
-void LEDsManager::restoreDefaultConfig()
+void LEDsManager::restoreDefaultConfig(bool restartRuntime)
 {
     if (usingTemporaryConfig) {
         usingTemporaryConfig = false;
         opts = &STORAGE_MANAGER.getDefaultGamepadProfile()->ledsConfigs;
         
-        // 重新初始化以应用默认配置
-        deinit();
-        setup();
+        if (restartRuntime) {
+            // 重新初始化以应用默认配置
+            deinit();
+            setup();
+        }
     }
 }
 

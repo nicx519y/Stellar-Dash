@@ -14,8 +14,12 @@
 #define CONFIG_ADDR_ORIGIN  CONFIG_ADDR
 #define CONFIG_VERSION_SCREEN_STYLE_MIGRATE_FROM 0x00001Bu
 #define CONFIG_VERSION_POWER_MIGRATE_FROM 0x00001Cu
+#define CONFIG_VERSION_LATEST_PCB_MIGRATE_FROM 0x00001Du
 #define DEFAULT_POWER_WAKE_HOLD_MS 3000u
 #define DEFAULT_POWER_AUTO_STANDBY_MS 0u
+#define LATEST_PCB_BATTERY_PACK_COUNT 1u
+#define LATEST_PCB_KEY_LED_COUNT ((uint8_t)(NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS))
+#define LATEST_PCB_AMBIENT_LED_COUNT ((uint8_t)NUM_LED_AROUND)
 
 // ============================================================================
 // ConfigUtils Mappings
@@ -220,6 +224,17 @@ static void init_power_defaults(PowerConfig& power) {
 static void sanitize_power_config(PowerConfig& power) {
     power.wakeHoldMs = clamp_power_wake_hold_ms(power.wakeHoldMs);
     power.autoStandbyMs = sanitize_power_auto_standby_ms(power.autoStandbyMs);
+}
+
+static void init_hardware_layout(HardwareLayoutConfig& hardware) {
+    hardware.batteryPackCount = LATEST_PCB_BATTERY_PACK_COUNT;
+    hardware.keyLedCount = LATEST_PCB_KEY_LED_COUNT;
+    hardware.ambientLedCount = LATEST_PCB_AMBIENT_LED_COUNT;
+}
+
+static void sanitize_hardware_layout(HardwareLayoutConfig& hardware) {
+    /* Board population is immutable; imported/stale values are informational only. */
+    init_hardware_layout(hardware);
 }
 
 static void add_power_json(cJSON* globalConfigJSON, const PowerConfig& power) {
@@ -735,6 +750,7 @@ bool ConfigUtils::load(Config& config)
     if(fjResult == true && config.version == CONFIG_VERSION) { // 版本号一致
         sanitize_screen_style(config.screenControl);
         sanitize_power_config(config.power);
+        sanitize_hardware_layout(config.hardware);
         uint32_t ver = config.version;
         APP_DBG("Config Version: %d.%d.%d", (ver>>16) & 0xff, (ver>>8) & 0xff, ver & 0xff);
         return true;
@@ -744,6 +760,7 @@ bool ConfigUtils::load(Config& config)
         config.screenControl.screenStyle = infer_screen_style_from_colors(oldBg, oldFg);
         sanitize_screen_style(config.screenControl);
         init_power_defaults(config.power);
+        init_hardware_layout(config.hardware);
         config.version = CONFIG_VERSION;
         APP_DBG("ConfigUtils::load - migrated screen style from bg=0x%06lx fg=0x%06lx style=%u",
                 (unsigned long)(oldBg & 0xFFFFFFu),
@@ -753,8 +770,19 @@ bool ConfigUtils::load(Config& config)
     } else if (fjResult == true && config.version == CONFIG_VERSION_POWER_MIGRATE_FROM) {
         sanitize_screen_style(config.screenControl);
         init_power_defaults(config.power);
+        init_hardware_layout(config.hardware);
         config.version = CONFIG_VERSION;
         APP_DBG("ConfigUtils::load - migrated power config defaults");
+        return save(config);
+    } else if (fjResult == true && config.version == CONFIG_VERSION_LATEST_PCB_MIGRATE_FROM) {
+        sanitize_screen_style(config.screenControl);
+        sanitize_power_config(config.power);
+        init_hardware_layout(config.hardware);
+        config.version = CONFIG_VERSION;
+        APP_DBG("ConfigUtils::load - migrated latest PCB layout: battery=%u keyLeds=%u ambientLeds=%u",
+                (unsigned int)config.hardware.batteryPackCount,
+                (unsigned int)config.hardware.keyLedCount,
+                (unsigned int)config.hardware.ambientLedCount);
         return save(config);
     } else {
 
@@ -769,7 +797,7 @@ bool ConfigUtils::load(Config& config)
         strcpy(config.defaultProfileId, "profile-0");
         config.numProfilesMax = NUM_PROFILES;
         config.autoCalibrationEnabled = false; // 默认关闭自动校准
-        memset(config.reserved0, 0, sizeof(config.reserved0));
+        init_hardware_layout(config.hardware);
         config.screenControl.brightness = 100;
         config.screenControl.standbyDisplay = 0;
         memset(config.screenControl.reserved0, 0, sizeof(config.screenControl.reserved0));
@@ -875,6 +903,7 @@ bool ConfigUtils::save(Config& config)
 {
     APP_DBG("ConfigUtils::save begin");
     sanitize_competition_profiles(config);
+    sanitize_hardware_layout(config.hardware);
 
     const uint32_t cfgSize = (uint32_t)sizeof(Config);
     int8_t result = qspi_erase_and_write_config((uint8_t*)&config, CONFIG_ADDR_ORIGIN, cfgSize);

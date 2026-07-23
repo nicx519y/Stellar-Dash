@@ -109,9 +109,11 @@ static FirmwareValidationResult validate_firmware_metadata(const FirmwareMetadat
         return FIRMWARE_INVALID_DEVICE;
     }
     
-    // 4. 验证硬件版本兼容性
-    if (metadata->hardware_version > HARDWARE_VERSION) {
-        APP_ERR("FirmwareManager::validate_firmware_metadata: Invalid hardware version");
+    // 4. V2 主板只接受精确匹配的 V2 元数据，禁止跨硬件代际启动/升级。
+    if (!firmware_hardware_version_is_current(metadata->hardware_version)) {
+        APP_ERR("FirmwareManager::validate_firmware_metadata: Hardware version mismatch (0x%08lX != 0x%08lX)",
+                (unsigned long)metadata->hardware_version,
+                (unsigned long)HARDWARE_VERSION);
         return FIRMWARE_INVALID_DEVICE;
     }
     
@@ -516,6 +518,17 @@ uint32_t FirmwareManager::GetComponentSize(FirmwareComponentType component) {
 }
 
 bool FirmwareManager::CreateUpgradeSession(const char* session_id, const FirmwareMetadata* manifest) {
+    /*
+     * Reject an incompatible package before cleaning up an existing session or
+     * allocating any new state.  The WebSocket gate is defense in depth; this
+     * device-side check also covers any future direct caller.
+     */
+    if (session_id == nullptr || manifest == nullptr ||
+        !firmware_hardware_version_is_current(manifest->hardware_version)) {
+        APP_ERR("FirmwareManager::CreateUpgradeSession: Hardware version mismatch");
+        return false;
+    }
+
     // 首先清理任何过期或失败的会话
     CleanupExpiredSessions();
     

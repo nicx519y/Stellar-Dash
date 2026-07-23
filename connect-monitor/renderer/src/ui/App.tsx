@@ -94,6 +94,9 @@ function displayMillivolts(mv?: number) {
 
 function primaryBatteryMv(powerStatus: PowerStatusEvent | null) {
   if (!powerStatus) return undefined;
+  if (Number.isFinite(powerStatus.cellMv) && (powerStatus.cellMv ?? 0) > 0) {
+    return powerStatus.cellMv;
+  }
   if (Number.isFinite(powerStatus.batMv) && powerStatus.batMv > 0) {
     return powerStatus.batMv;
   }
@@ -882,8 +885,11 @@ export function App() {
   const batteryMv = primaryBatteryMv(powerStatus);
   const batteryVoltageText = powerValid ? `${displayMillivolts(batteryMv)}V` : "--V";
   const batteryCornerDetail = powerStatus
-    ? `BAT ${powerStatus.valid ? `${powerStatus.socPercent.toFixed(0)}%` : "--%"}`
+    ? `${powerStatus.valid ? `${powerStatus.socPercent.toFixed(0)}%` : "--%"} · ${powerStatus.chargeState}${(powerStatus.faultBits ?? 0) !== 0 ? ` · fault 0x${(powerStatus.faultBits ?? 0).toString(16).padStart(4, "0")}` : ""}`
     : "No data";
+  const ch585StatusText = powerStatus?.ch585Role
+    ? `CH585 ${powerStatus.ch585Role}${powerStatus.ch585Version ? ` v${powerStatus.ch585Version}` : ""}`
+    : "CH585 --";
 
   useEffect(() => {
     if (!powerValid || typeof batteryMv !== "number" || batteryMv <= 0 || !powerStatus) {
@@ -1091,7 +1097,7 @@ export function App() {
             title="RF Connection"
             status={rfStatus?.state ?? "Disconnected"}
             statusLabel={rfStatus?.statusLabel}
-            target={`Target ${rfStatus?.targetRateHz ?? 0} Hz`}
+            target={`Target ${rfStatus?.targetRateHz ?? 0} Hz · ${ch585StatusText}`}
             value={(rfConnected ? packets.rfRxPerSec : 0).toFixed(1)}
             unit="pkt/s"
             cornerPrefixLabel="BAT"

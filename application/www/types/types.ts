@@ -105,6 +105,8 @@ export interface FirmwareManifest {
     version: string;
     slot: string;
     build_date: string;
+    hardware_version: string;
+    hardware_version_code: number;
     components: FirmwareComponent[];
 }
 

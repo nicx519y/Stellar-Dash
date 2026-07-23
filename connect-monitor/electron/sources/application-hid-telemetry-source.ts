@@ -2,6 +2,7 @@ import type { MonitorEvent } from "../pipeline/types";
 
 const MON1_MAGIC = 0x4d4f4e31;
 const MONP_MAGIC = 0x4d4f4e50;
+const MPW2_MAGIC = 0x3257504d;
 
 function chargeStateFromCode(code: number): "Discharging" | "Charging" | "Full" | "Fault" | "Unknown" {
   switch (code) {
@@ -21,13 +22,26 @@ function chargeStateFromCode(code: number): "Discharging" | "Charging" | "Full" 
 function appTelemetryOffset(report: Uint8Array): number | null {
   if (report.length >= 32) {
     const direct = new DataView(report.buffer, report.byteOffset, report.byteLength).getUint32(0, true);
-    if (direct === MON1_MAGIC || direct === MONP_MAGIC) return 0;
+    if (direct === MON1_MAGIC || direct === MONP_MAGIC || direct === MPW2_MAGIC) return 0;
   }
   if (report.length >= 33) {
     const shifted = new DataView(report.buffer, report.byteOffset, report.byteLength).getUint32(1, true);
-    if (shifted === MON1_MAGIC || shifted === MONP_MAGIC) return 1;
+    if (shifted === MON1_MAGIC || shifted === MONP_MAGIC || shifted === MPW2_MAGIC) return 1;
   }
   return null;
+}
+
+function ch585RoleFromCode(code: number): "Unknown" | "RF" | "USB" | "Maintenance" {
+  switch (code) {
+    case 1:
+      return "RF";
+    case 2:
+      return "USB";
+    case 3:
+      return "Maintenance";
+    default:
+      return "Unknown";
+  }
 }
 
 /**
@@ -42,6 +56,54 @@ export function parseApplicationHidTelemetryFrame(report: Uint8Array, timestampM
 
   const view = new DataView(report.buffer, report.byteOffset + offset, report.byteLength - offset);
   const magic = view.getUint32(0, true);
+  if (magic === MPW2_MAGIC) {
+    const seq = view.getUint32(4, true);
+    const cellMv = view.getUint16(12, true);
+    const socPermille = view.getUint16(14, true);
+    const vbusMv = view.getUint16(16, true);
+    const chargeCurrentMa = view.getUint16(18, true);
+    const faultBits = view.getUint16(20, true);
+    const chargeState = chargeStateFromCode(view.getUint8(22));
+    const ch585Role = ch585RoleFromCode(view.getUint8(23));
+    const version = `${view.getUint8(24)}.${view.getUint8(25)}.${view.getUint8(26)}`;
+    const flags = view.getUint8(27);
+
+    return [
+      {
+        kind: "power_status",
+        timestampMs,
+        h1Mv: cellMv,
+        h2Mv: 0,
+        batMv: cellMv,
+        cellMv,
+        socPercent: Math.max(0, Math.min(100, socPermille / 10)),
+        activeBattery: "H1",
+        chargeState,
+        valid: (flags & 0x01) !== 0,
+        lowBattery: (flags & 0x02) !== 0,
+        fastCharging: (flags & 0x04) !== 0,
+        vbusPresent: (flags & 0x08) !== 0,
+        gaugeOnline: (flags & 0x10) !== 0,
+        chargerOnline: (flags & 0x20) !== 0,
+        vbusMv,
+        chargeCurrentMa,
+        faultBits,
+        ch585Role,
+        ch585Version: version,
+        formatVersion: 2,
+      },
+      {
+        kind: "packet",
+        timestampMs,
+        channel: "USB",
+        direction: "TX",
+        seq,
+        messageType: "APP_MPW2",
+        payloadLen: report.length,
+      },
+    ];
+  }
+
   if (magic === MONP_MAGIC) {
     const seq = view.getUint32(4, true);
     const h1Mv = view.getUint16(12, true);
@@ -64,6 +126,10 @@ export function parseApplicationHidTelemetryFrame(report: Uint8Array, timestampM
         chargeState,
         valid: (flags & 0x01) !== 0,
         lowBattery: (flags & 0x02) !== 0,
+        cellMv: batMv || (activeBattery === "H2" ? h2Mv : h1Mv),
+        fastCharging: (flags & 0x04) !== 0,
+        faultBits: chargeState === "Fault" ? 1 : 0,
+        formatVersion: 1,
       },
       {
         kind: "packet",

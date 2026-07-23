@@ -32,17 +32,17 @@ export const COMBINATION_KEY_MAX_LENGTH = 5;
 // max number of button combination
 export const MAX_NUM_BUTTON_COMBINATION = 5;
 
-// keys settings interactive ids
-export const KEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 ]; // 0-20 共21个按键可以交互，并设置为按键
+// latest PCB: 18 Hall + 4 GPIO = 22 keys
+export const KEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21 ];
 
-// leds settings interactive ids
-export const LEDS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 ]; // 0-20 共21个按键可以交互，并设置为led
+// one key LED per physical key
+export const LEDS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21 ];
 
 // hotkeys settings interactive ids
 export const HOTKEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 ]; // 0-19 共20个按键可以交互，并设置为hotkey
 
-// rapid trigger settings interactive ids
-export const RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 ]; // 0-16 共17个按键可以交互，并设置为rapid trigger
+// rapid trigger applies to all 18 Hall keys
+export const RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 ];
 
 
 
@@ -82,10 +82,31 @@ export const PlatformLabelMap = new Map<Platform, { label: string, description: 
 export interface GlobalConfig {
     inputMode?: Platform;
     connectionMode?: ConnectionMode;
+    connectionModeReadOnly?: boolean;
+    connectionModeSource?: 'PHYSICAL_SWITCH';
+    physicalConnectionMode?: PhysicalConnectionMode;
     wirelessReportRate?: WirelessReportRate;
     power?: PowerConfig;
+    hardware?: HardwareLayout;
+    ch585?: Ch585Status;
     autoCalibrationEnabled?: boolean;
     manualCalibrationActive?: boolean;
+}
+
+export interface Ch585Status {
+    role: 'RF' | 'USB' | 'MAINTENANCE' | 'UNKNOWN';
+    firmwareVersion: string;
+    capabilitiesValid: boolean;
+}
+
+export type PhysicalConnectionMode = ConnectionMode | 'OFF' | 'FAULT' | 'UNKNOWN';
+
+export interface HardwareLayout {
+    hardwareVersion: '2.0.0' | string;
+    batteryTopology: 'SINGLE_1S2P';
+    batteryPackCount: 1 | number;
+    keyLedCount: 22 | number;
+    ambientLedCount: 40 | number;
 }
 
 export interface PowerConfig {

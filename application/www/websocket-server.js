@@ -25,7 +25,22 @@ class MockDataStore {
     this.globalConfig = {
       inputMode: "XINPUT",
       connectionMode: "USB",
+      connectionModeReadOnly: true,
+      connectionModeSource: "PHYSICAL_SWITCH",
+      physicalConnectionMode: "USB",
       wirelessReportRate: "1K",
+      hardware: {
+        hardwareVersion: "2.0.0",
+        batteryTopology: "SINGLE_1S2P",
+        batteryPackCount: 1,
+        keyLedCount: 22,
+        ambientLedCount: 40
+      },
+      ch585: {
+        role: "USB",
+        firmwareVersion: "2.0.0",
+        capabilitiesValid: true
+      },
       power: {
         wakeHoldMs: 3000,
         autoStandbyMs: 0
@@ -128,7 +143,16 @@ class CommandHandler {
   static handleUpdateGlobalConfig(request) {
     const config = request.params?.globalConfig;
     if (config) {
-      dataStore.updateGlobalConfig(config);
+      const {
+        connectionMode: _legacyMode,
+        physicalConnectionMode: _physicalMode,
+        connectionModeReadOnly: _readOnly,
+        connectionModeSource: _source,
+        hardware: _hardware,
+        ch585: _ch585,
+        ...writableConfig
+      } = config;
+      dataStore.updateGlobalConfig(writableConfig);
       return CommandHandler.createSuccessResponse(request.cid, request.command, {
         message: "全局配置更新成功"
       });

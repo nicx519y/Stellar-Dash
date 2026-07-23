@@ -16,6 +16,241 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs-extra');
+const zlib = require('zlib');
+
+const STM32_OTA_COMPONENTS = Object.freeze([
+    'application',
+    'webresources',
+    'adc_mapping'
+]);
+const STM32_OTA_LAYOUT = Object.freeze({
+    A: Object.freeze({
+        application: Object.freeze({ address: 0x90000000, maxSize: 0x100000 }),
+        webresources: Object.freeze({ address: 0x90100000, maxSize: 0x180000 }),
+        adc_mapping: Object.freeze({ address: 0x90280000, maxSize: 0x20000 })
+    }),
+    B: Object.freeze({
+        application: Object.freeze({ address: 0x902B0000, maxSize: 0x100000 }),
+        webresources: Object.freeze({ address: 0x903B0000, maxSize: 0x180000 }),
+        adc_mapping: Object.freeze({ address: 0x90530000, maxSize: 0x20000 })
+    })
+});
+const MAX_OTA_ENTRY_SIZE = 0x180000;
+const MAX_OTA_UNCOMPRESSED_SIZE = 0x2B0000 + 0x10000;
+
+function hardwareVersionCode(hardwareVersion) {
+    if (typeof hardwareVersion !== 'string') {
+        return null;
+    }
+    const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(hardwareVersion);
+    if (!match) {
+        return null;
+    }
+    const parts = match.slice(1).map(Number);
+    if (parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) {
+        return null;
+    }
+    return ((parts[0] << 16) | (parts[1] << 8) | parts[2]) >>> 0;
+}
+
+function parseManifestAddress(value, fieldName) {
+    let parsed;
+    if (Number.isInteger(value)) {
+        parsed = value;
+    } else if (typeof value === 'string' && /^(?:0x[0-9a-f]+|\d+)$/i.test(value)) {
+        parsed = Number.parseInt(value, value.toLowerCase().startsWith('0x') ? 16 : 10);
+    }
+    if (!Number.isSafeInteger(parsed) || parsed < 0) {
+        throw new Error(`${fieldName} is not a valid address`);
+    }
+    return parsed;
+}
+
+/*
+ * Read the classic ZIP central directory with Node built-ins. Release packages
+ * are intentionally small, flat archives; ZIP64, encryption and nested paths
+ * are rejected so upload validation remains deterministic and fail-closed.
+ */
+function readFlatZipEntries(filePath) {
+    const archive = fs.readFileSync(filePath);
+    const eocdSignature = 0x06054b50;
+    const searchStart = Math.max(0, archive.length - 65557);
+    let eocdOffset = -1;
+    for (let offset = archive.length - 22; offset >= searchStart; offset -= 1) {
+        if (archive.readUInt32LE(offset) === eocdSignature) {
+            eocdOffset = offset;
+            break;
+        }
+    }
+    if (eocdOffset < 0) {
+        throw new Error('invalid ZIP: EOCD not found');
+    }
+    if (archive.readUInt16LE(eocdOffset + 4) !== 0 ||
+        archive.readUInt16LE(eocdOffset + 6) !== 0) {
+        throw new Error('multi-disk ZIP is not supported');
+    }
+    const entryCount = archive.readUInt16LE(eocdOffset + 10);
+    const centralSize = archive.readUInt32LE(eocdOffset + 12);
+    const centralOffset = archive.readUInt32LE(eocdOffset + 16);
+    if (entryCount === 0xffff || centralSize === 0xffffffff ||
+        centralOffset === 0xffffffff ||
+        centralOffset + centralSize > eocdOffset) {
+        throw new Error('ZIP64 or invalid central directory is not supported');
+    }
+
+    const entries = new Map();
+    let totalUncompressedSize = 0;
+    let offset = centralOffset;
+    for (let index = 0; index < entryCount; index += 1) {
+        if (offset + 46 > archive.length || archive.readUInt32LE(offset) !== 0x02014b50) {
+            throw new Error('invalid ZIP central directory entry');
+        }
+        const flags = archive.readUInt16LE(offset + 8);
+        const method = archive.readUInt16LE(offset + 10);
+        const compressedSize = archive.readUInt32LE(offset + 20);
+        const uncompressedSize = archive.readUInt32LE(offset + 24);
+        const nameLength = archive.readUInt16LE(offset + 28);
+        const extraLength = archive.readUInt16LE(offset + 30);
+        const commentLength = archive.readUInt16LE(offset + 32);
+        const localOffset = archive.readUInt32LE(offset + 42);
+        const entryEnd = offset + 46 + nameLength + extraLength + commentLength;
+        if (entryEnd > archive.length) {
+            throw new Error('truncated ZIP central directory entry');
+        }
+        const name = archive.subarray(offset + 46, offset + 46 + nameLength).toString('utf8');
+        if (!name || name.includes('/') || name.includes('\\') || entries.has(name)) {
+            throw new Error(`invalid or duplicate ZIP entry: ${name}`);
+        }
+        if ((flags & 0x0001) !== 0) {
+            throw new Error(`encrypted ZIP entry is not allowed: ${name}`);
+        }
+        if (method !== 0 && method !== 8) {
+            throw new Error(`unsupported ZIP compression method for ${name}`);
+        }
+        totalUncompressedSize += uncompressedSize;
+        if (uncompressedSize > MAX_OTA_ENTRY_SIZE ||
+            totalUncompressedSize > MAX_OTA_UNCOMPRESSED_SIZE) {
+            throw new Error('ZIP uncompressed size exceeds the STM32 OTA boundary');
+        }
+        if (localOffset + 30 > archive.length ||
+            archive.readUInt32LE(localOffset) !== 0x04034b50) {
+            throw new Error(`invalid ZIP local header for ${name}`);
+        }
+        const localFlags = archive.readUInt16LE(localOffset + 6);
+        const localMethod = archive.readUInt16LE(localOffset + 8);
+        const localNameLength = archive.readUInt16LE(localOffset + 26);
+        const localExtraLength = archive.readUInt16LE(localOffset + 28);
+        const localName = archive.subarray(
+            localOffset + 30,
+            localOffset + 30 + localNameLength
+        ).toString('utf8');
+        if (localFlags !== flags || localMethod !== method || localName !== name) {
+            throw new Error(`ZIP local/central header mismatch for ${name}`);
+        }
+        const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
+        const dataEnd = dataOffset + compressedSize;
+        if (dataEnd > archive.length) {
+            throw new Error(`truncated ZIP entry: ${name}`);
+        }
+        const compressed = archive.subarray(dataOffset, dataEnd);
+        const data = method === 0 ? Buffer.from(compressed) : zlib.inflateRawSync(compressed);
+        if (data.length !== uncompressedSize) {
+            throw new Error(`ZIP size mismatch for ${name}`);
+        }
+        entries.set(name, data);
+        offset = entryEnd;
+    }
+    if (offset !== centralOffset + centralSize) {
+        throw new Error('ZIP central directory size mismatch');
+    }
+    return entries;
+}
+
+function validateUploadedOtaPackage(filePath, expectedSlot) {
+    const entries = readFlatZipEntries(filePath);
+    const manifestData = entries.get('manifest.json');
+    if (!manifestData) {
+        throw new Error('manifest.json is required');
+    }
+    let manifest;
+    try {
+        manifest = JSON.parse(manifestData.toString('utf8'));
+    } catch (error) {
+        throw new Error(`invalid manifest.json: ${error.message}`);
+    }
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+        throw new Error('manifest root must be an object');
+    }
+    if (!isValidVersion(manifest.version)) {
+        throw new Error('manifest.version must be a three-part version');
+    }
+    const slot = String(manifest.slot || '').toUpperCase();
+    if (slot !== expectedSlot || !STM32_OTA_LAYOUT[slot]) {
+        throw new Error(`manifest.slot must be ${expectedSlot}`);
+    }
+    const expectedHardwareCode = hardwareVersionCode(manifest.hardware_version);
+    if (expectedHardwareCode === null ||
+        manifest.hardware_version_code !== expectedHardwareCode) {
+        throw new Error('package hardware version metadata is invalid');
+    }
+    if (manifest.ota_scope !== 'STM32_ONLY' ||
+        manifest.ch585_update !== 'MANUAL_INDEPENDENT_FLASH') {
+        throw new Error('package must be STM32-only; CH585 is independently flashed');
+    }
+    if (!Array.isArray(manifest.components) ||
+        manifest.components.length !== STM32_OTA_COMPONENTS.length) {
+        throw new Error('manifest must contain exactly three STM32 components');
+    }
+
+    const componentNames = manifest.components.map(component => component && component.name);
+    if (new Set(componentNames).size !== STM32_OTA_COMPONENTS.length ||
+        STM32_OTA_COMPONENTS.some(name => !componentNames.includes(name))) {
+        throw new Error('manifest component set is invalid');
+    }
+
+    const expectedEntries = new Set(['manifest.json']);
+    const componentFiles = new Set();
+    for (const component of manifest.components) {
+        const layout = STM32_OTA_LAYOUT[slot][component.name];
+        if (typeof component.file !== 'string' || !component.file ||
+            component.file.includes('/') || component.file.includes('\\')) {
+            throw new Error(`invalid component filename: ${component.name}`);
+        }
+        if (component.file_type !== 'bin') {
+            throw new Error(`${component.name}.file_type must be bin`);
+        }
+        if (componentFiles.has(component.file)) {
+            throw new Error('each component must use a different filename');
+        }
+        componentFiles.add(component.file);
+        if (parseManifestAddress(component.address, `${component.name}.address`) !== layout.address) {
+            throw new Error(`${component.name} address does not match slot ${slot}`);
+        }
+        if (!Number.isInteger(component.size) || component.size <= 0 ||
+            component.size > layout.maxSize) {
+            throw new Error(`${component.name} size is invalid`);
+        }
+        if (typeof component.sha256 !== 'string' ||
+            !/^[0-9a-f]{64}$/.test(component.sha256)) {
+            throw new Error(`${component.name} SHA-256 is invalid`);
+        }
+        const data = entries.get(component.file);
+        if (!data || data.length !== component.size) {
+            throw new Error(`${component.name} ZIP content size mismatch`);
+        }
+        const actualHash = crypto.createHash('sha256').update(data).digest('hex');
+        if (actualHash !== component.sha256) {
+            throw new Error(`${component.name} ZIP content SHA-256 mismatch`);
+        }
+        expectedEntries.add(component.file);
+    }
+    if (entries.size !== expectedEntries.size ||
+        [...entries.keys()].some(name => !expectedEntries.has(name))) {
+        throw new Error('ZIP must contain only manifest.json and its three components');
+    }
+    return manifest;
+}
 
 // 工具函数
 function generateDownloadUrl(filename, serverUrl) {
@@ -23,7 +258,6 @@ function generateDownloadUrl(filename, serverUrl) {
 }
 
 function calculateFileHash(filePath) {
-    const fs = require('fs-extra');
     try {
         const data = fs.readFileSync(filePath);
         return crypto.createHash('sha256').update(data).digest('hex');
@@ -54,14 +288,39 @@ function isValidVersion(version) {
     return versionPattern.test(version);
 }
 
-function findNewerFirmwares(currentVersion, firmwares) {
-    if (!isValidVersion(currentVersion)) {
+function isValidHardwareVersion(hardwareVersion) {
+    return hardwareVersionCode(hardwareVersion) !== null;
+}
+
+function cleanupUploadedFiles(files) {
+    if (!files || typeof files !== 'object') {
+        return;
+    }
+    for (const group of Object.values(files)) {
+        if (!Array.isArray(group)) {
+            continue;
+        }
+        for (const file of group) {
+            try {
+                if (file && file.path && fs.existsSync(file.path)) {
+                    fs.unlinkSync(file.path);
+                }
+            } catch (error) {
+                console.error('Failed to clean rejected upload:', error.message);
+            }
+        }
+    }
+}
+
+function findNewerFirmwares(currentVersion, hardwareVersion, firmwares) {
+    if (!isValidVersion(currentVersion) || !isValidHardwareVersion(hardwareVersion)) {
         return [];
     }
     
     return firmwares
         .filter(firmware => {
-            return isValidVersion(firmware.version) && 
+            return firmware.hardwareVersion === hardwareVersion &&
+                   isValidVersion(firmware.version) &&
                    compareVersions(firmware.version, currentVersion) > 0;
         })
         .sort((a, b) => compareVersions(b.version, a.version));
@@ -346,6 +605,7 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
             const filteredFirmwares = firmwares.map(firmware => ({
                 name: firmware.name,
                 version: firmware.version,
+                hardwareVersion: firmware.hardwareVersion,
                 desc: firmware.desc
             }));
             
@@ -368,7 +628,7 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
     // 2. 检查固件更新
     app.post('/api/firmware-check-update', validateDeviceAuth({ source: 'body' }), (req, res) => {
         try {
-            const { currentVersion } = req.body;
+            const { currentVersion, hardwareVersion } = req.body;
             
             if (!currentVersion) {
                 return res.status(400).json({
@@ -388,13 +648,32 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
                 });
             }
 
+            /*
+             * Old clients did not send a hardware version. They must not be
+             * offered V2 by version number alone; fail closed instead.
+             */
+            if (!isValidHardwareVersion(hardwareVersion)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'hardware version is required',
+                    errNo: 1,
+                    errorMessage: 'hardwareVersion is required and must use x.y.z format'
+                });
+            }
+
             const allFirmwares = storage_manager.getFirmwares();
-            const newerFirmwares = findNewerFirmwares(currentVersion.trim(), allFirmwares);
+            const normalizedHardwareVersion = hardwareVersion.trim();
+            const newerFirmwares = findNewerFirmwares(
+                currentVersion.trim(),
+                normalizedHardwareVersion,
+                allFirmwares
+            );
             const updateAvailable = newerFirmwares.length > 0;
             const latestFirmware = updateAvailable ? newerFirmwares[0] : null;
             
             const responseData = {
                 currentVersion: currentVersion.trim(),
+                hardwareVersion: normalizedHardwareVersion,
                 updateAvailable: updateAvailable,
                 updateCount: newerFirmwares.length,
                 checkTime: new Date().toISOString()
@@ -406,6 +685,7 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
                     id: latestFirmware.id,
                     name: latestFirmware.name,
                     version: latestFirmware.version,
+                    hardwareVersion: latestFirmware.hardwareVersion,
                     desc: latestFirmware.desc,
                     createTime: latestFirmware.createTime,
                     updateTime: latestFirmware.updateTime,
@@ -416,6 +696,7 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
                     id: firmware.id,
                     name: firmware.name,
                     version: firmware.version,
+                    hardwareVersion: firmware.hardwareVersion,
                     desc: firmware.desc,
                     createTime: firmware.createTime
                 }));
@@ -430,7 +711,7 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
                     'current version is the latest'
             });
 
-            console.log(`Firmware update check: current version ${currentVersion.trim()}, ${updateAvailable ? `found ${newerFirmwares.length} updates` : 'no updates'}`);
+            console.log(`Firmware update check: hardware ${normalizedHardwareVersion}, current version ${currentVersion.trim()}, ${updateAvailable ? `found ${newerFirmwares.length} updates` : 'no updates'}`);
 
         } catch (error) {
             console.error('Firmware update check failed:', error);
@@ -449,42 +730,81 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
         { name: 'slotA', maxCount: 1 },
         { name: 'slotB', maxCount: 1 }
     ]), async (req, res) => {
+        const rejectUpload = (status, message) => {
+            cleanupUploadedFiles(req.files);
+            return res.status(status).json({ success: false, message });
+        };
         try {
-            const { version, desc } = req.body;
+            const { version, desc, hardwareVersion: submittedHardwareVersion } = req.body;
             
             if (!version) {
-                return res.status(400).json({
-                    success: false,
-                    message: '版本号是必需的'
-                });
+                return rejectUpload(400, '版本号是必需的');
             }
 
-            const versionPattern = /^\d+\.\d+\.\d+$/;
-            if (!versionPattern.test(version.trim())) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'version format error, must be three-digit version format (e.g. 1.0.0)'
-                });
-            }
-
-            const existingFirmware = storage_manager.getFirmwares().find(f => f.version === version.trim());
-            if (existingFirmware) {
-                return res.status(409).json({
-                    success: false,
-                    message: `version ${version.trim()} already exists, not allowed to upload again`
-                });
+            if (!isValidVersion(version.trim())) {
+                return rejectUpload(
+                    400,
+                    'version format error, must be three-digit version format (e.g. 1.0.0)'
+                );
             }
 
             if (!req.files || (!req.files.slotA && !req.files.slotB)) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'at least one slot of firmware package is required'
-                });
+                return rejectUpload(400, 'at least one slot of firmware package is required');
+            }
+
+            const packageManifests = {};
+            if (req.files.slotA && req.files.slotA[0]) {
+                packageManifests.slotA = validateUploadedOtaPackage(
+                    req.files.slotA[0].path,
+                    'A'
+                );
+            }
+            if (req.files.slotB && req.files.slotB[0]) {
+                packageManifests.slotB = validateUploadedOtaPackage(
+                    req.files.slotB[0].path,
+                    'B'
+                );
+            }
+            const manifests = Object.values(packageManifests);
+            const packageVersions = new Set(manifests.map(manifest => manifest.version));
+            const hardwareVersions = new Set(
+                manifests.map(manifest => manifest.hardware_version)
+            );
+            if (packageVersions.size !== 1 || hardwareVersions.size !== 1) {
+                return rejectUpload(
+                    400,
+                    'slot packages must have identical version and hardware_version'
+                );
+            }
+
+            const packageVersion = manifests[0].version;
+            const hardwareVersion = manifests[0].hardware_version;
+            if (version.trim() !== packageVersion) {
+                return rejectUpload(400, 'form version does not match package manifest');
+            }
+            if (submittedHardwareVersion !== undefined &&
+                submittedHardwareVersion.trim() !== hardwareVersion) {
+                return rejectUpload(
+                    400,
+                    'form hardwareVersion does not match package manifest'
+                );
+            }
+
+            const existingFirmware = storage_manager.getFirmwares().find(f =>
+                f.version === packageVersion &&
+                f.hardwareVersion === hardwareVersion
+            );
+            if (existingFirmware) {
+                return rejectUpload(
+                    409,
+                    `hardware ${hardwareVersion} version ${packageVersion} already exists`
+                );
             }
 
             const firmware = {
-                name: `HBox firmware ${version.trim()}`,
-                version: version.trim(),
+                name: `HBox ${hardwareVersion} firmware ${packageVersion}`,
+                version: packageVersion,
+                hardwareVersion,
                 desc: desc ? desc.trim() : '',
                 slotA: null,
                 slotB: null
@@ -499,7 +819,8 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
                     fileSize: file.size,
                     downloadUrl: generateDownloadUrl(file.filename, config.serverUrl),
                     uploadTime: new Date().toISOString(),
-                    hash: calculateFileHash(file.path)
+                    hash: calculateFileHash(file.path),
+                    manifest: packageManifests.slotA
                 };
             }
 
@@ -512,7 +833,8 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
                     fileSize: file.size,
                     downloadUrl: generateDownloadUrl(file.filename, config.serverUrl),
                     uploadTime: new Date().toISOString(),
-                    hash: calculateFileHash(file.path)
+                    hash: calculateFileHash(file.path),
+                    manifest: packageManifests.slotB
                 };
             }
 
@@ -524,15 +846,16 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
                 });
                 console.log(`Firmware uploaded successfully: ${firmware.name} v${firmware.version}`);
             } else {
-                res.status(500).json({
-                    success: false,
-                    message: 'failed to save firmware information'
-                });
+                return rejectUpload(
+                    409,
+                    'failed to save firmware information or duplicate hardware/version key'
+                );
             }
 
         } catch (error) {
+            cleanupUploadedFiles(req.files);
             console.error('Firmware upload failed:', error);
-            res.status(500).json({
+            res.status(400).json({
                 success: false,
                 message: 'Firmware upload failed',
                 error: error.message
@@ -580,7 +903,7 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
     // 5. 清空指定版本及之前的所有版本固件
     app.post('/api/firmwares/clear-up-to-version', requireAdminAuth(), (req, res) => {
         try {
-            const { targetVersion } = req.body;
+            const { targetVersion, hardwareVersion } = req.body;
             
             if (!targetVersion) {
                 return res.status(400).json({
@@ -596,20 +919,32 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
                 });
             }
 
-            const result = storage_manager.clearFirmwaresUpToVersion(targetVersion.trim());
+            if (!isValidHardwareVersion(hardwareVersion)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'hardwareVersion is required and must use x.y.z format'
+                });
+            }
+
+            const normalizedHardwareVersion = hardwareVersion.trim();
+            const result = storage_manager.clearFirmwaresUpToVersion(
+                targetVersion.trim(),
+                normalizedHardwareVersion
+            );
             
             if (result.success) {
                 res.json({
                     success: true,
-                    message: `successfully cleared ${result.deletedCount} firmware(s) up to version ${targetVersion.trim()}`,
+                    message: `successfully cleared ${result.deletedCount} firmware(s) for hardware ${normalizedHardwareVersion} up to version ${targetVersion.trim()}`,
                     data: {
                         targetVersion: targetVersion.trim(),
+                        hardwareVersion: normalizedHardwareVersion,
                         deletedCount: result.deletedCount,
                         deletedFirmwares: result.deletedFirmwares,
                         clearTime: new Date().toISOString()
                     }
                 });
-                console.log(`Firmware clearing completed: cleared ${result.deletedCount} firmware(s) up to version ${targetVersion.trim()}`);
+                console.log(`Firmware clearing completed: hardware ${normalizedHardwareVersion}, cleared ${result.deletedCount} firmware(s) up to version ${targetVersion.trim()}`);
             } else {
                 res.status(500).json({
                     success: false,
@@ -671,7 +1006,26 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
 
             const updates = {};
             if (name !== undefined) updates.name = name.trim();
-            if (version !== undefined) updates.version = version.trim();
+            if (version !== undefined) {
+                if (!isValidVersion(version.trim())) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'version format error, must be three-digit version format (e.g. 1.0.0)'
+                    });
+                }
+                const duplicate = storage_manager.getFirmwares().find(candidate =>
+                    candidate.id !== id &&
+                    candidate.hardwareVersion === firmware.hardwareVersion &&
+                    candidate.version === version.trim()
+                );
+                if (duplicate) {
+                    return res.status(409).json({
+                        success: false,
+                        message: `hardware ${firmware.hardwareVersion} version ${version.trim()} already exists`
+                    });
+                }
+                updates.version = version.trim();
+            }
             if (desc !== undefined) updates.desc = desc.trim();
 
             if (storage_manager.updateFirmware(id, updates)) {
@@ -701,5 +1055,8 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
 }
 
 module.exports = {
-    initAllRoutes
-}; 
+    initAllRoutes,
+    findNewerFirmwares,
+    readFlatZipEntries,
+    validateUploadedOtaPackage
+};

@@ -9,6 +9,15 @@
 #define DUAL_SLOT_FORCE_SLOT_A          1       // 强制使用槽A（测试用）
 #define DUAL_SLOT_FORCE_SLOT_B          0       // 强制使用槽B（测试用）
 
+/*
+ * Latest PCB: PI4 enables 3V3_Main, including the external W25Q64.  The
+ * bootloader must assert it before the first QSPI access and leave it high
+ * across the jump to the XIP application.
+ */
+#define MAIN_POWER_EN_PORT              GPIOI
+#define MAIN_POWER_EN_PIN               GPIO_PIN_4
+#define MAIN_POWER_STABILIZE_MS          20u
+
 // 调试输出宏
 #if BOOTLOADER_DEBUG
     #define BOOT_DBG(fmt, ...) printf("[BOOT] " fmt "\r\n", ##__VA_ARGS__)

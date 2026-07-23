@@ -19,6 +19,12 @@ namespace {
 #define RF_BOOT_READY_SETTLE_MS 10u
 #endif
 
+#ifndef RF_BOOT_READY_DEASSERT_TIMEOUT_MS
+#define RF_BOOT_READY_DEASSERT_TIMEOUT_MS 100u
+#endif
+
+static bool s_readySeen = false;
+
 static void enableGpioClock(GPIO_TypeDef* port) {
     if (port == GPIOA) __HAL_RCC_GPIOA_CLK_ENABLE();
     else if (port == GPIOB) __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -49,31 +55,46 @@ static void configureReadyInputPullup() {
 
 namespace RFBootReady {
 
+void reset() {
+    s_readySeen = false;
+}
+
 bool waitForModuleReady(uint32_t timeoutMs) {
-    static bool readySeen = false;
-    if (readySeen) {
+    if (s_readySeen) {
         return true;
     }
 
     configureReadyInputPullup();
 
     const uint32_t start = HAL_GetTick();
-    uint32_t lowSince = 0u;
+    uint32_t assertedSince = 0u;
 
     while ((HAL_GetTick() - start) <= timeoutMs) {
-        if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) == GPIO_PIN_RESET) {
-            if (lowSince == 0u) {
-                lowSince = HAL_GetTick();
+        if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT, RF_BRIDGE_IRQ_PIN) ==
+            RF_BRIDGE_IRQ_ASSERTED_STATE) {
+            if (assertedSince == 0u) {
+                assertedSince = HAL_GetTick();
             }
-            if ((HAL_GetTick() - lowSince) >= RF_BOOT_READY_STABLE_MS) {
-                printf("[RF_BOOT][READY] low stable after %u ms\r\n",
+            if ((HAL_GetTick() - assertedSince) >= RF_BOOT_READY_STABLE_MS) {
+                printf("[RF_BOOT][READY] W_INT asserted after %u ms\r\n",
                        (unsigned int)(HAL_GetTick() - start));
-                HAL_Delay(RF_BOOT_READY_SETTLE_MS);
-                readySeen = true;
-                return true;
+                const uint32_t deassertStart = HAL_GetTick();
+                while ((HAL_GetTick() - deassertStart) <
+                       RF_BOOT_READY_DEASSERT_TIMEOUT_MS) {
+                    if (HAL_GPIO_ReadPin(RF_BRIDGE_IRQ_GPIO_PORT,
+                                         RF_BRIDGE_IRQ_PIN) ==
+                        RF_BRIDGE_IRQ_DEASSERTED_STATE) {
+                        HAL_Delay(RF_BOOT_READY_SETTLE_MS);
+                        s_readySeen = true;
+                        return true;
+                    }
+                    HAL_Delay(1u);
+                }
+                printf("[RF_BOOT][READY_TIMEOUT] W_INT did not deassert\r\n");
+                return false;
             }
         } else {
-            lowSince = 0u;
+            assertedSince = 0u;
         }
         HAL_Delay(1u);
     }

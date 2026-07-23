@@ -205,7 +205,7 @@ ADCBtnsError ADCBtnsWorker::setup()
 
 ADCBtnsError ADCBtnsWorker::deinit()
 {
-    // ADC_MANAGER.stopADCSamping();
+    ADC_MANAGER.forceStopAllSampling();
 
     return ADCBtnsError::SUCCESS;
 }

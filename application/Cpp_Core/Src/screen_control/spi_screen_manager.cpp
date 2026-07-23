@@ -17,6 +17,7 @@
 #include "adc_btns/adc_calibration.hpp"
 #include "adc_btns/adc_manager.hpp"
 #include "adc_btns/adc_btns_worker.hpp"
+#include "board_power.hpp"
 #include "gpio_btns/gpio_btns_worker.hpp"
 #include "power_manager.hpp"
 #include "connection_manager.hpp"
@@ -342,7 +343,7 @@ static bool boot_mode_to_detail_menu(BootMode mode, uint8_t* outMenuId) {
 }
 
 void SPIScreenManager::setup() {
-    if (g_inited) return;
+    if (g_inited || BOARD_POWER.isSafeLatched()) return;
     memset(&g_lcd, 0, sizeof(g_lcd));
 
     ST7789_Config cfg = {0};
@@ -359,7 +360,12 @@ void SPIScreenManager::setup() {
     // cfg.bl_tim_channel = 0;
     ST7789_Init(&g_lcd, &cfg);
 
-    g_inited = true;
+    g_inited = ST7789_IsInited(&g_lcd);
+    if (!g_inited) {
+        SPIST7789_DeInit();
+        memset(&g_lcd, 0, sizeof(g_lcd));
+        return;
+    }
     g_okFlashUntilMs = 0;
     g_firstDrawPending = true;
     RotEnc_Init();
@@ -377,6 +383,23 @@ void SPIScreenManager::setup() {
             enter_detail(forcedMenuId);
         }
     }
+}
+
+void SPIScreenManager::shutdown() {
+    if (!g_inited && !SPIST7789_IsReady()) {
+        return;
+    }
+
+    SPIST7789_DeInit();
+    memset(&g_lcd, 0, sizeof(g_lcd));
+    g_inited = false;
+    animActive = false;
+    animStartMs = 0u;
+    animDir = 0;
+    g_bl_ramp_active = false;
+    g_deferredSavePending = false;
+    g_firstDrawPending = true;
+    g_menu_full_refresh_pending = false;
 }
 
 void SPIScreenManager::rebuildMenu() {
@@ -489,17 +512,29 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
 }
 
 void SPIScreenManager::loop() {
+    if (BOARD_POWER.isSafeLatched()) {
+        shutdown();
+        return;
+    }
+    if (!g_inited) {
+        setup();
+    }
     if (!g_inited) return;
     SPIST7789_Service();
+    /*
+     * PH8 shares EXTI8 with the charger IRQ on the latest PCB.  Sample the
+     * encoder on every main-loop pass; UI events remain queued until a frame
+     * is available.
+     */
+    RotEnc_Update();
+    uint32_t nowMs = HAL_GetTick();
+    SystemSleep_UpdateRotaryHold(nowMs);
     bool frameOk = ST7789_FrameBegin(&g_lcd);
     if (!frameOk) return;
 
-    RotEnc_Update();
-    uint32_t nowMs = HAL_GetTick();
     int8_t det = RotEnc_GetDetentDelta();
     bool clicked = RotEnc_WasButtonClicked();
     bool longPressed = RotEnc_WasButtonLongPressed();
-    SystemSleep_UpdateRotaryHold(nowMs);
     if (SystemSleep_ShouldSuppressRotaryLongAction()) {
         clicked = false;
         longPressed = false;

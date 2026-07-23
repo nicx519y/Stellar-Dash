@@ -1,6 +1,5 @@
 #include "gamepad.hpp"
 #include "storagemanager.hpp"
-#include "drivermanager.hpp"
 #include "micro_timer.hpp"
 
 static void on_default_profile_changed_gamepad(void) {
@@ -36,6 +35,9 @@ Gamepad::Gamepad()
 void Gamepad::setup()
 {
 	APP_DBG("Gamepad setup: start");
+    if (mapDpadUp != nullptr) {
+        deinit();
+    }
     options = Storage::getInstance().getDefaultGamepadProfile();
     memset(macroTriggerMask, 0, sizeof(macroTriggerMask));
     memset(macroTriggerLatched, 0, sizeof(macroTriggerLatched));
@@ -296,8 +298,28 @@ void Gamepad::deinit()
 	delete mapButtonL3;
 	delete mapButtonR3;
 	delete mapButtonA1;
-	delete mapButtonA2;
+    delete mapButtonA2;
 	delete mapButtonFn;
+
+    mapDpadUp = nullptr;
+    mapDpadDown = nullptr;
+    mapDpadLeft = nullptr;
+    mapDpadRight = nullptr;
+    mapButtonB1 = nullptr;
+    mapButtonB2 = nullptr;
+    mapButtonB3 = nullptr;
+    mapButtonB4 = nullptr;
+    mapButtonL1 = nullptr;
+    mapButtonR1 = nullptr;
+    mapButtonL2 = nullptr;
+    mapButtonR2 = nullptr;
+    mapButtonS1 = nullptr;
+    mapButtonS2 = nullptr;
+    mapButtonL3 = nullptr;
+    mapButtonR3 = nullptr;
+    mapButtonA1 = nullptr;
+    mapButtonA2 = nullptr;
+    mapButtonFn = nullptr;
 	
 	this->clearState();
     memset(macroTriggerMask, 0, sizeof(macroTriggerMask));

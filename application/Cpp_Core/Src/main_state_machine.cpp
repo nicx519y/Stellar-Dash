@@ -3,15 +3,16 @@
 #include "system_logger.h"
 #include "adc_btns/adc_manager.hpp"
 #include "screen_control/spi_screen_manager.hpp"
-#include "tusb.h"
 #include "power_manager.hpp"
 #include "board_cfg.h"
 #include "connection_manager.hpp"
 #include "system_sleep_manager.hpp"
+#include "board_mode.hpp"
 
 void MainStateMachine::setup()
 {
     APP_DBG("MainStateMachine::setup");
+    BOARD_MODE.setup();
     STORAGE_MANAGER.initConfig();
     APP_DBG("Storage initConfig success.");
 
@@ -50,6 +51,7 @@ void MainStateMachine::setup()
     SPIScreenManager::getInstance().setup();
 
     while(1) {
+        BOARD_MODE.update(HAL_GetTick());
         
         state->loop();
 

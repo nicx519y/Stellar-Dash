@@ -109,9 +109,9 @@ static FirmwareValidationResult validate_metadata(const FirmwareMetadata* metada
         return FIRMWARE_INVALID_DEVICE;
     }
     
-    // 4. 验证硬件版本兼容性
-    if (metadata->hardware_version > HARDWARE_VERSION) {
-        print_debug_info("Metadata validation failed: Hardware version too high (0x%08X > 0x%08X)", 
+    // 4. V2 bootloader 只接受精确匹配的 V2 元数据
+    if (!firmware_hardware_version_is_current(metadata->hardware_version)) {
+        print_debug_info("Metadata validation failed: Hardware version mismatch (0x%08X != 0x%08X)",
                          metadata->hardware_version, HARDWARE_VERSION);
         return FIRMWARE_INVALID_DEVICE;
     }
@@ -445,4 +445,4 @@ void DualSlot_PrintMetadata(const FirmwareMetadata* metadata) {
                          i, comp->name, comp->address, comp->size, comp->active);
     }
     print_debug_info("=====================================");
-} 
+}

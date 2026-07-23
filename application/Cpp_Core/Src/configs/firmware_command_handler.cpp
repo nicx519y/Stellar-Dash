@@ -8,6 +8,56 @@
 #include "storagemanager.hpp"
 #include "qspi-w25q64.h"
 
+namespace {
+
+constexpr const char* kStm32OtaComponentNames[FIRMWARE_COMPONENT_COUNT] = {
+    "application",
+    "webresources",
+    "adc_mapping",
+};
+
+bool isValidStm32OtaComponentSet(const cJSON* components) {
+    if (!components || !cJSON_IsArray(components) ||
+        cJSON_GetArraySize(components) != FIRMWARE_COMPONENT_COUNT) {
+        return false;
+    }
+
+    bool found[FIRMWARE_COMPONENT_COUNT] = {false};
+    for (int i = 0; i < FIRMWARE_COMPONENT_COUNT; ++i) {
+        const cJSON* component = cJSON_GetArrayItem(components, i);
+        const cJSON* name = component ? cJSON_GetObjectItem(component, "name") : nullptr;
+        if (!component || !cJSON_IsObject(component) || !name || !cJSON_IsString(name)) {
+            return false;
+        }
+
+        const char* componentName = cJSON_GetStringValue(name);
+        bool matched = false;
+        for (int allowedIndex = 0; allowedIndex < FIRMWARE_COMPONENT_COUNT; ++allowedIndex) {
+            if (strcmp(componentName, kStm32OtaComponentNames[allowedIndex]) == 0) {
+                if (found[allowedIndex]) {
+                    return false;
+                }
+                found[allowedIndex] = true;
+                matched = true;
+                break;
+            }
+        }
+
+        if (!matched) {
+            return false;
+        }
+    }
+
+    for (bool componentFound : found) {
+        if (!componentFound) {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
+
 /**
  * @brief 处理WebSocket命令的统一入口
  * @param request WebSocket上行消息
@@ -154,9 +204,40 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleCreateFirmwareUpgradeSe
     }
 
     const char* sessionId = cJSON_GetStringValue(sessionIdItem);
-    
+
+    const cJSON* hardwareVersionItem =
+        cJSON_GetObjectItem(manifestItem, "hardware_version");
+    const cJSON* hardwareVersionCodeItem =
+        cJSON_GetObjectItem(manifestItem, "hardware_version_code");
+    if (!hardwareVersionItem || !cJSON_IsString(hardwareVersionItem) ||
+        strcmp(cJSON_GetStringValue(hardwareVersionItem),
+               HARDWARE_VERSION_STRING) != 0 ||
+        !hardwareVersionCodeItem || !cJSON_IsNumber(hardwareVersionCodeItem) ||
+        cJSON_GetNumberValue(hardwareVersionCodeItem) !=
+            static_cast<double>(HARDWARE_VERSION)) {
+        LOG_ERROR(
+            "WebSocket",
+            "create_firmware_upgrade_session: Hardware version mismatch");
+        return create_error_response(
+            request.getCid(),
+            request.getCommand(),
+            1,
+            "Firmware package hardware version does not match this V2 board");
+    }
+
+    cJSON* componentsItem = cJSON_GetObjectItem(manifestItem, "components");
+    if (!isValidStm32OtaComponentSet(componentsItem)) {
+        LOG_ERROR("WebSocket", "create_firmware_upgrade_session: Invalid STM32 OTA component set");
+        return create_error_response(
+            request.getCid(),
+            request.getCommand(),
+            1,
+            "STM32 OTA requires exactly application, webresources and adc_mapping");
+    }
+
     // 解析manifest到FirmwareMetadata结构
     FirmwareMetadata manifest = {0};
+    manifest.hardware_version = HARDWARE_VERSION;
     
     // 解析版本
     cJSON* versionItem = cJSON_GetObjectItem(manifestItem, "version");
@@ -184,10 +265,8 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleCreateFirmwareUpgradeSe
     }
     
     // 解析组件
-    cJSON* componentsItem = cJSON_GetObjectItem(manifestItem, "components");
     if (componentsItem && cJSON_IsArray(componentsItem)) {
-        int arraySize = cJSON_GetArraySize(componentsItem);
-        manifest.component_count = arraySize > FIRMWARE_COMPONENT_COUNT ? FIRMWARE_COMPONENT_COUNT : arraySize;
+        manifest.component_count = FIRMWARE_COMPONENT_COUNT;
         
         for (int i = 0; i < manifest.component_count; i++) {
             cJSON* compItem = cJSON_GetArrayItem(componentsItem, i);

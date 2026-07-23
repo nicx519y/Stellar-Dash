@@ -1,6 +1,7 @@
 export type ConnectionMode = "USB" | "RF24G";
 export type LinkState = "Disconnected" | "Connecting" | "Connected" | "Error";
 export type ErrorLevel = "INFO" | "WARN" | "ERROR" | "FATAL";
+export type Ch585Role = "Unknown" | "RF" | "USB" | "Maintenance";
 
 export interface DeviceStatusEvent {
   kind: "device_status";
@@ -130,6 +131,18 @@ export interface PowerStatusEvent {
   chargeState: "Discharging" | "Charging" | "Full" | "Fault" | "Unknown";
   valid: boolean;
   lowBattery: boolean;
+  /** Latest-PCB single-cell fields. Legacy V1 parsers populate cellMv too. */
+  cellMv?: number;
+  vbusMv?: number;
+  chargeCurrentMa?: number;
+  faultBits?: number;
+  vbusPresent?: boolean;
+  fastCharging?: boolean;
+  gaugeOnline?: boolean;
+  chargerOnline?: boolean;
+  ch585Role?: Ch585Role;
+  ch585Version?: string;
+  formatVersion?: 1 | 2;
 }
 
 export interface ErrorEvent {

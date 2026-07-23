@@ -70,8 +70,6 @@ void EXTI9_5_IRQHandler(void);
 void EXTI15_10_IRQHandler(void);
 void BDMA_Channel0_IRQHandler(void);
 void TIM2_IRQHandler(void);
-void OTG_HS_IRQHandler(void);
-void OTG_FS_IRQHandler(void);
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */

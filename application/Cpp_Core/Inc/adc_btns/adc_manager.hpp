@@ -152,6 +152,9 @@ class ADCManager {
 
         // 停止采样
         void stopADCSamping();
+
+        // 物理模式/电源切换专用：无条件停止所有循环或单次 DMA。
+        void forceStopAllSampling();
         
         void triggerSampling();
         

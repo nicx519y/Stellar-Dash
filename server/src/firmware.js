@@ -4,6 +4,31 @@ const path = require('path');
 const fs = require('fs-extra');
 const crypto = require('crypto');
 
+const LATEST_HARDWARE_VERSION = '2.0.0';
+const STM32_OTA_COMPONENTS = Object.freeze([
+    'application',
+    'webresources',
+    'adc_mapping'
+]);
+
+function isValidHardwareVersion(hardwareVersion) {
+    if (typeof hardwareVersion !== 'string') {
+        return false;
+    }
+    const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(hardwareVersion);
+    return Boolean(match) && match.slice(1).every(part => Number(part) <= 255);
+}
+
+function applyStm32OtaMetadata(firmware) {
+    return {
+        ...firmware,
+        otaComponents: [...STM32_OTA_COMPONENTS],
+        otaScope: 'STM32_ONLY',
+        ch585Included: false,
+        ch585UpdatePolicy: 'MANUAL_INDEPENDENT_FLASH'
+    };
+}
+
 // 数据存储管理
 class FirmwareStorage {
     constructor(dataFile, uploadDir) {
@@ -275,6 +300,18 @@ class FirmwareStorage {
 
     // 添加固件
     addFirmware(firmware) {
+        if (!isValidVersion(firmware.version) ||
+            !isValidHardwareVersion(firmware.hardwareVersion)) {
+            return false;
+        }
+        const duplicate = this.data.firmwares.some(existing =>
+            existing.version === firmware.version &&
+            existing.hardwareVersion === firmware.hardwareVersion
+        );
+        if (duplicate) {
+            return false;
+        }
+        Object.assign(firmware, applyStm32OtaMetadata(firmware));
         // 生成唯一ID
         firmware.id = this.generateId();
         firmware.createTime = new Date().toISOString();
@@ -288,11 +325,30 @@ class FirmwareStorage {
     updateFirmware(id, updates) {
         const index = this.data.firmwares.findIndex(f => f.id === id);
         if (index !== -1) {
-            this.data.firmwares[index] = {
+            /*
+             * Do not silently reclassify a historical V1 release as V2 when
+             * an operator only edits its notes or rollout state. New uploads
+             * receive the V2 metadata in addFirmware(); an explicit update
+             * may still change these fields when that is actually intended.
+             */
+            const candidate = {
                 ...this.data.firmwares[index],
-                ...updates,
-                updateTime: new Date().toISOString()
+                ...updates
             };
+            if (!isValidVersion(candidate.version) ||
+                !isValidHardwareVersion(candidate.hardwareVersion)) {
+                return false;
+            }
+            const duplicate = this.data.firmwares.some((existing, candidateIndex) =>
+                candidateIndex !== index &&
+                existing.version === candidate.version &&
+                existing.hardwareVersion === candidate.hardwareVersion
+            );
+            if (duplicate) {
+                return false;
+            }
+            candidate.updateTime = new Date().toISOString();
+            this.data.firmwares[index] = candidate;
             return this.saveData();
         }
         return false;
@@ -319,12 +375,14 @@ class FirmwareStorage {
     }
 
     // 清空指定版本及之前的所有版本固件
-    clearFirmwaresUpToVersion(targetVersion) {
+    clearFirmwaresUpToVersion(targetVersion, hardwareVersion) {
         const toDelete = [];
         const toKeep = [];
         
         this.data.firmwares.forEach(firmware => {
-            if (isValidVersion(firmware.version) && isValidVersion(targetVersion)) {
+            if (firmware.hardwareVersion !== hardwareVersion) {
+                toKeep.push(firmware);
+            } else if (isValidVersion(firmware.version) && isValidVersion(targetVersion)) {
                 if (compareVersions(firmware.version, targetVersion) <= 0) {
                     toDelete.push(firmware);
                 } else {
@@ -350,7 +408,8 @@ class FirmwareStorage {
             deletedFirmwares: toDelete.map(f => ({
                 id: f.id,
                 name: f.name,
-                version: f.version
+                version: f.version,
+                hardwareVersion: f.hardwareVersion
             }))
         };
     }
@@ -419,5 +478,7 @@ function isValidVersion(version) {
 module.exports = { 
     FirmwareStorage,
     compareVersions,
-    isValidVersion 
-}; 
+    isValidVersion,
+    isValidHardwareVersion,
+    LATEST_HARDWARE_VERSION
+};

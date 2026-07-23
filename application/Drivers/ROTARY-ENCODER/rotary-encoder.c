@@ -48,7 +48,11 @@ void RotEnc_Init(void) {
     __HAL_RCC_GPIOH_CLK_ENABLE();
 
     GPIO_InitTypeDef GPIO_Init = {0};
-    GPIO_Init.Mode = GPIO_MODE_IT_RISING_FALLING;
+    /*
+     * PH8 shares EXTI line 8 with the latest PCB's PI8 charger interrupt.
+     * Keep the encoder as ordinary inputs and sample A/B from RotEnc_Update().
+     */
+    GPIO_Init.Mode = GPIO_MODE_INPUT;
     GPIO_Init.Pull = GPIO_PULLUP;
     GPIO_Init.Speed = GPIO_SPEED_FREQ_LOW;
 
@@ -61,9 +65,6 @@ void RotEnc_Init(void) {
     GPIO_Init.Pin = ROTENC_BTN_PIN;
     GPIO_Init.Mode = GPIO_MODE_INPUT;
     HAL_GPIO_Init(ROTENC_BTN_PORT, &GPIO_Init);
-
-    HAL_NVIC_SetPriority(ROTENC_EXTI_IRQn, 5, 0);
-    HAL_NVIC_EnableIRQ(ROTENC_EXTI_IRQn);
 
     uint8_t ab = rotenc_read_ab();
     g_rotenc.lastA = (uint8_t)((ab >> 1) & 1u);
@@ -120,6 +121,7 @@ void RotEnc_OnEdgeIRQ(void) {
 
 void RotEnc_Update(void) {
     const uint32_t nowMs = HAL_GetTick();
+    RotEnc_OnEdgeIRQ();
     if (g_rotenc.bootIgnoreActive) {
         if ((int32_t)(nowMs - g_rotenc.bootIgnoreUntilMs) < 0) {
             g_rotenc.deltaAcc = 0;

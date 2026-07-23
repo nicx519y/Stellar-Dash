@@ -1,0 +1,546 @@
+#include "usb_board_link.h"
+
+#include <string.h>
+
+#include "usb_auth.h"
+#include "usb_device.h"
+#include "usb_host.h"
+#include "usb_management_control.h"
+#include "usb_net_bridge.h"
+#include "usb_profiles.h"
+
+#define USB_LINK_INPUT_VERSION_MASK 0xF0u
+#define USB_LINK_CHANNEL_SLOTS 6u
+
+typedef struct
+{
+    uint8_t active;
+    uint8_t channel;
+    uint8_t transaction;
+    uint8_t fragment_index;
+    uint16_t length;
+    uint16_t offset;
+    uint16_t crc;
+    uint8_t data[USB_BOARD_BULK_MESSAGE_MAX_BYTES];
+} usb_board_outbound_t;
+
+static usb_board_link_parser_t s_parser;
+static usb_board_role_t s_role;
+static uint8_t s_ready;
+static uint8_t s_last_fault;
+static uint8_t s_state_dirty;
+static uint8_t s_state_valid;
+static uint8_t s_port_fault_pending;
+static usb_board_usb_state_v1_t s_last_state;
+static uint8_t s_tx_credits[USB_LINK_CHANNEL_SLOTS];
+static uint8_t s_credit_dirty_mask;
+static uint8_t s_next_transaction[USB_LINK_CHANNEL_SLOTS];
+static usb_board_outbound_t s_outbound;
+
+static bool queue_event(uint8_t command, const void *payload, uint8_t length)
+{
+    uint8_t frame[USB_BOARD_LINK_MAX_FRAME_BYTES];
+    uint8_t frame_length = 0u;
+
+    return usb_board_link_encode(command,
+                                 payload,
+                                 length,
+                                 frame,
+                                 sizeof(frame),
+                                 &frame_length) &&
+           usb_board_link_port_queue_event(frame, frame_length);
+}
+
+static bool queue_fault(uint8_t fault, uint8_t command)
+{
+    uint8_t payload[2];
+    payload[0] = fault;
+    payload[1] = command;
+    s_last_fault = fault;
+    return queue_event(USB_BOARD_EVT_FAULT, payload, sizeof(payload));
+}
+
+static void build_state(usb_board_usb_state_v1_t *state)
+{
+    uint8_t fault = s_last_fault;
+    if((fault == USB_BOARD_STATUS_OK) &&
+       (usb_device_last_fault() != USB_BOARD_STATUS_OK))
+    {
+        fault = usb_device_last_fault();
+    }
+    if((fault == USB_BOARD_STATUS_OK) &&
+       (usb_host_last_fault() != USB_BOARD_STATUS_OK))
+    {
+        fault = usb_host_last_fault();
+    }
+    if((fault == USB_BOARD_STATUS_OK) &&
+       (usb_management_control_last_fault() != USB_BOARD_STATUS_OK))
+    {
+        fault = usb_management_control_last_fault();
+    }
+
+    state->device_mounted = usb_device_is_mounted() ? 1u : 0u;
+    state->device_suspended = usb_device_is_suspended() ? 1u : 0u;
+    state->host_ready = usb_host_is_ready() ? 1u : 0u;
+    state->host_attached = usb_host_is_attached() ? 1u : 0u;
+    state->profile = (uint8_t)usb_device_profile();
+    state->last_fault = fault;
+}
+
+static void poll_state_change(void)
+{
+    usb_board_usb_state_v1_t current;
+    build_state(&current);
+    if((s_state_valid == 0u) ||
+       (memcmp(&current, &s_last_state, sizeof(current)) != 0))
+    {
+        s_state_dirty = 1u;
+    }
+}
+
+static void queue_state(void)
+{
+    usb_board_usb_state_v1_t state;
+    build_state(&state);
+    if(queue_event(USB_BOARD_EVT_USB_STATE, &state, sizeof(state)))
+    {
+        s_last_state = state;
+        s_state_valid = 1u;
+        s_state_dirty = 0u;
+    }
+}
+
+static void mark_credit_dirty(usb_board_channel_t channel)
+{
+    const uint8_t index = (uint8_t)channel;
+    if((index != 0u) && (index < USB_LINK_CHANNEL_SLOTS))
+    {
+        s_credit_dirty_mask |= (uint8_t)(1u << index);
+    }
+}
+
+static void queue_one_credit(void)
+{
+    uint8_t channel;
+    for(channel = USB_BOARD_CHANNEL_USB_DEVICE;
+        channel <= USB_BOARD_CHANNEL_AUTH;
+        ++channel)
+    {
+        const uint8_t mask = (uint8_t)(1u << channel);
+        usb_board_bulk_credit_v1_t credit;
+        if((s_credit_dirty_mask & mask) == 0u)
+        {
+            continue;
+        }
+        credit.channel = channel;
+        credit.credits =
+            usb_net_bridge_credit((usb_board_channel_t)channel);
+        if(queue_event(USB_BOARD_EVT_BULK_CREDIT,
+                       &credit,
+                       sizeof(credit)))
+        {
+            s_credit_dirty_mask &= (uint8_t)~mask;
+        }
+        return;
+    }
+}
+
+static void handle_caps(void)
+{
+    usb_board_caps_v1_t caps;
+    memset(&caps, 0, sizeof(caps));
+    caps.protocol_version = USB_BOARD_LINK_VERSION;
+    caps.role_flags = USB_BOARD_CAP_ROLE_RF |
+                      USB_BOARD_CAP_ROLE_USB |
+                      USB_BOARD_CAP_ROLE_MAINTENANCE;
+    caps.profile_flags = usb_profiles_capability_flags();
+    caps.max_frame_bytes = USB_BOARD_LINK_MAX_FRAME_BYTES;
+    caps.input_state_bytes = USB_BOARD_INPUT_V1_BYTES;
+    caps.firmware_major = 2u;
+    caps.firmware_minor = 0u;
+    caps.firmware_patch = 0u;
+    caps.feature_flags = USB_BOARD_CAP_FEATURE_TELEMETRY_HID |
+                         USB_BOARD_CAP_FEATURE_CONTROL_V1 |
+                         USB_BOARD_CAP_FEATURE_CDC_NCM |
+                         USB_BOARD_CAP_FEATURE_LOCAL_AUTH;
+    (void)queue_event(USB_BOARD_EVT_CAPS, &caps, sizeof(caps));
+}
+
+static void handle_set_profile(const usb_board_link_frame_t *frame)
+{
+    usb_board_profile_set_v1_t response;
+    response.profile = (frame->length == sizeof(usb_board_set_profile_v1_t))
+        ? frame->payload[0]
+        : USB_BOARD_PROFILE_NONE;
+    response.status = USB_BOARD_STATUS_BAD_LENGTH;
+
+    if(frame->length == sizeof(usb_board_set_profile_v1_t))
+    {
+        const usb_board_profile_t profile =
+            (usb_board_profile_t)frame->payload[0];
+        if((profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
+           (s_role != USB_BOARD_ROLE_MAINTENANCE))
+        {
+            response.status = USB_BOARD_STATUS_BAD_ROLE;
+        }
+        else if(!usb_profiles_is_supported(profile))
+        {
+            response.status = USB_BOARD_STATUS_UNSUPPORTED;
+        }
+        else if(usb_device_set_profile(profile))
+        {
+            response.status = USB_BOARD_STATUS_OK;
+            s_state_dirty = 1u;
+        }
+        else
+        {
+            response.status = USB_BOARD_STATUS_NOT_READY;
+        }
+    }
+    (void)queue_event(USB_BOARD_EVT_PROFILE_SET,
+                      &response,
+                      sizeof(response));
+}
+
+static void handle_input(const usb_board_link_frame_t *frame)
+{
+    const usb_board_input_v1_t *input;
+    if(frame->length != sizeof(usb_board_input_v1_t))
+    {
+        queue_fault(USB_BOARD_STATUS_BAD_LENGTH, frame->command);
+        return;
+    }
+    input = (const usb_board_input_v1_t *)frame->payload;
+    if(((input->flags & USB_LINK_INPUT_VERSION_MASK) !=
+        (USB_BOARD_INPUT_FORMAT_VERSION << USB_BOARD_INPUT_VERSION_SHIFT)) ||
+       (usb_board_input_crc8(frame->payload,
+                             (uint8_t)(frame->length - 1u)) != input->crc8))
+    {
+        queue_fault(USB_BOARD_STATUS_CRC_ERROR, frame->command);
+        return;
+    }
+    if(!usb_device_submit_input(input))
+    {
+        queue_fault(USB_BOARD_STATUS_NOT_READY, frame->command);
+    }
+}
+
+static void handle_fragment(const usb_board_link_frame_t *frame)
+{
+    usb_board_fragment_header_v1_t header;
+    usb_board_channel_t channel;
+    bool accepted;
+
+    if(frame->length < USB_BOARD_FRAGMENT_HEADER_BYTES)
+    {
+        queue_fault(USB_BOARD_STATUS_BAD_LENGTH, frame->command);
+        return;
+    }
+    memcpy(&header, frame->payload, sizeof(header));
+    channel = (usb_board_channel_t)header.channel;
+    if((channel == USB_BOARD_CHANNEL_NETWORK) &&
+       (s_role != USB_BOARD_ROLE_MAINTENANCE))
+    {
+        queue_fault(USB_BOARD_STATUS_BAD_ROLE, frame->command);
+        return;
+    }
+    if(!usb_net_bridge_take_credit(channel))
+    {
+        queue_fault(USB_BOARD_STATUS_BUSY, frame->command);
+        return;
+    }
+
+    accepted = usb_net_bridge_fragment(
+        &header,
+        &frame->payload[USB_BOARD_FRAGMENT_HEADER_BYTES],
+        (uint8_t)(frame->length - USB_BOARD_FRAGMENT_HEADER_BYTES));
+    usb_net_bridge_return_credit(channel);
+    mark_credit_dirty(channel);
+
+    if(!accepted)
+    {
+        queue_fault(USB_BOARD_STATUS_CRC_ERROR, frame->command);
+        return;
+    }
+}
+
+static void handle_credit(const usb_board_link_frame_t *frame)
+{
+    usb_board_bulk_credit_v1_t credit;
+    if(frame->length != sizeof(credit))
+    {
+        queue_fault(USB_BOARD_STATUS_BAD_LENGTH, frame->command);
+        return;
+    }
+    memcpy(&credit, frame->payload, sizeof(credit));
+    if((credit.channel == 0u) ||
+       (credit.channel >= USB_LINK_CHANNEL_SLOTS))
+    {
+        queue_fault(USB_BOARD_STATUS_BAD_LENGTH, frame->command);
+        return;
+    }
+    s_tx_credits[credit.channel] =
+        (credit.credits > USB_BOARD_BULK_CREDIT_WINDOW)
+            ? USB_BOARD_BULK_CREDIT_WINDOW
+            : credit.credits;
+}
+
+static void handle_control(const usb_board_link_frame_t *frame)
+{
+    uint8_t response[USB_BOARD_LINK_MAX_PAYLOAD_BYTES];
+    uint8_t response_length = 0u;
+
+    if(usb_management_control_handle(frame->payload,
+                                     frame->length,
+                                     response,
+                                     sizeof(response),
+                                     &response_length))
+    {
+        (void)queue_event(USB_BOARD_EVT_USB_CONTROL,
+                          response,
+                          response_length);
+    }
+    else
+    {
+        usb_board_control_response_v1_t fallback;
+        memset(&fallback, 0, sizeof(fallback));
+        if(frame->length >= USB_BOARD_CONTROL_HEADER_BYTES)
+        {
+            const usb_board_control_header_v1_t *request =
+                (const usb_board_control_header_v1_t *)frame->payload;
+            fallback.header.opcode = request->opcode;
+            fallback.header.transaction = request->transaction;
+        }
+        fallback.header.status = USB_BOARD_STATUS_BAD_LENGTH;
+        (void)queue_event(USB_BOARD_EVT_USB_CONTROL,
+                          &fallback,
+                          USB_BOARD_CONTROL_HEADER_BYTES);
+    }
+}
+
+static void pump_outbound(void)
+{
+    uint8_t packet[USB_BOARD_LINK_MAX_PAYLOAD_BYTES];
+    usb_board_fragment_header_v1_t *header;
+    uint16_t remaining;
+    uint8_t data_length;
+    uint8_t channel;
+
+    if(s_outbound.active == 0u)
+    {
+        return;
+    }
+    channel = s_outbound.channel;
+    if((channel == 0u) || (channel >= USB_LINK_CHANNEL_SLOTS) ||
+       (s_tx_credits[channel] == 0u))
+    {
+        return;
+    }
+
+    memset(packet, 0, sizeof(packet));
+    header = (usb_board_fragment_header_v1_t *)packet;
+    remaining = (uint16_t)(s_outbound.length - s_outbound.offset);
+    data_length = (remaining > USB_BOARD_FRAGMENT_DATA_BYTES)
+        ? USB_BOARD_FRAGMENT_DATA_BYTES
+        : (uint8_t)remaining;
+
+    header->channel = channel;
+    header->transaction = s_outbound.transaction;
+    header->fragment_index = s_outbound.fragment_index;
+    header->flags =
+        (uint8_t)(((s_outbound.offset == 0u)
+                       ? USB_BOARD_FRAGMENT_FLAG_FIRST
+                       : 0u) |
+                  (((uint16_t)(s_outbound.offset + data_length) >=
+                    s_outbound.length)
+                       ? USB_BOARD_FRAGMENT_FLAG_LAST
+                       : 0u));
+    header->total_length_le = s_outbound.length;
+    header->message_crc16_le = s_outbound.crc;
+    if(data_length != 0u)
+    {
+        memcpy(&packet[USB_BOARD_FRAGMENT_HEADER_BYTES],
+               &s_outbound.data[s_outbound.offset],
+               data_length);
+    }
+
+    if(!queue_event(USB_BOARD_EVT_BULK_FRAGMENT,
+                    packet,
+                    (uint8_t)(USB_BOARD_FRAGMENT_HEADER_BYTES +
+                              data_length)))
+    {
+        return;
+    }
+
+    --s_tx_credits[channel];
+    s_outbound.offset =
+        (uint16_t)(s_outbound.offset + data_length);
+    ++s_outbound.fragment_index;
+    if(s_outbound.offset >= s_outbound.length)
+    {
+        s_outbound.active = 0u;
+    }
+}
+
+static void dispatch(const usb_board_link_frame_t *frame)
+{
+    if((frame == 0) || (s_ready == 0u))
+    {
+        return;
+    }
+
+    switch(frame->command)
+    {
+    case USB_BOARD_CMD_GET_CAPS:
+        if(frame->length == 0u)
+        {
+            handle_caps();
+        }
+        else
+        {
+            queue_fault(USB_BOARD_STATUS_BAD_LENGTH, frame->command);
+        }
+        break;
+
+    case USB_BOARD_CMD_SET_PROFILE:
+        handle_set_profile(frame);
+        break;
+
+    case USB_BOARD_CMD_INPUT_STATE:
+        if(s_role == USB_BOARD_ROLE_USB)
+        {
+            handle_input(frame);
+        }
+        else
+        {
+            queue_fault(USB_BOARD_STATUS_BAD_ROLE, frame->command);
+        }
+        break;
+
+    case USB_BOARD_CMD_USB_CONTROL:
+        handle_control(frame);
+        break;
+
+    case USB_BOARD_CMD_BULK_FRAGMENT:
+        handle_fragment(frame);
+        break;
+
+    case USB_BOARD_CMD_BULK_CREDIT:
+        handle_credit(frame);
+        break;
+
+    case USB_BOARD_CMD_SELECT_ROLE:
+        /* The board bootstrap parser already locked the role before this runs. */
+        queue_fault(USB_BOARD_STATUS_ROLE_LOCKED, frame->command);
+        break;
+
+    default:
+        queue_fault(USB_BOARD_STATUS_UNSUPPORTED, frame->command);
+        break;
+    }
+}
+
+void usb_board_link_init(usb_board_role_t locked_role)
+{
+    usb_board_link_parser_init(&s_parser);
+    memset(&s_last_state, 0, sizeof(s_last_state));
+    memset(s_tx_credits, 0, sizeof(s_tx_credits));
+    memset(s_next_transaction, 0, sizeof(s_next_transaction));
+    memset(&s_outbound, 0, sizeof(s_outbound));
+    s_role = locked_role;
+    s_ready = usb_board_link_port_init() ? 1u : 0u;
+    s_last_fault = (s_ready != 0u)
+        ? USB_BOARD_STATUS_OK
+        : USB_BOARD_STATUS_NOT_READY;
+    s_state_dirty = 1u;
+    s_state_valid = 0u;
+    s_port_fault_pending = USB_BOARD_STATUS_OK;
+    s_credit_dirty_mask = 0u;
+    {
+        uint8_t channel;
+        for(channel = USB_BOARD_CHANNEL_USB_DEVICE;
+            channel <= USB_BOARD_CHANNEL_AUTH;
+            ++channel)
+        {
+            mark_credit_dirty((usb_board_channel_t)channel);
+        }
+    }
+}
+
+void usb_board_link_process(void)
+{
+    uint8_t byte;
+    uint8_t port_fault;
+    usb_board_link_frame_t completed;
+
+    if(s_ready == 0u)
+    {
+        return;
+    }
+    usb_board_link_port_process();
+    if((s_port_fault_pending == USB_BOARD_STATUS_OK) &&
+       usb_board_link_port_take_fault(&port_fault))
+    {
+        s_port_fault_pending = port_fault;
+        s_last_fault = port_fault;
+        s_state_dirty = 1u;
+    }
+    while(usb_board_link_port_pop_rx(&byte))
+    {
+        if(usb_board_link_parser_feed(&s_parser, byte, &completed))
+        {
+            dispatch(&completed);
+        }
+    }
+    poll_state_change();
+    if(s_state_dirty != 0u)
+    {
+        queue_state();
+    }
+    if((s_port_fault_pending != USB_BOARD_STATUS_OK) &&
+       queue_fault(s_port_fault_pending, 0u))
+    {
+        s_port_fault_pending = USB_BOARD_STATUS_OK;
+    }
+    queue_one_credit();
+    pump_outbound();
+    usb_board_link_port_process();
+}
+
+bool usb_board_link_is_ready(void)
+{
+    return s_ready != 0u;
+}
+
+uint8_t usb_board_link_last_fault(void)
+{
+    return s_last_fault;
+}
+
+bool usb_board_link_publish_bulk(usb_board_channel_t channel,
+                                 const uint8_t *data,
+                                 uint16_t length)
+{
+    const uint8_t index = (uint8_t)channel;
+    if((s_ready == 0u) || (s_outbound.active != 0u) ||
+       (index == 0u) || (index >= USB_LINK_CHANNEL_SLOTS) ||
+       (length > USB_BOARD_BULK_MESSAGE_MAX_BYTES) ||
+       ((length != 0u) && (data == 0)) ||
+       ((channel == USB_BOARD_CHANNEL_NETWORK) &&
+        (s_role != USB_BOARD_ROLE_MAINTENANCE)))
+    {
+        return false;
+    }
+
+    memset(&s_outbound, 0, sizeof(s_outbound));
+    s_outbound.active = 1u;
+    s_outbound.channel = index;
+    s_outbound.transaction = s_next_transaction[index]++;
+    s_outbound.length = length;
+    s_outbound.crc = usb_board_crc16_ccitt(data, length);
+    if(length != 0u)
+    {
+        memcpy(s_outbound.data, data, length);
+    }
+    return true;
+}

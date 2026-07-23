@@ -19,10 +19,11 @@
 #include "main.h"
 #include "usart.h"
 #include "board_cfg.h"
+#include "board.h"
 #include "qspi-w25q64.h"
-#include "bsp/board_api.h"
 #include "system_logger.h"
 #include "system_sleep_manager.hpp"
+#include "board_power.hpp"
 
 bool g_has_led_around = true;
 
@@ -35,7 +36,6 @@ void dataSectionTest(void);
 void floatTest(void);                       
 #endif
 
-void UserLEDClose(void);
 void enableFPU(void);
 
 /**
@@ -49,10 +49,10 @@ int main(void)
     __enable_irq(); 
     enableFPU(); // 使能FPU
     HAL_Init();
+    BoardPower_EarlyMainHold();
     SystemSleep_CaptureBootFlags();
     SystemSleep_ConfirmWakeHoldOrReturnStandby();
     HAL_Delay(200); // 延时200ms 等待时钟稳定，并且验证时钟配置是否正确 中断是否可用
-    UserLEDClose(); // 关闭LED 表示已经进入main函数
 
     SCB_EnableDCache(); // 使能数据缓存
     SCB_EnableICache(); // 使能指令缓存
@@ -95,25 +95,6 @@ void Error_Handler(void)
     while (1)
     {
     }
-}
-
-void UserLEDClose(void)
-{
-    // 使能 GPIO 时钟
-    RCC->AHB4ENR |= RCC_AHB4ENR_GPIOCEN;
-    // 等待时钟稳定
-    __DSB();
-    // 设置 PC13 为输出模式
-    GPIOC->MODER &= ~(3U << (13 * 2));  // 清除原来的模式位
-    GPIOC->MODER |= (1U << (13 * 2));   // 设置为输出模式
-    // 设置为推挽输出
-    GPIOC->OTYPER &= ~(1U << 13);
-    // 设置为低速
-    GPIOC->OSPEEDR &= ~(3U << (13 * 2));
-    // 设置为无上拉下拉
-    GPIOC->PUPDR &= ~(3U << (13 * 2));
-    // 直接输出低电平 (LED 灭)
-    GPIOC->BSRR = (1U << 13); 
 }
 
 void enableFPU(void)
@@ -276,14 +257,6 @@ void HAL_DMA_ErrorCallback(DMA_HandleTypeDef *hdma)
     if (error & HAL_DMA_ERROR_PARAM) LOG_ERROR("DMA", "Parameter error");
     if (error & HAL_DMA_ERROR_NO_XFER) LOG_ERROR("DMA", "No transfer ongoing");
     if (error & HAL_DMA_ERROR_NOT_SUPPORTED) LOG_ERROR("DMA", "Not supported mode");
-}
-
-/**
- * @brief USB错误处理（如果有USB）
- */
-void HAL_PCD_ErrorCallback(PCD_HandleTypeDef *hpcd)
-{
-    LOG_ERROR("USB", "USB PCD Error on instance 0x%08lX", (unsigned long)hpcd->Instance);
 }
 
 /* USER CODE END 4 */

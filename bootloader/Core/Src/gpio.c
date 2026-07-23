@@ -20,6 +20,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "gpio.h"
+#include "board_cfg.h"
 
 /* USER CODE BEGIN 0 */
 
@@ -51,7 +52,23 @@ void MX_GPIO_Init(void)
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
+  __HAL_RCC_GPIOI_CLK_ENABLE();
 
+}
+
+void Board_InitMainPowerHold(void)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  __HAL_RCC_GPIOI_CLK_ENABLE();
+
+  /* Load the asserted level before enabling the output driver. */
+  HAL_GPIO_WritePin(MAIN_POWER_EN_PORT, MAIN_POWER_EN_PIN, GPIO_PIN_SET);
+  GPIO_InitStruct.Pin = MAIN_POWER_EN_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(MAIN_POWER_EN_PORT, &GPIO_InitStruct);
 }
 
 /* USER CODE BEGIN 2 */

@@ -5,7 +5,10 @@
 #include "webconfig_btns_manager.hpp"
 #include "system_logger.h"
 #include "config.hpp"
+#include "board_mode.hpp"
+#include "usb_board_link.hpp"
 #include <map>
+#include <stdio.h>
 
 // ============================================================================
 // GlobalConfigCommandHandler 实现
@@ -89,6 +92,83 @@ static void parse_power_json(PowerConfig& power, cJSON* globalConfigJSON) {
     }
 }
 
+static const char* physical_mode_string() {
+    if (!BOARD_MODE.isStable()) {
+        return "UNKNOWN";
+    }
+
+    switch (BOARD_MODE.current()) {
+        case BoardMode::Usb:
+            return "USB";
+        case BoardMode::Rf:
+            return "RF24G";
+        case BoardMode::CenterOff:
+            return "OFF";
+        case BoardMode::Fault:
+        default:
+            return "FAULT";
+    }
+}
+
+static ConnectionMode physical_connection_mode(const Config& config) {
+    if (BOARD_MODE.isStable()) {
+        if (BOARD_MODE.current() == BoardMode::Rf) {
+            return ConnectionMode::CONNECTION_MODE_RF24G;
+        }
+        if (BOARD_MODE.current() == BoardMode::Usb) {
+            return ConnectionMode::CONNECTION_MODE_USB;
+        }
+    }
+
+    /* Compatibility value only while the switch is OFF/faulted/not stable. */
+    return config.connectionMode;
+}
+
+static bool physical_rf_selected() {
+    return BOARD_MODE.isStable() && BOARD_MODE.current() == BoardMode::Rf;
+}
+
+static void add_latest_board_json(cJSON* globalConfigJSON, const Config& config) {
+    cJSON_AddBoolToObject(globalConfigJSON, "connectionModeReadOnly", true);
+    cJSON_AddStringToObject(globalConfigJSON, "connectionModeSource", "PHYSICAL_SWITCH");
+    cJSON_AddStringToObject(globalConfigJSON, "physicalConnectionMode", physical_mode_string());
+
+    cJSON* hardwareJSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(hardwareJSON, "batteryTopology", "SINGLE_1S2P");
+    cJSON_AddNumberToObject(hardwareJSON, "batteryPackCount", config.hardware.batteryPackCount);
+    cJSON_AddNumberToObject(hardwareJSON, "keyLedCount", config.hardware.keyLedCount);
+    cJSON_AddNumberToObject(hardwareJSON, "ambientLedCount", config.hardware.ambientLedCount);
+    cJSON_AddStringToObject(hardwareJSON, "hardwareVersion", "2.0.0");
+    cJSON_AddItemToObject(globalConfigJSON, "hardware", hardwareJSON);
+
+    const usb_board_role_t role = USB_BOARD_LINK.role();
+    const char* roleString = "UNKNOWN";
+    if (role == USB_BOARD_ROLE_RF) {
+        roleString = "RF";
+    } else if (role == USB_BOARD_ROLE_USB) {
+        roleString = "USB";
+    } else if (role == USB_BOARD_ROLE_MAINTENANCE) {
+        roleString = "MAINTENANCE";
+    }
+
+    cJSON* ch585JSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(ch585JSON, "role", roleString);
+    cJSON_AddBoolToObject(ch585JSON, "capabilitiesValid", USB_BOARD_LINK.isCompatible());
+    if (USB_BOARD_LINK.isCompatible()) {
+        const usb_board_caps_v1_t& caps = USB_BOARD_LINK.capabilities();
+        char version[16] = {};
+        snprintf(version, sizeof(version), "%u.%u.%u",
+                 (unsigned int)caps.firmware_major,
+                 (unsigned int)caps.firmware_minor,
+                 (unsigned int)caps.firmware_patch);
+        cJSON_AddStringToObject(ch585JSON, "firmwareVersion", version);
+    } else {
+        /* RF role intentionally closes the 0x5A parser after role ACK. */
+        cJSON_AddStringToObject(ch585JSON, "firmwareVersion", "");
+    }
+    cJSON_AddItemToObject(globalConfigJSON, "ch585", ch585JSON);
+}
+
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetGlobalConfig(const WebSocketUpstreamMessage& request) {
     // LOG_INFO("WebSocket", "Handling get_global_config command, cid: %d", request.getCid());
 
@@ -101,8 +181,10 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetGlobalConfig(con
     // 使用ConfigUtils获取输入模式字符串
     const char* modeStr = ConfigUtils::getInputModeString(config.inputMode);
     cJSON_AddStringToObject(globalConfigJSON, "inputMode", modeStr);
-    cJSON_AddStringToObject(globalConfigJSON, "connectionMode", ConfigUtils::getConnectionModeString(config.connectionMode));
+    cJSON_AddStringToObject(globalConfigJSON, "connectionMode",
+                            ConfigUtils::getConnectionModeString(physical_connection_mode(config)));
     cJSON_AddStringToObject(globalConfigJSON, "wirelessReportRate", ConfigUtils::getWirelessReportRateString(config.wirelessReportRate));
+    add_latest_board_json(globalConfigJSON, config);
     
     // 添加自动校准模式状态
     cJSON_AddBoolToObject(globalConfigJSON, "autoCalibrationEnabled", config.autoCalibrationEnabled);
@@ -141,17 +223,12 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateGlobalConfig(
             config.inputMode = ConfigUtils::getInputModeFromString(modeStr.c_str());
         }
 
-        cJSON* connectionModeItem = cJSON_GetObjectItem(globalConfig, "connectionMode");
-        if (connectionModeItem && cJSON_IsString(connectionModeItem)) {
-            config.connectionMode = ConfigUtils::getConnectionModeFromString(connectionModeItem->valuestring);
-        }
-
         cJSON* reportRateItem = cJSON_GetObjectItem(globalConfig, "wirelessReportRate");
         if (reportRateItem && cJSON_IsString(reportRateItem)) {
             config.wirelessReportRate = ConfigUtils::getWirelessReportRateFromString(reportRateItem->valuestring);
         }
 
-        if (config.connectionMode == CONNECTION_MODE_RF24G) {
+        if (physical_rf_selected()) {
             config.inputMode = INPUT_MODE_XINPUT;
         }
         
@@ -463,11 +540,13 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleExportAllConfig(con
         cJSON* globalConfigJSON = cJSON_CreateObject();
         const char* modeStr = ConfigUtils::getInputModeString(config.inputMode);
         cJSON_AddStringToObject(globalConfigJSON, "inputMode", modeStr);
-        cJSON_AddStringToObject(globalConfigJSON, "connectionMode", ConfigUtils::getConnectionModeString(config.connectionMode));
+        cJSON_AddStringToObject(globalConfigJSON, "connectionMode",
+                                ConfigUtils::getConnectionModeString(physical_connection_mode(config)));
         cJSON_AddStringToObject(globalConfigJSON, "wirelessReportRate", ConfigUtils::getWirelessReportRateString(config.wirelessReportRate));
         cJSON_AddBoolToObject(globalConfigJSON, "autoCalibrationEnabled", config.autoCalibrationEnabled);
         cJSON_AddStringToObject(globalConfigJSON, "defaultProfileId", config.defaultProfileId);
         add_power_json(globalConfigJSON, config.power);
+        add_latest_board_json(globalConfigJSON, config);
         sendPart("global", globalConfigJSON);
     }
 
@@ -513,6 +592,9 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportAllConfig(con
          LOG_ERROR("WebSocket", "import_all_config: Failed to parse configuration");
          return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to parse configuration");
     }
+    if (physical_rf_selected()) {
+        config.inputMode = INPUT_MODE_XINPUT;
+    }
 
     if (!STORAGE_MANAGER.saveConfig()) {
         LOG_ERROR("WebSocket", "import_all_config: Failed to save configuration");
@@ -554,7 +636,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(co
         if ((item = cJSON_GetObjectItem(globalConfigJSON, "wirelessReportRate")) && cJSON_IsString(item)) {
             config.wirelessReportRate = ConfigUtils::getWirelessReportRateFromString(item->valuestring);
         }
-        if (config.connectionMode == CONNECTION_MODE_RF24G) {
+        if (physical_rf_selected()) {
             config.inputMode = INPUT_MODE_XINPUT;
         }
         if ((item = cJSON_GetObjectItem(globalConfigJSON, "defaultProfileId")) && cJSON_IsString(item)) {

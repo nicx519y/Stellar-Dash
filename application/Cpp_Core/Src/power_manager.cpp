@@ -1,30 +1,60 @@
 #include "power_manager.hpp"
 
 #include "board_cfg.h"
-#include "adc.h"
-#include "adc_btns/adc_manager.hpp"
+#include "board_mode.hpp"
+#include "board_power.hpp"
+#include "ch585_role_bootstrap.hpp"
 #include "connection_manager.hpp"
+#include "power_i2c_bus.h"
 #include "storagemanager.hpp"
 #include "system_sleep_manager.hpp"
 
 #include "stm32h7xx_hal.h"
 
-static constexpr uint32_t POWER_VREF_MV = 3300u;
-static constexpr uint32_t POWER_ADC_FULL_SCALE = 65535u;
+/*
+ * Fallbacks keep this driver buildable while board_cfg.h is being migrated in
+ * parallel.  The names and values match the latest PCB net labels.
+ */
+#ifndef CHARGE_EN_N_PORT
+#define CHARGE_EN_N_PORT GPIOI
+#define CHARGE_EN_N_PIN GPIO_PIN_0
+#endif
+#ifndef IS_FAST_CHARGE_PORT
+#define IS_FAST_CHARGE_PORT GPIOI
+#define IS_FAST_CHARGE_PIN GPIO_PIN_2
+#endif
+#ifndef CHARGE_STAT_PORT
+#define CHARGE_STAT_PORT GPIOI
+#define CHARGE_STAT_PIN GPIO_PIN_3
+#endif
+#ifndef CHARGE_INT_PORT
+#define CHARGE_INT_PORT GPIOI
+#define CHARGE_INT_PIN GPIO_PIN_8
+#endif
+#ifndef MAX17048_ALERT_PORT
+#define MAX17048_ALERT_PORT GPIOC
+#define MAX17048_ALERT_PIN GPIO_PIN_13
+#endif
 
-static constexpr uint32_t POWER_MEAS_INTERVAL_MS = 1000u;
-static constexpr uint32_t POWER_ADC_TIMEOUT_MS = 10u;
-static constexpr uint32_t POWER_FULL_BATTERY_MV = 4200u;
-static constexpr uint32_t POWER_LOW_BATTERY_MV = 3450u;
-static constexpr uint32_t POWER_FORCE_SLEEP_MV = 3200u;
-static constexpr uint32_t POWER_DISCHARGE_CUTOFF_MV = 2750u;
-static constexpr uint8_t POWER_FORCE_SLEEP_CONFIRM_COUNT = 3u;
+namespace {
 
-static_assert(POWER_DISCHARGE_CUTOFF_MV < POWER_FORCE_SLEEP_MV, "Force sleep must stay above cell cutoff");
-static_assert(POWER_FORCE_SLEEP_MV < POWER_LOW_BATTERY_MV, "Low warning must stay above force sleep");
-static_assert(POWER_LOW_BATTERY_MV < POWER_FULL_BATTERY_MV, "Low warning must stay below full charge");
+constexpr uint32_t kPowerPollIntervalMs = 1000u;
+constexpr uint32_t kProfileVerifyIntervalMs = 10000u;
+constexpr uint32_t kDeviceRetryIntervalMs = 5000u;
+constexpr uint16_t kChargeInputMinimumMv = 8000u;
+constexpr uint16_t kChargeInputMaximumMv = 10000u;
+constexpr uint16_t kLowBatteryMv = 3450u;
+constexpr uint16_t kForceSleepMv = 3200u;
+constexpr uint8_t kForceSleepConfirmCount = 3u;
+constexpr uint8_t kGaugeAlertSocPercent = 10u;
 
-static void enable_gpio_clock(GPIO_TypeDef* port)
+constexpr uint32_t kIrqCharger = 1u << 0;
+constexpr uint32_t kIrqGauge = 1u << 1;
+
+static_assert(kForceSleepMv < kLowBatteryMv,
+              "Low-battery warning must stay above forced sleep");
+
+void enableGpioClock(GPIO_TypeDef* port)
 {
     if (port == GPIOA) { __HAL_RCC_GPIOA_CLK_ENABLE(); }
     else if (port == GPIOB) { __HAL_RCC_GPIOB_CLK_ENABLE(); }
@@ -39,67 +69,83 @@ static void enable_gpio_clock(GPIO_TypeDef* port)
     else if (port == GPIOK) { __HAL_RCC_GPIOK_CLK_ENABLE(); }
 }
 
+}  // namespace
+
 void PowerManager::setup()
 {
-    configureGpios();
-    vbus_present = isVbusPresent();
-    fast_charging = isFastChargeDetected();
-    last_mode_poll_ms = HAL_GetTick();
-    last_voltage_update_ms = 0;
-    meas_stage = MeasureStage::Idle;
-    low_sleep_confirm_count = 0;
+    configureSafetyGpios();
+    setChargingEnabled(false);
+
+    last_poll_ms_ = HAL_GetTick();
+    last_profile_check_ms_ = last_poll_ms_;
+    last_reinitialize_ms_ = last_poll_ms_;
+    low_sleep_confirm_count_ = 0;
+
+    if (!PowerI2C_Init()) {
+        snapshot_.fault_bits =
+            POWER_FAULT_CHARGER_OFFLINE | POWER_FAULT_GAUGE_OFFLINE;
+        APP_ERR("Power: I2C1 initialization failed; charging remains disabled");
+        return;
+    }
+
+    (void)initializeDevices();
+    refreshSnapshot(false);
+
+    APP_DBG(
+        "Power: BQ25895=%u MAX17048=%u profile=%u cell=%umV soc=%u.%u%%",
+        snapshot_.charger_online ? 1u : 0u,
+        snapshot_.gauge_online ? 1u : 0u,
+        profile_valid_ ? 1u : 0u,
+        snapshot_.cell_mv,
+        snapshot_.soc_permille / 10u,
+        snapshot_.soc_permille % 10u);
 }
 
 void PowerManager::loop()
 {
     const uint32_t now = HAL_GetTick();
-    if ((uint32_t)(now - last_mode_poll_ms) >= 50u)
-    {
-        last_mode_poll_ms = now;
-        vbus_present = isVbusPresent();
-        fast_charging = isFastChargeDetected();
-        if (vbus_present)
-        {
-            low_sleep_confirm_count = 0;
-        }
+    const uint32_t irq_flags = consumeIrqFlags();
+    const bool poll_due = (uint32_t)(now - last_poll_ms_) >= kPowerPollIntervalMs;
+
+    if (irq_flags != 0u || poll_due) {
+        last_poll_ms_ = now;
+        refreshSnapshot((irq_flags & kIrqGauge) != 0u);
     }
 
-    if (meas_stage == MeasureStage::Idle)
-    {
-        if ((uint32_t)(now - last_voltage_update_ms) >= POWER_MEAS_INTERVAL_MS)
-        {
-            if (canUseAdcNow())
-            {
-                startVoltageMeasurementCycle();
-            }
+    if ((!snapshot_.charger_online || !snapshot_.gauge_online || !profile_valid_) &&
+        (uint32_t)(now - last_reinitialize_ms_) >= kDeviceRetryIntervalMs) {
+        last_reinitialize_ms_ = now;
+        setChargingEnabled(false);
+        PowerI2C_DeInit();
+        if (PowerI2C_Init()) {
+            (void)initializeDevices();
+            refreshSnapshot(false);
         }
     }
-    else
-    {
-        processVoltageMeasurement();
-    }
+}
+
+PowerSnapshot PowerManager::getSnapshot() const
+{
+    return snapshot_;
 }
 
 PowerChargeState PowerManager::getChargeState() const
 {
-    if (!vbus_present)
-    {
-        return PowerChargeState::Discharging;
-    }
-    return PowerChargeState::Charging;
+    return snapshot_.charge_state;
 }
 
 float PowerManager::getTotalSocPercent() const
 {
-    const float soc = socFromMv(battery_mv);
-    if (soc < 0.0f) return 0.0f;
-    if (soc > 100.0f) return 100.0f;
-    return soc;
+    return static_cast<float>(snapshot_.soc_permille) / 10.0f;
 }
 
 PowerBatteryVoltages PowerManager::getVoltages() const
 {
-    return PowerBatteryVoltages{battery_mv, battery_mv, battery_mv};
+    /*
+     * Frozen RF compatibility: H1 carries the single-pack voltage and H2 is
+     * deliberately zero so no new/false second-battery state can be emitted.
+     */
+    return PowerBatteryVoltages{snapshot_.cell_mv, 0u, snapshot_.cell_mv};
 }
 
 PowerBatteryId PowerManager::getActiveDischargeBattery() const
@@ -109,324 +155,289 @@ PowerBatteryId PowerManager::getActiveDischargeBattery() const
 
 bool PowerManager::isVoltageValid() const
 {
-    return voltage_valid;
+    return snapshot_.valid;
 }
 
 bool PowerManager::isFastCharging() const
 {
-    return fast_charging;
+    return snapshot_.fast_charge &&
+           snapshot_.charge_state == PowerChargeState::Charging;
 }
 
 bool PowerManager::isLowBattery() const
 {
-    return voltage_valid && battery_mv < POWER_LOW_BATTERY_MV;
+    return snapshot_.valid && snapshot_.cell_mv < kLowBatteryMv;
 }
 
 bool PowerManager::prepareSystemSleep()
 {
-    return CONNECTION_MANAGER.ensureRfSleeping(RfPowerReason::SystemSleep);
+    if (BOARD_MODE.isStable() &&
+        BOARD_MODE.current() == BoardMode::Rf &&
+        CH585_ROLE_BOOTSTRAP.isLocked() &&
+        CH585_ROLE_BOOTSTRAP.role() == Ch585Role::Rf) {
+        return CONNECTION_MANAGER.ensureRfSleeping(
+            RfPowerReason::SystemSleep);
+    }
+    return true;
 }
 
 bool PowerManager::restoreSystemWake()
 {
-    if (!CONNECTION_MANAGER.wakeRfFromSleep(RfPowerReason::SystemWake))
-    {
+    if (!BOARD_MODE.isStable()) {
         return false;
     }
-
-    const ConnectionMode mode = STORAGE_MANAGER.getConnectionMode();
-    if (mode == ConnectionMode::CONNECTION_MODE_RF24G)
-    {
-        return CONNECTION_MANAGER.restoreRfRuntime(STORAGE_MANAGER.getWirelessReportRate());
-    }
-
-    return CONNECTION_MANAGER.ensureRfSleeping(RfPowerReason::UsbMode);
-}
-
-void PowerManager::configureGpios()
-{
-    enable_gpio_clock(VBUS_STATUS_PORT);
-    enable_gpio_clock(FAST_CHARGE_STATUS_PORT);
-    enable_gpio_clock(BAT_STATUS_PORT);
-    enable_gpio_clock(BAT_H1_CHANNEL_CTRL_PORT);
-    enable_gpio_clock(BAT_H2_CHANNEL_CTRL_PORT);
-    enable_gpio_clock(VBAT_SENSE_ADC_PORT);
-    enable_gpio_clock(VBAT_H1_SENSE_CTRL_PORT);
-    enable_gpio_clock(VBAT_BAT_SENSE_CTRL_PORT);
-    enable_gpio_clock(VBAT_H2_SENSE_CTRL_PORT);
-
-    GPIO_InitTypeDef init = {0};
-
-    init.Mode = GPIO_MODE_INPUT;
-    init.Pull = GPIO_NOPULL;
-    init.Speed = GPIO_SPEED_FREQ_LOW;
-    init.Pin = VBUS_STATUS_PIN;
-    HAL_GPIO_Init(VBUS_STATUS_PORT, &init);
-
-    init.Pin = FAST_CHARGE_STATUS_PIN;
-    HAL_GPIO_Init(FAST_CHARGE_STATUS_PORT, &init);
-
-    init.Pin = BAT_STATUS_PIN;
-    HAL_GPIO_Init(BAT_STATUS_PORT, &init);
-
-    init.Mode = GPIO_MODE_OUTPUT_OD;
-    init.Pull = GPIO_NOPULL;
-    init.Speed = GPIO_SPEED_FREQ_LOW;
-    init.Pin = BAT_H1_CHANNEL_CTRL_PIN;
-    HAL_GPIO_Init(BAT_H1_CHANNEL_CTRL_PORT, &init);
-    init.Pin = BAT_H2_CHANNEL_CTRL_PIN;
-    HAL_GPIO_Init(BAT_H2_CHANNEL_CTRL_PORT, &init);
-
-    HAL_GPIO_WritePin(BAT_H1_CHANNEL_CTRL_PORT, BAT_H1_CHANNEL_CTRL_PIN, GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(BAT_H2_CHANNEL_CTRL_PORT, BAT_H2_CHANNEL_CTRL_PIN, GPIO_PIN_SET);
-
-    init.Mode = GPIO_MODE_OUTPUT_PP;
-    init.Pull = GPIO_NOPULL;
-    init.Speed = GPIO_SPEED_FREQ_LOW;
-    init.Pin = VBAT_H1_SENSE_CTRL_PIN;
-    HAL_GPIO_Init(VBAT_H1_SENSE_CTRL_PORT, &init);
-    init.Pin = VBAT_BAT_SENSE_CTRL_PIN;
-    HAL_GPIO_Init(VBAT_BAT_SENSE_CTRL_PORT, &init);
-    init.Pin = VBAT_H2_SENSE_CTRL_PIN;
-    HAL_GPIO_Init(VBAT_H2_SENSE_CTRL_PORT, &init);
-
-    HAL_GPIO_WritePin(VBAT_H1_SENSE_CTRL_PORT, VBAT_H1_SENSE_CTRL_PIN, GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(VBAT_BAT_SENSE_CTRL_PORT, VBAT_BAT_SENSE_CTRL_PIN, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(VBAT_H2_SENSE_CTRL_PORT, VBAT_H2_SENSE_CTRL_PIN, GPIO_PIN_RESET);
-
-    init.Mode = GPIO_MODE_ANALOG;
-    init.Pull = GPIO_NOPULL;
-    init.Pin = VBAT_SENSE_ADC_PIN;
-    HAL_GPIO_Init(VBAT_SENSE_ADC_PORT, &init);
-}
-
-bool PowerManager::isVbusPresent() const
-{
-    return (HAL_GPIO_ReadPin(VBUS_STATUS_PORT, VBUS_STATUS_PIN) == GPIO_PIN_SET);
-}
-
-bool PowerManager::isFastChargeDetected() const
-{
-    return isVbusPresent() &&
-           (HAL_GPIO_ReadPin(FAST_CHARGE_STATUS_PORT, FAST_CHARGE_STATUS_PIN) == GPIO_PIN_SET);
-}
-
-bool PowerManager::canUseAdcNow() const
-{
-    if (ADCManager::getInstance().getADCMode() == ADC_MODE_LOW_LATENCY &&
-        ADCManager::getInstance().isDmaSamplingActive())
-    {
-        return false;
-    }
-    return true;
-}
-
-void PowerManager::startVoltageMeasurementCycle()
-{
-    meas_stage = MeasureStage::Setup;
-    meas_stage_start_ms = HAL_GetTick();
-    adc_configured_for_batt = false;
-}
-
-void PowerManager::processVoltageMeasurement()
-{
-    const uint32_t now = HAL_GetTick();
-
-    if (meas_stage == MeasureStage::Setup)
-    {
-        if (!configureAdcForBattery())
-        {
-            restoreAdcForButtons();
-            meas_stage = MeasureStage::Idle;
-            return;
-        }
-        adc_configured_for_batt = true;
-        meas_stage = MeasureStage::StartAdc;
-        meas_stage_start_ms = now;
-        return;
-    }
-
-    if (meas_stage == MeasureStage::StartAdc)
-    {
-        if (!startSingleAdc())
-        {
-            restoreAdcForButtons();
-            meas_stage = MeasureStage::Idle;
-            return;
-        }
-        meas_stage = MeasureStage::WaitAdc;
-        meas_stage_start_ms = now;
-        return;
-    }
-
-    if (meas_stage == MeasureStage::WaitAdc)
-    {
-        if (!pollSingleAdcDone(POWER_ADC_TIMEOUT_MS))
-        {
-            if ((uint32_t)(now - meas_stage_start_ms) > POWER_ADC_TIMEOUT_MS)
-            {
-                restoreAdcForButtons();
-                meas_stage = MeasureStage::Idle;
-            }
-            return;
-        }
-
-        const uint32_t mv = rawToBattMv(adc_single_value);
-        battery_mv = mv;
-        restoreAdcForButtons();
-
-        last_voltage_update_ms = now;
-        voltage_valid = true;
-        processLowVoltageProtection();
-        meas_stage = MeasureStage::Idle;
-    }
-}
-
-void PowerManager::processLowVoltageProtection()
-{
-    if (!voltage_valid || vbus_present)
-    {
-        low_sleep_confirm_count = 0;
-        return;
-    }
-
-    if (battery_mv <= POWER_FORCE_SLEEP_MV)
-    {
-        if (low_sleep_confirm_count < POWER_FORCE_SLEEP_CONFIRM_COUNT)
-        {
-            low_sleep_confirm_count++;
-        }
-        if (low_sleep_confirm_count >= POWER_FORCE_SLEEP_CONFIRM_COUNT)
-        {
-            SystemSleep_RequestStandby();
-        }
-    }
-    else
-    {
-        low_sleep_confirm_count = 0;
-    }
-}
-
-bool PowerManager::configureAdcForBattery()
-{
-    adc_mode_before_batt = ADCManager::getInstance().getADCMode();
-    HAL_ADC_Stop_DMA(&hadc2);
-    HAL_ADC_Stop(&hadc2);
-
-    hadc2.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
-    hadc2.Init.Resolution = ADC_RESOLUTION_16B;
-    hadc2.Init.ScanConvMode = ADC_SCAN_DISABLE;
-    hadc2.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
-    hadc2.Init.LowPowerAutoWait = DISABLE;
-    hadc2.Init.ContinuousConvMode = DISABLE;
-    hadc2.Init.NbrOfConversion = 1;
-    hadc2.Init.DiscontinuousConvMode = DISABLE;
-    hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-    hadc2.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-    hadc2.Init.ConversionDataManagement = ADC_CONVERSIONDATA_DR;
-    hadc2.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
-    hadc2.Init.LeftBitShift = ADC_LEFTBITSHIFT_NONE;
-    hadc2.Init.OversamplingMode = DISABLE;
-
-    if (HAL_ADC_Init(&hadc2) != HAL_OK)
-    {
-        return false;
-    }
-
-    ADC_ChannelConfTypeDef sConfig = {0};
-    sConfig.Channel = VBAT_SENSE_ADC_CHANNEL;
-    sConfig.Rank = ADC_REGULAR_RANK_1;
-    sConfig.SamplingTime = BOARD_ADC_SAMPLE_TIME;
-    sConfig.SingleDiff = ADC_SINGLE_ENDED;
-    sConfig.OffsetNumber = ADC_OFFSET_NONE;
-    sConfig.Offset = 0;
-    sConfig.OffsetSignedSaturation = DISABLE;
-    if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
-    {
-        return false;
-    }
-
-    return true;
-}
-
-void PowerManager::restoreAdcForButtons()
-{
-    MX_ADC2_Init();
-    if (adc_mode_before_batt == ADC_MODE_INPUT_CONTINUOUS ||
-        adc_mode_before_batt == ADC_MODE_CONTINUOUS)
-    {
-        ADCManager::getInstance().startContinuousSampling();
-    }
-    adc_configured_for_batt = false;
-}
-
-bool PowerManager::startSingleAdc()
-{
-    if (HAL_ADC_Start(&hadc2) != HAL_OK)
-    {
-        return false;
-    }
-    return true;
-}
-
-bool PowerManager::pollSingleAdcDone(uint32_t timeout_ms)
-{
-    const HAL_StatusTypeDef st = HAL_ADC_PollForConversion(&hadc2, timeout_ms);
-    if (st == HAL_OK)
-    {
-        adc_single_value = HAL_ADC_GetValue(&hadc2);
-        HAL_ADC_Stop(&hadc2);
+    if (BOARD_MODE.current() == BoardMode::Usb &&
+        CH585_ROLE_BOOTSTRAP.isLocked() &&
+        (CH585_ROLE_BOOTSTRAP.role() == Ch585Role::Usb ||
+         CH585_ROLE_BOOTSTRAP.role() == Ch585Role::Maintenance)) {
         return true;
+    }
+    if (BOARD_MODE.current() == BoardMode::Rf &&
+        CH585_ROLE_BOOTSTRAP.isLocked() &&
+        CH585_ROLE_BOOTSTRAP.role() == Ch585Role::Rf &&
+        CONNECTION_MANAGER.wakeRfFromSleep(
+            RfPowerReason::SystemWake)) {
+        return CONNECTION_MANAGER.restoreRfRuntime(
+            STORAGE_MANAGER.getWirelessReportRate());
     }
     return false;
 }
 
-uint32_t PowerManager::rawToBattMv(uint32_t raw) const
+void PowerManager::notifyChargerIrqFromISR()
 {
-    if (raw == 0)
-        return 0;
-
-    const uint32_t vadc_mv = (raw * POWER_VREF_MV) / POWER_ADC_FULL_SCALE;
-    const uint32_t vbat_mv = (vadc_mv * 320u) / 220u;
-    return vbat_mv;
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    irq_flags_ |= kIrqCharger;
+    if (primask == 0u) {
+        __enable_irq();
+    }
 }
 
-float PowerManager::socFromMv(uint32_t mv) const
+void PowerManager::notifyGaugeAlertFromISR()
 {
-    static constexpr uint32_t discharge_mv[] = {
-        POWER_FORCE_SLEEP_MV, 3300u, POWER_LOW_BATTERY_MV, 3600u, 3700u,
-        3800u, 3900u, 4000u, 4100u, POWER_FULL_BATTERY_MV
-    };
-    static constexpr float discharge_soc[] = {
-        0.0f, 5.0f, 10.0f, 20.0f, 35.0f,
-        50.0f, 65.0f, 80.0f, 90.0f, 100.0f
-    };
-    static constexpr uint32_t charge_mv[] = {
-        POWER_FORCE_SLEEP_MV, 3500u, 3700u, 3800u, 3900u,
-        4000u, 4100u, 4150u, POWER_FULL_BATTERY_MV
-    };
-    static constexpr float charge_soc[] = {
-        0.0f, 10.0f, 25.0f, 40.0f, 55.0f,
-        70.0f, 85.0f, 95.0f, 100.0f
-    };
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    irq_flags_ |= kIrqGauge;
+    if (primask == 0u) {
+        __enable_irq();
+    }
+}
 
-    const uint32_t* curve_mv = vbus_present ? charge_mv : discharge_mv;
-    const float* curve_soc = vbus_present ? charge_soc : discharge_soc;
-    const uint8_t curve_count = vbus_present
-        ? (uint8_t)(sizeof(charge_mv) / sizeof(charge_mv[0]))
-        : (uint8_t)(sizeof(discharge_mv) / sizeof(discharge_mv[0]));
+void PowerManager::configureSafetyGpios()
+{
+    if (!BOARD_POWER.isInitialized()) {
+        BOARD_POWER.setup();
+    }
 
-    if (mv <= curve_mv[0]) return curve_soc[0];
-    if (mv >= curve_mv[curve_count - 1u]) return curve_soc[curve_count - 1u];
+    enableGpioClock(IS_FAST_CHARGE_PORT);
+    enableGpioClock(CHARGE_STAT_PORT);
+    enableGpioClock(CHARGE_INT_PORT);
+    enableGpioClock(MAX17048_ALERT_PORT);
+    __HAL_RCC_SYSCFG_CLK_ENABLE();
 
-    for (uint8_t i = 0; i < (uint8_t)(curve_count - 1u); i++)
-    {
-        if (mv < curve_mv[i + 1u])
-        {
-            const float span_mv = (float)(curve_mv[i + 1u] - curve_mv[i]);
-            const float span_soc = curve_soc[i + 1u] - curve_soc[i];
-            return curve_soc[i] + (float)(mv - curve_mv[i]) * (span_soc / span_mv);
+    GPIO_InitTypeDef gpio = {0};
+    gpio.Pin = IS_FAST_CHARGE_PIN;
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(IS_FAST_CHARGE_PORT, &gpio);
+
+    gpio.Pin = CHARGE_STAT_PIN;
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(CHARGE_STAT_PORT, &gpio);
+
+    gpio.Pin = CHARGE_INT_PIN;
+    gpio.Mode = GPIO_MODE_IT_FALLING;
+    gpio.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(CHARGE_INT_PORT, &gpio);
+
+    gpio.Pin = MAX17048_ALERT_PIN;
+    gpio.Mode = GPIO_MODE_IT_FALLING;
+    gpio.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(MAX17048_ALERT_PORT, &gpio);
+
+    HAL_NVIC_SetPriority(EXTI9_5_IRQn, 6u, 0u);
+    HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+    /* EXTI15_10 is shared with latency-sensitive CH585 W_INT on PE10. */
+    HAL_NVIC_SetPriority(EXTI15_10_IRQn, CH585_IRQ_EXTI_IRQn_PRIO, 0u);
+    HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+}
+
+bool PowerManager::initializeDevices()
+{
+    setChargingEnabled(false);
+    profile_valid_ = false;
+
+    I2C_HandleTypeDef* const i2c = PowerI2C_GetHandle();
+    const bool charger_ready =
+        BQ25895_Init(&charger_, i2c) &&
+        BQ25895_ConfigureSafeProfile(&charger_) &&
+        BQ25895_EnableContinuousAdc(&charger_) &&
+        BQ25895_VerifySafeProfile(&charger_);
+    profile_valid_ = charger_ready;
+
+    const bool gauge_ready =
+        MAX17048_Init(&gauge_, i2c) &&
+        MAX17048_ConfigureAlert(&gauge_, kGaugeAlertSocPercent);
+
+    if (!charger_ready) {
+        charger_.online = false;
+    }
+    if (!gauge_ready) {
+        gauge_.online = false;
+    }
+    last_profile_check_ms_ = HAL_GetTick();
+    return charger_ready && gauge_ready;
+}
+
+void PowerManager::refreshSnapshot(bool clearGaugeAlert)
+{
+    BQ25895_State charger_state = {};
+    MAX17048_State gauge_state = {};
+
+    bool charger_ok = charger_.online &&
+                      BQ25895_ReadState(&charger_, &charger_state);
+    bool gauge_ok = gauge_.online &&
+                    MAX17048_ReadState(&gauge_, &gauge_state);
+
+    if (gauge_ok && (clearGaugeAlert || gauge_state.alert)) {
+        gauge_ok = MAX17048_ClearAlert(&gauge_);
+    }
+
+    const uint32_t now = HAL_GetTick();
+    if (charger_ok &&
+        (uint32_t)(now - last_profile_check_ms_) >= kProfileVerifyIntervalMs) {
+        last_profile_check_ms_ = now;
+        profile_valid_ = BQ25895_VerifySafeProfile(&charger_);
+        if (!profile_valid_) {
+            setChargingEnabled(false);
         }
     }
-    return curve_soc[curve_count - 1u];
+
+    snapshot_.charger_online = charger_ok;
+    snapshot_.gauge_online = gauge_ok;
+    snapshot_.valid = gauge_ok && gauge_state.valid;
+
+    if (gauge_ok) {
+        snapshot_.cell_mv = gauge_state.cell_mv;
+        snapshot_.soc_permille = gauge_state.soc_permille;
+    } else {
+        snapshot_.cell_mv = 0u;
+        snapshot_.soc_permille = 0u;
+    }
+
+    if (charger_ok) {
+        snapshot_.vbus_mv = charger_state.vbus_mv;
+        snapshot_.charge_current_ma = charger_state.charge_current_ma;
+        snapshot_.vbus_present =
+            charger_state.power_good && charger_state.vbus_good;
+    } else {
+        snapshot_.vbus_mv = 0u;
+        snapshot_.charge_current_ma = 0u;
+        snapshot_.vbus_present = false;
+        profile_valid_ = false;
+    }
+    snapshot_.fast_charge =
+        snapshot_.vbus_present && isFastChargeDetected();
+
+    uint16_t fault_bits = charger_ok ? charger_state.fault : 0u;
+    if (!charger_ok) {
+        fault_bits |= POWER_FAULT_CHARGER_OFFLINE;
+    }
+    if (!gauge_ok) {
+        fault_bits |= POWER_FAULT_GAUGE_OFFLINE;
+    }
+    if (!profile_valid_) {
+        fault_bits |= POWER_FAULT_PROFILE_INVALID;
+    }
+
+    const bool safe_9v_input =
+        snapshot_.vbus_present &&
+        snapshot_.vbus_mv >= kChargeInputMinimumMv &&
+        snapshot_.vbus_mv <= kChargeInputMaximumMv;
+    if (snapshot_.vbus_present && !safe_9v_input) {
+        fault_bits |= POWER_FAULT_VBUS_OUT_OF_RANGE;
+    }
+    snapshot_.fault_bits = fault_bits;
+
+    const bool fatal_charger_fault =
+        charger_ok && BQ25895_IsFatalFault(charger_state.fault);
+    const bool safe_to_charge =
+        charger_ok && gauge_ok && gauge_state.valid && profile_valid_ &&
+        safe_9v_input && !fatal_charger_fault &&
+        !BOARD_POWER.isSafeLatched();
+    setChargingEnabled(safe_to_charge);
+
+    if (!charger_ok) {
+        snapshot_.charge_state = PowerChargeState::Unknown;
+    } else if (fatal_charger_fault) {
+        snapshot_.charge_state = PowerChargeState::Fault;
+    } else if (charger_state.charge_status == 3u) {
+        snapshot_.charge_state = PowerChargeState::Full;
+    } else if (charging_enabled_ &&
+               (charger_state.charge_status == 1u ||
+                charger_state.charge_status == 2u)) {
+        snapshot_.charge_state = PowerChargeState::Charging;
+    } else {
+        snapshot_.charge_state = PowerChargeState::Discharging;
+    }
+
+    processLowVoltageProtection();
+}
+
+void PowerManager::processLowVoltageProtection()
+{
+    if (!snapshot_.valid || snapshot_.vbus_present) {
+        low_sleep_confirm_count_ = 0;
+        return;
+    }
+
+    if (snapshot_.cell_mv <= kForceSleepMv) {
+        if (low_sleep_confirm_count_ < kForceSleepConfirmCount) {
+            ++low_sleep_confirm_count_;
+        }
+        if (low_sleep_confirm_count_ >= kForceSleepConfirmCount) {
+            SystemSleep_RequestStandby();
+        }
+    } else {
+        low_sleep_confirm_count_ = 0;
+    }
+}
+
+void PowerManager::setChargingEnabled(bool enabled)
+{
+    BOARD_POWER.setChargeEnabled(enabled);
+    charging_enabled_ = enabled;
+}
+
+bool PowerManager::isFastChargeDetected() const
+{
+    /*
+     * CH224 PG polarity still requires board validation.  It is exposed only
+     * as auxiliary telemetry; BQ25895 PG/VBUS ADC remain authoritative for CE.
+     */
+    return HAL_GPIO_ReadPin(IS_FAST_CHARGE_PORT, IS_FAST_CHARGE_PIN) ==
+           GPIO_PIN_SET;
+}
+
+uint32_t PowerManager::consumeIrqFlags()
+{
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    const uint32_t flags = irq_flags_;
+    irq_flags_ = 0u;
+    if (primask == 0u) {
+        __enable_irq();
+    }
+    return flags;
+}
+
+extern "C" void PowerManager_NotifyChargerIrqFromISR(void)
+{
+    POWER_MANAGER.notifyChargerIrqFromISR();
+}
+
+extern "C" void PowerManager_NotifyGaugeAlertFromISR(void)
+{
+    POWER_MANAGER.notifyGaugeAlertFromISR();
 }

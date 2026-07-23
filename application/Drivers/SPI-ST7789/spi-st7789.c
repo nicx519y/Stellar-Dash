@@ -6,6 +6,7 @@
 #include "stm32h7xx_hal_gpio.h"
 #include "stm32h7xx_hal_gpio_ex.h"
 #include "stm32h7xx_hal_rcc_ex.h"
+#include "board_power.hpp"
 #include "rf_bridge_port_internal.h"
 
 static SPI_HandleTypeDef g_hspi;
@@ -39,6 +40,7 @@ static volatile uint8_t g_dma_err_flag = 0;
 static volatile bool g_spi_txc_flag = false;
 static volatile uint8_t g_test_phase = 0;
 static bool g_bl_tim_ready = false;
+static bool g_hw_ready = false;
 static uint16_t g_fill_color565 = 0xFFFFu;
 static SPIST7789_FramebufferFlush g_fb_flush;
 
@@ -109,6 +111,26 @@ static void spi_gpio_init(void)
     cs_high();
     dc_data();
     gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, ST7789_BL_OFF_STATE);
+}
+
+static void pin_to_analog(GPIO_TypeDef* port, uint16_t pin)
+{
+    GPIO_InitTypeDef init = {0};
+    enable_gpio_clock(port);
+    init.Pin = pin;
+    init.Mode = GPIO_MODE_ANALOG;
+    init.Pull = GPIO_NOPULL;
+    init.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(port, &init);
+}
+
+static void spi_gpio_deinit(void)
+{
+    pin_to_analog(ST7789_SCL_PORT, ST7789_SCL_PIN);
+    pin_to_analog(ST7789_SDA_PORT, ST7789_SDA_PIN);
+    pin_to_analog(ST7789_CS_PORT, ST7789_CS_PIN);
+    pin_to_analog(ST7789_DC_PORT, ST7789_DC_PIN);
+    pin_to_analog(ST7789_BL_PORT, ST7789_BL_PIN);
 }
 
 static bool spi_clock_init(void)
@@ -416,9 +438,27 @@ void HAL_SPI_ErrorCallback(SPI_HandleTypeDef* hspi)
 
 void SPIST7789_Init(void)
 {
+    if (g_hw_ready) {
+        return;
+    }
+    g_busy = false;
+    g_xfer_kind = SPIST7789_XFER_NONE;
+    g_remaining = 0u;
+    g_dma_irq_flag = 0u;
+    g_dma_done_flag = 0u;
+    g_dma_err_flag = 0u;
+    g_spi_txc_flag = false;
+
+    /*
+     * The latest PCB gates the LCD logic rail with PI9.  Keep the backlight
+     * off while the rail settles and while the controller exits sleep.
+     */
+    BoardPower_SetLcdEnabled(true);
+    HAL_Delay(5u);
     spi_gpio_init();
     if (!spi_hw_init()) {
-        g_dma_err_flag = 1;
+        SPIST7789_DeInit();
+        g_dma_err_flag = 1u;
         return;
     }
 
@@ -439,7 +479,8 @@ void SPIST7789_Init(void)
     g_dma.Init.Priority = DMA_PRIORITY_VERY_HIGH;
     g_dma.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
     if (HAL_DMA_Init(&g_dma) != HAL_OK) {
-        g_dma_err_flag = 1;
+        SPIST7789_DeInit();
+        g_dma_err_flag = 1u;
         return;
     }
     __HAL_DMA_DISABLE_IT(&g_dma, DMA_IT_HT);
@@ -463,6 +504,58 @@ void SPIST7789_Init(void)
     }
     (void)write_cmd_data(0x13, NULL, 0);
     (void)write_cmd_data(0x29, NULL, 0);
+    g_hw_ready = true;
+}
+
+void SPIST7789_DeInit(void)
+{
+    /*
+     * Quiesce all signals before PI9 removes LCD power.  This is also safe
+     * after a partial initialization failure.
+     */
+    HAL_NVIC_DisableIRQ(ST7789_SPI_DMA_IRQn);
+    HAL_NVIC_DisableIRQ(SPI1_IRQn);
+    HAL_NVIC_ClearPendingIRQ(ST7789_SPI_DMA_IRQn);
+    HAL_NVIC_ClearPendingIRQ(SPI1_IRQn);
+
+    enable_gpio_clock(ST7789_BL_PORT);
+    gpio_write(ST7789_BL_PORT, ST7789_BL_PIN, ST7789_BL_OFF_STATE);
+
+    if (g_hspi.Instance != NULL) {
+        (void)HAL_SPI_Abort(&g_hspi);
+    }
+    if (g_dma.Instance != NULL) {
+        (void)HAL_DMA_Abort(&g_dma);
+        (void)HAL_DMA_DeInit(&g_dma);
+    }
+    if (g_hspi.Instance != NULL) {
+        (void)HAL_SPI_DeInit(&g_hspi);
+    }
+    if (g_bl_tim_ready) {
+        (void)HAL_TIM_PWM_Stop(&g_bl_htim, SPIST7789_BL_TIM_CHANNEL);
+        (void)HAL_TIM_PWM_DeInit(&g_bl_htim);
+    }
+
+    g_bl_tim_ready = false;
+    g_hw_ready = false;
+    g_busy = false;
+    g_xfer_kind = SPIST7789_XFER_NONE;
+    g_remaining = 0u;
+    g_spi_txc_flag = false;
+    g_dma_irq_flag = 0u;
+    g_dma_done_flag = 0u;
+    g_dma_err_flag = 0u;
+    memset(&g_fb_flush, 0, sizeof(g_fb_flush));
+    memset(&g_hspi, 0, sizeof(g_hspi));
+    memset(&g_dma, 0, sizeof(g_dma));
+    memset(&g_bl_htim, 0, sizeof(g_bl_htim));
+    spi_gpio_deinit();
+    BoardPower_SetLcdEnabled(false);
+}
+
+bool SPIST7789_IsReady(void)
+{
+    return g_hw_ready;
 }
 
 void SPIST7789_SetBacklight100(void)
@@ -703,7 +796,7 @@ void ST7789_Init(ST7789_Handle* lcd, const ST7789_Config* cfg)
         memset(st7789_fb, 0, sizeof(st7789_fb));
     }
     SPIST7789_Init();
-    lcd->inited = true;
+    lcd->inited = SPIST7789_IsReady();
 }
 
 bool ST7789_IsInited(const ST7789_Handle* lcd)

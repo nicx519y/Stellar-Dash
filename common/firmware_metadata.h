@@ -16,7 +16,14 @@ extern "C" {
 #define METADATA_VERSION_MINOR          0
 #define DEVICE_MODEL_STRING             "STM32H750_HBOX"
 #define BOOTLOADER_VERSION              0x00010000  // 1.0.0
-#define HARDWARE_VERSION                0x00010000  // 1.0.0
+#define HARDWARE_VERSION_STRING         "2.0.0"
+#define HARDWARE_VERSION_CODE_V2        0x00020000
+#define HARDWARE_VERSION                HARDWARE_VERSION_CODE_V2
+
+static inline bool firmware_hardware_version_is_current(uint32_t version_code)
+{
+    return version_code == HARDWARE_VERSION;
+}
 
 // 组件相关常量
 #define FIRMWARE_COMPONENT_COUNT        3

@@ -1,52 +1,51 @@
-#ifndef __INPUT_STATE_HPP__
-#define __INPUT_STATE_HPP__
+#ifndef INPUT_STATE_HPP
+#define INPUT_STATE_HPP
 
 #include "base_state.hpp"
-#include "drivermanager.hpp"
-#include "board_cfg.h"
+#include "board_mode.hpp"
 #include "enums.hpp"
 
-class InputState : public BaseState {
-    public:
-        // 禁用拷贝构造和赋值操作符
-        InputState(InputState const&) = delete;
-        void operator=(InputState const&) = delete;
+class InputState : public BaseState
+{
+public:
+    InputState(InputState const &) = delete;
+    void operator=(InputState const &) = delete;
 
-        // 获取单例实例
-        static InputState& getInstance() {
-            static InputState instance;
-            return instance;
-        }
+    static InputState &getInstance()
+    {
+        static InputState instance;
+        return instance;
+    }
 
-        // 实现基类的虚函数
-        void setup() override;
-        void loop() override;
-        void reset() override;
-        uint32_t getVirtualPinMask() const { return virtualPinMask; }
-        bool ensureUsbRuntime(InputMode inputMode);
-        bool disconnectUsbRuntime();
-        bool connectUsbRuntime();
-        bool isUsbRuntimeInitialized() const { return usbRuntimeInitialized; }
+    void setup() override;
+    void loop() override;
+    void reset() override;
+    uint32_t getVirtualPinMask() const { return virtualPinMask; }
 
-    private:
-        // 私有构造函数
-        InputState() = default;
-        void sendUsbNeutralReport();
-        bool isRunning = false;
-        GPDriver * inputDriver = nullptr;
-        bool usbRuntimeInitialized = false;
-        bool usbRuntimeConnected = false;
-        bool usbHostStarted = false;
-        bool usbAuthListenerRegistered = false;
+    bool ensureUsbRuntime(InputMode inputMode);
+    bool disconnectUsbRuntime();
+    bool connectUsbRuntime();
+    bool isUsbRuntimeInitialized() const { return usbRuntimeInitialized; }
+    bool isInputPipelineRunning() const { return inputPipelineRunning; }
 
-        uint32_t workTime = 0;
-        uint32_t calibrationTime = 0;
-        uint32_t ledAnimationTime = 0;
-        uint32_t virtualPinMask = 0x0;
-        uint32_t lastVirtualPinMask = 0x0;
+private:
+    InputState() = default;
+
+    bool applyPhysicalMode(BoardMode mode, bool initial);
+    void startInputPipeline();
+    void stopInputPipeline();
+    void sendUsbNeutralReport();
+    void processReportTick();
+
+    bool isRunning = false;
+    bool inputPipelineRunning = false;
+    bool usbRuntimeInitialized = false;
+    bool usbRuntimeConnected = false;
+    BoardMode activeBoardMode = BoardMode::CenterOff;
+    uint32_t virtualPinMask = 0u;
+    uint32_t lastVirtualPinMask = 0u;
 };
 
-// 定义一个宏方便使用
 #define INPUT_STATE InputState::getInstance()
 
 #endif

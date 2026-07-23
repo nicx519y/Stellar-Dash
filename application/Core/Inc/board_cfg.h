@@ -117,14 +117,96 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
  * Drivers should include this file and must not hardcode board pinout elsewhere.
  *
  * Sections:
+ *   - Board power/mode control (GPIOI)
  *   - QSPI (W25Q64)
  *   - SPI LCD (ST7789 via SPI5 + DMA2)
  *   - WS2812B LED (TIM4 PWM + DMA) + Enable Switch
  *   - USART (Debug)
  *   - Rotary Encoder
- *   - USB (Device/Host)
+ *   - CH585 board link
  *   - Misc board detect pins
  */
+
+/* ================= Latest PCB power, status and mode pins =================
+ *
+ * PI4 powers the W25Q64 that contains the executing application.  It must be
+ * asserted by the bootloader before QSPI access and must never be deasserted
+ * while the application is executing in place.
+ */
+#define CHARGE_EN_N_PORT                       GPIOI
+#define CHARGE_EN_N_PIN                        GPIO_PIN_0
+
+#define HALL_VCC_EN_PORT                       GPIOI
+#define HALL_VCC_EN_PIN                        GPIO_PIN_1
+
+#define IS_FAST_CHARGE_PORT                    GPIOI
+#define IS_FAST_CHARGE_PIN                     GPIO_PIN_2
+
+#define CHARGE_STAT_PORT                       GPIOI
+#define CHARGE_STAT_PIN                        GPIO_PIN_3
+
+#define MAIN_POWER_EN_PORT                     GPIOI
+#define MAIN_POWER_EN_PIN                      GPIO_PIN_4
+
+#define BOOST_5V_EN_PORT                       GPIOI
+#define BOOST_5V_EN_PIN                        GPIO_PIN_5
+
+#define LED_EN_PORT                            GPIOI
+#define LED_EN_PIN                             GPIO_PIN_6
+
+#define AMBIENT_EN_PORT                        GPIOI
+#define AMBIENT_EN_PIN                         GPIO_PIN_7
+
+#define CHARGE_INT_PORT                        GPIOI
+#define CHARGE_INT_PIN                         GPIO_PIN_8
+#define CHARGE_INT_EXTI_IRQn                   EXTI9_5_IRQn
+
+#define LCD_EN_PORT                            GPIOI
+#define LCD_EN_PIN                             GPIO_PIN_9
+
+/* PH10 is not part of the LCD power sequence. Keep it high-impedance for
+ * board diagnostics until its final electrical meaning is confirmed.
+ */
+#define LCD_CTRL_AUX_PORT                      GPIOH
+#define LCD_CTRL_AUX_PIN                       GPIO_PIN_10
+
+#define CH585_EN_PORT                          GPIOI
+#define CH585_EN_PIN                           GPIO_PIN_10
+
+#define MODE_USB_N_PORT                        GPIOI
+#define MODE_USB_N_PIN                         GPIO_PIN_11
+
+#define MODE_RF_N_PORT                         GPIOI
+#define MODE_RF_N_PIN                          GPIO_PIN_12
+
+#define USB_HOST_EN_PORT                       GPIOI
+#define USB_HOST_EN_PIN                        GPIO_PIN_13
+
+#define MAX17048_ALERT_PORT                    GPIOC
+#define MAX17048_ALERT_PIN                     GPIO_PIN_13
+#define MAX17048_ALERT_EXTI_IRQn                EXTI15_10_IRQn
+
+#define BOARD_MODE_DEBOUNCE_MS                 20u
+#define CH585_POWER_OFF_MIN_MS                 20u
+#define CH585_ROLE_SELECT_RETRY_MS             5u
+#define CH585_ROLE_SELECT_TIMEOUT_MS           500u
+#define BOARD_LED_5V_STABILIZE_MS              5u
+#define BOARD_HALL_STABILIZE_MS                10u
+
+/* I2C1 charger/fuel-gauge bus. */
+#define BOARD_I2C1_INSTANCE                    I2C1
+#define BOARD_I2C1_SCL_PORT                    GPIOB
+#define BOARD_I2C1_SCL_PIN                     GPIO_PIN_8
+#define BOARD_I2C1_SDA_PORT                    GPIOB
+#define BOARD_I2C1_SDA_PIN                     GPIO_PIN_9
+#define BOARD_I2C1_GPIO_AF                     GPIO_AF4_I2C1
+
+#define POWER_I2C_INSTANCE                     BOARD_I2C1_INSTANCE
+#define POWER_I2C_SCL_PORT                     BOARD_I2C1_SCL_PORT
+#define POWER_I2C_SCL_PIN                      BOARD_I2C1_SCL_PIN
+#define POWER_I2C_SDA_PORT                     BOARD_I2C1_SDA_PORT
+#define POWER_I2C_SDA_PIN                      BOARD_I2C1_SDA_PIN
+#define POWER_I2C_GPIO_AF                      BOARD_I2C1_GPIO_AF
 
 /* ================= QSPI (W25Q64) ================= */
 #define  QUADSPI_CLK_PIN                        GPIO_PIN_10
@@ -195,12 +277,6 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
 #define SPIST7789_Y_OFFSET                      34u
 
 /* ================= WS2812B LEDs (TIM4 PWM + DMA) ================= */
-#define WS2812B_KEYS_ENABLE_SWITCH_PORT         GPIOC
-#define WS2812B_KEYS_ENABLE_SWITCH_PIN          GPIO_PIN_12
-
-#define WS2812B_AMBIENT_ENABLE_SWITCH_PORT      GPIOC
-#define WS2812B_AMBIENT_ENABLE_SWITCH_PIN       GPIO_PIN_11
-
 /* TIM4 PWM output for WS2812B data stream */
 #define WS2812B_TIM_INSTANCE                    TIM4
 #define WS2812B_TIM_PRESCALER                   0u
@@ -256,74 +332,46 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
 #define ROTENC_BTN_PIN                          GPIO_PIN_0
 #define ROTENC_EXTI_IRQn                        EXTI9_5_IRQn
 
-/* ================= USB =================
- * Device (FS): PA11 DM, PA12 DP (AF10 OTG1_FS)
- * Host  (HS in FS mode): PB14 DM, PB15 DP (AF12 OTG2_FS)
+/* STM32 OTG pins are not connected on PCB V2.
+ * USB Device/Host is owned exclusively by the onboard CH585F.
  */
-#define USB_DEV_FS_GPIO_PORT                    GPIOA
-#define USB_DEV_FS_DM_PIN                       GPIO_PIN_11
-#define USB_DEV_FS_DP_PIN                       GPIO_PIN_12
-#define USB_DEV_FS_AF                           GPIO_AF10_OTG1_FS
-#define USB_DEV_FS_IRQn                         OTG_FS_IRQn
-#define USB_DEV_FS_IRQn_PRIO                    2u
 
-#define USB_HOST_HS_FS_GPIO_PORT                GPIOB
-#define USB_HOST_HS_FS_DM_PIN                   GPIO_PIN_14
-#define USB_HOST_HS_FS_DP_PIN                   GPIO_PIN_15
-#define USB_HOST_HS_FS_AF                       GPIO_AF12_OTG2_FS
-#define USB_HOST_HS_IRQn                        OTG_HS_IRQn
-#define USB_HOST_HS_IRQn_PRIO                   2u
-
-/* ================= RF Bridge (STM32 <-> CH584) =================
+/* ================= STM32 <-> onboard CH585F board link =================
  * SPI4 master:
  *  MISO: PE5  (AF5)
  *  NSS : PE11 (GPIO output, software CS)
  *  SCK : PE12 (AF5)
  *  MOSI: PE14 (AF5)
  */
-#define RF_BRIDGE_SPI_INSTANCE                  SPI4
-#define RF_BRIDGE_SPI_GPIO_PORT                 GPIOE
-#define RF_BRIDGE_SPI_MISO_PIN                  GPIO_PIN_5
-#define RF_BRIDGE_SPI_NSS_PIN                   GPIO_PIN_11
-#define RF_BRIDGE_SPI_SCK_PIN                   GPIO_PIN_12
-#define RF_BRIDGE_SPI_MOSI_PIN                  GPIO_PIN_14
-#define RF_BRIDGE_SPI_AF                        GPIO_AF5_SPI4
-#define RF_BRIDGE_IRQ_GPIO_PORT                 GPIOE
-#define RF_BRIDGE_IRQ_PIN                       GPIO_PIN_10
-#define RF_BRIDGE_IRQ_EXTI_IRQn                 EXTI15_10_IRQn
-#define RF_BRIDGE_IRQ_EXTI_IRQn_PRIO            4u
+#define CH585_SPI_INSTANCE                      SPI4
+#define CH585_SPI_GPIO_PORT                     GPIOE
+#define CH585_SPI_MISO_PIN                      GPIO_PIN_5
+#define CH585_SPI_NSS_PIN                       GPIO_PIN_11
+#define CH585_SPI_SCK_PIN                       GPIO_PIN_12
+#define CH585_SPI_MOSI_PIN                      GPIO_PIN_14
+#define CH585_SPI_AF                            GPIO_AF5_SPI4
+#define CH585_IRQ_GPIO_PORT                     GPIOE
+#define CH585_IRQ_PIN                           GPIO_PIN_10
+#define CH585_IRQ_EXTI_IRQn                     EXTI15_10_IRQn
+#define CH585_IRQ_EXTI_IRQn_PRIO                4u
+#define CH585_IRQ_ASSERTED_STATE                GPIO_PIN_RESET
+#define CH585_IRQ_DEASSERTED_STATE              GPIO_PIN_SET
+
+/* Frozen RF transport keeps its existing names as board-level aliases. */
+#define RF_BRIDGE_SPI_INSTANCE                  CH585_SPI_INSTANCE
+#define RF_BRIDGE_SPI_GPIO_PORT                 CH585_SPI_GPIO_PORT
+#define RF_BRIDGE_SPI_MISO_PIN                  CH585_SPI_MISO_PIN
+#define RF_BRIDGE_SPI_NSS_PIN                   CH585_SPI_NSS_PIN
+#define RF_BRIDGE_SPI_SCK_PIN                   CH585_SPI_SCK_PIN
+#define RF_BRIDGE_SPI_MOSI_PIN                  CH585_SPI_MOSI_PIN
+#define RF_BRIDGE_SPI_AF                        CH585_SPI_AF
+#define RF_BRIDGE_IRQ_GPIO_PORT                 CH585_IRQ_GPIO_PORT
+#define RF_BRIDGE_IRQ_PIN                       CH585_IRQ_PIN
+#define RF_BRIDGE_IRQ_EXTI_IRQn                 CH585_IRQ_EXTI_IRQn
+#define RF_BRIDGE_IRQ_EXTI_IRQn_PRIO            CH585_IRQ_EXTI_IRQn_PRIO
+#define RF_BRIDGE_IRQ_ASSERTED_STATE            CH585_IRQ_ASSERTED_STATE
+#define RF_BRIDGE_IRQ_DEASSERTED_STATE          CH585_IRQ_DEASSERTED_STATE
 #define RF_BRIDGE_SPI_TIMEOUT_MS                5u
-
-/* ================ POWER MANAGER ===============
-*/
-#define VBUS_STATUS_PORT                        GPIOG
-#define VBUS_STATUS_PIN                         GPIO_PIN_8
-
-#define FAST_CHARGE_STATUS_PORT                 GPIOG
-#define FAST_CHARGE_STATUS_PIN                  GPIO_PIN_9
-
-#define BAT_STATUS_PORT                         GPIOB
-#define BAT_STATUS_PIN                          GPIO_PIN_8
-
-#define BAT_H1_CHANNEL_CTRL_PORT                GPIOH
-#define BAT_H1_CHANNEL_CTRL_PIN                 GPIO_PIN_14
-
-#define BAT_H2_CHANNEL_CTRL_PORT                GPIOH
-#define BAT_H2_CHANNEL_CTRL_PIN                 GPIO_PIN_15
-
-#define VBAT_SENSE_ADC_PORT                     GPIOA
-#define VBAT_SENSE_ADC_PIN                      GPIO_PIN_4
-#define VBAT_SENSE_ADC_CHANNEL                  ADC_CHANNEL_18
-
-#define VBAT_H1_SENSE_CTRL_PORT                 GPIOI
-#define VBAT_H1_SENSE_CTRL_PIN                  GPIO_PIN_1
-
-#define VBAT_BAT_SENSE_CTRL_PORT                GPIOA
-#define VBAT_BAT_SENSE_CTRL_PIN                 GPIO_PIN_15
-
-#define VBAT_H2_SENSE_CTRL_PORT                 GPIOI
-#define VBAT_H2_SENSE_CTRL_PIN                  GPIO_PIN_0
-
 
 // web config
 #define WEBCONFIG_IP_FIRST                  192
@@ -332,7 +380,7 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
 #define WEBCONFIG_IP_FOURTH                 1
 #define WEBCONFIG_DOMAIN_NAME               "st-dash.usb"
 
-#define CONFIG_VERSION                      (uint32_t)0x00001D  //配置版本 三位版本号 0x aa bb cc
+#define CONFIG_VERSION                      (uint32_t)0x00001E  // 最新PCB配置：单电池/22键灯/40环境灯
 #define ADC_MAPPING_VERSION                 (uint32_t)0x000002  //ADC值映射表版本
 #define ADC_COMMON_VERSION                  (uint32_t)0x000001
 
@@ -377,6 +425,7 @@ typedef struct {
 } ADC_PinConfig;
 
 /* ================= ADC (Sampling/Timing) ================= */
+#define BOARD_ADC_KERNEL_CLOCK_HZ              45000000u
 #define BOARD_ADC_SAMPLE_TIME                  ADC_SAMPLETIME_64CYCLES_5
 #define BOARD_ADC_INPUT_SAMPLE_TIME            ADC_SAMPLETIME_32CYCLES_5
 #define BOARD_ADC_INPUT_OVERSAMPLE_RATIO       16u
@@ -509,7 +558,7 @@ uint32_t get_current_slot_base_address(void);
 #define HAS_LED                                   1             //是否有LED
 // #define HAS_LED_AROUND                            1          //是否有底部环绕led
 extern bool g_has_led_around;                               // 运行时检测是否有氛围灯
-#define NUM_LED_AROUND                            49          //底部环绕led数量
+#define NUM_LED_AROUND                            40          //最新PCB环境灯数量
 #define NUM_LED	                    (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS + NUM_LED_AROUND) //LED数量
 
 #define BOARD_WIDTH 310.2f
@@ -587,20 +636,10 @@ typedef struct Position {
     { 245.10f, 155.10f, 5.40f },       /* 49 */ \
     { 255.10f, 155.10f, 5.40f },       /* 50 */ \
     { 265.10f, 155.10f, 5.40f },       /* 51 */ \
-    \
-    { 275.10f, 155.10f, 5.40f },        /* 52 */ \
-    { 275.10f, 145.10f, 5.40f },        /* 53 */ \
-    { 275.10f, 135.10f, 5.40f },        /* 54 */ \
-    { 275.10f, 125.10f, 5.40f },        /* 55 */ \
-    { 275.10f, 115.10f, 5.40f },        /* 56 */ \
-    { 275.10f, 105.10f, 5.40f },        /* 57 */ \
-    { 275.10f, 95.10f, 5.40f },         /* 58 */ \
-    { 275.10f, 85.10f, 5.40f },         /* 59 */ \
-    { 275.10f, 75.10f, 5.40f },         /* 60 */ \
-    { 275.10f, 65.10f, 5.40f },         /* 61 */ \
-    { 275.10f, 55.10f, 5.40f },         /* 62 */ \
-    { 275.10f, 45.10f, 5.40f },         /* 63 */ \
-    { 275.10f, 35.10f, 5.40f }          /* 64 */
+    { 275.10f, 155.10f, 5.40f },       /* 52 */ \
+    { 275.10f, 145.10f, 5.40f },       /* 53 */ \
+    { 275.10f, 135.10f, 5.40f },       /* 54 */ \
+    { 275.10f, 125.10f, 5.40f }        /* 55 */
 
 static const Position HITBOX_BUTTON_POS_LIST[NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS] = {
     HITBOX_ADC_BUTTON_POS_DATA,

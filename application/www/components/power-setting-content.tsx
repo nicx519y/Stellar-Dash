@@ -60,6 +60,16 @@ export function PowerSettingContent(props: { disabled?: boolean }) {
             </Card.Header>
             <Card.Body>
                 <VStack align="stretch" gap={6}>
+                    <HStack justifyContent="space-between">
+                        <VStack align="start" gap={0}>
+                            <Text fontSize="xs" color="fg.muted">Battery topology</Text>
+                            <Text fontSize="xs">Single 1S2P pack</Text>
+                        </VStack>
+                        <VStack align="end" gap={0}>
+                            <Text fontSize="xs" color="fg.muted">Board</Text>
+                            <Text fontSize="xs">{globalConfig.hardware?.hardwareVersion ?? '2.0.0'}</Text>
+                        </VStack>
+                    </HStack>
                     <VStack align="stretch" gap={3}>
                         <HStack justifyContent="space-between">
                             <Text fontSize="xs" color="fg.muted">{t.POWER_WAKE_HOLD_LABEL}</Text>

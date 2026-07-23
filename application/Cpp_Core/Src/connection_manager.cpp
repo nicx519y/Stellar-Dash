@@ -1,5 +1,7 @@
 #include "connection_manager.hpp"
 
+#include "board_mode.hpp"
+#include "ch585_role_bootstrap.hpp"
 #include "config.hpp"
 #include "monitor_telemetry.hpp"
 #include "rf_boot_ready.hpp"
@@ -50,6 +52,13 @@ static constexpr uint32_t kRfPostSleepWakeDetectMs = 150u;
 static constexpr uint8_t kRfPowerHintUnknown = 0u;
 static constexpr uint8_t kRfPowerHintAwake = 1u;
 static constexpr uint8_t kRfPowerHintSleeping = 2u;
+
+static bool rfPhysicalRoleIsActive() {
+    return BOARD_MODE.isStable() &&
+           BOARD_MODE.current() == BoardMode::Rf &&
+           CH585_ROLE_BOOTSTRAP.isLocked() &&
+           CH585_ROLE_BOOTSTRAP.role() == Ch585Role::Rf;
+}
 
 static const char* rfPowerReasonName(RfPowerReason reason) {
     switch (reason) {
@@ -140,10 +149,9 @@ bool ConnectionManager::rfPowerStateBlocksSpi() const {
 
 void ConnectionManager::activateRfModeAfterPairSuccess() {
     if (mode != ConnectionMode::CONNECTION_MODE_RF24G) {
-        mode = ConnectionMode::CONNECTION_MODE_RF24G;
-        rfEventServiceEnabled = true;
-        STORAGE_MANAGER.setConnectionMode(ConnectionMode::CONNECTION_MODE_RF24G);
-        STORAGE_MANAGER.setInputMode(InputMode::INPUT_MODE_XINPUT);
+        MonitorTelemetry_OnError("CONNECTION_MANAGER", 1012u,
+                                 "pair result outside physical rf role");
+        return;
     }
 
     requestedReportRateHz = getRfReportRateHz(STORAGE_MANAGER.getWirelessReportRate());
@@ -260,6 +268,11 @@ void ConnectionManager::updatePairingStateFromStatus() {
 }
 
 void ConnectionManager::serviceRfEvents() {
+    if (mode != ConnectionMode::CONNECTION_MODE_RF24G ||
+        !rfPhysicalRoleIsActive()) {
+        return;
+    }
+
     if ((rfPowerState == RfPowerState::SleepPending) ||
         (rfPowerState == RfPowerState::Sleeping)) {
         return;
@@ -376,7 +389,8 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
             (unsigned int)previousAppliedHz,
             (unsigned int)persist);
 
-    if (mode != ConnectionMode::CONNECTION_MODE_RF24G) {
+    if (mode != ConnectionMode::CONNECTION_MODE_RF24G ||
+        !rfPhysicalRoleIsActive()) {
         printf("[RF_RATE] apply skip not-rf mode=%u target=%u\r\n",
                 (unsigned int)mode,
                 (unsigned int)nextRateHz);
@@ -453,6 +467,11 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
 }
 
 bool ConnectionManager::startRfPairing() {
+    if (mode != ConnectionMode::CONNECTION_MODE_RF24G ||
+        !rfPhysicalRoleIsActive()) {
+        return false;
+    }
+
     if (!requireRfCommandReady(RfPowerReason::Manual)) {
         if (!wakeRfFromSleep(RfPowerReason::Manual)) {
             rfPairingActive = false;
@@ -520,6 +539,11 @@ bool ConnectionManager::startRfPairing() {
 }
 
 bool ConnectionManager::stopRfPairing() {
+    if (mode != ConnectionMode::CONNECTION_MODE_RF24G ||
+        !rfPhysicalRoleIsActive()) {
+        return false;
+    }
+
     rfEventServiceEnabled = true;
     const bool ok = rfTransport.stopPair();
     rfPairingLastEventCounter = rfTransport.getStatus().eventCounter;
@@ -777,85 +801,54 @@ bool ConnectionManager::initializeRfPowerForMode(ConnectionMode connMode, Wirele
     if (connMode == ConnectionMode::CONNECTION_MODE_USB) {
         appliedReportRateHz = 1000u;
         requestedReportRateHz = 1000u;
-        if (!RFBootReady::waitForModuleReady(kRfBootReadyTimeoutMs)) {
-            MonitorTelemetry_OnError("CONNECTION_MANAGER", 1011u, "rf boot ready timeout in usb mode");
-            printf("[RF_BOOT][READY_FAIL_USB] mode=%u\r\n", (unsigned int)connMode);
-            return false;
-        }
-        setRfPowerState(RfPowerState::Awake, true);
         rfEventServiceEnabled = false;
-        printf("[RF_BOOT][USB_READY_IDLE] mode=%u\r\n", (unsigned int)connMode);
+        setRfPowerState(RfPowerState::Unknown, false);
         return true;
+    }
+
+    if (!rfPhysicalRoleIsActive()) {
+        return false;
     }
 
     return enterRfModeAfterColdBoot(connMode, wirelessRate);
 }
 
 bool ConnectionManager::switchOutputToRf(WirelessReportRate wirelessRate) {
-    const uint16_t targetHz = getRfReportRateHz(wirelessRate);
-    printf("[RF_MODE][SWITCH_TO_RF] begin mode=%u state=%s target=%u\r\n",
-           (unsigned int)mode,
-           rfPowerStateName(rfPowerState),
-           (unsigned int)targetHz);
-
-    if (mode == ConnectionMode::CONNECTION_MODE_RF24G) {
+    if (mode == ConnectionMode::CONNECTION_MODE_RF24G &&
+        rfPhysicalRoleIsActive()) {
         return applyWirelessReportRate(wirelessRate, false);
     }
 
-    if (!wakeRfFromSleep(RfPowerReason::RfMode)) {
-        printf("[RF_MODE][SWITCH_TO_RF] wake_fail state=%s\r\n",
-               rfPowerStateName(rfPowerState));
-        return false;
-    }
-
-    const ConnectionMode previousMode = mode;
-    mode = ConnectionMode::CONNECTION_MODE_RF24G;
-    rfEventServiceEnabled = true;
-    requestedReportRateHz = targetHz;
-
-    if (!restoreRfRuntime(wirelessRate)) {
-        mode = previousMode;
-        printf("[RF_MODE][SWITCH_TO_RF] restore_fail target=%u\r\n",
-               (unsigned int)targetHz);
-        return false;
-    }
-
-    printf("[RF_MODE][SWITCH_TO_RF] ok target=%u\r\n", (unsigned int)targetHz);
-    return true;
+    MonitorTelemetry_OnError("CONNECTION_MANAGER", 1013u,
+                             "runtime role switch to rf rejected");
+    return false;
 }
 
 bool ConnectionManager::switchOutputToUsb() {
-    printf("[RF_MODE][SWITCH_TO_USB] begin mode=%u state=%s\r\n",
-           (unsigned int)mode,
-           rfPowerStateName(rfPowerState));
-
-    if (!ensureRfSleeping(RfPowerReason::UsbMode)) {
-        printf("[RF_MODE][SWITCH_TO_USB] sleep_fail state=%s\r\n",
-               rfPowerStateName(rfPowerState));
-        return false;
+    if (mode == ConnectionMode::CONNECTION_MODE_USB &&
+        CH585_ROLE_BOOTSTRAP.isLocked() &&
+        (CH585_ROLE_BOOTSTRAP.role() == Ch585Role::Usb ||
+         CH585_ROLE_BOOTSTRAP.role() == Ch585Role::Maintenance)) {
+        return true;
     }
 
-    mode = ConnectionMode::CONNECTION_MODE_USB;
-    rfEventServiceEnabled = false;
-    requestedReportRateHz = 1000u;
-    appliedReportRateHz = 1000u;
-    MonitorTelemetry_Init(mode, appliedReportRateHz);
-
-    ConnectionLinkState nextState = get_usb_mounted() ? ConnectionLinkState::Connected : ConnectionLinkState::Disconnected;
-    if (linkState != nextState) {
-        MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
-    }
-    linkState = nextState;
-
-    printf("[RF_MODE][SWITCH_TO_USB] ok\r\n");
-    return true;
+    MonitorTelemetry_OnError("CONNECTION_MANAGER", 1014u,
+                             "runtime role switch to usb rejected");
+    return false;
 }
 
 bool ConnectionManager::sleepRfModule() {
+    if (!rfPhysicalRoleIsActive()) {
+        return false;
+    }
     return ensureRfSleeping(RfPowerReason::Manual);
 }
 
 bool ConnectionManager::wakeRfModule() {
+    if (!rfPhysicalRoleIsActive()) {
+        return false;
+    }
+
     if (!wakeRfFromSleep(RfPowerReason::Manual)) {
         return false;
     }
@@ -867,6 +860,12 @@ bool ConnectionManager::wakeRfModule() {
 }
 
 void ConnectionManager::loop() {
+    if (mode == ConnectionMode::CONNECTION_MODE_RF24G &&
+        !rfPhysicalRoleIsActive()) {
+        rfEventServiceEnabled = false;
+        return;
+    }
+
     serviceRfEvents();
 
     if ((rfPowerState == RfPowerState::SleepPending) &&
@@ -889,6 +888,7 @@ void ConnectionManager::loop() {
 
 void ConnectionManager::onReportReady(const GamepadState& state, uint32_t seq) {
     if (mode != ConnectionMode::CONNECTION_MODE_RF24G) return;
+    if (!rfPhysicalRoleIsActive()) return;
     if (rfPowerStateBlocksSpi()) return;
 
     if (rfPairingActive || RFBridgePort_HasPendingEvent()) {

@@ -5,6 +5,7 @@
 
 namespace RFBootReady {
 
+void reset();
 bool waitForModuleReady(uint32_t timeoutMs);
 
 }

@@ -2,10 +2,10 @@
 
 #include <stdio.h>
 
+#include "board_mode.hpp"
 #include "board_cfg.h"
 #include "storagemanager.hpp"
 #include "connection_manager.hpp"
-#include "states/input_state.hpp"
 #include "system_logger.h"
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
 #include "screen_control/spi_screen_ui_common.hpp"
@@ -45,7 +45,11 @@ static uint8_t connectionItemCount(void) {
 }
 
 static uint8_t selectedConnectionIndex(void) {
-    const ConnectionMode mode = STORAGE_MANAGER.getConnectionMode();
+    const ConnectionMode mode =
+        (BOARD_MODE.isStable() &&
+         BOARD_MODE.current() == BoardMode::Rf)
+            ? CONNECTION_MODE_RF24G
+            : CONNECTION_MODE_USB;
     const WirelessReportRate rate = STORAGE_MANAGER.getWirelessReportRate();
     for (uint8_t i = 0; i < connectionItemCount(); i++) {
         if (kConnectionItems[i].kind != ConnectionSettingKind::Setting) continue;
@@ -206,6 +210,12 @@ bool ScreenDetailTournament_OnConfirm(uint8_t index) {
     if (index >= connectionItemCount()) return false;
     const ConnectionSettingItem& item = kConnectionItems[index];
     if (item.kind == ConnectionSettingKind::PairAction) {
+        if (!BOARD_MODE.isStable() ||
+            BOARD_MODE.current() != BoardMode::Rf ||
+            CONNECTION_MANAGER.getMode() != CONNECTION_MODE_RF24G) {
+            APP_ERR("[SCREEN][PAIR] physical switch is not in RF position");
+            return false;
+        }
         APP_DBG("[SCREEN][PAIR] action selected");
         g_pairPageActive = true;
         g_pairPageSuccessAtMs = 0u;
@@ -213,52 +223,34 @@ bool ScreenDetailTournament_OnConfirm(uint8_t index) {
         (void)CONNECTION_MANAGER.startRfPairing();
         return false;
     }
-    const ConnectionMode runtimeMode = CONNECTION_MANAGER.getMode();
-    const ConnectionMode previousMode = STORAGE_MANAGER.getConnectionMode();
-    const WirelessReportRate previousRate = STORAGE_MANAGER.getWirelessReportRate();
-    const InputMode previousInputMode = STORAGE_MANAGER.getInputMode();
-    if (item.mode == CONNECTION_MODE_RF24G) {
-        if (runtimeMode == CONNECTION_MODE_RF24G) {
-            if (!CONNECTION_MANAGER.applyWirelessReportRate(item.rate, false)) {
-                APP_ERR("[SCREEN][CONN] runtime rate apply failed:%u", (unsigned int)item.rate);
-                return false;
-            }
-        } else {
-            APP_DBG("[SCREEN][CONN] runtime switch USB->RF24G rate:%u",
+    if (!BOARD_MODE.isStable()) {
+        return false;
+    }
+
+    const bool physicalRf = BOARD_MODE.current() == BoardMode::Rf;
+    const bool physicalUsb = BOARD_MODE.current() == BoardMode::Usb;
+    if ((item.mode == CONNECTION_MODE_RF24G && !physicalRf) ||
+        (item.mode == CONNECTION_MODE_USB && !physicalUsb)) {
+        APP_ERR("[SCREEN][CONN] role is controlled by physical switch");
+        return false;
+    }
+
+    /*
+     * Runtime role changes are never initiated from UI. In RF position this
+     * page may only apply the existing frozen rate transaction; in USB
+     * position the USB row is informational.
+     */
+    if (physicalRf) {
+        if (CONNECTION_MANAGER.getMode() != CONNECTION_MODE_RF24G ||
+            !CONNECTION_MANAGER.applyWirelessReportRate(item.rate, false)) {
+            APP_ERR("[SCREEN][CONN] runtime rate apply failed:%u",
                     (unsigned int)item.rate);
-            if (!INPUT_STATE.disconnectUsbRuntime()) {
-                APP_ERR("[SCREEN][CONN] usb runtime disconnect failed");
-                return false;
-            }
-            if (!CONNECTION_MANAGER.switchOutputToRf(item.rate)) {
-                APP_ERR("[SCREEN][CONN] switch to RF24G failed:%u", (unsigned int)item.rate);
-                (void)INPUT_STATE.connectUsbRuntime();
-                STORAGE_MANAGER.setConnectionMode(previousMode);
-                STORAGE_MANAGER.setWirelessReportRate(previousRate);
-                STORAGE_MANAGER.setInputMode(previousInputMode);
-                return false;
-            }
+            return false;
         }
-        STORAGE_MANAGER.setConnectionMode(item.mode);
         STORAGE_MANAGER.setWirelessReportRate(item.rate);
-        STORAGE_MANAGER.setInputMode(INPUT_MODE_XINPUT);
-    } else if (runtimeMode != CONNECTION_MODE_USB) {
-        APP_DBG("[SCREEN][CONN] runtime switch RF24G->USB");
-        if (!CONNECTION_MANAGER.switchOutputToUsb()) {
-            APP_ERR("[SCREEN][CONN] switch to USB failed");
-            return false;
-        }
-        if (!INPUT_STATE.connectUsbRuntime()) {
-            APP_ERR("[SCREEN][CONN] usb runtime connect failed");
-            (void)CONNECTION_MANAGER.switchOutputToRf(previousRate);
-            STORAGE_MANAGER.setConnectionMode(previousMode);
-            STORAGE_MANAGER.setWirelessReportRate(previousRate);
-            STORAGE_MANAGER.setInputMode(previousInputMode);
-            return false;
-        }
-        STORAGE_MANAGER.setConnectionMode(item.mode);
+        STORAGE_MANAGER.setConnectionMode(CONNECTION_MODE_RF24G);
     } else {
-        STORAGE_MANAGER.setConnectionMode(item.mode);
+        STORAGE_MANAGER.setConnectionMode(CONNECTION_MODE_USB);
     }
     ScreenUI_RequestDeferredSave(500u);
     return true;

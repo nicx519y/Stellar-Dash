@@ -772,6 +772,38 @@ void ADCManager::stopADCSamping()
     }
 }
 
+void ADCManager::forceStopAllSampling()
+{
+    /*
+     * stopADCSamping() intentionally preserves circular DMA during normal
+     * WebConfig/calibration transitions.  Rail ownership changes are
+     * different: PI1 must not be removed while any ADC can still request DMA.
+     */
+    if (hadc1.Instance != nullptr) {
+        (void)HAL_ADC_Stop_DMA(&hadc1);
+    }
+    if (hadc2.Instance != nullptr) {
+        (void)HAL_ADC_Stop_DMA(&hadc2);
+    }
+    if (hadc3.Instance != nullptr) {
+        (void)HAL_ADC_Stop_DMA(&hadc3);
+    }
+
+    if (messageHandler) {
+        MC.unsubscribe(MessageId::DMA_ADC_CONV_CPLT, messageHandler);
+        messageHandler = nullptr;
+    }
+
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    completionMask = 0u;
+    dmaSamplingActive = false;
+    samplingRateEnabled = false;
+    if (primask == 0u) {
+        __enable_irq();
+    }
+}
+
 /**
  * @brief 处理ADC转换完成中断
  * 在每次采样完成后，会调用此函数，用于更新采样统计信息

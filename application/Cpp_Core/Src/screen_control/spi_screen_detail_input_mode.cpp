@@ -1,5 +1,6 @@
 #include "screen_control/spi_screen_detail_entries.hpp"
 
+#include "board_mode.hpp"
 #include "storagemanager.hpp"
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
 
@@ -18,7 +19,8 @@ static const char* kInputModeLabels[] = {
 };
 
 uint8_t ScreenDetailInputMode_InitIndex(void) {
-    if (STORAGE_MANAGER.getConnectionMode() != CONNECTION_MODE_USB) {
+    if (!BOARD_MODE.isStable() ||
+        BOARD_MODE.current() != BoardMode::Usb) {
         return 0;
     }
     InputMode mode = STORAGE_MANAGER.getInputMode();
@@ -30,7 +32,8 @@ uint8_t ScreenDetailInputMode_InitIndex(void) {
 
 void ScreenDetailInputMode_Rotate(uint8_t* ioIndex, int8_t det) {
     if (!ioIndex) return;
-    if (STORAGE_MANAGER.getConnectionMode() != CONNECTION_MODE_USB) {
+    if (!BOARD_MODE.isStable() ||
+        BOARD_MODE.current() != BoardMode::Usb) {
         *ioIndex = 0;
         return;
     }
@@ -43,7 +46,8 @@ void ScreenDetailInputMode_Rotate(uint8_t* ioIndex, int8_t det) {
 void ScreenDetailInputMode_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
     uint8_t selected = ScreenDetailInputMode_InitIndex();
     bool disabledItems[sizeof(kInputModes) / sizeof(kInputModes[0])] = {false};
-    if (STORAGE_MANAGER.getConnectionMode() != CONNECTION_MODE_USB) {
+    if (!BOARD_MODE.isStable() ||
+        BOARD_MODE.current() != BoardMode::Usb) {
         index = 0;
         for (uint8_t i = 1; i < (uint8_t)(sizeof(disabledItems) / sizeof(disabledItems[0])); i++) {
             disabledItems[i] = true;
@@ -53,8 +57,9 @@ void ScreenDetailInputMode_Render(ST7789_Handle* lcd, uint8_t index, const Scree
 }
 
 void ScreenDetailInputMode_OnConfirm(uint8_t index) {
-    if (STORAGE_MANAGER.getConnectionMode() != CONNECTION_MODE_USB) {
-        index = 0;
+    if (!BOARD_MODE.isStable() ||
+        BOARD_MODE.current() != BoardMode::Usb) {
+        return;
     }
     if (index < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0]))) {
         STORAGE_MANAGER.setInputMode(kInputModes[index]);

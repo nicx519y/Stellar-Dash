@@ -5,12 +5,12 @@
 #include <string.h>
 
 #include "CH58x_common.h"
+#include "board_latest_ch585.h"
 #include "rfm_config.h"
+#include "usb_board_link_port_ch585.h"
 #include "wchrf.h"
 
-#define SPI_PINS                      (GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15)
-#define SPI_IRQ_PIN                   (GPIO_Pin_11)
-#define SPI_WAKE_PIN                  (GPIO_Pin_15)
+#define SPI_WAKE_PIN                  RFM_BOARD_SPI_MISO_PIN
 #define SPI_WAKE_USE_INTX             0u
 #define SPI_TX_PENDING_RECOVER_US     (2000u)
 #define US_TICK_STEP                  (10u)
@@ -33,6 +33,7 @@ static uint32_t s_sleep_idle_since_us;
 static volatile uint32_t s_wake_irq_count;
 static uint8_t s_sleep_block_flags;
 static uint8_t s_sleep_rx_quiesced;
+static uint8_t s_board_boot_ready_sent;
 
 #if (RFM_TX_LOG_ENABLE == 1u)
 static void spi_port_log_write(const char *buf)
@@ -490,14 +491,8 @@ void rfm_spi_port_init(void)
 {
     uint8_t i;
 
-    GPIOPinRemap(ENABLE, RB_PIN_SPI0);
-    GPIOADigitalCfg(ENABLE, (uint16_t)0xFFFFu);
-    GPIOBDigitalCfg(ENABLE, SPI_PINS | SPI_IRQ_PIN | SPI_WAKE_PIN);
-    GPIOB_ModeCfg(SPI_IRQ_PIN, GPIO_ModeOut_PP_5mA);
-    GPIOB_ResetBits(SPI_IRQ_PIN);
-
-    GPIOB_ModeCfg(GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14, GPIO_ModeIN_PU);
-    GPIOB_ModeCfg(GPIO_Pin_15, GPIO_ModeOut_PP_5mA);
+    rfm_board_latest_ch585_prepare_spi_pins();
+    rfm_board_latest_ch585_set_w_int(false);
 
     SPI0_SlaveInit();
     R8_SPI0_CTRL_MOD = (uint8_t)((R8_SPI0_CTRL_MOD | RB_SPI_FIFO_DIR) &
@@ -542,19 +537,27 @@ void rfm_spi_port_init(void)
     }
 
     spi_rx_dma_loop_start(1u);
+    /*
+     * W_INT is active-low on the latest board.  Signal READY only after the
+     * RF board port can receive the first command, and only once per cold
+     * boot.  Reinitialization after RF sleep must not look like another boot.
+     */
+    if(s_board_boot_ready_sent == 0u)
+    {
+        s_board_boot_ready_sent = 1u;
+        rfm_board_latest_ch585_pulse_boot_ready();
+    }
 }
 
 static void clear_wake_it_flag(void)
 {
-    const uint16_t low_pin_mask = (uint16_t)(SPI_WAKE_PIN & 0xFFFFu);
-    const uint16_t remap_pin_mask = (uint16_t)((SPI_WAKE_PIN & (GPIO_Pin_22 | GPIO_Pin_23)) >> 14);
-    R16_PB_INT_IF = (uint16_t)(low_pin_mask | remap_pin_mask);
+    R16_PA_INT_IF = (uint16_t)SPI_WAKE_PIN;
 }
 
 static void clear_wake_pending(void)
 {
     clear_wake_it_flag();
-    PFIC_ClearPendingIRQ(GPIO_B_IRQn);
+    PFIC_ClearPendingIRQ(GPIO_A_IRQn);
 }
 
 bool rfm_spi_port_sleep_ready(uint16_t stable_us)
@@ -575,13 +578,13 @@ bool rfm_spi_port_sleep_ready(uint16_t stable_us)
     {
         s_sleep_block_flags |= 0x02u;
     }
-    if(GPIOB_ReadPortPin(GPIO_Pin_12) == 0u)
+    if(!rfm_board_latest_ch585_wake_high())
     {
         s_sleep_block_flags |= 0x04u;
     }
     if((s_spi_tx_pending != 0u) ||
        (s_spi_control_count != 0u) ||
-       (GPIOB_ReadPortPin(GPIO_Pin_12) == 0u))
+       !rfm_board_latest_ch585_wake_high())
     {
         s_sleep_idle_valid = 0u;
         return false;
@@ -629,20 +632,16 @@ void rfm_spi_port_sleep_until_nss_wake(void)
         (void)R8_SPI0_FIFO;
     }
 
-    GPIOPinRemap(DISABLE, RB_PIN_SPI0);
-    GPIOBDigitalCfg(ENABLE, SPI_PINS | SPI_IRQ_PIN | SPI_WAKE_PIN);
+    rfm_board_latest_ch585_prepare_sleep_pins();
 #if (SPI_WAKE_USE_INTX != 0u)
     GPIOPinRemap(ENABLE, RB_PIN_INTX);
 #endif
-    GPIOB_ModeCfg(GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15, GPIO_ModeIN_PU);
-    GPIOB_ModeCfg(SPI_IRQ_PIN, GPIO_ModeOut_PP_5mA);
-    GPIOB_ResetBits(SPI_IRQ_PIN);
-    GPIOB_ModeCfg(SPI_WAKE_PIN, GPIO_ModeIN_PU);
 
     s_wake_irq_count = 0u;
     clear_wake_pending();
-    SPI_PORT_LOG("SLEEP_PREP pb15=%u mode=sleep_falledge", GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u);
-    if(GPIOB_ReadPortPin(SPI_WAKE_PIN) == 0u)
+    SPI_PORT_LOG("SLEEP_PREP pa15=%u mode=sleep_falledge",
+                 rfm_board_latest_ch585_wake_high() ? 1u : 0u);
+    if(!rfm_board_latest_ch585_wake_high())
     {
 #if (SPI_WAKE_USE_INTX != 0u)
         GPIOPinRemap(DISABLE, RB_PIN_INTX);
@@ -650,16 +649,16 @@ void rfm_spi_port_sleep_until_nss_wake(void)
         rfm_spi_port_init();
         return;
     }
-    GPIOB_ITModeCfg(SPI_WAKE_PIN, GPIO_ITMode_FallEdge);
+    GPIOA_ITModeCfg(SPI_WAKE_PIN, GPIO_ITMode_FallEdge);
     clear_wake_pending();
     PWR_PeriphWakeUpCfg(ENABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Long_Delay);
 
-    SPI_PORT_LOG("SLEEP_ENTER_SLEEP pb15=%u irq_count=%lu",
-                 GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u,
+    SPI_PORT_LOG("SLEEP_ENTER_SLEEP pa15=%u irq_count=%lu",
+                 rfm_board_latest_ch585_wake_high() ? 1u : 0u,
                  (uint32_t)s_wake_irq_count);
     SPI_PORT_LOG_FLUSH();
     DelayMs(100);
-    if(GPIOB_ReadPortPin(SPI_WAKE_PIN) == 0u)
+    if(!rfm_board_latest_ch585_wake_high())
     {
         SPI_PORT_LOG("SLEEP_ABORT_WAKE_LOW");
         PWR_PeriphWakeUpCfg(DISABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Long_Delay);
@@ -671,17 +670,17 @@ void rfm_spi_port_sleep_until_nss_wake(void)
     }
     s_wake_irq_count = 0u;
     clear_wake_pending();
-    PFIC_EnableIRQ(GPIO_B_IRQn);
+    PFIC_EnableIRQ(GPIO_A_IRQn);
     LowPower_Sleep(RB_PWR_RAM32K | RB_PWR_RAM96K | RB_PWR_EXTEND);
 
     SetSysClock(SYSCLK_FREQ);
     DelayUs(300);
-    SPI_PORT_LOG("WAKE_RETURN_SLEEP pb15=%u irq_count=%lu",
-                 GPIOB_ReadPortPin(SPI_WAKE_PIN) != 0u ? 1u : 0u,
+    SPI_PORT_LOG("WAKE_RETURN_SLEEP pa15=%u irq_count=%lu",
+                 rfm_board_latest_ch585_wake_high() ? 1u : 0u,
                  (uint32_t)s_wake_irq_count);
 
     RFIP_WakeUpRegInit();
-    PFIC_DisableIRQ(GPIO_B_IRQn);
+    PFIC_DisableIRQ(GPIO_A_IRQn);
     clear_wake_pending();
     PWR_PeriphWakeUpCfg(DISABLE, RB_SLP_GPIO_WAKE | RB_GPIO_EDGE_WAKE, Long_Delay);
 #if (SPI_WAKE_USE_INTX != 0u)
@@ -692,23 +691,32 @@ void rfm_spi_port_sleep_until_nss_wake(void)
 
 __INTERRUPT
 __HIGH_CODE
-void GPIOB_IRQHandler(void)
+void GPIOA_IRQHandler(void)
 {
+    if(rfm_board_latest_ch585_usb_spi_owner())
+    {
+        const uint16_t flags = GPIOA_ReadITFlagPort();
+        if((flags & RFM_BOARD_SPI_NSS_PIN) != 0u)
+        {
+            GPIOA_ClearITFlagBit(RFM_BOARD_SPI_NSS_PIN);
+            usb_board_link_port_nss_rise_irq_handler();
+        }
+        if((flags & (uint16_t)~RFM_BOARD_SPI_NSS_PIN) != 0u)
+        {
+            GPIOA_ClearITFlagBit(
+                (uint16_t)(flags & (uint16_t)~RFM_BOARD_SPI_NSS_PIN));
+        }
+        return;
+    }
+
     s_wake_irq_count++;
     clear_wake_pending();
-    PFIC_DisableIRQ(GPIO_B_IRQn);
+    PFIC_DisableIRQ(GPIO_A_IRQn);
 }
 
 void rfm_spi_port_set_irq(bool asserted)
 {
-    if(asserted)
-    {
-        GPIOB_SetBits(SPI_IRQ_PIN);
-    }
-    else
-    {
-        GPIOB_ResetBits(SPI_IRQ_PIN);
-    }
+    rfm_board_latest_ch585_set_w_int(asserted);
 }
 
 void rfm_spi_port_service(void)
@@ -724,7 +732,7 @@ void rfm_spi_port_service(void)
             spi_rx_restart_after_tx();
             rfm_spi_port_set_irq(false);
         }
-        else if(GPIOB_ReadPortPin(GPIO_Pin_12) &&
+        else if(rfm_board_latest_ch585_nss_high() &&
                 ((int32_t)(spi_now_us() - (s_spi_tx_start_us + SPI_TX_PENDING_RECOVER_US)) >= 0))
         {
             s_spi_tx_pending = 0u;
@@ -981,6 +989,12 @@ __attribute__((interrupt("WCH-Interrupt-fast"), section(".highcode")))
 void SPI0_IRQHandler(void)
 {
     const uint8_t flags = R8_SPI0_INT_FLAG;
+
+    if(rfm_board_latest_ch585_usb_spi_owner())
+    {
+        usb_board_link_port_spi_irq_handler();
+        return;
+    }
 
     s_spi_rx_isr_count++;
     s_spi_rx_last_flags = flags;

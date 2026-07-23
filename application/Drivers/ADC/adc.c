@@ -37,28 +37,6 @@ static void enable_gpio_clock(GPIO_TypeDef* port)
     else if (port == GPIOI) { __HAL_RCC_GPIOI_CLK_ENABLE(); }
 }
 
-
-void ADC_Clock_Init(void)
-{
-    RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
-
-    /** Initializes the peripherals clock
-     */
-    PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_ADC;
-    PeriphClkInitStruct.PLL3.PLL3M = 2;
-    PeriphClkInitStruct.PLL3.PLL3N = 15;
-    PeriphClkInitStruct.PLL3.PLL3P = 2;
-    PeriphClkInitStruct.PLL3.PLL3Q = 4;
-    PeriphClkInitStruct.PLL3.PLL3R = 4;
-    PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_3;
-    PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOMEDIUM;
-    PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
-    PeriphClkInitStruct.AdcClockSelection = RCC_ADCCLKSOURCE_PLL3;  // ADC时钟频率 HSE: 24MHz，ADC时钟频率 = HSE / PLL3.PLL3M * PLL3.PLL3N / PLL3.PLL3R = 24MHz / 2 * 15 / 4 = 45MHz
-    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
-    {
-        Error_Handler();
-    }
-}
 /* USER CODE END 0 */
 
 ADC_HandleTypeDef hadc1;
@@ -293,8 +271,14 @@ static uint32_t HAL_RCC_ADC12_CLK_ENABLED = 0;
 
 void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
 {
-
-    ADC_Clock_Init();
+    /*
+     * PLL3 is board-owned and configured once in board.c from the 25 MHz HSE.
+     * A peripheral driver must never retune it while another ADC is active.
+     */
+    if (HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_ADC) !=
+        BOARD_ADC_KERNEL_CLOCK_HZ) {
+        Error_Handler();
+    }
 
 
     GPIO_InitTypeDef GPIO_InitStruct = {0};

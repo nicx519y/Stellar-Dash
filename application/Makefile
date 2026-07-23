@@ -50,20 +50,14 @@ Drivers/STM32H7xx_HAL_Driver/Src \
 Drivers/QSPI-W25Q64 \
 Drivers/USART \
 Drivers/LED \
-Drivers/USB \
 Drivers/ADC \
+Drivers/I2C-POWER-BUS \
+Drivers/I2C-BQ25895 \
+Drivers/I2C-MAX17048 \
 Drivers/PWM-WS2812B \
 Drivers/GPIO-BTN \
 Drivers/ROTARY-ENCODER \
 Drivers/SPI-ST7789 \
-Libs/tinyusb/src \
-Libs/tinyusb/src/device \
-Libs/tinyusb/src/host \
-Libs/tinyusb/src/common \
-Libs/tinyusb/lib/networking \
-Libs/tinyusb/src/portable/synopsys/dwc2 \
-Libs/tinyusb/src/class/net \
-Libs/tinyusb/src/class/hid \
 Libs/rndis \
 Libs/stm32_mw_lwip/src/apps \
 Libs/stm32_mw_lwip/src/core \
@@ -76,13 +70,6 @@ Libs/sha256_simple \
 # C++ 源文件目录
 CPP_SOURCE_DIRS = \
 Cpp_Core/Src \
-Cpp_Core/Src/drivers/net \
-Cpp_Core/Src/drivers/xinput \
-Cpp_Core/Src/drivers/switch \
-Cpp_Core/Src/drivers/psclassic \
-Cpp_Core/Src/drivers/ps4 \
-Cpp_Core/Src/drivers/xbone \
-Cpp_Core/Src/drivers/shared \
 Cpp_Core/Src/configs \
 Cpp_Core/Src/gamepad \
 Cpp_Core/Src/states \
@@ -97,7 +84,13 @@ Libs/httpd
 # 自动查找源文件
 C_SOURCES = $(foreach dir,$(C_SOURCE_DIRS),$(wildcard $(dir)/*.c))
 CPP_SOURCES = $(foreach dir,$(CPP_SOURCE_DIRS),$(wildcard $(dir)/*.cpp))
-C_SOURCES := $(filter-out Drivers/SPI-ST7789/st7789.c,$(C_SOURCES))
+C_SOURCES := $(filter-out \
+Drivers/SPI-ST7789/st7789.c \
+Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd.c \
+Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_pcd_ex.c \
+Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_hcd.c \
+Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_ll_usb.c,$(C_SOURCES))
+CPP_SOURCES := $(filter-out Cpp_Core/Src/drivermanager.cpp,$(CPP_SOURCES))
 
 # ASM sources
 ASM_SOURCES =  \
@@ -107,7 +100,9 @@ startup_stm32h750xx.s
 C_SOURCES += \
 Libs/stm32_mw_lwip/src/apps/http/httpd.c \
 Libs/httpd/fs.c \
-Libs/httpd/fsdata.c
+Libs/httpd/fsdata.c \
+Libs/tinyusb/lib/networking/dhserver.c \
+Libs/tinyusb/lib/networking/dnserver.c
 
 # ASM sources
 ASMM_SOURCES = 
@@ -137,22 +132,16 @@ C_INCLUDES += \
 -IDrivers/QSPI-W25Q64 \
 -IDrivers/USART \
 -IDrivers/LED \
--IDrivers/USB \
 -IDrivers/ADC \
+-IDrivers/I2C-POWER-BUS \
+-IDrivers/I2C-BQ25895 \
+-IDrivers/I2C-MAX17048 \
 -IDrivers/PWM-WS2812B \
 -IDrivers/GPIO-BTN \
 -IDrivers/ROTARY-ENCODER \
 -IDrivers/SPI-ST7789 \
 -ILibs/httpd \
--ILibs/tinyusb/hw \
--ILibs/tinyusb/src \
--ILibs/tinyusb/src/device \
--ILibs/tinyusb/src/host \
--ILibs/tinyusb/src/common \
 -ILibs/tinyusb/lib/networking \
--ILibs/tinyusb/src/portable/synopsys/dwc2 \
--ILibs/tinyusb/src/portable/st/stm32_fsdev \
--ILibs/tinyusb/src/class/net \
 -ILibs/rndis \
 -ILibs/stm32_mw_lwip/src/apps \
 -ILibs/stm32_mw_lwip/src/core \
@@ -233,7 +222,7 @@ C_DEFS =  \
 -DRF_COMMAND_TRANSACTION_LOG=$(APP_LOG_VERBOSE) \
 -DRF_RELIABLE_EVENT_LOG=$(APP_LOG_VERBOSE) \
 -DROTENC_DEBUG_PRINT=$(APP_LOG_VERBOSE) \
--DCFG_TUSB_DEBUG=$(APP_LOG_VERBOSE)
+-DUSB_BOARD_LINK_DEBUG=$(APP_LOG_VERBOSE)
 
 
 
@@ -266,7 +255,14 @@ LDFLAGS = $(MCU) -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(TARGET)
 LDFLAGS += --specs=nosys.specs --specs=nano.specs -u _printf_float
 
 # default action: build all
-all: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin
+RF_FREEZE_CHECK = ../tools/check_rf_frozen.py
+
+.PHONY: all check-rf-freeze clean flash flash-web-resources debug
+
+all: check-rf-freeze $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin
+
+check-rf-freeze:
+	python "$(RF_FREEZE_CHECK)" --require-rx-binary
 
 
 #######################################
@@ -295,7 +291,7 @@ $(BUILD_DIR)/%.o: %.s Makefile | $(BUILD_DIR)
 $(BUILD_DIR)/%.o: %.S Makefile | $(BUILD_DIR)
 	$(AS) -c $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/$(TARGET).elf: $(OBJECTS) Makefile
+$(BUILD_DIR)/$(TARGET).elf: check-rf-freeze $(OBJECTS) Makefile
 	$(CXX) $(OBJECTS) $(LDFLAGS) -o $@
 	$(SZ) $@
 

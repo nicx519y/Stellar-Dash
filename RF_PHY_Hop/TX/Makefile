@@ -1,6 +1,18 @@
 PROJECT := RF_PHY_Hop_TX
 OUT_DIR := build_tx
 MODE_DEFINE := -DRF_HOP_MODE=1
+BOARD ?= latest_ch585
+PYTHON ?= python
+
+ifeq ($(BOARD),latest_ch585)
+BOARD_CLK_OSC32K := 0
+BOARD_DEFINES := \
+	-DRFM_BOARD_LATEST_CH585=1 \
+	-DRFM_TX_LOG_ENABLE=0 \
+	-UDEBUG
+else
+$(error Unsupported BOARD '$(BOARD)'; supported value: latest_ch585)
+endif
 
 # Toolchain prefix, e.g. riscv-none-embed- or riscv32-wch-elf-
 PREFIX ?= riscv32-wch-elf-
@@ -20,7 +32,10 @@ SIZE    := "$(TOOLCHAIN_PREFIX)size"
 RM      := if exist "$(subst /,\,$(OUT_DIR))" rmdir /s /q "$(subst /,\,$(OUT_DIR))"
 
 APP_DIR      := APP
+BOARD_DIR    := BOARD
+USB_DIR      := USB
 COMMON_INC_DIR := ../Common/include
+REPO_COMMON_DIR := ../../common
 HAL_DIR      := $(BLE_SDK_DIR)/HAL
 LIB_DIR      := $(BLE_SDK_DIR)/LIB
 SRC_ROOT_DIR := $(SDK_ROOT_MAKE)/SRC
@@ -34,14 +49,18 @@ PROFILE_INCLUDE := $(if $(wildcard $(PROFILE_DIR)/include),-I$(PROFILE_DIR)/incl
 LINKER_SCRIPT := $(LD_DIR)/Link.ld
 
 DEFINES := \
-	-DCLK_OSC32K=2 \
+	-DCLK_OSC32K=$(BOARD_CLK_OSC32K) \
 	-DRF_8K=1 \
 	$(MODE_DEFINE) \
-	$(EXTRA_DEFINES)
+	$(EXTRA_DEFINES) \
+	$(BOARD_DEFINES)
 
 INCLUDES := \
 	-I$(APP_DIR)/include \
+	-I$(BOARD_DIR) \
+	-I$(USB_DIR) \
 	-I$(COMMON_INC_DIR) \
+	-I$(REPO_COMMON_DIR) \
 	-I$(HAL_DIR)/include \
 	$(PROFILE_INCLUDE) \
 	-I$(DRIVER_DIR)/inc \
@@ -90,6 +109,9 @@ LIBS := \
 	-lCH58xBLE
 
 APP_SRCS := $(wildcard $(APP_DIR)/*.c)
+BOARD_SRCS := $(wildcard $(BOARD_DIR)/*.c)
+USB_SRCS := $(wildcard $(USB_DIR)/*.c)
+COMMON_CODEC_SRC := $(REPO_COMMON_DIR)/usb_board_link_codec.c
 HAL_SRCS := $(wildcard $(HAL_DIR)/*.c)
 LIB_SRCS := $(wildcard $(LIB_DIR)/*.S)
 DRV_SRCS := $(wildcard $(DRIVER_DIR)/*.c)
@@ -118,18 +140,32 @@ DRV_EXCLUDE := \
 
 STARTUP_SRCS := $(STARTUP_DIR)/startup_CH585.S
 
-SRCS := $(filter-out $(APP_EXCLUDE) $(HAL_EXCLUDE) $(DRV_EXCLUDE),$(APP_SRCS) $(HAL_SRCS) $(LIB_SRCS) $(DRV_SRCS) $(STARTUP_SRCS))
-OBJS := $(patsubst %.c,$(OUT_DIR)/%.o,$(filter %.c,$(SRCS))) \
-        $(patsubst %.S,$(OUT_DIR)/%.o,$(filter %.S,$(SRCS)))
+LOCAL_SRCS := $(filter-out $(APP_EXCLUDE),$(APP_SRCS)) $(BOARD_SRCS) $(USB_SRCS)
+HAL_BUILD_SRCS := $(filter-out $(HAL_EXCLUDE),$(HAL_SRCS))
+DRV_BUILD_SRCS := $(filter-out $(DRV_EXCLUDE),$(DRV_SRCS))
+SRCS := $(LOCAL_SRCS) $(HAL_BUILD_SRCS) $(LIB_SRCS) $(DRV_BUILD_SRCS) $(STARTUP_SRCS)
+COMMON_CODEC_OBJ := $(OUT_DIR)/COMMON/usb_board_link_codec.o
+LOCAL_OBJS := $(patsubst %.c,$(OUT_DIR)/%.o,$(LOCAL_SRCS))
+HAL_OBJS := $(patsubst $(HAL_DIR)/%.c,$(OUT_DIR)/SDK/HAL/%.o,$(HAL_BUILD_SRCS))
+LIB_OBJS := $(patsubst $(LIB_DIR)/%.S,$(OUT_DIR)/SDK/LIB/%.o,$(LIB_SRCS))
+DRV_OBJS := $(patsubst $(DRIVER_DIR)/%.c,$(OUT_DIR)/SDK/DRIVER/%.o,$(DRV_BUILD_SRCS))
+STARTUP_OBJS := $(patsubst $(STARTUP_DIR)/%.S,$(OUT_DIR)/SDK/STARTUP/%.o,$(STARTUP_SRCS))
+OBJS := $(LOCAL_OBJS) $(HAL_OBJS) $(LIB_OBJS) $(DRV_OBJS) $(STARTUP_OBJS) \
+        $(COMMON_CODEC_OBJ)
+RF_MAIN_OBJ := $(OUT_DIR)/$(APP_DIR)/RF_main.o
+RF_FREEZE_CHECK := ../../tools/check_rf_frozen.py
 
 DEPFLAGS = -MMD -MF $(@:.o=.d)
 
-.PHONY: all clean print-vars check-toolchain
+.PHONY: all clean print-vars check-toolchain check-rf-freeze
 
 TOOLCHAIN_OK := $(OUT_DIR)/.toolchain_ok
 
-all: $(TOOLCHAIN_OK) $(OUT_DIR)/$(PROJECT).elf $(OUT_DIR)/$(PROJECT).hex $(OUT_DIR)/$(PROJECT).bin $(OUT_DIR)/$(PROJECT).lst
+all: check-rf-freeze $(TOOLCHAIN_OK) $(OUT_DIR)/$(PROJECT).elf $(OUT_DIR)/$(PROJECT).hex $(OUT_DIR)/$(PROJECT).bin $(OUT_DIR)/$(PROJECT).lst
 	$(SIZE) $(OUT_DIR)/$(PROJECT).elf
+
+check-rf-freeze:
+	$(PYTHON) "$(RF_FREEZE_CHECK)" --require-rx-binary
 
 $(TOOLCHAIN_OK):
 	@if not exist "$(subst /,\,$(OUT_DIR))" mkdir "$(subst /,\,$(OUT_DIR))"
@@ -143,7 +179,7 @@ $(TOOLCHAIN_OK):
 
 check-toolchain: $(TOOLCHAIN_OK)
 
-$(OUT_DIR)/$(PROJECT).elf: $(OBJS) $(LINKER_SCRIPT)
+$(OUT_DIR)/$(PROJECT).elf: check-rf-freeze $(OBJS) $(LINKER_SCRIPT)
 	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
 	$(CC) $(OBJS) $(LDFLAGS) $(LIBS) -o $@
 
@@ -160,9 +196,31 @@ $(OUT_DIR)/%.o: %.c
 	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
+$(COMMON_CODEC_OBJ): $(COMMON_CODEC_SRC)
+	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+$(OUT_DIR)/SDK/HAL/%.o: $(HAL_DIR)/%.c
+	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+$(OUT_DIR)/SDK/DRIVER/%.o: $(DRIVER_DIR)/%.c
+	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
+	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+$(OUT_DIR)/SDK/LIB/%.o: $(LIB_DIR)/%.S
+	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
+	$(AS) $(ASFLAGS) $(DEPFLAGS) -c $< -o $@
+
+$(OUT_DIR)/SDK/STARTUP/%.o: $(STARTUP_DIR)/%.S
+	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
+	$(AS) $(ASFLAGS) $(DEPFLAGS) -c $< -o $@
+
 $(OUT_DIR)/%.o: %.S
 	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
 	$(AS) $(ASFLAGS) $(DEPFLAGS) -c $< -o $@
+
+$(RF_MAIN_OBJ): CFLAGS += -Dmain=RF_FrozenMain
 
 $(OBJS): $(TOOLCHAIN_OK)
 
@@ -172,6 +230,8 @@ clean:
 print-vars:
 	@echo "PROJECT=$(PROJECT)"
 	@echo "OUT_DIR=$(OUT_DIR)"
+	@echo "BOARD=$(BOARD)"
+	@echo "BOARD_CLK_OSC32K=$(BOARD_CLK_OSC32K)"
 	@echo "SRCS=$(SRCS)"
 
 -include $(OBJS:.o=.d)

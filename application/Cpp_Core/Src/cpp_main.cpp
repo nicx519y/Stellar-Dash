@@ -1,12 +1,10 @@
 #include "cpp_main.hpp"
 #include <stdio.h>
-#include "bsp/board_api.h"
 #include "main_state_machine.hpp"
 #include "qspi-w25q64.h"
 #include "pwm-ws2812b.h"
 #include "message_center.hpp"
 #include "adc.h"
-#include "tusb.h"
 #include "adc_btns/adc_manager.hpp"
 #include "micro_timer.hpp"
 #include "leds/leds_manager.hpp"
@@ -33,17 +31,6 @@ extern "C" {
         // adc_test();
         return 0;
     }
-}
-
-/**
- * 重写tusb_time_millis_api和tusb_time_delay_ms_api for STM32
- */
-uint32_t tusb_time_millis_api(void) {
-    return HAL_GetTick();
-}
-
-void tusb_time_delay_ms_api(uint32_t ms) {
-    HAL_Delay(ms);
 }
 
 void adc_test(void) {

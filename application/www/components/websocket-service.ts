@@ -40,7 +40,22 @@ export interface TriggerConfigs {
 export interface GlobalConfig {
   inputMode: string;
   connectionMode?: string;
+  connectionModeReadOnly?: boolean;
+  connectionModeSource?: "PHYSICAL_SWITCH";
+  physicalConnectionMode?: "USB" | "RF24G" | "OFF" | "FAULT" | "UNKNOWN";
   wirelessReportRate?: string;
+  hardware?: {
+    hardwareVersion: string;
+    batteryTopology: "SINGLE_1S2P";
+    batteryPackCount: number;
+    keyLedCount: number;
+    ambientLedCount: number;
+  };
+  ch585?: {
+    role: "RF" | "USB" | "MAINTENANCE" | "UNKNOWN";
+    firmwareVersion: string;
+    capabilitiesValid: boolean;
+  };
   power?: {
     wakeHoldMs: number;
     autoStandbyMs: number;

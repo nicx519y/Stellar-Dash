@@ -41,6 +41,163 @@ from firmware_metadata import *
 
 # 保留release.py特有的常量
 OPENOCD_CONFIG = "interface/stlink.cfg -f target/stm32h7x.cfg"
+STM32_OTA_COMPONENTS = ("application", "webresources", "adc_mapping")
+LATEST_HARDWARE_VERSION = "2.0.0"
+HARDWARE_VERSION_CODE_V2 = 0x00020000
+_SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+STM32_OTA_LAYOUT = {
+    "A": {
+        "application": (SLOT_A_APPLICATION_ADDR, SLOT_A_APPLICATION_SIZE),
+        "webresources": (SLOT_A_WEBRESOURCES_ADDR, SLOT_A_WEBRESOURCES_SIZE),
+        "adc_mapping": (SLOT_A_ADC_MAPPING_ADDR, SLOT_A_ADC_MAPPING_SIZE),
+    },
+    "B": {
+        "application": (SLOT_B_APPLICATION_ADDR, SLOT_B_APPLICATION_SIZE),
+        "webresources": (SLOT_B_WEBRESOURCES_ADDR, SLOT_B_WEBRESOURCES_SIZE),
+        "adc_mapping": (SLOT_B_ADC_MAPPING_ADDR, SLOT_B_ADC_MAPPING_SIZE),
+    },
+}
+
+
+def verify_rf_frozen(project_root: Path) -> None:
+    """Run the mandatory RF equivalence gate before a formal release."""
+    checker = project_root / "tools" / "check_rf_frozen.py"
+    if not checker.is_file():
+        raise FileNotFoundError(f"RF冻结检查脚本不存在: {checker}")
+    result = subprocess.run(
+        [sys.executable, str(checker), "--require-rx-binary"],
+        cwd=project_root,
+    )
+    if result.returncode != 0:
+        raise RuntimeError("RF冻结基线检查失败，禁止构建或发布")
+
+
+def _parse_manifest_address(value: Any, field_name: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} 不是有效地址")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value, 0)
+        except ValueError as exc:
+            raise ValueError(f"{field_name} 不是有效地址: {value}") from exc
+    raise ValueError(f"{field_name} 不是有效地址")
+
+
+def validate_stm32_ota_manifest(manifest: Dict[str, Any]) -> None:
+    if not isinstance(manifest, dict):
+        raise ValueError("manifest根节点必须是对象")
+
+    version = manifest.get("version")
+    if not isinstance(version, str) or not _SEMVER_RE.fullmatch(version):
+        raise ValueError("manifest.version必须是三段式版本号")
+
+    slot = str(manifest.get("slot", "")).upper()
+    if slot not in STM32_OTA_LAYOUT:
+        raise ValueError("manifest.slot必须是A或B")
+
+    if manifest.get("hardware_version") != LATEST_HARDWARE_VERSION:
+        raise ValueError(
+            f"V2 OTA包hardware_version必须是{LATEST_HARDWARE_VERSION}"
+        )
+    if manifest.get("hardware_version_code") != HARDWARE_VERSION_CODE_V2:
+        raise ValueError(
+            f"V2 OTA包hardware_version_code必须是0x{HARDWARE_VERSION_CODE_V2:08X}"
+        )
+    if manifest.get("ota_scope") != "STM32_ONLY":
+        raise ValueError("V2 OTA包ota_scope必须是STM32_ONLY")
+    if manifest.get("ch585_update") != "MANUAL_INDEPENDENT_FLASH":
+        raise ValueError("CH585不得包含在STM32 OTA包内")
+
+    components = manifest.get("components")
+    if not isinstance(components, list):
+        raise ValueError("manifest缺少components列表")
+    if not all(isinstance(component, dict) for component in components):
+        raise ValueError("manifest.components成员必须是对象")
+    names = tuple(component.get("name") for component in components)
+    if len(names) != len(STM32_OTA_COMPONENTS) or set(names) != set(STM32_OTA_COMPONENTS):
+        raise ValueError(
+            "STM32 OTA只允许三个组件: " + ", ".join(STM32_OTA_COMPONENTS)
+        )
+
+    for component in components:
+        name = component["name"]
+        if not isinstance(component.get("file"), str) or not component["file"]:
+            raise ValueError(f"组件 {name} 缺少有效文件名")
+        if Path(component["file"]).name != component["file"]:
+            raise ValueError(f"组件 {name} 文件名不能包含路径")
+        if component.get("file_type") != "bin":
+            raise ValueError(f"组件 {name} file_type必须是bin")
+
+        expected_address, max_size = STM32_OTA_LAYOUT[slot][name]
+        address = _parse_manifest_address(component.get("address"), f"{name}.address")
+        if address != expected_address:
+            raise ValueError(
+                f"组件 {name} 地址错误: 0x{address:08X}, "
+                f"槽{slot}应为0x{expected_address:08X}"
+            )
+
+        size = component.get("size")
+        if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+            raise ValueError(f"组件 {name} size必须是正整数")
+        if size > max_size:
+            raise ValueError(
+                f"组件 {name} 大小0x{size:X}超过区域上限0x{max_size:X}"
+            )
+
+        sha256 = component.get("sha256")
+        if not isinstance(sha256, str) or not _SHA256_RE.fullmatch(sha256):
+            raise ValueError(f"组件 {name} sha256必须是64位小写十六进制")
+
+
+def validate_stm32_ota_package(package_path: Path) -> Dict[str, Any]:
+    with zipfile.ZipFile(package_path, "r") as archive:
+        if any(info.is_dir() for info in archive.infolist()):
+            raise ValueError(f"{package_path.name} 不允许包含目录条目")
+        infos = [info for info in archive.infolist() if not info.is_dir()]
+        archive_names = [info.filename for info in infos]
+        if len(archive_names) != len(set(archive_names)):
+            raise ValueError(f"{package_path.name} 包含重复ZIP条目")
+        if any(Path(name).name != name for name in archive_names):
+            raise ValueError(f"{package_path.name} ZIP条目不得包含路径")
+
+        try:
+            manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
+        except KeyError as exc:
+            raise ValueError(f"{package_path.name} 缺少 manifest.json") from exc
+        validate_stm32_ota_manifest(manifest)
+
+        expected_files = {"manifest.json"}
+        component_files = [component["file"] for component in manifest["components"]]
+        if len(component_files) != len(set(component_files)):
+            raise ValueError("三个组件必须使用不同的文件名")
+        expected_files.update(component_files)
+        archive_files = {info.filename for info in archive.infolist() if not info.is_dir()}
+        if archive_files != expected_files:
+            extras = sorted(archive_files - expected_files)
+            missing = sorted(expected_files - archive_files)
+            raise ValueError(
+                f"OTA包文件集合不匹配; extra={extras or 'none'} missing={missing or 'none'}"
+            )
+
+        for component in manifest["components"]:
+            data = archive.read(component["file"])
+            if len(data) != component["size"]:
+                raise ValueError(
+                    f"组件 {component['name']} size不一致: "
+                    f"manifest={component['size']} zip={len(data)}"
+                )
+            actual_sha256 = hashlib.sha256(data).hexdigest()
+            if actual_sha256 != component["sha256"]:
+                raise ValueError(
+                    f"组件 {component['name']} SHA-256不一致: "
+                    f"manifest={component['sha256']} zip={actual_sha256}"
+                )
+
+        return manifest
 
 class ReleaseConfig:
     """Release工具的统一配置管理类"""
@@ -815,6 +972,7 @@ class ReleaseFlasher:
         package_file = Path(package_path)
         if not package_file.exists():
             raise FileNotFoundError(f"Release包不存在: {package_path}")
+        validate_stm32_ota_package(package_file)
         
         # 创建临时目录
         self.temp_dir = Path(tempfile.mkdtemp(prefix="release_flash_"))
@@ -832,6 +990,7 @@ class ReleaseFlasher:
             
             with open(manifest_file, 'r', encoding='utf-8') as f:
                 manifest = json.load(f)
+            validate_stm32_ota_manifest(manifest)
             
             print(f"成功解压Release包: {package_file.name}")
             print(f"版本: {manifest.get('version', 'Unknown')}")
@@ -1445,12 +1604,16 @@ class ReleaseManager:
             print(f"成功复制系统背景图片: {out_bin} -> {dst}")
         return dst
 
-    def make_manifest_for_auto_with_bin(self, slot, app_bin_file, adc_file, web_file, version, app_component, sys_assets_file=None, sysbg_file=None):
+    def make_manifest_for_auto_with_bin(self, slot, app_bin_file, adc_file, web_file, version, app_component):
         """生成manifest文件（使用BIN文件）"""
         manifest = {
             "version": version,
             "slot": slot,
             "build_date": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            "hardware_version": "2.0.0",
+            "hardware_version_code": HARDWARE_VERSION,
+            "ota_scope": "STM32_ONLY",
+            "ch585_update": "MANUAL_INDEPENDENT_FLASH",
             "components": []
         }
         
@@ -1484,26 +1647,7 @@ class ReleaseManager:
             "file_type": "bin"
         })
 
-        if sys_assets_file is not None:
-            manifest["components"].append({
-                "name": "sys_assets",
-                "file": sys_assets_file.name,
-                "address": f"0x{SYS_IMAGE_RESOURCES_ADDR:08X}",
-                "size": sys_assets_file.stat().st_size,
-                "sha256": self.sha256sum_file(sys_assets_file),
-                "file_type": "bin"
-            })
-
-        if sysbg_file is not None:
-            manifest["components"].append({
-                "name": "sysbg",
-                "file": sysbg_file.name,
-                "address": f"0x{USER_IMAGE_RESOURCES_ADDR:08X}",
-                "size": sysbg_file.stat().st_size,
-                "sha256": self.sha256sum_file(sysbg_file),
-                "file_type": "bin"
-            })
-        
+        validate_stm32_ota_manifest(manifest)
         return manifest
 
     def make_auto_release_pkg(self, slot, version, out_dir, build_timestamp, progress=None, start_step=0):
@@ -1555,14 +1699,11 @@ class ReleaseManager:
             # 5. 复制其他必要的组件
             adc_file = self.copy_adc_mapping_from_resources(out_dir, progress, start_step + 5)
             web_file = self.copy_webresources_for_auto(out_dir, progress, start_step + 6)
-            sys_assets_file = self.copy_system_assets_for_auto(out_dir, progress, start_step + 7)
-            sysbg_file = self.copy_sysbg_for_auto(out_dir, progress, start_step + 8)
-            
             # 6. 生成标准manifest（使用BIN文件）
             if progress:
-                progress.set_step(start_step + 9, f"槽{slot}: 生成manifest...")
+                progress.set_step(start_step + 7, f"槽{slot}: 生成manifest...")
             manifest = self.make_manifest_for_auto_with_bin(
-                slot, app_bin_file, adc_file, web_file, version, app_component, sys_assets_file, sysbg_file
+                slot, app_bin_file, adc_file, web_file, version, app_component
             )
             
             # 添加HEX处理信息
@@ -1582,7 +1723,7 @@ class ReleaseManager:
             
             # 7. 打包并移动到releases目录
             if progress:
-                progress.set_step(start_step + 10, f"槽{slot}: 打包并移动到releases目录...")
+                progress.set_step(start_step + 8, f"槽{slot}: 打包并移动到releases目录...")
             package_name = f'hbox_firmware_{version}_{slot.lower()}_{build_timestamp}.zip'
             temp_package_path = out_dir / package_name
             final_package_path = self.releases_dir / package_name
@@ -1595,9 +1736,10 @@ class ReleaseManager:
                 # 共同文件
                 zf.write(web_file, web_file.name)
                 zf.write(adc_file, adc_file.name)
-                zf.write(sys_assets_file, sys_assets_file.name)
-                zf.write(sysbg_file, sysbg_file.name)
                 zf.write(manifest_file, manifest_file.name)
+
+            # ZIP是实际发布/上传边界；移动到releases前重新从ZIP读取并严格核验。
+            validate_stm32_ota_package(temp_package_path)
             
             # 移动到最终位置
             shutil.move(temp_package_path, final_package_path)
@@ -1616,6 +1758,7 @@ class ReleaseManager:
 
     def create_auto_release(self, version: str) -> List[str]:
         """自动构建双槽release包（使用Intel HEX分割处理）"""
+        verify_rf_frozen(self.project_root)
         print("=== STM32 HBox 双槽Release包生成工具 ===")
         print(f"工作目录: {self.project_root}")
         print(f"输出目录: {self.releases_dir}")
@@ -1634,8 +1777,8 @@ class ReleaseManager:
         build_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         print(f"构建时间戳: {build_timestamp}")
         
-        # 创建统一进度条 (每个槽10步，共20步)
-        progress = ProgressBar(20)
+        # 每个槽8步；OTA固定为 application/webresources/adc_mapping 三组件。
+        progress = ProgressBar(16)
         
         success_count = 0
         generated_packages = []
@@ -1643,7 +1786,7 @@ class ReleaseManager:
         try:
             for i, slot in enumerate(['A', 'B']):
                 try:
-                    start_step = i * 10  # 每个槽10步
+                    start_step = i * 8
                     package_path = self.make_auto_release_pkg(slot, version, out_dir, build_timestamp, progress, start_step)
                     success_count += 1
                     generated_packages.append(package_path)
@@ -1723,10 +1866,12 @@ class ReleaseManager:
         print(f"验证发版包: {package_file}")
         
         try:
+            validate_stm32_ota_package(Path(package_file))
             with zipfile.ZipFile(package_file, 'r') as zf:
                 # 读取manifest
                 with zf.open('manifest.json') as f:
                     manifest = json.load(f)
+                validate_stm32_ota_manifest(manifest)
                 
                 # 验证每个组件
                 for comp_info in manifest["components"]:
@@ -1894,48 +2039,70 @@ class ReleaseManager:
         if not admin_username or not admin_password:
             return False
         
-        # 解析包信息
-        package_info = None
+        # 上传元数据只能来自包内manifest；文件名和表单都不是信任来源。
+        package_paths = {}
         if slot_a_path:
-            package_info = self.parse_package_info(slot_a_path)
-            if not package_info:
-                print(f"错误: 无法解析包名格式: {slot_a_path}")
+            package_paths["slotA"] = Path(slot_a_path)
+        if slot_b_path:
+            package_paths["slotB"] = Path(slot_b_path)
+
+        package_manifests = {}
+        for field_name, package_file in package_paths.items():
+            slot_label = "槽A" if field_name == "slotA" else "槽B"
+            if not package_file.exists():
+                print(f"错误: {slot_label}文件不存在: {package_file}")
                 return False
-        elif slot_b_path:
-            package_info = self.parse_package_info(slot_b_path)
-            if not package_info:
-                print(f"错误: 无法解析包名格式: {slot_b_path}")
+            try:
+                package_manifests[field_name] = validate_stm32_ota_package(package_file)
+            except (OSError, ValueError, zipfile.BadZipFile, json.JSONDecodeError) as exc:
+                print(f"错误: {slot_label}包不符合STM32三组件OTA边界: {exc}")
                 return False
-        
-        version = package_info['version']
+
+        expected_slot_by_field = {"slotA": "A", "slotB": "B"}
+        for field_name, manifest in package_manifests.items():
+            expected_slot = expected_slot_by_field[field_name]
+            if manifest["slot"].upper() != expected_slot:
+                print(
+                    f"错误: {field_name}上传字段包含槽{manifest['slot']}包，"
+                    f"必须是槽{expected_slot}"
+                )
+                return False
+
+        versions = {manifest["version"] for manifest in package_manifests.values()}
+        hardware_versions = {
+            manifest["hardware_version"] for manifest in package_manifests.values()
+        }
+        if len(versions) != 1 or len(hardware_versions) != 1:
+            print("错误: 双槽包的version和hardware_version必须完全一致")
+            return False
+
+        version = next(iter(versions))
+        hardware_version = next(iter(hardware_versions))
+        if hardware_version != LATEST_HARDWARE_VERSION:
+            print(f"错误: 本发布工具只允许上传V2硬件包 ({LATEST_HARDWARE_VERSION})")
+            return False
+
         if not desc:
             desc = f"自动上传的固件包，版本 {version}"
-        
+
         print("=" * 60)
         print("上传固件包到服务器")
         print("=" * 60)
         print(f"服务器地址: {server_url}")
+        print(f"硬件版本: {hardware_version}")
         print(f"版本号: {version}")
         print(f"描述: {desc}")
         print(f"👤 管理员用户名: {admin_username}")
-        
-        # 检查文件是否存在
+
         files_to_upload = {}
-        if slot_a_path:
-            slot_a_file = Path(slot_a_path)
-            if not slot_a_file.exists():
-                print(f"错误: 槽A文件不存在: {slot_a_path}")
-                return False
-            files_to_upload['slotA'] = (slot_a_file.name, open(slot_a_file, 'rb'), 'application/zip')
-            print(f"槽A包: {slot_a_file.name} ({slot_a_file.stat().st_size / 1024 / 1024:.1f} MB)")
-        
-        if slot_b_path:
-            slot_b_file = Path(slot_b_path)
-            if not slot_b_file.exists():
-                print(f"错误: 槽B文件不存在: {slot_b_path}")
-                return False
-            files_to_upload['slotB'] = (slot_b_file.name, open(slot_b_file, 'rb'), 'application/zip')
-            print(f"槽B包: {slot_b_file.name} ({slot_b_file.stat().st_size / 1024 / 1024:.1f} MB)")
+        for field_name, package_file in package_paths.items():
+            files_to_upload[field_name] = (
+                package_file.name,
+                open(package_file, "rb"),
+                "application/zip",
+            )
+            slot_label = "槽A" if field_name == "slotA" else "槽B"
+            print(f"{slot_label}包: {package_file.name} ({package_file.stat().st_size / 1024 / 1024:.1f} MB)")
         
         print()
         
@@ -1946,7 +2113,10 @@ class ReleaseManager:
             # 准备上传数据
             form_data = {
                 'version': version,
-                'desc': desc
+                'desc': desc,
+                'hardwareVersion': hardware_version,
+                'otaComponents': ','.join(STM32_OTA_COMPONENTS),
+                'ch585Update': 'manual-independent-flash'
             }
             
             upload_url = f"{server_url}/api/firmwares/upload"
@@ -2218,7 +2388,7 @@ class ReleaseManager:
 
     def clear_firmware_versions_from_server(self, target_version: str, server_url: str = None, 
                                            admin_username: str = None, admin_password: str = None) -> bool:
-        """清空服务器上指定版本及之前的所有固件"""
+        """仅清空V2硬件上指定版本及之前的固件。"""
         
         # 获取服务器URL（优先使用参数，其次使用配置）
         server_url = self.config.get_server_url(server_url)
@@ -2227,6 +2397,7 @@ class ReleaseManager:
         print("清空服务器固件版本")
         print("=" * 60)
         print(f"服务器地址: {server_url}")
+        print(f"硬件版本: {LATEST_HARDWARE_VERSION}")
         print(f"目标版本: {target_version} (包含此版本及之前的所有版本)")
         
         # 获取管理员认证凭据
@@ -2261,9 +2432,12 @@ class ReleaseManager:
                 print(f"✗ 获取固件列表失败: {result.get('message', '未知错误')}")
                 return False
             
-            firmwares = result['data']
+            firmwares = [
+                firmware for firmware in result['data']
+                if firmware.get('hardwareVersion') == LATEST_HARDWARE_VERSION
+            ]
             if not firmwares:
-                print("服务器上没有固件，无需清空")
+                print(f"服务器上没有硬件 {LATEST_HARDWARE_VERSION} 的固件，无需清空")
                 return True
             
             # 调试：显示第一个固件的结构（如果存在）
@@ -2309,7 +2483,8 @@ class ReleaseManager:
             print(f"正在清空固件: {clear_url}")
             
             request_data = {
-                "targetVersion": target_version
+                "targetVersion": target_version,
+                "hardwareVersion": LATEST_HARDWARE_VERSION
             }
             
             # 合并认证请求头和Content-Type

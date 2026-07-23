@@ -13,6 +13,9 @@ constexpr uint32_t LOG_SAMPLE_INTERVAL = 200u;
 constexpr uint8_t POWER_FLAG_VALID = 0x01u;
 constexpr uint8_t POWER_FLAG_LOW_BATTERY = 0x02u;
 constexpr uint8_t POWER_FLAG_FAST_CHARGING = 0x04u;
+constexpr uint8_t POWER_FLAG_VBUS_PRESENT = 0x08u;
+constexpr uint8_t POWER_FLAG_GAUGE_ONLINE = 0x10u;
+constexpr uint8_t POWER_FLAG_CHARGER_ONLINE = 0x20u;
 
 struct ReportTimestampSlot {
     uint32_t seq;
@@ -25,6 +28,10 @@ MonitorTelemetrySnapshot g_snapshot;
 uint32_t g_sequence = 0u;
 uint32_t g_pendingUsbSeq = 0u;
 bool g_hasPendingUsbSeq = false;
+uint8_t g_ch585Role = 0u;
+uint8_t g_ch585VersionMajor = 0u;
+uint8_t g_ch585VersionMinor = 0u;
+uint8_t g_ch585VersionPatch = 0u;
 
 inline void update_avg(uint32_t& avg, uint32_t latest) {
     if (avg == 0u) {
@@ -62,7 +69,6 @@ void MonitorTelemetry_Init(ConnectionMode mode, uint16_t targetRateHz) {
     g_sequence = 0u;
     g_pendingUsbSeq = 0u;
     g_hasPendingUsbSeq = false;
-
     g_snapshot.connectionMode = static_cast<uint8_t>(mode);
     g_snapshot.targetRateHz = targetRateHz;
     g_snapshot.lastUpdateUs = MICROS_TIMER.micros();
@@ -150,6 +156,13 @@ void MonitorTelemetry_OnError(const char* source, uint32_t code, const char* mes
     LOG_ERROR("MON", "err source=%s code=%lu msg=%s", source ? source : "unknown", code, message ? message : "");
 }
 
+void MonitorTelemetry_SetCh585Status(uint8_t role, uint8_t versionMajor, uint8_t versionMinor, uint8_t versionPatch) {
+    g_ch585Role = role;
+    g_ch585VersionMajor = versionMajor;
+    g_ch585VersionMinor = versionMinor;
+    g_ch585VersionPatch = versionPatch;
+}
+
 void MonitorTelemetry_GetSnapshot(MonitorTelemetrySnapshot* out) {
     if (out == nullptr) {
         return;
@@ -215,5 +228,52 @@ bool MonitorTelemetry_FillPowerFrameV1(MonitorPowerFrameV1* out) {
     out->reserved0 = 0u;
     out->reserved1 = 0u;
     out->reserved2 = 0u;
+    return true;
+}
+
+bool MonitorTelemetry_FillPowerFrameV2(MonitorPowerFrameV2* out) {
+    if (out == nullptr) {
+        return false;
+    }
+
+    MonitorTelemetrySnapshot snapshot = {};
+    MonitorTelemetry_GetSnapshot(&snapshot);
+    const PowerSnapshot power = POWER_MANAGER.getSnapshot();
+
+    uint8_t flags = 0u;
+    if (power.valid) {
+        flags |= POWER_FLAG_VALID;
+    }
+    if (POWER_MANAGER.isLowBattery()) {
+        flags |= POWER_FLAG_LOW_BATTERY;
+    }
+    if (power.fast_charge) {
+        flags |= POWER_FLAG_FAST_CHARGING;
+    }
+    if (power.vbus_present) {
+        flags |= POWER_FLAG_VBUS_PRESENT;
+    }
+    if (power.gauge_online) {
+        flags |= POWER_FLAG_GAUGE_ONLINE;
+    }
+    if (power.charger_online) {
+        flags |= POWER_FLAG_CHARGER_ONLINE;
+    }
+
+    out->magic = 0x3257504Du;
+    out->seq = snapshot.totalReports;
+    out->timestampMs = HAL_GetTick();
+    out->cellMv = power.cell_mv;
+    out->socPermille = power.soc_permille;
+    out->vbusMv = power.vbus_mv;
+    out->chargeCurrentMa = power.charge_current_ma;
+    out->faultBits = power.fault_bits;
+    out->chargeState = static_cast<uint8_t>(power.charge_state);
+    out->ch585Role = g_ch585Role;
+    out->ch585VersionMajor = g_ch585VersionMajor;
+    out->ch585VersionMinor = g_ch585VersionMinor;
+    out->ch585VersionPatch = g_ch585VersionPatch;
+    out->flags = flags;
+    out->reserved = 0u;
     return true;
 }
