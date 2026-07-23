@@ -13,7 +13,6 @@ static constexpr uint32_t POWER_VREF_MV = 3300u;
 static constexpr uint32_t POWER_ADC_FULL_SCALE = 65535u;
 
 static constexpr uint32_t POWER_MEAS_INTERVAL_MS = 1000u;
-static constexpr uint32_t POWER_MEAS_SETTLE_MS = 40u;
 static constexpr uint32_t POWER_ADC_TIMEOUT_MS = 10u;
 static constexpr uint32_t POWER_FULL_BATTERY_MV = 4200u;
 static constexpr uint32_t POWER_LOW_BATTERY_MV = 3450u;
@@ -24,11 +23,6 @@ static constexpr uint8_t POWER_FORCE_SLEEP_CONFIRM_COUNT = 3u;
 static_assert(POWER_DISCHARGE_CUTOFF_MV < POWER_FORCE_SLEEP_MV, "Force sleep must stay above cell cutoff");
 static_assert(POWER_FORCE_SLEEP_MV < POWER_LOW_BATTERY_MV, "Low warning must stay above force sleep");
 static_assert(POWER_LOW_BATTERY_MV < POWER_FULL_BATTERY_MV, "Low warning must stay below full charge");
-
-static constexpr uint32_t POWER_SWITCH_DIFF_MV = 120u;
-static constexpr uint8_t POWER_SWITCH_CONFIRM_COUNT = 3u;
-static constexpr uint32_t POWER_SWITCH_DEADTIME_MS = 5u;
-static constexpr uint32_t POWER_MIN_DWELL_MS = 10000u;
 
 static void enable_gpio_clock(GPIO_TypeDef* port)
 {
@@ -53,14 +47,7 @@ void PowerManager::setup()
     last_mode_poll_ms = HAL_GetTick();
     last_voltage_update_ms = 0;
     meas_stage = MeasureStage::Idle;
-    switch_in_progress = false;
-    switch_confirm_count = 0;
     low_sleep_confirm_count = 0;
-    last_switch_complete_ms = HAL_GetTick();
-    switch_phase = 0;
-
-    setChannelStates(true, false);
-    active_discharge = PowerBatteryId::H1;
 }
 
 void PowerManager::loop()
@@ -76,8 +63,6 @@ void PowerManager::loop()
             low_sleep_confirm_count = 0;
         }
     }
-
-    processSwitch();
 
     if (meas_stage == MeasureStage::Idle)
     {
@@ -106,7 +91,7 @@ PowerChargeState PowerManager::getChargeState() const
 
 float PowerManager::getTotalSocPercent() const
 {
-    const float soc = (socFromMv(h1_mv) + socFromMv(h2_mv)) * 0.5f;
+    const float soc = socFromMv(battery_mv);
     if (soc < 0.0f) return 0.0f;
     if (soc > 100.0f) return 100.0f;
     return soc;
@@ -114,12 +99,12 @@ float PowerManager::getTotalSocPercent() const
 
 PowerBatteryVoltages PowerManager::getVoltages() const
 {
-    return PowerBatteryVoltages{h1_mv, h2_mv, bat_mv};
+    return PowerBatteryVoltages{battery_mv, battery_mv, battery_mv};
 }
 
 PowerBatteryId PowerManager::getActiveDischargeBattery() const
 {
-    return active_discharge;
+    return PowerBatteryId::H1;
 }
 
 bool PowerManager::isVoltageValid() const
@@ -134,7 +119,7 @@ bool PowerManager::isFastCharging() const
 
 bool PowerManager::isLowBattery() const
 {
-    return voltage_valid && (h1_mv < POWER_LOW_BATTERY_MV || h2_mv < POWER_LOW_BATTERY_MV);
+    return voltage_valid && battery_mv < POWER_LOW_BATTERY_MV;
 }
 
 bool PowerManager::prepareSystemSleep()
@@ -192,7 +177,7 @@ void PowerManager::configureGpios()
     init.Pin = BAT_H2_CHANNEL_CTRL_PIN;
     HAL_GPIO_Init(BAT_H2_CHANNEL_CTRL_PORT, &init);
 
-    HAL_GPIO_WritePin(BAT_H1_CHANNEL_CTRL_PORT, BAT_H1_CHANNEL_CTRL_PIN, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(BAT_H1_CHANNEL_CTRL_PORT, BAT_H1_CHANNEL_CTRL_PIN, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(BAT_H2_CHANNEL_CTRL_PORT, BAT_H2_CHANNEL_CTRL_PIN, GPIO_PIN_SET);
 
     init.Mode = GPIO_MODE_OUTPUT_PP;
@@ -206,7 +191,7 @@ void PowerManager::configureGpios()
     HAL_GPIO_Init(VBAT_H2_SENSE_CTRL_PORT, &init);
 
     HAL_GPIO_WritePin(VBAT_H1_SENSE_CTRL_PORT, VBAT_H1_SENSE_CTRL_PIN, GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(VBAT_BAT_SENSE_CTRL_PORT, VBAT_BAT_SENSE_CTRL_PIN, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(VBAT_BAT_SENSE_CTRL_PORT, VBAT_BAT_SENSE_CTRL_PIN, GPIO_PIN_SET);
     HAL_GPIO_WritePin(VBAT_H2_SENSE_CTRL_PORT, VBAT_H2_SENSE_CTRL_PIN, GPIO_PIN_RESET);
 
     init.Mode = GPIO_MODE_ANALOG;
@@ -226,74 +211,6 @@ bool PowerManager::isFastChargeDetected() const
            (HAL_GPIO_ReadPin(FAST_CHARGE_STATUS_PORT, FAST_CHARGE_STATUS_PIN) == GPIO_PIN_SET);
 }
 
-void PowerManager::setChannelStates(bool h1_on, bool h2_on)
-{
-    if (h1_on)
-    {
-        HAL_GPIO_WritePin(BAT_H1_CHANNEL_CTRL_PORT, BAT_H1_CHANNEL_CTRL_PIN, GPIO_PIN_RESET);
-    }
-    else
-    {
-        HAL_GPIO_WritePin(BAT_H1_CHANNEL_CTRL_PORT, BAT_H1_CHANNEL_CTRL_PIN, GPIO_PIN_SET);
-    }
-
-    if (h2_on)
-    {
-        HAL_GPIO_WritePin(BAT_H2_CHANNEL_CTRL_PORT, BAT_H2_CHANNEL_CTRL_PIN, GPIO_PIN_RESET);
-    }
-    else
-    {
-        HAL_GPIO_WritePin(BAT_H2_CHANNEL_CTRL_PORT, BAT_H2_CHANNEL_CTRL_PIN, GPIO_PIN_SET);
-    }
-}
-
-void PowerManager::requestSwitchTo(PowerBatteryId target)
-{
-    const uint32_t now = HAL_GetTick();
-    if ((uint32_t)(now - last_switch_complete_ms) < POWER_MIN_DWELL_MS)
-    {
-        return;
-    }
-    pending_switch = target;
-    switch_in_progress = true;
-    switch_phase = 0;
-}
-
-void PowerManager::processSwitch()
-{
-    if (!switch_in_progress)
-        return;
-
-    const uint32_t now = HAL_GetTick();
-
-    if (switch_phase == 0)
-    {
-        setChannelStates(false, false);
-        switch_off_ms = now;
-        switch_phase = 1;
-        return;
-    }
-
-    if ((uint32_t)(now - switch_off_ms) < POWER_SWITCH_DEADTIME_MS)
-    {
-        return;
-    }
-
-    if (pending_switch == PowerBatteryId::H1)
-    {
-        setChannelStates(true, false);
-        active_discharge = PowerBatteryId::H1;
-    }
-    else
-    {
-        setChannelStates(false, true);
-        active_discharge = PowerBatteryId::H2;
-    }
-    switch_in_progress = false;
-    last_switch_complete_ms = now;
-    switch_phase = 0;
-}
-
 bool PowerManager::canUseAdcNow() const
 {
     if (ADCManager::getInstance().getADCMode() == ADC_MODE_LOW_LATENCY &&
@@ -306,10 +223,8 @@ bool PowerManager::canUseAdcNow() const
 
 void PowerManager::startVoltageMeasurementCycle()
 {
-    meas_cycle_start_ms = HAL_GetTick();
     meas_stage = MeasureStage::Setup;
-    meas_target = MeasureTarget::H1;
-    meas_stage_start_ms = meas_cycle_start_ms;
+    meas_stage_start_ms = HAL_GetTick();
     adc_configured_for_batt = false;
 }
 
@@ -326,22 +241,9 @@ void PowerManager::processVoltageMeasurement()
             return;
         }
         adc_configured_for_batt = true;
-        meas_stage = MeasureStage::WaitSettle;
-        meas_stage_start_ms = now;
-        HAL_GPIO_WritePin(VBAT_H1_SENSE_CTRL_PORT, VBAT_H1_SENSE_CTRL_PIN, GPIO_PIN_RESET);
-        HAL_GPIO_WritePin(VBAT_BAT_SENSE_CTRL_PORT, VBAT_BAT_SENSE_CTRL_PIN, GPIO_PIN_RESET);
-        HAL_GPIO_WritePin(VBAT_H2_SENSE_CTRL_PORT, VBAT_H2_SENSE_CTRL_PIN, GPIO_PIN_RESET);
-        HAL_GPIO_WritePin(VBAT_H1_SENSE_CTRL_PORT, VBAT_H1_SENSE_CTRL_PIN, GPIO_PIN_SET);
-        return;
-    }
-
-    if (meas_stage == MeasureStage::WaitSettle)
-    {
-        if ((uint32_t)(now - meas_stage_start_ms) < POWER_MEAS_SETTLE_MS)
-        {
-            return;
-        }
         meas_stage = MeasureStage::StartAdc;
+        meas_stage_start_ms = now;
+        return;
     }
 
     if (meas_stage == MeasureStage::StartAdc)
@@ -370,32 +272,7 @@ void PowerManager::processVoltageMeasurement()
         }
 
         const uint32_t mv = rawToBattMv(adc_single_value);
-        if (meas_target == MeasureTarget::H1)
-        {
-            h1_mv = mv;
-            h1_soc = socFromMv(h1_mv);
-            meas_target = MeasureTarget::Bat;
-            HAL_GPIO_WritePin(VBAT_H1_SENSE_CTRL_PORT, VBAT_H1_SENSE_CTRL_PIN, GPIO_PIN_RESET);
-            HAL_GPIO_WritePin(VBAT_BAT_SENSE_CTRL_PORT, VBAT_BAT_SENSE_CTRL_PIN, GPIO_PIN_SET);
-            meas_stage = MeasureStage::WaitSettle;
-            meas_stage_start_ms = now;
-            return;
-        }
-        if (meas_target == MeasureTarget::Bat)
-        {
-            bat_mv = mv;
-            meas_target = MeasureTarget::H2;
-            HAL_GPIO_WritePin(VBAT_BAT_SENSE_CTRL_PORT, VBAT_BAT_SENSE_CTRL_PIN, GPIO_PIN_RESET);
-            HAL_GPIO_WritePin(VBAT_H2_SENSE_CTRL_PORT, VBAT_H2_SENSE_CTRL_PIN, GPIO_PIN_SET);
-            meas_stage = MeasureStage::WaitSettle;
-            meas_stage_start_ms = now;
-            return;
-        }
-
-        h2_mv = mv;
-        h2_soc = socFromMv(h2_mv);
-
-        HAL_GPIO_WritePin(VBAT_H2_SENSE_CTRL_PORT, VBAT_H2_SENSE_CTRL_PIN, GPIO_PIN_RESET);
+        battery_mv = mv;
         restoreAdcForButtons();
 
         last_voltage_update_ms = now;
@@ -413,7 +290,7 @@ void PowerManager::processLowVoltageProtection()
         return;
     }
 
-    if (h1_mv <= POWER_FORCE_SLEEP_MV || h2_mv <= POWER_FORCE_SLEEP_MV)
+    if (battery_mv <= POWER_FORCE_SLEEP_MV)
     {
         if (low_sleep_confirm_count < POWER_FORCE_SLEEP_CONFIRM_COUNT)
         {

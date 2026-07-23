@@ -19,7 +19,7 @@ import { FaListUl, FaPause, FaPlay, FaRegWindowMaximize, FaRegWindowMinimize, Fa
 import { GrClearOption } from "react-icons/gr";
 import { LuWifi, LuWifiHigh, LuWifiLow, LuWifiZero } from "react-icons/lu";
 import { TfiClose } from "react-icons/tfi";
-import type { DebugApplyState, DebugConfig, DebugHidPeriodMs, MonitorEvent, PacketEvent } from "../../../shared/monitor-types";
+import type { DebugApplyState, DebugConfig, DebugHidPeriodMs, MonitorEvent, PacketEvent, PowerStatusEvent } from "../../../shared/monitor-types";
 import rfMonitorLogo from "../assets/rf-monitor-logo.png";
 import { useMonitorStream } from "./useMonitorStream";
 import { ButtonLatencyPanel } from "./ButtonLatencyPanel";
@@ -90,6 +90,14 @@ function displayRssiDetail(packet: PacketEvent | null) {
 
 function displayMillivolts(mv?: number) {
   return typeof mv === "number" && Number.isFinite(mv) && mv > 0 ? (mv / 1000).toFixed(2) : "--";
+}
+
+function primaryBatteryMv(powerStatus: PowerStatusEvent | null) {
+  if (!powerStatus) return undefined;
+  if (Number.isFinite(powerStatus.batMv) && powerStatus.batMv > 0) {
+    return powerStatus.batMv;
+  }
+  return powerStatus.activeBattery === "H2" ? powerStatus.h2Mv : powerStatus.h1Mv;
 }
 
 const VOLTAGE_SAMPLE_INTERVAL_MS = 60 * 60 * 1000;
@@ -871,14 +879,14 @@ export function App() {
     : 0;
   const latestLoss = rfConnected && lossSeries.length > 0 ? lossSeries[lossSeries.length - 1].value : 0;
   const powerValid = Boolean(powerStatus?.valid);
-  const activeBatteryMv = powerStatus?.activeBattery === "H2" ? powerStatus.h2Mv : powerStatus?.h1Mv;
-  const batteryVoltageText = powerValid ? `${displayMillivolts(activeBatteryMv)}V` : "--V";
+  const batteryMv = primaryBatteryMv(powerStatus);
+  const batteryVoltageText = powerValid ? `${displayMillivolts(batteryMv)}V` : "--V";
   const batteryCornerDetail = powerStatus
-    ? `${powerStatus.activeBattery} ${powerStatus.valid ? `${powerStatus.socPercent.toFixed(0)}%` : "--%"}`
+    ? `BAT ${powerStatus.valid ? `${powerStatus.socPercent.toFixed(0)}%` : "--%"}`
     : "No data";
 
   useEffect(() => {
-    if (!powerValid || typeof activeBatteryMv !== "number" || activeBatteryMv <= 0 || !powerStatus) {
+    if (!powerValid || typeof batteryMv !== "number" || batteryMv <= 0 || !powerStatus) {
       return;
     }
 
@@ -889,10 +897,10 @@ export function App() {
         return current;
       }
 
-      const next = current.concat({ tMs: timestampMs, mv: activeBatteryMv });
+      const next = current.concat({ tMs: timestampMs, mv: batteryMv });
       return next.length > MAX_VOLTAGE_HISTORY_POINTS ? next.slice(-MAX_VOLTAGE_HISTORY_POINTS) : next;
     });
-  }, [activeBatteryMv, powerStatus, powerValid]);
+  }, [batteryMv, powerStatus, powerValid]);
 
   const trendPackets = useMemo(() => {
     const items = packets.items.filter((packet) => after(packet.timestampMs, cardClearMarks.trend));
