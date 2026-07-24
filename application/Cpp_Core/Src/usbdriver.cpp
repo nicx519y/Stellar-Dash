@@ -24,7 +24,7 @@ static uint8_t requiredFeatureFlags(usb_board_profile_t profile)
 {
     uint8_t flags = USB_BOARD_CAP_FEATURE_CONTROL_V1;
     if (profile == USB_BOARD_PROFILE_WEB_CONFIG) {
-        flags |= USB_BOARD_CAP_FEATURE_CDC_NCM;
+        flags |= USB_BOARD_CAP_FEATURE_WEBHID_V1;
     }
     if (profileRequiresAuthDevice(profile)) {
         flags |= USB_BOARD_CAP_FEATURE_LOCAL_AUTH;

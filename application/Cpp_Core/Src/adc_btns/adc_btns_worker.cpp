@@ -1,6 +1,7 @@
 #include "adc_btns/adc_btns_worker.hpp"
 #include "board_cfg.h"
 #include "stm32h7xx_hal.h" // 为HAL_GetTick()
+#include "webhid_telemetry_hook.h"
 
 /*
  * ADC Hall 按钮工作逻辑：
@@ -264,7 +265,7 @@ uint32_t ADCBtnsWorker::read()
         const ButtonEvent event = getButtonEvent(btn, adcValue, i);
 
         // 处理状态转换
-        handleButtonState(btn, event, adcValue);
+        handleButtonState(btn, event, adcValue, i);
     }
 
     return (this->virtualPinMask & enabledKeysMask);
@@ -704,15 +705,16 @@ float ADCBtnsWorker::getCurrentReleaseAccuracy(ADCBtn *btn, const float currentD
  * @param btn 按钮指针
  * @param event 事件
  */
-void ADCBtnsWorker::handleButtonState(ADCBtn *btn, const ButtonEvent event, const uint16_t adcValue)
+void ADCBtnsWorker::handleButtonState(
+    ADCBtn *btn,
+    const ButtonEvent event,
+    const uint16_t adcValue,
+    const uint8_t buttonIndex)
 {
     if (!btn || !btn->initCompleted)
     {
         return;
     }
-
-    // 声明变量，避免跨case标签跳转错误
-    uint8_t buttonIndex;
 
     switch (event)
     {
@@ -723,6 +725,7 @@ void ADCBtnsWorker::handleButtonState(ADCBtn *btn, const ButtonEvent event, cons
         btn->pressStartSnapshot = btn->pressStartValue;
         // APP_DBG("adc_btns_worker::handleButtonState PRESS_COMPLETE, virtualPin: %d, adcValue: %d, pressTriggerSnapshot: %d, pressStartSnapshot: %d", btn->virtualPin, adcValue, btn->pressTriggerSnapshot, btn->pressStartSnapshot);
         this->virtualPinMask |= (1U << btn->virtualPin);
+        WebHidTelemetry_OnAdcTransition(buttonIndex, 1u);
         break;
 
     case ButtonEvent::RELEASE_COMPLETE:
@@ -732,6 +735,7 @@ void ADCBtnsWorker::handleButtonState(ADCBtn *btn, const ButtonEvent event, cons
         btn->releaseStartSnapshot = btn->releaseStartValue;
         // APP_DBG("adc_btns_worker::handleButtonState RELEASE_COMPLETE, virtualPin: %d, adcValue: %d, releaseTriggerSnapshot: %d, releaseStartSnapshot: %d", btn->virtualPin, adcValue, btn->releaseTriggerSnapshot, btn->releaseStartSnapshot);
         this->virtualPinMask &= ~(1U << btn->virtualPin);
+        WebHidTelemetry_OnAdcTransition(buttonIndex, 0u);
         break;
 
     default:

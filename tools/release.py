@@ -34,6 +34,7 @@ from intelhex import IntelHex  # 添加Intel HEX处理库
 # 导入统一的固件元数据常量
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'common'))
 from firmware_metadata import *
+from firmware_signing import FirmwareSigningError, sign_metadata
 
 # 使用统一的常量定义，移除重复定义
 # FIRMWARE_MAGIC, METADATA_VERSION_MAJOR, METADATA_VERSION_MINOR 等
@@ -46,6 +47,12 @@ LATEST_HARDWARE_VERSION = "2.0.0"
 HARDWARE_VERSION_CODE_V2 = 0x00020000
 _SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_P256_SIGNATURE_RE = re.compile(r"^[0-9a-f]{128}$")
+_TRUST_HEADER_MARKERS = (
+    "#define HBOX_MANUFACTURER_CA_KEY_PROVISIONED 1u",
+    "#define HBOX_FIRMWARE_RELEASE_PUBLIC_KEY_PROVISIONED 1u",
+    "#define HBOX_WEBCONFIG_AUTH_KEY_SLOT_COUNT 2u",
+)
 
 STM32_OTA_LAYOUT = {
     "A": {
@@ -72,6 +79,51 @@ def verify_rf_frozen(project_root: Path) -> None:
     )
     if result.returncode != 0:
         raise RuntimeError("RF冻结基线检查失败，禁止构建或发布")
+
+
+def require_v2_trust_bundle(
+    environment: Optional[Dict[str, str]] = None,
+) -> Tuple[Path, str]:
+    """Require an approved public-only trust header for a V2 release build."""
+
+    environment = os.environ if environment is None else environment
+    raw_path = environment.get("HBOX_TRUST_HEADER", "").strip()
+    expected_hash = environment.get(
+        "HBOX_TRUST_HEADER_SHA256", ""
+    ).strip().lower()
+    if not raw_path:
+        raise RuntimeError(
+            "V2正式发布必须设置HBOX_TRUST_HEADER，禁止发布全零信任开发镜像"
+        )
+    if not _SHA256_RE.fullmatch(expected_hash):
+        raise RuntimeError(
+            "V2正式发布必须设置已审批的HBOX_TRUST_HEADER_SHA256"
+        )
+
+    header = Path(raw_path).expanduser().resolve()
+    if not header.is_file():
+        raise RuntimeError(f"HBOX_TRUST_HEADER不存在: {header}")
+    data = header.read_bytes()
+    if len(data) == 0 or len(data) > 64 * 1024:
+        raise RuntimeError("HBOX_TRUST_HEADER大小无效")
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != expected_hash:
+        raise RuntimeError(
+            "HBOX_TRUST_HEADER_SHA256与实际公钥bundle不一致"
+        )
+    text = data.decode("utf-8", errors="strict")
+    if any(marker not in text for marker in _TRUST_HEADER_MARKERS):
+        raise RuntimeError("HBOX_TRUST_HEADER缺少已配置公钥门禁")
+    mask_match = re.search(
+        r"#define\s+HBOX_WEBCONFIG_AUTH_KEY_PROVISIONED_MASK\s+"
+        r"0x([0-9A-Fa-f]{2})u",
+        text,
+    )
+    if not mask_match or int(mask_match.group(1), 16) == 0:
+        raise RuntimeError("WebConfig authorization公钥槽未配置")
+    if "PRIVATE KEY" in text or "BEGIN EC" in text or "BEGIN PRIVATE" in text:
+        raise RuntimeError("trust header只能包含公钥，检测到私钥材料")
+    return header, digest
 
 
 def _parse_manifest_address(value: Any, field_name: str) -> int:
@@ -111,6 +163,32 @@ def validate_stm32_ota_manifest(manifest: Dict[str, Any]) -> None:
         raise ValueError("V2 OTA包ota_scope必须是STM32_ONLY")
     if manifest.get("ch585_update") != "MANUAL_INDEPENDENT_FLASH":
         raise ValueError("CH585不得包含在STM32 OTA包内")
+    if manifest.get("signature_algorithm") != FIRMWARE_SIGNATURE_ECDSA_P256_SHA256:
+        raise ValueError("V2 OTA必须使用ECDSA_P256_SHA256签名")
+    if not _SHA256_RE.fullmatch(str(manifest.get("firmware_hash", ""))):
+        raise ValueError("V2 OTA缺少有效firmware_hash")
+    if not _P256_SIGNATURE_RE.fullmatch(str(manifest.get("signature", ""))):
+        raise ValueError("V2 OTA缺少有效P-256 raw签名")
+    if not _SHA256_RE.fullmatch(
+        str(manifest.get("trust_bundle_sha256", ""))
+    ):
+        raise ValueError("V2 OTA缺少构建信任bundle SHA-256")
+    security_version = manifest.get("security_version")
+    if (
+        isinstance(security_version, bool)
+        or not isinstance(security_version, int)
+        or security_version < FIRMWARE_SECURITY_VERSION
+    ):
+        raise ValueError("V2 OTA安全版本低于门限")
+    build_timestamp = manifest.get("build_timestamp")
+    if (
+        isinstance(build_timestamp, bool)
+        or not isinstance(build_timestamp, int)
+        or not 0 <= build_timestamp <= 0xFFFFFFFF
+    ):
+        raise ValueError("V2 OTA缺少有效build_timestamp")
+    if not isinstance(manifest.get("webresources_optional"), bool):
+        raise ValueError("V2 OTA缺少webresources_optional策略")
 
     components = manifest.get("components")
     if not isinstance(components, list):
@@ -125,6 +203,24 @@ def validate_stm32_ota_manifest(manifest: Dict[str, Any]) -> None:
 
     for component in components:
         name = component["name"]
+        optional_webresources = (
+            name == "webresources"
+            and manifest["webresources_optional"]
+            and component.get("active") is False
+            and component.get("size") == 0
+        )
+        if optional_webresources:
+            if component.get("file") != "" or component.get("file_type") != "none":
+                raise ValueError("可选webresources必须使用空文件和none类型")
+            if component.get("sha256") != "0" * 64:
+                raise ValueError("可选webresources必须使用零SHA-256占位")
+            address = _parse_manifest_address(
+                component.get("address"), f"{name}.address"
+            )
+            expected_address, _ = STM32_OTA_LAYOUT[slot][name]
+            if address != expected_address:
+                raise ValueError("可选webresources地址错误")
+            continue
         if not isinstance(component.get("file"), str) or not component["file"]:
             raise ValueError(f"组件 {name} 缺少有效文件名")
         if Path(component["file"]).name != component["file"]:
@@ -171,7 +267,11 @@ def validate_stm32_ota_package(package_path: Path) -> Dict[str, Any]:
         validate_stm32_ota_manifest(manifest)
 
         expected_files = {"manifest.json"}
-        component_files = [component["file"] for component in manifest["components"]]
+        component_files = [
+            component["file"]
+            for component in manifest["components"]
+            if component.get("active", True) and component.get("size", 0) > 0
+        ]
         if len(component_files) != len(set(component_files)):
             raise ValueError("三个组件必须使用不同的文件名")
         expected_files.update(component_files)
@@ -184,6 +284,8 @@ def validate_stm32_ota_package(package_path: Path) -> Dict[str, Any]:
             )
 
         for component in manifest["components"]:
+            if not component.get("active", True) and component.get("size") == 0:
+                continue
             data = archive.read(component["file"])
             if len(data) != component["size"]:
                 raise ValueError(
@@ -729,8 +831,18 @@ def calculate_crc32(data, skip_offset=None, skip_size=None):
     crc = zlib.crc32(after_skip, crc) & 0xffffffff
     return crc
 
-def create_metadata_binary(version, slot, build_date, components):
-    """创建与C结构体对齐的元数据二进制数据"""
+def create_metadata_binary(
+    version,
+    slot,
+    build_date,
+    components,
+    *,
+    signing_key=None,
+    security_version=FIRMWARE_SECURITY_VERSION,
+    webresources_optional=False,
+    build_timestamp=None,
+):
+    """创建并签名与C结构体严格对齐的V2元数据。"""
     
     print(f"创建元数据二进制: 版本={version}, 槽位={slot}, 组件数={len(components)}")
     
@@ -777,7 +889,9 @@ def create_metadata_binary(version, slot, build_date, components):
     offset += 32
     
     # build_timestamp (uint32_t)
-    timestamp = int(time.time())
+    timestamp = int(time.time()) if build_timestamp is None else int(build_timestamp)
+    if timestamp < 0 or timestamp > 0xFFFFFFFF:
+        raise ValueError("build_timestamp必须是uint32")
     struct.pack_into('<I', metadata_buffer, offset, timestamp)
     offset += 4
     
@@ -847,30 +961,52 @@ def create_metadata_binary(version, slot, build_date, components):
             offset = component_end
     
     # === 安全签名区域 ===
-    # firmware_hash (uint8_t[32]) - 预留，填充为0
+    # firmware_hash (uint8_t[32]) - 签名阶段填充
+    firmware_hash_offset = offset
     offset += 32
     
-    # signature (uint8_t[64]) - 预留，填充为0
+    # signature (uint8_t[64]) - raw r || s，签名阶段填充
+    signature_offset = offset
     offset += 64
     
-    # signature_algorithm (uint32_t) - 预留，填充为0
-    struct.pack_into('<I', metadata_buffer, offset, 0)
+    # signature_algorithm (uint32_t)
+    struct.pack_into(
+        '<I',
+        metadata_buffer,
+        offset,
+        FIRMWARE_SIGNATURE_ECDSA_P256_SHA256,
+    )
     offset += 4
     
-    # === 预留区域 ===
-    # reserved (uint8_t[64]) - 填充为0
-    offset += 64
+    # === 安全策略/预留区域 ===
+    if (
+        isinstance(security_version, bool)
+        or not isinstance(security_version, int)
+        or security_version < FIRMWARE_SECURITY_VERSION
+        or security_version > 0xFFFFFFFF
+    ):
+        raise ValueError("security_version必须是有效且不低于当前门限的uint32")
+    struct.pack_into('<I', metadata_buffer, offset, security_version)
+    offset += 4
+    struct.pack_into(
+        '<B', metadata_buffer, offset, 1 if webresources_optional else 0
+    )
+    offset += 1
+    offset += 59  # reserved，保持全0并纳入签名
     
     # 验证总大小
-    if offset != METADATA_SIZE:
-        print(f"警告: 元数据大小不匹配! 期望={METADATA_SIZE}, 实际={offset}")
-        # 调整缓冲区大小以匹配实际计算的大小
-        if offset < METADATA_SIZE:
-            # 如果计算的大小小于期望大小，保持原大小（已经用0填充）
-            pass
-        else:
-            # 如果计算的大小大于期望大小，截断到期望大小
-            metadata_buffer = metadata_buffer[:METADATA_SIZE]
+    if offset != METADATA_STRUCT_SIZE:
+        raise RuntimeError(
+            f"元数据大小不匹配: 期望={METADATA_STRUCT_SIZE}, 实际={offset}"
+        )
+
+    digest, signature = sign_metadata(bytes(metadata_buffer), signing_key)
+    metadata_buffer[
+        firmware_hash_offset : firmware_hash_offset + len(digest)
+    ] = digest
+    metadata_buffer[
+        signature_offset : signature_offset + len(signature)
+    ] = signature
     
     # 计算并设置CRC32校验和（跳过CRC字段本身）
     crc32_value = calculate_crc32(metadata_buffer, crc32_offset, 4)
@@ -899,6 +1035,8 @@ def create_metadata_binary(version, slot, build_date, components):
     print(f"  - 槽位: {slot}")
     print(f"  - 设备型号: {DEVICE_MODEL_STRING}")
     print(f"  - 组件数量: {len(components)}")
+    print(f"  - 安全版本: {security_version}")
+    print(f"  - 签名算法: ECDSA-P256-SHA256")
     print(f"  - CRC32: 0x{crc32_value:08X}")
     print(f"  - 总大小: {len(metadata_buffer)} 字节")
     
@@ -946,6 +1084,7 @@ class ReleaseFlasher:
         self.application_dir = project_root / "application"  # 添加application目录
         self.openocd_configs_dir = self.tools_dir / "openocd_configs"
         self.temp_dir = None
+        self.trust_bundle_sha256 = None
         
         # OpenOCD配置文件 - 使用tools目录下的配置
         self.openocd_config = self.openocd_configs_dir / "ST-LINK-QSPIFLASH.cfg"
@@ -1606,14 +1745,20 @@ class ReleaseManager:
 
     def make_manifest_for_auto_with_bin(self, slot, app_bin_file, adc_file, web_file, version, app_component):
         """生成manifest文件（使用BIN文件）"""
+        build_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        build_timestamp = int(time.time())
         manifest = {
             "version": version,
             "slot": slot,
-            "build_date": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            "build_date": build_date,
+            "build_timestamp": build_timestamp,
             "hardware_version": "2.0.0",
             "hardware_version_code": HARDWARE_VERSION,
             "ota_scope": "STM32_ONLY",
             "ch585_update": "MANUAL_INDEPENDENT_FLASH",
+            "security_version": FIRMWARE_SECURITY_VERSION,
+            "webresources_optional": True,
+            "trust_bundle_sha256": self.trust_bundle_sha256,
             "components": []
         }
         
@@ -1624,17 +1769,19 @@ class ReleaseManager:
             "address": app_component['address'],
             "size": app_bin_file.stat().st_size,
             "sha256": self.sha256sum_file(app_bin_file),
-            "file_type": "bin"  # 标记为BIN文件
+            "file_type": "bin",
+            "active": True,
         })
         
-        # WebResources组件
+        # V2页面由HTTPS服务器托管；保留逻辑槽位但不再发布固件资源。
         manifest["components"].append({
             "name": "webresources",
-            "file": web_file.name,
+            "file": "",
             "address": "0x90100000" if slot == "A" else "0x903B0000",
-            "size": web_file.stat().st_size,
-            "sha256": self.sha256sum_file(web_file),
-            "file_type": "bin"
+            "size": 0,
+            "sha256": "0" * 64,
+            "file_type": "none",
+            "active": False,
         })
         
         # ADC Mapping组件
@@ -1644,8 +1791,28 @@ class ReleaseManager:
             "address": "0x90280000" if slot == "A" else "0x90530000",
             "size": adc_file.stat().st_size,
             "sha256": self.sha256sum_file(adc_file),
-            "file_type": "bin"
+            "file_type": "bin",
+            "active": True,
         })
+
+        metadata = create_metadata_binary(
+            version=version,
+            slot=slot,
+            build_date=build_date,
+            build_timestamp=build_timestamp,
+            components=manifest["components"],
+            security_version=manifest["security_version"],
+            webresources_optional=True,
+        )
+        manifest["signature_algorithm"] = struct.unpack_from(
+            "<I", metadata, FIRMWARE_SIGNATURE_ALGORITHM_OFFSET
+        )[0]
+        manifest["firmware_hash"] = metadata[
+            FIRMWARE_HASH_OFFSET : FIRMWARE_HASH_OFFSET + 32
+        ].hex()
+        manifest["signature"] = metadata[
+            FIRMWARE_SIGNATURE_OFFSET : FIRMWARE_SIGNATURE_OFFSET + 64
+        ].hex()
 
         validate_stm32_ota_manifest(manifest)
         return manifest
@@ -1698,7 +1865,7 @@ class ReleaseManager:
             
             # 5. 复制其他必要的组件
             adc_file = self.copy_adc_mapping_from_resources(out_dir, progress, start_step + 5)
-            web_file = self.copy_webresources_for_auto(out_dir, progress, start_step + 6)
+            web_file = None
             # 6. 生成标准manifest（使用BIN文件）
             if progress:
                 progress.set_step(start_step + 7, f"槽{slot}: 生成manifest...")
@@ -1734,7 +1901,6 @@ class ReleaseManager:
                 zf.write(app_bin_file, app_bin_file.name)
                 
                 # 共同文件
-                zf.write(web_file, web_file.name)
                 zf.write(adc_file, adc_file.name)
                 zf.write(manifest_file, manifest_file.name)
 
@@ -1759,6 +1925,9 @@ class ReleaseManager:
     def create_auto_release(self, version: str) -> List[str]:
         """自动构建双槽release包（使用Intel HEX分割处理）"""
         verify_rf_frozen(self.project_root)
+        trust_header, self.trust_bundle_sha256 = (
+            require_v2_trust_bundle()
+        )
         print("=== STM32 HBox 双槽Release包生成工具 ===")
         print(f"工作目录: {self.project_root}")
         print(f"输出目录: {self.releases_dir}")
@@ -2091,6 +2260,8 @@ class ReleaseManager:
         print(f"服务器地址: {server_url}")
         print(f"硬件版本: {hardware_version}")
         print(f"版本号: {version}")
+        print(f"信任bundle: {trust_header}")
+        print(f"信任bundle SHA-256: {self.trust_bundle_sha256}")
         print(f"描述: {desc}")
         print(f"👤 管理员用户名: {admin_username}")
 

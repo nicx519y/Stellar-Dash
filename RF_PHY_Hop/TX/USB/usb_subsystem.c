@@ -70,7 +70,10 @@ static bool usb_subsystem_sink(usb_board_channel_t channel,
     case USB_BOARD_CHANNEL_TELEMETRY:
         return usb_device_submit_telemetry(data, length);
     case USB_BOARD_CHANNEL_NETWORK:
-        return usb_device_send_network_frame(data, length);
+        /* CDC-NCM was removed from the V2 WebConfig profile. */
+        return false;
+    case USB_BOARD_CHANNEL_WEBCONFIG:
+        return usb_device_submit_webhid_report(data, length);
     default:
         return false;
     }

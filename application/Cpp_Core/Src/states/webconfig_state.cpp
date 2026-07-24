@@ -4,7 +4,7 @@
 #include "qspi-w25q64.h"
 #include "configs/webconfig_btns_manager.hpp"
 #include "configs/webconfig_leds_manager.hpp"
-#include "configmanager.hpp"
+#include "configs/websocket_command_handler.hpp"
 #include "leds/leds_manager.hpp"
 #include "adc_btns/adc_manager.hpp"
 #include "system_logger.h"
@@ -15,6 +15,7 @@
 #include "screen_control/spi_screen_manager.hpp"
 #include "usb_board_link.hpp"
 #include "usbdriver.hpp"
+#include "webhid_service.hpp"
 
 namespace {
 
@@ -41,6 +42,7 @@ void WebConfigState::setup() {
         return;
     }
 
+    WEBHID_SERVICE.shutdown();
     USB_DRIVER.shutdown();
     USB_BOARD_LINK.shutdown();
     CH585_ROLE_BOOTSTRAP.shutdown();
@@ -54,12 +56,26 @@ void WebConfigState::setup() {
         LOG_ERROR("WEBCONFIG", "CH585 maintenance capability gate failed");
         return;
     }
+    /*
+     * V2 WebConfig is hosted by the HTTPS server.  Do not start the legacy
+     * RNDIS/NCM, LwIP, httpd or WebSocket stack here.  The command handlers
+     * remain the single source of configuration semantics and are invoked by
+     * the authenticated WebHID dispatcher.
+     */
+    WebSocketCommandManager::getInstance().initializeHandlers();
+    if (!WEBHID_SERVICE.setup()) {
+        WEBHID_SERVICE.shutdown();
+        USB_DRIVER.shutdown();
+        USB_BOARD_LINK.shutdown();
+        CH585_ROLE_BOOTSTRAP.shutdown();
+        enterWebSafeState();
+        LOG_ERROR("WEBCONFIG",
+                  "Secure WebHID identity/session gate failed");
+        return;
+    }
     BOARD_POWER.releaseSafeState();
 
-    ConfigType configType = ConfigType::CONFIG_TYPE_WEB;
-    CONFIG_MANAGER.setup(configType);
-
-    // 设置QSPI为内存映射模式，方便访问Websources
+    // QSPI remains memory mapped for configuration/assets/OTA, not web pages.
     int8_t qspi_result = QSPI_W25Qxx_EnterMemoryMappedMode();
     if (qspi_result != 0) {
         LOG_ERROR("WEBCONFIG", "Failed to enter QSPI memory mapped mode, error: %d", qspi_result);
@@ -91,10 +107,10 @@ void WebConfigState::loop() {
         }
         USB_DRIVER.process();
         ADC_CALIBRATION_MANAGER.processCalibration(); // 处理校准逻辑
-        CONFIG_MANAGER.loop();
         
         // 实时更新按键状态并生成事件（在主循环中调用）
         WEBCONFIG_BTNS_MANAGER.update();
+        WEBHID_SERVICE.process();
         // 更新LED预览效果
         WEBCONFIG_LEDS_MANAGER.update(WEBCONFIG_BTNS_MANAGER.getCurrentMask());
     }
@@ -102,6 +118,11 @@ void WebConfigState::loop() {
 
 void WebConfigState::reset() {
     isRunning = false;
+    /*
+     * Remove the WebHID/ConfigTransport callbacks and destroy all session
+     * material before disconnecting or powering down the CH585 link.
+     */
+    WEBHID_SERVICE.shutdown();
     (void)ADC_CALIBRATION_MANAGER.stopCalibration();
     ADCManager::getInstance().forceStopAllSampling();
 #if HAS_LED == 1

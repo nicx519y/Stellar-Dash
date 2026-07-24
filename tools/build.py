@@ -2,7 +2,7 @@
 """
 STM32 H7xx 双槽固件构建工具
 支持构建 bootloader 和 application (槽A/槽B)
-支持烧录 bootloader 和 application
+支持烧录 application；V2 bootloader 单独烧录按安全策略拒绝
 """
 
 import os
@@ -410,44 +410,19 @@ class BuildTool:
         return success
 
     def flash_bootloader(self) -> bool:
-        """烧录 bootloader"""
+        """拒绝不完整的 V2 bootloader 单独烧录事务。"""
         print("=" * 50)
-        print("烧录 Bootloader")
+        print("Bootloader 单独烧录已禁用")
         print("=" * 50)
-        
-        bootloader_elf = self.bootloader_dir / "build" / "bootloader.elf"
-        if not bootloader_elf.exists():
-            print(f"错误: Bootloader ELF文件不存在: {bootloader_elf}")
-            print("请先构建 bootloader")
-            return False
-            
-        # 使用make flash（如果Makefile支持）
-        if (self.bootloader_dir / "Makefile").exists():
-            # 检查Makefile是否有flash目标
-            try:
-                with open(self.bootloader_dir / "Makefile", 'r') as f:
-                    makefile_content = f.read()
-                if "flash:" in makefile_content:
-                    return self.run_command(["make", "flash"], self.bootloader_dir)
-            except:
-                pass
-        
-        # 转换路径为字符串，确保Windows兼容性
-        bootloader_elf_str = str(bootloader_elf).replace('\\', '/')
-        
-        # 使用OpenOCD烧录
-        openocd_cmd = [
-            self.config["openocd_path"],
-            "-f", f"interface/{self.config['openocd_interface']}.cfg",
-            "-f", f"target/{self.config['openocd_target']}.cfg",
-            "-c", "init",
-            "-c", "halt",
-            "-c", f"flash write_image erase {bootloader_elf_str}",
-            "-c", "reset run",
-            "-c", "shutdown"
-        ]
-        
-        return self.run_command(openocd_cmd, self.bootloader_dir)
+        print(
+            "错误: STM32H750xB 的 bootloader、设备身份和防降级记录"
+            "共享一个 128KiB erase sector。"
+        )
+        print(
+            "必须使用经过评审的工厂全 sector 事务，一次性恢复 bootloader、"
+            "identity 和 minimum security version；现场工具不得擦除该 sector。"
+        )
+        return False
 
     def flash_application(self, slot: str) -> bool:
         """烧录应用程序到指定槽"""
@@ -965,7 +940,7 @@ def main():
   %(prog)s build app A                   # 构建application槽A  
   %(prog)s build app B                   # 构建application槽B
   %(prog)s build app A -j8               # 使用8个并行任务构建
-  %(prog)s flash bootloader              # 烧录bootloader
+  %(prog)s flash bootloader              # V2安全门禁：返回拒绝
   %(prog)s flash app A                   # 烧录application槽A
   %(prog)s flash app B                   # 烧录application槽B
   %(prog)s flash web A                   # 烧录Web Resources到槽A

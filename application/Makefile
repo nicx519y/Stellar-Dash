@@ -37,6 +37,17 @@ OPT = -Og
 # Build path
 BUILD_DIR = build
 
+# Optional public-only production trust bundle generated outside source
+# control. Repository fallbacks remain all-zero and therefore fail closed.
+HBOX_TRUST_HEADER ?=
+ifneq ($(strip $(HBOX_TRUST_HEADER)),)
+HBOX_TRUST_HEADER_PATH := $(HBOX_TRUST_HEADER)
+ifeq ($(wildcard $(HBOX_TRUST_HEADER_PATH)),)
+$(error HBOX_TRUST_HEADER does not exist: $(HBOX_TRUST_HEADER_PATH))
+endif
+HBOX_TRUST_COMPILE_FLAG := -include "$(HBOX_TRUST_HEADER_PATH)"
+endif
+
 # Web Resources Path
 WEB_RESOURCES_DIR = Libs/httpd/ex_fsdata.bin
 
@@ -102,7 +113,22 @@ Libs/stm32_mw_lwip/src/apps/http/httpd.c \
 Libs/httpd/fs.c \
 Libs/httpd/fsdata.c \
 Libs/tinyusb/lib/networking/dhserver.c \
-Libs/tinyusb/lib/networking/dnserver.c
+Libs/tinyusb/lib/networking/dnserver.c \
+Libs/mbedtls/library/bignum.c \
+Libs/mbedtls/library/base64.c \
+Libs/mbedtls/library/aes.c \
+Libs/mbedtls/library/cipher.c \
+Libs/mbedtls/library/cipher_wrap.c \
+Libs/mbedtls/library/constant_time.c \
+Libs/mbedtls/library/ecp.c \
+Libs/mbedtls/library/ecp_curves.c \
+Libs/mbedtls/library/ecdh.c \
+Libs/mbedtls/library/ecdsa.c \
+Libs/mbedtls/library/gcm.c \
+Libs/mbedtls/library/hkdf.c \
+Libs/mbedtls/library/md.c \
+Libs/mbedtls/library/sha256.c \
+Libs/mbedtls/library/platform_util.c
 
 # ASM sources
 ASMM_SOURCES = 
@@ -163,6 +189,7 @@ CXXFLAGS += -Wall -fdata-sections -ffunction-sections
 CXXFLAGS += -fno-exceptions -fno-rtti  # 禁用异常和RTTI以减小代码大小
 CXXFLAGS += -mfpu=fpv5-d16 -mfloat-abi=hard # 启用FPU
 CXXFLAGS += -std=c++17  # 使用 C++17 标准
+CXXFLAGS += $(HBOX_TRUST_COMPILE_FLAG)
 
 ifeq ($(DEBUG), 1)
 CXXFLAGS += -g -gdwarf-2
@@ -222,7 +249,9 @@ C_DEFS =  \
 -DRF_COMMAND_TRANSACTION_LOG=$(APP_LOG_VERBOSE) \
 -DRF_RELIABLE_EVENT_LOG=$(APP_LOG_VERBOSE) \
 -DROTENC_DEBUG_PRINT=$(APP_LOG_VERBOSE) \
--DUSB_BOARD_LINK_DEBUG=$(APP_LOG_VERBOSE)
+-DUSB_BOARD_LINK_DEBUG=$(APP_LOG_VERBOSE) \
+-DHBOX_SECURE_BOOT_REQUIRED=1 \
+-DMBEDTLS_CONFIG_FILE=\"mbedtls_boot_config.h\"
 
 
 
@@ -281,7 +310,7 @@ OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(ASMM_SOURCES:.S=.o)))
 vpath %.S $(sort $(dir $(ASMM_SOURCES)))
 
 $(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR) 
-	$(CC) -c $(CFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
+	$(CC) -c $(CFLAGS) $(HBOX_TRUST_COMPILE_FLAG) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
 
 $(BUILD_DIR)/%.o: %.cpp Makefile | $(BUILD_DIR)
 	$(CXX) -c $(CXXFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.cpp=.lst)) $< -o $@

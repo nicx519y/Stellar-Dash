@@ -14,6 +14,13 @@ typedef struct
     uint8_t calls;
 } sink_state_t;
 
+static bool s_clear_fault_succeeds = true;
+
+bool usb_management_control_hw_clear_fault(void)
+{
+    return s_clear_fault_succeeds;
+}
+
 static void assert_ncm_endpoint_topology(const uint8_t *descriptor,
                                          uint16_t length,
                                          uint16_t data_packet_bytes)
@@ -238,7 +245,7 @@ static void test_management_control(void)
         (uint8_t *)&response,
         sizeof(response),
         &response_length));
-    assert(response.header.status == USB_BOARD_STATUS_OK);
+    assert(response.header.status == USB_BOARD_STATUS_UNSUPPORTED);
 
     memset(&request, 0, sizeof(request));
     request.header.opcode = USB_BOARD_CONTROL_CONNECT;
@@ -261,7 +268,7 @@ static void test_management_control(void)
         (uint8_t *)&response,
         sizeof(response),
         &response_length));
-    assert(response.header.status == USB_BOARD_STATUS_BUSY);
+    assert(response.header.status == USB_BOARD_STATUS_UNSUPPORTED);
 
     memset(&request, 0, sizeof(request));
     request.header.opcode = USB_BOARD_CONTROL_GET_AUTH_STATUS;
@@ -274,6 +281,29 @@ static void test_management_control(void)
     assert(response.header.status == USB_BOARD_STATUS_OK);
     assert(response.header.data_length ==
            sizeof(usb_board_control_auth_status_v1_t));
+
+    memset(&request, 0, sizeof(request));
+    request.header.opcode = USB_BOARD_CONTROL_CLEAR_FAULT;
+    assert(usb_management_control_handle(
+        (const uint8_t *)&request,
+        USB_BOARD_CONTROL_HEADER_BYTES,
+        (uint8_t *)&response,
+        sizeof(response),
+        &response_length));
+    assert(response.header.status == USB_BOARD_STATUS_OK);
+    assert(usb_management_control_is_connected());
+
+    s_clear_fault_succeeds = false;
+    assert(usb_management_control_handle(
+        (const uint8_t *)&request,
+        USB_BOARD_CONTROL_HEADER_BYTES,
+        (uint8_t *)&response,
+        sizeof(response),
+        &response_length));
+    assert(response.header.status == USB_BOARD_STATUS_INTERNAL_ERROR);
+    assert(!usb_management_control_is_connected());
+    assert(usb_management_control_last_fault() ==
+           USB_BOARD_STATUS_INTERNAL_ERROR);
 }
 
 static void test_management_control_boundaries(void)

@@ -77,11 +77,13 @@ public:
     static uint32_t getKeyMappingVirtualMask(cJSON* keyMappingJSON);
     static KeyCombination getKeyCombination(cJSON* keyCombinationJSON);
     static cJSON* buildProfileJSON(GamepadProfile* profile);
+    static cJSON* buildProfileExportJSON(GamepadProfile* profile);
     static void parseProfileJSON(cJSON* profileJSON, GamepadProfile* targetProfile);
 
     // 配置文件相关命令
     WebSocketDownstreamMessage handleGetProfileList(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleGetDefaultProfile(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleGetProfileDetails(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleUpdateProfile(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleGetMacro(const WebSocketUpstreamMessage& request);
     WebSocketDownstreamMessage handleUpdateMacro(const WebSocketUpstreamMessage& request);

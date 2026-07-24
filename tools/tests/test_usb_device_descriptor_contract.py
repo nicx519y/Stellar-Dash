@@ -95,17 +95,144 @@ class UsbDeviceDescriptorRoutingContractTest(unittest.TestCase):
             r"rx_enable\s*\|=\s*RB_EP2_EN\s*;"
         )
 
-    def test_web_profile_routes_through_cdc_ncm(self) -> None:
+    def test_web_profile_is_one_fixed_size_vendor_hid(self) -> None:
         for accessor in (
-            "usb_ncm_device_descriptor",
-            "usb_ncm_configuration_descriptor",
-            "usb_ncm_string_descriptor",
-            "usb_ncm_handle_setup",
+            "usb_webhid_device_descriptor",
+            "usb_webhid_qualifier_descriptor",
+            "usb_webhid_configuration_descriptor",
+            "usb_webhid_other_speed_descriptor",
+            "usb_webhid_string_descriptor",
+            "usb_webhid_report_descriptor",
+            "usb_webhid_hid_descriptor",
         ):
             self.assertIn(accessor, self.source)
+        self.assertNotIn('#include "usb_ncm.h"', self.source)
+        self.assertNotIn("usb_ncm_handle_setup", self.source)
+        self.assertNotIn("USB_BOARD_CHANNEL_NETWORK", self.source)
         self.assert_source_regex(
-            r"tx_enable\s*\|=\s*RB_EP1_EN\s*\|\s*RB_EP2_EN\s*;\s*"
+            r"tx_enable\s*\|=\s*RB_EP1_EN\s*;\s*"
             r"rx_enable\s*\|=\s*RB_EP2_EN\s*;"
+        )
+        self.assert_source_regex(
+            r"ep2_max\s*=\s*WEBHID_REPORT_BYTES\s*;"
+        )
+        self.assert_source_regex(
+            r"USB_BOARD_CHANNEL_WEBCONFIG"
+        )
+
+    def test_suspend_ends_the_webhid_transport_generation(self) -> None:
+        self.assert_source_regex(
+            r"else if\(\(flags & USBHS_UDIF_SUSPEND\) != 0u\)"
+            r"[\s\S]+?if\(\(suspended != 0u\) && "
+            r"\(s_suspended == 0u\)\)"
+            r"[\s\S]+?data_path_reset\(true\);"
+            r"[\s\S]+?s_suspended = suspended;"
+        )
+        self.assert_source_regex(
+            r"static bool data_path_reset\(bool settle_same_bus\)"
+            r"[\s\S]+?R16_U2EP1_T_LEN\s*=\s*0u;"
+            r"[\s\S]+?R8_U2EP1_TX_CTRL\s*="
+            r"[\s\S]+?USBHS_UEP_T_TOG_DATA1"
+            r"[\s\S]+?USBHS_UEP_T_RES_NAK\);"
+            r"[\s\S]+?s_ep1_busy\s*=\s*0u;"
+            r"[\s\S]+?memset\(s_ep1_tx, 0, sizeof\(s_ep1_tx\)\);"
+            r"[\s\S]+?memset\(s_webhid_out, 0, "
+            r"sizeof\(s_webhid_out\)\);"
+            r"[\s\S]+?s_transport_reset_pending = 1u;"
+        )
+
+    def test_bus_reset_uses_the_same_transport_reset_path(self) -> None:
+        self.assert_source_regex(
+            r"else if\(\(flags & USBHS_UDIF_BUS_RST\) != 0u\)"
+            r"[\s\S]+?endpoints_init\(\);"
+            r"[\s\S]+?R8_USB2_INT_FG\s*=\s*USBHS_UDIF_BUS_RST;"
+        )
+        self.assert_source_regex(
+            r"static void endpoints_init\(void\)"
+            r"[\s\S]+?endpoint_controls_reset\(\);"
+            r"[\s\S]+?s_ep1_busy\s*=\s*0u;"
+            r"[\s\S]+?data_path_reset\(false\);"
+        )
+
+    def test_clear_fault_ack_follows_synchronous_webhid_reset(self) -> None:
+        self.assert_source_regex(
+            r"bool usb_management_control_hw_clear_fault\(void\)"
+            r"[\s\S]+?data_path_reset\(true\);"
+            r"[\s\S]+?s_transport_reset_pending\s*=\s*0u;"
+            r"[\s\S]+?usb_board_link_reset_channel\("
+            r"USB_BOARD_CHANNEL_WEBCONFIG\);"
+            r"[\s\S]+?usb_device_transport_reset\(\);"
+            r"[\s\S]+?PFIC_EnableIRQ\(USB2_DEVICE_IRQn\);"
+        )
+
+    def test_transport_reset_settles_pending_endpoint_toggles(self) -> None:
+        self.assert_source_regex(
+            r"static bool data_path_reset\(bool settle_same_bus\)"
+            r"[\s\S]+?R16_U2EP_TX_EN\s*="
+            r"[\s\S]+?saved_tx_enable[\s\S]+?~RB_EP1_EN"
+            r"[\s\S]+?R16_U2EP_RX_EN\s*="
+            r"[\s\S]+?saved_rx_enable[\s\S]+?~RB_EP2_EN"
+            r"[\s\S]+?wait_for_sie_idle\("
+            r"USBDEV_SIE_QUIESCE_TIMEOUT_MS\)"
+            r"[\s\S]+?usb_endpoint_reset_control\("
+            r"[\s\S]+?USBHS_UEP_T_DONE"
+            r"[\s\S]+?USBHS_UEP_T_TOG_DATA1"
+            r"[\s\S]+?usb_endpoint_reset_control\("
+            r"[\s\S]+?USBHS_UEP_R_DONE"
+            r"[\s\S]+?USBHS_UEP_R_TOG_MATCH"
+            r"[\s\S]+?USBHS_UEP_R_TOG_DATA1"
+            r"[\s\S]+?USBHS_UEP_R_RES_NAK"
+            r"[\s\S]+?R16_U2EP_TX_EN\s*=\s*saved_tx_enable;"
+            r"[\s\S]+?R16_U2EP_RX_EN\s*=\s*saved_rx_enable;"
+        )
+        self.assert_source_regex(
+            r"static bool wait_for_sie_idle\(uint32_t timeout_ms\)"
+            r"[\s\S]+?remaining_spins"
+            r"[\s\S]+?SysTick->CNTL - start_cycles"
+            r"[\s\S]+?return false;"
+        )
+        self.assert_source_regex(
+            r"if\(!wait_for_sie_idle\("
+            r"USBDEV_SIE_QUIESCE_TIMEOUT_MS\)\)"
+            r"[\s\S]+?~RB_PIN_USB2_EN"
+            r"[\s\S]+?USBHS_UD_RST_SIE"
+            r"[\s\S]+?reset_ok\s*=\s*false;"
+        )
+        self.assert_source_regex(
+            r"if\(settle_webhid_endpoints && reset_ok\)"
+            r"[\s\S]+?R16_U2EP_TX_EN\s*=\s*saved_tx_enable;"
+            r"[\s\S]+?R16_U2EP_RX_EN\s*=\s*saved_rx_enable;"
+        )
+
+    def test_duplicate_out_report_is_not_delivered(self) -> None:
+        self.assert_source_regex(
+            r"if\(endpoint == 2u\)"
+            r"[\s\S]+?USBHS_UEP_R_DONE"
+            r"[\s\S]+?USBHS_UEP_R_TOG_MATCH"
+            r"[\s\S]+?webhid_out_enqueue"
+            r"[\s\S]+?R8_U2EP2_RX_CTRL \^="
+            r"\s*USBHS_UEP_R_TOG_DATA1;"
+            r"[\s\S]+?~USBHS_UEP_R_DONE"
+        )
+
+    def test_ep2_reopens_only_after_lower_transport_reset(self) -> None:
+        self.assert_source_regex(
+            r"static void webhid_try_reopen_out_endpoint\(void\)"
+            r"[\s\S]+?s_webhid_ep2_blocked"
+            r"[\s\S]+?s_webhid_transport_reset_complete"
+            r"[\s\S]+?s_connected"
+            r"[\s\S]+?s_mounted"
+            r"[\s\S]+?s_suspended"
+            r"[\s\S]+?USBHS_UEP_R_RES_ACK"
+        )
+        self.assert_source_regex(
+            r"bool usb_management_control_hw_clear_fault\(void\)"
+            r"[\s\S]+?usb_board_link_reset_channel\("
+            r"USB_BOARD_CHANNEL_WEBCONFIG\);"
+            r"[\s\S]+?usb_device_transport_reset\(\);"
+            r"[\s\S]+?s_webhid_transport_reset_complete\s*=\s*1u;"
+            r"[\s\S]+?webhid_try_reopen_out_endpoint\(\);"
+            r"[\s\S]+?PFIC_EnableIRQ\(USB2_DEVICE_IRQn\);"
         )
 
 

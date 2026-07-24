@@ -92,6 +92,55 @@ def main() -> int:
         compile_and_run(
             gcc,
             "c11",
+            output_dir / "usb_endpoint_reset_control_test.exe",
+            [TESTS / "usb_endpoint_reset_control_test.c"],
+            [USB],
+        )
+        compile_and_run(
+            gcc,
+            "c11",
+            output_dir / "usb_webhid_protocol_test.exe",
+            [
+                TESTS / "usb_webhid_protocol_test.c",
+                USB / "usb_webhid.c",
+            ],
+            [COMMON, USB],
+        )
+        compile_and_run(
+            gxx,
+            "c++17",
+            output_dir / "usb_board_link_tx_resume_test.exe",
+            [
+                TESTS / "usb_board_link_tx_resume_test.cpp",
+                ROOT / "application" / "Cpp_Core" / "Src" / "usb_board_link.cpp",
+                COMMON / "usb_board_link_codec.c",
+            ],
+            [TESTS / "stubs", COMMON, APP_INC],
+        )
+        compile_and_run(
+            gcc,
+            "c11",
+            output_dir / "usb_webhid_board_link_test.exe",
+            [
+                TESTS / "usb_webhid_board_link_test.c",
+                USB / "usb_net_bridge.c",
+            ],
+            [COMMON, USB],
+        )
+        compile_and_run(
+            gcc,
+            "c11",
+            output_dir / "usb_webhid_flow_control_test.exe",
+            [
+                TESTS / "usb_webhid_flow_control_test.c",
+                USB / "usb_device.c",
+                USB / "usb_net_bridge.c",
+            ],
+            [COMMON, USB],
+        )
+        compile_and_run(
+            gcc,
+            "c11",
             output_dir / "usb_ncm_management_test.exe",
             [
                 TESTS / "usb_ncm_management_test.c",
@@ -99,6 +148,16 @@ def main() -> int:
                 USB / "usb_management_control.c",
             ],
             [COMMON, USB],
+        )
+        compile_and_run(
+            gcc,
+            "c11",
+            output_dir / "physical_confirmation_test.exe",
+            [
+                TESTS / "physical_confirmation_test.c",
+                COMMON / "physical_confirmation.c",
+            ],
+            [COMMON],
         )
 
     checked(

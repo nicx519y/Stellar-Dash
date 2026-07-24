@@ -9,7 +9,7 @@ TX/RX 策略保持冻结；新增 USB 功能使用独立的 `0x5A` UsbBoardLink�
 RF `0xA5` 解析器。USB/RF 角色必须通过 PI10 断电后重新选择，运行期不能热切换。
 
 当前代码可用于 PCB V2 首板联调。PS4/PS5 兼容、Switch、Xbox/GIP、
-WebConfig 的描述符、控制传输和认证代理代码已经从现有 STM32 实现迁移，不再是
+WebConfig vendor HID 的描述符、控制传输和认证代理代码已经从现有 STM32 实现迁移，不再是
 永久编译关闭的占位路径。但“代码已实现/离线 golden 通过”不能等同于“真实主机已
 枚举/真实认证设备已通过/整机时序已验收”；依赖真实 USB 主机、认证设备、电气极性
 和射频环境的项目仍保持运行时 fail-closed，并必须通过实机门禁。
@@ -115,8 +115,8 @@ WebConfig 的描述符、控制传输和认证代理代码已经从现有 STM32 
   分片/ACK、认证消息转发、Guide、正常 input、15s keepalive 和 OUT ACK。
 - XInput 认证控制请求的 request ID、`wValue`、`wIndex` 和长度与 STM32
   TinyUSB 来源对照通过。
-- CDC-NCM HS/FS 描述符拓扑、control/notification、NTB16 round-trip 和管理
-  control 测试通过。
+- V2 WebConfig profile 固定为单接口 64B vendor HID；NCM/LwIP/httpd/WebSocket
+  不进入 V2 运行路径。旧 NCM codec 测试仅保留为 V1 回归夹具。
 - release/OTA hardware gate、server OTA gate、Web TypeScript 和
   connect-monitor TypeScript 检查通过。
 
@@ -132,8 +132,9 @@ fail-closed 现在作用于真实运行条件，而不是用来代替实现：
 - PS4/PS5 兼容、XInput 和 Xbox/GIP 需要匹配的 USBFS Host 认证设备；未枚举、
   descriptor/接口不匹配、认证传输失败或超时都不得伪造认证成功。
 - 未完成认证时只能维持协议允许的等待/idle 状态，不能对外报告 authenticated。
-- WebConfig 只能在 maintenance role 使用；NCM link/alt-setting/control 不完整时
-  不得宣告网络数据面 ready。
+- WebConfig 只能在 maintenance role 使用；制造证书、boot attestation、服务器
+  permit、scope 或 AES-GCM session 任一不完整时，配置、监控、OTA 和控制命令
+  全部拒绝。
 - `USB_CONTROL` 的非法长度、未知 opcode、连接期修改 MAC、硬件未就绪分别返回
   明确错误，不用空 ACK 掩盖失败。
 - profile/capability 不匹配时禁止进入对应 USB/Web 状态，不回退到未连接的 STM32
@@ -153,7 +154,8 @@ fail-closed 现在作用于真实运行条件，而不是用来代替实现：
 - Xbox/GIP exact descriptor 枚举、500ms announce、descriptor 分片 ACK、认证设备
   转发、Guide/keepalive/rumble/LED 的实机时序。
 - USBFS Host 热插拔、断连重枚举、错误认证设备拒绝和认证故障恢复。
-- WebConfig CDC-NCM HS/FS 枚举、alt-setting、notification、NTB 压力、LwIP/httpd/
-  WebSocket 端到端和 `USB_CONTROL` 实机连接/断开/故障恢复。
+- WebConfig vendor HID 的 FS/HS 枚举、真实制造证书/服务器 permit、100Hz 遥测
+  30 分钟丢包与延迟、WebHID 拔插/挂起/重连、端点 toggle/credit/reset，以及
+  B/S 页面与 `USB_CONTROL` 实机连接/断开/故障恢复。
 - 相同 10B 输入的 14B SPI/7B RF 逐字节比较，以及配对、bond、ACK、跳频、
   125us 时隙、丢包率和延迟复测。

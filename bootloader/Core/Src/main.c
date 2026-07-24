@@ -27,6 +27,9 @@
 #include "qspi-w25q64.h"
 #include "board_cfg.h"
 #include "dual_slot_config.h"
+#include "boot_attestation.h"
+#include "firmware_security.h"
+#include "secure_access_handoff.h"
 #include "system_logger.h"  // 日志模块头文件
 #include "gpio.h"
 /* USER CODE END Includes */
@@ -294,8 +297,7 @@ void Error_Handler(void)
 
 void JumpToApplication(void)
 {
-
-    
+    BootAttestation_Invalidate();
 
 
     // 进入内存映射模式
@@ -315,6 +317,13 @@ void JumpToApplication(void)
     FirmwareSlot target_slot;
     
     if (load_result != 0) {
+#if HBOX_SECURE_BOOT_REQUIRED
+        Logger_Log(LOG_LEVEL_ERROR, "METADATA",
+                   "Signed metadata validation failed (code=%d); entering recovery",
+                   load_result);
+        BOOT_ERR("Secure metadata validation failed; refusing unsigned fallback");
+        return;
+#else
         Logger_Log(LOG_LEVEL_WARN, "METADATA", "Metadata load failed (code=%d), using default slot A", load_result);
         
         // 使用默认地址
@@ -334,6 +343,7 @@ void JumpToApplication(void)
         
         target_slot = FIRMWARE_SLOT_A;
         goto perform_jump;
+#endif
     }
     
     // 元数据加载成功
@@ -345,6 +355,12 @@ void JumpToApplication(void)
     
     // 验证目标槽位有效性
     if (!DualSlot_IsSlotValid(target_slot)) {
+#if HBOX_SECURE_BOOT_REQUIRED
+        Logger_Log(LOG_LEVEL_ERROR, "SLOT",
+                   "Signed target slot invalid; entering controlled recovery");
+        BOOT_ERR("Signed target slot is invalid; refusing unauthenticated fallback");
+        return;
+#else
         FirmwareSlot backup_slot = (target_slot == FIRMWARE_SLOT_A) ? FIRMWARE_SLOT_B : FIRMWARE_SLOT_A;
         Logger_Log(LOG_LEVEL_WARN, "SLOT", "Target slot %s invalid, trying backup slot %s", 
                          (target_slot == FIRMWARE_SLOT_A) ? "A" : "B",
@@ -358,6 +374,7 @@ void JumpToApplication(void)
                      (backup_slot == FIRMWARE_SLOT_A) ? "A" : "B");
             return;
         }
+#endif
     }
     
     // 获取应用程序地址
@@ -392,6 +409,48 @@ perform_jump:
         return;
     }
 
+#if HBOX_SECURE_BOOT_REQUIRED
+    hbox_secure_access_status_t secure_access_status =
+        HBoxSecureAccess_ValidateLifecycle();
+    if (secure_access_status != HBOX_SECURE_ACCESS_OK) {
+        BootAttestation_Invalidate();
+        Logger_Log(LOG_LEVEL_ERROR, "SECURE_ACCESS",
+                   "Lifecycle validation failed: %s (%d)",
+                   HBoxSecureAccess_StatusString(secure_access_status),
+                   (int)secure_access_status);
+        BOOT_ERR("Secure user area is not ready; refusing application handoff");
+        return;
+    }
+
+    /*
+     * The complete target slot and its release signature were accepted above.
+     * Commit the new minimum before transferring execution so that a reset
+     * cannot re-open an older signed image. Missing/unprovisioned/corrupt
+     * monotonic storage is a recovery condition, never a reason to continue.
+     */
+    if (!FirmwareSecurity_CommitValidatedSecurityVersion(&metadata)) {
+        hbox_security_version_status_t version_status =
+            FirmwareSecurity_LastSecurityVersionStatus();
+        Logger_Log(LOG_LEVEL_ERROR, "ANTIROLLBACK",
+                   "Minimum security-version commit failed: %s (%d)",
+                   HBoxSecurityVersion_StatusString(version_status),
+                   (int)version_status);
+        BOOT_ERR("Anti-rollback provider unavailable or invalid; refusing jump");
+        return;
+    }
+
+    /*
+     * No identity, invalid manufacturer certificate, entropy failure, or
+     * signing failure means no application handoff.  This is the device-side
+     * root for the later WebHID online proof.
+     */
+    if (!BootAttestation_Prepare(&metadata)) {
+        Logger_Log(LOG_LEVEL_ERROR, "ATTESTATION",
+                   "Unable to create an authenticated boot context");
+        BOOT_ERR("Device identity/boot attestation unavailable; refusing jump");
+        return;
+    }
+#endif
 
     BOOT_DBG("Jumping to slot %s: Base=0x%08lX, SP=0x%08lX, PC=0x%08lX", 
                      (target_slot == FIRMWARE_SLOT_A) ? "A" : "B",
@@ -443,6 +502,15 @@ perform_jump:
         return;
     }
 
+#if HBOX_SECURE_BOOT_REQUIRED
+    /*
+     * Do not load the application MSP before invoking RSS: the ROM service
+     * still needs the secure bootloader stack while it closes the internal
+     * Flash secure area.  RSS consumes the vector table and performs the
+     * final transfer.  A direct branch would leave Kdev readable by QSPI code.
+     */
+    HBoxSecureAccess_ExitToApplication(app_base_address);
+#else
     // 设置主堆栈指针
     __set_MSP(app_stack);
     uint32_t current_msp = __get_MSP();
@@ -471,6 +539,7 @@ perform_jump:
     
     // 跳转到应用程序
     app_reset_handler();
+#endif
 
     // 不应该到达这里
     BOOT_ERR("Jump failed! Program should not return here");

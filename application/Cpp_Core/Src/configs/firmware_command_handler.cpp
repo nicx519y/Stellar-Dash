@@ -7,6 +7,7 @@
 #include <string>
 #include "storagemanager.hpp"
 #include "qspi-w25q64.h"
+#include "config_transport_sink.hpp"
 
 namespace {
 
@@ -54,6 +55,46 @@ bool isValidStm32OtaComponentSet(const cJSON* components) {
         }
     }
     return true;
+}
+
+int decodeHexDigit(char digit) {
+    if (digit >= '0' && digit <= '9') return digit - '0';
+    if (digit >= 'a' && digit <= 'f') return digit - 'a' + 10;
+    if (digit >= 'A' && digit <= 'F') return digit - 'A' + 10;
+    return -1;
+}
+
+bool decodeHexField(const cJSON* item, uint8_t* output, size_t outputLength) {
+    if (!item || !cJSON_IsString(item) || !output) return false;
+    const char* encoded = cJSON_GetStringValue(item);
+    if (!encoded || strlen(encoded) != outputLength * 2) return false;
+    for (size_t i = 0; i < outputLength; ++i) {
+        const int high = decodeHexDigit(encoded[i * 2]);
+        const int low = decodeHexDigit(encoded[i * 2 + 1]);
+        if (high < 0 || low < 0) return false;
+        output[i] = static_cast<uint8_t>((high << 4) | low);
+    }
+    return true;
+}
+
+bool parseUint32(const cJSON* item, uint32_t* output) {
+    if (!item || !output) return false;
+    if (cJSON_IsNumber(item)) {
+        const double value = cJSON_GetNumberValue(item);
+        if (value < 0 || value > 4294967295.0) return false;
+        *output = static_cast<uint32_t>(value);
+        return true;
+    }
+    if (cJSON_IsString(item)) {
+        const char* text = cJSON_GetStringValue(item);
+        if (!text || *text == '\0') return false;
+        char* end = nullptr;
+        const unsigned long value = strtoul(text, &end, 0);
+        if (end == text || *end != '\0' || value > 0xFFFFFFFFul) return false;
+        *output = static_cast<uint32_t>(value);
+        return true;
+    }
+    return false;
 }
 
 } // namespace
@@ -115,6 +156,18 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handle(const WebSocketUpstrea
  * }
  */
 WebSocketDownstreamMessage FirmwareCommandHandler::handleGetDeviceAuth(const WebSocketUpstreamMessage& request) {
+#if defined(HBOX_SECURE_BOOT_REQUIRED) && HBOX_SECURE_BOOT_REQUIRED
+    /*
+     * V2 identity is proven only by the manufacturer certificate, boot
+     * attestation and one-shot server permit.  Never expose the STM32 UID or
+     * the historical public 32-bit hash from a secure build.
+     */
+    return create_error_response(
+        request.getCid(),
+        request.getCommand(),
+        410,
+        "Legacy weak device authentication is disabled");
+#else
     // LOG_INFO("WebSocket", "Handling get_device_auth command, cid: %d", request.getCid());
     
     // 创建设备认证数据
@@ -126,6 +179,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleGetDeviceAuth(const Web
     
     // LOG_INFO("WebSocket", "get_device_auth command completed successfully");
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+#endif
 }
 
 /**
@@ -237,7 +291,15 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleCreateFirmwareUpgradeSe
 
     // 解析manifest到FirmwareMetadata结构
     FirmwareMetadata manifest = {0};
+    manifest.magic = FIRMWARE_MAGIC;
+    manifest.metadata_version_major = METADATA_VERSION_MAJOR;
+    manifest.metadata_version_minor = METADATA_VERSION_MINOR;
+    manifest.metadata_size = METADATA_STRUCT_SIZE;
+    strncpy(manifest.device_model,
+            DEVICE_MODEL_STRING,
+            sizeof(manifest.device_model) - 1);
     manifest.hardware_version = HARDWARE_VERSION;
+    manifest.bootloader_min_version = BOOTLOADER_VERSION;
     
     // 解析版本
     cJSON* versionItem = cJSON_GetObjectItem(manifestItem, "version");
@@ -263,6 +325,40 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleCreateFirmwareUpgradeSe
     if (buildDateItem && cJSON_IsString(buildDateItem)) {
         strncpy(manifest.build_date, cJSON_GetStringValue(buildDateItem), sizeof(manifest.build_date) - 1);
     }
+
+    uint32_t signatureAlgorithm = 0;
+    uint32_t securityVersion = 0;
+    const cJSON* buildTimestampItem =
+        cJSON_GetObjectItem(manifestItem, "build_timestamp");
+    const cJSON* signatureAlgorithmItem =
+        cJSON_GetObjectItem(manifestItem, "signature_algorithm");
+    const cJSON* securityVersionItem =
+        cJSON_GetObjectItem(manifestItem, "security_version");
+    const cJSON* webresourcesOptionalItem =
+        cJSON_GetObjectItem(manifestItem, "webresources_optional");
+    if (!parseUint32(buildTimestampItem, &manifest.build_timestamp) ||
+        !parseUint32(signatureAlgorithmItem, &signatureAlgorithm) ||
+        !parseUint32(securityVersionItem, &securityVersion) ||
+        signatureAlgorithm != FIRMWARE_SIGNATURE_ECDSA_P256_SHA256 ||
+        securityVersion < FIRMWARE_SECURITY_VERSION ||
+        !webresourcesOptionalItem ||
+        !cJSON_IsBool(webresourcesOptionalItem) ||
+        !decodeHexField(cJSON_GetObjectItem(manifestItem, "firmware_hash"),
+                        manifest.firmware_hash,
+                        sizeof(manifest.firmware_hash)) ||
+        !decodeHexField(cJSON_GetObjectItem(manifestItem, "signature"),
+                        manifest.signature,
+                        sizeof(manifest.signature))) {
+        return create_error_response(
+            request.getCid(),
+            request.getCommand(),
+            1,
+            "Signed firmware manifest fields are missing or invalid");
+    }
+    manifest.signature_algorithm = signatureAlgorithm;
+    manifest.security_version = securityVersion;
+    manifest.webresources_optional =
+        cJSON_IsTrue(webresourcesOptionalItem) ? 1 : 0;
     
     // 解析组件
     if (componentsItem && cJSON_IsArray(componentsItem)) {
@@ -272,6 +368,7 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleCreateFirmwareUpgradeSe
             cJSON* compItem = cJSON_GetArrayItem(componentsItem, i);
             if (compItem) {
                 FirmwareComponent* comp = &manifest.components[i];
+                comp->active = true;
                 
                 cJSON* nameItem = cJSON_GetObjectItem(compItem, "name");
                 if (nameItem && cJSON_IsString(nameItem)) {
@@ -284,8 +381,10 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleCreateFirmwareUpgradeSe
                 }
                 
                 cJSON* addressItem = cJSON_GetObjectItem(compItem, "address");
-                if (addressItem && cJSON_IsNumber(addressItem)) {
-                    comp->address = (uint32_t)cJSON_GetNumberValue(addressItem);
+                if (!parseUint32(addressItem, &comp->address)) {
+                    return create_error_response(
+                        request.getCid(), request.getCommand(), 1,
+                        "Invalid component address");
                 }
                 
                 cJSON* sizeItem = cJSON_GetObjectItem(compItem, "size");
@@ -523,6 +622,14 @@ bool FirmwareCommandHandler::handleBinaryFirmwareChunk(const uint8_t* data, size
         sendBinaryChunkResponse(connection, false, header->chunk_index, 0, "Invalid command");
         return false;
     }
+    if (header->session_id_len == 0 ||
+        header->session_id_len > sizeof(header->session_id) ||
+        header->component_name_len == 0 ||
+        header->component_name_len > sizeof(header->component_name)) {
+        sendBinaryChunkResponse(connection, false, header->chunk_index, 0,
+                                "Invalid header string length");
+        return false;
+    }
     
     // 提取字符串参数
     std::string sessionId(header->session_id, header->session_id_len);
@@ -533,8 +640,10 @@ bool FirmwareCommandHandler::handleBinaryFirmwareChunk(const uint8_t* data, size
     size_t payload_size = length - payload_offset;
     
     if (payload_size != header->chunk_size) {
-        LOG_WARN("WebSocket", "Payload size mismatch: expected %u, actual %zu", header->chunk_size, payload_size);
-        // 使用实际大小继续处理
+        LOG_ERROR("WebSocket", "Payload size mismatch: expected %u, actual %zu", header->chunk_size, payload_size);
+        sendBinaryChunkResponse(connection, false, header->chunk_index, 0,
+                                "Payload size mismatch");
+        return false;
     }
     
     // LOG_INFO("WebSocket", "Binary chunk: session=%s, component=%s, index=%u/%u, size=%u, offset=%u, addr=0x%08X",
@@ -556,9 +665,9 @@ bool FirmwareCommandHandler::handleBinaryFirmwareChunk(const uint8_t* data, size
     chunk.chunk_offset = header->chunk_offset;
     chunk.target_address = header->target_address;
     
-    // 复制校验和（只使用前8字节）
-    char checksum_str[17] = {0};
-    for (int i = 0; i < 8; i++) {
+    // 复制完整32字节SHA-256。
+    char checksum_str[65] = {0};
+    for (int i = 0; i < 32; i++) {
         sprintf(checksum_str + i*2, "%02x", header->checksum[i]);
     }
     strncpy(chunk.checksum, checksum_str, sizeof(chunk.checksum) - 1);
@@ -603,8 +712,6 @@ bool FirmwareCommandHandler::handleBinaryFirmwareChunk(const uint8_t* data, size
 void FirmwareCommandHandler::sendBinaryChunkResponse(WebSocketConnection* connection, bool success, 
                                                     uint32_t chunk_index, uint32_t progress, 
                                                     const char* error_message) {
-    if (!connection) return;
-    
     // 构建二进制响应（简化格式）
     struct BinaryChunkResponse {
         uint8_t command;        // 0x81 表示响应
@@ -632,7 +739,10 @@ void FirmwareCommandHandler::sendBinaryChunkResponse(WebSocketConnection* connec
     }
     
     // 发送二进制响应
-    connection->send_binary((const uint8_t*)&response, sizeof(response));
+    ConfigTransport_ReplyBinary(
+        connection,
+        reinterpret_cast<const uint8_t *>(&response),
+        sizeof(response));
     
     APP_DBG("Binary chunk response sent: success=%d, chunk_index=%u, progress=%u", 
             response.success, response.chunk_index, response.progress);
@@ -792,13 +902,41 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleCleanupFirmwareUpgradeS
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to get firmware manager instance");
     }
 
-    // 强制清理当前会话
-    manager->ForceCleanupSession();
-    
-    // 返回成功响应
+    cJSON* params = request.getParams();
+    cJSON* sessionIdItem = params
+        ? cJSON_GetObjectItem(params, "session_id")
+        : nullptr;
+    if (!sessionIdItem || !cJSON_IsString(sessionIdItem) ||
+        cJSON_GetStringValue(sessionIdItem) == nullptr ||
+        cJSON_GetStringValue(sessionIdItem)[0] == '\0') {
+        return create_error_response(
+            request.getCid(),
+            request.getCommand(),
+            1,
+            "Missing session ID");
+    }
+
+    /*
+     * An external cleanup request must be session-bound.  ForceCleanupSession
+     * intentionally has no identifier and is reserved for trusted internal
+     * expiry handling; exposing it here would let any permit holder destroy a
+     * physically confirmed upgrade owned by another session.
+     */
+    const char* sessionId = cJSON_GetStringValue(sessionIdItem);
+    const bool success = manager->AbortUpgradeSession(sessionId);
     cJSON* dataJSON = cJSON_CreateObject();
-    cJSON_AddBoolToObject(dataJSON, "success", true);
-    cJSON_AddStringToObject(dataJSON, "message", "Session cleanup completed successfully");
+    cJSON_AddBoolToObject(dataJSON, "success", success);
+    if (success) {
+        cJSON_AddStringToObject(
+            dataJSON,
+            "message",
+            "Session cleanup completed successfully");
+    } else {
+        cJSON_AddStringToObject(
+            dataJSON,
+            "error",
+            "Session not found or session ID mismatch");
+    }
 
     // LOG_INFO("WebSocket", "cleanup_firmware_upgrade_session command completed");
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
@@ -874,6 +1012,14 @@ uint8_t* FirmwareCommandHandler::base64_decode_websocket(const char* base64_data
  * @brief 创建设备认证数据的JSON对象（从webconfig.cpp复制）
  */
 cJSON* FirmwareCommandHandler::createDeviceAuthJSON() {
+#if defined(HBOX_SECURE_BOOT_REQUIRED) && HBOX_SECURE_BOOT_REQUIRED
+    /*
+     * Keep this symbol for source compatibility, but make accidental calls
+     * fail closed in V2.  Explicit legacy builds can set
+     * HBOX_SECURE_BOOT_REQUIRED=0 and retain the former wire contract.
+     */
+    return nullptr;
+#else
     cJSON* data = cJSON_CreateObject();
     
     char* uniqueId = str_stm32_unique_id();
@@ -913,6 +1059,7 @@ cJSON* FirmwareCommandHandler::createDeviceAuthJSON() {
     free(deviceId);
     
     return data;
+#endif
 }
 
 /**

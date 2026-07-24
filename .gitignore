@@ -14,6 +14,8 @@ application/build
 bootloader/build
 releases
 tools/__pycache__
+tools/tests/__pycache__/
+*.py[cod]
 server/node_modules/
 server/uploads/
 server/data/

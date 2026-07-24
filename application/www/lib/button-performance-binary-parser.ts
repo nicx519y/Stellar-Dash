@@ -22,6 +22,10 @@ export interface ButtonPerformanceMonitoringBinaryData {
   buttonCount: number;    // 本次推送的按键数量
   timestamp: number;      // 时间戳
   maxTravelDistance: number; // 最大物理行程（mm），从当前映射获取
+  /** V2 WebHID source timestamp. Existing WebSocket frames omit this. */
+  deviceTimestampUs?: number;
+  /** Cumulative latest-wins sample drops reported by the device. */
+  droppedSamples?: number;
   buttonData: ButtonPerformanceData[]; // 按键数据数组
 }
 
@@ -146,4 +150,4 @@ export function isButtonPerformanceMonitoringData(buffer: ArrayBuffer | Uint8Arr
   } catch {
     return false;
   }
-} 
+}

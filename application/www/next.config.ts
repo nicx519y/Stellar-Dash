@@ -5,10 +5,14 @@ import TerserPlugin from 'terser-webpack-plugin';
 const nextConfig: NextConfig = {
     output: "export",   // 指定输出模式，export 表示导出静态文件，export 模式下，next 会生成一个 dist 目录，里面包含所有静态文件，使用这个模式的时候 要暂时删除 app/api 
     distDir: process.env.NODE_ENV === 'development' ? 'build-dev' : 'build',
-    // 忽略 build 错误
+    // Hosted V2 builds must fail on type errors.
     typescript: {
-        ignoreBuildErrors: true,
+        ignoreBuildErrors: false,
     },
+    images: {
+        unoptimized: true,
+    },
+    trailingSlash: true,
     // 禁用 telemetry   
     // telemetry: {
     //     enabled: false,
@@ -62,34 +66,6 @@ const nextConfig: NextConfig = {
     compress: true,
     poweredByHeader: false,
     generateEtags: false,
-    async rewrites() {
-        return [
-            {
-                source: '/global',  
-                destination: '/',
-            },
-            {
-                source: '/keys',
-                destination: '/',
-            },
-            {
-                source: '/leds',
-                destination: '/',
-            },
-            {
-                source: '/buttons-performance',
-                destination: '/',
-            },
-            {
-                source: '/switch-marking',
-                destination: '/',
-            },
-            {
-                source: '/firmware',
-                destination: '/',
-            },
-        ];
-    },
 };
 
 export default withBundleAnalyzer({

@@ -3,6 +3,7 @@
 #include "qspi-w25q64.h"
 #include "board_cfg.h"
 #include "system_logger.h"
+#include "config_transport_sink.hpp"
 #include <cstring>
 #include <cstdio>
 
@@ -164,7 +165,6 @@ static struct {
 } g_user_image_upload_session = {0};
 
 static void send_user_image_binary_response(WebSocketConnection* connection, uint8_t resp_cmd, bool success, uint32_t cid, uint32_t received, uint32_t total, const char* error_message) {
-    if (!connection) return;
     BinaryUserImageResponse response = {0};
     response.command = resp_cmd;
     response.success = success ? 1 : 0;
@@ -178,7 +178,10 @@ static void send_user_image_binary_response(WebSocketConnection* connection, uin
         memcpy(response.error_msg, error_message, n);
         response.error_msg[n] = '\0';
     }
-    connection->send_binary((const uint8_t*)&response, sizeof(response));
+    ConfigTransport_ReplyBinary(
+        connection,
+        reinterpret_cast<const uint8_t *>(&response),
+        sizeof(response));
 }
 
 static int8_t qspi_write_bytes(uint32_t address, const uint8_t* data, uint32_t length) {
@@ -295,7 +298,6 @@ static bool read_index_header(uint8_t target, UserImageIndexHeader& out) {
 }
 
 static void send_get_bg_info_response(WebSocketConnection* conn, uint32_t cid) {
-    if (!conn) return;
     BinaryGetBgImageInfoResponse resp = {0};
     resp.command = BINARY_CMD_GET_BG_IMAGE_INFO_RESP;
     resp.success = 1;
@@ -331,11 +333,13 @@ static void send_get_bg_info_response(WebSocketConnection* conn, uint32_t cid) {
         strncpy(resp.sys_id, SYS_IMAGE_ID, sizeof(resp.sys_id) - 1);
     }
 
-    conn->send_binary((const uint8_t*)&resp, sizeof(resp));
+    ConfigTransport_ReplyBinary(
+        conn,
+        reinterpret_cast<const uint8_t *>(&resp),
+        sizeof(resp));
 }
 
 static void send_read_chunk_response(WebSocketConnection* conn, const BinaryReadBgImageChunkHeader* req, const uint8_t* chunk, uint16_t chunk_size, uint8_t format, uint16_t width, uint16_t height, uint32_t total, const char* error_message) {
-    if (!conn) return;
     BinaryReadBgImageChunkResponseHeader h = {0};
     h.command = BINARY_CMD_READ_BG_IMAGE_CHUNK_RESP;
     h.success = (error_message == nullptr) ? 1 : 0;
@@ -359,9 +363,10 @@ static void send_read_chunk_response(WebSocketConnection* conn, const BinaryRead
     memcpy(buffer, &h, sizeof(h));
     if (!error_message && chunk && chunk_size > 0) {
         memcpy(buffer + sizeof(h), chunk, chunk_size);
-        conn->send_binary(buffer, sizeof(h) + chunk_size);
+        ConfigTransport_ReplyBinary(
+            conn, buffer, sizeof(h) + chunk_size);
     } else {
-        conn->send_binary(buffer, sizeof(h));
+        ConfigTransport_ReplyBinary(conn, buffer, sizeof(h));
     }
 }
 

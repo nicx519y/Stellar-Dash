@@ -1,0 +1,130 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const http = require('node:http');
+const os = require('node:os');
+const path = require('node:path');
+const test = require('node:test');
+
+const express = require('express');
+const {
+    inlineScriptHashes,
+    installHostedWebConfig,
+    resolveHostedWebConfigOptions
+} = require('../src/hosted-webconfig');
+const {
+    parseTrustedProxyHops,
+    securityHeaders
+} = require('../src/http-security');
+
+function request(server, requestPath) {
+    return new Promise((resolve, reject) => {
+        const address = server.address();
+        const request = http.get({
+            host: '127.0.0.1',
+            port: address.port,
+            path: requestPath
+        }, response => {
+            const chunks = [];
+            response.on('data', chunk => chunks.push(chunk));
+            response.on('end', () => resolve({
+                status: response.statusCode,
+                headers: response.headers,
+                body: Buffer.concat(chunks).toString('utf8')
+            }));
+        });
+        request.on('error', reject);
+    });
+}
+
+test('hosted export serves HTML and immutable Next assets', async t => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hbox-webconfig-'));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    fs.mkdirSync(path.join(root, '_next', 'static'), { recursive: true });
+    fs.writeFileSync(
+        path.join(root, 'index.html'),
+        '<!doctype html><script>globalThis.__NEXT_BOOT=1;</script>HBox'
+    );
+    fs.writeFileSync(
+        path.join(root, '_next', 'static', 'app.123.js'),
+        'globalThis.HBOX=true;'
+    );
+
+    const app = express();
+    app.use(securityHeaders);
+    app.get('/api/status', (req, res) => res.json({ api: true }));
+    const state = installHostedWebConfig(app, {
+        staticDir: root,
+        required: true
+    });
+    app.use((req, res) => res.status(404).json({ missing: req.path }));
+    const server = app.listen(0);
+    t.after(() => new Promise(resolve => server.close(resolve)));
+
+    assert.equal(state.enabled, true);
+    const page = await request(server, '/');
+    assert.equal(page.status, 200);
+    assert.match(page.body, /HBox/);
+    assert.equal(page.headers['cache-control'], 'no-cache, no-store');
+    const [expectedHash] = inlineScriptHashes(
+        '<script>globalThis.__NEXT_BOOT=1;</script>'
+    );
+    assert.match(
+        page.headers['content-security-policy'],
+        new RegExp(expectedHash.replace(/[+]/g, '\\+'))
+    );
+    assert.doesNotMatch(
+        page.headers['content-security-policy'],
+        /script-src[^;]*unsafe-inline/
+    );
+
+    const asset = await request(server, '/_next/static/app.123.js');
+    assert.equal(asset.status, 200);
+    assert.match(asset.headers['cache-control'], /immutable/);
+
+    const api = await request(server, '/api/status');
+    assert.equal(api.status, 200);
+    assert.deepEqual(JSON.parse(api.body), { api: true });
+
+    const unknownApi = await request(server, '/api/not-found');
+    assert.equal(unknownApi.status, 404);
+    assert.deepEqual(
+        JSON.parse(unknownApi.body),
+        { missing: '/api/not-found' }
+    );
+});
+
+test('required hosted export fails closed when index is absent', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hbox-webconfig-'));
+    try {
+        assert.throws(
+            () => installHostedWebConfig(express(), {
+                staticDir: root,
+                required: true
+            }),
+            /index is missing/
+        );
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test('deployment environment resolves an explicit static directory', () => {
+    const root = path.resolve('deployed-webconfig');
+    const options = resolveHostedWebConfigOptions({
+        WEB_CONFIG_STATIC_DIR: root,
+        WEB_CONFIG_REQUIRE_STATIC: 'true'
+    }, path.resolve('server'));
+    assert.deepEqual(options, {
+        staticDir: root,
+        required: true
+    });
+});
+
+test('trusted proxy hop count is explicit and narrowly bounded', () => {
+    assert.equal(parseTrustedProxyHops(undefined), 0);
+    assert.equal(parseTrustedProxyHops('1'), 1);
+    assert.throws(() => parseTrustedProxyHops('true'), /must be 0, 1, or 2/);
+    assert.throws(() => parseTrustedProxyHops('3'), /must be 0, 1, or 2/);
+});

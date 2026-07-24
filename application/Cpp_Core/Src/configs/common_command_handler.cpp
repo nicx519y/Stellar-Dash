@@ -4,6 +4,7 @@
 #include "adc_btns/adc_calibration.hpp"
 #include "configs/webconfig_btns_manager.hpp"
 #include "configs/websocket_server.hpp"
+#include "config_transport_sink.hpp"
 
 // 获取按键管理器实例  
 #define WEBCONFIG_BTNS_MANAGER WebConfigBtnsManager::getInstance()
@@ -44,14 +45,12 @@ CommonCommandHandler& CommonCommandHandler::getInstance() {
  * @brief 推送按键状态变化通知（二进制格式）
  */
 void CommonCommandHandler::sendButtonStateNotification() {
-    // 获取WebSocket服务器实例
-    WebSocketServer& server = WebSocketServer::getInstance();
-    
     // 构建二进制按键状态数据
     ButtonStateBinaryData binaryData = buildButtonStateBinaryData();
     
-    // 发送二进制数据到所有连接的客户端
-    server.broadcast_binary(reinterpret_cast<const uint8_t*>(&binaryData), sizeof(ButtonStateBinaryData));
+    ConfigTransport_PublishBinary(
+        reinterpret_cast<const uint8_t*>(&binaryData),
+        sizeof(ButtonStateBinaryData));
     
     APP_DBG("Button state binary notification sent to all clients (cmd=%d, active=%d, mask=0x%08X, total=%d)", 
             binaryData.command, binaryData.isActive, binaryData.triggerMask, binaryData.totalButtons);
@@ -70,14 +69,18 @@ void CommonCommandHandler::sendButtonPerformanceMonitoringNotification() {
         return;
     }
 
+    /*
+     * V2 sends compact telemetry from WebHidService.  Avoid rebuilding the
+     * 444-byte legacy snapshot when no legacy WebSocket client exists.
+     */
+    if (WebSocketServer::getInstance().get_connection_count() == 0u) {
+        return;
+    }
+
     // 构建完整的二进制数据（每次都执行，用于更新缓存）
     std::vector<uint8_t> binaryData = WEBCONFIG_BTNS_MANAGER.buildButtonPerformanceMonitoringBinaryData();
     
-    // 获取WebSocket服务器实例
-    WebSocketServer& server = WebSocketServer::getInstance();
-    
-    // 发送二进制数据到所有连接的客户端
-    server.broadcast_binary(binaryData.data(), binaryData.size());
+    ConfigTransport_PublishBinary(binaryData.data(), binaryData.size());
     
     // 更新发送时间
     lastSendTime = currentTime;
@@ -227,6 +230,28 @@ WebSocketDownstreamMessage CommonCommandHandler::handleStopButtonMonitoring(cons
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
+WebSocketDownstreamMessage CommonCommandHandler::handleGetButtonStates(
+    const WebSocketUpstreamMessage& request)
+{
+    const ButtonStateBinaryData snapshot = buildButtonStateBinaryData();
+    cJSON *dataJSON = cJSON_CreateObject();
+    if (dataJSON == nullptr) {
+        return create_error_response(
+            request.getCid(),
+            request.getCommand(),
+            1,
+            "Failed to create button-state snapshot");
+    }
+    cJSON_AddBoolToObject(
+        dataJSON, "isActive", snapshot.isActive != 0u);
+    cJSON_AddNumberToObject(
+        dataJSON, "triggerMask", snapshot.triggerMask);
+    cJSON_AddNumberToObject(
+        dataJSON, "totalButtons", snapshot.totalButtons);
+    return create_success_response(
+        request.getCid(), request.getCommand(), dataJSON);
+}
+
 // ============================================================================
 // 命令路由处理
 // ============================================================================
@@ -249,6 +274,8 @@ WebSocketDownstreamMessage CommonCommandHandler::handle(const WebSocketUpstreamM
         return handleGetDeviceLogsList(request);
     } else if (command == "get_hitbox_layout") {
         return handleGetHitboxLayout(request);
+    } else if (command == "get_button_states") {
+        return handleGetButtonStates(request);
     }
     
     return create_error_response(request.getCid(), command, -1, "Unknown common command");

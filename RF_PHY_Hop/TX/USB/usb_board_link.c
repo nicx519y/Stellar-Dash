@@ -8,9 +8,9 @@
 #include "usb_management_control.h"
 #include "usb_net_bridge.h"
 #include "usb_profiles.h"
+#include "webhid_protocol.h"
 
 #define USB_LINK_INPUT_VERSION_MASK 0xF0u
-#define USB_LINK_CHANNEL_SLOTS 6u
 
 typedef struct
 {
@@ -32,10 +32,25 @@ static uint8_t s_state_dirty;
 static uint8_t s_state_valid;
 static uint8_t s_port_fault_pending;
 static usb_board_usb_state_v1_t s_last_state;
-static uint8_t s_tx_credits[USB_LINK_CHANNEL_SLOTS];
+static uint8_t s_tx_credits[USB_BOARD_CHANNEL_SLOTS];
 static uint8_t s_credit_dirty_mask;
-static uint8_t s_next_transaction[USB_LINK_CHANNEL_SLOTS];
+static uint8_t s_next_transaction[USB_BOARD_CHANNEL_SLOTS];
 static usb_board_outbound_t s_outbound;
+
+static void clear_outbound(void)
+{
+    uint16_t used = (s_outbound.length <= USB_BOARD_BULK_MESSAGE_MAX_BYTES)
+        ? s_outbound.length
+        : USB_BOARD_BULK_MESSAGE_MAX_BYTES;
+
+    if(used != 0u)
+    {
+        memset(s_outbound.data, 0, used);
+    }
+    memset(&s_outbound,
+           0,
+           sizeof(s_outbound) - sizeof(s_outbound.data));
+}
 
 static bool queue_event(uint8_t command, const void *payload, uint8_t length)
 {
@@ -113,7 +128,7 @@ static void queue_state(void)
 static void mark_credit_dirty(usb_board_channel_t channel)
 {
     const uint8_t index = (uint8_t)channel;
-    if((index != 0u) && (index < USB_LINK_CHANNEL_SLOTS))
+    if((index != 0u) && (index < USB_BOARD_CHANNEL_SLOTS))
     {
         s_credit_dirty_mask |= (uint8_t)(1u << index);
     }
@@ -123,7 +138,7 @@ static void queue_one_credit(void)
 {
     uint8_t channel;
     for(channel = USB_BOARD_CHANNEL_USB_DEVICE;
-        channel <= USB_BOARD_CHANNEL_AUTH;
+        channel <= USB_BOARD_CHANNEL_LAST;
         ++channel)
     {
         const uint8_t mask = (uint8_t)(1u << channel);
@@ -161,8 +176,8 @@ static void handle_caps(void)
     caps.firmware_patch = 0u;
     caps.feature_flags = USB_BOARD_CAP_FEATURE_TELEMETRY_HID |
                          USB_BOARD_CAP_FEATURE_CONTROL_V1 |
-                         USB_BOARD_CAP_FEATURE_CDC_NCM |
-                         USB_BOARD_CAP_FEATURE_LOCAL_AUTH;
+                         USB_BOARD_CAP_FEATURE_LOCAL_AUTH |
+                         USB_BOARD_CAP_FEATURE_WEBHID_V1;
     (void)queue_event(USB_BOARD_EVT_CAPS, &caps, sizeof(caps));
 }
 
@@ -229,6 +244,9 @@ static void handle_fragment(const usb_board_link_frame_t *frame)
 {
     usb_board_fragment_header_v1_t header;
     usb_board_channel_t channel;
+    bool webconfig_report;
+    bool first;
+    bool active_before;
     bool accepted;
 
     if(frame->length < USB_BOARD_FRAGMENT_HEADER_BYTES)
@@ -238,13 +256,43 @@ static void handle_fragment(const usb_board_link_frame_t *frame)
     }
     memcpy(&header, frame->payload, sizeof(header));
     channel = (usb_board_channel_t)header.channel;
-    if((channel == USB_BOARD_CHANNEL_NETWORK) &&
+    webconfig_report = channel == USB_BOARD_CHANNEL_WEBCONFIG;
+    first = (header.flags & USB_BOARD_FRAGMENT_FLAG_FIRST) != 0u;
+    if(channel == USB_BOARD_CHANNEL_NETWORK)
+    {
+        queue_fault(USB_BOARD_STATUS_UNSUPPORTED, frame->command);
+        return;
+    }
+    if(webconfig_report &&
        (s_role != USB_BOARD_ROLE_MAINTENANCE))
     {
         queue_fault(USB_BOARD_STATUS_BAD_ROLE, frame->command);
         return;
     }
-    if(!usb_net_bridge_take_credit(channel))
+    if(webconfig_report &&
+       (header.total_length_le != WEBHID_REPORT_BYTES))
+    {
+        queue_fault(USB_BOARD_STATUS_BAD_LENGTH, frame->command);
+        return;
+    }
+
+    active_before = usb_net_bridge_message_active(channel);
+    if(webconfig_report && first && active_before)
+    {
+        /*
+         * The previous complete report is retained while its sink is busy.
+         * Reject a replacement FIRST without touching that reservation.
+         */
+        queue_fault(USB_BOARD_STATUS_BUSY, frame->command);
+        return;
+    }
+    if(webconfig_report && !first && !active_before)
+    {
+        queue_fault(USB_BOARD_STATUS_CRC_ERROR, frame->command);
+        return;
+    }
+    if((!webconfig_report || first) &&
+       !usb_net_bridge_take_credit(channel))
     {
         queue_fault(USB_BOARD_STATUS_BUSY, frame->command);
         return;
@@ -254,13 +302,26 @@ static void handle_fragment(const usb_board_link_frame_t *frame)
         &header,
         &frame->payload[USB_BOARD_FRAGMENT_HEADER_BYTES],
         (uint8_t)(frame->length - USB_BOARD_FRAGMENT_HEADER_BYTES));
-    usb_net_bridge_return_credit(channel);
-    mark_credit_dirty(channel);
-
     if(!accepted)
     {
+        /*
+         * A malformed WebConfig continuation releases the single whole-report
+         * reservation. Other channels retain their per-fragment behavior.
+         */
+        if(!webconfig_report ||
+           first ||
+           !usb_net_bridge_message_active(channel))
+        {
+            usb_net_bridge_return_credit(channel);
+            mark_credit_dirty(channel);
+        }
         queue_fault(USB_BOARD_STATUS_CRC_ERROR, frame->command);
         return;
+    }
+    if(!webconfig_report)
+    {
+        usb_net_bridge_return_credit(channel);
+        mark_credit_dirty(channel);
     }
 }
 
@@ -274,7 +335,7 @@ static void handle_credit(const usb_board_link_frame_t *frame)
     }
     memcpy(&credit, frame->payload, sizeof(credit));
     if((credit.channel == 0u) ||
-       (credit.channel >= USB_LINK_CHANNEL_SLOTS))
+       (credit.channel >= USB_BOARD_CHANNEL_SLOTS))
     {
         queue_fault(USB_BOARD_STATUS_BAD_LENGTH, frame->command);
         return;
@@ -331,7 +392,7 @@ static void pump_outbound(void)
         return;
     }
     channel = s_outbound.channel;
-    if((channel == 0u) || (channel >= USB_LINK_CHANNEL_SLOTS) ||
+    if((channel == 0u) || (channel >= USB_BOARD_CHANNEL_SLOTS) ||
        (s_tx_credits[channel] == 0u))
     {
         return;
@@ -378,7 +439,7 @@ static void pump_outbound(void)
     ++s_outbound.fragment_index;
     if(s_outbound.offset >= s_outbound.length)
     {
-        s_outbound.active = 0u;
+        clear_outbound();
     }
 }
 
@@ -446,7 +507,7 @@ void usb_board_link_init(usb_board_role_t locked_role)
     memset(&s_last_state, 0, sizeof(s_last_state));
     memset(s_tx_credits, 0, sizeof(s_tx_credits));
     memset(s_next_transaction, 0, sizeof(s_next_transaction));
-    memset(&s_outbound, 0, sizeof(s_outbound));
+    clear_outbound();
     s_role = locked_role;
     s_ready = usb_board_link_port_init() ? 1u : 0u;
     s_last_fault = (s_ready != 0u)
@@ -459,7 +520,7 @@ void usb_board_link_init(usb_board_role_t locked_role)
     {
         uint8_t channel;
         for(channel = USB_BOARD_CHANNEL_USB_DEVICE;
-            channel <= USB_BOARD_CHANNEL_AUTH;
+            channel <= USB_BOARD_CHANNEL_LAST;
             ++channel)
         {
             mark_credit_dirty((usb_board_channel_t)channel);
@@ -492,6 +553,7 @@ void usb_board_link_process(void)
             dispatch(&completed);
         }
     }
+    usb_net_bridge_process();
     poll_state_change();
     if(s_state_dirty != 0u)
     {
@@ -523,16 +585,17 @@ bool usb_board_link_publish_bulk(usb_board_channel_t channel,
 {
     const uint8_t index = (uint8_t)channel;
     if((s_ready == 0u) || (s_outbound.active != 0u) ||
-       (index == 0u) || (index >= USB_LINK_CHANNEL_SLOTS) ||
+       (index == 0u) || (index >= USB_BOARD_CHANNEL_SLOTS) ||
        (length > USB_BOARD_BULK_MESSAGE_MAX_BYTES) ||
        ((length != 0u) && (data == 0)) ||
-       ((channel == USB_BOARD_CHANNEL_NETWORK) &&
+       (channel == USB_BOARD_CHANNEL_NETWORK) ||
+       ((channel == USB_BOARD_CHANNEL_WEBCONFIG) &&
         (s_role != USB_BOARD_ROLE_MAINTENANCE)))
     {
         return false;
     }
 
-    memset(&s_outbound, 0, sizeof(s_outbound));
+    clear_outbound();
     s_outbound.active = 1u;
     s_outbound.channel = index;
     s_outbound.transaction = s_next_transaction[index]++;
@@ -543,4 +606,50 @@ bool usb_board_link_publish_bulk(usb_board_channel_t channel,
         memcpy(s_outbound.data, data, length);
     }
     return true;
+}
+
+void usb_board_link_reset_channel(usb_board_channel_t channel)
+{
+    const uint8_t index = (uint8_t)channel;
+
+    if((index == 0u) || (index >= USB_BOARD_CHANNEL_SLOTS))
+    {
+        return;
+    }
+    if((s_outbound.active != 0u) &&
+       (s_outbound.channel == index))
+    {
+        clear_outbound();
+    }
+    ++s_next_transaction[index];
+    usb_net_bridge_reset_channel(channel);
+    mark_credit_dirty(channel);
+}
+
+void usb_board_link_webconfig_set_ready(bool ready,
+                                        uint8_t available_reports)
+{
+    const uint8_t credits =
+        (available_reports >
+         USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW)
+            ? USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW
+            : available_reports;
+
+    if(!ready)
+    {
+        usb_net_bridge_reset_channel(
+            USB_BOARD_CHANNEL_WEBCONFIG);
+    }
+    else
+    {
+        usb_net_bridge_set_credit(
+            USB_BOARD_CHANNEL_WEBCONFIG, credits);
+    }
+    mark_credit_dirty(USB_BOARD_CHANNEL_WEBCONFIG);
+}
+
+void usb_board_link_webconfig_report_consumed(void)
+{
+    usb_net_bridge_return_credit(USB_BOARD_CHANNEL_WEBCONFIG);
+    mark_credit_dirty(USB_BOARD_CHANNEL_WEBCONFIG);
 }

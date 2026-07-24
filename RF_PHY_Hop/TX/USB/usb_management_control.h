@@ -29,7 +29,9 @@ uint8_t usb_management_control_last_fault(void);
 /* Board hooks remain local to the CH585 USB role. */
 bool usb_management_control_hw_connect(void);
 void usb_management_control_hw_disconnect(void);
-void usb_management_control_hw_clear_fault(void);
+bool usb_management_control_hw_clear_fault(void);
+bool usb_management_control_hw_link_up(void);
+usb_board_usb_speed_t usb_management_control_hw_speed(void);
 
 #ifdef __cplusplus
 }

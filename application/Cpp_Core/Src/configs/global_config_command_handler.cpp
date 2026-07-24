@@ -7,8 +7,10 @@
 #include "config.hpp"
 #include "board_mode.hpp"
 #include "usb_board_link.hpp"
+#include "config_transport_sink.hpp"
 #include <map>
 #include <stdio.h>
+#include <cstring>
 
 // ============================================================================
 // GlobalConfigCommandHandler 实现
@@ -511,12 +513,35 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleExportAllConfig(con
     Config& config = Storage::getInstance().config;
 
     WebSocketConnection* conn = request.getConnection();
-    if (!conn) {
-         LOG_ERROR("WebSocket", "export_all_config: No connection");
-         return create_error_response(request.getCid(), request.getCommand(), 1, "No connection");
+    cJSON *aggregate = conn == nullptr ? cJSON_CreateObject() : nullptr;
+    cJSON *aggregateProfiles =
+        conn == nullptr ? cJSON_CreateArray() : nullptr;
+    if (conn == nullptr &&
+        (aggregate == nullptr || aggregateProfiles == nullptr)) {
+        cJSON_Delete(aggregate);
+        cJSON_Delete(aggregateProfiles);
+        return create_error_response(
+            request.getCid(), request.getCommand(), 1, "Out of memory");
+    }
+    if (aggregate != nullptr) {
+        cJSON_AddItemToObject(aggregate, "profiles", aggregateProfiles);
     }
 
     auto sendPart = [&](const char* section, cJSON* data) {
+        if (aggregate != nullptr && data != nullptr) {
+            cJSON *copy = cJSON_Duplicate(data, 1);
+            if (strcmp(section, "global") == 0) {
+                cJSON_AddItemToObject(aggregate, "globalConfig", copy);
+            } else if (strcmp(section, "hotkeys") == 0) {
+                cJSON_AddItemToObject(aggregate, "hotkeysConfig", copy);
+            } else if (strcmp(section, "screenControl") == 0) {
+                cJSON_AddItemToObject(aggregate, "screenControl", copy);
+            } else if (strcmp(section, "profile") == 0) {
+                cJSON_AddItemToArray(aggregateProfiles, copy);
+            } else {
+                cJSON_Delete(copy);
+            }
+        }
         cJSON* msgData = cJSON_CreateObject();
         cJSON_AddStringToObject(msgData, "section", section);
         if (data) cJSON_AddItemToObject(msgData, "data", data);
@@ -529,7 +554,11 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleExportAllConfig(con
         
         char* str = cJSON_PrintUnformatted(response);
         if (str) {
-            conn->send_text(str);
+            if (conn != nullptr) {
+                conn->send_text(str);
+            } else {
+                ConfigTransport_PublishJson(str, strlen(str));
+            }
             free(str);
         }
         cJSON_Delete(response);
@@ -563,7 +592,9 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleExportAllConfig(con
     // 4. 发送 Profiles
     for (int i = 0; i < NUM_PROFILES; i++) {
         if (config.profiles[i].enabled) {
-            cJSON* profileJSON = ProfileCommandHandler::buildProfileJSON(&config.profiles[i]);
+            cJSON* profileJSON =
+                ProfileCommandHandler::buildProfileExportJSON(
+                    &config.profiles[i]);
             if (profileJSON) {
                 sendPart("profile", profileJSON);
                 // 简单的延时以防止发送缓冲区溢出
@@ -572,11 +603,17 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleExportAllConfig(con
         }
     }
 
-    // 5. 发送结束信号 (通过返回最后的响应)
+    // 5. 发送结束信号
     cJSON* finishData = cJSON_CreateObject();
     cJSON_AddStringToObject(finishData, "section", "end");
-
-    return create_success_response(request.getCid(), request.getCommand(), finishData);
+    if (conn == nullptr) {
+        sendPart("end", nullptr);
+        cJSON_Delete(finishData);
+        return create_success_response(
+            request.getCid(), request.getCommand(), aggregate);
+    }
+    return create_success_response(
+        request.getCid(), request.getCommand(), finishData);
 }
 
 WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportAllConfig(const WebSocketUpstreamMessage& request) {

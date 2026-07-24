@@ -4,6 +4,8 @@
 #include "adc_btns/adc_btns_marker.hpp"
 #include "system_logger.h"
 #include <map>
+#include <cstring>
+#include "config_transport_sink.hpp"
 
 // ============================================================================
 // MSMarkCommandHandler 实现
@@ -21,9 +23,6 @@ MSMarkCommandHandler& getMarkingCommandHandler() {
 
 // 发送标记状态变化通知
 void MSMarkCommandHandler::sendMarkingStatusNotification() {
-    // 使用单例模式获取WebSocket服务器实例
-    WebSocketServer& server = WebSocketServer::getInstance();
-    
     // 创建通知消息（不带CID的消息）
     cJSON* json = cJSON_CreateObject();
     if (!json) {
@@ -44,7 +43,7 @@ void MSMarkCommandHandler::sendMarkingStatusNotification() {
     // 序列化JSON并广播
     char* json_string = cJSON_PrintUnformatted(json);
     if (json_string) {
-        server.broadcast_text(std::string(json_string));
+        ConfigTransport_PublishJson(json_string, strlen(json_string));
         // APP_DBG("sendMarkingStatusNotification: Marking status notification sent - %s", json_string);
         free(json_string);
     } else {
@@ -440,4 +439,4 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handle(const WebSocketUpstreamM
     }
     
     return create_error_response(request.getCid(), command, -1, "Unknown command");
-} 
+}

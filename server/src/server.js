@@ -27,12 +27,35 @@ const { authManager, requireAdminAuth } = require('./auth');
 
 // 引入设备认证模块
 const { validateDeviceAuth } = require('./device-auth');
+const {
+    createDeviceAuthV2FromEnvironment,
+    initDeviceAuthV2Routes
+} = require('./device-auth-v2');
+const {
+    parseAllowedOrigins,
+    parseTrustedProxyHops,
+    createExactCorsOptions,
+    securityHeaders
+} = require('./http-security');
+const {
+    LegacyDownloadTicketStore,
+    initLegacyDownloadRoute
+} = require('./download-access');
+const {
+    installHostedWebConfig,
+    resolveHostedWebConfigOptions
+} = require('./hosted-webconfig');
 
 // 引入网络接口入口模块
 const { initAllRoutes } = require('./action');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const LISTEN_HOST = process.env.LISTEN_HOST ||
+    (process.env.NODE_ENV === 'production' ? '127.0.0.1' : '0.0.0.0');
+const trustedProxyHops = parseTrustedProxyHops(
+    process.env.TRUST_PROXY_HOPS
+);
 
 // 配置目录
 const config = {
@@ -49,13 +72,24 @@ const config = {
     serverUrl: process.env.SERVER_URL || `http://${server_address}:${server_port}`
 };
 
-// 中间件配置
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+const allowedWebConfigOrigins = parseAllowedOrigins(
+    process.env.WEB_CONFIG_ORIGINS,
+    `https://${domain_name}`
+);
 
-// 静态文件服务 - 用于下载固件包
-app.use('/downloads', express.static(config.uploadDir));
+// 中间件配置
+app.disable('x-powered-by');
+if (trustedProxyHops > 0) {
+    /*
+     * Use a hop count only when the Node listener is behind the controlled
+     * reverse proxy. Never trust arbitrary X-Forwarded-For by default.
+     */
+    app.set('trust proxy', trustedProxyHops);
+}
+app.use(securityHeaders);
+app.use(cors(createExactCorsOptions(allowedWebConfigOrigins)));
+app.use(express.json({ limit: '64kb', strict: true }));
+app.use(express.urlencoded({ extended: true }));
 
 // 创建上传目录
 fs.ensureDirSync(config.uploadDir);
@@ -66,8 +100,65 @@ const storage_manager = new FirmwareStorage(config.dataFile, config.uploadDir);
 // 将storage_manager添加到app.locals以供中间件使用
 app.locals.storage_manager = storage_manager;
 
+const deviceAuthV2 = createDeviceAuthV2FromEnvironment(storage_manager);
+app.locals.deviceAuthV2 = deviceAuthV2;
+const legacyDownloadTickets = new LegacyDownloadTicketStore();
+app.locals.legacyDownloadTickets = legacyDownloadTickets;
+
+/*
+ * Shipped V1 clients cannot attach an Authorization header to the package
+ * fetch. Their already-weak authentication may mint only a short-lived,
+ * random path ticket on this isolated compatibility route.
+ */
+initLegacyDownloadRoute(
+    app,
+    legacyDownloadTickets,
+    storage_manager,
+    config.uploadDir
+);
+
+/*
+ * Firmware files are no longer public. Browsers fetch them with the short
+ * lived opaque token issued by the V2 attestation flow. Authorization is
+ * accepted only from the header, never from a query string which may leak
+ * into proxies and access logs.
+ */
+app.use(
+    '/downloads',
+    deviceAuthV2.requireSession(['firmware.update']),
+    (req, res, next) => {
+        res.set('Cache-Control', 'private, no-store');
+        next();
+    },
+    express.static(config.uploadDir, {
+        fallthrough: false,
+        dotfiles: 'deny',
+        index: false
+    })
+);
+
 // ==================== 初始化所有路由 ====================
+initDeviceAuthV2Routes(
+    app,
+    deviceAuthV2,
+    storage_manager,
+    requireAdminAuth
+);
 initAllRoutes(app, storage_manager, config, validateDeviceAuth, requireAdminAuth, authManager);
+
+/*
+ * The V2 WebConfig is a normal HTTPS-hosted static export. API and download
+ * routes are registered first so no exported file can shadow them.
+ *
+ * Production deployment sets WEB_CONFIG_STATIC_DIR to the copied Next.js
+ * export and WEB_CONFIG_REQUIRE_STATIC=1. Development/API-only processes may
+ * omit the directory without weakening any device authorization boundary.
+ */
+const hostedWebConfig = installHostedWebConfig(
+    app,
+    resolveHostedWebConfigOptions()
+);
+app.locals.hostedWebConfig = hostedWebConfig;
 
 // 错误处理中间件
 app.use((error, req, res, next) => {
@@ -81,11 +172,14 @@ app.use((error, req, res, next) => {
         }
     }
     
-    console.error('服务器错误:', error);
-    res.status(500).json({
+    const status = Number.isInteger(error.status) ? error.status : 500;
+    if (status >= 500) {
+        console.error('服务器错误:', error);
+    }
+    res.status(status).json({
         success: false,
-        message: 'Server internal error',
-        error: error.message
+        error: error.code || 'SERVER_ERROR',
+        message: status >= 500 ? 'Server internal error' : error.message
     });
 });
 
@@ -110,34 +204,42 @@ process.on('SIGTERM', () => {
 });
 
 // 启动服务器
-app.listen(PORT, () => {
+app.listen(PORT, LISTEN_HOST, () => {
     console.log('='.repeat(60));
     console.log('STM32 HBox 固件管理服务器');
     console.log('='.repeat(60));
     console.log(`服务器地址: http://${server_address}:${server_port}`);
+    console.log(`Node监听地址: ${LISTEN_HOST}:${PORT}`);
     console.log(`域名地址: https://${domain_name}`);
     console.log(`上传目录: ${config.uploadDir}`);
     console.log(`数据文件: ${config.dataFile}`);
     console.log(`最大文件大小: ${config.maxFileSize / (1024 * 1024)}MB`);
     console.log(`支持文件类型: ${config.allowedExtensions.join(', ')}`);
+    console.log(
+        hostedWebConfig.enabled
+            ? `WebConfig静态目录: ${hostedWebConfig.staticDir}`
+            : 'WebConfig静态目录: 未启用'
+    );
     console.log('='.repeat(60));
     console.log('可用接口:');
     console.log('  GET    /health                 - 健康检查');
     console.log('  POST   /api/device/register    - 注册设备ID (需要管理员认证)');
+    console.log('  POST   /api/v2/device-auth/challenges - 创建设备认证挑战');
+    console.log('  POST   /api/v2/device-auth/verify - 验证设备证明并签发会话');
     console.log('  GET    /api/devices            - 获取设备列表 (需要设备认证)');
     console.log('  POST   /api/admin/login        - 管理员登录验证');
     console.log('  POST   /api/admin/change-password - 修改管理员密码 (需要管理员认证)');
     console.log('  GET    /api/admin/profile      - 获取管理员信息 (需要管理员认证)');
-    console.log('  GET    /api/firmwares          - 获取固件列表');
+    console.log('  GET    /api/firmwares          - 获取固件列表 (需要 config.read scope)');
     console.log('  POST   /api/firmware-check-update - 检查固件更新 (需要设备认证)');
     console.log('  POST   /api/firmwares/upload   - 上传固件包 (需要管理员认证)');
-    console.log('  GET    /api/firmwares/:id      - 获取固件详情');
+    console.log('  GET    /api/firmwares/:id      - 获取固件详情 (需要 config.read scope)');
     console.log('  PUT    /api/firmwares/:id      - 更新固件信息');
     console.log('  DELETE /api/firmwares/:id      - 删除固件包 (需要管理员认证)');
     console.log('  POST   /api/firmwares/clear-up-to-version - 清空指定版本及之前的固件 (需要管理员认证)');
-    console.log('  GET    /downloads/:filename    - 下载固件包');
+    console.log('  GET    /downloads/:filename    - 下载固件包 (需要 firmware.update scope)');
     console.log('='.repeat(60));
     console.log('服务器启动成功！按 Ctrl+C 停止服务');
 });
 
-module.exports = app; 
+module.exports = app;

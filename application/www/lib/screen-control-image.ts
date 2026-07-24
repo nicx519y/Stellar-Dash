@@ -1,4 +1,4 @@
-import * as gifuct from 'gifuct-js';
+import { decompressFrames, parseGIF } from 'gifuct-js';
 
 export type ProcessedRGB565Image = { width: number; height: number; data: Uint8Array; previewUrl: string };
 export type ProcessedRGB565Sequence = ProcessedRGB565Image & { frames: string[]; fps: number; frameCount: number };
@@ -137,20 +137,6 @@ export const processGifToRGB565Sequence = async (file: File, targetFpsInput: num
     const targetFps = Math.max(1, Math.min(5, Math.floor(targetFpsInput)));
     const maxFrames = Math.max(1, Math.min(10, Math.floor(maxFramesInput)));
     const buf = await file.arrayBuffer();
-
-    const parseGIF: ((b: ArrayBuffer | Uint8Array) => unknown) | undefined =
-        (gifuct as unknown as { parseGIF?: (b: ArrayBuffer | Uint8Array) => unknown }).parseGIF ??
-        (gifuct as unknown as { default?: { parseGIF?: (b: ArrayBuffer | Uint8Array) => unknown } }).default?.parseGIF;
-    const decompressFrames:
-        | ((gif: unknown, buildImagePatches: boolean) => Array<{ patch: Uint8ClampedArray; delay?: number; dims?: { width: number; height: number; top: number; left: number }; disposalType?: number }>)
-        | undefined =
-        (gifuct as unknown as { decompressFrames?: (gif: unknown, buildImagePatches: boolean) => Array<{ patch: Uint8ClampedArray; delay?: number; dims?: { width: number; height: number; top: number; left: number }; disposalType?: number }> }).decompressFrames ??
-        (gifuct as unknown as { default?: { decompressFrames?: (gif: unknown, buildImagePatches: boolean) => Array<{ patch: Uint8ClampedArray; delay?: number; dims?: { width: number; height: number; top: number; left: number }; disposalType?: number }> } }).default?.decompressFrames;
-
-    if (!parseGIF || !decompressFrames) {
-        const single = await processImageToRGB565(file);
-        return { ...single, frames: [single.previewUrl], fps: targetFps, frameCount: 1 };
-    }
 
     const gif = parseGIF(new Uint8Array(buf));
     const lsd = (gif as unknown as { lsd?: { width?: number; height?: number } }).lsd;

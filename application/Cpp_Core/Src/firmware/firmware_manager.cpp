@@ -7,6 +7,7 @@
 #include <new>
 #include "CRC32.hpp"
 #include "sha256_simple.h"
+#include "firmware_signature.h"
 #include "micro_timer.hpp"
 
 // 外部函数声明 (需要在其他地方实现)
@@ -21,6 +22,43 @@ FirmwareManager* FirmwareManager::instance = nullptr;
 
 // 设备ID (可以从硬件获取)
 static const char DEVICE_ID[] = "STM32H750_HBOX_001";
+
+static int decode_hex_digit(char digit) {
+    if (digit >= '0' && digit <= '9') return digit - '0';
+    if (digit >= 'a' && digit <= 'f') return digit - 'a' + 10;
+    if (digit >= 'A' && digit <= 'F') return digit - 'A' + 10;
+    return -1;
+}
+
+static bool decode_sha256(const char encoded[65], uint8_t decoded[32]) {
+    if (encoded == nullptr || decoded == nullptr || encoded[64] != '\0') {
+        return false;
+    }
+    for (size_t i = 0; i < 32; ++i) {
+        const int high = decode_hex_digit(encoded[i * 2]);
+        const int low = decode_hex_digit(encoded[i * 2 + 1]);
+        if (high < 0 || low < 0) return false;
+        decoded[i] = static_cast<uint8_t>((high << 4) | low);
+    }
+    return true;
+}
+
+static bool constant_time_equal(const uint8_t* left,
+                                const uint8_t* right,
+                                size_t length) {
+    uint8_t difference = 0;
+    for (size_t i = 0; i < length; ++i) {
+        difference |= static_cast<uint8_t>(left[i] ^ right[i]);
+    }
+    return difference == 0;
+}
+
+static bool reserved_security_bytes_are_zero(const FirmwareMetadata* metadata) {
+    for (uint8_t value : metadata->reserved) {
+        if (value != 0) return false;
+    }
+    return true;
+}
 
 // CRC32查找表（全局定义，供所有CRC32函数使用）
 static const uint32_t crc32_table[256] = {
@@ -154,10 +192,28 @@ static FirmwareValidationResult validate_firmware_metadata(const FirmwareMetadat
     }
     
     // 8. 验证组件数量合理性
-    if (metadata->component_count > FIRMWARE_COMPONENT_COUNT) {
+    if (metadata->component_count != FIRMWARE_COMPONENT_COUNT) {
         APP_ERR("FirmwareManager::validate_firmware_metadata: Invalid component count");
         return FIRMWARE_CORRUPTED;
     }
+
+    if (metadata->security_version < FIRMWARE_SECURITY_VERSION ||
+        metadata->target_slot >= FIRMWARE_SLOT_COUNT ||
+        metadata->webresources_optional > 1 ||
+        !reserved_security_bytes_are_zero(metadata)) {
+        APP_ERR("FirmwareManager::validate_firmware_metadata: Invalid security policy");
+        return FIRMWARE_INVALID_VERSION;
+    }
+
+#if HBOX_SECURE_BOOT_REQUIRED
+    const FirmwareValidationResult signature_validation =
+        firmware_metadata_verify_signature(metadata);
+    if (signature_validation != FIRMWARE_VALID) {
+        APP_ERR("FirmwareManager::validate_firmware_metadata: Signature rejected (%d)",
+                signature_validation);
+        return signature_validation;
+    }
+#endif
     
     return FIRMWARE_VALID;
 }
@@ -523,10 +579,57 @@ bool FirmwareManager::CreateUpgradeSession(const char* session_id, const Firmwar
      * allocating any new state.  The WebSocket gate is defense in depth; this
      * device-side check also covers any future direct caller.
      */
-    if (session_id == nullptr || manifest == nullptr ||
-        !firmware_hardware_version_is_current(manifest->hardware_version)) {
-        APP_ERR("FirmwareManager::CreateUpgradeSession: Hardware version mismatch");
+    if (session_id == nullptr || manifest == nullptr || !metadata_loaded ||
+        manifest->magic != FIRMWARE_MAGIC ||
+        manifest->metadata_version_major != METADATA_VERSION_MAJOR ||
+        manifest->metadata_version_minor != METADATA_VERSION_MINOR ||
+        manifest->metadata_size != METADATA_STRUCT_SIZE ||
+        strcmp(manifest->device_model, DEVICE_MODEL_STRING) != 0 ||
+        !firmware_hardware_version_is_current(manifest->hardware_version) ||
+        manifest->bootloader_min_version > BOOTLOADER_VERSION ||
+        manifest->component_count != FIRMWARE_COMPONENT_COUNT ||
+        manifest->target_slot != static_cast<uint8_t>(GetTargetUpgradeSlot()) ||
+        manifest->security_version < current_metadata.security_version ||
+        manifest->security_version < FIRMWARE_SECURITY_VERSION ||
+        manifest->webresources_optional > 1 ||
+        !reserved_security_bytes_are_zero(manifest) ||
+        firmware_metadata_verify_signature(manifest) != FIRMWARE_VALID) {
+        APP_ERR("FirmwareManager::CreateUpgradeSession: Signed manifest rejected");
         return false;
+    }
+
+    bool component_seen[FIRMWARE_COMPONENT_COUNT] = {false, false, false};
+    for (uint32_t i = 0; i < manifest->component_count; ++i) {
+        const FirmwareComponent* component = &manifest->components[i];
+        FirmwareComponentType type = FIRMWARE_COMPONENT_COUNT_ENUM;
+        if (strcmp(component->name, "application") == 0) {
+            type = FIRMWARE_COMPONENT_APPLICATION;
+        } else if (strcmp(component->name, "webresources") == 0) {
+            type = FIRMWARE_COMPONENT_WEBRESOURCES;
+        } else if (strcmp(component->name, "adc_mapping") == 0) {
+            type = FIRMWARE_COMPONENT_ADC_MAPPING;
+        }
+        if (type >= FIRMWARE_COMPONENT_COUNT_ENUM ||
+            component_seen[type] ||
+            component->address !=
+                GetComponentAddress(GetTargetUpgradeSlot(), type) ||
+            component->size > GetComponentSize(type)) {
+            APP_ERR("FirmwareManager::CreateUpgradeSession: Invalid component layout");
+            return false;
+        }
+        component_seen[type] = true;
+
+        const bool optional_webresources =
+            type == FIRMWARE_COMPONENT_WEBRESOURCES &&
+            manifest->webresources_optional == 1 &&
+            !component->active && component->size == 0;
+        uint8_t ignored_hash[32];
+        if (!optional_webresources &&
+            (!component->active || component->size == 0 ||
+             !decode_sha256(component->sha256, ignored_hash))) {
+            APP_ERR("FirmwareManager::CreateUpgradeSession: Invalid component hash");
+            return false;
+        }
     }
 
     // 首先清理任何过期或失败的会话
@@ -575,7 +678,8 @@ bool FirmwareManager::CreateUpgradeSession(const char* session_id, const Firmwar
         comp->total_size = manifest->components[i].size;
         comp->received_size = 0;
         comp->base_address = manifest->components[i].address;
-        comp->completed = false;
+        comp->completed = !manifest->components[i].active &&
+                          manifest->components[i].size == 0;
     }
     
     // 擦除目标槽位
@@ -598,7 +702,8 @@ bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* c
     // 先清理过期会话
     CleanupExpiredSessions();
     
-    if (!session_active || current_session == nullptr) {
+    if (!session_active || current_session == nullptr || session_id == nullptr ||
+        component_name == nullptr || chunk == nullptr || chunk->data == nullptr) {
         APP_ERR("FirmwareManager::ProcessFirmwareChunk: No active session");
         return false;
     }
@@ -629,6 +734,24 @@ bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* c
         current_session->status = UPGRADE_STATUS_FAILED;  // 标记会话为失败状态
         return false;
     }
+
+    if (chunk->chunk_size == 0 ||
+        chunk->total_chunks == 0 ||
+        chunk->total_chunks > MAX_CHUNKS_PER_COMPONENT ||
+        chunk->chunk_index >= chunk->total_chunks ||
+        chunk->chunk_index != target_component->received_chunks ||
+        (target_component->total_chunks != 0 &&
+         target_component->total_chunks != chunk->total_chunks) ||
+        chunk->chunk_offset > target_component->total_size ||
+        chunk->chunk_size >
+            target_component->total_size - chunk->chunk_offset ||
+        chunk->target_address !=
+            target_component->base_address + chunk->chunk_offset ||
+        chunk->checksum[64] != '\0' || strlen(chunk->checksum) != 64) {
+        APP_ERR("FirmwareManager::ProcessFirmwareChunk: Invalid chunk envelope");
+        current_session->status = UPGRADE_STATUS_FAILED;
+        return false;
+    }
     
     // 验证地址
     FirmwareSlot target_slot = GetTargetUpgradeSlot();
@@ -652,14 +775,14 @@ bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* c
     
     APP_DBG("FirmwareManager::ProcessFirmwareChunk: calculated_hash: %s, chunk->checksum: %s", calculated_hash, chunk->checksum);
 
-    // 进行校验和验证 - 只比较前16个字符（8字节）
-    if (strncmp(calculated_hash, chunk->checksum, 16) != 0) {
-        APP_ERR("FirmwareManager::ProcessFirmwareChunk: Checksum mismatch - chunk_index: %ld, calculated: %.16s, received: %s", 
-                (unsigned long)chunk->chunk_index, calculated_hash, chunk->checksum);
+    // 完整比较32字节SHA-256的64位十六进制表示。
+    if (strncmp(calculated_hash, chunk->checksum, 64) != 0) {
+        APP_ERR("FirmwareManager::ProcessFirmwareChunk: Checksum mismatch - chunk_index: %ld",
+                (unsigned long)chunk->chunk_index);
         current_session->status = UPGRADE_STATUS_FAILED;  // 标记会话为失败状态
         return false; // 校验和不匹配
     }
-    APP_DBG("FirmwareManager::ProcessFirmwareChunk: SHA256 checksum verification passed - chunk_index: %ld (compared first 8 bytes)", (unsigned long)chunk->chunk_index);
+    APP_DBG("FirmwareManager::ProcessFirmwareChunk: Full SHA256 verification passed - chunk_index: %ld", (unsigned long)chunk->chunk_index);
     
     // 写入Flash
     if (!WriteChunkToFlash(write_address, chunk->data, chunk->chunk_size)) {
@@ -685,7 +808,8 @@ bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* c
     
     // 检查组件是否完成
     if (target_component->received_chunks >= target_component->total_chunks) {
-        target_component->completed = true;
+        target_component->completed =
+            target_component->received_size == target_component->total_size;
     }
     
     // 更新总进度
@@ -730,65 +854,19 @@ bool FirmwareManager::CompleteUpgradeSession(const char* session_id) {
         return false;
     }
     
-    // 更新元数据 - 与Python脚本create_metadata_binary保持完全一致
+    /*
+     * The signed manifest already binds slot, addresses, component hashes,
+     * build timestamp and security version.  Never "fix up" any of those
+     * fields on-device: doing so would create metadata that was never signed.
+     */
     current_metadata = current_session->manifest;
-    
-    // === 强制设置安全校验区域 ===
-    current_metadata.magic = FIRMWARE_MAGIC;
-    current_metadata.metadata_version_major = METADATA_VERSION_MAJOR;
-    current_metadata.metadata_version_minor = METADATA_VERSION_MINOR;
-    current_metadata.metadata_size = METADATA_STRUCT_SIZE;  // 使用统一大小
-    // metadata_crc32 将在SaveMetadataToFlash中重新计算
-    
-    // === 更新固件信息区域 ===
-    current_metadata.target_slot = (uint8_t)target_slot;  // 转换FirmwareSlot到uint8_t
-    current_metadata.build_timestamp = HAL_GetTick();
-    
-    // === 强制设置设备兼容性区域 ===
-    strcpy(current_metadata.device_model, DEVICE_MODEL_STRING);
-    current_metadata.hardware_version = HARDWARE_VERSION;
-    current_metadata.bootloader_min_version = BOOTLOADER_VERSION;
-    
-    // === 重新计算组件信息区域 ===
-    // 重新计算各组件在目标槽位的地址，与Python脚本的get_slot_address逻辑一致
-    for (uint32_t i = 0; i < current_metadata.component_count; i++) {
-        FirmwareComponent* comp = &current_metadata.components[i];
-        
-        // 根据组件名称确定类型并更新地址
-        FirmwareComponentType comp_type;
-        if (strcmp(comp->name, "application") == 0) {
-            comp_type = FIRMWARE_COMPONENT_APPLICATION;
-        } else if (strcmp(comp->name, "webresources") == 0) {
-            comp_type = FIRMWARE_COMPONENT_WEBRESOURCES;
-        } else if (strcmp(comp->name, "adc_mapping") == 0) {
-            comp_type = FIRMWARE_COMPONENT_ADC_MAPPING;
-        } else {
-            APP_ERR("FirmwareManager::CompleteUpgradeSession: Unknown component type: %s", comp->name);
-            current_session->status = UPGRADE_STATUS_FAILED;
-            return false;
-        }
-        
-        // 更新为目标槽位的地址
-        uint32_t new_address = GetComponentAddress(target_slot, comp_type);
-        if (new_address == 0) {
-            APP_ERR("FirmwareManager::CompleteUpgradeSession: Failed to get address for component %s in slot %d", 
-                    comp->name, target_slot);
-            current_session->status = UPGRADE_STATUS_FAILED;
-            return false;
-        }
-        
-        APP_DBG("FirmwareManager::CompleteUpgradeSession: Updated component %s address from 0x%08lX to 0x%08lX for slot %d", 
-                comp->name, (unsigned long)comp->address, (unsigned long)new_address, target_slot);
-        
-        comp->address = new_address;
-        comp->active = true;  // 确保组件处于激活状态
+
+    if (current_metadata.target_slot != static_cast<uint8_t>(target_slot) ||
+        firmware_metadata_verify_signature(&current_metadata) != FIRMWARE_VALID) {
+        current_session->status = UPGRADE_STATUS_FAILED;
+        APP_ERR("FirmwareManager::CompleteUpgradeSession: Signed metadata changed");
+        return false;
     }
-    
-    // === 清零安全签名区域和预留区域 ===
-    memset(current_metadata.firmware_hash, 0, sizeof(current_metadata.firmware_hash));
-    memset(current_metadata.signature, 0, sizeof(current_metadata.signature));
-    current_metadata.signature_algorithm = 0;
-    memset(current_metadata.reserved, 0, sizeof(current_metadata.reserved));
     
     APP_DBG("FirmwareManager::CompleteUpgradeSession: Metadata updated - Version: %s, Target Slot: %d, Components: %ld", 
             current_metadata.firmware_version, current_metadata.target_slot, (unsigned long)current_metadata.component_count);
@@ -897,33 +975,60 @@ bool FirmwareManager::CalculateSHA256(const uint8_t* data, uint32_t size, char* 
 }
 
 bool FirmwareManager::VerifyFirmwareIntegrity(FirmwareSlot slot) {
-    // 简化的完整性验证 - 实际项目中应该验证每个组件的校验和
-    // 这里只检查关键区域是否不为空
-    
-    uint32_t app_addr = GetComponentAddress(slot, FIRMWARE_COMPONENT_APPLICATION);
-    uint8_t test_buffer[256];
-    
-    // 使用QSPI接口读取数据进行验证
-    int8_t result = QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(
-        test_buffer, 
-        app_addr - EXTERNAL_FLASH_BASE, 
-        sizeof(test_buffer)
-    );
-    
-    if (result != QSPI_W25Qxx_OK) {
+    if (current_session == nullptr ||
+        current_session->manifest.target_slot != static_cast<uint8_t>(slot)) {
         return false;
     }
-    
-    // 检查是否全为0xFF (未写入)
-    bool all_ff = true;
-    for (uint32_t i = 0; i < sizeof(test_buffer); i++) {
-        if (test_buffer[i] != 0xFF) {
-            all_ff = false;
-            break;
+
+    uint8_t read_buffer[1024];
+    for (uint32_t i = 0; i < current_session->manifest.component_count; ++i) {
+        const FirmwareComponent* component =
+            &current_session->manifest.components[i];
+        if (!component->active && component->size == 0 &&
+            strcmp(component->name, "webresources") == 0 &&
+            current_session->manifest.webresources_optional == 1) {
+            continue;
         }
+
+        uint8_t expected_hash[32];
+        uint8_t actual_hash[32];
+        if (!decode_sha256(component->sha256, expected_hash)) {
+            return false;
+        }
+
+        sha256_simple_ctx_t context;
+        sha256_simple_init(&context);
+        uint32_t offset = 0;
+        while (offset < component->size) {
+            const uint32_t remaining = component->size - offset;
+            const uint32_t count =
+                remaining < sizeof(read_buffer)
+                    ? remaining
+                    : static_cast<uint32_t>(sizeof(read_buffer));
+            const uint32_t physical_address =
+                component->address - EXTERNAL_FLASH_BASE + offset;
+            if (QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(
+                    read_buffer, physical_address, count) != QSPI_W25Qxx_OK) {
+                memset(read_buffer, 0, sizeof(read_buffer));
+                return false;
+            }
+            sha256_simple_update(&context, read_buffer, count);
+            offset += count;
+        }
+        sha256_simple_final(&context, actual_hash);
+        if (!constant_time_equal(expected_hash,
+                                 actual_hash,
+                                 sizeof(actual_hash))) {
+            memset(expected_hash, 0, sizeof(expected_hash));
+            memset(actual_hash, 0, sizeof(actual_hash));
+            memset(read_buffer, 0, sizeof(read_buffer));
+            return false;
+        }
+        memset(expected_hash, 0, sizeof(expected_hash));
+        memset(actual_hash, 0, sizeof(actual_hash));
     }
-    
-    return !all_ff; // 如果不全是0xFF，说明有数据写入
+    memset(read_buffer, 0, sizeof(read_buffer));
+    return true;
 }
 
 void FirmwareManager::CleanupExpiredSessions() {

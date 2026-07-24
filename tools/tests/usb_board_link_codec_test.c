@@ -181,6 +181,10 @@ int main(void)
     _Static_assert(sizeof(usb_board_control_response_v1_t) ==
                        USB_BOARD_LINK_MAX_PAYLOAD_BYTES,
                    "USB_CONTROL response container changed");
+    _Static_assert(USB_BOARD_CHANNEL_WEBCONFIG == 0x06u,
+                   "WebConfig channel ABI changed");
+    _Static_assert(USB_BOARD_CHANNEL_SLOTS == 7u,
+                   "BoardLink channel storage ABI changed");
 
     test_empty_control_frame();
     test_maximum_frame();

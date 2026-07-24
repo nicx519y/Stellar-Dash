@@ -240,21 +240,6 @@ class FirmwareStorage {
             };
         }
         
-        // 🔍 调试打印：哈希验证过程
-        console.log('🔧 设备ID哈希验证:');
-        console.log('  输入原始唯一ID:', deviceInfo.rawUniqueId);
-        console.log('  输入设备ID:', deviceInfo.deviceId);
-        
-        // 计算服务器端的设备ID哈希
-        const parts = deviceInfo.rawUniqueId.split('-');
-        const uid_word0 = parseInt(parts[0], 16);
-        const uid_word1 = parseInt(parts[1], 16);
-        const uid_word2 = parseInt(parts[2], 16);
-        const serverCalculatedDeviceId = this.calculateDeviceIdHash(uid_word0, uid_word1, uid_word2);
-        
-        console.log('  服务器计算的设备ID:', serverCalculatedDeviceId);
-        console.log('  验证结果:', serverCalculatedDeviceId === deviceInfo.deviceId.toUpperCase() ? '✅ 匹配' : '❌ 不匹配');
-        
         // 验证设备ID哈希
         if (!this.verifyDeviceIdHash(deviceInfo.rawUniqueId, deviceInfo.deviceId)) {
             return {
@@ -291,6 +276,124 @@ class FirmwareStorage {
     // 获取所有设备
     getDevices() {
         return this.deviceData.devices;
+    }
+
+    // 注册使用制造证书的 V2 设备。私钥和证书正文永不写入服务器存储。
+    addV2Device(deviceInfo) {
+        const existingDevice = this.findDevice(deviceInfo.deviceId);
+        if (existingDevice) {
+            const matchesEnrollment =
+                existingDevice.authVersion === 2 &&
+                existingDevice.certificateFingerprint ===
+                    deviceInfo.certificateFingerprint &&
+                existingDevice.certificateSerial ===
+                    deviceInfo.certificateSerial;
+            return {
+                success: matchesEnrollment,
+                existed: true,
+                conflict: !matchesEnrollment,
+                device: existingDevice
+            };
+        }
+        const certificateAlreadyUsed = this.deviceData.devices.find(device =>
+            device.authVersion === 2 &&
+            (device.certificateSerial === deviceInfo.certificateSerial ||
+             device.certificateFingerprint ===
+                deviceInfo.certificateFingerprint)
+        );
+        if (certificateAlreadyUsed) {
+            return {
+                success: false,
+                existed: false,
+                conflict: true,
+                device: certificateAlreadyUsed
+            };
+        }
+
+        const newDevice = {
+            deviceId: deviceInfo.deviceId.toUpperCase(),
+            deviceName: String(deviceInfo.deviceName).slice(0, 128),
+            hardwareVersion: deviceInfo.hardwareVersion,
+            authVersion: 2,
+            authLevel: deviceInfo.authLevel,
+            certificateSerial: deviceInfo.certificateSerial,
+            certificateFingerprint: deviceInfo.certificateFingerprint,
+            minSecurityVersion: deviceInfo.minSecurityVersion,
+            allowedFirmwareMeasurements: [
+                ...deviceInfo.allowedFirmwareMeasurements
+            ],
+            policyVersion: 1,
+            registeredBy: deviceInfo.registeredBy,
+            registerTime: new Date().toISOString(),
+            lastSeen: null,
+            status: 'active'
+        };
+        this.deviceData.devices.push(newDevice);
+        if (!this.saveDeviceData()) {
+            this.deviceData.devices.pop();
+            return {
+                success: false,
+                existed: false,
+                conflict: false,
+                device: null
+            };
+        }
+        return {
+            success: true,
+            existed: false,
+            conflict: false,
+            device: newDevice
+        };
+    }
+
+    updateV2DevicePolicy(deviceId, policy) {
+        const device = this.findDevice(deviceId);
+        if (!device || device.authVersion !== 2) {
+            return null;
+        }
+        const previous = {
+            minSecurityVersion: device.minSecurityVersion,
+            allowedFirmwareMeasurements: device.allowedFirmwareMeasurements,
+            policyVersion: device.policyVersion
+        };
+        device.minSecurityVersion = policy.minSecurityVersion;
+        device.allowedFirmwareMeasurements = [
+            ...policy.allowedFirmwareMeasurements
+        ];
+        device.policyVersion = (device.policyVersion || 1) + 1;
+        device.policyUpdatedAt = new Date().toISOString();
+        if (!this.saveDeviceData()) {
+            device.minSecurityVersion = previous.minSecurityVersion;
+            device.allowedFirmwareMeasurements =
+                previous.allowedFirmwareMeasurements;
+            device.policyVersion = previous.policyVersion;
+            return null;
+        }
+        return device;
+    }
+
+    revokeV2Device(deviceId, reason, revokedBy) {
+        const device = this.findDevice(deviceId);
+        if (!device || device.authVersion !== 2) {
+            return null;
+        }
+        const previous = {
+            status: device.status,
+            revokedAt: device.revokedAt,
+            revocationReason: device.revocationReason,
+            revokedBy: device.revokedBy
+        };
+        device.status = 'revoked';
+        device.revokedAt = new Date().toISOString();
+        device.revocationReason = typeof reason === 'string'
+            ? reason.slice(0, 256)
+            : 'administrative revocation';
+        device.revokedBy = revokedBy;
+        if (!this.saveDeviceData()) {
+            Object.assign(device, previous);
+            return null;
+        }
+        return device;
     }
 
     // 获取所有固件

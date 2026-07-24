@@ -1,6 +1,7 @@
 #include "dual_slot_config.h"
 #include "qspi-w25q64.h"
 #include "board_cfg.h"
+#include "firmware_security.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -149,6 +150,16 @@ static FirmwareValidationResult validate_metadata(const FirmwareMetadata* metada
                          metadata->component_count, FIRMWARE_COMPONENT_COUNT);
         return FIRMWARE_CORRUPTED;
     }
+
+#if HBOX_SECURE_BOOT_REQUIRED
+    FirmwareValidationResult security_validation =
+        FirmwareSecurity_ValidateMetadata(metadata);
+    if (security_validation != FIRMWARE_VALID) {
+        print_debug_info("Metadata security validation failed: %d",
+                         security_validation);
+        return security_validation;
+    }
+#endif
     
     print_debug_info("Metadata validation successful: Version=%s, Slot=%d, Components=%d", 
                      metadata->firmware_version, metadata->target_slot, metadata->component_count);
@@ -248,8 +259,6 @@ int8_t DualSlot_LoadMetadata(FirmwareMetadata* metadata) {
     // 验证元数据完整性
     FirmwareValidationResult validation = validate_metadata(metadata);
     if (validation != FIRMWARE_VALID) {
-        // 初始化默认元数据
-        init_default_metadata(metadata);
         return -4;
     }
     
@@ -412,6 +421,11 @@ bool DualSlot_IsSlotValid(FirmwareSlot slot) {
         return false;
     }
     
+    if (!g_metadata_loaded ||
+        !FirmwareSecurity_ValidateSlot(&g_current_metadata, slot)) {
+        return false;
+    }
+
     // 检查应用程序向量表
     uint32_t* app_vector = (uint32_t*)app_address;
     uint32_t stack_pointer = app_vector[0];

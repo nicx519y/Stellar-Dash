@@ -46,11 +46,17 @@ import DeviceAuthManager from '@/contexts/deviceAuth';
 
 // 导入WebSocket框架
 import {
-    WebSocketFramework,
     WebSocketState,
     WebSocketDownstreamMessage,
     WebSocketError
 } from '@/components/websocket-framework';
+import {
+    configuredTransportMode,
+    createDeviceTransportFramework,
+    DeviceTransportFrameworkAdapter,
+    PerformanceTelemetryController,
+    WEBHID_FIRMWARE_CHUNK_DATA_SIZE,
+} from '@/lib/device-transport';
 
 // 导入事件总线
 import { eventBus, EVENTS } from '@/lib/event-manager';
@@ -320,7 +326,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [wsConnected, setWsConnected] = useState(false);
     const [wsState, setWsState] = useState<WebSocketState>(WebSocketState.DISCONNECTED);
     const [wsError, setWsError] = useState<WebSocketError | null>(null);
-    const [wsFramework, setWsFramework] = useState<WebSocketFramework | null>(null);
+    const [wsFramework, setWsFramework] = useState<DeviceTransportFrameworkAdapter | null>(null);
     const [showReconnect, setShowReconnect] = useState(false);  // 是否显示websocket重连窗口
 
     // WebSocket 队列管理器
@@ -435,12 +441,16 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    // 初始化WebSocket框架
+    // 初始化统一设备传输。V2 默认只使用 WebHID；旧 WebSocket 必须由
+    // NEXT_PUBLIC_DEVICE_TRANSPORT=legacy-websocket 显式选择，不自动回退。
     useEffect(() => {
-        const framework = new WebSocketFramework({
-            url: websocketConfig.url,
-            heartbeatInterval: websocketConfig.heartbeatInterval,
-            timeout: websocketConfig.timeout
+        const framework = createDeviceTransportFramework({
+            mode: configuredTransportMode(),
+            websocket: {
+                url: websocketConfig.url,
+                heartbeatInterval: websocketConfig.heartbeatInterval,
+                timeout: websocketConfig.timeout
+            }
         });
 
         // 设置事件监听器
@@ -473,10 +483,16 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         });
 
         const unsubscribeDisconnect = framework.onDisconnect(() => {
-            console.log('WebSocket连接断开，触发全局断开事件');
+            console.log('设备传输连接断开，触发全局断开事件');
             // 这里可以触发全局事件，让layout组件知道连接断开了
             eventBus.emit(EVENTS.WEBSOCKET_DISCONNECTED);
         });
+
+        const performanceTelemetry = new PerformanceTelemetryController(framework.transport);
+        const unsubscribePerformance = performanceTelemetry.subscribe((snapshot) => {
+            eventBus.emit(EVENTS.BUTTON_PERFORMANCE_MONITORING, snapshot);
+        });
+        performanceTelemetry.start();
 
         setWsFramework(framework);
 
@@ -487,7 +503,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             unsubscribeMessage();
             unsubscribeBinary();
             unsubscribeDisconnect();
-            framework.disconnect();
+            unsubscribePerformance();
+            performanceTelemetry.stop();
+            framework.dispose();
         };
     }, []);
 
@@ -498,7 +516,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         if (wsFramework && wsState === WebSocketState.DISCONNECTED) {
             if (isFirstConnectRef.current) { // 只有第一次连接时会自动连接，并且显示loading
                 setIsLoading(true);
-                wsFramework.connect().catch((error) => {
+                // 页面加载只重连浏览器已经授权的设备，不触发 chooser。
+                wsFramework.connect(false).catch((error) => {
                     console.error('首次连接失败:', error);
                     setIsLoading(false);
                     setShowReconnect(true); // 首次连接失败也显示重连窗口
@@ -519,9 +538,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             // 隐藏重连窗口
             setShowReconnect(false);
 
-            // 设置DeviceAuthManager的WebSocket发送函数
-            const authManager = DeviceAuthManager.getInstance();
-            authManager.setWebSocketSendFunction(sendWebSocketRequest);
+            // V1 固件检查仍使用旧认证适配；V2 在建立 WebHID 会话时
+            // 已取得短期 Bearer token，不读取 raw UID 或公开哈希签名。
+            if (configuredTransportMode() === 'legacy-websocket') {
+                const authManager = DeviceAuthManager.getInstance();
+                authManager.setWebSocketSendFunction(sendWebSocketRequest);
+            }
 
             fetchGlobalConfig().then(() => {
                 setGlobalConfigIsReady(true);
@@ -565,7 +587,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     // WebSocket连接管理
     const connectWebSocket = async (): Promise<void> => {
         if (wsFramework) {
-            return wsFramework.connect();
+            // 该入口由用户点击连接按钮触发，允许打开 WebHID chooser。
+            return wsFramework.connect(true);
         }
         throw new Error('WebSocket框架未初始化');
     };
@@ -1686,6 +1709,26 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             const serverHost = customServerHost || firmwareServerHost || FIRMWARE_SERVER_CONFIG.defaultHost;
             const url = `${serverHost}${FIRMWARE_SERVER_CONFIG.endpoints.checkUpdate}`;
 
+            if (configuredTransportMode() === 'webhid') {
+                if (!wsFramework || wsState !== WebSocketState.CONNECTED) {
+                    throw new Error('设备尚未完成 WebHID 在线证明');
+                }
+                const response = await wsFramework.authorizedFetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData),
+                }, ['config.read']);
+                if (!response.ok) {
+                    throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
+                }
+                const responseData = await response.json();
+                if (responseData.errNo && responseData.errNo !== 0) {
+                    throw new Error(`Server error: ${responseData.errorMessage || 'Unknown error'}`);
+                }
+                setFirmwareUpdateInfo(responseData.data);
+                return;
+            }
+
             // 获取设备认证管理器
             const authManager = DeviceAuthManager.getInstance();
 
@@ -1788,6 +1831,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
         } catch (err) {
             console.error('❌ 固件更新检查异常:', err);
+            if (configuredTransportMode() === 'webhid') {
+                setFirmwareUpdateInfo(null);
+                setError(err instanceof Error ? err.message : '固件更新认证失败');
+                throw err;
+            }
             setFirmwareUpdateInfo(makeDefaultFirmwareUpdateInfo());
             return Promise.resolve();
         }
@@ -1820,7 +1868,16 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             onProgress?.(initialProgress);
 
             // 1. 下载固件包 (进度 0% - 30%)
-            const response = await fetch(downloadUrl);
+            const response = configuredTransportMode() === 'webhid'
+                ? await wsFramework?.authorizedFetch(
+                    downloadUrl,
+                    undefined,
+                    ['firmware.update'],
+                )
+                : await fetch(downloadUrl);
+            if (!response) {
+                throw new Error('Device transport is not connected');
+            }
             if (!response.ok) {
                 throw new Error(`Failed to download firmware package: ${response.status} ${response.statusText}`);
             }
@@ -1973,7 +2030,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 if (!componentData) {
                     throw new Error(`Component ${componentName} data is missing`);
                 }
-                const totalChunks = Math.ceil(componentData.length / upgradeConfig.chunkSize);
+                const transportChunkSize =
+                    wsFramework?.transport.kind === 'webhid'
+                        ? WEBHID_FIRMWARE_CHUNK_DATA_SIZE
+                        : upgradeConfig.chunkSize;
+                const totalChunks = Math.ceil(componentData.length / transportChunkSize);
 
                 // 解析组件基地址（支持十六进制格式）
                 let baseAddress: number;
@@ -1988,8 +2049,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
                 // 分片传输
                 for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-                    const start = chunkIndex * upgradeConfig.chunkSize;
-                    const end = Math.min(start + upgradeConfig.chunkSize, componentData.length);
+                    const start = chunkIndex * transportChunkSize;
+                    const end = Math.min(start + transportChunkSize, componentData.length);
                     const chunkData = componentData.slice(start, end);
 
                     // 计算当前chunk的精确写入地址和偏移
@@ -2187,9 +2248,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             throw new Error('WebSocket framework not available');
         }
 
-        // 构建二进制消息头部（82字节固定大小）
+        // 构建二进制消息头部（106字节固定大小）
         const BINARY_CMD_UPLOAD_FIRMWARE_CHUNK = 0x01;
-        const headerSize = 82; // 修正头部大小：1+1+2+32+2+16+4+4+4+4+4+8 = 82字节
+        const headerSize = 106; // 1+1+2+32+2+16+4+4+4+4+4+32
         const header = new ArrayBuffer(headerSize);
         const headerView = new DataView(header);
         const headerBytes = new Uint8Array(header);
@@ -2245,9 +2306,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         headerView.setUint32(offset, targetAddress, true);
         offset += 4;
 
-        // checksum (8 bytes) - SHA256的前8字节
-        const checksumBytes = new Uint8Array(8);
-        for (let i = 0; i < 8 && i * 2 < checksum.length; i++) {
+        // checksum (32 bytes) - 完整 SHA-256，禁止截断比较
+        const checksumBytes = new Uint8Array(32);
+        for (let i = 0; i < 32 && i * 2 < checksum.length; i++) {
             checksumBytes[i] = parseInt(checksum.substr(i * 2, 2), 16);
         }
         headerBytes.set(checksumBytes, offset);

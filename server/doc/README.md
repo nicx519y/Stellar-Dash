@@ -10,7 +10,8 @@ STM32 HBox 固件服务器是一个专为STM32 HBox设备设计的固件管理�
 - 📱 **设备注册**: 自动设备ID验证和注册
 - 🔄 **OTA更新**: 支持设备在线固件更新
 - 🎮 **多协议支持**: PS4、PS Classic、Switch、Xbox One、XInput等
-- 🔐 **安全认证**: 设备ID哈希验证，确保固件安全性
+- 🔐 **安全认证**: V2 制造证书、Boot Attestation、短期 scoped permit；
+  旧设备 ID 哈希仅作为 legacy weak 兼容
 - 📊 **状态监控**: 实时服务状态和日志监控
 - 🌐 **Web界面**: 现代化的Web管理界面
 
@@ -23,7 +24,8 @@ server/
 │   ├── firmware.js        # 固件管理模块
 │   ├── auth.js            # 认证模块
 │   ├── action.js          # 动作处理模块
-│   └── device-auth.js     # 设备认证模块
+│   ├── device-auth.js     # V1 legacy weak 兼容
+│   └── device-auth-v2.js  # V2 设备证明与会话授权
 ├── data/                   # 数据存储
 │   ├── firmware_list.json # 固件列表
 │   ├── device_ids.json    # 设备ID数据库
@@ -43,9 +45,15 @@ server/
 
 ### 环境要求
 
-- **Node.js**: 16.x 或更高版本
+- **Node.js**: 18.17 或更高版本
 - **PM2**: 用于进程管理
 - **操作系统**: Linux (推荐 Ubuntu/Debian)
+
+V2 密钥配置、wire API、部署门禁和吊销策略见
+[DEVICE_AUTH_V2.md](./DEVICE_AUTH_V2.md)。完整的制造身份与生产部署门禁见
+[DEVICE_IDENTITY_PROVISIONING.md](../../docs/DEVICE_IDENTITY_PROVISIONING.md)
+和
+[WEBCONFIG_V2_PRODUCTION_DEPLOYMENT.md](../../docs/WEBCONFIG_V2_PRODUCTION_DEPLOYMENT.md)。
 
 ### 本地开发
 
@@ -211,16 +219,21 @@ pm2 stop hbox-firmware-server
 
 ## 安全考虑
 
-### 设备ID验证
+### V2 设备真实性
 
-系统使用SHA256哈希算法验证设备ID：
+V2 使用制造 CA 签发的固定二进制设备证书、每次启动 Boot Attestation、一次性
+challenge 和由在线 KMS/HSM 签发的短期 scoped permit。`deviceId` 由设备公钥
+SHA-256 的前 128 bit 派生，它本身不是秘密，也不能单独作为认证凭据。
 
-```javascript
-// 设备ID哈希算法
-const salt1 = 0x48426F78;  // "HBox"
-const salt2 = 0x32303234;  // "2024"
-// ... 详细算法见 firmware.js
-```
+当前仓库的本地 PEM signer、JSON 设备库和进程内 challenge/token store 只适合
+单进程开发。生产必须使用不可导出的 KMS key、共享 Redis 原子消费和事务型设备
+策略/吊销数据库；依赖不可用时保持 fail-closed。
+
+### V1 legacy weak
+
+旧版公开 32 位哈希只为已出货 V1 设备保留，标记为 `legacy_weak`。它不能证明
+设备持有不可复制的秘密，不得用于 V2 API、受保护下载或“正版设备”宣传，也
+不得作为 V2 服务不可用时的回退。
 
 ### 文件上传安全
 

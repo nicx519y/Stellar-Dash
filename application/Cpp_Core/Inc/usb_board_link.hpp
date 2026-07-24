@@ -35,8 +35,13 @@ public:
                   uint8_t transaction,
                   const uint8_t *payload,
                   uint16_t length);
+    bool trySendBulk(usb_board_channel_t channel,
+                     uint8_t transaction,
+                     const uint8_t *payload,
+                     uint16_t length);
     void process();
     void shutdown();
+    void requestWebConfigTransportReset();
 
     usb_board_role_t role() const { return selectedRole; }
     usb_board_profile_t profile() const { return selectedProfile; }
@@ -51,6 +56,13 @@ public:
 
 private:
     UsbBoardLink() = default;
+
+    enum class WebConfigTransportState : uint8_t
+    {
+        Ready = 0u,
+        ResetRequested,
+        AwaitingFreshCredit
+    };
 
     bool transact(uint8_t command,
                   const void *payload,
@@ -69,8 +81,19 @@ private:
     void returnReceiveCredit(usb_board_channel_t channel);
     void flushReceiveCredits();
     void handleEvent(uint8_t command, const uint8_t *payload, uint8_t length);
+    void serviceWebConfigTransportReset();
     void pumpTelemetry();
     bool trySendTelemetry(const uint8_t *payload, uint8_t length);
+    bool sendBulkInternal(usb_board_channel_t channel,
+                          uint8_t transaction,
+                          const uint8_t *payload,
+                          uint16_t length,
+                          bool waitForCredit);
+    bool sendWebConfigReport(uint8_t transaction,
+                             const uint8_t *payload,
+                             uint16_t length,
+                             bool waitForCredit);
+    void resetWebConfigTransmit();
     uint8_t creditFor(usb_board_channel_t channel) const;
     void consumeCredit(usb_board_channel_t channel);
 
@@ -78,9 +101,14 @@ private:
     usb_board_profile_t selectedProfile = USB_BOARD_PROFILE_NONE;
     usb_board_caps_v1_t caps = {};
     usb_board_usb_state_v1_t usbState = {};
-    uint8_t credits[6] = {};
-    uint8_t receiveCredits[6] = {};
-    uint8_t receiveCreditDirty[6] = {};
+    uint8_t credits[USB_BOARD_CHANNEL_SLOTS] = {};
+    uint8_t receiveCredits[USB_BOARD_CHANNEL_SLOTS] = {};
+    uint8_t receiveCreditDirty[USB_BOARD_CHANNEL_SLOTS] = {};
+    uint8_t webConfigTxPayload[USB_BOARD_LINK_MAX_FRAME_BYTES] = {};
+    uint16_t webConfigTxOffset = 0u;
+    uint16_t webConfigTxCrc = 0u;
+    uint8_t webConfigTxTransaction = 0u;
+    uint8_t webConfigTxFragment = 0u;
     uint8_t inputSequence = 0u;
     uint8_t telemetryTransaction = 0u;
     uint8_t controlTransaction = 0u;
@@ -88,6 +116,11 @@ private:
     bool roleLocked = false;
     bool capsValid = false;
     bool transactionActive = false;
+    bool webConfigTxActive = false;
+    bool webConfigTxCreditConsumed = false;
+    uint32_t webConfigTxGeneration = 0u;
+    WebConfigTransportState webConfigTransportState =
+        WebConfigTransportState::Ready;
 };
 
 #define USB_BOARD_LINK UsbBoardLink::getInstance()

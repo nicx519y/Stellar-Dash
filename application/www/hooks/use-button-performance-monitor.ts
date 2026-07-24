@@ -89,14 +89,13 @@ export function useButtonPerformanceMonitor(options: UseButtonPerformanceMonitor
     const handleButtonPerformanceEvent = (data: unknown) => {
         try {
             
-            // 检查数据类型
-            if (!(data instanceof ArrayBuffer)) {
-                console.warn('Received non-ArrayBuffer data for button performance monitoring event');
-                return;
-            }
-            
-            // 使用新的二进制解析器解析数据
-            const performanceData = parseButtonPerformanceMonitoringBinaryData(data);
+            // V1 emits a binary WebSocket frame. V2 WebHID emits the same
+            // semantic snapshot after merging SAMPLE/EDGE/CHECKPOINT packets.
+            const performanceData = data instanceof ArrayBuffer
+                ? parseButtonPerformanceMonitoringBinaryData(data)
+                : isPerformanceSnapshot(data)
+                    ? data
+                    : null;
             
             if (performanceData) {
                 onButtonPerformanceData?.(performanceData);
@@ -139,6 +138,12 @@ export function useButtonPerformanceMonitor(options: UseButtonPerformanceMonitor
     };
 }
 
+function isPerformanceSnapshot(data: unknown): data is ButtonPerformanceMonitoringBinaryData {
+    if (!data || typeof data !== 'object') return false;
+    const value = data as Partial<ButtonPerformanceMonitoringBinaryData>;
+    return value.command === 2 && Array.isArray(value.buttonData);
+}
+
 // 保留旧的接口以兼容现有代码
 export function useGlobalButtonPerformanceMonitorManager() {
     const monitor = useButtonPerformanceMonitor();
@@ -148,4 +153,4 @@ export function useGlobalButtonPerformanceMonitorManager() {
         destroyManager: () => monitor.stopMonitoring(),
         getManager: () => monitor,
     };
-} 
+}

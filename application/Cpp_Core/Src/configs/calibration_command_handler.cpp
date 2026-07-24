@@ -3,6 +3,8 @@
 #include "adc_btns/adc_calibration.hpp"
 #include "configs/webconfig_btns_manager.hpp"
 #include "configs/websocket_server.hpp"
+#include "config_transport_sink.hpp"
+#include <cstring>
 
 // 获取校准管理器实例
 #define ADC_CALIBRATION_MANAGER ADCCalibrationManager::getInstance()
@@ -37,9 +39,6 @@ CalibrationCommandHandler& CalibrationCommandHandler::getInstance() {
  * @brief 推送校准状态变化通知
  */
 void CalibrationCommandHandler::sendCalibrationStatusNotification() {
-    // 获取WebSocket服务器实例
-    WebSocketServer& server = WebSocketServer::getInstance();
-    
     // 构建校准状态数据
     cJSON* notificationData = cJSON_CreateObject();
     cJSON* statusJSON = buildCalibrationStatusJSON();
@@ -57,8 +56,8 @@ void CalibrationCommandHandler::sendCalibrationStatusNotification() {
     // 转换为JSON字符串
     char* notificationString = cJSON_PrintUnformatted(notification);
     if (notificationString) {
-        // 广播给所有连接的客户端
-        server.broadcast_text(std::string(notificationString));
+        ConfigTransport_PublishJson(
+            notificationString, strlen(notificationString));
         
         // LOG_INFO("WebSocket", "Calibration status notification sent to all clients");
         
@@ -413,4 +412,4 @@ const char* CalibrationCommandHandler::getLEDColorString(CalibrationLEDColor col
         case CalibrationLEDColor::YELLOW: return "YELLOW";
         default: return "UNKNOWN";
     }
-} 
+}

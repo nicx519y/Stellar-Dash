@@ -7,7 +7,7 @@
 // 二进制命令定义
 #define BINARY_CMD_UPLOAD_FIRMWARE_CHUNK 0x01
 
-// 二进制固件分片头部结构（82字节固定大小）
+// 二进制固件分片头部结构（106字节固定大小）
 #pragma pack(push, 1)
 struct BinaryFirmwareChunkHeader {
     uint8_t command;                    // 命令类型 (BINARY_CMD_UPLOAD_FIRMWARE_CHUNK)
@@ -21,9 +21,11 @@ struct BinaryFirmwareChunkHeader {
     uint32_t chunk_size;                // 分片大小
     uint32_t chunk_offset;              // 分片偏移
     uint32_t target_address;            // 目标地址
-    uint8_t checksum[8];                // SHA256校验和的前8字节
+    uint8_t checksum[32];               // 完整SHA256校验和
 };
 #pragma pack(pop)
+static_assert(sizeof(BinaryFirmwareChunkHeader) == 106,
+              "BinaryFirmwareChunkHeader ABI mismatch");
 
 /**
  * @brief 固件相关命令处理器
@@ -149,4 +151,4 @@ private:
     void sendBinaryChunkResponse(WebSocketConnection* connection, bool success, 
                                 uint32_t chunk_index, uint32_t progress = 0, 
                                 const char* error_message = nullptr);
-}; 
+};

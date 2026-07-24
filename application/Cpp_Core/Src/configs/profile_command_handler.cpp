@@ -5,6 +5,7 @@
 #include "cpp_utils.hpp"
 #include "configs/base64.hpp"
 
+static bool decode_macro_binary(const char* b64, MacroConfig& out);
 
 
 // ============================================================================
@@ -578,6 +579,16 @@ void ProfileCommandHandler::parseProfileJSON(cJSON* profileJSON, GamepadProfile*
                     cJSON* triggers = cJSON_GetObjectItem(macroJSON, "triggerKeys");
 
                     MacroConfig& out = targetProfile->keysConfig.macros[index];
+                    cJSON* encoded =
+                        cJSON_GetObjectItem(macroJSON, "data");
+                    if (encoded && cJSON_IsString(encoded) &&
+                        encoded->valuestring) {
+                        if (!decode_macro_binary(
+                                encoded->valuestring, out)) {
+                            memset(&out, 0, sizeof(out));
+                        }
+                        continue;
+                    }
                     if (triggers && cJSON_IsArray(triggers)) {
                         uint8_t triggerCount = (uint8_t)cJSON_GetArraySize(triggers);
                         if (triggerCount > MAX_MACRO_TRIGGER_KEYS) triggerCount = MAX_MACRO_TRIGGER_KEYS;
@@ -858,6 +869,49 @@ static GamepadProfile* find_profile_by_id(Config& config, const char* id) {
     return nullptr;
 }
 
+WebSocketDownstreamMessage
+ProfileCommandHandler::handleGetProfileDetails(
+    const WebSocketUpstreamMessage& request) {
+    Config& config = Storage::getInstance().config;
+    cJSON* params = request.getParams();
+    cJSON* profileIdItem = params == nullptr
+        ? nullptr
+        : cJSON_GetObjectItem(params, "profileId");
+    if (!cJSON_IsString(profileIdItem) ||
+        profileIdItem->valuestring == nullptr) {
+        return create_error_response(
+            request.getCid(),
+            request.getCommand(),
+            1,
+            "Missing profileId");
+    }
+
+    GamepadProfile* profile =
+        find_profile_by_id(config, profileIdItem->valuestring);
+    if (profile == nullptr || !profile->enabled) {
+        return create_error_response(
+            request.getCid(),
+            request.getCommand(),
+            1,
+            "Profile not found");
+    }
+
+    cJSON* profileJson = buildProfileJSON(profile);
+    cJSON* data = cJSON_CreateObject();
+    if (profileJson == nullptr || data == nullptr) {
+        cJSON_Delete(profileJson);
+        cJSON_Delete(data);
+        return create_error_response(
+            request.getCid(),
+            request.getCommand(),
+            1,
+            "Failed to build profile JSON");
+    }
+    cJSON_AddItemToObject(data, "profileDetails", profileJson);
+    return create_success_response(
+        request.getCid(), request.getCommand(), data);
+}
+
 static void append_u16_le(std::string& out, uint16_t v) {
     out.push_back((char)(v & 0xFF));
     out.push_back((char)((v >> 8) & 0xFF));
@@ -1128,6 +1182,37 @@ static cJSON* build_macro_json(const MacroConfig& macro, uint8_t index) {
     std::string b64 = encode_macro_binary(macro);
     cJSON_AddStringToObject(macroJSON, "data", b64.c_str());
     return macroJSON;
+}
+
+cJSON* ProfileCommandHandler::buildProfileExportJSON(
+    GamepadProfile* profile) {
+    cJSON* profileJson = buildProfileJSON(profile);
+    if (profileJson == nullptr || profile == nullptr) {
+        cJSON_Delete(profileJson);
+        return nullptr;
+    }
+    cJSON* keysConfig =
+        cJSON_GetObjectItem(profileJson, "keysConfig");
+    cJSON* macros = cJSON_CreateArray();
+    if (!cJSON_IsObject(keysConfig) || macros == nullptr) {
+        cJSON_Delete(macros);
+        cJSON_Delete(profileJson);
+        return nullptr;
+    }
+    for (uint8_t index = 0u;
+         index < MAX_NUM_MACROS;
+         ++index) {
+        cJSON* macro = build_macro_json(
+            profile->keysConfig.macros[index], index);
+        if (macro == nullptr) {
+            cJSON_Delete(macros);
+            cJSON_Delete(profileJson);
+            return nullptr;
+        }
+        cJSON_AddItemToArray(macros, macro);
+    }
+    cJSON_AddItemToObject(keysConfig, "macros", macros);
+    return profileJson;
 }
 
 WebSocketDownstreamMessage ProfileCommandHandler::handleGetMacro(const WebSocketUpstreamMessage& request) {
@@ -1589,6 +1674,8 @@ WebSocketDownstreamMessage ProfileCommandHandler::handle(const WebSocketUpstream
         return handleGetProfileList(request);
     } else if (command == "get_default_profile") {
         return handleGetDefaultProfile(request);
+    } else if (command == "get_profile_details") {
+        return handleGetProfileDetails(request);
     } else if (command == "update_profile") {
         return handleUpdateProfile(request);
     } else if (command == "get_macro") {

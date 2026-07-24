@@ -18,6 +18,7 @@ const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs-extra');
 const zlib = require('zlib');
+const { createLegacyDownloadUrl } = require('./download-access');
 
 const STM32_OTA_COMPONENTS = Object.freeze([
     'application',
@@ -292,6 +293,32 @@ function isValidHardwareVersion(hardwareVersion) {
     return hardwareVersionCode(hardwareVersion) !== null;
 }
 
+function presentFirmwareSlotForRequest(slot, req, config) {
+    if (!slot) {
+        return null;
+    }
+    if (req.deviceSession) {
+        return slot;
+    }
+    if (!req.authenticatedDevice ||
+        !req.app.locals.legacyDownloadTickets) {
+        return null;
+    }
+    const downloadUrl = createLegacyDownloadUrl(
+        req.app.locals.legacyDownloadTickets,
+        config.serverUrl,
+        slot,
+        req.authenticatedDevice
+    );
+    if (!downloadUrl) {
+        return null;
+    }
+    return {
+        ...slot,
+        downloadUrl
+    };
+}
+
 function cleanupUploadedFiles(files) {
     if (!files || typeof files !== 'object') {
         return;
@@ -339,7 +366,11 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
             status: 'ok',
             message: 'STM32 HBox 固件服务器运行正常',
             timestamp: new Date().toISOString(),
-            version: '1.0.0'
+            version: '1.0.0',
+            deviceAuthV2Ready: Boolean(
+                req.app.locals.deviceAuthV2 &&
+                req.app.locals.deviceAuthV2.isReady()
+            )
         });
     });
 
@@ -351,8 +382,6 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
             const { rawUniqueId, deviceId, deviceName } = req.body;
             
             console.log('📥 设备注册请求:');
-            console.log('  原始唯一ID (rawUniqueId):', rawUniqueId);
-            console.log('  设备ID (deviceId):', deviceId);
             console.log('  设备名称 (deviceName):', deviceName);
             console.log('  管理员认证:', req.authenticatedAdmin ? '✅已认证' : '❌未认证');
             
@@ -596,8 +625,21 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
         }
     });
 
+    const validateLegacyFirmwareCatalog =
+        validateDeviceAuth({ source: 'headers' });
+    const validateV2FirmwareCatalog = app.locals.deviceAuthV2
+        ? app.locals.deviceAuthV2.requireSession(['config.read'])
+        : null;
+    const validateFirmwareCatalog = (req, res, next) => {
+        if (validateV2FirmwareCatalog &&
+            /^Bearer /.test(req.get('authorization') || '')) {
+            return validateV2FirmwareCatalog(req, res, next);
+        }
+        return validateLegacyFirmwareCatalog(req, res, next);
+    };
+
     // 1. 获取固件列表
-    app.get('/api/firmwares', (req, res) => {
+    app.get('/api/firmwares', validateFirmwareCatalog, (req, res) => {
         try {
             const firmwares = storage_manager.getFirmwares();
             
@@ -626,9 +668,29 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
     });
 
     // 2. 检查固件更新
-    app.post('/api/firmware-check-update', validateDeviceAuth({ source: 'body' }), (req, res) => {
+    const validateLegacyFirmwareCheck = validateDeviceAuth({ source: 'body' });
+    /*
+     * Reading the signed firmware catalog is non-destructive. The elevated
+     * firmware.update scope is required later by the protected package
+     * download and device-side upgrade commands.
+     */
+    const validateV2FirmwareCheck = validateV2FirmwareCatalog;
+    const validateFirmwareCheck = (req, res, next) => {
+        if (validateV2FirmwareCheck &&
+            /^Bearer /.test(req.get('authorization') || '')) {
+            return validateV2FirmwareCheck(req, res, next);
+        }
+        return validateLegacyFirmwareCheck(req, res, next);
+    };
+    app.post('/api/firmware-check-update', validateFirmwareCheck, (req, res) => {
         try {
-            const { currentVersion, hardwareVersion } = req.body;
+            const {
+                currentVersion,
+                hardwareVersion: submittedHardwareVersion
+            } = req.body;
+            const hardwareVersion = req.deviceSession
+                ? req.deviceSession.hardwareVersion
+                : submittedHardwareVersion;
             
             if (!currentVersion) {
                 return res.status(400).json({
@@ -660,6 +722,16 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
                     errorMessage: 'hardwareVersion is required and must use x.y.z format'
                 });
             }
+            if (req.deviceSession &&
+                submittedHardwareVersion !== undefined &&
+                submittedHardwareVersion !== hardwareVersion) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'hardware version does not match authenticated device',
+                    errNo: 1,
+                    errorMessage: 'hardwareVersion does not match device session'
+                });
+            }
 
             const allFirmwares = storage_manager.getFirmwares();
             const normalizedHardwareVersion = hardwareVersion.trim();
@@ -689,8 +761,16 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
                     desc: latestFirmware.desc,
                     createTime: latestFirmware.createTime,
                     updateTime: latestFirmware.updateTime,
-                    slotA: latestFirmware.slotA,
-                    slotB: latestFirmware.slotB
+                    slotA: presentFirmwareSlotForRequest(
+                        latestFirmware.slotA,
+                        req,
+                        config
+                    ),
+                    slotB: presentFirmwareSlotForRequest(
+                        latestFirmware.slotB,
+                        req,
+                        config
+                    )
                 };
                 responseData.availableUpdates = newerFirmwares.map(firmware => ({
                     id: firmware.id,
@@ -963,7 +1043,7 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
     });
 
     // 6. 获取单个固件详情
-    app.get('/api/firmwares/:id', (req, res) => {
+    app.get('/api/firmwares/:id', validateFirmwareCatalog, (req, res) => {
         try {
             const { id } = req.params;
             const firmware = storage_manager.findFirmware(id);
@@ -991,7 +1071,7 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
     });
 
     // 7. 更新固件信息
-    app.put('/api/firmwares/:id', (req, res) => {
+    app.put('/api/firmwares/:id', requireAdminAuth(), (req, res) => {
         try {
             const { id } = req.params;
             const { name, version, desc } = req.body;

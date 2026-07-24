@@ -30,6 +30,8 @@ extern "C" {
     (USB_BOARD_LINK_MAX_PAYLOAD_BYTES - USB_BOARD_FRAGMENT_HEADER_BYTES)
 #define USB_BOARD_BULK_MESSAGE_MAX_BYTES    1536u
 #define USB_BOARD_BULK_CREDIT_WINDOW        4u
+#define USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW \
+    USB_BOARD_BULK_CREDIT_WINDOW
 
 #define USB_BOARD_FRAGMENT_FLAG_FIRST       0x01u
 #define USB_BOARD_FRAGMENT_FLAG_LAST        0x02u
@@ -99,13 +101,19 @@ typedef enum
     USB_BOARD_CHANNEL_USB_HOST   = 0x02u,
     USB_BOARD_CHANNEL_NETWORK    = 0x03u,
     USB_BOARD_CHANNEL_TELEMETRY  = 0x04u,
-    USB_BOARD_CHANNEL_AUTH       = 0x05u
+    USB_BOARD_CHANNEL_AUTH       = 0x05u,
+    /* Opaque 64-byte SecureHidReportV1 messages; maintenance role only. */
+    USB_BOARD_CHANNEL_WEBCONFIG  = 0x06u
 } usb_board_channel_t;
+
+#define USB_BOARD_CHANNEL_LAST USB_BOARD_CHANNEL_WEBCONFIG
+#define USB_BOARD_CHANNEL_SLOTS ((uint8_t)USB_BOARD_CHANNEL_LAST + 1u)
 
 /*
  * USB_BOARD_CMD_USB_CONTROL is a board-management RPC.  Host EP0 requests are
- * intentionally not tunneled over SPI: enumeration, CDC-NCM and console
- * authentication timing remain local to CH585.
+ * intentionally not tunneled over SPI: enumeration and console
+ * authentication timing remain local to CH585. SET_MAC is a retained legacy
+ * opcode and returns UNSUPPORTED in the V2 WebHID profile.
  */
 typedef enum
 {
@@ -149,8 +157,9 @@ enum
      */
     USB_BOARD_CAP_FEATURE_TELEMETRY_HID = (1u << 0),
     USB_BOARD_CAP_FEATURE_CONTROL_V1    = (1u << 1),
-    USB_BOARD_CAP_FEATURE_CDC_NCM       = (1u << 2),
-    USB_BOARD_CAP_FEATURE_LOCAL_AUTH    = (1u << 3)
+    USB_BOARD_CAP_FEATURE_CDC_NCM       = (1u << 2), /* legacy capability */
+    USB_BOARD_CAP_FEATURE_LOCAL_AUTH    = (1u << 3),
+    USB_BOARD_CAP_FEATURE_WEBHID_V1     = (1u << 4)
 };
 
 #if defined(__GNUC__)
@@ -291,9 +300,13 @@ typedef struct USB_BOARD_PACKED
 /*
  * Credits are receiver-owned absolute values, not deltas:
  * - CMD_BULK_CREDIT grants CH585 permission to emit 0x86 fragments.
- * - EVT_BULK_CREDIT grants STM32 permission to emit 0x06 fragments.
- * A receiver consumes one credit per accepted fragment and advertises its
- * current window again only after the fragment storage has been released.
+ * - EVT_BULK_CREDIT grants STM32 permission to emit 0x06 traffic.
+ * - On WEBCONFIG, one EVT credit reserves one complete 64-byte HID report,
+ *   including all of its BoardLink fragments. It is returned only after the
+ *   report has moved into the USB IN endpoint, or after an explicit transport
+ *   reset. This prevents an accepted sequence from being dropped behind a busy
+ *   endpoint.
+ * - Other channels retain one-credit-per-fragment behavior.
  */
 
 typedef struct USB_BOARD_PACKED
@@ -308,6 +321,7 @@ typedef struct USB_BOARD_PACKED
 
 USB_BOARD_STATIC_ASSERT(USB_BOARD_LINK_MAX_PAYLOAD_BYTES == 60u);
 USB_BOARD_STATIC_ASSERT(USB_BOARD_FRAGMENT_DATA_BYTES == 52u);
+USB_BOARD_STATIC_ASSERT(USB_BOARD_CHANNEL_SLOTS == 7u);
 USB_BOARD_STATIC_ASSERT(USB_BOARD_TELEMETRY_FRAME_BYTES <=
                         USB_BOARD_FRAGMENT_DATA_BYTES);
 USB_BOARD_STATIC_ASSERT(sizeof(usb_board_caps_v1_t) == 10u);

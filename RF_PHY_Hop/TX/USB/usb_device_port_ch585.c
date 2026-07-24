@@ -1,16 +1,17 @@
 #include "usb_device.h"
 
-#include <stddef.h>
 #include <string.h>
 
 #include "CH58x_common.h"
 #include "usb_auth.h"
 #include "usb_board_link.h"
+#include "usb_endpoint_reset_control.h"
 #include "usb_legacy_descriptors.h"
 #include "usb_management_control.h"
-#include "usb_ncm.h"
 #include "usb_ps4_features.h"
+#include "usb_webhid.h"
 #include "usb_xbox_device.h"
+#include "webhid_protocol.h"
 
 /*
  * The XInput descriptors are the authoritative bytes used by the current
@@ -28,13 +29,14 @@
 #define USBDEV_XINPUT_OUTPUT_ENDPOINT       2u
 #define USBDEV_XINPUT_TELEMETRY_ENDPOINT    7u
 #define USBDEV_PS4_OUTPUT_ENDPOINT          3u
-#define USBDEV_NCM_NTH_BYTES               12u
-#define USBDEV_NCM_MAX_FRAMES                6u
+#define USBDEV_OTHER_SPEED_BYTES           256u
+#define USBDEV_WEBHID_OUT_QUEUE_DEPTH        4u
 #define USBDEV_HID_REPORT_INPUT              1u
 #define USBDEV_HID_REPORT_OUTPUT             2u
 #define USBDEV_HID_REPORT_FEATURE            3u
 #define USBDEV_XBOX_OS_VENDOR_CODE         0x20u
 #define USBDEV_XBOX_COMPAT_ID_INDEX      0x0004u
+#define USBDEV_SIE_QUIESCE_TIMEOUT_MS         1u
 
 typedef enum
 {
@@ -55,37 +57,38 @@ typedef enum
 __attribute__((aligned(4))) static uint8_t s_ep0[USBDEV_EP0_BYTES];
 __attribute__((aligned(4))) static uint8_t s_ep1_tx[USBDEV_ENDPOINT_BYTES];
 __attribute__((aligned(4))) static uint8_t s_ep2_rx[USBDEV_ENDPOINT_BYTES];
-__attribute__((aligned(4))) static uint8_t s_ep2_tx[USBDEV_ENDPOINT_BYTES];
 __attribute__((aligned(4))) static uint8_t s_ep3_rx[USBDEV_INTERRUPT_BYTES];
 __attribute__((aligned(4))) static uint8_t s_ep4_rx[USBDEV_INTERRUPT_BYTES];
 __attribute__((aligned(4))) static uint8_t s_ep6_rx[USBDEV_INTERRUPT_BYTES];
 __attribute__((aligned(4))) static uint8_t s_ep7_tx[USBDEV_INTERRUPT_BYTES];
 __attribute__((aligned(4))) static uint8_t s_unused_tx[USBDEV_INTERRUPT_BYTES];
 
-__attribute__((aligned(4))) static uint8_t
-    s_ncm_rx_ntb[USB_NCM_NTB_MAX_BYTES];
-__attribute__((aligned(4))) static uint8_t
-    s_ncm_tx_ntb[USB_NCM_NTB_MAX_BYTES];
-
 static uint8_t s_control_response[USBDEV_CONTROL_BUFFER_BYTES];
 static uint8_t s_control_out[USBDEV_CONTROL_BUFFER_BYTES];
-static uint8_t s_other_speed[USB_NCM_CONFIGURATION_BYTES];
+static uint8_t s_other_speed[USBDEV_OTHER_SPEED_BYTES];
 static uint8_t s_xinput_string[256];
 static uint8_t s_last_report[USBDEV_INTERRUPT_BYTES];
 static uint8_t s_last_telemetry[USB_BOARD_TELEMETRY_FRAME_BYTES];
 static uint8_t s_xbox_out[USB_XBOX_DEVICE_PACKET_BYTES];
+static uint8_t s_webhid_out[USBDEV_WEBHID_OUT_QUEUE_DEPTH]
+                           [WEBHID_REPORT_BYTES];
 
 static volatile uint8_t s_mounted;
 static volatile uint8_t s_suspended;
 static volatile uint8_t s_connected;
 static volatile uint8_t s_initialized;
 static volatile uint8_t s_ep1_busy;
-static volatile uint8_t s_ep2_busy;
 static volatile uint8_t s_ep7_busy;
 static volatile uint8_t s_xbox_out_ready;
 static volatile uint8_t s_xbox_out_length;
 static volatile uint8_t s_address;
 static volatile uint8_t s_configuration;
+static volatile uint8_t s_webhid_out_head;
+static volatile uint8_t s_webhid_out_tail;
+static volatile uint8_t s_webhid_out_count;
+static volatile uint8_t s_transport_reset_pending;
+static volatile uint8_t s_webhid_ep2_blocked;
+static volatile uint8_t s_webhid_transport_reset_complete;
 static uint8_t s_hid_idle;
 static uint8_t s_hid_protocol;
 static uint8_t s_remote_wakeup;
@@ -107,21 +110,6 @@ static uint16_t s_control_remaining;
 static uint16_t s_control_out_received;
 static uint8_t s_control_need_zlp;
 
-static volatile uint16_t s_ncm_rx_length;
-static volatile uint16_t s_ncm_rx_expected;
-static volatile uint8_t s_ncm_rx_ready;
-static uint8_t s_ncm_rx_parsed;
-static uint8_t s_ncm_frame_count;
-static uint8_t s_ncm_frame_index;
-static uint16_t s_ncm_frame_offsets[USBDEV_NCM_MAX_FRAMES];
-static uint16_t s_ncm_frame_lengths[USBDEV_NCM_MAX_FRAMES];
-
-static uint16_t s_ncm_tx_length;
-static uint16_t s_ncm_tx_offset;
-static uint16_t s_ncm_tx_sequence;
-static uint8_t s_ncm_tx_active;
-static uint8_t s_ncm_tx_need_zlp;
-
 static uint32_t s_clock_last_cycles;
 static uint32_t s_clock_remainder;
 static uint32_t s_clock_millis;
@@ -131,12 +119,6 @@ USB_BOARD_STATIC_ASSERT(sizeof(xinput_configuration_descriptor) == 0xB2u);
 USB_BOARD_STATIC_ASSERT(sizeof(xinput_telemetry_hid_report_descriptor) == 21u);
 USB_BOARD_STATIC_ASSERT(USB_XBOX_DEVICE_PACKET_BYTES <= USBDEV_INTERRUPT_BYTES);
 
-static uint16_t load_u16_le(const uint8_t *source)
-{
-    return (uint16_t)source[0] |
-           (uint16_t)((uint16_t)source[1] << 8);
-}
-
 static uint8_t profile_interface_count(void)
 {
     if(s_profile == USB_BOARD_PROFILE_XINPUT)
@@ -145,7 +127,7 @@ static uint8_t profile_interface_count(void)
     }
     if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
     {
-        return 2u;
+        return 1u;
     }
     return 1u;
 }
@@ -174,58 +156,196 @@ static uint32_t device_now_ms(void)
     return s_clock_millis;
 }
 
-static usb_ncm_speed_t current_ncm_speed(void)
+static bool wait_for_sie_idle(uint32_t timeout_ms)
 {
-    return ((R8_USB2_MIS_ST & USBHS_UDMS_HS_MOD) != 0u)
-        ? USB_NCM_SPEED_HIGH
-        : USB_NCM_SPEED_FULL;
-}
+    uint32_t cycles_per_ms = GetSysClock() / 1000u;
+    uint32_t cycle_budget;
+    uint32_t remaining_spins;
+    const uint32_t start_cycles = SysTick->CNTL;
 
-static uint16_t current_bulk_packet_bytes(void)
-{
-    return (usb_ncm_speed() == USB_NCM_SPEED_HIGH)
-        ? USB_NCM_ENDPOINT_HS_BYTES
-        : USB_NCM_ENDPOINT_FS_BYTES;
-}
-
-static void sync_ncm_speed(void)
-{
-    const usb_ncm_speed_t speed = current_ncm_speed();
-    if(usb_ncm_speed() != speed)
+    if(cycles_per_ms == 0u)
     {
-        const bool link_up = usb_management_control_is_connected();
-        usb_ncm_init(speed);
-        usb_ncm_set_link_state(link_up);
+        cycles_per_ms = 1u;
     }
+    cycle_budget = cycles_per_ms * timeout_ms;
+    if(cycle_budget == 0u)
+    {
+        cycle_budget = 1u;
+    }
+    remaining_spins = cycle_budget;
+
+    do
+    {
+        if((R8_USB2_MIS_ST & USBHS_UDMS_SIE_FREE) != 0u)
+        {
+            return true;
+        }
+        --remaining_spins;
+    } while((remaining_spins != 0u) &&
+            ((uint32_t)(SysTick->CNTL - start_cycles) < cycle_budget));
+
+    return false;
+}
+
+static bool data_path_reset(bool settle_same_bus)
+{
+    uint16_t saved_tx_enable = 0u;
+    uint16_t saved_rx_enable = 0u;
+    bool reset_ok = true;
+    const bool settle_webhid_endpoints =
+        settle_same_bus &&
+        (s_profile == USB_BOARD_PROFILE_WEB_CONFIG);
+
+    if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
+    {
+        s_webhid_ep2_blocked = 1u;
+        s_webhid_transport_reset_complete = 0u;
+    }
+
     /*
-     * U2EPn_MAX_LEN is also the DMA receive bound.  Keep it aligned with the
-     * descriptor selected for the negotiated bus speed instead of leaving a
-     * full-speed 64-byte endpoint armed for 512-byte writes.
+     * A USB reset/suspend ends the authenticated WebHID transport
+     * generation.  Cancel an IN report already owned by EP1 as well as the
+     * software queues, otherwise old ciphertext can be emitted after resume.
+     *
+     * IRQ masking alone does not stop the SIE. Disable the WebHID endpoints
+     * and wait for an in-flight token to finish before examining DONE. A
+     * completed transfer is discarded, but its DATA toggle must still advance
+     * exactly as it would in the completion ISR. A bus reset first resets all
+     * endpoint controls, so no stale DONE is consumed on that path.
      */
-    R32_U2EP2_MAX_LEN = (speed == USB_NCM_SPEED_HIGH)
-        ? USB_NCM_ENDPOINT_HS_BYTES
-        : USB_NCM_ENDPOINT_FS_BYTES;
-}
+    if(settle_webhid_endpoints)
+    {
+        saved_tx_enable = R16_U2EP_TX_EN;
+        saved_rx_enable = R16_U2EP_RX_EN;
+        R16_U2EP_TX_EN =
+            (uint16_t)(saved_tx_enable & (uint16_t)~RB_EP1_EN);
+        R16_U2EP_RX_EN =
+            (uint16_t)(saved_rx_enable & (uint16_t)~RB_EP2_EN);
+        if(!wait_for_sie_idle(USBDEV_SIE_QUIESCE_TIMEOUT_MS))
+        {
+            /*
+             * The endpoint state is no longer trustworthy. Keep EP1/EP2
+             * disabled, detach, and reset the SIE so the next connection must
+             * enumerate and authenticate from DATA0. Never resume the old
+             * transport generation after a quiesce timeout.
+             */
+            R16_PIN_CONFIG &= (uint16_t)~RB_PIN_USB2_EN;
+            R8_USB2_CTRL |= USBHS_UD_RST_SIE;
+            R8_USB2_CTRL &= (uint8_t)~USBHS_UD_RST_SIE;
+            R8_USB2_DEV_AD = 0u;
+            s_connected = 0u;
+            s_mounted = 0u;
+            s_suspended = 0u;
+            s_address = 0u;
+            s_configuration = 0u;
+            reset_ok = false;
+        }
+    }
 
-static void ncm_receive_reset(void)
-{
-    s_ncm_rx_length = 0u;
-    s_ncm_rx_expected = 0u;
-    s_ncm_rx_ready = 0u;
-    s_ncm_rx_parsed = 0u;
-    s_ncm_frame_count = 0u;
-    s_ncm_frame_index = 0u;
-}
-
-static void data_path_reset(void)
-{
+    if(!settle_webhid_endpoints || reset_ok)
+    {
+        R16_U2EP1_T_LEN = 0u;
+        if(settle_webhid_endpoints)
+        {
+            R8_U2EP1_TX_CTRL = usb_endpoint_reset_control(
+                R8_U2EP1_TX_CTRL,
+                USBHS_UEP_T_DONE,
+                0u,
+                USBHS_UEP_T_TOG_DATA1,
+                USBHS_UEP_T_RES_NAK);
+        }
+        else
+        {
+            R8_U2EP1_TX_CTRL =
+                (uint8_t)((R8_U2EP1_TX_CTRL &
+                           USBHS_UEP_T_TOG_DATA1) |
+                          USBHS_UEP_T_RES_NAK);
+        }
+    }
+    s_ep1_busy = 0u;
+    s_last_report_length = 0u;
+    memset(s_ep1_tx, 0, sizeof(s_ep1_tx));
+    memset(s_last_report, 0, sizeof(s_last_report));
     s_xbox_out_ready = 0u;
     s_xbox_out_length = 0u;
-    ncm_receive_reset();
-    s_ncm_tx_length = 0u;
-    s_ncm_tx_offset = 0u;
-    s_ncm_tx_active = 0u;
-    s_ncm_tx_need_zlp = 0u;
+    s_webhid_out_head = 0u;
+    s_webhid_out_tail = 0u;
+    s_webhid_out_count = 0u;
+    memset(s_webhid_out, 0, sizeof(s_webhid_out));
+    if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
+    {
+        /*
+         * Drop a completed OUT payload while still consuming its DONE toggle.
+         * Re-open EP2 only after both endpoint controls and queues represent
+         * the new bootstrap generation.
+         */
+        memset(s_ep2_rx, 0, WEBHID_REPORT_BYTES);
+        if(settle_webhid_endpoints && reset_ok)
+        {
+            R8_U2EP2_RX_CTRL = usb_endpoint_reset_control(
+                R8_U2EP2_RX_CTRL,
+                USBHS_UEP_R_DONE,
+                USBHS_UEP_R_TOG_MATCH,
+                USBHS_UEP_R_TOG_DATA1,
+                USBHS_UEP_R_RES_NAK);
+        }
+        else if(!settle_webhid_endpoints)
+        {
+            R8_U2EP2_RX_CTRL =
+                (uint8_t)((R8_U2EP2_RX_CTRL &
+                           USBHS_UEP_R_TOG_DATA1) |
+                          USBHS_UEP_R_RES_NAK);
+        }
+    }
+    s_transport_reset_pending = 1u;
+
+    if(settle_webhid_endpoints && reset_ok)
+    {
+        R16_U2EP_TX_EN = saved_tx_enable;
+        R16_U2EP_RX_EN = saved_rx_enable;
+    }
+    return reset_ok;
+}
+
+/*
+ * EP2 stays NAK after data_path_reset until both lower transport layers have
+ * discarded the old generation. This function is called only with the USB
+ * IRQ masked, so ACK cannot become visible between the two reset operations.
+ */
+static void webhid_try_reopen_out_endpoint(void)
+{
+    if((s_profile != USB_BOARD_PROFILE_WEB_CONFIG) ||
+       (s_webhid_ep2_blocked == 0u) ||
+       (s_webhid_transport_reset_complete == 0u) ||
+       (s_connected == 0u) ||
+       (s_mounted == 0u) ||
+       (s_suspended != 0u))
+    {
+        return;
+    }
+
+    R8_U2EP2_RX_CTRL =
+        (uint8_t)((R8_U2EP2_RX_CTRL & USBHS_UEP_R_TOG_DATA1) |
+                  USBHS_UEP_R_RES_ACK);
+    s_webhid_ep2_blocked = 0u;
+    s_webhid_transport_reset_complete = 0u;
+}
+
+static bool webhid_out_enqueue(const uint8_t *data, uint16_t length)
+{
+    uint8_t tail;
+
+    if((data == 0) || (length != WEBHID_REPORT_BYTES) ||
+       (s_webhid_out_count >= USBDEV_WEBHID_OUT_QUEUE_DEPTH))
+    {
+        return false;
+    }
+    tail = s_webhid_out_tail;
+    memcpy(s_webhid_out[tail], data, WEBHID_REPORT_BYTES);
+    s_webhid_out_tail =
+        (uint8_t)((tail + 1u) % USBDEV_WEBHID_OUT_QUEUE_DEPTH);
+    ++s_webhid_out_count;
+    return true;
 }
 
 static void ep0_stall(void)
@@ -424,40 +544,42 @@ static const uint8_t *descriptor_for_setup(uint16_t value,
 
     if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
     {
-        sync_ncm_speed();
         switch(type)
         {
         case USB_DESCR_TYP_DEVICE:
-            descriptor = usb_ncm_device_descriptor(&descriptor_length);
+            descriptor =
+                usb_webhid_device_descriptor(&descriptor_length);
             break;
         case USB_DESCR_TYP_CONFIG:
-            descriptor = usb_ncm_configuration_descriptor(
-                usb_ncm_speed(), &descriptor_length);
+            descriptor =
+                usb_webhid_configuration_descriptor(
+                    &descriptor_length);
+            break;
+        case USB_DESCR_TYP_QUALIF:
+            descriptor =
+                usb_webhid_qualifier_descriptor(&descriptor_length);
             break;
         case USB_DESCR_TYP_SPEED:
-        {
-            const usb_ncm_speed_t other =
-                (usb_ncm_speed() == USB_NCM_SPEED_HIGH)
-                    ? USB_NCM_SPEED_FULL
-                    : USB_NCM_SPEED_HIGH;
-            descriptor = usb_ncm_configuration_descriptor(
-                other, &descriptor_length);
-            if((descriptor != 0) &&
-               (descriptor_length <= sizeof(s_other_speed)))
+            descriptor =
+                usb_webhid_other_speed_descriptor(&descriptor_length);
+            break;
+        case USB_DESCR_TYP_REPORT:
+            if(interface_number == USB_WEBHID_INTERFACE)
             {
-                memcpy(s_other_speed, descriptor, descriptor_length);
-                s_other_speed[1] = USB_DESCR_TYP_SPEED;
-                descriptor = s_other_speed;
-            }
-            else
-            {
-                descriptor = 0;
+                descriptor =
+                    usb_webhid_report_descriptor(&descriptor_length);
             }
             break;
-        }
+        case USB_DESCR_TYP_HID:
+            if(interface_number == USB_WEBHID_INTERFACE)
+            {
+                descriptor =
+                    usb_webhid_hid_descriptor(&descriptor_length);
+            }
+            break;
         case USB_DESCR_TYP_STRING:
             descriptor =
-                usb_ncm_string_descriptor(number, &descriptor_length);
+                usb_webhid_string_descriptor(number, &descriptor_length);
             break;
         default:
             break;
@@ -602,8 +724,7 @@ static void endpoint_controls_reset(void)
     {
         R8_U2EP2_RX_CTRL = USBHS_UEP_R_RES_ACK;
     }
-    else if((s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
-            (usb_ncm_data_alt_setting() == 1u))
+    else if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
     {
         R8_U2EP2_RX_CTRL = USBHS_UEP_R_RES_ACK;
     }
@@ -638,8 +759,8 @@ static void endpoints_init(void)
     }
     else if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
     {
-        ep2_max = current_bulk_packet_bytes();
-        tx_enable |= RB_EP1_EN | RB_EP2_EN;
+        ep2_max = WEBHID_REPORT_BYTES;
+        tx_enable |= RB_EP1_EN;
         rx_enable |= RB_EP2_EN;
     }
 
@@ -657,7 +778,6 @@ static void endpoints_init(void)
     R32_U2EP0_DMA = (uint32_t)s_ep0;
     R32_U2EP1_TX_DMA = (uint32_t)s_ep1_tx;
     R32_U2EP2_RX_DMA = (uint32_t)s_ep2_rx;
-    R32_U2EP2_TX_DMA = (uint32_t)s_ep2_tx;
     R32_U2EP3_RX_DMA = (uint32_t)s_ep3_rx;
     R32_U2EP3_TX_DMA = (uint32_t)s_unused_tx;
     R32_U2EP4_RX_DMA = (uint32_t)s_ep4_rx;
@@ -678,9 +798,8 @@ static void endpoints_init(void)
     s_ep0_flow = USBDEV_EP0_IDLE;
     s_control_out_kind = USBDEV_CONTROL_OUT_NONE;
     s_ep1_busy = 0u;
-    s_ep2_busy = 0u;
     s_ep7_busy = 0u;
-    data_path_reset();
+    (void)data_path_reset(false);
 }
 
 static bool ep1_send(const uint8_t *data, uint8_t length)
@@ -700,132 +819,6 @@ static bool ep1_send(const uint8_t *data, uint8_t length)
                    (uint8_t)~USBHS_UEP_T_RES_MASK) |
                   USBHS_UEP_T_RES_ACK);
     return true;
-}
-
-static void ncm_tx_kick(void)
-{
-    uint16_t packet_size;
-    uint16_t remaining;
-    uint16_t packet;
-
-    if((s_ncm_tx_active == 0u) || (s_ep2_busy != 0u) ||
-       (s_mounted == 0u) || (s_suspended != 0u) ||
-       (usb_ncm_data_alt_setting() != 1u) ||
-       !usb_ncm_link_is_up())
-    {
-        return;
-    }
-
-    packet_size = current_bulk_packet_bytes();
-    if(s_ncm_tx_offset < s_ncm_tx_length)
-    {
-        remaining =
-            (uint16_t)(s_ncm_tx_length - s_ncm_tx_offset);
-        packet = (remaining > packet_size) ? packet_size : remaining;
-        memcpy(s_ep2_tx, &s_ncm_tx_ntb[s_ncm_tx_offset], packet);
-        s_ncm_tx_offset = (uint16_t)(s_ncm_tx_offset + packet);
-    }
-    else if(s_ncm_tx_need_zlp != 0u)
-    {
-        packet = 0u;
-        s_ncm_tx_need_zlp = 0u;
-    }
-    else
-    {
-        s_ncm_tx_active = 0u;
-        return;
-    }
-
-    s_ep2_busy = 1u;
-    R16_U2EP2_T_LEN = packet;
-    R8_U2EP2_TX_CTRL =
-        (uint8_t)((R8_U2EP2_TX_CTRL &
-                   (uint8_t)~USBHS_UEP_T_RES_MASK) |
-                  USBHS_UEP_T_RES_ACK);
-}
-
-static bool ncm_record_frame(const uint8_t *frame,
-                             uint16_t length,
-                             void *context)
-{
-    const ptrdiff_t offset = frame - s_ncm_rx_ntb;
-    (void)context;
-
-    if((s_ncm_frame_count >= USBDEV_NCM_MAX_FRAMES) ||
-       (offset < 0) ||
-       ((uint32_t)offset + length > s_ncm_rx_expected))
-    {
-        return false;
-    }
-    s_ncm_frame_offsets[s_ncm_frame_count] = (uint16_t)offset;
-    s_ncm_frame_lengths[s_ncm_frame_count] = length;
-    ++s_ncm_frame_count;
-    return true;
-}
-
-static void ncm_rx_rearm(void)
-{
-    ncm_receive_reset();
-    R8_U2EP2_RX_CTRL =
-        (uint8_t)((R8_U2EP2_RX_CTRL &
-                   (uint8_t)~USBHS_UEP_R_RES_MASK) |
-                  ((usb_ncm_data_alt_setting() == 1u)
-                       ? USBHS_UEP_R_RES_ACK
-                       : USBHS_UEP_R_RES_NAK));
-}
-
-static void ncm_receive_packet(uint16_t length)
-{
-    uint16_t expected;
-
-    if(length == 0u)
-    {
-        return;
-    }
-    if(((uint32_t)s_ncm_rx_length + length >
-        sizeof(s_ncm_rx_ntb)) ||
-       (s_ncm_rx_ready != 0u))
-    {
-        ncm_rx_rearm();
-        return;
-    }
-
-    memcpy(&s_ncm_rx_ntb[s_ncm_rx_length], s_ep2_rx, length);
-    s_ncm_rx_length = (uint16_t)(s_ncm_rx_length + length);
-    if((s_ncm_rx_expected == 0u) &&
-       (s_ncm_rx_length >= USBDEV_NCM_NTH_BYTES))
-    {
-        expected = load_u16_le(&s_ncm_rx_ntb[8]);
-        if((expected < 28u) ||
-           (expected > sizeof(s_ncm_rx_ntb)))
-        {
-            ncm_rx_rearm();
-            return;
-        }
-        s_ncm_rx_expected = expected;
-    }
-    if((s_ncm_rx_expected != 0u) &&
-       (s_ncm_rx_length >= s_ncm_rx_expected))
-    {
-        if(s_ncm_rx_length == s_ncm_rx_expected)
-        {
-            s_ncm_rx_ready = 1u;
-            R8_U2EP2_RX_CTRL =
-                (uint8_t)((R8_U2EP2_RX_CTRL &
-                           (uint8_t)~USBHS_UEP_R_RES_MASK) |
-                          USBHS_UEP_R_RES_NAK);
-        }
-        else
-        {
-            ncm_rx_rearm();
-        }
-    }
-    else if(length < current_bulk_packet_bytes())
-    {
-        /* A short bulk packet terminates the USB transfer: partial NTBs fail
-         * closed instead of holding EP2 in an ambiguous receive state. */
-        ncm_rx_rearm();
-    }
 }
 
 static bool process_hid_get_report(void)
@@ -902,6 +895,10 @@ static bool process_control_out(void)
     case USBDEV_CONTROL_OUT_HID_REPORT:
         if(s_setup_report_type == USBDEV_HID_REPORT_OUTPUT)
         {
+            if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
+            {
+                return webhid_out_enqueue(data, length);
+            }
             return (s_profile == USB_BOARD_PROFILE_PS4) ||
                    (s_profile == USB_BOARD_PROFILE_PS5_COMPAT) ||
                    (s_profile == USB_BOARD_PROFILE_SWITCH);
@@ -928,50 +925,6 @@ static bool process_control_out(void)
     }
 }
 
-static bool handle_web_control(PUSB_SETUP_REQ setup)
-{
-    uint16_t response_length = 0u;
-    const usb_ncm_control_result_t result =
-        usb_ncm_handle_setup(
-            (const usb_ncm_setup_packet_t *)setup,
-            s_control_response,
-            sizeof(s_control_response),
-            &response_length);
-
-    if(result == USB_NCM_CONTROL_DATA)
-    {
-        ep0_tx(s_control_response, response_length, setup->wLength);
-        return true;
-    }
-    if(result == USB_NCM_CONTROL_STATUS)
-    {
-        if((setup->bRequest == USB_SET_INTERFACE) &&
-           (setup->wIndex == 1u))
-        {
-            /*
-             * SET_INTERFACE creates a fresh endpoint state even when the host
-             * selects the same alternate setting again.  Cancel any pending
-             * NTB and reset both data toggles to DATA0 before enabling alt 1.
-             */
-            ncm_receive_reset();
-            s_ncm_tx_length = 0u;
-            s_ncm_tx_offset = 0u;
-            s_ncm_tx_active = 0u;
-            s_ncm_tx_need_zlp = 0u;
-            s_ep2_busy = 0u;
-            R16_U2EP2_T_LEN = 0u;
-            R8_U2EP2_TX_CTRL = USBHS_UEP_T_RES_NAK;
-            R8_U2EP2_RX_CTRL =
-                (usb_ncm_data_alt_setting() == 1u)
-                    ? USBHS_UEP_R_RES_ACK
-                    : USBHS_UEP_R_RES_NAK;
-        }
-        ep0_status_in();
-        return true;
-    }
-    return false;
-}
-
 static void handle_setup(void)
 {
     PUSB_SETUP_REQ setup = (PUSB_SETUP_REQ)s_ep0;
@@ -993,12 +946,6 @@ static void handle_setup(void)
     s_control_need_zlp = 0u;
     s_control_out_kind = USBDEV_CONTROL_OUT_NONE;
     s_ep0_flow = USBDEV_EP0_IDLE;
-
-    if((s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
-       handle_web_control(setup))
-    {
-        return;
-    }
 
     if(request_type == USB_REQ_TYP_STANDARD)
     {
@@ -1036,10 +983,6 @@ static void handle_setup(void)
             {
                 ep0_stall();
                 return;
-            }
-            if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
-            {
-                usb_ncm_reset();
             }
             if(s_profile == USB_BOARD_PROFILE_XBOX_ONE)
             {
@@ -1368,17 +1311,14 @@ bool usb_device_hw_init(usb_board_profile_t profile)
     s_remote_wakeup = 0u;
     s_last_report_length = 0u;
     s_last_telemetry_length = 0u;
+    s_webhid_ep2_blocked = 0u;
+    s_webhid_transport_reset_complete = 0u;
     memset(s_last_report, 0, sizeof(s_last_report));
     memset(s_last_telemetry, 0, sizeof(s_last_telemetry));
     s_clock_last_cycles = SysTick->CNTL;
     s_clock_remainder = 0u;
     s_clock_millis = 0u;
 
-    if(profile == USB_BOARD_PROFILE_WEB_CONFIG)
-    {
-        usb_ncm_init(USB_NCM_SPEED_HIGH);
-        usb_ncm_set_link_state(false);
-    }
     if(profile == USB_BOARD_PROFILE_XBOX_ONE)
     {
         usb_xbox_device_init();
@@ -1415,9 +1355,8 @@ void usb_device_hw_shutdown(void)
     s_mounted = 0u;
     s_suspended = 0u;
     s_ep1_busy = 0u;
-    s_ep2_busy = 0u;
     s_ep7_busy = 0u;
-    data_path_reset();
+    (void)data_path_reset(false);
 }
 
 void usb_device_hw_set_actions(uint32_t action_mask)
@@ -1471,39 +1410,43 @@ bool usb_device_hw_send_telemetry(const uint8_t *data, uint8_t length)
     return true;
 }
 
-bool usb_device_hw_send_network_frame(const uint8_t *data,
-                                      uint16_t length)
+bool usb_device_hw_send_webhid_report(const uint8_t *data,
+                                      uint8_t length)
 {
-    if((data == 0) || (length == 0u) ||
-       (length > USB_NCM_ETHERNET_FRAME_MAX_BYTES) ||
+    if((data == 0) || (length != WEBHID_REPORT_BYTES) ||
        (s_profile != USB_BOARD_PROFILE_WEB_CONFIG) ||
-       (s_mounted == 0u) ||
-       (usb_ncm_data_alt_setting() != 1u) ||
-       !usb_ncm_link_is_up() ||
-       (s_ncm_tx_active != 0u))
+       !ep1_send(data, length))
     {
         return false;
     }
-    if(!usb_ncm_pack_frame(data,
-                           length,
-                           s_ncm_tx_sequence++,
-                           s_ncm_tx_ntb,
-                           sizeof(s_ncm_tx_ntb),
-                           &s_ncm_tx_length))
-    {
-        return false;
-    }
-    s_ncm_tx_offset = 0u;
-    s_ncm_tx_need_zlp =
-        usb_ncm_transfer_needs_zlp(
-            s_ncm_tx_length, usb_ncm_speed()) ? 1u : 0u;
-    s_ncm_tx_active = 1u;
-    ncm_tx_kick();
+    memcpy(s_last_report, data, length);
+    s_last_report_length = length;
     return true;
 }
 
 void usb_device_hw_process(void)
 {
+    uint8_t reset_pending;
+
+    PFIC_DisableIRQ(USB2_DEVICE_IRQn);
+    reset_pending = s_transport_reset_pending;
+    s_transport_reset_pending = 0u;
+    PFIC_EnableIRQ(USB2_DEVICE_IRQn);
+    if(reset_pending != 0u)
+    {
+        usb_board_link_reset_channel(USB_BOARD_CHANNEL_WEBCONFIG);
+        usb_device_transport_reset();
+    }
+    PFIC_DisableIRQ(USB2_DEVICE_IRQn);
+    if((reset_pending != 0u) &&
+       (s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
+       (s_connected != 0u))
+    {
+        s_webhid_transport_reset_complete = 1u;
+    }
+    webhid_try_reopen_out_endpoint();
+    PFIC_EnableIRQ(USB2_DEVICE_IRQn);
+
     if(s_profile == USB_BOARD_PROFILE_XBOX_ONE)
     {
         uint8_t length = 0u;
@@ -1539,65 +1482,29 @@ void usb_device_hw_process(void)
     }
     else if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
     {
-        if((s_ep1_busy == 0u) && (s_mounted != 0u) &&
-           usb_ncm_notification_pending())
+        PFIC_DisableIRQ(USB2_DEVICE_IRQn);
+        if((s_webhid_out_count != 0u) &&
+           usb_board_link_publish_bulk(
+               USB_BOARD_CHANNEL_WEBCONFIG,
+               s_webhid_out[s_webhid_out_head],
+               WEBHID_REPORT_BYTES))
         {
-            uint8_t notification_length = 0u;
-            if(usb_ncm_next_notification(
-                    s_ep1_tx,
-                    USB_NCM_NOTIFICATION_MAX_BYTES,
-                    &notification_length))
+            memset(s_webhid_out[s_webhid_out_head],
+                   0,
+                   WEBHID_REPORT_BYTES);
+            s_webhid_out_head =
+                (uint8_t)((s_webhid_out_head + 1u) %
+                          USBDEV_WEBHID_OUT_QUEUE_DEPTH);
+            --s_webhid_out_count;
+            if(s_webhid_ep2_blocked == 0u)
             {
-                s_ep1_busy = 1u;
-                R16_U2EP1_T_LEN = notification_length;
-                R8_U2EP1_TX_CTRL =
-                    (uint8_t)((R8_U2EP1_TX_CTRL &
-                               (uint8_t)~USBHS_UEP_T_RES_MASK) |
-                              USBHS_UEP_T_RES_ACK);
+                R8_U2EP2_RX_CTRL =
+                    (uint8_t)((R8_U2EP2_RX_CTRL &
+                               (uint8_t)~USBHS_UEP_R_RES_MASK) |
+                              USBHS_UEP_R_RES_ACK);
             }
         }
-
-        if(s_ncm_rx_ready != 0u)
-        {
-            if(s_ncm_rx_parsed == 0u)
-            {
-                uint8_t parsed_count = 0u;
-                s_ncm_frame_count = 0u;
-                s_ncm_frame_index = 0u;
-                if(usb_ncm_unpack_ntb(
-                       s_ncm_rx_ntb,
-                       s_ncm_rx_expected,
-                       ncm_record_frame,
-                       0,
-                       &parsed_count) != USB_NCM_PARSE_OK ||
-                   (parsed_count != s_ncm_frame_count))
-                {
-                    ncm_rx_rearm();
-                }
-                else
-                {
-                    s_ncm_rx_parsed = 1u;
-                }
-            }
-            if((s_ncm_rx_parsed != 0u) &&
-               (s_ncm_frame_index < s_ncm_frame_count))
-            {
-                const uint8_t index = s_ncm_frame_index;
-                if(usb_board_link_publish_bulk(
-                       USB_BOARD_CHANNEL_NETWORK,
-                       &s_ncm_rx_ntb[s_ncm_frame_offsets[index]],
-                       s_ncm_frame_lengths[index]))
-                {
-                    ++s_ncm_frame_index;
-                }
-            }
-            if((s_ncm_rx_parsed != 0u) &&
-               (s_ncm_frame_index >= s_ncm_frame_count))
-            {
-                ncm_rx_rearm();
-            }
-        }
-        ncm_tx_kick();
+        PFIC_EnableIRQ(USB2_DEVICE_IRQn);
     }
 }
 
@@ -1659,28 +1566,61 @@ void usb_management_control_hw_disconnect(void)
     {
         usb_xbox_device_set_mounted(false, device_now_ms());
     }
-    if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
-    {
-        usb_ncm_reset();
-        usb_ncm_set_link_state(false);
-    }
-    data_path_reset();
+    (void)data_path_reset(false);
     if(was_initialized != 0u)
     {
         PFIC_EnableIRQ(USB2_DEVICE_IRQn);
     }
 }
 
-void usb_management_control_hw_clear_fault(void)
+bool usb_management_control_hw_clear_fault(void)
 {
+    bool reset_ok;
+
     if(s_initialized == 0u)
     {
-        return;
+        return false;
     }
     PFIC_DisableIRQ(USB2_DEVICE_IRQn);
-    data_path_reset();
-    endpoint_controls_reset();
+    reset_ok = data_path_reset(true);
+    if(s_profile != USB_BOARD_PROFILE_WEB_CONFIG)
+    {
+        endpoint_controls_reset();
+    }
+    /*
+     * CLEAR_FAULT is the synchronized WebConfig transport-generation reset.
+     * Complete the channel/device reset before ACKing USB_CONTROL so STM32 can
+     * safely discard a partial TX and wait for the fresh credit advertised by
+     * the next device process pass.
+     */
+    s_transport_reset_pending = 0u;
+    usb_board_link_reset_channel(USB_BOARD_CHANNEL_WEBCONFIG);
+    usb_device_transport_reset();
+    if(reset_ok &&
+       (s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
+       (s_connected != 0u))
+    {
+        s_webhid_transport_reset_complete = 1u;
+    }
+    webhid_try_reopen_out_endpoint();
     PFIC_EnableIRQ(USB2_DEVICE_IRQn);
+    return reset_ok;
+}
+
+bool usb_management_control_hw_link_up(void)
+{
+    return (s_mounted != 0u) && (s_suspended == 0u);
+}
+
+usb_board_usb_speed_t usb_management_control_hw_speed(void)
+{
+    if((s_connected == 0u) || (s_mounted == 0u))
+    {
+        return USB_BOARD_USB_SPEED_NONE;
+    }
+    return ((R8_USB2_MIS_ST & USBHS_UDMS_HS_MOD) != 0u)
+        ? USB_BOARD_USB_SPEED_HIGH
+        : USB_BOARD_USB_SPEED_FULL;
 }
 
 static void complete_in_endpoint(uint8_t endpoint)
@@ -1696,16 +1636,6 @@ static void complete_in_endpoint(uint8_t endpoint)
                       USBHS_UEP_T_RES_NAK);
         R8_U2EP1_TX_CTRL &= (uint8_t)~USBHS_UEP_T_DONE;
         s_ep1_busy = 0u;
-        break;
-    case 2u:
-        R16_U2EP2_T_LEN = 0u;
-        R8_U2EP2_TX_CTRL ^= USBHS_UEP_T_TOG_DATA1;
-        R8_U2EP2_TX_CTRL =
-            (uint8_t)((R8_U2EP2_TX_CTRL &
-                       (uint8_t)~USBHS_UEP_T_RES_MASK) |
-                      USBHS_UEP_T_RES_NAK);
-        R8_U2EP2_TX_CTRL &= (uint8_t)~USBHS_UEP_T_DONE;
-        s_ep2_busy = 0u;
         break;
     case 3u:
         R16_U2EP3_T_LEN = 0u;
@@ -1738,36 +1668,46 @@ static void complete_out_endpoint(uint8_t endpoint)
 {
     if(endpoint == 2u)
     {
-        const uint16_t length = R16_U2EP2_RX_LEN;
-        if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
+        if((R8_U2EP2_RX_CTRL &
+            (USBHS_UEP_R_DONE | USBHS_UEP_R_TOG_MATCH)) ==
+           (USBHS_UEP_R_DONE | USBHS_UEP_R_TOG_MATCH))
         {
-            ncm_receive_packet(length);
-        }
-        else if((s_profile == USB_BOARD_PROFILE_XBOX_ONE) &&
-                (length != 0u) &&
-                (length <= sizeof(s_xbox_out)) &&
-                (s_xbox_out_ready == 0u))
-        {
-            memcpy(s_xbox_out, s_ep2_rx, length);
-            s_xbox_out_length = (uint8_t)length;
-            s_xbox_out_ready = 1u;
+            const uint16_t length = R16_U2EP2_RX_LEN;
+            if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
+            {
+                (void)webhid_out_enqueue(s_ep2_rx, length);
+            }
+            else if((s_profile == USB_BOARD_PROFILE_XBOX_ONE) &&
+                    (length != 0u) &&
+                    (length <= sizeof(s_xbox_out)) &&
+                    (s_xbox_out_ready == 0u))
+            {
+                memcpy(s_xbox_out, s_ep2_rx, length);
+                s_xbox_out_length = (uint8_t)length;
+                s_xbox_out_ready = 1u;
+            }
+            R8_U2EP2_RX_CTRL ^= USBHS_UEP_R_TOG_DATA1;
         }
 
-        R8_U2EP2_RX_CTRL ^= USBHS_UEP_R_TOG_DATA1;
         R8_U2EP2_RX_CTRL =
             (uint8_t)((R8_U2EP2_RX_CTRL &
                        (uint8_t)~USBHS_UEP_R_RES_MASK) |
                       (((s_profile == USB_BOARD_PROFILE_XBOX_ONE) &&
                         (s_xbox_out_ready != 0u)) ||
                        ((s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
-                        (s_ncm_rx_ready != 0u))
+                        ((s_webhid_ep2_blocked != 0u) ||
+                         (s_webhid_out_count >=
+                          USBDEV_WEBHID_OUT_QUEUE_DEPTH)))
                            ? USBHS_UEP_R_RES_NAK
                            : USBHS_UEP_R_RES_ACK));
         R8_U2EP2_RX_CTRL &= (uint8_t)~USBHS_UEP_R_DONE;
     }
     else if(endpoint == 3u)
     {
-        R8_U2EP3_RX_CTRL ^= USBHS_UEP_R_TOG_DATA1;
+        if((R8_U2EP3_RX_CTRL & USBHS_UEP_R_TOG_MATCH) != 0u)
+        {
+            R8_U2EP3_RX_CTRL ^= USBHS_UEP_R_TOG_DATA1;
+        }
         R8_U2EP3_RX_CTRL =
             (uint8_t)((R8_U2EP3_RX_CTRL &
                        (uint8_t)~USBHS_UEP_R_RES_MASK) |
@@ -1776,7 +1716,10 @@ static void complete_out_endpoint(uint8_t endpoint)
     }
     else if(endpoint == 4u)
     {
-        R8_U2EP4_RX_CTRL ^= USBHS_UEP_R_TOG_DATA1;
+        if((R8_U2EP4_RX_CTRL & USBHS_UEP_R_TOG_MATCH) != 0u)
+        {
+            R8_U2EP4_RX_CTRL ^= USBHS_UEP_R_TOG_DATA1;
+        }
         R8_U2EP4_RX_CTRL =
             (uint8_t)((R8_U2EP4_RX_CTRL &
                        (uint8_t)~USBHS_UEP_R_RES_MASK) |
@@ -1785,7 +1728,10 @@ static void complete_out_endpoint(uint8_t endpoint)
     }
     else if(endpoint == 6u)
     {
-        R8_U2EP6_RX_CTRL ^= USBHS_UEP_R_TOG_DATA1;
+        if((R8_U2EP6_RX_CTRL & USBHS_UEP_R_TOG_MATCH) != 0u)
+        {
+            R8_U2EP6_RX_CTRL ^= USBHS_UEP_R_TOG_DATA1;
+        }
         R8_U2EP6_RX_CTRL =
             (uint8_t)((R8_U2EP6_RX_CTRL &
                        (uint8_t)~USBHS_UEP_R_RES_MASK) |
@@ -1846,31 +1792,39 @@ void USB2_DEVICE_IRQHandler(void)
         s_last_report_length = 0u;
         s_last_telemetry_length = 0u;
         R8_USB2_DEV_AD = 0u;
-        if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
-        {
-            usb_ncm_reset();
-        }
         if(s_profile == USB_BOARD_PROFILE_XBOX_ONE)
         {
             usb_xbox_device_set_mounted(false, device_now_ms());
         }
+        /*
+         * endpoints_init() invokes data_path_reset(false), so bus reset discards
+         * both queued and in-flight reports before process context can forward
+         * another WebHID frame.
+         */
         endpoints_init();
         R8_USB2_INT_FG = USBHS_UDIF_BUS_RST;
     }
     else if((flags & USBHS_UDIF_LINK_RDY) != 0u)
     {
-        if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
-        {
-            sync_ncm_speed();
-        }
         R8_USB2_INT_FG = USBHS_UDIF_LINK_RDY;
     }
     else if((flags & USBHS_UDIF_SUSPEND) != 0u)
     {
-        s_suspended =
+        const uint8_t suspended =
             ((R8_USB2_MIS_ST & USBHS_UDMS_SUSPEND) != 0u)
                 ? 1u
                 : 0u;
+        if((suspended != 0u) && (s_suspended == 0u))
+        {
+            /*
+             * A suspend ends the current encrypted WebHID transport
+             * generation on STM32.  Flush browser->STM32 reports here and
+             * request the matching board-link/device queue reset; resume must
+             * authenticate a fresh session instead of replaying old traffic.
+             */
+            (void)data_path_reset(true);
+        }
+        s_suspended = suspended;
         R8_USB2_INT_FG = USBHS_UDIF_SUSPEND;
     }
     else

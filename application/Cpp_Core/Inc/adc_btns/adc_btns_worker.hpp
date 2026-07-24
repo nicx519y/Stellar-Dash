@@ -157,7 +157,10 @@ class ADCBtnsWorker {
         // 获取按钮事件
         ButtonEvent getButtonEvent(ADCBtn* btn, const uint16_t currentValue, const uint8_t buttonIndex);
         // 处理状态转换
-        void handleButtonState(ADCBtn* btn, const ButtonEvent event, const uint16_t adcValue);
+        void handleButtonState(ADCBtn* btn,
+                               const ButtonEvent event,
+                               const uint16_t adcValue,
+                               const uint8_t buttonIndex);
 
         void initButtonMapping(ADCBtn* btn, const uint16_t releaseValue);
 

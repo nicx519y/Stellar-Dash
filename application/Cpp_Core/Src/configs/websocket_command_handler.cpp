@@ -82,6 +82,7 @@ void WebSocketCommandManager::initializeHandlers() {
     // 注册配置文件相关命令
     registerHandler("get_profile_list", &profileHandler);
     registerHandler("get_default_profile", &profileHandler);
+    registerHandler("get_profile_details", &profileHandler);
     registerHandler("update_profile", &profileHandler);
     registerHandler("get_macro", &profileHandler);
     registerHandler("update_macro", &profileHandler);

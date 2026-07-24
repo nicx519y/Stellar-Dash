@@ -3,7 +3,6 @@
 #include <string.h>
 
 #include "usb_auth.h"
-#include "usb_ncm.h"
 
 static uint8_t s_connected;
 static uint8_t s_last_fault;
@@ -81,7 +80,6 @@ bool usb_management_control_handle(const uint8_t *request_bytes,
                 if(usb_management_control_hw_connect())
                 {
                     s_connected = 1u;
-                    usb_ncm_set_link_state(true);
                 }
                 else
                 {
@@ -96,7 +94,6 @@ bool usb_management_control_handle(const uint8_t *request_bytes,
             {
                 usb_management_control_hw_disconnect();
                 s_connected = 0u;
-                usb_ncm_set_link_state(false);
             }
             break;
 
@@ -107,10 +104,11 @@ bool usb_management_control_handle(const uint8_t *request_bytes,
                 usb_board_control_link_state_v1_t link_state;
                 memset(&link_state, 0, sizeof(link_state));
                 link_state.connected = s_connected;
-                link_state.link_up = usb_ncm_link_is_up() ? 1u : 0u;
-                link_state.data_alt_setting =
-                    usb_ncm_data_alt_setting();
-                link_state.speed = (uint8_t)usb_ncm_speed();
+                link_state.link_up =
+                    usb_management_control_hw_link_up() ? 1u : 0u;
+                link_state.data_alt_setting = 0u;
+                link_state.speed =
+                    (uint8_t)usb_management_control_hw_speed();
                 link_state.last_fault = s_last_fault;
                 memcpy(response.data, &link_state, sizeof(link_state));
                 response.header.data_length = sizeof(link_state);
@@ -121,25 +119,21 @@ bool usb_management_control_handle(const uint8_t *request_bytes,
             status = validate_no_data(&request);
             if(status == USB_BOARD_STATUS_OK)
             {
-                s_last_fault = USB_BOARD_STATUS_OK;
-                usb_management_control_hw_clear_fault();
+                if(usb_management_control_hw_clear_fault())
+                {
+                    s_last_fault = USB_BOARD_STATUS_OK;
+                }
+                else
+                {
+                    s_connected = 0u;
+                    status = USB_BOARD_STATUS_INTERNAL_ERROR;
+                }
             }
             break;
 
         case USB_BOARD_CONTROL_SET_MAC:
-            if(request.header.data_length != 6u)
-            {
-                status = USB_BOARD_STATUS_BAD_LENGTH;
-            }
-            else if(s_connected != 0u)
-            {
-                /* Descriptor identity must not change while enumerated. */
-                status = USB_BOARD_STATUS_BUSY;
-            }
-            else if(!usb_ncm_set_mac(request.data))
-            {
-                status = USB_BOARD_STATUS_BAD_FRAME;
-            }
+            /* CDC-NCM was removed from the V2 WebHID profile. */
+            status = USB_BOARD_STATUS_UNSUPPORTED;
             break;
 
         case USB_BOARD_CONTROL_GET_AUTH_STATUS:
@@ -218,6 +212,18 @@ __attribute__((weak)) void usb_management_control_hw_disconnect(void)
 {
 }
 
-__attribute__((weak)) void usb_management_control_hw_clear_fault(void)
+__attribute__((weak)) bool usb_management_control_hw_clear_fault(void)
 {
+    return true;
+}
+
+__attribute__((weak)) bool usb_management_control_hw_link_up(void)
+{
+    return false;
+}
+
+__attribute__((weak)) usb_board_usb_speed_t
+usb_management_control_hw_speed(void)
+{
+    return USB_BOARD_USB_SPEED_NONE;
 }
