@@ -412,9 +412,16 @@ export default function HitboxLeds(props: HitboxLedsProps) {
         }
 
         for (let i = 0; i < len; i++) {
+            // The layout is loaded asynchronously on a direct route refresh.
+            // Animation can begin one frame before the length-dependent effect
+            // initializes this slot, so make the frame loop self-healing.
+            const currentColor = colorListRef.current[i]
+                ?? backColor1Ref.current.clone();
+            colorListRef.current[i] = currentColor;
+
             // 禁用的按键LED不亮，使用默认背景色
             if (isButtonDisabled(i)) {
-                colorListRef.current[i].setValue(defaultBackColorRef.current);
+                currentColor.setValue(defaultBackColorRef.current);
                 continue;
             }
 
@@ -433,13 +440,14 @@ export default function HitboxLeds(props: HitboxLedsProps) {
                 layout,
             });
 
-            colorListRef.current[i].setValue(color);
+            currentColor.setValue(color);
         }
 
         // 更新按钮颜色
         circleRefs.current.forEach((circle, index) => {
             if (circle) {
-                circle.setAttribute('fill', colorListRef.current[index].toString('css'));
+                const color = colorListRef.current[index] ?? defaultBackColorRef.current;
+                circle.setAttribute('fill', color.toString('css'));
             }
         });
 
@@ -539,4 +547,4 @@ export default function HitboxLeds(props: HitboxLedsProps) {
             </StyledSvg>
         </Box>
     );
-} 
+}

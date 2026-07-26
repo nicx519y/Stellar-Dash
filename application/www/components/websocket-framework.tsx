@@ -2,54 +2,31 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { DEFAULT_WEBSOCKET_CONFIG } from '@/contexts/gamepad-config-context';
 import { WebSocketQueueManager } from '@/lib/websocket-queue-manager';
 import { eventBus, EVENTS } from '@/lib/event-manager';
+import {
+  WebSocketState,
+  type BinaryMessageHandler,
+  type ErrorHandler,
+  type MessageHandler,
+  type StateChangeHandler,
+  type UseWebSocketOptions,
+  type WebSocketConfig,
+  type WebSocketDownstreamMessage,
+  type WebSocketError,
+  type WebSocketUpstreamMessage,
+} from '@/lib/websocket-types';
 
-// WebSocket消息类型定义
-export interface WebSocketUpstreamMessage {
-  cid: number;
-  command: string;
-  params?: Record<string, unknown>;
-}
-
-export interface WebSocketDownstreamMessage {
-  cid?: number; // 响应消息可能没有CID（通知消息）
-  command: string;
-  errNo: number;
-  data?: Record<string, unknown>;
-}
-
-// WebSocket连接状态
-export enum WebSocketState {
-  DISCONNECTED = 'disconnected',
-  CONNECTING = 'connecting',
-  CONNECTED = 'connected',
-  ERROR = 'error'
-}
-
-// 错误类型
-export interface WebSocketError {
-  type: 'connection' | 'timeout' | 'server' | 'parse';
-  message: string;
-  code?: number;
-  timestamp: Date;
-}
-
-// 配置接口
-export interface WebSocketConfig {
-  url?: string;
-  heartbeatInterval?: number;
-  timeout?: number;
-}
-
-// Hook选项接口
-export interface UseWebSocketOptions extends WebSocketConfig {
-  connectOnMount?: boolean;
-}
-
-// 回调函数类型
-export type MessageHandler = (message: WebSocketDownstreamMessage) => void;
-export type BinaryMessageHandler = (data: ArrayBuffer) => void;
-export type StateChangeHandler = (state: WebSocketState) => void;
-export type ErrorHandler = (error: WebSocketError) => void;
+export { WebSocketState } from '@/lib/websocket-types';
+export type {
+  BinaryMessageHandler,
+  ErrorHandler,
+  MessageHandler,
+  StateChangeHandler,
+  UseWebSocketOptions,
+  WebSocketConfig,
+  WebSocketDownstreamMessage,
+  WebSocketError,
+  WebSocketUpstreamMessage,
+} from '@/lib/websocket-types';
 
 // 待处理请求接口
 interface PendingRequest {
@@ -589,4 +566,4 @@ export const createWebSocketFramework = (config?: WebSocketConfig) => {
   return new WebSocketFramework(config);
 };
 
-export default WebSocketFramework; 
+export default WebSocketFramework;

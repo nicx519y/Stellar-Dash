@@ -9,21 +9,34 @@ import { ButtonsPerformanceContent } from '@/components/buttons-performance-cont
 import { FirmwareContent } from '@/components/firmware-content';
 import { ViewLogsContent } from '@/components/view-logs-content';
 import { SwitchMarkingContent } from '@/components/switch-marking-content';
+import {
+    pathnameForRoute,
+    popstateHistoryMode,
+    routeFromPathname,
+    type Route,
+} from '@/lib/router-path';
 
-export type Route = '' | 'global' | 'keys' | 'lighting' | 'buttons-performance' | 'switch-marking' | 'firmware' | 'view-logs';
+export type { Route } from '@/lib/router-path';
+type HistoryMode = 'push' | 'replace' | 'none';
 
 interface RouterState {
     currentRoute: Route;
-    setRoute: (route: Route) => void;
+    setRoute: (route: Route, historyMode?: HistoryMode) => void;
 }
 
 export const useRouterStore = create<RouterState>((set) => ({
     currentRoute: '',
-    setRoute: (route) => {
+    setRoute: (route, historyMode = 'push') => {
         set({ currentRoute: route });
-        // 只在客户端环境中使用 window 对象
-        if (typeof window !== 'undefined') {
-            window.history.pushState(null, '', `/${route}`);
+        if (typeof window !== 'undefined' && historyMode !== 'none') {
+            const pathname = pathnameForRoute(route);
+            if (window.location.pathname !== pathname) {
+                if (historyMode === 'replace') {
+                    window.history.replaceState(null, '', pathname);
+                } else {
+                    window.history.pushState(null, '', pathname);
+                }
+            }
         }
     },
 }));
@@ -34,14 +47,14 @@ export function Router() {
     useEffect(() => {
         // useEffect 只在客户端运行，所以这里可以安全使用 window
         const handlePopState = () => {
-            const path = window.location.pathname.slice(1) || '';
-            setRoute(path as Route);
+            const route = routeFromPathname(window.location.pathname);
+            setRoute(route, popstateHistoryMode(window.location.pathname));
         };
 
         window.addEventListener('popstate', handlePopState);
         
-        const initialPath = window.location.pathname.slice(1) || 'global';
-        setRoute(initialPath as Route);
+        const initialRoute = routeFromPathname(window.location.pathname);
+        setRoute(initialRoute, 'replace');
 
         return () => window.removeEventListener('popstate', handlePopState);
     }, [setRoute]);

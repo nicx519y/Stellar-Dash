@@ -81,6 +81,7 @@ export const PlatformLabelMap = new Map<Platform, { label: string, description: 
 
 export interface GlobalConfig {
     inputMode?: Platform;
+    defaultProfileId?: string;
     connectionMode?: ConnectionMode;
     connectionModeReadOnly?: boolean;
     connectionModeSource?: 'PHYSICAL_SWITCH';
@@ -717,12 +718,13 @@ export const UI_TEXT = {
     VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "Profile name cannot contain special characters",
     
     // Input Mode Settings
-    CONNECTION_MODE_TITLE: "Connection Mode",
+    CONNECTION_MODE_TITLE: "Connection & Power",
     CONNECTION_MODE_REPORT_RATE_LABEL: "Report Rate",
+    CONNECTION_MODE_REPORT_RATE_HELPER: "Affects the magnetic-switch ADC sampling rate and USB and wireless report rates.",
     INPUT_MODE_TITLE: "Platform",
     POWER_TITLE: "Power",
     POWER_WAKE_HOLD_LABEL: "Long Press Wake",
-    POWER_AUTO_STANDBY_LABEL: "Auto Standby",
+    POWER_AUTO_STANDBY_LABEL: "Auto Sleep",
     POWER_AUTO_STANDBY_NONE: "None",
 
     // Keys Settings
@@ -1125,12 +1127,13 @@ export const UI_TEXT_ZH = {
     VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "配置名称不能包含特殊字符",
     
     // 输入模式
-    CONNECTION_MODE_TITLE: "连接模式",
+    CONNECTION_MODE_TITLE: "连接与电源",
     CONNECTION_MODE_REPORT_RATE_LABEL: "上报率",
+    CONNECTION_MODE_REPORT_RATE_HELPER: "影响磁轴的 ADC 采样率，以及 USB 和无线的上报率。",
     INPUT_MODE_TITLE: "平台",
     POWER_TITLE: "电源",
     POWER_WAKE_HOLD_LABEL: "长按唤醒时长",
-    POWER_AUTO_STANDBY_LABEL: "自动进入待机时长",
+    POWER_AUTO_STANDBY_LABEL: "自动休眠",
     POWER_AUTO_STANDBY_NONE: "无自动待机",
 
     // 按键设置

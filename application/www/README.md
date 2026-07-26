@@ -9,7 +9,7 @@ for STM32 attestation and the server-signed session permit.
 ```bash
 npm install
 cp .env.example .env.local
-npm run dev
+npm run dev:hosted
 ```
 
 WebHID requires a Chromium-based browser, HTTPS (localhost is allowed for
@@ -28,6 +28,44 @@ Serve the generated `build/` directory from the same HTTPS origin as
 `/api/v2/device-auth/*`. The server must apply HSTS, a strict CSP,
 `Permissions-Policy: hid=(self)`, exact-origin CORS rules, and an SPA fallback
 that serves `index.html` for the configuration routes.
+
+## Hardware-free V2 mock preview
+
+The mock transport exercises the same UI/context/queue path as a V2 device,
+and keeps its state in the current tab's `sessionStorage`. It includes fixtures for profiles,
+global/screen/LED settings, hotkeys, calibration, ADC mappings, button and
+performance monitoring, logs, config import/export, firmware metadata/checks,
+and the background-image binary protocol.
+
+```bash
+npm run dev:mock
+```
+
+Open `http://127.0.0.1:4000`. A purple `MOCK DEVICE` badge confirms that no
+hardware or production API is in use. Mock configuration is stored in the
+current tab's `sessionStorage`, so it survives reloads but a new tab starts
+with clean fixtures.
+All configuration URLs are real statically generated routes, so refreshing
+`/global`, `/keys`, `/lighting`, `/buttons-performance`, `/switch-marking`,
+`/firmware`, or `/view-logs` does not return 404.
+
+To validate/export the mock build:
+
+```bash
+npm test
+npm run build:mock
+npm run preview:mock
+```
+
+The mock export is written to `build-mock/`; genuine-device and legacy exports
+continue to use `build/`. This separation prevents `makefsdata.js` from
+accidentally packaging mock code into firmware. The local preview server binds
+to `127.0.0.1:4000` by default; pass another port with
+`npm run preview:mock -- --port 4100`.
+
+Mock mode requires both `NEXT_PUBLIC_DEVICE_TRANSPORT=mock` and
+`NEXT_PUBLIC_OFFLINE_PREVIEW=true`; it is intended only for local QA and must
+not be deployed as the genuine-device V2 site.
 
 ## Authentication behavior
 

@@ -1,4 +1,4 @@
-export type DeviceTransportKind = 'webhid' | 'legacy-websocket';
+export type DeviceTransportKind = 'webhid' | 'legacy-websocket' | 'mock';
 
 export enum DeviceTransportState {
   DISCONNECTED = 'disconnected',
@@ -120,6 +120,15 @@ export interface DeviceTransport {
     data: Blob | ArrayBuffer | Uint8Array,
     options?: DeviceUploadOptions,
   ): Promise<void>;
+
+  /**
+   * Optional transport-owned HTTP implementation. The mock transport uses it
+   * to keep firmware checks and downloads completely offline.
+   */
+  authorizedFetch?(
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ): Promise<Response>;
 
   close(): Promise<void>;
 

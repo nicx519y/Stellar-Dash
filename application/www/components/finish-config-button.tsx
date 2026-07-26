@@ -1,8 +1,9 @@
 import { Button } from "@chakra-ui/react";
 import { openConfirm as openRebootConfirmDialog } from "@/components/dialog-confirm";
-import { openDialog as openRebootDialog } from "@/components/dialog-cannot-close";
+import { closeDialog as closeRebootDialog, openDialog as openRebootDialog } from "@/components/dialog-cannot-close";
 import { useLanguage } from "@/contexts/language-context";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { configuredTransportMode } from "@/lib/device-transport";
 import { LuGamepad2 } from "react-icons/lu";
 
 
@@ -32,6 +33,22 @@ export function FinishConfigButton(
                         await flushQueue();
                         console.log('WebSocket队列已清空，开始重启系统');
                         await rebootSystem();
+
+                        if (configuredTransportMode() === 'mock') {
+                            const dialogId = openRebootDialog({
+                                id: 'reboot-success',
+                                title: t.DIALOG_REBOOT_SUCCESS_TITLE,
+                                status: "success",
+                                message: t.DIALOG_REBOOT_SUCCESS_MESSAGE,
+                                buttons: [{
+                                    text: t.BUTTON_CONFIRM,
+                                    colorPalette: "green",
+                                    onClick: () => closeRebootDialog(dialogId),
+                                }],
+                            });
+                            return;
+                        }
+
                         setUserRebooting(true); // 标示用户主动重启
                         openRebootDialog({
                             id: 'reboot-success',

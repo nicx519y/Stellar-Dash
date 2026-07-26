@@ -80,11 +80,8 @@ void InputState::startInputPipeline()
     LEDS_MANAGER.setup();
 #endif
 
-    const uint16_t reportRateHz =
-        (activeBoardMode == BoardMode::Rf)
-            ? static_cast<uint16_t>(
-                  STORAGE_MANAGER.getWirelessReportRate())
-            : 1000u;
+    const uint16_t reportRateHz = static_cast<uint16_t>(
+        STORAGE_MANAGER.getWirelessReportRate());
     REPORT_SCHEDULER.start(reportRateHz);
     inputPipelineRunning = true;
 }
@@ -236,16 +233,12 @@ void InputState::loop()
     }
 
     /*
-     * The scheduler implementation and RF rate transaction remain frozen.
-     * This board-level selection only keeps the existing scheduler cadence
-     * aligned with the already-applied physical role/rate.
+     * The configured rate controls ADC sampling in both physical roles.
+     * RF mode additionally applies the same rate to the TX-to-RX packet path.
      */
     if (inputPipelineRunning) {
-        const uint16_t desiredReportRateHz =
-            (activeBoardMode == BoardMode::Rf)
-                ? static_cast<uint16_t>(
-                      STORAGE_MANAGER.getWirelessReportRate())
-                : 1000u;
+        const uint16_t desiredReportRateHz = static_cast<uint16_t>(
+            STORAGE_MANAGER.getWirelessReportRate());
         if (REPORT_SCHEDULER.getRate() != desiredReportRateHz) {
             REPORT_SCHEDULER.setRate(desiredReportRateHz);
         }

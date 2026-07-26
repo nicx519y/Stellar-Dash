@@ -158,7 +158,7 @@ typedef struct
 typedef struct
 {
     uint32_t wakeHoldMs;             // PA0 低电平长按唤醒确认时间
-    uint32_t autoStandbyMs;          // 无按键/屏幕操作自动进入 Standby，0 表示关闭
+    uint32_t autoStandbyMs;          // 自动休眠：10s/30s/60s/2min/5min；旧值 0 迁移为 5min
 } PowerConfig;
 
 /*

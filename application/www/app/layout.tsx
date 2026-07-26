@@ -8,12 +8,13 @@ import { Flex } from '@chakra-ui/react'
 import { toaster, Toaster } from "@/components/ui/toaster"
 import { LoadingModal } from "@/components/ui/loading-modal"
 import { openReconnectModal, closeReconnectModal, setReconnectModalLoading } from "@/components/reconnect-modal"
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { DialogConfirm } from '@/components/dialog-confirm'
 import { DialogForm } from "@/components/dialog-form";
 import { DialogCannotClose } from '@/components/dialog-cannot-close'
 import { DialogEditCombination } from '@/components/dialog-edit-combination'
 import { LanguageProvider, useLanguage } from '@/contexts/language-context';
+import { configuredTransportMode } from '@/lib/device-transport';
 
 
 // 创建一个内部组件来使用 context
@@ -21,8 +22,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
     const { isLoading, connectWebSocket, showReconnect } = useGamepadConfig();
     const [showLoading, setShowLoading] = useState(false);
     const [isReconnecting, setIsReconnecting] = useState(false);
+    const reconnectInFlightRef = useRef(false);
     const { error, setError } = useGamepadConfig();
     const { t } = useLanguage();
+    const mockPreview = configuredTransportMode() === 'mock';
 
     // 全局错误处理
     useEffect(() => {
@@ -57,34 +60,37 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
     // 初始化状态
     useEffect(() => {
-        if (!showReconnect) {
+        if (!showReconnect || mockPreview) {
+            reconnectInFlightRef.current = false;
             setIsReconnecting(false);
             closeReconnectModal();
-        } else {
-            openReconnectModal({
-                title: t.RECONNECT_MODAL_TITLE,
-                message: t.RECONNECT_MODAL_MESSAGE,
-                buttonText: t.RECONNECT_MODAL_BUTTON,
-                onReconnect: async () => {
-                    setIsReconnecting(true);
-                    setReconnectModalLoading(true);
-                    try {
-                        await connectWebSocket();
-                    } catch {
-                        toaster.error({
-                            title: t.RECONNECT_FAILED_TITLE,
-                            description: t.RECONNECT_FAILED_MESSAGE,
-                        });
-                        setIsReconnecting(false);
-                        setReconnectModalLoading(false);
-                    } finally {
-                        
-                    }
-                },
-                isLoading: isReconnecting,
-            });
+            return;
         }
-    }, [showReconnect, t, connectWebSocket]);
+
+        openReconnectModal({
+            title: t.RECONNECT_MODAL_TITLE,
+            message: t.RECONNECT_MODAL_MESSAGE,
+            buttonText: t.RECONNECT_MODAL_BUTTON,
+            onReconnect: async () => {
+                if (reconnectInFlightRef.current) return;
+                reconnectInFlightRef.current = true;
+                setIsReconnecting(true);
+                setReconnectModalLoading(true);
+                try {
+                    await connectWebSocket();
+                } catch {
+                    toaster.error({
+                        title: t.RECONNECT_FAILED_TITLE,
+                        description: t.RECONNECT_FAILED_MESSAGE,
+                    });
+                    reconnectInFlightRef.current = false;
+                    setIsReconnecting(false);
+                    setReconnectModalLoading(false);
+                }
+            },
+            isLoading: isReconnecting,
+        });
+    }, [showReconnect, mockPreview, t, connectWebSocket, isReconnecting]);
 
     return (
         <Flex

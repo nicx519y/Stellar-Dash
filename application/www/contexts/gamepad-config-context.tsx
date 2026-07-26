@@ -432,6 +432,16 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     }
                     break;
                 }
+                // 固件分片与背景图传输的 ACK 会由发起对应请求的组件处理。
+                // 全局监听器只需识别并忽略，避免把正常响应误报成未知命令。
+                case 0x81:
+                case 0xb0:
+                case 0xb1:
+                case 0xb2:
+                case 0xb3:
+                case 0xb4:
+                case 0xb5:
+                    break;
                 default:
                     console.warn(`收到未知的二进制消息命令: ${cmd}`);
                     break;
@@ -1699,6 +1709,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     }
 
     const checkFirmwareUpdate = async (currentVersion: string, customServerHost?: string): Promise<void> => {
+        const transportMode = configuredTransportMode();
         try {
             // 构建请求数据
             const requestData: FirmwareUpdateCheckRequest = {
@@ -1709,9 +1720,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             const serverHost = customServerHost || firmwareServerHost || FIRMWARE_SERVER_CONFIG.defaultHost;
             const url = `${serverHost}${FIRMWARE_SERVER_CONFIG.endpoints.checkUpdate}`;
 
-            if (configuredTransportMode() === 'webhid') {
+            // V2 WebHID 和离线 Mock 都通过 transport adapter 发起请求。
+            // Mock 在 transport 内返回 fixture，不访问真实固件服务器。
+            if (transportMode !== 'legacy-websocket') {
                 if (!wsFramework || wsState !== WebSocketState.CONNECTED) {
-                    throw new Error('设备尚未完成 WebHID 在线证明');
+                    throw new Error('设备传输尚未连接');
                 }
                 const response = await wsFramework.authorizedFetch(url, {
                     method: 'POST',
@@ -1831,7 +1844,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
         } catch (err) {
             console.error('❌ 固件更新检查异常:', err);
-            if (configuredTransportMode() === 'webhid') {
+            if (transportMode !== 'legacy-websocket') {
                 setFirmwareUpdateInfo(null);
                 setError(err instanceof Error ? err.message : '固件更新认证失败');
                 throw err;
@@ -1868,7 +1881,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             onProgress?.(initialProgress);
 
             // 1. 下载固件包 (进度 0% - 30%)
-            const response = configuredTransportMode() === 'webhid'
+            const response = configuredTransportMode() !== 'legacy-websocket'
                 ? await wsFramework?.authorizedFetch(
                     downloadUrl,
                     undefined,

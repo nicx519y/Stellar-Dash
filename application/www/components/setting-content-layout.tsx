@@ -347,7 +347,14 @@ interface SideContentProps {
 
 export function SideContent({ children }: SideContentProps) {
     return (
-        <Flex direction="column" gap={3} alignItems="stretch">
+        <Flex
+            direction="column"
+            gap={3}
+            alignItems="stretch"
+            width="228px"
+            minWidth="228px"
+            flexShrink={0}
+        >
             {children}
         </Flex>
     );

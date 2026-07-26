@@ -2,7 +2,7 @@ import {
   WebSocketDownstreamMessage,
   WebSocketError,
   WebSocketState,
-} from '@/components/websocket-framework';
+} from '@/lib/websocket-types';
 import { WebSocketQueueManager } from '@/lib/websocket-queue-manager';
 import { DeviceAuthClient } from './device-auth-client';
 import {
@@ -65,12 +65,6 @@ export class DeviceTransportFrameworkAdapter {
         this.disconnectHandlers.forEach((handler) => handler());
       }),
       transport.subscribe('*', (event) => {
-        const message: WebSocketDownstreamMessage = {
-          command: event.name,
-          errNo: 0,
-          data: asRecord(event.data),
-        };
-        this.messageHandlers.forEach((handler) => handler(message));
         if (event.name === 'legacy.binary') {
           let binary = event.binary;
           if (!binary) {
@@ -95,7 +89,15 @@ export class DeviceTransportFrameworkAdapter {
           if (binary) {
             this.emitBinary(binary);
           }
+          return;
         }
+
+        const message: WebSocketDownstreamMessage = {
+          command: event.name,
+          errNo: 0,
+          data: asRecord(event.data),
+        };
+        this.messageHandlers.forEach((handler) => handler(message));
       }),
     );
   }
@@ -292,8 +294,18 @@ export class DeviceTransportFrameworkAdapter {
     init?: RequestInit,
     requiredScopes: readonly DeviceScope[] = [],
   ): Promise<Response> {
-    if (!this.authClient) {
+    if (this.transport.authorizedFetch) {
+      await this.ensureScopes(requiredScopes);
+      return this.transport.authorizedFetch(input, init);
+    }
+    if (this.transport.kind === 'legacy-websocket') {
       return fetch(input, init);
+    }
+    if (!this.authClient) {
+      throw new DeviceTransportError(
+        'authentication-required',
+        `${this.transport.kind} transport does not provide an authorized HTTP client`,
+      );
     }
     await this.ensureScopes(requiredScopes);
     return this.authClient.authorizedFetch(input, init, requiredScopes);

@@ -15,7 +15,6 @@ import { useLanguage } from "@/contexts/language-context";
 import { InputModeSettingContent } from "./input-mode-content";
 import { ConnectionModeSettingContent } from "./connection-mode-content";
 import { ScreenControlSettingContent } from "./screen-control-setting-content";
-import { PowerSettingContent } from "./power-setting-content";
 import { openConfirm } from "@/components/dialog-confirm";
 import { useNavigationBlocker } from '@/hooks/use-navigation-blocker';
 import React from "react";
@@ -245,7 +244,6 @@ export function GlobalSettingContent() {
             <SideContent>
                 <ConnectionModeSettingContent disabled={calibrationActive} />
                 <InputModeSettingContent disabled={calibrationActive} />
-                <PowerSettingContent disabled={calibrationActive} />
             </SideContent>
 
             <HitboxContent>

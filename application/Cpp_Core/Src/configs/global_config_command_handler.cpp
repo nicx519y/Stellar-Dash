@@ -58,14 +58,14 @@ static uint32_t clamp_power_wake_hold_ms(uint32_t value) {
 
 static uint32_t sanitize_power_auto_standby_ms(uint32_t value) {
     switch (value) {
-        case 0u:
+        case 10000u:
         case 30000u:
         case 60000u:
         case 120000u:
         case 300000u:
             return value;
         default:
-            return 0u;
+            return 300000u;
     }
 }
 

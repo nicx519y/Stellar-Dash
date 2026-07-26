@@ -30,6 +30,10 @@
 #define SYSTEM_SLEEP_AUTO_STANDBY_NONE_MS 0u
 #endif
 
+#ifndef SYSTEM_SLEEP_AUTO_STANDBY_DEFAULT_MS
+#define SYSTEM_SLEEP_AUTO_STANDBY_DEFAULT_MS 300000u
+#endif
+
 #ifndef SYSTEM_SLEEP_WKUP1_PULL
 #define SYSTEM_SLEEP_WKUP1_PULL PWR_PIN_PULL_UP
 #endif
@@ -100,14 +104,14 @@ static uint32_t sanitize_wake_hold_ms(uint32_t value)
 static uint32_t sanitize_auto_standby_ms(uint32_t value)
 {
     switch (value) {
-        case 0u:
+        case 10000u:
         case 30000u:
         case 60000u:
         case 120000u:
         case 300000u:
             return value;
         default:
-            return SYSTEM_SLEEP_AUTO_STANDBY_NONE_MS;
+            return SYSTEM_SLEEP_AUTO_STANDBY_DEFAULT_MS;
     }
 }
 

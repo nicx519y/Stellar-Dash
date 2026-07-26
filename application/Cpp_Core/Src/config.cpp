@@ -19,7 +19,7 @@
 #define CONFIG_VERSION_POWER_MIGRATE_FROM 0x00001Cu
 #define CONFIG_VERSION_LATEST_PCB_MIGRATE_FROM 0x00001Du
 #define DEFAULT_POWER_WAKE_HOLD_MS 3000u
-#define DEFAULT_POWER_AUTO_STANDBY_MS 0u
+#define DEFAULT_POWER_AUTO_STANDBY_MS 300000u
 #define LATEST_PCB_BATTERY_PACK_COUNT 1u
 #define LATEST_PCB_KEY_LED_COUNT ((uint8_t)(NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS))
 #define LATEST_PCB_AMBIENT_LED_COUNT ((uint8_t)NUM_LED_AROUND)
@@ -247,7 +247,7 @@ static uint32_t clamp_power_wake_hold_ms(uint32_t value) {
 
 static uint32_t sanitize_power_auto_standby_ms(uint32_t value) {
     switch (value) {
-        case 0u:
+        case 10000u:
         case 30000u:
         case 60000u:
         case 120000u:

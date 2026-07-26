@@ -1,9 +1,10 @@
 import { DeviceAuthClient } from './device-auth-client';
 import { DeviceTransportFrameworkAdapter } from './framework-adapter';
 import { LegacyWebSocketTransport } from './legacy-websocket-transport';
+import { MockDeviceTransport } from './mock-device-transport';
 import { WebHidTransport } from './webhid-transport';
 
-export type DeviceTransportMode = 'webhid' | 'legacy-websocket';
+export type DeviceTransportMode = 'webhid' | 'legacy-websocket' | 'mock';
 
 export interface DeviceTransportFactoryOptions {
   mode: DeviceTransportMode;
@@ -17,6 +18,10 @@ export interface DeviceTransportFactoryOptions {
 export function createDeviceTransportFramework(
   options: DeviceTransportFactoryOptions,
 ): DeviceTransportFrameworkAdapter {
+  if (options.mode === 'mock') {
+    return new DeviceTransportFrameworkAdapter(new MockDeviceTransport());
+  }
+
   if (options.mode === 'legacy-websocket') {
     return new DeviceTransportFrameworkAdapter(
       new LegacyWebSocketTransport(options.websocket),
@@ -52,6 +57,12 @@ export function createDeviceTransportFramework(
 }
 
 export function configuredTransportMode(): DeviceTransportMode {
+  if (
+    process.env.NEXT_PUBLIC_DEVICE_TRANSPORT === 'mock' &&
+    process.env.NEXT_PUBLIC_OFFLINE_PREVIEW === 'true'
+  ) {
+    return 'mock';
+  }
   return process.env.NEXT_PUBLIC_DEVICE_TRANSPORT === 'legacy-websocket'
     ? 'legacy-websocket'
     : 'webhid';

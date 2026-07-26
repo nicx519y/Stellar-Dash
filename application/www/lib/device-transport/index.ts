@@ -3,6 +3,7 @@ export * from './secure-hid-frame';
 export * from './session-crypto';
 export * from './webhid-transport';
 export * from './legacy-websocket-transport';
+export * from './mock-device-transport';
 export * from './device-auth-client';
 export * from './framework-adapter';
 export * from './factory';

@@ -152,8 +152,9 @@
 ### 统一采样触发（已切换）
 
 - `INPUT` 模式下采样触发已从 USB SOF 解耦，改为统一 `TIM2` 节拍驱动：
-  - `USB` 模式固定 `1K`
-  - `RF24G` 模式按 `wirelessReportRate` 档位驱动
+  - `USB` 与 `RF24G` 模式的 ADC 采样均按 `wirelessReportRate` 的 `1K/2K/4K/8K` 档位驱动
+  - `RF24G` 模式同时使用该档位控制 TX→RX 数据包上报率
+- Global 页的 `Connection & Power` 提供 Report Rate 与 Auto Sleep（10s/30s/60s/2min/5min）；旧的 `0=不休眠` 配置会迁移为 5 分钟。
 - 当前采样机制为 `ADC DMA one-shot`，由统一调度器触发。
 - 关键实现文件：
   - [report_scheduler.hpp](file:///e:/Works/STM32/HBox_Git/application/Cpp_Core/Inc/report_scheduler.hpp)

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouterStore, Route } from './router';
-import { Flex, Center, Box, Tabs, HStack, Separator } from '@chakra-ui/react';
+import { Flex, Center, Box, Tabs, HStack, Separator, Badge } from '@chakra-ui/react';
 import { useLanguage } from "@/contexts/language-context";
 import {
     LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuGamepad, LuFileText,
@@ -14,6 +14,7 @@ import { FinishConfigButton } from './finish-config-button';
 import { ExportConfigButton } from './export-config-button';
 import { ImportConfigButton } from './import-config-button';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
+import { configuredTransportMode } from '@/lib/device-transport';
 // import { ColorModeSwitcher } from "@/components/color-mode-switcher";
 
 export function SettingsLayout({ children }: { children: React.ReactNode }) {
@@ -21,6 +22,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
     const { currentRoute, setRoute } = useRouterStore();
 
     const { finishConfigDisabled } = useGamepadConfig();
+    const isMockDevice = configuredTransportMode() === 'mock';
 
     const tabs = [
         { id: 'global' as Route, label: t.SETTINGS_TAB_GLOBAL, icon: LuGamepad },
@@ -139,6 +141,11 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
 
                 </HStack>
                 <HStack justifyContent="flex-end" >
+                    {isMockDevice && (
+                        <Badge colorPalette="purple" variant="solid">
+                            MOCK DEVICE
+                        </Badge>
+                    )}
                     <LanguageSwitcher />
                     {/* <ColorModeSwitcher /> */}
                 </HStack>
