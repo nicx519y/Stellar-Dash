@@ -4,12 +4,14 @@ import TerserPlugin from 'terser-webpack-plugin';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 const isMockBuild = process.env.HBOX_BUILD_VARIANT === 'mock';
+const configuredOutputDir = process.env.HBOX_WEB_OUTPUT_DIR;
 
 const nextConfig: NextConfig = {
     output: "export",   // 指定输出模式，export 表示导出静态文件，export 模式下，next 会生成一个 dist 目录，里面包含所有静态文件，使用这个模式的时候 要暂时删除 app/api 
     // Keep the normal Next.js development cache separate from deployable
     // exports. Mock exports must never be consumed by makefsdata.js.
-    distDir: isDevelopment ? '.next' : isMockBuild ? 'build-mock' : 'build',
+    distDir: configuredOutputDir ||
+        (isDevelopment ? '.next' : isMockBuild ? 'build-mock' : 'build'),
     // Hosted V2 builds must fail on type errors.
     typescript: {
         ignoreBuildErrors: false,

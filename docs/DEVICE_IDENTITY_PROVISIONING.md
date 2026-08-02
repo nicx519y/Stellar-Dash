@@ -47,6 +47,12 @@ bootloader、身份和最低安全版本视为一个事务重新烧录、重新�
 “bootloader + identity + minimum security version”全 sector 原子返厂工具；
 在该工序完成评审、旧证书吊销和断电验证之前，不得绕过此门禁。
 
+未置备开发板使用独立的
+`python tools/hbox.py flash bootloader-dev`。该入口先读取并确认 identity 与
+security-version 的完整 16KiB 保留区全为 `0xFF`，随后备份整个 128KiB sector，
+才允许擦除、烧录和读回校验。任何非 `0xFF` 字节、读取失败或备份失败都会在
+擦除前终止；该入口不是生产设备的 bootloader 更新或返厂恢复工具。
+
 ## 密钥边界
 
 生产必须隔离三套密钥：

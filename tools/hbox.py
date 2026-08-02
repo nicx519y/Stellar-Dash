@@ -11,14 +11,16 @@ HBox 工具统一入口（tools/hbox.py）
 
 1) build
   - bootloader
-  - web
+  - web（V2服务器托管页面）
+  - web-legacy（V1固件内置页面）
   - assets
   - ADCMapping
   - app A|B
   - appAll A|B
 
 2) flash
-  - bootloader
+  - bootloader（生产安全门禁，拒绝单独擦除）
+  - bootloader-dev（仅限未置备开发板）
   - app A|B
   - code A|B
   - appAll A|B
@@ -34,12 +36,14 @@ HBox 工具统一入口（tools/hbox.py）
   python tools/hbox.py build assets
   python tools/hbox.py build appAll A
   python tools/hbox.py flash appAll A
+  python tools/hbox.py flash bootloader-dev
   python tools/hbox.py flash code A
   python tools/hbox.py flash appAll A --code-only
   python tools/hbox.py release auto --version 1.0.0
   python tools/hbox.py release flash 0.0.1_a --slot A
   python tools/hbox.py web dev
   python tools/hbox.py web build
+  python tools/hbox.py web build-legacy
 """
 
 import argparse
@@ -74,6 +78,54 @@ def _run_node_makefsdata() -> int:
         print(f"错误: 未找到 WebResources 生成脚本: {script}")
         return 2
     return subprocess.call(["node", str(script)], cwd=www_dir)
+
+
+def _run_npm_script(script_name: str) -> int:
+    www_dir = _project_root() / "application" / "www"
+    package_json = www_dir / "package.json"
+    if not package_json.exists():
+        print(f"错误: 未找到 WebConfig 工程: {package_json}")
+        return 2
+
+    last_error = None
+    for executable in ("npm", "npm.cmd"):
+        try:
+            return subprocess.call(
+                [executable, "run", script_name],
+                cwd=www_dir,
+            )
+        except FileNotFoundError as exc:
+            last_error = exc
+
+    print(f"错误: 未找到 npm: {last_error}")
+    print("请先安装 Node.js，并执行: npm --prefix application/www install")
+    return 2
+
+
+def _run_hosted_web_build() -> int:
+    rc = _run_npm_script("build:hosted")
+    if rc != 0:
+        return rc
+
+    output_dir = _project_root() / "application" / "www" / "build"
+    if not (output_dir / "index.html").exists():
+        print(f"错误: Hosted WebConfig 构建产物不存在: {output_dir}")
+        return 2
+
+    print(f"V2 Hosted WebConfig 已生成: {output_dir}")
+    print("该目录应部署到 HTTPS 服务器，不会打包进 STM32 固件")
+    return 0
+
+
+def _run_legacy_embedded_web_build() -> int:
+    rc = _run_npm_script("build:legacy-embedded")
+    if rc != 0:
+        return rc
+    rc = _run_node_makefsdata()
+    if rc == 0:
+        print("V1 Legacy WebConfig 已生成到 ex_fsdata.bin")
+        print("警告: 该产物仅用于旧板，不得用于 V2 B/S 固件")
+    return rc
 
 
 def _run_pack_assets() -> int:
@@ -142,21 +194,23 @@ def main(argv: list[str]) -> int:
   python tools/hbox.py build assets
   python tools/hbox.py build ADCMapping
   python tools/hbox.py build appAll A
+  python tools/hbox.py flash bootloader-dev
   python tools/hbox.py flash appAll A
   python tools/hbox.py release auto --version 1.0.0
   python tools/hbox.py web dev
   python tools/hbox.py web build
+  python tools/hbox.py web build-legacy
 """,
     )
 
     subparsers = parser.add_subparsers(dest="cmd", required=True)
 
     p_build = subparsers.add_parser("build", help="构建相关")
-    p_build.add_argument("target", choices=["bootloader", "web", "assets", "sysbg", "ADCMapping", "app", "appAll"])
+    p_build.add_argument("target", choices=["bootloader", "web", "web-legacy", "assets", "sysbg", "ADCMapping", "app", "appAll"])
     p_build.add_argument("slot", nargs="?", choices=["A", "B"])
 
     p_flash = subparsers.add_parser("flash", help="烧录相关")
-    p_flash.add_argument("target", choices=["bootloader", "app", "code", "appAll", "assets", "sysbg"])
+    p_flash.add_argument("target", choices=["bootloader", "bootloader-dev", "app", "code", "appAll", "assets", "sysbg"])
     p_flash.add_argument("slot", nargs="?", choices=["A", "B"])
     p_flash.add_argument("--code-only", action="store_true", help="仅烧录代码（app），不烧录资源")
 
@@ -165,7 +219,7 @@ def main(argv: list[str]) -> int:
     p_release.add_argument("args", nargs=argparse.REMAINDER)
 
     p_web = subparsers.add_parser("web", help="Web前端")
-    p_web.add_argument("target", choices=["dev", "build"])
+    p_web.add_argument("target", choices=["dev", "build", "dev-legacy", "build-legacy"])
 
     args = parser.parse_args(argv)
 
@@ -173,7 +227,9 @@ def main(argv: list[str]) -> int:
         if args.target == "bootloader":
             return _run_python_tool("build.py", ["build", "bootloader"])
         if args.target == "web":
-            return _run_node_makefsdata()
+            return _run_hosted_web_build()
+        if args.target == "web-legacy":
+            return _run_legacy_embedded_web_build()
         if args.target == "assets":
             return _run_pack_assets()
         if args.target == "sysbg":
@@ -192,14 +248,16 @@ def main(argv: list[str]) -> int:
             rc = _run_python_tool("build.py", ["build", "app", args.slot])
             if rc != 0:
                 return rc
-            rc = _run_node_makefsdata()
-            if rc != 0:
-                return rc
-            return _run_pack_assets()
+            rc = _run_pack_assets()
+            if rc == 0:
+                print("V2 appAll 构建完成（WebConfig 由服务器独立部署）")
+            return rc
 
     if args.cmd == "flash":
         if args.target == "bootloader":
             return _run_python_tool("build.py", ["flash", "bootloader"])
+        if args.target == "bootloader-dev":
+            return _run_python_tool("build.py", ["flash", "bootloader-dev"])
         if args.target == "assets":
             return _run_python_tool("build.py", ["flash", "assets"])
         if args.target == "sysbg":
@@ -230,64 +288,13 @@ def main(argv: list[str]) -> int:
 
     if args.cmd == "web":
         if args.target == "dev":
-            www_dir = _project_root() / "application" / "www"
-            next_bin = www_dir / "node_modules" / "next" / "dist" / "bin" / "next"
-            if not next_bin.exists():
-                print(f"错误: 未找到 Next.js 可执行脚本: {next_bin}")
-                print("请先安装依赖: npm --prefix application/www install")
-                return 2
-            try:
-                ws = subprocess.Popen(
-                    ["node", "websocket-server.js"],
-                    cwd=www_dir,
-                )
-                dev = subprocess.Popen(
-                    ["node", str(next_bin), "dev"],
-                    cwd=www_dir,
-                )
-                dev.wait()
-                try:
-                    ws.terminate()
-                except Exception:
-                    pass
-                return dev.returncode
-            except FileNotFoundError as e:
-                print(f"错误: 启动开发服务失败: {e}")
-                print("请确保系统已安装 Node.js，并且 'node' 命令可用")
-                return 2
+            return _run_npm_script("dev:hosted")
         if args.target == "build":
-            www_dir = _project_root() / "application" / "www"
-            makefs = www_dir / "makefsdata.js"
-            next_bin = www_dir / "node_modules" / "next" / "dist" / "bin" / "next"
-            try:
-                rc = subprocess.call(
-                    ["npm", "--prefix", str(www_dir), "run", "build"],
-                    cwd=_project_root(),
-                )
-            except FileNotFoundError:
-                try:
-                    rc = subprocess.call(
-                        ["npm.cmd", "--prefix", str(www_dir), "run", "build"],
-                        cwd=_project_root(),
-                    )
-                except FileNotFoundError:
-                    if not next_bin.exists():
-                        print("错误: 未找到 npm 或 Next.js 可执行文件")
-                        print("请先安装依赖: npm --prefix application/www install")
-                        return 2
-                    rc = subprocess.call(["node", str(next_bin), "build"], cwd=www_dir)
-            if rc != 0:
-                print("错误: Web前端构建失败")
-                return rc
-            if not makefs.exists():
-                print(f"错误: 未找到 makefsdata.js: {makefs}")
-                return 2
-            rc2 = subprocess.call(["node", str(makefs)], cwd=www_dir)
-            if rc2 != 0:
-                print("错误: 生成 WebResources 二进制失败")
-                return rc2
-            print("Web 前端构建并生成二进制完成")
-            return 0
+            return _run_hosted_web_build()
+        if args.target == "dev-legacy":
+            return _run_npm_script("dev:all")
+        if args.target == "build-legacy":
+            return _run_legacy_embedded_web_build()
 
     return 2
 

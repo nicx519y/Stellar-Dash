@@ -24,6 +24,15 @@ npm test
 npm run build:hosted
 ```
 
+也可以从仓库根目录统一执行：
+
+```bash
+python tools/hbox.py web build
+```
+
+V2 的 `python tools/hbox.py build appAll A|B` 只构建设备固件和设备端图片资源，
+不会运行 `makefsdata.js`，也不会把本目录打包进 STM32 固件。
+
 Serve the generated `build/` directory from the same HTTPS origin as
 `/api/v2/device-auth/*`. The server must apply HSTS, a strict CSP,
 `Permissions-Policy: hid=(self)`, exact-origin CORS rules, and an SPA fallback
@@ -89,6 +98,12 @@ firmware, but only via an explicit build:
 npm run dev:legacy
 npm run build:legacy-embedded
 node makefsdata.js
+```
+
+等价的显式旧板命令是：
+
+```bash
+python tools/hbox.py web build-legacy
 ```
 
 The legacy build retains the original `ws://device:8081` command semantics and

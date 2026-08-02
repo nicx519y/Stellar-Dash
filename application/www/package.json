@@ -11,9 +11,9 @@
     "dev:websocket": "node websocket-server.js",
     "dev:all": "concurrently \"npm run dev:legacy\" \"npm run dev:websocket\"",
     "build": "npm run build:hosted",
-    "build:mock": "cross-env HBOX_BUILD_VARIANT=mock NEXT_PUBLIC_DEVICE_TRANSPORT=mock NEXT_PUBLIC_OFFLINE_PREVIEW=true next build",
-    "build:hosted": "cross-env HBOX_BUILD_VARIANT=hosted NEXT_PUBLIC_DEVICE_TRANSPORT=webhid NEXT_PUBLIC_OFFLINE_PREVIEW=false next build",
-    "build:legacy-embedded": "cross-env HBOX_BUILD_VARIANT=legacy NEXT_PUBLIC_DEVICE_TRANSPORT=legacy-websocket NEXT_PUBLIC_OFFLINE_PREVIEW=false next build",
+    "build:mock": "cross-env HBOX_BUILD_VARIANT=mock HBOX_WEB_OUTPUT_DIR=build-mock NEXT_PUBLIC_DEVICE_TRANSPORT=mock NEXT_PUBLIC_OFFLINE_PREVIEW=true next build",
+    "build:hosted": "cross-env HBOX_BUILD_VARIANT=hosted HBOX_WEB_OUTPUT_DIR=build NEXT_PUBLIC_DEVICE_TRANSPORT=webhid NEXT_PUBLIC_OFFLINE_PREVIEW=false next build",
+    "build:legacy-embedded": "cross-env HBOX_BUILD_VARIANT=legacy HBOX_WEB_OUTPUT_DIR=build NEXT_PUBLIC_DEVICE_TRANSPORT=legacy-websocket NEXT_PUBLIC_OFFLINE_PREVIEW=false next build",
     "typecheck": "tsc --noEmit --pretty false",
     "test:webhid": "node -r sucrase/register/ts-legacy-module-interop --test tests/webhid-protocol.test.cjs tests/webhid-security-golden.test.cjs",
     "test:mock": "node -r sucrase/register/ts-legacy-module-interop --test tests/mock-device-transport.test.cjs",
@@ -23,7 +23,7 @@
     "preview": "node scripts/serve-static.mjs build",
     "preview:mock": "node scripts/serve-static.mjs build-mock",
     "lint": "next lint",
-    "export": "cross-env ANALYZE=true HBOX_BUILD_VARIANT=hosted NEXT_PUBLIC_DEVICE_TRANSPORT=webhid NEXT_PUBLIC_OFFLINE_PREVIEW=false next build"
+    "export": "cross-env ANALYZE=true HBOX_BUILD_VARIANT=hosted HBOX_WEB_OUTPUT_DIR=build NEXT_PUBLIC_DEVICE_TRANSPORT=webhid NEXT_PUBLIC_OFFLINE_PREVIEW=false next build"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.19.1",

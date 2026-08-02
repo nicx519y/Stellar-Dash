@@ -16,6 +16,7 @@ releases
 tools/__pycache__
 tools/tests/__pycache__/
 *.py[cod]
+.hbox/
 server/node_modules/
 server/uploads/
 server/data/

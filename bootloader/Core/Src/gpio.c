@@ -56,19 +56,27 @@ void MX_GPIO_Init(void)
 
 }
 
-void Board_InitMainPowerHold(void)
+void Board_InitSafePowerState(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   __HAL_RCC_GPIOI_CLK_ENABLE();
+  __DSB();
 
-  /* Load the asserted level before enabling the output driver. */
-  HAL_GPIO_WritePin(MAIN_POWER_EN_PORT, MAIN_POWER_EN_PIN, GPIO_PIN_SET);
-  GPIO_InitStruct.Pin = MAIN_POWER_EN_PIN;
+  /*
+   * Load every output latch before enabling any output driver.  This keeps
+   * MAIN_POWER_EN asserted, disables charging, and leaves every optional or
+   * high-current rail off without producing an enable glitch.
+   */
+  GPIOI->BSRR = (uint32_t)BOARD_SAFE_POWER_HIGH_PINS |
+                ((uint32_t)BOARD_SAFE_POWER_LOW_PINS << 16u);
+
+  GPIO_InitStruct.Pin = BOARD_SAFE_POWER_OUTPUT_PINS;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(MAIN_POWER_EN_PORT, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
+  __DSB();
 }
 
 /* USER CODE BEGIN 2 */

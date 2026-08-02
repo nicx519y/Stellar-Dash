@@ -77,7 +77,7 @@ int main(void)
   // 先初始化基础硬件，但不初始化日志系统
   MPU_Config();
   HAL_Init();
-  Board_InitMainPowerHold();
+  Board_InitSafePowerState();
   /* 3V3_Main powers the external W25Q64; wait before its first QSPI access. */
   HAL_Delay(MAIN_POWER_STABILIZE_MS);
   SystemClock_Config();
