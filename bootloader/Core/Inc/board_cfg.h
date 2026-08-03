@@ -44,11 +44,11 @@
 #define USB_HOST_EN_PORT                GPIOI
 #define USB_HOST_EN_PIN                 GPIO_PIN_13
 
-#define BOARD_SAFE_POWER_HIGH_PINS      (CHARGE_EN_N_PIN | MAIN_POWER_EN_PIN)
+#define BOARD_SAFE_POWER_HIGH_PINS      (CHARGE_EN_N_PIN | MAIN_POWER_EN_PIN | \
+                                         CH585_EN_PIN)
 #define BOARD_SAFE_POWER_LOW_PINS       (HALL_VCC_EN_PIN | BOOST_5V_EN_PIN | \
                                          LED_EN_PIN | AMBIENT_EN_PIN |       \
-                                         LCD_EN_PIN | CH585_EN_PIN |         \
-                                         USB_HOST_EN_PIN)
+                                         LCD_EN_PIN | USB_HOST_EN_PIN)
 #define BOARD_SAFE_POWER_OUTPUT_PINS    (BOARD_SAFE_POWER_HIGH_PINS | \
                                          BOARD_SAFE_POWER_LOW_PINS)
 

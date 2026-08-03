@@ -65,8 +65,10 @@ void Board_InitSafePowerState(void)
 
   /*
    * Load every output latch before enabling any output driver.  This keeps
-   * MAIN_POWER_EN asserted, disables charging, and leaves every optional or
-   * high-current rail off without producing an enable glitch.
+   * MAIN_POWER_EN and CH585_EN asserted, disables charging, and leaves every
+   * other optional or high-current rail off without producing an enable
+   * glitch.  CH585 stays powered during bootloader execution so an assembled
+   * board can be programmed without a hardware pull-up on its enable input.
    */
   GPIOI->BSRR = (uint32_t)BOARD_SAFE_POWER_HIGH_PINS |
                 ((uint32_t)BOARD_SAFE_POWER_LOW_PINS << 16u);
