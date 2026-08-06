@@ -11,6 +11,7 @@
 #include "adc_btns/adc_calibration.hpp"
 #include "system_logger.h"
 #include "utils.h"
+#include "board_cfg.h"
 
 extern "C" {
     int cpp_main(void) 
@@ -21,9 +22,11 @@ extern "C" {
         // Logger_PrintAllLogs(printf);
 
         LOG_INFO("CPP_MAIN", "C++ main application startup ...");
+        APP_STAGE("A10", "C++ runtime active; starting main state machine");
 
         // 注释掉原有的状态机启动，用于手动校准测试
         MAIN_STATE_MACHINE.setup();
+        APP_STAGE_ERROR("A10", "main state machine returned unexpectedly");
     
         // 手动校准测试
         // manual_calibration_test();

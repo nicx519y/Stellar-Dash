@@ -14,6 +14,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const crypto = require('crypto');
 const fs = require('fs-extra');
 const server_address = process.env.SERVER_ADDRESS || '182.92.72.220';
 const server_port = process.env.SERVER_PORT || 3000;
@@ -45,6 +46,7 @@ const {
     installHostedWebConfig,
     resolveHostedWebConfigOptions
 } = require('./hosted-webconfig');
+const { resolveServerStoragePaths } = require('./server-paths');
 
 // 引入网络接口入口模块
 const { initAllRoutes } = require('./action');
@@ -56,11 +58,51 @@ const LISTEN_HOST = process.env.LISTEN_HOST ||
 const trustedProxyHops = parseTrustedProxyHops(
     process.env.TRUST_PROXY_HOPS
 );
+const storagePaths = resolveServerStoragePaths();
+
+function loadFirmwareReleasePublicKey(environment = process.env) {
+    const inline = environment.FIRMWARE_RELEASE_PUBLIC_KEY_PEM;
+    const fileName = String(
+        environment.FIRMWARE_RELEASE_PUBLIC_KEY_FILE || ''
+    ).trim();
+    if (environment.NODE_ENV === 'production') {
+        if (inline) {
+            throw new Error(
+                'FIRMWARE_RELEASE_PUBLIC_KEY_PEM is not accepted in production'
+            );
+        }
+        if (!fileName) {
+            throw new Error(
+                'FIRMWARE_RELEASE_PUBLIC_KEY_FILE is required in production'
+            );
+        }
+        if (!path.isAbsolute(fileName)) {
+            throw new Error(
+                'FIRMWARE_RELEASE_PUBLIC_KEY_FILE must be absolute in production'
+            );
+        }
+    }
+    const material = inline
+        ? inline.replace(/\\n/g, '\n')
+        : fileName
+            ? fs.readFileSync(fileName, 'utf8')
+            : null;
+    if (!material) {
+        return null;
+    }
+    const publicKey = crypto.createPublicKey(material);
+    if (publicKey.asymmetricKeyType !== 'ec' ||
+        publicKey.asymmetricKeyDetails?.namedCurve !== 'prime256v1') {
+        throw new Error('firmware release public key must be P-256');
+    }
+    return publicKey;
+}
 
 // 配置目录
 const config = {
-    uploadDir: path.join(__dirname, '..', 'uploads'),
-    dataFile: path.join(__dirname, '..', 'data/firmware_list.json'),
+    uploadDir: storagePaths.uploadDir,
+    dataFile: storagePaths.firmwareDataFile,
+    firmwareReleasePublicKey: loadFirmwareReleasePublicKey(),
     maxFileSize: 50 * 1024 * 1024, // 50MB
     allowedExtensions: ['.zip'],
     // 支持多种访问方式
@@ -91,7 +133,8 @@ app.use(cors(createExactCorsOptions(allowedWebConfigOrigins)));
 app.use(express.json({ limit: '64kb', strict: true }));
 app.use(express.urlencoded({ extended: true }));
 
-// 创建上传目录
+// 创建持久状态与上传目录
+fs.ensureDirSync(storagePaths.dataDir);
 fs.ensureDirSync(config.uploadDir);
 
 // 创建存储实例
@@ -154,10 +197,10 @@ initAllRoutes(app, storage_manager, config, validateDeviceAuth, requireAdminAuth
  * export and WEB_CONFIG_REQUIRE_STATIC=1. Development/API-only processes may
  * omit the directory without weakening any device authorization boundary.
  */
-const hostedWebConfig = installHostedWebConfig(
-    app,
-    resolveHostedWebConfigOptions()
-);
+const hostedWebConfigOptions = resolveHostedWebConfigOptions();
+hostedWebConfigOptions.profileSlugs =
+    deviceAuthV2.webConfigTargetPolicy?.profileSlugs || [];
+const hostedWebConfig = installHostedWebConfig(app, hostedWebConfigOptions);
 app.locals.hostedWebConfig = hostedWebConfig;
 
 // 错误处理中间件

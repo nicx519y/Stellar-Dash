@@ -146,6 +146,12 @@ export type StandbyDisplay = 'none' | 'backgroundImage' | 'buttonLayout';
 export type ScreenStyle = 'dark' | 'light';
 export type ScreenControlFeatureKey = keyof ScreenControlFeatures;
 
+export function withRequiredWebConfigEntry(
+    features: ScreenControlFeatures,
+): ScreenControlFeatures {
+    return { ...features, webConfigEntry: true };
+}
+
 export interface ScreenControlConfig {
     brightness: number;
     standbyDisplay: StandbyDisplay;

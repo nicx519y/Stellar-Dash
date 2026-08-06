@@ -45,6 +45,15 @@ Module._load = function loadTestDependency(request, parent, isMain) {
 
 const { MockDeviceTransport } = require('../lib/device-transport/mock-device-transport.ts');
 const { DeviceTransportFrameworkAdapter } = require('../lib/device-transport/framework-adapter.ts');
+const {
+  DEFAULT_DEVICE_SCOPES,
+  DeviceTransportError,
+} = require('../lib/device-transport/types.ts');
+const { WebHidTransport } = require('../lib/device-transport/webhid-transport.ts');
+const {
+  DEFAULT_SCREEN_CONTROL_CONFIG,
+  withRequiredWebConfigEntry,
+} = require('../types/gamepad-config.ts');
 Module._resolveFilename = resolveFilename;
 Module._load = loadModule;
 
@@ -64,11 +73,504 @@ class MemoryStorage {
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+test('screen policy always restores the required WebConfig recovery entry', () => {
+  const disabled = {
+    ...DEFAULT_SCREEN_CONTROL_CONFIG.features,
+    webConfigEntry: false,
+  };
+  const normalized = withRequiredWebConfigEntry(disabled);
+
+  assert.equal(disabled.webConfigEntry, false);
+  assert.equal(normalized.webConfigEntry, true);
+  assert.equal(
+    normalized.connectionModeSwitch,
+    DEFAULT_SCREEN_CONTROL_CONFIG.features.connectionModeSwitch,
+  );
+});
+
 async function createTransport(options = { storage: null }) {
   const transport = new MockDeviceTransport(options);
   await transport.connect();
   return transport;
 }
+
+test('adapter connect failure reports once and always settles disconnected', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  transport.connect = async () => {
+    throw new DeviceTransportError('authentication-failed', 'fixture authentication failed');
+  };
+  const adapter = new DeviceTransportFrameworkAdapter(transport);
+  let errorCount = 0;
+  adapter.onError(() => { errorCount += 1; });
+
+  await assert.rejects(adapter.connect(), /fixture authentication failed/);
+  assert.equal(adapter.getState(), 'disconnected');
+  assert.equal(transport.session, null);
+  assert.equal(errorCount, 1);
+  adapter.dispose();
+});
+
+test('disconnect immediately cancels a connect before it can publish a session', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  let releaseConnect;
+  transport.connect = () => new Promise((resolve) => {
+    releaseConnect = () => {
+      transport.session = {
+        transport: 'mock',
+        authenticated: true,
+        scopes: [...DEFAULT_DEVICE_SCOPES],
+      };
+      resolve(transport.session);
+    };
+  });
+  const adapter = new DeviceTransportFrameworkAdapter(transport);
+
+  const connecting = adapter.connect();
+  const cancelled = assert.rejects(connecting, /断开或重连/);
+  adapter.disconnect();
+  releaseConnect();
+  await cancelled;
+
+  assert.equal(adapter.getState(), 'disconnected');
+  assert.equal(transport.session, null);
+  adapter.dispose();
+});
+
+test('adapter fire-and-forget failure destroys the transport instead of leaving ERROR half-connected', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const auth = {
+    clearCalls: 0,
+    clear() { this.clearCalls += 1; },
+  };
+  const adapter = new DeviceTransportFrameworkAdapter(transport, auth);
+  await adapter.connect();
+  let errorCount = 0;
+  let disconnectCount = 0;
+  adapter.onError(() => { errorCount += 1; });
+  adapter.onDisconnect(() => { disconnectCount += 1; });
+  transport.request = async () => {
+    throw new DeviceTransportError('protocol', 'fixture async failure');
+  };
+
+  adapter.sendMessageNoResponse('fixture_failure');
+  await delay(10);
+
+  assert.equal(adapter.getState(), 'disconnected');
+  assert.equal(transport.session, null);
+  assert.equal(errorCount, 1);
+  assert.equal(disconnectCount, 1);
+  assert.ok(auth.clearCalls >= 1);
+  adapter.dispose();
+});
+
+test('an old fire-and-forget rejection cannot close a newer device session', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceTransportFrameworkAdapter(transport);
+  await adapter.connect();
+  let rejectOldRequest;
+  transport.request = () => new Promise((resolve, reject) => {
+    rejectOldRequest = reject;
+  });
+  let errorCount = 0;
+  adapter.onError(() => { errorCount += 1; });
+
+  adapter.sendMessageNoResponse('old_session_request');
+  await delay(0);
+  assert.equal(typeof rejectOldRequest, 'function');
+  adapter.disconnect();
+  await delay(0);
+  await adapter.connect();
+  rejectOldRequest(new DeviceTransportError('protocol', 'late old-session failure'));
+  await delay(10);
+
+  assert.equal(adapter.getState(), 'connected');
+  assert.notEqual(transport.session, null);
+  assert.equal(errorCount, 0);
+  adapter.dispose();
+});
+
+test('a reconnect waits for the previous asynchronous HID close barrier', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceTransportFrameworkAdapter(transport);
+  await adapter.connect();
+  let releaseOldClose;
+  transport.close = () => new Promise((resolve) => {
+    releaseOldClose = resolve;
+  });
+
+  adapter.disconnect();
+  let reconnectSettled = false;
+  const reconnect = adapter.connect().then(() => {
+    reconnectSettled = true;
+  });
+  await delay(0);
+  assert.equal(reconnectSettled, false);
+  releaseOldClose();
+  await reconnect;
+
+  assert.equal(adapter.getState(), 'connected');
+  // Restore a real close so dispose does not leave a pending fixture promise.
+  transport.close = MockDeviceTransport.prototype.close.bind(transport);
+  adapter.dispose();
+});
+
+test('the close barrier waits for the physical WebHID handle before reopening it', async () => {
+  let releasePhysicalClose;
+  const physicalClose = new Promise((resolve) => {
+    releasePhysicalClose = resolve;
+  });
+  let openCalls = 0;
+  let getDevicesCalls = 0;
+  const device = {
+    opened: false,
+    vendorId: 0xcafe,
+    productId: 0x4021,
+    productName: 'HBox delayed-close fixture',
+    collections: [],
+    async open() {
+      openCalls += 1;
+      this.opened = true;
+    },
+    async close() {
+      await physicalClose;
+      this.opened = false;
+    },
+    async sendReport() {},
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const hid = {
+    async getDevices() {
+      getDevicesCalls += 1;
+      return [device];
+    },
+    async requestDevice() { return [device]; },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const transport = new WebHidTransport({ navigator: hid });
+  const auth = { clear() {}, async authenticate() {} };
+  const adapter = new DeviceTransportFrameworkAdapter(transport, auth);
+  await adapter.connect();
+  assert.equal(openCalls, 1);
+
+  adapter.disconnect();
+  const reconnect = adapter.connect();
+  await delay(0);
+  assert.equal(getDevicesCalls, 1);
+  assert.equal(openCalls, 1);
+
+  releasePhysicalClose();
+  await reconnect;
+  assert.equal(getDevicesCalls, 2);
+  assert.equal(openCalls, 2);
+  assert.equal(device.opened, true);
+  adapter.dispose();
+});
+
+test('disconnect aborts scope reauthorization and reconnect waits for it to settle', async () => {
+  let getDevicesCalls = 0;
+  let openCalls = 0;
+  const device = {
+    opened: false,
+    vendorId: 0xcafe,
+    productId: 0x4021,
+    productName: 'HBox scope-upgrade fixture',
+    collections: [],
+    async open() {
+      openCalls += 1;
+      this.opened = true;
+    },
+    async close() { this.opened = false; },
+    async sendReport() {},
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const hid = {
+    async getDevices() {
+      getDevicesCalls += 1;
+      return [device];
+    },
+    async requestDevice() { return [device]; },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const transport = new WebHidTransport({ navigator: hid });
+  let rejectUpgrade;
+  let upgradeSignal;
+  const auth = {
+    grantedScopes: [],
+    clear() { this.grantedScopes = []; },
+    hasScopes(scopes) {
+      return scopes.every((scope) => this.grantedScopes.includes(scope));
+    },
+    async authenticate(currentTransport, scopes, signal) {
+      assert.equal(signal.aborted, false);
+      this.grantedScopes = [...scopes];
+      currentTransport.session = {
+        transport: 'webhid',
+        authenticated: true,
+        scopes: [...scopes],
+        sessionId: `session-${openCalls}`,
+      };
+      return currentTransport.session;
+    },
+    reauthorize(_currentTransport, _scopes, signal) {
+      upgradeSignal = signal;
+      return new Promise((_resolve, reject) => {
+        rejectUpgrade = reject;
+      });
+    },
+  };
+  const adapter = new DeviceTransportFrameworkAdapter(transport, auth);
+  await adapter.connect();
+  assert.deepEqual(auth.grantedScopes, DEFAULT_DEVICE_SCOPES);
+  let transportRequestCalls = 0;
+  let authorizedFetchCalls = 0;
+  transport.request = async () => {
+    transportRequestCalls += 1;
+    return { transactionId: 1, data: {} };
+  };
+  transport.authorizedFetch = async () => {
+    authorizedFetchCalls += 1;
+    return new Response('{}', { status: 200 });
+  };
+
+  const oldRequest = adapter.sendMessage('reboot');
+  const oldRequestRejection = assert.rejects(oldRequest, /scope upgrade cancelled/);
+  await delay(0);
+  assert.equal(upgradeSignal.aborted, false);
+  const queuedReadRejection = assert.rejects(
+    adapter.sendMessage('get_global_config'),
+    /scope upgrade cancelled/,
+  );
+  const queuedFetchRejection = assert.rejects(
+    adapter.authorizedFetch('/api/queued-during-scope-upgrade'),
+    /scope upgrade cancelled/,
+  );
+  adapter.sendBinaryMessage(new Uint8Array([0x34]));
+  await delay(0);
+  assert.equal(transportRequestCalls, 0);
+  assert.equal(authorizedFetchCalls, 0);
+
+  adapter.disconnect();
+  assert.equal(upgradeSignal.aborted, true);
+  let reconnectSettled = false;
+  const reconnect = adapter.connect().then(() => {
+    reconnectSettled = true;
+  });
+  await delay(0);
+  assert.equal(reconnectSettled, false);
+  assert.equal(getDevicesCalls, 1);
+  assert.equal(openCalls, 1);
+
+  rejectUpgrade(new DeviceTransportError('disconnected', 'scope upgrade cancelled'));
+  await oldRequestRejection;
+  await queuedReadRejection;
+  await queuedFetchRejection;
+  await reconnect;
+  assert.equal(getDevicesCalls, 2);
+  assert.equal(openCalls, 2);
+  assert.equal(adapter.getState(), 'connected');
+  assert.deepEqual(transport.session.scopes, DEFAULT_DEVICE_SCOPES);
+  adapter.dispose();
+});
+
+test('a physical WebHID disconnect aborts scope upgrade before reconnecting', async () => {
+  let navigatorDisconnect = null;
+  let getDevicesCalls = 0;
+  let openCalls = 0;
+  let releasePhysicalClose;
+  const physicalClose = new Promise((resolve) => {
+    releasePhysicalClose = resolve;
+  });
+  const device = {
+    opened: false,
+    vendorId: 0xcafe,
+    productId: 0x4021,
+    productName: 'HBox physical-disconnect fixture',
+    collections: [],
+    async open() {
+      openCalls += 1;
+      this.opened = true;
+    },
+    async close() {
+      await physicalClose;
+      this.opened = false;
+    },
+    async sendReport() {},
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const hid = {
+    async getDevices() {
+      getDevicesCalls += 1;
+      return [device];
+    },
+    async requestDevice() { return [device]; },
+    addEventListener(type, handler) {
+      if (type === 'disconnect') navigatorDisconnect = handler;
+    },
+    removeEventListener(type, handler) {
+      if (type === 'disconnect' && navigatorDisconnect === handler) {
+        navigatorDisconnect = null;
+      }
+    },
+  };
+  const transport = new WebHidTransport({ navigator: hid });
+  let rejectUpgrade;
+  let upgradeSignal;
+  const auth = {
+    grantedScopes: [],
+    clear() { this.grantedScopes = []; },
+    hasScopes(scopes) {
+      return scopes.every((scope) => this.grantedScopes.includes(scope));
+    },
+    async authenticate(currentTransport, scopes, signal) {
+      assert.equal(signal.aborted, false);
+      this.grantedScopes = [...scopes];
+      currentTransport.session = {
+        transport: 'webhid',
+        authenticated: true,
+        scopes: [...scopes],
+        sessionId: `physical-session-${openCalls}`,
+      };
+      return currentTransport.session;
+    },
+    reauthorize(_currentTransport, _scopes, signal) {
+      upgradeSignal = signal;
+      return new Promise((_resolve, reject) => {
+        rejectUpgrade = reject;
+      });
+    },
+  };
+  const adapter = new DeviceTransportFrameworkAdapter(transport, auth);
+  await adapter.connect();
+  const oldRequest = adapter.sendMessage('reboot');
+  const oldRequestRejection = assert.rejects(oldRequest, /physical scope cancelled/);
+  await delay(0);
+  const fireDisconnect = navigatorDisconnect;
+  assert.equal(typeof fireDisconnect, 'function');
+
+  fireDisconnect({ device });
+  assert.equal(upgradeSignal.aborted, true);
+  let reconnectSettled = false;
+  const reconnect = adapter.connect().then(() => {
+    reconnectSettled = true;
+  });
+  releasePhysicalClose();
+  await delay(0);
+  assert.equal(reconnectSettled, false);
+  assert.equal(getDevicesCalls, 1);
+
+  rejectUpgrade(new DeviceTransportError('disconnected', 'physical scope cancelled'));
+  await oldRequestRejection;
+  await reconnect;
+  assert.equal(getDevicesCalls, 2);
+  assert.equal(openCalls, 2);
+  assert.equal(adapter.getState(), 'connected');
+  assert.deepEqual(transport.session.scopes, DEFAULT_DEVICE_SCOPES);
+  adapter.dispose();
+});
+
+test('an old WebHID export cannot emit or continue in a reconnected session', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  // Exercise the WebHID-only sequential export path without coupling this
+  // lifecycle test to the cryptographic authentication fixture.
+  transport.kind = 'webhid';
+  const adapter = new DeviceTransportFrameworkAdapter(transport);
+  await adapter.connect();
+  const calls = [];
+  let resolveGlobal;
+  transport.request = (command) => {
+    calls.push(command);
+    if (command !== 'get_global_config') {
+      throw new Error(`old export continued with ${command}`);
+    }
+    return new Promise((resolve) => {
+      resolveGlobal = resolve;
+    });
+  };
+  const messages = [];
+  let errorCount = 0;
+  adapter.onMessage((message) => messages.push(message));
+  adapter.onError(() => { errorCount += 1; });
+
+  adapter.sendMessageNoResponse('export_all_config');
+  await delay(0);
+  assert.equal(typeof resolveGlobal, 'function');
+  adapter.disconnect();
+  await adapter.connect();
+  resolveGlobal({
+    transactionId: 1,
+    data: { globalConfig: { inputMode: 'XINPUT' } },
+  });
+  await delay(10);
+
+  assert.deepEqual(calls, ['get_global_config']);
+  assert.deepEqual(messages, []);
+  assert.equal(errorCount, 0);
+  assert.equal(adapter.getState(), 'connected');
+  assert.notEqual(transport.session, null);
+  adapter.dispose();
+});
+
+test('an authorized HTTP response from an old session is rejected after reconnect', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceTransportFrameworkAdapter(transport);
+  await adapter.connect();
+  let resolveFetch;
+  transport.authorizedFetch = () => new Promise((resolve) => {
+    resolveFetch = resolve;
+  });
+
+  const oldFetch = adapter.authorizedFetch('/api/old-session');
+  const oldFetchRejection = assert.rejects(oldFetch, /断开或重连会话替代/);
+  await delay(0);
+  assert.equal(typeof resolveFetch, 'function');
+  adapter.disconnect();
+  await adapter.connect();
+  resolveFetch(new Response('{}', { status: 200 }));
+  await oldFetchRejection;
+
+  assert.equal(adapter.getState(), 'connected');
+  assert.notEqual(transport.session, null);
+  adapter.dispose();
+});
+
+test('disconnect aborts an authorized response body with the merged session signal', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceTransportFrameworkAdapter(transport);
+  await adapter.connect();
+  const callerController = new AbortController();
+  let fetchSignal;
+  transport.authorizedFetch = async (_input, init) => {
+    fetchSignal = init.signal;
+    const body = new ReadableStream({
+      start(controller) {
+        fetchSignal.addEventListener('abort', () => {
+          controller.error(new DOMException('session body aborted', 'AbortError'));
+        }, { once: true });
+      },
+    });
+    return new Response(body, { status: 200 });
+  };
+
+  const response = await adapter.authorizedFetch(
+    '/api/streaming-old-session',
+    { signal: callerController.signal },
+  );
+  assert.notEqual(fetchSignal, callerController.signal);
+  assert.equal(fetchSignal.aborted, false);
+  const bodyRead = response.text();
+  const bodyAborted = assert.rejects(bodyRead, (error) => error.name === 'AbortError');
+
+  adapter.disconnect();
+  assert.equal(fetchSignal.aborted, true);
+  assert.equal(callerController.signal.aborted, false);
+  await bodyAborted;
+  adapter.dispose();
+});
 
 function waitForBinary(transport, command) {
   return new Promise((resolve) => {

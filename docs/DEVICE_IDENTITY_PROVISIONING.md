@@ -17,6 +17,13 @@
 `deviceId = SHA-256(SEC1 uncompressed device public key)[0..15]`。证书签名为
 固定 64B `r || s`，所有多字节整数均为 little-endian。
 
+证书 TBS 的 `product_id_le`（offset 129，4B）是制造商分配的产品族标识；
+当前 HBox 的线性字节固定为 ASCII `HBOX`，即 little-endian
+`0x584F4248`。`hardware_version_le` 是 PCB revision，按
+`MAJOR.MINOR.PATCH` 编码为 `major << 16 | minor << 8 | patch`。两者都位于
+制造 CA 的签名范围内，不能从 STM32 `DEV_ID`、`REV_ID`、USB VID/PID 或浏览器
+提交的普通 JSON 字段推断。offset 133..143 仍为保留区并必须全零。
+
 ## STM32H750 内部 Flash 布局
 
 STM32H750xB 只有一个 128KiB 内部用户 Flash sector，编程粒度为 32B，且本目标
@@ -102,11 +109,13 @@ Access 流程、所有 32B 边界断电和 option-byte 顺序验证。因此这�
 
 ```powershell
 make -C bootloader clean all `
-  HBOX_DEVICE_IDENTITY_INTERNAL_FLASH_PROVIDER=1 `
-  HBOX_STM32H750_REVISION_ID=0x1003
+  HBOX_DEVICE_IDENTITY_INTERNAL_FLASH_PROVIDER=1
 ```
 
-`0x1003` 只展示参数格式；真实值必须来自实机 revision 与独立批准清单。
+精确 silicon `REV_ID` 不再作为产品身份或 provider 前置条件。如勘误评审要求限制
+某个 revision，另行同时设置 `HBOX_STM32H750_REVISION_QUALIFICATION=1` 与
+`HBOX_STM32H750_REVISION_ID=<批准值>`。HBox 产品归属和 PCB 版本必须由制造商签名
+证书中的产品字段/`hardwareVersion` 及 `Kdev` 持有证明决定。
 
 工厂镜像若要运行 MCU 内 Kdev 注册服务，必须同时显式打开：
 
@@ -115,8 +124,7 @@ make -C bootloader clean all `
   HBOX_SECURITY_VERSION_INTERNAL_FLASH_PROVIDER=1 `
   HBOX_DEVICE_IDENTITY_INTERNAL_FLASH_PROVIDER=1 `
   HBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING=1 `
-  HBOX_FACTORY_IDENTITY_ENROLLMENT=1 `
-  HBOX_STM32H750_REVISION_ID=0x1003
+  HBOX_FACTORY_IDENTITY_ENROLLMENT=1
 ```
 
 其中 `HBoxFactoryIdentityEnrollment_Begin()` 只用 STM32 TRNG 在 MCU 内生成
@@ -128,10 +136,10 @@ security-version journal，再通过 commit-last identity backend 安装私钥�
 
 工厂构建还必须由受审计的安全服务覆盖
 `HBoxIdentityFactoryGate_IsAuthorized()`。弱默认实现始终返回 false；provider
-还会在每次写入前复用统一 lifecycle 校验，核对 `DEV_ID=0x450`、编译时批准的
-`REV_ID`、RDP1、SECURITY/Secure mode、完整 128KiB SCAR 和内部 Flash
-执行位置。覆盖实现必须验证：受认证且不可重放的治具 session、批准的芯片
-revision 和工站工单。
+还会在每次写入前复用统一 lifecycle 校验，核对 `DEV_ID=0x450`、RDP1、
+SECURITY/Secure mode、完整 128KiB SCAR 和内部 Flash 执行位置；启用可选 silicon
+qualification 时才核对编译时批准的 `REV_ID`。覆盖实现必须验证：受认证且不可
+重放的治具 session、已批准的 PCB/产品版本和工站工单。
 GPIO、UID、普通 USB 命令或仅凭编译宏均不得作为授权。正式 field bootloader
 不得包含这个工厂写入开关。
 
@@ -148,6 +156,7 @@ GPIO、UID、普通 USB 命令或仅凭编译宏均不得作为授权。正式 f
 python tools/device_identity_provisioning.py make-certificate-tbs `
   --csr D:/factory/session/device.csr `
   --certificate-serial 00112233445566778899aabbccddeeff `
+  --product-id HBOX `
   --hardware-version 2.0.0 `
   --issued-at 1784851200 `
   --production-batch 2026-07-A `
@@ -168,6 +177,7 @@ python tools/device_identity_provisioning.py make-certificate-tbs `
   --factory-challenge D:/factory/session/challenge-32b.bin `
   --proof-signature D:/factory/session/pop-signature-raw64.bin `
   --certificate-serial 00112233445566778899aabbccddeeff `
+  --product-id HBOX `
   --hardware-version 2.0.0 `
   --production-batch 2026-07-A `
   --output D:/factory/session/device-cert.tbs
@@ -248,7 +258,7 @@ make -C application clean all
 允许保存：
 
 - device ID、证书序列号/指纹、公钥指纹；
-- hardware version、生产批次、签发时间；
+- product ID、PCB revision（`hardwareVersion`）、生产批次、签发时间；
 - HSM key ID/签名操作审计 ID；
 - identity commit/slot、RDP/PCROP/Secure Access 策略版本和最终在线认证结果。
 

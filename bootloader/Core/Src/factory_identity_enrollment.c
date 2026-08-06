@@ -123,6 +123,7 @@ static int certificate_is_valid(
         !any_nonzero(certificate->certificate_serial,
                      sizeof(certificate->certificate_serial)) ||
         certificate->hardware_version_le != HARDWARE_VERSION ||
+        certificate->product_id_le != HBOX_PRODUCT_ID ||
         certificate->issued_at_le == 0u ||
         certificate->device_public_key[0] != 0x04u ||
         memcmp(certificate->device_public_key,
@@ -361,4 +362,18 @@ const char *HBoxFactoryIdentityEnrollment_StatusString(
     default:
         return "unknown";
     }
+}
+
+const hbox_factory_enrollment_api_v1_t *
+HBoxFactoryIdentityEnrollment_GetApi(void)
+{
+    static const hbox_factory_enrollment_api_v1_t api = {
+        HBOX_FACTORY_ENROLLMENT_API_VERSION,
+        HBoxFactoryIdentityEnrollment_Begin,
+        HBoxFactoryIdentityEnrollment_Install,
+        HBoxFactoryIdentityEnrollment_Cancel,
+        HBoxFactoryIdentityEnrollment_StatusString,
+    };
+
+    return &api;
 }

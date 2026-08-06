@@ -32,6 +32,10 @@ export interface DeviceSession {
   transport: DeviceTransportKind;
   deviceId?: string;
   productName?: string;
+  productId?: string;
+  pcbRevision?: string;
+  webConfigProfile?: string;
+  webConfigBasePath?: string;
   hardwareVersion?: string;
   firmwareVersion?: string;
   authenticated: boolean;

@@ -73,7 +73,12 @@ function signP256(privateKey, bytes) {
     );
 }
 
-function makeCertificate(caPrivateKey, devicePublicKey, nowSeconds) {
+function makeCertificate(
+    caPrivateKey,
+    devicePublicKey,
+    nowSeconds,
+    productId = 'HBOX'
+) {
     const devicePublic = rawPublicKey(devicePublicKey);
     const deviceId = crypto.createHash('sha256')
         .update(devicePublic)
@@ -90,10 +95,30 @@ function makeCertificate(caPrivateKey, devicePublicKey, nowSeconds) {
     certificate.writeUInt32LE(nowSeconds - 10, 44);
     devicePublic.copy(certificate, 48);
     Buffer.alloc(16, 0x22).copy(certificate, 113);
+    if (productId !== null) {
+        Buffer.from(productId, 'ascii').copy(certificate, 129);
+    }
     signP256(caPrivateKey, certificate.subarray(0, 144))
         .copy(certificate, 144);
     return { certificate, deviceId };
 }
+
+test('legacy product-less certificates fail closed', () => {
+    const caKeys = generateP256KeyPair();
+    const deviceKeys = generateP256KeyPair();
+    const now = () => 1800000000000;
+    const certificate = makeCertificate(
+        caKeys.privateKey,
+        deviceKeys.publicKey,
+        Math.floor(now() / 1000),
+        null
+    ).certificate;
+    const verifier = new BinaryDeviceCertificateVerifier(caKeys.publicKey);
+    assert.throws(
+        () => verifier.verify(certificate, { now }),
+        error => error.code === 'INVALID_DEVICE_CERTIFICATE'
+    );
+});
 
 function makeBootAttestation(
     devicePrivateKey,
@@ -183,6 +208,8 @@ function createFixture() {
         deviceName: 'Test HBox',
         certificateSerial: identity.serialNumber,
         certificateFingerprint: identity.certificateFingerprint,
+        productId: identity.productId,
+        pcbRevision: identity.pcbRevision,
         hardwareVersion: identity.hardwareVersion,
         authLevel: identity.authLevel,
         minSecurityVersion: 3,
@@ -439,6 +466,9 @@ test('V2 authenticates fixed binary proofs and signs a scoped permit', async () 
         assert.deepEqual(result.grantedScopes, fixture.scopes);
         assert.equal(result.expiresIn, 300);
         assert.equal(result.expiresInMs, 300000);
+        assert.equal(result.productId, 'HBOX');
+        assert.equal(result.pcbRevision, '2.0.0');
+        assert.equal(result.webConfigProfile, 'hbox-pcb-v2');
         assert.equal(Buffer.from(result.sessionSalt, 'base64').length, 32);
         const permit = verifyPermit(fixture, result.deviceSessionPermit);
         assert.deepEqual(permit.subarray(24, 40), fixture.webhidSessionId);
@@ -453,6 +483,10 @@ test('V2 authenticates fixed binary proofs and signs a scoped permit', async () 
         assert.equal(
             fixture.tokenStore.resolve(result.apiToken).deviceId,
             fixture.deviceId.toString('hex').toUpperCase()
+        );
+        assert.equal(
+            fixture.tokenStore.resolve(result.apiToken).productId,
+            'HBOX'
         );
         assert.equal(
             fixture.tokenStore.tokens.has(result.apiToken),
@@ -606,7 +640,13 @@ test('HTTP routes enforce exact CORS, security headers and protected downloads',
             name: 'V2 test firmware',
             version: '2.0.0',
             hardwareVersion: '2.0.0',
-            desc: 'integration fixture'
+            desc: 'integration fixture',
+            slotA: {
+                filename: 'firmware.zip',
+                filePath: 'firmware.zip',
+                downloadUrl: 'https://stale-upload-origin.invalid/downloads/firmware.zip'
+            },
+            slotB: null
         });
         initAllRoutes(
             app,
@@ -695,6 +735,11 @@ test('HTTP routes enforce exact CORS, security headers and protected downloads',
                 }
             });
             assert.equal(readCatalogEntry.status, 200);
+            assert.equal(
+                JSON.parse(readCatalogEntry.body.toString('utf8'))
+                    .data.slotA.downloadUrl,
+                '/downloads/firmware.zip'
+            );
 
             const readOnlyUpdateCheck = await httpRequest(server, {
                 path: '/api/firmware-check-update',
@@ -784,6 +829,15 @@ test('HTTP routes enforce exact CORS, security headers and protected downloads',
                 JSON.parse(updateCheck.body.toString('utf8'))
                     .data.hardwareVersion,
                 '2.0.0'
+            );
+            assert.equal(
+                JSON.parse(updateCheck.body.toString('utf8'))
+                    .data.latestFirmware.slotA.downloadUrl,
+                '/downloads/firmware.zip'
+            );
+            assert.equal(
+                fixture.storage.getFirmwares()[0].slotA.downloadUrl,
+                'https://stale-upload-origin.invalid/downloads/firmware.zip'
             );
 
             const deniedDownload = await httpRequest(server, {

@@ -23,9 +23,21 @@ typedef enum
 /*
  * Validates the immutable lifecycle assumptions required before Kdev may be
  * used.  This routine never programs option bytes.  Production provisioning
- * owns SECURITY/RDP/secure-area configuration; boot code only verifies it.
+ * owns SECURITY/RDP; the first secure boot asks the STM32 ROM RSS to create
+ * the secure area, and all later boots only verify it.
  */
 hbox_secure_access_status_t HBoxSecureAccess_ValidateLifecycle(void);
+
+/*
+ * The H750 RSS owns the one-time transition from a blank secure-area
+ * definition to a protected internal-Flash boot region.  This predicate is
+ * deliberately narrow: SECURITY and RDP1 must already be active, execution
+ * must be inside internal Flash, and SCAR must still describe an empty area.
+ */
+int HBoxSecureAccess_CanInitializeFullInternalFlashArea(void);
+
+void HBoxSecureAccess_InitializeFullInternalFlashArea(void)
+    __attribute__((noreturn));
 
 const char *HBoxSecureAccess_StatusString(
     hbox_secure_access_status_t status);

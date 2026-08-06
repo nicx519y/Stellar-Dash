@@ -37,6 +37,9 @@ Serve the generated `build/` directory from the same HTTPS origin as
 `/api/v2/device-auth/*`. The server must apply HSTS, a strict CSP,
 `Permissions-Policy: hid=(self)`, exact-origin CORS rules, and an SPA fallback
 that serves `index.html` for the configuration routes.
+Hosted V2 also uses this same origin for firmware catalog checks and protected
+downloads by default. The explicit legacy build alone retains the historical
+remote firmware-server default.
 
 ## Hardware-free V2 mock preview
 

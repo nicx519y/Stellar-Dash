@@ -21,12 +21,23 @@ NODE_ENV=production
 LISTEN_HOST=127.0.0.1
 TRUST_PROXY_HOPS=1
 WEB_CONFIG_ORIGINS=https://firmware.st-dash.com
+WEB_CONFIG_STATIC_DIR=/srv/hbox-webconfig
+WEB_CONFIG_REQUIRE_STATIC=1
+HBOX_SERVER_DATA_DIR=/var/lib/hbox
+HBOX_SERVER_UPLOAD_DIR=/var/lib/hbox/uploads
 DEVICE_CA_PUBLIC_KEY_FILE=/run/secrets/hbox-device-ca-public.pem
+FIRMWARE_RELEASE_PUBLIC_KEY_FILE=/run/secrets/hbox-firmware-release-public.pem
 DEVICE_AUTH_V2_ADAPTER_MODULE=/opt/hbox/device-auth-v2-production-adapter.js
 ```
 
 `TRUST_PROXY_HOPS` accepts only `0`, `1`, or `2` and must equal the number of
 controlled reverse proxies in front of Node. It defaults to `0`.
+
+Production state, upload and firmware-release public-key paths are mandatory
+absolute paths. Hosted startup with `WEB_CONFIG_REQUIRE_STATIC=1` also fails
+closed unless both `index.html` and `_next/static` are present. Configuration
+routes have a narrow `index.html` fallback; API, download, asset and unknown
+paths never fall back to HTML.
 
 When `NODE_ENV=production`, `WEB_CONFIG_AUTH_PRIVATE_KEY_PEM`,
 `WEB_CONFIG_AUTH_PRIVATE_KEY_FILE`, and the built-in PEM signer are not
@@ -127,6 +138,24 @@ On success the response contains:
 - `scopes` and `expiresInMs`;
 - signed `deviceSessionPermit` for the STM32;
 - `sessionSalt = SHA-256(deviceSessionPermit)` for browser/device HKDF.
+- authenticated `productId`, `pcbRevision`, and `webConfigProfile` routing
+  claims. `productId` and `pcbRevision` come from the manufacturer-signed
+  device certificate; the profile is selected by the server allowlist.
+
+The certificate keeps its fixed 208-byte V1 ABI. Bytes 129..132 of the signed
+portion contain the four-byte ASCII product ID (`HBOX` for this product), and
+the existing `hardware_version_le` at offset 40 is the PCB revision. These are
+product/board identity fields, not STM32 `DEV_ID` or silicon `REV_ID`.
+Unknown products, unknown PCB revisions, a mismatch with enrollment, or an
+unrecognized browser profile all fail closed before a permit is installed.
+
+The built-in target policy currently maps `HBOX` PCB `2.0.0` to
+`hbox-pcb-v2`. Future PCB revisions are added through
+`WEB_CONFIG_TARGET_POLICY_FILE` (an absolute path in production) or
+`WEB_CONFIG_TARGET_POLICY_JSON`, and require a corresponding browser profile.
+Profile URLs are generated locally as
+`/webconfig/<validated-profile>/...`; the server cannot supply an absolute or
+cross-origin navigation URL.
 
 Both directions accept encrypted reports only when
 `sequence == previous + 1`; a forward gap, repeat, backward value, zero, or
@@ -145,6 +174,15 @@ Authorization: Bearer <apiToken>
 
 Query-string tokens are intentionally unsupported. `/downloads/*` requires
 the `firmware.update` scope and uses `Cache-Control: private, no-store`.
+V2 catalog responses rewrite package locations to same-origin relative
+`/downloads/*` paths; an absolute URL stored at upload time is never returned
+to a V2 browser session.
+
+Uploaded STM32 OTA ZIPs must contain the exact 807-byte signed `metadata.bin`
+described by `manifest.json`. The server validates its SHA-256, CRC32, every
+boot metadata field, component hashes and layout, reserved bytes, security
+version and raw P-256 signature against `FIRMWARE_RELEASE_PUBLIC_KEY_FILE`.
+Missing, altered, unsigned or extra ZIP content is rejected.
 
 ## Enrollment and revocation
 

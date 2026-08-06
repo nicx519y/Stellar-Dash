@@ -77,6 +77,7 @@ export class WebHidTransport implements DeviceTransport {
   private writeChain: Promise<void> = Promise.resolve();
   private readChain: Promise<void> = Promise.resolve();
   private connectionGeneration = 0;
+  private physicalCloseInFlight: Promise<void> | null = null;
   private reauthorizationPending = false;
   private readonly pendingRpc = new Map<number, PendingLogicalRequest>();
   private readonly pendingBootstrap = new Map<number, PendingLogicalRequest>();
@@ -99,6 +100,7 @@ export class WebHidTransport implements DeviceTransport {
   }
 
   async connect(): Promise<DeviceSession> {
+    await this.waitForPhysicalClose();
     const hid = this.requireWebHid();
     this.setState(DeviceTransportState.CONNECTING);
     try {
@@ -109,6 +111,12 @@ export class WebHidTransport implements DeviceTransport {
           '没有已授权的 HBox WebHID 设备，请点击连接并在浏览器选择器中授权设备',
         );
       }
+      if (granted.length > 1) {
+        throw new DeviceTransportError(
+          'permission-required',
+          '检测到多台已授权的 HBox WebHID 设备，请点击连接并明确选择要配置的设备',
+        );
+      }
       return await this.openDevice(granted[0]);
     } catch (error) {
       return this.failConnect(error);
@@ -116,6 +124,7 @@ export class WebHidTransport implements DeviceTransport {
   }
 
   async requestPermissionAndConnect(): Promise<DeviceSession> {
+    await this.waitForPhysicalClose();
     const hid = this.requireWebHid();
     this.setState(DeviceTransportState.CONNECTING);
     try {
@@ -401,11 +410,14 @@ export class WebHidTransport implements DeviceTransport {
     if (event.device && event.device !== this.device) {
       return;
     }
-    void this.shutdownConnection(
+    const closing = this.shutdownConnection(
       new DeviceTransportError('disconnected', 'WebHID device disconnected'),
-    ).finally(() => {
-      this.disconnectHandlers.forEach((handler) => handler());
-    });
+    );
+    // Publish the lifecycle edge synchronously after shutdownConnection has
+    // invalidated the device/session, rather than after a slow physical close
+    // that could otherwise clear a newly authenticated adapter session.
+    this.disconnectHandlers.forEach((handler) => handler());
+    void closing;
   };
 
   private async processInputReport(
@@ -786,9 +798,20 @@ export class WebHidTransport implements DeviceTransport {
       device.removeEventListener('inputreport', this.handleInputReport);
     }
     this.hid?.removeEventListener('disconnect', this.handleNavigatorDisconnect);
-    const closing = device?.opened
-      ? device.close().catch(() => undefined)
-      : Promise.resolve();
+    const closeOperations: Promise<void>[] = [];
+    if (this.physicalCloseInFlight) {
+      closeOperations.push(this.physicalCloseInFlight.catch(() => undefined));
+    }
+    if (device?.opened) {
+      closeOperations.push(device.close().catch(() => undefined));
+    }
+    const physicalClosing = Promise.all(closeOperations).then(() => undefined);
+    const trackedClosing = physicalClosing.finally(() => {
+      if (this.physicalCloseInFlight === trackedClosing) {
+        this.physicalCloseInFlight = null;
+      }
+    });
+    this.physicalCloseInFlight = trackedClosing;
 
     if (reportError) {
       this.setState(DeviceTransportState.ERROR);
@@ -797,9 +820,15 @@ export class WebHidTransport implements DeviceTransport {
       this.setState(DeviceTransportState.DISCONNECTED);
     }
 
-    await closing;
+    await trackedClosing;
     if (this.connectionGeneration === closedGeneration && this.device === null) {
       this.setState(DeviceTransportState.DISCONNECTED);
+    }
+  }
+
+  private async waitForPhysicalClose(): Promise<void> {
+    while (this.physicalCloseInFlight) {
+      await this.physicalCloseInFlight.catch(() => undefined);
     }
   }
 

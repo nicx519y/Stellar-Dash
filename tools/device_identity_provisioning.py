@@ -38,6 +38,8 @@ DEVICE_CERTIFICATE_VERSION = 1
 DEVICE_CERTIFICATE_SIZE = 208
 DEVICE_CERTIFICATE_SIGNED_SIZE = 144
 DEVICE_CERTIFICATE_SIGNATURE_SIZE = 64
+DEFAULT_PRODUCT_ID = "HBOX"
+DEFAULT_PRODUCT_ID_CODE = 0x584F4248
 
 DEVICE_IDENTITY_MAGIC = 0x31444948
 DEVICE_IDENTITY_VERSION = 1
@@ -313,6 +315,33 @@ def decode_hardware_version(value: int) -> str:
     return f"{(value >> 16) & 0xFF}.{(value >> 8) & 0xFF}.{value & 0xFF}"
 
 
+def encode_product_id(value: str) -> int:
+    """Encode the four-character manufacturer product family identifier."""
+
+    if not isinstance(value, str) or len(value) != 4:
+        raise ProvisioningError("product ID must contain exactly 4 ASCII characters")
+    try:
+        encoded = value.encode("ascii")
+    except UnicodeEncodeError as exc:
+        raise ProvisioningError("product ID must contain ASCII only") from exc
+    if any(not (0x30 <= byte <= 0x39 or 0x41 <= byte <= 0x5A) for byte in encoded):
+        raise ProvisioningError("product ID must use uppercase A-Z or digits")
+    return int.from_bytes(encoded, "little")
+
+
+def decode_product_id(value: int) -> str:
+    if value < 0 or value > 0xFFFFFFFF:
+        raise ProvisioningError("product ID must fit in uint32")
+    encoded = value.to_bytes(4, "little")
+    try:
+        decoded = encoded.decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise ProvisioningError("product ID is not ASCII") from exc
+    if encode_product_id(decoded) != value:
+        raise ProvisioningError("product ID is not canonical")
+    return decoded
+
+
 def encode_production_batch(value: str) -> bytes:
     try:
         encoded = value.encode("ascii")
@@ -329,6 +358,7 @@ def create_certificate_tbs(
     public_key: bytes,
     *,
     certificate_serial: bytes,
+    product_id: int = DEFAULT_PRODUCT_ID_CODE,
     hardware_version: int,
     issued_at: int,
     production_batch: bytes,
@@ -339,6 +369,7 @@ def create_certificate_tbs(
         raise ProvisioningError(
             "certificate serial must be a nonzero 16-byte value"
         )
+    decode_product_id(product_id)
     if hardware_version < 0 or hardware_version > 0xFFFFFFFF:
         raise ProvisioningError("hardware version must fit in uint32")
     if issued_at < 0 or issued_at > 0xFFFFFFFF:
@@ -365,7 +396,8 @@ def create_certificate_tbs(
     struct.pack_into("<II", tbs, 40, hardware_version, issued_at)
     tbs[48:113] = public_key
     tbs[113:129] = production_batch.ljust(16, b"\0")
-    # bytes 129..143 are reserved and remain zero.
+    struct.pack_into("<I", tbs, 129, product_id)
+    # bytes 133..143 are reserved and remain zero.
     return bytes(tbs)
 
 
@@ -380,7 +412,7 @@ def validate_certificate_tbs(tbs: bytes) -> dict[str, object]:
         or auth_level not in (1, 2, 3)
     ):
         raise ProvisioningError("certificate TBS header is invalid")
-    if not any(tbs[8:24]) or any(tbs[129:144]):
+    if not any(tbs[8:24]) or any(tbs[133:144]):
         raise ProvisioningError(
             "certificate serial must be nonzero and reserved bytes must be zero"
         )
@@ -392,6 +424,7 @@ def validate_certificate_tbs(tbs: bytes) -> dict[str, object]:
             "certificate deviceId does not match SHA-256(public key)[:16]"
         )
     hardware_version, issued_at = struct.unpack_from("<II", tbs, 40)
+    product_id = struct.unpack_from("<I", tbs, 129)[0]
     if (hardware_version & 0xFF000000) != 0 or issued_at == 0:
         raise ProvisioningError(
             "hardware version high byte must be zero and issued_at nonzero"
@@ -412,6 +445,9 @@ def validate_certificate_tbs(tbs: bytes) -> dict[str, object]:
         "hardwareVersion": decode_hardware_version(
             hardware_version
         ),
+        "pcbRevision": decode_hardware_version(hardware_version),
+        "productId": decode_product_id(product_id),
+        "productIdCode": product_id,
         "issuedAt": issued_at,
         "authLevel": auth_level,
         "productionBatch": production_batch.decode("ascii"),
@@ -896,6 +932,11 @@ def build_argument_parser() -> argparse.ArgumentParser:
     tbs_parser.add_argument("--factory-challenge", type=Path)
     tbs_parser.add_argument("--proof-signature", type=Path)
     tbs_parser.add_argument("--certificate-serial", required=True)
+    tbs_parser.add_argument(
+        "--product-id",
+        default=DEFAULT_PRODUCT_ID,
+        help="four-character product family identifier (default: HBOX)",
+    )
     tbs_parser.add_argument("--hardware-version", required=True)
     tbs_parser.add_argument("--issued-at", type=int, default=None)
     tbs_parser.add_argument("--production-batch", required=True)
@@ -1007,6 +1048,7 @@ def main() -> int:
                 certificate_serial=parse_hex_bytes(
                     args.certificate_serial, 16, "certificate serial"
                 ),
+                product_id=encode_product_id(args.product_id),
                 hardware_version=encode_hardware_version(args.hardware_version),
                 issued_at=issued_at,
                 production_batch=encode_production_batch(args.production_batch),

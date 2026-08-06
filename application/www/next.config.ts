@@ -4,6 +4,7 @@ import TerserPlugin from 'terser-webpack-plugin';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 const isMockBuild = process.env.HBOX_BUILD_VARIANT === 'mock';
+const isLegacyEmbeddedBuild = process.env.HBOX_BUILD_VARIANT === 'legacy';
 const configuredOutputDir = process.env.HBOX_WEB_OUTPUT_DIR;
 
 const nextConfig: NextConfig = {
@@ -25,8 +26,12 @@ const nextConfig: NextConfig = {
     //     enabled: false,
     // },
     webpack: (config, { isServer, dev }) => {
-        // 只在生产环境下应用优化配置
-        if (!isServer && !dev) {
+        // The hosted V2 site is served as a normal static Next.js export and
+        // should retain Next's normal chunking/minifier.  The historical
+        // single-bundle Terser pass is needed only by the explicitly selected
+        // legacy embedded image; applying it to V2 made local/CI hosted builds
+        // take many minutes and provided no device-side benefit.
+        if (!isServer && !dev && isLegacyEmbeddedBuild) {
             // 禁用代码分割
             config.optimization = {
                 minimize: true,

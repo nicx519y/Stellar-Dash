@@ -5,7 +5,7 @@ import { Grid, VStack, HStack, Table, Image, Box, Flex, Text, Input, Spinner, Ra
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
-import { DEFAULT_SCREEN_CONTROL_CONFIG, ScreenControlConfig, ScreenControlFeatureKey, ScreenControlFeatures, ScreenStyle, StandbyDisplay } from '@/types/gamepad-config';
+import { DEFAULT_SCREEN_CONTROL_CONFIG, ScreenControlConfig, ScreenControlFeatureKey, ScreenControlFeatures, ScreenStyle, StandbyDisplay, withRequiredWebConfigEntry } from '@/types/gamepad-config';
 import { useLanguage } from '@/contexts/language-context';
 import { LuCheck, LuUpload, LuGripVertical } from "react-icons/lu";
 import { TitleLabel } from './ui/title-label';
@@ -24,7 +24,9 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     const [screenStyle, setScreenStyle] = useState<ScreenStyle>(screenControl.screenStyle ?? 'dark');
     const [backgroundImageId, setBackgroundImageId] = useState<string>(screenControl.backgroundImageId ?? '');
     const [currentPageId, setCurrentPageId] = useState<string>(String(screenControl.currentPageId ?? 0));
-    const [features, setFeatures] = useState(screenControl.features);
+    const [features, setFeatures] = useState(
+        withRequiredWebConfigEntry(screenControl.features),
+    );
     const [featuresOrder, setFeaturesOrder] = useState<ScreenControlFeatureKey[]>(
         screenControl.featuresOrder ?? DEFAULT_SCREEN_CONTROL_CONFIG.featuresOrder
     );
@@ -77,7 +79,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         setScreenStyle(screenControl.screenStyle ?? 'dark');
         setBackgroundImageId(screenControl.backgroundImageId ?? '');
         setCurrentPageId(String(screenControl.currentPageId ?? 0));
-        setFeatures(screenControl.features);
+        setFeatures(withRequiredWebConfigEntry(screenControl.features));
         setFeaturesOrder(normalizeFeaturesOrder(screenControl.featuresOrder));
     }, [screenControl]);
 
@@ -950,9 +952,10 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                                 </Table.Cell>
                                 <Table.Cell py={1} fontSize="11px" textAlign="end">
                                     <Switch
-                                        checked={features[item.key]}
-                                        disabled={disabled}
+                                        checked={item.key === 'webConfigEntry' || features[item.key]}
+                                        disabled={disabled || item.key === 'webConfigEntry'}
                                         onCheckedChange={(e: { checked: boolean }) => {
+                                            if (item.key === 'webConfigEntry') return;
                                             const nf = { ...features, [item.key]: e.checked } as ScreenControlFeatures;
                                             setFeatures(nf);
                                             void updateScreenControl({ ...nextConfig, features: nf }, true);

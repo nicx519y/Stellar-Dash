@@ -11,6 +11,10 @@
 
 #include "stm32h7xx_hal.h"
 
+#ifndef POWER_DEVICE_PROBE_ENABLED
+#define POWER_DEVICE_PROBE_ENABLED 1
+#endif
+
 /*
  * Fallbacks keep this driver buildable while board_cfg.h is being migrated in
  * parallel.  The names and values match the latest PCB net labels.
@@ -73,23 +77,43 @@ void enableGpioClock(GPIO_TypeDef* port)
 
 void PowerManager::setup()
 {
+    APP_STAGE("P01", "power manager setup begin");
     configureSafetyGpios();
     setChargingEnabled(false);
+    APP_STAGE("P02", "power safety GPIOs configured; charging disabled");
 
     last_poll_ms_ = HAL_GetTick();
     last_profile_check_ms_ = last_poll_ms_;
     last_reinitialize_ms_ = last_poll_ms_;
     low_sleep_confirm_count_ = 0;
 
+    APP_STAGE("P03", "power I2C initialization begin");
     if (!PowerI2C_Init()) {
         snapshot_.fault_bits =
             POWER_FAULT_CHARGER_OFFLINE | POWER_FAULT_GAUGE_OFFLINE;
+        APP_STAGE_ERROR("P03", "power I2C initialization failed; continuing without telemetry");
         APP_ERR("Power: I2C1 initialization failed; charging remains disabled");
         return;
     }
+    APP_STAGE("P04", "power I2C initialized; device probes begin");
 
-    (void)initializeDevices();
+#if POWER_DEVICE_PROBE_ENABLED
+    const bool devices_ready = initializeDevices();
+    APP_STAGE("P05", "power device probes complete: ready=%u charger=%u gauge=%u",
+              devices_ready ? 1u : 0u,
+              charger_.online ? 1u : 0u,
+              gauge_.online ? 1u : 0u);
     refreshSnapshot(false);
+    APP_STAGE("P06", "power snapshot complete: valid=%u cell=%umV faults=0x%04X",
+              snapshot_.valid ? 1u : 0u,
+              snapshot_.cell_mv,
+              snapshot_.fault_bits);
+#else
+    snapshot_.fault_bits = POWER_FAULT_CHARGER_OFFLINE |
+                           POWER_FAULT_GAUGE_OFFLINE |
+                           POWER_FAULT_PROFILE_INVALID;
+    APP_STAGE("P05", "power device probes disabled for board bring-up; telemetry offline");
+#endif
 
     APP_DBG(
         "Power: BQ25895=%u MAX17048=%u profile=%u cell=%umV soc=%u.%u%%",
@@ -103,6 +127,12 @@ void PowerManager::setup()
 
 void PowerManager::loop()
 {
+#if !POWER_DEVICE_PROBE_ENABLED
+    /* Charging stays disabled and the offline snapshot remains authoritative
+     * until a production build enables the qualified I2C device probes. */
+    (void)consumeIrqFlags();
+    return;
+#else
     const uint32_t now = HAL_GetTick();
     const uint32_t irq_flags = consumeIrqFlags();
     const bool poll_due = (uint32_t)(now - last_poll_ms_) >= kPowerPollIntervalMs;
@@ -122,6 +152,7 @@ void PowerManager::loop()
             refreshSnapshot(false);
         }
     }
+#endif
 }
 
 PowerSnapshot PowerManager::getSnapshot() const

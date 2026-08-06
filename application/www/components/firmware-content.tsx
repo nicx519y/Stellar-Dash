@@ -5,6 +5,7 @@ import { CiCircleCheck, CiCircleRemove, CiSaveUp1 } from "react-icons/ci";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { FirmwarePackage } from "@/types/types";
 import { openDialog as openSuccessDialog, updateDialogMessage } from "./dialog-cannot-close";
+import { scheduleAuthorizedReconnect } from "@/lib/device-transport/authorized-reconnect";
 
 enum UpdateStatus {
     Idle = 0,
@@ -21,7 +22,6 @@ enum ProgressPercent {
 }
 
 const REFRESH_PAGE_DELAY_SECONDS = 5; // 固件更新成功后，延迟5秒自动刷新页面
-const RECONNECT_DELAY_SECONDS = 3; // 固件更新失败后，延迟3秒重新连接websocket
 
 export function FirmwareContent() {
     const { t } = useLanguage();
@@ -40,7 +40,7 @@ export function FirmwareContent() {
         setFirmwareUpdating,
         firmwareUpdating,
         wsConnected,
-        connectWebSocket,
+        reconnectWebSocket,
         setFinishConfigDisabled,
     } = useGamepadConfig();
     const currentVersion = useMemo(() => firmwareInfo?.firmware?.version || "0.0.0", [firmwareInfo]);
@@ -135,13 +135,17 @@ export function FirmwareContent() {
     useEffect(() => {
         if (!wsConnected && firmwareUpdating) {
             console.log('firmware: reconnect websocket.');
-            setTimeout(connectWebSocket, RECONNECT_DELAY_SECONDS);
+            return scheduleAuthorizedReconnect(reconnectWebSocket, (error) => {
+                console.error('firmware: automatic reconnect failed.', error);
+                setUpdateStatus(UpdateStatus.UpdateFailed);
+                setFirmwareUpdating(false);
+            });
         } else if (wsConnected && firmwareUpdating) {
             console.log('firmware: check update status.');
             checkUpdateStatusLoop();
         }
 
-    }, [wsConnected, firmwareUpdating]);
+    }, [wsConnected, firmwareUpdating, reconnectWebSocket, setFirmwareUpdating]);
 
     // 当固件更新状态改变时，更新完成配置按钮的禁用状态
     useEffect(() => {

@@ -239,6 +239,32 @@ static void sanitize_screen_style(ScreenControlConfig& sc) {
     memset(sc.reservedStyle, 0, sizeof(sc.reservedStyle));
 }
 
+static void sanitize_screen_recovery_entry(ScreenControlConfig& sc) {
+    static const uint8_t requiredOrder[SCREEN_FEATURE_COUNT] = {
+        3, 0, 1, 2, 11, 4, 5, 6, 7, 8, 9, 10
+    };
+    uint8_t normalized[SCREEN_FEATURE_COUNT] = {0};
+    bool seen[SCREEN_FEATURE_COUNT] = {false};
+    uint8_t count = 0u;
+
+    sc.featuresMask |= SCREEN_FEATURE_WEB_CONFIG_ENTRY;
+    for (uint8_t i = 0u; i < SCREEN_FEATURE_COUNT; ++i) {
+        const uint8_t id = sc.featuresOrder[i];
+        if (id < SCREEN_FEATURE_COUNT && !seen[id]) {
+            normalized[count++] = id;
+            seen[id] = true;
+        }
+    }
+    for (uint8_t i = 0u; i < SCREEN_FEATURE_COUNT; ++i) {
+        const uint8_t id = requiredOrder[i];
+        if (!seen[id]) {
+            normalized[count++] = id;
+            seen[id] = true;
+        }
+    }
+    memcpy(sc.featuresOrder, normalized, sizeof(sc.featuresOrder));
+}
+
 static uint32_t clamp_power_wake_hold_ms(uint32_t value) {
     if (value < 1000u) return 1000u;
     if (value > 5000u) return 5000u;
@@ -791,6 +817,7 @@ bool ConfigUtils::load(Config& config)
 
     if(fjResult == true && config.version == CONFIG_VERSION) { // 版本号一致
         sanitize_screen_style(config.screenControl);
+        sanitize_screen_recovery_entry(config.screenControl);
         sanitize_power_config(config.power);
         sanitize_hardware_layout(config.hardware);
         uint32_t ver = config.version;
@@ -801,6 +828,7 @@ bool ConfigUtils::load(Config& config)
         uint32_t oldFg = read_legacy_screen_fg(config.screenControl);
         config.screenControl.screenStyle = infer_screen_style_from_colors(oldBg, oldFg);
         sanitize_screen_style(config.screenControl);
+        sanitize_screen_recovery_entry(config.screenControl);
         init_power_defaults(config.power);
         init_hardware_layout(config.hardware);
         config.version = CONFIG_VERSION;
@@ -811,6 +839,7 @@ bool ConfigUtils::load(Config& config)
         return save(config);
     } else if (fjResult == true && config.version == CONFIG_VERSION_POWER_MIGRATE_FROM) {
         sanitize_screen_style(config.screenControl);
+        sanitize_screen_recovery_entry(config.screenControl);
         init_power_defaults(config.power);
         init_hardware_layout(config.hardware);
         config.version = CONFIG_VERSION;
@@ -818,6 +847,7 @@ bool ConfigUtils::load(Config& config)
         return save(config);
     } else if (fjResult == true && config.version == CONFIG_VERSION_LATEST_PCB_MIGRATE_FROM) {
         sanitize_screen_style(config.screenControl);
+        sanitize_screen_recovery_entry(config.screenControl);
         sanitize_power_config(config.power);
         init_hardware_layout(config.hardware);
         config.version = CONFIG_VERSION;
@@ -831,7 +861,7 @@ bool ConfigUtils::load(Config& config)
         APP_DBG("init config, version: %d.%d.%d", (CONFIG_VERSION>>16) & 0xff, (CONFIG_VERSION>>8) & 0xff, CONFIG_VERSION & 0xff);
         // 设置基础配置
         config.version = CONFIG_VERSION;
-        config.bootMode = BOOT_MODE_WEB_CONFIG;
+        config.bootMode = BOOT_MODE_INPUT;
         config.inputMode = InputMode::INPUT_MODE_XINPUT;
         config.connectionMode = ConnectionMode::CONNECTION_MODE_USB;
         config.wirelessReportRate = WirelessReportRate::RFM_RATE_1K;
@@ -863,6 +893,7 @@ bool ConfigUtils::load(Config& config)
             SCREEN_FEATURE_BUTTONS_PERFORMANCE_QUICK_SET;
         const uint8_t defaultFeatureOrder[SCREEN_FEATURE_COUNT] = {3, 0, 1, 2, 11, 4, 5, 6, 7, 8, 9, 10};
         memcpy(config.screenControl.featuresOrder, defaultFeatureOrder, sizeof(config.screenControl.featuresOrder));
+        sanitize_screen_recovery_entry(config.screenControl);
         config.screenControl.reserved2 = 0;
         init_power_defaults(config.power);
 
@@ -1134,6 +1165,7 @@ bool ConfigUtils::save(Config& config)
     APP_DBG("ConfigUtils::save begin");
     sanitize_competition_profiles(config);
     sanitize_hardware_layout(config.hardware);
+    sanitize_screen_recovery_entry(config.screenControl);
 
     ConfigQspiIndirectGuard guard;
     if (!guard.ready()) {

@@ -64,19 +64,6 @@ static int read_flashword(
 
 #if HBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING
 
-#if defined(__GNUC__)
-__attribute__((weak))
-#endif
-int HBoxIdentityFactoryGate_IsAuthorized(void)
-{
-    /*
-     * Fail closed until a factory-only secure service supplies an override.
-     * Do not replace this with a GPIO, UID, build flag, or unauthenticated USB
-     * command.
-     */
-    return 0;
-}
-
 static int factory_authorized(void *context)
 {
     (void)context;

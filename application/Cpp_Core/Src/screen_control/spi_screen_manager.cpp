@@ -5,6 +5,7 @@
 
 #include "system_logger.h"
 #include "stm32h7xx.h"
+#include "board_cfg.h"
 #include "brightness_curve.hpp"
 #include "micro_timer.hpp"
 #include "storagemanager.hpp"
@@ -14,9 +15,11 @@
 #include "screen_control/spi_screen_detail_entries.hpp"
 #include "screen_control/spi_screen_detail_pages.hpp"
 #include "screen_control/spi_screen_standby.hpp"
+#include "screen_control/spi_screen_timed_popup.hpp"
 #include "adc_btns/adc_calibration.hpp"
 #include "adc_btns/adc_manager.hpp"
 #include "adc_btns/adc_btns_worker.hpp"
+#include "board_mode.hpp"
 #include "board_power.hpp"
 #include "gpio_btns/gpio_btns_worker.hpp"
 #include "power_manager.hpp"
@@ -54,6 +57,7 @@ static uint32_t g_deferredSaveDueMs = 0;
 static uint32_t g_bl_boot_ms = 0;
 static bool g_bl_ramp_active = false;
 static bool g_menu_full_refresh_pending = false;
+static ScreenTimedPopup g_actionPopup = {};
 static uint32_t g_perfLastMs = 0;
 static uint64_t g_perfAccPreUs = 0;
 static uint64_t g_perfAccFrameBeginUs = 0;
@@ -68,6 +72,28 @@ static uint8_t g_battUiSoc = 0;
 static PowerChargeState g_battUiChargeState = PowerChargeState::Unknown;
 static bool g_battUiFastCharging = false;
 static bool g_battUiLowBattery = false;
+
+static const char* const kWebConfigUsbRequiredLines[] = {
+    "Move the physical switch to USB.",
+    "WebConfig was not started."
+};
+static const char* const kWebConfigSaveFailedLines[] = {
+    "Configuration could not be saved.",
+    "WebConfig was not started."
+};
+
+static void show_webconfig_entry_popup(const char* title,
+                                       const char* const* lines,
+                                       uint8_t lineCount)
+{
+    ScreenTimedPopup_Show(
+        &g_actionPopup,
+        title,
+        lines,
+        lineCount,
+        5000u,
+        HAL_GetTick());
+}
 
 static bool ok_flash_active(void) {
     return (uint32_t)(HAL_GetTick() - g_okFlashUntilMs) > 0x80000000u ? false : (HAL_GetTick() < g_okFlashUntilMs);
@@ -343,7 +369,15 @@ static bool boot_mode_to_detail_menu(BootMode mode, uint8_t* outMenuId) {
 }
 
 void SPIScreenManager::setup() {
-    if (g_inited || BOARD_POWER.isSafeLatched()) return;
+    if (g_inited) {
+        APP_STAGE("S01", "screen setup already complete");
+        return;
+    }
+    if (BOARD_POWER.isSafeLatched() && !BOARD_POWER.isRecoveryUiAllowed()) {
+        APP_STAGE_ERROR("S01", "screen setup blocked by safe power latch");
+        return;
+    }
+    APP_STAGE("S01", "screen setup begin; LCD_EN requested on");
     memset(&g_lcd, 0, sizeof(g_lcd));
 
     ST7789_Config cfg = {0};
@@ -362,11 +396,14 @@ void SPIScreenManager::setup() {
 
     g_inited = ST7789_IsInited(&g_lcd);
     if (!g_inited) {
+        APP_STAGE_ERROR("S02", "ST7789 SPI/DMA hardware initialization failed");
         SPIST7789_DeInit();
         memset(&g_lcd, 0, sizeof(g_lcd));
         return;
     }
+    APP_STAGE("S02", "ST7789 SPI/DMA hardware initialized");
     g_okFlashUntilMs = 0;
+    ScreenTimedPopup_Reset(&g_actionPopup);
     g_firstDrawPending = true;
     RotEnc_Init();
 
@@ -383,6 +420,7 @@ void SPIScreenManager::setup() {
             enter_detail(forcedMenuId);
         }
     }
+    APP_STAGE("S03", "rotary input, screen config and backlight ramp initialized");
 }
 
 void SPIScreenManager::shutdown() {
@@ -391,6 +429,7 @@ void SPIScreenManager::shutdown() {
     }
 
     SPIST7789_DeInit();
+    APP_STAGE("S90", "screen hardware shut down");
     memset(&g_lcd, 0, sizeof(g_lcd));
     g_inited = false;
     animActive = false;
@@ -452,6 +491,14 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
         animActive = false;
     }
 
+    ScreenTimedPopup_Update(&g_actionPopup, nowMs);
+    if (ScreenTimedPopup_IsVisible(&g_actionPopup)) {
+        if (clicked || longPressed) {
+            ScreenTimedPopup_Close(&g_actionPopup);
+        }
+        return;
+    }
+
     if (det > 0) {
         if (g_inDetail) {
             ScreenDetail_OnRotate(g_detailMenuId, &g_detailIndex, 1);
@@ -477,8 +524,26 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
             if (menuCount > 0 && menuIndex < menuCount) {
                 uint8_t id = menuIds[menuIndex];
                 if (id == 9u) {
+                    if (!BOARD_MODE.isStable() ||
+                        BOARD_MODE.current() != BoardMode::Usb) {
+                        show_webconfig_entry_popup(
+                            "USB Required",
+                            kWebConfigUsbRequiredLines,
+                            (uint8_t)(sizeof(kWebConfigUsbRequiredLines) /
+                                      sizeof(kWebConfigUsbRequiredLines[0])));
+                        return;
+                    }
+                    const BootMode previousMode = STORAGE_MANAGER.getBootMode();
                     STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_WEB_CONFIG);
-                    STORAGE_MANAGER.saveConfig();
+                    if (!STORAGE_MANAGER.saveConfig()) {
+                        STORAGE_MANAGER.setBootMode(previousMode);
+                        show_webconfig_entry_popup(
+                            "Save Failed",
+                            kWebConfigSaveFailedLines,
+                            (uint8_t)(sizeof(kWebConfigSaveFailedLines) /
+                                      sizeof(kWebConfigSaveFailedLines[0])));
+                        return;
+                    }
                     NVIC_SystemReset();
                 } else if (id == 10u) {
                     ADC_CALIBRATION_MANAGER.resetAllCalibration();
@@ -494,7 +559,11 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
 
     if (longPressed) {
         if (g_inDetail) {
-            if (g_detailMenuId == 9u || g_detailMenuId == 10u) {
+            if (g_detailMenuId == 9u) {
+                if (ScreenDetailWebConfig_OnBack()) {
+                    g_inDetail = false;
+                }
+            } else if (g_detailMenuId == 10u) {
                 STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
                 STORAGE_MANAGER.saveConfig();
                 NVIC_SystemReset();
@@ -512,7 +581,7 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
 }
 
 void SPIScreenManager::loop() {
-    if (BOARD_POWER.isSafeLatched()) {
+    if (BOARD_POWER.isSafeLatched() && !BOARD_POWER.isRecoveryUiAllowed()) {
         shutdown();
         return;
     }
@@ -590,6 +659,7 @@ void SPIScreenManager::loop() {
         g_deferredSavePending = false;
     }
 
+    const bool firstFrame = g_firstDrawPending;
     if (g_firstDrawPending) {
         ST7789_FillScreen(&g_lcd, g_cfgBg);
         g_lcd.dirty_valid = true;
@@ -615,15 +685,19 @@ void SPIScreenManager::loop() {
         renderFrame();
     }
     ST7789_FrameEnd(&g_lcd);
+    if (firstFrame) {
+        APP_STAGE("S04", "first screen frame submitted; backlight ramp active");
+    }
 }
 
 void SPIScreenManager::renderFrame() {
     renderBars();
-    if (g_inDetail) {
-        ScreenUiStyle style = {g_cfgBg, g_cfgText, g_cfgSelBg, g_cfgOkBg};
+    ScreenUiStyle style = {g_cfgBg, g_cfgText, g_cfgSelBg, g_cfgOkBg};
+    if (ScreenTimedPopup_IsVisible(&g_actionPopup)) {
+        ScreenTimedPopup_Render(&g_actionPopup, &g_lcd, style);
+    } else if (g_inDetail) {
         ScreenDetail_Render(&g_lcd, g_detailMenuId, g_detailIndex, style);
     } else {
-        ScreenUiStyle style = {g_cfgBg, g_cfgText, g_cfgSelBg, g_cfgOkBg};
         ScreenMain_RenderList(&g_lcd, style, menuIds, menuCount, menuIndex, false, 0, 0u, HAL_GetTick());
     }
 }
@@ -693,7 +767,9 @@ void SPIScreenManager::renderBars() {
     else if (prev && prev->label) ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, topY, rightW, areaH, prev->label, textColor, barBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
 
     const uint32_t okBg = ok_flash_active() ? g_cfgOkBg : barBg;
-    if (g_inDetail && (g_detailMenuId == 9 || g_detailMenuId == 10)) {
+    if (g_inDetail && g_detailMenuId == 9) {
+        ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, ScreenDetailWebConfig_ConfirmLabel(), textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
+    } else if (g_inDetail && g_detailMenuId == 10) {
         ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, "Quit", textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
     } else if (g_inDetail && (g_detailMenuId == 4 || g_detailMenuId == 6 || g_detailMenuId == 8)) {
         bool on = false;

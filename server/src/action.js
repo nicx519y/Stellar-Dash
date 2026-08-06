@@ -39,6 +39,23 @@ const STM32_OTA_LAYOUT = Object.freeze({
 });
 const MAX_OTA_ENTRY_SIZE = 0x180000;
 const MAX_OTA_UNCOMPRESSED_SIZE = 0x2B0000 + 0x10000;
+const SIGNED_METADATA_FILENAME = 'metadata.bin';
+const METADATA_STRUCT_SIZE = 807;
+const METADATA_CRC32_OFFSET = 16;
+const FIRMWARE_HASH_OFFSET = 643;
+const FIRMWARE_SIGNATURE_OFFSET = 675;
+const FIRMWARE_SIGNATURE_ALGORITHM_OFFSET = 739;
+const FIRMWARE_SECURITY_VERSION_OFFSET = 743;
+const FIRMWARE_WEBRESOURCES_OPTIONAL_OFFSET = 747;
+const COMPONENT_STRUCT_SIZE = 170;
+const FIRMWARE_MAGIC = 0x48424F58;
+const METADATA_VERSION_MAJOR = 1;
+const METADATA_VERSION_MINOR = 0;
+const FIRMWARE_SIGNATURE_ECDSA_P256_SHA256 = 1;
+const MINIMUM_FIRMWARE_SECURITY_VERSION = 1;
+const BOOTLOADER_VERSION = 0x00010000;
+const HARDWARE_VERSION_CODE_V2 = 0x00020000;
+const DEVICE_MODEL = 'STM32H750_HBOX';
 
 function hardwareVersionCode(hardwareVersion) {
     if (typeof hardwareVersion !== 'string') {
@@ -155,7 +172,17 @@ function readFlatZipEntries(filePath) {
             throw new Error(`truncated ZIP entry: ${name}`);
         }
         const compressed = archive.subarray(dataOffset, dataEnd);
-        const data = method === 0 ? Buffer.from(compressed) : zlib.inflateRawSync(compressed);
+        const data = method === 0
+            ? Buffer.from(compressed)
+            : zlib.inflateRawSync(compressed, {
+                // Do not trust the central-directory size before inflation.
+                // Bound output independently so a forged DEFLATE stream cannot
+                // turn a small upload into a server-side memory bomb.
+                maxOutputLength: Math.min(
+                    MAX_OTA_ENTRY_SIZE,
+                    uncompressedSize
+                ) + 1
+            });
         if (data.length !== uncompressedSize) {
             throw new Error(`ZIP size mismatch for ${name}`);
         }
@@ -168,7 +195,164 @@ function readFlatZipEntries(filePath) {
     return entries;
 }
 
-function validateUploadedOtaPackage(filePath, expectedSlot) {
+function crc32Skipping(data, skipOffset, skipSize) {
+    let crc = 0xffffffff;
+    for (let index = 0; index < data.length; index += 1) {
+        if (index >= skipOffset && index < skipOffset + skipSize) {
+            continue;
+        }
+        crc ^= data[index];
+        for (let bit = 0; bit < 8; bit += 1) {
+            crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+        }
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+}
+
+function canonicalMetadata(metadata) {
+    const canonical = Buffer.from(metadata);
+    canonical.fill(0, METADATA_CRC32_OFFSET, METADATA_CRC32_OFFSET + 4);
+    canonical.fill(0, FIRMWARE_HASH_OFFSET, FIRMWARE_HASH_OFFSET + 32);
+    canonical.fill(
+        0,
+        FIRMWARE_SIGNATURE_OFFSET,
+        FIRMWARE_SIGNATURE_OFFSET + 64
+    );
+    return canonical;
+}
+
+function decodeFixedMetadataText(metadata, offset, width, fieldName) {
+    const encoded = metadata.subarray(offset, offset + width);
+    const terminator = encoded.indexOf(0);
+    const content = terminator >= 0
+        ? encoded.subarray(0, terminator)
+        : encoded;
+    if (terminator >= 0 &&
+        encoded.subarray(terminator + 1).some(value => value !== 0)) {
+        throw new Error(`metadata.bin ${fieldName} has non-canonical padding`);
+    }
+    const decoded = content.toString('utf8');
+    if (!Buffer.from(decoded, 'utf8').equals(content)) {
+        throw new Error(`metadata.bin ${fieldName} is not valid UTF-8`);
+    }
+    return decoded;
+}
+
+function exactBufferEquals(left, right) {
+    return left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+
+function validateSignedMetadata(metadata, manifest, releasePublicKey) {
+    if (!Buffer.isBuffer(metadata) || metadata.length !== METADATA_STRUCT_SIZE) {
+        throw new Error(
+            `metadata.bin must be exactly ${METADATA_STRUCT_SIZE} bytes`
+        );
+    }
+    if (metadata.readUInt32LE(0) !== FIRMWARE_MAGIC ||
+        metadata.readUInt32LE(4) !== METADATA_VERSION_MAJOR ||
+        metadata.readUInt32LE(8) !== METADATA_VERSION_MINOR ||
+        metadata.readUInt32LE(12) !== METADATA_STRUCT_SIZE) {
+        throw new Error('metadata.bin header is invalid');
+    }
+    const storedCrc = metadata.readUInt32LE(METADATA_CRC32_OFFSET);
+    const expectedCrc = crc32Skipping(metadata, METADATA_CRC32_OFFSET, 4);
+    if (storedCrc === 0 || storedCrc !== expectedCrc) {
+        throw new Error('metadata.bin CRC32 is invalid');
+    }
+
+    if (decodeFixedMetadataText(metadata, 20, 32, 'firmware_version') !==
+        manifest.version ||
+        metadata[52] !== (manifest.slot === 'A' ? 0 : 1) ||
+        decodeFixedMetadataText(metadata, 53, 32, 'build_date') !==
+            manifest.build_date ||
+        metadata.readUInt32LE(85) !== manifest.build_timestamp ||
+        decodeFixedMetadataText(metadata, 89, 32, 'device_model') !==
+            DEVICE_MODEL ||
+        metadata.readUInt32LE(121) !== manifest.hardware_version_code ||
+        metadata.readUInt32LE(125) !== BOOTLOADER_VERSION ||
+        metadata.readUInt32LE(129) !== STM32_OTA_COMPONENTS.length) {
+        throw new Error('metadata.bin header does not match manifest.json');
+    }
+
+    for (let index = 0; index < manifest.components.length; index += 1) {
+        const component = manifest.components[index];
+        const base = 133 + index * COMPONENT_STRUCT_SIZE;
+        if (decodeFixedMetadataText(
+            metadata, base, 32, `components[${index}].name`
+        ) !== component.name ||
+            decodeFixedMetadataText(
+                metadata, base + 32, 64, `components[${index}].file`
+            ) !== component.file ||
+            metadata.readUInt32LE(base + 96) !== parseManifestAddress(
+                component.address, `${component.name}.address`
+            ) ||
+            metadata.readUInt32LE(base + 100) !== component.size ||
+            decodeFixedMetadataText(
+                metadata, base + 104, 65, `components[${index}].sha256`
+            ) !== component.sha256 ||
+            metadata[base + 169] !== (component.active === false ? 0 : 1)) {
+            throw new Error(
+                `metadata.bin component ${component.name} does not match manifest.json`
+            );
+        }
+    }
+
+    const canonical = canonicalMetadata(metadata);
+    const expectedFirmwareHash = crypto.createHash('sha256')
+        .update(canonical)
+        .digest();
+    const embeddedFirmwareHash = metadata.subarray(
+        FIRMWARE_HASH_OFFSET,
+        FIRMWARE_HASH_OFFSET + 32
+    );
+    const manifestFirmwareHash = Buffer.from(manifest.firmware_hash, 'hex');
+    if (!exactBufferEquals(embeddedFirmwareHash, expectedFirmwareHash) ||
+        !exactBufferEquals(embeddedFirmwareHash, manifestFirmwareHash)) {
+        throw new Error('metadata.bin firmware_hash is invalid');
+    }
+    const embeddedSignature = metadata.subarray(
+        FIRMWARE_SIGNATURE_OFFSET,
+        FIRMWARE_SIGNATURE_OFFSET + 64
+    );
+    if (!exactBufferEquals(
+        embeddedSignature,
+        Buffer.from(manifest.signature, 'hex')
+    ) ||
+        metadata.readUInt32LE(FIRMWARE_SIGNATURE_ALGORITHM_OFFSET) !==
+            manifest.signature_algorithm ||
+        metadata.readUInt32LE(FIRMWARE_SECURITY_VERSION_OFFSET) !==
+            manifest.security_version ||
+        metadata[FIRMWARE_WEBRESOURCES_OPTIONAL_OFFSET] !==
+            Number(manifest.webresources_optional) ||
+        metadata.subarray(FIRMWARE_WEBRESOURCES_OPTIONAL_OFFSET + 1)
+            .some(value => value !== 0)) {
+        throw new Error('metadata.bin security policy does not match manifest.json');
+    }
+
+    if (!releasePublicKey) {
+        throw new Error('firmware release public key is not configured');
+    }
+    let publicKey;
+    try {
+        publicKey = releasePublicKey.type === 'public'
+            ? releasePublicKey
+            : crypto.createPublicKey(releasePublicKey);
+    } catch (error) {
+        throw new Error(`firmware release public key is invalid: ${error.message}`);
+    }
+    if (publicKey.asymmetricKeyType !== 'ec' ||
+        publicKey.asymmetricKeyDetails?.namedCurve !== 'prime256v1' ||
+        !crypto.verify(
+            'sha256',
+            canonical,
+            { key: publicKey, dsaEncoding: 'ieee-p1363' },
+            embeddedSignature
+        )) {
+        throw new Error('metadata.bin release signature is invalid');
+    }
+}
+
+function validateUploadedOtaPackage(filePath, expectedSlot, releasePublicKey) {
     const entries = readFlatZipEntries(filePath);
     const manifestData = entries.get('manifest.json');
     if (!manifestData) {
@@ -186,8 +370,13 @@ function validateUploadedOtaPackage(filePath, expectedSlot) {
     if (!isValidVersion(manifest.version)) {
         throw new Error('manifest.version must be a three-part version');
     }
+    if (Buffer.byteLength(manifest.version, 'utf8') > 31) {
+        throw new Error('manifest.version is too long for metadata.bin');
+    }
     const slot = String(manifest.slot || '').toUpperCase();
-    if (slot !== expectedSlot || !STM32_OTA_LAYOUT[slot]) {
+    if (manifest.slot !== expectedSlot ||
+        slot !== expectedSlot ||
+        !STM32_OTA_LAYOUT[slot]) {
         throw new Error(`manifest.slot must be ${expectedSlot}`);
     }
     const expectedHardwareCode = hardwareVersionCode(manifest.hardware_version);
@@ -198,6 +387,38 @@ function validateUploadedOtaPackage(filePath, expectedSlot) {
     if (manifest.ota_scope !== 'STM32_ONLY' ||
         manifest.ch585_update !== 'MANUAL_INDEPENDENT_FLASH') {
         throw new Error('package must be STM32-only; CH585 is independently flashed');
+    }
+    if (manifest.hardware_version !== '2.0.0' ||
+        expectedHardwareCode !== HARDWARE_VERSION_CODE_V2) {
+        throw new Error('package hardware version must be 2.0.0');
+    }
+    if (manifest.signature_algorithm !==
+            FIRMWARE_SIGNATURE_ECDSA_P256_SHA256 ||
+        typeof manifest.firmware_hash !== 'string' ||
+        !/^[0-9a-f]{64}$/.test(manifest.firmware_hash) ||
+        typeof manifest.signature !== 'string' ||
+        !/^[0-9a-f]{128}$/.test(manifest.signature) ||
+        typeof manifest.trust_bundle_sha256 !== 'string' ||
+        !/^[0-9a-f]{64}$/.test(manifest.trust_bundle_sha256) ||
+        !Number.isInteger(manifest.security_version) ||
+        manifest.security_version < MINIMUM_FIRMWARE_SECURITY_VERSION ||
+        !Number.isInteger(manifest.build_timestamp) ||
+        manifest.build_timestamp < 0 ||
+        manifest.build_timestamp > 0xffffffff ||
+        typeof manifest.build_date !== 'string' ||
+        Buffer.byteLength(manifest.build_date, 'utf8') > 31 ||
+        manifest.build_date.length === 0 ||
+        typeof manifest.webresources_optional !== 'boolean') {
+        throw new Error('manifest signed firmware metadata is invalid');
+    }
+    const metadataInfo = manifest.metadata;
+    if (!metadataInfo || typeof metadataInfo !== 'object' ||
+        Array.isArray(metadataInfo) ||
+        metadataInfo.file !== SIGNED_METADATA_FILENAME ||
+        metadataInfo.size !== METADATA_STRUCT_SIZE ||
+        typeof metadataInfo.sha256 !== 'string' ||
+        !/^[0-9a-f]{64}$/.test(metadataInfo.sha256)) {
+        throw new Error('manifest metadata.bin descriptor is invalid');
     }
     if (!Array.isArray(manifest.components) ||
         manifest.components.length !== STM32_OTA_COMPONENTS.length) {
@@ -210,15 +431,33 @@ function validateUploadedOtaPackage(filePath, expectedSlot) {
         throw new Error('manifest component set is invalid');
     }
 
-    const expectedEntries = new Set(['manifest.json']);
+    const expectedEntries = new Set([
+        'manifest.json',
+        SIGNED_METADATA_FILENAME
+    ]);
     const componentFiles = new Set();
     for (const component of manifest.components) {
         const layout = STM32_OTA_LAYOUT[slot][component.name];
+        const optionalWebresources = component.name === 'webresources' &&
+            manifest.webresources_optional &&
+            component.active === false &&
+            component.size === 0;
+        if (optionalWebresources) {
+            if (component.file !== '' || component.file_type !== 'none' ||
+                component.sha256 !== '0'.repeat(64) ||
+                parseManifestAddress(
+                    component.address, `${component.name}.address`
+                ) !== layout.address) {
+                throw new Error('optional webresources metadata is invalid');
+            }
+            continue;
+        }
         if (typeof component.file !== 'string' || !component.file ||
-            component.file.includes('/') || component.file.includes('\\')) {
+            component.file.includes('/') || component.file.includes('\\') ||
+            Buffer.byteLength(component.file, 'utf8') > 63) {
             throw new Error(`invalid component filename: ${component.name}`);
         }
-        if (component.file_type !== 'bin') {
+        if (component.file_type !== 'bin' || component.active === false) {
             throw new Error(`${component.name}.file_type must be bin`);
         }
         if (componentFiles.has(component.file)) {
@@ -246,9 +485,22 @@ function validateUploadedOtaPackage(filePath, expectedSlot) {
         }
         expectedEntries.add(component.file);
     }
+    const metadata = entries.get(SIGNED_METADATA_FILENAME);
+    if (!metadata || metadata.length !== metadataInfo.size) {
+        throw new Error('metadata.bin ZIP content size mismatch');
+    }
+    const metadataHash = crypto.createHash('sha256')
+        .update(metadata)
+        .digest('hex');
+    if (metadataHash !== metadataInfo.sha256) {
+        throw new Error('metadata.bin ZIP content SHA-256 mismatch');
+    }
+    validateSignedMetadata(metadata, manifest, releasePublicKey);
     if (entries.size !== expectedEntries.size ||
         [...entries.keys()].some(name => !expectedEntries.has(name))) {
-        throw new Error('ZIP must contain only manifest.json and its three components');
+        throw new Error(
+            'ZIP must contain only manifest.json, metadata.bin and active components'
+        );
     }
     return manifest;
 }
@@ -298,7 +550,27 @@ function presentFirmwareSlotForRequest(slot, req, config) {
         return null;
     }
     if (req.deviceSession) {
-        return slot;
+        const filename = typeof slot.filename === 'string'
+            ? slot.filename
+            : slot.filePath;
+        const safeFilename = typeof filename === 'string' &&
+            filename.length > 0 &&
+            !/[\\/]/.test(filename) &&
+            filename !== '.' &&
+            filename !== '..'
+            ? filename
+            : null;
+        return {
+            ...slot,
+            /*
+             * V2 bearer tokens are pinned to the authentication origin. Never
+             * replay an absolute URL persisted when the package was uploaded;
+             * expose only this server's protected relative download route.
+             */
+            downloadUrl: safeFilename
+                ? `/downloads/${encodeURIComponent(safeFilename)}`
+                : null
+        };
     }
     if (!req.authenticatedDevice ||
         !req.app.locals.legacyDownloadTickets) {
@@ -316,6 +588,17 @@ function presentFirmwareSlotForRequest(slot, req, config) {
     return {
         ...slot,
         downloadUrl
+    };
+}
+
+function presentFirmwareForRequest(firmware, req, config) {
+    if (!req.deviceSession) {
+        return firmware;
+    }
+    return {
+        ...firmware,
+        slotA: presentFirmwareSlotForRequest(firmware.slotA, req, config),
+        slotB: presentFirmwareSlotForRequest(firmware.slotB, req, config)
     };
 }
 
@@ -836,13 +1119,15 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
             if (req.files.slotA && req.files.slotA[0]) {
                 packageManifests.slotA = validateUploadedOtaPackage(
                     req.files.slotA[0].path,
-                    'A'
+                    'A',
+                    config.firmwareReleasePublicKey
                 );
             }
             if (req.files.slotB && req.files.slotB[0]) {
                 packageManifests.slotB = validateUploadedOtaPackage(
                     req.files.slotB[0].path,
-                    'B'
+                    'B',
+                    config.firmwareReleasePublicKey
                 );
             }
             const manifests = Object.values(packageManifests);
@@ -1057,7 +1342,7 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
 
             res.json({
                 success: true,
-                data: firmware
+                data: presentFirmwareForRequest(firmware, req, config)
             });
 
         } catch (error) {

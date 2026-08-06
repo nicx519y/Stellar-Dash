@@ -37,9 +37,10 @@ void board_init(void)
 
     BoardPower_Initialize();
 
-#if APPLICATION_SERIAL_PRINT
+#if APPLICATION_SERIAL_PRINT || APPLICATION_STARTUP_LOG
     USART1_Init(); // USART for debug
-    APP_DBG("board init: USART1_Init success.");
+    APP_STAGE("A01", "reset reached; HAL, wake hold, caches, clocks, GPIO and USART1 ready");
+    APP_STAGE("A02", "power policy initialized: MAIN_POWER_EN=on LCD_EN=on optional rails=off");
 #endif
 
     // 验证时钟配置
@@ -49,8 +50,13 @@ void board_init(void)
     APP_DBG("board init: PCLK2: %lu", HAL_RCC_GetPCLK2Freq());
     APP_DBG("DBGMCU REVID: 0x%lx", HAL_GetREVID());
 
-    QSPI_W25Qxx_Init(); // 初始化QSPI Flash不执行 因为bootloader已经初始化
-    APP_DBG("board init: QSPI_W25Qxx_Init success.");
+    int8_t qspi_init_result = QSPI_W25Qxx_Init();
+    if (qspi_init_result == QSPI_W25Qxx_OK) {
+        APP_STAGE("A03", "QSPI initialization complete");
+    } else {
+        APP_STAGE_ERROR("A03", "QSPI initialization failed: %d",
+                        qspi_init_result);
+    }
 
     // QSPI_W25Qxx_Test(0x00500000);
 
@@ -64,6 +70,7 @@ void board_init(void)
     MX_BDMA_Init();
 
     APP_DBG("board init: MX_BDMA_Init success.");
+    APP_STAGE("A04", "TIM2, DMA and BDMA initialized");
 
     MX_ADC1_Init();
 
@@ -76,12 +83,14 @@ void board_init(void)
     MX_ADC3_Init();
 
     APP_DBG("board init: MX_ADC3_Init success.");
+    APP_STAGE("A05", "ADC1, ADC2 and ADC3 initialized");
 
 #ifdef HAS_LED
     // WS2812B_InitStrip(WS2812B_STRIP_KEYS);
     // WS2812B_InitStrip(WS2812B_STRIP_AMBIENT);
     WS2812B_Init();
     APP_DBG("board init: WS2812B_Init success.");
+    APP_STAGE("A06", "WS2812B peripheral initialized");
 #endif // HAS_LED
 }
 

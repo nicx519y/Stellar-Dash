@@ -157,10 +157,18 @@ class BuildTool:
         except Exception as e:
             print(f"警告: 保存配置文件失败: {e}")
 
-    def run_command(self, cmd: list, cwd: Path, env: Optional[Dict[str, str]] = None) -> bool:
+    def run_command(
+        self,
+        cmd: list,
+        cwd: Path,
+        env: Optional[Dict[str, str]] = None,
+        *,
+        quiet: bool = False,
+    ) -> bool:
         """执行命令"""
-        print(f"执行命令: {' '.join(cmd)}")
-        print(f"工作目录: {cwd}")
+        if not quiet:
+            print(f"执行命令: {' '.join(cmd)}")
+            print(f"工作目录: {cwd}")
         
         try:
             # 准备环境变量
@@ -174,16 +182,36 @@ class BuildTool:
                 if gcc_path.exists():
                     exec_env["PATH"] = str(gcc_path) + os.pathsep + exec_env.get("PATH", "")
             
-            result = subprocess.run(
-                cmd, 
-                cwd=cwd, 
+            if quiet:
+                result = subprocess.run(
+                    cmd,
+                    cwd=cwd,
+                    env=exec_env,
+                    check=False,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    errors="replace",
+                )
+                if result.returncode != 0:
+                    detail = (result.stdout or "").strip()
+                    print()
+                    if detail:
+                        print(detail)
+                    print(f"命令执行失败，退出码: {result.returncode}")
+                    return False
+                return True
+
+            subprocess.run(
+                cmd,
+                cwd=cwd,
                 env=exec_env,
                 check=True,
-                capture_output=False  # 让输出直接显示
+                capture_output=False,
             )
             return True
-        except subprocess.CalledProcessError as e:
-            print(f"命令执行失败，退出码: {e.returncode}")
+        except subprocess.CalledProcessError as exc:
+            print(f"命令执行失败，退出码: {exc.returncode}")
             return False
         except FileNotFoundError:
             print(f"命令未找到: {cmd[0]}")
@@ -458,6 +486,10 @@ class BuildTool:
         target_address: int,
         label: str,
         chunk_size: int = 4096,
+        *,
+        reset_after: bool = True,
+        stlink_serial: Optional[str] = None,
+        expected_target_uid: Optional[str] = None,
     ) -> bool:
         """使用短生命周期RAM算法分块烧录QSPI并逐块校验。"""
         try:
@@ -472,6 +504,19 @@ class BuildTool:
             return False
         if chunk_size <= 0 or chunk_size > 8192:
             print("错误: QSPI分块大小必须在1..8192字节范围内")
+            return False
+        if stlink_serial is not None and re.fullmatch(
+            r"[0-9A-Fa-f]{24}", stlink_serial
+        ) is None:
+            print("错误: ST-Link序列号必须是24位十六进制字符")
+            return False
+        if expected_target_uid is not None and re.fullmatch(
+            r"[0-9A-Fa-f]{24}", expected_target_uid
+        ) is None:
+            print("错误: STM32 UID必须是24位十六进制字符")
+            return False
+        if stlink_serial is not None and expected_target_uid is None:
+            print("错误: 指定ST-Link序列号时必须同时提供目标UID")
             return False
 
         qspi_base = 0x90000000
@@ -529,6 +574,13 @@ class BuildTool:
                         "telnet_port disabled",
                         "init",
                         "reset init",
+                        *(
+                            self._openocd_target_assert_commands(
+                                expected_target_uid
+                            )
+                            if expected_target_uid is not None
+                            else []
+                        ),
                         "flash probe 1",
                         *body,
                         "shutdown",
@@ -541,9 +593,19 @@ class BuildTool:
                         self.config.get("openocd_path", "openocd"),
                         "-d0",
                         "-f", str(openocd_cfg),
-                        "-f", str(command_script),
                     ]
-                    return self.run_command(cmd, self.application_dir)
+                    if stlink_serial is not None:
+                        cmd.extend(
+                            ["-c", f"adapter serial {stlink_serial.upper()}"]
+                        )
+                    cmd.extend([
+                        "-f", str(command_script),
+                    ])
+                    return self.run_command(
+                        cmd,
+                        self.application_dir,
+                        quiet=True,
+                    )
 
                 first_sector = (
                     target_address - qspi_base
@@ -552,16 +614,39 @@ class BuildTool:
                     target_end - 1 - qspi_base
                 ) // qspi_sector_size
                 sectors = list(range(first_sector, last_sector + 1))
-                print(
-                    f"1/2 分{len(sectors)}个短会话擦除QSPI "
-                    f"sector {first_sector}..{last_sector}..."
-                )
+                # This WCH OpenOCD/HLA build loses the target after a long
+                # stmqspi async session. Reconnect well below the observed
+                # failure threshold while keeping each write at 4 KiB.
+                chunks_per_session = 8
+                session_count = (
+                    len(chunk_records) + chunks_per_session - 1
+                ) // chunks_per_session
+                total_steps = len(sectors) + session_count
+                completed_steps = 0
+
+                def show_progress() -> None:
+                    width = 30
+                    filled = (
+                        width * completed_steps // total_steps
+                        if total_steps
+                        else width
+                    )
+                    percent = (
+                        100 * completed_steps // total_steps
+                        if total_steps
+                        else 100
+                    )
+                    bar = "#" * filled + "-" * (width - filled)
+                    print(
+                        f"\r{label} [{bar}] {percent:3d}%",
+                        end="\n" if completed_steps == total_steps else "",
+                        flush=True,
+                    )
+
+                show_progress()
                 for sector in sectors:
                     erased = False
                     for attempt in range(1, 4):
-                        print(
-                            f"  擦除sector {sector}，尝试 {attempt}/3"
-                        )
                         if run_session(
                             f"erase-qspi-{sector:03d}-{attempt}",
                             [f"flash erase_sector 1 {sector} {sector}"],
@@ -573,15 +658,9 @@ class BuildTool:
                             f"错误: {label}目标sector {sector}擦除失败"
                         )
                         return False
+                    completed_steps += 1
+                    show_progress()
 
-                # This WCH OpenOCD/HLA build loses the target after a long
-                # stmqspi async session. Reconnect well below the observed
-                # failure threshold while keeping each write at 4 KiB.
-                chunks_per_session = 8
-                session_count = (
-                    len(chunk_records) + chunks_per_session - 1
-                ) // chunks_per_session
-                print(f"2/2 分{session_count}个短会话写入并逐块校验...")
                 for session_index in range(session_count):
                     start = session_index * chunks_per_session
                     batch = chunk_records[
@@ -589,21 +668,17 @@ class BuildTool:
                     ]
                     body = []
                     for chunk_file, chunk_address in batch:
-                        tcl_path = chunk_file.as_posix()
+                        tcl_path = self._openocd_tcl_braced_path(chunk_file)
                         body.append(
-                            f"flash write_image {{{tcl_path}}} "
+                            f"flash write_image {tcl_path} "
                             f"0x{chunk_address:08X} bin"
                         )
                         body.append(
-                            f"verify_image {{{tcl_path}}} "
+                            f"verify_image {tcl_path} "
                             f"0x{chunk_address:08X} bin"
                         )
-                    if session_index == session_count - 1:
+                    if reset_after and session_index == session_count - 1:
                         body.append("reset run")
-                    print(
-                        f"  会话 {session_index + 1}/{session_count}: "
-                        f"块 {start + 1}..{start + len(batch)}"
-                    )
                     if not run_session(
                         f"program-qspi-{session_index:03d}", body
                     ):
@@ -612,12 +687,52 @@ class BuildTool:
                             f"{session_index + 1}/{session_count}失败"
                         )
                         return False
-        except OSError as exc:
+                    completed_steps += 1
+                    show_progress()
+        except (OSError, ValueError) as exc:
             print(f"错误: 无法准备QSPI分块烧录事务: {exc}")
             return False
 
         print(f"{label}烧录并逐块校验成功")
         return True
+
+    @staticmethod
+    def _openocd_tcl_braced_path(
+        path: Path,
+        *,
+        must_exist: bool = True,
+    ) -> str:
+        """Encode one filesystem path as a safe Tcl braced word."""
+        try:
+            value = path.resolve(strict=must_exist).as_posix()
+        except OSError as exc:
+            raise ValueError(f"无法解析OpenOCD Tcl路径: {path}") from exc
+        if any(character in value for character in "{}\r\n"):
+            raise ValueError("OpenOCD Tcl路径不能包含花括号或换行符")
+        return "{" + value + "}"
+
+    @staticmethod
+    def _openocd_target_assert_commands(expected_uid: str) -> list[str]:
+        """Return Tcl assertions for STM32H750 DEV_ID and UID."""
+        uid = expected_uid.upper()
+        if re.fullmatch(r"[0-9A-F]{24}", uid) is None:
+            raise ValueError("STM32 UID必须是24位十六进制字符")
+        commands = [
+            "set hbox_dbgmcu_idcode [mrw 0x5C001000]",
+            "if {($hbox_dbgmcu_idcode & 0xFFF) != 0x450} "
+            "{error {STM32 DEV_ID changed during flash transaction}}",
+        ]
+        for index in range(3):
+            address = 0x1FF1E800 + index * 4
+            word = uid[index * 8 : (index + 1) * 8]
+            commands.append(
+                f"set hbox_uid_{index} [mrw 0x{address:08X}]"
+            )
+            commands.append(
+                f"if {{$hbox_uid_{index} != 0x{word}}} "
+                "{error {STM32 UID changed during flash transaction}}"
+            )
+        return commands
 
     def _load_internal_flash_security_layout(self) -> Optional[Dict[str, int]]:
         """从共享头文件读取内部 Flash 安全布局，避免 Python 常量漂移。"""

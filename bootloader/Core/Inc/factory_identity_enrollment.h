@@ -60,6 +60,31 @@ void HBoxFactoryIdentityEnrollment_Cancel(void);
 const char *HBoxFactoryIdentityEnrollment_StatusString(
     hbox_factory_enrollment_status_t status);
 
+/*
+ * Explicit factory-service capability table.  A factory transport receives
+ * this table from main() only in an HBOX_FACTORY_IDENTITY_ENROLLMENT build.
+ * Keeping the references here also prevents the enrollment implementation
+ * from being discarded by --gc-sections.
+ */
+#define HBOX_FACTORY_ENROLLMENT_API_VERSION 1u
+
+typedef struct
+{
+    uint32_t api_version;
+    hbox_factory_enrollment_status_t (*begin)(
+        const uint8_t challenge[HBOX_FACTORY_CHALLENGE_BYTES],
+        hbox_factory_enrollment_proof_v1_t *proof);
+    hbox_factory_enrollment_status_t (*install)(
+        const hbox_device_certificate_v1_t *certificate,
+        uint32_t initial_security_version);
+    void (*cancel)(void);
+    const char *(*status_string)(
+        hbox_factory_enrollment_status_t status);
+} hbox_factory_enrollment_api_v1_t;
+
+const hbox_factory_enrollment_api_v1_t *
+HBoxFactoryIdentityEnrollment_GetApi(void);
+
 #ifdef __cplusplus
 }
 #endif

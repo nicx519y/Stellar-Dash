@@ -12,3 +12,4 @@ export * from './performance-codec';
 export * from './device-clock-sync';
 export * from './scope-policy';
 export * from './webhid-config-export';
+export * from './webconfig-target';

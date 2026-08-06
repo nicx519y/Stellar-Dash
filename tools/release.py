@@ -34,7 +34,12 @@ from intelhex import IntelHex  # 添加Intel HEX处理库
 # 导入统一的固件元数据常量
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'common'))
 from firmware_metadata import *
-from firmware_signing import FirmwareSigningError, sign_metadata
+from firmware_signing import (
+    FirmwareSigningError,
+    canonical_metadata,
+    raw_signature_to_der,
+    sign_metadata,
+)
 
 # 使用统一的常量定义，移除重复定义
 # FIRMWARE_MAGIC, METADATA_VERSION_MAJOR, METADATA_VERSION_MINOR 等
@@ -48,6 +53,7 @@ HARDWARE_VERSION_CODE_V2 = 0x00020000
 _SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _P256_SIGNATURE_RE = re.compile(r"^[0-9a-f]{128}$")
+SIGNED_METADATA_FILENAME = "metadata.bin"
 _TRUST_HEADER_MARKERS = (
     "#define HBOX_MANUFACTURER_CA_KEY_PROVISIONED 1u",
     "#define HBOX_FIRMWARE_RELEASE_PUBLIC_KEY_PROVISIONED 1u",
@@ -126,6 +132,96 @@ def require_v2_trust_bundle(
     return header, digest
 
 
+def load_firmware_release_public_key_from_trust_header(
+    header: Path,
+) -> bytes:
+    """Extract the provisioned SEC1 P-256 release key from a trust header."""
+
+    text = header.read_text(encoding="utf-8", errors="strict")
+    match = re.search(
+        r"hbox_firmware_release_public_key\s*\[\s*65\s*\]\s*=\s*"
+        r"\{(?P<body>.*?)\}\s*;",
+        text,
+        re.DOTALL,
+    )
+    if match is None:
+        raise RuntimeError(
+            "HBOX_TRUST_HEADER缺少hbox_firmware_release_public_key[65]"
+        )
+    values = re.findall(r"0x([0-9A-Fa-f]{2})(?:u|U)?", match.group("body"))
+    if len(values) != 65:
+        raise RuntimeError("firmware release公钥必须恰好包含65字节")
+    public_key = bytes(int(value, 16) for value in values)
+    if public_key[0] != 0x04 or not any(public_key[1:]):
+        raise RuntimeError("firmware release公钥不是有效的SEC1未压缩P-256格式")
+    return public_key
+
+
+def verify_signed_metadata(
+    metadata: bytes,
+    firmware_release_public_key: bytes,
+) -> None:
+    """Verify the exact metadata signature using an approved release key."""
+
+    if len(metadata) != METADATA_STRUCT_SIZE:
+        raise ValueError(
+            f"metadata.bin大小错误: {len(metadata)} != {METADATA_STRUCT_SIZE}"
+        )
+    if (
+        len(firmware_release_public_key) != 65
+        or firmware_release_public_key[0] != 0x04
+    ):
+        raise ValueError("firmware release公钥格式无效")
+
+    # id-ecPublicKey + prime256v1 followed by a 65-byte SEC1 BIT STRING.
+    public_der = (
+        b"\x30\x59"
+        b"\x30\x13"
+        b"\x06\x07\x2A\x86\x48\xCE\x3D\x02\x01"
+        b"\x06\x08\x2A\x86\x48\xCE\x3D\x03\x01\x07"
+        b"\x03\x42\x00"
+        + firmware_release_public_key
+    )
+    signature = metadata[
+        FIRMWARE_SIGNATURE_OFFSET :
+        FIRMWARE_SIGNATURE_OFFSET + 64
+    ]
+    if not any(signature[:32]) or not any(signature[32:]):
+        raise ValueError("metadata.bin包含零值P-256签名分量")
+
+    with tempfile.TemporaryDirectory(prefix="hbox-metadata-verify-") as temp:
+        directory = Path(temp)
+        public_file = directory / "release-public.der"
+        metadata_file = directory / "metadata.canonical.bin"
+        signature_file = directory / "metadata-signature.der"
+        public_file.write_bytes(public_der)
+        metadata_file.write_bytes(canonical_metadata(metadata))
+        signature_file.write_bytes(raw_signature_to_der(signature))
+        try:
+            result = subprocess.run(
+                [
+                    "openssl",
+                    "dgst",
+                    "-sha256",
+                    "-verify",
+                    str(public_file),
+                    "-keyform",
+                    "DER",
+                    "-signature",
+                    str(signature_file),
+                    str(metadata_file),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+        except FileNotFoundError as exc:
+            raise ValueError("OpenSSL不可用，无法验证metadata签名") from exc
+    if result.returncode != 0:
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        raise ValueError(f"metadata.bin发布签名验证失败: {detail or 'invalid signature'}")
+
+
 def _parse_manifest_address(value: Any, field_name: str) -> int:
     if isinstance(value, bool):
         raise ValueError(f"{field_name} 不是有效地址")
@@ -147,9 +243,10 @@ def validate_stm32_ota_manifest(manifest: Dict[str, Any]) -> None:
     if not isinstance(version, str) or not _SEMVER_RE.fullmatch(version):
         raise ValueError("manifest.version必须是三段式版本号")
 
-    slot = str(manifest.get("slot", "")).upper()
-    if slot not in STM32_OTA_LAYOUT:
+    slot_value = manifest.get("slot")
+    if slot_value not in STM32_OTA_LAYOUT:
         raise ValueError("manifest.slot必须是A或B")
+    slot = slot_value
 
     if manifest.get("hardware_version") != LATEST_HARDWARE_VERSION:
         raise ValueError(
@@ -189,6 +286,20 @@ def validate_stm32_ota_manifest(manifest: Dict[str, Any]) -> None:
         raise ValueError("V2 OTA缺少有效build_timestamp")
     if not isinstance(manifest.get("webresources_optional"), bool):
         raise ValueError("V2 OTA缺少webresources_optional策略")
+
+    metadata_info = manifest.get("metadata")
+    if not isinstance(metadata_info, dict):
+        raise ValueError("V2 OTA缺少signed metadata描述")
+    if metadata_info.get("file") != SIGNED_METADATA_FILENAME:
+        raise ValueError(
+            f"signed metadata文件必须是{SIGNED_METADATA_FILENAME}"
+        )
+    if metadata_info.get("size") != METADATA_STRUCT_SIZE:
+        raise ValueError(
+            f"signed metadata大小必须是{METADATA_STRUCT_SIZE}字节"
+        )
+    if not _SHA256_RE.fullmatch(str(metadata_info.get("sha256", ""))):
+        raise ValueError("signed metadata缺少有效SHA-256")
 
     components = manifest.get("components")
     if not isinstance(components, list):
@@ -249,7 +360,132 @@ def validate_stm32_ota_manifest(manifest: Dict[str, Any]) -> None:
             raise ValueError(f"组件 {name} sha256必须是64位小写十六进制")
 
 
-def validate_stm32_ota_package(package_path: Path) -> Dict[str, Any]:
+def _decode_fixed_metadata_text(
+    metadata: bytes,
+    offset: int,
+    width: int,
+    field_name: str,
+) -> str:
+    encoded = metadata[offset : offset + width]
+    content, separator, padding = encoded.partition(b"\0")
+    if not separator or any(padding):
+        raise ValueError(f"metadata.bin字段{field_name}不是规范零填充")
+    try:
+        return content.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"metadata.bin字段{field_name}不是有效UTF-8") from exc
+
+
+def validate_signed_metadata_matches_manifest(
+    metadata: bytes,
+    manifest: Dict[str, Any],
+    firmware_release_public_key: bytes | None = None,
+) -> None:
+    """Require metadata.bin to be the exact signed boot contract in manifest."""
+
+    if len(metadata) != METADATA_STRUCT_SIZE:
+        raise ValueError(
+            f"metadata.bin大小错误: {len(metadata)} != {METADATA_STRUCT_SIZE}"
+        )
+    if struct.unpack_from("<I", metadata, 0)[0] != FIRMWARE_MAGIC:
+        raise ValueError("metadata.bin magic错误")
+    if struct.unpack_from("<I", metadata, 4)[0] != METADATA_VERSION_MAJOR:
+        raise ValueError("metadata.bin major version错误")
+    if struct.unpack_from("<I", metadata, 8)[0] != METADATA_VERSION_MINOR:
+        raise ValueError("metadata.bin minor version错误")
+    if struct.unpack_from("<I", metadata, 12)[0] != METADATA_STRUCT_SIZE:
+        raise ValueError("metadata.bin声明大小错误")
+    stored_crc = struct.unpack_from("<I", metadata, METADATA_CRC32_OFFSET)[0]
+    expected_crc = calculate_crc32(
+        metadata, METADATA_CRC32_OFFSET, 4
+    )
+    if stored_crc == 0 or stored_crc != expected_crc:
+        raise ValueError("metadata.bin CRC32错误")
+
+    if _decode_fixed_metadata_text(metadata, 20, 32, "firmware_version") != manifest["version"]:
+        raise ValueError("metadata.bin firmware_version与manifest不一致")
+    expected_slot = (
+        FIRMWARE_SLOT_A
+        if str(manifest["slot"]).upper() == "A"
+        else FIRMWARE_SLOT_B
+    )
+    if metadata[52] != expected_slot:
+        raise ValueError("metadata.bin target_slot与manifest不一致")
+    if _decode_fixed_metadata_text(metadata, 53, 32, "build_date") != manifest["build_date"]:
+        raise ValueError("metadata.bin build_date与manifest不一致")
+    if struct.unpack_from("<I", metadata, 85)[0] != manifest["build_timestamp"]:
+        raise ValueError("metadata.bin build_timestamp与manifest不一致")
+    if _decode_fixed_metadata_text(metadata, 89, 32, "device_model") != DEVICE_MODEL_STRING:
+        raise ValueError("metadata.bin device_model错误")
+    if struct.unpack_from("<I", metadata, 121)[0] != manifest["hardware_version_code"]:
+        raise ValueError("metadata.bin hardware_version与manifest不一致")
+    if struct.unpack_from("<I", metadata, 125)[0] != BOOTLOADER_VERSION:
+        raise ValueError("metadata.bin bootloader_min_version错误")
+    if struct.unpack_from("<I", metadata, 129)[0] != FIRMWARE_COMPONENT_COUNT:
+        raise ValueError("metadata.bin component_count必须为3")
+
+    component_offset = 133
+    for index, component in enumerate(manifest["components"]):
+        base = component_offset + index * COMPONENT_STRUCT_SIZE
+        if _decode_fixed_metadata_text(metadata, base, 32, f"components[{index}].name") != component["name"]:
+            raise ValueError("metadata.bin组件name与manifest不一致")
+        if _decode_fixed_metadata_text(metadata, base + 32, 64, f"components[{index}].file") != component["file"]:
+            raise ValueError("metadata.bin组件file与manifest不一致")
+        if struct.unpack_from("<I", metadata, base + 96)[0] != _parse_manifest_address(
+            component["address"], f"{component['name']}.address"
+        ):
+            raise ValueError("metadata.bin组件address与manifest不一致")
+        if struct.unpack_from("<I", metadata, base + 100)[0] != component["size"]:
+            raise ValueError("metadata.bin组件size与manifest不一致")
+        if _decode_fixed_metadata_text(
+            metadata, base + 104, 65, f"components[{index}].sha256"
+        ) != component["sha256"]:
+            raise ValueError("metadata.bin组件SHA-256与manifest不一致")
+        expected_active = 1 if component.get("active", True) else 0
+        if metadata[base + 169] != expected_active:
+            raise ValueError("metadata.bin组件active与manifest不一致")
+
+    embedded_hash = metadata[
+        FIRMWARE_HASH_OFFSET : FIRMWARE_HASH_OFFSET + 32
+    ]
+    expected_hash = hashlib.sha256(canonical_metadata(metadata)).digest()
+    if embedded_hash != expected_hash:
+        raise ValueError("metadata.bin firmware_hash错误")
+    if embedded_hash.hex() != manifest["firmware_hash"]:
+        raise ValueError("metadata.bin firmware_hash与manifest不一致")
+    embedded_signature = metadata[
+        FIRMWARE_SIGNATURE_OFFSET : FIRMWARE_SIGNATURE_OFFSET + 64
+    ]
+    if (
+        not any(embedded_signature[:32])
+        or not any(embedded_signature[32:])
+    ):
+        raise ValueError("metadata.bin包含零值P-256签名分量")
+    if embedded_signature.hex() != manifest["signature"]:
+        raise ValueError("metadata.bin signature与manifest不一致")
+    if struct.unpack_from(
+        "<I", metadata, FIRMWARE_SIGNATURE_ALGORITHM_OFFSET
+    )[0] != manifest["signature_algorithm"]:
+        raise ValueError("metadata.bin signature_algorithm与manifest不一致")
+    if struct.unpack_from(
+        "<I", metadata, FIRMWARE_SECURITY_VERSION_OFFSET
+    )[0] != manifest["security_version"]:
+        raise ValueError("metadata.bin security_version与manifest不一致")
+    if metadata[FIRMWARE_WEBRESOURCES_OPTIONAL_OFFSET] != int(
+        manifest["webresources_optional"]
+    ):
+        raise ValueError("metadata.bin webresources_optional与manifest不一致")
+    if any(metadata[FIRMWARE_WEBRESOURCES_OPTIONAL_OFFSET + 1 :]):
+        raise ValueError("metadata.bin reserved区域必须全零")
+
+    if firmware_release_public_key is not None:
+        verify_signed_metadata(metadata, firmware_release_public_key)
+
+
+def validate_stm32_ota_package(
+    package_path: Path,
+    firmware_release_public_key: bytes | None = None,
+) -> Dict[str, Any]:
     with zipfile.ZipFile(package_path, "r") as archive:
         if any(info.is_dir() for info in archive.infolist()):
             raise ValueError(f"{package_path.name} 不允许包含目录条目")
@@ -266,7 +502,8 @@ def validate_stm32_ota_package(package_path: Path) -> Dict[str, Any]:
             raise ValueError(f"{package_path.name} 缺少 manifest.json") from exc
         validate_stm32_ota_manifest(manifest)
 
-        expected_files = {"manifest.json"}
+        metadata_info = manifest["metadata"]
+        expected_files = {"manifest.json", metadata_info["file"]}
         component_files = [
             component["file"]
             for component in manifest["components"]
@@ -282,6 +519,23 @@ def validate_stm32_ota_package(package_path: Path) -> Dict[str, Any]:
             raise ValueError(
                 f"OTA包文件集合不匹配; extra={extras or 'none'} missing={missing or 'none'}"
             )
+
+        metadata = archive.read(metadata_info["file"])
+        if len(metadata) != metadata_info["size"]:
+            raise ValueError(
+                "metadata.bin size不一致: "
+                f"manifest={metadata_info['size']} zip={len(metadata)}"
+            )
+        actual_metadata_sha256 = hashlib.sha256(metadata).hexdigest()
+        if actual_metadata_sha256 != metadata_info["sha256"]:
+            raise ValueError(
+                "metadata.bin SHA-256不一致: "
+                f"manifest={metadata_info['sha256']} "
+                f"zip={actual_metadata_sha256}"
+            )
+        validate_signed_metadata_matches_manifest(
+            metadata, manifest, firmware_release_public_key
+        )
 
         for component in manifest["components"]:
             if not component.get("active", True) and component.get("size") == 0:
@@ -1085,6 +1339,7 @@ class ReleaseFlasher:
         self.openocd_configs_dir = self.tools_dir / "openocd_configs"
         self.temp_dir = None
         self.trust_bundle_sha256 = None
+        self.firmware_release_public_key = None
         
         # OpenOCD配置文件 - 使用tools目录下的配置
         self.openocd_config = self.openocd_configs_dir / "ST-LINK-QSPIFLASH.cfg"
@@ -1111,7 +1366,19 @@ class ReleaseFlasher:
         package_file = Path(package_path)
         if not package_file.exists():
             raise FileNotFoundError(f"Release包不存在: {package_path}")
-        validate_stm32_ota_package(package_file)
+        trust_header, trust_bundle_sha256 = require_v2_trust_bundle()
+        release_public_key = (
+            load_firmware_release_public_key_from_trust_header(
+                trust_header
+            )
+        )
+        manifest = validate_stm32_ota_package(
+            package_file, release_public_key
+        )
+        if manifest["trust_bundle_sha256"] != trust_bundle_sha256:
+            raise ValueError(
+                "release包trust_bundle_sha256与当前批准bundle不一致"
+            )
         
         # 创建临时目录
         self.temp_dir = Path(tempfile.mkdtemp(prefix="release_flash_"))
@@ -1128,8 +1395,9 @@ class ReleaseFlasher:
                 raise FileNotFoundError("Release包中缺少manifest.json文件")
             
             with open(manifest_file, 'r', encoding='utf-8') as f:
-                manifest = json.load(f)
-            validate_stm32_ota_manifest(manifest)
+                extracted_manifest = json.load(f)
+            if extracted_manifest != manifest:
+                raise ValueError("解压后的manifest与已验证内容不一致")
             
             print(f"成功解压Release包: {package_file.name}")
             print(f"版本: {manifest.get('version', 'Unknown')}")
@@ -1252,42 +1520,46 @@ class ReleaseFlasher:
     
     def flash_release_package(self, package_path: str, target_slot: str = None, 
                             components: List[str] = None) -> bool:
-        """刷写release包到设备"""
+        """原样刷写已验证release包；禁止改槽、删组件或现场重签。"""
         try:
             # 解压release包
             manifest, temp_dir = self.extract_release_package(package_path)
-            
-            # 确定目标槽位
-            if target_slot is None:
-                target_slot = manifest.get('slot', 'A').upper()
+
+            package_slot = manifest['slot'].upper()
+            if target_slot is not None and target_slot.upper() != package_slot:
+                print(
+                    "错误: 已签名release包禁止改写目标槽位; "
+                    f"package={package_slot}, requested={target_slot.upper()}"
+                )
+                return False
+            target_slot = package_slot
             
             print(f"开始刷写release包: {Path(package_path).name}")
             print(f"目标槽位: {target_slot}")
             
-            # 确定要刷写的组件 - 处理components为列表的情况
             manifest_components = manifest.get('components', [])
-            if isinstance(manifest_components, list):
-                # components是列表格式，转换为字典格式以便后续处理
-                components_dict = {}
-                for comp in manifest_components:
-                    components_dict[comp['name']] = comp
-                available_components = list(components_dict.keys())
-            else:
-                # components是字典格式（旧格式兼容）
-                components_dict = manifest_components
-                available_components = list(components_dict.keys())
-            
-            if components is None:
-                components = available_components
-            else:
-                # 验证指定的组件是否存在
-                invalid_components = [c for c in components if c not in available_components]
-                if invalid_components:
-                    print(f"错误: 指定的组件不存在: {invalid_components}")
-                    print(f"可用组件: {available_components}")
-                    return False
-            
-            print(f"将刷写组件: {components}")
+            components_dict = {
+                component['name']: component
+                for component in manifest_components
+            }
+            required_components = [
+                component['name']
+                for component in manifest_components
+                if component.get('active', True)
+                and component.get('size', 0) > 0
+            ]
+            if components is not None and (
+                len(components) != len(required_components)
+                or set(components) != set(required_components)
+            ):
+                print(
+                    "错误: 已签名release包禁止遗漏或增加安全组件; "
+                    f"required={required_components}, requested={components}"
+                )
+                return False
+            components = required_components
+
+            print(f"将原样刷写已签名组件: {components}")
             
             # 刷写各个组件
             success_count = 0
@@ -1297,8 +1569,7 @@ class ReleaseFlasher:
                 component_info = components_dict[component_name]
                 component_file = temp_dir / component_info['file']
                 
-                # 根据目标槽位调整地址
-                target_address = self.get_slot_address(component_name, target_slot)
+                target_address = f"0x{_parse_manifest_address(component_info['address'], component_name + '.address'):08X}"
                 
                 # 获取文件类型信息（从manifest或文件扩展名）
                 file_type = component_info.get('file_type', None)
@@ -1310,45 +1581,18 @@ class ReleaseFlasher:
                 else:
                     print(f"组件 {component_name} 刷写失败")
                     return False
-            
-            
-            # 生成并刷写元数据
-            print(f"\n[{success_count + 1}/{total_count + 1}] 生成并刷写元数据...")
-            
-            # 使用新的create_metadata_binary函数
-            components_list = []
-            for comp_name in components:
-                if comp_name in ('sys_assets', 'sysbg'):
-                    continue
-                comp_info = components_dict[comp_name]
-                components_list.append({
-                    'name': comp_name,
-                    'file': comp_info['file'],
-                    'address': self.get_slot_address(comp_name, target_slot),
-                    'size': comp_info['size'],
-                    'sha256': comp_info['sha256'],
-                    'active': True
-                })
-            
-            # 生成元数据二进制
-            metadata_binary = create_metadata_binary(
-                version=manifest.get('version', '1.0.0'),
-                slot=target_slot,
-                build_date=manifest.get('build_date', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
-                components=components_list
+            print(
+                f"\n[{success_count + 1}/{total_count + 1}] "
+                "刷写包内exact signed metadata.bin..."
             )
-            
-            # 写入临时文件
-            metadata_file = temp_dir / "metadata.bin"
-            with open(metadata_file, 'wb') as f:
-                f.write(metadata_binary)
+            metadata_file = temp_dir / manifest['metadata']['file']
             
             # 刷写元数据
             if self.flash_metadata(metadata_file):
-                print(f"✓ 所有组件和元数据刷写成功!")
+                print("[OK] 所有组件和exact signed metadata刷写成功!")
                 return True
             else:
-                print(f"✗ 元数据刷写失败")
+                print("[ERROR] metadata.bin刷写失败")
                 return False
                 
         except Exception as e:
@@ -1439,6 +1683,8 @@ class ReleaseManager:
         self.releases_dir = self.project_root / "releases"
         self.openocd_configs_dir = self.tools_dir / "openocd_configs"
         self.temp_dir = None
+        self.trust_bundle_sha256 = None
+        self.firmware_release_public_key = None
         
         # 加载统一配置
         self.config = get_config()
@@ -1744,7 +1990,7 @@ class ReleaseManager:
         return dst
 
     def make_manifest_for_auto_with_bin(self, slot, app_bin_file, adc_file, web_file, version, app_component):
-        """生成manifest文件（使用BIN文件）"""
+        """生成manifest和与其逐字段一致的已签名metadata.bin。"""
         build_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         build_timestamp = int(time.time())
         manifest = {
@@ -1813,9 +2059,15 @@ class ReleaseManager:
         manifest["signature"] = metadata[
             FIRMWARE_SIGNATURE_OFFSET : FIRMWARE_SIGNATURE_OFFSET + 64
         ].hex()
+        manifest["metadata"] = {
+            "file": SIGNED_METADATA_FILENAME,
+            "size": len(metadata),
+            "sha256": hashlib.sha256(metadata).hexdigest(),
+        }
 
         validate_stm32_ota_manifest(manifest)
-        return manifest
+        validate_signed_metadata_matches_manifest(metadata, manifest)
+        return manifest, metadata
 
     def make_auto_release_pkg(self, slot, version, out_dir, build_timestamp, progress=None, start_step=0):
         """生成单个槽的release包（使用Intel HEX分割处理）"""
@@ -1869,7 +2121,7 @@ class ReleaseManager:
             # 6. 生成标准manifest（使用BIN文件）
             if progress:
                 progress.set_step(start_step + 7, f"槽{slot}: 生成manifest...")
-            manifest = self.make_manifest_for_auto_with_bin(
+            manifest, signed_metadata = self.make_manifest_for_auto_with_bin(
                 slot, app_bin_file, adc_file, web_file, version, app_component
             )
             
@@ -1887,6 +2139,8 @@ class ReleaseManager:
             manifest_file = out_dir / 'manifest.json'
             with open(manifest_file, 'w', encoding='utf-8') as f:
                 json.dump(manifest, f, indent=2, ensure_ascii=False)
+            metadata_file = out_dir / SIGNED_METADATA_FILENAME
+            metadata_file.write_bytes(signed_metadata)
             
             # 7. 打包并移动到releases目录
             if progress:
@@ -1902,10 +2156,18 @@ class ReleaseManager:
                 
                 # 共同文件
                 zf.write(adc_file, adc_file.name)
+                zf.write(metadata_file, metadata_file.name)
                 zf.write(manifest_file, manifest_file.name)
 
             # ZIP是实际发布/上传边界；移动到releases前重新从ZIP读取并严格核验。
-            validate_stm32_ota_package(temp_package_path)
+            if self.firmware_release_public_key is None:
+                raise RuntimeError(
+                    "未加载批准的firmware release公钥，禁止生成正式包"
+                )
+            validate_stm32_ota_package(
+                temp_package_path,
+                self.firmware_release_public_key,
+            )
             
             # 移动到最终位置
             shutil.move(temp_package_path, final_package_path)
@@ -1927,6 +2189,11 @@ class ReleaseManager:
         verify_rf_frozen(self.project_root)
         trust_header, self.trust_bundle_sha256 = (
             require_v2_trust_bundle()
+        )
+        self.firmware_release_public_key = (
+            load_firmware_release_public_key_from_trust_header(
+                trust_header
+            )
         )
         print("=== STM32 HBox 双槽Release包生成工具 ===")
         print(f"工作目录: {self.project_root}")
@@ -2035,39 +2302,24 @@ class ReleaseManager:
         print(f"验证发版包: {package_file}")
         
         try:
-            validate_stm32_ota_package(Path(package_file))
-            with zipfile.ZipFile(package_file, 'r') as zf:
-                # 读取manifest
-                with zf.open('manifest.json') as f:
-                    manifest = json.load(f)
-                validate_stm32_ota_manifest(manifest)
-                
-                # 验证每个组件
-                for comp_info in manifest["components"]:
-                    comp_name = comp_info["name"]
-                    comp_file = comp_info["file"]
-                    expected_checksum = comp_info["sha256"]
-                    
-                    # 读取组件数据
-                    with zf.open(comp_file) as f:
-                        data = f.read()
-                    
-                    # 计算校验和
-                    actual_checksum = self.calculate_checksum(data)
-                    
-                    if actual_checksum == expected_checksum:
-                        print(f"  ✓ {comp_name}: 校验通过")
-                    else:
-                        print(f"  ✗ {comp_name}: 校验失败")
-                        print(f"    期望: {expected_checksum}")
-                        print(f"    实际: {actual_checksum}")
-                        return False
-                
-                print("✓ 发版包验证通过")
-                return True
+            trust_header, trust_bundle_sha256 = require_v2_trust_bundle()
+            release_public_key = (
+                load_firmware_release_public_key_from_trust_header(
+                    trust_header
+                )
+            )
+            manifest = validate_stm32_ota_package(
+                Path(package_file), release_public_key
+            )
+            if manifest["trust_bundle_sha256"] != trust_bundle_sha256:
+                raise ValueError(
+                    "release包trust_bundle_sha256与当前批准bundle不一致"
+                )
+            print("[OK] release包、组件和exact signed metadata验证通过")
+            return True
                 
         except Exception as e:
-            print(f"✗ 验证失败: {e}")
+            print(f"[ERROR] 验证失败: {e}")
             return False
 
     # ==================== 刷写功能 ====================
@@ -2207,6 +2459,19 @@ class ReleaseManager:
         admin_username, admin_password = self.get_admin_credentials(admin_username, admin_password)
         if not admin_username or not admin_password:
             return False
+
+        try:
+            trust_header, self.trust_bundle_sha256 = (
+                require_v2_trust_bundle()
+            )
+            release_public_key = (
+                load_firmware_release_public_key_from_trust_header(
+                    trust_header
+                )
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            print(f"错误: 无法加载批准的release信任bundle: {exc}")
+            return False
         
         # 上传元数据只能来自包内manifest；文件名和表单都不是信任来源。
         package_paths = {}
@@ -2222,7 +2487,17 @@ class ReleaseManager:
                 print(f"错误: {slot_label}文件不存在: {package_file}")
                 return False
             try:
-                package_manifests[field_name] = validate_stm32_ota_package(package_file)
+                manifest = validate_stm32_ota_package(
+                    package_file, release_public_key
+                )
+                if (
+                    manifest["trust_bundle_sha256"]
+                    != self.trust_bundle_sha256
+                ):
+                    raise ValueError(
+                        "包内trust_bundle_sha256与当前批准bundle不一致"
+                    )
+                package_manifests[field_name] = manifest
             except (OSError, ValueError, zipfile.BadZipFile, json.JSONDecodeError) as exc:
                 print(f"错误: {slot_label}包不符合STM32三组件OTA边界: {exc}")
                 return False
@@ -2732,6 +3007,12 @@ class ReleaseManager:
     
     def build_and_flash_slot_a_app(self) -> bool:
         """快速构建槽A的application并直接刷写到设备"""
+        print(
+            "错误: V2 quick现场构建/重签/刷写已禁用；请先用auto生成"
+            "exact signed release包，再使用flash原样刷写"
+        )
+        return False
+
         print("=== 快速构建并刷写槽A Application ===")
         print(f"工作目录: {self.project_root}")
         
@@ -3260,6 +3541,12 @@ class ReleaseManager:
 
     def build_and_flash_app_and_web(self, slot: str = "A") -> bool:
         """快捷编译 application 并烧录 application 和 web resource"""
+        print(
+            "错误: V2 appweb现场构建/重签/刷写已禁用；Hosted WebConfig"
+            "不写入QSPI，请使用auto + flash"
+        )
+        return False
+
         print(f"=== 快捷编译并烧录 Application + Web Resource (槽{slot}) ===")
         print(f"工作目录: {self.project_root}")
         try:
@@ -3586,10 +3873,14 @@ Intel HEX增强模式说明:
     # 刷写发版包命令
     flash_parser = subparsers.add_parser('flash', help='刷写release包')
     flash_parser.add_argument("package", nargs="?", help="要刷写的release包路径（可选，不指定则交互式选择）")
-    flash_parser.add_argument("--slot", choices=["A", "B"], help="目标槽位（可选，默认使用包中指定的槽位）")
+    flash_parser.add_argument(
+        "--slot",
+        choices=["A", "B"],
+        help="槽位一致性检查（若提供，必须与已签名包完全相同）",
+    )
     flash_parser.add_argument("--components", nargs="+", 
                             choices=["application", "webresources", "adc_mapping", "sys_assets", "sysbg"],
-                            help="要刷写的组件（可选，默认刷写所有组件）")
+                            help="组件一致性检查（若提供，必须包含包内全部active安全组件）")
     
     # 上传命令
     upload_parser = subparsers.add_parser('upload', help='上传固件包到服务器')

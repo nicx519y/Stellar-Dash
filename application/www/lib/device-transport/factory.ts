@@ -40,13 +40,11 @@ export function createDeviceTransportFramework(
     requestTimeoutMs: options.websocket.timeout,
   });
   const auth = new DeviceAuthClient({
-    challengeEndpoint:
-      process.env.NEXT_PUBLIC_DEVICE_AUTH_CHALLENGE_ENDPOINT ??
-      '/api/v2/device-auth/challenges',
-    verifyEndpoint:
-      process.env.NEXT_PUBLIC_DEVICE_AUTH_VERIFY_ENDPOINT ??
-      '/api/v2/device-auth/verify',
-    serverOrigin: process.env.NEXT_PUBLIC_DEVICE_AUTH_SERVER_ORIGIN,
+    // Hosted V2 deliberately uses the page origin for both authentication
+    // and protected downloads.  Cross-origin values from .env.local are not
+    // accepted in a deployable WebHID build.
+    challengeEndpoint: '/api/v2/device-auth/challenges',
+    verifyEndpoint: '/api/v2/device-auth/verify',
     scopes: [
       'config.read',
       'config.write',

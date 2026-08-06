@@ -46,6 +46,57 @@ const {
   WEBHID_MAX_STREAM_SIZE,
   WebHidTransport,
 } = require('../lib/device-transport/webhid-transport.ts');
+const {
+  FIRMWARE_RECONNECT_DELAY_MS,
+  scheduleAuthorizedReconnect,
+} = require('../lib/device-transport/authorized-reconnect.ts');
+const {
+  initializeDeviceSession,
+} = require('../lib/device-transport/device-initialization.ts');
+const {
+  resolveDefaultFirmwareServerHost,
+} = require('../lib/device-transport/firmware-server-origin.ts');
+const {
+  resolveAuthenticatedWebConfigTarget,
+} = require('../lib/device-transport/webconfig-target.ts');
+
+test('authenticated product and PCB identity selects only a local profile', () => {
+  assert.deepEqual(
+    resolveAuthenticatedWebConfigTarget({
+      productId: 'HBOX',
+      pcbRevision: '2.0.0',
+      webConfigProfile: 'hbox-pcb-v2',
+    }, '2.0.0'),
+    {
+      productId: 'HBOX',
+      pcbRevision: '2.0.0',
+      webConfigProfile: 'hbox-pcb-v2',
+      basePath: '/webconfig/hbox-pcb-v2/',
+    },
+  );
+  for (const target of [
+    {
+      productId: 'FAKE',
+      pcbRevision: '2.0.0',
+      webConfigProfile: 'hbox-pcb-v2',
+    },
+    {
+      productId: 'HBOX',
+      pcbRevision: '3.0.0',
+      webConfigProfile: 'hbox-pcb-v3',
+    },
+    {
+      productId: 'HBOX',
+      pcbRevision: '2.0.0',
+      webConfigProfile: 'https://evil.example',
+    },
+  ]) {
+    assert.throws(
+      () => resolveAuthenticatedWebConfigTarget(target, '2.0.0'),
+      /不支持|不一致/,
+    );
+  }
+});
 
 test('WebHID report types and flags match common/webhid_protocol.h', () => {
   assert.deepEqual(
@@ -76,6 +127,23 @@ test('WebHID report types and flags match common/webhid_protocol.h', () => {
   assert.equal(SecureHidFrameFlags.FRAGMENTED, 2);
   assert.equal(SecureHidFrameFlags.LAST, 4);
   assert.equal(SecureHidFrameFlags.ACK_REQUIRED, 8);
+});
+
+test('hosted V2 firmware APIs default to same-origin while legacy keeps its remote host', () => {
+  assert.equal(resolveDefaultFirmwareServerHost('webhid'), '');
+  assert.equal(resolveDefaultFirmwareServerHost('mock'), '');
+  assert.equal(
+    resolveDefaultFirmwareServerHost('legacy-websocket'),
+    'https://firmware.st-dash.com',
+  );
+  assert.equal(
+    resolveDefaultFirmwareServerHost('webhid', ' https://config.example/ '),
+    '',
+  );
+  assert.equal(
+    resolveDefaultFirmwareServerHost('legacy-websocket', ' https://config.example/ '),
+    'https://config.example',
+  );
 });
 
 test('SecureHidReportV1 encodes the locked 64-byte bootstrap ABI', async () => {
@@ -224,6 +292,138 @@ test('WebHID page-load connect never opens the permission chooser', async () => 
   assert.equal(chooserCalls, 0);
   await assert.rejects(transport.requestPermissionAndConnect(), /未选择/);
   assert.equal(chooserCalls, 1);
+});
+
+test('WebHID page-load connect requires an explicit choice when multiple devices are granted', async () => {
+  const makeDevice = (productName) => ({
+    opened: false,
+    vendorId: 0xcafe,
+    productId: 0x4021,
+    productName,
+    collections: [],
+    async open() { this.opened = true; },
+    async close() { this.opened = false; },
+    async sendReport() {},
+    addEventListener() {},
+    removeEventListener() {},
+  });
+  const first = makeDevice('HBox A');
+  const second = makeDevice('HBox B');
+  let chooserCalls = 0;
+  const hid = {
+    getDevices: async () => [first, second],
+    requestDevice: async () => {
+      chooserCalls += 1;
+      return [second];
+    },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const transport = new WebHidTransport({ navigator: hid });
+
+  await assert.rejects(transport.connect(), /多台已授权/);
+  assert.equal(first.opened, false);
+  assert.equal(second.opened, false);
+  assert.equal(chooserCalls, 0);
+
+  const selected = await transport.requestPermissionAndConnect();
+  assert.equal(selected.productName, 'HBox B');
+  assert.equal(second.opened, true);
+  assert.equal(chooserCalls, 1);
+  await transport.close();
+});
+
+test('firmware reconnect waits three seconds, uses the authorized reconnect callback, and is cancellable', async () => {
+  const scheduled = [];
+  const cancelled = [];
+  let reconnectCalls = 0;
+  let failure = null;
+  const cancel = scheduleAuthorizedReconnect(
+    async () => { reconnectCalls += 1; },
+    (error) => { failure = error; },
+    (callback, delayMs) => {
+      scheduled.push({ callback, delayMs });
+      return 123;
+    },
+    (timer) => { cancelled.push(timer); },
+  );
+
+  assert.equal(FIRMWARE_RECONNECT_DELAY_MS, 3000);
+  assert.equal(scheduled.length, 1);
+  assert.equal(scheduled[0].delayMs, 3000);
+  assert.equal(reconnectCalls, 0);
+  scheduled[0].callback();
+  await Promise.resolve();
+  assert.equal(reconnectCalls, 1);
+  assert.equal(failure, null);
+  cancel();
+  assert.deepEqual(cancelled, [123]);
+});
+
+test('device initialization becomes ready only after all six loaders succeed', async () => {
+  const completed = [];
+  let releaseLayout;
+  const layoutPending = new Promise((resolve) => { releaseLayout = resolve; });
+  let readyLayout = null;
+  let failure = null;
+  const resultPromise = initializeDeviceSession({
+    loaders: {
+      globalConfig: async () => { completed.push('global'); },
+      screenControl: async () => { completed.push('screen'); },
+      profileList: async () => { completed.push('profiles'); },
+      hotkeys: async () => { completed.push('hotkeys'); },
+      firmwareMetadata: async () => { completed.push('firmware'); },
+      hitboxLayout: () => layoutPending,
+    },
+    isCurrent: () => true,
+    onReady: (layout) => { readyLayout = layout; },
+    onFailure: (error) => { failure = error; },
+  });
+
+  await Promise.resolve();
+  assert.equal(readyLayout, null);
+  assert.deepEqual(completed.sort(), ['firmware', 'global', 'hotkeys', 'profiles', 'screen']);
+  releaseLayout([{ x: 1, y: 2, r: 3 }]);
+  assert.equal(await resultPromise, 'ready');
+  assert.deepEqual(readyLayout, [{ x: 1, y: 2, r: 3 }]);
+  assert.equal(failure, null);
+});
+
+test('device initialization reports a current failure and ignores stale completion', async () => {
+  const failure = new Error('fixture loader failed');
+  let reportedFailure = null;
+  const failed = await initializeDeviceSession({
+    loaders: {
+      globalConfig: async () => { throw failure; },
+      screenControl: async () => {},
+      profileList: async () => {},
+      hotkeys: async () => {},
+      firmwareMetadata: async () => {},
+      hitboxLayout: async () => [],
+    },
+    isCurrent: () => true,
+    onReady: () => assert.fail('failed initialization must not become ready'),
+    onFailure: (error) => { reportedFailure = error; },
+  });
+  assert.equal(failed, 'failed');
+  assert.equal(reportedFailure, failure);
+
+  let staleCallbackCalled = false;
+  const stale = await initializeDeviceSession({
+    loaders: {
+      globalConfig: async () => {},
+      screenControl: async () => {},
+      profileList: async () => {},
+      hotkeys: async () => {},
+      firmwareMetadata: async () => {},
+      hitboxLayout: async () => [],
+    },
+    isCurrent: () => false,
+    onReady: () => { staleCallbackCalled = true; },
+    onFailure: () => { staleCallbackCalled = true; },
+  });
+  assert.equal(stale, 'stale');
+  assert.equal(staleCallbackCalled, false);
 });
 
 test('WebHID bootstrap supports fragmented request/response but protected RPC stays closed', async () => {
@@ -1037,6 +1237,101 @@ test('authentication defaults are least-privilege and bearer tokens are origin/s
     auth.authorizedFetch('https://config.example/api', {}, []),
     /会话已过期/,
   );
+});
+
+test('aborted reauthorization cannot install a permit, token, or close a later session', async () => {
+  const requestedScopes = [...DEFAULT_DEVICE_SCOPES, 'device.control'];
+  const challenge = {
+    challengeId: 'challenge-cancel-fixture',
+    nonce: Buffer.alloc(32, 0x11).toString('base64'),
+    expiresAt: Date.now() + 60_000,
+  };
+  const attestation = {
+    deviceId: 'device-cancel-fixture',
+    certificate: 'fixture-certificate',
+    bootAttestation: 'fixture-boot-attestation',
+    bootNonce: 'fixture-boot-nonce',
+    deviceEphemeralPublicKey: Buffer.alloc(65, 0x04).toString('base64'),
+    firmwareMeasurement: 'fixture-measurement',
+    hardwareVersion: '2.0.0',
+    firmwareVersion: '2.0.0',
+    signature: 'fixture-signature',
+  };
+  const authorization = {
+    apiToken: 'stale-api-token',
+    expiresInMs: 60_000,
+    sessionId: 'session-cancel-fixture',
+    deviceSessionPermit: 'fixture-permit',
+    sessionSalt: Buffer.alloc(16, 0x22).toString('base64'),
+    scopes: requestedScopes,
+  };
+  const fetchSignals = [];
+  let fetchIndex = 0;
+  let resolveAuthorization;
+  let authorizationReadStarted;
+  const authorizationReadStartedPromise = new Promise((resolve) => {
+    authorizationReadStarted = resolve;
+  });
+  const auth = new DeviceAuthClient({
+    serverOrigin: 'https://config.example',
+    fetch: async (_input, init) => {
+      fetchSignals.push(init.signal);
+      const isChallenge = fetchIndex++ === 0;
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          if (isChallenge) {
+            return challenge;
+          }
+          authorizationReadStarted();
+          return new Promise((resolve) => {
+            resolveAuthorization = resolve;
+          });
+        },
+      };
+    },
+  });
+  let permitCalls = 0;
+  let establishCalls = 0;
+  let closeCalls = 0;
+  const transport = {
+    session: {
+      transport: 'webhid',
+      authenticated: false,
+      scopes: [],
+    },
+    setAuthenticating() {},
+    async bootstrapRequest(command) {
+      if (command === 'attestation.create') {
+        return attestation;
+      }
+      assert.equal(command, 'session.install-permit');
+      permitCalls += 1;
+      return { accepted: true, sessionId: authorization.sessionId };
+    },
+    establishSecureSession() { establishCalls += 1; },
+    async close() { closeCalls += 1; },
+  };
+  const controller = new AbortController();
+  const reauthorization = auth.reauthorize(
+    transport,
+    requestedScopes,
+    controller.signal,
+  );
+  const cancellation = assert.rejects(reauthorization, /认证流程.*取消/);
+  await authorizationReadStartedPromise;
+  controller.abort();
+  resolveAuthorization(authorization);
+  await cancellation;
+
+  assert.equal(fetchSignals.length, 2);
+  assert.ok(fetchSignals.every((signal) => signal === controller.signal));
+  assert.equal(permitCalls, 0);
+  assert.equal(establishCalls, 0);
+  assert.equal(closeCalls, 0);
+  assert.equal(auth.apiToken, null);
+  assert.deepEqual(auth.grantedScopes, []);
 });
 
 test('binary and RPC scope policy is explicit and unknown opcodes fail closed', () => {

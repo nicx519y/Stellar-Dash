@@ -41,6 +41,7 @@ public:
     void setup();
     void assertMainPowerHold();
     void enterSafeState();
+    void enterRecoveryUiState();
     void prepareForStandby();
     void releaseSafeState();
 
@@ -61,6 +62,7 @@ public:
     bool isCh585Enabled() const { return ch585Enabled; }
     bool isUsbHostEnabled() const { return usbHostEnabled; }
     bool isSafeLatched() const { return safeLatched; }
+    bool isRecoveryUiAllowed() const { return recoveryUiAllowed; }
 
 private:
     BoardPower() = default;
@@ -78,6 +80,7 @@ private:
     bool ch585Enabled = false;
     bool usbHostEnabled = false;
     bool safeLatched = true;
+    bool recoveryUiAllowed = false;
 };
 
 #define BOARD_POWER BoardPower::getInstance()

@@ -288,6 +288,28 @@ class FirmwareStorage {
                     deviceInfo.certificateFingerprint &&
                 existingDevice.certificateSerial ===
                     deviceInfo.certificateSerial;
+            /*
+             * Records created before product/PCB routing existed can be
+             * upgraded only while re-enrolling the exact same signed
+             * certificate. No caller-supplied value can overwrite an
+             * existing identity binding.
+             */
+            if (matchesEnrollment &&
+                existingDevice.productId === undefined &&
+                existingDevice.pcbRevision === undefined) {
+                existingDevice.productId = deviceInfo.productId;
+                existingDevice.pcbRevision = deviceInfo.pcbRevision;
+                if (!this.saveDeviceData()) {
+                    delete existingDevice.productId;
+                    delete existingDevice.pcbRevision;
+                    return {
+                        success: false,
+                        existed: true,
+                        conflict: false,
+                        device: existingDevice
+                    };
+                }
+            }
             return {
                 success: matchesEnrollment,
                 existed: true,
@@ -313,6 +335,8 @@ class FirmwareStorage {
         const newDevice = {
             deviceId: deviceInfo.deviceId.toUpperCase(),
             deviceName: String(deviceInfo.deviceName).slice(0, 128),
+            productId: deviceInfo.productId,
+            pcbRevision: deviceInfo.pcbRevision,
             hardwareVersion: deviceInfo.hardwareVersion,
             authVersion: 2,
             authLevel: deviceInfo.authLevel,

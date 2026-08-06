@@ -89,8 +89,9 @@ void BoardPower::setup()
     __HAL_RCC_GPIOH_CLK_ENABLE();
 
     /*
-     * Program the output latches first.  PI4 is deliberately kept high;
-     * every optional/high-current load starts disabled.
+     * Program the output latches first. PI4 and the local LCD rail stay high;
+     * every external optional/high-current load starts disabled. The LCD is
+     * the device's recovery UI and must not depend on CH585 role negotiation.
      */
     writePin(CHARGE_EN_N_PORT, CHARGE_EN_N_PIN, true);
     writePin(HALL_VCC_EN_PORT, HALL_VCC_EN_PIN, false);
@@ -98,7 +99,7 @@ void BoardPower::setup()
     writePin(BOOST_5V_EN_PORT, BOOST_5V_EN_PIN, false);
     writePin(LED_EN_PORT, LED_EN_PIN, false);
     writePin(AMBIENT_EN_PORT, AMBIENT_EN_PIN, false);
-    writePin(LCD_EN_PORT, LCD_EN_PIN, false);
+    writePin(LCD_EN_PORT, LCD_EN_PIN, true);
     writePin(CH585_EN_PORT, CH585_EN_PIN, false);
     writePin(USB_HOST_EN_PORT, USB_HOST_EN_PIN, false);
 
@@ -119,10 +120,11 @@ void BoardPower::setup()
     ledBoostEnabled = false;
     keyLedEnabled = false;
     ambientLedEnabled = false;
-    lcdEnabled = false;
+    lcdEnabled = true;
     ch585Enabled = false;
     usbHostEnabled = false;
     safeLatched = true;
+    recoveryUiAllowed = false;
     initialized = true;
 }
 
@@ -218,20 +220,32 @@ bool BoardPower::setUsbHostEnabled(bool enabled)
 void BoardPower::enterSafeState()
 {
     safeLatched = true;
+    recoveryUiAllowed = true;
     (void)setUsbHostEnabled(false);
     setCh585Enabled(false);
     setKeyLedEnabled(false);
     setAmbientLedEnabled(false);
     setLedBoostEnabled(false);
-    setLcdEnabled(false);
+    /* Keep the local UI available even when CH585 or the physical mode gate
+     * fails. Only prepareForStandby() is allowed to remove LCD power. */
+    setLcdEnabled(true);
     setHallEnabled(false);
     setChargeEnabled(false);
     assertMainPowerHold();
 }
 
+void BoardPower::enterRecoveryUiState()
+{
+    enterSafeState();
+    /* Keep the global safe latch asserted while the local screen remains the
+     * only enabled recovery UI. */
+    recoveryUiAllowed = true;
+}
+
 void BoardPower::prepareForStandby()
 {
     safeLatched = true;
+    recoveryUiAllowed = false;
     (void)setUsbHostEnabled(false);
     setCh585Enabled(false);
     setKeyLedEnabled(false);
@@ -250,5 +264,6 @@ void BoardPower::releaseSafeState()
      * rails remain off until their owning subsystem explicitly enables them.
      */
     safeLatched = false;
+    recoveryUiAllowed = false;
     assertMainPowerHold();
 }

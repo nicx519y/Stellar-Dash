@@ -21,8 +21,8 @@ HBox 工具统一入口（tools/hbox.py）
 2) flash
   - bootloader（生产安全门禁，拒绝单独擦除）
   - bootloader-dev（仅限未置备开发板）
-  - app A|B
-  - code A|B
+  - app A|B（安全完整槽：构建、签名、烧录，metadata最后提交）
+  - code A|B（低层纯代码烧录，不更新metadata）
   - appAll A|B
   - assets
 
@@ -44,6 +44,10 @@ HBox 工具统一入口（tools/hbox.py）
   python tools/hbox.py web dev
   python tools/hbox.py web build
   python tools/hbox.py web build-legacy
+  python tools/hbox.py web local-init
+  python tools/hbox.py web local-build
+  python tools/hbox.py web local-flash-stm32 --simple-execute
+  python tools/hbox.py web local-serve
 """
 
 import argparse
@@ -69,6 +73,48 @@ def _run_python_tool(script_name: str, tool_args: list[str]) -> int:
 
     cmd = [sys.executable, str(script_path), *tool_args]
     return subprocess.call(cmd, cwd=_project_root())
+
+
+def _local_webconfig_state_is_initialized() -> bool:
+    return (
+        _project_root()
+        / ".hbox"
+        / "webconfig-local"
+        / "manifest.json"
+    ).is_file()
+
+
+def _run_secure_application_flash(slot: str) -> int:
+    """Build, sign and atomically commit one bootable application slot."""
+
+    normalized_slot = slot.upper()
+    if not _local_webconfig_state_is_initialized():
+        print("首次安全烧录：正在创建本机调试用设备身份和签名密钥...")
+        rc = _run_python_tool("webconfig_local.py", ["init"])
+        if rc != 0:
+            return rc
+
+    print(f"正在构建并签名 Application 槽 {normalized_slot}...")
+    rc = _run_python_tool(
+        "webconfig_local.py",
+        [
+            "build",
+            "--slot",
+            normalized_slot,
+            "--skip-web",
+            "--jobs",
+            "4",
+        ],
+    )
+    if rc != 0:
+        return rc
+
+    print("开始安全烧录：槽内容先写入，签名 metadata 最后提交...")
+    rc = _run_python_tool("webconfig_flash.py", ["--simple-execute"])
+    if rc == 0:
+        print(f"Application 槽 {normalized_slot} 已烧录并提交签名 metadata。")
+        print("flash code 仅用于明确需要的低层纯代码写入。")
+    return rc
 
 
 def _run_node_makefsdata() -> int:
@@ -200,6 +246,10 @@ def main(argv: list[str]) -> int:
   python tools/hbox.py web dev
   python tools/hbox.py web build
   python tools/hbox.py web build-legacy
+  python tools/hbox.py web local-init
+  python tools/hbox.py web local-build
+  python tools/hbox.py web local-flash-stm32 --simple-execute
+  python tools/hbox.py web local-serve
 """,
     )
 
@@ -219,7 +269,22 @@ def main(argv: list[str]) -> int:
     p_release.add_argument("args", nargs=argparse.REMAINDER)
 
     p_web = subparsers.add_parser("web", help="Web前端")
-    p_web.add_argument("target", choices=["dev", "build", "dev-legacy", "build-legacy"])
+    p_web.add_argument(
+        "target",
+        choices=[
+            "dev",
+            "build",
+            "dev-legacy",
+            "build-legacy",
+            "local-init",
+            "local-build",
+            "local-flash-stm32",
+            "local-serve",
+            "local-status",
+            "probe-revision",
+        ],
+    )
+    p_web.add_argument("args", nargs=argparse.REMAINDER)
 
     args = parser.parse_args(argv)
 
@@ -266,7 +331,7 @@ def main(argv: list[str]) -> int:
             if not args.slot:
                 print("错误: flash app 需要指定槽位 A 或 B")
                 return 2
-            return _run_python_tool("build.py", ["flash", "app", args.slot])
+            return _run_secure_application_flash(args.slot)
         if args.target == "code":
             if not args.slot:
                 print("错误: flash code 需要指定槽位 A 或 B")
@@ -278,7 +343,7 @@ def main(argv: list[str]) -> int:
                 return 2
             if args.code_only:
                 return _run_python_tool("build.py", ["flash", "app", args.slot])
-            return _run_python_tool("build.py", ["flash", "all", args.slot])
+            return _run_secure_application_flash(args.slot)
 
     if args.cmd == "release":
         if args.target == "auto":
@@ -295,6 +360,20 @@ def main(argv: list[str]) -> int:
             return _run_npm_script("dev:all")
         if args.target == "build-legacy":
             return _run_legacy_embedded_web_build()
+        if args.target == "local-flash-stm32":
+            return _run_python_tool("webconfig_flash.py", args.args)
+        local_commands = {
+            "local-init": "init",
+            "local-build": "build",
+            "local-serve": "serve",
+            "local-status": "status",
+            "probe-revision": "probe-revision",
+        }
+        if args.target in local_commands:
+            return _run_python_tool(
+                "webconfig_local.py",
+                [local_commands[args.target], *args.args],
+            )
 
     return 2
 

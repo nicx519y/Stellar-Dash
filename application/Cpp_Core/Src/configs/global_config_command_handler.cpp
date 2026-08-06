@@ -8,6 +8,7 @@
 #include "board_mode.hpp"
 #include "usb_board_link.hpp"
 #include "config_transport_sink.hpp"
+#include "firmware_metadata.h"
 #include <map>
 #include <stdio.h>
 #include <cstring>
@@ -140,7 +141,10 @@ static void add_latest_board_json(cJSON* globalConfigJSON, const Config& config)
     cJSON_AddNumberToObject(hardwareJSON, "batteryPackCount", config.hardware.batteryPackCount);
     cJSON_AddNumberToObject(hardwareJSON, "keyLedCount", config.hardware.keyLedCount);
     cJSON_AddNumberToObject(hardwareJSON, "ambientLedCount", config.hardware.ambientLedCount);
-    cJSON_AddStringToObject(hardwareJSON, "hardwareVersion", "2.0.0");
+    /* This is the signed PCB revision, not the STM32 silicon REV_ID. */
+    cJSON_AddStringToObject(hardwareJSON,
+                            "hardwareVersion",
+                            HARDWARE_VERSION_STRING);
     cJSON_AddItemToObject(globalConfigJSON, "hardware", hardwareJSON);
 
     const usb_board_role_t role = USB_BOARD_LINK.role();

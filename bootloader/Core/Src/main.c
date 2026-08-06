@@ -32,6 +32,10 @@
 #include "secure_access_handoff.h"
 #include "system_logger.h"  // 日志模块头文件
 #include "gpio.h"
+#if defined(HBOX_FACTORY_IDENTITY_ENROLLMENT) && \
+    HBOX_FACTORY_IDENTITY_ENROLLMENT
+#include "factory_identity_service.h"
+#endif
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -83,38 +87,57 @@ int main(void)
   SystemClock_Config();
   PeriphCommonClock_Config();
   USART1_Init();
+
+  BOOT_STAGE("B01", "reset entry; MPU, HAL, safe power, clocks and USART1 ready");
+  BOOT_STAGE("B02", "main power stabilized for %lu ms; LCD_EN held high",
+             (unsigned long)MAIN_POWER_STABILIZE_MS);
   
   // 使用BOOT_DBG输出初始化状态（不依赖日志系统）
   BOOT_DBG("HBox Bootloader v2.0.0 starting...");
   BOOT_DBG("MPU/HAL/USART1 initialized");
   
   // 初始化QSPI Flash（必须在日志系统之前）
-  BOOT_DBG("Initializing QSPI Flash...");
+  BOOT_STAGE("B03", "QSPI initialization begin");
   if(QSPI_W25Qxx_Init() != QSPI_W25Qxx_OK) {
+    BOOT_STAGE_ERROR("B03", "QSPI initialization failed; boot stopped");
     BOOT_ERR("QSPI_W25Qxx_Init failed\r\n");
     return -1;
   }
-  BOOT_DBG("QSPI Flash initialized successfully");
+  BOOT_STAGE("B03", "QSPI initialization complete");
   
   // 等待一小段时间确保QSPI完全初始化
   HAL_Delay(50);
   
   // 现在可以安全地初始化日志模块
-  BOOT_DBG("Initializing Logger system...");
+  BOOT_STAGE("B04", "persistent logger initialization begin");
   LogResult init_result = Logger_Init(true, LOG_LEVEL_DEBUG);
 
-  BOOT_DBG("Logger system initialized");
-
   if (init_result != LOG_RESULT_SUCCESS) {
+    BOOT_STAGE_ERROR("B04", "persistent logger initialization failed: %d",
+                     init_result);
     BOOT_ERR("Logger_Init failed with error: %d", init_result);
     return -1;
   }
+  BOOT_STAGE("B04", "persistent logger initialization complete");
 
   // QSPI_W25Qxx_Test(0x00500000);
 
   Logger_Log(LOG_LEVEL_INFO, "BOOTLOADER", "System startup - MPU/HAL/USART1 initialized");
 
+#if defined(HBOX_FACTORY_IDENTITY_ENROLLMENT) && \
+    HBOX_FACTORY_IDENTITY_ENROLLMENT
+  /*
+   * Factory-only builds have no implicit transport or authorization bypass.
+   * The explicitly injected service receives the retained enrollment API and
+   * its independent gate source must authorize every internal-Flash write.
+   */
+  HBoxFactoryIdentityService_Run(
+      HBoxFactoryIdentityEnrollment_GetApi());
+#endif
+
+  BOOT_STAGE("B05", "secure application handoff begin");
   JumpToApplication();
+  BOOT_STAGE_ERROR("B05", "application handoff returned without transfer");
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -298,15 +321,18 @@ void Error_Handler(void)
 void JumpToApplication(void)
 {
     BootAttestation_Invalidate();
+    BOOT_STAGE("B06", "previous boot attestation context invalidated");
 
 
     // 进入内存映射模式
     if(QSPI_W25Qxx_EnterMemoryMappedMode() != QSPI_W25Qxx_OK)
     {
+        BOOT_STAGE_ERROR("B07", "QSPI memory-mapped mode entry failed");
         Logger_Log(LOG_LEVEL_ERROR, "QSPI", "Failed to enter memory mapped mode");
         BOOT_ERR("QSPI_W25Qxx_EnterMemoryMappedMode failed");
         return;
     }
+    BOOT_STAGE("B07", "QSPI memory-mapped mode active");
 
     
 
@@ -317,6 +343,8 @@ void JumpToApplication(void)
     FirmwareSlot target_slot;
     
     if (load_result != 0) {
+        BOOT_STAGE_ERROR("B08", "signed metadata rejected: code=%d",
+                         load_result);
 #if HBOX_SECURE_BOOT_REQUIRED
         Logger_Log(LOG_LEVEL_ERROR, "METADATA",
                    "Signed metadata validation failed (code=%d); entering recovery",
@@ -348,6 +376,9 @@ void JumpToApplication(void)
     
     // 元数据加载成功
     target_slot = (FirmwareSlot)metadata.target_slot;
+    BOOT_STAGE("B08", "signed metadata accepted: target slot=%s, version=%s",
+               (target_slot == FIRMWARE_SLOT_A) ? "A" : "B",
+               metadata.firmware_version);
     Logger_Log(LOG_LEVEL_INFO, "METADATA", "Loaded metadata: FW=%s, Target=%s, Build=%s", 
                      metadata.firmware_version, 
                      (target_slot == FIRMWARE_SLOT_A) ? "A" : "B",
@@ -355,6 +386,8 @@ void JumpToApplication(void)
     
     // 验证目标槽位有效性
     if (!DualSlot_IsSlotValid(target_slot)) {
+        BOOT_STAGE_ERROR("B09", "target slot %s validation failed",
+                         (target_slot == FIRMWARE_SLOT_A) ? "A" : "B");
 #if HBOX_SECURE_BOOT_REQUIRED
         Logger_Log(LOG_LEVEL_ERROR, "SLOT",
                    "Signed target slot invalid; entering controlled recovery");
@@ -376,10 +409,14 @@ void JumpToApplication(void)
         }
 #endif
     }
+    BOOT_STAGE("B09", "target slot %s image and signature accepted",
+               (target_slot == FIRMWARE_SLOT_A) ? "A" : "B");
     
     // 获取应用程序地址
     app_base_address = DualSlot_GetSlotAddress("application", target_slot);
     if (app_base_address == 0) {
+        BOOT_STAGE_ERROR("B10", "application address lookup failed for slot %s",
+                         (target_slot == FIRMWARE_SLOT_A) ? "A" : "B");
         Logger_Log(LOG_LEVEL_ERROR, "SLOT", "Cannot get address for slot %s", 
                          (target_slot == FIRMWARE_SLOT_A) ? "A" : "B");
         BOOT_ERR("Cannot get application address for slot %s", 
@@ -394,6 +431,9 @@ perform_jump:
     
     // 验证向量表有效性
     if ((app_stack & 0xFFF00000) != 0x20000000 || (jump_address & 0xFF000000) != 0x90000000) {
+        BOOT_STAGE_ERROR("B10", "vector table rejected: SP=0x%08lX PC=0x%08lX",
+                         (unsigned long)app_stack,
+                         (unsigned long)jump_address);
         Logger_Log(LOG_LEVEL_ERROR, "VECTOR", "Invalid vector table: SP=0x%08lX, PC=0x%08lX", 
                          (unsigned long)app_stack, (unsigned long)jump_address);
         BOOT_ERR("Invalid vector table addresses");
@@ -404,15 +444,31 @@ perform_jump:
     uint16_t* code_ptr = (uint16_t*)(jump_address & ~1UL);
     uint16_t first_instruction = code_ptr[0];
     if (first_instruction == 0x0000 || first_instruction == 0xFFFF) {
+        BOOT_STAGE_ERROR("B10", "reset handler instruction rejected: 0x%04X",
+                         first_instruction);
         Logger_Log(LOG_LEVEL_ERROR, "CODE", "Invalid instruction at target: 0x%04X", first_instruction);
         BOOT_ERR("Target address contains invalid instruction: 0x%04X", first_instruction);
         return;
     }
-
+    BOOT_STAGE("B10", "vector table accepted: base=0x%08lX SP=0x%08lX PC=0x%08lX",
+               (unsigned long)app_base_address,
+               (unsigned long)app_stack,
+               (unsigned long)jump_address);
 #if HBOX_SECURE_BOOT_REQUIRED
     hbox_secure_access_status_t secure_access_status =
         HBoxSecureAccess_ValidateLifecycle();
+    if (secure_access_status == HBOX_SECURE_ACCESS_AREA_MISMATCH &&
+        HBoxSecureAccess_CanInitializeFullInternalFlashArea()) {
+        BOOT_STAGE("B11", "blank SCAR detected under SECURITY/RDP1; RSS full internal secure-area initialization begin");
+        Logger_Log(LOG_LEVEL_WARN, "SECURE_ACCESS",
+                   "Initializing the one-time full internal Flash secure area through RSS");
+        Logger_Flush();
+        HBoxSecureAccess_InitializeFullInternalFlashArea();
+    }
     if (secure_access_status != HBOX_SECURE_ACCESS_OK) {
+        BOOT_STAGE_ERROR("B11", "secure lifecycle rejected: %s (%d)",
+                         HBoxSecureAccess_StatusString(secure_access_status),
+                         (int)secure_access_status);
         BootAttestation_Invalidate();
         Logger_Log(LOG_LEVEL_ERROR, "SECURE_ACCESS",
                    "Lifecycle validation failed: %s (%d)",
@@ -421,6 +477,7 @@ perform_jump:
         BOOT_ERR("Secure user area is not ready; refusing application handoff");
         return;
     }
+    BOOT_STAGE("B11", "secure lifecycle accepted");
 
     /*
      * The complete target slot and its release signature were accepted above.
@@ -431,6 +488,9 @@ perform_jump:
     if (!FirmwareSecurity_CommitValidatedSecurityVersion(&metadata)) {
         hbox_security_version_status_t version_status =
             FirmwareSecurity_LastSecurityVersionStatus();
+        BOOT_STAGE_ERROR("B12", "anti-rollback commit failed: %s (%d)",
+                         HBoxSecurityVersion_StatusString(version_status),
+                         (int)version_status);
         Logger_Log(LOG_LEVEL_ERROR, "ANTIROLLBACK",
                    "Minimum security-version commit failed: %s (%d)",
                    HBoxSecurityVersion_StatusString(version_status),
@@ -438,6 +498,7 @@ perform_jump:
         BOOT_ERR("Anti-rollback provider unavailable or invalid; refusing jump");
         return;
     }
+    BOOT_STAGE("B12", "anti-rollback minimum committed");
 
     /*
      * No identity, invalid manufacturer certificate, entropy failure, or
@@ -445,11 +506,13 @@ perform_jump:
      * root for the later WebHID online proof.
      */
     if (!BootAttestation_Prepare(&metadata)) {
+        BOOT_STAGE_ERROR("B13", "device identity or boot attestation unavailable");
         Logger_Log(LOG_LEVEL_ERROR, "ATTESTATION",
                    "Unable to create an authenticated boot context");
         BOOT_ERR("Device identity/boot attestation unavailable; refusing jump");
         return;
     }
+    BOOT_STAGE("B13", "authenticated boot context prepared");
 #endif
 
     BOOT_DBG("Jumping to slot %s: Base=0x%08lX, SP=0x%08lX, PC=0x%08lX", 
@@ -465,8 +528,14 @@ perform_jump:
                      (unsigned long)jump_address);
 
     
+#if HBOX_SECURE_BOOT_REQUIRED
+    BOOT_STAGE("B14", "ROM secure-area transfer selected; flushing logs");
+#else
+    BOOT_STAGE("B14", "unlocked development direct transfer selected; flushing logs");
+#endif
     // 刷新日志缓冲区，确保日志写入Flash，再往下无法使用logger
     Logger_Flush();
+    BOOT_STAGE("B15", "logs flushed; teardown begins; next milestone must be APP A01");
 
     /****************************  跳转前准备  ************************* */
     // 关闭SysTick
@@ -495,6 +564,9 @@ perform_jump:
     
     // 验证向量表设置
     if (SCB->VTOR != app_base_address) {
+        BOOT_STAGE_ERROR("B16", "VTOR update failed: expected=0x%08lX actual=0x%08lX",
+                         (unsigned long)app_base_address,
+                         (unsigned long)SCB->VTOR);
         BOOT_ERR("Vector table setup failed: Expected=0x%08lX, Actual=0x%08lX", 
                  (unsigned long)app_base_address, (unsigned long)SCB->VTOR);
         Logger_Log(LOG_LEVEL_ERROR, "VECTOR", "Vector table setup failed: Expected=0x%08lX, Actual=0x%08lX", 
@@ -542,6 +614,7 @@ perform_jump:
 #endif
 
     // 不应该到达这里
+    BOOT_STAGE_ERROR("B16", "application transfer returned unexpectedly");
     BOOT_ERR("Jump failed! Program should not return here");
     Logger_Log(LOG_LEVEL_FATAL, "JUMP", "Jump to application failed - should not return here");
     while(1) {

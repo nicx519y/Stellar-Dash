@@ -23,8 +23,16 @@ extern "C" {
 #define HBOX_SECURITY_ID_BYTES                  16u
 #define HBOX_SECURITY_NONCE_BYTES               32u
 #define HBOX_SECURITY_HASH_BYTES                32u
+#define HBOX_SECURITY_PRODUCT_ID_BYTES          4u
 #define HBOX_SECURITY_SESSION_SECONDS           300u
 #define HBOX_SECURITY_CHALLENGE_SECONDS         60u
+
+/*
+ * Manufacturer-assigned product family identifier.  The little-endian wire
+ * bytes for this value spell "HBOX".  This is deliberately independent from
+ * the STM32 DEV_ID/REV_ID: it identifies the product whose PCB is certified.
+ */
+#define HBOX_PRODUCT_ID                         0x584F4248u
 
 #define HBOX_DEVICE_CERTIFICATE_MAGIC           0x31434448u /* "HDC1" */
 #define HBOX_BOOT_ATTESTATION_MAGIC             0x31414248u /* "HBA1" */
@@ -68,11 +76,13 @@ typedef struct HBOX_SECURITY_PACKED
     uint16_t signed_bytes_le;
     uint8_t certificate_serial[HBOX_SECURITY_ID_BYTES];
     uint8_t device_id[HBOX_SECURITY_DEVICE_ID_BYTES];
+    /* SemVer-style PCB revision: major << 16 | minor << 8 | patch. */
     uint32_t hardware_version_le;
     uint32_t issued_at_le;
     uint8_t device_public_key[HBOX_SECURITY_P256_PUBLIC_KEY_BYTES];
     uint8_t production_batch[16];
-    uint8_t reserved[15];
+    uint32_t product_id_le;
+    uint8_t reserved[11];
     uint8_t manufacturer_signature[HBOX_SECURITY_P256_SIGNATURE_BYTES];
 } hbox_device_certificate_v1_t;
 
@@ -167,6 +177,8 @@ HBOX_SECURITY_STATIC_ASSERT(HBOX_SESSION_PERMIT_SIGNED_BYTES < 256u);
 HBOX_SECURITY_STATIC_ASSERT(sizeof(((hbox_device_certificate_v1_t *)0)
                                        ->device_public_key) ==
                             HBOX_SECURITY_P256_PUBLIC_KEY_BYTES);
+HBOX_SECURITY_STATIC_ASSERT(
+    offsetof(hbox_device_certificate_v1_t, product_id_le) == 129u);
 HBOX_SECURITY_STATIC_ASSERT(sizeof(((hbox_device_session_permit_v1_t *)0)
                                        ->server_signature) ==
                             HBOX_SECURITY_P256_SIGNATURE_BYTES);

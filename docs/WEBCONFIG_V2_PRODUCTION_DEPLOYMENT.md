@@ -41,9 +41,41 @@ TRUST_PROXY_HOPS=1
 WEB_CONFIG_ORIGINS=https://firmware.st-dash.com
 WEB_CONFIG_STATIC_DIR=/srv/hbox-webconfig
 WEB_CONFIG_REQUIRE_STATIC=1
+HBOX_SERVER_DATA_DIR=/var/lib/hbox
+HBOX_SERVER_UPLOAD_DIR=/var/lib/hbox/uploads
 DEVICE_CA_PUBLIC_KEY_FILE=/run/secrets/hbox-device-ca-public.pem
+FIRMWARE_RELEASE_PUBLIC_KEY_FILE=/run/secrets/hbox-firmware-release-public.pem
 DEVICE_AUTH_V2_ADAPTER_MODULE=/opt/hbox/device-auth-v2-production-adapter.js
+WEB_CONFIG_TARGET_POLICY_FILE=/etc/hbox/webconfig-target-policy.json
 ```
+
+设备产品与页面版本选择不使用 STM32 silicon `REV_ID`。制造证书签名区中的四字节
+`productId` 证明产品族，原有 `hardware_version_le` 表示 PCB revision。服务端仅在
+二者通过证书、enrollment 和 target-policy 白名单后返回
+`productId + pcbRevision + webConfigProfile`；浏览器再次与设备 attestation 的
+hardware version 交叉校验，并只跳转到本站
+`/webconfig/<profile>/...`。未知产品、未知 PCB 或未知 profile 均拒绝建立会话。
+
+策略文件示例：
+
+```json
+{
+  "schemaVersion": 1,
+  "productId": "HBOX",
+  "pcbRevisions": {
+    "2.0.0": { "profile": "hbox-pcb-v2" },
+    "3.0.0": { "profile": "hbox-pcb-v3" }
+  }
+}
+```
+
+`HBOX_SERVER_DATA_DIR`、`HBOX_SERVER_UPLOAD_DIR` 和
+`FIRMWARE_RELEASE_PUBLIC_KEY_FILE` 在生产环境中都必须显式配置为绝对路径；缺少
+任一项、使用相对路径，或发布公钥不是 P-256 公钥时，进程必须启动失败。
+状态目录保存服务端 JSON 状态（在生产 adapter 完全接管前仅用于单机管理面），
+上传目录保存待校验/已发布固件；两者不得落在代码仓库、静态站点目录或容器临时
+层内。发布公钥文件只包含离线 firmware release signer 的公钥，私钥不得进入
+WebConfig server。
 
 `TRUST_PROXY_HOPS` 只能是 `0`、`1` 或 `2`，必须等于 Node 前方由本方控制的反向
 代理层数；没有受控代理时保持默认 `0`。生产默认 `LISTEN_HOST=127.0.0.1`，不要
@@ -195,13 +227,36 @@ Nginx、CDN 与 Node 三层的重复 header 必须在 staging 用浏览器网络
 ## 服务端机密与日志
 
 - secret 通过 workload identity 挂载/调用，不进入 `.env`、镜像层或 CI artifact。
-- 制造 CA 只部署公钥；authorization 服务只取得 KMS key ID；release key 不进入
-  WebConfig server。
+- 制造 CA 只部署公钥；authorization 服务只取得 KMS key ID；firmware release
+  私钥不进入 WebConfig server，服务端仅挂载用于验签的 P-256 公钥。
 - 日志对 `Authorization`、cookie、nonce、certificate bytes、attestation、
   signature、permit 和 ECDH key 做字段级删除。
 - device ID、证书指纹、policy version 和错误码可用于审计；IP 保留遵循隐私政策。
 - 管理员 enrollment/policy/revoke API 使用独立强认证、最小权限和完整审计。
 - firmware download URL 不接受 query token；只能使用内存 bearer token header。
+
+## OTA 上传包精确验证
+
+管理员上传的每个 Slot A/Slot B OTA ZIP 都必须带有由发布工具生成的
+`manifest.json` 和恰好 807 字节的 `metadata.bin`。服务端在保存目录和固件目录
+更新前执行 fail-closed 校验：
+
+- ZIP 只允许 `manifest.json`、`metadata.bin` 和 manifest 中声明为 active 的
+  component，缺文件、重复文件、路径穿越或额外文件均拒绝；
+- `metadata.bin` 的大小、manifest descriptor 的大小/SHA-256、metadata CRC32、
+  magic/version/target slot/hardware version/firmware version 必须逐字节匹配；
+- 每个 component 的名称、地址、大小、SHA-256、active 状态和保留字段必须与
+  manifest 及 ZIP 内容一致，整体 firmware hash 也必须一致；
+- security version、签名算法、签名长度、authorization key mask、保留区和可选
+  hosted webresources 语义必须是规范编码；
+- 服务端把 CRC、firmware hash 和 signature 字段归零后重建 canonical metadata，
+  使用 `FIRMWARE_RELEASE_PUBLIC_KEY_FILE` 指定的 P-256 公钥验证 64 字节
+  `r || s` ECDSA/SHA-256 签名。
+
+因此，仅修改 `manifest.json`、重新计算 ZIP CRC 或 metadata SHA-256 不能绕过
+门禁；缺失、未签名、签名被替换、字段不一致或包含额外内容的包都会在上传阶段
+被拒绝。生产发布任务必须先生成并签署精确 `metadata.bin`，再把同一公钥部署到
+服务端验证节点。
 
 ## 发布前自动化
 
@@ -267,11 +322,13 @@ release 进程。
   `HBOX_DEVICE_IDENTITY_PROVIDER_READY=0`；量产 provider、一次性工厂端点和
   option-byte 顺序必须按 `DEVICE_IDENTITY_PROVISIONING.md` 完成实机评审后才
   能启用，不能把 portable journal 单元测试等同于量产置备。
-- 启用任一仓库内 internal-Flash provider 时，构建必须传入非零
-  `HBOX_STM32H750_REVISION_ID=<批准的实机 REV_ID>`；运行时必须同时通过
-  `DEV_ID=0x450`、精确 REV_ID、RDP1、SECURITY/Secure mode、完整 128KiB
-  SCAR 与内部 Flash 执行位置校验。文档中的十六进制值仅为命令格式示例，
-  不能替代 silicon qualification。
+- 启用仓库内 internal-Flash provider 不再要求精确 silicon `REV_ID`。运行时始终
+  校验 `DEV_ID=0x450`、RDP1、SECURITY/Secure mode、完整 128KiB SCAR 与内部
+  Flash 执行位置。只有勘误/兼容性评审要求时，才同时设置
+  `HBOX_STM32H750_REVISION_QUALIFICATION=1` 和批准的
+  `HBOX_STM32H750_REVISION_ID`，启用额外精确 revision 门禁。该门禁不能作为产品
+  身份；产品归属、唯一设备身份和 PCB 版本必须由制造证书、`Kdev` 持有证明及
+  证书内硬件版本策略建立。
 - 复制 VID/PID、序列号或 208B 证书到另一板，无 `Kdev` 时认证失败。
 - unsigned、篡改、错误 hardware target、低 security version 固件不启动。
 - A/B 启动、回退和恢复模式不能绕过签名与 anti-rollback policy。

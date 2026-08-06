@@ -67,18 +67,27 @@ make -C bootloader clean all `
   HBOX_SECURITY_VERSION_PROVIDER_SOURCE=D:/secure-build/hbox_version_provider.c
 ```
 
-选择仓库内 STM32H750 internal-Flash provider 时，不得再传通用 source/ready；
-必须显式给出已经过硬件评审的 silicon `REV_ID`：
+选择仓库内 STM32H750 internal-Flash provider 时，不得再传通用 source/ready：
+
+```powershell
+make -C bootloader clean all `
+  HBOX_SECURITY_VERSION_INTERNAL_FLASH_PROVIDER=1
+```
+
+silicon `REV_ID` 是可选的芯片勘误/兼容性资格门禁，不是 HBox 产品身份，也不再是
+启用 identity/anti-rollback provider 的前置条件。确有独立批准清单时可显式启用：
 
 ```powershell
 make -C bootloader clean all `
   HBOX_SECURITY_VERSION_INTERNAL_FLASH_PROVIDER=1 `
+  HBOX_STM32H750_REVISION_QUALIFICATION=1 `
   HBOX_STM32H750_REVISION_ID=0x1003
 ```
 
-`0x1003` 仅为命令格式示例，不是仓库批准的量产 revision。构建值必须来自工厂
-实际读取值与独立批准清单；运行时还会再次核对 `DEV_ID=0x450`、该 `REV_ID`、
-RDP1、SECURITY/Secure mode、覆盖完整 128KiB 的 SCAR 和内部 Flash 执行位置。
+`0x1003` 仅为命令格式示例。运行时始终核对 `DEV_ID=0x450`、RDP1、
+SECURITY/Secure mode、覆盖完整 128KiB 的 SCAR 和内部 Flash 执行位置；只有显式
+启用 qualification 时才额外核对精确 `REV_ID`。产品身份由制造证书和 `Kdev`
+持有证明建立。
 
 只传 source、不打开 ready，或打开 ready 但不传 source，Makefile 都会停止。默认
 `READY=0` 不提供可被误认为量产安全的 RAM/QSPI/内部 Flash fallback。

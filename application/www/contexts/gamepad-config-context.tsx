@@ -38,8 +38,7 @@ export interface HitboxLayoutItem {
 import {
     DEFAULT_FIRMWARE_PACKAGE_CHUNK_SIZE,
     DEFAULT_FIRMWARE_UPGRADE_MAX_RETRIES,
-    DEFAULT_FIRMWARE_UPGRADE_TIMEOUT,
-    DEFAULT_FIRMWARE_SERVER_HOST
+    DEFAULT_FIRMWARE_UPGRADE_TIMEOUT
 } from '@/types/gamepad-config';
 
 import DeviceAuthManager from '@/contexts/deviceAuth';
@@ -53,6 +52,7 @@ import {
 import {
     configuredTransportMode,
     createDeviceTransportFramework,
+    DeviceSession,
     DeviceTransportFrameworkAdapter,
     PerformanceTelemetryController,
     WEBHID_FIRMWARE_CHUNK_DATA_SIZE,
@@ -68,11 +68,17 @@ import { calculateSHA256, extractFirmwarePackage } from '@/lib/firmware-utils';
 // 导入WebSocket队列管理器
 import { WebSocketQueueManager } from '@/lib/websocket-queue-manager';
 import { BUTTON_PERFORMANCE_MONITORING_CMD, parseButtonPerformanceMonitoringBinaryData } from '@/lib/button-performance-binary-parser';
+import { initializeDeviceSession } from '@/lib/device-transport/device-initialization';
+import { resolveDefaultFirmwareServerHost } from '@/lib/device-transport/firmware-server-origin';
 
 // 固件服务器配置
 const FIRMWARE_SERVER_CONFIG = {
-    // 默认固件服务器地址，可通过环境变量覆盖
-    defaultHost: process.env.NEXT_PUBLIC_FIRMWARE_SERVER_HOST || DEFAULT_FIRMWARE_SERVER_HOST,
+    // Hosted V2 pins API tokens to the page/auth origin. Only legacy retains
+    // the historical remote firmware-server default.
+    defaultHost: resolveDefaultFirmwareServerHost(
+        configuredTransportMode(),
+        process.env.NEXT_PUBLIC_FIRMWARE_SERVER_HOST,
+    ),
     // API 端点
     endpoints: {
         checkUpdate: '/api/firmware-check-update'
@@ -110,7 +116,9 @@ interface GamepadConfigContextType {
     wsState: WebSocketState;
     showReconnect: boolean;
     wsError: WebSocketError | null;
+    deviceSession: DeviceSession | null;
     connectWebSocket: () => Promise<void>;
+    reconnectWebSocket: () => Promise<void>;
     disconnectWebSocket: () => void;
     sendBinaryMessage: (data: ArrayBuffer | Uint8Array) => void;
     onBinaryMessage: (handler: (data: ArrayBuffer) => void) => () => void;
@@ -222,6 +230,22 @@ interface GamepadConfigContextType {
     hitboxLayout: HitboxLayoutItem[];
 }
 
+function makeEmptyMarkingStatus(): StepInfo {
+    return {
+        id: "",
+        mapping_name: "",
+        step: 0,
+        length: 0,
+        index: 0,
+        values: [],
+        sampling_noise: 0,
+        sampling_frequency: 0,
+        is_marking: false,
+        is_sampling: false,
+        is_completed: false
+    };
+}
+
 const GamepadConfigContext = createContext<GamepadConfigContextType | undefined>(undefined);
 
 /**
@@ -327,6 +351,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [wsState, setWsState] = useState<WebSocketState>(WebSocketState.DISCONNECTED);
     const [wsError, setWsError] = useState<WebSocketError | null>(null);
     const [wsFramework, setWsFramework] = useState<DeviceTransportFrameworkAdapter | null>(null);
+    const [deviceSession, setDeviceSession] = useState<DeviceSession | null>(null);
     const [showReconnect, setShowReconnect] = useState(false);  // 是否显示websocket重连窗口
 
     // WebSocket 队列管理器
@@ -334,19 +359,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const [defaultMappingId, setDefaultMappingId] = useState<string>("");
     const [mappingList, setMappingList] = useState<{ id: string, name: string }[]>([]);
-    const [markingStatus, setMarkingStatus] = useState<StepInfo>({
-        id: "",
-        mapping_name: "",
-        step: 0,
-        length: 0,
-        index: 0,
-        values: [],
-        sampling_noise: 0,
-        sampling_frequency: 0,
-        is_marking: false,
-        is_sampling: false,
-        is_completed: false
-    });
+    const [markingStatus, setMarkingStatus] = useState<StepInfo>(makeEmptyMarkingStatus);
     const [activeMapping, setActiveMapping] = useState<ADCValuesMapping | null>(null);
     const [buttonMonitoringActive, setButtonMonitoringActive] = useState<boolean>(false);
     const [firmwareInfo, setFirmwareInfo] = useState<DeviceFirmwareInfo | null>(null);
@@ -364,11 +377,6 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const contextJsReady = useMemo(() => jsReady, [jsReady]);
 
-    const [globalConfigIsReady, setGlobalConfigIsReady] = useState(false);
-    const [screenControlIsReady, setScreenControlIsReady] = useState(false);
-    const [profileListIsReady, setProfileListIsReady] = useState(false);
-    const [hotkeysConfigIsReady, setHotkeysConfigIsReady] = useState(false);
-    const [firmwareInfoIsReady, setFirmwareInfoIsReady] = useState(false);
     const [dataIsReady, setDataIsReady] = useState(false);
     const [userRebooting, setUserRebooting] = useState(false); // 是否是用户手动重启
     const [firmwareUpdating, setFirmwareUpdating] = useState(false); // 是否正在固件升级
@@ -376,6 +384,28 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [finishConfigDisabled, setFinishConfigDisabled] = useState(false);
 
     const [hitboxLayout, setHitboxLayout] = useState<HitboxLayoutItem[]>([]);
+    const initializationGenerationRef = useRef(0);
+
+    const resetDeviceSessionState = useCallback(() => {
+        initializationGenerationRef.current += 1;
+        setGlobalConfig({ inputMode: Platform.XINPUT });
+        setScreenControl(DEFAULT_SCREEN_CONTROL_CONFIG);
+        setProfileList({ defaultId: "", maxNumProfiles: 0, items: [] });
+        setDefaultProfile({ id: "", name: "" });
+        setHotkeysConfig([]);
+        setDefaultMappingId("");
+        setMappingList([]);
+        setMarkingStatus(makeEmptyMarkingStatus());
+        setActiveMapping(null);
+        setButtonMonitoringActive(false);
+        setFirmwareInfo(null);
+        setFirmwareUpdateInfo(null);
+        setUpgradeSession(null);
+        setHitboxLayout([]);
+        setDataIsReady(false);
+        setFinishConfigDisabled(false);
+        setDeviceSession(null);
+    }, []);
 
 
     // 处理通知消息
@@ -467,6 +497,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         const unsubscribeState = framework.onStateChange((state) => {
             setWsState(state);
             setWsConnected(state === WebSocketState.CONNECTED);
+            setDeviceSession(
+                state === WebSocketState.CONNECTED
+                    ? framework.transport.session
+                    : null,
+            );
         });
 
         const unsubscribeError = framework.onError((error) => {
@@ -525,6 +560,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     useEffect(() => {
         if (wsFramework && wsState === WebSocketState.DISCONNECTED) {
             if (isFirstConnectRef.current) { // 只有第一次连接时会自动连接，并且显示loading
+                resetDeviceSessionState();
                 setIsLoading(true);
                 // 页面加载只重连浏览器已经授权的设备，不触发 chooser。
                 wsFramework.connect(false).catch((error) => {
@@ -540,11 +576,19 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 }
             }
         }
-    }, [wsFramework, wsState]);
+    }, [wsFramework, wsState, userRebooting, firmwareUpdating, resetDeviceSessionState]);
+
+    useEffect(() => {
+        if (wsState === WebSocketState.DISCONNECTED || wsState === WebSocketState.ERROR) {
+            resetDeviceSessionState();
+            setIsLoading(false);
+        }
+    }, [wsState, resetDeviceSessionState]);
 
     // 当WebSocket连接成功后，初始化数据
     useEffect(() => {
-        if (wsConnected && wsState === WebSocketState.CONNECTED) {
+        if (wsFramework && wsConnected && wsState === WebSocketState.CONNECTED && !dataIsReady) {
+            const framework = wsFramework;
             // 隐藏重连窗口
             setShowReconnect(false);
 
@@ -555,34 +599,34 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 authManager.setWebSocketSendFunction(sendWebSocketRequest);
             }
 
-            fetchGlobalConfig().then(() => {
-                setGlobalConfigIsReady(true);
-            }).catch(console.error);
-            fetchScreenControl().then(() => {
-                setScreenControlIsReady(true);
-            }).catch(console.error);
-            fetchProfileList().then(() => {
-                setProfileListIsReady(true);
-            }).catch(console.error);
-            fetchHotkeysConfig().then(() => {
-                setHotkeysConfigIsReady(true);
-            }).catch(console.error);
-            fetchFirmwareMetadata().then(() => {
-                setFirmwareInfoIsReady(true);
-            }).catch(console.error);
-            getHitboxLayout().then((data) => {
-                setHitboxLayout(data);
-            }).catch(console.error);
-
+            const generation = initializationGenerationRef.current;
+            setIsLoading(true);
+            void initializeDeviceSession({
+                loaders: {
+                    globalConfig: fetchGlobalConfig,
+                    screenControl: fetchScreenControl,
+                    profileList: fetchProfileList,
+                    hotkeys: fetchHotkeysConfig,
+                    firmwareMetadata: fetchFirmwareMetadata,
+                    hitboxLayout: getHitboxLayout,
+                },
+                isCurrent: () => generation === initializationGenerationRef.current,
+                onReady: (layout) => {
+                    setHitboxLayout(layout);
+                    setDataIsReady(true);
+                    setIsLoading(false);
+                },
+                onFailure: (initializationError) => {
+                    const message = initializationError instanceof Error
+                        ? initializationError.message
+                        : String(initializationError);
+                    setError(`设备数据初始化失败: ${message}`);
+                    setIsLoading(false);
+                    framework.disconnect();
+                },
+            });
         }
-    }, [wsConnected, wsState]);
-
-    useEffect(() => {
-        if (globalConfigIsReady && screenControlIsReady && profileListIsReady && hotkeysConfigIsReady && firmwareInfoIsReady) {
-            setDataIsReady(true);
-            setIsLoading(false);
-        }
-    }, [globalConfigIsReady, screenControlIsReady, profileListIsReady, hotkeysConfigIsReady, firmwareInfoIsReady]);
+    }, [wsConnected, wsState, dataIsReady, wsFramework]);
 
     // useEffect(() => {
     //     if (profileList.defaultId !== "") {
@@ -595,13 +639,27 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     };
 
     // WebSocket连接管理
-    const connectWebSocket = async (): Promise<void> => {
+    const connectWebSocket = useCallback(async (): Promise<void> => {
         if (wsFramework) {
             // 该入口由用户点击连接按钮触发，允许打开 WebHID chooser。
+            resetDeviceSessionState();
+            setError(null);
+            setIsLoading(true);
             return wsFramework.connect(true);
         }
         throw new Error('WebSocket框架未初始化');
-    };
+    }, [wsFramework, resetDeviceSessionState]);
+
+    const reconnectWebSocket = useCallback(async (): Promise<void> => {
+        if (wsFramework) {
+            // 程序化重连只能使用浏览器已授权的设备，不能打开 chooser。
+            resetDeviceSessionState();
+            setError(null);
+            setIsLoading(true);
+            return wsFramework.connect(false);
+        }
+        throw new Error('WebSocket框架未初始化');
+    }, [wsFramework, resetDeviceSessionState]);
 
     const disconnectWebSocket = (): void => {
         if (wsFramework) {
@@ -2544,7 +2602,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             showReconnect,
             wsState,
             wsError,
+            deviceSession,
             connectWebSocket,
+            reconnectWebSocket,
             disconnectWebSocket,
             sendBinaryMessage,
             onBinaryMessage,

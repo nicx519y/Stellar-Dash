@@ -69,6 +69,32 @@
 #define APP_LOG_VERBOSE 0
 #endif
 
+/* Concise production startup milestones, independent from verbose APP_DBG. */
+#ifndef APPLICATION_STARTUP_LOG
+#define APPLICATION_STARTUP_LOG 1
+#endif
+
+#if APPLICATION_STARTUP_LOG
+static inline void AppStartupLog_Printf(const char *stage,
+                                        const char *level,
+                                        const char *fmt, ...)
+{
+    va_list args;
+    printf("[APP][STARTUP][%s]%s ", stage, level);
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+    printf("\r\n");
+}
+    #define APP_STAGE(stage, fmt, ...) \
+        AppStartupLog_Printf(stage, "", fmt, ##__VA_ARGS__)
+    #define APP_STAGE_ERROR(stage, fmt, ...) \
+        AppStartupLog_Printf(stage, "[ERROR]", fmt, ##__VA_ARGS__)
+#else
+    #define APP_STAGE(stage, fmt, ...) ((void)0)
+    #define APP_STAGE_ERROR(stage, fmt, ...) ((void)0)
+#endif
+
 #ifndef RF24G_SPI_TEST_FORCE_RF24G
 #define RF24G_SPI_TEST_FORCE_RF24G 0
 #endif

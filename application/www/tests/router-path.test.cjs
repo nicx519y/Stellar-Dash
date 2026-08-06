@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const {
     ROUTES,
     isCanonicalRoutePath,
+    normalizeRouteBasePath,
     pathnameForRoute,
     popstateHistoryMode,
     routeFromPathname,
@@ -46,4 +47,24 @@ test('back and forward navigation never push another history entry', () => {
 test('route parsing ignores URL query and hash fragments in test inputs', () => {
     assert.equal(routeFromPathname('/keys/?tab=primary'), 'keys');
     assert.equal(routeFromPathname('/firmware/#update'), 'firmware');
+});
+
+test('authenticated profiles use a local namespaced route only', () => {
+    const basePath = '/webconfig/hbox-pcb-v2/';
+    assert.equal(
+        routeFromPathname('/webconfig/hbox-pcb-v2/keys/', basePath),
+        'keys'
+    );
+    assert.equal(pathnameForRoute('firmware', basePath),
+        '/webconfig/hbox-pcb-v2/firmware/');
+    assert.equal(
+        popstateHistoryMode('/webconfig/hbox-pcb-v2/keys/', basePath),
+        'none'
+    );
+    assert.equal(
+        routeFromPathname('/webconfig/another-profile/keys/', basePath),
+        'global'
+    );
+    assert.equal(normalizeRouteBasePath('https://evil.example/'), '/');
+    assert.equal(normalizeRouteBasePath('/webconfig/../keys/'), '/');
 });

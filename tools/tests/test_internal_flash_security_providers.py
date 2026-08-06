@@ -3,6 +3,7 @@ from __future__ import annotations
 import pathlib
 import shutil
 import subprocess
+import tempfile
 import unittest
 
 
@@ -75,6 +76,9 @@ class InternalFlashSecurityProviderContractTests(unittest.TestCase):
         source = (
             BOOT / "Core" / "Src" / "factory_identity_enrollment.c"
         ).read_text(encoding="utf-8")
+        main = (BOOT / "Core" / "Src" / "main.c").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("HBOX_FACTORY_POP_DOMAIN", source)
         self.assertIn("sizeof(proof_domain)", source)
@@ -100,6 +104,9 @@ class InternalFlashSecurityProviderContractTests(unittest.TestCase):
             source.index("HBoxIdentityStore_ProvisionFactory("),
         )
         self.assertNotIn("HAL_FLASHEx_Erase", source)
+        self.assertIn("HBoxFactoryIdentityEnrollment_GetApi", source)
+        self.assertIn("HBoxFactoryIdentityService_Run(", main)
+        self.assertIn("HBoxFactoryIdentityEnrollment_GetApi()", main)
 
     def test_makefile_defaults_fail_closed_and_gates_factory_build(
         self,
@@ -111,6 +118,9 @@ class InternalFlashSecurityProviderContractTests(unittest.TestCase):
             "HBOX_DEVICE_IDENTITY_INTERNAL_FLASH_PROVIDER ?= 0",
             "HBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING ?= 0",
             "HBOX_FACTORY_IDENTITY_ENROLLMENT ?= 0",
+            "HBOX_FACTORY_IDENTITY_GATE_SOURCE ?=",
+            "HBOX_FACTORY_IDENTITY_SERVICE_SOURCE ?=",
+            "HBOX_STM32H750_REVISION_QUALIFICATION ?= 0",
             "HBOX_STM32H750_REVISION_ID ?= 0",
         ):
             self.assertIn(declaration, makefile)
@@ -134,19 +144,42 @@ class InternalFlashSecurityProviderContractTests(unittest.TestCase):
             makefile,
         )
         self.assertIn(
+            "HBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING=1 requires "
+            "HBOX_FACTORY_IDENTITY_GATE_SOURCE",
+            makefile,
+        )
+        self.assertIn(
+            "HBOX_FACTORY_IDENTITY_ENROLLMENT=1 requires "
+            "HBOX_FACTORY_IDENTITY_SERVICE_SOURCE",
+            makefile,
+        )
+
+        identity_provider = (
+            BOOT
+            / "Core"
+            / "Src"
+            / "device_identity_internal_flash_provider.c"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("__attribute__((weak))", identity_provider)
+        self.assertNotIn(
+            "int HBoxIdentityFactoryGate_IsAuthorized(void)\n{",
+            identity_provider,
+        )
+        self.assertIn(
+            "-DHBOX_ENFORCE_STM32H750_REVISION_ID=1 "
             "-DHBOX_APPROVED_STM32H750_REVISION_ID="
             "$(HBOX_STM32H750_REVISION_ID)",
             makefile,
         )
 
-    def test_makefile_rejects_implicit_provider_and_factory_builds(
+    def test_makefile_allows_unqualified_provider_and_rejects_invalid_gates(
         self,
     ) -> None:
         make = shutil.which("make")
         if make is None:
             self.skipTest("make is required for executable gate tests")
 
-        missing_revision = subprocess.run(
+        unqualified_provider = subprocess.run(
             [
                 make,
                 "-n",
@@ -159,10 +192,49 @@ class InternalFlashSecurityProviderContractTests(unittest.TestCase):
             text=True,
             check=False,
         )
-        self.assertNotEqual(missing_revision.returncode, 0)
+        self.assertEqual(
+            unqualified_provider.returncode,
+            0,
+            unqualified_provider.stdout + unqualified_provider.stderr,
+        )
+
+        missing_qualified_revision = subprocess.run(
+            [
+                make,
+                "-n",
+                "HBOX_STM32H750_REVISION_QUALIFICATION=1",
+                "all",
+            ],
+            cwd=BOOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        self.assertNotEqual(missing_qualified_revision.returncode, 0)
         self.assertIn(
-            "require nonzero HBOX_STM32H750_REVISION_ID",
-            missing_revision.stdout + missing_revision.stderr,
+            "requires nonzero HBOX_STM32H750_REVISION_ID",
+            missing_qualified_revision.stdout + missing_qualified_revision.stderr,
+        )
+
+        revision_without_qualification = subprocess.run(
+            [
+                make,
+                "-n",
+                "HBOX_STM32H750_REVISION_ID=0x1234",
+                "all",
+            ],
+            cwd=BOOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        self.assertNotEqual(revision_without_qualification.returncode, 0)
+        self.assertIn(
+            "requires HBOX_STM32H750_REVISION_QUALIFICATION=1",
+            revision_without_qualification.stdout
+            + revision_without_qualification.stderr,
         )
 
         incomplete_factory = subprocess.run(
@@ -183,6 +255,58 @@ class InternalFlashSecurityProviderContractTests(unittest.TestCase):
             "requires "
             "HBOX_SECURITY_VERSION_INTERNAL_FLASH_PROVIDER=1",
             incomplete_factory.stdout + incomplete_factory.stderr,
+        )
+
+        missing_gate = subprocess.run(
+            [
+                make,
+                "-n",
+                "HBOX_SECURITY_VERSION_INTERNAL_FLASH_PROVIDER=1",
+                "HBOX_DEVICE_IDENTITY_INTERNAL_FLASH_PROVIDER=1",
+                "HBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING=1",
+                "all",
+            ],
+            cwd=BOOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        self.assertNotEqual(missing_gate.returncode, 0)
+        self.assertIn(
+            "requires HBOX_FACTORY_IDENTITY_GATE_SOURCE",
+            missing_gate.stdout + missing_gate.stderr,
+        )
+
+        with tempfile.TemporaryDirectory(
+            prefix="hbox-factory-source-gates-"
+        ) as temporary:
+            gate_source = pathlib.Path(temporary) / "factory_gate.c"
+            gate_source.write_text(
+                "int HBoxIdentityFactoryGate_IsAuthorized(void) { return 0; }\n",
+                encoding="utf-8",
+            )
+            missing_service = subprocess.run(
+                [
+                    make,
+                    "-n",
+                    "HBOX_SECURITY_VERSION_INTERNAL_FLASH_PROVIDER=1",
+                    "HBOX_DEVICE_IDENTITY_INTERNAL_FLASH_PROVIDER=1",
+                    "HBOX_DEVICE_IDENTITY_FACTORY_PROVISIONING=1",
+                    "HBOX_FACTORY_IDENTITY_ENROLLMENT=1",
+                    f"HBOX_FACTORY_IDENTITY_GATE_SOURCE={gate_source.as_posix()}",
+                    "all",
+                ],
+                cwd=BOOT,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+        self.assertNotEqual(missing_service.returncode, 0)
+        self.assertIn(
+            "requires HBOX_FACTORY_IDENTITY_SERVICE_SOURCE",
+            missing_service.stdout + missing_service.stderr,
         )
 
 

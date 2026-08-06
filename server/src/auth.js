@@ -12,11 +12,16 @@
 
 const crypto = require('crypto');
 const fs = require('fs-extra');
-const path = require('path');
+const { resolveServerStoragePaths } = require('./server-paths');
 
 class AuthManager {
-    constructor() {
-        this.configFile = path.join(__dirname, '..', 'data/auth_config.json');
+    constructor(options = {}) {
+        const storagePaths = resolveServerStoragePaths(
+            options.environment || process.env,
+            options.serverRoot
+        );
+        fs.ensureDirSync(storagePaths.dataDir);
+        this.configFile = storagePaths.authConfigFile;
         this.config = this.loadConfig();
     }
 
@@ -306,6 +311,7 @@ function requireAdminAuth(options = {}) {
 }
 
 module.exports = {
+    AuthManager,
     authManager,
     requireAdminAuth
 }; 

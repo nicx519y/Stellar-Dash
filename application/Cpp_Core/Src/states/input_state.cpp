@@ -1,6 +1,7 @@
 #include "input_state.hpp"
 
 #include "adc_btns/adc_btns_worker.hpp"
+#include "board_cfg.h"
 #include "board_power.hpp"
 #include "ch585_role_bootstrap.hpp"
 #include "connection_manager.hpp"
@@ -47,7 +48,7 @@ static void onDefaultProfileChanged()
 
 static void enterBoardSafeState()
 {
-    SPIScreenManager::getInstance().shutdown();
+    /* CH585/USB/RF failures must not take down the independent local UI. */
     BOARD_POWER.enterSafeState();
 }
 
@@ -67,6 +68,8 @@ void InputState::startInputPipeline()
         return;
     }
 
+    APP_STAGE("I04", "input pipeline initialization begin");
+
     /*
      * Center/fault mode powers Hall off.  Re-enable it and honor the board
      * settling interval before calibration or DMA sampling resumes.
@@ -84,6 +87,8 @@ void InputState::startInputPipeline()
         STORAGE_MANAGER.getWirelessReportRate());
     REPORT_SCHEDULER.start(reportRateHz);
     inputPipelineRunning = true;
+    APP_STAGE("I04", "input pipeline ready: report rate=%u Hz",
+              static_cast<unsigned>(reportRateHz));
 }
 
 void InputState::stopInputPipeline()
@@ -147,10 +152,14 @@ void InputState::processReportTick()
 
 bool InputState::applyPhysicalMode(BoardMode mode, bool initial)
 {
-    (void)initial;
     const InputMode inputMode = STORAGE_MANAGER.getInputMode();
     const WirelessReportRate wirelessRate =
         STORAGE_MANAGER.getWirelessReportRate();
+
+    APP_STAGE("I02", "apply physical mode: mode=%u initial=%u input=%u rate=%u",
+              static_cast<unsigned>(mode), initial ? 1u : 0u,
+              static_cast<unsigned>(inputMode),
+              static_cast<unsigned>(wirelessRate));
 
     stopInputPipeline();
     RFBridgePort_Shutdown();
@@ -166,6 +175,7 @@ bool InputState::applyPhysicalMode(BoardMode mode, bool initial)
     if (mode == BoardMode::Usb) {
         if (!CH585_ROLE_BOOTSTRAP.start(Ch585Role::Usb) ||
             !USB_DRIVER.start(inputMode)) {
+            APP_STAGE_ERROR("I03", "CH585 USB role or USB runtime startup failed");
             teardownCh585Runtime();
             enterBoardSafeState();
             activeBoardMode = BoardMode::Fault;
@@ -175,12 +185,14 @@ bool InputState::applyPhysicalMode(BoardMode mode, bool initial)
         usbRuntimeConnected = true;
         CONNECTION_MANAGER.setup(CONNECTION_MODE_USB, wirelessRate);
         BOARD_POWER.releaseSafeState();
+        APP_STAGE("I03", "CH585 USB role locked; safe power state released");
         startInputPipeline();
         return true;
     }
 
     if (mode == BoardMode::Rf) {
         if (!CH585_ROLE_BOOTSTRAP.start(Ch585Role::Rf)) {
+            APP_STAGE_ERROR("I03", "CH585 RF role startup failed");
             teardownCh585Runtime();
             enterBoardSafeState();
             activeBoardMode = BoardMode::Fault;
@@ -188,6 +200,7 @@ bool InputState::applyPhysicalMode(BoardMode mode, bool initial)
         }
         CONNECTION_MANAGER.setup(CONNECTION_MODE_RF24G, wirelessRate);
         BOARD_POWER.releaseSafeState();
+        APP_STAGE("I03", "CH585 RF role locked; safe power state released");
         startInputPipeline();
         return true;
     }
@@ -197,13 +210,17 @@ bool InputState::applyPhysicalMode(BoardMode mode, bool initial)
      * CH585, host VBUS and optional high-current rails remain off.
      */
     enterBoardSafeState();
+    APP_STAGE_ERROR("I03", "physical mode is center/fault; input transport remains safe");
     return false;
 }
 
 void InputState::setup()
 {
     const InputMode inputMode = STORAGE_MANAGER.getInputMode();
+    APP_STAGE("I01", "INPUT state setup begin: input mode=%u",
+              static_cast<unsigned>(inputMode));
     if (inputMode == INPUT_MODE_CONFIG) {
+        APP_STAGE_ERROR("I01", "CONFIG profile is invalid in INPUT state");
         APP_ERR("INPUT mode cannot use CONFIG profile");
         activeBoardMode = BoardMode::Fault;
         enterBoardSafeState();
@@ -214,11 +231,13 @@ void InputState::setup()
         BOARD_MODE.update(HAL_GetTick());
     }
     (void)BOARD_MODE.consumeChanged();
-    (void)applyPhysicalMode(BOARD_MODE.current(), true);
+    const bool modeReady = applyPhysicalMode(BOARD_MODE.current(), true);
 
     STORAGE_MANAGER.registerDefaultProfileChangedCallback(
         onDefaultProfileChanged);
     isRunning = true;
+    APP_STAGE("I05", "INPUT state loop enabled: transport ready=%u",
+              modeReady ? 1u : 0u);
     Logger_Flush();
 }
 

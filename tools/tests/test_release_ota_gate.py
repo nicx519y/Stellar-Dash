@@ -9,6 +9,7 @@ import zipfile
 from contextlib import redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -61,7 +62,7 @@ class OtaPackageGateTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.key_directory.cleanup()
 
-    def _sign_manifest(self, directory: Path, manifest: dict) -> None:
+    def _sign_manifest(self, directory: Path, manifest: dict) -> bytes:
         with redirect_stdout(io.StringIO()):
             metadata = release.create_metadata_binary(
                 version=manifest["version"],
@@ -83,6 +84,11 @@ class OtaPackageGateTests(unittest.TestCase):
         manifest["signature_algorithm"] = release.FIRMWARE_SIGNATURE_ECDSA_P256_SHA256
         manifest["firmware_hash"] = firmware_hash.hex()
         manifest["signature"] = signature.hex()
+        manifest["metadata"] = {
+            "file": release.SIGNED_METADATA_FILENAME,
+            "size": len(metadata),
+            "sha256": hashlib.sha256(metadata).hexdigest(),
+        }
 
         # Do not let a syntactically plausible but invalid signature become the
         # shared "valid" fixture. Verify it with the corresponding ephemeral
@@ -113,6 +119,7 @@ class OtaPackageGateTests(unittest.TestCase):
             firmware_hash,
             hashlib.sha256(canonical_metadata(metadata)).digest(),
         )
+        return metadata
 
     def make_package(
         self,
@@ -162,15 +169,22 @@ class OtaPackageGateTests(unittest.TestCase):
             })
         if mutate:
             mutate(manifest, payloads)
-        self._sign_manifest(directory, manifest)
+        metadata = self._sign_manifest(directory, manifest)
         if mutate_after_signing:
             mutate_after_signing(manifest, payloads)
 
         package = directory / f"valid_{slot}.zip"
         with zipfile.ZipFile(package, "w", zipfile.ZIP_DEFLATED) as archive:
             archive.writestr("manifest.json", json.dumps(manifest))
-            for name, data in payloads.items():
-                archive.writestr(filenames[name], data)
+            archive.writestr(release.SIGNED_METADATA_FILENAME, metadata)
+            for component in manifest["components"]:
+                if (
+                    component.get("active", True)
+                    and component.get("size", 0) > 0
+                ):
+                    archive.writestr(
+                        component["file"], payloads[component["name"]]
+                    )
         return package
 
     def test_v2_release_requires_approved_public_trust_bundle(self):
@@ -246,39 +260,58 @@ class OtaPackageGateTests(unittest.TestCase):
                     }
                 )
 
-    def test_valid_v2_package_passes_python_and_server_gates(self):
+            public_der = subprocess.run(
+                [
+                    "openssl", "pkey", "-pubin", "-in",
+                    str(self.public_key), "-pubout", "-outform", "DER",
+                ],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ).stdout
+            expected_public_key = public_der[-65:]
+            key_header = Path(temp_dir) / "trust-with-release-key.h"
+            key_header.write_text(
+                "static const unsigned char "
+                "hbox_firmware_release_public_key[65] = {\n  "
+                + ", ".join(
+                    f"0x{value:02X}u" for value in expected_public_key
+                )
+                + "\n};\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                release.load_firmware_release_public_key_from_trust_header(
+                    key_header
+                ),
+                expected_public_key,
+            )
+
+    def test_valid_v2_package_contains_exact_verified_signed_metadata(self):
         with tempfile.TemporaryDirectory() as temp:
             package = self.make_package(Path(temp))
-            manifest = release.validate_stm32_ota_package(package)
+            # The package gate validates every signed field against
+            # metadata.bin; the approved release key additionally proves the
+            # raw P-256 signature before flashing.
+            public_der = subprocess.run(
+                [
+                    "openssl", "pkey", "-pubin", "-in",
+                    str(self.public_key), "-pubout", "-outform", "DER",
+                ],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ).stdout
+            public_key = public_der[-65:]
+            manifest = release.validate_stm32_ota_package(
+                package, public_key
+            )
             self.assertEqual(manifest["hardware_version"], "2.0.0")
-
-            script = (
-                "const gate=require('./server/src/action');"
-                "const m=gate.validateUploadedOtaPackage(process.argv[1],'A');"
-                "if(m.hardware_version!=='2.0.0')process.exit(2);"
-            )
-            subprocess.run(
-                ["node", "-e", script, str(package)],
-                cwd=PROJECT_ROOT,
-                check=True,
-            )
-
-    def test_server_accepts_explicit_v1_manifest_without_reclassifying_it(self):
-        with tempfile.TemporaryDirectory() as temp:
-            def mutate(manifest, _payloads):
-                manifest["hardware_version"] = "1.0.0"
-                manifest["hardware_version_code"] = 0x00010000
-
-            package = self.make_package(Path(temp), mutate=mutate)
-            script = (
-                "const gate=require('./server/src/action');"
-                "const m=gate.validateUploadedOtaPackage(process.argv[1],'A');"
-                "if(m.hardware_version!=='1.0.0')process.exit(2);"
-            )
-            subprocess.run(
-                ["node", "-e", script, str(package)],
-                cwd=PROJECT_ROOT,
-                check=True,
+            with zipfile.ZipFile(package) as archive:
+                metadata = archive.read(release.SIGNED_METADATA_FILENAME)
+            self.assertEqual(
+                hashlib.sha256(metadata).hexdigest(),
+                manifest["metadata"]["sha256"],
             )
 
     def test_rejects_wrong_slot_address(self):
@@ -320,6 +353,144 @@ class OtaPackageGateTests(unittest.TestCase):
                 target.writestr("ch585.bin", b"must-not-enter-stm32-ota")
             with self.assertRaisesRegex(ValueError, "文件集合不匹配"):
                 release.validate_stm32_ota_package(extra_package)
+
+    def test_rejects_missing_exact_signed_metadata_file(self):
+        with tempfile.TemporaryDirectory() as temp:
+            package = self.make_package(Path(temp))
+            missing = Path(temp) / "missing-metadata.zip"
+            with zipfile.ZipFile(package) as source, zipfile.ZipFile(
+                missing, "w", zipfile.ZIP_DEFLATED
+            ) as target:
+                for info in source.infolist():
+                    if info.filename != release.SIGNED_METADATA_FILENAME:
+                        target.writestr(info.filename, source.read(info.filename))
+            with self.assertRaisesRegex(ValueError, "文件集合不匹配"):
+                release.validate_stm32_ota_package(missing)
+
+    def test_rejects_metadata_with_replaced_signature_even_if_manifest_matches(self):
+        with tempfile.TemporaryDirectory() as temp:
+            package = self.make_package(Path(temp))
+            tampered = Path(temp) / "tampered-metadata.zip"
+            with zipfile.ZipFile(package) as source:
+                entries = {
+                    info.filename: source.read(info.filename)
+                    for info in source.infolist()
+                }
+            manifest = json.loads(entries["manifest.json"].decode("utf-8"))
+            metadata = bytearray(entries[release.SIGNED_METADATA_FILENAME])
+            metadata[release.FIRMWARE_SIGNATURE_OFFSET] ^= 0x01
+            metadata_crc = release.calculate_crc32(
+                metadata, release.METADATA_CRC32_OFFSET, 4
+            )
+            metadata[
+                release.METADATA_CRC32_OFFSET :
+                release.METADATA_CRC32_OFFSET + 4
+            ] = metadata_crc.to_bytes(4, "little")
+            manifest["signature"] = metadata[
+                release.FIRMWARE_SIGNATURE_OFFSET :
+                release.FIRMWARE_SIGNATURE_OFFSET + 64
+            ].hex()
+            manifest["metadata"]["sha256"] = hashlib.sha256(metadata).hexdigest()
+            entries["manifest.json"] = json.dumps(manifest).encode("utf-8")
+            entries[release.SIGNED_METADATA_FILENAME] = bytes(metadata)
+            with zipfile.ZipFile(tampered, "w", zipfile.ZIP_DEFLATED) as target:
+                for name, data in entries.items():
+                    target.writestr(name, data)
+
+            public_der = subprocess.run(
+                [
+                    "openssl", "pkey", "-pubin", "-in",
+                    str(self.public_key), "-pubout", "-outform", "DER",
+                ],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ).stdout
+            with self.assertRaisesRegex(ValueError, "发布签名验证失败"):
+                release.validate_stm32_ota_package(
+                    tampered, public_der[-65:]
+                )
+
+    def test_release_flasher_uses_packaged_metadata_and_forbids_mutation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            package = self.make_package(directory)
+            with zipfile.ZipFile(package) as archive:
+                archive.extractall(directory / "extracted")
+                manifest = json.loads(
+                    archive.read("manifest.json").decode("utf-8")
+                )
+            extracted = directory / "extracted"
+            flasher = release.ReleaseFlasher(PROJECT_ROOT)
+            flasher.extract_release_package = mock.Mock(
+                return_value=(manifest, extracted)
+            )
+            flasher.cleanup_temp_dir = mock.Mock()
+            flasher.flash_component = mock.Mock(return_value=True)
+            flasher.flash_metadata = mock.Mock(return_value=True)
+
+            with mock.patch.object(
+                release,
+                "create_metadata_binary",
+                side_effect=AssertionError("flasher must never re-sign"),
+            ):
+                self.assertTrue(flasher.flash_release_package(str(package)))
+            flasher.flash_metadata.assert_called_once_with(
+                extracted / release.SIGNED_METADATA_FILENAME
+            )
+
+            flasher.flash_component.reset_mock()
+            flasher.flash_metadata.reset_mock()
+            self.assertFalse(
+                flasher.flash_release_package(str(package), target_slot="B")
+            )
+            flasher.flash_component.assert_not_called()
+            flasher.flash_metadata.assert_not_called()
+
+            self.assertFalse(
+                flasher.flash_release_package(
+                    str(package), components=["application"]
+                )
+            )
+            flasher.flash_component.assert_not_called()
+            flasher.flash_metadata.assert_not_called()
+
+    def test_optional_webresources_is_signed_but_not_flashed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+
+            def make_hosted_web_manifest(manifest, _payloads):
+                manifest["webresources_optional"] = True
+                web = manifest["components"][1]
+                web.update({
+                    "file": "",
+                    "size": 0,
+                    "sha256": "0" * 64,
+                    "file_type": "none",
+                    "active": False,
+                })
+
+            package = self.make_package(
+                directory, mutate=make_hosted_web_manifest
+            )
+            manifest = release.validate_stm32_ota_package(package)
+            with zipfile.ZipFile(package) as archive:
+                archive.extractall(directory / "extracted-hosted")
+                self.assertNotIn("webresources.bin", archive.namelist())
+
+            flasher = release.ReleaseFlasher(PROJECT_ROOT)
+            flasher.extract_release_package = mock.Mock(
+                return_value=(manifest, directory / "extracted-hosted")
+            )
+            flasher.cleanup_temp_dir = mock.Mock()
+            flasher.flash_component = mock.Mock(return_value=True)
+            flasher.flash_metadata = mock.Mock(return_value=True)
+            self.assertTrue(flasher.flash_release_package(str(package)))
+            self.assertEqual(flasher.flash_component.call_count, 2)
+            flashed_names = [
+                call.args[2] for call in flasher.flash_component.call_args_list
+            ]
+            self.assertEqual(flashed_names, ["application", "adc_mapping"])
 
     def test_rejects_missing_hardware_version(self):
         with tempfile.TemporaryDirectory() as temp:

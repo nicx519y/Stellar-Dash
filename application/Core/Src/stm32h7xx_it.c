@@ -125,6 +125,12 @@ void HardFault_Handler(void)
         stack = (uint32_t *)msp;
     }
 
+    /* Print the fault before touching the persistent logger.  If the logger
+     * itself depends on the failed peripheral this marker must still reach
+     * the bring-up UART. */
+    APP_STAGE_ERROR("F01", "HardFault: PC=0x%08lX LR=0x%08lX CFSR=0x%08lX HFSR=0x%08lX",
+                    stack[6], stack[5], cfsr, hfsr);
+
     // 记录致命错误到日志系统
     LOG_FATAL("HARDFAULT", "HardFault exception occurred");
     LOG_FATAL("HARDFAULT", "MSP=0x%08lX PSP=0x%08lX", msp, psp);

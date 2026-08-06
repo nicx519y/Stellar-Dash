@@ -418,6 +418,7 @@ bool WebHidService::validateBootContext()
     }
 
     bool valid =
+        bootContext.device_certificate.product_id_le == HBOX_PRODUCT_ID &&
         bootContext.device_certificate.hardware_version_le ==
             HARDWARE_VERSION &&
         bootContext.boot_attestation.security_version_le >=

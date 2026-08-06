@@ -25,6 +25,7 @@ from device_identity_provisioning import (  # noqa: E402
     build_development_identity_slot,
     create_certificate_tbs,
     encode_hardware_version,
+    encode_product_id,
     encode_production_batch,
     load_public_key,
     load_public_key_with_proof,
@@ -87,6 +88,7 @@ class DeviceIdentityProvisioningTests(unittest.TestCase):
             certificate_serial=bytes.fromhex(
                 "00112233445566778899aabbccddeeff"
             ),
+            product_id=encode_product_id("HBOX"),
             hardware_version=encode_hardware_version("2.0.0"),
             issued_at=1_785_000_000,
             production_batch=encode_production_batch("TEST-BATCH"),
@@ -108,10 +110,13 @@ class DeviceIdentityProvisioningTests(unittest.TestCase):
             self.device_public
         ).digest()[:16])
         self.assertEqual(self.tbs[48:113], self.device_public)
-        self.assertEqual(self.tbs[129:144], bytes(15))
+        self.assertEqual(self.tbs[129:133], b"HBOX")
+        self.assertEqual(self.tbs[133:144], bytes(11))
 
         summary = verify_certificate(self.certificate, self.ca_public)
         self.assertEqual(summary["hardwareVersion"], "2.0.0")
+        self.assertEqual(summary["pcbRevision"], "2.0.0")
+        self.assertEqual(summary["productId"], "HBOX")
         self.assertEqual(summary["productionBatch"], "TEST-BATCH")
         self.assertEqual(
             summary["deviceId"],
@@ -128,6 +133,25 @@ class DeviceIdentityProvisioningTests(unittest.TestCase):
         malformed_certificate[-1] ^= 1
         with self.assertRaises(ProvisioningError):
             verify_certificate(bytes(malformed_certificate), self.ca_public)
+
+        # A different but syntactically valid product family is still part
+        # of the signed TBS and cannot be substituted after issuance.
+        wrong_product = bytearray(self.certificate)
+        wrong_product[129:133] = b"XBOX"
+        with self.assertRaises(ProvisioningError):
+            verify_certificate(bytes(wrong_product), self.ca_public)
+
+    def test_product_id_is_canonical_and_mandatory(self):
+        self.assertEqual(encode_product_id("HBOX"), 0x584F4248)
+        for invalid in ("", "BOX", "hbox", "HB-X", "盒子"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ProvisioningError):
+                    encode_product_id(invalid)
+
+        malformed_tbs = bytearray(self.tbs)
+        malformed_tbs[129:133] = bytes(4)
+        with self.assertRaises(ProvisioningError):
+            validate_certificate_tbs(bytes(malformed_tbs))
 
     def test_fixed_internal_flash_record_and_commit_match_contract(self):
         record = build_development_identity_record(
@@ -395,6 +419,11 @@ int main(void) {
 #include "device_identity_store.h"
 _Static_assert(sizeof(hbox_device_certificate_v1_t) == 208, "cert size");
 _Static_assert(HBOX_DEVICE_CERTIFICATE_SIGNED_BYTES == 144, "cert signed");
+_Static_assert(HBOX_PRODUCT_ID == 0x584F4248u, "HBox product ID");
+_Static_assert(offsetof(hbox_device_certificate_v1_t, product_id_le) == 129,
+               "certificate product ID");
+_Static_assert(offsetof(hbox_device_certificate_v1_t, reserved) == 133,
+               "certificate reserved tail");
 _Static_assert(sizeof(hbox_device_identity_record_v1_t) == 256, "record size");
 _Static_assert(sizeof(hbox_device_identity_commit_v1_t) == 32, "commit size");
 _Static_assert(HBOX_DEVICE_IDENTITY_SLOT_BYTES == 288, "slot size");

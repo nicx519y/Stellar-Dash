@@ -106,6 +106,7 @@ int HBoxSecurity_ValidateBootContext(
                  sizeof(context->device_certificate.certificate_serial)) ||
         all_zero(context->device_certificate.device_id,
                  sizeof(context->device_certificate.device_id)) ||
+        context->device_certificate.product_id_le != HBOX_PRODUCT_ID ||
         !all_zero(context->device_certificate.reserved,
                   sizeof(context->device_certificate.reserved)) ||
         context->boot_attestation.magic_le !=

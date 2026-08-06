@@ -6,6 +6,10 @@ import {
   DeviceTransportError,
 } from './types';
 import { WebHidTransport } from './webhid-transport';
+import {
+  resolveAuthenticatedWebConfigTarget,
+  ServerWebConfigTarget,
+} from './webconfig-target';
 
 export interface DeviceAuthClientOptions {
   challengeEndpoint?: string;
@@ -33,7 +37,7 @@ interface DeviceAttestation {
   signature: string;
 }
 
-interface ServerAuthorization {
+interface ServerAuthorization extends ServerWebConfigTarget {
   apiToken: string;
   expiresInMs: number;
   sessionId: string;
@@ -90,7 +94,9 @@ export class DeviceAuthClient {
   async authenticate(
     transport: WebHidTransport,
     scopes: readonly DeviceScope[] = this.defaultScopes,
+    signal?: AbortSignal,
   ): Promise<DeviceSession> {
+    assertAuthenticationActive(signal);
     this.clear();
     const requestedScopes = normalizeScopes(scopes);
     transport.setAuthenticating();
@@ -99,10 +105,13 @@ export class DeviceAuthClient {
       true,
       ['deriveBits'],
     );
+    assertAuthenticationActive(signal);
     const browserPublicKey = new Uint8Array(
       await crypto.subtle.exportKey('raw', browserKeyPair.publicKey),
     );
-    const challenge = await this.fetchChallenge(browserPublicKey, requestedScopes);
+    assertAuthenticationActive(signal);
+    const challenge = await this.fetchChallenge(browserPublicKey, requestedScopes, signal);
+    assertAuthenticationActive(signal);
     validateChallenge(challenge);
 
     const attestation = await transport.bootstrapRequest<DeviceAttestation>(
@@ -114,6 +123,7 @@ export class DeviceAuthClient {
         requestedScopes,
       },
     );
+    assertAuthenticationActive(signal);
     validateAttestation(attestation);
 
     const authorization = await this.postJson<ServerAuthorization>(
@@ -125,8 +135,14 @@ export class DeviceAuthClient {
         requestedScopes,
         deviceAttestation: attestation,
       },
+      signal,
     );
-    validateAuthorization(authorization, requestedScopes);
+    assertAuthenticationActive(signal);
+    const webConfigTarget = validateAuthorization(
+      authorization,
+      requestedScopes,
+      attestation.hardwareVersion,
+    );
 
     // The permit signature is deliberately verified by STM32, not trusted by
     // this page. A copied or malicious web page cannot authorize itself.
@@ -134,6 +150,7 @@ export class DeviceAuthClient {
       sessionId: authorization.sessionId,
       permit: authorization.deviceSessionPermit,
     });
+    assertAuthenticationActive(signal);
     if (!ack.accepted || ack.sessionId !== authorization.sessionId) {
       throw new DeviceTransportError('authentication-failed', '设备拒绝服务器签发的会话许可');
     }
@@ -144,13 +161,18 @@ export class DeviceAuthClient {
       base64ToBytes(authorization.sessionSalt),
       authorization.sessionId,
     );
+    assertAuthenticationActive(signal);
     const now = Date.now();
     const expiresInMs = Math.min(Math.max(authorization.expiresInMs, 1), 5 * 60 * 1000);
     const session: DeviceSession = {
       transport: 'webhid',
       deviceId: attestation.deviceId,
       productName: transport.session?.productName,
-      hardwareVersion: attestation.hardwareVersion,
+      productId: webConfigTarget.productId,
+      pcbRevision: webConfigTarget.pcbRevision,
+      webConfigProfile: webConfigTarget.webConfigProfile,
+      webConfigBasePath: webConfigTarget.basePath,
+      hardwareVersion: webConfigTarget.pcbRevision,
       firmwareVersion: attestation.firmwareVersion,
       authenticated: true,
       scopes: authorization.scopes,
@@ -167,7 +189,9 @@ export class DeviceAuthClient {
   async reauthorize(
     transport: WebHidTransport,
     scopes: readonly DeviceScope[],
+    signal?: AbortSignal,
   ): Promise<DeviceSession> {
+    assertAuthenticationActive(signal);
     const requestedScopes = normalizeScopes(scopes);
     if (
       transport.session?.authenticated &&
@@ -181,11 +205,18 @@ export class DeviceAuthClient {
     try {
       if (transport.session?.authenticated) {
         await transport.endSecureSessionForReauthorization();
+        assertAuthenticationActive(signal);
       }
-      return await this.authenticate(transport, requestedScopes);
+      const session = await this.authenticate(transport, requestedScopes, signal);
+      assertAuthenticationActive(signal);
+      return session;
     } catch (error) {
+      // A superseded authentication flow must not clear or close a transport
+      // that may already belong to the next adapter lifecycle generation.
+      assertAuthenticationActive(signal);
       this.clear();
       await transport.close().catch(() => undefined);
+      assertAuthenticationActive(signal);
       throw error;
     }
   }
@@ -239,15 +270,21 @@ export class DeviceAuthClient {
   private fetchChallenge(
     browserPublicKey: Uint8Array,
     requestedScopes: readonly DeviceScope[],
+    signal?: AbortSignal,
   ): Promise<ServerChallenge> {
     return this.postJson<ServerChallenge>(this.challengeEndpoint, {
       protocol: 'hbox-webhid-v1',
       requestedScopes,
       browserPublicKey: bytesToBase64(browserPublicKey),
-    });
+    }, signal);
   }
 
-  private async postJson<T>(url: string, body: unknown): Promise<T> {
+  private async postJson<T>(
+    url: string,
+    body: unknown,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    assertAuthenticationActive(signal);
     let response: Response;
     try {
       response = await this.fetchImpl(url, {
@@ -257,18 +294,33 @@ export class DeviceAuthClient {
         credentials: 'omit',
         cache: 'no-store',
         redirect: 'error',
+        signal,
       });
     } catch (error) {
+      assertAuthenticationActive(signal);
       throw new DeviceTransportError('server', '无法连接设备认证服务器', error);
     }
+    assertAuthenticationActive(signal);
     if (!response.ok) {
       throw new DeviceTransportError('server', `设备认证服务器返回 HTTP ${response.status}`);
     }
     try {
-      return await response.json() as T;
+      const value = await response.json() as T;
+      assertAuthenticationActive(signal);
+      return value;
     } catch (error) {
+      assertAuthenticationActive(signal);
       throw new DeviceTransportError('server', '设备认证服务器返回了无效 JSON', error);
     }
+  }
+}
+
+function assertAuthenticationActive(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new DeviceTransportError(
+      'disconnected',
+      '设备认证流程已被后续的断开或重连操作取消',
+    );
   }
 }
 
@@ -304,7 +356,8 @@ function validateAttestation(value: DeviceAttestation): void {
 function validateAuthorization(
   value: ServerAuthorization,
   requestedScopes: readonly DeviceScope[],
-): void {
+  attestedHardwareVersion: string,
+) {
   if (
     !value ||
     !value.apiToken ||
@@ -321,6 +374,7 @@ function validateAuthorization(
   ) {
     throw new DeviceTransportError('authentication-failed', '认证服务器返回了无效会话许可');
   }
+  return resolveAuthenticatedWebConfigTarget(value, attestedHardwareVersion);
 }
 
 function isOpaqueIdentifier(value: unknown): value is string {

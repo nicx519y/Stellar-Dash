@@ -48,6 +48,7 @@ static int verify_device_identity(
             HBOX_DEVICE_CERTIFICATE_SIGNED_BYTES ||
         identity->device_certificate.hardware_version_le !=
             HARDWARE_VERSION ||
+        identity->device_certificate.product_id_le != HBOX_PRODUCT_ID ||
         identity->device_certificate.device_public_key[0] != 0x04u ||
         all_zero(identity->device_certificate.certificate_serial,
                  sizeof(identity->device_certificate.certificate_serial)) ||

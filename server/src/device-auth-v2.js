@@ -2,6 +2,11 @@
 'use strict';
 
 const crypto = require('crypto');
+const {
+    WebConfigTargetPolicy,
+    WebConfigTargetPolicyError,
+    createWebConfigTargetPolicyFromEnvironment
+} = require('./webconfig-target-policy');
 
 const CHALLENGE_TTL_MS = 60 * 1000;
 const SESSION_TTL_MS = 5 * 60 * 1000;
@@ -514,7 +519,7 @@ class BinaryDeviceCertificateVerifier {
             );
         }
         requireZero(
-            certificateBytes.subarray(129, 144),
+            certificateBytes.subarray(133, 144),
             'deviceCertificate.reserved'
         );
         verifyP256(
@@ -526,11 +531,15 @@ class BinaryDeviceCertificateVerifier {
         const serial = certificateBytes.subarray(8, 24);
         const deviceIdBytes = certificateBytes.subarray(24, 40);
         const hardwareVersionCode = certificateBytes.readUInt32LE(40);
+        const productId = certificateBytes.subarray(129, 133)
+            .toString('ascii');
         const issuedAt = certificateBytes.readUInt32LE(44);
-        if (isAllZero(serial) || (hardwareVersionCode & 0xff000000) !== 0) {
+        if (isAllZero(serial) ||
+            (hardwareVersionCode & 0xff000000) !== 0 ||
+            !/^[A-Z0-9]{4}$/.test(productId)) {
             throw new DeviceAuthV2Error(
                 'INVALID_DEVICE_CERTIFICATE',
-                'certificate serial or hardware version is invalid',
+                'certificate serial, product or PCB revision is invalid',
                 401
             );
         }
@@ -558,6 +567,8 @@ class BinaryDeviceCertificateVerifier {
         return {
             deviceId: deviceIdBytes.toString('hex').toUpperCase(),
             serialNumber: encodeBase64Url(serial),
+            productId,
+            pcbRevision: hardwareVersionFromCode(hardwareVersionCode),
             hardwareVersion: hardwareVersionFromCode(hardwareVersionCode),
             hardwareVersionCode,
             authLevel,
@@ -784,6 +795,8 @@ class StorageDevicePolicy {
         if (record.certificateFingerprint !==
             identity.certificateFingerprint ||
             record.certificateSerial !== identity.serialNumber ||
+            record.productId !== identity.productId ||
+            record.pcbRevision !== identity.pcbRevision ||
             record.hardwareVersion !== identity.hardwareVersion ||
             record.authLevel !== identity.authLevel) {
             throw new DeviceAuthV2Error(
@@ -823,6 +836,12 @@ class DeviceAuthV2Service {
         this.attestationVerifier = options.attestationVerifier;
         this.permitSigner = options.permitSigner;
         this.devicePolicy = options.devicePolicy;
+        this.webConfigTargetPolicy = Object.prototype.hasOwnProperty.call(
+            options,
+            'webConfigTargetPolicy'
+        )
+            ? options.webConfigTargetPolicy
+            : new WebConfigTargetPolicy();
         this.challengeStore = options.challengeStore ||
             new MemoryChallengeStore(options);
         this.tokenStore = options.tokenStore || new OpaqueTokenStore(options);
@@ -846,7 +865,8 @@ class DeviceAuthV2Service {
             this.certificateVerifier &&
             this.attestationVerifier &&
             this.permitSigner &&
-            this.devicePolicy
+            this.devicePolicy &&
+            this.webConfigTargetPolicy
         );
     }
 
@@ -982,6 +1002,19 @@ class DeviceAuthV2Service {
             identity,
             attestation
         );
+        let webConfigTarget;
+        try {
+            webConfigTarget = this.webConfigTargetPolicy.resolve(identity);
+        } catch (error) {
+            if (error instanceof WebConfigTargetPolicyError) {
+                throw new DeviceAuthV2Error(
+                    error.code,
+                    error.message,
+                    error.status
+                );
+            }
+            throw error;
+        }
         const deviceEphemeralKey = normalizeP256PublicKey(
             deviceProof.deviceEphemeralPublicKey,
             'deviceEphemeralPublicKey'
@@ -1058,6 +1091,9 @@ class DeviceAuthV2Service {
             sessionId: encodeBase64Url(sessionId),
             deviceId: identity.deviceId,
             deviceName: deviceRecord.deviceName,
+            productId: webConfigTarget.productId,
+            pcbRevision: webConfigTarget.pcbRevision,
+            webConfigProfile: webConfigTarget.profile,
             hardwareVersion: identity.hardwareVersion,
             scopes: challenge.scopes,
             scopeMask: challenge.scopeMask,
@@ -1071,6 +1107,9 @@ class DeviceAuthV2Service {
             deviceSessionPermit: encodeBase64(permit),
             sessionSalt: encodeBase64(sessionSalt),
             scopes: challenge.scopes,
+            productId: webConfigTarget.productId,
+            pcbRevision: webConfigTarget.pcbRevision,
+            webConfigProfile: webConfigTarget.profile,
             // Transitional aliases for non-browser integration clients.
             expiresIn: Math.floor(
                 (issued.record.expiresAt - this.now()) / 1000
@@ -1135,7 +1174,8 @@ class DeviceAuthV2Service {
 }
 
 function sendDeviceAuthError(res, error) {
-    const known = error instanceof DeviceAuthV2Error;
+    const known = error instanceof DeviceAuthV2Error ||
+        error instanceof WebConfigTargetPolicyError;
     const status = known ? error.status : 500;
     if (known && Number.isSafeInteger(error.retryAfterSeconds)) {
         res.set('Retry-After', String(error.retryAfterSeconds));
@@ -1208,6 +1248,9 @@ function initDeviceAuthV2Routes(
                 data: {
                     sessionId: req.deviceSession.sessionId,
                     deviceId: req.deviceSession.deviceId,
+                    productId: req.deviceSession.productId,
+                    pcbRevision: req.deviceSession.pcbRevision,
+                    webConfigProfile: req.deviceSession.webConfigProfile,
                     hardwareVersion: req.deviceSession.hardwareVersion,
                     scopes: req.deviceSession.scopes
                 }
@@ -1230,6 +1273,7 @@ function initDeviceAuthV2Routes(
                     certificateBytes,
                     { now: service.now }
                 );
+                service.webConfigTargetPolicy.resolve(identity);
                 const minSecurityVersion = normalizeSecurityVersion(
                     req.body.minSecurityVersion === undefined
                         ? 0
@@ -1245,6 +1289,8 @@ function initDeviceAuthV2Routes(
                         `HBox-${identity.deviceId.substring(0, 8)}`,
                     certificateSerial: identity.serialNumber,
                     certificateFingerprint: identity.certificateFingerprint,
+                    productId: identity.productId,
+                    pcbRevision: identity.pcbRevision,
                     hardwareVersion: identity.hardwareVersion,
                     authLevel: identity.authLevel,
                     minSecurityVersion,
@@ -1353,6 +1399,8 @@ function sanitizeDeviceRecord(device) {
     return {
         deviceId: device.deviceId,
         deviceName: device.deviceName,
+        productId: device.productId,
+        pcbRevision: device.pcbRevision,
         hardwareVersion: device.hardwareVersion,
         authVersion: device.authVersion,
         authLevel: device.authLevel,
@@ -1464,6 +1512,19 @@ function createDeviceAuthV2FromEnvironment(storageManager, options = {}) {
         environment
     );
     const production = environment.NODE_ENV === 'production';
+    let webConfigTargetPolicy = null;
+    try {
+        webConfigTargetPolicy = options.webConfigTargetPolicy ||
+            createWebConfigTargetPolicyFromEnvironment(
+                environment,
+                fsModule
+            );
+    } catch (error) {
+        console.error(
+            'WebConfig target policy rejected:',
+            error.message
+        );
+    }
     let dependencies = null;
     if (production) {
         try {
@@ -1497,7 +1558,8 @@ function createDeviceAuthV2FromEnvironment(storageManager, options = {}) {
             certificateVerifier: null,
             attestationVerifier: null,
             permitSigner: null,
-            devicePolicy: new StorageDevicePolicy(storageManager)
+            devicePolicy: new StorageDevicePolicy(storageManager),
+            webConfigTargetPolicy
         });
     }
     return new DeviceAuthV2Service({
@@ -1515,6 +1577,7 @@ function createDeviceAuthV2FromEnvironment(storageManager, options = {}) {
         devicePolicy: dependencies
             ? dependencies.devicePolicy
             : new StorageDevicePolicy(storageManager),
+        webConfigTargetPolicy,
         challengeStore: dependencies &&
             dependencies.challengeStore,
         tokenStore: dependencies && dependencies.tokenStore,

@@ -25,6 +25,10 @@ class SecureAccessHandoffContractTests(unittest.TestCase):
         self.assertIn("0x450u", source)
         self.assertIn("HAL_GetREVID()", source)
         self.assertIn(
+            "HBOX_ENFORCE_STM32H750_REVISION_ID",
+            source,
+        )
+        self.assertIn(
             "HBOX_APPROVED_STM32H750_REVISION_ID",
             source,
         )
@@ -32,6 +36,13 @@ class SecureAccessHandoffContractTests(unittest.TestCase):
             ROOT / "bootloader" / "Core" / "Src" / "main.c"
         ).read_text(encoding="utf-8"))
         self.assertIn("exit_secure_area(vector_table)", source)
+        self.assertIn("initialize_secure_areas(1u, &area)", source)
+        self.assertIn(
+            "HBoxSecureAccess_CanInitializeFullInternalFlashArea()",
+            (ROOT / "bootloader" / "Core" / "Src" / "main.c").read_text(
+                encoding="utf-8"
+            ),
+        )
         self.assertNotIn("HAL_FLASHEx_OBProgram", source)
         self.assertNotIn("HAL_FLASHEx_Erase", source)
 
@@ -51,20 +62,33 @@ class SecureAccessHandoffContractTests(unittest.TestCase):
             main,
         )
 
-    def test_internal_providers_require_explicit_silicon_revision(self) -> None:
+    def test_silicon_revision_qualification_is_optional_and_explicit(self) -> None:
         makefile = (
             ROOT / "bootloader" / "Makefile"
         ).read_text(encoding="utf-8")
 
+        self.assertIn(
+            "HBOX_STM32H750_REVISION_QUALIFICATION ?= 0",
+            makefile,
+        )
         self.assertIn("HBOX_STM32H750_REVISION_ID ?= 0", makefile)
         self.assertIn(
-            "In-tree internal-Flash providers require nonzero "
+            "HBOX_STM32H750_REVISION_QUALIFICATION=1 requires nonzero "
             "HBOX_STM32H750_REVISION_ID",
             makefile,
         )
         self.assertIn(
+            "-DHBOX_ENFORCE_STM32H750_REVISION_ID=1 "
             "-DHBOX_APPROVED_STM32H750_REVISION_ID="
             "$(HBOX_STM32H750_REVISION_ID)",
+            makefile,
+        )
+        self.assertIn(
+            "-DHBOX_ENFORCE_STM32H750_REVISION_ID=0",
+            makefile,
+        )
+        self.assertNotIn(
+            "internal-Flash providers require nonzero",
             makefile,
         )
 
