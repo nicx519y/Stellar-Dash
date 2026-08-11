@@ -8,7 +8,10 @@
 
 #define ROLE_SELECT_TIMEOUT_MS       1000u
 #define ROLE_RESPONSE_TIMEOUT_MS      500u
-#define ROLE_POLL_STEP_US              50u
+#define ROLE_RELEASE_GAP_US          1000u
+/* The STM32 bootstrap request is only five bytes; poll fast enough to drain
+ * the FIFO while that short NSS transaction is still active. */
+#define ROLE_POLL_STEP_US               1u
 
 static void selector_receive_start(void)
 {
@@ -45,6 +48,28 @@ static bool selector_wait_nss_idle(uint32_t timeout_ms)
     return true;
 }
 
+static bool selector_wait_response_transaction(uint32_t timeout_ms)
+{
+    bool saw_nss_low = false;
+    uint32_t elapsed_us = 0u;
+    const uint32_t timeout_us = timeout_ms * 1000u;
+
+    while(elapsed_us < timeout_us)
+    {
+        if(!rfm_board_latest_ch585_nss_high())
+        {
+            saw_nss_low = true;
+        }
+        else if(saw_nss_low)
+        {
+            return true;
+        }
+        DelayUs(ROLE_POLL_STEP_US);
+        elapsed_us += ROLE_POLL_STEP_US;
+    }
+    return false;
+}
+
 static bool selector_send_role_result(usb_board_role_t role,
                                       usb_board_status_t status)
 {
@@ -52,7 +77,6 @@ static bool selector_send_role_result(usb_board_role_t role,
     uint8_t response[USB_BOARD_LINK_MAX_FRAME_BYTES];
     uint8_t response_length = 0u;
     uint8_t index;
-    uint32_t elapsed_us = 0u;
 
     result.role = (uint8_t)role;
     result.status = (uint8_t)status;
@@ -88,20 +112,18 @@ static bool selector_send_role_result(usb_board_role_t role,
     }
     rfm_board_latest_ch585_set_w_int(true);
 
-    while((R8_SPI0_INT_FLAG & RB_SPI_IF_CNT_END) == 0u)
+    if(!selector_wait_response_transaction(ROLE_RESPONSE_TIMEOUT_MS))
     {
-        if(elapsed_us >= (ROLE_RESPONSE_TIMEOUT_MS * 1000u))
-        {
-            rfm_board_latest_ch585_set_w_int(false);
-            selector_receive_start();
-            return false;
-        }
-        DelayUs(ROLE_POLL_STEP_US);
-        elapsed_us += ROLE_POLL_STEP_US;
+        rfm_board_latest_ch585_set_w_int(false);
+        selector_receive_start();
+        return false;
     }
 
     R8_SPI0_INT_FLAG = RB_SPI_IF_CNT_END;
     rfm_board_latest_ch585_set_w_int(false);
+    /* Let STM32 observe the released event line before the USB subsystem can
+     * queue its initial USB_STATE event and assert W_INT again. */
+    DelayUs(ROLE_RELEASE_GAP_US);
     return true;
 }
 

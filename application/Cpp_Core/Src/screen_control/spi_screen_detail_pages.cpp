@@ -18,6 +18,7 @@ ScreenDetailKind ScreenDetail_Kind(uint8_t menuId) {
             return SCREEN_DETAIL_SLIDER;
         case 9:
         case 10:
+        case 12:
             return SCREEN_DETAIL_INFO;
         default:
             return SCREEN_DETAIL_NONE;
@@ -37,6 +38,7 @@ uint8_t ScreenDetail_InitIndex(uint8_t menuId) {
         case 8: return ScreenDetailScreenBrightness_InitIndex();
         case 9: return ScreenDetailWebConfig_InitIndex();
         case 10: return ScreenDetailCalibration_InitIndex();
+        case 12: return ScreenDetailCh585Flash_InitIndex();
         case 3: return ScreenDetailTournament_InitIndex();
         default: return 0;
     }
@@ -55,6 +57,7 @@ void ScreenDetail_OnRotate(uint8_t menuId, uint8_t* ioIndex, int8_t det) {
         case 8: ScreenDetailScreenBrightness_Rotate(ioIndex, det); break;
         case 9: ScreenDetailWebConfig_Rotate(ioIndex, det); break;
         case 10: ScreenDetailCalibration_Rotate(ioIndex, det); break;
+        case 12: ScreenDetailCh585Flash_Rotate(ioIndex, det); break;
         case 3: ScreenDetailTournament_Rotate(ioIndex, det); break;
         default: break;
     }
@@ -73,6 +76,7 @@ bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
         case 8: ScreenDetailScreenBrightness_OnConfirm(index); return false;
         case 9: return ScreenDetailWebConfig_OnConfirm(index);
         case 10: ScreenDetailCalibration_OnConfirm(index); return true;
+        case 12: return ScreenDetailCh585Flash_OnConfirm(index);
         case 3: return ScreenDetailTournament_OnConfirm(index);
         default: return false;
     }
@@ -81,6 +85,7 @@ bool ScreenDetail_OnConfirm(uint8_t menuId, uint8_t index) {
 bool ScreenDetail_OnBack(uint8_t menuId) {
     switch (menuId) {
         case 9: return ScreenDetailWebConfig_OnBack();
+        case 12: return ScreenDetailCh585Flash_OnBack();
         case 3: return ScreenDetailTournament_OnBack();
         case 11: return !ScreenDetailButtonsPerformance_OnBack();
         default: return true;
@@ -100,6 +105,7 @@ void ScreenDetail_Render(ST7789_Handle* lcd, uint8_t menuId, uint8_t index, cons
         case 8: ScreenDetailScreenBrightness_Render(lcd, index, style); break;
         case 9: ScreenDetailWebConfig_Render(lcd, index, style); break;
         case 10: ScreenDetailCalibration_Render(lcd, index, style); break;
+        case 12: ScreenDetailCh585Flash_Render(lcd, index, style); break;
         case 3: ScreenDetailTournament_Render(lcd, index, style); break;
         default: break;
     }

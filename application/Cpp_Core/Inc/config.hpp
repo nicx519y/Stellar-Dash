@@ -152,8 +152,14 @@ typedef struct
     uint16_t reserved1;              // 保留字节（对齐）
     uint32_t featuresMask;           // 功能开关位图（SCREEN_FEATURE_*）
     uint8_t featuresOrder[SCREEN_FEATURE_COUNT];
-    uint8_t reserved2;
+    /* Persistent service flags; retains the former reserved2 byte layout. */
+    uint8_t serviceFlags;
 } ScreenControlConfig;
+
+#define SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE (1u << 0)
+#define SCREEN_SERVICE_CH585_IAP_CONFIRMED      (1u << 1)
+#define SCREEN_SERVICE_CH585_UPDATE_PENDING     (1u << 2)
+#define SCREEN_SERVICE_CH585_UPDATE_FAILED      (1u << 3)
 
 typedef struct
 {

@@ -9,6 +9,8 @@
 #include "connection_manager.hpp"
 #include "system_sleep_manager.hpp"
 #include "board_mode.hpp"
+#include "ch585_update_mode.hpp"
+#include "ch585_firmware_update.hpp"
 
 void MainStateMachine::setup()
 {
@@ -23,6 +25,10 @@ void MainStateMachine::setup()
     BootMode bootMode = STORAGE_MANAGER.getBootMode();
     APP_STAGE("A12", "configuration loaded: boot mode=%u",
               static_cast<unsigned>(bootMode));
+#if WEBCONFIG_TEST_FORCE_BOOT
+    bootMode = BootMode::BOOT_MODE_WEB_CONFIG;
+    APP_STAGE("A12", "temporary WebConfig bring-up override active");
+#endif
 #if RF24G_SPI_TEST_FORCE_RF24G
     bootMode = BootMode::BOOT_MODE_INPUT;
     APP_DBG("[RF_SPI_TEST] force boot mode INPUT");
@@ -66,6 +72,32 @@ void MainStateMachine::setup()
 
     POWER_MANAGER.setup();
     APP_STAGE("A16", "power manager initialized");
+
+    if (CH585_UPDATE_MODE.isManualIspActive()) {
+        CH585_UPDATE_MODE.setupManualIspRuntime();
+        APP_STAGE("A16M", "manual CH585 ISP service loop active");
+        while (1) {
+            BOARD_MODE.update(HAL_GetTick());
+            POWER_MANAGER.loop();
+            SPIScreenManager::getInstance().loop();
+        }
+    }
+
+    if (CH585_FIRMWARE_UPDATE.isPending()) {
+        APP_STAGE("A16U", "pending staged CH585 update selected");
+        if (CH585_FIRMWARE_UPDATE.performPendingUpdate()) {
+            APP_STAGE("A16U", "CH585 update complete; rebooting to normal runtime");
+            HAL_Delay(50u);
+            NVIC_SystemReset();
+        }
+        APP_STAGE_ERROR("A16U", "CH585 update failed; local retry UI active");
+        while (1) {
+            BOARD_MODE.update(HAL_GetTick());
+            POWER_MANAGER.loop();
+            SPIScreenManager::getInstance().loop();
+        }
+    }
+
     state->setup();
     APP_STAGE("A17", "selected state setup returned");
     SystemSleep_HandleWakeRecovery();

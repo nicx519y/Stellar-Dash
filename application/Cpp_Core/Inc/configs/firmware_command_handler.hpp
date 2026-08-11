@@ -118,6 +118,10 @@ public:
      * 对应HTTP接口: POST /api/firmware-upgrade-cleanup
      */
     WebSocketDownstreamMessage handleCleanupFirmwareUpgradeSession(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleCh585UpdateStatus(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleCh585UpdateBegin(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleCh585UpdateChunk(const WebSocketUpstreamMessage& request);
+    WebSocketDownstreamMessage handleCh585UpdateComplete(const WebSocketUpstreamMessage& request);
 
 private:
     /**

@@ -84,6 +84,36 @@ def _local_webconfig_state_is_initialized() -> bool:
     ).is_file()
 
 
+def _local_artifacts_are_unlocked_development() -> bool:
+    manifest_path = (
+        _project_root()
+        / ".hbox"
+        / "webconfig-local"
+        / "artifacts"
+        / "artifact-manifest.json"
+    )
+    if not manifest_path.is_file():
+        print(f"错误: 未找到本地固件 manifest: {manifest_path}")
+        print("请先执行 web local-build；开发板构建必须为 unlocked-development。")
+        return False
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"错误: 无法读取本地固件 manifest: {exc}")
+        return False
+
+    if (
+        manifest.get("bootSecurityMode") != "unlocked-development"
+        or manifest.get("requiresManualLifecycleProvisioning") is not False
+        or manifest.get("requiredLifecycle") not in ([], None)
+    ):
+        print("错误: 拒绝烧录非 unlocked-development 的 STM32 产物。")
+        print("禁止要求或修改 RDP、SECURITY、SCAR、Option Bytes 或任何锁定状态。")
+        print("请重新执行: python tools/hbox.py web local-build --unlocked-development")
+        return False
+    return True
+
+
 def _run_secure_application_flash(slot: str) -> int:
     """Build, sign and atomically commit one bootable application slot."""
 
@@ -104,12 +134,17 @@ def _run_secure_application_flash(slot: str) -> int:
             "--skip-web",
             "--jobs",
             "4",
+            "--unlocked-development",
+            "--skip-power-device-probes",
         ],
     )
     if rc != 0:
         return rc
 
-    print("开始安全烧录：槽内容先写入，签名 metadata 最后提交...")
+    if not _local_artifacts_are_unlocked_development():
+        return 2
+
+    print("开始无锁开发烧录：槽内容先写入，签名 metadata 最后提交...")
     rc = _run_python_tool("webconfig_flash.py", ["--simple-execute"])
     if rc == 0:
         print(f"Application 槽 {normalized_slot} 已烧录并提交签名 metadata。")
@@ -361,6 +396,8 @@ def main(argv: list[str]) -> int:
         if args.target == "build-legacy":
             return _run_legacy_embedded_web_build()
         if args.target == "local-flash-stm32":
+            if not _local_artifacts_are_unlocked_development():
+                return 2
             return _run_python_tool("webconfig_flash.py", args.args)
         local_commands = {
             "local-init": "init",
@@ -370,9 +407,16 @@ def main(argv: list[str]) -> int:
             "probe-revision": "probe-revision",
         }
         if args.target in local_commands:
+            local_args = list(args.args)
+            if (args.target == "local-build" and
+                    "--unlocked-development" not in local_args):
+                local_args.append("--unlocked-development")
+            if (args.target == "local-build" and
+                    "--skip-power-device-probes" not in local_args):
+                local_args.append("--skip-power-device-probes")
             return _run_python_tool(
                 "webconfig_local.py",
-                [local_commands[args.target], *args.args],
+                [local_commands[args.target], *local_args],
             )
 
     return 2

@@ -2,6 +2,19 @@
 
 本文件用于快速理解整个仓库的组成与关键机制（bootloader / application / dongle / RFModule / server / tools）。
 
+## 硬件安全红线（最高优先级，必须遵守）
+
+> 本节优先于仓库内其他构建、烧录、发版和安全生命周期说明。除非用户在当前消息中明确撤销本禁令并逐项授权，否则任何 Agent 都不得绕过或弱化这些规则。
+
+- **默认只允许普通、无锁刷写。** STM32 本地开发和 WebConfig 联调必须使用 `unlocked-development` 构建；对应构建参数为 `--unlocked-development` / `HBOX_SECURE_BOOT_REQUIRED=0`。不得默认生成或刷入要求安全生命周期的 production bootloader。
+- **严禁修改任何锁定或保护配置。** 不得读取后写回、设置、升级、降级或尝试修复 STM32 Option Bytes、RDP、SECURITY、SCAR、WRP、PCROP、安全区域、读保护、写保护、代码保护、数据保护或不可逆生命周期状态；CH58x 的芯片配置字、代码 Flash 保护、读保护和下载锁同样禁止。
+- **“编译”“刷入”“烧录”“更新固件”“恢复设备”等请求均不构成锁定授权。** 这些请求只允许写入普通固件区域（STM32 内部 Flash/QSPI、CH58x Code Flash）以及完成必要的普通校验，不允许附带任何保护位操作。
+- **烧录前必须检查产物模式。** 如果 artifact manifest 显示 `bootSecurityMode=secure-production`、`requiresManualLifecycleProvisioning=true`，或日志出现需要 `RDP1`、`SECURITY`、`SCAR`/secure-area provisioning，必须立即停止，重新以 `--unlocked-development` 构建，禁止继续刷写该 production 产物。
+- **不得为了恢复连接而改保护位或执行隐含解锁。** 连接、启动或验证失败时，只能先使用普通复位、断电重上电、降低 SWD 频率、串口日志和无锁固件重刷等可恢复手段。任何 mass erase、Option Byte reload、read-unprotect/unlock 命令都必须视为禁止操作。
+- 每次实际烧录前，Agent 必须再次确认命令中不含保护/锁定操作；烧录完成后应明确报告“未修改任何保护位或锁定状态”。
+
+当前开发板的安全基线是：**保持未锁定、可通过 ST-LINK/WCH ISP 正常恢复。宁可停止并询问，也不得冒险启用任何固件锁。**
+
 ## 项目概览
 
 - 目标：基于 STM32H750 的 HBox 设备固件 + Web 配置界面 + 双槽（A/B）安全升级体系，并配套 2.4G 无线（CH584M 模块 + CH585F 接收 dongle）与固件分发服务器。

@@ -1580,15 +1580,19 @@ bool WebHidService::processSecureRpc(
 
     const std::string command(commandItem->valuestring);
     const bool createFirmware =
-        command == "create_firmware_upgrade_session";
+        command == "create_firmware_upgrade_session" ||
+        command == "ch585_update_begin";
     const bool completeFirmware =
-        command == "complete_firmware_upgrade_session";
+        command == "complete_firmware_upgrade_session" ||
+        command == "ch585_update_complete";
     const bool uploadFirmware =
-        command == "upload_firmware_chunk";
+        command == "upload_firmware_chunk" ||
+        command == "ch585_update_chunk";
     const bool abortFirmware =
         command == "abort_firmware_upgrade_session";
     const bool statusFirmware =
-        command == "get_firmware_upgrade_status";
+        command == "get_firmware_upgrade_status" ||
+        command == "ch585_update_status";
     const bool cleanupFirmware =
         command == "cleanup_firmware_upgrade_session";
     const char *firmwareSessionId = nullptr;

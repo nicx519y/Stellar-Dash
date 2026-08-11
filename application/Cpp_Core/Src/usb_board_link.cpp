@@ -256,18 +256,40 @@ bool UsbBoardLink::selectRole(usb_board_role_t role, uint32_t timeoutMs)
     if (!supportedRole(role) || roleLocked) {
         return roleLocked && (selectedRole == role);
     }
-    if (!USBBoardLinkPort_Init() ||
-        !transact(USB_BOARD_CMD_SELECT_ROLE,
-                  &request,
-                  sizeof(request),
-                  USB_BOARD_EVT_ROLE_SELECTED,
-                  &response,
-                  sizeof(response),
-                  &responseLength,
-                  timeoutMs) ||
-        (responseLength != sizeof(response)) ||
-        (response.role != static_cast<uint8_t>(role)) ||
-        (response.status != USB_BOARD_STATUS_OK)) {
+    usbSubsystemEvidence = false;
+    if (!USBBoardLinkPort_Init()) {
+        return false;
+    }
+
+    const bool explicitSelection =
+        transact(USB_BOARD_CMD_SELECT_ROLE,
+                 &request,
+                 sizeof(request),
+                 USB_BOARD_EVT_ROLE_SELECTED,
+                 &response,
+                 sizeof(response),
+                 &responseLength,
+                 timeoutMs);
+    const bool validExplicitSelection =
+        explicitSelection &&
+        (responseLength == sizeof(response)) &&
+        (response.role == static_cast<uint8_t>(role)) &&
+        (response.status == USB_BOARD_STATUS_OK);
+    /*
+     * ROLE_SELECTED is emitted by the cold-boot selector immediately before
+     * it hands SPI ownership to the USB subsystem.  If that short frame is
+     * lost at the hand-off boundary, a valid USB_STATE is stronger evidence:
+     * CH585 can only generate it after the requested USB/maintenance role has
+     * been accepted and usb_board_link_init() has completed.  RF selection
+     * still requires the explicit acknowledgement because it never runs the
+     * USB board-link subsystem.
+     */
+    const bool validUsbSubsystemSelection =
+        !explicitSelection &&
+        usbSubsystemEvidence &&
+        ((role == USB_BOARD_ROLE_USB) ||
+         (role == USB_BOARD_ROLE_MAINTENANCE));
+    if (!validExplicitSelection && !validUsbSubsystemSelection) {
         return false;
     }
 
@@ -880,6 +902,7 @@ void UsbBoardLink::handleEvent(uint8_t command,
         (length == sizeof(usbState))) {
         usb_board_usb_state_v1_t updated = {};
         memcpy(&updated, payload, sizeof(updated));
+        usbSubsystemEvidence = true;
         if (updated.device_mounted == 0u ||
             updated.device_suspended != 0u) {
             /*

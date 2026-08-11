@@ -134,12 +134,28 @@ static void rx_push_block(const uint8_t *data, uint16_t length)
 
 static void service_pending_nss_rise_locked(void)
 {
+    uint8_t transaction_pending;
+
     /*
      * A completed write may have raised PA12 just before the main loop
      * masked GPIO_A_IRQn.  Drain that latched boundary before repurposing
      * SPI DMA for TX, otherwise the just-received command would be cleared.
+     * Some CH585 SPI0/GPIO combinations do not retain the PA12 edge flag
+     * reliably while the pin is also the peripheral NSS input.  At idle-high
+     * NSS, FST_BYTE, a moved DMA cursor, or a non-empty FIFO is equivalent
+     * proof that a complete master write has ended and needs draining.
      */
-    if((GPIOA_ReadITFlagPort() & USB_SPI_NSS_PIN) != 0u)
+    transaction_pending =
+        ((GPIOA_ReadITFlagPort() & USB_SPI_NSS_PIN) != 0u) ? 1u : 0u;
+    if((transaction_pending == 0u) &&
+       (nss_is_high() != 0u) &&
+       (((R8_SPI0_INT_FLAG & RB_SPI_IF_FST_BYTE) != 0u) ||
+        (R32_SPI0_DMA_NOW != R32_SPI0_DMA_BEG) ||
+        (R8_SPI0_FIFO_COUNT != 0u)))
+    {
+        transaction_pending = 1u;
+    }
+    if(transaction_pending != 0u)
     {
         GPIOA_ClearITFlagBit(USB_SPI_NSS_PIN);
         usb_board_link_port_nss_rise_irq_handler();
@@ -473,6 +489,17 @@ void usb_board_link_port_nss_rise_irq_handler(void)
     if(received != 0u)
     {
         rx_push_block(s_rx_dma, received);
+    }
+    /*
+     * Short control frames can remain in the SPI FIFO without advancing the
+     * DMA cursor before NSS rises.  Preserve that FIFO tail after the DMA
+     * prefix; rx_dma_start() clears the FIFO as part of rearming and would
+     * otherwise discard commands such as the four-byte GET_CAPS frame.
+     */
+    while(R8_SPI0_FIFO_COUNT != 0u)
+    {
+        const uint8_t byte = R8_SPI0_FIFO;
+        rx_push_block(&byte, 1u);
     }
     if((R8_SPI0_INT_FLAG & RB_SPI_IF_FIFO_OV) != 0u)
     {

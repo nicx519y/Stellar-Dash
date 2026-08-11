@@ -99,6 +99,20 @@ static inline void AppStartupLog_Printf(const char *stage,
 #define RF24G_SPI_TEST_FORCE_RF24G 0
 #endif
 
+/*
+ * Temporary local WebConfig bring-up override.  This only changes the state
+ * selected for the current firmware boot; it does not persist BOOT_MODE_WEB_CONFIG
+ * into the device configuration partition.
+ */
+#ifndef WEBCONFIG_TEST_FORCE_BOOT
+#define WEBCONFIG_TEST_FORCE_BOOT 1
+#endif
+
+/* Temporary, unlocked migration UI for the one-time CH585 IAP install. */
+#ifndef CH585_MANUAL_ISP_ENTRY_ENABLE
+#define CH585_MANUAL_ISP_ENTRY_ENABLE 1
+#endif
+
 #ifndef RF24G_FORCE_REPORT_RATE_HZ
 #define RF24G_FORCE_REPORT_RATE_HZ 0u
 #endif
@@ -436,7 +450,7 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
 #define USER_IMAGE_RESOURCES_ADDR           0x905F0000
 #endif
 #ifndef USER_IMAGE_RESOURCES_SIZE
-#define USER_IMAGE_RESOURCES_SIZE           0x00210000      // 2.0625MB
+#define USER_IMAGE_RESOURCES_SIZE           0x00190000      // 1.5625MB; top 512KB is CH585 staging
 #endif
 
 

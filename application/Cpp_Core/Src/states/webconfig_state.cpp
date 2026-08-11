@@ -17,8 +17,23 @@
 #include "usb_board_link.hpp"
 #include "usbdriver.hpp"
 #include "webhid_service.hpp"
+#include "ch585_firmware_update.hpp"
 
 namespace {
+
+static bool webConfigUsbModeAccepted()
+{
+#if WEBCONFIG_TEST_FORCE_BOOT
+    /*
+     * Local bring-up only: the same temporary switch that selects WebConfig
+     * also bypasses the physical-mode gate.  Nothing is persisted, and a
+     * normal build with WEBCONFIG_TEST_FORCE_BOOT=0 restores the gate.
+     */
+    return true;
+#else
+    return BOARD_MODE.isStable() && BOARD_MODE.current() == BoardMode::Usb;
+#endif
+}
 
 static void enterWebFailureUiState()
 {
@@ -52,7 +67,7 @@ void WebConfigState::setup() {
      * WebConfig is permitted only in the physical USB switch position and
      * always uses the independent CH585 maintenance role.
      */
-    if (!BOARD_MODE.isStable() || BOARD_MODE.current() != BoardMode::Usb) {
+    if (!webConfigUsbModeAccepted()) {
         APP_STAGE_ERROR("W02", "physical USB mode gate failed: mode=%u stable=%u",
                         static_cast<unsigned>(BOARD_MODE.current()),
                         BOARD_MODE.isStable() ? 1u : 0u);
@@ -141,8 +156,7 @@ void WebConfigState::loop() {
     }
 
     if(isRunning) {
-        if (BOARD_MODE.consumeChanged() &&
-            BOARD_MODE.current() != BoardMode::Usb) {
+        if (BOARD_MODE.consumeChanged() && !webConfigUsbModeAccepted()) {
             enterFailure(WebConfigRuntimeStatus::ErrorUsbMode);
             return;
         }
@@ -152,6 +166,7 @@ void WebConfigState::loop() {
         // 实时更新按键状态并生成事件（在主循环中调用）
         WEBCONFIG_BTNS_MANAGER.update();
         WEBHID_SERVICE.process();
+        CH585_FIRMWARE_UPDATE.process();
         const bool authenticated = WEBHID_SERVICE.isAuthenticated();
         if (authenticated &&
             runtimeStatus != WebConfigRuntimeStatus::Authenticated) {

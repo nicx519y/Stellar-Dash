@@ -250,7 +250,16 @@ bool USBBoardLinkPort_Init()
     s_hspi.Init.CLKPolarity = SPI_POLARITY_LOW;
     s_hspi.Init.CLKPhase = SPI_PHASE_1EDGE;
     s_hspi.Init.NSS = SPI_NSS_SOFT;
+#if WEBCONFIG_TEST_FORCE_BOOT
+    /*
+     * Bring-up only: make the five-byte cold-boot SELECT_ROLE transaction
+     * visible across several iterations of the CH585 selector's 50-us FIFO
+     * polling loop.  The production path keeps the normal high-speed clock.
+     */
+    s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+#else
     s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+#endif
     s_hspi.Init.FirstBit = SPI_FIRSTBIT_MSB;
     s_hspi.Init.TIMode = SPI_TIMODE_DISABLE;
     s_hspi.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -270,6 +279,31 @@ bool USBBoardLinkPort_Init()
     }
     s_waitingEventRelease = false;
     s_ready = true;
+    return true;
+}
+
+bool USBBoardLinkPort_InitIap()
+{
+    if (!USBBoardLinkPort_Init()) {
+        return false;
+    }
+    /*
+     * The 4 KiB loader drains its eight-byte SPI FIFO from a polling loop.
+     * Keep IAP packets at the same conservative clock used during local
+     * bring-up even after the WebConfig test override is removed.
+     */
+    if (s_hspi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_256) {
+        return true;
+    }
+    if (HAL_SPI_DeInit(&s_hspi) != HAL_OK) {
+        s_ready = false;
+        return false;
+    }
+    s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+    if (HAL_SPI_Init(&s_hspi) != HAL_OK) {
+        s_ready = false;
+        return false;
+    }
     return true;
 }
 
@@ -309,6 +343,17 @@ bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength)
                          const_cast<uint8_t *>(frame),
                          frameLength,
                          kSpiTimeoutMs);
+    if ((result == HAL_OK) &&
+        (frame[1] == USB_BOARD_CMD_SELECT_ROLE)) {
+        /*
+         * The CH585 cold-boot selector polls its RX FIFO every 50 us and does
+         * not enable the steady-state DMA/NSS interrupt path until after the
+         * role is locked.  Keep NSS asserted after this short five-byte frame
+         * so the selector can drain and parse it before the transaction ends.
+         * Steady-state USB/WebHID frames do not pay this bring-up-only delay.
+         */
+        ownershipGuardDelay();
+    }
     chipSelect(true);
     return result == HAL_OK;
 }
@@ -344,4 +389,52 @@ bool USBBoardLinkPort_ReadEvent(uint8_t *response,
         return false;
     }
     return readFrame(response, responseCapacity, responseLength);
+}
+
+bool USBBoardLinkPort_RawTransact(const uint8_t *request,
+                                  uint16_t requestLength,
+                                  uint8_t *response,
+                                  uint16_t responseLength,
+                                  uint32_t timeoutMs)
+{
+    if (request == nullptr || requestLength == 0u ||
+        response == nullptr || responseLength == 0u ||
+        requestLength > USB_BOARD_LINK_MAX_FRAME_BYTES ||
+        !USBBoardLinkPort_Init() ||
+        !refreshEventRelease() || !eventLineIsHigh()) {
+        return false;
+    }
+
+    chipSelect(false);
+    ownershipGuardDelay();
+    if (!eventLineIsHigh()) {
+        chipSelect(true);
+        return false;
+    }
+    HAL_StatusTypeDef result = HAL_SPI_Transmit(
+        &s_hspi,
+        const_cast<uint8_t *>(request),
+        requestLength,
+        timeoutMs);
+    chipSelect(true);
+    if (result != HAL_OK || !waitEventLow(timeoutMs)) {
+        return false;
+    }
+
+    HAL_Delay(kReadGapMs);
+    uint8_t fill[16];
+    memset(fill, 0xFF, sizeof(fill));
+    if (responseLength > sizeof(fill)) {
+        return false;
+    }
+    chipSelect(false);
+    result = HAL_SPI_TransmitReceive(&s_hspi,
+                                     fill,
+                                     response,
+                                     responseLength,
+                                     timeoutMs);
+    chipSelect(true);
+    s_waitingEventRelease = true;
+    (void)waitEventHigh(kEventReleaseTimeoutMs);
+    return result == HAL_OK;
 }

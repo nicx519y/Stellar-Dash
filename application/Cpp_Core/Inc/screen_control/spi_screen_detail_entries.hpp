@@ -58,6 +58,13 @@ bool ScreenDetailWebConfig_OnConfirm(uint8_t index);
 bool ScreenDetailWebConfig_OnBack(void);
 const char* ScreenDetailWebConfig_ConfirmLabel(void);
 
+uint8_t ScreenDetailCh585Flash_InitIndex(void);
+void ScreenDetailCh585Flash_Rotate(uint8_t* ioIndex, int8_t det);
+void ScreenDetailCh585Flash_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style);
+bool ScreenDetailCh585Flash_OnConfirm(uint8_t index);
+bool ScreenDetailCh585Flash_OnBack(void);
+const char* ScreenDetailCh585Flash_ConfirmLabel(void);
+
 uint8_t ScreenDetailCalibration_InitIndex(void);
 void ScreenDetailCalibration_Rotate(uint8_t* ioIndex, int8_t det);
 void ScreenDetailCalibration_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style);

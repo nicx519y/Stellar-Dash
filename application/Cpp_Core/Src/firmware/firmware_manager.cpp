@@ -623,11 +623,12 @@ bool FirmwareManager::CreateUpgradeSession(const char* session_id, const Firmwar
             type == FIRMWARE_COMPONENT_WEBRESOURCES &&
             manifest->webresources_optional == 1 &&
             !component->active && component->size == 0;
-        uint8_t ignored_hash[32];
+        uint8_t application_hash[32];
         if (!optional_webresources &&
             (!component->active || component->size == 0 ||
-             !decode_sha256(component->sha256, ignored_hash))) {
-            APP_ERR("FirmwareManager::CreateUpgradeSession: Invalid component hash");
+             (type == FIRMWARE_COMPONENT_APPLICATION &&
+              !decode_sha256(component->sha256, application_hash)))) {
+            APP_ERR("FirmwareManager::CreateUpgradeSession: Invalid component declaration");
             return false;
         }
     }
@@ -984,9 +985,9 @@ bool FirmwareManager::VerifyFirmwareIntegrity(FirmwareSlot slot) {
     for (uint32_t i = 0; i < current_session->manifest.component_count; ++i) {
         const FirmwareComponent* component =
             &current_session->manifest.components[i];
-        if (!component->active && component->size == 0 &&
-            strcmp(component->name, "webresources") == 0 &&
-            current_session->manifest.webresources_optional == 1) {
+        /* Mutable resources and data are not content-authenticated in
+         * persistent storage. Only executable application firmware is. */
+        if (strcmp(component->name, "application") != 0) {
             continue;
         }
 

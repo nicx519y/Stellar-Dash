@@ -204,6 +204,19 @@ static void stop_usb()
 
 static void request_standby()
 {
+#if WEBCONFIG_TEST_FORCE_BOOT
+    /*
+     * Bench/WebConfig bring-up must remain reachable through SWD and keep the
+     * local display alive.  Disable the common Standby sink itself so timeout,
+     * low-voltage and explicit/manual callers cannot bypass the individual
+     * auto-standby guard while this temporary debug build is active.
+     */
+    s_sleepEntering = false;
+    s_lastActivityMs = HAL_GetTick();
+    LOG_INFO("SYSTEM_SLEEP", "Standby request ignored by WebConfig bring-up override");
+    return;
+#endif
+
     if (s_sleepEntering) {
         return;
     }
@@ -250,6 +263,46 @@ extern "C" void SystemSleep_ConfirmWakeHoldOrReturnStandby(void)
     if (!s_bootFlagsCaptured) {
         SystemSleep_CaptureBootFlags();
     }
+
+#if WEBCONFIG_TEST_FORCE_BOOT
+    /*
+     * Bring-up firmware must never disappear back into Standby before USART
+     * and the recovery display are initialized.  A debugger reset does not
+     * necessarily clear the retained Standby/WKUP flags, so treating those
+     * flags as a fresh low-power wake can immediately put the target back to
+     * sleep and make both the screen and SWD appear dead.  Clear the retained
+     * wake state and continue with a normal cold-start path instead.
+     */
+    /*
+     * HAL_PWR_EnterSTANDBYMode() selects DSTANDBY for every power domain by
+     * setting PDDS_D1/D2/D3 before executing WFI.  A debug/system reset can
+     * leave that power-policy state and the wake pin armed even though the CPU
+     * has restarted.  Clearing only SB/WKUP therefore is not a complete
+     * "Standby disabled" override: a later deep-sleep instruction can send the
+     * board straight back down.
+     *
+     * Keep D3 alive and force every domain back to the non-Standby selection
+     * for the temporary WebConfig bench image.  This changes runtime registers
+     * only; it does not touch Option Bytes or any protection state.
+     */
+    HAL_PWREx_DisableWakeUpPin(PWR_WAKEUP_PIN1);
+    CLEAR_BIT(PWR->CPUCR,
+              PWR_CPUCR_PDDS_D1 | PWR_CPUCR_PDDS_D2 | PWR_CPUCR_PDDS_D3);
+    SET_BIT(PWR->CPUCR, PWR_CPUCR_RUN_D3);
+    CLEAR_BIT(SCB->SCR, SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk);
+    __DSB();
+    __ISB();
+
+    s_bootedFromStandby = false;
+    s_wakeupFromPa0 = false;
+    s_wakeHoldConfirmed = false;
+    s_waitPa0Release = false;
+    mark_standby_entry_pa0_state(false);
+    (void)HAL_PWREx_ClearWakeupFlag(PWR_WAKEUP_FLAG_ALL);
+    __HAL_PWR_CLEAR_FLAG(PWR_FLAG_SB);
+    return;
+#endif
+
     if (!s_bootedFromStandby || !s_wakeupFromPa0) {
         mark_standby_entry_pa0_state(false);
         (void)HAL_PWREx_ClearWakeupFlag(PWR_WAKEUP_FLAG_ALL);
@@ -364,6 +417,17 @@ extern "C" void SystemSleep_UpdateAutoStandby(uint32_t nowMs)
     if (s_sleepEntering) {
         return;
     }
+
+#if WEBCONFIG_TEST_FORCE_BOOT
+    /*
+     * The temporary WebConfig bring-up override does not persist its runtime
+     * boot mode.  Keep the inactivity timer disarmed while that override is
+     * active so a long browser/debug session cannot enter Standby underneath
+     * an attached debugger.  Explicit/manual Standby requests remain enabled.
+     */
+    s_lastActivityMs = nowMs;
+    return;
+#endif
 
     if (STORAGE_MANAGER.getBootMode() != BootMode::BOOT_MODE_INPUT) {
         s_lastActivityMs = nowMs;

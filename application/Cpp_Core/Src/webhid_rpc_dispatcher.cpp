@@ -161,6 +161,10 @@ uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
         "abort_firmware_upgrade_session",
         "get_firmware_upgrade_status",
         "cleanup_firmware_upgrade_session",
+        "ch585_update_status",
+        "ch585_update_begin",
+        "ch585_update_chunk",
+        "ch585_update_complete",
     };
 
     if (command == "ping" || command == "session.end") {

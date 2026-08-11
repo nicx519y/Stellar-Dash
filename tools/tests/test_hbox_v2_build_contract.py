@@ -28,6 +28,8 @@ class HboxV2BuildContractTests(unittest.TestCase):
             hbox, "_run_python_tool", return_value=0
         ) as run_python, mock.patch.object(
             hbox, "_local_webconfig_state_is_initialized", return_value=True
+        ), mock.patch.object(
+            hbox, "_local_artifacts_are_unlocked_development", return_value=True
         ):
             result = hbox.main(["flash", "app", "B"])
 
@@ -44,6 +46,8 @@ class HboxV2BuildContractTests(unittest.TestCase):
                         "--skip-web",
                         "--jobs",
                         "4",
+                        "--unlocked-development",
+                        "--skip-power-device-probes",
                     ],
                 ),
                 mock.call("webconfig_flash.py", ["--simple-execute"]),
@@ -55,6 +59,8 @@ class HboxV2BuildContractTests(unittest.TestCase):
             hbox, "_run_python_tool", return_value=0
         ) as run_python, mock.patch.object(
             hbox, "_local_webconfig_state_is_initialized", return_value=False
+        ), mock.patch.object(
+            hbox, "_local_artifacts_are_unlocked_development", return_value=True
         ):
             result = hbox.main(["flash", "app", "A"])
 
@@ -72,6 +78,8 @@ class HboxV2BuildContractTests(unittest.TestCase):
                         "--skip-web",
                         "--jobs",
                         "4",
+                        "--unlocked-development",
+                        "--skip-power-device-probes",
                     ],
                 ),
                 mock.call("webconfig_flash.py", ["--simple-execute"]),
@@ -126,7 +134,6 @@ class HboxV2BuildContractTests(unittest.TestCase):
             ("local-init", "init", []),
             ("local-status", "status", []),
             ("probe-revision", "probe-revision", ["--openocd", "probe"]),
-            ("local-build", "build", []),
             ("local-serve", "serve", ["--port", "3001"]),
         )
         for target, command, extra in cases:
@@ -141,6 +148,21 @@ class HboxV2BuildContractTests(unittest.TestCase):
                 [command, *extra],
             )
 
+        with mock.patch.object(
+            hbox, "_run_python_tool", return_value=0
+        ) as run_python:
+            result = hbox.main(["web", "local-build"])
+
+        self.assertEqual(result, 0)
+        run_python.assert_called_once_with(
+            "webconfig_local.py",
+            [
+                "build",
+                "--unlocked-development",
+                "--skip-power-device-probes",
+            ],
+        )
+
     def test_local_stm32_flash_uses_dedicated_fail_closed_tool(self) -> None:
         arguments = [
             "--openocd",
@@ -151,7 +173,9 @@ class HboxV2BuildContractTests(unittest.TestCase):
         ]
         with mock.patch.object(
             hbox, "_run_python_tool", return_value=0
-        ) as run_python:
+        ) as run_python, mock.patch.object(
+            hbox, "_local_artifacts_are_unlocked_development", return_value=True
+        ):
             result = hbox.main(
                 ["web", "local-flash-stm32", *arguments]
             )

@@ -214,8 +214,24 @@ bool FirmwareSecurity_ValidateSlot(const FirmwareMetadata* metadata,
         if (!component->active ||
             component->address != expected_address ||
             component->size == 0u ||
-            component->size > policy->maximum_size ||
-            !decode_sha256(component->sha256, expected_hash) ||
+            component->size > policy->maximum_size) {
+            memset(expected_hash, 0, sizeof(expected_hash));
+            memset(actual_hash, 0, sizeof(actual_hash));
+            return false;
+        }
+
+        /*
+         * Only executable application firmware is content-authenticated at
+         * boot. Web resources, ADC mappings and other data/configuration
+         * storage may change at runtime. Keep their signed declaration, slot
+         * address and size bounds checks above, but never hash their contents
+         * as a condition for booting.
+         */
+        if (policy_index != FIRMWARE_COMPONENT_APPLICATION) {
+            continue;
+        }
+
+        if (!decode_sha256(component->sha256, expected_hash) ||
             !hash_external_flash(component->address,
                                  component->size,
                                  actual_hash) ||

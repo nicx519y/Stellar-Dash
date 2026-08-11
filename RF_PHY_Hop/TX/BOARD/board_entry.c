@@ -3,6 +3,7 @@
 
 #include "board_latest_ch585.h"
 #include "board_role_selector.h"
+#include "ch585_iap_app.h"
 
 int RF_FrozenMain(void);
 
@@ -36,6 +37,7 @@ int main(void)
 #endif
     HSECFG_Capacitance(HSECap_18p);
     SetSysClock(SYSCLK_FREQ);
+    ch585_iap_mark_running_app();
     rfm_board_latest_ch585_set_usb_spi_owner(false);
     rfm_board_latest_ch585_prepare_spi_pins();
 

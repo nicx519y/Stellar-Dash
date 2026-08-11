@@ -1,6 +1,5 @@
 #include "config.hpp"
 #include "qspi-w25q64.h"
-#include "sha256_simple.h"
 #include "cJSON.h"
 #include "utils.h"
 #include <stddef.h>
@@ -28,8 +27,8 @@
  * Power-loss-safe configuration journal.
  *
  * APP_CONFIG and the currently unused LOG_STORAGE regions form two independent
- * 64 KiB banks. A bank only becomes visible after its payload has been read
- * back and the commit word is programmed in a separate final page-program
+ * 64 KiB banks. A bank only becomes visible after the payload write completes
+ * and the commit word is programmed in a separate final page-program
  * operation. Until then the previously committed bank remains authoritative.
  *
  * The payload deliberately remains the native Config image so existing config
@@ -50,7 +49,7 @@ typedef struct {
     uint16_t headerSize;
     uint64_t generation;
     uint32_t payloadLength;
-    uint8_t payloadSha256[32];
+    uint8_t reservedDigest[32];
     uint8_t reserved[8];
     uint32_t commit;
 } ConfigJournalHeader;
@@ -263,6 +262,15 @@ static void sanitize_screen_recovery_entry(ScreenControlConfig& sc) {
         }
     }
     memcpy(sc.featuresOrder, normalized, sizeof(sc.featuresOrder));
+}
+
+static void sanitize_screen_service_flags(ScreenControlConfig& sc) {
+    constexpr uint8_t allowed =
+        SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE |
+        SCREEN_SERVICE_CH585_IAP_CONFIRMED |
+        SCREEN_SERVICE_CH585_UPDATE_PENDING |
+        SCREEN_SERVICE_CH585_UPDATE_FAILED;
+    sc.serviceFlags &= allowed;
 }
 
 static uint32_t clamp_power_wake_hold_ms(uint32_t value) {
@@ -818,6 +826,7 @@ bool ConfigUtils::load(Config& config)
     if(fjResult == true && config.version == CONFIG_VERSION) { // 版本号一致
         sanitize_screen_style(config.screenControl);
         sanitize_screen_recovery_entry(config.screenControl);
+        sanitize_screen_service_flags(config.screenControl);
         sanitize_power_config(config.power);
         sanitize_hardware_layout(config.hardware);
         uint32_t ver = config.version;
@@ -829,6 +838,7 @@ bool ConfigUtils::load(Config& config)
         config.screenControl.screenStyle = infer_screen_style_from_colors(oldBg, oldFg);
         sanitize_screen_style(config.screenControl);
         sanitize_screen_recovery_entry(config.screenControl);
+        sanitize_screen_service_flags(config.screenControl);
         init_power_defaults(config.power);
         init_hardware_layout(config.hardware);
         config.version = CONFIG_VERSION;
@@ -840,6 +850,7 @@ bool ConfigUtils::load(Config& config)
     } else if (fjResult == true && config.version == CONFIG_VERSION_POWER_MIGRATE_FROM) {
         sanitize_screen_style(config.screenControl);
         sanitize_screen_recovery_entry(config.screenControl);
+        sanitize_screen_service_flags(config.screenControl);
         init_power_defaults(config.power);
         init_hardware_layout(config.hardware);
         config.version = CONFIG_VERSION;
@@ -848,6 +859,7 @@ bool ConfigUtils::load(Config& config)
     } else if (fjResult == true && config.version == CONFIG_VERSION_LATEST_PCB_MIGRATE_FROM) {
         sanitize_screen_style(config.screenControl);
         sanitize_screen_recovery_entry(config.screenControl);
+        sanitize_screen_service_flags(config.screenControl);
         sanitize_power_config(config.power);
         init_hardware_layout(config.hardware);
         config.version = CONFIG_VERSION;
@@ -894,7 +906,7 @@ bool ConfigUtils::load(Config& config)
         const uint8_t defaultFeatureOrder[SCREEN_FEATURE_COUNT] = {3, 0, 1, 2, 11, 4, 5, 6, 7, 8, 9, 10};
         memcpy(config.screenControl.featuresOrder, defaultFeatureOrder, sizeof(config.screenControl.featuresOrder));
         sanitize_screen_recovery_entry(config.screenControl);
-        config.screenControl.reserved2 = 0;
+        config.screenControl.serviceFlags = 0;
         init_power_defaults(config.power);
 
         APP_DBG("ConfigUtils::load - base config init done");
@@ -993,36 +1005,6 @@ static bool is_supported_legacy_config_version(uint32_t version) {
            version == CONFIG_VERSION_LATEST_PCB_MIGRATE_FROM;
 }
 
-static int8_t qspi_sha256_region(uint32_t address,
-                                 uint32_t length,
-                                 uint8_t digest[32]) {
-    uint8_t readBuffer[W25Qxx_PageSize];
-    sha256_simple_ctx_t sha;
-    sha256_simple_init(&sha);
-
-    uint32_t offset = 0u;
-    while (offset < length) {
-        uint32_t chunk = length - offset;
-        if (chunk > sizeof(readBuffer)) {
-            chunk = sizeof(readBuffer);
-        }
-        int8_t result = QSPI_W25Qxx_ReadBuffer(
-            readBuffer,
-            address + offset,
-            chunk);
-        if (result != QSPI_W25Qxx_OK) {
-            memset(readBuffer, 0, sizeof(readBuffer));
-            return result;
-        }
-        sha256_simple_update(&sha, readBuffer, chunk);
-        offset += chunk;
-    }
-
-    sha256_simple_final(&sha, digest);
-    memset(readBuffer, 0, sizeof(readBuffer));
-    return QSPI_W25Qxx_OK;
-}
-
 static ConfigBankState inspect_config_bank(uint32_t bankAddress) {
     ConfigBankState state = {};
     state.status = ConfigBankStatus::IO_ERROR;
@@ -1048,23 +1030,7 @@ static ConfigBankState inspect_config_bank(uint32_t bankAddress) {
         return state;
     }
 
-    uint8_t actualDigest[32];
-    result = qspi_sha256_region(
-        bankAddress + sizeof(ConfigJournalHeader),
-        state.header.payloadLength,
-        actualDigest);
-    if (result != QSPI_W25Qxx_OK) {
-        memset(actualDigest, 0, sizeof(actualDigest));
-        return state;
-    }
-
-    state.status =
-        (memcmp(actualDigest,
-                state.header.payloadSha256,
-                sizeof(actualDigest)) == 0)
-            ? ConfigBankStatus::VALID
-            : ConfigBankStatus::INVALID;
-    memset(actualDigest, 0, sizeof(actualDigest));
+    state.status = ConfigBankStatus::VALID;
     return state;
 }
 
@@ -1082,8 +1048,7 @@ static const ConfigBankState* select_newest_config_bank(
 
     /*
      * Equal generations are not emitted by save(). If a service tool cloned a
-     * valid bank, selecting A gives deterministic recovery and still returns a
-     * completely authenticated Config payload.
+     * committed bank, selecting A gives deterministic recovery.
      */
     return (bankB.header.generation > bankA.header.generation)
         ? &bankB
@@ -1101,13 +1066,6 @@ static bool write_config_bank(uint32_t bankAddress,
     header.generation = generation;
     header.payloadLength = sizeof(Config);
     header.commit = CONFIG_JOURNAL_ERASED_WORD;
-
-    if (!sha256_calculate_raw(
-            reinterpret_cast<const uint8_t*>(&config),
-            sizeof(config),
-            header.payloadSha256)) {
-        return false;
-    }
 
     if (QSPI_W25Qxx_BufferErase(bankAddress, CONFIG_BANK_SIZE) !=
         QSPI_W25Qxx_OK) {
@@ -1130,22 +1088,9 @@ static bool write_config_bank(uint32_t bankAddress,
         return false;
     }
 
-    uint8_t readbackDigest[32];
-    if (qspi_sha256_region(
-            bankAddress + sizeof(ConfigJournalHeader),
-            sizeof(config),
-            readbackDigest) != QSPI_W25Qxx_OK ||
-        memcmp(readbackDigest,
-               header.payloadSha256,
-               sizeof(readbackDigest)) != 0) {
-        memset(readbackDigest, 0, sizeof(readbackDigest));
-        return false;
-    }
-    memset(readbackDigest, 0, sizeof(readbackDigest));
-
     /*
      * This is the sole commit point. It intentionally uses its own page
-     * program after the complete payload readback has passed SHA-256.
+     * program after the complete payload write has returned successfully.
      */
     uint32_t commit = CONFIG_JOURNAL_COMMIT;
     if (qspi_write_buffer_no_erase(
@@ -1166,6 +1111,7 @@ bool ConfigUtils::save(Config& config)
     sanitize_competition_profiles(config);
     sanitize_hardware_layout(config.hardware);
     sanitize_screen_recovery_entry(config.screenControl);
+    sanitize_screen_service_flags(config.screenControl);
 
     ConfigQspiIndirectGuard guard;
     if (!guard.ready()) {
@@ -1272,20 +1218,6 @@ bool ConfigUtils::fromStorage(Config& config)
             APP_ERR("ConfigUtils::fromStorage - journal payload read failure.");
             return false;
         }
-        uint8_t loadedDigest[32];
-        if (!sha256_calculate_raw(
-                reinterpret_cast<const uint8_t*>(&config),
-                sizeof(config),
-                loadedDigest) ||
-            memcmp(loadedDigest,
-                   active->header.payloadSha256,
-                   sizeof(loadedDigest)) != 0) {
-            memset(loadedDigest, 0, sizeof(loadedDigest));
-            memset(&config, 0, sizeof(config));
-            APP_ERR("ConfigUtils::fromStorage - payload changed during load.");
-            return false;
-        }
-        memset(loadedDigest, 0, sizeof(loadedDigest));
         APP_DBG("ConfigUtils::fromStorage - loaded journal generation %lu.",
                 (unsigned long)active->header.generation);
         return true;

@@ -490,6 +490,7 @@ class BuildTool:
         reset_after: bool = True,
         stlink_serial: Optional[str] = None,
         expected_target_uid: Optional[str] = None,
+        adapter_speed_khz: Optional[int] = None,
     ) -> bool:
         """使用短生命周期RAM算法分块烧录QSPI并逐块校验。"""
         try:
@@ -517,6 +518,11 @@ class BuildTool:
             return False
         if stlink_serial is not None and expected_target_uid is None:
             print("错误: 指定ST-Link序列号时必须同时提供目标UID")
+            return False
+        if adapter_speed_khz is not None and not (
+            50 <= adapter_speed_khz <= 10000
+        ):
+            print("错误: SWD频率必须在50..10000 kHz范围内")
             return False
 
         qspi_base = 0x90000000
@@ -597,6 +603,10 @@ class BuildTool:
                     if stlink_serial is not None:
                         cmd.extend(
                             ["-c", f"adapter serial {stlink_serial.upper()}"]
+                        )
+                    if adapter_speed_khz is not None:
+                        cmd.extend(
+                            ["-c", f"adapter speed {adapter_speed_khz}"]
                         )
                     cmd.extend([
                         "-f", str(command_script),

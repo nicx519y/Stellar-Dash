@@ -25,6 +25,8 @@
 #include "power_manager.hpp"
 #include "connection_manager.hpp"
 #include "system_sleep_manager.hpp"
+#include "ch585_update_mode.hpp"
+#include "ch585_firmware_update.hpp"
 
 extern "C" {
 #include "qspi-w25q64.h"
@@ -138,6 +140,15 @@ static uint8_t clamp_brightness(uint8_t v) {
 #endif
 
 static uint8_t compute_backlight_percent(uint32_t nowMs) {
+#if WEBCONFIG_TEST_FORCE_BOOT
+    /*
+     * Keep the recovery display visibly alive during bench bring-up.  The
+     * normal one-second dark hold makes an unrelated startup stall look just
+     * like Standby because the ramp is serviced only by the main loop.
+     */
+    (void)nowMs;
+    return (g_cfgBrightness < 20u) ? 20u : g_cfgBrightness;
+#else
     if (!g_bl_ramp_active) return g_cfgBrightness;
     uint32_t elapsed = nowMs - g_bl_boot_ms;
     if (elapsed < SPI_SCREEN_BL_INIT_HOLD_MS) return 0u;
@@ -148,6 +159,7 @@ static uint8_t compute_backlight_percent(uint32_t nowMs) {
         return g_cfgBrightness;
     }
     return (uint8_t)(((uint32_t)g_cfgBrightness * elapsed) / SPI_SCREEN_BL_RAMP_MS);
+#endif
 }
 
 static const char* get_connection_mode_label(void) {
@@ -357,6 +369,14 @@ static void enter_detail(uint8_t menuId) {
 
 static bool boot_mode_to_detail_menu(BootMode mode, uint8_t* outMenuId) {
     if (!outMenuId) return false;
+    if (CH585_UPDATE_MODE.isManualIspActive()) {
+        *outMenuId = 12u;
+        return true;
+    }
+    if (CH585_FIRMWARE_UPDATE.isPending() || CH585_FIRMWARE_UPDATE.hasFailed()) {
+        *outMenuId = 12u;
+        return true;
+    }
     if (mode == BootMode::BOOT_MODE_WEB_CONFIG) {
         *outMenuId = 9u;
         return true;
@@ -409,8 +429,15 @@ void SPIScreenManager::setup() {
 
     refresh_screen_cfg_cache();
     g_bl_boot_ms = HAL_GetTick();
+#if WEBCONFIG_TEST_FORCE_BOOT
+    g_bl_ramp_active = false;
+    ST7789_SetBacklight(
+        &g_lcd,
+        BrightnessCurve_ApplyPercent(compute_backlight_percent(g_bl_boot_ms)));
+#else
     g_bl_ramp_active = true;
     ST7789_SetBacklight(&g_lcd, 0);
+#endif
     ScreenStandby_Init(HAL_GetTick(), get_gamepad_activity_mask());
     ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgBackgroundImageId, g_cfgBg, g_cfgText);
     rebuildMenu();
@@ -569,6 +596,10 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
                 NVIC_SystemReset();
             } else if (g_detailMenuId == 11u) {
                 if (ScreenDetail_OnBack(g_detailMenuId)) {
+                    g_inDetail = false;
+                }
+            } else if (g_detailMenuId == 12u) {
+                if (ScreenDetailCh585Flash_OnBack()) {
                     g_inDetail = false;
                 }
             } else {
@@ -771,6 +802,8 @@ void SPIScreenManager::renderBars() {
         ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, ScreenDetailWebConfig_ConfirmLabel(), textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
     } else if (g_inDetail && g_detailMenuId == 10) {
         ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, "Quit", textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
+    } else if (g_inDetail && g_detailMenuId == 12) {
+        ScreenUI_DrawStringCenteredInBox(&g_lcd, rightX, midY, rightW, areaH, ScreenDetailCh585Flash_ConfirmLabel(), textColor, okBg, SPI_SCREEN_STATUS_BAR_TEXT_SCALE);
     } else if (g_inDetail && (g_detailMenuId == 4 || g_detailMenuId == 6 || g_detailMenuId == 8)) {
         bool on = false;
         if (g_detailMenuId == 4) {

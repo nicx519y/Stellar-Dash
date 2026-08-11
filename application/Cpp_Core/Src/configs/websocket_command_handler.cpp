@@ -131,6 +131,10 @@ void WebSocketCommandManager::initializeHandlers() {
     registerHandler("abort_firmware_upgrade_session", &firmwareHandler);
     registerHandler("get_firmware_upgrade_status", &firmwareHandler);
     registerHandler("cleanup_firmware_upgrade_session", &firmwareHandler);
+    registerHandler("ch585_update_status", &firmwareHandler);
+    registerHandler("ch585_update_begin", &firmwareHandler);
+    registerHandler("ch585_update_chunk", &firmwareHandler);
+    registerHandler("ch585_update_complete", &firmwareHandler);
     
     // LOG_INFO("WebSocket", "WebSocket command handlers initialized successfully");
 } 

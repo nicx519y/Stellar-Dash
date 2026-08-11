@@ -196,6 +196,7 @@ interface GamepadConfigContextType {
     upgradeSession: FirmwareUpgradeSession | null;
     downloadFirmwarePackage: (downloadUrl: string, onProgress?: (progress: FirmwarePackageDownloadProgress) => void) => Promise<FirmwarePackage>;
     uploadFirmwareToDevice: (firmwarePackage: FirmwarePackage, onProgress?: (progress: FirmwarePackageDownloadProgress) => void) => Promise<void>;
+    uploadCh585Firmware: (image: Uint8Array, onProgress?: (progress: number) => void) => Promise<void>;
     setUpgradeConfig: (config: Partial<FirmwareUpgradeConfig>) => void;
     getUpgradeConfig: () => FirmwareUpgradeConfig;
     getValidChunkSizes: () => number[];
@@ -2293,6 +2294,39 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
+    const uploadCh585Firmware = async (
+        image: Uint8Array,
+        onProgress?: (progress: number) => void,
+    ): Promise<void> => {
+        if (image.length <= 0x1000 || (image.length & 3) !== 0) {
+            throw new Error('CH585 image must be the aligned combined IAP + application BIN');
+        }
+        const sessionId = `ch585-${Date.now().toString(16)}`;
+        const sha256 = await calculateSHA256(image);
+        await sendWebSocketRequest('ch585_update_begin', {
+            session_id: sessionId,
+            total_size: image.length,
+            sha256,
+        }, true);
+
+        const chunkSize = 512;
+        for (let offset = 0; offset < image.length; offset += chunkSize) {
+            const chunk = image.slice(offset, Math.min(offset + chunkSize, image.length));
+            const data = btoa(String.fromCharCode(...chunk));
+            await sendWebSocketRequest('ch585_update_chunk', {
+                session_id: sessionId,
+                offset,
+                data,
+            }, true);
+            onProgress?.(Math.round(((offset + chunk.length) * 100) / image.length));
+        }
+
+        await sendWebSocketRequest('ch585_update_complete', {
+            session_id: sessionId,
+        }, true);
+        onProgress?.(100);
+    };
+
     // 二进制固件分片传输函数
     const sendBinaryFirmwareChunk = async (
         sessionId: string,
@@ -2682,6 +2716,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             upgradeSession: upgradeSession,
             downloadFirmwarePackage: downloadFirmwarePackage,
             uploadFirmwareToDevice: uploadFirmwareToDevice,
+            uploadCh585Firmware: uploadCh585Firmware,
             setUpgradeConfig: setUpgradeConfig,
             getUpgradeConfig: getUpgradeConfig,
             getValidChunkSizes: getValidChunkSizes,

@@ -8,6 +8,7 @@
 #include "storagemanager.hpp"
 #include "qspi-w25q64.h"
 #include "config_transport_sink.hpp"
+#include "ch585_firmware_update.hpp"
 
 namespace {
 
@@ -123,6 +124,14 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handle(const WebSocketUpstrea
         return handleGetFirmwareUpgradeStatus(request);
     } else if (command == "cleanup_firmware_upgrade_session") {
         return handleCleanupFirmwareUpgradeSession(request);
+    } else if (command == "ch585_update_status") {
+        return handleCh585UpdateStatus(request);
+    } else if (command == "ch585_update_begin") {
+        return handleCh585UpdateBegin(request);
+    } else if (command == "ch585_update_chunk") {
+        return handleCh585UpdateChunk(request);
+    } else if (command == "ch585_update_complete") {
+        return handleCh585UpdateComplete(request);
     }
     
     // 未知命令
@@ -180,6 +189,94 @@ WebSocketDownstreamMessage FirmwareCommandHandler::handleGetDeviceAuth(const Web
     // LOG_INFO("WebSocket", "get_device_auth command completed successfully");
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 #endif
+}
+
+WebSocketDownstreamMessage FirmwareCommandHandler::handleCh585UpdateStatus(
+    const WebSocketUpstreamMessage& request)
+{
+    cJSON* data = cJSON_CreateObject();
+    cJSON_AddNumberToObject(data, "status",
+        static_cast<int>(CH585_FIRMWARE_UPDATE.status()));
+    cJSON_AddNumberToObject(data, "progress", CH585_FIRMWARE_UPDATE.progress());
+    cJSON_AddNumberToObject(data, "total_size", CH585_FIRMWARE_UPDATE.totalSize());
+    cJSON_AddNumberToObject(data, "received_size", CH585_FIRMWARE_UPDATE.receivedSize());
+    cJSON_AddBoolToObject(data, "pending", CH585_FIRMWARE_UPDATE.isPending());
+    cJSON_AddBoolToObject(data, "failed", CH585_FIRMWARE_UPDATE.hasFailed());
+    return create_success_response(request.getCid(), request.getCommand(), data);
+}
+
+WebSocketDownstreamMessage FirmwareCommandHandler::handleCh585UpdateBegin(
+    const WebSocketUpstreamMessage& request)
+{
+    cJSON* params = request.getParams();
+    uint32_t totalSize = 0u;
+    uint8_t expectedSha[32];
+    if (!params ||
+        !parseUint32(cJSON_GetObjectItem(params, "total_size"), &totalSize) ||
+        !decodeHexField(cJSON_GetObjectItem(params, "sha256"),
+                        expectedSha,
+                        sizeof(expectedSha))) {
+        return create_error_response(request.getCid(), request.getCommand(),
+                                     1, "Invalid CH585 image size or SHA-256");
+    }
+    if (!CH585_FIRMWARE_UPDATE.begin(totalSize, expectedSha)) {
+        return create_error_response(request.getCid(), request.getCommand(),
+                                     2, "Failed to initialize CH585 staging area");
+    }
+    cJSON* data = cJSON_CreateObject();
+    cJSON_AddBoolToObject(data, "success", true);
+    cJSON_AddNumberToObject(data, "max_chunk_size", 1024);
+    return create_success_response(request.getCid(), request.getCommand(), data);
+}
+
+WebSocketDownstreamMessage FirmwareCommandHandler::handleCh585UpdateChunk(
+    const WebSocketUpstreamMessage& request)
+{
+    cJSON* params = request.getParams();
+    uint32_t offset = 0u;
+    cJSON* encodedItem = params ? cJSON_GetObjectItem(params, "data") : nullptr;
+    if (!params ||
+        !parseUint32(cJSON_GetObjectItem(params, "offset"), &offset) ||
+        !encodedItem || !cJSON_IsString(encodedItem)) {
+        return create_error_response(request.getCid(), request.getCommand(),
+                                     1, "Invalid CH585 chunk parameters");
+    }
+    size_t decodedLength = 0u;
+    uint8_t* decoded = base64_decode_websocket(
+        cJSON_GetStringValue(encodedItem), &decodedLength);
+    if (!decoded || decodedLength == 0u || decodedLength > 1024u) {
+        free(decoded);
+        return create_error_response(request.getCid(), request.getCommand(),
+                                     1, "Invalid CH585 chunk data");
+    }
+    const bool success = CH585_FIRMWARE_UPDATE.write(
+        offset, decoded, static_cast<uint32_t>(decodedLength));
+    free(decoded);
+    if (!success) {
+        return create_error_response(request.getCid(), request.getCommand(),
+                                     2, "CH585 chunk write failed or is out of sequence");
+    }
+    cJSON* data = cJSON_CreateObject();
+    cJSON_AddBoolToObject(data, "success", true);
+    cJSON_AddNumberToObject(data, "received_size",
+                            CH585_FIRMWARE_UPDATE.receivedSize());
+    cJSON_AddNumberToObject(data, "progress", CH585_FIRMWARE_UPDATE.progress());
+    return create_success_response(request.getCid(), request.getCommand(), data);
+}
+
+WebSocketDownstreamMessage FirmwareCommandHandler::handleCh585UpdateComplete(
+    const WebSocketUpstreamMessage& request)
+{
+    if (!CH585_FIRMWARE_UPDATE.finalizeAndSchedule()) {
+        return create_error_response(request.getCid(), request.getCommand(),
+                                     2, "CH585 staged firmware verification failed");
+    }
+    cJSON* data = cJSON_CreateObject();
+    cJSON_AddBoolToObject(data, "success", true);
+    cJSON_AddBoolToObject(data, "reboot_scheduled", true);
+    cJSON_AddStringToObject(data, "message",
+                            "Device will reboot and update CH585 locally");
+    return create_success_response(request.getCid(), request.getCommand(), data);
 }
 
 /**

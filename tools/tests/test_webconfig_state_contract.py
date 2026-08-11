@@ -89,6 +89,29 @@ class WebConfigStateContractTests(unittest.TestCase):
         self.assertNotIn("SPIScreenManager::getInstance().shutdown();", input_safe)
         self.assertIn("BOARD_POWER.enterSafeState();", input_safe)
 
+    def test_webconfig_bringup_clears_all_retained_standby_selection(self) -> None:
+        sleep_source = (
+            ROOT
+            / "application"
+            / "Cpp_Core"
+            / "Src"
+            / "system_sleep_manager.cpp"
+        ).read_text(encoding="utf-8")
+        screen_source = (
+            ROOT
+            / "application"
+            / "Cpp_Core"
+            / "Src"
+            / "screen_control"
+            / "spi_screen_manager.cpp"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("HAL_PWREx_DisableWakeUpPin(PWR_WAKEUP_PIN1);", sleep_source)
+        self.assertIn("PWR_CPUCR_PDDS_D1 | PWR_CPUCR_PDDS_D2 | PWR_CPUCR_PDDS_D3", sleep_source)
+        self.assertIn("SET_BIT(PWR->CPUCR, PWR_CPUCR_RUN_D3);", sleep_source)
+        self.assertIn("SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk", sleep_source)
+        self.assertIn("return (g_cfgBrightness < 20u) ? 20u : g_cfgBrightness;", screen_source)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -115,6 +115,7 @@ private:
     uint32_t nextTelemetryAtMs = 0u;
     bool roleLocked = false;
     bool capsValid = false;
+    bool usbSubsystemEvidence = false;
     bool transactionActive = false;
     bool webConfigTxActive = false;
     bool webConfigTxCreditConsumed = false;
