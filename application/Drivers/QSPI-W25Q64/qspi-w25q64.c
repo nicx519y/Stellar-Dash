@@ -866,6 +866,9 @@ int8_t QSPI_W25Qxx_ExitMemoryMappedMode(void)
 	// }
 
 	QSPI_W25Qxx_DBG("Exiting XIP mode start...");
+	/* Fail closed: no caller may dereference the mapped aperture again until
+	 * HAL_QSPI_MemoryMapped() has positively succeeded. */
+	xip_enabled = false;
 
 	/* 中止当前QSPI操作 */
 	if(HAL_QSPI_Abort(&hqspi) != HAL_OK) {
@@ -906,7 +909,6 @@ int8_t QSPI_W25Qxx_ExitMemoryMappedMode(void)
 	/* 重新初始化QSPI控制器 */
 	// 可以调用您的QSPI初始化函数，或者在这里添加必要的初始化代码
 	
-	xip_enabled = false;
 	QSPI_W25Qxx_DBG("Exit XIP mode success.");
 	return QSPI_W25Qxx_OK;
 }
@@ -925,8 +927,6 @@ int8_t QSPI_W25Qxx_EnterMemoryMappedMode(void)
 		QSPI_W25Qxx_DBG("Already in XIP mode");
 		return QSPI_W25Qxx_OK;
 	}
-
-	xip_enabled = true;
 
 	QSPI_CommandTypeDef      s_command;
 	QSPI_MemoryMappedTypeDef s_mem_mapped_cfg;
@@ -949,7 +949,14 @@ int8_t QSPI_W25Qxx_EnterMemoryMappedMode(void)
 	QSPI_W25Qxx_DBG("QSPI CR: 0x%08X", QUADSPI->CR);
 	QSPI_W25Qxx_DBG("QSPI DCR: 0x%08X", QUADSPI->DCR);
 	
-	return HAL_QSPI_MemoryMapped(&hqspi, &s_command, &s_mem_mapped_cfg);
+	const HAL_StatusTypeDef status =
+		HAL_QSPI_MemoryMapped(&hqspi, &s_command, &s_mem_mapped_cfg);
+	xip_enabled = (status == HAL_OK);
+	if (!xip_enabled) {
+		QSPI_W25Qxx_ERR("Enter XIP mode failed: HAL status=%d", status);
+		return W25Qxx_ERROR_MemoryMapped;
+	}
+	return QSPI_W25Qxx_OK;
 }
 
 /**

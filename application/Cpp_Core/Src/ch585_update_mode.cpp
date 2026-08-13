@@ -34,7 +34,12 @@ static bool persistServiceFlag(uint8_t bit, bool enabled)
 
 bool Ch585UpdateMode::isManualIspActive() const
 {
-    return serviceFlagSet(SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE);
+    /* Fail safe during initial IAP migration and after an interrupted/failed
+     * SPI update.  Until a live IAP plus Application/CAPS verification has
+     * succeeded, STM32 must never negotiate a CH585 role: doing so steals the
+     * USB pins from the ROM ISP shortly after BOOT-held power-up. */
+    return serviceFlagSet(SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE) ||
+           !isIapConfirmed() || CH585_FIRMWARE_UPDATE.hasFailed();
 }
 
 bool Ch585UpdateMode::isManualIspPowered() const
@@ -44,7 +49,12 @@ bool Ch585UpdateMode::isManualIspPowered() const
 
 bool Ch585UpdateMode::isIapConfirmed() const
 {
-    return serviceFlagSet(SCREEN_SERVICE_CH585_IAP_CONFIRMED);
+    /* A completed bridge transaction includes IAP PROBE, full Application
+     * CRC, maintenance role and CAPS verification. APPLIED is therefore an
+     * authoritative IAP confirmation even before the legacy config bit is
+     * persisted. An explicit USB ISP request remains independent. */
+    return serviceFlagSet(SCREEN_SERVICE_CH585_IAP_CONFIRMED) ||
+           CH585_FIRMWARE_UPDATE.hasAppliedImage();
 }
 
 bool Ch585UpdateMode::isManualEntryVisible() const
@@ -69,6 +79,14 @@ bool Ch585UpdateMode::requestExitManualIsp()
         APP_STAGE_ERROR("M02", "CH585 IAP capability probe failed; manual ISP mode retained");
         return false;
     }
+    if (!CH585_IAP_CLIENT.validateApplication()) {
+        APP_STAGE_ERROR("M02A", "CH585 Application/CAPS verification failed; manual ISP mode retained");
+        return false;
+    }
+    if (!CH585_FIRMWARE_UPDATE.acknowledgeManualRecovery()) {
+        APP_STAGE_ERROR("M02J", "CH585 recovery verified but stale failure journal could not be cleared");
+        return false;
+    }
 
     uint8_t& flags = STORAGE_MANAGER.config.screenControl.serviceFlags;
     const uint8_t previous = flags;
@@ -76,7 +94,7 @@ bool Ch585UpdateMode::requestExitManualIsp()
         (flags | SCREEN_SERVICE_CH585_IAP_CONFIRMED) &
         ~SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE);
     if (STORAGE_MANAGER.saveConfig()) {
-        APP_STAGE("M03", "CH585 IAP confirmed; temporary manual entry hidden");
+        APP_STAGE("M03", "CH585 IAP and Application/CAPS confirmed; temporary manual entry hidden");
         return true;
     }
     flags = previous;
@@ -96,8 +114,21 @@ void Ch585UpdateMode::setupManualIspRuntime()
     RFBridgePort_Shutdown();
     BOARD_POWER.enterRecoveryUiState();
     BOARD_POWER.setCh585Enabled(false);
+    HAL_Delay(CH585_POWER_OFF_MIN_MS);
+    BOARD_POWER.setCh585Enabled(true);
+    manualIspPowered = true;
+    APP_STAGE("M01", "CH585 manual ISP powered; SPI role and USB host takeover suppressed");
+}
+
+void Ch585UpdateMode::shutdownManualIspRuntime()
+{
+    USB_DRIVER.shutdown();
+    USB_BOARD_LINK.shutdown();
+    CH585_ROLE_BOOTSTRAP.shutdown();
+    RFBridgePort_Shutdown();
+    BOARD_POWER.setCh585Enabled(false);
     manualIspPowered = false;
-    APP_STAGE("M01", "CH585 manual ISP ready; CH585 held off until BOOT is held");
+    APP_STAGE("M01X", "exited isolated CH585 USB ISP state");
 }
 
 bool Ch585UpdateMode::powerOnManualIsp()

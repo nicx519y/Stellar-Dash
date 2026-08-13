@@ -214,7 +214,7 @@ bool InputState::applyPhysicalMode(BoardMode mode, bool initial)
     return false;
 }
 
-void InputState::setup()
+bool InputState::enter()
 {
     const InputMode inputMode = STORAGE_MANAGER.getInputMode();
     APP_STAGE("I01", "INPUT state setup begin: input mode=%u",
@@ -224,7 +224,7 @@ void InputState::setup()
         APP_ERR("INPUT mode cannot use CONFIG profile");
         activeBoardMode = BoardMode::Fault;
         enterBoardSafeState();
-        return;
+        return false;
     }
 
     if (!BOARD_MODE.isStable()) {
@@ -239,9 +239,10 @@ void InputState::setup()
     APP_STAGE("I05", "INPUT state loop enabled: transport ready=%u",
               modeReady ? 1u : 0u);
     Logger_Flush();
+    return true;
 }
 
-void InputState::loop()
+void InputState::tick()
 {
     if (!isRunning) {
         return;
@@ -345,8 +346,17 @@ bool InputState::connectUsbRuntime()
     return ensureUsbRuntime(STORAGE_MANAGER.getInputMode());
 }
 
-void InputState::reset()
+void InputState::exit()
 {
+    stopInputPipeline();
+    USB_DRIVER.shutdown();
+    USB_BOARD_LINK.shutdown();
+    CH585_ROLE_BOOTSTRAP.shutdown();
+    RFBridgePort_Shutdown();
     lastVirtualPinMask = 0u;
     virtualPinMask = 0u;
+    usbRuntimeInitialized = false;
+    usbRuntimeConnected = false;
+    activeBoardMode = BoardMode::CenterOff;
+    isRunning = false;
 }

@@ -25,6 +25,7 @@ HBox 工具统一入口（tools/hbox.py）
   - code A|B（低层纯代码烧录，不更新metadata）
   - appAll A|B
   - assets
+  - tx（通过 ST-LINK → QSPI → SPI 烧录 CH585 TX 固件）
 
 3) release
   - auto
@@ -39,6 +40,7 @@ HBox 工具统一入口（tools/hbox.py）
   python tools/hbox.py flash bootloader-dev
   python tools/hbox.py flash code A
   python tools/hbox.py flash appAll A --code-only
+  python tools/hbox.py flash tx
   python tools/hbox.py release auto --version 1.0.0
   python tools/hbox.py release flash 0.0.1_a --slot A
   python tools/hbox.py web dev
@@ -47,6 +49,8 @@ HBox 工具统一入口（tools/hbox.py）
   python tools/hbox.py web local-init
   python tools/hbox.py web local-build
   python tools/hbox.py web local-flash-stm32 --simple-execute
+  python tools/hbox.py web local-ch585-status
+  python tools/hbox.py web local-install-ch585-bridge --execute
   python tools/hbox.py web local-serve
 """
 
@@ -277,6 +281,7 @@ def main(argv: list[str]) -> int:
   python tools/hbox.py build appAll A
   python tools/hbox.py flash bootloader-dev
   python tools/hbox.py flash appAll A
+  python tools/hbox.py flash tx
   python tools/hbox.py release auto --version 1.0.0
   python tools/hbox.py web dev
   python tools/hbox.py web build
@@ -295,7 +300,19 @@ def main(argv: list[str]) -> int:
     p_build.add_argument("slot", nargs="?", choices=["A", "B"])
 
     p_flash = subparsers.add_parser("flash", help="烧录相关")
-    p_flash.add_argument("target", choices=["bootloader", "bootloader-dev", "app", "code", "appAll", "assets", "sysbg"])
+    p_flash.add_argument(
+        "target",
+        choices=[
+            "bootloader",
+            "bootloader-dev",
+            "app",
+            "code",
+            "appAll",
+            "assets",
+            "sysbg",
+            "tx",
+        ],
+    )
     p_flash.add_argument("slot", nargs="?", choices=["A", "B"])
     p_flash.add_argument("--code-only", action="store_true", help="仅烧录代码（app），不烧录资源")
 
@@ -314,6 +331,9 @@ def main(argv: list[str]) -> int:
             "local-init",
             "local-build",
             "local-flash-stm32",
+            "local-flash-ch585",
+            "local-ch585-status",
+            "local-install-ch585-bridge",
             "local-serve",
             "local-status",
             "probe-revision",
@@ -354,6 +374,8 @@ def main(argv: list[str]) -> int:
             return rc
 
     if args.cmd == "flash":
+        if args.target == "tx":
+            return _run_python_tool("ch585_stlink_update.py", ["--execute"])
         if args.target == "bootloader":
             return _run_python_tool("build.py", ["flash", "bootloader"])
         if args.target == "bootloader-dev":
@@ -399,6 +421,12 @@ def main(argv: list[str]) -> int:
             if not _local_artifacts_are_unlocked_development():
                 return 2
             return _run_python_tool("webconfig_flash.py", args.args)
+        if args.target == "local-flash-ch585":
+            return _run_python_tool("ch585_stlink_update.py", args.args)
+        if args.target == "local-ch585-status":
+            return _run_python_tool("ch585_stlink_update.py", ["--status", *args.args])
+        if args.target == "local-install-ch585-bridge":
+            return _run_python_tool("ch585_bridge_install.py", args.args)
         local_commands = {
             "local-init": "init",
             "local-build": "build",

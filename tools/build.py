@@ -485,26 +485,25 @@ class BuildTool:
         source_file: Path,
         target_address: int,
         label: str,
-        chunk_size: int = 4096,
         *,
         reset_after: bool = True,
         stlink_serial: Optional[str] = None,
         expected_target_uid: Optional[str] = None,
         adapter_speed_khz: Optional[int] = None,
+        connect_under_reset_fallback: bool = False,
+        runtime_attach: bool = False,
+        leave_halted: bool = False,
     ) -> bool:
-        """使用短生命周期RAM算法分块烧录QSPI并逐块校验。"""
+        """Use OpenOCD's stmqspi driver to erase, write and verify one image."""
         try:
             source_file = source_file.resolve(strict=True)
-            payload = source_file.read_bytes()
+            payload_size = source_file.stat().st_size
         except OSError as exc:
             print(f"错误: 无法读取{label}文件: {exc}")
             return False
 
-        if not payload:
+        if payload_size <= 0:
             print(f"错误: {label}文件为空: {source_file}")
-            return False
-        if chunk_size <= 0 or chunk_size > 8192:
-            print("错误: QSPI分块大小必须在1..8192字节范围内")
             return False
         if stlink_serial is not None and re.fullmatch(
             r"[0-9A-Fa-f]{24}", stlink_serial
@@ -524,11 +523,14 @@ class BuildTool:
         ):
             print("错误: SWD频率必须在50..10000 kHz范围内")
             return False
+        if leave_halted and not runtime_attach:
+            print("错误: leave_halted只允许用于运行时QSPI事务")
+            return False
 
         qspi_base = 0x90000000
         qspi_size = 0x00800000
         qspi_sector_size = 0x00010000
-        target_end = target_address + len(payload)
+        target_end = target_address + payload_size
         if (
             target_address < qspi_base
             or target_end > qspi_base + qspi_size
@@ -549,161 +551,102 @@ class BuildTool:
             print(f"错误: OpenOCD QSPI配置不存在: {openocd_cfg}")
             return False
 
-        build_dir = self.application_dir / "build"
-        build_dir.mkdir(parents=True, exist_ok=True)
-        chunk_count = (len(payload) + chunk_size - 1) // chunk_size
         print(
-            f"{label}: {len(payload)} bytes，目标0x{target_address:08X}，"
-            f"按{chunk_size}B分为{chunk_count}块"
+            f"{label}: {payload_size} bytes，目标0x{target_address:08X}，"
+            "使用OpenOCD stmqspi标准整文件写入/校验"
         )
 
         try:
+            build_dir = self.application_dir / "build"
+            build_dir.mkdir(parents=True, exist_ok=True)
             with tempfile.TemporaryDirectory(
                 prefix=".qspi-flash-", dir=build_dir
             ) as temporary:
                 temporary_dir = Path(temporary)
-                chunk_records = []
-                for index, offset in enumerate(
-                    range(0, len(payload), chunk_size)
+                encoded = self._openocd_tcl_braced_path(source_file)
+                commands = [
+                    "gdb_port disabled",
+                    "tcl_port disabled",
+                    "telnet_port disabled",
+                    "init",
+                    *(["halt"] if runtime_attach else ["reset init"]),
+                    *(
+                        self._openocd_target_assert_commands(expected_target_uid)
+                        if expected_target_uid is not None
+                        else []
+                    ),
+                    *(["qspi_init"] if runtime_attach else []),
+                    "flash probe 1",
+                    f"flash write_image erase {encoded} 0x{target_address:08X} bin",
+                    # Verify through the stmqspi flash bank instead of the
+                    # Cortex-M memory map.  A halted M7 can retain stale QSPI
+                    # cache lines (notably the CH585 status header), causing
+                    # verify_image to report mismatches after a valid write.
+                    f"flash verify_bank 1 {encoded} "
+                    f"0x{target_address - qspi_base:08X}",
+                ]
+                if runtime_attach:
+                    commands.append("qspi_init")
+                    if reset_after:
+                        # SYSRESETREQ takes effect immediately.  Do not wait
+                        # for a target that has intentionally reset: on this
+                        # board the running application can make the DAP
+                        # temporarily unavailable, which made a successfully
+                        # verified QSPI commit look like an OpenOCD failure.
+                        commands.append("mww 0xE000ED0C 0x05FA0004")
+                    elif not leave_halted:
+                        commands.append("resume")
+                elif reset_after:
+                    commands.append("reset run")
+                commands.append("shutdown")
+
+                script = temporary_dir / "openocd-standard-qspi.tcl"
+                script.write_text("\n".join(commands) + "\n", encoding="utf-8")
+                command = [
+                    self.config.get("openocd_path", "openocd"),
+                    "-d0",
+                    "-f",
+                    str(openocd_cfg),
+                ]
+                if stlink_serial is not None:
+                    command.extend(
+                        ["-c", f"adapter serial {stlink_serial.upper()}"]
+                    )
+                if adapter_speed_khz is not None:
+                    command.extend(
+                        ["-c", f"adapter speed {adapter_speed_khz}"]
+                    )
+                base_command = list(command)
+                command.extend(["-f", str(script)])
+                success = self.run_command(
+                    command, self.application_dir, quiet=True
+                )
+                if (
+                    not success
+                    and not runtime_attach
+                    and connect_under_reset_fallback
                 ):
-                    chunk = payload[offset : offset + chunk_size]
-                    chunk_file = temporary_dir / f"chunk-{index:04d}.bin"
-                    chunk_file.write_bytes(chunk)
-                    chunk_records.append(
-                        (chunk_file, target_address + offset)
-                    )
-
-                def run_session(name: str, body: list[str]) -> bool:
-                    commands = [
-                        "gdb_port disabled",
-                        "tcl_port disabled",
-                        "telnet_port disabled",
-                        "init",
-                        "reset init",
-                        *(
-                            self._openocd_target_assert_commands(
-                                expected_target_uid
-                            )
-                            if expected_target_uid is not None
-                            else []
-                        ),
-                        "flash probe 1",
-                        *body,
-                        "shutdown",
-                    ]
-                    command_script = temporary_dir / f"{name}.tcl"
-                    command_script.write_text(
-                        "\n".join(commands) + "\n", encoding="utf-8"
-                    )
-                    cmd = [
-                        self.config.get("openocd_path", "openocd"),
-                        "-d0",
-                        "-f", str(openocd_cfg),
-                    ]
-                    if stlink_serial is not None:
-                        cmd.extend(
-                            ["-c", f"adapter serial {stlink_serial.upper()}"]
-                        )
-                    if adapter_speed_khz is not None:
-                        cmd.extend(
-                            ["-c", f"adapter speed {adapter_speed_khz}"]
-                        )
-                    cmd.extend([
-                        "-f", str(command_script),
-                    ])
-                    return self.run_command(
-                        cmd,
-                        self.application_dir,
-                        quiet=True,
-                    )
-
-                first_sector = (
-                    target_address - qspi_base
-                ) // qspi_sector_size
-                last_sector = (
-                    target_end - 1 - qspi_base
-                ) // qspi_sector_size
-                sectors = list(range(first_sector, last_sector + 1))
-                # This WCH OpenOCD/HLA build loses the target after a long
-                # stmqspi async session. Reconnect well below the observed
-                # failure threshold while keeping each write at 4 KiB.
-                chunks_per_session = 8
-                session_count = (
-                    len(chunk_records) + chunks_per_session - 1
-                ) // chunks_per_session
-                total_steps = len(sectors) + session_count
-                completed_steps = 0
-
-                def show_progress() -> None:
-                    width = 30
-                    filled = (
-                        width * completed_steps // total_steps
-                        if total_steps
-                        else width
-                    )
-                    percent = (
-                        100 * completed_steps // total_steps
-                        if total_steps
-                        else 100
-                    )
-                    bar = "#" * filled + "-" * (width - filled)
                     print(
-                        f"\r{label} [{bar}] {percent:3d}%",
-                        end="\n" if completed_steps == total_steps else "",
-                        flush=True,
+                        f"{label}: normal SWD session failed; retrying connect-under-reset"
                     )
-
-                show_progress()
-                for sector in sectors:
-                    erased = False
-                    for attempt in range(1, 4):
-                        if run_session(
-                            f"erase-qspi-{sector:03d}-{attempt}",
-                            [f"flash erase_sector 1 {sector} {sector}"],
-                        ):
-                            erased = True
-                            break
-                    if not erased:
-                        print(
-                            f"错误: {label}目标sector {sector}擦除失败"
-                        )
-                        return False
-                    completed_steps += 1
-                    show_progress()
-
-                for session_index in range(session_count):
-                    start = session_index * chunks_per_session
-                    batch = chunk_records[
-                        start : start + chunks_per_session
+                    fallback = [
+                        *base_command,
+                        "-c",
+                        "reset_config connect_assert_srst",
+                        "-f",
+                        str(script),
                     ]
-                    body = []
-                    for chunk_file, chunk_address in batch:
-                        tcl_path = self._openocd_tcl_braced_path(chunk_file)
-                        body.append(
-                            f"flash write_image {tcl_path} "
-                            f"0x{chunk_address:08X} bin"
-                        )
-                        body.append(
-                            f"verify_image {tcl_path} "
-                            f"0x{chunk_address:08X} bin"
-                        )
-                    if reset_after and session_index == session_count - 1:
-                        body.append("reset run")
-                    if not run_session(
-                        f"program-qspi-{session_index:03d}", body
-                    ):
-                        print(
-                            f"错误: {label}写入会话"
-                            f"{session_index + 1}/{session_count}失败"
-                        )
-                        return False
-                    completed_steps += 1
-                    show_progress()
+                    success = self.run_command(
+                        fallback, self.application_dir, quiet=True
+                    )
+                if not success:
+                    print(f"错误: {label} OpenOCD标准整文件写入/校验失败")
+                    return False
         except (OSError, ValueError) as exc:
-            print(f"错误: 无法准备QSPI分块烧录事务: {exc}")
+            print(f"错误: 无法准备QSPI整文件烧录事务: {exc}")
             return False
 
-        print(f"{label}烧录并逐块校验成功")
+        print(f"{label} OpenOCD整文件烧录并校验成功")
         return True
 
     @staticmethod

@@ -211,9 +211,12 @@ static uint8_t handle_packet(const ch585_iap_packet_t *packet)
 
 static void jump_to_app(void)
 {
-    uint32_t irq_status;
     rfm_board_latest_ch585_stop_spi();
-    SYS_DisableAllIrq(&irq_status);
+    /* Match WCH's official IAP hand-off: leave the reset/startup code at
+     * 0x1000 responsible for establishing mstatus, mtvec and PFIC state.
+     * Clearing every PFIC enable immediately before a direct jump leaves the
+     * application in a non-reset interrupt context and prevents a reliable
+     * cold-boot role handshake. */
     ((void (*)(void))(uintptr_t)CH585_IAP_APP_START)();
     for(;;) {}
 }

@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define USB_SPI_RX_DMA_BYTES 64u
 #define USB_SPI_RX_FIFO_BYTES 16384u
 #define USB_SPI_TX_SLOTS 4u
 
@@ -61,17 +60,12 @@ static inline bool usb_spi_rx_ring_pop(usb_spi_rx_ring_t *ring, uint8_t *byte)
     typedef char USB_SPI_STATIC_ASSERT_GLUE(usb_spi_static_assert_, __LINE__)[(expr) ? 1 : -1]
 
 /*
- * R16_SPI0_TOTAL_CNT implements only 12 bits.  UsbBoardLink transactions are
- * at most 64 bytes, so RX uses one 64-byte DMA buffer per NSS assertion.
- * The PA12 rising-edge ISR moves that complete transaction into the 16-KiB
- * software ring and only then rearms DMA while NSS is high.  DMA is therefore
- * never reloaded in the middle of an active transaction.
+ * RX is a byte stream drained from the eight-byte hardware FIFO by its
+ * half-full interrupt. Protocol framing supplies transaction boundaries, so
+ * reception does not depend on PA12/NSS rising-edge retention. The ISR moves
+ * bytes into this 16-KiB ring and the main loop runs the protocol parser.
  */
-USB_SPI_STATIC_ASSERT(USB_SPI_RX_DMA_BYTES > 0u);
-USB_SPI_STATIC_ASSERT(USB_SPI_RX_DMA_BYTES <= 0x0FFFu);
-USB_SPI_STATIC_ASSERT(USB_SPI_RX_DMA_BYTES == 64u);
 USB_SPI_STATIC_ASSERT(USB_SPI_RX_FIFO_BYTES >= 16384u);
-USB_SPI_STATIC_ASSERT(USB_SPI_RX_DMA_BYTES <= UINT16_MAX);
 USB_SPI_STATIC_ASSERT(USB_SPI_RX_FIFO_BYTES <= UINT16_MAX);
 USB_SPI_STATIC_ASSERT(USB_SPI_TX_SLOTS >= 4u);
 

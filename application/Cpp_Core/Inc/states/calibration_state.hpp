@@ -13,9 +13,9 @@ public:
         return instance;
     }
 
-    void setup() override;
-    void loop() override;
-    void reset() override;
+    bool enter() override;
+    void tick() override;
+    void exit() override;
 
 private:
     bool isRunning = false;

@@ -97,6 +97,17 @@ class HboxV2BuildContractTests(unittest.TestCase):
             "build.py", ["flash", "app", "B"]
         )
 
+    def test_flash_tx_uses_verified_ch585_stlink_flow(self) -> None:
+        with mock.patch.object(
+            hbox, "_run_python_tool", return_value=0
+        ) as run_python:
+            result = hbox.main(["flash", "tx"])
+
+        self.assertEqual(result, 0)
+        run_python.assert_called_once_with(
+            "ch585_stlink_update.py", ["--execute"]
+        )
+
     def test_hosted_and_legacy_web_builds_are_explicit(self) -> None:
         with mock.patch.object(
             hbox, "_run_hosted_web_build", return_value=0

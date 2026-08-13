@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "ch585_staging.h"
+
 enum class Ch585IapClientStatus : uint8_t {
     Idle = 0,
     Ready,
@@ -26,9 +28,12 @@ public:
 
     bool probe();
     bool programCombinedImage(uint32_t mappedAddress, uint32_t totalSize);
+    bool validateApplication();
     Ch585IapClientStatus status() const { return currentStatus; }
     uint8_t progress() const { return currentProgress; }
     uint8_t deviceStatus() const { return lastDeviceStatus; }
+    uint32_t offset() const { return currentOffset; }
+    uint8_t stage() const { return currentStage; }
 
 private:
     Ch585IapClient() = default;
@@ -43,6 +48,10 @@ private:
     uint16_t sequence = 0u;
     uint8_t currentProgress = 0u;
     uint8_t lastDeviceStatus = 0u;
+    uint8_t currentStage = CH585_STAGING_STAGE_NONE;
+    uint32_t currentOffset = 0u;
+    bool lastTransactionTimedOut = false;
+    bool endResponseConfirmed = false;
     Ch585IapClientStatus currentStatus = Ch585IapClientStatus::Idle;
 };
 

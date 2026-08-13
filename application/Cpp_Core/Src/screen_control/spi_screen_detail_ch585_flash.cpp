@@ -5,6 +5,7 @@
 #include "ch585_firmware_update.hpp"
 #include "screen_control/spi_screen_detail_render_helpers.hpp"
 #include "stm32h7xx.h"
+#include "main_runtime_control.hpp"
 
 uint8_t ScreenDetailCh585Flash_InitIndex(void)
 {
@@ -38,7 +39,7 @@ void ScreenDetailCh585Flash_Render(ST7789_Handle* lcd,
         "CH585 is powered in manual ISP.",
         "Flash the combined image in WCH.",
         "Release BOOT after flash succeeds.",
-        "Then press Verify for SPI IAP."
+        "Press Verify for IAP + App CAPS."
     };
     static const char* const probeFailedLines[] = {
         "IAP was not detected over SPI.",
@@ -65,9 +66,9 @@ void ScreenDetailCh585Flash_Render(ST7789_Handle* lcd,
         CH585_IAP_CLIENT.status() != Ch585IapClientStatus::Idle &&
         CH585_IAP_CLIENT.status() != Ch585IapClientStatus::Ready;
     const char* const* lines = probeFailed ? probeFailedLines
-        : (CH585_FIRMWARE_UPDATE.hasFailed() ? updateFailedLines
         : (CH585_FIRMWARE_UPDATE.isPending() ? updatePendingLines
-        : (active ? (powered ? poweredLines : readyLines) : enterLines)));
+        : (active ? (powered ? poweredLines : readyLines)
+        : (CH585_FIRMWARE_UPDATE.hasFailed() ? updateFailedLines : enterLines)));
     ScreenDetailRender_TitleLines(lcd,
                                   "CH585 Flash",
                                   lines,
@@ -78,21 +79,21 @@ void ScreenDetailCh585Flash_Render(ST7789_Handle* lcd,
 bool ScreenDetailCh585Flash_OnConfirm(uint8_t index)
 {
     (void)index;
-    if (CH585_FIRMWARE_UPDATE.hasFailed()) {
-        return CH585_FIRMWARE_UPDATE.requestRetry();
-    }
     if (CH585_FIRMWARE_UPDATE.isPending()) return false;
     const bool active = CH585_UPDATE_MODE.isManualIspActive();
     if (!active) {
+        if (CH585_FIRMWARE_UPDATE.hasFailed()) {
+            return CH585_FIRMWARE_UPDATE.requestRetry();
+        }
         if (!CH585_UPDATE_MODE.requestManualIsp()) return false;
-        NVIC_SystemReset();
+        MainRuntime_RequestReset();
         return false;
     }
     if (!CH585_UPDATE_MODE.isManualIspPowered()) {
         return CH585_UPDATE_MODE.powerOnManualIsp();
     }
     if (!CH585_UPDATE_MODE.requestExitManualIsp()) return false;
-    NVIC_SystemReset();
+    MainRuntime_RequestReset();
     return false;
 }
 
@@ -107,8 +108,9 @@ bool ScreenDetailCh585Flash_OnBack(void)
 
 const char* ScreenDetailCh585Flash_ConfirmLabel(void)
 {
-    if (CH585_FIRMWARE_UPDATE.hasFailed()) return "Retry";
     if (CH585_FIRMWARE_UPDATE.isPending()) return "Wait";
-    if (!CH585_UPDATE_MODE.isManualIspActive()) return "Enter";
+    if (!CH585_UPDATE_MODE.isManualIspActive()) {
+        return CH585_FIRMWARE_UPDATE.hasFailed() ? "Retry" : "Enter";
+    }
     return CH585_UPDATE_MODE.isManualIspPowered() ? "Verify" : "Power";
 }

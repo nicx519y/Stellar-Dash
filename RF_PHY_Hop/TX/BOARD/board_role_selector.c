@@ -147,6 +147,10 @@ bool rfm_board_role_selector_wait(usb_board_role_t *selected_role)
     *selected_role = USB_BOARD_ROLE_NONE;
     usb_board_link_parser_init(&parser);
     selector_receive_start();
+    /* Signal only after SPI0 is armed for SELECT_ROLE.  STM32 waits for this
+     * low/high pulse instead of guessing when the IAP-to-application jump and
+     * C runtime initialization have completed. */
+    rfm_board_latest_ch585_pulse_boot_ready();
 
     while(elapsed_us < (ROLE_SELECT_TIMEOUT_MS * 1000u))
     {

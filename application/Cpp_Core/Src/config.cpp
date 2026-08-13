@@ -267,9 +267,7 @@ static void sanitize_screen_recovery_entry(ScreenControlConfig& sc) {
 static void sanitize_screen_service_flags(ScreenControlConfig& sc) {
     constexpr uint8_t allowed =
         SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE |
-        SCREEN_SERVICE_CH585_IAP_CONFIRMED |
-        SCREEN_SERVICE_CH585_UPDATE_PENDING |
-        SCREEN_SERVICE_CH585_UPDATE_FAILED;
+        SCREEN_SERVICE_CH585_IAP_CONFIRMED;
     sc.serviceFlags &= allowed;
 }
 

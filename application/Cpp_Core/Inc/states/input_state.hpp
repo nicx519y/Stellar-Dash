@@ -17,9 +17,9 @@ public:
         return instance;
     }
 
-    void setup() override;
-    void loop() override;
-    void reset() override;
+    bool enter() override;
+    void tick() override;
+    void exit() override;
     uint32_t getVirtualPinMask() const { return virtualPinMask; }
 
     bool ensureUsbRuntime(InputMode inputMode);

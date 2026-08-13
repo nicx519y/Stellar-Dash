@@ -29,9 +29,9 @@ public:
         return instance;
     }
 
-    void setup() override;
-    void loop() override;
-    void reset() override;
+    bool enter() override;
+    void tick() override;
+    void exit() override;
 
     WebConfigRuntimeStatus status() const { return runtimeStatus; }
     bool canRetry() const;

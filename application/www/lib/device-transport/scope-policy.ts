@@ -18,6 +18,10 @@ const FIRMWARE_UPDATE_COMMANDS = new Set([
   'abort_firmware_upgrade_session',
   'get_firmware_upgrade_status',
   'cleanup_firmware_upgrade_session',
+  'ch585_update_status',
+  'ch585_update_begin',
+  'ch585_update_chunk',
+  'ch585_update_complete',
 ]);
 
 export function elevatedScopesForCommand(command: string): readonly DeviceScope[] {

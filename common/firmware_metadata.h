@@ -180,11 +180,14 @@ _Static_assert(sizeof(FirmwareMetadata) == METADATA_STRUCT_SIZE,
 #define USER_IMAGE_RESOURCES_ADDR   0x905F0000  // 1.5625MB
 #define USER_IMAGE_RESOURCES_SIZE   0x190000
 
-/* Dedicated 512KB staging area for the combined CH585 IAP+application BIN. */
+/* Dedicated 512KB staging area for the combined CH585 IAP+application BIN.
+ * The status journal owns a complete 64 KiB erase sector.  Payload must be
+ * written and verified before a READY record is committed to the journal. */
 #define CH585_FIRMWARE_STAGING_ADDR       0x90780000
 #define CH585_FIRMWARE_STAGING_SIZE       0x80000
-#define CH585_FIRMWARE_STAGING_DATA_ADDR  (CH585_FIRMWARE_STAGING_ADDR + 0x1000)
-#define CH585_FIRMWARE_STAGING_DATA_SIZE  (CH585_FIRMWARE_STAGING_SIZE - 0x1000)
+#define CH585_FIRMWARE_STAGING_HEADER_SIZE 0x10000
+#define CH585_FIRMWARE_STAGING_DATA_ADDR  (CH585_FIRMWARE_STAGING_ADDR + CH585_FIRMWARE_STAGING_HEADER_SIZE)
+#define CH585_FIRMWARE_STAGING_DATA_SIZE  (CH585_FIRMWARE_STAGING_SIZE - CH585_FIRMWARE_STAGING_HEADER_SIZE)
 
 #ifdef __cplusplus
 }

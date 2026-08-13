@@ -53,7 +53,7 @@ static void enterWebFailureUiState()
 
 } // namespace
 
-void WebConfigState::setup() {
+bool WebConfigState::enter() {
 
     LOG_INFO("WEBCONFIG", "Starting web configuration state setup");
     APP_DBG("WebConfigState::setup");
@@ -73,7 +73,7 @@ void WebConfigState::setup() {
                         BOARD_MODE.isStable() ? 1u : 0u);
         enterFailure(WebConfigRuntimeStatus::ErrorUsbMode);
         LOG_ERROR("WEBCONFIG", "Physical switch is not in USB position");
-        return;
+        return false;
     }
     APP_STAGE("W02", "physical USB mode gate accepted");
 
@@ -93,7 +93,7 @@ void WebConfigState::setup() {
         APP_STAGE_ERROR("W04", "CH585 maintenance role or CONFIG USB startup failed");
         enterFailure(WebConfigRuntimeStatus::ErrorMaintenance);
         LOG_ERROR("WEBCONFIG", "CH585 maintenance capability gate failed");
-        return;
+        return false;
     }
     APP_STAGE("W04", "CH585 maintenance role and CONFIG USB runtime ready");
     /*
@@ -109,7 +109,7 @@ void WebConfigState::setup() {
         enterFailure(WebConfigRuntimeStatus::ErrorSecurity);
         LOG_ERROR("WEBCONFIG",
                   "Secure WebHID identity/session gate failed");
-        return;
+        return false;
     }
     APP_STAGE("W06", "secure WebHID service ready; awaiting browser authentication");
     BOARD_POWER.releaseSafeState();
@@ -120,7 +120,7 @@ void WebConfigState::setup() {
         APP_STAGE_ERROR("W07", "QSPI memory-mapped mode failed: %d", qspi_result);
         LOG_ERROR("WEBCONFIG", "Failed to enter QSPI memory mapped mode, error: %d", qspi_result);
         enterFailure(WebConfigRuntimeStatus::ErrorStorageInit);
-        return;
+        return false;
     }
     APP_STAGE("W07", "QSPI memory-mapped mode ready for config/assets/OTA");
 
@@ -140,9 +140,10 @@ void WebConfigState::setup() {
     APP_STAGE("W08", "WebConfig runtime ready");
 
     // Logger_Flush();
+    return true;
 }
 
-void WebConfigState::loop() {
+void WebConfigState::tick() {
     if (recoveryUiPending) {
         recoveryUiPending = false;
         enterWebFailureUiState();
@@ -151,7 +152,7 @@ void WebConfigState::loop() {
 
     if (retryRequested) {
         retryRequested = false;
-        setup();
+        (void)enter();
         return;
     }
 
@@ -180,7 +181,7 @@ void WebConfigState::loop() {
     }
 }
 
-void WebConfigState::reset() {
+void WebConfigState::exit() {
     isRunning = false;
     retryRequested = false;
     recoveryUiPending = false;
@@ -224,7 +225,7 @@ void WebConfigState::reportStorageFailure()
 {
     /* Called from the screen input callback: defer LCD power-state changes
      * until the next state-machine pass, after the active frame completes. */
-    reset();
+    exit();
     runtimeStatus = WebConfigRuntimeStatus::ErrorStorage;
     recoveryUiPending = true;
     LOG_ERROR("WEBCONFIG", "Failed to persist WebConfig exit mode");
@@ -234,7 +235,7 @@ void WebConfigState::enterFailure(WebConfigRuntimeStatus failureStatus)
 {
     APP_STAGE_ERROR("W99", "WebConfig entered recovery UI: status=%u",
                     static_cast<unsigned>(failureStatus));
-    reset();
+    exit();
     runtimeStatus = failureStatus;
     enterWebFailureUiState();
 }

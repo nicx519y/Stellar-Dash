@@ -20,6 +20,7 @@ public:
     bool requestExitManualIsp();
     bool setIapConfirmed(bool confirmed);
     void setupManualIspRuntime();
+    void shutdownManualIspRuntime();
     bool powerOnManualIsp();
     void powerOffManualIsp();
 

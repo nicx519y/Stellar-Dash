@@ -4,6 +4,8 @@
 #include "board_power.hpp"
 #include "rf_boot_ready.hpp"
 #include "stm32h7xx_hal.h"
+#include "system_logger.h"
+#include "usb_board_link_port.hpp"
 
 void Ch585RoleBootstrap::setSelector(Ch585RoleSelector selectorFn)
 {
@@ -50,15 +52,42 @@ bool Ch585RoleBootstrap::start(Ch585Role requestedRole)
 
     /* Initial attempt plus exactly one power-cycle retry. */
     for (uint8_t attempt = 0u; attempt < 2u; ++attempt) {
+        APP_STAGE("R01", "CH585 role bootstrap attempt=%u role=%u",
+                  static_cast<unsigned int>(attempt + 1u),
+                  static_cast<unsigned int>(requestedRole));
         shutdown();
         HAL_Delay(CH585_POWER_OFF_MIN_MS);
 
         bootstrapState = Ch585BootstrapState::Booting;
         BOARD_POWER.setCh585Enabled(true);
+        /*
+         * Do not clock SELECT_ROLE on the CH585 power-up edge.  The IAP path
+         * already observes the same settle interval; the application needs
+         * time to finish its reset/startup code and arm the cold-boot SPI
+         * selector before the first five-byte transaction arrives.
+         */
+        HAL_Delay(CH585_POWER_ON_SETTLE_MS);
+
+        /* Keep SPI completely idle while the persistent IAP observes its
+         * 500-ms boot window.  Jumping from inside an active NSS transaction
+         * leaves SPI0 in an ambiguous hand-off state; the loader's idle boot
+         * path reaches the application with a clean bus instead. */
+        APP_STAGE("R02", "CH585 waiting for idle IAP-to-application handoff");
+        if (!RFBootReady::waitForModuleReady(CH585_ROLE_SELECT_TIMEOUT_MS)) {
+            APP_STAGE_ERROR("R02E", "CH585 application-ready pulse not observed");
+            continue;
+        }
+        APP_STAGE("R02A", "CH585 application-ready pulse observed");
 
         if (selectOnce(requestedRole)) {
+            APP_STAGE("R03", "CH585 role selected: attempt=%u role=%u",
+                      static_cast<unsigned int>(attempt + 1u),
+                      static_cast<unsigned int>(requestedRole));
             return true;
         }
+        APP_STAGE_ERROR("R03E", "CH585 role select window expired: attempt=%u state=%u",
+                        static_cast<unsigned int>(attempt + 1u),
+                        static_cast<unsigned int>(bootstrapState));
     }
 
     shutdown();

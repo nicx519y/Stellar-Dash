@@ -1,6 +1,7 @@
 #include "usb_board_link.h"
 
 #include "CH58x_common.h"
+#include "board_latest_ch585.h"
 #include "usb_auth.h"
 #include "usb_device.h"
 #include "usb_host.h"
@@ -81,6 +82,8 @@ static bool usb_subsystem_sink(usb_board_channel_t channel,
 
 int usb_subsystem_run(usb_board_role_t role)
 {
+    bool host_initialized = false;
+
     if((role != USB_BOARD_ROLE_USB) &&
        (role != USB_BOARD_ROLE_MAINTENANCE))
     {
@@ -97,19 +100,26 @@ int usb_subsystem_run(usb_board_role_t role)
         return -2;
     }
     /*
-     * Keep USBHS detached until STM32 has read capabilities and selected the
-     * first supported profile.  This prevents descriptors changing underneath
-     * an enumeration that already started.
+     * ROLE_SELECTED only acknowledges the cold-boot selector.  Publish the
+     * Application-ready edge at the actual control-loop boundary, after RX DMA
+     * and its interrupt routes are armed.  Optional USB Host initialization is
+     * deliberately deferred until GET_CAPS has been parsed and its response
+     * queued; maintenance control must not depend on a second peripheral.
      */
-    if(!usb_host_init())
-    {
-        return -4;
-    }
+    rfm_board_latest_ch585_pulse_boot_ready();
 
     for(;;)
     {
         usb_board_link_process();
+        if(!host_initialized && usb_board_link_caps_requested())
+        {
+            host_initialized = true;
+            (void)usb_host_init();
+        }
         usb_device_process();
-        usb_host_process();
+        if(host_initialized)
+        {
+            usb_host_process();
+        }
     }
 }

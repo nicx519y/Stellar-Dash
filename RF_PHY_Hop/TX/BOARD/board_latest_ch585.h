@@ -16,7 +16,7 @@
 
 #define RFM_BOARD_W_INT_PIN          GPIO_Pin_5
 #define RFM_BOARD_W_INT_ACTIVE_LOW   1u
-#define RFM_BOARD_BOOT_READY_PULSE_MS 20u
+#define RFM_BOARD_BOOT_READY_PULSE_MS 100u
 #define RFM_BOARD_HAS_DEBUG_UART0    0u
 
 void rfm_board_latest_ch585_prepare_spi_pins(void);

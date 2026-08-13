@@ -6,6 +6,7 @@
 #include "board_mode.hpp"
 #include "board_power.hpp"
 #include "screen_control/spi_screen_manager.hpp"
+#include "main_runtime_control.hpp"
 
 #include "system_logger.h"
 
@@ -46,7 +47,7 @@ void CalibrationState::allCalibrationCompletedCallback(uint8_t totalButtons, uin
     rebootTime = HAL_GetTick();
 }
 
-void CalibrationState::setup() {
+bool CalibrationState::enter() {
     LOG_INFO("CALIBRATION", "Starting calibration state setup");
     APP_DBG("CalibrationState::setup");
 
@@ -55,10 +56,10 @@ void CalibrationState::setup() {
     }
     (void)BOARD_MODE.consumeChanged();
     if (!calibrationModeIsValid()) {
-        reset();
+        exit();
         enterCalibrationSafeState();
         LOG_ERROR("CALIBRATION", "Physical switch is center/fault; calibration inhibited");
-        return;
+        return false;
     }
 
     BOARD_POWER.releaseSafeState();
@@ -75,11 +76,11 @@ void CalibrationState::setup() {
     const ADCBtnsError startResult =
         ADC_CALIBRATION_MANAGER.startManualCalibration();
     if (startResult != ADCBtnsError::SUCCESS) {
-        reset();
+        exit();
         enterCalibrationSafeState();
         LOG_ERROR("CALIBRATION", "Failed to start calibration: %d",
                   static_cast<int>(startResult));
-        return;
+        return false;
     }
     
     isRunning = true;
@@ -87,23 +88,24 @@ void CalibrationState::setup() {
     
     LOG_INFO("CALIBRATION", "Calibration state setup completed - waiting for user input");
     Logger_Flush();
+    return true;
 }
 
-void CalibrationState::loop() {
+void CalibrationState::tick() {
     if (BOARD_MODE.consumeChanged()) {
         if (!calibrationModeIsValid()) {
-            reset();
+            exit();
             enterCalibrationSafeState();
             return;
         }
         if (!isRunning) {
-            setup();
+            (void)enter();
             return;
         }
     }
 
     if (!isRunning && calibrationModeIsValid()) {
-        setup();
+        (void)enter();
         return;
     }
 
@@ -112,7 +114,7 @@ void CalibrationState::loop() {
         if(rebootTime > 0 && HAL_GetTick() - rebootTime >= 1000) {
             LOG_INFO("CALIBRATION", "Initiating system reboot after calibration completion");
             Logger_Flush(); // 确保日志被写入Flash
-            NVIC_SystemReset();
+            MainRuntime_RequestReset();
         } else {    
             ADC_CALIBRATION_MANAGER.processCalibration();
         }
@@ -120,7 +122,7 @@ void CalibrationState::loop() {
     }
 }
 
-void CalibrationState::reset() {
+void CalibrationState::exit() {
     (void)ADC_CALIBRATION_MANAGER.stopCalibration();
     ADC_CALIBRATION_MANAGER.clearCallbacks();
     ADC_MANAGER.forceStopAllSampling();

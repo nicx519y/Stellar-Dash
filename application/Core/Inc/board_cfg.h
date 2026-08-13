@@ -228,8 +228,10 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
 
 #define BOARD_MODE_DEBOUNCE_MS                 20u
 #define CH585_POWER_OFF_MIN_MS                 20u
+#define CH585_POWER_ON_SETTLE_MS                20u
+#define CH585_ROLE_RESPONSE_TIMEOUT_MS          20u
 #define CH585_ROLE_SELECT_RETRY_MS             5u
-#define CH585_ROLE_SELECT_TIMEOUT_MS           500u
+#define CH585_ROLE_SELECT_TIMEOUT_MS          1200u
 #define BOARD_LED_5V_STABILIZE_MS              5u
 #define BOARD_HALL_STABILIZE_MS                10u
 

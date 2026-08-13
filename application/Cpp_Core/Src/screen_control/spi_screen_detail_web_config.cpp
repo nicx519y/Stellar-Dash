@@ -1,4 +1,5 @@
 #include "screen_control/spi_screen_detail_entries.hpp"
+#include "main_runtime_control.hpp"
 
 #include "board_cfg.h"
 #include "ch585_update_mode.hpp"
@@ -17,7 +18,7 @@ static bool exitWebConfig()
         WEB_CONFIG_STATE.reportStorageFailure();
         return false;
     }
-    NVIC_SystemReset();
+    MainRuntime_RequestReset();
     return true;
 }
 
@@ -136,7 +137,7 @@ bool ScreenDetailWebConfig_OnBack(void) {
             WEB_CONFIG_STATE.reportStorageFailure();
             return false;
         }
-        NVIC_SystemReset();
+        MainRuntime_RequestReset();
         return true;
     }
 #endif

@@ -1,8 +1,9 @@
 #ifndef CH585_FIRMWARE_UPDATE_HPP
 #define CH585_FIRMWARE_UPDATE_HPP
 
-#include <stddef.h>
 #include <stdint.h>
+
+#ifdef __cplusplus
 
 enum class Ch585FirmwareUpdateStatus : uint8_t {
     Idle = 0,
@@ -31,6 +32,10 @@ public:
     void process();
     bool performPendingUpdate();
     bool requestRetry();
+    bool acknowledgeManualRecovery();
+    bool hasReadyStagedImage();
+    bool hasAppliedImage() const;
+    bool wasClaimed() const { return updateClaimed; }
 
     bool isPending() const;
     bool hasFailed() const;
@@ -42,15 +47,17 @@ public:
 private:
     Ch585FirmwareUpdate() = default;
     bool loadAndVerifyStagedImage();
-    bool persistServiceState(bool pending, bool failed, bool confirmed);
 
     uint32_t imageSize = 0u;
     uint32_t received = 0u;
     uint32_t rebootAtMs = 0u;
     uint8_t expectedSha[32] = {};
     Ch585FirmwareUpdateStatus currentStatus = Ch585FirmwareUpdateStatus::Idle;
+    bool updateClaimed = false;
 };
 
 #define CH585_FIRMWARE_UPDATE Ch585FirmwareUpdate::getInstance()
+
+#endif
 
 #endif

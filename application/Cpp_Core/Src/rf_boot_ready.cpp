@@ -20,7 +20,7 @@ namespace {
 #endif
 
 #ifndef RF_BOOT_READY_DEASSERT_TIMEOUT_MS
-#define RF_BOOT_READY_DEASSERT_TIMEOUT_MS 100u
+#define RF_BOOT_READY_DEASSERT_TIMEOUT_MS 250u
 #endif
 
 static bool s_readySeen = false;

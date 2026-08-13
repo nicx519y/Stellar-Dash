@@ -307,6 +307,35 @@ bool USBBoardLinkPort_InitIap()
     return true;
 }
 
+bool USBBoardLinkPort_InitApplication()
+{
+    if (!USBBoardLinkPort_Init()) {
+        return false;
+    }
+    /*
+     * Keep the Application control plane at the same /256 rate already
+     * proven by SELECT_ROLE and IAP.  Reinitializing SPI4 to /16 at the
+     * selector-to-DMA hand-off made the first GET_CAPS transaction disappear
+     * on the current PCB.  Throughput tuning belongs after CAPS/WebConfig
+     * reliability is established, not inside the bootstrap boundary.
+     */
+    if (s_hspi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_256) {
+        return true;
+    }
+    chipSelect(true);
+    if (HAL_SPI_DeInit(&s_hspi) != HAL_OK) {
+        s_ready = false;
+        return false;
+    }
+    s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+    if (HAL_SPI_Init(&s_hspi) != HAL_OK) {
+        s_ready = false;
+        return false;
+    }
+    s_waitingEventRelease = false;
+    return true;
+}
+
 void USBBoardLinkPort_Shutdown()
 {
     if (!s_ready) {
@@ -338,15 +367,29 @@ bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength)
         chipSelect(true);
         return false;
     }
+    uint8_t paddedCapsFrame[USB_BOARD_LINK_MAX_FRAME_BYTES];
+    uint8_t *wireFrame = const_cast<uint8_t *>(frame);
+    uint8_t wireLength = frameLength;
+    if (frame[1] == USB_BOARD_CMD_GET_CAPS) {
+        /*
+         * Four clocks can remain entirely in the CH585 hardware FIFO on this
+         * PCB, whose PA12 peripheral-NSS edge is not always retained.  Extend
+         * GET_CAPS to 64 physical bytes so RX DMA advances; CH585 deliberately
+         * uses a 65-byte DMA count, hence this legal maximum frame still ends
+         * by NSS and never races its DMA-full interrupt.  SELECT_ROLE remains
+         * its exact five-byte polling-selector transaction.
+         */
+        memset(paddedCapsFrame, 0xFF, sizeof(paddedCapsFrame));
+        memcpy(paddedCapsFrame, frame, frameLength);
+        wireFrame = paddedCapsFrame;
+        wireLength = sizeof(paddedCapsFrame);
+    }
     const HAL_StatusTypeDef result =
-        HAL_SPI_Transmit(&s_hspi,
-                         const_cast<uint8_t *>(frame),
-                         frameLength,
-                         kSpiTimeoutMs);
+        HAL_SPI_Transmit(&s_hspi, wireFrame, wireLength, kSpiTimeoutMs);
     if ((result == HAL_OK) &&
         (frame[1] == USB_BOARD_CMD_SELECT_ROLE)) {
         /*
-         * The CH585 cold-boot selector polls its RX FIFO every 50 us and does
+         * The CH585 cold-boot selector polls its RX FIFO every microsecond and
          * not enable the steady-state DMA/NSS interrupt path until after the
          * role is locked.  Keep NSS asserted after this short five-byte frame
          * so the selector can drain and parse it before the transaction ends.
@@ -433,6 +476,29 @@ bool USBBoardLinkPort_RawTransact(const uint8_t *request,
                                      response,
                                      responseLength,
                                      timeoutMs);
+    chipSelect(true);
+    s_waitingEventRelease = true;
+    (void)waitEventHigh(kEventReleaseTimeoutMs);
+    return result == HAL_OK;
+}
+
+bool USBBoardLinkPort_RawDiscardPendingResponse(uint16_t responseLength,
+                                                uint32_t timeoutMs)
+{
+    if (responseLength == 0u || responseLength > 16u ||
+        !USBBoardLinkPort_Init()) {
+        return false;
+    }
+    if (eventLineIsHigh() && !waitEventLow(timeoutMs)) {
+        return true; /* no late response arrived */
+    }
+
+    uint8_t fill[16];
+    uint8_t discard[16];
+    memset(fill, 0xFF, sizeof(fill));
+    chipSelect(false);
+    const HAL_StatusTypeDef result = HAL_SPI_TransmitReceive(
+        &s_hspi, fill, discard, responseLength, timeoutMs);
     chipSelect(true);
     s_waitingEventRelease = true;
     (void)waitEventHigh(kEventReleaseTimeoutMs);

@@ -39,7 +39,8 @@ REPO_COMMON_DIR := ../../common
 HAL_DIR      := $(BLE_SDK_DIR)/HAL
 LIB_DIR      := $(BLE_SDK_DIR)/LIB
 SRC_ROOT_DIR := $(SDK_ROOT_MAKE)/SRC
-STARTUP_DIR  := $(SRC_ROOT_DIR)/Startup
+APP_STARTUP_DIR := $(SDK_ROOT_MAKE)/IAP/APP/Startup
+IAP_STARTUP_DIR := $(SDK_ROOT_MAKE)/IAP/USB_IAP/Startup
 DRIVER_DIR   := $(SRC_ROOT_DIR)/StdPeriphDriver
 LD_DIR       := $(SRC_ROOT_DIR)/Ld
 RVMSIS_DIR   := $(SRC_ROOT_DIR)/RVMSIS
@@ -143,19 +144,21 @@ DRV_EXCLUDE := \
 	$(DRIVER_DIR)/CH59x_uart2.c \
 	$(DRIVER_DIR)/CH59x_uart3.c
 
-STARTUP_SRCS := $(STARTUP_DIR)/startup_CH585.S
+APP_STARTUP_SRC := $(APP_STARTUP_DIR)/startup_CH585.S
+IAP_STARTUP_SRC := $(IAP_STARTUP_DIR)/startup_CH585.S
 
 LOCAL_SRCS := $(filter-out $(APP_EXCLUDE),$(APP_SRCS)) $(BOARD_SRCS) $(USB_SRCS)
 HAL_BUILD_SRCS := $(filter-out $(HAL_EXCLUDE),$(HAL_SRCS))
 DRV_BUILD_SRCS := $(filter-out $(DRV_EXCLUDE),$(DRV_SRCS))
-SRCS := $(LOCAL_SRCS) $(HAL_BUILD_SRCS) $(LIB_SRCS) $(DRV_BUILD_SRCS) $(STARTUP_SRCS)
+SRCS := $(LOCAL_SRCS) $(HAL_BUILD_SRCS) $(LIB_SRCS) $(DRV_BUILD_SRCS) $(APP_STARTUP_SRC)
 COMMON_CODEC_OBJ := $(OUT_DIR)/COMMON/usb_board_link_codec.o
 LOCAL_OBJS := $(patsubst %.c,$(OUT_DIR)/%.o,$(LOCAL_SRCS))
 HAL_OBJS := $(patsubst $(HAL_DIR)/%.c,$(OUT_DIR)/SDK/HAL/%.o,$(HAL_BUILD_SRCS))
 LIB_OBJS := $(patsubst $(LIB_DIR)/%.S,$(OUT_DIR)/SDK/LIB/%.o,$(LIB_SRCS))
 DRV_OBJS := $(patsubst $(DRIVER_DIR)/%.c,$(OUT_DIR)/SDK/DRIVER/%.o,$(DRV_BUILD_SRCS))
-STARTUP_OBJS := $(patsubst $(STARTUP_DIR)/%.S,$(OUT_DIR)/SDK/STARTUP/%.o,$(STARTUP_SRCS))
-OBJS := $(LOCAL_OBJS) $(HAL_OBJS) $(LIB_OBJS) $(DRV_OBJS) $(STARTUP_OBJS) \
+APP_STARTUP_OBJ := $(OUT_DIR)/SDK/APP_STARTUP/startup_CH585.o
+IAP_STARTUP_OBJ := $(OUT_DIR)/SDK/IAP_STARTUP/startup_CH585.o
+OBJS := $(LOCAL_OBJS) $(HAL_OBJS) $(LIB_OBJS) $(DRV_OBJS) $(APP_STARTUP_OBJ) \
         $(COMMON_CODEC_OBJ)
 RF_MAIN_OBJ := $(OUT_DIR)/$(APP_DIR)/RF_main.o
 RF_FREEZE_CHECK := ../../tools/check_rf_frozen.py
@@ -168,7 +171,7 @@ IAP_DRIVER_OBJS := \
 	$(OUT_DIR)/SDK/DRIVER/CH58x_gpio.o \
 	$(OUT_DIR)/SDK/DRIVER/CH58x_spi0.o \
 	$(OUT_DIR)/SDK/DRIVER/CH58x_sys.o
-IAP_OBJS := $(IAP_MAIN_OBJ) $(IAP_BOARD_OBJ) $(IAP_DRIVER_OBJS) $(STARTUP_OBJS)
+IAP_OBJS := $(IAP_MAIN_OBJ) $(IAP_BOARD_OBJ) $(IAP_DRIVER_OBJS) $(IAP_STARTUP_OBJ)
 
 DEPFLAGS = -MMD -MF $(@:.o=.d)
 
@@ -239,7 +242,11 @@ $(OUT_DIR)/SDK/LIB/%.o: $(LIB_DIR)/%.S
 	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
 	$(AS) $(ASFLAGS) $(DEPFLAGS) -c $< -o $@
 
-$(OUT_DIR)/SDK/STARTUP/%.o: $(STARTUP_DIR)/%.S
+$(APP_STARTUP_OBJ): $(APP_STARTUP_SRC)
+	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
+	$(AS) $(ASFLAGS) $(DEPFLAGS) -c $< -o $@
+
+$(IAP_STARTUP_OBJ): $(IAP_STARTUP_SRC)
 	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
 	$(AS) $(ASFLAGS) $(DEPFLAGS) -c $< -o $@
 

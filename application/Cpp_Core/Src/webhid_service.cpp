@@ -24,6 +24,7 @@
 #include "webconfig_authorization_public_keys.h"
 #include "webhid_rpc_dispatcher.hpp"
 #include "cJSON.h"
+#include "main_runtime_control.hpp"
 
 namespace {
 
@@ -792,7 +793,7 @@ void WebHidService::process()
     if (WebSocketCommandHandler::needReboot &&
         static_cast<int32_t>(
             HAL_GetTick() - WebSocketCommandHandler::rebootTick) >= 0) {
-        NVIC_SystemReset();
+        MainRuntime_RequestReset();
     }
 }
 

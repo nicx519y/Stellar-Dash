@@ -31,6 +31,11 @@ static uint8_t s_last_fault;
 static uint8_t s_state_dirty;
 static uint8_t s_state_valid;
 static uint8_t s_port_fault_pending;
+/* Keep the application hand-off half-duplex until STM32 has explicitly
+ * requested CAPS.  Publishing USB_STATE/credit/fault events immediately
+ * after ROLE_SELECTED can switch SPI0 to TX while STM32 is issuing its first
+ * GET_CAPS write, losing that command at the FIFO-to-DMA ownership boundary. */
+static uint8_t s_caps_requested;
 static usb_board_usb_state_v1_t s_last_state;
 static uint8_t s_tx_credits[USB_BOARD_CHANNEL_SLOTS];
 static uint8_t s_credit_dirty_mask;
@@ -456,6 +461,7 @@ static void dispatch(const usb_board_link_frame_t *frame)
         if(frame->length == 0u)
         {
             handle_caps();
+            s_caps_requested = 1u;
         }
         else
         {
@@ -491,8 +497,29 @@ static void dispatch(const usb_board_link_frame_t *frame)
         break;
 
     case USB_BOARD_CMD_SELECT_ROLE:
-        /* The board bootstrap parser already locked the role before this runs. */
-        queue_fault(USB_BOARD_STATUS_ROLE_LOCKED, frame->command);
+        /*
+         * The cold-boot parser already committed the role.  Its final
+         * ROLE_SELECTED frame can be lost while SPI ownership moves from the
+         * polling FIFO to Application DMA, so make a retry of the same role
+         * idempotent.  A request for a different role remains forbidden.
+         */
+        if(frame->length != sizeof(usb_board_role_select_v1_t))
+        {
+            queue_fault(USB_BOARD_STATUS_BAD_LENGTH, frame->command);
+        }
+        else if(frame->payload[0] == (uint8_t)s_role)
+        {
+            usb_board_role_selected_v1_t response;
+            response.role = (uint8_t)s_role;
+            response.status = USB_BOARD_STATUS_OK;
+            (void)queue_event(USB_BOARD_EVT_ROLE_SELECTED,
+                              &response,
+                              sizeof(response));
+        }
+        else
+        {
+            queue_fault(USB_BOARD_STATUS_ROLE_LOCKED, frame->command);
+        }
         break;
 
     default:
@@ -516,6 +543,7 @@ void usb_board_link_init(usb_board_role_t locked_role)
     s_state_dirty = 1u;
     s_state_valid = 0u;
     s_port_fault_pending = USB_BOARD_STATUS_OK;
+    s_caps_requested = 0u;
     s_credit_dirty_mask = 0u;
     {
         uint8_t channel;
@@ -553,25 +581,33 @@ void usb_board_link_process(void)
             dispatch(&completed);
         }
     }
-    usb_net_bridge_process();
-    poll_state_change();
-    if(s_state_dirty != 0u)
+    if(s_caps_requested != 0u)
     {
-        queue_state();
+        usb_net_bridge_process();
+        poll_state_change();
+        if(s_state_dirty != 0u)
+        {
+            queue_state();
+        }
+        if((s_port_fault_pending != USB_BOARD_STATUS_OK) &&
+           queue_fault(s_port_fault_pending, 0u))
+        {
+            s_port_fault_pending = USB_BOARD_STATUS_OK;
+        }
+        queue_one_credit();
+        pump_outbound();
     }
-    if((s_port_fault_pending != USB_BOARD_STATUS_OK) &&
-       queue_fault(s_port_fault_pending, 0u))
-    {
-        s_port_fault_pending = USB_BOARD_STATUS_OK;
-    }
-    queue_one_credit();
-    pump_outbound();
     usb_board_link_port_process();
 }
 
 bool usb_board_link_is_ready(void)
 {
     return s_ready != 0u;
+}
+
+bool usb_board_link_caps_requested(void)
+{
+    return s_caps_requested != 0u;
 }
 
 uint8_t usb_board_link_last_fault(void)

@@ -1,4 +1,5 @@
 #include "screen_control/spi_screen_detail_entries.hpp"
+#include "main_runtime_control.hpp"
 
 #include "board_mode.hpp"
 #include "storagemanager.hpp"
@@ -65,6 +66,6 @@ void ScreenDetailInputMode_OnConfirm(uint8_t index) {
         STORAGE_MANAGER.setInputMode(kInputModes[index]);
         STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
         STORAGE_MANAGER.saveConfig();
-        NVIC_SystemReset();
+        MainRuntime_RequestReset();
     }
 }

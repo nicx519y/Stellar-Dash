@@ -61,18 +61,6 @@ int main(void)
 
     APP_STAGE("A07", "board initialization complete");
 
-    // 初始化系统日志模块（在board_init后，因为需要QSPI已经初始化）
-    LogResult log_init_result = Logger_Init(false, LOG_LEVEL_DEBUG);
-    if (log_init_result != LOG_RESULT_SUCCESS) {
-        APP_STAGE_ERROR("A08", "persistent logger initialization failed: %d",
-                        log_init_result);
-        APP_ERR("Logger_Init failed with error: %d", log_init_result);
-    } else {
-        APP_STAGE("A08", "persistent logger initialization complete");
-        LOG_INFO("MAIN", "System logger initialized successfully");
-    }
-
-
 #if SYSTEM_CHECK_ENABLE == 1
     dataSectionTest(); // 测试各个段，测试堆内存
     floatTest(); // 测试FPU 是否能打印浮点数

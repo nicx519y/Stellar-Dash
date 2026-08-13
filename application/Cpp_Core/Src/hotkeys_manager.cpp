@@ -1,5 +1,6 @@
 #include "hotkeys_manager.hpp"
 #include "system_logger.h"
+#include "main_runtime_control.hpp"
 
 HotkeysManager::HotkeysManager() : hotkeys(STORAGE_MANAGER.getGamepadHotkeyEntry()) {
     // 初始化所有热键状态
@@ -251,7 +252,7 @@ void HotkeysManager::rebootSystem() {
     // WS2812B_StopStrip(WS2812B_STRIP_KEYS);
     // WS2812B_StopStrip(WS2812B_STRIP_AMBIENT);
     
-    NVIC_SystemReset();
+    MainRuntime_RequestReset();
 }
 
 

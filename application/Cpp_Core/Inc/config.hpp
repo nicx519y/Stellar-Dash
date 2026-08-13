@@ -158,8 +158,6 @@ typedef struct
 
 #define SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE (1u << 0)
 #define SCREEN_SERVICE_CH585_IAP_CONFIRMED      (1u << 1)
-#define SCREEN_SERVICE_CH585_UPDATE_PENDING     (1u << 2)
-#define SCREEN_SERVICE_CH585_UPDATE_FAILED      (1u << 3)
 
 typedef struct
 {

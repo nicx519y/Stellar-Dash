@@ -1,118 +1,175 @@
 #include "main_state_machine.hpp"
-#include "states/calibration_state.hpp"
-#include "system_logger.h"
-#include "adc_btns/adc_manager.hpp"
-#include "screen_control/spi_screen_manager.hpp"
-#include "power_manager.hpp"
-#include "board_power.hpp"
-#include "board_cfg.h"
-#include "connection_manager.hpp"
-#include "system_sleep_manager.hpp"
-#include "board_mode.hpp"
-#include "ch585_update_mode.hpp"
-#include "ch585_firmware_update.hpp"
+#include "main_runtime_control.hpp"
 
-void MainStateMachine::setup()
+#include "adc_btns/adc_manager.hpp"
+#include "board_cfg.h"
+#include "board_mode.hpp"
+#include "board_power.hpp"
+#include "ch585_firmware_update.hpp"
+#include "ch585_update_mode.hpp"
+#include "connection_manager.hpp"
+#include "power_manager.hpp"
+#include "screen_control/spi_screen_manager.hpp"
+#include "states/calibration_state.hpp"
+#include "states/ch585_bridge_update_state.hpp"
+#include "states/ch585_usb_isp_state.hpp"
+#include "states/safe_recovery_state.hpp"
+#include "system_logger.h"
+
+namespace {
+
+static_assert(static_cast<unsigned>(MainRuntimeState::SafeRecovery) + 1u == 6u,
+              "The STM32 top-level runtime must contain exactly six states");
+
+static bool isValidBootMode(BootMode mode)
 {
-    APP_DBG("MainStateMachine::setup");
+    return mode == BootMode::BOOT_MODE_INPUT ||
+           mode == BootMode::BOOT_MODE_WEB_CONFIG ||
+           mode == BootMode::BOOT_MODE_CALIBRATION;
+}
+
+} // namespace
+
+BaseState* MainStateMachine::stateFor(MainRuntimeState selected) const
+{
+    switch (selected) {
+        case MainRuntimeState::Input: return &INPUT_STATE;
+        case MainRuntimeState::WebConfig: return &WEB_CONFIG_STATE;
+        case MainRuntimeState::Calibration: return &CALIBRATION_STATE;
+        case MainRuntimeState::Ch585UsbIsp: return &CH585_USB_ISP_STATE;
+        case MainRuntimeState::Ch585BridgeUpdate:
+            return &CH585_BRIDGE_UPDATE_STATE;
+        case MainRuntimeState::SafeRecovery: return &SAFE_RECOVERY_STATE;
+    }
+    return &SAFE_RECOVERY_STATE;
+}
+
+void MainStateMachine::initializeInteractiveRuntime()
+{
+    if (interactiveRuntimeInitialized) return;
+
+    const LogResult logResult = Logger_Init(false, LOG_LEVEL_DEBUG);
+    APP_STAGE(logResult == LOG_RESULT_SUCCESS ? "A08" : "A08E",
+              "persistent logger initialization result=%d", logResult);
+
     BOARD_MODE.setup();
     APP_STAGE("A11", "physical mode sampled: mode=%u stable=%u",
               static_cast<unsigned>(BOARD_MODE.current()),
               BOARD_MODE.isStable() ? 1u : 0u);
     STORAGE_MANAGER.initConfig();
-    APP_DBG("Storage initConfig success.");
+    APP_STAGE("A12", "configuration loaded: boot mode=%u",
+              static_cast<unsigned>(STORAGE_MANAGER.getBootMode()));
+
+    /* Every interactive state gets the independent recovery display and
+     * power telemetry. BridgeUpdate is deliberately dispatched before this
+     * point so writable QSPI can never overlap screen asset reads. */
+    BOARD_POWER.enterRecoveryUiState();
+    SPIScreenManager::getInstance().setup();
+    SPIScreenManager::getInstance().loop();
+    POWER_MANAGER.setup();
+    interactiveRuntimeInitialized = true;
+}
+
+MainRuntimeState MainStateMachine::resolveNormalStartupState() const
+{
+    /* A valid READY is an explicit host commit and therefore outranks even
+     * the manual USB ISP flag. No other staging record triggers an update. */
+    if (CH585_FIRMWARE_UPDATE.hasReadyStagedImage()) {
+        return MainRuntimeState::Ch585BridgeUpdate;
+    }
+
+    if (CH585_UPDATE_MODE.isManualIspActive()) {
+        return MainRuntimeState::Ch585UsbIsp;
+    }
 
     BootMode bootMode = STORAGE_MANAGER.getBootMode();
-    APP_STAGE("A12", "configuration loaded: boot mode=%u",
-              static_cast<unsigned>(bootMode));
 #if WEBCONFIG_TEST_FORCE_BOOT
     bootMode = BootMode::BOOT_MODE_WEB_CONFIG;
     APP_STAGE("A12", "temporary WebConfig bring-up override active");
 #endif
 #if RF24G_SPI_TEST_FORCE_RF24G
     bootMode = BootMode::BOOT_MODE_INPUT;
-    APP_DBG("[RF_SPI_TEST] force boot mode INPUT");
 #endif
-    // BootMode bootMode = BOOT_MODE_INPUT;
-    // BootMode bootMode = BOOT_MODE_WEB_CONFIG;
-    // LOG_INFO("MAIN_STATE_MACHINE", "BootMode: %d", bootMode);
-
-    switch(bootMode) {
-    case BootMode::BOOT_MODE_WEB_CONFIG:
-            state = &WEB_CONFIG_STATE;
-            APP_STAGE("A13", "selected WEB_CONFIG state");
-            LOG_INFO("MAIN_STATE_MACHINE", "Entering WEB_CONFIG_STATE");
-            break;
-        case BootMode::BOOT_MODE_INPUT:
-            // INPUT uses continuous circular DMA; report ticks read the latest DMA data.
-            ADCManager::getInstance().setADCMode(ADC_MODE_INPUT_CONTINUOUS);
-            
-            state = &INPUT_STATE;
-            APP_STAGE("A13", "selected INPUT state");
-            LOG_INFO("MAIN_STATE_MACHINE", "Entering INPUT_STATE");
-            break;
-        case BootMode::BOOT_MODE_CALIBRATION:
-
-            state = &CALIBRATION_STATE;
-            APP_STAGE("A13", "selected CALIBRATION state");
-            LOG_INFO("MAIN_STATE_MACHINE", "Entering CALIBRATION_STATE");
-            break;
+    if (!isValidBootMode(bootMode)) return MainRuntimeState::SafeRecovery;
+    if (bootMode == BootMode::BOOT_MODE_INPUT) return MainRuntimeState::Input;
+    if (bootMode == BootMode::BOOT_MODE_WEB_CONFIG) {
+        return MainRuntimeState::WebConfig;
     }
+    return MainRuntimeState::Calibration;
+}
 
-    /*
-     * The local display is the product's recovery UI.  Bring it up before
-     * probing optional power-management peripherals or negotiating a CH585
-     * role so a missing/stuck auxiliary device cannot leave the unit black.
-     */
-    BOARD_POWER.enterRecoveryUiState();
-    APP_STAGE("A14", "local recovery UI power state entered");
-    SPIScreenManager::getInstance().setup();
+bool MainStateMachine::enterState(MainRuntimeState selected)
+{
+    BaseState* next = stateFor(selected);
+    if (state != nullptr) state->exit();
+    state = next;
+    currentState = selected;
+    APP_STAGE("A13", "entering top-level runtime state=%u",
+              static_cast<unsigned>(selected));
+    if (state->enter()) return true;
+
+    if (selected == MainRuntimeState::SafeRecovery) return false;
+    state->exit();
+    if (!interactiveRuntimeInitialized) initializeInteractiveRuntime();
+    state = stateFor(MainRuntimeState::SafeRecovery);
+    currentState = MainRuntimeState::SafeRecovery;
+    return state->enter();
+}
+
+bool MainStateMachine::requestTransition(MainRuntimeState next)
+{
+    if (next == currentState) return true;
+    if (next != MainRuntimeState::Ch585BridgeUpdate &&
+        !interactiveRuntimeInitialized) {
+        initializeInteractiveRuntime();
+    }
+    return enterState(next);
+}
+
+void MainStateMachine::requestReset()
+{
+    resetPending = true;
+}
+
+extern "C" void MainRuntime_RequestReset(void)
+{
+    MAIN_STATE_MACHINE.requestReset();
+}
+
+void MainStateMachine::serviceSharedRuntime()
+{
+    if (!interactiveRuntimeInitialized) return;
+    BOARD_MODE.update(HAL_GetTick());
+    if (currentState == MainRuntimeState::Input ||
+        currentState == MainRuntimeState::WebConfig) {
+        CONNECTION_MANAGER.loop();
+    }
+    POWER_MANAGER.loop();
     SPIScreenManager::getInstance().loop();
-    APP_STAGE("A15", "screen setup requested and first frame serviced");
+}
 
-    POWER_MANAGER.setup();
-    APP_STAGE("A16", "power manager initialized");
+void MainStateMachine::setup()
+{
+    APP_STAGE("A10", "top-level runtime dispatcher active");
 
-    if (CH585_UPDATE_MODE.isManualIspActive()) {
-        CH585_UPDATE_MODE.setupManualIspRuntime();
-        APP_STAGE("A16M", "manual CH585 ISP service loop active");
-        while (1) {
-            BOARD_MODE.update(HAL_GetTick());
-            POWER_MANAGER.loop();
-            SPIScreenManager::getInstance().loop();
-        }
+    /* READY is the only condition inspected before Logger/Storage/screen.
+     * This keeps BridgeUpdate an isolated peer state instead of an early-boot
+     * side path hidden outside the main state machine. */
+    if (CH585_FIRMWARE_UPDATE.hasReadyStagedImage()) {
+        (void)enterState(MainRuntimeState::Ch585BridgeUpdate);
+    } else {
+        initializeInteractiveRuntime();
+        (void)enterState(resolveNormalStartupState());
     }
 
-    if (CH585_FIRMWARE_UPDATE.isPending()) {
-        APP_STAGE("A16U", "pending staged CH585 update selected");
-        if (CH585_FIRMWARE_UPDATE.performPendingUpdate()) {
-            APP_STAGE("A16U", "CH585 update complete; rebooting to normal runtime");
-            HAL_Delay(50u);
+    while (true) {
+        if (state != nullptr) state->tick();
+        serviceSharedRuntime();
+        if (resetPending) {
+            resetPending = false;
+            if (state != nullptr) state->exit();
+            if (interactiveRuntimeInitialized) Logger_Flush();
             NVIC_SystemReset();
         }
-        APP_STAGE_ERROR("A16U", "CH585 update failed; local retry UI active");
-        while (1) {
-            BOARD_MODE.update(HAL_GetTick());
-            POWER_MANAGER.loop();
-            SPIScreenManager::getInstance().loop();
-        }
     }
-
-    state->setup();
-    APP_STAGE("A17", "selected state setup returned");
-    SystemSleep_HandleWakeRecovery();
-    APP_STAGE("A18", "wake recovery processed");
-
-    APP_STAGE("A19", "main service loop active");
-    while(1) {
-        BOARD_MODE.update(HAL_GetTick());
-        
-        state->loop();
-
-        CONNECTION_MANAGER.loop();
-        POWER_MANAGER.loop();
-        SPIScreenManager::getInstance().loop();
-
-    }
-
 }

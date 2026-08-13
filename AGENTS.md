@@ -1,5 +1,12 @@
 # AGENTS — HBox 项目关键速览
 
+## 永久硬件安全规则
+
+- 所有开发、调试和烧录流程禁止读取、修改或触发 STM32 Option Bytes、RDP、WRP、PCROP、SECURITY、SCAR、read-unprotect、mass erase 或任何锁定/保护状态转换。
+- 禁止启用 CH58x 代码保护、读保护或下载保护。CH585 长期更新只允许通过既有 4KB IAP 写入 `0x1000` 以上 Application；不得覆盖 `0x0000–0x0FFF` IAP。
+- 正常固件烧录必须限于明确地址和镜像，先校验目标与回读，提交型 metadata/header 最后写入；任何工具若需要保护位操作必须直接拒绝，而不是询问后继续。
+- 在用户后续明确要求恢复前，STM32 深度 Standby 必须保持全局禁用：不得调用 `HAL_PWR_EnterSTANDBYMode()`、不得自动返回 Standby。LCD 屏保/熄屏属于独立 UI 功能，可以保留。
+
 本文件用于快速理解整个仓库的组成与关键机制（bootloader / application / dongle / RFModule / server / tools）。
 
 ## 硬件安全红线（最高优先级，必须遵守）

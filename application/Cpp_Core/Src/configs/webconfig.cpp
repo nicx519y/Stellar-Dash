@@ -19,6 +19,7 @@
 #include <queue>
 #include "system_logger.h"
 #include "cpp_utils.hpp"
+#include "main_runtime_control.hpp"
 
 extern "C" struct fsdata_file file__index_html[];
 
@@ -495,7 +496,7 @@ void WebConfig::loop() {
 
     // 检查是否需要重启
     if (WebSocketCommandHandler::needReboot && (HAL_GetTick() >= WebSocketCommandHandler::rebootTick)) {
-        NVIC_SystemReset();
+        MainRuntime_RequestReset();
     }
 }
 

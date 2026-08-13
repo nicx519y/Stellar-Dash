@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "CH58x_common.h"
+#include "board_latest_ch585.h"
 
 #define USB_SPI_PINS (GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15)
 #define USB_SPI_NSS_PIN GPIO_Pin_12
@@ -13,10 +14,6 @@
                            RB_SPI_IF_FIFO_OV | RB_SPI_IF_FIFO_HF | \
                            RB_SPI_IF_BYTE_END | RB_SPI_IF_FST_BYTE)
 
-USB_SPI_STATIC_ASSERT(USB_SPI_RX_DMA_BYTES >=
-                      USB_BOARD_LINK_MAX_FRAME_BYTES);
-
-__attribute__((aligned(4))) static uint8_t s_rx_dma[USB_SPI_RX_DMA_BYTES];
 static usb_spi_rx_ring_t s_rx_ring;
 static uint8_t s_tx_frames[USB_SPI_TX_SLOTS][USB_BOARD_LINK_MAX_FRAME_BYTES];
 static uint8_t s_tx_lengths[USB_SPI_TX_SLOTS];
@@ -61,36 +58,20 @@ static void port_unlock(void)
     PFIC_EnableIRQ(SPI0_IRQn);
 }
 
-static void rx_dma_start(void)
+static void rx_fifo_start(void)
 {
     R8_SPI0_CTRL_CFG &= (uint8_t)~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP);
-    SPI0_ITCfg(DISABLE, SPI0_IT_CNT_END | SPI0_IT_DMA_END);
+    SPI0_ITCfg(DISABLE,
+               SPI0_IT_CNT_END | SPI0_IT_DMA_END | SPI0_IT_FIFO_HF |
+               SPI0_IT_FIFO_OV);
     spi_fifo_clear();
     R8_SPI0_CTRL_MOD = (uint8_t)((R8_SPI0_CTRL_MOD | RB_SPI_FIFO_DIR) &
                                  (uint8_t)~RB_SPI_SLV_CMD_MOD);
-    R32_SPI0_DMA_BEG = (uint32_t)s_rx_dma;
-    R32_SPI0_DMA_END = (uint32_t)(s_rx_dma + sizeof(s_rx_dma));
-    R32_SPI0_DMA_NOW = (uint32_t)s_rx_dma;
-    R16_SPI0_TOTAL_CNT = sizeof(s_rx_dma);
     R8_SPI0_INT_FLAG = USB_SPI_ALL_FLAGS;
-    R8_SPI0_CTRL_CFG |= RB_SPI_DMA_ENABLE;
-    SPI0_ITCfg(ENABLE, SPI0_IT_FIFO_OV);
-}
-
-static uint16_t rx_dma_position(void)
-{
-    uint32_t now = R32_SPI0_DMA_NOW;
-    const uint32_t beginning = (uint32_t)s_rx_dma;
-    const uint32_t end = (uint32_t)(s_rx_dma + sizeof(s_rx_dma));
-
-    if((now < beginning) || (now > end))
-    {
-        return 0u;
-    }
-    now -= beginning;
-    return (now > sizeof(s_rx_dma))
-        ? (uint16_t)sizeof(s_rx_dma)
-        : (uint16_t)now;
+    /* Drain every half FIFO in the IRQ. The polling selector already proves
+     * this byte-stream mode on the PCB, and it removes any dependency on a
+     * PA12/NSS edge being retained by the GPIO peripheral. */
+    SPI0_ITCfg(ENABLE, SPI0_IT_FIFO_HF | SPI0_IT_FIFO_OV);
 }
 
 static void rx_push_block(const uint8_t *data, uint16_t length)
@@ -132,34 +113,20 @@ static void rx_push_block(const uint8_t *data, uint16_t length)
     s_rx_ring.count = (uint16_t)(s_rx_ring.count + length);
 }
 
+static void rx_drain_fifo_locked(void)
+{
+    while(R8_SPI0_FIFO_COUNT != 0u)
+    {
+        const uint8_t byte = R8_SPI0_FIFO;
+        rx_push_block(&byte, 1u);
+    }
+}
+
 static void service_pending_nss_rise_locked(void)
 {
-    uint8_t transaction_pending;
-
-    /*
-     * A completed write may have raised PA12 just before the main loop
-     * masked GPIO_A_IRQn.  Drain that latched boundary before repurposing
-     * SPI DMA for TX, otherwise the just-received command would be cleared.
-     * Some CH585 SPI0/GPIO combinations do not retain the PA12 edge flag
-     * reliably while the pin is also the peripheral NSS input.  At idle-high
-     * NSS, FST_BYTE, a moved DMA cursor, or a non-empty FIFO is equivalent
-     * proof that a complete master write has ended and needs draining.
-     */
-    transaction_pending =
-        ((GPIOA_ReadITFlagPort() & USB_SPI_NSS_PIN) != 0u) ? 1u : 0u;
-    if((transaction_pending == 0u) &&
-       (nss_is_high() != 0u) &&
-       (((R8_SPI0_INT_FLAG & RB_SPI_IF_FST_BYTE) != 0u) ||
-        (R32_SPI0_DMA_NOW != R32_SPI0_DMA_BEG) ||
-        (R8_SPI0_FIFO_COUNT != 0u)))
-    {
-        transaction_pending = 1u;
-    }
-    if(transaction_pending != 0u)
-    {
-        GPIOA_ClearITFlagBit(USB_SPI_NSS_PIN);
-        usb_board_link_port_nss_rise_irq_handler();
-    }
+    /* Preserve every received byte before RX FIFO is repurposed for TX. */
+    rx_drain_fifo_locked();
+    GPIOA_ClearITFlagBit(USB_SPI_NSS_PIN);
 }
 
 static bool tx_dma_arm_locked(void)
@@ -218,7 +185,7 @@ static bool tx_dma_arm_locked(void)
          * window.  It has not clocked yet because of the STM32 ownership
         * guard; restore RX and let that transaction proceed.
          */
-        rx_dma_start();
+        rx_fifo_start();
         SYS_RecoverIrq(irq_status);
         return false;
     }
@@ -261,7 +228,7 @@ static void tx_dma_finish(void)
     }
     s_tx_armed = 0u;
     s_tx_nss_seen = 0u;
-    rx_dma_start();
+    rx_fifo_start();
     __asm volatile("fence iorw, iorw" ::: "memory");
     /* W_INT high is the invariant that RX DMA is fully ready for a write. */
     GPIOA_SetBits(USB_SPI_IRQ_PIN);
@@ -292,7 +259,7 @@ bool usb_board_link_port_init(void)
     s_release_gap_pending = 0u;
     s_port_fault = USB_BOARD_STATUS_OK;
     memset(s_tx_lengths, 0, sizeof(s_tx_lengths));
-    rx_dma_start();
+    rx_fifo_start();
     s_ready = 1u;
     GPIOA_ITModeCfg(USB_SPI_NSS_PIN, GPIO_ITMode_RiseEdge);
     GPIOA_ClearITFlagBit(USB_SPI_NSS_PIN);
@@ -459,12 +426,13 @@ void usb_board_link_port_spi_irq_handler(void)
         return;
     }
 
-    /*
-     * RX completion is intentionally not an interrupt source.  A maximum
-     * 64-byte write may set its status flags at the final byte, but the PA12
-     * rising-edge ISR owns draining and rearming after NSS is safely high.
-     */
-    if(flags != 0u)
+    if((flags & (RB_SPI_IF_FIFO_HF | RB_SPI_IF_FIFO_OV)) != 0u)
+    {
+        rx_drain_fifo_locked();
+        R8_SPI0_INT_FLAG =
+            (uint8_t)(flags & (RB_SPI_IF_FIFO_HF | RB_SPI_IF_FIFO_OV));
+    }
+    else if(flags != 0u)
     {
         R8_SPI0_INT_FLAG = flags;
     }
@@ -472,38 +440,16 @@ void usb_board_link_port_spi_irq_handler(void)
 
 void usb_board_link_port_nss_rise_irq_handler(void)
 {
-    uint16_t received;
-
     if((s_ready == 0u) || (s_tx_armed != 0u))
     {
         return;
     }
 
-    /*
-     * PA12 has risen, so the complete write transaction is quiescent.  Stop
-     * DMA only at this hardware frame boundary, preserve the received bytes,
-     * then rearm before another NSS assertion is accepted.
-     */
-    R8_SPI0_CTRL_CFG &= (uint8_t)~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP);
-    received = rx_dma_position();
-    if(received != 0u)
-    {
-        rx_push_block(s_rx_dma, received);
-    }
-    /*
-     * Short control frames can remain in the SPI FIFO without advancing the
-     * DMA cursor before NSS rises.  Preserve that FIFO tail after the DMA
-     * prefix; rx_dma_start() clears the FIFO as part of rearming and would
-     * otherwise discard commands such as the four-byte GET_CAPS frame.
-     */
-    while(R8_SPI0_FIFO_COUNT != 0u)
-    {
-        const uint8_t byte = R8_SPI0_FIFO;
-        rx_push_block(&byte, 1u);
-    }
+    /* Rising NSS is an optional prompt only; FIFO-half IRQs preserve bytes
+     * even on units that do not retain this GPIO edge in peripheral mode. */
+    rx_drain_fifo_locked();
     if((R8_SPI0_INT_FLAG & RB_SPI_IF_FIFO_OV) != 0u)
     {
         s_port_fault = USB_BOARD_STATUS_QUEUE_FULL;
     }
-    rx_dma_start();
 }

@@ -3,6 +3,7 @@
 
 #include <string.h>
 
+#include "board_cfg.h"
 #include "monitor_telemetry.hpp"
 #include "system_logger.h"
 #include "stm32h7xx_hal.h"
@@ -90,6 +91,12 @@ bool UsbBoardLink::transact(uint8_t command,
     uint8_t request[USB_BOARD_LINK_MAX_FRAME_BYTES] = {};
     uint8_t requestLength = 0u;
     const uint32_t startedAt = HAL_GetTick();
+    const bool diagnoseCaps = command == USB_BOARD_CMD_GET_CAPS;
+    const bool diagnoseRole = command == USB_BOARD_CMD_SELECT_ROLE;
+    uint32_t observedEvents = 0u;
+    uint32_t readFailures = 0u;
+    uint32_t decodeFailures = 0u;
+    uint8_t lastObservedEvent = 0u;
     LinkTransactionGuard transaction(transactionActive);
 
     if (responseLength != nullptr) {
@@ -108,12 +115,18 @@ bool UsbBoardLink::transact(uint8_t command,
         uint8_t pending[USB_BOARD_LINK_MAX_FRAME_BYTES] = {};
         uint8_t pendingLength = 0u;
         usb_board_link_frame_t decoded = {};
+        ++observedEvents;
         if (!USBBoardLinkPort_ReadEvent(pending,
                                         sizeof(pending),
-                                        &pendingLength) ||
-            !usb_board_link_decode(pending, pendingLength, &decoded)) {
+                                        &pendingLength)) {
+            ++readFailures;
             break;
         }
+        if (!usb_board_link_decode(pending, pendingLength, &decoded)) {
+            ++decodeFailures;
+            break;
+        }
+        lastObservedEvent = decoded.command;
         handleEvent(decoded.command, decoded.payload, decoded.length);
         if (decoded.command != expectedEvent) {
             continue;
@@ -137,6 +150,16 @@ bool UsbBoardLink::transact(uint8_t command,
                                sizeof(request),
                                &requestLength) ||
         !USBBoardLinkPort_Send(request, requestLength)) {
+        if (diagnoseCaps || diagnoseRole) {
+            APP_STAGE_ERROR(diagnoseRole ? "R03D" : "M09D",
+                            "%s send blocked: pending=%u observed=%lu read_fail=%lu decode_fail=%lu last=%02x",
+                            diagnoseRole ? "SELECT_ROLE" : "GET_CAPS",
+                            USBBoardLinkPort_HasEvent() ? 1u : 0u,
+                            static_cast<unsigned long>(observedEvents),
+                            static_cast<unsigned long>(readFailures),
+                            static_cast<unsigned long>(decodeFailures),
+                            static_cast<unsigned int>(lastObservedEvent));
+        }
         return false;
     }
 
@@ -150,6 +173,8 @@ bool UsbBoardLink::transact(uint8_t command,
                                        sizeof(response),
                                        &frameLength) &&
             usb_board_link_decode(response, frameLength, &decoded)) {
+            ++observedEvents;
+            lastObservedEvent = decoded.command;
             handleEvent(decoded.command, decoded.payload, decoded.length);
             if (decoded.command != expectedEvent) {
                 continue;
@@ -167,6 +192,16 @@ bool UsbBoardLink::transact(uint8_t command,
         }
         HAL_Delay(1u);
     } while ((HAL_GetTick() - startedAt) < timeoutMs);
+    if (diagnoseCaps || diagnoseRole) {
+        APP_STAGE_ERROR(diagnoseRole ? "R03D" : "M09D",
+                        "%s response timeout: observed=%lu read_fail=%lu decode_fail=%lu last=%02x pending=%u",
+                        diagnoseRole ? "SELECT_ROLE" : "GET_CAPS",
+                        static_cast<unsigned long>(observedEvents),
+                        static_cast<unsigned long>(readFailures),
+                        static_cast<unsigned long>(decodeFailures),
+                        static_cast<unsigned int>(lastObservedEvent),
+                        USBBoardLinkPort_HasEvent() ? 1u : 0u);
+    }
     return false;
 }
 
@@ -293,6 +328,18 @@ bool UsbBoardLink::selectRole(usb_board_role_t role, uint32_t timeoutMs)
         return false;
     }
 
+    if ((role == USB_BOARD_ROLE_USB) ||
+        (role == USB_BOARD_ROLE_MAINTENANCE)) {
+        /* ROLE_SELECTED is the protocol-level role commit.  CH585 emits it
+         * from the cold-boot FIFO selector, then returns through C code and
+         * arms the Application RX DMA.  A second GPIO pulse can begin while
+         * this response is still being consumed, so waiting for that edge
+         * races a pulse that may already have completed.  Use a bounded
+         * post-ACK settle interval; CAPS remains the definitive Application
+         * liveness check and CH585 publishes no async event before CAPS. */
+        HAL_Delay(150u);
+    }
+
     selectedRole = role;
     roleLocked = true;
     MonitorTelemetry_SetCh585Status(static_cast<uint8_t>(role),
@@ -306,6 +353,11 @@ bool UsbBoardLink::selectRole(usb_board_role_t role, uint32_t timeoutMs)
          */
         USBBoardLinkPort_Shutdown();
         return true;
+    }
+    if (!USBBoardLinkPort_InitApplication()) {
+        roleLocked = false;
+        selectedRole = USB_BOARD_ROLE_NONE;
+        return false;
     }
     /*
      * Role ACK is the bootstrap boundary. The CH585 enters its USB loop only
@@ -346,8 +398,16 @@ bool UsbBoardLink::getCapabilities()
             caps.firmware_minor,
             caps.firmware_patch);
     }
-    if (capsValid && !grantInitialReceiveCredits()) {
-        capsValid = false;
+    if (capsValid) {
+        /*
+         * CAPS is the application-liveness contract. Initial receive-credit
+         * writes are a separate, retryable flow-control phase: immediately
+         * after role hand-off CH585 can still have USB_STATE/credit events
+         * queued, so a write may legitimately lose the W_INT ownership race.
+         * Keep validated CAPS and leave unsent credits dirty; process() will
+         * retry them on subsequent ticks.
+         */
+        (void)grantInitialReceiveCredits();
     }
     return capsValid;
 }
@@ -1081,7 +1141,7 @@ bool UsbBoardLink_SelectRoleCallback(Ch585Role role)
 {
     return USB_BOARD_LINK.selectRole(
         static_cast<usb_board_role_t>(static_cast<uint8_t>(role)),
-        5u);
+        CH585_ROLE_RESPONSE_TIMEOUT_MS);
 }
 
 extern "C" bool UsbBoardLink_NetworkSend(const uint8_t *data,

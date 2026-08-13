@@ -13,6 +13,7 @@ extern "C" {
 void usb_board_link_init(usb_board_role_t locked_role);
 void usb_board_link_process(void);
 bool usb_board_link_is_ready(void);
+bool usb_board_link_caps_requested(void);
 uint8_t usb_board_link_last_fault(void);
 bool usb_board_link_publish_bulk(usb_board_channel_t channel,
                                  const uint8_t *data,

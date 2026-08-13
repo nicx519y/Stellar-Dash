@@ -3,7 +3,6 @@
 
 #include "board_latest_ch585.h"
 #include "board_role_selector.h"
-#include "ch585_iap_app.h"
 
 int RF_FrozenMain(void);
 
@@ -35,9 +34,9 @@ int main(void)
 #if(defined(DCDC_ENABLE)) && (DCDC_ENABLE == TRUE)
     PWR_DCDCCfg(ENABLE);
 #endif
-    HSECFG_Capacitance(HSECap_18p);
-    SetSysClock(SYSCLK_FREQ);
-    ch585_iap_mark_running_app();
+    /* The persistent 4 KiB IAP is the sole reset entry and establishes the
+     * 60 MHz system clock before jumping here.  Re-running SetSysClock while
+     * that PLL/clock tree is already active can stall before SPI role setup. */
     rfm_board_latest_ch585_set_usb_spi_owner(false);
     rfm_board_latest_ch585_prepare_spi_pins();
 

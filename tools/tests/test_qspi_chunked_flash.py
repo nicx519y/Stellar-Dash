@@ -10,6 +10,47 @@ from tools.build import BuildTool
 
 
 class QspiChunkedFlashTests(unittest.TestCase):
+    def test_short_image_is_passed_unchanged_to_openocd(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hbox-qspi-pad-") as root:
+            root_path = Path(root)
+            application_dir = root_path / "application"
+            config_dir = application_dir / "Openocd_Script"
+            build_dir = application_dir / "build"
+            config_dir.mkdir(parents=True)
+            build_dir.mkdir(parents=True)
+            (config_dir / "ST-LINK-QSPIFLASH.cfg").write_text(
+                "# fixture\n", encoding="utf-8"
+            )
+            source = build_dir / "payload.bin"
+            source.write_bytes(b"payload")
+            original = source.read_bytes()
+            scripts = []
+
+            def capture_command(command, _cwd, **_kwargs):
+                scripts.append(Path(command[-1]).read_text(encoding="utf-8"))
+                return True
+
+            tool = BuildTool.__new__(BuildTool)
+            tool.application_dir = application_dir
+            tool.config = {"openocd_path": "openocd"}
+            tool.run_command = mock.Mock(side_effect=capture_command)
+
+            self.assertTrue(
+                tool._flash_qspi_file_in_chunks(
+                    source,
+                    0x90000000,
+                    "fixture",
+                    reset_after=False,
+                )
+            )
+
+        self.assertEqual(original, b"payload")
+        self.assertEqual(len(scripts), 1)
+        self.assertEqual(scripts[0].count("flash write_image erase"), 1)
+        self.assertEqual(scripts[0].count("flash verify_bank 1"), 1)
+        self.assertIn("0x00000000", scripts[0])
+        self.assertNotIn("verify_image", scripts[0])
+
     def test_quiet_command_hides_success_output_and_replays_failure(self) -> None:
         tool = BuildTool.__new__(BuildTool)
         tool.config = {"gcc_path": ""}
@@ -48,7 +89,7 @@ class QspiChunkedFlashTests(unittest.TestCase):
         self.assertIn("target verification failed", output.getvalue())
         self.assertIn("退出码: 1", output.getvalue())
 
-    def test_large_image_uses_erase_then_short_program_sessions(self) -> None:
+    def test_large_image_uses_one_standard_openocd_session(self) -> None:
         with tempfile.TemporaryDirectory(prefix="hbox-qspi-flash-") as root:
             root_path = Path(root)
             application_dir = root_path / "application"
@@ -79,15 +120,45 @@ class QspiChunkedFlashTests(unittest.TestCase):
                 )
             )
 
-        self.assertEqual(len(scripts), 3)
-        self.assertIn("flash erase_sector 1 0 0", scripts[0])
-        self.assertNotIn("flash write_image", scripts[0])
-        self.assertEqual(scripts[1].count("flash write_image"), 8)
-        self.assertEqual(scripts[1].count("verify_image"), 8)
-        self.assertNotIn("reset run", scripts[1])
-        self.assertEqual(scripts[2].count("flash write_image"), 1)
-        self.assertEqual(scripts[2].count("verify_image"), 1)
-        self.assertIn("reset run", scripts[2])
+        self.assertEqual(len(scripts), 1)
+        self.assertEqual(scripts[0].count("flash write_image erase"), 1)
+        self.assertEqual(scripts[0].count("flash verify_bank 1"), 1)
+        self.assertNotIn("verify_image", scripts[0])
+        self.assertIn("reset run", scripts[0])
+
+    def test_image_size_does_not_create_page_or_chunk_sessions(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hbox-qspi-pages-") as root:
+            root_path = Path(root)
+            application_dir = root_path / "application"
+            config_dir = application_dir / "Openocd_Script"
+            build_dir = application_dir / "build"
+            config_dir.mkdir(parents=True)
+            build_dir.mkdir(parents=True)
+            (config_dir / "ST-LINK-QSPIFLASH.cfg").write_text(
+                "# fixture\n", encoding="utf-8"
+            )
+            source = build_dir / "payload.bin"
+            source.write_bytes(b"P" * (33 * 1024))
+            scripts = []
+
+            def capture_command(command, _cwd, **_kwargs):
+                scripts.append(Path(command[-1]).read_text(encoding="utf-8"))
+                return True
+
+            tool = BuildTool.__new__(BuildTool)
+            tool.application_dir = application_dir
+            tool.config = {"openocd_path": "openocd"}
+            tool.run_command = mock.Mock(side_effect=capture_command)
+
+            self.assertTrue(
+                tool._flash_qspi_file_in_chunks(
+                    source, 0x90000000, "fixture"
+                )
+            )
+
+        program_scripts = [script for script in scripts if "flash write_image" in script]
+        self.assertEqual(len(program_scripts), 1)
+        self.assertEqual(program_scripts[0].count("flash write_image erase"), 1)
 
     def test_caller_can_hold_target_until_metadata_commit(self) -> None:
         with tempfile.TemporaryDirectory(prefix="hbox-qspi-hold-") as root:
@@ -119,10 +190,49 @@ class QspiChunkedFlashTests(unittest.TestCase):
                     0x90000000,
                     "fixture",
                     reset_after=False,
+                    runtime_attach=True,
+                    leave_halted=True,
                 )
             )
 
-        self.assertFalse(any("reset run" in script for script in scripts))
+        self.assertNotIn("resume", scripts[0])
+        self.assertNotIn("reset run", scripts[0])
+
+    def test_runtime_software_reset_does_not_wait_for_dap_to_return(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hbox-qspi-reset-") as root:
+            root_path = Path(root)
+            application_dir = root_path / "application"
+            config_dir = application_dir / "Openocd_Script"
+            build_dir = application_dir / "build"
+            config_dir.mkdir(parents=True)
+            build_dir.mkdir(parents=True)
+            (config_dir / "ST-LINK-QSPIFLASH.cfg").write_text(
+                "# fixture\n", encoding="utf-8"
+            )
+            source = build_dir / "ready.bin"
+            source.write_bytes(b"ready")
+            scripts = []
+
+            def capture_command(command, _cwd, **_kwargs):
+                scripts.append(Path(command[-1]).read_text(encoding="utf-8"))
+                return True
+
+            tool = BuildTool.__new__(BuildTool)
+            tool.application_dir = application_dir
+            tool.config = {"openocd_path": "openocd"}
+            tool.run_command = mock.Mock(side_effect=capture_command)
+            self.assertTrue(
+                tool._flash_qspi_file_in_chunks(
+                    source,
+                    0x90000000,
+                    "fixture",
+                    reset_after=True,
+                    runtime_attach=True,
+                )
+            )
+
+        self.assertIn("mww 0xE000ED0C 0x05FA0004", scripts[0])
+        self.assertNotIn("sleep 100", scripts[0])
 
     def test_every_destructive_session_is_serial_and_uid_bound(self) -> None:
         serial = "00112233445566778899AABB"
@@ -162,7 +272,7 @@ class QspiChunkedFlashTests(unittest.TestCase):
                 )
             )
 
-        self.assertGreaterEqual(len(invocations), 2)
+        self.assertEqual(len(invocations), 1)
         uid_words = ("A1B2C3D4", "E5F60718", "293A4B5C")
         for command, script in invocations:
             serial_command = f"adapter serial {serial}"

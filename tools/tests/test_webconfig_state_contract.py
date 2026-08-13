@@ -33,7 +33,7 @@ class WebConfigStateContractTests(unittest.TestCase):
             "enterFailure(WebConfigRuntimeStatus::ErrorStorageInit);",
             qspi_check,
         )
-        early_return = source.index("return;", failure)
+        early_return = source.index("return false;", failure)
         ready = source.index(
             "runtimeStatus = WebConfigRuntimeStatus::Ready;",
             qspi_check,

@@ -27,6 +27,7 @@
 #include "system_sleep_manager.hpp"
 #include "ch585_update_mode.hpp"
 #include "ch585_firmware_update.hpp"
+#include "main_runtime_control.hpp"
 
 extern "C" {
 #include "qspi-w25q64.h"
@@ -119,7 +120,7 @@ void ScreenUI_RequestRebootTo(uint8_t menuId, uint8_t index) {
     bkp_write(1, (uint32_t)menuId);
     bkp_write(2, (uint32_t)index);
     STORAGE_MANAGER.saveConfig();
-    NVIC_SystemReset();
+    MainRuntime_RequestReset();
 }
 
 void ScreenUI_RequestDeferredSave(uint32_t delayMs) {
@@ -571,12 +572,12 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
                                       sizeof(kWebConfigSaveFailedLines[0])));
                         return;
                     }
-                    NVIC_SystemReset();
+                    MainRuntime_RequestReset();
                 } else if (id == 10u) {
                     ADC_CALIBRATION_MANAGER.resetAllCalibration();
                     STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_CALIBRATION);
                     STORAGE_MANAGER.saveConfig();
-                    NVIC_SystemReset();
+                    MainRuntime_RequestReset();
                 } else {
                     enter_detail(id);
                 }
@@ -593,7 +594,7 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
             } else if (g_detailMenuId == 10u) {
                 STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
                 STORAGE_MANAGER.saveConfig();
-                NVIC_SystemReset();
+                MainRuntime_RequestReset();
             } else if (g_detailMenuId == 11u) {
                 if (ScreenDetail_OnBack(g_detailMenuId)) {
                     g_inDetail = false;
