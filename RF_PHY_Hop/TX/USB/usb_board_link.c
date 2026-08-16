@@ -39,6 +39,7 @@ static uint8_t s_caps_requested;
 static usb_board_usb_state_v1_t s_last_state;
 static uint8_t s_tx_credits[USB_BOARD_CHANNEL_SLOTS];
 static uint8_t s_credit_dirty_mask;
+static uint8_t s_webconfig_credit_paused;
 static uint8_t s_next_transaction[USB_BOARD_CHANNEL_SLOTS];
 static usb_board_outbound_t s_outbound;
 
@@ -133,6 +134,16 @@ static void queue_state(void)
 static void mark_credit_dirty(usb_board_channel_t channel)
 {
     const uint8_t index = (uint8_t)channel;
+    /*
+     * WebConfig uses the transaction-correlated pull-credit control RPC.
+     * Never enqueue an uncorrelated absolute EVT_BULK_CREDIT grant for this
+     * channel: a delayed duplicate could re-authorize a report that STM32 has
+     * already consumed locally.
+     */
+    if(channel == USB_BOARD_CHANNEL_WEBCONFIG)
+    {
+        return;
+    }
     if((index != 0u) && (index < USB_BOARD_CHANNEL_SLOTS))
     {
         s_credit_dirty_mask |= (uint8_t)(1u << index);
@@ -148,6 +159,12 @@ static void queue_one_credit(void)
     {
         const uint8_t mask = (uint8_t)(1u << channel);
         usb_board_bulk_credit_v1_t credit;
+        if(channel == USB_BOARD_CHANNEL_WEBCONFIG)
+        {
+            /* Defensive cleanup for a pre-profile/reset dirty bit. */
+            s_credit_dirty_mask &= (uint8_t)~mask;
+            continue;
+        }
         if((s_credit_dirty_mask & mask) == 0u)
         {
             continue;
@@ -182,7 +199,8 @@ static void handle_caps(void)
     caps.feature_flags = USB_BOARD_CAP_FEATURE_TELEMETRY_HID |
                          USB_BOARD_CAP_FEATURE_CONTROL_V1 |
                          USB_BOARD_CAP_FEATURE_LOCAL_AUTH |
-                         USB_BOARD_CAP_FEATURE_WEBHID_V1;
+                         USB_BOARD_CAP_FEATURE_WEBHID_V1 |
+                         USB_BOARD_CAP_FEATURE_WEBCONFIG_PULL_CREDIT;
     (void)queue_event(USB_BOARD_EVT_CAPS, &caps, sizeof(caps));
 }
 
@@ -333,6 +351,7 @@ static void handle_fragment(const usb_board_link_frame_t *frame)
 static void handle_credit(const usb_board_link_frame_t *frame)
 {
     usb_board_bulk_credit_v1_t credit;
+    uint8_t limit;
     if(frame->length != sizeof(credit))
     {
         queue_fault(USB_BOARD_STATUS_BAD_LENGTH, frame->command);
@@ -345,9 +364,12 @@ static void handle_credit(const usb_board_link_frame_t *frame)
         queue_fault(USB_BOARD_STATUS_BAD_LENGTH, frame->command);
         return;
     }
+    limit = (credit.channel == USB_BOARD_CHANNEL_WEBCONFIG)
+        ? USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW
+        : USB_BOARD_BULK_CREDIT_WINDOW;
     s_tx_credits[credit.channel] =
-        (credit.credits > USB_BOARD_BULK_CREDIT_WINDOW)
-            ? USB_BOARD_BULK_CREDIT_WINDOW
+        (credit.credits > limit)
+            ? limit
             : credit.credits;
 }
 
@@ -545,6 +567,7 @@ void usb_board_link_init(usb_board_role_t locked_role)
     s_port_fault_pending = USB_BOARD_STATUS_OK;
     s_caps_requested = 0u;
     s_credit_dirty_mask = 0u;
+    s_webconfig_credit_paused = 0u;
     {
         uint8_t channel;
         for(channel = USB_BOARD_CHANNEL_USB_DEVICE;
@@ -659,7 +682,14 @@ void usb_board_link_reset_channel(usb_board_channel_t channel)
     }
     ++s_next_transaction[index];
     usb_net_bridge_reset_channel(channel);
-    mark_credit_dirty(channel);
+    if(channel == USB_BOARD_CHANNEL_WEBCONFIG)
+    {
+        s_webconfig_credit_paused = 0u;
+    }
+    else
+    {
+        mark_credit_dirty(channel);
+    }
 }
 
 void usb_board_link_webconfig_set_ready(bool ready,
@@ -673,19 +703,51 @@ void usb_board_link_webconfig_set_ready(bool ready,
 
     if(!ready)
     {
+        s_webconfig_credit_paused = 0u;
         usb_net_bridge_reset_channel(
             USB_BOARD_CHANNEL_WEBCONFIG);
     }
     else
     {
+        s_webconfig_credit_paused = 0u;
         usb_net_bridge_set_credit(
             USB_BOARD_CHANNEL_WEBCONFIG, credits);
     }
-    mark_credit_dirty(USB_BOARD_CHANNEL_WEBCONFIG);
+}
+
+void usb_board_link_webconfig_pause(void)
+{
+    /*
+     * USB suspend is not a generation boundary. Advertise zero for new work
+     * while preserving grants already observed by STM32 and any partial
+     * reassembly slot; resume publishes the exact capacity via set_ready().
+     */
+    s_webconfig_credit_paused = 1u;
 }
 
 void usb_board_link_webconfig_report_consumed(void)
 {
     usb_net_bridge_return_credit(USB_BOARD_CHANNEL_WEBCONFIG);
-    mark_credit_dirty(USB_BOARD_CHANNEL_WEBCONFIG);
+}
+
+bool usb_management_control_hw_get_webconfig_credit(
+    usb_board_bulk_credit_v1_t *credit)
+{
+    if((credit == 0) || (s_ready == 0u) ||
+       (s_role != USB_BOARD_ROLE_MAINTENANCE) ||
+       (usb_device_profile() != USB_BOARD_PROFILE_WEB_CONFIG) ||
+       !usb_device_webhid_credit_ready())
+    {
+        return false;
+    }
+
+    credit->channel = USB_BOARD_CHANNEL_WEBCONFIG;
+    credit->credits = (s_webconfig_credit_paused != 0u)
+        ? 0u
+        : usb_net_bridge_credit(USB_BOARD_CHANNEL_WEBCONFIG);
+    if(credit->credits > USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW)
+    {
+        credit->credits = USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW;
+    }
+    return true;
 }

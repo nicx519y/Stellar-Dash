@@ -1,73 +1,32 @@
-import { DeviceAuthClient } from './device-auth-client';
-import { DeviceTransportFrameworkAdapter } from './framework-adapter';
-import { LegacyWebSocketTransport } from './legacy-websocket-transport';
-import { MockDeviceTransport } from './mock-device-transport';
-import { WebHidTransport } from './webhid-transport';
+import { DeviceCommandClient } from './device-command-client';
+import {
+  DEFAULT_DEVICE_TRANSPORT_CONFIG,
+  DeviceTransportConfig,
+} from './device-command-types';
+import {
+  BUILD_DEVICE_TRANSPORT_MODE,
+  createBuildDeviceCommandClient,
+} from '@hbox/device-transport-runtime';
 
-export type DeviceTransportMode = 'webhid' | 'legacy-websocket' | 'mock';
+export type DeviceTransportMode = 'webhid' | 'mock';
 
 export interface DeviceTransportFactoryOptions {
   mode: DeviceTransportMode;
-  websocket: {
-    url: string;
-    heartbeatInterval: number;
-    timeout: number;
-  };
+  config?: Partial<DeviceTransportConfig>;
 }
 
-export function createDeviceTransportFramework(
+export function createDeviceCommandClient(
   options: DeviceTransportFactoryOptions,
-): DeviceTransportFrameworkAdapter {
-  if (options.mode === 'mock') {
-    return new DeviceTransportFrameworkAdapter(new MockDeviceTransport());
-  }
-
-  if (options.mode === 'legacy-websocket') {
-    return new DeviceTransportFrameworkAdapter(
-      new LegacyWebSocketTransport(options.websocket),
+): DeviceCommandClient {
+  if (options.mode !== BUILD_DEVICE_TRANSPORT_MODE) {
+    throw new Error(
+      `Device transport "${options.mode}" is unavailable in this ${BUILD_DEVICE_TRANSPORT_MODE} build`,
     );
   }
-
-  const filters = [{
-    usagePage: parseHexOrDecimal(process.env.NEXT_PUBLIC_WEBHID_USAGE_PAGE, 0xff00),
-    usage: parseHexOrDecimal(process.env.NEXT_PUBLIC_WEBHID_USAGE, 0x01),
-    vendorId: parseHexOrDecimal(process.env.NEXT_PUBLIC_WEBHID_VENDOR_ID, 0xcafe),
-    productId: parseHexOrDecimal(process.env.NEXT_PUBLIC_WEBHID_PRODUCT_ID, 0x4021),
-  }];
-  const transport = new WebHidTransport({
-    filters,
-    reportId: parseHexOrDecimal(process.env.NEXT_PUBLIC_WEBHID_REPORT_ID, 0),
-    requestTimeoutMs: options.websocket.timeout,
-  });
-  const auth = new DeviceAuthClient({
-    // Hosted V2 deliberately uses the page origin for both authentication
-    // and protected downloads.  Cross-origin values from .env.local are not
-    // accepted in a deployable WebHID build.
-    challengeEndpoint: '/api/v2/device-auth/challenges',
-    verifyEndpoint: '/api/v2/device-auth/verify',
-    scopes: [
-      'config.read',
-      'config.write',
-      'monitor.read',
-    ],
-  });
-  return new DeviceTransportFrameworkAdapter(transport, auth);
+  const config = { ...DEFAULT_DEVICE_TRANSPORT_CONFIG, ...options.config };
+  return createBuildDeviceCommandClient(config);
 }
 
 export function configuredTransportMode(): DeviceTransportMode {
-  if (
-    process.env.NEXT_PUBLIC_DEVICE_TRANSPORT === 'mock' &&
-    process.env.NEXT_PUBLIC_OFFLINE_PREVIEW === 'true'
-  ) {
-    return 'mock';
-  }
-  return process.env.NEXT_PUBLIC_DEVICE_TRANSPORT === 'legacy-websocket'
-    ? 'legacy-websocket'
-    : 'webhid';
-}
-
-function parseHexOrDecimal(value: string | undefined, fallback: number): number {
-  if (!value) return fallback;
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+  return BUILD_DEVICE_TRANSPORT_MODE;
 }

@@ -69,11 +69,6 @@ Drivers/PWM-WS2812B \
 Drivers/GPIO-BTN \
 Drivers/ROTARY-ENCODER \
 Drivers/SPI-ST7789 \
-Libs/rndis \
-Libs/stm32_mw_lwip/src/apps \
-Libs/stm32_mw_lwip/src/core \
-Libs/stm32_mw_lwip/src/netif \
-Libs/stm32_mw_lwip/src/core/ipv4 \
 Libs/cJSON \
 Libs/sha256_simple \
 ../common
@@ -89,8 +84,7 @@ Cpp_Core/Src/gpio_btns \
 Cpp_Core/Src/leds \
 Cpp_Core/Src/firmware \
 Cpp_Core/Src/screen_control \
-Libs/CRC32/src \
-Libs/httpd
+Libs/CRC32/src
 
 # 自动查找源文件
 C_SOURCES = $(foreach dir,$(C_SOURCE_DIRS),$(wildcard $(dir)/*.c))
@@ -109,11 +103,6 @@ startup_stm32h750xx.s
 
 # 额外的源文件
 C_SOURCES += \
-Libs/stm32_mw_lwip/src/apps/http/httpd.c \
-Libs/httpd/fs.c \
-Libs/httpd/fsdata.c \
-Libs/tinyusb/lib/networking/dhserver.c \
-Libs/tinyusb/lib/networking/dnserver.c \
 Libs/mbedtls/library/bignum.c \
 Libs/mbedtls/library/base64.c \
 Libs/mbedtls/library/aes.c \
@@ -166,16 +155,6 @@ C_INCLUDES += \
 -IDrivers/GPIO-BTN \
 -IDrivers/ROTARY-ENCODER \
 -IDrivers/SPI-ST7789 \
--ILibs/httpd \
--ILibs/tinyusb/lib/networking \
--ILibs/rndis \
--ILibs/stm32_mw_lwip/src/apps \
--ILibs/stm32_mw_lwip/src/core \
--ILibs/stm32_mw_lwip/src/netif \
--ILibs/stm32_mw_lwip/src/core/ipv4 \
--ILibs/stm32_mw_lwip/src/include \
--ILibs/stm32_mw_lwip/system \
--ILibs/lwip-port \
 -ILibs/cJSON \
 -ILibs/CRC32/src \
 -ILibs/sha256_simple \

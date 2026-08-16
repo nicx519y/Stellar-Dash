@@ -14,8 +14,8 @@ npm run dev:hosted
 
 WebHID requires a Chromium-based browser, HTTPS (localhost is allowed for
 development), and a user click before the browser device chooser can open.
-Opening the page never silently falls back to the legacy virtual network
-adapter.
+Hosted builds use WebHID exclusively and never fall back to another device
+transport.
 
 Production validation and static export:
 
@@ -33,13 +33,16 @@ python tools/hbox.py web build
 V2 的 `python tools/hbox.py build appAll A|B` 只构建设备固件和设备端图片资源，
 不会运行 `makefsdata.js`，也不会把本目录打包进 STM32 固件。
 
+`makefsdata.js` 仅为既有 A/B artifact/release 兼容生成不可变的
+`application/Libs/httpd/ex_fsdata.bin`。它不会生成 `fsdata.c`、不会恢复已经退役的
+lwIP HTTP runtime，Hosted/Mock 的日常构建也不会调用它。
+
 Serve the generated `build/` directory from the same HTTPS origin as
 `/api/v2/device-auth/*`. The server must apply HSTS, a strict CSP,
 `Permissions-Policy: hid=(self)`, exact-origin CORS rules, and an SPA fallback
 that serves `index.html` for the configuration routes.
 Hosted V2 also uses this same origin for firmware catalog checks and protected
-downloads by default. The explicit legacy build alone retains the historical
-remote firmware-server default.
+downloads.
 
 ## Hardware-free V2 mock preview
 
@@ -69,9 +72,9 @@ npm run build:mock
 npm run preview:mock
 ```
 
-The mock export is written to `build-mock/`; genuine-device and legacy exports
-continue to use `build/`. This separation prevents `makefsdata.js` from
-accidentally packaging mock code into firmware. The local preview server binds
+The mock export is written to `build-mock/`; the genuine-device export uses
+`build/`. The compatibility WebResources packer accepts only `build/`, so it
+cannot package mock code into the immutable payload. The local preview server binds
 to `127.0.0.1:4000` by default; pass another port with
 `npm run preview:mock -- --port 4100`.
 
@@ -92,23 +95,6 @@ not be deployed as the genuine-device V2 site.
 - A USB disconnect, sequence error, role change, or authentication error
   destroys the session. There is no offline configuration-write mode.
 
-## Explicit V1 compatibility build
-
-The old WebSocket/NCM implementation remains available for existing V1
-firmware, but only via an explicit build:
-
-```bash
-npm run dev:legacy
-npm run build:legacy-embedded
-node makefsdata.js
-```
-
-等价的显式旧板命令是：
-
-```bash
-python tools/hbox.py web build-legacy
-```
-
-The legacy build retains the original `ws://device:8081` command semantics and
-weak legacy firmware-check authentication. It must not be presented as V2
-genuine-device authentication.
+The WebConfig product build supports WebHID only. The `mock` variant remains
+available for hardware-free UI testing and never falls back to a network
+device transport.

@@ -9,13 +9,13 @@ ROOT = Path(__file__).resolve().parents[2]
 DISPATCHER = (
     ROOT / "application" / "Cpp_Core" / "Src" / "webhid_rpc_dispatcher.cpp"
 )
-WEBSOCKET_MANAGER = (
+DEVICE_COMMAND_DISPATCHER = (
     ROOT
     / "application"
     / "Cpp_Core"
     / "Src"
     / "configs"
-    / "websocket_command_handler.cpp"
+    / "device_command_handler.cpp"
 )
 FRONTEND_POLICY = (
     ROOT
@@ -63,7 +63,7 @@ class WebHidScopeMatrixTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.dispatcher_source = DISPATCHER.read_text(encoding="utf-8")
-        cls.websocket_source = WEBSOCKET_MANAGER.read_text(encoding="utf-8")
+        cls.command_source = DEVICE_COMMAND_DISPATCHER.read_text(encoding="utf-8")
         cls.frontend_source = FRONTEND_POLICY.read_text(encoding="utf-8")
         cls.matrix = _cpp_scope_arrays(cls.dispatcher_source)
 
@@ -89,7 +89,7 @@ class WebHidScopeMatrixTests(unittest.TestCase):
         registered = set(
             re.findall(
                 r'registerHandler\("([^"]+)"',
-                self.websocket_source,
+                self.command_source,
             )
         )
         webhid_local_commands = {
@@ -197,7 +197,7 @@ class WebHidScopeMatrixTests(unittest.TestCase):
         )
 
         cleanup = re.search(
-            r"WebSocketDownstreamMessage "
+            r"DeviceCommandResponse "
             r"FirmwareCommandHandler::"
             r"handleCleanupFirmwareUpgradeSession"
             r"\(.*?\)\s*\{([\s\S]+?)\n\}",

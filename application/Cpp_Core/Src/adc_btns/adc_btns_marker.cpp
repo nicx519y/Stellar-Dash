@@ -3,7 +3,7 @@
 #include <numeric>
 
 // 包含完整的头文件以访问MSMarkCommandHandler
-#include "configs/websocket_command_handler.hpp"
+#include "configs/device_command_handler.hpp"
 
 // 添加外部访问MSMarkCommandHandler的声明
 extern MSMarkCommandHandler& getMarkingCommandHandler();

@@ -28,10 +28,10 @@ export function FinishConfigButton(
                 });
 
                 if (confirmed) {
-                    // 清空websocket队列后重启
+                    // 清空设备请求队列后重启
                     try {
                         await flushQueue();
-                        console.log('WebSocket队列已清空，开始重启系统');
+                        console.log('设备请求队列已清空，开始重启系统');
                         await rebootSystem();
 
                         if (configuredTransportMode() === 'mock') {

@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 
 import {
 	assertWebResourceBudget,
+	buildExternalWebResources,
 	createAssetManifestFromHtml,
 	evaluateWebResourceBudget,
 	getContentType,
@@ -119,4 +122,27 @@ test('reports target and physical slot boundaries exactly', () => {
 		() => assertWebResourceBudget(WEB_RESOURCES_PHYSICAL_MAX_BYTES + 1),
 		/physical .* slot/,
 	);
+});
+
+test('compatibility packing writes only the immutable external payload', () => {
+	const root = mkdtempSync(join(tmpdir(), 'hbox-webresources-'));
+	try {
+		const hosted = join(root, 'build');
+		const output = join(root, 'application', 'Libs', 'httpd', 'ex_fsdata.bin');
+		mkdirSync(join(hosted, '_next', 'static', 'js'), { recursive: true });
+		writeFileSync(
+			join(hosted, 'index.html'),
+			'<script src="/_next/static/js/app.js"></script>',
+			'utf8',
+		);
+		writeFileSync(join(hosted, '_next', 'static', 'js', 'app.js'), 'self.HBox=true;', 'utf8');
+
+		const result = buildExternalWebResources({ buildRoot: hosted, outputPath: output });
+		assert.equal(result.outputPath, resolve(output));
+		assert.deepEqual(result.files, ['_next/static/js/app.js', 'index.html']);
+		assert.equal(readFileSync(output).byteLength, result.byteLength);
+		assert.equal(existsSync(join(root, 'application', 'Libs', 'httpd', 'fsdata.c')), false);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
 });

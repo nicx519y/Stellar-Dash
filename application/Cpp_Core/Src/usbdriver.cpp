@@ -10,6 +10,8 @@ namespace {
 
 static constexpr uint32_t kCapabilitiesTimeoutMs = 500u;
 static constexpr uint32_t kCapabilitiesRetryMs = 5u;
+static constexpr uint32_t kStartupCommandTimeoutMs = 500u;
+static constexpr uint32_t kStartupCommandRetryMs = 5u;
 static constexpr uint32_t kHostReadyTimeoutMs = 100u;
 
 static bool profileRequiresAuthDevice(usb_board_profile_t profile)
@@ -24,7 +26,8 @@ static uint8_t requiredFeatureFlags(usb_board_profile_t profile)
 {
     uint8_t flags = USB_BOARD_CAP_FEATURE_CONTROL_V1;
     if (profile == USB_BOARD_PROFILE_WEB_CONFIG) {
-        flags |= USB_BOARD_CAP_FEATURE_WEBHID_V1;
+        flags |= USB_BOARD_CAP_FEATURE_WEBHID_V1 |
+                 USB_BOARD_CAP_FEATURE_WEBCONFIG_PULL_CREDIT;
     }
     if (profileRequiresAuthDevice(profile)) {
         flags |= USB_BOARD_CAP_FEATURE_LOCAL_AUTH;
@@ -116,23 +119,73 @@ bool USBDriver::start(InputMode inputMode)
         return false;
     }
 
+    bool capabilitiesReady = false;
     do {
         USB_BOARD_LINK.process();
         if (USB_BOARD_LINK.getCapabilities()) {
+            capabilitiesReady = true;
             break;
         }
         HAL_Delay(kCapabilitiesRetryMs);
     } while ((HAL_GetTick() - startedAt) < kCapabilitiesTimeoutMs);
 
-    if (!USB_BOARD_LINK.isCompatible() ||
-        ((USB_BOARD_LINK.capabilities().profile_flags & requiredFlag) == 0u) ||
-        ((USB_BOARD_LINK.capabilities().feature_flags &
-          requiredFeatureFlags(requestedProfile)) !=
-         requiredFeatureFlags(requestedProfile)) ||
-        !USB_BOARD_LINK.setProfile(requestedProfile) ||
-        !USB_BOARD_LINK.sendControl(USB_BOARD_CONTROL_CONNECT)) {
+    if (!capabilitiesReady || !USB_BOARD_LINK.isCompatible()) {
+        APP_STAGE_ERROR("U01", "CH585 CAPS discovery failed");
         return false;
     }
+    APP_STAGE("U01", "CH585 CAPS accepted: profiles=%04x features=%02x",
+              static_cast<unsigned int>(
+                  USB_BOARD_LINK.capabilities().profile_flags),
+              static_cast<unsigned int>(
+                  USB_BOARD_LINK.capabilities().feature_flags));
+
+    if (((USB_BOARD_LINK.capabilities().profile_flags & requiredFlag) == 0u) ||
+        ((USB_BOARD_LINK.capabilities().feature_flags &
+          requiredFeatureFlags(requestedProfile)) !=
+         requiredFeatureFlags(requestedProfile))) {
+        APP_STAGE_ERROR("U02",
+                        "CH585 CAPS reject requested profile=%u required_profile=%04x required_features=%02x",
+                        static_cast<unsigned int>(requestedProfile),
+                        static_cast<unsigned int>(requiredFlag),
+                        static_cast<unsigned int>(
+                            requiredFeatureFlags(requestedProfile)));
+        return false;
+    }
+
+    bool profileReady = false;
+    const uint32_t profileStartedAt = HAL_GetTick();
+    do {
+        USB_BOARD_LINK.process();
+        if (USB_BOARD_LINK.setProfile(requestedProfile)) {
+            profileReady = true;
+            break;
+        }
+        HAL_Delay(kStartupCommandRetryMs);
+    } while ((HAL_GetTick() - profileStartedAt) < kStartupCommandTimeoutMs);
+    if (!profileReady) {
+        APP_STAGE_ERROR("U03", "CH585 SET_PROFILE failed: profile=%u",
+                        static_cast<unsigned int>(requestedProfile));
+        return false;
+    }
+    APP_STAGE("U03", "CH585 profile selected: profile=%u",
+              static_cast<unsigned int>(requestedProfile));
+
+    bool connected = false;
+    const uint32_t connectStartedAt = HAL_GetTick();
+    do {
+        USB_BOARD_LINK.process();
+        if (USB_BOARD_LINK.sendControl(USB_BOARD_CONTROL_CONNECT)) {
+            connected = true;
+            break;
+        }
+        HAL_Delay(kStartupCommandRetryMs);
+    } while ((HAL_GetTick() - connectStartedAt) < kStartupCommandTimeoutMs);
+    if (!connected) {
+        APP_STAGE_ERROR("U04", "CH585 USB CONNECT failed: profile=%u",
+                        static_cast<unsigned int>(requestedProfile));
+        return false;
+    }
+    APP_STAGE("U04", "CH585 USB CONNECT accepted");
 
     activeProfile = requestedProfile;
     ready = true;

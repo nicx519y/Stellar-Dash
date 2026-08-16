@@ -1,4 +1,7 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from tools import hbox
@@ -6,6 +9,31 @@ from tools.build import BuildTool
 
 
 class HboxV2BuildContractTests(unittest.TestCase):
+    def test_existing_artifact_must_match_requested_slot(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hbox-existing-artifact-") as temp:
+            root = Path(temp)
+            artifact_dir = root / ".hbox" / "webconfig-local" / "artifacts"
+            artifact_dir.mkdir(parents=True)
+            (artifact_dir / "artifact-manifest.json").write_text(
+                json.dumps(
+                    {
+                        "targetSlot": "B",
+                        "bootSecurityMode": "unlocked-development",
+                        "requiresManualLifecycleProvisioning": False,
+                        "requiredLifecycle": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with mock.patch.object(hbox, "_project_root", return_value=root):
+                self.assertTrue(
+                    hbox._local_artifacts_are_unlocked_development("B")
+                )
+                self.assertFalse(
+                    hbox._local_artifacts_are_unlocked_development("A")
+                )
+
     def test_app_all_does_not_generate_embedded_webresources(self) -> None:
         with mock.patch.object(
             hbox, "_run_python_tool", return_value=0
@@ -23,17 +51,32 @@ class HboxV2BuildContractTests(unittest.TestCase):
         pack_assets.assert_called_once_with()
         makefsdata.assert_not_called()
 
-    def test_app_flash_builds_signs_and_commits_metadata(self) -> None:
+    def test_app_flash_uses_existing_artifact_without_building(self) -> None:
+        with mock.patch.object(
+            hbox, "_run_python_tool", return_value=0
+        ) as run_python, mock.patch.object(
+            hbox, "_local_artifacts_are_unlocked_development", return_value=True
+        ) as validate_artifact:
+            result = hbox.main(["flash", "app", "B"])
+
+        self.assertEqual(result, 0)
+        validate_artifact.assert_called_once_with("B")
+        run_python.assert_called_once_with(
+            "webconfig_flash.py", ["--simple-execute"]
+        )
+
+    def test_app_flash_build_flag_builds_signs_and_commits_metadata(self) -> None:
         with mock.patch.object(
             hbox, "_run_python_tool", return_value=0
         ) as run_python, mock.patch.object(
             hbox, "_local_webconfig_state_is_initialized", return_value=True
         ), mock.patch.object(
             hbox, "_local_artifacts_are_unlocked_development", return_value=True
-        ):
-            result = hbox.main(["flash", "app", "B"])
+        ) as validate_artifact:
+            result = hbox.main(["flash", "app", "B", "--build"])
 
         self.assertEqual(result, 0)
+        validate_artifact.assert_called_once_with("B")
         self.assertEqual(
             run_python.call_args_list,
             [
@@ -54,7 +97,7 @@ class HboxV2BuildContractTests(unittest.TestCase):
             ],
         )
 
-    def test_first_app_flash_initializes_local_identity(self) -> None:
+    def test_first_app_flash_with_build_initializes_local_identity(self) -> None:
         with mock.patch.object(
             hbox, "_run_python_tool", return_value=0
         ) as run_python, mock.patch.object(
@@ -62,7 +105,7 @@ class HboxV2BuildContractTests(unittest.TestCase):
         ), mock.patch.object(
             hbox, "_local_artifacts_are_unlocked_development", return_value=True
         ):
-            result = hbox.main(["flash", "app", "A"])
+            result = hbox.main(["flash", "app", "A", "--build"])
 
         self.assertEqual(result, 0)
         self.assertEqual(
@@ -108,24 +151,20 @@ class HboxV2BuildContractTests(unittest.TestCase):
             "ch585_stlink_update.py", ["--execute"]
         )
 
-    def test_hosted_and_legacy_web_builds_are_explicit(self) -> None:
+    def test_hosted_web_build_is_the_only_web_build(self) -> None:
         with mock.patch.object(
             hbox, "_run_hosted_web_build", return_value=0
-        ) as hosted, mock.patch.object(
-            hbox, "_run_legacy_embedded_web_build", return_value=0
-        ) as legacy:
+        ) as hosted:
             self.assertEqual(hbox.main(["web", "build"]), 0)
             hosted.assert_called_once_with()
-            legacy.assert_not_called()
 
-        with mock.patch.object(
-            hbox, "_run_hosted_web_build", return_value=0
-        ) as hosted, mock.patch.object(
-            hbox, "_run_legacy_embedded_web_build", return_value=0
-        ) as legacy:
-            self.assertEqual(hbox.main(["web", "build-legacy"]), 0)
-            legacy.assert_called_once_with()
-            hosted.assert_not_called()
+        for command in (
+            ["web", "dev-legacy"],
+            ["web", "build-legacy"],
+            ["build", "web-legacy"],
+        ):
+            with self.subTest(command=command), self.assertRaises(SystemExit):
+                hbox.main(command)
 
     def test_v2_flash_transaction_never_flashes_webresources(self) -> None:
         tool = BuildTool.__new__(BuildTool)

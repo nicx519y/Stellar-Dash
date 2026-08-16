@@ -68,7 +68,7 @@ export function SwitchMarkingContent() {
     });
 
     const { 
-        wsConnected, dataIsReady,
+        deviceConnected, dataIsReady,
         mappingList, defaultMappingId, markingStatus, activeMapping,
         fetchMappingList, startMarking, stopMarking, stepMarking, 
         createMapping, deleteMapping, updateDefaultMapping, renameMapping, fetchActiveMapping,
@@ -106,7 +106,7 @@ export function SwitchMarkingContent() {
     }, [mappingList, defaultMappingId]);
 
     useEffect(() => {
-        if(!isInit && wsConnected && dataIsReady) {
+        if(!isInit && deviceConnected && dataIsReady) {
             fetchMappingList().then(() => {
                 setIsInit(true);
             });
@@ -116,7 +116,7 @@ export function SwitchMarkingContent() {
                 stopMarking();
             }
         }
-    }, [wsConnected, dataIsReady]);
+    }, [deviceConnected, dataIsReady]);
 
     useEffect(() => {
 

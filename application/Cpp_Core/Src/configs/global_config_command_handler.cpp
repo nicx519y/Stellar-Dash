@@ -1,5 +1,5 @@
 #include "storagemanager.hpp"
-#include "configs/websocket_command_handler.hpp"
+#include "configs/device_command_handler.hpp"
 #include "adc_btns/adc_calibration.hpp"
 #include "webconfig_leds_manager.hpp"
 #include "webconfig_btns_manager.hpp"
@@ -9,6 +9,7 @@
 #include "usb_board_link.hpp"
 #include "config_transport_sink.hpp"
 #include "firmware_metadata.h"
+#include "leds/led_config_safety.hpp"
 #include <map>
 #include <stdio.h>
 #include <cstring>
@@ -95,6 +96,18 @@ static void parse_power_json(PowerConfig& power, cJSON* globalConfigJSON) {
     }
 }
 
+static cJSON* get_hotkey_key_item(cJSON* hotkeyItem) {
+    cJSON* keyItem = cJSON_GetObjectItemCaseSensitive(hotkeyItem, "key");
+    if (cJSON_IsNumber(keyItem)) {
+        return keyItem;
+    }
+
+    // Compatibility for configuration payloads produced by legacy clients.
+    cJSON* legacyVirtualPinItem =
+        cJSON_GetObjectItemCaseSensitive(hotkeyItem, "virtualPin");
+    return cJSON_IsNumber(legacyVirtualPinItem) ? legacyVirtualPinItem : nullptr;
+}
+
 static const char* physical_mode_string() {
     if (!BOARD_MODE.isStable()) {
         return "UNKNOWN";
@@ -175,8 +188,8 @@ static void add_latest_board_json(cJSON* globalConfigJSON, const Config& config)
     cJSON_AddItemToObject(globalConfigJSON, "ch585", ch585JSON);
 }
 
-WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetGlobalConfig(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling get_global_config command, cid: %d", request.getCid());
+DeviceCommandResponse GlobalConfigCommandHandler::handleGetGlobalConfig(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling get_global_config command, cid: %d", request.getCid());
 
     Config& config = Storage::getInstance().config;
     
@@ -202,20 +215,20 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetGlobalConfig(con
     // 构建返回结构
     cJSON_AddItemToObject(dataJSON, "globalConfig", globalConfigJSON);
     
-    // LOG_INFO("WebSocket", "get_global_config command completed successfully");
+    // LOG_INFO("DeviceCommand", "get_global_config command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateGlobalConfig(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling update_global_config command, cid: %d", request.getCid());
+DeviceCommandResponse GlobalConfigCommandHandler::handleUpdateGlobalConfig(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling update_global_config command, cid: %d", request.getCid());
     
     Config& config = Storage::getInstance().config;
     
     // 获取请求参数
     cJSON* params = request.getParams();
     if (!params) {
-        LOG_ERROR("WebSocket", "update_global_config: Invalid parameters");
+        LOG_ERROR("DeviceCommand", "update_global_config: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
 
@@ -249,7 +262,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateGlobalConfig(
 
     // 保存配置
     if (!STORAGE_MANAGER.saveConfig()) {
-        LOG_ERROR("WebSocket", "update_global_config: Failed to save configuration");
+        LOG_ERROR("DeviceCommand", "update_global_config: Failed to save configuration");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
     }
 
@@ -257,8 +270,8 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateGlobalConfig(
     return handleGetGlobalConfig(request);
 }
 
-WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetHotkeysConfig(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling get_hotkeys_config command, cid: %d", request.getCid());
+DeviceCommandResponse GlobalConfigCommandHandler::handleGetHotkeysConfig(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling get_hotkeys_config command, cid: %d", request.getCid());
     
     Config& config = Storage::getInstance().config;
     
@@ -267,27 +280,27 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetHotkeysConfig(co
     cJSON* hotkeysConfigJSON = ConfigUtils::buildHotkeysConfigJSON(config);
     
     if (!hotkeysConfigJSON) {
-        LOG_ERROR("WebSocket", "get_hotkeys_config: Failed to build hotkeys config JSON");
+        LOG_ERROR("DeviceCommand", "get_hotkeys_config: Failed to build hotkeys config JSON");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to build hotkeys config JSON");
     }
 
     // 构建返回结构
     cJSON_AddItemToObject(dataJSON, "hotkeysConfig", hotkeysConfigJSON);
     
-    // LOG_INFO("WebSocket", "get_hotkeys_config command completed successfully");
+    // LOG_INFO("DeviceCommand", "get_hotkeys_config command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateHotkeysConfig(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling update_hotkeys_config command, cid: %d", request.getCid());
+DeviceCommandResponse GlobalConfigCommandHandler::handleUpdateHotkeysConfig(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling update_hotkeys_config command, cid: %d", request.getCid());
     
     Config& config = Storage::getInstance().config;
     
     // 获取请求参数
     cJSON* params = request.getParams();
     if (!params) {
-        LOG_ERROR("WebSocket", "update_hotkeys_config: Invalid parameters");
+        LOG_ERROR("DeviceCommand", "update_hotkeys_config: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
 
@@ -300,7 +313,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateHotkeysConfig
             if (index >= NUM_GAMEPAD_HOTKEYS) break;
             
             cJSON* actionItem = cJSON_GetObjectItem(hotkeyItem, "action");
-            cJSON* pinItem = cJSON_GetObjectItem(hotkeyItem, "virtualPin");
+            cJSON* pinItem = get_hotkey_key_item(hotkeyItem);
             cJSON* lockedItem = cJSON_GetObjectItem(hotkeyItem, "isLocked");
             cJSON* holdItem = cJSON_GetObjectItem(hotkeyItem, "isHold");
 
@@ -322,7 +335,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateHotkeysConfig
 
     // 保存配置
     if (!STORAGE_MANAGER.saveConfig()) {
-        LOG_ERROR("WebSocket", "update_hotkeys_config: Failed to save configuration");
+        LOG_ERROR("DeviceCommand", "update_hotkeys_config: Failed to save configuration");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
     }
 
@@ -330,7 +343,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateHotkeysConfig
     return handleGetHotkeysConfig(request);
 }
 
-WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetScreenControlConfig(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse GlobalConfigCommandHandler::handleGetScreenControlConfig(const DeviceCommandRequest& request) {
     Config& config = Storage::getInstance().config;
 
     cJSON* dataJSON = cJSON_CreateObject();
@@ -397,7 +410,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleGetScreenControlCon
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateScreenControlConfig(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse GlobalConfigCommandHandler::handleUpdateScreenControlConfig(const DeviceCommandRequest& request) {
     Config& config = Storage::getInstance().config;
 
     cJSON* params = request.getParams();
@@ -511,126 +524,24 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleUpdateScreenControl
     return handleGetScreenControlConfig(request);
 }
 
-WebSocketDownstreamMessage GlobalConfigCommandHandler::handleExportAllConfig(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling export_all_config command, cid: %d", request.getCid());
-    
-    Config& config = Storage::getInstance().config;
-
-    WebSocketConnection* conn = request.getConnection();
-    cJSON *aggregate = conn == nullptr ? cJSON_CreateObject() : nullptr;
-    cJSON *aggregateProfiles =
-        conn == nullptr ? cJSON_CreateArray() : nullptr;
-    if (conn == nullptr &&
-        (aggregate == nullptr || aggregateProfiles == nullptr)) {
-        cJSON_Delete(aggregate);
-        cJSON_Delete(aggregateProfiles);
-        return create_error_response(
-            request.getCid(), request.getCommand(), 1, "Out of memory");
-    }
-    if (aggregate != nullptr) {
-        cJSON_AddItemToObject(aggregate, "profiles", aggregateProfiles);
-    }
-
-    auto sendPart = [&](const char* section, cJSON* data) {
-        if (aggregate != nullptr && data != nullptr) {
-            cJSON *copy = cJSON_Duplicate(data, 1);
-            if (strcmp(section, "global") == 0) {
-                cJSON_AddItemToObject(aggregate, "globalConfig", copy);
-            } else if (strcmp(section, "hotkeys") == 0) {
-                cJSON_AddItemToObject(aggregate, "hotkeysConfig", copy);
-            } else if (strcmp(section, "screenControl") == 0) {
-                cJSON_AddItemToObject(aggregate, "screenControl", copy);
-            } else if (strcmp(section, "profile") == 0) {
-                cJSON_AddItemToArray(aggregateProfiles, copy);
-            } else {
-                cJSON_Delete(copy);
-            }
-        }
-        cJSON* msgData = cJSON_CreateObject();
-        cJSON_AddStringToObject(msgData, "section", section);
-        if (data) cJSON_AddItemToObject(msgData, "data", data);
-        
-        cJSON* response = cJSON_CreateObject();
-        cJSON_AddNumberToObject(response, "cid", request.getCid());
-        cJSON_AddStringToObject(response, "command", request.getCommand().c_str());
-        cJSON_AddNumberToObject(response, "errNo", 0);
-        cJSON_AddItemToObject(response, "data", msgData);
-        
-        char* str = cJSON_PrintUnformatted(response);
-        if (str) {
-            if (conn != nullptr) {
-                conn->send_text(str);
-            } else {
-                ConfigTransport_PublishJson(str, strlen(str));
-            }
-            free(str);
-        }
-        cJSON_Delete(response);
-    };
-
-    // 1. 发送 Global Config
-    {
-        cJSON* globalConfigJSON = cJSON_CreateObject();
-        const char* modeStr = ConfigUtils::getInputModeString(config.inputMode);
-        cJSON_AddStringToObject(globalConfigJSON, "inputMode", modeStr);
-        cJSON_AddStringToObject(globalConfigJSON, "connectionMode",
-                                ConfigUtils::getConnectionModeString(physical_connection_mode(config)));
-        cJSON_AddStringToObject(globalConfigJSON, "wirelessReportRate", ConfigUtils::getWirelessReportRateString(config.wirelessReportRate));
-        cJSON_AddBoolToObject(globalConfigJSON, "autoCalibrationEnabled", config.autoCalibrationEnabled);
-        cJSON_AddStringToObject(globalConfigJSON, "defaultProfileId", config.defaultProfileId);
-        add_power_json(globalConfigJSON, config.power);
-        add_latest_board_json(globalConfigJSON, config);
-        sendPart("global", globalConfigJSON);
-    }
-
-    // 2. 发送 Hotkeys Config
-    {
-        sendPart("hotkeys", ConfigUtils::buildHotkeysConfigJSON(config));
-    }
-
-    // 3. 发送 Screen Control Config
-    {
-        sendPart("screenControl", ConfigUtils::buildScreenControlConfigJSON(config));
-    }
-
-    // 4. 发送 Profiles
-    for (int i = 0; i < NUM_PROFILES; i++) {
-        if (config.profiles[i].enabled) {
-            cJSON* profileJSON =
-                ProfileCommandHandler::buildProfileExportJSON(
-                    &config.profiles[i]);
-            if (profileJSON) {
-                sendPart("profile", profileJSON);
-                // 简单的延时以防止发送缓冲区溢出
-                // HAL_Delay(10);
-            }
-        }
-    }
-
-    // 5. 发送结束信号
-    cJSON* finishData = cJSON_CreateObject();
-    cJSON_AddStringToObject(finishData, "section", "end");
-    if (conn == nullptr) {
-        sendPart("end", nullptr);
-        cJSON_Delete(finishData);
-        return create_success_response(
-            request.getCid(), request.getCommand(), aggregate);
-    }
-    return create_success_response(
-        request.getCid(), request.getCommand(), finishData);
+DeviceCommandResponse GlobalConfigCommandHandler::handleExportAllConfig(const DeviceCommandRequest& request) {
+    return create_error_response(
+        request.getCid(),
+        request.getCommand(),
+        409,
+        "Use incremental device configuration export");
 }
-
-WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportAllConfig(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse GlobalConfigCommandHandler::handleImportAllConfig(const DeviceCommandRequest& request) {
     Config& config = Storage::getInstance().config;
     cJSON* params = request.getParams();
     
     if (!params) {
-        LOG_ERROR("WebSocket", "import_all_config: Invalid parameters");
+        LOG_ERROR("DeviceCommand", "import_all_config: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
 
     if (!ConfigUtils::fromJSON(config, params)) {
-         LOG_ERROR("WebSocket", "import_all_config: Failed to parse configuration");
+         LOG_ERROR("DeviceCommand", "import_all_config: Failed to parse configuration");
          return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to parse configuration");
     }
     if (physical_rf_selected()) {
@@ -638,7 +549,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportAllConfig(con
     }
 
     if (!STORAGE_MANAGER.saveConfig()) {
-        LOG_ERROR("WebSocket", "import_all_config: Failed to save configuration");
+        LOG_ERROR("DeviceCommand", "import_all_config: Failed to save configuration");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
     }
 
@@ -648,7 +559,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportAllConfig(con
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigPart(const DeviceCommandRequest& request) {
     Config& config = Storage::getInstance().config;
     cJSON* params = request.getParams();
     
@@ -695,7 +606,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(co
                 if (index >= NUM_GAMEPAD_HOTKEYS) break;
                 
                 cJSON* actionItem = cJSON_GetObjectItem(hotkeyItem, "action");
-                cJSON* pinItem = cJSON_GetObjectItem(hotkeyItem, "virtualPin");
+                cJSON* pinItem = get_hotkey_key_item(hotkeyItem);
                 cJSON* lockedItem = cJSON_GetObjectItem(hotkeyItem, "isLocked");
                 cJSON* holdItem = cJSON_GetObjectItem(hotkeyItem, "isHold");
 
@@ -827,7 +738,7 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigPart(co
     return create_success_response(request.getCid(), request.getCommand(), nullptr);
 }
 
-WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigFinish(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigFinish(const DeviceCommandRequest& request) {
     if (!STORAGE_MANAGER.saveConfig()) {
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
     }
@@ -836,8 +747,8 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleImportConfigFinish(
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage GlobalConfigCommandHandler::handleReboot(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling reboot command, cid: %d", request.getCid());
+DeviceCommandResponse GlobalConfigCommandHandler::handleReboot(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling reboot command, cid: %d", request.getCid());
     
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
@@ -847,28 +758,28 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleReboot(const WebSoc
     STORAGE_MANAGER.saveConfig();
 
     // 设置延迟重启时间
-    WebSocketCommandHandler::rebootTick = HAL_GetTick() + 2000;
-    WebSocketCommandHandler::needReboot = true;
+    DeviceCommandHandler::rebootTick = HAL_GetTick() + 2000;
+    DeviceCommandHandler::needReboot = true;
     
-    // LOG_INFO("WebSocket", "reboot command completed successfully");
+    // LOG_INFO("DeviceCommand", "reboot command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage GlobalConfigCommandHandler::handlePushLedsConfig(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling push_leds_config command, cid: %d", request.getCid());
+DeviceCommandResponse GlobalConfigCommandHandler::handlePushLedsConfig(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling push_leds_config command, cid: %d", request.getCid());
     
     // 获取请求参数
     cJSON* params = request.getParams();
     if (!params) {
-        LOG_ERROR("WebSocket", "push_leds_config: Invalid parameters");
+        LOG_ERROR("DeviceCommand", "push_leds_config: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
 
     // 获取当前默认配置文件作为基础
     const GamepadProfile* currentProfile = STORAGE_MANAGER.getDefaultGamepadProfile();
     if (!currentProfile) {
-        LOG_ERROR("WebSocket", "push_leds_config: Failed to get current profile");
+        LOG_ERROR("DeviceCommand", "push_leds_config: Failed to get current profile");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to get current profile");
     }
 
@@ -938,7 +849,10 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handlePushLedsConfig(cons
         tempLedsConfig.aroundLedTriggerByButton = cJSON_IsTrue(item);
     }
 
-    if ((item = cJSON_GetObjectItem(params, "aroundLedEffectStyle"))) {
+    if ((item = cJSON_GetObjectItem(params, "aroundLedEffectStyle"))
+        && cJSON_IsNumber(item)
+        && item->valueint >= 0
+        && item->valueint < AroundLEDEffect::NUM_AROUND_LED_EFFECTS) {
         tempLedsConfig.aroundLedEffect = static_cast<AroundLEDEffect>(item->valueint);
     }
 
@@ -959,11 +873,17 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handlePushLedsConfig(cons
         }
     }
 
-    if ((item = cJSON_GetObjectItem(params, "aroundLedBrightness"))) {
+    if ((item = cJSON_GetObjectItem(params, "aroundLedBrightness"))
+        && cJSON_IsNumber(item)
+        && item->valueint >= 0
+        && item->valueint <= LedConfigSafety::kMaxBrightnessPercent) {
         tempLedsConfig.aroundLedBrightness = item->valueint;
     }
     
-    if ((item = cJSON_GetObjectItem(params, "aroundLedAnimationSpeed"))) {
+    if ((item = cJSON_GetObjectItem(params, "aroundLedAnimationSpeed"))
+        && cJSON_IsNumber(item)
+        && item->valueint >= LedConfigSafety::kMinAnimationSpeed
+        && item->valueint <= LedConfigSafety::kMaxAnimationSpeed) {
         tempLedsConfig.aroundLedAnimationSpeed = item->valueint;
     }
     
@@ -976,13 +896,13 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handlePushLedsConfig(cons
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON_AddStringToObject(dataJSON, "message", "LED configuration applied successfully for preview");
     
-    // LOG_INFO("WebSocket", "push_leds_config command completed successfully");
+    // LOG_INFO("DeviceCommand", "push_leds_config command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage GlobalConfigCommandHandler::handleClearLedsPreview(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling clear_leds_preview command, cid: %d", request.getCid());
+DeviceCommandResponse GlobalConfigCommandHandler::handleClearLedsPreview(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling clear_leds_preview command, cid: %d", request.getCid());
     
     WEBCONFIG_LEDS_MANAGER.clearPreviewConfig();
     WEBCONFIG_BTNS_MANAGER.stopButtonWorkers();
@@ -991,12 +911,12 @@ WebSocketDownstreamMessage GlobalConfigCommandHandler::handleClearLedsPreview(co
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON_AddStringToObject(dataJSON, "message", "LED preview mode cleared successfully");
     
-    // LOG_INFO("WebSocket", "clear_leds_preview command completed successfully");
+    // LOG_INFO("DeviceCommand", "clear_leds_preview command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage GlobalConfigCommandHandler::handle(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse GlobalConfigCommandHandler::handle(const DeviceCommandRequest& request) {
     const std::string& command = request.getCommand();
     
     if (command == "get_global_config") {

@@ -41,17 +41,12 @@ extern ADC_HandleTypeDef hadc2;
 extern ADC_HandleTypeDef hadc3;
 
 /* USER CODE BEGIN Private defines */
-typedef enum {
-    ADC_MODE_LOW_LATENCY = 0,       // Legacy one-shot DMA mode
-    ADC_MODE_INPUT_CONTINUOUS = 1,  // Input mode: fast circular DMA, latest sample read by report tick
-    ADC_MODE_CONTINUOUS = 2         // Calibration/WebConfig mode: stable circular DMA, higher oversampling
-} ADC_SamplingMode;
+/* ADC sampling is always TIM2-triggered with circular DMA. */
 /* USER CODE END Private defines */
 
 void MX_ADC1_Init(void);
 void MX_ADC2_Init(void);
 void MX_ADC3_Init(void);
-void ADC_SetMode(ADC_SamplingMode mode);
 /* USER CODE BEGIN Prototypes */
 
 

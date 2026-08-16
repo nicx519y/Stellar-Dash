@@ -1,5 +1,12 @@
 # AGENTS — HBox 项目关键速览
 
+## 已验收普通无锁烧录流程（2026-08-14）
+
+- 这里的“固定/防误改”只表示：STM32 普通无锁烧录与 CH585 `ST-LINK → STM32 QSPI → SPI IAP` 流程已经实机验收，后续 WebConfig、USB、RF 或 UI 调试不得顺手修改这些烧录过程、脚本、地址布局或安全门禁。**这不是芯片、硬件或下载通道冻结**；设备始终保持未锁定，并可继续使用现有命令正常烧录和升级。
+- 日常 CH585 TX 烧录入口固定为 `python tools/hbox.py flash tx`；状态查询固定为 `python tools/hbox.py web local-ch585-status`。
+- 已验收文件及 SHA-256 记录在 `tools/frozen_flash_contract.json`，并由 `tools/tests/test_frozen_flash_contract.py` 防止无关调试误改。若后续业务确实需要调整这些文件，应把它作为独立、明确的烧录流程变更来处理和重新验收，而不是夹带在其他改动中。
+- 防误改机制不设置任何硬件锁：继续禁止 Option Bytes、RDP、WRP、PCROP、SECURITY、SCAR、CH58x 下载锁、读保护、mass erase 或任何保护状态转换。
+
 ## 永久硬件安全规则
 
 - 所有开发、调试和烧录流程禁止读取、修改或触发 STM32 Option Bytes、RDP、WRP、PCROP、SECURITY、SCAR、read-unprotect、mass erase 或任何锁定/保护状态转换。

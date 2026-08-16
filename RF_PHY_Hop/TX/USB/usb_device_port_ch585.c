@@ -87,6 +87,7 @@ static volatile uint8_t s_webhid_out_head;
 static volatile uint8_t s_webhid_out_tail;
 static volatile uint8_t s_webhid_out_count;
 static volatile uint8_t s_transport_reset_pending;
+static volatile uint8_t s_webhid_ep1_complete_pending;
 static volatile uint8_t s_webhid_ep2_blocked;
 static volatile uint8_t s_webhid_transport_reset_complete;
 static uint8_t s_hid_idle;
@@ -191,7 +192,10 @@ static bool data_path_reset(bool settle_same_bus)
 {
     uint16_t saved_tx_enable = 0u;
     uint16_t saved_rx_enable = 0u;
-    bool reset_ok = true;
+    const uint8_t saved_webhid_ep2_blocked =
+        s_webhid_ep2_blocked;
+    const uint8_t saved_webhid_transport_reset_complete =
+        s_webhid_transport_reset_complete;
     const bool settle_webhid_endpoints =
         settle_same_bus &&
         (s_profile == USB_BOARD_PROFILE_WEB_CONFIG);
@@ -203,9 +207,9 @@ static bool data_path_reset(bool settle_same_bus)
     }
 
     /*
-     * A USB reset/suspend ends the authenticated WebHID transport
-     * generation.  Cancel an IN report already owned by EP1 as well as the
-     * software queues, otherwise old ciphertext can be emitted after resume.
+     * A bus reset or explicit CLEAR_FAULT ends the authenticated WebHID
+     * transport generation. Cancel an IN report already owned by EP1 as well
+     * as the software queues so old ciphertext cannot cross that boundary.
      *
      * IRQ masking alone does not stop the SIE. Disable the WebHID endpoints
      * and wait for an in-flight token to finish before examining DONE. A
@@ -224,45 +228,41 @@ static bool data_path_reset(bool settle_same_bus)
         if(!wait_for_sie_idle(USBDEV_SIE_QUIESCE_TIMEOUT_MS))
         {
             /*
-             * The endpoint state is no longer trustworthy. Keep EP1/EP2
-             * disabled, detach, and reset the SIE so the next connection must
-             * enumerate and authenticate from DATA0. Never resume the old
-             * transport generation after a quiesce timeout.
+             * CLEAR_FAULT is recoverable. If the SIE cannot be quiesced in
+             * time, leave the current transport generation completely intact
+             * and report failure so STM32 can retry later. In particular, do
+             * not detach, change endpoint toggles, or discard queued reports.
              */
-            R16_PIN_CONFIG &= (uint16_t)~RB_PIN_USB2_EN;
-            R8_USB2_CTRL |= USBHS_UD_RST_SIE;
-            R8_USB2_CTRL &= (uint8_t)~USBHS_UD_RST_SIE;
-            R8_USB2_DEV_AD = 0u;
-            s_connected = 0u;
-            s_mounted = 0u;
-            s_suspended = 0u;
-            s_address = 0u;
-            s_configuration = 0u;
-            reset_ok = false;
+            s_webhid_ep2_blocked = saved_webhid_ep2_blocked;
+            s_webhid_transport_reset_complete =
+                saved_webhid_transport_reset_complete;
+            /* Restore software ownership before exposing endpoints again. */
+            R16_U2EP_TX_EN = saved_tx_enable;
+            R16_U2EP_RX_EN = saved_rx_enable;
+            return false;
         }
     }
 
-    if(!settle_webhid_endpoints || reset_ok)
+    /* The failure path returned before any queue or endpoint state changed. */
+    R16_U2EP1_T_LEN = 0u;
+    if(settle_webhid_endpoints)
     {
-        R16_U2EP1_T_LEN = 0u;
-        if(settle_webhid_endpoints)
-        {
-            R8_U2EP1_TX_CTRL = usb_endpoint_reset_control(
-                R8_U2EP1_TX_CTRL,
-                USBHS_UEP_T_DONE,
-                0u,
-                USBHS_UEP_T_TOG_DATA1,
-                USBHS_UEP_T_RES_NAK);
-        }
-        else
-        {
-            R8_U2EP1_TX_CTRL =
-                (uint8_t)((R8_U2EP1_TX_CTRL &
-                           USBHS_UEP_T_TOG_DATA1) |
-                          USBHS_UEP_T_RES_NAK);
-        }
+        R8_U2EP1_TX_CTRL = usb_endpoint_reset_control(
+            R8_U2EP1_TX_CTRL,
+            USBHS_UEP_T_DONE,
+            0u,
+            USBHS_UEP_T_TOG_DATA1,
+            USBHS_UEP_T_RES_NAK);
+    }
+    else
+    {
+        R8_U2EP1_TX_CTRL =
+            (uint8_t)((R8_U2EP1_TX_CTRL &
+                       USBHS_UEP_T_TOG_DATA1) |
+                      USBHS_UEP_T_RES_NAK);
     }
     s_ep1_busy = 0u;
+    s_webhid_ep1_complete_pending = 0u;
     s_last_report_length = 0u;
     memset(s_ep1_tx, 0, sizeof(s_ep1_tx));
     memset(s_last_report, 0, sizeof(s_last_report));
@@ -280,7 +280,7 @@ static bool data_path_reset(bool settle_same_bus)
          * the new bootstrap generation.
          */
         memset(s_ep2_rx, 0, WEBHID_REPORT_BYTES);
-        if(settle_webhid_endpoints && reset_ok)
+        if(settle_webhid_endpoints)
         {
             R8_U2EP2_RX_CTRL = usb_endpoint_reset_control(
                 R8_U2EP2_RX_CTRL,
@@ -299,12 +299,12 @@ static bool data_path_reset(bool settle_same_bus)
     }
     s_transport_reset_pending = 1u;
 
-    if(settle_webhid_endpoints && reset_ok)
+    if(settle_webhid_endpoints)
     {
         R16_U2EP_TX_EN = saved_tx_enable;
         R16_U2EP_RX_EN = saved_rx_enable;
     }
-    return reset_ok;
+    return true;
 }
 
 /*
@@ -804,21 +804,45 @@ static void endpoints_init(void)
 
 static bool ep1_send(const uint8_t *data, uint8_t length)
 {
+    bool armed = false;
+    uint8_t irq_was_enabled;
+
     if((data == 0) || (length == 0u) ||
-       (length > sizeof(s_ep1_tx)) ||
-       (s_mounted == 0u) || (s_suspended != 0u) ||
-       (s_ep1_busy != 0u))
+       (length > sizeof(s_ep1_tx)))
     {
         return false;
     }
-    memcpy(s_ep1_tx, data, length);
-    s_ep1_busy = 1u;
-    R16_U2EP1_T_LEN = length;
-    R8_U2EP1_TX_CTRL =
-        (uint8_t)((R8_U2EP1_TX_CTRL &
-                   (uint8_t)~USBHS_UEP_T_RES_MASK) |
-                  USBHS_UEP_T_RES_ACK);
-    return true;
+
+    /*
+     * BUS_RST clears s_mounted, EP1 ownership and the WebHID generation in
+     * the USB2 ISR. Keep that reset indivisible from the final readiness
+     * check through arming EP1; otherwise the ISR can clear the generation
+     * after the check and this function can re-arm its old ciphertext.
+     * The critical section copies at most one 64-byte interrupt report.
+     */
+    irq_was_enabled =
+        (PFIC_GetStatusIRQ(USB2_DEVICE_IRQn) != 0u) ? 1u : 0u;
+    if(irq_was_enabled != 0u)
+    {
+        PFIC_DisableIRQ(USB2_DEVICE_IRQn);
+    }
+    if((s_mounted != 0u) && (s_suspended == 0u) &&
+       (s_ep1_busy == 0u))
+    {
+        memcpy(s_ep1_tx, data, length);
+        s_ep1_busy = 1u;
+        R16_U2EP1_T_LEN = length;
+        R8_U2EP1_TX_CTRL =
+            (uint8_t)((R8_U2EP1_TX_CTRL &
+                       (uint8_t)~USBHS_UEP_T_RES_MASK) |
+                      USBHS_UEP_T_RES_ACK);
+        armed = true;
+    }
+    if(irq_was_enabled != 0u)
+    {
+        PFIC_EnableIRQ(USB2_DEVICE_IRQn);
+    }
+    return armed;
 }
 
 static bool process_hid_get_report(void)
@@ -1427,6 +1451,7 @@ bool usb_device_hw_send_webhid_report(const uint8_t *data,
 void usb_device_hw_process(void)
 {
     uint8_t reset_pending;
+    uint8_t webhid_ep1_complete_pending;
 
     PFIC_DisableIRQ(USB2_DEVICE_IRQn);
     reset_pending = s_transport_reset_pending;
@@ -1438,6 +1463,9 @@ void usb_device_hw_process(void)
         usb_device_transport_reset();
     }
     PFIC_DisableIRQ(USB2_DEVICE_IRQn);
+    webhid_ep1_complete_pending =
+        s_webhid_ep1_complete_pending;
+    s_webhid_ep1_complete_pending = 0u;
     if((reset_pending != 0u) &&
        (s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
        (s_connected != 0u))
@@ -1446,6 +1474,12 @@ void usb_device_hw_process(void)
     }
     webhid_try_reopen_out_endpoint();
     PFIC_EnableIRQ(USB2_DEVICE_IRQn);
+
+    if((reset_pending == 0u) &&
+       (webhid_ep1_complete_pending != 0u))
+    {
+        usb_device_webhid_report_complete();
+    }
 
     if(s_profile == USB_BOARD_PROFILE_XBOX_ONE)
     {
@@ -1583,26 +1617,28 @@ bool usb_management_control_hw_clear_fault(void)
     }
     PFIC_DisableIRQ(USB2_DEVICE_IRQn);
     reset_ok = data_path_reset(true);
-    if(s_profile != USB_BOARD_PROFILE_WEB_CONFIG)
+    if(reset_ok)
     {
-        endpoint_controls_reset();
+        if(s_profile != USB_BOARD_PROFILE_WEB_CONFIG)
+        {
+            endpoint_controls_reset();
+        }
+        /*
+         * CLEAR_FAULT is the synchronized WebConfig transport-generation
+         * reset. Commit the channel/device reset only after the endpoint
+         * quiesce succeeded; a failed attempt leaves the live generation
+         * untouched and is reported to STM32 for a later retry.
+         */
+        s_transport_reset_pending = 0u;
+        usb_board_link_reset_channel(USB_BOARD_CHANNEL_WEBCONFIG);
+        usb_device_transport_reset();
+        if((s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
+           (s_connected != 0u))
+        {
+            s_webhid_transport_reset_complete = 1u;
+        }
+        webhid_try_reopen_out_endpoint();
     }
-    /*
-     * CLEAR_FAULT is the synchronized WebConfig transport-generation reset.
-     * Complete the channel/device reset before ACKing USB_CONTROL so STM32 can
-     * safely discard a partial TX and wait for the fresh credit advertised by
-     * the next device process pass.
-     */
-    s_transport_reset_pending = 0u;
-    usb_board_link_reset_channel(USB_BOARD_CHANNEL_WEBCONFIG);
-    usb_device_transport_reset();
-    if(reset_ok &&
-       (s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
-       (s_connected != 0u))
-    {
-        s_webhid_transport_reset_complete = 1u;
-    }
-    webhid_try_reopen_out_endpoint();
     PFIC_EnableIRQ(USB2_DEVICE_IRQn);
     return reset_ok;
 }
@@ -1628,6 +1664,12 @@ static void complete_in_endpoint(uint8_t endpoint)
     switch(endpoint)
     {
     case 1u:
+        if((s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
+           (s_ep1_busy != 0u))
+        {
+            /* Defer board-link bookkeeping out of the USB interrupt. */
+            s_webhid_ep1_complete_pending = 1u;
+        }
         R16_U2EP1_T_LEN = 0u;
         R8_U2EP1_TX_CTRL ^= USBHS_UEP_T_TOG_DATA1;
         R8_U2EP1_TX_CTRL =
@@ -1675,6 +1717,15 @@ static void complete_out_endpoint(uint8_t endpoint)
             const uint16_t length = R16_U2EP2_RX_LEN;
             if(s_profile == USB_BOARD_PROFILE_WEB_CONFIG)
             {
+                /*
+                 * A valid endpoint OUT transaction is authoritative resume
+                 * evidence. Some Windows controllers deliver this packet
+                 * before the CH585 suspend-status interrupt reports the
+                 * cleared MIS_ST bit. Publish the active state immediately
+                 * so the board link restores WebHID credits and the response
+                 * can use EP1 in this transport generation.
+                 */
+                s_suspended = 0u;
                 (void)webhid_out_enqueue(s_ep2_rx, length);
             }
             else if((s_profile == USB_BOARD_PROFILE_XBOX_ONE) &&
@@ -1814,16 +1865,12 @@ void USB2_DEVICE_IRQHandler(void)
             ((R8_USB2_MIS_ST & USBHS_UDMS_SUSPEND) != 0u)
                 ? 1u
                 : 0u;
-        if((suspended != 0u) && (s_suspended == 0u))
-        {
-            /*
-             * A suspend ends the current encrypted WebHID transport
-             * generation on STM32.  Flush browser->STM32 reports here and
-             * request the matching board-link/device queue reset; resume must
-             * authenticate a fresh session instead of replaying old traffic.
-             */
-            (void)data_path_reset(true);
-        }
+        /*
+         * USB suspend is an idle pause, not a transport-generation boundary.
+         * Preserve EP1 ownership, endpoint toggles, browser OUT reports and
+         * both software queues. BUS_RST and explicit CLEAR_FAULT remain the
+         * only paths that discard the current WebHID generation.
+         */
         s_suspended = suspended;
         R8_USB2_INT_FG = USBHS_UDIF_SUSPEND;
     }

@@ -576,7 +576,7 @@ uint32_t FirmwareManager::GetComponentSize(FirmwareComponentType component) {
 bool FirmwareManager::CreateUpgradeSession(const char* session_id, const FirmwareMetadata* manifest) {
     /*
      * Reject an incompatible package before cleaning up an existing session or
-     * allocating any new state.  The WebSocket gate is defense in depth; this
+     * allocating any new state.  The DeviceCommand gate is defense in depth; this
      * device-side check also covers any future direct caller.
      */
     if (session_id == nullptr || manifest == nullptr || !metadata_loaded ||
@@ -679,6 +679,10 @@ bool FirmwareManager::CreateUpgradeSession(const char* session_id, const Firmwar
         comp->total_size = manifest->components[i].size;
         comp->received_size = 0;
         comp->base_address = manifest->components[i].address;
+        comp->last_chunk_index = 0;
+        comp->last_chunk_offset = 0;
+        comp->last_chunk_size = 0;
+        comp->last_chunk_checksum[0] = '\0';
         comp->completed = !manifest->components[i].active &&
                           manifest->components[i].size == 0;
     }
@@ -736,13 +740,32 @@ bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* c
         return false;
     }
 
+    const bool is_next_chunk =
+        chunk->chunk_index == target_component->received_chunks;
+    const bool is_duplicate_last_chunk =
+        target_component->received_chunks > 0 &&
+        chunk->chunk_index == target_component->last_chunk_index &&
+        chunk->chunk_index + 1 == target_component->received_chunks &&
+        chunk->chunk_offset == target_component->last_chunk_offset &&
+        chunk->chunk_size == target_component->last_chunk_size &&
+        target_component->last_chunk_checksum[0] != '\0' &&
+        strncmp(chunk->checksum,
+                target_component->last_chunk_checksum,
+                sizeof(target_component->last_chunk_checksum)) == 0;
+
     if (chunk->chunk_size == 0 ||
         chunk->total_chunks == 0 ||
         chunk->total_chunks > MAX_CHUNKS_PER_COMPONENT ||
         chunk->chunk_index >= chunk->total_chunks ||
-        chunk->chunk_index != target_component->received_chunks ||
+        (!is_next_chunk && !is_duplicate_last_chunk) ||
         (target_component->total_chunks != 0 &&
          target_component->total_chunks != chunk->total_chunks) ||
+        (is_next_chunk &&
+         chunk->chunk_offset != target_component->received_size) ||
+        (is_duplicate_last_chunk &&
+         (chunk->chunk_size > target_component->received_size ||
+          chunk->chunk_offset !=
+              target_component->received_size - chunk->chunk_size)) ||
         chunk->chunk_offset > target_component->total_size ||
         chunk->chunk_size >
             target_component->total_size - chunk->chunk_offset ||
@@ -784,6 +807,26 @@ bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* c
         return false; // 校验和不匹配
     }
     APP_DBG("FirmwareManager::ProcessFirmwareChunk: Full SHA256 verification passed - chunk_index: %ld", (unsigned long)chunk->chunk_index);
+
+    if (is_duplicate_last_chunk) {
+        /*
+         * The previous response may have been lost after the verified Flash
+         * write completed. Accept only an exact replay of the immediately
+         * preceding chunk, verify the already-written bytes, and leave all
+         * counters untouched. Older, reordered or altered chunks remain a
+         * fail-closed envelope error above.
+         */
+        if (!VerifyFlashData(write_address,
+                             chunk->data,
+                             chunk->chunk_size)) {
+            APP_ERR("FirmwareManager::ProcessFirmwareChunk: Duplicate chunk readback mismatch");
+            current_session->status = UPGRADE_STATUS_FAILED;
+            return false;
+        }
+        APP_DBG("FirmwareManager::ProcessFirmwareChunk: Idempotent duplicate accepted - chunk_index: %ld",
+                (unsigned long)chunk->chunk_index);
+        return true;
+    }
     
     // 写入Flash
     if (!WriteChunkToFlash(write_address, chunk->data, chunk->chunk_size)) {
@@ -806,6 +849,14 @@ bool FirmwareManager::ProcessFirmwareChunk(const char* session_id, const char* c
     
     target_component->received_chunks++;
     target_component->received_size += chunk->chunk_size;
+    target_component->last_chunk_index = chunk->chunk_index;
+    target_component->last_chunk_offset = chunk->chunk_offset;
+    target_component->last_chunk_size = chunk->chunk_size;
+    memcpy(target_component->last_chunk_checksum,
+           chunk->checksum,
+           sizeof(target_component->last_chunk_checksum));
+    target_component->last_chunk_checksum[
+        sizeof(target_component->last_chunk_checksum) - 1] = '\0';
     
     // 检查组件是否完成
     if (target_component->received_chunks >= target_component->total_chunks) {
@@ -836,6 +887,20 @@ bool FirmwareManager::CompleteUpgradeSession(const char* session_id) {
 
     if (strcmp(current_session->session_id, session_id) != 0) {
         APP_ERR("FirmwareManager::CompleteUpgradeSession: Session ID mismatch");
+        return false;
+    }
+
+    /*
+     * Metadata is the commit record. If its response was lost, a retry of the
+     * same session must report success without verifying or writing the slot a
+     * second time. Conversely, aborted/failed sessions can never be completed.
+     */
+    if (current_session->status == UPGRADE_STATUS_COMPLETED) {
+        APP_DBG("FirmwareManager::CompleteUpgradeSession: Idempotent completed session");
+        return true;
+    }
+    if (current_session->status != UPGRADE_STATUS_ACTIVE) {
+        APP_ERR("FirmwareManager::CompleteUpgradeSession: Session is not active");
         return false;
     }
     
@@ -895,6 +960,11 @@ bool FirmwareManager::AbortUpgradeSession(const char* session_id) {
     if (strcmp(current_session->session_id, session_id) != 0) {
         return false;
     }
+
+    /* Never erase the in-memory commit evidence after metadata was written. */
+    if (current_session->status != UPGRADE_STATUS_ACTIVE) {
+        return false;
+    }
     
     current_session->status = UPGRADE_STATUS_ABORTED;
     
@@ -916,6 +986,22 @@ uint32_t FirmwareManager::GetUpgradeProgress(const char* session_id) {
     }
     
     return current_session->total_progress;
+}
+
+bool FirmwareManager::GetUpgradeStatus(const char* session_id,
+                                       UpgradeStatus* status,
+                                       uint32_t* progress) const {
+    if (!session_active || current_session == nullptr || session_id == nullptr ||
+        strcmp(current_session->session_id, session_id) != 0) {
+        return false;
+    }
+    if (status != nullptr) {
+        *status = current_session->status;
+    }
+    if (progress != nullptr) {
+        *progress = current_session->total_progress;
+    }
+    return true;
 }
 
 bool FirmwareManager::EraseSlotFlash(FirmwareSlot slot) {

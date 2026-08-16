@@ -41,6 +41,14 @@ void WS2812B_SetLEDColorStrip(WS2812B_Strip strip, const uint8_t r, const uint8_
 
 void WS2812B_RefreshStrip(WS2812B_Strip strip, const uint16_t start, const uint16_t length);
 
+bool WS2812B_SubmitStrip(WS2812B_Strip strip);
+
+void WS2812B_ServiceStrip(WS2812B_Strip strip);
+
+void WS2812B_GetUpdateStats(WS2812B_Strip strip,
+                            uint32_t* halfCount,
+                            uint32_t* completeCount);
+
 WS2812B_StateTypeDef WS2812B_StartStrip(WS2812B_Strip strip);
 
 WS2812B_StateTypeDef WS2812B_StopStrip(WS2812B_Strip strip);

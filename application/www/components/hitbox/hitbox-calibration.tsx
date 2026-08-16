@@ -72,7 +72,7 @@ interface HitboxCalibrationProps {
  */
 export default function HitboxCalibration(props: HitboxCalibrationProps) {
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady, startManualCalibration, stopManualCalibration, hitboxLayout } = useGamepadConfig();
+    const { contextJsReady, setContextJsReady, hitboxLayout } = useGamepadConfig();
     
     const layout = useMemo(() => {
         const rawLayout = hitboxLayout ?? [];
@@ -132,16 +132,13 @@ export default function HitboxCalibration(props: HitboxCalibrationProps) {
             }
         };
 
-        // 订阅校准更新事件（只订阅一次）
+        // 订阅校准更新事件（只订阅一次）。校准的开始/停止由父组件的
+        // 明确用户动作负责，不能由 React mount/unmount 暗中发送设备命令。
         const unsubscribe = eventBus.on(EVENTS.CALIBRATION_UPDATE, handleCalibrationUpdate);
-        // 开启校准
-        startManualCalibration();
 
         // 清理函数
         return () => {
             unsubscribe();
-            // 停止校准
-            stopManualCalibration();
         };
     }, []); // 依赖数组为空，只执行一次
 
@@ -227,4 +224,4 @@ export default function HitboxCalibration(props: HitboxCalibrationProps) {
             </StyledSvg>
         </Box>
     );
-} 
+}

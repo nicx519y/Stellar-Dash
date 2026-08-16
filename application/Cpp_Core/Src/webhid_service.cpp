@@ -6,12 +6,17 @@
 #include <cstring>
 
 #include "adc_btns/adc_btns_worker.hpp"
+#include "adc_btns/adc_calibration.hpp"
 #include "board_security_confirmation.h"
 #include "board_cfg.h"
 #include "config_transport_sink.hpp"
+#include "configs/webconfig_btns_manager.hpp"
+#include "configs/common_command_handler.hpp"
 #include "configs/firmware_command_handler.hpp"
 #include "configs/user_image_command_handler.hpp"
+#include "configs/webconfig_leds_manager.hpp"
 #include "device_security_crypto.h"
+#include "device_identity_store.h"
 #include "firmware/firmware_manager.hpp"
 #include "firmware_metadata.h"
 #include "hardware_rng.h"
@@ -42,6 +47,206 @@ constexpr uint32_t kPermitInstallTimeoutMs =
     HBOX_SECURITY_CHALLENGE_SECONDS * 1000u;
 constexpr uint32_t kCpuCyclesPerMicrosecond =
     SYSTEM_CLOCK_FREQ / 1000000u;
+
+bool allZero(const uint8_t *value, size_t length);
+
+bool extractTransactionId(
+    const uint8_t *json,
+    size_t length,
+    uint32_t &transactionId)
+{
+    static constexpr char kKey[] = "\"transactionId\"";
+    if (json == nullptr || length < sizeof(kKey)) {
+        return false;
+    }
+    const uint8_t *const end = json + length;
+    const uint8_t *cursor = std::search(
+        json,
+        end,
+        reinterpret_cast<const uint8_t *>(kKey),
+        reinterpret_cast<const uint8_t *>(kKey) + sizeof(kKey) - 1u);
+    if (cursor == end) {
+        return false;
+    }
+    cursor += sizeof(kKey) - 1u;
+    while (cursor != end &&
+           (*cursor == ' ' || *cursor == '\t' ||
+            *cursor == '\r' || *cursor == '\n')) {
+        ++cursor;
+    }
+    if (cursor == end || *cursor != ':') {
+        return false;
+    }
+    ++cursor;
+    while (cursor != end &&
+           (*cursor == ' ' || *cursor == '\t' ||
+            *cursor == '\r' || *cursor == '\n')) {
+        ++cursor;
+    }
+    uint64_t value = 0u;
+    const uint8_t *const firstDigit = cursor;
+    while (cursor != end && *cursor >= '0' && *cursor <= '9') {
+        value = value * 10u + static_cast<uint64_t>(*cursor - '0');
+        if (value > UINT32_MAX) {
+            return false;
+        }
+        ++cursor;
+    }
+    if (cursor == firstDigit || value == 0u) {
+        return false;
+    }
+    transactionId = static_cast<uint32_t>(value);
+    return true;
+}
+
+#if WEBCONFIG_TEST_FORCE_BOOT
+int developmentIdentityRead(
+    void *,
+    uint32_t slotIndex,
+    uint32_t flashwordIndex,
+    uint8_t output[HBOX_INTERNAL_FLASH_PROGRAM_BYTES])
+{
+    if (output == nullptr ||
+        slotIndex >= HBOX_DEVICE_IDENTITY_SLOT_COUNT ||
+        flashwordIndex >=
+            HBOX_DEVICE_IDENTITY_SLOT_BYTES /
+                HBOX_INTERNAL_FLASH_PROGRAM_BYTES) {
+        return 0;
+    }
+    const uint32_t offset =
+        slotIndex * HBOX_DEVICE_IDENTITY_SLOT_BYTES +
+        flashwordIndex * HBOX_INTERNAL_FLASH_PROGRAM_BYTES;
+    if (offset > HBOX_DEVICE_IDENTITY_REGION_BYTES -
+                     HBOX_INTERNAL_FLASH_PROGRAM_BYTES) {
+        return 0;
+    }
+    memcpy(output,
+           reinterpret_cast<const void *>(
+               HBOX_DEVICE_IDENTITY_REGION_ADDRESS + offset),
+           HBOX_INTERNAL_FLASH_PROGRAM_BYTES);
+    return 1;
+}
+
+bool prepareDevelopmentBootContext()
+{
+    hbox_device_identity_backend_t backend = {};
+    hbox_device_identity_record_v1_t identity = {};
+    hbox_boot_security_context_v1_t staging = {};
+    uint8_t digest[HBOX_SECURITY_HASH_BYTES] = {};
+    uint8_t derivedDeviceId[HBOX_SECURITY_HASH_BYTES] = {};
+    uint8_t derivedPublic[HBOX_SECURITY_P256_PUBLIC_KEY_BYTES] = {};
+    const auto *metadata =
+        reinterpret_cast<const FirmwareMetadata *>(METADATA_ADDR);
+    bool valid = false;
+
+    backend.slot_count = HBOX_DEVICE_IDENTITY_SLOT_COUNT;
+    backend.read_flashword = developmentIdentityRead;
+    if (HBOX_MANUFACTURER_CA_KEY_PROVISIONED == 0u ||
+        allZero(HBOX_MANUFACTURER_CA_PUBLIC_KEY,
+                sizeof(HBOX_MANUFACTURER_CA_PUBLIC_KEY)) ||
+        HBoxIdentityStore_LoadFromBackend(&backend, &identity) !=
+            HBOX_DEVICE_IDENTITY_OK ||
+        identity.device_certificate.product_id_le != HBOX_PRODUCT_ID ||
+        identity.device_certificate.hardware_version_le != HARDWARE_VERSION ||
+        metadata->magic != FIRMWARE_MAGIC ||
+        metadata->signature_algorithm !=
+            FIRMWARE_SIGNATURE_ECDSA_P256_SHA256 ||
+        metadata->security_version < FIRMWARE_SECURITY_VERSION ||
+        HBoxCrypto_P256PublicFromPrivate(identity.device_private_key,
+                                         derivedPublic) != 0 ||
+        memcmp(derivedPublic,
+               identity.device_certificate.device_public_key,
+               sizeof(derivedPublic)) != 0 ||
+        HBoxCrypto_Sha256(
+            identity.device_certificate.device_public_key,
+            sizeof(identity.device_certificate.device_public_key),
+            derivedDeviceId) != 0 ||
+        memcmp(derivedDeviceId,
+               identity.device_certificate.device_id,
+               HBOX_SECURITY_DEVICE_ID_BYTES) != 0 ||
+        HBoxCrypto_Sha256(
+            reinterpret_cast<const uint8_t *>(
+                &identity.device_certificate),
+            HBOX_DEVICE_CERTIFICATE_SIGNED_BYTES,
+            digest) != 0 ||
+        HBoxCrypto_P256VerifyDigest(
+            HBOX_MANUFACTURER_CA_PUBLIC_KEY,
+            digest,
+            identity.device_certificate.manufacturer_signature) != 0) {
+        goto done;
+    }
+
+    staging.magic_le = HBOX_BOOT_CONTEXT_MAGIC;
+    staging.version = HBOX_BOOT_CONTEXT_VERSION;
+    staging.total_bytes_le = sizeof(staging);
+    staging.created_at_tick_le = HAL_GetTick();
+    memcpy(&staging.device_certificate,
+           &identity.device_certificate,
+           sizeof(staging.device_certificate));
+    staging.boot_attestation.magic_le = HBOX_BOOT_ATTESTATION_MAGIC;
+    staging.boot_attestation.version = HBOX_SECURITY_PROTOCOL_VERSION;
+    staging.boot_attestation.signed_bytes_le =
+        HBOX_BOOT_ATTESTATION_SIGNED_BYTES;
+    staging.boot_attestation.security_version_le =
+        metadata->security_version;
+    staging.boot_attestation.bootloader_version_le = BOOTLOADER_VERSION;
+    memcpy(staging.boot_attestation.device_id,
+           identity.device_certificate.device_id,
+           HBOX_SECURITY_DEVICE_ID_BYTES);
+    memcpy(staging.boot_attestation.firmware_hash,
+           metadata->firmware_hash,
+           HBOX_SECURITY_HASH_BYTES);
+
+    if (HBoxHardwareRng_Fill(
+            nullptr,
+            staging.boot_attestation.boot_nonce,
+            sizeof(staging.boot_attestation.boot_nonce)) != 0 ||
+        HBoxCrypto_P256Generate(
+            staging.boot_private_key,
+            staging.boot_attestation.boot_public_key,
+            HBoxHardwareRng_Fill,
+            nullptr) != 0 ||
+        HBoxCrypto_Sha256(
+            reinterpret_cast<const uint8_t *>(
+                &staging.boot_attestation),
+            HBOX_BOOT_ATTESTATION_SIGNED_BYTES,
+            digest) != 0 ||
+        HBoxCrypto_P256SignDigest(
+            identity.device_private_key,
+            digest,
+            staging.boot_attestation.device_signature,
+            HBoxHardwareRng_Fill,
+            nullptr) != 0) {
+        goto done;
+    }
+
+    strncpy(staging.firmware_version,
+            metadata->firmware_version,
+            sizeof(staging.firmware_version) - 1u);
+    staging.crc32_le = HBoxSecurity_Crc32Skipping(
+        reinterpret_cast<const uint8_t *>(&staging),
+        sizeof(staging),
+        HBOX_BOOT_CONTEXT_CRC_OFFSET,
+        sizeof(staging.crc32_le));
+    if (staging.crc32_le == 0u ||
+        !HBoxSecurity_ValidateBootContext(&staging)) {
+        goto done;
+    }
+    memcpy(reinterpret_cast<void *>(HBOX_BOOT_CONTEXT_ADDRESS),
+           &staging,
+           sizeof(staging));
+    __DSB();
+    valid = true;
+
+done:
+    HBoxCrypto_Zeroize(&identity, sizeof(identity));
+    HBoxCrypto_Zeroize(&staging, sizeof(staging));
+    HBoxCrypto_Zeroize(digest, sizeof(digest));
+    HBoxCrypto_Zeroize(derivedDeviceId, sizeof(derivedDeviceId));
+    HBoxCrypto_Zeroize(derivedPublic, sizeof(derivedPublic));
+    return valid;
+}
+#endif
 
 void webhidReportReceived(const uint8_t report[WEBHID_REPORT_BYTES])
 {
@@ -175,6 +380,13 @@ uint32_t loadLe32(const uint8_t *value)
            (static_cast<uint32_t>(value[3]) << 24u);
 }
 
+uint16_t loadLe16(const uint8_t *value)
+{
+    return static_cast<uint16_t>(value[0]) |
+           static_cast<uint16_t>(
+               static_cast<uint16_t>(value[1]) << 8u);
+}
+
 bool constantTimeEqual(const uint8_t *left,
                        const uint8_t *right,
                        size_t length)
@@ -194,37 +406,6 @@ bool canonicalBase64Url(const char *encoded,
         return false;
     }
     return encodeBase64Url(decoded.data(), decoded.size()) == encoded;
-}
-
-std::string jsonToString(cJSON *root)
-{
-    if (root == nullptr) {
-        return {};
-    }
-    char *encoded = cJSON_PrintUnformatted(root);
-    if (encoded == nullptr) {
-        return {};
-    }
-    std::string result(encoded);
-    cJSON_free(encoded);
-    return result;
-}
-
-bool rpcExplicitSuccess(const WebHidRpcResult &result)
-{
-    if (result.error != 0 || result.json.empty()) {
-        return false;
-    }
-    cJSON *root = cJSON_Parse(result.json.c_str());
-    cJSON *data = root == nullptr
-        ? nullptr
-        : cJSON_GetObjectItemCaseSensitive(root, "data");
-    cJSON *success = data == nullptr
-        ? nullptr
-        : cJSON_GetObjectItemCaseSensitive(data, "success");
-    const bool accepted = cJSON_IsTrue(success);
-    cJSON_Delete(root);
-    return accepted;
 }
 
 const char *safeFirmwareVersion(
@@ -262,9 +443,6 @@ uint8_t streamTypeForName(const char *name)
     if (strcmp(name, "config-import") == 0) {
         return 3u;
     }
-    if (strcmp(name, "legacy-binary") == 0) {
-        return 0x7Fu;
-    }
     return 0u;
 }
 
@@ -277,13 +455,6 @@ uint32_t streamScope(uint8_t type)
         return HBOX_SCOPE_ASSET_WRITE;
     case 3u:
         return HBOX_SCOPE_CONFIG_WRITE;
-    case 0x7Fu:
-        /*
-         * The concrete legacy opcode is not known until the stream is
-         * complete.  Require an authenticated read-capable session here and
-         * enforce asset/firmware scope against the opcode before dispatch.
-         */
-        return HBOX_SCOPE_CONFIG_READ;
     default:
         return 0u;
     }
@@ -301,6 +472,263 @@ uint32_t binaryOpcodeScope(uint8_t opcode)
         return HBOX_SCOPE_CONFIG_READ;
     }
     return 0u;
+}
+
+enum class BinaryAckStatus : uint8_t
+{
+    Accepted = 0u,
+    Rejected,
+    ProtocolError,
+};
+
+constexpr uint8_t kFirmwareChunkAckOpcode = 0x81u;
+constexpr uint8_t kImageBeginOpcode = 0x30u;
+constexpr uint8_t kImageChunkOpcode = 0x31u;
+constexpr uint8_t kImageCommitOpcode = 0x32u;
+constexpr uint8_t kImageDeleteOpcode = 0x33u;
+constexpr uint8_t kImageInfoOpcode = 0x34u;
+constexpr uint8_t kImageReadOpcode = 0x35u;
+constexpr size_t kFirmwareChunkRequestHeaderBytes =
+    sizeof(BinaryFirmwareChunkHeader);
+constexpr size_t kFirmwareChunkResponseBytes = 75u;
+constexpr size_t kImageMutationResponseBytes = 79u;
+constexpr size_t kImageInfoResponseBytes = 64u;
+constexpr size_t kImageReadResponseHeaderBytes = 55u;
+
+bool binaryRequestShapeValid(
+    const uint8_t *request,
+    size_t requestLength)
+{
+    if (request == nullptr || requestLength == 0u) {
+        return false;
+    }
+    switch (request[0]) {
+    case BINARY_CMD_UPLOAD_FIRMWARE_CHUNK: {
+        if (requestLength < kFirmwareChunkRequestHeaderBytes) {
+            return false;
+        }
+        const uint16_t sessionLength = loadLe16(&request[2]);
+        const uint16_t componentLength = loadLe16(&request[36]);
+        const uint32_t chunkLength = loadLe32(&request[62]);
+        return sessionLength != 0u && sessionLength <= 32u &&
+               componentLength != 0u && componentLength <= 16u &&
+               chunkLength ==
+                   requestLength - kFirmwareChunkRequestHeaderBytes;
+    }
+    case kImageBeginOpcode:
+        return requestLength == 14u || requestLength == 18u;
+    case kImageChunkOpcode: {
+        if (requestLength < 14u) {
+            return false;
+        }
+        const uint16_t chunkLength = loadLe16(&request[10]);
+        return chunkLength == requestLength - 14u;
+    }
+    case kImageCommitOpcode:
+    case kImageDeleteOpcode:
+    case kImageInfoOpcode:
+        return requestLength == 6u;
+    case kImageReadOpcode:
+        return requestLength == 14u && request[1] <= 1u;
+    default:
+        return false;
+    }
+}
+
+BinaryAckStatus describeBinaryAck(
+    const uint8_t *request,
+    size_t requestLength,
+    const uint8_t *response,
+    size_t responseLength,
+    bool handlerResultKnown,
+    bool handlerSucceeded,
+    cJSON *ack)
+{
+    if (!binaryRequestShapeValid(request, requestLength) ||
+        response == nullptr || responseLength < 2u || ack == nullptr) {
+        return BinaryAckStatus::ProtocolError;
+    }
+    const uint8_t requestOpcode = request[0];
+    const uint8_t expectedOpcode = requestOpcode ==
+            BINARY_CMD_UPLOAD_FIRMWARE_CHUNK
+        ? kFirmwareChunkAckOpcode
+        : static_cast<uint8_t>(requestOpcode | 0x80u);
+    if (response[0] != expectedOpcode || response[1] > 1u) {
+        return BinaryAckStatus::ProtocolError;
+    }
+
+    const bool accepted = response[1] == 1u;
+    if (handlerResultKnown && handlerSucceeded != accepted) {
+        return BinaryAckStatus::ProtocolError;
+    }
+    cJSON_AddNumberToObject(ack, "requestOpcode", requestOpcode);
+    cJSON_AddNumberToObject(ack, "opcode", response[0]);
+    cJSON_AddBoolToObject(ack, "success", accepted);
+
+    switch (requestOpcode) {
+    case BINARY_CMD_UPLOAD_FIRMWARE_CHUNK: {
+        if (responseLength != kFirmwareChunkResponseBytes ||
+            response[10] > 64u ||
+            (accepted && response[10] != 0u)) {
+            return BinaryAckStatus::ProtocolError;
+        }
+        const uint32_t requestedChunkIndex = loadLe32(&request[54]);
+        const uint32_t acknowledgedChunkIndex = loadLe32(&response[2]);
+        const uint32_t progress = loadLe32(&response[6]);
+        if (acknowledgedChunkIndex != requestedChunkIndex ||
+            progress > 100u) {
+            return BinaryAckStatus::ProtocolError;
+        }
+        cJSON_AddStringToObject(ack, "kind", "firmware.chunk");
+        cJSON_AddNumberToObject(
+            ack, "chunkIndex", acknowledgedChunkIndex);
+        cJSON_AddNumberToObject(ack, "progress", progress);
+        break;
+    }
+    case kImageBeginOpcode:
+    case kImageChunkOpcode:
+    case kImageCommitOpcode:
+    case kImageDeleteOpcode: {
+        if (responseLength != kImageMutationResponseBytes ||
+            response[14] > 64u ||
+            (accepted && response[14] != 0u)) {
+            return BinaryAckStatus::ProtocolError;
+        }
+        const uint32_t requestedCid = loadLe32(&request[2]);
+        const uint32_t acknowledgedCid = loadLe32(&response[2]);
+        const uint32_t received = loadLe32(&response[6]);
+        const uint32_t total = loadLe32(&response[10]);
+        if (acknowledgedCid != requestedCid || received > total) {
+            return BinaryAckStatus::ProtocolError;
+        }
+        if (requestOpcode == kImageBeginOpcode && accepted &&
+            (received != 0u || total != loadLe32(&request[10]))) {
+            return BinaryAckStatus::ProtocolError;
+        }
+        if (requestOpcode == kImageChunkOpcode) {
+            const uint32_t offset = loadLe32(&request[6]);
+            const uint16_t chunkLength = loadLe16(&request[10]);
+            if (offset > UINT32_MAX - chunkLength ||
+                (accepted && received != offset + chunkLength)) {
+                return BinaryAckStatus::ProtocolError;
+            }
+            /*
+             * Correlation fields come from the authenticated request and are
+             * present for both positive and negative ACKs. This lets the
+             * typed client distinguish an explicit device rejection from an
+             * unrelated binary event without weakening fail-closed matching.
+             */
+            cJSON_AddNumberToObject(ack, "offset", offset);
+            cJSON_AddNumberToObject(
+                ack, "chunkSize", chunkLength);
+        }
+        cJSON_AddStringToObject(
+            ack,
+            "kind",
+            requestOpcode == kImageBeginOpcode
+                ? "image.begin"
+                : requestOpcode == kImageChunkOpcode
+                    ? "image.chunk"
+                    : requestOpcode == kImageCommitOpcode
+                        ? "image.commit"
+                        : "image.delete");
+        cJSON_AddNumberToObject(ack, "cid", acknowledgedCid);
+        cJSON_AddNumberToObject(ack, "received", received);
+        cJSON_AddNumberToObject(ack, "total", total);
+        break;
+    }
+    case kImageInfoOpcode: {
+        if (responseLength != kImageInfoResponseBytes ||
+            loadLe32(&response[2]) != loadLe32(&request[2]) ||
+            response[6] > 1u || response[7] > 1u) {
+            return BinaryAckStatus::ProtocolError;
+        }
+        cJSON_AddStringToObject(ack, "kind", "image.info");
+        cJSON_AddNumberToObject(
+            ack, "cid", loadLe32(&response[2]));
+        break;
+    }
+    case kImageReadOpcode: {
+        if (responseLength < kImageReadResponseHeaderBytes ||
+            response[22] > 32u ||
+            (accepted && response[22] != 0u) ||
+            response[2] != request[1] ||
+            loadLe32(&response[4]) != loadLe32(&request[2]) ||
+            loadLe32(&response[16]) != loadLe32(&request[6])) {
+            return BinaryAckStatus::ProtocolError;
+        }
+        const uint16_t returnedChunkLength = loadLe16(&response[20]);
+        const uint16_t requestedChunkLength = loadLe16(&request[10]);
+        if (responseLength !=
+                kImageReadResponseHeaderBytes + returnedChunkLength ||
+            (accepted && returnedChunkLength > requestedChunkLength) ||
+            (!accepted && returnedChunkLength != 0u)) {
+            return BinaryAckStatus::ProtocolError;
+        }
+        cJSON_AddStringToObject(ack, "kind", "image.read");
+        cJSON_AddNumberToObject(
+            ack, "cid", loadLe32(&response[4]));
+        cJSON_AddNumberToObject(ack, "target", response[2]);
+        cJSON_AddNumberToObject(
+            ack, "offset", loadLe32(&response[16]));
+        cJSON_AddNumberToObject(
+            ack, "chunkSize", returnedChunkLength);
+        cJSON_AddNumberToObject(
+            ack, "total", loadLe32(&response[12]));
+        break;
+    }
+    default:
+        return BinaryAckStatus::ProtocolError;
+    }
+    return accepted ? BinaryAckStatus::Accepted
+                    : BinaryAckStatus::Rejected;
+}
+
+cJSON *createBinaryAckData(
+    const uint8_t *request,
+    size_t requestLength,
+    const uint8_t *response,
+    size_t responseLength,
+    bool handlerResultKnown,
+    bool handlerSucceeded,
+    bool streamComplete,
+    BinaryAckStatus &status)
+{
+    status = BinaryAckStatus::ProtocolError;
+    cJSON *data = cJSON_CreateObject();
+    cJSON *ack = cJSON_CreateObject();
+    if (data == nullptr || ack == nullptr) {
+        cJSON_Delete(data);
+        cJSON_Delete(ack);
+        return nullptr;
+    }
+    status = describeBinaryAck(
+        request,
+        requestLength,
+        response,
+        responseLength,
+        handlerResultKnown,
+        handlerSucceeded,
+        ack);
+    if (status == BinaryAckStatus::ProtocolError) {
+        cJSON_Delete(data);
+        cJSON_Delete(ack);
+        return nullptr;
+    }
+    const std::string encoded = encodeBase64(response, responseLength);
+    if (encoded.empty()) {
+        cJSON_Delete(data);
+        cJSON_Delete(ack);
+        status = BinaryAckStatus::ProtocolError;
+        return nullptr;
+    }
+    if (streamComplete) {
+        cJSON_AddBoolToObject(data, "complete", true);
+    }
+    cJSON_AddStringToObject(data, "encoding", "base64");
+    cJSON_AddStringToObject(data, "data", encoded.c_str());
+    cJSON_AddItemToObject(data, "ack", ack);
+    return data;
 }
 
 uint32_t scopeForName(const char *name)
@@ -474,12 +902,33 @@ bool WebHidService::validateBootContext()
 bool WebHidService::setup()
 {
     shutdown();
-    if (!USB_DRIVER.isReady() ||
-        USB_DRIVER.profile() != USB_BOARD_PROFILE_WEB_CONFIG ||
-        !USB_BOARD_LINK.isRoleLocked() ||
-        USB_BOARD_LINK.role() != USB_BOARD_ROLE_MAINTENANCE ||
-        (!bootContextValid && !validateBootContext()) ||
-        !HBoxHardwareRng_Init()) {
+    const bool driverReady = USB_DRIVER.isReady();
+    const bool profileReady =
+        USB_DRIVER.profile() == USB_BOARD_PROFILE_WEB_CONFIG;
+    const bool roleLocked = USB_BOARD_LINK.isRoleLocked();
+    const bool maintenanceRole =
+        USB_BOARD_LINK.role() == USB_BOARD_ROLE_MAINTENANCE;
+    const bool rngReady = HBoxHardwareRng_Init();
+    bool identityReady = bootContextValid || validateBootContext();
+#if WEBCONFIG_TEST_FORCE_BOOT
+    if (!identityReady && rngReady && prepareDevelopmentBootContext()) {
+        identityReady = validateBootContext();
+        APP_STAGE(identityReady ? "H00" : "H00E",
+                  "temporary unlocked-development WebHID identity result=%u",
+                  identityReady ? 1u : 0u);
+    }
+#endif
+    if (!driverReady || !profileReady || !roleLocked || !maintenanceRole ||
+        !identityReady || !rngReady) {
+        APP_STAGE_ERROR(
+            "H01",
+            "WebHID prerequisites failed: driver=%u profile=%u locked=%u maintenance=%u identity=%u rng=%u",
+            driverReady ? 1u : 0u,
+            profileReady ? 1u : 0u,
+            roleLocked ? 1u : 0u,
+            maintenanceRole ? 1u : 0u,
+            identityReady ? 1u : 0u,
+            rngReady ? 1u : 0u);
         shutdown();
         return false;
     }
@@ -494,6 +943,7 @@ bool WebHidService::setup()
     ConfigTransport_SetBinarySink(configBinaryEvent);
     UsbBoardLink_SetWebConfigReceiveCallback(webhidReportReceived);
     WEBHID_RPC_DISPATCHER.initialize();
+    APP_STAGE("H01", "WebHID identity and entropy prerequisites ready");
     return true;
 }
 
@@ -508,9 +958,79 @@ void WebHidService::shutdown()
     initialized = false;
 }
 
-void WebHidService::resetSession(bool keepBootIdentity)
+void WebHidService::clearStream()
 {
-    if (initialized) {
+    const size_t used = std::min<size_t>(
+        stream.received, kMaximumStreamBytes);
+    if (used != 0u) {
+        HBoxCrypto_Zeroize(stream.bytes.data(), used);
+    }
+    stream.bytes[used] = 0u;
+    HBoxCrypto_Zeroize(
+        stream.expectedHash.data(), stream.expectedHash.size());
+    stream.active = false;
+    stream.type = 0u;
+    stream.transferId = 0u;
+    stream.expectedLength = 0u;
+    stream.received = 0u;
+    stream.remainingCredit = 0u;
+}
+
+void WebHidService::clearBinaryCapture()
+{
+    captureBinary = false;
+    captureBinaryInvalid = false;
+    if (!capturedBinary.empty()) {
+        HBoxCrypto_Zeroize(
+            capturedBinary.data(), capturedBinary.size());
+    }
+    capturedBinary.clear();
+}
+
+void WebHidService::resetSession(bool keepBootIdentity,
+                                 bool resetPhysicalTransport,
+                                 bool clearQueuedReports)
+{
+    /*
+     * Calibration and button monitoring are owned by the authenticated
+     * browser session.  The legacy DeviceCommand transport stopped both from its
+     * disconnect callback, but WebHID originally only discarded its crypto
+     * state.  Leaving either worker alive lets ADC/event traffic from a dead
+     * page interfere with the next bootstrap generation.
+     *
+     * Do this for every WebHID reset (not only an established session) so a
+     * device left behind by an older firmware/frontend generation recovers
+     * as soon as it sees the next bootstrap report.
+     */
+    const bool calibrationWasActive =
+        ADC_CALIBRATION_MANAGER.isCalibrationActive();
+    WebConfigBtnsManager &buttons = WEBCONFIG_BTNS_MANAGER;
+    const bool buttonWorkerWasActive = buttons.isActive();
+    const bool buttonTestWasActive = buttons.isTestModeEnabled();
+    if (calibrationWasActive) {
+        (void)ADC_CALIBRATION_MANAGER.stopCalibration();
+    }
+    if (buttonTestWasActive) {
+        buttons.enableTestMode(false);
+    }
+    if (buttonWorkerWasActive) {
+        buttons.stopButtonWorkers();
+    }
+    if (calibrationWasActive || buttonWorkerWasActive ||
+        buttonTestWasActive) {
+        APP_STAGE(
+            "H10",
+            "WebHID session runtime stopped: calibration=%u buttons=%u test=%u",
+            calibrationWasActive ? 1u : 0u,
+            buttonWorkerWasActive ? 1u : 0u,
+            buttonTestWasActive ? 1u : 0u);
+    }
+    if (WEBCONFIG_LEDS_MANAGER.isInPreviewMode()) {
+        WEBCONFIG_LEDS_MANAGER.clearPreviewConfig();
+    }
+    UserImageCommandHandler::resetUploadSession();
+
+    if (initialized && resetPhysicalTransport) {
         /*
          * A failed/ended cryptographic session invalidates any half-sent
          * 64-byte report too. UsbBoardLink performs a synchronized CH585
@@ -547,36 +1067,32 @@ void WebHidService::resetSession(bool keepBootIdentity)
     permitDeadlineMs = 0u;
     lastRxSequence = 0u;
     nextTxSequence = 1u;
-    clearRxQueue();
-    if (!assembler.bytes.empty()) {
+    if (clearQueuedReports) {
+        clearRxQueue();
+    }
+    if (assembler.length != 0u) {
         HBoxCrypto_Zeroize(
-            assembler.bytes.data(), assembler.bytes.size());
+            assembler.bytes.data(), assembler.length + 1u);
     }
     assembler.active = false;
-    assembler.bytes.clear();
-    if (!stream.bytes.empty()) {
-        HBoxCrypto_Zeroize(stream.bytes.data(), stream.bytes.size());
-    }
-    stream = StreamState{};
-    for (auto &message : outboundQueue) {
-        if (!message.bytes.empty()) {
-            HBoxCrypto_Zeroize(
-                message.bytes.data(), message.bytes.size());
-        }
-    }
+    assembler.discardingOversize = false;
+    assembler.errorTransactionId = 0u;
+    assembler.length = 0u;
+    clearStream();
+    HBoxCrypto_Zeroize(
+        outboundStorage.data(), outboundStorage.size());
     outboundQueue.clear();
+    outboundReadOffset = 0u;
+    outboundWriteOffset = 0u;
     outboundQueuedBytes = 0u;
+    responseScratch.fill('\0');
     for (std::string &event : eventQueue) {
         std::fill(event.begin(), event.end(), '\0');
     }
     eventQueue.clear();
     eventQueuedBytes = 0u;
-    if (!capturedBinary.empty()) {
-        HBoxCrypto_Zeroize(
-            capturedBinary.data(), capturedBinary.size());
-    }
-    capturedBinary.clear();
-    captureBinary = false;
+    droppedEventCount = 0u;
+    clearBinaryCapture();
     performanceEnabled = false;
     samplePending = false;
     sampleTimestampUs = 0u;
@@ -595,7 +1111,6 @@ void WebHidService::resetSession(bool keepBootIdentity)
     checkpointChunk = 0u;
     HBoxCrypto_Zeroize(
         checkpointKeys.data(), sizeof(checkpointKeys));
-    nextOutputAtMs = 0u;
     if (!keepBootIdentity) {
         HBoxCrypto_Zeroize(&bootContext, sizeof(bootContext));
         bootContextValid = false;
@@ -693,11 +1208,37 @@ void WebHidService::enqueueJsonEvent(const char *json, size_t length)
     if (!sessionEstablished) {
         return;
     }
-    if (json == nullptr || length == 0u ||
-        length > kMaximumEventBytes ||
-        eventQueue.size() >= kMaximumEventQueue ||
+    if (json == nullptr || length == 0u) {
+        return;
+    }
+    if (length > kMaximumEventBytes ||
+        length > kMaximumQueuedEventBytes) {
+        if (droppedEventCount != UINT32_MAX) {
+            ++droppedEventCount;
+        }
+        return;
+    }
+    /*
+     * JSON notifications are state hints, not request responses. When a slow
+     * host falls behind, keep the newest bounded notifications and account
+     * for discarded ones instead of tearing down the authenticated session.
+     */
+    while (!eventQueue.empty() &&
+           (eventQueue.size() >= kMaximumEventQueue ||
+            eventQueuedBytes > kMaximumQueuedEventBytes - length)) {
+        std::string &oldest = eventQueue.front();
+        eventQueuedBytes -= oldest.size();
+        std::fill(oldest.begin(), oldest.end(), '\0');
+        eventQueue.pop_front();
+        if (droppedEventCount != UINT32_MAX) {
+            ++droppedEventCount;
+        }
+    }
+    if (eventQueue.size() >= kMaximumEventQueue ||
         eventQueuedBytes > kMaximumQueuedEventBytes - length) {
-        resetSession(true);
+        if (droppedEventCount != UINT32_MAX) {
+            ++droppedEventCount;
+        }
         return;
     }
     eventQueue.emplace_back(json, length);
@@ -708,8 +1249,14 @@ void WebHidService::enqueueBinaryEvent(const uint8_t *data, size_t length)
 {
     if (captureBinary) {
         if (data == nullptr || length == 0u ||
-            length > kMaximumStreamBytes) {
+            length > kMaximumStreamBytes ||
+            captureBinaryInvalid || !capturedBinary.empty()) {
+            if (!capturedBinary.empty()) {
+                HBoxCrypto_Zeroize(
+                    capturedBinary.data(), capturedBinary.size());
+            }
             capturedBinary.clear();
+            captureBinaryInvalid = true;
         } else {
             capturedBinary.assign(data, data + length);
         }
@@ -718,10 +1265,15 @@ void WebHidService::enqueueBinaryEvent(const uint8_t *data, size_t length)
     if (!sessionEstablished || data == nullptr || length == 0u) {
         return;
     }
-    const std::string encoded = encodeBase64(data, length);
-    if (encoded.empty()) {
+    if (length != sizeof(ButtonStateBinaryData) ||
+        data[0] != BUTTON_STATE_CHANGED_CMD) {
+        if (droppedEventCount != UINT32_MAX) {
+            ++droppedEventCount;
+        }
         return;
     }
+    ButtonStateBinaryData snapshot = {};
+    memcpy(&snapshot, data, sizeof(snapshot));
     cJSON *root = cJSON_CreateObject();
     cJSON *eventData = cJSON_CreateObject();
     if (root == nullptr || eventData == nullptr) {
@@ -729,9 +1281,13 @@ void WebHidService::enqueueBinaryEvent(const uint8_t *data, size_t length)
         cJSON_Delete(eventData);
         return;
     }
-    cJSON_AddStringToObject(root, "command", "legacy.binary");
-    cJSON_AddStringToObject(eventData, "encoding", "base64");
-    cJSON_AddStringToObject(eventData, "data", encoded.c_str());
+    cJSON_AddStringToObject(root, "command", "button.state");
+    cJSON_AddBoolToObject(
+        eventData, "isActive", snapshot.isActive != 0u);
+    cJSON_AddNumberToObject(
+        eventData, "triggerMask", snapshot.triggerMask);
+    cJSON_AddNumberToObject(
+        eventData, "totalButtons", snapshot.totalButtons);
     cJSON_AddItemToObject(root, "data", eventData);
     char *json = cJSON_PrintUnformatted(root);
     if (json != nullptr) {
@@ -750,9 +1306,22 @@ void WebHidService::process()
         USB_DRIVER.profile() != USB_BOARD_PROFILE_WEB_CONFIG ||
         !USB_BOARD_LINK.isRoleLocked() ||
         USB_BOARD_LINK.role() != USB_BOARD_ROLE_MAINTENANCE ||
-        !USB_DRIVER.isMounted() ||
-        USB_DRIVER.isSuspended()) {
-        resetSession(true);
+        !USB_DRIVER.isMounted()) {
+        /*
+         * Startup, role/profile changes and USB unmount are external link
+         * state, not protocol faults. Clear only local session-owned work;
+         * repeatedly issuing CLEAR_FAULT here can race enumeration and detach
+         * CH585 while the SIE is busy.
+         */
+        resetSession(true, false);
+        return;
+    }
+    if (USB_DRIVER.isSuspended()) {
+        /*
+         * USB suspend is an idle pause. Preserve the authenticated session,
+         * inbound assembly and queued responses; CH585 advertises zero credit
+         * until resume, so pumpOutput() cannot advance the sequence space.
+         */
         return;
     }
     if (sessionEstablished &&
@@ -790,9 +1359,9 @@ void WebHidService::process()
 
     updateTelemetry();
     pumpOutput();
-    if (WebSocketCommandHandler::needReboot &&
+    if (DeviceCommandHandler::needReboot &&
         static_cast<int32_t>(
-            HAL_GetTick() - WebSocketCommandHandler::rebootTick) >= 0) {
+            HAL_GetTick() - DeviceCommandHandler::rebootTick) >= 0) {
         MainRuntime_RequestReset();
     }
 }
@@ -809,9 +1378,7 @@ bool WebHidService::processReport(
     if (report.version != WEBHID_PROTOCOL_VERSION ||
         report.payload_length > WEBHID_REPORT_PAYLOAD_BYTES ||
         (report.flags & ~kKnownFrameFlags) != 0u ||
-        report.sequence_le == 0u ||
-        (lastRxSequence != 0u &&
-         report.sequence_le != lastRxSequence + 1u)) {
+        report.sequence_le == 0u) {
         return false;
     }
     for (uint8_t index = report.payload_length;
@@ -823,6 +1390,34 @@ bool WebHidService::processReport(
     }
     secure =
         (report.flags & WEBHID_REPORT_FLAG_ENCRYPTED) != 0u;
+    /*
+     * A browser that disappeared cannot send session.end, so a later page
+     * starts at cleartext bootstrap sequence 1 while the old encrypted
+     * session is still resident. Treat that structurally valid first frame as
+     * an explicit local session takeover: discard the old keys and logical
+     * queues, but keep the CH585 endpoint queues intact so the host's current
+     * HID sendReport() is allowed to complete. Resetting the physical board
+     * link here would CLEAR_FAULT the very OUT transfer carrying this frame,
+     * leaving Windows WebHID pending forever.
+     */
+    if (!secure &&
+        report.type == WEBHID_REPORT_BOOTSTRAP_REQUEST &&
+        report.sequence_le == 1u &&
+        allZero(report.tag, sizeof(report.tag))) {
+        /*
+         * Sequence one is the generation boundary in every cleartext state,
+         * including a lost public-info/attestation response, waitingForPermit,
+         * sessionActivationPending and an established stale session. Reports
+         * already queued behind it belong to this same new generation. Keep
+         * them as well as the physical endpoint; otherwise a fragmented
+         * attestation request loses sequences 2..N.
+         */
+        resetSession(true, false, false);
+    }
+    if (lastRxSequence != 0u &&
+        report.sequence_le != lastRxSequence + 1u) {
+        return false;
+    }
     if (secure != sessionEstablished) {
         return false;
     }
@@ -883,46 +1478,114 @@ bool WebHidService::acceptLogicalFragment(
         assembler.active = true;
         assembler.type = type;
         assembler.secure = secure;
-        assembler.bytes.clear();
-        assembler.bytes.reserve(kMaximumLogicalBytes);
+        assembler.discardingOversize = false;
+        assembler.errorTransactionId = 0u;
+        assembler.length = 0u;
     } else if (!fragmented || assembler.type != type ||
                assembler.secure != secure) {
         return false;
     }
-    if (length > kMaximumLogicalBytes -
-                     assembler.bytes.size()) {
-        return false;
+    if (assembler.discardingOversize) {
+        if (!last) {
+            return true;
+        }
+        const uint32_t transactionId =
+            assembler.errorTransactionId;
+        const bool wasSecure = assembler.secure;
+        if (assembler.length != 0u) {
+            HBoxCrypto_Zeroize(
+                assembler.bytes.data(), assembler.length + 1u);
+        }
+        assembler.active = false;
+        assembler.discardingOversize = false;
+        assembler.errorTransactionId = 0u;
+        assembler.length = 0u;
+        return wasSecure
+            ? sendRpcResult(
+                  transactionId,
+                  413,
+                  nullptr,
+                  "Logical request exceeds the 16 KiB limit")
+            : sendResponse(
+                  WEBHID_REPORT_BOOTSTRAP_RESPONSE,
+                  false,
+                  transactionId,
+                  413,
+                  nullptr,
+                  "Bootstrap request exceeds the 16 KiB limit");
     }
-    assembler.bytes.insert(
-        assembler.bytes.end(), payload, payload + length);
+    if (length > kMaximumLogicalBytes - assembler.length) {
+        const size_t remaining =
+            kMaximumLogicalBytes - assembler.length;
+        if (remaining != 0u) {
+            memcpy(assembler.bytes.data() + assembler.length,
+                   payload,
+                   remaining);
+            assembler.length += remaining;
+        }
+        assembler.bytes[assembler.length] = 0u;
+        (void)extractTransactionId(
+            assembler.bytes.data(),
+            assembler.length,
+            assembler.errorTransactionId);
+        assembler.discardingOversize = true;
+        if (!last) {
+            return true;
+        }
+        const uint32_t transactionId =
+            assembler.errorTransactionId;
+        const bool wasSecure = assembler.secure;
+        HBoxCrypto_Zeroize(
+            assembler.bytes.data(), assembler.length + 1u);
+        assembler.active = false;
+        assembler.discardingOversize = false;
+        assembler.errorTransactionId = 0u;
+        assembler.length = 0u;
+        return wasSecure
+            ? sendRpcResult(
+                  transactionId,
+                  413,
+                  nullptr,
+                  "Logical request exceeds the 16 KiB limit")
+            : sendResponse(
+                  WEBHID_REPORT_BOOTSTRAP_RESPONSE,
+                  false,
+                  transactionId,
+                  413,
+                  nullptr,
+                  "Bootstrap request exceeds the 16 KiB limit");
+    }
+    memcpy(assembler.bytes.data() + assembler.length,
+           payload,
+           length);
+    assembler.length += length;
     if (fragmented && !last) {
         return true;
     }
-    std::vector<uint8_t> complete;
-    complete.swap(assembler.bytes);
+    const size_t completeLength = assembler.length;
+    assembler.bytes[completeLength] = 0u;
     assembler.active = false;
     const bool result =
-        secure ? processSecureRpc(complete)
-               : processBootstrap(complete);
-    if (!complete.empty()) {
-        HBoxCrypto_Zeroize(complete.data(), complete.size());
-    }
+        secure ? processSecureRpc(assembler.bytes.data(), completeLength)
+               : processBootstrap(assembler.bytes.data(), completeLength);
+    HBoxCrypto_Zeroize(
+        assembler.bytes.data(), completeLength + 1u);
+    assembler.length = 0u;
     return result;
 }
 
 bool WebHidService::processBootstrap(
-    const std::vector<uint8_t> &message)
+    const uint8_t *message,
+    size_t length)
 {
-    if (message.empty() ||
-        message.size() > kMaximumLogicalBytes ||
-        std::find(message.begin(), message.end(), 0u) !=
-            message.end()) {
+    if (message == nullptr || length == 0u ||
+        length > kMaximumLogicalBytes ||
+        std::find(message, message + length, 0u) !=
+            message + length) {
         return false;
     }
-    std::vector<char> json(message.begin(), message.end());
-    json.push_back('\0');
-    cJSON *root = cJSON_Parse(json.data());
-    HBoxCrypto_Zeroize(json.data(), json.size());
+    cJSON *root = cJSON_Parse(
+        reinterpret_cast<const char *>(message));
     if (root == nullptr || !cJSON_IsObject(root)) {
         cJSON_Delete(root);
         return false;
@@ -1544,19 +2207,18 @@ bool WebHidService::installSessionKeys(
 }
 
 bool WebHidService::processSecureRpc(
-    const std::vector<uint8_t> &message)
+    const uint8_t *message,
+    size_t length)
 {
     if (!sessionEstablished ||
-        message.empty() ||
-        message.size() > kMaximumLogicalBytes ||
-        std::find(message.begin(), message.end(), 0u) !=
-            message.end()) {
+        message == nullptr || length == 0u ||
+        length > kMaximumLogicalBytes ||
+        std::find(message, message + length, 0u) !=
+            message + length) {
         return false;
     }
-    std::vector<char> json(message.begin(), message.end());
-    json.push_back('\0');
-    cJSON *root = cJSON_Parse(json.data());
-    HBoxCrypto_Zeroize(json.data(), json.size());
+    cJSON *root = cJSON_Parse(
+        reinterpret_cast<const char *>(message));
     if (root == nullptr || !cJSON_IsObject(root)) {
         cJSON_Delete(root);
         return false;
@@ -1597,6 +2259,7 @@ bool WebHidService::processSecureRpc(
     const bool cleanupFirmware =
         command == "cleanup_firmware_upgrade_session";
     const char *firmwareSessionId = nullptr;
+    std::array<char, 33u> firmwareSessionIdStorage = {};
     if (createFirmware || completeFirmware || uploadFirmware ||
         abortFirmware || statusFirmware || cleanupFirmware) {
         cJSON *sessionItem = params == nullptr
@@ -1606,6 +2269,13 @@ bool WebHidService::processSecureRpc(
         if (cJSON_IsString(sessionItem) &&
             sessionItem->valuestring != nullptr) {
             firmwareSessionId = sessionItem->valuestring;
+            const size_t sessionLength = strlen(firmwareSessionId);
+            if (sessionLength < firmwareSessionIdStorage.size()) {
+                memcpy(firmwareSessionIdStorage.data(),
+                       firmwareSessionId,
+                       sessionLength + 1u);
+                firmwareSessionId = firmwareSessionIdStorage.data();
+            }
         }
     }
     if (createFirmware) {
@@ -1653,20 +2323,33 @@ bool WebHidService::processSecureRpc(
 
     WebHidRpcResult dispatched =
         WEBHID_RPC_DISPATCHER.dispatch(root, grantedScopes);
-    if (dispatched.json.empty()) {
+    if (dispatched.json == nullptr || dispatched.jsonLength == 0u) {
+        WEBHID_RPC_DISPATCHER.clearSerializedResponse();
         cJSON_Delete(root);
         return sendRpcResult(
             transactionId,
-            500,
+            dispatched.error > 0 ? dispatched.error : 500,
             nullptr,
-            "RPC dispatcher did not return a response");
+            dispatched.failureMessage != nullptr
+                ? dispatched.failureMessage
+                : "RPC dispatcher did not return a response");
     }
-    result = sendJson(
-        WEBHID_REPORT_SECURE_RESPONSE,
-        dispatched.json,
-        true);
+    const bool responseOversized =
+        dispatched.jsonLength > kMaximumLogicalBytes;
+    result = responseOversized
+        ? sendRpcResult(
+              transactionId,
+              413,
+              nullptr,
+              "RPC response exceeds the 16 KiB limit")
+        : sendLogical(
+              WEBHID_REPORT_SECURE_RESPONSE,
+              reinterpret_cast<const uint8_t *>(dispatched.json),
+              dispatched.jsonLength,
+              true);
+    WEBHID_RPC_DISPATCHER.clearSerializedResponse();
     const bool explicitSuccess =
-        rpcExplicitSuccess(dispatched);
+        !responseOversized && dispatched.explicitSuccess;
     if (createFirmware) {
         if (result && explicitSuccess) {
             strncpy(
@@ -1684,8 +2367,14 @@ bool WebHidService::processSecureRpc(
                     firmwareSessionId);
             }
         }
-    } else if ((completeFirmware || abortFirmware ||
-                cleanupFirmware) &&
+    /*
+     * Keep the exact session authorization after a successful COMPLETE until
+     * the scheduled reset/session teardown. If the encrypted response is lost,
+     * the host can retry and reach FirmwareManager's idempotent COMPLETED path.
+     * Abort and cleanup are the only explicit terminal commands that revoke it
+     * immediately.
+     */
+    } else if ((abortFirmware || cleanupFirmware) &&
                explicitSuccess) {
         clearFirmwareAuthorization(false);
     }
@@ -1829,7 +2518,7 @@ bool WebHidService::handleSpecialRpc(
                 "config.read scope required");
         }
         /*
-         * The legacy WebSocket command publishes every profile
+         * The legacy DeviceCommand command publishes every profile
          * synchronously. That cannot provide bounded backpressure over a
          * 64-byte HID transport. The hosted client performs the equivalent
          * get_* RPCs sequentially and synthesizes the legacy section events.
@@ -1848,6 +2537,8 @@ bool WebHidService::handleBinaryExchange(
     uint32_t transactionId,
     void *opaqueParams)
 {
+    /* A rejected exchange must never inherit or leave a capture transaction. */
+    clearBinaryCapture();
     cJSON *params = static_cast<cJSON *>(opaqueParams);
     cJSON *encoding = params == nullptr
         ? nullptr
@@ -1871,6 +2562,13 @@ bool WebHidService::handleBinaryExchange(
     }
 
     const uint8_t opcode = binary[0];
+    if (!binaryRequestShapeValid(binary.data(), binary.size())) {
+        return sendRpcResult(
+            transactionId,
+            400,
+            nullptr,
+            "Invalid binary.exchange command shape");
+    }
     const uint32_t requiredScope =
         binaryOpcodeScope(opcode);
     if (requiredScope == 0u ||
@@ -1886,10 +2584,6 @@ bool WebHidService::handleBinaryExchange(
             nullptr,
             "Binary opcode scope denied");
     }
-
-    capturedBinary.clear();
-    captureBinary = true;
-    bool operationSucceeded = true;
     if (opcode == BINARY_CMD_UPLOAD_FIRMWARE_CHUNK) {
         if (!firmwareAuthorizationValid(
                 nullptr, binary.data(), binary.size())) {
@@ -1899,50 +2593,55 @@ bool WebHidService::handleBinaryExchange(
                 nullptr,
                 "Firmware chunk does not match the confirmed session");
         }
-        operationSucceeded =
-            FirmwareCommandHandler::getInstance()
-                .handleBinaryFirmwareChunk(
-                    binary.data(), binary.size(), nullptr);
+    }
+
+    captureBinary = true;
+    bool handlerResultKnown = false;
+    bool handlerSucceeded = true;
+    if (opcode == BINARY_CMD_UPLOAD_FIRMWARE_CHUNK) {
+        handlerResultKnown = true;
+        handlerSucceeded = FirmwareCommandHandler::getInstance()
+            .handleBinaryFirmwareChunk(
+                binary.data(), binary.size());
     } else {
         UserImageCommandHandler::handleBinaryMessage(
-            nullptr, binary.data(), binary.size());
+            binary.data(), binary.size());
     }
     captureBinary = false;
-    if (capturedBinary.empty() ||
-        capturedBinary.size() > kMaximumStreamBytes) {
-        capturedBinary.clear();
+
+    BinaryAckStatus ackStatus = BinaryAckStatus::ProtocolError;
+    cJSON *response = captureBinaryInvalid
+        ? nullptr
+        : createBinaryAckData(
+              binary.data(),
+              binary.size(),
+              capturedBinary.data(),
+              capturedBinary.size(),
+              handlerResultKnown,
+              handlerSucceeded,
+              false,
+              ackStatus);
+    clearBinaryCapture();
+    if (response == nullptr ||
+        ackStatus == BinaryAckStatus::ProtocolError) {
+        cJSON_Delete(response);
         return sendRpcResult(
             transactionId,
             502,
             nullptr,
-            "Binary handler returned no bounded response");
+            "Binary handler returned an invalid or uncorrelated response");
     }
-    if (capturedBinary.size() > 1u &&
-        capturedBinary[1] == 0u) {
-        operationSucceeded = false;
-    }
-    if (!operationSucceeded) {
-        capturedBinary.clear();
-        return sendRpcResult(
-            transactionId,
-            422,
-            nullptr,
-            "Binary operation was rejected");
-    }
-
-    const std::string encoded = encodeBase64(
-        capturedBinary.data(), capturedBinary.size());
-    capturedBinary.clear();
-    cJSON *response = cJSON_CreateObject();
-    if (response == nullptr || encoded.empty()) {
-        cJSON_Delete(response);
-        return false;
-    }
-    cJSON_AddStringToObject(response, "encoding", "base64");
-    cJSON_AddStringToObject(
-        response, "data", encoded.c_str());
-    const bool result =
-        sendRpcResult(transactionId, 0, response);
+    /*
+     * A correlated negative ACK is a valid application result, just like the
+     * stream-complete path below.  Keep it inside the typed ACK with a
+     * successful RPC envelope. Only malformed or unrelated responses use the
+     * 502 protocol-failure path above.
+     */
+    const bool result = sendRpcResult(
+        transactionId,
+        0,
+        response,
+        nullptr);
     cJSON_Delete(response);
     return result;
 }
@@ -1972,12 +2671,19 @@ bool WebHidService::handleStreamRpc(
                 ? streamTypeForName(streamItem->valuestring)
                 : 0u;
         const uint32_t required = streamScope(streamType);
+        const bool lengthValid = parseU32(lengthItem, expectedLength);
+        if (lengthValid && expectedLength > kMaximumStreamBytes) {
+            return sendRpcResult(
+                transactionId,
+                413,
+                nullptr,
+                "Stream payload exceeds the 8 KiB limit");
+        }
         if (stream.active ||
             streamType == 0u ||
             required == 0u ||
-            !parseU32(lengthItem, expectedLength) ||
+            !lengthValid ||
             expectedLength == 0u ||
-            expectedLength > kMaximumStreamBytes ||
             !cJSON_IsString(hashItem) ||
             !decodeBase64(
                 hashItem->valuestring, hash, 32u, false) ||
@@ -2002,7 +2708,7 @@ bool WebHidService::handleStreamRpc(
                 nullptr,
                 "Stream identifier generation failed");
         }
-        stream = StreamState{};
+        clearStream();
         stream.active = true;
         stream.type = streamType;
         stream.transferId = transferId;
@@ -2011,11 +2717,10 @@ bool WebHidService::handleStreamRpc(
         memcpy(stream.expectedHash.data(),
                hash.data(),
                stream.expectedHash.size());
-        stream.bytes.reserve(expectedLength);
 
         cJSON *response = cJSON_CreateObject();
         if (response == nullptr) {
-            stream = StreamState{};
+            clearStream();
             return false;
         }
         cJSON_AddNumberToObject(
@@ -2055,7 +2760,7 @@ bool WebHidService::handleStreamRpc(
         return result;
     }
     if (command == "stream.abort") {
-        stream = StreamState{};
+        clearStream();
         cJSON *response = cJSON_CreateObject();
         if (response == nullptr) {
             return false;
@@ -2082,10 +2787,9 @@ bool WebHidService::handleStreamRpc(
             32u,
             false) ||
         stream.received != stream.expectedLength ||
-        stream.bytes.size() != stream.expectedLength ||
         HBoxCrypto_Sha256(
             stream.bytes.data(),
-            stream.bytes.size(),
+            stream.received,
             actualHash) != 0 ||
         !constantTimeEqual(
             requestedHash.data(),
@@ -2096,7 +2800,7 @@ bool WebHidService::handleStreamRpc(
             stream.expectedHash.data(),
             32u)) {
         HBoxCrypto_Zeroize(actualHash, sizeof(actualHash));
-        stream = StreamState{};
+        clearStream();
         return sendRpcResult(
             transactionId,
             422,
@@ -2106,69 +2810,100 @@ bool WebHidService::handleStreamRpc(
     HBoxCrypto_Zeroize(actualHash, sizeof(actualHash));
 
     const uint8_t completedType = stream.type;
-    std::vector<uint8_t> completed;
-    completed.swap(stream.bytes);
-    stream = StreamState{};
-    bool succeeded = true;
+    const size_t completedLength = stream.received;
+    uint8_t *const completed = stream.bytes.data();
+    completed[completedLength] = 0u;
     if (completedType == 1u ||
-        completedType == 2u ||
-        completedType == 0x7Fu) {
-        if (completed.empty()) {
-            succeeded = false;
-        } else {
-            capturedBinary.clear();
-            captureBinary = true;
-            if (completedType == 1u &&
-                completed[0] ==
-                    BINARY_CMD_UPLOAD_FIRMWARE_CHUNK) {
-                succeeded =
-                    firmwareAuthorizationValid(
-                        nullptr,
-                        completed.data(),
-                        completed.size()) &&
-                    FirmwareCommandHandler::getInstance()
-                        .handleBinaryFirmwareChunk(
-                            completed.data(),
-                            completed.size(),
-                            nullptr);
-            } else if (
-                completed[0] !=
-                    BINARY_CMD_UPLOAD_FIRMWARE_CHUNK &&
-                binaryOpcodeScope(completed[0]) != 0u &&
-                ((completedType == 2u &&
-                  binaryOpcodeScope(completed[0]) ==
-                      HBOX_SCOPE_ASSET_WRITE) ||
-                 completedType == 0x7Fu)) {
-                succeeded = hasScope(
-                    binaryOpcodeScope(completed[0]));
-                if (succeeded) {
-                    UserImageCommandHandler::handleBinaryMessage(
-                        nullptr,
-                        completed.data(),
-                        completed.size());
-                }
-            } else {
-                succeeded = false;
-            }
-            captureBinary = false;
-            succeeded =
-                succeeded &&
-                capturedBinary.size() > 1u &&
-                capturedBinary.size() <= kMaximumStreamBytes &&
-                capturedBinary[1] != 0u;
-            capturedBinary.clear();
+        completedType == 2u) {
+        const uint8_t opcode = completedLength == 0u
+            ? 0u
+            : completed[0];
+        const uint32_t requiredScope = binaryOpcodeScope(opcode);
+        const bool firmwareStream =
+            completedType == 1u &&
+            opcode == BINARY_CMD_UPLOAD_FIRMWARE_CHUNK;
+        const bool imageStream =
+            completedType == 2u && opcode == kImageChunkOpcode;
+        const bool requestAccepted =
+            binaryRequestShapeValid(completed, completedLength) &&
+            (firmwareStream || imageStream) &&
+            hasScope(requiredScope) &&
+            (!firmwareStream ||
+             firmwareAuthorizationValid(
+                 nullptr, completed, completedLength));
+        if (!requestAccepted) {
+            clearStream();
+            clearBinaryCapture();
+            return sendRpcResult(
+                transactionId,
+                422,
+                nullptr,
+                "Stream consumer rejected the command envelope");
         }
-    } else if (completedType == 3u) {
+
+        clearBinaryCapture();
+        captureBinary = true;
+        bool handlerResultKnown = false;
+        bool handlerSucceeded = true;
+        if (firmwareStream) {
+            handlerResultKnown = true;
+            handlerSucceeded = FirmwareCommandHandler::getInstance()
+                .handleBinaryFirmwareChunk(
+                    completed, completedLength);
+        } else {
+            UserImageCommandHandler::handleBinaryMessage(
+                completed, completedLength);
+        }
+        captureBinary = false;
+
+        BinaryAckStatus ackStatus = BinaryAckStatus::ProtocolError;
+        cJSON *response = captureBinaryInvalid
+            ? nullptr
+            : createBinaryAckData(
+                  completed,
+                  completedLength,
+                  capturedBinary.data(),
+                  capturedBinary.size(),
+                  handlerResultKnown,
+                  handlerSucceeded,
+                  true,
+                  ackStatus);
+        clearBinaryCapture();
+        clearStream();
+        if (response == nullptr ||
+            ackStatus == BinaryAckStatus::ProtocolError) {
+            cJSON_Delete(response);
+            return sendRpcResult(
+                transactionId,
+                502,
+                nullptr,
+                "Stream consumer returned an invalid or uncorrelated ACK");
+        }
+        /*
+         * A correlated negative ACK is an application result, not a transport
+         * failure. Preserve its typed fields for the client so it can stop or
+         * restart the upgrade deterministically. Only malformed or
+         * uncorrelated ACKs take the 502 protocol-failure path above.
+         */
+        const bool result = sendRpcResult(
+            transactionId,
+            0,
+            response,
+            nullptr);
+        cJSON_Delete(response);
+        return result;
+    }
+
+    bool succeeded = true;
+    if (completedType == 3u) {
         if (!hasScope(HBOX_SCOPE_CONFIG_WRITE) ||
-            completed.empty() ||
-            std::find(completed.begin(), completed.end(), 0u) !=
-                completed.end()) {
+            completedLength == 0u ||
+            std::find(completed, completed + completedLength, 0u) !=
+                completed + completedLength) {
             succeeded = false;
         } else {
-            std::vector<char> imported(
-                completed.begin(), completed.end());
-            imported.push_back('\0');
-            cJSON *config = cJSON_Parse(imported.data());
+            cJSON *config = cJSON_Parse(
+                reinterpret_cast<const char *>(completed));
             cJSON *request = cJSON_CreateObject();
             if (config == nullptr ||
                 !cJSON_IsObject(config) ||
@@ -2180,11 +2915,13 @@ bool WebHidService::handleStreamRpc(
                 cJSON_AddStringToObject(
                     request, "command", "import_all_config");
                 cJSON_AddItemToObject(
-                    request, "params", cJSON_Duplicate(config, 1));
+                    request, "params", config);
+                config = nullptr;
                 WebHidRpcResult dispatched =
                     WEBHID_RPC_DISPATCHER.dispatch(
                         request, grantedScopes);
                 succeeded = dispatched.error == 0;
+                WEBHID_RPC_DISPATCHER.clearSerializedResponse();
             }
             cJSON_Delete(request);
             cJSON_Delete(config);
@@ -2192,6 +2929,7 @@ bool WebHidService::handleStreamRpc(
     } else {
         succeeded = false;
     }
+    clearStream();
     if (!succeeded) {
         return sendRpcResult(
             transactionId,
@@ -2240,11 +2978,11 @@ bool WebHidService::processStreamFragment(
             stream.expectedLength) {
         return false;
     }
-    stream.bytes.insert(
-        stream.bytes.end(),
-        &payload[kHeaderBytes],
-        &payload[kHeaderBytes + dataLength]);
+    memcpy(stream.bytes.data() + stream.received,
+           &payload[kHeaderBytes],
+           dataLength);
     stream.received += dataLength;
+    stream.bytes[stream.received] = 0u;
     --stream.remainingCredit;
     return true;
 }
@@ -2274,8 +3012,20 @@ bool WebHidService::sendLogical(
      */
     message.telemetryPreemptible =
         secure && length > kControlBurstBytes;
+    message.start = outboundWriteOffset;
+    message.length = length;
     if (length != 0u) {
-        message.bytes.assign(data, data + length);
+        const size_t first = std::min(
+            length,
+            outboundStorage.size() - outboundWriteOffset);
+        memcpy(&outboundStorage[outboundWriteOffset], data, first);
+        if (first < length) {
+            memcpy(outboundStorage.data(),
+                   data + first,
+                   length - first);
+        }
+        outboundWriteOffset =
+            (outboundWriteOffset + length) % outboundStorage.size();
     }
     outboundQueuedBytes += length;
     outboundQueue.emplace_back(std::move(message));
@@ -2314,7 +3064,6 @@ bool WebHidService::sendFrame(
          type != WEBHID_REPORT_BOOTSTRAP_RESPONSE)) {
         return false;
     }
-
     webhid_secure_report_v1_t report = {};
     report.version = WEBHID_PROTOCOL_VERSION;
     report.type = type;
@@ -2368,20 +3117,50 @@ bool WebHidService::sendResponse(
     cJSON_AddNumberToObject(
         root, "transactionId", transactionId);
     cJSON_AddNumberToObject(root, "errNo", error);
-    cJSON_AddItemToObject(
-        root,
-        "data",
-        data == nullptr
-            ? cJSON_CreateObject()
-            : cJSON_Duplicate(data, 1));
+    if (data == nullptr) {
+        cJSON *emptyData = cJSON_CreateObject();
+        if (emptyData == nullptr ||
+            !cJSON_AddItemToObject(root, "data", emptyData)) {
+            cJSON_Delete(emptyData);
+            cJSON_Delete(root);
+            return false;
+        }
+    } else if (!cJSON_AddItemReferenceToObject(root, "data", data)) {
+        cJSON_Delete(root);
+        return false;
+    }
     if (message != nullptr) {
         cJSON_AddStringToObject(
             root, "errorMessage", message);
     }
-    const std::string encoded = jsonToString(root);
+    responseScratch.fill('\0');
+    const bool encoded = cJSON_PrintPreallocated(
+        root,
+        responseScratch.data(),
+        responseScratch.size(),
+        false);
     cJSON_Delete(root);
-    return !encoded.empty() &&
-           sendJson(type, encoded, secure);
+    const size_t encodedLength = encoded
+        ? strlen(responseScratch.data())
+        : 0u;
+    if (!encoded || encodedLength == 0u ||
+        encodedLength > kMaximumLogicalBytes) {
+        if (error == 413) {
+            return false;
+        }
+        return sendResponse(
+            type,
+            secure,
+            transactionId,
+            413,
+            nullptr,
+            "Response exceeds the 16 KiB limit");
+    }
+    return sendLogical(
+        type,
+        reinterpret_cast<const uint8_t *>(responseScratch.data()),
+        encodedLength,
+        secure);
 }
 
 bool WebHidService::sendRpcResult(
@@ -2419,28 +3198,16 @@ bool WebHidService::hasScope(uint32_t scope) const
            (grantedScopes & scope) == scope;
 }
 
-bool WebHidService::outputPacingReady() const
-{
-    return nextOutputAtMs == 0u ||
-           static_cast<int32_t>(
-               HAL_GetTick() - nextOutputAtMs) >= 0;
-}
-
-void WebHidService::markOutputSent()
-{
-    nextOutputAtMs = HAL_GetTick() + kFramePacingMs;
-}
-
 bool WebHidService::pumpLogicalOutput()
 {
-    if (outboundQueue.empty() || !outputPacingReady()) {
+    if (outboundQueue.empty()) {
         return false;
     }
     OutboundLogical &message = outboundQueue.front();
     if (message.secure && !sessionEstablished) {
         return false;
     }
-    const size_t total = message.bytes.size();
+    const size_t total = message.length;
     const size_t remaining =
         total > message.offset ? total - message.offset : 0u;
     const uint8_t fragmentLength =
@@ -2458,17 +3225,30 @@ bool WebHidService::pumpLogicalOutput()
     if (last) {
         flags |= WEBHID_REPORT_FLAG_LAST;
     }
+    std::array<uint8_t, WEBHID_REPORT_PAYLOAD_BYTES> fragment = {};
+    if (fragmentLength != 0u) {
+        const size_t source =
+            (message.start + message.offset) % outboundStorage.size();
+        const size_t first = std::min(
+            static_cast<size_t>(fragmentLength),
+            outboundStorage.size() - source);
+        memcpy(fragment.data(), &outboundStorage[source], first);
+        if (first < fragmentLength) {
+            memcpy(fragment.data() + first,
+                   outboundStorage.data(),
+                   fragmentLength - first);
+        }
+    }
     if (!sendFrame(
             message.type,
             flags,
             fragmentLength == 0u
                 ? nullptr
-                : &message.bytes[message.offset],
+                : fragment.data(),
             fragmentLength,
             message.secure)) {
         return false;
     }
-    markOutputSent();
     message.offset += fragmentLength;
     if (!last) {
         return true;
@@ -2476,11 +3256,13 @@ bool WebHidService::pumpLogicalOutput()
 
     const bool activateSession = message.activateSession;
     const bool endSession = message.endSession;
-    outboundQueuedBytes -= message.bytes.size();
-    if (!message.bytes.empty()) {
-        HBoxCrypto_Zeroize(
-            message.bytes.data(), message.bytes.size());
+    outboundQueuedBytes -= message.length;
+    for (size_t index = 0u; index < message.length; ++index) {
+        outboundStorage[(message.start + index) %
+                        outboundStorage.size()] = 0u;
     }
+    outboundReadOffset =
+        (message.start + message.length) % outboundStorage.size();
     outboundQueue.pop_front();
     if (activateSession) {
         sessionActivationPending = false;
@@ -2489,7 +3271,8 @@ bool WebHidService::pumpLogicalOutput()
         sessionEstablished = true;
     }
     if (endSession) {
-        resetSession(true);
+        /* The ACK is already owned by the board-link credit generation. */
+        resetSession(true, false);
     }
     return true;
 }
@@ -2507,7 +3290,9 @@ bool WebHidService::queueOneEvent()
         WEBHID_REPORT_SECURE_EVENT, event, true);
     std::fill(event.begin(), event.end(), '\0');
     if (!queued) {
-        resetSession(true);
+        if (droppedEventCount != UINT32_MAX) {
+            ++droppedEventCount;
+        }
     }
     return queued;
 }
@@ -2539,10 +3324,23 @@ void WebHidService::onAdcButtonTransition(
     if (button == nullptr) {
         return;
     }
-    if (edgeCount >= kEdgeQueueDepth ||
-        edgeSequence == UINT32_MAX) {
+    if (edgeSequence == UINT32_MAX) {
         telemetryOverflow = true;
         return;
+    }
+    if (edgeCount >= kEdgeQueueDepth) {
+        /* Preserve the newest edge and report the discontinuity in the next
+         * checkpoint instead of invalidating the WebHID session. */
+        HBoxCrypto_Zeroize(&edgeQueue[edgeHead], sizeof(PerfEdge));
+        edgeHead = (edgeHead + 1u) % kEdgeQueueDepth;
+        --edgeCount;
+        telemetryOverflow = true;
+        if (totalDroppedSamples != UINT32_MAX) {
+            ++totalDroppedSamples;
+        }
+        if (droppedSamples != UINT8_MAX) {
+            ++droppedSamples;
+        }
     }
 
     PerfEdge &edge = edgeQueue[edgeTail];
@@ -2776,8 +3574,8 @@ void WebHidService::updateTelemetry()
         return;
     }
     if (telemetryOverflow) {
-        resetSession(true);
-        return;
+        telemetryOverflow = false;
+        requestCheckpoint();
     }
     const uint32_t timestampUs = monotonicMicros();
     const uint32_t now = HAL_GetTick();
@@ -2822,7 +3620,7 @@ void WebHidService::updateTelemetry()
 
 void WebHidService::pumpOutput()
 {
-    if (!initialized || !outputPacingReady()) {
+    if (!initialized) {
         return;
     }
     const bool longResponseMayYield =
@@ -2837,22 +3635,17 @@ void WebHidService::pumpOutput()
         return;
     }
     if (edgeCount != 0u) {
-        if (sendOneEdge()) {
-            markOutputSent();
-        }
+        (void)sendOneEdge();
         return;
     }
     if (samplePending) {
         if (sendLatestSample(sampleTimestampUs)) {
             samplePending = false;
-            markOutputSent();
         }
         return;
     }
     if (checkpointActive) {
-        if (sendCheckpointChunk()) {
-            markOutputSent();
-        }
+        (void)sendCheckpointChunk();
         return;
     }
     if (!outboundQueue.empty()) {

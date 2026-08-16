@@ -92,6 +92,10 @@ ADCBtnsWorker::~ADCBtnsWorker()
 
 ADCBtnsError ADCBtnsWorker::setup()
 {
+    virtualPinMask = 0u;
+    enabledKeysMask = 0u;
+    buttonTriggerStatusChanged = false;
+
     std::string id = ADC_MANAGER.getDefaultMapping();
     if (id.empty())
     {
@@ -112,13 +116,17 @@ ADCBtnsError ADCBtnsWorker::setup()
     {
         return ADCBtnsError::MAPPING_NOT_FOUND;
     }
+    if (mapping->length < 2u || mapping->length > MAX_ADC_VALUES_LENGTH)
+    {
+        return ADCBtnsError::MAPPING_INVALID_RANGE;
+    }
 
     // 初始化启用按键掩码
     const bool *enabledKeys = profile->keysConfig.keysEnableTag;
     enabledKeysMask = 0;
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++)
     {
-        enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
+        enabledKeysMask |= (enabledKeys[i] ? (1u << i) : 0u);
     }
 
     this->mapping = mapping;
@@ -168,7 +176,8 @@ ADCBtnsError ADCBtnsWorker::setup()
         buttonPtrs[i]->halfwayDistanceMm = totalTravelMm / 2.0f;
 
         // 根据校准模式初始化按键映射
-        uint16_t topValue, bottomValue;
+        uint16_t topValue = 0u;
+        uint16_t bottomValue = 0u;
         ADCBtnsError calibrationResult = ADC_MANAGER.getCalibrationValues(id.c_str(), i, isAutoCalibrationEnabled, topValue, bottomValue);
 
         if (calibrationResult == ADCBtnsError::SUCCESS && topValue != 0 && bottomValue != 0)
@@ -182,32 +191,36 @@ ADCBtnsError ADCBtnsWorker::setup()
         }
         else
         {
-            APP_ERR("adc_btns_worker::setup calibration failed, buttonIndex: %d, topValue: %d, bottomValue: %d", i, topValue, bottomValue);
-            // 这里需要等待第一次ADC读取来初始化
-            buttonPtrs[i]->initCompleted = false;
-            // 清空映射数组
-            memset(buttonPtrs[i]->valueMapping, 0, this->mapping->length * sizeof(uint16_t));
-            memset(buttonPtrs[i]->calibratedMapping, 0, this->mapping->length * sizeof(uint16_t));
+            const uint32_t released = mapping->originalValues[mapping->length - 1u];
+            const uint32_t pressed = mapping->originalValues[0];
+            if (released > 0u && released <= UINT16_MAX &&
+                pressed > 0u && pressed <= UINT16_MAX && released != pressed) {
+                /* A marked mapping is a safe identity fallback until the
+                 * per-key calibration has been captured. */
+                generateCalibratedMapping(buttonPtrs[i],
+                                           static_cast<uint16_t>(released),
+                                           static_cast<uint16_t>(pressed));
+                buttonPtrs[i]->initCompleted = true;
+                APP_DBG("ADC button %u uses marked mapping fallback", i);
+            } else {
+                APP_ERR("adc_btns_worker::setup calibration/mapping invalid, buttonIndex: %d, topValue: %d, bottomValue: %d", i, topValue, bottomValue);
+                buttonPtrs[i]->initCompleted = false;
+                memset(buttonPtrs[i]->valueMapping, 0, this->mapping->length * sizeof(uint16_t));
+                memset(buttonPtrs[i]->calibratedMapping, 0, this->mapping->length * sizeof(uint16_t));
+            }
         }
 
         buttonPtrs[i]->state = ButtonState::RELEASED; // 明确设置初始状态为释放
     }
 
-    // 根据当前模式启动采样
-    if (ADC_MANAGER.getADCMode() == ADC_MODE_INPUT_CONTINUOUS ||
-        ADC_MANAGER.getADCMode() == ADC_MODE_CONTINUOUS) {
-        ADC_MANAGER.startContinuousSampling();
-    } else {
-        // Legacy one-shot mode is triggered externally.
-    }
-
-    return ADCBtnsError::SUCCESS;
+    return ADC_MANAGER.startADCSamping(false);
 }
 
 ADCBtnsError ADCBtnsWorker::deinit()
 {
-    ADC_MANAGER.forceStopAllSampling();
-
+    virtualPinMask = 0u;
+    enabledKeysMask = 0u;
+    buttonTriggerStatusChanged = false;
     return ADCBtnsError::SUCCESS;
 }
 

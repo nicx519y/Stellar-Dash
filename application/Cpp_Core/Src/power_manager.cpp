@@ -45,8 +45,13 @@ namespace {
 constexpr uint32_t kPowerPollIntervalMs = 1000u;
 constexpr uint32_t kProfileVerifyIntervalMs = 10000u;
 constexpr uint32_t kDeviceRetryIntervalMs = 5000u;
-constexpr uint16_t kChargeInputMinimumMv = 8000u;
-constexpr uint16_t kChargeInputMaximumMv = 10000u;
+constexpr uint32_t kInitialAdcTimeoutMs = 1200u;
+constexpr uint32_t kInitialAdcPollMs = 20u;
+constexpr uint16_t kInputProfile9vThresholdMv = 7000u;
+constexpr uint16_t kCharge5vInputMinimumMv = 4200u;
+constexpr uint16_t kCharge5vInputMaximumMv = 6000u;
+constexpr uint16_t kCharge9vInputMinimumMv = 7500u;
+constexpr uint16_t kCharge9vInputMaximumMv = 10500u;
 constexpr uint16_t kLowBatteryMv = 3450u;
 constexpr uint16_t kForceSleepMv = 3200u;
 constexpr uint8_t kForceSleepConfirmCount = 3u;
@@ -57,6 +62,18 @@ constexpr uint32_t kIrqGauge = 1u << 1;
 
 static_assert(kForceSleepMv < kLowBatteryMv,
               "Low-battery warning must stay above forced sleep");
+
+BQ25895_InputProfile inputProfileForVbus(uint16_t vbus_mv)
+{
+    return vbus_mv >= kInputProfile9vThresholdMv
+               ? BQ25895_INPUT_PROFILE_9V_1P5A
+               : BQ25895_INPUT_PROFILE_5V_1P5A;
+}
+
+const char* inputProfileName(BQ25895_InputProfile profile)
+{
+    return profile == BQ25895_INPUT_PROFILE_9V_1P5A ? "9V" : "5V";
+}
 
 void enableGpioClock(GPIO_TypeDef* port)
 {
@@ -300,11 +317,39 @@ bool PowerManager::initializeDevices()
     profile_valid_ = false;
 
     I2C_HandleTypeDef* const i2c = PowerI2C_GetHandle();
-    const bool charger_ready =
+    bool charger_ready =
         BQ25895_Init(&charger_, i2c) &&
-        BQ25895_ConfigureSafeProfile(&charger_) &&
-        BQ25895_EnableContinuousAdc(&charger_) &&
-        BQ25895_VerifySafeProfile(&charger_);
+        BQ25895_EnableContinuousAdc(&charger_);
+    BQ25895_State detected_input = {};
+    bool adc_valid = false;
+    if (charger_ready) {
+        const uint32_t adc_start_ms = HAL_GetTick();
+        do {
+            if (!BQ25895_ReadState(&charger_, &detected_input)) {
+                charger_ready = false;
+                break;
+            }
+            adc_valid = detected_input.vbus_good && detected_input.vbus_mv >= 3900u;
+            if (adc_valid) {
+                break;
+            }
+            HAL_Delay(kInitialAdcPollMs);
+        } while ((uint32_t)(HAL_GetTick() - adc_start_ms) < kInitialAdcTimeoutMs);
+    }
+
+    const BQ25895_InputProfile input_profile =
+        inputProfileForVbus(adc_valid ? detected_input.vbus_mv : 0u);
+    if (charger_ready) {
+        charger_ready =
+            BQ25895_ConfigureSafeProfile(&charger_, input_profile) &&
+            BQ25895_VerifySafeProfile(&charger_);
+    }
+    APP_STAGE("P04A", "BQ25895 input profile: adc=%u vbus=%umV profile=%s IINLIM=1500mA VINDPM=%umV ready=%u",
+              adc_valid ? 1u : 0u,
+              detected_input.vbus_mv,
+              inputProfileName(input_profile),
+              input_profile == BQ25895_INPUT_PROFILE_9V_1P5A ? 8200u : 4400u,
+              charger_ready ? 1u : 0u);
     profile_valid_ = charger_ready;
 
     const bool gauge_ready =
@@ -335,6 +380,23 @@ void PowerManager::refreshSnapshot(bool clearGaugeAlert)
         gauge_ok = MAX17048_ClearAlert(&gauge_);
     }
 
+    if (charger_ok && charger_state.vbus_good) {
+        const BQ25895_InputProfile desired_profile =
+            inputProfileForVbus(charger_state.vbus_mv);
+        if (!charger_.profile_configured ||
+            charger_.input_profile != desired_profile) {
+            setChargingEnabled(false);
+            profile_valid_ =
+                BQ25895_ConfigureSafeProfile(&charger_, desired_profile) &&
+                BQ25895_VerifySafeProfile(&charger_);
+            charger_ok = charger_.online && profile_valid_;
+            APP_STAGE("P07", "BQ25895 input changed: vbus=%umV profile=%s applied=%u",
+                      charger_state.vbus_mv,
+                      inputProfileName(desired_profile),
+                      profile_valid_ ? 1u : 0u);
+        }
+    }
+
     const uint32_t now = HAL_GetTick();
     if (charger_ok &&
         (uint32_t)(now - last_profile_check_ms_) >= kProfileVerifyIntervalMs) {
@@ -342,6 +404,10 @@ void PowerManager::refreshSnapshot(bool clearGaugeAlert)
         profile_valid_ = BQ25895_VerifySafeProfile(&charger_);
         if (!profile_valid_) {
             setChargingEnabled(false);
+            profile_valid_ =
+                BQ25895_ConfigureSafeProfile(
+                    &charger_, charger_.input_profile) &&
+                BQ25895_VerifySafeProfile(&charger_);
         }
     }
 
@@ -360,11 +426,19 @@ void PowerManager::refreshSnapshot(bool clearGaugeAlert)
     if (charger_ok) {
         snapshot_.vbus_mv = charger_state.vbus_mv;
         snapshot_.charge_current_ma = charger_state.charge_current_ma;
+        snapshot_.input_current_limit_ma = charger_state.input_current_limit_ma;
+        snapshot_.input_current_regulation =
+            charger_state.input_current_regulation;
+        snapshot_.input_voltage_regulation =
+            charger_state.input_voltage_regulation;
         snapshot_.vbus_present =
             charger_state.power_good && charger_state.vbus_good;
     } else {
         snapshot_.vbus_mv = 0u;
         snapshot_.charge_current_ma = 0u;
+        snapshot_.input_current_limit_ma = 0u;
+        snapshot_.input_current_regulation = false;
+        snapshot_.input_voltage_regulation = false;
         snapshot_.vbus_present = false;
         profile_valid_ = false;
     }
@@ -382,11 +456,16 @@ void PowerManager::refreshSnapshot(bool clearGaugeAlert)
         fault_bits |= POWER_FAULT_PROFILE_INVALID;
     }
 
+    const bool safe_5v_input =
+        snapshot_.vbus_present &&
+        snapshot_.vbus_mv >= kCharge5vInputMinimumMv &&
+        snapshot_.vbus_mv <= kCharge5vInputMaximumMv;
     const bool safe_9v_input =
         snapshot_.vbus_present &&
-        snapshot_.vbus_mv >= kChargeInputMinimumMv &&
-        snapshot_.vbus_mv <= kChargeInputMaximumMv;
-    if (snapshot_.vbus_present && !safe_9v_input) {
+        snapshot_.vbus_mv >= kCharge9vInputMinimumMv &&
+        snapshot_.vbus_mv <= kCharge9vInputMaximumMv;
+    const bool safe_input = safe_5v_input || safe_9v_input;
+    if (snapshot_.vbus_present && !safe_input) {
         fault_bits |= POWER_FAULT_VBUS_OUT_OF_RANGE;
     }
     snapshot_.fault_bits = fault_bits;
@@ -395,7 +474,7 @@ void PowerManager::refreshSnapshot(bool clearGaugeAlert)
         charger_ok && BQ25895_IsFatalFault(charger_state.fault);
     const bool safe_to_charge =
         charger_ok && gauge_ok && gauge_state.valid && profile_valid_ &&
-        safe_9v_input && !fatal_charger_fault &&
+        safe_input && !fatal_charger_fault &&
         !BOARD_POWER.isSafeLatched();
     setChargingEnabled(safe_to_charge);
 

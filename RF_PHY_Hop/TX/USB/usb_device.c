@@ -4,6 +4,7 @@
 
 #include "usb_auth.h"
 #include "usb_board_link.h"
+#include "usb_net_bridge.h"
 #include "usb_profiles.h"
 #include "webhid_protocol.h"
 
@@ -20,6 +21,7 @@ static uint8_t s_webhid_head;
 static uint8_t s_webhid_tail;
 static uint8_t s_webhid_count;
 static uint8_t s_webhid_link_ready;
+static uint8_t s_webhid_report_in_flight;
 static uint8_t s_initialized;
 static uint8_t s_last_fault;
 
@@ -29,6 +31,25 @@ static void clear_webhid_queue(void)
     s_webhid_head = 0u;
     s_webhid_tail = 0u;
     s_webhid_count = 0u;
+    s_webhid_report_in_flight = 0u;
+}
+
+static uint8_t webhid_available_reports(void)
+{
+    uint8_t reserved = s_webhid_count;
+    if((s_webhid_report_in_flight != 0u) &&
+       (reserved < USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW))
+    {
+        ++reserved;
+    }
+    if(usb_net_bridge_message_active(USB_BOARD_CHANNEL_WEBCONFIG) &&
+       (reserved < USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW))
+    {
+        ++reserved;
+    }
+    return (reserved < USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW)
+        ? (uint8_t)(USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW - reserved)
+        : 0u;
 }
 
 void usb_device_transport_reset(void)
@@ -43,11 +64,15 @@ void usb_device_transport_reset(void)
 
 static void sync_webhid_link_capacity(void)
 {
+    const uint8_t mounted =
+        usb_device_hw_is_mounted() ? 1u : 0u;
+    const uint8_t suspended =
+        usb_device_hw_is_suspended() ? 1u : 0u;
     const uint8_t ready =
         (s_initialized != 0u) &&
         (s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
-        usb_device_hw_is_mounted() &&
-        !usb_device_hw_is_suspended();
+        (mounted != 0u) &&
+        (suspended == 0u);
 
     if(ready == s_webhid_link_ready)
     {
@@ -55,21 +80,26 @@ static void sync_webhid_link_capacity(void)
     }
     if(ready == 0u)
     {
-        /*
-         * STM32 destroys the encrypted session on suspend.  Keeping reports
-         * from the old transport generation would replay stale responses or
-         * edges after resume, so the CH585 must discard that queue as part of
-         * the same fail-closed transition.
-         */
-        clear_webhid_queue();
+        if((s_initialized != 0u) &&
+           (s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
+           (mounted != 0u) && (suspended != 0u))
+        {
+            /* Preserve queued and partially reassembled reports on suspend. */
+            usb_board_link_webconfig_pause();
+        }
+        else
+        {
+            clear_webhid_queue();
+            usb_board_link_webconfig_set_ready(false, 0u);
+        }
+    }
+    else
+    {
+        usb_board_link_webconfig_set_ready(
+            true,
+            webhid_available_reports());
     }
     s_webhid_link_ready = ready;
-    usb_board_link_webconfig_set_ready(
-        ready != 0u,
-        ready != 0u
-            ? (uint8_t)(USB_DEVICE_WEBHID_QUEUE_DEPTH -
-                        s_webhid_count)
-            : 0u);
 }
 
 static usb_auth_scheme_t auth_scheme_for_profile(usb_board_profile_t profile)
@@ -158,24 +188,64 @@ void usb_device_process(void)
     {
         s_telemetry_pending = 0u;
     }
-    if((s_webhid_count != 0u) && usb_device_hw_is_mounted() &&
-       usb_device_hw_send_webhid_report(
-           s_webhid_queue[s_webhid_head], WEBHID_REPORT_BYTES))
+    if((s_webhid_count != 0u) &&
+       (s_webhid_report_in_flight == 0u) &&
+       usb_device_hw_is_mounted())
     {
-        memset(s_webhid_queue[s_webhid_head],
-               0,
-               WEBHID_REPORT_BYTES);
-        s_webhid_head =
-            (uint8_t)((s_webhid_head + 1u) %
-                      USB_DEVICE_WEBHID_QUEUE_DEPTH);
-        --s_webhid_count;
         /*
-         * The complete-report credit is released only after the report is
-         * safely owned by EP1. A busy endpoint or suspend leaves the queue and
-         * its reservation untouched.
+         * Reserve generic ownership before arming EP1. The USB interrupt can
+         * complete immediately after the hardware ACK bit is set, so marking
+         * this after usb_device_hw_send_webhid_report() would race that ISR.
          */
-        usb_board_link_webconfig_report_consumed();
+        s_webhid_report_in_flight = 1u;
+        if(usb_device_hw_send_webhid_report(
+               s_webhid_queue[s_webhid_head], WEBHID_REPORT_BYTES))
+        {
+            memset(s_webhid_queue[s_webhid_head],
+                   0,
+                   WEBHID_REPORT_BYTES);
+            s_webhid_head =
+                (uint8_t)((s_webhid_head + 1u) %
+                          USB_DEVICE_WEBHID_QUEUE_DEPTH);
+            --s_webhid_count;
+        }
+        else
+        {
+            s_webhid_report_in_flight = 0u;
+        }
     }
+}
+
+void usb_device_webhid_report_complete(void)
+{
+    /*
+     * The CH585 backend calls this from usb_device_hw_process(), not the USB
+     * ISR, after a real EP1 IN completion. This keeps board-link credit/dirty
+     * bookkeeping in process context and makes duplicate DONE notifications
+     * harmless.
+     */
+    if((s_initialized == 0u) ||
+       (s_profile != USB_BOARD_PROFILE_WEB_CONFIG) ||
+       (s_webhid_report_in_flight == 0u))
+    {
+        return;
+    }
+    s_webhid_report_in_flight = 0u;
+    usb_board_link_webconfig_report_consumed();
+}
+
+bool usb_device_webhid_credit_ready(void)
+{
+    /*
+     * Check the hardware state as well as the process-context generation bit.
+     * BUS_RST and suspend update the hardware flags in the ISR before
+     * usb_device_process() can retire the old BoardLink capacity.
+     */
+    return (s_initialized != 0u) &&
+           (s_profile == USB_BOARD_PROFILE_WEB_CONFIG) &&
+           (s_webhid_link_ready != 0u) &&
+           usb_device_hw_is_mounted() &&
+           !usb_device_hw_is_suspended();
 }
 
 bool usb_device_set_profile(usb_board_profile_t profile)
@@ -227,10 +297,14 @@ bool usb_device_submit_telemetry(const uint8_t *data, uint16_t length)
 
 bool usb_device_submit_webhid_report(const uint8_t *data, uint16_t length)
 {
+    /*
+     * Reports covered by credit already advertised before suspend remain
+     * valid. Queue them in RAM while EP1 is paused so no in-flight SPI grant
+     * is revoked; usb_device_hw_send_webhid_report() gates actual USB IN.
+     */
     if((s_initialized == 0u) ||
        (s_profile != USB_BOARD_PROFILE_WEB_CONFIG) ||
        !usb_device_hw_is_mounted() ||
-       usb_device_hw_is_suspended() ||
        (data == 0) || (length != WEBHID_REPORT_BYTES) ||
        (s_webhid_count >= USB_DEVICE_WEBHID_QUEUE_DEPTH))
     {

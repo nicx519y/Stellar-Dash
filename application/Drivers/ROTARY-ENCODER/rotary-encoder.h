@@ -27,8 +27,8 @@ extern "C" {
 #endif
 
 void RotEnc_Init(void);
+void RotEnc_Tick1msFromISR(void);
 void RotEnc_Update(void);
-void RotEnc_OnEdgeIRQ(void);
 
 int16_t RotEnc_GetDelta(void);
 int8_t RotEnc_GetDetentDelta(void);

@@ -40,8 +40,8 @@ export function FirmwareContent() {
         dataIsReady,
         setFirmwareUpdating,
         firmwareUpdating,
-        wsConnected,
-        reconnectWebSocket,
+        deviceConnected,
+        reconnectDevice,
         setFinishConfigDisabled,
     } = useGamepadConfig();
     const [ch585Uploading, setCh585Uploading] = useState(false);
@@ -52,10 +52,10 @@ export function FirmwareContent() {
     const latestFirmwareUpdateLog = useMemo(() => firmwareUpdateInfo?.latestFirmware?.desc.split(/\s{2,}/) || [], [firmwareUpdateInfo]);
 
     // useEffect(() => {
-    //     if(wsConnected) {
+    //     if(deviceConnected) {
     //         fetchFirmwareMetadata();
     //     }
-    // }, [wsConnected]);
+    // }, [deviceConnected]);
 
     const firmwrareCurrentVersion = useMemo(() => {
         return firmwareInfo?.firmware?.version || "";
@@ -135,21 +135,21 @@ export function FirmwareContent() {
         }
     }, [countdownSeconds, successDialogId]);
 
-    // webcosket断开，如果是在固件更新中，则重新连接websocket，并延迟检查固件更新状态
+    // 设备连接断开时，如果固件正在更新则重新连接设备，并延迟检查固件更新状态
     useEffect(() => {
-        if (!wsConnected && firmwareUpdating) {
-            console.log('firmware: reconnect websocket.');
-            return scheduleAuthorizedReconnect(reconnectWebSocket, (error) => {
+        if (!deviceConnected && firmwareUpdating) {
+            console.log('firmware: reconnect device.');
+            return scheduleAuthorizedReconnect(reconnectDevice, (error) => {
                 console.error('firmware: automatic reconnect failed.', error);
                 setUpdateStatus(UpdateStatus.UpdateFailed);
                 setFirmwareUpdating(false);
             });
-        } else if (wsConnected && firmwareUpdating) {
+        } else if (deviceConnected && firmwareUpdating) {
             console.log('firmware: check update status.');
             checkUpdateStatusLoop();
         }
 
-    }, [wsConnected, firmwareUpdating, reconnectWebSocket, setFirmwareUpdating]);
+    }, [deviceConnected, firmwareUpdating, reconnectDevice, setFirmwareUpdating]);
 
     // 当固件更新状态改变时，更新完成配置按钮的禁用状态
     useEffect(() => {
@@ -425,7 +425,7 @@ export function FirmwareContent() {
                         />
                         <Button
                             colorPalette="green"
-                            disabled={ch585Uploading || !wsConnected}
+                            disabled={ch585Uploading || !deviceConnected}
                             onClick={() => document.getElementById('ch585-firmware-file')?.click()}
                         >
                             {ch585Uploading ? `Staging ${ch585Progress}%` : 'Select RF_PHY_Hop_TX.bin'}

@@ -12,7 +12,6 @@ HBox 工具统一入口（tools/hbox.py）
 1) build
   - bootloader
   - web（V2服务器托管页面）
-  - web-legacy（V1固件内置页面）
   - assets
   - ADCMapping
   - app A|B
@@ -21,7 +20,7 @@ HBox 工具统一入口（tools/hbox.py）
 2) flash
   - bootloader（生产安全门禁，拒绝单独擦除）
   - bootloader-dev（仅限未置备开发板）
-  - app A|B（安全完整槽：构建、签名、烧录，metadata最后提交）
+  - app A|B（默认只烧录现有安全完整槽；--build 先构建签名）
   - code A|B（低层纯代码烧录，不更新metadata）
   - appAll A|B
   - assets
@@ -36,6 +35,8 @@ HBox 工具统一入口（tools/hbox.py）
   python tools/hbox.py build web
   python tools/hbox.py build assets
   python tools/hbox.py build appAll A
+  python tools/hbox.py flash app A
+  python tools/hbox.py flash app A --build
   python tools/hbox.py flash appAll A
   python tools/hbox.py flash bootloader-dev
   python tools/hbox.py flash code A
@@ -45,7 +46,6 @@ HBox 工具统一入口（tools/hbox.py）
   python tools/hbox.py release flash 0.0.1_a --slot A
   python tools/hbox.py web dev
   python tools/hbox.py web build
-  python tools/hbox.py web build-legacy
   python tools/hbox.py web local-init
   python tools/hbox.py web local-build
   python tools/hbox.py web local-flash-stm32 --simple-execute
@@ -88,7 +88,9 @@ def _local_webconfig_state_is_initialized() -> bool:
     ).is_file()
 
 
-def _local_artifacts_are_unlocked_development() -> bool:
+def _local_artifacts_are_unlocked_development(
+    expected_slot: str | None = None,
+) -> bool:
     manifest_path = (
         _project_root()
         / ".hbox"
@@ -115,37 +117,53 @@ def _local_artifacts_are_unlocked_development() -> bool:
         print("禁止要求或修改 RDP、SECURITY、SCAR、Option Bytes 或任何锁定状态。")
         print("请重新执行: python tools/hbox.py web local-build --unlocked-development")
         return False
+    if expected_slot is not None:
+        artifact_slot = str(manifest.get("targetSlot", "")).upper()
+        normalized_slot = expected_slot.upper()
+        if artifact_slot != normalized_slot:
+            print(
+                f"错误: 现有产物是槽 {artifact_slot or 'UNKNOWN'}，"
+                f"拒绝按槽 {normalized_slot} 烧录。"
+            )
+            print(
+                f"请先执行: python tools/hbox.py flash app "
+                f"{normalized_slot} --build"
+            )
+            return False
     return True
 
 
-def _run_secure_application_flash(slot: str) -> int:
-    """Build, sign and atomically commit one bootable application slot."""
+def _run_secure_application_flash(slot: str, build: bool = False) -> int:
+    """Flash an existing slot artifact, optionally rebuilding it first."""
 
     normalized_slot = slot.upper()
-    if not _local_webconfig_state_is_initialized():
-        print("首次安全烧录：正在创建本机调试用设备身份和签名密钥...")
-        rc = _run_python_tool("webconfig_local.py", ["init"])
+    if build:
+        if not _local_webconfig_state_is_initialized():
+            print("首次安全烧录：正在创建本机调试用设备身份和签名密钥...")
+            rc = _run_python_tool("webconfig_local.py", ["init"])
+            if rc != 0:
+                return rc
+
+        print(f"正在构建并签名 Application 槽 {normalized_slot}...")
+        rc = _run_python_tool(
+            "webconfig_local.py",
+            [
+                "build",
+                "--slot",
+                normalized_slot,
+                "--skip-web",
+                "--jobs",
+                "4",
+                "--unlocked-development",
+                "--skip-power-device-probes",
+            ],
+        )
         if rc != 0:
             return rc
+    else:
+        print(f"使用现有 Application 槽 {normalized_slot} 产物（不重新编译）...")
 
-    print(f"正在构建并签名 Application 槽 {normalized_slot}...")
-    rc = _run_python_tool(
-        "webconfig_local.py",
-        [
-            "build",
-            "--slot",
-            normalized_slot,
-            "--skip-web",
-            "--jobs",
-            "4",
-            "--unlocked-development",
-            "--skip-power-device-probes",
-        ],
-    )
-    if rc != 0:
-        return rc
-
-    if not _local_artifacts_are_unlocked_development():
+    if not _local_artifacts_are_unlocked_development(normalized_slot):
         return 2
 
     print("开始无锁开发烧录：槽内容先写入，签名 metadata 最后提交...")
@@ -200,17 +218,6 @@ def _run_hosted_web_build() -> int:
     print(f"V2 Hosted WebConfig 已生成: {output_dir}")
     print("该目录应部署到 HTTPS 服务器，不会打包进 STM32 固件")
     return 0
-
-
-def _run_legacy_embedded_web_build() -> int:
-    rc = _run_npm_script("build:legacy-embedded")
-    if rc != 0:
-        return rc
-    rc = _run_node_makefsdata()
-    if rc == 0:
-        print("V1 Legacy WebConfig 已生成到 ex_fsdata.bin")
-        print("警告: 该产物仅用于旧板，不得用于 V2 B/S 固件")
-    return rc
 
 
 def _run_pack_assets() -> int:
@@ -280,12 +287,13 @@ def main(argv: list[str]) -> int:
   python tools/hbox.py build ADCMapping
   python tools/hbox.py build appAll A
   python tools/hbox.py flash bootloader-dev
+  python tools/hbox.py flash app A
+  python tools/hbox.py flash app A --build
   python tools/hbox.py flash appAll A
   python tools/hbox.py flash tx
   python tools/hbox.py release auto --version 1.0.0
   python tools/hbox.py web dev
   python tools/hbox.py web build
-  python tools/hbox.py web build-legacy
   python tools/hbox.py web local-init
   python tools/hbox.py web local-build
   python tools/hbox.py web local-flash-stm32 --simple-execute
@@ -296,7 +304,7 @@ def main(argv: list[str]) -> int:
     subparsers = parser.add_subparsers(dest="cmd", required=True)
 
     p_build = subparsers.add_parser("build", help="构建相关")
-    p_build.add_argument("target", choices=["bootloader", "web", "web-legacy", "assets", "sysbg", "ADCMapping", "app", "appAll"])
+    p_build.add_argument("target", choices=["bootloader", "web", "assets", "sysbg", "ADCMapping", "app", "appAll"])
     p_build.add_argument("slot", nargs="?", choices=["A", "B"])
 
     p_flash = subparsers.add_parser("flash", help="烧录相关")
@@ -315,6 +323,11 @@ def main(argv: list[str]) -> int:
     )
     p_flash.add_argument("slot", nargs="?", choices=["A", "B"])
     p_flash.add_argument("--code-only", action="store_true", help="仅烧录代码（app），不烧录资源")
+    p_flash.add_argument(
+        "--build",
+        action="store_true",
+        help="flash app 时先重新构建并签名；默认只烧录现有产物",
+    )
 
     p_release = subparsers.add_parser("release", help="发版相关")
     p_release.add_argument("target", choices=["auto", "flash"])
@@ -326,8 +339,6 @@ def main(argv: list[str]) -> int:
         choices=[
             "dev",
             "build",
-            "dev-legacy",
-            "build-legacy",
             "local-init",
             "local-build",
             "local-flash-stm32",
@@ -348,8 +359,6 @@ def main(argv: list[str]) -> int:
             return _run_python_tool("build.py", ["build", "bootloader"])
         if args.target == "web":
             return _run_hosted_web_build()
-        if args.target == "web-legacy":
-            return _run_legacy_embedded_web_build()
         if args.target == "assets":
             return _run_pack_assets()
         if args.target == "sysbg":
@@ -388,7 +397,7 @@ def main(argv: list[str]) -> int:
             if not args.slot:
                 print("错误: flash app 需要指定槽位 A 或 B")
                 return 2
-            return _run_secure_application_flash(args.slot)
+            return _run_secure_application_flash(args.slot, build=args.build)
         if args.target == "code":
             if not args.slot:
                 print("错误: flash code 需要指定槽位 A 或 B")
@@ -400,7 +409,7 @@ def main(argv: list[str]) -> int:
                 return 2
             if args.code_only:
                 return _run_python_tool("build.py", ["flash", "app", args.slot])
-            return _run_secure_application_flash(args.slot)
+            return _run_secure_application_flash(args.slot, build=True)
 
     if args.cmd == "release":
         if args.target == "auto":
@@ -413,10 +422,6 @@ def main(argv: list[str]) -> int:
             return _run_npm_script("dev:hosted")
         if args.target == "build":
             return _run_hosted_web_build()
-        if args.target == "dev-legacy":
-            return _run_npm_script("dev:all")
-        if args.target == "build-legacy":
-            return _run_legacy_embedded_web_build()
         if args.target == "local-flash-stm32":
             if not _local_artifacts_are_unlocked_development():
                 return 2

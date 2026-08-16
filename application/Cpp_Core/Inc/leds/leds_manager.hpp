@@ -9,6 +9,7 @@
 #include "config.hpp"
 #include "leds/gradient_color.hpp"
 #include "leds/led_animation.hpp"
+#include "leds/led_strip_controller.hpp"
 #include "board_cfg.h"
 
 class LEDsManager {
@@ -55,6 +56,15 @@ class LEDsManager {
         LEDProfile temporaryConfig;  // 临时配置存储
         bool usingTemporaryConfig;   // 是否正在使用临时配置
         bool runtimeEnabled;         // physical role currently owns the LED power rail
+        uint32_t keyStartupRampStartTime;
+        uint32_t ambientStartupRampStartTime;
+        bool keyStartupRampActive;
+        bool ambientStartupRampActive;
+        uint32_t lastDmaStatsTime;
+        uint32_t lastKeyHalfCount;
+        uint32_t lastKeyCompleteCount;
+        uint32_t lastAmbientHalfCount;
+        uint32_t lastAmbientCompleteCount;
         uint32_t enabledKeysMask; // 启用按键掩码
         RGBColor frontColor;
         RGBColor backgroundColor1;
@@ -90,6 +100,11 @@ class LEDsManager {
         
         // 内部配置管理
         void updateColorsFromConfig();
+        uint8_t startupRampBrightness(uint8_t target,
+                                      bool& active,
+                                      uint32_t startTime,
+                                      uint32_t now);
+        void logDmaUpdateStats(uint32_t now);
 };
 
 #define LEDS_MANAGER LEDsManager::getInstance()

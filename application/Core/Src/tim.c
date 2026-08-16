@@ -59,14 +59,15 @@ void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  /* TIM2 is the common report/ADC sampling clock. */
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
   /* USER CODE BEGIN TIM2_Init 2 */
-  HAL_TIM_Base_Start_IT(&htim2);  //开启中断模式
+  /* Started by ReportScheduler after all ADC DMA channels are armed. */
   /* USER CODE END TIM2_Init 2 */
 
 }

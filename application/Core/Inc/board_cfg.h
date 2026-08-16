@@ -105,7 +105,7 @@ static inline void AppStartupLog_Printf(const char *stage,
  * into the device configuration partition.
  */
 #ifndef WEBCONFIG_TEST_FORCE_BOOT
-#define WEBCONFIG_TEST_FORCE_BOOT 1
+#define WEBCONFIG_TEST_FORCE_BOOT 0
 #endif
 
 /* Temporary, unlocked migration UI for the one-time CH585 IAP install. */
@@ -230,6 +230,7 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
 #define CH585_POWER_OFF_MIN_MS                 20u
 #define CH585_POWER_ON_SETTLE_MS                20u
 #define CH585_ROLE_RESPONSE_TIMEOUT_MS          20u
+#define CH585_READY_HINT_TIMEOUT_MS             700u
 #define CH585_ROLE_SELECT_RETRY_MS             5u
 #define CH585_ROLE_SELECT_TIMEOUT_MS          1200u
 #define BOARD_LED_5V_STABILIZE_MS              5u
@@ -322,7 +323,9 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
 /* TIM4 PWM output for WS2812B data stream */
 #define WS2812B_TIM_INSTANCE                    TIM4
 #define WS2812B_TIM_PRESCALER                   0u
-#define WS2812B_TIM_PERIOD                      299u
+/* 240 MHz / 308 ticks = 779.22 kHz.  The slightly longer low phase adds
+ * margin for the four downstream GPIO-key pixels on the key strip. */
+#define WS2812B_TIM_PERIOD                      307u
 
 #define WS2812B_TIM_GPIO_AF                     GPIO_AF2_TIM4
 
@@ -338,21 +341,21 @@ static inline void AppLog_Printf(const char *prefix, const char *fmt, ...)
 #define WS2812B_KEYS_TIM_DMA_INSTANCE           DMA1_Stream2
 #define WS2812B_KEYS_TIM_DMA_REQUEST            DMA_REQUEST_TIM4_CH1
 #define WS2812B_KEYS_TIM_DMA_IRQn               DMA1_Stream2_IRQn
-#define WS2812B_KEYS_TIM_DMA_IRQn_PRIO          3u
+#define WS2812B_KEYS_TIM_DMA_IRQn_PRIO          6u
 
 #define WS2812B_AMBIENT_TIM_DMA_INSTANCE        DMA1_Stream3
 #define WS2812B_AMBIENT_TIM_DMA_REQUEST         DMA_REQUEST_TIM4_CH2
 #define WS2812B_AMBIENT_TIM_DMA_IRQn            DMA1_Stream3_IRQn
-#define WS2812B_AMBIENT_TIM_DMA_IRQn_PRIO       3u
+#define WS2812B_AMBIENT_TIM_DMA_IRQn_PRIO       6u
 
 /* Additional DMA IRQs used by firmware */
 #define BOARD_DMA_STREAM4_IRQn                  DMA1_Stream4_IRQn
 #define BOARD_DMA_STREAM4_IRQn_PRIO             5u
 
-/* ================= TIM2 (legacy micro-timer, currently not used) ================= */
+/* ================= TIM2 (1 MHz report/ADC sampling timebase) ================= */
 #define BOARD_TIM2_INSTANCE                     TIM2
-#define BOARD_TIM2_PRESCALER                    29u
-#define BOARD_TIM2_PERIOD                       1000u
+#define BOARD_TIM2_PRESCALER                    239u
+#define BOARD_TIM2_PERIOD                       999u
 #define BOARD_TIM2_IRQn                         TIM2_IRQn
 #define BOARD_TIM2_IRQn_PRIO                    0u
 
@@ -468,14 +471,9 @@ typedef struct {
 
 /* ================= ADC (Sampling/Timing) ================= */
 #define BOARD_ADC_KERNEL_CLOCK_HZ              45000000u
-#define BOARD_ADC_SAMPLE_TIME                  ADC_SAMPLETIME_64CYCLES_5
-#define BOARD_ADC_INPUT_SAMPLE_TIME            ADC_SAMPLETIME_32CYCLES_5
-#define BOARD_ADC_INPUT_OVERSAMPLE_RATIO       16u
-#define BOARD_ADC_INPUT_RIGHT_SHIFT            ADC_RIGHTBITSHIFT_4
-#define BOARD_ADC_CONTINUOUS_OVERSAMPLE_RATIO  16u
-#define BOARD_ADC_CONTINUOUS_RIGHT_SHIFT       ADC_RIGHTBITSHIFT_4
-#define BOARD_ADC_LOWLAT_OVERSAMPLE_RATIO      2u
-#define BOARD_ADC_LOWLAT_RIGHT_SHIFT           ADC_RIGHTBITSHIFT_1
+#define BOARD_ADC_SAMPLE_TIME                  ADC_SAMPLETIME_32CYCLES_5
+#define BOARD_ADC_OVERSAMPLE_RATIO             16u
+#define BOARD_ADC_OVERSAMPLE_RIGHT_SHIFT       ADC_RIGHTBITSHIFT_4
 #define ADC_VALUE_PUBLIC_RIGHT_SHIFT           4u
 
 static const ADC_PinConfig ADC1_PIN_MAP[] = {
@@ -587,8 +585,7 @@ uint32_t get_current_slot_base_address(void);
 #define FN_BUTTON_VIRTUAL_PIN       (1U << (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS - 1))  // FN 键虚拟引脚 最后一个GPIO按钮
 
 #define NUM_LEDs_PER_ADC_BUTTON     1              //每个按钮多少个LED
-#define FPS_OF_LED_ANIMATION        60             //LED 动画帧率
-#define LEDS_BRIGHTNESS_RATIO       0.8             //默认led 亮度系数 会以实际亮度乘以这个系数
+#define FPS_OF_LED_ANIMATION        30             //LED 动画帧率
 #define LEDS_ANIMATION_CYCLE        10000            //LED 动画长度 ms
 #define LEDS_ANIMATION_INTERVAL         16          //LED 动画间隔，影响性能和效果 ms
 
@@ -598,10 +595,15 @@ uint32_t get_current_slot_base_address(void);
 #define HOLD_THRESHOLD_MS                   1000             // 长按阈值 1000ms
 
 #define HAS_LED                                   1             //是否有LED
-// #define HAS_LED_AROUND                            1          //是否有底部环绕led
-extern bool g_has_led_around;                               // 运行时检测是否有氛围灯
 #define NUM_LED_AROUND                            40          //最新PCB环境灯数量
 #define NUM_LED	                    (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS + NUM_LED_AROUND) //LED数量
+
+/*
+ * Recovery gate for diagnosing a boot loop that begins when the WS2812 rails
+ * and circular TIM4 DMA are started.  Keep both LED outputs off in INPUT until
+ * the hardware/DMA path has been isolated.  Configuration data is preserved.
+ */
+#define INPUT_LED_RECOVERY_HOLD_OFF                0
 
 #define BOARD_WIDTH 310.2f
 
@@ -642,46 +644,47 @@ typedef struct Position {
 
 #define HITBOX_AMBIENT_POS_DATA \
     { 35.10f, 35.10f, 5.40f },         /* 22 */ \
-    { 35.10f, 45.10f, 5.40f },         /* 23 */ \
-    { 35.10f, 55.10f, 5.40f },          /* 24 */ \
-    { 35.10f, 65.10f, 5.40f },         /* 25 */ \
-    { 35.10f, 75.10f, 5.40f },         /* 26 */ \
-    { 35.10f, 85.10f, 5.40f },         /* 27 */ \
-    { 35.10f, 95.10f, 5.40f },         /* 28 */ \
-    { 35.10f, 105.10f, 5.40f },        /* 29 */ \
-    { 35.10f, 115.10f, 5.40f },        /* 30 */ \
-    { 35.10f, 125.10f, 5.40f },        /* 31 */ \
-    { 35.10f, 135.10f, 5.40f },        /* 32 */ \
-    { 35.10f, 145.10f, 5.40f },        /* 33 */ \
-    { 35.10f, 155.10f, 5.40f },        /* 34 */ \
+    { 35.10f, 48.43f, 5.40f },         /* 23 */ \
+    { 35.10f, 61.77f, 5.40f },          /* 24 */ \
+    { 35.10f, 75.10f, 5.40f },         /* 25 */ \
+    { 35.10f, 88.43f, 5.40f },         /* 26 */ \
+    { 35.10f, 101.77f, 5.40f },         /* 27 */ \
+    { 35.10f, 115.10f, 5.40f },         /* 28 */ \
+    { 35.10f, 128.43f, 5.40f },        /* 29 */ \
+    { 35.10f, 141.77f, 5.40f },        /* 30 */ \
+    { 35.10f, 155.10f, 5.40f },        /* 31 */ \
     \
-    { 45.10f, 155.10f, 5.40f },        /* 35 */ \
-    { 55.10f, 155.10f, 5.40f },        /* 36 */ \
-    { 65.10f, 155.10f, 5.40f },       /* 37 */ \
-    { 75.10f, 155.10f, 5.40f },       /* 38 */ \
-    { 85.10f, 155.10f, 5.40f },       /* 39 */ \
-    { 95.10f, 155.10f, 5.40f },       /* 40 */ \
-    { 105.10f, 155.10f, 5.40f },       /* 41 */ \
-    { 115.10f, 155.10f, 5.40f },       /* 42 */ \
-    { 125.10f, 155.10f, 5.40f },       /* 43 */ \
-    { 135.10f, 155.10f, 5.40f },       /* 44 */ \
-    { 145.10f, 155.10f, 5.40f },       /* 45 */ \
-    { 155.10f, 155.10f, 5.40f },       /* 40 */ \
-    { 165.10f, 155.10f, 5.40f },       /* 41 */ \
-    { 175.10f, 155.10f, 5.40f },       /* 42 */ \
-    { 185.10f, 155.10f, 5.40f },       /* 43 */ \
-    { 195.10f, 155.10f, 5.40f },       /* 44 */ \
-    { 205.10f, 155.10f, 5.40f },       /* 45 */ \
-    { 215.10f, 155.10f, 5.40f },       /* 46 */ \
-    { 225.10f, 155.10f, 5.40f },       /* 47 */ \
-    { 235.10f, 155.10f, 5.40f },       /* 48 */ \
-    { 245.10f, 155.10f, 5.40f },       /* 49 */ \
-    { 255.10f, 155.10f, 5.40f },       /* 50 */ \
-    { 265.10f, 155.10f, 5.40f },       /* 51 */ \
-    { 275.10f, 155.10f, 5.40f },       /* 52 */ \
-    { 275.10f, 145.10f, 5.40f },       /* 53 */ \
-    { 275.10f, 135.10f, 5.40f },       /* 54 */ \
-    { 275.10f, 125.10f, 5.40f }        /* 55 */
+    { 46.53f, 155.10f, 5.40f },        /* 32 */ \
+    { 57.96f, 155.10f, 5.40f },        /* 33 */ \
+    { 69.39f, 155.10f, 5.40f },        /* 34 */ \
+    { 80.81f, 155.10f, 5.40f },        /* 35 */ \
+    { 92.24f, 155.10f, 5.40f },        /* 36 */ \
+    { 103.67f, 155.10f, 5.40f },       /* 37 */ \
+    { 115.10f, 155.10f, 5.40f },       /* 38 */ \
+    { 126.53f, 155.10f, 5.40f },       /* 39 */ \
+    { 137.96f, 155.10f, 5.40f },       /* 40 */ \
+    { 149.39f, 155.10f, 5.40f },       /* 41 */ \
+    { 160.81f, 155.10f, 5.40f },       /* 42 */ \
+    { 172.24f, 155.10f, 5.40f },       /* 43 */ \
+    { 183.67f, 155.10f, 5.40f },       /* 44 */ \
+    { 195.10f, 155.10f, 5.40f },       /* 45 */ \
+    { 206.53f, 155.10f, 5.40f },       /* 40 */ \
+    { 217.96f, 155.10f, 5.40f },       /* 41 */ \
+    { 229.39f, 155.10f, 5.40f },       /* 42 */ \
+    { 240.81f, 155.10f, 5.40f },       /* 43 */ \
+    { 252.24f, 155.10f, 5.40f },       /* 44 */ \
+    { 263.67f, 155.10f, 5.40f },       /* 45 */ \
+    \
+    { 275.10f, 155.10f, 5.40f },       /* 46 */ \
+    { 275.10f, 141.77f, 5.40f },       /* 47 */ \
+    { 275.10f, 128.43f, 5.40f },       /* 48 */ \
+    { 275.10f, 115.10f, 5.40f },       /* 49 */ \
+    { 275.10f, 101.77f, 5.40f },       /* 50 */ \
+    { 275.10f, 88.43f, 5.40f },       /* 51 */ \
+    { 275.10f, 75.10f, 5.40f },       /* 52 */ \
+    { 275.10f, 61.77f, 5.40f },       /* 53 */ \
+    { 275.10f, 48.43f, 5.40f },       /* 54 */ \
+    { 275.10f, 35.10f, 5.40f }        /* 55 */
 
 static const Position HITBOX_BUTTON_POS_LIST[NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS] = {
     HITBOX_ADC_BUTTON_POS_DATA,

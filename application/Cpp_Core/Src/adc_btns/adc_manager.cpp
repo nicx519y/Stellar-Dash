@@ -2,18 +2,42 @@
 #include <algorithm> // 为 std::sort
 #include "adc_btns/adc_manager.hpp"
 #include "board_cfg.h"
-#include "micro_timer.hpp"
 #include "system_logger.h"
 #include "qspi-w25q64.h"
 #include <cstring>
 #include "cpp_utils.hpp"
-#include "latency_monitor.hpp"
-#include "delay_timer.h"
 
 namespace {
-static bool isCircularAdcMode(ADC_SamplingMode mode)
+constexpr uint32_t LEGACY_ADC_MAPPING_VERSION = 0x000001u;
+
+static bool isTerminatedString(const char* value, size_t capacity)
 {
-    return mode == ADC_MODE_INPUT_CONTINUOUS || mode == ADC_MODE_CONTINUOUS;
+    if (value == nullptr || capacity == 0u || value[0] == '\0') {
+        return false;
+    }
+
+    return std::memchr(value, '\0', capacity) != nullptr;
+}
+
+static bool isLegacyMappingStoreCompatible(const ADCValuesMappingStore& store)
+{
+    if (store.version != LEGACY_ADC_MAPPING_VERSION ||
+        store.num == 0u ||
+        store.num > NUM_ADC_VALUES_MAPPING) {
+        return false;
+    }
+
+    for (uint8_t i = 0u; i < store.num; ++i) {
+        const ADCValuesMapping& mapping = store.mapping[i];
+        if (!isTerminatedString(mapping.id, sizeof(mapping.id)) ||
+            mapping.length < 2u ||
+            mapping.length > MAX_ADC_VALUES_LENGTH ||
+            !(mapping.step > 0.0f)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 static void invalidateDmaBuffer(const ADCBufferInfo& info)
@@ -21,6 +45,53 @@ static void invalidateDmaBuffer(const ADCBufferInfo& info)
     uintptr_t start = reinterpret_cast<uintptr_t>(info.buffer) & ~static_cast<uintptr_t>(31u);
     uintptr_t end = (reinterpret_cast<uintptr_t>(info.buffer) + info.size + 31u) & ~static_cast<uintptr_t>(31u);
     SCB_InvalidateDCache_by_Addr(reinterpret_cast<uint32_t*>(start), static_cast<int32_t>(end - start));
+}
+
+static void setDmaCompletionInterrupt(ADC_HandleTypeDef& hadc, bool enabled)
+{
+    if (hadc.DMA_Handle == nullptr) {
+        return;
+    }
+
+    if (enabled) {
+        __HAL_DMA_ENABLE_IT(hadc.DMA_Handle, DMA_IT_TC | DMA_IT_HT);
+    } else {
+        __HAL_DMA_DISABLE_IT(hadc.DMA_Handle, DMA_IT_TC | DMA_IT_HT);
+    }
+}
+
+static void disableAllDmaCompletionInterrupts()
+{
+    setDmaCompletionInterrupt(hadc1, false);
+    setDmaCompletionInterrupt(hadc2, false);
+    setDmaCompletionInterrupt(hadc3, false);
+}
+
+static ADC_HandleTypeDef* adcHandleForIndex(uint8_t adcIndex)
+{
+    if (adcIndex == 0u) return &hadc1;
+    if (adcIndex == 1u) return &hadc2;
+    if (adcIndex == 2u) return &hadc3;
+    return nullptr;
+}
+
+static const uint32_t* completedDmaSequence(const ADCBufferInfo& info,
+                                            ADC_HandleTypeDef* hadc)
+{
+    if (hadc == nullptr || hadc->DMA_Handle == nullptr || info.count == 0u) {
+        return info.buffer;
+    }
+
+    const uint32_t remaining = __HAL_DMA_GET_COUNTER(hadc->DMA_Handle);
+    /*
+     * The buffer contains two complete channel sequences.  NDTR greater than
+     * one sequence means DMA is filling the first half, so the second half is
+     * stable; otherwise the first half is stable.  At NDTR==0 either previous
+     * half is coherent, and selecting the first half remains safe.
+     */
+    return (remaining > info.count)
+        ? (info.buffer + info.count)
+        : info.buffer;
 }
 }
 
@@ -36,6 +107,8 @@ static void invalidateDmaBuffer(const ADCBufferInfo& info)
  * +------------------------+ 0x05
  * | 默认映射ID (16 bytes) |
  * +------------------------+ 0x15
+ * | 对齐填充 (3 bytes)     |
+ * +------------------------+ 0x18
  * | 映射数据              |
  * | - ADCValuesMapping[0] |
  * | - ADCValuesMapping[1] |
@@ -44,10 +117,10 @@ static void invalidateDmaBuffer(const ADCBufferInfo& info)
  */
 
 // 定义静态 ADC DMA 缓冲区
-__attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADCManager::ADC1_Values[NUM_ADC1_BUTTONS];
-__attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADCManager::ADC2_Values[NUM_ADC2_BUTTONS];
+__attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADCManager::ADC1_Values[NUM_ADC1_BUTTONS * 2u];
+__attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADCManager::ADC2_Values[NUM_ADC2_BUTTONS * 2u];
 // ADC3 BDMA 只能访问 _RAM_D3_Area 区域
-__attribute__((section(".BDMA_Section"), aligned(32))) uint32_t ADCManager::ADC3_Values[NUM_ADC3_BUTTONS];
+__attribute__((section(".BDMA_Section"), aligned(32))) uint32_t ADCManager::ADC3_Values[NUM_ADC3_BUTTONS * 2u];
 
 uint32_t ADCManager::ADC_Values_Result[NUM_ADC_BUTTONS];
 
@@ -78,33 +151,49 @@ ADCManager::ADCManager()
     }
 
     // 读取整个存储结构
-    QSPI_W25Qxx_ReadBuffer_WithXIPOrNot((uint8_t *)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore));
+    std::memset(&store, 0, sizeof(store));
+    const int8_t mappingReadResult = QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(
+        reinterpret_cast<uint8_t*>(&store),
+        ADC_VALUES_MAPPING_ADDR_QSPI,
+        sizeof(ADCValuesMappingStore));
 
     APP_DBG("ADCValuesMappingUtils version: 0x%x", store.version);
     APP_DBG("ADC_MAPPING_VERSION == version: %d", ADC_MAPPING_VERSION == store.version);
 
-    // 如果版本号不匹配，初始化整个存储
-    if (store.version != ADC_MAPPING_VERSION)
-    {
-        APP_DBG("ADCValuesMappingUtils version is not match, version: 0x%x", store.version);
-        // 擦除64K
-        // QSPI_W25Qxx_BufferErase(ADC_VALUES_MAPPING_ADDR_QSPI, 64*1024);
+    if (mappingReadResult == QSPI_W25Qxx_OK &&
+        isLegacyMappingStoreCompatible(store)) {
+        /*
+         * PCB V2 的随包映射已经包含 18 路 ADC 校准槽位，但其文件头仍是
+         * 历史版本 1。映射数组起始偏移没有变化，因此可安全地在 RAM 中
+         * 升级版本并继续使用。不要在启动阶段反写 QSPI；后续正常保存配置
+         * 时会按当前结构写入版本 2。
+         */
+        store.version = ADC_MAPPING_VERSION;
+        std::memset(store.defaultId, 0, sizeof(store.defaultId));
+        std::strncpy(store.defaultId,
+                     store.mapping[0].id,
+                     sizeof(store.defaultId) - 1u);
+        APP_STAGE("I03", "accepted compatible ADC mapping v1: count=%u default=%s",
+                  static_cast<unsigned>(store.num),
+                  store.mapping[0].id);
+    } else if (mappingReadResult != QSPI_W25Qxx_OK ||
+               store.version != ADC_MAPPING_VERSION ||
+               store.num > NUM_ADC_VALUES_MAPPING) {
+        const uint32_t rejectedVersion = store.version;
+        const uint8_t rejectedCount = store.num;
 
-        // 初始化存储结构
+        /*
+         * A bad/mismatched artifact must not destroy the mapping partition.
+         * Keep the failure local to this boot so a correct full application
+         * flash can restore operation without first repairing QSPI contents.
+         */
         memset(&store, 0, sizeof(ADCValuesMappingStore));
         store.version = ADC_MAPPING_VERSION;
-        store.num = 0;
-        strcpy(store.defaultId, "");
-
-        // 写入初始化后的存储结构
-        if (QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t *)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore)) != QSPI_W25Qxx_OK)
-        {
-            APP_ERR("ADCValuesMappingUtils init failed");
-        }
-        else
-        {
-            APP_DBG("ADCValuesMappingUtils init success");
-        }
+        APP_STAGE_ERROR("I03",
+                        "ADC mapping rejected without modifying QSPI: read=%d version=%lu count=%u",
+                        static_cast<int>(mappingReadResult),
+                        static_cast<unsigned long>(rejectedVersion),
+                        static_cast<unsigned>(rejectedCount));
     }
 
     APP_DBG("ADCManager init: store version - %d, num - %d, defaultId - %s", store.version, store.num, store.defaultId);
@@ -177,8 +266,7 @@ ADCManager::ADCManager()
         }
     }
 
-    // 注册消息
-    MC.registerMessage(MessageId::DMA_ADC_CONV_CPLT);           // DMA ADC 转换完成消息
+    // 注册采样统计完成消息
     MC.registerMessage(MessageId::ADC_SAMPLING_STATS_COMPLETE); // ADC 采样统计完成消息
 
     this->samplingCountMax = 1000;                                                                       // 采样次数 默认1000次
@@ -216,18 +304,32 @@ ADCManager::ADCManager()
                   return a.virtualPin < b.virtualPin;
               });
 
-    // Initialize Delay Timer
-    DelayTimer_Init();
-    DelayTimer_SetCallback(ADCManager::timerCallback);
 }
 
 ADCManager::~ADCManager()
 {
-    this->stopADCSamping();
+    this->forceStopAllSampling();
 
-    // 取消注册ADC消息
-    MC.unregisterMessage(MessageId::DMA_ADC_CONV_CPLT);
     MC.unregisterMessage(MessageId::ADC_SAMPLING_STATS_COMPLETE);
+}
+
+const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>&
+ADCManager::readADCValues() const
+{
+    for (uint8_t i = 0; i < NUM_ADC; i++) {
+        const ADCBufferInfo& info = adcBufferInfo[i];
+        invalidateDmaBuffer(info);
+        const uint32_t* sequence = completedDmaSequence(
+            info, adcHandleForIndex(i));
+
+        for (uint8_t j = 0; j < info.count; j++) {
+            const uint8_t virtualPin = info.indexMap[j];
+            ADC_Values_Result[virtualPin] =
+                sequence[j] >> ADC_VALUE_PUBLIC_RIGHT_SHIFT;
+        }
+    }
+
+    return ADCBufferInfoList;
 }
 
 // 保存整个存储结构到Flash
@@ -653,61 +755,70 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
                                          uint8_t virtualPin,
                                          uint32_t samplingCountMax)
 {
-    // 如果不在循环 DMA 模式，执行旧的 one-shot 初始化逻辑。
-    if (!isCircularAdcMode(this->adcMode))
-    {
-        // 停止所有 ADC
-        this->stopADCSamping();
-
-        // 初始化DMA缓存
-        memset(ADC1_Values, 0, sizeof(ADC1_Values));             // DMA缓存清零
-        memset(ADC2_Values, 0, sizeof(ADC2_Values));             // DMA缓存清零
-        memset(ADC3_Values, 0, sizeof(ADC3_Values));             // DMA缓存清零
-        memset(ADC_Values_Result, 0, sizeof(ADC_Values_Result)); // DMA缓存清零
-
-        // 校准 ADC1
-        if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK)
-        {
-            APP_ERR("ADC1 calibration failed\n");
-            return ADCBtnsError::ADC1_CALIB_FAILED;
-        }
-
-        // 校准 ADC2
-        if (HAL_ADCEx_Calibration_Start(&hadc2, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK)
-        {
-            APP_ERR("ADC2 calibration failed\n");
-            return ADCBtnsError::ADC2_CALIB_FAILED;
-        }
-
-        // 校准 ADC3
-        if (HAL_ADCEx_Calibration_Start(&hadc3, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK)
-        {
-            APP_ERR("ADC3 calibration failed\n");
-            return ADCBtnsError::ADC3_CALIB_FAILED;
-        }
-    }
-    // 如果在校准模式，ADC已经在运行连续采样，不需要停止或重新校准
-    else if (!dmaSamplingActive)
-    {
-        startContinuousSampling();
-    }
-
-    // 如果启用采样率统计，则注册回调
+    ADCIndexInfo requestedAdcInfo{-1, -1};
     if (enableSamplingRate)
     {
-        // 设置采样率统计状态
-        samplingRateEnabled = enableSamplingRate;
-        if (samplingCountMax > 0)
-        {
-            this->samplingCountMax = samplingCountMax;
-        }
-        this->samplingADCInfo = findADCButtonVirtualPin(virtualPin);
-
-        if (this->samplingADCInfo.ADCIndex == -1)
-        {
+        requestedAdcInfo = findADCButtonVirtualPin(virtualPin);
+        if (requestedAdcInfo.ADCIndex < 0) {
             APP_ERR("Invalid button index\n");
             return ADCBtnsError::INVALID_PARAMS;
         }
+    }
+
+    if (!dmaSamplingActive)
+    {
+        forceStopAllSampling();
+
+        memset(ADC1_Values, 0, sizeof(ADC1_Values));
+        memset(ADC2_Values, 0, sizeof(ADC2_Values));
+        memset(ADC3_Values, 0, sizeof(ADC3_Values));
+        memset(ADC_Values_Result, 0, sizeof(ADC_Values_Result));
+
+        if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
+            APP_ERR("ADC1 calibration failed\n");
+            return ADCBtnsError::ADC1_CALIB_FAILED;
+        }
+        if (HAL_ADCEx_Calibration_Start(&hadc2, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
+            APP_ERR("ADC2 calibration failed\n");
+            return ADCBtnsError::ADC2_CALIB_FAILED;
+        }
+        if (HAL_ADCEx_Calibration_Start(&hadc3, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK) {
+            APP_ERR("ADC3 calibration failed\n");
+            return ADCBtnsError::ADC3_CALIB_FAILED;
+        }
+
+        if (HAL_ADC_Start_DMA(&hadc1, ADC1_Values, NUM_ADC1_BUTTONS * 2u) != HAL_OK) {
+            APP_ERR("ADC1 circular DMA start failed\n");
+            forceStopAllSampling();
+            return ADCBtnsError::DMA1_START_FAILED;
+        }
+        setDmaCompletionInterrupt(hadc1, false);
+
+        if (HAL_ADC_Start_DMA(&hadc2, ADC2_Values, NUM_ADC2_BUTTONS * 2u) != HAL_OK) {
+            APP_ERR("ADC2 circular DMA start failed\n");
+            forceStopAllSampling();
+            return ADCBtnsError::DMA2_START_FAILED;
+        }
+        setDmaCompletionInterrupt(hadc2, false);
+
+        if (HAL_ADC_Start_DMA(&hadc3, ADC3_Values, NUM_ADC3_BUTTONS * 2u) != HAL_OK) {
+            APP_ERR("ADC3 circular DMA start failed\n");
+            forceStopAllSampling();
+            return ADCBtnsError::DMA3_START_FAILED;
+        }
+        setDmaCompletionInterrupt(hadc3, false);
+
+        dmaSamplingActive = true;
+        APP_DBG("All ADC circular DMA channels armed\n");
+    }
+
+    if (enableSamplingRate)
+    {
+        stopADCSamping();
+        if (samplingCountMax > 0) {
+            this->samplingCountMax = samplingCountMax;
+        }
+        this->samplingADCInfo = requestedAdcInfo;
 
         ADCButtonStats.adcIndex = this->samplingADCInfo.ADCIndex;
         ADCButtonStats.startTime = HAL_GetTick();
@@ -720,65 +831,31 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
         ADCButtonStats.diffValues.clear();
         ADCButtonStats.diffValues.resize(this->samplingCountMax);
 
-        // 注册ADC转换完成回调
-        messageHandler = [this](const void *data)
-        {
-            if (data)
-            {
-                this->handleADCStats((ADC_HandleTypeDef *)data);
-            }
-        };
-        MC.subscribe(MessageId::DMA_ADC_CONV_CPLT, messageHandler);
-
-        APP_DBG("All ADCs started sampling successfully\n");
+        samplingRateEnabled = true;
+        if (this->samplingADCInfo.ADCIndex == 0) {
+            setDmaCompletionInterrupt(hadc1, true);
+        } else if (this->samplingADCInfo.ADCIndex == 1) {
+            setDmaCompletionInterrupt(hadc2, true);
+        } else {
+            setDmaCompletionInterrupt(hadc3, true);
+        }
     }
 
-    APP_DBG("All ADCs started successfully\n");
     return ADCBtnsError::SUCCESS;
 }
 
 void ADCManager::stopADCSamping()
 {
-    // 循环 DMA 模式下，stopADCSamping 只停止统计订阅，避免 WebConfig/Calibration
-    // 标记采样完成后把后台连续采样停掉。
-    if (!isCircularAdcMode(this->adcMode))
-    {
-        if (HAL_ADC_Stop_DMA(&hadc1) != HAL_OK)
-        {
-            // return;
-        }
-
-        if (HAL_ADC_Stop_DMA(&hadc2) != HAL_OK)
-        {
-            // return;
-        }
-
-        if (HAL_ADC_Stop_DMA(&hadc3) != HAL_OK)
-        {
-            // return;
-        }
-    }
-
-    if (messageHandler)
-    {
-        MC.unsubscribe(MessageId::DMA_ADC_CONV_CPLT, messageHandler);
-        messageHandler = nullptr;
-    }
-
     samplingRateEnabled = false;
-    if (!isCircularAdcMode(this->adcMode))
-    {
-        dmaSamplingActive = false;
-    }
+    disableAllDmaCompletionInterrupts();
 }
 
 void ADCManager::forceStopAllSampling()
 {
-    /*
-     * stopADCSamping() intentionally preserves circular DMA during normal
-     * WebConfig/calibration transitions.  Rail ownership changes are
-     * different: PI1 must not be removed while any ADC can still request DMA.
-     */
+    samplingRateEnabled = false;
+    dmaSamplingActive = false;
+    disableAllDmaCompletionInterrupts();
+
     if (hadc1.Instance != nullptr) {
         (void)HAL_ADC_Stop_DMA(&hadc1);
     }
@@ -787,20 +864,6 @@ void ADCManager::forceStopAllSampling()
     }
     if (hadc3.Instance != nullptr) {
         (void)HAL_ADC_Stop_DMA(&hadc3);
-    }
-
-    if (messageHandler) {
-        MC.unsubscribe(MessageId::DMA_ADC_CONV_CPLT, messageHandler);
-        messageHandler = nullptr;
-    }
-
-    const uint32_t primask = __get_PRIMASK();
-    __disable_irq();
-    completionMask = 0u;
-    dmaSamplingActive = false;
-    samplingRateEnabled = false;
-    if (primask == 0u) {
-        __enable_irq();
     }
 }
 
@@ -813,30 +876,43 @@ void ADCManager::forceStopAllSampling()
  */
 void ADCManager::handleADCStats(ADC_HandleTypeDef *hadc)
 {
-    uint32_t adcIndex = (hadc->Instance == ADC1) ? 0 : (hadc->Instance == ADC2) ? 1
-                                                   : (hadc->Instance == ADC3)   ? 2
-                                                                                : 3;
+    const int8_t adcIndex = (hadc->Instance == ADC1) ? 0
+                            : (hadc->Instance == ADC2) ? 1
+                            : (hadc->Instance == ADC3) ? 2
+                                                      : -1;
 
     // 如果采样ADC索引不匹配，则返回，此处只处理采样ADC索引对应的ADC
-    if (!samplingRateEnabled || adcIndex != this->samplingADCInfo.ADCIndex)
+    if (!samplingRateEnabled || adcIndex < 0 ||
+        adcIndex != this->samplingADCInfo.ADCIndex)
         return;
 
     // 处理数据...
-    const auto &info = adcBufferInfo[adcIndex];
+    const auto &info = adcBufferInfo[static_cast<uint8_t>(adcIndex)];
     invalidateDmaBuffer(info);
 
-    uint32_t value = info.buffer[this->samplingADCInfo.indexInDMA] >> ADC_VALUE_PUBLIC_RIGHT_SHIFT;
+    const uint32_t* sequence = completedDmaSequence(
+        info, adcHandleForIndex(static_cast<uint8_t>(adcIndex)));
+    uint32_t value = sequence[this->samplingADCInfo.indexInDMA] >> ADC_VALUE_PUBLIC_RIGHT_SHIFT;
 
     if (value == 0)
         return;
+    if (ADCButtonStats.count >= samplingCountMax ||
+        ADCButtonStats.count >= ADCButtonStats.values.size()) {
+        samplingRateEnabled = false;
+        disableAllDmaCompletionInterrupts();
+        return;
+    }
+
     ADCButtonStats.values[ADCButtonStats.count] = value; // 保存当前值
     ADCButtonStats.count++;                              // 计数器加1
 
     if (ADCButtonStats.count >= samplingCountMax)
     {
-
+        samplingRateEnabled = false;
+        disableAllDmaCompletionInterrupts();
         uint32_t t = HAL_GetTick();
-        ADCButtonStats.samplingFreq = (uint32_t)(ADCButtonStats.count * 1000 / (t - ADCButtonStats.startTime));
+        const uint32_t elapsedMs = std::max<uint32_t>(1u, t - ADCButtonStats.startTime);
+        ADCButtonStats.samplingFreq = (uint32_t)(ADCButtonStats.count * 1000 / elapsedMs);
         ADCButtonStats.endTime = t;
 
         ADCButtonStats.averageValue = std::accumulate(ADCButtonStats.values.begin(), ADCButtonStats.values.end(), 0) / ADCButtonStats.count;
@@ -903,142 +979,30 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
     ADCManager::getInstance().notifyConversionComplete(hadc);
 }
 
-void ADCManager::setADCMode(ADC_SamplingMode mode)
+void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc)
 {
-    this->adcMode = mode;
-    ADC_SetMode(mode);
-}
-
-ADC_SamplingMode ADCManager::getADCMode() const
-{
-    return adcMode;
-}
-
-void ADCManager::startContinuousSampling()
-{
-    if (!isCircularAdcMode(this->adcMode))
-        return;
-
-    HAL_ADC_Stop_DMA(&hadc1);
-    HAL_ADC_Stop_DMA(&hadc2);
-    HAL_ADC_Stop_DMA(&hadc3);
-
-    completionMask = 0x07;
-    dmaSamplingActive = true;
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t *)&ADC1_Values[0], NUM_ADC1_BUTTONS);
-    HAL_ADC_Start_DMA(&hadc2, (uint32_t *)&ADC2_Values[0], NUM_ADC2_BUTTONS);
-    HAL_ADC_Start_DMA(&hadc3, (uint32_t *)&ADC3_Values[0], NUM_ADC3_BUTTONS);
-}
-
-void ADCManager::triggerSampling()
-{
-    if (this->adcMode != ADC_MODE_LOW_LATENCY)
-        return;
-#if APPLICATION_DEBUG_PRINT == 1
-    LATENCY_MONITOR.samplingArmed();
-#endif
-    if (samplingDelayUs > 0)
-    {
-        DelayTimer_Start(samplingDelayUs);
-    }
-    else
-    {
-        startSamplingNow();
-    }
-}
-
-void ADCManager::setSamplingDelay(uint16_t delay_us)
-{
-    samplingDelayUs = delay_us;
-}
-
-uint16_t ADCManager::getSamplingDelay() const
-{
-    return samplingDelayUs;
-}
-
-void ADCManager::timerCallback()
-{
-    ADCManager::getInstance().startSamplingNow();
-}
-
-void ADCManager::startSamplingNow()
-{
-    // In Low Latency mode, we start DMA for each conversion (One Shot)
-    if (this->adcMode != ADC_MODE_LOW_LATENCY)
-        return;
-
-    completionMask = 0;
-    dmaSamplingActive = true;
-#if APPLICATION_DEBUG_PRINT == 1
-    LATENCY_MONITOR.samplingStarted();
-#endif
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t *)&ADC1_Values[0], NUM_ADC1_BUTTONS);
-    HAL_ADC_Start_DMA(&hadc2, (uint32_t *)&ADC2_Values[0], NUM_ADC2_BUTTONS);
-    HAL_ADC_Start_DMA(&hadc3, (uint32_t *)&ADC3_Values[0], NUM_ADC3_BUTTONS);
-}
-
-bool ADCManager::isSamplingDone()
-{
-    if (isCircularAdcMode(this->adcMode))
-        return dmaSamplingActive;
-
-    bool done = (completionMask & 0x07) == 0x07;
-#if APPLICATION_DEBUG_PRINT == 1
-    if (done)
-    {
-        LATENCY_MONITOR.samplingCompleted();
-    }
-#endif
-    return done;
-}
-
-void ADCManager::clearSamplingDone()
-{
-    if (isCircularAdcMode(this->adcMode))
-        return;
-
-    completionMask = 0;
+    ADCManager::getInstance().notifyConversionComplete(hadc);
 }
 
 void ADCManager::notifyConversionComplete(ADC_HandleTypeDef *hadc)
 {
-    if (!isCircularAdcMode(this->adcMode) && this->adcMode != ADC_MODE_LOW_LATENCY && !samplingRateEnabled)
-        return;
-
-    if (!dmaSamplingActive)
-        return;
-
-    if (this->adcMode == ADC_MODE_LOW_LATENCY)
-    {
-        if (hadc->Instance == ADC1)
-        {
-            completionMask |= 0x01;
-        }
-        else if (hadc->Instance == ADC2)
-        {
-            completionMask |= 0x02;
-        }
-        else if (hadc->Instance == ADC3)
-        {
-            completionMask |= 0x04;
-        }
-
-        if ((completionMask & 0x07) == 0x07)
-        {
-            dmaSamplingActive = false;
-        }
+    if (hadc != nullptr && dmaSamplingActive && samplingRateEnabled) {
+        handleADCStats(hadc);
     }
+}
 
-    if (samplingRateEnabled)
-    {
-        MC.publish(MessageId::DMA_ADC_CONV_CPLT, hadc);
-    }
+void ADCManager::notifyConversionError(ADC_HandleTypeDef *hadc)
+{
+    (void)hadc;
+    samplingRateEnabled = false;
+    dmaSamplingActive = false;
+    disableAllDmaCompletionInterrupts();
 }
 
 // ADC错误回调
 void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
 {
+    ADCManager::getInstance().notifyConversionError(hadc);
     uint32_t error = HAL_ADC_GetError(hadc);
     LOG_ERROR("ADC", "ADC Error: Instance=0x%p", (void *)hadc->Instance);
     LOG_ERROR("ADC", "State=0x%x", HAL_ADC_GetState(hadc));

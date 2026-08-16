@@ -16,6 +16,7 @@ namespace {
 static constexpr uint32_t kControlTimeoutMs = 20u;
 static constexpr uint32_t kEventDrainTimeoutMs = 20u;
 static constexpr uint32_t kBulkCreditWaitMs = 50u;
+static constexpr uint32_t kWebConfigCreditQueryRetryMs = 10u;
 static constexpr uint32_t kTelemetryIntervalMs = 1000u;
 static constexpr uint8_t kMaxEventsPerDrain = 64u;
 static constexpr uint16_t kNetworkFrameBytes =
@@ -44,6 +45,13 @@ static bool supportedRole(usb_board_role_t role)
     return (role == USB_BOARD_ROLE_RF) ||
            (role == USB_BOARD_ROLE_USB) ||
            (role == USB_BOARD_ROLE_MAINTENANCE);
+}
+
+static uint8_t bulkCreditLimit(uint8_t channel)
+{
+    return channel == USB_BOARD_CHANNEL_WEBCONFIG
+        ? USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW
+        : USB_BOARD_BULK_CREDIT_WINDOW;
 }
 
 static bool responseStatusOk(const uint8_t *payload, uint8_t length)
@@ -231,7 +239,12 @@ bool UsbBoardLink::drainEventsLocked(uint32_t timeoutMs)
 
 bool UsbBoardLink::sendLocked(uint8_t command,
                               const void *payload,
-                              uint8_t payloadLength)
+                              uint8_t payloadLength,
+                              bool validateWebConfigTransmit,
+                              uint32_t expectedGeneration,
+                              uint8_t expectedTransaction,
+                              uint8_t expectedFragment,
+                              uint16_t expectedOffset)
 {
     uint8_t frame[USB_BOARD_LINK_MAX_FRAME_BYTES] = {};
     uint8_t frameLength = 0u;
@@ -258,10 +271,23 @@ bool UsbBoardLink::sendLocked(uint8_t command,
             payloadLength >= USB_BOARD_FRAGMENT_HEADER_BYTES) {
             const auto *header =
                 static_cast<const usb_board_fragment_header_v1_t *>(payload);
-            if (header->channel == USB_BOARD_CHANNEL_WEBCONFIG &&
-                webConfigTransportState !=
-                    WebConfigTransportState::Ready) {
-                return false;
+            if (header->channel == USB_BOARD_CHANNEL_WEBCONFIG) {
+                /*
+                 * drainEventsLocked() may have consumed an asynchronous
+                 * unmount/remount event and retired the cached report. Never
+                 * let a frame built for that old generation cross the final
+                 * GPIO-to-SPI boundary.
+                 */
+                if (!validateWebConfigTransmit ||
+                    !webConfigTransmitMatches(
+                        expectedGeneration,
+                        expectedTransaction,
+                        expectedFragment,
+                        expectedOffset) ||
+                    header->transaction != expectedTransaction ||
+                    header->fragment_index != expectedFragment) {
+                    return false;
+                }
             }
         }
         if (USBBoardLinkPort_Send(frame, frameLength)) {
@@ -279,7 +305,36 @@ bool UsbBoardLink::send(uint8_t command,
     if (!transaction) {
         return false;
     }
-    return sendLocked(command, payload, payloadLength);
+    return sendLocked(command,
+                      payload,
+                      payloadLength,
+                      false,
+                      0u,
+                      0u,
+                      0u,
+                      0u);
+}
+
+bool UsbBoardLink::sendWebConfigFragment(
+    const void *payload,
+    uint8_t payloadLength,
+    uint32_t expectedGeneration,
+    uint8_t expectedTransaction,
+    uint8_t expectedFragment,
+    uint16_t expectedOffset)
+{
+    LinkTransactionGuard transaction(transactionActive);
+    if (!transaction) {
+        return false;
+    }
+    return sendLocked(USB_BOARD_CMD_BULK_FRAGMENT,
+                      payload,
+                      payloadLength,
+                      true,
+                      expectedGeneration,
+                      expectedTransaction,
+                      expectedFragment,
+                      expectedOffset);
 }
 
 bool UsbBoardLink::selectRole(usb_board_role_t role, uint32_t timeoutMs)
@@ -419,7 +474,7 @@ bool UsbBoardLink::grantInitialReceiveCredits()
     for (uint8_t channel = USB_BOARD_CHANNEL_USB_DEVICE;
          channel <= USB_BOARD_CHANNEL_LAST;
          ++channel) {
-        receiveCredits[channel] = USB_BOARD_BULK_CREDIT_WINDOW;
+        receiveCredits[channel] = bulkCreditLimit(channel);
         receiveCreditDirty[channel] = 1u;
     }
     flushReceiveCredits();
@@ -439,7 +494,7 @@ void UsbBoardLink::returnReceiveCredit(usb_board_channel_t channel)
     if ((index == 0u) || (index >= sizeof(receiveCredits))) {
         return;
     }
-    if (receiveCredits[index] < USB_BOARD_BULK_CREDIT_WINDOW) {
+    if (receiveCredits[index] < bulkCreditLimit(index)) {
         ++receiveCredits[index];
     }
     receiveCreditDirty[index] = 1u;
@@ -484,8 +539,10 @@ bool UsbBoardLink::setProfile(usb_board_profile_t profile)
            USB_BOARD_CAP_FEATURE_TELEMETRY_HID) == 0u)) ||
         (webConfigProfile &&
          (selectedRole != USB_BOARD_ROLE_MAINTENANCE ||
-          (caps.profile_flags & USB_BOARD_CAP_PROFILE_WEB_CONFIG) == 0u ||
-          (caps.feature_flags & USB_BOARD_CAP_FEATURE_WEBHID_V1) == 0u)) ||
+           (caps.profile_flags & USB_BOARD_CAP_PROFILE_WEB_CONFIG) == 0u ||
+           (caps.feature_flags & USB_BOARD_CAP_FEATURE_WEBHID_V1) == 0u ||
+           (caps.feature_flags &
+            USB_BOARD_CAP_FEATURE_WEBCONFIG_PULL_CREDIT) == 0u)) ||
         ((selectedRole != USB_BOARD_ROLE_USB) &&
          (selectedRole != USB_BOARD_ROLE_MAINTENANCE)) ||
         !transact(USB_BOARD_CMD_SET_PROFILE,
@@ -504,6 +561,7 @@ bool UsbBoardLink::setProfile(usb_board_profile_t profile)
     }
     selectedProfile = profile;
     resetWebConfigTransmit();
+    credits[USB_BOARD_CHANNEL_WEBCONFIG] = 0u;
     webConfigTransportState = WebConfigTransportState::Ready;
     telemetryTransaction = 0u;
     nextTelemetryAtMs = HAL_GetTick() + kTelemetryIntervalMs;
@@ -620,6 +678,7 @@ void UsbBoardLink::resetWebConfigTransmit()
     webConfigTxFragment = 0u;
     webConfigTxActive = false;
     webConfigTxCreditConsumed = false;
+    webConfigCreditQueryAfterMs = 0u;
     ++webConfigTxGeneration;
     if (webConfigTxGeneration == 0u) {
         ++webConfigTxGeneration;
@@ -651,15 +710,92 @@ void UsbBoardLink::serviceWebConfigTransportReset()
     }
 
     /*
-     * CLEAR_FAULT is also the board-management operation that synchronously
-     * discards the CH585 WebConfig reassembly slot and endpoint queues. Keep
-     * the channel closed until CH585 advertises a fresh post-reset credit.
+     * CLEAR_FAULT synchronously discards the CH585 WebConfig reassembly slot
+     * and endpoint queues.  WebConfig credit is pull-only, so a successful
+     * reset returns to Ready with zero local credit; the next real pending
+     * report queries the fresh whole-report capacity.
      */
     if (sendControl(USB_BOARD_CONTROL_CLEAR_FAULT)) {
         credits[USB_BOARD_CHANNEL_WEBCONFIG] = 0u;
-        webConfigTransportState =
-            WebConfigTransportState::AwaitingFreshCredit;
+        webConfigCreditQueryAfterMs = 0u;
+        webConfigTransportState = WebConfigTransportState::Ready;
     }
+}
+
+bool UsbBoardLink::webConfigTransmitMatches(
+    uint32_t expectedGeneration,
+    uint8_t expectedTransaction,
+    uint8_t expectedFragment,
+    uint16_t expectedOffset) const
+{
+    return capsValid &&
+           selectedRole == USB_BOARD_ROLE_MAINTENANCE &&
+           selectedProfile == USB_BOARD_PROFILE_WEB_CONFIG &&
+           webConfigTransportState == WebConfigTransportState::Ready &&
+           usbState.device_mounted != 0u &&
+           usbState.device_suspended == 0u &&
+           webConfigTxActive &&
+           webConfigTxGeneration == expectedGeneration &&
+           webConfigTxTransaction == expectedTransaction &&
+           webConfigTxFragment == expectedFragment &&
+           webConfigTxOffset == expectedOffset;
+}
+
+bool UsbBoardLink::pullWebConfigCredit(
+    uint32_t expectedGeneration,
+    uint8_t expectedTransaction,
+    uint8_t expectedFragment,
+    uint16_t expectedOffset)
+{
+    const uint8_t channel = USB_BOARD_CHANNEL_WEBCONFIG;
+    const uint32_t now = HAL_GetTick();
+
+    if (!webConfigTransmitMatches(expectedGeneration,
+                                  expectedTransaction,
+                                  expectedFragment,
+                                  expectedOffset)) {
+        return false;
+    }
+    if (credits[channel] != 0u) {
+        return true;
+    }
+    if ((caps.feature_flags &
+         USB_BOARD_CAP_FEATURE_WEBCONFIG_PULL_CREDIT) == 0u ||
+        webConfigTxCreditConsumed || webConfigTxOffset != 0u ||
+        (webConfigCreditQueryAfterMs != 0u &&
+         static_cast<int32_t>(now - webConfigCreditQueryAfterMs) < 0)) {
+        return false;
+    }
+
+    /*
+     * Schedule the retry before entering the correlated control transaction.
+     * A lost response is harmless: the next pending output retries a fresh
+     * read-only snapshot instead of replaying an absolute asynchronous grant.
+     */
+    webConfigCreditQueryAfterMs =
+        now + kWebConfigCreditQueryRetryMs;
+    usb_board_bulk_credit_v1_t snapshot = {};
+    uint8_t responseLength = 0u;
+    const bool queried = sendControl(
+        USB_BOARD_CONTROL_GET_WEBCONFIG_CREDIT,
+        nullptr,
+        0u,
+        reinterpret_cast<uint8_t *>(&snapshot),
+        sizeof(snapshot),
+        &responseLength);
+    if (!webConfigTransmitMatches(expectedGeneration,
+                                  expectedTransaction,
+                                  expectedFragment,
+                                  expectedOffset) ||
+        !queried ||
+        responseLength != sizeof(snapshot) ||
+        snapshot.channel != channel ||
+        snapshot.credits > USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW) {
+        return false;
+    }
+
+    credits[channel] = snapshot.credits;
+    return credits[channel] != 0u;
 }
 
 bool UsbBoardLink::sendWebConfigReport(uint8_t transaction,
@@ -697,6 +833,8 @@ bool UsbBoardLink::sendWebConfigReport(uint8_t transaction,
         uint8_t packet[USB_BOARD_LINK_MAX_PAYLOAD_BYTES] = {};
         auto *header =
             reinterpret_cast<usb_board_fragment_header_v1_t *>(packet);
+        const uint16_t expectedOffset = webConfigTxOffset;
+        const uint8_t expectedFragment = webConfigTxFragment;
         const uint16_t remaining =
             static_cast<uint16_t>(length - webConfigTxOffset);
         const uint8_t dataLength = static_cast<uint8_t>(
@@ -704,10 +842,14 @@ bool UsbBoardLink::sendWebConfigReport(uint8_t transaction,
                 ? USB_BOARD_FRAGMENT_DATA_BYTES
                 : remaining);
 
-        if (!webConfigTxCreditConsumed) {
+        if (!webConfigTxCreditConsumed &&
+            creditFor(USB_BOARD_CHANNEL_WEBCONFIG) == 0u) {
             if (waitForCredit) {
                 const uint32_t creditWaitStarted = HAL_GetTick();
-                while (creditFor(USB_BOARD_CHANNEL_WEBCONFIG) == 0u) {
+                while (!pullWebConfigCredit(generation,
+                                            transaction,
+                                            expectedFragment,
+                                            expectedOffset)) {
                     process();
                     if ((HAL_GetTick() - creditWaitStarted) >=
                         kBulkCreditWaitMs) {
@@ -715,9 +857,19 @@ bool UsbBoardLink::sendWebConfigReport(uint8_t transaction,
                     }
                     HAL_Delay(1u);
                 }
-            } else if (creditFor(USB_BOARD_CHANNEL_WEBCONFIG) == 0u) {
+            } else if (!pullWebConfigCredit(generation,
+                                            transaction,
+                                            expectedFragment,
+                                            expectedOffset)) {
                 return false;
             }
+        }
+
+        if (!webConfigTransmitMatches(generation,
+                                      transaction,
+                                      expectedFragment,
+                                      expectedOffset)) {
+            return false;
         }
 
         header->channel =
@@ -737,10 +889,14 @@ bool UsbBoardLink::sendWebConfigReport(uint8_t transaction,
                &webConfigTxPayload[webConfigTxOffset],
                dataLength);
 
-        if (!send(USB_BOARD_CMD_BULK_FRAGMENT,
-                  packet,
-                  static_cast<uint8_t>(
-                      USB_BOARD_FRAGMENT_HEADER_BYTES + dataLength))) {
+        if (!sendWebConfigFragment(
+                packet,
+                static_cast<uint8_t>(
+                    USB_BOARD_FRAGMENT_HEADER_BYTES + dataLength),
+                generation,
+                transaction,
+                expectedFragment,
+                expectedOffset)) {
             /*
              * Keep offset/fragment/credit ownership intact. The next call
              * resumes this exact fragment instead of emitting a new FIRST
@@ -963,39 +1119,42 @@ void UsbBoardLink::handleEvent(uint8_t command,
         usb_board_usb_state_v1_t updated = {};
         memcpy(&updated, payload, sizeof(updated));
         usbSubsystemEvidence = true;
-        if (updated.device_mounted == 0u ||
-            updated.device_suspended != 0u) {
+        if (updated.device_mounted == 0u) {
             /*
-             * CH585 has discarded its reassembly slot and endpoint queues.
-             * Drop any saved second fragment and withhold new traffic until a
-             * fresh credit arrives for the new USB transport generation.
+             * A real unmount has discarded the CH585 endpoint generation.
+             * Drop any saved second fragment and wait for a fresh credit from
+             * the newly configured interface.
              */
             resetWebConfigTransmit();
             credits[USB_BOARD_CHANNEL_WEBCONFIG] = 0u;
-            if (selectedProfile == USB_BOARD_PROFILE_WEB_CONFIG) {
-                webConfigTransportState =
-                    WebConfigTransportState::AwaitingFreshCredit;
-            }
+        } else if (updated.device_suspended != 0u) {
+            /*
+             * Suspend is only a pause. Withhold new complete reports but keep
+             * a credit-owned partial transmit so it can finish with the same
+             * transaction, fragment index and payload after resume.
+             */
+            credits[USB_BOARD_CHANNEL_WEBCONFIG] = 0u;
         }
         usbState = updated;
     } else if ((command == USB_BOARD_EVT_BULK_CREDIT) &&
                (length == sizeof(usb_board_bulk_credit_v1_t))) {
         usb_board_bulk_credit_v1_t update = {};
         memcpy(&update, payload, sizeof(update));
-        if (update.channel == USB_BOARD_CHANNEL_WEBCONFIG &&
-            webConfigTransportState !=
-                WebConfigTransportState::Ready) {
-            if (webConfigTransportState ==
-                    WebConfigTransportState::AwaitingFreshCredit &&
-                update.credits != 0u) {
-                credits[update.channel] = update.credits;
-                webConfigTransportState =
-                    WebConfigTransportState::Ready;
-            } else {
-                credits[update.channel] = 0u;
-            }
-        } else if (update.channel < sizeof(credits)) {
-            credits[update.channel] = update.credits;
+        if (update.channel == USB_BOARD_CHANNEL_WEBCONFIG) {
+            /*
+             * WebConfig is pull-only. Ignore any stale event left across a
+             * profile/reset boundary or emitted by an older CH585 image.
+             */
+            return;
+        }
+        const uint8_t boundedCredits =
+            update.channel < sizeof(credits)
+                ? ((update.credits > bulkCreditLimit(update.channel))
+                       ? bulkCreditLimit(update.channel)
+                       : update.credits)
+                : 0u;
+        if (update.channel < sizeof(credits)) {
+            credits[update.channel] = boundedCredits;
         }
     } else if ((command == USB_BOARD_EVT_FAULT) && (length != 0u)) {
         usbState.last_fault = payload[0];

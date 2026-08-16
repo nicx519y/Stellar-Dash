@@ -73,11 +73,21 @@ bool Ch585RoleBootstrap::start(Ch585Role requestedRole)
          * leaves SPI0 in an ambiguous hand-off state; the loader's idle boot
          * path reaches the application with a clean bus instead. */
         APP_STAGE("R02", "CH585 waiting for idle IAP-to-application handoff");
-        if (!RFBootReady::waitForModuleReady(CH585_ROLE_SELECT_TIMEOUT_MS)) {
-            APP_STAGE_ERROR("R02E", "CH585 application-ready pulse not observed");
-            continue;
+        const bool readyObserved =
+            RFBootReady::waitForModuleReady(CH585_READY_HINT_TIMEOUT_MS);
+        if (!readyObserved) {
+            /*
+             * PA5 is shared with the steady-state event signal and its short
+             * boot pulse is only a timing hint. Some power cycles do not
+             * expose that pulse to STM32 even though the CH585 polling role
+             * selector is already alive. Continue with the bounded protocol
+             * transaction; ROLE_SELECTED remains the authoritative commit.
+             */
+            APP_STAGE("R02B",
+                      "CH585 ready pulse not observed; probing role selector");
+        } else {
+            APP_STAGE("R02A", "CH585 application-ready pulse observed");
         }
-        APP_STAGE("R02A", "CH585 application-ready pulse observed");
 
         if (selectOnce(requestedRole)) {
             APP_STAGE("R03", "CH585 role selected: attempt=%u role=%u",

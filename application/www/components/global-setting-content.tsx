@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
     HOTKEYS_SETTINGS_INTERACTIVE_IDS,
     HotkeyAction,
@@ -15,7 +15,7 @@ import { useLanguage } from "@/contexts/language-context";
 import { InputModeSettingContent } from "./input-mode-content";
 import { ConnectionModeSettingContent } from "./connection-mode-content";
 import { ScreenControlSettingContent } from "./screen-control-setting-content";
-import { openConfirm } from "@/components/dialog-confirm";
+import { cancelConfirm, openConfirm } from "@/components/dialog-confirm";
 import { useNavigationBlocker } from '@/hooks/use-navigation-blocker';
 import React from "react";
 import { Tabs } from "@chakra-ui/react";
@@ -44,8 +44,10 @@ export function GlobalSettingContent() {
         dataIsReady,
         sendPendingCommandImmediately,
         setFinishConfigDisabled,
-        wsConnected,
+        deviceConnected,
         checkIsManualCalibrationCompleted,
+        startManualCalibration,
+        stopManualCalibration,
         hitboxLayout,
         // updateGlobalConfig,
     } = useGamepadConfig();
@@ -56,6 +58,63 @@ export function GlobalSettingContent() {
     const [currentHotkeys, setCurrentHotkeys] = useState<Hotkey[]>([]);
     const [calibrationActive, setCalibrationActive] = useState<boolean>(false);
     const [mainTab, setMainTab] = useState<'hotkeys' | 'screen'>('screen');
+    const calibrationActiveRef = useRef(false);
+    const deviceConnectedRef = useRef(deviceConnected);
+    const connectionEpochRef = useRef(0);
+    const calibrationOperationRef = useRef(false);
+    const calibrationCheckInFlightRef = useRef(false);
+
+    const setCalibrationActiveForSession = useCallback((active: boolean) => {
+        calibrationActiveRef.current = active;
+        setCalibrationActive(active);
+    }, []);
+
+    const onStartManualCalibration = useCallback(async () => {
+        if (!deviceConnectedRef.current || calibrationOperationRef.current || calibrationActiveRef.current) {
+            return;
+        }
+
+        const epoch = connectionEpochRef.current;
+        calibrationOperationRef.current = true;
+        try {
+            await startManualCalibration();
+            if (deviceConnectedRef.current && connectionEpochRef.current === epoch) {
+                setCalibrationActiveForSession(true);
+            }
+        } catch {
+            // The context publishes the actionable transport error. Keep the
+            // calibration UI inactive when the command was not acknowledged.
+            setCalibrationActiveForSession(false);
+        } finally {
+            calibrationOperationRef.current = false;
+        }
+    }, [setCalibrationActiveForSession, startManualCalibration]);
+
+    const onEndManualCalibration = useCallback(async () => {
+        if (!calibrationActiveRef.current) {
+            return;
+        }
+
+        // Tear down the local view first. If the transport disappears during
+        // this operation, never enqueue cleanup against the next session.
+        setCalibrationActiveForSession(false);
+        if (!deviceConnectedRef.current || calibrationOperationRef.current) {
+            return;
+        }
+
+        const epoch = connectionEpochRef.current;
+        calibrationOperationRef.current = true;
+        try {
+            await stopManualCalibration();
+        } catch {
+            // A disconnect already invalidates device-side session state. Do
+            // not resurrect calibration UI or replay this command on reconnect.
+        } finally {
+            if (connectionEpochRef.current === epoch) {
+                calibrationOperationRef.current = false;
+            }
+        }
+    }, [setCalibrationActiveForSession, stopManualCalibration]);
 
     // 添加校准模式检查
     useNavigationBlocker(
@@ -63,7 +122,7 @@ export function GlobalSettingContent() {
         t.CALIBRATION_MODE_WARNING_TITLE,
         t.CALIBRATION_MODE_WARNING_MESSAGE,
         async () => {
-            onEndManualCalibration();
+            await onEndManualCalibration();
             return true;
         }
     );
@@ -76,7 +135,7 @@ export function GlobalSettingContent() {
         });
 
         if (confirmed) {
-            onEndManualCalibration();
+            await onEndManualCalibration();
         }
     };
 
@@ -91,27 +150,39 @@ export function GlobalSettingContent() {
         }
     };
 
-    const onStartManualCalibration = async () => {
-        setCalibrationActive(true);
-    }
-
-    const onEndManualCalibration = async () => {
-        setCalibrationActive(false);
-    }
-
     // 检查手动校准是否完成，如果未完成，则弹出确认对话框
     const checkIsManualCalibrationCompletedHandle = useCallback(async () => {
-        const isCompleted = await checkIsManualCalibrationCompleted();
-        if (!isCompleted) {
-            const confirmation = await openConfirm({
-                title: t.CALIBRATION_CHECK_COMPLETED_DIALOG_TITLE,
-                message: t.CALIBRATION_CHECK_COMPLETED_DIALOG_MESSAGE
-            });
-            if (confirmation && !calibrationActive) {
-                onStartManualCalibration();
-            }
+        if (!deviceConnectedRef.current || calibrationCheckInFlightRef.current) {
+            return;
         }
-    }, [checkIsManualCalibrationCompleted, calibrationActive]);
+        calibrationCheckInFlightRef.current = true;
+        const epoch = connectionEpochRef.current;
+        try {
+            const isCompleted = await checkIsManualCalibrationCompleted();
+            if (!deviceConnectedRef.current || connectionEpochRef.current !== epoch) {
+                return;
+            }
+            if (!isCompleted) {
+                const confirmation = await openConfirm({
+                    title: t.CALIBRATION_CHECK_COMPLETED_DIALOG_TITLE,
+                    message: t.CALIBRATION_CHECK_COMPLETED_DIALOG_MESSAGE
+                });
+                if (
+                    confirmation &&
+                    deviceConnectedRef.current &&
+                    connectionEpochRef.current === epoch &&
+                    !calibrationActiveRef.current
+                ) {
+                    await onStartManualCalibration();
+                }
+            }
+        } catch {
+            // Disconnect/reset paths invalidate this check through the epoch.
+            // The transport context owns any user-facing error reporting.
+        } finally {
+            calibrationCheckInFlightRef.current = false;
+        }
+    }, [checkIsManualCalibrationCompleted, onStartManualCalibration, t]);
 
     // 处理热键更新回调
     const handleHotkeyUpdate = useCallback((hotkeys: Hotkey[]) => {
@@ -163,11 +234,19 @@ export function GlobalSettingContent() {
     }, [calibrationActive]);
 
     useEffect(() => {
-        // 如果webscoket断开，并且校准正在进行中，则停止校准
-        if (!wsConnected && calibrationActive) {
-            setCalibrationActive(false);
+        deviceConnectedRef.current = deviceConnected;
+        if (!deviceConnected) {
+            // Invalidate every async prompt/operation from the old physical
+            // device session. This is local cleanup only: no device command is
+            // allowed once the transport has disconnected.
+            connectionEpochRef.current += 1;
+            calibrationOperationRef.current = false;
+            calibrationCheckInFlightRef.current = false;
+            cancelConfirm();
+            setCalibrationActiveForSession(false);
+            setIsInit(false);
         }
-    }, [wsConnected]);
+    }, [deviceConnected, setCalibrationActiveForSession]);
 
     // 初始化 currentHotkeys
     useEffect(() => {
@@ -185,7 +264,7 @@ export function GlobalSettingContent() {
 
             setIsInit(true);
         }
-    }, [dataIsReady, hotkeysConfig]);
+    }, [dataIsReady, hotkeysConfig, isInit, checkIsManualCalibrationCompletedHandle]);
 
     // 渲染hitbox内容
     const renderHitboxContent = (containerWidth: number) => {

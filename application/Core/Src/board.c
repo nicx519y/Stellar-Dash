@@ -60,12 +60,11 @@ void board_init(void)
 
     // QSPI_W25Qxx_Test(0x00500000);
 
+    MX_DMA_Init();
+    APP_DBG("board init: MX_DMA_Init success.");
+
     MX_TIM2_Init(); // RF/USB report scheduler timer, reconfigured by ReportScheduler at runtime
     APP_DBG("board init: MX_TIM2_Init success.");
-
-    MX_DMA_Init();
-
-    APP_DBG("board init: MX_DMA_Init success.");
 
     MX_BDMA_Init();
 
@@ -86,8 +85,6 @@ void board_init(void)
     APP_STAGE("A05", "ADC1, ADC2 and ADC3 initialized");
 
 #ifdef HAS_LED
-    // WS2812B_InitStrip(WS2812B_STRIP_KEYS);
-    // WS2812B_InitStrip(WS2812B_STRIP_AMBIENT);
     WS2812B_Init();
     APP_DBG("board init: WS2812B_Init success.");
     APP_STAGE("A06", "WS2812B peripheral initialized");

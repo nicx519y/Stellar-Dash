@@ -10,6 +10,7 @@ import { GamePadColor } from "@/types/gamepad-color";
 import { ledAnimations } from "./hitbox-animation";
 import { type ButtonStateBinaryData, isButtonTriggered } from '@/lib/button-binary-parser';
 import { useButtonMonitor } from '@/hooks/use-button-monitor';
+import { shouldStartButtonMonitoring } from '@/lib/button-monitor-lifecycle';
 import { HITBOX_WIDTH, HITBOX_HEIGHT, HITBOX_PADDING, HITBOX_LAYOUT_SCALE } from "./hitbox-constants";
 
 const StyledSvg = styled.svg<{
@@ -96,7 +97,13 @@ interface HitboxLedsProps {
 export default function HitboxLeds(props: HitboxLedsProps) {
     const hasText = props.hasText ?? true;
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady, wsConnected, hitboxLayout } = useGamepadConfig();
+    const {
+        contextJsReady,
+        setContextJsReady,
+        deviceConnected,
+        dataIsReady,
+        hitboxLayout,
+    } = useGamepadConfig();
 
     const layout = useMemo(() => {
         const rawLayout = hitboxLayout ?? [];
@@ -107,6 +114,13 @@ export default function HitboxLeds(props: HitboxLedsProps) {
         }));
     }, [hitboxLayout]);
     const len = layout.length;
+    const shouldMonitorButtons = shouldStartButtonMonitoring({
+        enabled: props.isButtonMonitoringEnabled ?? false,
+        deviceConnected,
+        dataIsReady,
+        contextJsReady,
+        layoutLength: len,
+    });
 
     // 硬件按键状态管理
     const [pressedButtonStates, setPressedButtonStates] = useState(Array(len).fill(-1));
@@ -276,32 +290,28 @@ export default function HitboxLeds(props: HitboxLedsProps) {
      * 管理按键监听的启动和停止
      */
     useEffect(() => {
-        const enabled = props.isButtonMonitoringEnabled ?? false;
+        const clearHardwareState = () => {
+            setHardwareButtonStates((current) => current.map(() => -1));
+        };
 
-        if(wsConnected && contextJsReady) {
-            if(enabled) {
-                console.log("hitbox-leds: 启动按键监听");
-                startMonitoring().catch((error) => {
-                    console.error('启动按键监听失败:', error);
-                });
-            }
-
-            if(!enabled) {
-                setHardwareButtonStates(Array(len).fill(-1));
-                console.log("hitbox-leds: 停止按键监听");
-                stopMonitoring();
-            }
+        if (!shouldMonitorButtons) {
+            clearHardwareState();
+            return;
         }
 
-        // 清理函数
+        console.log("hitbox-leds: 启动按键监听");
+        void startMonitoring().catch((error) => {
+            console.error('启动按键监听失败:', error);
+        });
+
         return () => {
-            setHardwareButtonStates(Array(len).fill(-1));
+            clearHardwareState();
             console.log("hitbox-leds: 清理按键监听");
-            if(wsConnected && contextJsReady) {
-                stopMonitoring();
-            }
+            void stopMonitoring().catch((error) => {
+                console.error('停止按键监听失败:', error);
+            });
         };
-    }, [props.isButtonMonitoringEnabled, wsConnected, contextJsReady, len]);
+    }, [shouldMonitorButtons, startMonitoring, stopMonitoring]);
 
     useEffect(() => {
         defaultBackColorRef.current = colorMode === 'light' ? GamePadColor.fromString("#ffffff") : GamePadColor.fromString("#000000");

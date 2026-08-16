@@ -60,8 +60,7 @@ private:
     enum class WebConfigTransportState : uint8_t
     {
         Ready = 0u,
-        ResetRequested,
-        AwaitingFreshCredit
+        ResetRequested
     };
 
     bool transact(uint8_t command,
@@ -74,8 +73,19 @@ private:
                   uint32_t timeoutMs);
     bool send(uint8_t command, const void *payload, uint8_t payloadLength);
     bool sendLocked(uint8_t command,
-                    const void *payload,
-                    uint8_t payloadLength);
+                     const void *payload,
+                     uint8_t payloadLength,
+                     bool validateWebConfigTransmit,
+                     uint32_t expectedGeneration,
+                     uint8_t expectedTransaction,
+                     uint8_t expectedFragment,
+                     uint16_t expectedOffset);
+    bool sendWebConfigFragment(const void *payload,
+                               uint8_t payloadLength,
+                               uint32_t expectedGeneration,
+                               uint8_t expectedTransaction,
+                               uint8_t expectedFragment,
+                               uint16_t expectedOffset);
     bool drainEventsLocked(uint32_t timeoutMs);
     bool grantInitialReceiveCredits();
     void returnReceiveCredit(usb_board_channel_t channel);
@@ -93,6 +103,14 @@ private:
                              const uint8_t *payload,
                              uint16_t length,
                              bool waitForCredit);
+    bool pullWebConfigCredit(uint32_t expectedGeneration,
+                             uint8_t expectedTransaction,
+                             uint8_t expectedFragment,
+                             uint16_t expectedOffset);
+    bool webConfigTransmitMatches(uint32_t expectedGeneration,
+                                  uint8_t expectedTransaction,
+                                  uint8_t expectedFragment,
+                                  uint16_t expectedOffset) const;
     void resetWebConfigTransmit();
     uint8_t creditFor(usb_board_channel_t channel) const;
     void consumeCredit(usb_board_channel_t channel);
@@ -120,6 +138,7 @@ private:
     bool webConfigTxActive = false;
     bool webConfigTxCreditConsumed = false;
     uint32_t webConfigTxGeneration = 0u;
+    uint32_t webConfigCreditQueryAfterMs = 0u;
     WebConfigTransportState webConfigTransportState =
         WebConfigTransportState::Ready;
 };

@@ -12,12 +12,12 @@
 #include "system_logger.h"
 #include "utils.h"
 #include "board_cfg.h"
+#include "report_scheduler.hpp"
 
 extern "C" {
     int cpp_main(void) 
     {   
 
-        // printf("STM32 Unique ID: %s\n", str_stm32_unique_id());
         // Logger_ClearFlash();
         // Logger_PrintAllLogs(printf);
 
@@ -38,6 +38,7 @@ extern "C" {
 
 void adc_test(void) {
     ADCManager::getInstance().startADCSamping(false);
+    REPORT_SCHEDULER.start(1000u);
     WS2812B_Test();
 
     int8_t brightness = 0; 
@@ -63,8 +64,6 @@ void adc_test(void) {
                     direction = 1;
             }
 
-            ADCManager::getInstance().triggerSampling();
-            HAL_Delay(1); // Wait for sampling
             ADCManager::getInstance().ADCValuesTestPrint();
         }
     }
@@ -78,6 +77,7 @@ void manual_calibration_test(void) {
     
     // 初始化ADC管理器
     ADCManager::getInstance().startADCSamping(false);
+    REPORT_SCHEDULER.start(1000u);
     // 等待3秒
     HAL_Delay(1000);
     
@@ -99,9 +99,6 @@ void manual_calibration_test(void) {
     uint32_t last_adc_print = HAL_GetTick();
     
     while (true) {
-        // 触发采样
-        ADCManager::getInstance().triggerSampling();
-        
         // 处理校准逻辑
         ADC_CALIBRATION_MANAGER.processCalibration();
         

@@ -500,20 +500,33 @@ perform_jump:
     }
     BOOT_STAGE("B12", "anti-rollback minimum committed");
 
+#endif
+
     /*
-     * No identity, invalid manufacturer certificate, entropy failure, or
-     * signing failure means no application handoff.  This is the device-side
-     * root for the later WebHID online proof.
+     * WebHID uses a fresh per-boot attestation key even on an unlocked
+     * laboratory board.  Development mode skips lifecycle enforcement and
+     * anti-rollback writes, but it must not skip this volatile SRAM context:
+     * doing so makes an otherwise valid local device identity unusable by
+     * the production-compatible WebHID protocol.
+     *
+     * This operation reads the existing development identity and writes only
+     * the reserved SRAM boot context.  It never changes Option Bytes, RDP,
+     * WRP, PCROP, SECURITY, SCAR, or any Flash protection setting.
      */
     if (!BootAttestation_Prepare(&metadata)) {
         BOOT_STAGE_ERROR("B13", "device identity or boot attestation unavailable");
         Logger_Log(LOG_LEVEL_ERROR, "ATTESTATION",
                    "Unable to create an authenticated boot context");
+#if HBOX_SECURE_BOOT_REQUIRED
         BOOT_ERR("Device identity/boot attestation unavailable; refusing jump");
         return;
-    }
-    BOOT_STAGE("B13", "authenticated boot context prepared");
+#else
+        Logger_Log(LOG_LEVEL_WARN, "ATTESTATION",
+                   "Unlocked development handoff continues without WebHID identity");
 #endif
+    } else {
+        BOOT_STAGE("B13", "authenticated boot context prepared");
+    }
 
     BOOT_DBG("Jumping to slot %s: Base=0x%08lX, SP=0x%08lX, PC=0x%08lX", 
                      (target_slot == FIRMWARE_SLOT_A) ? "A" : "B",

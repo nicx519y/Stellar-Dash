@@ -42,13 +42,13 @@ export function useButtonPerformanceMonitor(options: UseButtonPerformanceMonitor
             
             isActiveRef.current = true;
             
-            // 开始监听WebSocket推送消息
+            // 开始监听设备事件推送
             if (!unsubscribeRef.current) {
                             if (useEventBusOption) {
                 // 使用 eventBus 监听（推荐方式）
                 unsubscribeRef.current = eventBus.on(EVENTS.BUTTON_PERFORMANCE_MONITORING, handleButtonPerformanceEvent);
             } else {
-                // 注意：由于 webSocketService 已简化，这里只支持 eventBus 方式
+                // 注意：由于 device event service 使用统一事件总线，这里只支持 eventBus 方式
                 unsubscribeRef.current = eventBus.on(EVENTS.BUTTON_PERFORMANCE_MONITORING, handleButtonPerformanceEvent);
             }
             }
@@ -70,7 +70,7 @@ export function useButtonPerformanceMonitor(options: UseButtonPerformanceMonitor
             
             isActiveRef.current = false;
             
-            // 停止监听WebSocket推送消息
+            // 停止监听设备事件推送
             if (unsubscribeRef.current) {
                 unsubscribeRef.current();
                 unsubscribeRef.current = null;
@@ -85,11 +85,11 @@ export function useButtonPerformanceMonitor(options: UseButtonPerformanceMonitor
         }
     };
 
-    // 处理WebSocket推送的按键性能监控事件
+    // 处理设备推送的按键性能监控事件
     const handleButtonPerformanceEvent = (data: unknown) => {
         try {
             
-            // V1 emits a binary WebSocket frame. V2 WebHID emits the same
+            // WebHID typed telemetry emits the same
             // semantic snapshot after merging SAMPLE/EDGE/CHECKPOINT packets.
             const performanceData = data instanceof ArrayBuffer
                 ? parseButtonPerformanceMonitoringBinaryData(data)

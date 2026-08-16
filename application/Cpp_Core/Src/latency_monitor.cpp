@@ -1,36 +1,9 @@
 #include "latency_monitor.hpp"
 #include <stdio.h>
-#include "adc_btns/adc_manager.hpp"
 
 /*
-延迟测量与动态 delay 调整的整体思路
-
-目标：
-- 优化主机轮询造成的等待时间，尽量把“数据准备好”的时刻对齐到主机 IN Token 到来前的一个安全边界附近。
-- 指标里我们关注 IN：它包含两部分
-  - p：等待时间（数据已经准备好，但主机还没来取，或队列里还没轮到）
-  - d：物理传输时间（USB 控制器+总线把 report 传完并触发完成回调所需时间）
-  所以 IN = p + d。理想是把 p 逼近 0（或者一个很小的安全余量），d 由物理层决定无法消除。
-
-关键做法：
-- 通过在每个 SOF 触发后“延迟 delay_us 再启动 ADC 采样”，来平移采样开始时间。
-- 采样/处理越靠后，数据准备得越晚，等待时间 p 越小；但太晚会错过当前 1ms 周期，导致跨帧，IN 反而暴涨。
-- 用窗口估计 d：在短窗口内取 IN 的最小值作为 d 的近似（最小值更接近“几乎不等待时”的纯传输成本）。
-- 用 p = IN - d 来驱动 delay 调整：
-  - p 大：说明准备太早 -> 增加 delay，把采样开始往后推
-  - p 小：说明已经接近极限 -> 维持或小幅回退，避免跨帧
-
-重要约束：
-- 不能让“采样+处理+提交USB”这条链路被 delay 推到 1ms 之后，否则会错过当前帧导致跨帧。
-- 用动态上限 max_delay = 1000 - (Samp + Proc + Start) - 20 来限制 delay（保留 20us 安全余量）。
-
-时间戳/指标含义（单位 us）：
-- Samp：采样耗时（ADC DMA 启动 -> 三路 ADC DMA 完成）
-- Proc：处理耗时（采样完成 -> GAMEPAD.read 结束/处理完成）
-- Start：USB 提交耗时（处理完成 -> usbd_edpt_xfer 被调用提交到 USB 控制器）
-- IN：从提交到 USB 控制器到传输完成回调（包含等待+物理传输）
-- Total：采样开始 -> 传输完成
-- SOF2ACK：该 report 所属 SOF -> 传输完成（用 samplingArmed/Started 关联到同一帧的 SOF）
+ADC sampling is paced exclusively by the TIM2 report clock.  This monitor is
+diagnostic only and must not delay or restart ADC conversions.
 */
 
 void LatencyMonitor::sofTriggered() {
@@ -101,17 +74,6 @@ void LatencyMonitor::usbInTransfer() {
         min_usb_in = diff_usb_in;
     }
 
-    // 用窗口内的最小 IN 作为 d（物理传输时间）的估计，避免把等待时间 p 混进 d
-    usb_in_window[usb_in_win_idx] = diff_usb_in;
-    usb_in_win_idx = (usb_in_win_idx + 1) % usb_in_win_size;
-    if (usb_in_win_count < usb_in_win_size) usb_in_win_count++;
-    uint32_t d_min = 0xFFFFFFFF;
-    for (uint8_t i = 0; i < usb_in_win_count; i++) {
-        uint32_t v = usb_in_window[i];
-        if (v > 0 && v < d_min) d_min = v;
-    }
-    if (d_min != 0xFFFFFFFF && d_min < usb_in_d_estimate) usb_in_d_estimate = d_min;
-    
     // Total：采样开始 -> 传输完成
     if (t4_usb_in >= sampling_start_at_usb_start) {
         total_latency = t4_usb_in - sampling_start_at_usb_start;
@@ -133,63 +95,6 @@ void LatencyMonitor::usbInTransfer() {
     acc_total += total_latency;
     acc_sof2ack += sof2ack_latency;
     sample_count++;
-    
-    adjustSamplingDelay();
-}
-
-void LatencyMonitor::adjustSamplingDelay() {
-    // prequeue = Samp + Proc + Start，代表“从采样开始到 report 提交给 USB 控制器”的耗时
-    int32_t prequeue = (int32_t)diff_sampling + (int32_t)diff_processing + (int32_t)diff_usb_start;
-    // 为了避免跨帧，delay 的动态上限跟随 prequeue 变化，并保留 20us 安全余量
-    int32_t max_delay = 1000 - prequeue - 20;
-    if (max_delay < 0) max_delay = 0;
-
-    // p = IN - d。d 用窗口估计的 usb_in_d_estimate 近似，p 表示等待时间（想让它尽可能小）
-    int32_t p = (int32_t)diff_usb_in - (int32_t)usb_in_d_estimate;
-    if (p < 0) p = 0;
-    int32_t new_delay = (int32_t)current_delay_us;
-
-    // 安全保持逻辑：当 IN 已经降到 <=250us，停止继续增加 delay，避免把系统推到过晚导致跨帧。
-    // 但如果出现明显跨帧（SOF2ACK >= 1500us），允许回退一点 delay 做恢复。
-    int32_t target_p = 20;
-    if ((int32_t)diff_usb_in <= 250) {
-        if ((int32_t)sof2ack_latency >= 1500) {
-            new_delay -= 50;
-        } else {
-            return;
-        }
-    }
-
-    // distance 表示“还需要消掉的等待余量”，distance 越大说明准备越早，需要更快地增大 delay
-    int32_t distance = p - target_p;
-    if (distance < 0) distance = 0;
-
-    // 自适应步进：
-    // - distance 很大时使用 distance/2，加快收敛
-    // - 并限制最大步进，避免一次跳太大直接触发跨帧
-    int32_t step = 50;
-    if (distance > 100) {
-        step = distance / 2;
-        if (step < 50) step = 50;
-        if (step > 600) step = 600;
-    }
-
-    // 跨帧判断：
-    // - SOF2ACK 明显大于 1ms 时，基本可以认为错过了当前 1ms 周期
-    // - 此时必须减小 delay，让采样更早开始以回到当前周期
-    if ((int32_t)sof2ack_latency >= 1500) {
-        new_delay -= step;
-    } else if (distance > 0) {
-        // 未跨帧且仍存在等待 -> 增加 delay 以减少等待时间 p
-        new_delay += step;
-    }
-
-    if (new_delay > max_delay) new_delay = max_delay;
-    if (new_delay < 0) new_delay = 0;
-    if ((uint16_t)new_delay != current_delay_us) {
-        current_delay_us = (uint16_t)new_delay;
-        ADCManager::getInstance().setSamplingDelay(current_delay_us);
-    }
 }
 
 void LatencyMonitor::process() {
@@ -204,8 +109,8 @@ void LatencyMonitor::process() {
             uint32_t avg_total = (uint32_t)(acc_total / sample_count);
             uint32_t avg_sof2ack = (uint32_t)(acc_sof2ack / sample_count);
             
-            APP_DBG("[LATENCY] Frames: %lu, Avg(us) - Samp: %lu, Proc: %lu, Start: %lu, IN: %lu, Total: %lu, SOF2ACK: %lu, Delay: %u", 
-                    frame_counter, avg_sampling, avg_processing, avg_usb_start, avg_usb_in, avg_total, avg_sof2ack, current_delay_us);
+            APP_DBG("[LATENCY] Frames: %lu, Avg(us) - Samp: %lu, Proc: %lu, Start: %lu, IN: %lu, Total: %lu, SOF2ACK: %lu",
+                    frame_counter, avg_sampling, avg_processing, avg_usb_start, avg_usb_in, avg_total, avg_sof2ack);
         }
         
         frame_counter = 0;

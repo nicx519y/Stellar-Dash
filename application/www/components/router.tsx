@@ -97,8 +97,6 @@ export function Router() {
             return <SwitchMarkingContent />;
         case 'view-logs':
             return <ViewLogsContent />;
-        // case 'websocket':
-        //     return <WebSocketTest />;
         // case 'buttons-monitor':
         //     return <ButtonMonitorTest />;
 

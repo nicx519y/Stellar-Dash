@@ -34,8 +34,17 @@ private:
     WebHidService() = default;
 
     static constexpr size_t kRxQueueDepth = 4u;
-    static constexpr size_t kRxProcessBudget = 2u;
-    static constexpr size_t kMaximumLogicalBytes = 8u * 1024u;
+    // CH585 can forward one full four-report USB OUT window before the next
+    // WebHID service tick. Drain that complete window in the same tick so a
+    // fragmented bootstrap request cannot leave two stale reports occupying
+    // the queue when the following USB window is collected.
+    static constexpr size_t kRxProcessBudget = kRxQueueDepth;
+    /*
+     * Legacy WebConfig accepted logical JSON messages up to 16 KiB. Keep the
+     * same bounded capacity in static RAM so a large request never attempts
+     * to reserve the application's 8 KiB newlib heap.
+     */
+    static constexpr size_t kMaximumLogicalBytes = 16u * 1024u;
     static constexpr size_t kMaximumStreamBytes = 8u * 1024u;
     static constexpr size_t kMaximumEventBytes = 8u * 1024u;
     static constexpr size_t kMaximumQueuedEventBytes = 16u * 1024u;
@@ -44,14 +53,22 @@ private:
     static constexpr size_t kMaximumOutboundMessages = 8u;
     static constexpr size_t kEdgeQueueDepth = 64u;
     static constexpr size_t kControlBurstBytes = 256u;
-    static constexpr uint32_t kFramePacingMs = 2u;
-
     struct LogicalAssembler
     {
         bool active = false;
         uint8_t type = 0u;
         bool secure = false;
-        std::vector<uint8_t> bytes;
+        bool discardingOversize = false;
+        uint32_t errorTransactionId = 0u;
+        size_t length = 0u;
+        /*
+         * The linker reserves only 8 KiB for the newlib heap. Reserving an
+         * 8 KiB std::vector for the first fragmented bootstrap request also
+         * needs allocator metadata and can fault inside _malloc_r. Keep the
+         * protocol's bounded logical-message workspace in static RAM instead.
+         * The extra byte is the NUL terminator required by cJSON.
+         */
+        std::array<uint8_t, kMaximumLogicalBytes + 1u> bytes = {};
     };
 
     struct StreamState
@@ -63,7 +80,8 @@ private:
         uint32_t received = 0u;
         uint8_t remainingCredit = 0u;
         std::array<uint8_t, 32> expectedHash = {};
-        std::vector<uint8_t> bytes;
+        /* One extra byte is reserved for cJSON's NUL terminator. */
+        std::array<uint8_t, kMaximumStreamBytes + 1u> bytes = {};
     };
 
     struct OutboundLogical
@@ -73,8 +91,9 @@ private:
         bool activateSession = false;
         bool endSession = false;
         bool telemetryPreemptible = false;
+        size_t start = 0u;
+        size_t length = 0u;
         size_t offset = 0u;
-        std::vector<uint8_t> bytes;
     };
 
 #pragma pack(push, 1)
@@ -102,8 +121,8 @@ private:
                                uint8_t flags,
                                const uint8_t *payload,
                                uint8_t length);
-    bool processBootstrap(const std::vector<uint8_t> &message);
-    bool processSecureRpc(const std::vector<uint8_t> &message);
+    bool processBootstrap(const uint8_t *message, size_t length);
+    bool processSecureRpc(const uint8_t *message, size_t length);
     bool processStreamFragment(const uint8_t *payload, uint8_t length);
 
     bool handleAttestationCreate(uint32_t transactionId, void *params);
@@ -144,10 +163,12 @@ private:
                             const char *message);
     bool pumpLogicalOutput();
     void pumpOutput();
-    bool outputPacingReady() const;
-    void markOutputSent();
 
-    void resetSession(bool keepBootIdentity);
+    void resetSession(bool keepBootIdentity,
+                      bool resetPhysicalTransport = true,
+                      bool clearQueuedReports = true);
+    void clearStream();
+    void clearBinaryCapture();
     void clearRxQueue();
     bool installSessionKeys(
         const uint8_t permitHash[32],
@@ -205,11 +226,22 @@ private:
     LogicalAssembler assembler;
     StreamState stream;
     std::deque<OutboundLogical> outboundQueue;
+    /*
+     * FIFO byte storage for logical responses. Keeping payloads in this
+     * fixed ring avoids a near-16 KiB std::vector allocation while the cJSON
+     * response tree is still alive on the 32 KiB newlib heap.
+     */
+    std::array<uint8_t, kMaximumOutboundBytes> outboundStorage = {};
+    size_t outboundReadOffset = 0u;
+    size_t outboundWriteOffset = 0u;
     size_t outboundQueuedBytes = 0u;
+    std::array<char, kMaximumLogicalBytes + 5u> responseScratch = {};
     std::deque<std::string> eventQueue;
     size_t eventQueuedBytes = 0u;
+    uint32_t droppedEventCount = 0u;
     std::vector<uint8_t> capturedBinary;
     bool captureBinary = false;
+    bool captureBinaryInvalid = false;
 
     bool performanceEnabled = false;
     bool samplePending = false;
@@ -234,7 +266,6 @@ private:
     uint16_t checkpointDroppedSamples = 0u;
     std::array<webhid_perf_checkpoint_key_v1_t,
                WEBHID_PERF_KEY_COUNT> checkpointKeys = {};
-    uint32_t nextOutputAtMs = 0u;
     uint32_t lastDwtCycles = 0u;
     uint64_t accumulatedCycles = 0u;
 };

@@ -1,4 +1,6 @@
 import {
+  DeviceRequestOptions,
+  DeviceResponse,
   DeviceTransport,
   DeviceTransportError,
   DeviceTransportState,
@@ -29,6 +31,14 @@ interface ClockSyncResponse {
   deviceTimestampUs: number;
 }
 
+export interface DeviceClockSyncRequester {
+  request<T = Record<string, unknown> | undefined>(
+    command: string,
+    params?: Record<string, unknown>,
+    options?: DeviceRequestOptions,
+  ): Promise<DeviceResponse<T>>;
+}
+
 /**
  * Estimates the offset between performance.now() and STM32 monotonicMicros().
  *
@@ -41,10 +51,13 @@ export class DeviceClockSynchronizer {
   private readonly now: () => number;
   private nextSampleId = 1;
   private estimate: DeviceClockSyncEstimate | null = null;
-  private inFlight: Promise<DeviceClockSyncEstimate> | null = null;
+  private inFlight: {
+    signal?: AbortSignal;
+    promise: Promise<DeviceClockSyncEstimate>;
+  } | null = null;
 
   constructor(
-    private readonly transport: DeviceTransport,
+    private readonly requester: DeviceClockSyncRequester,
     options: DeviceClockSynchronizerOptions = {},
   ) {
     this.sampleCount = options.sampleCount ?? DEFAULT_SAMPLE_COUNT;
@@ -58,13 +71,32 @@ export class DeviceClockSynchronizer {
     return this.estimate ? { ...this.estimate } : null;
   }
 
-  synchronize(): Promise<DeviceClockSyncEstimate> {
-    if (!this.inFlight) {
-      this.inFlight = this.collectSamples().finally(() => {
-        this.inFlight = null;
-      });
+  synchronize(signal?: AbortSignal): Promise<DeviceClockSyncEstimate> {
+    try {
+      throwIfClockSyncAborted(signal);
+    } catch (error) {
+      return Promise.reject(error);
     }
-    return this.inFlight;
+
+    const current = this.inFlight;
+    if (current && current.signal === signal) {
+      return current.promise;
+    }
+
+    const inFlight: {
+      signal?: AbortSignal;
+      promise: Promise<DeviceClockSyncEstimate>;
+    } = {
+      signal,
+      promise: Promise.resolve(undefined as unknown as DeviceClockSyncEstimate),
+    };
+    inFlight.promise = this.collectSamples(signal).finally(() => {
+      if (this.inFlight === inFlight) {
+        this.inFlight = null;
+      }
+    });
+    this.inFlight = inFlight;
+    return inFlight.promise;
   }
 
   /**
@@ -83,19 +115,22 @@ export class DeviceClockSynchronizer {
     return (extended + this.estimate.offsetUs) / 1000;
   }
 
-  private async collectSamples(): Promise<DeviceClockSyncEstimate> {
+  private async collectSamples(signal?: AbortSignal): Promise<DeviceClockSyncEstimate> {
     const candidates: DeviceClockSyncEstimate[] = [];
     let referenceDeviceUs = this.estimate?.extendedDeviceTimestampUs ?? null;
     let lastError: unknown;
 
     for (let index = 0; index < this.sampleCount; index += 1) {
+      throwIfClockSyncAborted(signal);
       const sampleId = this.allocateSampleId();
       const startMs = this.now();
       try {
-        const response = await this.transport.request<ClockSyncResponse>(
+        const response = await this.requester.request<ClockSyncResponse>(
           'performance.clock-sync',
           { sampleId },
+          { signal },
         );
+        throwIfClockSyncAborted(signal);
         const endMs = this.now();
         const value = response.data;
         if (
@@ -129,10 +164,12 @@ export class DeviceClockSynchronizer {
           synchronizedAtBrowserTimeMs: endMs,
         });
       } catch (error) {
+        throwIfClockSyncAborted(signal);
         lastError = error;
       }
     }
 
+    throwIfClockSyncAborted(signal);
     if (candidates.length === 0) {
       throw lastError instanceof Error
         ? lastError
@@ -166,6 +203,7 @@ export class DeviceClockSyncScheduler {
   private readonly clearIntervalImpl: typeof globalThis.clearInterval;
   private timer: ReturnType<typeof setInterval> | null = null;
   private unsubscribe: Unsubscribe | null = null;
+  private signal: AbortSignal | undefined;
 
   constructor(
     private readonly transport: DeviceTransport,
@@ -177,10 +215,15 @@ export class DeviceClockSyncScheduler {
     this.clearIntervalImpl = options.clearInterval ?? globalThis.clearInterval.bind(globalThis);
   }
 
-  start(): void {
-    if (this.transport.kind !== 'webhid' || this.timer !== null) {
+  start(signal?: AbortSignal): void {
+    if (
+      this.transport.kind !== 'webhid'
+      || this.timer !== null
+      || signal?.aborted
+    ) {
       return;
     }
+    this.signal = signal;
     this.unsubscribe = this.transport.onStateChange((state) => {
       if (state === DeviceTransportState.CONNECTED) {
         this.synchronize();
@@ -203,11 +246,23 @@ export class DeviceClockSyncScheduler {
       this.clearIntervalImpl(this.timer);
       this.timer = null;
     }
+    this.signal = undefined;
   }
 
   private synchronize(): void {
-    void this.synchronizer.synchronize().catch(() => undefined);
+    const signal = this.signal;
+    if (signal?.aborted) return;
+    void this.synchronizer.synchronize(signal).catch(() => undefined);
   }
+}
+
+function throwIfClockSyncAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  throw new DeviceTransportError(
+    'disconnected',
+    'Clock synchronization was cancelled with its device session',
+    signal.reason,
+  );
 }
 
 function isU32(value: unknown): value is number {

@@ -21,6 +21,13 @@ static usb_net_reassembly_t s_slots[USB_BOARD_CHANNEL_SLOTS];
 static uint8_t s_credits[USB_BOARD_CHANNEL_SLOTS];
 static usb_net_bridge_sink_t s_sink;
 
+static uint8_t credit_limit(usb_board_channel_t channel)
+{
+    return (channel == USB_BOARD_CHANNEL_WEBCONFIG)
+        ? USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW
+        : USB_NET_INITIAL_CREDITS;
+}
+
 static void clear_active_slot(usb_net_reassembly_t *slot)
 {
     uint16_t used;
@@ -215,8 +222,9 @@ bool usb_net_bridge_take_credit(usb_board_channel_t channel)
 void usb_net_bridge_return_credit(usb_board_channel_t channel)
 {
     const uint8_t index = (uint8_t)channel;
+    const uint8_t limit = credit_limit(channel);
     if((index != 0u) && (index < sizeof(s_credits)) &&
-       (s_credits[index] < USB_NET_INITIAL_CREDITS))
+       (s_credits[index] < limit))
     {
         ++s_credits[index];
     }
@@ -226,12 +234,13 @@ void usb_net_bridge_set_credit(usb_board_channel_t channel,
                                uint8_t credits)
 {
     const uint8_t index = (uint8_t)channel;
+    const uint8_t limit = credit_limit(channel);
     if((index == 0u) || (index >= sizeof(s_credits)))
     {
         return;
     }
     s_credits[index] =
-        (credits > USB_NET_INITIAL_CREDITS)
-            ? USB_NET_INITIAL_CREDITS
+        (credits > limit)
+            ? limit
             : credits;
 }

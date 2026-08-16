@@ -3,6 +3,7 @@
 #include "board_cfg.h"
 #include "board_power.hpp"
 #include "brightness_curve.hpp"
+#include "leds/led_config_safety.hpp"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -34,6 +35,15 @@ LEDsManager::LEDsManager()
 
     usingTemporaryConfig = false;
     runtimeEnabled = false;
+    keyStartupRampStartTime = 0u;
+    ambientStartupRampStartTime = 0u;
+    keyStartupRampActive = false;
+    ambientStartupRampActive = false;
+    lastDmaStatsTime = 0u;
+    lastKeyHalfCount = 0u;
+    lastKeyCompleteCount = 0u;
+    lastAmbientHalfCount = 0u;
+    lastAmbientCompleteCount = 0u;
     animationStartTime = 0;
     lastButtonState = 0;
     rippleCount = 0;
@@ -63,61 +73,75 @@ void LEDsManager::setup()
         return;
     }
     runtimeEnabled = true;
-    WS2812B_Init();
+    const LedStripController& keyStrip = LedStripController::keys();
+    const LedStripController& ambientStrip = LedStripController::ambient();
+    keyStrip.init();
+    ambientStrip.init();
 
-    WS2812B_SetAllLEDBrightness(0);
-    WS2812B_SetAllLEDColor(0, 0, 0);
+    keyStrip.setAllBrightness(0u);
+    ambientStrip.setAllBrightness(0u);
+    keyStrip.setAllColor(0u, 0u, 0u);
+    ambientStrip.setAllColor(0u, 0u, 0u);
 
-    const bool aroundLedActive = g_has_led_around && opts->aroundLedEnabled;
+    const bool aroundLedActive = opts->aroundLedEnabled;
 
-    if(!opts->ledEnabled && !aroundLedActive) {
-        WS2812B_Stop();
-    } else {
-        WS2812B_Start();
+    APP_STAGE("L01",
+              "LED profile: keys=%u%% cap=%u%% ambient=%u%% cap=%u%% update=%u FPS circular DMA",
+              (unsigned)opts->ledBrightness,
+              (unsigned)keyStrip.descriptor().maxDrivePercent,
+              (unsigned)opts->aroundLedBrightness,
+              (unsigned)ambientStrip.descriptor().maxDrivePercent,
+              (unsigned)FPS_OF_LED_ANIMATION);
 
-        updateColorsFromConfig();
+    updateColorsFromConfig();
 
-        // 初始化动画
-        animationStartTime = HAL_GetTick();
-
-        if (opts->ledEnabled) {
-            // 设置初始亮度
-            setLedsBrightness(opts->ledBrightness);
-
-            // 对于静态效果，直接设置按键灯颜色
-            if (opts->ledEffect == LEDEffect::STATIC) {
-                for (uint8_t i = 0; i < (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
-                    WS2812B_SetLEDColor(backgroundColor1.r, backgroundColor1.g, backgroundColor1.b, i);
-                }
-            }
-        } else {
-            setLedsBrightness(0);
-        }
-
-        if (g_has_led_around) {
-            // 初始化环绕灯
-            aroundLedAnimationStartTime = HAL_GetTick();
-            
-            // 根据配置设置环绕灯
-            if (!opts->aroundLedEnabled) {
-                // 环绕灯关闭，设置为黑色
-                for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
-                    WS2812B_SetLEDColor(0, 0, 0, i);
-                }
-                setAmbientLightBrightness(0);
-            } else {
-                // 环绕灯开启，设置初始状态
-                if (opts->aroundLedEffect == AroundLEDEffect::AROUND_STATIC) {
-                    RGBColor aroundColor = hexToRGB(opts->aroundLedColor1);
-                    for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
-                        WS2812B_SetLEDColor(aroundColor.r, aroundColor.g, aroundColor.b, i);
-                    }
-                    setAmbientLightBrightness(opts->aroundLedBrightness);
-                }
+    // 在上电灯条之前先准备好完整颜色，但保持黑帧/零亮度。
+    animationStartTime = HAL_GetTick();
+    if (opts->ledEnabled) {
+        if (opts->ledEffect == LEDEffect::STATIC) {
+            for (uint8_t i = 0; i < (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i++) {
+                WS2812B_SetLEDColor(backgroundColor1.r, backgroundColor1.g, backgroundColor1.b, i);
             }
         }
     }
 
+    aroundLedAnimationStartTime = HAL_GetTick();
+    if (aroundLedActive &&
+        opts->aroundLedEffect == AroundLEDEffect::AROUND_STATIC) {
+        RGBColor aroundColor = hexToRGB(opts->aroundLedColor1);
+        for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
+            WS2812B_SetLEDColor(aroundColor.r, aroundColor.g, aroundColor.b, i);
+        }
+    }
+
+    keyStartupRampStartTime = HAL_GetTick();
+    ambientStartupRampStartTime = keyStartupRampStartTime;
+    keyStartupRampActive = false;
+    ambientStartupRampActive = false;
+    if (opts->ledEnabled) {
+        const WS2812B_StateTypeDef state = keyStrip.start();
+        keyStartupRampActive = (state == WS2812B_RUNNING);
+        APP_STAGE("L02", "key strip state=%u; nonblocking %lu ms ramp started",
+                  (unsigned)state,
+                  (unsigned long)LedConfigSafety::kStartupRampDurationMs);
+    } else {
+        (void)keyStrip.stop();
+    }
+
+    if (aroundLedActive) {
+        const WS2812B_StateTypeDef state = ambientStrip.start();
+        ambientStartupRampActive = (state == WS2812B_RUNNING);
+        APP_STAGE("L03", "ambient strip state=%u; nonblocking %lu ms ramp started",
+                  (unsigned)state,
+                  (unsigned long)LedConfigSafety::kStartupRampDurationMs);
+    } else {
+        (void)ambientStrip.stop();
+    }
+
+    keyStrip.updateStats(&lastKeyHalfCount, &lastKeyCompleteCount);
+    ambientStrip.updateStats(&lastAmbientHalfCount,
+                             &lastAmbientCompleteCount);
+    lastDmaStatsTime = keyStartupRampStartTime;
 }
 
 void LEDsManager::refreshDefaultProfile()
@@ -151,7 +175,7 @@ void LEDsManager::loop(uint32_t virtualPinMask)
     if (!runtimeEnabled || BOARD_POWER.isSafeLatched()) {
         return;
     }
-    const bool aroundLedActive = g_has_led_around && opts->aroundLedEnabled;
+    const bool aroundLedActive = opts->aroundLedEnabled;
     const bool aroundLedSyncActive = aroundLedActive && opts->ledEnabled && opts->aroundLedSyncToMainLed;
 
     if(!opts->ledEnabled && !aroundLedActive) {
@@ -194,41 +218,40 @@ void LEDsManager::loop(uint32_t virtualPinMask)
         params.global.rippleCenters[i] = ripples[i].centerIndex;
         uint32_t elapsed = now - ripples[i].startTime;
         // 涟漪持续时间根据动画速度调整（与 TypeScript 版本保持一致）
-        const uint32_t rippleDuration = 3000 / opts->ledAnimationSpeed; // 毫秒
+        const uint32_t rippleDuration =
+            LedConfigSafety::rippleDurationMs(opts->ledAnimationSpeed);
         params.global.rippleProgress[i] = (float)elapsed / rippleDuration;
         if (params.global.rippleProgress[i] > 1.0f) {
             params.global.rippleProgress[i] = 1.0f;
         }
     }
     
-    if (g_has_led_around) {
-        // 设置环绕灯同步模式参数
-        params.global.aroundLedSyncMode = aroundLedSyncActive;
-        
-        // 环绕灯处理
-        if (!opts->aroundLedEnabled) {
-            // 模式1：环绕灯关闭 - 设置为黑色，亮度为0
-            for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
-                WS2812B_SetLEDColor(0, 0, 0, i);
-            }
-            setAmbientLightBrightness(0);
-        } else if (aroundLedSyncActive) {
-            // 模式2：环绕灯同步到主LED - 使用主LED配置和动画
-            
-            // 在同步模式下，动画算法需要处理所有LED（主LED + 环绕LED）
-            // 为每个环绕LED计算颜色并设置（索引从按钮LED数量开始）
-            for (uint8_t i = 0; i < NUM_LED_AROUND; i++) {
-                params.index = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) + i; // 环绕LED在全局数组中的索引
-                params.pressed = false; // 环绕LED没有按钮状态
-                
-                RGBColor color = algorithm(params);
-                WS2812B_SetLEDColor(color.r, color.g, color.b, (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) + i);
-            }
-            setAmbientLightBrightness(opts->aroundLedBrightness);
-        } else {
-            // 模式3：环绕灯独立模式 - 使用环绕灯独立配置
-            processAroundLedAnimation();
+    // 设置环绕灯同步模式参数
+    params.global.aroundLedSyncMode = aroundLedSyncActive;
+
+    // 环绕灯处理
+    if (!aroundLedActive) {
+        // 模式1：环绕灯关闭 - 设置为黑色，亮度为0
+        for (uint8_t i = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS); i < NUM_LED; i++) {
+            WS2812B_SetLEDColor(0, 0, 0, i);
         }
+        setAmbientLightBrightness(0);
+    } else if (aroundLedSyncActive) {
+        // 模式2：环绕灯同步到主LED - 使用主LED配置和动画
+
+        // 在同步模式下，动画算法需要处理所有LED（主LED + 环绕LED）
+        // 为每个环绕LED计算颜色并设置（索引从按钮LED数量开始）
+        for (uint8_t i = 0; i < NUM_LED_AROUND; i++) {
+            params.index = (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) + i; // 环绕LED在全局数组中的索引
+            params.pressed = false; // 环绕LED没有按钮状态
+
+            RGBColor color = algorithm(params);
+            WS2812B_SetLEDColor(color.r, color.g, color.b, (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS) + i);
+        }
+        setAmbientLightBrightness(opts->aroundLedBrightness);
+    } else {
+        // 模式3：环绕灯独立模式 - 使用环绕灯独立配置
+        processAroundLedAnimation();
     }
     
     if (opts->ledEnabled) {
@@ -241,6 +264,73 @@ void LEDsManager::loop(uint32_t virtualPinMask)
             WS2812B_SetLEDColor(color.r, color.g, color.b, i);
         }
     }
+
+    const uint8_t keyBrightness = startupRampBrightness(
+        opts->ledBrightness, keyStartupRampActive,
+        keyStartupRampStartTime, now);
+    setLedsBrightness(opts->ledEnabled ? keyBrightness : 0u);
+
+    const uint8_t ambientBrightness = startupRampBrightness(
+        opts->aroundLedBrightness, ambientStartupRampActive,
+        ambientStartupRampStartTime, now);
+    setAmbientLightBrightness(aroundLedActive ? ambientBrightness : 0u);
+
+    const LedStripController& keyStrip = LedStripController::keys();
+    const LedStripController& ambientStrip = LedStripController::ambient();
+    (void)keyStrip.submitFrame();
+    if (aroundLedActive) {
+        (void)ambientStrip.submitFrame();
+    }
+    logDmaUpdateStats(now);
+}
+
+uint8_t LEDsManager::startupRampBrightness(uint8_t target,
+                                           bool& active,
+                                           uint32_t startTime,
+                                           uint32_t now)
+{
+    target = LedConfigSafety::clampBrightnessPercent(target);
+    if (!active) {
+        return target;
+    }
+
+    const uint32_t elapsed = now - startTime;
+    if (elapsed >= LedConfigSafety::kStartupRampDurationMs) {
+        active = false;
+        return target;
+    }
+
+    return static_cast<uint8_t>(
+        ((uint32_t)target * elapsed) /
+        LedConfigSafety::kStartupRampDurationMs);
+}
+
+void LEDsManager::logDmaUpdateStats(uint32_t now)
+{
+    const uint32_t elapsed = now - lastDmaStatsTime;
+    if (elapsed < 5000u) {
+        return;
+    }
+
+    uint32_t keyHt = 0u;
+    uint32_t keyTc = 0u;
+    uint32_t ambientHt = 0u;
+    uint32_t ambientTc = 0u;
+    LedStripController::keys().updateStats(&keyHt, &keyTc);
+    LedStripController::ambient().updateStats(&ambientHt, &ambientTc);
+
+    APP_DBG("LED DMA[%lums] key HT=%lu/s TC=%lu/s ambient HT=%lu/s TC=%lu/s",
+            (unsigned long)elapsed,
+            (unsigned long)(((keyHt - lastKeyHalfCount) * 1000u) / elapsed),
+            (unsigned long)(((keyTc - lastKeyCompleteCount) * 1000u) / elapsed),
+            (unsigned long)(((ambientHt - lastAmbientHalfCount) * 1000u) / elapsed),
+            (unsigned long)(((ambientTc - lastAmbientCompleteCount) * 1000u) / elapsed));
+
+    lastKeyHalfCount = keyHt;
+    lastKeyCompleteCount = keyTc;
+    lastAmbientHalfCount = ambientHt;
+    lastAmbientCompleteCount = ambientTc;
+    lastDmaStatsTime = now;
 }
 
 void LEDsManager::processButtonPress(uint32_t virtualPinMask)
@@ -267,21 +357,20 @@ void LEDsManager::processButtonPress(uint32_t virtualPinMask)
         }
     }
     
-    if (g_has_led_around) {
-        // 检测按键按下用于环绕灯动画触发
-        if (newPressed != 0 && opts->aroundLedEnabled && !(opts->aroundLedSyncToMainLed && opts->ledEnabled) && 
-            opts->aroundLedTriggerByButton) {
-            // 任何按键按下时重置环绕灯动画
-            uint32_t currentTime = HAL_GetTick();
-            aroundLedAnimationStartTime = currentTime; // 重置动画时间
-            
-            // 为所有环绕灯效果设置触发时间（统一处理）
-            lastQuakeTriggerTime = currentTime;  // 用于震荡动画
-            lastButtonPressTime = currentTime;   // 通用按键触发时间
-            
-            APP_DBG("AROUND_LED: Button pressed, restarting around LED animation (effect: %d) at time %lu", 
-                    opts->aroundLedEffect, currentTime);
-        }
+    // 检测按键按下用于环绕灯动画触发
+    if (newPressed != 0 && opts->aroundLedEnabled &&
+        !(opts->aroundLedSyncToMainLed && opts->ledEnabled) &&
+        opts->aroundLedTriggerByButton) {
+        // 任何按键按下时重置环绕灯动画
+        uint32_t currentTime = HAL_GetTick();
+        aroundLedAnimationStartTime = currentTime; // 重置动画时间
+
+        // 为所有环绕灯效果设置触发时间（统一处理）
+        lastQuakeTriggerTime = currentTime;  // 用于震荡动画
+        lastButtonPressTime = currentTime;   // 通用按键触发时间
+
+        APP_DBG("AROUND_LED: Button pressed, restarting around LED animation (effect: %d) at time %lu",
+                opts->aroundLedEffect, currentTime);
     }
     
     lastButtonState = virtualPinMask;
@@ -296,7 +385,8 @@ void LEDsManager::updateRipples()
     
     uint32_t now = HAL_GetTick();
     // 涟漪持续时间根据动画速度调整（与 TypeScript 版本保持一致）
-    const uint32_t rippleDuration = 3000 / opts->ledAnimationSpeed; // 毫秒
+    const uint32_t rippleDuration =
+        LedConfigSafety::rippleDurationMs(opts->ledAnimationSpeed);
     
     // 移除过期的涟漪
     uint8_t newCount = 0;
@@ -317,7 +407,8 @@ float LEDsManager::getAnimationProgress()
     uint32_t elapsed = now - animationStartTime;
     
     // 应用动画速度倍数
-    float speedMultiplier = (float)opts->ledAnimationSpeed;
+    float speedMultiplier =
+        (float)LedConfigSafety::clampAnimationSpeed(opts->ledAnimationSpeed);
     float progress = (float)(elapsed % LEDS_ANIMATION_CYCLE) / LEDS_ANIMATION_CYCLE * speedMultiplier;
     
     // 确保进度值在 0.0-1.0 范围内循环
@@ -391,25 +482,56 @@ void LEDsManager::brightnessDown() {
 
 void LEDsManager::enableSwitch() {
     opts->ledEnabled = !opts->ledEnabled;
-    
+
     // 只有在使用默认配置时才保存到存储
     if (!usingTemporaryConfig) {
         STORAGE_MANAGER.saveConfig();
     }
-    
-    deinit();
-    setup();
+
+    const LedStripController& keyStrip = LedStripController::keys();
+    const uint32_t now = HAL_GetTick();
+    if (opts->ledEnabled) {
+        updateColorsFromConfig();
+        keyStrip.setAllBrightness(0u);
+        (void)keyStrip.submitFrame();
+        const WS2812B_StateTypeDef state = keyStrip.start();
+        keyStrip.setPowerEnabled(state == WS2812B_RUNNING);
+        keyStartupRampStartTime = now;
+        keyStartupRampActive = (state == WS2812B_RUNNING);
+    } else {
+        keyStartupRampActive = false;
+        keyStrip.setAllBrightness(0u);
+        (void)keyStrip.submitFrame();
+        /* Keep CH1 circular DMA alive so toggling the key rail cannot disturb
+         * ambient CH2 on their shared TIM4 peripheral. */
+        keyStrip.setPowerEnabled(false);
+    }
+
+    APP_STAGE("L04",
+              "key switch configured=%u dma_state=%u PI6=%u PI7=%u",
+              (unsigned)opts->ledEnabled,
+              (unsigned)keyStrip.state(),
+              (unsigned)(HAL_GPIO_ReadPin(LED_EN_PORT, LED_EN_PIN) == GPIO_PIN_SET),
+              (unsigned)(HAL_GPIO_ReadPin(AMBIENT_EN_PORT, AMBIENT_EN_PIN) == GPIO_PIN_SET));
 }
 
 void LEDsManager::setLedsBrightness(uint8_t brightness) {
-    const uint8_t curved = BrightnessCurve_ApplyPercent(brightness);
-    const uint8_t b = (uint8_t)((float_t)(curved) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
+    const uint8_t safeBrightness =
+        LedConfigSafety::clampBrightnessPercent(brightness);
+    const uint8_t safeDrive = LedConfigSafety::scaleGammaPercentToCap(
+        BrightnessCurve_ApplyPercent(safeBrightness),
+        LedStripController::keys().descriptor().maxDrivePercent);
+    const uint8_t b = (uint8_t)(((uint16_t)safeDrive * 255u + 50u) / 100u);
     WS2812B_SetLEDBrightnessByMask(b, 0, enabledKeysMask); // 根据启用按键掩码设置亮度，未启用的按键亮度为0
 }
 
 void LEDsManager::setAmbientLightBrightness(uint8_t brightness) {
-    const uint8_t curved = BrightnessCurve_ApplyPercent(brightness);
-    const uint8_t b = (uint8_t)((float_t)(curved) * LEDS_BRIGHTNESS_RATIO * 255.0 / 100.0);
+    const uint8_t safeBrightness =
+        LedConfigSafety::clampBrightnessPercent(brightness);
+    const uint8_t safeDrive = LedConfigSafety::scaleGammaPercentToCap(
+        BrightnessCurve_ApplyPercent(safeBrightness),
+        LedStripController::ambient().descriptor().maxDrivePercent);
+    const uint8_t b = (uint8_t)(((uint16_t)safeDrive * 255u + 50u) / 100u);
     WS2812B_SetLEDBrightness(b, NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS, NUM_LED - (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS));
 }
 
@@ -641,11 +763,10 @@ float LEDsManager::getAroundLedAnimationProgress()
 {
     uint32_t now = HAL_GetTick();
     uint32_t elapsed = now - aroundLedAnimationStartTime;
-    uint32_t animationDuration = static_cast<uint32_t>(600.0f * (7 - opts->aroundLedAnimationSpeed));
-    
-    if(opts->aroundLedEffect == AroundLEDEffect::AROUND_QUAKE) {
-        animationDuration /= 2;
-    }
+    const uint32_t animationDuration =
+        LedConfigSafety::aroundAnimationDurationMs(
+            opts->aroundLedAnimationSpeed,
+            opts->aroundLedEffect == AroundLEDEffect::AROUND_QUAKE);
 
     if (opts->aroundLedTriggerByButton) {
         // 按钮触发模式：动画持续一个周期后停止
@@ -753,14 +874,37 @@ void LEDsManager::ambientLightBrightnessDown() {
  */
 void LEDsManager::ambientLightEnableSwitch() {
     opts->aroundLedEnabled = !opts->aroundLedEnabled;
-    
+
     // 只有在使用默认配置时才保存到存储
     if (!usingTemporaryConfig) {
         STORAGE_MANAGER.saveConfig();
     }
-    
-    deinit();
-    setup();
+
+    const LedStripController& ambientStrip = LedStripController::ambient();
+    const uint32_t now = HAL_GetTick();
+    if (opts->aroundLedEnabled) {
+        ambientStrip.setAllBrightness(0u);
+        (void)ambientStrip.submitFrame();
+        const WS2812B_StateTypeDef state = ambientStrip.start();
+        ambientStrip.setPowerEnabled(state == WS2812B_RUNNING);
+        ambientStartupRampStartTime = now;
+        ambientStartupRampActive = (state == WS2812B_RUNNING);
+        aroundLedAnimationStartTime = now;
+    } else {
+        ambientStartupRampActive = false;
+        ambientStrip.setAllBrightness(0u);
+        (void)ambientStrip.submitFrame();
+        /* Keep CH2 circular DMA alive so toggling the ambient rail cannot
+         * disturb key CH1 on their shared TIM4 peripheral. */
+        ambientStrip.setPowerEnabled(false);
+    }
+
+    APP_STAGE("L05",
+              "ambient switch configured=%u dma_state=%u PI6=%u PI7=%u",
+              (unsigned)opts->aroundLedEnabled,
+              (unsigned)ambientStrip.state(),
+              (unsigned)(HAL_GPIO_ReadPin(LED_EN_PORT, LED_EN_PIN) == GPIO_PIN_SET),
+              (unsigned)(HAL_GPIO_ReadPin(AMBIENT_EN_PORT, AMBIENT_EN_PIN) == GPIO_PIN_SET));
 }
 
 

@@ -7,6 +7,7 @@
 #include "board_power.hpp"
 #include "screen_control/spi_screen_manager.hpp"
 #include "main_runtime_control.hpp"
+#include "report_scheduler.hpp"
 
 #include "system_logger.h"
 
@@ -35,6 +36,7 @@ void CalibrationState::allCalibrationCompletedCallback(uint8_t totalButtons, uin
              totalButtons, successCount, failedCount);
     
     ADC_CALIBRATION_MANAGER.stopCalibration();
+    REPORT_SCHEDULER.stop();
     ADC_MANAGER.forceStopAllSampling();
 #if HAS_LED == 1
     (void)WS2812B_StopStrip(WS2812B_STRIP_KEYS);
@@ -66,10 +68,24 @@ bool CalibrationState::enter() {
     BOARD_POWER.setHallEnabled(true);
     HAL_Delay(BOARD_HALL_STABILIZE_MS);
     
-    // 切换到校准/连续采样模式
-    ADCManager::getInstance().setADCMode(ADC_MODE_CONTINUOUS);
-    // 启动连续采样
-    ADCManager::getInstance().startContinuousSampling();
+    ADC_MANAGER.forceStopAllSampling();
+    const ADCBtnsError adcResult = ADC_MANAGER.startADCSamping(false);
+    if (adcResult != ADCBtnsError::SUCCESS) {
+        exit();
+        enterCalibrationSafeState();
+        LOG_ERROR("CALIBRATION", "Failed to arm ADC circular DMA: %d",
+                  static_cast<int>(adcResult));
+        return false;
+    }
+    const uint16_t reportRateHz = static_cast<uint16_t>(
+        STORAGE_MANAGER.getWirelessReportRate());
+    REPORT_SCHEDULER.start(reportRateHz);
+    if (!REPORT_SCHEDULER.isStarted()) {
+        exit();
+        enterCalibrationSafeState();
+        LOG_ERROR("CALIBRATION", "Failed to start TIM2 ADC sampling clock");
+        return false;
+    }
 
     // 启动手动校准模式
     ADC_CALIBRATION_MANAGER.setAllCalibrationCompletedCallback(allCalibrationCompletedCallback);
@@ -110,6 +126,13 @@ void CalibrationState::tick() {
     }
 
     if (isRunning) {
+        (void)REPORT_SCHEDULER.consumeLatestTick();
+        if (rebootTime == 0u && !ADC_MANAGER.isDmaSamplingActive()) {
+            exit();
+            enterCalibrationSafeState();
+            LOG_ERROR("CALIBRATION", "ADC circular DMA stopped unexpectedly");
+            return;
+        }
         // 如果校准完成，等待1秒后重启
         if(rebootTime > 0 && HAL_GetTick() - rebootTime >= 1000) {
             LOG_INFO("CALIBRATION", "Initiating system reboot after calibration completion");
@@ -123,6 +146,7 @@ void CalibrationState::tick() {
 }
 
 void CalibrationState::exit() {
+    REPORT_SCHEDULER.stop();
     (void)ADC_CALIBRATION_MANAGER.stopCalibration();
     ADC_CALIBRATION_MANAGER.clearCallbacks();
     ADC_MANAGER.forceStopAllSampling();

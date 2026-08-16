@@ -22,7 +22,7 @@ export interface ButtonPerformanceMonitoringBinaryData {
   buttonCount: number;    // 本次推送的按键数量
   timestamp: number;      // 时间戳
   maxTravelDistance: number; // 最大物理行程（mm），从当前映射获取
-  /** V2 WebHID source timestamp. Existing WebSocket frames omit this. */
+  /** V2 WebHID source timestamp. The device timestamp is available on typed WebHID telemetry. */
   deviceTimestampUs?: number;
   /** Cumulative latest-wins sample drops reported by the device. */
   droppedSamples?: number;

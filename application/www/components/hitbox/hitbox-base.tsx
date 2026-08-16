@@ -7,6 +7,7 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useColorMode } from "../ui/color-mode";
 import { type ButtonStateBinaryData, isButtonTriggered } from '@/lib/button-binary-parser';
 import { useButtonMonitor } from '@/hooks/use-button-monitor';
+import { shouldStartButtonMonitoring } from '@/lib/button-monitor-lifecycle';
 import { GameControllerButton } from "@/types/gamepad-config";
 import { HITBOX_WIDTH, HITBOX_HEIGHT, HITBOX_PADDING, HITBOX_LAYOUT_SCALE } from "./hitbox-constants";
 
@@ -105,7 +106,13 @@ export interface HitboxBaseProps {
 export default function HitboxBase(props: HitboxBaseProps) {
     const hasText = props.hasText ?? true;
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady, wsConnected, hitboxLayout } = useGamepadConfig();
+    const {
+        contextJsReady,
+        setContextJsReady,
+        deviceConnected,
+        dataIsReady,
+        hitboxLayout,
+    } = useGamepadConfig();
 
     const layout = useMemo(() => {
         const rawLayout = hitboxLayout ?? [];
@@ -117,6 +124,13 @@ export default function HitboxBase(props: HitboxBaseProps) {
     }, [hitboxLayout]);
     
     const len = layout.length;
+    const shouldMonitorButtons = shouldStartButtonMonitoring({
+        enabled: props.isButtonMonitoringEnabled ?? false,
+        deviceConnected,
+        dataIsReady,
+        contextJsReady,
+        layoutLength: len,
+    });
 
     const [pressedButtonStates, setPressedButtonStates] = useState(Array(len).fill(-1));
     const [hardwareButtonStates, setHardwareButtonStates] = useState(Array(len).fill(-1));
@@ -251,33 +265,28 @@ export default function HitboxBase(props: HitboxBaseProps) {
      * 管理按键监听的启动和停止
      */
     useEffect(() => {
+        const clearHardwareState = () => {
+            setHardwareButtonStates((current) => current.map(() => -1));
+        };
 
-        const enabled = props.isButtonMonitoringEnabled ?? false;
-
-        if(wsConnected && contextJsReady) {
-            if(enabled) {
-                console.log("hitbox-base: 启动按键监听");
-                startMonitoring().catch((error) => {
-                    console.error('启动按键监听失败:', error);
-                });
-            }
-
-            if(!enabled) {
-                setHardwareButtonStates(Array(len).fill(-1));
-                console.log("hitbox-base: 停止按键监听");
-                stopMonitoring();
-            }
+        if (!shouldMonitorButtons) {
+            clearHardwareState();
+            return;
         }
 
-        // 清理函数
+        console.log("hitbox-base: 启动按键监听");
+        void startMonitoring().catch((error) => {
+            console.error('启动按键监听失败:', error);
+        });
+
         return () => {
-            setHardwareButtonStates(Array(len).fill(-1));
+            clearHardwareState();
             console.log("hitbox-base: 清理按键监听");
-            if(wsConnected && contextJsReady) {
-                stopMonitoring();
-            }
+            void stopMonitoring().catch((error) => {
+                console.error('停止按键监听失败:', error);
+            });
         };
-    }, [props.isButtonMonitoringEnabled, wsConnected, contextJsReady, len]);
+    }, [shouldMonitorButtons, startMonitoring, stopMonitoring]);
 
     // 子类可以重写的方法
     const getButtonFillColor = (_index: number): string => {

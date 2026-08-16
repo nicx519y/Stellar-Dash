@@ -1,6 +1,5 @@
 #include "enums.hpp"
 #include "drivermanager.hpp"
-#include "drivers/net/NetDriver.hpp"
 #include "drivers/xinput/XInputDriver.hpp"
 #include "drivers/switch/SwitchDriver.hpp"
 #include "drivers/ps4/PS4Driver.hpp"
@@ -25,7 +24,9 @@ void DriverManager::setup(InputMode mode) {
 
     switch (mode) {
         case INPUT_MODE_CONFIG:
-            driver = new NetDriver();
+            /* WebConfig is a top-level CH585 WebHID state, not a TinyUSB
+             * network-class GPDriver. */
+            driver = nullptr;
             break;
         case INPUT_MODE_SWITCH:
             driver = new SwitchDriver();

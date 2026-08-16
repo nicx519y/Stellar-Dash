@@ -32,6 +32,8 @@ void usb_management_control_hw_disconnect(void);
 bool usb_management_control_hw_clear_fault(void);
 bool usb_management_control_hw_link_up(void);
 usb_board_usb_speed_t usb_management_control_hw_speed(void);
+bool usb_management_control_hw_get_webconfig_credit(
+    usb_board_bulk_credit_v1_t *credit);
 
 #ifdef __cplusplus
 }

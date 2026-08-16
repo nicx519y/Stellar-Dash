@@ -1,9 +1,5 @@
 #include "config_transport_sink.hpp"
 
-#include <string>
-
-#include "configs/websocket_server.hpp"
-
 namespace {
 
 config_json_sink_t jsonSink = nullptr;
@@ -29,10 +25,6 @@ void ConfigTransport_PublishJson(const char *json, size_t length)
     if (jsonSink != nullptr) {
         jsonSink(json, length);
     }
-    WebSocketServer &server = WebSocketServer::getInstance();
-    if (server.get_connection_count() != 0u) {
-        server.broadcast_text(std::string(json, length));
-    }
 }
 
 void ConfigTransport_PublishBinary(const uint8_t *data, size_t length)
@@ -43,19 +35,12 @@ void ConfigTransport_PublishBinary(const uint8_t *data, size_t length)
     if (binarySink != nullptr) {
         binarySink(data, length);
     }
-    WebSocketServer &server = WebSocketServer::getInstance();
-    if (server.get_connection_count() != 0u) {
-        server.broadcast_binary(data, length);
-    }
 }
 
-void ConfigTransport_ReplyBinary(WebSocketConnection *connection,
-                                 const uint8_t *data,
+void ConfigTransport_ReplyBinary(const uint8_t *data,
                                  size_t length)
 {
-    if (connection != nullptr) {
-        connection->send_binary(data, length);
-    } else if (binarySink != nullptr && data != nullptr && length != 0u) {
+    if (binarySink != nullptr && data != nullptr && length != 0u) {
         binarySink(data, length);
     }
 }

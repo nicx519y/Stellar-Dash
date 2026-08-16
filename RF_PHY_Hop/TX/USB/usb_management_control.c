@@ -125,8 +125,11 @@ bool usb_management_control_handle(const uint8_t *request_bytes,
                 }
                 else
                 {
-                    s_connected = 0u;
-                    status = USB_BOARD_STATUS_INTERNAL_ERROR;
+                    /*
+                     * A busy SIE makes CLEAR_FAULT retryable; it does not
+                     * disconnect the already enumerated USB device.
+                     */
+                    status = USB_BOARD_STATUS_BUSY;
                 }
             }
             break;
@@ -160,6 +163,24 @@ bool usb_management_control_handle(const uint8_t *request_bytes,
                            &auth_status,
                            sizeof(auth_status));
                     response.header.data_length = sizeof(auth_status);
+                }
+            }
+            break;
+
+        case USB_BOARD_CONTROL_GET_WEBCONFIG_CREDIT:
+            status = validate_no_data(&request);
+            if(status == USB_BOARD_STATUS_OK)
+            {
+                usb_board_bulk_credit_v1_t credit;
+                memset(&credit, 0, sizeof(credit));
+                if(!usb_management_control_hw_get_webconfig_credit(&credit))
+                {
+                    status = USB_BOARD_STATUS_NOT_READY;
+                }
+                else
+                {
+                    memcpy(response.data, &credit, sizeof(credit));
+                    response.header.data_length = sizeof(credit);
                 }
             }
             break;
@@ -226,4 +247,12 @@ __attribute__((weak)) usb_board_usb_speed_t
 usb_management_control_hw_speed(void)
 {
     return USB_BOARD_USB_SPEED_NONE;
+}
+
+__attribute__((weak)) bool
+usb_management_control_hw_get_webconfig_credit(
+    usb_board_bulk_credit_v1_t *credit)
+{
+    (void)credit;
+    return false;
 }

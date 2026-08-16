@@ -70,8 +70,12 @@ ADCBtnsError ADCCalibrationManager::startManualCalibration() {
     }
 #endif
 
-    // 启动ADC采样
-    ADC_MANAGER.startADCSamping(false);
+    // 确保状态持有的循环 DMA 已经挂载。
+    const ADCBtnsError adcResult = ADC_MANAGER.startADCSamping(false);
+    if (adcResult != ADCBtnsError::SUCCESS) {
+        calibrationActive = false;
+        return adcResult;
+    }
 
     // 同时启动所有未校准按键的校准
     uint8_t uncalibratedCount = 0;

@@ -30,6 +30,8 @@ namespace {
 #define RF24G_SPI_BRINGUP_TX_CATCHUP_LIMIT 2u
 #endif
 
+constexpr uint8_t kUsbReportCatchupLimit = 2u;
+
 static void onDefaultProfileChanged()
 {
     if (BOARD_POWER.isSafeLatched() ||
@@ -42,7 +44,11 @@ static void onDefaultProfileChanged()
         return;
     }
 #endif
-    ADC_BTNS_WORKER.setup();
+    const ADCBtnsError result = ADC_BTNS_WORKER.setup();
+    if (result != ADCBtnsError::SUCCESS) {
+        APP_ERR("Default profile ADC worker setup failed: %d",
+                static_cast<int>(result));
+    }
     GPIO_BTNS_WORKER.setup();
 }
 
@@ -76,16 +82,44 @@ void InputState::startInputPipeline()
      */
     BOARD_POWER.setHallEnabled(true);
     HAL_Delay(BOARD_HALL_STABILIZE_MS);
-    ADC_BTNS_WORKER.setup();
+    const ADCBtnsError adcResult = ADC_BTNS_WORKER.setup();
+    if (adcResult != ADCBtnsError::SUCCESS) {
+        ADC_MANAGER.forceStopAllSampling();
+        BOARD_POWER.setHallEnabled(false);
+        APP_STAGE_ERROR("I04", "ADC circular DMA setup failed: %d",
+                        static_cast<int>(adcResult));
+        return;
+    }
     GPIO_BTNS_WORKER.setup();
     GAMEPAD.setup();
 #if HAS_LED == 1
+#if INPUT_LED_RECOVERY_HOLD_OFF
+    /*
+     * Do not call LEDsManager::setup(): that is the point which powers the 5V
+     * LED rail and starts both circular TIM4 DMA streams.  Board initialization
+     * already left the two rails off; assert that state again for recovery.
+     */
+    BOARD_POWER.setKeyLedEnabled(false);
+    BOARD_POWER.setAmbientLedEnabled(false);
+    APP_STAGE("I06", "LED recovery hold active: key/ambient rails and TIM4 DMA remain off");
+#else
     LEDS_MANAGER.setup();
+#endif
 #endif
 
     const uint16_t reportRateHz = static_cast<uint16_t>(
         STORAGE_MANAGER.getWirelessReportRate());
     REPORT_SCHEDULER.start(reportRateHz);
+    if (!REPORT_SCHEDULER.isStarted()) {
+#if HAS_LED == 1
+        LEDS_MANAGER.deinit();
+#endif
+        GAMEPAD.deinit();
+        ADC_MANAGER.forceStopAllSampling();
+        BOARD_POWER.setHallEnabled(false);
+        APP_STAGE_ERROR("I04", "TIM2 report/ADC sampling clock start failed");
+        return;
+    }
     inputPipelineRunning = true;
     APP_STAGE("I04", "input pipeline ready: report rate=%u Hz",
               static_cast<unsigned>(reportRateHz));
@@ -95,10 +129,12 @@ void InputState::stopInputPipeline()
 {
     if (!inputPipelineRunning) {
         REPORT_SCHEDULER.stop();
+        ADC_MANAGER.forceStopAllSampling();
         return;
     }
 
     REPORT_SCHEDULER.stop();
+    ADC_MANAGER.forceStopAllSampling();
 #if HAS_LED == 1
     LEDS_MANAGER.deinit();
 #endif
@@ -187,6 +223,12 @@ bool InputState::applyPhysicalMode(BoardMode mode, bool initial)
         BOARD_POWER.releaseSafeState();
         APP_STAGE("I03", "CH585 USB role locked; safe power state released");
         startInputPipeline();
+        if (!inputPipelineRunning) {
+            teardownCh585Runtime();
+            enterBoardSafeState();
+            activeBoardMode = BoardMode::Fault;
+            return false;
+        }
         return true;
     }
 
@@ -202,6 +244,12 @@ bool InputState::applyPhysicalMode(BoardMode mode, bool initial)
         BOARD_POWER.releaseSafeState();
         APP_STAGE("I03", "CH585 RF role locked; safe power state released");
         startInputPipeline();
+        if (!inputPipelineRunning) {
+            teardownCh585Runtime();
+            enterBoardSafeState();
+            activeBoardMode = BoardMode::Fault;
+            return false;
+        }
         return true;
     }
 
@@ -257,6 +305,14 @@ void InputState::tick()
      * RF mode additionally applies the same rate to the TX-to-RX packet path.
      */
     if (inputPipelineRunning) {
+        if (!ADC_MANAGER.isDmaSamplingActive()) {
+            APP_STAGE_ERROR("I07", "ADC circular DMA stopped unexpectedly");
+            stopInputPipeline();
+            teardownCh585Runtime();
+            enterBoardSafeState();
+            activeBoardMode = BoardMode::Fault;
+            return;
+        }
         const uint16_t desiredReportRateHz = static_cast<uint16_t>(
             STORAGE_MANAGER.getWirelessReportRate());
         if (REPORT_SCHEDULER.getRate() != desiredReportRateHz) {
@@ -285,8 +341,11 @@ void InputState::tick()
             processReportTick();
         }
     } else if (inputPipelineRunning && activeBoardMode == BoardMode::Usb) {
-        while (REPORT_SCHEDULER.consumeTick()) {
+        uint8_t processed = 0u;
+        while (processed < kUsbReportCatchupLimit &&
+               REPORT_SCHEDULER.consumeTick()) {
             processReportTick();
+            ++processed;
         }
     }
 
@@ -294,13 +353,19 @@ void InputState::tick()
         USB_DRIVER.process();
     }
 
+#if APPLICATION_DEBUG_PRINT == 1
+    LATENCY_MONITOR.process();
+#endif
+}
+
+void InputState::serviceLeds()
+{
 #if HAS_LED == 1
-    if (inputPipelineRunning) {
+#if !INPUT_LED_RECOVERY_HOLD_OFF
+    if (isRunning && inputPipelineRunning) {
         LEDS_MANAGER.loop(virtualPinMask);
     }
 #endif
-#if APPLICATION_DEBUG_PRINT == 1
-    LATENCY_MONITOR.process();
 #endif
 }
 

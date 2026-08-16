@@ -1,4 +1,4 @@
-#include "configs/websocket_command_handler.hpp"
+#include "configs/device_command_handler.hpp"
 #include "storagemanager.hpp"
 #include "adc_btns/adc_manager.hpp"
 #include "adc_btns/adc_btns_marker.hpp"
@@ -26,7 +26,7 @@ void MSMarkCommandHandler::sendMarkingStatusNotification() {
     // 创建通知消息（不带CID的消息）
     cJSON* json = cJSON_CreateObject();
     if (!json) {
-        LOG_ERROR("WebSocket", "Failed to create notification JSON");
+        LOG_ERROR("DeviceCommand", "Failed to create notification JSON");
         return;
     }
     
@@ -47,7 +47,7 @@ void MSMarkCommandHandler::sendMarkingStatusNotification() {
         // APP_DBG("sendMarkingStatusNotification: Marking status notification sent - %s", json_string);
         free(json_string);
     } else {
-        LOG_ERROR("WebSocket", "Failed to serialize notification JSON");
+        LOG_ERROR("DeviceCommand", "Failed to serialize notification JSON");
     }
     
     cJSON_Delete(json);
@@ -72,21 +72,21 @@ cJSON* MSMarkCommandHandler::buildMappingListJSON() {
     return listJSON;
 }
 
-WebSocketDownstreamMessage MSMarkCommandHandler::handleGetList(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling ms_get_list command, cid: %d", request.getCid());
+DeviceCommandResponse MSMarkCommandHandler::handleGetList(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling ms_get_list command, cid: %d", request.getCid());
 
     cJSON* dataJSON = cJSON_CreateObject();
     // 添加映射列表到响应数据
     cJSON_AddItemToObject(dataJSON, "mappingList", buildMappingListJSON());
     cJSON_AddItemToObject(dataJSON, "defaultMappingId", cJSON_CreateString(ADC_MANAGER.getDefaultMapping().c_str()));
     
-    // LOG_INFO("WebSocket", "ms_get_list command completed successfully");
+    // LOG_INFO("DeviceCommand", "ms_get_list command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage MSMarkCommandHandler::handleGetMarkStatus(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling ms_get_mark_status command, cid: %d", request.`getCid());
+DeviceCommandResponse MSMarkCommandHandler::handleGetMarkStatus(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling ms_get_mark_status command, cid: %d", request.`getCid());
     
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
@@ -95,25 +95,25 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleGetMarkStatus(const WebSo
     // 添加标记状态到响应数据
     cJSON_AddItemToObject(dataJSON, "status", markStatusJSON);
     
-    // LOG_INFO("WebSocket", "ms_get_mark_status command completed successfully");
+    // LOG_INFO("DeviceCommand", "ms_get_mark_status command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage MSMarkCommandHandler::handleSetDefault(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling ms_set_default command, cid: %d", request.getCid());
+DeviceCommandResponse MSMarkCommandHandler::handleSetDefault(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling ms_set_default command, cid: %d", request.getCid());
     
     // 获取请求参数
     cJSON* params = request.getParams();
     if (!params) {
-        LOG_ERROR("WebSocket", "ms_set_default: Invalid parameters");
+        LOG_ERROR("DeviceCommand", "ms_set_default: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
     
     // 获取映射ID
     cJSON* idJSON = cJSON_GetObjectItem(params, "id");
     if (!idJSON || !cJSON_IsString(idJSON)) {
-        LOG_ERROR("WebSocket", "ms_set_default: Missing or invalid mapping id");
+        LOG_ERROR("DeviceCommand", "ms_set_default: Missing or invalid mapping id");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Missing or invalid mapping id");
     }
     
@@ -122,7 +122,7 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleSetDefault(const WebSocke
     // 设置默认映射
     ADCBtnsError error = ADC_MANAGER.setDefaultMapping(mappingId);
     if(error != ADCBtnsError::SUCCESS) {
-        LOG_ERROR("WebSocket", "ms_set_default: Failed to set default mapping");
+        LOG_ERROR("DeviceCommand", "ms_set_default: Failed to set default mapping");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to set default mapping");
     }
     
@@ -130,13 +130,13 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleSetDefault(const WebSocke
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON_AddStringToObject(dataJSON, "id", mappingId);
 
-    // LOG_INFO("WebSocket", "ms_set_default command completed successfully");
+    // LOG_INFO("DeviceCommand", "ms_set_default command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage MSMarkCommandHandler::handleGetDefault(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling ms_get_default command, cid: %d", request.getCid());
+DeviceCommandResponse MSMarkCommandHandler::handleGetDefault(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling ms_get_default command, cid: %d", request.getCid());
     
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
@@ -149,39 +149,39 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleGetDefault(const WebSocke
         cJSON_AddStringToObject(dataJSON, "id", defaultId.c_str());
     }
     
-    // LOG_INFO("WebSocket", "ms_get_default command completed successfully");
+    // LOG_INFO("DeviceCommand", "ms_get_default command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage MSMarkCommandHandler::handleCreateMapping(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling ms_create_mapping command, cid: %d", request.getCid());
+DeviceCommandResponse MSMarkCommandHandler::handleCreateMapping(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling ms_create_mapping command, cid: %d", request.getCid());
     
     // 获取请求参数
     cJSON* params = request.getParams();
     if (!params) {
-        LOG_ERROR("WebSocket", "ms_create_mapping: Invalid parameters");
+        LOG_ERROR("DeviceCommand", "ms_create_mapping: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
     
     // 获取映射名称
     cJSON* nameJSON = cJSON_GetObjectItem(params, "name");
     if (!nameJSON || !cJSON_IsString(nameJSON)) {
-        LOG_ERROR("WebSocket", "ms_create_mapping: Missing or invalid mapping name");
+        LOG_ERROR("DeviceCommand", "ms_create_mapping: Missing or invalid mapping name");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Missing or invalid mapping name");
     }
     
     // 获取长度
     cJSON* lengthJSON = cJSON_GetObjectItem(params, "length");
     if (!lengthJSON || !cJSON_IsNumber(lengthJSON)) {
-        LOG_ERROR("WebSocket", "ms_create_mapping: Missing or invalid length");
+        LOG_ERROR("DeviceCommand", "ms_create_mapping: Missing or invalid length");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Missing or invalid length");
     }
     
     // 获取步长
     cJSON* stepJSON = cJSON_GetObjectItem(params, "step");
     if (!stepJSON || !cJSON_IsNumber(stepJSON)) {
-        LOG_ERROR("WebSocket", "ms_create_mapping: Missing or invalid step");
+        LOG_ERROR("DeviceCommand", "ms_create_mapping: Missing or invalid step");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Missing or invalid step");
     }
     
@@ -192,7 +192,7 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleCreateMapping(const WebSo
     // 创建映射
     ADCBtnsError error = ADC_MANAGER.createADCMapping(mappingName, length, step);
     if(error != ADCBtnsError::SUCCESS) {
-        LOG_ERROR("WebSocket", "ms_create_mapping: Failed to create mapping");
+        LOG_ERROR("DeviceCommand", "ms_create_mapping: Failed to create mapping");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to create mapping");
     }
     
@@ -201,25 +201,25 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleCreateMapping(const WebSo
     cJSON_AddItemToObject(dataJSON, "defaultMappingId", cJSON_CreateString(ADC_MANAGER.getDefaultMapping().c_str()));
     cJSON_AddItemToObject(dataJSON, "mappingList", buildMappingListJSON());
     
-    // LOG_INFO("WebSocket", "ms_create_mapping command completed successfully");
+    // LOG_INFO("DeviceCommand", "ms_create_mapping command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage MSMarkCommandHandler::handleDeleteMapping(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling ms_delete_mapping command, cid: %d", request.getCid());
+DeviceCommandResponse MSMarkCommandHandler::handleDeleteMapping(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling ms_delete_mapping command, cid: %d", request.getCid());
     
     // 获取请求参数
     cJSON* params = request.getParams();
     if (!params) {
-        LOG_ERROR("WebSocket", "ms_delete_mapping: Invalid parameters");
+        LOG_ERROR("DeviceCommand", "ms_delete_mapping: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
     
     // 获取映射ID
     cJSON* idJSON = cJSON_GetObjectItem(params, "id");
     if (!idJSON || !cJSON_IsString(idJSON)) {
-        LOG_ERROR("WebSocket", "ms_delete_mapping: Missing or invalid mapping id");
+        LOG_ERROR("DeviceCommand", "ms_delete_mapping: Missing or invalid mapping id");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Missing or invalid mapping id");
     }
     
@@ -228,7 +228,7 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleDeleteMapping(const WebSo
     // 删除映射
     ADCBtnsError error = ADC_MANAGER.removeADCMapping(mappingId);
     if(error != ADCBtnsError::SUCCESS) {
-        LOG_ERROR("WebSocket", "ms_delete_mapping: Failed to delete mapping");
+        LOG_ERROR("DeviceCommand", "ms_delete_mapping: Failed to delete mapping");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to delete mapping");
     }
     
@@ -237,32 +237,32 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleDeleteMapping(const WebSo
     cJSON_AddItemToObject(dataJSON, "defaultMappingId", cJSON_CreateString(ADC_MANAGER.getDefaultMapping().c_str()));
     cJSON_AddItemToObject(dataJSON, "mappingList", buildMappingListJSON());
     
-    // LOG_INFO("WebSocket", "ms_delete_mapping command completed successfully");
+    // LOG_INFO("DeviceCommand", "ms_delete_mapping command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage MSMarkCommandHandler::handleRenameMapping(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling ms_rename_mapping command, cid: %d", request.getCid());
+DeviceCommandResponse MSMarkCommandHandler::handleRenameMapping(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling ms_rename_mapping command, cid: %d", request.getCid());
     
     // 获取请求参数
     cJSON* params = request.getParams();
     if (!params) {
-        LOG_ERROR("WebSocket", "ms_rename_mapping: Invalid parameters");
+        LOG_ERROR("DeviceCommand", "ms_rename_mapping: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
 
     // 获取映射ID
     cJSON* idJSON = cJSON_GetObjectItem(params, "id");
     if (!idJSON || !cJSON_IsString(idJSON)) {
-        LOG_ERROR("WebSocket", "ms_rename_mapping: Missing or invalid mapping id");
+        LOG_ERROR("DeviceCommand", "ms_rename_mapping: Missing or invalid mapping id");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Missing or invalid mapping id");
     }
 
     // 获取映射名称
     cJSON* nameJSON = cJSON_GetObjectItem(params, "name");
     if (!nameJSON || !cJSON_IsString(nameJSON)) {
-        LOG_ERROR("WebSocket", "ms_rename_mapping: Missing or invalid mapping name");
+        LOG_ERROR("DeviceCommand", "ms_rename_mapping: Missing or invalid mapping name");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Missing or invalid mapping name");
     }
 
@@ -272,7 +272,7 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleRenameMapping(const WebSo
     // 重命名映射
     ADCBtnsError error = ADC_MANAGER.renameADCMapping(mappingId, mappingName);
     if(error != ADCBtnsError::SUCCESS) {   
-        LOG_ERROR("WebSocket", "ms_rename_mapping: Failed to rename mapping");
+        LOG_ERROR("DeviceCommand", "ms_rename_mapping: Failed to rename mapping");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to rename mapping");
     }
 
@@ -281,25 +281,25 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleRenameMapping(const WebSo
     cJSON_AddItemToObject(dataJSON, "defaultMappingId", cJSON_CreateString(ADC_MANAGER.getDefaultMapping().c_str()));
     cJSON_AddItemToObject(dataJSON, "mappingList", buildMappingListJSON());
 
-    // LOG_INFO("WebSocket", "ms_rename_mapping command completed successfully");
+    // LOG_INFO("DeviceCommand", "ms_rename_mapping command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage MSMarkCommandHandler::handleMarkMappingStart(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling ms_mark_mapping_start command, cid: %d", request.getCid());
+DeviceCommandResponse MSMarkCommandHandler::handleMarkMappingStart(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling ms_mark_mapping_start command, cid: %d", request.getCid());
     
     // 获取请求参数
     cJSON* params = request.getParams();
     if (!params) {
-        LOG_ERROR("WebSocket", "ms_mark_mapping_start: Invalid parameters");
+        LOG_ERROR("DeviceCommand", "ms_mark_mapping_start: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
     
     // 获取映射ID
     cJSON* idJSON = cJSON_GetObjectItem(params, "id");
     if (!idJSON || !cJSON_IsString(idJSON)) {
-        LOG_ERROR("WebSocket", "ms_mark_mapping_start: Missing or invalid mapping id");
+        LOG_ERROR("DeviceCommand", "ms_mark_mapping_start: Missing or invalid mapping id");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Missing or invalid mapping id");
     }
     
@@ -308,7 +308,7 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleMarkMappingStart(const We
     // 开始标记
     ADCBtnsError error = ADC_BTNS_MARKER.setup(mappingId);
     if(error != ADCBtnsError::SUCCESS) {
-        LOG_ERROR("WebSocket", "ms_mark_mapping_start: Failed to start marking");
+        LOG_ERROR("DeviceCommand", "ms_mark_mapping_start: Failed to start marking");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to start marking");
     }
     
@@ -320,13 +320,13 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleMarkMappingStart(const We
     cJSON* statusJSON = ADC_BTNS_MARKER.getStepInfoJSON();
     cJSON_AddItemToObject(dataJSON, "status", statusJSON);
     
-    // LOG_INFO("WebSocket", "ms_mark_mapping_start command completed successfully");
+    // LOG_INFO("DeviceCommand", "ms_mark_mapping_start command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage MSMarkCommandHandler::handleMarkMappingStop(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling ms_mark_mapping_stop command, cid: %d", request.getCid());
+DeviceCommandResponse MSMarkCommandHandler::handleMarkMappingStop(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling ms_mark_mapping_stop command, cid: %d", request.getCid());
     
     // 停止标记
     ADC_BTNS_MARKER.reset();
@@ -339,18 +339,18 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleMarkMappingStop(const Web
     cJSON* statusJSON = ADC_BTNS_MARKER.getStepInfoJSON();
     cJSON_AddItemToObject(dataJSON, "status", statusJSON);
     
-    // LOG_INFO("WebSocket", "ms_mark_mapping_stop command completed successfully");
+    // LOG_INFO("DeviceCommand", "ms_mark_mapping_stop command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage MSMarkCommandHandler::handleMarkMappingStep(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling ms_mark_mapping_step command, cid: %d", request.getCid());
+DeviceCommandResponse MSMarkCommandHandler::handleMarkMappingStep(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling ms_mark_mapping_step command, cid: %d", request.getCid());
     
     // 执行标记步进
     ADCBtnsError error = ADC_BTNS_MARKER.step();
     if(error != ADCBtnsError::SUCCESS) {
-        LOG_ERROR("WebSocket", "ms_mark_mapping_step: Failed to perform marking step");
+        LOG_ERROR("DeviceCommand", "ms_mark_mapping_step: Failed to perform marking step");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to perform marking step");
     }
     
@@ -362,30 +362,30 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleMarkMappingStep(const Web
     cJSON* statusJSON = ADC_BTNS_MARKER.getStepInfoJSON();
     cJSON_AddItemToObject(dataJSON, "status", statusJSON);
     
-    // LOG_INFO("WebSocket", "ms_mark_mapping_step command completed successfully");
+    // LOG_INFO("DeviceCommand", "ms_mark_mapping_step command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage MSMarkCommandHandler::handleGetMapping(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling ms_get_mapping command, cid: %d", request.getCid());
+DeviceCommandResponse MSMarkCommandHandler::handleGetMapping(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling ms_get_mapping command, cid: %d", request.getCid());
     
     // 获取请求参数
     cJSON* params = request.getParams();
     if (!params) {
-        LOG_ERROR("WebSocket", "ms_get_mapping: Invalid parameters");
+        LOG_ERROR("DeviceCommand", "ms_get_mapping: Invalid parameters");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
 
     cJSON* idJSON = cJSON_GetObjectItem(params, "id");
     if (!idJSON || !cJSON_IsString(idJSON)) {
-        LOG_ERROR("WebSocket", "ms_get_mapping: Missing or invalid mapping id");
+        LOG_ERROR("DeviceCommand", "ms_get_mapping: Missing or invalid mapping id");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Missing or invalid mapping id");
     }
 
     const ADCValuesMapping* resultMapping = ADC_MANAGER.getMapping(idJSON->valuestring);
     if (!resultMapping) {
-        LOG_ERROR("WebSocket", "ms_get_mapping: Failed to get mapping");
+        LOG_ERROR("DeviceCommand", "ms_get_mapping: Failed to get mapping");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to get mapping");
     }
 
@@ -406,12 +406,12 @@ WebSocketDownstreamMessage MSMarkCommandHandler::handleGetMapping(const WebSocke
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON_AddItemToObject(dataJSON, "mapping", mappingJSON);
 
-    // LOG_INFO("WebSocket", "ms_get_mapping command completed successfully");
+    // LOG_INFO("DeviceCommand", "ms_get_mapping command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-WebSocketDownstreamMessage MSMarkCommandHandler::handle(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse MSMarkCommandHandler::handle(const DeviceCommandRequest& request) {
     const std::string& command = request.getCommand();
     
     if (command == "ms_get_list") {

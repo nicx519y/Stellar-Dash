@@ -26,6 +26,7 @@ import {
   DeviceTransportError,
   DeviceTransportState,
   DeviceUploadOptions,
+  DeviceUploadResult,
   Unsubscribe,
 } from './types';
 
@@ -281,7 +282,7 @@ export class MockDeviceTransport implements DeviceTransport {
     stream: DeviceStream,
     data: Blob | ArrayBuffer | Uint8Array,
     options?: DeviceUploadOptions,
-  ): Promise<void> {
+  ): Promise<DeviceUploadResult> {
     this.assertConnected();
     const bytes = data instanceof Blob
       ? new Uint8Array(await data.arrayBuffer())
@@ -289,9 +290,41 @@ export class MockDeviceTransport implements DeviceTransport {
         ? data
         : new Uint8Array(data);
     options?.onProgress?.(bytes.byteLength, bytes.byteLength);
-    if (stream === 'legacy-binary') {
-      this.handleLegacyBinary(bytes);
+    if (stream === 'firmware' || stream === 'image') {
+      const response = new Uint8Array(this.handleBinaryExchange(bytes));
+      const request = new DataView(
+        bytes.buffer,
+        bytes.byteOffset,
+        bytes.byteLength,
+      );
+      const ack = stream === 'firmware'
+        ? {
+            requestOpcode: 0x01,
+            opcode: response[0],
+            success: response[1] === 1,
+            kind: 'firmware.chunk',
+            chunkIndex: new DataView(response.buffer).getUint32(2, true),
+            progress: new DataView(response.buffer).getUint32(6, true),
+          }
+        : {
+            requestOpcode: 0x31,
+            opcode: response[0],
+            success: response[1] === 1,
+            kind: 'image.chunk',
+            cid: new DataView(response.buffer).getUint32(2, true),
+            offset: request.getUint32(6, true),
+            chunkSize: request.getUint16(10, true),
+            received: new DataView(response.buffer).getUint32(6, true),
+            total: new DataView(response.buffer).getUint32(10, true),
+          };
+      return {
+        complete: true,
+        encoding: 'base64',
+        data: bytesToBase64(response),
+        ack,
+      };
     }
+    return { complete: true };
   }
 
   async authorizedFetch(input: RequestInfo | URL, _init?: RequestInit): Promise<Response> {
@@ -361,6 +394,17 @@ export class MockDeviceTransport implements DeviceTransport {
     switch (command) {
       case 'ping':
         return { pong: true, timestamp: Date.now() };
+      case 'binary.exchange': {
+        if (params.encoding !== 'base64' || typeof params.data !== 'string') {
+          throw new DeviceTransportError('protocol', 'Invalid mock binary.exchange request');
+        }
+        const request = base64ToBytes(params.data);
+        const response = new Uint8Array(this.handleBinaryExchange(request));
+        return {
+          encoding: 'base64',
+          data: bytesToBase64(response),
+        };
+      }
       case 'get_global_config':
         return {
           globalConfig: {
@@ -570,8 +614,18 @@ export class MockDeviceTransport implements DeviceTransport {
       case 'check_is_manual_calibration_completed':
         return { isCompleted: this.calibrationComplete };
       case 'start_button_monitoring':
+        queueMicrotask(() => this.emit('button.state', {
+          isActive: true,
+          triggerMask: 0,
+          totalButtons: 22,
+        }));
         return { isActive: true };
       case 'stop_button_monitoring':
+        queueMicrotask(() => this.emit('button.state', {
+          isActive: false,
+          triggerMask: 0,
+          totalButtons: 22,
+        }));
         return { isActive: false };
       case 'get_button_states':
         return { triggerMask: 0, triggerBinary: '0'.repeat(32), totalButtons: 22, timestamp: Date.now() };
@@ -610,8 +664,10 @@ export class MockDeviceTransport implements DeviceTransport {
     }
   }
 
-  private handleLegacyBinary(bytes: Uint8Array): void {
-    if (bytes.byteLength === 0) return;
+  private handleBinaryExchange(bytes: Uint8Array): ArrayBuffer {
+    if (bytes.byteLength === 0) {
+      throw new DeviceTransportError('protocol', 'Binary request is empty');
+    }
     const command = bytes[0];
     const request = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 
@@ -634,8 +690,7 @@ export class MockDeviceTransport implements DeviceTransport {
           received: 0,
         });
       }
-      this.emitImageAck(0xb0, cid, valid, 0, total, valid ? undefined : 'Invalid image metadata');
-      return;
+      return this.makeImageAck(0xb0, cid, valid, 0, total, valid ? undefined : 'Invalid image metadata');
     }
 
     if (command === 0x31 && bytes.byteLength >= 14) {
@@ -651,7 +706,7 @@ export class MockDeviceTransport implements DeviceTransport {
         transfer.data.set(bytes.subarray(14, 14 + length), offset);
         transfer.received = Math.max(transfer.received, offset + length);
       }
-      this.emitImageAck(
+      return this.makeImageAck(
         0xb1,
         cid,
         valid,
@@ -659,7 +714,6 @@ export class MockDeviceTransport implements DeviceTransport {
         transfer?.data.byteLength ?? 0,
         valid ? undefined : 'Invalid image chunk',
       );
-      return;
     }
 
     if (command === 0x32 && bytes.byteLength >= 6) {
@@ -677,7 +731,7 @@ export class MockDeviceTransport implements DeviceTransport {
         };
         this.persistState();
       }
-      this.emitImageAck(
+      const response = this.makeImageAck(
         0xb2,
         cid,
         valid,
@@ -686,7 +740,7 @@ export class MockDeviceTransport implements DeviceTransport {
         valid ? undefined : 'Image upload is incomplete',
       );
       this.imageTransfers.delete(cid);
-      return;
+      return response;
     }
 
     if (command === 0x33 && bytes.byteLength >= 6) {
@@ -694,8 +748,7 @@ export class MockDeviceTransport implements DeviceTransport {
       this.images.user = null;
       this.imageTransfers.delete(cid);
       this.persistState();
-      this.emitImageAck(0xb3, cid, true, 0, 0);
-      return;
+      return this.makeImageAck(0xb3, cid, true, 0, 0);
     }
 
     if (command === 0x34 && bytes.byteLength >= 6) {
@@ -706,8 +759,7 @@ export class MockDeviceTransport implements DeviceTransport {
       view.setUint32(2, request.getUint32(2, true), true);
       writeImageInfo(view, 6, this.images.user);
       writeImageInfo(view, 7, this.images.system);
-      this.emitBinary(response);
-      return;
+      return response;
     }
 
     if (command === 0x35 && bytes.byteLength >= 14) {
@@ -725,20 +777,22 @@ export class MockDeviceTransport implements DeviceTransport {
       view.setUint8(0, 0xb5);
       view.setUint8(1, valid ? 1 : 0);
       view.setUint8(2, target);
+      view.setUint8(3, image?.format ?? 0);
       view.setUint32(4, cid, true);
-      view.setUint32(8, image?.data.byteLength ?? 0, true);
+      view.setUint16(8, image?.width ?? 0, true);
+      view.setUint16(10, image?.height ?? 0, true);
+      view.setUint32(12, image?.data.byteLength ?? 0, true);
       view.setUint32(16, offset, true);
       view.setUint16(20, length, true);
       view.setUint8(22, 0);
       if (image && length > 0) {
         new Uint8Array(response, 55).set(image.data.subarray(offset, offset + length));
       }
-      this.emitBinary(response);
-      return;
+      return response;
     }
 
     if (command === 0x01 && bytes.byteLength >= 62) {
-      const response = new ArrayBuffer(11);
+      const response = new ArrayBuffer(75);
       const view = new DataView(response);
       const chunkIndex = request.getUint32(54, true);
       const totalChunks = request.getUint32(58, true);
@@ -746,8 +800,9 @@ export class MockDeviceTransport implements DeviceTransport {
       view.setUint8(1, 1);
       view.setUint32(2, chunkIndex, true);
       view.setUint32(6, totalChunks ? Math.floor(((chunkIndex + 1) * 100) / totalChunks) : 100, true);
-      this.emitBinary(response);
+      return response;
     }
+    throw new DeviceTransportError('protocol', `Unsupported binary command 0x${command.toString(16)}`);
   }
 
   private scheduleConfigExport(): void {
@@ -902,52 +957,44 @@ export class MockDeviceTransport implements DeviceTransport {
     this.calibrationTimers = [];
   }
 
-  private emitImageAck(
+  private makeImageAck(
     responseCommand: number,
     cid: number,
     success: boolean,
     received: number,
     total: number,
     error?: string,
-  ): void {
-    const errorBytes = error ? new TextEncoder().encode(error) : new Uint8Array(0);
-    const response = new ArrayBuffer(15 + errorBytes.byteLength);
+  ): ArrayBuffer {
+    const errorBytes = error
+      ? new TextEncoder().encode(error).subarray(0, 64)
+      : new Uint8Array(0);
+    // BinaryUploadBgImageResponse is a fixed 79-byte packed ABI:
+    // 15 bytes of metadata followed by a 64-byte error field.
+    const response = new ArrayBuffer(79);
     const view = new DataView(response);
     view.setUint8(0, responseCommand);
     view.setUint8(1, success ? 1 : 0);
     view.setUint32(2, cid, true);
     view.setUint32(6, received, true);
     view.setUint32(10, total, true);
-    view.setUint8(14, Math.min(255, errorBytes.byteLength));
-    new Uint8Array(response, 15).set(errorBytes.subarray(0, 255));
-    this.emitBinary(response);
+    view.setUint8(14, errorBytes.byteLength);
+    new Uint8Array(response, 15).set(errorBytes);
+    return response;
   }
 
   private startPerformanceMonitor(): void {
     if (this.performanceTimer) return;
     this.performanceTimer = setInterval(() => {
-      const buttonCount = 18;
-      const response = new ArrayBuffer(12 + buttonCount * 24);
-      const view = new DataView(response);
+      const response = new Uint8Array(44);
+      const view = new DataView(response.buffer);
       const frame = this.sampleCounter++;
-      view.setUint8(0, 2);
-      view.setUint8(1, 1);
-      view.setUint8(2, buttonCount);
-      view.setUint32(4, Date.now() >>> 0, true);
-      view.setFloat32(8, 4, true);
-      for (let index = 0; index < buttonCount; index += 1) {
-        const offset = 12 + index * 24;
-        const distance = 2 + 1.8 * Math.sin((frame + index * 2) / 10);
-        view.setUint8(offset, index);
-        view.setUint8(offset + 1, index);
-        view.setUint8(offset + 2, distance >= 2 ? 1 : 0);
-        view.setFloat32(offset + 3, distance, true);
-        view.setFloat32(offset + 7, 2, true);
-        view.setFloat32(offset + 11, 0.3, true);
-        view.setFloat32(offset + 15, 1.8, true);
-        view.setFloat32(offset + 19, 3.7, true);
+      view.setUint32(0, (Date.now() * 1000) >>> 0, true);
+      view.setUint32(4, 0, true);
+      for (let index = 0; index < 18; index += 1) {
+        const distanceUm = Math.max(0, Math.round(2000 + 1800 * Math.sin((frame + index * 2) / 10)));
+        view.setUint16(8 + index * 2, distanceUm, true);
       }
-      this.emitBinary(response);
+      this.emit('performance.sample', response);
     }, 100);
   }
 
@@ -956,15 +1003,10 @@ export class MockDeviceTransport implements DeviceTransport {
     this.performanceTimer = null;
   }
 
-  private emit(name: string, data: unknown, binary?: ArrayBuffer): void {
-    const event: DeviceEvent<unknown> = { name, data, binary };
+  private emit(name: string, data: unknown): void {
+    const event: DeviceEvent<unknown> = { name, data };
     this.eventHandlers.get(name)?.forEach((handler) => handler(event));
     this.eventHandlers.get('*')?.forEach((handler) => handler(event));
-  }
-
-  private emitBinary(binary: ArrayBuffer): void {
-    const copy = binary.slice(0);
-    queueMicrotask(() => this.emit('legacy.binary', copy, copy));
   }
 
   private profilePayload() {

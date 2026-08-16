@@ -133,19 +133,33 @@ void MainStateMachine::requestReset()
 
 extern "C" void MainRuntime_RequestReset(void)
 {
+    APP_STAGE("A14", "runtime reset requested by caller=0x%08lX",
+              (unsigned long)(uintptr_t)__builtin_return_address(0));
     MAIN_STATE_MACHINE.requestReset();
 }
 
 void MainStateMachine::serviceSharedRuntime()
 {
     if (!interactiveRuntimeInitialized) return;
+    static bool traceFirstPass = true;
+    if (traceFirstPass) APP_STAGE("RT0", "first shared-runtime pass begin");
     BOARD_MODE.update(HAL_GetTick());
+    if (traceFirstPass) APP_STAGE("RT1", "board-mode service complete");
     if (currentState == MainRuntimeState::Input ||
         currentState == MainRuntimeState::WebConfig) {
         CONNECTION_MANAGER.loop();
     }
+    if (traceFirstPass) APP_STAGE("RT2", "connection service complete");
     POWER_MANAGER.loop();
+    if (traceFirstPass) APP_STAGE("RT3", "power service complete");
     SPIScreenManager::getInstance().loop();
+    if (currentState == MainRuntimeState::Input) {
+        INPUT_STATE.serviceLeds();
+    }
+    if (traceFirstPass) {
+        APP_STAGE("RT4", "screen and LED frame service complete");
+        traceFirstPass = false;
+    }
 }
 
 void MainStateMachine::setup()
@@ -167,6 +181,7 @@ void MainStateMachine::setup()
         serviceSharedRuntime();
         if (resetPending) {
             resetPending = false;
+            APP_STAGE("A15", "executing requested runtime reset");
             if (state != nullptr) state->exit();
             if (interactiveRuntimeInitialized) Logger_Flush();
             NVIC_SystemReset();

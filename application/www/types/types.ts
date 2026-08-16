@@ -118,7 +118,6 @@ export interface FirmwarePackage {
 
 export interface FirmwareUpgradeConfig {
     chunkSize: number; // 分片大小，必须是4KB(4096字节)的倍数，建议范围: 4KB-16KB
-    maxRetries: number; // 最大重试次数
     timeout: number; // 超时时间(ms)
 }
 

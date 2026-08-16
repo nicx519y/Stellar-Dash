@@ -14,12 +14,22 @@ import { DialogForm } from "@/components/dialog-form";
 import { DialogCannotClose } from '@/components/dialog-cannot-close'
 import { DialogEditCombination } from '@/components/dialog-edit-combination'
 import { LanguageProvider, useLanguage } from '@/contexts/language-context';
-import { configuredTransportMode } from '@/lib/device-transport';
+import {
+    configuredTransportMode,
+    DeviceTransportError,
+    reconnectRequiresPermission,
+} from '@/lib/device-transport';
 
 
 // 创建一个内部组件来使用 context
 function AppContent({ children }: { children: React.ReactNode }) {
-    const { isLoading, connectWebSocket, showReconnect } = useGamepadConfig();
+    const {
+        isLoading,
+        connectDevice,
+        reconnectDevice,
+        showReconnect,
+        deviceError,
+    } = useGamepadConfig();
     const [showLoading, setShowLoading] = useState(false);
     const [isReconnecting, setIsReconnecting] = useState(false);
     const reconnectInFlightRef = useRef(false);
@@ -69,7 +79,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
         openReconnectModal({
             title: t.RECONNECT_MODAL_TITLE,
-            message: t.RECONNECT_MODAL_MESSAGE,
+            message: deviceError?.transportCode === 'device-busy'
+                ? deviceError.message
+                : t.RECONNECT_MODAL_MESSAGE,
             buttonText: t.RECONNECT_MODAL_BUTTON,
             onReconnect: async () => {
                 if (reconnectInFlightRef.current) return;
@@ -77,11 +89,21 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 setIsReconnecting(true);
                 setReconnectModalLoading(true);
                 try {
-                    await connectWebSocket();
-                } catch {
+                    // Only a click may open the WebHID chooser. Page-load
+                    // discovery reports permission-required and this exact
+                    // user gesture upgrades the retry to chooser mode.
+                    if (reconnectRequiresPermission(deviceError)) {
+                        await connectDevice();
+                    } else {
+                        await reconnectDevice();
+                    }
+                } catch (error) {
+                    const description = error instanceof DeviceTransportError && error.code === 'device-busy'
+                        ? error.message
+                        : t.RECONNECT_FAILED_MESSAGE;
                     toaster.error({
                         title: t.RECONNECT_FAILED_TITLE,
-                        description: t.RECONNECT_FAILED_MESSAGE,
+                        description,
                     });
                     reconnectInFlightRef.current = false;
                     setIsReconnecting(false);
@@ -90,7 +112,15 @@ function AppContent({ children }: { children: React.ReactNode }) {
             },
             isLoading: isReconnecting,
         });
-    }, [showReconnect, mockPreview, t, connectWebSocket, isReconnecting]);
+    }, [
+        showReconnect,
+        mockPreview,
+        t,
+        connectDevice,
+        reconnectDevice,
+        deviceError,
+        isReconnecting,
+    ]);
 
     return (
         <Flex

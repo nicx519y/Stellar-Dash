@@ -21,6 +21,7 @@ bool usb_board_link_publish_bulk(usb_board_channel_t channel,
 void usb_board_link_reset_channel(usb_board_channel_t channel);
 void usb_board_link_webconfig_set_ready(bool ready,
                                         uint8_t available_reports);
+void usb_board_link_webconfig_pause(void);
 void usb_board_link_webconfig_report_consumed(void);
 
 /* Hardware SPI slave port, low-active event signal on PA5. */

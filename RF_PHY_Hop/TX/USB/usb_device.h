@@ -17,6 +17,11 @@ bool usb_device_set_profile(usb_board_profile_t profile);
 bool usb_device_submit_input(const usb_board_input_v1_t *input);
 bool usb_device_submit_telemetry(const uint8_t *data, uint16_t length);
 bool usb_device_submit_webhid_report(const uint8_t *data, uint16_t length);
+/* Called from process context after EP1 reports a successful WebHID IN. */
+void usb_device_webhid_report_complete(void);
+/* True only after the current mounted, non-suspended WebHID generation has
+ * published its receiver capacity. */
+bool usb_device_webhid_credit_ready(void);
 /* Called by the hardware backend after disconnect/bus-reset/profile reset. */
 void usb_device_transport_reset(void);
 bool usb_device_control(const uint8_t *payload, uint8_t length);

@@ -56,7 +56,7 @@ import {
 export function LEDsSettingContent() {
     const { t } = useLanguage();
 
-    const { defaultProfile, updateProfileDetails, pushLedsConfig, clearLedsPreview, wsConnected, dataIsReady, sendPendingCommandImmediately } = useGamepadConfig();
+    const { defaultProfile, updateProfileDetails, pushLedsConfig, clearLedsPreview, deviceConnected, dataIsReady, sendPendingCommandImmediately } = useGamepadConfig();
     const { colorMode } = useColorMode();
     const defaultFrontColor = useMemo(() => {
         if (colorMode === "dark") {
@@ -170,17 +170,17 @@ export function LEDsSettingContent() {
     // 清除灯光预览数据
     useEffect(() => {
         // 如果webcosket 断开重连，并且之前在灯光预览模式，则重新开启预览
-        if(wsConnected && isPreviewing.current) {
+        if(deviceConnected && isPreviewing.current) {
             previewLedsEffectHandler();
         }
 
         return () => {
-            if(wsConnected && isPreviewing.current) {
+            if(deviceConnected && isPreviewing.current) {
                 console.log('leds setting content unmount, clear leds preview');
                 clearLedsPreviewHandler();
             }
         }
-    }, [wsConnected]);
+    }, [deviceConnected]);
 
     const colorPickerDisabled = (index: number) => {
         return (index == 2 && !(effectStyleLabelMap.get(ledsEffectStyle)?.hasBackColor2 ?? false)) || !ledEnabled;

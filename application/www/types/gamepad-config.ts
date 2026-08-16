@@ -21,7 +21,6 @@ export const SWITCH_MARKING_NAME_MAX_LENGTH = 16;
 // firmware package chunk size
 export const DEFAULT_FIRMWARE_PACKAGE_CHUNK_SIZE = 4096 * 2;
 // firmware upgrade max retries
-export const DEFAULT_FIRMWARE_UPGRADE_MAX_RETRIES = 3;
 // firmware upgrade timeout
 export const DEFAULT_FIRMWARE_UPGRADE_TIMEOUT = 30000;
 // firmware server host
@@ -832,6 +831,7 @@ export const UI_TEXT = {
     SETTINGS_SCREEN_CONTROL_FEATURE_CALIBRATION_MODE_SWITCH: "Calibration Mode Switch",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGES_TITLE: "Background Images",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_UPLOAD_BUTTON: "Upload Image",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LOAD_PREVIEWS_BUTTON: "Load Previews",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP: "- Choose system preset or upload one user image. Max size 320×172. Larger images will be downscaled.\n- GIF animation images will be automatically cropped to the first {seconds} seconds of the animation, and the frame rate will be reduced to adapt to the screen control performance.",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SET_BUTTON: "Set As BG",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_DELETE_BUTTON: "Delete",
@@ -1240,6 +1240,7 @@ export const UI_TEXT_ZH = {
     SETTINGS_SCREEN_CONTROL_FEATURE_CALIBRATION_MODE_SWITCH: "进入/退出校准模式",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGES_TITLE: "背景图片",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_UPLOAD_BUTTON: "上传图片",
+    SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LOAD_PREVIEWS_BUTTON: "加载预览",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP: "- 可选择系统预设或上传 1 张用户图片。最大尺寸 320×172，超过会自动等比缩小。\n- GIF动画图片会自动截取前{seconds}秒的动画，并适当降低帧率，以适应屏控性能。",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SET_BUTTON: "设为背景",
     SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_DELETE_BUTTON: "删除",

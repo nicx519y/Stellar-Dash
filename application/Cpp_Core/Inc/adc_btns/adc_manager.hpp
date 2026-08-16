@@ -142,60 +142,29 @@ class ADCManager {
         // 设置校准值
         ADCBtnsError setCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCalibration, uint16_t topValue, uint16_t bottomValue, bool withSave = true);
 
-        void setADCMode(ADC_SamplingMode mode);
-        ADC_SamplingMode getADCMode() const;
-
-        // 启动连续采样 (用于 INPUT/校准/WebConfig 模式)
+        // 挂载三路 TIM2 触发的循环 DMA（INPUT/校准/WebConfig 共用）
         ADCBtnsError startADCSamping(bool enableSamplingRate = false, 
                                    uint8_t virtualPin = 0, 
                                    uint32_t samplingCountMax = 0);
 
-        // 停止采样
+        // 停止一次采样率统计；后台循环 DMA 保持运行
         void stopADCSamping();
 
-        // 物理模式/电源切换专用：无条件停止所有循环或单次 DMA。
+        // 物理模式/电源切换专用：无条件停止所有循环 DMA。
         void forceStopAllSampling();
-        
-        void triggerSampling();
-        
-        void setSamplingDelay(uint16_t delay_us);
-        
-        uint16_t getSamplingDelay() const;
-        
-        // 检查采样是否完成
-        bool isSamplingDone();
-
-        // 清除采样完成标志
-        void clearSamplingDone();
         
         // 通知采样完成 (由 HAL_ADC_ConvCpltCallback 调用)
         void notifyConversionComplete(ADC_HandleTypeDef *hadc);
+        void notifyConversionError(ADC_HandleTypeDef *hadc);
         
         bool isDmaSamplingActive() const { return dmaSamplingActive; }
-
-        void startSamplingNow();
-        void startContinuousSampling();
 
         /**
          * @brief 读取ADC值 按virtualPin排序
          * 值要减去ADC_BASE_V 基准电压
          * @return 按virtualPin排序的ADC值
          */
-        inline const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& readADCValues() const
-        {
-            for(uint8_t i = 0; i < NUM_ADC; i++) {
-                uintptr_t start = reinterpret_cast<uintptr_t>(adcBufferInfo[i].buffer) & ~static_cast<uintptr_t>(31u);
-                uintptr_t end = (reinterpret_cast<uintptr_t>(adcBufferInfo[i].buffer) + adcBufferInfo[i].size + 31u) & ~static_cast<uintptr_t>(31u);
-                SCB_InvalidateDCache_by_Addr(reinterpret_cast<uint32_t*>(start), static_cast<int32_t>(end - start));
-
-                for (uint8_t j = 0; j < adcBufferInfo[i].count; j++) {
-                    const uint8_t virtualPin = adcBufferInfo[i].indexMap[j];
-                    ADC_Values_Result[virtualPin] = adcBufferInfo[i].buffer[j] >> ADC_VALUE_PUBLIC_RIGHT_SHIFT;
-                }
-            }
-
-            return ADCBufferInfoList;
-        }
+        const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& readADCValues() const;
 
         inline void ADCValuesTestPrint() {
             const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS>& adcValues = readADCValues();
@@ -217,22 +186,17 @@ class ADCManager {
         ~ADCManager();
 
         // ADC DMA 缓冲区必须保持静态
-        static __attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADC1_Values[NUM_ADC1_BUTTONS];
-        static __attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADC2_Values[NUM_ADC2_BUTTONS];
-        static __attribute__((section(".BDMA_Section"), aligned(32))) uint32_t ADC3_Values[NUM_ADC3_BUTTONS];
+        static __attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADC1_Values[NUM_ADC1_BUTTONS * 2u];
+        static __attribute__((section(".DMA_Section"), aligned(32))) uint32_t ADC2_Values[NUM_ADC2_BUTTONS * 2u];
+        static __attribute__((section(".BDMA_Section"), aligned(32))) uint32_t ADC3_Values[NUM_ADC3_BUTTONS * 2u];
         static uint32_t ADC_Values_Result[NUM_ADC_BUTTONS];
-
-        MessageHandler messageHandler;
 
         // 非静态成员变量
         ADCValuesMappingStore store;
         ADCBufferInfo adcBufferInfo[NUM_ADC];
         ADCChannelStats ADCButtonStats;
-        bool samplingRateEnabled;
+        volatile bool samplingRateEnabled;
         uint32_t samplingCountMax;
-        
-        // 采样完成标志位掩码 (bit 0: ADC1, bit 1: ADC2, bit 2: ADC3)
-        volatile uint8_t completionMask = 0;
         volatile bool dmaSamplingActive = false;
         
         ADCIndexInfo samplingADCInfo;
@@ -251,11 +215,6 @@ class ADCManager {
         uint32_t lastStatsTime;
         ADCCommonConfig common;
         
-        ADC_SamplingMode adcMode = ADC_MODE_LOW_LATENCY;
-
-        uint16_t samplingDelayUs = 0;
-        
-        static void timerCallback();
 };
 
 #define ADC_MANAGER ADCManager::getInstance()

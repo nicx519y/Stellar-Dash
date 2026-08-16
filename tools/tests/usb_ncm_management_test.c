@@ -15,10 +15,29 @@ typedef struct
 } sink_state_t;
 
 static bool s_clear_fault_succeeds = true;
+static uint8_t s_clear_fault_calls;
+static uint8_t s_webconfig_credit;
+static uint8_t s_credit_query_calls;
+static bool s_credit_query_ready = true;
 
 bool usb_management_control_hw_clear_fault(void)
 {
+    ++s_clear_fault_calls;
     return s_clear_fault_succeeds;
+}
+
+bool usb_management_control_hw_get_webconfig_credit(
+    usb_board_bulk_credit_v1_t *credit)
+{
+    assert(credit != NULL);
+    ++s_credit_query_calls;
+    if(!s_credit_query_ready)
+    {
+        return false;
+    }
+    credit->channel = USB_BOARD_CHANNEL_WEBCONFIG;
+    credit->credits = s_webconfig_credit;
+    return true;
 }
 
 static void assert_ncm_endpoint_topology(const uint8_t *descriptor,
@@ -215,6 +234,7 @@ static void test_management_control(void)
     usb_board_control_request_v1_t request;
     usb_board_control_response_v1_t response;
     usb_board_control_link_state_v1_t link_state;
+    usb_board_bulk_credit_v1_t credit;
     uint8_t response_length;
     const uint8_t mac[6] = {0x02u, 0x11u, 0x22u, 0x33u, 0x44u, 0x55u};
 
@@ -234,6 +254,54 @@ static void test_management_control(void)
     assert(response.header.data_length == sizeof(link_state));
     memcpy(&link_state, response.data, sizeof(link_state));
     assert(link_state.connected == 0u);
+
+    /* Pull credit is a read-only, transaction-correlated capacity snapshot. */
+    memset(&request, 0, sizeof(request));
+    request.header.opcode = USB_BOARD_CONTROL_GET_WEBCONFIG_CREDIT;
+    request.header.transaction = 0x31u;
+    s_webconfig_credit = 0u;
+    assert(usb_management_control_handle(
+        (const uint8_t *)&request,
+        USB_BOARD_CONTROL_HEADER_BYTES,
+        (uint8_t *)&response,
+        sizeof(response),
+        &response_length));
+    assert(response.header.status == USB_BOARD_STATUS_OK);
+    assert(response.header.transaction == 0x31u);
+    assert(response.header.data_length == sizeof(credit));
+    memcpy(&credit, response.data, sizeof(credit));
+    assert(credit.channel == USB_BOARD_CHANNEL_WEBCONFIG);
+    assert(credit.credits == 0u);
+
+    request.header.transaction = 0x32u;
+    s_webconfig_credit = 1u;
+    assert(usb_management_control_handle(
+        (const uint8_t *)&request,
+        USB_BOARD_CONTROL_HEADER_BYTES,
+        (uint8_t *)&response,
+        sizeof(response),
+        &response_length));
+    assert(response.header.status == USB_BOARD_STATUS_OK);
+    assert(response.header.transaction == 0x32u);
+    memcpy(&credit, response.data, sizeof(credit));
+    assert(credit.credits == 1u);
+    assert(s_credit_query_calls == 2u);
+
+    /* A BUS_RST/suspend generation gap is reported as not-ready and never
+     * serializes a stale capacity snapshot. */
+    request.header.transaction = 0x33u;
+    s_credit_query_ready = false;
+    assert(usb_management_control_handle(
+        (const uint8_t *)&request,
+        USB_BOARD_CONTROL_HEADER_BYTES,
+        (uint8_t *)&response,
+        sizeof(response),
+        &response_length));
+    assert(response.header.status == USB_BOARD_STATUS_NOT_READY);
+    assert(response.header.transaction == 0x33u);
+    assert(response.header.data_length == 0u);
+    assert(s_credit_query_calls == 3u);
+    s_credit_query_ready = true;
 
     memset(&request, 0, sizeof(request));
     request.header.opcode = USB_BOARD_CONTROL_SET_MAC;
@@ -292,6 +360,7 @@ static void test_management_control(void)
         &response_length));
     assert(response.header.status == USB_BOARD_STATUS_OK);
     assert(usb_management_control_is_connected());
+    assert(s_clear_fault_calls == 1u);
 
     s_clear_fault_succeeds = false;
     assert(usb_management_control_handle(
@@ -300,10 +369,25 @@ static void test_management_control(void)
         (uint8_t *)&response,
         sizeof(response),
         &response_length));
-    assert(response.header.status == USB_BOARD_STATUS_INTERNAL_ERROR);
-    assert(!usb_management_control_is_connected());
+    assert(response.header.status == USB_BOARD_STATUS_BUSY);
+    assert(usb_management_control_is_connected());
     assert(usb_management_control_last_fault() ==
-           USB_BOARD_STATUS_INTERNAL_ERROR);
+           USB_BOARD_STATUS_BUSY);
+    assert(s_clear_fault_calls == 2u);
+
+    /* A busy SIE is retryable without reconnecting the logical device. */
+    s_clear_fault_succeeds = true;
+    assert(usb_management_control_handle(
+        (const uint8_t *)&request,
+        USB_BOARD_CONTROL_HEADER_BYTES,
+        (uint8_t *)&response,
+        sizeof(response),
+        &response_length));
+    assert(response.header.status == USB_BOARD_STATUS_OK);
+    assert(usb_management_control_is_connected());
+    assert(usb_management_control_last_fault() ==
+           USB_BOARD_STATUS_OK);
+    assert(s_clear_fault_calls == 3u);
 }
 
 static void test_management_control_boundaries(void)

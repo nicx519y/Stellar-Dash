@@ -1,12 +1,23 @@
 #include "webhid_rpc_dispatcher.hpp"
 
+#include <array>
 #include <cstring>
 
-#include "configs/websocket_command_handler.hpp"
-#include "configs/websocket_message.hpp"
+#include "configs/device_command_handler.hpp"
+#include "configs/device_command_message.hpp"
 #include "device_security_protocol.h"
 
 namespace {
+
+constexpr size_t kMaximumSerializedResponseBytes = 16u * 1024u;
+/*
+ * cJSON_PrintPreallocated() writes directly into this single static response
+ * workspace. The dispatcher is called synchronously from the WebHID service,
+ * which copies the result into its outbound storage before another request is
+ * dispatched. Keeping this buffer out of newlib's 32 KiB heap avoids a second
+ * near-16 KiB allocation while the command handler's cJSON tree is alive.
+ */
+std::array<char, kMaximumSerializedResponseBytes + 5u> serializedResponse = {};
 
 bool commandIn(const std::string &command,
                const char *const *values,
@@ -20,36 +31,79 @@ bool commandIn(const std::string &command,
     return false;
 }
 
-std::string serializeResponse(uint32_t transactionId,
-                              WebSocketDownstreamMessage &response)
+WebHidRpcResult encodeRoot(cJSON *root,
+                           uint32_t transactionId,
+                           int error,
+                           bool explicitSuccess)
+{
+    WebHidRpcResult result;
+    result.transactionId = transactionId;
+    result.error = error;
+    result.explicitSuccess = explicitSuccess;
+    if (root == nullptr) {
+        result.failureMessage = "Failed to allocate RPC response";
+        return result;
+    }
+    serializedResponse.fill('\0');
+    if (!cJSON_PrintPreallocated(root,
+                                 serializedResponse.data(),
+                                 serializedResponse.size(),
+                                 false)) {
+        result.error = 413;
+        result.failureMessage = "RPC response exceeds the 16 KiB limit";
+        return result;
+    }
+    const size_t length = strlen(serializedResponse.data());
+    if (length == 0u || length > kMaximumSerializedResponseBytes) {
+        result.error = 413;
+        result.failureMessage = "RPC response exceeds the 16 KiB limit";
+        return result;
+    }
+    result.json = serializedResponse.data();
+    result.jsonLength = length;
+    return result;
+}
+
+WebHidRpcResult serializeResponse(uint32_t transactionId,
+                                  DeviceCommandResponse &response)
 {
     cJSON *root = cJSON_CreateObject();
     if (root == nullptr) {
-        return {};
+        return encodeRoot(nullptr,
+                          transactionId,
+                          500,
+                          false);
     }
     cJSON_AddNumberToObject(root, "transactionId", transactionId);
     cJSON_AddNumberToObject(root, "errNo", response.getErrNo());
     cJSON_AddStringToObject(root,
                             "command",
                             response.getCommand().c_str());
-    if (response.getData() != nullptr) {
-        cJSON_AddItemToObject(
-            root, "data", cJSON_Duplicate(response.getData(), 1));
-        cJSON *message =
-            cJSON_GetObjectItem(response.getData(), "errorMessage");
+    cJSON *data = response.releaseData();
+    if (data != nullptr) {
+        cJSON *message = cJSON_GetObjectItem(data, "errorMessage");
         if (message != nullptr && cJSON_IsString(message)) {
             cJSON_AddStringToObject(
                 root, "errorMessage", message->valuestring);
         }
     } else {
-        cJSON_AddItemToObject(root, "data", cJSON_CreateObject());
+        data = cJSON_CreateObject();
     }
-
-    char *encoded = cJSON_PrintUnformatted(root);
-    std::string result = encoded == nullptr ? "" : encoded;
-    if (encoded != nullptr) {
-        cJSON_free(encoded);
+    if (data == nullptr) {
+        cJSON_Delete(root);
+        return encodeRoot(nullptr,
+                          transactionId,
+                          500,
+                          false);
     }
+    const bool explicitSuccess =
+        response.getErrNo() == 0 &&
+        cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(data, "success"));
+    cJSON_AddItemToObject(root, "data", data);
+    WebHidRpcResult result = encodeRoot(root,
+                                        transactionId,
+                                        response.getErrNo(),
+                                        explicitSuccess);
     cJSON_Delete(root);
     return result;
 }
@@ -58,22 +112,18 @@ WebHidRpcResult localError(uint32_t transactionId,
                            int error,
                            const char *message)
 {
-    WebHidRpcResult result;
     cJSON *root = cJSON_CreateObject();
-    result.transactionId = transactionId;
-    result.error = error;
     if (root == nullptr) {
-        return result;
+        return encodeRoot(nullptr, transactionId, error, false);
     }
     cJSON_AddNumberToObject(root, "transactionId", transactionId);
     cJSON_AddNumberToObject(root, "errNo", error);
     cJSON_AddStringToObject(root, "errorMessage", message);
     cJSON_AddItemToObject(root, "data", cJSON_CreateObject());
-    char *encoded = cJSON_PrintUnformatted(root);
-    if (encoded != nullptr) {
-        result.json = encoded;
-        cJSON_free(encoded);
-    }
+    WebHidRpcResult result = encodeRoot(root,
+                                        transactionId,
+                                        error,
+                                        false);
     cJSON_Delete(root);
     return result;
 }
@@ -89,9 +139,14 @@ WebHidRpcDispatcher &WebHidRpcDispatcher::getInstance()
 void WebHidRpcDispatcher::initialize()
 {
     if (!initialized) {
-        WebSocketCommandManager::getInstance().initializeHandlers();
+        DeviceCommandDispatcher::getInstance().initializeHandlers();
         initialized = true;
     }
+}
+
+void WebHidRpcDispatcher::clearSerializedResponse()
+{
+    serializedResponse.fill('\0');
 }
 
 uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
@@ -256,9 +311,6 @@ WebHidRpcResult WebHidRpcDispatcher::dispatch(
             transactionId, 410, "Legacy weak device authentication is disabled");
     }
     if (command == "ping") {
-        WebHidRpcResult result;
-        result.transactionId = transactionId;
-        result.error = 0;
         cJSON *root = cJSON_CreateObject();
         cJSON *data = cJSON_CreateObject();
         cJSON_AddNumberToObject(root, "transactionId", transactionId);
@@ -266,29 +318,29 @@ WebHidRpcResult WebHidRpcDispatcher::dispatch(
         cJSON_AddStringToObject(root, "command", "ping");
         cJSON_AddStringToObject(data, "message", "pong");
         cJSON_AddItemToObject(root, "data", data);
-        char *encoded = cJSON_PrintUnformatted(root);
-        if (encoded != nullptr) {
-            result.json = encoded;
-            cJSON_free(encoded);
-        }
+        WebHidRpcResult result = encodeRoot(root,
+                                            transactionId,
+                                            0,
+                                            false);
         cJSON_Delete(root);
         return result;
     }
 
-    WebSocketUpstreamMessage request;
+    DeviceCommandRequest request;
     request.setCid(transactionId);
     request.setCommand(command);
-    request.setConnection(nullptr);
     request.setParams(params == nullptr
                           ? cJSON_CreateObject()
-                          : cJSON_Duplicate(params, 1));
-    WebSocketDownstreamMessage response =
-        WebSocketCommandManager::getInstance().processCommand(request);
+                          : cJSON_DetachItemFromObjectCaseSensitive(
+                                requestRoot, "params"));
+    DeviceCommandResponse response =
+        DeviceCommandDispatcher::getInstance().processCommand(request);
     WebHidRpcResult result;
-    result.transactionId = transactionId;
-    result.error = response.getErrNo();
-    result.json = serializeResponse(transactionId, response);
-    if (result.json.empty()) {
+    result = serializeResponse(transactionId, response);
+    if (result.json == nullptr) {
+        if (result.error == 413) {
+            return result;
+        }
         return localError(
             transactionId, 500, "Failed to serialize RPC response");
     }

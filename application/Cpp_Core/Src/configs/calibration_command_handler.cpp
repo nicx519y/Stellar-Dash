@@ -2,7 +2,6 @@
 #include "system_logger.h"
 #include "adc_btns/adc_calibration.hpp"
 #include "configs/webconfig_btns_manager.hpp"
-#include "configs/websocket_server.hpp"
 #include "config_transport_sink.hpp"
 #include <cstring>
 
@@ -17,7 +16,7 @@
 
 CalibrationCommandHandler& CalibrationCommandHandler::getInstance() {
     static CalibrationCommandHandler instance;
-    
+
     // 设置校准状态变更回调，当状态变化时自动推送通知
     static bool callbackSet = false;
     if (!callbackSet) {
@@ -59,12 +58,12 @@ void CalibrationCommandHandler::sendCalibrationStatusNotification() {
         ConfigTransport_PublishJson(
             notificationString, strlen(notificationString));
         
-        // LOG_INFO("WebSocket", "Calibration status notification sent to all clients");
+        // LOG_INFO("DeviceCommand", "Calibration status notification sent to all clients");
         
         // 释放JSON字符串内存
         free(notificationString);
     } else {
-        LOG_ERROR("WebSocket", "Failed to serialize calibration notification");
+        LOG_ERROR("DeviceCommand", "Failed to serialize calibration notification");
     }
     
     // 清理JSON对象
@@ -79,7 +78,7 @@ void CalibrationCommandHandler::sendCalibrationStatusNotification() {
  * @brief 开始手动校准
  * 对应HTTP接口: POST /api/start-manual-calibration
  * 
- * WebSocket命令格式:
+ * DeviceCommand命令格式:
  * {
  *   "cid": 1,
  *   "command": "start_manual_calibration",
@@ -102,13 +101,13 @@ void CalibrationCommandHandler::sendCalibrationStatusNotification() {
  *   }
  * }
  */
-WebSocketDownstreamMessage CalibrationCommandHandler::handleStartManualCalibration(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling start_manual_calibration command, cid: %d", request.getCid());
+DeviceCommandResponse CalibrationCommandHandler::handleStartManualCalibration(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling start_manual_calibration command, cid: %d", request.getCid());
     
     // 开始手动校准
     ADCBtnsError error = ADC_CALIBRATION_MANAGER.startManualCalibration();
     if(error != ADCBtnsError::SUCCESS) {
-        LOG_ERROR("WebSocket", "start_manual_calibration: Failed to start manual calibration");
+        LOG_ERROR("DeviceCommand", "start_manual_calibration: Failed to start manual calibration");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to start manual calibration");
     }
     
@@ -125,7 +124,7 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handleStartManualCalibrati
     
     cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
     
-    // LOG_INFO("WebSocket", "start_manual_calibration command completed successfully");
+    // LOG_INFO("DeviceCommand", "start_manual_calibration command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
@@ -134,7 +133,7 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handleStartManualCalibrati
  * @brief 结束手动校准
  * 对应HTTP接口: POST /api/stop-manual-calibration
  * 
- * WebSocket命令格式:
+ * DeviceCommand命令格式:
  * {
  *   "cid": 2,
  *   "command": "stop_manual_calibration",
@@ -157,14 +156,14 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handleStartManualCalibrati
  *   }
  * }
  */
-WebSocketDownstreamMessage CalibrationCommandHandler::handleStopManualCalibration(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling stop_manual_calibration command, cid: %d", request.getCid());
+DeviceCommandResponse CalibrationCommandHandler::handleStopManualCalibration(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling stop_manual_calibration command, cid: %d", request.getCid());
     
     // 停止手动校准
     ADCBtnsError error = ADC_CALIBRATION_MANAGER.stopCalibration();
     
     if(error != ADCBtnsError::SUCCESS) {
-        LOG_ERROR("WebSocket", "stop_manual_calibration: Failed to stop manual calibration");
+        LOG_ERROR("DeviceCommand", "stop_manual_calibration: Failed to stop manual calibration");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to stop manual calibration");
     }
     
@@ -181,7 +180,7 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handleStopManualCalibratio
     
     cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
     
-    // LOG_INFO("WebSocket", "stop_manual_calibration command completed successfully");
+    // LOG_INFO("DeviceCommand", "stop_manual_calibration command completed successfully");
     
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
@@ -190,7 +189,7 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handleStopManualCalibratio
  * @brief 获取校准状态
  * 对应HTTP接口: GET /api/get-calibration-status
  * 
- * WebSocket命令格式:
+ * DeviceCommand命令格式:
  * {
  *   "cid": 3,
  *   "command": "get_calibration_status",
@@ -222,7 +221,7 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handleStopManualCalibratio
  *   }
  * }
  */
-WebSocketDownstreamMessage CalibrationCommandHandler::handleGetCalibrationStatus(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse CalibrationCommandHandler::handleGetCalibrationStatus(const DeviceCommandRequest& request) {
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON* statusJSON = buildCalibrationStatusJSON();
@@ -236,7 +235,7 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handleGetCalibrationStatus
  * @brief 清除手动校准数据
  * 对应HTTP接口: POST /api/clear-manual-calibration-data
  * 
- * WebSocket命令格式:
+ * DeviceCommand命令格式:
  * {
  *   "cid": 4,
  *   "command": "clear_manual_calibration_data",
@@ -259,13 +258,13 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handleGetCalibrationStatus
  *   }
  * }
  */
-WebSocketDownstreamMessage CalibrationCommandHandler::handleClearManualCalibrationData(const WebSocketUpstreamMessage& request) {
-    // LOG_INFO("WebSocket", "Handling clear_manual_calibration_data command, cid: %d", request.getCid());
+DeviceCommandResponse CalibrationCommandHandler::handleClearManualCalibrationData(const DeviceCommandRequest& request) {
+    // LOG_INFO("DeviceCommand", "Handling clear_manual_calibration_data command, cid: %d", request.getCid());
     
     // 清除所有手动校准数据
     ADCBtnsError error = ADC_CALIBRATION_MANAGER.resetAllCalibration();
     if(error != ADCBtnsError::SUCCESS) {
-        LOG_ERROR("WebSocket", "clear_manual_calibration_data: Failed to clear manual calibration data");
+        LOG_ERROR("DeviceCommand", "clear_manual_calibration_data: Failed to clear manual calibration data");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to clear manual calibration data");
     }
     
@@ -282,7 +281,7 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handleClearManualCalibrati
     
     cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
     
-    // LOG_INFO("WebSocket", "clear_manual_calibration_data command completed successfully");
+    // LOG_INFO("DeviceCommand", "clear_manual_calibration_data command completed successfully");
 
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
@@ -291,7 +290,7 @@ WebSocketDownstreamMessage CalibrationCommandHandler::handleClearManualCalibrati
 // 命令路由处理
 // ============================================================================
 
-WebSocketDownstreamMessage CalibrationCommandHandler::handle(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse CalibrationCommandHandler::handle(const DeviceCommandRequest& request) {
     const std::string& command = request.getCommand();
     
     // 校准相关命令
@@ -364,7 +363,7 @@ cJSON* CalibrationCommandHandler::buildCalibrationStatusJSON() {
     return statusJSON;
 }
 
-WebSocketDownstreamMessage CalibrationCommandHandler::handleCheckIsManualCalibrationCompleted(const WebSocketUpstreamMessage& request) {
+DeviceCommandResponse CalibrationCommandHandler::handleCheckIsManualCalibrationCompleted(const DeviceCommandRequest& request) {
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON_AddBoolToObject(dataJSON, "isCompleted", ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated(false)); // 不使用缓存，重新加载校准数据

@@ -7,6 +7,7 @@
 #include "stm32h7xx.h"
 #include "board_cfg.h"
 #include "brightness_curve.hpp"
+#include "leds/led_config_safety.hpp"
 #include "micro_timer.hpp"
 #include "storagemanager.hpp"
 #include "screen_control/spi_screen_ui_common.hpp"
@@ -130,6 +131,12 @@ void ScreenUI_RequestDeferredSave(uint32_t delayMs) {
 
 static uint8_t clamp_brightness(uint8_t v) {
     return (v > 100) ? 100 : v;
+}
+
+static uint8_t map_backlight_percent(uint8_t userPercent) {
+    return LedConfigSafety::scaleGammaPercentToCap(
+        BrightnessCurve_ApplyPercent(clamp_brightness(userPercent)),
+        LedConfigSafety::kLcdMaxHardwareDrivePercent);
 }
 
 #ifndef SPI_SCREEN_BL_INIT_HOLD_MS
@@ -434,7 +441,7 @@ void SPIScreenManager::setup() {
     g_bl_ramp_active = false;
     ST7789_SetBacklight(
         &g_lcd,
-        BrightnessCurve_ApplyPercent(compute_backlight_percent(g_bl_boot_ms)));
+        map_backlight_percent(compute_backlight_percent(g_bl_boot_ms)));
 #else
     g_bl_ramp_active = true;
     ST7789_SetBacklight(&g_lcd, 0);
@@ -527,18 +534,21 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
         return;
     }
 
-    if (det > 0) {
+    while (det > 0) {
         if (g_inDetail) {
             ScreenDetail_OnRotate(g_detailMenuId, &g_detailIndex, 1);
-        } else {
-            if (menuNext()) animActive = false;
+        } else if (menuNext()) {
+            animActive = false;
         }
-    } else if (det < 0) {
+        --det;
+    }
+    while (det < 0) {
         if (g_inDetail) {
             ScreenDetail_OnRotate(g_detailMenuId, &g_detailIndex, -1);
-        } else {
-            if (menuPrev()) animActive = false;
+        } else if (menuPrev()) {
+            animActive = false;
         }
+        ++det;
     }
 
     if (clicked) {
@@ -622,11 +632,7 @@ void SPIScreenManager::loop() {
     }
     if (!g_inited) return;
     SPIST7789_Service();
-    /*
-     * PH8 shares EXTI8 with the charger IRQ on the latest PCB.  Sample the
-     * encoder on every main-loop pass; UI events remain queued until a frame
-     * is available.
-     */
+    /* SysTick captures GPIO state every 1 ms; this call only drains debug flags. */
     RotEnc_Update();
     uint32_t nowMs = HAL_GetTick();
     SystemSleep_UpdateRotaryHold(nowMs);
@@ -645,7 +651,7 @@ void SPIScreenManager::loop() {
     refresh_screen_cfg_cache();
     ScreenStandby_Configure(g_cfgStandbyDisplay, g_cfgBackgroundImageId, g_cfgBg, g_cfgText);
     bool standbyAllowed = (STORAGE_MANAGER.getBootMode() == BootMode::BOOT_MODE_INPUT)
-        && (ADCManager::getInstance().getADCMode() == ADC_MODE_INPUT_CONTINUOUS);
+        && ADCManager::getInstance().isDmaSamplingActive();
     bool standbyWasActive = ScreenStandby_IsActive();
     bool encoderEvent = (det != 0) || clicked || longPressed;
     bool anyActivity = encoderEvent || (inputMask != 0u);
@@ -710,7 +716,8 @@ void SPIScreenManager::loop() {
         g_lcd.dirty_y1 = (uint16_t)(ST7789_HEIGHT - 1u);
         g_menu_full_refresh_pending = false;
     }
-    ST7789_SetBacklight(&g_lcd, BrightnessCurve_ApplyPercent(compute_backlight_percent(nowMs)));
+    ST7789_SetBacklight(&g_lcd,
+                        map_backlight_percent(compute_backlight_percent(nowMs)));
     if (standbyNowActive) {
         ScreenStandby_Render(&g_lcd, inputMask);
     } else {

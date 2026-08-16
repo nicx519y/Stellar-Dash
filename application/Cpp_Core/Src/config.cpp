@@ -8,9 +8,10 @@
 #include <string.h>
 #include <stdio.h>
 #include "board_cfg.h"
+#include "leds/led_config_safety.hpp"
 #include <map>
 #include <string>
-#include "configs/websocket_command_handler.hpp" // For ProfileCommandHandler
+#include "configs/device_command_handler.hpp" // For ProfileCommandHandler
 #include "system_logger.h"
 
 #define CONFIG_ADDR_ORIGIN  CONFIG_ADDR
@@ -311,6 +312,46 @@ static void sanitize_hardware_layout(HardwareLayoutConfig& hardware) {
     init_hardware_layout(hardware);
 }
 
+static bool sanitize_led_profile(LEDProfile& leds) {
+    const LEDProfile before = leds;
+
+    const int ledEffect = static_cast<int>(leds.ledEffect);
+    if (ledEffect < 0 || ledEffect >= static_cast<int>(LEDEffect::NUM_EFFECTS)) {
+        leds.ledEffect = LEDEffect::STATIC;
+    }
+    leds.ledColor1 &= 0x00FFFFFFu;
+    leds.ledColor2 &= 0x00FFFFFFu;
+    leds.ledColor3 &= 0x00FFFFFFu;
+    leds.ledBrightness =
+        LedConfigSafety::clampBrightnessPercent(leds.ledBrightness);
+    leds.ledAnimationSpeed =
+        LedConfigSafety::clampAnimationSpeed(leds.ledAnimationSpeed);
+
+    const int aroundLedEffect = static_cast<int>(leds.aroundLedEffect);
+    if (aroundLedEffect < 0 ||
+        aroundLedEffect >=
+            static_cast<int>(AroundLEDEffect::NUM_AROUND_LED_EFFECTS)) {
+        leds.aroundLedEffect = AroundLEDEffect::AROUND_STATIC;
+    }
+    leds.aroundLedColor1 &= 0x00FFFFFFu;
+    leds.aroundLedColor2 &= 0x00FFFFFFu;
+    leds.aroundLedColor3 &= 0x00FFFFFFu;
+    leds.aroundLedBrightness =
+        LedConfigSafety::clampBrightnessPercent(leds.aroundLedBrightness);
+    leds.aroundLedAnimationSpeed =
+        LedConfigSafety::clampAnimationSpeed(leds.aroundLedAnimationSpeed);
+
+    return memcmp(&before, &leds, sizeof(LEDProfile)) != 0;
+}
+
+static bool sanitize_led_profiles(Config& config) {
+    bool changed = false;
+    for (uint8_t i = 0; i < NUM_PROFILES; ++i) {
+        changed = sanitize_led_profile(config.profiles[i].ledsConfigs) || changed;
+    }
+    return changed;
+}
+
 static void add_power_json(cJSON* globalConfigJSON, const PowerConfig& power) {
     cJSON* powerJSON = cJSON_CreateObject();
     cJSON_AddNumberToObject(powerJSON, "wakeHoldMs", power.wakeHoldMs);
@@ -551,9 +592,14 @@ bool fromJSON(Config& config, cJSON* json) {
             cJSON* hotkeyItem = cJSON_GetArrayItem(hotkeysConfig, i);
             if (!hotkeyItem || !cJSON_IsObject(hotkeyItem)) continue;
 
-            cJSON* keyItem = cJSON_GetObjectItem(hotkeyItem, "key");
-            if (keyItem && cJSON_IsNumber(keyItem)) {
-                int keyIndex = keyItem->valueint;
+            cJSON* keyItem = cJSON_GetObjectItemCaseSensitive(hotkeyItem, "key");
+            cJSON* legacyVirtualPinItem =
+                cJSON_GetObjectItemCaseSensitive(hotkeyItem, "virtualPin");
+            cJSON* resolvedKeyItem = cJSON_IsNumber(keyItem)
+                ? keyItem
+                : (cJSON_IsNumber(legacyVirtualPinItem) ? legacyVirtualPinItem : nullptr);
+            if (resolvedKeyItem != nullptr) {
+                int keyIndex = resolvedKeyItem->valueint;
                 if (keyIndex >= -1 && keyIndex < (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS)) {
                      config.hotkeys[i].virtualPin = keyIndex;
                 }
@@ -821,6 +867,14 @@ bool ConfigUtils::load(Config& config)
     bool fjResult;
     fjResult = fromStorage(config);
 
+    /*
+     * LED settings survived several schema revisions without a load-time
+     * validator.  In particular, animation speed 0 reaches a division in the
+     * ripple renderer and faults immediately after the screen turns LEDs on.
+     * Normalize persisted data before any runtime subsystem can observe it.
+     */
+    const bool repairedLedConfig = fjResult && sanitize_led_profiles(config);
+
     if(fjResult == true && config.version == CONFIG_VERSION) { // 版本号一致
         sanitize_screen_style(config.screenControl);
         sanitize_screen_recovery_entry(config.screenControl);
@@ -829,6 +883,10 @@ bool ConfigUtils::load(Config& config)
         sanitize_hardware_layout(config.hardware);
         uint32_t ver = config.version;
         APP_DBG("Config Version: %d.%d.%d", (ver>>16) & 0xff, (ver>>8) & 0xff, ver & 0xff);
+        if (repairedLedConfig) {
+            APP_DBG("ConfigUtils::load - repaired invalid LED configuration");
+            (void)save(config);
+        }
         return true;
     } else if (fjResult == true && config.version == CONFIG_VERSION_SCREEN_STYLE_MIGRATE_FROM) {
         uint32_t oldBg = read_legacy_screen_bg(config.screenControl);
@@ -1106,6 +1164,7 @@ static bool write_config_bank(uint32_t bankAddress,
 bool ConfigUtils::save(Config& config)
 {
     APP_DBG("ConfigUtils::save begin");
+    sanitize_led_profiles(config);
     sanitize_competition_profiles(config);
     sanitize_hardware_layout(config.hardware);
     sanitize_screen_recovery_entry(config.screenControl);

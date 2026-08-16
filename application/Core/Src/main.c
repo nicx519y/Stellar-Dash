@@ -25,8 +25,6 @@
 #include "system_sleep_manager.hpp"
 #include "board_power.hpp"
 
-bool g_has_led_around = true;
-
 #if SYSTEM_CHECK_ENABLE == 1
 /* 测试各个段 */
 const uint32_t rodata_test = 0x12345678;        // .rodata 段
@@ -44,6 +42,7 @@ void enableFPU(void);
   */
 int main(void)
 {
+    const uint32_t resetFlags = RCC->RSR;
     /************************************************ 系统初始化 ************************************************* */
     // 使能中断
     __enable_irq(); 
@@ -60,6 +59,17 @@ int main(void)
     board_init(); // 初始化板子 时钟 W25Q64 串口 WS2812B 等
 
     APP_STAGE("A07", "board initialization complete");
+    APP_STAGE("A08", "reset source RSR=0x%08lX BOR=%u PIN=%u POR=%u SFT=%u IWDG=%u WWDG=%u LPWR=%u CPU=%u",
+              (unsigned long)resetFlags,
+              (unsigned)((resetFlags & RCC_RSR_BORRSTF) != 0u),
+              (unsigned)((resetFlags & RCC_RSR_PINRSTF) != 0u),
+              (unsigned)((resetFlags & RCC_RSR_PORRSTF) != 0u),
+              (unsigned)((resetFlags & RCC_RSR_SFTRSTF) != 0u),
+              (unsigned)((resetFlags & RCC_RSR_IWDG1RSTF) != 0u),
+              (unsigned)((resetFlags & RCC_RSR_WWDG1RSTF) != 0u),
+              (unsigned)((resetFlags & RCC_RSR_LPWRRSTF) != 0u),
+              (unsigned)((resetFlags & RCC_RSR_CPURSTF) != 0u));
+    __HAL_RCC_CLEAR_RESET_FLAGS();
 
 #if SYSTEM_CHECK_ENABLE == 1
     dataSectionTest(); // 测试各个段，测试堆内存

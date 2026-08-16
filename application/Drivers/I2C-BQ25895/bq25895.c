@@ -25,23 +25,29 @@ enum {
     BQ_PART_INFORMATION_MASK = 0x3B,
     BQ_PART_INFORMATION_BQ25895_REV1 = 0x39,
     BQ_VINDPM_FORCE_MASK = 0x80,
-    BQ_VINDPM_BASE_MV = 3900,
+    BQ_VINDPM_BASE_MV = 2600,
     BQ_VINDPM_STEP_MV = 100,
-    BQ_VINDPM_TARGET_MV = 8200,
-    BQ_VINDPM_TARGET_CODE =
-        (BQ_VINDPM_TARGET_MV - BQ_VINDPM_BASE_MV) / BQ_VINDPM_STEP_MV,
-    BQ_VINDPM_TARGET_REGISTER =
-        BQ_VINDPM_FORCE_MASK | BQ_VINDPM_TARGET_CODE,
+    BQ_VINDPM_5V_TARGET_MV = 4400,
+    BQ_VINDPM_9V_TARGET_MV = 8200,
+    BQ_VINDPM_5V_REGISTER =
+        BQ_VINDPM_FORCE_MASK |
+        ((BQ_VINDPM_5V_TARGET_MV - BQ_VINDPM_BASE_MV) / BQ_VINDPM_STEP_MV),
+    BQ_VINDPM_9V_REGISTER =
+        BQ_VINDPM_FORCE_MASK |
+        ((BQ_VINDPM_9V_TARGET_MV - BQ_VINDPM_BASE_MV) / BQ_VINDPM_STEP_MV),
 };
 
-_Static_assert(BQ_VINDPM_TARGET_MV >= BQ_VINDPM_BASE_MV,
-               "VINDPM target is below the device encoding range");
-_Static_assert(((BQ_VINDPM_TARGET_MV - BQ_VINDPM_BASE_MV) %
+_Static_assert(BQ_VINDPM_5V_TARGET_MV >= 3900,
+               "5 V VINDPM target is below the supported range");
+_Static_assert(((BQ_VINDPM_5V_TARGET_MV - BQ_VINDPM_BASE_MV) %
                 BQ_VINDPM_STEP_MV) == 0,
-               "VINDPM target must align to the 100 mV register step");
-_Static_assert(BQ_VINDPM_TARGET_CODE <= 0x7Fu,
-               "VINDPM target exceeds the device encoding range");
-_Static_assert(BQ_VINDPM_TARGET_REGISTER == 0xABu,
+               "5 V VINDPM target must align to the 100 mV register step");
+_Static_assert(((BQ_VINDPM_9V_TARGET_MV - BQ_VINDPM_BASE_MV) %
+                BQ_VINDPM_STEP_MV) == 0,
+               "9 V VINDPM target must align to the 100 mV register step");
+_Static_assert(BQ_VINDPM_5V_REGISTER == 0x92u,
+               "4.4 V FORCE_VINDPM encoding changed");
+_Static_assert(BQ_VINDPM_9V_REGISTER == 0xB8u,
                "8.2 V FORCE_VINDPM encoding changed");
 
 typedef struct {
@@ -51,24 +57,54 @@ typedef struct {
 } BQ25895_ProfileField;
 
 /*
- * Safe 1S2P / 8000 mAh production profile:
- *   IINLIM 1.5 A, EN_ILIM enabled
+ * Safe 1S2P / 8000 mAh common charging profile.  Input current and VINDPM
+ * are selected separately after VBUS ADC identifies a 5 V or 9 V source.
+ * BQ25895 DPDM/MaxCharge and ICO are disabled because the board's USB-C/PD
+ * negotiation is owned by CH224A and BQ25895 D+/D- are not connected.
+ *
+ * Common profile:
  *   ICHG 1.6 A
  *   IPRECHG 256 mA, ITERM 64 mA
  *   VREG 4.192 V, BATLOWV 3.0 V, VRECHG 100 mV
  *   watchdog disabled, termination enabled, 8-hour safety timer
  *   BAT_COMP/VCLAMP disabled, TREG 80 C
- *   FORCE_VINDPM 8.2 V
  */
-static const BQ25895_ProfileField k_safe_profile[] = {
-    {BQ_REG_INPUT_SOURCE_CONTROL, 0xFFu, 0x5Cu},
+static const BQ25895_ProfileField k_safe_common_profile[] = {
+    {BQ_REG_ADC_CONTROL, 0x1Du, 0x00u},
     {BQ_REG_CHARGE_CURRENT, 0xFFu, 0x19u},
     {BQ_REG_PRECHARGE_TERM_CURRENT, 0xFFu, 0x30u},
     {BQ_REG_CHARGE_VOLTAGE, 0xFFu, 0x5Au},
     {BQ_REG_TIMER_CONTROL, 0xBEu, 0x8Au},
     {BQ_REG_IR_THERMAL_CONTROL, 0xFFu, 0x01u},
-    {BQ_REG_VINDPM, 0xFFu, BQ_VINDPM_TARGET_REGISTER},
 };
+
+/* Both qualified input profiles use IINLIM=1.5 A with hardware ILIM kept on. */
+static const BQ25895_ProfileField k_input_profile_5v[] = {
+    {BQ_REG_INPUT_SOURCE_CONTROL, 0xFFu, 0x5Cu},
+    {BQ_REG_VINDPM, 0xFFu, BQ_VINDPM_5V_REGISTER},
+};
+
+static const BQ25895_ProfileField k_input_profile_9v[] = {
+    {BQ_REG_INPUT_SOURCE_CONTROL, 0xFFu, 0x5Cu},
+    {BQ_REG_VINDPM, 0xFFu, BQ_VINDPM_9V_REGISTER},
+};
+
+static const BQ25895_ProfileField* input_profile_fields(
+    BQ25895_InputProfile input_profile,
+    uint32_t* count)
+{
+    if (count == NULL) {
+        return NULL;
+    }
+    if (input_profile == BQ25895_INPUT_PROFILE_9V_1P5A) {
+        *count = (uint32_t)(sizeof(k_input_profile_9v) /
+                            sizeof(k_input_profile_9v[0]));
+        return k_input_profile_9v;
+    }
+    *count = (uint32_t)(sizeof(k_input_profile_5v) /
+                        sizeof(k_input_profile_5v[0]));
+    return k_input_profile_5v;
+}
 
 static bool read_register(BQ25895_Handle* handle, uint8_t reg, uint8_t* value)
 {
@@ -145,30 +181,25 @@ bool BQ25895_Init(BQ25895_Handle* handle, I2C_HandleTypeDef* i2c)
     return true;
 }
 
-bool BQ25895_ConfigureSafeProfile(BQ25895_Handle* handle)
+static bool apply_profile_fields(BQ25895_Handle* handle,
+                                 const BQ25895_ProfileField* fields,
+                                 uint32_t count)
 {
-    if (handle == NULL || !handle->online) {
-        return false;
-    }
-
-    for (uint32_t i = 0; i < (sizeof(k_safe_profile) / sizeof(k_safe_profile[0])); ++i) {
-        const BQ25895_ProfileField* field = &k_safe_profile[i];
+    for (uint32_t i = 0; i < count; ++i) {
+        const BQ25895_ProfileField* field = &fields[i];
         if (!update_register(handle, field->reg, field->mask, field->value)) {
-            handle->online = false;
             return false;
         }
     }
     return true;
 }
 
-bool BQ25895_VerifySafeProfile(BQ25895_Handle* handle)
+static bool verify_profile_fields(BQ25895_Handle* handle,
+                                  const BQ25895_ProfileField* fields,
+                                  uint32_t count)
 {
-    if (handle == NULL || !handle->online) {
-        return false;
-    }
-
-    for (uint32_t i = 0; i < (sizeof(k_safe_profile) / sizeof(k_safe_profile[0])); ++i) {
-        const BQ25895_ProfileField* field = &k_safe_profile[i];
+    for (uint32_t i = 0; i < count; ++i) {
+        const BQ25895_ProfileField* field = &fields[i];
         uint8_t value = 0;
         if (!read_register(handle, field->reg, &value) ||
             (value & field->mask) != (field->value & field->mask)) {
@@ -176,6 +207,53 @@ bool BQ25895_VerifySafeProfile(BQ25895_Handle* handle)
         }
     }
     return true;
+}
+
+bool BQ25895_ConfigureSafeProfile(BQ25895_Handle* handle,
+                                  BQ25895_InputProfile input_profile)
+{
+    if (handle == NULL || !handle->online) {
+        return false;
+    }
+
+    uint32_t input_field_count = 0;
+    const BQ25895_ProfileField* input_fields =
+        input_profile_fields(input_profile, &input_field_count);
+    const bool configured =
+        input_fields != NULL &&
+        apply_profile_fields(
+            handle,
+            k_safe_common_profile,
+            (uint32_t)(sizeof(k_safe_common_profile) /
+                       sizeof(k_safe_common_profile[0]))) &&
+        apply_profile_fields(handle, input_fields, input_field_count);
+    if (!configured) {
+        handle->online = false;
+        handle->profile_configured = false;
+        return false;
+    }
+
+    handle->input_profile = input_profile;
+    handle->profile_configured = true;
+    return true;
+}
+
+bool BQ25895_VerifySafeProfile(BQ25895_Handle* handle)
+{
+    if (handle == NULL || !handle->online || !handle->profile_configured) {
+        return false;
+    }
+
+    uint32_t input_field_count = 0;
+    const BQ25895_ProfileField* input_fields =
+        input_profile_fields(handle->input_profile, &input_field_count);
+    return input_fields != NULL &&
+           verify_profile_fields(
+               handle,
+               k_safe_common_profile,
+               (uint32_t)(sizeof(k_safe_common_profile) /
+                          sizeof(k_safe_common_profile[0]))) &&
+           verify_profile_fields(handle, input_fields, input_field_count);
 }
 
 bool BQ25895_EnableContinuousAdc(BQ25895_Handle* handle)
@@ -228,6 +306,8 @@ bool BQ25895_ReadState(BQ25895_Handle* handle, BQ25895_State* state)
     state->thermal_regulation = (battery_adc & 0x80u) != 0u;
     state->input_voltage_regulation = (dpm_status & 0x80u) != 0u;
     state->input_current_regulation = (dpm_status & 0x40u) != 0u;
+    state->input_current_limit_ma =
+        (uint16_t)(100u + ((uint16_t)(dpm_status & 0x3Fu) * 50u));
     return true;
 }
 

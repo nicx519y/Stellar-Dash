@@ -26,6 +26,7 @@
 #include "system_logger.h"
 #include "st7789.h"
 #include "spi-st7789.h"
+#include "rotary-encoder.h"
 #include "rf_bridge_port_internal.h"
 #include <stdio.h>
 /* USER CODE END Includes */
@@ -334,7 +335,7 @@ void SysTick_Handler(void)
     }
   #endif /* INCLUDE_xTaskGetSchedulerState */
   /* USER CODE BEGIN SysTick_IRQn 1 */
-
+  RotEnc_Tick1msFromISR();
   /* USER CODE END SysTick_IRQn 1 */
 }
 

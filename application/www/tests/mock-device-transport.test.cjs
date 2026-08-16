@@ -31,25 +31,20 @@ Module._resolveFilename = function resolveTestAlias(request, parent, isMain, opt
   }
   return resolveFilename.call(this, resolvedRequest, parent, isMain, options);
 };
-Module._load = function loadTestDependency(request, parent, isMain) {
-  if (request === '@/lib/websocket-queue-manager') {
-    return {
-      WebSocketQueueManager: class TestQueueManager {
-        setSendFunction() {}
-        clear() {}
-      },
-    };
-  }
-  return loadModule.call(this, request, parent, isMain);
-};
-
 const { MockDeviceTransport } = require('../lib/device-transport/mock-device-transport.ts');
-const { DeviceTransportFrameworkAdapter } = require('../lib/device-transport/framework-adapter.ts');
+const { DeviceCommandClient } = require('../lib/device-transport/device-command-client.ts');
 const {
   DEFAULT_DEVICE_SCOPES,
   DeviceTransportError,
 } = require('../lib/device-transport/types.ts');
-const { WebHidTransport } = require('../lib/device-transport/webhid-transport.ts');
+const {
+  RecoverableBootstrapResponseTimeoutError,
+  WebHidTransport,
+} = require('../lib/device-transport/webhid-transport.ts');
+const {
+  DeviceConnectionPhase,
+  reconnectRequiresPermission,
+} = require('../lib/device-transport/device-command-types.ts');
 const {
   DEFAULT_SCREEN_CONTROL_CONFIG,
   withRequiredWebConfigEntry,
@@ -72,6 +67,58 @@ class MemoryStorage {
 }
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+test('reconnect chooser is reachable only for explicit permission failures', () => {
+  const base = { type: 'connection', message: 'fixture', timestamp: new Date() };
+  assert.equal(reconnectRequiresPermission({ ...base, transportCode: 'permission-required' }), true);
+  assert.equal(reconnectRequiresPermission({ ...base, transportCode: 'permission-denied' }), true);
+  assert.equal(reconnectRequiresPermission({ ...base, transportCode: 'disconnected' }), false);
+  assert.equal(reconnectRequiresPermission(null), false);
+});
+
+test('one startup deadline spans connect through markReady and reports the active initialization stage', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(
+    transport,
+    null,
+    DEFAULT_DEVICE_SCOPES,
+    25,
+  );
+  const errors = [];
+  adapter.onError((error) => errors.push(error));
+
+  await adapter.connect();
+  const deadline = adapter.getStartupDeadlineMs();
+  assert.ok(deadline > Date.now());
+  adapter.setInitializationStage('hotkeys');
+  await delay(40);
+
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].transportCode, 'timeout');
+  assert.equal(errors[0].phase, DeviceConnectionPhase.INITIALIZING);
+  assert.match(errors[0].message, /initializing\/hotkeys/);
+  assert.equal(adapter.getPhase(), DeviceConnectionPhase.ERROR);
+  assert.equal(adapter.getStartupDeadlineMs(), null);
+  adapter.dispose();
+});
+
+test('markReady cancels the shared startup deadline', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(
+    transport,
+    null,
+    DEFAULT_DEVICE_SCOPES,
+    20,
+  );
+  let errors = 0;
+  adapter.onError(() => { errors += 1; });
+  await adapter.connect();
+  assert.equal(adapter.markReady(), true);
+  await delay(35);
+  assert.equal(adapter.getPhase(), DeviceConnectionPhase.READY);
+  assert.equal(errors, 0);
+  adapter.dispose();
+});
 
 test('screen policy always restores the required WebConfig recovery entry', () => {
   const disabled = {
@@ -99,7 +146,7 @@ test('adapter connect failure reports once and always settles disconnected', asy
   transport.connect = async () => {
     throw new DeviceTransportError('authentication-failed', 'fixture authentication failed');
   };
-  const adapter = new DeviceTransportFrameworkAdapter(transport);
+  const adapter = new DeviceCommandClient(transport);
   let errorCount = 0;
   adapter.onError(() => { errorCount += 1; });
 
@@ -123,7 +170,7 @@ test('disconnect immediately cancels a connect before it can publish a session',
       resolve(transport.session);
     };
   });
-  const adapter = new DeviceTransportFrameworkAdapter(transport);
+  const adapter = new DeviceCommandClient(transport);
 
   const connecting = adapter.connect();
   const cancelled = assert.rejects(connecting, /断开或重连/);
@@ -136,36 +183,29 @@ test('disconnect immediately cancels a connect before it can publish a session',
   adapter.dispose();
 });
 
-test('adapter fire-and-forget failure destroys the transport instead of leaving ERROR half-connected', async () => {
+test('a typed request failure is surfaced to its caller without creating hidden pending work', async () => {
   const transport = new MockDeviceTransport({ storage: null });
   const auth = {
     clearCalls: 0,
     clear() { this.clearCalls += 1; },
   };
-  const adapter = new DeviceTransportFrameworkAdapter(transport, auth);
+  const adapter = new DeviceCommandClient(transport, auth);
   await adapter.connect();
-  let errorCount = 0;
-  let disconnectCount = 0;
-  adapter.onError(() => { errorCount += 1; });
-  adapter.onDisconnect(() => { disconnectCount += 1; });
   transport.request = async () => {
     throw new DeviceTransportError('protocol', 'fixture async failure');
   };
 
-  adapter.sendMessageNoResponse('fixture_failure');
-  await delay(10);
+  await assert.rejects(adapter.request('fixture_failure'), /fixture async failure/);
 
-  assert.equal(adapter.getState(), 'disconnected');
-  assert.equal(transport.session, null);
-  assert.equal(errorCount, 1);
-  assert.equal(disconnectCount, 1);
-  assert.ok(auth.clearCalls >= 1);
+  assert.equal(adapter.getState(), 'connected');
+  assert.notEqual(transport.session, null);
+  assert.equal(auth.clearCalls, 0);
   adapter.dispose();
 });
 
-test('an old fire-and-forget rejection cannot close a newer device session', async () => {
+test('an old typed request rejection cannot close a newer device session', async () => {
   const transport = new MockDeviceTransport({ storage: null });
-  const adapter = new DeviceTransportFrameworkAdapter(transport);
+  const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
   let rejectOldRequest;
   transport.request = () => new Promise((resolve, reject) => {
@@ -174,14 +214,15 @@ test('an old fire-and-forget rejection cannot close a newer device session', asy
   let errorCount = 0;
   adapter.onError(() => { errorCount += 1; });
 
-  adapter.sendMessageNoResponse('old_session_request');
+  const oldRequest = adapter.request('old_session_request');
+  const oldRequestRejection = assert.rejects(oldRequest, /late old-session failure/);
   await delay(0);
   assert.equal(typeof rejectOldRequest, 'function');
   adapter.disconnect();
   await delay(0);
   await adapter.connect();
   rejectOldRequest(new DeviceTransportError('protocol', 'late old-session failure'));
-  await delay(10);
+  await oldRequestRejection;
 
   assert.equal(adapter.getState(), 'connected');
   assert.notEqual(transport.session, null);
@@ -191,7 +232,7 @@ test('an old fire-and-forget rejection cannot close a newer device session', asy
 
 test('a reconnect waits for the previous asynchronous HID close barrier', async () => {
   const transport = new MockDeviceTransport({ storage: null });
-  const adapter = new DeviceTransportFrameworkAdapter(transport);
+  const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
   let releaseOldClose;
   transport.close = () => new Promise((resolve) => {
@@ -250,7 +291,7 @@ test('the close barrier waits for the physical WebHID handle before reopening it
   };
   const transport = new WebHidTransport({ navigator: hid });
   const auth = { clear() {}, async authenticate() {} };
-  const adapter = new DeviceTransportFrameworkAdapter(transport, auth);
+  const adapter = new DeviceCommandClient(transport, auth);
   await adapter.connect();
   assert.equal(openCalls, 1);
 
@@ -265,6 +306,74 @@ test('the close barrier waits for the physical WebHID handle before reopening it
   assert.equal(getDevicesCalls, 2);
   assert.equal(openCalls, 2);
   assert.equal(device.opened, true);
+  adapter.dispose();
+});
+
+test('a stale encrypted device session retries on the same open HID handle', async () => {
+  let openCalls = 0;
+  let closeCalls = 0;
+  let getDevicesCalls = 0;
+  const device = {
+    opened: false,
+    vendorId: 0xcafe,
+    productId: 0x4021,
+    productName: 'HBox stale-session fixture',
+    collections: [],
+    async open() {
+      openCalls += 1;
+      this.opened = true;
+    },
+    async close() {
+      closeCalls += 1;
+      this.opened = false;
+    },
+    async sendReport() {},
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const hid = {
+    async getDevices() {
+      getDevicesCalls += 1;
+      return [device];
+    },
+    async requestDevice() { return [device]; },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const transport = new WebHidTransport({ navigator: hid });
+  let authenticateCalls = 0;
+  const auth = {
+    clear() {},
+    async authenticate(currentTransport, scopes) {
+      authenticateCalls += 1;
+      if (authenticateCalls === 1) {
+        throw new RecoverableBootstrapResponseTimeoutError(
+          'attestation.create',
+          '命令 attestation.create 响应超时',
+        );
+      }
+      currentTransport.session = {
+        transport: 'webhid',
+        authenticated: true,
+        scopes: [...scopes],
+        sessionId: 'resynchronized-session',
+      };
+      return currentTransport.session;
+    },
+  };
+  const adapter = new DeviceCommandClient(transport, auth);
+  let errorCount = 0;
+  adapter.onError(() => { errorCount += 1; });
+
+  await adapter.connect();
+
+  assert.equal(authenticateCalls, 2);
+  assert.equal(getDevicesCalls, 1);
+  assert.equal(openCalls, 1);
+  assert.equal(closeCalls, 0);
+  assert.equal(device.opened, true);
+  assert.equal(adapter.getState(), 'connected');
+  assert.equal(errorCount, 0);
   adapter.dispose();
 });
 
@@ -322,7 +431,7 @@ test('disconnect aborts scope reauthorization and reconnect waits for it to sett
       });
     },
   };
-  const adapter = new DeviceTransportFrameworkAdapter(transport, auth);
+  const adapter = new DeviceCommandClient(transport, auth);
   await adapter.connect();
   assert.deepEqual(auth.grantedScopes, DEFAULT_DEVICE_SCOPES);
   let transportRequestCalls = 0;
@@ -336,19 +445,22 @@ test('disconnect aborts scope reauthorization and reconnect waits for it to sett
     return new Response('{}', { status: 200 });
   };
 
-  const oldRequest = adapter.sendMessage('reboot');
+  const oldRequest = adapter.request('reboot');
   const oldRequestRejection = assert.rejects(oldRequest, /scope upgrade cancelled/);
   await delay(0);
   assert.equal(upgradeSignal.aborted, false);
   const queuedReadRejection = assert.rejects(
-    adapter.sendMessage('get_global_config'),
+    adapter.request('get_global_config'),
     /scope upgrade cancelled/,
   );
   const queuedFetchRejection = assert.rejects(
     adapter.authorizedFetch('/api/queued-during-scope-upgrade'),
     /scope upgrade cancelled/,
   );
-  adapter.sendBinaryMessage(new Uint8Array([0x34]));
+  const binaryRejection = assert.rejects(
+    adapter.getImageCatalog(),
+    /scope upgrade cancelled/,
+  );
   await delay(0);
   assert.equal(transportRequestCalls, 0);
   assert.equal(authorizedFetchCalls, 0);
@@ -368,11 +480,95 @@ test('disconnect aborts scope reauthorization and reconnect waits for it to sett
   await oldRequestRejection;
   await queuedReadRejection;
   await queuedFetchRejection;
+  await binaryRejection;
   await reconnect;
   assert.equal(getDevicesCalls, 2);
   assert.equal(openCalls, 2);
   assert.equal(adapter.getState(), 'connected');
   assert.deepEqual(transport.session.scopes, DEFAULT_DEVICE_SCOPES);
+  adapter.dispose();
+});
+
+test('scope upgrade drains active HID RPCs without aborting or physically closing them', async () => {
+  let closeCalls = 0;
+  const device = {
+    opened: false,
+    vendorId: 0xcafe,
+    productId: 0x4021,
+    productName: 'HBox scope serialization fixture',
+    collections: [],
+    async open() { this.opened = true; },
+    async close() { closeCalls += 1; this.opened = false; },
+    async sendReport() {},
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const hid = {
+    async getDevices() { return [device]; },
+    async requestDevice() { return [device]; },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const transport = new WebHidTransport({ navigator: hid });
+  const auth = {
+    grantedScopes: [],
+    clear() { this.grantedScopes = []; },
+    hasScopes(scopes) {
+      return scopes.every((scope) => this.grantedScopes.includes(scope));
+    },
+    async authenticate(currentTransport, scopes) {
+      this.grantedScopes = [...scopes];
+      currentTransport.session = {
+        transport: 'webhid',
+        authenticated: true,
+        scopes: [...scopes],
+        sessionId: 'serialized-base',
+      };
+      return currentTransport.session;
+    },
+    async reauthorize(currentTransport, scopes, signal) {
+      assert.equal(signal.aborted, false);
+      reauthorizeCalls += 1;
+      this.grantedScopes = [...scopes];
+      currentTransport.session = {
+        transport: 'webhid',
+        authenticated: true,
+        scopes: [...scopes],
+        sessionId: 'serialized-elevated',
+      };
+      return currentTransport.session;
+    },
+  };
+  let resolveRead;
+  let activeReadSignal;
+  let reauthorizeCalls = 0;
+  const calls = [];
+  transport.request = (command, _params, options = {}) => {
+    calls.push(command);
+    if (command === 'get_global_config') {
+      activeReadSignal = options.signal;
+      return new Promise((resolve) => { resolveRead = resolve; });
+    }
+    return Promise.resolve({ transactionId: 2, data: { accepted: true } });
+  };
+
+  const adapter = new DeviceCommandClient(transport, auth);
+  await adapter.connect();
+  const read = adapter.request('get_global_config');
+  await delay(0);
+  const elevated = adapter.request('reboot');
+  await delay(0);
+
+  assert.equal(reauthorizeCalls, 0, 'session.end must wait for the active RPC');
+  assert.equal(activeReadSignal.aborted, false, 'scope upgrade must not abort HID writes');
+  assert.equal(closeCalls, 0);
+
+  resolveRead({ transactionId: 1, data: { ready: true } });
+  await read;
+  await elevated;
+  assert.equal(reauthorizeCalls, 1);
+  assert.deepEqual(calls, ['get_global_config', 'reboot']);
+  assert.equal(closeCalls, 0);
   adapter.dispose();
 });
 
@@ -444,9 +640,9 @@ test('a physical WebHID disconnect aborts scope upgrade before reconnecting', as
       });
     },
   };
-  const adapter = new DeviceTransportFrameworkAdapter(transport, auth);
+  const adapter = new DeviceCommandClient(transport, auth);
   await adapter.connect();
-  const oldRequest = adapter.sendMessage('reboot');
+  const oldRequest = adapter.request('reboot');
   const oldRequestRejection = assert.rejects(oldRequest, /physical scope cancelled/);
   await delay(0);
   const fireDisconnect = navigatorDisconnect;
@@ -473,12 +669,12 @@ test('a physical WebHID disconnect aborts scope upgrade before reconnecting', as
   adapter.dispose();
 });
 
-test('an old WebHID export cannot emit or continue in a reconnected session', async () => {
+test('an old HID export cannot continue in a reconnected session', async () => {
   const transport = new MockDeviceTransport({ storage: null });
   // Exercise the WebHID-only sequential export path without coupling this
   // lifecycle test to the cryptographic authentication fixture.
   transport.kind = 'webhid';
-  const adapter = new DeviceTransportFrameworkAdapter(transport);
+  const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
   const calls = [];
   let resolveGlobal;
@@ -491,12 +687,11 @@ test('an old WebHID export cannot emit or continue in a reconnected session', as
       resolveGlobal = resolve;
     });
   };
-  const messages = [];
   let errorCount = 0;
-  adapter.onMessage((message) => messages.push(message));
   adapter.onError(() => { errorCount += 1; });
 
-  adapter.sendMessageNoResponse('export_all_config');
+  const oldExport = adapter.exportConfig();
+  const oldExportRejection = assert.rejects(oldExport, /断开或重连会话替代/);
   await delay(0);
   assert.equal(typeof resolveGlobal, 'function');
   adapter.disconnect();
@@ -505,10 +700,9 @@ test('an old WebHID export cannot emit or continue in a reconnected session', as
     transactionId: 1,
     data: { globalConfig: { inputMode: 'XINPUT' } },
   });
-  await delay(10);
+  await oldExportRejection;
 
   assert.deepEqual(calls, ['get_global_config']);
-  assert.deepEqual(messages, []);
   assert.equal(errorCount, 0);
   assert.equal(adapter.getState(), 'connected');
   assert.notEqual(transport.session, null);
@@ -517,7 +711,7 @@ test('an old WebHID export cannot emit or continue in a reconnected session', as
 
 test('an authorized HTTP response from an old session is rejected after reconnect', async () => {
   const transport = new MockDeviceTransport({ storage: null });
-  const adapter = new DeviceTransportFrameworkAdapter(transport);
+  const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
   let resolveFetch;
   transport.authorizedFetch = () => new Promise((resolve) => {
@@ -540,7 +734,7 @@ test('an authorized HTTP response from an old session is rejected after reconnec
 
 test('disconnect aborts an authorized response body with the merged session signal', async () => {
   const transport = new MockDeviceTransport({ storage: null });
-  const adapter = new DeviceTransportFrameworkAdapter(transport);
+  const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
   const callerController = new AbortController();
   let fetchSignal;
@@ -572,19 +766,17 @@ test('disconnect aborts an authorized response body with the merged session sign
   adapter.dispose();
 });
 
-function waitForBinary(transport, command) {
-  return new Promise((resolve) => {
-    const unsubscribe = transport.subscribe('legacy.binary', (event) => {
-      if (!event.binary || new DataView(event.binary).getUint8(0) !== command) return;
-      unsubscribe();
-      resolve(event.binary);
-    });
-  });
-}
-
 async function sendBinary(transport, bytes, responseCommand) {
-  const response = waitForBinary(transport, responseCommand);
-  await transport.upload('legacy-binary', bytes);
+  const envelope = await transport.request('binary.exchange', {
+    encoding: 'base64',
+    data: Buffer.from(bytes).toString('base64'),
+  });
+  const responseBytes = Buffer.from(envelope.data.data, 'base64');
+  const response = responseBytes.buffer.slice(
+    responseBytes.byteOffset,
+    responseBytes.byteOffset + responseBytes.byteLength,
+  );
+  assert.equal(new DataView(response).getUint8(0), responseCommand);
   return response;
 }
 
@@ -826,24 +1018,34 @@ test('exports and atomically restores the default profile selection', async () =
   await transport.close();
 });
 
-test('keeps normal button monitoring silent and emits performance frames explicitly', async () => {
+test('emits typed button state and performance sample events', async () => {
   const transport = await createTransport();
-  const commands = [];
-  const unsubscribe = transport.subscribe('legacy.binary', (event) => {
-    commands.push(new DataView(event.binary).getUint8(0));
+  const buttonStates = [];
+  let performanceSamples = 0;
+  const unsubscribeButtons = transport.subscribe('button.state', (event) => {
+    buttonStates.push(event.data);
+  });
+  const unsubscribePerformance = transport.subscribe('performance.sample', (event) => {
+    assert.equal(event.data.byteLength, 44);
+    performanceSamples += 1;
   });
 
   await transport.request('start_button_monitoring');
-  await delay(220);
-  assert.deepEqual(commands, []);
+  await delay(0);
+  assert.deepEqual(buttonStates.at(-1), {
+    isActive: true,
+    triggerMask: 0,
+    totalButtons: 22,
+  });
   const states = await transport.request('get_button_states');
   assert.equal(states.data.triggerMask, 0);
 
   await transport.request('start_button_performance_monitoring');
   await delay(140);
   await transport.request('stop_button_performance_monitoring');
-  assert.ok(commands.includes(2));
-  unsubscribe();
+  assert.ok(performanceSamples > 0);
+  unsubscribeButtons();
+  unsubscribePerformance();
   await transport.close();
 });
 
@@ -946,6 +1148,10 @@ test('uploads, reports, reads and deletes an in-memory background image', async 
   const readView = new DataView(readBuffer);
   assert.equal(readView.getUint8(1), 1);
   assert.equal(readView.getUint32(4, true), cid);
+  assert.equal(readView.getUint16(8, true), 2);
+  assert.equal(readView.getUint16(10, true), 2);
+  assert.equal(readView.getUint32(12, true), pixels.length);
+  assert.equal(readView.getUint32(16, true), 0);
   assert.equal(readView.getUint16(20, true), pixels.length);
   assert.deepEqual(
     Array.from(new Uint8Array(readBuffer, 55, pixels.length)),
@@ -1046,35 +1252,309 @@ test('emits a complete ordered configuration export stream', async () => {
   await transport.close();
 });
 
-test('adapter delivers legacy binary once without duplicating it as JSON', async () => {
+test('typed image client covers upload, catalog, read and delete without publishing raw events', async () => {
   const transport = new MockDeviceTransport({ storage: null });
-  const adapter = new DeviceTransportFrameworkAdapter(transport);
+  const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
 
   let jsonMessages = 0;
-  let binaryMessages = 0;
   const unsubscribeMessage = adapter.onMessage(() => {
     jsonMessages += 1;
   });
-  const binaryReceived = new Promise((resolve) => {
-    const unsubscribeBinary = adapter.onBinaryMessage(() => {
-      binaryMessages += 1;
-      unsubscribeBinary();
-      resolve();
-    });
+
+  const pixels = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]);
+  await adapter.uploadImage({
+    width: 2,
+    height: 2,
+    data: pixels,
+    frameCount: 1,
+    fps: 0,
   });
-
-  const request = new ArrayBuffer(6);
-  const requestView = new DataView(request);
-  requestView.setUint8(0, 0x34);
-  requestView.setUint32(2, 0x12345678, true);
-  adapter.sendBinaryMessage(request);
-
-  await binaryReceived;
+  assert.equal(adapter.imageTransferTotals.size, 0);
+  const catalog = await adapter.getImageCatalog();
+  assert.equal(catalog.user.valid, true);
+  assert.equal(catalog.user.size, pixels.byteLength);
+  const downloaded = await adapter.readImage('user', catalog.user.size);
+  assert.deepEqual(Array.from(downloaded), Array.from(pixels));
+  await adapter.deleteImage();
+  assert.equal((await adapter.getImageCatalog()).user.valid, false);
   await Promise.resolve();
   unsubscribeMessage();
   adapter.dispose();
 
-  assert.equal(binaryMessages, 1);
   assert.equal(jsonMessages, 0);
+});
+
+test('typed image reads fail closed on a short chunk or mismatched image total', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+
+  const pixels = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]);
+  await adapter.uploadImage({
+    width: 2,
+    height: 2,
+    data: pixels,
+    frameCount: 1,
+    fps: 0,
+  });
+  const request = transport.request.bind(transport);
+  let corruption = 'short';
+  transport.request = async (command, params, options) => {
+    const envelope = await request(command, params, options);
+    if (command !== 'binary.exchange') return envelope;
+    const requestBytes = Buffer.from(params.data, 'base64');
+    if (requestBytes[0] !== 0x35) {
+      return envelope;
+    }
+    const response = Buffer.from(envelope.data.data, 'base64');
+    const view = new DataView(response.buffer, response.byteOffset, response.byteLength);
+    if (corruption === 'short') {
+      view.setUint16(20, view.getUint16(20, true) - 1, true);
+    } else {
+      view.setUint32(12, pixels.byteLength + 1, true);
+    }
+    return {
+      ...envelope,
+      data: { ...envelope.data, data: response.toString('base64') },
+    };
+  };
+
+  await assert.rejects(adapter.readImage('user', pixels.byteLength), /invalid length/);
+  corruption = 'total';
+  await assert.rejects(adapter.readImage('user', pixels.byteLength), /invalid length/);
+  adapter.dispose();
+});
+
+test('typed image catalog requires an exact successful response', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+
+  const request = transport.request.bind(transport);
+  let corruption = 'trailing';
+  transport.request = async (command, params, options) => {
+    const envelope = await request(command, params, options);
+    if (command !== 'binary.exchange') return envelope;
+    const requestBytes = Buffer.from(params.data, 'base64');
+    if (requestBytes[0] !== 0x34) return envelope;
+    let response = Buffer.from(envelope.data.data, 'base64');
+    if (corruption === 'trailing') {
+      response = Buffer.concat([response, Buffer.of(0)]);
+    } else if (corruption === 'rejected') {
+      response[1] = 0;
+    } else {
+      response[6] = 2;
+    }
+    return {
+      ...envelope,
+      data: { ...envelope.data, data: response.toString('base64') },
+    };
+  };
+
+  await assert.rejects(adapter.getImageCatalog(), /invalid response/);
+  corruption = 'rejected';
+  await assert.rejects(adapter.getImageCatalog(), /was rejected/);
+  corruption = 'invalid-valid-flag';
+  await assert.rejects(adapter.getImageCatalog(), /invalid response/);
+  adapter.dispose();
+});
+
+test('stream firmware ACK is returned verbatim and rejects a mismatched chunk index', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+  const request = {
+    sessionId: 'mock-session',
+    componentName: 'application',
+    chunkIndex: 7,
+    totalChunks: 10,
+    chunkOffset: 0,
+    targetAddress: 0x90000000,
+    checksumSha256: '00'.repeat(32),
+    data: new Uint8Array(),
+  };
+
+  const makeCompletion = (chunkIndex) => {
+    const raw = new Uint8Array(75);
+    const view = new DataView(raw.buffer);
+    raw[0] = 0x81;
+    raw[1] = 1;
+    view.setUint32(2, chunkIndex, true);
+    view.setUint32(6, 80, true);
+    return {
+      complete: true,
+      encoding: 'base64',
+      data: Buffer.from(raw).toString('base64'),
+      ack: {
+        requestOpcode: 0x01,
+        opcode: 0x81,
+        success: true,
+        kind: 'firmware.chunk',
+        chunkIndex,
+        progress: 80,
+      },
+    };
+  };
+  let forwardedTimeout = null;
+  transport.upload = async (_stream, _data, options) => {
+    forwardedTimeout = options.timeoutMs;
+    return makeCompletion(7);
+  };
+  const accepted = await adapter.uploadFirmwareChunk(request, { timeoutMs: 4321 });
+  assert.deepEqual(accepted, {
+    success: true,
+    chunkIndex: 7,
+    progress: 80,
+    error: null,
+  });
+  assert.equal(forwardedTimeout, 4321);
+
+  const rejectedRaw = new Uint8Array(75);
+  const rejectedView = new DataView(rejectedRaw.buffer);
+  rejectedRaw[0] = 0x81;
+  rejectedRaw[1] = 0;
+  rejectedView.setUint32(2, 7, true);
+  rejectedView.setUint32(6, 70, true);
+  const rejection = Buffer.from('flash rejected');
+  rejectedRaw[10] = rejection.byteLength;
+  rejectedRaw.set(rejection, 11);
+  transport.upload = async () => ({
+    complete: true,
+    encoding: 'base64',
+    data: Buffer.from(rejectedRaw).toString('base64'),
+    ack: {
+      requestOpcode: 0x01,
+      opcode: 0x81,
+      success: false,
+      kind: 'firmware.chunk',
+      chunkIndex: 7,
+      progress: 70,
+    },
+  });
+  assert.deepEqual(await adapter.uploadFirmwareChunk(request), {
+    success: false,
+    chunkIndex: 7,
+    progress: 70,
+    error: 'flash rejected',
+  });
+
+  transport.upload = async () => ({
+    ...makeCompletion(7),
+    ack: { ...makeCompletion(7).ack, success: false },
+  });
+  await assert.rejects(
+    adapter.uploadFirmwareChunk(request),
+    /does not match the uploaded chunk/,
+  );
+
+  transport.upload = async () => makeCompletion(8);
+  await assert.rejects(
+    adapter.uploadFirmwareChunk(request),
+    /mismatch|does not match the uploaded chunk/,
+  );
+  adapter.dispose();
+});
+
+test('stream image rejection is correlated and returned without sending commit', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+
+  let streamCalls = 0;
+  let forwardedTimeout = null;
+  transport.upload = async (_stream, data, options) => {
+    streamCalls += 1;
+    forwardedTimeout = options.timeoutMs;
+    const request = data instanceof Uint8Array ? data : new Uint8Array(data);
+    const view = new DataView(request.buffer, request.byteOffset, request.byteLength);
+    const cid = view.getUint32(2, true);
+    const offset = view.getUint32(6, true);
+    const chunkSize = view.getUint16(10, true);
+    const raw = new Uint8Array(79);
+    const rawView = new DataView(raw.buffer);
+    raw[0] = 0xb1;
+    raw[1] = 0;
+    rawView.setUint32(2, cid, true);
+    rawView.setUint32(6, 0, true);
+    rawView.setUint32(10, 1, true);
+    const error = Buffer.from('image rejected');
+    raw[14] = error.byteLength;
+    raw.set(error, 15);
+    return {
+      complete: true,
+      encoding: 'base64',
+      data: Buffer.from(raw).toString('base64'),
+      ack: {
+        requestOpcode: 0x31,
+        opcode: 0xb1,
+        success: false,
+        kind: 'image.chunk',
+        cid,
+        offset,
+        chunkSize,
+        received: 0,
+        total: 1,
+      },
+    };
+  };
+  assert.deepEqual(await adapter.uploadImage({
+    width: 1,
+    height: 1,
+    data: Uint8Array.of(0xaa),
+    frameCount: 1,
+    fps: 0,
+    timeoutMs: 7654,
+  }), {
+    success: false,
+    received: 0,
+    total: 1,
+    error: 'image rejected',
+  });
+  assert.equal(streamCalls, 1, 'a rejected chunk must stop before COMMIT');
+  assert.equal(forwardedTimeout, 7654);
+  assert.equal(adapter.imageTransferTotals.size, 0);
+  adapter.dispose();
+});
+
+test('stream image ACK rejects mismatched cid and offset metadata', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+
+  const raw = new Uint8Array(79);
+  const rawView = new DataView(raw.buffer);
+  raw[0] = 0xb1;
+  raw[1] = 1;
+  rawView.setUint32(2, 0x11223344, true);
+  rawView.setUint32(6, 17, true);
+  rawView.setUint32(10, 32, true);
+  transport.upload = async () => ({
+    complete: true,
+    encoding: 'base64',
+    data: Buffer.from(raw).toString('base64'),
+    ack: {
+      requestOpcode: 0x31,
+      opcode: 0xb1,
+      success: true,
+      kind: 'image.chunk',
+      cid: 0x11223344,
+      offset: 15,
+      chunkSize: 1,
+      received: 17,
+      total: 32,
+    },
+  });
+  await assert.rejects(
+    adapter.uploadImage({
+      width: 1,
+      height: 1,
+      data: Uint8Array.of(0xaa),
+      frameCount: 1,
+      fps: 0,
+    }),
+    /unrelated ACK|does not match the uploaded chunk/,
+  );
+  assert.equal(adapter.imageTransferTotals.size, 0);
+  adapter.dispose();
 });

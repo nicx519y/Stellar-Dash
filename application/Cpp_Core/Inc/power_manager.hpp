@@ -44,12 +44,15 @@ struct PowerSnapshot {
     uint16_t soc_permille = 0;
     uint16_t vbus_mv = 0;
     uint16_t charge_current_ma = 0;
+    uint16_t input_current_limit_ma = 0;
     uint16_t fault_bits = POWER_FAULT_CHARGER_OFFLINE | POWER_FAULT_GAUGE_OFFLINE;
     PowerChargeState charge_state = PowerChargeState::Unknown;
     bool vbus_present = false;
     bool fast_charge = false;
     bool gauge_online = false;
     bool charger_online = false;
+    bool input_current_regulation = false;
+    bool input_voltage_regulation = false;
     bool valid = false;
 };
 

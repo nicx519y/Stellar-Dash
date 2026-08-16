@@ -20,6 +20,7 @@ public:
     bool enter() override;
     void tick() override;
     void exit() override;
+    void serviceLeds();
     uint32_t getVirtualPinMask() const { return virtualPinMask; }
 
     bool ensureUsbRuntime(InputMode inputMode);

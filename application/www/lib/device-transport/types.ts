@@ -1,4 +1,4 @@
-export type DeviceTransportKind = 'webhid' | 'legacy-websocket' | 'mock';
+export type DeviceTransportKind = 'webhid' | 'mock';
 
 export enum DeviceTransportState {
   DISCONNECTED = 'disconnected',
@@ -49,21 +49,37 @@ export interface DeviceResponse<T = Record<string, unknown> | undefined> {
   transactionId: number;
 }
 
+/**
+ * Bounds one logical device operation, including time spent waiting for the
+ * physical HID writer, every report write, and the matching response.
+ */
+export interface DeviceRequestOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
+
 export interface DeviceEvent<T = unknown> {
   name: string;
   data: T;
-  binary?: ArrayBuffer;
 }
 
 export type DeviceStream =
-  | 'legacy-binary'
   | 'firmware'
   | 'image'
   | 'config-import';
 
 export interface DeviceUploadOptions {
   signal?: AbortSignal;
+  /** One absolute deadline for the complete stream transaction. */
+  timeoutMs?: number;
   onProgress?: (sent: number, total: number) => void;
+}
+
+export interface DeviceUploadResult {
+  complete?: boolean;
+  encoding?: string;
+  data?: string;
+  ack?: Record<string, unknown>;
 }
 
 export type Unsubscribe = () => void;
@@ -72,6 +88,7 @@ export type DeviceTransportErrorCode =
   | 'unsupported'
   | 'permission-required'
   | 'permission-denied'
+  | 'device-busy'
   | 'not-connected'
   | 'authentication-required'
   | 'authentication-failed'
@@ -104,14 +121,14 @@ export interface DeviceTransport {
 
   /**
    * May open a browser permission chooser and therefore must only be called
-   * from a user activation handler. Legacy transports may alias this to
-   * connect().
+   * from a user activation handler.
    */
   requestPermissionAndConnect(): Promise<DeviceSession>;
 
   request<T = Record<string, unknown> | undefined>(
     command: string,
     params?: Record<string, unknown>,
+    options?: DeviceRequestOptions,
   ): Promise<DeviceResponse<T>>;
 
   subscribe<T = unknown>(
@@ -123,7 +140,7 @@ export interface DeviceTransport {
     stream: DeviceStream,
     data: Blob | ArrayBuffer | Uint8Array,
     options?: DeviceUploadOptions,
-  ): Promise<void>;
+  ): Promise<DeviceUploadResult>;
 
   /**
    * Optional transport-owned HTTP implementation. The mock transport uses it

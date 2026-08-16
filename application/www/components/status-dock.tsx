@@ -72,7 +72,7 @@ function StatusCell({
 
 export function StatusDock() {
   const {
-    wsConnected,
+    deviceConnected,
     dataIsReady,
     profileList,
     defaultProfile,
@@ -107,11 +107,11 @@ export function StatusDock() {
       <StatusCell
         icon={LuRadioTower}
         label="Device"
-        primary={wsConnected ? "ONLINE" : "DISCONNECTED"}
+        primary={deviceConnected ? "ONLINE" : "DISCONNECTED"}
         secondary={`${configuredTransportMode().toUpperCase()} · ${
           dataIsReady ? "READY" : "SYNCING"
         }`}
-        tone={wsConnected ? "success" : "danger"}
+        tone={deviceConnected ? "success" : "danger"}
       />
       <StatusCell
         icon={LuUserRound}

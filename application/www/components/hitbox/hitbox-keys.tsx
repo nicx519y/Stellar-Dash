@@ -8,6 +8,7 @@ import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { AiOutlineClose } from "react-icons/ai";
 import { type ButtonStateBinaryData, isButtonTriggered } from '@/lib/button-binary-parser';
 import { useButtonMonitor } from '@/hooks/use-button-monitor';
+import { shouldStartButtonMonitoring } from '@/lib/button-monitor-lifecycle';
 import { GameControllerButton } from "@/types/gamepad-config";
 import { HITBOX_WIDTH, HITBOX_HEIGHT, HITBOX_PADDING, HITBOX_LAYOUT_SCALE } from "./hitbox-constants";
 
@@ -102,7 +103,13 @@ export default function HitboxKeys({
     containerWidth,
 }: HitboxKeysProps) {
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady, hitboxLayout } = useGamepadConfig();
+    const {
+        contextJsReady,
+        setContextJsReady,
+        deviceConnected,
+        dataIsReady,
+        hitboxLayout,
+    } = useGamepadConfig();
     
     const layout = useMemo(() => {
         const rawLayout = hitboxLayout ?? [];
@@ -113,6 +120,13 @@ export default function HitboxKeys({
         }));
     }, [hitboxLayout]);
     const len = layout.length;
+    const shouldMonitorButtons = shouldStartButtonMonitoring({
+        enabled: isButtonMonitoringEnabled ?? false,
+        deviceConnected,
+        dataIsReady,
+        contextJsReady,
+        layoutLength: len,
+    });
     
     const svgRef = useRef<SVGSVGElement>(null);
     const circleRefs = useRef<(SVGCircleElement | null)[]>([]);
@@ -120,8 +134,6 @@ export default function HitboxKeys({
 
     const [pressedButtonStates, setPressedButtonStates] = useState(Array(len).fill(-1));
     const [hardwareButtonStates, setHardwareButtonStates] = useState(Array(len).fill(-1));
-
-    const {wsConnected} = useGamepadConfig();
 
     // 当 layout 长度变化时，重置状态数组
     useEffect(() => {
@@ -215,29 +227,26 @@ export default function HitboxKeys({
      * 管理按键监听的启动和停止
      */
     useEffect(() => {
-        const enabled = isButtonMonitoringEnabled ?? false;
+        const clearHardwareState = () => {
+            setHardwareButtonStates((current) => current.map(() => -1));
+        };
 
-        if(wsConnected && contextJsReady) {
-            if(enabled) {
-                startMonitoring().catch((error) => {
-                    console.error('启动按键监听失败:', error);
-                });
-            }
-
-            if(!enabled) {
-                setHardwareButtonStates(Array(len).fill(-1));
-                stopMonitoring();
-            }
+        if (!shouldMonitorButtons) {
+            clearHardwareState();
+            return;
         }
 
-        // 清理函数
+        void startMonitoring().catch((error) => {
+            console.error('启动按键监听失败:', error);
+        });
+
         return () => {
-            setHardwareButtonStates(Array(len).fill(-1));
-            if(wsConnected && contextJsReady) {
-                stopMonitoring();
-            }
+            clearHardwareState();
+            void stopMonitoring().catch((error) => {
+                console.error('停止按键监听失败:', error);
+            });
         };
-    }, [isButtonMonitoringEnabled, wsConnected, contextJsReady]);
+    }, [shouldMonitorButtons, startMonitoring, stopMonitoring]);
 
     // 处理按钮点击 - 采用与基类一致的事件处理方式
     const handleClick = (event: React.MouseEvent<SVGElement>) => {

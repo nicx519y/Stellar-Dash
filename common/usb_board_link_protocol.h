@@ -30,8 +30,14 @@ extern "C" {
     (USB_BOARD_LINK_MAX_PAYLOAD_BYTES - USB_BOARD_FRAGMENT_HEADER_BYTES)
 #define USB_BOARD_BULK_MESSAGE_MAX_BYTES    1536u
 #define USB_BOARD_BULK_CREDIT_WINDOW        4u
-#define USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW \
-    USB_BOARD_BULK_CREDIT_WINDOW
+/*
+ * WebHID reports use one whole-report receiver slot. WebConfig capacity is
+ * read through the transaction-correlated USB_CONTROL pull RPC; asynchronous
+ * absolute credit events are intentionally ignored for this channel because a
+ * delayed snapshot could re-authorize an already-consumed slot. Other bulk
+ * channels retain the four-message window.
+ */
+#define USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW 1u
 
 #define USB_BOARD_FRAGMENT_FLAG_FIRST       0x01u
 #define USB_BOARD_FRAGMENT_FLAG_LAST        0x02u
@@ -122,7 +128,13 @@ typedef enum
     USB_BOARD_CONTROL_GET_LINK_STATE  = 0x03u,
     USB_BOARD_CONTROL_CLEAR_FAULT     = 0x04u,
     USB_BOARD_CONTROL_SET_MAC         = 0x05u,
-    USB_BOARD_CONTROL_GET_AUTH_STATUS = 0x06u
+    USB_BOARD_CONTROL_GET_AUTH_STATUS = 0x06u,
+    /*
+     * Read-only, transaction-correlated snapshot of the CH585 whole-report
+     * WebConfig credit. Unlike EVT_BULK_CREDIT, a lost response can be safely
+     * retried without replaying an uncorrelated absolute grant.
+     */
+    USB_BOARD_CONTROL_GET_WEBCONFIG_CREDIT = 0x07u
 } usb_board_control_opcode_t;
 
 typedef enum
@@ -159,7 +171,8 @@ enum
     USB_BOARD_CAP_FEATURE_CONTROL_V1    = (1u << 1),
     USB_BOARD_CAP_FEATURE_CDC_NCM       = (1u << 2), /* legacy capability */
     USB_BOARD_CAP_FEATURE_LOCAL_AUTH    = (1u << 3),
-    USB_BOARD_CAP_FEATURE_WEBHID_V1     = (1u << 4)
+    USB_BOARD_CAP_FEATURE_WEBHID_V1     = (1u << 4),
+    USB_BOARD_CAP_FEATURE_WEBCONFIG_PULL_CREDIT = (1u << 5)
 };
 
 #if defined(__GNUC__)
@@ -300,12 +313,12 @@ typedef struct USB_BOARD_PACKED
 /*
  * Credits are receiver-owned absolute values, not deltas:
  * - CMD_BULK_CREDIT grants CH585 permission to emit 0x86 fragments.
- * - EVT_BULK_CREDIT grants STM32 permission to emit 0x06 traffic.
- * - On WEBCONFIG, one EVT credit reserves one complete 64-byte HID report,
- *   including all of its BoardLink fragments. It is returned only after the
- *   report has moved into the USB IN endpoint, or after an explicit transport
- *   reset. This prevents an accepted sequence from being dropped behind a busy
- *   endpoint.
+ * - EVT_BULK_CREDIT grants STM32 permission to emit 0x06 traffic on non-
+ *   WebConfig channels.
+ * - WEBCONFIG never publishes EVT_BULK_CREDIT. STM32 pulls its current
+ *   complete-report capacity through GET_WEBCONFIG_CREDIT and consumes that
+ *   one slot across all BoardLink fragments. The slot is returned only after
+ *   the report has completed USB EP1 IN, or after an explicit transport reset.
  * - Other channels retain one-credit-per-fragment behavior.
  */
 

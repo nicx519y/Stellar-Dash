@@ -18,7 +18,15 @@ type ScreenControlSettingContentProps = {
 
 export function ScreenControlSettingContent(props: ScreenControlSettingContentProps) {
     const { disabled = false } = props;
-    const { screenControl, updateScreenControl, sendBinaryMessage, onBinaryMessage, wsConnected } = useGamepadConfig();
+    const {
+        screenControl,
+        updateScreenControl,
+        getDeviceImageCatalog,
+        readDeviceImage,
+        uploadDeviceImage,
+        deleteDeviceImage,
+        deviceConnected,
+    } = useGamepadConfig();
     const [brightness, setBrightness] = useState<number>(screenControl.brightness ?? 100);
     const [standbyDisplay, setStandbyDisplay] = useState<StandbyDisplay>(screenControl.standbyDisplay ?? 'none');
     const [screenStyle, setScreenStyle] = useState<ScreenStyle>(screenControl.screenStyle ?? 'dark');
@@ -154,53 +162,22 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         };
     }, [brightness, standbyDisplay, screenStyle, backgroundImageId, currentPageId, features, featuresOrder]);
 
-    const push = async () => {
-        await updateScreenControl(nextConfig, true);
+    const commitUiChange = async (next: ScreenControlConfig) => {
+        try {
+            await updateScreenControl(next, true);
+        } catch {
+            // The context restores the last device-confirmed value and exposes
+            // the failure through the shared error toast.
+        }
     };
 
-    const sendBinaryUserImageRequest = async (payload: Uint8Array, expectedRespCmd: number, cid: number) => {
-        return new Promise<{ success: boolean; received: number; total: number; error?: string }>((resolve, reject) => {
-            const timeout = window.setTimeout(() => {
-                unsubscribe();
-                reject(new Error('Binary request timeout'));
-            }, 15000);
-
-            const unsubscribe = onBinaryMessage((data) => {
-                try {
-                    const view = new DataView(data);
-                    if (view.byteLength < 1 + 1 + 4 + 4 + 4 + 1) return;
-                    const cmd = view.getUint8(0);
-                    if (cmd !== expectedRespCmd) return;
-                    const respCid = view.getUint32(2, true);
-                    if (respCid !== cid) return;
-
-                    window.clearTimeout(timeout);
-                    unsubscribe();
-
-                    const success = view.getUint8(1) === 1;
-                    const received = view.getUint32(6, true);
-                    const total = view.getUint32(10, true);
-                    const errLen = view.getUint8(14);
-                    let error: string | undefined;
-                    if (!success && errLen > 0 && view.byteLength >= 15 + errLen) {
-                        const bytes = new Uint8Array(data, 15, errLen);
-                        error = new TextDecoder().decode(bytes);
-                    }
-                    resolve({ success, received, total, error });
-                } catch (e) {
-                    window.clearTimeout(timeout);
-                    unsubscribe();
-                    reject(e);
-                }
-            });
-
-            sendBinaryMessage(payload);
-        });
+    const push = async () => {
+        await commitUiChange(nextConfig);
     };
 
     const fetchBgImagesFromDeviceOnce = async () => {
         if (bgImagesLoadedRef.current) return;
-        if (!wsConnected) return;
+        if (!deviceConnected) return;
 
         const cached = loadBgImagesCache();
         if (cached) {
@@ -212,128 +189,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
 
         try {
         setIsDownloadingBgImages(true);
-        const CMD_GET_INFO = 0x34;
-        const RESP_GET_INFO = 0xB4;
-        const CMD_READ_CHUNK = 0x35;
-        const RESP_READ_CHUNK = 0xB5;
-
-        const cid = (Math.random() * 0xFFFFFFFF) >>> 0;
-        const req = new ArrayBuffer(6);
-        const reqView = new DataView(req);
-        reqView.setUint8(0, CMD_GET_INFO);
-        reqView.setUint8(1, 0);
-        reqView.setUint32(2, cid, true);
-
-        const info = await new Promise<{
-            userValid: boolean;
-            userWidth: number;
-            userHeight: number;
-            userSize: number;
-            userFrameCount: number;
-            userFps: number;
-            userFormat: number;
-            sysValid: boolean;
-            sysWidth: number;
-            sysHeight: number;
-            sysSize: number;
-            sysFrameCount: number;
-            sysFps: number;
-            sysFormat: number;
-        }>((resolve, reject) => {
-            const timeout = window.setTimeout(() => {
-                unsubscribe();
-                reject(new Error('Get info timeout'));
-            }, 5000);
-
-            const unsubscribe = onBinaryMessage((data) => {
-                const view = new DataView(data);
-                if (view.byteLength < 64) return;
-                const cmd = view.getUint8(0);
-                if (cmd !== RESP_GET_INFO) return;
-                const respCid = view.getUint32(2, true);
-                if (respCid !== cid) return;
-
-                window.clearTimeout(timeout);
-                unsubscribe();
-
-                const userValid = view.getUint8(6) === 1;
-                const sysValid = view.getUint8(7) === 1;
-                const userWidth = view.getUint16(8, true);
-                const userHeight = view.getUint16(10, true);
-                const userSize = view.getUint32(12, true);
-                const userFrameCount = view.getUint8(16);
-                const userFps = view.getUint8(17);
-                const userFormat = view.getUint8(18);
-                const sysWidth = view.getUint16(20, true);
-                const sysHeight = view.getUint16(22, true);
-                const sysSize = view.getUint32(24, true);
-                const sysFrameCount = view.getUint8(28);
-                const sysFps = view.getUint8(29);
-                const sysFormat = view.getUint8(30);
-                resolve({ userValid, userWidth, userHeight, userSize, userFrameCount, userFps, userFormat, sysValid, sysWidth, sysHeight, sysSize, sysFrameCount, sysFps, sysFormat });
-            });
-
-            sendBinaryMessage(new Uint8Array(req));
-        });
-
-        const readImage = async (target: 0 | 1, width: number, height: number, total: number) => {
-            const all = new Uint8Array(total);
-            const chunkSize = 4096;
-            const readCid = (Math.random() * 0xFFFFFFFF) >>> 0;
-            for (let offset = 0; offset < total; offset += chunkSize) {
-                const want = Math.min(chunkSize, total - offset);
-                const hdr = new ArrayBuffer(14);
-                const dv = new DataView(hdr);
-                dv.setUint8(0, CMD_READ_CHUNK);
-                dv.setUint8(1, target);
-                dv.setUint32(2, readCid, true);
-                dv.setUint32(6, offset, true);
-                dv.setUint16(10, want, true);
-                dv.setUint16(12, 0, true);
-
-                const resp = await new Promise<{ payload: Uint8Array }>((resolve, reject) => {
-                    const timeout = window.setTimeout(() => {
-                        unsubscribe();
-                        reject(new Error('Read chunk timeout'));
-                    }, 5000);
-
-                    const unsubscribe = onBinaryMessage((data) => {
-                        const view = new DataView(data);
-                        if (view.byteLength < 55) return;
-                        const cmd = view.getUint8(0);
-                        if (cmd !== RESP_READ_CHUNK) return;
-                        const respCid = view.getUint32(4, true);
-                        if (respCid !== readCid) return;
-                        const respTarget = view.getUint8(2);
-                        if (respTarget !== target) return;
-                        const respOffset = view.getUint32(16, true);
-                        if (respOffset !== offset) return;
-
-                        window.clearTimeout(timeout);
-                        unsubscribe();
-
-                        const success = view.getUint8(1) === 1;
-                        if (!success) {
-                            const errLen = view.getUint8(22);
-                            let msg = 'Read failed';
-                            if (errLen > 0 && view.byteLength >= 23 + errLen) {
-                                msg = new TextDecoder().decode(new Uint8Array(data, 23, errLen));
-                            }
-                            reject(new Error(msg));
-                            return;
-                        }
-                        const got = view.getUint16(20, true);
-                        const payload = new Uint8Array(data, 55, got);
-                        resolve({ payload });
-                    });
-
-                    sendBinaryMessage(new Uint8Array(hdr));
-                });
-
-                all.set(resp.payload, offset);
-            }
-            return all;
-        };
+        const info = await getDeviceImageCatalog();
 
         const cache: BgImagesCache = { system: null, user: null };
 
@@ -350,18 +206,18 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
             return { previewUrl: rgb565ToPngDataUrl(bytes, width, height), frames: undefined, fps: undefined, frameCount: 1 };
         };
 
-        if (info.sysValid && info.sysWidth > 0 && info.sysHeight > 0 && info.sysSize > 0) {
-            const bytes = await readImage(1, info.sysWidth, info.sysHeight, info.sysSize);
-            const previews = buildPreviews(bytes, info.sysWidth, info.sysHeight, info.sysFormat, info.sysFrameCount || 1, info.sysFps || 0);
-            const sys = { id: SYSTEM_BG_ID, width: info.sysWidth, height: info.sysHeight, previewUrl: previews.previewUrl };
+        if (info.system.valid && info.system.width > 0 && info.system.height > 0 && info.system.size > 0) {
+            const bytes = await readDeviceImage('system', info.system.size);
+            const previews = buildPreviews(bytes, info.system.width, info.system.height, info.system.format, info.system.frameCount || 1, info.system.fps || 0);
+            const sys = { id: SYSTEM_BG_ID, width: info.system.width, height: info.system.height, previewUrl: previews.previewUrl };
             setSystemAsset(sys);
             cache.system = sys;
         }
 
-        if (info.userValid && info.userWidth > 0 && info.userHeight > 0 && info.userSize > 0) {
-            const bytes = await readImage(0, info.userWidth, info.userHeight, info.userSize);
-            const previews = buildPreviews(bytes, info.userWidth, info.userHeight, info.userFormat, info.userFrameCount || 1, info.userFps || 0);
-            const usr = { id: USER_BG_ID, width: info.userWidth, height: info.userHeight, previewUrl: previews.previewUrl, frames: previews.frames, fps: previews.fps, frameCount: previews.frameCount };
+        if (info.user.valid && info.user.width > 0 && info.user.height > 0 && info.user.size > 0) {
+            const bytes = await readDeviceImage('user', info.user.size);
+            const previews = buildPreviews(bytes, info.user.width, info.user.height, info.user.format, info.user.frameCount || 1, info.user.fps || 0);
+            const usr = { id: USER_BG_ID, width: info.user.width, height: info.user.height, previewUrl: previews.previewUrl, frames: previews.frames, fps: previews.fps, frameCount: previews.frameCount };
             setUserAsset({ ...usr, name: usr.id });
             cache.user = usr;
         }
@@ -375,79 +231,16 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         }
     };
 
-    useEffect(() => {
-        if (!wsConnected) return;
-        void fetchBgImagesFromDeviceOnce();
-    }, [wsConnected]);
-
     const uploadUserBackgroundImage = async (name: string, width: number, height: number, data: Uint8Array, opts: { frameCount: number; fps: number }) => {
-        const CMD_BEGIN = 0x30;
-        const CMD_CHUNK = 0x31;
-        const CMD_COMMIT = 0x32;
-        const RESP_BEGIN = 0xB0;
-        const RESP_CHUNK = 0xB1;
-        const RESP_COMMIT = 0xB2;
-
-        const cid = (Math.random() * 0xFFFFFFFF) >>> 0;
-
         const frameCount = Math.max(1, Math.min(10, opts.frameCount | 0));
         const fps = Math.max(0, Math.min(5, opts.fps | 0));
-        const imageType = frameCount > 1 ? 1 : 0;
-
-        const begin = new ArrayBuffer(18);
-        const beginView = new DataView(begin);
-        beginView.setUint8(0, CMD_BEGIN);
-        beginView.setUint8(1, imageType);
-        beginView.setUint32(2, cid, true);
-        beginView.setUint16(6, width, true);
-        beginView.setUint16(8, height, true);
-        beginView.setUint32(10, data.length, true);
-        beginView.setUint8(14, frameCount);
-        beginView.setUint8(15, fps);
-        beginView.setUint16(16, 0, true);
-        const beginResp = await sendBinaryUserImageRequest(new Uint8Array(begin), RESP_BEGIN, cid);
-        if (!beginResp.success) throw new Error(beginResp.error || 'Begin failed');
-
-        const chunkSize = 4096;
-        for (let offset = 0; offset < data.length; offset += chunkSize) {
-            const part = data.subarray(offset, Math.min(data.length, offset + chunkSize));
-            const header = new ArrayBuffer(14);
-            const headerView = new DataView(header);
-            headerView.setUint8(0, CMD_CHUNK);
-            headerView.setUint8(1, 0);
-            headerView.setUint32(2, cid, true);
-            headerView.setUint32(6, offset, true);
-            headerView.setUint16(10, part.length, true);
-            headerView.setUint16(12, 0, true);
-            const msg = new Uint8Array(14 + part.length);
-            msg.set(new Uint8Array(header), 0);
-            msg.set(part, 14);
-            const chunkResp = await sendBinaryUserImageRequest(msg, RESP_CHUNK, cid);
-            if (!chunkResp.success) throw new Error(chunkResp.error || 'Chunk failed');
-        }
-
-        const commit = new ArrayBuffer(6);
-        const commitView = new DataView(commit);
-        commitView.setUint8(0, CMD_COMMIT);
-        commitView.setUint8(1, 0);
-        commitView.setUint32(2, cid, true);
-        const commitResp = await sendBinaryUserImageRequest(new Uint8Array(commit), RESP_COMMIT, cid);
-        if (!commitResp.success) throw new Error(commitResp.error || 'Commit failed');
+        await uploadDeviceImage({ width, height, data, frameCount, fps });
 
         return { id: USER_BG_ID, name, width, height, frameCount, fps };
     };
 
     const deleteUserBackgroundImage = async () => {
-        const CMD_DELETE = 0x33;
-        const RESP_DELETE = 0xB3;
-        const cid = (Math.random() * 0xFFFFFFFF) >>> 0;
-        const del = new ArrayBuffer(6);
-        const delView = new DataView(del);
-        delView.setUint8(0, CMD_DELETE);
-        delView.setUint8(1, 0);
-        delView.setUint32(2, cid, true);
-        const resp = await sendBinaryUserImageRequest(new Uint8Array(del), RESP_DELETE, cid);
-        if (!resp.success) throw new Error(resp.error || 'Delete failed');
+        await deleteDeviceImage();
     };
 
     const ActionLink = (props: { label: string; onClick: () => void; hidden?: boolean }) => {
@@ -714,18 +507,20 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                     label={t.SETTINGS_SCREEN_CONTROL_BRIGHTNESS_LABEL}
                     showValue
                     onValueChange={(details: { value: number[] }) => setBrightness(details.value[0])}
-                    onValueChangeEnd={() => void push()}
+                    onValueChangeEnd={async () => {
+                        await push();
+                    }}
                 />
 
                 <RadioCard.Root
                     size="sm"
                     value={screenStyle}
                     variant="subtle"
-                    onValueChange={(d) => {
+                    onValueChange={async (d) => {
                         const v = (d as { value: ScreenStyle }).value;
                         if (!v || v === screenStyle) return;
                         setScreenStyle(v);
-                        void updateScreenControl({ ...nextConfig, screenStyle: v }, true);
+                        await commitUiChange({ ...nextConfig, screenStyle: v });
                     }}
                 >
                     <HStack>
@@ -749,7 +544,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                         size={"sm"}
                         value={standbyDisplay}
                         variant={"subtle"}
-                        onValueChange={(d) => {
+                        onValueChange={async (d) => {
                             const v = (d as { value: 'none'|'backgroundImage'|'buttonLayout' }).value;
                             setStandbyDisplay(v);
                             const update: Partial<ScreenControlConfig> = { standbyDisplay: v };
@@ -758,7 +553,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                                 setBackgroundImageId(targetId);
                                 (update as Partial<ScreenControlConfig>).backgroundImageId = targetId;
                             }
-                            void updateScreenControl({ ...nextConfig, ...update }, true);
+                            await commitUiChange({ ...nextConfig, ...update });
                         }}
                     >
                         <HStack>
@@ -796,6 +591,11 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                         {!isDownloadingBgImages && (
                             <ActionsRow
                                 items={[
+                                    <ActionLink
+                                        key="load-previews"
+                                        label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LOAD_PREVIEWS_BUTTON}
+                                        onClick={() => void fetchBgImagesFromDeviceOnce()}
+                                    />,
                                     <ActionLink
                                         key="set"
                                         label={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_SET_BUTTON}
@@ -857,12 +657,12 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                 <RadioGroup.Root
                     variant = "subtle"
                     value={firstFeatureKey}
-                    onValueChange={(d) => {
+                    onValueChange={async (d) => {
                         const v = (d as { value: string }).value as ScreenControlFeatureKey;
                         if (!v || v === firstFeatureKey) return;
                         setFirstFeatureKey(v);
                         const pageId = featureKeyToId[v];
-                        void updateScreenControl({ ...nextConfig, currentPageId: pageId }, true);
+                        await commitUiChange({ ...nextConfig, currentPageId: pageId });
                     }}
                 >
                 <Table.Root size="sm" colorPalette="green" interactive>
@@ -901,7 +701,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                                         return { key: item.key, position };
                                     });
                                 }}
-                                onDrop={(e) => {
+                                onDrop={async (e) => {
                                     if (disabled) return;
                                     e.preventDefault();
 
@@ -926,7 +726,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                                     nextOrder.splice(insertIndex, 0, moved);
 
                                     setFeaturesOrder(nextOrder);
-                                    void updateScreenControl({ ...nextConfig, featuresOrder: nextOrder }, true);
+                                    await commitUiChange({ ...nextConfig, featuresOrder: nextOrder });
                                 }}
                                 onDragEnd={() => {
                                     dragFeatureKeyRef.current = null;
@@ -954,11 +754,11 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                                     <Switch
                                         checked={item.key === 'webConfigEntry' || features[item.key]}
                                         disabled={disabled || item.key === 'webConfigEntry'}
-                                        onCheckedChange={(e: { checked: boolean }) => {
+                                        onCheckedChange={async (e: { checked: boolean }) => {
                                             if (item.key === 'webConfigEntry') return;
                                             const nf = { ...features, [item.key]: e.checked } as ScreenControlFeatures;
                                             setFeatures(nf);
-                                            void updateScreenControl({ ...nextConfig, features: nf }, true);
+                                            await commitUiChange({ ...nextConfig, features: nf });
                                         }}
                                     />
                                 </Table.Cell>

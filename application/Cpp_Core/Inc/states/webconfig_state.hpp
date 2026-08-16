@@ -14,6 +14,7 @@ enum class WebConfigRuntimeStatus : uint8_t
     ErrorMaintenance,
     ErrorSecurity,
     ErrorStorageInit,
+    ErrorAdc,
     ErrorStorage,
 };
 
@@ -45,6 +46,7 @@ private:
     bool isRunning = false;
     bool retryRequested = false;
     bool recoveryUiPending = false;
+    bool startupTickTracePending = false;
     WebConfigRuntimeStatus runtimeStatus = WebConfigRuntimeStatus::Starting;
 };
 

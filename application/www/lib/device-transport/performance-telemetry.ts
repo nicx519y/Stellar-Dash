@@ -7,6 +7,7 @@ import {
   Unsubscribe,
 } from './types';
 import {
+  DeviceClockSyncRequester,
   DeviceClockSyncEstimate,
   DeviceClockSyncScheduler,
   DeviceClockSynchronizer,
@@ -22,12 +23,18 @@ import {
   parsePerformanceEdge,
   parsePerformanceSample,
 } from './performance-codec';
+import { TelemetryRequestSession } from './telemetry-request-session';
 
 const EDGE_REPLAY_CAPACITY = 64;
 
 export interface PerformanceTelemetryControllerOptions {
   clockSynchronizer?: DeviceClockSynchronizer;
   clockSyncIntervalMs?: number;
+  requester?: DeviceClockSyncRequester;
+}
+
+export interface PerformanceTelemetryStartOptions {
+  deferClockSync?: boolean;
 }
 
 /**
@@ -39,21 +46,23 @@ export class PerformanceTelemetryController {
   private readonly checkpointAssembler = new PerformanceCheckpointAssembler();
   private readonly clockSynchronizer: DeviceClockSynchronizer;
   private readonly clockSyncScheduler: DeviceClockSyncScheduler;
+  private readonly requester: DeviceClockSyncRequester;
   private readonly handlers = new Set<(snapshot: ButtonPerformanceMonitoringBinaryData) => void>();
   private readonly unsubscribers: Unsubscribe[] = [];
   private readonly recentEdges: PerformanceEdge[] = [];
   private worker: Worker | null = null;
   private renderScheduled = false;
-  private checkpointRequested = false;
   private lastEdgeSequence: number | null = null;
   private edgesDuringCheckpoint = 0;
+  private readonly requestSession = new TelemetryRequestSession();
 
   constructor(
     private readonly transport: DeviceTransport,
     options: PerformanceTelemetryControllerOptions = {},
   ) {
+    this.requester = options.requester ?? transport;
     this.clockSynchronizer =
-      options.clockSynchronizer ?? new DeviceClockSynchronizer(transport);
+      options.clockSynchronizer ?? new DeviceClockSynchronizer(this.requester);
     this.clockSyncScheduler = new DeviceClockSyncScheduler(
       transport,
       this.clockSynchronizer,
@@ -61,8 +70,12 @@ export class PerformanceTelemetryController {
     );
   }
 
-  start(): void {
-    if (this.unsubscribers.length > 0) return;
+  start(options: PerformanceTelemetryStartOptions = {}): void {
+    if (this.unsubscribers.length > 0) {
+      if (!options.deferClockSync) this.startClockSync();
+      return;
+    }
+    this.requestSession.begin();
     if (typeof Worker !== 'undefined') {
       this.worker = new Worker(new URL('./performance-worker.ts', import.meta.url), {
         type: 'module',
@@ -93,10 +106,18 @@ export class PerformanceTelemetryController {
         this.requestCheckpoint();
       }),
     );
-    this.clockSyncScheduler.start();
+    if (!options.deferClockSync) this.startClockSync();
+  }
+
+  startClockSync(): void {
+    const signal = this.requestSession.signal;
+    if (this.unsubscribers.length === 0 || !signal || signal.aborted) return;
+    this.clockSyncScheduler.start(signal);
   }
 
   stop(): void {
+    this.requestSession.end();
+    this.clockSyncScheduler.stop();
     this.unsubscribers.splice(0).forEach((unsubscribe) => unsubscribe());
     this.worker?.terminate();
     this.worker = null;
@@ -104,9 +125,7 @@ export class PerformanceTelemetryController {
     this.checkpointAssembler.reset(true);
     this.recentEdges.length = 0;
     this.edgesDuringCheckpoint = 0;
-    this.checkpointRequested = false;
     this.lastEdgeSequence = null;
-    this.clockSyncScheduler.stop();
   }
 
   subscribe(handler: (snapshot: ButtonPerformanceMonitoringBinaryData) => void): Unsubscribe {
@@ -171,7 +190,7 @@ export class PerformanceTelemetryController {
       }
       this.applyCheckpointWithoutRollback(checkpoint);
       this.edgesDuringCheckpoint = 0;
-      this.checkpointRequested = false;
+      this.requestSession.completeCheckpoint();
       this.scheduleRender();
     } catch {
       this.checkpointAssembler.reset(true);
@@ -202,10 +221,14 @@ export class PerformanceTelemetryController {
   }
 
   private requestCheckpoint(): void {
-    if (this.checkpointRequested) return;
-    this.checkpointRequested = true;
-    void this.transport.request('performance.get-checkpoint').catch(() => {
-      this.checkpointRequested = false;
+    const ticket = this.requestSession.beginCheckpoint();
+    if (!ticket) return;
+    void this.requester.request(
+      'performance.get-checkpoint',
+      {},
+      { signal: ticket.signal },
+    ).catch(() => {
+      this.requestSession.failCheckpoint(ticket);
     });
   }
 

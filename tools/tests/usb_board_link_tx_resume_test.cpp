@@ -25,12 +25,22 @@ struct AcceptedFragment {
 QueuedEvent events[16] = {};
 uint8_t eventHead;
 uint8_t eventTail;
-AcceptedFragment accepted[16] = {};
+AcceptedFragment accepted[32] = {};
 uint8_t acceptedCount;
 uint8_t secondFragmentFailures;
 bool failSecondFragment;
 bool suspendAfterFirstFragment;
 uint8_t clearFaultCount;
+uint8_t deviceWebConfigCredit;
+uint8_t creditQueryCount;
+bool dropNextCreditQueryResponse;
+enum class CreditQueryStateInjection : uint8_t {
+    None = 0u,
+    BeforeResponse,
+    AfterResponse,
+};
+CreditQueryStateInjection creditQueryStateInjection =
+    CreditQueryStateInjection::None;
 uint32_t nowMs;
 
 void queueEvent(uint8_t command, const void *payload, uint8_t length)
@@ -49,7 +59,15 @@ void queueEvent(uint8_t command, const void *payload, uint8_t length)
     ++eventTail;
 }
 
-void grantWebConfigCredit(uint8_t credits)
+void setDeviceWebConfigCredit(uint8_t credits)
+{
+    deviceWebConfigCredit =
+        credits > USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW
+            ? USB_BOARD_WEBCONFIG_REPORT_CREDIT_WINDOW
+            : credits;
+}
+
+void queueLegacyWebConfigCredit(uint8_t credits)
 {
     const usb_board_bulk_credit_v1_t update = {
         USB_BOARD_CHANNEL_WEBCONFIG,
@@ -59,7 +77,7 @@ void grantWebConfigCredit(uint8_t credits)
     USB_BOARD_LINK.process();
 }
 
-void queueUsbState(bool mounted, bool suspended)
+void queueUsbStateEvent(bool mounted, bool suspended)
 {
     const usb_board_usb_state_v1_t state = {
         static_cast<uint8_t>(mounted ? 1u : 0u),
@@ -70,7 +88,18 @@ void queueUsbState(bool mounted, bool suspended)
         USB_BOARD_STATUS_OK,
     };
     queueEvent(USB_BOARD_EVT_USB_STATE, &state, sizeof(state));
+}
+
+void queueUsbState(bool mounted, bool suspended)
+{
+    queueUsbStateEvent(mounted, suspended);
     USB_BOARD_LINK.process();
+}
+
+void queueUnmountRemountEvents()
+{
+    queueUsbStateEvent(false, false);
+    queueUsbStateEvent(true, false);
 }
 
 void initializeMaintenanceProfile()
@@ -80,7 +109,8 @@ void initializeMaintenanceProfile()
     assert(USB_BOARD_LINK.getCapabilities());
     assert(USB_BOARD_LINK.setProfile(
         USB_BOARD_PROFILE_WEB_CONFIG));
-    grantWebConfigCredit(1u);
+    queueUsbState(true, false);
+    setDeviceWebConfigCredit(1u);
 }
 
 void fillReport(uint8_t seed, uint8_t report[WEBHID_REPORT_BYTES])
@@ -132,7 +162,8 @@ void testSecondFragmentFailureResumesWithoutNewCredit()
     fillReport(0x5Cu, report);
     assert(!UsbBoardLink_WebConfigSendReport(report));
     assert(acceptedCount == 2u);
-    grantWebConfigCredit(1u);
+    setDeviceWebConfigCredit(1u);
+    nowMs += 10u;
     assert(UsbBoardLink_WebConfigSendReport(report));
     assert(acceptedCount == 4u);
     assert(accepted[2].header.transaction ==
@@ -145,7 +176,7 @@ void testExplicitSessionResetDiscardsPartialAndWaitsForCredit()
     uint8_t newReport[WEBHID_REPORT_BYTES];
     const uint8_t acceptedBefore = acceptedCount;
 
-    grantWebConfigCredit(1u);
+    setDeviceWebConfigCredit(1u);
     fillReport(0x31u, oldReport);
     failSecondFragment = true;
     assert(!UsbBoardLink_WebConfigSendReport(oldReport));
@@ -160,7 +191,8 @@ void testExplicitSessionResetDiscardsPartialAndWaitsForCredit()
     assert(!UsbBoardLink_WebConfigSendReport(newReport));
     assert(acceptedCount == static_cast<uint8_t>(acceptedBefore + 1u));
 
-    grantWebConfigCredit(1u);
+    setDeviceWebConfigCredit(1u);
+    nowMs += 10u;
     assert(UsbBoardLink_WebConfigSendReport(newReport));
     assert(acceptedCount == static_cast<uint8_t>(acceptedBefore + 3u));
     assert(accepted[acceptedBefore + 1u].header.fragment_index == 0u);
@@ -169,14 +201,18 @@ void testExplicitSessionResetDiscardsPartialAndWaitsForCredit()
                   accepted[acceptedBefore + 1u].length) == 0);
 }
 
-void testSuspendBetweenFragmentsCancelsOldGeneration()
+void testSuspendBetweenFragmentsResumesOldGeneration()
 {
     uint8_t oldReport[WEBHID_REPORT_BYTES];
+    uint8_t original[WEBHID_REPORT_BYTES];
+    uint8_t rebuilt[WEBHID_REPORT_BYTES] = {};
     uint8_t resumedReport[WEBHID_REPORT_BYTES];
     const uint8_t acceptedBefore = acceptedCount;
+    const uint8_t clearFaultBefore = clearFaultCount;
 
-    grantWebConfigCredit(1u);
+    setDeviceWebConfigCredit(1u);
     fillReport(0x48u, oldReport);
+    memcpy(original, oldReport, sizeof(original));
     suspendAfterFirstFragment = true;
     assert(!UsbBoardLink_WebConfigSendReport(oldReport));
     assert(acceptedCount == static_cast<uint8_t>(acceptedBefore + 1u));
@@ -184,14 +220,152 @@ void testSuspendBetweenFragmentsCancelsOldGeneration()
 
     fillReport(0x94u, resumedReport);
     assert(!UsbBoardLink_WebConfigSendReport(resumedReport));
+
+    /*
+     * Resume the exact credit-owned fragment without a new credit or
+     * CLEAR_FAULT. The caller's buffer may change; the retained payload must
+     * still be the original report and transaction.
+     */
     queueUsbState(true, false);
-    grantWebConfigCredit(1u);
+    oldReport[17] ^= 0xFFu;
+    assert(UsbBoardLink_WebConfigSendReport(oldReport));
+    assert(acceptedCount == static_cast<uint8_t>(acceptedBefore + 2u));
+    assert(accepted[acceptedBefore + 1u].header.fragment_index == 1u);
+    assert(accepted[acceptedBefore].header.transaction ==
+           accepted[acceptedBefore + 1u].header.transaction);
+    memcpy(rebuilt,
+           accepted[acceptedBefore].data,
+           accepted[acceptedBefore].length);
+    memcpy(&rebuilt[accepted[acceptedBefore].length],
+           accepted[acceptedBefore + 1u].data,
+           accepted[acceptedBefore + 1u].length);
+    assert(memcmp(rebuilt, original, sizeof(original)) == 0);
+    assert(clearFaultCount == clearFaultBefore);
+
+    /* The following complete report still waits for a returned credit. */
+    assert(!UsbBoardLink_WebConfigSendReport(resumedReport));
+    setDeviceWebConfigCredit(1u);
+    nowMs += 10u;
     assert(UsbBoardLink_WebConfigSendReport(resumedReport));
-    assert(acceptedCount == static_cast<uint8_t>(acceptedBefore + 3u));
-    assert(accepted[acceptedBefore + 1u].header.fragment_index == 0u);
-    assert(memcmp(accepted[acceptedBefore + 1u].data,
+    assert(acceptedCount == static_cast<uint8_t>(acceptedBefore + 4u));
+    assert(accepted[acceptedBefore + 2u].header.fragment_index == 0u);
+    assert(memcmp(accepted[acceptedBefore + 2u].data,
                   resumedReport,
-                  accepted[acceptedBefore + 1u].length) == 0);
+                  accepted[acceptedBefore + 2u].length) == 0);
+}
+
+void testLegacyAsyncCreditCannotDuplicateGrant()
+{
+    uint8_t firstReport[WEBHID_REPORT_BYTES];
+    uint8_t secondReport[WEBHID_REPORT_BYTES];
+    const uint8_t acceptedBefore = acceptedCount;
+
+    /*
+     * A historical/old-firmware asynchronous WebConfig grant arriving after
+     * the pull snapshot was consumed must be ignored, not re-authorize a
+     * second report.
+     */
+    setDeviceWebConfigCredit(1u);
+    fillReport(0x16u, firstReport);
+    fillReport(0x71u, secondReport);
+    assert(UsbBoardLink_WebConfigSendReport(firstReport));
+    assert(deviceWebConfigCredit == 0u);
+    queueLegacyWebConfigCredit(1u);
+    assert(!UsbBoardLink_WebConfigSendReport(secondReport));
+    assert(acceptedCount == static_cast<uint8_t>(acceptedBefore + 2u));
+
+    /* Only a new correlated pull snapshot can release the next report. */
+    setDeviceWebConfigCredit(1u);
+    nowMs += 10u;
+    assert(UsbBoardLink_WebConfigSendReport(secondReport));
+    assert(!UsbBoardLink_WebConfigSendReport(firstReport));
+    assert(acceptedCount == static_cast<uint8_t>(acceptedBefore + 4u));
+}
+
+void testLostCreditQueryResponseRetriesSafely()
+{
+    uint8_t report[WEBHID_REPORT_BYTES];
+    const uint8_t acceptedBefore = acceptedCount;
+    const uint8_t queriesBefore = creditQueryCount;
+
+    fillReport(0xB4u, report);
+    setDeviceWebConfigCredit(1u);
+    nowMs += 10u;
+    dropNextCreditQueryResponse = true;
+    assert(!UsbBoardLink_WebConfigSendReport(report));
+    assert(acceptedCount == acceptedBefore);
+    assert(creditQueryCount == static_cast<uint8_t>(queriesBefore + 1u));
+
+    /* The timed-out response granted nothing locally; a fresh transaction
+     * observes the same device capacity and sends exactly one report. */
+    assert(UsbBoardLink_WebConfigSendReport(report));
+    assert(acceptedCount == static_cast<uint8_t>(acceptedBefore + 2u));
+    assert(creditQueryCount == static_cast<uint8_t>(queriesBefore + 2u));
+    assert(deviceWebConfigCredit == 0u);
+}
+
+void testInFlightCreditStaysZeroUntilUsbCompletion()
+{
+    uint8_t report[WEBHID_REPORT_BYTES];
+    const uint8_t acceptedBefore = acceptedCount;
+    const uint8_t queriesBefore = creditQueryCount;
+
+    fillReport(0x2Du, report);
+    setDeviceWebConfigCredit(0u);
+    nowMs += 10u;
+    assert(!UsbBoardLink_WebConfigSendReport(report));
+    assert(acceptedCount == acceptedBefore);
+    assert(creditQueryCount == static_cast<uint8_t>(queriesBefore + 1u));
+
+    /* EP1 IN completion returns the CH585 whole-report slot. No async event
+     * is required; the next correlated query observes exactly one grant. */
+    setDeviceWebConfigCredit(1u);
+    nowMs += 10u;
+    assert(UsbBoardLink_WebConfigSendReport(report));
+    assert(acceptedCount == static_cast<uint8_t>(acceptedBefore + 2u));
+    assert(creditQueryCount == static_cast<uint8_t>(queriesBefore + 2u));
+    assert(deviceWebConfigCredit == 0u);
+}
+
+void testUnmountRemountCannotCrossCreditOrFragmentBoundary()
+{
+    uint8_t report[WEBHID_REPORT_BYTES];
+    const uint8_t acceptedBefore = acceptedCount;
+
+    fillReport(0xC7u, report);
+    setDeviceWebConfigCredit(1u);
+    nowMs += 10u;
+    creditQueryStateInjection =
+        CreditQueryStateInjection::BeforeResponse;
+
+    /* The query transaction observes unmount/remount before its correlated
+     * response. Its old-generation snapshot must not be installed locally. */
+    assert(!UsbBoardLink_WebConfigSendReport(report));
+    assert(acceptedCount == acceptedBefore);
+    assert(deviceWebConfigCredit == 1u);
+
+    nowMs += 10u;
+    assert(UsbBoardLink_WebConfigSendReport(report));
+    assert(acceptedCount == static_cast<uint8_t>(acceptedBefore + 2u));
+    assert(deviceWebConfigCredit == 0u);
+
+    fillReport(0x39u, report);
+    setDeviceWebConfigCredit(1u);
+    nowMs += 10u;
+    creditQueryStateInjection =
+        CreditQueryStateInjection::AfterResponse;
+
+    /* Here the snapshot response wins first, but the state pair is drained
+     * immediately before Port_Send. No fragment from the retired generation
+     * may reach the simulated CH585. */
+    assert(!UsbBoardLink_WebConfigSendReport(report));
+    assert(acceptedCount == static_cast<uint8_t>(acceptedBefore + 2u));
+    assert(deviceWebConfigCredit == 1u);
+
+    nowMs += 10u;
+    assert(UsbBoardLink_WebConfigSendReport(report));
+    assert(acceptedCount == static_cast<uint8_t>(acceptedBefore + 4u));
+    assert(deviceWebConfigCredit == 0u);
 }
 
 } // namespace
@@ -219,6 +393,11 @@ bool MonitorTelemetry_FillPowerFrameV2(MonitorPowerFrameV2 *)
 }
 
 bool USBBoardLinkPort_Init()
+{
+    return true;
+}
+
+bool USBBoardLinkPort_InitApplication()
 {
     return true;
 }
@@ -255,7 +434,8 @@ bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength)
             static_cast<uint8_t>(
                 USB_BOARD_CAP_FEATURE_WEBHID_V1 |
                 USB_BOARD_CAP_FEATURE_LOCAL_AUTH |
-                USB_BOARD_CAP_FEATURE_CONTROL_V1),
+                USB_BOARD_CAP_FEATURE_CONTROL_V1 |
+                USB_BOARD_CAP_FEATURE_WEBCONFIG_PULL_CREDIT),
         };
         queueEvent(USB_BOARD_EVT_CAPS, &response, sizeof(response));
         return true;
@@ -273,6 +453,11 @@ bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength)
         usb_board_fragment_header_v1_t header = {};
         assert(decoded.length >= USB_BOARD_FRAGMENT_HEADER_BYTES);
         memcpy(&header, decoded.payload, sizeof(header));
+        if (header.channel == USB_BOARD_CHANNEL_WEBCONFIG &&
+            header.fragment_index == 0u) {
+            assert(deviceWebConfigCredit != 0u);
+            --deviceWebConfigCredit;
+        }
         if (failSecondFragment && header.fragment_index == 1u) {
             ++secondFragmentFailures;
             return false;
@@ -311,11 +496,41 @@ bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength)
         response.header.data_length = 0u;
         if (request.header.opcode == USB_BOARD_CONTROL_CLEAR_FAULT) {
             ++clearFaultCount;
+            setDeviceWebConfigCredit(0u);
+        } else if (request.header.opcode ==
+                   USB_BOARD_CONTROL_GET_WEBCONFIG_CREDIT) {
+            const usb_board_bulk_credit_v1_t snapshot = {
+                USB_BOARD_CHANNEL_WEBCONFIG,
+                deviceWebConfigCredit,
+            };
+            ++creditQueryCount;
+            if (dropNextCreditQueryResponse) {
+                dropNextCreditQueryResponse = false;
+                return true;
+            }
+            memcpy(response.data, &snapshot, sizeof(snapshot));
+            response.header.data_length = sizeof(snapshot);
+            if (creditQueryStateInjection ==
+                CreditQueryStateInjection::BeforeResponse) {
+                queueUnmountRemountEvents();
+            }
+            queueEvent(
+                USB_BOARD_EVT_USB_CONTROL,
+                &response,
+                static_cast<uint8_t>(USB_BOARD_CONTROL_HEADER_BYTES +
+                                     response.header.data_length));
+            if (creditQueryStateInjection ==
+                CreditQueryStateInjection::AfterResponse) {
+                queueUnmountRemountEvents();
+            }
+            creditQueryStateInjection = CreditQueryStateInjection::None;
+            return true;
         }
         queueEvent(
             USB_BOARD_EVT_USB_CONTROL,
             &response,
-            USB_BOARD_CONTROL_HEADER_BYTES);
+            static_cast<uint8_t>(USB_BOARD_CONTROL_HEADER_BYTES +
+                                 response.header.data_length));
         return true;
     }
     default:
@@ -361,7 +576,11 @@ int main()
     initializeMaintenanceProfile();
     testSecondFragmentFailureResumesWithoutNewCredit();
     testExplicitSessionResetDiscardsPartialAndWaitsForCredit();
-    testSuspendBetweenFragmentsCancelsOldGeneration();
+    testSuspendBetweenFragmentsResumesOldGeneration();
+    testLegacyAsyncCreditCannotDuplicateGrant();
+    testLostCreditQueryResponseRetriesSafely();
+    testInFlightCreditStaysZeroUntilUsbCompletion();
+    testUnmountRemountCannotCrossCreditOrFragmentBoundary();
     USB_BOARD_LINK.shutdown();
     return 0;
 }

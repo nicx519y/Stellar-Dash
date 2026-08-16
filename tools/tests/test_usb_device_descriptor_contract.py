@@ -120,26 +120,17 @@ class UsbDeviceDescriptorRoutingContractTest(unittest.TestCase):
             r"USB_BOARD_CHANNEL_WEBCONFIG"
         )
 
-    def test_suspend_ends_the_webhid_transport_generation(self) -> None:
-        self.assert_source_regex(
-            r"else if\(\(flags & USBHS_UDIF_SUSPEND\) != 0u\)"
-            r"[\s\S]+?if\(\(suspended != 0u\) && "
-            r"\(s_suspended == 0u\)\)"
-            r"[\s\S]+?data_path_reset\(true\);"
-            r"[\s\S]+?s_suspended = suspended;"
+    def test_suspend_pauses_without_ending_the_webhid_generation(self) -> None:
+        start = self.source.index(
+            "else if((flags & USBHS_UDIF_SUSPEND) != 0u)"
         )
-        self.assert_source_regex(
-            r"static bool data_path_reset\(bool settle_same_bus\)"
-            r"[\s\S]+?R16_U2EP1_T_LEN\s*=\s*0u;"
-            r"[\s\S]+?R8_U2EP1_TX_CTRL\s*="
-            r"[\s\S]+?USBHS_UEP_T_TOG_DATA1"
-            r"[\s\S]+?USBHS_UEP_T_RES_NAK\);"
-            r"[\s\S]+?s_ep1_busy\s*=\s*0u;"
-            r"[\s\S]+?memset\(s_ep1_tx, 0, sizeof\(s_ep1_tx\)\);"
-            r"[\s\S]+?memset\(s_webhid_out, 0, "
-            r"sizeof\(s_webhid_out\)\);"
-            r"[\s\S]+?s_transport_reset_pending = 1u;"
-        )
+        end = self.source.index("else", start + len("else if"))
+        handler = self.source[start:end]
+        self.assertIn("s_suspended = suspended;", handler)
+        self.assertIn("R8_USB2_INT_FG = USBHS_UDIF_SUSPEND;", handler)
+        self.assertNotIn("data_path_reset", handler)
+        self.assertNotIn("s_transport_reset_pending", handler)
+        self.assertNotIn("RB_PIN_USB2_EN", handler)
 
     def test_bus_reset_uses_the_same_transport_reset_path(self) -> None:
         self.assert_source_regex(
@@ -154,10 +145,36 @@ class UsbDeviceDescriptorRoutingContractTest(unittest.TestCase):
             r"[\s\S]+?data_path_reset\(false\);"
         )
 
+    def test_ep1_check_and_arm_are_atomic_with_bus_reset_isr(self) -> None:
+        start = self.source.index("static bool ep1_send(")
+        end = self.source.index("static bool process_hid_get_report", start)
+        arm = self.source[start:end]
+
+        status = arm.index("PFIC_GetStatusIRQ(USB2_DEVICE_IRQn)")
+        disable = arm.index("PFIC_DisableIRQ(USB2_DEVICE_IRQn);")
+        mounted = arm.index("s_mounted != 0u", disable)
+        copy = arm.index("memcpy(s_ep1_tx, data, length);", mounted)
+        busy = arm.index("s_ep1_busy = 1u;", copy)
+        tx_length = arm.index("R16_U2EP1_T_LEN = length;", busy)
+        ack = arm.index("USBHS_UEP_T_RES_ACK", tx_length)
+        enable = arm.index("PFIC_EnableIRQ(USB2_DEVICE_IRQn);", ack)
+
+        self.assertLess(status, disable)
+        self.assertLess(disable, mounted)
+        self.assertLess(mounted, copy)
+        self.assertLess(copy, busy)
+        self.assertLess(busy, tx_length)
+        self.assertLess(tx_length, ack)
+        self.assertLess(ack, enable)
+        self.assertIn("if(irq_was_enabled != 0u)", arm[:disable])
+        self.assertIn("if(irq_was_enabled != 0u)", arm[ack:enable])
+        self.assertIn("return armed;", arm[enable:])
+
     def test_clear_fault_ack_follows_synchronous_webhid_reset(self) -> None:
         self.assert_source_regex(
             r"bool usb_management_control_hw_clear_fault\(void\)"
             r"[\s\S]+?data_path_reset\(true\);"
+            r"[\s\S]+?if\(reset_ok\)"
             r"[\s\S]+?s_transport_reset_pending\s*=\s*0u;"
             r"[\s\S]+?usb_board_link_reset_channel\("
             r"USB_BOARD_CHANNEL_WEBCONFIG\);"
@@ -191,15 +208,28 @@ class UsbDeviceDescriptorRoutingContractTest(unittest.TestCase):
             r"[\s\S]+?SysTick->CNTL - start_cycles"
             r"[\s\S]+?return false;"
         )
-        self.assert_source_regex(
-            r"if\(!wait_for_sie_idle\("
-            r"USBDEV_SIE_QUIESCE_TIMEOUT_MS\)\)"
-            r"[\s\S]+?~RB_PIN_USB2_EN"
-            r"[\s\S]+?USBHS_UD_RST_SIE"
-            r"[\s\S]+?reset_ok\s*=\s*false;"
+        failure_start = self.source.index(
+            "if(!wait_for_sie_idle(USBDEV_SIE_QUIESCE_TIMEOUT_MS))"
         )
+        failure_end = self.source.index("return false;", failure_start)
+        failure = self.source[failure_start:failure_end]
+        self.assertIn("R16_U2EP_TX_EN = saved_tx_enable;", failure)
+        self.assertIn("R16_U2EP_RX_EN = saved_rx_enable;", failure)
+        self.assertIn(
+            "s_webhid_ep2_blocked = saved_webhid_ep2_blocked;",
+            failure,
+        )
+        self.assertIn(
+            "saved_webhid_transport_reset_complete",
+            failure,
+        )
+        self.assertNotIn("RB_PIN_USB2_EN", failure)
+        self.assertNotIn("USBHS_UD_RST_SIE", failure)
+        self.assertNotIn("s_connected = 0u", failure)
+        self.assertNotIn("clear_webhid", failure)
+        self.assertNotIn("memset(s_webhid_out", failure)
         self.assert_source_regex(
-            r"if\(settle_webhid_endpoints && reset_ok\)"
+            r"if\(settle_webhid_endpoints\)"
             r"[\s\S]+?R16_U2EP_TX_EN\s*=\s*saved_tx_enable;"
             r"[\s\S]+?R16_U2EP_RX_EN\s*=\s*saved_rx_enable;"
         )
@@ -227,6 +257,7 @@ class UsbDeviceDescriptorRoutingContractTest(unittest.TestCase):
         )
         self.assert_source_regex(
             r"bool usb_management_control_hw_clear_fault\(void\)"
+            r"[\s\S]+?if\(reset_ok\)"
             r"[\s\S]+?usb_board_link_reset_channel\("
             r"USB_BOARD_CHANNEL_WEBCONFIG\);"
             r"[\s\S]+?usb_device_transport_reset\(\);"
