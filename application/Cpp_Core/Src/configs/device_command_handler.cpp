@@ -71,8 +71,10 @@ void DeviceCommandDispatcher::initializeHandlers() {
     registerHandler("update_screen_control_config", &globalHandler);
     registerHandler("export_all_config", &globalHandler);
     registerHandler("import_all_config", &globalHandler);
+    registerHandler("import_config_begin", &globalHandler);
     registerHandler("import_config_part", &globalHandler);
     registerHandler("import_config_finish", &globalHandler);
+    registerHandler("import_config_abort", &globalHandler);
     registerHandler("reboot", &globalHandler);
     
     // 注册LED配置相关命令
@@ -104,6 +106,7 @@ void DeviceCommandDispatcher::initializeHandlers() {
     registerHandler("ms_mark_mapping_stop", &msMarkHandler);
     registerHandler("ms_mark_mapping_step", &msMarkHandler);
     registerHandler("ms_get_mapping", &msMarkHandler);
+    registerHandler("get_adc_config_backup", &msMarkHandler);
     
     // 注册校准相关命令
     registerHandler("start_manual_calibration", &calibrationHandler);

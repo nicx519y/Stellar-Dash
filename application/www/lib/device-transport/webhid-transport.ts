@@ -36,6 +36,11 @@ import {
   WebHidInputReportEvent,
   WebHidNavigator,
 } from './webhid-types';
+import {
+  traceWebHidFrame,
+  traceWebHidLogical,
+  updateWebHidLogicalTrace,
+} from './webhid-network-trace';
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -99,6 +104,8 @@ interface PendingLogicalRequest {
   command: string;
   generation: number;
   phase: 'queued' | 'writing' | 'awaiting-response';
+  traceRecordId: string | null;
+  traceOutcomeRecorded: boolean;
   settled: boolean;
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
@@ -206,6 +213,7 @@ export class WebHidTransport implements DeviceTransport {
   private readonly ignoredLateBootstrapResponses = new Map<number, IgnoredLateBootstrapResponse>();
   private drainingLateBootstrapResponse = false;
   private readonly assemblers = new Map<SecureHidFrameType, FragmentAssembler>();
+  private readonly pendingRxTraceFrameIds = new Map<SecureHidFrameType, string[]>();
   private readonly eventHandlers = new Map<string, Set<(event: DeviceEvent) => void>>();
   private readonly stateHandlers = new Set<(state: DeviceTransportState) => void>();
   private readonly errorHandlers = new Set<(error: DeviceTransportError) => void>();
@@ -432,6 +440,7 @@ export class WebHidTransport implements DeviceTransport {
       this.nextSequence = 1;
       this.lastRxSequence = 0;
       this.assemblers.clear();
+      this.pendingRxTraceFrameIds.clear();
       this.rejectAllPending(new DeviceTransportError(
         'authentication-required',
         '设备权限会话正在重新授权',
@@ -599,6 +608,7 @@ export class WebHidTransport implements DeviceTransport {
     this.reauthorizationPending = false;
     this.assemblers.forEach((assembler) => assembler.reset());
     this.assemblers.clear();
+    this.pendingRxTraceFrameIds.clear();
     this.rejectAllPending(resetError);
     this.readChain = Promise.resolve();
     this.writeChain = Promise.resolve();
@@ -653,6 +663,7 @@ export class WebHidTransport implements DeviceTransport {
     this.ignoredLateBootstrapResponses.clear();
     this.reauthorizationPending = false;
     this.assemblers.clear();
+    this.pendingRxTraceFrameIds.clear();
     device.addEventListener('inputreport', this.handleInputReport);
     this.session = {
       transport: 'webhid',
@@ -745,6 +756,16 @@ export class WebHidTransport implements DeviceTransport {
     if (!this.isActiveConnection(generation, device)) {
       return;
     }
+    const traceFrameRecordId = traceWebHidFrame({
+      direction: 'rx',
+      reportId: this.reportId,
+      type: frame.type,
+      flags: frame.flags,
+      sequence: frame.sequence,
+      secure: frame.secure,
+      plaintextPayload: frame.payload,
+      wireReport: report,
+    });
     /*
      * A timed-out cleartext response may already be queued in the physical
      * USB IN path when a same-handle bootstrap retry starts.  Firmware resets
@@ -827,20 +848,20 @@ export class WebHidTransport implements DeviceTransport {
         this.emit('performance.checkpoint', frame.payload);
         break;
       case SecureHidFrameType.RPC_RESPONSE:
-        this.handleLogicalResponse(frame, this.pendingRpc);
+        this.handleLogicalResponse(frame, this.pendingRpc, traceFrameRecordId);
         break;
       case SecureHidFrameType.BOOTSTRAP_RESPONSE:
-        if (this.handleLogicalResponse(frame, this.pendingBootstrap)) {
+        if (this.handleLogicalResponse(frame, this.pendingBootstrap, traceFrameRecordId)) {
           // The complete response belonged to the timed-out generation.  The
           // retry's firmware response starts a fresh cleartext sequence at 1.
           this.lastRxSequence = 0;
         }
         break;
       case SecureHidFrameType.EVENT:
-        this.handleLogicalFrame(frame, null);
+        this.handleLogicalFrame(frame, null, traceFrameRecordId);
         break;
       case SecureHidFrameType.ERROR:
-        this.handleLogicalError(frame);
+        this.handleLogicalError(frame, traceFrameRecordId);
         break;
       default:
         throw new DeviceTransportError('protocol', `Unsupported incoming HID frame type ${frame.type}`);
@@ -850,13 +871,40 @@ export class WebHidTransport implements DeviceTransport {
   private handleLogicalResponse(
     frame: SecureHidFrame,
     pending: Map<number, PendingLogicalRequest>,
+    traceFrameRecordId: string | null,
   ): boolean {
+    this.rememberRxTraceFrame(frame.type, traceFrameRecordId);
     const complete = this.assembler(frame.type).push(frame);
     if (!complete) {
       return false;
     }
+    const frameRecordIds = this.takeRxTraceFrames(frame.type);
     const response = parseJson<LogicalResponse>(complete, 'logical response');
     const request = pending.get(response.transactionId);
+    const failed = !request || Boolean(response.errNo && response.errNo !== 0);
+    traceWebHidLogical({
+      direction: 'rx',
+      type: frame.type,
+      secure: frame.secure,
+      plaintextPayload: complete,
+      transactionId: response.transactionId,
+      command: request?.command,
+      decoded: response,
+      status: failed ? 'failed' : 'success',
+      errorCode: response.errNo ? String(response.errNo) : undefined,
+      errorMessage: !request
+        ? `Unknown HID transaction ${response.transactionId}`
+        : response.errorMessage,
+      frameRecordIds,
+    });
+    updateWebHidLogicalTrace(request?.traceRecordId ?? null, {
+      status: failed ? 'failed' : 'success',
+      responseDecoded: response,
+      errorCode: response.errNo ? String(response.errNo) : undefined,
+      errorMessage: response.errorMessage,
+      responseFrameRecordIds: frameRecordIds,
+    });
+    if (request) request.traceOutcomeRecorded = true;
     if (!request) {
       if (
         pending === this.pendingBootstrap &&
@@ -882,25 +930,55 @@ export class WebHidTransport implements DeviceTransport {
     return false;
   }
 
-  private handleLogicalFrame(frame: SecureHidFrame, forcedEventName: string | null): void {
+  private handleLogicalFrame(
+    frame: SecureHidFrame,
+    forcedEventName: string | null,
+    traceFrameRecordId: string | null,
+  ): void {
+    this.rememberRxTraceFrame(frame.type, traceFrameRecordId);
     const complete = this.assembler(frame.type).push(frame);
     if (!complete) {
       return;
     }
+    const frameRecordIds = this.takeRxTraceFrames(frame.type);
     const event = parseJson<{ command?: string; data?: unknown }>(complete, 'device event');
     const name = forcedEventName ?? event.command;
+    traceWebHidLogical({
+      direction: 'rx',
+      type: frame.type,
+      secure: frame.secure,
+      plaintextPayload: complete,
+      command: name,
+      decoded: event,
+      status: 'event',
+      frameRecordIds,
+    });
     if (!name) {
       throw new DeviceTransportError('protocol', 'Device event is missing a command name');
     }
     this.emit(name, event.data);
   }
 
-  private handleLogicalError(frame: SecureHidFrame): void {
+  private handleLogicalError(frame: SecureHidFrame, traceFrameRecordId: string | null): void {
+    this.rememberRxTraceFrame(frame.type, traceFrameRecordId);
     const complete = this.assembler(frame.type).push(frame);
     if (!complete) {
       return;
     }
+    const frameRecordIds = this.takeRxTraceFrames(frame.type);
     const error = parseJson<{ message?: string }>(complete, 'device error');
+    traceWebHidLogical({
+      direction: 'rx',
+      type: frame.type,
+      secure: frame.secure,
+      plaintextPayload: complete,
+      command: 'error',
+      decoded: error,
+      status: 'failed',
+      errorCode: 'device-error',
+      errorMessage: error.message,
+      frameRecordIds,
+    });
     throw new DeviceTransportError('protocol', error.message ?? 'Device rejected HID request');
   }
 
@@ -908,6 +986,7 @@ export class WebHidTransport implements DeviceTransport {
     type: SecureHidFrameType,
     logicalPayload: Uint8Array,
     secure: boolean,
+    logicalRecordId: string | null,
     onWriting?: () => void,
   ): Promise<void> {
     if (logicalPayload.byteLength > WEBHID_MAX_LOGICAL_MESSAGE_SIZE) {
@@ -927,6 +1006,7 @@ export class WebHidTransport implements DeviceTransport {
           fragments[index],
           flags,
           secure,
+          logicalRecordId,
         );
       }
     });
@@ -986,10 +1066,23 @@ export class WebHidTransport implements DeviceTransport {
       command,
       generation,
     );
+    const logicalRequest = { transactionId, command, params };
+    const logicalPayload = textEncoder.encode(JSON.stringify(logicalRequest));
+    pending.record.traceRecordId = traceWebHidLogical({
+      direction: 'tx',
+      type,
+      secure,
+      plaintextPayload: logicalPayload,
+      transactionId,
+      command,
+      decoded: logicalRequest,
+      status: 'pending',
+    });
     const send = this.sendLogical(
       type,
-      textEncoder.encode(JSON.stringify({ transactionId, command, params })),
+      logicalPayload,
       secure,
+      pending.record.traceRecordId,
       () => {
         if (!pending.record.settled) pending.record.phase = 'writing';
       },
@@ -1006,6 +1099,14 @@ export class WebHidTransport implements DeviceTransport {
     } catch (error) {
       const normalized = asOperationError(error, `命令 ${command}`);
       this.rejectPendingRequest(collection, transactionId, normalized);
+      if (!pending.record.traceOutcomeRecorded) {
+        updateWebHidLogicalTrace(pending.record.traceRecordId, {
+          status: 'failed',
+          errorCode: normalized.code,
+          errorMessage: normalized.message,
+        });
+        pending.record.traceOutcomeRecorded = true;
+      }
 
       const mayResynchronizeBootstrap =
         collection === this.pendingBootstrap &&
@@ -1124,6 +1225,7 @@ export class WebHidTransport implements DeviceTransport {
     payload: Uint8Array,
     flags: number,
     secure: boolean,
+    logicalRecordId: string | null = null,
   ): Promise<void> {
     if (!this.isActiveConnection(generation, device)) {
       throw new DeviceTransportError('disconnected', 'WebHID device disconnected before write');
@@ -1153,6 +1255,17 @@ export class WebHidTransport implements DeviceTransport {
     if (!this.isActiveConnection(generation, device)) {
       throw new DeviceTransportError('disconnected', 'WebHID device disconnected during write');
     }
+    traceWebHidFrame({
+      direction: 'tx',
+      reportId: this.reportId,
+      type,
+      flags,
+      sequence,
+      secure,
+      plaintextPayload: payload,
+      wireReport: report,
+      logicalRecordId,
+    });
     await device.sendReport(this.reportId, report);
     if (!this.isActiveConnection(generation, device)) {
       throw new DeviceTransportError('disconnected', 'WebHID device disconnected after write');
@@ -1171,6 +1284,8 @@ export class WebHidTransport implements DeviceTransport {
         command,
         generation,
         phase: 'queued',
+        traceRecordId: null,
+        traceOutcomeRecorded: false,
         settled: false,
         resolve,
         reject,
@@ -1201,9 +1316,23 @@ export class WebHidTransport implements DeviceTransport {
     return assembler;
   }
 
+  private rememberRxTraceFrame(type: SecureHidFrameType, recordId: string | null): void {
+    if (!recordId) return;
+    const recordIds = this.pendingRxTraceFrameIds.get(type) ?? [];
+    recordIds.push(recordId);
+    this.pendingRxTraceFrameIds.set(type, recordIds);
+  }
+
+  private takeRxTraceFrames(type: SecureHidFrameType): string[] {
+    const recordIds = this.pendingRxTraceFrameIds.get(type) ?? [];
+    this.pendingRxTraceFrameIds.delete(type);
+    return recordIds;
+  }
+
   private invalidateLogicalStateForSequenceGap(error: DeviceTransportError): void {
     this.assemblers.forEach((assembler) => assembler.reset());
     this.assemblers.clear();
+    this.pendingRxTraceFrameIds.clear();
     this.rejectAllPending(error);
   }
 
@@ -1326,6 +1455,7 @@ export class WebHidTransport implements DeviceTransport {
     this.drainingLateBootstrapResponse = false;
     this.reauthorizationPending = false;
     this.assemblers.clear();
+    this.pendingRxTraceFrameIds.clear();
     this.readChain = Promise.resolve();
     this.writeChain = Promise.resolve();
     this.rejectAllPending(error);

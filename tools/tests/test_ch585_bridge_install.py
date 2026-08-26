@@ -85,11 +85,12 @@ class Ch585BridgeInstallTests(unittest.TestCase):
         self.assertIn("resume_after=False", source)
         self.assertNotIn('"qspi_init",\n            "resume",', source)
 
-    def test_installer_uses_openocd_standard_whole_image_write(self) -> None:
+    def test_installer_preserves_runtime_whole_image_qspi_route(self) -> None:
         build = (ROOT / "tools" / "build.py").read_text(encoding="utf-8")
+        self.assertIn("def _flash_runtime_qspi_file(", build)
         self.assertIn("flash write_image erase", build)
-        self.assertIn("verify_image", build)
-        self.assertNotIn("chunk_size: int", build)
+        self.assertIn("flash verify_bank 1", build)
+        self.assertNotIn("chunks_per_session", build)
 
 
 if __name__ == "__main__":

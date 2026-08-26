@@ -592,6 +592,10 @@ bool fromJSON(Config& config, cJSON* json) {
             cJSON* hotkeyItem = cJSON_GetArrayItem(hotkeysConfig, i);
             if (!hotkeyItem || !cJSON_IsObject(hotkeyItem)) continue;
 
+            // Locked entries are firmware-owned recovery shortcuts.  Preserve
+            // the complete entry, not only the lock bit.
+            if (config.hotkeys[i].isLocked) continue;
+
             cJSON* keyItem = cJSON_GetObjectItemCaseSensitive(hotkeyItem, "key");
             cJSON* legacyVirtualPinItem =
                 cJSON_GetObjectItemCaseSensitive(hotkeyItem, "virtualPin");

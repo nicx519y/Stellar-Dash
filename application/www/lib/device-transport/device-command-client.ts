@@ -47,6 +47,8 @@ type ScopeUpgradeOperation = {
 };
 
 const MAX_BOOTSTRAP_RESYNCHRONIZATIONS = 2;
+const HBOX_CONFIG_BACKUP_FORMAT = 'hbox-webconfig-backup';
+const HBOX_CONFIG_BACKUP_VERSION = 2;
 
 /** HID-native command/session facade used by React and typed feature clients. */
 export class DeviceCommandClient {
@@ -616,6 +618,8 @@ export class DeviceCommandClient {
 
   async exportConfig(): Promise<Record<string, unknown>> {
     const result: Record<string, unknown> = {
+      backupFormat: HBOX_CONFIG_BACKUP_FORMAT,
+      backupVersion: HBOX_CONFIG_BACKUP_VERSION,
       globalConfig: {},
       hotkeysConfig: [],
       screenControl: {},
@@ -632,7 +636,132 @@ export class DeviceCommandClient {
         }
       },
     );
+
+    const adcResponse = await this.request('get_adc_config_backup');
+    const adcConfig = asRecord(adcResponse?.adcConfig);
+    if (!adcConfig) {
+      throw new DeviceTransportError(
+        'protocol',
+        'get_adc_config_backup response is malformed',
+      );
+    }
+    result.adcConfig = adcConfig;
+    result.userImage = await this.exportUserImageBackup();
     return result;
+  }
+
+  async importConfig(input: unknown): Promise<void> {
+    const backup = validateConfigBackup(input);
+    const hasUserImage = Object.prototype.hasOwnProperty.call(backup, 'userImage');
+    const previousImage = hasUserImage ? await this.exportUserImageBackup() : null;
+    let transactionActive = false;
+    let imageTouched = false;
+
+    try {
+      await this.request('import_config_begin', {
+        strict: backup.backupVersion === HBOX_CONFIG_BACKUP_VERSION,
+        replaceProfiles: backup.backupVersion === HBOX_CONFIG_BACKUP_VERSION,
+      });
+      transactionActive = true;
+
+      await this.request('import_config_part', {
+        section: 'global',
+        data: backup.globalConfig,
+      });
+      await this.request('import_config_part', {
+        section: 'hotkeys',
+        data: backup.hotkeysConfig,
+      });
+      await this.request('import_config_part', {
+        section: 'screenControl',
+        data: backup.screenControl,
+      });
+      for (const profile of backup.profiles) {
+        await this.request('import_config_part', {
+          section: 'profile',
+          data: profile,
+        });
+      }
+      if (backup.adcConfig) {
+        await this.request('import_config_part', {
+          section: 'adcConfig',
+          data: backup.adcConfig,
+        });
+      }
+
+      if (hasUserImage) {
+        imageTouched = true;
+        await this.restoreUserImageBackup(backup.userImage);
+      }
+
+      await this.request('import_config_finish');
+      transactionActive = false;
+    } catch (error) {
+      if (transactionActive) {
+        await this.request('import_config_abort').catch(() => undefined);
+      }
+      if (imageTouched) {
+        try {
+          await this.restoreUserImageBackup(previousImage);
+        } catch (rollbackError) {
+          throw new DeviceTransportError(
+            'protocol',
+            `Configuration import failed and the previous user image could not be restored: ${formatError(rollbackError)}`,
+            error,
+          );
+        }
+      }
+      throw error;
+    }
+  }
+
+  private async exportUserImageBackup(): Promise<Record<string, unknown> | null> {
+    const catalog = await this.getImageCatalog();
+    if (!catalog.user.valid) return null;
+    const data = await this.readImage('user', catalog.user.size);
+    return {
+      width: catalog.user.width,
+      height: catalog.user.height,
+      size: catalog.user.size,
+      frameCount: catalog.user.frameCount,
+      fps: catalog.user.fps,
+      format: catalog.user.format,
+      encoding: 'base64',
+      data: bytesToBase64(data),
+    };
+  }
+
+  private async restoreUserImageBackup(value: unknown): Promise<void> {
+    if (value === null) {
+      const deleted = await this.deleteImage();
+      if (!deleted.success) {
+        throw new DeviceTransportError(
+          'protocol',
+          deleted.error || 'Device rejected user image deletion',
+        );
+      }
+      return;
+    }
+    const image = asRecord(value);
+    if (!image || image.encoding !== 'base64' || typeof image.data !== 'string') {
+      throw new DeviceTransportError('protocol', 'User image backup is malformed');
+    }
+    const data = base64ToBytes(image.data);
+    const width = checkedUnsignedInteger(Number(image.width), 0xffff, 'Image width');
+    const height = checkedUnsignedInteger(Number(image.height), 0xffff, 'Image height');
+    const size = checkedUnsignedInteger(Number(image.size), 0xffff_ffff, 'Image size');
+    const frameCount = checkedUnsignedInteger(Number(image.frameCount), 10, 'Image frame count');
+    const fps = checkedUnsignedInteger(Number(image.fps), 5, 'Image FPS');
+    if (size !== data.byteLength || size === 0 || frameCount < 1) {
+      throw new DeviceTransportError('protocol', 'User image backup length is invalid');
+    }
+    const uploaded = await this.uploadImage({ width, height, data, frameCount, fps });
+    if (!uploaded.success) {
+      throw new DeviceTransportError(
+        'protocol',
+        uploaded.error || 'Device rejected user image restore',
+      );
+    }
   }
 
   enqueue(
@@ -1131,6 +1260,98 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value === undefined ? undefined : { value };
 }
 
+type ValidatedConfigBackup = {
+  backupVersion: number;
+  globalConfig: Record<string, unknown>;
+  hotkeysConfig: unknown[];
+  screenControl: Record<string, unknown>;
+  profiles: Record<string, unknown>[];
+  adcConfig?: Record<string, unknown>;
+  userImage?: unknown;
+};
+
+function validateConfigBackup(value: unknown): ValidatedConfigBackup {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new DeviceTransportError('protocol', 'Configuration backup must be a JSON object');
+  }
+  const source = value as Record<string, unknown>;
+  if (
+    source.backupFormat !== undefined &&
+    source.backupFormat !== HBOX_CONFIG_BACKUP_FORMAT
+  ) {
+    throw new DeviceTransportError('protocol', 'Unsupported configuration backup format');
+  }
+  const version = source.backupVersion === undefined ? 1 : Number(source.backupVersion);
+  if (!Number.isInteger(version) || version < 1 || version > HBOX_CONFIG_BACKUP_VERSION) {
+    throw new DeviceTransportError('protocol', 'Unsupported configuration backup version');
+  }
+
+  const globalConfig = source.globalConfig;
+  const hotkeysConfig = source.hotkeysConfig;
+  const screenControl = source.screenControl;
+  const profiles = source.profiles;
+  if (!globalConfig || typeof globalConfig !== 'object' || Array.isArray(globalConfig)) {
+    throw new DeviceTransportError('protocol', 'Configuration backup is missing globalConfig');
+  }
+  if (!Array.isArray(hotkeysConfig)) {
+    throw new DeviceTransportError('protocol', 'Configuration backup is missing hotkeysConfig');
+  }
+  if (!screenControl || typeof screenControl !== 'object' || Array.isArray(screenControl)) {
+    throw new DeviceTransportError('protocol', 'Configuration backup is missing screenControl');
+  }
+  if (!Array.isArray(profiles) || profiles.length === 0 || profiles.length > 16) {
+    throw new DeviceTransportError('protocol', 'Configuration backup has an invalid profile list');
+  }
+
+  const normalizedProfiles: Record<string, unknown>[] = [];
+  const profileIds = new Set<string>();
+  for (const profile of profiles) {
+    if (!profile || typeof profile !== 'object' || Array.isArray(profile)) {
+      throw new DeviceTransportError('protocol', 'Configuration backup contains an invalid profile');
+    }
+    const item = profile as Record<string, unknown>;
+    if (typeof item.id !== 'string' || item.id.length === 0 || profileIds.has(item.id)) {
+      throw new DeviceTransportError('protocol', 'Configuration backup contains an invalid profile ID');
+    }
+    profileIds.add(item.id);
+    normalizedProfiles.push(item);
+  }
+
+  const adcConfig = source.adcConfig;
+  const hasUserImage = Object.prototype.hasOwnProperty.call(source, 'userImage');
+  if (version === HBOX_CONFIG_BACKUP_VERSION) {
+    const defaultProfileId = (globalConfig as Record<string, unknown>).defaultProfileId;
+    if (typeof defaultProfileId !== 'string' || !profileIds.has(defaultProfileId)) {
+      throw new DeviceTransportError(
+        'protocol',
+        'Configuration backup default profile is missing or disabled',
+      );
+    }
+    if (!adcConfig || typeof adcConfig !== 'object' || Array.isArray(adcConfig)) {
+      throw new DeviceTransportError('protocol', 'Configuration backup is missing ADC data');
+    }
+    if (!hasUserImage) {
+      throw new DeviceTransportError('protocol', 'Configuration backup is missing user image state');
+    }
+  }
+
+  return {
+    backupVersion: version,
+    globalConfig: globalConfig as Record<string, unknown>,
+    hotkeysConfig,
+    screenControl: screenControl as Record<string, unknown>,
+    profiles: normalizedProfiles,
+    ...(adcConfig && typeof adcConfig === 'object' && !Array.isArray(adcConfig)
+      ? { adcConfig: adcConfig as Record<string, unknown> }
+      : {}),
+    ...(hasUserImage ? { userImage: source.userImage } : {}),
+  };
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function asDeviceTransportError(error: unknown): DeviceTransportError {
   return error instanceof DeviceTransportError
     ? error
@@ -1356,9 +1577,13 @@ function nextCorrelationId(): number {
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  for (const value of bytes) binary += String.fromCharCode(value);
-  return btoa(binary);
+  const parts: string[] = [];
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const part = bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length));
+    parts.push(String.fromCharCode(...part));
+  }
+  return btoa(parts.join(''));
 }
 
 function base64ToBytes(value: string): Uint8Array {

@@ -873,12 +873,26 @@ test('supports Profile CRUD, hotkeys, screen settings and device logs', async ()
   );
 
   const initialHotkeys = await transport.request('get_hotkeys_config');
-  const nextHotkeys = initialHotkeys.data.hotkeysConfig.slice(0, 2);
+  const nextHotkeys = [
+    { key: 0, action: 'None', isHold: false, isLocked: false },
+    { key: 1, action: 'None', isHold: false, isLocked: false },
+    { key: 18, action: 'LedsBrightnessDown', isHold: true, isLocked: true },
+  ];
   await transport.request('update_hotkeys_config', {
     hotkeysConfig: nextHotkeys,
   });
   const hotkeys = await transport.request('get_hotkeys_config');
-  assert.deepEqual(hotkeys.data.hotkeysConfig, nextHotkeys);
+  assert.equal(hotkeys.data.hotkeysConfig.length, 11);
+  assert.deepEqual(
+    hotkeys.data.hotkeysConfig.slice(0, 2),
+    initialHotkeys.data.hotkeysConfig.slice(0, 2),
+  );
+  assert.deepEqual(hotkeys.data.hotkeysConfig[2], {
+    key: 18,
+    action: 'LedsBrightnessDown',
+    isHold: true,
+    isLocked: false,
+  });
 
   await transport.request('update_screen_control_config', {
     screenControl: { brightness: 33, currentPageId: 7 },
@@ -1556,5 +1570,78 @@ test('stream image ACK rejects mismatched cid and offset metadata', async () => 
     /unrelated ACK|does not match the uploaded chunk/,
   );
   assert.equal(adapter.imageTransferTotals.size, 0);
+  adapter.dispose();
+});
+
+test('versioned backup restores default profile, exact profile set, ADC data and user image', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+
+  await adapter.request('switch_default_profile', { profileId: 'profile-tournament' });
+  const pixels = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.equal((await adapter.uploadImage({
+    width: 2,
+    height: 2,
+    data: pixels,
+    frameCount: 1,
+    fps: 0,
+  })).success, true);
+
+  const backup = await adapter.exportConfig();
+  assert.equal(backup.backupFormat, 'hbox-webconfig-backup');
+  assert.equal(backup.backupVersion, 2);
+  assert.equal(backup.globalConfig.defaultProfileId, 'profile-tournament');
+  assert.equal(backup.adcConfig.mappings.length, 1);
+  assert.equal(backup.userImage.size, pixels.length);
+
+  await adapter.request('switch_default_profile', { profileId: 'profile-arcade' });
+  await adapter.request('create_profile', { profileName: 'Must Be Removed' });
+  assert.equal((await adapter.deleteImage()).success, true);
+
+  await adapter.importConfig(backup);
+  const profiles = await adapter.request('get_profile_list');
+  assert.equal(profiles.defaultProfileDetails.id, 'profile-tournament');
+  assert.deepEqual(
+    profiles.profileList.items.map((profile) => profile.id).sort(),
+    ['profile-arcade', 'profile-tournament'],
+  );
+  const restored = await adapter.readImage('user', pixels.length);
+  assert.deepEqual([...restored], [...pixels]);
+  adapter.dispose();
+});
+
+test('failed versioned import aborts staged config and restores the previous user image', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+
+  const previousPixels = Uint8Array.from([10, 20, 30, 40]);
+  assert.equal((await adapter.uploadImage({
+    width: 1,
+    height: 2,
+    data: previousPixels,
+    frameCount: 1,
+    fps: 0,
+  })).success, true);
+  const backup = await adapter.exportConfig();
+  const replacementPixels = Uint8Array.from([1, 3, 5, 7]);
+  backup.userImage = {
+    ...backup.userImage,
+    size: replacementPixels.length,
+    data: Buffer.from(replacementPixels).toString('base64'),
+  };
+
+  const originalRequest = transport.request.bind(transport);
+  transport.request = async (command, params) => {
+    if (command === 'import_config_finish') {
+      throw new DeviceTransportError('timeout', 'simulated finish failure');
+    }
+    return originalRequest(command, params);
+  };
+
+  await assert.rejects(adapter.importConfig(backup), /simulated finish failure/);
+  const restored = await adapter.readImage('user', previousPixels.length);
+  assert.deepEqual([...restored], [...previousPixels]);
   adapter.dispose();
 });

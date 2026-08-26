@@ -9,6 +9,7 @@ type Waiter = {
 };
 
 type QueueEntry = {
+  key: string;
   command: string;
   params: CommandParams;
   canSendAt: number;
@@ -50,13 +51,15 @@ export class DeviceRequestQueue {
   ): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
       const canSendAt = immediate ? Date.now() : Date.now() + this.debounceMs;
-      const existing = this.queued.get(command);
+      const key = this.coalescingKey(command, params);
+      const existing = this.queued.get(key);
       if (existing) {
         existing.params = params;
         existing.canSendAt = canSendAt;
         existing.waiters.push({ resolve, reject });
       } else {
-        this.queued.set(command, {
+        this.queued.set(key, {
+          key,
           command,
           params,
           canSendAt,
@@ -71,9 +74,13 @@ export class DeviceRequestQueue {
   }
 
   sendPendingCommandImmediately(command: string): boolean {
-    const entry = this.queued.get(command);
-    if (!entry) return false;
-    entry.canSendAt = Date.now();
+    let found = false;
+    for (const entry of this.queued.values()) {
+      if (entry.command !== command) continue;
+      entry.canSendAt = Date.now();
+      found = true;
+    }
+    if (!found) return false;
     this.schedule();
     return true;
   }
@@ -118,7 +125,7 @@ export class DeviceRequestQueue {
     return {
       queueSize: this.queued.size,
       activeCommand: this.active?.command,
-      queuedCommands: [...this.queued.keys()],
+      queuedCommands: [...this.queued.values()].map((entry) => entry.command),
     };
   }
 
@@ -148,7 +155,7 @@ export class DeviceRequestQueue {
       this.schedule();
       return;
     }
-    this.queued.delete(next.command);
+    this.queued.delete(next.key);
     this.active = next;
     const send = this.sendFunction;
     if (!send) {
@@ -203,5 +210,19 @@ export class DeviceRequestQueue {
     if (!this.timer) return;
     clearTimeout(this.timer);
     this.timer = null;
+  }
+
+  private coalescingKey(command: string, params: CommandParams): string {
+    if (command === 'update_profile') {
+      const details = params.profileDetails;
+      const detailsId = details && typeof details === 'object' && !Array.isArray(details)
+        ? (details as Record<string, unknown>).id
+        : undefined;
+      const profileId = typeof params.profileId === 'string'
+        ? params.profileId
+        : (typeof detailsId === 'string' ? detailsId : '');
+      return `${command}:${profileId}`;
+    }
+    return command;
   }
 }

@@ -17,3 +17,4 @@ export * from './webhid-config-export';
 export * from './webconfig-target';
 export * from './initial-auto-connect';
 export * from './device-lease';
+export * from './webhid-network-trace';

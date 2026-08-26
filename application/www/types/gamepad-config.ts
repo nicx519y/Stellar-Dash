@@ -29,7 +29,7 @@ export const DEFAULT_FIRMWARE_SERVER_HOST = 'https://firmware.st-dash.com';
 // combination key max length
 export const COMBINATION_KEY_MAX_LENGTH = 5;
 // max number of button combination
-export const MAX_NUM_BUTTON_COMBINATION = 5;
+export const MAX_NUM_BUTTON_COMBINATION = 10;
 
 // latest PCB: 18 Hall + 4 GPIO = 22 keys
 export const KEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21 ];
@@ -640,6 +640,7 @@ export const UI_TEXT = {
 
     // Calibration
     AUTO_CALIBRATION_TITLE: "Auto Calibration",
+    AUTO_CALIBRATION_HELPER: "Use the stored automatic calibration values instead of manual calibration values.",
     MANUAL_CALIBRATION_TITLE: "Manual Calibration",
     CALIBRATION_HELPER_TEXT: "calibration is the process of finding the optimal button travel for the gamepad. It is a process of finding the optimal button travel for the gamepad.",
     CALIBRATION_START_BUTTON: "Start Calibration",
@@ -729,6 +730,7 @@ export const UI_TEXT = {
     INPUT_MODE_TITLE: "Platform",
     POWER_TITLE: "Power",
     POWER_WAKE_HOLD_LABEL: "Long Press Wake",
+    POWER_WAKE_HOLD_HELPER: "How long the wake button must be held before the device powers up.",
     POWER_AUTO_STANDBY_LABEL: "Auto Sleep",
     POWER_AUTO_STANDBY_NONE: "None",
 
@@ -1050,6 +1052,7 @@ export const UI_TEXT_ZH = {
     
     // 校准
     AUTO_CALIBRATION_TITLE: "自动磁轴校准",
+    AUTO_CALIBRATION_HELPER: "使用设备中保存的自动校准值，而不是手动校准值。",
     MANUAL_CALIBRATION_TITLE: "手动磁轴校准",
     CALIBRATION_HELPER_TEXT: "磁轴校准是找到控制器最佳按键行程的过程。它是找到控制器最佳按键行程的过程。",
     CALIBRATION_START_BUTTON: "开始按键校准",
@@ -1139,6 +1142,7 @@ export const UI_TEXT_ZH = {
     INPUT_MODE_TITLE: "平台",
     POWER_TITLE: "电源",
     POWER_WAKE_HOLD_LABEL: "长按唤醒时长",
+    POWER_WAKE_HOLD_HELPER: "唤醒按键需要持续按住多久才会启动设备。",
     POWER_AUTO_STANDBY_LABEL: "自动休眠",
     POWER_AUTO_STANDBY_NONE: "无自动待机",
 

@@ -19,6 +19,8 @@ import {
     DeviceTransportError,
     reconnectRequiresPermission,
 } from '@/lib/device-transport';
+import { initializeWebHidNetworkTrace } from '@/lib/device-transport/webhid-network-trace';
+import { usePathname } from 'next/navigation';
 
 
 // 创建一个内部组件来使用 context
@@ -36,6 +38,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
     const { error, setError } = useGamepadConfig();
     const { t } = useLanguage();
     const mockPreview = configuredTransportMode() === 'mock';
+
+    useEffect(() => {
+        initializeWebHidNetworkTrace();
+    }, []);
 
     // 全局错误处理
     useEffect(() => {
@@ -151,6 +157,28 @@ function AppContent({ children }: { children: React.ReactNode }) {
             <DialogCannotClose />
             <DialogEditCombination />
         </Flex>
+    );
+}
+
+function RouteAwareContent({ children }: { children: React.ReactNode }) {
+    const pathname = usePathname();
+    const isTraceViewer = pathname === '/webhid-trace' ||
+        pathname === '/webhid-trace/';
+
+    // The trace viewer is deliberately outside GamepadConfigProvider. It only
+    // receives same-origin trace broadcasts and must never open or lease HID.
+    if (isTraceViewer) {
+        return <>{children}</>;
+    }
+
+    return (
+        <GamepadConfigProvider>
+            <LanguageProvider>
+                <AppContent>
+                    {children}
+                </AppContent>
+            </LanguageProvider>
+        </GamepadConfigProvider>
     );
 }
 
@@ -1323,14 +1351,9 @@ jnOfAJzDQKWmAn8IvAdQobcBbwN8wlP5aQRoACQWM/D/QN+5DmrsiuEAAAAASUVORK5CYII=
             <body style={{ height: '100vh', margin: 0 }}>
                 <StyledComponentsRegistry>
                     <Provider>
-                        <GamepadConfigProvider>
-                            <LanguageProvider>
-                                <AppContent>
-                                    {children}
-                                </AppContent>
-                                
-                            </LanguageProvider>
-                        </GamepadConfigProvider>
+                        <RouteAwareContent>
+                            {children}
+                        </RouteAwareContent>
                     </Provider>
                 </StyledComponentsRegistry>
             </body>

@@ -8,12 +8,13 @@ import {
     VStack,
     HStack,
     Slider,
+    Switch,
     Dialog,
     Fieldset,
     Portal,
 } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RapidTriggerConfig, RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS, ButtonPerformancePresetConfigs, ButtonPerformancePresetName, GameControllerButton } from "@/types/gamepad-config";
+import { ADCButtonDebounceAlgorithm, RapidTriggerConfig, RAPID_TRIGGER_SETTINGS_INTERACTIVE_IDS, ButtonPerformancePresetConfigs, ButtonPerformancePresetName, GameControllerButton } from "@/types/gamepad-config";
 import { useLanguage } from "@/contexts/language-context";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { LuSheet } from "react-icons/lu";
@@ -236,14 +237,32 @@ export function ButtonsPerformanceSettingContent({
     const saveConfig = useCallback(() =>{
         const profileId = defaultProfile.id;
         const preserveAllFlag = defaultProfile.triggerConfigs?.isAllBtnsConfiguring ?? true;
+        const preserveDebounce = defaultProfile.triggerConfigs?.debounceAlgorithm ?? ADCButtonDebounceAlgorithm.NONE;
         updateProfileDetails(profileId, {
             id: profileId,
             triggerConfigs: {
                 isAllBtnsConfiguring: preserveAllFlag,
+                debounceAlgorithm: preserveDebounce,
                 triggerConfigs: triggerConfigs
             }
         });
     }, [defaultProfile, triggerConfigs]);
+
+    const updateTriggerOptions = (
+        patch: Partial<Pick<NonNullable<typeof defaultProfile.triggerConfigs>, 'isAllBtnsConfiguring' | 'debounceAlgorithm'>>,
+    ) => {
+        const profileId = defaultProfile.id;
+        const current = defaultProfile.triggerConfigs;
+        updateProfileDetails(profileId, {
+            id: profileId,
+            triggerConfigs: {
+                isAllBtnsConfiguring: current?.isAllBtnsConfiguring ?? true,
+                debounceAlgorithm: current?.debounceAlgorithm ?? ADCButtonDebounceAlgorithm.NONE,
+                triggerConfigs,
+                ...patch,
+            },
+        });
+    };
 
     return (
         <>
@@ -256,6 +275,42 @@ export function ButtonsPerformanceSettingContent({
                     <Fieldset.Root>
                         <Fieldset.Content>
                             <VStack gap={8} alignItems={"flex-start"}>
+                                <HStack width="100%" justifyContent="space-between" alignItems="flex-start">
+                                    <Switch.Root
+                                        colorPalette="green"
+                                        checked={defaultProfile.triggerConfigs?.isAllBtnsConfiguring ?? true}
+                                        onCheckedChange={(detail) => {
+                                            if (detail.checked) applySelection(scopeAllIds);
+                                            updateTriggerOptions({ isAllBtnsConfiguring: detail.checked });
+                                        }}
+                                    >
+                                        <Switch.HiddenInput />
+                                        <Switch.Control><Switch.Thumb /></Switch.Control>
+                                        <Switch.Label>{t.SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL}</Switch.Label>
+                                    </Switch.Root>
+
+                                    <VStack gap={2} alignItems="flex-end">
+                                        <Text fontSize="sm" opacity={0.75}>{t.SETTINGS_ADC_BUTTON_DEBOUNCE_TITLE}</Text>
+                                        <HStack gap={2}>
+                                            {[
+                                                [ADCButtonDebounceAlgorithm.NONE, t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE],
+                                                [ADCButtonDebounceAlgorithm.NORMAL, t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL],
+                                                [ADCButtonDebounceAlgorithm.MAX, t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX],
+                                            ].map(([value, label]) => (
+                                                <Button
+                                                    key={value}
+                                                    size="xs"
+                                                    colorPalette="green"
+                                                    variant={(defaultProfile.triggerConfigs?.debounceAlgorithm ?? ADCButtonDebounceAlgorithm.NONE) === value ? 'solid' : 'outline'}
+                                                    onClick={() => updateTriggerOptions({ debounceAlgorithm: value as ADCButtonDebounceAlgorithm })}
+                                                >
+                                                    {label}
+                                                </Button>
+                                            ))}
+                                        </HStack>
+                                    </VStack>
+                                </HStack>
+
                                 {/* 配置范围 */}
                                 <VStack gap={2} alignItems={"flex-start"}>
                                     <Text fontSize={"sm"} opacity={0.75}>{t.SETTINGS_RAPID_TRIGGER_SCOPE_TITLE}</Text>

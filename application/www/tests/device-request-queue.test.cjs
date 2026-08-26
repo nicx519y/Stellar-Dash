@@ -31,6 +31,29 @@ test('coalesced queued writes settle every waiter with the latest payload', asyn
   queue.destroy();
 });
 
+test('pending profile writes coalesce only within the same profile', async () => {
+  const queue = new DeviceRequestQueue(20);
+  const calls = [];
+  queue.setSendFunction(async (command, params) => {
+    calls.push({ command, params });
+    return { profileId: params.profileId, value: params.value };
+  });
+
+  const firstP0 = queue.enqueue('update_profile', { profileId: 'profile-0', value: 1 });
+  const latestP0 = queue.enqueue('update_profile', { profileId: 'profile-0', value: 2 });
+  const p1 = queue.enqueue('update_profile', { profileId: 'profile-1', value: 3 });
+  queue.sendPendingCommandImmediately('update_profile');
+
+  assert.deepEqual(await firstP0, { profileId: 'profile-0', value: 2 });
+  assert.deepEqual(await latestP0, { profileId: 'profile-0', value: 2 });
+  assert.deepEqual(await p1, { profileId: 'profile-1', value: 3 });
+  assert.deepEqual(calls, [
+    { command: 'update_profile', params: { profileId: 'profile-0', value: 2 } },
+    { command: 'update_profile', params: { profileId: 'profile-1', value: 3 } },
+  ]);
+  queue.destroy();
+});
+
 test('clear aborts and rejects an active operation without waiting for its native write', async () => {
   const queue = new DeviceRequestQueue(0);
   const nativeWrite = deferred();

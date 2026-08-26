@@ -14,7 +14,7 @@ CONTRACT = ROOT / "tools" / "frozen_flash_contract.json"
 class FrozenFlashContractTests(unittest.TestCase):
     def test_accepted_flash_implementation_is_unchanged(self) -> None:
         contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
-        self.assertEqual(contract["version"], 2)
+        self.assertEqual(contract["version"], 4)
         self.assertTrue(contract["files"])
         for relative, expected in contract["files"].items():
             with self.subTest(path=relative):

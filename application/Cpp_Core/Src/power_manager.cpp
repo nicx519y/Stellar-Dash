@@ -523,11 +523,11 @@ void PowerManager::setChargingEnabled(bool enabled)
 bool PowerManager::isFastChargeDetected() const
 {
     /*
-     * CH224 PG polarity still requires board validation.  It is exposed only
-     * as auxiliary telemetry; BQ25895 PG/VBUS ADC remain authoritative for CE.
+     * CH224A PG is open-drain and active-low.  It remains auxiliary telemetry;
+     * BQ25895 PG/VBUS ADC are authoritative for charge enable.
      */
     return HAL_GPIO_ReadPin(IS_FAST_CHARGE_PORT, IS_FAST_CHARGE_PIN) ==
-           GPIO_PIN_SET;
+           GPIO_PIN_RESET;
 }
 
 uint32_t PowerManager::consumeIrqFlags()

@@ -29,6 +29,7 @@
 #include "ch585_update_mode.hpp"
 #include "ch585_firmware_update.hpp"
 #include "main_runtime_control.hpp"
+#include "states/input_state.hpp"
 
 extern "C" {
 #include "qspi-w25q64.h"
@@ -72,9 +73,9 @@ static uint32_t g_perfCalls = 0;
 static uint32_t g_perfFrames = 0;
 static uint32_t g_perfBlocked = 0;
 static uint32_t g_battUiLastSampleMs = 0;
+static uint32_t g_battUiChargeAnimStartMs = 0;
 static uint8_t g_battUiSoc = 0;
 static PowerChargeState g_battUiChargeState = PowerChargeState::Unknown;
-static bool g_battUiFastCharging = false;
 static bool g_battUiLowBattery = false;
 
 static const char* const kWebConfigUsbRequiredLines[] = {
@@ -192,57 +193,33 @@ static void update_battery_ui_cache(uint32_t nowMs) {
     if (soc < 0.0f) soc = 0.0f;
     if (soc > 100.0f) soc = 100.0f;
     g_battUiSoc = (uint8_t)(soc + 0.5f);
-    g_battUiChargeState = POWER_MANAGER.getChargeState();
-    g_battUiFastCharging = POWER_MANAGER.isFastCharging();
+    const PowerChargeState nextChargeState = POWER_MANAGER.getChargeState();
+    if (nextChargeState == PowerChargeState::Charging &&
+        g_battUiChargeState != PowerChargeState::Charging) {
+        g_battUiChargeAnimStartMs = nowMs;
+    }
+    g_battUiChargeState = nextChargeState;
     g_battUiLowBattery = POWER_MANAGER.isLowBattery();
 }
 
-static uint8_t battery_soc_to_blocks(uint8_t soc) {
-    if (soc == 0u) return 0u;
-    uint8_t blocks = (uint8_t)((soc + 24u) / 25u);
-    if (blocks > 4u) blocks = 4u;
-    return blocks;
-}
-
-static uint8_t battery_animated_blocks(uint8_t baseBlocks, uint32_t nowMs) {
-    if (baseBlocks >= 4u) return 4u;
-    if (g_battUiChargeState != PowerChargeState::Charging) return baseBlocks;
-
-    const uint32_t periodMs = 1200u;
-    const uint8_t steps = (uint8_t)(5u - baseBlocks);
-    uint8_t blocks = (uint8_t)(baseBlocks + ((nowMs % periodMs) * steps) / periodMs);
-    if (blocks > 4u) blocks = 4u;
-    return blocks;
-}
-
-static void render_fast_charge_bolt(ST7789_Handle* lcd, uint16_t bodyX, uint16_t bodyY, uint16_t bodyW, uint16_t bodyH, uint32_t fg, uint32_t bg) {
-    static constexpr uint8_t boltRows[] = {
-        0b00100u,
-        0b01100u,
-        0b11110u,
-        0b00110u,
-        0b01100u,
-        0b01000u,
-    };
-    const uint8_t scale = 2u;
-    const uint16_t boltW = 5u * scale;
-    const uint16_t boltH = (uint16_t)(sizeof(boltRows) * scale);
-    const uint16_t boltX = (uint16_t)(bodyX + (bodyW - boltW) / 2u);
-    const uint16_t boltY = (uint16_t)(bodyY + (bodyH - boltH) / 2u);
-
-    ST7789_FillRect(lcd, (uint16_t)(boltX - 1u), boltY, (uint16_t)(boltW + 2u), boltH, bg);
-    for (uint8_t row = 0; row < (uint8_t)sizeof(boltRows); row++) {
-        for (uint8_t col = 0; col < 5u; col++) {
-            if ((boltRows[row] & (uint8_t)(1u << (4u - col))) != 0u) {
-                ST7789_FillRect(lcd,
-                                (uint16_t)(boltX + col * scale),
-                                (uint16_t)(boltY + row * scale),
-                                scale,
-                                scale,
-                                fg);
-            }
-        }
+static uint8_t battery_animated_soc(uint8_t baseSoc, uint32_t nowMs) {
+    if (baseSoc >= 100u || g_battUiChargeState != PowerChargeState::Charging) {
+        return baseSoc;
     }
+
+    /* Sweep from the measured SOC to full, briefly hold full, then repeat. */
+    static constexpr uint32_t kSweepMs = 1400u;
+    static constexpr uint32_t kFullHoldMs = 200u;
+    const uint32_t phaseMs =
+        (uint32_t)(nowMs - g_battUiChargeAnimStartMs) %
+        (kSweepMs + kFullHoldMs);
+    if (phaseMs >= kSweepMs) {
+        return 100u;
+    }
+
+    const uint32_t remaining = 100u - baseSoc;
+    return (uint8_t)(baseSoc +
+                     ((remaining * phaseMs + (kSweepMs / 2u)) / kSweepMs));
 }
 
 static bool screen_style_is_light(void) {
@@ -319,20 +296,16 @@ static void render_left_battery_icon(ST7789_Handle* lcd, uint16_t leftW, uint16_
     const uint16_t innerH = (uint16_t)(bodyH - 4u);
     ST7789_FillRect(lcd, innerX, innerY, innerW, innerH, bg);
 
-    if (g_battUiLowBattery) {
-        return;
+    const uint8_t displaySoc = battery_animated_soc(g_battUiSoc, nowMs);
+    uint16_t fillW = (uint16_t)(((uint32_t)innerW * displaySoc + 50u) / 100u);
+    if (displaySoc > 0u && fillW == 0u) {
+        fillW = 1u;
     }
-
-    const uint8_t blockCount = battery_animated_blocks(battery_soc_to_blocks(g_battUiSoc), nowMs);
-    const uint16_t blockGap = 1u;
-    const uint16_t blockW = 4u;
-    for (uint8_t i = 0; i < blockCount; i++) {
-        const uint16_t blockX = (uint16_t)(innerX + i * (blockW + blockGap));
-        ST7789_FillRect(lcd, blockX, innerY, blockW, innerH, fg);
+    if (fillW > innerW) {
+        fillW = innerW;
     }
-
-    if (g_battUiFastCharging) {
-        render_fast_charge_bolt(lcd, x, y, bodyW, bodyH, fg, bg);
+    if (fillW > 0u) {
+        ST7789_FillRect(lcd, innerX, innerY, fillW, innerH, fg);
     }
 }
 
@@ -573,8 +546,12 @@ void SPIScreenManager::handleInput(uint32_t nowMs, int8_t det, bool clicked, boo
                     }
                     const BootMode previousMode = STORAGE_MANAGER.getBootMode();
                     STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_WEB_CONFIG);
+                    const bool inputPipelineWasRunning =
+                        INPUT_STATE.suspendInputPipelineForStorage();
                     if (!STORAGE_MANAGER.saveConfig()) {
                         STORAGE_MANAGER.setBootMode(previousMode);
+                        (void)INPUT_STATE.resumeInputPipelineAfterStorage(
+                            inputPipelineWasRunning);
                         show_webconfig_entry_popup(
                             "Save Failed",
                             kWebConfigSaveFailedLines,

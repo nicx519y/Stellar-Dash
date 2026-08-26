@@ -67,7 +67,10 @@ export function LEDsSettingContent() {
     }, [colorMode]);
 
     const [isInit, setIsInit] = useState<boolean>(false); // 是否初始化
-    const [needPreview, setNeedPreview] = useState<boolean>(false); // 是否需要预览
+    // A monotonically increasing revision makes every committed UI action
+    // request a preview. A boolean can merge a second switch change while the
+    // first render/effect is still being processed.
+    const [previewRevision, setPreviewRevision] = useState<number>(0);
     const isPreviewing = useRef<boolean>(false);
     const [needUpdate, setNeedUpdate] = useState<boolean>(false); // 是否需要更新
 
@@ -90,6 +93,10 @@ export function LEDsSettingContent() {
     const [aroundLedColor3, setAroundLedColor3] = useState<Color>(parseColor(defaultProfile.ledsConfigs?.aroundLedColors?.[2] ?? defaultFrontColor.toString('css')));
     const [aroundLedBrightness, setAroundLedBrightness] = useState<number>(defaultProfile.ledsConfigs?.aroundLedBrightness ?? 100);
     const [aroundLedAnimationSpeed, setAroundLedAnimationSpeed] = useState<number>(defaultProfile.ledsConfigs?.aroundLedAnimationSpeed ?? 1);
+
+    const requestLedsPreview = () => {
+        setPreviewRevision((revision) => revision + 1);
+    };
 
 
     const hasAroundLed = useMemo<boolean>(() => {
@@ -355,17 +362,16 @@ export function LEDsSettingContent() {
 
             setIsInit(true);
             setDefaultProfileId(defaultProfile.id);
-            setNeedPreview(true);
+            requestLedsPreview();
         }
 
     }, [dataIsReady, defaultProfile]);
     
     useEffect(() => {
-        if(needPreview) {
+        if(previewRevision > 0) {
             previewLedsEffectHandler();
-            setNeedPreview(false);
         }
-    }, [needPreview]);
+    }, [previewRevision]);
 
     useEffect(() => {
         if(needUpdate) {
@@ -445,10 +451,10 @@ export function LEDsSettingContent() {
                                         {/* LED Effect Style */}
 
                                         <Switch.Root colorPalette={"green"} checked={ledEnabled}
-                                            onCheckedChange={() => {
-                                                setLedEnabled(!ledEnabled);
+                                            onCheckedChange={(details) => {
+                                                setLedEnabled(details.checked);
                                                 setNeedUpdate(true);
-                                                setNeedPreview(true);
+                                                requestLedsPreview();
                                             }}
 
                                         >
@@ -470,7 +476,7 @@ export function LEDsSettingContent() {
                                                 const newEffectStyle = parseInt(detail.value ?? "0") as LedsEffectStyle;
                                                 setLedsEffectStyle(newEffectStyle);
                                                 setNeedUpdate(true);
-                                                setNeedPreview(true);
+                                                requestLedsPreview();
                                             }}
                                             disabled={!ledEnabled}
                                         >
@@ -513,7 +519,7 @@ export function LEDsSettingContent() {
 
                                                     onValueChangeEnd={() => {
                                                         setNeedUpdate(true);
-                                                        setNeedPreview(true);
+                                                        requestLedsPreview();
                                                     }}
 
                                                     onOpenChange={(details) => {
@@ -573,7 +579,7 @@ export function LEDsSettingContent() {
 
                                                 onValueChangeEnd={() => {
                                                     setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                    requestLedsPreview();
                                                 }}
                                             >
                                                 <HStack justifyContent={"space-between"}>
@@ -619,7 +625,7 @@ export function LEDsSettingContent() {
 
                                                 onValueChangeEnd={() => {
                                                     setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                    requestLedsPreview();
                                                 }}
 
                                             >
@@ -662,10 +668,10 @@ export function LEDsSettingContent() {
                                             {/* 是否开启氛围灯 */}
                                             <Switch.Root colorPalette={"green"}
                                                 checked={aroundLedEnabled}
-                                                onCheckedChange={() => {
-                                                    setAroundLedEnabled(!aroundLedEnabled);
+                                                onCheckedChange={(details) => {
+                                                    setAroundLedEnabled(details.checked);
                                                     setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                    requestLedsPreview();
                                                 }}
                                             >
                                                 <Switch.HiddenInput />
@@ -678,10 +684,10 @@ export function LEDsSettingContent() {
                                             <Switch.Root colorPalette={"green"}
                                                 disabled={!buttonAndAmbientLedEnabled}
                                                 checked={aroundLedSyncToMainLed}
-                                                onCheckedChange={() => {
-                                                    setAroundLedSyncToMainLed(!aroundLedSyncToMainLed);
+                                                onCheckedChange={(details) => {
+                                                    setAroundLedSyncToMainLed(details.checked);
                                                     setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                    requestLedsPreview();
                                                 }}
                                             >
                                                 <Switch.HiddenInput />
@@ -694,10 +700,10 @@ export function LEDsSettingContent() {
                                             <Switch.Root colorPalette={"green"}
                                                 disabled={!buttonAndAmbientLedEnabled}
                                                 checked={aroundLedTriggerByButton}
-                                                onCheckedChange={() => {
-                                                    setAroundLedTriggerByButton(!aroundLedTriggerByButton);
+                                                onCheckedChange={(details) => {
+                                                    setAroundLedTriggerByButton(details.checked);
                                                     setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                    requestLedsPreview();
                                                 }}
                                             >
                                                 <Switch.HiddenInput />
@@ -720,7 +726,7 @@ export function LEDsSettingContent() {
                                                     const newAroundLedEffectStyle = parseInt(detail.value ?? "0") as AroundLedsEffectStyle;
                                                     setAroundLedEffectStyle(newAroundLedEffectStyle);
                                                     setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                    requestLedsPreview();
                                                 }}
                                                 disabled={!aroundLedConfigIsEnabled}
                                             >
@@ -756,7 +762,7 @@ export function LEDsSettingContent() {
 
                                                     onValueChangeEnd={() => {
                                                         setNeedUpdate(true);
-                                                        setNeedPreview(true);
+                                                        requestLedsPreview();
                                                     }}
 
                                                     onOpenChange={(details) => {
@@ -816,7 +822,7 @@ export function LEDsSettingContent() {
 
                                                 onValueChangeEnd={() => {
                                                     setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                    requestLedsPreview();
                                                 }}
                                             >
                                                 <HStack justifyContent={"space-between"}>
@@ -862,7 +868,7 @@ export function LEDsSettingContent() {
 
                                                 onValueChangeEnd={() => {
                                                     setNeedUpdate(true);
-                                                    setNeedPreview(true);
+                                                    requestLedsPreview();
                                                 }}
 
                                             >

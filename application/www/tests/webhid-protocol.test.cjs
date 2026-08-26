@@ -3348,6 +3348,7 @@ test('WebHID config export uses bounded sequential RPCs and preserves profile ma
     get_screen_control_config: { screenControl: { brightness: 80 } },
     get_profile_list: {
       profileList: {
+        defaultId: 'p2',
         items: [{ id: 'p1' }, { id: 'p2' }],
       },
     },
@@ -3382,14 +3383,15 @@ test('WebHID config export uses bounded sequential RPCs and preserves profile ma
 
   assert.deepEqual(calls.map(([command]) => command), [
     'get_global_config',
+    'get_profile_list',
     'get_hotkeys_config',
     'get_screen_control_config',
-    'get_profile_list',
     'get_profile_details',
     'get_profile_macros',
     'get_profile_details',
     'get_profile_macros',
   ]);
+  assert.equal(sections[0].data.defaultProfileId, 'p2');
   assert.deepEqual(sections.map(({ section }) => section), [
     'global',
     'hotkeys',

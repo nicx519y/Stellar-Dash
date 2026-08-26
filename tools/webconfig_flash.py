@@ -65,6 +65,9 @@ INTERNAL_FLASH_BYTES = 0x00020000
 INTERNAL_SECURITY_TAIL_OFFSET = 0x0001C000
 STM32_UID_ADDRESS = 0x1FF1E800
 QSPI_SECTOR_BYTES = 0x00010000
+STM32_TRANSACTION_SWD_KHZ = 1800
+STM32_QSPI_SWD_KHZ = 400
+STM32_PROBE_SWD_KHZ = 400
 MINIMUM_OPENOCD_VERSION = (0, 11)
 AUTOMATIC_STLINK_BINDING = "AUTO"
 DEFAULT_OPENOCD_CANDIDATES = (
@@ -1201,6 +1204,8 @@ def _internal_openocd_prefix(
     stlink_serial: str,
     *,
     debug_level: int = 0,
+    adapter_speed_khz: int = STM32_TRANSACTION_SWD_KHZ,
+    connect_under_reset: bool = False,
 ) -> list[str]:
     config = PROJECT_ROOT / "bootloader" / "Openocd_Script" / "ST-LINK-FLASH.cfg"
     command = [
@@ -1214,16 +1219,17 @@ def _internal_openocd_prefix(
         command.extend(["-c", f"adapter serial {selected_serial}"])
     command.extend([
         "-c",
+        f"adapter speed {adapter_speed_khz}",
+        "-c",
         "gdb_port disabled",
         "-c",
         "tcl_port disabled",
         "-c",
         "telnet_port disabled",
-        "-c",
-        "init",
-        "-c",
-        "reset halt",
     ])
+    if connect_under_reset:
+        command.extend(["-c", "reset_config connect_assert_srst"])
+    command.extend(["-c", "init", "-c", "reset halt"])
     return command
 
 
@@ -1244,24 +1250,36 @@ def probe_target_identity(
 ) -> TargetIdentity:
     """Read MCU family/revision and 96-bit UID through the selected probe."""
 
-    result = local._run(
-        _internal_openocd_prefix(
-            openocd,
-            stlink_serial,
-            debug_level=1,
+    def run_probe(*, connect_under_reset: bool):
+        return local._run(
+            _internal_openocd_prefix(
+                openocd,
+                stlink_serial,
+                debug_level=1,
+                adapter_speed_khz=STM32_PROBE_SWD_KHZ,
+                connect_under_reset=connect_under_reset,
+            )
+            + [
+                "-c",
+                "mdw 0x5C001000 1",
+                "-c",
+                f"mdw 0x{STM32_UID_ADDRESS:08X} 3",
+            ]
+            + (["-c", "reset run"] if run_after else [])
+            + ["-c", "shutdown"],
+            cwd=PROJECT_ROOT / "bootloader",
+            capture=True,
+            quiet=True,
         )
-        + [
-            "-c",
-            "mdw 0x5C001000 1",
-            "-c",
-            f"mdw 0x{STM32_UID_ADDRESS:08X} 3",
-        ]
-        + (["-c", "reset run"] if run_after else [])
-        + ["-c", "shutdown"],
-        cwd=PROJECT_ROOT / "bootloader",
-        capture=True,
-        quiet=True,
-    )
+
+    try:
+        result = run_probe(connect_under_reset=False)
+    except local.LocalWebConfigError:
+        print(
+            "STM32 identity probe: normal SWD connection failed; "
+            "retrying at 400 kHz with connect-under-reset."
+        )
+        result = run_probe(connect_under_reset=True)
     output = result.stdout or ""
     idcode_match = re.search(
         r"0x5c001000:\s+([0-9a-f]{8})",
@@ -1720,6 +1738,8 @@ def _execute_prepared_transaction(
             reset_after=False,
             stlink_serial=_openocd_serial_argument(target.stlink_serial),
             expected_target_uid=target.uid,
+            adapter_speed_khz=STM32_QSPI_SWD_KHZ,
+            connect_under_reset_fallback=True,
         ):
             state["lastError"] = f"QSPI payload failed: {stage.name}"
             _write_transaction_state(state_path, state, resume_token)
@@ -1800,6 +1820,8 @@ def _execute_prepared_transaction(
         reset_after=True,
         stlink_serial=_openocd_serial_argument(target.stlink_serial),
         expected_target_uid=target.uid,
+        adapter_speed_khz=STM32_QSPI_SWD_KHZ,
+        connect_under_reset_fallback=True,
     ):
         state["lastError"] = "signed metadata commit failed"
         _write_transaction_state(state_path, state, resume_token)

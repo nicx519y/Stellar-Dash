@@ -190,6 +190,23 @@ class LedConfigSafetyTests(unittest.TestCase):
         self.assertIn("TIM_DMA_CC2", stop_strip)
         self.assertIn("otherState == WS2812B_RUNNING", stop_strip)
 
+    def test_webconfig_preview_updates_led_strips_in_place(self) -> None:
+        manager = (
+            ROOT / "application" / "Cpp_Core" / "Src" / "leds" / "leds_manager.cpp"
+        ).read_text(encoding="utf-8")
+
+        preview_start = manager.index("void LEDsManager::setTemporaryConfig")
+        preview_end = manager.index("void LEDsManager::restoreDefaultConfig")
+        preview_update = manager[preview_start:preview_end]
+
+        self.assertNotIn("deinit();", preview_update)
+        self.assertIn("if (!runtimeWasEnabled)", preview_update)
+        self.assertEqual(preview_update.count("setup();"), 1)
+        self.assertIn("keyStrip.setPowerEnabled(false)", preview_update)
+        self.assertIn("ambientStrip.setPowerEnabled(false)", preview_update)
+        self.assertIn("keyStrip.start()", preview_update)
+        self.assertIn("ambientStrip.start()", preview_update)
+
     def test_key_led_count_and_tail_mapping_are_exact(self) -> None:
         board_config = (
             ROOT / "application" / "Core" / "Inc" / "board_cfg.h"

@@ -29,7 +29,27 @@ export async function exportWebHidConfigSections(
   if (!globalConfig) {
     throw new DeviceTransportError('protocol', 'get_global_config response is malformed');
   }
-  emit({ section: 'global', data: globalConfig });
+
+  const listResponse = await request('get_profile_list');
+  const profileList = asRecord(listResponse?.profileList);
+  const items = profileList?.items;
+  const defaultId = profileList?.defaultId;
+  if (
+    !Array.isArray(items) || items.length > MAX_PROFILE_COUNT ||
+    typeof defaultId !== 'string' || defaultId.length === 0
+  ) {
+    throw new DeviceTransportError(
+      'protocol',
+      'get_profile_list did not return profile IDs and a default profile',
+    );
+  }
+  emit({
+    section: 'global',
+    data: {
+      ...globalConfig,
+      defaultProfileId: defaultId,
+    },
+  });
 
   const hotkeys = await request('get_hotkeys_config');
   if (!Array.isArray(hotkeys?.hotkeysConfig)) {
@@ -46,16 +66,6 @@ export async function exportWebHidConfigSections(
     );
   }
   emit({ section: 'screenControl', data: screenControl });
-
-  const listResponse = await request('get_profile_list');
-  const profileList = asRecord(listResponse?.profileList);
-  const items = profileList?.items;
-  if (!Array.isArray(items) || items.length > MAX_PROFILE_COUNT) {
-    throw new DeviceTransportError(
-      'protocol',
-      'get_profile_list did not return profile IDs',
-    );
-  }
 
   const seenProfileIds = new Set<string>();
   for (const item of items) {
@@ -94,6 +104,12 @@ export async function exportWebHidConfigSections(
         },
       },
     });
+  }
+  if (!seenProfileIds.has(defaultId)) {
+    throw new DeviceTransportError(
+      'protocol',
+      'get_profile_list default profile is not enabled',
+    );
   }
   emit({ section: 'end' });
 }

@@ -165,6 +165,7 @@ uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
         "ms_get_mark_status",
         "ms_get_default",
         "ms_get_mapping",
+        "get_adc_config_backup",
         "get_hitbox_layout",
         "get_firmware_metadata",
     };
@@ -173,8 +174,10 @@ uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
         "update_hotkeys_config",
         "update_screen_control_config",
         "import_all_config",
+        "import_config_begin",
         "import_config_part",
         "import_config_finish",
+        "import_config_abort",
         "push_leds_config",
         "clear_leds_preview",
         "update_profile",

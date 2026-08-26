@@ -830,6 +830,49 @@ class StorageDevicePolicy {
     }
 }
 
+/*
+ * Local laboratory policy used only when the dedicated localhost launcher
+ * explicitly requests it. Certificate, transcript and key-agreement parsing
+ * still run so STM32 can install a bound permit and keep RPC traffic encrypted;
+ * this adapter skips enrollment identity, revocation, rollback and firmware
+ * measurement decisions which are intentionally production policy.
+ */
+class LocalDebugDevicePolicy {
+    constructor(storageManager) {
+        this.storageManager = storageManager;
+    }
+
+    get(deviceId) {
+        const record = this.storageManager.findDevice(deviceId);
+        if (!record || record.authVersion !== 2) {
+            return null;
+        }
+        /*
+         * requireSession() intentionally re-reads policy on every API call.
+         * Return an active view here as well, otherwise a locally revoked
+         * record would pass bootstrap and then immediately invalidate the
+         * token, making the debug bypass internally inconsistent.
+         */
+        return {
+            ...record,
+            status: 'active',
+            revokedAt: null
+        };
+    }
+
+    check(identity) {
+        const record = this.get(identity.deviceId);
+        if (!record) {
+            throw new DeviceAuthV2Error(
+                'LOCAL_DEBUG_DEVICE_NOT_ENROLLED',
+                'local debug device record is missing',
+                401
+            );
+        }
+        return record;
+    }
+}
+
 class DeviceAuthV2Service {
     constructor(options) {
         this.certificateVerifier = options.certificateVerifier;
@@ -848,6 +891,8 @@ class DeviceAuthV2Service {
         this.challengeLimiter = options.challengeLimiter || null;
         this.verifyLimiter = options.verifyLimiter || null;
         this.now = options.now || Date.now;
+        this.localDeviceAuthBypass =
+            options.localDeviceAuthBypass === true;
     }
 
     assertReady() {
@@ -1171,6 +1216,56 @@ class DeviceAuthV2Service {
             }
         };
     }
+}
+
+function localDebugDeviceAuthBypassEnabled(environment) {
+    const raw = environment.HBOX_LOCAL_DEVICE_AUTH_BYPASS;
+    if (raw === undefined || raw === null || raw === '' ||
+        /^(0|false|no|off)$/i.test(String(raw))) {
+        return false;
+    }
+    if (!/^(1|true|yes|on)$/i.test(String(raw))) {
+        throw new Error(
+            'HBOX_LOCAL_DEVICE_AUTH_BYPASS must be an explicit boolean'
+        );
+    }
+    if (environment.NODE_ENV === 'production') {
+        throw new Error(
+            'local device authentication bypass is forbidden in production'
+        );
+    }
+
+    const loopbackHosts = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+    const listenHosts = [
+        environment.LISTEN_HOST,
+        environment.SERVER_ADDRESS
+    ].filter(Boolean).map(value => String(value).trim().toLowerCase());
+    if (listenHosts.length === 0 ||
+        listenHosts.some(host => !loopbackHosts.has(host))) {
+        throw new Error(
+            'local device authentication bypass requires an exact loopback listener'
+        );
+    }
+
+    const origins = String(environment.WEB_CONFIG_ORIGINS || '')
+        .split(',')
+        .map(value => value.trim())
+        .filter(Boolean);
+    if (origins.length === 0 || origins.some(origin => {
+        try {
+            const parsed = new URL(origin);
+            return parsed.origin !== origin ||
+                !loopbackHosts.has(parsed.hostname.toLowerCase()) ||
+                (parsed.protocol !== 'http:' && parsed.protocol !== 'https:');
+        } catch (_error) {
+            return true;
+        }
+    })) {
+        throw new Error(
+            'local device authentication bypass requires exact loopback WebConfig origins'
+        );
+    }
+    return true;
 }
 
 function sendDeviceAuthError(res, error) {
@@ -1505,6 +1600,8 @@ function loadProductionAdapter(environment, options, storageManager) {
 function createDeviceAuthV2FromEnvironment(storageManager, options = {}) {
     const fsModule = options.fs || require('fs');
     const environment = options.environment || process.env;
+    const localDeviceAuthBypass =
+        localDebugDeviceAuthBypassEnabled(environment);
     const caPublicKey = readPemFromEnvironment(
         'DEVICE_CA_PUBLIC_KEY_PEM',
         'DEVICE_CA_PUBLIC_KEY_FILE',
@@ -1562,6 +1659,12 @@ function createDeviceAuthV2FromEnvironment(storageManager, options = {}) {
             webConfigTargetPolicy
         });
     }
+    if (localDeviceAuthBypass) {
+        console.warn(
+            'SECURITY WARNING: local WebHID device trust policy is bypassed; ' +
+            'this process is restricted to loopback development use'
+        );
+    }
     return new DeviceAuthV2Service({
         certificateVerifier:
             new BinaryDeviceCertificateVerifier(caPublicKey),
@@ -1576,7 +1679,10 @@ function createDeviceAuthV2FromEnvironment(storageManager, options = {}) {
             }),
         devicePolicy: dependencies
             ? dependencies.devicePolicy
-            : new StorageDevicePolicy(storageManager),
+            : localDeviceAuthBypass
+                ? new LocalDebugDevicePolicy(storageManager)
+                : new StorageDevicePolicy(storageManager),
+        localDeviceAuthBypass,
         webConfigTargetPolicy,
         challengeStore: dependencies &&
             dependencies.challengeStore,
@@ -1599,6 +1705,7 @@ module.exports = {
     BinaryBootAttestationVerifier,
     BinaryP256PermitSigner,
     StorageDevicePolicy,
+    LocalDebugDevicePolicy,
     DeviceAuthV2Service,
     encodeBase64Url,
     encodeBase64,
@@ -1612,5 +1719,6 @@ module.exports = {
     sendDeviceAuthError,
     validateProductionAdapter,
     loadProductionAdapter,
+    localDebugDeviceAuthBypassEnabled,
     createDeviceAuthV2FromEnvironment
 };

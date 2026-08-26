@@ -195,6 +195,13 @@ class BuildTool:
                 )
                 if result.returncode != 0:
                     detail = (result.stdout or "").strip()
+                    if detail:
+                        detail = "\n".join(
+                            line
+                            for line in detail.splitlines()
+                            if line.strip()
+                            != "DEPRECATED! use 'read_memory' not 'mem2array'"
+                        ).strip()
                     print()
                     if detail:
                         print(detail)
@@ -494,7 +501,7 @@ class BuildTool:
         runtime_attach: bool = False,
         leave_halted: bool = False,
     ) -> bool:
-        """Use OpenOCD's stmqspi driver to erase, write and verify one image."""
+        """Erase, program and physically verify one complete QSPI image."""
         try:
             source_file = source_file.resolve(strict=True)
             payload_size = source_file.stat().st_size
@@ -551,9 +558,21 @@ class BuildTool:
             print(f"错误: OpenOCD QSPI配置不存在: {openocd_cfg}")
             return False
 
+        if runtime_attach:
+            return self._flash_runtime_qspi_file(
+                source_file,
+                target_address,
+                label,
+                reset_after=reset_after,
+                stlink_serial=stlink_serial,
+                expected_target_uid=expected_target_uid,
+                adapter_speed_khz=adapter_speed_khz,
+                leave_halted=leave_halted,
+            )
+
         print(
             f"{label}: {payload_size} bytes，目标0x{target_address:08X}，"
-            "使用OpenOCD stmqspi标准整文件写入/校验"
+            "单次整文件擦除/写入/物理回读校验"
         )
 
         try:
@@ -569,39 +588,28 @@ class BuildTool:
                     "tcl_port disabled",
                     "telnet_port disabled",
                     "init",
-                    *(["halt"] if runtime_attach else ["reset init"]),
+                    "reset init",
                     *(
-                        self._openocd_target_assert_commands(expected_target_uid)
+                        self._openocd_target_assert_commands(
+                            expected_target_uid
+                        )
                         if expected_target_uid is not None
                         else []
                     ),
-                    *(["qspi_init"] if runtime_attach else []),
                     "flash probe 1",
-                    f"flash write_image erase {encoded} 0x{target_address:08X} bin",
-                    # Verify through the stmqspi flash bank instead of the
-                    # Cortex-M memory map.  A halted M7 can retain stale QSPI
-                    # cache lines (notably the CH585 status header), causing
-                    # verify_image to report mismatches after a valid write.
+                    f"flash write_image erase {encoded} "
+                    f"0x{target_address:08X} bin",
                     f"flash verify_bank 1 {encoded} "
                     f"0x{target_address - qspi_base:08X}",
                 ]
-                if runtime_attach:
-                    commands.append("qspi_init")
-                    if reset_after:
-                        # SYSRESETREQ takes effect immediately.  Do not wait
-                        # for a target that has intentionally reset: on this
-                        # board the running application can make the DAP
-                        # temporarily unavailable, which made a successfully
-                        # verified QSPI commit look like an OpenOCD failure.
-                        commands.append("mww 0xE000ED0C 0x05FA0004")
-                    elif not leave_halted:
-                        commands.append("resume")
-                elif reset_after:
+                if reset_after:
                     commands.append("reset run")
                 commands.append("shutdown")
 
-                script = temporary_dir / "openocd-standard-qspi.tcl"
-                script.write_text("\n".join(commands) + "\n", encoding="utf-8")
+                script = temporary_dir / "openocd-single-qspi.tcl"
+                script.write_text(
+                    "\n".join(commands) + "\n", encoding="utf-8"
+                )
                 command = [
                     self.config.get("openocd_path", "openocd"),
                     "-d0",
@@ -621,13 +629,10 @@ class BuildTool:
                 success = self.run_command(
                     command, self.application_dir, quiet=True
                 )
-                if (
-                    not success
-                    and not runtime_attach
-                    and connect_under_reset_fallback
-                ):
+                if not success and connect_under_reset_fallback:
                     print(
-                        f"{label}: normal SWD session failed; retrying connect-under-reset"
+                        f"{label}: normal SWD session failed; "
+                        "retrying connect-under-reset"
                     )
                     fallback = [
                         *base_command,
@@ -640,13 +645,104 @@ class BuildTool:
                         fallback, self.application_dir, quiet=True
                     )
                 if not success:
-                    print(f"错误: {label} OpenOCD标准整文件写入/校验失败")
+                    print(f"错误: {label}单次整文件烧录/校验失败")
                     return False
         except (OSError, ValueError) as exc:
             print(f"错误: 无法准备QSPI整文件烧录事务: {exc}")
             return False
 
-        print(f"{label} OpenOCD整文件烧录并校验成功")
+        print(f"{label}单次整文件烧录并通过stmqspi物理回读校验")
+        return True
+
+    def _flash_runtime_qspi_file(
+        self,
+        source_file: Path,
+        target_address: int,
+        label: str,
+        *,
+        reset_after: bool,
+        stlink_serial: Optional[str],
+        expected_target_uid: Optional[str],
+        adapter_speed_khz: Optional[int],
+        leave_halted: bool,
+    ) -> bool:
+        """Preserve the accepted single-session runtime-attach QSPI route."""
+
+        openocd_cfg = (
+            self.application_dir
+            / "Openocd_Script"
+            / "ST-LINK-QSPIFLASH.cfg"
+        )
+        qspi_base = 0x90000000
+        payload_size = source_file.stat().st_size
+        print(
+            f"{label}: {payload_size} bytes，目标0x{target_address:08X}，"
+            "使用已验收的运行时stmqspi整文件写入/校验"
+        )
+        try:
+            build_dir = self.application_dir / "build"
+            build_dir.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(
+                prefix=".qspi-flash-", dir=build_dir
+            ) as temporary:
+                temporary_dir = Path(temporary)
+                encoded = self._openocd_tcl_braced_path(source_file)
+                commands = [
+                    "gdb_port disabled",
+                    "tcl_port disabled",
+                    "telnet_port disabled",
+                    "init",
+                    "halt",
+                    *(
+                        self._openocd_target_assert_commands(expected_target_uid)
+                        if expected_target_uid is not None
+                        else []
+                    ),
+                    "qspi_init",
+                    "flash probe 1",
+                    f"flash write_image erase {encoded} "
+                    f"0x{target_address:08X} bin",
+                    f"flash verify_bank 1 {encoded} "
+                    f"0x{target_address - qspi_base:08X}",
+                    "qspi_init",
+                ]
+                if reset_after:
+                    # The verified commit is complete before this SYSRESETREQ;
+                    # do not wait for the DAP to return.
+                    commands.append("mww 0xE000ED0C 0x05FA0004")
+                elif not leave_halted:
+                    commands.append("resume")
+                commands.append("shutdown")
+
+                script = temporary_dir / "openocd-runtime-qspi.tcl"
+                script.write_text(
+                    "\n".join(commands) + "\n", encoding="utf-8"
+                )
+                command = [
+                    self.config.get("openocd_path", "openocd"),
+                    "-d0",
+                    "-f",
+                    str(openocd_cfg),
+                ]
+                if stlink_serial is not None:
+                    command.extend(
+                        ["-c", f"adapter serial {stlink_serial.upper()}"]
+                    )
+                if adapter_speed_khz is not None:
+                    command.extend(
+                        ["-c", f"adapter speed {adapter_speed_khz}"]
+                    )
+                command.extend(["-f", str(script)])
+                if not self.run_command(
+                    command, self.application_dir, quiet=True
+                ):
+                    print(f"错误: {label}运行时QSPI整文件写入/校验失败")
+                    return False
+        except (OSError, ValueError) as exc:
+            print(f"错误: 无法准备运行时QSPI烧录事务: {exc}")
+            return False
+
+        print(f"{label}运行时QSPI整文件烧录并校验成功")
         return True
 
     @staticmethod

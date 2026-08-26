@@ -411,6 +411,56 @@ DeviceCommandResponse MSMarkCommandHandler::handleGetMapping(const DeviceCommand
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
+DeviceCommandResponse MSMarkCommandHandler::handleGetConfigBackup(const DeviceCommandRequest& request) {
+    ADCValuesMappingStore store = {};
+    ADCCommonConfig common = {};
+    ADC_MANAGER.copyBackup(store, common);
+
+    cJSON* backupJSON = cJSON_CreateObject();
+    cJSON_AddNumberToObject(backupJSON, "version", 1);
+    cJSON_AddStringToObject(backupJSON, "defaultMappingId", common.defaultMappingId);
+    cJSON_AddStringToObject(backupJSON, "calibratedMappingId", common.calibratedMappingId);
+
+    cJSON* mappingsJSON = cJSON_CreateArray();
+    for (uint8_t i = 0; i < store.num; ++i) {
+        const ADCValuesMapping& mapping = store.mapping[i];
+        cJSON* mappingJSON = cJSON_CreateObject();
+        cJSON_AddStringToObject(mappingJSON, "id", mapping.id);
+        cJSON_AddStringToObject(mappingJSON, "name", mapping.name);
+        cJSON_AddNumberToObject(mappingJSON, "length", mapping.length);
+        cJSON_AddNumberToObject(mappingJSON, "step", mapping.step);
+        cJSON_AddNumberToObject(mappingJSON, "samplingFrequency", mapping.samplingFrequency);
+        cJSON_AddNumberToObject(mappingJSON, "samplingNoise", mapping.samplingNoise);
+        cJSON* valuesJSON = cJSON_CreateArray();
+        for (size_t j = 0; j < mapping.length; ++j) {
+            cJSON_AddItemToArray(valuesJSON, cJSON_CreateNumber(mapping.originalValues[j]));
+        }
+        cJSON_AddItemToObject(mappingJSON, "originalValues", valuesJSON);
+        cJSON_AddItemToArray(mappingsJSON, mappingJSON);
+    }
+    cJSON_AddItemToObject(backupJSON, "mappings", mappingsJSON);
+
+    cJSON* manualJSON = cJSON_CreateArray();
+    cJSON* autoJSON = cJSON_CreateArray();
+    for (uint8_t i = 0; i < NUM_ADC_BUTTONS; ++i) {
+        cJSON* manualPair = cJSON_CreateObject();
+        cJSON_AddNumberToObject(manualPair, "topValue", common.manualCalibrationValues[i].topValue);
+        cJSON_AddNumberToObject(manualPair, "bottomValue", common.manualCalibrationValues[i].bottomValue);
+        cJSON_AddItemToArray(manualJSON, manualPair);
+
+        cJSON* autoPair = cJSON_CreateObject();
+        cJSON_AddNumberToObject(autoPair, "topValue", common.autoCalibrationValues[i].topValue);
+        cJSON_AddNumberToObject(autoPair, "bottomValue", common.autoCalibrationValues[i].bottomValue);
+        cJSON_AddItemToArray(autoJSON, autoPair);
+    }
+    cJSON_AddItemToObject(backupJSON, "manualCalibrationValues", manualJSON);
+    cJSON_AddItemToObject(backupJSON, "autoCalibrationValues", autoJSON);
+
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddItemToObject(dataJSON, "adcConfig", backupJSON);
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
 DeviceCommandResponse MSMarkCommandHandler::handle(const DeviceCommandRequest& request) {
     const std::string& command = request.getCommand();
     
@@ -436,6 +486,8 @@ DeviceCommandResponse MSMarkCommandHandler::handle(const DeviceCommandRequest& r
         return handleMarkMappingStep(request);
     } else if (command == "ms_get_mapping") {
         return handleGetMapping(request);
+    } else if (command == "get_adc_config_backup") {
+        return handleGetConfigBackup(request);
     }
     
     return create_error_response(request.getCid(), command, -1, "Unknown command");

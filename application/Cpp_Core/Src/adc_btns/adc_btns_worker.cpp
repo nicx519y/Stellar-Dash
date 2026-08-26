@@ -130,6 +130,7 @@ ADCBtnsError ADCBtnsWorker::setup()
     }
 
     this->mapping = mapping;
+    debounceAlgorithm = profile->triggerConfigs.debounceAlgorithm;
 
     maxTravelDistance = (mapping->length - 1) * mapping->step;
 
@@ -211,6 +212,8 @@ ADCBtnsError ADCBtnsWorker::setup()
         }
 
         buttonPtrs[i]->state = ButtonState::RELEASED; // 明确设置初始状态为释放
+        buttonPtrs[i]->debounceCandidate = ButtonEvent::NONE;
+        buttonPtrs[i]->debounceSinceUs = 0u;
     }
 
     return ADC_MANAGER.startADCSamping(false);
@@ -275,7 +278,7 @@ uint32_t ADCBtnsWorker::read()
         btn->currentValue = adcValue;
 
         // 获取按钮事件（新算法直接基于ADC值）
-        const ButtonEvent event = getButtonEvent(btn, adcValue, i);
+        const ButtonEvent event = applyDebounce(btn, getButtonEvent(btn, adcValue, i));
 
         // 处理状态转换
         handleButtonState(btn, event, adcValue, i);
@@ -988,4 +991,36 @@ uint16_t ADCBtnsWorker::getInterpolatedReleaseThreshold(ADCBtn* btn, const uint1
     }
 
     return btn->thresholdMap.releaseThresholds[0]; // 默认返回第一个阈值
+}
+
+ButtonEvent ADCBtnsWorker::applyDebounce(ADCBtn* btn, ButtonEvent event)
+{
+    if (!btn || debounceAlgorithm == ADCButtonDebounceAlgorithm::NONE)
+    {
+        return event;
+    }
+    if (event == ButtonEvent::NONE)
+    {
+        btn->debounceCandidate = ButtonEvent::NONE;
+        btn->debounceSinceUs = 0u;
+        return ButtonEvent::NONE;
+    }
+
+    const uint32_t nowUs = MICROS_TIMER.micros();
+    if (btn->debounceCandidate != event)
+    {
+        btn->debounceCandidate = event;
+        btn->debounceSinceUs = nowUs;
+        return ButtonEvent::NONE;
+    }
+
+    const uint32_t delayUs = debounceAlgorithm == ADCButtonDebounceAlgorithm::MAX
+        ? 500u : 250u;
+    if (static_cast<uint32_t>(nowUs - btn->debounceSinceUs) < delayUs)
+    {
+        return ButtonEvent::NONE;
+    }
+    btn->debounceCandidate = ButtonEvent::NONE;
+    btn->debounceSinceUs = 0u;
+    return event;
 }

@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Production-protocol WebConfig V2 laboratory workflow.
 
-This helper keeps the runtime protocol identical to the production V2 path:
-signed boot metadata, a manufacturer-signed device certificate, boot
-attestation, a server-signed permit, and encrypted WebHID RPCs are all still
-required.  It deliberately uses local PEM keys and an exported development
-device scalar, so it is a *laboratory manufacturing substitute*, not a
-production key-custody or factory-enrollment implementation.
+By default this helper keeps the runtime protocol identical to the production
+V2 path.  The loopback-only ``serve`` laboratory path skips
+local device trust-policy decisions while retaining the server-signed permit
+and encrypted WebHID RPCs.  The option is rejected unless every listener and
+WebConfig origin is an exact loopback address.
 
 All private material and generated provisioning images live below the ignored
 ``.hbox/webconfig-local`` directory.  Hardware writes are available only from
@@ -1225,6 +1224,7 @@ def serve_local_webconfig(
     port: int,
     admin_username: str,
     admin_password: str,
+    bypass_device_auth: bool,
 ) -> int:
     _load_manifest(state_dir)
     # Refuse before spawning the server if any handoff artifact is missing or
@@ -1262,6 +1262,8 @@ def serve_local_webconfig(
             "WEB_CONFIG_AUTH_KEY_SLOT": "0",
         }
     )
+    if bypass_device_auth:
+        environment["HBOX_LOCAL_DEVICE_AUTH_BYPASS"] = "1"
     process = subprocess.Popen(
         ["node", "src/server.js"],
         cwd=PROJECT_ROOT / "server",
@@ -1274,7 +1276,12 @@ def serve_local_webconfig(
         )
         print()
         print(f"WebConfig is ready: http://localhost:{port}")
+        print(f"WebHID Trace is ready: http://localhost:{port}/webhid-trace/")
+        if bypass_device_auth:
+            print("WARNING: local device trust policy is BYPASSED (loopback only).")
+            print("WebHID RPC payloads still use a temporary encrypted session.")
         print("Use Chrome or Edge, enter Web Config on the device screen, then click Connect.")
+        print("Keep both pages on the same localhost origin; the Trace page never opens HID.")
         print("Press Ctrl+C to stop the local server.")
         return process.wait()
     except KeyboardInterrupt:
@@ -1414,6 +1421,22 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("HBOX_LOCAL_ADMIN_PASSWORD", "admin123"),
         help="local server admin password (or HBOX_LOCAL_ADMIN_PASSWORD)",
     )
+    serve.add_argument(
+        "--bypass-device-auth",
+        dest="bypass_device_auth",
+        action="store_true",
+        default=True,
+        help=(
+            "skip local device trust policy on loopback while retaining the "
+            "signed permit and encrypted WebHID session"
+        ),
+    )
+    serve.add_argument(
+        "--require-device-auth",
+        dest="bypass_device_auth",
+        action="store_false",
+        help="restore local device trust checks for explicit authentication tests",
+    )
 
     probe = subparsers.add_parser(
         "probe-revision",
@@ -1457,6 +1480,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 port=args.port,
                 admin_username=args.admin_username,
                 admin_password=args.admin_password,
+                bypass_device_auth=args.bypass_device_auth,
             )
         if args.command == "probe-revision":
             probe_revision(args.openocd)

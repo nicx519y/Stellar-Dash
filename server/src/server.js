@@ -263,6 +263,11 @@ app.listen(PORT, LISTEN_HOST, () => {
             ? `WebConfig静态目录: ${hostedWebConfig.staticDir}`
             : 'WebConfig静态目录: 未启用'
     );
+    if (deviceAuthV2.localDeviceAuthBypass) {
+        console.warn(
+            '警告: 本地设备信任策略已跳过；仅允许回环地址调试，WebHID RPC 仍加密'
+        );
+    }
     console.log('='.repeat(60));
     console.log('可用接口:');
     console.log('  GET    /health                 - 健康检查');

@@ -1,6 +1,7 @@
 import {
   AroundLedsEffectStyle,
   ConnectionMode,
+  DEFAULT_NUM_HOTKEYS_MAX,
   DEFAULT_SCREEN_CONTROL_CONFIG,
   GameControllerButton,
   GameProfile,
@@ -41,7 +42,7 @@ const ALL_SCOPES = [
   'firmware.update',
 ] as const;
 
-const MOCK_STATE_VERSION = 2;
+const MOCK_STATE_VERSION = 3;
 const DEFAULT_STORAGE_KEY = `hbox.webconfig.mock-state.v${MOCK_STATE_VERSION}`;
 
 export interface MockStorage {
@@ -113,7 +114,7 @@ const DEFAULT_GLOBAL_CONFIG = {
   connectionModeSource: 'PHYSICAL_SWITCH' as const,
   physicalConnectionMode: ConnectionMode.USB,
   wirelessReportRate: WirelessReportRate.RATE_8K,
-  power: { wakeHoldMs: 900, autoStandbyMs: 300000 },
+  power: { wakeHoldMs: 3000, autoStandbyMs: 300000 },
   hardware: {
     hardwareVersion: '2.0.0',
     batteryTopology: 'SINGLE_1S2P' as const,
@@ -166,12 +167,12 @@ const DEFAULT_FIRMWARE: FirmwareMetadata = {
 const DEFAULT_MAPPING: ADCValuesMapping = {
   id: 'mapping-default',
   name: 'Factory Hall Curve',
-  length: 41,
+  length: 40,
   step: 100,
   samplingFrequency: 8000,
   samplingNoise: 3,
-  originalValues: Array.from({ length: 41 }, (_, index) => 4000 - index * 80),
-  calibratedValues: Array.from({ length: 41 }, (_, index) => index * 100),
+  originalValues: Array.from({ length: 40 }, (_, index) => 4000 - Math.round(index * (3200 / 39))),
+  calibratedValues: Array.from({ length: 40 }, (_, index) => index * 100),
 };
 
 /**
@@ -193,9 +194,17 @@ export class MockDeviceTransport implements DeviceTransport {
     standbyDisplay: 'buttonLayout',
   };
   private hotkeys: Hotkey[] = [
-    { key: 18, action: HotkeyAction.WebConfigMode, isHold: true },
-    { key: 19, action: HotkeyAction.LedsBrightnessDown },
-    { key: 20, action: HotkeyAction.LedsBrightnessUp },
+    { key: 20, action: HotkeyAction.WebConfigMode, isHold: true, isLocked: true },
+    { key: 19, action: HotkeyAction.CalibrationMode, isHold: true, isLocked: true },
+    { key: 15, action: HotkeyAction.LedsEffectStyleNext, isHold: false, isLocked: false },
+    { key: 16, action: HotkeyAction.LedsEffectStylePrev, isHold: false, isLocked: false },
+    { key: 14, action: HotkeyAction.LedsBrightnessUp, isHold: false, isLocked: false },
+    { key: 13, action: HotkeyAction.LedsBrightnessDown, isHold: false, isLocked: false },
+    { key: 11, action: HotkeyAction.AmbientLightEffectStyleNext, isHold: false, isLocked: false },
+    { key: 12, action: HotkeyAction.AmbientLightEffectStylePrev, isHold: false, isLocked: false },
+    { key: 10, action: HotkeyAction.AmbientLightBrightnessUp, isHold: false, isLocked: false },
+    { key: 9, action: HotkeyAction.AmbientLightBrightnessDown, isHold: false, isLocked: false },
+    { key: 2, action: HotkeyAction.LedsEnableSwitch, isHold: true, isLocked: false },
   ];
   private mappings = [clone(DEFAULT_MAPPING)];
   private defaultMappingId = DEFAULT_MAPPING.id;
@@ -217,6 +226,8 @@ export class MockDeviceTransport implements DeviceTransport {
     system: makeSystemImage(),
   };
   private importStaging: Array<{ section: string; data: unknown }> | null = null;
+  private importReplaceProfiles = false;
+  private importStrict = false;
   private firmwareSessions = new Set<string>();
   private readonly storage: MockStorage | null;
   private readonly storageKey: string;
@@ -501,10 +512,16 @@ export class MockDeviceTransport implements DeviceTransport {
       }
       case 'get_hotkeys_config':
         return { hotkeysConfig: this.hotkeys };
-      case 'update_hotkeys_config':
-        this.hotkeys = clone((params.hotkeysConfig as Hotkey[]) ?? []);
+      case 'update_hotkeys_config': {
+        const incoming = clone((params.hotkeysConfig as Hotkey[]) ?? []);
+        this.hotkeys = this.hotkeys.map((current, index) => {
+          const hotkey = incoming[index];
+          if (!hotkey || current.isLocked) return clone(current);
+          return { ...hotkey, isLocked: false };
+        });
         this.persistState();
         return { hotkeysConfig: this.hotkeys, success: true };
+      }
       case 'get_hitbox_layout':
         return HITBOX_LAYOUT;
       case 'get_device_logs_list':
@@ -519,14 +536,32 @@ export class MockDeviceTransport implements DeviceTransport {
       case 'export_all_config':
         this.scheduleConfigExport();
         return { accepted: true };
+      case 'import_config_begin':
+        this.importStaging = [];
+        this.importReplaceProfiles = params.replaceProfiles === true;
+        this.importStrict = params.strict === true;
+        return {
+          success: true,
+          strict: this.importStrict,
+          replaceProfiles: this.importReplaceProfiles,
+        };
       case 'import_config_part':
         this.stageImportPart(asString(params.section), params.data);
         return { success: true };
       case 'import_config_finish':
         this.finishImport();
         return { success: true };
+      case 'import_config_abort': {
+        const aborted = this.importStaging !== null;
+        this.importStaging = null;
+        this.importReplaceProfiles = false;
+        this.importStrict = false;
+        return { success: true, aborted };
+      }
       case 'ms_get_list':
         return this.mappingListPayload();
+      case 'get_adc_config_backup':
+        return { adcConfig: this.adcConfigBackup() };
       case 'ms_get_default':
       case 'ms_set_default':
         if (command === 'ms_set_default') {
@@ -538,7 +573,7 @@ export class MockDeviceTransport implements DeviceTransport {
         const mapping = makeMapping(
           `mapping-${Date.now().toString(36)}`,
           asString(params.name) || 'Mock Mapping',
-          asNumber(params.length) || 41,
+          asNumber(params.length) || 40,
           asNumber(params.step) || 100,
         );
         this.mappings.push(mapping);
@@ -825,7 +860,7 @@ export class MockDeviceTransport implements DeviceTransport {
   }
 
   private stageImportPart(section: string, data: unknown): void {
-    if (!['global', 'hotkeys', 'screenControl', 'profile'].includes(section)) {
+    if (!['global', 'hotkeys', 'screenControl', 'profile', 'adcConfig'].includes(section)) {
       throw new DeviceTransportError('protocol', `Unknown import section: ${section}`);
     }
     this.importStaging ??= [];
@@ -835,7 +870,22 @@ export class MockDeviceTransport implements DeviceTransport {
   private finishImport(): void {
     const staged = this.importStaging ?? [];
     const candidate = clone(this.captureState());
+    const allowedProfileIds = new Set(candidate.profiles.map((profile) => profile.id));
+    const importedProfileIds = new Set<string>();
     try {
+      if (this.importStrict) {
+        const sections = new Set(staged.map((part) => part.section));
+        if (
+          !sections.has('global') || !sections.has('hotkeys') ||
+          !sections.has('screenControl') || !sections.has('adcConfig')
+        ) {
+          throw new DeviceTransportError(
+            'protocol',
+            'Configuration backup is missing a required section',
+          );
+        }
+      }
+      if (this.importReplaceProfiles) candidate.profiles = [];
       for (const part of staged) {
         if (part.section === 'global') {
           const globalPart = asObject(part.data);
@@ -847,10 +897,17 @@ export class MockDeviceTransport implements DeviceTransport {
             candidate.defaultProfileId = globalPart.defaultProfileId;
           }
         } else if (part.section === 'hotkeys') {
-          if (!Array.isArray(part.data)) {
+          if (
+            !Array.isArray(part.data) ||
+            (this.importStrict && part.data.length !== DEFAULT_NUM_HOTKEYS_MAX)
+          ) {
             throw new DeviceTransportError('protocol', 'Imported hotkeys must be an array');
           }
-          candidate.hotkeys = clone(part.data as Hotkey[]);
+          candidate.hotkeys = clone(part.data as Hotkey[]).map((hotkey, index) =>
+            candidate.hotkeys[index]?.isLocked
+              ? clone(candidate.hotkeys[index])
+              : { ...hotkey, isLocked: false },
+          );
         } else if (part.section === 'screenControl') {
           candidate.screenControl = {
             ...candidate.screenControl,
@@ -858,12 +915,35 @@ export class MockDeviceTransport implements DeviceTransport {
           } as ScreenControlConfig;
         } else if (part.section === 'profile') {
           const profile = asObject(part.data) as unknown as GameProfile;
-          if (!profile.id || !profile.name) {
+          if (
+            !profile.id || !profile.name || !allowedProfileIds.has(profile.id) ||
+            importedProfileIds.has(profile.id)
+          ) {
             throw new DeviceTransportError('protocol', 'Imported profile is missing id or name');
           }
+          importedProfileIds.add(profile.id);
           const index = candidate.profiles.findIndex((item) => item.id === profile.id);
           if (index >= 0) candidate.profiles[index] = clone(profile);
           else candidate.profiles.push(clone(profile));
+        } else if (part.section === 'adcConfig') {
+          const adc = asObject(part.data);
+          if (!Array.isArray(adc.mappings) || adc.mappings.length === 0) {
+            throw new DeviceTransportError('protocol', 'Imported ADC data has no mappings');
+          }
+          candidate.mappings = clone(adc.mappings as ADCValuesMapping[]).map((mapping) => ({
+            ...mapping,
+            calibratedValues: Array.from(
+              { length: mapping.length },
+              (_, index) => index * mapping.step,
+            ),
+          }));
+          candidate.defaultMappingId = asString(adc.defaultMappingId);
+          const manual = Array.isArray(adc.manualCalibrationValues)
+            ? adc.manualCalibrationValues.map(asObject)
+            : [];
+          candidate.calibrationComplete = manual.length === 18 && manual.every(
+            (pair) => asNumber(pair.topValue) > 0 && asNumber(pair.bottomValue) > 0,
+          );
         }
       }
       if (!candidate.profiles.some((profile) => profile.id === candidate.defaultProfileId)) {
@@ -877,7 +957,35 @@ export class MockDeviceTransport implements DeviceTransport {
       this.persistState();
     } finally {
       this.importStaging = null;
+      this.importReplaceProfiles = false;
+      this.importStrict = false;
     }
+  }
+
+  private adcConfigBackup(): Record<string, unknown> {
+    const manualCalibrationValues = this.calibrationStatus.buttons.map((button) => ({
+      topValue: button.isCalibrated ? button.topValue : 0,
+      bottomValue: button.isCalibrated ? button.bottomValue : 0,
+    }));
+    return {
+      version: 1,
+      defaultMappingId: this.defaultMappingId,
+      calibratedMappingId: this.calibrationComplete ? this.defaultMappingId : '',
+      mappings: this.mappings.map((mapping) => ({
+        id: mapping.id,
+        name: mapping.name,
+        length: mapping.length,
+        step: mapping.step,
+        samplingFrequency: mapping.samplingFrequency,
+        samplingNoise: mapping.samplingNoise,
+        originalValues: [...mapping.originalValues],
+      })),
+      manualCalibrationValues,
+      autoCalibrationValues: Array.from({ length: 18 }, () => ({
+        topValue: 0,
+        bottomValue: 0,
+      })),
+    };
   }
 
   private startCalibration(): CalibrationStatus {

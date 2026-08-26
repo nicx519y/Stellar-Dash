@@ -22,11 +22,13 @@ const {
     BinaryBootAttestationVerifier,
     BinaryP256PermitSigner,
     StorageDevicePolicy,
+    LocalDebugDevicePolicy,
     DeviceAuthV2Service,
     encodeBase64Url,
     decodeBase64Url,
     initDeviceAuthV2Routes,
     validateProductionAdapter,
+    localDebugDeviceAuthBypassEnabled,
     createDeviceAuthV2FromEnvironment
 } = require('../src/device-auth-v2');
 const {
@@ -409,6 +411,118 @@ test('production auth rejects local private keys and requires shared adapters',
                 }
             );
             assert.equal(shared.isReady(), true);
+        } finally {
+            fs.removeSync(fixture.tempDir);
+        }
+    });
+
+test('local device policy bypass is explicit and restricted to loopback',
+    () => {
+        const loopback = {
+            NODE_ENV: 'development',
+            HBOX_LOCAL_DEVICE_AUTH_BYPASS: '1',
+            LISTEN_HOST: '127.0.0.1',
+            SERVER_ADDRESS: '127.0.0.1',
+            WEB_CONFIG_ORIGINS: 'http://localhost:3001'
+        };
+        assert.equal(localDebugDeviceAuthBypassEnabled(loopback), true);
+        assert.equal(localDebugDeviceAuthBypassEnabled({
+            ...loopback,
+            HBOX_LOCAL_DEVICE_AUTH_BYPASS: '0'
+        }), false);
+        assert.throws(
+            () => localDebugDeviceAuthBypassEnabled({
+                ...loopback,
+                NODE_ENV: 'production'
+            }),
+            /forbidden in production/
+        );
+        assert.throws(
+            () => localDebugDeviceAuthBypassEnabled({
+                ...loopback,
+                LISTEN_HOST: '0.0.0.0'
+            }),
+            /exact loopback listener/
+        );
+        assert.throws(
+            () => localDebugDeviceAuthBypassEnabled({
+                ...loopback,
+                WEB_CONFIG_ORIGINS: 'http:\/\/192.168.1.20:3001'
+            }),
+            /exact loopback WebConfig origins/
+        );
+    });
+
+test('local loopback environment selects the debug policy adapter', () => {
+    const fixture = createFixture();
+    try {
+        const service = createDeviceAuthV2FromEnvironment(
+            fixture.storage,
+            {
+                environment: {
+                    NODE_ENV: 'development',
+                    HBOX_LOCAL_DEVICE_AUTH_BYPASS: '1',
+                    LISTEN_HOST: '127.0.0.1',
+                    SERVER_ADDRESS: '127.0.0.1',
+                    WEB_CONFIG_ORIGINS: 'http://localhost:3001',
+                    DEVICE_CA_PUBLIC_KEY_PEM:
+                        fixture.caKeys.publicKey.export({
+                            type: 'spki',
+                            format: 'pem'
+                        }),
+                    WEB_CONFIG_AUTH_PRIVATE_KEY_PEM:
+                        fixture.permitKeys.privateKey.export({
+                            type: 'pkcs8',
+                            format: 'pem'
+                        })
+                }
+            }
+        );
+        assert.equal(service.isReady(), true);
+        assert.equal(service.localDeviceAuthBypass, true);
+        assert.equal(
+            service.devicePolicy instanceof LocalDebugDevicePolicy,
+            true
+        );
+    } finally {
+        fs.removeSync(fixture.tempDir);
+    }
+});
+
+test('local debug policy ignores firmware trust policy but still issues an encrypted-session permit',
+    async () => {
+        const fixture = createFixture();
+        try {
+            fixture.storage.updateV2DevicePolicy(
+                fixture.deviceId.toString('hex'),
+                {
+                    minSecurityVersion: fixture.securityVersion + 100,
+                    allowedFirmwareMeasurements: [
+                        Buffer.alloc(32, 0x99).toString('hex')
+                    ]
+                }
+            );
+            fixture.storage.revokeV2Device(
+                fixture.deviceId.toString('hex'),
+                'local debug test',
+                'test'
+            );
+            fixture.service.devicePolicy =
+                new LocalDebugDevicePolicy(fixture.storage);
+            fixture.service.localDeviceAuthBypass = true;
+            const challenge = issueChallenge(fixture);
+            const authorization = await verifySession(
+                fixture,
+                makeVerifyRequest(fixture, challenge)
+            );
+            assert.equal(typeof authorization.apiToken, 'string');
+            assert.equal(authorization.apiToken.length > 20, true);
+            verifyPermit(fixture, authorization.deviceSessionPermit);
+            const debugRecord = fixture.service.devicePolicy.get(
+                fixture.deviceId.toString('hex')
+            );
+            assert.equal(debugRecord.status, 'active');
+            assert.equal(debugRecord.revokedAt, null);
         } finally {
             fs.removeSync(fixture.tempDir);
         }

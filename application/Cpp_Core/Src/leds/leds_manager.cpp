@@ -624,14 +624,73 @@ void LEDsManager::setAmbientLightBrightness(uint8_t brightness) {
  */
 void LEDsManager::setTemporaryConfig(const LEDProfile& tempConfig, uint32_t enabledKeysMask)
 {
+    const bool runtimeWasEnabled = runtimeEnabled;
+    const bool keysWereEnabled = opts != nullptr && opts->ledEnabled;
+    const bool ambientWasEnabled = opts != nullptr && opts->aroundLedEnabled;
+
     temporaryConfig = tempConfig;
     opts = &temporaryConfig;
     usingTemporaryConfig = true;
     this->enabledKeysMask = enabledKeysMask;
 
-    // 重新初始化以应用新配置
-    deinit();
-    setup();
+    /* The first preview owns LED runtime startup.  Subsequent WebConfig
+     * changes stay in-place: deinit() blocks the control loop for 50 ms and
+     * unnecessarily stops both TIM4 DMA channels when only one strip changed.
+     * WebHID is physically owned by CH585 and is not directly coupled to
+     * TIM4; keeping the update local avoids perturbing the other LED strip. */
+    if (!runtimeWasEnabled) {
+        setup();
+        return;
+    }
+
+    const LedStripController& keyStrip = LedStripController::keys();
+    const LedStripController& ambientStrip = LedStripController::ambient();
+    const uint32_t now = HAL_GetTick();
+
+    updateColorsFromConfig();
+    animationStartTime = now;
+    aroundLedAnimationStartTime = now;
+    lastButtonState = 0u;
+    rippleCount = 0u;
+    aroundLedRippleCount = 0u;
+
+    if (opts->ledEnabled != keysWereEnabled) {
+        keyStrip.setAllBrightness(0u);
+        (void)keyStrip.submitFrame();
+        if (opts->ledEnabled) {
+            const WS2812B_StateTypeDef state = keyStrip.start();
+            keyStrip.setPowerEnabled(state == WS2812B_RUNNING);
+            keyStartupRampStartTime = now;
+            keyStartupRampActive = (state == WS2812B_RUNNING);
+        } else {
+            keyStartupRampActive = false;
+            /* Keep CH1 circular DMA alive.  Only the selected LED rail is
+             * disabled; ambient CH2 continues uninterrupted on TIM4. */
+            keyStrip.setPowerEnabled(false);
+        }
+    }
+
+    if (opts->aroundLedEnabled != ambientWasEnabled) {
+        ambientStrip.setAllBrightness(0u);
+        (void)ambientStrip.submitFrame();
+        if (opts->aroundLedEnabled) {
+            const WS2812B_StateTypeDef state = ambientStrip.start();
+            ambientStrip.setPowerEnabled(state == WS2812B_RUNNING);
+            ambientStartupRampStartTime = now;
+            ambientStartupRampActive = (state == WS2812B_RUNNING);
+        } else {
+            ambientStartupRampActive = false;
+            /* Keep CH2 circular DMA alive while key CH1 remains active. */
+            ambientStrip.setPowerEnabled(false);
+        }
+    }
+
+    APP_STAGE("L06",
+              "preview in-place keys=%u key_dma=%u ambient=%u ambient_dma=%u",
+              (unsigned)opts->ledEnabled,
+              (unsigned)keyStrip.state(),
+              (unsigned)opts->aroundLedEnabled,
+              (unsigned)ambientStrip.state());
 }
 
 /**

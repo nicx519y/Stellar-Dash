@@ -340,12 +340,48 @@ class WebConfigFlashTests(unittest.TestCase):
         self.assertEqual(identity.device_id, 0x450)
         command = run.call_args.args[0]
         self.assertIn(f"adapter serial {self.serial}", command)
+        self.assertIn(
+            f"adapter speed {webconfig_flash.STM32_PROBE_SWD_KHZ}",
+            command,
+        )
         self.assertIn("mdw 0x1FF1E800 3", command)
         self.assertLess(
             command.index(f"adapter serial {self.serial}"),
             command.index("init"),
         )
         self.assertNotIn("reset run", command)
+
+    def test_probe_retries_connect_under_reset(self) -> None:
+        output = "\n".join(
+            (
+                "0x5c001000: 20030450",
+                "0x1ff1e800: a1b2c3d4 e5f60718 293a4b5c",
+            )
+        )
+        with mock.patch.object(
+            webconfig_flash.local,
+            "_run",
+            side_effect=(
+                webconfig_flash.local.LocalWebConfigError("no target"),
+                SimpleNamespace(returncode=0, stdout=output),
+            ),
+        ) as run:
+            identity = webconfig_flash.probe_target_identity(
+                self.openocd,
+                self.serial,
+                run_after=False,
+            )
+
+        self.assertEqual(identity.uid, self.uid)
+        self.assertEqual(run.call_count, 2)
+        normal_command = run.call_args_list[0].args[0]
+        fallback_command = run.call_args_list[1].args[0]
+        self.assertNotIn("reset_config connect_assert_srst", normal_command)
+        self.assertIn("reset_config connect_assert_srst", fallback_command)
+        self.assertLess(
+            fallback_command.index("reset_config connect_assert_srst"),
+            fallback_command.index("init"),
+        )
 
     def test_execute_requires_artifact_and_physical_uid_confirmations(self) -> None:
         common = self._common_patches()
@@ -496,6 +532,16 @@ class WebConfigFlashTests(unittest.TestCase):
         )
         self.assertTrue(calls[-1].kwargs["reset_after"])
         self.assertTrue(all(not call.kwargs["reset_after"] for call in calls[:-1]))
+        self.assertTrue(
+            all(
+                call.kwargs["adapter_speed_khz"]
+                == webconfig_flash.STM32_QSPI_SWD_KHZ
+                for call in calls
+            )
+        )
+        self.assertTrue(
+            all(call.kwargs["connect_under_reset_fallback"] for call in calls)
+        )
         self.assertEqual(
             events,
             [
@@ -1644,6 +1690,10 @@ class WebConfigFlashTests(unittest.TestCase):
         command = webconfig_flash._internal_openocd_prefix(
             self.openocd,
             webconfig_flash.AUTOMATIC_STLINK_BINDING,
+        )
+        self.assertIn(
+            f"adapter speed {webconfig_flash.STM32_TRANSACTION_SWD_KHZ}",
+            command,
         )
         self.assertFalse(
             any(

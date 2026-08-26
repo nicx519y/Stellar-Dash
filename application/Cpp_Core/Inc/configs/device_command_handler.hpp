@@ -41,8 +41,10 @@ public:
     DeviceCommandResponse handleUpdateScreenControlConfig(const DeviceCommandRequest& request);
     DeviceCommandResponse handleExportAllConfig(const DeviceCommandRequest& request);
     DeviceCommandResponse handleImportAllConfig(const DeviceCommandRequest& request);
+    DeviceCommandResponse handleImportConfigBegin(const DeviceCommandRequest& request);
     DeviceCommandResponse handleImportConfigPart(const DeviceCommandRequest& request);
     DeviceCommandResponse handleImportConfigFinish(const DeviceCommandRequest& request);
+    DeviceCommandResponse handleImportConfigAbort(const DeviceCommandRequest& request);
     DeviceCommandResponse handleReboot(const DeviceCommandRequest& request);
 
     // LED配置相关命令
@@ -120,6 +122,7 @@ public:
     DeviceCommandResponse handleMarkMappingStop(const DeviceCommandRequest& request);
     DeviceCommandResponse handleMarkMappingStep(const DeviceCommandRequest& request);
     DeviceCommandResponse handleGetMapping(const DeviceCommandRequest& request);
+    DeviceCommandResponse handleGetConfigBackup(const DeviceCommandRequest& request);
 
     // DeviceCommandHandler接口实现
     DeviceCommandResponse handle(const DeviceCommandRequest& request) override;

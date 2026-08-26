@@ -188,6 +188,13 @@ class WebConfigLocalProvisioningTests(unittest.TestCase):
         self.assertTrue(args.unlocked_development)
         self.assertTrue(args.skip_power_device_probes)
 
+    def test_local_serve_defaults_to_loopback_auth_bypass(self) -> None:
+        parser = webconfig_local.build_parser()
+        debug_args = parser.parse_args(["serve"])
+        self.assertTrue(debug_args.bypass_device_auth)
+        strict_args = parser.parse_args(["serve", "--require-device-auth"])
+        self.assertFalse(strict_args.bypass_device_auth)
+
     def test_artifact_handoff_is_cryptographically_verified_and_tamper_evident(self) -> None:
         with tempfile.TemporaryDirectory(prefix="hbox-local-handoff-") as root:
             state_dir = Path(root) / "state"

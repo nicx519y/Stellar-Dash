@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "legacyCommandCount": 60,
+  "legacyCommandCount": 63,
   "migrationStatusCounts": {
-    "direct": 58,
+    "direct": 61,
     "equivalent": 1,
     "retired": 1
   },
@@ -27,6 +27,7 @@
         {"name": "ms_get_mark_status", "migration": "direct", "consumers": ["device-api"], "test": "contract"},
         {"name": "ms_get_default", "migration": "direct", "consumers": ["device-api"], "test": "contract"},
         {"name": "ms_get_mapping", "migration": "direct", "consumers": ["mapping-calibration"], "test": "contract"},
+        {"name": "get_adc_config_backup", "migration": "direct", "consumers": ["config-export"], "test": "contract"},
         {"name": "get_hitbox_layout", "migration": "direct", "consumers": ["startup"], "test": "contract"},
         {"name": "get_firmware_metadata", "migration": "direct", "consumers": ["startup", "firmware"], "test": "contract"},
         {"name": "get_device_auth", "migration": "retired", "consumers": ["security-tombstone-410"], "test": "contract"},
@@ -40,8 +41,10 @@
         {"name": "update_hotkeys_config", "migration": "direct", "consumers": ["hotkeys"], "test": "contract"},
         {"name": "update_screen_control_config", "migration": "direct", "consumers": ["screen"], "test": "contract"},
         {"name": "import_all_config", "migration": "direct", "consumers": ["device-api"], "test": "contract"},
+        {"name": "import_config_begin", "migration": "direct", "consumers": ["config-import"], "test": "contract"},
         {"name": "import_config_part", "migration": "direct", "consumers": ["config-import"], "test": "contract"},
         {"name": "import_config_finish", "migration": "direct", "consumers": ["config-import"], "test": "contract"},
+        {"name": "import_config_abort", "migration": "direct", "consumers": ["config-import"], "test": "contract"},
         {"name": "push_leds_config", "migration": "direct", "consumers": ["led-preview"], "test": "contract"},
         {"name": "clear_leds_preview", "migration": "direct", "consumers": ["led-preview"], "test": "contract"},
         {"name": "update_profile", "migration": "direct", "consumers": ["profiles", "buttons", "leds"], "test": "contract"},

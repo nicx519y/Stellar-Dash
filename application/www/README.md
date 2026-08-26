@@ -17,6 +17,56 @@ development), and a user click before the browser device chooser can open.
 Hosted builds use WebHID exclusively and never fall back to another device
 transport.
 
+### Local WebHID trace page
+
+The normal local server exposes WebConfig and a dedicated trace receiver from
+one origin:
+
+```text
+http://localhost:3000/global/
+http://localhost:3000/webhid-trace/
+```
+
+Open both URLs in Chrome. The WebConfig tab owns and operates the HID device;
+the trace tab never opens HID. A same-origin `BroadcastChannel` carries trace
+records from WebConfig to the receiver, so both tabs must use exactly the same
+hostname and port. For example, do not mix `localhost` and `127.0.0.1`.
+
+The receiver defaults to `control` mode, which excludes high-rate
+`PERF_SAMPLE`, `PERF_EDGE`, and `PERF_CHECKPOINT` traffic. Select `all` only
+when performance telemetry is required. `FRAME` records contain the complete
+64-byte wire report and the plaintext payload captured at the existing crypto
+boundary. `LOGICAL` records contain reassembled requests, responses, events,
+and decoded JSON.
+
+While the receiver is open, the WebConfig tab also mirrors the same records to
+Chrome DevTools Network. Filter that tab's Network panel by
+`__hbox_webhid_trace__`. The Service Worker consumes these synthetic requests
+locally and never forwards them to the WebConfig server or device.
+
+Cross-tab trace activation is accepted only on exact loopback hostnames
+(`localhost`, `127.0.0.1`, or `::1`). Closing the receiver automatically lets
+the capture lease expire. Trace payloads can contain decrypted configuration,
+authorization material, and firmware data; do not share exported JSON or HAR
+files.
+
+For local hardware debugging, start the integrated server from the repository
+root:
+
+```bash
+python tools/hbox.py web local-serve --port 3001
+```
+
+This unified laboratory launcher explicitly bypasses the local device trust
+policy (enrollment identity, revocation, rollback, and firmware-measurement
+allowlists). It remains restricted to exact loopback listeners and origins.
+The cryptographic attestation exchange still runs so the device can install a
+server-signed temporary permit, and all protected WebHID RPC traffic remains
+AES-GCM encrypted. The standalone `tools/webconfig_local.py serve` command has
+the same loopback-only laboratory default; use `--require-device-auth` only
+when explicitly testing the local trust policy. Production startup rejects the
+bypass unconditionally.
+
 Production validation and static export:
 
 ```bash
@@ -85,6 +135,8 @@ not be deployed as the genuine-device V2 site.
 ## Authentication behavior
 
 - Before attestation, only the fixed bootstrap exchange is accepted.
+- The local `hbox.py web local-serve` launcher skips trust-policy decisions for
+  lab debugging only; production authentication behavior is unchanged.
 - The page sends no protected RPC until STM32 accepts the server permit.
 - The API bearer token is memory-only and expires in at most five minutes.
 - Initial authorization requests only `config.read`, `config.write`, and

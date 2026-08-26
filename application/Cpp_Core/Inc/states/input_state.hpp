@@ -28,6 +28,8 @@ public:
     bool connectUsbRuntime();
     bool isUsbRuntimeInitialized() const { return usbRuntimeInitialized; }
     bool isInputPipelineRunning() const { return inputPipelineRunning; }
+    bool suspendInputPipelineForStorage();
+    bool resumeInputPipelineAfterStorage(bool wasRunning);
 
 private:
     InputState() = default;

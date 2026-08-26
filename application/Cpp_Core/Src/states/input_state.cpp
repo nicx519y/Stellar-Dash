@@ -145,6 +145,35 @@ void InputState::stopInputPipeline()
     inputPipelineRunning = false;
 }
 
+bool InputState::suspendInputPipelineForStorage()
+{
+    const bool wasRunning = inputPipelineRunning;
+    if (wasRunning) {
+        APP_STAGE("I08", "input pipeline suspended for QSPI storage transaction");
+        stopInputPipeline();
+    }
+    return wasRunning;
+}
+
+bool InputState::resumeInputPipelineAfterStorage(bool wasRunning)
+{
+    if (!wasRunning) {
+        return true;
+    }
+    if (!isRunning || activeBoardMode == BoardMode::CenterOff ||
+        activeBoardMode == BoardMode::Fault) {
+        return false;
+    }
+    startInputPipeline();
+    const bool resumed = inputPipelineRunning;
+    if (resumed) {
+        APP_STAGE("I08", "input pipeline resumed after QSPI storage transaction");
+    } else {
+        APP_STAGE_ERROR("I08", "input pipeline failed to resume after QSPI storage transaction");
+    }
+    return resumed;
+}
+
 void InputState::processReportTick()
 {
     virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read();

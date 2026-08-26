@@ -184,7 +184,11 @@ class HboxV2BuildContractTests(unittest.TestCase):
             ("local-init", "init", []),
             ("local-status", "status", []),
             ("probe-revision", "probe-revision", ["--openocd", "probe"]),
-            ("local-serve", "serve", ["--port", "3001"]),
+            (
+                "local-serve",
+                "serve",
+                ["--port", "3001", "--bypass-device-auth"],
+            ),
         )
         for target, command, extra in cases:
             with self.subTest(target=target), mock.patch.object(

@@ -52,6 +52,64 @@
 QSPI_HandleTypeDef hqspi;
 static bool xip_enabled = false;  // 跟踪XIP模式状态
 
+/*
+ * Blocking QUADSPI automatic polling keeps the peripheral BUSY until the
+ * status-match flag is raised. If that match is missed, the HAL timeout can
+ * itself be starved by unrelated high-frequency interrupts. Use short,
+ * individually bounded indirect status reads so the peripheral returns to
+ * READY between polls and the caller always retains control.
+ */
+#define W25Qxx_READY_TIMEOUT_MS        HAL_QSPI_TIMEOUT_DEFAULT_VALUE
+#define W25Qxx_READY_POLL_MAX_ATTEMPTS 250000UL
+#define W25Qxx_READY_POLL_SPIN_DIVISOR 100000UL
+
+static void QSPI_W25Qxx_ReadyPollPause(void)
+{
+	volatile uint32_t spins = SystemCoreClock / W25Qxx_READY_POLL_SPIN_DIVISOR;
+	if (spins == 0U)
+	{
+		spins = 1U;
+	}
+	while (spins-- > 0U)
+	{
+		__NOP();
+	}
+}
+
+static int8_t QSPI_W25Qxx_ReadStatusReg1(uint8_t *status)
+{
+	QSPI_CommandTypeDef s_command = {0};
+
+	if (status == NULL)
+	{
+		return W25Qxx_ERROR_TRANSMIT;
+	}
+
+	s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
+	s_command.Instruction       = W25Qxx_CMD_ReadStatus_REG1;
+	s_command.AddressMode       = QSPI_ADDRESS_NONE;
+	s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
+	s_command.DataMode          = QSPI_DATA_1_LINE;
+	s_command.DummyCycles       = 0;
+	s_command.NbData            = 1;
+	s_command.DdrMode           = QSPI_DDR_MODE_DISABLE;
+	s_command.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
+	s_command.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
+
+	if (HAL_QSPI_Command(&hqspi, &s_command,
+	                     HAL_QSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+	{
+		return W25Qxx_ERROR_TRANSMIT;
+	}
+	if (HAL_QSPI_Receive(&hqspi, status,
+	                     HAL_QSPI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+	{
+		return W25Qxx_ERROR_TRANSMIT;
+	}
+
+	return QSPI_W25Qxx_OK;
+}
+
 /**
  * @brief 
  * 函数功能: QSPI引脚初始化函数
@@ -192,38 +250,29 @@ int8_t QSPI_W25Qxx_Init(void)
  */
 int8_t QSPI_W25Qxx_AutoPollingMemReady(void)
 {
-		// 定义QSPI句柄，这里保留使用cubeMX生成的变量命名，方便用户参考和移植
+	const uint32_t tick_start = HAL_GetTick();
+	uint32_t attempts = 0;
+	uint8_t status = W25Qxx_Status_REG1_BUSY;
 
-	QSPI_CommandTypeDef     s_command;	   // QSPI传输配置
-	QSPI_AutoPollingTypeDef s_config;		// 轮询比较相关配置参数
-
-	s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;			// 1线指令模式
-	s_command.AddressMode       = QSPI_ADDRESS_NONE;				// 无地址模式
-	s_command.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;		//	无交替字节 
-	s_command.DdrMode           = QSPI_DDR_MODE_DISABLE;	     	// 禁止DDR模式
-	s_command.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;	   	// DDR模式中数据延迟，这里用不到
-	s_command.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;	   		//	每次传输数据都发送指令	
-	s_command.DataMode          = QSPI_DATA_1_LINE;					// 1线数据模式
-	s_command.DummyCycles       = 0;								//	空周期个数
-	s_command.Instruction       = W25Qxx_CMD_ReadStatus_REG1;	   	// 读状态信息寄存器
-																					
-// 不停的查询 W25Qxx_CMD_ReadStatus_REG1 寄存器，将读取到的状态字节中的 W25Qxx_Status_REG1_BUSY 不停的与0作比较
-// 读状态寄存器1的第0位（只读），Busy标志位，当正在擦除/写入数据/写命令时会被置1，空闲或通信结束为0
-	
-	s_config.Match           = 0;   								//	匹配值
-	s_config.MatchMode       = QSPI_MATCH_MODE_AND;	      			//	与运算
-	s_config.Interval        = 0x10;	                     		//	轮询间隔
-	s_config.AutomaticStop   = QSPI_AUTOMATIC_STOP_ENABLE;			// 自动停止模式
-	s_config.StatusBytesSize = 1;	                        		//	状态字节数
-	s_config.Mask            = W25Qxx_Status_REG1_BUSY;	   			// 对在轮询模式下接收的状态字节进行屏蔽，只比较需要用到的位
-		
-	// 发送轮询等待命令
-	if (HAL_QSPI_AutoPolling(&hqspi, &s_command, &s_config, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+	while (attempts++ < W25Qxx_READY_POLL_MAX_ATTEMPTS)
 	{
-		return W25Qxx_ERROR_AUTOPOLLING; // 轮询等待无响应
+		if (QSPI_W25Qxx_ReadStatusReg1(&status) != QSPI_W25Qxx_OK)
+		{
+			return W25Qxx_ERROR_AUTOPOLLING;
+		}
+		if ((status & W25Qxx_Status_REG1_BUSY) == 0U)
+		{
+			return QSPI_W25Qxx_OK;
+		}
+		if ((HAL_GetTick() - tick_start) >= W25Qxx_READY_TIMEOUT_MS)
+		{
+			return W25Qxx_ERROR_AUTOPOLLING;
+		}
+		QSPI_W25Qxx_ReadyPollPause();
 	}
-	return QSPI_W25Qxx_OK; // 通信正常结束
 
+	/* Independent of SysTick: malformed timing state still has a hard exit. */
+	return W25Qxx_ERROR_AUTOPOLLING;
 }
 
 /**
@@ -1049,13 +1098,6 @@ int8_t QSPI_W25Qxx_BufferErase(uint32_t StartAddr, uint32_t Size)
         return W25Qxx_ERROR_TRANSMIT;
     }
 
-    // 写使能
-    result = QSPI_W25Qxx_WriteEnable();
-    if(result != QSPI_W25Qxx_OK) {
-        QSPI_W25Qxx_ERR("QSPI_W25Qxx_BufferErase write enable failure. error: %d", result);
-        return result;
-    }
-
     CurrentAddr = StartAddr;
     
     // 按照64K块、32K块和4K扇区依次擦除
@@ -1090,17 +1132,7 @@ int8_t QSPI_W25Qxx_BufferErase(uint32_t StartAddr, uint32_t Size)
             CurrentAddr += 4*1024;
         }
 
-        // 等待擦除完成
-        result = QSPI_W25Qxx_AutoPollingMemReady();
-        if(result != QSPI_W25Qxx_OK) {
-            return result;
-        }
-
-        // 重新写使能
-        result = QSPI_W25Qxx_WriteEnable();
-        if(result != QSPI_W25Qxx_OK) {
-            return result;
-        }
+        /* Each erase primitive performs its own WREN and bounded ready poll. */
     }
 
     result = QSPI_W25Qxx_OK;

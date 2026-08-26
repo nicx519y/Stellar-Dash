@@ -103,6 +103,13 @@ class ADCManager {
         int8_t saveStore();
         int8_t saveCommon();
 
+        // WebConfig backup/restore snapshot. Callers must validate all fields
+        // before restoreBackup; the manager keeps the two QSPI regions in sync
+        // and rolls the first write back if the second write fails.
+        void copyBackup(ADCValuesMappingStore& storeOut, ADCCommonConfig& commonOut) const;
+        ADCBtnsError restoreBackup(const ADCValuesMappingStore& storeIn,
+                                   const ADCCommonConfig& commonIn);
+
         // 获取映射索引
         int8_t findMappingById(const char* const id) const;
 

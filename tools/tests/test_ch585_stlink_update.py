@@ -113,6 +113,8 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
         qspi_writer = build[start:end].lower()
         self.assertIn("flash write_image erase", qspi_writer)
         self.assertIn("flash verify_bank 1", qspi_writer)
+        self.assertNotIn("chunks_per_session", qspi_writer)
+        self.assertNotIn("flash erase_sector 1", qspi_writer)
         self.assertIn("qspi_base = 0x90000000", qspi_writer)
         for command in (
             "option_write",

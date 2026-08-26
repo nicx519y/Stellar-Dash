@@ -844,6 +844,84 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
     return ADCBtnsError::SUCCESS;
 }
 
+void ADCManager::copyBackup(ADCValuesMappingStore& storeOut,
+                            ADCCommonConfig& commonOut) const
+{
+    memcpy(&storeOut, &store, sizeof(storeOut));
+    memcpy(&commonOut, &common, sizeof(commonOut));
+}
+
+ADCBtnsError ADCManager::restoreBackup(const ADCValuesMappingStore& storeIn,
+                                       const ADCCommonConfig& commonIn)
+{
+    if (storeIn.version != ADC_MAPPING_VERSION ||
+        commonIn.version != ADC_COMMON_VERSION ||
+        storeIn.num == 0u ||
+        storeIn.num > NUM_ADC_VALUES_MAPPING ||
+        strncmp(storeIn.defaultId, commonIn.defaultMappingId,
+                sizeof(storeIn.defaultId)) != 0)
+    {
+        return ADCBtnsError::INVALID_PARAMS;
+    }
+
+    bool defaultFound = false;
+    bool calibratedFound = commonIn.calibratedMappingId[0] == '\0';
+    for (uint8_t i = 0; i < storeIn.num; ++i)
+    {
+        const ADCValuesMapping& mapping = storeIn.mapping[i];
+        if (mapping.id[0] == '\0' || mapping.name[0] == '\0' ||
+            mapping.length == 0u || mapping.length > MAX_ADC_VALUES_LENGTH)
+        {
+            return ADCBtnsError::INVALID_PARAMS;
+        }
+        if (strncmp(mapping.id, commonIn.defaultMappingId,
+                    sizeof(commonIn.defaultMappingId)) == 0)
+        {
+            defaultFound = true;
+        }
+        if (strncmp(mapping.id, commonIn.calibratedMappingId,
+                    sizeof(commonIn.calibratedMappingId)) == 0)
+        {
+            calibratedFound = true;
+        }
+        for (uint8_t j = i + 1u; j < storeIn.num; ++j)
+        {
+            if (strncmp(mapping.id, storeIn.mapping[j].id,
+                        sizeof(mapping.id)) == 0)
+            {
+                return ADCBtnsError::MAPPING_ALREADY_EXISTS;
+            }
+        }
+    }
+    if (!defaultFound || !calibratedFound)
+    {
+        return ADCBtnsError::INVALID_PARAMS;
+    }
+
+    ADCValuesMappingStore oldStore;
+    ADCCommonConfig oldCommon;
+    copyBackup(oldStore, oldCommon);
+    memcpy(&store, &storeIn, sizeof(store));
+    memcpy(&common, &commonIn, sizeof(common));
+
+    if (saveStore() != QSPI_W25Qxx_OK)
+    {
+        memcpy(&store, &oldStore, sizeof(store));
+        memcpy(&common, &oldCommon, sizeof(common));
+        return ADCBtnsError::MAPPING_UPDATE_FAILED;
+    }
+    if (saveCommon() != QSPI_W25Qxx_OK)
+    {
+        memcpy(&store, &oldStore, sizeof(store));
+        memcpy(&common, &oldCommon, sizeof(common));
+        (void)saveStore();
+        (void)saveCommon();
+        return ADCBtnsError::MAPPING_UPDATE_FAILED;
+    }
+
+    return ADCBtnsError::SUCCESS;
+}
+
 void ADCManager::stopADCSamping()
 {
     samplingRateEnabled = false;

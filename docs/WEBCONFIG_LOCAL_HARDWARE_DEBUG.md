@@ -117,6 +117,9 @@ python tools/hbox.py web local-flash-stm32 --openocd $openocd `
 
 记录输出中的 `STM32_UID`。`--probe-target` 是唯一会在诊断结束时恢复 `reset run`
 的非写入模式；正式执行和恢复事务都保持目标 halt，直到最终 metadata 校验成功。
+本地事务不会继承 bootloader OpenOCD 配置中的 10 MHz：UID 探测固定使用 400 kHz，
+普通连接失败时自动再尝试一次 connect-under-reset；内部 Flash 备份/必要写入使用
+1800 kHz；普通 QSPI 会话固定使用 400 kHz。
 确认 dry-run 的 `deviceId` 和 probe 的物理 UID 后，再显式执行：
 
 ```powershell
@@ -143,9 +146,16 @@ python tools/hbox.py web local-flash-stm32 --openocd $openocd --execute `
    它会在持有同一 UID/全局 OpenOCD/ST-Link 锁时重新读取完整 128 KiB 到唯一临时
    文件，校验长度并 fsync，再原子替换 final 后提交状态；
 4. 依次分块擦写并逐块校验 application (`0x90000000`)、ADC mapping
-   (`0x90280000`)、system assets (`0x905B0000`) 和 sysbg (`0x905F0000`)；这些
-   阶段不启动目标；每个独立短会话都会在破坏性命令前同时断言
-   `DEV_ID=0x450` 和三个 UID word，防止会话间换板/换 MCU；
+   (`0x90280000`)、system assets (`0x905B0000`) 和 sysbg (`0x905F0000`)；普通
+   STM32 槽烧录固定使用 4 KiB 块，每个 OpenOCD 写入/物理回读会话最多处理
+   8 块（32 KiB），并通过 `flash verify_bank` 直接读取 stmqspi bank，避免长时间
+   RAM algorithm 掉线和 Cortex-M QSPI cache 误判。这些阶段不启动目标；每个独立
+   短会话都会在破坏性命令前同时断言 `DEV_ID=0x450` 和三个 UID word，防止会话间
+   换板/换 MCU。同一 sector 擦除或同一批数据写入/物理回读若因链路掉线失败，最多
+   重新连接 2 次；重试仍只操作完全相同的 sector/字节范围，三次均失败即停止且不提交
+   metadata。WebConfig 普通 STM32 QSPI 会话在每次 `reset init` 后固定重新应用
+   400 kHz，并允许普通 connect-under-reset fallback；CH585 runtime-attach staging
+   继续使用已验收的原整文件会话，不受该普通槽烧录变更影响；
 5. 在 durable 状态先写入 `status=internal-programming` 和递增的尝试次数，再将完整
    128 KiB `internal-flash-provisioning.bin` 作为单扇区事务写入并全量校验；若设备中
    的完整 128 KiB 已与制品完全相同，则安全跳过擦写。中断后只允许三种自动判定：

@@ -776,6 +776,52 @@ class WebConfigStateContractTests(unittest.TestCase):
         self.assertIn("SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk", sleep_source)
         self.assertIn("return (g_cfgBrightness < 20u) ? 20u : g_cfgBrightness;", screen_source)
 
+    def test_screen_webconfig_save_quiesces_and_restores_input_pipeline(self) -> None:
+        screen_source = (
+            ROOT
+            / "application"
+            / "Cpp_Core"
+            / "Src"
+            / "screen_control"
+            / "spi_screen_manager.cpp"
+        ).read_text(encoding="utf-8")
+        branch = screen_source[
+            screen_source.index("if (id == 9u)"):
+            screen_source.index("} else if (id == 10u)")
+        ]
+
+        suspend = branch.index("INPUT_STATE.suspendInputPipelineForStorage()")
+        save = branch.index("STORAGE_MANAGER.saveConfig()")
+        resume = branch.index("INPUT_STATE.resumeInputPipelineAfterStorage(")
+        reset = branch.index("MainRuntime_RequestReset()")
+
+        self.assertLess(suspend, save)
+        self.assertLess(save, resume)
+        self.assertLess(resume, reset)
+
+    def test_qspi_ready_wait_uses_bounded_indirect_status_reads(self) -> None:
+        source = (
+            ROOT
+            / "application"
+            / "Drivers"
+            / "QSPI-W25Q64"
+            / "qspi-w25q64.c"
+        ).read_text(encoding="utf-8")
+        helper = source[
+            source.index("static int8_t QSPI_W25Qxx_ReadStatusReg1"):
+            source.index("void HAL_QSPI_MspInit")
+        ]
+        wait = source[
+            source.index("int8_t QSPI_W25Qxx_AutoPollingMemReady"):
+            source.index("int8_t QSPI_W25Qxx_Reset")
+        ]
+
+        self.assertIn("HAL_QSPI_Command", helper)
+        self.assertIn("HAL_QSPI_Receive", helper)
+        self.assertIn("W25Qxx_READY_POLL_MAX_ATTEMPTS", wait)
+        self.assertIn("HAL_GetTick() - tick_start", wait)
+        self.assertNotIn("HAL_QSPI_AutoPolling(", wait)
+
 
 if __name__ == "__main__":
     unittest.main()

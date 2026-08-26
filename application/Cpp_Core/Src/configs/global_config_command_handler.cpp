@@ -1,6 +1,7 @@
 #include "storagemanager.hpp"
 #include "configs/device_command_handler.hpp"
 #include "adc_btns/adc_calibration.hpp"
+#include "adc_btns/adc_manager.hpp"
 #include "webconfig_leds_manager.hpp"
 #include "webconfig_btns_manager.hpp"
 #include "system_logger.h"
@@ -13,6 +14,8 @@
 #include <map>
 #include <stdio.h>
 #include <cstring>
+#include <cmath>
+#include <limits>
 
 // ============================================================================
 // GlobalConfigCommandHandler 实现
@@ -22,6 +25,266 @@ GlobalConfigCommandHandler& GlobalConfigCommandHandler::getInstance() {
     static GlobalConfigCommandHandler instance;
     return instance;
 }
+
+namespace {
+
+struct ConfigImportTransaction {
+    bool active;
+    bool strict;
+    bool replaceProfiles;
+    bool globalSeen;
+    bool hotkeysSeen;
+    bool screenSeen;
+    bool profileSeen[NUM_PROFILES];
+    bool adcSeen;
+    Config candidate;
+    ADCValuesMappingStore adcCandidate;
+    ADCCommonConfig adcCommonCandidate;
+    ADCValuesMappingStore adcOriginal;
+    ADCCommonConfig adcCommonOriginal;
+};
+
+// A complete Config plus ADC rollback snapshots is intentionally kept out of
+// the primary AXI SRAM.  The application already reserves SRAM-D2 for large
+// runtime buffers; this transaction is CPU-only and never handed to DMA.
+// .DMA_Section* is NOLOAD, so initialize it explicitly on first use.
+__attribute__((section(".DMA_Section.ConfigImport"), aligned(32)))
+ConfigImportTransaction g_configImport;
+bool g_configImportInitialized = false;
+
+void ensure_config_import_initialized() {
+    if (!g_configImportInitialized) {
+        memset(&g_configImport, 0, sizeof(g_configImport));
+        g_configImportInitialized = true;
+    }
+}
+
+void reset_config_import() {
+    ensure_config_import_initialized();
+    memset(&g_configImport, 0, sizeof(g_configImport));
+}
+
+void begin_config_import(bool strict, bool replaceProfiles) {
+    reset_config_import();
+    g_configImport.active = true;
+    g_configImport.strict = strict;
+    g_configImport.replaceProfiles = replaceProfiles;
+    memcpy(&g_configImport.candidate,
+           &Storage::getInstance().config,
+           sizeof(g_configImport.candidate));
+    ADC_MANAGER.copyBackup(g_configImport.adcOriginal,
+                           g_configImport.adcCommonOriginal);
+}
+
+bool json_uint(cJSON* item, uint32_t maximum, uint32_t& value) {
+    if (!item || !cJSON_IsNumber(item) || !std::isfinite(item->valuedouble) ||
+        item->valuedouble < 0.0 || item->valuedouble > static_cast<double>(maximum) ||
+        std::floor(item->valuedouble) != item->valuedouble) {
+        return false;
+    }
+    value = static_cast<uint32_t>(item->valuedouble);
+    return true;
+}
+
+bool json_short_string(cJSON* item, size_t capacity) {
+    return item && cJSON_IsString(item) && item->valuestring &&
+           item->valuestring[0] != '\0' && strlen(item->valuestring) < capacity;
+}
+
+bool parse_calibration_pairs(cJSON* array,
+                             ADCCommonCalibrationPair* output,
+                             std::string& error) {
+    if (!array || !cJSON_IsArray(array) ||
+        cJSON_GetArraySize(array) != NUM_ADC_BUTTONS) {
+        error = "Calibration array must contain every ADC button";
+        return false;
+    }
+    for (uint8_t i = 0; i < NUM_ADC_BUTTONS; ++i) {
+        cJSON* pair = cJSON_GetArrayItem(array, i);
+        uint32_t top = 0;
+        uint32_t bottom = 0;
+        if (!pair || !cJSON_IsObject(pair) ||
+            !json_uint(cJSON_GetObjectItem(pair, "topValue"), UINT16_MAX, top) ||
+            !json_uint(cJSON_GetObjectItem(pair, "bottomValue"), UINT16_MAX, bottom)) {
+            error = "Calibration pair is invalid";
+            return false;
+        }
+        output[i].topValue = static_cast<uint16_t>(top);
+        output[i].bottomValue = static_cast<uint16_t>(bottom);
+    }
+    return true;
+}
+
+bool parse_adc_backup(cJSON* data,
+                      ADCValuesMappingStore& store,
+                      ADCCommonConfig& common,
+                      std::string& error) {
+    if (!data || !cJSON_IsObject(data)) {
+        error = "ADC backup must be an object";
+        return false;
+    }
+    uint32_t backupVersion = 0;
+    if (!json_uint(cJSON_GetObjectItem(data, "version"), 1u, backupVersion) ||
+        backupVersion != 1u) {
+        error = "Unsupported ADC backup version";
+        return false;
+    }
+
+    cJSON* mappings = cJSON_GetObjectItem(data, "mappings");
+    const int mappingCount = mappings && cJSON_IsArray(mappings)
+        ? cJSON_GetArraySize(mappings) : 0;
+    if (mappingCount <= 0 || mappingCount > NUM_ADC_VALUES_MAPPING) {
+        error = "ADC backup contains an invalid mapping count";
+        return false;
+    }
+
+    memset(&store, 0, sizeof(store));
+    memset(&common, 0, sizeof(common));
+    store.version = ADC_MAPPING_VERSION;
+    store.num = static_cast<uint8_t>(mappingCount);
+    common.version = ADC_COMMON_VERSION;
+
+    for (int i = 0; i < mappingCount; ++i) {
+        cJSON* source = cJSON_GetArrayItem(mappings, i);
+        cJSON* id = source ? cJSON_GetObjectItem(source, "id") : nullptr;
+        cJSON* name = source ? cJSON_GetObjectItem(source, "name") : nullptr;
+        uint32_t length = 0;
+        uint32_t samplingFrequency = 0;
+        uint32_t samplingNoise = 0;
+        cJSON* step = source ? cJSON_GetObjectItem(source, "step") : nullptr;
+        cJSON* values = source ? cJSON_GetObjectItem(source, "originalValues") : nullptr;
+        if (!source || !cJSON_IsObject(source) ||
+            !json_short_string(id, sizeof(store.mapping[i].id)) ||
+            !json_short_string(name, sizeof(store.mapping[i].name)) ||
+            !json_uint(cJSON_GetObjectItem(source, "length"), MAX_ADC_VALUES_LENGTH, length) ||
+            length == 0u || !step || !cJSON_IsNumber(step) ||
+            !std::isfinite(step->valuedouble) || step->valuedouble <= 0.0 ||
+            step->valuedouble > static_cast<double>(std::numeric_limits<float_t>::max()) ||
+            !json_uint(cJSON_GetObjectItem(source, "samplingFrequency"), UINT16_MAX, samplingFrequency) ||
+            !json_uint(cJSON_GetObjectItem(source, "samplingNoise"), UINT16_MAX, samplingNoise) ||
+            !values || !cJSON_IsArray(values) ||
+            cJSON_GetArraySize(values) != static_cast<int>(length)) {
+            error = "ADC mapping metadata is invalid";
+            return false;
+        }
+
+        ADCValuesMapping& target = store.mapping[i];
+        strncpy(target.id, id->valuestring, sizeof(target.id) - 1u);
+        strncpy(target.name, name->valuestring, sizeof(target.name) - 1u);
+        target.length = length;
+        target.step = static_cast<float_t>(step->valuedouble);
+        target.samplingFrequency = static_cast<uint16_t>(samplingFrequency);
+        target.samplingNoise = static_cast<uint16_t>(samplingNoise);
+        for (uint32_t j = 0; j < length; ++j) {
+            uint32_t value = 0;
+            if (!json_uint(cJSON_GetArrayItem(values, static_cast<int>(j)),
+                           UINT16_MAX, value)) {
+                error = "ADC mapping contains an invalid sample";
+                return false;
+            }
+            target.originalValues[j] = value;
+        }
+        for (int j = 0; j < i; ++j) {
+            if (strncmp(target.id, store.mapping[j].id, sizeof(target.id)) == 0) {
+                error = "ADC backup contains duplicate mapping IDs";
+                return false;
+            }
+        }
+    }
+
+    cJSON* defaultId = cJSON_GetObjectItem(data, "defaultMappingId");
+    cJSON* calibratedId = cJSON_GetObjectItem(data, "calibratedMappingId");
+    if (!json_short_string(defaultId, sizeof(common.defaultMappingId)) ||
+        (calibratedId && (!cJSON_IsString(calibratedId) ||
+         !calibratedId->valuestring ||
+         strlen(calibratedId->valuestring) >= sizeof(common.calibratedMappingId)))) {
+        error = "ADC mapping selection is invalid";
+        return false;
+    }
+    strncpy(common.defaultMappingId, defaultId->valuestring,
+            sizeof(common.defaultMappingId) - 1u);
+    strncpy(store.defaultId, defaultId->valuestring, sizeof(store.defaultId) - 1u);
+    if (calibratedId && calibratedId->valuestring) {
+        strncpy(common.calibratedMappingId, calibratedId->valuestring,
+                sizeof(common.calibratedMappingId) - 1u);
+    }
+
+    bool defaultFound = false;
+    bool calibratedFound = common.calibratedMappingId[0] == '\0';
+    for (uint8_t i = 0; i < store.num; ++i) {
+        defaultFound = defaultFound ||
+            strncmp(store.mapping[i].id, common.defaultMappingId,
+                    sizeof(common.defaultMappingId)) == 0;
+        calibratedFound = calibratedFound ||
+            strncmp(store.mapping[i].id, common.calibratedMappingId,
+                    sizeof(common.calibratedMappingId)) == 0;
+    }
+    if (!defaultFound || !calibratedFound) {
+        error = "ADC backup references an unknown mapping";
+        return false;
+    }
+
+    if (!parse_calibration_pairs(cJSON_GetObjectItem(data, "manualCalibrationValues"),
+                                 common.manualCalibrationValues, error) ||
+        !parse_calibration_pairs(cJSON_GetObjectItem(data, "autoCalibrationValues"),
+                                 common.autoCalibrationValues, error)) {
+        return false;
+    }
+    return true;
+}
+
+bool valid_default_profile(const Config& config) {
+    for (uint8_t i = 0; i < NUM_PROFILES; ++i) {
+        if (config.profiles[i].enabled &&
+            strncmp(config.profiles[i].id, config.defaultProfileId,
+                    sizeof(config.defaultProfileId)) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool validate_legacy_import_profiles(cJSON* root,
+                                     const Config& config,
+                                     std::string& error) {
+    cJSON* profiles = root ? cJSON_GetObjectItem(root, "profiles") : nullptr;
+    if (!profiles) return true;
+    if (!cJSON_IsArray(profiles)) {
+        error = "Profiles section must be an array";
+        return false;
+    }
+
+    bool seen[NUM_PROFILES] = {false};
+    cJSON* profile = nullptr;
+    cJSON_ArrayForEach(profile, profiles) {
+        cJSON* id = profile && cJSON_IsObject(profile)
+            ? cJSON_GetObjectItem(profile, "id") : nullptr;
+        if (!json_short_string(id, sizeof(config.profiles[0].id))) {
+            error = "Profile section has an invalid ID";
+            return false;
+        }
+        int matchedIndex = -1;
+        for (int i = 0; i < NUM_PROFILES; ++i) {
+            if (strncmp(config.profiles[i].id, id->valuestring,
+                        sizeof(config.profiles[i].id)) == 0) {
+                matchedIndex = i;
+                break;
+            }
+        }
+        if (matchedIndex < 0) {
+            error = "Profile ID is not supported by this device";
+            return false;
+        }
+        if (seen[matchedIndex]) {
+            error = "Duplicate profile section";
+            return false;
+        }
+        seen[matchedIndex] = true;
+    }
+    return true;
+}
+
+} // namespace
 
 static uint32_t screen_color_luma(uint32_t rgb) {
     uint32_t r = (rgb >> 16) & 0xFFu;
@@ -203,6 +466,7 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleGetGlobalConfig(const De
     cJSON_AddStringToObject(globalConfigJSON, "connectionMode",
                             ConfigUtils::getConnectionModeString(physical_connection_mode(config)));
     cJSON_AddStringToObject(globalConfigJSON, "wirelessReportRate", ConfigUtils::getWirelessReportRateString(config.wirelessReportRate));
+    cJSON_AddStringToObject(globalConfigJSON, "defaultProfileId", config.defaultProfileId);
     add_latest_board_json(globalConfigJSON, config);
     
     // 添加自动校准模式状态
@@ -311,10 +575,13 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleUpdateHotkeysConfig(cons
         cJSON* hotkeyItem;
         cJSON_ArrayForEach(hotkeyItem, hotkeysConfig) {
             if (index >= NUM_GAMEPAD_HOTKEYS) break;
+            if (config.hotkeys[index].isLocked) {
+                index++;
+                continue;
+            }
             
             cJSON* actionItem = cJSON_GetObjectItem(hotkeyItem, "action");
             cJSON* pinItem = get_hotkey_key_item(hotkeyItem);
-            cJSON* lockedItem = cJSON_GetObjectItem(hotkeyItem, "isLocked");
             cJSON* holdItem = cJSON_GetObjectItem(hotkeyItem, "isHold");
 
             if (actionItem && cJSON_IsString(actionItem)) {
@@ -322,9 +589,6 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleUpdateHotkeysConfig(cons
             }
             if (pinItem && cJSON_IsNumber(pinItem)) {
                 config.hotkeys[index].virtualPin = pinItem->valueint;
-            }
-            if (lockedItem) {
-                config.hotkeys[index].isLocked = cJSON_IsTrue(lockedItem);
             }
             if (holdItem) {
                 config.hotkeys[index].isHold = cJSON_IsTrue(holdItem);
@@ -532,7 +796,6 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleExportAllConfig(const De
         "Use incremental device configuration export");
 }
 DeviceCommandResponse GlobalConfigCommandHandler::handleImportAllConfig(const DeviceCommandRequest& request) {
-    Config& config = Storage::getInstance().config;
     cJSON* params = request.getParams();
     
     if (!params) {
@@ -540,18 +803,34 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportAllConfig(const De
         return create_error_response(request.getCid(), request.getCommand(), 1, "Invalid parameters");
     }
 
-    if (!ConfigUtils::fromJSON(config, params)) {
+    begin_config_import(false, false);
+    Config& candidate = g_configImport.candidate;
+    std::string profileError;
+    if (!validate_legacy_import_profiles(params, candidate, profileError)) {
+        reset_config_import();
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     profileError);
+    }
+    if (!ConfigUtils::fromJSON(candidate, params)) {
+         reset_config_import();
          LOG_ERROR("DeviceCommand", "import_all_config: Failed to parse configuration");
          return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to parse configuration");
     }
     if (physical_rf_selected()) {
-        config.inputMode = INPUT_MODE_XINPUT;
+        candidate.inputMode = INPUT_MODE_XINPUT;
     }
-
-    if (!STORAGE_MANAGER.saveConfig()) {
+    if (!valid_default_profile(candidate)) {
+        reset_config_import();
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Default profile is missing or disabled");
+    }
+    if (!ConfigUtils::save(candidate)) {
+        reset_config_import();
         LOG_ERROR("DeviceCommand", "import_all_config: Failed to save configuration");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
     }
+    memcpy(&Storage::getInstance().config, &candidate, sizeof(candidate));
+    reset_config_import();
 
     // cJSON* exportJSON = ConfigUtils::toJSON(config);
     cJSON* dataJSON = cJSON_CreateObject();
@@ -559,8 +838,25 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportAllConfig(const De
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
+DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigBegin(const DeviceCommandRequest& request) {
+    cJSON* params = request.getParams();
+    bool strict = false;
+    bool replaceProfiles = false;
+    if (params && cJSON_IsObject(params)) {
+        cJSON* strictItem = cJSON_GetObjectItem(params, "strict");
+        cJSON* replaceItem = cJSON_GetObjectItem(params, "replaceProfiles");
+        strict = strictItem && cJSON_IsTrue(strictItem);
+        replaceProfiles = replaceItem && cJSON_IsTrue(replaceItem);
+    }
+    begin_config_import(strict, replaceProfiles);
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddBoolToObject(dataJSON, "strict", strict);
+    cJSON_AddBoolToObject(dataJSON, "replaceProfiles", replaceProfiles);
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
 DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigPart(const DeviceCommandRequest& request) {
-    Config& config = Storage::getInstance().config;
+    ensure_config_import_initialized();
     cJSON* params = request.getParams();
     
     if (!params) {
@@ -576,15 +872,25 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigPart(const D
 
     std::string section = sectionItem->valuestring;
 
+    // Legacy clients did not send BEGIN. They still receive transactional RAM
+    // staging, but retain the historical merge semantics.
+    if (!g_configImport.active) {
+        begin_config_import(false, false);
+    }
+    Config& config = g_configImport.candidate;
+
     if (section == "global") {
+        if (!cJSON_IsObject(dataItem)) {
+            return create_error_response(request.getCid(), request.getCommand(), 1,
+                                         "Global section must be an object");
+        }
         cJSON* globalConfigJSON = dataItem;
         cJSON* item;
         if ((item = cJSON_GetObjectItem(globalConfigJSON, "inputMode")) && cJSON_IsString(item)) {
             config.inputMode = ConfigUtils::getInputModeFromString(item->valuestring);
         }
-        if ((item = cJSON_GetObjectItem(globalConfigJSON, "connectionMode")) && cJSON_IsString(item)) {
-            config.connectionMode = ConfigUtils::getConnectionModeFromString(item->valuestring);
-        }
+        // connectionMode is selected by the physical switch and is never
+        // restored from a configuration file.
         if ((item = cJSON_GetObjectItem(globalConfigJSON, "wirelessReportRate")) && cJSON_IsString(item)) {
             config.wirelessReportRate = ConfigUtils::getWirelessReportRateFromString(item->valuestring);
         }
@@ -592,22 +898,36 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigPart(const D
             config.inputMode = INPUT_MODE_XINPUT;
         }
         if ((item = cJSON_GetObjectItem(globalConfigJSON, "defaultProfileId")) && cJSON_IsString(item)) {
-             strncpy(config.defaultProfileId, item->valuestring, sizeof(config.defaultProfileId) - 1);
+            if (strlen(item->valuestring) >= sizeof(config.defaultProfileId)) {
+                return create_error_response(request.getCid(), request.getCommand(), 1,
+                                             "Default profile ID is too long");
+            }
+            strncpy(config.defaultProfileId, item->valuestring, sizeof(config.defaultProfileId) - 1);
+            config.defaultProfileId[sizeof(config.defaultProfileId) - 1] = '\0';
         }
         if ((item = cJSON_GetObjectItem(globalConfigJSON, "autoCalibrationEnabled"))) {
              config.autoCalibrationEnabled = cJSON_IsTrue(item);
         }
         parse_power_json(config.power, globalConfigJSON);
+        g_configImport.globalSeen = true;
     } else if (section == "hotkeys") {
+        if (!cJSON_IsArray(dataItem) ||
+            (g_configImport.strict && cJSON_GetArraySize(dataItem) != NUM_GAMEPAD_HOTKEYS)) {
+            return create_error_response(request.getCid(), request.getCommand(), 1,
+                                         "Hotkeys section has an invalid length");
+        }
         if (cJSON_IsArray(dataItem)) {
             int index = 0;
             cJSON* hotkeyItem;
             cJSON_ArrayForEach(hotkeyItem, dataItem) {
                 if (index >= NUM_GAMEPAD_HOTKEYS) break;
+                if (config.hotkeys[index].isLocked) {
+                    index++;
+                    continue;
+                }
                 
                 cJSON* actionItem = cJSON_GetObjectItem(hotkeyItem, "action");
                 cJSON* pinItem = get_hotkey_key_item(hotkeyItem);
-                cJSON* lockedItem = cJSON_GetObjectItem(hotkeyItem, "isLocked");
                 cJSON* holdItem = cJSON_GetObjectItem(hotkeyItem, "isHold");
 
                 if (actionItem && cJSON_IsString(actionItem)) {
@@ -616,29 +936,45 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigPart(const D
                 if (pinItem && cJSON_IsNumber(pinItem)) {
                     config.hotkeys[index].virtualPin = pinItem->valueint;
                 }
-                if (lockedItem) {
-                    config.hotkeys[index].isLocked = cJSON_IsTrue(lockedItem);
-                }
                 if (holdItem) {
                     config.hotkeys[index].isHold = cJSON_IsTrue(holdItem);
                 }
                 index++;
             }
         }
+        g_configImport.hotkeysSeen = true;
     } else if (section == "profile") {
         cJSON* profileItem = dataItem;
         cJSON* idItem = cJSON_GetObjectItem(profileItem, "id");
-        if (idItem && cJSON_IsString(idItem)) {
-             // Find profile by ID
-             for (int i=0; i < NUM_PROFILES; i++) {
-                 if (strncmp(config.profiles[i].id, idItem->valuestring, sizeof(config.profiles[i].id)) == 0) {
-                     ProfileCommandHandler::parseProfileJSON(profileItem, &config.profiles[i]);
-                     config.profiles[i].enabled = true;
-                     break;
-                 }
-             }
+        if (!cJSON_IsObject(profileItem) ||
+            !json_short_string(idItem, sizeof(config.profiles[0].id))) {
+            return create_error_response(request.getCid(), request.getCommand(), 1,
+                                         "Profile section has an invalid ID");
         }
+        int matchedIndex = -1;
+        for (int i = 0; i < NUM_PROFILES; i++) {
+            if (strncmp(config.profiles[i].id, idItem->valuestring,
+                        sizeof(config.profiles[i].id)) == 0) {
+                matchedIndex = i;
+                break;
+            }
+        }
+        if (matchedIndex < 0) {
+            return create_error_response(request.getCid(), request.getCommand(), 1,
+                                         "Profile ID is not supported by this device");
+        }
+        if (g_configImport.profileSeen[matchedIndex]) {
+            return create_error_response(request.getCid(), request.getCommand(), 1,
+                                         "Duplicate profile section");
+        }
+        ProfileCommandHandler::parseProfileJSON(profileItem, &config.profiles[matchedIndex]);
+        config.profiles[matchedIndex].enabled = true;
+        g_configImport.profileSeen[matchedIndex] = true;
     } else if (section == "screenControl") {
+        if (!cJSON_IsObject(dataItem)) {
+            return create_error_response(request.getCid(), request.getCommand(), 1,
+                                         "Screen section must be an object");
+        }
         cJSON* screenControl = dataItem;
         cJSON* item;
         if ((item = cJSON_GetObjectItem(screenControl, "brightness")) && cJSON_IsNumber(item)) {
@@ -731,6 +1067,16 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigPart(const D
                 pos++;
             }
         }
+        g_configImport.screenSeen = true;
+    } else if (section == "adcConfig") {
+        std::string parseError;
+        if (!parse_adc_backup(dataItem,
+                              g_configImport.adcCandidate,
+                              g_configImport.adcCommonCandidate,
+                              parseError)) {
+            return create_error_response(request.getCid(), request.getCommand(), 1, parseError);
+        }
+        g_configImport.adcSeen = true;
     } else {
         return create_error_response(request.getCid(), request.getCommand(), 1, "Unknown section");
     }
@@ -739,11 +1085,74 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigPart(const D
 }
 
 DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigFinish(const DeviceCommandRequest& request) {
-    if (!STORAGE_MANAGER.saveConfig()) {
-        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to save configuration");
+    ensure_config_import_initialized();
+    if (!g_configImport.active) {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "No configuration import is active");
     }
+    if (g_configImport.strict &&
+        (!g_configImport.globalSeen || !g_configImport.hotkeysSeen ||
+         !g_configImport.screenSeen || !g_configImport.adcSeen)) {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Configuration backup is missing a required section");
+    }
+
+    if (g_configImport.replaceProfiles) {
+        bool anyProfile = false;
+        for (uint8_t i = 0; i < NUM_PROFILES; ++i) {
+            if (g_configImport.profileSeen[i]) {
+                anyProfile = true;
+            } else {
+                g_configImport.candidate.profiles[i].enabled = false;
+            }
+        }
+        if (!anyProfile) {
+            return create_error_response(request.getCid(), request.getCommand(), 1,
+                                         "Configuration backup contains no profiles");
+        }
+    }
+    if (!valid_default_profile(g_configImport.candidate)) {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Default profile is missing or disabled");
+    }
+
+    bool adcApplied = false;
+    if (g_configImport.adcSeen) {
+        const ADCBtnsError adcResult = ADC_MANAGER.restoreBackup(
+            g_configImport.adcCandidate,
+            g_configImport.adcCommonCandidate);
+        if (adcResult != ADCBtnsError::SUCCESS) {
+            reset_config_import();
+            return create_error_response(request.getCid(), request.getCommand(), 1,
+                                         "Failed to restore ADC mapping and calibration data");
+        }
+        adcApplied = true;
+    }
+
+    if (!ConfigUtils::save(g_configImport.candidate)) {
+        if (adcApplied) {
+            (void)ADC_MANAGER.restoreBackup(g_configImport.adcOriginal,
+                                            g_configImport.adcCommonOriginal);
+        }
+        reset_config_import();
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Failed to save configuration");
+    }
+    memcpy(&Storage::getInstance().config,
+           &g_configImport.candidate,
+           sizeof(g_configImport.candidate));
+    reset_config_import();
     cJSON* dataJSON = cJSON_CreateObject();
     cJSON_AddStringToObject(dataJSON, "message", "Configuration imported successfully");
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigAbort(const DeviceCommandRequest& request) {
+    ensure_config_import_initialized();
+    const bool wasActive = g_configImport.active;
+    reset_config_import();
+    cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddBoolToObject(dataJSON, "aborted", wasActive);
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
@@ -935,10 +1344,14 @@ DeviceCommandResponse GlobalConfigCommandHandler::handle(const DeviceCommandRequ
         return handleExportAllConfig(request);
     } else if (command == "import_all_config") {
         return handleImportAllConfig(request);
+    } else if (command == "import_config_begin") {
+        return handleImportConfigBegin(request);
     } else if (command == "import_config_part") {
         return handleImportConfigPart(request);
     } else if (command == "import_config_finish") {
         return handleImportConfigFinish(request);
+    } else if (command == "import_config_abort") {
+        return handleImportConfigAbort(request);
     } else if (command == "reboot") {
         return handleReboot(request);
     } else if (command == "push_leds_config") {

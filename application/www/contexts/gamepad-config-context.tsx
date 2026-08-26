@@ -1152,49 +1152,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const importAllConfig = async (configData: any): Promise<void> => {
         try {
             setIsLoading(true);
-            console.log("[Import] Starting split import...");
-
-            // 1. Send Global Config
-            if (configData.globalConfig) {
-                 console.log("[Import] Sending global config");
-                 await sendDeviceRequest('import_config_part', {
-                     section: 'global', 
-                     data: configData.globalConfig
-                 }, true);
-            }
-
-            // 2. Send Hotkeys Config
-            if (configData.hotkeysConfig) {
-                 console.log("[Import] Sending hotkeys config");
-                 await sendDeviceRequest('import_config_part', {
-                     section: 'hotkeys', 
-                     data: configData.hotkeysConfig
-                 }, true);
-            }
-
-            // 3. Send ScreenControl Config
-            if (configData.screenControl) {
-                 console.log("[Import] Sending screenControl config");
-                 await sendDeviceRequest('import_config_part', {
-                     section: 'screenControl', 
-                     data: configData.screenControl
-                 }, true);
-            }
-
-            // 4. Send Profiles
-            if (configData.profiles && Array.isArray(configData.profiles)) {
-                for (const profile of configData.profiles) {
-                    console.log(`[Import] Sending profile: ${profile.id}`);
-                    await sendDeviceRequest('import_config_part', {
-                        section: 'profile', 
-                        data: profile
-                    }, true);
-                }
-            }
-
-            // 4. Finish
-            console.log("[Import] Finishing import");
-            await sendDeviceRequest('import_config_finish', {}, true);
+            if (!deviceClient) throw new Error('设备命令客户端未初始化');
+            await deviceClient.importConfig(configData);
             
             setError(null);
             return Promise.resolve();
