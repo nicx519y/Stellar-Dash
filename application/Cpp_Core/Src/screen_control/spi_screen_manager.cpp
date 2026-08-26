@@ -76,6 +76,7 @@ static uint32_t g_battUiLastSampleMs = 0;
 static uint32_t g_battUiChargeAnimStartMs = 0;
 static uint8_t g_battUiSoc = 0;
 static PowerChargeState g_battUiChargeState = PowerChargeState::Unknown;
+static bool g_battUiFastCharging = false;
 static bool g_battUiLowBattery = false;
 
 static const char* const kWebConfigUsbRequiredLines[] = {
@@ -194,11 +195,14 @@ static void update_battery_ui_cache(uint32_t nowMs) {
     if (soc > 100.0f) soc = 100.0f;
     g_battUiSoc = (uint8_t)(soc + 0.5f);
     const PowerChargeState nextChargeState = POWER_MANAGER.getChargeState();
+    const bool nextFastCharging = POWER_MANAGER.isFastCharging();
     if (nextChargeState == PowerChargeState::Charging &&
-        g_battUiChargeState != PowerChargeState::Charging) {
+        (g_battUiChargeState != PowerChargeState::Charging ||
+         nextFastCharging != g_battUiFastCharging)) {
         g_battUiChargeAnimStartMs = nowMs;
     }
     g_battUiChargeState = nextChargeState;
+    g_battUiFastCharging = nextFastCharging;
     g_battUiLowBattery = POWER_MANAGER.isLowBattery();
 }
 
@@ -207,19 +211,18 @@ static uint8_t battery_animated_soc(uint8_t baseSoc, uint32_t nowMs) {
         return baseSoc;
     }
 
-    /* Sweep from the measured SOC to full, briefly hold full, then repeat. */
-    static constexpr uint32_t kSweepMs = 1400u;
-    static constexpr uint32_t kFullHoldMs = 200u;
+    /* Normal charge fills in 2 s; CH224A-confirmed fast charge fills in 1 s. */
+    static constexpr uint32_t kNormalChargeSweepMs = 2000u;
+    static constexpr uint32_t kFastChargeSweepMs = 1000u;
+    const uint32_t sweepMs = g_battUiFastCharging
+                                 ? kFastChargeSweepMs
+                                 : kNormalChargeSweepMs;
     const uint32_t phaseMs =
-        (uint32_t)(nowMs - g_battUiChargeAnimStartMs) %
-        (kSweepMs + kFullHoldMs);
-    if (phaseMs >= kSweepMs) {
-        return 100u;
-    }
+        (uint32_t)(nowMs - g_battUiChargeAnimStartMs) % sweepMs;
 
     const uint32_t remaining = 100u - baseSoc;
     return (uint8_t)(baseSoc +
-                     ((remaining * phaseMs + (kSweepMs / 2u)) / kSweepMs));
+                     ((remaining * phaseMs + (sweepMs / 2u)) / sweepMs));
 }
 
 static bool screen_style_is_light(void) {
