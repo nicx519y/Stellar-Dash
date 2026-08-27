@@ -13,7 +13,7 @@ import { HotkeySettingContent } from "./hotkey-setting-content";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useLanguage } from "@/contexts/language-context";
 import { InputModeSettingContent } from "./input-mode-content";
-import { ConnectionModeSettingContent } from "./connection-mode-content";
+import { ConnectionAndPowerBasicSettingContent } from "./connection-mode-content";
 import { ScreenControlSettingContent } from "./screen-control-setting-content";
 import { cancelConfirm, openConfirm } from "@/components/dialog-confirm";
 import { useNavigationBlocker } from '@/hooks/use-navigation-blocker';
@@ -30,7 +30,7 @@ import {
     MainContent,
     TopButtons
 } from "./setting-content-layout";
-import { LuTimerReset } from "react-icons/lu";
+import { LuSettings2, LuTimerReset } from "react-icons/lu";
 import { VscDashboard } from "react-icons/vsc";
 import { FaRegStopCircle } from "react-icons/fa";
 
@@ -57,7 +57,7 @@ export function GlobalSettingContent() {
     // 添加本地 hotkeys 状态来存储用户修改
     const [currentHotkeys, setCurrentHotkeys] = useState<Hotkey[]>([]);
     const [calibrationActive, setCalibrationActive] = useState<boolean>(false);
-    const [mainTab, setMainTab] = useState<'hotkeys' | 'screen'>('screen');
+    const [mainTab, setMainTab] = useState<'basic' | 'hotkeys' | 'screen'>('basic');
     const calibrationActiveRef = useRef(false);
     const deviceConnectedRef = useRef(deviceConnected);
     const connectionEpochRef = useRef(0);
@@ -321,7 +321,6 @@ export function GlobalSettingContent() {
             disabled={calibrationActive}
         >
             <SideContent>
-                <ConnectionModeSettingContent disabled={calibrationActive} />
                 <InputModeSettingContent disabled={calibrationActive} />
             </SideContent>
 
@@ -335,10 +334,14 @@ export function GlobalSettingContent() {
                     <MainContentBody>
                         <Tabs.Root
                             value={mainTab}
-                            onValueChange={(details) => setMainTab(details.value as 'hotkeys' | 'screen')}
+                            onValueChange={(details) => setMainTab(details.value as 'basic' | 'hotkeys' | 'screen')}
                             colorPalette="green"
                         >
                             <Tabs.List>
+                                <Tabs.Trigger value="basic" fontSize="16px" fontWeight="extrabold">
+                                    <LuSettings2 />
+                                    {t.SETTINGS_BASIC_TITLE}
+                                </Tabs.Trigger>
                                 <Tabs.Trigger value="screen" fontSize="16px" fontWeight="extrabold" >
                                     <MdOutlineScreenshotMonitor />
                                     {t.SETTINGS_SCREEN_CONTROL_TITLE}
@@ -349,6 +352,9 @@ export function GlobalSettingContent() {
                                 </Tabs.Trigger>
                             </Tabs.List>
 
+                            <Tabs.Content value="basic" padding="24px 0">
+                                <ConnectionAndPowerBasicSettingContent disabled={calibrationActive} />
+                            </Tabs.Content>
                             <Tabs.Content value="hotkeys" padding="24px 0" >
                                 <HotkeySettingContent
                                     disabled={calibrationActive}

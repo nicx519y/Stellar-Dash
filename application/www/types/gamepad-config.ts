@@ -29,7 +29,7 @@ export const DEFAULT_FIRMWARE_SERVER_HOST = 'https://firmware.st-dash.com';
 // combination key max length
 export const COMBINATION_KEY_MAX_LENGTH = 5;
 // max number of button combination
-export const MAX_NUM_BUTTON_COMBINATION = 10;
+export const MAX_NUM_BUTTON_COMBINATION = 5;
 
 // latest PCB: 18 Hall + 4 GPIO = 22 keys
 export const KEYS_SETTINGS_INTERACTIVE_IDS = [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21 ];
@@ -724,14 +724,13 @@ export const UI_TEXT = {
     VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "Profile name cannot contain special characters",
     
     // Input Mode Settings
-    CONNECTION_MODE_TITLE: "Connection & Power",
+    CONNECTION_MODE_TITLE: "Connection",
     CONNECTION_MODE_REPORT_RATE_LABEL: "Report Rate",
     CONNECTION_MODE_REPORT_RATE_HELPER: "Affects the magnetic-switch ADC sampling rate and USB and wireless report rates.",
     INPUT_MODE_TITLE: "Platform",
     POWER_TITLE: "Power",
-    POWER_WAKE_HOLD_LABEL: "Long Press Wake",
-    POWER_WAKE_HOLD_HELPER: "How long the wake button must be held before the device powers up.",
     POWER_AUTO_STANDBY_LABEL: "Auto Sleep",
+    POWER_AUTO_STANDBY_HELPER: "The device enters sleep after remaining idle for the selected amount of time.",
     POWER_AUTO_STANDBY_NONE: "None",
 
     // Keys Settings
@@ -786,15 +785,6 @@ export const UI_TEXT = {
     SETTINGS_RAPID_TRIGGER_SCOPE_RANGE_SUFFIX: "buttons",
     SETTINGS_RAPID_TRIGGER_PARAM_NOT_UNIFIED: "(Not unified)",
 
-    // ADC Button Debounce Algorithm
-    SETTINGS_ADC_BUTTON_DEBOUNCE_TITLE: "Button Debounce",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE: "Fastest",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL: "Balanced",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX: "Stablility",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE_DESC: "No debounce, low latency",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL_DESC: "Balanced, increase the latency by 0.25ms",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX_DESC: "More stable, increase the latency by 0.5ms",
-
     SETTING_BUTTON_PERFORMANCE_PRESET_TITLE: "Preset Configuration",
     SETTING_BUTTON_PERFORMANCE_PRESET_CUSTOM_LABEL: "Custom",
     SETTING_BUTTON_PERFORMANCE_PRESET_FASTEST_LABEL: "Fastest",
@@ -806,6 +796,8 @@ export const UI_TEXT = {
     SETTING_BUTTON_PERFORMANCE_PRESET_STABILITY_DESC: "Similar to mechanical switch.",
 
     // Hotkeys Settings
+    SETTINGS_BASIC_TITLE: "Basic",
+    SETTINGS_BASIC_HELPER_TEXT: "Configure the device's basic connection and power behavior here.\n- Report Rate controls magnetic-switch ADC sampling as well as USB and 2.4G wireless reporting.\n- Higher rates shorten the input interval but increase system load.\n- Auto Sleep sets how long the device waits without input before entering sleep.",
     SETTINGS_HOTKEYS_TITLE: "Hotkey",
     SETTINGS_HOTKEYS_HELPER_TEXT: `Configure up to ${DEFAULT_NUM_HOTKEYS_MAX} hotkeys for quick access to various functions.\n- Click on the hotkey field and press the desired key on the hitbox or device to bind the hotkey.\n- Choice the hotkey action from the dropdown list.\n- Locked hotkeys are used for web configuration mode and calibration mode because this function is required. `,
     SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "Device Button Monitoring",
@@ -1136,14 +1128,13 @@ export const UI_TEXT_ZH = {
     VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "配置名称不能包含特殊字符",
     
     // 输入模式
-    CONNECTION_MODE_TITLE: "连接与电源",
+    CONNECTION_MODE_TITLE: "连接",
     CONNECTION_MODE_REPORT_RATE_LABEL: "上报率",
     CONNECTION_MODE_REPORT_RATE_HELPER: "影响磁轴的 ADC 采样率，以及 USB 和无线的上报率。",
     INPUT_MODE_TITLE: "平台",
     POWER_TITLE: "电源",
-    POWER_WAKE_HOLD_LABEL: "长按唤醒时长",
-    POWER_WAKE_HOLD_HELPER: "唤醒按键需要持续按住多久才会启动设备。",
     POWER_AUTO_STANDBY_LABEL: "自动休眠",
+    POWER_AUTO_STANDBY_HELPER: "设备持续无操作达到所选时间后，将进入休眠状态。",
     POWER_AUTO_STANDBY_NONE: "无自动待机",
 
     // 按键设置
@@ -1196,15 +1187,6 @@ export const UI_TEXT_ZH = {
     SETTINGS_RAPID_TRIGGER_SCOPE_RANGE_SUFFIX: "个按键",
     SETTINGS_RAPID_TRIGGER_PARAM_NOT_UNIFIED: "（参数不统一）",
 
-    // 按钮防抖设置
-    SETTINGS_ADC_BUTTON_DEBOUNCE_TITLE: "按键防抖",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE: "急速",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL: "平衡",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX: "稳定",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE_DESC: "无防抖，延迟最低",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL_DESC: "平衡，增加0.25ms延迟",
-    SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX_DESC: "稳定，增加0.5ms延迟",
-
     // 按钮性能设置
     SETTING_BUTTON_PERFORMANCE_PRESET_TITLE: "按键性能预设",
     SETTING_BUTTON_PERFORMANCE_PRESET_CUSTOM_LABEL: "自定义",
@@ -1217,6 +1199,8 @@ export const UI_TEXT_ZH = {
     SETTING_BUTTON_PERFORMANCE_PRESET_STABILITY_DESC: "类似机械轴的体验。",
     
     // 热键设置
+    SETTINGS_BASIC_TITLE: "基础",
+    SETTINGS_BASIC_HELPER_TEXT: "在这里配置设备的基础连接与电源行为。\n- 上报率同时影响磁轴 ADC 采样、USB 和 2.4G 无线上报。\n- 更高的上报率可以缩短输入间隔，但会增加系统负载。\n- 自动休眠用于设置设备无操作多久后进入休眠状态。",
     SETTINGS_HOTKEYS_TITLE: "快捷键",
     SETTINGS_HOTKEYS_HELPER_TEXT: `最多可以配置${DEFAULT_NUM_HOTKEYS_MAX}个快捷键来快速访问各种功能。\n- 点击快捷键区域并在实体设备上或者左侧格斗板图示上按下想要绑定的按键\n- 从下拉列表中选择快捷键动作\n- 锁定的快捷键用于网页配置模式和校准模式，因为这些功能是必需的。`,
     SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "设备按键监控",

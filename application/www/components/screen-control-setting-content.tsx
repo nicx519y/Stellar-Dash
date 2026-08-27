@@ -9,6 +9,7 @@ import { DEFAULT_SCREEN_CONTROL_CONFIG, ScreenControlConfig, ScreenControlFeatur
 import { useLanguage } from '@/contexts/language-context';
 import { LuCheck, LuUpload, LuGripVertical } from "react-icons/lu";
 import { TitleLabel } from './ui/title-label';
+import { SettingDescription } from './ui/setting-description';
 import { processGifToRGB565Sequence, processImageToRGB565, rgb565ToPngDataUrl } from '@/lib/screen-control-image';
 
 
@@ -484,9 +485,11 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                 description={t.SETTINGS_SCREEN_CONTROL_HELPER_TEXT}
             /> */}
 
-            <Text fontSize="14px" color="gray.400" mb="30px" whiteSpace="pre-wrap" >
-                {t.SETTINGS_SCREEN_CONTROL_HELPER_TEXT}
-            </Text>
+            <SettingDescription
+                text={t.SETTINGS_SCREEN_CONTROL_HELPER_TEXT}
+                fontSize="14px"
+                mb="30px"
+            />
             
             
             
@@ -572,7 +575,10 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
                         </HStack>
                     </RadioCard.Root>
                 </VStack>
-                <Text fontSize="xs" color="gray.400" whiteSpace="pre-wrap" >{t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP.replace('{seconds}', (Math.floor(gifMaxFrames/gifTargetFps)).toString())}</Text>
+                <SettingDescription
+                    text={t.SETTINGS_SCREEN_CONTROL_BACKGROUND_IMAGE_LIMIT_TIP.replace('{seconds}', (Math.floor(gifMaxFrames/gifTargetFps)).toString())}
+                    fontSize="xs"
+                />
                
 
                 <Input ref={fileInputRef} type="file" accept="image/*" display="none" onChange={handleFileChange} />

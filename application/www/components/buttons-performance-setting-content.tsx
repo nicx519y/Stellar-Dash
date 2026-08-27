@@ -249,7 +249,7 @@ export function ButtonsPerformanceSettingContent({
     }, [defaultProfile, triggerConfigs]);
 
     const updateTriggerOptions = (
-        patch: Partial<Pick<NonNullable<typeof defaultProfile.triggerConfigs>, 'isAllBtnsConfiguring' | 'debounceAlgorithm'>>,
+        patch: Partial<Pick<NonNullable<typeof defaultProfile.triggerConfigs>, 'isAllBtnsConfiguring'>>,
     ) => {
         const profileId = defaultProfile.id;
         const current = defaultProfile.triggerConfigs;
@@ -275,41 +275,18 @@ export function ButtonsPerformanceSettingContent({
                     <Fieldset.Root>
                         <Fieldset.Content>
                             <VStack gap={8} alignItems={"flex-start"}>
-                                <HStack width="100%" justifyContent="space-between" alignItems="flex-start">
-                                    <Switch.Root
-                                        colorPalette="green"
-                                        checked={defaultProfile.triggerConfigs?.isAllBtnsConfiguring ?? true}
-                                        onCheckedChange={(detail) => {
-                                            if (detail.checked) applySelection(scopeAllIds);
-                                            updateTriggerOptions({ isAllBtnsConfiguring: detail.checked });
-                                        }}
-                                    >
-                                        <Switch.HiddenInput />
-                                        <Switch.Control><Switch.Thumb /></Switch.Control>
-                                        <Switch.Label>{t.SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL}</Switch.Label>
-                                    </Switch.Root>
-
-                                    <VStack gap={2} alignItems="flex-end">
-                                        <Text fontSize="sm" opacity={0.75}>{t.SETTINGS_ADC_BUTTON_DEBOUNCE_TITLE}</Text>
-                                        <HStack gap={2}>
-                                            {[
-                                                [ADCButtonDebounceAlgorithm.NONE, t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NONE],
-                                                [ADCButtonDebounceAlgorithm.NORMAL, t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_NORMAL],
-                                                [ADCButtonDebounceAlgorithm.MAX, t.SETTINGS_ADC_BUTTON_DEBOUNCE_LABEL_MAX],
-                                            ].map(([value, label]) => (
-                                                <Button
-                                                    key={value}
-                                                    size="xs"
-                                                    colorPalette="green"
-                                                    variant={(defaultProfile.triggerConfigs?.debounceAlgorithm ?? ADCButtonDebounceAlgorithm.NONE) === value ? 'solid' : 'outline'}
-                                                    onClick={() => updateTriggerOptions({ debounceAlgorithm: value as ADCButtonDebounceAlgorithm })}
-                                                >
-                                                    {label}
-                                                </Button>
-                                            ))}
-                                        </HStack>
-                                    </VStack>
-                                </HStack>
+                                <Switch.Root
+                                    colorPalette="green"
+                                    checked={defaultProfile.triggerConfigs?.isAllBtnsConfiguring ?? true}
+                                    onCheckedChange={(detail) => {
+                                        if (detail.checked) applySelection(scopeAllIds);
+                                        updateTriggerOptions({ isAllBtnsConfiguring: detail.checked });
+                                    }}
+                                >
+                                    <Switch.HiddenInput />
+                                    <Switch.Control><Switch.Thumb /></Switch.Control>
+                                    <Switch.Label>{t.SETTINGS_RAPID_TRIGGER_CONFIGURE_ALL}</Switch.Label>
+                                </Switch.Root>
 
                                 {/* 配置范围 */}
                                 <VStack gap={2} alignItems={"flex-start"}>
