@@ -120,6 +120,18 @@ class UsbDeviceDescriptorRoutingContractTest(unittest.TestCase):
             r"USB_BOARD_CHANNEL_WEBCONFIG"
         )
 
+    def test_webhid_out_ring_absorbs_one_complete_fragmented_rpc(self) -> None:
+        match = re.search(
+            r"#define\s+USBDEV_WEBHID_OUT_QUEUE_DEPTH\s+(\d+)u",
+            self.source,
+        )
+        self.assertIsNotNone(match)
+        self.assertGreaterEqual(
+            int(match.group(1)),
+            16,
+            "the USB OUT ring must hold a complete 9-12 frame WebConfig RPC burst",
+        )
+
     def test_suspend_pauses_without_ending_the_webhid_generation(self) -> None:
         start = self.source.index(
             "else if((flags & USBHS_UDIF_SUSPEND) != 0u)"

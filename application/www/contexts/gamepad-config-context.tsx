@@ -177,8 +177,8 @@ interface GamepadConfigContextType {
     startButtonPerformanceMonitoring: () => Promise<void>;
     stopButtonPerformanceMonitoring: () => Promise<void>;
     // LED 配置相关
-    pushLedsConfig: (ledsConfig: LEDsConfig) => Promise<void>;
-    clearLedsPreview: () => Promise<void>;
+    pushLedsConfig: (ledsConfig: LEDsConfig, immediate?: boolean) => Promise<void>;
+    clearLedsPreview: (immediate?: boolean) => Promise<void>;
     // 固件元数据相关
     firmwareInfo: DeviceFirmwareInfo | null;
     fetchFirmwareMetadata: () => Promise<void>;
@@ -332,14 +332,21 @@ const processResponse = async (response: Response, setError: (error: string | nu
  */
 export function GamepadConfigProvider({ children }: { children: React.ReactNode }) {
     const [globalConfig, setGlobalConfig] = useState<GlobalConfig>({ inputMode: Platform.XINPUT });
+    const globalConfigRef = useRef<GlobalConfig>({ inputMode: Platform.XINPUT });
+    const confirmedGlobalConfigRef = useRef<GlobalConfig>({ inputMode: Platform.XINPUT });
     const [screenControl, setScreenControl] = useState<ScreenControlConfig>(DEFAULT_SCREEN_CONTROL_CONFIG);
     const screenControlRef = useRef<ScreenControlConfig>(DEFAULT_SCREEN_CONTROL_CONFIG);
+    const confirmedScreenControlRef = useRef<ScreenControlConfig>(DEFAULT_SCREEN_CONTROL_CONFIG);
     const [profileList, setProfileList] = useState<GameProfileList>({ defaultId: "", maxNumProfiles: 0, items: [] });
     const [defaultProfile, setDefaultProfile] = useState<GameProfile>({ id: "", name: "" });
     const [operationLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [hotkeysConfig, setHotkeysConfig] = useState<Hotkey[]>([]);
     const [jsReady, setJsReady] = useState(false);
+
+    useEffect(() => {
+        globalConfigRef.current = globalConfig;
+    }, [globalConfig]);
 
     useEffect(() => {
         screenControlRef.current = screenControl;
@@ -351,6 +358,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [devicePhase, setDevicePhase] = useState<DeviceConnectionPhase>(DeviceConnectionPhase.IDLE);
     const [deviceError, setDeviceError] = useState<DeviceConnectionError | null>(null);
     const [deviceClient, setDeviceClient] = useState<DeviceCommandClient | null>(null);
+    const deviceClientRef = useRef<DeviceCommandClient | null>(null);
     const [deviceSession, setDeviceSession] = useState<DeviceSession | null>(null);
     const [showReconnect, setShowReconnect] = useState(false);
 
@@ -402,7 +410,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         buttonMonitorLeaseRef.current?.endSession();
         calibrationCompletionRequestRef.current = null;
         initializationGenerationRef.current += 1;
-        setGlobalConfig({ inputMode: Platform.XINPUT });
+        const resetGlobalConfig = { inputMode: Platform.XINPUT };
+        globalConfigRef.current = resetGlobalConfig;
+        confirmedGlobalConfigRef.current = resetGlobalConfig;
+        setGlobalConfig(resetGlobalConfig);
+        screenControlRef.current = DEFAULT_SCREEN_CONTROL_CONFIG;
+        confirmedScreenControlRef.current = DEFAULT_SCREEN_CONTROL_CONFIG;
         setScreenControl(DEFAULT_SCREEN_CONTROL_CONFIG);
         setProfileList({ defaultId: "", maxNumProfiles: 0, items: [] });
         setDefaultProfile({ id: "", name: "" });
@@ -476,6 +489,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             mode: configuredTransportMode(),
             config: transportConfig,
         });
+        deviceClientRef.current = client;
 
         const unsubscribeState = client.onStateChange((state) => {
             setDeviceState(state);
@@ -562,6 +576,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         setDeviceClient(client);
 
         return () => {
+            if (deviceClientRef.current === client) {
+                deviceClientRef.current = null;
+            }
             cancelPendingAutomaticConnects();
             removePageLifecycle();
             unsubscribeState();
@@ -764,19 +781,17 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         if (!deviceClient) {
             return Promise.reject(new Error('设备命令客户端未初始化'));
         }
-        if (deviceState !== DeviceTransportState.CONNECTED) {
+        // Read the concrete client's synchronous state. React state is only a
+        // rendering projection and can remain CONNECTED for one render after a
+        // physical disconnect or failed native write.
+        if (deviceClient.getState() !== DeviceTransportState.CONNECTED) {
             throw new Error('设备尚未连接');
         }
 
         try {
-            const previewWrites = new Set([
-                'update_profile',
-                'update_screen_control_config',
-                'push_leds_config',
-            ]);
-            return !immediate && previewWrites.has(command)
-                ? await deviceClient.enqueue(command, params, false)
-                : await deviceClient.request(command, params);
+            // DeviceCommandClient owns the only RPC lane and the centralized
+            // command policy decides whether this operation is coalesced.
+            return await deviceClient.enqueue(command, params, immediate);
         } catch (error) {
             if (error instanceof Error) {
                 throw error;
@@ -853,7 +868,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
             // 如果更新的是 profile 的 name， 或者更新的profile不是defaultProfile，则需要重新获取 profile list
             if (profileDetails.name != undefined && profileDetails.name !== defaultProfile.name || profileDetails.id !== defaultProfile.id) {
-                fetchProfileList();
+                void fetchProfileList().catch(() => undefined);
             } else if (data && 'defaultProfileDetails' in data) {
                 // 否则更新 default profile
                 const nextDefault = converProfileDetails(data.defaultProfileDetails) ?? {};
@@ -873,7 +888,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (showError) {
                 setError(err instanceof Error ? err.message : 'An error occurred');
             }
-            return Promise.reject(new Error("Failed to update profile details"));
+            return Promise.reject(
+                err instanceof Error ? err : new Error('Failed to update profile details'),
+            );
         } finally {
             if (showLoading) {
                 setIsLoading(false);
@@ -1244,8 +1261,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             }
             return Promise.resolve();
         } catch (err) {
-            fetchHotkeysConfig(true); // 如果更新失败，则重新拉取最新的hotkeys配置
-            return Promise.reject(new Error("Failed to update hotkeys config"));
+            if (deviceState === DeviceTransportState.CONNECTED) {
+                await fetchHotkeysConfig(true).catch(() => undefined);
+            }
+            const error = err instanceof Error ? err : new Error('Failed to update hotkeys config');
+            setError(error.message);
+            return Promise.reject(error);
         } finally {
         }
     };
@@ -1455,7 +1476,10 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             // setIsLoading(true);
             const data = await sendDeviceRequest('get_global_config', {}, immediate);
             console.log('fetchGlobalConfig', data);
-            setGlobalConfig(data.globalConfig);
+            const next = data.globalConfig as GlobalConfig;
+            globalConfigRef.current = next;
+            confirmedGlobalConfigRef.current = next;
+            setGlobalConfig(next);
             return Promise.resolve();
         } catch (err) {
             // setError(err instanceof Error ? err.message : 'An error occurred');
@@ -1465,18 +1489,30 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const updateGlobalConfig = async (nextGlobalConfig: GlobalConfig, immediate: boolean = true): Promise<void> => {
+    const updateGlobalConfig = async (nextGlobalConfig: GlobalConfig, immediate: boolean = false): Promise<void> => {
+        const merged = { ...globalConfigRef.current, ...nextGlobalConfig };
+        globalConfigRef.current = merged;
+        setGlobalConfig(merged);
         try {
-            // setIsLoading(true);
-            const merged = { ...globalConfig, ...nextGlobalConfig };
-            setGlobalConfig((prev) => ({ ...prev, ...nextGlobalConfig }));
             const data = await sendDeviceRequest('update_global_config', { globalConfig: merged }, immediate);
+            const confirmed = data?.globalConfig && typeof data.globalConfig === 'object'
+                ? data.globalConfig as GlobalConfig
+                : merged;
+            confirmedGlobalConfigRef.current = confirmed;
+            if (globalConfigRef.current === merged) {
+                globalConfigRef.current = confirmed;
+                setGlobalConfig(confirmed);
+            }
             return Promise.resolve();
         } catch (err) {
-            setError('Failed to update global config');
-            return Promise.reject(new Error("Failed to update global config"));
-        } finally {
-            // setIsLoading(false);
+            const error = err instanceof Error ? err : new Error('Failed to update global config');
+            if (globalConfigRef.current === merged) {
+                const confirmed = confirmedGlobalConfigRef.current;
+                globalConfigRef.current = confirmed;
+                setGlobalConfig(confirmed);
+            }
+            setError(error.message);
+            return Promise.reject(error);
         }
     };
 
@@ -1514,6 +1550,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 },
                 featuresOrder: normalizeFeaturesOrder(remote.featuresOrder),
             };
+            screenControlRef.current = merged;
+            confirmedScreenControlRef.current = merged;
             setScreenControl(merged);
             return Promise.resolve();
         } catch (err) {
@@ -1521,8 +1559,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const updateScreenControl = async (next: ScreenControlConfig, immediate: boolean = true): Promise<void> => {
-        const previous = screenControlRef.current;
+    const updateScreenControl = async (next: ScreenControlConfig, immediate: boolean = false): Promise<void> => {
         screenControlRef.current = next;
         setScreenControl(next);
         try {
@@ -1544,6 +1581,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     ...(remote.features ?? {}),
                 },
             };
+            confirmedScreenControlRef.current = confirmed;
             if (screenControlRef.current === next) {
                 screenControlRef.current = confirmed;
                 setScreenControl(confirmed);
@@ -1553,15 +1591,15 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             // The controls are optimistic so the page remains responsive, but a
             // transport failure must never look like a saved device setting.
             if (screenControlRef.current === next) {
-                screenControlRef.current = previous;
-                setScreenControl(previous);
+                const confirmed = confirmedScreenControlRef.current;
+                screenControlRef.current = confirmed;
+                setScreenControl(confirmed);
             }
-            setError('Failed to update screen control config');
-            return Promise.reject(
-                err instanceof Error
-                    ? err
-                    : new Error("Failed to update screen control config"),
-            );
+            const error = err instanceof Error
+                ? err
+                : new Error('Failed to update screen control config');
+            setError(error.message);
+            return Promise.reject(error);
         }
     };
 
@@ -1719,14 +1757,17 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     };
 
     // LED 配置相关
-    const pushLedsConfig = async (ledsConfig: LEDsConfig, immediate: boolean = true): Promise<void> => {
+    const pushLedsConfig = async (ledsConfig: LEDsConfig, immediate: boolean = false): Promise<void> => {
         setError(null);
         try {
             await sendDeviceRequest('push_leds_config', ledsConfig as unknown as Record<string, unknown>, immediate);
             return Promise.resolve();
         } catch (error) {
-            setError(error instanceof Error ? error.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to push LED configuration"));
+            const normalized = error instanceof Error
+                ? error
+                : new Error("Failed to push LED configuration");
+            setError(normalized.message);
+            return Promise.reject(normalized);
         }
     };
 
@@ -1736,8 +1777,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             await sendDeviceRequest('clear_leds_preview', {}, immediate);
             return Promise.resolve();
         } catch (error) {
-            setError(error instanceof Error ? error.message : 'An error occurred');
-            return Promise.reject(new Error("Failed to clear LED preview"));
+            const normalized = error instanceof Error
+                ? error
+                : new Error("Failed to clear LED preview");
+            setError(normalized.message);
+            return Promise.reject(normalized);
         }
     };
 
@@ -2184,12 +2228,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     };
 
     // 立即发送队列中的特定命令
-    const sendPendingCommandImmediately = (command: string): boolean => {
-        if (deviceClient) {
-            return deviceClient.sendPendingCommandImmediately(command);
-        }
-        return false;
-    };
+    const sendPendingCommandImmediately = useCallback((command: string): boolean => {
+        return deviceClientRef.current?.sendPendingCommandImmediately(command) ?? false;
+    }, []);
 
     // 快速清空队列
     const flushQueue = async (): Promise<void> => {

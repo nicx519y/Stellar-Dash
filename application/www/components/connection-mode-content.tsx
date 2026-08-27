@@ -104,7 +104,9 @@ export function ConnectionModeSettingContent(props: { disabled?: boolean }) {
                             colorPalette="green"
                             disabled={props.disabled}
                             value={[rateIndex]}
-                            onValueChange={(detail) => void onRateChange(detail.value[0])}
+                            onValueChange={(detail) => {
+                                void onRateChange(detail.value[0]).catch(() => undefined);
+                            }}
                         >
                             <Slider.Control>
                                 <Slider.Track>
@@ -138,7 +140,9 @@ export function ConnectionModeSettingContent(props: { disabled?: boolean }) {
                             colorPalette="green"
                             disabled={props.disabled}
                             value={[autoSleepIndex]}
-                            onValueChange={(detail) => void onAutoSleepChange(detail.value[0])}
+                            onValueChange={(detail) => {
+                                void onAutoSleepChange(detail.value[0]).catch(() => undefined);
+                            }}
                         >
                             <Slider.Control>
                                 <Slider.Track>
@@ -175,7 +179,9 @@ export function ConnectionModeSettingContent(props: { disabled?: boolean }) {
                             colorPalette="green"
                             disabled={props.disabled}
                             value={[wakeHoldIndex]}
-                            onValueChange={(detail) => void onWakeHoldChange(detail.value[0])}
+                            onValueChange={(detail) => {
+                                void onWakeHoldChange(detail.value[0]).catch(() => undefined);
+                            }}
                         >
                             <Slider.Control>
                                 <Slider.Track>
@@ -205,7 +211,9 @@ export function ConnectionModeSettingContent(props: { disabled?: boolean }) {
                             colorPalette="green"
                             checked={globalConfig.autoCalibrationEnabled ?? false}
                             disabled={props.disabled}
-                            onCheckedChange={(detail) => void onAutoCalibrationChange(detail.checked)}
+                            onCheckedChange={(detail) => {
+                                void onAutoCalibrationChange(detail.checked).catch(() => undefined);
+                            }}
                         >
                             <Switch.HiddenInput />
                             <Switch.Control><Switch.Thumb /></Switch.Control>

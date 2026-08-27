@@ -10,6 +10,7 @@ import {
 const DEVICE_CLOCK_MODULUS_US = 0x1_0000_0000;
 const DEFAULT_SAMPLE_COUNT = 5;
 export const DEVICE_CLOCK_SYNC_INTERVAL_MS = 10_000;
+export const DEVICE_CLOCK_SYNC_REQUEST_TIMEOUT_MS = 1_000;
 
 export interface DeviceClockSyncEstimate {
   /** Browser monotonic microseconds minus extended STM32 microseconds. */
@@ -128,7 +129,11 @@ export class DeviceClockSynchronizer {
         const response = await this.requester.request<ClockSyncResponse>(
           'performance.clock-sync',
           { sampleId },
-          { signal },
+          {
+            signal,
+            timeoutMs: DEVICE_CLOCK_SYNC_REQUEST_TIMEOUT_MS,
+            responseTimeoutMode: 'recoverable',
+          },
         );
         throwIfClockSyncAborted(signal);
         const endMs = this.now();
@@ -166,6 +171,12 @@ export class DeviceClockSynchronizer {
       } catch (error) {
         throwIfClockSyncAborted(signal);
         lastError = error;
+        // Clock mapping is diagnostic only. Once a response is lost, stop this
+        // batch instead of occupying the shared request lane with more probes.
+        // Any samples already collected remain usable.
+        if (error instanceof DeviceTransportError && error.code === 'timeout') {
+          break;
+        }
       }
     }
 

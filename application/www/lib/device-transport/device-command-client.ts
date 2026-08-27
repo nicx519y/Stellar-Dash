@@ -1,4 +1,5 @@
 import { DeviceRequestQueue } from './device-request-queue';
+import { deviceCommandSchedule } from './device-request-policy';
 import {
   DeviceCommandMessage,
   DeviceConnectionError,
@@ -89,7 +90,8 @@ export class DeviceCommandClient {
     if (!Number.isFinite(startupTimeoutMs) || startupTimeoutMs <= 0) {
       throw new DeviceTransportError('protocol', '设备启动超时必须是正数');
     }
-    this.queue.setSendFunction((command, params, options) => this.request(command, params, options));
+    this.queue.setSendFunction((command, params, options) =>
+      this.executeRequest(command, params, options));
     this.unsubscribe.push(
       transport.onStateChange((state) => this.handleTransportState(state)),
       transport.onError((error) => this.handleTransportError(error)),
@@ -376,6 +378,21 @@ export class DeviceCommandClient {
     params: Record<string, unknown> = {},
     options: DeviceRequestOptions = {},
   ): Promise<Record<string, unknown> | undefined> {
+    return this.queue.runExclusive(
+      command,
+      (queueSignal) => this.executeRequest(command, params, {
+        ...options,
+        signal: queueSignal,
+      }),
+      { signal: options.signal },
+    );
+  }
+
+  private async executeRequest(
+    command: string,
+    params: Record<string, unknown> = {},
+    options: DeviceRequestOptions = {},
+  ): Promise<Record<string, unknown> | undefined> {
     this.assertNotDisposed();
     const generation = this.lifecycleGeneration;
     const activeUpgrade = this.scopeUpgrade?.generation === generation;
@@ -388,11 +405,11 @@ export class DeviceCommandClient {
     }
     return this.runAfterScopeUpgrade(generation, async () => {
       const response = await this.transport.request(command, params, {
-        signal: combineAbortSignals(
-          options.signal,
-          this.sessionAbortController?.signal,
-        ),
+        // Every command enters DeviceRequestQueue. Its per-entry controller
+        // follows both caller cancellation and lifecycle queue.clear().
+        signal: options.signal ?? this.sessionAbortController?.signal,
         timeoutMs: options.timeoutMs,
+        responseTimeoutMode: options.responseTimeoutMode,
       });
       this.assertLifecycleActive(generation);
       return response.data;
@@ -561,7 +578,14 @@ export class DeviceCommandClient {
   ): Promise<ArrayBuffer> {
     const generation = this.lifecycleGeneration;
     const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-    return this.sendWebHidBinary(bytes, generation, options);
+    return this.queue.runExclusive(
+      `binary.exchange:${bytes[0] ?? 0}`,
+      (queueSignal) => this.sendWebHidBinary(bytes, generation, {
+        ...options,
+        signal: queueSignal,
+      }),
+      { signal: options.signal },
+    );
   }
 
   private async sendWebHidBinary(
@@ -585,7 +609,7 @@ export class DeviceCommandClient {
           );
         }
         const completed = await this.transport.upload('firmware', bytes, {
-          signal: combineAbortSignals(options.signal, this.sessionAbortController?.signal),
+          signal: options.signal ?? this.sessionAbortController?.signal,
           timeoutMs: options.timeoutMs,
         });
         this.assertLifecycleActive(generation);
@@ -593,7 +617,7 @@ export class DeviceCommandClient {
       }
       if (command === 0x31 && bytes.byteLength > 14) {
         const completed = await this.transport.upload('image', bytes, {
-          signal: combineAbortSignals(options.signal, this.sessionAbortController?.signal),
+          signal: options.signal ?? this.sessionAbortController?.signal,
           timeoutMs: options.timeoutMs,
         });
         this.assertLifecycleActive(generation);
@@ -604,7 +628,7 @@ export class DeviceCommandClient {
         encoding: 'base64',
         data: bytesToBase64(bytes),
       }, {
-        signal: combineAbortSignals(options.signal, this.sessionAbortController?.signal),
+        signal: options.signal ?? this.sessionAbortController?.signal,
         timeoutMs: options.timeoutMs,
       });
       this.assertLifecycleActive(generation);
@@ -769,7 +793,8 @@ export class DeviceCommandClient {
     params: Record<string, unknown> = {},
     immediate = false,
   ): Promise<Record<string, unknown> | undefined> {
-    return this.queue.enqueue(command, params, immediate);
+    const schedule = deviceCommandSchedule(command, params, immediate);
+    return this.queue.enqueue(command, params, immediate, schedule);
   }
 
   flushQueue(): Promise<void> {

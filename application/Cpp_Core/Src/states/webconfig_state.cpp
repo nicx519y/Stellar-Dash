@@ -92,8 +92,8 @@ bool WebConfigState::enter() {
     CH585_ROLE_BOOTSTRAP.shutdown();
     CH585_ROLE_BOOTSTRAP.setSelector(UsbBoardLink_SelectRoleCallback);
     if (!CH585_ROLE_BOOTSTRAP.start(Ch585Role::Maintenance) ||
-        !USB_DRIVER.start(InputMode::INPUT_MODE_CONFIG)) {
-        APP_STAGE_ERROR("W04", "CH585 maintenance role or CONFIG USB startup failed");
+        !USB_DRIVER.prepare(InputMode::INPUT_MODE_CONFIG)) {
+        APP_STAGE_ERROR("W04", "CH585 maintenance role or CONFIG USB preparation failed");
         enterFailure(WebConfigRuntimeStatus::ErrorMaintenance);
         LOG_ERROR("WEBCONFIG", "CH585 maintenance capability gate failed");
         return false;
@@ -114,7 +114,14 @@ bool WebConfigState::enter() {
                   "Secure WebHID identity/session gate failed");
         return false;
     }
-    APP_STAGE("W06", "secure WebHID service ready; awaiting browser authentication");
+    APP_STAGE("W06", "secure WebHID service ready before USB exposure");
+    if (!USB_DRIVER.connect()) {
+        APP_STAGE_ERROR("W06E", "CONFIG USB connect failed after WebHID setup");
+        enterFailure(WebConfigRuntimeStatus::ErrorMaintenance);
+        LOG_ERROR("WEBCONFIG", "Failed to expose prepared WebHID runtime");
+        return false;
+    }
+    APP_STAGE("W06", "CONFIG USB exposed; awaiting browser authentication");
     BOARD_POWER.releaseSafeState();
 
     // QSPI remains memory mapped for configuration/assets/OTA, not web pages.

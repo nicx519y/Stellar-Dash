@@ -6,6 +6,69 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class WebConfigStateContractTests(unittest.TestCase):
+    def test_webhid_callback_is_ready_before_ch585_exposes_usb(self) -> None:
+        state = (
+            ROOT / "application" / "Cpp_Core" / "Src" / "states" /
+            "webconfig_state.cpp"
+        ).read_text(encoding="utf-8")
+        driver = (
+            ROOT / "application" / "Cpp_Core" / "Src" / "usbdriver.cpp"
+        ).read_text(encoding="utf-8")
+        service = (
+            ROOT / "application" / "Cpp_Core" / "Src" /
+            "webhid_service.cpp"
+        ).read_text(encoding="utf-8")
+
+        enter = state[
+            state.index("bool WebConfigState::enter()"):
+            state.index("void WebConfigState::tick()")
+        ]
+        prepare = enter.index("USB_DRIVER.prepare(InputMode::INPUT_MODE_CONFIG)")
+        setup = enter.index("WEBHID_SERVICE.setup()")
+        connect = enter.index("USB_DRIVER.connect()")
+        self.assertLess(prepare, setup)
+        self.assertLess(setup, connect)
+        self.assertNotIn("USB_DRIVER.start(InputMode::INPUT_MODE_CONFIG)", enter)
+
+        setup_body = service[
+            service.index("bool WebHidService::setup()"):
+            service.index("void WebHidService::shutdown()")
+        ]
+        self.assertIn("USB_DRIVER.isPrepared()", setup_body)
+        self.assertIn("UsbBoardLink_SetWebConfigReceiveCallback", setup_body)
+
+        start = driver[
+            driver.index("bool USBDriver::start"):
+            driver.index("bool USBDriver::prepare")
+        ]
+        self.assertIn("prepare(inputMode) && connect()", start)
+
+    def test_webconfig_receive_credit_requires_a_live_consumer(self) -> None:
+        source = (
+            ROOT / "application" / "Cpp_Core" / "Src" /
+            "usb_board_link.cpp"
+        ).read_text(encoding="utf-8")
+
+        initial = source[
+            source.index("bool UsbBoardLink::grantInitialReceiveCredits"):
+            source.index("void UsbBoardLink::returnReceiveCredit")
+        ]
+        self.assertIn("s_webConfigRxCallback == nullptr", initial)
+        self.assertIn("? 0u", initial)
+
+        setter = source[
+            source.index("void UsbBoardLink::setWebConfigReceiverReady"):
+            source.index("void UsbBoardLink::flushReceiveCredits")
+        ]
+        self.assertIn("ready ? bulkCreditLimit(channel) : 0u", setter)
+        self.assertIn("flushReceiveCredits();", setter)
+
+        callback = source[
+            source.index("UsbBoardLink_SetWebConfigReceiveCallback"):
+            source.index("extern \"C\" void UsbBoardLink_Process")
+        ]
+        self.assertIn("setWebConfigReceiverReady(callback != nullptr)", callback)
+
     def test_webhid_scope_upgrade_does_not_look_like_a_disconnect(self) -> None:
         source = (
             ROOT / "application" / "www" / "lib" /

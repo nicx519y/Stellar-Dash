@@ -27,16 +27,16 @@ export function InputModeSettingContent(props: {
 
     useEffect(() => {
         if (physicalRf && globalConfig.inputMode !== Platform.XINPUT) {
-            updateGlobalConfig({ inputMode: Platform.XINPUT });
+            void updateGlobalConfig({ inputMode: Platform.XINPUT }).catch(() => undefined);
         }
     }, [physicalRf, globalConfig.inputMode, updateGlobalConfig]);
 
     const onInputModeChange = (detail: { value: Platform }) => {
         if (physicalRf && detail.value !== Platform.XINPUT) {
-            updateGlobalConfig({ ...globalConfig, inputMode: Platform.XINPUT });
+            void updateGlobalConfig({ ...globalConfig, inputMode: Platform.XINPUT }).catch(() => undefined);
             return;
         }
-        updateGlobalConfig({ inputMode: detail.value as Platform });
+        void updateGlobalConfig({ inputMode: detail.value as Platform }).catch(() => undefined);
     }
 
     return (

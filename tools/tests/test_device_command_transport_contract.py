@@ -54,7 +54,7 @@ class DeviceCommandTransportContractTests(unittest.TestCase):
         self.assertIn("class DeviceCommandDispatcher", header)
         self.assertIn("class DeviceCommandRequest", message)
         self.assertIn("class DeviceCommandResponse", message)
-        self.assertEqual(registry.count("registerHandler(\""), 59)
+        self.assertEqual(registry.count("registerHandler(\""), 62)
         self.assertNotIn("Connection", message)
 
     def test_config_transport_has_only_registered_hid_sinks(self) -> None:
@@ -145,6 +145,46 @@ class DeviceCommandTransportContractTests(unittest.TestCase):
         self.assertIn("cJSON_AddItemReferenceToObject", service)
         self.assertNotIn("std::vector<uint8_t> bytes;", service_header)
         self.assertNotIn("rpcExplicitSuccess", service)
+
+    def test_webhid_backpressure_never_executes_behind_an_undrained_response(self) -> None:
+        service = (CPP / "Src" / "webhid_service.cpp").read_text(
+            encoding="utf-8"
+        )
+        board_link = (CPP / "Src" / "usb_board_link.cpp").read_text(
+            encoding="utf-8"
+        )
+        service_header = (CPP / "Inc" / "webhid_service.hpp").read_text(
+            encoding="utf-8"
+        )
+
+        final_gate = service.index(
+            "(queuedHeader.flags & WEBHID_REPORT_FLAG_LAST) != 0u"
+        )
+        queue_check = service.index("!outboundQueue.empty()", final_gate)
+        dispatch = service.index("const bool accepted = processReport", queue_check)
+        credit_release = service.index(
+            "USB_BOARD_LINK.releaseWebConfigReceiveCredit()", dispatch
+        )
+        self.assertLess(final_gate, queue_check)
+        self.assertLess(queue_check, dispatch)
+        self.assertLess(dispatch, credit_release)
+        self.assertIn("bool enqueueReport", service_header)
+        self.assertIn("webConfigCreditOwnedByConsumer = true", board_link)
+        self.assertNotIn("telemetryPreemptible", service + service_header)
+
+    def test_config_save_skips_unchanged_payload_and_verifies_crc(self) -> None:
+        config = (CPP / "Src" / "config.cpp").read_text(encoding="utf-8")
+        storage = (CPP / "Src" / "storagemanager.cpp").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("CONFIG_DIGEST_MARKER", config)
+        self.assertIn("verify_config_payload", config)
+        self.assertIn("compare_config_payload", config)
+        self.assertIn("unchanged; skipping flash write", config)
+        self.assertIn("return guard.restore();", config)
+        self.assertIn("runtime config reloaded from the committed bank", storage)
+        self.assertIn("ConfigUtils::fromStorage(config)", storage)
 
 
 if __name__ == "__main__":

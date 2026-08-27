@@ -42,6 +42,8 @@ public:
     void process();
     void shutdown();
     void requestWebConfigTransportReset();
+    void releaseWebConfigReceiveCredit();
+    void setWebConfigReceiverReady(bool ready);
 
     usb_board_role_t role() const { return selectedRole; }
     usb_board_profile_t profile() const { return selectedProfile; }

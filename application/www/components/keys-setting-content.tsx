@@ -193,7 +193,7 @@ export function KeysSettingContent() {
             isCompetitionProfile,
             keysConfig: newConfig,
         }
-        updateProfileDetails(defaultProfile.id, newProfile);
+        void updateProfileDetails(defaultProfile.id, newProfile).catch(() => undefined);
 
     };
 

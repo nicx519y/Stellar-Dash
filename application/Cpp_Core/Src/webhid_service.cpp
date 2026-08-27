@@ -250,7 +250,9 @@ done:
 
 void webhidReportReceived(const uint8_t report[WEBHID_REPORT_BYTES])
 {
-    WEBHID_SERVICE.enqueueReport(report);
+    if (!WEBHID_SERVICE.enqueueReport(report)) {
+        USB_BOARD_LINK.releaseWebConfigReceiveCredit();
+    }
 }
 
 void configJsonEvent(const char *json, size_t length)
@@ -902,7 +904,15 @@ bool WebHidService::validateBootContext()
 bool WebHidService::setup()
 {
     shutdown();
-    const bool driverReady = USB_DRIVER.isReady();
+    /*
+     * WebConfig deliberately initializes before the CH585 is exposed to the
+     * browser. USBDriver::prepare() has already selected the profile, but
+     * USBDriver::connect() must not run until this service has installed the
+     * receive callback. Otherwise an eager browser can send the first
+     * attestation report into a real, credited channel while the callback is
+     * still null, permanently losing that bootstrap generation.
+     */
+    const bool driverReady = USB_DRIVER.isPrepared();
     const bool profileReady =
         USB_DRIVER.profile() == USB_BOARD_PROFILE_WEB_CONFIG;
     const bool roleLocked = USB_BOARD_LINK.isRoleLocked();
@@ -1185,22 +1195,23 @@ void WebHidService::clearRxQueue()
     __enable_irq();
 }
 
-void WebHidService::enqueueReport(
+bool WebHidService::enqueueReport(
     const uint8_t report[WEBHID_REPORT_BYTES])
 {
     if (!initialized || report == nullptr) {
-        return;
+        return false;
     }
     __disable_irq();
     if (rxCount >= kRxQueueDepth) {
         __enable_irq();
         resetSession(true);
-        return;
+        return false;
     }
     memcpy(rxQueue[rxTail].data(), report, WEBHID_REPORT_BYTES);
     rxTail = static_cast<uint8_t>((rxTail + 1u) % kRxQueueDepth);
     ++rxCount;
     __enable_irq();
+    return true;
 }
 
 void WebHidService::enqueueJsonEvent(const char *json, size_t length)
@@ -1346,11 +1357,26 @@ void WebHidService::process()
         memcpy(report.data(),
                rxQueue[rxHead].data(),
                WEBHID_REPORT_BYTES);
+        webhid_secure_report_v1_t queuedHeader = {};
+        memcpy(&queuedHeader, report.data(), sizeof(queuedHeader));
+        /*
+         * A complete logical request may consume the full 16 KiB response
+         * arena. Leave its final report queued until the preceding response is
+         * fully pumped instead of executing a side effect that cannot be ACKed.
+         * Non-final fragments still advance so large requests can assemble.
+         */
+        if ((queuedHeader.flags & WEBHID_REPORT_FLAG_LAST) != 0u &&
+            !outboundQueue.empty()) {
+            __enable_irq();
+            break;
+        }
         rxHead =
             static_cast<uint8_t>((rxHead + 1u) % kRxQueueDepth);
         --rxCount;
         __enable_irq();
-        if (!processReport(report.data())) {
+        const bool accepted = processReport(report.data());
+        USB_BOARD_LINK.releaseWebConfigReceiveCredit();
+        if (!accepted) {
             resetSession(true);
             return;
         }
@@ -3004,14 +3030,6 @@ bool WebHidService::sendLogical(
     OutboundLogical message;
     message.type = type;
     message.secure = secure;
-    /*
-     * Long configuration, asset and firmware responses are fragmented.
-     * Dedicated telemetry report types have independent browser assemblers,
-     * so they may safely run between those fragments. Small control/ACK
-     * bursts remain atomic and retain the highest priority.
-     */
-    message.telemetryPreemptible =
-        secure && length > kControlBurstBytes;
     message.start = outboundWriteOffset;
     message.length = length;
     if (length != 0u) {
@@ -3623,11 +3641,9 @@ void WebHidService::pumpOutput()
     if (!initialized) {
         return;
     }
-    const bool longResponseMayYield =
-        !outboundQueue.empty() &&
-        outboundQueue.front().telemetryPreemptible &&
-        sessionEstablished;
-    if (!outboundQueue.empty() && !longResponseMayYield) {
+    /* RPC/control output is reliable and owns the sequence space. Optional
+     * telemetry may resume only after the complete logical response drains. */
+    if (!outboundQueue.empty()) {
         (void)pumpLogicalOutput();
         return;
     }
@@ -3646,10 +3662,6 @@ void WebHidService::pumpOutput()
     }
     if (checkpointActive) {
         (void)sendCheckpointChunk();
-        return;
-    }
-    if (!outboundQueue.empty()) {
-        (void)pumpLogicalOutput();
         return;
     }
     if (queueOneEvent()) {

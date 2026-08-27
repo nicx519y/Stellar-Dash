@@ -25,6 +25,7 @@ const {
 } = require('../lib/device-transport/performance-codec.ts');
 const {
   DEVICE_CLOCK_SYNC_INTERVAL_MS,
+  DEVICE_CLOCK_SYNC_REQUEST_TIMEOUT_MS,
   DeviceClockSyncScheduler,
   DeviceClockSynchronizer,
 } = require('../lib/device-transport/device-clock-sync.ts');
@@ -78,6 +79,42 @@ const {
 const {
   resolveAuthenticatedWebConfigTarget,
 } = require('../lib/device-transport/webconfig-target.ts');
+
+test('explicit WebHID frame pacing spaces native OUT submissions', async () => {
+  const writeStartedAt = [];
+  const device = {
+    opened: true,
+    async sendReport() { writeStartedAt.push(Date.now()); },
+  };
+  const transport = new WebHidTransport({
+    navigator: makeHidNavigator(device),
+    framePacingMs: 25,
+  });
+  transport.device = device;
+
+  await transport.writeFrameNow(
+    device,
+    0,
+    SecureHidFrameType.BOOTSTRAP_REQUEST,
+    new Uint8Array([1]),
+    0,
+    false,
+  );
+  await transport.writeFrameNow(
+    device,
+    0,
+    SecureHidFrameType.BOOTSTRAP_REQUEST,
+    new Uint8Array([2]),
+    0,
+    false,
+  );
+
+  assert.equal(writeStartedAt.length, 2);
+  assert.ok(
+    writeStartedAt[1] - writeStartedAt[0] >= 20,
+    `native writes were only ${writeStartedAt[1] - writeStartedAt[0]}ms apart`,
+  );
+});
 
 test('the first WebHID auto-connect waits for cross-document close handoff and is StrictMode-cancellable', async () => {
   const scheduled = [];
@@ -1503,6 +1540,48 @@ test('a permanently pending permit sendReport stays fatal, isolates its generati
   }
 });
 
+test('a rejected native sendReport is a fatal physical disconnect, not a reusable protocol error', async () => {
+  let writes = 0;
+  const device = {
+    opened: false,
+    vendorId: 0xcafe,
+    productId: 0x4021,
+    productName: 'HBox rejected write fixture',
+    collections: [],
+    async open() { this.opened = true; },
+    async close() { this.opened = false; },
+    addEventListener() {},
+    removeEventListener() {},
+    async sendReport() {
+      writes += 1;
+      throw new DOMException('Failed to write the report.', 'NetworkError');
+    },
+  };
+  const transport = new WebHidTransport({
+    navigator: makeHidNavigator(device),
+    requestTimeoutMs: 1000,
+    closeTimeoutMs: 20,
+  });
+  const errors = [];
+  transport.onError((error) => errors.push(error));
+  await transport.connect();
+
+  await assert.rejects(
+    transport.bootstrapRequest('rejected.write', {}),
+    (error) =>
+      error instanceof DeviceTransportError &&
+      error.code === 'disconnected' &&
+      /NetworkError.*Failed to write the report/.test(error.message),
+  );
+  assert.equal(writes, 1);
+  assert.equal(transport.pendingBootstrap.size, 0);
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].code, 'disconnected');
+  await waitFor(() => transport.state === DeviceTransportState.DISCONNECTED, 250);
+  assert.equal(transport.session, null);
+  assert.equal(device.opened, false);
+});
+
 test('the Nth fragment may hang forever without interleaving, leaking pending RPCs, or reviving its generation', async () => {
   let releaseThirdWrite;
   const thirdWrite = new Promise((resolve) => { releaseThirdWrite = resolve; });
@@ -1592,6 +1671,92 @@ test('a completed logical write with no response has one deadline and leaves no 
   await waitFor(() => transport.state === DeviceTransportState.DISCONNECTED, 250);
   assert.equal(transport.session, null);
   assert.equal(transport.pendingBootstrap.size, 0);
+});
+
+test('an explicitly recoverable authenticated response timeout keeps the session alive and ignores its late response', async () => {
+  const key = await crypto.subtle.generateKey(
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  );
+  const prefix = Uint8Array.from([9, 8, 7, 6, 5, 4, 3, 2]);
+  const cipher = new AesGcmHidSessionCipher({
+    txKey: key,
+    rxKey: key,
+    txNoncePrefix: prefix,
+    rxNoncePrefix: prefix,
+  });
+  const incomingCodec = new SecureHidReportCodec(cipher);
+  let inputListener = null;
+  let closeCalls = 0;
+  const device = {
+    opened: false,
+    vendorId: 0xcafe,
+    productId: 0x4021,
+    productName: 'HBox recoverable RPC timeout fixture',
+    collections: [],
+    async open() { this.opened = true; },
+    async close() { closeCalls += 1; this.opened = false; },
+    addEventListener(type, listener) {
+      if (type === 'inputreport') inputListener = listener;
+    },
+    removeEventListener() {},
+    async sendReport() {},
+  };
+  const transport = new WebHidTransport({
+    navigator: makeHidNavigator(device),
+    requestTimeoutMs: 1000,
+    closeTimeoutMs: 20,
+  });
+  await transport.connect();
+  transport.establishSecureSession(cipher, {
+    transport: 'webhid',
+    authenticated: true,
+    scopes: ['monitor.read'],
+    sessionId: 'recoverable-timeout-session',
+    expiresAt: Date.now() + 60_000,
+  });
+  const errors = [];
+  transport.onError((error) => errors.push(error));
+
+  await assert.rejects(
+    transport.request(
+      'performance.clock-sync',
+      { sampleId: 1 },
+      { timeoutMs: 20, responseTimeoutMode: 'recoverable' },
+    ),
+    /performance\.clock-sync.*超时/,
+  );
+  assert.equal(transport.state, DeviceTransportState.CONNECTED);
+  assert.equal(transport.session.authenticated, true);
+  assert.equal(closeCalls, 0);
+  assert.equal(transport.pendingRpc.size, 0);
+  assert.equal(transport.ignoredLateRpcResponses.size, 1);
+
+  const latePayload = new TextEncoder().encode(JSON.stringify({
+    transactionId: 1,
+    errNo: 0,
+    data: { sampleId: 1, deviceTimestampUs: 1234 },
+  }));
+  const lateFragments = fragmentPayload(latePayload);
+  for (let index = 0; index < lateFragments.length; index += 1) {
+    const lateReport = await incomingCodec.encode({
+      type: SecureHidFrameType.RPC_RESPONSE,
+      flags:
+        SecureHidFrameFlags.FRAGMENTED |
+        (index === lateFragments.length - 1 ? SecureHidFrameFlags.LAST : 0),
+      sequence: index + 1,
+      payload: lateFragments[index],
+      secure: true,
+    });
+    inputListener({ device, reportId: 0, data: new DataView(lateReport.buffer) });
+  }
+  await waitFor(() => transport.ignoredLateRpcResponses.size === 0, 250);
+
+  assert.equal(transport.state, DeviceTransportState.CONNECTED);
+  assert.equal(transport.ignoredLateRpcResponses.size, 0);
+  assert.deepEqual(errors, []);
+  await transport.close();
 });
 
 test('screen background previews are loaded only by an explicit user action', () => {
@@ -2711,8 +2876,10 @@ test('clock synchronization uses five STM32 timestamp samples and selects the lo
   let timeIndex = 0;
   let requestIndex = 0;
   const transport = {
-    async request(command, params) {
+    async request(command, params, options) {
       assert.equal(command, 'performance.clock-sync');
+      assert.equal(options.timeoutMs, DEVICE_CLOCK_SYNC_REQUEST_TIMEOUT_MS);
+      assert.equal(options.responseTimeoutMode, 'recoverable');
       const index = requestIndex++;
       return {
         transactionId: index + 1,
@@ -2732,6 +2899,24 @@ test('clock synchronization uses five STM32 timestamp samples and selects the lo
   assert.equal(estimate.roundTripUs, 2000);
   assert.equal(estimate.offsetUs, 0);
   assert.equal(synchronizer.deviceToBrowserTimeMs(22000), 22);
+});
+
+test('one clock-sync timeout ends the optional sample batch without issuing more probes', async () => {
+  let requests = 0;
+  const synchronizer = new DeviceClockSynchronizer({
+    async request(_command, _params, options) {
+      requests += 1;
+      assert.equal(options.timeoutMs, DEVICE_CLOCK_SYNC_REQUEST_TIMEOUT_MS);
+      assert.equal(options.responseTimeoutMode, 'recoverable');
+      throw new DeviceTransportError('timeout', 'optional clock response timed out');
+    },
+  }, {
+    sampleCount: 5,
+    now: () => 0,
+  });
+
+  await assert.rejects(synchronizer.synchronize(), /clock response timed out/);
+  assert.equal(requests, 1);
 });
 
 test('aborting a clock synchronization stops the sample loop before another request', async () => {
@@ -2911,7 +3096,7 @@ test('stream.complete shares the original upload deadline', async () => {
   const { transport } = await makeUploadDeadlineTransport();
   let completeTimeout = null;
   transport.request = async (command, _params, options = {}) => {
-    const delayMs = command === 'stream.complete' ? 20 : 12;
+    const delayMs = command === 'stream.complete' ? 100 : 15;
     if (command === 'stream.complete') completeTimeout = options.timeoutMs;
     await boundedFixtureDelay(delayMs, options.timeoutMs, command);
     return {
@@ -2922,14 +3107,14 @@ test('stream.complete shares the original upload deadline', async () => {
     };
   };
   transport.sendFrame = async (_type, _payload, _flags, _secure, options = {}) => {
-    await boundedFixtureDelay(12, options.timeoutMs, 'frame');
+    await boundedFixtureDelay(15, options.timeoutMs, 'frame');
   };
 
   await assert.rejects(
-    transport.upload('firmware', new Uint8Array(30), { timeoutMs: 38 }),
+    transport.upload('firmware', new Uint8Array(30), { timeoutMs: 100 }),
     /timeout|超时/i,
   );
-  assert.ok(completeTimeout > 0 && completeTimeout < 20);
+  assert.ok(completeTimeout > 0 && completeTimeout < 100);
   await transport.close();
 });
 

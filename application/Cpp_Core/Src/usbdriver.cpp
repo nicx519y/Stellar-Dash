@@ -103,11 +103,17 @@ uint32_t USBDriver::actionMask(const GamepadState &state)
 
 bool USBDriver::start(InputMode inputMode)
 {
+    return prepare(inputMode) && connect();
+}
+
+bool USBDriver::prepare(InputMode inputMode)
+{
     const usb_board_profile_t requestedProfile =
         profileForInputMode(inputMode);
     const uint16_t requiredFlag = requiredProfileFlag(requestedProfile);
     const uint32_t startedAt = HAL_GetTick();
 
+    prepared = false;
     ready = false;
     activeProfile = USB_BOARD_PROFILE_NONE;
     (void)BOARD_POWER.setUsbHostEnabled(false);
@@ -170,6 +176,22 @@ bool USBDriver::start(InputMode inputMode)
     APP_STAGE("U03", "CH585 profile selected: profile=%u",
               static_cast<unsigned int>(requestedProfile));
 
+    activeProfile = requestedProfile;
+    prepared = true;
+    return true;
+}
+
+bool USBDriver::connect()
+{
+    if (!prepared || ready || activeProfile == USB_BOARD_PROFILE_NONE ||
+        !USB_BOARD_LINK.isRoleLocked() ||
+        ((USB_BOARD_LINK.role() != USB_BOARD_ROLE_USB) &&
+         (USB_BOARD_LINK.role() != USB_BOARD_ROLE_MAINTENANCE))) {
+        return ready;
+    }
+
+    const usb_board_profile_t requestedProfile = activeProfile;
+
     bool connected = false;
     const uint32_t connectStartedAt = HAL_GetTick();
     do {
@@ -187,7 +209,6 @@ bool USBDriver::start(InputMode inputMode)
     }
     APP_STAGE("U04", "CH585 USB CONNECT accepted");
 
-    activeProfile = requestedProfile;
     ready = true;
 
     if (!profileRequiresAuthDevice(requestedProfile)) {
@@ -214,6 +235,7 @@ bool USBDriver::start(InputMode inputMode)
          * startup contract.
          */
         (void)USB_BOARD_LINK.sendControl(USB_BOARD_CONTROL_DISCONNECT);
+        prepared = false;
         ready = false;
         activeProfile = USB_BOARD_PROFILE_NONE;
         (void)BOARD_POWER.setUsbHostEnabled(false);
@@ -230,6 +252,7 @@ void USBDriver::shutdown()
         (void)USB_BOARD_LINK.sendControl(USB_BOARD_CONTROL_DISCONNECT);
     }
     (void)BOARD_POWER.setUsbHostEnabled(false);
+    prepared = false;
     ready = false;
     activeProfile = USB_BOARD_PROFILE_NONE;
 }

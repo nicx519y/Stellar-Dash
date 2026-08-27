@@ -4,19 +4,31 @@ type CommandParams = Record<string, unknown>;
 type CommandResult = Record<string, unknown> | undefined;
 
 type Waiter = {
-  resolve: (value: CommandResult) => void;
+  resolve: (value: unknown) => void;
   reject: (reason: Error) => void;
 };
 
 type QueueEntry = {
-  key: string;
+  id: number;
+  key?: string;
   command: string;
   params: CommandParams;
-  canSendAt: number;
+  readyAt: number;
+  deadlineAt: number;
   waiters: Waiter[];
   controller: AbortController;
+  externalAbortCleanup?: () => void;
+  cancelReason?: Error;
+  cancelledFollowers?: QueueEntry[];
   settled: boolean;
   generation: number;
+  run: (signal: AbortSignal) => Promise<unknown>;
+};
+
+type FlushWaiter = {
+  resolve: () => void;
+  reject: (reason: Error) => void;
+  error: Error | null;
 };
 
 export type DeviceQueueSend = (
@@ -25,20 +37,30 @@ export type DeviceQueueSend = (
   options: DeviceRequestOptions,
 ) => Promise<CommandResult>;
 
+export type DeviceQueueScheduleOptions = {
+  coalescingKey?: string;
+  mergeParams?: (previous: CommandParams, next: CommandParams) => CommandParams;
+  debounceMs?: number;
+  maxWaitMs?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+};
+
 /**
- * Coalesces explicitly debounced writes while keeping the active operation
- * observable and cancellable. Reads should normally call DeviceCommandClient
- * directly instead of entering this queue.
+ * One ordered lane for every device operation. Explicitly coalesced writes
+ * replace only a pending operation with the same resource key; an active write
+ * is never mutated, so at most one follow-up commit carries the newest state.
  */
 export class DeviceRequestQueue {
-  private readonly queued = new Map<string, QueueEntry>();
+  private readonly pending: QueueEntry[] = [];
   private sendFunction: DeviceQueueSend | null = null;
   private active: QueueEntry | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private generation = 0;
-  private flushWaiters: Array<() => void> = [];
+  private nextId = 1;
+  private flushWaiters: FlushWaiter[] = [];
 
-  constructor(private readonly debounceMs = 3_000) {}
+  constructor(private readonly defaultDebounceMs = 3_000) {}
 
   setSendFunction(send: DeviceQueueSend): void {
     this.sendFunction = send;
@@ -48,67 +70,85 @@ export class DeviceRequestQueue {
     command: string,
     params: CommandParams = {},
     immediate = false,
+    options: DeviceQueueScheduleOptions = {},
   ): Promise<CommandResult> {
-    return new Promise((resolve, reject) => {
-      const canSendAt = immediate ? Date.now() : Date.now() + this.debounceMs;
-      const key = this.coalescingKey(command, params);
-      const existing = this.queued.get(key);
-      if (existing) {
-        existing.params = params;
-        existing.canSendAt = canSendAt;
-        existing.waiters.push({ resolve, reject });
-      } else {
-        this.queued.set(key, {
-          key,
-          command,
-          params,
-          canSendAt,
-          waiters: [{ resolve, reject }],
-          controller: new AbortController(),
-          settled: false,
-          generation: this.generation,
-        });
+    const debounceMs = immediate
+      ? 0
+      : (options.debounceMs ?? this.defaultDebounceMs);
+    const makeRun = (scheduledParams: CommandParams) => (signal: AbortSignal) => {
+      if (!this.sendFunction) {
+        throw new Error('Device request send function is not set');
       }
-      this.schedule();
+      return this.sendFunction(command, scheduledParams, {
+        signal,
+        timeoutMs: options.timeoutMs,
+      });
+    };
+    return this.enqueueOperation<CommandResult>(
+      command,
+      makeRun(params),
+      {
+        ...options,
+        debounceMs,
+        maxWaitMs: immediate ? 0 : options.maxWaitMs,
+      },
+      params,
+      makeRun,
+    );
+  }
+
+  runExclusive<T>(
+    label: string,
+    operation: (signal: AbortSignal) => Promise<T>,
+    options: Pick<DeviceQueueScheduleOptions, 'signal'> = {},
+  ): Promise<T> {
+    return this.enqueueOperation(label, operation, {
+      debounceMs: 0,
+      maxWaitMs: 0,
+      signal: options.signal,
     });
   }
 
   sendPendingCommandImmediately(command: string): boolean {
+    const now = Date.now();
     let found = false;
-    for (const entry of this.queued.values()) {
+    for (const entry of this.pending) {
       if (entry.command !== command) continue;
-      entry.canSendAt = Date.now();
+      entry.readyAt = now;
       found = true;
     }
-    if (!found) return false;
-    this.schedule();
-    return true;
+    if (found) this.reschedule();
+    return found;
   }
 
   flushQueue(): Promise<void> {
-    for (const entry of this.queued.values()) {
-      entry.canSendAt = Date.now();
-    }
-    if (!this.active && this.queued.size === 0) return Promise.resolve();
-    const result = new Promise<void>((resolve) => this.flushWaiters.push(resolve));
-    this.schedule();
+    const now = Date.now();
+    for (const entry of this.pending) entry.readyAt = now;
+    if (!this.active && this.pending.length === 0) return Promise.resolve();
+    const result = new Promise<void>((resolve, reject) => {
+      this.flushWaiters.push({ resolve, reject, error: null });
+    });
+    this.reschedule();
     return result;
   }
 
   clear(reason = new Error('Device request queue cleared')): void {
     this.generation += 1;
     this.cancelTimer();
-    for (const entry of this.queued.values()) {
+    const cancelledPending = this.pending.splice(0);
+    for (const entry of cancelledPending) {
       entry.controller.abort(reason);
-      this.rejectEntry(entry, reason);
     }
-    this.queued.clear();
     if (this.active) {
       const active = this.active;
       this.active = null;
+      active.cancelReason = reason;
+      active.cancelledFollowers = cancelledPending;
       active.controller.abort(reason);
-      this.rejectEntry(active, reason);
+    } else {
+      cancelledPending.forEach((entry) => this.rejectEntry(entry, reason));
     }
+    this.noteFlushError(reason);
     this.finishFlush();
   }
 
@@ -123,19 +163,123 @@ export class DeviceRequestQueue {
     queuedCommands: string[];
   } {
     return {
-      queueSize: this.queued.size,
+      queueSize: this.pending.length,
       activeCommand: this.active?.command,
-      queuedCommands: [...this.queued.values()].map((entry) => entry.command),
+      queuedCommands: this.pending.map((entry) => entry.command),
     };
   }
 
-  private schedule(): void {
-    if (this.active || this.timer || this.queued.size === 0) return;
-    let earliest = Number.POSITIVE_INFINITY;
-    for (const entry of this.queued.values()) {
-      earliest = Math.min(earliest, entry.canSendAt);
+  private enqueueOperation<T>(
+    command: string,
+    operation: (signal: AbortSignal) => Promise<T>,
+    options: DeviceQueueScheduleOptions,
+    params: CommandParams = {},
+    operationFactory?: (
+      params: CommandParams,
+    ) => (signal: AbortSignal) => Promise<T>,
+  ): Promise<T> {
+    const now = Date.now();
+    const debounceMs = Math.max(0, options.debounceMs ?? 0);
+    const maxWaitMs = Math.max(debounceMs, options.maxWaitMs ?? debounceMs);
+    const requestedReadyAt = now + debounceMs;
+    const existingIndex = options.coalescingKey
+      ? this.pending.findIndex((entry) => entry.key === options.coalescingKey)
+      : -1;
+    const existing = existingIndex >= 0
+      ? this.pending[existingIndex]
+      : undefined;
+
+    const result = new Promise<T>((resolve, reject) => {
+      if (existing) {
+        const mergedParams = options.mergeParams
+          ? options.mergeParams(existing.params, params)
+          : params;
+        existing.command = command;
+        existing.params = mergedParams;
+        existing.run = operationFactory
+          ? operationFactory(mergedParams)
+          : operation;
+        existing.readyAt = Math.min(requestedReadyAt, existing.deadlineAt);
+        existing.waiters.push({
+          resolve: resolve as (value: unknown) => void,
+          reject,
+        });
+        /*
+         * The old pending snapshot is logically deleted. Re-append the same
+         * entry at the tail with the latest payload so unrelated operations
+         * that were queued afterwards retain their order. Keep deadlineAt
+         * unchanged to guarantee convergence under continuous slider input.
+         */
+        this.pending.splice(existingIndex, 1);
+        this.pending.push(existing);
+        return;
+      }
+
+      const entry: QueueEntry = {
+        id: this.nextId++,
+        key: options.coalescingKey,
+        command,
+        params,
+        readyAt: requestedReadyAt,
+        deadlineAt: now + maxWaitMs,
+        waiters: [{
+          resolve: resolve as (value: unknown) => void,
+          reject,
+        }],
+        controller: new AbortController(),
+        settled: false,
+        generation: this.generation,
+        run: operation,
+      };
+      this.pending.push(entry);
+      this.bindExternalAbort(entry, options.signal);
+    });
+
+    // An immediate operation is a causal barrier: every earlier debounced
+    // mutation must commit first rather than allowing a stale read/action past.
+    if (debounceMs === 0) {
+      for (const entry of this.pending) {
+        if (entry.readyAt > now) entry.readyAt = now;
+      }
     }
-    const delay = Math.max(0, earliest - Date.now());
+    this.reschedule();
+    return result;
+  }
+
+  private bindExternalAbort(entry: QueueEntry, signal?: AbortSignal): void {
+    if (!signal) return;
+    const abort = () => {
+      if (entry.settled) return;
+      const reason = signal.reason instanceof Error
+        ? signal.reason
+        : new Error('Device request aborted');
+      entry.controller.abort(reason);
+      if (this.active === entry) return;
+      const index = this.pending.indexOf(entry);
+      if (index >= 0) this.pending.splice(index, 1);
+      this.rejectEntry(entry, reason);
+      this.noteFlushError(reason);
+      this.scheduleOrFinish();
+    };
+    if (signal.aborted) {
+      abort();
+    } else {
+      signal.addEventListener('abort', abort, { once: true });
+      entry.externalAbortCleanup = () => {
+        signal.removeEventListener('abort', abort);
+        entry.externalAbortCleanup = undefined;
+      };
+    }
+  }
+
+  private reschedule(): void {
+    this.cancelTimer();
+    this.schedule();
+  }
+
+  private schedule(): void {
+    if (this.active || this.timer || this.pending.length === 0) return;
+    const delay = Math.max(0, this.pending[0].readyAt - Date.now());
     this.timer = setTimeout(() => {
       this.timer = null;
       void this.drainOne();
@@ -143,36 +287,31 @@ export class DeviceRequestQueue {
   }
 
   private async drainOne(): Promise<void> {
-    if (this.active) return;
-    const now = Date.now();
-    let next: QueueEntry | null = null;
-    for (const entry of this.queued.values()) {
-      if (entry.canSendAt <= now && (!next || entry.canSendAt < next.canSendAt)) {
-        next = entry;
-      }
-    }
-    if (!next) {
+    if (this.active || this.pending.length === 0) return;
+    const next = this.pending[0];
+    if (next.readyAt > Date.now()) {
       this.schedule();
       return;
     }
-    this.queued.delete(next.key);
+    this.pending.shift();
     this.active = next;
-    const send = this.sendFunction;
-    if (!send) {
-      this.active = null;
-      this.rejectEntry(next, new Error('Device request send function is not set'));
-      this.scheduleOrFinish();
-      return;
-    }
 
     try {
-      const result = await send(next.command, next.params, {
-        signal: next.controller.signal,
-      });
-      if (next.generation === this.generation) this.resolveEntry(next, result);
+      const result = await next.run(next.controller.signal);
+      if (next.generation === this.generation) {
+        this.resolveEntry(next, result);
+      } else {
+        const reason = next.cancelReason ?? new Error('Device request queue cleared');
+        this.rejectEntry(next, reason);
+        this.rejectCancelledFollowers(next, reason);
+      }
     } catch (error) {
       const normalized = error instanceof Error ? error : new Error(String(error));
-      if (next.generation === this.generation) this.rejectEntry(next, normalized);
+      this.rejectEntry(next, normalized);
+      this.rejectCancelledFollowers(next, normalized);
+      if (next.generation === this.generation) {
+        this.noteFlushError(normalized);
+      }
     } finally {
       if (this.active === next) this.active = null;
       this.scheduleOrFinish();
@@ -180,16 +319,17 @@ export class DeviceRequestQueue {
   }
 
   private scheduleOrFinish(): void {
-    if (!this.active && this.queued.size === 0) {
+    if (!this.active && this.pending.length === 0) {
       this.finishFlush();
       return;
     }
     this.schedule();
   }
 
-  private resolveEntry(entry: QueueEntry, value: CommandResult): void {
+  private resolveEntry(entry: QueueEntry, value: unknown): void {
     if (entry.settled) return;
     entry.settled = true;
+    entry.externalAbortCleanup?.();
     entry.waiters.forEach(({ resolve }) => resolve(value));
     entry.waiters = [];
   }
@@ -197,32 +337,33 @@ export class DeviceRequestQueue {
   private rejectEntry(entry: QueueEntry, error: Error): void {
     if (entry.settled) return;
     entry.settled = true;
+    entry.externalAbortCleanup?.();
     entry.waiters.forEach(({ reject }) => reject(error));
     entry.waiters = [];
   }
 
+  private noteFlushError(error: Error): void {
+    for (const waiter of this.flushWaiters) {
+      if (!waiter.error) waiter.error = error;
+    }
+  }
+
+  private rejectCancelledFollowers(entry: QueueEntry, error: Error): void {
+    const followers = entry.cancelledFollowers?.splice(0) ?? [];
+    followers.forEach((follower) => this.rejectEntry(follower, error));
+  }
+
   private finishFlush(): void {
     const waiters = this.flushWaiters.splice(0);
-    waiters.forEach((resolve) => resolve());
+    for (const waiter of waiters) {
+      if (waiter.error) waiter.reject(waiter.error);
+      else waiter.resolve();
+    }
   }
 
   private cancelTimer(): void {
     if (!this.timer) return;
     clearTimeout(this.timer);
     this.timer = null;
-  }
-
-  private coalescingKey(command: string, params: CommandParams): string {
-    if (command === 'update_profile') {
-      const details = params.profileDetails;
-      const detailsId = details && typeof details === 'object' && !Array.isArray(details)
-        ? (details as Record<string, unknown>).id
-        : undefined;
-      const profileId = typeof params.profileId === 'string'
-        ? params.profileId
-        : (typeof detailsId === 'string' ? detailsId : '');
-      return `${command}:${profileId}`;
-    }
-    return command;
   }
 }

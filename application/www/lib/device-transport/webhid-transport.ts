@@ -130,6 +130,11 @@ interface IgnoredLateBootstrapResponse {
   expiresAt: number;
 }
 
+interface IgnoredLateRpcResponse {
+  generation: number;
+  expiresAt: number;
+}
+
 interface PhysicalReleaseRecord {
   promise: Promise<void>;
   resolve: () => void;
@@ -151,6 +156,13 @@ export interface WebHidTransportOptions {
   requestTimeoutMs?: number;
   openTimeoutMs?: number;
   closeTimeoutMs?: number;
+  /**
+   * Minimum interval between native HID OUT submissions. The CH585 endpoint
+   * intentionally NAKs while its bounded OUT ring drains to STM32; without a
+   * host-side burst limit Chromium can queue most of a fragmented JSON request
+   * at once and surface that temporary backpressure as NotAllowedError.
+   */
+  framePacingMs?: number;
   navigator?: WebHidNavigator;
   /**
    * Browser transports always enforce a lease. Injected test navigators may
@@ -186,10 +198,12 @@ export class WebHidTransport implements DeviceTransport {
   private readonly requestTimeoutMs: number;
   private readonly openTimeoutMs: number;
   private readonly closeTimeoutMs: number;
+  private readonly framePacingMs: number;
   private readonly hid: WebHidNavigator | null;
   private readonly codec = new SecureHidReportCodec();
   private device: WebHidDevice | null = null;
   private nextSequence = 1;
+  private nextPhysicalWriteAtMs = 0;
   private lastRxSequence = 0;
   private nextTransactionId = 1;
   private writeChain: Promise<void> = Promise.resolve();
@@ -211,6 +225,7 @@ export class WebHidTransport implements DeviceTransport {
   private readonly pendingBootstrap = new Map<number, PendingLogicalRequest>();
   private readonly quarantinedDevices = new WeakMap<WebHidDevice, QuarantinedDevice>();
   private readonly ignoredLateBootstrapResponses = new Map<number, IgnoredLateBootstrapResponse>();
+  private readonly ignoredLateRpcResponses = new Map<number, IgnoredLateRpcResponse>();
   private drainingLateBootstrapResponse = false;
   private readonly assemblers = new Map<SecureHidFrameType, FragmentAssembler>();
   private readonly pendingRxTraceFrameIds = new Map<SecureHidFrameType, string[]>();
@@ -231,6 +246,10 @@ export class WebHidTransport implements DeviceTransport {
     this.openTimeoutMs = options.openTimeoutMs ?? DEFAULT_OPEN_TIMEOUT_MS;
     this.closeTimeoutMs = options.closeTimeoutMs ?? DEFAULT_CLOSE_TIMEOUT_MS;
     const usesInjectedNavigator = options.navigator !== undefined;
+    this.framePacingMs = Math.max(
+      0,
+      options.framePacingMs ?? (usesInjectedNavigator ? 0 : 8),
+    );
     this.hid = options.navigator ?? getWebHidNavigator();
     this.connectionLease = usesInjectedNavigator
       ? options.connectionLease ?? null
@@ -397,6 +416,7 @@ export class WebHidTransport implements DeviceTransport {
     this.codec.setCipher(cipher);
     this.drainingLateBootstrapResponse = false;
     this.ignoredLateBootstrapResponses.clear();
+    this.ignoredLateRpcResponses.clear();
     this.session = Object.freeze({ ...session, scopes: [...session.scopes] });
     this.reauthorizationPending = false;
     this.setState(DeviceTransportState.CONNECTED);
@@ -441,6 +461,7 @@ export class WebHidTransport implements DeviceTransport {
       this.lastRxSequence = 0;
       this.assemblers.clear();
       this.pendingRxTraceFrameIds.clear();
+      this.ignoredLateRpcResponses.clear();
       this.rejectAllPending(new DeviceTransportError(
         'authentication-required',
         '设备权限会话正在重新授权',
@@ -661,6 +682,7 @@ export class WebHidTransport implements DeviceTransport {
     this.lastRxSequence = 0;
     this.drainingLateBootstrapResponse = false;
     this.ignoredLateBootstrapResponses.clear();
+    this.ignoredLateRpcResponses.clear();
     this.reauthorizationPending = false;
     this.assemblers.clear();
     this.pendingRxTraceFrameIds.clear();
@@ -912,6 +934,12 @@ export class WebHidTransport implements DeviceTransport {
       ) {
         return true;
       }
+      if (
+        pending === this.pendingRpc &&
+        this.consumeIgnoredLateRpcResponse(response.transactionId)
+      ) {
+        return false;
+      }
       throw new DeviceTransportError('protocol', `Unknown HID transaction ${response.transactionId}`);
     }
     if (
@@ -1039,8 +1067,11 @@ export class WebHidTransport implements DeviceTransport {
       );
     } catch (error) {
       const normalized = asOperationError(error, 'WebHID stream write');
-      if (normalized.code === 'timeout' || isAbortError(normalized)) {
-        this.quarantineDevice(device, 'write-timeout', true);
+      const writeFailed = normalized.code === 'disconnected';
+      if (normalized.code === 'timeout' || isAbortError(normalized) || writeFailed) {
+        if (normalized.code === 'timeout' || isAbortError(normalized)) {
+          this.quarantineDevice(device, 'write-timeout', true);
+        }
         void this.shutdownConnection(normalized, generation, device, true).catch(() => undefined);
       }
       throw normalized;
@@ -1115,12 +1146,26 @@ export class WebHidTransport implements DeviceTransport {
         RECOVERABLE_BOOTSTRAP_COMMANDS.has(command) &&
         pending.record.phase === 'awaiting-response' &&
         normalized.code === 'timeout';
+      const mayKeepAuthenticatedSession =
+        collection === this.pendingRpc &&
+        type === SecureHidFrameType.RPC_REQUEST &&
+        secure &&
+        options.responseTimeoutMode === 'recoverable' &&
+        pending.record.phase === 'awaiting-response' &&
+        normalized.code === 'timeout';
       if (mayResynchronizeBootstrap) {
         this.rememberLateBootstrapResponse(transactionId, generation);
       }
+      if (mayKeepAuthenticatedSession) {
+        this.rememberLateRpcResponse(transactionId, generation);
+      }
+      const physicalWriteFailed =
+        pending.record.phase !== 'awaiting-response' &&
+        normalized.code === 'disconnected';
       if (
         !mayResynchronizeBootstrap &&
-        (normalized.code === 'timeout' || isAbortError(normalized))
+        !mayKeepAuthenticatedSession &&
+        (normalized.code === 'timeout' || isAbortError(normalized) || physicalWriteFailed)
       ) {
         if (pending.record.phase !== 'awaiting-response') {
           this.quarantineDevice(device, 'write-timeout', true);
@@ -1255,6 +1300,16 @@ export class WebHidTransport implements DeviceTransport {
     if (!this.isActiveConnection(generation, device)) {
       throw new DeviceTransportError('disconnected', 'WebHID device disconnected during write');
     }
+    const pacingDelay = this.nextPhysicalWriteAtMs - Date.now();
+    if (pacingDelay > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, pacingDelay));
+      if (!this.isActiveConnection(generation, device)) {
+        throw new DeviceTransportError(
+          'disconnected',
+          'WebHID device disconnected while waiting for endpoint capacity',
+        );
+      }
+    }
     traceWebHidFrame({
       direction: 'tx',
       reportId: this.reportId,
@@ -1266,7 +1321,21 @@ export class WebHidTransport implements DeviceTransport {
       wireReport: report,
       logicalRecordId,
     });
-    await device.sendReport(this.reportId, report);
+    const writeStartedAtMs = Date.now();
+    try {
+      await device.sendReport(this.reportId, report);
+      this.nextPhysicalWriteAtMs = writeStartedAtMs + this.framePacingMs;
+    } catch (error) {
+      const nativeName = error instanceof DOMException && error.name
+        ? ` (${error.name})`
+        : '';
+      const nativeMessage = error instanceof Error ? error.message : String(error);
+      throw new DeviceTransportError(
+        'disconnected',
+        `WebHID report write failed${nativeName}: ${nativeMessage}`,
+        error,
+      );
+    }
     if (!this.isActiveConnection(generation, device)) {
       throw new DeviceTransportError('disconnected', 'WebHID device disconnected after write');
     }
@@ -1460,6 +1529,7 @@ export class WebHidTransport implements DeviceTransport {
     this.writeChain = Promise.resolve();
     this.rejectAllPending(error);
     this.ignoredLateBootstrapResponses.clear();
+    this.ignoredLateRpcResponses.clear();
     if (device) {
       device.removeEventListener('inputreport', this.handleInputReport);
     }
@@ -1805,6 +1875,36 @@ export class WebHidTransport implements DeviceTransport {
     this.ignoredLateBootstrapResponses.delete(transactionId);
     return ignored.validGeneration === this.connectionGeneration &&
       ignored.expiresAt > Date.now();
+  }
+
+  private rememberLateRpcResponse(transactionId: number, generation: number): void {
+    const now = Date.now();
+    this.pruneIgnoredLateRpcResponses(now);
+    while (this.ignoredLateRpcResponses.size >= 8) {
+      const oldest = this.ignoredLateRpcResponses.keys().next().value as number | undefined;
+      if (oldest === undefined) break;
+      this.ignoredLateRpcResponses.delete(oldest);
+    }
+    this.ignoredLateRpcResponses.set(transactionId, {
+      generation,
+      expiresAt: now + 30_000,
+    });
+  }
+
+  private consumeIgnoredLateRpcResponse(transactionId: number): boolean {
+    const ignored = this.ignoredLateRpcResponses.get(transactionId);
+    if (!ignored) return false;
+    this.ignoredLateRpcResponses.delete(transactionId);
+    return ignored.generation === this.connectionGeneration &&
+      ignored.expiresAt > Date.now();
+  }
+
+  private pruneIgnoredLateRpcResponses(now = Date.now()): void {
+    for (const [transactionId, ignored] of this.ignoredLateRpcResponses) {
+      if (ignored.expiresAt <= now || ignored.generation !== this.connectionGeneration) {
+        this.ignoredLateRpcResponses.delete(transactionId);
+      }
+    }
   }
 
   private hasIgnoredLateBootstrapResponseForCurrentGeneration(): boolean {

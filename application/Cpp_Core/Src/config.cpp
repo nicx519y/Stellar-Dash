@@ -13,6 +13,7 @@
 #include <string>
 #include "configs/device_command_handler.hpp" // For ProfileCommandHandler
 #include "system_logger.h"
+#include <algorithm>
 
 #define CONFIG_ADDR_ORIGIN  CONFIG_ADDR
 #define CONFIG_VERSION_SCREEN_STYLE_MIGRATE_FROM 0x00001Bu
@@ -42,6 +43,7 @@
 #define CONFIG_JOURNAL_VERSION       1u
 #define CONFIG_JOURNAL_COMMIT        0x54494D43u /* "CMIT", little endian */
 #define CONFIG_JOURNAL_ERASED_WORD   0xFFFFFFFFu
+#define CONFIG_DIGEST_MARKER         0x31435243u /* "CRC1", little endian */
 
 #pragma pack(push, 1)
 typedef struct {
@@ -1024,7 +1026,8 @@ class ConfigQspiIndirectGuard {
 public:
     ConfigQspiIndirectGuard()
         : wasMemoryMapped_(QSPI_W25Qxx_IsMemoryMappedMode()),
-          ready_(true) {
+          ready_(true),
+          restored_(!wasMemoryMapped_) {
         if (wasMemoryMapped_ &&
             QSPI_W25Qxx_ExitMemoryMappedMode() != QSPI_W25Qxx_OK) {
             ready_ = false;
@@ -1032,18 +1035,27 @@ public:
     }
 
     ~ConfigQspiIndirectGuard() {
-        if (wasMemoryMapped_) {
-            (void)QSPI_W25Qxx_EnterMemoryMappedMode();
-        }
+        (void)restore();
     }
 
     bool ready() const {
         return ready_;
     }
 
+    bool restore() {
+        if (restored_) return true;
+        restored_ =
+            QSPI_W25Qxx_EnterMemoryMappedMode() == QSPI_W25Qxx_OK;
+        if (!restored_) {
+            APP_ERR("Config QSPI guard - failed to restore memory-mapped mode.");
+        }
+        return restored_;
+    }
+
 private:
     bool wasMemoryMapped_;
     bool ready_;
+    bool restored_;
 };
 
 enum class ConfigBankStatus : uint8_t {
@@ -1057,6 +1069,109 @@ typedef struct {
     uint32_t address;
     ConfigJournalHeader header;
 } ConfigBankState;
+
+enum class ConfigPayloadResult : uint8_t {
+    IO_ERROR = 0,
+    DIFFERENT,
+    MATCH
+};
+
+static uint32_t config_crc32_update(uint32_t crc,
+                                    const uint8_t* data,
+                                    size_t length) {
+    for (size_t index = 0u; index < length; ++index) {
+        crc ^= data[index];
+        for (uint8_t bit = 0u; bit < 8u; ++bit) {
+            crc = (crc >> 1u) ^
+                  (0xEDB88320u & static_cast<uint32_t>(
+                      -static_cast<int32_t>(crc & 1u)));
+        }
+    }
+    return crc;
+}
+
+static uint32_t config_crc32(const Config& config) {
+    return config_crc32_update(
+               0xFFFFFFFFu,
+               reinterpret_cast<const uint8_t*>(&config),
+               sizeof(config)) ^
+           0xFFFFFFFFu;
+}
+
+static void set_config_digest(ConfigJournalHeader& header,
+                              const Config& config) {
+    const uint32_t crc = config_crc32(config);
+    const uint32_t inverse = ~crc;
+    const uint32_t marker = CONFIG_DIGEST_MARKER;
+    memcpy(&header.reservedDigest[0], &crc, sizeof(crc));
+    memcpy(&header.reservedDigest[4], &inverse, sizeof(inverse));
+    memcpy(&header.reservedDigest[8], &marker, sizeof(marker));
+}
+
+static bool get_config_digest(const ConfigJournalHeader& header,
+                              uint32_t& expected) {
+    uint32_t inverse = 0u;
+    uint32_t marker = 0u;
+    memcpy(&expected, &header.reservedDigest[0], sizeof(expected));
+    memcpy(&inverse, &header.reservedDigest[4], sizeof(inverse));
+    memcpy(&marker, &header.reservedDigest[8], sizeof(marker));
+    return marker == CONFIG_DIGEST_MARKER && inverse == ~expected;
+}
+
+static ConfigPayloadResult verify_config_payload(
+    uint32_t bankAddress,
+    const ConfigJournalHeader& header) {
+    uint32_t expected = 0u;
+    if (!get_config_digest(header, expected)) {
+        /* Version-1 journal records written before CRC1 remain readable. */
+        return ConfigPayloadResult::MATCH;
+    }
+
+    uint8_t scratch[W25Qxx_PageSize] = {};
+    uint32_t crc = 0xFFFFFFFFu;
+    uint32_t offset = 0u;
+    while (offset < header.payloadLength) {
+        const uint32_t chunk =
+            std::min(static_cast<uint32_t>(sizeof(scratch)),
+                     header.payloadLength - offset);
+        if (QSPI_W25Qxx_ReadBuffer(
+                scratch,
+                bankAddress + sizeof(ConfigJournalHeader) + offset,
+                chunk) != QSPI_W25Qxx_OK) {
+            return ConfigPayloadResult::IO_ERROR;
+        }
+        crc = config_crc32_update(crc, scratch, chunk);
+        offset += chunk;
+    }
+    crc ^= 0xFFFFFFFFu;
+    return crc == expected
+        ? ConfigPayloadResult::MATCH
+        : ConfigPayloadResult::DIFFERENT;
+}
+
+static ConfigPayloadResult compare_config_payload(
+    uint32_t bankAddress,
+    const Config& config) {
+    uint8_t scratch[W25Qxx_PageSize] = {};
+    const uint8_t* expected = reinterpret_cast<const uint8_t*>(&config);
+    uint32_t offset = 0u;
+    while (offset < sizeof(config)) {
+        const uint32_t chunk =
+            std::min(static_cast<uint32_t>(sizeof(scratch)),
+                     static_cast<uint32_t>(sizeof(config) - offset));
+        if (QSPI_W25Qxx_ReadBuffer(
+                scratch,
+                bankAddress + sizeof(ConfigJournalHeader) + offset,
+                chunk) != QSPI_W25Qxx_OK) {
+            return ConfigPayloadResult::IO_ERROR;
+        }
+        if (memcmp(scratch, expected + offset, chunk) != 0) {
+            return ConfigPayloadResult::DIFFERENT;
+        }
+        offset += chunk;
+    }
+    return ConfigPayloadResult::MATCH;
+}
 
 static bool is_supported_legacy_config_version(uint32_t version) {
     return version == CONFIG_VERSION ||
@@ -1086,6 +1201,16 @@ static ConfigBankState inspect_config_bank(uint32_t bankAddress) {
         state.header.payloadLength >
             (CONFIG_BANK_SIZE - sizeof(ConfigJournalHeader)) ||
         state.header.commit != CONFIG_JOURNAL_COMMIT) {
+        state.status = ConfigBankStatus::INVALID;
+        return state;
+    }
+
+    const ConfigPayloadResult payload =
+        verify_config_payload(bankAddress, state.header);
+    if (payload == ConfigPayloadResult::IO_ERROR) {
+        return state;
+    }
+    if (payload == ConfigPayloadResult::DIFFERENT) {
         state.status = ConfigBankStatus::INVALID;
         return state;
     }
@@ -1126,9 +1251,14 @@ static bool write_config_bank(uint32_t bankAddress,
     header.generation = generation;
     header.payloadLength = sizeof(Config);
     header.commit = CONFIG_JOURNAL_ERASED_WORD;
+    set_config_digest(header, config);
 
-    if (QSPI_W25Qxx_BufferErase(bankAddress, CONFIG_BANK_SIZE) !=
-        QSPI_W25Qxx_OK) {
+    const int8_t eraseStatus =
+        QSPI_W25Qxx_BufferErase(bankAddress, CONFIG_BANK_SIZE);
+    if (eraseStatus != QSPI_W25Qxx_OK) {
+        APP_ERR("Config journal erase failed at 0x%08lx status=%d.",
+                (unsigned long)bankAddress,
+                (int)eraseStatus);
         return false;
     }
 
@@ -1136,15 +1266,23 @@ static bool write_config_bank(uint32_t bankAddress,
      * The uncommitted header and payload may be interrupted at any byte. Such
      * a bank is ignored because commit remains erased.
      */
-    if (qspi_write_buffer_no_erase(
+    const int8_t headerStatus = qspi_write_buffer_no_erase(
             reinterpret_cast<uint8_t*>(&header),
             bankAddress,
-            offsetof(ConfigJournalHeader, commit)) != QSPI_W25Qxx_OK ||
-        qspi_write_buffer_no_erase(
+            offsetof(ConfigJournalHeader, commit));
+    if (headerStatus != QSPI_W25Qxx_OK) {
+        APP_ERR("Config journal header write failed status=%d.",
+                (int)headerStatus);
+        return false;
+    }
+    const int8_t payloadStatus = qspi_write_buffer_no_erase(
             const_cast<uint8_t*>(
                 reinterpret_cast<const uint8_t*>(&config)),
             bankAddress + sizeof(ConfigJournalHeader),
-            sizeof(config)) != QSPI_W25Qxx_OK) {
+            sizeof(config));
+    if (payloadStatus != QSPI_W25Qxx_OK) {
+        APP_ERR("Config journal payload write failed status=%d.",
+                (int)payloadStatus);
         return false;
     }
 
@@ -1153,10 +1291,13 @@ static bool write_config_bank(uint32_t bankAddress,
      * program after the complete payload write has returned successfully.
      */
     uint32_t commit = CONFIG_JOURNAL_COMMIT;
-    if (qspi_write_buffer_no_erase(
+    const int8_t commitStatus = qspi_write_buffer_no_erase(
             reinterpret_cast<uint8_t*>(&commit),
             bankAddress + offsetof(ConfigJournalHeader, commit),
-            sizeof(commit)) != QSPI_W25Qxx_OK) {
+            sizeof(commit));
+    if (commitStatus != QSPI_W25Qxx_OK) {
+        APP_ERR("Config journal commit write failed status=%d.",
+                (int)commitStatus);
         return false;
     }
 
@@ -1190,6 +1331,18 @@ bool ConfigUtils::save(Config& config)
 
     const ConfigBankState* active =
         select_newest_config_bank(bankA, bankB);
+    if (active != nullptr) {
+        const ConfigPayloadResult unchanged =
+            compare_config_payload(active->address, config);
+        if (unchanged == ConfigPayloadResult::IO_ERROR) {
+            APP_ERR("ConfigUtils::save - failed to compare active payload.");
+            return false;
+        }
+        if (unchanged == ConfigPayloadResult::MATCH) {
+            APP_DBG("ConfigUtils::save - unchanged; skipping flash write.");
+            return guard.restore();
+        }
+    }
     const uint32_t targetAddress =
         (active != nullptr && active->address == CONFIG_BANK_B_ADDR)
             ? CONFIG_BANK_A_ADDR
@@ -1209,7 +1362,7 @@ bool ConfigUtils::save(Config& config)
     APP_DBG("ConfigUtils::save - committed generation %lu to bank 0x%08lx.",
             (unsigned long)nextGeneration,
             (unsigned long)targetAddress);
-    return true;
+    return guard.restore();
 }
 
 /**
@@ -1238,6 +1391,10 @@ bool ConfigUtils::reset(Config& config)
             QSPI_W25Qxx_BufferErase(CONFIG_BANK_B_ADDR, CONFIG_BANK_SIZE);
         if (eraseA != QSPI_W25Qxx_OK || eraseB != QSPI_W25Qxx_OK) {
             APP_ERR("ConfigUtils::reset - dual-bank erase failure.");
+            return false;
+        }
+        if (!guard.restore()) {
+            APP_ERR("ConfigUtils::reset - failed to restore QSPI mapping.");
             return false;
         }
     }
@@ -1281,7 +1438,7 @@ bool ConfigUtils::fromStorage(Config& config)
         }
         APP_DBG("ConfigUtils::fromStorage - loaded journal generation %lu.",
                 (unsigned long)active->header.generation);
-        return true;
+        return guard.restore();
     }
 
     /*
@@ -1313,5 +1470,5 @@ bool ConfigUtils::fromStorage(Config& config)
     }
 
     APP_DBG("ConfigUtils::fromStorage - loaded legacy raw Config.");
-    return true;
+    return guard.restore();
 }

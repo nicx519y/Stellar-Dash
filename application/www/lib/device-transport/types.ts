@@ -56,6 +56,12 @@ export interface DeviceResponse<T = Record<string, unknown> | undefined> {
 export interface DeviceRequestOptions {
   signal?: AbortSignal;
   timeoutMs?: number;
+  /**
+   * Only applies after every physical HID report has been written. The
+   * default remains fail-closed; optional diagnostics may keep the authenticated
+   * session alive and discard their specifically tracked late response.
+   */
+  responseTimeoutMode?: 'fatal' | 'recoverable';
 }
 
 export interface DeviceEvent<T = unknown> {

@@ -164,7 +164,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
 
     const commitUiChange = async (next: ScreenControlConfig) => {
         try {
-            await updateScreenControl(next, true);
+            await updateScreenControl(next);
         } catch {
             // The context restores the last device-confirmed value and exposes
             // the failure through the shared error toast.

@@ -25,7 +25,7 @@ public:
     bool isAuthenticated() const { return sessionEstablished; }
     uint32_t scopes() const { return grantedScopes; }
 
-    void enqueueReport(const uint8_t report[WEBHID_REPORT_BYTES]);
+    bool enqueueReport(const uint8_t report[WEBHID_REPORT_BYTES]);
     void enqueueJsonEvent(const char *json, size_t length);
     void enqueueBinaryEvent(const uint8_t *data, size_t length);
     void onAdcButtonTransition(uint8_t buttonIndex, bool pressed);
@@ -52,7 +52,6 @@ private:
     static constexpr size_t kMaximumOutboundBytes = 16u * 1024u;
     static constexpr size_t kMaximumOutboundMessages = 8u;
     static constexpr size_t kEdgeQueueDepth = 64u;
-    static constexpr size_t kControlBurstBytes = 256u;
     struct LogicalAssembler
     {
         bool active = false;
@@ -90,7 +89,6 @@ private:
         bool secure = false;
         bool activateSession = false;
         bool endSession = false;
-        bool telemetryPreemptible = false;
         size_t start = 0u;
         size_t length = 0u;
         size_t offset = 0u;

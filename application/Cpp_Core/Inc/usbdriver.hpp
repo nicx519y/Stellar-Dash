@@ -23,6 +23,8 @@ public:
     }
 
     bool start(InputMode inputMode);
+    bool prepare(InputMode inputMode);
+    bool connect();
     void shutdown();
     void process();
     bool submit(const GamepadState &state,
@@ -35,6 +37,7 @@ public:
                   uint16_t length);
 
     bool isReady() const { return ready; }
+    bool isPrepared() const { return prepared; }
     bool isMounted() const;
     bool isSuspended() const;
     bool isHostReady() const;
@@ -48,6 +51,7 @@ private:
     static uint32_t actionMask(const GamepadState &state);
 
     usb_board_profile_t activeProfile = USB_BOARD_PROFILE_NONE;
+    bool prepared = false;
     bool ready = false;
 };
 

@@ -30,7 +30,15 @@
 #define USBDEV_XINPUT_TELEMETRY_ENDPOINT    7u
 #define USBDEV_PS4_OUTPUT_ENDPOINT          3u
 #define USBDEV_OTHER_SPEED_BYTES           256u
-#define USBDEV_WEBHID_OUT_QUEUE_DEPTH        4u
+/*
+ * Chromium may complete several sendReport() calls before USB NAK
+ * backpressure becomes visible to JavaScript. A complete profile/LED RPC is
+ * normally 9-12 HID reports, so four slots allow a legitimate fragmented
+ * request to reach an avoidable endpoint stall. The board-link credit window
+ * remains one complete report; this ring only absorbs the bounded host burst
+ * and never relaxes downstream ownership.
+ */
+#define USBDEV_WEBHID_OUT_QUEUE_DEPTH        16u
 #define USBDEV_HID_REPORT_INPUT              1u
 #define USBDEV_HID_REPORT_OUTPUT             2u
 #define USBDEV_HID_REPORT_FEATURE            3u

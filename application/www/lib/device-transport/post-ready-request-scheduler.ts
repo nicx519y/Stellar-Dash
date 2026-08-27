@@ -1,10 +1,8 @@
 /**
- * Serializes the small set of RPCs that may be scheduled by independent React
- * effects immediately after a device session becomes ready.
- *
- * The operations themselves keep the DeviceCommandClient deadline and abort
- * semantics. This scheduler only prevents a later operation from entering the
- * HID writer before the previous operation has received its matching response.
+ * Tracks the initial batch scheduled by independent React effects after a
+ * session becomes ready. Physical request serialization belongs exclusively to
+ * DeviceCommandClient's DeviceRequestQueue; this gate only delays telemetry
+ * until the initial batch has settled.
  */
 export class PostReadyRequestScheduler {
   private generation = 0;
@@ -12,7 +10,6 @@ export class PostReadyRequestScheduler {
   private initialBatchReleased = false;
   private releaseDrainActive = false;
   private releaseCallback: (() => void) | null = null;
-  private tail: Promise<void> = Promise.resolve();
   private readonly initialTasks = new Set<Promise<unknown>>();
 
   beginSession(): number {
@@ -21,7 +18,6 @@ export class PostReadyRequestScheduler {
     this.initialBatchReleased = false;
     this.releaseDrainActive = false;
     this.releaseCallback = null;
-    this.tail = Promise.resolve();
     this.initialTasks.clear();
     return this.generation;
   }
@@ -32,13 +28,12 @@ export class PostReadyRequestScheduler {
     this.initialBatchReleased = false;
     this.releaseDrainActive = false;
     this.releaseCallback = null;
-    this.tail = Promise.resolve();
     this.initialTasks.clear();
   }
 
   /**
-   * Enqueue one bounded device operation. The caller-provided operation owns
-   * its timeout; queued work never starts after the session generation changes.
+   * Register one bounded device operation. DeviceCommandClient preserves its
+   * order on the shared device lane; this wrapper only enforces generation.
    */
   schedule<T>(operation: () => Promise<T>): Promise<T> {
     if (!this.active) {
@@ -52,11 +47,7 @@ export class PostReadyRequestScheduler {
       }
       return operation();
     };
-    const current = this.tail.then(run, run);
-    this.tail = current.then(
-      () => undefined,
-      () => undefined,
-    );
+    const current = Promise.resolve().then(run);
     return this.track(current);
   }
 

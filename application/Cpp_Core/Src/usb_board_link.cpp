@@ -474,7 +474,11 @@ bool UsbBoardLink::grantInitialReceiveCredits()
     for (uint8_t channel = USB_BOARD_CHANNEL_USB_DEVICE;
          channel <= USB_BOARD_CHANNEL_LAST;
          ++channel) {
-        receiveCredits[channel] = bulkCreditLimit(channel);
+        receiveCredits[channel] =
+            (channel == USB_BOARD_CHANNEL_WEBCONFIG &&
+             s_webConfigRxCallback == nullptr)
+                ? 0u
+                : bulkCreditLimit(channel);
         receiveCreditDirty[channel] = 1u;
     }
     flushReceiveCredits();
@@ -498,6 +502,24 @@ void UsbBoardLink::returnReceiveCredit(usb_board_channel_t channel)
         ++receiveCredits[index];
     }
     receiveCreditDirty[index] = 1u;
+}
+
+void UsbBoardLink::releaseWebConfigReceiveCredit()
+{
+    returnReceiveCredit(USB_BOARD_CHANNEL_WEBCONFIG);
+}
+
+void UsbBoardLink::setWebConfigReceiverReady(bool ready)
+{
+    const uint8_t channel = USB_BOARD_CHANNEL_WEBCONFIG;
+    receiveCredits[channel] = ready ? bulkCreditLimit(channel) : 0u;
+    receiveCreditDirty[channel] = 1u;
+    if (!ready) {
+        s_webConfigRxActive = false;
+        s_webConfigRxLength = 0u;
+        s_webConfigRxExpectedLength = 0u;
+    }
+    flushReceiveCredits();
 }
 
 void UsbBoardLink::flushReceiveCredits()
@@ -1234,6 +1256,7 @@ void UsbBoardLink::handleEvent(uint8_t command,
                dataLength);
         *rxLength = static_cast<uint16_t>(*rxLength + dataLength);
         ++*rxExpectedFragment;
+        bool webConfigCreditOwnedByConsumer = false;
         if ((header.flags & USB_BOARD_FRAGMENT_FLAG_LAST) != 0u) {
             const bool complete =
                 (*rxLength == *rxExpectedLength) &&
@@ -1247,10 +1270,13 @@ void UsbBoardLink::handleEvent(uint8_t command,
                        *rxLength == sizeof(s_webConfigRx) &&
                        s_webConfigRxCallback != nullptr) {
                 s_webConfigRxCallback(rxBuffer);
+                webConfigCreditOwnedByConsumer = true;
             }
             *rxActive = false;
         }
-        returnReceiveCredit(channel);
+        if (!webConfigCreditOwnedByConsumer) {
+            returnReceiveCredit(channel);
+        }
     }
 }
 
@@ -1357,6 +1383,12 @@ extern "C" void UsbBoardLink_SetWebConfigReceiveCallback(
     usb_board_link_webconfig_rx_callback_t callback)
 {
     s_webConfigRxCallback = callback;
+    /*
+     * A WebConfig receive credit is permission for CH585 to forward one host
+     * report. Couple that permission to the callback lifetime so no caller can
+     * accidentally recreate the startup drop window by changing init order.
+     */
+    USB_BOARD_LINK.setWebConfigReceiverReady(callback != nullptr);
 }
 
 extern "C" void UsbBoardLink_Process(void)

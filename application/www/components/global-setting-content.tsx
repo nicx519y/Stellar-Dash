@@ -67,7 +67,7 @@ export function GlobalSettingContent() {
     const setCalibrationActiveForSession = useCallback((active: boolean) => {
         calibrationActiveRef.current = active;
         setCalibrationActive(active);
-    }, []);
+    }, [sendPendingCommandImmediately]);
 
     const onStartManualCalibration = useCallback(async () => {
         if (!deviceConnectedRef.current || calibrationOperationRef.current || calibrationActiveRef.current) {
@@ -192,7 +192,7 @@ export function GlobalSettingContent() {
 
     useEffect(() => {
         if (needUpdate) {
-            updateHotkeysConfig(currentHotkeys);
+            void updateHotkeysConfig(currentHotkeys).catch(() => undefined);
             setNeedUpdate(false);
         }
     }, [needUpdate]);
@@ -207,7 +207,7 @@ export function GlobalSettingContent() {
                 console.warn('页面关闭前发送 update_hotkeys_config 命令失败:', error);
             }
         }
-    }, [sendPendingCommandImmediately]);
+    }, []);
 
     // 处理外部点击（从Hitbox组件）
     const handleExternalClick = (keyId: number) => {

@@ -238,14 +238,14 @@ export function ButtonsPerformanceSettingContent({
         const profileId = defaultProfile.id;
         const preserveAllFlag = defaultProfile.triggerConfigs?.isAllBtnsConfiguring ?? true;
         const preserveDebounce = defaultProfile.triggerConfigs?.debounceAlgorithm ?? ADCButtonDebounceAlgorithm.NONE;
-        updateProfileDetails(profileId, {
+        void updateProfileDetails(profileId, {
             id: profileId,
             triggerConfigs: {
                 isAllBtnsConfiguring: preserveAllFlag,
                 debounceAlgorithm: preserveDebounce,
                 triggerConfigs: triggerConfigs
             }
-        });
+        }).catch(() => undefined);
     }, [defaultProfile, triggerConfigs]);
 
     const updateTriggerOptions = (
@@ -253,7 +253,7 @@ export function ButtonsPerformanceSettingContent({
     ) => {
         const profileId = defaultProfile.id;
         const current = defaultProfile.triggerConfigs;
-        updateProfileDetails(profileId, {
+        void updateProfileDetails(profileId, {
             id: profileId,
             triggerConfigs: {
                 isAllBtnsConfiguring: current?.isAllBtnsConfiguring ?? true,
@@ -261,7 +261,7 @@ export function ButtonsPerformanceSettingContent({
                 triggerConfigs,
                 ...patch,
             },
-        });
+        }).catch(() => undefined);
     };
 
     return (

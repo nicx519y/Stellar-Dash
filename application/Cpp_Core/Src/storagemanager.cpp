@@ -38,7 +38,19 @@ bool Storage::setDefaultProfileId(const char* id) {
 
 bool Storage::saveConfig()
 {
-	return ConfigUtils::save(config);
+	if (ConfigUtils::save(config)) return true;
+
+	/*
+	 * A journal write always targets the inactive bank and commits last, so a
+	 * failed save leaves the previous bank readable. Reload it in-place instead
+	 * of keeping a second ~36 KiB Config object resident in scarce MCU RAM.
+	 */
+	if (ConfigUtils::fromStorage(config)) {
+		APP_ERR("Storage::saveConfig failed; runtime config reloaded from the committed bank.");
+	} else {
+		APP_ERR("Storage::saveConfig failed; committed config reload also failed.");
+	}
+	return false;
 }
 
 /**
