@@ -24,10 +24,64 @@ interface PageLifecycleTarget {
   ): void;
 }
 
+interface PageVisibilityLifecycleTarget {
+  readonly visibilityState: DocumentVisibilityState;
+  addEventListener(
+    type: 'visibilitychange' | 'freeze' | 'resume',
+    listener: () => void,
+  ): void;
+  removeEventListener(
+    type: 'visibilitychange' | 'freeze' | 'resume',
+    listener: () => void,
+  ): void;
+}
+
 export interface DevicePageLifecycleCallbacks {
   suspendForBfcache(): void;
   destroyDocument(): void;
   restoreFromBfcache(): void;
+}
+
+export interface DeviceVisibilityLifecycleCallbacks {
+  pauseBackgroundActivity(): void;
+  restoreForegroundActivity(): void;
+}
+
+/**
+ * Stop optional WebHID traffic while Chromium is allowed to throttle or freeze
+ * the document. The authenticated handle stays open across an ordinary hidden
+ * interval; if the browser does drop it, the foreground callback can reopen an
+ * already-authorized device without showing the chooser.
+ */
+export function registerDeviceVisibilityLifecycle(
+  callbacks: DeviceVisibilityLifecycleCallbacks,
+  target: PageVisibilityLifecycleTarget = document,
+): () => void {
+  let backgrounded = target.visibilityState === 'hidden';
+
+  const pause = (): void => {
+    if (backgrounded) return;
+    backgrounded = true;
+    callbacks.pauseBackgroundActivity();
+  };
+  const restore = (): void => {
+    if (!backgrounded || target.visibilityState === 'hidden') return;
+    backgrounded = false;
+    callbacks.restoreForegroundActivity();
+  };
+  const handleVisibilityChange = (): void => {
+    if (target.visibilityState === 'hidden') pause();
+    else restore();
+  };
+
+  target.addEventListener('visibilitychange', handleVisibilityChange);
+  target.addEventListener('freeze', pause);
+  target.addEventListener('resume', restore);
+  return () => {
+    target.removeEventListener('visibilitychange', handleVisibilityChange);
+    target.removeEventListener('freeze', pause);
+    target.removeEventListener('resume', restore);
+  };
 }
 
 /**

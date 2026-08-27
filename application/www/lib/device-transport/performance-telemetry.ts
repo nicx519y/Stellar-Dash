@@ -115,6 +115,11 @@ export class PerformanceTelemetryController {
     this.clockSyncScheduler.start(signal);
   }
 
+  /** Pause only periodic browser-to-device probes without aborting an in-flight request. */
+  pauseClockSync(): void {
+    this.clockSyncScheduler.stop();
+  }
+
   stop(): void {
     this.requestSession.end();
     this.clockSyncScheduler.stop();

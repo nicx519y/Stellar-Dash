@@ -59,6 +59,7 @@ import {
     PerformanceTelemetryController,
     PostReadyRequestScheduler,
     registerDevicePageLifecycle,
+    registerDeviceVisibilityLifecycle,
     scheduleInitialDeviceAutoConnect,
     WEBHID_FIRMWARE_CHUNK_DATA_SIZE,
 } from '@/lib/device-transport';
@@ -473,14 +474,16 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     // instance without suppressing the replacement instance's one auto-open.
     const initialAutoConnectClientRef = useRef<DeviceCommandClient | null>(null);
     const initialAutoConnectCancelRef = useRef<(() => void) | null>(null);
-    const bfcacheReconnectCancelRef = useRef<(() => void) | null>(null);
-    const pageHiddenRef = useRef(false);
+    const foregroundReconnectCancelRef = useRef<(() => void) | null>(null);
+    const pageHiddenRef = useRef(
+        typeof document !== 'undefined' && document.visibilityState === 'hidden',
+    );
 
     const cancelPendingAutomaticConnects = useCallback(() => {
         initialAutoConnectCancelRef.current?.();
         initialAutoConnectCancelRef.current = null;
-        bfcacheReconnectCancelRef.current?.();
-        bfcacheReconnectCancelRef.current = null;
+        foregroundReconnectCancelRef.current?.();
+        foregroundReconnectCancelRef.current = null;
     }, []);
 
     // Hosted builds use WebHID exclusively; mock mode is explicit and offline.
@@ -539,6 +542,43 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         const unsubscribePerformance = performanceTelemetry.subscribe((snapshot) => {
             eventBus.emit(EVENTS.BUTTON_PERFORMANCE_MONITORING, snapshot);
         });
+        const restoreForegroundConnection = () => {
+            pageHiddenRef.current = false;
+            cancelPendingAutomaticConnects();
+            if (client.getState() === DeviceTransportState.CONNECTED) {
+                performanceTelemetry.startClockSync();
+                return;
+            }
+            initialAutoConnectClientRef.current = client;
+            resetDeviceSessionState();
+            setShowReconnect(false);
+            const cancel = scheduleInitialDeviceAutoConnect(
+                client.transport.kind,
+                transportConfig.closeTimeoutMs,
+                () => {
+                    foregroundReconnectCancelRef.current = null;
+                    return client.connect(false);
+                },
+                (error) => {
+                    foregroundReconnectCancelRef.current = null;
+                    console.error('前台 WebHID 自动重连失败:', error);
+                    if (!pageHiddenRef.current) setShowReconnect(true);
+                },
+            );
+            foregroundReconnectCancelRef.current = cancel;
+        };
+        const removeVisibilityLifecycle = registerDeviceVisibilityLifecycle({
+            pauseBackgroundActivity: () => {
+                pageHiddenRef.current = true;
+                cancelPendingAutomaticConnects();
+                setShowReconnect(false);
+                // Do not abort a request that has already reached WebHID. Just
+                // stop the optional 10-second clock probes from creating new
+                // writes while Chromium may throttle or freeze this document.
+                performanceTelemetry.pauseClockSync();
+            },
+            restoreForegroundActivity: restoreForegroundConnection,
+        });
         const removePageLifecycle = registerDevicePageLifecycle({
             suspendForBfcache: () => {
                 pageHiddenRef.current = true;
@@ -553,24 +593,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 client.dispose();
             },
             restoreFromBfcache: () => {
-                pageHiddenRef.current = false;
-                cancelPendingAutomaticConnects();
-                initialAutoConnectClientRef.current = client;
-                resetDeviceSessionState();
-                setShowReconnect(false);
-                const cancel = scheduleInitialDeviceAutoConnect(
-                    client.transport.kind,
-                    transportConfig.closeTimeoutMs,
-                    () => {
-                        bfcacheReconnectCancelRef.current = null;
-                        return client.connect(false);
-                    },
-                    (error) => {
-                        console.error('BFCache WebHID 重连失败:', error);
-                        setShowReconnect(true);
-                    },
-                );
-                bfcacheReconnectCancelRef.current = cancel;
+                restoreForegroundConnection();
             },
         });
         setDeviceClient(client);
@@ -580,6 +603,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 deviceClientRef.current = null;
             }
             cancelPendingAutomaticConnects();
+            removeVisibilityLifecycle();
             removePageLifecycle();
             unsubscribeState();
             unsubscribePhase();
@@ -599,7 +623,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         if (devicePhase === DeviceConnectionPhase.READY) {
             telemetry.start({ deferClockSync: true });
             postReadyRequestSchedulerRef.current?.releaseInitialBatchWhenIdle(
-                () => telemetry.startClockSync(),
+                () => {
+                    if (!pageHiddenRef.current) telemetry.startClockSync();
+                },
             );
         } else {
             postReadyRequestSchedulerRef.current?.endSession();

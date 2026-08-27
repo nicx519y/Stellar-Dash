@@ -65,6 +65,7 @@ const {
 } = require('../lib/device-transport/device-initialization.ts');
 const {
   registerDevicePageLifecycle,
+  registerDeviceVisibilityLifecycle,
   scheduleInitialDeviceAutoConnect,
   WEBHID_CROSS_DOCUMENT_HANDOFF_GRACE_MS,
 } = require('../lib/device-transport/initial-auto-connect.ts');
@@ -484,6 +485,49 @@ test('every pagehide releases HID while bfcache pages restore exactly once and S
     { suspend: 1, destroy: 1, restore: 1 },
     'terminal pagehide disposes once and cannot later restore',
   );
+});
+
+test('background lifecycle pauses probes once and restores only after the page is visible', () => {
+  const listeners = new Map([
+    ['visibilitychange', new Set()],
+    ['freeze', new Set()],
+    ['resume', new Set()],
+  ]);
+  const target = {
+    visibilityState: 'visible',
+    addEventListener(type, listener) {
+      listeners.get(type).add(listener);
+    },
+    removeEventListener(type, listener) {
+      listeners.get(type).delete(listener);
+    },
+  };
+  const calls = { pause: 0, restore: 0 };
+  const remove = registerDeviceVisibilityLifecycle(
+    {
+      pauseBackgroundActivity: () => { calls.pause += 1; },
+      restoreForegroundActivity: () => { calls.restore += 1; },
+    },
+    target,
+  );
+
+  target.visibilityState = 'hidden';
+  for (const listener of listeners.get('visibilitychange')) listener();
+  for (const listener of listeners.get('freeze')) listener();
+  assert.deepEqual(calls, { pause: 1, restore: 0 });
+
+  for (const listener of listeners.get('resume')) listener();
+  assert.deepEqual(calls, { pause: 1, restore: 0 }, 'hidden resume must not reopen WebHID');
+
+  target.visibilityState = 'visible';
+  for (const listener of listeners.get('visibilitychange')) listener();
+  for (const listener of listeners.get('resume')) listener();
+  assert.deepEqual(calls, { pause: 1, restore: 1 });
+
+  remove();
+  target.visibilityState = 'hidden';
+  for (const listener of listeners.get('visibilitychange')) listener();
+  assert.deepEqual(calls, { pause: 1, restore: 1 });
 });
 
 test('bounded close timeout retains the lease until native close settles and disposed timers stay rejected', async () => {
