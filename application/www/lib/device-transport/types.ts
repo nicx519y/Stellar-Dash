@@ -41,7 +41,6 @@ export interface DeviceSession {
   authenticated: boolean;
   scopes: readonly DeviceScope[];
   sessionId?: string;
-  expiresAt?: number;
 }
 
 export interface DeviceResponse<T = Record<string, unknown> | undefined> {

@@ -24,7 +24,6 @@ extern "C" {
 #define HBOX_SECURITY_NONCE_BYTES               32u
 #define HBOX_SECURITY_HASH_BYTES                32u
 #define HBOX_SECURITY_PRODUCT_ID_BYTES          4u
-#define HBOX_SECURITY_SESSION_SECONDS           300u
 #define HBOX_SECURITY_CHALLENGE_SECONDS         60u
 
 /*
@@ -131,9 +130,9 @@ typedef struct HBOX_SECURITY_PACKED
 } hbox_attestation_transcript_v1_t;
 
 /*
- * Server authorization consumed by the device.  issued/expires are server
- * audit fields; the device starts max_duration_ms on its monotonic clock and
- * does not trust a wall clock.
+ * Server authorization consumed by the device.  WebHID sessions are bound to
+ * the physical/browser connection instead of a wall-clock lifetime, so
+ * max_duration_ms, issued_at and expires_at are reserved and must be zero.
  */
 typedef struct HBOX_SECURITY_PACKED
 {

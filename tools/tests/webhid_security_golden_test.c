@@ -335,7 +335,9 @@ int main(int argc, char **argv)
     assert(permit_struct.signed_bytes_le ==
            HBOX_SESSION_PERMIT_SIGNED_BYTES);
     assert(permit_struct.granted_scopes_le == 7u);
-    assert(permit_struct.max_duration_ms_le == 300000u);
+    assert(permit_struct.max_duration_ms_le == 0u);
+    assert(permit_struct.issued_at_le == 0u);
+    assert(permit_struct.expires_at_le == 0u);
     assert(permit_struct.policy_version_le == 1u);
     assert(HBoxCrypto_Sha256(
                permit,

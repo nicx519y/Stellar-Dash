@@ -49,7 +49,6 @@ interface DeviceAttestation {
 
 interface ServerAuthorization extends ServerWebConfigTarget {
   apiToken: string;
-  expiresInMs: number;
   sessionId: string;
   deviceSessionPermit: string;
   sessionSalt: string;
@@ -69,7 +68,6 @@ export class DeviceAuthClient {
   private readonly fetchImpl: typeof globalThis.fetch;
   private readonly httpTimeoutMs: number;
   private apiToken: string | null = null;
-  private apiTokenExpiresAt = 0;
   private grantedScopes: readonly DeviceScope[] = [];
 
   constructor(options: DeviceAuthClientOptions = {}) {
@@ -182,8 +180,6 @@ export class DeviceAuthClient {
       authorization.sessionId,
     );
     assertAuthenticationActive(signal);
-    const now = Date.now();
-    const expiresInMs = Math.min(Math.max(authorization.expiresInMs, 1), 5 * 60 * 1000);
     const session: DeviceSession = {
       transport: 'webhid',
       deviceId: attestation.deviceId,
@@ -197,10 +193,8 @@ export class DeviceAuthClient {
       authenticated: true,
       scopes: authorization.scopes,
       sessionId: authorization.sessionId,
-      expiresAt: now + expiresInMs,
     };
     this.apiToken = authorization.apiToken;
-    this.apiTokenExpiresAt = session.expiresAt!;
     this.grantedScopes = [...authorization.scopes];
     transport.establishSecureSession(new AesGcmHidSessionCipher(sessionKeys), session);
     return session;
@@ -246,9 +240,9 @@ export class DeviceAuthClient {
     init: RequestInit = {},
     requiredScopes: readonly DeviceScope[] = [],
   ): Promise<Response> {
-    if (!this.apiToken || Date.now() >= this.apiTokenExpiresAt) {
+    if (!this.apiToken) {
       this.clear();
-      throw new DeviceTransportError('authentication-required', '服务器会话已过期，请重新连接设备');
+      throw new DeviceTransportError('authentication-required', '服务器会话不可用，请重新连接设备');
     }
     const normalizedRequiredScopes = normalizeScopes(requiredScopes, true);
     if (!this.hasScopes(normalizedRequiredScopes)) {
@@ -279,7 +273,6 @@ export class DeviceAuthClient {
 
   clear(): void {
     this.apiToken = null;
-    this.apiTokenExpiresAt = 0;
     this.grantedScopes = [];
   }
 
@@ -449,9 +442,6 @@ function validateAuthorization(
     !isOpaqueIdentifier(value.sessionId) ||
     !value.deviceSessionPermit ||
     base64ToBytes(value.sessionSalt).byteLength < 16 ||
-    !Number.isFinite(value.expiresInMs) ||
-    value.expiresInMs <= 0 ||
-    value.expiresInMs > 5 * 60 * 1000 ||
     !Array.isArray(value.scopes) ||
     value.scopes.length !== requestedScopes.length ||
     value.scopes.some((scope) => !requestedScopes.includes(scope)) ||

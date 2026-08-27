@@ -162,9 +162,10 @@ function makePermit(permitPublic, browserPublic, devicePublic) {
     sha256(browserPublic).copy(permit, 88);
     sha256(devicePublic).copy(permit, 120);
     permit.writeUInt32LE(0x00000007, 152);
-    permit.writeUInt32LE(300000, 156);
-    permit.writeUInt32LE(1780000000, 160);
-    permit.writeUInt32LE(1780000300, 164);
+    // Connection-bound WebHID sessions reserve all lifetime fields as zero.
+    permit.writeUInt32LE(0, 156);
+    permit.writeUInt32LE(0, 160);
+    permit.writeUInt32LE(0, 164);
     permit.writeUInt32LE(1, 168);
 
     const signature = deterministicP256Sign(

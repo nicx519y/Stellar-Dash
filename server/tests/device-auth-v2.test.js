@@ -320,7 +320,9 @@ function verifyPermit(fixture, encodedPermit) {
     assert.equal(permit[5], 1);
     assert.equal(permit.readUInt16LE(6), 172);
     assert.equal(permit.readUInt32LE(152), fixture.scopeMask);
-    assert.equal(permit.readUInt32LE(156), 300000);
+    assert.equal(permit.readUInt32LE(156), 0);
+    assert.equal(permit.readUInt32LE(160), 0);
+    assert.equal(permit.readUInt32LE(164), 0);
     assert.equal(
         crypto.verify(
             'sha256',
@@ -528,7 +530,7 @@ test('local debug policy ignores firmware trust policy but still issues an encry
         }
     });
 
-test('production adapters require a bounded explicit token TTL', () => {
+test('production adapters accept connection-bound token stores without a TTL', () => {
     const makeDependencies = tokenStore => ({
         permitSigner: { sign() {} },
         challengeStore: { issue() {}, consume() {} },
@@ -537,33 +539,15 @@ test('production adapters require a bounded explicit token TTL', () => {
         challengeLimiter: { check() {} },
         verifyLimiter: { check() {} }
     });
-    const tokenMethods = {
+    const tokenStore = {
         issue() {},
         resolve() {},
         revoke() {}
     };
-
-    for (const ttlMs of [undefined, 0, 300001, 1.5, Number.MAX_VALUE]) {
-        const tokenStore = { ...tokenMethods };
-        if (ttlMs !== undefined) {
-            tokenStore.ttlMs = ttlMs;
-        }
-        assert.throws(
-            () => validateProductionAdapter(
-                makeDependencies(tokenStore)
-            ),
-            /tokenStore\.ttlMs must be a safe integer between 1 and 300000/
-        );
-    }
-
-    for (const ttlMs of [1, 300000]) {
-        assert.equal(
-            validateProductionAdapter(
-                makeDependencies({ ...tokenMethods, ttlMs })
-            ).tokenStore.ttlMs,
-            ttlMs
-        );
-    }
+    assert.equal(
+        validateProductionAdapter(makeDependencies(tokenStore)).tokenStore,
+        tokenStore
+    );
 });
 
 test('V2 authenticates fixed binary proofs and signs a scoped permit', async () => {
@@ -578,8 +562,8 @@ test('V2 authenticates fixed binary proofs and signs a scoped permit', async () 
             makeVerifyRequest(fixture, challenge)
         );
         assert.deepEqual(result.grantedScopes, fixture.scopes);
-        assert.equal(result.expiresIn, 300);
-        assert.equal(result.expiresInMs, 300000);
+        assert.equal(Object.hasOwn(result, 'expiresIn'), false);
+        assert.equal(Object.hasOwn(result, 'expiresInMs'), false);
         assert.equal(result.productId, 'HBOX');
         assert.equal(result.pcbRevision, '2.0.0');
         assert.equal(result.webConfigProfile, 'hbox-pcb-v2');
@@ -601,6 +585,12 @@ test('V2 authenticates fixed binary proofs and signs a scoped permit', async () 
         assert.equal(
             fixture.tokenStore.resolve(result.apiToken).productId,
             'HBOX'
+        );
+        fixture.clock.value += 24 * 60 * 60 * 1000;
+        assert.equal(
+            fixture.tokenStore.resolve(result.apiToken).deviceId,
+            fixture.deviceId.toString('hex').toUpperCase(),
+            'connection-bound tokens must not expire with wall-clock time'
         );
         assert.equal(
             fixture.tokenStore.tokens.has(result.apiToken),

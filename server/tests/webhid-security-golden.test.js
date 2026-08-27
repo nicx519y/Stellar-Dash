@@ -110,7 +110,9 @@ test('golden permit bytes match the packed C ABI and verify as P1363 P-256',
         assert.equal(permit[5], 1);
         assert.equal(permit.readUInt16LE(6), 172);
         assert.equal(permit.readUInt32LE(152), 0x07);
-        assert.equal(permit.readUInt32LE(156), 300000);
+        assert.equal(permit.readUInt32LE(156), 0);
+        assert.equal(permit.readUInt32LE(160), 0);
+        assert.equal(permit.readUInt32LE(164), 0);
         assert.equal(permit.readUInt32LE(168), 1);
 
         const publicKey = normalizeP256PublicKey(

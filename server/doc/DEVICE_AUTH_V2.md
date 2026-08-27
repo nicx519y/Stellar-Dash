@@ -48,7 +48,7 @@ function createDeviceAuthV2Dependencies({ storageManager, environment }) {
   return {
     permitSigner,      // sign(claims), backed by KMS/HSM
     challengeStore,    // issue(record), consume(challengeId)
-    tokenStore,        // ttlMs, issue(record), resolve(token), revoke(token)
+    tokenStore,        // issue(record), resolve(token), revoke(token)
     devicePolicy,      // check(identity, attestation), get(deviceId)
     challengeLimiter,  // check(key)
     verifyLimiter      // check(key)
@@ -63,8 +63,9 @@ synchronously; dependency methods may return values or Promises.
   the fixed 236-byte permit with the correct current/next key slot.
 - Challenge consumption must be an atomic `GETDEL` or equivalent operation,
   with a 60-second TTL.
-- The opaque token store must keep only a hash/HMAC index of the bearer token,
-  expose `ttlMs <= 300000`, and be shared by every worker.
+- The opaque token store must keep only a hash/HMAC index of the bearer token
+  and be shared by every worker. Tokens are connection-bound and are revoked
+  by session/policy teardown rather than a wall-clock TTL.
 - Both rate limiters must be shared across the deployment, not process-local.
 - `devicePolicy` must use a transactional database for enrollment, certificate
   uniqueness, firmware allowlists, minimum security version, monotonically
@@ -133,9 +134,9 @@ For compatibility with the first browser client, `signature` carries the
 complete 354-byte signed transcript, not only its trailing 64-byte signature.
 On success the response contains:
 
-- a five-minute opaque `apiToken`, kept only in page memory;
+- a connection-bound opaque `apiToken`, kept only in page memory;
 - a 16-byte `sessionId`;
-- `scopes` and `expiresInMs`;
+- `scopes`;
 - signed `deviceSessionPermit` for the STM32;
 - `sessionSalt = SHA-256(deviceSessionPermit)` for browser/device HKDF.
 - authenticated `productId`, `pcbRevision`, and `webConfigProfile` routing
@@ -200,10 +201,9 @@ provided every node reads the shared current policy.
 
 An already-installed STM32 permit is self-contained and the device does not
 contact the server for each WebHID command. Consequently, server revocation
-does not remotely terminate that local AES-GCM session immediately. The
-maximum revocation latency is the five-minute permit TTL; USB disconnect,
-USB suspend, PI10 power loss, role change, explicit `session.end`, timeout, or
-a protocol error terminates it earlier. Suspend clears both CH585 WebHID
+does not remotely terminate that local AES-GCM session. The connection-bound
+session ends on USB disconnect, PI10 power loss, role change, explicit
+`session.end`, page teardown, or a protocol error. Suspend clears both CH585 WebHID
 directions and resets BoardLink credit to zero; resume starts a new transport
 generation and requires a fresh authorization instead of replaying queued
 reports.

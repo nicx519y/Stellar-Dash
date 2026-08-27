@@ -9,7 +9,6 @@ const {
 } = require('./webconfig-target-policy');
 
 const CHALLENGE_TTL_MS = 60 * 1000;
-const SESSION_TTL_MS = 5 * 60 * 1000;
 const MAX_ENVELOPE_BYTES = 16 * 1024;
 const MAGIC = Object.freeze({
     deviceCertificate: 0x31434448,
@@ -430,7 +429,6 @@ class MemoryChallengeStore {
 class OpaqueTokenStore {
     constructor(options = {}) {
         this.now = options.now || Date.now;
-        this.ttlMs = options.ttlMs || SESSION_TTL_MS;
         this.tokens = new Map();
     }
 
@@ -445,7 +443,6 @@ class OpaqueTokenStore {
     }
 
     issue(session) {
-        this.cleanup();
         let token;
         let tokenIndex;
         do {
@@ -454,8 +451,7 @@ class OpaqueTokenStore {
         } while (this.tokens.has(tokenIndex));
         const record = {
             ...session,
-            issuedAt: this.now(),
-            expiresAt: this.now() + this.ttlMs
+            issuedAt: this.now()
         };
         this.tokens.set(tokenIndex, record);
         return { token, record };
@@ -463,28 +459,13 @@ class OpaqueTokenStore {
 
     resolve(token) {
         const tokenIndex = this.tokenIndex(token);
-        const record = this.tokens.get(tokenIndex);
-        if (!record || record.expiresAt <= this.now()) {
-            if (record) {
-                this.tokens.delete(tokenIndex);
-            }
-            return null;
-        }
-        return record;
+        return this.tokens.get(tokenIndex) || null;
     }
 
     revoke(token) {
         this.tokens.delete(this.tokenIndex(token));
     }
 
-    cleanup() {
-        const now = this.now();
-        for (const [tokenIndex, record] of this.tokens.entries()) {
-            if (record.expiresAt <= now) {
-                this.tokens.delete(tokenIndex);
-            }
-        }
-    }
 }
 
 class BinaryDeviceCertificateVerifier {
@@ -1107,8 +1088,6 @@ class DeviceAuthV2Service {
         }
 
         const sessionId = transcript.webhidSessionId;
-        const issuedAt = Math.floor(this.now() / 1000);
-        const ttlSeconds = Math.floor(this.tokenStore.ttlMs / 1000);
         const permitClaims = {
             permitId: crypto.randomBytes(16),
             sessionId,
@@ -1119,9 +1098,12 @@ class DeviceAuthV2Service {
                 transcript.deviceEphemeralPublicKey
             ),
             scopeMask: challenge.scopeMask,
-            maxDurationMs: this.tokenStore.ttlMs,
-            issuedAt,
-            expiresAt: issuedAt + ttlSeconds,
+            // Zero duration/time fields are the signed connection-bound
+            // sentinel understood by STM32. The session ends with the live
+            // WebHID transport instead of a wall-clock deadline.
+            maxDurationMs: 0,
+            issuedAt: 0,
+            expiresAt: 0,
             policyVersion: Number.isSafeInteger(deviceRecord.policyVersion)
                 ? deviceRecord.policyVersion
                 : 1
@@ -1147,7 +1129,6 @@ class DeviceAuthV2Service {
         });
         return {
             apiToken: issued.token,
-            expiresInMs: issued.record.expiresAt - this.now(),
             sessionId: encodeBase64Url(sessionId),
             deviceSessionPermit: encodeBase64(permit),
             sessionSalt: encodeBase64(sessionSalt),
@@ -1156,9 +1137,6 @@ class DeviceAuthV2Service {
             pcbRevision: webConfigTarget.pcbRevision,
             webConfigProfile: webConfigTarget.profile,
             // Transitional aliases for non-browser integration clients.
-            expiresIn: Math.floor(
-                (issued.record.expiresAt - this.now()) / 1000
-            ),
             grantedScopes: challenge.scopes,
             permit: encodeBase64Url(permit)
         };
@@ -1183,7 +1161,7 @@ class DeviceAuthV2Service {
                 if (!session) {
                     throw new DeviceAuthV2Error(
                         'DEVICE_SESSION_INVALID',
-                        'device session is invalid or expired',
+                        'device session is invalid',
                         401
                     );
                 }
@@ -1547,14 +1525,6 @@ function validateProductionAdapter(dependencies) {
             'transactional device policy and shared rate limiters'
         );
     }
-    if (!Number.isSafeInteger(dependencies.tokenStore.ttlMs) ||
-        dependencies.tokenStore.ttlMs < 1 ||
-        dependencies.tokenStore.ttlMs > SESSION_TTL_MS) {
-        throw new Error(
-            `production tokenStore.ttlMs must be a safe integer between ` +
-            `1 and ${SESSION_TTL_MS}`
-        );
-    }
     return dependencies;
 }
 
@@ -1695,7 +1665,6 @@ function createDeviceAuthV2FromEnvironment(storageManager, options = {}) {
 
 module.exports = {
     CHALLENGE_TTL_MS,
-    SESSION_TTL_MS,
     DEVICE_AUTH_SCOPES,
     DeviceAuthV2Error,
     SlidingWindowRateLimiter,

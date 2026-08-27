@@ -1714,7 +1714,6 @@ test('an explicitly recoverable authenticated response timeout keeps the session
     authenticated: true,
     scopes: ['monitor.read'],
     sessionId: 'recoverable-timeout-session',
-    expiresAt: Date.now() + 60_000,
   });
   const errors = [];
   transport.onError((error) => errors.push(error));
@@ -2438,7 +2437,6 @@ test('an authenticated input tag failure destroys the session and stale readers 
     authenticated: true,
     scopes: ['monitor.read'],
     sessionId: 'test-session',
-    expiresAt: Date.now() + 60_000,
   });
   const errors = [];
   transport.onError((error) => errors.push(error));
@@ -2511,7 +2509,6 @@ test('authenticated RX gaps fail closed because V1 cannot prove missing reports 
     authenticated: true,
     scopes: ['monitor.read'],
     sessionId: 'sequence-test',
-    expiresAt: Date.now() + 60_000,
   });
   let samples = 0;
   transport.subscribe('performance.sample', () => { samples += 1; });
@@ -2571,7 +2568,6 @@ test('a gap inside a fragmented authenticated RPC rejects pending work and never
     authenticated: true,
     scopes: ['monitor.read'],
     sessionId: 'fragment-gap-test',
-    expiresAt: Date.now() + 60_000,
   });
 
   const pending = transport.request('performance.clock-sync', { sampleId: 7 });
@@ -2783,7 +2779,6 @@ test('scope reauthorization ends the encrypted session only after its secure ACK
     authenticated: true,
     scopes: DEFAULT_DEVICE_SCOPES,
     sessionId: 'base-session',
-    expiresAt: Date.now() + 60_000,
   });
   await transport.endSecureSessionForReauthorization();
   assert.equal(transport.state, DeviceTransportState.AUTHENTICATING);
@@ -3037,7 +3032,6 @@ test('WebHID keeps JSON at 16 KiB while streams stay at 8 KiB and firmware chunk
     authenticated: true,
     scopes: ['firmware.update'],
     sessionId: 'boundary-test',
-    expiresAt: Date.now() + 60_000,
   });
   transport.request = async (command) => ({
     transactionId: 1,
@@ -3266,7 +3260,6 @@ test('authentication defaults are least-privilege and bearer tokens are origin/s
     },
   });
   auth.apiToken = 'memory-only-token';
-  auth.apiTokenExpiresAt = Date.now() + 60_000;
   auth.grantedScopes = ['config.read'];
 
   await auth.authorizedFetch(
@@ -3300,7 +3293,7 @@ test('authentication defaults are least-privilege and bearer tokens are origin/s
   auth.clear();
   await assert.rejects(
     auth.authorizedFetch('https://config.example/api', {}, []),
-    /会话已过期/,
+    /会话不可用/,
   );
 });
 
@@ -3333,7 +3326,6 @@ test('both cleartext authentication bootstrap steps use the dedicated ten-second
         }
         return {
           apiToken: 'bootstrap-timeout-token',
-          expiresInMs: 60_000,
           sessionId,
           deviceSessionPermit: 'bootstrap-timeout-permit',
           sessionSalt: Buffer.alloc(16, 0x42).toString('base64'),
@@ -3428,7 +3420,6 @@ test('aborted reauthorization cannot install a permit, token, or close a later s
   };
   const authorization = {
     apiToken: 'stale-api-token',
-    expiresInMs: 60_000,
     sessionId: 'session-cancel-fixture',
     deviceSessionPermit: 'fixture-permit',
     sessionSalt: Buffer.alloc(16, 0x22).toString('base64'),
@@ -3620,7 +3611,6 @@ async function makeUploadDeadlineTransport() {
     authenticated: true,
     scopes: ['firmware.update'],
     sessionId: 'stream-deadline-session',
-    expiresAt: Date.now() + 60_000,
   });
   return { transport, device };
 }

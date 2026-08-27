@@ -1435,14 +1435,6 @@ export class WebHidTransport implements DeviceTransport {
     if (this.reauthorizationPending) {
       throw new DeviceTransportError('authentication-required', '设备权限会话正在重新授权');
     }
-    if (this.session.expiresAt && Date.now() >= this.session.expiresAt) {
-      const error = new DeviceTransportError(
-        'authentication-required',
-        '设备授权会话已过期，请重新连接',
-      );
-      void this.shutdownConnection(error, undefined, undefined, true);
-      throw error;
-    }
   }
 
   private matchesFilter(device: WebHidDevice): boolean {

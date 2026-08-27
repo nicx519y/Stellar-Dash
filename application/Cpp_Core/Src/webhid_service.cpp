@@ -39,8 +39,6 @@ constexpr uint8_t kKnownFrameFlags =
     WEBHID_REPORT_FLAG_LAST |
     WEBHID_REPORT_FLAG_ACK_REQUIRED;
 constexpr uint8_t kStreamCreditWindow = 4u;
-constexpr uint32_t kMaximumSessionMs =
-    HBOX_SECURITY_SESSION_SECONDS * 1000u;
 constexpr uint32_t kSampleIntervalMs = 10u;
 constexpr uint32_t kCheckpointIntervalMs = 1000u;
 constexpr uint32_t kPermitInstallTimeoutMs =
@@ -1072,8 +1070,7 @@ void WebHidService::resetSession(bool keepBootIdentity,
     sessionActivationPending = false;
     grantedScopes = 0u;
     requestedScopes = 0u;
-    sessionExpiresAtMs = 0u;
-    dangerousActionAuthorizedUntilMs = 0u;
+    firmwareActionAuthorized = false;
     permitDeadlineMs = 0u;
     lastRxSequence = 0u;
     nextTxSequence = 1u;
@@ -1134,10 +1131,7 @@ bool WebHidService::firmwareAuthorizationValid(
 {
     if (!sessionEstablished ||
         !hasScope(HBOX_SCOPE_FIRMWARE_UPDATE) ||
-        dangerousActionAuthorizedUntilMs == 0u ||
-        static_cast<int32_t>(
-            HAL_GetTick() -
-            dangerousActionAuthorizedUntilMs) >= 0 ||
+        !firmwareActionAuthorized ||
         authorizedFirmwareSession[0] == '\0') {
         return false;
     }
@@ -1182,7 +1176,7 @@ void WebHidService::clearFirmwareAuthorization(
     HBoxCrypto_Zeroize(
         authorizedFirmwareSession.data(),
         authorizedFirmwareSession.size());
-    dangerousActionAuthorizedUntilMs = 0u;
+    firmwareActionAuthorized = false;
 }
 
 void WebHidService::clearRxQueue()
@@ -1333,12 +1327,6 @@ void WebHidService::process()
          * inbound assembly and queued responses; CH585 advertises zero credit
          * until resume, so pumpOutput() cannot advance the sequence space.
          */
-        return;
-    }
-    if (sessionEstablished &&
-        static_cast<int32_t>(
-            HAL_GetTick() - sessionExpiresAtMs) >= 0) {
-        resetSession(true);
         return;
     }
     if (waitingForPermit &&
@@ -1966,14 +1954,12 @@ bool WebHidService::handleInstallPermit(
     }
 
     uint32_t scopes = 0u;
-    uint32_t durationMs = 0u;
     uint8_t permitHash[32] = {};
     if (!verifyPermit(
             permit.data(),
             permit.size(),
             sessionId.data(),
-            scopes,
-            durationMs) ||
+            scopes) ||
         HBoxCrypto_Sha256(
             permit.data(), permit.size(), permitHash) != 0 ||
         !installSessionKeys(
@@ -2015,7 +2001,6 @@ bool WebHidService::handleInstallPermit(
 
     outboundQueue.back().activateSession = true;
     grantedScopes = scopes;
-    sessionExpiresAtMs = HAL_GetTick() + durationMs;
     sessionActivationPending = true;
     HBoxCrypto_Zeroize(
         deviceEphemeralPrivate.data(),
@@ -2032,8 +2017,7 @@ bool WebHidService::verifyPermit(
     const uint8_t *permitBytes,
     size_t length,
     const uint8_t sessionId[16],
-    uint32_t &scopes,
-    uint32_t &durationMs)
+    uint32_t &scopes)
 {
     if (permitBytes == nullptr ||
         length != sizeof(hbox_device_session_permit_v1_t) ||
@@ -2113,19 +2097,13 @@ bool WebHidService::verifyPermit(
     }
 
     scopes = permit.granted_scopes_le;
-    durationMs = permit.max_duration_ms_le;
-    const uint32_t permitLifetimeSeconds =
-        permit.expires_at_le - permit.issued_at_le;
     const bool policyValid =
         scopes != 0u &&
         (scopes & ~HBOX_SCOPE_ALL) == 0u &&
         (scopes & requestedScopes) == scopes &&
-        durationMs != 0u &&
-        durationMs <= kMaximumSessionMs &&
-        permit.expires_at_le > permit.issued_at_le &&
-        permitLifetimeSeconds <= HBOX_SECURITY_SESSION_SECONDS &&
-        static_cast<uint64_t>(permitLifetimeSeconds) * 1000u >=
-            durationMs &&
+        permit.max_duration_ms_le == 0u &&
+        permit.issued_at_le == 0u &&
+        permit.expires_at_le == 0u &&
         permit.policy_version_le != 0u;
     HBoxCrypto_Zeroize(&permit, sizeof(permit));
     return policyValid;
@@ -2383,8 +2361,7 @@ bool WebHidService::processSecureRpc(
                 firmwareSessionId,
                 authorizedFirmwareSession.size() - 1u);
             authorizedFirmwareSession.back() = '\0';
-            dangerousActionAuthorizedUntilMs =
-                sessionExpiresAtMs;
+            firmwareActionAuthorized = true;
         } else if (explicitSuccess) {
             FirmwareManager *manager =
                 FirmwareManager::GetInstance();
@@ -2600,10 +2577,7 @@ bool WebHidService::handleBinaryExchange(
     if (requiredScope == 0u ||
         !hasScope(requiredScope) ||
         (requiredScope == HBOX_SCOPE_FIRMWARE_UPDATE &&
-         (dangerousActionAuthorizedUntilMs == 0u ||
-          static_cast<int32_t>(
-              HAL_GetTick() -
-              dangerousActionAuthorizedUntilMs) >= 0))) {
+         !firmwareActionAuthorized)) {
         return sendRpcResult(
             transactionId,
             403,

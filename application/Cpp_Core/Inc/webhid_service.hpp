@@ -175,8 +175,7 @@ private:
     bool verifyPermit(const uint8_t *permit,
                       size_t length,
                       const uint8_t sessionId[16],
-                      uint32_t &scopes,
-                      uint32_t &durationMs);
+                      uint32_t &scopes);
     bool firmwareAuthorizationValid(
         const char *sessionId = nullptr,
         const uint8_t *chunk = nullptr,
@@ -200,8 +199,7 @@ private:
     bool waitingForPermit = false;
     bool sessionActivationPending = false;
     uint32_t grantedScopes = 0u;
-    uint32_t sessionExpiresAtMs = 0u;
-    uint32_t dangerousActionAuthorizedUntilMs = 0u;
+    bool firmwareActionAuthorized = false;
     std::array<char, 33> authorizedFirmwareSession = {};
     uint32_t permitDeadlineMs = 0u;
     uint32_t lastRxSequence = 0u;

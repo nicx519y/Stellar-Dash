@@ -138,7 +138,8 @@ not be deployed as the genuine-device V2 site.
 - The local `hbox.py web local-serve` launcher skips trust-policy decisions for
   lab debugging only; production authentication behavior is unchanged.
 - The page sends no protected RPC until STM32 accepts the server permit.
-- The API bearer token is memory-only and expires in at most five minutes.
+- The API bearer token is memory-only and remains valid for the connected
+  WebHID session; it has no wall-clock expiry.
 - Initial authorization requests only `config.read`, `config.write`, and
   `monitor.read`. Device control, asset writes, and firmware updates end the
   current session and request a new permit only when that UI action is invoked.
