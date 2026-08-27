@@ -37,6 +37,34 @@ int main()
     assert(scaleGammaPercentToCap(BrightnessCurve_ApplyPercent(100u),
                                   kLcdMaxHardwareDrivePercent) == 60u);
 
+    assert(interpolateDrive8(33u, 0u, kStartupRampDurationMs) == 0u);
+    assert(interpolateDrive8(33u, 2500u, kStartupRampDurationMs) == 16u);
+    assert(interpolateDrive8(33u, 4999u, kStartupRampDurationMs) == 32u);
+    assert(interpolateDrive8(33u, kStartupRampDurationMs,
+                             kStartupRampDurationMs) == 33u);
+    assert(interpolateDrive8(33u, 1u, 0u) == 33u);
+
+    uint8_t previousRampDrive = interpolateDrive8(
+        33u, 0u, kStartupRampDurationMs);
+    uint8_t distinctRampDrives = 1u;
+    for (uint32_t elapsed = 33u;
+         elapsed < kStartupRampDurationMs;
+         elapsed += 33u) {
+        const uint8_t drive = interpolateDrive8(
+            33u, elapsed, kStartupRampDurationMs);
+        assert(drive >= previousRampDrive);
+        if (drive != previousRampDrive) {
+            ++distinctRampDrives;
+            previousRampDrive = drive;
+        }
+    }
+    const uint8_t finalRampDrive = interpolateDrive8(
+        33u, kStartupRampDurationMs, kStartupRampDurationMs);
+    if (finalRampDrive != previousRampDrive) {
+        ++distinctRampDrives;
+    }
+    assert(distinctRampDrives == 34u);
+
     assert(clampAnimationSpeed(0u) == 1u);
     assert(clampAnimationSpeed(1u) == 1u);
     assert(clampAnimationSpeed(5u) == 5u);

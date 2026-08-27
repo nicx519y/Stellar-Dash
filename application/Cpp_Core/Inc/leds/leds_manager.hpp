@@ -100,10 +100,13 @@ class LEDsManager {
         
         // 内部配置管理
         void updateColorsFromConfig();
-        uint8_t startupRampBrightness(uint8_t target,
-                                      bool& active,
-                                      uint32_t startTime,
-                                      uint32_t now);
+        uint8_t startupRampDriveBrightness(uint8_t targetPercent,
+                                           uint8_t maxDrivePercent,
+                                           bool& active,
+                                           uint32_t startTime,
+                                           uint32_t now);
+        void setLedsDriveBrightness(uint8_t driveBrightness);
+        void setAmbientLightDriveBrightness(uint8_t driveBrightness);
         void logDmaUpdateStats(uint32_t now);
 };
 

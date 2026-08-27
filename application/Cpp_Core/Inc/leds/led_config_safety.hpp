@@ -28,6 +28,18 @@ static inline uint8_t scaleGammaPercentToCap(uint8_t gammaPercent,
         ((uint16_t)gammaPercent * (uint16_t)capPercent + 50u) / 100u);
 }
 
+static inline uint8_t interpolateDrive8(uint8_t targetDrive,
+                                        uint32_t elapsedMs,
+                                        uint32_t durationMs)
+{
+    if (durationMs == 0u || elapsedMs >= durationMs) {
+        return targetDrive;
+    }
+
+    return static_cast<uint8_t>(
+        ((uint32_t)targetDrive * elapsedMs) / durationMs);
+}
+
 static inline uint8_t clampAnimationSpeed(uint8_t value)
 {
     if (value < kMinAnimationSpeed) return kMinAnimationSpeed;

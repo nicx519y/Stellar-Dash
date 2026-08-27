@@ -13,6 +13,17 @@
 #define LEDS_ANIMATION_CYCLE 10000  // 10秒周期
 #endif
 
+static uint8_t brightnessPercentToDrive8(uint8_t brightnessPercent,
+                                         uint8_t maxDrivePercent)
+{
+    const uint8_t safeBrightness =
+        LedConfigSafety::clampBrightnessPercent(brightnessPercent);
+    const uint8_t safeDrive = LedConfigSafety::scaleGammaPercentToCap(
+        BrightnessCurve_ApplyPercent(safeBrightness), maxDrivePercent);
+    return static_cast<uint8_t>(
+        ((uint16_t)safeDrive * 255u + 50u) / 100u);
+}
+
 static void on_default_profile_changed_leds(void) {
     LEDsManager::getInstance().refreshDefaultProfile();
 }
@@ -265,18 +276,21 @@ void LEDsManager::loop(uint32_t virtualPinMask)
         }
     }
 
-    const uint8_t keyBrightness = startupRampBrightness(
-        opts->ledBrightness, keyStartupRampActive,
-        keyStartupRampStartTime, now);
-    setLedsBrightness(opts->ledEnabled ? keyBrightness : 0u);
-
-    const uint8_t ambientBrightness = startupRampBrightness(
-        opts->aroundLedBrightness, ambientStartupRampActive,
-        ambientStartupRampStartTime, now);
-    setAmbientLightBrightness(aroundLedActive ? ambientBrightness : 0u);
-
     const LedStripController& keyStrip = LedStripController::keys();
     const LedStripController& ambientStrip = LedStripController::ambient();
+
+    const uint8_t keyBrightness = startupRampDriveBrightness(
+        opts->ledBrightness, keyStrip.descriptor().maxDrivePercent,
+        keyStartupRampActive,
+        keyStartupRampStartTime, now);
+    setLedsDriveBrightness(opts->ledEnabled ? keyBrightness : 0u);
+
+    const uint8_t ambientBrightness = startupRampDriveBrightness(
+        opts->aroundLedBrightness, ambientStrip.descriptor().maxDrivePercent,
+        ambientStartupRampActive,
+        ambientStartupRampStartTime, now);
+    setAmbientLightDriveBrightness(aroundLedActive ? ambientBrightness : 0u);
+
     (void)keyStrip.submitFrame();
     if (aroundLedActive) {
         (void)ambientStrip.submitFrame();
@@ -284,25 +298,26 @@ void LEDsManager::loop(uint32_t virtualPinMask)
     logDmaUpdateStats(now);
 }
 
-uint8_t LEDsManager::startupRampBrightness(uint8_t target,
-                                           bool& active,
-                                           uint32_t startTime,
-                                           uint32_t now)
+uint8_t LEDsManager::startupRampDriveBrightness(uint8_t targetPercent,
+                                                uint8_t maxDrivePercent,
+                                                bool& active,
+                                                uint32_t startTime,
+                                                uint32_t now)
 {
-    target = LedConfigSafety::clampBrightnessPercent(target);
+    const uint8_t targetDrive = brightnessPercentToDrive8(
+        targetPercent, maxDrivePercent);
     if (!active) {
-        return target;
+        return targetDrive;
     }
 
     const uint32_t elapsed = now - startTime;
     if (elapsed >= LedConfigSafety::kStartupRampDurationMs) {
         active = false;
-        return target;
+        return targetDrive;
     }
 
-    return static_cast<uint8_t>(
-        ((uint32_t)target * elapsed) /
-        LedConfigSafety::kStartupRampDurationMs);
+    return LedConfigSafety::interpolateDrive8(
+        targetDrive, elapsed, LedConfigSafety::kStartupRampDurationMs);
 }
 
 void LEDsManager::logDmaUpdateStats(uint32_t now)
@@ -516,23 +531,26 @@ void LEDsManager::enableSwitch() {
 }
 
 void LEDsManager::setLedsBrightness(uint8_t brightness) {
-    const uint8_t safeBrightness =
-        LedConfigSafety::clampBrightnessPercent(brightness);
-    const uint8_t safeDrive = LedConfigSafety::scaleGammaPercentToCap(
-        BrightnessCurve_ApplyPercent(safeBrightness),
-        LedStripController::keys().descriptor().maxDrivePercent);
-    const uint8_t b = (uint8_t)(((uint16_t)safeDrive * 255u + 50u) / 100u);
-    WS2812B_SetLEDBrightnessByMask(b, 0, enabledKeysMask); // 根据启用按键掩码设置亮度，未启用的按键亮度为0
+    setLedsDriveBrightness(brightnessPercentToDrive8(
+        brightness, LedStripController::keys().descriptor().maxDrivePercent));
 }
 
 void LEDsManager::setAmbientLightBrightness(uint8_t brightness) {
-    const uint8_t safeBrightness =
-        LedConfigSafety::clampBrightnessPercent(brightness);
-    const uint8_t safeDrive = LedConfigSafety::scaleGammaPercentToCap(
-        BrightnessCurve_ApplyPercent(safeBrightness),
-        LedStripController::ambient().descriptor().maxDrivePercent);
-    const uint8_t b = (uint8_t)(((uint16_t)safeDrive * 255u + 50u) / 100u);
-    WS2812B_SetLEDBrightness(b, NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS, NUM_LED - (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS));
+    setAmbientLightDriveBrightness(brightnessPercentToDrive8(
+        brightness,
+        LedStripController::ambient().descriptor().maxDrivePercent));
+}
+
+void LEDsManager::setLedsDriveBrightness(uint8_t driveBrightness) {
+    WS2812B_SetLEDBrightnessByMask(
+        driveBrightness, 0, enabledKeysMask); // 根据启用按键掩码设置亮度，未启用的按键亮度为0
+}
+
+void LEDsManager::setAmbientLightDriveBrightness(uint8_t driveBrightness) {
+    WS2812B_SetLEDBrightness(
+        driveBrightness,
+        NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS,
+        NUM_LED - (NUM_ADC_BUTTONS + NUM_GPIO_BUTTONS));
 }
 
 // /**

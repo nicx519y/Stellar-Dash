@@ -73,8 +73,12 @@ class LedConfigSafetyTests(unittest.TestCase):
         self.assertNotIn("3000 / opts->ledAnimationSpeed", manager)
         self.assertIn("LedConfigSafety::rippleDurationMs", manager)
         self.assertEqual(
-            manager.count("LedConfigSafety::scaleGammaPercentToCap"), 2
+            manager.count("LedConfigSafety::scaleGammaPercentToCap"), 1
         )
+        self.assertGreaterEqual(manager.count("brightnessPercentToDrive8("), 4)
+        self.assertIn("startupRampDriveBrightness", manager)
+        self.assertIn("LedConfigSafety::interpolateDrive8", manager)
+        self.assertNotIn("uint8_t LEDsManager::startupRampBrightness", manager)
         self.assertIn("sanitize_led_profiles(config)", config)
         self.assertIn("repaired invalid LED configuration", config)
         self.assertIn("LEDS_MANAGER.deinit();", webconfig_state)
@@ -299,7 +303,9 @@ class LedConfigSafetyTests(unittest.TestCase):
             self.assertIn(effect, manager)
         self.assertIn("getLedAnimation(opts->ledEffect)", manager)
         loop_start = manager.index("void LEDsManager::loop(uint32_t virtualPinMask)")
-        loop_end = manager.index("uint8_t LEDsManager::startupRampBrightness")
+        loop_end = manager.index(
+            "uint8_t LEDsManager::startupRampDriveBrightness"
+        )
         self.assertEqual(manager[loop_start:loop_end].count("submitFrame()"), 2)
 
     def test_power_and_led_runtime_initialization_order(self) -> None:
