@@ -176,8 +176,14 @@ export default function HitboxLeds(props: HitboxLedsProps) {
     const circleRefs = useRef<(SVGCircleElement | null)[]>([]);
     const colorListRef = useRef<GamePadColor[]>(Array(len));
     const textRefs = useRef<(SVGTextElement | null)[]>([]);
+    const layoutRef = useRef(layout);
     const animationFrameRef = useRef<number>();
     const timerRef = useRef<number>(0);
+
+    // The animation loop can start before the asynchronously loaded layout is
+    // available. Keep the latest layout in a ref so an already-running RAF
+    // callback does not remain bound to the initial empty render.
+    layoutRef.current = layout;
 
     // ripple 列表
     const ripplesRef = useRef<{ centerIndex: number, startTime: number }[]>([]);
@@ -392,6 +398,8 @@ export default function HitboxLeds(props: HitboxLedsProps) {
     const animate = () => {
         const now = new Date().getTime();
         const deltaTime = now - timerRef.current;
+        const currentLayout = layoutRef.current;
+        const currentLength = currentLayout.length;
         
         // 使用与C++端一致的动画进度计算方式
         // C++端: progress = (elapsed % LEDS_ANIMATION_CYCLE) / LEDS_ANIMATION_CYCLE * speedMultiplier; progress = fmod(progress, 1.0f);
@@ -421,7 +429,7 @@ export default function HitboxLeds(props: HitboxLedsProps) {
             global = { ripples };
         }
 
-        for (let i = 0; i < len; i++) {
+        for (let i = 0; i < currentLength; i++) {
             // The layout is loaded asynchronously on a direct route refresh.
             // Animation can begin one frame before the length-dependent effect
             // initializes this slot, so make the frame loop self-healing.
@@ -447,7 +455,7 @@ export default function HitboxLeds(props: HitboxLedsProps) {
                 effectStyle: effectStyleRef.current,
                 brightness: brightnessRef.current,
                 global,
-                layout,
+                layout: currentLayout,
             });
 
             currentColor.setValue(color);
