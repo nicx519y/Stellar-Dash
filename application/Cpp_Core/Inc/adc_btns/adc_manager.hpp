@@ -120,7 +120,8 @@ class ADCManager {
         std::vector<ADCValuesMapping*> getMappingList();
 
         // 创建映射
-        ADCBtnsError createADCMapping(const char* name, size_t length, float_t step);
+        ADCBtnsError createADCMapping(const char* name, size_t length, float_t step,
+                                      std::string* createdId = nullptr);
 
         // 删除映射
         ADCBtnsError removeADCMapping(const char* id);
@@ -148,6 +149,9 @@ class ADCManager {
         
         // 设置校准值
         ADCBtnsError setCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCalibration, uint16_t topValue, uint16_t bottomValue, bool withSave = true);
+
+        // Atomically clear one calibration bank in ADC_COMMON_CONFIG.
+        ADCBtnsError clearCalibrationValues(const char* mappingId, bool isAutoCalibration);
 
         // 挂载三路 TIM2 触发的循环 DMA（INPUT/校准/WebConfig 共用）
         ADCBtnsError startADCSamping(bool enableSamplingRate = false, 

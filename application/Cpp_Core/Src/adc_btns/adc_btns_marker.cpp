@@ -24,11 +24,15 @@ ADCBtnsMarker::ADCBtnsMarker() {
  */
 void ADCBtnsMarker::reset() {
 
+    if (step_info.is_sampling) {
+        // Stop only the temporary sampling-rate statistics. The WebConfig
+        // state's circular ADC DMA remains mounted.
+        ADC_MANAGER.stopADCSamping();
+    }
+
     // 使用值初始化替代memset
     step_info = {};
     
-    // ADC_MANAGER.stopADCSamping();
-
     // 取消订阅ADC转换完成回调
     if (messageHandler) {
         MC.unsubscribe(MessageId::ADC_SAMPLING_STATS_COMPLETE, messageHandler);
@@ -105,8 +109,11 @@ ADCBtnsError ADCBtnsMarker::step() {
         return markingFinish();
     }
 
+    const ADCBtnsError samplingResult = ADC_MANAGER.startADCSamping(true, 2);
+    if (samplingResult != ADCBtnsError::SUCCESS) {
+        return samplingResult;
+    }
     step_info.is_sampling = true;
-    ADC_MANAGER.startADCSamping(true, 2);
 
     return ADCBtnsError::SUCCESS;   
 }

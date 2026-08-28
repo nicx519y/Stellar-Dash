@@ -1,5 +1,6 @@
 #include <numeric>   // 为 std::accumulate
 #include <algorithm> // 为 std::sort
+#include <cmath>
 #include "adc_btns/adc_manager.hpp"
 #include "board_cfg.h"
 #include "system_logger.h"
@@ -386,6 +387,13 @@ ADCBtnsError ADCManager::removeADCMapping(const char *id)
     if (store.num <= 1)
         return ADCBtnsError::MAPPING_DELETE_FAILED;
 
+    // A dangling default id makes calibration and the INPUT worker unusable.
+    // Require callers to select another default before deleting this mapping.
+    if (getDefaultMapping() == id)
+        return ADCBtnsError::MAPPING_DELETE_FAILED;
+
+    ADCValuesMapping removedMapping = store.mapping[targetIdx];
+
     // 移动数据
     if (targetIdx < store.num - 1)
     {
@@ -399,6 +407,14 @@ ADCBtnsError ADCManager::removeADCMapping(const char *id)
     // 保存更新后的存储结构
     if (saveStore() != QSPI_W25Qxx_OK)
     {
+        if (targetIdx < store.num)
+        {
+            memmove(&store.mapping[targetIdx + 1],
+                    &store.mapping[targetIdx],
+                    (store.num - targetIdx) * sizeof(ADCValuesMapping));
+        }
+        store.mapping[targetIdx] = removedMapping;
+        store.num++;
         return ADCBtnsError::MAPPING_DELETE_FAILED;
     }
 
@@ -412,9 +428,13 @@ ADCBtnsError ADCManager::removeADCMapping(const char *id)
  * @param step 步长
  * @return 是否创建成功
  */
-ADCBtnsError ADCManager::createADCMapping(const char *name, size_t length, float_t step)
+ADCBtnsError ADCManager::createADCMapping(const char *name, size_t length, float_t step,
+                                          std::string *createdId)
 {
-    if (!name)
+    if (!name || name[0] == '\0' ||
+        strlen(name) >= sizeof(ADCValuesMapping::name) ||
+        length < 2u || length > MAX_ADC_VALUES_LENGTH ||
+        !std::isfinite(step) || step < 0.1f || step > 10.0f)
         return ADCBtnsError::INVALID_PARAMS;
 
     // 检查映射名称是否已存在
@@ -459,7 +479,13 @@ ADCBtnsError ADCManager::createADCMapping(const char *name, size_t length, float
     if (saveStore() != QSPI_W25Qxx_OK)
     {
         store.num--;
+        memset(&newMapping, 0, sizeof(ADCValuesMapping));
         return ADCBtnsError::MAPPING_CREATE_FAILED;
+    }
+
+    if (createdId != nullptr)
+    {
+        *createdId = newMapping.id;
     }
 
     return ADCBtnsError::SUCCESS;
@@ -467,12 +493,22 @@ ADCBtnsError ADCManager::createADCMapping(const char *name, size_t length, float
 
 ADCBtnsError ADCManager::renameADCMapping(const char *id, const char *name)
 {
-    if (!id || !name)
+    if (!id || !name || name[0] == '\0' ||
+        strlen(name) >= sizeof(ADCValuesMapping::name))
         return ADCBtnsError::INVALID_PARAMS;
 
     int idx = findMappingById(id);
     if (idx == -1)
         return ADCBtnsError::MAPPING_NOT_FOUND;
+
+    for (uint8_t i = 0; i < store.num; ++i)
+    {
+        if (i != static_cast<uint8_t>(idx) && strcmp(store.mapping[i].name, name) == 0)
+            return ADCBtnsError::MAPPING_ALREADY_EXISTS;
+    }
+
+    char previousName[sizeof(store.mapping[idx].name)] = {};
+    memcpy(previousName, store.mapping[idx].name, sizeof(previousName));
 
     strncpy(store.mapping[idx].name, name, sizeof(store.mapping[idx].name) - 1);
     store.mapping[idx].name[sizeof(store.mapping[idx].name) - 1] = '\0';
@@ -481,6 +517,7 @@ ADCBtnsError ADCManager::renameADCMapping(const char *id, const char *name)
 
     if (saveStore() != QSPI_W25Qxx_OK)
     {
+        memcpy(store.mapping[idx].name, previousName, sizeof(previousName));
         return ADCBtnsError::MAPPING_UPDATE_FAILED;
     }
 
@@ -524,9 +561,20 @@ ADCBtnsError ADCManager::setDefaultMapping(const char *id)
     if (!id)
         return ADCBtnsError::INVALID_PARAMS;
 
-    uint8_t idx = findMappingById(id);
+    int idx = findMappingById(id);
     if (idx == -1)
         return ADCBtnsError::MAPPING_NOT_FOUND;
+
+    const ADCValuesMapping &mapping = store.mapping[idx];
+    if (mapping.length < 2u || mapping.length > MAX_ADC_VALUES_LENGTH ||
+        mapping.originalValues[0] == 0u ||
+        mapping.originalValues[mapping.length - 1u] == 0u ||
+        mapping.originalValues[0] == mapping.originalValues[mapping.length - 1u])
+    {
+        return ADCBtnsError::MAPPING_INVALID_RANGE;
+    }
+
+    ADCCommonConfig previousCommon = common;
 
     strncpy(common.defaultMappingId, id, sizeof(common.defaultMappingId) - 1);
     common.defaultMappingId[sizeof(common.defaultMappingId) - 1] = '\0';
@@ -534,6 +582,7 @@ ADCBtnsError ADCManager::setDefaultMapping(const char *id)
     // 保存更新后的存储结构
     if (saveCommon() != QSPI_W25Qxx_OK)
     {
+        common = previousCommon;
         return ADCBtnsError::MAPPING_UPDATE_FAILED;
     }
 
@@ -662,6 +711,8 @@ ADCBtnsError ADCManager::setCalibrationValues(const char *mappingId, uint8_t but
         return ADCBtnsError::MAPPING_NOT_FOUND;
     }
 
+    ADCCommonConfig previousCommon = common;
+
     strncpy(common.calibratedMappingId, mappingId, sizeof(common.calibratedMappingId) - 1);
     common.calibratedMappingId[sizeof(common.calibratedMappingId) - 1] = '\0';
 
@@ -679,20 +730,11 @@ ADCBtnsError ADCManager::setCalibrationValues(const char *mappingId, uint8_t but
     // 保存到存储
     if (withSave != false && saveCommon() != QSPI_W25Qxx_OK)
     {
+        common = previousCommon;
         return ADCBtnsError::MAPPING_UPDATE_FAILED;
     }
 
     return ADCBtnsError::SUCCESS;
-}
-
-// 参数验证辅助函数
-bool validateMarkParams(const char *id, uint32_t *values, uint8_t length)
-{
-    if (!id || !values || length == 0 || length > MAX_ADC_VALUES_LENGTH)
-    {
-        return false;
-    }
-    return true;
 }
 
 ADCBtnsError ADCManager::markMapping(const char *const id,
@@ -708,19 +750,21 @@ ADCBtnsError ADCManager::markMapping(const char *const id,
         return ADCBtnsError::MAPPING_NOT_FOUND;
 
     ADCValuesMapping &mapping = store.mapping[idx];
-
-    // 保存原始状态用于回滚
-    uint8_t oldLength = mapping.length;
-    uint32_t *oldOriginValues = (uint32_t *)calloc(sizeof(mapping.originalValues), 1);
-
-    if (!oldOriginValues)
+    if (mapping.length < 2u || mapping.length > MAX_ADC_VALUES_LENGTH ||
+        values[0] == 0u || values[mapping.length - 1u] == 0u ||
+        values[0] == values[mapping.length - 1u])
     {
-        free(oldOriginValues);
-        return ADCBtnsError::MEMORY_ERROR;
+        return ADCBtnsError::MAPPING_INVALID_RANGE;
+    }
+    for (size_t i = 0; i < mapping.length; ++i)
+    {
+        if (values[i] == 0u || values[i] > UINT16_MAX)
+        {
+            return ADCBtnsError::MAPPING_INVALID_RANGE;
+        }
     }
 
-    // 保存原始数据
-    memcpy(oldOriginValues, mapping.originalValues, sizeof(mapping.originalValues));
+    const ADCValuesMapping previousMapping = mapping;
 
     // 更新数据
     mapping.samplingNoise = samplingNoise;
@@ -728,19 +772,13 @@ ADCBtnsError ADCManager::markMapping(const char *const id,
     memset(mapping.originalValues, 0, sizeof(mapping.originalValues));
     memcpy(mapping.originalValues, values, mapping.length * sizeof(uint32_t));
 
-    // printf("ADCValuesMappingUtils: mark - begin update mapping.\n");
-    // printf("ADCValuesMappingUtils: mark - mapping id: %s, name: %s, length: %d, step: %f, samplingNoise: %d, samplingFrequency: %d\n",
-    // 如果更新失败，回滚所有更改
-    ADCBtnsError err = updateADCMapping(mapping.id, mapping);
-    if (err != ADCBtnsError::SUCCESS)
+    if (saveStore() != QSPI_W25Qxx_OK)
     {
-        memcpy(mapping.originalValues, oldOriginValues, sizeof(mapping.originalValues));
-        free(oldOriginValues);
-        APP_ERR("ADCValuesMappingUtils: mark - update mapping failed. err: %d", err);
-        return err;
+        mapping = previousMapping;
+        APP_ERR("ADCValuesMappingUtils: mark - save mapping failed");
+        return ADCBtnsError::MAPPING_UPDATE_FAILED;
     }
 
-    free(oldOriginValues);
     return ADCBtnsError::SUCCESS;
 }
 
@@ -841,6 +879,33 @@ ADCBtnsError ADCManager::startADCSamping(bool enableSamplingRate,
         }
     }
 
+    return ADCBtnsError::SUCCESS;
+}
+
+ADCBtnsError ADCManager::clearCalibrationValues(const char *mappingId, bool isAutoCalibration)
+{
+    if (!mappingId || findMappingById(mappingId) == -1)
+    {
+        return mappingId ? ADCBtnsError::MAPPING_NOT_FOUND : ADCBtnsError::INVALID_PARAMS;
+    }
+
+    ADCCommonConfig previousCommon = common;
+    strncpy(common.calibratedMappingId, mappingId, sizeof(common.calibratedMappingId) - 1);
+    common.calibratedMappingId[sizeof(common.calibratedMappingId) - 1] = '\0';
+    if (isAutoCalibration)
+    {
+        memset(common.autoCalibrationValues, 0, sizeof(common.autoCalibrationValues));
+    }
+    else
+    {
+        memset(common.manualCalibrationValues, 0, sizeof(common.manualCalibrationValues));
+    }
+
+    if (saveCommon() != QSPI_W25Qxx_OK)
+    {
+        common = previousCommon;
+        return ADCBtnsError::MAPPING_UPDATE_FAILED;
+    }
     return ADCBtnsError::SUCCESS;
 }
 

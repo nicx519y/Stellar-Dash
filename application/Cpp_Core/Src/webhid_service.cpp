@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "adc_btns/adc_btns_worker.hpp"
+#include "adc_btns/adc_btns_marker.hpp"
 #include "adc_btns/adc_calibration.hpp"
 #include "board_security_confirmation.h"
 #include "board_cfg.h"
@@ -1012,11 +1013,17 @@ void WebHidService::resetSession(bool keepBootIdentity,
      */
     const bool calibrationWasActive =
         ADC_CALIBRATION_MANAGER.isCalibrationActive();
+    const StepInfo &markingStatus = ADC_BTNS_MARKER.getStepInfo();
+    const bool markingWasActive =
+        markingStatus.is_marking || markingStatus.is_sampling;
     WebConfigBtnsManager &buttons = WEBCONFIG_BTNS_MANAGER;
     const bool buttonWorkerWasActive = buttons.isActive();
     const bool buttonTestWasActive = buttons.isTestModeEnabled();
     if (calibrationWasActive) {
         (void)ADC_CALIBRATION_MANAGER.stopCalibration();
+    }
+    if (markingWasActive) {
+        ADC_BTNS_MARKER.reset();
     }
     if (buttonTestWasActive) {
         buttons.enableTestMode(false);
@@ -1024,12 +1031,13 @@ void WebHidService::resetSession(bool keepBootIdentity,
     if (buttonWorkerWasActive) {
         buttons.stopButtonWorkers();
     }
-    if (calibrationWasActive || buttonWorkerWasActive ||
+    if (calibrationWasActive || markingWasActive || buttonWorkerWasActive ||
         buttonTestWasActive) {
         APP_STAGE(
             "H10",
-            "WebHID session runtime stopped: calibration=%u buttons=%u test=%u",
+            "WebHID session runtime stopped: calibration=%u marking=%u buttons=%u test=%u",
             calibrationWasActive ? 1u : 0u,
+            markingWasActive ? 1u : 0u,
             buttonWorkerWasActive ? 1u : 0u,
             buttonTestWasActive ? 1u : 0u);
     }

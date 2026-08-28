@@ -116,11 +116,7 @@ DeviceCommandResponse CalibrationCommandHandler::handleStartManualCalibration(co
     cJSON_AddStringToObject(dataJSON, "message", "Manual calibration started");
     
     // 添加校准状态信息
-    cJSON* statusJSON = cJSON_CreateObject();
-    cJSON_AddBoolToObject(statusJSON, "isActive", ADC_CALIBRATION_MANAGER.isCalibrationActive());
-    cJSON_AddNumberToObject(statusJSON, "uncalibratedCount", ADC_CALIBRATION_MANAGER.getUncalibratedButtonCount());
-    cJSON_AddNumberToObject(statusJSON, "activeCalibrationCount", ADC_CALIBRATION_MANAGER.getActiveCalibrationButtonCount());
-    cJSON_AddBoolToObject(statusJSON, "allCalibrated", ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated());
+    cJSON* statusJSON = buildCalibrationStatusJSON();
     
     cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
     
@@ -172,11 +168,7 @@ DeviceCommandResponse CalibrationCommandHandler::handleStopManualCalibration(con
     cJSON_AddStringToObject(dataJSON, "message", "Manual calibration stopped");
     
     // 添加校准状态信息
-    cJSON* statusJSON = cJSON_CreateObject();
-    cJSON_AddBoolToObject(statusJSON, "isActive", ADC_CALIBRATION_MANAGER.isCalibrationActive());
-    cJSON_AddNumberToObject(statusJSON, "uncalibratedCount", ADC_CALIBRATION_MANAGER.getUncalibratedButtonCount());
-    cJSON_AddNumberToObject(statusJSON, "activeCalibrationCount", ADC_CALIBRATION_MANAGER.getActiveCalibrationButtonCount());
-    cJSON_AddBoolToObject(statusJSON, "allCalibrated", ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated());
+    cJSON* statusJSON = buildCalibrationStatusJSON();
     
     cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
     
@@ -273,11 +265,7 @@ DeviceCommandResponse CalibrationCommandHandler::handleClearManualCalibrationDat
     cJSON_AddStringToObject(dataJSON, "message", "Manual calibration data cleared successfully");
     
     // 添加清除后的校准状态信息
-    cJSON* statusJSON = cJSON_CreateObject();
-    cJSON_AddBoolToObject(statusJSON, "isActive", ADC_CALIBRATION_MANAGER.isCalibrationActive());
-    cJSON_AddNumberToObject(statusJSON, "uncalibratedCount", ADC_CALIBRATION_MANAGER.getUncalibratedButtonCount());
-    cJSON_AddNumberToObject(statusJSON, "activeCalibrationCount", ADC_CALIBRATION_MANAGER.getActiveCalibrationButtonCount());
-    cJSON_AddBoolToObject(statusJSON, "allCalibrated", ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated());
+    cJSON* statusJSON = buildCalibrationStatusJSON();
     
     cJSON_AddItemToObject(dataJSON, "calibrationStatus", statusJSON);
     

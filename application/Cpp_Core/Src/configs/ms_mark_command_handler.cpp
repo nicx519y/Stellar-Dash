@@ -5,6 +5,7 @@
 #include "system_logger.h"
 #include <map>
 #include <cstring>
+#include <cmath>
 #include "config_transport_sink.hpp"
 
 // ============================================================================
@@ -186,11 +187,23 @@ DeviceCommandResponse MSMarkCommandHandler::handleCreateMapping(const DeviceComm
     }
     
     const char* mappingName = nameJSON->valuestring;
-    size_t length = lengthJSON->valueint;
-    float_t step = stepJSON->valuedouble;
+    const double lengthValue = lengthJSON->valuedouble;
+    const double stepValue = stepJSON->valuedouble;
+    if (mappingName[0] == '\0' ||
+        strlen(mappingName) >= sizeof(ADCValuesMapping::name) ||
+        !std::isfinite(lengthValue) || std::floor(lengthValue) != lengthValue ||
+        lengthValue < 2.0 || lengthValue > static_cast<double>(MAX_ADC_VALUES_LENGTH) ||
+        !std::isfinite(stepValue) || stepValue < 0.1 || stepValue > 10.0) {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Mapping name, length or step is outside the supported range");
+    }
+    size_t length = static_cast<size_t>(lengthValue);
+    float_t step = static_cast<float_t>(stepValue);
     
     // 创建映射
-    ADCBtnsError error = ADC_MANAGER.createADCMapping(mappingName, length, step);
+    std::string createdMappingId;
+    ADCBtnsError error = ADC_MANAGER.createADCMapping(
+        mappingName, length, step, &createdMappingId);
     if(error != ADCBtnsError::SUCCESS) {
         LOG_ERROR("DeviceCommand", "ms_create_mapping: Failed to create mapping");
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to create mapping");
@@ -198,6 +211,7 @@ DeviceCommandResponse MSMarkCommandHandler::handleCreateMapping(const DeviceComm
     
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(dataJSON, "createdMappingId", createdMappingId.c_str());
     cJSON_AddItemToObject(dataJSON, "defaultMappingId", cJSON_CreateString(ADC_MANAGER.getDefaultMapping().c_str()));
     cJSON_AddItemToObject(dataJSON, "mappingList", buildMappingListJSON());
     
@@ -224,6 +238,11 @@ DeviceCommandResponse MSMarkCommandHandler::handleDeleteMapping(const DeviceComm
     }
     
     const char* mappingId = idJSON->valuestring;
+
+    if (ADC_MANAGER.getDefaultMapping() == mappingId) {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Select another default mapping before deleting this mapping");
+    }
     
     // 删除映射
     ADCBtnsError error = ADC_MANAGER.removeADCMapping(mappingId);
@@ -268,6 +287,11 @@ DeviceCommandResponse MSMarkCommandHandler::handleRenameMapping(const DeviceComm
 
     const char* mappingId = idJSON->valuestring;
     const char* mappingName = nameJSON->valuestring;
+    if (mappingName[0] == '\0' ||
+        strlen(mappingName) >= sizeof(ADCValuesMapping::name)) {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Mapping name exceeds the 15-byte UTF-8 limit");
+    }
 
     // 重命名映射
     ADCBtnsError error = ADC_MANAGER.renameADCMapping(mappingId, mappingName);

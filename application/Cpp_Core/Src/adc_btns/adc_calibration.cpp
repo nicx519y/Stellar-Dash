@@ -1,6 +1,7 @@
 #include "adc_btns/adc_calibration.hpp"
 #include "adc_btns/adc_manager.hpp"
 #include "board_cfg.h"
+#include <cmath>
 
 extern "C" {
 #include "pwm-ws2812b.h"
@@ -25,12 +26,8 @@ void ADCCalibrationManager::initEnabledKeysMask() {
     GamepadProfile* profile = STORAGE_MANAGER.getGamepadProfile(STORAGE_MANAGER.config.defaultProfileId);
     if (profile) {
         const bool* enabledKeys = profile->keysConfig.keysEnableTag;
-        for(uint8_t i = 0; i < 32; i++) {
-            if(i < NUM_ADC_BUTTONS) {
-                enabledKeysMask |= (enabledKeys[i] ? (1 << i) : 0);
-            } else {
-                enabledKeysMask |= (1 << i);
-            }
+        for (uint8_t i = 0; i < NUM_ADC_BUTTONS; ++i) {
+            enabledKeysMask |= enabledKeys[i] ? (1u << i) : 0u;
         }
         APP_DBG("ADCCalibrationManager: enabled keys mask = 0x%08X", enabledKeysMask);
     }
@@ -42,6 +39,21 @@ void ADCCalibrationManager::initEnabledKeysMask() {
 ADCBtnsError ADCCalibrationManager::startManualCalibration() {
     if (calibrationActive) {
         return ADCBtnsError::CALIBRATION_IN_PROGRESS;
+    }
+
+    const std::string mappingId = ADC_MANAGER.getDefaultMapping();
+    const ADCValuesMapping* mapping = mappingId.empty()
+        ? nullptr
+        : ADC_MANAGER.getMapping(mappingId.c_str());
+    if (mapping == nullptr || mapping->length < 2u ||
+        mapping->length > MAX_ADC_VALUES_LENGTH ||
+        !std::isfinite(mapping->step) || mapping->step <= 0.0f ||
+        mapping->originalValues[0] == 0u ||
+        mapping->originalValues[mapping->length - 1u] == 0u ||
+        mapping->originalValues[0] == mapping->originalValues[mapping->length - 1u]) {
+        return mapping == nullptr
+            ? ADCBtnsError::MAPPING_NOT_FOUND
+            : ADCBtnsError::MAPPING_INVALID_RANGE;
     }
     
     // 初始化启用按键掩码
@@ -148,6 +160,8 @@ ADCBtnsError ADCCalibrationManager::stopCalibration() {
  * 重置所有按键校准
  */
 ADCBtnsError ADCCalibrationManager::resetAllCalibration() {
+    initEnabledKeysMask();
+
     // 1. 首先重置所有内存状态
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
         ButtonCalibrationState& state = buttonStates[i];
@@ -174,6 +188,11 @@ ADCBtnsError ADCCalibrationManager::resetAllCalibration() {
     ADCBtnsError flashResult = clearAllCalibrationFromFlash();
     if (flashResult != ADCBtnsError::SUCCESS) {
         APP_ERR("Failed to clear all calibration data from Flash, error: %d", static_cast<int>(flashResult));
+        // ADCManager rolls its common-config mutation back on write failure.
+        // Restore the visible runtime state from that still-authoritative data.
+        initializeButtonStates();
+        loadExistingCalibration();
+        updateAllLEDs();
     } else {
         APP_DBG("All calibration data cleared from Flash in batch operation");
     }
@@ -418,9 +437,18 @@ ADCBtnsError ADCCalibrationManager::finalizeSampling(uint8_t buttonIndex) {
         APP_DBG("Button %d bottom value calibrated (PRESSED): %d (samples: %d, duration: %lums, range: %d-%d, expected: %d)", 
                 buttonIndex, averageValue, samplesToUse, samplingDuration, state.minSample, state.maxSample, state.expectedBottomValue);
         
-        // 校准完成，立即保存到Flash
+        // Only publish COMPLETED after the calibration values are durable.
+        const ADCBtnsError saveResult = saveCalibrationValues(buttonIndex);
+        if (saveResult != ADCBtnsError::SUCCESS) {
+            state.isCalibrated = false;
+            setButtonPhase(buttonIndex, CalibrationPhase::ERROR);
+            setButtonLEDColor(buttonIndex, CalibrationLEDColor::YELLOW);
+            updateButtonLED(buttonIndex, CalibrationLEDColor::YELLOW);
+            APP_ERR("Failed to persist calibration for button %u: %d",
+                    buttonIndex, static_cast<int>(saveResult));
+            return saveResult;
+        }
         state.isCalibrated = true;
-        saveCalibrationValues(buttonIndex);
         setButtonPhase(buttonIndex, CalibrationPhase::COMPLETED);
         setButtonLEDColor(buttonIndex, CalibrationLEDColor::GREEN);
         updateButtonLED(buttonIndex, CalibrationLEDColor::GREEN);
@@ -633,7 +661,8 @@ void ADCCalibrationManager::initializeButtonStates() {
         std::string mappingId = ADC_MANAGER.getDefaultMapping();
         if (!mappingId.empty()) {
             const ADCValuesMapping* mapping = ADC_MANAGER.getMapping(mappingId.c_str());
-            if (mapping) {
+            if (mapping && mapping->length >= 2u &&
+                mapping->length <= MAX_ADC_VALUES_LENGTH) {
                 state.expectedTopValue = mapping->originalValues[mapping->length - 1];      // 释放状态
                 state.expectedBottomValue = mapping->originalValues[0];                     // 按下状态
                 // APP_DBG("initializeButtonStates Button %d expected top value: %d, bottom value: %d", i, state.expectedTopValue, state.expectedBottomValue);
@@ -702,9 +731,26 @@ bool ADCCalibrationManager::isButtonCalibrated(uint8_t buttonIndex) const {
 
 bool ADCCalibrationManager::isAllButtonsCalibrated( bool useCache ) {
     if(!useCache) {
-        initializeButtonStates();
-        initEnabledKeysMask();
-        loadExistingCalibration();
+        const std::string mappingId = ADC_MANAGER.getDefaultMapping();
+        GamepadProfile* profile = STORAGE_MANAGER.getGamepadProfile(
+            STORAGE_MANAGER.config.defaultProfileId);
+        if (mappingId.empty() || profile == nullptr ||
+            ADC_MANAGER.getMapping(mappingId.c_str()) == nullptr) {
+            return false;
+        }
+        for (uint8_t i = 0; i < NUM_ADC_BUTTONS; ++i) {
+            if (!profile->keysConfig.keysEnableTag[i]) {
+                continue;
+            }
+            uint16_t topValue = 0;
+            uint16_t bottomValue = 0;
+            if (ADC_MANAGER.getCalibrationValues(
+                    mappingId.c_str(), i, false, topValue, bottomValue) !=
+                ADCBtnsError::SUCCESS) {
+                return false;
+            }
+        }
+        return true;
     }
 
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
@@ -1022,20 +1068,12 @@ ADCBtnsError ADCCalibrationManager::clearAllCalibrationFromFlash() {
     
     APP_DBG("Clearing all calibration data from Flash...");
     
-    // 批量清除所有按键的校准数据
-    ADCBtnsError finalResult = ADCBtnsError::SUCCESS;
-    for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
-        ADCBtnsError result = ADC_MANAGER.setCalibrationValues(mappingId.c_str(), i, false, 0, 0, false);
-        if (result != ADCBtnsError::SUCCESS) {
-            APP_ERR("Failed to clear calibration data for button %d, error: %d", i, static_cast<int>(result));
-            finalResult = result; // 记录最后一个错误
-        }
-    }
-    
-    if (finalResult == ADCBtnsError::SUCCESS && ADC_MANAGER.saveCommon() == QSPI_W25Qxx_OK) {
+    const ADCBtnsError finalResult = ADC_MANAGER.clearCalibrationValues(
+        mappingId.c_str(), false);
+    if (finalResult == ADCBtnsError::SUCCESS) {
         APP_DBG("All calibration data cleared from Flash successfully");
     } else {
-        APP_ERR("Some calibration data failed to clear from Flash");
+        APP_ERR("Calibration data clear was rolled back after a Flash write failure");
     }
     
     return finalResult;
