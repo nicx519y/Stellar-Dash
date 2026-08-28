@@ -69,7 +69,7 @@ export function ProfileSelect(
             return [false, t.PROFILE_SELECT_VALIDATION_LENGTH.replace("{0}", name.length.toString())];
         }
 
-        if (!/^[A-Za-z0-9]+$/.test(name)) {
+        if (!/^[A-Za-z0-9_-]+$/.test(name)) {
             return [false, t.PROFILE_SELECT_VALIDATION_SPECIAL_CHARS];
         }
 

@@ -149,6 +149,8 @@ interface GamepadConfigContextType {
     setError: (error: string | null) => void;
     rebootSystem: () => Promise<void>;
     // 校准相关
+    calibrationStatus: CalibrationStatus;
+    fetchCalibrationStatus: () => Promise<CalibrationStatus>;
     startManualCalibration: () => Promise<CalibrationStatus>;
     stopManualCalibration: () => Promise<CalibrationStatus>;
     clearManualCalibrationData: () => Promise<void>;
@@ -161,13 +163,13 @@ interface GamepadConfigContextType {
     fetchMappingList: () => Promise<void>;
     fetchDefaultMapping: () => Promise<void>;
     fetchActiveMapping: (id: string) => Promise<void>;
-    createMapping: (name: string, length: number, step: number) => Promise<void>;
+    createMapping: (name: string, length: number, step: number) => Promise<string>;
     deleteMapping: (id: string) => Promise<void>;
     updateDefaultMapping: (id: string) => Promise<void>;
     startMarking: (id: string) => Promise<void>;
     stopMarking: () => Promise<void>;
     stepMarking: () => Promise<void>;
-    // fetchMarkingStatus: () => Promise<void>;
+    fetchMarkingStatus: () => Promise<void>;
     renameMapping: (id: string, name: string) => Promise<void>;
     // 按键监控相关
     buttonMonitoringActive: boolean;
@@ -238,6 +240,29 @@ function makeEmptyMarkingStatus(): StepInfo {
         is_marking: false,
         is_sampling: false,
         is_completed: false
+    };
+}
+
+function makeEmptyCalibrationStatus(): CalibrationStatus {
+    return {
+        isActive: false,
+        uncalibratedCount: 0,
+        activeCalibrationCount: 0,
+        allCalibrated: false,
+        buttons: [],
+    };
+}
+
+function calibrationStatusFrom(value: unknown): CalibrationStatus | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const candidate = value as Partial<CalibrationStatus>;
+    if (!Array.isArray(candidate.buttons)) return null;
+    return {
+        isActive: candidate.isActive === true,
+        uncalibratedCount: Number(candidate.uncalibratedCount ?? 0),
+        activeCalibrationCount: Number(candidate.activeCalibrationCount ?? 0),
+        allCalibrated: candidate.allCalibrated === true,
+        buttons: candidate.buttons,
     };
 }
 
@@ -367,6 +392,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [mappingList, setMappingList] = useState<{ id: string, name: string }[]>([]);
     const [markingStatus, setMarkingStatus] = useState<StepInfo>(makeEmptyMarkingStatus);
     const [activeMapping, setActiveMapping] = useState<ADCValuesMapping | null>(null);
+    const [calibrationStatus, setCalibrationStatus] = useState<CalibrationStatus>(makeEmptyCalibrationStatus);
     const [buttonMonitoringActive, setButtonMonitoringActive] = useState<boolean>(false);
     const [firmwareInfo, setFirmwareInfo] = useState<DeviceFirmwareInfo | null>(null);
     const [firmwareUpdateInfo, setFirmwareUpdateInfo] = useState<FirmwareUpdateCheckResponse | null>(null);
@@ -425,6 +451,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         setMappingList([]);
         setMarkingStatus(makeEmptyMarkingStatus());
         setActiveMapping(null);
+        setCalibrationStatus(makeEmptyCalibrationStatus());
         setButtonMonitoringActive(false);
         setFirmwareInfo(null);
         setFirmwareUpdateInfo(null);
@@ -442,9 +469,16 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
         switch (command) {
             case 'calibration_update':
+                {
+                    const status = calibrationStatusFrom(data?.calibrationStatus);
+                    if (status) setCalibrationStatus(status);
+                }
                 eventBus.emit(EVENTS.CALIBRATION_UPDATE, data);
                 break;
             case 'marking_status_update':
+                if (data?.status) {
+                    setMarkingStatus(data.status as StepInfo);
+                }
                 eventBus.emit(EVENTS.MARKING_STATUS_UPDATE, data);
                 break;
             case 'button.state': {
@@ -1345,7 +1379,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    const createMapping = async (name: string, length: number, step: number, immediate: boolean = true): Promise<void> => {
+    const createMapping = async (name: string, length: number, step: number, immediate: boolean = true): Promise<string> => {
         try {
             setIsLoading(true);
             const data = await sendDeviceRequest('ms_create_mapping', { name, length, step }, immediate);
@@ -1353,8 +1387,14 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 setMappingList(data.mappingList as { id: string, name: string }[]);
                 setDefaultMappingId(data.defaultMappingId as string);
             }
+            const createdMappingId = typeof data?.createdMappingId === 'string'
+                ? data.createdMappingId
+                : '';
+            if (!createdMappingId) {
+                throw new Error('Device did not return the created mapping id');
+            }
             setError(null);
-            return Promise.resolve();
+            return createdMappingId;
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to create mapping"));
@@ -1370,6 +1410,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (data && 'mappingList' in data && 'defaultMappingId' in data) {
                 setMappingList(data.mappingList as { id: string, name: string }[]);
                 setDefaultMappingId(data.defaultMappingId as string);
+            }
+            if (activeMapping?.id === id) {
+                setActiveMapping(null);
             }
             setError(null);
             return Promise.resolve();
@@ -1451,19 +1494,18 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
-    // const fetchMarkingStatus = async (): Promise<void> => {
-    //     try {
-    //         const data = await sendDeviceRequest('ms_get_mark_status');
-    //         if(data.status) {
-    //             setMarkingStatus(data.status);
-    //         }
-    //         setError(null);
-    //         return Promise.resolve();
-    //     } catch (err) {
-    //         setError(err instanceof Error ? err.message : 'An error occurred');
-    //         return Promise.reject(new Error("Failed to fetch marking status"));
-    //     }
-    // };
+    const fetchMarkingStatus = async (immediate: boolean = true): Promise<void> => {
+        try {
+            const data = await sendDeviceRequest('ms_get_mark_status', {}, immediate);
+            if (data?.status) {
+                setMarkingStatus(data.status as StepInfo);
+            }
+            setError(null);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred');
+            throw new Error("Failed to fetch marking status");
+        }
+    };
 
     const fetchActiveMapping = async (id: string, immediate: boolean = true): Promise<void> => {
         try {
@@ -1629,12 +1671,30 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
+    const fetchCalibrationStatus = async (immediate: boolean = true): Promise<CalibrationStatus> => {
+        try {
+            const data = await sendDeviceRequest('get_calibration_status', {}, immediate);
+            const status = calibrationStatusFrom(data?.calibrationStatus);
+            if (!status) throw new Error('Device returned an invalid calibration status');
+            setCalibrationStatus(status);
+            setError(null);
+            return status;
+        } catch (err) {
+            const error = err instanceof Error ? err : new Error('Failed to fetch calibration status');
+            setError(error.message);
+            throw error;
+        }
+    };
+
     const startManualCalibration = async (immediate: boolean = true): Promise<CalibrationStatus> => {
         try {
             setIsLoading(true);
             const data = await sendDeviceRequest('start_manual_calibration', {}, immediate);
+            const status = calibrationStatusFrom(data?.calibrationStatus);
+            if (!status) throw new Error('Device returned an invalid calibration status');
+            setCalibrationStatus(status);
             setError(null);
-            return Promise.resolve(data.calibrationStatus);
+            return status;
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to start manual calibration"));
@@ -1647,8 +1707,11 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         try {
             setIsLoading(true);
             const data = await sendDeviceRequest('stop_manual_calibration', {}, immediate);
+            const status = calibrationStatusFrom(data?.calibrationStatus);
+            if (!status) throw new Error('Device returned an invalid calibration status');
+            setCalibrationStatus(status);
             setError(null);
-            return Promise.resolve(data.calibrationStatus);
+            return status;
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');
             return Promise.reject(new Error("Failed to stop manual calibration"));
@@ -1661,6 +1724,9 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         try {
             setIsLoading(true);
             const data = await sendDeviceRequest('clear_manual_calibration_data', {}, immediate);
+            const status = calibrationStatusFrom(data?.calibrationStatus);
+            if (!status) throw new Error('Device returned an invalid calibration status');
+            setCalibrationStatus(status);
             setError(null);
             return Promise.resolve();
         } catch (err) {
@@ -2376,6 +2442,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setError,
             rebootSystem,
             // 校准相关
+            calibrationStatus,
+            fetchCalibrationStatus,
             startManualCalibration,
             stopManualCalibration,
             clearManualCalibrationData,
@@ -2386,7 +2454,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             mappingList,
             activeMapping,
             fetchMappingList,
-            // fetchMarkingStatus,
+            fetchMarkingStatus,
             updateDefaultMapping,
             fetchDefaultMapping,
             fetchActiveMapping,

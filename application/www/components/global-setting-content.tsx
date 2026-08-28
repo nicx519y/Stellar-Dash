@@ -67,18 +67,27 @@ export function GlobalSettingContent() {
     const setCalibrationActiveForSession = useCallback((active: boolean) => {
         calibrationActiveRef.current = active;
         setCalibrationActive(active);
-    }, [sendPendingCommandImmediately]);
+    }, []);
 
     const onStartManualCalibration = useCallback(async () => {
-        if (!deviceConnectedRef.current || calibrationOperationRef.current || calibrationActiveRef.current) {
+        if (
+            !deviceConnectedRef.current ||
+            calibrationOperationRef.current ||
+            calibrationActiveRef.current ||
+            globalConfig.autoCalibrationEnabled
+        ) {
             return;
         }
 
         const epoch = connectionEpochRef.current;
         calibrationOperationRef.current = true;
         try {
-            await startManualCalibration();
-            if (deviceConnectedRef.current && connectionEpochRef.current === epoch) {
+            const status = await startManualCalibration();
+            if (
+                status.isActive &&
+                deviceConnectedRef.current &&
+                connectionEpochRef.current === epoch
+            ) {
                 setCalibrationActiveForSession(true);
             }
         } catch {
@@ -88,27 +97,42 @@ export function GlobalSettingContent() {
         } finally {
             calibrationOperationRef.current = false;
         }
-    }, [setCalibrationActiveForSession, startManualCalibration]);
+    }, [globalConfig.autoCalibrationEnabled, setCalibrationActiveForSession, startManualCalibration]);
 
-    const onEndManualCalibration = useCallback(async () => {
+    const onEndManualCalibration = useCallback(async (): Promise<boolean> => {
         if (!calibrationActiveRef.current) {
-            return;
+            return true;
         }
 
-        // Tear down the local view first. If the transport disappears during
-        // this operation, never enqueue cleanup against the next session.
-        setCalibrationActiveForSession(false);
-        if (!deviceConnectedRef.current || calibrationOperationRef.current) {
-            return;
+        if (!deviceConnectedRef.current) {
+            setCalibrationActiveForSession(false);
+            return true;
+        }
+        if (calibrationOperationRef.current) {
+            return false;
         }
 
         const epoch = connectionEpochRef.current;
         calibrationOperationRef.current = true;
         try {
-            await stopManualCalibration();
+            const status = await stopManualCalibration();
+            if (!deviceConnectedRef.current || connectionEpochRef.current !== epoch) {
+                setCalibrationActiveForSession(false);
+                return true;
+            }
+            if (status.isActive) {
+                return false;
+            }
+            setCalibrationActiveForSession(false);
+            return true;
         } catch {
-            // A disconnect already invalidates device-side session state. Do
-            // not resurrect calibration UI or replay this command on reconnect.
+            if (!deviceConnectedRef.current || connectionEpochRef.current !== epoch) {
+                setCalibrationActiveForSession(false);
+                return true;
+            }
+            // Keep the page blocked while the same live device still reports
+            // a calibration session that we could not stop reliably.
+            return false;
         } finally {
             if (connectionEpochRef.current === epoch) {
                 calibrationOperationRef.current = false;
@@ -122,8 +146,7 @@ export function GlobalSettingContent() {
         t.CALIBRATION_MODE_WARNING_TITLE,
         t.CALIBRATION_MODE_WARNING_MESSAGE,
         async () => {
-            await onEndManualCalibration();
-            return true;
+            return onEndManualCalibration();
         }
     );
 
@@ -146,13 +169,17 @@ export function GlobalSettingContent() {
         });
 
         if (confirmed) {
-            await clearManualCalibrationData();
+            await clearManualCalibrationData().catch(() => undefined);
         }
     };
 
     // 检查手动校准是否完成，如果未完成，则弹出确认对话框
     const checkIsManualCalibrationCompletedHandle = useCallback(async () => {
-        if (!deviceConnectedRef.current || calibrationCheckInFlightRef.current) {
+        if (
+            !deviceConnectedRef.current ||
+            calibrationCheckInFlightRef.current ||
+            globalConfig.autoCalibrationEnabled
+        ) {
             return;
         }
         calibrationCheckInFlightRef.current = true;
@@ -182,7 +209,7 @@ export function GlobalSettingContent() {
         } finally {
             calibrationCheckInFlightRef.current = false;
         }
-    }, [checkIsManualCalibrationCompleted, onStartManualCalibration, t]);
+    }, [checkIsManualCalibrationCompleted, globalConfig.autoCalibrationEnabled, onStartManualCalibration, t]);
 
     // 处理热键更新回调
     const handleHotkeyUpdate = useCallback((hotkeys: Hotkey[]) => {
@@ -254,7 +281,7 @@ export function GlobalSettingContent() {
             return;
         }
 
-        if (!isInit && dataIsReady && hotkeysConfig.length > 0) {
+        if (!isInit && dataIsReady) {
             setCurrentHotkeys(Array.from({ length: DEFAULT_NUM_HOTKEYS_MAX }, (_, i) => {
                 return hotkeysConfig?.[i] ?? { key: -1, action: HotkeyAction.None, isLocked: false, isHold: false };
             }));

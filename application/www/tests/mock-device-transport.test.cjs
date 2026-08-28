@@ -1079,14 +1079,13 @@ test('emits uncalibrated, top, bottom and completed calibration states', async (
 
   const started = await transport.request('start_manual_calibration');
   assert.equal(started.data.calibrationStatus.allCalibrated, false);
-  // Match React development Strict Mode's immediate effect cleanup. It must
-  // not cancel the newly mounted calibration view's deterministic sequence.
-  await transport.request('stop_manual_calibration');
+  const current = await transport.request('get_calibration_status');
+  assert.equal(current.data.calibrationStatus.isActive, true);
   await Promise.race([
     complete,
     delay(1000).then(() => { throw new Error('calibration events timed out'); }),
   ]);
-  assert.deepEqual(phases, ['IDLE', 'TOP_SAMPLING', 'BOTTOM_SAMPLING', 'COMPLETED']);
+  assert.deepEqual(phases, ['TOP_SAMPLING', 'BOTTOM_SAMPLING', 'COMPLETED']);
   const completed = await transport.request('check_is_manual_calibration_completed');
   assert.equal(completed.data.isCompleted, true);
   await transport.close();
@@ -1097,7 +1096,7 @@ test('samples ADC mapping without shifting the first point and writes it back', 
   const started = await transport.request('ms_mark_mapping_start', { id: 'mapping-default' });
   const length = started.data.status.length;
   let result;
-  for (let index = 0; index < length; index += 1) {
+  for (let index = 0; index <= length; index += 1) {
     result = await transport.request('ms_mark_mapping_step');
   }
 
@@ -1107,7 +1106,47 @@ test('samples ADC mapping without shifting the first point and writes it back', 
   assert.equal(result.data.status.values.at(-1), 800);
   const mapping = await transport.request('ms_get_mapping', { id: 'mapping-default' });
   assert.deepEqual(mapping.data.mapping.originalValues, result.data.status.values);
-  assert.equal(mapping.data.mapping.calibratedValues.at(-1), (length - 1) * 100);
+  assert.equal(mapping.data.mapping.calibratedValues.at(-1), (length - 1) * 0.1);
+  await transport.close();
+});
+
+test('enforces switch mapping storage limits and protects the default mapping', async () => {
+  const transport = await createTransport();
+
+  await assert.rejects(
+    transport.request('ms_create_mapping', { name: 'Too Short', length: 1, step: 0.1 }),
+    /Invalid switch mapping parameters/,
+  );
+  await assert.rejects(
+    transport.request('ms_create_mapping', { name: 'Too Long', length: 41, step: 0.1 }),
+    /Invalid switch mapping parameters/,
+  );
+  await assert.rejects(
+    transport.request('ms_create_mapping', { name: '六六六六六六', length: 2, step: 0.1 }),
+    /Invalid switch mapping parameters/,
+  );
+  await assert.rejects(
+    transport.request('ms_delete_mapping', { id: 'mapping-default' }),
+    /Select another default mapping/,
+  );
+
+  const created = await transport.request('ms_create_mapping', {
+    name: 'Travel 2',
+    length: 2,
+    step: 0.1,
+  });
+  assert.ok(created.data.createdMappingId);
+  await assert.rejects(
+    transport.request('ms_set_default', { id: created.data.createdMappingId }),
+    /must be marked/,
+  );
+  await transport.request('ms_mark_mapping_start', { id: created.data.createdMappingId });
+  await transport.request('ms_mark_mapping_step');
+  await transport.request('ms_mark_mapping_step');
+  await transport.request('ms_mark_mapping_step');
+  await transport.request('ms_set_default', { id: created.data.createdMappingId });
+  const deleted = await transport.request('ms_delete_mapping', { id: 'mapping-default' });
+  assert.equal(deleted.data.mappingList.some((mapping) => mapping.id === 'mapping-default'), false);
   await transport.close();
 });
 

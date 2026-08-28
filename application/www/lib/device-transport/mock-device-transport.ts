@@ -14,6 +14,12 @@ import {
   MacroConfig,
   Platform,
   ScreenControlConfig,
+  SWITCH_MARKING_COUNT_MAX,
+  SWITCH_MARKING_LENGTH_MAX,
+  SWITCH_MARKING_LENGTH_MIN,
+  SWITCH_MARKING_NAME_MAX_LENGTH,
+  SWITCH_MARKING_STEP_MAX,
+  SWITCH_MARKING_STEP_MIN,
   WirelessReportRate,
 } from '../../types/gamepad-config';
 import type { ADCValuesMapping, StepInfo } from '../../types/adc';
@@ -168,11 +174,11 @@ const DEFAULT_MAPPING: ADCValuesMapping = {
   id: 'mapping-default',
   name: 'Factory Hall Curve',
   length: 40,
-  step: 100,
+  step: 0.1,
   samplingFrequency: 8000,
   samplingNoise: 3,
   originalValues: Array.from({ length: 40 }, (_, index) => 4000 - Math.round(index * (3200 / 39))),
-  calibratedValues: Array.from({ length: 40 }, (_, index) => index * 100),
+  calibratedValues: Array.from({ length: 40 }, (_, index) => index * 0.1),
 };
 
 /**
@@ -210,7 +216,6 @@ export class MockDeviceTransport implements DeviceTransport {
   private defaultMappingId = DEFAULT_MAPPING.id;
   private markingStatus: StepInfo = emptyMarkingStatus();
   private calibrationActive = false;
-  private calibrationStartedAt = 0;
   private calibrationComplete = true;
   private calibrationStatus = makeCalibrationStatus('completed');
   private eventHandlers = new Map<string, Set<EventHandler>>();
@@ -565,28 +570,72 @@ export class MockDeviceTransport implements DeviceTransport {
       case 'ms_get_default':
       case 'ms_set_default':
         if (command === 'ms_set_default') {
-          this.defaultMappingId = this.findMapping(asString(params.id)).id;
+          const mapping = this.findMapping(asString(params.id));
+          if (
+            mapping.length < SWITCH_MARKING_LENGTH_MIN
+            || mapping.originalValues[0] <= 0
+            || mapping.originalValues[mapping.length - 1] <= 0
+            || mapping.originalValues[0] === mapping.originalValues[mapping.length - 1]
+          ) {
+            throw new DeviceTransportError('protocol', 'Mapping must be marked before it can be selected');
+          }
+          this.defaultMappingId = mapping.id;
           this.persistState();
         }
         return { id: this.defaultMappingId };
       case 'ms_create_mapping': {
+        const name = asString(params.name);
+        const length = asNumber(params.length);
+        const step = asNumber(params.step);
+        if (
+          !name
+          || new TextEncoder().encode(name).byteLength > SWITCH_MARKING_NAME_MAX_LENGTH
+          || this.mappings.some((item) => item.name === name)
+          || !Number.isInteger(length)
+          || length < SWITCH_MARKING_LENGTH_MIN
+          || length > SWITCH_MARKING_LENGTH_MAX
+          || !Number.isFinite(step)
+          || step < SWITCH_MARKING_STEP_MIN
+          || step > SWITCH_MARKING_STEP_MAX
+          || this.mappings.length >= SWITCH_MARKING_COUNT_MAX
+        ) {
+          throw new DeviceTransportError('protocol', 'Invalid switch mapping parameters');
+        }
+        const createdMappingId = `mapping-${Date.now().toString(36)}-${this.mappings.length}`;
         const mapping = makeMapping(
-          `mapping-${Date.now().toString(36)}`,
-          asString(params.name) || 'Mock Mapping',
-          asNumber(params.length) || 40,
-          asNumber(params.step) || 100,
+          createdMappingId,
+          name,
+          length,
+          step,
         );
         this.mappings.push(mapping);
         this.persistState();
-        return this.mappingListPayload();
+        return { ...this.mappingListPayload(), createdMappingId };
       }
-      case 'ms_delete_mapping':
-        if (this.mappings.length > 1) this.mappings = this.mappings.filter((item) => item.id !== asString(params.id));
-        if (!this.mappings.some((item) => item.id === this.defaultMappingId)) this.defaultMappingId = this.mappings[0].id;
+      case 'ms_delete_mapping': {
+        const id = asString(params.id);
+        this.findMapping(id);
+        if (id === this.defaultMappingId) {
+          throw new DeviceTransportError(
+            'protocol',
+            'Select another default mapping before deleting this mapping',
+          );
+        }
+        this.mappings = this.mappings.filter((item) => item.id !== id);
         this.persistState();
         return this.mappingListPayload();
+      }
       case 'ms_rename_mapping': {
-        this.findMapping(asString(params.id)).name = asString(params.name);
+        const id = asString(params.id);
+        const name = asString(params.name);
+        if (
+          !name
+          || new TextEncoder().encode(name).byteLength > SWITCH_MARKING_NAME_MAX_LENGTH
+          || this.mappings.some((item) => item.id !== id && item.name === name)
+        ) {
+          throw new DeviceTransportError('protocol', 'Invalid switch mapping name');
+        }
+        this.findMapping(id).name = name;
         this.persistState();
         return this.mappingListPayload();
       }
@@ -599,8 +648,8 @@ export class MockDeviceTransport implements DeviceTransport {
           mapping_name: mapping.name,
           step: mapping.step,
           length: mapping.length,
-          index: 0,
-          values: [],
+          index: -1,
+          values: Array.from({ length: mapping.length }, () => 0),
           is_marking: true,
           is_sampling: false,
           is_completed: false,
@@ -613,34 +662,37 @@ export class MockDeviceTransport implements DeviceTransport {
         if (!this.markingStatus.is_marking || this.markingStatus.is_completed) {
           return { status: this.markingStatus };
         }
-        const sampleIndex = this.markingStatus.values.length;
-        if (sampleIndex < this.markingStatus.length) {
-          const divisor = Math.max(1, this.markingStatus.length - 1);
-          const value = Math.round(4000 - (3200 * sampleIndex) / divisor);
-          this.markingStatus.values.push(value);
-        }
-        this.markingStatus.index = Math.min(this.markingStatus.values.length, this.markingStatus.length);
-        this.markingStatus.is_completed = this.markingStatus.index >= this.markingStatus.length;
-        this.markingStatus.is_marking = !this.markingStatus.is_completed;
-        if (this.markingStatus.is_completed) {
+        if (this.markingStatus.index >= this.markingStatus.length - 1) {
           const mapping = this.findMapping(this.markingStatus.id);
           mapping.originalValues = [...this.markingStatus.values];
           mapping.calibratedValues = Array.from(
             { length: mapping.length },
             (_, index) => index * mapping.step,
           );
+          this.markingStatus.is_completed = true;
+          this.markingStatus.is_marking = false;
           this.persistState();
+        } else {
+          const sampleIndex = this.markingStatus.index + 1;
+          const divisor = Math.max(1, this.markingStatus.length - 1);
+          const value = Math.round(4000 - (3200 * sampleIndex) / divisor);
+          this.markingStatus.values[sampleIndex] = value;
+          this.markingStatus.index = sampleIndex;
         }
+        queueMicrotask(() => this.emit('marking_status_update', {
+          status: clone(this.markingStatus),
+        }));
         return { status: this.markingStatus };
       }
       case 'ms_mark_mapping_stop':
-        this.markingStatus.is_marking = false;
-        this.markingStatus.is_sampling = false;
+        this.markingStatus = emptyMarkingStatus();
         return { status: this.markingStatus };
       case 'ms_get_mark_status':
         return { status: this.markingStatus };
       case 'start_manual_calibration':
         return { calibrationStatus: this.startCalibration() };
+      case 'get_calibration_status':
+        return { calibrationStatus: clone(this.calibrationStatus) };
       case 'stop_manual_calibration':
         return { calibrationStatus: this.stopCalibration() };
       case 'clear_manual_calibration_data':
@@ -991,31 +1043,19 @@ export class MockDeviceTransport implements DeviceTransport {
   private startCalibration(): CalibrationStatus {
     this.clearCalibrationTimers();
     this.calibrationActive = true;
-    this.calibrationStartedAt = Date.now();
     this.calibrationComplete = false;
     this.globalConfig.manualCalibrationActive = true;
-    this.calibrationStatus = makeCalibrationStatus('uncalibrated');
+    this.calibrationStatus = makeCalibrationStatus('top');
     this.persistState();
-    this.scheduleCalibrationPhase('uncalibrated', 0);
-    this.scheduleCalibrationPhase('top', 60);
+    this.scheduleCalibrationPhase('top', 0);
     this.scheduleCalibrationPhase('bottom', 140);
     this.scheduleCalibrationPhase('completed', 230);
     return this.calibrationStatus;
   }
 
   private stopCalibration(): CalibrationStatus {
-    // React development Strict Mode mounts, cleans up and mounts effects once
-    // more immediately. Ignore that synthetic cleanup so the second mounted
-    // calibration view still receives the deterministic phase sequence.
-    if (
-      this.calibrationActive
-      && Date.now() - this.calibrationStartedAt < 75
-    ) {
-      return this.calibrationStatus;
-    }
     this.clearCalibrationTimers();
     this.calibrationActive = false;
-    this.calibrationStartedAt = 0;
     this.globalConfig.manualCalibrationActive = false;
     this.calibrationStatus = makeCalibrationStatus(
       this.calibrationComplete ? 'completed' : 'uncalibrated',
@@ -1043,7 +1083,6 @@ export class MockDeviceTransport implements DeviceTransport {
       if (!this.calibrationActive && phase !== 'completed') return;
       if (phase === 'completed') {
         this.calibrationActive = false;
-        this.calibrationStartedAt = 0;
         this.calibrationComplete = true;
         this.globalConfig.manualCalibrationActive = false;
       }
@@ -1413,7 +1452,7 @@ function makeMapping(id: string, name: string, length: number, step: number): AD
     step,
     samplingFrequency: 8000,
     samplingNoise: 3,
-    originalValues: Array.from({ length }, (_, index) => 4000 - index * Math.max(1, Math.floor(3200 / length))),
+    originalValues: Array.from({ length }, () => 0),
     calibratedValues: Array.from({ length }, (_, index) => index * step),
   };
 }

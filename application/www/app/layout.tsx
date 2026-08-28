@@ -7,8 +7,7 @@ import { GamepadConfigProvider, useGamepadConfig } from '@/contexts/gamepad-conf
 import { Flex } from '@chakra-ui/react'
 import { toaster, Toaster } from "@/components/ui/toaster"
 import { LoadingModal } from "@/components/ui/loading-modal"
-import { openReconnectModal, closeReconnectModal, setReconnectModalLoading } from "@/components/reconnect-modal"
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { DialogConfirm } from '@/components/dialog-confirm'
 import { DialogForm } from "@/components/dialog-form";
 import { DialogCannotClose } from '@/components/dialog-cannot-close'
@@ -16,11 +15,20 @@ import { DialogEditCombination } from '@/components/dialog-edit-combination'
 import { LanguageProvider, useLanguage } from '@/contexts/language-context';
 import {
     configuredTransportMode,
+    DeviceConnectionPhase,
     DeviceTransportError,
     reconnectRequiresPermission,
 } from '@/lib/device-transport';
 import { initializeWebHidNetworkTrace } from '@/lib/device-transport/webhid-network-trace';
 import { usePathname } from 'next/navigation';
+
+const isConnectionInProgress = (phase: DeviceConnectionPhase): boolean => (
+    phase === DeviceConnectionPhase.DISCOVERING
+    || phase === DeviceConnectionPhase.OPENING
+    || phase === DeviceConnectionPhase.ATTESTING
+    || phase === DeviceConnectionPhase.AUTHORIZING
+    || phase === DeviceConnectionPhase.INITIALIZING
+);
 
 
 // 创建一个内部组件来使用 context
@@ -31,6 +39,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
         reconnectDevice,
         showReconnect,
         deviceError,
+        deviceConnected,
+        devicePhase,
+        dataIsReady,
     } = useGamepadConfig();
     const [showLoading, setShowLoading] = useState(false);
     const [isReconnecting, setIsReconnecting] = useState(false);
@@ -38,6 +49,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
     const { error, setError } = useGamepadConfig();
     const { t } = useLanguage();
     const mockPreview = configuredTransportMode() === 'mock';
+    const connectionPending = !deviceConnected
+        || !dataIsReady
+        || devicePhase !== DeviceConnectionPhase.READY;
+    const connectionInProgress = isConnectionInProgress(devicePhase);
 
     useEffect(() => {
         initializeWebHidNetworkTrace();
@@ -57,6 +72,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
     // 全局loading处理
     useEffect(() => {
         let timer: NodeJS.Timeout;
+        // 连接过程由连接遮罩独立承载，避免设备刚就绪时短暂闪现普通 loading。
+        if (connectionPending) {
+            setShowLoading(false);
+            return;
+        }
         // 延迟300ms显示loading
         if (!isLoading) {
             timer = setTimeout(() => {
@@ -72,61 +92,35 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 clearTimeout(timer);
             }
         };
-    }, [isLoading]);
+    }, [isLoading, connectionPending]);
 
-    // 初始化状态
-    useEffect(() => {
-        if (!showReconnect || mockPreview) {
+    const handleReconnect = useCallback(async () => {
+        if (reconnectInFlightRef.current) return;
+        reconnectInFlightRef.current = true;
+        setIsReconnecting(true);
+
+        try {
+            // Only a click may open the WebHID chooser. Page-load discovery
+            // reports permission-required; this user gesture upgrades the
+            // retry to chooser mode.
+            if (reconnectRequiresPermission(deviceError)) {
+                await connectDevice();
+            } else {
+                await reconnectDevice();
+            }
+        } catch (error) {
+            const description = error instanceof DeviceTransportError && error.code === 'device-busy'
+                ? error.message
+                : t.RECONNECT_FAILED_MESSAGE;
+            toaster.error({
+                title: t.RECONNECT_FAILED_TITLE,
+                description,
+            });
+        } finally {
             reconnectInFlightRef.current = false;
             setIsReconnecting(false);
-            closeReconnectModal();
-            return;
         }
-
-        openReconnectModal({
-            title: t.RECONNECT_MODAL_TITLE,
-            message: deviceError?.transportCode === 'device-busy'
-                ? deviceError.message
-                : t.RECONNECT_MODAL_MESSAGE,
-            buttonText: t.RECONNECT_MODAL_BUTTON,
-            onReconnect: async () => {
-                if (reconnectInFlightRef.current) return;
-                reconnectInFlightRef.current = true;
-                setIsReconnecting(true);
-                setReconnectModalLoading(true);
-                try {
-                    // Only a click may open the WebHID chooser. Page-load
-                    // discovery reports permission-required and this exact
-                    // user gesture upgrades the retry to chooser mode.
-                    if (reconnectRequiresPermission(deviceError)) {
-                        await connectDevice();
-                    } else {
-                        await reconnectDevice();
-                    }
-                } catch (error) {
-                    const description = error instanceof DeviceTransportError && error.code === 'device-busy'
-                        ? error.message
-                        : t.RECONNECT_FAILED_MESSAGE;
-                    toaster.error({
-                        title: t.RECONNECT_FAILED_TITLE,
-                        description,
-                    });
-                    reconnectInFlightRef.current = false;
-                    setIsReconnecting(false);
-                    setReconnectModalLoading(false);
-                }
-            },
-            isLoading: isReconnecting,
-        });
-    }, [
-        showReconnect,
-        mockPreview,
-        t,
-        connectDevice,
-        reconnectDevice,
-        deviceError,
-        isReconnecting,
-    ]);
+    }, [connectDevice, reconnectDevice, deviceError, t]);
 
     return (
         <Flex
@@ -151,7 +145,26 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 </Center> */}
             </Flex>
             <Toaster />
-            <LoadingModal isOpen={showLoading} />
+            <LoadingModal
+                isOpen={connectionPending || showLoading}
+                variant={connectionPending
+                    ? (connectionInProgress ? 'connection' : 'no-device')
+                    : 'operation'}
+                noDeviceAction={!mockPreview && showReconnect ? {
+                    label: t.RECONNECT_MODAL_BUTTON,
+                    onClick: handleReconnect,
+                    loading: isReconnecting,
+                } : undefined}
+                noDeviceTitle={t.RECONNECT_MODAL_TITLE}
+                noDeviceSteps={[
+                    t.RECONNECT_MODAL_STEP_WEBCONFIG,
+                    t.RECONNECT_MODAL_STEP_USB,
+                    t.RECONNECT_MODAL_STEP_RECONNECT,
+                ]}
+                noDeviceMessage={deviceError?.transportCode === 'device-busy'
+                    ? deviceError.message
+                    : undefined}
+            />
             <DialogConfirm />
             <DialogForm />
             <DialogCannotClose />

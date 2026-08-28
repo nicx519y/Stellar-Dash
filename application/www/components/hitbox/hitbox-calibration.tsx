@@ -1,13 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useColorMode } from "../ui/color-mode";
 import { GamePadColor } from "@/types/gamepad-color";
-import { CalibrationStatus } from "@/types/types";
-import { eventBus, EVENTS } from "@/lib/event-manager";
 import { HITBOX_WIDTH, HITBOX_HEIGHT, HITBOX_PADDING, HITBOX_LAYOUT_SCALE } from "./hitbox-constants";
 
 
@@ -71,8 +69,14 @@ interface HitboxCalibrationProps {
  * 支持校准状态的颜色显示
  */
 export default function HitboxCalibration(props: HitboxCalibrationProps) {
+    const { calibrationAllCompletedCallback } = props;
     const { colorMode } = useColorMode();
-    const { contextJsReady, setContextJsReady, hitboxLayout } = useGamepadConfig();
+    const {
+        contextJsReady,
+        setContextJsReady,
+        hitboxLayout,
+        calibrationStatus,
+    } = useGamepadConfig();
     
     const layout = useMemo(() => {
         const rawLayout = hitboxLayout ?? [];
@@ -97,50 +101,17 @@ export default function HitboxCalibration(props: HitboxCalibrationProps) {
 
     const scale = calculateScale();
 
-    const [calibrationStatus, setCalibrationStatus] = useState<CalibrationStatus>({
-        isActive: false,
-        uncalibratedCount: 0,
-        activeCalibrationCount: 0,
-        allCalibrated: false,
-        buttons: []
-    });
-
-    // 手动校准状态监听 - 只订阅一次，通过 ref 获取最新状态
+    const completionNotifiedRef = useRef(false);
     useEffect(() => {
-        // 添加校准状态更新事件监听
-        const handleCalibrationUpdate = (data: unknown) => {
-            // 处理校准状态更新
-            if (data && typeof data === 'object' && 'calibrationStatus' in data) {
-                const eventData = data as { calibrationStatus?: CalibrationStatus };
-                if (eventData.calibrationStatus) {
-                    // 确保数据格式正确，添加默认值
-                    const statusData = eventData.calibrationStatus;
-                    const newCalibrationStatus: CalibrationStatus = {
-                        isActive: statusData?.isActive || false,
-                        uncalibratedCount: statusData?.uncalibratedCount || 0,
-                        activeCalibrationCount: statusData?.activeCalibrationCount || 0,
-                        allCalibrated: statusData?.allCalibrated || false,
-                        buttons: statusData?.buttons || []
-                    };
-                    // 直接更新校准状态
-                    setCalibrationStatus(newCalibrationStatus);
-
-                    if(newCalibrationStatus.allCalibrated) {
-                        props.calibrationAllCompletedCallback?.();
-                    }
-                }
+        if (calibrationStatus.allCalibrated) {
+            if (!completionNotifiedRef.current) {
+                completionNotifiedRef.current = true;
+                calibrationAllCompletedCallback?.();
             }
-        };
-
-        // 订阅校准更新事件（只订阅一次）。校准的开始/停止由父组件的
-        // 明确用户动作负责，不能由 React mount/unmount 暗中发送设备命令。
-        const unsubscribe = eventBus.on(EVENTS.CALIBRATION_UPDATE, handleCalibrationUpdate);
-
-        // 清理函数
-        return () => {
-            unsubscribe();
-        };
-    }, []); // 依赖数组为空，只执行一次
+        } else {
+            completionNotifiedRef.current = false;
+        }
+    }, [calibrationStatus.allCalibrated, calibrationAllCompletedCallback]);
 
     // 获取按钮填充颜色
     const getButtonFillColor = (index: number): string => {

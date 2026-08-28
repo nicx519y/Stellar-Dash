@@ -15,8 +15,14 @@ export const NUM_BIND_KEY_PER_BUTTON_COMPETITION_MAX = 1;
 // max length of profile name
 export const PROFILE_NAME_MAX_LENGTH = 20;
 
-// max length of switch marking name
-export const SWITCH_MARKING_NAME_MAX_LENGTH = 16;
+// Switch mapping storage uses char[16] on STM32, including the trailing NUL.
+// The name limit is therefore measured in UTF-8 bytes, not JavaScript code units.
+export const SWITCH_MARKING_NAME_MAX_LENGTH = 15;
+export const SWITCH_MARKING_COUNT_MAX = 8;
+export const SWITCH_MARKING_LENGTH_MIN = 2;
+export const SWITCH_MARKING_LENGTH_MAX = 40;
+export const SWITCH_MARKING_STEP_MIN = 0.1;
+export const SWITCH_MARKING_STEP_MAX = 10;
 
 // firmware package chunk size
 export const DEFAULT_FIRMWARE_PACKAGE_CHUNK_SIZE = 4096 * 2;
@@ -721,7 +727,7 @@ export const UI_TEXT = {
     VALIDATION_PROFILE_NAME_REQUIRED: "Profile name is required",
     VALIDATION_PROFILE_NAME_CANNOT_BE_SAME_AS_CURRENT_PROFILE_NAME: "Profile name cannot be the same as the current profile name",
     VALIDATION_PROFILE_NAME_ALREADY_EXISTS: "Profile name already exists",
-    VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "Profile name cannot contain special characters",
+    VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "Profile name may contain only letters (A-Z, a-z), numbers (0-9), hyphens (-), and underscores (_)",
     
     // Input Mode Settings
     CONNECTION_MODE_TITLE: "Connection",
@@ -862,7 +868,7 @@ export const UI_TEXT = {
     PROFILE_SELECT_RENAME_FIELD_LABEL: "Profile Name",
     PROFILE_SELECT_RENAME_FIELD_PLACEHOLDER: "Enter new profile name",
     PROFILE_SELECT_DELETE_CONFIRM_MESSAGE: "Deleting this profile can not be undone or reverted. Are you sure you want to delete this profile?",
-    PROFILE_SELECT_VALIDATION_SPECIAL_CHARS: "Profile name cannot contain special characters",
+    PROFILE_SELECT_VALIDATION_SPECIAL_CHARS: "Profile name may contain only letters (A-Z, a-z), numbers (0-9), hyphens (-), and underscores (_)",
     PROFILE_SELECT_VALIDATION_LENGTH: `Profile name length must be between 1 and ${PROFILE_NAME_MAX_LENGTH} characters, current length is {0}`,
     PROFILE_SELECT_VALIDATION_SAME_NAME: "Profile name cannot be the same as the current profile name",
     PROFILE_SELECT_VALIDATION_EXISTS: "Profile name already exists",
@@ -893,10 +899,10 @@ export const UI_TEXT = {
     SETTINGS_SWITCH_MARKING_STEP_LABEL: "Step (mm)",
     SETTINGS_SWITCH_MARKING_STEP_PLACEHOLDER: "Enter step",
     SETTINGS_SWITCH_MARKING_VALIDATION_SPECIAL_CHARS: "Switch marking name cannot contain special characters",
-    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH: `Switch marking name length must be between 1 and ${SWITCH_MARKING_NAME_MAX_LENGTH} characters, current length is {0}`,
+    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH: `Switch marking name must use 1 to ${SWITCH_MARKING_NAME_MAX_LENGTH} UTF-8 bytes, current length is {0} bytes`,
     SETTINGS_SWITCH_MARKING_VALIDATION_SAME_NAME: "Switch marking name cannot be the same as the current switch marking name",
-    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH_RANGE: "Switch marking length must be between 1 and 50",
-    SETTINGS_SWITCH_MARKING_VALIDATION_STEP_RANGE: "Switch marking step must be between 0.1 and 10",
+    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH_RANGE: `Switch marking length must be an integer between ${SWITCH_MARKING_LENGTH_MIN} and ${SWITCH_MARKING_LENGTH_MAX}`,
+    SETTINGS_SWITCH_MARKING_VALIDATION_STEP_RANGE: `Switch marking step must be between ${SWITCH_MARKING_STEP_MIN} and ${SWITCH_MARKING_STEP_MAX}`,
     SETTINGS_SWITCH_MARKING_DELETE_DIALOG_TITLE: "Delete Switch Marking",
     SETTINGS_SWITCH_MARKING_DELETE_CONFIRM_MESSAGE: "Deleting this switch marking can not be undone or reverted. Are you sure you want to delete this switch marking?",
     SETTINGS_SWITCH_MARKING_COMPLETED_DIALOG_MESSAGE: "Congratulations! Switch marking is completed. You can now close this window and start enjoying the gaming experience.",
@@ -976,7 +982,10 @@ export const UI_TEXT = {
     // Reconnect Modal
     RECONNECT_MODAL_MESSAGE: "The connection to the device has been lost, possible reasons: \n1. The USB connection has been lost. \n2. The device is not in webconfig mode. \n3. Other web pages are connected to the device at the same time. \nPlease check and click the button to reconnect.",
     RECONNECT_MODAL_BUTTON: "Reconnect Device",
-    RECONNECT_MODAL_TITLE: "Device Disconnected",
+    RECONNECT_MODAL_TITLE: "Device Not Connected",
+    RECONNECT_MODAL_STEP_WEBCONFIG: "Switch the device to WebConfig mode.",
+    RECONNECT_MODAL_STEP_USB: "Connect the device to this computer using USB.",
+    RECONNECT_MODAL_STEP_RECONNECT: "Click Reconnect Device to establish the connection.",
     RECONNECT_FAILED_TITLE: "Failed to Reconnect",
     RECONNECT_FAILED_MESSAGE: "Failed to reconnect to the device. Please check the USB connection and make sure the device is in webconfig mode, then try again.",
 
@@ -1125,7 +1134,7 @@ export const UI_TEXT_ZH = {
     VALIDATION_PROFILE_NAME_REQUIRED: "配置名称不能为空",
     VALIDATION_PROFILE_NAME_CANNOT_BE_SAME_AS_CURRENT_PROFILE_NAME: "新配置名称不能与当前配置名称相同",
     VALIDATION_PROFILE_NAME_ALREADY_EXISTS: "配置名称已存在",
-    VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "配置名称不能包含特殊字符",
+    VALIDATION_PROFILE_NAME_SPECIAL_CHARACTERS: "配置名称仅支持英文字母（A-Z、a-z）、数字（0-9）、连字符（-）和下划线（_）",
     
     // 输入模式
     CONNECTION_MODE_TITLE: "连接",
@@ -1265,7 +1274,7 @@ export const UI_TEXT_ZH = {
     PROFILE_SELECT_RENAME_FIELD_LABEL: "配置名称",
     PROFILE_SELECT_RENAME_FIELD_PLACEHOLDER: "请输入新的配置名称",
     PROFILE_SELECT_DELETE_CONFIRM_MESSAGE: "删除此配置后将无法恢复。是否确认删除？",
-    PROFILE_SELECT_VALIDATION_SPECIAL_CHARS: "配置名称不能包含特殊字符",
+    PROFILE_SELECT_VALIDATION_SPECIAL_CHARS: "配置名称仅支持英文字母（A-Z、a-z）、数字（0-9）、连字符（-）和下划线（_）",
     PROFILE_SELECT_VALIDATION_LENGTH: `配置名称长度必须在1到${PROFILE_NAME_MAX_LENGTH}个字符之间，当前长度为{0}`,
     PROFILE_SELECT_VALIDATION_SAME_NAME: "配置名称不能与当前配置名称相同",
     PROFILE_SELECT_VALIDATION_EXISTS: "配置名称已存在",
@@ -1296,10 +1305,10 @@ export const UI_TEXT_ZH = {
     SETTINGS_SWITCH_MARKING_STEP_LABEL: "步进值 (mm)",
     SETTINGS_SWITCH_MARKING_STEP_PLACEHOLDER: "请输入步进值",
     SETTINGS_SWITCH_MARKING_VALIDATION_SPECIAL_CHARS: "磁轴标记名称不能包含特殊字符",
-    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH: `磁轴标记名称长度必须在1到${SWITCH_MARKING_NAME_MAX_LENGTH}个字符之间，当前长度为{0}`,
+    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH: `磁轴标记名称必须占用1到${SWITCH_MARKING_NAME_MAX_LENGTH}个 UTF-8 字节，当前占用{0}字节`,
     SETTINGS_SWITCH_MARKING_VALIDATION_SAME_NAME: "磁轴标记名称不能与当前磁轴标记名称相同",
-    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH_RANGE: "磁轴标记长度必须在1到50之间",
-    SETTINGS_SWITCH_MARKING_VALIDATION_STEP_RANGE: "磁轴标记步进值必须在0.1到10之间",
+    SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH_RANGE: `磁轴标记长度必须是${SWITCH_MARKING_LENGTH_MIN}到${SWITCH_MARKING_LENGTH_MAX}之间的整数`,
+    SETTINGS_SWITCH_MARKING_VALIDATION_STEP_RANGE: `磁轴标记步进值必须在${SWITCH_MARKING_STEP_MIN}到${SWITCH_MARKING_STEP_MAX}之间`,
     SETTINGS_SWITCH_MARKING_DELETE_DIALOG_TITLE: "删除磁轴标记",
     SETTINGS_SWITCH_MARKING_DELETE_CONFIRM_MESSAGE: "删除此磁轴标记后将无法恢复。是否确认删除？",
     SETTINGS_SWITCH_MARKING_COMPLETED_DIALOG_TITLE: "磁轴标记完成",
@@ -1381,7 +1390,10 @@ export const UI_TEXT_ZH = {
     // Reconnect Modal
     RECONNECT_MODAL_MESSAGE: "与设备的连接已断开，可能的原因：\n1. 设备USB已经断开。\n2. 设备没有打开网页配置模式。\n3. 同时打开了其他网页连接了设备。\n请检查无误后点击按钮重新连接。",
     RECONNECT_MODAL_BUTTON: "重新连接设备",
-    RECONNECT_MODAL_TITLE: "设备断开连接",
+    RECONNECT_MODAL_TITLE: "设备未连接",
+    RECONNECT_MODAL_STEP_WEBCONFIG: "将设备切换到 WebConfig 模式。",
+    RECONNECT_MODAL_STEP_USB: "使用 USB 将设备连接到当前电脑。",
+    RECONNECT_MODAL_STEP_RECONNECT: "点击“重新连接设备”建立连接。",
     RECONNECT_FAILED_TITLE: "重连设备失败",
     RECONNECT_FAILED_MESSAGE: "无法重新连接到设备，请检查USB连接，以及保证设备在网页配置模式并重试。",
 

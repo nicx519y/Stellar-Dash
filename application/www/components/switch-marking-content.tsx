@@ -3,14 +3,21 @@ import { Box, Flex, Center, Stack, IconButton, Button, VStack, Badge, HStack } f
 import { SegmentedControl } from "./ui/segmented-control";
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ChartData, ChartOptions } from 'chart.js';
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from "./ui/menu";
 import { LuTrash, LuPlus, LuMenu, LuStar, LuCheck, LuPencil } from "react-icons/lu";
 import { openForm } from "./dialog-form";
-import { PROFILE_NAME_MAX_LENGTH } from "@/types/gamepad-config";
+import {
+    SWITCH_MARKING_COUNT_MAX,
+    SWITCH_MARKING_LENGTH_MAX,
+    SWITCH_MARKING_LENGTH_MIN,
+    SWITCH_MARKING_NAME_MAX_LENGTH,
+    SWITCH_MARKING_STEP_MAX,
+    SWITCH_MARKING_STEP_MIN,
+} from "@/types/gamepad-config";
 import { openConfirm } from "./dialog-confirm";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
-import useUnsavedChangesWarning from "@/hooks/use-unsaved-changes-warning";
+import { useNavigationBlocker } from "@/hooks/use-navigation-blocker";
 import { useColorMode } from "./ui/color-mode";
 
 // 导入事件总线
@@ -60,8 +67,6 @@ export function SwitchMarkingContent() {
         }
     };
 
-    const [_isDirty, setIsDirty] = useUnsavedChangesWarning(t.SETTINGS_SWITCH_MARKING_UNSAVED_CHANGES_WARNING_TITLE, t.SETTINGS_SWITCH_MARKING_UNSAVED_CHANGES_WARNING_MESSAGE);
-
     const [mappingData, setMappingData] = useState<ChartData<"line">>({
         labels: [],
         datasets: []
@@ -70,18 +75,28 @@ export function SwitchMarkingContent() {
     const { 
         deviceConnected, dataIsReady,
         mappingList, defaultMappingId, markingStatus, activeMapping,
-        fetchMappingList, startMarking, stopMarking, stepMarking, 
+        fetchMappingList, fetchMarkingStatus, startMarking, stopMarking, stepMarking,
         createMapping, deleteMapping, updateDefaultMapping, renameMapping, fetchActiveMapping,
         updateMarkingStatus
     } = useGamepadConfig();
     const [ isInit, setIsInit ] = useState<boolean>(false);
     const [ activeMappingId, setActiveMappingId ] = useState<string>("");
     const [ markingStatusToastMessage, setMarkingStatusToastMessage ] = useState<string>("");
-    const nextActiveMappingIdRef = useRef<string>(activeMappingId);
-    
     // 使用 useRef 保存最新的状态值，避免闭包问题
     const activeMappingIdRef = useRef<string>(activeMappingId);
     const markingStatusRef = useRef<StepInfo | undefined>(markingStatus);
+    const stopMarkingRef = useRef(stopMarking);
+    const deviceConnectedRef = useRef(deviceConnected);
+    const fetchMappingListRef = useRef(fetchMappingList);
+    const fetchMarkingStatusRef = useRef(fetchMarkingStatus);
+    const fetchActiveMappingRef = useRef(fetchActiveMapping);
+    const updateMarkingStatusRef = useRef(updateMarkingStatus);
+    stopMarkingRef.current = stopMarking;
+    deviceConnectedRef.current = deviceConnected;
+    fetchMappingListRef.current = fetchMappingList;
+    fetchMarkingStatusRef.current = fetchMarkingStatus;
+    fetchActiveMappingRef.current = fetchActiveMapping;
+    updateMarkingStatusRef.current = updateMarkingStatus;
     
     // 更新 ref 值
     useEffect(() => {
@@ -90,7 +105,7 @@ export function SwitchMarkingContent() {
     
     useEffect(() => {
         markingStatusRef.current = markingStatus;
-    }, [markingStatus]);
+    }, [markingStatus, t]);
 
     const itemsConfig = useMemo(() => {
         return mappingList.filter(m => m.id !== "" && m.name !== "")
@@ -106,23 +121,51 @@ export function SwitchMarkingContent() {
     }, [mappingList, defaultMappingId]);
 
     useEffect(() => {
-        if(!isInit && deviceConnected && dataIsReady) {
-            fetchMappingList().then(() => {
+        if (!deviceConnected) {
+            setIsInit(false);
+            return;
+        }
+        if (!isInit && deviceConnected && dataIsReady) {
+            void (async () => {
+                await fetchMappingListRef.current();
+                await fetchMarkingStatusRef.current();
                 setIsInit(true);
-            });
+            })().catch(() => undefined);
         }
-        return () => {
-            if(markingStatus?.is_marking) {
-                stopMarking();
-            }
+    }, [deviceConnected, dataIsReady, isInit]);
+
+    const stopMarkingForNavigation = useCallback(async (): Promise<boolean> => {
+        if (!deviceConnectedRef.current || !markingStatusRef.current?.is_marking) {
+            return true;
         }
-    }, [deviceConnected, dataIsReady]);
+        try {
+            await stopMarkingRef.current();
+            return true;
+        } catch {
+            return !deviceConnectedRef.current;
+        }
+    }, []);
+
+    useNavigationBlocker(
+        markingStatus?.is_marking === true,
+        t.SETTINGS_SWITCH_MARKING_UNSAVED_CHANGES_WARNING_TITLE,
+        t.SETTINGS_SWITCH_MARKING_UNSAVED_CHANGES_WARNING_MESSAGE,
+        stopMarkingForNavigation,
+    );
 
     useEffect(() => {
+        return () => {
+            if (deviceConnectedRef.current && markingStatusRef.current?.is_marking) {
+                void stopMarkingRef.current().catch(() => undefined);
+            }
+        };
+    }, []);
 
-        if(nextActiveMappingIdRef.current && nextActiveMappingIdRef.current !== "" && nextActiveMappingIdRef.current !== activeMappingId) {
-            setActiveMappingId(nextActiveMappingIdRef.current);
-            nextActiveMappingIdRef.current = "";
+    useEffect(() => {
+        if (markingStatus?.is_marking &&
+            mappingList.some(m => m.id === markingStatus.id) &&
+            activeMappingId !== markingStatus.id) {
+            setActiveMappingId(markingStatus.id);
             return;
         }
 
@@ -130,27 +173,20 @@ export function SwitchMarkingContent() {
             return;
         }
 
-        if(defaultMappingId && defaultMappingId !== "") {
+        if(defaultMappingId && mappingList.some(m => m.id === defaultMappingId)) {
             setActiveMappingId(defaultMappingId);
         } else if(mappingList.length > 0) {
             setActiveMappingId(mappingList[0].id);
         } else {
             setActiveMappingId("");
         }
-    }, [mappingList, defaultMappingId]);
+    }, [activeMappingId, mappingList, defaultMappingId, markingStatus?.id, markingStatus?.is_marking]);
 
     useEffect(() => {
-        // 如果标记中，则设置为脏状态，跳转页面时弹出确认框
-        if(markingStatus?.is_marking) {
-            setIsDirty(true);
-        } else {
-            setIsDirty(false);
-        }
-
-        const activeMappingIsMarking = (markingStatus?.id === activeMapping?.id);
+        const activeMappingIsMarking = (markingStatus?.id === activeMappingId);
         // 如果标记中，但标记的不是当前映射，则停止标记
-        if(markingStatus?.is_marking && !activeMappingIsMarking) {
-            stopMarking();
+        if(markingStatus?.is_marking && activeMappingId && !activeMappingIsMarking) {
+            void stopMarkingRef.current().catch(() => undefined);
         }
 
         if(activeMappingIsMarking) {
@@ -195,13 +231,13 @@ export function SwitchMarkingContent() {
             setSamplingFrequency(activeMapping?.samplingFrequency ?? 0);
 
         }
-    }, [activeMapping, markingStatus]);
+    }, [activeMapping, activeMappingId, markingStatus]);
 
     useEffect(() => {
         if(activeMappingId && activeMappingId !== "" && mappingList.find(m => m.id === activeMappingId)) {
-            fetchActiveMapping(activeMappingId);
+            void fetchActiveMappingRef.current(activeMappingId).catch(() => undefined);
         }
-    }, [activeMappingId]);
+    }, [activeMappingId, mappingList]);
 
     // 更新标记状态提示信息
     useEffect(() => {
@@ -219,17 +255,17 @@ export function SwitchMarkingContent() {
         // 如果标记开始，则弹出提示
         } else if(markingStatus.is_marking && !markingStatus.is_completed && !markingStatus.is_sampling) {
             // 如果步进即将完成，则弹出保存提示
-            if(markingStatus.index >= markingStatus.length) {
+            if(markingStatus.index >= markingStatus.length - 1) {
                 setMarkingStatusToastMessage(t.SETTINGS_SWITCH_MARKING_SAVE_DIALOG_MESSAGE);
             // 如果步进未完成，则弹出步进提示
             } else {
-                const step = markingStatus.index + 1;   
-                const distance = (step * (markingStatus.step ?? 0)).toFixed(2);
+                const step = markingStatus.index + 2;
+                const distance = ((markingStatus.index + 1) * (markingStatus.step ?? 0)).toFixed(2);
                 setMarkingStatusToastMessage(t.SETTINGS_SWITCH_MARKING_SAMPLING_START_DIALOG_MESSAGE.replace("<step>", step.toString()).replace("<distance>", distance));
             }
         // 如果采样中，则弹出提示
         } else if(markingStatus.is_sampling) {
-            setMarkingStatusToastMessage(t.SETTINGS_SWITCH_MARKING_SAMPLING_DIALOG_MESSAGE.replace("<step>", (markingStatus.index + 1).toString()).replace("<distance>", (markingStatus.index * (markingStatus.step ?? 0)).toFixed(2)));
+            setMarkingStatusToastMessage(t.SETTINGS_SWITCH_MARKING_SAMPLING_DIALOG_MESSAGE.replace("<step>", (markingStatus.index + 2).toString()).replace("<distance>", ((markingStatus.index + 1) * (markingStatus.step ?? 0)).toFixed(2)));
         } else {
             setMarkingStatusToastMessage("");
         }
@@ -251,7 +287,7 @@ export function SwitchMarkingContent() {
                 // 只有当前正在标记的映射或者状态发生变化时才更新
                 if (newStatus.id === currentActiveMappingId || 
                     newStatus.is_marking !== currentMarkingStatus?.is_marking) {
-                    updateMarkingStatus(newStatus);
+                    updateMarkingStatusRef.current(newStatus);
                 }
             }
         });
@@ -286,12 +322,12 @@ export function SwitchMarkingContent() {
                 label: t.SETTINGS_SWITCH_MARKING_LENGTH_LABEL,
                 placeholder: t.SETTINGS_SWITCH_MARKING_LENGTH_PLACEHOLDER,
                 type: "number",
-                defaultValue: "1",
-                min: 1,
-                max: 50,
+                defaultValue: SWITCH_MARKING_LENGTH_MIN.toString(),
+                min: SWITCH_MARKING_LENGTH_MIN,
+                max: SWITCH_MARKING_LENGTH_MAX,
                 step: 1,
                 validate: (value: string) => {
-                    const num = parseInt(value);
+                    const num = Number(value);
                     const [isValid, errorMessage] = validateSwitchMarkingLength(num);
                     if (!isValid) {
                         return errorMessage;
@@ -304,8 +340,8 @@ export function SwitchMarkingContent() {
                 placeholder: t.SETTINGS_SWITCH_MARKING_STEP_PLACEHOLDER,
                 type: "number",
                 defaultValue: "0.1",
-                min: 0.1,
-                max: 10,
+                min: SWITCH_MARKING_STEP_MIN,
+                max: SWITCH_MARKING_STEP_MAX,
                 step: 0.1,
                 validate: (value: string) => {
                     const num = parseFloat(value);
@@ -319,22 +355,27 @@ export function SwitchMarkingContent() {
         });
 
         if (result) {
-            await createMapping(result.name, parseInt(result.length), parseFloat(result.step));
-            nextActiveMappingIdRef.current = result.id;
+            const createdMappingId = await createMapping(
+                result.name,
+                parseInt(result.length, 10),
+                parseFloat(result.step),
+            );
+            setActiveMappingId(createdMappingId);
         }
     }
 
-    const validateSwitchMarkingName = (name: string): [boolean, string] => {
+    const validateSwitchMarkingName = (name: string, excludedId?: string): [boolean, string] => {
 
         if (/[!@#$%^&*()_+\[\]{}|;:'",.<>?/\\]/.test(name)) {
             return [false, t.SETTINGS_SWITCH_MARKING_VALIDATION_SPECIAL_CHARS];
         }
 
-        if (name.length > PROFILE_NAME_MAX_LENGTH || name.length < 1) {
-            return [false, t.SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH.replace("{0}", name.length.toString())];
+        const nameBytes = new TextEncoder().encode(name).byteLength;
+        if (nameBytes > SWITCH_MARKING_NAME_MAX_LENGTH || nameBytes < 1) {
+            return [false, t.SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH.replace("{0}", nameBytes.toString())];
         }
 
-        if (mappingList.find(p => p.name === name)) {
+        if (mappingList.find(p => p.id !== excludedId && p.name === name)) {
             return [false, t.SETTINGS_SWITCH_MARKING_VALIDATION_SAME_NAME];
         }
 
@@ -342,20 +383,23 @@ export function SwitchMarkingContent() {
     }
 
     const validateSwitchMarkingLength = (length: number): [boolean, string] => {
-        if (length < 1 || length > 50) {
+        if (!Number.isInteger(length) || length < SWITCH_MARKING_LENGTH_MIN || length > SWITCH_MARKING_LENGTH_MAX) {
             return [false, t.SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH_RANGE.replace("{0}", length.toString())];
         }
         return [true, ""];
     }
 
     const validateSwitchMarkingStep = (step: number): [boolean, string] => {
-        if (step < .1 || step > 10) {
+        if (!Number.isFinite(step) || step < SWITCH_MARKING_STEP_MIN || step > SWITCH_MARKING_STEP_MAX) {
             return [false, t.SETTINGS_SWITCH_MARKING_VALIDATION_STEP_RANGE.replace("{0}", step.toString())];
         }
         return [true, ""];
     }
 
     const deleteMappingClick = async () => {
+        if (!activeMappingId || activeMapping?.id !== activeMappingId) {
+            return;
+        }
         const confirmed = await openConfirm({
             title: t.SETTINGS_SWITCH_MARKING_DELETE_DIALOG_TITLE,
             message: t.SETTINGS_SWITCH_MARKING_DELETE_CONFIRM_MESSAGE
@@ -363,18 +407,18 @@ export function SwitchMarkingContent() {
 
 
         if (confirmed) {
-            await deleteMapping(activeMapping?.id ?? '');
+            await deleteMapping(activeMappingId);
         }
     }
 
     const setDefaultMappingClick = async () => {
-        if(activeMapping) {
-            await updateDefaultMapping(activeMapping.id);
+        if(activeMapping?.id === activeMappingId) {
+            await updateDefaultMapping(activeMappingId);
         }
     }
 
     const renameMappingClick = async () => {
-        if(!activeMapping) {
+        if(!activeMapping || activeMapping.id !== activeMappingId) {
             return;
         }
         const result = await openForm({
@@ -385,7 +429,7 @@ export function SwitchMarkingContent() {
                 type: "text",
                 defaultValue: activeMapping?.name ?? "",
                 validate: (value: string) => {
-                    const [isValid, errorMessage] = validateSwitchMarkingName(value);
+                    const [isValid, errorMessage] = validateSwitchMarkingName(value, activeMapping.id);
                     if (!isValid) {
                         return errorMessage;
                     }
@@ -395,13 +439,24 @@ export function SwitchMarkingContent() {
         });
 
         if (result) {
-            await renameMapping(activeMapping?.id ?? '', result.name);
+            await renameMapping(activeMappingId, result.name);
         }
     }
 
     const activeMappingChange = (id: string) => {
+        if (markingStatus?.is_marking) {
+            return;
+        }
         setActiveMappingId(id);
     }
+
+    const activeMappingReady = !!activeMapping && activeMapping.id === activeMappingId;
+    const activeMappingIsMarked = activeMappingReady &&
+        activeMapping.length >= SWITCH_MARKING_LENGTH_MIN &&
+        activeMapping.originalValues.length >= activeMapping.length &&
+        activeMapping.originalValues[0] > 0 &&
+        activeMapping.originalValues[activeMapping.length - 1] > 0 &&
+        activeMapping.originalValues[0] !== activeMapping.originalValues[activeMapping.length - 1];
 
     // 菜单项
     const menuItems = [
@@ -409,28 +464,29 @@ export function SwitchMarkingContent() {
             value: "create",
             label: "Add New",
             icon: <LuPlus />,
-            onClick: createMappingClick
+            onClick: createMappingClick,
+            disabled: markingStatus?.is_marking === true || mappingList.length >= SWITCH_MARKING_COUNT_MAX,
         },
         {
             value: "delete",
             label: "Delete",
             icon: <LuTrash />,
             onClick: deleteMappingClick,
-            disabled: activeMappingId === "" || activeMappingId === null,
+            disabled: markingStatus?.is_marking === true || !activeMappingReady || activeMappingId === defaultMappingId,
         },
         {
             value: "rename",
             label: "Rename",
             icon: <LuPencil />,
             onClick: renameMappingClick,
-            disabled: activeMappingId === "" || activeMappingId === null,
+            disabled: markingStatus?.is_marking === true || !activeMappingReady,
         },
         {
             value: "set_default",
             label: "Set Default",
             icon: <LuStar />,
             onClick: setDefaultMappingClick,
-            disabled: activeMappingId === defaultMappingId || activeMappingId === "" || activeMappingId === null,
+            disabled: markingStatus?.is_marking === true || !activeMappingReady || activeMappingId === defaultMappingId || !activeMappingIsMarked,
         }
     ];
 
@@ -440,7 +496,13 @@ export function SwitchMarkingContent() {
                 <VStack width={"100%"} >
                     <Center width={"100%"} >
                         <Stack direction="row" gap={2} alignItems="center">
-                            <SegmentedControl size="sm" value={activeMappingId} items={itemsConfig} onValueChange={(detail) => activeMappingChange(detail?.value ?? "")} />
+                            <SegmentedControl
+                                size="sm"
+                                value={activeMappingId}
+                                items={itemsConfig}
+                                disabled={markingStatus?.is_marking === true}
+                                onValueChange={(detail) => activeMappingChange(detail?.value ?? "")}
+                            />
                             <MenuRoot size="md">
                                 <MenuTrigger asChild>
                                     <IconButton
@@ -463,11 +525,12 @@ export function SwitchMarkingContent() {
                                 display={ activeMappingId === "" ? "none" : "" }
                                 colorPalette={ markingStatus?.is_marking ? "red" : "green" } 
                                 size="xs" variant={ !markingStatus?.is_marking ? "solid" : "outline" } 
+                                disabled={!markingStatus?.is_marking && !activeMappingReady}
                                 onClick={() => {
                                 if(markingStatus?.is_marking) {
-                                    stopMarking();
+                                    void stopMarking().catch(() => undefined);
                                 } else {
-                                    startMarking(activeMappingId);
+                                    void startMarking(activeMappingId).catch(() => undefined);
                                 }   
                             }}>
                                 { markingStatus?.is_marking ? "Stop Marking" : "Start Marking" }
@@ -478,7 +541,7 @@ export function SwitchMarkingContent() {
                                 variant={ markingStatus?.is_marking ? "solid" : "outline" } 
                                 disabled={!markingStatus?.is_marking || markingStatus?.is_sampling} 
                                 onClick={() => {
-                                stepMarking();
+                                void stepMarking().catch(() => undefined);
                             }}>
                                 { "Step" }
                             </Button>

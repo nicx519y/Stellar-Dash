@@ -211,4 +211,4 @@ export function updateDialogMessage(dialogId: string, message: string): void {
             dialogs: newDialogs
         });
     }
-} 
+}
