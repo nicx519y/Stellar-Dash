@@ -6,8 +6,8 @@ import { Flex, Center, Box, Tabs, HStack, Separator, Text } from '@chakra-ui/rea
 import { useLanguage } from "@/contexts/language-context";
 import {
     LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuGamepad, LuFileText,
-    LuCircleCheckBig,
-    //  LuWifi, LuMonitor, LuChartSpline 
+    LuCircleCheckBig, LuChartSpline,
+    //  LuWifi, LuMonitor
 } from 'react-icons/lu';
 import { navigationEvents } from '@/lib/event-manager';
 import { LanguageSwitcher } from '@/components/language-switcher'
@@ -15,6 +15,7 @@ import { FinishConfigButton } from './finish-config-button';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { BuildVariantBadge } from '@hbox/build-variant-badge';
 import { UserAuthControl } from '@/components/user-auth-control';
+import { useUserAuth } from '@/contexts/user-auth-context';
 // import { ColorModeSwitcher } from "@/components/color-mode-switcher";
 
 export function SettingsLayout({ children }: { children: React.ReactNode }) {
@@ -22,13 +23,17 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
     const { currentRoute, setRoute } = useRouterStore();
 
     const { finishConfigDisabled, deviceSession } = useGamepadConfig();
+    const { session } = useUserAuth();
+    const isAdmin = session.authenticated && session.user?.role === 'admin';
 
     const tabs = [
         { id: 'global' as Route, label: t.SETTINGS_TAB_GLOBAL, icon: LuGamepad },
         { id: 'keys' as Route, label: t.SETTINGS_TAB_KEYS, icon: LuKeyboard },
         { id: 'buttons-performance' as Route, label: t.SETTINGS_TAB_BUTTONS_PERFORMANCE, icon: LuRocket },
         { id: 'lighting' as Route, label: t.SETTINGS_TAB_LEDS, icon: LuLightbulb },
-        // { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
+        ...(isAdmin ? [
+            { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
+        ] : []),
         { id: 'firmware' as Route, label: t.SETTINGS_TAB_FIRMWARE, icon: LuCpu },
         { id: 'view-logs' as Route, label: t.SETTINGS_TAB_VIEW_LOGS, icon: LuFileText },
         // { id: 'button-monitor' as Route, label: '按键监控测试', icon: LuMonitor },

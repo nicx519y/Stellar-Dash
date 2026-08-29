@@ -12,6 +12,10 @@ const rootLayout = fs.readFileSync(
     path.join(webRoot, 'app', 'layout.tsx'),
     'utf8'
 );
+const settingsLayout = fs.readFileSync(
+    path.join(webRoot, 'components', 'settings-layout.tsx'),
+    'utf8'
+);
 
 test('administration page uses Chakra components without custom styling systems', () => {
     assert.match(adminPage, /from '@chakra-ui\/react'/);
@@ -28,5 +32,17 @@ test('administration route is mounted outside the HID provider', () => {
     assert.match(
         rootLayout,
         /if \(isEmailVerification \|\| isAdministration\)\s*\{[\s\S]*?<UserAuthProvider>/
+    );
+});
+
+test('switch marking navigation is visible only to authenticated administrators', () => {
+    assert.match(settingsLayout, /const \{ session \} = useUserAuth\(\)/);
+    assert.match(
+        settingsLayout,
+        /const isAdmin = session\.authenticated && session\.user\?\.role === 'admin'/
+    );
+    assert.match(
+        settingsLayout,
+        /\.\.\.\(isAdmin \? \[\s*\{ id: 'switch-marking' as Route, label: t\.SETTINGS_TAB_SWITCH_MARKING/
     );
 });
