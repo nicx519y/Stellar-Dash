@@ -578,10 +578,6 @@ class ReleaseConfig:
                 "timeout": 300,
                 "retry_count": 3
             },
-            "admin": {
-                "default_username": "admin",
-                "prompt_for_password": True
-            },
             "build": {
                 "default_version": "1.0.0",
                 "auto_timestamp": True
@@ -602,7 +598,9 @@ class ReleaseConfig:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     config = json.load(f)
                 print(f"✓ 已加载配置文件: {self.config_file}")
-                return self.merge_config(self.default_config, config)
+                merged = self.merge_config(self.default_config, config)
+                merged.pop("admin", None)
+                return merged
             else:
                 # 创建默认配置文件
                 self.save_config(self.default_config)
@@ -648,12 +646,6 @@ class ReleaseConfig:
             return custom_url
         return self.config["server"]["default_url"]
     
-    def get_admin_username(self, custom_username: str = None) -> str:
-        """获取管理员用户名"""
-        if custom_username:
-            return custom_username
-        return self.config["admin"]["default_username"]
-    
     def get_timeout(self) -> int:
         """获取请求超时时间"""
         return self.config["server"]["timeout"]
@@ -674,10 +666,6 @@ class ReleaseConfig:
         """是否在刷写后验证"""
         return self.config["flash"]["verify_after_flash"]
     
-    def should_prompt_for_password(self) -> bool:
-        """是否提示输入密码"""
-        return self.config["admin"]["prompt_for_password"]
-    
     def update_config(self, section: str, key: str, value: Any):
         """更新配置项"""
         if section not in self.config:
@@ -696,10 +684,7 @@ class ReleaseConfig:
         for section, items in self.config.items():
             print(f"\n[{section.upper()}]")
             for key, value in items.items():
-                if key == "default_username" and self.should_prompt_for_password():
-                    print(f"  {key}: {value} (需要输入密码)")
-                else:
-                    print(f"  {key}: {value}")
+                print(f"  {key}: {value}")
         
         print(f"\n配置文件: {self.config_file}")
         print("=" * 60)
@@ -724,15 +709,14 @@ class ReleaseConfig:
             print("1. 服务器默认地址")
             print("2. 请求超时时间")
             print("3. 重试次数")
-            print("4. 默认管理员用户名")
-            print("5. 默认槽位")
-            print("6. 默认版本号")
-            print("7. 刷写后验证")
-            print("8. 重置为默认配置")
+            print("4. 默认槽位")
+            print("5. 默认版本号")
+            print("6. 刷写后验证")
+            print("7. 重置为默认配置")
             print("0. 退出")
             
             try:
-                choice = input("\n请选择要编辑的配置项 (0-8): ").strip()
+                choice = input("\n请选择要编辑的配置项 (0-7): ").strip()
                 
                 if choice == "0":
                     break
@@ -751,28 +735,23 @@ class ReleaseConfig:
                     if new_retry and new_retry.isdigit():
                         self.update_config("server", "retry_count", int(new_retry))
                 elif choice == "4":
-                    current_username = self.get_admin_username()
-                    new_username = input(f"当前管理员用户名: {current_username}\n新的管理员用户名: ").strip()
-                    if new_username:
-                        self.update_config("admin", "default_username", new_username)
-                elif choice == "5":
                     current_slot = self.get_default_slot()
                     new_slot = input(f"当前默认槽位: {current_slot}\n新的默认槽位 (A/B): ").strip().upper()
                     if new_slot in ["A", "B"]:
                         self.update_config("flash", "default_slot", new_slot)
-                elif choice == "6":
+                elif choice == "5":
                     current_version = self.get_default_version()
                     new_version = input(f"当前默认版本: {current_version}\n新的默认版本: ").strip()
                     if new_version:
                         self.update_config("build", "default_version", new_version)
-                elif choice == "7":
+                elif choice == "6":
                     current_verify = self.should_verify_after_flash()
                     new_verify = input(f"当前刷写后验证: {current_verify}\n是否启用刷写后验证 (y/n): ").strip().lower()
                     if new_verify in ["y", "yes", "是"]:
                         self.update_config("flash", "verify_after_flash", True)
                     elif new_verify in ["n", "no", "否"]:
                         self.update_config("flash", "verify_after_flash", False)
-                elif choice == "8":
+                elif choice == "7":
                     confirm = input("确认重置为默认配置？(y/N): ").strip().lower()
                     if confirm in ["y", "yes", "是"]:
                         self.reset_config()
@@ -1718,62 +1697,31 @@ class ReleaseManager:
         self.releases_dir.mkdir(exist_ok=True)
         print(f"发版目录: {self.releases_dir}")
     
-    def get_admin_credentials(self, admin_username: str = None, admin_password: str = None) -> tuple:
-        """
-        获取管理员认证凭据
-        优先级：命令行参数 > 环境变量 > 配置默认值 > 交互式输入
-        
-        Args:
-            admin_username: 命令行传入的用户名（可选）
-            admin_password: 命令行传入的密码（可选）
-        
-        Returns:
-            tuple: (username, password) 如果获取失败返回 (None, None)
-        """
-        # 处理管理员用户名
-        if not admin_username:
-            admin_username = os.getenv('ADMIN_USERNAME')
-        
-        if not admin_username:
-            admin_username = self.config.get_admin_username()
-        
-        if not admin_username:
-            admin_username = input("请输入管理员用户名 (默认: admin): ").strip()
-            if not admin_username:
-                admin_username = 'admin'
-        
-        # 处理管理员密码
-        if not admin_password:
-            admin_password = os.getenv('ADMIN_PASSWORD')
-        
-        if not admin_password and self.config.should_prompt_for_password():
-            import getpass
-            admin_password = getpass.getpass("请输入管理员密码: ")
-        
-        if not admin_password:
-            print("错误: 管理员密码不能为空")
-            return None, None
-        
-        return admin_username, admin_password
-    
-    def generate_basic_auth_headers(self, admin_username: str, admin_password: str) -> dict:
-        """
-        生成Basic认证请求头
-        
-        Args:
-            admin_username: 管理员用户名
-            admin_password: 管理员密码
-        
-        Returns:
-            dict: 包含Authorization头的字典
-        """
-        import base64
-        credentials = f"{admin_username}:{admin_password}"
-        auth_token = base64.b64encode(credentials.encode()).decode()
-        
-        return {
-            'Authorization': f'Basic {auth_token}'
-        }
+    def get_service_token(self, token_file: str = None) -> str | None:
+        """Read an administrator service token from a dedicated file."""
+        configured = token_file or os.getenv('HBOX_ADMIN_SERVICE_TOKEN_FILE')
+        if not configured:
+            print(
+                "错误: 需要 --service-token-file 或 "
+                "HBOX_ADMIN_SERVICE_TOKEN_FILE"
+            )
+            return None
+        token_path = Path(configured).expanduser().resolve()
+        try:
+            token = token_path.read_text(encoding='utf-8').strip()
+        except OSError as exc:
+            print(f"错误: 无法读取服务令牌文件 {token_path}: {exc}")
+            return None
+        if not re.fullmatch(r'stsvc_[A-Za-z0-9_-]{43}', token):
+            print("错误: 服务令牌文件格式无效")
+            return None
+        return token
+
+    def generate_service_token_headers(self, token_file: str = None) -> dict | None:
+        token = self.get_service_token(token_file)
+        if not token:
+            return None
+        return {'Authorization': f'Bearer {token}'}
     
     def calculate_checksum(self, data: bytes) -> str:
         """计算SHA256校验和"""
@@ -2445,7 +2393,7 @@ class ReleaseManager:
     def upload_firmware_to_server(self, slot_a_path: str = None, slot_b_path: str = None, 
                                  server_url: str = None, 
                                  desc: str = None, 
-                                 admin_username: str = None, admin_password: str = None) -> bool:
+                                 service_token_file: str = None) -> bool:
         """上传固件包到服务器"""
         
         if not slot_a_path and not slot_b_path:
@@ -2455,9 +2403,8 @@ class ReleaseManager:
         # 获取服务器URL（优先使用参数，其次使用配置）
         server_url = self.config.get_server_url(server_url)
 
-        # 获取管理员认证凭据
-        admin_username, admin_password = self.get_admin_credentials(admin_username, admin_password)
-        if not admin_username or not admin_password:
+        auth_headers = self.generate_service_token_headers(service_token_file)
+        if not auth_headers:
             return False
 
         try:
@@ -2538,7 +2485,7 @@ class ReleaseManager:
         print(f"信任bundle: {trust_header}")
         print(f"信任bundle SHA-256: {self.trust_bundle_sha256}")
         print(f"描述: {desc}")
-        print(f"👤 管理员用户名: {admin_username}")
+        print("🔐 认证方式: scoped service token")
 
         files_to_upload = {}
         for field_name, package_file in package_paths.items():
@@ -2553,9 +2500,6 @@ class ReleaseManager:
         print()
         
         try:
-            # 生成认证请求头
-            headers = self.generate_basic_auth_headers(admin_username, admin_password)
-            
             # 准备上传数据
             form_data = {
                 'version': version,
@@ -2573,7 +2517,7 @@ class ReleaseManager:
                 upload_url,
                 data=form_data,
                 files=files_to_upload,
-                headers=headers,
+                headers=auth_headers,
                 timeout=self.config.get_timeout(),  # 使用配置的超时时间
                 proxies={'http': None, 'https': None} if 'localhost' in server_url or '127.0.0.1' in server_url else None
             )
@@ -2628,7 +2572,7 @@ class ReleaseManager:
                     pass
     
     def upload_latest_packages(self, version: str = None, server_url: str = None, 
-                             desc: str = None, admin_username: str = None, admin_password: str = None) -> bool:
+                             desc: str = None, service_token_file: str = None) -> bool:
         """上传最新的双槽包到服务器"""
         
         # 获取服务器URL（优先使用参数，其次使用配置）
@@ -2702,14 +2646,13 @@ class ReleaseManager:
             slot_b_path=slot_b_path,
             server_url=server_url,
             desc=desc,
-            admin_username=admin_username,
-            admin_password=admin_password
+            service_token_file=service_token_file
         )
 
     # ==================== 固件删除功能 ====================
     
     def delete_firmware_from_server(self, firmware_id: str, server_url: str = None,
-                                    admin_username: str = None, admin_password: str = None) -> bool:
+                                    service_token_file: str = None) -> bool:
         """从服务器删除指定ID的固件"""
         
         # 获取服务器URL（优先使用参数，其次使用配置）
@@ -2774,11 +2717,11 @@ class ReleaseManager:
             delete_url = f"{server_url}/api/firmwares/{firmware_id}"
             print(f"正在删除: {delete_url}")
             
-            # 获取管理员认证凭据并生成请求头
-            admin_username, admin_password = self.get_admin_credentials(admin_username, admin_password)
-            if not admin_username or not admin_password:
+            auth_headers = self.generate_service_token_headers(
+                service_token_file
+            )
+            if not auth_headers:
                 return False
-            auth_headers = self.generate_basic_auth_headers(admin_username, admin_password)
             
             response = requests.delete(
                 delete_url,
@@ -2833,7 +2776,7 @@ class ReleaseManager:
             return False
 
     def clear_firmware_versions_from_server(self, target_version: str, server_url: str = None, 
-                                           admin_username: str = None, admin_password: str = None) -> bool:
+                                           service_token_file: str = None) -> bool:
         """仅清空V2硬件上指定版本及之前的固件。"""
         
         # 获取服务器URL（优先使用参数，其次使用配置）
@@ -2846,19 +2789,13 @@ class ReleaseManager:
         print(f"硬件版本: {LATEST_HARDWARE_VERSION}")
         print(f"目标版本: {target_version} (包含此版本及之前的所有版本)")
         
-        # 获取管理员认证凭据
-        admin_username, admin_password = self.get_admin_credentials(admin_username, admin_password)
-        if not admin_username or not admin_password:
+        auth_headers = self.generate_service_token_headers(service_token_file)
+        if not auth_headers:
             return False
-            
-        print(f"👤 管理员用户名: {admin_username}")
-        print("🔐 管理员密码: [已隐藏]")
+        print("🔐 认证方式: scoped service token")
         print()
         
         try:
-            # 生成认证请求头
-            auth_headers = self.generate_basic_auth_headers(admin_username, admin_password)
-            
             # 先获取当前所有固件列表，以便用户确认
             list_url = f"{server_url}/api/firmwares"
             print(f"正在获取固件列表: {list_url}")
@@ -2978,7 +2915,7 @@ class ReleaseManager:
                     error_info = response.json()
                     print(f"错误信息: {error_info.get('message', 'Authentication failed')}")
                 except:
-                    print("请检查管理员用户名和密码")
+                    print("请检查服务令牌文件及令牌有效期")
                 return False
             else:
                 print(f"✗ 清空失败: HTTP {response.status_code}")
@@ -3369,15 +3306,14 @@ class ReleaseManager:
             print(f"刷写系统图片资源时发生错误: {e}")
             return False
 
-    def register_device_id(self, server_url: str = None, 
-                           admin_username: str = None, admin_password: str = None) -> bool:
+    def register_device_id(self, server_url: str = None,
+                           service_token_file: str = None) -> bool:
         """
         注册设备ID到服务器（使用管理员认证）
         
         Args:
             server_url: 服务器URL
-            admin_username: 管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）
-            admin_password: 管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）
+            service_token_file: 服务令牌文件路径
         
         Returns:
             bool: 注册是否成功
@@ -3389,13 +3325,12 @@ class ReleaseManager:
             # 获取服务器URL（优先使用参数，其次使用配置）
             server_url = self.config.get_server_url(server_url)
             
-            # 获取管理员认证凭据
-            admin_username, admin_password = self.get_admin_credentials(admin_username, admin_password)
-            if not admin_username or not admin_password:
+            auth_headers = self.generate_service_token_headers(
+                service_token_file
+            )
+            if not auth_headers:
                 return False
-            
-            print(f"👤 管理员用户名: {admin_username}")
-            print("🔐 管理员密码: [已隐藏]")
+            print("🔐 认证方式: scoped service token")
             
             # 直接读取设备唯一ID
             if not self.openocd_config.exists():
@@ -3474,7 +3409,7 @@ class ReleaseManager:
             # 生成认证请求头
             headers = {
                 'Content-Type': 'application/json',
-                **self.generate_basic_auth_headers(admin_username, admin_password)
+                **auth_headers
             }
             
             # 发送注册请求
@@ -3508,7 +3443,7 @@ class ReleaseManager:
                     error_info = response.json()
                     print(f"   错误信息: {error_info.get('message', 'Authentication failed')}")
                 except:
-                    print("   请检查管理员用户名和密码")
+                    print("   请检查服务令牌文件及令牌有效期")
                 return False
             else:
                 print(f"❌ 服务器响应错误: HTTP {response.status_code}")
@@ -3660,18 +3595,16 @@ def main():
   注册到指定服务器:
     python release.py register --server http://192.168.1.100:3000
   
-  指定管理员凭据:
-    python release.py register --admin-username admin --admin-password mypassword
+  指定服务令牌文件:
+    python release.py register --service-token-file /run/secrets/hbox-service-token
   
   使用环境变量:
-    export ADMIN_USERNAME=admin
-    export ADMIN_PASSWORD=mypassword
+    export HBOX_ADMIN_SERVICE_TOKEN_FILE=/run/secrets/hbox-service-token
     python release.py register
   
   说明:
-    - 需要提供管理员用户名和密码进行认证
-    - 优先使用命令行参数，其次环境变量，最后交互式输入
-    - 默认管理员用户名为'admin'，密码需要配置
+    - 需要具有 device.manage 范围的服务令牌
+    - 服务令牌只从专用文件读取
 
 配置管理:
   显示当前配置:
@@ -3686,13 +3619,12 @@ def main():
   
   快速设置配置项:
     python release.py config --set-server http://192.168.1.100:3000
-    python release.py config --set-username admin
     python release.py config --set-timeout 300
     python release.py config --set-retry 3
   
   说明:
     - 配置文件保存在 tools/release_config.json
-    - 支持服务器地址、管理员用户名、超时时间等配置
+    - 支持服务器地址、超时时间等配置
     - 所有网络相关命令都会使用配置的默认值
     - 命令行参数优先级高于配置文件
 
@@ -3756,18 +3688,15 @@ Intel HEX文件处理（测试功能）:
   上传指定的固件包:
     python release.py upload --slot-a hbox_firmware_1.0.0_a_20250613_112625.zip --slot-b hbox_firmware_1.0.0_b_20250613_112625.zip
 
-  使用命令行参数指定管理员认证:
-    python release.py upload --admin-username admin --admin-password mypassword
+  指定服务令牌文件:
+    python release.py upload --service-token-file /run/secrets/hbox-service-token
   
-  使用环境变量指定管理员认证:
-    export ADMIN_USERNAME=admin
-    export ADMIN_PASSWORD=mypassword
+  使用环境变量指定服务令牌文件:
+    export HBOX_ADMIN_SERVICE_TOKEN_FILE=/run/secrets/hbox-service-token
     python release.py upload
   
   说明:
-    - 上传固件需要管理员认证
-    - 优先使用命令行参数，其次环境变量，最后交互式输入
-    - 默认管理员用户名为'admin'，密码需要配置
+    - 上传固件需要具有 firmware.manage 范围的服务令牌
 
 删除服务器固件:
   删除指定ID的固件:
@@ -3783,12 +3712,11 @@ Intel HEX文件处理（测试功能）:
   清空指定服务器上的固件:
     python release.py clear 1.0.5 --server http://192.168.1.100:3000
   
-  使用命令行参数指定管理员认证:
-    python release.py clear 1.0.5 --admin-username admin --admin-password mypassword
+  指定服务令牌文件:
+    python release.py clear 1.0.5 --service-token-file /run/secrets/hbox-service-token
   
-  使用环境变量指定管理员认证:
-    export ADMIN_USERNAME=admin
-    export ADMIN_PASSWORD=mypassword
+  使用环境变量指定服务令牌文件:
+    export HBOX_ADMIN_SERVICE_TOKEN_FILE=/run/secrets/hbox-service-token
     python release.py clear 1.0.5
   
   说明: 
@@ -3842,8 +3770,7 @@ Intel HEX增强模式说明:
     # 注册设备ID命令
     register_parser = subparsers.add_parser('register', help='注册设备ID到服务器')
     register_parser.add_argument("--server", help="指定服务器地址（可选，使用配置的默认地址）")
-    register_parser.add_argument("--admin-username", help="管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）")
-    register_parser.add_argument("--admin-password", help="管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）")
+    register_parser.add_argument("--service-token-file", help="服务令牌文件（或 HBOX_ADMIN_SERVICE_TOKEN_FILE）")
     
     # 配置管理命令
     config_parser = subparsers.add_parser('config', help='配置管理')
@@ -3851,7 +3778,6 @@ Intel HEX增强模式说明:
     config_parser.add_argument("--edit", action="store_true", help="交互式编辑配置")
     config_parser.add_argument("--reset", action="store_true", help="重置为默认配置")
     config_parser.add_argument("--set-server", help="设置默认服务器地址")
-    config_parser.add_argument("--set-username", help="设置默认管理员用户名")
     config_parser.add_argument("--set-timeout", type=int, help="设置请求超时时间（秒）")
     config_parser.add_argument("--set-retry", type=int, help="设置重试次数")
     
@@ -3889,22 +3815,19 @@ Intel HEX增强模式说明:
     upload_parser.add_argument("--desc", help="指定固件描述（可选）")
     upload_parser.add_argument("--slot-a", help="指定槽A的固件包路径（可选）")
     upload_parser.add_argument("--slot-b", help="指定槽B的固件包路径（可选）")
-    upload_parser.add_argument("--admin-username", help="管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）")
-    upload_parser.add_argument("--admin-password", help="管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）")
+    upload_parser.add_argument("--service-token-file", help="服务令牌文件（或 HBOX_ADMIN_SERVICE_TOKEN_FILE）")
     
     # 删除命令
     delete_parser = subparsers.add_parser('delete', help='删除服务器固件')
     delete_parser.add_argument("firmware_id", help="要删除的固件ID")
     delete_parser.add_argument("--server", help="指定服务器地址（可选，使用配置的默认地址）")
-    delete_parser.add_argument("--admin-username", help="管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）")
-    delete_parser.add_argument("--admin-password", help="管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）")
+    delete_parser.add_argument("--service-token-file", help="服务令牌文件（或 HBOX_ADMIN_SERVICE_TOKEN_FILE）")
     
     # 清空命令
     clear_parser = subparsers.add_parser('clear', help='清空指定版本及之前的所有固件')
     clear_parser.add_argument("target_version", help="目标版本号（将删除此版本及之前的所有固件）")
     clear_parser.add_argument("--server", help="指定服务器地址（可选，使用配置的默认地址）")
-    clear_parser.add_argument("--admin-username", help="管理员用户名（可选，优先从环境变量ADMIN_USERNAME获取）")
-    clear_parser.add_argument("--admin-password", help="管理员密码（可选，优先从环境变量ADMIN_PASSWORD获取）")
+    clear_parser.add_argument("--service-token-file", help="服务令牌文件（或 HBOX_ADMIN_SERVICE_TOKEN_FILE）")
     
     appweb_parser = subparsers.add_parser('appweb', help='快捷编译 application 并烧录 application 和 web resource')
     appweb_parser.add_argument("--slot", choices=["A", "B"], default="A", help="目标槽位（可选，默认: A）")
@@ -3967,9 +3890,7 @@ Intel HEX增强模式说明:
         elif args.command == 'register':
             # 注册设备ID到服务器
             server_url = args.server
-            admin_username = args.admin_username
-            admin_password = args.admin_password
-            if manager.register_device_id(server_url, admin_username, admin_password):
+            if manager.register_device_id(server_url, args.service_token_file):
                 print("\n✓ 设备ID注册成功")
                 return 0
             else:
@@ -4059,8 +3980,7 @@ Intel HEX增强模式说明:
                     slot_b_path=args.slot_b,
                     server_url=args.server,
                     desc=args.desc,
-                    admin_username=args.admin_username,
-                    admin_password=args.admin_password
+                    service_token_file=args.service_token_file
                 ):
                     print("\n✓ 固件包上传成功")
                     return 0
@@ -4073,8 +3993,7 @@ Intel HEX增强模式说明:
                     version=args.version,
                     server_url=args.server,
                     desc=args.desc,
-                    admin_username=args.admin_username,
-                    admin_password=args.admin_password
+                    service_token_file=args.service_token_file
                 ):
                     print("\n✓ 固件包上传成功")
                     return 0
@@ -4086,10 +4005,9 @@ Intel HEX增强模式说明:
             # 删除服务器固件
             firmware_id = args.firmware_id
             server_url = args.server
-            admin_username = args.admin_username
-            admin_password = args.admin_password
-            
-            if manager.delete_firmware_from_server(firmware_id, server_url, admin_username, admin_password):
+            if manager.delete_firmware_from_server(
+                firmware_id, server_url, args.service_token_file
+            ):
                 print("\n✓ 固件删除成功")
                 return 0
             else:
@@ -4100,10 +4018,9 @@ Intel HEX增强模式说明:
             # 清空服务器固件
             target_version = args.target_version
             server_url = args.server
-            admin_username = args.admin_username
-            admin_password = args.admin_password
-            
-            if manager.clear_firmware_versions_from_server(target_version, server_url, admin_username, admin_password):
+            if manager.clear_firmware_versions_from_server(
+                target_version, server_url, args.service_token_file
+            ):
                 print("\n✓ 固件清空成功")
                 return 0
             else:
@@ -4125,9 +4042,6 @@ Intel HEX增强模式说明:
                 return 0
             elif args.set_server:
                 config.update_config("server", "default_url", args.set_server)
-                return 0
-            elif args.set_username:
-                config.update_config("admin", "default_username", args.set_username)
                 return 0
             elif args.set_timeout:
                 config.update_config("server", "timeout", args.set_timeout)
