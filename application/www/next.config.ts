@@ -63,6 +63,18 @@ const nextConfig: NextConfig = {
                     ? 'components/build-variant-badge-mock.tsx'
                     : 'components/build-variant-badge-hosted.tsx',
             ),
+            '@hbox/user-auth-runtime$': path.resolve(
+                process.cwd(),
+                isMockBuild
+                    ? 'lib/user-auth/runtime-mock.ts'
+                    : 'lib/user-auth/runtime-hosted.ts',
+            ),
+            '@hbox/admin-runtime$': path.resolve(
+                process.cwd(),
+                isMockBuild
+                    ? 'lib/admin/runtime-mock.ts'
+                    : 'lib/admin/runtime-hosted.ts',
+            ),
         };
         return config;
     },

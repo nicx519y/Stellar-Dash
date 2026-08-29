@@ -13,6 +13,7 @@ import { DialogForm } from "@/components/dialog-form";
 import { DialogCannotClose } from '@/components/dialog-cannot-close'
 import { DialogEditCombination } from '@/components/dialog-edit-combination'
 import { LanguageProvider, useLanguage } from '@/contexts/language-context';
+import { UserAuthProvider } from '@/contexts/user-auth-context';
 import {
     configuredTransportMode,
     DeviceConnectionPhase,
@@ -21,6 +22,9 @@ import {
 } from '@/lib/device-transport';
 import { initializeWebHidNetworkTrace } from '@/lib/device-transport/webhid-network-trace';
 import { usePathname } from 'next/navigation';
+import { UserAuthControl } from '@/components/user-auth-control';
+import { LanguageSwitcher } from '@/components/language-switcher';
+import { HStack } from '@chakra-ui/react';
 
 const isConnectionInProgress = (phase: DeviceConnectionPhase): boolean => (
     phase === DeviceConnectionPhase.DISCOVERING
@@ -164,6 +168,12 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 noDeviceMessage={deviceError?.transportCode === 'device-busy'
                     ? deviceError.message
                     : undefined}
+                headerAction={connectionPending ? (
+                    <HStack gap={2}>
+                        <UserAuthControl />
+                        <LanguageSwitcher />
+                    </HStack>
+                ) : undefined}
             />
             <DialogConfirm />
             <DialogForm />
@@ -177,6 +187,10 @@ function RouteAwareContent({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const isTraceViewer = pathname === '/webhid-trace' ||
         pathname === '/webhid-trace/';
+    const isEmailVerification = pathname === '/auth/verify' ||
+        pathname === '/auth/verify/';
+    const isAdministration = pathname === '/admin/users' ||
+        pathname === '/admin/users/';
 
     // The trace viewer is deliberately outside GamepadConfigProvider. It only
     // receives same-origin trace broadcasts and must never open or lease HID.
@@ -184,12 +198,27 @@ function RouteAwareContent({ children }: { children: React.ReactNode }) {
         return <>{children}</>;
     }
 
+    // Email verification must remain usable without opening, requesting, or
+    // leasing a HID device.
+    if (isEmailVerification || isAdministration) {
+        return (
+            <LanguageProvider>
+                <UserAuthProvider>
+                    {children}
+                    <Toaster />
+                </UserAuthProvider>
+            </LanguageProvider>
+        );
+    }
+
     return (
         <GamepadConfigProvider>
             <LanguageProvider>
-                <AppContent>
-                    {children}
-                </AppContent>
+                <UserAuthProvider>
+                    <AppContent>
+                        {children}
+                    </AppContent>
+                </UserAuthProvider>
             </LanguageProvider>
         </GamepadConfigProvider>
     );

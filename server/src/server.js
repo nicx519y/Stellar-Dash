@@ -23,9 +23,6 @@ const domain_name = process.env.DOMAIN_NAME || 'firmware.st-dash.com';
 // 引入固件模块
 const { FirmwareStorage, compareVersions, isValidVersion } = require('./firmware');
 
-// 引入账户认证模块
-const { authManager, requireAdminAuth } = require('./auth');
-
 // 引入设备认证模块
 const { validateDeviceAuth } = require('./device-auth');
 const {
@@ -47,6 +44,16 @@ const {
     resolveHostedWebConfigOptions
 } = require('./hosted-webconfig');
 const { resolveServerStoragePaths } = require('./server-paths');
+const { DeviceAccountStore } = require('./device-account-store');
+const { UserAccountStore } = require('./user-account-store');
+const {
+    createEmailAuthFromEnvironment,
+    initEmailAuthRoutes
+} = require('./email-auth');
+const {
+    createAdminAccessFromEnvironment,
+    initAdminRoutes
+} = require('./admin-access');
 
 // 引入网络接口入口模块
 const { initAllRoutes } = require('./action');
@@ -143,7 +150,36 @@ const storage_manager = new FirmwareStorage(config.dataFile, config.uploadDir);
 // 将storage_manager添加到app.locals以供中间件使用
 app.locals.storage_manager = storage_manager;
 
-const deviceAuthV2 = createDeviceAuthV2FromEnvironment(storage_manager);
+const deviceAccountStore = new DeviceAccountStore({
+    databasePath: storagePaths.accountDatabase
+});
+app.locals.deviceAccountStore = deviceAccountStore;
+
+const userAccountStore = new UserAccountStore({
+    databasePath: storagePaths.userAccountDatabase
+});
+app.locals.userAccountStore = userAccountStore;
+const emailAuth = createEmailAuthFromEnvironment({
+    store: userAccountStore,
+    allowedOrigins: allowedWebConfigOrigins
+});
+app.locals.emailAuth = emailAuth;
+const adminAccess = createAdminAccessFromEnvironment({
+    store: userAccountStore,
+    emailAuth
+});
+const requireAdminAuth = options => adminAccess.requireAdmin(options);
+app.locals.adminAccess = adminAccess;
+userAccountStore.cleanupExpired();
+const userAccountCleanupTimer = setInterval(
+    () => userAccountStore.cleanupExpired(),
+    60 * 60 * 1000
+);
+userAccountCleanupTimer.unref();
+
+const deviceAuthV2 = createDeviceAuthV2FromEnvironment(storage_manager, {
+    accountStore: deviceAccountStore
+});
 app.locals.deviceAuthV2 = deviceAuthV2;
 const legacyDownloadTickets = new LegacyDownloadTicketStore();
 app.locals.legacyDownloadTickets = legacyDownloadTickets;
@@ -187,7 +223,9 @@ initDeviceAuthV2Routes(
     storage_manager,
     requireAdminAuth
 );
-initAllRoutes(app, storage_manager, config, validateDeviceAuth, requireAdminAuth, authManager);
+initEmailAuthRoutes(app, emailAuth);
+initAdminRoutes(app, adminAccess);
+initAllRoutes(app, storage_manager, config, validateDeviceAuth, requireAdminAuth);
 
 /*
  * The V2 WebConfig is a normal HTTPS-hosted static export. API and download
@@ -274,10 +312,14 @@ app.listen(PORT, LISTEN_HOST, () => {
     console.log('  POST   /api/device/register    - 注册设备ID (需要管理员认证)');
     console.log('  POST   /api/v2/device-auth/challenges - 创建设备认证挑战');
     console.log('  POST   /api/v2/device-auth/verify - 验证设备证明并签发会话');
+    console.log('  GET    /api/auth/session         - 获取邮箱账号登录状态');
+    console.log('  POST   /api/auth/register/email/request - 发送邮箱验证链接');
+    console.log('  POST   /api/auth/login/email     - 邮箱密码登录');
+    console.log('  POST   /api/auth/logout          - 退出邮箱账号');
     console.log('  GET    /api/devices            - 获取设备列表 (需要设备认证)');
-    console.log('  POST   /api/admin/login        - 管理员登录验证');
-    console.log('  POST   /api/admin/change-password - 修改管理员密码 (需要管理员认证)');
-    console.log('  GET    /api/admin/profile      - 获取管理员信息 (需要管理员认证)');
+    console.log('  GET    /api/admin/profile      - 获取邮箱管理员信息');
+    console.log('  GET    /api/admin/users        - 管理邮箱账号角色');
+    console.log('  GET    /api/admin/service-tokens - 管理自动化服务令牌');
     console.log('  GET    /api/firmwares          - 获取固件列表 (需要 config.read scope)');
     console.log('  POST   /api/firmware-check-update - 检查固件更新 (需要设备认证)');
     console.log('  POST   /api/firmwares/upload   - 上传固件包 (需要管理员认证)');

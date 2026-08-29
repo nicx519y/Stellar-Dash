@@ -2,26 +2,26 @@
 
 import React from 'react';
 import { useRouterStore, Route } from './router';
-import { Flex, Center, Box, Tabs, HStack, Separator } from '@chakra-ui/react';
+import { Flex, Center, Box, Tabs, HStack, Separator, Text } from '@chakra-ui/react';
 import { useLanguage } from "@/contexts/language-context";
 import {
     LuKeyboard, LuRocket, LuLightbulb, LuCpu, LuGamepad, LuFileText,
+    LuCircleCheckBig,
     //  LuWifi, LuMonitor, LuChartSpline 
 } from 'react-icons/lu';
 import { navigationEvents } from '@/lib/event-manager';
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { FinishConfigButton } from './finish-config-button';
-import { ExportConfigButton } from './export-config-button';
-import { ImportConfigButton } from './import-config-button';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { BuildVariantBadge } from '@hbox/build-variant-badge';
+import { UserAuthControl } from '@/components/user-auth-control';
 // import { ColorModeSwitcher } from "@/components/color-mode-switcher";
 
 export function SettingsLayout({ children }: { children: React.ReactNode }) {
     const { t } = useLanguage();
     const { currentRoute, setRoute } = useRouterStore();
 
-    const { finishConfigDisabled } = useGamepadConfig();
+    const { finishConfigDisabled, deviceSession } = useGamepadConfig();
 
     const tabs = [
         { id: 'global' as Route, label: t.SETTINGS_TAB_GLOBAL, icon: LuGamepad },
@@ -132,14 +132,26 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
                     <Box w="fit-content" ml="15px">
                         <HStack gap={2}>
                             <FinishConfigButton disabled={finishConfigDisabled} />
-                            <ExportConfigButton disabled={finishConfigDisabled} />
-                            <ImportConfigButton disabled={finishConfigDisabled} />
                         </HStack>
                     </Box>
 
                 </HStack>
-                <HStack justifyContent="flex-end" >
+                <HStack justifyContent="flex-end" gap="10px">
                     <BuildVariantBadge />
+                    {deviceSession?.authenticated && (
+                        <HStack
+                            gap={1}
+                            color="green.fg"
+                            role="status"
+                            aria-label={t.DEVICE_AUTHENTICATED_STATUS}
+                        >
+                            <Box as={LuCircleCheckBig} boxSize="4" />
+                            <Text fontSize="xs" fontWeight="medium">
+                                {t.DEVICE_AUTHENTICATED_STATUS}
+                            </Text>
+                        </HStack>
+                    )}
+                    <UserAuthControl />
                     <LanguageSwitcher />
                     {/* <ColorModeSwitcher /> */}
                 </HStack>

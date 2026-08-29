@@ -40,7 +40,8 @@ function resolveServerStoragePaths(
         uploadDir,
         firmwareDataFile: path.join(dataDir, 'firmware_list.json'),
         deviceDataFile: path.join(dataDir, 'device_ids.json'),
-        authConfigFile: path.join(dataDir, 'auth_config.json')
+        accountDatabase: path.join(dataDir, 'accounts.sqlite3'),
+        userAccountDatabase: path.join(dataDir, 'user_accounts.sqlite3')
     };
 }
 

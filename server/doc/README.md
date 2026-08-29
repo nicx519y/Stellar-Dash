@@ -12,6 +12,7 @@ STM32 HBox 固件服务器是一个专为STM32 HBox设备设计的固件管理�
 - 🎮 **多协议支持**: PS4、PS Classic、Switch、Xbox One、XInput等
 - 🔐 **安全认证**: V2 制造证书、Boot Attestation、短期 scoped permit；
   旧设备 ID 哈希仅作为 legacy weak 兼容
+- ✉️ **邮箱账号**: 独立 UUID 用户、邮箱验证、Argon2id 密码与 7 天会话
 - 📊 **状态监控**: 实时服务状态和日志监控
 - 🌐 **Web界面**: 现代化的Web管理界面
 
@@ -22,14 +23,18 @@ server/
 ├── src/                    # 核心源代码
 │   ├── server.js          # 主服务器文件
 │   ├── firmware.js        # 固件管理模块
-│   ├── auth.js            # 认证模块
+│   ├── admin-access.js    # 邮箱管理员与 scoped 服务令牌
 │   ├── action.js          # 动作处理模块
 │   ├── device-auth.js     # V1 legacy weak 兼容
-│   └── device-auth-v2.js  # V2 设备证明与会话授权
+│   ├── device-auth-v2.js  # V2 设备证明与会话授权
+│   ├── device-account-store.js # 设备身份映射
+│   ├── email-auth.js      # 邮箱注册、登录、验证码与 Resend
+│   └── user-account-store.js # 独立邮箱用户数据库
 ├── data/                   # 数据存储
 │   ├── firmware_list.json # 固件列表
 │   ├── device_ids.json    # 设备ID数据库
-│   └── auth_config.json   # 认证配置
+│   ├── accounts.sqlite3   # 设备身份映射
+│   └── user_accounts.sqlite3 # 邮箱账号、角色与服务令牌
 ├── tools/                  # 部署和管理工具
 │   ├── deploy.ps1         # 主部署脚本
 │   ├── deploy-simple.ps1  # 简化部署脚本
@@ -54,6 +59,7 @@ V2 密钥配置、wire API、部署门禁和吊销策略见
 [DEVICE_IDENTITY_PROVISIONING.md](../../docs/DEVICE_IDENTITY_PROVISIONING.md)
 和
 [WEBCONFIG_V2_PRODUCTION_DEPLOYMENT.md](../../docs/WEBCONFIG_V2_PRODUCTION_DEPLOYMENT.md)。
+`st-dash.com` 邮箱发信与账号部署见 [EMAIL_AUTH.md](./EMAIL_AUTH.md)。
 
 ### 本地开发
 

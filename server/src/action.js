@@ -639,7 +639,7 @@ function findNewerFirmwares(currentVersion, hardwareVersion, firmwares) {
 /**
  * 初始化所有路由
  */
-function initAllRoutes(app, storage_manager, config, validateDeviceAuth, requireAdminAuth, authManager) {
+function initAllRoutes(app, storage_manager, config, validateDeviceAuth, requireAdminAuth) {
     
     // ==================== 系统接口 ====================
     
@@ -660,7 +660,9 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
     // ==================== 设备管理接口 ====================
     
     // 设备注册接口
-    app.post('/api/device/register', requireAdminAuth(), async (req, res) => {
+    app.post('/api/device/register', requireAdminAuth({
+        serviceScope: 'device.manage'
+    }), async (req, res) => {
         try {
             const { rawUniqueId, deviceId, deviceName } = req.body;
             
@@ -768,111 +770,6 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
             res.status(500).json({
                 success: false,
                 message: '获取设备列表失败',
-                error: error.message
-            });
-        }
-    });
-
-    // ==================== 管理员认证接口 ====================
-
-    // 管理员登录验证接口
-    app.post('/api/admin/login', requireAdminAuth({ source: 'body' }), (req, res) => {
-        try {
-            res.json({
-                success: true,
-                message: '登录成功',
-                data: {
-                    username: req.authenticatedAdmin.username,
-                    role: req.authenticatedAdmin.role,
-                    loginTime: new Date().toISOString()
-                }
-            });
-            
-            console.log(`管理员登录成功: ${req.authenticatedAdmin.username}`);
-        } catch (error) {
-            console.error('管理员登录处理失败:', error);
-            res.status(500).json({
-                success: false,
-                message: '登录处理失败',
-                error: error.message
-            });
-        }
-    });
-
-    // 修改管理员密码接口
-    app.post('/api/admin/change-password', requireAdminAuth({ source: 'body' }), (req, res) => {
-        try {
-            const { currentPassword, newPassword } = req.body;
-            
-            if (!currentPassword || !newPassword) {
-                return res.status(400).json({
-                    success: false,
-                    message: '当前密码和新密码都是必需的',
-                    errNo: 1,
-                    errorMessage: 'Current password and new password are required'
-                });
-            }
-            
-            if (newPassword.length < 6) {
-                return res.status(400).json({
-                    success: false,
-                    message: '新密码长度不能少于6位',
-                    errNo: 1,
-                    errorMessage: 'New password must be at least 6 characters long'
-                });
-            }
-            
-            const result = authManager.changeAdminPassword(currentPassword, newPassword);
-            
-            if (result.success) {
-                res.json({
-                    success: true,
-                    message: result.message,
-                    data: {
-                        changedBy: req.authenticatedAdmin.username,
-                        changeTime: new Date().toISOString()
-                    }
-                });
-                
-                console.log(`管理员密码修改成功: ${req.authenticatedAdmin.username}`);
-            } else {
-                res.status(400).json({
-                    success: false,
-                    message: result.message,
-                    errNo: 1,
-                    errorMessage: result.message
-                });
-            }
-            
-        } catch (error) {
-            console.error('修改管理员密码失败:', error);
-            res.status(500).json({
-                success: false,
-                message: '修改密码失败',
-                errNo: 1,
-                errorMessage: 'Password change failed: ' + error.message,
-                error: error.message
-            });
-        }
-    });
-
-    // 获取账户信息接口
-    app.get('/api/admin/profile', requireAdminAuth(), (req, res) => {
-        try {
-            res.json({
-                success: true,
-                data: {
-                    username: req.authenticatedAdmin.username,
-                    role: req.authenticatedAdmin.role,
-                    lastUpdate: authManager.config.admin.lastUpdate,
-                    requestTime: new Date().toISOString()
-                }
-            });
-        } catch (error) {
-            console.error('获取管理员信息失败:', error);
-            res.status(500).json({
-                success: false,
-                message: '获取账户信息失败',
                 error: error.message
             });
         }
@@ -1089,7 +986,9 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
     });
 
     // 3. 固件包上传
-    app.post('/api/firmwares/upload', requireAdminAuth(), upload.fields([
+    app.post('/api/firmwares/upload', requireAdminAuth({
+        serviceScope: 'firmware.manage'
+    }), upload.fields([
         { name: 'slotA', maxCount: 1 },
         { name: 'slotB', maxCount: 1 }
     ]), async (req, res) => {
@@ -1229,7 +1128,9 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
     });
 
     // 4. 固件包删除
-    app.delete('/api/firmwares/:id', requireAdminAuth(), (req, res) => {
+    app.delete('/api/firmwares/:id', requireAdminAuth({
+        serviceScope: 'firmware.manage'
+    }), (req, res) => {
         try {
             const { id } = req.params;
             
@@ -1266,7 +1167,9 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
     });
 
     // 5. 清空指定版本及之前的所有版本固件
-    app.post('/api/firmwares/clear-up-to-version', requireAdminAuth(), (req, res) => {
+    app.post('/api/firmwares/clear-up-to-version', requireAdminAuth({
+        serviceScope: 'firmware.manage'
+    }), (req, res) => {
         try {
             const { targetVersion, hardwareVersion } = req.body;
             
@@ -1356,7 +1259,9 @@ function initAllRoutes(app, storage_manager, config, validateDeviceAuth, require
     });
 
     // 7. 更新固件信息
-    app.put('/api/firmwares/:id', requireAdminAuth(), (req, res) => {
+    app.put('/api/firmwares/:id', requireAdminAuth({
+        serviceScope: 'firmware.manage'
+    }), (req, res) => {
         try {
             const { id } = req.params;
             const { name, version, desc } = req.body;

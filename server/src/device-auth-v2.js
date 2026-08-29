@@ -871,6 +871,11 @@ class DeviceAuthV2Service {
         this.tokenStore = options.tokenStore || new OpaqueTokenStore(options);
         this.challengeLimiter = options.challengeLimiter || null;
         this.verifyLimiter = options.verifyLimiter || null;
+        this.accountStore = options.accountStore &&
+            typeof options.accountStore.findOrCreateDeviceAccount ===
+                'function'
+            ? options.accountStore
+            : null;
         this.now = options.now || Date.now;
         this.localDeviceAuthBypass =
             options.localDeviceAuthBypass === true;
@@ -892,7 +897,8 @@ class DeviceAuthV2Service {
             this.attestationVerifier &&
             this.permitSigner &&
             this.devicePolicy &&
-            this.webConfigTargetPolicy
+            this.webConfigTargetPolicy &&
+            this.accountStore
         );
     }
 
@@ -1087,6 +1093,23 @@ class DeviceAuthV2Service {
             );
         }
 
+        /*
+         * Register only after every signed device proof and enrollment policy
+         * check has succeeded. There is intentionally no public endpoint that
+         * accepts an untrusted deviceId and creates an account from it.
+         */
+        const account = await this.accountStore.findOrCreateDeviceAccount({
+            deviceId: identity.deviceId,
+            displayName: deviceRecord.deviceName
+        });
+        const validAccountUid = account &&
+            typeof account.uid === 'string' &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+                .test(account.uid);
+        if (!validAccountUid) {
+            throw new Error('device account store returned an invalid UUIDv4');
+        }
+
         const sessionId = transcript.webhidSessionId;
         const permitClaims = {
             permitId: crypto.randomBytes(16),
@@ -1118,6 +1141,7 @@ class DeviceAuthV2Service {
             sessionId: encodeBase64Url(sessionId),
             deviceId: identity.deviceId,
             deviceName: deviceRecord.deviceName,
+            accountUid: account.uid,
             productId: webConfigTarget.productId,
             pcbRevision: webConfigTarget.pcbRevision,
             webConfigProfile: webConfigTarget.profile,
@@ -1129,6 +1153,7 @@ class DeviceAuthV2Service {
         });
         return {
             apiToken: issued.token,
+            accountUid: account.uid,
             sessionId: encodeBase64Url(sessionId),
             deviceSessionPermit: encodeBase64(permit),
             sessionSalt: encodeBase64(sessionSalt),
@@ -1321,6 +1346,7 @@ function initDeviceAuthV2Routes(
                 data: {
                     sessionId: req.deviceSession.sessionId,
                     deviceId: req.deviceSession.deviceId,
+                    accountUid: req.deviceSession.accountUid,
                     productId: req.deviceSession.productId,
                     pcbRevision: req.deviceSession.pcbRevision,
                     webConfigProfile: req.deviceSession.webConfigProfile,
@@ -1333,7 +1359,7 @@ function initDeviceAuthV2Routes(
 
     app.post(
         '/api/v2/devices',
-        requireAdminAuth(),
+        requireAdminAuth({ serviceScope: 'device.manage' }),
         async (req, res) => {
             try {
                 service.assertReady();
@@ -1397,7 +1423,7 @@ function initDeviceAuthV2Routes(
 
     app.put(
         '/api/v2/devices/:deviceId/policy',
-        requireAdminAuth(),
+        requireAdminAuth({ serviceScope: 'device.manage' }),
         (req, res) => {
             try {
                 const minSecurityVersion = normalizeSecurityVersion(
@@ -1446,7 +1472,7 @@ function initDeviceAuthV2Routes(
 
     app.post(
         '/api/v2/devices/:deviceId/revoke',
-        requireAdminAuth(),
+        requireAdminAuth({ serviceScope: 'device.manage' }),
         (req, res) => {
             const device = storageManager.revokeV2Device(
                 req.params.deviceId,
@@ -1570,6 +1596,7 @@ function loadProductionAdapter(environment, options, storageManager) {
 function createDeviceAuthV2FromEnvironment(storageManager, options = {}) {
     const fsModule = options.fs || require('fs');
     const environment = options.environment || process.env;
+    const accountStore = options.accountStore || null;
     const localDeviceAuthBypass =
         localDebugDeviceAuthBypassEnabled(environment);
     const caPublicKey = readPemFromEnvironment(
@@ -1626,7 +1653,8 @@ function createDeviceAuthV2FromEnvironment(storageManager, options = {}) {
             attestationVerifier: null,
             permitSigner: null,
             devicePolicy: new StorageDevicePolicy(storageManager),
-            webConfigTargetPolicy
+            webConfigTargetPolicy,
+            accountStore
         });
     }
     if (localDeviceAuthBypass) {
@@ -1659,7 +1687,8 @@ function createDeviceAuthV2FromEnvironment(storageManager, options = {}) {
         tokenStore: dependencies && dependencies.tokenStore,
         challengeLimiter: dependencies &&
             dependencies.challengeLimiter,
-        verifyLimiter: dependencies && dependencies.verifyLimiter
+        verifyLimiter: dependencies && dependencies.verifyLimiter,
+        accountStore
     });
 }
 

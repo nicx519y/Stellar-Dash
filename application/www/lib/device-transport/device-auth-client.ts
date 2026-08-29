@@ -49,6 +49,7 @@ interface DeviceAttestation {
 
 interface ServerAuthorization extends ServerWebConfigTarget {
   apiToken: string;
+  accountUid: string;
   sessionId: string;
   deviceSessionPermit: string;
   sessionSalt: string;
@@ -183,6 +184,7 @@ export class DeviceAuthClient {
     const session: DeviceSession = {
       transport: 'webhid',
       deviceId: attestation.deviceId,
+      accountUid: authorization.accountUid,
       productName: transport.session?.productName,
       productId: webConfigTarget.productId,
       pcbRevision: webConfigTarget.pcbRevision,
@@ -439,6 +441,7 @@ function validateAuthorization(
   if (
     !value ||
     !value.apiToken ||
+    !isUuidV4(value.accountUid) ||
     !isOpaqueIdentifier(value.sessionId) ||
     !value.deviceSessionPermit ||
     base64ToBytes(value.sessionSalt).byteLength < 16 ||
@@ -450,6 +453,11 @@ function validateAuthorization(
     throw new DeviceTransportError('authentication-failed', '认证服务器返回了无效会话许可');
   }
   return resolveAuthenticatedWebConfigTarget(value, attestedHardwareVersion);
+}
+
+function isUuidV4(value: unknown): value is string {
+  return typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function isOpaqueIdentifier(value: unknown): value is string {

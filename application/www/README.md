@@ -94,6 +94,12 @@ that serves `index.html` for the configuration routes.
 Hosted V2 also uses this same origin for firmware catalog checks and protected
 downloads.
 
+The email account UI also uses same-origin `/api/auth/*` endpoints. It remains
+available when no HID device is connected, while `/auth/verify/` is mounted
+outside `GamepadConfigProvider` and never requests WebHID. Production Resend
+and `st-dash.com` DNS configuration is documented in
+[`server/doc/EMAIL_AUTH.md`](../../server/doc/EMAIL_AUTH.md).
+
 ## Hardware-free V2 mock preview
 
 The mock transport exercises the same UI/context/queue path as a V2 device,
@@ -133,6 +139,12 @@ Mock mode requires both `NEXT_PUBLIC_DEVICE_TRANSPORT=mock` and
 not be deployed as the genuine-device V2 site.
 
 ## Authentication behavior
+
+There is no separate end-user sign-in. After a device passes V2 certificate,
+boot-attestation and enrollment-policy checks, the server atomically maps its
+unique device ID to an internal UUIDv4 account. Reconnecting the same device
+reuses the same account, and the account UID is carried only by that verified
+device session for future account-scoped features.
 
 - Before attestation, only the fixed bootstrap exchange is accepted.
 - The local `hbox.py web local-serve` launcher skips trust-policy decisions for

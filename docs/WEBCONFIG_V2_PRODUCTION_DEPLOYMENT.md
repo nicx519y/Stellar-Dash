@@ -169,6 +169,22 @@ opaque token；但已经安装到 STM32 的 permit 是离线可验证的自包�
 变化、显式 `session.end` 或协议错误会更早销毁会话。产品和运维文档必须明确这
 一上限，不能宣称“实时远程吊销设备当前会话”。
 
+## WebConfig 设备身份与邮箱账号
+
+设备通过 V2 证书、启动证明、签名 transcript 和已登记设备策略校验后，服务端才把
+证书中的 16 字节唯一 `deviceId` 映射到一个 UUIDv4 设备账号；首次成功连接自动创建，
+后续连接稳定复用。不得增加一个仅凭前端提交 `deviceId` 就能注册设备账号的公开接口。
+
+设备账号映射保存在 `HBOX_SERVER_DATA_DIR/accounts.sqlite3`。SQLite 启用 WAL、foreign
+keys 和事务迁移；未来设备功能表只通过外键关联 `accounts.uid`。内部 UID 会写入
+当前连接绑定的设备 Bearer session，退出网页或设备断开时随设备会话失效，不使用
+用户 Cookie，也不改变既有设备登记、撤销和固件策略门禁。
+
+独立邮箱账号保存在 `HBOX_SERVER_DATA_DIR/user_accounts.sqlite3`，使用另一套 UUIDv4
+用户 UID、Argon2id 密码哈希和 7 天 HttpOnly Cookie 会话。邮箱账号可以在没有设备时
+注册和登录，不自动等同或合并任何设备账号。完整的 Resend、`st-dash.com` 发信域名、
+接口和反向代理配置见 [`server/doc/EMAIL_AUTH.md`](../server/doc/EMAIL_AUTH.md)。
+
 ## HTTPS 与浏览器部署
 
 生产页面和 `/api/v2/device-auth/*` 建议同一 origin。WebHID 需要 secure context，

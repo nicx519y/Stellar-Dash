@@ -31,6 +31,7 @@ export const ELEVATED_DEVICE_SCOPES: readonly DeviceScope[] = [
 export interface DeviceSession {
   transport: DeviceTransportKind;
   deviceId?: string;
+  accountUid?: string;
   productName?: string;
   productId?: string;
   pcbRevision?: string;

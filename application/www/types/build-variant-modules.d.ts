@@ -9,3 +9,11 @@ declare module '@hbox/device-transport-runtime' {
 declare module '@hbox/build-variant-badge' {
   export function BuildVariantBadge(): import('react').ReactElement | null;
 }
+
+declare module '@hbox/user-auth-runtime' {
+  export const userAuthRuntime: import('@/lib/user-auth/types').UserAuthRuntime;
+}
+
+declare module '@hbox/admin-runtime' {
+  export const adminRuntime: import('@/lib/admin/types').AdminRuntime;
+}

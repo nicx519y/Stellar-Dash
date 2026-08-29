@@ -18,6 +18,7 @@ type LoadingVariant = "connection" | "no-device" | "operation";
 interface LoadingModalProps {
   isOpen: boolean;
   variant?: LoadingVariant;
+  headerAction?: React.ReactNode;
   noDeviceAction?: {
     label: string;
     onClick: () => void;
@@ -271,6 +272,7 @@ function NoDeviceStatus({
 export function LoadingModal({
   isOpen,
   variant = "operation",
+  headerAction,
   noDeviceAction,
   noDeviceTitle,
   noDeviceSteps,
@@ -318,6 +320,11 @@ export function LoadingModal({
             </Center>
           )}
         </Box>
+        {isDeviceStatus && headerAction && (
+          <Box position="absolute" top={2} right={4} zIndex={2}>
+            {headerAction}
+          </Box>
+        )}
       </Box>
     </Portal>
   );

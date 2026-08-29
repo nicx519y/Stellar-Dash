@@ -17,7 +17,6 @@ const {
     parseTrustedProxyHops,
     securityHeaders
 } = require('../src/http-security');
-const { AuthManager } = require('../src/auth');
 const { resolveServerStoragePaths } = require('../src/server-paths');
 
 function request(server, requestPath) {
@@ -70,6 +69,10 @@ test('hosted export serves HTML and immutable Next assets', async t => {
     assert.equal(page.status, 200);
     assert.match(page.body, /HBox/);
     assert.equal(page.headers['cache-control'], 'no-cache, no-store');
+    assert.equal(
+        page.headers['cross-origin-opener-policy'],
+        'same-origin'
+    );
     const [expectedHash] = inlineScriptHashes(
         '<script>globalThis.__NEXT_BOOT=1;</script>'
     );
@@ -196,11 +199,17 @@ test('server state and uploads can be isolated outside the repository', t => {
     assert.equal(resolved.dataDir, dataDir);
     assert.equal(resolved.uploadDir, uploadDir);
     assert.equal(resolved.deviceDataFile, path.join(dataDir, 'device_ids.json'));
+    assert.equal(
+        resolved.accountDatabase,
+        path.join(dataDir, 'accounts.sqlite3')
+    );
+    assert.equal(
+        resolved.userAccountDatabase,
+        path.join(dataDir, 'user_accounts.sqlite3')
+    );
 
-    const manager = new AuthManager({ environment, serverRoot: root });
-    assert.equal(manager.configFile, path.join(dataDir, 'auth_config.json'));
-    assert.equal(fs.existsSync(manager.configFile), true);
-    assert.equal(fs.existsSync(path.join(root, 'data', 'auth_config.json')), false);
+    assert.equal(resolved.authConfigFile, undefined);
+    assert.equal(fs.existsSync(path.join(dataDir, 'auth_config.json')), false);
 });
 
 test('production storage directories are explicit absolute paths', () => {

@@ -220,6 +220,19 @@ function createFixture() {
     });
     assert.equal(enrollment.success, true);
     const tokenStore = new OpaqueTokenStore({ now });
+    const accountUid = crypto.randomUUID();
+    const accountRegistrations = [];
+    const accountStore = {
+        findOrCreateDeviceAccount(device) {
+            accountRegistrations.push(device);
+            return {
+                uid: accountUid,
+                deviceId: device.deviceId,
+                displayName: device.displayName,
+                created: accountRegistrations.length === 1
+            };
+        }
+    };
     const service = new DeviceAuthV2Service({
         certificateVerifier,
         attestationVerifier: new BinaryBootAttestationVerifier(),
@@ -230,6 +243,7 @@ function createFixture() {
         devicePolicy: new StorageDevicePolicy(storage),
         challengeStore: new MemoryChallengeStore({ now }),
         tokenStore,
+        accountStore,
         now
     });
     const scopes = ['config.read', 'firmware.update'];
@@ -240,6 +254,9 @@ function createFixture() {
         storage,
         service,
         tokenStore,
+        accountStore,
+        accountUid,
+        accountRegistrations,
         caKeys,
         deviceKeys,
         bootKeys,
@@ -385,7 +402,8 @@ test('production auth rejects local private keys and requires shared adapters',
                         NODE_ENV: 'production',
                         DEVICE_CA_PUBLIC_KEY_PEM: caPem,
                         WEB_CONFIG_AUTH_PRIVATE_KEY_PEM: localPermitPem
-                    }
+                    },
+                    accountStore: fixture.accountStore
                 }
             );
             assert.equal(failClosed.isReady(), false);
@@ -409,7 +427,8 @@ test('production auth rejects local private keys and requires shared adapters',
                             new SlidingWindowRateLimiter(),
                         verifyLimiter:
                             new SlidingWindowRateLimiter()
-                    }
+                    },
+                    accountStore: fixture.accountStore
                 }
             );
             assert.equal(shared.isReady(), true);
@@ -477,7 +496,8 @@ test('local loopback environment selects the debug policy adapter', () => {
                             type: 'pkcs8',
                             format: 'pem'
                         })
-                }
+                },
+                accountStore: fixture.accountStore
             }
         );
         assert.equal(service.isReady(), true);
@@ -562,6 +582,7 @@ test('V2 authenticates fixed binary proofs and signs a scoped permit', async () 
             makeVerifyRequest(fixture, challenge)
         );
         assert.deepEqual(result.grantedScopes, fixture.scopes);
+        assert.equal(result.accountUid, fixture.accountUid);
         assert.equal(Object.hasOwn(result, 'expiresIn'), false);
         assert.equal(Object.hasOwn(result, 'expiresInMs'), false);
         assert.equal(result.productId, 'HBOX');
@@ -586,6 +607,14 @@ test('V2 authenticates fixed binary proofs and signs a scoped permit', async () 
             fixture.tokenStore.resolve(result.apiToken).productId,
             'HBOX'
         );
+        assert.equal(
+            fixture.tokenStore.resolve(result.apiToken).accountUid,
+            fixture.accountUid
+        );
+        assert.deepEqual(fixture.accountRegistrations, [{
+            deviceId: fixture.deviceId.toString('hex').toUpperCase(),
+            displayName: 'Test HBox'
+        }]);
         fixture.clock.value += 24 * 60 * 60 * 1000;
         assert.equal(
             fixture.tokenStore.resolve(result.apiToken).deviceId,
@@ -616,6 +645,11 @@ test('challenge is one-time and invalid proof burns it atomically', async () => 
         await assert.rejects(
             verifySession(fixture, request),
             error => error.code === 'INVALID_SESSION_PROOF'
+        );
+        assert.equal(
+            fixture.accountRegistrations.length,
+            0,
+            'invalid signed proof must not create a device account'
         );
         await assert.rejects(
             verifySession(
@@ -817,6 +851,20 @@ test('HTTP routes enforce exact CORS, security headers and protected downloads',
                 readVerifyResponse.body.toString('utf8')
             );
             assert.deepEqual(readSession.grantedScopes, readOnlyScopes);
+            assert.equal(readSession.accountUid, fixture.accountUid);
+
+            const accountSessionResponse = await httpRequest(server, {
+                path: '/api/v2/device-auth/session',
+                headers: {
+                    Authorization: `Bearer ${readSession.apiToken}`
+                }
+            });
+            assert.equal(accountSessionResponse.status, 200);
+            assert.equal(
+                JSON.parse(accountSessionResponse.body.toString('utf8'))
+                    .data.accountUid,
+                fixture.accountUid
+            );
 
             const readCatalog = await httpRequest(server, {
                 path: '/api/firmwares',

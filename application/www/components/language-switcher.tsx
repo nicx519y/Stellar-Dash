@@ -23,14 +23,12 @@ export function LanguageSwitcher() {
 
     return (
         <Button
-            height="24px"
-            fontSize="xs"
             colorPalette="green"
             variant="surface"
             onClick={() => setLanguage(currentLanguage === 'en' ? 'zh' : 'en')}
-            size="sm"
+            size="xs"
         >
             {currentLanguage === 'en' ? '中文' : 'English'}
         </Button>
     );
-} 
+}

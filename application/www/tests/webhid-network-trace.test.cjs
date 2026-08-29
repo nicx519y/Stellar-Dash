@@ -165,6 +165,39 @@ test('dedicated trace page receives broadcasts without mounting the HID provider
   assert.doesNotMatch(viewerSource, /useGamepadConfig|createDeviceCommandClient/);
 });
 
+test('email verification stays outside HID and account dialog reuses the shared blur placement', () => {
+  const layoutSource = fs.readFileSync(path.join(
+    __dirname,
+    '..',
+    'app',
+    'layout.tsx',
+  ), 'utf8');
+  const verifySource = fs.readFileSync(path.join(
+    __dirname,
+    '..',
+    'app',
+    'auth',
+    'verify',
+    'page.tsx',
+  ), 'utf8');
+  const controlSource = fs.readFileSync(path.join(
+    __dirname,
+    '..',
+    'components',
+    'user-auth-control.tsx',
+  ), 'utf8');
+
+  const standaloneBranch = layoutSource.indexOf(
+    'if (isEmailVerification || isAdministration)'
+  );
+  const deviceProvider = layoutSource.indexOf('<GamepadConfigProvider>', standaloneBranch);
+  assert.ok(standaloneBranch >= 0 && deviceProvider > standaloneBranch);
+  assert.match(layoutSource.slice(standaloneBranch, deviceProvider), /<UserAuthProvider>/);
+  assert.doesNotMatch(verifySource, /useGamepadConfig|navigator\.hid|WebHidTransport/);
+  assert.match(controlSource, /<Dialog\.Backdrop backdropFilter="blur\(4px\)"/);
+  assert.match(controlSource, /<Dialog\.Positioner alignItems="flex-start" pt=\{16\}/);
+});
+
 test('WebHID transport mirrors plaintext only at its existing crypto boundaries', () => {
   const source = fs.readFileSync(path.join(
     __dirname,

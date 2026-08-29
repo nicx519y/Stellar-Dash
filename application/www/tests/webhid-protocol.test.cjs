@@ -3370,6 +3370,7 @@ test('both cleartext authentication bootstrap steps use the dedicated ten-second
         }
         return {
           apiToken: 'bootstrap-timeout-token',
+          accountUid: '00112233-4455-4677-8899-aabbccddeeff',
           sessionId,
           deviceSessionPermit: 'bootstrap-timeout-permit',
           sessionSalt: Buffer.alloc(16, 0x42).toString('base64'),
@@ -3412,6 +3413,10 @@ test('both cleartext authentication bootstrap steps use the dedicated ten-second
   };
 
   await auth.authenticate(transport, scopes);
+  assert.equal(
+    transport.session.accountUid,
+    '00112233-4455-4677-8899-aabbccddeeff',
+  );
   assert.deepEqual(bootstrapCalls, [
     { command: 'attestation.create', timeoutMs: 10_000 },
     { command: 'session.install-permit', timeoutMs: 10_000 },
@@ -3464,6 +3469,7 @@ test('aborted reauthorization cannot install a permit, token, or close a later s
   };
   const authorization = {
     apiToken: 'stale-api-token',
+    accountUid: '00112233-4455-4677-8899-aabbccddeeff',
     sessionId: 'session-cancel-fixture',
     deviceSessionPermit: 'fixture-permit',
     sessionSalt: Buffer.alloc(16, 0x22).toString('base64'),
