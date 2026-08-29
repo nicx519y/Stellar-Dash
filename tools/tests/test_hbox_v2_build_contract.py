@@ -9,6 +9,14 @@ from tools.build import BuildTool
 
 
 class HboxV2BuildContractTests(unittest.TestCase):
+    def test_python_tool_ctrl_c_returns_without_a_parent_traceback(self) -> None:
+        with mock.patch.object(
+            hbox.Path, "exists", return_value=True
+        ), mock.patch.object(
+            hbox.subprocess, "call", side_effect=KeyboardInterrupt
+        ):
+            self.assertEqual(hbox._run_python_tool("unused.py", []), 130)
+
     def test_existing_artifact_must_match_requested_slot(self) -> None:
         with tempfile.TemporaryDirectory(prefix="hbox-existing-artifact-") as temp:
             root = Path(temp)
@@ -90,7 +98,6 @@ class HboxV2BuildContractTests(unittest.TestCase):
                         "--jobs",
                         "4",
                         "--unlocked-development",
-                        "--skip-power-device-probes",
                     ],
                 ),
                 mock.call("webconfig_flash.py", ["--simple-execute"]),
@@ -122,7 +129,6 @@ class HboxV2BuildContractTests(unittest.TestCase):
                         "--jobs",
                         "4",
                         "--unlocked-development",
-                        "--skip-power-device-probes",
                     ],
                 ),
                 mock.call("webconfig_flash.py", ["--simple-execute"]),
@@ -213,7 +219,6 @@ class HboxV2BuildContractTests(unittest.TestCase):
             [
                 "build",
                 "--unlocked-development",
-                "--skip-power-device-probes",
             ],
         )
 
@@ -238,6 +243,44 @@ class HboxV2BuildContractTests(unittest.TestCase):
         run_python.assert_called_once_with(
             "webconfig_flash.py",
             arguments,
+        )
+
+    def test_local_account_role_grant_uses_the_offline_database_command(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hbox-role-grant-") as root:
+            project_root = Path(root)
+            with mock.patch.object(
+                hbox, "_project_root", return_value=project_root
+            ), mock.patch.object(
+                hbox.subprocess, "call", return_value=0
+            ) as call:
+                result = hbox.main([
+                    "web",
+                    "local-grant-account-role",
+                    "--email",
+                    "33618409@qq.com",
+                    "--role",
+                    "admin",
+                ])
+
+        self.assertEqual(result, 0)
+        call.assert_called_once_with(
+            [
+                "node",
+                str(project_root / "server" / "scripts" / "account-role.js"),
+                "--database",
+                str(
+                    project_root
+                    / ".hbox"
+                    / "webconfig-local"
+                    / "server-data"
+                    / "user_accounts.sqlite3"
+                ),
+                "--email",
+                "33618409@qq.com",
+                "--role",
+                "admin",
+            ],
+            cwd=project_root,
         )
 
 

@@ -122,7 +122,7 @@ def _build_inactive_application(slot: str, trust_header: Path) -> Path:
                 f"-j{builder.config.get('parallel_jobs', builder.cpu_count)}",
                 f"HBOX_TRUST_HEADER={trust_header.as_posix()}",
                 "HBOX_SECURE_BOOT_REQUIRED=0",
-                "POWER_DEVICE_PROBE_ENABLED=0",
+                "POWER_DEVICE_PROBE_ENABLED=1",
                 "APP_LOG_ENABLE=1",
             ],
         )

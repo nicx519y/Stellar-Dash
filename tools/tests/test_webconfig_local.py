@@ -6,6 +6,7 @@ import unittest
 import zlib
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 from tools import webconfig_local
 
@@ -188,12 +189,64 @@ class WebConfigLocalProvisioningTests(unittest.TestCase):
         self.assertTrue(args.unlocked_development)
         self.assertTrue(args.skip_power_device_probes)
 
+    def test_local_build_rejects_retired_power_probe_bypass(self) -> None:
+        with self.assertRaisesRegex(
+            webconfig_local.LocalWebConfigError,
+            "POWER_DEVICE_PROBE_ENABLED is permanently enabled",
+        ):
+            webconfig_local.build_local_artifacts(
+                Path("unused"),
+                jobs=1,
+                unlocked_development=True,
+                skip_power_device_probes=True,
+            )
+
     def test_local_serve_defaults_to_loopback_auth_bypass(self) -> None:
         parser = webconfig_local.build_parser()
         debug_args = parser.parse_args(["serve"])
         self.assertTrue(debug_args.bypass_device_auth)
         strict_args = parser.parse_args(["serve", "--require-device-auth"])
         self.assertFalse(strict_args.bypass_device_auth)
+
+    def test_local_serve_uses_an_unlogged_ephemeral_scoped_token(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="hbox-local-serve-") as root:
+            project_root = Path(root)
+            state_dir = project_root / ".hbox" / "webconfig-local"
+            static_dir = project_root / "application" / "www" / "build"
+            static_dir.mkdir(parents=True)
+            (static_dir / "index.html").write_text("preview", encoding="utf-8")
+            process = mock.Mock()
+            process.poll.return_value = 0
+            process.wait.return_value = 0
+
+            with mock.patch.object(
+                webconfig_local, "PROJECT_ROOT", project_root
+            ), mock.patch.object(
+                webconfig_local, "_load_manifest", return_value={}
+            ), mock.patch.object(
+                webconfig_local,
+                "load_verified_artifact_manifest",
+                return_value={"firmwareMeasurement": "00" * 32},
+            ), mock.patch.object(
+                webconfig_local.subprocess, "Popen", return_value=process
+            ) as popen, mock.patch.object(
+                webconfig_local, "_wait_for_server"
+            ), mock.patch.object(
+                webconfig_local, "_enroll_local_device"
+            ) as enroll, redirect_stdout(io.StringIO()) as output:
+                result = webconfig_local.serve_local_webconfig(
+                    state_dir,
+                    port=3001,
+                    bypass_device_auth=True,
+                )
+
+            self.assertEqual(result, 0)
+            environment = popen.call_args.kwargs["env"]
+            token = environment["HBOX_LOCAL_ADMIN_SERVICE_TOKEN"]
+            self.assertRegex(token, r"^stsvc_[A-Za-z0-9_-]{43}$")
+            self.assertEqual(environment["LISTEN_HOST"], "127.0.0.1")
+            enroll.assert_called_once_with(state_dir, 3001, token)
+            self.assertNotIn(token, output.getvalue())
 
     def test_artifact_handoff_is_cryptographically_verified_and_tamper_evident(self) -> None:
         with tempfile.TemporaryDirectory(prefix="hbox-local-handoff-") as root:

@@ -1,13 +1,13 @@
 {
-  "version": 4,
-  "accepted_on": "2026-08-21",
+  "version": 5,
+  "accepted_on": "2026-08-30",
   "files": {
     "RF_PHY_Hop/TX/Makefile": "99a63bafc526083db9b3984e65551b63d3a557cbb0e36121d831a31d4b6b6a07",
     "common/ch585_staging.h": "02f77a7e340d26a0845f22a4f9e187b76e4c563e64c8360eeec384d2dc25e415",
     "tools/build.py": "748a3038502366f7bd9b152450dd72c3c46d86a3e7c53101c6ef6851971b3cd8",
-    "tools/ch585_bridge_install.py": "a488e4d7b764dd48993691a270f2df6d97828ec40b25ee46677c74ac57a8fc86",
+    "tools/ch585_bridge_install.py": "d9cd78c0d7e2cfab7b62a9d16cbfd93ce0e3a9176724341898a037fe22f777ea",
     "tools/ch585_stlink_update.py": "fe0273bd5264faeb5fa3bcea35ae10dce5881bd104080a9d4ae55bd33a988ee8",
-    "tools/hbox.py": "e1b961964f115c40e93cb224751542cfcffeaa5b788384c1a6fca08affdd8390",
+    "tools/hbox.py": "039a7204764e97ffe8e0df8637c3141c49ce971fc523c70d9300cd97bd2d7740",
     "tools/webconfig_flash.py": "da47afe04db55c13ad16dad78f7d6b9e98ed6fe65fe29313794127a432ffbd28"
   }
 }

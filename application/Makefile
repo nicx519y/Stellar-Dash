@@ -222,8 +222,8 @@ $(error HBOX_SECURE_BOOT_REQUIRED must be exactly 0 or 1)
 endif
 
 POWER_DEVICE_PROBE_ENABLED ?= 1
-ifneq ($(filter $(POWER_DEVICE_PROBE_ENABLED),0 1),$(POWER_DEVICE_PROBE_ENABLED))
-$(error POWER_DEVICE_PROBE_ENABLED must be exactly 0 or 1)
+ifneq ($(POWER_DEVICE_PROBE_ENABLED),1)
+$(error POWER_DEVICE_PROBE_ENABLED is permanently enabled and must be exactly 1)
 endif
 
 # C defines

@@ -925,6 +925,12 @@ def build_local_artifacts(
     unlocked_development: bool = False,
     skip_power_device_probes: bool = False,
 ) -> dict[str, Any]:
+    if skip_power_device_probes:
+        raise LocalWebConfigError(
+            "--skip-power-device-probes is no longer supported; "
+            "POWER_DEVICE_PROBE_ENABLED is permanently enabled"
+        )
+
     slot = normalize_target_slot(slot)
     manifest = _load_manifest(state_dir)
     paths = _state_paths(state_dir)
@@ -947,11 +953,7 @@ def build_local_artifacts(
         if unlocked_development
         else "HBOX_SECURE_BOOT_REQUIRED=1"
     )
-    power_probe_argument = (
-        "POWER_DEVICE_PROBE_ENABLED=0"
-        if skip_power_device_probes
-        else "POWER_DEVICE_PROBE_ENABLED=1"
-    )
+    power_probe_argument = "POWER_DEVICE_PROBE_ENABLED=1"
 
     _run([make, "clean"], cwd=PROJECT_ROOT / "bootloader")
     _run(
@@ -1062,11 +1064,7 @@ def build_local_artifacts(
             if unlocked_development
             else "secure-production"
         ),
-        "powerDeviceProbeMode": (
-            "disabled-for-board-bringup"
-            if skip_power_device_probes
-            else "enabled"
-        ),
+        "powerDeviceProbeMode": "enabled",
         "firmwareMeasurement": metadata[
             FIRMWARE_HASH_OFFSET : FIRMWARE_HASH_OFFSET + 32
         ].hex(),
@@ -1110,11 +1108,6 @@ def build_local_artifacts(
             "UNLOCKED DEVELOPMENT build: RDP, SECURITY, and SCAR are neither "
             "required nor programmed."
         )
-    if skip_power_device_probes:
-        print(
-            "BOARD BRING-UP build: BQ25895/MAX17048 probes are disabled; "
-            "charging remains off and telemetry reports offline."
-        )
     return artifact_manifest
 
 
@@ -1143,8 +1136,7 @@ def _wait_for_server(process: subprocess.Popen[Any], port: int) -> None:
 def _enroll_local_device(
     state_dir: Path,
     port: int,
-    admin_username: str,
-    admin_password: str,
+    service_token: str,
 ) -> None:
     paths = _state_paths(state_dir)
     manifest = _load_manifest(state_dir)
@@ -1163,15 +1155,12 @@ def _enroll_local_device(
             "allowedFirmwareMeasurements": [firmware_measurement],
         }
     ).encode("utf-8")
-    credentials = base64.b64encode(
-        f"{admin_username}:{admin_password}".encode("utf-8")
-    ).decode("ascii")
     request = urllib.request.Request(
         f"http://localhost:{port}/api/v2/devices",
         data=payload,
         method="POST",
         headers={
-            "Authorization": f"Basic {credentials}",
+            "Authorization": f"Bearer {service_token}",
             "Content-Type": "application/json",
         },
     )
@@ -1198,7 +1187,7 @@ def _enroll_local_device(
         data=policy_payload,
         method="PUT",
         headers={
-            "Authorization": f"Basic {credentials}",
+            "Authorization": f"Bearer {service_token}",
             "Content-Type": "application/json",
         },
     )
@@ -1222,8 +1211,6 @@ def serve_local_webconfig(
     state_dir: Path,
     *,
     port: int,
-    admin_username: str,
-    admin_password: str,
     bypass_device_auth: bool,
 ) -> int:
     _load_manifest(state_dir)
@@ -1238,6 +1225,7 @@ def serve_local_webconfig(
             "hosted WebConfig build is missing; run the local build command first"
         )
     environment = os.environ.copy()
+    local_admin_service_token = f"stsvc_{secrets.token_urlsafe(32)}"
     environment.update(
         {
             "NODE_ENV": "development",
@@ -1248,6 +1236,10 @@ def serve_local_webconfig(
             "DOMAIN_NAME": "localhost",
             "TRUST_PROXY_HOPS": "0",
             "WEB_CONFIG_ORIGINS": f"http://localhost:{port}",
+            "USER_AUTH_ENABLED": "1",
+            "USER_AUTH_LOCAL_PREVIEW": "1",
+            "USER_AUTH_PUBLIC_ORIGIN": f"http://localhost:{port}",
+            "HBOX_LOCAL_ADMIN_SERVICE_TOKEN": local_admin_service_token,
             "WEB_CONFIG_STATIC_DIR": str(static_dir.resolve()),
             "WEB_CONFIG_REQUIRE_STATIC": "1",
             "HBOX_SERVER_DATA_DIR": str((state_dir / "server-data").resolve()),
@@ -1272,7 +1264,7 @@ def serve_local_webconfig(
     try:
         _wait_for_server(process, port)
         _enroll_local_device(
-            state_dir, port, admin_username, admin_password
+            state_dir, port, local_admin_service_token
         )
         print()
         print(f"WebConfig is ready: http://localhost:{port}")
@@ -1397,8 +1389,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-power-device-probes",
         action="store_true",
         help=(
-            "keep charging disabled and skip BQ25895/MAX17048 traffic for "
-            "initial PCB display/menu bring-up"
+            "deprecated and rejected: BQ25895/MAX17048 probes are now "
+            "permanently enabled"
         ),
     )
     build.add_argument(
@@ -1412,15 +1404,6 @@ def build_parser() -> argparse.ArgumentParser:
         "serve", help="serve the static page and V2 API from one localhost origin"
     )
     serve.add_argument("--port", type=int, default=3000)
-    serve.add_argument(
-        "--admin-username",
-        default=os.environ.get("HBOX_LOCAL_ADMIN_USERNAME", "admin"),
-    )
-    serve.add_argument(
-        "--admin-password",
-        default=os.environ.get("HBOX_LOCAL_ADMIN_PASSWORD", "admin123"),
-        help="local server admin password (or HBOX_LOCAL_ADMIN_PASSWORD)",
-    )
     serve.add_argument(
         "--bypass-device-auth",
         dest="bypass_device_auth",
@@ -1478,8 +1461,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             return serve_local_webconfig(
                 state_dir,
                 port=args.port,
-                admin_username=args.admin_username,
-                admin_password=args.admin_password,
                 bypass_device_auth=args.bypass_device_auth,
             )
         if args.command == "probe-revision":

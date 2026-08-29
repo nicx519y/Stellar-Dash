@@ -52,6 +52,7 @@ HBox 工具统一入口（tools/hbox.py）
   python tools/hbox.py web local-ch585-status
   python tools/hbox.py web local-install-ch585-bridge --execute
   python tools/hbox.py web local-serve
+  python tools/hbox.py web local-grant-account-role --email user@example.com --role admin
 """
 
 import argparse
@@ -76,7 +77,13 @@ def _run_python_tool(script_name: str, tool_args: list[str]) -> int:
         return 2
 
     cmd = [sys.executable, str(script_path), *tool_args]
-    return subprocess.call(cmd, cwd=_project_root())
+    try:
+        return subprocess.call(cmd, cwd=_project_root())
+    except KeyboardInterrupt:
+        # Long-running helpers such as web local-serve already receive the
+        # same Ctrl+C and perform their own cleanup. Avoid printing a second
+        # parent-process traceback after that graceful shutdown.
+        return 130
 
 
 def _local_webconfig_state_is_initialized() -> bool:
@@ -155,7 +162,6 @@ def _run_secure_application_flash(slot: str, build: bool = False) -> int:
                 "--jobs",
                 "4",
                 "--unlocked-development",
-                "--skip-power-device-probes",
             ],
         )
         if rc != 0:
@@ -346,6 +352,7 @@ def main(argv: list[str]) -> int:
             "local-ch585-status",
             "local-install-ch585-bridge",
             "local-serve",
+            "local-grant-account-role",
             "local-status",
             "probe-revision",
         ],
@@ -418,6 +425,29 @@ def main(argv: list[str]) -> int:
             return _run_python_tool("release.py", ["flash", *args.args])
 
     if args.cmd == "web":
+        if args.target == "local-grant-account-role":
+            database = (
+                _project_root()
+                / ".hbox"
+                / "webconfig-local"
+                / "server-data"
+                / "user_accounts.sqlite3"
+            )
+            return subprocess.call(
+                [
+                    "node",
+                    str(
+                        _project_root()
+                        / "server"
+                        / "scripts"
+                        / "account-role.js"
+                    ),
+                    "--database",
+                    str(database),
+                    *args.args,
+                ],
+                cwd=_project_root(),
+            )
         if args.target == "dev":
             return _run_npm_script("dev:hosted")
         if args.target == "build":
@@ -444,9 +474,6 @@ def main(argv: list[str]) -> int:
             if (args.target == "local-build" and
                     "--unlocked-development" not in local_args):
                 local_args.append("--unlocked-development")
-            if (args.target == "local-build" and
-                    "--skip-power-device-probes" not in local_args):
-                local_args.append("--skip-power-device-probes")
             return _run_python_tool(
                 "webconfig_local.py",
                 [local_commands[args.target], *local_args],
