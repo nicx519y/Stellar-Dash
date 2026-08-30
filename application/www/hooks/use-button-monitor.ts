@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef } from 'react';
 import { eventBus, EVENTS } from '@/lib/event-manager';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import {
+    BUTTON_STATE_CHANGED_CMD,
+    type ButtonStateBinaryData,
+} from '@/lib/button-binary-parser';
+import {
     ButtonMonitorLifecycle,
     type SharedButtonMonitorLeaseToken,
 } from '@/lib/button-monitor-lifecycle';
@@ -14,7 +18,7 @@ export interface UseButtonMonitorOptions {
     /** 状态变化回调 */
     onMonitoringStateChange?: (isActive: boolean) => void;
     /** 按键状态变化回调 */
-    onButtonStatesChange?: (states: any) => void;
+    onButtonStatesChange?: (states: ButtonStateBinaryData) => void;
     /** 使用 eventBus 而不是直接监听（推荐） */
     useEventBus?: boolean;
     /** 是否控制 start/stop_button_monitoring 命令 */
@@ -53,16 +57,35 @@ export function useButtonMonitor(options: UseButtonMonitorOptions = {}) {
         useEventBusOption,
     };
 
-    const handleButtonStateUpdate = (data: any) => {
+    const handleButtonStateUpdate = (data: unknown) => {
         try {
-            console.log('Received button state update:', data);
             const callback = optionsRef.current.onButtonStatesChange;
+            const outer = typeof data === 'object' && data !== null
+                ? data as Record<string, unknown>
+                : null;
+            const nested = outer?.buttonStates;
+            const candidate = typeof nested === 'object' && nested !== null
+                ? nested as Record<string, unknown>
+                : outer;
 
-            if (data && data.buttonStates) {
-                callback?.(data.buttonStates);
-            } else if (data) {
-                callback?.(data);
+            if (!candidate) return;
+            const triggerMask = Number(candidate.triggerMask);
+            const totalButtons = Number(candidate.totalButtons);
+            if (
+                !Number.isFinite(triggerMask)
+                || !Number.isInteger(totalButtons)
+                || totalButtons < 0
+                || totalButtons > 32
+            ) {
+                throw new Error('Invalid button state payload');
             }
+
+            callback?.({
+                command: Number(candidate.command ?? BUTTON_STATE_CHANGED_CMD) & 0xff,
+                isActive: candidate.isActive === true,
+                triggerMask: triggerMask >>> 0,
+                totalButtons,
+            });
         } catch (error) {
             console.error('Failed to handle button state update:', error);
             optionsRef.current.onError?.(
@@ -73,14 +96,34 @@ export function useButtonMonitor(options: UseButtonMonitorOptions = {}) {
         }
     };
 
+    const subscribeToButtonEvents = () => {
+        if (unsubscribeRef.current) return;
+        // 先订阅再启动设备，避免 start_button_monitoring 与首个状态事件之间的竞态。
+        unsubscribeRef.current = eventBus.on(
+            EVENTS.BUTTON_STATE_CHANGED,
+            handleButtonStateUpdate,
+        );
+    };
+
+    const unsubscribeFromButtonEvents = () => {
+        unsubscribeRef.current?.();
+        unsubscribeRef.current = null;
+    };
+
     const lifecycleRef = useRef<ButtonMonitorLifecycle | null>(null);
     if (!lifecycleRef.current) {
         lifecycleRef.current = new ButtonMonitorLifecycle({
             startDevice: async () => {
+                subscribeToButtonEvents();
                 const controlsDevice = optionsRef.current.controlMonitoringCommand;
                 if (!controlsDevice) return;
 
-                deviceLeaseRef.current = await commandsRef.current.startButtonMonitoring();
+                try {
+                    deviceLeaseRef.current = await commandsRef.current.startButtonMonitoring();
+                } catch (error) {
+                    unsubscribeFromButtonEvents();
+                    throw error;
+                }
             },
             stopDevice: async () => {
                 const lease = deviceLeaseRef.current;
@@ -90,21 +133,11 @@ export function useButtonMonitor(options: UseButtonMonitorOptions = {}) {
                 }
             },
             onAcquired: () => {
-                if (!unsubscribeRef.current) {
-                    // Device events now share one event bus. Keep the legacy
-                    // option for API compatibility without creating a second
-                    // subscription path.
-                    unsubscribeRef.current = eventBus.on(
-                        EVENTS.BUTTON_STATE_CHANGED,
-                        handleButtonStateUpdate,
-                    );
-                }
                 optionsRef.current.onMonitoringStateChange?.(true);
                 console.log('Button monitoring started successfully');
             },
             onReleased: () => {
-                unsubscribeRef.current?.();
-                unsubscribeRef.current = null;
+                unsubscribeFromButtonEvents();
                 optionsRef.current.onMonitoringStateChange?.(false);
                 console.log('Button monitoring stopped successfully');
             },
@@ -154,7 +187,7 @@ export function useButtonMonitor(options: UseButtonMonitorOptions = {}) {
         return () => {
             void lifecycle.dispose().catch((error) => {
                 console.error('Failed to dispose button monitoring:', error);
-            });
+            }).finally(unsubscribeFromButtonEvents);
         };
     }, [lifecycle]);
 

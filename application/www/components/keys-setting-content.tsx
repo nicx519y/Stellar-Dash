@@ -84,7 +84,10 @@ export function KeysSettingContent() {
     const [macros, setMacros] = useState<MacroConfig[]>([]);
     const [keysEnableConfig, setKeysEnableConfig] = useState<boolean[]>(defaultProfile?.keysConfig?.keysEnableTag?.slice(0, keyLength - 1) ?? []); // 按键启用配置
 
-    const [inputKey, setInputKey] = useState<number>(-1);
+    const [inputKeyEvent, setInputKeyEvent] = useState<{ keyId: number; sequence: number }>({
+        keyId: -1,
+        sequence: 0,
+    });
     const [macroRecording, setMacroRecording] = useState<boolean>(false);
     const [keysEnableSettingActive, setKeysEnableSettingActive] = useState<boolean>(false); // 按键启用/禁用设置状态
     const [autoSwitch, _setAutoSwitch] = useState<boolean>(() => {
@@ -200,8 +203,13 @@ export function KeysSettingContent() {
     const disabledKeys = useMemo(() => keysEnableConfig.map((_, index) => index).filter((_, index) => !keysEnableConfig[index]), [keysEnableConfig]);
 
     const hitboxButtonClick = (keyId: number) => {
-        if (macroRecording) return;
-        setInputKey(keyId);
+        // 抬起只用于 Hitbox 自身恢复视觉状态，不再让整个 Keys 页面重渲染。
+        // sequence 让同一个物理键在多次按下时仍能被识别为新的配置输入。
+        if (macroRecording || keyId < 0) return;
+        setInputKeyEvent((previous) => ({
+            keyId,
+            sequence: previous.sequence + 1,
+        }));
     }
 
     const hitboxEnableSettingClick = (keyId: number) => {
@@ -474,7 +482,8 @@ export function KeysSettingContent() {
                                     <KeymappingFieldset
                                         ref={keymappingFieldsetRef}
                                         autoSwitch={autoSwitch}
-                                        inputKey={inputKey}
+                                        inputKey={inputKeyEvent.keyId}
+                                        inputKeySequence={inputKeyEvent.sequence}
                                         inputMode={globalConfig.inputMode ?? Platform.XINPUT}
                                         keyMapping={keyMapping}
                                         combinationKeyMapping={combinationKeyMapping}
@@ -498,7 +507,12 @@ export function KeysSettingContent() {
                                         lockAdvancedBindings={isCompetitionProfile}
                                         onMacroRecordingChange={(recording) => {
                                             setMacroRecording(recording);
-                                            if (recording) setInputKey(-1);
+                                            if (recording) {
+                                                setInputKeyEvent((previous) => ({
+                                                    keyId: -1,
+                                                    sequence: previous.sequence,
+                                                }));
+                                            }
                                         }}
                                         disabled={keysEnableSettingActive}
                                     />

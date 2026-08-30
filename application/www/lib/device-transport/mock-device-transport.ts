@@ -494,17 +494,24 @@ export class MockDeviceTransport implements DeviceTransport {
     if (url.pathname === `/api/admin/switch-mappings/${this.serverCatalogId}/mapping` && init?.method === 'PATCH') {
       const body = typeof init.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
       const source = asObject(body.mapping);
-      if (asString(source.id) !== this.serverMapping.id) {
+      const length = asNumber(source.length);
+      const originalValues = Array.isArray(source.originalValues)
+        ? clone(source.originalValues as number[])
+        : [];
+      if (asString(source.id) !== this.serverMapping.id ||
+          asNumber(source.step) !== this.serverMapping.step ||
+          !Number.isInteger(length) || length < 2 || length > 40 ||
+          !Array.isArray(originalValues) || originalValues.length !== length) {
         return jsonResponse({ success: false, message: 'Mapping identity mismatch' }, 409);
       }
       this.serverMapping = {
         id: this.serverMapping.id,
         name: this.serverMapping.name,
-        length: this.serverMapping.length,
+        length,
         step: this.serverMapping.step,
         samplingFrequency: asNumber(source.samplingFrequency),
         samplingNoise: asNumber(source.samplingNoise),
-        originalValues: clone(source.originalValues as number[]),
+        originalValues,
       };
       return jsonResponse({ success: true, data: await switchMappingDetail(this.serverMapping) });
     }

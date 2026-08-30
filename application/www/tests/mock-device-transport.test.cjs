@@ -1142,6 +1142,30 @@ test('exposes one singleton mapping and rejects legacy multi-mapping mutations',
   await transport.close();
 });
 
+test('mock server curve editor accepts a shorter length and only persists active columns', async () => {
+  const transport = await createTransport();
+  const detailResponse = await transport.authorizedFetch('/api/switch-mappings/mock-axis');
+  const detail = (await detailResponse.json()).data;
+  const mapping = {
+    ...detail.revision.mapping,
+    length: 4,
+    originalValues: [4050, 3200, 2100, 900],
+  };
+  const updateResponse = await transport.authorizedFetch(
+    '/api/admin/switch-mappings/mock-axis/mapping',
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mapping }),
+    },
+  );
+  assert.equal(updateResponse.status, 200);
+  const updated = (await updateResponse.json()).data.revision.mapping;
+  assert.equal(updated.length, 4);
+  assert.deepEqual(updated.originalValues, mapping.originalValues);
+  await transport.close();
+});
+
 test('creates a RAM draft and installs a verified server revision as the singleton', async () => {
   const transport = await createTransport();
   await transport.request('ms_mapping_draft_begin', { name: 'Draft Axis', length: 2, step: 0.5 });

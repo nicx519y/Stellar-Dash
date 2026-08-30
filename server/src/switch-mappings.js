@@ -510,18 +510,16 @@ class SwitchMappingStore {
         }
         const revision = this.revision(catalog.published_revision_id);
         if (!revision || String(input?.id || '') !== revision.revision_id ||
-            Number(input?.length) !== revision.length ||
             Math.fround(Number(input?.step)) !== Math.fround(revision.step)) {
             throw new SwitchMappingError(
                 'SWITCH_MAPPING_IDENTITY_MISMATCH',
-                'Recorded mapping identity, length, or step does not match the published mapping.',
+                'Recorded mapping identity or step does not match the published mapping.',
                 409
             );
         }
         const mapping = normalizeMappingInput({
             ...input,
             name: revision.device_name,
-            length: revision.length,
             step: revision.step,
         }, { allowIncomplete: true });
         const canonical = { id: revision.revision_id, ...mapping };
@@ -530,10 +528,11 @@ class SwitchMappingStore {
         const transaction = this.database.transaction(() => {
             this.database.prepare(`
                 UPDATE switch_mapping_revisions
-                SET sampling_noise = ?, sampling_frequency = ?,
+                SET length = ?, sampling_noise = ?, sampling_frequency = ?,
                     original_values = ?, sha256 = ?
                 WHERE revision_id = ?
             `).run(
+                canonical.length,
                 canonical.samplingNoise,
                 canonical.samplingFrequency,
                 JSON.stringify(canonical.originalValues),

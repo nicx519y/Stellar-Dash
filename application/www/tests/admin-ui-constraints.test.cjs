@@ -142,6 +142,40 @@ test('adding a server switch mapping never replaces the mapping installed on the
     assert.doesNotMatch(creator, /installCanonicalMapping|ms_install_mapping/);
 });
 
+test('administrators can edit curve length and ADC values in a table without hiding shortened columns', () => {
+    assert.match(switchMarking, /aria-label=\{t\.SWITCH_MAPPING_CURVE_EDIT_ARIA\}/);
+    assert.match(
+        switchMarking,
+        /\{t\.SWITCH_MAPPING_RECORDING_STEP\}[\s\S]*?\{t\.SWITCH_MAPPING_CURVE_EDIT_TITLE\}/,
+    );
+    assert.match(switchMarking, /<Table\.Root/);
+    assert.match(switchMarking, /curveEditorColumnCount/);
+    assert.match(switchMarking, /Math\.max\(\s*curveEditor\.originalLength/);
+    assert.match(switchMarking, /const inactive = index >= curveEditorLength/);
+    assert.match(switchMarking, /bg=\{inactive \? "bg\.muted" : undefined\}/);
+    assert.match(switchMarking, /disabled=\{inactive \|\| busyId !== null\}/);
+    assert.match(switchMarking, /originalValues: activeValues/);
+    assert.match(switchMarking, /await updateSwitchMappingCurve\(catalogId, mapping\)/);
+    assert.match(switchMarking, /await installSwitchMapping\(catalogId, detail\)/);
+
+    const saveCurveEditor = switchMarking.slice(
+        switchMarking.indexOf('const saveCurveEditor ='),
+        switchMarking.indexOf('const gridColor ='),
+    );
+    assert.ok(
+        saveCurveEditor.indexOf('await updateSwitchMappingCurve(catalogId, mapping)') <
+        saveCurveEditor.indexOf('await installSwitchMapping(catalogId, detail)'),
+        'manual Save must persist the canonical server curve before installing it on the device',
+    );
+
+    const installCanonicalMapping = gamepadConfigContext.slice(
+        gamepadConfigContext.indexOf('const installCanonicalMapping ='),
+        gamepadConfigContext.indexOf('const installSwitchMapping ='),
+    );
+    assert.match(installCanonicalMapping, /sendDeviceRequest\('ms_install_mapping'/);
+    assert.match(installCanonicalMapping, /sendDeviceRequest\('ms_get_mapping'/);
+});
+
 test('recording publishes each completed step immediately and stop stays available during persistence', () => {
     assert.match(switchMarking, /originalValues: \[\.\.\.markingStatus\.values\]/);
     assert.match(switchMarking, /Promise\.all\(\[\s*syncMarkingProgress\(\),\s*updateSwitchMappingCurve/);

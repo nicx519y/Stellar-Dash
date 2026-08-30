@@ -244,9 +244,10 @@ test('administrator creates, publishes, and updates a normal zero-filled mapping
 
     const recordedMapping = {
         ...created.json.data.revision.mapping,
+        length: 8,
         samplingNoise: 7,
         samplingFrequency: 8100,
-        originalValues: [4000, 3700, ...Array(10).fill(0)],
+        originalValues: [4000, 3700, ...Array(6).fill(0)],
     };
     const updated = await request(
         server,
@@ -256,6 +257,7 @@ test('administrator creates, publishes, and updates a normal zero-filled mapping
     );
     assert.equal(updated.status, 200);
     assert.equal(updated.json.data.revision.revisionId, recordedMapping.id);
+    assert.equal(updated.json.data.revision.mapping.length, 8);
     assert.deepEqual(
         updated.json.data.revision.mapping.originalValues,
         recordedMapping.originalValues

@@ -5,8 +5,7 @@ import { Box } from '@chakra-ui/react';
 import styled from "styled-components";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { useColorMode } from "../ui/color-mode";
-import { type ButtonStateBinaryData, isButtonTriggered } from '@/lib/button-binary-parser';
-import { useButtonMonitor } from '@/hooks/use-button-monitor';
+import { useHitboxButtonMonitor } from '@/hooks/use-hitbox-button-monitor';
 import { shouldStartButtonMonitoring } from '@/lib/button-monitor-lifecycle';
 import { GameControllerButton } from "@/types/gamepad-config";
 import { HITBOX_WIDTH, HITBOX_HEIGHT, HITBOX_PADDING, HITBOX_LAYOUT_SCALE } from "./hitbox-constants";
@@ -133,16 +132,18 @@ export default function HitboxBase(props: HitboxBaseProps) {
     });
 
     const [pressedButtonStates, setPressedButtonStates] = useState(Array(len).fill(-1));
-    const [hardwareButtonStates, setHardwareButtonStates] = useState(Array(len).fill(-1));
+    const hardwareButtonStates = useHitboxButtonMonitor({
+        buttonCount: len,
+        interactiveIds: props.interactiveIds ?? [],
+        enabled: shouldMonitorButtons,
+        onButtonChange: props.onClick,
+        logPrefix: 'hitbox-base',
+    });
 
     useEffect(() => {
         setPressedButtonStates(prev => {
             if (prev.length === len) return prev;
             return Array(len).fill(-1);
-        });
-        setHardwareButtonStates(prev => {
-             if (prev.length === len) return prev;
-             return Array(len).fill(-1);
         });
     }, [len]);
 
@@ -160,63 +161,6 @@ export default function HitboxBase(props: HitboxBaseProps) {
     };
 
     const scale = calculateScale();
-
-    const buttonStates: { [key: number]: number } = {};
-    if(props.interactiveIds) {
-        for(let i = 0; i < len; i++) {
-            if(props.interactiveIds.includes(i)) {
-                buttonStates[i] = -1;
-            }
-        }
-    }
-
-    // 使用 useButtonMonitor hook
-    const { startMonitoring, stopMonitoring } = useButtonMonitor({
-        autoInitialize: false, // 不自动初始化，由组件控制
-        onButtonStatesChange: (data: ButtonStateBinaryData) => {
-            if (!data || !props.interactiveIds) {
-                return;
-            }
-
-            // 检查每个在interactiveIds范围内的按键
-            props.interactiveIds.forEach((buttonId) => {
-                const isPressed = isButtonTriggered(data.triggerMask, buttonId);
-                
-                // 使用ref获取当前真实状态，避免闭包陷阱
-                const wasPressed = (buttonStates[buttonId] === 1) || false;
-                if (isPressed !== wasPressed) {
-                    if (isPressed) {
-                        // 按键按下，模拟mousedown
-                        props.onClick?.(buttonId);
-                        setHardwareButtonStates(prev => {
-                            const newStates = [...prev];
-                            newStates[buttonId] = 1;
-                            return newStates;
-                        });
-                        console.log(`硬件按键 ${buttonId} 按下`);
-                        buttonStates[buttonId] = 1;
-                    } else {
-                        // 按键释放，模拟mouseup
-                        props.onClick?.(-1);
-                        setHardwareButtonStates(prev => {
-                            const newStates = [...prev];
-                            newStates[buttonId] = -1;
-                            return newStates;
-                        });
-                        console.log(`硬件按键 ${buttonId} 释放`);
-                        buttonStates[buttonId] = -1;
-                    }
-                }
-            });
-
-        },
-        onError: (error) => {
-            console.error('按键监听错误:', error);
-        },
-        onMonitoringStateChange: (isActive) => {
-            console.log('按键监听状态变化:', isActive);
-        }
-    });
 
     const handleClick = (event: React.MouseEvent<SVGElement>) => {
         const target = event.target as SVGElement;
@@ -260,33 +204,6 @@ export default function HitboxBase(props: HitboxBaseProps) {
     useEffect(() => {
         setContextJsReady(true);
     }, [setContextJsReady]);
-
-    /**
-     * 管理按键监听的启动和停止
-     */
-    useEffect(() => {
-        const clearHardwareState = () => {
-            setHardwareButtonStates((current) => current.map(() => -1));
-        };
-
-        if (!shouldMonitorButtons) {
-            clearHardwareState();
-            return;
-        }
-
-        console.log("hitbox-base: 启动按键监听");
-        void startMonitoring().catch((error) => {
-            console.error('启动按键监听失败:', error);
-        });
-
-        return () => {
-            clearHardwareState();
-            console.log("hitbox-base: 清理按键监听");
-            void stopMonitoring().catch((error) => {
-                console.error('停止按键监听失败:', error);
-            });
-        };
-    }, [shouldMonitorButtons, startMonitoring, stopMonitoring]);
 
     // 子类可以重写的方法
     const getButtonFillColor = (_index: number): string => {

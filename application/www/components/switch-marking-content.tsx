@@ -10,6 +10,7 @@ import {
     Input,
     Portal,
     Spinner,
+    Table,
     Text,
     VStack,
 } from "@chakra-ui/react";
@@ -87,6 +88,12 @@ interface AxisListItem {
 interface EditorState {
     mode: "create" | "edit";
     item: AxisListItem | null;
+}
+
+interface CurveEditorState {
+    item: AxisListItem;
+    mapping: SwitchMappingPayload;
+    originalLength: number;
 }
 
 const CARD_WIDTH = "104px";
@@ -206,6 +213,9 @@ export function SwitchMarkingContent() {
     const [selectedMapping, setSelectedMapping] = useState<SwitchMappingPayload | null>(null);
     const [hoveredMappingId, setHoveredMappingId] = useState<string | null>(null);
     const [editor, setEditor] = useState<EditorState | null>(null);
+    const [curveEditor, setCurveEditor] = useState<CurveEditorState | null>(null);
+    const [curveEditorLength, setCurveEditorLength] = useState(0);
+    const [curveEditorValues, setCurveEditorValues] = useState<number[]>([]);
     const [editorName, setEditorName] = useState("");
     const [editorLength, setEditorLength] = useState(29);
     const [editorStep, setEditorStep] = useState(0.1);
@@ -879,6 +889,120 @@ export function SwitchMarkingContent() {
         return selectedMapping || activeMapping;
     }, [markingStatus, selectedMapping, selectedMappingId, activeMapping]);
 
+    const selectedAxisItem = useMemo(
+        () => axisItems.find(item => item.mappingId === selectedMappingId) || null,
+        [axisItems, selectedMappingId],
+    );
+
+    const openCurveEditor = () => {
+        if (!isAdmin || !selectedAxisItem?.catalogId || !selectedAxisItem.serverItem ||
+            !displayedMapping || displayedMapping.id !== selectedAxisItem.mappingId ||
+            busyId || recordingBusy || serverSyncBusy || markingStatus.is_marking) {
+            return;
+        }
+        setCurveEditor({
+            item: selectedAxisItem,
+            mapping: displayedMapping,
+            originalLength: displayedMapping.length,
+        });
+        setCurveEditorLength(displayedMapping.length);
+        setCurveEditorValues([...displayedMapping.originalValues]);
+    };
+
+    const closeCurveEditor = () => {
+        if (busyId) return;
+        setCurveEditor(null);
+        setCurveEditorLength(0);
+        setCurveEditorValues([]);
+    };
+
+    const changeCurveEditorLength = (value: number) => {
+        setCurveEditorLength(value);
+        if (!Number.isInteger(value) || value < 0 || value > SWITCH_MARKING_LENGTH_MAX) {
+            return;
+        }
+        setCurveEditorValues(current => Array.from(
+            { length: Math.max(current.length, value) },
+            (_, index) => current[index] ?? 0,
+        ));
+    };
+
+    const changeCurveEditorValue = (index: number, value: number) => {
+        setCurveEditorValues(current => {
+            const next = [...current];
+            next[index] = value;
+            return next;
+        });
+    };
+
+    const curveEditorColumnCount = useMemo(() => {
+        if (!curveEditor) return 0;
+        const requestedLength = Number.isInteger(curveEditorLength)
+            ? clamp(curveEditorLength, 0, SWITCH_MARKING_LENGTH_MAX)
+            : 0;
+        return Math.max(
+            curveEditor.originalLength,
+            requestedLength,
+            curveEditorValues.length,
+        );
+    }, [curveEditor, curveEditorLength, curveEditorValues.length]);
+
+    const saveCurveEditor = async () => {
+        if (!curveEditor?.item.catalogId || busyId) return;
+        const activeValues = curveEditorValues.slice(0, curveEditorLength);
+        const valid = Number.isInteger(curveEditorLength) &&
+            curveEditorLength >= SWITCH_MARKING_LENGTH_MIN &&
+            curveEditorLength <= SWITCH_MARKING_LENGTH_MAX &&
+            activeValues.length === curveEditorLength &&
+            activeValues.every(value => Number.isInteger(value) && value >= 0 && value <= 0xffff);
+        if (!valid) {
+            showToast({
+                title: t.SWITCH_MAPPING_CURVE_INVALID_TITLE,
+                description: t.SWITCH_MAPPING_CURVE_INVALID_MESSAGE,
+                type: "error",
+            });
+            return;
+        }
+
+        const catalogId = curveEditor.item.catalogId;
+        const mapping: SwitchMappingPayload = {
+            ...curveEditor.mapping,
+            length: curveEditorLength,
+            originalValues: activeValues,
+        };
+        setBusyId(`curve:${catalogId}`);
+        try {
+            const detail = await updateSwitchMappingCurve(catalogId, mapping);
+            const installed = await installSwitchMapping(catalogId, detail);
+            setSelectedMappingId(installed.id);
+            setSelectedMapping(installed);
+            setCatalog(current => current.map(item =>
+                item.catalogId === detail.catalogId
+                    ? {
+                        ...item,
+                        sha256: detail.revision.sha256,
+                        updatedAt: detail.updatedAt,
+                    }
+                    : item
+            ));
+            setCurveEditor(null);
+            setCurveEditorLength(0);
+            setCurveEditorValues([]);
+            showToast({
+                title: t.SWITCH_MAPPING_CURVE_SAVE_SUCCESS,
+                type: "success",
+            });
+        } catch (error) {
+            showToast({
+                title: t.SWITCH_MAPPING_CURVE_SAVE_FAILED,
+                description: error instanceof Error ? error.message : String(error),
+                type: "error",
+            });
+        } finally {
+            setBusyId(null);
+        }
+    };
+
     const gridColor = colorMode === "dark"
         ? "rgba(255,255,255,0.1)"
         : "rgba(0,0,0,0.1)";
@@ -1210,6 +1334,19 @@ export function SwitchMarkingContent() {
                             >
                                 {t.SWITCH_MAPPING_RECORDING_STEP}
                             </Button>
+                            <Button
+                                aria-label={t.SWITCH_MAPPING_CURVE_EDIT_ARIA}
+                                title={t.SWITCH_MAPPING_CURVE_EDIT_TITLE}
+                                size="xs"
+                                colorPalette="blue"
+                                variant="outline"
+                                disabled={!selectedAxisItem?.catalogId || !selectedAxisItem.serverItem ||
+                                    !displayedMapping || busyId !== null || recordingBusy ||
+                                    serverSyncBusy || markingStatus.is_marking}
+                                onClick={openCurveEditor}
+                            >
+                                {t.SWITCH_MAPPING_CURVE_EDIT_TITLE}
+                            </Button>
                         </HStack>
                     )}
                 </VStack>
@@ -1477,6 +1614,173 @@ export function SwitchMarkingContent() {
                                     loading={busyId !== null}
                                     disabled={editorImage !== null && !editorImagePreview}
                                     onClick={() => void saveEditor()}
+                                >
+                                    {t.BUTTON_SAVE}
+                                </Button>
+                            </Dialog.Footer>
+                        </Dialog.Content>
+                    </Dialog.Positioner>
+                </Dialog.Root>
+
+                <Dialog.Root
+                    open={curveEditor !== null}
+                    onOpenChange={details => {
+                        if (!details.open) closeCurveEditor();
+                    }}
+                    closeOnInteractOutside={!busyId}
+                    closeOnEscape={!busyId}
+                >
+                    <Dialog.Backdrop backdropFilter="blur(4px)" />
+                    <Dialog.Positioner>
+                        <Dialog.Content
+                            width="min(96vw, 1280px)"
+                            maxWidth="96vw"
+                            maxHeight="88vh"
+                        >
+                            <Dialog.Header>
+                                <Dialog.Title>{t.SWITCH_MAPPING_CURVE_DIALOG_TITLE}</Dialog.Title>
+                            </Dialog.Header>
+                            <Dialog.Body minHeight={0} overflow="hidden">
+                                <VStack alignItems="stretch" gap={4} minHeight={0}>
+                                    <HStack alignItems="flex-end" gap={3}>
+                                        <Box width="180px">
+                                            <Text fontSize="sm" mb={1}>
+                                                {t.SWITCH_MAPPING_CURVE_LENGTH_LABEL}
+                                            </Text>
+                                            <Input
+                                                type="number"
+                                                min={SWITCH_MARKING_LENGTH_MIN}
+                                                max={SWITCH_MARKING_LENGTH_MAX}
+                                                step={1}
+                                                value={curveEditorLength}
+                                                disabled={busyId !== null}
+                                                onChange={event => changeCurveEditorLength(Number(event.target.value))}
+                                            />
+                                        </Box>
+                                        <Text fontSize="sm" color="fg.muted" pb={2}>
+                                            {t.SWITCH_MAPPING_CURVE_LENGTH_HELPER}
+                                        </Text>
+                                    </HStack>
+
+                                    <Box
+                                        borderWidth="1px"
+                                        borderColor="border"
+                                        borderRadius="md"
+                                        overflowX="auto"
+                                        overflowY="hidden"
+                                        maxWidth="100%"
+                                    >
+                                        <Table.Root
+                                            size="sm"
+                                            variant="outline"
+                                            tableLayout="fixed"
+                                            minWidth={`${Math.max(620, 132 + curveEditorColumnCount * 96)}px`}
+                                        >
+                                            <Table.Header>
+                                                <Table.Row>
+                                                    <Table.ColumnHeader
+                                                        width="132px"
+                                                        minWidth="132px"
+                                                        position="sticky"
+                                                        left={0}
+                                                        zIndex={2}
+                                                        bg="bg"
+                                                    >
+                                                        {t.SWITCH_MAPPING_CURVE_STEP_HEADER}
+                                                    </Table.ColumnHeader>
+                                                    {Array.from({ length: curveEditorColumnCount }, (_, index) => {
+                                                        const inactive = index >= curveEditorLength;
+                                                        return (
+                                                            <Table.ColumnHeader
+                                                                key={index}
+                                                                width="96px"
+                                                                textAlign="center"
+                                                                bg={inactive ? "bg.muted" : undefined}
+                                                                color={inactive ? "fg.muted" : undefined}
+                                                                opacity={inactive ? 0.55 : 1}
+                                                            >
+                                                                {index + 1}
+                                                            </Table.ColumnHeader>
+                                                        );
+                                                    })}
+                                                </Table.Row>
+                                            </Table.Header>
+                                            <Table.Body>
+                                                <Table.Row>
+                                                    <Table.Cell
+                                                        position="sticky"
+                                                        left={0}
+                                                        zIndex={1}
+                                                        bg="bg"
+                                                        fontWeight="medium"
+                                                    >
+                                                        {t.SWITCH_MAPPING_CURVE_DISTANCE_HEADER}
+                                                    </Table.Cell>
+                                                    {Array.from({ length: curveEditorColumnCount }, (_, index) => {
+                                                        const inactive = index >= curveEditorLength;
+                                                        return (
+                                                            <Table.Cell
+                                                                key={index}
+                                                                textAlign="center"
+                                                                bg={inactive ? "bg.muted" : undefined}
+                                                                color={inactive ? "fg.muted" : undefined}
+                                                                opacity={inactive ? 0.55 : 1}
+                                                            >
+                                                                {(index * (curveEditor?.mapping.step || 0)).toFixed(2)} mm
+                                                            </Table.Cell>
+                                                        );
+                                                    })}
+                                                </Table.Row>
+                                                <Table.Row>
+                                                    <Table.Cell
+                                                        position="sticky"
+                                                        left={0}
+                                                        zIndex={1}
+                                                        bg="bg"
+                                                        fontWeight="medium"
+                                                    >
+                                                        {t.SWITCH_MAPPING_CURVE_VALUE_HEADER}
+                                                    </Table.Cell>
+                                                    {Array.from({ length: curveEditorColumnCount }, (_, index) => {
+                                                        const inactive = index >= curveEditorLength;
+                                                        return (
+                                                            <Table.Cell
+                                                                key={index}
+                                                                padding={2}
+                                                                bg={inactive ? "bg.muted" : undefined}
+                                                                opacity={inactive ? 0.55 : 1}
+                                                            >
+                                                                <Input
+                                                                    aria-label={`${t.SWITCH_MAPPING_CURVE_VALUE_HEADER} ${index + 1}`}
+                                                                    type="number"
+                                                                    min={0}
+                                                                    max={0xffff}
+                                                                    step={1}
+                                                                    size="sm"
+                                                                    value={curveEditorValues[index] ?? 0}
+                                                                    disabled={inactive || busyId !== null}
+                                                                    onChange={event => changeCurveEditorValue(
+                                                                        index,
+                                                                        Number(event.target.value),
+                                                                    )}
+                                                                />
+                                                            </Table.Cell>
+                                                        );
+                                                    })}
+                                                </Table.Row>
+                                            </Table.Body>
+                                        </Table.Root>
+                                    </Box>
+                                </VStack>
+                            </Dialog.Body>
+                            <Dialog.Footer>
+                                <Button variant="outline" disabled={busyId !== null} onClick={closeCurveEditor}>
+                                    {t.BUTTON_CANCEL}
+                                </Button>
+                                <Button
+                                    colorPalette="green"
+                                    loading={busyId !== null}
+                                    onClick={() => void saveCurveEditor()}
                                 >
                                     {t.BUTTON_SAVE}
                                 </Button>
