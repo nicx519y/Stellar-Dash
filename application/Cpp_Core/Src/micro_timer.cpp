@@ -1,5 +1,6 @@
 #include "micro_timer.hpp"
 #include "board_cfg.h"
+#include "cycle_elapsed.hpp"
 
 // STM32H750的CPU频率 - 根据实际系统时钟配置调整
 #define CYCLES_PER_MICROSECOND (SYSTEM_CLOCK_FREQ / 1000000UL)
@@ -26,6 +27,16 @@ uint32_t MicrosTimer::micros() {
     
     // 转换为微秒
     return cycles / CYCLES_PER_MICROSECOND;
+}
+
+uint32_t MicrosTimer::cycles() const {
+    return DWT->CYCCNT;
+}
+
+uint32_t MicrosTimer::elapsedMicros(uint32_t startCycles) const {
+    return ElapsedMicros32(startCycles,
+                           DWT->CYCCNT,
+                           CYCLES_PER_MICROSECOND);
 }
 
 void MicrosTimer::reset() {

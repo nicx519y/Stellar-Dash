@@ -194,14 +194,115 @@ static void handle_caps(void)
     caps.max_frame_bytes = USB_BOARD_LINK_MAX_FRAME_BYTES;
     caps.input_state_bytes = USB_BOARD_INPUT_V1_BYTES;
     caps.firmware_major = 2u;
-    caps.firmware_minor = 0u;
+    caps.firmware_minor = 1u;
     caps.firmware_patch = 0u;
     caps.feature_flags = USB_BOARD_CAP_FEATURE_TELEMETRY_HID |
                          USB_BOARD_CAP_FEATURE_CONTROL_V1 |
                          USB_BOARD_CAP_FEATURE_LOCAL_AUTH |
                          USB_BOARD_CAP_FEATURE_WEBHID_V1 |
                          USB_BOARD_CAP_FEATURE_WEBCONFIG_PULL_CREDIT;
+    if(s_role == USB_BOARD_ROLE_USB)
+    {
+        caps.feature_flags |= USB_BOARD_CAP_FEATURE_SPI_FAST_INPUT_V2;
+    }
     (void)queue_event(USB_BOARD_EVT_CAPS, &caps, sizeof(caps));
+}
+
+static void handle_set_data_plane(const usb_board_link_frame_t *frame)
+{
+    usb_board_data_plane_set_v1_t response;
+    response.mode = USB_BOARD_DATA_PLANE_COMPAT;
+    response.status = USB_BOARD_STATUS_BAD_LENGTH;
+
+    if(frame->length == sizeof(usb_board_set_data_plane_v1_t))
+    {
+        response.mode = frame->payload[0];
+        if(response.mode == USB_BOARD_DATA_PLANE_COMPAT)
+        {
+            response.status = usb_board_link_port_set_fast_input(false)
+                ? USB_BOARD_STATUS_OK
+                : USB_BOARD_STATUS_BUSY;
+        }
+        else if(response.mode == USB_BOARD_DATA_PLANE_FAST_INPUT_V2)
+        {
+            if(s_role != USB_BOARD_ROLE_USB)
+            {
+                response.status = USB_BOARD_STATUS_BAD_ROLE;
+            }
+            else
+            {
+                response.status = usb_board_link_port_set_fast_input(true)
+                    ? USB_BOARD_STATUS_OK
+                    : USB_BOARD_STATUS_BUSY;
+            }
+        }
+        else
+        {
+            response.status = USB_BOARD_STATUS_UNSUPPORTED;
+        }
+    }
+    (void)queue_event(USB_BOARD_EVT_DATA_PLANE_SET,
+                      &response,
+                      sizeof(response));
+}
+
+static void handle_data_plane_probe(const usb_board_link_frame_t *frame)
+{
+    usb_board_data_plane_probe_v1_t request;
+    usb_board_data_plane_probe_result_v1_t response;
+    uint8_t index;
+
+    memset(&request, 0, sizeof(request));
+    memset(&response, 0, sizeof(response));
+    response.mode = USB_BOARD_DATA_PLANE_FAST_INPUT_V2;
+    response.status = USB_BOARD_STATUS_BAD_LENGTH;
+    if(frame->length != sizeof(request))
+    {
+        (void)queue_event(USB_BOARD_EVT_DATA_PLANE_PROBE,
+                          &response,
+                          sizeof(response));
+        return;
+    }
+
+    memcpy(&request, frame->payload, sizeof(request));
+    response.mode = request.mode;
+    response.nonce_le = request.nonce_le;
+    response.crc16_le = request.crc16_le;
+    if((s_role != USB_BOARD_ROLE_USB) ||
+       !usb_board_link_port_is_fast_input())
+    {
+        response.status = USB_BOARD_STATUS_BAD_ROLE;
+    }
+    else if((request.mode != USB_BOARD_DATA_PLANE_FAST_INPUT_V2) ||
+            (request.version != USB_BOARD_DATA_PLANE_PROBE_VERSION))
+    {
+        response.status = USB_BOARD_STATUS_UNSUPPORTED;
+    }
+    else if(usb_board_crc16_ccitt((const uint8_t *)&request,
+                                  (uint16_t)(sizeof(request) -
+                                             sizeof(request.crc16_le))) !=
+            request.crc16_le)
+    {
+        response.status = USB_BOARD_STATUS_CRC_ERROR;
+    }
+    else
+    {
+        response.status = USB_BOARD_STATUS_OK;
+        for(index = 0u; index < sizeof(request.pattern); ++index)
+        {
+            const uint8_t expected = (uint8_t)(
+                USB_BOARD_DATA_PLANE_PROBE_PATTERN_SEED +
+                (uint8_t)(index * USB_BOARD_DATA_PLANE_PROBE_PATTERN_STEP));
+            if(request.pattern[index] != expected)
+            {
+                response.status = USB_BOARD_STATUS_BAD_FRAME;
+                break;
+            }
+        }
+    }
+    (void)queue_event(USB_BOARD_EVT_DATA_PLANE_PROBE,
+                      &response,
+                      sizeof(response));
 }
 
 static void handle_set_profile(const usb_board_link_frame_t *frame)
@@ -516,6 +617,14 @@ static void dispatch(const usb_board_link_frame_t *frame)
 
     case USB_BOARD_CMD_BULK_CREDIT:
         handle_credit(frame);
+        break;
+
+    case USB_BOARD_CMD_SET_DATA_PLANE:
+        handle_set_data_plane(frame);
+        break;
+
+    case USB_BOARD_CMD_DATA_PLANE_PROBE:
+        handle_data_plane_probe(frame);
         break;
 
     case USB_BOARD_CMD_SELECT_ROLE:

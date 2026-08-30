@@ -50,7 +50,9 @@ public:
         return instance;
     }
 
-    void setup(ConnectionMode mode, WirelessReportRate wirelessRate);
+    void setup(ConnectionMode mode,
+               WirelessReportRate wirelessRate,
+               InputMode inputMode);
     void loop();
     void onReportReady(const GamepadState& state, uint32_t seq);
     bool applyWirelessReportRate(WirelessReportRate wirelessRate, bool persist);
@@ -68,6 +70,7 @@ public:
     ConnectionMode getMode() const { return mode; }
     ConnectionLinkState getLinkState() const { return linkState; }
     uint16_t getAppliedReportRateHz() const { return appliedReportRateHz; }
+    bool isReportRateConfirmed() const { return reportRateConfirmed; }
     bool isRfPairing() const { return rfPairingActive; }
     bool hasRfPairSucceeded() const { return rfPairSucceeded || rfPairingState == RfPairingState::PairOk; }
     bool isRfSleeping() const { return rfPowerState == RfPowerState::Sleeping; }
@@ -93,6 +96,7 @@ private:
     void loadRfPowerStateHint();
     void setRfPowerState(RfPowerState state, bool persist);
     bool rfPowerStateBlocksSpi() const;
+    bool confirmRfReportRate(uint16_t targetRateHz);
     bool rfPowerStateIsBootHint() const { return rfPowerStateFromPersistedHint; }
 
     ConnectionMode mode = ConnectionMode::CONNECTION_MODE_USB;
@@ -100,6 +104,8 @@ private:
     uint16_t appliedReportRateHz = 1000;
     uint16_t requestedReportRateHz = 1000;
     bool rateApplyPending = false;
+    bool reportRateConfirmed = true;
+    bool rfHighRateEligible = false;
     RfPowerState rfPowerState = RfPowerState::Unknown;
     bool rfPowerStateFromPersistedHint = false;
     uint32_t lastRfStatusPollMs = 0;

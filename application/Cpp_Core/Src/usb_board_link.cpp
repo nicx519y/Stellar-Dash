@@ -446,6 +446,7 @@ bool UsbBoardLink::getCapabilities()
         (caps.protocol_version == USB_BOARD_LINK_VERSION) &&
         (caps.max_frame_bytes == USB_BOARD_LINK_MAX_FRAME_BYTES) &&
         (caps.input_state_bytes == USB_BOARD_INPUT_V1_BYTES);
+    fastApplication = false;
     if (capsValid) {
         MonitorTelemetry_SetCh585Status(
             static_cast<uint8_t>(selectedRole),
@@ -465,6 +466,139 @@ bool UsbBoardLink::getCapabilities()
         (void)grantInitialReceiveCredits();
     }
     return capsValid;
+}
+
+bool UsbBoardLink::getUsbLinkState(usb_board_control_link_state_v1_t &state)
+{
+    uint8_t responseLength = 0u;
+    memset(&state, 0, sizeof(state));
+    return sendControl(USB_BOARD_CONTROL_GET_LINK_STATE,
+                       nullptr,
+                       0u,
+                       reinterpret_cast<uint8_t *>(&state),
+                       sizeof(state),
+                       &responseLength) &&
+           responseLength == sizeof(state);
+}
+
+bool UsbBoardLink::setDataPlane(usb_board_data_plane_t mode)
+{
+    const usb_board_set_data_plane_v1_t request = {
+        static_cast<uint8_t>(mode)
+    };
+    usb_board_data_plane_set_v1_t response = {};
+    uint8_t responseLength = 0u;
+
+    return transact(USB_BOARD_CMD_SET_DATA_PLANE,
+                    &request,
+                    sizeof(request),
+                    USB_BOARD_EVT_DATA_PLANE_SET,
+                    &response,
+                    sizeof(response),
+                    &responseLength,
+                    kControlTimeoutMs) &&
+           responseLength == sizeof(response) &&
+           response.mode == static_cast<uint8_t>(mode) &&
+           response.status == USB_BOARD_STATUS_OK;
+}
+
+bool UsbBoardLink::enableFastInputDataPlane()
+{
+    if (!capsValid || selectedRole != USB_BOARD_ROLE_USB ||
+        selectedProfile != USB_BOARD_PROFILE_XINPUT ||
+        (caps.feature_flags &
+         USB_BOARD_CAP_FEATURE_SPI_FAST_INPUT_V2) == 0u) {
+        return false;
+    }
+    if (fastApplication && USBBoardLinkPort_IsFastApplication()) {
+        return true;
+    }
+
+    fastDataPlaneFaultPending = false;
+    fastDataPlaneFault = USB_BOARD_STATUS_OK;
+    if (!setDataPlane(USB_BOARD_DATA_PLANE_FAST_INPUT_V2)) {
+        APP_STAGE_ERROR("U05F", "FAST_INPUT_V2 handshake rejected");
+        return false;
+    }
+    if (!USBBoardLinkPort_EnableFastApplication()) {
+        APP_STAGE_ERROR("U05F",
+                        "FAST_INPUT_V2 local SPI switch failed: spi4_hz=%lu",
+                        static_cast<unsigned long>(
+                            USBBoardLinkPort_ClockHz()));
+        (void)restoreCompatibleDataPlane();
+        return false;
+    }
+
+    usb_board_data_plane_probe_v1_t probe = {};
+    usb_board_data_plane_probe_result_v1_t response = {};
+    uint8_t responseLength = 0u;
+    probe.mode = USB_BOARD_DATA_PLANE_FAST_INPUT_V2;
+    probe.version = USB_BOARD_DATA_PLANE_PROBE_VERSION;
+    probe.nonce_le = (++dataPlaneNonce) ^ HAL_GetTick() ^ 0x58525632u;
+    for (uint8_t index = 0u; index < sizeof(probe.pattern); ++index) {
+        probe.pattern[index] = static_cast<uint8_t>(
+            USB_BOARD_DATA_PLANE_PROBE_PATTERN_SEED +
+            static_cast<uint8_t>(
+                index * USB_BOARD_DATA_PLANE_PROBE_PATTERN_STEP));
+    }
+    probe.crc16_le = usb_board_crc16_ccitt(
+        reinterpret_cast<const uint8_t *>(&probe),
+        static_cast<uint16_t>(sizeof(probe) - sizeof(probe.crc16_le)));
+
+    const bool probeOk =
+        transact(USB_BOARD_CMD_DATA_PLANE_PROBE,
+                 &probe,
+                 sizeof(probe),
+                 USB_BOARD_EVT_DATA_PLANE_PROBE,
+                 &response,
+                 sizeof(response),
+                 &responseLength,
+                 kControlTimeoutMs) &&
+        responseLength == sizeof(response) &&
+        response.mode == USB_BOARD_DATA_PLANE_FAST_INPUT_V2 &&
+        response.status == USB_BOARD_STATUS_OK &&
+        response.nonce_le == probe.nonce_le &&
+        response.crc16_le == probe.crc16_le;
+    if (!probeOk) {
+        APP_STAGE_ERROR("U05P", "FAST_INPUT_V2 maximum-frame probe failed");
+        (void)restoreCompatibleDataPlane();
+        return false;
+    }
+
+    fastApplication = true;
+    APP_STAGE("U05P",
+              "FAST_INPUT_V2 probe accepted: spi4_hz=%lu nonce=%08lx",
+              static_cast<unsigned long>(USBBoardLinkPort_ClockHz()),
+              static_cast<unsigned long>(probe.nonce_le));
+    return true;
+}
+
+bool UsbBoardLink::restoreCompatibleDataPlane()
+{
+    const bool localCompatible = USBBoardLinkPort_DisableFastApplication();
+    fastApplication = false;
+    const bool remoteCompatible =
+        capsValid && selectedRole != USB_BOARD_ROLE_RF
+            ? setDataPlane(USB_BOARD_DATA_PLANE_COMPAT)
+            : true;
+    if (!localCompatible || !remoteCompatible) {
+        APP_STAGE_ERROR("U05R",
+                        "BoardLink compatibility recovery failed: local=%u remote=%u",
+                        localCompatible ? 1u : 0u,
+                        remoteCompatible ? 1u : 0u);
+    }
+    return localCompatible && remoteCompatible;
+}
+
+bool UsbBoardLink::takeFastDataPlaneFault(uint8_t &fault)
+{
+    if (!fastDataPlaneFaultPending) {
+        return false;
+    }
+    fault = fastDataPlaneFault;
+    fastDataPlaneFaultPending = false;
+    fastDataPlaneFault = USB_BOARD_STATUS_OK;
+    return true;
 }
 
 bool UsbBoardLink::grantInitialReceiveCredits()
@@ -1180,6 +1314,10 @@ void UsbBoardLink::handleEvent(uint8_t command,
         }
     } else if ((command == USB_BOARD_EVT_FAULT) && (length != 0u)) {
         usbState.last_fault = payload[0];
+        if (fastApplication || USBBoardLinkPort_IsFastApplication()) {
+            fastDataPlaneFaultPending = true;
+            fastDataPlaneFault = payload[0];
+        }
     } else if ((command == USB_BOARD_EVT_BULK_FRAGMENT) &&
                (length >= USB_BOARD_FRAGMENT_HEADER_BYTES)) {
         usb_board_fragment_header_v1_t header = {};
@@ -1311,6 +1449,9 @@ void UsbBoardLink::shutdown()
     nextTelemetryAtMs = 0u;
     roleLocked = false;
     capsValid = false;
+    fastApplication = false;
+    fastDataPlaneFaultPending = false;
+    fastDataPlaneFault = USB_BOARD_STATUS_OK;
     transactionActive = false;
     s_networkRxActive = false;
     s_networkRxLength = 0u;

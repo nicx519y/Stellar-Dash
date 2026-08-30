@@ -16,6 +16,7 @@
 #include "message_center.hpp"
 #include <algorithm>  // 为 std::sort
 #include "board_cfg.h"
+#include "adc_btns/adc_sample_assembler.hpp"
 
 struct ADCCommonCalibrationPair {
     uint16_t topValue;
@@ -62,7 +63,6 @@ struct ADCValuesMappingStore {
 // 采样统计相关成员，每个ADC一个
 struct ADCBufferInfo {
     uint32_t* buffer;
-    uint32_t size;
     const uint8_t* indexMap;
     uint8_t count;
 };
@@ -89,6 +89,8 @@ struct ADCIndexInfo {
     int8_t ADCIndex;
     int8_t indexInDMA;
 };
+
+struct AdcSampleFrame : BasicAdcSampleFrame<NUM_ADC_BUTTONS> {};
 
 class ADCManager {
     public:
@@ -173,10 +175,20 @@ class ADCManager {
 
         // 物理模式/电源切换专用：无条件停止所有循环 DMA。
         void forceStopAllSampling();
+        bool rearmInputSampling();
         
         // 通知采样完成 (由 HAL_ADC_ConvCpltCallback 调用)
-        void notifyConversionComplete(ADC_HandleTypeDef *hadc);
+        void notifyTimerTrigger(uint32_t triggerCycles);
+        void notifyConversionComplete(ADC_HandleTypeDef *hadc,
+                                      uint8_t completedHalf);
         void notifyConversionError(ADC_HandleTypeDef *hadc);
+        void resetInputSamples();
+        bool consumeLatestInputSample(AdcSampleFrame& out);
+        bool copyLatestInputSample(AdcSampleFrame& out) const;
+        bool isInputSampleStreamHealthy() const;
+        // Finish sampling statistics and publish their notification from the
+        // main loop; DMA IRQ handlers only raise the pending flag.
+        void processPendingSamplingStats();
         
         bool isDmaSamplingActive() const { return dmaSamplingActive; }
 
@@ -217,12 +229,17 @@ class ADCManager {
         ADCBufferInfo adcBufferInfo[NUM_ADC];
         ADCChannelStats ADCButtonStats;
         volatile bool samplingRateEnabled;
+        volatile bool samplingStatsPending = false;
         uint32_t samplingCountMax;
         volatile bool dmaSamplingActive = false;
+
+        AdcSampleAssembler<NUM_ADC_BUTTONS, NUM_ADC> inputSampleAssembler;
         
         ADCIndexInfo samplingADCInfo;
 
-        void handleADCStats(ADC_HandleTypeDef *hadc);
+        void handleADCStats(const AdcSampleFrame& sample);
+        void publishAdcHalf(ADC_HandleTypeDef *hadc,
+                            uint8_t completedHalf);
         
         ADCIndexInfo findADCButtonVirtualPin(uint8_t virtualPin);
 

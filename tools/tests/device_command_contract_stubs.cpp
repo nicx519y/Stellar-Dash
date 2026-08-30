@@ -5,6 +5,7 @@
 #include "storagemanager.hpp"
 #include "board_mode.hpp"
 #include "usb_board_link.hpp"
+#include "usbdriver.hpp"
 #include "adc_btns/adc_calibration.hpp"
 #include "adc_btns/adc_manager.hpp"
 #include "adc_btns/adc_btns_marker.hpp"
@@ -112,6 +113,8 @@ bool load(Config &config){(void)config;return true;} bool save(Config &config){(
 BoardModeManager &BoardModeManager::getInstance(){static BoardModeManager i;return i;}
 UsbBoardLink &UsbBoardLink::getInstance(){static UsbBoardLink i;return i;}
 void UsbBoardLink::setForContractTest(usb_board_role_t role,bool compatible){role_=role;compatible_=compatible;memset(&caps_,0,sizeof(caps_));}
+uint16_t USBDriver::effectiveReportRateHz(InputMode, uint16_t requestedRateHz) const{return requestedRateHz;}
+UsbReportRateLimit USBDriver::reportRateLimit(InputMode, uint16_t) const{return UsbReportRateLimit::None;}
 
 ADCCalibrationManager &ADCCalibrationManager::getInstance(){static ADCCalibrationManager i;return i;}
 ADCBtnsError ADCCalibrationManager::startManualCalibration(){active_=true;++g_deviceCommandContractRecording.calibrationStarts;if(callback_)callback_();return ADCBtnsError::SUCCESS;}

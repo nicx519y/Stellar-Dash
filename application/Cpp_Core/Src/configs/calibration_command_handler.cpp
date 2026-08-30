@@ -2,6 +2,7 @@
 #include "system_logger.h"
 #include "adc_btns/adc_calibration.hpp"
 #include "configs/webconfig_btns_manager.hpp"
+#include "configs/webconfig_leds_manager.hpp"
 #include "config_transport_sink.hpp"
 #include <cstring>
 
@@ -103,7 +104,15 @@ void CalibrationCommandHandler::sendCalibrationStatusNotification() {
  */
 DeviceCommandResponse CalibrationCommandHandler::handleStartManualCalibration(const DeviceCommandRequest& request) {
     // LOG_INFO("DeviceCommand", "Handling start_manual_calibration command, cid: %d", request.getCid());
-    
+
+    /* Calibration owns the key strip and raw ADC observations exclusively.
+     * Clear any page preview before starting so its animation loop cannot
+     * overwrite calibration colours after this command returns. */
+    if (WEBCONFIG_LEDS_MANAGER.isInPreviewMode()) {
+        WEBCONFIG_LEDS_MANAGER.clearPreviewConfig();
+    }
+    WEBCONFIG_BTNS_MANAGER.stopButtonWorkers();
+
     // 开始手动校准
     ADCBtnsError error = ADC_CALIBRATION_MANAGER.startManualCalibration();
     if(error != ADCBtnsError::SUCCESS) {

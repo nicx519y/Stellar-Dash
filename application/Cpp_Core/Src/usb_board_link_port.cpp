@@ -25,21 +25,30 @@ static constexpr uint32_t kSpiTimeoutMs = 5u;
 static constexpr uint32_t kReadGapMs = 1u;
 static constexpr uint32_t kEventReleaseTimeoutMs = 2u;
 /*
- * CH585 may switch its SPI0 DMA direction only while NSS is low but before
- * clocks start.  Fifty microseconds is still only 5% of the USB-mode 1-kHz
- * period and gives the 60-MHz CH585 ample time to observe NSS and restore RX
- * if a command write wins the arbitration race.
- */
-/*
  * PA12 rising-edge handling on CH585 is the RX rearm boundary.  A concurrent
- * USBHS 512-byte ISR can delay that edge handler beyond 50 us, so every new
- * STM32 write holds NSS low without clocks for a conservative 200 us.  This
- * affects only the mutually-exclusive USB role (fixed 1 kHz), never RF 8K.
+ * USBHS ISR can delay that edge handler, so bootstrap, CAPS, and IAP retain
+ * the proven 200-us ownership guard.  After CAPS explicitly advertises the
+ * fast-data-plane contract, Application input frames use a fixed 20-us guard;
+ * CH585 still performs its second NSS sample before the DMA direction switch.
  */
-static constexpr uint32_t kOwnershipGuardUs = 200u;
+static constexpr uint32_t kOwnershipGuardSlowUs = 200u;
+static constexpr uint32_t kOwnershipGuardFastUs = 20u;
+static constexpr uint32_t kExpectedSpiClockHz = 120000000u;
+static constexpr uint32_t kFastSpiPrescaler = 16u;
+static constexpr uint32_t kInputFrameBytes =
+    USB_BOARD_INPUT_V1_BYTES + USB_BOARD_LINK_HEADER_BYTES +
+    USB_BOARD_LINK_CHECKSUM_BYTES;
+static constexpr uint32_t kInputFrameWireUs =
+    ((kInputFrameBytes * 8u * kFastSpiPrescaler * 1000000u) +
+     kExpectedSpiClockHz - 1u) / kExpectedSpiClockHz;
+static_assert(kOwnershipGuardFastUs + kInputFrameWireUs <= 50u,
+              "fast BoardLink input frame exceeds the 50-us NSS budget");
+static_assert(kOwnershipGuardFastUs + kInputFrameWireUs < 125u,
+              "fast BoardLink input frame cannot fit an 8-kHz period");
 static SPI_HandleTypeDef s_hspi;
 static bool s_ready;
 static bool s_waitingEventRelease;
+static bool s_fastApplication;
 
 static void enableGpioClock(GPIO_TypeDef *port)
 {
@@ -76,11 +85,17 @@ static void ownershipGuardDelay()
     /*
      * Give the CH585 polling port enough time to observe NSS low before the
      * first clock.  The second W_INT sample then resolves a concurrent event
-     * claim without adding a millisecond-scale delay to the 1 kHz USB path.
+     * claim before the first SPI clock.
      */
-    const uint32_t loops =
-        ((SystemCoreClock / 1000000u) * kOwnershipGuardUs) / 6u + 1u;
-    for (volatile uint32_t index = 0u; index < loops; ++index) {
+    const uint32_t guardUs = s_fastApplication
+        ? kOwnershipGuardFastUs
+        : kOwnershipGuardSlowUs;
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    const uint32_t cyclesPerUs = SystemCoreClock / 1000000u;
+    const uint32_t waitCycles = cyclesPerUs * guardUs;
+    const uint32_t startedAt = DWT->CYCCNT;
+    while (static_cast<uint32_t>(DWT->CYCCNT - startedAt) < waitCycles) {
         __NOP();
     }
     __DSB();
@@ -250,16 +265,12 @@ bool USBBoardLinkPort_Init()
     s_hspi.Init.CLKPolarity = SPI_POLARITY_LOW;
     s_hspi.Init.CLKPhase = SPI_PHASE_1EDGE;
     s_hspi.Init.NSS = SPI_NSS_SOFT;
-#if WEBCONFIG_TEST_FORCE_BOOT
     /*
-     * Bring-up only: make the five-byte cold-boot SELECT_ROLE transaction
-     * visible across several iterations of the CH585 selector's 50-us FIFO
-     * polling loop.  The production path keeps the normal high-speed clock.
+     * SELECT_ROLE, CAPS and IAP are compatibility-plane transactions.  They
+     * always start at the already-validated /256 rate. Only an explicit
+     * FAST_INPUT_V2 acknowledgement may switch Application to /16.
      */
     s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
-#else
-    s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
-#endif
     s_hspi.Init.FirstBit = SPI_FIRSTBIT_MSB;
     s_hspi.Init.TIMode = SPI_TIMODE_DISABLE;
     s_hspi.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -278,6 +289,7 @@ bool USBBoardLinkPort_Init()
         return false;
     }
     s_waitingEventRelease = false;
+    s_fastApplication = false;
     s_ready = true;
     return true;
 }
@@ -292,6 +304,7 @@ bool USBBoardLinkPort_InitIap()
      * Keep IAP packets at the same conservative clock used during local
      * bring-up even after the WebConfig test override is removed.
      */
+    s_fastApplication = false;
     if (s_hspi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_256) {
         return true;
     }
@@ -307,6 +320,78 @@ bool USBBoardLinkPort_InitIap()
     return true;
 }
 
+bool USBBoardLinkPort_EnableFastApplication()
+{
+    if (!USBBoardLinkPort_Init()) {
+        return false;
+    }
+    if (s_fastApplication &&
+        s_hspi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_16) {
+        return true;
+    }
+    if (!refreshEventRelease() || !eventLineIsHigh()) {
+        return false;
+    }
+    if (USBBoardLinkPort_ClockHz() != kExpectedSpiClockHz) {
+        return false;
+    }
+
+    chipSelect(true);
+    if (HAL_SPI_DeInit(&s_hspi) != HAL_OK) {
+        s_ready = false;
+        return false;
+    }
+    s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+    if (HAL_SPI_Init(&s_hspi) != HAL_OK) {
+        /* Keep the compatible 1-kHz path available if fast mode cannot arm. */
+        s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+        s_ready = HAL_SPI_Init(&s_hspi) == HAL_OK;
+        s_fastApplication = false;
+        return false;
+    }
+    s_waitingEventRelease = false;
+    s_fastApplication = true;
+    return true;
+}
+
+bool USBBoardLinkPort_DisableFastApplication()
+{
+    if (!USBBoardLinkPort_Init()) {
+        return false;
+    }
+    if (!s_fastApplication &&
+        s_hspi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_256) {
+        return true;
+    }
+
+    chipSelect(true);
+    if (HAL_SPI_DeInit(&s_hspi) != HAL_OK) {
+        s_ready = false;
+        s_fastApplication = false;
+        return false;
+    }
+    s_hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+    if (HAL_SPI_Init(&s_hspi) != HAL_OK) {
+        s_ready = false;
+        s_fastApplication = false;
+        return false;
+    }
+    s_waitingEventRelease = false;
+    s_fastApplication = false;
+    return true;
+}
+
+bool USBBoardLinkPort_IsFastApplication()
+{
+    return s_ready && s_fastApplication &&
+           s_hspi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_16;
+}
+
+uint32_t USBBoardLinkPort_ClockHz()
+{
+    return HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SPI45);
+}
+
 bool USBBoardLinkPort_InitApplication()
 {
     if (!USBBoardLinkPort_Init()) {
@@ -319,6 +404,7 @@ bool USBBoardLinkPort_InitApplication()
      * on the current PCB.  Throughput tuning belongs after CAPS/WebConfig
      * reliability is established, not inside the bootstrap boundary.
      */
+    s_fastApplication = false;
     if (s_hspi.Init.BaudRatePrescaler == SPI_BAUDRATEPRESCALER_256) {
         return true;
     }
@@ -344,6 +430,7 @@ void USBBoardLinkPort_Shutdown()
     chipSelect(true);
     (void)HAL_SPI_DeInit(&s_hspi);
     s_waitingEventRelease = false;
+    s_fastApplication = false;
     s_ready = false;
 }
 

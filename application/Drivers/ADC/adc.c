@@ -231,7 +231,7 @@ void MX_ADC3_Init(void)
     
     /* USER CODE BEGIN ADC3_Init 1 */
     // ADC3 BDMA 中断配置
-    HAL_NVIC_SetPriority(BDMA_Channel0_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(BDMA_Channel0_IRQn, BOARD_ADC_DMA_IRQn_PRIO, 0);
     HAL_NVIC_EnableIRQ(BDMA_Channel0_IRQn);
     /* USER CODE END ADC3_Init 1 */
 }
@@ -284,7 +284,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
 
         /* USER CODE BEGIN ADC1_MspInit 1 */
         // ADC1 DMA 中断配置
-        HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
+        HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, BOARD_ADC_DMA_IRQn_PRIO, 0);
         HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
         /* USER CODE END ADC1_MspInit 1 */
     }
@@ -323,7 +323,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
         __HAL_LINKDMA(adcHandle, DMA_Handle, hdma_adc2);
         
         // 确保中断被正确配置
-        HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 0, 0);
+        HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, BOARD_ADC_DMA_IRQn_PRIO, 0);
         HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
         
         // // 启用 ADC 中断
@@ -361,7 +361,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef *adcHandle)
 
         /* USER CODE BEGIN ADC3_MspInit 1 */
         // ADC3 BDMA 中断配置
-        HAL_NVIC_SetPriority(BDMA_Channel0_IRQn, 0, 0);
+        HAL_NVIC_SetPriority(BDMA_Channel0_IRQn, BOARD_ADC_DMA_IRQn_PRIO, 0);
         HAL_NVIC_EnableIRQ(BDMA_Channel0_IRQn);
         /* USER CODE END ADC3_MspInit 1 */
     }

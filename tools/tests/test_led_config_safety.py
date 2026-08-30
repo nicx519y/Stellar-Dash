@@ -308,6 +308,68 @@ class LedConfigSafetyTests(unittest.TestCase):
         )
         self.assertEqual(manager[loop_start:loop_end].count("submitFrame()"), 2)
 
+    def test_calibration_colors_are_submitted_to_the_key_strip(self) -> None:
+        calibration = (
+            ROOT
+            / "application"
+            / "Cpp_Core"
+            / "Src"
+            / "adc_btns"
+            / "adc_calibration.cpp"
+        ).read_text(encoding="utf-8")
+
+        process = calibration[
+            calibration.index("void ADCCalibrationManager::processCalibration()"):
+            calibration.index("bool ADCCalibrationManager::shouldSampleButton")
+        ]
+        update_all = calibration[
+            calibration.index("void ADCCalibrationManager::updateAllLEDs()"):
+            calibration.index("void ADCCalibrationManager::printButtonCalibrationCompleted")
+        ]
+
+        # SetLEDColor/SetLEDBrightness only dirty the edit frame in the
+        # circular-DMA driver.  Initial colours need one coherent publish,
+        # and the calibration loop must retry while a prior HT/TC update is
+        # still in flight.
+        self.assertIn("WS2812B_ServiceStrip(WS2812B_STRIP_KEYS)", update_all)
+        self.assertIn("WS2812B_GetStateStrip(WS2812B_STRIP_KEYS)", process)
+        self.assertIn("WS2812B_ServiceStrip(WS2812B_STRIP_KEYS)", process)
+
+    def test_calibration_uses_public_adc_scale_and_turns_key_strip_off(self) -> None:
+        calibration = (
+            ROOT
+            / "application"
+            / "Cpp_Core"
+            / "Src"
+            / "adc_btns"
+            / "adc_calibration.cpp"
+        ).read_text(encoding="utf-8")
+
+        scale_helper = calibration[
+            calibration.index("static uint16_t mappingEndpointInPublicAdcScale"):
+            calibration.index("} // namespace")
+        ]
+        initialize = calibration[
+            calibration.index("void ADCCalibrationManager::initializeButtonStates()"):
+            calibration.index("bool ADCCalibrationManager::loadExistingCalibration()")
+        ]
+        stop = calibration[
+            calibration.index("ADCBtnsError ADCCalibrationManager::stopCalibration()"):
+            calibration.index("ADCBtnsError ADCCalibrationManager::resetAllCalibration()")
+        ]
+
+        self.assertIn("ADC_VALUE_PUBLIC_RIGHT_SHIFT", scale_helper)
+        self.assertIn("fullResolutionMapping", scale_helper)
+        self.assertEqual(
+            initialize.count("mappingEndpointInPublicAdcScale("), 2
+        )
+        self.assertIn("state.ledColor = CalibrationLEDColor::OFF", stop)
+        self.assertIn(
+            "WS2812B_SetAllLEDBrightnessStrip(WS2812B_STRIP_KEYS, 0u)",
+            stop,
+        )
+        self.assertIn("WS2812B_StopStrip(WS2812B_STRIP_KEYS)", stop)
+
     def test_power_and_led_runtime_initialization_order(self) -> None:
         state_machine = (
             ROOT / "application" / "Cpp_Core" / "Src" / "main_state_machine.cpp"

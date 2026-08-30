@@ -623,9 +623,10 @@ bool RFTransport::sendInput(const GamepadState& gamepad, uint32_t seq) {
     payload[4] = static_cast<uint8_t>((keyMask >> 16) & 0xFFu);
     payload[5] = static_cast<uint8_t>((keyMask >> 24) & 0xFFu);
     if (!g_haveLastInputKeyMask || keyMask != g_lastInputKeyMask) {
-        uint32_t readyUs = 0u;
-        if (MonitorTelemetry_GetReportReadyUs(seq, &readyUs)) {
-            ageUs = saturateAgeUs(MICROS_TIMER.micros() - readyUs);
+        uint32_t triggerCycles = 0u;
+        if (MonitorTelemetry_GetReportTriggerCycles(seq, &triggerCycles)) {
+            ageUs = saturateAgeUs(
+                MICROS_TIMER.elapsedMicros(triggerCycles));
             if (ageUs == 0u) {
                 ageUs = 1u;
             }

@@ -149,13 +149,42 @@ class HboxV2BuildContractTests(unittest.TestCase):
     def test_flash_tx_uses_verified_ch585_stlink_flow(self) -> None:
         with mock.patch.object(
             hbox, "_run_python_tool", return_value=0
-        ) as run_python:
+        ) as run_python, mock.patch.object(
+            hbox, "_run_tx_build", return_value=0
+        ) as build_tx:
             result = hbox.main(["flash", "tx"])
 
         self.assertEqual(result, 0)
+        build_tx.assert_not_called()
         run_python.assert_called_once_with(
             "ch585_stlink_update.py", ["--execute"]
         )
+
+    def test_flash_tx_build_flag_builds_before_verified_flash(self) -> None:
+        with mock.patch.object(
+            hbox, "_run_tx_build", return_value=0
+        ) as build_tx, mock.patch.object(
+            hbox, "_run_python_tool", return_value=0
+        ) as run_python:
+            result = hbox.main(["flash", "tx", "--build"])
+
+        self.assertEqual(result, 0)
+        build_tx.assert_called_once_with()
+        run_python.assert_called_once_with(
+            "ch585_stlink_update.py", ["--execute"]
+        )
+
+    def test_flash_tx_build_failure_stops_before_flash(self) -> None:
+        with mock.patch.object(
+            hbox, "_run_tx_build", return_value=7
+        ) as build_tx, mock.patch.object(
+            hbox, "_run_python_tool", return_value=0
+        ) as run_python:
+            result = hbox.main(["flash", "tx", "--build"])
+
+        self.assertEqual(result, 7)
+        build_tx.assert_called_once_with()
+        run_python.assert_not_called()
 
     def test_hosted_web_build_is_the_only_web_build(self) -> None:
         with mock.patch.object(

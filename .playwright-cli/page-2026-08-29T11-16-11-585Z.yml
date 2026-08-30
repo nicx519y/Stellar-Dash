@@ -1,0 +1,43 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - banner:
+          - generic:
+            - generic:
+              - heading [level=2]: Administration
+            - paragraph: Manage account roles and scoped service tokens.
+          - generic:
+            - button: Back to WebConfig
+            - button: Sign in
+            - button: 中文
+        - generic: Sign in with an administrator account to continue.
+  - generic:
+    - alert
+  - region "top Notifications alt+T"
+  - dialog [ref=e36]:
+    - heading "Sign in" [level=2] [ref=e38]
+    - generic [ref=e41]:
+      - paragraph [ref=e42]: Sign in with your email and password.
+      - group [ref=e43]:
+        - generic [ref=e44]:
+          - text: Email
+          - generic [ref=e45]: "*"
+        - textbox "Email" [active] [ref=e46]
+      - group [ref=e47]:
+        - generic [ref=e48]:
+          - text: Password
+          - generic [ref=e49]: "*"
+        - textbox "Password" [ref=e50]
+      - group [ref=e51]:
+        - generic [ref=e52]:
+          - text: Verification code
+          - generic [ref=e53]: "*"
+        - generic [ref=e54]:
+          - generic [ref=e55]:
+            - img "Six-digit verification code" [ref=e57]
+            - button "Refresh code" [ref=e58] [cursor=pointer]
+          - textbox "Verification code" [ref=e64]
+      - button "Sign in" [disabled] [ref=e65]
+      - button "Create account" [ref=e66] [cursor=pointer]
+    - button "Close" [ref=e67] [cursor=pointer]

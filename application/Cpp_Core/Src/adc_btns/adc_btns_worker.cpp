@@ -254,8 +254,15 @@ ADCBtn* ADCBtnsWorker::getButtonState(uint8_t buttonIndex) const
  */
 uint32_t ADCBtnsWorker::read()
 {
-    // 使用引用避免拷贝
-    const std::array<ADCButtonValueInfo, NUM_ADC_BUTTONS> &adcValues = ADC_MANAGER.readADCValues();
+    AdcSampleFrame sample = {};
+    if (!ADC_MANAGER.copyLatestInputSample(sample)) {
+        return (this->virtualPinMask & enabledKeysMask);
+    }
+    return read(sample);
+}
+
+uint32_t ADCBtnsWorker::read(const AdcSampleFrame& sample)
+{
 
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++)
     {
@@ -265,10 +272,9 @@ uint32_t ADCBtnsWorker::read()
             continue;
         }
 
-        // 使用 valuePtr 获取 ADC 值
-        const uint16_t adcValue = *adcValues[i].valuePtr;
+        const uint16_t adcValue = sample.values[i];
 
-        if (adcValue == 0 || adcValue > UINT16_MAX)
+        if (adcValue == 0)
         {
             continue;
         }

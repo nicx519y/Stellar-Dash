@@ -6,6 +6,10 @@
 bool USBBoardLinkPort_Init();
 bool USBBoardLinkPort_InitIap();
 bool USBBoardLinkPort_InitApplication();
+bool USBBoardLinkPort_EnableFastApplication();
+bool USBBoardLinkPort_DisableFastApplication();
+bool USBBoardLinkPort_IsFastApplication();
+uint32_t USBBoardLinkPort_ClockHz();
 void USBBoardLinkPort_Shutdown();
 bool USBBoardLinkPort_Send(const uint8_t *frame, uint8_t frameLength);
 bool USBBoardLinkPort_Transact(const uint8_t *frame,

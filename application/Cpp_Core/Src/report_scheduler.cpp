@@ -5,11 +5,11 @@ extern "C" {
 }
 
 #include "board_cfg.h"
+#include "adc_btns/adc_manager.hpp"
+#include "micro_timer.hpp"
 #include "system_logger.h"
 
 namespace {
-static constexpr uint32_t kPendingTickLimit = 64u;
-
 static uint16_t clamp_rate(uint16_t rateHz) {
     switch (rateHz) {
         case 1000:
@@ -32,7 +32,7 @@ static uint32_t get_tim2_clock_hz() {
 }
 }
 
-void ReportScheduler::setRate(uint16_t rateHz) {
+bool ReportScheduler::setRate(uint16_t rateHz) {
     runningRateHz = clamp_rate(rateHz);
 
     const uint32_t timClkHz = get_tim2_clock_hz();
@@ -46,131 +46,50 @@ void ReportScheduler::setRate(uint16_t rateHz) {
     period -= 1u;
 
     __HAL_TIM_DISABLE_IT(&htim2, TIM_IT_UPDATE);
-    HAL_TIM_Base_Stop_IT(&htim2);
+    if (HAL_TIM_Base_Stop_IT(&htim2) != HAL_OK) {
+        started = false;
+        ADC_MANAGER.forceStopAllSampling();
+        APP_STAGE_ERROR("I04S", "TIM2 stop failed before rate change");
+        return false;
+    }
+    started = false;
+    if (!ADC_MANAGER.rearmInputSampling()) {
+        APP_STAGE_ERROR("I04A", "ADC DMA rearm failed before TIM2 start");
+        return false;
+    }
     __HAL_TIM_SET_PRESCALER(&htim2, prescaler);
     __HAL_TIM_SET_AUTORELOAD(&htim2, period);
     __HAL_TIM_SET_COUNTER(&htim2, 0u);
     __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
-    HAL_TIM_Base_Start_IT(&htim2);
+    started = true;
+    if (HAL_TIM_Base_Start_IT(&htim2) != HAL_OK) {
+        started = false;
+        ADC_MANAGER.forceStopAllSampling();
+        APP_STAGE_ERROR("I04T", "TIM2 report/ADC clock start failed: rate=%u",
+                        static_cast<unsigned>(runningRateHz));
+        return false;
+    }
+    return true;
 }
 
-void ReportScheduler::start(uint16_t rateHz) {
-    pendingTicks = 0;
+bool ReportScheduler::start(uint16_t rateHz) {
     irqTicksWin = 0;
-    consumedTicksWin = 0;
-    droppedTicksWin = 0;
     statLastMs = HAL_GetTick();
-    setRate(rateHz);
-    started = true;
+    return setRate(rateHz);
 }
 
 void ReportScheduler::stop() {
     __HAL_TIM_DISABLE_IT(&htim2, TIM_IT_UPDATE);
     HAL_TIM_Base_Stop_IT(&htim2);
-    pendingTicks = 0;
     irqTicksWin = 0;
-    consumedTicksWin = 0;
-    droppedTicksWin = 0;
     started = false;
+    ADC_MANAGER.resetInputSamples();
 }
 
 void ReportScheduler::onTimerIrq() {
     if (!started) return;
     irqTicksWin++;
-    if (pendingTicks < kPendingTickLimit) {
-        pendingTicks++;
-    } else {
-        droppedTicksWin++;
-    }
-}
-
-bool ReportScheduler::consumeTick() {
-    if (!started || pendingTicks == 0u) return false;
-    uint32_t pendingSnapshot = 0u;
-    __disable_irq();
-    bool hasTick = (pendingTicks > 0u);
-    if (hasTick) {
-        pendingTicks--;
-        consumedTicksWin++;
-    }
-    pendingSnapshot = pendingTicks;
-    __enable_irq();
-
-    const uint32_t nowMs = HAL_GetTick();
-    if (hasTick && ((nowMs - statLastMs) >= 5000u)) {
-        uint32_t irqWin;
-        uint32_t consumedWin;
-        uint32_t droppedWin;
-        __disable_irq();
-        irqWin = irqTicksWin;
-        consumedWin = consumedTicksWin;
-        droppedWin = droppedTicksWin;
-        pendingSnapshot = pendingTicks;
-        irqTicksWin = 0u;
-        consumedTicksWin = 0u;
-        droppedTicksWin = 0u;
-        __enable_irq();
-
-        const uint32_t elapsed = nowMs - statLastMs;
-        const uint32_t irqHz = (elapsed != 0u) ? ((irqWin * 1000u) / elapsed) : 0u;
-        const uint32_t consumedHz = (elapsed != 0u) ? ((consumedWin * 1000u) / elapsed) : 0u;
-        APP_DBG("[REPORT_SCHED][5s] irq:%lu consumed:%lu dropped:%lu pending:%lu irq_hz:%lu consumed_hz:%lu rate:%u",
-                irqWin,
-                consumedWin,
-                droppedWin,
-                pendingSnapshot,
-                irqHz,
-                consumedHz,
-                runningRateHz);
-        statLastMs = nowMs;
-    }
-    return hasTick;
-}
-
-bool ReportScheduler::consumeLatestTick() {
-    if (!started || pendingTicks == 0u) return false;
-    uint32_t pendingSnapshot = 0u;
-    __disable_irq();
-    const uint32_t pending = pendingTicks;
-    if (pending > 0u) {
-        pendingTicks = 0u;
-        consumedTicksWin++;
-        if (pending > 1u) {
-            droppedTicksWin += (pending - 1u);
-        }
-    }
-    pendingSnapshot = pendingTicks;
-    __enable_irq();
-
-    const uint32_t nowMs = HAL_GetTick();
-    if ((nowMs - statLastMs) >= 5000u) {
-        uint32_t irqWin;
-        uint32_t consumedWin;
-        uint32_t droppedWin;
-        __disable_irq();
-        irqWin = irqTicksWin;
-        consumedWin = consumedTicksWin;
-        droppedWin = droppedTicksWin;
-        pendingSnapshot = pendingTicks;
-        irqTicksWin = 0u;
-        consumedTicksWin = 0u;
-        droppedTicksWin = 0u;
-        __enable_irq();
-
-        const uint32_t elapsed = nowMs - statLastMs;
-        const uint32_t irqHz = (elapsed != 0u) ? ((irqWin * 1000u) / elapsed) : 0u;
-        const uint32_t consumedHz = (elapsed != 0u) ? ((consumedWin * 1000u) / elapsed) : 0u;
-        APP_DBG("[REPORT_SCHED][5s] irq:%lu consumed:%lu dropped:%lu pending:%lu irq_hz:%lu consumed_hz:%lu rate:%u",
-                irqWin,
-                consumedWin,
-                droppedWin,
-                pendingSnapshot,
-                irqHz,
-                consumedHz,
-                runningRateHz);
-        statLastMs = nowMs;
-    }
-    return true;
+    ADC_MANAGER.notifyTimerTrigger(MICROS_TIMER.cycles());
 }
 
 extern "C" void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {

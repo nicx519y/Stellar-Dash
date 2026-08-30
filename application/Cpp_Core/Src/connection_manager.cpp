@@ -6,6 +6,7 @@
 #include "monitor_telemetry.hpp"
 #include "rf_boot_ready.hpp"
 #include "rf_bridge_port.hpp"
+#include "rf_rate_confirmation_policy.hpp"
 #include "storagemanager.hpp"
 #include "usbdriver.hpp"
 #include "system_logger.h"
@@ -46,12 +47,14 @@ static constexpr uint32_t kRfPostSleepSettleMs = 150u;
 static constexpr uint8_t kRfCmdStartPair = 0x02u;
 static constexpr uint8_t kRfCmdStopPair = 0x03u;
 static constexpr uint8_t kRfCmdSleep = 0x08u;
+static constexpr uint8_t kRfCmdSetRate = 0x05u;
 static constexpr uint8_t kRfEvtWakeupComplete = 0x88u;
 static constexpr uint8_t kRfEvtError = 0x85u;
 static constexpr uint32_t kRfPostSleepWakeDetectMs = 150u;
 static constexpr uint8_t kRfPowerHintUnknown = 0u;
 static constexpr uint8_t kRfPowerHintAwake = 1u;
 static constexpr uint8_t kRfPowerHintSleeping = 2u;
+static constexpr uint32_t kRfRateAppliedTimeoutMs = 200u;
 
 static bool rfPhysicalRoleIsActive() {
     return BOARD_MODE.isStable() &&
@@ -147,6 +150,86 @@ bool ConnectionManager::rfPowerStateBlocksSpi() const {
            (rfPowerState == RfPowerState::WakePending);
 }
 
+bool ConnectionManager::confirmRfReportRate(uint16_t targetRateHz) {
+    targetRateHz = clampRfReportRateHz(targetRateHz);
+    requestedReportRateHz = targetRateHz;
+    rateApplyPending = true;
+    reportRateConfirmed = false;
+
+    const auto applyAndConfirm = [this](uint16_t rateHz) {
+        const uint32_t previousEventCounter =
+            rfTransport.getStatus().eventCounter;
+        if (!rfTransport.setRate(rateHz)) {
+            return false;
+        }
+        const uint8_t transaction =
+            rfTransport.getStatus().lastTransactionId;
+        const uint32_t startedAt = HAL_GetTick();
+        do {
+            (void)rfTransport.serviceEvents(8u);
+            const RFModuleStatus& status = rfTransport.getStatus();
+            if (status.eventCounter == previousEventCounter) {
+                HAL_Delay(1u);
+                continue;
+            }
+            if (status.lastCommandTag != kRfCmdSetRate ||
+                status.lastTransactionId != transaction) {
+                HAL_Delay(1u);
+                continue;
+            }
+            if (status.lastEvent == kRfEvtError ||
+                status.lastResult != 0u) {
+                return false;
+            }
+            if (RfRateAppliedMatches(rateHz,
+                                     transaction,
+                                     status.lastEvent,
+                                     status.lastCommandTag,
+                                     status.lastTransactionId,
+                                     status.lastResult,
+                                     status.rateHz)) {
+                return true;
+            }
+            HAL_Delay(1u);
+        } while ((HAL_GetTick() - startedAt) < kRfRateAppliedTimeoutMs);
+        return false;
+    };
+
+    if (applyAndConfirm(targetRateHz)) {
+        appliedReportRateHz = targetRateHz;
+        rateApplyPending = false;
+        reportRateConfirmed = true;
+        printf("[RF_RATE] RATE_APPLIED confirmed requested=%u applied=%u\r\n",
+               (unsigned int)targetRateHz,
+               (unsigned int)appliedReportRateHz);
+        return true;
+    }
+
+    printf("[RF_RATE] RATE_APPLIED failed requested=%u fallback=1000\r\n",
+           (unsigned int)targetRateHz);
+    if ((targetRateHz != 1000u) && applyAndConfirm(1000u)) {
+        appliedReportRateHz = 1000u;
+        rateApplyPending = false;
+        reportRateConfirmed = true;
+        MonitorTelemetry_OnError(
+            "CONNECTION_MANAGER",
+            1015u,
+            "requested RF rate was not confirmed; applied 1 kHz fallback");
+        printf("[RF_RATE] fallback RATE_APPLIED confirmed requested=%u applied=1000\r\n",
+               (unsigned int)targetRateHz);
+        return true;
+    }
+
+    appliedReportRateHz = 0u;
+    rateApplyPending = false;
+    reportRateConfirmed = false;
+    MonitorTelemetry_OnError(
+        "CONNECTION_MANAGER",
+        1016u,
+        "RF 1 kHz fallback was not confirmed; input link stopped");
+    return false;
+}
+
 void ConnectionManager::activateRfModeAfterPairSuccess() {
     if (mode != ConnectionMode::CONNECTION_MODE_RF24G) {
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1012u,
@@ -154,11 +237,14 @@ void ConnectionManager::activateRfModeAfterPairSuccess() {
         return;
     }
 
-    requestedReportRateHz = getRfReportRateHz(STORAGE_MANAGER.getWirelessReportRate());
-    if (rfTransport.setRate(requestedReportRateHz)) {
-        appliedReportRateHz = requestedReportRateHz;
-    } else if (appliedReportRateHz == 0u) {
-        appliedReportRateHz = requestedReportRateHz;
+    requestedReportRateHz = rfHighRateEligible
+        ? getRfReportRateHz(STORAGE_MANAGER.getWirelessReportRate())
+        : 1000u;
+    if (!confirmRfReportRate(requestedReportRateHz)) {
+        linkState = ConnectionLinkState::Error;
+        MonitorTelemetry_OnLinkStateChanged(
+            mode, static_cast<uint8_t>(linkState));
+        return;
     }
 
     MonitorTelemetry_Init(mode, appliedReportRateHz);
@@ -291,11 +377,16 @@ void ConnectionManager::serviceRfEvents() {
     }
 }
 
-void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirelessRate) {
+void ConnectionManager::setup(ConnectionMode connMode,
+                              WirelessReportRate wirelessRate,
+                              InputMode inputMode) {
     mode = connMode;
-    appliedReportRateHz = 1000;
+    appliedReportRateHz = mode == ConnectionMode::CONNECTION_MODE_USB
+        ? 1000u : 0u;
     requestedReportRateHz = 1000;
     rateApplyPending = false;
+    reportRateConfirmed = mode == ConnectionMode::CONNECTION_MODE_USB;
+    rfHighRateEligible = inputMode == INPUT_MODE_XINPUT;
     loadRfPowerStateHint();
     linkState = ConnectionLinkState::Disconnected;
     lastRfStatusPollMs = HAL_GetTick();
@@ -326,7 +417,9 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
         return;
     }
 
-    requestedReportRateHz = getRfReportRateHz(wirelessRate);
+    requestedReportRateHz = rfHighRateEligible
+        ? getRfReportRateHz(wirelessRate)
+        : 1000u;
     printf("[RF_RATE] setup mode=%u requested=%u applied=%u enum=%u\r\n",
             (unsigned int)mode,
             (unsigned int)requestedReportRateHz,
@@ -336,6 +429,7 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
 #if RF24G_SPI_TEST_FORCE_RF24G
     rateApplyPending = false;
     appliedReportRateHz = requestedReportRateHz;
+    reportRateConfirmed = true;
     linkState = ConnectionLinkState::Connected;
     MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(linkState));
     lastRfBeginRetryMs = HAL_GetTick();
@@ -364,7 +458,6 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
         linkState = nextState;
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1003u, "rf setRate failed");
     } else {
-        appliedReportRateHz = requestedReportRateHz;
         linkState = ConnectionLinkState::Connected;
         MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(linkState));
     }
@@ -377,10 +470,13 @@ void ConnectionManager::setup(ConnectionMode connMode, WirelessReportRate wirele
 }
 
 bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate, bool persist) {
-    const uint16_t nextRateHz = getRfReportRateHz(wirelessRate);
+    const uint16_t nextRateHz = rfHighRateEligible
+        ? getRfReportRateHz(wirelessRate)
+        : 1000u;
     const uint16_t previousRequestedHz = requestedReportRateHz;
     const uint16_t previousAppliedHz = appliedReportRateHz;
-    requestedReportRateHz = nextRateHz;
+    (void)previousRequestedHz;
+    (void)previousAppliedHz;
     printf("[RF_RATE] apply begin mode=%u enum=%u target=%u prev_req=%u prev_applied=%u persist=%u\r\n",
             (unsigned int)mode,
             (unsigned int)wirelessRate,
@@ -405,37 +501,7 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
         return false;
     }
 
-    if (nextRateHz == appliedReportRateHz) {
-        printf("[RF_RATE] apply re-send same target=%u applied=%u\r\n",
-                (unsigned int)nextRateHz,
-                (unsigned int)appliedReportRateHz);
-        const bool rateOk = rfTransport.setRate(nextRateHz);
-        printf("[RF_RATE] apply setRate result=%u target=%u same=1\r\n",
-                (unsigned int)rateOk,
-                (unsigned int)nextRateHz);
-        if (!rateOk) {
-            ConnectionLinkState nextState = ConnectionLinkState::Error;
-            if (linkState != nextState) {
-                MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
-            }
-            linkState = nextState;
-            MonitorTelemetry_OnError("CONNECTION_MANAGER", 1004u, "runtime rf setRate failed");
-            return false;
-        }
-        if (persist) {
-            STORAGE_MANAGER.setWirelessReportRate(wirelessRate);
-            return STORAGE_MANAGER.saveConfig();
-        }
-        return true;
-    }
-
-    const bool rateOk = rfTransport.setRate(nextRateHz);
-    printf("[RF_RATE] apply setRate result=%u target=%u same=0 prev_applied=%u\r\n",
-            (unsigned int)rateOk,
-            (unsigned int)nextRateHz,
-            (unsigned int)previousAppliedHz);
-    if (!rateOk) {
-        rateApplyPending = false;
+    if (!confirmRfReportRate(nextRateHz)) {
         ConnectionLinkState nextState = ConnectionLinkState::Error;
         if (linkState != nextState) {
             MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
@@ -445,11 +511,10 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
         return false;
     }
 
-    appliedReportRateHz = nextRateHz;
-    rateApplyPending = false;
-    printf("[RF_RATE] apply complete target=%u applied=%u\r\n",
+    printf("[RF_RATE] apply complete target=%u applied=%u exact=%u\r\n",
             (unsigned int)nextRateHz,
-            (unsigned int)appliedReportRateHz);
+            (unsigned int)appliedReportRateHz,
+            (unsigned int)(nextRateHz == appliedReportRateHz));
     if (persist) {
         STORAGE_MANAGER.setWirelessReportRate(wirelessRate);
         if (!STORAGE_MANAGER.saveConfig()) {
@@ -738,7 +803,9 @@ bool ConnectionManager::wakeRfFromSleep(RfPowerReason reason) {
 
 bool ConnectionManager::enterRfModeAfterColdBoot(ConnectionMode connMode, WirelessReportRate wirelessRate) {
     rfEventServiceEnabled = true;
-    requestedReportRateHz = getRfReportRateHz(wirelessRate);
+    requestedReportRateHz = rfHighRateEligible
+        ? getRfReportRateHz(wirelessRate)
+        : 1000u;
 
     if (!RFBootReady::waitForModuleReady(kRfBootReadyTimeoutMs)) {
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1010u, "rf boot ready timeout");
@@ -758,20 +825,22 @@ bool ConnectionManager::enterRfModeAfterColdBoot(ConnectionMode connMode, Wirele
 }
 
 bool ConnectionManager::restoreRfRuntime(WirelessReportRate wirelessRate) {
-    requestedReportRateHz = getRfReportRateHz(wirelessRate);
+    requestedReportRateHz = rfHighRateEligible
+        ? getRfReportRateHz(wirelessRate)
+        : 1000u;
     printf("[RF_PWR][RESTORE_BEGIN] mode=%u rate=%u\r\n",
            (unsigned int)mode,
            (unsigned int)requestedReportRateHz);
 
     bool restoreOk = true;
     if (mode == ConnectionMode::CONNECTION_MODE_RF24G) {
-        restoreOk = rfTransport.setRate(requestedReportRateHz);
+        restoreOk = confirmRfReportRate(requestedReportRateHz);
         if (restoreOk) {
-            appliedReportRateHz = requestedReportRateHz;
             MonitorTelemetry_Init(mode, appliedReportRateHz);
         }
     } else {
         appliedReportRateHz = 1000u;
+        reportRateConfirmed = true;
         restoreOk = true;
     }
 
@@ -801,6 +870,7 @@ bool ConnectionManager::initializeRfPowerForMode(ConnectionMode connMode, Wirele
     if (connMode == ConnectionMode::CONNECTION_MODE_USB) {
         appliedReportRateHz = 1000u;
         requestedReportRateHz = 1000u;
+        reportRateConfirmed = true;
         rfEventServiceEnabled = false;
         setRfPowerState(RfPowerState::Unknown, false);
         return true;

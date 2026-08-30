@@ -200,8 +200,8 @@ offset  size  name
 `age_us` 的含义：
 
 - 只在 `key_mask` 发生变化时填写；稳定重复帧填 `0`。
-- STM32 在 ADC 采样完成、形成本次输入状态时记录 `report_ready_us`。
-- `RFTransport::sendInput()` 发送 SPI 包时计算 `age_us = now_us - report_ready_us`。
+- STM32 在 TIM2 触发三路 ADC 的同一时刻记录原始 DWT `trigger_cycles`；只有三路同代 DMA 半区全部完成后才形成输入状态。
+- `RFTransport::sendInput()` 发送 SPI 包时用无符号 cycle 差计算 `age_us = now_cycles - trigger_cycles`，因此包含 ADC 转换与 STM32 输入映射阶段，并正确跨越 DWT CYCCNT 回绕。
 - `age_us` 饱和到 `0xFFFF`；如果边沿测得 `0us`，会提升为 `1us`，避免和“无边沿”混淆。
 
 SPI 这层的作用是把“输入状态”和“STM32 阶段已消耗时间”一起交给 TX，同时保持 payload 仍为 `10B`，避免先在 STM32->TX 链路上引入新的变量。

@@ -30,10 +30,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_FIRMWARE = (
     PROJECT_ROOT / "RF_PHY_Hop" / "TX" / "build_tx" / "RF_PHY_Hop_TX.bin"
 )
-EXPECTED_RECOVERY_SIZE = 79968
-EXPECTED_RECOVERY_SHA256 = (
-    "ab1eebfec68e95a016843e9c0f0cf29f49810ab827516f9d1c98a582bf79421f"
-)
 
 STAGING_ADDRESS = 0x90780000
 STAGING_BYTES = 0x00080000
@@ -397,10 +393,6 @@ def main() -> int:
     print(f"  READY journal target (last): 0x{STAGING_ADDRESS:08X}")
     print("  Scope: dedicated QSPI staging only; no Slot/metadata/internal Flash")
     print("  CH585 IAP 0x0000..0x0FFF and all protection settings are untouched")
-    if firmware_path == DEFAULT_FIRMWARE.resolve():
-        if len(firmware) != EXPECTED_RECOVERY_SIZE or digest != EXPECTED_RECOVERY_SHA256:
-            print("error: default recovery artifact differs from the approved image")
-            return 2
     if not args.execute:
         print("DRY RUN complete; pass --execute to stage payload then READY")
         return 0

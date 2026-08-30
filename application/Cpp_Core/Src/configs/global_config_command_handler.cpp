@@ -8,6 +8,7 @@
 #include "config.hpp"
 #include "board_mode.hpp"
 #include "usb_board_link.hpp"
+#include "usbdriver.hpp"
 #include "config_transport_sink.hpp"
 #include "firmware_metadata.h"
 #include "leds/led_config_safety.hpp"
@@ -289,6 +290,55 @@ static void add_latest_board_json(cJSON* globalConfigJSON, const Config& config)
         cJSON_AddStringToObject(ch585JSON, "firmwareVersion", "");
     }
     cJSON_AddItemToObject(globalConfigJSON, "ch585", ch585JSON);
+
+    const uint16_t requestedHz = static_cast<uint16_t>(
+        config.wirelessReportRate);
+    uint16_t effectiveHz = 1000u;
+    UsbReportRateLimit limit = UsbReportRateLimit::NotHighSpeed;
+    usb_board_usb_speed_t speed = USB_BOARD_USB_SPEED_NONE;
+    if (BOARD_MODE.isStable() && BOARD_MODE.current() == BoardMode::Rf) {
+        effectiveHz = requestedHz;
+        limit = UsbReportRateLimit::None;
+    } else if (BOARD_MODE.isStable() &&
+               BOARD_MODE.current() == BoardMode::Usb) {
+        effectiveHz = USB_DRIVER.effectiveReportRateHz(config.inputMode,
+                                                       requestedHz);
+        limit = USB_DRIVER.reportRateLimit(config.inputMode, requestedHz);
+        speed = USB_DRIVER.usbSpeed();
+    }
+
+    const char* limitString = "NONE";
+    switch (limit) {
+        case UsbReportRateLimit::Profile:
+            limitString = "USB_PROFILE_LIMIT";
+            break;
+        case UsbReportRateLimit::NotHighSpeed:
+            limitString = "USB_NOT_HIGH_SPEED";
+            break;
+        case UsbReportRateLimit::BoardLinkCompatibility:
+            limitString = "BOARD_LINK_COMPAT";
+            break;
+        case UsbReportRateLimit::None:
+        default:
+            break;
+    }
+    const char* speedString = speed == USB_BOARD_USB_SPEED_HIGH
+        ? "HIGH"
+        : speed == USB_BOARD_USB_SPEED_FULL ? "FULL" : "NONE";
+    const WirelessReportRate effectiveRate =
+        static_cast<WirelessReportRate>(effectiveHz);
+    cJSON* rateStatusJSON = cJSON_CreateObject();
+    cJSON_AddStringToObject(
+        rateStatusJSON, "requested",
+        ConfigUtils::getWirelessReportRateString(config.wirelessReportRate));
+    cJSON_AddStringToObject(
+        rateStatusJSON, "effective",
+        ConfigUtils::getWirelessReportRateString(effectiveRate));
+    cJSON_AddStringToObject(rateStatusJSON, "usbSpeed", speedString);
+    cJSON_AddStringToObject(rateStatusJSON, "limit", limitString);
+    cJSON_AddItemToObject(globalConfigJSON,
+                          "reportRateStatus",
+                          rateStatusJSON);
 }
 
 DeviceCommandResponse GlobalConfigCommandHandler::handleGetGlobalConfig(const DeviceCommandRequest& request) {

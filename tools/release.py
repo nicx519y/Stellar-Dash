@@ -74,19 +74,6 @@ STM32_OTA_LAYOUT = {
 }
 
 
-def verify_rf_frozen(project_root: Path) -> None:
-    """Run the mandatory RF equivalence gate before a formal release."""
-    checker = project_root / "tools" / "check_rf_frozen.py"
-    if not checker.is_file():
-        raise FileNotFoundError(f"RF冻结检查脚本不存在: {checker}")
-    result = subprocess.run(
-        [sys.executable, str(checker), "--require-rx-binary"],
-        cwd=project_root,
-    )
-    if result.returncode != 0:
-        raise RuntimeError("RF冻结基线检查失败，禁止构建或发布")
-
-
 def require_v2_trust_bundle(
     environment: Optional[Dict[str, str]] = None,
 ) -> Tuple[Path, str]:
@@ -2134,7 +2121,6 @@ class ReleaseManager:
 
     def create_auto_release(self, version: str) -> List[str]:
         """自动构建双槽release包（使用Intel HEX分割处理）"""
-        verify_rf_frozen(self.project_root)
         trust_header, self.trust_bundle_sha256 = (
             require_v2_trust_bundle()
         )

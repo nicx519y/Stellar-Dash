@@ -13,6 +13,7 @@ static constexpr uint32_t kCapabilitiesRetryMs = 5u;
 static constexpr uint32_t kStartupCommandTimeoutMs = 500u;
 static constexpr uint32_t kStartupCommandRetryMs = 5u;
 static constexpr uint32_t kHostReadyTimeoutMs = 100u;
+static constexpr uint32_t kLinkStateRetryMs = 100u;
 
 static bool profileRequiresAuthDevice(usb_board_profile_t profile)
 {
@@ -106,6 +107,35 @@ bool USBDriver::start(InputMode inputMode)
     return prepare(inputMode) && connect();
 }
 
+void USBDriver::setRequestedReportRateHz(uint16_t rateHz)
+{
+    uint16_t normalized = 1000u;
+    if (rateHz == 2000u || rateHz == 4000u || rateHz == 8000u) {
+        normalized = rateHz;
+    }
+    if (requestedReportRateHz != normalized) {
+        requestedReportRateHz = normalized;
+        fastInputAttempted = false;
+    }
+}
+
+void USBDriver::setFastInputAllowed(bool allowed)
+{
+    if (fastInputAllowed != allowed) {
+        fastInputAllowed = allowed;
+        fastInputAttempted = false;
+    }
+}
+
+bool USBDriver::takeCompatibilityRecoveryRequest()
+{
+    if (!compatibilityRecoveryRequested) {
+        return false;
+    }
+    compatibilityRecoveryRequested = false;
+    return true;
+}
+
 bool USBDriver::prepare(InputMode inputMode)
 {
     const usb_board_profile_t requestedProfile =
@@ -116,7 +146,21 @@ bool USBDriver::prepare(InputMode inputMode)
     prepared = false;
     ready = false;
     activeProfile = USB_BOARD_PROFILE_NONE;
+    cachedUsbSpeed = USB_BOARD_USB_SPEED_NONE;
+    nextLinkStateQueryAtMs = 0u;
+    lastObservedMounted = false;
+    usbSpeedResolved = false;
+    fastInputAttempted = false;
+    compatibilityRecoveryRequested = false;
     (void)BOARD_POWER.setUsbHostEnabled(false);
+
+    if (USB_BOARD_LINK.isFastApplication() &&
+        !USB_BOARD_LINK.restoreCompatibleDataPlane()) {
+        compatibilityRecoveryRequested = true;
+        APP_STAGE_ERROR("U00R",
+                        "USB preparation could not restore the compatible BoardLink control plane");
+        return false;
+    }
 
     if (!USB_BOARD_LINK.isRoleLocked() ||
         ((USB_BOARD_LINK.role() != USB_BOARD_ROLE_USB) &&
@@ -247,6 +291,11 @@ bool USBDriver::connect()
 
 void USBDriver::shutdown()
 {
+    bool compatibilityRestored = true;
+    if (USB_BOARD_LINK.isFastApplication()) {
+        compatibilityRestored =
+            USB_BOARD_LINK.restoreCompatibleDataPlane();
+    }
     if (USB_BOARD_LINK.isCompatible() &&
         (USB_BOARD_LINK.role() != USB_BOARD_ROLE_RF)) {
         (void)USB_BOARD_LINK.sendControl(USB_BOARD_CONTROL_DISCONNECT);
@@ -255,22 +304,141 @@ void USBDriver::shutdown()
     prepared = false;
     ready = false;
     activeProfile = USB_BOARD_PROFILE_NONE;
+    cachedUsbSpeed = USB_BOARD_USB_SPEED_NONE;
+    nextLinkStateQueryAtMs = 0u;
+    lastObservedMounted = false;
+    usbSpeedResolved = false;
+    fastInputAttempted = false;
+    compatibilityRecoveryRequested = !compatibilityRestored;
 }
 
 void USBDriver::process()
 {
     if (ready) {
         USB_BOARD_LINK.process();
+        uint8_t dataPlaneFault = USB_BOARD_STATUS_OK;
+        if (USB_BOARD_LINK.takeFastDataPlaneFault(dataPlaneFault)) {
+            APP_STAGE_ERROR("U06F",
+                            "FAST_INPUT_V2 runtime fault=%u; falling back to 1 kHz",
+                            static_cast<unsigned int>(dataPlaneFault));
+            if (!USB_BOARD_LINK.restoreCompatibleDataPlane()) {
+                compatibilityRecoveryRequested = true;
+            }
+            fastInputAttempted = true;
+        }
+        const bool mounted = USB_BOARD_LINK.isDeviceMounted();
+        if (!mounted) {
+            if (USB_BOARD_LINK.isFastApplication()) {
+                APP_STAGE("U06D",
+                          "USB unmounted; restoring compatible BoardLink");
+                if (!USB_BOARD_LINK.restoreCompatibleDataPlane()) {
+                    compatibilityRecoveryRequested = true;
+                }
+            }
+            cachedUsbSpeed = USB_BOARD_USB_SPEED_NONE;
+            usbSpeedResolved = false;
+            nextLinkStateQueryAtMs = 0u;
+            fastInputAttempted = false;
+        } else {
+            const uint32_t nowMs = HAL_GetTick();
+            if (!lastObservedMounted) {
+                usbSpeedResolved = false;
+                nextLinkStateQueryAtMs = 0u;
+            }
+            if (!usbSpeedResolved &&
+                static_cast<int32_t>(nowMs - nextLinkStateQueryAtMs) >= 0) {
+                usb_board_control_link_state_v1_t state = {};
+                if (USB_BOARD_LINK.getUsbLinkState(state) &&
+                    state.connected != 0u && state.link_up != 0u &&
+                    (state.speed == USB_BOARD_USB_SPEED_FULL ||
+                     state.speed == USB_BOARD_USB_SPEED_HIGH)) {
+                    cachedUsbSpeed =
+                        static_cast<usb_board_usb_speed_t>(state.speed);
+                    usbSpeedResolved = true;
+                } else {
+                    cachedUsbSpeed = USB_BOARD_USB_SPEED_NONE;
+                    nextLinkStateQueryAtMs = nowMs + kLinkStateRetryMs;
+                }
+            }
+            const bool fastEligible =
+                fastInputAllowed && requestedReportRateHz > 1000u &&
+                activeProfile == USB_BOARD_PROFILE_XINPUT &&
+                usbSpeedResolved &&
+                cachedUsbSpeed == USB_BOARD_USB_SPEED_HIGH &&
+                (USB_BOARD_LINK.capabilities().feature_flags &
+                 USB_BOARD_CAP_FEATURE_SPI_FAST_INPUT_V2) != 0u;
+            if ((!fastInputAllowed || requestedReportRateHz == 1000u ||
+                 activeProfile != USB_BOARD_PROFILE_XINPUT) &&
+                USB_BOARD_LINK.isFastApplication()) {
+                APP_STAGE("U06D",
+                          "FAST_INPUT_V2 no longer eligible; restoring compatible BoardLink");
+                if (!USB_BOARD_LINK.restoreCompatibleDataPlane()) {
+                    compatibilityRecoveryRequested = true;
+                }
+                fastInputAttempted = true;
+            } else if (!fastInputAttempted && fastEligible) {
+                fastInputAttempted = true;
+                APP_STAGE("U05",
+                          "FAST_INPUT_V2 activation begin: requested=%u profile=%u speed=%u features=%02x",
+                          static_cast<unsigned int>(requestedReportRateHz),
+                          static_cast<unsigned int>(activeProfile),
+                          static_cast<unsigned int>(cachedUsbSpeed),
+                          static_cast<unsigned int>(
+                              USB_BOARD_LINK.capabilities().feature_flags));
+                if (!USB_BOARD_LINK.enableFastInputDataPlane()) {
+                    APP_STAGE_ERROR("U05",
+                                    "FAST_INPUT_V2 activation failed; effective rate remains 1 kHz");
+                    if (!USB_BOARD_LINK.restoreCompatibleDataPlane()) {
+                        compatibilityRecoveryRequested = true;
+                    }
+                }
+            } else if (!fastInputAttempted && usbSpeedResolved &&
+                       requestedReportRateHz > 1000u) {
+                fastInputAttempted = true;
+                APP_STAGE("U05L",
+                          "USB high-rate request limited to 1 kHz: profile=%u speed=%u v2=%u allowed=%u",
+                          static_cast<unsigned int>(activeProfile),
+                          static_cast<unsigned int>(cachedUsbSpeed),
+                          (USB_BOARD_LINK.capabilities().feature_flags &
+                           USB_BOARD_CAP_FEATURE_SPI_FAST_INPUT_V2) != 0u
+                              ? 1u : 0u,
+                          fastInputAllowed ? 1u : 0u);
+            }
+        }
+        lastObservedMounted = mounted;
     }
 }
 
+UsbReportRateLimit USBDriver::reportRateLimit(
+    InputMode intendedMode,
+    uint16_t requestedRateHz) const
+{
+    return DecideUsbReportRate(
+        requestedRateHz,
+        intendedMode == INPUT_MODE_XINPUT,
+        usbSpeedResolved && cachedUsbSpeed == USB_BOARD_USB_SPEED_HIGH,
+        USB_BOARD_LINK.isFastApplication()).limit;
+}
+
+uint16_t USBDriver::effectiveReportRateHz(
+    InputMode intendedMode,
+    uint16_t requestedRateHz) const
+{
+    return DecideUsbReportRate(
+        requestedRateHz,
+        intendedMode == INPUT_MODE_XINPUT,
+        usbSpeedResolved && cachedUsbSpeed == USB_BOARD_USB_SPEED_HIGH,
+        USB_BOARD_LINK.isFastApplication()).effectiveHz;
+}
+
 bool USBDriver::submit(const GamepadState &state,
+                       uint16_t ageUs,
                        uint8_t batteryCode,
                        bool batteryValid)
 {
     return ready &&
            USB_BOARD_LINK.submitInput(actionMask(state),
-                                      0u,
+                                      ageUs,
                                       batteryCode,
                                       batteryValid);
 }

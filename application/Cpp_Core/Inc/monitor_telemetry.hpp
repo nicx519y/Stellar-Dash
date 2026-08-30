@@ -13,10 +13,13 @@ struct MonitorTelemetrySnapshot {
     uint32_t rfTransferFail;
     uint32_t errorCount;
 
-    uint32_t latestUsbLatencyUs;
-    uint32_t latestRfLatencyUs;
-    uint32_t avgUsbLatencyUs;
-    uint32_t avgRfLatencyUs;
+    uint32_t latestSampleToCh585SubmitUs;
+    uint32_t latestSampleToRfSubmitUs;
+    uint32_t avgSampleToCh585SubmitUs;
+    uint32_t avgSampleToRfSubmitUs;
+    uint32_t latestAdcConversionUs;
+    uint32_t latestInputProcessingUs;
+    uint32_t latestReportSubmitUs;
 
     uint16_t targetRateHz;
     uint8_t connectionMode;
@@ -33,10 +36,11 @@ struct MonitorTelemetryFrameV1 {
     uint32_t usbReportsCompleted;
     uint16_t targetRateHz;
     uint16_t lastUsbReportLen;
-    uint16_t latestUsbLatencyUs;
-    uint16_t avgUsbLatencyUs;
-    uint16_t latestRfLatencyUs;
-    uint16_t avgRfLatencyUs;
+    /* These are firmware-submit boundaries, not host/PC receive latency. */
+    uint16_t latestSampleToCh585SubmitUs;
+    uint16_t avgSampleToCh585SubmitUs;
+    uint16_t latestSampleToRfSubmitUs;
+    uint16_t avgSampleToRfSubmitUs;
     uint16_t rfTransferOkLow16;
     uint16_t rfTransferFailLow16;
 };
@@ -84,9 +88,13 @@ static_assert(sizeof(MonitorPowerFrameV1) == 32, "MonitorPowerFrameV1 must stay 
 static_assert(sizeof(MonitorPowerFrameV2) == 32, "MonitorPowerFrameV2 must stay 32 bytes");
 
 void MonitorTelemetry_Init(ConnectionMode mode, uint16_t targetRateHz);
+void MonitorTelemetry_SetTargetRateHz(uint16_t targetRateHz);
 uint32_t MonitorTelemetry_NextSequence();
-void MonitorTelemetry_OnReportReady(uint32_t seq);
-bool MonitorTelemetry_GetReportReadyUs(uint32_t seq, uint32_t* outReadyUs);
+void MonitorTelemetry_OnReportReady(uint32_t seq,
+                                    uint32_t triggerCycles,
+                                    uint32_t completeCycles);
+bool MonitorTelemetry_GetReportTriggerCycles(uint32_t seq,
+                                             uint32_t* outTriggerCycles);
 void MonitorTelemetry_SetPendingUsbSeq(uint32_t seq);
 void MonitorTelemetry_OnUsbReportSubmitted(uint16_t reportLen);
 void MonitorTelemetry_OnRfTransfer(uint32_t seq, uint8_t cmd, uint8_t payloadLen, bool ok);

@@ -68,10 +68,32 @@ class AdcCircularDmaContractTests(unittest.TestCase):
         self.assertGreaterEqual(source.count("HAL_ADC_Start_DMA"), 3)
         self.assertGreaterEqual(source.count("* 2u)"), 3)
         self.assertIn("HAL_ADC_ConvHalfCpltCallback", source)
-        self.assertIn("completedDmaSequence", source)
+        self.assertIn("inputSampleAssembler.addAdcCompletion", source)
+        self.assertIn("completedHalf) * info.count", source)
+        self.assertIn("invalidateDmaHalf(info, completedHalf)", source)
+        self.assertNotIn("invalidateDmaBuffer", source)
+        self.assertIn("handleADCStats(completedFrame)", source)
+        self.assertIn("const uint32_t value = sample.values[virtualPin]", source)
+        self.assertNotIn("__HAL_DMA_GET_COUNTER", source)
+        self.assertIn("stop1 != HAL_OK || stop2 != HAL_OK || stop3 != HAL_OK", source)
+        self.assertNotIn("completedDmaSequence", source)
         self.assertIn("DMA1_START_FAILED", source)
         self.assertIn("DMA2_START_FAILED", source)
         self.assertIn("DMA3_START_FAILED", source)
+
+    def test_timer_registration_preempts_dma_completion_callbacks(self) -> None:
+        board = (
+            ROOT / "application" / "Core" / "Inc" / "board_cfg.h"
+        ).read_text(encoding="utf-8")
+        adc = (
+            ROOT / "application" / "Drivers" / "ADC" / "adc.c"
+        ).read_text(encoding="utf-8")
+        self.assertIn("BOARD_TIM2_IRQn_PRIO                    0u", board)
+        self.assertIn("BOARD_ADC_DMA_IRQn_PRIO                 1u", board)
+        self.assertGreaterEqual(
+            adc.count("BOARD_ADC_DMA_IRQn_PRIO"),
+            4,
+        )
 
     def test_all_runtime_states_arm_dma_before_starting_the_clock(self) -> None:
         paths = {
@@ -108,6 +130,30 @@ class AdcCircularDmaContractTests(unittest.TestCase):
                                  gpio_worker.index("uint32_t GPIOBtnsWorker::read()")]
         self.assertIn("virtualPinMask = 0u;", adc_setup)
         self.assertIn("virtualPinMask = 0u;", gpio_setup)
+
+    def test_sampling_completion_defers_notifications_out_of_dma_irq(self) -> None:
+        manager = (
+            ROOT / "application" / "Cpp_Core" / "Src" / "adc_btns" /
+            "adc_manager.cpp"
+        ).read_text(encoding="utf-8")
+        webhid = (
+            ROOT / "application" / "Cpp_Core" / "Src" /
+            "webhid_service.cpp"
+        ).read_text(encoding="utf-8")
+
+        irq_path = manager[
+            manager.index("void ADCManager::handleADCStats"):
+            manager.index("void ADCManager::processPendingSamplingStats")
+        ]
+        deferred_path = manager[
+            manager.index("void ADCManager::processPendingSamplingStats"):
+            manager.index("ADCIndexInfo ADCManager::findADCButtonVirtualPin")
+        ]
+        self.assertIn("samplingStatsPending = true", irq_path)
+        self.assertNotIn("MC.publish", irq_path)
+        self.assertNotIn("std::accumulate", irq_path)
+        self.assertIn("MC.publish", deferred_path)
+        self.assertIn("ADC_MANAGER.processPendingSamplingStats();", webhid)
 
 
 if __name__ == "__main__":

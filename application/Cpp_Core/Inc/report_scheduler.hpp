@@ -13,22 +13,17 @@ public:
         return instance;
     }
 
-    void start(uint16_t rateHz);
+    bool start(uint16_t rateHz);
     void stop();
-    void setRate(uint16_t rateHz);
+    bool setRate(uint16_t rateHz);
     uint16_t getRate() const { return runningRateHz; }
     bool isStarted() const { return started; }
-    bool consumeTick();
-    bool consumeLatestTick();
     void onTimerIrq();
 
 private:
     ReportScheduler() = default;
     uint16_t runningRateHz = 1000;
-    volatile uint32_t pendingTicks = 0;
     volatile uint32_t irqTicksWin = 0;
-    volatile uint32_t consumedTicksWin = 0;
-    volatile uint32_t droppedTicksWin = 0;
     uint32_t statLastMs = 0;
     bool started = false;
 };

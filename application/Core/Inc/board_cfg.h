@@ -475,6 +475,7 @@ typedef struct {
 #define BOARD_ADC_OVERSAMPLE_RATIO             16u
 #define BOARD_ADC_OVERSAMPLE_RIGHT_SHIFT       ADC_RIGHTBITSHIFT_4
 #define ADC_VALUE_PUBLIC_RIGHT_SHIFT           4u
+#define BOARD_ADC_DMA_IRQn_PRIO                 1u
 
 static const ADC_PinConfig ADC1_PIN_MAP[] = {
     { GPIOF, GPIO_PIN_11, ADC_CHANNEL_2,  ADC_REGULAR_RANK_1, 2 },

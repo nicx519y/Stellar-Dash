@@ -5,6 +5,8 @@
 #include "board_mode.hpp"
 #include "enums.hpp"
 
+struct AdcSampleFrame;
+
 class InputState : public BaseState
 {
 public:
@@ -34,16 +36,19 @@ public:
 private:
     InputState() = default;
 
-    bool applyPhysicalMode(BoardMode mode, bool initial);
+    bool applyPhysicalMode(BoardMode mode,
+                           bool initial,
+                           bool compatibilityRecovery = false);
     void startInputPipeline();
     void stopInputPipeline();
     void sendUsbNeutralReport();
-    void processReportTick();
+    void processReportSample(const AdcSampleFrame& sample);
 
     bool isRunning = false;
     bool inputPipelineRunning = false;
     bool usbRuntimeInitialized = false;
     bool usbRuntimeConnected = false;
+    bool usbCompatibilityRecoveryUsed = false;
     BoardMode activeBoardMode = BoardMode::CenterOff;
     uint32_t virtualPinMask = 0u;
     uint32_t lastVirtualPinMask = 0u;

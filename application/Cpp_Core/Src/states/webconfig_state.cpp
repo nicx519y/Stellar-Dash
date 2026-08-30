@@ -91,6 +91,8 @@ bool WebConfigState::enter() {
     USB_BOARD_LINK.shutdown();
     CH585_ROLE_BOOTSTRAP.shutdown();
     CH585_ROLE_BOOTSTRAP.setSelector(UsbBoardLink_SelectRoleCallback);
+    USB_DRIVER.setRequestedReportRateHz(1000u);
+    USB_DRIVER.setFastInputAllowed(false);
     if (!CH585_ROLE_BOOTSTRAP.start(Ch585Role::Maintenance) ||
         !USB_DRIVER.prepare(InputMode::INPUT_MODE_CONFIG)) {
         APP_STAGE_ERROR("W04", "CH585 maintenance role or CONFIG USB preparation failed");
@@ -144,10 +146,8 @@ bool WebConfigState::enter() {
         enterFailure(WebConfigRuntimeStatus::ErrorAdc);
         return false;
     }
-    const uint16_t reportRateHz = static_cast<uint16_t>(
-        STORAGE_MANAGER.getWirelessReportRate());
-    REPORT_SCHEDULER.start(reportRateHz);
-    if (!REPORT_SCHEDULER.isStarted()) {
+    const uint16_t reportRateHz = 1000u;
+    if (!REPORT_SCHEDULER.start(reportRateHz)) {
         APP_STAGE_ERROR("W08", "TIM2 ADC sampling clock start failed");
         enterFailure(WebConfigRuntimeStatus::ErrorAdc);
         return false;
@@ -217,17 +217,12 @@ void WebConfigState::tick() {
             APP_STAGE("WT3", "calibration process complete");
         }
 
-        if (!ADC_MANAGER.isDmaSamplingActive()) {
+        if (!ADC_MANAGER.isDmaSamplingActive() ||
+            !ADC_MANAGER.isInputSampleStreamHealthy()) {
             APP_STAGE_ERROR("W10", "ADC circular DMA stopped unexpectedly");
             enterFailure(WebConfigRuntimeStatus::ErrorAdc);
             return;
         }
-        const uint16_t desiredRateHz = static_cast<uint16_t>(
-            STORAGE_MANAGER.getWirelessReportRate());
-        if (REPORT_SCHEDULER.getRate() != desiredRateHz) {
-            REPORT_SCHEDULER.setRate(desiredRateHz);
-        }
-        (void)REPORT_SCHEDULER.consumeLatestTick();
         if (traceStartupTick) {
             APP_STAGE("WT4", "ADC circular DMA health check complete");
         }

@@ -21,6 +21,10 @@ public:
     bool selectRole(usb_board_role_t role, uint32_t timeoutMs);
     bool getCapabilities();
     bool setProfile(usb_board_profile_t profile);
+    bool getUsbLinkState(usb_board_control_link_state_v1_t &state);
+    bool enableFastInputDataPlane();
+    bool restoreCompatibleDataPlane();
+    bool takeFastDataPlaneFault(uint8_t &fault);
     bool submitInput(uint32_t processedActionMask,
                      uint16_t ageUs = 0u,
                      uint8_t batteryCode = 0u,
@@ -49,6 +53,7 @@ public:
     usb_board_profile_t profile() const { return selectedProfile; }
     bool isRoleLocked() const { return roleLocked; }
     bool isCompatible() const { return capsValid; }
+    bool isFastApplication() const { return fastApplication; }
     bool isDeviceMounted() const { return usbState.device_mounted != 0u; }
     bool isDeviceSuspended() const { return usbState.device_suspended != 0u; }
     bool isHostReady() const { return usbState.host_ready != 0u; }
@@ -116,6 +121,7 @@ private:
     void resetWebConfigTransmit();
     uint8_t creditFor(usb_board_channel_t channel) const;
     void consumeCredit(usb_board_channel_t channel);
+    bool setDataPlane(usb_board_data_plane_t mode);
 
     usb_board_role_t selectedRole = USB_BOARD_ROLE_NONE;
     usb_board_profile_t selectedProfile = USB_BOARD_PROFILE_NONE;
@@ -133,8 +139,12 @@ private:
     uint8_t telemetryTransaction = 0u;
     uint8_t controlTransaction = 0u;
     uint32_t nextTelemetryAtMs = 0u;
+    uint32_t dataPlaneNonce = 0u;
     bool roleLocked = false;
     bool capsValid = false;
+    bool fastApplication = false;
+    bool fastDataPlaneFaultPending = false;
+    uint8_t fastDataPlaneFault = USB_BOARD_STATUS_OK;
     bool usbSubsystemEvidence = false;
     bool transactionActive = false;
     bool webConfigTxActive = false;

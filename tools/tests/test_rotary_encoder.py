@@ -79,7 +79,9 @@ class RotaryEncoderTests(unittest.TestCase):
         self.assertIn("RotEnc_Tick1msFromISR();", interrupts)
         self.assertIn("while (det > 0)", screen)
         self.assertIn("while (det < 0)", screen)
-        self.assertIn("kUsbReportCatchupLimit", input_state)
+        self.assertIn("consumeLatestInputSample", input_state)
+        self.assertNotIn("kUsbReportCatchupLimit", input_state)
+        self.assertNotIn("consumeTick", input_state)
         self.assertNotIn(
             "while (REPORT_SCHEDULER.consumeTick())", input_state
         )

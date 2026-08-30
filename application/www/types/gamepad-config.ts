@@ -95,6 +95,7 @@ export interface GlobalConfig {
     power?: PowerConfig;
     hardware?: HardwareLayout;
     ch585?: Ch585Status;
+    reportRateStatus?: ReportRateStatus;
     autoCalibrationEnabled?: boolean;
     manualCalibrationActive?: boolean;
 }
@@ -103,6 +104,13 @@ export interface Ch585Status {
     role: 'RF' | 'USB' | 'MAINTENANCE' | 'UNKNOWN';
     firmwareVersion: string;
     capabilitiesValid: boolean;
+}
+
+export interface ReportRateStatus {
+    requested: WirelessReportRate;
+    effective: WirelessReportRate;
+    usbSpeed: 'NONE' | 'FULL' | 'HIGH';
+    limit: 'NONE' | 'USB_PROFILE_LIMIT' | 'USB_NOT_HIGH_SPEED' | 'BOARD_LINK_COMPAT';
 }
 
 export type PhysicalConnectionMode = ConnectionMode | 'OFF' | 'FAULT' | 'UNKNOWN';
@@ -731,8 +739,8 @@ export const UI_TEXT = {
     
     // Input Mode Settings
     CONNECTION_MODE_TITLE: "Connection",
-    CONNECTION_MODE_REPORT_RATE_LABEL: "Report Rate",
-    CONNECTION_MODE_REPORT_RATE_HELPER: "Affects the magnetic-switch ADC sampling rate and USB and wireless report rates.",
+    CONNECTION_MODE_REPORT_RATE_LABEL: "Configured rate",
+    CONNECTION_MODE_REPORT_RATE_HELPER: "2K/4K/8K take effect only after entering Input State with XInput mode; other modes use 1K.",
     INPUT_MODE_TITLE: "Platform",
     POWER_TITLE: "Power",
     POWER_AUTO_STANDBY_LABEL: "Auto Sleep",
@@ -803,7 +811,7 @@ export const UI_TEXT = {
 
     // Hotkeys Settings
     SETTINGS_BASIC_TITLE: "Basic",
-    SETTINGS_BASIC_HELPER_TEXT: "Configure the device's basic connection and power behavior here.\n- Report Rate controls magnetic-switch ADC sampling as well as USB and 2.4G wireless reporting.\n- Higher rates shorten the input interval but increase system load.\n- Auto Sleep sets how long the device waits without input before entering sleep.",
+    SETTINGS_BASIC_HELPER_TEXT: "Configure the device's basic connection and power behavior here.\n- Report Rate stores the requested sampling/report rate.\n- 2K/4K/8K take effect only after entering Input State with XInput mode; other modes use 1K.\n- Auto Sleep sets how long the device waits without input before entering sleep.",
     SETTINGS_HOTKEYS_TITLE: "Hotkey",
     SETTINGS_HOTKEYS_HELPER_TEXT: `Configure up to ${DEFAULT_NUM_HOTKEYS_MAX} hotkeys for quick access to various functions.\n- Click on the hotkey field and press the desired key on the hitbox or device to bind the hotkey.\n- Choice the hotkey action from the dropdown list.\n- Locked hotkeys are used for web configuration mode and calibration mode because this function is required. `,
     SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "Device Button Monitoring",
@@ -1247,8 +1255,8 @@ export const UI_TEXT_ZH = {
     
     // 输入模式
     CONNECTION_MODE_TITLE: "连接",
-    CONNECTION_MODE_REPORT_RATE_LABEL: "上报率",
-    CONNECTION_MODE_REPORT_RATE_HELPER: "影响磁轴的 ADC 采样率，以及 USB 和无线的上报率。",
+    CONNECTION_MODE_REPORT_RATE_LABEL: "配置速率",
+    CONNECTION_MODE_REPORT_RATE_HELPER: "2K/4K/8K 仅在进入 Input State 且使用 XInput 模式时生效；其他模式使用 1K。",
     INPUT_MODE_TITLE: "平台",
     POWER_TITLE: "电源",
     POWER_AUTO_STANDBY_LABEL: "自动休眠",
@@ -1318,7 +1326,7 @@ export const UI_TEXT_ZH = {
     
     // 热键设置
     SETTINGS_BASIC_TITLE: "基础",
-    SETTINGS_BASIC_HELPER_TEXT: "在这里配置设备的基础连接与电源行为。\n- 上报率同时影响磁轴 ADC 采样、USB 和 2.4G 无线上报。\n- 更高的上报率可以缩短输入间隔，但会增加系统负载。\n- 自动休眠用于设置设备无操作多久后进入休眠状态。",
+    SETTINGS_BASIC_HELPER_TEXT: "在这里配置设备的基础连接与电源行为。\n- 上报率只保存请求的采样/报告档位。\n- 2K/4K/8K 仅在进入 Input State 且使用 XInput 模式时生效；其他模式使用 1K。\n- 自动休眠用于设置设备无操作多久后进入休眠状态。",
     SETTINGS_HOTKEYS_TITLE: "快捷键",
     SETTINGS_HOTKEYS_HELPER_TEXT: `最多可以配置${DEFAULT_NUM_HOTKEYS_MAX}个快捷键来快速访问各种功能。\n- 点击快捷键区域并在实体设备上或者左侧格斗板图示上按下想要绑定的按键\n- 从下拉列表中选择快捷键动作\n- 锁定的快捷键用于网页配置模式和校准模式，因为这些功能是必需的。`,
     SETTINGS_HOTKEYS_BUTTON_MONITORING_TITLE: "设备按键监控",

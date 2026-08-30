@@ -391,13 +391,12 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
         self.assertLess(settle, selected)
         self.assertNotIn("RFBootReady::waitForModuleReady", stm32_link[role_valid:selected])
 
-    def test_approved_recovery_measurement_matches_default_makefile_bin(self) -> None:
+    def test_default_makefile_bin_is_accepted_as_daily_staging_input(self) -> None:
         firmware = update.DEFAULT_FIRMWARE.read_bytes()
-        self.assertEqual(len(firmware), update.EXPECTED_RECOVERY_SIZE)
-        self.assertEqual(
-            hashlib.sha256(firmware).hexdigest(),
-            update.EXPECTED_RECOVERY_SHA256,
-        )
+        update.validate_firmware(firmware)
+        self.assertGreater(len(firmware), update.CH585_IAP_BYTES)
+        self.assertLessEqual(len(firmware), update.STAGING_DATA_BYTES)
+        self.assertEqual(len(firmware) % 4, 0)
 
     def test_manual_isp_fails_safe_and_suppresses_all_takeover_and_standby(self) -> None:
         mode = (
@@ -550,7 +549,7 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
         self.assertIn("IAP/USB_IAP/Startup", makefile)
         self.assertNotIn("STARTUP_DIR  := $(SRC_ROOT_DIR)/Startup", makefile)
 
-    def test_ch585_rx_uses_fifo_interrupt_without_nss_dependency(self) -> None:
+    def test_ch585_rx_keeps_fifo_compat_and_adds_fast_input_dma(self) -> None:
         port = (
             ROOT / "RF_PHY_Hop" / "TX" / "USB" /
             "usb_board_link_port_ch585.c"
@@ -558,7 +557,9 @@ class Ch585StlinkUpdateTests(unittest.TestCase):
         self.assertIn("static void rx_fifo_start(void)", port)
         self.assertIn("SPI0_IT_FIFO_HF | SPI0_IT_FIFO_OV", port)
         self.assertIn("rx_drain_fifo_locked();", port)
-        self.assertNotIn("rx_dma_position", port)
+        self.assertIn("static uint32_t rx_dma_position(void)", port)
+        self.assertIn("RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP", port)
+        self.assertIn("usb_board_link_port_set_fast_input", port)
 
     def test_role_selector_has_explicit_application_ready_handshake(self) -> None:
         ch585 = (

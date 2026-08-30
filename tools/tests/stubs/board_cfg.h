@@ -13,5 +13,6 @@ static inline void hbox_test_app_stage_error(const char *stage,
 }
 
 #define APP_STAGE_ERROR(...) hbox_test_app_stage_error(__VA_ARGS__)
+#define APP_STAGE(...) hbox_test_app_stage_error(__VA_ARGS__)
 
 #endif

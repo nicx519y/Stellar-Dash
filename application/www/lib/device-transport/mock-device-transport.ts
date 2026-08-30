@@ -121,6 +121,12 @@ const DEFAULT_GLOBAL_CONFIG = {
   connectionModeSource: 'PHYSICAL_SWITCH' as const,
   physicalConnectionMode: ConnectionMode.USB,
   wirelessReportRate: WirelessReportRate.RATE_8K,
+  reportRateStatus: {
+    requested: WirelessReportRate.RATE_8K,
+    effective: WirelessReportRate.RATE_8K,
+    usbSpeed: 'HIGH',
+    limit: 'NONE',
+  },
   power: { wakeHoldMs: 3000, autoStandbyMs: 300000 },
   hardware: {
     hardwareVersion: '2.0.0',

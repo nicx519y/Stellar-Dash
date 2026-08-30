@@ -79,8 +79,7 @@ bool CalibrationState::enter() {
     }
     const uint16_t reportRateHz = static_cast<uint16_t>(
         STORAGE_MANAGER.getWirelessReportRate());
-    REPORT_SCHEDULER.start(reportRateHz);
-    if (!REPORT_SCHEDULER.isStarted()) {
+    if (!REPORT_SCHEDULER.start(reportRateHz)) {
         exit();
         enterCalibrationSafeState();
         LOG_ERROR("CALIBRATION", "Failed to start TIM2 ADC sampling clock");
@@ -126,8 +125,9 @@ void CalibrationState::tick() {
     }
 
     if (isRunning) {
-        (void)REPORT_SCHEDULER.consumeLatestTick();
-        if (rebootTime == 0u && !ADC_MANAGER.isDmaSamplingActive()) {
+        if (rebootTime == 0u &&
+            (!ADC_MANAGER.isDmaSamplingActive() ||
+             !ADC_MANAGER.isInputSampleStreamHealthy())) {
             exit();
             enterCalibrationSafeState();
             LOG_ERROR("CALIBRATION", "ADC circular DMA stopped unexpectedly");

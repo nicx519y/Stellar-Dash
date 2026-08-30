@@ -24,7 +24,7 @@ HBox 工具统一入口（tools/hbox.py）
   - code A|B（低层纯代码烧录，不更新metadata）
   - appAll A|B
   - assets
-  - tx（通过 ST-LINK → QSPI → SPI 烧录 CH585 TX 固件）
+  - tx（通过 ST-LINK → QSPI → SPI 烧录 CH585 TX 固件；--build 可先构建）
 
 3) release
   - auto
@@ -42,6 +42,7 @@ HBox 工具统一入口（tools/hbox.py）
   python tools/hbox.py flash code A
   python tools/hbox.py flash appAll A --code-only
   python tools/hbox.py flash tx
+  python tools/hbox.py flash tx --build
   python tools/hbox.py release auto --version 1.0.0
   python tools/hbox.py release flash 0.0.1_a --slot A
   python tools/hbox.py web dev
@@ -84,6 +85,45 @@ def _run_python_tool(script_name: str, tool_args: list[str]) -> int:
         # same Ctrl+C and perform their own cleanup. Avoid printing a second
         # parent-process traceback after that graceful shutdown.
         return 130
+
+
+def _run_tx_build() -> int:
+    """Build the accepted CH585 TX image before the normal flash flow."""
+
+    project_root = _project_root()
+    tx_makefile = project_root / "RF_PHY_Hop" / "TX" / "Makefile"
+    tx_firmware = (
+        project_root
+        / "RF_PHY_Hop"
+        / "TX"
+        / "build_tx"
+        / "RF_PHY_Hop_TX.bin"
+    )
+    if not tx_makefile.is_file():
+        print(f"错误: 未找到 CH585 TX Makefile: {tx_makefile}")
+        return 2
+
+    print("正在构建 CH585 TX 固件...")
+    try:
+        rc = subprocess.call(
+            ["make", "-C", "RF_PHY_Hop/TX"],
+            cwd=project_root,
+        )
+    except FileNotFoundError as exc:
+        print(f"错误: 未找到 make: {exc}")
+        return 2
+    except KeyboardInterrupt:
+        return 130
+
+    if rc != 0:
+        print("错误: CH585 TX 构建失败，已停止烧录。")
+        return rc
+    if not tx_firmware.is_file():
+        print(f"错误: CH585 TX 构建产物不存在: {tx_firmware}")
+        return 2
+
+    print(f"CH585 TX 构建完成: {tx_firmware}")
+    return 0
 
 
 def _local_webconfig_state_is_initialized() -> bool:
@@ -297,6 +337,7 @@ def main(argv: list[str]) -> int:
   python tools/hbox.py flash app A --build
   python tools/hbox.py flash appAll A
   python tools/hbox.py flash tx
+  python tools/hbox.py flash tx --build
   python tools/hbox.py release auto --version 1.0.0
   python tools/hbox.py web dev
   python tools/hbox.py web build
@@ -332,7 +373,10 @@ def main(argv: list[str]) -> int:
     p_flash.add_argument(
         "--build",
         action="store_true",
-        help="flash app 时先重新构建并签名；默认只烧录现有产物",
+        help=(
+            "flash app 时先重新构建并签名，flash tx 时先构建 TX；"
+            "默认只烧录现有产物"
+        ),
     )
 
     p_release = subparsers.add_parser("release", help="发版相关")
@@ -391,6 +435,10 @@ def main(argv: list[str]) -> int:
 
     if args.cmd == "flash":
         if args.target == "tx":
+            if args.build:
+                rc = _run_tx_build()
+                if rc != 0:
+                    return rc
             return _run_python_tool("ch585_stlink_update.py", ["--execute"])
         if args.target == "bootloader":
             return _run_python_tool("build.py", ["flash", "bootloader"])

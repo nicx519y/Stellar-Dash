@@ -1346,6 +1346,10 @@ void WebHidService::process()
 
     HBoxBoardSecurityConfirmation_Poll();
     (void)monotonicMicros();
+    // ADC DMA completion only raises a pending flag. Complete statistics and
+    // publish marking/calibration notifications here in thread mode so cJSON,
+    // std::string and WebHID queues are never touched from an IRQ.
+    ADC_MANAGER.processPendingSamplingStats();
     size_t processed = 0u;
     while (rxCount != 0u && processed < kRxProcessBudget) {
         std::array<uint8_t, WEBHID_REPORT_BYTES> report;

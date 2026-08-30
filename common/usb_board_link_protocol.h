@@ -56,6 +56,8 @@ typedef enum
     USB_BOARD_CMD_USB_CONTROL   = 0x05u,
     USB_BOARD_CMD_BULK_FRAGMENT = 0x06u,
     USB_BOARD_CMD_BULK_CREDIT   = 0x07u,
+    USB_BOARD_CMD_SET_DATA_PLANE = 0x08u,
+    USB_BOARD_CMD_DATA_PLANE_PROBE = 0x09u,
 
     USB_BOARD_EVT_ROLE_SELECTED = 0x81u,
     USB_BOARD_EVT_CAPS          = 0x82u,
@@ -64,6 +66,8 @@ typedef enum
     USB_BOARD_EVT_BULK_FRAGMENT = 0x86u,
     USB_BOARD_EVT_BULK_CREDIT   = 0x87u,
     USB_BOARD_EVT_USB_STATE     = 0x88u,
+    USB_BOARD_EVT_DATA_PLANE_SET = 0x89u,
+    USB_BOARD_EVT_DATA_PLANE_PROBE = 0x8Au,
     USB_BOARD_EVT_FAULT         = 0x8Fu
 } usb_board_command_t;
 
@@ -172,8 +176,23 @@ enum
     USB_BOARD_CAP_FEATURE_CDC_NCM       = (1u << 2), /* legacy capability */
     USB_BOARD_CAP_FEATURE_LOCAL_AUTH    = (1u << 3),
     USB_BOARD_CAP_FEATURE_WEBHID_V1     = (1u << 4),
-    USB_BOARD_CAP_FEATURE_WEBCONFIG_PULL_CREDIT = (1u << 5)
+    USB_BOARD_CAP_FEATURE_WEBCONFIG_PULL_CREDIT = (1u << 5),
+    /* Deprecated. V1 switched immediately after CAPS and must not be used. */
+    USB_BOARD_CAP_FEATURE_SPI_FAST_V1_DEPRECATED = (1u << 6),
+    /* Explicit, probed XInput-only fast data plane. */
+    USB_BOARD_CAP_FEATURE_SPI_FAST_INPUT_V2 = (1u << 7)
 };
+
+typedef enum
+{
+    USB_BOARD_DATA_PLANE_COMPAT        = 0x00u,
+    USB_BOARD_DATA_PLANE_FAST_INPUT_V2 = 0x01u
+} usb_board_data_plane_t;
+
+#define USB_BOARD_DATA_PLANE_PROBE_VERSION       1u
+#define USB_BOARD_DATA_PLANE_PROBE_PATTERN_BYTES 52u
+#define USB_BOARD_DATA_PLANE_PROBE_PATTERN_SEED  0xA7u
+#define USB_BOARD_DATA_PLANE_PROBE_PATTERN_STEP  37u
 
 #if defined(__GNUC__)
 #define USB_BOARD_PACKED __attribute__((packed))
@@ -239,6 +258,38 @@ typedef struct USB_BOARD_PACKED
     uint8_t profile;
     uint8_t status;
 } usb_board_profile_set_v1_t;
+
+typedef struct USB_BOARD_PACKED
+{
+    uint8_t mode;
+} usb_board_set_data_plane_v1_t;
+
+typedef struct USB_BOARD_PACKED
+{
+    uint8_t mode;
+    uint8_t status;
+} usb_board_data_plane_set_v1_t;
+
+/*
+ * The probe deliberately occupies the complete 60-byte BoardLink payload.
+ * crc16_le covers mode, version, nonce and the fixed pattern (58 bytes).
+ */
+typedef struct USB_BOARD_PACKED
+{
+    uint8_t mode;
+    uint8_t version;
+    uint32_t nonce_le;
+    uint8_t pattern[USB_BOARD_DATA_PLANE_PROBE_PATTERN_BYTES];
+    uint16_t crc16_le;
+} usb_board_data_plane_probe_v1_t;
+
+typedef struct USB_BOARD_PACKED
+{
+    uint8_t mode;
+    uint8_t status;
+    uint32_t nonce_le;
+    uint16_t crc16_le;
+} usb_board_data_plane_probe_result_v1_t;
 
 typedef struct USB_BOARD_PACKED
 {
@@ -340,6 +391,11 @@ USB_BOARD_STATIC_ASSERT(USB_BOARD_TELEMETRY_FRAME_BYTES <=
 USB_BOARD_STATIC_ASSERT(sizeof(usb_board_caps_v1_t) == 10u);
 USB_BOARD_STATIC_ASSERT(sizeof(usb_board_input_v1_t) == USB_BOARD_INPUT_V1_BYTES);
 USB_BOARD_STATIC_ASSERT(sizeof(usb_board_fragment_header_v1_t) == USB_BOARD_FRAGMENT_HEADER_BYTES);
+USB_BOARD_STATIC_ASSERT(sizeof(usb_board_set_data_plane_v1_t) == 1u);
+USB_BOARD_STATIC_ASSERT(sizeof(usb_board_data_plane_set_v1_t) == 2u);
+USB_BOARD_STATIC_ASSERT(sizeof(usb_board_data_plane_probe_v1_t) ==
+                        USB_BOARD_LINK_MAX_PAYLOAD_BYTES);
+USB_BOARD_STATIC_ASSERT(sizeof(usb_board_data_plane_probe_result_v1_t) == 8u);
 USB_BOARD_STATIC_ASSERT(sizeof(usb_board_usb_state_v1_t) == 6u);
 USB_BOARD_STATIC_ASSERT(sizeof(usb_board_bulk_credit_v1_t) == 2u);
 USB_BOARD_STATIC_ASSERT(sizeof(usb_board_control_result_v1_t) == 1u);

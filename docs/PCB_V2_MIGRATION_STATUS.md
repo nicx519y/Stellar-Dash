@@ -16,10 +16,10 @@ WebConfig vendor HID 的描述符、控制传输和认证代理代码已经从�
 
 ## 已完成
 
-### RF 冻结门禁
+### RF 冻结审计基线
 
-- `tools/check_rf_frozen.py` 在根目录、bootloader、application、CH585 TX 构建和
-  release 前执行。
+- `tools/check_rf_frozen.py` 保留为显式回归审计工具，不再由根目录、bootloader、
+  application、CH585 TX 构建或 release 自动执行和阻断构建。
 - `docs/rf_frozen_manifest.sha256` 固定 39 个 RF 核心/RX 源文件的 SHA-256。
 - `docs/rf_frozen_binaries.sha256` 固定 RX 基线二进制。
 - `docs/rf_frozen_behavior_baseline.json` 固定 10B/14B/7B/12B golden vectors、

@@ -163,12 +163,18 @@ ADCBtnsError ADCCalibrationManager::stopCalibration() {
     
     calibrationActive = false;
     completionCheckExecuted = false; // 重置完成检查标志
-    
-    
-    // 关闭LED
-    // if(WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING) {
-    //     WS2812B_StopStrip(WS2812B_STRIP_KEYS);
-    // }
+    for (ButtonCalibrationState& state : buttonStates) {
+        state.ledColor = CalibrationLEDColor::OFF;
+    }
+
+#if HAS_LED == 1
+    /* Keep the retained edit frame black for the next start, then remove
+     * power from only the key strip.  The ambient strip has independent
+     * ownership and must not be disturbed by calibration teardown. */
+    WS2812B_SetAllLEDColorStrip(WS2812B_STRIP_KEYS, 0u, 0u, 0u);
+    WS2812B_SetAllLEDBrightnessStrip(WS2812B_STRIP_KEYS, 0u);
+    (void)WS2812B_StopStrip(WS2812B_STRIP_KEYS);
+#endif
 
     APP_DBG("Manual calibration stopped, all LEDs OFF");
     
@@ -276,6 +282,19 @@ void ADCCalibrationManager::processCalibration() {
     
     // 检查是否所有按键都已完成校准
     checkCalibrationCompletion();
+
+#if HAS_LED == 1
+    /*
+     * WS2812B setters only update the edit frame.  The circular-DMA driver
+     * needs an explicit submit before that frame can reach the physical
+     * strip.  Service on every calibration pass so a submit that briefly
+     * lost the asynchronous HT/TC transaction race is retried on the next
+     * pass instead of leaving the last calibration colour stuck.
+     */
+    if (WS2812B_GetStateStrip(WS2812B_STRIP_KEYS) == WS2812B_RUNNING) {
+        WS2812B_ServiceStrip(WS2812B_STRIP_KEYS);
+    }
+#endif
     
     // 如果本轮循环有状态变更，触发回调
     if (hasStatusChange) {
@@ -921,8 +940,11 @@ void ADCCalibrationManager::updateAllLEDs() {
     for (uint8_t i = 0; i < NUM_ADC_BUTTONS; i++) {
         updateButtonLED(i, buttonStates[i].ledColor);
     }
-    
-    
+
+#if HAS_LED == 1
+    // Publish the complete colour set as one coherent calibration frame.
+    WS2812B_ServiceStrip(WS2812B_STRIP_KEYS);
+#endif
 }
 
 /**

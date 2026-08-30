@@ -15,6 +15,9 @@
                            RB_SPI_IF_BYTE_END | RB_SPI_IF_FST_BYTE)
 
 static usb_spi_rx_ring_t s_rx_ring;
+__attribute__((aligned(4)))
+static uint8_t s_rx_dma[USB_SPI_RX_DMA_BYTES];
+static uint32_t s_rx_dma_last_pos;
 static uint8_t s_tx_frames[USB_SPI_TX_SLOTS][USB_BOARD_LINK_MAX_FRAME_BYTES];
 static uint8_t s_tx_lengths[USB_SPI_TX_SLOTS];
 static uint8_t s_tx_head;
@@ -25,6 +28,7 @@ static volatile uint8_t s_tx_armed;
 static volatile uint8_t s_tx_nss_seen;
 static volatile uint8_t s_release_gap_pending;
 static volatile uint8_t s_port_fault;
+static volatile uint8_t s_fast_input;
 
 static uint8_t nss_is_high(void)
 {
@@ -74,6 +78,20 @@ static void rx_fifo_start(void)
     SPI0_ITCfg(ENABLE, SPI0_IT_FIFO_HF | SPI0_IT_FIFO_OV);
 }
 
+static uint32_t rx_dma_position(void)
+{
+    uint32_t now = R32_SPI0_DMA_NOW;
+    const uint32_t begin = (uint32_t)s_rx_dma;
+    const uint32_t end = (uint32_t)(s_rx_dma + USB_SPI_RX_DMA_BYTES);
+
+    if(now < begin || now > end)
+    {
+        return s_rx_dma_last_pos;
+    }
+    now -= begin;
+    return now >= USB_SPI_RX_DMA_BYTES ? 0u : now;
+}
+
 static void rx_push_block(const uint8_t *data, uint16_t length)
 {
     uint16_t first;
@@ -113,6 +131,95 @@ static void rx_push_block(const uint8_t *data, uint16_t length)
     s_rx_ring.count = (uint16_t)(s_rx_ring.count + length);
 }
 
+static void rx_dma_start(uint8_t reset_buffer)
+{
+    R8_SPI0_CTRL_CFG &= (uint8_t)~(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP);
+    SPI0_ITCfg(DISABLE,
+               SPI0_IT_CNT_END | SPI0_IT_DMA_END | SPI0_IT_FIFO_HF |
+               SPI0_IT_FIFO_OV);
+    spi_fifo_clear();
+    R8_SPI0_CTRL_MOD = (uint8_t)((R8_SPI0_CTRL_MOD | RB_SPI_FIFO_DIR) &
+                                 (uint8_t)~RB_SPI_SLV_CMD_MOD);
+    if(reset_buffer != 0u)
+    {
+        memset(s_rx_dma, 0xFF, sizeof(s_rx_dma));
+    }
+    s_rx_dma_last_pos = 0u;
+    R32_SPI0_DMA_BEG = (uint32_t)s_rx_dma;
+    R32_SPI0_DMA_END = (uint32_t)(s_rx_dma + USB_SPI_RX_DMA_BYTES);
+    R32_SPI0_DMA_NOW = (uint32_t)s_rx_dma;
+    R16_SPI0_TOTAL_CNT = USB_SPI_RX_DMA_BYTES;
+    R8_SPI0_INT_FLAG = USB_SPI_ALL_FLAGS;
+    R8_SPI0_CTRL_CFG |= (uint8_t)(RB_SPI_DMA_ENABLE | RB_SPI_DMA_LOOP);
+}
+
+static void rx_dma_collect_locked(void)
+{
+    uint8_t flags;
+    uint8_t loop_end;
+    uint32_t position;
+    uint32_t delta;
+    uint32_t first;
+
+    if(s_fast_input == 0u)
+    {
+        return;
+    }
+    flags = R8_SPI0_INT_FLAG;
+    loop_end = (uint8_t)(flags & (RB_SPI_IF_CNT_END | RB_SPI_IF_DMA_END));
+    position = rx_dma_position();
+    if((flags & RB_SPI_IF_FIFO_OV) != 0u)
+    {
+        s_port_fault = USB_BOARD_STATUS_QUEUE_FULL;
+        R8_SPI0_INT_FLAG = RB_SPI_IF_FIFO_OV;
+        rx_dma_start(1u);
+        return;
+    }
+    if(loop_end != 0u)
+    {
+        R8_SPI0_INT_FLAG = loop_end;
+    }
+    delta = usb_spi_rx_dma_delta((uint16_t)s_rx_dma_last_pos,
+                                 (uint16_t)position,
+                                 loop_end != 0u);
+    if(delta == 0u)
+    {
+        return;
+    }
+    if(delta > (uint32_t)(USB_SPI_RX_FIFO_BYTES - s_rx_ring.count))
+    {
+        /* Drop the whole DMA delta; never splice a wrapped suffix into a
+         * previously complete frame stream. The parser will resynchronize on
+         * the next 0x5A after the reported overflow. */
+        s_port_fault = USB_BOARD_STATUS_QUEUE_FULL;
+        s_rx_dma_last_pos = position;
+        return;
+    }
+    first = USB_SPI_RX_DMA_BYTES - s_rx_dma_last_pos;
+    if(first > delta)
+    {
+        first = delta;
+    }
+    rx_push_block(&s_rx_dma[s_rx_dma_last_pos], (uint16_t)first);
+    if(delta > first)
+    {
+        rx_push_block(s_rx_dma, (uint16_t)(delta - first));
+    }
+    s_rx_dma_last_pos = position;
+}
+
+static void rx_backend_start(uint8_t reset_buffer)
+{
+    if(s_fast_input != 0u)
+    {
+        rx_dma_start(reset_buffer);
+    }
+    else
+    {
+        rx_fifo_start();
+    }
+}
+
 static void rx_drain_fifo_locked(void)
 {
     while(R8_SPI0_FIFO_COUNT != 0u)
@@ -124,8 +231,15 @@ static void rx_drain_fifo_locked(void)
 
 static void service_pending_nss_rise_locked(void)
 {
-    /* Preserve every received byte before RX FIFO is repurposed for TX. */
-    rx_drain_fifo_locked();
+    /* Preserve every received byte before the RX backend is repurposed. */
+    if(s_fast_input != 0u)
+    {
+        rx_dma_collect_locked();
+    }
+    else
+    {
+        rx_drain_fifo_locked();
+    }
     GPIOA_ClearITFlagBit(USB_SPI_NSS_PIN);
 }
 
@@ -185,7 +299,7 @@ static bool tx_dma_arm_locked(void)
          * window.  It has not clocked yet because of the STM32 ownership
         * guard; restore RX and let that transaction proceed.
          */
-        rx_fifo_start();
+        rx_backend_start(1u);
         SYS_RecoverIrq(irq_status);
         return false;
     }
@@ -228,7 +342,7 @@ static void tx_dma_finish(void)
     }
     s_tx_armed = 0u;
     s_tx_nss_seen = 0u;
-    rx_fifo_start();
+    rx_backend_start(1u);
     __asm volatile("fence iorw, iorw" ::: "memory");
     /* W_INT high is the invariant that RX DMA is fully ready for a write. */
     GPIOA_SetBits(USB_SPI_IRQ_PIN);
@@ -258,6 +372,8 @@ bool usb_board_link_port_init(void)
     s_tx_nss_seen = 0u;
     s_release_gap_pending = 0u;
     s_port_fault = USB_BOARD_STATUS_OK;
+    s_fast_input = 0u;
+    s_rx_dma_last_pos = 0u;
     memset(s_tx_lengths, 0, sizeof(s_tx_lengths));
     rx_fifo_start();
     s_ready = 1u;
@@ -291,6 +407,13 @@ void usb_board_link_port_process(void)
     if(s_ready == 0u)
     {
         return;
+    }
+
+    if((s_fast_input != 0u) && (s_tx_armed == 0u))
+    {
+        port_lock();
+        rx_dma_collect_locked();
+        port_unlock();
     }
 
     if(s_release_gap_pending != 0u)
@@ -350,6 +473,10 @@ bool usb_board_link_port_pop_rx(uint8_t *byte)
     bool popped;
 
     port_lock();
+    if((s_fast_input != 0u) && (s_tx_armed == 0u))
+    {
+        rx_dma_collect_locked();
+    }
     popped = usb_spi_rx_ring_pop(&s_rx_ring, byte);
     port_unlock();
     return popped;
@@ -397,6 +524,31 @@ bool usb_board_link_port_queue_event(const uint8_t *frame, uint8_t length)
     return true;
 }
 
+bool usb_board_link_port_set_fast_input(bool enabled)
+{
+    bool changed = false;
+
+    if(s_ready == 0u)
+    {
+        return false;
+    }
+    port_lock();
+    if((s_tx_armed == 0u) && (nss_is_high() != 0u))
+    {
+        service_pending_nss_rise_locked();
+        s_fast_input = enabled ? 1u : 0u;
+        rx_backend_start(1u);
+        changed = true;
+    }
+    port_unlock();
+    return changed;
+}
+
+bool usb_board_link_port_is_fast_input(void)
+{
+    return (s_ready != 0u) && (s_fast_input != 0u);
+}
+
 void usb_board_link_port_spi_irq_handler(void)
 {
     const uint8_t flags = R8_SPI0_INT_FLAG;
@@ -426,7 +578,8 @@ void usb_board_link_port_spi_irq_handler(void)
         return;
     }
 
-    if((flags & (RB_SPI_IF_FIFO_HF | RB_SPI_IF_FIFO_OV)) != 0u)
+    if((s_fast_input == 0u) &&
+       ((flags & (RB_SPI_IF_FIFO_HF | RB_SPI_IF_FIFO_OV)) != 0u))
     {
         rx_drain_fifo_locked();
         R8_SPI0_INT_FLAG =
@@ -447,7 +600,14 @@ void usb_board_link_port_nss_rise_irq_handler(void)
 
     /* Rising NSS is an optional prompt only; FIFO-half IRQs preserve bytes
      * even on units that do not retain this GPIO edge in peripheral mode. */
-    rx_drain_fifo_locked();
+    if(s_fast_input != 0u)
+    {
+        rx_dma_collect_locked();
+    }
+    else
+    {
+        rx_drain_fifo_locked();
+    }
     if((R8_SPI0_INT_FLAG & RB_SPI_IF_FIFO_OV) != 0u)
     {
         s_port_fault = USB_BOARD_STATUS_QUEUE_FULL;

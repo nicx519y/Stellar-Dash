@@ -430,8 +430,9 @@ class WebConfigStateContractTests(unittest.TestCase):
         clock = source.index("REPORT_SCHEDULER.start(reportRateHz)")
         self.assertLess(arm, clock)
         self.assertIn("isDmaSamplingActive()", source)
-        self.assertIn("REPORT_SCHEDULER.setRate(desiredRateHz)", source)
-        self.assertIn("REPORT_SCHEDULER.consumeLatestTick()", source)
+        self.assertIn("const uint16_t reportRateHz = 1000u", source)
+        self.assertNotIn("REPORT_SCHEDULER.setRate", source)
+        self.assertNotIn("consumeLatestTick", source)
         self.assertNotIn("triggerSampling()", source)
         self.assertNotIn("kAdcPreviewIntervalMs", header)
 
@@ -717,7 +718,7 @@ class WebConfigStateContractTests(unittest.TestCase):
 
         webhid = tick.index("WEBHID_SERVICE.process();")
         calibration = tick.index("ADC_CALIBRATION_MANAGER.processCalibration()")
-        adc_health = tick.index("if (!ADC_MANAGER.isDmaSamplingActive())")
+        adc_health = tick.index("if (!ADC_MANAGER.isDmaSamplingActive() ||")
         buttons = tick.index("WEBCONFIG_BTNS_MANAGER.update()")
         self.assertLess(webhid, calibration)
         self.assertLess(webhid, adc_health)

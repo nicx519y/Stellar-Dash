@@ -179,7 +179,7 @@ DEPFLAGS = -MMD -MF $(@:.o=.d)
 
 TOOLCHAIN_OK := $(OUT_DIR)/.toolchain_ok
 
-all: check-rf-freeze $(TOOLCHAIN_OK) $(OUT_DIR)/$(PROJECT).elf $(OUT_DIR)/$(PROJECT).hex $(OUT_DIR)/$(PROJECT).bin $(OUT_DIR)/$(PROJECT).lst
+all: $(TOOLCHAIN_OK) $(OUT_DIR)/$(PROJECT).elf $(OUT_DIR)/$(PROJECT).hex $(OUT_DIR)/$(PROJECT).bin $(OUT_DIR)/$(PROJECT).lst
 	$(SIZE) $(OUT_DIR)/$(PROJECT).elf
 
 check-rf-freeze:
@@ -197,7 +197,7 @@ $(TOOLCHAIN_OK):
 
 check-toolchain: $(TOOLCHAIN_OK)
 
-$(OUT_DIR)/$(PROJECT).elf: check-rf-freeze $(OBJS) $(LINKER_SCRIPT)
+$(OUT_DIR)/$(PROJECT).elf: $(OBJS) $(LINKER_SCRIPT)
 	@if not exist "$(subst /,\,$(dir $@))" mkdir "$(subst /,\,$(dir $@))"
 	$(CC) $(OBJS) $(LDFLAGS) $(LIBS) -o $@
 

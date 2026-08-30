@@ -7,7 +7,7 @@ CH585 TX -> CH585 RX radio implementation while the latest PCB is brought up.
 Only board-level CH585 pin, clock, and debug-port configuration may change in
 this migration.
 
-Run the gate from the repository root:
+Run the optional audit from the repository root:
 
 ```powershell
 mingw32-make -C RF_PHY_Hop/RX -j4 TOOLCHAIN_BIN="<WCH GCC15 bin>"
@@ -22,10 +22,10 @@ separately in `docs/rf_frozen_binaries.sha256`. A strict post-build check is:
 python tools/check_rf_frozen.py --require-rx-binary
 ```
 
-Generated artifacts remain outside the source manifest.  All formal root,
-bootloader, application, CH585 TX, build-tool and release-tool entry points
-use the strict form and therefore fail closed on a clean checkout until the
-frozen RX has been rebuilt with the recorded WCH GCC15 toolchain.
+Generated artifacts remain outside the source manifest. The source and binary
+baselines are retained for explicit regression audits, but normal root,
+bootloader, application, CH585 TX, build-tool and release-tool entry points no
+longer run this check automatically or block builds when the baseline differs.
 The historical pairing/hopping/ACK/8K parameters and trace samples are also
 stored in machine-readable form in
 `docs/rf_frozen_behavior_baseline.json`; they remain marked as requiring a

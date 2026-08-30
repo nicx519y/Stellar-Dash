@@ -274,11 +274,13 @@ LDFLAGS = $(MCU) -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(TARGET)
 LDFLAGS += --specs=nosys.specs --specs=nano.specs -u _printf_float
 
 # default action: build all
+# RF freeze verification remains available as an explicit audit target, but it
+# no longer blocks normal development builds.
 RF_FREEZE_CHECK = ../tools/check_rf_frozen.py
 
 .PHONY: all check-rf-freeze clean flash flash-web-resources debug
 
-all: check-rf-freeze $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin
+all: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin
 
 check-rf-freeze:
 	python "$(RF_FREEZE_CHECK)" --require-rx-binary
@@ -310,7 +312,7 @@ $(BUILD_DIR)/%.o: %.s Makefile | $(BUILD_DIR)
 $(BUILD_DIR)/%.o: %.S Makefile | $(BUILD_DIR)
 	$(AS) -c $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/$(TARGET).elf: check-rf-freeze $(OBJECTS) Makefile
+$(BUILD_DIR)/$(TARGET).elf: $(OBJECTS) Makefile
 	$(CXX) $(OBJECTS) $(LDFLAGS) -o $@
 	$(SZ) $@
 

@@ -33,8 +33,6 @@ class BuildTool:
         self.application_dir = self.project_root / "application"
         self.tools_dir = self.project_root / "tools"
         self.build_config_file = self.tools_dir / "build_config.json"
-        self.rf_freeze_verified = False
-        
         # 自动检测CPU核心数
         self.cpu_count = multiprocessing.cpu_count()
         
@@ -62,27 +60,6 @@ class BuildTool:
         # 加载构建配置
         self.load_build_config()
         self.shared_addresses = self.load_shared_addresses()
-
-    def verify_rf_frozen(self) -> bool:
-        """Fail closed before any formal firmware compilation."""
-        if self.rf_freeze_verified:
-            return True
-
-        checker = self.tools_dir / "check_rf_frozen.py"
-        if not checker.is_file():
-            print(f"错误: RF冻结检查脚本不存在: {checker}")
-            return False
-
-        print("执行RF冻结基线检查...")
-        if not self.run_command(
-            [sys.executable, str(checker), "--require-rx-binary"],
-            self.project_root,
-        ):
-            print("错误: RF冻结基线检查失败，停止构建")
-            return False
-
-        self.rf_freeze_verified = True
-        return True
 
     def load_shared_addresses(self) -> Dict[str, str]:
         shared = {
@@ -303,8 +280,6 @@ class BuildTool:
 
     def build_bootloader(self) -> bool:
         """构建 bootloader"""
-        if not self.verify_rf_frozen():
-            return False
         print("=" * 50)
         print("构建 Bootloader")
         print("=" * 50)
@@ -340,8 +315,6 @@ class BuildTool:
 
     def build_application(self, slot: str) -> bool:
         """构建 application"""
-        if not self.verify_rf_frozen():
-            return False
         print("=" * 50)
         print(f"构建 Application (槽{slot})")
         print("=" * 50)

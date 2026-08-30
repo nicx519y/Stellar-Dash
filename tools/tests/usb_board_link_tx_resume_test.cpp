@@ -402,6 +402,26 @@ bool USBBoardLinkPort_InitApplication()
     return true;
 }
 
+bool USBBoardLinkPort_EnableFastApplication()
+{
+    return false;
+}
+
+bool USBBoardLinkPort_DisableFastApplication()
+{
+    return true;
+}
+
+bool USBBoardLinkPort_IsFastApplication()
+{
+    return false;
+}
+
+uint32_t USBBoardLinkPort_ClockHz()
+{
+    return 120000000u;
+}
+
 void USBBoardLinkPort_Shutdown()
 {
 }
