@@ -1,0 +1,1415 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_detail_web_config.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp"
+  19              		.section	.text._ZN14WebConfigStateD2Ev,"axG",%progbits,_ZN14WebConfigStateD5Ev,comdat
+  20              		.align	1
+  21              		.weak	_ZN14WebConfigStateD2Ev
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN14WebConfigStateD2Ev:
+  27              	.LVL0:
+  28              	.LFB2181:
+  29              		.file 2 "Cpp_Core/Inc/states/webconfig_state.hpp"
+   1:Cpp_Core/Inc/states/webconfig_state.hpp **** #ifndef WEB_CONFIG_STATE_HPP
+   2:Cpp_Core/Inc/states/webconfig_state.hpp **** #define WEB_CONFIG_STATE_HPP
+   3:Cpp_Core/Inc/states/webconfig_state.hpp **** 
+   4:Cpp_Core/Inc/states/webconfig_state.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/states/webconfig_state.hpp **** 
+   6:Cpp_Core/Inc/states/webconfig_state.hpp **** #include "base_state.hpp"
+   7:Cpp_Core/Inc/states/webconfig_state.hpp **** 
+   8:Cpp_Core/Inc/states/webconfig_state.hpp **** enum class WebConfigRuntimeStatus : uint8_t
+   9:Cpp_Core/Inc/states/webconfig_state.hpp **** {
+  10:Cpp_Core/Inc/states/webconfig_state.hpp ****     Starting = 0,
+  11:Cpp_Core/Inc/states/webconfig_state.hpp ****     Ready,
+  12:Cpp_Core/Inc/states/webconfig_state.hpp ****     Authenticated,
+  13:Cpp_Core/Inc/states/webconfig_state.hpp ****     ErrorUsbMode,
+  14:Cpp_Core/Inc/states/webconfig_state.hpp ****     ErrorMaintenance,
+  15:Cpp_Core/Inc/states/webconfig_state.hpp ****     ErrorSecurity,
+  16:Cpp_Core/Inc/states/webconfig_state.hpp ****     ErrorStorageInit,
+  17:Cpp_Core/Inc/states/webconfig_state.hpp ****     ErrorAdc,
+  18:Cpp_Core/Inc/states/webconfig_state.hpp ****     ErrorStorage,
+  19:Cpp_Core/Inc/states/webconfig_state.hpp **** };
+  20:Cpp_Core/Inc/states/webconfig_state.hpp **** 
+  21:Cpp_Core/Inc/states/webconfig_state.hpp **** class WebConfigState : public BaseState
+  30              		.loc 2 21 7 view -0
+  31              		.cfi_startproc
+  32              		@ args = 0, pretend = 0, frame = 0
+  33              		@ frame_needed = 0, uses_anonymous_args = 0
+  34              		@ link register save eliminated.
+  35              	.LBB31:
+  36              	.LBI31:
+  37              		.file 3 "Cpp_Core/Inc/states/base_state.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 2
+
+
+   1:Cpp_Core/Inc/states/base_state.hpp **** #ifndef __BASE_STATE_H__
+   2:Cpp_Core/Inc/states/base_state.hpp **** #define __BASE_STATE_H__
+   3:Cpp_Core/Inc/states/base_state.hpp **** 
+   4:Cpp_Core/Inc/states/base_state.hpp **** class BaseState {
+   5:Cpp_Core/Inc/states/base_state.hpp ****     public:
+   6:Cpp_Core/Inc/states/base_state.hpp ****         virtual ~BaseState() = default;
+  38              		.loc 3 6 17 view .LVU1
+  39              		.loc 3 6 17 is_stmt 0 view .LVU2
+  40              	.LBE31:
+  41              		.loc 2 21 7 view .LVU3
+  42 0000 7047     		bx	lr
+  43              		.cfi_endproc
+  44              	.LFE2181:
+  46              		.weak	_ZN14WebConfigStateD1Ev
+  47              		.thumb_set _ZN14WebConfigStateD1Ev,_ZN14WebConfigStateD2Ev
+  48              		.section	.text._ZN7Storage11getInstanceEv,"axG",%progbits,_ZN7Storage11getInstanceEv,comdat
+  49              		.align	1
+  50              		.weak	_ZN7Storage11getInstanceEv
+  51              		.syntax unified
+  52              		.thumb
+  53              		.thumb_func
+  55              	_ZN7Storage11getInstanceEv:
+  56              	.LFB2156:
+  57              		.file 4 "Cpp_Core/Inc/storagemanager.hpp"
+   1:Cpp_Core/Inc/storagemanager.hpp **** #ifndef _STORAGE_MANAGER_H_
+   2:Cpp_Core/Inc/storagemanager.hpp **** #define _STORAGE_MANAGER_H_
+   3:Cpp_Core/Inc/storagemanager.hpp **** 
+   4:Cpp_Core/Inc/storagemanager.hpp **** #include "config.hpp"
+   5:Cpp_Core/Inc/storagemanager.hpp **** 
+   6:Cpp_Core/Inc/storagemanager.hpp **** // Forward declarations
+   7:Cpp_Core/Inc/storagemanager.hpp **** class ADCValuesCalibrator;
+   8:Cpp_Core/Inc/storagemanager.hpp **** class ADCValuesMarker;
+   9:Cpp_Core/Inc/storagemanager.hpp **** 
+  10:Cpp_Core/Inc/storagemanager.hpp **** class Storage {
+  11:Cpp_Core/Inc/storagemanager.hpp **** public:
+  12:Cpp_Core/Inc/storagemanager.hpp **** 	using DefaultProfileChangedCallback = void (*)(void);
+  13:Cpp_Core/Inc/storagemanager.hpp **** 
+  14:Cpp_Core/Inc/storagemanager.hpp **** 	Storage(Storage const&) = delete;
+  15:Cpp_Core/Inc/storagemanager.hpp **** 	void operator=(Storage const&) = delete;
+  16:Cpp_Core/Inc/storagemanager.hpp **** 	
+  17:Cpp_Core/Inc/storagemanager.hpp **** 	static Storage& getInstance() {
+  58              		.loc 4 17 18 is_stmt 1 view -0
+  59              		.cfi_startproc
+  60              		@ args = 0, pretend = 0, frame = 0
+  61              		@ frame_needed = 0, uses_anonymous_args = 0
+  18:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+  62              		.loc 4 18 3 view .LVU5
+  17:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+  63              		.loc 4 17 18 is_stmt 0 view .LVU6
+  64 0000 10B5     		push	{r4, lr}
+  65              	.LCFI0:
+  66              		.cfi_def_cfa_offset 8
+  67              		.cfi_offset 4, -8
+  68              		.cfi_offset 14, -4
+  69              		.loc 4 18 18 view .LVU7
+  70 0002 074C     		ldr	r4, .L9
+  71 0004 2368     		ldr	r3, [r4]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 3
+
+
+  72 0006 BFF35B8F 		dmb	ish
+  73              		.loc 4 18 18 discriminator 1 view .LVU8
+  74 000a DB07     		lsls	r3, r3, #31
+  75 000c 06D4     		bmi	.L4
+  76              	.LBB37:
+  77              	.LBI37:
+  17:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+  78              		.loc 4 17 18 is_stmt 1 view .LVU9
+  79              	.LBB38:
+  80              		.loc 4 18 18 is_stmt 0 discriminator 1 view .LVU10
+  81 000e 2046     		mov	r0, r4
+  82 0010 FFF7FEFF 		bl	__cxa_guard_acquire
+  83              	.LVL1:
+  84 0014 10B1     		cbz	r0, .L4
+  85              	.LVL2:
+  86              	.LBB39:
+  87              	.LBI39:
+  19:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  20:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  21:Cpp_Core/Inc/storagemanager.hpp **** 
+  22:Cpp_Core/Inc/storagemanager.hpp **** 	Config config;
+  23:Cpp_Core/Inc/storagemanager.hpp **** 	
+  24:Cpp_Core/Inc/storagemanager.hpp **** 	void initConfig();
+  25:Cpp_Core/Inc/storagemanager.hpp **** 	bool saveConfig();
+  26:Cpp_Core/Inc/storagemanager.hpp **** 	bool resetConfig();
+  27:Cpp_Core/Inc/storagemanager.hpp **** 	void setInputMode(InputMode inputMode);
+  28:Cpp_Core/Inc/storagemanager.hpp **** 	const InputMode getInputMode() {
+  29:Cpp_Core/Inc/storagemanager.hpp **** 		return config.inputMode;
+  30:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  31:Cpp_Core/Inc/storagemanager.hpp **** 	void setConnectionMode(ConnectionMode mode);
+  32:Cpp_Core/Inc/storagemanager.hpp **** 	ConnectionMode getConnectionMode() const {
+  33:Cpp_Core/Inc/storagemanager.hpp **** 		return config.connectionMode;
+  34:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  35:Cpp_Core/Inc/storagemanager.hpp **** 	void setWirelessReportRate(WirelessReportRate rate);
+  36:Cpp_Core/Inc/storagemanager.hpp **** 	WirelessReportRate getWirelessReportRate() const {
+  37:Cpp_Core/Inc/storagemanager.hpp **** 		return config.wirelessReportRate;
+  38:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  39:Cpp_Core/Inc/storagemanager.hpp **** 	uint32_t getWakeHoldMs() const {
+  40:Cpp_Core/Inc/storagemanager.hpp **** 		return config.power.wakeHoldMs;
+  41:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  42:Cpp_Core/Inc/storagemanager.hpp **** 	uint32_t getAutoStandbyMs() const {
+  43:Cpp_Core/Inc/storagemanager.hpp **** 		return config.power.autoStandbyMs;
+  44:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  45:Cpp_Core/Inc/storagemanager.hpp **** 	void setRfPowerStateHint(uint8_t hint);
+  46:Cpp_Core/Inc/storagemanager.hpp **** 	uint8_t getRfPowerStateHint() const {
+  47:Cpp_Core/Inc/storagemanager.hpp **** 		return config.reservedConnection0;
+  48:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  49:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadProfile* getGamepadProfile(char* id);
+  50:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadProfile* getDefaultGamepadProfile() {
+  51:Cpp_Core/Inc/storagemanager.hpp **** 		return getGamepadProfile(config.defaultProfileId);
+  52:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  53:Cpp_Core/Inc/storagemanager.hpp **** 	bool setDefaultProfileId(const char* id);
+  54:Cpp_Core/Inc/storagemanager.hpp **** 	void registerDefaultProfileChangedCallback(DefaultProfileChangedCallback cb);
+  55:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadHotkeyEntry* getGamepadHotkeyEntry() {
+  56:Cpp_Core/Inc/storagemanager.hpp **** 		return config.hotkeys;
+  57:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  58:Cpp_Core/Inc/storagemanager.hpp **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 4
+
+
+  59:Cpp_Core/Inc/storagemanager.hpp **** 	void setBootMode(BootMode bootMode);
+  60:Cpp_Core/Inc/storagemanager.hpp **** 	BootMode getBootMode() {
+  61:Cpp_Core/Inc/storagemanager.hpp **** 		return config.bootMode;
+  62:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  63:Cpp_Core/Inc/storagemanager.hpp **** 
+  64:Cpp_Core/Inc/storagemanager.hpp **** private:
+  65:Cpp_Core/Inc/storagemanager.hpp **** 	Storage() {}  // 私有构造函数
+  88              		.loc 4 65 2 is_stmt 1 view .LVU11
+  89              		.loc 4 65 2 is_stmt 0 view .LVU12
+  90              	.LBE39:
+  18:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  91              		.loc 4 18 18 discriminator 1 view .LVU13
+  92 0016 2046     		mov	r0, r4
+  93 0018 FFF7FEFF 		bl	__cxa_guard_release
+  94              	.LVL3:
+  95              	.L4:
+  96              	.LBE38:
+  97              	.LBE37:
+  19:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  98              		.loc 4 19 3 is_stmt 1 view .LVU14
+  20:Cpp_Core/Inc/storagemanager.hpp **** 
+  99              		.loc 4 20 2 is_stmt 0 view .LVU15
+ 100 001c 0148     		ldr	r0, .L9+4
+ 101 001e 10BD     		pop	{r4, pc}
+ 102              	.L10:
+ 103              		.align	2
+ 104              	.L9:
+ 105 0020 00000000 		.word	_ZGVZN7Storage11getInstanceEvE8instance
+ 106 0024 00000000 		.word	_ZZN7Storage11getInstanceEvE8instance
+ 107              		.cfi_endproc
+ 108              	.LFE2156:
+ 110              		.section	.text._ZN14WebConfigStateD0Ev,"axG",%progbits,_ZN14WebConfigStateD5Ev,comdat
+ 111              		.align	1
+ 112              		.weak	_ZN14WebConfigStateD0Ev
+ 113              		.syntax unified
+ 114              		.thumb
+ 115              		.thumb_func
+ 117              	_ZN14WebConfigStateD0Ev:
+ 118              	.LVL4:
+ 119              	.LFB2183:
+ 120              		.loc 2 21 7 is_stmt 1 view -0
+ 121              		.cfi_startproc
+ 122              		@ args = 0, pretend = 0, frame = 0
+ 123              		@ frame_needed = 0, uses_anonymous_args = 0
+ 124              		.loc 2 21 7 is_stmt 0 view .LVU17
+ 125 0000 10B5     		push	{r4, lr}
+ 126              	.LCFI1:
+ 127              		.cfi_def_cfa_offset 8
+ 128              		.cfi_offset 4, -8
+ 129              		.cfi_offset 14, -4
+ 130              		.loc 2 21 7 view .LVU18
+ 131 0002 0446     		mov	r4, r0
+ 132              	.LVL5:
+ 133              	.LBB40:
+ 134              	.LBI40:
+ 135              		.loc 2 21 7 is_stmt 1 view .LVU19
+ 136              	.LBB41:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 5
+
+
+ 137              	.LBI41:
+ 138              		.loc 3 6 17 view .LVU20
+ 139              		.loc 3 6 17 is_stmt 0 view .LVU21
+ 140              	.LBE41:
+ 141              	.LBE40:
+ 142              		.loc 2 21 7 discriminator 1 view .LVU22
+ 143 0004 0C21     		movs	r1, #12
+ 144 0006 FFF7FEFF 		bl	_ZdlPvj
+ 145              	.LVL6:
+ 146              		.loc 2 21 7 view .LVU23
+ 147 000a 2046     		mov	r0, r4
+ 148 000c 10BD     		pop	{r4, pc}
+ 149              		.loc 2 21 7 view .LVU24
+ 150              		.cfi_endproc
+ 151              	.LFE2183:
+ 153              		.section	.text._ZN14WebConfigState11getInstanceEv,"axG",%progbits,_ZN14WebConfigState11getInstance
+ 154              		.align	1
+ 155              		.weak	_ZN14WebConfigState11getInstanceEv
+ 156              		.syntax unified
+ 157              		.thumb
+ 158              		.thumb_func
+ 160              	_ZN14WebConfigState11getInstanceEv:
+ 161              	.LFB2169:
+  22:Cpp_Core/Inc/states/webconfig_state.hpp **** {
+  23:Cpp_Core/Inc/states/webconfig_state.hpp **** public:
+  24:Cpp_Core/Inc/states/webconfig_state.hpp ****     WebConfigState(WebConfigState const &) = delete;
+  25:Cpp_Core/Inc/states/webconfig_state.hpp ****     void operator=(WebConfigState const &) = delete;
+  26:Cpp_Core/Inc/states/webconfig_state.hpp **** 
+  27:Cpp_Core/Inc/states/webconfig_state.hpp ****     static WebConfigState &getInstance()
+ 162              		.loc 2 27 28 is_stmt 1 view -0
+ 163              		.cfi_startproc
+ 164              		@ args = 0, pretend = 0, frame = 0
+ 165              		@ frame_needed = 0, uses_anonymous_args = 0
+  28:Cpp_Core/Inc/states/webconfig_state.hpp ****     {
+  29:Cpp_Core/Inc/states/webconfig_state.hpp ****         static WebConfigState instance;
+ 166              		.loc 2 29 9 view .LVU26
+  27:Cpp_Core/Inc/states/webconfig_state.hpp ****     {
+ 167              		.loc 2 27 28 is_stmt 0 view .LVU27
+ 168 0000 10B5     		push	{r4, lr}
+ 169              	.LCFI2:
+ 170              		.cfi_def_cfa_offset 8
+ 171              		.cfi_offset 4, -8
+ 172              		.cfi_offset 14, -4
+ 173              		.loc 2 29 31 view .LVU28
+ 174 0002 0A4C     		ldr	r4, .L19
+ 175 0004 2368     		ldr	r3, [r4]
+ 176 0006 BFF35B8F 		dmb	ish
+ 177              		.loc 2 29 31 discriminator 1 view .LVU29
+ 178 000a DB07     		lsls	r3, r3, #31
+ 179 000c 0BD4     		bmi	.L14
+ 180 000e 2046     		mov	r0, r4
+ 181 0010 FFF7FEFF 		bl	__cxa_guard_acquire
+ 182              	.LVL7:
+ 183 0014 38B1     		cbz	r0, .L14
+ 184              	.LBB44:
+ 185              	.LBI44:
+  27:Cpp_Core/Inc/states/webconfig_state.hpp ****     {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 6
+
+
+ 186              		.loc 2 27 28 is_stmt 1 view .LVU30
+ 187              	.LBB45:
+ 188              		.loc 2 29 31 is_stmt 0 discriminator 2 view .LVU31
+ 189 0016 064A     		ldr	r2, .L19+4
+ 190 0018 0649     		ldr	r1, .L19+8
+ 191 001a 0748     		ldr	r0, .L19+12
+ 192 001c FFF7FEFF 		bl	__aeabi_atexit
+ 193              	.LVL8:
+ 194              		.loc 2 29 31 discriminator 1 view .LVU32
+ 195 0020 2046     		mov	r0, r4
+ 196 0022 FFF7FEFF 		bl	__cxa_guard_release
+ 197              	.LVL9:
+ 198              	.L14:
+ 199              	.LBE45:
+ 200              	.LBE44:
+  30:Cpp_Core/Inc/states/webconfig_state.hpp ****         return instance;
+ 201              		.loc 2 30 9 is_stmt 1 view .LVU33
+  31:Cpp_Core/Inc/states/webconfig_state.hpp ****     }
+ 202              		.loc 2 31 5 is_stmt 0 view .LVU34
+ 203 0026 0448     		ldr	r0, .L19+12
+ 204 0028 10BD     		pop	{r4, pc}
+ 205              	.L20:
+ 206 002a 00BF     		.align	2
+ 207              	.L19:
+ 208 002c 00000000 		.word	_ZGVZN14WebConfigState11getInstanceEvE8instance
+ 209 0030 00000000 		.word	__dso_handle
+ 210 0034 00000000 		.word	_ZN14WebConfigStateD1Ev
+ 211 0038 00000000 		.word	_ZZN14WebConfigState11getInstanceEvE8instance
+ 212              		.cfi_endproc
+ 213              	.LFE2169:
+ 215              		.section	.text._ZN12_GLOBAL__N_1L13exitWebConfigEv,"ax",%progbits
+ 216              		.align	1
+ 217              		.syntax unified
+ 218              		.thumb
+ 219              		.thumb_func
+ 221              	_ZN12_GLOBAL__N_1L13exitWebConfigEv:
+ 222              	.LFB2185:
+   1:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** #include "screen_control/spi_screen_detail_entries.hpp"
+   2:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** #include "main_runtime_control.hpp"
+   3:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** 
+   4:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** #include "board_cfg.h"
+   5:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** #include "ch585_update_mode.hpp"
+   6:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** #include "storagemanager.hpp"
+   7:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** #include "screen_control/spi_screen_detail_render_helpers.hpp"
+   8:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** #include "states/webconfig_state.hpp"
+   9:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** 
+  10:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** namespace {
+  11:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** 
+  12:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** static bool exitWebConfig()
+  13:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** {
+ 223              		.loc 1 13 1 is_stmt 1 view -0
+ 224              		.cfi_startproc
+ 225              		@ args = 0, pretend = 0, frame = 0
+ 226              		@ frame_needed = 0, uses_anonymous_args = 0
+  14:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
+ 227              		.loc 1 14 5 view .LVU36
+  13:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 7
+
+
+ 228              		.loc 1 13 1 is_stmt 0 view .LVU37
+ 229 0000 10B5     		push	{r4, lr}
+ 230              	.LCFI3:
+ 231              		.cfi_def_cfa_offset 8
+ 232              		.cfi_offset 4, -8
+ 233              		.cfi_offset 14, -4
+ 234              		.loc 1 14 5 view .LVU38
+ 235 0002 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 236              	.LVL10:
+ 237              		.loc 1 14 32 discriminator 1 view .LVU39
+ 238 0006 0221     		movs	r1, #2
+ 239 0008 FFF7FEFF 		bl	_ZN7Storage11setBootModeE8BootMode
+ 240              	.LVL11:
+  15:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     if (!STORAGE_MANAGER.saveConfig()) {
+ 241              		.loc 1 15 5 is_stmt 1 view .LVU40
+ 242              		.loc 1 15 10 is_stmt 0 view .LVU41
+ 243 000c FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 244              	.LVL12:
+ 245              		.loc 1 15 36 discriminator 1 view .LVU42
+ 246 0010 FFF7FEFF 		bl	_ZN7Storage10saveConfigEv
+ 247              	.LVL13:
+ 248              		.loc 1 15 5 discriminator 2 view .LVU43
+ 249 0014 0446     		mov	r4, r0
+ 250 0016 50B9     		cbnz	r0, .L22
+ 251              	.LBB48:
+ 252              	.LBI48:
+  12:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** {
+ 253              		.loc 1 12 13 is_stmt 1 view .LVU44
+ 254              	.LBB49:
+  16:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         /* Keep the in-memory mode aligned with the last committed journal. */
+  17:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_WEB_CONFIG);
+ 255              		.loc 1 17 9 view .LVU45
+ 256 0018 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 257              	.LVL14:
+ 258              		.loc 1 17 36 is_stmt 0 discriminator 1 view .LVU46
+ 259 001c 0121     		movs	r1, #1
+ 260 001e FFF7FEFF 		bl	_ZN7Storage11setBootModeE8BootMode
+ 261              	.LVL15:
+  18:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         WEB_CONFIG_STATE.reportStorageFailure();
+ 262              		.loc 1 18 9 is_stmt 1 view .LVU47
+ 263 0022 FFF7FEFF 		bl	_ZN14WebConfigState11getInstanceEv
+ 264              	.LVL16:
+ 265              		.loc 1 18 46 is_stmt 0 discriminator 1 view .LVU48
+ 266 0026 FFF7FEFF 		bl	_ZN14WebConfigState20reportStorageFailureEv
+ 267              	.LVL17:
+  19:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         return false;
+ 268              		.loc 1 19 9 is_stmt 1 view .LVU49
+ 269              	.L23:
+ 270              	.LBE49:
+ 271              	.LBE48:
+  20:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     }
+  21:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     MainRuntime_RequestReset();
+  22:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     return true;
+  23:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** }
+ 272              		.loc 1 23 1 is_stmt 0 view .LVU50
+ 273 002a 2046     		mov	r0, r4
+ 274 002c 10BD     		pop	{r4, pc}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 8
+
+
+ 275              	.L22:
+  21:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     return true;
+ 276              		.loc 1 21 5 is_stmt 1 view .LVU51
+  21:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     return true;
+ 277              		.loc 1 21 29 is_stmt 0 view .LVU52
+ 278 002e FFF7FEFF 		bl	MainRuntime_RequestReset
+ 279              	.LVL18:
+  22:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** }
+ 280              		.loc 1 22 5 is_stmt 1 view .LVU53
+  22:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** }
+ 281              		.loc 1 22 12 is_stmt 0 view .LVU54
+ 282 0032 FAE7     		b	.L23
+ 283              		.cfi_endproc
+ 284              	.LFE2185:
+ 286              		.section	.text._Z31ScreenDetailWebConfig_InitIndexv,"ax",%progbits
+ 287              		.align	1
+ 288              		.global	_Z31ScreenDetailWebConfig_InitIndexv
+ 289              		.syntax unified
+ 290              		.thumb
+ 291              		.thumb_func
+ 293              	_Z31ScreenDetailWebConfig_InitIndexv:
+ 294              	.LFB2186:
+  24:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** 
+  25:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** } // namespace
+  26:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** 
+  27:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** uint8_t ScreenDetailWebConfig_InitIndex(void) {
+ 295              		.loc 1 27 47 is_stmt 1 view -0
+ 296              		.cfi_startproc
+ 297              		@ args = 0, pretend = 0, frame = 0
+ 298              		@ frame_needed = 0, uses_anonymous_args = 0
+ 299              		@ link register save eliminated.
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     return 0;
+ 300              		.loc 1 28 5 view .LVU56
+  29:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** }
+ 301              		.loc 1 29 1 is_stmt 0 view .LVU57
+ 302 0000 0020     		movs	r0, #0
+ 303 0002 7047     		bx	lr
+ 304              		.cfi_endproc
+ 305              	.LFE2186:
+ 307              		.section	.text._Z28ScreenDetailWebConfig_RotatePha,"ax",%progbits
+ 308              		.align	1
+ 309              		.global	_Z28ScreenDetailWebConfig_RotatePha
+ 310              		.syntax unified
+ 311              		.thumb
+ 312              		.thumb_func
+ 314              	_Z28ScreenDetailWebConfig_RotatePha:
+ 315              	.LVL19:
+ 316              	.LFB2187:
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** 
+  31:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** void ScreenDetailWebConfig_Rotate(uint8_t* ioIndex, int8_t det) {
+ 317              		.loc 1 31 65 is_stmt 1 view -0
+ 318              		.cfi_startproc
+ 319              		@ args = 0, pretend = 0, frame = 0
+ 320              		@ frame_needed = 0, uses_anonymous_args = 0
+ 321              		@ link register save eliminated.
+  32:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     (void)ioIndex;
+ 322              		.loc 1 32 5 view .LVU59
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 9
+
+
+  33:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     (void)det;
+ 323              		.loc 1 33 5 view .LVU60
+  34:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** }
+ 324              		.loc 1 34 1 is_stmt 0 view .LVU61
+ 325 0000 7047     		bx	lr
+ 326              		.cfi_endproc
+ 327              	.LFE2187:
+ 329              		.section	.rodata._Z28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyle.str1.1,"aMS",%
+ 330              	.LC0:
+ 331 0000 57656220 		.ascii	"Web Config\000"
+ 331      436F6E66 
+ 331      696700
+ 332              		.section	.text._Z28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyle,"ax",%progbits
+ 333              		.align	1
+ 334              		.global	_Z28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 335              		.syntax unified
+ 336              		.thumb
+ 337              		.thumb_func
+ 339              	_Z28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyle:
+ 340              	.LVL20:
+ 341              	.LFB2188:
+  35:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** 
+  36:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** void ScreenDetailWebConfig_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
+ 342              		.loc 1 36 98 is_stmt 1 view -0
+ 343              		.cfi_startproc
+ 344              		@ args = 0, pretend = 0, frame = 0
+ 345              		@ frame_needed = 0, uses_anonymous_args = 0
+  37:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     (void)index;
+ 346              		.loc 1 37 5 view .LVU63
+  38:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     static const char* const startingLines[] = {
+ 347              		.loc 1 38 5 view .LVU64
+  39:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Starting secure USB WebConfig.",
+  40:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Please wait.",
+  41:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Hold Back to exit."
+  42:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     };
+  43:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     static const char* const readyLines[] = {
+ 348              		.loc 1 43 5 view .LVU65
+  44:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "USB WebConfig is ready.",
+  45:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Connect this device to your PC.",
+  46:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Open the local WebConfig server.",
+  47:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Waiting for browser authentication."
+  48:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     };
+  49:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     static const char* const authenticatedLines[] = {
+ 349              		.loc 1 49 5 view .LVU66
+  50:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Browser authenticated.",
+  51:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "WebConfig session is active.",
+  52:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Open the local WebConfig server.",
+  53:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Press Quit or Back to exit."
+  54:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     };
+  55:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     static const char* const usbModeErrorLines[] = {
+ 350              		.loc 1 55 5 view .LVU67
+  56:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "USB switch position is required.",
+  57:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Move the physical switch to USB.",
+  58:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Press Retry or hold Back to exit."
+  59:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     };
+  60:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     static const char* const maintenanceErrorLines[] = {
+ 351              		.loc 1 60 5 view .LVU68
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 10
+
+
+  61:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "USB maintenance is unavailable.",
+  62:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Check the CH585 firmware and link.",
+  63:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Press Retry to test the link.",
+  64:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Hold Back for CH585 Flash."
+  65:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     };
+  66:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     static const char* const securityErrorLines[] = {
+ 352              		.loc 1 66 5 view .LVU69
+  67:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Device security check failed.",
+  68:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Check identity and trust setup.",
+  69:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Press Retry or hold Back to exit."
+  70:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     };
+  71:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     static const char* const storageInitErrorLines[] = {
+ 353              		.loc 1 71 5 view .LVU70
+  72:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "QSPI storage is unavailable.",
+  73:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Configuration access is disabled.",
+  74:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Press Retry or hold Back to exit."
+  75:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     };
+  76:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     static const char* const storageErrorLines[] = {
+ 354              		.loc 1 76 5 view .LVU71
+  77:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Configuration save failed.",
+  78:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "Press Retry to save and exit again.",
+  79:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         "The secure USB session is closed."
+  80:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     };
+  81:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** 
+  82:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     const char* const* lines = startingLines;
+ 355              		.loc 1 82 5 view .LVU72
+  83:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     uint8_t lineCount = (uint8_t)(sizeof(startingLines) / sizeof(startingLines[0]));
+ 356              		.loc 1 83 5 view .LVU73
+  84:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     switch (WEB_CONFIG_STATE.status()) {
+ 357              		.loc 1 84 5 view .LVU74
+  36:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     (void)index;
+ 358              		.loc 1 36 98 is_stmt 0 view .LVU75
+ 359 0000 37B5     		push	{r0, r1, r2, r4, r5, lr}
+ 360              	.LCFI4:
+ 361              		.cfi_def_cfa_offset 24
+ 362              		.cfi_offset 4, -12
+ 363              		.cfi_offset 5, -8
+ 364              		.cfi_offset 14, -4
+  36:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     (void)index;
+ 365              		.loc 1 36 98 view .LVU76
+ 366 0002 1546     		mov	r5, r2
+ 367 0004 0446     		mov	r4, r0
+ 368              		.loc 1 84 13 view .LVU77
+ 369 0006 FFF7FEFF 		bl	_ZN14WebConfigState11getInstanceEv
+ 370              	.LVL21:
+ 371              	.LBB50:
+ 372              	.LBI50:
+  32:Cpp_Core/Inc/states/webconfig_state.hpp **** 
+  33:Cpp_Core/Inc/states/webconfig_state.hpp ****     bool enter() override;
+  34:Cpp_Core/Inc/states/webconfig_state.hpp ****     void tick() override;
+  35:Cpp_Core/Inc/states/webconfig_state.hpp ****     void exit() override;
+  36:Cpp_Core/Inc/states/webconfig_state.hpp **** 
+  37:Cpp_Core/Inc/states/webconfig_state.hpp ****     WebConfigRuntimeStatus status() const { return runtimeStatus; }
+ 373              		.loc 2 37 28 is_stmt 1 view .LVU78
+ 374              	.LBB51:
+ 375              		.loc 2 37 45 view .LVU79
+ 376              		.loc 2 37 45 is_stmt 0 view .LVU80
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 11
+
+
+ 377 000a 037A     		ldrb	r3, [r0, #8]	@ zero_extendqisi2
+ 378              	.LBE51:
+ 379              	.LBE50:
+  85:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         case WebConfigRuntimeStatus::Ready:
+  86:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             lines = readyLines;
+  87:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             lineCount = (uint8_t)(sizeof(readyLines) / sizeof(readyLines[0]));
+  88:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             break;
+  89:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         case WebConfigRuntimeStatus::Authenticated:
+  90:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             lines = authenticatedLines;
+  91:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             lineCount = (uint8_t)(sizeof(authenticatedLines) / sizeof(authenticatedLines[0]));
+  92:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             break;
+  93:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         case WebConfigRuntimeStatus::ErrorUsbMode:
+  94:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             lines = usbModeErrorLines;
+  95:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             lineCount = (uint8_t)(sizeof(usbModeErrorLines) / sizeof(usbModeErrorLines[0]));
+  96:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             break;
+  97:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         case WebConfigRuntimeStatus::ErrorMaintenance:
+  98:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             lines = maintenanceErrorLines;
+  99:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             lineCount = (uint8_t)(sizeof(maintenanceErrorLines) / sizeof(maintenanceErrorLines[0]))
+ 100:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             break;
+ 101:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         case WebConfigRuntimeStatus::ErrorSecurity:
+ 102:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             lines = securityErrorLines;
+ 103:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             lineCount = (uint8_t)(sizeof(securityErrorLines) / sizeof(securityErrorLines[0]));
+ 104:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             break;
+ 105:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         case WebConfigRuntimeStatus::ErrorStorageInit:
+ 106:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             lines = storageInitErrorLines;
+ 107:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             lineCount = (uint8_t)(sizeof(storageInitErrorLines) / sizeof(storageInitErrorLines[0]))
+ 108:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             break;
+ 109:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         case WebConfigRuntimeStatus::ErrorStorage:
+ 110:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             lines = storageErrorLines;
+ 111:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             lineCount = (uint8_t)(sizeof(storageErrorLines) / sizeof(storageErrorLines[0]));
+ 112:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             break;
+ 113:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         case WebConfigRuntimeStatus::Starting:
+ 114:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         default:
+ 115:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             break;
+ 116:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     }
+ 117:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     ScreenDetailRender_TitleLines(lcd, "Web Config", lines, lineCount, style);
+ 380              		.loc 1 117 34 view .LVU81
+ 381 000c 2046     		mov	r0, r4
+ 382 000e 0095     		str	r5, [sp]
+ 383 0010 013B     		subs	r3, r3, #1
+ 384 0012 DBB2     		uxtb	r3, r3
+ 385 0014 072B     		cmp	r3, #7
+ 386 0016 95BF     		itete	ls
+ 387 0018 0649     		ldrls	r1, .L29
+ 388              	.LBB53:
+ 389              	.LBB52:
+ 390              		.loc 2 37 52 view .LVU82
+ 391 001a 0323     		movhi	r3, #3
+ 392 001c 064A     		ldrls	r2, .L29+4
+ 393 001e 074A     		ldrhi	r2, .L29+8
+ 394 0020 9CBF     		itt	ls
+ 395 0022 52F82320 		ldrls	r2, [r2, r3, lsl #2]
+ 396 0026 CB5C     		ldrbls	r3, [r1, r3]	@ zero_extendqisi2
+ 397              	.LVL22:
+ 398              		.loc 2 37 52 view .LVU83
+ 399              	.LBE52:
+ 400              	.LBE53:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 12
+
+
+ 401              		.loc 1 117 5 is_stmt 1 view .LVU84
+ 402              		.loc 1 117 34 is_stmt 0 view .LVU85
+ 403 0028 0549     		ldr	r1, .L29+12
+ 404 002a FFF7FEFF 		bl	_Z29ScreenDetailRender_TitleLinesP13ST7789_HandlePKcPKS2_hRK13ScreenUiStyle
+ 405              	.LVL23:
+ 118:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** }
+ 406              		.loc 1 118 1 view .LVU86
+ 407 002e 03B0     		add	sp, sp, #12
+ 408              	.LCFI5:
+ 409              		.cfi_def_cfa_offset 12
+ 410              		@ sp needed
+ 411 0030 30BD     		pop	{r4, r5, pc}
+ 412              	.LVL24:
+ 413              	.L30:
+ 414              		.loc 1 118 1 view .LVU87
+ 415 0032 00BF     		.align	2
+ 416              	.L29:
+ 417 0034 00000000 		.word	CSWTCH.28
+ 418 0038 00000000 		.word	CSWTCH.27
+ 419 003c 00000000 		.word	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE13startingLines
+ 420 0040 00000000 		.word	.LC0
+ 421              		.cfi_endproc
+ 422              	.LFE2188:
+ 424              		.section	.text._Z31ScreenDetailWebConfig_OnConfirmh,"ax",%progbits
+ 425              		.align	1
+ 426              		.global	_Z31ScreenDetailWebConfig_OnConfirmh
+ 427              		.syntax unified
+ 428              		.thumb
+ 429              		.thumb_func
+ 431              	_Z31ScreenDetailWebConfig_OnConfirmh:
+ 432              	.LVL25:
+ 433              	.LFB2189:
+ 119:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** 
+ 120:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** bool ScreenDetailWebConfig_OnConfirm(uint8_t index) {
+ 434              		.loc 1 120 53 is_stmt 1 view -0
+ 435              		.cfi_startproc
+ 436              		@ args = 0, pretend = 0, frame = 0
+ 437              		@ frame_needed = 0, uses_anonymous_args = 0
+ 121:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     (void)index;
+ 438              		.loc 1 121 5 view .LVU89
+ 122:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     if (WEB_CONFIG_STATE.canRetry()) {
+ 439              		.loc 1 122 5 view .LVU90
+ 120:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     (void)index;
+ 440              		.loc 1 120 53 is_stmt 0 view .LVU91
+ 441 0000 08B5     		push	{r3, lr}
+ 442              	.LCFI6:
+ 443              		.cfi_def_cfa_offset 8
+ 444              		.cfi_offset 3, -8
+ 445              		.cfi_offset 14, -4
+ 446              		.loc 1 122 9 view .LVU92
+ 447 0002 FFF7FEFF 		bl	_ZN14WebConfigState11getInstanceEv
+ 448              	.LVL26:
+ 449              		.loc 1 122 34 discriminator 1 view .LVU93
+ 450 0006 FFF7FEFF 		bl	_ZNK14WebConfigState8canRetryEv
+ 451              	.LVL27:
+ 452              		.loc 1 122 5 discriminator 2 view .LVU94
+ 453 000a 28B1     		cbz	r0, .L32
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 13
+
+
+ 123:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         WEB_CONFIG_STATE.requestRetry();
+ 454              		.loc 1 123 9 is_stmt 1 view .LVU95
+ 455 000c FFF7FEFF 		bl	_ZN14WebConfigState11getInstanceEv
+ 456              	.LVL28:
+ 457              		.loc 1 123 38 is_stmt 0 discriminator 1 view .LVU96
+ 458 0010 FFF7FEFF 		bl	_ZN14WebConfigState12requestRetryEv
+ 459              	.LVL29:
+ 124:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         return false;
+ 460              		.loc 1 124 9 is_stmt 1 view .LVU97
+ 461              	.L35:
+ 125:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     }
+ 126:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     if (WEB_CONFIG_STATE.status() == WebConfigRuntimeStatus::Starting) {
+ 127:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         return false;
+ 128:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     }
+ 129:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     return exitWebConfig();
+ 130:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** }
+ 462              		.loc 1 130 1 is_stmt 0 view .LVU98
+ 463 0014 0020     		movs	r0, #0
+ 464 0016 08BD     		pop	{r3, pc}
+ 465              	.L32:
+ 126:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         return false;
+ 466              		.loc 1 126 5 is_stmt 1 view .LVU99
+ 126:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         return false;
+ 467              		.loc 1 126 9 is_stmt 0 view .LVU100
+ 468 0018 FFF7FEFF 		bl	_ZN14WebConfigState11getInstanceEv
+ 469              	.LVL30:
+ 470              	.LBB54:
+ 471              	.LBI54:
+ 472              		.loc 2 37 28 is_stmt 1 view .LVU101
+ 473              	.LBB55:
+ 474              		.loc 2 37 45 view .LVU102
+ 475              		.loc 2 37 45 is_stmt 0 view .LVU103
+ 476              	.LBE55:
+ 477              	.LBE54:
+ 126:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         return false;
+ 478              		.loc 1 126 5 discriminator 2 view .LVU104
+ 479 001c 037A     		ldrb	r3, [r0, #8]	@ zero_extendqisi2
+ 480 001e 002B     		cmp	r3, #0
+ 481 0020 F8D0     		beq	.L35
+ 129:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** }
+ 482              		.loc 1 129 5 is_stmt 1 view .LVU105
+ 483              		.loc 1 130 1 is_stmt 0 view .LVU106
+ 484 0022 BDE80840 		pop	{r3, lr}
+ 485              	.LCFI7:
+ 486              		.cfi_restore 14
+ 487              		.cfi_restore 3
+ 488              		.cfi_def_cfa_offset 0
+ 129:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** }
+ 489              		.loc 1 129 25 view .LVU107
+ 490 0026 FFF7FEBF 		b	_ZN12_GLOBAL__N_1L13exitWebConfigEv
+ 491              	.LVL31:
+ 492              		.cfi_endproc
+ 493              	.LFE2189:
+ 495              		.section	.text._Z28ScreenDetailWebConfig_OnBackv,"ax",%progbits
+ 496              		.align	1
+ 497              		.global	_Z28ScreenDetailWebConfig_OnBackv
+ 498              		.syntax unified
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 14
+
+
+ 499              		.thumb
+ 500              		.thumb_func
+ 502              	_Z28ScreenDetailWebConfig_OnBackv:
+ 503              	.LFB2190:
+ 131:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** 
+ 132:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** bool ScreenDetailWebConfig_OnBack(void) {
+ 504              		.loc 1 132 41 is_stmt 1 view -0
+ 505              		.cfi_startproc
+ 506              		@ args = 0, pretend = 0, frame = 0
+ 507              		@ frame_needed = 0, uses_anonymous_args = 0
+ 133:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** #if CH585_MANUAL_ISP_ENTRY_ENABLE
+ 134:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     if (WEB_CONFIG_STATE.status() == WebConfigRuntimeStatus::ErrorMaintenance &&
+ 508              		.loc 1 134 5 view .LVU109
+ 132:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** #if CH585_MANUAL_ISP_ENTRY_ENABLE
+ 509              		.loc 1 132 41 is_stmt 0 view .LVU110
+ 510 0000 10B5     		push	{r4, lr}
+ 511              	.LCFI8:
+ 512              		.cfi_def_cfa_offset 8
+ 513              		.cfi_offset 4, -8
+ 514              		.cfi_offset 14, -4
+ 515              		.loc 1 134 9 view .LVU111
+ 516 0002 FFF7FEFF 		bl	_ZN14WebConfigState11getInstanceEv
+ 517              	.LVL32:
+ 518              	.LBB56:
+ 519              	.LBI56:
+ 520              		.loc 2 37 28 is_stmt 1 view .LVU112
+ 521              	.LBB57:
+ 522              		.loc 2 37 45 view .LVU113
+ 523              		.loc 2 37 45 is_stmt 0 view .LVU114
+ 524              	.LBE57:
+ 525              	.LBE56:
+ 526              		.loc 1 134 79 discriminator 2 view .LVU115
+ 527 0006 037A     		ldrb	r3, [r0, #8]	@ zero_extendqisi2
+ 528 0008 042B     		cmp	r3, #4
+ 529 000a 0ED1     		bne	.L37
+ 530              	.LBB58:
+ 531              	.LBI58:
+ 532              		.file 5 "Cpp_Core/Inc/ch585_update_mode.hpp"
+   1:Cpp_Core/Inc/ch585_update_mode.hpp **** #ifndef CH585_UPDATE_MODE_HPP
+   2:Cpp_Core/Inc/ch585_update_mode.hpp **** #define CH585_UPDATE_MODE_HPP
+   3:Cpp_Core/Inc/ch585_update_mode.hpp **** 
+   4:Cpp_Core/Inc/ch585_update_mode.hpp **** class Ch585UpdateMode {
+   5:Cpp_Core/Inc/ch585_update_mode.hpp **** public:
+   6:Cpp_Core/Inc/ch585_update_mode.hpp ****     Ch585UpdateMode(const Ch585UpdateMode&) = delete;
+   7:Cpp_Core/Inc/ch585_update_mode.hpp ****     Ch585UpdateMode& operator=(const Ch585UpdateMode&) = delete;
+   8:Cpp_Core/Inc/ch585_update_mode.hpp **** 
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     static Ch585UpdateMode& getInstance()
+ 533              		.loc 5 9 29 is_stmt 1 view .LVU116
+  10:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         static Ch585UpdateMode instance;
+ 534              		.loc 5 11 9 view .LVU117
+  12:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+ 535              		.loc 5 12 9 view .LVU118
+ 536              	.LBE58:
+ 135:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         CH585_UPDATE_MODE.isManualEntryVisible()) {
+ 537              		.loc 1 135 47 is_stmt 0 discriminator 1 view .LVU119
+ 538 000c 0A48     		ldr	r0, .L45
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 15
+
+
+ 539 000e FFF7FEFF 		bl	_ZNK15Ch585UpdateMode20isManualEntryVisibleEv
+ 540              	.LVL33:
+ 134:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         CH585_UPDATE_MODE.isManualEntryVisible()) {
+ 541              		.loc 1 134 79 discriminator 1 view .LVU120
+ 542 0012 50B1     		cbz	r0, .L37
+ 136:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         if (!CH585_UPDATE_MODE.requestManualIsp()) {
+ 543              		.loc 1 136 9 is_stmt 1 view .LVU121
+ 544              	.LBB59:
+ 545              	.LBI59:
+   9:Cpp_Core/Inc/ch585_update_mode.hpp ****     {
+ 546              		.loc 5 9 29 view .LVU122
+  11:Cpp_Core/Inc/ch585_update_mode.hpp ****         return instance;
+ 547              		.loc 5 11 9 view .LVU123
+ 548              		.loc 5 12 9 view .LVU124
+ 549              	.LBE59:
+ 550              		.loc 1 136 48 is_stmt 0 discriminator 1 view .LVU125
+ 551 0014 0848     		ldr	r0, .L45
+ 552 0016 FFF7FEFF 		bl	_ZN15Ch585UpdateMode16requestManualIspEv
+ 553              	.LVL34:
+ 554              		.loc 1 136 9 discriminator 2 view .LVU126
+ 555 001a 0446     		mov	r4, r0
+ 556 001c 48B9     		cbnz	r0, .L38
+ 137:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             WEB_CONFIG_STATE.reportStorageFailure();
+ 557              		.loc 1 137 13 is_stmt 1 view .LVU127
+ 558 001e FFF7FEFF 		bl	_ZN14WebConfigState11getInstanceEv
+ 559              	.LVL35:
+ 560              		.loc 1 137 50 is_stmt 0 discriminator 1 view .LVU128
+ 561 0022 FFF7FEFF 		bl	_ZN14WebConfigState20reportStorageFailureEv
+ 562              	.LVL36:
+ 138:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****             return false;
+ 563              		.loc 1 138 13 is_stmt 1 view .LVU129
+ 564              	.L40:
+ 139:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         }
+ 140:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         MainRuntime_RequestReset();
+ 141:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         return true;
+ 142:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     }
+ 143:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** #endif
+ 144:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     return exitWebConfig();
+ 145:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** }
+ 565              		.loc 1 145 1 is_stmt 0 view .LVU130
+ 566 0026 2046     		mov	r0, r4
+ 567 0028 10BD     		pop	{r4, pc}
+ 568              	.L37:
+ 144:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** }
+ 569              		.loc 1 144 5 is_stmt 1 view .LVU131
+ 570              		.loc 1 145 1 is_stmt 0 view .LVU132
+ 571 002a BDE81040 		pop	{r4, lr}
+ 572              	.LCFI9:
+ 573              		.cfi_remember_state
+ 574              		.cfi_restore 14
+ 575              		.cfi_restore 4
+ 576              		.cfi_def_cfa_offset 0
+ 144:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** }
+ 577              		.loc 1 144 25 view .LVU133
+ 578 002e FFF7FEBF 		b	_ZN12_GLOBAL__N_1L13exitWebConfigEv
+ 579              	.LVL37:
+ 580              	.L38:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 16
+
+
+ 581              	.LCFI10:
+ 582              		.cfi_restore_state
+ 140:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         return true;
+ 583              		.loc 1 140 9 is_stmt 1 view .LVU134
+ 140:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         return true;
+ 584              		.loc 1 140 33 is_stmt 0 view .LVU135
+ 585 0032 FFF7FEFF 		bl	MainRuntime_RequestReset
+ 586              	.LVL38:
+ 141:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     }
+ 587              		.loc 1 141 9 is_stmt 1 view .LVU136
+ 141:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     }
+ 588              		.loc 1 141 16 is_stmt 0 view .LVU137
+ 589 0036 F6E7     		b	.L40
+ 590              	.L46:
+ 591              		.align	2
+ 592              	.L45:
+ 593 0038 00000000 		.word	_ZZN15Ch585UpdateMode11getInstanceEvE8instance
+ 594              		.cfi_endproc
+ 595              	.LFE2190:
+ 597              		.section	.rodata._Z34ScreenDetailWebConfig_ConfirmLabelv.str1.1,"aMS",%progbits,1
+ 598              	.LC1:
+ 599 0000 57616974 		.ascii	"Wait\000"
+ 599      00
+ 600              	.LC2:
+ 601 0005 52657472 		.ascii	"Retry\000"
+ 601      7900
+ 602              	.LC3:
+ 603 000b 51756974 		.ascii	"Quit\000"
+ 603      00
+ 604              		.section	.text._Z34ScreenDetailWebConfig_ConfirmLabelv,"ax",%progbits
+ 605              		.align	1
+ 606              		.global	_Z34ScreenDetailWebConfig_ConfirmLabelv
+ 607              		.syntax unified
+ 608              		.thumb
+ 609              		.thumb_func
+ 611              	_Z34ScreenDetailWebConfig_ConfirmLabelv:
+ 612              	.LFB2191:
+ 146:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** 
+ 147:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** const char* ScreenDetailWebConfig_ConfirmLabel(void)
+ 148:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** {
+ 613              		.loc 1 148 1 is_stmt 1 view -0
+ 614              		.cfi_startproc
+ 615              		@ args = 0, pretend = 0, frame = 0
+ 616              		@ frame_needed = 0, uses_anonymous_args = 0
+ 149:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     if (WEB_CONFIG_STATE.status() == WebConfigRuntimeStatus::Starting) {
+ 617              		.loc 1 149 5 view .LVU139
+ 148:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     if (WEB_CONFIG_STATE.status() == WebConfigRuntimeStatus::Starting) {
+ 618              		.loc 1 148 1 is_stmt 0 view .LVU140
+ 619 0000 08B5     		push	{r3, lr}
+ 620              	.LCFI11:
+ 621              		.cfi_def_cfa_offset 8
+ 622              		.cfi_offset 3, -8
+ 623              		.cfi_offset 14, -4
+ 624              		.loc 1 149 9 view .LVU141
+ 625 0002 FFF7FEFF 		bl	_ZN14WebConfigState11getInstanceEv
+ 626              	.LVL39:
+ 627              	.LBB60:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 17
+
+
+ 628              	.LBI60:
+ 629              		.loc 2 37 28 is_stmt 1 view .LVU142
+ 630              	.LBB61:
+ 631              		.loc 2 37 45 view .LVU143
+ 632              		.loc 2 37 45 is_stmt 0 view .LVU144
+ 633              	.LBE61:
+ 634              	.LBE60:
+ 635              		.loc 1 149 5 discriminator 2 view .LVU145
+ 636 0006 037A     		ldrb	r3, [r0, #8]	@ zero_extendqisi2
+ 637 0008 5BB1     		cbz	r3, .L50
+ 150:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         return "Wait";
+ 151:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     }
+ 152:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     if (WEB_CONFIG_STATE.canRetry() ||
+ 638              		.loc 1 152 5 is_stmt 1 view .LVU146
+ 639              		.loc 1 152 9 is_stmt 0 view .LVU147
+ 640 000a FFF7FEFF 		bl	_ZN14WebConfigState11getInstanceEv
+ 641              	.LVL40:
+ 642              		.loc 1 152 34 discriminator 1 view .LVU148
+ 643 000e FFF7FEFF 		bl	_ZNK14WebConfigState8canRetryEv
+ 644              	.LVL41:
+ 645              		.loc 1 152 37 discriminator 2 view .LVU149
+ 646 0012 20B9     		cbnz	r0, .L49
+ 153:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         WEB_CONFIG_STATE.status() == WebConfigRuntimeStatus::ErrorStorage) {
+ 647              		.loc 1 153 9 view .LVU150
+ 648 0014 FFF7FEFF 		bl	_ZN14WebConfigState11getInstanceEv
+ 649              	.LVL42:
+ 650              	.LBB62:
+ 651              	.LBI62:
+ 652              		.loc 2 37 28 is_stmt 1 view .LVU151
+ 653              	.LBB63:
+ 654              		.loc 2 37 45 view .LVU152
+ 655              		.loc 2 37 45 is_stmt 0 view .LVU153
+ 656              	.LBE63:
+ 657              	.LBE62:
+ 152:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         WEB_CONFIG_STATE.status() == WebConfigRuntimeStatus::ErrorStorage) {
+ 658              		.loc 1 152 37 discriminator 2 view .LVU154
+ 659 0018 037A     		ldrb	r3, [r0, #8]	@ zero_extendqisi2
+ 660 001a 082B     		cmp	r3, #8
+ 661 001c 03D1     		bne	.L51
+ 662              	.L49:
+ 154:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****         return "Retry";
+ 663              		.loc 1 154 16 view .LVU155
+ 664 001e 0348     		ldr	r0, .L52
+ 665              	.L47:
+ 155:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     }
+ 156:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     return "Quit";
+ 157:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** }
+ 666              		.loc 1 157 1 view .LVU156
+ 667 0020 08BD     		pop	{r3, pc}
+ 668              	.L50:
+ 150:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp ****     }
+ 669              		.loc 1 150 16 view .LVU157
+ 670 0022 0348     		ldr	r0, .L52+4
+ 671 0024 FCE7     		b	.L47
+ 672              	.L51:
+ 156:Cpp_Core/Src/screen_control/spi_screen_detail_web_config.cpp **** }
+ 673              		.loc 1 156 12 view .LVU158
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 18
+
+
+ 674 0026 0348     		ldr	r0, .L52+8
+ 675 0028 FAE7     		b	.L47
+ 676              	.L53:
+ 677 002a 00BF     		.align	2
+ 678              	.L52:
+ 679 002c 05000000 		.word	.LC2
+ 680 0030 00000000 		.word	.LC1
+ 681 0034 0B000000 		.word	.LC3
+ 682              		.cfi_endproc
+ 683              	.LFE2191:
+ 685              		.section	.rodata.CSWTCH.28,"a"
+ 688              	CSWTCH.28:
+ 689 0000 04       		.byte	4
+ 690 0001 04       		.byte	4
+ 691 0002 03       		.byte	3
+ 692 0003 04       		.byte	4
+ 693 0004 03       		.byte	3
+ 694 0005 03       		.byte	3
+ 695 0006 03       		.byte	3
+ 696 0007 03       		.byte	3
+ 697              		.section	.rodata.CSWTCH.27,"a"
+ 698              		.align	2
+ 701              	CSWTCH.27:
+ 702 0000 00000000 		.word	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE10readyLines
+ 703 0004 00000000 		.word	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE18authenticatedLines
+ 704 0008 00000000 		.word	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE17usbModeErrorLines
+ 705 000c 00000000 		.word	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE21maintenanceErrorLines
+ 706 0010 00000000 		.word	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE18securityErrorLines
+ 707 0014 00000000 		.word	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE21storageInitErrorLines
+ 708 0018 00000000 		.word	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE13startingLines
+ 709 001c 00000000 		.word	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE17storageErrorLines
+ 710              		.section	.rodata.str1.1,"aMS",%progbits,1
+ 711              	.LC4:
+ 712 0000 436F6E66 		.ascii	"Configuration save failed.\000"
+ 712      69677572 
+ 712      6174696F 
+ 712      6E207361 
+ 712      76652066 
+ 713              	.LC5:
+ 714 001b 50726573 		.ascii	"Press Retry to save and exit again.\000"
+ 714      73205265 
+ 714      74727920 
+ 714      746F2073 
+ 714      61766520 
+ 715              	.LC6:
+ 716 003f 54686520 		.ascii	"The secure USB session is closed.\000"
+ 716      73656375 
+ 716      72652055 
+ 716      53422073 
+ 716      65737369 
+ 717              		.section	.rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE17storageErro
+ 718              		.align	2
+ 721              	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE17storageErrorLines:
+ 722 0000 00000000 		.word	.LC4
+ 723 0004 1B000000 		.word	.LC5
+ 724 0008 3F000000 		.word	.LC6
+ 725              		.section	.rodata.str1.1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 19
+
+
+ 726              	.LC7:
+ 727 0061 51535049 		.ascii	"QSPI storage is unavailable.\000"
+ 727      2073746F 
+ 727      72616765 
+ 727      20697320 
+ 727      756E6176 
+ 728              	.LC8:
+ 729 007e 436F6E66 		.ascii	"Configuration access is disabled.\000"
+ 729      69677572 
+ 729      6174696F 
+ 729      6E206163 
+ 729      63657373 
+ 730              	.LC9:
+ 731 00a0 50726573 		.ascii	"Press Retry or hold Back to exit.\000"
+ 731      73205265 
+ 731      74727920 
+ 731      6F722068 
+ 731      6F6C6420 
+ 732              		.section	.rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE21storageInit
+ 733              		.align	2
+ 736              	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE21storageInitErrorLines:
+ 737 0000 61000000 		.word	.LC7
+ 738 0004 7E000000 		.word	.LC8
+ 739 0008 A0000000 		.word	.LC9
+ 740              		.section	.rodata.str1.1
+ 741              	.LC10:
+ 742 00c2 44657669 		.ascii	"Device security check failed.\000"
+ 742      63652073 
+ 742      65637572 
+ 742      69747920 
+ 742      63686563 
+ 743              	.LC11:
+ 744 00e0 43686563 		.ascii	"Check identity and trust setup.\000"
+ 744      6B206964 
+ 744      656E7469 
+ 744      74792061 
+ 744      6E642074 
+ 745              		.section	.rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE18securityErr
+ 746              		.align	2
+ 749              	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE18securityErrorLines:
+ 750 0000 C2000000 		.word	.LC10
+ 751 0004 E0000000 		.word	.LC11
+ 752 0008 A0000000 		.word	.LC9
+ 753              		.section	.rodata.str1.1
+ 754              	.LC12:
+ 755 0100 55534220 		.ascii	"USB maintenance is unavailable.\000"
+ 755      6D61696E 
+ 755      74656E61 
+ 755      6E636520 
+ 755      69732075 
+ 756              	.LC13:
+ 757 0120 43686563 		.ascii	"Check the CH585 firmware and link.\000"
+ 757      6B207468 
+ 757      65204348 
+ 757      35383520 
+ 757      6669726D 
+ 758              	.LC14:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 20
+
+
+ 759 0143 50726573 		.ascii	"Press Retry to test the link.\000"
+ 759      73205265 
+ 759      74727920 
+ 759      746F2074 
+ 759      65737420 
+ 760              	.LC15:
+ 761 0161 486F6C64 		.ascii	"Hold Back for CH585 Flash.\000"
+ 761      20426163 
+ 761      6B20666F 
+ 761      72204348 
+ 761      35383520 
+ 762              		.section	.rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE21maintenance
+ 763              		.align	2
+ 766              	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE21maintenanceErrorLines:
+ 767 0000 00010000 		.word	.LC12
+ 768 0004 20010000 		.word	.LC13
+ 769 0008 43010000 		.word	.LC14
+ 770 000c 61010000 		.word	.LC15
+ 771              		.section	.rodata.str1.1
+ 772              	.LC16:
+ 773 017c 55534220 		.ascii	"USB switch position is required.\000"
+ 773      73776974 
+ 773      63682070 
+ 773      6F736974 
+ 773      696F6E20 
+ 774              	.LC17:
+ 775 019d 4D6F7665 		.ascii	"Move the physical switch to USB.\000"
+ 775      20746865 
+ 775      20706879 
+ 775      73696361 
+ 775      6C207377 
+ 776              		.section	.rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE17usbModeErro
+ 777              		.align	2
+ 780              	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE17usbModeErrorLines:
+ 781 0000 7C010000 		.word	.LC16
+ 782 0004 9D010000 		.word	.LC17
+ 783 0008 A0000000 		.word	.LC9
+ 784              		.section	.rodata.str1.1
+ 785              	.LC18:
+ 786 01be 42726F77 		.ascii	"Browser authenticated.\000"
+ 786      73657220 
+ 786      61757468 
+ 786      656E7469 
+ 786      63617465 
+ 787              	.LC19:
+ 788 01d5 57656243 		.ascii	"WebConfig session is active.\000"
+ 788      6F6E6669 
+ 788      67207365 
+ 788      7373696F 
+ 788      6E206973 
+ 789              	.LC20:
+ 790 01f2 4F70656E 		.ascii	"Open the local WebConfig server.\000"
+ 790      20746865 
+ 790      206C6F63 
+ 790      616C2057 
+ 790      6562436F 
+ 791              	.LC21:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 21
+
+
+ 792 0213 50726573 		.ascii	"Press Quit or Back to exit.\000"
+ 792      73205175 
+ 792      6974206F 
+ 792      72204261 
+ 792      636B2074 
+ 793              		.section	.rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE18authenticat
+ 794              		.align	2
+ 797              	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE18authenticatedLines:
+ 798 0000 BE010000 		.word	.LC18
+ 799 0004 D5010000 		.word	.LC19
+ 800 0008 F2010000 		.word	.LC20
+ 801 000c 13020000 		.word	.LC21
+ 802              		.section	.rodata.str1.1
+ 803              	.LC22:
+ 804 022f 55534220 		.ascii	"USB WebConfig is ready.\000"
+ 804      57656243 
+ 804      6F6E6669 
+ 804      67206973 
+ 804      20726561 
+ 805              	.LC23:
+ 806 0247 436F6E6E 		.ascii	"Connect this device to your PC.\000"
+ 806      65637420 
+ 806      74686973 
+ 806      20646576 
+ 806      69636520 
+ 807              	.LC24:
+ 808 0267 57616974 		.ascii	"Waiting for browser authentication.\000"
+ 808      696E6720 
+ 808      666F7220 
+ 808      62726F77 
+ 808      73657220 
+ 809              		.section	.rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE10readyLines,
+ 810              		.align	2
+ 813              	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE10readyLines:
+ 814 0000 2F020000 		.word	.LC22
+ 815 0004 47020000 		.word	.LC23
+ 816 0008 F2010000 		.word	.LC20
+ 817 000c 67020000 		.word	.LC24
+ 818              		.section	.rodata.str1.1
+ 819              	.LC25:
+ 820 028b 53746172 		.ascii	"Starting secure USB WebConfig.\000"
+ 820      74696E67 
+ 820      20736563 
+ 820      75726520 
+ 820      55534220 
+ 821              	.LC26:
+ 822 02aa 506C6561 		.ascii	"Please wait.\000"
+ 822      73652077 
+ 822      6169742E 
+ 822      00
+ 823              	.LC27:
+ 824 02b7 486F6C64 		.ascii	"Hold Back to exit.\000"
+ 824      20426163 
+ 824      6B20746F 
+ 824      20657869 
+ 824      742E00
+ 825              		.section	.rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE13startingLin
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 22
+
+
+ 826              		.align	2
+ 829              	_ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE13startingLines:
+ 830 0000 8B020000 		.word	.LC25
+ 831 0004 AA020000 		.word	.LC26
+ 832 0008 B7020000 		.word	.LC27
+ 833              		.weak	_ZGVZN14WebConfigState11getInstanceEvE8instance
+ 834              		.section	.bss._ZGVZN14WebConfigState11getInstanceEvE8instance,"awG",%nobits,_ZGVZN14WebConfigState
+ 835              		.align	2
+ 838              	_ZGVZN14WebConfigState11getInstanceEvE8instance:
+ 839 0000 00000000 		.space	4
+ 840              		.weak	_ZZN14WebConfigState11getInstanceEvE8instance
+ 841              		.section	.data._ZZN14WebConfigState11getInstanceEvE8instance,"awG",%progbits,_ZZN14WebConfigState1
+ 842              		.align	2
+ 845              	_ZZN14WebConfigState11getInstanceEvE8instance:
+ 846 0000 08000000 		.word	_ZTV14WebConfigState+8
+ 847 0004 00       		.byte	0
+ 848 0005 00       		.byte	0
+ 849 0006 00       		.byte	0
+ 850 0007 00       		.byte	0
+ 851 0008 00       		.byte	0
+ 852 0009 000000   		.space	3
+ 853              		.weak	_ZGVZN7Storage11getInstanceEvE8instance
+ 854              		.section	.bss._ZGVZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZGVZN7Storage11getInstanceEvE
+ 855              		.align	2
+ 858              	_ZGVZN7Storage11getInstanceEvE8instance:
+ 859 0000 00000000 		.space	4
+ 860              		.weak	_ZZN7Storage11getInstanceEvE8instance
+ 861              		.section	.bss._ZZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZZN7Storage11getInstanceEvE8ins
+ 862              		.align	2
+ 865              	_ZZN7Storage11getInstanceEvE8instance:
+ 866 0000 00000000 		.space	36484
+ 866      00000000 
+ 866      00000000 
+ 866      00000000 
+ 866      00000000 
+ 867              		.weak	_ZZN15Ch585UpdateMode11getInstanceEvE8instance
+ 868              		.section	.bss._ZZN15Ch585UpdateMode11getInstanceEvE8instance,"awG",%nobits,_ZZN15Ch585UpdateMode11
+ 871              	_ZZN15Ch585UpdateMode11getInstanceEvE8instance:
+ 872 0000 00       		.space	1
+ 873              		.text
+ 874              	.Letext0:
+ 875              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 876              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 877              		.file 8 "Cpp_Core/Inc/screen_control/spi_screen_layout.hpp"
+ 878              		.file 9 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 879              		.file 10 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 880              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 881              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 882              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 883              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 884              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 885              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 886              		.file 17 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 887              		.file 18 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 888              		.file 19 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 889              		.file 20 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 890              		.file 21 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 23
+
+
+ 891              		.file 22 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 892              		.file 23 "Core/Inc/board_cfg.h"
+ 893              		.file 24 "Cpp_Core/Inc/enums.hpp"
+ 894              		.file 25 "Drivers/SPI-ST7789/st7789.h"
+ 895              		.file 26 "Cpp_Core/Inc/config.hpp"
+ 896              		.file 27 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/new"
+ 897              		.file 28 "Cpp_Core/Inc/screen_control/spi_screen_detail_render_helpers.hpp"
+ 898              		.file 29 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ 899              		.file 30 "Cpp_Core/Inc/main_runtime_control.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 24
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_detail_web_config.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:20     .text._ZN14WebConfigStateD2Ev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:26     .text._ZN14WebConfigStateD2Ev:00000000 _ZN14WebConfigStateD2Ev
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:26     .text._ZN14WebConfigStateD2Ev:00000000 _ZN14WebConfigStateD1Ev
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:49     .text._ZN7Storage11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:55     .text._ZN7Storage11getInstanceEv:00000000 _ZN7Storage11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:105    .text._ZN7Storage11getInstanceEv:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:858    .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 _ZGVZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:865    .bss._ZZN7Storage11getInstanceEvE8instance:00000000 _ZZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:111    .text._ZN14WebConfigStateD0Ev:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:117    .text._ZN14WebConfigStateD0Ev:00000000 _ZN14WebConfigStateD0Ev
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:154    .text._ZN14WebConfigState11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:160    .text._ZN14WebConfigState11getInstanceEv:00000000 _ZN14WebConfigState11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:208    .text._ZN14WebConfigState11getInstanceEv:0000002c $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:838    .bss._ZGVZN14WebConfigState11getInstanceEvE8instance:00000000 _ZGVZN14WebConfigState11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:845    .data._ZZN14WebConfigState11getInstanceEvE8instance:00000000 _ZZN14WebConfigState11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:216    .text._ZN12_GLOBAL__N_1L13exitWebConfigEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:221    .text._ZN12_GLOBAL__N_1L13exitWebConfigEv:00000000 _ZN12_GLOBAL__N_1L13exitWebConfigEv
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:287    .text._Z31ScreenDetailWebConfig_InitIndexv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:293    .text._Z31ScreenDetailWebConfig_InitIndexv:00000000 _Z31ScreenDetailWebConfig_InitIndexv
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:308    .text._Z28ScreenDetailWebConfig_RotatePha:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:314    .text._Z28ScreenDetailWebConfig_RotatePha:00000000 _Z28ScreenDetailWebConfig_RotatePha
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:333    .text._Z28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:339    .text._Z28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 _Z28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyle
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:417    .text._Z28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000034 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:688    .rodata.CSWTCH.28:00000000 CSWTCH.28
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:701    .rodata.CSWTCH.27:00000000 CSWTCH.27
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:829    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE13startingLines:00000000 _ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE13startingLines
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:425    .text._Z31ScreenDetailWebConfig_OnConfirmh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:431    .text._Z31ScreenDetailWebConfig_OnConfirmh:00000000 _Z31ScreenDetailWebConfig_OnConfirmh
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:496    .text._Z28ScreenDetailWebConfig_OnBackv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:502    .text._Z28ScreenDetailWebConfig_OnBackv:00000000 _Z28ScreenDetailWebConfig_OnBackv
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:593    .text._Z28ScreenDetailWebConfig_OnBackv:00000038 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:871    .bss._ZZN15Ch585UpdateMode11getInstanceEvE8instance:00000000 _ZZN15Ch585UpdateMode11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:605    .text._Z34ScreenDetailWebConfig_ConfirmLabelv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:611    .text._Z34ScreenDetailWebConfig_ConfirmLabelv:00000000 _Z34ScreenDetailWebConfig_ConfirmLabelv
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:679    .text._Z34ScreenDetailWebConfig_ConfirmLabelv:0000002c $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:698    .rodata.CSWTCH.27:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:813    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE10readyLines:00000000 _ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE10readyLines
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:797    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE18authenticatedLines:00000000 _ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE18authenticatedLines
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:780    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE17usbModeErrorLines:00000000 _ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE17usbModeErrorLines
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:766    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE21maintenanceErrorLines:00000000 _ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE21maintenanceErrorLines
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:749    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE18securityErrorLines:00000000 _ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE18securityErrorLines
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:736    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE21storageInitErrorLines:00000000 _ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE21storageInitErrorLines
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:721    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE17storageErrorLines:00000000 _ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE17storageErrorLines
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:718    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE17storageErrorLines:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:733    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE21storageInitErrorLines:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:746    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE18securityErrorLines:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:763    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE21maintenanceErrorLines:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:777    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE17usbModeErrorLines:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:794    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE18authenticatedLines:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:810    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE10readyLines:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:826    .rodata._ZZ28ScreenDetailWebConfig_RenderP13ST7789_HandlehRK13ScreenUiStyleE13startingLines:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:835    .bss._ZGVZN14WebConfigState11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:842    .data._ZZN14WebConfigState11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:855    .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 $d
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s 			page 25
+
+
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:862    .bss._ZZN7Storage11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccNv5ppB.s:872    .bss._ZZN15Ch585UpdateMode11getInstanceEvE8instance:00000000 $d
+                           .group:00000000 _ZN14WebConfigStateD5Ev
+
+UNDEFINED SYMBOLS
+__cxa_guard_acquire
+__cxa_guard_release
+_ZdlPvj
+__aeabi_atexit
+__dso_handle
+_ZN7Storage11setBootModeE8BootMode
+_ZN7Storage10saveConfigEv
+_ZN14WebConfigState20reportStorageFailureEv
+MainRuntime_RequestReset
+_Z29ScreenDetailRender_TitleLinesP13ST7789_HandlePKcPKS2_hRK13ScreenUiStyle
+_ZNK14WebConfigState8canRetryEv
+_ZN14WebConfigState12requestRetryEv
+_ZNK15Ch585UpdateMode20isManualEntryVisibleEv
+_ZN15Ch585UpdateMode16requestManualIspEv
+_ZTV14WebConfigState

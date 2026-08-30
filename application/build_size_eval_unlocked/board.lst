@@ -1,0 +1,1492 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"board.c"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Core/Src/board.c"
+  19              		.section	.rodata.AppStartupLog_Printf.str1.1,"aMS",%progbits,1
+  20              	.LC0:
+  21 0000 5B415050 		.ascii	"[APP][STARTUP][%s]%s \000"
+  21      5D5B5354 
+  21      41525455 
+  21      505D5B25 
+  21      735D2573 
+  22              	.LC1:
+  23 0016 0D00     		.ascii	"\015\000"
+  24              		.section	.text.AppStartupLog_Printf,"ax",%progbits
+  25              		.align	1
+  26              		.syntax unified
+  27              		.thumb
+  28              		.thumb_func
+  30              	AppStartupLog_Printf:
+  31              	.LVL0:
+  32              	.LFB338:
+  33              		.file 2 "Core/Inc/board_cfg.h"
+   1:Core/Inc/board_cfg.h **** /*
+   2:Core/Inc/board_cfg.h ****  * The MIT License (MIT)
+   3:Core/Inc/board_cfg.h ****  *
+   4:Core/Inc/board_cfg.h ****  * Copyright (c) 2021, Ha Thach (tinyusb.org)
+   5:Core/Inc/board_cfg.h ****  *
+   6:Core/Inc/board_cfg.h ****  * Permission is hereby granted, free of charge, to any person obtaining a copy
+   7:Core/Inc/board_cfg.h ****  * of this software and associated documentation files (the "Software"), to deal
+   8:Core/Inc/board_cfg.h ****  * in the Software without restriction, including without limitation the rights
+   9:Core/Inc/board_cfg.h ****  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  10:Core/Inc/board_cfg.h ****  * copies of the Software, and to permit persons to whom the Software is
+  11:Core/Inc/board_cfg.h ****  * furnished to do so, subject to the following conditions:
+  12:Core/Inc/board_cfg.h ****  *
+  13:Core/Inc/board_cfg.h ****  * The above copyright notice and this permission notice shall be included in
+  14:Core/Inc/board_cfg.h ****  * all copies or substantial portions of the Software.
+  15:Core/Inc/board_cfg.h ****  *
+  16:Core/Inc/board_cfg.h ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  17:Core/Inc/board_cfg.h ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  18:Core/Inc/board_cfg.h ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  19:Core/Inc/board_cfg.h ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  20:Core/Inc/board_cfg.h ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  21:Core/Inc/board_cfg.h ****  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 2
+
+
+  22:Core/Inc/board_cfg.h ****  * THE SOFTWARE.
+  23:Core/Inc/board_cfg.h ****  *
+  24:Core/Inc/board_cfg.h ****  * This file is part of the TinyUSB stack.
+  25:Core/Inc/board_cfg.h ****  */
+  26:Core/Inc/board_cfg.h **** 
+  27:Core/Inc/board_cfg.h **** #ifndef __BOARD_H__
+  28:Core/Inc/board_cfg.h **** #define __BOARD_H__
+  29:Core/Inc/board_cfg.h **** 
+  30:Core/Inc/board_cfg.h **** #include "stm32h750xx.h"
+  31:Core/Inc/board_cfg.h **** #include "stm32h7xx_hal.h"
+  32:Core/Inc/board_cfg.h **** #include <stdarg.h>
+  33:Core/Inc/board_cfg.h **** #include <stdbool.h>
+  34:Core/Inc/board_cfg.h **** #include <stdio.h>
+  35:Core/Inc/board_cfg.h **** 
+  36:Core/Inc/board_cfg.h **** #ifdef __cplusplus
+  37:Core/Inc/board_cfg.h ****  extern "C" {
+  38:Core/Inc/board_cfg.h **** #endif
+  39:Core/Inc/board_cfg.h **** 
+  40:Core/Inc/board_cfg.h **** 
+  41:Core/Inc/board_cfg.h **** #define SYSTEM_CLOCK_FREQ      480000000
+  42:Core/Inc/board_cfg.h **** 
+  43:Core/Inc/board_cfg.h **** #define SYSTEM_CHECK_ENABLE    0 // 使能缓存检查
+  44:Core/Inc/board_cfg.h **** 
+  45:Core/Inc/board_cfg.h **** // STM32H7系列的唯一ID存储地址（96位，12字节）
+  46:Core/Inc/board_cfg.h **** #define STM32_UNIQUE_ID_BASE_ADDR   0x1FF1E800
+  47:Core/Inc/board_cfg.h **** 
+  48:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_Msk
+  49:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_Msk   (0x3 << 22) // 清除舍入模式位 [23:22]
+  50:Core/Inc/board_cfg.h **** #endif
+  51:Core/Inc/board_cfg.h **** 
+  52:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_RN
+  53:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_RN    (0x0 << 22) // 舍入模式为 Round to Nearest (RN)  
+  54:Core/Inc/board_cfg.h **** #endif
+  55:Core/Inc/board_cfg.h **** 
+  56:Core/Inc/board_cfg.h **** /* Debug print configuration.
+  57:Core/Inc/board_cfg.h ****  * Makefile builds set these with -D from APP_LOG_ENABLE/APP_LOG_VERBOSE.
+  58:Core/Inc/board_cfg.h ****  * The defaults below are only for IDE or ad-hoc builds that do not pass them.
+  59:Core/Inc/board_cfg.h ****  */
+  60:Core/Inc/board_cfg.h **** #ifndef APPLICATION_SERIAL_PRINT
+  61:Core/Inc/board_cfg.h **** #define APPLICATION_SERIAL_PRINT 0   // 编译期使能 USART1 printf 输出
+  62:Core/Inc/board_cfg.h **** #endif
+  63:Core/Inc/board_cfg.h **** 
+  64:Core/Inc/board_cfg.h **** #ifndef APPLICATION_DEBUG_PRINT
+  65:Core/Inc/board_cfg.h **** #define APPLICATION_DEBUG_PRINT  0   // 编译期使能 APP_DBG/APP_ERR 输出
+  66:Core/Inc/board_cfg.h **** #endif
+  67:Core/Inc/board_cfg.h **** 
+  68:Core/Inc/board_cfg.h **** #ifndef APP_LOG_VERBOSE
+  69:Core/Inc/board_cfg.h **** #define APP_LOG_VERBOSE 0
+  70:Core/Inc/board_cfg.h **** #endif
+  71:Core/Inc/board_cfg.h **** 
+  72:Core/Inc/board_cfg.h **** /* Concise production startup milestones, independent from verbose APP_DBG. */
+  73:Core/Inc/board_cfg.h **** #ifndef APPLICATION_STARTUP_LOG
+  74:Core/Inc/board_cfg.h **** #define APPLICATION_STARTUP_LOG 1
+  75:Core/Inc/board_cfg.h **** #endif
+  76:Core/Inc/board_cfg.h **** 
+  77:Core/Inc/board_cfg.h **** #if APPLICATION_STARTUP_LOG
+  78:Core/Inc/board_cfg.h **** static inline void AppStartupLog_Printf(const char *stage,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 3
+
+
+  79:Core/Inc/board_cfg.h ****                                         const char *level,
+  80:Core/Inc/board_cfg.h ****                                         const char *fmt, ...)
+  81:Core/Inc/board_cfg.h **** {
+  34              		.loc 2 81 1 view -0
+  35              		.cfi_startproc
+  36              		@ args = 4, pretend = 8, frame = 8
+  37              		@ frame_needed = 0, uses_anonymous_args = 1
+  82:Core/Inc/board_cfg.h ****     va_list args;
+  38              		.loc 2 82 5 view .LVU1
+  83:Core/Inc/board_cfg.h ****     printf("[APP][STARTUP][%s]%s ", stage, level);
+  39              		.loc 2 83 5 view .LVU2
+  81:Core/Inc/board_cfg.h ****     va_list args;
+  40              		.loc 2 81 1 is_stmt 0 view .LVU3
+  41 0000 0CB4     		push	{r2, r3}
+  42              	.LCFI0:
+  43              		.cfi_def_cfa_offset 8
+  44              		.cfi_offset 2, -8
+  45              		.cfi_offset 3, -4
+  46 0002 37B5     		push	{r0, r1, r2, r4, r5, lr}
+  47              	.LCFI1:
+  48              		.cfi_def_cfa_offset 32
+  49              		.cfi_offset 4, -20
+  50              		.cfi_offset 5, -16
+  51              		.cfi_offset 14, -12
+  81:Core/Inc/board_cfg.h ****     va_list args;
+  52              		.loc 2 81 1 view .LVU4
+  53 0004 06AC     		add	r4, sp, #24
+  54 0006 0A46     		mov	r2, r1
+  55              		.loc 2 83 5 view .LVU5
+  56 0008 0146     		mov	r1, r0
+  57              	.LVL1:
+  58              		.loc 2 83 5 view .LVU6
+  59 000a 0948     		ldr	r0, .L2
+  60              	.LVL2:
+  81:Core/Inc/board_cfg.h ****     va_list args;
+  61              		.loc 2 81 1 view .LVU7
+  62 000c 54F8045B 		ldr	r5, [r4], #4
+  63              		.loc 2 83 5 view .LVU8
+  64 0010 FFF7FEFF 		bl	printf
+  65              	.LVL3:
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+  66              		.loc 2 84 5 is_stmt 1 view .LVU9
+  85:Core/Inc/board_cfg.h ****     vprintf(fmt, args);
+  67              		.loc 2 85 5 is_stmt 0 view .LVU10
+  68 0014 2146     		mov	r1, r4
+  69 0016 2846     		mov	r0, r5
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+  70              		.loc 2 84 5 view .LVU11
+  71 0018 0194     		str	r4, [sp, #4]
+  72              		.loc 2 85 5 is_stmt 1 view .LVU12
+  73 001a FFF7FEFF 		bl	vprintf
+  74              	.LVL4:
+  86:Core/Inc/board_cfg.h ****     va_end(args);
+  75              		.loc 2 86 5 view .LVU13
+  87:Core/Inc/board_cfg.h ****     printf("\r\n");
+  76              		.loc 2 87 5 view .LVU14
+  77 001e 0548     		ldr	r0, .L2+4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 4
+
+
+  78 0020 FFF7FEFF 		bl	puts
+  79              	.LVL5:
+  88:Core/Inc/board_cfg.h **** }
+  80              		.loc 2 88 1 is_stmt 0 view .LVU15
+  81 0024 03B0     		add	sp, sp, #12
+  82              	.LCFI2:
+  83              		.cfi_def_cfa_offset 20
+  84              		@ sp needed
+  85 0026 BDE83040 		pop	{r4, r5, lr}
+  86              	.LCFI3:
+  87              		.cfi_restore 14
+  88              		.cfi_restore 5
+  89              		.cfi_restore 4
+  90              		.cfi_def_cfa_offset 8
+  91 002a 02B0     		add	sp, sp, #8
+  92              	.LCFI4:
+  93              		.cfi_restore 3
+  94              		.cfi_restore 2
+  95              		.cfi_def_cfa_offset 0
+  96 002c 7047     		bx	lr
+  97              	.L3:
+  98 002e 00BF     		.align	2
+  99              	.L2:
+ 100 0030 00000000 		.word	.LC0
+ 101 0034 16000000 		.word	.LC1
+ 102              		.cfi_endproc
+ 103              	.LFE338:
+ 105              		.section	.text.SystemClock_Config,"ax",%progbits
+ 106              		.align	1
+ 107              		.global	SystemClock_Config
+ 108              		.syntax unified
+ 109              		.thumb
+ 110              		.thumb_func
+ 112              	SystemClock_Config:
+ 113              	.LFB340:
+   1:Core/Src/board.c **** #include "stm32h7xx_hal.h"
+   2:Core/Src/board.c **** #include "board_cfg.h"
+   3:Core/Src/board.c **** #include "board.h"
+   4:Core/Src/board.c **** #include "qspi-w25q64.h"
+   5:Core/Src/board.c **** #include "usart.h"
+   6:Core/Src/board.c **** #include "adc.h"
+   7:Core/Src/board.c **** #include "dma.h"
+   8:Core/Src/board.c **** #include "bdma.h"
+   9:Core/Src/board.c **** #include "tim.h"
+  10:Core/Src/board.c **** #include "pwm-ws2812b.h"
+  11:Core/Src/board.c **** #include "utils.h"
+  12:Core/Src/board.c **** #include "board_power.hpp"
+  13:Core/Src/board.c **** 
+  14:Core/Src/board.c **** UART_HandleTypeDef UartHandle;
+  15:Core/Src/board.c **** 
+  16:Core/Src/board.c **** void SystemClock_Config(void);
+  17:Core/Src/board.c **** void PeriphCommonClock_Config(void);
+  18:Core/Src/board.c **** 
+  19:Core/Src/board.c **** void board_init(void)
+  20:Core/Src/board.c **** {
+  21:Core/Src/board.c ****     SystemClock_Config();
+  22:Core/Src/board.c ****     PeriphCommonClock_Config();
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 5
+
+
+  23:Core/Src/board.c **** 
+  24:Core/Src/board.c ****     // Enable All GPIOs clocks
+  25:Core/Src/board.c ****     __HAL_RCC_GPIOA_CLK_ENABLE();
+  26:Core/Src/board.c ****     __HAL_RCC_GPIOB_CLK_ENABLE();
+  27:Core/Src/board.c ****     __HAL_RCC_GPIOC_CLK_ENABLE();
+  28:Core/Src/board.c ****     __HAL_RCC_GPIOD_CLK_ENABLE();
+  29:Core/Src/board.c ****     __HAL_RCC_GPIOE_CLK_ENABLE();
+  30:Core/Src/board.c ****     __HAL_RCC_GPIOF_CLK_ENABLE();
+  31:Core/Src/board.c ****     __HAL_RCC_GPIOG_CLK_ENABLE();
+  32:Core/Src/board.c ****     __HAL_RCC_GPIOH_CLK_ENABLE();
+  33:Core/Src/board.c **** #ifdef __HAL_RCC_GPIOI_CLK_ENABLE
+  34:Core/Src/board.c ****     __HAL_RCC_GPIOI_CLK_ENABLE();
+  35:Core/Src/board.c **** #endif
+  36:Core/Src/board.c ****     __HAL_RCC_GPIOJ_CLK_ENABLE();
+  37:Core/Src/board.c **** 
+  38:Core/Src/board.c ****     BoardPower_Initialize();
+  39:Core/Src/board.c **** 
+  40:Core/Src/board.c **** #if APPLICATION_SERIAL_PRINT || APPLICATION_STARTUP_LOG
+  41:Core/Src/board.c ****     USART1_Init(); // USART for debug
+  42:Core/Src/board.c ****     APP_STAGE("A01", "reset reached; HAL, wake hold, caches, clocks, GPIO and USART1 ready");
+  43:Core/Src/board.c ****     APP_STAGE("A02", "power policy initialized: MAIN_POWER_EN=on LCD_EN=on optional rails=off");
+  44:Core/Src/board.c **** #endif
+  45:Core/Src/board.c **** 
+  46:Core/Src/board.c ****     // 验证时钟配置
+  47:Core/Src/board.c ****     APP_DBG("board init: SYSCLK: %lu", HAL_RCC_GetSysClockFreq());
+  48:Core/Src/board.c ****     APP_DBG("board init: HCLK: %lu", HAL_RCC_GetHCLKFreq());
+  49:Core/Src/board.c ****     APP_DBG("board init: PCLK1: %lu", HAL_RCC_GetPCLK1Freq());
+  50:Core/Src/board.c ****     APP_DBG("board init: PCLK2: %lu", HAL_RCC_GetPCLK2Freq());
+  51:Core/Src/board.c ****     APP_DBG("DBGMCU REVID: 0x%lx", HAL_GetREVID());
+  52:Core/Src/board.c **** 
+  53:Core/Src/board.c ****     int8_t qspi_init_result = QSPI_W25Qxx_Init();
+  54:Core/Src/board.c ****     if (qspi_init_result == QSPI_W25Qxx_OK) {
+  55:Core/Src/board.c ****         APP_STAGE("A03", "QSPI initialization complete");
+  56:Core/Src/board.c ****     } else {
+  57:Core/Src/board.c ****         APP_STAGE_ERROR("A03", "QSPI initialization failed: %d",
+  58:Core/Src/board.c ****                         qspi_init_result);
+  59:Core/Src/board.c ****     }
+  60:Core/Src/board.c **** 
+  61:Core/Src/board.c ****     // QSPI_W25Qxx_Test(0x00500000);
+  62:Core/Src/board.c **** 
+  63:Core/Src/board.c ****     MX_DMA_Init();
+  64:Core/Src/board.c ****     APP_DBG("board init: MX_DMA_Init success.");
+  65:Core/Src/board.c **** 
+  66:Core/Src/board.c ****     MX_TIM2_Init(); // RF/USB report scheduler timer, reconfigured by ReportScheduler at runtime
+  67:Core/Src/board.c ****     APP_DBG("board init: MX_TIM2_Init success.");
+  68:Core/Src/board.c **** 
+  69:Core/Src/board.c ****     MX_BDMA_Init();
+  70:Core/Src/board.c **** 
+  71:Core/Src/board.c ****     APP_DBG("board init: MX_BDMA_Init success.");
+  72:Core/Src/board.c ****     APP_STAGE("A04", "TIM2, DMA and BDMA initialized");
+  73:Core/Src/board.c **** 
+  74:Core/Src/board.c ****     MX_ADC1_Init();
+  75:Core/Src/board.c **** 
+  76:Core/Src/board.c ****     APP_DBG("board init: MX_ADC1_Init success.");
+  77:Core/Src/board.c **** 
+  78:Core/Src/board.c ****     MX_ADC2_Init();
+  79:Core/Src/board.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 6
+
+
+  80:Core/Src/board.c ****     APP_DBG("board init: MX_ADC2_Init success.");
+  81:Core/Src/board.c **** 
+  82:Core/Src/board.c ****     MX_ADC3_Init();
+  83:Core/Src/board.c **** 
+  84:Core/Src/board.c ****     APP_DBG("board init: MX_ADC3_Init success.");
+  85:Core/Src/board.c ****     APP_STAGE("A05", "ADC1, ADC2 and ADC3 initialized");
+  86:Core/Src/board.c **** 
+  87:Core/Src/board.c **** #ifdef HAS_LED
+  88:Core/Src/board.c ****     WS2812B_Init();
+  89:Core/Src/board.c ****     APP_DBG("board init: WS2812B_Init success.");
+  90:Core/Src/board.c ****     APP_STAGE("A06", "WS2812B peripheral initialized");
+  91:Core/Src/board.c **** #endif // HAS_LED
+  92:Core/Src/board.c **** }
+  93:Core/Src/board.c **** 
+  94:Core/Src/board.c **** /**
+  95:Core/Src/board.c ****  * @brief System Clock Configuration
+  96:Core/Src/board.c ****  * @retval None
+  97:Core/Src/board.c ****  */
+  98:Core/Src/board.c **** void SystemClock_Config(void)
+  99:Core/Src/board.c **** {
+ 114              		.loc 1 99 1 is_stmt 1 view -0
+ 115              		.cfi_startproc
+ 116              		@ args = 0, pretend = 0, frame = 120
+ 117              		@ frame_needed = 0, uses_anonymous_args = 0
+ 100:Core/Src/board.c **** 
+ 101:Core/Src/board.c ****     RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+ 118              		.loc 1 101 5 view .LVU17
+  99:Core/Src/board.c **** 
+ 119              		.loc 1 99 1 is_stmt 0 view .LVU18
+ 120 0000 00B5     		push	{lr}
+ 121              	.LCFI5:
+ 122              		.cfi_def_cfa_offset 4
+ 123              		.cfi_offset 14, -4
+ 124 0002 9FB0     		sub	sp, sp, #124
+ 125              	.LCFI6:
+ 126              		.cfi_def_cfa_offset 128
+ 127              		.loc 1 101 24 view .LVU19
+ 128 0004 4C22     		movs	r2, #76
+ 129 0006 0021     		movs	r1, #0
+ 130 0008 0BA8     		add	r0, sp, #44
+ 131 000a FFF7FEFF 		bl	memset
+ 132              	.LVL6:
+ 102:Core/Src/board.c ****     RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+ 133              		.loc 1 102 5 is_stmt 1 view .LVU20
+ 134              		.loc 1 102 24 is_stmt 0 view .LVU21
+ 135 000e 2022     		movs	r2, #32
+ 136 0010 0021     		movs	r1, #0
+ 137 0012 03A8     		add	r0, sp, #12
+ 138 0014 FFF7FEFF 		bl	memset
+ 139              	.LVL7:
+ 103:Core/Src/board.c **** 
+ 104:Core/Src/board.c ****     // 更新 SystemCoreClock 变量
+ 105:Core/Src/board.c ****     SystemCoreClockUpdate();
+ 140              		.loc 1 105 5 is_stmt 1 view .LVU22
+ 141 0018 FFF7FEFF 		bl	SystemCoreClockUpdate
+ 142              	.LVL8:
+ 106:Core/Src/board.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 7
+
+
+ 107:Core/Src/board.c ****     /** Supply configuration update enable */
+ 108:Core/Src/board.c ****     HAL_PWREx_ConfigSupply(PWR_LDO_SUPPLY);
+ 143              		.loc 1 108 5 view .LVU23
+ 144 001c 0220     		movs	r0, #2
+ 145 001e FFF7FEFF 		bl	HAL_PWREx_ConfigSupply
+ 146              	.LVL9:
+ 109:Core/Src/board.c **** 
+ 110:Core/Src/board.c ****     /** Configure the main internal regulator output voltage */
+ 111:Core/Src/board.c ****     __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+ 147              		.loc 1 111 5 view .LVU24
+ 148              	.LBB2:
+ 149              		.loc 1 111 5 view .LVU25
+ 150 0022 0023     		movs	r3, #0
+ 151 0024 0093     		str	r3, [sp]
+ 152              		.loc 1 111 5 view .LVU26
+ 153              		.loc 1 111 5 discriminator 2 view .LVU27
+ 154 0026 394B     		ldr	r3, .L19
+ 155 0028 DA6A     		ldr	r2, [r3, #44]
+ 156 002a 22F00102 		bic	r2, r2, #1
+ 157 002e DA62     		str	r2, [r3, #44]
+ 158              		.loc 1 111 5 discriminator 2 view .LVU28
+ 159 0030 DB6A     		ldr	r3, [r3, #44]
+ 160 0032 03F00103 		and	r3, r3, #1
+ 161 0036 0093     		str	r3, [sp]
+ 162              		.loc 1 111 5 discriminator 2 view .LVU29
+ 163 0038 354B     		ldr	r3, .L19+4
+ 164 003a 9A69     		ldr	r2, [r3, #24]
+ 165 003c 42F44042 		orr	r2, r2, #49152
+ 166 0040 9A61     		str	r2, [r3, #24]
+ 167              		.loc 1 111 5 discriminator 2 view .LVU30
+ 168 0042 9A69     		ldr	r2, [r3, #24]
+ 169 0044 02F44042 		and	r2, r2, #49152
+ 170 0048 0092     		str	r2, [sp]
+ 171              		.loc 1 111 5 discriminator 4 view .LVU31
+ 172 004a 009A     		ldr	r2, [sp]
+ 173              	.LBE2:
+ 174              		.loc 1 111 5 discriminator 4 view .LVU32
+ 112:Core/Src/board.c **** 
+ 113:Core/Src/board.c ****     while (!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY))
+ 175              		.loc 1 113 5 view .LVU33
+ 176              	.L5:
+ 114:Core/Src/board.c ****     {
+ 115:Core/Src/board.c ****     }
+ 177              		.loc 1 115 5 view .LVU34
+ 113:Core/Src/board.c ****     {
+ 178              		.loc 1 113 12 discriminator 1 view .LVU35
+ 113:Core/Src/board.c ****     {
+ 179              		.loc 1 113 13 is_stmt 0 discriminator 1 view .LVU36
+ 180 004c 9A69     		ldr	r2, [r3, #24]
+ 113:Core/Src/board.c ****     {
+ 181              		.loc 1 113 12 discriminator 1 view .LVU37
+ 182 004e 9204     		lsls	r2, r2, #18
+ 183 0050 FCD5     		bpl	.L5
+ 116:Core/Src/board.c **** 
+ 117:Core/Src/board.c ****     __HAL_RCC_SYSCFG_CLK_ENABLE();
+ 184              		.loc 1 117 5 is_stmt 1 view .LVU38
+ 185              	.LBB3:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 8
+
+
+ 186              		.loc 1 117 5 view .LVU39
+ 187              		.loc 1 117 5 view .LVU40
+ 188 0052 304A     		ldr	r2, .L19+8
+ 189 0054 D2F8F410 		ldr	r1, [r2, #244]
+ 190 0058 41F00201 		orr	r1, r1, #2
+ 191 005c C2F8F410 		str	r1, [r2, #244]
+ 192              		.loc 1 117 5 view .LVU41
+ 193 0060 D2F8F420 		ldr	r2, [r2, #244]
+ 194 0064 02F00202 		and	r2, r2, #2
+ 195 0068 0192     		str	r2, [sp, #4]
+ 196              		.loc 1 117 5 view .LVU42
+ 197 006a 019A     		ldr	r2, [sp, #4]
+ 198              	.LBE3:
+ 199              		.loc 1 117 5 view .LVU43
+ 118:Core/Src/board.c ****     __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE0);
+ 200              		.loc 1 118 5 view .LVU44
+ 201              	.LBB4:
+ 202              		.loc 1 118 5 view .LVU45
+ 203 006c 0022     		movs	r2, #0
+ 204 006e 0292     		str	r2, [sp, #8]
+ 205              		.loc 1 118 5 view .LVU46
+ 206              		.loc 1 118 5 discriminator 1 view .LVU47
+ 207 0070 9A69     		ldr	r2, [r3, #24]
+ 208 0072 42F44042 		orr	r2, r2, #49152
+ 209 0076 9A61     		str	r2, [r3, #24]
+ 210              		.loc 1 118 5 discriminator 1 view .LVU48
+ 211 0078 9B69     		ldr	r3, [r3, #24]
+ 212 007a 03F44043 		and	r3, r3, #49152
+ 213 007e 0293     		str	r3, [sp, #8]
+ 214              		.loc 1 118 5 discriminator 1 view .LVU49
+ 215 0080 224B     		ldr	r3, .L19
+ 216 0082 DA6A     		ldr	r2, [r3, #44]
+ 217 0084 42F00102 		orr	r2, r2, #1
+ 218 0088 DA62     		str	r2, [r3, #44]
+ 219              		.loc 1 118 5 discriminator 1 view .LVU50
+ 220 008a DB6A     		ldr	r3, [r3, #44]
+ 221              	.LBE4:
+ 119:Core/Src/board.c **** 
+ 120:Core/Src/board.c ****     while (!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY))
+ 222              		.loc 1 120 13 is_stmt 0 discriminator 1 view .LVU51
+ 223 008c 204A     		ldr	r2, .L19+4
+ 224              	.LBB5:
+ 118:Core/Src/board.c ****     __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE0);
+ 225              		.loc 1 118 5 discriminator 1 view .LVU52
+ 226 008e 03F00103 		and	r3, r3, #1
+ 227 0092 0293     		str	r3, [sp, #8]
+ 118:Core/Src/board.c ****     __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE0);
+ 228              		.loc 1 118 5 is_stmt 1 discriminator 4 view .LVU53
+ 229 0094 029B     		ldr	r3, [sp, #8]
+ 230              	.LBE5:
+ 118:Core/Src/board.c ****     __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE0);
+ 231              		.loc 1 118 5 discriminator 4 view .LVU54
+ 232              		.loc 1 120 5 view .LVU55
+ 233              	.L6:
+ 121:Core/Src/board.c ****     {
+ 122:Core/Src/board.c ****     }
+ 234              		.loc 1 122 5 view .LVU56
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 9
+
+
+ 120:Core/Src/board.c ****     {
+ 235              		.loc 1 120 12 discriminator 1 view .LVU57
+ 120:Core/Src/board.c ****     {
+ 236              		.loc 1 120 13 is_stmt 0 discriminator 1 view .LVU58
+ 237 0096 9369     		ldr	r3, [r2, #24]
+ 120:Core/Src/board.c ****     {
+ 238              		.loc 1 120 12 discriminator 1 view .LVU59
+ 239 0098 9B04     		lsls	r3, r3, #18
+ 240 009a FCD5     		bpl	.L6
+ 123:Core/Src/board.c **** 
+ 124:Core/Src/board.c ****     /** Configure LSE Drive Capability */
+ 125:Core/Src/board.c ****     HAL_PWR_EnableBkUpAccess();
+ 241              		.loc 1 125 5 is_stmt 1 view .LVU60
+ 242 009c FFF7FEFF 		bl	HAL_PWR_EnableBkUpAccess
+ 243              	.LVL10:
+ 126:Core/Src/board.c **** 
+ 127:Core/Src/board.c ****     /** Initializes the RCC Oscillators according to the specified parameters
+ 128:Core/Src/board.c ****      * in the RCC_OscInitTypeDef structure.
+ 129:Core/Src/board.c ****      */
+ 130:Core/Src/board.c ****     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+ 244              		.loc 1 130 5 view .LVU61
+ 131:Core/Src/board.c ****     RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+ 245              		.loc 1 131 32 is_stmt 0 view .LVU62
+ 246 00a0 0120     		movs	r0, #1
+ 247 00a2 4FF48033 		mov	r3, #65536
+ 132:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+ 133:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+ 134:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLM = 5;
+ 135:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLN = 192;
+ 248              		.loc 1 135 32 view .LVU63
+ 249 00a6 4FF0050C 		mov	ip, #5
+ 250 00aa C022     		movs	r2, #192
+ 136:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLP = 2;
+ 137:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLQ = 2;
+ 138:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLR = 2;
+ 139:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
+ 140:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
+ 251              		.loc 1 140 37 view .LVU64
+ 252 00ac 4FF0080E 		mov	lr, #8
+ 131:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+ 253              		.loc 1 131 32 view .LVU65
+ 254 00b0 CDE90B03 		strd	r0, r3, [sp, #44]
+ 132:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+ 255              		.loc 1 132 5 is_stmt 1 view .LVU66
+ 132:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+ 256              		.loc 1 132 36 is_stmt 0 view .LVU67
+ 257 00b4 0223     		movs	r3, #2
+ 141:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLFRACN = 0;
+ 142:Core/Src/board.c ****     if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+ 258              		.loc 1 142 9 view .LVU68
+ 259 00b6 0BA8     		add	r0, sp, #44
+ 133:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLM = 5;
+ 260              		.loc 1 133 37 view .LVU69
+ 261 00b8 CDE91433 		strd	r3, r3, [sp, #80]
+ 134:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLN = 192;
+ 262              		.loc 1 134 5 is_stmt 1 view .LVU70
+ 137:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLR = 2;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 10
+
+
+ 263              		.loc 1 137 32 is_stmt 0 view .LVU71
+ 264 00bc CDE91833 		strd	r3, r3, [sp, #96]
+ 138:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
+ 265              		.loc 1 138 32 view .LVU72
+ 266 00c0 1A93     		str	r3, [sp, #104]
+ 140:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLFRACN = 0;
+ 267              		.loc 1 140 37 view .LVU73
+ 268 00c2 0023     		movs	r3, #0
+ 135:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLP = 2;
+ 269              		.loc 1 135 32 view .LVU74
+ 270 00c4 CDE916C2 		strd	ip, r2, [sp, #88]
+ 136:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLQ = 2;
+ 271              		.loc 1 136 5 is_stmt 1 view .LVU75
+ 138:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
+ 272              		.loc 1 138 5 view .LVU76
+ 139:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
+ 273              		.loc 1 139 5 view .LVU77
+ 140:Core/Src/board.c ****     RCC_OscInitStruct.PLL.PLLFRACN = 0;
+ 274              		.loc 1 140 37 is_stmt 0 view .LVU78
+ 275 00c8 CDE91BE3 		strd	lr, r3, [sp, #108]
+ 141:Core/Src/board.c ****     if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+ 276              		.loc 1 141 5 is_stmt 1 view .LVU79
+ 141:Core/Src/board.c ****     if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+ 277              		.loc 1 141 36 is_stmt 0 view .LVU80
+ 278 00cc 1D93     		str	r3, [sp, #116]
+ 279              		.loc 1 142 5 is_stmt 1 view .LVU81
+ 280              		.loc 1 142 9 is_stmt 0 view .LVU82
+ 281 00ce FFF7FEFF 		bl	HAL_RCC_OscConfig
+ 282              	.LVL11:
+ 283              		.loc 1 142 8 discriminator 1 view .LVU83
+ 284 00d2 08B1     		cbz	r0, .L7
+ 143:Core/Src/board.c ****     {
+ 144:Core/Src/board.c ****         Error_Handler();
+ 285              		.loc 1 144 9 is_stmt 1 view .LVU84
+ 286 00d4 FFF7FEFF 		bl	Error_Handler
+ 287              	.LVL12:
+ 288              	.L7:
+ 145:Core/Src/board.c ****     }
+ 146:Core/Src/board.c **** 
+ 147:Core/Src/board.c ****     /** Initializes the CPU, AHB and APB buses clocks */
+ 148:Core/Src/board.c ****     RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 |
+ 289              		.loc 1 148 5 view .LVU85
+ 149:Core/Src/board.c ****     RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+ 290              		.loc 1 149 36 is_stmt 0 view .LVU86
+ 291 00d8 3F22     		movs	r2, #63
+ 292 00da 0323     		movs	r3, #3
+ 150:Core/Src/board.c ****     RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
+ 151:Core/Src/board.c ****     RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV2;
+ 293              		.loc 1 151 37 view .LVU87
+ 294 00dc 0021     		movs	r1, #0
+ 152:Core/Src/board.c ****     RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV2;
+ 153:Core/Src/board.c ****     RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV2;
+ 154:Core/Src/board.c ****     RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV2;
+ 155:Core/Src/board.c ****     RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV2;
+ 156:Core/Src/board.c **** 
+ 157:Core/Src/board.c ****     if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
+ 295              		.loc 1 157 9 view .LVU88
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 11
+
+
+ 296 00de 03A8     		add	r0, sp, #12
+ 149:Core/Src/board.c ****     RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
+ 297              		.loc 1 149 36 view .LVU89
+ 298 00e0 CDE90323 		strd	r2, r3, [sp, #12]
+ 150:Core/Src/board.c ****     RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
+ 299              		.loc 1 150 5 is_stmt 1 view .LVU90
+ 151:Core/Src/board.c ****     RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV2;
+ 300              		.loc 1 151 37 is_stmt 0 view .LVU91
+ 301 00e4 0823     		movs	r3, #8
+ 154:Core/Src/board.c ****     RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV2;
+ 302              		.loc 1 154 38 view .LVU92
+ 303 00e6 4FF48062 		mov	r2, #1024
+ 151:Core/Src/board.c ****     RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV2;
+ 304              		.loc 1 151 37 view .LVU93
+ 305 00ea CDE90513 		strd	r1, r3, [sp, #20]
+ 152:Core/Src/board.c ****     RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV2;
+ 306              		.loc 1 152 5 is_stmt 1 view .LVU94
+ 152:Core/Src/board.c ****     RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV2;
+ 307              		.loc 1 152 38 is_stmt 0 view .LVU95
+ 308 00ee 4023     		movs	r3, #64
+ 309              		.loc 1 157 9 view .LVU96
+ 310 00f0 0421     		movs	r1, #4
+ 153:Core/Src/board.c ****     RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV2;
+ 311              		.loc 1 153 38 view .LVU97
+ 312 00f2 CDE90733 		strd	r3, r3, [sp, #28]
+ 154:Core/Src/board.c ****     RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV2;
+ 313              		.loc 1 154 5 is_stmt 1 view .LVU98
+ 155:Core/Src/board.c **** 
+ 314              		.loc 1 155 38 is_stmt 0 view .LVU99
+ 315 00f6 CDE90923 		strd	r2, r3, [sp, #36]
+ 316              		.loc 1 157 5 is_stmt 1 view .LVU100
+ 317              		.loc 1 157 9 is_stmt 0 view .LVU101
+ 318 00fa FFF7FEFF 		bl	HAL_RCC_ClockConfig
+ 319              	.LVL13:
+ 320              		.loc 1 157 8 discriminator 1 view .LVU102
+ 321 00fe 08B1     		cbz	r0, .L4
+ 158:Core/Src/board.c ****     {
+ 159:Core/Src/board.c ****         Error_Handler();
+ 322              		.loc 1 159 9 is_stmt 1 view .LVU103
+ 323 0100 FFF7FEFF 		bl	Error_Handler
+ 324              	.LVL14:
+ 325              	.L4:
+ 160:Core/Src/board.c ****     }
+ 161:Core/Src/board.c **** 
+ 162:Core/Src/board.c ****     
+ 163:Core/Src/board.c **** 
+ 164:Core/Src/board.c **** }
+ 326              		.loc 1 164 1 is_stmt 0 view .LVU104
+ 327 0104 1FB0     		add	sp, sp, #124
+ 328              	.LCFI7:
+ 329              		.cfi_def_cfa_offset 4
+ 330              		@ sp needed
+ 331 0106 5DF804FB 		ldr	pc, [sp], #4
+ 332              	.L20:
+ 333 010a 00BF     		.align	2
+ 334              	.L19:
+ 335 010c 00040058 		.word	1476396032
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 12
+
+
+ 336 0110 00480258 		.word	1476544512
+ 337 0114 00440258 		.word	1476543488
+ 338              		.cfi_endproc
+ 339              	.LFE340:
+ 341              		.section	.text.PeriphCommonClock_Config,"ax",%progbits
+ 342              		.align	1
+ 343              		.global	PeriphCommonClock_Config
+ 344              		.syntax unified
+ 345              		.thumb
+ 346              		.thumb_func
+ 348              	PeriphCommonClock_Config:
+ 349              	.LFB341:
+ 165:Core/Src/board.c **** 
+ 166:Core/Src/board.c **** /**
+ 167:Core/Src/board.c ****  * @brief Peripherals Common Clock Configuration
+ 168:Core/Src/board.c ****  * @retval None
+ 169:Core/Src/board.c ****  */
+ 170:Core/Src/board.c **** void PeriphCommonClock_Config(void)
+ 171:Core/Src/board.c **** {
+ 350              		.loc 1 171 1 is_stmt 1 view -0
+ 351              		.cfi_startproc
+ 352              		@ args = 0, pretend = 0, frame = 192
+ 353              		@ frame_needed = 0, uses_anonymous_args = 0
+ 172:Core/Src/board.c ****     RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
+ 354              		.loc 1 172 5 view .LVU106
+ 171:Core/Src/board.c ****     RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
+ 355              		.loc 1 171 1 is_stmt 0 view .LVU107
+ 356 0000 00B5     		push	{lr}
+ 357              	.LCFI8:
+ 358              		.cfi_def_cfa_offset 4
+ 359              		.cfi_offset 14, -4
+ 360 0002 B1B0     		sub	sp, sp, #196
+ 361              	.LCFI9:
+ 362              		.cfi_def_cfa_offset 200
+ 363              		.loc 1 172 30 view .LVU108
+ 364 0004 B822     		movs	r2, #184
+ 365 0006 0021     		movs	r1, #0
+ 366 0008 02A8     		add	r0, sp, #8
+ 367 000a FFF7FEFF 		bl	memset
+ 368              	.LVL15:
+ 173:Core/Src/board.c **** 
+ 174:Core/Src/board.c ****     /** Initializes the peripherals clock
+ 175:Core/Src/board.c ****      */
+ 176:Core/Src/board.c ****     PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART1 | RCC_PERIPHCLK_ADC;
+ 369              		.loc 1 176 5 is_stmt 1 view .LVU109
+ 370              		.loc 1 176 46 is_stmt 0 view .LVU110
+ 371 000e 0F4A     		ldr	r2, .L26
+ 372 0010 0023     		movs	r3, #0
+ 177:Core/Src/board.c ****     PeriphClkInitStruct.Usart16ClockSelection = RCC_USART16CLKSOURCE_D2PCLK2;
+ 178:Core/Src/board.c ****     PeriphClkInitStruct.PLL3.PLL3M = 5;
+ 179:Core/Src/board.c ****     PeriphClkInitStruct.PLL3.PLL3N = 36;
+ 180:Core/Src/board.c ****     PeriphClkInitStruct.PLL3.PLL3P = 2;
+ 181:Core/Src/board.c ****     PeriphClkInitStruct.PLL3.PLL3Q = 4;
+ 373              		.loc 1 181 36 view .LVU111
+ 374 0012 0221     		movs	r1, #2
+ 182:Core/Src/board.c ****     PeriphClkInitStruct.PLL3.PLL3R = 4;
+ 183:Core/Src/board.c ****     PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_2;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 13
+
+
+ 184:Core/Src/board.c ****     PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOMEDIUM;
+ 375              		.loc 1 184 41 view .LVU112
+ 376 0014 4FF40060 		mov	r0, #2048
+ 176:Core/Src/board.c ****     PeriphClkInitStruct.Usart16ClockSelection = RCC_USART16CLKSOURCE_D2PCLK2;
+ 377              		.loc 1 176 46 view .LVU113
+ 378 0018 CDE90023 		strd	r2, [sp]
+ 177:Core/Src/board.c ****     PeriphClkInitStruct.Usart16ClockSelection = RCC_USART16CLKSOURCE_D2PCLK2;
+ 379              		.loc 1 177 5 is_stmt 1 view .LVU114
+ 178:Core/Src/board.c ****     PeriphClkInitStruct.PLL3.PLL3N = 36;
+ 380              		.loc 1 178 5 view .LVU115
+ 179:Core/Src/board.c ****     PeriphClkInitStruct.PLL3.PLL3P = 2;
+ 381              		.loc 1 179 36 is_stmt 0 view .LVU116
+ 382 001c 2423     		movs	r3, #36
+ 383 001e 0522     		movs	r2, #5
+ 384 0020 CDE90A23 		strd	r2, r3, [sp, #40]
+ 180:Core/Src/board.c ****     PeriphClkInitStruct.PLL3.PLL3Q = 4;
+ 385              		.loc 1 180 5 is_stmt 1 view .LVU117
+ 181:Core/Src/board.c ****     PeriphClkInitStruct.PLL3.PLL3R = 4;
+ 386              		.loc 1 181 36 is_stmt 0 view .LVU118
+ 387 0024 0423     		movs	r3, #4
+ 388 0026 CDE90C13 		strd	r1, r3, [sp, #48]
+ 182:Core/Src/board.c ****     PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_2;
+ 389              		.loc 1 182 5 is_stmt 1 view .LVU119
+ 182:Core/Src/board.c ****     PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_2;
+ 390              		.loc 1 182 36 is_stmt 0 view .LVU120
+ 391 002a 0E93     		str	r3, [sp, #56]
+ 183:Core/Src/board.c ****     PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOMEDIUM;
+ 392              		.loc 1 183 5 is_stmt 1 view .LVU121
+ 393              		.loc 1 184 41 is_stmt 0 view .LVU122
+ 394 002c 4FF40073 		mov	r3, #512
+ 395 0030 CDE90F03 		strd	r0, r3, [sp, #60]
+ 185:Core/Src/board.c ****     PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
+ 396              		.loc 1 185 5 is_stmt 1 view .LVU123
+ 186:Core/Src/board.c ****     PeriphClkInitStruct.AdcClockSelection = RCC_ADCCLKSOURCE_PLL3;
+ 397              		.loc 1 186 5 view .LVU124
+ 398              		.loc 1 186 43 is_stmt 0 view .LVU125
+ 399 0034 4FF48033 		mov	r3, #65536
+ 187:Core/Src/board.c ****     if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
+ 400              		.loc 1 187 9 view .LVU126
+ 401 0038 6846     		mov	r0, sp
+ 186:Core/Src/board.c ****     PeriphClkInitStruct.AdcClockSelection = RCC_ADCCLKSOURCE_PLL3;
+ 402              		.loc 1 186 43 view .LVU127
+ 403 003a 2993     		str	r3, [sp, #164]
+ 404              		.loc 1 187 5 is_stmt 1 view .LVU128
+ 405              		.loc 1 187 9 is_stmt 0 view .LVU129
+ 406 003c FFF7FEFF 		bl	HAL_RCCEx_PeriphCLKConfig
+ 407              	.LVL16:
+ 408              		.loc 1 187 8 discriminator 1 view .LVU130
+ 409 0040 08B1     		cbz	r0, .L21
+ 188:Core/Src/board.c ****     {
+ 189:Core/Src/board.c ****         Error_Handler();
+ 410              		.loc 1 189 9 is_stmt 1 view .LVU131
+ 411 0042 FFF7FEFF 		bl	Error_Handler
+ 412              	.LVL17:
+ 413              	.L21:
+ 190:Core/Src/board.c ****     }
+ 191:Core/Src/board.c **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 14
+
+
+ 414              		.loc 1 191 1 is_stmt 0 view .LVU132
+ 415 0046 31B0     		add	sp, sp, #196
+ 416              	.LCFI10:
+ 417              		.cfi_def_cfa_offset 4
+ 418              		@ sp needed
+ 419 0048 5DF804FB 		ldr	pc, [sp], #4
+ 420              	.L27:
+ 421              		.align	2
+ 422              	.L26:
+ 423 004c 01000800 		.word	524289
+ 424              		.cfi_endproc
+ 425              	.LFE341:
+ 427              		.section	.rodata.board_init.str1.1,"aMS",%progbits,1
+ 428              	.LC2:
+ 429 0000 72657365 		.ascii	"reset reached; HAL, wake hold, caches, clocks, GPIO"
+ 429      74207265 
+ 429      61636865 
+ 429      643B2048 
+ 429      414C2C20 
+ 430 0033 20616E64 		.ascii	" and USART1 ready\000"
+ 430      20555341 
+ 430      52543120 
+ 430      72656164 
+ 430      7900
+ 431              	.LC3:
+ 432 0045 00       		.ascii	"\000"
+ 433              	.LC4:
+ 434 0046 41303100 		.ascii	"A01\000"
+ 435              	.LC5:
+ 436 004a 706F7765 		.ascii	"power policy initialized: MAIN_POWER_EN=on LCD_EN=o"
+ 436      7220706F 
+ 436      6C696379 
+ 436      20696E69 
+ 436      7469616C 
+ 437 007d 6E206F70 		.ascii	"n optional rails=off\000"
+ 437      74696F6E 
+ 437      616C2072 
+ 437      61696C73 
+ 437      3D6F6666 
+ 438              	.LC6:
+ 439 0092 41303200 		.ascii	"A02\000"
+ 440              	.LC7:
+ 441 0096 51535049 		.ascii	"QSPI initialization complete\000"
+ 441      20696E69 
+ 441      7469616C 
+ 441      697A6174 
+ 441      696F6E20 
+ 442              	.LC8:
+ 443 00b3 41303300 		.ascii	"A03\000"
+ 444              	.LC9:
+ 445 00b7 51535049 		.ascii	"QSPI initialization failed: %d\000"
+ 445      20696E69 
+ 445      7469616C 
+ 445      697A6174 
+ 445      696F6E20 
+ 446              	.LC10:
+ 447 00d6 5B455252 		.ascii	"[ERROR]\000"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 15
+
+
+ 447      4F525D00 
+ 448              	.LC11:
+ 449 00de 54494D32 		.ascii	"TIM2, DMA and BDMA initialized\000"
+ 449      2C20444D 
+ 449      4120616E 
+ 449      64204244 
+ 449      4D412069 
+ 450              	.LC12:
+ 451 00fd 41303400 		.ascii	"A04\000"
+ 452              	.LC13:
+ 453 0101 41444331 		.ascii	"ADC1, ADC2 and ADC3 initialized\000"
+ 453      2C204144 
+ 453      43322061 
+ 453      6E642041 
+ 453      44433320 
+ 454              	.LC14:
+ 455 0121 41303500 		.ascii	"A05\000"
+ 456              	.LC15:
+ 457 0125 57533238 		.ascii	"WS2812B peripheral initialized\000"
+ 457      31324220 
+ 457      70657269 
+ 457      70686572 
+ 457      616C2069 
+ 458              	.LC16:
+ 459 0144 41303600 		.ascii	"A06\000"
+ 460              		.section	.text.board_init,"ax",%progbits
+ 461              		.align	1
+ 462              		.global	board_init
+ 463              		.syntax unified
+ 464              		.thumb
+ 465              		.thumb_func
+ 467              	board_init:
+ 468              	.LFB339:
+  20:Core/Src/board.c ****     SystemClock_Config();
+ 469              		.loc 1 20 1 is_stmt 1 view -0
+ 470              		.cfi_startproc
+ 471              		@ args = 0, pretend = 0, frame = 40
+ 472              		@ frame_needed = 0, uses_anonymous_args = 0
+  21:Core/Src/board.c ****     PeriphCommonClock_Config();
+ 473              		.loc 1 21 5 view .LVU134
+  20:Core/Src/board.c ****     SystemClock_Config();
+ 474              		.loc 1 20 1 is_stmt 0 view .LVU135
+ 475 0000 00B5     		push	{lr}
+ 476              	.LCFI11:
+ 477              		.cfi_def_cfa_offset 4
+ 478              		.cfi_offset 14, -4
+ 479 0002 8BB0     		sub	sp, sp, #44
+ 480              	.LCFI12:
+ 481              		.cfi_def_cfa_offset 48
+  21:Core/Src/board.c ****     PeriphCommonClock_Config();
+ 482              		.loc 1 21 5 view .LVU136
+ 483 0004 FFF7FEFF 		bl	SystemClock_Config
+ 484              	.LVL18:
+  22:Core/Src/board.c **** 
+ 485              		.loc 1 22 5 is_stmt 1 view .LVU137
+ 486 0008 FFF7FEFF 		bl	PeriphCommonClock_Config
+ 487              	.LVL19:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 16
+
+
+  25:Core/Src/board.c ****     __HAL_RCC_GPIOB_CLK_ENABLE();
+ 488              		.loc 1 25 5 view .LVU138
+ 489              	.LBB6:
+  25:Core/Src/board.c ****     __HAL_RCC_GPIOB_CLK_ENABLE();
+ 490              		.loc 1 25 5 view .LVU139
+  25:Core/Src/board.c ****     __HAL_RCC_GPIOB_CLK_ENABLE();
+ 491              		.loc 1 25 5 view .LVU140
+ 492 000c 5A4B     		ldr	r3, .L31
+ 493 000e D3F8E020 		ldr	r2, [r3, #224]
+ 494 0012 42F00102 		orr	r2, r2, #1
+ 495 0016 C3F8E020 		str	r2, [r3, #224]
+  25:Core/Src/board.c ****     __HAL_RCC_GPIOB_CLK_ENABLE();
+ 496              		.loc 1 25 5 view .LVU141
+ 497 001a D3F8E020 		ldr	r2, [r3, #224]
+ 498 001e 02F00102 		and	r2, r2, #1
+ 499 0022 0092     		str	r2, [sp]
+  25:Core/Src/board.c ****     __HAL_RCC_GPIOB_CLK_ENABLE();
+ 500              		.loc 1 25 5 view .LVU142
+ 501 0024 009A     		ldr	r2, [sp]
+ 502              	.LBE6:
+  25:Core/Src/board.c ****     __HAL_RCC_GPIOB_CLK_ENABLE();
+ 503              		.loc 1 25 5 view .LVU143
+  26:Core/Src/board.c ****     __HAL_RCC_GPIOC_CLK_ENABLE();
+ 504              		.loc 1 26 5 view .LVU144
+ 505              	.LBB7:
+  26:Core/Src/board.c ****     __HAL_RCC_GPIOC_CLK_ENABLE();
+ 506              		.loc 1 26 5 view .LVU145
+  26:Core/Src/board.c ****     __HAL_RCC_GPIOC_CLK_ENABLE();
+ 507              		.loc 1 26 5 view .LVU146
+ 508 0026 D3F8E020 		ldr	r2, [r3, #224]
+ 509 002a 42F00202 		orr	r2, r2, #2
+ 510 002e C3F8E020 		str	r2, [r3, #224]
+  26:Core/Src/board.c ****     __HAL_RCC_GPIOC_CLK_ENABLE();
+ 511              		.loc 1 26 5 view .LVU147
+ 512 0032 D3F8E020 		ldr	r2, [r3, #224]
+ 513 0036 02F00202 		and	r2, r2, #2
+ 514 003a 0192     		str	r2, [sp, #4]
+  26:Core/Src/board.c ****     __HAL_RCC_GPIOC_CLK_ENABLE();
+ 515              		.loc 1 26 5 view .LVU148
+ 516 003c 019A     		ldr	r2, [sp, #4]
+ 517              	.LBE7:
+  26:Core/Src/board.c ****     __HAL_RCC_GPIOC_CLK_ENABLE();
+ 518              		.loc 1 26 5 view .LVU149
+  27:Core/Src/board.c ****     __HAL_RCC_GPIOD_CLK_ENABLE();
+ 519              		.loc 1 27 5 view .LVU150
+ 520              	.LBB8:
+  27:Core/Src/board.c ****     __HAL_RCC_GPIOD_CLK_ENABLE();
+ 521              		.loc 1 27 5 view .LVU151
+  27:Core/Src/board.c ****     __HAL_RCC_GPIOD_CLK_ENABLE();
+ 522              		.loc 1 27 5 view .LVU152
+ 523 003e D3F8E020 		ldr	r2, [r3, #224]
+ 524 0042 42F00402 		orr	r2, r2, #4
+ 525 0046 C3F8E020 		str	r2, [r3, #224]
+  27:Core/Src/board.c ****     __HAL_RCC_GPIOD_CLK_ENABLE();
+ 526              		.loc 1 27 5 view .LVU153
+ 527 004a D3F8E020 		ldr	r2, [r3, #224]
+ 528 004e 02F00402 		and	r2, r2, #4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 17
+
+
+ 529 0052 0292     		str	r2, [sp, #8]
+  27:Core/Src/board.c ****     __HAL_RCC_GPIOD_CLK_ENABLE();
+ 530              		.loc 1 27 5 view .LVU154
+ 531 0054 029A     		ldr	r2, [sp, #8]
+ 532              	.LBE8:
+  27:Core/Src/board.c ****     __HAL_RCC_GPIOD_CLK_ENABLE();
+ 533              		.loc 1 27 5 view .LVU155
+  28:Core/Src/board.c ****     __HAL_RCC_GPIOE_CLK_ENABLE();
+ 534              		.loc 1 28 5 view .LVU156
+ 535              	.LBB9:
+  28:Core/Src/board.c ****     __HAL_RCC_GPIOE_CLK_ENABLE();
+ 536              		.loc 1 28 5 view .LVU157
+  28:Core/Src/board.c ****     __HAL_RCC_GPIOE_CLK_ENABLE();
+ 537              		.loc 1 28 5 view .LVU158
+ 538 0056 D3F8E020 		ldr	r2, [r3, #224]
+ 539 005a 42F00802 		orr	r2, r2, #8
+ 540 005e C3F8E020 		str	r2, [r3, #224]
+  28:Core/Src/board.c ****     __HAL_RCC_GPIOE_CLK_ENABLE();
+ 541              		.loc 1 28 5 view .LVU159
+ 542 0062 D3F8E020 		ldr	r2, [r3, #224]
+ 543 0066 02F00802 		and	r2, r2, #8
+ 544 006a 0392     		str	r2, [sp, #12]
+  28:Core/Src/board.c ****     __HAL_RCC_GPIOE_CLK_ENABLE();
+ 545              		.loc 1 28 5 view .LVU160
+ 546 006c 039A     		ldr	r2, [sp, #12]
+ 547              	.LBE9:
+  28:Core/Src/board.c ****     __HAL_RCC_GPIOE_CLK_ENABLE();
+ 548              		.loc 1 28 5 view .LVU161
+  29:Core/Src/board.c ****     __HAL_RCC_GPIOF_CLK_ENABLE();
+ 549              		.loc 1 29 5 view .LVU162
+ 550              	.LBB10:
+  29:Core/Src/board.c ****     __HAL_RCC_GPIOF_CLK_ENABLE();
+ 551              		.loc 1 29 5 view .LVU163
+  29:Core/Src/board.c ****     __HAL_RCC_GPIOF_CLK_ENABLE();
+ 552              		.loc 1 29 5 view .LVU164
+ 553 006e D3F8E020 		ldr	r2, [r3, #224]
+ 554 0072 42F01002 		orr	r2, r2, #16
+ 555 0076 C3F8E020 		str	r2, [r3, #224]
+  29:Core/Src/board.c ****     __HAL_RCC_GPIOF_CLK_ENABLE();
+ 556              		.loc 1 29 5 view .LVU165
+ 557 007a D3F8E020 		ldr	r2, [r3, #224]
+ 558 007e 02F01002 		and	r2, r2, #16
+ 559 0082 0492     		str	r2, [sp, #16]
+  29:Core/Src/board.c ****     __HAL_RCC_GPIOF_CLK_ENABLE();
+ 560              		.loc 1 29 5 view .LVU166
+ 561 0084 049A     		ldr	r2, [sp, #16]
+ 562              	.LBE10:
+  29:Core/Src/board.c ****     __HAL_RCC_GPIOF_CLK_ENABLE();
+ 563              		.loc 1 29 5 view .LVU167
+  30:Core/Src/board.c ****     __HAL_RCC_GPIOG_CLK_ENABLE();
+ 564              		.loc 1 30 5 view .LVU168
+ 565              	.LBB11:
+  30:Core/Src/board.c ****     __HAL_RCC_GPIOG_CLK_ENABLE();
+ 566              		.loc 1 30 5 view .LVU169
+  30:Core/Src/board.c ****     __HAL_RCC_GPIOG_CLK_ENABLE();
+ 567              		.loc 1 30 5 view .LVU170
+ 568 0086 D3F8E020 		ldr	r2, [r3, #224]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 18
+
+
+ 569 008a 42F02002 		orr	r2, r2, #32
+ 570 008e C3F8E020 		str	r2, [r3, #224]
+  30:Core/Src/board.c ****     __HAL_RCC_GPIOG_CLK_ENABLE();
+ 571              		.loc 1 30 5 view .LVU171
+ 572 0092 D3F8E020 		ldr	r2, [r3, #224]
+ 573 0096 02F02002 		and	r2, r2, #32
+ 574 009a 0592     		str	r2, [sp, #20]
+  30:Core/Src/board.c ****     __HAL_RCC_GPIOG_CLK_ENABLE();
+ 575              		.loc 1 30 5 view .LVU172
+ 576 009c 059A     		ldr	r2, [sp, #20]
+ 577              	.LBE11:
+  30:Core/Src/board.c ****     __HAL_RCC_GPIOG_CLK_ENABLE();
+ 578              		.loc 1 30 5 view .LVU173
+  31:Core/Src/board.c ****     __HAL_RCC_GPIOH_CLK_ENABLE();
+ 579              		.loc 1 31 5 view .LVU174
+ 580              	.LBB12:
+  31:Core/Src/board.c ****     __HAL_RCC_GPIOH_CLK_ENABLE();
+ 581              		.loc 1 31 5 view .LVU175
+  31:Core/Src/board.c ****     __HAL_RCC_GPIOH_CLK_ENABLE();
+ 582              		.loc 1 31 5 view .LVU176
+ 583 009e D3F8E020 		ldr	r2, [r3, #224]
+ 584 00a2 42F04002 		orr	r2, r2, #64
+ 585 00a6 C3F8E020 		str	r2, [r3, #224]
+  31:Core/Src/board.c ****     __HAL_RCC_GPIOH_CLK_ENABLE();
+ 586              		.loc 1 31 5 view .LVU177
+ 587 00aa D3F8E020 		ldr	r2, [r3, #224]
+ 588 00ae 02F04002 		and	r2, r2, #64
+ 589 00b2 0692     		str	r2, [sp, #24]
+  31:Core/Src/board.c ****     __HAL_RCC_GPIOH_CLK_ENABLE();
+ 590              		.loc 1 31 5 view .LVU178
+ 591 00b4 069A     		ldr	r2, [sp, #24]
+ 592              	.LBE12:
+  31:Core/Src/board.c ****     __HAL_RCC_GPIOH_CLK_ENABLE();
+ 593              		.loc 1 31 5 view .LVU179
+  32:Core/Src/board.c **** #ifdef __HAL_RCC_GPIOI_CLK_ENABLE
+ 594              		.loc 1 32 5 view .LVU180
+ 595              	.LBB13:
+  32:Core/Src/board.c **** #ifdef __HAL_RCC_GPIOI_CLK_ENABLE
+ 596              		.loc 1 32 5 view .LVU181
+  32:Core/Src/board.c **** #ifdef __HAL_RCC_GPIOI_CLK_ENABLE
+ 597              		.loc 1 32 5 view .LVU182
+ 598 00b6 D3F8E020 		ldr	r2, [r3, #224]
+ 599 00ba 42F08002 		orr	r2, r2, #128
+ 600 00be C3F8E020 		str	r2, [r3, #224]
+  32:Core/Src/board.c **** #ifdef __HAL_RCC_GPIOI_CLK_ENABLE
+ 601              		.loc 1 32 5 view .LVU183
+ 602 00c2 D3F8E020 		ldr	r2, [r3, #224]
+ 603 00c6 02F08002 		and	r2, r2, #128
+ 604 00ca 0792     		str	r2, [sp, #28]
+  32:Core/Src/board.c **** #ifdef __HAL_RCC_GPIOI_CLK_ENABLE
+ 605              		.loc 1 32 5 view .LVU184
+ 606 00cc 079A     		ldr	r2, [sp, #28]
+ 607              	.LBE13:
+  32:Core/Src/board.c **** #ifdef __HAL_RCC_GPIOI_CLK_ENABLE
+ 608              		.loc 1 32 5 view .LVU185
+  34:Core/Src/board.c **** #endif
+ 609              		.loc 1 34 5 view .LVU186
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 19
+
+
+ 610              	.LBB14:
+  34:Core/Src/board.c **** #endif
+ 611              		.loc 1 34 5 view .LVU187
+  34:Core/Src/board.c **** #endif
+ 612              		.loc 1 34 5 view .LVU188
+ 613 00ce D3F8E020 		ldr	r2, [r3, #224]
+ 614 00d2 42F48072 		orr	r2, r2, #256
+ 615 00d6 C3F8E020 		str	r2, [r3, #224]
+  34:Core/Src/board.c **** #endif
+ 616              		.loc 1 34 5 view .LVU189
+ 617 00da D3F8E020 		ldr	r2, [r3, #224]
+ 618 00de 02F48072 		and	r2, r2, #256
+ 619 00e2 0892     		str	r2, [sp, #32]
+  34:Core/Src/board.c **** #endif
+ 620              		.loc 1 34 5 view .LVU190
+ 621 00e4 089A     		ldr	r2, [sp, #32]
+ 622              	.LBE14:
+  34:Core/Src/board.c **** #endif
+ 623              		.loc 1 34 5 view .LVU191
+  36:Core/Src/board.c **** 
+ 624              		.loc 1 36 5 view .LVU192
+ 625              	.LBB15:
+  36:Core/Src/board.c **** 
+ 626              		.loc 1 36 5 view .LVU193
+  36:Core/Src/board.c **** 
+ 627              		.loc 1 36 5 view .LVU194
+ 628 00e6 D3F8E020 		ldr	r2, [r3, #224]
+ 629 00ea 42F40072 		orr	r2, r2, #512
+ 630 00ee C3F8E020 		str	r2, [r3, #224]
+  36:Core/Src/board.c **** 
+ 631              		.loc 1 36 5 view .LVU195
+ 632 00f2 D3F8E030 		ldr	r3, [r3, #224]
+ 633 00f6 03F40073 		and	r3, r3, #512
+ 634 00fa 0993     		str	r3, [sp, #36]
+  36:Core/Src/board.c **** 
+ 635              		.loc 1 36 5 view .LVU196
+ 636 00fc 099B     		ldr	r3, [sp, #36]
+ 637              	.LBE15:
+  36:Core/Src/board.c **** 
+ 638              		.loc 1 36 5 view .LVU197
+  38:Core/Src/board.c **** 
+ 639              		.loc 1 38 5 view .LVU198
+ 640 00fe FFF7FEFF 		bl	BoardPower_Initialize
+ 641              	.LVL20:
+  41:Core/Src/board.c ****     APP_STAGE("A01", "reset reached; HAL, wake hold, caches, clocks, GPIO and USART1 ready");
+ 642              		.loc 1 41 5 view .LVU199
+ 643 0102 FFF7FEFF 		bl	USART1_Init
+ 644              	.LVL21:
+  42:Core/Src/board.c ****     APP_STAGE("A02", "power policy initialized: MAIN_POWER_EN=on LCD_EN=on optional rails=off");
+ 645              		.loc 1 42 5 view .LVU200
+ 646 0106 1D4A     		ldr	r2, .L31+4
+ 647 0108 1D49     		ldr	r1, .L31+8
+ 648 010a 1E48     		ldr	r0, .L31+12
+ 649 010c FFF7FEFF 		bl	AppStartupLog_Printf
+ 650              	.LVL22:
+  43:Core/Src/board.c **** #endif
+ 651              		.loc 1 43 5 view .LVU201
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 20
+
+
+ 652 0110 1D4A     		ldr	r2, .L31+16
+ 653 0112 1B49     		ldr	r1, .L31+8
+ 654 0114 1D48     		ldr	r0, .L31+20
+ 655 0116 FFF7FEFF 		bl	AppStartupLog_Printf
+ 656              	.LVL23:
+  47:Core/Src/board.c ****     APP_DBG("board init: HCLK: %lu", HAL_RCC_GetHCLKFreq());
+ 657              		.loc 1 47 5 view .LVU202
+  48:Core/Src/board.c ****     APP_DBG("board init: PCLK1: %lu", HAL_RCC_GetPCLK1Freq());
+ 658              		.loc 1 48 5 view .LVU203
+  49:Core/Src/board.c ****     APP_DBG("board init: PCLK2: %lu", HAL_RCC_GetPCLK2Freq());
+ 659              		.loc 1 49 5 view .LVU204
+  50:Core/Src/board.c ****     APP_DBG("DBGMCU REVID: 0x%lx", HAL_GetREVID());
+ 660              		.loc 1 50 5 view .LVU205
+  51:Core/Src/board.c **** 
+ 661              		.loc 1 51 5 view .LVU206
+  53:Core/Src/board.c ****     if (qspi_init_result == QSPI_W25Qxx_OK) {
+ 662              		.loc 1 53 5 view .LVU207
+  53:Core/Src/board.c ****     if (qspi_init_result == QSPI_W25Qxx_OK) {
+ 663              		.loc 1 53 31 is_stmt 0 view .LVU208
+ 664 011a FFF7FEFF 		bl	QSPI_W25Qxx_Init
+ 665              	.LVL24:
+  54:Core/Src/board.c ****         APP_STAGE("A03", "QSPI initialization complete");
+ 666              		.loc 1 54 5 is_stmt 1 view .LVU209
+  54:Core/Src/board.c ****         APP_STAGE("A03", "QSPI initialization complete");
+ 667              		.loc 1 54 8 is_stmt 0 view .LVU210
+ 668 011e 0346     		mov	r3, r0
+ 669 0120 20BB     		cbnz	r0, .L29
+  55:Core/Src/board.c ****     } else {
+ 670              		.loc 1 55 9 is_stmt 1 view .LVU211
+ 671 0122 1B4A     		ldr	r2, .L31+24
+ 672 0124 1649     		ldr	r1, .L31+8
+ 673 0126 1B48     		ldr	r0, .L31+28
+ 674              	.LVL25:
+  55:Core/Src/board.c ****     } else {
+ 675              		.loc 1 55 9 is_stmt 0 view .LVU212
+ 676 0128 FFF7FEFF 		bl	AppStartupLog_Printf
+ 677              	.LVL26:
+ 678              	.L30:
+  63:Core/Src/board.c ****     APP_DBG("board init: MX_DMA_Init success.");
+ 679              		.loc 1 63 5 is_stmt 1 view .LVU213
+ 680 012c FFF7FEFF 		bl	MX_DMA_Init
+ 681              	.LVL27:
+  64:Core/Src/board.c **** 
+ 682              		.loc 1 64 5 view .LVU214
+  66:Core/Src/board.c ****     APP_DBG("board init: MX_TIM2_Init success.");
+ 683              		.loc 1 66 5 view .LVU215
+ 684 0130 FFF7FEFF 		bl	MX_TIM2_Init
+ 685              	.LVL28:
+  67:Core/Src/board.c **** 
+ 686              		.loc 1 67 5 view .LVU216
+  69:Core/Src/board.c **** 
+ 687              		.loc 1 69 5 view .LVU217
+ 688 0134 FFF7FEFF 		bl	MX_BDMA_Init
+ 689              	.LVL29:
+  71:Core/Src/board.c ****     APP_STAGE("A04", "TIM2, DMA and BDMA initialized");
+ 690              		.loc 1 71 5 view .LVU218
+  72:Core/Src/board.c **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 21
+
+
+ 691              		.loc 1 72 5 view .LVU219
+ 692 0138 174A     		ldr	r2, .L31+32
+ 693 013a 1149     		ldr	r1, .L31+8
+ 694 013c 1748     		ldr	r0, .L31+36
+ 695 013e FFF7FEFF 		bl	AppStartupLog_Printf
+ 696              	.LVL30:
+  74:Core/Src/board.c **** 
+ 697              		.loc 1 74 5 view .LVU220
+ 698 0142 FFF7FEFF 		bl	MX_ADC1_Init
+ 699              	.LVL31:
+  76:Core/Src/board.c **** 
+ 700              		.loc 1 76 5 view .LVU221
+  78:Core/Src/board.c **** 
+ 701              		.loc 1 78 5 view .LVU222
+ 702 0146 FFF7FEFF 		bl	MX_ADC2_Init
+ 703              	.LVL32:
+  80:Core/Src/board.c **** 
+ 704              		.loc 1 80 5 view .LVU223
+  82:Core/Src/board.c **** 
+ 705              		.loc 1 82 5 view .LVU224
+ 706 014a FFF7FEFF 		bl	MX_ADC3_Init
+ 707              	.LVL33:
+  84:Core/Src/board.c ****     APP_STAGE("A05", "ADC1, ADC2 and ADC3 initialized");
+ 708              		.loc 1 84 5 view .LVU225
+  85:Core/Src/board.c **** 
+ 709              		.loc 1 85 5 view .LVU226
+ 710 014e 144A     		ldr	r2, .L31+40
+ 711 0150 0B49     		ldr	r1, .L31+8
+ 712 0152 1448     		ldr	r0, .L31+44
+ 713 0154 FFF7FEFF 		bl	AppStartupLog_Printf
+ 714              	.LVL34:
+  88:Core/Src/board.c ****     APP_DBG("board init: WS2812B_Init success.");
+ 715              		.loc 1 88 5 view .LVU227
+ 716 0158 FFF7FEFF 		bl	WS2812B_Init
+ 717              	.LVL35:
+  89:Core/Src/board.c ****     APP_STAGE("A06", "WS2812B peripheral initialized");
+ 718              		.loc 1 89 5 view .LVU228
+  90:Core/Src/board.c **** #endif // HAS_LED
+ 719              		.loc 1 90 5 view .LVU229
+ 720 015c 124A     		ldr	r2, .L31+48
+ 721 015e 0849     		ldr	r1, .L31+8
+ 722 0160 1248     		ldr	r0, .L31+52
+  92:Core/Src/board.c **** 
+ 723              		.loc 1 92 1 is_stmt 0 view .LVU230
+ 724 0162 0BB0     		add	sp, sp, #44
+ 725              	.LCFI13:
+ 726              		.cfi_remember_state
+ 727              		.cfi_def_cfa_offset 4
+ 728              		@ sp needed
+ 729 0164 5DF804EB 		ldr	lr, [sp], #4
+ 730              	.LCFI14:
+ 731              		.cfi_restore 14
+ 732              		.cfi_def_cfa_offset 0
+  90:Core/Src/board.c **** #endif // HAS_LED
+ 733              		.loc 1 90 5 view .LVU231
+ 734 0168 FFF7FEBF 		b	AppStartupLog_Printf
+ 735              	.LVL36:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 22
+
+
+ 736              	.L29:
+ 737              	.LCFI15:
+ 738              		.cfi_restore_state
+  57:Core/Src/board.c ****                         qspi_init_result);
+ 739              		.loc 1 57 9 is_stmt 1 view .LVU232
+ 740 016c 104A     		ldr	r2, .L31+56
+ 741 016e 1149     		ldr	r1, .L31+60
+ 742 0170 0848     		ldr	r0, .L31+28
+ 743              	.LVL37:
+  57:Core/Src/board.c ****                         qspi_init_result);
+ 744              		.loc 1 57 9 is_stmt 0 view .LVU233
+ 745 0172 FFF7FEFF 		bl	AppStartupLog_Printf
+ 746              	.LVL38:
+  57:Core/Src/board.c ****                         qspi_init_result);
+ 747              		.loc 1 57 9 view .LVU234
+ 748 0176 D9E7     		b	.L30
+ 749              	.L32:
+ 750              		.align	2
+ 751              	.L31:
+ 752 0178 00440258 		.word	1476543488
+ 753 017c 00000000 		.word	.LC2
+ 754 0180 45000000 		.word	.LC3
+ 755 0184 46000000 		.word	.LC4
+ 756 0188 4A000000 		.word	.LC5
+ 757 018c 92000000 		.word	.LC6
+ 758 0190 96000000 		.word	.LC7
+ 759 0194 B3000000 		.word	.LC8
+ 760 0198 DE000000 		.word	.LC11
+ 761 019c FD000000 		.word	.LC12
+ 762 01a0 01010000 		.word	.LC13
+ 763 01a4 21010000 		.word	.LC14
+ 764 01a8 25010000 		.word	.LC15
+ 765 01ac 44010000 		.word	.LC16
+ 766 01b0 B7000000 		.word	.LC9
+ 767 01b4 D6000000 		.word	.LC10
+ 768              		.cfi_endproc
+ 769              	.LFE339:
+ 771              		.section	.text.get_current_slot_base_address,"ax",%progbits
+ 772              		.align	1
+ 773              		.global	get_current_slot_base_address
+ 774              		.syntax unified
+ 775              		.thumb
+ 776              		.thumb_func
+ 778              	get_current_slot_base_address:
+ 779              	.LFB342:
+ 192:Core/Src/board.c **** 
+ 193:Core/Src/board.c **** /**
+ 194:Core/Src/board.c ****  * @brief 获取当前槽的基地址
+ 195:Core/Src/board.c ****  * @note 通过检查当前代码运行的地址来判断处于哪个槽
+ 196:Core/Src/board.c ****  * @retval 当前槽的基地址 (0x90000000 for 槽A, 0x902B0000 for 槽B)
+ 197:Core/Src/board.c ****  */
+ 198:Core/Src/board.c **** uint32_t get_current_slot_base_address(void)
+ 199:Core/Src/board.c **** {
+ 780              		.loc 1 199 1 is_stmt 1 view -0
+ 781              		.cfi_startproc
+ 782              		@ args = 0, pretend = 0, frame = 0
+ 783              		@ frame_needed = 0, uses_anonymous_args = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 23
+
+
+ 784              		@ link register save eliminated.
+ 200:Core/Src/board.c ****     // 使用链接器定义的Flash起始地址符号
+ 201:Core/Src/board.c ****     extern uint32_t _flash_start;  // 链接器脚本中定义的Flash起始地址
+ 785              		.loc 1 201 5 view .LVU236
+ 202:Core/Src/board.c ****     uint32_t flash_start_address = (uint32_t)&_flash_start;
+ 786              		.loc 1 202 5 view .LVU237
+ 787              		.loc 1 202 14 is_stmt 0 view .LVU238
+ 788 0000 0D4B     		ldr	r3, .L40
+ 789              	.LVL39:
+ 203:Core/Src/board.c ****     
+ 204:Core/Src/board.c ****     // 双槽地址范围定义
+ 205:Core/Src/board.c ****     #define SLOT_A_BASE         0x90000000   // 槽A起始地址
+ 206:Core/Src/board.c ****     #define SLOT_A_END          0x902AFFFF   // 槽A结束地址  
+ 207:Core/Src/board.c ****     #define SLOT_B_BASE         0x902B0000   // 槽B起始地址
+ 208:Core/Src/board.c ****     #define SLOT_B_END          0x9055FFFF   // 槽B结束地址
+ 209:Core/Src/board.c ****     
+ 210:Core/Src/board.c ****     // 判断Flash起始地址在哪个槽范围内
+ 211:Core/Src/board.c ****     if (flash_start_address >= SLOT_A_BASE && flash_start_address <= SLOT_A_END) {
+ 790              		.loc 1 211 5 is_stmt 1 view .LVU239
+ 791              		.loc 1 211 44 is_stmt 0 view .LVU240
+ 792 0002 03F1E042 		add	r2, r3, #1879048192
+ 793              		.loc 1 211 8 view .LVU241
+ 794 0006 B2F52C1F 		cmp	r2, #2818048
+ 795 000a 10D3     		bcc	.L35
+ 212:Core/Src/board.c ****         // 当前固件在槽A
+ 213:Core/Src/board.c ****         APP_DBG("Current slot: A (Flash start: 0x%08X)", flash_start_address);
+ 214:Core/Src/board.c ****         return SLOT_A_BASE;
+ 215:Core/Src/board.c ****     } else if (flash_start_address >= SLOT_B_BASE && flash_start_address <= SLOT_B_END) {
+ 796              		.loc 1 215 12 is_stmt 1 view .LVU242
+ 797              		.loc 1 215 51 is_stmt 0 view .LVU243
+ 798 000c A2F52C12 		sub	r2, r2, #2818048
+ 799              		.loc 1 215 15 view .LVU244
+ 800 0010 B2F52C1F 		cmp	r2, #2818048
+ 801 0014 0ED3     		bcc	.L36
+ 216:Core/Src/board.c ****         // 当前固件在槽B
+ 217:Core/Src/board.c ****         APP_DBG("Current slot: B (Flash start: 0x%08X)", flash_start_address);
+ 218:Core/Src/board.c ****         return SLOT_B_BASE;
+ 219:Core/Src/board.c ****     } else {
+ 220:Core/Src/board.c ****         // 未知地址，根据地址值智能判断
+ 221:Core/Src/board.c ****         if (flash_start_address == 0x90000000) {
+ 802              		.loc 1 221 9 is_stmt 1 view .LVU245
+ 803              		.loc 1 221 12 is_stmt 0 view .LVU246
+ 804 0016 B3F1104F 		cmp	r3, #-1879048192
+ 805 001a 08D0     		beq	.L35
+ 222:Core/Src/board.c ****             APP_DBG("Detected Slot A by exact match (0x%08X)", flash_start_address);
+ 223:Core/Src/board.c ****             return SLOT_A_BASE;
+ 224:Core/Src/board.c ****         } else if (flash_start_address == 0x902B0000) {
+ 806              		.loc 1 224 16 is_stmt 1 view .LVU247
+ 807              		.loc 1 224 19 is_stmt 0 view .LVU248
+ 808 001c 0748     		ldr	r0, .L40+4
+ 809 001e 8342     		cmp	r3, r0
+ 810 0020 08D0     		beq	.L36
+ 225:Core/Src/board.c ****             APP_DBG("Detected Slot B by exact match (0x%08X)", flash_start_address);
+ 226:Core/Src/board.c ****             return SLOT_B_BASE;
+ 227:Core/Src/board.c ****         } else {
+ 228:Core/Src/board.c ****             // 如果都不匹配，根据地址大小判断更可能的槽
+ 229:Core/Src/board.c ****             if (flash_start_address < 0x90200000) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 24
+
+
+ 811              		.loc 1 229 13 is_stmt 1 view .LVU249
+ 218:Core/Src/board.c ****     } else {
+ 812              		.loc 1 218 16 is_stmt 0 view .LVU250
+ 813 0022 074A     		ldr	r2, .L40+8
+ 814 0024 9342     		cmp	r3, r2
+ 815 0026 98BF     		it	ls
+ 816 0028 4FF01040 		movls	r0, #-1879048192
+ 817 002c 7047     		bx	lr
+ 818              	.L35:
+ 214:Core/Src/board.c ****     } else if (flash_start_address >= SLOT_B_BASE && flash_start_address <= SLOT_B_END) {
+ 819              		.loc 1 214 16 view .LVU251
+ 820 002e 4FF01040 		mov	r0, #-1879048192
+ 821 0032 7047     		bx	lr
+ 822              	.L36:
+ 218:Core/Src/board.c ****     } else {
+ 823              		.loc 1 218 16 view .LVU252
+ 824 0034 0148     		ldr	r0, .L40+4
+ 825 0036 7047     		bx	lr
+ 826              	.L41:
+ 827              		.align	2
+ 828              	.L40:
+ 829 0038 00000000 		.word	_flash_start
+ 830 003c 00002B90 		.word	-1876230144
+ 831 0040 FFFF1F90 		.word	-1876951041
+ 832              		.cfi_endproc
+ 833              	.LFE342:
+ 835              		.global	UartHandle
+ 836              		.section	.bss.UartHandle,"aw",%nobits
+ 837              		.align	2
+ 840              	UartHandle:
+ 841 0000 00000000 		.space	148
+ 841      00000000 
+ 841      00000000 
+ 841      00000000 
+ 841      00000000 
+ 842              		.text
+ 843              	.Letext0:
+ 844              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 845              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 846              		.file 5 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 847              		.file 6 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 848              		.file 7 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_rcc.h"
+ 849              		.file 8 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_rcc_ex.h"
+ 850              		.file 9 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 851              		.file 10 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart.h"
+ 852              		.file 11 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stdarg.h"
+ 853              		.file 12 "Core/Inc/main.h"
+ 854              		.file 13 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pwr.h"
+ 855              		.file 14 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pwr_ex.h"
+ 856              		.file 15 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/system_stm32h7xx.h"
+ 857              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdio.h"
+ 858              		.file 17 "Drivers/PWM-WS2812B/pwm-ws2812b.h"
+ 859              		.file 18 "Drivers/ADC/adc.h"
+ 860              		.file 19 "Core/Inc/bdma.h"
+ 861              		.file 20 "Core/Inc/tim.h"
+ 862              		.file 21 "Core/Inc/dma.h"
+ 863              		.file 22 "Drivers/USART/usart.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 25
+
+
+ 864              		.file 23 "Cpp_Core/Inc/board_power.hpp"
+ 865              		.file 24 "<built-in>"
+ 866              		.file 25 "Drivers/QSPI-W25Q64/qspi-w25q64.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s 			page 26
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 board.c
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:25     .text.AppStartupLog_Printf:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:30     .text.AppStartupLog_Printf:00000000 AppStartupLog_Printf
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:100    .text.AppStartupLog_Printf:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:106    .text.SystemClock_Config:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:112    .text.SystemClock_Config:00000000 SystemClock_Config
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:335    .text.SystemClock_Config:0000010c $d
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:342    .text.PeriphCommonClock_Config:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:348    .text.PeriphCommonClock_Config:00000000 PeriphCommonClock_Config
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:423    .text.PeriphCommonClock_Config:0000004c $d
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:461    .text.board_init:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:467    .text.board_init:00000000 board_init
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:752    .text.board_init:00000178 $d
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:772    .text.get_current_slot_base_address:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:778    .text.get_current_slot_base_address:00000000 get_current_slot_base_address
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:829    .text.get_current_slot_base_address:00000038 $d
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:840    .bss.UartHandle:00000000 UartHandle
+C:\Users\nicx5\AppData\Local\Temp\ccX43cSf.s:837    .bss.UartHandle:00000000 $d
+
+UNDEFINED SYMBOLS
+printf
+vprintf
+puts
+memset
+SystemCoreClockUpdate
+HAL_PWREx_ConfigSupply
+HAL_PWR_EnableBkUpAccess
+HAL_RCC_OscConfig
+Error_Handler
+HAL_RCC_ClockConfig
+HAL_RCCEx_PeriphCLKConfig
+BoardPower_Initialize
+USART1_Init
+QSPI_W25Qxx_Init
+MX_DMA_Init
+MX_TIM2_Init
+MX_BDMA_Init
+MX_ADC1_Init
+MX_ADC2_Init
+MX_ADC3_Init
+WS2812B_Init
+_flash_start

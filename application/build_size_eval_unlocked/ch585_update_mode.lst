@@ -1,0 +1,2240 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"ch585_update_mode.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/ch585_update_mode.cpp"
+  19              		.section	.rodata.AppStartupLog_Printf.str1.1,"aMS",%progbits,1
+  20              	.LC0:
+  21 0000 5B415050 		.ascii	"[APP][STARTUP][%s]%s \000"
+  21      5D5B5354 
+  21      41525455 
+  21      505D5B25 
+  21      735D2573 
+  22              	.LC1:
+  23 0016 0D00     		.ascii	"\015\000"
+  24              		.section	.text.AppStartupLog_Printf,"ax",%progbits
+  25              		.align	1
+  26              		.syntax unified
+  27              		.thumb
+  28              		.thumb_func
+  30              	AppStartupLog_Printf:
+  31              	.LVL0:
+  32              	.LFB1272:
+  33              		.file 2 "Core/Inc/board_cfg.h"
+   1:Core/Inc/board_cfg.h **** /*
+   2:Core/Inc/board_cfg.h ****  * The MIT License (MIT)
+   3:Core/Inc/board_cfg.h ****  *
+   4:Core/Inc/board_cfg.h ****  * Copyright (c) 2021, Ha Thach (tinyusb.org)
+   5:Core/Inc/board_cfg.h ****  *
+   6:Core/Inc/board_cfg.h ****  * Permission is hereby granted, free of charge, to any person obtaining a copy
+   7:Core/Inc/board_cfg.h ****  * of this software and associated documentation files (the "Software"), to deal
+   8:Core/Inc/board_cfg.h ****  * in the Software without restriction, including without limitation the rights
+   9:Core/Inc/board_cfg.h ****  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  10:Core/Inc/board_cfg.h ****  * copies of the Software, and to permit persons to whom the Software is
+  11:Core/Inc/board_cfg.h ****  * furnished to do so, subject to the following conditions:
+  12:Core/Inc/board_cfg.h ****  *
+  13:Core/Inc/board_cfg.h ****  * The above copyright notice and this permission notice shall be included in
+  14:Core/Inc/board_cfg.h ****  * all copies or substantial portions of the Software.
+  15:Core/Inc/board_cfg.h ****  *
+  16:Core/Inc/board_cfg.h ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  17:Core/Inc/board_cfg.h ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  18:Core/Inc/board_cfg.h ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  19:Core/Inc/board_cfg.h ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  20:Core/Inc/board_cfg.h ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  21:Core/Inc/board_cfg.h ****  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 2
+
+
+  22:Core/Inc/board_cfg.h ****  * THE SOFTWARE.
+  23:Core/Inc/board_cfg.h ****  *
+  24:Core/Inc/board_cfg.h ****  * This file is part of the TinyUSB stack.
+  25:Core/Inc/board_cfg.h ****  */
+  26:Core/Inc/board_cfg.h **** 
+  27:Core/Inc/board_cfg.h **** #ifndef __BOARD_H__
+  28:Core/Inc/board_cfg.h **** #define __BOARD_H__
+  29:Core/Inc/board_cfg.h **** 
+  30:Core/Inc/board_cfg.h **** #include "stm32h750xx.h"
+  31:Core/Inc/board_cfg.h **** #include "stm32h7xx_hal.h"
+  32:Core/Inc/board_cfg.h **** #include <stdarg.h>
+  33:Core/Inc/board_cfg.h **** #include <stdbool.h>
+  34:Core/Inc/board_cfg.h **** #include <stdio.h>
+  35:Core/Inc/board_cfg.h **** 
+  36:Core/Inc/board_cfg.h **** #ifdef __cplusplus
+  37:Core/Inc/board_cfg.h ****  extern "C" {
+  38:Core/Inc/board_cfg.h **** #endif
+  39:Core/Inc/board_cfg.h **** 
+  40:Core/Inc/board_cfg.h **** 
+  41:Core/Inc/board_cfg.h **** #define SYSTEM_CLOCK_FREQ      480000000
+  42:Core/Inc/board_cfg.h **** 
+  43:Core/Inc/board_cfg.h **** #define SYSTEM_CHECK_ENABLE    0 // 使能缓存检查
+  44:Core/Inc/board_cfg.h **** 
+  45:Core/Inc/board_cfg.h **** // STM32H7系列的唯一ID存储地址（96位，12字节）
+  46:Core/Inc/board_cfg.h **** #define STM32_UNIQUE_ID_BASE_ADDR   0x1FF1E800
+  47:Core/Inc/board_cfg.h **** 
+  48:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_Msk
+  49:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_Msk   (0x3 << 22) // 清除舍入模式位 [23:22]
+  50:Core/Inc/board_cfg.h **** #endif
+  51:Core/Inc/board_cfg.h **** 
+  52:Core/Inc/board_cfg.h **** #ifndef FPU_FPDSCR_RMode_RN
+  53:Core/Inc/board_cfg.h ****     #define FPU_FPDSCR_RMode_RN    (0x0 << 22) // 舍入模式为 Round to Nearest (RN)  
+  54:Core/Inc/board_cfg.h **** #endif
+  55:Core/Inc/board_cfg.h **** 
+  56:Core/Inc/board_cfg.h **** /* Debug print configuration.
+  57:Core/Inc/board_cfg.h ****  * Makefile builds set these with -D from APP_LOG_ENABLE/APP_LOG_VERBOSE.
+  58:Core/Inc/board_cfg.h ****  * The defaults below are only for IDE or ad-hoc builds that do not pass them.
+  59:Core/Inc/board_cfg.h ****  */
+  60:Core/Inc/board_cfg.h **** #ifndef APPLICATION_SERIAL_PRINT
+  61:Core/Inc/board_cfg.h **** #define APPLICATION_SERIAL_PRINT 0   // 编译期使能 USART1 printf 输出
+  62:Core/Inc/board_cfg.h **** #endif
+  63:Core/Inc/board_cfg.h **** 
+  64:Core/Inc/board_cfg.h **** #ifndef APPLICATION_DEBUG_PRINT
+  65:Core/Inc/board_cfg.h **** #define APPLICATION_DEBUG_PRINT  0   // 编译期使能 APP_DBG/APP_ERR 输出
+  66:Core/Inc/board_cfg.h **** #endif
+  67:Core/Inc/board_cfg.h **** 
+  68:Core/Inc/board_cfg.h **** #ifndef APP_LOG_VERBOSE
+  69:Core/Inc/board_cfg.h **** #define APP_LOG_VERBOSE 0
+  70:Core/Inc/board_cfg.h **** #endif
+  71:Core/Inc/board_cfg.h **** 
+  72:Core/Inc/board_cfg.h **** /* Concise production startup milestones, independent from verbose APP_DBG. */
+  73:Core/Inc/board_cfg.h **** #ifndef APPLICATION_STARTUP_LOG
+  74:Core/Inc/board_cfg.h **** #define APPLICATION_STARTUP_LOG 1
+  75:Core/Inc/board_cfg.h **** #endif
+  76:Core/Inc/board_cfg.h **** 
+  77:Core/Inc/board_cfg.h **** #if APPLICATION_STARTUP_LOG
+  78:Core/Inc/board_cfg.h **** static inline void AppStartupLog_Printf(const char *stage,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 3
+
+
+  79:Core/Inc/board_cfg.h ****                                         const char *level,
+  80:Core/Inc/board_cfg.h ****                                         const char *fmt, ...)
+  81:Core/Inc/board_cfg.h **** {
+  34              		.loc 2 81 1 view -0
+  35              		.cfi_startproc
+  36              		@ args = 4, pretend = 8, frame = 8
+  37              		@ frame_needed = 0, uses_anonymous_args = 1
+  82:Core/Inc/board_cfg.h ****     va_list args;
+  38              		.loc 2 82 5 view .LVU1
+  83:Core/Inc/board_cfg.h ****     printf("[APP][STARTUP][%s]%s ", stage, level);
+  39              		.loc 2 83 5 view .LVU2
+  81:Core/Inc/board_cfg.h ****     va_list args;
+  40              		.loc 2 81 1 is_stmt 0 view .LVU3
+  41 0000 0CB4     		push	{r2, r3}
+  42              	.LCFI0:
+  43              		.cfi_def_cfa_offset 8
+  44              		.cfi_offset 2, -8
+  45              		.cfi_offset 3, -4
+  46 0002 37B5     		push	{r0, r1, r2, r4, r5, lr}
+  47              	.LCFI1:
+  48              		.cfi_def_cfa_offset 32
+  49              		.cfi_offset 4, -20
+  50              		.cfi_offset 5, -16
+  51              		.cfi_offset 14, -12
+  81:Core/Inc/board_cfg.h ****     va_list args;
+  52              		.loc 2 81 1 view .LVU4
+  53 0004 06AC     		add	r4, sp, #24
+  54 0006 0A46     		mov	r2, r1
+  55              		.loc 2 83 11 view .LVU5
+  56 0008 0146     		mov	r1, r0
+  57              	.LVL1:
+  58              		.loc 2 83 11 view .LVU6
+  59 000a 0948     		ldr	r0, .L2
+  60              	.LVL2:
+  81:Core/Inc/board_cfg.h ****     va_list args;
+  61              		.loc 2 81 1 view .LVU7
+  62 000c 54F8045B 		ldr	r5, [r4], #4
+  63              		.loc 2 83 11 view .LVU8
+  64 0010 FFF7FEFF 		bl	printf
+  65              	.LVL3:
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+  66              		.loc 2 84 5 is_stmt 1 view .LVU9
+  85:Core/Inc/board_cfg.h ****     vprintf(fmt, args);
+  67              		.loc 2 85 12 is_stmt 0 view .LVU10
+  68 0014 2146     		mov	r1, r4
+  69 0016 2846     		mov	r0, r5
+  84:Core/Inc/board_cfg.h ****     va_start(args, fmt);
+  70              		.loc 2 84 5 view .LVU11
+  71 0018 0194     		str	r4, [sp, #4]
+  72              		.loc 2 85 5 is_stmt 1 view .LVU12
+  73              		.loc 2 85 12 is_stmt 0 view .LVU13
+  74 001a FFF7FEFF 		bl	vprintf
+  75              	.LVL4:
+  86:Core/Inc/board_cfg.h ****     va_end(args);
+  76              		.loc 2 86 5 is_stmt 1 view .LVU14
+  87:Core/Inc/board_cfg.h ****     printf("\r\n");
+  77              		.loc 2 87 5 view .LVU15
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 4
+
+
+  78              		.loc 2 87 11 is_stmt 0 view .LVU16
+  79 001e 0548     		ldr	r0, .L2+4
+  80 0020 FFF7FEFF 		bl	puts
+  81              	.LVL5:
+  88:Core/Inc/board_cfg.h **** }
+  82              		.loc 2 88 1 view .LVU17
+  83 0024 03B0     		add	sp, sp, #12
+  84              	.LCFI2:
+  85              		.cfi_def_cfa_offset 20
+  86              		@ sp needed
+  87 0026 BDE83040 		pop	{r4, r5, lr}
+  88              	.LCFI3:
+  89              		.cfi_restore 14
+  90              		.cfi_restore 5
+  91              		.cfi_restore 4
+  92              		.cfi_def_cfa_offset 8
+  93 002a 02B0     		add	sp, sp, #8
+  94              	.LCFI4:
+  95              		.cfi_restore 3
+  96              		.cfi_restore 2
+  97              		.cfi_def_cfa_offset 0
+  98 002c 7047     		bx	lr
+  99              	.L3:
+ 100 002e 00BF     		.align	2
+ 101              	.L2:
+ 102 0030 00000000 		.word	.LC0
+ 103 0034 16000000 		.word	.LC1
+ 104              		.cfi_endproc
+ 105              	.LFE1272:
+ 107              		.section	.text._ZN7Storage11getInstanceEv,"axG",%progbits,_ZN7Storage11getInstanceEv,comdat
+ 108              		.align	1
+ 109              		.weak	_ZN7Storage11getInstanceEv
+ 110              		.syntax unified
+ 111              		.thumb
+ 112              		.thumb_func
+ 114              	_ZN7Storage11getInstanceEv:
+ 115              	.LFB2194:
+ 116              		.file 3 "Cpp_Core/Inc/storagemanager.hpp"
+   1:Cpp_Core/Inc/storagemanager.hpp **** #ifndef _STORAGE_MANAGER_H_
+   2:Cpp_Core/Inc/storagemanager.hpp **** #define _STORAGE_MANAGER_H_
+   3:Cpp_Core/Inc/storagemanager.hpp **** 
+   4:Cpp_Core/Inc/storagemanager.hpp **** #include "config.hpp"
+   5:Cpp_Core/Inc/storagemanager.hpp **** 
+   6:Cpp_Core/Inc/storagemanager.hpp **** // Forward declarations
+   7:Cpp_Core/Inc/storagemanager.hpp **** class ADCValuesCalibrator;
+   8:Cpp_Core/Inc/storagemanager.hpp **** class ADCValuesMarker;
+   9:Cpp_Core/Inc/storagemanager.hpp **** 
+  10:Cpp_Core/Inc/storagemanager.hpp **** class Storage {
+  11:Cpp_Core/Inc/storagemanager.hpp **** public:
+  12:Cpp_Core/Inc/storagemanager.hpp **** 	using DefaultProfileChangedCallback = void (*)(void);
+  13:Cpp_Core/Inc/storagemanager.hpp **** 
+  14:Cpp_Core/Inc/storagemanager.hpp **** 	Storage(Storage const&) = delete;
+  15:Cpp_Core/Inc/storagemanager.hpp **** 	void operator=(Storage const&) = delete;
+  16:Cpp_Core/Inc/storagemanager.hpp **** 	
+  17:Cpp_Core/Inc/storagemanager.hpp **** 	static Storage& getInstance() {
+ 117              		.loc 3 17 18 is_stmt 1 view -0
+ 118              		.cfi_startproc
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 5
+
+
+ 119              		@ args = 0, pretend = 0, frame = 0
+ 120              		@ frame_needed = 0, uses_anonymous_args = 0
+  18:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+ 121              		.loc 3 18 3 view .LVU19
+  17:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+ 122              		.loc 3 17 18 is_stmt 0 view .LVU20
+ 123 0000 10B5     		push	{r4, lr}
+ 124              	.LCFI5:
+ 125              		.cfi_def_cfa_offset 8
+ 126              		.cfi_offset 4, -8
+ 127              		.cfi_offset 14, -4
+ 128              		.loc 3 18 18 view .LVU21
+ 129 0002 074C     		ldr	r4, .L11
+ 130 0004 2368     		ldr	r3, [r4]
+ 131 0006 BFF35B8F 		dmb	ish
+ 132              		.loc 3 18 18 discriminator 1 view .LVU22
+ 133 000a DB07     		lsls	r3, r3, #31
+ 134 000c 06D4     		bmi	.L6
+ 135              	.LBB65:
+ 136              	.LBI65:
+  17:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+ 137              		.loc 3 17 18 is_stmt 1 view .LVU23
+ 138              	.LBB66:
+ 139              		.loc 3 18 18 is_stmt 0 discriminator 1 view .LVU24
+ 140 000e 2046     		mov	r0, r4
+ 141 0010 FFF7FEFF 		bl	__cxa_guard_acquire
+ 142              	.LVL6:
+ 143 0014 10B1     		cbz	r0, .L6
+ 144              	.LVL7:
+ 145              	.LBB67:
+ 146              	.LBI67:
+  19:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  20:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  21:Cpp_Core/Inc/storagemanager.hpp **** 
+  22:Cpp_Core/Inc/storagemanager.hpp **** 	Config config;
+  23:Cpp_Core/Inc/storagemanager.hpp **** 	
+  24:Cpp_Core/Inc/storagemanager.hpp **** 	void initConfig();
+  25:Cpp_Core/Inc/storagemanager.hpp **** 	bool saveConfig();
+  26:Cpp_Core/Inc/storagemanager.hpp **** 	bool resetConfig();
+  27:Cpp_Core/Inc/storagemanager.hpp **** 	void setInputMode(InputMode inputMode);
+  28:Cpp_Core/Inc/storagemanager.hpp **** 	const InputMode getInputMode() {
+  29:Cpp_Core/Inc/storagemanager.hpp **** 		return config.inputMode;
+  30:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  31:Cpp_Core/Inc/storagemanager.hpp **** 	void setConnectionMode(ConnectionMode mode);
+  32:Cpp_Core/Inc/storagemanager.hpp **** 	ConnectionMode getConnectionMode() const {
+  33:Cpp_Core/Inc/storagemanager.hpp **** 		return config.connectionMode;
+  34:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  35:Cpp_Core/Inc/storagemanager.hpp **** 	void setWirelessReportRate(WirelessReportRate rate);
+  36:Cpp_Core/Inc/storagemanager.hpp **** 	WirelessReportRate getWirelessReportRate() const {
+  37:Cpp_Core/Inc/storagemanager.hpp **** 		return config.wirelessReportRate;
+  38:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  39:Cpp_Core/Inc/storagemanager.hpp **** 	uint32_t getWakeHoldMs() const {
+  40:Cpp_Core/Inc/storagemanager.hpp **** 		return config.power.wakeHoldMs;
+  41:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  42:Cpp_Core/Inc/storagemanager.hpp **** 	uint32_t getAutoStandbyMs() const {
+  43:Cpp_Core/Inc/storagemanager.hpp **** 		return config.power.autoStandbyMs;
+  44:Cpp_Core/Inc/storagemanager.hpp **** 	}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 6
+
+
+  45:Cpp_Core/Inc/storagemanager.hpp **** 	void setRfPowerStateHint(uint8_t hint);
+  46:Cpp_Core/Inc/storagemanager.hpp **** 	uint8_t getRfPowerStateHint() const {
+  47:Cpp_Core/Inc/storagemanager.hpp **** 		return config.reservedConnection0;
+  48:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  49:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadProfile* getGamepadProfile(char* id);
+  50:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadProfile* getDefaultGamepadProfile() {
+  51:Cpp_Core/Inc/storagemanager.hpp **** 		return getGamepadProfile(config.defaultProfileId);
+  52:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  53:Cpp_Core/Inc/storagemanager.hpp **** 	bool setDefaultProfileId(const char* id);
+  54:Cpp_Core/Inc/storagemanager.hpp **** 	void registerDefaultProfileChangedCallback(DefaultProfileChangedCallback cb);
+  55:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadHotkeyEntry* getGamepadHotkeyEntry() {
+  56:Cpp_Core/Inc/storagemanager.hpp **** 		return config.hotkeys;
+  57:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  58:Cpp_Core/Inc/storagemanager.hpp **** 
+  59:Cpp_Core/Inc/storagemanager.hpp **** 	void setBootMode(BootMode bootMode);
+  60:Cpp_Core/Inc/storagemanager.hpp **** 	BootMode getBootMode() {
+  61:Cpp_Core/Inc/storagemanager.hpp **** 		return config.bootMode;
+  62:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  63:Cpp_Core/Inc/storagemanager.hpp **** 
+  64:Cpp_Core/Inc/storagemanager.hpp **** private:
+  65:Cpp_Core/Inc/storagemanager.hpp **** 	Storage() {}  // 私有构造函数
+ 147              		.loc 3 65 2 is_stmt 1 view .LVU25
+ 148              		.loc 3 65 2 is_stmt 0 view .LVU26
+ 149              	.LBE67:
+  18:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+ 150              		.loc 3 18 18 discriminator 1 view .LVU27
+ 151 0016 2046     		mov	r0, r4
+ 152 0018 FFF7FEFF 		bl	__cxa_guard_release
+ 153              	.LVL8:
+ 154              	.L6:
+ 155              	.LBE66:
+ 156              	.LBE65:
+  19:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+ 157              		.loc 3 19 3 is_stmt 1 view .LVU28
+  20:Cpp_Core/Inc/storagemanager.hpp **** 
+ 158              		.loc 3 20 2 is_stmt 0 view .LVU29
+ 159 001c 0148     		ldr	r0, .L11+4
+ 160 001e 10BD     		pop	{r4, pc}
+ 161              	.L12:
+ 162              		.align	2
+ 163              	.L11:
+ 164 0020 00000000 		.word	_ZGVZN7Storage11getInstanceEvE8instance
+ 165 0024 00000000 		.word	_ZZN7Storage11getInstanceEvE8instance
+ 166              		.cfi_endproc
+ 167              	.LFE2194:
+ 169              		.section	.text._ZN12_GLOBAL__N_1L18persistServiceFlagEhb,"ax",%progbits
+ 170              		.align	1
+ 171              		.syntax unified
+ 172              		.thumb
+ 173              		.thumb_func
+ 175              	_ZN12_GLOBAL__N_1L18persistServiceFlagEhb:
+ 176              	.LVL9:
+ 177              	.LFB2424:
+   1:Cpp_Core/Src/ch585_update_mode.cpp **** #include "ch585_update_mode.hpp"
+   2:Cpp_Core/Src/ch585_update_mode.cpp **** 
+   3:Cpp_Core/Src/ch585_update_mode.cpp **** #include "board_cfg.h"
+   4:Cpp_Core/Src/ch585_update_mode.cpp **** #include "board_power.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 7
+
+
+   5:Cpp_Core/Src/ch585_update_mode.cpp **** #include "ch585_role_bootstrap.hpp"
+   6:Cpp_Core/Src/ch585_update_mode.cpp **** #include "ch585_iap_client.hpp"
+   7:Cpp_Core/Src/ch585_update_mode.cpp **** #include "ch585_firmware_update.hpp"
+   8:Cpp_Core/Src/ch585_update_mode.cpp **** #include "rf_bridge_port.hpp"
+   9:Cpp_Core/Src/ch585_update_mode.cpp **** #include "storagemanager.hpp"
+  10:Cpp_Core/Src/ch585_update_mode.cpp **** #include "system_logger.h"
+  11:Cpp_Core/Src/ch585_update_mode.cpp **** #include "usb_board_link.hpp"
+  12:Cpp_Core/Src/ch585_update_mode.cpp **** #include "usbdriver.hpp"
+  13:Cpp_Core/Src/ch585_update_mode.cpp **** 
+  14:Cpp_Core/Src/ch585_update_mode.cpp **** namespace {
+  15:Cpp_Core/Src/ch585_update_mode.cpp **** 
+  16:Cpp_Core/Src/ch585_update_mode.cpp **** static bool serviceFlagSet(uint8_t bit)
+  17:Cpp_Core/Src/ch585_update_mode.cpp **** {
+  18:Cpp_Core/Src/ch585_update_mode.cpp ****     return (STORAGE_MANAGER.config.screenControl.serviceFlags & bit) != 0u;
+  19:Cpp_Core/Src/ch585_update_mode.cpp **** }
+  20:Cpp_Core/Src/ch585_update_mode.cpp **** 
+  21:Cpp_Core/Src/ch585_update_mode.cpp **** static bool persistServiceFlag(uint8_t bit, bool enabled)
+  22:Cpp_Core/Src/ch585_update_mode.cpp **** {
+ 178              		.loc 1 22 1 is_stmt 1 view -0
+ 179              		.cfi_startproc
+ 180              		@ args = 0, pretend = 0, frame = 0
+ 181              		@ frame_needed = 0, uses_anonymous_args = 0
+  23:Cpp_Core/Src/ch585_update_mode.cpp ****     uint8_t& flags = STORAGE_MANAGER.config.screenControl.serviceFlags;
+ 182              		.loc 1 23 5 view .LVU31
+  22:Cpp_Core/Src/ch585_update_mode.cpp ****     uint8_t& flags = STORAGE_MANAGER.config.screenControl.serviceFlags;
+ 183              		.loc 1 22 1 is_stmt 0 view .LVU32
+ 184 0000 F8B5     		push	{r3, r4, r5, r6, r7, lr}
+ 185              	.LCFI6:
+ 186              		.cfi_def_cfa_offset 24
+ 187              		.cfi_offset 3, -24
+ 188              		.cfi_offset 4, -20
+ 189              		.cfi_offset 5, -16
+ 190              		.cfi_offset 6, -12
+ 191              		.cfi_offset 7, -8
+ 192              		.cfi_offset 14, -4
+  22:Cpp_Core/Src/ch585_update_mode.cpp ****     uint8_t& flags = STORAGE_MANAGER.config.screenControl.serviceFlags;
+ 193              		.loc 1 22 1 view .LVU33
+ 194 0002 0446     		mov	r4, r0
+ 195 0004 0F46     		mov	r7, r1
+ 196              		.loc 1 23 22 view .LVU34
+ 197 0006 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 198              	.LVL10:
+  24:Cpp_Core/Src/ch585_update_mode.cpp ****     const uint8_t previous = flags;
+ 199              		.loc 1 24 5 is_stmt 1 view .LVU35
+ 200              		.loc 1 24 19 is_stmt 0 view .LVU36
+ 201 000a 00F50045 		add	r5, r0, #32768
+ 202 000e 95F8786E 		ldrb	r6, [r5, #3704]	@ zero_extendqisi2
+ 203              	.LVL11:
+  25:Cpp_Core/Src/ch585_update_mode.cpp ****     flags = enabled ? static_cast<uint8_t>(flags | bit)
+ 204              		.loc 1 25 5 is_stmt 1 view .LVU37
+ 205              		.loc 1 25 21 is_stmt 0 view .LVU38
+ 206 0012 3FB1     		cbz	r7, .L14
+ 207              		.loc 1 25 21 discriminator 1 view .LVU39
+ 208 0014 46EA0400 		orr	r0, r6, r4
+ 209              	.LVL12:
+ 210              	.L15:
+  26:Cpp_Core/Src/ch585_update_mode.cpp ****                     : static_cast<uint8_t>(flags & ~bit);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 8
+
+
+  27:Cpp_Core/Src/ch585_update_mode.cpp ****     if (flags == previous) return true;
+ 211              		.loc 1 27 5 view .LVU40
+ 212 0018 B042     		cmp	r0, r6
+  25:Cpp_Core/Src/ch585_update_mode.cpp ****     flags = enabled ? static_cast<uint8_t>(flags | bit)
+ 213              		.loc 1 25 11 discriminator 4 view .LVU41
+ 214 001a 85F8780E 		strb	r0, [r5, #3704]
+ 215              		.loc 1 27 5 is_stmt 1 view .LVU42
+ 216 001e 04D1     		bne	.L16
+ 217              	.L18:
+ 218              		.loc 1 27 35 is_stmt 0 discriminator 1 view .LVU43
+ 219 0020 0120     		movs	r0, #1
+ 220              	.L17:
+  28:Cpp_Core/Src/ch585_update_mode.cpp ****     if (STORAGE_MANAGER.saveConfig()) return true;
+  29:Cpp_Core/Src/ch585_update_mode.cpp ****     flags = previous;
+  30:Cpp_Core/Src/ch585_update_mode.cpp ****     return false;
+  31:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 221              		.loc 1 31 1 view .LVU44
+ 222 0022 F8BD     		pop	{r3, r4, r5, r6, r7, pc}
+ 223              	.LVL13:
+ 224              	.L14:
+  25:Cpp_Core/Src/ch585_update_mode.cpp ****                     : static_cast<uint8_t>(flags & ~bit);
+ 225              		.loc 1 25 21 discriminator 2 view .LVU45
+ 226 0024 26EA0400 		bic	r0, r6, r4
+ 227              	.LVL14:
+  25:Cpp_Core/Src/ch585_update_mode.cpp ****                     : static_cast<uint8_t>(flags & ~bit);
+ 228              		.loc 1 25 21 discriminator 2 view .LVU46
+ 229 0028 F6E7     		b	.L15
+ 230              	.L16:
+  28:Cpp_Core/Src/ch585_update_mode.cpp ****     if (STORAGE_MANAGER.saveConfig()) return true;
+ 231              		.loc 1 28 5 is_stmt 1 view .LVU47
+  28:Cpp_Core/Src/ch585_update_mode.cpp ****     if (STORAGE_MANAGER.saveConfig()) return true;
+ 232              		.loc 1 28 9 is_stmt 0 view .LVU48
+ 233 002a FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 234              	.LVL15:
+  28:Cpp_Core/Src/ch585_update_mode.cpp ****     if (STORAGE_MANAGER.saveConfig()) return true;
+ 235              		.loc 1 28 35 discriminator 1 view .LVU49
+ 236 002e FFF7FEFF 		bl	_ZN7Storage10saveConfigEv
+ 237              	.LVL16:
+  28:Cpp_Core/Src/ch585_update_mode.cpp ****     if (STORAGE_MANAGER.saveConfig()) return true;
+ 238              		.loc 1 28 5 discriminator 2 view .LVU50
+ 239 0032 0028     		cmp	r0, #0
+ 240 0034 F4D1     		bne	.L18
+  29:Cpp_Core/Src/ch585_update_mode.cpp ****     return false;
+ 241              		.loc 1 29 5 is_stmt 1 view .LVU51
+  29:Cpp_Core/Src/ch585_update_mode.cpp ****     return false;
+ 242              		.loc 1 29 11 is_stmt 0 view .LVU52
+ 243 0036 85F8786E 		strb	r6, [r5, #3704]
+  30:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 244              		.loc 1 30 5 is_stmt 1 view .LVU53
+  30:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 245              		.loc 1 30 12 is_stmt 0 view .LVU54
+ 246 003a F2E7     		b	.L17
+ 247              		.cfi_endproc
+ 248              	.LFE2424:
+ 250              		.section	.text._ZNK15Ch585UpdateMode14isIapConfirmedEv,"ax",%progbits
+ 251              		.align	1
+ 252              		.global	_ZNK15Ch585UpdateMode14isIapConfirmedEv
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 9
+
+
+ 253              		.syntax unified
+ 254              		.thumb
+ 255              		.thumb_func
+ 257              	_ZNK15Ch585UpdateMode14isIapConfirmedEv:
+ 258              	.LVL17:
+ 259              	.LFB2427:
+  32:Cpp_Core/Src/ch585_update_mode.cpp **** 
+  33:Cpp_Core/Src/ch585_update_mode.cpp **** } // namespace
+  34:Cpp_Core/Src/ch585_update_mode.cpp **** 
+  35:Cpp_Core/Src/ch585_update_mode.cpp **** bool Ch585UpdateMode::isManualIspActive() const
+  36:Cpp_Core/Src/ch585_update_mode.cpp **** {
+  37:Cpp_Core/Src/ch585_update_mode.cpp ****     /* Fail safe during initial IAP migration and after an interrupted/failed
+  38:Cpp_Core/Src/ch585_update_mode.cpp ****      * SPI update.  Until a live IAP plus Application/CAPS verification has
+  39:Cpp_Core/Src/ch585_update_mode.cpp ****      * succeeded, STM32 must never negotiate a CH585 role: doing so steals the
+  40:Cpp_Core/Src/ch585_update_mode.cpp ****      * USB pins from the ROM ISP shortly after BOOT-held power-up. */
+  41:Cpp_Core/Src/ch585_update_mode.cpp ****     return serviceFlagSet(SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE) ||
+  42:Cpp_Core/Src/ch585_update_mode.cpp ****            !isIapConfirmed() || CH585_FIRMWARE_UPDATE.hasFailed();
+  43:Cpp_Core/Src/ch585_update_mode.cpp **** }
+  44:Cpp_Core/Src/ch585_update_mode.cpp **** 
+  45:Cpp_Core/Src/ch585_update_mode.cpp **** bool Ch585UpdateMode::isManualIspPowered() const
+  46:Cpp_Core/Src/ch585_update_mode.cpp **** {
+  47:Cpp_Core/Src/ch585_update_mode.cpp ****     return isManualIspActive() && manualIspPowered;
+  48:Cpp_Core/Src/ch585_update_mode.cpp **** }
+  49:Cpp_Core/Src/ch585_update_mode.cpp **** 
+  50:Cpp_Core/Src/ch585_update_mode.cpp **** bool Ch585UpdateMode::isIapConfirmed() const
+  51:Cpp_Core/Src/ch585_update_mode.cpp **** {
+ 260              		.loc 1 51 1 is_stmt 1 view -0
+ 261              		.cfi_startproc
+ 262              		@ args = 0, pretend = 0, frame = 0
+ 263              		@ frame_needed = 0, uses_anonymous_args = 0
+  52:Cpp_Core/Src/ch585_update_mode.cpp ****     /* A completed bridge transaction includes IAP PROBE, full Application
+  53:Cpp_Core/Src/ch585_update_mode.cpp ****      * CRC, maintenance role and CAPS verification. APPLIED is therefore an
+  54:Cpp_Core/Src/ch585_update_mode.cpp ****      * authoritative IAP confirmation even before the legacy config bit is
+  55:Cpp_Core/Src/ch585_update_mode.cpp ****      * persisted. An explicit USB ISP request remains independent. */
+  56:Cpp_Core/Src/ch585_update_mode.cpp ****     return serviceFlagSet(SCREEN_SERVICE_CH585_IAP_CONFIRMED) ||
+ 264              		.loc 1 56 5 view .LVU56
+ 265              	.LBB71:
+ 266              	.LBI71:
+  16:Cpp_Core/Src/ch585_update_mode.cpp **** {
+ 267              		.loc 1 16 13 view .LVU57
+ 268              	.LBB72:
+  18:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 269              		.loc 1 18 5 view .LVU58
+ 270              	.LBE72:
+ 271              	.LBE71:
+  51:Cpp_Core/Src/ch585_update_mode.cpp ****     /* A completed bridge transaction includes IAP PROBE, full Application
+ 272              		.loc 1 51 1 is_stmt 0 view .LVU59
+ 273 0000 08B5     		push	{r3, lr}
+ 274              	.LCFI7:
+ 275              		.cfi_def_cfa_offset 8
+ 276              		.cfi_offset 3, -8
+ 277              		.cfi_offset 14, -4
+ 278              	.LBB74:
+ 279              	.LBB73:
+  18:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 280              		.loc 1 18 13 view .LVU60
+ 281 0002 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 10
+
+
+ 282              	.LVL18:
+  18:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 283              		.loc 1 18 50 discriminator 1 view .LVU61
+ 284 0006 00F50040 		add	r0, r0, #32768
+  18:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 285              		.loc 1 18 63 discriminator 1 view .LVU62
+ 286 000a 90F8783E 		ldrb	r3, [r0, #3704]	@ zero_extendqisi2
+ 287              	.LBE73:
+ 288              	.LBE74:
+ 289              		.loc 1 56 63 discriminator 1 view .LVU63
+ 290 000e 9B07     		lsls	r3, r3, #30
+ 291 0010 04D4     		bmi	.L20
+ 292              	.LBB75:
+ 293              	.LBI75:
+ 294              		.file 4 "Cpp_Core/Inc/ch585_firmware_update.hpp"
+   1:Cpp_Core/Inc/ch585_firmware_update.hpp **** #ifndef CH585_FIRMWARE_UPDATE_HPP
+   2:Cpp_Core/Inc/ch585_firmware_update.hpp **** #define CH585_FIRMWARE_UPDATE_HPP
+   3:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+   4:Cpp_Core/Inc/ch585_firmware_update.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+   6:Cpp_Core/Inc/ch585_firmware_update.hpp **** #ifdef __cplusplus
+   7:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+   8:Cpp_Core/Inc/ch585_firmware_update.hpp **** enum class Ch585FirmwareUpdateStatus : uint8_t {
+   9:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Idle = 0,
+  10:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Receiving,
+  11:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Ready,
+  12:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Scheduled,
+  13:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Programming,
+  14:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Completed,
+  15:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Failed
+  16:Cpp_Core/Inc/ch585_firmware_update.hpp **** };
+  17:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+  18:Cpp_Core/Inc/ch585_firmware_update.hpp **** class Ch585FirmwareUpdate {
+  19:Cpp_Core/Inc/ch585_firmware_update.hpp **** public:
+  20:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Ch585FirmwareUpdate(const Ch585FirmwareUpdate&) = delete;
+  21:Cpp_Core/Inc/ch585_firmware_update.hpp ****     Ch585FirmwareUpdate& operator=(const Ch585FirmwareUpdate&) = delete;
+  22:Cpp_Core/Inc/ch585_firmware_update.hpp **** 
+  23:Cpp_Core/Inc/ch585_firmware_update.hpp ****     static Ch585FirmwareUpdate& getInstance()
+ 295              		.loc 4 23 33 is_stmt 1 view .LVU64
+  24:Cpp_Core/Inc/ch585_firmware_update.hpp ****     {
+  25:Cpp_Core/Inc/ch585_firmware_update.hpp ****         static Ch585FirmwareUpdate instance;
+ 296              		.loc 4 25 9 view .LVU65
+  26:Cpp_Core/Inc/ch585_firmware_update.hpp ****         return instance;
+ 297              		.loc 4 26 9 view .LVU66
+ 298              	.LBE75:
+  57:Cpp_Core/Src/ch585_update_mode.cpp ****            CH585_FIRMWARE_UPDATE.hasAppliedImage();
+ 299              		.loc 1 57 49 is_stmt 0 discriminator 1 view .LVU67
+ 300 0012 0348     		ldr	r0, .L21
+  58:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 301              		.loc 1 58 1 view .LVU68
+ 302 0014 BDE80840 		pop	{r3, lr}
+ 303              	.LCFI8:
+ 304              		.cfi_remember_state
+ 305              		.cfi_restore 14
+ 306              		.cfi_restore 3
+ 307              		.cfi_def_cfa_offset 0
+  57:Cpp_Core/Src/ch585_update_mode.cpp ****            CH585_FIRMWARE_UPDATE.hasAppliedImage();
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 11
+
+
+ 308              		.loc 1 57 49 discriminator 1 view .LVU69
+ 309 0018 FFF7FEBF 		b	_ZNK19Ch585FirmwareUpdate15hasAppliedImageEv
+ 310              	.LVL19:
+ 311              	.L20:
+ 312              	.LCFI9:
+ 313              		.cfi_restore_state
+ 314              		.loc 1 58 1 view .LVU70
+ 315 001c 0120     		movs	r0, #1
+ 316 001e 08BD     		pop	{r3, pc}
+ 317              	.L22:
+ 318              		.align	2
+ 319              	.L21:
+ 320 0020 00000000 		.word	_ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance
+ 321              		.cfi_endproc
+ 322              	.LFE2427:
+ 324              		.section	.text._ZNK15Ch585UpdateMode17isManualIspActiveEv,"ax",%progbits
+ 325              		.align	1
+ 326              		.global	_ZNK15Ch585UpdateMode17isManualIspActiveEv
+ 327              		.syntax unified
+ 328              		.thumb
+ 329              		.thumb_func
+ 331              	_ZNK15Ch585UpdateMode17isManualIspActiveEv:
+ 332              	.LVL20:
+ 333              	.LFB2425:
+  36:Cpp_Core/Src/ch585_update_mode.cpp ****     /* Fail safe during initial IAP migration and after an interrupted/failed
+ 334              		.loc 1 36 1 is_stmt 1 view -0
+ 335              		.cfi_startproc
+ 336              		@ args = 0, pretend = 0, frame = 0
+ 337              		@ frame_needed = 0, uses_anonymous_args = 0
+  41:Cpp_Core/Src/ch585_update_mode.cpp ****            !isIapConfirmed() || CH585_FIRMWARE_UPDATE.hasFailed();
+ 338              		.loc 1 41 5 view .LVU72
+ 339              	.LBB79:
+ 340              	.LBI79:
+  16:Cpp_Core/Src/ch585_update_mode.cpp **** {
+ 341              		.loc 1 16 13 view .LVU73
+ 342              	.LBB80:
+  18:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 343              		.loc 1 18 5 view .LVU74
+ 344              	.LBE80:
+ 345              	.LBE79:
+  36:Cpp_Core/Src/ch585_update_mode.cpp ****     /* Fail safe during initial IAP migration and after an interrupted/failed
+ 346              		.loc 1 36 1 is_stmt 0 view .LVU75
+ 347 0000 10B5     		push	{r4, lr}
+ 348              	.LCFI10:
+ 349              		.cfi_def_cfa_offset 8
+ 350              		.cfi_offset 4, -8
+ 351              		.cfi_offset 14, -4
+  36:Cpp_Core/Src/ch585_update_mode.cpp ****     /* Fail safe during initial IAP migration and after an interrupted/failed
+ 352              		.loc 1 36 1 view .LVU76
+ 353 0002 0446     		mov	r4, r0
+ 354              	.LBB82:
+ 355              	.LBB81:
+  18:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 356              		.loc 1 18 13 view .LVU77
+ 357 0004 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 358              	.LVL21:
+  18:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 12
+
+
+ 359              		.loc 1 18 50 discriminator 1 view .LVU78
+ 360 0008 00F50040 		add	r0, r0, #32768
+  18:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 361              		.loc 1 18 63 discriminator 1 view .LVU79
+ 362 000c 90F8783E 		ldrb	r3, [r0, #3704]	@ zero_extendqisi2
+ 363              	.LBE81:
+ 364              	.LBE82:
+  42:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 365              		.loc 1 42 30 view .LVU80
+ 366 0010 DB07     		lsls	r3, r3, #31
+ 367 0012 08D4     		bmi	.L25
+  42:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 368              		.loc 1 42 27 discriminator 2 view .LVU81
+ 369 0014 2046     		mov	r0, r4
+ 370 0016 FFF7FEFF 		bl	_ZNK15Ch585UpdateMode14isIapConfirmedEv
+ 371              	.LVL22:
+  41:Cpp_Core/Src/ch585_update_mode.cpp ****            !isIapConfirmed() || CH585_FIRMWARE_UPDATE.hasFailed();
+ 372              		.loc 1 41 67 view .LVU82
+ 373 001a 20B1     		cbz	r0, .L25
+ 374              	.LBB83:
+ 375              	.LBI83:
+  23:Cpp_Core/Inc/ch585_firmware_update.hpp ****     {
+ 376              		.loc 4 23 33 is_stmt 1 view .LVU83
+  25:Cpp_Core/Inc/ch585_firmware_update.hpp ****         return instance;
+ 377              		.loc 4 25 9 view .LVU84
+ 378              		.loc 4 26 9 view .LVU85
+ 379              	.LBE83:
+  42:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 380              		.loc 1 42 64 is_stmt 0 discriminator 1 view .LVU86
+ 381 001c 0348     		ldr	r0, .L30
+  43:Cpp_Core/Src/ch585_update_mode.cpp **** 
+ 382              		.loc 1 43 1 view .LVU87
+ 383 001e BDE81040 		pop	{r4, lr}
+ 384              	.LCFI11:
+ 385              		.cfi_remember_state
+ 386              		.cfi_restore 14
+ 387              		.cfi_restore 4
+ 388              		.cfi_def_cfa_offset 0
+ 389              	.LVL23:
+  42:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 390              		.loc 1 42 64 discriminator 1 view .LVU88
+ 391 0022 FFF7FEBF 		b	_ZNK19Ch585FirmwareUpdate9hasFailedEv
+ 392              	.LVL24:
+ 393              	.L25:
+ 394              	.LCFI12:
+ 395              		.cfi_restore_state
+  43:Cpp_Core/Src/ch585_update_mode.cpp **** 
+ 396              		.loc 1 43 1 view .LVU89
+ 397 0026 0120     		movs	r0, #1
+ 398 0028 10BD     		pop	{r4, pc}
+ 399              	.LVL25:
+ 400              	.L31:
+  43:Cpp_Core/Src/ch585_update_mode.cpp **** 
+ 401              		.loc 1 43 1 view .LVU90
+ 402 002a 00BF     		.align	2
+ 403              	.L30:
+ 404 002c 00000000 		.word	_ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 13
+
+
+ 405              		.cfi_endproc
+ 406              	.LFE2425:
+ 408              		.section	.text._ZNK15Ch585UpdateMode18isManualIspPoweredEv,"ax",%progbits
+ 409              		.align	1
+ 410              		.global	_ZNK15Ch585UpdateMode18isManualIspPoweredEv
+ 411              		.syntax unified
+ 412              		.thumb
+ 413              		.thumb_func
+ 415              	_ZNK15Ch585UpdateMode18isManualIspPoweredEv:
+ 416              	.LVL26:
+ 417              	.LFB2426:
+  46:Cpp_Core/Src/ch585_update_mode.cpp ****     return isManualIspActive() && manualIspPowered;
+ 418              		.loc 1 46 1 is_stmt 1 view -0
+ 419              		.cfi_startproc
+ 420              		@ args = 0, pretend = 0, frame = 0
+ 421              		@ frame_needed = 0, uses_anonymous_args = 0
+  47:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 422              		.loc 1 47 5 view .LVU92
+  46:Cpp_Core/Src/ch585_update_mode.cpp ****     return isManualIspActive() && manualIspPowered;
+ 423              		.loc 1 46 1 is_stmt 0 view .LVU93
+ 424 0000 10B5     		push	{r4, lr}
+ 425              	.LCFI13:
+ 426              		.cfi_def_cfa_offset 8
+ 427              		.cfi_offset 4, -8
+ 428              		.cfi_offset 14, -4
+  46:Cpp_Core/Src/ch585_update_mode.cpp ****     return isManualIspActive() && manualIspPowered;
+ 429              		.loc 1 46 1 view .LVU94
+ 430 0002 0446     		mov	r4, r0
+  47:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 431              		.loc 1 47 29 view .LVU95
+ 432 0004 FFF7FEFF 		bl	_ZNK15Ch585UpdateMode17isManualIspActiveEv
+ 433              	.LVL27:
+  47:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 434              		.loc 1 47 32 discriminator 1 view .LVU96
+ 435 0008 00B1     		cbz	r0, .L33
+  47:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 436              		.loc 1 47 35 discriminator 1 view .LVU97
+ 437 000a 2078     		ldrb	r0, [r4]	@ zero_extendqisi2
+ 438              	.L33:
+  48:Cpp_Core/Src/ch585_update_mode.cpp **** 
+ 439              		.loc 1 48 1 view .LVU98
+ 440 000c 10BD     		pop	{r4, pc}
+  48:Cpp_Core/Src/ch585_update_mode.cpp **** 
+ 441              		.loc 1 48 1 view .LVU99
+ 442              		.cfi_endproc
+ 443              	.LFE2426:
+ 445              		.section	.text._ZNK15Ch585UpdateMode20isManualEntryVisibleEv,"ax",%progbits
+ 446              		.align	1
+ 447              		.global	_ZNK15Ch585UpdateMode20isManualEntryVisibleEv
+ 448              		.syntax unified
+ 449              		.thumb
+ 450              		.thumb_func
+ 452              	_ZNK15Ch585UpdateMode20isManualEntryVisibleEv:
+ 453              	.LVL28:
+ 454              	.LFB2428:
+  59:Cpp_Core/Src/ch585_update_mode.cpp **** 
+  60:Cpp_Core/Src/ch585_update_mode.cpp **** bool Ch585UpdateMode::isManualEntryVisible() const
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 14
+
+
+  61:Cpp_Core/Src/ch585_update_mode.cpp **** {
+ 455              		.loc 1 61 1 is_stmt 1 view -0
+ 456              		.cfi_startproc
+ 457              		@ args = 0, pretend = 0, frame = 0
+ 458              		@ frame_needed = 0, uses_anonymous_args = 0
+  62:Cpp_Core/Src/ch585_update_mode.cpp **** #if CH585_MANUAL_ISP_ENTRY_ENABLE
+  63:Cpp_Core/Src/ch585_update_mode.cpp ****     return !isIapConfirmed() || isManualIspActive() ||
+ 459              		.loc 1 63 5 view .LVU101
+  61:Cpp_Core/Src/ch585_update_mode.cpp **** #if CH585_MANUAL_ISP_ENTRY_ENABLE
+ 460              		.loc 1 61 1 is_stmt 0 view .LVU102
+ 461 0000 10B5     		push	{r4, lr}
+ 462              	.LCFI14:
+ 463              		.cfi_def_cfa_offset 8
+ 464              		.cfi_offset 4, -8
+ 465              		.cfi_offset 14, -4
+  61:Cpp_Core/Src/ch585_update_mode.cpp **** #if CH585_MANUAL_ISP_ENTRY_ENABLE
+ 466              		.loc 1 61 1 view .LVU103
+ 467 0002 0446     		mov	r4, r0
+ 468              		.loc 1 63 27 view .LVU104
+ 469 0004 FFF7FEFF 		bl	_ZNK15Ch585UpdateMode14isIapConfirmedEv
+ 470              	.LVL29:
+  64:Cpp_Core/Src/ch585_update_mode.cpp ****            CH585_FIRMWARE_UPDATE.isPending() || CH585_FIRMWARE_UPDATE.hasFailed();
+ 471              		.loc 1 64 46 view .LVU105
+ 472 0008 60B1     		cbz	r0, .L39
+  63:Cpp_Core/Src/ch585_update_mode.cpp ****            CH585_FIRMWARE_UPDATE.isPending() || CH585_FIRMWARE_UPDATE.hasFailed();
+ 473              		.loc 1 63 50 view .LVU106
+ 474 000a 2046     		mov	r0, r4
+ 475 000c FFF7FEFF 		bl	_ZNK15Ch585UpdateMode17isManualIspActiveEv
+ 476              	.LVL30:
+  63:Cpp_Core/Src/ch585_update_mode.cpp ****            CH585_FIRMWARE_UPDATE.isPending() || CH585_FIRMWARE_UPDATE.hasFailed();
+ 477              		.loc 1 63 30 discriminator 1 view .LVU107
+ 478 0010 40B9     		cbnz	r0, .L39
+ 479              	.LBB84:
+ 480              	.LBI84:
+  23:Cpp_Core/Inc/ch585_firmware_update.hpp ****     {
+ 481              		.loc 4 23 33 is_stmt 1 view .LVU108
+  25:Cpp_Core/Inc/ch585_firmware_update.hpp ****         return instance;
+ 482              		.loc 4 25 9 view .LVU109
+ 483              		.loc 4 26 9 view .LVU110
+ 484              	.LBE84:
+ 485              		.loc 1 64 43 is_stmt 0 discriminator 1 view .LVU111
+ 486 0012 0548     		ldr	r0, .L41
+ 487 0014 FFF7FEFF 		bl	_ZNK19Ch585FirmwareUpdate9isPendingEv
+ 488              	.LVL31:
+  63:Cpp_Core/Src/ch585_update_mode.cpp ****            CH585_FIRMWARE_UPDATE.isPending() || CH585_FIRMWARE_UPDATE.hasFailed();
+ 489              		.loc 1 63 53 discriminator 1 view .LVU112
+ 490 0018 20B9     		cbnz	r0, .L39
+ 491              	.LBB85:
+ 492              	.LBI85:
+  23:Cpp_Core/Inc/ch585_firmware_update.hpp ****     {
+ 493              		.loc 4 23 33 is_stmt 1 view .LVU113
+  25:Cpp_Core/Inc/ch585_firmware_update.hpp ****         return instance;
+ 494              		.loc 4 25 9 view .LVU114
+ 495              		.loc 4 26 9 view .LVU115
+ 496              	.LBE85:
+ 497              		.loc 1 64 80 is_stmt 0 discriminator 1 view .LVU116
+ 498 001a 0348     		ldr	r0, .L41
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 15
+
+
+  65:Cpp_Core/Src/ch585_update_mode.cpp **** #else
+  66:Cpp_Core/Src/ch585_update_mode.cpp ****     return isManualIspActive() || CH585_FIRMWARE_UPDATE.isPending() ||
+  67:Cpp_Core/Src/ch585_update_mode.cpp ****            CH585_FIRMWARE_UPDATE.hasFailed();
+  68:Cpp_Core/Src/ch585_update_mode.cpp **** #endif
+  69:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 499              		.loc 1 69 1 view .LVU117
+ 500 001c BDE81040 		pop	{r4, lr}
+ 501              	.LCFI15:
+ 502              		.cfi_remember_state
+ 503              		.cfi_restore 14
+ 504              		.cfi_restore 4
+ 505              		.cfi_def_cfa_offset 0
+ 506              	.LVL32:
+  64:Cpp_Core/Src/ch585_update_mode.cpp **** #else
+ 507              		.loc 1 64 80 discriminator 1 view .LVU118
+ 508 0020 FFF7FEBF 		b	_ZNK19Ch585FirmwareUpdate9hasFailedEv
+ 509              	.LVL33:
+ 510              	.L39:
+ 511              	.LCFI16:
+ 512              		.cfi_restore_state
+ 513              		.loc 1 69 1 view .LVU119
+ 514 0024 0120     		movs	r0, #1
+ 515 0026 10BD     		pop	{r4, pc}
+ 516              	.LVL34:
+ 517              	.L42:
+ 518              		.loc 1 69 1 view .LVU120
+ 519              		.align	2
+ 520              	.L41:
+ 521 0028 00000000 		.word	_ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance
+ 522              		.cfi_endproc
+ 523              	.LFE2428:
+ 525              		.section	.text._ZN15Ch585UpdateMode16requestManualIspEv,"ax",%progbits
+ 526              		.align	1
+ 527              		.global	_ZN15Ch585UpdateMode16requestManualIspEv
+ 528              		.syntax unified
+ 529              		.thumb
+ 530              		.thumb_func
+ 532              	_ZN15Ch585UpdateMode16requestManualIspEv:
+ 533              	.LVL35:
+ 534              	.LFB2429:
+  70:Cpp_Core/Src/ch585_update_mode.cpp **** 
+  71:Cpp_Core/Src/ch585_update_mode.cpp **** bool Ch585UpdateMode::requestManualIsp()
+  72:Cpp_Core/Src/ch585_update_mode.cpp **** {
+ 535              		.loc 1 72 1 is_stmt 1 view -0
+ 536              		.cfi_startproc
+ 537              		@ args = 0, pretend = 0, frame = 0
+ 538              		@ frame_needed = 0, uses_anonymous_args = 0
+ 539              		@ link register save eliminated.
+  73:Cpp_Core/Src/ch585_update_mode.cpp ****     return persistServiceFlag(SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE, true);
+ 540              		.loc 1 73 5 view .LVU122
+ 541              		.loc 1 73 30 is_stmt 0 view .LVU123
+ 542 0000 0121     		movs	r1, #1
+ 543 0002 0846     		mov	r0, r1
+ 544              	.LVL36:
+ 545              		.loc 1 73 30 view .LVU124
+ 546 0004 FFF7FEBF 		b	_ZN12_GLOBAL__N_1L18persistServiceFlagEhb
+ 547              	.LVL37:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 16
+
+
+ 548              		.cfi_endproc
+ 549              	.LFE2429:
+ 551              		.section	.rodata._ZN15Ch585UpdateMode20requestExitManualIspEv.str1.1,"aMS",%progbits,1
+ 552              	.LC2:
+ 553 0000 43483538 		.ascii	"CH585 IAP capability probe failed; manual ISP mode "
+ 553      35204941 
+ 553      50206361 
+ 553      70616269 
+ 553      6C697479 
+ 554 0033 72657461 		.ascii	"retained\000"
+ 554      696E6564 
+ 554      00
+ 555              	.LC3:
+ 556 003c 5B455252 		.ascii	"[ERROR]\000"
+ 556      4F525D00 
+ 557              	.LC4:
+ 558 0044 4D303200 		.ascii	"M02\000"
+ 559              	.LC5:
+ 560 0048 43483538 		.ascii	"CH585 Application/CAPS verification failed; manual "
+ 560      35204170 
+ 560      706C6963 
+ 560      6174696F 
+ 560      6E2F4341 
+ 561 007b 49535020 		.ascii	"ISP mode retained\000"
+ 561      6D6F6465 
+ 561      20726574 
+ 561      61696E65 
+ 561      6400
+ 562              	.LC6:
+ 563 008d 4D303241 		.ascii	"M02A\000"
+ 563      00
+ 564              	.LC7:
+ 565 0092 43483538 		.ascii	"CH585 recovery verified but stale failure journal c"
+ 565      35207265 
+ 565      636F7665 
+ 565      72792076 
+ 565      65726966 
+ 566 00c5 6F756C64 		.ascii	"ould not be cleared\000"
+ 566      206E6F74 
+ 566      20626520 
+ 566      636C6561 
+ 566      72656400 
+ 567              	.LC8:
+ 568 00d9 4D30324A 		.ascii	"M02J\000"
+ 568      00
+ 569              	.LC9:
+ 570 00de 43483538 		.ascii	"CH585 IAP and Application/CAPS confirmed; temporary"
+ 570      35204941 
+ 570      5020616E 
+ 570      64204170 
+ 570      706C6963 
+ 571 0111 206D616E 		.ascii	" manual entry hidden\000"
+ 571      75616C20 
+ 571      656E7472 
+ 571      79206869 
+ 571      6464656E 
+ 572              	.LC10:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 17
+
+
+ 573 0126 00       		.ascii	"\000"
+ 574              	.LC11:
+ 575 0127 4D303300 		.ascii	"M03\000"
+ 576              		.section	.text._ZN15Ch585UpdateMode20requestExitManualIspEv,"ax",%progbits
+ 577              		.align	1
+ 578              		.global	_ZN15Ch585UpdateMode20requestExitManualIspEv
+ 579              		.syntax unified
+ 580              		.thumb
+ 581              		.thumb_func
+ 583              	_ZN15Ch585UpdateMode20requestExitManualIspEv:
+ 584              	.LVL38:
+ 585              	.LFB2430:
+  74:Cpp_Core/Src/ch585_update_mode.cpp **** }
+  75:Cpp_Core/Src/ch585_update_mode.cpp **** 
+  76:Cpp_Core/Src/ch585_update_mode.cpp **** bool Ch585UpdateMode::requestExitManualIsp()
+  77:Cpp_Core/Src/ch585_update_mode.cpp **** {
+ 586              		.loc 1 77 1 is_stmt 1 view -0
+ 587              		.cfi_startproc
+ 588              		@ args = 0, pretend = 0, frame = 0
+ 589              		@ frame_needed = 0, uses_anonymous_args = 0
+  78:Cpp_Core/Src/ch585_update_mode.cpp ****     if (!CH585_IAP_CLIENT.probe()) {
+ 590              		.loc 1 78 5 view .LVU126
+ 591              	.LBB86:
+ 592              	.LBI86:
+ 593              		.file 5 "Cpp_Core/Inc/ch585_iap_client.hpp"
+   1:Cpp_Core/Inc/ch585_iap_client.hpp **** #ifndef CH585_IAP_CLIENT_HPP
+   2:Cpp_Core/Inc/ch585_iap_client.hpp **** #define CH585_IAP_CLIENT_HPP
+   3:Cpp_Core/Inc/ch585_iap_client.hpp **** 
+   4:Cpp_Core/Inc/ch585_iap_client.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/ch585_iap_client.hpp **** 
+   6:Cpp_Core/Inc/ch585_iap_client.hpp **** #include "ch585_staging.h"
+   7:Cpp_Core/Inc/ch585_iap_client.hpp **** 
+   8:Cpp_Core/Inc/ch585_iap_client.hpp **** enum class Ch585IapClientStatus : uint8_t {
+   9:Cpp_Core/Inc/ch585_iap_client.hpp ****     Idle = 0,
+  10:Cpp_Core/Inc/ch585_iap_client.hpp ****     Ready,
+  11:Cpp_Core/Inc/ch585_iap_client.hpp ****     LinkError,
+  12:Cpp_Core/Inc/ch585_iap_client.hpp ****     ProtocolError,
+  13:Cpp_Core/Inc/ch585_iap_client.hpp ****     DeviceError,
+  14:Cpp_Core/Inc/ch585_iap_client.hpp ****     InvalidImage,
+  15:Cpp_Core/Inc/ch585_iap_client.hpp ****     Completed
+  16:Cpp_Core/Inc/ch585_iap_client.hpp **** };
+  17:Cpp_Core/Inc/ch585_iap_client.hpp **** 
+  18:Cpp_Core/Inc/ch585_iap_client.hpp **** class Ch585IapClient {
+  19:Cpp_Core/Inc/ch585_iap_client.hpp **** public:
+  20:Cpp_Core/Inc/ch585_iap_client.hpp ****     Ch585IapClient(const Ch585IapClient&) = delete;
+  21:Cpp_Core/Inc/ch585_iap_client.hpp ****     Ch585IapClient& operator=(const Ch585IapClient&) = delete;
+  22:Cpp_Core/Inc/ch585_iap_client.hpp **** 
+  23:Cpp_Core/Inc/ch585_iap_client.hpp ****     static Ch585IapClient& getInstance()
+ 594              		.loc 5 23 28 view .LVU127
+  24:Cpp_Core/Inc/ch585_iap_client.hpp ****     {
+  25:Cpp_Core/Inc/ch585_iap_client.hpp ****         static Ch585IapClient instance;
+ 595              		.loc 5 25 9 view .LVU128
+  26:Cpp_Core/Inc/ch585_iap_client.hpp ****         return instance;
+ 596              		.loc 5 26 9 view .LVU129
+ 597              	.LBE86:
+  77:Cpp_Core/Src/ch585_update_mode.cpp ****     if (!CH585_IAP_CLIENT.probe()) {
+ 598              		.loc 1 77 1 is_stmt 0 view .LVU130
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 18
+
+
+ 599 0000 70B5     		push	{r4, r5, r6, lr}
+ 600              	.LCFI17:
+ 601              		.cfi_def_cfa_offset 16
+ 602              		.cfi_offset 4, -16
+ 603              		.cfi_offset 5, -12
+ 604              		.cfi_offset 6, -8
+ 605              		.cfi_offset 14, -4
+ 606              		.loc 1 78 32 discriminator 1 view .LVU131
+ 607 0002 1B48     		ldr	r0, .L52
+ 608              	.LVL39:
+ 609              		.loc 1 78 32 discriminator 1 view .LVU132
+ 610 0004 FFF7FEFF 		bl	_ZN14Ch585IapClient5probeEv
+ 611              	.LVL40:
+ 612              		.loc 1 78 5 discriminator 2 view .LVU133
+ 613 0008 38B9     		cbnz	r0, .L45
+  79:Cpp_Core/Src/ch585_update_mode.cpp ****         APP_STAGE_ERROR("M02", "CH585 IAP capability probe failed; manual ISP mode retained");
+ 614              		.loc 1 79 9 is_stmt 1 view .LVU134
+ 615 000a 1A4A     		ldr	r2, .L52+4
+ 616 000c 1A49     		ldr	r1, .L52+8
+ 617 000e 1B48     		ldr	r0, .L52+12
+ 618              	.L51:
+  80:Cpp_Core/Src/ch585_update_mode.cpp ****         return false;
+  81:Cpp_Core/Src/ch585_update_mode.cpp ****     }
+  82:Cpp_Core/Src/ch585_update_mode.cpp ****     if (!CH585_IAP_CLIENT.validateApplication()) {
+  83:Cpp_Core/Src/ch585_update_mode.cpp ****         APP_STAGE_ERROR("M02A", "CH585 Application/CAPS verification failed; manual ISP mode retain
+ 619              		.loc 1 83 9 is_stmt 0 view .LVU135
+ 620 0010 FFF7FEFF 		bl	AppStartupLog_Printf
+ 621              	.LVL41:
+  84:Cpp_Core/Src/ch585_update_mode.cpp ****         return false;
+ 622              		.loc 1 84 9 is_stmt 1 view .LVU136
+ 623              	.L46:
+  80:Cpp_Core/Src/ch585_update_mode.cpp ****         return false;
+ 624              		.loc 1 80 16 is_stmt 0 view .LVU137
+ 625 0014 0024     		movs	r4, #0
+ 626              	.L48:
+  85:Cpp_Core/Src/ch585_update_mode.cpp ****     }
+  86:Cpp_Core/Src/ch585_update_mode.cpp ****     if (!CH585_FIRMWARE_UPDATE.acknowledgeManualRecovery()) {
+  87:Cpp_Core/Src/ch585_update_mode.cpp ****         APP_STAGE_ERROR("M02J", "CH585 recovery verified but stale failure journal could not be cle
+  88:Cpp_Core/Src/ch585_update_mode.cpp ****         return false;
+  89:Cpp_Core/Src/ch585_update_mode.cpp ****     }
+  90:Cpp_Core/Src/ch585_update_mode.cpp **** 
+  91:Cpp_Core/Src/ch585_update_mode.cpp ****     uint8_t& flags = STORAGE_MANAGER.config.screenControl.serviceFlags;
+  92:Cpp_Core/Src/ch585_update_mode.cpp ****     const uint8_t previous = flags;
+  93:Cpp_Core/Src/ch585_update_mode.cpp ****     flags = static_cast<uint8_t>(
+  94:Cpp_Core/Src/ch585_update_mode.cpp ****         (flags | SCREEN_SERVICE_CH585_IAP_CONFIRMED) &
+  95:Cpp_Core/Src/ch585_update_mode.cpp ****         ~SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE);
+  96:Cpp_Core/Src/ch585_update_mode.cpp ****     if (STORAGE_MANAGER.saveConfig()) {
+  97:Cpp_Core/Src/ch585_update_mode.cpp ****         APP_STAGE("M03", "CH585 IAP and Application/CAPS confirmed; temporary manual entry hidden")
+  98:Cpp_Core/Src/ch585_update_mode.cpp ****         return true;
+  99:Cpp_Core/Src/ch585_update_mode.cpp ****     }
+ 100:Cpp_Core/Src/ch585_update_mode.cpp ****     flags = previous;
+ 101:Cpp_Core/Src/ch585_update_mode.cpp ****     return false;
+ 102:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 627              		.loc 1 102 1 view .LVU138
+ 628 0016 2046     		mov	r0, r4
+ 629 0018 70BD     		pop	{r4, r5, r6, pc}
+ 630              	.L45:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 19
+
+
+  82:Cpp_Core/Src/ch585_update_mode.cpp ****         APP_STAGE_ERROR("M02A", "CH585 Application/CAPS verification failed; manual ISP mode retain
+ 631              		.loc 1 82 5 is_stmt 1 view .LVU139
+ 632              	.LBB87:
+ 633              	.LBI87:
+  23:Cpp_Core/Inc/ch585_iap_client.hpp ****     {
+ 634              		.loc 5 23 28 view .LVU140
+  25:Cpp_Core/Inc/ch585_iap_client.hpp ****         return instance;
+ 635              		.loc 5 25 9 view .LVU141
+ 636              		.loc 5 26 9 view .LVU142
+ 637              	.LBE87:
+  82:Cpp_Core/Src/ch585_update_mode.cpp ****         APP_STAGE_ERROR("M02A", "CH585 Application/CAPS verification failed; manual ISP mode retain
+ 638              		.loc 1 82 46 is_stmt 0 discriminator 1 view .LVU143
+ 639 001a 1548     		ldr	r0, .L52
+ 640 001c FFF7FEFF 		bl	_ZN14Ch585IapClient19validateApplicationEv
+ 641              	.LVL42:
+  82:Cpp_Core/Src/ch585_update_mode.cpp ****         APP_STAGE_ERROR("M02A", "CH585 Application/CAPS verification failed; manual ISP mode retain
+ 642              		.loc 1 82 5 discriminator 2 view .LVU144
+ 643 0020 18B9     		cbnz	r0, .L47
+  83:Cpp_Core/Src/ch585_update_mode.cpp ****         return false;
+ 644              		.loc 1 83 9 is_stmt 1 view .LVU145
+ 645 0022 174A     		ldr	r2, .L52+16
+ 646 0024 1449     		ldr	r1, .L52+8
+ 647 0026 1748     		ldr	r0, .L52+20
+ 648 0028 F2E7     		b	.L51
+ 649              	.L47:
+  86:Cpp_Core/Src/ch585_update_mode.cpp ****         APP_STAGE_ERROR("M02J", "CH585 recovery verified but stale failure journal could not be cle
+ 650              		.loc 1 86 5 view .LVU146
+ 651              	.LBB88:
+ 652              	.LBI88:
+  23:Cpp_Core/Inc/ch585_firmware_update.hpp ****     {
+ 653              		.loc 4 23 33 view .LVU147
+  25:Cpp_Core/Inc/ch585_firmware_update.hpp ****         return instance;
+ 654              		.loc 4 25 9 view .LVU148
+ 655              		.loc 4 26 9 view .LVU149
+ 656              	.LBE88:
+  86:Cpp_Core/Src/ch585_update_mode.cpp ****         APP_STAGE_ERROR("M02J", "CH585 recovery verified but stale failure journal could not be cle
+ 657              		.loc 1 86 57 is_stmt 0 discriminator 1 view .LVU150
+ 658 002a 1748     		ldr	r0, .L52+24
+ 659 002c FFF7FEFF 		bl	_ZN19Ch585FirmwareUpdate25acknowledgeManualRecoveryEv
+ 660              	.LVL43:
+  86:Cpp_Core/Src/ch585_update_mode.cpp ****         APP_STAGE_ERROR("M02J", "CH585 recovery verified but stale failure journal could not be cle
+ 661              		.loc 1 86 5 discriminator 2 view .LVU151
+ 662 0030 18B9     		cbnz	r0, .L49
+  87:Cpp_Core/Src/ch585_update_mode.cpp ****         return false;
+ 663              		.loc 1 87 9 is_stmt 1 view .LVU152
+ 664 0032 164A     		ldr	r2, .L52+28
+ 665 0034 1049     		ldr	r1, .L52+8
+ 666 0036 1648     		ldr	r0, .L52+32
+ 667 0038 EAE7     		b	.L51
+ 668              	.L49:
+  91:Cpp_Core/Src/ch585_update_mode.cpp ****     const uint8_t previous = flags;
+ 669              		.loc 1 91 5 view .LVU153
+  91:Cpp_Core/Src/ch585_update_mode.cpp ****     const uint8_t previous = flags;
+ 670              		.loc 1 91 22 is_stmt 0 view .LVU154
+ 671 003a FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 672              	.LVL44:
+  92:Cpp_Core/Src/ch585_update_mode.cpp ****     flags = static_cast<uint8_t>(
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 20
+
+
+ 673              		.loc 1 92 5 is_stmt 1 view .LVU155
+  92:Cpp_Core/Src/ch585_update_mode.cpp ****     flags = static_cast<uint8_t>(
+ 674              		.loc 1 92 19 is_stmt 0 view .LVU156
+ 675 003e 00F50045 		add	r5, r0, #32768
+ 676 0042 95F8786E 		ldrb	r6, [r5, #3704]	@ zero_extendqisi2
+ 677              	.LVL45:
+  93:Cpp_Core/Src/ch585_update_mode.cpp ****         (flags | SCREEN_SERVICE_CH585_IAP_CONFIRMED) &
+ 678              		.loc 1 93 5 is_stmt 1 view .LVU157
+  94:Cpp_Core/Src/ch585_update_mode.cpp ****         ~SCREEN_SERVICE_CH585_MANUAL_ISP_ACTIVE);
+ 679              		.loc 1 94 54 is_stmt 0 view .LVU158
+ 680 0046 26F00303 		bic	r3, r6, #3
+ 681 004a 43F00203 		orr	r3, r3, #2
+  93:Cpp_Core/Src/ch585_update_mode.cpp ****         (flags | SCREEN_SERVICE_CH585_IAP_CONFIRMED) &
+ 682              		.loc 1 93 11 view .LVU159
+ 683 004e 85F8783E 		strb	r3, [r5, #3704]
+  96:Cpp_Core/Src/ch585_update_mode.cpp ****         APP_STAGE("M03", "CH585 IAP and Application/CAPS confirmed; temporary manual entry hidden")
+ 684              		.loc 1 96 5 is_stmt 1 view .LVU160
+  96:Cpp_Core/Src/ch585_update_mode.cpp ****         APP_STAGE("M03", "CH585 IAP and Application/CAPS confirmed; temporary manual entry hidden")
+ 685              		.loc 1 96 9 is_stmt 0 view .LVU161
+ 686 0052 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 687              	.LVL46:
+  96:Cpp_Core/Src/ch585_update_mode.cpp ****         APP_STAGE("M03", "CH585 IAP and Application/CAPS confirmed; temporary manual entry hidden")
+ 688              		.loc 1 96 35 discriminator 1 view .LVU162
+ 689 0056 FFF7FEFF 		bl	_ZN7Storage10saveConfigEv
+ 690              	.LVL47:
+  96:Cpp_Core/Src/ch585_update_mode.cpp ****         APP_STAGE("M03", "CH585 IAP and Application/CAPS confirmed; temporary manual entry hidden")
+ 691              		.loc 1 96 5 discriminator 2 view .LVU163
+ 692 005a 0446     		mov	r4, r0
+ 693 005c 28B1     		cbz	r0, .L50
+  97:Cpp_Core/Src/ch585_update_mode.cpp ****         return true;
+ 694              		.loc 1 97 9 is_stmt 1 view .LVU164
+ 695 005e 0D4A     		ldr	r2, .L52+36
+ 696 0060 0D49     		ldr	r1, .L52+40
+ 697 0062 0E48     		ldr	r0, .L52+44
+ 698 0064 FFF7FEFF 		bl	AppStartupLog_Printf
+ 699              	.LVL48:
+  98:Cpp_Core/Src/ch585_update_mode.cpp ****     }
+ 700              		.loc 1 98 9 view .LVU165
+  98:Cpp_Core/Src/ch585_update_mode.cpp ****     }
+ 701              		.loc 1 98 16 is_stmt 0 view .LVU166
+ 702 0068 D5E7     		b	.L48
+ 703              	.L50:
+ 100:Cpp_Core/Src/ch585_update_mode.cpp ****     return false;
+ 704              		.loc 1 100 5 is_stmt 1 view .LVU167
+ 100:Cpp_Core/Src/ch585_update_mode.cpp ****     return false;
+ 705              		.loc 1 100 11 is_stmt 0 view .LVU168
+ 706 006a 85F8786E 		strb	r6, [r5, #3704]
+ 101:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 707              		.loc 1 101 5 is_stmt 1 view .LVU169
+ 101:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 708              		.loc 1 101 12 is_stmt 0 view .LVU170
+ 709 006e D1E7     		b	.L46
+ 710              	.L53:
+ 711              		.align	2
+ 712              	.L52:
+ 713 0070 00000000 		.word	_ZZN14Ch585IapClient11getInstanceEvE8instance
+ 714 0074 00000000 		.word	.LC2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 21
+
+
+ 715 0078 3C000000 		.word	.LC3
+ 716 007c 44000000 		.word	.LC4
+ 717 0080 48000000 		.word	.LC5
+ 718 0084 8D000000 		.word	.LC6
+ 719 0088 00000000 		.word	_ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance
+ 720 008c 92000000 		.word	.LC7
+ 721 0090 D9000000 		.word	.LC8
+ 722 0094 DE000000 		.word	.LC9
+ 723 0098 26010000 		.word	.LC10
+ 724 009c 27010000 		.word	.LC11
+ 725              		.cfi_endproc
+ 726              	.LFE2430:
+ 728              		.section	.text._ZN15Ch585UpdateMode15setIapConfirmedEb,"ax",%progbits
+ 729              		.align	1
+ 730              		.global	_ZN15Ch585UpdateMode15setIapConfirmedEb
+ 731              		.syntax unified
+ 732              		.thumb
+ 733              		.thumb_func
+ 735              	_ZN15Ch585UpdateMode15setIapConfirmedEb:
+ 736              	.LVL49:
+ 737              	.LFB2431:
+ 103:Cpp_Core/Src/ch585_update_mode.cpp **** 
+ 104:Cpp_Core/Src/ch585_update_mode.cpp **** bool Ch585UpdateMode::setIapConfirmed(bool confirmed)
+ 105:Cpp_Core/Src/ch585_update_mode.cpp **** {
+ 738              		.loc 1 105 1 is_stmt 1 view -0
+ 739              		.cfi_startproc
+ 740              		@ args = 0, pretend = 0, frame = 0
+ 741              		@ frame_needed = 0, uses_anonymous_args = 0
+ 742              		@ link register save eliminated.
+ 106:Cpp_Core/Src/ch585_update_mode.cpp ****     return persistServiceFlag(SCREEN_SERVICE_CH585_IAP_CONFIRMED, confirmed);
+ 743              		.loc 1 106 5 view .LVU172
+ 744              		.loc 1 106 30 is_stmt 0 view .LVU173
+ 745 0000 0220     		movs	r0, #2
+ 746              	.LVL50:
+ 747              		.loc 1 106 30 view .LVU174
+ 748 0002 FFF7FEBF 		b	_ZN12_GLOBAL__N_1L18persistServiceFlagEhb
+ 749              	.LVL51:
+ 750              		.loc 1 106 30 view .LVU175
+ 751              		.cfi_endproc
+ 752              	.LFE2431:
+ 754              		.section	.rodata._ZN15Ch585UpdateMode21setupManualIspRuntimeEv.str1.1,"aMS",%progbits,1
+ 755              	.LC12:
+ 756 0000 43483538 		.ascii	"CH585 manual ISP powered; SPI role and USB host tak"
+ 756      35206D61 
+ 756      6E75616C 
+ 756      20495350 
+ 756      20706F77 
+ 757 0033 656F7665 		.ascii	"eover suppressed\000"
+ 757      72207375 
+ 757      70707265 
+ 757      73736564 
+ 757      00
+ 758              	.LC13:
+ 759 0044 4D303100 		.ascii	"M01\000"
+ 760              		.section	.text._ZN15Ch585UpdateMode21setupManualIspRuntimeEv,"ax",%progbits
+ 761              		.align	1
+ 762              		.global	_ZN15Ch585UpdateMode21setupManualIspRuntimeEv
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 22
+
+
+ 763              		.syntax unified
+ 764              		.thumb
+ 765              		.thumb_func
+ 767              	_ZN15Ch585UpdateMode21setupManualIspRuntimeEv:
+ 768              	.LVL52:
+ 769              	.LFB2432:
+ 107:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 108:Cpp_Core/Src/ch585_update_mode.cpp **** 
+ 109:Cpp_Core/Src/ch585_update_mode.cpp **** void Ch585UpdateMode::setupManualIspRuntime()
+ 110:Cpp_Core/Src/ch585_update_mode.cpp **** {
+ 770              		.loc 1 110 1 is_stmt 1 view -0
+ 771              		.cfi_startproc
+ 772              		@ args = 0, pretend = 0, frame = 0
+ 773              		@ frame_needed = 0, uses_anonymous_args = 0
+ 111:Cpp_Core/Src/ch585_update_mode.cpp ****     USB_DRIVER.shutdown();
+ 774              		.loc 1 111 5 view .LVU177
+ 775              	.LBB89:
+ 776              	.LBI89:
+ 777              		.file 6 "Cpp_Core/Inc/usbdriver.hpp"
+   1:Cpp_Core/Inc/usbdriver.hpp **** #ifndef USB_DRIVER_HPP
+   2:Cpp_Core/Inc/usbdriver.hpp **** #define USB_DRIVER_HPP
+   3:Cpp_Core/Inc/usbdriver.hpp **** 
+   4:Cpp_Core/Inc/usbdriver.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/usbdriver.hpp **** 
+   6:Cpp_Core/Inc/usbdriver.hpp **** #include "enums.hpp"
+   7:Cpp_Core/Inc/usbdriver.hpp **** #include "gamepad/GamepadState.hpp"
+   8:Cpp_Core/Inc/usbdriver.hpp **** #include "usb_board_link_protocol.h"
+   9:Cpp_Core/Inc/usbdriver.hpp **** #include "usb_report_rate_policy.hpp"
+  10:Cpp_Core/Inc/usbdriver.hpp **** 
+  11:Cpp_Core/Inc/usbdriver.hpp **** bool get_usb_mounted(void);
+  12:Cpp_Core/Inc/usbdriver.hpp **** bool get_usb_suspended(void);
+  13:Cpp_Core/Inc/usbdriver.hpp **** 
+  14:Cpp_Core/Inc/usbdriver.hpp **** class USBDriver
+  15:Cpp_Core/Inc/usbdriver.hpp **** {
+  16:Cpp_Core/Inc/usbdriver.hpp **** public:
+  17:Cpp_Core/Inc/usbdriver.hpp ****     USBDriver(const USBDriver &) = delete;
+  18:Cpp_Core/Inc/usbdriver.hpp ****     USBDriver &operator=(const USBDriver &) = delete;
+  19:Cpp_Core/Inc/usbdriver.hpp **** 
+  20:Cpp_Core/Inc/usbdriver.hpp ****     static USBDriver &getInstance()
+ 778              		.loc 6 20 23 view .LVU178
+  21:Cpp_Core/Inc/usbdriver.hpp ****     {
+  22:Cpp_Core/Inc/usbdriver.hpp ****         static USBDriver instance;
+ 779              		.loc 6 22 9 view .LVU179
+  23:Cpp_Core/Inc/usbdriver.hpp ****         return instance;
+ 780              		.loc 6 23 9 view .LVU180
+ 781              	.LBE89:
+ 110:Cpp_Core/Src/ch585_update_mode.cpp ****     USB_DRIVER.shutdown();
+ 782              		.loc 1 110 1 is_stmt 0 view .LVU181
+ 783 0000 38B5     		push	{r3, r4, r5, lr}
+ 784              	.LCFI18:
+ 785              		.cfi_def_cfa_offset 16
+ 786              		.cfi_offset 3, -16
+ 787              		.cfi_offset 4, -12
+ 788              		.cfi_offset 5, -8
+ 789              		.cfi_offset 14, -4
+ 110:Cpp_Core/Src/ch585_update_mode.cpp ****     USB_DRIVER.shutdown();
+ 790              		.loc 1 110 1 view .LVU182
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 23
+
+
+ 791 0002 0446     		mov	r4, r0
+ 792              		.loc 1 111 24 discriminator 1 view .LVU183
+ 793 0004 1148     		ldr	r0, .L56
+ 794              	.LVL53:
+ 795              		.loc 1 111 24 discriminator 1 view .LVU184
+ 796 0006 FFF7FEFF 		bl	_ZN9USBDriver8shutdownEv
+ 797              	.LVL54:
+ 112:Cpp_Core/Src/ch585_update_mode.cpp ****     USB_BOARD_LINK.shutdown();
+ 798              		.loc 1 112 5 is_stmt 1 view .LVU185
+ 799              	.LBB90:
+ 800              	.LBI90:
+ 801              		.file 7 "Cpp_Core/Inc/usb_board_link.hpp"
+   1:Cpp_Core/Inc/usb_board_link.hpp **** #ifndef USB_BOARD_LINK_HPP
+   2:Cpp_Core/Inc/usb_board_link.hpp **** #define USB_BOARD_LINK_HPP
+   3:Cpp_Core/Inc/usb_board_link.hpp **** 
+   4:Cpp_Core/Inc/usb_board_link.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/usb_board_link.hpp **** 
+   6:Cpp_Core/Inc/usb_board_link.hpp **** #include "ch585_role_bootstrap.hpp"
+   7:Cpp_Core/Inc/usb_board_link.hpp **** #include "usb_board_link_protocol.h"
+   8:Cpp_Core/Inc/usb_board_link.hpp **** 
+   9:Cpp_Core/Inc/usb_board_link.hpp **** class UsbBoardLink
+  10:Cpp_Core/Inc/usb_board_link.hpp **** {
+  11:Cpp_Core/Inc/usb_board_link.hpp **** public:
+  12:Cpp_Core/Inc/usb_board_link.hpp ****     UsbBoardLink(UsbBoardLink const &) = delete;
+  13:Cpp_Core/Inc/usb_board_link.hpp ****     void operator=(UsbBoardLink const &) = delete;
+  14:Cpp_Core/Inc/usb_board_link.hpp **** 
+  15:Cpp_Core/Inc/usb_board_link.hpp ****     static UsbBoardLink &getInstance()
+ 802              		.loc 7 15 26 view .LVU186
+  16:Cpp_Core/Inc/usb_board_link.hpp ****     {
+  17:Cpp_Core/Inc/usb_board_link.hpp ****         static UsbBoardLink instance;
+ 803              		.loc 7 17 9 view .LVU187
+  18:Cpp_Core/Inc/usb_board_link.hpp ****         return instance;
+ 804              		.loc 7 18 9 view .LVU188
+ 805              	.LBE90:
+ 113:Cpp_Core/Src/ch585_update_mode.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 114:Cpp_Core/Src/ch585_update_mode.cpp ****     RFBridgePort_Shutdown();
+ 115:Cpp_Core/Src/ch585_update_mode.cpp ****     BOARD_POWER.enterRecoveryUiState();
+ 806              		.loc 1 115 37 is_stmt 0 discriminator 1 view .LVU189
+ 807 000a 114D     		ldr	r5, .L56+4
+ 112:Cpp_Core/Src/ch585_update_mode.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 808              		.loc 1 112 28 discriminator 1 view .LVU190
+ 809 000c 1148     		ldr	r0, .L56+8
+ 810 000e FFF7FEFF 		bl	_ZN12UsbBoardLink8shutdownEv
+ 811              	.LVL55:
+ 113:Cpp_Core/Src/ch585_update_mode.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 812              		.loc 1 113 5 is_stmt 1 view .LVU191
+ 813              	.LBB91:
+ 814              	.LBI91:
+ 815              		.file 8 "Cpp_Core/Inc/ch585_role_bootstrap.hpp"
+   1:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** #ifndef CH585_ROLE_BOOTSTRAP_HPP
+   2:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** #define CH585_ROLE_BOOTSTRAP_HPP
+   3:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+   4:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+   6:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** enum class Ch585Role : uint8_t {
+   7:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     SafeIdle = 0x00,
+   8:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Rf = 0x01,
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 24
+
+
+   9:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Usb = 0x02,
+  10:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Maintenance = 0x03,
+  11:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** };
+  12:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  13:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** enum class Ch585BootstrapState : uint8_t {
+  14:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Off = 0,
+  15:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Booting = 1,
+  16:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Selecting = 2,
+  17:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Locked = 3,
+  18:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Failed = 4,
+  19:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** };
+  20:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  21:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** /* One invocation performs one UsbBoardLink SELECT_ROLE transaction. */
+  22:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** using Ch585RoleSelector = bool (*)(Ch585Role requestedRole);
+  23:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  24:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** class Ch585RoleBootstrap {
+  25:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** public:
+  26:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Ch585RoleBootstrap(const Ch585RoleBootstrap&) = delete;
+  27:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     Ch585RoleBootstrap& operator=(const Ch585RoleBootstrap&) = delete;
+  28:Cpp_Core/Inc/ch585_role_bootstrap.hpp **** 
+  29:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     static Ch585RoleBootstrap& getInstance()
+ 816              		.loc 8 29 32 view .LVU192
+  30:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     {
+  31:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         static Ch585RoleBootstrap instance;
+ 817              		.loc 8 31 9 view .LVU193
+  32:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         return instance;
+ 818              		.loc 8 32 9 view .LVU194
+ 819              	.LBE91:
+ 113:Cpp_Core/Src/ch585_update_mode.cpp ****     RFBridgePort_Shutdown();
+ 820              		.loc 1 113 34 is_stmt 0 discriminator 1 view .LVU195
+ 821 0012 1148     		ldr	r0, .L56+12
+ 822 0014 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 823              	.LVL56:
+ 114:Cpp_Core/Src/ch585_update_mode.cpp ****     BOARD_POWER.enterRecoveryUiState();
+ 824              		.loc 1 114 5 is_stmt 1 view .LVU196
+ 114:Cpp_Core/Src/ch585_update_mode.cpp ****     BOARD_POWER.enterRecoveryUiState();
+ 825              		.loc 1 114 26 is_stmt 0 view .LVU197
+ 826 0018 FFF7FEFF 		bl	_Z21RFBridgePort_Shutdownv
+ 827              	.LVL57:
+ 828              		.loc 1 115 5 is_stmt 1 view .LVU198
+ 829              	.LBB92:
+ 830              	.LBI92:
+ 831              		.file 9 "Cpp_Core/Inc/board_power.hpp"
+   1:Cpp_Core/Inc/board_power.hpp **** #ifndef BOARD_POWER_HPP
+   2:Cpp_Core/Inc/board_power.hpp **** #define BOARD_POWER_HPP
+   3:Cpp_Core/Inc/board_power.hpp **** 
+   4:Cpp_Core/Inc/board_power.hpp **** #include <stdbool.h>
+   5:Cpp_Core/Inc/board_power.hpp **** #include <stdint.h>
+   6:Cpp_Core/Inc/board_power.hpp **** 
+   7:Cpp_Core/Inc/board_power.hpp **** #ifdef __cplusplus
+   8:Cpp_Core/Inc/board_power.hpp **** extern "C" {
+   9:Cpp_Core/Inc/board_power.hpp **** #endif
+  10:Cpp_Core/Inc/board_power.hpp **** 
+  11:Cpp_Core/Inc/board_power.hpp **** /*
+  12:Cpp_Core/Inc/board_power.hpp ****  * Re-asserts PI4 without changing any other rail.  The bootloader leaves PI4
+  13:Cpp_Core/Inc/board_power.hpp ****  * high before jumping to the XIP application; this hook preserves that state
+  14:Cpp_Core/Inc/board_power.hpp ****  * as the application runtime is brought up.
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 25
+
+
+  15:Cpp_Core/Inc/board_power.hpp ****  */
+  16:Cpp_Core/Inc/board_power.hpp **** void BoardPower_EarlyMainHold(void);
+  17:Cpp_Core/Inc/board_power.hpp **** 
+  18:Cpp_Core/Inc/board_power.hpp **** /* Configures all board power-control pins to their fail-safe defaults. */
+  19:Cpp_Core/Inc/board_power.hpp **** void BoardPower_Initialize(void);
+  20:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetChargeEnabled(bool enabled);
+  21:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetHallEnabled(bool enabled);
+  22:Cpp_Core/Inc/board_power.hpp **** void BoardPower_EnableHallForAdc(void);
+  23:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetKeyLedEnabled(bool enabled);
+  24:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetAmbientLedEnabled(bool enabled);
+  25:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetLcdEnabled(bool enabled);
+  26:Cpp_Core/Inc/board_power.hpp **** 
+  27:Cpp_Core/Inc/board_power.hpp **** #ifdef __cplusplus
+  28:Cpp_Core/Inc/board_power.hpp **** }
+  29:Cpp_Core/Inc/board_power.hpp **** 
+  30:Cpp_Core/Inc/board_power.hpp **** class BoardPower {
+  31:Cpp_Core/Inc/board_power.hpp **** public:
+  32:Cpp_Core/Inc/board_power.hpp ****     BoardPower(const BoardPower&) = delete;
+  33:Cpp_Core/Inc/board_power.hpp ****     BoardPower& operator=(const BoardPower&) = delete;
+  34:Cpp_Core/Inc/board_power.hpp **** 
+  35:Cpp_Core/Inc/board_power.hpp ****     static BoardPower& getInstance()
+ 832              		.loc 9 35 24 view .LVU199
+  36:Cpp_Core/Inc/board_power.hpp ****     {
+  37:Cpp_Core/Inc/board_power.hpp ****         static BoardPower instance;
+ 833              		.loc 9 37 9 view .LVU200
+  38:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 834              		.loc 9 38 9 view .LVU201
+ 835              	.LBE92:
+ 836              		.loc 1 115 37 is_stmt 0 discriminator 1 view .LVU202
+ 837 001c 2846     		mov	r0, r5
+ 838 001e FFF7FEFF 		bl	_ZN10BoardPower20enterRecoveryUiStateEv
+ 839              	.LVL58:
+ 116:Cpp_Core/Src/ch585_update_mode.cpp ****     BOARD_POWER.setCh585Enabled(false);
+ 840              		.loc 1 116 5 is_stmt 1 view .LVU203
+ 841              	.LBB93:
+ 842              	.LBI93:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 843              		.loc 9 35 24 view .LVU204
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 844              		.loc 9 37 9 view .LVU205
+ 845              		.loc 9 38 9 view .LVU206
+ 846              	.LBE93:
+ 847              		.loc 1 116 32 is_stmt 0 discriminator 1 view .LVU207
+ 848 0022 0021     		movs	r1, #0
+ 849 0024 2846     		mov	r0, r5
+ 850 0026 FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 851              	.LVL59:
+ 117:Cpp_Core/Src/ch585_update_mode.cpp ****     HAL_Delay(CH585_POWER_OFF_MIN_MS);
+ 852              		.loc 1 117 5 is_stmt 1 view .LVU208
+ 853              		.loc 1 117 14 is_stmt 0 view .LVU209
+ 854 002a 1420     		movs	r0, #20
+ 855 002c FFF7FEFF 		bl	HAL_Delay
+ 856              	.LVL60:
+ 118:Cpp_Core/Src/ch585_update_mode.cpp ****     BOARD_POWER.setCh585Enabled(true);
+ 857              		.loc 1 118 5 is_stmt 1 view .LVU210
+ 858              	.LBB94:
+ 859              	.LBI94:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 26
+
+
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 860              		.loc 9 35 24 view .LVU211
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 861              		.loc 9 37 9 view .LVU212
+ 862              		.loc 9 38 9 view .LVU213
+ 863              	.LBE94:
+ 864              		.loc 1 118 32 is_stmt 0 discriminator 1 view .LVU214
+ 865 0030 2846     		mov	r0, r5
+ 866 0032 0121     		movs	r1, #1
+ 867 0034 FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 868              	.LVL61:
+ 119:Cpp_Core/Src/ch585_update_mode.cpp ****     manualIspPowered = true;
+ 869              		.loc 1 119 5 is_stmt 1 view .LVU215
+ 870              		.loc 1 119 22 is_stmt 0 view .LVU216
+ 871 0038 0123     		movs	r3, #1
+ 120:Cpp_Core/Src/ch585_update_mode.cpp ****     APP_STAGE("M01", "CH585 manual ISP powered; SPI role and USB host takeover suppressed");
+ 872              		.loc 1 120 5 view .LVU217
+ 873 003a 084A     		ldr	r2, .L56+16
+ 119:Cpp_Core/Src/ch585_update_mode.cpp ****     manualIspPowered = true;
+ 874              		.loc 1 119 22 view .LVU218
+ 875 003c 2370     		strb	r3, [r4]
+ 876              		.loc 1 120 5 is_stmt 1 view .LVU219
+ 877 003e 0849     		ldr	r1, .L56+20
+ 878 0040 0848     		ldr	r0, .L56+24
+ 121:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 879              		.loc 1 121 1 is_stmt 0 view .LVU220
+ 880 0042 BDE83840 		pop	{r3, r4, r5, lr}
+ 881              	.LCFI19:
+ 882              		.cfi_restore 14
+ 883              		.cfi_restore 5
+ 884              		.cfi_restore 4
+ 885              		.cfi_restore 3
+ 886              		.cfi_def_cfa_offset 0
+ 887              	.LVL62:
+ 120:Cpp_Core/Src/ch585_update_mode.cpp ****     APP_STAGE("M01", "CH585 manual ISP powered; SPI role and USB host takeover suppressed");
+ 888              		.loc 1 120 5 view .LVU221
+ 889 0046 FFF7FEBF 		b	AppStartupLog_Printf
+ 890              	.LVL63:
+ 891              	.L57:
+ 892 004a 00BF     		.align	2
+ 893              	.L56:
+ 894 004c 00000000 		.word	_ZZN9USBDriver11getInstanceEvE8instance
+ 895 0050 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 896 0054 00000000 		.word	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ 897 0058 00000000 		.word	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 898 005c 00000000 		.word	.LC12
+ 899 0060 26010000 		.word	.LC10
+ 900 0064 44000000 		.word	.LC13
+ 901              		.cfi_endproc
+ 902              	.LFE2432:
+ 904              		.section	.rodata._ZN15Ch585UpdateMode24shutdownManualIspRuntimeEv.str1.1,"aMS",%progbits,1
+ 905              	.LC14:
+ 906 0000 65786974 		.ascii	"exited isolated CH585 USB ISP state\000"
+ 906      65642069 
+ 906      736F6C61 
+ 906      74656420 
+ 906      43483538 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 27
+
+
+ 907              	.LC15:
+ 908 0024 4D303158 		.ascii	"M01X\000"
+ 908      00
+ 909              		.section	.text._ZN15Ch585UpdateMode24shutdownManualIspRuntimeEv,"ax",%progbits
+ 910              		.align	1
+ 911              		.global	_ZN15Ch585UpdateMode24shutdownManualIspRuntimeEv
+ 912              		.syntax unified
+ 913              		.thumb
+ 914              		.thumb_func
+ 916              	_ZN15Ch585UpdateMode24shutdownManualIspRuntimeEv:
+ 917              	.LVL64:
+ 918              	.LFB2433:
+ 122:Cpp_Core/Src/ch585_update_mode.cpp **** 
+ 123:Cpp_Core/Src/ch585_update_mode.cpp **** void Ch585UpdateMode::shutdownManualIspRuntime()
+ 124:Cpp_Core/Src/ch585_update_mode.cpp **** {
+ 919              		.loc 1 124 1 is_stmt 1 view -0
+ 920              		.cfi_startproc
+ 921              		@ args = 0, pretend = 0, frame = 0
+ 922              		@ frame_needed = 0, uses_anonymous_args = 0
+ 125:Cpp_Core/Src/ch585_update_mode.cpp ****     USB_DRIVER.shutdown();
+ 923              		.loc 1 125 5 view .LVU223
+ 924              	.LBB95:
+ 925              	.LBI95:
+  20:Cpp_Core/Inc/usbdriver.hpp ****     {
+ 926              		.loc 6 20 23 view .LVU224
+  22:Cpp_Core/Inc/usbdriver.hpp ****         return instance;
+ 927              		.loc 6 22 9 view .LVU225
+ 928              		.loc 6 23 9 view .LVU226
+ 929              	.LBE95:
+ 124:Cpp_Core/Src/ch585_update_mode.cpp ****     USB_DRIVER.shutdown();
+ 930              		.loc 1 124 1 is_stmt 0 view .LVU227
+ 931 0000 10B5     		push	{r4, lr}
+ 932              	.LCFI20:
+ 933              		.cfi_def_cfa_offset 8
+ 934              		.cfi_offset 4, -8
+ 935              		.cfi_offset 14, -4
+ 124:Cpp_Core/Src/ch585_update_mode.cpp ****     USB_DRIVER.shutdown();
+ 936              		.loc 1 124 1 view .LVU228
+ 937 0002 0446     		mov	r4, r0
+ 938              		.loc 1 125 24 discriminator 1 view .LVU229
+ 939 0004 0B48     		ldr	r0, .L59
+ 940              	.LVL65:
+ 941              		.loc 1 125 24 discriminator 1 view .LVU230
+ 942 0006 FFF7FEFF 		bl	_ZN9USBDriver8shutdownEv
+ 943              	.LVL66:
+ 126:Cpp_Core/Src/ch585_update_mode.cpp ****     USB_BOARD_LINK.shutdown();
+ 944              		.loc 1 126 5 is_stmt 1 view .LVU231
+ 945              	.LBB96:
+ 946              	.LBI96:
+  15:Cpp_Core/Inc/usb_board_link.hpp ****     {
+ 947              		.loc 7 15 26 view .LVU232
+  17:Cpp_Core/Inc/usb_board_link.hpp ****         return instance;
+ 948              		.loc 7 17 9 view .LVU233
+ 949              		.loc 7 18 9 view .LVU234
+ 950              	.LBE96:
+ 951              		.loc 1 126 28 is_stmt 0 discriminator 1 view .LVU235
+ 952 000a 0B48     		ldr	r0, .L59+4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 28
+
+
+ 953 000c FFF7FEFF 		bl	_ZN12UsbBoardLink8shutdownEv
+ 954              	.LVL67:
+ 127:Cpp_Core/Src/ch585_update_mode.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 955              		.loc 1 127 5 is_stmt 1 view .LVU236
+ 956              	.LBB97:
+ 957              	.LBI97:
+  29:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     {
+ 958              		.loc 8 29 32 view .LVU237
+  31:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         return instance;
+ 959              		.loc 8 31 9 view .LVU238
+ 960              		.loc 8 32 9 view .LVU239
+ 961              	.LBE97:
+ 962              		.loc 1 127 34 is_stmt 0 discriminator 1 view .LVU240
+ 963 0010 0A48     		ldr	r0, .L59+8
+ 964 0012 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 965              	.LVL68:
+ 128:Cpp_Core/Src/ch585_update_mode.cpp ****     RFBridgePort_Shutdown();
+ 966              		.loc 1 128 5 is_stmt 1 view .LVU241
+ 967              		.loc 1 128 26 is_stmt 0 view .LVU242
+ 968 0016 FFF7FEFF 		bl	_Z21RFBridgePort_Shutdownv
+ 969              	.LVL69:
+ 129:Cpp_Core/Src/ch585_update_mode.cpp ****     BOARD_POWER.setCh585Enabled(false);
+ 970              		.loc 1 129 5 is_stmt 1 view .LVU243
+ 971              	.LBB98:
+ 972              	.LBI98:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 973              		.loc 9 35 24 view .LVU244
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 974              		.loc 9 37 9 view .LVU245
+ 975              		.loc 9 38 9 view .LVU246
+ 976              	.LBE98:
+ 977              		.loc 1 129 32 is_stmt 0 discriminator 1 view .LVU247
+ 978 001a 0021     		movs	r1, #0
+ 979 001c 0848     		ldr	r0, .L59+12
+ 980 001e FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 981              	.LVL70:
+ 130:Cpp_Core/Src/ch585_update_mode.cpp ****     manualIspPowered = false;
+ 982              		.loc 1 130 5 is_stmt 1 view .LVU248
+ 983              		.loc 1 130 22 is_stmt 0 view .LVU249
+ 984 0022 0023     		movs	r3, #0
+ 131:Cpp_Core/Src/ch585_update_mode.cpp ****     APP_STAGE("M01X", "exited isolated CH585 USB ISP state");
+ 985              		.loc 1 131 5 view .LVU250
+ 986 0024 074A     		ldr	r2, .L59+16
+ 130:Cpp_Core/Src/ch585_update_mode.cpp ****     manualIspPowered = false;
+ 987              		.loc 1 130 22 view .LVU251
+ 988 0026 2370     		strb	r3, [r4]
+ 989              		.loc 1 131 5 is_stmt 1 view .LVU252
+ 990 0028 0749     		ldr	r1, .L59+20
+ 991 002a 0848     		ldr	r0, .L59+24
+ 132:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 992              		.loc 1 132 1 is_stmt 0 view .LVU253
+ 993 002c BDE81040 		pop	{r4, lr}
+ 994              	.LCFI21:
+ 995              		.cfi_restore 14
+ 996              		.cfi_restore 4
+ 997              		.cfi_def_cfa_offset 0
+ 998              	.LVL71:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 29
+
+
+ 131:Cpp_Core/Src/ch585_update_mode.cpp ****     APP_STAGE("M01X", "exited isolated CH585 USB ISP state");
+ 999              		.loc 1 131 5 view .LVU254
+ 1000 0030 FFF7FEBF 		b	AppStartupLog_Printf
+ 1001              	.LVL72:
+ 1002              	.L60:
+ 1003              		.align	2
+ 1004              	.L59:
+ 1005 0034 00000000 		.word	_ZZN9USBDriver11getInstanceEvE8instance
+ 1006 0038 00000000 		.word	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ 1007 003c 00000000 		.word	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 1008 0040 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 1009 0044 00000000 		.word	.LC14
+ 1010 0048 26010000 		.word	.LC10
+ 1011 004c 24000000 		.word	.LC15
+ 1012              		.cfi_endproc
+ 1013              	.LFE2433:
+ 1015              		.section	.rodata._ZN15Ch585UpdateMode16powerOnManualIspEv.str1.1,"aMS",%progbits,1
+ 1016              	.LC16:
+ 1017 0000 43483538 		.ascii	"CH585 powered for USB ISP; STM32 role takeover rema"
+ 1017      3520706F 
+ 1017      77657265 
+ 1017      6420666F 
+ 1017      72205553 
+ 1018 0033 696E7320 		.ascii	"ins suppressed\000"
+ 1018      73757070 
+ 1018      72657373 
+ 1018      656400
+ 1019              	.LC17:
+ 1020 0042 4D303400 		.ascii	"M04\000"
+ 1021              		.section	.text._ZN15Ch585UpdateMode16powerOnManualIspEv,"ax",%progbits
+ 1022              		.align	1
+ 1023              		.global	_ZN15Ch585UpdateMode16powerOnManualIspEv
+ 1024              		.syntax unified
+ 1025              		.thumb
+ 1026              		.thumb_func
+ 1028              	_ZN15Ch585UpdateMode16powerOnManualIspEv:
+ 1029              	.LVL73:
+ 1030              	.LFB2434:
+ 133:Cpp_Core/Src/ch585_update_mode.cpp **** 
+ 134:Cpp_Core/Src/ch585_update_mode.cpp **** bool Ch585UpdateMode::powerOnManualIsp()
+ 135:Cpp_Core/Src/ch585_update_mode.cpp **** {
+ 1031              		.loc 1 135 1 is_stmt 1 view -0
+ 1032              		.cfi_startproc
+ 1033              		@ args = 0, pretend = 0, frame = 0
+ 1034              		@ frame_needed = 0, uses_anonymous_args = 0
+ 136:Cpp_Core/Src/ch585_update_mode.cpp ****     if (!isManualIspActive()) return false;
+ 1035              		.loc 1 136 5 view .LVU256
+ 135:Cpp_Core/Src/ch585_update_mode.cpp ****     if (!isManualIspActive()) return false;
+ 1036              		.loc 1 135 1 is_stmt 0 view .LVU257
+ 1037 0000 38B5     		push	{r3, r4, r5, lr}
+ 1038              	.LCFI22:
+ 1039              		.cfi_def_cfa_offset 16
+ 1040              		.cfi_offset 3, -16
+ 1041              		.cfi_offset 4, -12
+ 1042              		.cfi_offset 5, -8
+ 1043              		.cfi_offset 14, -4
+ 135:Cpp_Core/Src/ch585_update_mode.cpp ****     if (!isManualIspActive()) return false;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 30
+
+
+ 1044              		.loc 1 135 1 view .LVU258
+ 1045 0002 0546     		mov	r5, r0
+ 1046              		.loc 1 136 27 view .LVU259
+ 1047 0004 FFF7FEFF 		bl	_ZNK15Ch585UpdateMode17isManualIspActiveEv
+ 1048              	.LVL74:
+ 1049              		.loc 1 136 5 discriminator 1 view .LVU260
+ 1050 0008 0446     		mov	r4, r0
+ 1051 000a F8B1     		cbz	r0, .L62
+ 137:Cpp_Core/Src/ch585_update_mode.cpp **** 
+ 138:Cpp_Core/Src/ch585_update_mode.cpp ****     USB_DRIVER.shutdown();
+ 1052              		.loc 1 138 5 is_stmt 1 view .LVU261
+ 1053              	.LBB99:
+ 1054              	.LBI99:
+  20:Cpp_Core/Inc/usbdriver.hpp ****     {
+ 1055              		.loc 6 20 23 view .LVU262
+  22:Cpp_Core/Inc/usbdriver.hpp ****         return instance;
+ 1056              		.loc 6 22 9 view .LVU263
+ 1057              		.loc 6 23 9 view .LVU264
+ 1058              	.LBE99:
+ 1059              		.loc 1 138 24 is_stmt 0 discriminator 1 view .LVU265
+ 1060 000c 1048     		ldr	r0, .L66
+ 1061 000e FFF7FEFF 		bl	_ZN9USBDriver8shutdownEv
+ 1062              	.LVL75:
+ 139:Cpp_Core/Src/ch585_update_mode.cpp ****     USB_BOARD_LINK.shutdown();
+ 1063              		.loc 1 139 5 is_stmt 1 view .LVU266
+ 1064              	.LBB100:
+ 1065              	.LBI100:
+  15:Cpp_Core/Inc/usb_board_link.hpp ****     {
+ 1066              		.loc 7 15 26 view .LVU267
+  17:Cpp_Core/Inc/usb_board_link.hpp ****         return instance;
+ 1067              		.loc 7 17 9 view .LVU268
+ 1068              		.loc 7 18 9 view .LVU269
+ 1069              	.LBE100:
+ 1070              		.loc 1 139 28 is_stmt 0 discriminator 1 view .LVU270
+ 1071 0012 1048     		ldr	r0, .L66+4
+ 1072 0014 FFF7FEFF 		bl	_ZN12UsbBoardLink8shutdownEv
+ 1073              	.LVL76:
+ 140:Cpp_Core/Src/ch585_update_mode.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 1074              		.loc 1 140 5 is_stmt 1 view .LVU271
+ 1075              	.LBB101:
+ 1076              	.LBI101:
+  29:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     {
+ 1077              		.loc 8 29 32 view .LVU272
+  31:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         return instance;
+ 1078              		.loc 8 31 9 view .LVU273
+ 1079              		.loc 8 32 9 view .LVU274
+ 1080              	.LBE101:
+ 1081              		.loc 1 140 34 is_stmt 0 discriminator 1 view .LVU275
+ 1082 0018 0F48     		ldr	r0, .L66+8
+ 1083 001a FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 1084              	.LVL77:
+ 141:Cpp_Core/Src/ch585_update_mode.cpp ****     RFBridgePort_Shutdown();
+ 1085              		.loc 1 141 5 is_stmt 1 view .LVU276
+ 1086              		.loc 1 141 26 is_stmt 0 view .LVU277
+ 1087 001e FFF7FEFF 		bl	_Z21RFBridgePort_Shutdownv
+ 1088              	.LVL78:
+ 142:Cpp_Core/Src/ch585_update_mode.cpp ****     BOARD_POWER.enterRecoveryUiState();
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 31
+
+
+ 1089              		.loc 1 142 5 is_stmt 1 view .LVU278
+ 1090              	.LBB102:
+ 1091              	.LBI102:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 1092              		.loc 9 35 24 view .LVU279
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 1093              		.loc 9 37 9 view .LVU280
+ 1094              		.loc 9 38 9 view .LVU281
+ 1095              	.LBE102:
+ 1096              		.loc 1 142 37 is_stmt 0 discriminator 1 view .LVU282
+ 1097 0022 0E48     		ldr	r0, .L66+12
+ 1098 0024 FFF7FEFF 		bl	_ZN10BoardPower20enterRecoveryUiStateEv
+ 1099              	.LVL79:
+ 143:Cpp_Core/Src/ch585_update_mode.cpp ****     BOARD_POWER.setCh585Enabled(false);
+ 1100              		.loc 1 143 5 is_stmt 1 view .LVU283
+ 1101              	.LBB103:
+ 1102              	.LBI103:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 1103              		.loc 9 35 24 view .LVU284
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 1104              		.loc 9 37 9 view .LVU285
+ 1105              		.loc 9 38 9 view .LVU286
+ 1106              	.LBE103:
+ 1107              		.loc 1 143 32 is_stmt 0 discriminator 1 view .LVU287
+ 1108 0028 0021     		movs	r1, #0
+ 1109 002a 0C48     		ldr	r0, .L66+12
+ 1110 002c FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 1111              	.LVL80:
+ 144:Cpp_Core/Src/ch585_update_mode.cpp ****     HAL_Delay(CH585_POWER_OFF_MIN_MS);
+ 1112              		.loc 1 144 5 is_stmt 1 view .LVU288
+ 1113              		.loc 1 144 14 is_stmt 0 view .LVU289
+ 1114 0030 1420     		movs	r0, #20
+ 1115 0032 FFF7FEFF 		bl	HAL_Delay
+ 1116              	.LVL81:
+ 145:Cpp_Core/Src/ch585_update_mode.cpp ****     BOARD_POWER.setCh585Enabled(true);
+ 1117              		.loc 1 145 5 is_stmt 1 view .LVU290
+ 1118              	.LBB104:
+ 1119              	.LBI104:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 1120              		.loc 9 35 24 view .LVU291
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 1121              		.loc 9 37 9 view .LVU292
+ 1122              		.loc 9 38 9 view .LVU293
+ 1123              	.LBE104:
+ 1124              		.loc 1 145 32 is_stmt 0 discriminator 1 view .LVU294
+ 1125 0036 0121     		movs	r1, #1
+ 1126 0038 0848     		ldr	r0, .L66+12
+ 1127 003a FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 1128              	.LVL82:
+ 146:Cpp_Core/Src/ch585_update_mode.cpp ****     manualIspPowered = true;
+ 1129              		.loc 1 146 5 is_stmt 1 view .LVU295
+ 1130              		.loc 1 146 22 is_stmt 0 view .LVU296
+ 1131 003e 0123     		movs	r3, #1
+ 147:Cpp_Core/Src/ch585_update_mode.cpp ****     APP_STAGE("M04", "CH585 powered for USB ISP; STM32 role takeover remains suppressed");
+ 1132              		.loc 1 147 5 view .LVU297
+ 1133 0040 074A     		ldr	r2, .L66+16
+ 1134 0042 0849     		ldr	r1, .L66+20
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 32
+
+
+ 1135 0044 0848     		ldr	r0, .L66+24
+ 146:Cpp_Core/Src/ch585_update_mode.cpp ****     manualIspPowered = true;
+ 1136              		.loc 1 146 22 view .LVU298
+ 1137 0046 2B70     		strb	r3, [r5]
+ 1138              		.loc 1 147 5 is_stmt 1 view .LVU299
+ 1139 0048 FFF7FEFF 		bl	AppStartupLog_Printf
+ 1140              	.LVL83:
+ 148:Cpp_Core/Src/ch585_update_mode.cpp ****     return true;
+ 1141              		.loc 1 148 5 view .LVU300
+ 1142              	.L62:
+ 149:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 1143              		.loc 1 149 1 is_stmt 0 view .LVU301
+ 1144 004c 2046     		mov	r0, r4
+ 1145 004e 38BD     		pop	{r3, r4, r5, pc}
+ 1146              	.LVL84:
+ 1147              	.L67:
+ 1148              		.loc 1 149 1 view .LVU302
+ 1149              		.align	2
+ 1150              	.L66:
+ 1151 0050 00000000 		.word	_ZZN9USBDriver11getInstanceEvE8instance
+ 1152 0054 00000000 		.word	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ 1153 0058 00000000 		.word	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 1154 005c 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 1155 0060 00000000 		.word	.LC16
+ 1156 0064 26010000 		.word	.LC10
+ 1157 0068 42000000 		.word	.LC17
+ 1158              		.cfi_endproc
+ 1159              	.LFE2434:
+ 1161              		.section	.rodata._ZN15Ch585UpdateMode17powerOffManualIspEv.str1.1,"aMS",%progbits,1
+ 1162              	.LC18:
+ 1163 0000 43483538 		.ascii	"CH585 USB ISP retry requested; CH585 held off\000"
+ 1163      35205553 
+ 1163      42204953 
+ 1163      50207265 
+ 1163      74727920 
+ 1164              	.LC19:
+ 1165 002e 4D303500 		.ascii	"M05\000"
+ 1166              		.section	.text._ZN15Ch585UpdateMode17powerOffManualIspEv,"ax",%progbits
+ 1167              		.align	1
+ 1168              		.global	_ZN15Ch585UpdateMode17powerOffManualIspEv
+ 1169              		.syntax unified
+ 1170              		.thumb
+ 1171              		.thumb_func
+ 1173              	_ZN15Ch585UpdateMode17powerOffManualIspEv:
+ 1174              	.LVL85:
+ 1175              	.LFB2435:
+ 150:Cpp_Core/Src/ch585_update_mode.cpp **** 
+ 151:Cpp_Core/Src/ch585_update_mode.cpp **** void Ch585UpdateMode::powerOffManualIsp()
+ 152:Cpp_Core/Src/ch585_update_mode.cpp **** {
+ 1176              		.loc 1 152 1 is_stmt 1 view -0
+ 1177              		.cfi_startproc
+ 1178              		@ args = 0, pretend = 0, frame = 0
+ 1179              		@ frame_needed = 0, uses_anonymous_args = 0
+ 153:Cpp_Core/Src/ch585_update_mode.cpp ****     if (!isManualIspActive()) return;
+ 1180              		.loc 1 153 5 view .LVU304
+ 152:Cpp_Core/Src/ch585_update_mode.cpp ****     if (!isManualIspActive()) return;
+ 1181              		.loc 1 152 1 is_stmt 0 view .LVU305
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 33
+
+
+ 1182 0000 10B5     		push	{r4, lr}
+ 1183              	.LCFI23:
+ 1184              		.cfi_def_cfa_offset 8
+ 1185              		.cfi_offset 4, -8
+ 1186              		.cfi_offset 14, -4
+ 152:Cpp_Core/Src/ch585_update_mode.cpp ****     if (!isManualIspActive()) return;
+ 1187              		.loc 1 152 1 view .LVU306
+ 1188 0002 0446     		mov	r4, r0
+ 1189              		.loc 1 153 27 view .LVU307
+ 1190 0004 FFF7FEFF 		bl	_ZNK15Ch585UpdateMode17isManualIspActiveEv
+ 1191              	.LVL86:
+ 1192              		.loc 1 153 5 discriminator 1 view .LVU308
+ 1193 0008 B8B1     		cbz	r0, .L68
+ 154:Cpp_Core/Src/ch585_update_mode.cpp **** 
+ 155:Cpp_Core/Src/ch585_update_mode.cpp ****     USB_DRIVER.shutdown();
+ 1194              		.loc 1 155 5 is_stmt 1 view .LVU309
+ 1195              	.LBB105:
+ 1196              	.LBI105:
+  20:Cpp_Core/Inc/usbdriver.hpp ****     {
+ 1197              		.loc 6 20 23 view .LVU310
+  22:Cpp_Core/Inc/usbdriver.hpp ****         return instance;
+ 1198              		.loc 6 22 9 view .LVU311
+ 1199              		.loc 6 23 9 view .LVU312
+ 1200              	.LBE105:
+ 1201              		.loc 1 155 24 is_stmt 0 discriminator 1 view .LVU313
+ 1202 000a 0C48     		ldr	r0, .L70
+ 1203 000c FFF7FEFF 		bl	_ZN9USBDriver8shutdownEv
+ 1204              	.LVL87:
+ 156:Cpp_Core/Src/ch585_update_mode.cpp ****     USB_BOARD_LINK.shutdown();
+ 1205              		.loc 1 156 5 is_stmt 1 view .LVU314
+ 1206              	.LBB106:
+ 1207              	.LBI106:
+  15:Cpp_Core/Inc/usb_board_link.hpp ****     {
+ 1208              		.loc 7 15 26 view .LVU315
+  17:Cpp_Core/Inc/usb_board_link.hpp ****         return instance;
+ 1209              		.loc 7 17 9 view .LVU316
+ 1210              		.loc 7 18 9 view .LVU317
+ 1211              	.LBE106:
+ 1212              		.loc 1 156 28 is_stmt 0 discriminator 1 view .LVU318
+ 1213 0010 0B48     		ldr	r0, .L70+4
+ 1214 0012 FFF7FEFF 		bl	_ZN12UsbBoardLink8shutdownEv
+ 1215              	.LVL88:
+ 157:Cpp_Core/Src/ch585_update_mode.cpp ****     CH585_ROLE_BOOTSTRAP.shutdown();
+ 1216              		.loc 1 157 5 is_stmt 1 view .LVU319
+ 1217              	.LBB107:
+ 1218              	.LBI107:
+  29:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****     {
+ 1219              		.loc 8 29 32 view .LVU320
+  31:Cpp_Core/Inc/ch585_role_bootstrap.hpp ****         return instance;
+ 1220              		.loc 8 31 9 view .LVU321
+ 1221              		.loc 8 32 9 view .LVU322
+ 1222              	.LBE107:
+ 1223              		.loc 1 157 34 is_stmt 0 discriminator 1 view .LVU323
+ 1224 0016 0B48     		ldr	r0, .L70+8
+ 1225 0018 FFF7FEFF 		bl	_ZN18Ch585RoleBootstrap8shutdownEv
+ 1226              	.LVL89:
+ 158:Cpp_Core/Src/ch585_update_mode.cpp ****     RFBridgePort_Shutdown();
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 34
+
+
+ 1227              		.loc 1 158 5 is_stmt 1 view .LVU324
+ 1228              		.loc 1 158 26 is_stmt 0 view .LVU325
+ 1229 001c FFF7FEFF 		bl	_Z21RFBridgePort_Shutdownv
+ 1230              	.LVL90:
+ 159:Cpp_Core/Src/ch585_update_mode.cpp ****     BOARD_POWER.setCh585Enabled(false);
+ 1231              		.loc 1 159 5 is_stmt 1 view .LVU326
+ 1232              	.LBB108:
+ 1233              	.LBI108:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 1234              		.loc 9 35 24 view .LVU327
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 1235              		.loc 9 37 9 view .LVU328
+ 1236              		.loc 9 38 9 view .LVU329
+ 1237              	.LBE108:
+ 1238              		.loc 1 159 32 is_stmt 0 discriminator 1 view .LVU330
+ 1239 0020 0021     		movs	r1, #0
+ 1240 0022 0948     		ldr	r0, .L70+12
+ 1241 0024 FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 1242              	.LVL91:
+ 160:Cpp_Core/Src/ch585_update_mode.cpp ****     manualIspPowered = false;
+ 1243              		.loc 1 160 5 is_stmt 1 view .LVU331
+ 1244              		.loc 1 160 22 is_stmt 0 view .LVU332
+ 1245 0028 0023     		movs	r3, #0
+ 161:Cpp_Core/Src/ch585_update_mode.cpp ****     APP_STAGE("M05", "CH585 USB ISP retry requested; CH585 held off");
+ 1246              		.loc 1 161 5 view .LVU333
+ 1247 002a 084A     		ldr	r2, .L70+16
+ 160:Cpp_Core/Src/ch585_update_mode.cpp ****     manualIspPowered = false;
+ 1248              		.loc 1 160 22 view .LVU334
+ 1249 002c 2370     		strb	r3, [r4]
+ 1250              		.loc 1 161 5 is_stmt 1 view .LVU335
+ 1251 002e 0849     		ldr	r1, .L70+20
+ 1252 0030 0848     		ldr	r0, .L70+24
+ 162:Cpp_Core/Src/ch585_update_mode.cpp **** }
+ 1253              		.loc 1 162 1 is_stmt 0 view .LVU336
+ 1254 0032 BDE81040 		pop	{r4, lr}
+ 1255              	.LCFI24:
+ 1256              		.cfi_remember_state
+ 1257              		.cfi_restore 14
+ 1258              		.cfi_restore 4
+ 1259              		.cfi_def_cfa_offset 0
+ 1260              	.LVL92:
+ 161:Cpp_Core/Src/ch585_update_mode.cpp ****     APP_STAGE("M05", "CH585 USB ISP retry requested; CH585 held off");
+ 1261              		.loc 1 161 5 view .LVU337
+ 1262 0036 FFF7FEBF 		b	AppStartupLog_Printf
+ 1263              	.LVL93:
+ 1264              	.L68:
+ 1265              	.LCFI25:
+ 1266              		.cfi_restore_state
+ 1267              		.loc 1 162 1 view .LVU338
+ 1268 003a 10BD     		pop	{r4, pc}
+ 1269              	.LVL94:
+ 1270              	.L71:
+ 1271              		.loc 1 162 1 view .LVU339
+ 1272              		.align	2
+ 1273              	.L70:
+ 1274 003c 00000000 		.word	_ZZN9USBDriver11getInstanceEvE8instance
+ 1275 0040 00000000 		.word	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 35
+
+
+ 1276 0044 00000000 		.word	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 1277 0048 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 1278 004c 00000000 		.word	.LC18
+ 1279 0050 26010000 		.word	.LC10
+ 1280 0054 2E000000 		.word	.LC19
+ 1281              		.cfi_endproc
+ 1282              	.LFE2435:
+ 1284              		.weak	_ZZN9USBDriver11getInstanceEvE8instance
+ 1285              		.section	.data._ZZN9USBDriver11getInstanceEvE8instance,"awG",%progbits,_ZZN9USBDriver11getInstance
+ 1286              		.align	2
+ 1289              	_ZZN9USBDriver11getInstanceEvE8instance:
+ 1290 0000 00       		.byte	0
+ 1291 0001 00       		.byte	0
+ 1292 0002 0000     		.space	2
+ 1293 0004 00000000 		.word	0
+ 1294 0008 00       		.byte	0
+ 1295 0009 00       		.byte	0
+ 1296 000a 00       		.byte	0
+ 1297 000b 00       		.byte	0
+ 1298 000c E803     		.short	1000
+ 1299 000e 01       		.byte	1
+ 1300 000f 00       		.byte	0
+ 1301 0010 00       		.byte	0
+ 1302 0011 000000   		.space	3
+ 1303              		.weak	_ZZN12UsbBoardLink11getInstanceEvE8instance
+ 1304              		.section	.bss._ZZN12UsbBoardLink11getInstanceEvE8instance,"awG",%nobits,_ZZN12UsbBoardLink11getIns
+ 1305              		.align	2
+ 1308              	_ZZN12UsbBoardLink11getInstanceEvE8instance:
+ 1309 0000 00000000 		.space	148
+ 1309      00000000 
+ 1309      00000000 
+ 1309      00000000 
+ 1309      00000000 
+ 1310              		.weak	_ZGVZN7Storage11getInstanceEvE8instance
+ 1311              		.section	.bss._ZGVZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZGVZN7Storage11getInstanceEvE
+ 1312              		.align	2
+ 1315              	_ZGVZN7Storage11getInstanceEvE8instance:
+ 1316 0000 00000000 		.space	4
+ 1317              		.weak	_ZZN7Storage11getInstanceEvE8instance
+ 1318              		.section	.bss._ZZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZZN7Storage11getInstanceEvE8ins
+ 1319              		.align	2
+ 1322              	_ZZN7Storage11getInstanceEvE8instance:
+ 1323 0000 00000000 		.space	36484
+ 1323      00000000 
+ 1323      00000000 
+ 1323      00000000 
+ 1323      00000000 
+ 1324              		.weak	_ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance
+ 1325              		.section	.bss._ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance,"awG",%nobits,_ZZN19Ch585Firmware
+ 1326              		.align	2
+ 1329              	_ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance:
+ 1330 0000 00000000 		.space	48
+ 1330      00000000 
+ 1330      00000000 
+ 1330      00000000 
+ 1330      00000000 
+ 1331              		.weak	_ZZN14Ch585IapClient11getInstanceEvE8instance
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 36
+
+
+ 1332              		.section	.bss._ZZN14Ch585IapClient11getInstanceEvE8instance,"awG",%nobits,_ZZN14Ch585IapClient11ge
+ 1333              		.align	2
+ 1336              	_ZZN14Ch585IapClient11getInstanceEvE8instance:
+ 1337 0000 00000000 		.space	16
+ 1337      00000000 
+ 1337      00000000 
+ 1337      00000000 
+ 1338              		.weak	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+ 1339              		.section	.bss._ZZN18Ch585RoleBootstrap11getInstanceEvE8instance,"awG",%nobits,_ZZN18Ch585RoleBoots
+ 1340              		.align	2
+ 1343              	_ZZN18Ch585RoleBootstrap11getInstanceEvE8instance:
+ 1344 0000 00000000 		.space	8
+ 1344      00000000 
+ 1345              		.weak	_ZZN10BoardPower11getInstanceEvE8instance
+ 1346              		.section	.data._ZZN10BoardPower11getInstanceEvE8instance,"awG",%progbits,_ZZN10BoardPower11getInst
+ 1349              	_ZZN10BoardPower11getInstanceEvE8instance:
+ 1350 0000 00       		.byte	0
+ 1351 0001 00       		.byte	0
+ 1352 0002 00       		.byte	0
+ 1353 0003 00       		.byte	0
+ 1354 0004 00       		.byte	0
+ 1355 0005 00       		.byte	0
+ 1356 0006 00       		.byte	0
+ 1357 0007 00       		.byte	0
+ 1358 0008 00       		.byte	0
+ 1359 0009 01       		.byte	1
+ 1360 000a 00       		.byte	0
+ 1361              		.text
+ 1362              	.Letext0:
+ 1363              		.file 10 "Cpp_Core/Inc/ch585_update_mode.hpp"
+ 1364              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1365              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1366              		.file 13 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 1367              		.file 14 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1368              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 1369              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 1370              		.file 17 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 1371              		.file 18 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 1372              		.file 19 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 1373              		.file 20 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 1374              		.file 21 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 1375              		.file 22 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 1376              		.file 23 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 1377              		.file 24 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stdarg.h"
+ 1378              		.file 25 "Cpp_Core/Inc/enums.hpp"
+ 1379              		.file 26 "../common/ch585_staging.h"
+ 1380              		.file 27 "Cpp_Core/Inc/config.hpp"
+ 1381              		.file 28 "../common/usb_board_link_protocol.h"
+ 1382              		.file 29 "Cpp_Core/Inc/gamepad/GamepadState.hpp"
+ 1383              		.file 30 "Cpp_Core/Inc/usb_report_rate_policy.hpp"
+ 1384              		.file 31 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdio.h"
+ 1385              		.file 32 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ 1386              		.file 33 "<built-in>"
+ 1387              		.file 34 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ 1388              		.file 35 "Cpp_Core/Inc/rf_bridge_port.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 37
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 ch585_update_mode.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:25     .text.AppStartupLog_Printf:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:30     .text.AppStartupLog_Printf:00000000 AppStartupLog_Printf
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:102    .text.AppStartupLog_Printf:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:108    .text._ZN7Storage11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:114    .text._ZN7Storage11getInstanceEv:00000000 _ZN7Storage11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:164    .text._ZN7Storage11getInstanceEv:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1315   .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 _ZGVZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1322   .bss._ZZN7Storage11getInstanceEvE8instance:00000000 _ZZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:170    .text._ZN12_GLOBAL__N_1L18persistServiceFlagEhb:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:175    .text._ZN12_GLOBAL__N_1L18persistServiceFlagEhb:00000000 _ZN12_GLOBAL__N_1L18persistServiceFlagEhb
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:251    .text._ZNK15Ch585UpdateMode14isIapConfirmedEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:257    .text._ZNK15Ch585UpdateMode14isIapConfirmedEv:00000000 _ZNK15Ch585UpdateMode14isIapConfirmedEv
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:320    .text._ZNK15Ch585UpdateMode14isIapConfirmedEv:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1329   .bss._ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance:00000000 _ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:325    .text._ZNK15Ch585UpdateMode17isManualIspActiveEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:331    .text._ZNK15Ch585UpdateMode17isManualIspActiveEv:00000000 _ZNK15Ch585UpdateMode17isManualIspActiveEv
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:404    .text._ZNK15Ch585UpdateMode17isManualIspActiveEv:0000002c $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:409    .text._ZNK15Ch585UpdateMode18isManualIspPoweredEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:415    .text._ZNK15Ch585UpdateMode18isManualIspPoweredEv:00000000 _ZNK15Ch585UpdateMode18isManualIspPoweredEv
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:446    .text._ZNK15Ch585UpdateMode20isManualEntryVisibleEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:452    .text._ZNK15Ch585UpdateMode20isManualEntryVisibleEv:00000000 _ZNK15Ch585UpdateMode20isManualEntryVisibleEv
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:521    .text._ZNK15Ch585UpdateMode20isManualEntryVisibleEv:00000028 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:526    .text._ZN15Ch585UpdateMode16requestManualIspEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:532    .text._ZN15Ch585UpdateMode16requestManualIspEv:00000000 _ZN15Ch585UpdateMode16requestManualIspEv
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:577    .text._ZN15Ch585UpdateMode20requestExitManualIspEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:583    .text._ZN15Ch585UpdateMode20requestExitManualIspEv:00000000 _ZN15Ch585UpdateMode20requestExitManualIspEv
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:713    .text._ZN15Ch585UpdateMode20requestExitManualIspEv:00000070 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1336   .bss._ZZN14Ch585IapClient11getInstanceEvE8instance:00000000 _ZZN14Ch585IapClient11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:729    .text._ZN15Ch585UpdateMode15setIapConfirmedEb:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:735    .text._ZN15Ch585UpdateMode15setIapConfirmedEb:00000000 _ZN15Ch585UpdateMode15setIapConfirmedEb
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:761    .text._ZN15Ch585UpdateMode21setupManualIspRuntimeEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:767    .text._ZN15Ch585UpdateMode21setupManualIspRuntimeEv:00000000 _ZN15Ch585UpdateMode21setupManualIspRuntimeEv
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:894    .text._ZN15Ch585UpdateMode21setupManualIspRuntimeEv:0000004c $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1289   .data._ZZN9USBDriver11getInstanceEvE8instance:00000000 _ZZN9USBDriver11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1349   .data._ZZN10BoardPower11getInstanceEvE8instance:00000000 _ZZN10BoardPower11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1308   .bss._ZZN12UsbBoardLink11getInstanceEvE8instance:00000000 _ZZN12UsbBoardLink11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1343   .bss._ZZN18Ch585RoleBootstrap11getInstanceEvE8instance:00000000 _ZZN18Ch585RoleBootstrap11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:910    .text._ZN15Ch585UpdateMode24shutdownManualIspRuntimeEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:916    .text._ZN15Ch585UpdateMode24shutdownManualIspRuntimeEv:00000000 _ZN15Ch585UpdateMode24shutdownManualIspRuntimeEv
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1005   .text._ZN15Ch585UpdateMode24shutdownManualIspRuntimeEv:00000034 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1022   .text._ZN15Ch585UpdateMode16powerOnManualIspEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1028   .text._ZN15Ch585UpdateMode16powerOnManualIspEv:00000000 _ZN15Ch585UpdateMode16powerOnManualIspEv
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1151   .text._ZN15Ch585UpdateMode16powerOnManualIspEv:00000050 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1167   .text._ZN15Ch585UpdateMode17powerOffManualIspEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1173   .text._ZN15Ch585UpdateMode17powerOffManualIspEv:00000000 _ZN15Ch585UpdateMode17powerOffManualIspEv
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1274   .text._ZN15Ch585UpdateMode17powerOffManualIspEv:0000003c $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1286   .data._ZZN9USBDriver11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1305   .bss._ZZN12UsbBoardLink11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1312   .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1319   .bss._ZZN7Storage11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1326   .bss._ZZN19Ch585FirmwareUpdate11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1333   .bss._ZZN14Ch585IapClient11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s:1340   .bss._ZZN18Ch585RoleBootstrap11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnQkv5K.s 			page 38
+
+
+printf
+vprintf
+puts
+__cxa_guard_acquire
+__cxa_guard_release
+_ZN7Storage10saveConfigEv
+_ZNK19Ch585FirmwareUpdate15hasAppliedImageEv
+_ZNK19Ch585FirmwareUpdate9hasFailedEv
+_ZNK19Ch585FirmwareUpdate9isPendingEv
+_ZN14Ch585IapClient5probeEv
+_ZN14Ch585IapClient19validateApplicationEv
+_ZN19Ch585FirmwareUpdate25acknowledgeManualRecoveryEv
+_ZN9USBDriver8shutdownEv
+_ZN12UsbBoardLink8shutdownEv
+_ZN18Ch585RoleBootstrap8shutdownEv
+_Z21RFBridgePort_Shutdownv
+_ZN10BoardPower20enterRecoveryUiStateEv
+_ZN10BoardPower15setCh585EnabledEb
+HAL_Delay

@@ -23,7 +23,7 @@ public:
     void setButtonPerformanceMonitoringCallback(
         ButtonPerformanceMonitoringCallback callback);
     void setADCBtnTestCallback(ADCBtnTestCallback callback);
-    void startButtonWorkers();
+    bool startButtonWorkers();
     void stopButtonWorkers();
     bool isActive() const;
     uint8_t getTotalButtonCount() const;

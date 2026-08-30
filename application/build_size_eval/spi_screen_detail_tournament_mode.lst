@@ -1,0 +1,2380 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_detail_tournament_mode.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp"
+  19              		.section	.rodata._ZL17renderPairingPageP13ST7789_HandleRK13ScreenUiStyle14RfPairingState.str1.1,"a
+  20              	.LC0:
+  21 0000 57616974 		.ascii	"Waiting RX...\000"
+  21      696E6720 
+  21      52582E2E 
+  21      2E00
+  22              	.LC1:
+  23 000e 53746172 		.ascii	"Starting...\000"
+  23      74696E67 
+  23      2E2E2E00 
+  24              	.LC2:
+  25 001a 50616972 		.ascii	"Pair mode on\000"
+  25      206D6F64 
+  25      65206F6E 
+  25      00
+  26              	.LC3:
+  27 0027 50616972 		.ascii	"Pairing Success\000"
+  27      696E6720 
+  27      53756363 
+  27      65737300 
+  28              	.LC4:
+  29 0037 45786974 		.ascii	"Exit in %lus\000"
+  29      20696E20 
+  29      256C7573 
+  29      00
+  30              	.LC5:
+  31 0044 54696D65 		.ascii	"Timeout\000"
+  31      6F757400 
+  32              	.LC6:
+  33 004c 54582045 		.ascii	"TX Error\000"
+  33      72726F72 
+  33      00
+  34              	.LC7:
+  35 0055 636D6420 		.ascii	"cmd %02X\000"
+  35      25303258 
+  35      00
+  36              	.LC8:
+  37 005e 72656173 		.ascii	"reason %02X\000"
+  37      6F6E2025 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 2
+
+
+  37      30325800 
+  38              	.LC9:
+  39 006a 52656164 		.ascii	"Ready\000"
+  39      7900
+  40              	.LC10:
+  41 0070 50616972 		.ascii	"Pair 2.4G\000"
+  41      20322E34 
+  41      4700
+  42              		.section	.text._ZL17renderPairingPageP13ST7789_HandleRK13ScreenUiStyle14RfPairingState,"ax",%progb
+  43              		.align	1
+  44              		.syntax unified
+  45              		.thumb
+  46              		.thumb_func
+  48              	_ZL17renderPairingPageP13ST7789_HandleRK13ScreenUiStyle14RfPairingState:
+  49              	.LVL0:
+  50              	.LFB2388:
+   1:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** #include "screen_control/spi_screen_detail_entries.hpp"
+   2:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+   3:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** #include <stdio.h>
+   4:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+   5:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** #include "board_mode.hpp"
+   6:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** #include "board_cfg.h"
+   7:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** #include "storagemanager.hpp"
+   8:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** #include "connection_manager.hpp"
+   9:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** #include "system_logger.h"
+  10:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** #include "screen_control/spi_screen_detail_render_helpers.hpp"
+  11:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** #include "screen_control/spi_screen_ui_common.hpp"
+  12:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+  13:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** extern "C" uint32_t HAL_GetTick(void);
+  14:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+  15:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** static constexpr uint32_t kPairPageLocalTimeoutMs = 65000u;
+  16:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** static constexpr uint32_t kPairPageSuccessHoldMs = 5000u;
+  17:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+  18:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** enum class ConnectionSettingKind : uint8_t {
+  19:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     Setting = 0,
+  20:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     PairAction = 1,
+  21:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** };
+  22:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+  23:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** struct ConnectionSettingItem {
+  24:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     ConnectionSettingKind kind;
+  25:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     ConnectionMode mode;
+  26:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     WirelessReportRate rate;
+  27:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const char* label;
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** };
+  29:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** static const ConnectionSettingItem kConnectionItems[] = {
+  31:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     {ConnectionSettingKind::Setting, CONNECTION_MODE_USB, RFM_RATE_1K, "USB"},
+  32:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     {ConnectionSettingKind::Setting, CONNECTION_MODE_RF24G, RFM_RATE_1K, "2.4G 1K"},
+  33:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     {ConnectionSettingKind::Setting, CONNECTION_MODE_RF24G, RFM_RATE_2K, "2.4G 2K"},
+  34:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     {ConnectionSettingKind::Setting, CONNECTION_MODE_RF24G, RFM_RATE_4K, "2.4G 4K"},
+  35:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     {ConnectionSettingKind::Setting, CONNECTION_MODE_RF24G, RFM_RATE_8K, "2.4G 8K"},
+  36:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     {ConnectionSettingKind::PairAction, CONNECTION_MODE_RF24G, RFM_RATE_1K, "Pair 2.4G"},
+  37:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** };
+  38:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+  39:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** static bool g_pairPageActive = false;
+  40:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** static uint32_t g_pairPageSuccessAtMs = 0u;
+  41:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** static bool g_pairPageSuccessConsumed = false;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 3
+
+
+  42:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+  43:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** static uint8_t connectionItemCount(void) {
+  44:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     return (uint8_t)(sizeof(kConnectionItems) / sizeof(kConnectionItems[0]));
+  45:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** }
+  46:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+  47:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** static uint8_t selectedConnectionIndex(void) {
+  48:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const ConnectionMode mode =
+  49:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         (BOARD_MODE.isStable() &&
+  50:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****          BOARD_MODE.current() == BoardMode::Rf)
+  51:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             ? CONNECTION_MODE_RF24G
+  52:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             : CONNECTION_MODE_USB;
+  53:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const WirelessReportRate rate = STORAGE_MANAGER.getWirelessReportRate();
+  54:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+  55:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (kConnectionItems[i].kind != ConnectionSettingKind::Setting) continue;
+  56:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (kConnectionItems[i].mode != mode) continue;
+  57:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (mode == CONNECTION_MODE_USB || kConnectionItems[i].rate == rate) {
+  58:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             return i;
+  59:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         }
+  60:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+  61:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     return 0;
+  62:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** }
+  63:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+  64:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** uint8_t ScreenDetailTournament_InitIndex(void) {
+  65:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     g_pairPageActive = false;
+  66:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     g_pairPageSuccessAtMs = 0u;
+  67:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     g_pairPageSuccessConsumed = (CONNECTION_MANAGER.getRfPairingState() == RfPairingState::PairOk);
+  68:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     return selectedConnectionIndex();
+  69:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** }
+  70:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+  71:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** void ScreenDetailTournament_Rotate(uint8_t* ioIndex, int8_t det) {
+  72:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (!ioIndex) return;
+  73:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (g_pairPageActive) return;
+  74:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     int32_t idx = (int32_t)(*ioIndex) + det;
+  75:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (idx < 0) idx = 0;
+  76:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (idx >= (int32_t)connectionItemCount()) {
+  77:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         idx = (int32_t)connectionItemCount() - 1;
+  78:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+  79:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     *ioIndex = (uint8_t)idx;
+  80:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** }
+  81:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+  82:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** static void renderPairingPage(ST7789_Handle* lcd, const ScreenUiStyle& style, RfPairingState displa
+  51              		.loc 1 82 108 view -0
+  52              		.cfi_startproc
+  53              		@ args = 0, pretend = 0, frame = 72
+  54              		@ frame_needed = 0, uses_anonymous_args = 0
+  83:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const char* lines[4] = {0};
+  55              		.loc 1 83 5 view .LVU1
+  82:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const char* lines[4] = {0};
+  56              		.loc 1 82 108 is_stmt 0 view .LVU2
+  57 0000 2DE9F04F 		push	{r4, r5, r6, r7, r8, r9, r10, fp, lr}
+  58              	.LCFI0:
+  59              		.cfi_def_cfa_offset 36
+  60              		.cfi_offset 4, -36
+  61              		.cfi_offset 5, -32
+  62              		.cfi_offset 6, -28
+  63              		.cfi_offset 7, -24
+  64              		.cfi_offset 8, -20
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 4
+
+
+  65              		.cfi_offset 9, -16
+  66              		.cfi_offset 10, -12
+  67              		.cfi_offset 11, -8
+  68              		.cfi_offset 14, -4
+  69 0004 97B0     		sub	sp, sp, #92
+  70              	.LCFI1:
+  71              		.cfi_def_cfa_offset 128
+  82:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const char* lines[4] = {0};
+  72              		.loc 1 82 108 view .LVU3
+  73 0006 1646     		mov	r6, r2
+  74 0008 0746     		mov	r7, r0
+  75              		.loc 1 83 17 view .LVU4
+  76 000a 1022     		movs	r2, #16
+  77              	.LVL1:
+  78              		.loc 1 83 17 view .LVU5
+  79 000c 0DF1300A 		add	r10, sp, #48
+  82:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const char* lines[4] = {0};
+  80              		.loc 1 82 108 view .LVU6
+  81 0010 0D46     		mov	r5, r1
+  82              		.loc 1 83 17 view .LVU7
+  83 0012 0021     		movs	r1, #0
+  84              	.LVL2:
+  84:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     char errCmdLine[12] = {0};
+  85              		.loc 1 84 10 view .LVU8
+  86 0014 0DF11808 		add	r8, sp, #24
+  83:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const char* lines[4] = {0};
+  87              		.loc 1 83 17 view .LVU9
+  88 0018 5046     		mov	r0, r10
+  89              	.LVL3:
+  85:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     char errReasonLine[12] = {0};
+  90              		.loc 1 85 10 view .LVU10
+  91 001a 09AC     		add	r4, sp, #36
+  83:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     char errCmdLine[12] = {0};
+  92              		.loc 1 83 17 view .LVU11
+  93 001c FFF7FEFF 		bl	memset
+  94              	.LVL4:
+  84:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     char errCmdLine[12] = {0};
+  95              		.loc 1 84 5 is_stmt 1 view .LVU12
+  84:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     char errCmdLine[12] = {0};
+  96              		.loc 1 84 10 is_stmt 0 view .LVU13
+  97 0020 0021     		movs	r1, #0
+  86:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     char successLine[24] = {0};
+  98              		.loc 1 86 10 view .LVU14
+  99 0022 1822     		movs	r2, #24
+ 100 0024 10A8     		add	r0, sp, #64
+  84:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     char errReasonLine[12] = {0};
+ 101              		.loc 1 84 10 view .LVU15
+ 102 0026 0691     		str	r1, [sp, #24]
+  85:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     char successLine[24] = {0};
+ 103              		.loc 1 85 10 view .LVU16
+ 104 0028 0991     		str	r1, [sp, #36]
+  84:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     char errReasonLine[12] = {0};
+ 105              		.loc 1 84 10 view .LVU17
+ 106 002a C8E90111 		strd	r1, r1, [r8, #4]
+  85:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     char successLine[24] = {0};
+ 107              		.loc 1 85 5 is_stmt 1 view .LVU18
+  85:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     char successLine[24] = {0};
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 5
+
+
+ 108              		.loc 1 85 10 is_stmt 0 view .LVU19
+ 109 002e C4E90111 		strd	r1, r1, [r4, #4]
+ 110              		.loc 1 86 5 is_stmt 1 view .LVU20
+ 111              		.loc 1 86 10 is_stmt 0 view .LVU21
+ 112 0032 FFF7FEFF 		bl	memset
+ 113              	.LVL5:
+  87:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     uint8_t lineCount = 0u;
+ 114              		.loc 1 87 5 is_stmt 1 view .LVU22
+  88:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+  89:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     switch (displayState) {
+ 115              		.loc 1 89 5 view .LVU23
+ 116              	.LBB91:
+ 117 0036 731E     		subs	r3, r6, #1
+ 118 0038 042B     		cmp	r3, #4
+ 119 003a 00F28B80 		bhi	.L2
+ 120 003e DFE803F0 		tbb	[pc, r3]
+ 121              	.L4:
+ 122 0042 03       		.byte	(.L8-.L4)/2
+ 123 0043 4B       		.byte	(.L7-.L4)/2
+ 124 0044 74       		.byte	(.L6-.L4)/2
+ 125 0045 51       		.byte	(.L5-.L4)/2
+ 126 0046 72       		.byte	(.L3-.L4)/2
+ 127 0047 00       		.p2align 1
+ 128              	.L8:
+ 129              	.LBB92:
+  90:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     case RfPairingState::Starting:
+ 130              		.loc 1 90 5 view .LVU24
+  91:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "Starting...";
+ 131              		.loc 1 91 9 view .LVU25
+ 132              	.LVL6:
+ 133              		.loc 1 91 28 is_stmt 0 view .LVU26
+ 134 0048 434B     		ldr	r3, .L25
+ 135              	.L24:
+  92:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         break;
+  93:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     case RfPairingState::PairModeOn:
+  94:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "Pair mode on";
+  95:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "Waiting RX...";
+  96:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         break;
+  97:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     case RfPairingState::PairOk:
+  98:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "Pairing Success";
+  99:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (g_pairPageSuccessAtMs != 0u) {
+ 100:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             const uint32_t elapsed = HAL_GetTick() - g_pairPageSuccessAtMs;
+ 101:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             uint32_t remainMs = (elapsed >= kPairPageSuccessHoldMs) ? 0u : (kPairPageSuccessHoldMs 
+ 102:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             uint32_t remainSec = (remainMs + 999u) / 1000u;
+ 103:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             snprintf(successLine, sizeof(successLine), "Exit in %lus", (unsigned long)remainSec);
+ 104:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             lines[lineCount++] = successLine;
+ 105:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         }
+ 106:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         break;
+ 107:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     case RfPairingState::Timeout:
+ 108:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "Timeout";
+ 136              		.loc 1 108 28 view .LVU27
+ 137 004a 0C93     		str	r3, [sp, #48]
+ 109:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         break;
+ 138              		.loc 1 109 9 is_stmt 1 view .LVU28
+ 139              	.L9:
+  91:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "Starting...";
+ 140              		.loc 1 91 24 is_stmt 0 view .LVU29
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 6
+
+
+ 141 004c 0126     		movs	r6, #1
+ 142              	.LVL7:
+ 143              	.L12:
+  91:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "Starting...";
+ 144              		.loc 1 91 24 view .LVU30
+ 145              	.LBE92:
+ 146              	.LBE91:
+ 110:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     case RfPairingState::TxError:
+ 111:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "TX Error";
+ 112:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         snprintf(errCmdLine, sizeof(errCmdLine), "cmd %02X",
+ 113:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                  (unsigned int)CONNECTION_MANAGER.getRfPairingLastErrorCommand());
+ 114:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         snprintf(errReasonLine, sizeof(errReasonLine), "reason %02X",
+ 115:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                  (unsigned int)CONNECTION_MANAGER.getRfPairingLastErrorReason());
+ 116:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = errCmdLine;
+ 117:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = errReasonLine;
+ 118:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         break;
+ 119:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     case RfPairingState::Idle:
+ 120:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     default:
+ 121:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "Ready";
+ 122:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         break;
+ 123:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ 124:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 125:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint16_t listX = SPI_SCREEN_LEFT_BAR_W;
+ 147              		.loc 1 125 5 is_stmt 1 view .LVU31
+ 126:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint16_t listW = (uint16_t)(ST7789_WIDTH - SPI_SCREEN_LEFT_BAR_W - SPI_SCREEN_RIGHT_BAR_W
+ 148              		.loc 1 126 5 view .LVU32
+ 127:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint16_t x = (uint16_t)(listX + 8u);
+ 149              		.loc 1 127 5 view .LVU33
+ 128:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint8_t titleScale = 2u;
+ 150              		.loc 1 128 5 view .LVU34
+ 129:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint8_t textScale = SPI_SCREEN_MENU_TEXT_SCALE;
+ 151              		.loc 1 129 5 view .LVU35
+ 130:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint16_t titleY = 8u;
+ 152              		.loc 1 130 5 view .LVU36
+ 131:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint16_t titleH = ScreenUI_CharCellH(titleScale);
+ 153              		.loc 1 131 5 view .LVU37
+ 154              		.loc 1 131 47 is_stmt 0 view .LVU38
+ 155 004e 0220     		movs	r0, #2
+ 132:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint16_t lineH = ScreenUI_CharCellH(textScale);
+ 133:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint16_t gap = 4u;
+ 134:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     uint16_t y = (uint16_t)(titleY + titleH + 12u);
+ 135:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 136:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     ST7789_FillRect(lcd, listX, 0, listW, ST7789_HEIGHT, style.bg);
+ 137:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     ST7789_DrawString(lcd, x, titleY, "Pair 2.4G", style.text, style.bg, titleScale);
+ 156              		.loc 1 137 22 view .LVU39
+ 157 0050 4FF0020B 		mov	fp, #2
+ 131:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint16_t titleH = ScreenUI_CharCellH(titleScale);
+ 158              		.loc 1 131 47 view .LVU40
+ 159 0054 FFF7FEFF 		bl	_Z18ScreenUI_CharCellHh
+ 160              	.LVL8:
+ 161 0058 0446     		mov	r4, r0
+ 162              	.LVL9:
+ 132:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint16_t lineH = ScreenUI_CharCellH(textScale);
+ 163              		.loc 1 132 5 is_stmt 1 view .LVU41
+ 132:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint16_t lineH = ScreenUI_CharCellH(textScale);
+ 164              		.loc 1 132 46 is_stmt 0 view .LVU42
+ 165 005a 0220     		movs	r0, #2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 7
+
+
+ 166              		.loc 1 137 22 view .LVU43
+ 167 005c 4FF00008 		mov	r8, #0
+ 132:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint16_t lineH = ScreenUI_CharCellH(textScale);
+ 168              		.loc 1 132 46 view .LVU44
+ 169 0060 FFF7FEFF 		bl	_Z18ScreenUI_CharCellHh
+ 170              	.LVL10:
+ 136:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     ST7789_DrawString(lcd, x, titleY, "Pair 2.4G", style.text, style.bg, titleScale);
+ 171              		.loc 1 136 20 view .LVU45
+ 172 0064 2B68     		ldr	r3, [r5]
+ 132:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint16_t lineH = ScreenUI_CharCellH(textScale);
+ 173              		.loc 1 132 46 view .LVU46
+ 174 0066 8146     		mov	r9, r0
+ 175              	.LVL11:
+ 133:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     uint16_t y = (uint16_t)(titleY + titleH + 12u);
+ 176              		.loc 1 133 5 is_stmt 1 view .LVU47
+ 134:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 177              		.loc 1 134 5 view .LVU48
+ 136:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     ST7789_DrawString(lcd, x, titleY, "Pair 2.4G", style.text, style.bg, titleScale);
+ 178              		.loc 1 136 20 is_stmt 0 view .LVU49
+ 179 0068 0022     		movs	r2, #0
+ 180 006a 0193     		str	r3, [sp, #4]
+ 181 006c AC23     		movs	r3, #172
+ 182 006e 2821     		movs	r1, #40
+ 183 0070 3846     		mov	r0, r7
+ 184 0072 0093     		str	r3, [sp]
+ 185 0074 F023     		movs	r3, #240
+ 186 0076 FFF7FEFF 		bl	ST7789_FillRect
+ 187              	.LVL12:
+ 188              		.loc 1 137 22 view .LVU50
+ 189 007a CDF808B0 		str	fp, [sp, #8]
+ 190 007e 2B68     		ldr	r3, [r5]
+ 134:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 191              		.loc 1 134 14 view .LVU51
+ 192 0080 1434     		adds	r4, r4, #20
+ 193              	.LVL13:
+ 194              		.loc 1 137 22 view .LVU52
+ 195 0082 0822     		movs	r2, #8
+ 196 0084 3021     		movs	r1, #48
+ 197 0086 0193     		str	r3, [sp, #4]
+ 198 0088 3846     		mov	r0, r7
+ 199 008a 6B68     		ldr	r3, [r5, #4]
+ 134:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 200              		.loc 1 134 14 view .LVU53
+ 201 008c A4B2     		uxth	r4, r4
+ 202              	.LVL14:
+ 136:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     ST7789_DrawString(lcd, x, titleY, "Pair 2.4G", style.text, style.bg, titleScale);
+ 203              		.loc 1 136 5 is_stmt 1 view .LVU54
+ 204              		.loc 1 137 5 view .LVU55
+ 205              		.loc 1 137 22 is_stmt 0 view .LVU56
+ 206 008e 0093     		str	r3, [sp]
+ 207 0090 324B     		ldr	r3, .L25+4
+ 208 0092 FFF7FEFF 		bl	ST7789_DrawString
+ 209              	.LVL15:
+ 138:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 139:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < lineCount; i++) {
+ 210              		.loc 1 139 5 is_stmt 1 view .LVU57
+ 211              	.LBB105:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 8
+
+
+ 212              		.loc 1 139 27 discriminator 1 view .LVU58
+ 140:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (!lines[i]) continue;
+ 141:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (y + lineH > ST7789_HEIGHT) break;
+ 142:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         ST7789_DrawString(lcd, x, y, lines[i], style.text, style.bg, textScale);
+ 143:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         y = (uint16_t)(y + lineH + gap);
+ 213              		.loc 1 143 11 is_stmt 0 view .LVU59
+ 214 0096 09F10403 		add	r3, r9, #4
+ 215 009a 0593     		str	r3, [sp, #20]
+ 216              	.LVL16:
+ 217              	.L15:
+ 140:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (!lines[i]) continue;
+ 218              		.loc 1 140 9 is_stmt 1 view .LVU60
+ 140:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (!lines[i]) continue;
+ 219              		.loc 1 140 21 is_stmt 0 view .LVU61
+ 220 009c 5AF82830 		ldr	r3, [r10, r8, lsl #2]
+ 140:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (!lines[i]) continue;
+ 221              		.loc 1 140 9 view .LVU62
+ 222 00a0 8BB1     		cbz	r3, .L13
+ 141:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         ST7789_DrawString(lcd, x, y, lines[i], style.text, style.bg, textScale);
+ 223              		.loc 1 141 9 is_stmt 1 view .LVU63
+ 141:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         ST7789_DrawString(lcd, x, y, lines[i], style.text, style.bg, textScale);
+ 224              		.loc 1 141 15 is_stmt 0 view .LVU64
+ 225 00a2 04EB0902 		add	r2, r4, r9
+ 141:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         ST7789_DrawString(lcd, x, y, lines[i], style.text, style.bg, textScale);
+ 226              		.loc 1 141 9 view .LVU65
+ 227 00a6 AC2A     		cmp	r2, #172
+ 228 00a8 13DC     		bgt	.L1
+ 142:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         y = (uint16_t)(y + lineH + gap);
+ 229              		.loc 1 142 9 is_stmt 1 view .LVU66
+ 142:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         y = (uint16_t)(y + lineH + gap);
+ 230              		.loc 1 142 26 is_stmt 0 view .LVU67
+ 231 00aa CDF808B0 		str	fp, [sp, #8]
+ 232 00ae 3021     		movs	r1, #48
+ 233 00b0 2A68     		ldr	r2, [r5]
+ 234 00b2 3846     		mov	r0, r7
+ 235 00b4 0192     		str	r2, [sp, #4]
+ 236 00b6 6A68     		ldr	r2, [r5, #4]
+ 237 00b8 0092     		str	r2, [sp]
+ 238 00ba 2246     		mov	r2, r4
+ 239 00bc FFF7FEFF 		bl	ST7789_DrawString
+ 240              	.LVL17:
+ 241              		.loc 1 143 9 is_stmt 1 view .LVU68
+ 242              		.loc 1 143 11 is_stmt 0 view .LVU69
+ 243 00c0 059B     		ldr	r3, [sp, #20]
+ 244 00c2 1C44     		add	r4, r4, r3
+ 245              	.LVL18:
+ 246              		.loc 1 143 11 view .LVU70
+ 247 00c4 A4B2     		uxth	r4, r4
+ 248              	.LVL19:
+ 249              	.L13:
+ 139:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (!lines[i]) continue;
+ 250              		.loc 1 139 5 is_stmt 1 discriminator 2 view .LVU71
+ 139:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (!lines[i]) continue;
+ 251              		.loc 1 139 27 discriminator 1 view .LVU72
+ 252 00c6 08F10108 		add	r8, r8, #1
+ 253              	.LVL20:
+ 139:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (!lines[i]) continue;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 9
+
+
+ 254              		.loc 1 139 27 is_stmt 0 discriminator 1 view .LVU73
+ 255 00ca 5FFA88F3 		uxtb	r3, r8
+ 256 00ce B342     		cmp	r3, r6
+ 257 00d0 E4D3     		bcc	.L15
+ 258              	.LVL21:
+ 259              	.L1:
+ 139:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (!lines[i]) continue;
+ 260              		.loc 1 139 27 discriminator 1 view .LVU74
+ 261              	.LBE105:
+ 144:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ 145:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** }
+ 262              		.loc 1 145 1 view .LVU75
+ 263 00d2 17B0     		add	sp, sp, #92
+ 264              	.LCFI2:
+ 265              		.cfi_remember_state
+ 266              		.cfi_def_cfa_offset 36
+ 267              		@ sp needed
+ 268 00d4 BDE8F08F 		pop	{r4, r5, r6, r7, r8, r9, r10, fp, pc}
+ 269              	.LVL22:
+ 270              	.L7:
+ 271              	.LCFI3:
+ 272              		.cfi_restore_state
+ 273              	.LBB106:
+ 274              	.LBB104:
+  93:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "Pair mode on";
+ 275              		.loc 1 93 5 is_stmt 1 view .LVU76
+  94:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "Waiting RX...";
+ 276              		.loc 1 94 9 view .LVU77
+  94:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "Waiting RX...";
+ 277              		.loc 1 94 28 is_stmt 0 view .LVU78
+ 278 00d8 214B     		ldr	r3, .L25+8
+ 279 00da 0C93     		str	r3, [sp, #48]
+  95:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         break;
+ 280              		.loc 1 95 9 is_stmt 1 view .LVU79
+ 281              	.LVL23:
+  96:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     case RfPairingState::PairOk:
+ 282              		.loc 1 96 9 view .LVU80
+ 283 00dc 214B     		ldr	r3, .L25+12
+ 284              	.L10:
+  95:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         break;
+ 285              		.loc 1 95 24 is_stmt 0 view .LVU81
+ 286 00de 0226     		movs	r6, #2
+ 287              	.LBB93:
+ 288              	.LBB94:
+ 104:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         }
+ 289              		.loc 1 104 32 view .LVU82
+ 290 00e0 0D93     		str	r3, [sp, #52]
+ 291 00e2 B4E7     		b	.L12
+ 292              	.LVL24:
+ 293              	.L5:
+ 104:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         }
+ 294              		.loc 1 104 32 view .LVU83
+ 295              	.LBE94:
+ 296              	.LBE93:
+  97:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "Pairing Success";
+ 297              		.loc 1 97 5 is_stmt 1 view .LVU84
+  98:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (g_pairPageSuccessAtMs != 0u) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 10
+
+
+ 298              		.loc 1 98 9 view .LVU85
+  98:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (g_pairPageSuccessAtMs != 0u) {
+ 299              		.loc 1 98 28 is_stmt 0 view .LVU86
+ 300 00e4 204B     		ldr	r3, .L25+16
+ 301              	.LBB96:
+  99:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             const uint32_t elapsed = HAL_GetTick() - g_pairPageSuccessAtMs;
+ 302              		.loc 1 99 35 view .LVU87
+ 303 00e6 214C     		ldr	r4, .L25+20
+ 304              	.LBE96:
+  98:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (g_pairPageSuccessAtMs != 0u) {
+ 305              		.loc 1 98 28 view .LVU88
+ 306 00e8 0C93     		str	r3, [sp, #48]
+  99:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             const uint32_t elapsed = HAL_GetTick() - g_pairPageSuccessAtMs;
+ 307              		.loc 1 99 9 is_stmt 1 view .LVU89
+ 308              	.LBB97:
+ 309 00ea 2368     		ldr	r3, [r4]
+ 310 00ec 002B     		cmp	r3, #0
+ 311 00ee ADD0     		beq	.L9
+ 312              	.LBB95:
+ 100:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             uint32_t remainMs = (elapsed >= kPairPageSuccessHoldMs) ? 0u : (kPairPageSuccessHoldMs 
+ 313              		.loc 1 100 13 view .LVU90
+ 100:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             uint32_t remainMs = (elapsed >= kPairPageSuccessHoldMs) ? 0u : (kPairPageSuccessHoldMs 
+ 314              		.loc 1 100 49 is_stmt 0 view .LVU91
+ 315 00f0 FFF7FEFF 		bl	HAL_GetTick
+ 316              	.LVL25:
+ 100:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             uint32_t remainMs = (elapsed >= kPairPageSuccessHoldMs) ? 0u : (kPairPageSuccessHoldMs 
+ 317              		.loc 1 100 52 discriminator 1 view .LVU92
+ 318 00f4 2368     		ldr	r3, [r4]
+ 319              	.LVL26:
+ 101:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             uint32_t remainSec = (remainMs + 999u) / 1000u;
+ 320              		.loc 1 101 13 is_stmt 1 view .LVU93
+ 101:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             uint32_t remainSec = (remainMs + 999u) / 1000u;
+ 321              		.loc 1 101 69 is_stmt 0 view .LVU94
+ 322 00f6 41F28732 		movw	r2, #4999
+ 100:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             uint32_t remainMs = (elapsed >= kPairPageSuccessHoldMs) ? 0u : (kPairPageSuccessHoldMs 
+ 323              		.loc 1 100 54 discriminator 1 view .LVU95
+ 324 00fa C11A     		subs	r1, r0, r3
+ 325              	.LVL27:
+ 101:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             uint32_t remainSec = (remainMs + 999u) / 1000u;
+ 326              		.loc 1 101 69 view .LVU96
+ 327 00fc 9142     		cmp	r1, r2
+ 103:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             lines[lineCount++] = successLine;
+ 328              		.loc 1 103 21 view .LVU97
+ 329 00fe 4FF47A72 		mov	r2, #1000
+ 330 0102 4FF01801 		mov	r1, #24
+ 331              	.LVL28:
+ 101:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             uint32_t remainSec = (remainMs + 999u) / 1000u;
+ 332              		.loc 1 101 69 discriminator 1 view .LVU98
+ 333 0106 97BF     		itett	ls
+ 334 0108 03F59C53 		addls	r3, r3, #4992
+ 335              	.LVL29:
+ 101:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             uint32_t remainSec = (remainMs + 999u) / 1000u;
+ 336              		.loc 1 101 69 discriminator 2 view .LVU99
+ 337 010c 0023     		movhi	r3, #0
+ 101:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             uint32_t remainSec = (remainMs + 999u) / 1000u;
+ 338              		.loc 1 101 69 discriminator 1 view .LVU100
+ 339 010e 0833     		addls	r3, r3, #8
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 11
+
+
+ 340 0110 1B1A     		subls	r3, r3, r0
+ 341              	.LVL30:
+ 102:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             snprintf(successLine, sizeof(successLine), "Exit in %lus", (unsigned long)remainSec);
+ 342              		.loc 1 102 13 is_stmt 1 view .LVU101
+ 103:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             lines[lineCount++] = successLine;
+ 343              		.loc 1 103 13 view .LVU102
+ 103:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             lines[lineCount++] = successLine;
+ 344              		.loc 1 103 21 is_stmt 0 view .LVU103
+ 345 0112 10A8     		add	r0, sp, #64
+ 346              	.LVL31:
+ 102:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             snprintf(successLine, sizeof(successLine), "Exit in %lus", (unsigned long)remainSec);
+ 347              		.loc 1 102 44 view .LVU104
+ 348 0114 03F2E733 		addw	r3, r3, #999
+ 349              	.LVL32:
+ 103:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             lines[lineCount++] = successLine;
+ 350              		.loc 1 103 21 view .LVU105
+ 351 0118 B3FBF2F3 		udiv	r3, r3, r2
+ 352              	.LVL33:
+ 103:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             lines[lineCount++] = successLine;
+ 353              		.loc 1 103 21 view .LVU106
+ 354 011c 144A     		ldr	r2, .L25+24
+ 355 011e FFF7FEFF 		bl	snprintf
+ 356              	.LVL34:
+ 104:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         }
+ 357              		.loc 1 104 13 is_stmt 1 view .LVU107
+ 104:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         }
+ 358              		.loc 1 104 13 is_stmt 0 view .LVU108
+ 359              	.LBE95:
+ 360 0122 10AB     		add	r3, sp, #64
+ 361 0124 DBE7     		b	.L10
+ 362              	.LVL35:
+ 363              	.L3:
+ 104:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         }
+ 364              		.loc 1 104 13 view .LVU109
+ 365              	.LBE97:
+ 107:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "Timeout";
+ 366              		.loc 1 107 5 is_stmt 1 view .LVU110
+ 108:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         break;
+ 367              		.loc 1 108 9 view .LVU111
+ 108:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         break;
+ 368              		.loc 1 108 28 is_stmt 0 view .LVU112
+ 369 0126 134B     		ldr	r3, .L25+28
+ 370 0128 8FE7     		b	.L24
+ 371              	.LVL36:
+ 372              	.L6:
+ 110:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "TX Error";
+ 373              		.loc 1 110 5 is_stmt 1 view .LVU113
+ 111:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         snprintf(errCmdLine, sizeof(errCmdLine), "cmd %02X",
+ 374              		.loc 1 111 9 view .LVU114
+ 111:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         snprintf(errCmdLine, sizeof(errCmdLine), "cmd %02X",
+ 375              		.loc 1 111 28 is_stmt 0 view .LVU115
+ 376 012a 134B     		ldr	r3, .L25+32
+ 112:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                  (unsigned int)CONNECTION_MANAGER.getRfPairingLastErrorCommand());
+ 377              		.loc 1 112 17 view .LVU116
+ 378 012c 0C21     		movs	r1, #12
+ 379              	.LBB98:
+ 380              	.LBB99:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 12
+
+
+ 381              		.file 2 "Cpp_Core/Inc/connection_manager.hpp"
+   1:Cpp_Core/Inc/connection_manager.hpp **** #ifndef CONNECTION_MANAGER_HPP
+   2:Cpp_Core/Inc/connection_manager.hpp **** #define CONNECTION_MANAGER_HPP
+   3:Cpp_Core/Inc/connection_manager.hpp **** 
+   4:Cpp_Core/Inc/connection_manager.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/connection_manager.hpp **** 
+   6:Cpp_Core/Inc/connection_manager.hpp **** #include "enums.hpp"
+   7:Cpp_Core/Inc/connection_manager.hpp **** #include "gamepad/GamepadState.hpp"
+   8:Cpp_Core/Inc/connection_manager.hpp **** #include "rf_transport.hpp"
+   9:Cpp_Core/Inc/connection_manager.hpp **** 
+  10:Cpp_Core/Inc/connection_manager.hpp **** enum class ConnectionLinkState : uint8_t {
+  11:Cpp_Core/Inc/connection_manager.hpp ****     Disconnected = 0,
+  12:Cpp_Core/Inc/connection_manager.hpp ****     Connecting = 1,
+  13:Cpp_Core/Inc/connection_manager.hpp ****     Connected = 2,
+  14:Cpp_Core/Inc/connection_manager.hpp ****     Error = 3,
+  15:Cpp_Core/Inc/connection_manager.hpp **** };
+  16:Cpp_Core/Inc/connection_manager.hpp **** 
+  17:Cpp_Core/Inc/connection_manager.hpp **** enum class RfPairingState : uint8_t {
+  18:Cpp_Core/Inc/connection_manager.hpp ****     Idle = 0,
+  19:Cpp_Core/Inc/connection_manager.hpp ****     Starting = 1,
+  20:Cpp_Core/Inc/connection_manager.hpp ****     PairModeOn = 2,
+  21:Cpp_Core/Inc/connection_manager.hpp ****     TxError = 3,
+  22:Cpp_Core/Inc/connection_manager.hpp ****     PairOk = 4,
+  23:Cpp_Core/Inc/connection_manager.hpp ****     Timeout = 5,
+  24:Cpp_Core/Inc/connection_manager.hpp **** };
+  25:Cpp_Core/Inc/connection_manager.hpp **** 
+  26:Cpp_Core/Inc/connection_manager.hpp **** enum class RfPowerReason : uint8_t {
+  27:Cpp_Core/Inc/connection_manager.hpp ****     Boot = 0,
+  28:Cpp_Core/Inc/connection_manager.hpp ****     UsbMode = 1,
+  29:Cpp_Core/Inc/connection_manager.hpp ****     RfMode = 2,
+  30:Cpp_Core/Inc/connection_manager.hpp ****     SystemSleep = 3,
+  31:Cpp_Core/Inc/connection_manager.hpp ****     SystemWake = 4,
+  32:Cpp_Core/Inc/connection_manager.hpp ****     Manual = 5,
+  33:Cpp_Core/Inc/connection_manager.hpp **** };
+  34:Cpp_Core/Inc/connection_manager.hpp **** 
+  35:Cpp_Core/Inc/connection_manager.hpp **** enum class RfPowerState : uint8_t {
+  36:Cpp_Core/Inc/connection_manager.hpp ****     Unknown = 0,
+  37:Cpp_Core/Inc/connection_manager.hpp ****     Awake = 1,
+  38:Cpp_Core/Inc/connection_manager.hpp ****     SleepPending = 2,
+  39:Cpp_Core/Inc/connection_manager.hpp ****     Sleeping = 3,
+  40:Cpp_Core/Inc/connection_manager.hpp ****     WakePending = 4,
+  41:Cpp_Core/Inc/connection_manager.hpp ****     Error = 5,
+  42:Cpp_Core/Inc/connection_manager.hpp **** };
+  43:Cpp_Core/Inc/connection_manager.hpp **** 
+  44:Cpp_Core/Inc/connection_manager.hpp **** class ConnectionManager {
+  45:Cpp_Core/Inc/connection_manager.hpp **** public:
+  46:Cpp_Core/Inc/connection_manager.hpp ****     ConnectionManager(ConnectionManager const&) = delete;
+  47:Cpp_Core/Inc/connection_manager.hpp ****     void operator=(ConnectionManager const&) = delete;
+  48:Cpp_Core/Inc/connection_manager.hpp ****     static ConnectionManager& getInstance() {
+  49:Cpp_Core/Inc/connection_manager.hpp ****         static ConnectionManager instance;
+  50:Cpp_Core/Inc/connection_manager.hpp ****         return instance;
+  51:Cpp_Core/Inc/connection_manager.hpp ****     }
+  52:Cpp_Core/Inc/connection_manager.hpp **** 
+  53:Cpp_Core/Inc/connection_manager.hpp ****     void setup(ConnectionMode mode,
+  54:Cpp_Core/Inc/connection_manager.hpp ****                WirelessReportRate wirelessRate,
+  55:Cpp_Core/Inc/connection_manager.hpp ****                InputMode inputMode);
+  56:Cpp_Core/Inc/connection_manager.hpp ****     void loop();
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 13
+
+
+  57:Cpp_Core/Inc/connection_manager.hpp ****     void onReportReady(const GamepadState& state, uint32_t seq);
+  58:Cpp_Core/Inc/connection_manager.hpp ****     bool applyWirelessReportRate(WirelessReportRate wirelessRate, bool persist);
+  59:Cpp_Core/Inc/connection_manager.hpp ****     bool startRfPairing();
+  60:Cpp_Core/Inc/connection_manager.hpp ****     bool stopRfPairing();
+  61:Cpp_Core/Inc/connection_manager.hpp ****     bool initializeRfPowerForMode(ConnectionMode mode, WirelessReportRate wirelessRate);
+  62:Cpp_Core/Inc/connection_manager.hpp ****     bool switchOutputToRf(WirelessReportRate wirelessRate);
+  63:Cpp_Core/Inc/connection_manager.hpp ****     bool switchOutputToUsb();
+  64:Cpp_Core/Inc/connection_manager.hpp ****     bool ensureRfSleeping(RfPowerReason reason);
+  65:Cpp_Core/Inc/connection_manager.hpp ****     bool wakeRfFromSleep(RfPowerReason reason);
+  66:Cpp_Core/Inc/connection_manager.hpp ****     bool restoreRfRuntime(WirelessReportRate wirelessRate);
+  67:Cpp_Core/Inc/connection_manager.hpp ****     bool sleepRfModule();
+  68:Cpp_Core/Inc/connection_manager.hpp ****     bool wakeRfModule();
+  69:Cpp_Core/Inc/connection_manager.hpp **** 
+  70:Cpp_Core/Inc/connection_manager.hpp ****     ConnectionMode getMode() const { return mode; }
+  71:Cpp_Core/Inc/connection_manager.hpp ****     ConnectionLinkState getLinkState() const { return linkState; }
+  72:Cpp_Core/Inc/connection_manager.hpp ****     uint16_t getAppliedReportRateHz() const { return appliedReportRateHz; }
+  73:Cpp_Core/Inc/connection_manager.hpp ****     bool isReportRateConfirmed() const { return reportRateConfirmed; }
+  74:Cpp_Core/Inc/connection_manager.hpp ****     bool isRfPairing() const { return rfPairingActive; }
+  75:Cpp_Core/Inc/connection_manager.hpp ****     bool hasRfPairSucceeded() const { return rfPairSucceeded || rfPairingState == RfPairingState::P
+  76:Cpp_Core/Inc/connection_manager.hpp ****     bool isRfSleeping() const { return rfPowerState == RfPowerState::Sleeping; }
+  77:Cpp_Core/Inc/connection_manager.hpp ****     bool isRfWakeInProgress() const { return rfPowerState == RfPowerState::WakePending; }
+  78:Cpp_Core/Inc/connection_manager.hpp ****     RfPowerState getRfPowerState() const { return rfPowerState; }
+  79:Cpp_Core/Inc/connection_manager.hpp ****     RfPairingState getRfPairingState() const { return rfPairingState; }
+  80:Cpp_Core/Inc/connection_manager.hpp ****     const RFModuleStatus& getRfModuleStatus() const { return rfTransport.getStatus(); }
+  81:Cpp_Core/Inc/connection_manager.hpp ****     uint8_t getRfPairingLastErrorCommand() const { return rfPairingLastErrorCommand; }
+ 382              		.loc 2 81 59 view .LVU117
+ 383 012e DFF85890 		ldr	r9, .L25+48
+ 384              	.LBE99:
+ 385              	.LBE98:
+ 112:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                  (unsigned int)CONNECTION_MANAGER.getRfPairingLastErrorCommand());
+ 386              		.loc 1 112 17 view .LVU118
+ 387 0132 4046     		mov	r0, r8
+ 388 0134 114A     		ldr	r2, .L25+36
+ 111:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         snprintf(errCmdLine, sizeof(errCmdLine), "cmd %02X",
+ 389              		.loc 1 111 28 view .LVU119
+ 390 0136 0C93     		str	r3, [sp, #48]
+ 112:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                  (unsigned int)CONNECTION_MANAGER.getRfPairingLastErrorCommand());
+ 391              		.loc 1 112 9 is_stmt 1 view .LVU120
+ 392              	.LVL37:
+ 393              	.LBB101:
+ 394              	.LBI98:
+ 395              		.loc 2 81 13 view .LVU121
+ 396              	.LBB100:
+ 397              		.loc 2 81 52 view .LVU122
+ 398              		.loc 2 81 52 is_stmt 0 view .LVU123
+ 399              	.LBE100:
+ 400              	.LBE101:
+ 112:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                  (unsigned int)CONNECTION_MANAGER.getRfPairingLastErrorCommand());
+ 401              		.loc 1 112 17 view .LVU124
+ 402 0138 99F83C30 		ldrb	r3, [r9, #60]	@ zero_extendqisi2
+ 403 013c FFF7FEFF 		bl	snprintf
+ 404              	.LVL38:
+ 114:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                  (unsigned int)CONNECTION_MANAGER.getRfPairingLastErrorReason());
+ 405              		.loc 1 114 9 is_stmt 1 view .LVU125
+ 406              	.LBB102:
+ 407              	.LBI102:
+  82:Cpp_Core/Inc/connection_manager.hpp ****     uint8_t getRfPairingLastErrorReason() const { return rfPairingLastErrorReason; }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 14
+
+
+ 408              		.loc 2 82 13 view .LVU126
+ 409              	.LBB103:
+ 410              		.loc 2 82 51 view .LVU127
+ 411              		.loc 2 82 51 is_stmt 0 view .LVU128
+ 412              	.LBE103:
+ 413              	.LBE102:
+ 114:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                  (unsigned int)CONNECTION_MANAGER.getRfPairingLastErrorReason());
+ 414              		.loc 1 114 17 view .LVU129
+ 415 0140 99F83D30 		ldrb	r3, [r9, #61]	@ zero_extendqisi2
+ 416 0144 0E4A     		ldr	r2, .L25+40
+ 417 0146 0C21     		movs	r1, #12
+ 418 0148 2046     		mov	r0, r4
+ 419 014a FFF7FEFF 		bl	snprintf
+ 420              	.LVL39:
+ 116:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = errReasonLine;
+ 421              		.loc 1 116 9 is_stmt 1 view .LVU130
+ 117:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         break;
+ 422              		.loc 1 117 28 is_stmt 0 view .LVU131
+ 423 014e CDE90D84 		strd	r8, r4, [sp, #52]
+ 118:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     case RfPairingState::Idle:
+ 424              		.loc 1 118 9 is_stmt 1 view .LVU132
+ 425 0152 7CE7     		b	.L12
+ 426              	.LVL40:
+ 427              	.L2:
+ 119:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     default:
+ 428              		.loc 1 119 5 view .LVU133
+ 120:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         lines[lineCount++] = "Ready";
+ 429              		.loc 1 120 5 view .LVU134
+ 121:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         break;
+ 430              		.loc 1 121 9 view .LVU135
+ 121:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         break;
+ 431              		.loc 1 121 28 is_stmt 0 view .LVU136
+ 432 0154 0B4B     		ldr	r3, .L25+44
+ 433 0156 78E7     		b	.L24
+ 434              	.L26:
+ 435              		.align	2
+ 436              	.L25:
+ 437 0158 0E000000 		.word	.LC1
+ 438 015c 70000000 		.word	.LC10
+ 439 0160 1A000000 		.word	.LC2
+ 440 0164 00000000 		.word	.LC0
+ 441 0168 27000000 		.word	.LC3
+ 442 016c 00000000 		.word	_ZL21g_pairPageSuccessAtMs
+ 443 0170 37000000 		.word	.LC4
+ 444 0174 44000000 		.word	.LC5
+ 445 0178 4C000000 		.word	.LC6
+ 446 017c 55000000 		.word	.LC7
+ 447 0180 5E000000 		.word	.LC8
+ 448 0184 6A000000 		.word	.LC9
+ 449 0188 00000000 		.word	_ZZN17ConnectionManager11getInstanceEvE8instance
+ 450              	.LBE104:
+ 451              	.LBE106:
+ 452              		.cfi_endproc
+ 453              	.LFE2388:
+ 455              		.section	.text._ZN7Storage11getInstanceEv,"axG",%progbits,_ZN7Storage11getInstanceEv,comdat
+ 456              		.align	1
+ 457              		.weak	_ZN7Storage11getInstanceEv
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 15
+
+
+ 458              		.syntax unified
+ 459              		.thumb
+ 460              		.thumb_func
+ 462              	_ZN7Storage11getInstanceEv:
+ 463              	.LFB2158:
+ 464              		.file 3 "Cpp_Core/Inc/storagemanager.hpp"
+   1:Cpp_Core/Inc/storagemanager.hpp **** #ifndef _STORAGE_MANAGER_H_
+   2:Cpp_Core/Inc/storagemanager.hpp **** #define _STORAGE_MANAGER_H_
+   3:Cpp_Core/Inc/storagemanager.hpp **** 
+   4:Cpp_Core/Inc/storagemanager.hpp **** #include "config.hpp"
+   5:Cpp_Core/Inc/storagemanager.hpp **** 
+   6:Cpp_Core/Inc/storagemanager.hpp **** // Forward declarations
+   7:Cpp_Core/Inc/storagemanager.hpp **** class ADCValuesCalibrator;
+   8:Cpp_Core/Inc/storagemanager.hpp **** class ADCValuesMarker;
+   9:Cpp_Core/Inc/storagemanager.hpp **** 
+  10:Cpp_Core/Inc/storagemanager.hpp **** class Storage {
+  11:Cpp_Core/Inc/storagemanager.hpp **** public:
+  12:Cpp_Core/Inc/storagemanager.hpp **** 	using DefaultProfileChangedCallback = void (*)(void);
+  13:Cpp_Core/Inc/storagemanager.hpp **** 
+  14:Cpp_Core/Inc/storagemanager.hpp **** 	Storage(Storage const&) = delete;
+  15:Cpp_Core/Inc/storagemanager.hpp **** 	void operator=(Storage const&) = delete;
+  16:Cpp_Core/Inc/storagemanager.hpp **** 	
+  17:Cpp_Core/Inc/storagemanager.hpp **** 	static Storage& getInstance() {
+ 465              		.loc 3 17 18 is_stmt 1 view -0
+ 466              		.cfi_startproc
+ 467              		@ args = 0, pretend = 0, frame = 0
+ 468              		@ frame_needed = 0, uses_anonymous_args = 0
+  18:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+ 469              		.loc 3 18 3 view .LVU138
+  17:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+ 470              		.loc 3 17 18 is_stmt 0 view .LVU139
+ 471 0000 10B5     		push	{r4, lr}
+ 472              	.LCFI4:
+ 473              		.cfi_def_cfa_offset 8
+ 474              		.cfi_offset 4, -8
+ 475              		.cfi_offset 14, -4
+ 476              		.loc 3 18 18 view .LVU140
+ 477 0002 074C     		ldr	r4, .L34
+ 478 0004 2368     		ldr	r3, [r4]
+ 479 0006 BFF35B8F 		dmb	ish
+ 480              		.loc 3 18 18 discriminator 1 view .LVU141
+ 481 000a DB07     		lsls	r3, r3, #31
+ 482 000c 06D4     		bmi	.L29
+ 483              	.LBB112:
+ 484              	.LBI112:
+  17:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+ 485              		.loc 3 17 18 is_stmt 1 view .LVU142
+ 486              	.LBB113:
+ 487              		.loc 3 18 18 is_stmt 0 discriminator 1 view .LVU143
+ 488 000e 2046     		mov	r0, r4
+ 489 0010 FFF7FEFF 		bl	__cxa_guard_acquire
+ 490              	.LVL41:
+ 491 0014 10B1     		cbz	r0, .L29
+ 492              	.LVL42:
+ 493              	.LBB114:
+ 494              	.LBI114:
+  19:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 16
+
+
+  20:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  21:Cpp_Core/Inc/storagemanager.hpp **** 
+  22:Cpp_Core/Inc/storagemanager.hpp **** 	Config config;
+  23:Cpp_Core/Inc/storagemanager.hpp **** 	
+  24:Cpp_Core/Inc/storagemanager.hpp **** 	void initConfig();
+  25:Cpp_Core/Inc/storagemanager.hpp **** 	bool saveConfig();
+  26:Cpp_Core/Inc/storagemanager.hpp **** 	bool resetConfig();
+  27:Cpp_Core/Inc/storagemanager.hpp **** 	void setInputMode(InputMode inputMode);
+  28:Cpp_Core/Inc/storagemanager.hpp **** 	const InputMode getInputMode() {
+  29:Cpp_Core/Inc/storagemanager.hpp **** 		return config.inputMode;
+  30:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  31:Cpp_Core/Inc/storagemanager.hpp **** 	void setConnectionMode(ConnectionMode mode);
+  32:Cpp_Core/Inc/storagemanager.hpp **** 	ConnectionMode getConnectionMode() const {
+  33:Cpp_Core/Inc/storagemanager.hpp **** 		return config.connectionMode;
+  34:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  35:Cpp_Core/Inc/storagemanager.hpp **** 	void setWirelessReportRate(WirelessReportRate rate);
+  36:Cpp_Core/Inc/storagemanager.hpp **** 	WirelessReportRate getWirelessReportRate() const {
+  37:Cpp_Core/Inc/storagemanager.hpp **** 		return config.wirelessReportRate;
+  38:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  39:Cpp_Core/Inc/storagemanager.hpp **** 	uint32_t getWakeHoldMs() const {
+  40:Cpp_Core/Inc/storagemanager.hpp **** 		return config.power.wakeHoldMs;
+  41:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  42:Cpp_Core/Inc/storagemanager.hpp **** 	uint32_t getAutoStandbyMs() const {
+  43:Cpp_Core/Inc/storagemanager.hpp **** 		return config.power.autoStandbyMs;
+  44:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  45:Cpp_Core/Inc/storagemanager.hpp **** 	void setRfPowerStateHint(uint8_t hint);
+  46:Cpp_Core/Inc/storagemanager.hpp **** 	uint8_t getRfPowerStateHint() const {
+  47:Cpp_Core/Inc/storagemanager.hpp **** 		return config.reservedConnection0;
+  48:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  49:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadProfile* getGamepadProfile(char* id);
+  50:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadProfile* getDefaultGamepadProfile() {
+  51:Cpp_Core/Inc/storagemanager.hpp **** 		return getGamepadProfile(config.defaultProfileId);
+  52:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  53:Cpp_Core/Inc/storagemanager.hpp **** 	bool setDefaultProfileId(const char* id);
+  54:Cpp_Core/Inc/storagemanager.hpp **** 	void registerDefaultProfileChangedCallback(DefaultProfileChangedCallback cb);
+  55:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadHotkeyEntry* getGamepadHotkeyEntry() {
+  56:Cpp_Core/Inc/storagemanager.hpp **** 		return config.hotkeys;
+  57:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  58:Cpp_Core/Inc/storagemanager.hpp **** 
+  59:Cpp_Core/Inc/storagemanager.hpp **** 	void setBootMode(BootMode bootMode);
+  60:Cpp_Core/Inc/storagemanager.hpp **** 	BootMode getBootMode() {
+  61:Cpp_Core/Inc/storagemanager.hpp **** 		return config.bootMode;
+  62:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  63:Cpp_Core/Inc/storagemanager.hpp **** 
+  64:Cpp_Core/Inc/storagemanager.hpp **** private:
+  65:Cpp_Core/Inc/storagemanager.hpp **** 	Storage() {}  // 私有构造函数
+ 495              		.loc 3 65 2 is_stmt 1 view .LVU144
+ 496              		.loc 3 65 2 is_stmt 0 view .LVU145
+ 497              	.LBE114:
+  18:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+ 498              		.loc 3 18 18 discriminator 1 view .LVU146
+ 499 0016 2046     		mov	r0, r4
+ 500 0018 FFF7FEFF 		bl	__cxa_guard_release
+ 501              	.LVL43:
+ 502              	.L29:
+ 503              	.LBE113:
+ 504              	.LBE112:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 17
+
+
+  19:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+ 505              		.loc 3 19 3 is_stmt 1 view .LVU147
+  20:Cpp_Core/Inc/storagemanager.hpp **** 
+ 506              		.loc 3 20 2 is_stmt 0 view .LVU148
+ 507 001c 0148     		ldr	r0, .L34+4
+ 508 001e 10BD     		pop	{r4, pc}
+ 509              	.L35:
+ 510              		.align	2
+ 511              	.L34:
+ 512 0020 00000000 		.word	_ZGVZN7Storage11getInstanceEvE8instance
+ 513 0024 00000000 		.word	_ZZN7Storage11getInstanceEvE8instance
+ 514              		.cfi_endproc
+ 515              	.LFE2158:
+ 517              		.section	.text._ZL23selectedConnectionIndexv,"ax",%progbits
+ 518              		.align	1
+ 519              		.syntax unified
+ 520              		.thumb
+ 521              		.thumb_func
+ 523              	_ZL23selectedConnectionIndexv:
+ 524              	.LFB2385:
+  47:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const ConnectionMode mode =
+ 525              		.loc 1 47 46 is_stmt 1 view -0
+ 526              		.cfi_startproc
+ 527              		@ args = 0, pretend = 0, frame = 0
+ 528              		@ frame_needed = 0, uses_anonymous_args = 0
+  48:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         (BOARD_MODE.isStable() &&
+ 529              		.loc 1 48 5 view .LVU150
+ 530              	.LVL44:
+ 531              	.LBB115:
+ 532              	.LBI115:
+ 533              		.file 4 "Cpp_Core/Inc/board_mode.hpp"
+   1:Cpp_Core/Inc/board_mode.hpp **** #ifndef BOARD_MODE_HPP
+   2:Cpp_Core/Inc/board_mode.hpp **** #define BOARD_MODE_HPP
+   3:Cpp_Core/Inc/board_mode.hpp **** 
+   4:Cpp_Core/Inc/board_mode.hpp **** #include <stdint.h>
+   5:Cpp_Core/Inc/board_mode.hpp **** 
+   6:Cpp_Core/Inc/board_mode.hpp **** enum class BoardMode : uint8_t {
+   7:Cpp_Core/Inc/board_mode.hpp ****     Usb = 0,
+   8:Cpp_Core/Inc/board_mode.hpp ****     Rf = 1,
+   9:Cpp_Core/Inc/board_mode.hpp ****     CenterOff = 2,
+  10:Cpp_Core/Inc/board_mode.hpp ****     Fault = 3,
+  11:Cpp_Core/Inc/board_mode.hpp **** };
+  12:Cpp_Core/Inc/board_mode.hpp **** 
+  13:Cpp_Core/Inc/board_mode.hpp **** class BoardModeManager {
+  14:Cpp_Core/Inc/board_mode.hpp **** public:
+  15:Cpp_Core/Inc/board_mode.hpp ****     BoardModeManager(const BoardModeManager&) = delete;
+  16:Cpp_Core/Inc/board_mode.hpp ****     BoardModeManager& operator=(const BoardModeManager&) = delete;
+  17:Cpp_Core/Inc/board_mode.hpp **** 
+  18:Cpp_Core/Inc/board_mode.hpp ****     static BoardModeManager& getInstance()
+  19:Cpp_Core/Inc/board_mode.hpp ****     {
+  20:Cpp_Core/Inc/board_mode.hpp ****         static BoardModeManager instance;
+  21:Cpp_Core/Inc/board_mode.hpp ****         return instance;
+  22:Cpp_Core/Inc/board_mode.hpp ****     }
+  23:Cpp_Core/Inc/board_mode.hpp **** 
+  24:Cpp_Core/Inc/board_mode.hpp ****     void setup();
+  25:Cpp_Core/Inc/board_mode.hpp ****     void update(uint32_t nowMs);
+  26:Cpp_Core/Inc/board_mode.hpp ****     BoardMode current() const { return stableMode; }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 18
+
+
+  27:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 534              		.loc 4 27 10 view .LVU151
+ 535              	.LBB116:
+ 536              		.loc 4 27 29 view .LVU152
+ 537              		.loc 4 27 29 is_stmt 0 view .LVU153
+ 538              	.LBE116:
+ 539              	.LBE115:
+  47:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const ConnectionMode mode =
+ 540              		.loc 1 47 46 view .LVU154
+ 541 0000 38B5     		push	{r3, r4, r5, lr}
+ 542              	.LCFI5:
+ 543              		.cfi_def_cfa_offset 16
+ 544              		.cfi_offset 3, -16
+ 545              		.cfi_offset 4, -12
+ 546              		.cfi_offset 5, -8
+ 547              		.cfi_offset 14, -4
+ 548              	.LBB118:
+ 549              	.LBB117:
+ 550              		.loc 4 27 36 view .LVU155
+ 551 0002 0E4B     		ldr	r3, .L46
+ 552              	.LBE117:
+ 553              	.LBE118:
+  51:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             : CONNECTION_MODE_USB;
+ 554              		.loc 1 51 13 view .LVU156
+ 555 0004 1C7A     		ldrb	r4, [r3, #8]	@ zero_extendqisi2
+ 556 0006 1CB1     		cbz	r4, .L37
+ 557              	.LVL45:
+ 558              	.LBB119:
+ 559              	.LBI119:
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 560              		.loc 4 26 15 is_stmt 1 view .LVU157
+ 561              	.LBB120:
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 562              		.loc 4 26 33 view .LVU158
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 563              		.loc 4 26 33 is_stmt 0 view .LVU159
+ 564              	.LBE120:
+ 565              	.LBE119:
+  49:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****          BOARD_MODE.current() == BoardMode::Rf)
+ 566              		.loc 1 49 32 view .LVU160
+ 567 0008 1C78     		ldrb	r4, [r3]	@ zero_extendqisi2
+ 568 000a 631E     		subs	r3, r4, #1
+ 569 000c 5C42     		rsbs	r4, r3, #0
+ 570 000e 5C41     		adcs	r4, r4, r3
+ 571              	.L37:
+ 572              	.LVL46:
+  53:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+ 573              		.loc 1 53 5 is_stmt 1 view .LVU161
+  53:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+ 574              		.loc 1 53 37 is_stmt 0 view .LVU162
+ 575 0010 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 576              	.LVL47:
+ 577              	.LBB121:
+ 578              	.LBI121:
+  36:Cpp_Core/Inc/storagemanager.hpp **** 		return config.wirelessReportRate;
+ 579              		.loc 3 36 21 is_stmt 1 view .LVU163
+ 580              	.LBB122:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 19
+
+
+  37:Cpp_Core/Inc/storagemanager.hpp **** 	}
+ 581              		.loc 3 37 3 view .LVU164
+ 582 0014 0A4B     		ldr	r3, .L46+4
+  37:Cpp_Core/Inc/storagemanager.hpp **** 	}
+ 583              		.loc 3 37 17 is_stmt 0 view .LVU165
+ 584 0016 0189     		ldrh	r1, [r0, #8]
+ 585              	.LVL48:
+  37:Cpp_Core/Inc/storagemanager.hpp **** 	}
+ 586              		.loc 3 37 17 view .LVU166
+ 587              	.LBE122:
+ 588              	.LBE121:
+  54:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (kConnectionItems[i].kind != ConnectionSettingKind::Setting) continue;
+ 589              		.loc 1 54 5 is_stmt 1 view .LVU167
+ 590              	.LBB124:
+  54:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (kConnectionItems[i].kind != ConnectionSettingKind::Setting) continue;
+ 591              		.loc 1 54 27 discriminator 1 view .LVU168
+ 592              	.LBE124:
+ 593              	.LBB125:
+ 594              	.LBB123:
+  37:Cpp_Core/Inc/storagemanager.hpp **** 	}
+ 595              		.loc 3 37 17 is_stmt 0 view .LVU169
+ 596 0018 0022     		movs	r2, #0
+ 597              	.LVL49:
+ 598              	.L40:
+  37:Cpp_Core/Inc/storagemanager.hpp **** 	}
+ 599              		.loc 3 37 17 view .LVU170
+ 600              	.LBE123:
+ 601              	.LBE125:
+ 602              	.LBB126:
+  55:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (kConnectionItems[i].mode != mode) continue;
+ 603              		.loc 1 55 9 view .LVU171
+ 604 001a 1D78     		ldrb	r5, [r3]	@ zero_extendqisi2
+ 605 001c D0B2     		uxtb	r0, r2
+ 606              	.LVL50:
+  55:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (kConnectionItems[i].mode != mode) continue;
+ 607              		.loc 1 55 9 is_stmt 1 view .LVU172
+ 608 001e 35B9     		cbnz	r5, .L38
+  56:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (mode == CONNECTION_MODE_USB || kConnectionItems[i].rate == rate) {
+ 609              		.loc 1 56 9 view .LVU173
+ 610 0020 5D78     		ldrb	r5, [r3, #1]	@ zero_extendqisi2
+ 611 0022 A542     		cmp	r5, r4
+ 612 0024 03D1     		bne	.L38
+  57:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             return i;
+ 613              		.loc 1 57 9 view .LVU174
+ 614 0026 3CB1     		cbz	r4, .L39
+  57:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             return i;
+ 615              		.loc 1 57 41 is_stmt 0 discriminator 1 view .LVU175
+ 616 0028 5D88     		ldrh	r5, [r3, #2]
+ 617 002a 8D42     		cmp	r5, r1
+ 618 002c 04D0     		beq	.L39
+ 619              	.L38:
+  54:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (kConnectionItems[i].kind != ConnectionSettingKind::Setting) continue;
+ 620              		.loc 1 54 5 is_stmt 1 discriminator 2 view .LVU176
+ 621              	.LVL51:
+  54:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (kConnectionItems[i].kind != ConnectionSettingKind::Setting) continue;
+ 622              		.loc 1 54 27 discriminator 1 view .LVU177
+ 623 002e 0132     		adds	r2, r2, #1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 20
+
+
+ 624              	.LVL52:
+  54:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (kConnectionItems[i].kind != ConnectionSettingKind::Setting) continue;
+ 625              		.loc 1 54 27 is_stmt 0 discriminator 1 view .LVU178
+ 626 0030 0833     		adds	r3, r3, #8
+ 627 0032 062A     		cmp	r2, #6
+ 628 0034 F1D1     		bne	.L40
+ 629              	.LBE126:
+  61:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** }
+ 630              		.loc 1 61 12 view .LVU179
+ 631 0036 0020     		movs	r0, #0
+ 632              	.LVL53:
+ 633              	.L39:
+  62:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 634              		.loc 1 62 1 view .LVU180
+ 635 0038 38BD     		pop	{r3, r4, r5, pc}
+ 636              	.LVL54:
+ 637              	.L47:
+  62:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 638              		.loc 1 62 1 view .LVU181
+ 639 003a 00BF     		.align	2
+ 640              	.L46:
+ 641 003c 00000000 		.word	_ZZN16BoardModeManager11getInstanceEvE8instance
+ 642 0040 00000000 		.word	_ZL16kConnectionItems
+ 643              		.cfi_endproc
+ 644              	.LFE2385:
+ 646              		.section	.text._Z32ScreenDetailTournament_InitIndexv,"ax",%progbits
+ 647              		.align	1
+ 648              		.global	_Z32ScreenDetailTournament_InitIndexv
+ 649              		.syntax unified
+ 650              		.thumb
+ 651              		.thumb_func
+ 653              	_Z32ScreenDetailTournament_InitIndexv:
+ 654              	.LFB2386:
+  64:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     g_pairPageActive = false;
+ 655              		.loc 1 64 48 is_stmt 1 view -0
+ 656              		.cfi_startproc
+ 657              		@ args = 0, pretend = 0, frame = 0
+ 658              		@ frame_needed = 0, uses_anonymous_args = 0
+ 659              		@ link register save eliminated.
+  65:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     g_pairPageSuccessAtMs = 0u;
+ 660              		.loc 1 65 5 view .LVU183
+  65:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     g_pairPageSuccessAtMs = 0u;
+ 661              		.loc 1 65 22 is_stmt 0 view .LVU184
+ 662 0000 0023     		movs	r3, #0
+ 663 0002 074A     		ldr	r2, .L49
+ 664 0004 1370     		strb	r3, [r2]
+  66:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     g_pairPageSuccessConsumed = (CONNECTION_MANAGER.getRfPairingState() == RfPairingState::PairOk);
+ 665              		.loc 1 66 5 is_stmt 1 view .LVU185
+  66:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     g_pairPageSuccessConsumed = (CONNECTION_MANAGER.getRfPairingState() == RfPairingState::PairOk);
+ 666              		.loc 1 66 27 is_stmt 0 view .LVU186
+ 667 0006 074A     		ldr	r2, .L49+4
+ 668 0008 1360     		str	r3, [r2]
+  67:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     return selectedConnectionIndex();
+ 669              		.loc 1 67 5 is_stmt 1 view .LVU187
+ 670              	.LVL55:
+ 671              	.LBB127:
+ 672              	.LBI127:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 21
+
+
+  79:Cpp_Core/Inc/connection_manager.hpp ****     const RFModuleStatus& getRfModuleStatus() const { return rfTransport.getStatus(); }
+ 673              		.loc 2 79 20 view .LVU188
+ 674              	.LBB128:
+  79:Cpp_Core/Inc/connection_manager.hpp ****     const RFModuleStatus& getRfModuleStatus() const { return rfTransport.getStatus(); }
+ 675              		.loc 2 79 48 view .LVU189
+  79:Cpp_Core/Inc/connection_manager.hpp ****     const RFModuleStatus& getRfModuleStatus() const { return rfTransport.getStatus(); }
+ 676              		.loc 2 79 55 is_stmt 0 view .LVU190
+ 677 000a 074B     		ldr	r3, .L49+8
+ 678              	.LBE128:
+ 679              	.LBE127:
+  67:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     return selectedConnectionIndex();
+ 680              		.loc 1 67 73 discriminator 2 view .LVU191
+ 681 000c 93F83330 		ldrb	r3, [r3, #51]	@ zero_extendqisi2
+ 682 0010 1A1F     		subs	r2, r3, #4
+ 683 0012 5342     		rsbs	r3, r2, #0
+ 684 0014 5341     		adcs	r3, r3, r2
+ 685 0016 054A     		ldr	r2, .L49+12
+ 686 0018 1370     		strb	r3, [r2]
+  68:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** }
+ 687              		.loc 1 68 5 is_stmt 1 view .LVU192
+  68:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** }
+ 688              		.loc 1 68 35 is_stmt 0 view .LVU193
+ 689 001a FFF7FEBF 		b	_ZL23selectedConnectionIndexv
+ 690              	.LVL56:
+ 691              	.L50:
+ 692 001e 00BF     		.align	2
+ 693              	.L49:
+ 694 0020 00000000 		.word	_ZL16g_pairPageActive
+ 695 0024 00000000 		.word	_ZL21g_pairPageSuccessAtMs
+ 696 0028 00000000 		.word	_ZZN17ConnectionManager11getInstanceEvE8instance
+ 697 002c 00000000 		.word	_ZL25g_pairPageSuccessConsumed
+ 698              		.cfi_endproc
+ 699              	.LFE2386:
+ 701              		.section	.text._Z29ScreenDetailTournament_RotatePha,"ax",%progbits
+ 702              		.align	1
+ 703              		.global	_Z29ScreenDetailTournament_RotatePha
+ 704              		.syntax unified
+ 705              		.thumb
+ 706              		.thumb_func
+ 708              	_Z29ScreenDetailTournament_RotatePha:
+ 709              	.LVL57:
+ 710              	.LFB2387:
+  71:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (!ioIndex) return;
+ 711              		.loc 1 71 66 is_stmt 1 view -0
+ 712              		.cfi_startproc
+ 713              		@ args = 0, pretend = 0, frame = 0
+ 714              		@ frame_needed = 0, uses_anonymous_args = 0
+ 715              		@ link register save eliminated.
+  72:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (g_pairPageActive) return;
+ 716              		.loc 1 72 5 view .LVU195
+ 717 0000 50B1     		cbz	r0, .L51
+  73:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     int32_t idx = (int32_t)(*ioIndex) + det;
+ 718              		.loc 1 73 5 view .LVU196
+ 719 0002 064B     		ldr	r3, .L56
+ 720 0004 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 721 0006 3BB9     		cbnz	r3, .L51
+  74:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (idx < 0) idx = 0;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 22
+
+
+ 722              		.loc 1 74 5 view .LVU197
+ 723              	.LVL58:
+  75:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (idx >= (int32_t)connectionItemCount()) {
+ 724              		.loc 1 75 5 view .LVU198
+  79:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** }
+ 725              		.loc 1 79 5 view .LVU199
+  74:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (idx < 0) idx = 0;
+ 726              		.loc 1 74 19 is_stmt 0 view .LVU200
+ 727 0008 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+  74:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (idx < 0) idx = 0;
+ 728              		.loc 1 74 13 view .LVU201
+ 729 000a 1944     		add	r1, r1, r3
+ 730              	.LVL59:
+  76:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         idx = (int32_t)connectionItemCount() - 1;
+ 731              		.loc 1 76 5 discriminator 1 view .LVU202
+ 732 000c 0529     		cmp	r1, #5
+ 733 000e A8BF     		it	ge
+ 734 0010 0521     		movge	r1, #5
+  79:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** }
+ 735              		.loc 1 79 14 view .LVU203
+ 736 0012 21EAE171 		bic	r1, r1, r1, asr #31
+ 737 0016 0170     		strb	r1, [r0]
+ 738              	.LVL60:
+ 739              	.L51:
+  80:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 740              		.loc 1 80 1 view .LVU204
+ 741 0018 7047     		bx	lr
+ 742              	.L57:
+ 743 001a 00BF     		.align	2
+ 744              	.L56:
+ 745 001c 00000000 		.word	_ZL16g_pairPageActive
+ 746              		.cfi_endproc
+ 747              	.LFE2387:
+ 749              		.section	.rodata._Z29ScreenDetailTournament_RenderP13ST7789_HandlehRK13ScreenUiStyle.str1.1,"aMS",
+ 750              	.LC11:
+ 751 0000 55534200 		.ascii	"USB\000"
+ 752              	.LC12:
+ 753 0004 322E3447 		.ascii	"2.4G 1K\000"
+ 753      20314B00 
+ 754              	.LC13:
+ 755 000c 322E3447 		.ascii	"2.4G 2K\000"
+ 755      20324B00 
+ 756              	.LC14:
+ 757 0014 322E3447 		.ascii	"2.4G 4K\000"
+ 757      20344B00 
+ 758              	.LC15:
+ 759 001c 322E3447 		.ascii	"2.4G 8K\000"
+ 759      20384B00 
+ 760              	.LC16:
+ 761 0024 436F6E6E 		.ascii	"Connection\000"
+ 761      65637469 
+ 761      6F6E00
+ 762              		.section	.text._Z29ScreenDetailTournament_RenderP13ST7789_HandlehRK13ScreenUiStyle,"ax",%progbits
+ 763              		.align	1
+ 764              		.global	_Z29ScreenDetailTournament_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 765              		.syntax unified
+ 766              		.thumb
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 23
+
+
+ 767              		.thumb_func
+ 769              	_Z29ScreenDetailTournament_RenderP13ST7789_HandlehRK13ScreenUiStyle:
+ 770              	.LVL61:
+ 771              	.LFB2389:
+ 146:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 147:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** void ScreenDetailTournament_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) {
+ 772              		.loc 1 147 99 is_stmt 1 view -0
+ 773              		.cfi_startproc
+ 774              		@ args = 0, pretend = 0, frame = 24
+ 775              		@ frame_needed = 0, uses_anonymous_args = 0
+ 148:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint32_t now = HAL_GetTick();
+ 776              		.loc 1 148 5 view .LVU206
+ 147:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint32_t now = HAL_GetTick();
+ 777              		.loc 1 147 99 is_stmt 0 view .LVU207
+ 778 0000 F0B5     		push	{r4, r5, r6, r7, lr}
+ 779              	.LCFI6:
+ 780              		.cfi_def_cfa_offset 20
+ 781              		.cfi_offset 4, -20
+ 782              		.cfi_offset 5, -16
+ 783              		.cfi_offset 6, -12
+ 784              		.cfi_offset 7, -8
+ 785              		.cfi_offset 14, -4
+ 786 0002 91B0     		sub	sp, sp, #68
+ 787              	.LCFI7:
+ 788              		.cfi_def_cfa_offset 88
+ 147:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint32_t now = HAL_GetTick();
+ 789              		.loc 1 147 99 view .LVU208
+ 790 0004 1546     		mov	r5, r2
+ 791 0006 0446     		mov	r4, r0
+ 792 0008 0F46     		mov	r7, r1
+ 149:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const RfPairingState currentPairState = CONNECTION_MANAGER.getRfPairingState();
+ 150:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (!g_pairPageActive &&
+ 793              		.loc 1 150 9 view .LVU209
+ 794 000a 274E     		ldr	r6, .L71
+ 148:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const RfPairingState currentPairState = CONNECTION_MANAGER.getRfPairingState();
+ 795              		.loc 1 148 37 view .LVU210
+ 796 000c FFF7FEFF 		bl	HAL_GetTick
+ 797              	.LVL62:
+ 149:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const RfPairingState currentPairState = CONNECTION_MANAGER.getRfPairingState();
+ 798              		.loc 1 149 5 is_stmt 1 view .LVU211
+ 799              	.LBB129:
+ 800              	.LBI129:
+  79:Cpp_Core/Inc/connection_manager.hpp ****     const RFModuleStatus& getRfModuleStatus() const { return rfTransport.getStatus(); }
+ 801              		.loc 2 79 20 view .LVU212
+ 802              	.LBB130:
+  79:Cpp_Core/Inc/connection_manager.hpp ****     const RFModuleStatus& getRfModuleStatus() const { return rfTransport.getStatus(); }
+ 803              		.loc 2 79 48 view .LVU213
+  79:Cpp_Core/Inc/connection_manager.hpp ****     const RFModuleStatus& getRfModuleStatus() const { return rfTransport.getStatus(); }
+ 804              		.loc 2 79 55 is_stmt 0 view .LVU214
+ 805 0010 264B     		ldr	r3, .L71+4
+ 806 0012 93F83320 		ldrb	r2, [r3, #51]	@ zero_extendqisi2
+ 807              	.LVL63:
+  79:Cpp_Core/Inc/connection_manager.hpp ****     const RFModuleStatus& getRfModuleStatus() const { return rfTransport.getStatus(); }
+ 808              		.loc 2 79 55 view .LVU215
+ 809              	.LBE130:
+ 810              	.LBE129:
+ 811              		.loc 1 150 5 is_stmt 1 view .LVU216
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 24
+
+
+ 812 0016 3378     		ldrb	r3, [r6]	@ zero_extendqisi2
+ 813 0018 43B9     		cbnz	r3, .L59
+ 151:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         !g_pairPageSuccessConsumed &&
+ 814              		.loc 1 151 9 is_stmt 0 view .LVU217
+ 815 001a 254B     		ldr	r3, .L71+8
+ 150:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         !g_pairPageSuccessConsumed &&
+ 816              		.loc 1 150 27 discriminator 1 view .LVU218
+ 817 001c 1B78     		ldrb	r3, [r3]	@ zero_extendqisi2
+ 818 001e 9BB9     		cbnz	r3, .L60
+ 819              		.loc 1 151 36 view .LVU219
+ 820 0020 042A     		cmp	r2, #4
+ 821 0022 11D1     		bne	.L60
+ 152:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         currentPairState == RfPairingState::PairOk) {
+ 153:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         g_pairPageActive = true;
+ 822              		.loc 1 153 9 is_stmt 1 view .LVU220
+ 823              		.loc 1 153 26 is_stmt 0 view .LVU221
+ 824 0024 0123     		movs	r3, #1
+ 825 0026 3370     		strb	r3, [r6]
+ 154:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         g_pairPageSuccessAtMs = now;
+ 826              		.loc 1 154 9 is_stmt 1 view .LVU222
+ 827              		.loc 1 154 31 is_stmt 0 view .LVU223
+ 828 0028 224B     		ldr	r3, .L71+12
+ 829 002a 1860     		str	r0, [r3]
+ 155:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         APP_DBG("[SCREEN][PAIR] success latch from inactive page");
+ 830              		.loc 1 155 9 is_stmt 1 view .LVU224
+ 831              	.L59:
+ 156:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ 157:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 158:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (g_pairPageActive) {
+ 832              		.loc 1 158 5 view .LVU225
+ 833              	.LBB131:
+ 159:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         RfPairingState pairState = (g_pairPageSuccessAtMs != 0u) ?
+ 834              		.loc 1 159 9 view .LVU226
+ 835              		.loc 1 159 59 is_stmt 0 view .LVU227
+ 836 002c 2149     		ldr	r1, .L71+12
+ 837 002e 0B68     		ldr	r3, [r1]
+ 838              		.loc 1 159 66 view .LVU228
+ 839 0030 5BB3     		cbz	r3, .L66
+ 160:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                                    RfPairingState::PairOk :
+ 161:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                                    currentPairState;
+ 162:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (pairState == RfPairingState::PairOk) {
+ 163:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             if (g_pairPageSuccessAtMs == 0u) {
+ 164:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 g_pairPageSuccessAtMs = now;
+ 165:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 APP_DBG("[SCREEN][PAIR] success hold start");
+ 166:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             }
+ 167:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             if ((uint32_t)(now - g_pairPageSuccessAtMs) >= kPairPageSuccessHoldMs) {
+ 840              		.loc 1 167 13 is_stmt 1 view .LVU229
+ 841              		.loc 1 167 32 is_stmt 0 view .LVU230
+ 842 0032 C31A     		subs	r3, r0, r3
+ 843              		.loc 1 167 13 view .LVU231
+ 844 0034 41F28732 		movw	r2, #4999
+ 845              	.LVL64:
+ 846              		.loc 1 167 13 view .LVU232
+ 847 0038 9342     		cmp	r3, r2
+ 848 003a 29D9     		bls	.L62
+ 168:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 APP_DBG("[SCREEN][PAIR] success leave");
+ 849              		.loc 1 168 17 is_stmt 1 view .LVU233
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 25
+
+
+ 169:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 g_pairPageActive = false;
+ 850              		.loc 1 169 17 view .LVU234
+ 851              		.loc 1 169 34 is_stmt 0 view .LVU235
+ 852 003c 0023     		movs	r3, #0
+ 170:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 g_pairPageSuccessAtMs = 0u;
+ 171:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 g_pairPageSuccessConsumed = true;
+ 853              		.loc 1 171 43 view .LVU236
+ 854 003e 0122     		movs	r2, #1
+ 169:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 g_pairPageActive = false;
+ 855              		.loc 1 169 34 view .LVU237
+ 856 0040 3370     		strb	r3, [r6]
+ 170:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 g_pairPageSuccessAtMs = 0u;
+ 857              		.loc 1 170 17 is_stmt 1 view .LVU238
+ 170:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 g_pairPageSuccessAtMs = 0u;
+ 858              		.loc 1 170 39 is_stmt 0 view .LVU239
+ 859 0042 0B60     		str	r3, [r1]
+ 860              		.loc 1 171 17 is_stmt 1 view .LVU240
+ 861              		.loc 1 171 43 is_stmt 0 view .LVU241
+ 862 0044 1A4B     		ldr	r3, .L71+8
+ 863 0046 1A70     		strb	r2, [r3]
+ 172:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             } else {
+ 173:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 renderPairingPage(lcd, style, pairState);
+ 174:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 return;
+ 175:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             }
+ 176:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         } else {
+ 177:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             g_pairPageSuccessAtMs = 0u;
+ 178:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         }
+ 179:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (!g_pairPageActive) {
+ 864              		.loc 1 179 9 is_stmt 1 view .LVU242
+ 865              	.L60:
+ 866              		.loc 1 179 9 is_stmt 0 view .LVU243
+ 867              	.LBE131:
+ 180:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             /* Success hold has completed; fall through to the Connection list. */
+ 181:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         } else if (pairState == RfPairingState::Timeout) {
+ 182:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             APP_DBG("[SCREEN][PAIR] auto leave state:%u", (unsigned int)pairState);
+ 183:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             g_pairPageActive = false;
+ 184:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         } else {
+ 185:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             renderPairingPage(lcd, style, pairState);
+ 186:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             return;
+ 187:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         }
+ 188:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ 189:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 190:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (g_pairPageActive) {
+ 868              		.loc 1 190 5 is_stmt 1 view .LVU244
+ 191:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         renderPairingPage(lcd, style, CONNECTION_MANAGER.getRfPairingState());
+ 192:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         return;
+ 193:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ 194:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 195:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const char* labels[sizeof(kConnectionItems) / sizeof(kConnectionItems[0])] = {0};
+ 869              		.loc 1 195 5 view .LVU245
+ 196:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+ 870              		.loc 1 196 5 view .LVU246
+ 871              	.LVL65:
+ 872              	.LBB132:
+ 873              		.loc 1 196 27 discriminator 1 view .LVU247
+ 197:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         labels[i] = kConnectionItems[i].label;
+ 874              		.loc 1 197 9 view .LVU248
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 26
+
+
+ 875              		.loc 1 197 19 is_stmt 0 view .LVU249
+ 876 0048 1B4B     		ldr	r3, .L71+16
+ 877 004a 0A93     		str	r3, [sp, #40]
+ 196:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+ 878              		.loc 1 196 5 is_stmt 1 discriminator 3 view .LVU250
+ 879              	.LVL66:
+ 196:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+ 880              		.loc 1 196 27 discriminator 1 view .LVU251
+ 881              		.loc 1 197 9 view .LVU252
+ 882              		.loc 1 197 19 is_stmt 0 view .LVU253
+ 883 004c 1B4B     		ldr	r3, .L71+20
+ 884 004e 0B93     		str	r3, [sp, #44]
+ 196:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+ 885              		.loc 1 196 5 is_stmt 1 discriminator 3 view .LVU254
+ 886              	.LVL67:
+ 196:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+ 887              		.loc 1 196 27 discriminator 1 view .LVU255
+ 888              		.loc 1 197 9 view .LVU256
+ 889              		.loc 1 197 19 is_stmt 0 view .LVU257
+ 890 0050 1B4B     		ldr	r3, .L71+24
+ 891 0052 0C93     		str	r3, [sp, #48]
+ 196:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+ 892              		.loc 1 196 5 is_stmt 1 discriminator 3 view .LVU258
+ 893              	.LVL68:
+ 196:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+ 894              		.loc 1 196 27 discriminator 1 view .LVU259
+ 895              		.loc 1 197 9 view .LVU260
+ 896              		.loc 1 197 19 is_stmt 0 view .LVU261
+ 897 0054 1B4B     		ldr	r3, .L71+28
+ 898 0056 0D93     		str	r3, [sp, #52]
+ 196:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+ 899              		.loc 1 196 5 is_stmt 1 discriminator 3 view .LVU262
+ 900              	.LVL69:
+ 196:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+ 901              		.loc 1 196 27 discriminator 1 view .LVU263
+ 902              		.loc 1 197 9 view .LVU264
+ 903              		.loc 1 197 19 is_stmt 0 view .LVU265
+ 904 0058 1B4B     		ldr	r3, .L71+32
+ 905 005a 0E93     		str	r3, [sp, #56]
+ 196:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+ 906              		.loc 1 196 5 is_stmt 1 discriminator 3 view .LVU266
+ 907              	.LVL70:
+ 196:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+ 908              		.loc 1 196 27 discriminator 1 view .LVU267
+ 909              		.loc 1 197 9 view .LVU268
+ 910              		.loc 1 197 19 is_stmt 0 view .LVU269
+ 911 005c 1B4B     		ldr	r3, .L71+36
+ 912 005e 0F93     		str	r3, [sp, #60]
+ 196:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+ 913              		.loc 1 196 5 is_stmt 1 discriminator 3 view .LVU270
+ 914              	.LVL71:
+ 196:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     for (uint8_t i = 0; i < connectionItemCount(); i++) {
+ 915              		.loc 1 196 27 discriminator 1 view .LVU271
+ 916              	.LBE132:
+ 198:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ 199:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const uint8_t selected = selectedConnectionIndex();
+ 917              		.loc 1 199 5 view .LVU272
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 27
+
+
+ 918              		.loc 1 199 53 is_stmt 0 view .LVU273
+ 919 0060 FFF7FEFF 		bl	_ZL23selectedConnectionIndexv
+ 920              	.LVL72:
+ 200:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     ScreenDetailRender_List(lcd, "Connection", labels, connectionItemCount(), index, selected, styl
+ 921              		.loc 1 200 5 is_stmt 1 view .LVU274
+ 922              		.loc 1 200 28 is_stmt 0 discriminator 1 view .LVU275
+ 923 0064 0023     		movs	r3, #0
+ 924 0066 0AAA     		add	r2, sp, #40
+ 925 0068 1949     		ldr	r1, .L71+40
+ 926 006a 0493     		str	r3, [sp, #16]
+ 927 006c CDE90733 		strd	r3, r3, [sp, #28]
+ 928 0070 CDE90533 		strd	r3, r3, [sp, #20]
+ 929 0074 1C23     		movs	r3, #28
+ 930 0076 CDE90070 		strd	r7, r0, [sp]
+ 931 007a CDE90253 		strd	r5, r3, [sp, #8]
+ 932 007e 2046     		mov	r0, r4
+ 933              	.LVL73:
+ 934              		.loc 1 200 28 discriminator 1 view .LVU276
+ 935 0080 0623     		movs	r3, #6
+ 936 0082 FFF7FEFF 		bl	_Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb
+ 937              	.LVL74:
+ 201:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** }
+ 938              		.loc 1 201 1 view .LVU277
+ 939 0086 11B0     		add	sp, sp, #68
+ 940              	.LCFI8:
+ 941              		.cfi_remember_state
+ 942              		.cfi_def_cfa_offset 20
+ 943              		@ sp needed
+ 944 0088 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 945              	.LVL75:
+ 946              	.L66:
+ 947              	.LCFI9:
+ 948              		.cfi_restore_state
+ 949              	.LBB133:
+ 162:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             if (g_pairPageSuccessAtMs == 0u) {
+ 950              		.loc 1 162 9 is_stmt 1 view .LVU278
+ 951 008a 042A     		cmp	r2, #4
+ 952 008c 08D1     		bne	.L61
+ 953              	.LVL76:
+ 163:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 g_pairPageSuccessAtMs = now;
+ 954              		.loc 1 163 13 view .LVU279
+ 164:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 APP_DBG("[SCREEN][PAIR] success hold start");
+ 955              		.loc 1 164 17 view .LVU280
+ 164:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 APP_DBG("[SCREEN][PAIR] success hold start");
+ 956              		.loc 1 164 39 is_stmt 0 view .LVU281
+ 957 008e 0860     		str	r0, [r1]
+ 165:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             }
+ 958              		.loc 1 165 17 is_stmt 1 view .LVU282
+ 167:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 APP_DBG("[SCREEN][PAIR] success leave");
+ 959              		.loc 1 167 13 view .LVU283
+ 960              	.LVL77:
+ 961              	.L62:
+ 173:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 return;
+ 962              		.loc 1 173 17 view .LVU284
+ 173:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                 return;
+ 963              		.loc 1 173 34 is_stmt 0 view .LVU285
+ 964 0090 0422     		movs	r2, #4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 28
+
+
+ 965              	.L69:
+ 185:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             return;
+ 966              		.loc 1 185 13 is_stmt 1 view .LVU286
+ 185:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             return;
+ 967              		.loc 1 185 30 is_stmt 0 view .LVU287
+ 968 0092 2946     		mov	r1, r5
+ 969 0094 2046     		mov	r0, r4
+ 970              	.LVL78:
+ 185:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             return;
+ 971              		.loc 1 185 30 view .LVU288
+ 972              	.LBE133:
+ 973              		.loc 1 201 1 view .LVU289
+ 974 0096 11B0     		add	sp, sp, #68
+ 975              	.LCFI10:
+ 976              		.cfi_remember_state
+ 977              		.cfi_def_cfa_offset 20
+ 978              		@ sp needed
+ 979 0098 BDE8F040 		pop	{r4, r5, r6, r7, lr}
+ 980              	.LCFI11:
+ 981              		.cfi_restore 14
+ 982              		.cfi_restore 7
+ 983              		.cfi_restore 6
+ 984              		.cfi_restore 5
+ 985              		.cfi_restore 4
+ 986              		.cfi_def_cfa_offset 0
+ 987              	.LVL79:
+ 988              	.LBB134:
+ 185:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             return;
+ 989              		.loc 1 185 30 view .LVU290
+ 990 009c FFF7FEBF 		b	_ZL17renderPairingPageP13ST7789_HandleRK13ScreenUiStyle14RfPairingState
+ 991              	.LVL80:
+ 992              	.L61:
+ 993              	.LCFI12:
+ 994              		.cfi_restore_state
+ 177:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         }
+ 995              		.loc 1 177 13 is_stmt 1 view .LVU291
+ 179:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             /* Success hold has completed; fall through to the Connection list. */
+ 996              		.loc 1 179 9 view .LVU292
+ 181:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             APP_DBG("[SCREEN][PAIR] auto leave state:%u", (unsigned int)pairState);
+ 997              		.loc 1 181 16 view .LVU293
+ 998 00a0 052A     		cmp	r2, #5
+ 999 00a2 F6D1     		bne	.L69
+ 182:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             g_pairPageActive = false;
+ 1000              		.loc 1 182 13 view .LVU294
+ 183:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         } else {
+ 1001              		.loc 1 183 13 view .LVU295
+ 183:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         } else {
+ 1002              		.loc 1 183 30 is_stmt 0 view .LVU296
+ 1003 00a4 3370     		strb	r3, [r6]
+ 1004 00a6 CFE7     		b	.L60
+ 1005              	.L72:
+ 1006              		.align	2
+ 1007              	.L71:
+ 1008 00a8 00000000 		.word	_ZL16g_pairPageActive
+ 1009 00ac 00000000 		.word	_ZZN17ConnectionManager11getInstanceEvE8instance
+ 1010 00b0 00000000 		.word	_ZL25g_pairPageSuccessConsumed
+ 1011 00b4 00000000 		.word	_ZL21g_pairPageSuccessAtMs
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 29
+
+
+ 1012 00b8 00000000 		.word	.LC11
+ 1013 00bc 04000000 		.word	.LC12
+ 1014 00c0 0C000000 		.word	.LC13
+ 1015 00c4 14000000 		.word	.LC14
+ 1016 00c8 1C000000 		.word	.LC15
+ 1017 00cc 70000000 		.word	.LC10
+ 1018 00d0 24000000 		.word	.LC16
+ 1019              	.LBE134:
+ 1020              		.cfi_endproc
+ 1021              	.LFE2389:
+ 1023              		.section	.text._Z32ScreenDetailTournament_OnConfirmh,"ax",%progbits
+ 1024              		.align	1
+ 1025              		.global	_Z32ScreenDetailTournament_OnConfirmh
+ 1026              		.syntax unified
+ 1027              		.thumb
+ 1028              		.thumb_func
+ 1030              	_Z32ScreenDetailTournament_OnConfirmh:
+ 1031              	.LVL81:
+ 1032              	.LFB2390:
+ 202:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 203:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** bool ScreenDetailTournament_OnConfirm(uint8_t index) {
+ 1033              		.loc 1 203 54 is_stmt 1 view -0
+ 1034              		.cfi_startproc
+ 1035              		@ args = 0, pretend = 0, frame = 0
+ 1036              		@ frame_needed = 0, uses_anonymous_args = 0
+ 204:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     APP_DBG("[SCREEN][CONN] confirm index:%u pair_page:%u",
+ 1037              		.loc 1 204 5 view .LVU298
+ 205:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             (unsigned int)index,
+ 206:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             (unsigned int)(g_pairPageActive ? 1u : 0u));
+ 207:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (g_pairPageActive) {
+ 1038              		.loc 1 207 5 view .LVU299
+ 203:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     APP_DBG("[SCREEN][CONN] confirm index:%u pair_page:%u",
+ 1039              		.loc 1 203 54 is_stmt 0 view .LVU300
+ 1040 0000 70B5     		push	{r4, r5, r6, lr}
+ 1041              	.LCFI13:
+ 1042              		.cfi_def_cfa_offset 16
+ 1043              		.cfi_offset 4, -16
+ 1044              		.cfi_offset 5, -12
+ 1045              		.cfi_offset 6, -8
+ 1046              		.cfi_offset 14, -4
+ 1047              		.loc 1 207 5 view .LVU301
+ 1048 0002 274D     		ldr	r5, .L94
+ 1049 0004 2978     		ldrb	r1, [r5]	@ zero_extendqisi2
+ 1050 0006 B9B9     		cbnz	r1, .L75
+ 208:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         return false;
+ 209:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ 210:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (index >= connectionItemCount()) return false;
+ 1051              		.loc 1 210 5 is_stmt 1 view .LVU302
+ 1052              		.loc 1 210 5 is_stmt 0 discriminator 1 view .LVU303
+ 1053 0008 0528     		cmp	r0, #5
+ 1054 000a 15D8     		bhi	.L75
+ 211:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const ConnectionSettingItem& item = kConnectionItems[index];
+ 1055              		.loc 1 211 5 is_stmt 1 view .LVU304
+ 1056              	.LVL82:
+ 212:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (item.kind == ConnectionSettingKind::PairAction) {
+ 1057              		.loc 1 212 5 view .LVU305
+ 1058              		.loc 1 212 14 is_stmt 0 view .LVU306
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 30
+
+
+ 1059 000c 254B     		ldr	r3, .L94+4
+ 1060              	.LBB135:
+ 1061              	.LBB136:
+ 1062              		.loc 4 27 36 view .LVU307
+ 1063 000e 264A     		ldr	r2, .L94+8
+ 1064              	.LBE136:
+ 1065              	.LBE135:
+ 1066              		.loc 1 212 5 view .LVU308
+ 1067 0010 13F83060 		ldrb	r6, [r3, r0, lsl #3]	@ zero_extendqisi2
+ 1068              	.LBB139:
+ 1069              	.LBB137:
+ 1070              		.loc 4 27 36 view .LVU309
+ 1071 0014 147A     		ldrb	r4, [r2, #8]	@ zero_extendqisi2
+ 1072              	.LBE137:
+ 1073              	.LBE139:
+ 1074              		.loc 1 212 5 view .LVU310
+ 1075 0016 012E     		cmp	r6, #1
+ 1076 0018 11D1     		bne	.L77
+ 213:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (!BOARD_MODE.isStable() ||
+ 1077              		.loc 1 213 9 is_stmt 1 view .LVU311
+ 1078              	.LVL83:
+ 1079              	.LBB140:
+ 1080              	.LBI135:
+ 1081              		.loc 4 27 10 view .LVU312
+ 1082              	.LBB138:
+ 1083              		.loc 4 27 29 view .LVU313
+ 1084              		.loc 4 27 29 is_stmt 0 view .LVU314
+ 1085              	.LBE138:
+ 1086              	.LBE140:
+ 214:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             BOARD_MODE.current() != BoardMode::Rf ||
+ 1087              		.loc 1 214 51 view .LVU315
+ 1088 001a 6CB1     		cbz	r4, .L75
+ 1089              	.LVL84:
+ 1090              	.LBB141:
+ 1091              	.LBI141:
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 1092              		.loc 4 26 15 is_stmt 1 view .LVU316
+ 1093              	.LBB142:
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 1094              		.loc 4 26 33 view .LVU317
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 1095              		.loc 4 26 33 is_stmt 0 view .LVU318
+ 1096              	.LBE142:
+ 1097              	.LBE141:
+ 213:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (!BOARD_MODE.isStable() ||
+ 1098              		.loc 1 213 36 view .LVU319
+ 1099 001c 1378     		ldrb	r3, [r2]	@ zero_extendqisi2
+ 1100 001e 012B     		cmp	r3, #1
+ 1101 0020 0AD1     		bne	.L75
+ 1102              	.LVL85:
+ 1103              	.LBB143:
+ 1104              	.LBI143:
+  70:Cpp_Core/Inc/connection_manager.hpp ****     ConnectionLinkState getLinkState() const { return linkState; }
+ 1105              		.loc 2 70 20 is_stmt 1 view .LVU320
+ 1106              	.LBB144:
+  70:Cpp_Core/Inc/connection_manager.hpp ****     ConnectionLinkState getLinkState() const { return linkState; }
+ 1107              		.loc 2 70 38 view .LVU321
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 31
+
+
+  70:Cpp_Core/Inc/connection_manager.hpp ****     ConnectionLinkState getLinkState() const { return linkState; }
+ 1108              		.loc 2 70 45 is_stmt 0 view .LVU322
+ 1109 0022 2248     		ldr	r0, .L94+12
+ 1110              	.LVL86:
+  70:Cpp_Core/Inc/connection_manager.hpp ****     ConnectionLinkState getLinkState() const { return linkState; }
+ 1111              		.loc 2 70 45 view .LVU323
+ 1112              	.LBE144:
+ 1113              	.LBE143:
+ 1114              		.loc 1 214 51 discriminator 3 view .LVU324
+ 1115 0024 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+ 1116 0026 012B     		cmp	r3, #1
+ 1117 0028 06D1     		bne	.L75
+ 215:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             CONNECTION_MANAGER.getMode() != CONNECTION_MODE_RF24G) {
+ 216:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             APP_ERR("[SCREEN][PAIR] physical switch is not in RF position");
+ 217:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             return false;
+ 218:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         }
+ 219:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         APP_DBG("[SCREEN][PAIR] action selected");
+ 1118              		.loc 1 219 9 is_stmt 1 view .LVU325
+ 220:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         g_pairPageActive = true;
+ 1119              		.loc 1 220 9 view .LVU326
+ 1120              		.loc 1 220 26 is_stmt 0 view .LVU327
+ 1121 002a 2B70     		strb	r3, [r5]
+ 221:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         g_pairPageSuccessAtMs = 0u;
+ 1122              		.loc 1 221 9 is_stmt 1 view .LVU328
+ 1123              		.loc 1 221 31 is_stmt 0 view .LVU329
+ 1124 002c 204B     		ldr	r3, .L94+16
+ 1125 002e 1960     		str	r1, [r3]
+ 222:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         g_pairPageSuccessConsumed = false;
+ 1126              		.loc 1 222 9 is_stmt 1 view .LVU330
+ 1127              		.loc 1 222 35 is_stmt 0 view .LVU331
+ 1128 0030 204B     		ldr	r3, .L94+20
+ 1129 0032 1970     		strb	r1, [r3]
+ 223:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         (void)CONNECTION_MANAGER.startRfPairing();
+ 1130              		.loc 1 223 9 is_stmt 1 view .LVU332
+ 1131              	.LBB145:
+ 1132              	.LBI145:
+  48:Cpp_Core/Inc/connection_manager.hpp ****         static ConnectionManager instance;
+ 1133              		.loc 2 48 31 view .LVU333
+  49:Cpp_Core/Inc/connection_manager.hpp ****         return instance;
+ 1134              		.loc 2 49 9 view .LVU334
+  50:Cpp_Core/Inc/connection_manager.hpp ****     }
+ 1135              		.loc 2 50 9 view .LVU335
+ 1136              	.LBE145:
+ 1137              		.loc 1 223 48 is_stmt 0 discriminator 1 view .LVU336
+ 1138 0034 FFF7FEFF 		bl	_ZN17ConnectionManager14startRfPairingEv
+ 1139              	.LVL87:
+ 224:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         return false;
+ 1140              		.loc 1 224 9 is_stmt 1 view .LVU337
+ 1141              	.L75:
+ 208:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ 1142              		.loc 1 208 16 is_stmt 0 view .LVU338
+ 1143 0038 0024     		movs	r4, #0
+ 1144              	.L78:
+ 225:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ 226:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (!BOARD_MODE.isStable()) {
+ 227:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         return false;
+ 228:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 32
+
+
+ 229:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 230:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const bool physicalRf = BOARD_MODE.current() == BoardMode::Rf;
+ 231:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const bool physicalUsb = BOARD_MODE.current() == BoardMode::Usb;
+ 232:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if ((item.mode == CONNECTION_MODE_RF24G && !physicalRf) ||
+ 233:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         (item.mode == CONNECTION_MODE_USB && !physicalUsb)) {
+ 234:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         APP_ERR("[SCREEN][CONN] role is controlled by physical switch");
+ 235:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         return false;
+ 236:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ 237:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 238:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     /*
+ 239:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****      * Runtime role changes are never initiated from UI. In RF position this
+ 240:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****      * page may only apply the existing frozen rate transaction; in USB
+ 241:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****      * position the USB row is informational.
+ 242:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****      */
+ 243:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (physicalRf) {
+ 244:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (CONNECTION_MANAGER.getMode() != CONNECTION_MODE_RF24G ||
+ 245:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             !CONNECTION_MANAGER.applyWirelessReportRate(item.rate, false)) {
+ 246:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             APP_ERR("[SCREEN][CONN] runtime rate apply failed:%u",
+ 247:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****                     (unsigned int)item.rate);
+ 248:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             return false;
+ 249:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         }
+ 250:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         STORAGE_MANAGER.setWirelessReportRate(item.rate);
+ 251:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         STORAGE_MANAGER.setConnectionMode(CONNECTION_MODE_RF24G);
+ 252:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     } else {
+ 253:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         STORAGE_MANAGER.setConnectionMode(CONNECTION_MODE_USB);
+ 254:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ 255:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     ScreenUI_RequestDeferredSave(500u);
+ 256:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     return true;
+ 257:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** }
+ 1145              		.loc 1 257 1 view .LVU339
+ 1146 003a 2046     		mov	r0, r4
+ 1147 003c 70BD     		pop	{r4, r5, r6, pc}
+ 1148              	.LVL88:
+ 1149              	.L77:
+ 226:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         return false;
+ 1150              		.loc 1 226 5 is_stmt 1 view .LVU340
+ 226:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         return false;
+ 1151              		.loc 1 226 5 is_stmt 0 discriminator 2 view .LVU341
+ 1152 003e 002C     		cmp	r4, #0
+ 1153 0040 FAD0     		beq	.L75
+ 230:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     const bool physicalUsb = BOARD_MODE.current() == BoardMode::Usb;
+ 1154              		.loc 1 230 5 is_stmt 1 view .LVU342
+ 1155              	.LVL89:
+ 1156              	.LBB146:
+ 1157              	.LBI146:
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 1158              		.loc 4 26 15 view .LVU343
+ 1159              	.LBB147:
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 1160              		.loc 4 26 33 view .LVU344
+ 1161              	.LBE147:
+ 1162              	.LBE146:
+ 232:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         (item.mode == CONNECTION_MODE_USB && !physicalUsb)) {
+ 1163              		.loc 1 232 15 is_stmt 0 view .LVU345
+ 1164 0042 C600     		lsls	r6, r0, #3
+ 1165              	.LBB149:
+ 1166              	.LBB148:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 33
+
+
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 1167              		.loc 4 26 40 view .LVU346
+ 1168 0044 1278     		ldrb	r2, [r2]	@ zero_extendqisi2
+ 1169              	.LVL90:
+  26:Cpp_Core/Inc/board_mode.hpp ****     bool isStable() const { return stable; }
+ 1170              		.loc 4 26 40 view .LVU347
+ 1171              	.LBE148:
+ 1172              	.LBE149:
+ 231:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if ((item.mode == CONNECTION_MODE_RF24G && !physicalRf) ||
+ 1173              		.loc 1 231 5 is_stmt 1 view .LVU348
+ 232:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         (item.mode == CONNECTION_MODE_USB && !physicalUsb)) {
+ 1174              		.loc 1 232 5 view .LVU349
+ 232:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         (item.mode == CONNECTION_MODE_USB && !physicalUsb)) {
+ 1175              		.loc 1 232 15 is_stmt 0 view .LVU350
+ 1176 0046 03EBC000 		add	r0, r3, r0, lsl #3
+ 1177              	.LVL91:
+ 232:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         (item.mode == CONNECTION_MODE_USB && !physicalUsb)) {
+ 1178              		.loc 1 232 15 view .LVU351
+ 1179 004a 4178     		ldrb	r1, [r0, #1]	@ zero_extendqisi2
+ 232:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         (item.mode == CONNECTION_MODE_USB && !physicalUsb)) {
+ 1180              		.loc 1 232 5 view .LVU352
+ 1181 004c 0129     		cmp	r1, #1
+ 1182 004e 1CD1     		bne	.L79
+ 232:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         (item.mode == CONNECTION_MODE_USB && !physicalUsb)) {
+ 1183              		.loc 1 232 45 discriminator 1 view .LVU353
+ 1184 0050 012A     		cmp	r2, #1
+ 1185 0052 F1D1     		bne	.L75
+ 1186              	.L80:
+ 244:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             !CONNECTION_MANAGER.applyWirelessReportRate(item.rate, false)) {
+ 1187              		.loc 1 244 9 is_stmt 1 view .LVU354
+ 1188              	.LVL92:
+ 1189              	.LBB150:
+ 1190              	.LBI150:
+  70:Cpp_Core/Inc/connection_manager.hpp ****     ConnectionLinkState getLinkState() const { return linkState; }
+ 1191              		.loc 2 70 20 view .LVU355
+ 1192              	.LBB151:
+  70:Cpp_Core/Inc/connection_manager.hpp ****     ConnectionLinkState getLinkState() const { return linkState; }
+ 1193              		.loc 2 70 38 view .LVU356
+  70:Cpp_Core/Inc/connection_manager.hpp ****     ConnectionLinkState getLinkState() const { return linkState; }
+ 1194              		.loc 2 70 45 is_stmt 0 view .LVU357
+ 1195 0054 1548     		ldr	r0, .L94+12
+ 1196              	.LBE151:
+ 1197              	.LBE150:
+ 244:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             !CONNECTION_MANAGER.applyWirelessReportRate(item.rate, false)) {
+ 1198              		.loc 1 244 67 discriminator 2 view .LVU358
+ 1199 0056 0578     		ldrb	r5, [r0]	@ zero_extendqisi2
+ 1200 0058 012D     		cmp	r5, #1
+ 1201 005a EDD1     		bne	.L75
+ 1202              	.LBB152:
+ 1203              	.LBI152:
+  48:Cpp_Core/Inc/connection_manager.hpp ****         static ConnectionManager instance;
+ 1204              		.loc 2 48 31 is_stmt 1 view .LVU359
+  49:Cpp_Core/Inc/connection_manager.hpp ****         return instance;
+ 1205              		.loc 2 49 9 view .LVU360
+  50:Cpp_Core/Inc/connection_manager.hpp ****     }
+ 1206              		.loc 2 50 9 view .LVU361
+ 1207              	.LBE152:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 34
+
+
+ 245:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             APP_ERR("[SCREEN][CONN] runtime rate apply failed:%u",
+ 1208              		.loc 1 245 62 is_stmt 0 discriminator 1 view .LVU362
+ 1209 005c 3344     		add	r3, r3, r6
+ 245:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             APP_ERR("[SCREEN][CONN] runtime rate apply failed:%u",
+ 1210              		.loc 1 245 56 discriminator 1 view .LVU363
+ 1211 005e 0022     		movs	r2, #0
+ 1212              	.LVL93:
+ 245:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             APP_ERR("[SCREEN][CONN] runtime rate apply failed:%u",
+ 1213              		.loc 1 245 62 discriminator 1 view .LVU364
+ 1214 0060 5E88     		ldrh	r6, [r3, #2]
+ 245:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             APP_ERR("[SCREEN][CONN] runtime rate apply failed:%u",
+ 1215              		.loc 1 245 56 discriminator 1 view .LVU365
+ 1216 0062 3146     		mov	r1, r6
+ 1217 0064 FFF7FEFF 		bl	_ZN17ConnectionManager23applyWirelessReportRateE18WirelessReportRateb
+ 1218              	.LVL94:
+ 244:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****             !CONNECTION_MANAGER.applyWirelessReportRate(item.rate, false)) {
+ 1219              		.loc 1 244 67 discriminator 2 view .LVU366
+ 1220 0068 0028     		cmp	r0, #0
+ 1221 006a E5D0     		beq	.L75
+ 250:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         STORAGE_MANAGER.setConnectionMode(CONNECTION_MODE_RF24G);
+ 1222              		.loc 1 250 9 is_stmt 1 view .LVU367
+ 1223 006c FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 1224              	.LVL95:
+ 250:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         STORAGE_MANAGER.setConnectionMode(CONNECTION_MODE_RF24G);
+ 1225              		.loc 1 250 46 is_stmt 0 discriminator 1 view .LVU368
+ 1226 0070 3146     		mov	r1, r6
+ 1227 0072 FFF7FEFF 		bl	_ZN7Storage21setWirelessReportRateE18WirelessReportRate
+ 1228              	.LVL96:
+ 251:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     } else {
+ 1229              		.loc 1 251 9 is_stmt 1 view .LVU369
+ 1230 0076 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 1231              	.LVL97:
+ 251:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     } else {
+ 1232              		.loc 1 251 42 is_stmt 0 discriminator 1 view .LVU370
+ 1233 007a 2946     		mov	r1, r5
+ 1234              	.L93:
+ 253:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ 1235              		.loc 1 253 42 discriminator 1 view .LVU371
+ 1236 007c FFF7FEFF 		bl	_ZN7Storage17setConnectionModeE14ConnectionMode
+ 1237              	.LVL98:
+ 255:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     return true;
+ 1238              		.loc 1 255 5 is_stmt 1 view .LVU372
+ 255:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     return true;
+ 1239              		.loc 1 255 33 is_stmt 0 view .LVU373
+ 1240 0080 4FF4FA70 		mov	r0, #500
+ 1241 0084 FFF7FEFF 		bl	_Z28ScreenUI_RequestDeferredSavem
+ 1242              	.LVL99:
+ 256:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** }
+ 1243              		.loc 1 256 5 is_stmt 1 view .LVU374
+ 256:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** }
+ 1244              		.loc 1 256 12 is_stmt 0 view .LVU375
+ 1245 0088 D7E7     		b	.L78
+ 1246              	.LVL100:
+ 1247              	.L79:
+ 232:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         (item.mode == CONNECTION_MODE_USB && !physicalUsb)) {
+ 1248              		.loc 1 232 61 discriminator 3 view .LVU376
+ 1249 008a 29B9     		cbnz	r1, .L81
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 35
+
+
+ 233:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         APP_ERR("[SCREEN][CONN] role is controlled by physical switch");
+ 1250              		.loc 1 233 43 view .LVU377
+ 1251 008c 002A     		cmp	r2, #0
+ 1252 008e D3D1     		bne	.L75
+ 1253              	.L82:
+ 253:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ 1254              		.loc 1 253 9 is_stmt 1 view .LVU378
+ 1255 0090 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 1256              	.LVL101:
+ 253:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ 1257              		.loc 1 253 42 is_stmt 0 discriminator 1 view .LVU379
+ 1258 0094 0021     		movs	r1, #0
+ 1259 0096 F1E7     		b	.L93
+ 1260              	.LVL102:
+ 1261              	.L81:
+ 243:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         if (CONNECTION_MANAGER.getMode() != CONNECTION_MODE_RF24G ||
+ 1262              		.loc 1 243 5 is_stmt 1 view .LVU380
+ 1263 0098 012A     		cmp	r2, #1
+ 1264 009a F9D1     		bne	.L82
+ 1265 009c DAE7     		b	.L80
+ 1266              	.L95:
+ 1267 009e 00BF     		.align	2
+ 1268              	.L94:
+ 1269 00a0 00000000 		.word	_ZL16g_pairPageActive
+ 1270 00a4 00000000 		.word	_ZL16kConnectionItems
+ 1271 00a8 00000000 		.word	_ZZN16BoardModeManager11getInstanceEvE8instance
+ 1272 00ac 00000000 		.word	_ZZN17ConnectionManager11getInstanceEvE8instance
+ 1273 00b0 00000000 		.word	_ZL21g_pairPageSuccessAtMs
+ 1274 00b4 00000000 		.word	_ZL25g_pairPageSuccessConsumed
+ 1275              		.cfi_endproc
+ 1276              	.LFE2390:
+ 1278              		.section	.text._Z29ScreenDetailTournament_OnBackv,"ax",%progbits
+ 1279              		.align	1
+ 1280              		.global	_Z29ScreenDetailTournament_OnBackv
+ 1281              		.syntax unified
+ 1282              		.thumb
+ 1283              		.thumb_func
+ 1285              	_Z29ScreenDetailTournament_OnBackv:
+ 1286              	.LFB2391:
+ 258:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** 
+ 259:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** bool ScreenDetailTournament_OnBack(void) {
+ 1287              		.loc 1 259 42 view -0
+ 1288              		.cfi_startproc
+ 1289              		@ args = 0, pretend = 0, frame = 0
+ 1290              		@ frame_needed = 0, uses_anonymous_args = 0
+ 260:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (g_pairPageActive) {
+ 1291              		.loc 1 260 5 view .LVU382
+ 259:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     if (g_pairPageActive) {
+ 1292              		.loc 1 259 42 is_stmt 0 view .LVU383
+ 1293 0000 10B5     		push	{r4, lr}
+ 1294              	.LCFI14:
+ 1295              		.cfi_def_cfa_offset 8
+ 1296              		.cfi_offset 4, -8
+ 1297              		.cfi_offset 14, -4
+ 1298              		.loc 1 260 5 view .LVU384
+ 1299 0002 074C     		ldr	r4, .L101
+ 1300 0004 2378     		ldrb	r3, [r4]	@ zero_extendqisi2
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 36
+
+
+ 1301 0006 43B1     		cbz	r3, .L97
+ 261:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         APP_DBG("[SCREEN][PAIR] back stop");
+ 1302              		.loc 1 261 9 is_stmt 1 view .LVU385
+ 262:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         (void)CONNECTION_MANAGER.stopRfPairing();
+ 1303              		.loc 1 262 9 view .LVU386
+ 1304              	.LBB153:
+ 1305              	.LBI153:
+  48:Cpp_Core/Inc/connection_manager.hpp ****         static ConnectionManager instance;
+ 1306              		.loc 2 48 31 view .LVU387
+  49:Cpp_Core/Inc/connection_manager.hpp ****         return instance;
+ 1307              		.loc 2 49 9 view .LVU388
+  50:Cpp_Core/Inc/connection_manager.hpp ****     }
+ 1308              		.loc 2 50 9 view .LVU389
+ 1309              	.LBE153:
+ 1310              		.loc 1 262 47 is_stmt 0 discriminator 1 view .LVU390
+ 1311 0008 0648     		ldr	r0, .L101+4
+ 1312 000a FFF7FEFF 		bl	_ZN17ConnectionManager13stopRfPairingEv
+ 1313              	.LVL103:
+ 263:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         g_pairPageActive = false;
+ 1314              		.loc 1 263 9 is_stmt 1 view .LVU391
+ 1315              		.loc 1 263 26 is_stmt 0 view .LVU392
+ 1316 000e 0023     		movs	r3, #0
+ 264:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         g_pairPageSuccessAtMs = 0u;
+ 1317              		.loc 1 264 31 view .LVU393
+ 1318 0010 054A     		ldr	r2, .L101+8
+ 263:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         g_pairPageActive = false;
+ 1319              		.loc 1 263 26 view .LVU394
+ 1320 0012 2370     		strb	r3, [r4]
+ 1321              		.loc 1 264 9 is_stmt 1 view .LVU395
+ 1322              		.loc 1 264 31 is_stmt 0 view .LVU396
+ 1323 0014 1360     		str	r3, [r2]
+ 265:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****         g_pairPageSuccessConsumed = false;
+ 1324              		.loc 1 265 9 is_stmt 1 view .LVU397
+ 1325              		.loc 1 265 35 is_stmt 0 view .LVU398
+ 1326 0016 054A     		ldr	r2, .L101+12
+ 1327 0018 1370     		strb	r3, [r2]
+ 1328              	.L97:
+ 266:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     }
+ 267:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp ****     return true;
+ 1329              		.loc 1 267 5 is_stmt 1 view .LVU399
+ 268:Cpp_Core/Src/screen_control/spi_screen_detail_tournament_mode.cpp **** }
+ 1330              		.loc 1 268 1 is_stmt 0 view .LVU400
+ 1331 001a 0120     		movs	r0, #1
+ 1332 001c 10BD     		pop	{r4, pc}
+ 1333              	.L102:
+ 1334 001e 00BF     		.align	2
+ 1335              	.L101:
+ 1336 0020 00000000 		.word	_ZL16g_pairPageActive
+ 1337 0024 00000000 		.word	_ZZN17ConnectionManager11getInstanceEvE8instance
+ 1338 0028 00000000 		.word	_ZL21g_pairPageSuccessAtMs
+ 1339 002c 00000000 		.word	_ZL25g_pairPageSuccessConsumed
+ 1340              		.cfi_endproc
+ 1341              	.LFE2391:
+ 1343              		.section	.bss._ZL25g_pairPageSuccessConsumed,"aw",%nobits
+ 1346              	_ZL25g_pairPageSuccessConsumed:
+ 1347 0000 00       		.space	1
+ 1348              		.section	.bss._ZL21g_pairPageSuccessAtMs,"aw",%nobits
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 37
+
+
+ 1349              		.align	2
+ 1352              	_ZL21g_pairPageSuccessAtMs:
+ 1353 0000 00000000 		.space	4
+ 1354              		.section	.bss._ZL16g_pairPageActive,"aw",%nobits
+ 1357              	_ZL16g_pairPageActive:
+ 1358 0000 00       		.space	1
+ 1359              		.section	.rodata._ZL16kConnectionItems,"a"
+ 1360              		.align	2
+ 1363              	_ZL16kConnectionItems:
+ 1364 0000 00       		.byte	0
+ 1365 0001 00       		.byte	0
+ 1366 0002 E803     		.short	1000
+ 1367 0004 00000000 		.word	.LC11
+ 1368 0008 00       		.byte	0
+ 1369 0009 01       		.byte	1
+ 1370 000a E803     		.short	1000
+ 1371 000c 04000000 		.word	.LC12
+ 1372 0010 00       		.byte	0
+ 1373 0011 01       		.byte	1
+ 1374 0012 D007     		.short	2000
+ 1375 0014 0C000000 		.word	.LC13
+ 1376 0018 00       		.byte	0
+ 1377 0019 01       		.byte	1
+ 1378 001a A00F     		.short	4000
+ 1379 001c 14000000 		.word	.LC14
+ 1380 0020 00       		.byte	0
+ 1381 0021 01       		.byte	1
+ 1382 0022 401F     		.short	8000
+ 1383 0024 1C000000 		.word	.LC15
+ 1384 0028 01       		.byte	1
+ 1385 0029 01       		.byte	1
+ 1386 002a E803     		.short	1000
+ 1387 002c 70000000 		.word	.LC10
+ 1388              		.weak	_ZZN17ConnectionManager11getInstanceEvE8instance
+ 1389              		.section	.data._ZZN17ConnectionManager11getInstanceEvE8instance,"awG",%progbits,_ZZN17ConnectionMa
+ 1390              		.align	2
+ 1393              	_ZZN17ConnectionManager11getInstanceEvE8instance:
+ 1394 0000 00       		.byte	0
+ 1395 0001 00       		.byte	0
+ 1396 0002 E803     		.short	1000
+ 1397 0004 E803     		.short	1000
+ 1398 0006 00       		.byte	0
+ 1399 0007 01       		.byte	1
+ 1400 0008 00       		.byte	0
+ 1401 0009 00       		.byte	0
+ 1402 000a 00       		.byte	0
+ 1403 000b 00       		.space	1
+ 1404 000c 00000000 		.word	0
+ 1405 0010 00000000 		.word	0
+ 1406 0014 00000000 		.word	0
+ 1407 0018 00000000 		.word	0
+ 1408 001c 00000000 		.word	0
+ 1409 0020 00000000 		.word	0
+ 1410 0024 00000000 		.word	0
+ 1411 0028 00000000 		.word	0
+ 1412 002c 00000000 		.word	0
+ 1413 0030 00       		.byte	0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 38
+
+
+ 1414 0031 00       		.byte	0
+ 1415 0032 00       		.byte	0
+ 1416 0033 00       		.byte	0
+ 1417 0034 00000000 		.word	0
+ 1418 0038 00000000 		.word	0
+ 1419 003c 00       		.byte	0
+ 1420 003d 00       		.byte	0
+ 1421 003e 0000     		.space	2
+ 1422 0040 00       		.byte	0
+ 1423 0041 000000   		.space	3
+ 1424 0044 00       		.byte	0
+ 1425 0045 00       		.byte	0
+ 1426 0046 00       		.byte	0
+ 1427 0047 00       		.space	1
+ 1428 0048 E803     		.short	1000
+ 1429 004a 00       		.byte	0
+ 1430 004b 00       		.space	1
+ 1431 004c 0000     		.short	0
+ 1432 004e 0000     		.short	0
+ 1433 0050 0000     		.short	0
+ 1434 0052 0000     		.space	2
+ 1435 0054 00000000 		.word	0
+ 1436 0058 00       		.byte	0
+ 1437 0059 00       		.byte	0
+ 1438 005a 00       		.byte	0
+ 1439 005b 00       		.byte	0
+ 1440 005c 00       		.byte	0
+ 1441 005d 00       		.byte	0
+ 1442 005e 0000     		.space	2
+ 1443 0060 00000000 		.word	0
+ 1444 0064 00000000 		.word	0
+ 1445              		.weak	_ZGVZN7Storage11getInstanceEvE8instance
+ 1446              		.section	.bss._ZGVZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZGVZN7Storage11getInstanceEvE
+ 1447              		.align	2
+ 1450              	_ZGVZN7Storage11getInstanceEvE8instance:
+ 1451 0000 00000000 		.space	4
+ 1452              		.weak	_ZZN7Storage11getInstanceEvE8instance
+ 1453              		.section	.bss._ZZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZZN7Storage11getInstanceEvE8ins
+ 1454              		.align	2
+ 1457              	_ZZN7Storage11getInstanceEvE8instance:
+ 1458 0000 00000000 		.space	36484
+ 1458      00000000 
+ 1458      00000000 
+ 1458      00000000 
+ 1458      00000000 
+ 1459              		.weak	_ZZN16BoardModeManager11getInstanceEvE8instance
+ 1460              		.section	.data._ZZN16BoardModeManager11getInstanceEvE8instance,"awG",%progbits,_ZZN16BoardModeMana
+ 1461              		.align	2
+ 1464              	_ZZN16BoardModeManager11getInstanceEvE8instance:
+ 1465 0000 02       		.byte	2
+ 1466 0001 02       		.byte	2
+ 1467 0002 0000     		.space	2
+ 1468 0004 00000000 		.word	0
+ 1469 0008 00       		.byte	0
+ 1470 0009 00       		.byte	0
+ 1471 000a 0000     		.space	2
+ 1472              		.text
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 39
+
+
+ 1473              	.Letext0:
+ 1474              		.file 5 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1475              		.file 6 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1476              		.file 7 "Cpp_Core/Inc/screen_control/spi_screen_layout.hpp"
+ 1477              		.file 8 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 1478              		.file 9 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 1479              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 1480              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 1481              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 1482              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 1483              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 1484              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 1485              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 1486              		.file 17 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 1487              		.file 18 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 1488              		.file 19 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 1489              		.file 20 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 1490              		.file 21 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 1491              		.file 22 "Core/Inc/board_cfg.h"
+ 1492              		.file 23 "Cpp_Core/Inc/enums.hpp"
+ 1493              		.file 24 "Drivers/SPI-ST7789/st7789.h"
+ 1494              		.file 25 "Cpp_Core/Inc/config.hpp"
+ 1495              		.file 26 "Cpp_Core/Inc/gamepad/GamepadState.hpp"
+ 1496              		.file 27 "Cpp_Core/Inc/rf_transport.hpp"
+ 1497              		.file 28 "Cpp_Core/Inc/screen_control/spi_screen_ui_common.hpp"
+ 1498              		.file 29 "Cpp_Core/Inc/screen_control/spi_screen_detail_entries.hpp"
+ 1499              		.file 30 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/stdio.h"
+ 1500              		.file 31 "Cpp_Core/Inc/screen_control/spi_screen_detail_render_helpers.hpp"
+ 1501              		.file 32 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 40
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_detail_tournament_mode.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:43     .text._ZL17renderPairingPageP13ST7789_HandleRK13ScreenUiStyle14RfPairingState:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:48     .text._ZL17renderPairingPageP13ST7789_HandleRK13ScreenUiStyle14RfPairingState:00000000 _ZL17renderPairingPageP13ST7789_HandleRK13ScreenUiStyle14RfPairingState
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:122    .text._ZL17renderPairingPageP13ST7789_HandleRK13ScreenUiStyle14RfPairingState:00000042 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:437    .text._ZL17renderPairingPageP13ST7789_HandleRK13ScreenUiStyle14RfPairingState:00000158 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1352   .bss._ZL21g_pairPageSuccessAtMs:00000000 _ZL21g_pairPageSuccessAtMs
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1393   .data._ZZN17ConnectionManager11getInstanceEvE8instance:00000000 _ZZN17ConnectionManager11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:456    .text._ZN7Storage11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:462    .text._ZN7Storage11getInstanceEv:00000000 _ZN7Storage11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:512    .text._ZN7Storage11getInstanceEv:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1450   .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 _ZGVZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1457   .bss._ZZN7Storage11getInstanceEvE8instance:00000000 _ZZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:518    .text._ZL23selectedConnectionIndexv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:523    .text._ZL23selectedConnectionIndexv:00000000 _ZL23selectedConnectionIndexv
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:641    .text._ZL23selectedConnectionIndexv:0000003c $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1464   .data._ZZN16BoardModeManager11getInstanceEvE8instance:00000000 _ZZN16BoardModeManager11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1363   .rodata._ZL16kConnectionItems:00000000 _ZL16kConnectionItems
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:647    .text._Z32ScreenDetailTournament_InitIndexv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:653    .text._Z32ScreenDetailTournament_InitIndexv:00000000 _Z32ScreenDetailTournament_InitIndexv
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:694    .text._Z32ScreenDetailTournament_InitIndexv:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1357   .bss._ZL16g_pairPageActive:00000000 _ZL16g_pairPageActive
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1346   .bss._ZL25g_pairPageSuccessConsumed:00000000 _ZL25g_pairPageSuccessConsumed
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:702    .text._Z29ScreenDetailTournament_RotatePha:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:708    .text._Z29ScreenDetailTournament_RotatePha:00000000 _Z29ScreenDetailTournament_RotatePha
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:745    .text._Z29ScreenDetailTournament_RotatePha:0000001c $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:763    .text._Z29ScreenDetailTournament_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:769    .text._Z29ScreenDetailTournament_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 _Z29ScreenDetailTournament_RenderP13ST7789_HandlehRK13ScreenUiStyle
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1008   .text._Z29ScreenDetailTournament_RenderP13ST7789_HandlehRK13ScreenUiStyle:000000a8 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1024   .text._Z32ScreenDetailTournament_OnConfirmh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1030   .text._Z32ScreenDetailTournament_OnConfirmh:00000000 _Z32ScreenDetailTournament_OnConfirmh
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1269   .text._Z32ScreenDetailTournament_OnConfirmh:000000a0 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1279   .text._Z29ScreenDetailTournament_OnBackv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1285   .text._Z29ScreenDetailTournament_OnBackv:00000000 _Z29ScreenDetailTournament_OnBackv
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1336   .text._Z29ScreenDetailTournament_OnBackv:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1347   .bss._ZL25g_pairPageSuccessConsumed:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1349   .bss._ZL21g_pairPageSuccessAtMs:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1358   .bss._ZL16g_pairPageActive:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1360   .rodata._ZL16kConnectionItems:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1390   .data._ZZN17ConnectionManager11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1447   .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1454   .bss._ZZN7Storage11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:1461   .data._ZZN16BoardModeManager11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:127    .text._ZL17renderPairingPageP13ST7789_HandleRK13ScreenUiStyle14RfPairingState:00000047 $d
+C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s:127    .text._ZL17renderPairingPageP13ST7789_HandleRK13ScreenUiStyle14RfPairingState:00000048 $t
+
+UNDEFINED SYMBOLS
+memset
+_Z18ScreenUI_CharCellHh
+ST7789_FillRect
+ST7789_DrawString
+HAL_GetTick
+snprintf
+__cxa_guard_acquire
+__cxa_guard_release
+_Z23ScreenDetailRender_ListP13ST7789_HandlePKcPKS2_hhhRK13ScreenUiStyletbimmPKb
+_ZN17ConnectionManager14startRfPairingEv
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccnGUeXv.s 			page 41
+
+
+_ZN17ConnectionManager23applyWirelessReportRateE18WirelessReportRateb
+_ZN7Storage21setWirelessReportRateE18WirelessReportRate
+_ZN7Storage17setConnectionModeE14ConnectionMode
+_Z28ScreenUI_RequestDeferredSavem
+_ZN17ConnectionManager13stopRfPairingEv

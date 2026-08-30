@@ -254,6 +254,24 @@ export class PerformanceTelemetryCache {
     }),
   );
 
+  reset(): void {
+    this.timestampUs = 0;
+    this.maxTravelDistanceUm = 0;
+    this.droppedSamples = 0;
+    for (let buttonIndex = 0; buttonIndex < this.buttons.length; buttonIndex += 1) {
+      this.buttons[buttonIndex] = {
+        buttonIndex,
+        virtualPin: buttonIndex,
+        isPressed: false,
+        currentDistance: 0,
+        pressTriggerDistance: 0,
+        pressStartDistance: 0,
+        releaseTriggerDistance: 0,
+        releaseStartDistance: 0,
+      };
+    }
+  }
+
   applySample(sample: PerformanceSample): void {
     this.timestampUs = sample.deviceTimestampUs;
     this.droppedSamples += sample.droppedSamples;

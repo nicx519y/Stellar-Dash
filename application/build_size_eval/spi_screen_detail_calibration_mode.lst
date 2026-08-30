@@ -1,0 +1,466 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_detail_calibration_mode.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp"
+  19              		.section	.text._ZN7Storage11getInstanceEv,"axG",%progbits,_ZN7Storage11getInstanceEv,comdat
+  20              		.align	1
+  21              		.weak	_ZN7Storage11getInstanceEv
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN7Storage11getInstanceEv:
+  27              	.LFB2152:
+  28              		.file 2 "Cpp_Core/Inc/storagemanager.hpp"
+   1:Cpp_Core/Inc/storagemanager.hpp **** #ifndef _STORAGE_MANAGER_H_
+   2:Cpp_Core/Inc/storagemanager.hpp **** #define _STORAGE_MANAGER_H_
+   3:Cpp_Core/Inc/storagemanager.hpp **** 
+   4:Cpp_Core/Inc/storagemanager.hpp **** #include "config.hpp"
+   5:Cpp_Core/Inc/storagemanager.hpp **** 
+   6:Cpp_Core/Inc/storagemanager.hpp **** // Forward declarations
+   7:Cpp_Core/Inc/storagemanager.hpp **** class ADCValuesCalibrator;
+   8:Cpp_Core/Inc/storagemanager.hpp **** class ADCValuesMarker;
+   9:Cpp_Core/Inc/storagemanager.hpp **** 
+  10:Cpp_Core/Inc/storagemanager.hpp **** class Storage {
+  11:Cpp_Core/Inc/storagemanager.hpp **** public:
+  12:Cpp_Core/Inc/storagemanager.hpp **** 	using DefaultProfileChangedCallback = void (*)(void);
+  13:Cpp_Core/Inc/storagemanager.hpp **** 
+  14:Cpp_Core/Inc/storagemanager.hpp **** 	Storage(Storage const&) = delete;
+  15:Cpp_Core/Inc/storagemanager.hpp **** 	void operator=(Storage const&) = delete;
+  16:Cpp_Core/Inc/storagemanager.hpp **** 	
+  17:Cpp_Core/Inc/storagemanager.hpp **** 	static Storage& getInstance() {
+  29              		.loc 2 17 18 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  18:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+  33              		.loc 2 18 3 view .LVU1
+  17:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+  34              		.loc 2 17 18 is_stmt 0 view .LVU2
+  35 0000 10B5     		push	{r4, lr}
+  36              	.LCFI0:
+  37              		.cfi_def_cfa_offset 8
+  38              		.cfi_offset 4, -8
+  39              		.cfi_offset 14, -4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s 			page 2
+
+
+  40              		.loc 2 18 18 view .LVU3
+  41 0002 074C     		ldr	r4, .L8
+  42 0004 2368     		ldr	r3, [r4]
+  43 0006 BFF35B8F 		dmb	ish
+  44              		.loc 2 18 18 discriminator 1 view .LVU4
+  45 000a DB07     		lsls	r3, r3, #31
+  46 000c 06D4     		bmi	.L3
+  47              	.LBB11:
+  48              	.LBI11:
+  17:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+  49              		.loc 2 17 18 is_stmt 1 view .LVU5
+  50              	.LBB12:
+  51              		.loc 2 18 18 is_stmt 0 discriminator 1 view .LVU6
+  52 000e 2046     		mov	r0, r4
+  53 0010 FFF7FEFF 		bl	__cxa_guard_acquire
+  54              	.LVL0:
+  55 0014 10B1     		cbz	r0, .L3
+  56              	.LVL1:
+  57              	.LBB13:
+  58              	.LBI13:
+  19:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  20:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  21:Cpp_Core/Inc/storagemanager.hpp **** 
+  22:Cpp_Core/Inc/storagemanager.hpp **** 	Config config;
+  23:Cpp_Core/Inc/storagemanager.hpp **** 	
+  24:Cpp_Core/Inc/storagemanager.hpp **** 	void initConfig();
+  25:Cpp_Core/Inc/storagemanager.hpp **** 	bool saveConfig();
+  26:Cpp_Core/Inc/storagemanager.hpp **** 	bool resetConfig();
+  27:Cpp_Core/Inc/storagemanager.hpp **** 	void setInputMode(InputMode inputMode);
+  28:Cpp_Core/Inc/storagemanager.hpp **** 	const InputMode getInputMode() {
+  29:Cpp_Core/Inc/storagemanager.hpp **** 		return config.inputMode;
+  30:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  31:Cpp_Core/Inc/storagemanager.hpp **** 	void setConnectionMode(ConnectionMode mode);
+  32:Cpp_Core/Inc/storagemanager.hpp **** 	ConnectionMode getConnectionMode() const {
+  33:Cpp_Core/Inc/storagemanager.hpp **** 		return config.connectionMode;
+  34:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  35:Cpp_Core/Inc/storagemanager.hpp **** 	void setWirelessReportRate(WirelessReportRate rate);
+  36:Cpp_Core/Inc/storagemanager.hpp **** 	WirelessReportRate getWirelessReportRate() const {
+  37:Cpp_Core/Inc/storagemanager.hpp **** 		return config.wirelessReportRate;
+  38:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  39:Cpp_Core/Inc/storagemanager.hpp **** 	uint32_t getWakeHoldMs() const {
+  40:Cpp_Core/Inc/storagemanager.hpp **** 		return config.power.wakeHoldMs;
+  41:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  42:Cpp_Core/Inc/storagemanager.hpp **** 	uint32_t getAutoStandbyMs() const {
+  43:Cpp_Core/Inc/storagemanager.hpp **** 		return config.power.autoStandbyMs;
+  44:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  45:Cpp_Core/Inc/storagemanager.hpp **** 	void setRfPowerStateHint(uint8_t hint);
+  46:Cpp_Core/Inc/storagemanager.hpp **** 	uint8_t getRfPowerStateHint() const {
+  47:Cpp_Core/Inc/storagemanager.hpp **** 		return config.reservedConnection0;
+  48:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  49:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadProfile* getGamepadProfile(char* id);
+  50:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadProfile* getDefaultGamepadProfile() {
+  51:Cpp_Core/Inc/storagemanager.hpp **** 		return getGamepadProfile(config.defaultProfileId);
+  52:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  53:Cpp_Core/Inc/storagemanager.hpp **** 	bool setDefaultProfileId(const char* id);
+  54:Cpp_Core/Inc/storagemanager.hpp **** 	void registerDefaultProfileChangedCallback(DefaultProfileChangedCallback cb);
+  55:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadHotkeyEntry* getGamepadHotkeyEntry() {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s 			page 3
+
+
+  56:Cpp_Core/Inc/storagemanager.hpp **** 		return config.hotkeys;
+  57:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  58:Cpp_Core/Inc/storagemanager.hpp **** 
+  59:Cpp_Core/Inc/storagemanager.hpp **** 	void setBootMode(BootMode bootMode);
+  60:Cpp_Core/Inc/storagemanager.hpp **** 	BootMode getBootMode() {
+  61:Cpp_Core/Inc/storagemanager.hpp **** 		return config.bootMode;
+  62:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  63:Cpp_Core/Inc/storagemanager.hpp **** 
+  64:Cpp_Core/Inc/storagemanager.hpp **** private:
+  65:Cpp_Core/Inc/storagemanager.hpp **** 	Storage() {}  // 私有构造函数
+  59              		.loc 2 65 2 is_stmt 1 view .LVU7
+  60              		.loc 2 65 2 is_stmt 0 view .LVU8
+  61              	.LBE13:
+  18:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  62              		.loc 2 18 18 discriminator 1 view .LVU9
+  63 0016 2046     		mov	r0, r4
+  64 0018 FFF7FEFF 		bl	__cxa_guard_release
+  65              	.LVL2:
+  66              	.L3:
+  67              	.LBE12:
+  68              	.LBE11:
+  19:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  69              		.loc 2 19 3 is_stmt 1 view .LVU10
+  20:Cpp_Core/Inc/storagemanager.hpp **** 
+  70              		.loc 2 20 2 is_stmt 0 view .LVU11
+  71 001c 0148     		ldr	r0, .L8+4
+  72 001e 10BD     		pop	{r4, pc}
+  73              	.L9:
+  74              		.align	2
+  75              	.L8:
+  76 0020 00000000 		.word	_ZGVZN7Storage11getInstanceEvE8instance
+  77 0024 00000000 		.word	_ZZN7Storage11getInstanceEvE8instance
+  78              		.cfi_endproc
+  79              	.LFE2152:
+  81              		.section	.text._Z33ScreenDetailCalibration_InitIndexv,"ax",%progbits
+  82              		.align	1
+  83              		.global	_Z33ScreenDetailCalibration_InitIndexv
+  84              		.syntax unified
+  85              		.thumb
+  86              		.thumb_func
+  88              	_Z33ScreenDetailCalibration_InitIndexv:
+  89              	.LFB2165:
+   1:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** #include "screen_control/spi_screen_detail_entries.hpp"
+   2:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** #include "main_runtime_control.hpp"
+   3:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** 
+   4:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** #include "storagemanager.hpp"
+   5:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** #include "screen_control/spi_screen_detail_render_helpers.hpp"
+   6:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** 
+   7:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** uint8_t ScreenDetailCalibration_InitIndex(void) {
+  90              		.loc 1 7 49 is_stmt 1 view -0
+  91              		.cfi_startproc
+  92              		@ args = 0, pretend = 0, frame = 0
+  93              		@ frame_needed = 0, uses_anonymous_args = 0
+  94              		@ link register save eliminated.
+   8:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     return 0;
+  95              		.loc 1 8 5 view .LVU13
+   9:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s 			page 4
+
+
+  96              		.loc 1 9 1 is_stmt 0 view .LVU14
+  97 0000 0020     		movs	r0, #0
+  98 0002 7047     		bx	lr
+  99              		.cfi_endproc
+ 100              	.LFE2165:
+ 102              		.section	.text._Z30ScreenDetailCalibration_RotatePha,"ax",%progbits
+ 103              		.align	1
+ 104              		.global	_Z30ScreenDetailCalibration_RotatePha
+ 105              		.syntax unified
+ 106              		.thumb
+ 107              		.thumb_func
+ 109              	_Z30ScreenDetailCalibration_RotatePha:
+ 110              	.LVL3:
+ 111              	.LFB2166:
+  10:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** 
+  11:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** void ScreenDetailCalibration_Rotate(uint8_t* ioIndex, int8_t det) {
+ 112              		.loc 1 11 67 is_stmt 1 view -0
+ 113              		.cfi_startproc
+ 114              		@ args = 0, pretend = 0, frame = 0
+ 115              		@ frame_needed = 0, uses_anonymous_args = 0
+ 116              		@ link register save eliminated.
+  12:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     (void)ioIndex;
+ 117              		.loc 1 12 5 view .LVU16
+  13:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     (void)det;
+ 118              		.loc 1 13 5 view .LVU17
+  14:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** }
+ 119              		.loc 1 14 1 is_stmt 0 view .LVU18
+ 120 0000 7047     		bx	lr
+ 121              		.cfi_endproc
+ 122              	.LFE2166:
+ 124              		.section	.rodata._Z30ScreenDetailCalibration_RenderP13ST7789_HandlehRK13ScreenUiStyle.str1.1,"aMS"
+ 125              	.LC6:
+ 126 0000 43616C69 		.ascii	"Calibration Mode\000"
+ 126      62726174 
+ 126      696F6E20 
+ 126      4D6F6465 
+ 126      00
+ 127              		.section	.text._Z30ScreenDetailCalibration_RenderP13ST7789_HandlehRK13ScreenUiStyle,"ax",%progbits
+ 128              		.align	1
+ 129              		.global	_Z30ScreenDetailCalibration_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 130              		.syntax unified
+ 131              		.thumb
+ 132              		.thumb_func
+ 134              	_Z30ScreenDetailCalibration_RenderP13ST7789_HandlehRK13ScreenUiStyle:
+ 135              	.LVL4:
+ 136              	.LFB2167:
+  15:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** 
+  16:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** void ScreenDetailCalibration_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& style) 
+ 137              		.loc 1 16 100 is_stmt 1 view -0
+ 138              		.cfi_startproc
+ 139              		@ args = 0, pretend = 0, frame = 16
+ 140              		@ frame_needed = 0, uses_anonymous_args = 0
+  17:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     (void)index;
+ 141              		.loc 1 17 5 view .LVU20
+  18:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     const char* lines[] = {
+ 142              		.loc 1 18 5 view .LVU21
+  16:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     (void)index;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s 			page 5
+
+
+ 143              		.loc 1 16 100 is_stmt 0 view .LVU22
+ 144 0000 70B5     		push	{r4, r5, r6, lr}
+ 145              	.LCFI1:
+ 146              		.cfi_def_cfa_offset 16
+ 147              		.cfi_offset 4, -16
+ 148              		.cfi_offset 5, -12
+ 149              		.cfi_offset 6, -8
+ 150              		.cfi_offset 14, -4
+ 151              		.loc 1 18 17 view .LVU23
+ 152 0002 084B     		ldr	r3, .L13
+  16:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     (void)index;
+ 153              		.loc 1 16 100 view .LVU24
+ 154 0004 86B0     		sub	sp, sp, #24
+ 155              	.LCFI2:
+ 156              		.cfi_def_cfa_offset 40
+  16:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     (void)index;
+ 157              		.loc 1 16 100 view .LVU25
+ 158 0006 0546     		mov	r5, r0
+ 159 0008 1646     		mov	r6, r2
+ 160              		.loc 1 18 17 view .LVU26
+ 161 000a 02AC     		add	r4, sp, #8
+ 162 000c 0FCB     		ldm	r3, {r0, r1, r2, r3}
+ 163              	.LVL5:
+ 164              		.loc 1 18 17 view .LVU27
+ 165 000e 84E80F00 		stm	r4, {r0, r1, r2, r3}
+  19:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****         "Button calibration data has been cleared.",
+  20:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****         "Press and hold each button fully",
+  21:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****         "until its indicator turns green,",
+  22:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****         "which means that button is calibrated."
+  23:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     };
+  24:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     ScreenDetailRender_TitleLines(lcd, "Calibration Mode", lines, (uint8_t)(sizeof(lines) / sizeof(
+ 166              		.loc 1 24 5 is_stmt 1 view .LVU28
+ 167              		.loc 1 24 34 is_stmt 0 view .LVU29
+ 168 0012 0423     		movs	r3, #4
+ 169 0014 2246     		mov	r2, r4
+ 170 0016 0449     		ldr	r1, .L13+4
+ 171 0018 2846     		mov	r0, r5
+ 172 001a 0096     		str	r6, [sp]
+ 173 001c FFF7FEFF 		bl	_Z29ScreenDetailRender_TitleLinesP13ST7789_HandlePKcPKS2_hRK13ScreenUiStyle
+ 174              	.LVL6:
+  25:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** }
+ 175              		.loc 1 25 1 view .LVU30
+ 176 0020 06B0     		add	sp, sp, #24
+ 177              	.LCFI3:
+ 178              		.cfi_def_cfa_offset 16
+ 179              		@ sp needed
+ 180 0022 70BD     		pop	{r4, r5, r6, pc}
+ 181              	.LVL7:
+ 182              	.L14:
+ 183              		.loc 1 25 1 view .LVU31
+ 184              		.align	2
+ 185              	.L13:
+ 186 0024 00000000 		.word	.LANCHOR0
+ 187 0028 00000000 		.word	.LC6
+ 188              		.cfi_endproc
+ 189              	.LFE2167:
+ 191              		.section	.text._Z33ScreenDetailCalibration_OnConfirmh,"ax",%progbits
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s 			page 6
+
+
+ 192              		.align	1
+ 193              		.global	_Z33ScreenDetailCalibration_OnConfirmh
+ 194              		.syntax unified
+ 195              		.thumb
+ 196              		.thumb_func
+ 198              	_Z33ScreenDetailCalibration_OnConfirmh:
+ 199              	.LVL8:
+ 200              	.LFB2168:
+  26:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** 
+  27:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** void ScreenDetailCalibration_OnConfirm(uint8_t index) {
+ 201              		.loc 1 27 55 is_stmt 1 view -0
+ 202              		.cfi_startproc
+ 203              		@ args = 0, pretend = 0, frame = 0
+ 204              		@ frame_needed = 0, uses_anonymous_args = 0
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     (void)index;
+ 205              		.loc 1 28 5 view .LVU33
+  29:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
+ 206              		.loc 1 29 5 view .LVU34
+  27:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     (void)index;
+ 207              		.loc 1 27 55 is_stmt 0 view .LVU35
+ 208 0000 08B5     		push	{r3, lr}
+ 209              	.LCFI4:
+ 210              		.cfi_def_cfa_offset 8
+ 211              		.cfi_offset 3, -8
+ 212              		.cfi_offset 14, -4
+ 213              		.loc 1 29 5 view .LVU36
+ 214 0002 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 215              	.LVL9:
+ 216              		.loc 1 29 32 discriminator 1 view .LVU37
+ 217 0006 0221     		movs	r1, #2
+ 218 0008 FFF7FEFF 		bl	_ZN7Storage11setBootModeE8BootMode
+ 219              	.LVL10:
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     STORAGE_MANAGER.saveConfig();
+ 220              		.loc 1 30 5 is_stmt 1 view .LVU38
+ 221 000c FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 222              	.LVL11:
+ 223              		.loc 1 30 31 is_stmt 0 discriminator 1 view .LVU39
+ 224 0010 FFF7FEFF 		bl	_ZN7Storage10saveConfigEv
+ 225              	.LVL12:
+  31:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     MainRuntime_RequestReset();
+ 226              		.loc 1 31 5 is_stmt 1 view .LVU40
+  32:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp **** }
+ 227              		.loc 1 32 1 is_stmt 0 view .LVU41
+ 228 0014 BDE80840 		pop	{r3, lr}
+ 229              	.LCFI5:
+ 230              		.cfi_restore 14
+ 231              		.cfi_restore 3
+ 232              		.cfi_def_cfa_offset 0
+  31:Cpp_Core/Src/screen_control/spi_screen_detail_calibration_mode.cpp ****     MainRuntime_RequestReset();
+ 233              		.loc 1 31 29 view .LVU42
+ 234 0018 FFF7FEBF 		b	MainRuntime_RequestReset
+ 235              	.LVL13:
+ 236              		.cfi_endproc
+ 237              	.LFE2168:
+ 239              		.section	.rodata.str1.1,"aMS",%progbits,1
+ 240              	.LC0:
+ 241 0000 42757474 		.ascii	"Button calibration data has been cleared.\000"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s 			page 7
+
+
+ 241      6F6E2063 
+ 241      616C6962 
+ 241      72617469 
+ 241      6F6E2064 
+ 242              	.LC1:
+ 243 002a 50726573 		.ascii	"Press and hold each button fully\000"
+ 243      7320616E 
+ 243      6420686F 
+ 243      6C642065 
+ 243      61636820 
+ 244              	.LC2:
+ 245 004b 756E7469 		.ascii	"until its indicator turns green,\000"
+ 245      6C206974 
+ 245      7320696E 
+ 245      64696361 
+ 245      746F7220 
+ 246              	.LC3:
+ 247 006c 77686963 		.ascii	"which means that button is calibrated.\000"
+ 247      68206D65 
+ 247      616E7320 
+ 247      74686174 
+ 247      20627574 
+ 248              		.weak	_ZGVZN7Storage11getInstanceEvE8instance
+ 249              		.section	.bss._ZGVZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZGVZN7Storage11getInstanceEvE
+ 250              		.align	2
+ 253              	_ZGVZN7Storage11getInstanceEvE8instance:
+ 254 0000 00000000 		.space	4
+ 255              		.weak	_ZZN7Storage11getInstanceEvE8instance
+ 256              		.section	.bss._ZZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZZN7Storage11getInstanceEvE8ins
+ 257              		.align	2
+ 260              	_ZZN7Storage11getInstanceEvE8instance:
+ 261 0000 00000000 		.space	36484
+ 261      00000000 
+ 261      00000000 
+ 261      00000000 
+ 261      00000000 
+ 262              		.section	.rodata
+ 263              		.align	2
+ 264              		.set	.LANCHOR0,. + 0
+ 265              	.LC5:
+ 266 0000 00000000 		.word	.LC0
+ 267 0004 2A000000 		.word	.LC1
+ 268 0008 4B000000 		.word	.LC2
+ 269 000c 6C000000 		.word	.LC3
+ 270              		.text
+ 271              	.Letext0:
+ 272              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 273              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 274              		.file 5 "Cpp_Core/Inc/screen_control/spi_screen_layout.hpp"
+ 275              		.file 6 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 276              		.file 7 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 277              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 278              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 279              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 280              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 281              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 282              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s 			page 8
+
+
+ 283              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 284              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 285              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 286              		.file 17 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 287              		.file 18 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 288              		.file 19 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 289              		.file 20 "Core/Inc/board_cfg.h"
+ 290              		.file 21 "Cpp_Core/Inc/enums.hpp"
+ 291              		.file 22 "Drivers/SPI-ST7789/st7789.h"
+ 292              		.file 23 "Cpp_Core/Inc/config.hpp"
+ 293              		.file 24 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ 294              		.file 25 "Cpp_Core/Inc/main_runtime_control.hpp"
+ 295              		.file 26 "Cpp_Core/Inc/screen_control/spi_screen_detail_render_helpers.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s 			page 9
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_detail_calibration_mode.cpp
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:20     .text._ZN7Storage11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:26     .text._ZN7Storage11getInstanceEv:00000000 _ZN7Storage11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:76     .text._ZN7Storage11getInstanceEv:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:253    .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 _ZGVZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:260    .bss._ZZN7Storage11getInstanceEvE8instance:00000000 _ZZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:82     .text._Z33ScreenDetailCalibration_InitIndexv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:88     .text._Z33ScreenDetailCalibration_InitIndexv:00000000 _Z33ScreenDetailCalibration_InitIndexv
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:103    .text._Z30ScreenDetailCalibration_RotatePha:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:109    .text._Z30ScreenDetailCalibration_RotatePha:00000000 _Z30ScreenDetailCalibration_RotatePha
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:128    .text._Z30ScreenDetailCalibration_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:134    .text._Z30ScreenDetailCalibration_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 _Z30ScreenDetailCalibration_RenderP13ST7789_HandlehRK13ScreenUiStyle
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:186    .text._Z30ScreenDetailCalibration_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000024 $d
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:192    .text._Z33ScreenDetailCalibration_OnConfirmh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:198    .text._Z33ScreenDetailCalibration_OnConfirmh:00000000 _Z33ScreenDetailCalibration_OnConfirmh
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:250    .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:257    .bss._ZZN7Storage11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc1PXBYd.s:263    .rodata:00000000 $d
+
+UNDEFINED SYMBOLS
+__cxa_guard_acquire
+__cxa_guard_release
+_Z29ScreenDetailRender_TitleLinesP13ST7789_HandlePKcPKS2_hRK13ScreenUiStyle
+_ZN7Storage11setBootModeE8BootMode
+_ZN7Storage10saveConfigEv
+MainRuntime_RequestReset

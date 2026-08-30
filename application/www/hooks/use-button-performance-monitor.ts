@@ -1,21 +1,23 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { eventBus, EVENTS } from '@/lib/event-manager';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
-import { parseButtonPerformanceMonitoringBinaryData, type ButtonPerformanceMonitoringBinaryData, type ButtonPerformanceData } from '@/lib/button-performance-binary-parser';
+import {
+    parseButtonPerformanceMonitoringBinaryData,
+    type ButtonPerformanceMonitoringBinaryData,
+    type ButtonPerformanceData,
+} from '@/lib/button-performance-binary-parser';
 
-// 重新导出数据结构
-export type { ButtonPerformanceData, ButtonPerformanceMonitoringBinaryData as ButtonPerformanceMonitoringData };
+export type {
+    ButtonPerformanceData,
+    ButtonPerformanceMonitoringBinaryData as ButtonPerformanceMonitoringData,
+};
 
 export interface UseButtonPerformanceMonitorOptions {
-    /** 是否自动初始化监控 */
     autoInitialize?: boolean;
-    /** 错误回调 */
     onError?: (error: Error) => void;
-    /** 状态变化回调 */
     onMonitoringStateChange?: (isActive: boolean) => void;
-    /** 按键性能监控数据回调 */
     onButtonPerformanceData?: (data: ButtonPerformanceMonitoringBinaryData) => void;
-    /** 使用 eventBus 而不是直接监听（推荐） */
+    /** 保留用于兼容；设备事件统一通过 eventBus 分发。 */
     useEventBus?: boolean;
 }
 
@@ -25,110 +27,172 @@ export function useButtonPerformanceMonitor(options: UseButtonPerformanceMonitor
         onError,
         onMonitoringStateChange,
         onButtonPerformanceData,
-        useEventBus: useEventBusOption = true, // 默认使用 eventBus
     } = options;
+    const {
+        startButtonPerformanceMonitoring,
+        stopButtonPerformanceMonitoring,
+    } = useGamepadConfig();
 
-    // 使用 gamepad-config-context 中的方法
-    const { startButtonPerformanceMonitoring, stopButtonPerformanceMonitoring } = useGamepadConfig();
+    const callbacksRef = useRef({
+        onError,
+        onMonitoringStateChange,
+        onButtonPerformanceData,
+    });
+    callbacksRef.current = {
+        onError,
+        onMonitoringStateChange,
+        onButtonPerformanceData,
+    };
+    const commandsRef = useRef({
+        startButtonPerformanceMonitoring,
+        stopButtonPerformanceMonitoring,
+    });
+    commandsRef.current = {
+        startButtonPerformanceMonitoring,
+        stopButtonPerformanceMonitoring,
+    };
 
-    const isActiveRef = useRef<boolean>(false);
+    const isActiveRef = useRef(false);
+    const mountedRef = useRef(true);
     const unsubscribeRef = useRef<(() => void) | null>(null);
+    const operationRef = useRef<Promise<void> | null>(null);
 
-    // 启动按键性能监控
-    const startMonitoring = async (): Promise<void> => {
+    const handleButtonPerformanceEvent = useCallback((data: unknown) => {
         try {
-            // 使用专门的性能监控命令，自动启用测试模式
-            await startButtonPerformanceMonitoring();
-            
-            isActiveRef.current = true;
-            
-            // 开始监听设备事件推送
-            if (!unsubscribeRef.current) {
-                            if (useEventBusOption) {
-                // 使用 eventBus 监听（推荐方式）
-                unsubscribeRef.current = eventBus.on(EVENTS.BUTTON_PERFORMANCE_MONITORING, handleButtonPerformanceEvent);
-            } else {
-                // 注意：由于 device event service 使用统一事件总线，这里只支持 eventBus 方式
-                unsubscribeRef.current = eventBus.on(EVENTS.BUTTON_PERFORMANCE_MONITORING, handleButtonPerformanceEvent);
-            }
-            }
-            
-            onMonitoringStateChange?.(true);
-            console.log('Button performance monitoring started successfully');
-        } catch (error) {
-            const errorMsg = error instanceof Error ? error : new Error('Unknown error');
-            onError?.(errorMsg);
-            console.error('Failed to start button performance monitoring:', errorMsg);
-        }
-    };
-
-    // 停止按键性能监控
-    const stopMonitoring = async (): Promise<void> => {
-        try {
-            // 使用专门的性能监控命令，自动禁用测试模式
-            await stopButtonPerformanceMonitoring();
-            
-            isActiveRef.current = false;
-            
-            // 停止监听设备事件推送
-            if (unsubscribeRef.current) {
-                unsubscribeRef.current();
-                unsubscribeRef.current = null;
-            }
-            
-            onMonitoringStateChange?.(false);
-            console.log('Button performance monitoring stopped successfully');
-        } catch (error) {
-            const errorMsg = error instanceof Error ? error : new Error('Unknown error');
-            onError?.(errorMsg);
-            console.error('Failed to stop button performance monitoring:', errorMsg);
-        }
-    };
-
-    // 处理设备推送的按键性能监控事件
-    const handleButtonPerformanceEvent = (data: unknown) => {
-        try {
-            
-            // WebHID typed telemetry emits the same
-            // semantic snapshot after merging SAMPLE/EDGE/CHECKPOINT packets.
             const performanceData = data instanceof ArrayBuffer
                 ? parseButtonPerformanceMonitoringBinaryData(data)
                 : isPerformanceSnapshot(data)
                     ? data
                     : null;
-            
-            if (performanceData) {
-                onButtonPerformanceData?.(performanceData);
-            } else {
-                console.warn('Failed to parse button performance monitoring binary data');
+
+            if (!performanceData) {
+                console.warn('Failed to parse button performance monitoring data');
+                return;
             }
+            callbacksRef.current.onButtonPerformanceData?.(performanceData);
         } catch (error) {
-            console.error('Failed to handle button performance monitoring event:', error);
-            onError?.(error instanceof Error ? error : new Error('Failed to handle button performance monitoring event'));
+            const normalized = error instanceof Error
+                ? error
+                : new Error('Failed to handle button performance monitoring event');
+            console.error('Failed to handle button performance monitoring event:', normalized);
+            callbacksRef.current.onError?.(normalized);
         }
-    };
+    }, []);
 
-    // 获取当前状态
-    const getMonitoringState = () => {
-        return {
-            isMonitoring: isActiveRef.current,
-        };
-    };
+    const subscribe = useCallback(() => {
+        if (!unsubscribeRef.current) {
+            unsubscribeRef.current = eventBus.on(
+                EVENTS.BUTTON_PERFORMANCE_MONITORING,
+                handleButtonPerformanceEvent,
+            );
+        }
+    }, [handleButtonPerformanceEvent]);
 
-    // 自动初始化
+    const unsubscribe = useCallback(() => {
+        unsubscribeRef.current?.();
+        unsubscribeRef.current = null;
+    }, []);
+
+    const startMonitoring = useCallback(async (): Promise<void> => {
+        if (isActiveRef.current) return;
+        if (operationRef.current) await operationRef.current;
+        if (isActiveRef.current) return;
+
+        // The first checkpoint/sample may arrive immediately after the ACK.
+        subscribe();
+        const operation = (async () => {
+            try {
+                await commandsRef.current.startButtonPerformanceMonitoring();
+                if (!mountedRef.current) {
+                    await commandsRef.current.stopButtonPerformanceMonitoring();
+                    unsubscribe();
+                    return;
+                }
+                isActiveRef.current = true;
+                callbacksRef.current.onMonitoringStateChange?.(true);
+                console.log('Button performance monitoring started successfully');
+            } catch (error) {
+                isActiveRef.current = false;
+                unsubscribe();
+                const normalized = error instanceof Error
+                    ? error
+                    : new Error('Failed to start button performance monitoring');
+                callbacksRef.current.onError?.(normalized);
+                console.error('Failed to start button performance monitoring:', normalized);
+                throw normalized;
+            }
+        })();
+        operationRef.current = operation;
+        try {
+            await operation;
+        } finally {
+            if (operationRef.current === operation) operationRef.current = null;
+        }
+    }, [subscribe, unsubscribe]);
+
+    const stopMonitoring = useCallback(async (): Promise<void> => {
+        if (operationRef.current) {
+            try {
+                await operationRef.current;
+            } catch {
+                return;
+            }
+        }
+        if (!isActiveRef.current) {
+            unsubscribe();
+            return;
+        }
+
+        // A late packet must not repopulate a test view the user already left.
+        isActiveRef.current = false;
+        unsubscribe();
+        const operation = (async () => {
+            try {
+                await commandsRef.current.stopButtonPerformanceMonitoring();
+                callbacksRef.current.onMonitoringStateChange?.(false);
+                console.log('Button performance monitoring stopped successfully');
+            } catch (error) {
+                const normalized = error instanceof Error
+                    ? error
+                    : new Error('Failed to stop button performance monitoring');
+                callbacksRef.current.onError?.(normalized);
+                console.error('Failed to stop button performance monitoring:', normalized);
+                throw normalized;
+            }
+        })();
+        operationRef.current = operation;
+        try {
+            await operation;
+        } finally {
+            if (operationRef.current === operation) operationRef.current = null;
+        }
+    }, [unsubscribe]);
+
+    const getMonitoringState = useCallback(() => ({
+        isMonitoring: isActiveRef.current,
+    }), []);
+
     useEffect(() => {
-        if (autoInitialize) {
-            // 组件挂载时不自动启动，由用户手动启动
-        }
-
-        // 组件卸载时清理
+        // autoInitialize historically initialized only the hook; user action
+        // still controls whether a performance session starts.
+        void autoInitialize;
+        mountedRef.current = true;
+        const removeDisconnectListener = eventBus.on(EVENTS.DEVICE_DISCONNECTED, () => {
+            const wasActive = isActiveRef.current;
+            isActiveRef.current = false;
+            unsubscribe();
+            if (wasActive) callbacksRef.current.onMonitoringStateChange?.(false);
+        });
         return () => {
-            if (unsubscribeRef.current) {
-                unsubscribeRef.current();
-                unsubscribeRef.current = null;
+            mountedRef.current = false;
+            removeDisconnectListener();
+            unsubscribe();
+            if (isActiveRef.current) {
+                isActiveRef.current = false;
+                void commandsRef.current.stopButtonPerformanceMonitoring().catch(() => undefined);
             }
         };
-    }, [autoInitialize]);
+    }, [autoInitialize, unsubscribe]);
 
     return {
         startMonitoring,
@@ -144,10 +208,8 @@ function isPerformanceSnapshot(data: unknown): data is ButtonPerformanceMonitori
     return value.command === 2 && Array.isArray(value.buttonData);
 }
 
-// 保留旧的接口以兼容现有代码
 export function useGlobalButtonPerformanceMonitorManager() {
     const monitor = useButtonPerformanceMonitor();
-    
     return {
         initializeManager: () => monitor,
         destroyManager: () => monitor.stopMonitoring(),

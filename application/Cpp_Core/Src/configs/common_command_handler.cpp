@@ -269,9 +269,19 @@ DeviceCommandResponse CommonCommandHandler::handle(const DeviceCommandRequest& r
 DeviceCommandResponse CommonCommandHandler::handleStartButtonPerformanceMonitoring(const DeviceCommandRequest& request) {
     // 获取按键管理器实例
     WebConfigBtnsManager& btnsManager = WEBCONFIG_BTNS_MANAGER;
+
+    if (ADC_CALIBRATION_MANAGER.isCalibrationActive()) {
+        return create_error_response(request.getCid(), request.getCommand(), 2, "Calibration is active, button performance monitoring is not allowed");
+    }
+
+    if (!ADC_CALIBRATION_MANAGER.isAllButtonsCalibrated(false)) {
+        return create_error_response(request.getCid(), request.getCommand(), 2, "Manual calibration is not completed, button performance monitoring is not allowed");
+    }
     
     // 启动按键工作器
-    btnsManager.startButtonWorkers();
+    if (!btnsManager.startButtonWorkers()) {
+        return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to start button performance monitoring");
+    }
     
     // 启用测试模式
     btnsManager.enableTestMode(true);
@@ -289,6 +299,8 @@ DeviceCommandResponse CommonCommandHandler::handleStartButtonPerformanceMonitori
     // 创建响应数据
     cJSON* dataJSON = cJSON_CreateObject();
     if (!dataJSON) {
+        btnsManager.enableTestMode(false);
+        btnsManager.stopButtonWorkers();
         return create_error_response(request.getCid(), request.getCommand(), 1, "Failed to create JSON object");
     }
     

@@ -142,6 +142,17 @@ export class PerformanceTelemetryController {
     return this.clockSynchronizer.current;
   }
 
+  /** Start a UI test with no samples, edges, or checkpoint history from the
+   * previous test run. Transport subscriptions and clock sync stay alive. */
+  resetMonitoringSession(): void {
+    this.cache.reset();
+    this.checkpointAssembler.reset(true);
+    this.recentEdges.length = 0;
+    this.edgesDuringCheckpoint = 0;
+    this.lastEdgeSequence = null;
+    this.requestSession.completeCheckpoint();
+  }
+
   private parseOrPost(kind: 'sample' | 'edge', event: DeviceEvent<Uint8Array>): void {
     const bytes = event.data.slice();
     if (this.worker) {

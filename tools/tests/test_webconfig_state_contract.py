@@ -702,6 +702,57 @@ class WebConfigStateContractTests(unittest.TestCase):
         self.assertIn("UserImageCommandHandler::resetUploadSession()", reset)
         self.assertIn("WebHID session runtime stopped", reset)
 
+    def test_webhid_partial_report_keeps_its_original_producer(self) -> None:
+        header = (
+            ROOT
+            / "application"
+            / "Cpp_Core"
+            / "Inc"
+            / "webhid_service.hpp"
+        ).read_text(encoding="utf-8")
+        source = (
+            ROOT
+            / "application"
+            / "Cpp_Core"
+            / "Src"
+            / "webhid_service.cpp"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("OutboundFrameSource pendingFrameSource", header)
+        self.assertNotIn("pendingFrameReport", header)
+        self.assertIn("g_responseScratch", source)
+        self.assertIn(".DMA_Section.WebHidResponseScratch", source)
+        send_frame = source[
+            source.index("bool WebHidService::sendFrame"):
+            source.index("bool WebHidService::sendResponse")
+        ]
+        self.assertIn("pendingFrameSource != source", send_frame)
+        self.assertIn("g_responseScratch.data()", send_frame)
+        self.assertIn("memcpy(g_responseScratch.data(), &report", send_frame)
+
+        process = source[
+            source.index("void WebHidService::process()"):
+            source.index("bool WebHidService::processReport")
+        ]
+        self.assertIn(
+            "pendingFrameSource != OutboundFrameSource::None",
+            process,
+        )
+
+        pump = source[
+            source.index("void WebHidService::pumpOutput()"):
+            source.index("void WebHidService::shutdown()")
+            if "void WebHidService::shutdown()" in source[
+                source.index("void WebHidService::pumpOutput()"):]
+            else len(source)
+        ]
+        pinned = pump.index("switch (pendingFrameSource)")
+        control = pump.index("if (!outboundQueue.empty())")
+        checkpoint = pump.index("if (checkpointActive)")
+        sample = pump.index("if (samplePending)")
+        self.assertLess(pinned, control)
+        self.assertLess(checkpoint, sample)
+
     def test_webhid_control_plane_runs_before_adc_optional_work(self) -> None:
         source = (
             ROOT

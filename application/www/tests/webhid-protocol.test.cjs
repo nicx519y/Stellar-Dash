@@ -1122,6 +1122,37 @@ test('PERF_EDGE and checkpoint cache preserve existing UI field semantics', () =
   assert.equal(snapshot.deviceTimestampUs, 4000);
 });
 
+test('performance cache reset removes values from the previous test run', () => {
+  const cache = new PerformanceTelemetryCache();
+  cache.applyEdge({
+    deviceTimestampUs: 9000,
+    edgeSequence: 12,
+    buttonIndex: 3,
+    pressed: true,
+    rawAdc: 1800,
+    currentDistanceUm: 1700,
+    pressTriggerDistanceUm: 1400,
+    pressStartDistanceUm: 1200,
+    releaseTriggerDistanceUm: 900,
+    releaseStartDistanceUm: 700,
+  });
+  cache.reset();
+  const snapshot = cache.snapshot();
+  assert.equal(snapshot.deviceTimestampUs, 0);
+  assert.equal(snapshot.maxTravelDistance, 0);
+  assert.equal(snapshot.droppedSamples, 0);
+  assert.deepEqual(snapshot.buttonData[3], {
+    buttonIndex: 3,
+    virtualPin: 3,
+    isPressed: false,
+    currentDistance: 0,
+    pressTriggerDistance: 0,
+    pressStartDistance: 0,
+    releaseTriggerDistance: 0,
+    releaseStartDistance: 0,
+  });
+});
+
 test('WebHID page-load connect never opens the permission chooser', async () => {
   let chooserCalls = 0;
   const hid = {

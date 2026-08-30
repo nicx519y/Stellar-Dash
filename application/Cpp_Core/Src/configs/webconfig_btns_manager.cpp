@@ -40,15 +40,18 @@ WebConfigBtnsManager::~WebConfigBtnsManager() {
     cleanupButtonWorkers();
 }
 
-void WebConfigBtnsManager::setupButtonWorkers() {
+bool WebConfigBtnsManager::setupButtonWorkers() {
     ADCBtnsError adcResult = ADC_BTNS_WORKER.setup();
 
     if (adcResult != ADCBtnsError::SUCCESS) {
         APP_ERR("WebConfigBtnsManager::setupButtonWorkers - ADC setup failed with error: %d", (int)adcResult);
+        (void)ADC_BTNS_WORKER.deinit();
+        return false;
     }
     
     // 设置GPIO按键工作器
     GPIO_BTNS_WORKER.setup();
+    return true;
 }
 
 void WebConfigBtnsManager::cleanupButtonWorkers() {
@@ -58,13 +61,18 @@ void WebConfigBtnsManager::cleanupButtonWorkers() {
     // GPIO按键工作器通过析构函数自动清理
 }
 
-void WebConfigBtnsManager::startButtonWorkers() {
+bool WebConfigBtnsManager::startButtonWorkers() {
     if (!isWorkerActive) {
         APP_DBG("WebConfigBtnsManager::startButtonWorkers - starting button workers");
-        setupButtonWorkers(); // 设置专用配置；全局循环 DMA 已由状态持有
-        
+        if (!setupButtonWorkers()) {
+            currentMask = 0u;
+            previousMask = 0u;
+            isWorkerActive = false;
+            return false;
+        }
         isWorkerActive = true;
     }
+    return true;
 }
 
 void WebConfigBtnsManager::stopButtonWorkers() {
@@ -116,7 +124,12 @@ bool WebConfigBtnsManager::setADCButtonConfig(uint8_t buttonIndex, const WebConf
     if (isWorkerActive) {
         // 重新初始化ADC工作器以应用新配置
         ADC_BTNS_WORKER.deinit();
-        setupButtonWorkers();
+        isWorkerActive = setupButtonWorkers();
+        if (!isWorkerActive) {
+            currentMask = 0u;
+            previousMask = 0u;
+            return false;
+        }
     }
     
     return true;

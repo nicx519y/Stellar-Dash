@@ -94,6 +94,15 @@ private:
         size_t offset = 0u;
     };
 
+    enum class OutboundFrameSource : uint8_t
+    {
+        None = 0u,
+        Logical,
+        Edge,
+        Sample,
+        Checkpoint,
+    };
+
 #pragma pack(push, 1)
     struct PerfEdge
     {
@@ -146,7 +155,8 @@ private:
                    uint8_t flags,
                    const uint8_t *payload,
                    uint8_t length,
-                   bool secure);
+                   bool secure,
+                   OutboundFrameSource source);
     bool sendRpcResult(uint32_t transactionId,
                        int error,
                        void *data,
@@ -204,6 +214,13 @@ private:
     uint32_t permitDeadlineMs = 0u;
     uint32_t lastRxSequence = 0u;
     uint32_t nextTxSequence = 1u;
+    /*
+     * A board-link call may have transferred only the first SPI fragment of a
+     * 64-byte WebHID report. Keep its producer pinned until that physical
+     * transfer finishes; the exact encrypted bytes are retained in the
+     * response scratch workspace, which cannot be reused while RX is gated.
+     */
+    OutboundFrameSource pendingFrameSource = OutboundFrameSource::None;
     std::array<uint8_t, 32> rxKey = {};
     std::array<uint8_t, 32> txKey = {};
     std::array<uint8_t, 8> rxNoncePrefix = {};
@@ -231,7 +248,6 @@ private:
     size_t outboundReadOffset = 0u;
     size_t outboundWriteOffset = 0u;
     size_t outboundQueuedBytes = 0u;
-    std::array<char, kMaximumLogicalBytes + 5u> responseScratch = {};
     std::deque<std::string> eventQueue;
     size_t eventQueuedBytes = 0u;
     uint32_t droppedEventCount = 0u;

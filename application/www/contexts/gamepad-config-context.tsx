@@ -2179,24 +2179,41 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     // 按键性能监控相关
     const startButtonPerformanceMonitoring = async (immediate: boolean = true): Promise<void> => {
+        performanceTelemetryRef.current?.resetMonitoringSession();
         try {
             const data = await sendDeviceRequest('start_button_performance_monitoring', {}, immediate);
-            setButtonMonitoringActive(data.isActive ?? false);
+            if (data?.isActive !== true || data?.isTestModeEnabled !== true) {
+                throw new Error('Device did not enter button performance monitoring mode');
+            }
+            setButtonMonitoringActive(true);
             setError(null);
-            return Promise.resolve();
+            return;
         } catch (err) {
-            return Promise.reject(new Error("Failed to start button performance monitoring"));
+            const error = err instanceof Error
+                ? err
+                : new Error('Failed to start button performance monitoring');
+            setButtonMonitoringActive(false);
+            setError(error.message);
+            throw error;
         }
     };
 
     const stopButtonPerformanceMonitoring = async (immediate: boolean = true): Promise<void> => {
         try {
             const data = await sendDeviceRequest('stop_button_performance_monitoring', {}, immediate);
-            setButtonMonitoringActive(data.isActive ?? false);
+            if (data?.isActive !== false || data?.isTestModeEnabled !== false) {
+                throw new Error('Device did not leave button performance monitoring mode');
+            }
+            setButtonMonitoringActive(false);
+            performanceTelemetryRef.current?.resetMonitoringSession();
             setError(null);
-            return Promise.resolve();
+            return;
         } catch (err) {
-            return Promise.reject(new Error("Failed to stop button performance monitoring"));
+            const error = err instanceof Error
+                ? err
+                : new Error('Failed to stop button performance monitoring');
+            setError(error.message);
+            throw error;
         }
     };
 

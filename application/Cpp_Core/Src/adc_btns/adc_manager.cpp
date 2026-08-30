@@ -348,18 +348,19 @@ ADCManager::ADCManager()
         }
         QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t *)&common, ADC_COMMON_CONFIG_ADDR_QSPI, sizeof(ADCCommonConfig));
     }
-    if (store.num > 0)
-    {
-        if (findMappingById(common.defaultMappingId) == -1)
-        {
-            memset(common.manualCalibrationValues, 0, sizeof(common.manualCalibrationValues));
-            memset(common.autoCalibrationValues, 0, sizeof(common.autoCalibrationValues));
-            memset(common.calibratedMappingId, 0, sizeof(common.calibratedMappingId));
-            strncpy(common.defaultMappingId, store.mapping[0].id, sizeof(common.defaultMappingId) - 1);
-            common.defaultMappingId[sizeof(common.defaultMappingId) - 1] = '\0';
-            QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t *)&common, ADC_COMMON_CONFIG_ADDR_QSPI, sizeof(ADCCommonConfig));
-        }
-    }
+    /*
+     * Resolve the effective mapping before interpreting either mapping ID in
+     * the common calibration record.  A server-installed shared mapping is
+     * intentionally absent from the slot-local factory component.  Checking
+     * common.defaultMappingId against that factory component first therefore
+     * misclassifies a valid shared mapping as missing and used to erase all
+     * calibration values on every reboot.
+     *
+     * loadSharedSingleton() selects either the newest valid shared record or
+     * a factory fallback and updates only the RAM view during boot.  Persistent
+     * calibration is changed only by explicit mapping/calibration operations.
+     */
+    loadSharedSingleton();
 
     // 注册采样统计完成消息
     MC.registerMessage(MessageId::ADC_SAMPLING_STATS_COMPLETE); // ADC 采样统计完成消息
@@ -377,11 +378,6 @@ ADCManager::ADCManager()
         this->ADCBufferInfoList[i].valuePtr = &ADC_Values_Result[ADC1_BUTTONS_MAPPING[i]];
         this->ADCBufferInfoList[i].virtualPin = ADC1_BUTTONS_MAPPING[i];
     }
-
-    // A shared, server-installed singleton wins over the slot component.
-    // Without one, compact only the RAM view to the current factory default;
-    // the accepted A/B firmware artifact remains untouched.
-    loadSharedSingleton();
 
     for (uint8_t j = NUM_ADC1_BUTTONS; j < NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS; j++)
     {

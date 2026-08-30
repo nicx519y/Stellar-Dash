@@ -55,6 +55,29 @@ class AdcMappingSingletonContractTests(unittest.TestCase):
         self.assertIn("selectFactoryFallback();", load)
         self.assertNotIn("QSPI_W25Qxx_Write", fallback)
 
+    def test_boot_resolves_effective_mapping_before_calibration_identity(self) -> None:
+        constructor = function_body(self.manager, "ADCManager::ADCManager()")
+        common_read = constructor.index(
+            "QSPI_W25Qxx_ReadBuffer_WithXIPOrNot((uint8_t *)&common"
+        )
+        resolve = constructor.index("loadSharedSingleton();")
+        self.assertLess(common_read, resolve)
+        self.assertEqual(constructor.count("loadSharedSingleton();"), 1)
+
+        # Boot must never repair a shared mapping mismatch by persistently
+        # deleting calibration. Mapping installation/deletion owns that state
+        # transition explicitly.
+        after_common_read = constructor[common_read:]
+        self.assertNotIn(
+            "memset(common.manualCalibrationValues", after_common_read
+        )
+        self.assertNotIn(
+            "memset(common.autoCalibrationValues", after_common_read
+        )
+        self.assertNotIn(
+            "memset(common.calibratedMappingId", after_common_read
+        )
+
     def test_write_commit_state_changes_only_after_readback_and_crc_validation(self) -> None:
         persist = function_body(self.manager, "bool ADCManager::persistSharedSingleton")
         write = persist.index("QSPI_W25Qxx_WriteBuffer_WithXIPOrNot")

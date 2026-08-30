@@ -1,0 +1,3415 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"board_power.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/board_power.cpp"
+  19              		.section	.text._ZN12_GLOBAL__N_1L14configureInputEP12GPIO_TypeDeftm,"ax",%progbits
+  20              		.align	1
+  21              		.syntax unified
+  22              		.thumb
+  23              		.thumb_func
+  25              	_ZN12_GLOBAL__N_1L14configureInputEP12GPIO_TypeDeftm:
+  26              	.LVL0:
+  27              	.LFB1285:
+   1:Cpp_Core/Src/board_power.cpp **** #include "board_power.hpp"
+   2:Cpp_Core/Src/board_power.cpp **** 
+   3:Cpp_Core/Src/board_power.cpp **** #include "board_cfg.h"
+   4:Cpp_Core/Src/board_power.cpp **** #include "stm32h7xx_hal.h"
+   5:Cpp_Core/Src/board_power.cpp **** 
+   6:Cpp_Core/Src/board_power.cpp **** namespace {
+   7:Cpp_Core/Src/board_power.cpp **** 
+   8:Cpp_Core/Src/board_power.cpp **** static void writePin(GPIO_TypeDef* port, uint16_t pin, bool high)
+   9:Cpp_Core/Src/board_power.cpp **** {
+  10:Cpp_Core/Src/board_power.cpp ****     HAL_GPIO_WritePin(port, pin, high ? GPIO_PIN_SET : GPIO_PIN_RESET);
+  11:Cpp_Core/Src/board_power.cpp **** }
+  12:Cpp_Core/Src/board_power.cpp **** 
+  13:Cpp_Core/Src/board_power.cpp **** static void configureOutput(uint16_t pin)
+  14:Cpp_Core/Src/board_power.cpp **** {
+  15:Cpp_Core/Src/board_power.cpp ****     GPIO_InitTypeDef init = {};
+  16:Cpp_Core/Src/board_power.cpp ****     init.Pin = pin;
+  17:Cpp_Core/Src/board_power.cpp ****     init.Mode = GPIO_MODE_OUTPUT_PP;
+  18:Cpp_Core/Src/board_power.cpp ****     init.Pull = GPIO_NOPULL;
+  19:Cpp_Core/Src/board_power.cpp ****     init.Speed = GPIO_SPEED_FREQ_LOW;
+  20:Cpp_Core/Src/board_power.cpp ****     HAL_GPIO_Init(GPIOI, &init);
+  21:Cpp_Core/Src/board_power.cpp **** }
+  22:Cpp_Core/Src/board_power.cpp **** 
+  23:Cpp_Core/Src/board_power.cpp **** static void configureInput(GPIO_TypeDef* port, uint16_t pin, uint32_t pull)
+  24:Cpp_Core/Src/board_power.cpp **** {
+  28              		.loc 1 24 1 view -0
+  29              		.cfi_startproc
+  30              		@ args = 0, pretend = 0, frame = 24
+  31              		@ frame_needed = 0, uses_anonymous_args = 0
+  25:Cpp_Core/Src/board_power.cpp ****     GPIO_InitTypeDef init = {};
+  32              		.loc 1 25 5 view .LVU1
+  24:Cpp_Core/Src/board_power.cpp ****     GPIO_InitTypeDef init = {};
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 2
+
+
+  33              		.loc 1 24 1 is_stmt 0 view .LVU2
+  34 0000 70B5     		push	{r4, r5, r6, lr}
+  35              	.LCFI0:
+  36              		.cfi_def_cfa_offset 16
+  37              		.cfi_offset 4, -16
+  38              		.cfi_offset 5, -12
+  39              		.cfi_offset 6, -8
+  40              		.cfi_offset 14, -4
+  41 0002 86B0     		sub	sp, sp, #24
+  42              	.LCFI1:
+  43              		.cfi_def_cfa_offset 40
+  24:Cpp_Core/Src/board_power.cpp ****     GPIO_InitTypeDef init = {};
+  44              		.loc 1 24 1 view .LVU3
+  45 0004 0446     		mov	r4, r0
+  46 0006 0E46     		mov	r6, r1
+  47 0008 1546     		mov	r5, r2
+  48              		.loc 1 25 22 view .LVU4
+  49 000a 0021     		movs	r1, #0
+  50              	.LVL1:
+  51              		.loc 1 25 22 view .LVU5
+  52 000c 1022     		movs	r2, #16
+  53              	.LVL2:
+  54              		.loc 1 25 22 view .LVU6
+  55 000e 02A8     		add	r0, sp, #8
+  56              	.LVL3:
+  57              		.loc 1 25 22 view .LVU7
+  58 0010 FFF7FEFF 		bl	memset
+  59              	.LVL4:
+  26:Cpp_Core/Src/board_power.cpp ****     init.Pin = pin;
+  60              		.loc 1 26 5 is_stmt 1 view .LVU8
+  27:Cpp_Core/Src/board_power.cpp ****     init.Mode = GPIO_MODE_INPUT;
+  28:Cpp_Core/Src/board_power.cpp ****     init.Pull = pull;
+  29:Cpp_Core/Src/board_power.cpp ****     init.Speed = GPIO_SPEED_FREQ_LOW;
+  30:Cpp_Core/Src/board_power.cpp ****     HAL_GPIO_Init(port, &init);
+  61              		.loc 1 30 18 is_stmt 0 view .LVU9
+  62 0014 01A9     		add	r1, sp, #4
+  63 0016 2046     		mov	r0, r4
+  26:Cpp_Core/Src/board_power.cpp ****     init.Pin = pin;
+  64              		.loc 1 26 16 view .LVU10
+  65 0018 0196     		str	r6, [sp, #4]
+  27:Cpp_Core/Src/board_power.cpp ****     init.Mode = GPIO_MODE_INPUT;
+  66              		.loc 1 27 5 is_stmt 1 view .LVU11
+  28:Cpp_Core/Src/board_power.cpp ****     init.Speed = GPIO_SPEED_FREQ_LOW;
+  67              		.loc 1 28 5 view .LVU12
+  28:Cpp_Core/Src/board_power.cpp ****     init.Speed = GPIO_SPEED_FREQ_LOW;
+  68              		.loc 1 28 15 is_stmt 0 view .LVU13
+  69 001a 0395     		str	r5, [sp, #12]
+  29:Cpp_Core/Src/board_power.cpp ****     HAL_GPIO_Init(port, &init);
+  70              		.loc 1 29 5 is_stmt 1 view .LVU14
+  71              		.loc 1 30 5 view .LVU15
+  72              		.loc 1 30 18 is_stmt 0 view .LVU16
+  73 001c FFF7FEFF 		bl	HAL_GPIO_Init
+  74              	.LVL5:
+  31:Cpp_Core/Src/board_power.cpp **** }
+  75              		.loc 1 31 1 view .LVU17
+  76 0020 06B0     		add	sp, sp, #24
+  77              	.LCFI2:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 3
+
+
+  78              		.cfi_def_cfa_offset 16
+  79              		@ sp needed
+  80 0022 70BD     		pop	{r4, r5, r6, pc}
+  81              		.loc 1 31 1 view .LVU18
+  82              		.cfi_endproc
+  83              	.LFE1285:
+  85              		.section	.text._ZN12_GLOBAL__N_1L8writePinEP12GPIO_TypeDeftb.constprop.0,"ax",%progbits
+  86              		.align	1
+  87              		.syntax unified
+  88              		.thumb
+  89              		.thumb_func
+  91              	_ZN12_GLOBAL__N_1L8writePinEP12GPIO_TypeDeftb.constprop.0:
+  92              	.LVL6:
+  93              	.LFB1424:
+   8:Cpp_Core/Src/board_power.cpp **** {
+  94              		.loc 1 8 13 is_stmt 1 view -0
+  95              		.cfi_startproc
+  96              		@ args = 0, pretend = 0, frame = 0
+  97              		@ frame_needed = 0, uses_anonymous_args = 0
+  98              		@ link register save eliminated.
+  10:Cpp_Core/Src/board_power.cpp **** }
+  99              		.loc 1 10 5 view .LVU20
+   8:Cpp_Core/Src/board_power.cpp **** {
+ 100              		.loc 1 8 13 is_stmt 0 view .LVU21
+ 101 0000 0A46     		mov	r2, r1
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 102              		.loc 1 10 22 discriminator 4 view .LVU22
+ 103 0002 0146     		mov	r1, r0
+ 104              	.LVL7:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 105              		.loc 1 10 22 discriminator 4 view .LVU23
+ 106 0004 0148     		ldr	r0, .L3
+ 107              	.LVL8:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 108              		.loc 1 10 22 discriminator 4 view .LVU24
+ 109 0006 FFF7FEBF 		b	HAL_GPIO_WritePin
+ 110              	.LVL9:
+ 111              	.L4:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 112              		.loc 1 10 22 discriminator 4 view .LVU25
+ 113 000a 00BF     		.align	2
+ 114              	.L3:
+ 115 000c 00200258 		.word	1476534272
+ 116              		.cfi_endproc
+ 117              	.LFE1424:
+ 119              		.section	.text.BoardPower_EarlyMainHold,"ax",%progbits
+ 120              		.align	1
+ 121              		.global	BoardPower_EarlyMainHold
+ 122              		.syntax unified
+ 123              		.thumb
+ 124              		.thumb_func
+ 126              	BoardPower_EarlyMainHold:
+ 127              	.LFB1286:
+  32:Cpp_Core/Src/board_power.cpp **** 
+  33:Cpp_Core/Src/board_power.cpp **** } // namespace
+  34:Cpp_Core/Src/board_power.cpp **** 
+  35:Cpp_Core/Src/board_power.cpp **** extern "C" void BoardPower_EarlyMainHold(void)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 4
+
+
+  36:Cpp_Core/Src/board_power.cpp **** {
+ 128              		.loc 1 36 1 is_stmt 1 view -0
+ 129              		.cfi_startproc
+ 130              		@ args = 0, pretend = 0, frame = 8
+ 131              		@ frame_needed = 0, uses_anonymous_args = 0
+ 132              		@ link register save eliminated.
+  37:Cpp_Core/Src/board_power.cpp ****     __HAL_RCC_GPIOI_CLK_ENABLE();
+ 133              		.loc 1 37 5 view .LVU27
+ 134              	.LBB56:
+ 135              		.loc 1 37 5 view .LVU28
+ 136              		.loc 1 37 5 view .LVU29
+ 137 0000 124B     		ldr	r3, .L6
+ 138              	.LBE56:
+  36:Cpp_Core/Src/board_power.cpp ****     __HAL_RCC_GPIOI_CLK_ENABLE();
+ 139              		.loc 1 36 1 is_stmt 0 view .LVU30
+ 140 0002 82B0     		sub	sp, sp, #8
+ 141              	.LCFI3:
+ 142              		.cfi_def_cfa_offset 8
+ 143              	.LBB57:
+ 144              		.loc 1 37 5 view .LVU31
+ 145 0004 D3F8E020 		ldr	r2, [r3, #224]
+ 146 0008 42F48072 		orr	r2, r2, #256
+ 147 000c C3F8E020 		str	r2, [r3, #224]
+ 148              		.loc 1 37 5 is_stmt 1 view .LVU32
+ 149 0010 D3F8E030 		ldr	r3, [r3, #224]
+ 150 0014 03F48073 		and	r3, r3, #256
+ 151 0018 0193     		str	r3, [sp, #4]
+ 152              		.loc 1 37 5 view .LVU33
+ 153 001a 019B     		ldr	r3, [sp, #4]
+ 154              	.LBE57:
+ 155              		.loc 1 37 5 view .LVU34
+  38:Cpp_Core/Src/board_power.cpp ****     __DSB();
+ 156              		.loc 1 38 5 view .LVU35
+ 157              	.LBB58:
+ 158              	.LBI58:
+ 159              		.file 2 "Drivers/CMSIS/Include/cmsis_gcc.h"
+   1:Drivers/CMSIS/Include/cmsis_gcc.h **** /**************************************************************************//**
+   2:Drivers/CMSIS/Include/cmsis_gcc.h ****  * @file     cmsis_gcc.h
+   3:Drivers/CMSIS/Include/cmsis_gcc.h ****  * @brief    CMSIS compiler GCC header file
+   4:Drivers/CMSIS/Include/cmsis_gcc.h ****  * @version  V5.2.0
+   5:Drivers/CMSIS/Include/cmsis_gcc.h ****  * @date     08. May 2019
+   6:Drivers/CMSIS/Include/cmsis_gcc.h ****  ******************************************************************************/
+   7:Drivers/CMSIS/Include/cmsis_gcc.h **** /*
+   8:Drivers/CMSIS/Include/cmsis_gcc.h ****  * Copyright (c) 2009-2019 Arm Limited. All rights reserved.
+   9:Drivers/CMSIS/Include/cmsis_gcc.h ****  *
+  10:Drivers/CMSIS/Include/cmsis_gcc.h ****  * SPDX-License-Identifier: Apache-2.0
+  11:Drivers/CMSIS/Include/cmsis_gcc.h ****  *
+  12:Drivers/CMSIS/Include/cmsis_gcc.h ****  * Licensed under the Apache License, Version 2.0 (the License); you may
+  13:Drivers/CMSIS/Include/cmsis_gcc.h ****  * not use this file except in compliance with the License.
+  14:Drivers/CMSIS/Include/cmsis_gcc.h ****  * You may obtain a copy of the License at
+  15:Drivers/CMSIS/Include/cmsis_gcc.h ****  *
+  16:Drivers/CMSIS/Include/cmsis_gcc.h ****  * www.apache.org/licenses/LICENSE-2.0
+  17:Drivers/CMSIS/Include/cmsis_gcc.h ****  *
+  18:Drivers/CMSIS/Include/cmsis_gcc.h ****  * Unless required by applicable law or agreed to in writing, software
+  19:Drivers/CMSIS/Include/cmsis_gcc.h ****  * distributed under the License is distributed on an AS IS BASIS, WITHOUT
+  20:Drivers/CMSIS/Include/cmsis_gcc.h ****  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  21:Drivers/CMSIS/Include/cmsis_gcc.h ****  * See the License for the specific language governing permissions and
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 5
+
+
+  22:Drivers/CMSIS/Include/cmsis_gcc.h ****  * limitations under the License.
+  23:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+  24:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+  25:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef __CMSIS_GCC_H
+  26:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __CMSIS_GCC_H
+  27:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+  28:Drivers/CMSIS/Include/cmsis_gcc.h **** /* ignore some GCC warnings */
+  29:Drivers/CMSIS/Include/cmsis_gcc.h **** #pragma GCC diagnostic push
+  30:Drivers/CMSIS/Include/cmsis_gcc.h **** #pragma GCC diagnostic ignored "-Wsign-conversion"
+  31:Drivers/CMSIS/Include/cmsis_gcc.h **** #pragma GCC diagnostic ignored "-Wconversion"
+  32:Drivers/CMSIS/Include/cmsis_gcc.h **** #pragma GCC diagnostic ignored "-Wunused-parameter"
+  33:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+  34:Drivers/CMSIS/Include/cmsis_gcc.h **** /* Fallback for __has_builtin */
+  35:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef __has_builtin
+  36:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __has_builtin(x) (0)
+  37:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  38:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+  39:Drivers/CMSIS/Include/cmsis_gcc.h **** /* CMSIS compiler specific defines */
+  40:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __ASM
+  41:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __ASM                                  __asm
+  42:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  43:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __INLINE
+  44:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __INLINE                               inline
+  45:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  46:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __STATIC_INLINE
+  47:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __STATIC_INLINE                        static inline
+  48:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  49:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __STATIC_FORCEINLINE                 
+  50:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __STATIC_FORCEINLINE                   __attribute__((always_inline)) static inline
+  51:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif                                           
+  52:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __NO_RETURN
+  53:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __NO_RETURN                            __attribute__((__noreturn__))
+  54:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  55:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __USED
+  56:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __USED                                 __attribute__((used))
+  57:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  58:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __WEAK
+  59:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __WEAK                                 __attribute__((weak))
+  60:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  61:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __PACKED
+  62:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __PACKED                               __attribute__((packed, aligned(1)))
+  63:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  64:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __PACKED_STRUCT
+  65:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __PACKED_STRUCT                        struct __attribute__((packed, aligned(1)))
+  66:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  67:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __PACKED_UNION
+  68:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __PACKED_UNION                         union __attribute__((packed, aligned(1)))
+  69:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  70:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __UNALIGNED_UINT32        /* deprecated */
+  71:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic push
+  72:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wpacked"
+  73:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wattributes"
+  74:Drivers/CMSIS/Include/cmsis_gcc.h ****   struct __attribute__((packed)) T_UINT32 { uint32_t v; };
+  75:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic pop
+  76:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __UNALIGNED_UINT32(x)                  (((struct T_UINT32 *)(x))->v)
+  77:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  78:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __UNALIGNED_UINT16_WRITE
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 6
+
+
+  79:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic push
+  80:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wpacked"
+  81:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wattributes"
+  82:Drivers/CMSIS/Include/cmsis_gcc.h ****   __PACKED_STRUCT T_UINT16_WRITE { uint16_t v; };
+  83:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic pop
+  84:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __UNALIGNED_UINT16_WRITE(addr, val)    (void)((((struct T_UINT16_WRITE *)(void *)(addr))-
+  85:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  86:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __UNALIGNED_UINT16_READ
+  87:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic push
+  88:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wpacked"
+  89:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wattributes"
+  90:Drivers/CMSIS/Include/cmsis_gcc.h ****   __PACKED_STRUCT T_UINT16_READ { uint16_t v; };
+  91:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic pop
+  92:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __UNALIGNED_UINT16_READ(addr)          (((const struct T_UINT16_READ *)(const void *)(add
+  93:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+  94:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __UNALIGNED_UINT32_WRITE
+  95:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic push
+  96:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wpacked"
+  97:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wattributes"
+  98:Drivers/CMSIS/Include/cmsis_gcc.h ****   __PACKED_STRUCT T_UINT32_WRITE { uint32_t v; };
+  99:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic pop
+ 100:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __UNALIGNED_UINT32_WRITE(addr, val)    (void)((((struct T_UINT32_WRITE *)(void *)(addr))-
+ 101:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 102:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __UNALIGNED_UINT32_READ
+ 103:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic push
+ 104:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wpacked"
+ 105:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic ignored "-Wattributes"
+ 106:Drivers/CMSIS/Include/cmsis_gcc.h ****   __PACKED_STRUCT T_UINT32_READ { uint32_t v; };
+ 107:Drivers/CMSIS/Include/cmsis_gcc.h ****   #pragma GCC diagnostic pop
+ 108:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __UNALIGNED_UINT32_READ(addr)          (((const struct T_UINT32_READ *)(const void *)(add
+ 109:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 110:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __ALIGNED
+ 111:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __ALIGNED(x)                           __attribute__((aligned(x)))
+ 112:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 113:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __RESTRICT
+ 114:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __RESTRICT                             __restrict
+ 115:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 116:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef   __COMPILER_BARRIER
+ 117:Drivers/CMSIS/Include/cmsis_gcc.h ****   #define __COMPILER_BARRIER()                   __ASM volatile("":::"memory")
+ 118:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 119:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 120:Drivers/CMSIS/Include/cmsis_gcc.h **** /* #########################  Startup and Lowlevel Init  ######################## */
+ 121:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 122:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef __PROGRAM_START
+ 123:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 124:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 125:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Initializes data and bss sections
+ 126:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details This default implementations initialized all data and additional bss
+ 127:Drivers/CMSIS/Include/cmsis_gcc.h ****            sections relying on .copy.table and .zero.table specified properly
+ 128:Drivers/CMSIS/Include/cmsis_gcc.h ****            in the used linker script.
+ 129:Drivers/CMSIS/Include/cmsis_gcc.h ****   
+ 130:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 131:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE __NO_RETURN void __cmsis_start(void)
+ 132:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 133:Drivers/CMSIS/Include/cmsis_gcc.h ****   extern void _start(void) __NO_RETURN;
+ 134:Drivers/CMSIS/Include/cmsis_gcc.h ****   
+ 135:Drivers/CMSIS/Include/cmsis_gcc.h ****   typedef struct {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 7
+
+
+ 136:Drivers/CMSIS/Include/cmsis_gcc.h ****     uint32_t const* src;
+ 137:Drivers/CMSIS/Include/cmsis_gcc.h ****     uint32_t* dest;
+ 138:Drivers/CMSIS/Include/cmsis_gcc.h ****     uint32_t  wlen;
+ 139:Drivers/CMSIS/Include/cmsis_gcc.h ****   } __copy_table_t;
+ 140:Drivers/CMSIS/Include/cmsis_gcc.h ****   
+ 141:Drivers/CMSIS/Include/cmsis_gcc.h ****   typedef struct {
+ 142:Drivers/CMSIS/Include/cmsis_gcc.h ****     uint32_t* dest;
+ 143:Drivers/CMSIS/Include/cmsis_gcc.h ****     uint32_t  wlen;
+ 144:Drivers/CMSIS/Include/cmsis_gcc.h ****   } __zero_table_t;
+ 145:Drivers/CMSIS/Include/cmsis_gcc.h ****   
+ 146:Drivers/CMSIS/Include/cmsis_gcc.h ****   extern const __copy_table_t __copy_table_start__;
+ 147:Drivers/CMSIS/Include/cmsis_gcc.h ****   extern const __copy_table_t __copy_table_end__;
+ 148:Drivers/CMSIS/Include/cmsis_gcc.h ****   extern const __zero_table_t __zero_table_start__;
+ 149:Drivers/CMSIS/Include/cmsis_gcc.h ****   extern const __zero_table_t __zero_table_end__;
+ 150:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 151:Drivers/CMSIS/Include/cmsis_gcc.h ****   for (__copy_table_t const* pTable = &__copy_table_start__; pTable < &__copy_table_end__; ++pTable
+ 152:Drivers/CMSIS/Include/cmsis_gcc.h ****     for(uint32_t i=0u; i<pTable->wlen; ++i) {
+ 153:Drivers/CMSIS/Include/cmsis_gcc.h ****       pTable->dest[i] = pTable->src[i];
+ 154:Drivers/CMSIS/Include/cmsis_gcc.h ****     }
+ 155:Drivers/CMSIS/Include/cmsis_gcc.h ****   }
+ 156:Drivers/CMSIS/Include/cmsis_gcc.h ****  
+ 157:Drivers/CMSIS/Include/cmsis_gcc.h ****   for (__zero_table_t const* pTable = &__zero_table_start__; pTable < &__zero_table_end__; ++pTable
+ 158:Drivers/CMSIS/Include/cmsis_gcc.h ****     for(uint32_t i=0u; i<pTable->wlen; ++i) {
+ 159:Drivers/CMSIS/Include/cmsis_gcc.h ****       pTable->dest[i] = 0u;
+ 160:Drivers/CMSIS/Include/cmsis_gcc.h ****     }
+ 161:Drivers/CMSIS/Include/cmsis_gcc.h ****   }
+ 162:Drivers/CMSIS/Include/cmsis_gcc.h ****  
+ 163:Drivers/CMSIS/Include/cmsis_gcc.h ****   _start();
+ 164:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 165:Drivers/CMSIS/Include/cmsis_gcc.h ****   
+ 166:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __PROGRAM_START           __cmsis_start
+ 167:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 168:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 169:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef __INITIAL_SP
+ 170:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __INITIAL_SP              __StackTop
+ 171:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 172:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 173:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef __STACK_LIMIT
+ 174:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __STACK_LIMIT             __StackLimit
+ 175:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 176:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 177:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef __VECTOR_TABLE
+ 178:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __VECTOR_TABLE            __Vectors
+ 179:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 180:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 181:Drivers/CMSIS/Include/cmsis_gcc.h **** #ifndef __VECTOR_TABLE_ATTRIBUTE
+ 182:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __VECTOR_TABLE_ATTRIBUTE  __attribute((used, section(".vectors")))
+ 183:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 184:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 185:Drivers/CMSIS/Include/cmsis_gcc.h **** /* ###########################  Core Function Access  ########################### */
+ 186:Drivers/CMSIS/Include/cmsis_gcc.h **** /** \ingroup  CMSIS_Core_FunctionInterface
+ 187:Drivers/CMSIS/Include/cmsis_gcc.h ****     \defgroup CMSIS_Core_RegAccFunctions CMSIS Core Register Access Functions
+ 188:Drivers/CMSIS/Include/cmsis_gcc.h ****   @{
+ 189:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 190:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 191:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 192:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Enable IRQ Interrupts
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 8
+
+
+ 193:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Enables IRQ interrupts by clearing the I-bit in the CPSR.
+ 194:Drivers/CMSIS/Include/cmsis_gcc.h ****            Can only be executed in Privileged modes.
+ 195:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 196:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __enable_irq(void)
+ 197:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 198:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("cpsie i" : : : "memory");
+ 199:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 200:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 201:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 202:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 203:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Disable IRQ Interrupts
+ 204:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Disables IRQ interrupts by setting the I-bit in the CPSR.
+ 205:Drivers/CMSIS/Include/cmsis_gcc.h ****            Can only be executed in Privileged modes.
+ 206:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 207:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __disable_irq(void)
+ 208:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 209:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("cpsid i" : : : "memory");
+ 210:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 211:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 212:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 213:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 214:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Control Register
+ 215:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the content of the Control Register.
+ 216:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Control Register value
+ 217:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 218:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_CONTROL(void)
+ 219:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 220:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 221:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 222:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, control" : "=r" (result) );
+ 223:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 224:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 225:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 226:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 227:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 228:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 229:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Control Register (non-secure)
+ 230:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the content of the non-secure Control Register when in secure mode.
+ 231:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               non-secure Control Register value
+ 232:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 233:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_CONTROL_NS(void)
+ 234:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 235:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 236:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 237:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, control_ns" : "=r" (result) );
+ 238:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 239:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 240:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 241:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 242:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 243:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 244:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Control Register
+ 245:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Writes the given value to the Control Register.
+ 246:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    control  Control Register value to set
+ 247:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 248:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_CONTROL(uint32_t control)
+ 249:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 9
+
+
+ 250:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR control, %0" : : "r" (control) : "memory");
+ 251:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 252:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 253:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 254:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 255:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 256:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Control Register (non-secure)
+ 257:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Writes the given value to the non-secure Control Register when in secure state.
+ 258:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    control  Control Register value to set
+ 259:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 260:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_CONTROL_NS(uint32_t control)
+ 261:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 262:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR control_ns, %0" : : "r" (control) : "memory");
+ 263:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 264:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 265:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 266:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 267:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 268:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get IPSR Register
+ 269:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the content of the IPSR Register.
+ 270:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               IPSR Register value
+ 271:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 272:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_IPSR(void)
+ 273:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 274:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 275:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 276:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, ipsr" : "=r" (result) );
+ 277:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 278:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 279:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 280:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 281:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 282:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get APSR Register
+ 283:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the content of the APSR Register.
+ 284:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               APSR Register value
+ 285:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 286:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_APSR(void)
+ 287:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 288:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 289:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 290:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, apsr" : "=r" (result) );
+ 291:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 292:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 293:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 294:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 295:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 296:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get xPSR Register
+ 297:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the content of the xPSR Register.
+ 298:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               xPSR Register value
+ 299:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 300:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_xPSR(void)
+ 301:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 302:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 303:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 304:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, xpsr" : "=r" (result) );
+ 305:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 306:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 10
+
+
+ 307:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 308:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 309:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 310:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Process Stack Pointer
+ 311:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the Process Stack Pointer (PSP).
+ 312:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               PSP Register value
+ 313:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 314:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_PSP(void)
+ 315:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 316:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 317:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 318:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, psp"  : "=r" (result) );
+ 319:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 320:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 321:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 322:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 323:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 324:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 325:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Process Stack Pointer (non-secure)
+ 326:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the non-secure Process Stack Pointer (PSP) when in secure s
+ 327:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               PSP Register value
+ 328:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 329:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_PSP_NS(void)
+ 330:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 331:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 332:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 333:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, psp_ns"  : "=r" (result) );
+ 334:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 335:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 336:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 337:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 338:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 339:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 340:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Process Stack Pointer
+ 341:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Process Stack Pointer (PSP).
+ 342:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    topOfProcStack  Process Stack Pointer value to set
+ 343:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 344:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_PSP(uint32_t topOfProcStack)
+ 345:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 346:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR psp, %0" : : "r" (topOfProcStack) : );
+ 347:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 348:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 349:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 350:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 351:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 352:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Process Stack Pointer (non-secure)
+ 353:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Process Stack Pointer (PSP) when in secure sta
+ 354:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    topOfProcStack  Process Stack Pointer value to set
+ 355:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 356:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_PSP_NS(uint32_t topOfProcStack)
+ 357:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 358:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR psp_ns, %0" : : "r" (topOfProcStack) : );
+ 359:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 360:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 361:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 362:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 363:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 11
+
+
+ 364:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Main Stack Pointer
+ 365:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the Main Stack Pointer (MSP).
+ 366:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               MSP Register value
+ 367:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 368:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_MSP(void)
+ 369:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 370:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 371:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 372:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, msp" : "=r" (result) );
+ 373:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 374:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 375:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 376:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 377:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 378:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 379:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Main Stack Pointer (non-secure)
+ 380:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the non-secure Main Stack Pointer (MSP) when in secure stat
+ 381:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               MSP Register value
+ 382:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 383:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_MSP_NS(void)
+ 384:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 385:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 386:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 387:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, msp_ns" : "=r" (result) );
+ 388:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 389:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 390:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 391:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 392:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 393:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 394:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Main Stack Pointer
+ 395:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Main Stack Pointer (MSP).
+ 396:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    topOfMainStack  Main Stack Pointer value to set
+ 397:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 398:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_MSP(uint32_t topOfMainStack)
+ 399:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 400:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR msp, %0" : : "r" (topOfMainStack) : );
+ 401:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 402:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 403:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 404:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 405:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 406:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Main Stack Pointer (non-secure)
+ 407:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Main Stack Pointer (MSP) when in secure state.
+ 408:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    topOfMainStack  Main Stack Pointer value to set
+ 409:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 410:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_MSP_NS(uint32_t topOfMainStack)
+ 411:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 412:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR msp_ns, %0" : : "r" (topOfMainStack) : );
+ 413:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 414:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 415:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 416:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 417:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 418:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 419:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Stack Pointer (non-secure)
+ 420:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the non-secure Stack Pointer (SP) when in secure state.
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 12
+
+
+ 421:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               SP Register value
+ 422:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 423:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_SP_NS(void)
+ 424:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 425:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 426:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 427:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, sp_ns" : "=r" (result) );
+ 428:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 429:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 430:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 431:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 432:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 433:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Stack Pointer (non-secure)
+ 434:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Stack Pointer (SP) when in secure state.
+ 435:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    topOfStack  Stack Pointer value to set
+ 436:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 437:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_SP_NS(uint32_t topOfStack)
+ 438:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 439:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR sp_ns, %0" : : "r" (topOfStack) : );
+ 440:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 441:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 442:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 443:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 444:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 445:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Priority Mask
+ 446:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current state of the priority mask bit from the Priority Mask Register.
+ 447:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Priority Mask value
+ 448:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 449:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_PRIMASK(void)
+ 450:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 451:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 452:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 453:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, primask" : "=r" (result) :: "memory");
+ 454:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 455:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 456:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 457:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 458:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 459:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 460:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Priority Mask (non-secure)
+ 461:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current state of the non-secure priority mask bit from the Priority Mask Reg
+ 462:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Priority Mask value
+ 463:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 464:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_PRIMASK_NS(void)
+ 465:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 466:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 467:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 468:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, primask_ns" : "=r" (result) :: "memory");
+ 469:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 470:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 471:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 472:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 473:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 474:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 475:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Priority Mask
+ 476:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Priority Mask Register.
+ 477:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    priMask  Priority Mask
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 13
+
+
+ 478:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 479:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_PRIMASK(uint32_t priMask)
+ 480:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 481:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR primask, %0" : : "r" (priMask) : "memory");
+ 482:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 483:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 484:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 485:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 486:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 487:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Priority Mask (non-secure)
+ 488:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Priority Mask Register when in secure state.
+ 489:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    priMask  Priority Mask
+ 490:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 491:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_PRIMASK_NS(uint32_t priMask)
+ 492:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 493:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR primask_ns, %0" : : "r" (priMask) : "memory");
+ 494:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 495:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 496:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 497:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 498:Drivers/CMSIS/Include/cmsis_gcc.h **** #if ((defined (__ARM_ARCH_7M__      ) && (__ARM_ARCH_7M__      == 1)) || \
+ 499:Drivers/CMSIS/Include/cmsis_gcc.h ****      (defined (__ARM_ARCH_7EM__     ) && (__ARM_ARCH_7EM__     == 1)) || \
+ 500:Drivers/CMSIS/Include/cmsis_gcc.h ****      (defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1))    )
+ 501:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 502:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Enable FIQ
+ 503:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Enables FIQ interrupts by clearing the F-bit in the CPSR.
+ 504:Drivers/CMSIS/Include/cmsis_gcc.h ****            Can only be executed in Privileged modes.
+ 505:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 506:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __enable_fault_irq(void)
+ 507:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 508:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("cpsie f" : : : "memory");
+ 509:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 510:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 511:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 512:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 513:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Disable FIQ
+ 514:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Disables FIQ interrupts by setting the F-bit in the CPSR.
+ 515:Drivers/CMSIS/Include/cmsis_gcc.h ****            Can only be executed in Privileged modes.
+ 516:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 517:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __disable_fault_irq(void)
+ 518:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 519:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("cpsid f" : : : "memory");
+ 520:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 521:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 522:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 523:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 524:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Base Priority
+ 525:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the Base Priority register.
+ 526:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Base Priority register value
+ 527:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 528:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_BASEPRI(void)
+ 529:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 530:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 531:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 532:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, basepri" : "=r" (result) );
+ 533:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 534:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 14
+
+
+ 535:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 536:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 537:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 538:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 539:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Base Priority (non-secure)
+ 540:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the non-secure Base Priority register when in secure state.
+ 541:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Base Priority register value
+ 542:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 543:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_BASEPRI_NS(void)
+ 544:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 545:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 546:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 547:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, basepri_ns" : "=r" (result) );
+ 548:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 549:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 550:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 551:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 552:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 553:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 554:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Base Priority
+ 555:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Base Priority register.
+ 556:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    basePri  Base Priority value to set
+ 557:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 558:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_BASEPRI(uint32_t basePri)
+ 559:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 560:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR basepri, %0" : : "r" (basePri) : "memory");
+ 561:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 562:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 563:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 564:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 565:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 566:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Base Priority (non-secure)
+ 567:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Base Priority register when in secure state.
+ 568:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    basePri  Base Priority value to set
+ 569:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 570:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_BASEPRI_NS(uint32_t basePri)
+ 571:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 572:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR basepri_ns, %0" : : "r" (basePri) : "memory");
+ 573:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 574:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 575:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 576:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 577:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 578:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Base Priority with condition
+ 579:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Base Priority register only if BASEPRI masking is disable
+ 580:Drivers/CMSIS/Include/cmsis_gcc.h ****            or the new value increases the BASEPRI priority level.
+ 581:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    basePri  Base Priority value to set
+ 582:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 583:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_BASEPRI_MAX(uint32_t basePri)
+ 584:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 585:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR basepri_max, %0" : : "r" (basePri) : "memory");
+ 586:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 587:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 588:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 589:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 590:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Fault Mask
+ 591:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the Fault Mask register.
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 15
+
+
+ 592:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Fault Mask register value
+ 593:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 594:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_FAULTMASK(void)
+ 595:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 596:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 597:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 598:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, faultmask" : "=r" (result) );
+ 599:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 600:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 601:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 602:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 603:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 604:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 605:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Fault Mask (non-secure)
+ 606:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the non-secure Fault Mask register when in secure state.
+ 607:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Fault Mask register value
+ 608:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 609:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_FAULTMASK_NS(void)
+ 610:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 611:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 612:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 613:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, faultmask_ns" : "=r" (result) );
+ 614:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 615:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 616:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 617:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 618:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 619:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 620:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Fault Mask
+ 621:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Fault Mask register.
+ 622:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    faultMask  Fault Mask value to set
+ 623:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 624:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_FAULTMASK(uint32_t faultMask)
+ 625:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 626:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR faultmask, %0" : : "r" (faultMask) : "memory");
+ 627:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 628:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 629:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 630:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE ) && (__ARM_FEATURE_CMSE == 3))
+ 631:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 632:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Fault Mask (non-secure)
+ 633:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Fault Mask register when in secure state.
+ 634:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    faultMask  Fault Mask value to set
+ 635:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 636:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_FAULTMASK_NS(uint32_t faultMask)
+ 637:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 638:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR faultmask_ns, %0" : : "r" (faultMask) : "memory");
+ 639:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 640:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 641:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 642:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif /* ((defined (__ARM_ARCH_7M__      ) && (__ARM_ARCH_7M__      == 1)) || \
+ 643:Drivers/CMSIS/Include/cmsis_gcc.h ****            (defined (__ARM_ARCH_7EM__     ) && (__ARM_ARCH_7EM__     == 1)) || \
+ 644:Drivers/CMSIS/Include/cmsis_gcc.h ****            (defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1))    ) */
+ 645:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 646:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 647:Drivers/CMSIS/Include/cmsis_gcc.h **** #if ((defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)) || \
+ 648:Drivers/CMSIS/Include/cmsis_gcc.h ****      (defined (__ARM_ARCH_8M_BASE__ ) && (__ARM_ARCH_8M_BASE__ == 1))    )
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 16
+
+
+ 649:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 650:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 651:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Process Stack Pointer Limit
+ 652:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 653:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence zero is returned always in non-secure
+ 654:Drivers/CMSIS/Include/cmsis_gcc.h ****   mode.
+ 655:Drivers/CMSIS/Include/cmsis_gcc.h ****   
+ 656:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the Process Stack Pointer Limit (PSPLIM).
+ 657:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               PSPLIM Register value
+ 658:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 659:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_PSPLIM(void)
+ 660:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 661:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)) && \
+ 662:Drivers/CMSIS/Include/cmsis_gcc.h ****     (!defined (__ARM_FEATURE_CMSE) || (__ARM_FEATURE_CMSE < 3)))
+ 663:Drivers/CMSIS/Include/cmsis_gcc.h ****     // without main extensions, the non-secure PSPLIM is RAZ/WI
+ 664:Drivers/CMSIS/Include/cmsis_gcc.h ****   return 0U;
+ 665:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 666:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 667:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, psplim"  : "=r" (result) );
+ 668:Drivers/CMSIS/Include/cmsis_gcc.h ****   return result;
+ 669:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 670:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 671:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 672:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE) && (__ARM_FEATURE_CMSE == 3))
+ 673:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 674:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Process Stack Pointer Limit (non-secure)
+ 675:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 676:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence zero is returned always.
+ 677:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 678:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the non-secure Process Stack Pointer Limit (PSPLIM) when in
+ 679:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               PSPLIM Register value
+ 680:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 681:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_PSPLIM_NS(void)
+ 682:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 683:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)))
+ 684:Drivers/CMSIS/Include/cmsis_gcc.h ****   // without main extensions, the non-secure PSPLIM is RAZ/WI
+ 685:Drivers/CMSIS/Include/cmsis_gcc.h ****   return 0U;
+ 686:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 687:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 688:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, psplim_ns"  : "=r" (result) );
+ 689:Drivers/CMSIS/Include/cmsis_gcc.h ****   return result;
+ 690:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 691:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 692:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 693:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 694:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 695:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 696:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Process Stack Pointer Limit
+ 697:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 698:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence the write is silently ignored in non-secure
+ 699:Drivers/CMSIS/Include/cmsis_gcc.h ****   mode.
+ 700:Drivers/CMSIS/Include/cmsis_gcc.h ****   
+ 701:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Process Stack Pointer Limit (PSPLIM).
+ 702:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    ProcStackPtrLimit  Process Stack Pointer Limit value to set
+ 703:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 704:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_PSPLIM(uint32_t ProcStackPtrLimit)
+ 705:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 17
+
+
+ 706:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)) && \
+ 707:Drivers/CMSIS/Include/cmsis_gcc.h ****     (!defined (__ARM_FEATURE_CMSE) || (__ARM_FEATURE_CMSE < 3)))
+ 708:Drivers/CMSIS/Include/cmsis_gcc.h ****   // without main extensions, the non-secure PSPLIM is RAZ/WI
+ 709:Drivers/CMSIS/Include/cmsis_gcc.h ****   (void)ProcStackPtrLimit;
+ 710:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 711:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR psplim, %0" : : "r" (ProcStackPtrLimit));
+ 712:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 713:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 714:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 715:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 716:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE  ) && (__ARM_FEATURE_CMSE   == 3))
+ 717:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 718:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Process Stack Pointer (non-secure)
+ 719:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 720:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence the write is silently ignored.
+ 721:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 722:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Process Stack Pointer Limit (PSPLIM) when in s
+ 723:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    ProcStackPtrLimit  Process Stack Pointer Limit value to set
+ 724:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 725:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_PSPLIM_NS(uint32_t ProcStackPtrLimit)
+ 726:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 727:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)))
+ 728:Drivers/CMSIS/Include/cmsis_gcc.h ****   // without main extensions, the non-secure PSPLIM is RAZ/WI
+ 729:Drivers/CMSIS/Include/cmsis_gcc.h ****   (void)ProcStackPtrLimit;
+ 730:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 731:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR psplim_ns, %0\n" : : "r" (ProcStackPtrLimit));
+ 732:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 733:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 734:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 735:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 736:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 737:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 738:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Main Stack Pointer Limit
+ 739:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 740:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence zero is returned always in non-secure
+ 741:Drivers/CMSIS/Include/cmsis_gcc.h ****   mode.
+ 742:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 743:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the Main Stack Pointer Limit (MSPLIM).
+ 744:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               MSPLIM Register value
+ 745:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 746:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_MSPLIM(void)
+ 747:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 748:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)) && \
+ 749:Drivers/CMSIS/Include/cmsis_gcc.h ****     (!defined (__ARM_FEATURE_CMSE) || (__ARM_FEATURE_CMSE < 3)))
+ 750:Drivers/CMSIS/Include/cmsis_gcc.h ****   // without main extensions, the non-secure MSPLIM is RAZ/WI
+ 751:Drivers/CMSIS/Include/cmsis_gcc.h ****   return 0U;
+ 752:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 753:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 754:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, msplim" : "=r" (result) );
+ 755:Drivers/CMSIS/Include/cmsis_gcc.h ****   return result;
+ 756:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 757:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 758:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 759:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 760:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE  ) && (__ARM_FEATURE_CMSE   == 3))
+ 761:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 762:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get Main Stack Pointer Limit (non-secure)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 18
+
+
+ 763:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 764:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence zero is returned always.
+ 765:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 766:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the non-secure Main Stack Pointer Limit(MSPLIM) when in sec
+ 767:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               MSPLIM Register value
+ 768:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 769:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __TZ_get_MSPLIM_NS(void)
+ 770:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 771:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)))
+ 772:Drivers/CMSIS/Include/cmsis_gcc.h ****   // without main extensions, the non-secure MSPLIM is RAZ/WI
+ 773:Drivers/CMSIS/Include/cmsis_gcc.h ****   return 0U;
+ 774:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 775:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 776:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MRS %0, msplim_ns" : "=r" (result) );
+ 777:Drivers/CMSIS/Include/cmsis_gcc.h ****   return result;
+ 778:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 779:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 780:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 781:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 782:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 783:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 784:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Main Stack Pointer Limit
+ 785:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 786:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence the write is silently ignored in non-secure
+ 787:Drivers/CMSIS/Include/cmsis_gcc.h ****   mode.
+ 788:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 789:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Main Stack Pointer Limit (MSPLIM).
+ 790:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    MainStackPtrLimit  Main Stack Pointer Limit value to set
+ 791:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 792:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_MSPLIM(uint32_t MainStackPtrLimit)
+ 793:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 794:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)) && \
+ 795:Drivers/CMSIS/Include/cmsis_gcc.h ****     (!defined (__ARM_FEATURE_CMSE) || (__ARM_FEATURE_CMSE < 3)))
+ 796:Drivers/CMSIS/Include/cmsis_gcc.h ****   // without main extensions, the non-secure MSPLIM is RAZ/WI
+ 797:Drivers/CMSIS/Include/cmsis_gcc.h ****   (void)MainStackPtrLimit;
+ 798:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 799:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR msplim, %0" : : "r" (MainStackPtrLimit));
+ 800:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 801:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 802:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 803:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 804:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (defined (__ARM_FEATURE_CMSE  ) && (__ARM_FEATURE_CMSE   == 3))
+ 805:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 806:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set Main Stack Pointer Limit (non-secure)
+ 807:Drivers/CMSIS/Include/cmsis_gcc.h ****   Devices without ARMv8-M Main Extensions (i.e. Cortex-M23) lack the non-secure
+ 808:Drivers/CMSIS/Include/cmsis_gcc.h ****   Stack Pointer Limit register hence the write is silently ignored.
+ 809:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 810:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the non-secure Main Stack Pointer Limit (MSPLIM) when in secu
+ 811:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    MainStackPtrLimit  Main Stack Pointer value to set
+ 812:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 813:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __TZ_set_MSPLIM_NS(uint32_t MainStackPtrLimit)
+ 814:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 815:Drivers/CMSIS/Include/cmsis_gcc.h **** #if (!(defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)))
+ 816:Drivers/CMSIS/Include/cmsis_gcc.h ****   // without main extensions, the non-secure MSPLIM is RAZ/WI
+ 817:Drivers/CMSIS/Include/cmsis_gcc.h ****   (void)MainStackPtrLimit;
+ 818:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 819:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("MSR msplim_ns, %0" : : "r" (MainStackPtrLimit));
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 19
+
+
+ 820:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 821:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 822:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 823:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 824:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif /* ((defined (__ARM_ARCH_8M_MAIN__ ) && (__ARM_ARCH_8M_MAIN__ == 1)) || \
+ 825:Drivers/CMSIS/Include/cmsis_gcc.h ****            (defined (__ARM_ARCH_8M_BASE__ ) && (__ARM_ARCH_8M_BASE__ == 1))    ) */
+ 826:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 827:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 828:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 829:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Get FPSCR
+ 830:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Returns the current value of the Floating Point Status/Control register.
+ 831:Drivers/CMSIS/Include/cmsis_gcc.h ****   \return               Floating Point Status/Control register value
+ 832:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 833:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE uint32_t __get_FPSCR(void)
+ 834:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 835:Drivers/CMSIS/Include/cmsis_gcc.h **** #if ((defined (__FPU_PRESENT) && (__FPU_PRESENT == 1U)) && \
+ 836:Drivers/CMSIS/Include/cmsis_gcc.h ****      (defined (__FPU_USED   ) && (__FPU_USED    == 1U))     )
+ 837:Drivers/CMSIS/Include/cmsis_gcc.h **** #if __has_builtin(__builtin_arm_get_fpscr) 
+ 838:Drivers/CMSIS/Include/cmsis_gcc.h **** // Re-enable using built-in when GCC has been fixed
+ 839:Drivers/CMSIS/Include/cmsis_gcc.h **** // || (__GNUC__ > 7) || (__GNUC__ == 7 && __GNUC_MINOR__ >= 2)
+ 840:Drivers/CMSIS/Include/cmsis_gcc.h ****   /* see https://gcc.gnu.org/ml/gcc-patches/2017-04/msg00443.html */
+ 841:Drivers/CMSIS/Include/cmsis_gcc.h ****   return __builtin_arm_get_fpscr();
+ 842:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 843:Drivers/CMSIS/Include/cmsis_gcc.h ****   uint32_t result;
+ 844:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 845:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("VMRS %0, fpscr" : "=r" (result) );
+ 846:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(result);
+ 847:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 848:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 849:Drivers/CMSIS/Include/cmsis_gcc.h ****   return(0U);
+ 850:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 851:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 852:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 853:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 854:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 855:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Set FPSCR
+ 856:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Assigns the given value to the Floating Point Status/Control register.
+ 857:Drivers/CMSIS/Include/cmsis_gcc.h ****   \param [in]    fpscr  Floating Point Status/Control value to set
+ 858:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 859:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __set_FPSCR(uint32_t fpscr)
+ 860:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 861:Drivers/CMSIS/Include/cmsis_gcc.h **** #if ((defined (__FPU_PRESENT) && (__FPU_PRESENT == 1U)) && \
+ 862:Drivers/CMSIS/Include/cmsis_gcc.h ****      (defined (__FPU_USED   ) && (__FPU_USED    == 1U))     )
+ 863:Drivers/CMSIS/Include/cmsis_gcc.h **** #if __has_builtin(__builtin_arm_set_fpscr)
+ 864:Drivers/CMSIS/Include/cmsis_gcc.h **** // Re-enable using built-in when GCC has been fixed
+ 865:Drivers/CMSIS/Include/cmsis_gcc.h **** // || (__GNUC__ > 7) || (__GNUC__ == 7 && __GNUC_MINOR__ >= 2)
+ 866:Drivers/CMSIS/Include/cmsis_gcc.h ****   /* see https://gcc.gnu.org/ml/gcc-patches/2017-04/msg00443.html */
+ 867:Drivers/CMSIS/Include/cmsis_gcc.h ****   __builtin_arm_set_fpscr(fpscr);
+ 868:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 869:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("VMSR fpscr, %0" : : "r" (fpscr) : "vfpcc", "memory");
+ 870:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 871:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 872:Drivers/CMSIS/Include/cmsis_gcc.h ****   (void)fpscr;
+ 873:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 874:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 875:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 876:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 20
+
+
+ 877:Drivers/CMSIS/Include/cmsis_gcc.h **** /*@} end of CMSIS_Core_RegAccFunctions */
+ 878:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 879:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 880:Drivers/CMSIS/Include/cmsis_gcc.h **** /* ##########################  Core Instruction Access  ######################### */
+ 881:Drivers/CMSIS/Include/cmsis_gcc.h **** /** \defgroup CMSIS_Core_InstructionInterface CMSIS Core Instruction Interface
+ 882:Drivers/CMSIS/Include/cmsis_gcc.h ****   Access to dedicated instructions
+ 883:Drivers/CMSIS/Include/cmsis_gcc.h ****   @{
+ 884:Drivers/CMSIS/Include/cmsis_gcc.h **** */
+ 885:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 886:Drivers/CMSIS/Include/cmsis_gcc.h **** /* Define macros for porting to both thumb1 and thumb2.
+ 887:Drivers/CMSIS/Include/cmsis_gcc.h ****  * For thumb1, use low register (r0-r7), specified by constraint "l"
+ 888:Drivers/CMSIS/Include/cmsis_gcc.h ****  * Otherwise, use general registers, specified by constraint "r" */
+ 889:Drivers/CMSIS/Include/cmsis_gcc.h **** #if defined (__thumb__) && !defined (__thumb2__)
+ 890:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __CMSIS_GCC_OUT_REG(r) "=l" (r)
+ 891:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __CMSIS_GCC_RW_REG(r) "+l" (r)
+ 892:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __CMSIS_GCC_USE_REG(r) "l" (r)
+ 893:Drivers/CMSIS/Include/cmsis_gcc.h **** #else
+ 894:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __CMSIS_GCC_OUT_REG(r) "=r" (r)
+ 895:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __CMSIS_GCC_RW_REG(r) "+r" (r)
+ 896:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __CMSIS_GCC_USE_REG(r) "r" (r)
+ 897:Drivers/CMSIS/Include/cmsis_gcc.h **** #endif
+ 898:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 899:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 900:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   No Operation
+ 901:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details No Operation does nothing. This instruction can be used for code alignment purposes.
+ 902:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 903:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __NOP()                             __ASM volatile ("nop")
+ 904:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 905:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 906:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Wait For Interrupt
+ 907:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Wait For Interrupt is a hint instruction that suspends execution until one of a number o
+ 908:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 909:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __WFI()                             __ASM volatile ("wfi")
+ 910:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 911:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 912:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 913:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Wait For Event
+ 914:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Wait For Event is a hint instruction that permits the processor to enter
+ 915:Drivers/CMSIS/Include/cmsis_gcc.h ****            a low-power state until one of a number of events occurs.
+ 916:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 917:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __WFE()                             __ASM volatile ("wfe")
+ 918:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 919:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 920:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 921:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Send Event
+ 922:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Send Event is a hint instruction. It causes an event to be signaled to the CPU.
+ 923:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 924:Drivers/CMSIS/Include/cmsis_gcc.h **** #define __SEV()                             __ASM volatile ("sev")
+ 925:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 926:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 927:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 928:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Instruction Synchronization Barrier
+ 929:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Instruction Synchronization Barrier flushes the pipeline in the processor,
+ 930:Drivers/CMSIS/Include/cmsis_gcc.h ****            so that all instructions following the ISB are fetched from cache or memory,
+ 931:Drivers/CMSIS/Include/cmsis_gcc.h ****            after the instruction has been completed.
+ 932:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 933:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __ISB(void)
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 21
+
+
+ 934:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 935:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("isb 0xF":::"memory");
+ 936:Drivers/CMSIS/Include/cmsis_gcc.h **** }
+ 937:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 938:Drivers/CMSIS/Include/cmsis_gcc.h **** 
+ 939:Drivers/CMSIS/Include/cmsis_gcc.h **** /**
+ 940:Drivers/CMSIS/Include/cmsis_gcc.h ****   \brief   Data Synchronization Barrier
+ 941:Drivers/CMSIS/Include/cmsis_gcc.h ****   \details Acts as a special kind of Data Memory Barrier.
+ 942:Drivers/CMSIS/Include/cmsis_gcc.h ****            It completes when all explicit memory accesses before this instruction complete.
+ 943:Drivers/CMSIS/Include/cmsis_gcc.h ****  */
+ 944:Drivers/CMSIS/Include/cmsis_gcc.h **** __STATIC_FORCEINLINE void __DSB(void)
+ 160              		.loc 2 944 27 view .LVU36
+ 161              	.LBB59:
+ 945:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 946:Drivers/CMSIS/Include/cmsis_gcc.h ****   __ASM volatile ("dsb 0xF":::"memory");
+ 162              		.loc 2 946 3 view .LVU37
+ 163              		.syntax unified
+ 164              	@ 946 "Drivers/CMSIS/Include/cmsis_gcc.h" 1
+ 165 001c BFF34F8F 		dsb 0xF
+ 166              	@ 0 "" 2
+ 167              		.thumb
+ 168              		.syntax unified
+ 169              	.LBE59:
+ 170              	.LBE58:
+  39:Cpp_Core/Src/board_power.cpp **** 
+  40:Cpp_Core/Src/board_power.cpp ****     /* Set ODR before switching MODER to output, so 3V3_Main never glitches. */
+  41:Cpp_Core/Src/board_power.cpp ****     GPIOI->BSRR = MAIN_POWER_EN_PIN;
+ 171              		.loc 1 41 5 view .LVU38
+ 172              		.loc 1 41 17 is_stmt 0 view .LVU39
+ 173 0020 0B4B     		ldr	r3, .L6+4
+ 174 0022 1022     		movs	r2, #16
+ 175 0024 9A61     		str	r2, [r3, #24]
+  42:Cpp_Core/Src/board_power.cpp ****     const uint32_t shift = 4u * 2u;
+ 176              		.loc 1 42 5 is_stmt 1 view .LVU40
+ 177              	.LVL10:
+  43:Cpp_Core/Src/board_power.cpp ****     GPIOI->MODER = (GPIOI->MODER & ~(3u << shift)) | (1u << shift);
+ 178              		.loc 1 43 5 view .LVU41
+ 179              		.loc 1 43 28 is_stmt 0 view .LVU42
+ 180 0026 1A68     		ldr	r2, [r3]
+ 181              		.loc 1 43 34 view .LVU43
+ 182 0028 22F44072 		bic	r2, r2, #768
+ 183              		.loc 1 43 52 view .LVU44
+ 184 002c 42F48072 		orr	r2, r2, #256
+ 185              		.loc 1 43 18 view .LVU45
+ 186 0030 1A60     		str	r2, [r3]
+  44:Cpp_Core/Src/board_power.cpp ****     GPIOI->OTYPER &= ~static_cast<uint32_t>(MAIN_POWER_EN_PIN);
+ 187              		.loc 1 44 5 is_stmt 1 view .LVU46
+ 188              		.loc 1 44 12 is_stmt 0 view .LVU47
+ 189 0032 5A68     		ldr	r2, [r3, #4]
+ 190              		.loc 1 44 19 view .LVU48
+ 191 0034 22F01002 		bic	r2, r2, #16
+ 192 0038 5A60     		str	r2, [r3, #4]
+  45:Cpp_Core/Src/board_power.cpp ****     GPIOI->PUPDR &= ~(3u << shift);
+ 193              		.loc 1 45 5 is_stmt 1 view .LVU49
+ 194              		.loc 1 45 12 is_stmt 0 view .LVU50
+ 195 003a DA68     		ldr	r2, [r3, #12]
+ 196              		.loc 1 45 18 view .LVU51
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 22
+
+
+ 197 003c 22F44072 		bic	r2, r2, #768
+ 198 0040 DA60     		str	r2, [r3, #12]
+  46:Cpp_Core/Src/board_power.cpp ****     __DSB();
+ 199              		.loc 1 46 5 is_stmt 1 view .LVU52
+ 200              	.LBB60:
+ 201              	.LBI60:
+ 944:Drivers/CMSIS/Include/cmsis_gcc.h **** {
+ 202              		.loc 2 944 27 view .LVU53
+ 203              	.LBB61:
+ 204              		.loc 2 946 3 view .LVU54
+ 205              		.syntax unified
+ 206              	@ 946 "Drivers/CMSIS/Include/cmsis_gcc.h" 1
+ 207 0042 BFF34F8F 		dsb 0xF
+ 208              	@ 0 "" 2
+ 209              		.thumb
+ 210              		.syntax unified
+ 211              	.LBE61:
+ 212              	.LBE60:
+  47:Cpp_Core/Src/board_power.cpp **** }
+ 213              		.loc 1 47 1 is_stmt 0 view .LVU55
+ 214 0046 02B0     		add	sp, sp, #8
+ 215              	.LCFI4:
+ 216              		.cfi_def_cfa_offset 0
+ 217              		@ sp needed
+ 218 0048 7047     		bx	lr
+ 219              	.L7:
+ 220 004a 00BF     		.align	2
+ 221              	.L6:
+ 222 004c 00440258 		.word	1476543488
+ 223 0050 00200258 		.word	1476534272
+ 224              		.cfi_endproc
+ 225              	.LFE1286:
+ 227              		.section	.text._ZN10BoardPower5setupEv,"ax",%progbits
+ 228              		.align	1
+ 229              		.global	_ZN10BoardPower5setupEv
+ 230              		.syntax unified
+ 231              		.thumb
+ 232              		.thumb_func
+ 234              	_ZN10BoardPower5setupEv:
+ 235              	.LVL11:
+ 236              	.LFB1294:
+  48:Cpp_Core/Src/board_power.cpp **** 
+  49:Cpp_Core/Src/board_power.cpp **** extern "C" void BoardPower_Initialize(void)
+  50:Cpp_Core/Src/board_power.cpp **** {
+  51:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setup();
+  52:Cpp_Core/Src/board_power.cpp **** }
+  53:Cpp_Core/Src/board_power.cpp **** 
+  54:Cpp_Core/Src/board_power.cpp **** extern "C" void BoardPower_SetChargeEnabled(bool enabled)
+  55:Cpp_Core/Src/board_power.cpp **** {
+  56:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setChargeEnabled(enabled);
+  57:Cpp_Core/Src/board_power.cpp **** }
+  58:Cpp_Core/Src/board_power.cpp **** 
+  59:Cpp_Core/Src/board_power.cpp **** extern "C" void BoardPower_SetHallEnabled(bool enabled)
+  60:Cpp_Core/Src/board_power.cpp **** {
+  61:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setHallEnabled(enabled);
+  62:Cpp_Core/Src/board_power.cpp **** }
+  63:Cpp_Core/Src/board_power.cpp **** 
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 23
+
+
+  64:Cpp_Core/Src/board_power.cpp **** extern "C" void BoardPower_EnableHallForAdc(void)
+  65:Cpp_Core/Src/board_power.cpp **** {
+  66:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setHallEnabled(true);
+  67:Cpp_Core/Src/board_power.cpp ****     HAL_Delay(BOARD_HALL_STABILIZE_MS);
+  68:Cpp_Core/Src/board_power.cpp **** }
+  69:Cpp_Core/Src/board_power.cpp **** 
+  70:Cpp_Core/Src/board_power.cpp **** extern "C" void BoardPower_SetKeyLedEnabled(bool enabled)
+  71:Cpp_Core/Src/board_power.cpp **** {
+  72:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setKeyLedEnabled(enabled);
+  73:Cpp_Core/Src/board_power.cpp **** }
+  74:Cpp_Core/Src/board_power.cpp **** 
+  75:Cpp_Core/Src/board_power.cpp **** extern "C" void BoardPower_SetAmbientLedEnabled(bool enabled)
+  76:Cpp_Core/Src/board_power.cpp **** {
+  77:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setAmbientLedEnabled(enabled);
+  78:Cpp_Core/Src/board_power.cpp **** }
+  79:Cpp_Core/Src/board_power.cpp **** 
+  80:Cpp_Core/Src/board_power.cpp **** extern "C" void BoardPower_SetLcdEnabled(bool enabled)
+  81:Cpp_Core/Src/board_power.cpp **** {
+  82:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setLcdEnabled(enabled);
+  83:Cpp_Core/Src/board_power.cpp **** }
+  84:Cpp_Core/Src/board_power.cpp **** 
+  85:Cpp_Core/Src/board_power.cpp **** void BoardPower::setup()
+  86:Cpp_Core/Src/board_power.cpp **** {
+ 237              		.loc 1 86 1 is_stmt 1 view -0
+ 238              		.cfi_startproc
+ 239              		@ args = 0, pretend = 0, frame = 32
+ 240              		@ frame_needed = 0, uses_anonymous_args = 0
+  87:Cpp_Core/Src/board_power.cpp ****     __HAL_RCC_GPIOI_CLK_ENABLE();
+ 241              		.loc 1 87 5 view .LVU57
+ 242              	.LBB85:
+ 243              		.loc 1 87 5 view .LVU58
+ 244              		.loc 1 87 5 view .LVU59
+ 245 0000 4D4B     		ldr	r3, .L9
+ 246 0002 D3F8E020 		ldr	r2, [r3, #224]
+ 247 0006 42F48072 		orr	r2, r2, #256
+ 248              	.LBE85:
+  86:Cpp_Core/Src/board_power.cpp ****     __HAL_RCC_GPIOI_CLK_ENABLE();
+ 249              		.loc 1 86 1 is_stmt 0 view .LVU60
+ 250 000a F0B5     		push	{r4, r5, r6, r7, lr}
+ 251              	.LCFI5:
+ 252              		.cfi_def_cfa_offset 20
+ 253              		.cfi_offset 4, -20
+ 254              		.cfi_offset 5, -16
+ 255              		.cfi_offset 6, -12
+ 256              		.cfi_offset 7, -8
+ 257              		.cfi_offset 14, -4
+ 258 000c 89B0     		sub	sp, sp, #36
+ 259              	.LCFI6:
+ 260              		.cfi_def_cfa_offset 56
+ 261              	.LBB86:
+ 262              		.loc 1 87 5 view .LVU61
+ 263 000e C3F8E020 		str	r2, [r3, #224]
+ 264              		.loc 1 87 5 is_stmt 1 view .LVU62
+ 265 0012 D3F8E020 		ldr	r2, [r3, #224]
+ 266              	.LBE86:
+  86:Cpp_Core/Src/board_power.cpp ****     __HAL_RCC_GPIOI_CLK_ENABLE();
+ 267              		.loc 1 86 1 is_stmt 0 view .LVU63
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 24
+
+
+ 268 0016 0546     		mov	r5, r0
+ 269              	.LBB87:
+ 270              	.LBB88:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 271              		.loc 1 10 22 discriminator 4 view .LVU64
+ 272 0018 484C     		ldr	r4, .L9+4
+ 273              	.LBE88:
+ 274              	.LBE87:
+ 275              	.LBB93:
+ 276              	.LBB94:
+  15:Cpp_Core/Src/board_power.cpp ****     init.Pin = pin;
+ 277              		.loc 1 15 22 view .LVU65
+ 278 001a 0026     		movs	r6, #0
+ 279              	.LBE94:
+ 280              	.LBE93:
+ 281              	.LBB97:
+ 282              		.loc 1 87 5 view .LVU66
+ 283 001c 02F48072 		and	r2, r2, #256
+ 284              	.LBE97:
+ 285              	.LBB98:
+ 286              	.LBB95:
+  17:Cpp_Core/Src/board_power.cpp ****     init.Pull = GPIO_NOPULL;
+ 287              		.loc 1 17 15 view .LVU67
+ 288 0020 0127     		movs	r7, #1
+ 289              	.LBE95:
+ 290              	.LBE98:
+ 291              	.LBB99:
+ 292              	.LBB89:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 293              		.loc 1 10 22 discriminator 4 view .LVU68
+ 294 0022 2046     		mov	r0, r4
+ 295              	.LVL12:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 296              		.loc 1 10 22 discriminator 4 view .LVU69
+ 297              	.LBE89:
+ 298              	.LBE99:
+ 299              	.LBB100:
+ 300              		.loc 1 87 5 view .LVU70
+ 301 0024 0092     		str	r2, [sp]
+ 302              		.loc 1 87 5 is_stmt 1 view .LVU71
+ 303 0026 009A     		ldr	r2, [sp]
+ 304              	.LBE100:
+ 305              		.loc 1 87 5 view .LVU72
+  88:Cpp_Core/Src/board_power.cpp ****     __HAL_RCC_GPIOC_CLK_ENABLE();
+ 306              		.loc 1 88 5 view .LVU73
+ 307              	.LBB101:
+ 308              		.loc 1 88 5 view .LVU74
+ 309              		.loc 1 88 5 view .LVU75
+ 310 0028 D3F8E020 		ldr	r2, [r3, #224]
+ 311 002c 42F00402 		orr	r2, r2, #4
+ 312 0030 C3F8E020 		str	r2, [r3, #224]
+ 313              		.loc 1 88 5 view .LVU76
+ 314 0034 D3F8E020 		ldr	r2, [r3, #224]
+ 315 0038 02F00402 		and	r2, r2, #4
+ 316 003c 0192     		str	r2, [sp, #4]
+ 317              		.loc 1 88 5 view .LVU77
+ 318 003e 019A     		ldr	r2, [sp, #4]
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 25
+
+
+ 319              	.LBE101:
+ 320              		.loc 1 88 5 view .LVU78
+  89:Cpp_Core/Src/board_power.cpp ****     __HAL_RCC_GPIOH_CLK_ENABLE();
+ 321              		.loc 1 89 5 view .LVU79
+ 322              	.LBB102:
+ 323              		.loc 1 89 5 view .LVU80
+ 324              		.loc 1 89 5 view .LVU81
+ 325 0040 D3F8E020 		ldr	r2, [r3, #224]
+ 326 0044 42F08002 		orr	r2, r2, #128
+ 327 0048 C3F8E020 		str	r2, [r3, #224]
+ 328              		.loc 1 89 5 view .LVU82
+ 329              	.LBE102:
+ 330              	.LBB103:
+ 331              	.LBB90:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 332              		.loc 1 10 22 is_stmt 0 discriminator 4 view .LVU83
+ 333 004c 0122     		movs	r2, #1
+ 334              	.LBE90:
+ 335              	.LBE103:
+ 336              	.LBB104:
+ 337              		.loc 1 89 5 view .LVU84
+ 338 004e D3F8E030 		ldr	r3, [r3, #224]
+ 339              	.LBE104:
+ 340              	.LBB105:
+ 341              	.LBB91:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 342              		.loc 1 10 22 discriminator 4 view .LVU85
+ 343 0052 1146     		mov	r1, r2
+ 344              	.LBE91:
+ 345              	.LBE105:
+ 346              	.LBB106:
+ 347              		.loc 1 89 5 view .LVU86
+ 348 0054 03F08003 		and	r3, r3, #128
+ 349 0058 0293     		str	r3, [sp, #8]
+ 350              		.loc 1 89 5 is_stmt 1 view .LVU87
+ 351 005a 029B     		ldr	r3, [sp, #8]
+ 352              	.LBE106:
+ 353              		.loc 1 89 5 view .LVU88
+  90:Cpp_Core/Src/board_power.cpp **** 
+  91:Cpp_Core/Src/board_power.cpp ****     /*
+  92:Cpp_Core/Src/board_power.cpp ****      * Program the output latches first. PI4 and the local LCD rail stay high;
+  93:Cpp_Core/Src/board_power.cpp ****      * every external optional/high-current load starts disabled. The LCD is
+  94:Cpp_Core/Src/board_power.cpp ****      * the device's recovery UI and must not depend on CH585 role negotiation.
+  95:Cpp_Core/Src/board_power.cpp ****      */
+  96:Cpp_Core/Src/board_power.cpp ****     writePin(CHARGE_EN_N_PORT, CHARGE_EN_N_PIN, true);
+ 354              		.loc 1 96 5 view .LVU89
+ 355              	.LVL13:
+ 356              	.LBB107:
+ 357              	.LBI87:
+   8:Cpp_Core/Src/board_power.cpp **** {
+ 358              		.loc 1 8 13 view .LVU90
+ 359              	.LBB92:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 360              		.loc 1 10 5 view .LVU91
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 361              		.loc 1 10 22 is_stmt 0 discriminator 4 view .LVU92
+ 362 005c FFF7FEFF 		bl	HAL_GPIO_WritePin
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 26
+
+
+ 363              	.LVL14:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 364              		.loc 1 10 22 discriminator 4 view .LVU93
+ 365              	.LBE92:
+ 366              	.LBE107:
+  97:Cpp_Core/Src/board_power.cpp ****     writePin(HALL_VCC_EN_PORT, HALL_VCC_EN_PIN, false);
+ 367              		.loc 1 97 5 is_stmt 1 view .LVU94
+ 368              	.LBB108:
+ 369              	.LBI108:
+   8:Cpp_Core/Src/board_power.cpp **** {
+ 370              		.loc 1 8 13 view .LVU95
+ 371              	.LBB109:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 372              		.loc 1 10 5 view .LVU96
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 373              		.loc 1 10 22 is_stmt 0 discriminator 4 view .LVU97
+ 374 0060 2046     		mov	r0, r4
+ 375 0062 0022     		movs	r2, #0
+ 376 0064 0221     		movs	r1, #2
+ 377 0066 FFF7FEFF 		bl	HAL_GPIO_WritePin
+ 378              	.LVL15:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 379              		.loc 1 10 22 discriminator 4 view .LVU98
+ 380              	.LBE109:
+ 381              	.LBE108:
+  98:Cpp_Core/Src/board_power.cpp ****     writePin(MAIN_POWER_EN_PORT, MAIN_POWER_EN_PIN, true);
+ 382              		.loc 1 98 5 is_stmt 1 view .LVU99
+ 383              	.LBB110:
+ 384              	.LBI110:
+   8:Cpp_Core/Src/board_power.cpp **** {
+ 385              		.loc 1 8 13 view .LVU100
+ 386              	.LBB111:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 387              		.loc 1 10 5 view .LVU101
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 388              		.loc 1 10 22 is_stmt 0 discriminator 4 view .LVU102
+ 389 006a 2046     		mov	r0, r4
+ 390 006c 0122     		movs	r2, #1
+ 391 006e 1021     		movs	r1, #16
+ 392 0070 FFF7FEFF 		bl	HAL_GPIO_WritePin
+ 393              	.LVL16:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 394              		.loc 1 10 22 discriminator 4 view .LVU103
+ 395              	.LBE111:
+ 396              	.LBE110:
+  99:Cpp_Core/Src/board_power.cpp ****     writePin(BOOST_5V_EN_PORT, BOOST_5V_EN_PIN, false);
+ 397              		.loc 1 99 5 is_stmt 1 view .LVU104
+ 398              	.LBB112:
+ 399              	.LBI112:
+   8:Cpp_Core/Src/board_power.cpp **** {
+ 400              		.loc 1 8 13 view .LVU105
+ 401              	.LBB113:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 402              		.loc 1 10 5 view .LVU106
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 403              		.loc 1 10 22 is_stmt 0 discriminator 4 view .LVU107
+ 404 0074 2046     		mov	r0, r4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 27
+
+
+ 405 0076 0022     		movs	r2, #0
+ 406 0078 2021     		movs	r1, #32
+ 407 007a FFF7FEFF 		bl	HAL_GPIO_WritePin
+ 408              	.LVL17:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 409              		.loc 1 10 22 discriminator 4 view .LVU108
+ 410              	.LBE113:
+ 411              	.LBE112:
+ 100:Cpp_Core/Src/board_power.cpp ****     writePin(LED_EN_PORT, LED_EN_PIN, false);
+ 412              		.loc 1 100 5 is_stmt 1 view .LVU109
+ 413              	.LBB114:
+ 414              	.LBI114:
+   8:Cpp_Core/Src/board_power.cpp **** {
+ 415              		.loc 1 8 13 view .LVU110
+ 416              	.LBB115:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 417              		.loc 1 10 5 view .LVU111
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 418              		.loc 1 10 22 is_stmt 0 discriminator 4 view .LVU112
+ 419 007e 2046     		mov	r0, r4
+ 420 0080 0022     		movs	r2, #0
+ 421 0082 4021     		movs	r1, #64
+ 422 0084 FFF7FEFF 		bl	HAL_GPIO_WritePin
+ 423              	.LVL18:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 424              		.loc 1 10 22 discriminator 4 view .LVU113
+ 425              	.LBE115:
+ 426              	.LBE114:
+ 101:Cpp_Core/Src/board_power.cpp ****     writePin(AMBIENT_EN_PORT, AMBIENT_EN_PIN, false);
+ 427              		.loc 1 101 5 is_stmt 1 view .LVU114
+ 428              	.LBB116:
+ 429              	.LBI116:
+   8:Cpp_Core/Src/board_power.cpp **** {
+ 430              		.loc 1 8 13 view .LVU115
+ 431              	.LBB117:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 432              		.loc 1 10 5 view .LVU116
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 433              		.loc 1 10 22 is_stmt 0 discriminator 4 view .LVU117
+ 434 0088 2046     		mov	r0, r4
+ 435 008a 0022     		movs	r2, #0
+ 436 008c 8021     		movs	r1, #128
+ 437 008e FFF7FEFF 		bl	HAL_GPIO_WritePin
+ 438              	.LVL19:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 439              		.loc 1 10 22 discriminator 4 view .LVU118
+ 440              	.LBE117:
+ 441              	.LBE116:
+ 102:Cpp_Core/Src/board_power.cpp ****     writePin(LCD_EN_PORT, LCD_EN_PIN, true);
+ 442              		.loc 1 102 5 is_stmt 1 view .LVU119
+ 443              	.LBB118:
+ 444              	.LBI118:
+   8:Cpp_Core/Src/board_power.cpp **** {
+ 445              		.loc 1 8 13 view .LVU120
+ 446              	.LBB119:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 447              		.loc 1 10 5 view .LVU121
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 28
+
+
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 448              		.loc 1 10 22 is_stmt 0 discriminator 4 view .LVU122
+ 449 0092 2046     		mov	r0, r4
+ 450 0094 0122     		movs	r2, #1
+ 451 0096 4FF40071 		mov	r1, #512
+ 452 009a FFF7FEFF 		bl	HAL_GPIO_WritePin
+ 453              	.LVL20:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 454              		.loc 1 10 22 discriminator 4 view .LVU123
+ 455              	.LBE119:
+ 456              	.LBE118:
+ 103:Cpp_Core/Src/board_power.cpp ****     writePin(CH585_EN_PORT, CH585_EN_PIN, false);
+ 457              		.loc 1 103 5 is_stmt 1 view .LVU124
+ 458              	.LBB120:
+ 459              	.LBI120:
+   8:Cpp_Core/Src/board_power.cpp **** {
+ 460              		.loc 1 8 13 view .LVU125
+ 461              	.LBB121:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 462              		.loc 1 10 5 view .LVU126
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 463              		.loc 1 10 22 is_stmt 0 discriminator 4 view .LVU127
+ 464 009e 2046     		mov	r0, r4
+ 465 00a0 0022     		movs	r2, #0
+ 466 00a2 4FF48061 		mov	r1, #1024
+ 467 00a6 FFF7FEFF 		bl	HAL_GPIO_WritePin
+ 468              	.LVL21:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 469              		.loc 1 10 22 discriminator 4 view .LVU128
+ 470              	.LBE121:
+ 471              	.LBE120:
+ 104:Cpp_Core/Src/board_power.cpp ****     writePin(USB_HOST_EN_PORT, USB_HOST_EN_PIN, false);
+ 472              		.loc 1 104 5 is_stmt 1 view .LVU129
+ 473              	.LBB122:
+ 474              	.LBI122:
+   8:Cpp_Core/Src/board_power.cpp **** {
+ 475              		.loc 1 8 13 view .LVU130
+ 476              	.LBB123:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 477              		.loc 1 10 5 view .LVU131
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 478              		.loc 1 10 22 is_stmt 0 discriminator 4 view .LVU132
+ 479 00aa 0022     		movs	r2, #0
+ 480 00ac 2046     		mov	r0, r4
+ 481 00ae 4FF40051 		mov	r1, #8192
+ 482 00b2 FFF7FEFF 		bl	HAL_GPIO_WritePin
+ 483              	.LVL22:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 484              		.loc 1 10 22 discriminator 4 view .LVU133
+ 485              	.LBE123:
+ 486              	.LBE122:
+ 105:Cpp_Core/Src/board_power.cpp **** 
+ 106:Cpp_Core/Src/board_power.cpp ****     configureOutput(CHARGE_EN_N_PIN | HALL_VCC_EN_PIN | MAIN_POWER_EN_PIN |
+ 487              		.loc 1 106 5 is_stmt 1 view .LVU134
+ 488              	.LBB124:
+ 489              	.LBI93:
+  13:Cpp_Core/Src/board_power.cpp **** {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 29
+
+
+ 490              		.loc 1 13 13 view .LVU135
+ 491              	.LBB96:
+  15:Cpp_Core/Src/board_power.cpp ****     init.Pin = pin;
+ 492              		.loc 1 15 5 view .LVU136
+  17:Cpp_Core/Src/board_power.cpp ****     init.Pull = GPIO_NOPULL;
+ 493              		.loc 1 17 15 is_stmt 0 view .LVU137
+ 494 00b6 42F2F363 		movw	r3, #9971
+  20:Cpp_Core/Src/board_power.cpp **** }
+ 495              		.loc 1 20 18 view .LVU138
+ 496 00ba 03A9     		add	r1, sp, #12
+ 497 00bc 2046     		mov	r0, r4
+  15:Cpp_Core/Src/board_power.cpp ****     init.Pin = pin;
+ 498              		.loc 1 15 22 view .LVU139
+ 499 00be 0796     		str	r6, [sp, #28]
+  16:Cpp_Core/Src/board_power.cpp ****     init.Mode = GPIO_MODE_OUTPUT_PP;
+ 500              		.loc 1 16 5 is_stmt 1 view .LVU140
+  17:Cpp_Core/Src/board_power.cpp ****     init.Pull = GPIO_NOPULL;
+ 501              		.loc 1 17 15 is_stmt 0 view .LVU141
+ 502 00c0 CDE90337 		strd	r3, r7, [sp, #12]
+  18:Cpp_Core/Src/board_power.cpp ****     init.Speed = GPIO_SPEED_FREQ_LOW;
+ 503              		.loc 1 18 5 is_stmt 1 view .LVU142
+  19:Cpp_Core/Src/board_power.cpp ****     HAL_GPIO_Init(GPIOI, &init);
+ 504              		.loc 1 19 5 view .LVU143
+  20:Cpp_Core/Src/board_power.cpp **** }
+ 505              		.loc 1 20 5 view .LVU144
+  15:Cpp_Core/Src/board_power.cpp ****     init.Pin = pin;
+ 506              		.loc 1 15 22 is_stmt 0 view .LVU145
+ 507 00c4 CDE90566 		strd	r6, r6, [sp, #20]
+  20:Cpp_Core/Src/board_power.cpp **** }
+ 508              		.loc 1 20 18 view .LVU146
+ 509 00c8 FFF7FEFF 		bl	HAL_GPIO_Init
+ 510              	.LVL23:
+  20:Cpp_Core/Src/board_power.cpp **** }
+ 511              		.loc 1 20 18 view .LVU147
+ 512              	.LBE96:
+ 513              	.LBE124:
+ 107:Cpp_Core/Src/board_power.cpp ****                     BOOST_5V_EN_PIN | LED_EN_PIN | AMBIENT_EN_PIN |
+ 108:Cpp_Core/Src/board_power.cpp ****                     LCD_EN_PIN | CH585_EN_PIN | USB_HOST_EN_PIN);
+ 109:Cpp_Core/Src/board_power.cpp **** 
+ 110:Cpp_Core/Src/board_power.cpp ****     configureInput(IS_FAST_CHARGE_PORT, IS_FAST_CHARGE_PIN, GPIO_PULLUP);
+ 514              		.loc 1 110 5 is_stmt 1 view .LVU148
+ 515              		.loc 1 110 19 is_stmt 0 view .LVU149
+ 516 00cc 3A46     		mov	r2, r7
+ 517 00ce 2046     		mov	r0, r4
+ 518 00d0 0421     		movs	r1, #4
+ 519 00d2 FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L14configureInputEP12GPIO_TypeDeftm
+ 520              	.LVL24:
+ 111:Cpp_Core/Src/board_power.cpp ****     configureInput(CHARGE_STAT_PORT, CHARGE_STAT_PIN, GPIO_PULLUP);
+ 521              		.loc 1 111 5 is_stmt 1 view .LVU150
+ 522              		.loc 1 111 19 is_stmt 0 view .LVU151
+ 523 00d6 3A46     		mov	r2, r7
+ 524 00d8 2046     		mov	r0, r4
+ 525 00da 0821     		movs	r1, #8
+ 526 00dc FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L14configureInputEP12GPIO_TypeDeftm
+ 527              	.LVL25:
+ 112:Cpp_Core/Src/board_power.cpp ****     configureInput(CHARGE_INT_PORT, CHARGE_INT_PIN, GPIO_PULLUP);
+ 528              		.loc 1 112 5 is_stmt 1 view .LVU152
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 30
+
+
+ 529              		.loc 1 112 19 is_stmt 0 view .LVU153
+ 530 00e0 3A46     		mov	r2, r7
+ 531 00e2 2046     		mov	r0, r4
+ 532 00e4 4FF48071 		mov	r1, #256
+ 533 00e8 FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L14configureInputEP12GPIO_TypeDeftm
+ 534              	.LVL26:
+ 113:Cpp_Core/Src/board_power.cpp ****     configureInput(MODE_USB_N_PORT, MODE_USB_N_PIN, GPIO_PULLUP);
+ 535              		.loc 1 113 5 is_stmt 1 view .LVU154
+ 536              		.loc 1 113 19 is_stmt 0 view .LVU155
+ 537 00ec 3A46     		mov	r2, r7
+ 538 00ee 2046     		mov	r0, r4
+ 539 00f0 4FF40061 		mov	r1, #2048
+ 540 00f4 FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L14configureInputEP12GPIO_TypeDeftm
+ 541              	.LVL27:
+ 114:Cpp_Core/Src/board_power.cpp ****     configureInput(MODE_RF_N_PORT, MODE_RF_N_PIN, GPIO_PULLUP);
+ 542              		.loc 1 114 5 is_stmt 1 view .LVU156
+ 543              		.loc 1 114 19 is_stmt 0 view .LVU157
+ 544 00f8 3A46     		mov	r2, r7
+ 545 00fa 2046     		mov	r0, r4
+ 546 00fc 4FF48051 		mov	r1, #4096
+ 547 0100 FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L14configureInputEP12GPIO_TypeDeftm
+ 548              	.LVL28:
+ 115:Cpp_Core/Src/board_power.cpp ****     configureInput(MAX17048_ALERT_PORT, MAX17048_ALERT_PIN, GPIO_PULLUP);
+ 549              		.loc 1 115 5 is_stmt 1 view .LVU158
+ 550              		.loc 1 115 19 is_stmt 0 view .LVU159
+ 551 0104 3A46     		mov	r2, r7
+ 552 0106 4FF40051 		mov	r1, #8192
+ 553 010a 0D48     		ldr	r0, .L9+8
+ 554 010c FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L14configureInputEP12GPIO_TypeDeftm
+ 555              	.LVL29:
+ 116:Cpp_Core/Src/board_power.cpp ****     configureInput(LCD_CTRL_AUX_PORT, LCD_CTRL_AUX_PIN, GPIO_NOPULL);
+ 556              		.loc 1 116 5 is_stmt 1 view .LVU160
+ 557              		.loc 1 116 19 is_stmt 0 view .LVU161
+ 558 0110 3246     		mov	r2, r6
+ 559 0112 4FF48061 		mov	r1, #1024
+ 560 0116 0B48     		ldr	r0, .L9+12
+ 561 0118 FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L14configureInputEP12GPIO_TypeDeftm
+ 562              	.LVL30:
+ 117:Cpp_Core/Src/board_power.cpp **** 
+ 118:Cpp_Core/Src/board_power.cpp ****     chargeEnabled = false;
+ 563              		.loc 1 118 5 is_stmt 1 view .LVU162
+ 564              		.loc 1 118 19 is_stmt 0 view .LVU163
+ 565 011c 6E70     		strb	r6, [r5, #1]
+ 119:Cpp_Core/Src/board_power.cpp ****     hallEnabled = false;
+ 566              		.loc 1 119 5 is_stmt 1 view .LVU164
+ 567              		.loc 1 119 17 is_stmt 0 view .LVU165
+ 568 011e AE70     		strb	r6, [r5, #2]
+ 120:Cpp_Core/Src/board_power.cpp ****     ledBoostEnabled = false;
+ 569              		.loc 1 120 5 is_stmt 1 view .LVU166
+ 570              		.loc 1 120 21 is_stmt 0 view .LVU167
+ 571 0120 EE70     		strb	r6, [r5, #3]
+ 121:Cpp_Core/Src/board_power.cpp ****     keyLedEnabled = false;
+ 572              		.loc 1 121 5 is_stmt 1 view .LVU168
+ 573              		.loc 1 121 19 is_stmt 0 view .LVU169
+ 574 0122 2E71     		strb	r6, [r5, #4]
+ 122:Cpp_Core/Src/board_power.cpp ****     ambientLedEnabled = false;
+ 575              		.loc 1 122 5 is_stmt 1 view .LVU170
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 31
+
+
+ 576              		.loc 1 122 23 is_stmt 0 view .LVU171
+ 577 0124 6E71     		strb	r6, [r5, #5]
+ 123:Cpp_Core/Src/board_power.cpp ****     lcdEnabled = true;
+ 578              		.loc 1 123 5 is_stmt 1 view .LVU172
+ 579              		.loc 1 123 16 is_stmt 0 view .LVU173
+ 580 0126 AF71     		strb	r7, [r5, #6]
+ 124:Cpp_Core/Src/board_power.cpp ****     ch585Enabled = false;
+ 581              		.loc 1 124 5 is_stmt 1 view .LVU174
+ 582              		.loc 1 124 18 is_stmt 0 view .LVU175
+ 583 0128 EE71     		strb	r6, [r5, #7]
+ 125:Cpp_Core/Src/board_power.cpp ****     usbHostEnabled = false;
+ 584              		.loc 1 125 5 is_stmt 1 view .LVU176
+ 585              		.loc 1 125 20 is_stmt 0 view .LVU177
+ 586 012a 2E72     		strb	r6, [r5, #8]
+ 126:Cpp_Core/Src/board_power.cpp ****     safeLatched = true;
+ 587              		.loc 1 126 5 is_stmt 1 view .LVU178
+ 588              		.loc 1 126 17 is_stmt 0 view .LVU179
+ 589 012c 6F72     		strb	r7, [r5, #9]
+ 127:Cpp_Core/Src/board_power.cpp ****     recoveryUiAllowed = false;
+ 590              		.loc 1 127 5 is_stmt 1 view .LVU180
+ 591              		.loc 1 127 23 is_stmt 0 view .LVU181
+ 592 012e AE72     		strb	r6, [r5, #10]
+ 128:Cpp_Core/Src/board_power.cpp ****     initialized = true;
+ 593              		.loc 1 128 5 is_stmt 1 view .LVU182
+ 594              		.loc 1 128 17 is_stmt 0 view .LVU183
+ 595 0130 2F70     		strb	r7, [r5]
+ 129:Cpp_Core/Src/board_power.cpp **** }
+ 596              		.loc 1 129 1 view .LVU184
+ 597 0132 09B0     		add	sp, sp, #36
+ 598              	.LCFI7:
+ 599              		.cfi_def_cfa_offset 20
+ 600              		@ sp needed
+ 601 0134 F0BD     		pop	{r4, r5, r6, r7, pc}
+ 602              	.LVL31:
+ 603              	.L10:
+ 604              		.loc 1 129 1 view .LVU185
+ 605 0136 00BF     		.align	2
+ 606              	.L9:
+ 607 0138 00440258 		.word	1476543488
+ 608 013c 00200258 		.word	1476534272
+ 609 0140 00080258 		.word	1476528128
+ 610 0144 001C0258 		.word	1476533248
+ 611              		.cfi_endproc
+ 612              	.LFE1294:
+ 614              		.section	.text.BoardPower_Initialize,"ax",%progbits
+ 615              		.align	1
+ 616              		.global	BoardPower_Initialize
+ 617              		.syntax unified
+ 618              		.thumb
+ 619              		.thumb_func
+ 621              	BoardPower_Initialize:
+ 622              	.LFB1287:
+  50:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setup();
+ 623              		.loc 1 50 1 is_stmt 1 view -0
+ 624              		.cfi_startproc
+ 625              		@ args = 0, pretend = 0, frame = 0
+ 626              		@ frame_needed = 0, uses_anonymous_args = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 32
+
+
+ 627              		@ link register save eliminated.
+  51:Cpp_Core/Src/board_power.cpp **** }
+ 628              		.loc 1 51 5 view .LVU187
+ 629              	.LBB125:
+ 630              	.LBI125:
+ 631              		.file 3 "Cpp_Core/Inc/board_power.hpp"
+   1:Cpp_Core/Inc/board_power.hpp **** #ifndef BOARD_POWER_HPP
+   2:Cpp_Core/Inc/board_power.hpp **** #define BOARD_POWER_HPP
+   3:Cpp_Core/Inc/board_power.hpp **** 
+   4:Cpp_Core/Inc/board_power.hpp **** #include <stdbool.h>
+   5:Cpp_Core/Inc/board_power.hpp **** #include <stdint.h>
+   6:Cpp_Core/Inc/board_power.hpp **** 
+   7:Cpp_Core/Inc/board_power.hpp **** #ifdef __cplusplus
+   8:Cpp_Core/Inc/board_power.hpp **** extern "C" {
+   9:Cpp_Core/Inc/board_power.hpp **** #endif
+  10:Cpp_Core/Inc/board_power.hpp **** 
+  11:Cpp_Core/Inc/board_power.hpp **** /*
+  12:Cpp_Core/Inc/board_power.hpp ****  * Re-asserts PI4 without changing any other rail.  The bootloader leaves PI4
+  13:Cpp_Core/Inc/board_power.hpp ****  * high before jumping to the XIP application; this hook preserves that state
+  14:Cpp_Core/Inc/board_power.hpp ****  * as the application runtime is brought up.
+  15:Cpp_Core/Inc/board_power.hpp ****  */
+  16:Cpp_Core/Inc/board_power.hpp **** void BoardPower_EarlyMainHold(void);
+  17:Cpp_Core/Inc/board_power.hpp **** 
+  18:Cpp_Core/Inc/board_power.hpp **** /* Configures all board power-control pins to their fail-safe defaults. */
+  19:Cpp_Core/Inc/board_power.hpp **** void BoardPower_Initialize(void);
+  20:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetChargeEnabled(bool enabled);
+  21:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetHallEnabled(bool enabled);
+  22:Cpp_Core/Inc/board_power.hpp **** void BoardPower_EnableHallForAdc(void);
+  23:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetKeyLedEnabled(bool enabled);
+  24:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetAmbientLedEnabled(bool enabled);
+  25:Cpp_Core/Inc/board_power.hpp **** void BoardPower_SetLcdEnabled(bool enabled);
+  26:Cpp_Core/Inc/board_power.hpp **** 
+  27:Cpp_Core/Inc/board_power.hpp **** #ifdef __cplusplus
+  28:Cpp_Core/Inc/board_power.hpp **** }
+  29:Cpp_Core/Inc/board_power.hpp **** 
+  30:Cpp_Core/Inc/board_power.hpp **** class BoardPower {
+  31:Cpp_Core/Inc/board_power.hpp **** public:
+  32:Cpp_Core/Inc/board_power.hpp ****     BoardPower(const BoardPower&) = delete;
+  33:Cpp_Core/Inc/board_power.hpp ****     BoardPower& operator=(const BoardPower&) = delete;
+  34:Cpp_Core/Inc/board_power.hpp **** 
+  35:Cpp_Core/Inc/board_power.hpp ****     static BoardPower& getInstance()
+ 632              		.loc 3 35 24 view .LVU188
+  36:Cpp_Core/Inc/board_power.hpp ****     {
+  37:Cpp_Core/Inc/board_power.hpp ****         static BoardPower instance;
+ 633              		.loc 3 37 9 view .LVU189
+  38:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 634              		.loc 3 38 9 view .LVU190
+ 635              	.LBE125:
+  51:Cpp_Core/Src/board_power.cpp **** }
+ 636              		.loc 1 51 22 is_stmt 0 discriminator 1 view .LVU191
+ 637 0000 0148     		ldr	r0, .L12
+ 638 0002 FFF7FEBF 		b	_ZN10BoardPower5setupEv
+ 639              	.LVL32:
+ 640              	.L13:
+ 641 0006 00BF     		.align	2
+ 642              	.L12:
+ 643 0008 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 33
+
+
+ 644              		.cfi_endproc
+ 645              	.LFE1287:
+ 647              		.section	.text._ZN10BoardPower19assertMainPowerHoldEv,"ax",%progbits
+ 648              		.align	1
+ 649              		.global	_ZN10BoardPower19assertMainPowerHoldEv
+ 650              		.syntax unified
+ 651              		.thumb
+ 652              		.thumb_func
+ 654              	_ZN10BoardPower19assertMainPowerHoldEv:
+ 655              	.LVL33:
+ 656              	.LFB1295:
+ 130:Cpp_Core/Src/board_power.cpp **** 
+ 131:Cpp_Core/Src/board_power.cpp **** void BoardPower::assertMainPowerHold()
+ 132:Cpp_Core/Src/board_power.cpp **** {
+ 657              		.loc 1 132 1 is_stmt 1 view -0
+ 658              		.cfi_startproc
+ 659              		@ args = 0, pretend = 0, frame = 0
+ 660              		@ frame_needed = 0, uses_anonymous_args = 0
+ 661              		@ link register save eliminated.
+ 133:Cpp_Core/Src/board_power.cpp ****     BoardPower_EarlyMainHold();
+ 662              		.loc 1 133 5 view .LVU193
+ 663              		.loc 1 133 29 is_stmt 0 view .LVU194
+ 664 0000 FFF7FEBF 		b	BoardPower_EarlyMainHold
+ 665              	.LVL34:
+ 666              		.cfi_endproc
+ 667              	.LFE1295:
+ 669              		.section	.text._ZN10BoardPower16setChargeEnabledEb,"ax",%progbits
+ 670              		.align	1
+ 671              		.global	_ZN10BoardPower16setChargeEnabledEb
+ 672              		.syntax unified
+ 673              		.thumb
+ 674              		.thumb_func
+ 676              	_ZN10BoardPower16setChargeEnabledEb:
+ 677              	.LVL35:
+ 678              	.LFB1296:
+ 134:Cpp_Core/Src/board_power.cpp **** }
+ 135:Cpp_Core/Src/board_power.cpp **** 
+ 136:Cpp_Core/Src/board_power.cpp **** void BoardPower::setChargeEnabled(bool enabled)
+ 137:Cpp_Core/Src/board_power.cpp **** {
+ 679              		.loc 1 137 1 is_stmt 1 view -0
+ 680              		.cfi_startproc
+ 681              		@ args = 0, pretend = 0, frame = 0
+ 682              		@ frame_needed = 0, uses_anonymous_args = 0
+ 138:Cpp_Core/Src/board_power.cpp ****     /* CE is active-low. */
+ 139:Cpp_Core/Src/board_power.cpp ****     writePin(CHARGE_EN_N_PORT, CHARGE_EN_N_PIN, !enabled);
+ 683              		.loc 1 139 5 view .LVU196
+ 137:Cpp_Core/Src/board_power.cpp ****     /* CE is active-low. */
+ 684              		.loc 1 137 1 is_stmt 0 view .LVU197
+ 685 0000 38B5     		push	{r3, r4, r5, lr}
+ 686              	.LCFI8:
+ 687              		.cfi_def_cfa_offset 16
+ 688              		.cfi_offset 3, -16
+ 689              		.cfi_offset 4, -12
+ 690              		.cfi_offset 5, -8
+ 691              		.cfi_offset 14, -4
+ 137:Cpp_Core/Src/board_power.cpp ****     /* CE is active-low. */
+ 692              		.loc 1 137 1 view .LVU198
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 34
+
+
+ 693 0002 0546     		mov	r5, r0
+ 694 0004 0C46     		mov	r4, r1
+ 695              		.loc 1 139 13 view .LVU199
+ 696 0006 0120     		movs	r0, #1
+ 697              	.LVL36:
+ 698              		.loc 1 139 13 view .LVU200
+ 699 0008 81F00101 		eor	r1, r1, #1
+ 700              	.LVL37:
+ 701              		.loc 1 139 13 view .LVU201
+ 702 000c FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L8writePinEP12GPIO_TypeDeftb.constprop.0
+ 703              	.LVL38:
+ 140:Cpp_Core/Src/board_power.cpp ****     chargeEnabled = enabled;
+ 704              		.loc 1 140 5 is_stmt 1 view .LVU202
+ 705              		.loc 1 140 19 is_stmt 0 view .LVU203
+ 706 0010 6C70     		strb	r4, [r5, #1]
+ 141:Cpp_Core/Src/board_power.cpp **** }
+ 707              		.loc 1 141 1 view .LVU204
+ 708 0012 38BD     		pop	{r3, r4, r5, pc}
+ 709              		.loc 1 141 1 view .LVU205
+ 710              		.cfi_endproc
+ 711              	.LFE1296:
+ 713              		.section	.text.BoardPower_SetChargeEnabled,"ax",%progbits
+ 714              		.align	1
+ 715              		.global	BoardPower_SetChargeEnabled
+ 716              		.syntax unified
+ 717              		.thumb
+ 718              		.thumb_func
+ 720              	BoardPower_SetChargeEnabled:
+ 721              	.LVL39:
+ 722              	.LFB1288:
+  55:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setChargeEnabled(enabled);
+ 723              		.loc 1 55 1 is_stmt 1 view -0
+ 724              		.cfi_startproc
+ 725              		@ args = 0, pretend = 0, frame = 0
+ 726              		@ frame_needed = 0, uses_anonymous_args = 0
+ 727              		@ link register save eliminated.
+  56:Cpp_Core/Src/board_power.cpp **** }
+ 728              		.loc 1 56 5 view .LVU207
+ 729              	.LBB126:
+ 730              	.LBI126:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 731              		.loc 3 35 24 view .LVU208
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 732              		.loc 3 37 9 view .LVU209
+ 733              		.loc 3 38 9 view .LVU210
+ 734              	.LBE126:
+  55:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setChargeEnabled(enabled);
+ 735              		.loc 1 55 1 is_stmt 0 view .LVU211
+ 736 0000 0146     		mov	r1, r0
+  56:Cpp_Core/Src/board_power.cpp **** }
+ 737              		.loc 1 56 33 discriminator 1 view .LVU212
+ 738 0002 0148     		ldr	r0, .L17
+ 739              	.LVL40:
+  56:Cpp_Core/Src/board_power.cpp **** }
+ 740              		.loc 1 56 33 discriminator 1 view .LVU213
+ 741 0004 FFF7FEBF 		b	_ZN10BoardPower16setChargeEnabledEb
+ 742              	.LVL41:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 35
+
+
+ 743              	.L18:
+  56:Cpp_Core/Src/board_power.cpp **** }
+ 744              		.loc 1 56 33 discriminator 1 view .LVU214
+ 745              		.align	2
+ 746              	.L17:
+ 747 0008 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 748              		.cfi_endproc
+ 749              	.LFE1288:
+ 751              		.section	.text._ZN10BoardPower14setHallEnabledEb,"ax",%progbits
+ 752              		.align	1
+ 753              		.global	_ZN10BoardPower14setHallEnabledEb
+ 754              		.syntax unified
+ 755              		.thumb
+ 756              		.thumb_func
+ 758              	_ZN10BoardPower14setHallEnabledEb:
+ 759              	.LVL42:
+ 760              	.LFB1297:
+ 142:Cpp_Core/Src/board_power.cpp **** 
+ 143:Cpp_Core/Src/board_power.cpp **** void BoardPower::setHallEnabled(bool enabled)
+ 144:Cpp_Core/Src/board_power.cpp **** {
+ 761              		.loc 1 144 1 is_stmt 1 view -0
+ 762              		.cfi_startproc
+ 763              		@ args = 0, pretend = 0, frame = 0
+ 764              		@ frame_needed = 0, uses_anonymous_args = 0
+ 145:Cpp_Core/Src/board_power.cpp ****     writePin(HALL_VCC_EN_PORT, HALL_VCC_EN_PIN, enabled);
+ 765              		.loc 1 145 5 view .LVU216
+ 144:Cpp_Core/Src/board_power.cpp ****     writePin(HALL_VCC_EN_PORT, HALL_VCC_EN_PIN, enabled);
+ 766              		.loc 1 144 1 is_stmt 0 view .LVU217
+ 767 0000 38B5     		push	{r3, r4, r5, lr}
+ 768              	.LCFI9:
+ 769              		.cfi_def_cfa_offset 16
+ 770              		.cfi_offset 3, -16
+ 771              		.cfi_offset 4, -12
+ 772              		.cfi_offset 5, -8
+ 773              		.cfi_offset 14, -4
+ 144:Cpp_Core/Src/board_power.cpp ****     writePin(HALL_VCC_EN_PORT, HALL_VCC_EN_PIN, enabled);
+ 774              		.loc 1 144 1 view .LVU218
+ 775 0002 0446     		mov	r4, r0
+ 776 0004 0D46     		mov	r5, r1
+ 777              		.loc 1 145 13 view .LVU219
+ 778 0006 0220     		movs	r0, #2
+ 779              	.LVL43:
+ 780              		.loc 1 145 13 view .LVU220
+ 781 0008 FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L8writePinEP12GPIO_TypeDeftb.constprop.0
+ 782              	.LVL44:
+ 146:Cpp_Core/Src/board_power.cpp ****     hallEnabled = enabled;
+ 783              		.loc 1 146 5 is_stmt 1 view .LVU221
+ 784              		.loc 1 146 17 is_stmt 0 view .LVU222
+ 785 000c A570     		strb	r5, [r4, #2]
+ 147:Cpp_Core/Src/board_power.cpp **** }
+ 786              		.loc 1 147 1 view .LVU223
+ 787 000e 38BD     		pop	{r3, r4, r5, pc}
+ 788              		.loc 1 147 1 view .LVU224
+ 789              		.cfi_endproc
+ 790              	.LFE1297:
+ 792              		.section	.text.BoardPower_SetHallEnabled,"ax",%progbits
+ 793              		.align	1
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 36
+
+
+ 794              		.global	BoardPower_SetHallEnabled
+ 795              		.syntax unified
+ 796              		.thumb
+ 797              		.thumb_func
+ 799              	BoardPower_SetHallEnabled:
+ 800              	.LVL45:
+ 801              	.LFB1289:
+  60:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setHallEnabled(enabled);
+ 802              		.loc 1 60 1 is_stmt 1 view -0
+ 803              		.cfi_startproc
+ 804              		@ args = 0, pretend = 0, frame = 0
+ 805              		@ frame_needed = 0, uses_anonymous_args = 0
+ 806              		@ link register save eliminated.
+  61:Cpp_Core/Src/board_power.cpp **** }
+ 807              		.loc 1 61 5 view .LVU226
+ 808              	.LBB127:
+ 809              	.LBI127:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 810              		.loc 3 35 24 view .LVU227
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 811              		.loc 3 37 9 view .LVU228
+ 812              		.loc 3 38 9 view .LVU229
+ 813              	.LBE127:
+  60:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setHallEnabled(enabled);
+ 814              		.loc 1 60 1 is_stmt 0 view .LVU230
+ 815 0000 0146     		mov	r1, r0
+  61:Cpp_Core/Src/board_power.cpp **** }
+ 816              		.loc 1 61 31 discriminator 1 view .LVU231
+ 817 0002 0148     		ldr	r0, .L21
+ 818              	.LVL46:
+  61:Cpp_Core/Src/board_power.cpp **** }
+ 819              		.loc 1 61 31 discriminator 1 view .LVU232
+ 820 0004 FFF7FEBF 		b	_ZN10BoardPower14setHallEnabledEb
+ 821              	.LVL47:
+ 822              	.L22:
+  61:Cpp_Core/Src/board_power.cpp **** }
+ 823              		.loc 1 61 31 discriminator 1 view .LVU233
+ 824              		.align	2
+ 825              	.L21:
+ 826 0008 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 827              		.cfi_endproc
+ 828              	.LFE1289:
+ 830              		.section	.text.BoardPower_EnableHallForAdc,"ax",%progbits
+ 831              		.align	1
+ 832              		.global	BoardPower_EnableHallForAdc
+ 833              		.syntax unified
+ 834              		.thumb
+ 835              		.thumb_func
+ 837              	BoardPower_EnableHallForAdc:
+ 838              	.LFB1290:
+  65:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setHallEnabled(true);
+ 839              		.loc 1 65 1 is_stmt 1 view -0
+ 840              		.cfi_startproc
+ 841              		@ args = 0, pretend = 0, frame = 0
+ 842              		@ frame_needed = 0, uses_anonymous_args = 0
+  66:Cpp_Core/Src/board_power.cpp ****     HAL_Delay(BOARD_HALL_STABILIZE_MS);
+ 843              		.loc 1 66 5 view .LVU235
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 37
+
+
+ 844              	.LBB128:
+ 845              	.LBI128:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 846              		.loc 3 35 24 view .LVU236
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 847              		.loc 3 37 9 view .LVU237
+ 848              		.loc 3 38 9 view .LVU238
+ 849              	.LBE128:
+  66:Cpp_Core/Src/board_power.cpp ****     HAL_Delay(BOARD_HALL_STABILIZE_MS);
+ 850              		.loc 1 66 31 is_stmt 0 discriminator 1 view .LVU239
+ 851 0000 0448     		ldr	r0, .L24
+ 852 0002 0121     		movs	r1, #1
+  65:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setHallEnabled(true);
+ 853              		.loc 1 65 1 view .LVU240
+ 854 0004 08B5     		push	{r3, lr}
+ 855              	.LCFI10:
+ 856              		.cfi_def_cfa_offset 8
+ 857              		.cfi_offset 3, -8
+ 858              		.cfi_offset 14, -4
+  66:Cpp_Core/Src/board_power.cpp ****     HAL_Delay(BOARD_HALL_STABILIZE_MS);
+ 859              		.loc 1 66 31 discriminator 1 view .LVU241
+ 860 0006 FFF7FEFF 		bl	_ZN10BoardPower14setHallEnabledEb
+ 861              	.LVL48:
+  67:Cpp_Core/Src/board_power.cpp **** }
+ 862              		.loc 1 67 5 is_stmt 1 view .LVU242
+  67:Cpp_Core/Src/board_power.cpp **** }
+ 863              		.loc 1 67 14 is_stmt 0 view .LVU243
+ 864 000a 0A20     		movs	r0, #10
+  68:Cpp_Core/Src/board_power.cpp **** 
+ 865              		.loc 1 68 1 view .LVU244
+ 866 000c BDE80840 		pop	{r3, lr}
+ 867              	.LCFI11:
+ 868              		.cfi_restore 14
+ 869              		.cfi_restore 3
+ 870              		.cfi_def_cfa_offset 0
+  67:Cpp_Core/Src/board_power.cpp **** }
+ 871              		.loc 1 67 14 view .LVU245
+ 872 0010 FFF7FEBF 		b	HAL_Delay
+ 873              	.LVL49:
+ 874              	.L25:
+ 875              		.align	2
+ 876              	.L24:
+ 877 0014 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 878              		.cfi_endproc
+ 879              	.LFE1290:
+ 881              		.section	.text._ZN10BoardPower18setLedBoostEnabledEb,"ax",%progbits
+ 882              		.align	1
+ 883              		.global	_ZN10BoardPower18setLedBoostEnabledEb
+ 884              		.syntax unified
+ 885              		.thumb
+ 886              		.thumb_func
+ 888              	_ZN10BoardPower18setLedBoostEnabledEb:
+ 889              	.LVL50:
+ 890              	.LFB1298:
+ 148:Cpp_Core/Src/board_power.cpp **** 
+ 149:Cpp_Core/Src/board_power.cpp **** void BoardPower::setLedBoostEnabled(bool enabled)
+ 150:Cpp_Core/Src/board_power.cpp **** {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 38
+
+
+ 891              		.loc 1 150 1 is_stmt 1 view -0
+ 892              		.cfi_startproc
+ 893              		@ args = 0, pretend = 0, frame = 0
+ 894              		@ frame_needed = 0, uses_anonymous_args = 0
+ 151:Cpp_Core/Src/board_power.cpp ****     if (ledBoostEnabled == enabled) {
+ 895              		.loc 1 151 5 view .LVU247
+ 150:Cpp_Core/Src/board_power.cpp ****     if (ledBoostEnabled == enabled) {
+ 896              		.loc 1 150 1 is_stmt 0 view .LVU248
+ 897 0000 38B5     		push	{r3, r4, r5, lr}
+ 898              	.LCFI12:
+ 899              		.cfi_def_cfa_offset 16
+ 900              		.cfi_offset 3, -16
+ 901              		.cfi_offset 4, -12
+ 902              		.cfi_offset 5, -8
+ 903              		.cfi_offset 14, -4
+ 904              		.loc 1 151 5 view .LVU249
+ 905 0002 C378     		ldrb	r3, [r0, #3]	@ zero_extendqisi2
+ 150:Cpp_Core/Src/board_power.cpp ****     if (ledBoostEnabled == enabled) {
+ 906              		.loc 1 150 1 view .LVU250
+ 907 0004 0546     		mov	r5, r0
+ 908 0006 0C46     		mov	r4, r1
+ 909              		.loc 1 151 5 view .LVU251
+ 910 0008 8B42     		cmp	r3, r1
+ 911 000a 09D0     		beq	.L26
+ 152:Cpp_Core/Src/board_power.cpp ****         return;
+ 153:Cpp_Core/Src/board_power.cpp ****     }
+ 154:Cpp_Core/Src/board_power.cpp **** 
+ 155:Cpp_Core/Src/board_power.cpp ****     if (enabled) {
+ 912              		.loc 1 155 5 is_stmt 1 view .LVU252
+ 913 000c 49B1     		cbz	r1, .L28
+ 156:Cpp_Core/Src/board_power.cpp ****         writePin(BOOST_5V_EN_PORT, BOOST_5V_EN_PIN, true);
+ 914              		.loc 1 156 9 view .LVU253
+ 915              	.LVL51:
+ 916              	.LBB129:
+ 917              	.LBI129:
+   8:Cpp_Core/Src/board_power.cpp **** {
+ 918              		.loc 1 8 13 view .LVU254
+ 919              	.LBB130:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 920              		.loc 1 10 5 view .LVU255
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 921              		.loc 1 10 22 is_stmt 0 discriminator 4 view .LVU256
+ 922 000e 0848     		ldr	r0, .L30
+ 923              	.LVL52:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 924              		.loc 1 10 22 discriminator 4 view .LVU257
+ 925 0010 0122     		movs	r2, #1
+ 926 0012 2021     		movs	r1, #32
+ 927              	.LVL53:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 928              		.loc 1 10 22 discriminator 4 view .LVU258
+ 929 0014 FFF7FEFF 		bl	HAL_GPIO_WritePin
+ 930              	.LVL54:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 931              		.loc 1 10 22 discriminator 4 view .LVU259
+ 932              	.LBE130:
+ 933              	.LBE129:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 39
+
+
+ 157:Cpp_Core/Src/board_power.cpp ****         HAL_Delay(BOARD_LED_5V_STABILIZE_MS);
+ 934              		.loc 1 157 9 is_stmt 1 view .LVU260
+ 935              		.loc 1 157 18 is_stmt 0 view .LVU261
+ 936 0018 0520     		movs	r0, #5
+ 937 001a FFF7FEFF 		bl	HAL_Delay
+ 938              	.LVL55:
+ 939              	.L29:
+ 158:Cpp_Core/Src/board_power.cpp ****     } else {
+ 159:Cpp_Core/Src/board_power.cpp ****         writePin(BOOST_5V_EN_PORT, BOOST_5V_EN_PIN, false);
+ 160:Cpp_Core/Src/board_power.cpp ****     }
+ 161:Cpp_Core/Src/board_power.cpp ****     ledBoostEnabled = enabled;
+ 940              		.loc 1 161 5 is_stmt 1 view .LVU262
+ 941              		.loc 1 161 21 is_stmt 0 view .LVU263
+ 942 001e EC70     		strb	r4, [r5, #3]
+ 943              	.L26:
+ 162:Cpp_Core/Src/board_power.cpp **** }
+ 944              		.loc 1 162 1 view .LVU264
+ 945 0020 38BD     		pop	{r3, r4, r5, pc}
+ 946              	.LVL56:
+ 947              	.L28:
+ 159:Cpp_Core/Src/board_power.cpp ****     }
+ 948              		.loc 1 159 9 is_stmt 1 view .LVU265
+ 949              	.LBB131:
+ 950              	.LBI131:
+   8:Cpp_Core/Src/board_power.cpp **** {
+ 951              		.loc 1 8 13 view .LVU266
+ 952              	.LBB132:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 953              		.loc 1 10 5 view .LVU267
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 954              		.loc 1 10 22 is_stmt 0 discriminator 4 view .LVU268
+ 955 0022 0A46     		mov	r2, r1
+ 956 0024 0248     		ldr	r0, .L30
+ 957              	.LVL57:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 958              		.loc 1 10 22 discriminator 4 view .LVU269
+ 959 0026 2021     		movs	r1, #32
+ 960              	.LVL58:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 961              		.loc 1 10 22 discriminator 4 view .LVU270
+ 962 0028 FFF7FEFF 		bl	HAL_GPIO_WritePin
+ 963              	.LVL59:
+  11:Cpp_Core/Src/board_power.cpp **** 
+ 964              		.loc 1 11 1 view .LVU271
+ 965 002c F7E7     		b	.L29
+ 966              	.L31:
+ 967 002e 00BF     		.align	2
+ 968              	.L30:
+ 969 0030 00200258 		.word	1476534272
+ 970              	.LBE132:
+ 971              	.LBE131:
+ 972              		.cfi_endproc
+ 973              	.LFE1298:
+ 975              		.section	.text._ZN10BoardPower15refreshLedBoostEv,"ax",%progbits
+ 976              		.align	1
+ 977              		.global	_ZN10BoardPower15refreshLedBoostEv
+ 978              		.syntax unified
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 40
+
+
+ 979              		.thumb
+ 980              		.thumb_func
+ 982              	_ZN10BoardPower15refreshLedBoostEv:
+ 983              	.LVL60:
+ 984              	.LFB1299:
+ 163:Cpp_Core/Src/board_power.cpp **** 
+ 164:Cpp_Core/Src/board_power.cpp **** void BoardPower::refreshLedBoost()
+ 165:Cpp_Core/Src/board_power.cpp **** {
+ 985              		.loc 1 165 1 is_stmt 1 view -0
+ 986              		.cfi_startproc
+ 987              		@ args = 0, pretend = 0, frame = 0
+ 988              		@ frame_needed = 0, uses_anonymous_args = 0
+ 989              		@ link register save eliminated.
+ 166:Cpp_Core/Src/board_power.cpp ****     setLedBoostEnabled(keyLedEnabled || ambientLedEnabled);
+ 990              		.loc 1 166 5 view .LVU273
+ 991              		.loc 1 166 24 is_stmt 0 view .LVU274
+ 992 0000 0179     		ldrb	r1, [r0, #4]	@ zero_extendqisi2
+ 993              		.loc 1 166 23 view .LVU275
+ 994 0002 01B9     		cbnz	r1, .L33
+ 995              		.loc 1 166 41 discriminator 2 view .LVU276
+ 996 0004 4179     		ldrb	r1, [r0, #5]	@ zero_extendqisi2
+ 997              	.L33:
+ 998              		.loc 1 166 23 discriminator 6 view .LVU277
+ 999 0006 FFF7FEBF 		b	_ZN10BoardPower18setLedBoostEnabledEb
+ 1000              	.LVL61:
+ 1001              		.loc 1 166 23 discriminator 6 view .LVU278
+ 1002              		.cfi_endproc
+ 1003              	.LFE1299:
+ 1005              		.section	.text._ZN10BoardPower16setKeyLedEnabledEb,"ax",%progbits
+ 1006              		.align	1
+ 1007              		.global	_ZN10BoardPower16setKeyLedEnabledEb
+ 1008              		.syntax unified
+ 1009              		.thumb
+ 1010              		.thumb_func
+ 1012              	_ZN10BoardPower16setKeyLedEnabledEb:
+ 1013              	.LVL62:
+ 1014              	.LFB1300:
+ 167:Cpp_Core/Src/board_power.cpp **** }
+ 168:Cpp_Core/Src/board_power.cpp **** 
+ 169:Cpp_Core/Src/board_power.cpp **** void BoardPower::setKeyLedEnabled(bool enabled)
+ 170:Cpp_Core/Src/board_power.cpp **** {
+ 1015              		.loc 1 170 1 is_stmt 1 view -0
+ 1016              		.cfi_startproc
+ 1017              		@ args = 0, pretend = 0, frame = 0
+ 1018              		@ frame_needed = 0, uses_anonymous_args = 0
+ 171:Cpp_Core/Src/board_power.cpp ****     if (enabled) {
+ 1019              		.loc 1 171 5 view .LVU280
+ 170:Cpp_Core/Src/board_power.cpp ****     if (enabled) {
+ 1020              		.loc 1 170 1 is_stmt 0 view .LVU281
+ 1021 0000 38B5     		push	{r3, r4, r5, lr}
+ 1022              	.LCFI13:
+ 1023              		.cfi_def_cfa_offset 16
+ 1024              		.cfi_offset 3, -16
+ 1025              		.cfi_offset 4, -12
+ 1026              		.cfi_offset 5, -8
+ 1027              		.cfi_offset 14, -4
+ 170:Cpp_Core/Src/board_power.cpp ****     if (enabled) {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 41
+
+
+ 1028              		.loc 1 170 1 view .LVU282
+ 1029 0002 0546     		mov	r5, r0
+ 1030              		.loc 1 171 5 view .LVU283
+ 1031 0004 0C46     		mov	r4, r1
+ 1032 0006 11B1     		cbz	r1, .L35
+ 172:Cpp_Core/Src/board_power.cpp ****         setLedBoostEnabled(true);
+ 1033              		.loc 1 172 9 is_stmt 1 view .LVU284
+ 1034              		.loc 1 172 27 is_stmt 0 view .LVU285
+ 1035 0008 0121     		movs	r1, #1
+ 1036              	.LVL63:
+ 1037              		.loc 1 172 27 view .LVU286
+ 1038 000a FFF7FEFF 		bl	_ZN10BoardPower18setLedBoostEnabledEb
+ 1039              	.LVL64:
+ 1040              	.L35:
+ 173:Cpp_Core/Src/board_power.cpp ****     }
+ 174:Cpp_Core/Src/board_power.cpp ****     writePin(LED_EN_PORT, LED_EN_PIN, enabled);
+ 1041              		.loc 1 174 5 is_stmt 1 view .LVU287
+ 1042              		.loc 1 174 13 is_stmt 0 view .LVU288
+ 1043 000e 2146     		mov	r1, r4
+ 1044 0010 4020     		movs	r0, #64
+ 1045 0012 FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L8writePinEP12GPIO_TypeDeftb.constprop.0
+ 1046              	.LVL65:
+ 175:Cpp_Core/Src/board_power.cpp ****     keyLedEnabled = enabled;
+ 1047              		.loc 1 175 5 is_stmt 1 view .LVU289
+ 1048              		.loc 1 175 19 is_stmt 0 view .LVU290
+ 1049 0016 2C71     		strb	r4, [r5, #4]
+ 176:Cpp_Core/Src/board_power.cpp ****     if (!enabled) {
+ 1050              		.loc 1 176 5 is_stmt 1 view .LVU291
+ 1051 0018 24B9     		cbnz	r4, .L34
+ 177:Cpp_Core/Src/board_power.cpp ****         refreshLedBoost();
+ 1052              		.loc 1 177 9 view .LVU292
+ 1053              		.loc 1 177 24 is_stmt 0 view .LVU293
+ 1054 001a 2846     		mov	r0, r5
+ 178:Cpp_Core/Src/board_power.cpp ****     }
+ 179:Cpp_Core/Src/board_power.cpp **** }
+ 1055              		.loc 1 179 1 view .LVU294
+ 1056 001c BDE83840 		pop	{r3, r4, r5, lr}
+ 1057              	.LCFI14:
+ 1058              		.cfi_remember_state
+ 1059              		.cfi_restore 14
+ 1060              		.cfi_restore 5
+ 1061              		.cfi_restore 4
+ 1062              		.cfi_restore 3
+ 1063              		.cfi_def_cfa_offset 0
+ 1064              	.LVL66:
+ 177:Cpp_Core/Src/board_power.cpp ****         refreshLedBoost();
+ 1065              		.loc 1 177 24 view .LVU295
+ 1066 0020 FFF7FEBF 		b	_ZN10BoardPower15refreshLedBoostEv
+ 1067              	.LVL67:
+ 1068              	.L34:
+ 1069              	.LCFI15:
+ 1070              		.cfi_restore_state
+ 1071              		.loc 1 179 1 view .LVU296
+ 1072 0024 38BD     		pop	{r3, r4, r5, pc}
+ 1073              		.loc 1 179 1 view .LVU297
+ 1074              		.cfi_endproc
+ 1075              	.LFE1300:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 42
+
+
+ 1077              		.section	.text.BoardPower_SetKeyLedEnabled,"ax",%progbits
+ 1078              		.align	1
+ 1079              		.global	BoardPower_SetKeyLedEnabled
+ 1080              		.syntax unified
+ 1081              		.thumb
+ 1082              		.thumb_func
+ 1084              	BoardPower_SetKeyLedEnabled:
+ 1085              	.LVL68:
+ 1086              	.LFB1291:
+  71:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setKeyLedEnabled(enabled);
+ 1087              		.loc 1 71 1 is_stmt 1 view -0
+ 1088              		.cfi_startproc
+ 1089              		@ args = 0, pretend = 0, frame = 0
+ 1090              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1091              		@ link register save eliminated.
+  72:Cpp_Core/Src/board_power.cpp **** }
+ 1092              		.loc 1 72 5 view .LVU299
+ 1093              	.LBB133:
+ 1094              	.LBI133:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 1095              		.loc 3 35 24 view .LVU300
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 1096              		.loc 3 37 9 view .LVU301
+ 1097              		.loc 3 38 9 view .LVU302
+ 1098              	.LBE133:
+  71:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setKeyLedEnabled(enabled);
+ 1099              		.loc 1 71 1 is_stmt 0 view .LVU303
+ 1100 0000 0146     		mov	r1, r0
+  72:Cpp_Core/Src/board_power.cpp **** }
+ 1101              		.loc 1 72 33 discriminator 1 view .LVU304
+ 1102 0002 0148     		ldr	r0, .L41
+ 1103              	.LVL69:
+  72:Cpp_Core/Src/board_power.cpp **** }
+ 1104              		.loc 1 72 33 discriminator 1 view .LVU305
+ 1105 0004 FFF7FEBF 		b	_ZN10BoardPower16setKeyLedEnabledEb
+ 1106              	.LVL70:
+ 1107              	.L42:
+  72:Cpp_Core/Src/board_power.cpp **** }
+ 1108              		.loc 1 72 33 discriminator 1 view .LVU306
+ 1109              		.align	2
+ 1110              	.L41:
+ 1111 0008 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 1112              		.cfi_endproc
+ 1113              	.LFE1291:
+ 1115              		.section	.text._ZN10BoardPower20setAmbientLedEnabledEb,"ax",%progbits
+ 1116              		.align	1
+ 1117              		.global	_ZN10BoardPower20setAmbientLedEnabledEb
+ 1118              		.syntax unified
+ 1119              		.thumb
+ 1120              		.thumb_func
+ 1122              	_ZN10BoardPower20setAmbientLedEnabledEb:
+ 1123              	.LVL71:
+ 1124              	.LFB1301:
+ 180:Cpp_Core/Src/board_power.cpp **** 
+ 181:Cpp_Core/Src/board_power.cpp **** void BoardPower::setAmbientLedEnabled(bool enabled)
+ 182:Cpp_Core/Src/board_power.cpp **** {
+ 1125              		.loc 1 182 1 is_stmt 1 view -0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 43
+
+
+ 1126              		.cfi_startproc
+ 1127              		@ args = 0, pretend = 0, frame = 0
+ 1128              		@ frame_needed = 0, uses_anonymous_args = 0
+ 183:Cpp_Core/Src/board_power.cpp ****     if (enabled) {
+ 1129              		.loc 1 183 5 view .LVU308
+ 182:Cpp_Core/Src/board_power.cpp ****     if (enabled) {
+ 1130              		.loc 1 182 1 is_stmt 0 view .LVU309
+ 1131 0000 38B5     		push	{r3, r4, r5, lr}
+ 1132              	.LCFI16:
+ 1133              		.cfi_def_cfa_offset 16
+ 1134              		.cfi_offset 3, -16
+ 1135              		.cfi_offset 4, -12
+ 1136              		.cfi_offset 5, -8
+ 1137              		.cfi_offset 14, -4
+ 182:Cpp_Core/Src/board_power.cpp ****     if (enabled) {
+ 1138              		.loc 1 182 1 view .LVU310
+ 1139 0002 0546     		mov	r5, r0
+ 1140              		.loc 1 183 5 view .LVU311
+ 1141 0004 0C46     		mov	r4, r1
+ 1142 0006 11B1     		cbz	r1, .L44
+ 184:Cpp_Core/Src/board_power.cpp ****         setLedBoostEnabled(true);
+ 1143              		.loc 1 184 9 is_stmt 1 view .LVU312
+ 1144              		.loc 1 184 27 is_stmt 0 view .LVU313
+ 1145 0008 0121     		movs	r1, #1
+ 1146              	.LVL72:
+ 1147              		.loc 1 184 27 view .LVU314
+ 1148 000a FFF7FEFF 		bl	_ZN10BoardPower18setLedBoostEnabledEb
+ 1149              	.LVL73:
+ 1150              	.L44:
+ 185:Cpp_Core/Src/board_power.cpp ****     }
+ 186:Cpp_Core/Src/board_power.cpp ****     writePin(AMBIENT_EN_PORT, AMBIENT_EN_PIN, enabled);
+ 1151              		.loc 1 186 5 is_stmt 1 view .LVU315
+ 1152              		.loc 1 186 13 is_stmt 0 view .LVU316
+ 1153 000e 2146     		mov	r1, r4
+ 1154 0010 8020     		movs	r0, #128
+ 1155 0012 FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L8writePinEP12GPIO_TypeDeftb.constprop.0
+ 1156              	.LVL74:
+ 187:Cpp_Core/Src/board_power.cpp ****     ambientLedEnabled = enabled;
+ 1157              		.loc 1 187 5 is_stmt 1 view .LVU317
+ 1158              		.loc 1 187 23 is_stmt 0 view .LVU318
+ 1159 0016 6C71     		strb	r4, [r5, #5]
+ 188:Cpp_Core/Src/board_power.cpp ****     if (!enabled) {
+ 1160              		.loc 1 188 5 is_stmt 1 view .LVU319
+ 1161 0018 24B9     		cbnz	r4, .L43
+ 189:Cpp_Core/Src/board_power.cpp ****         refreshLedBoost();
+ 1162              		.loc 1 189 9 view .LVU320
+ 1163              		.loc 1 189 24 is_stmt 0 view .LVU321
+ 1164 001a 2846     		mov	r0, r5
+ 190:Cpp_Core/Src/board_power.cpp ****     }
+ 191:Cpp_Core/Src/board_power.cpp **** }
+ 1165              		.loc 1 191 1 view .LVU322
+ 1166 001c BDE83840 		pop	{r3, r4, r5, lr}
+ 1167              	.LCFI17:
+ 1168              		.cfi_remember_state
+ 1169              		.cfi_restore 14
+ 1170              		.cfi_restore 5
+ 1171              		.cfi_restore 4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 44
+
+
+ 1172              		.cfi_restore 3
+ 1173              		.cfi_def_cfa_offset 0
+ 1174              	.LVL75:
+ 189:Cpp_Core/Src/board_power.cpp ****         refreshLedBoost();
+ 1175              		.loc 1 189 24 view .LVU323
+ 1176 0020 FFF7FEBF 		b	_ZN10BoardPower15refreshLedBoostEv
+ 1177              	.LVL76:
+ 1178              	.L43:
+ 1179              	.LCFI18:
+ 1180              		.cfi_restore_state
+ 1181              		.loc 1 191 1 view .LVU324
+ 1182 0024 38BD     		pop	{r3, r4, r5, pc}
+ 1183              		.loc 1 191 1 view .LVU325
+ 1184              		.cfi_endproc
+ 1185              	.LFE1301:
+ 1187              		.section	.text.BoardPower_SetAmbientLedEnabled,"ax",%progbits
+ 1188              		.align	1
+ 1189              		.global	BoardPower_SetAmbientLedEnabled
+ 1190              		.syntax unified
+ 1191              		.thumb
+ 1192              		.thumb_func
+ 1194              	BoardPower_SetAmbientLedEnabled:
+ 1195              	.LVL77:
+ 1196              	.LFB1292:
+  76:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setAmbientLedEnabled(enabled);
+ 1197              		.loc 1 76 1 is_stmt 1 view -0
+ 1198              		.cfi_startproc
+ 1199              		@ args = 0, pretend = 0, frame = 0
+ 1200              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1201              		@ link register save eliminated.
+  77:Cpp_Core/Src/board_power.cpp **** }
+ 1202              		.loc 1 77 5 view .LVU327
+ 1203              	.LBB134:
+ 1204              	.LBI134:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 1205              		.loc 3 35 24 view .LVU328
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 1206              		.loc 3 37 9 view .LVU329
+ 1207              		.loc 3 38 9 view .LVU330
+ 1208              	.LBE134:
+  76:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setAmbientLedEnabled(enabled);
+ 1209              		.loc 1 76 1 is_stmt 0 view .LVU331
+ 1210 0000 0146     		mov	r1, r0
+  77:Cpp_Core/Src/board_power.cpp **** }
+ 1211              		.loc 1 77 37 discriminator 1 view .LVU332
+ 1212 0002 0148     		ldr	r0, .L50
+ 1213              	.LVL78:
+  77:Cpp_Core/Src/board_power.cpp **** }
+ 1214              		.loc 1 77 37 discriminator 1 view .LVU333
+ 1215 0004 FFF7FEBF 		b	_ZN10BoardPower20setAmbientLedEnabledEb
+ 1216              	.LVL79:
+ 1217              	.L51:
+  77:Cpp_Core/Src/board_power.cpp **** }
+ 1218              		.loc 1 77 37 discriminator 1 view .LVU334
+ 1219              		.align	2
+ 1220              	.L50:
+ 1221 0008 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 45
+
+
+ 1222              		.cfi_endproc
+ 1223              	.LFE1292:
+ 1225              		.section	.text._ZN10BoardPower13setLcdEnabledEb,"ax",%progbits
+ 1226              		.align	1
+ 1227              		.global	_ZN10BoardPower13setLcdEnabledEb
+ 1228              		.syntax unified
+ 1229              		.thumb
+ 1230              		.thumb_func
+ 1232              	_ZN10BoardPower13setLcdEnabledEb:
+ 1233              	.LVL80:
+ 1234              	.LFB1302:
+ 192:Cpp_Core/Src/board_power.cpp **** 
+ 193:Cpp_Core/Src/board_power.cpp **** void BoardPower::setLcdEnabled(bool enabled)
+ 194:Cpp_Core/Src/board_power.cpp **** {
+ 1235              		.loc 1 194 1 is_stmt 1 view -0
+ 1236              		.cfi_startproc
+ 1237              		@ args = 0, pretend = 0, frame = 0
+ 1238              		@ frame_needed = 0, uses_anonymous_args = 0
+ 195:Cpp_Core/Src/board_power.cpp ****     writePin(LCD_EN_PORT, LCD_EN_PIN, enabled);
+ 1239              		.loc 1 195 5 view .LVU336
+ 194:Cpp_Core/Src/board_power.cpp ****     writePin(LCD_EN_PORT, LCD_EN_PIN, enabled);
+ 1240              		.loc 1 194 1 is_stmt 0 view .LVU337
+ 1241 0000 38B5     		push	{r3, r4, r5, lr}
+ 1242              	.LCFI19:
+ 1243              		.cfi_def_cfa_offset 16
+ 1244              		.cfi_offset 3, -16
+ 1245              		.cfi_offset 4, -12
+ 1246              		.cfi_offset 5, -8
+ 1247              		.cfi_offset 14, -4
+ 194:Cpp_Core/Src/board_power.cpp ****     writePin(LCD_EN_PORT, LCD_EN_PIN, enabled);
+ 1248              		.loc 1 194 1 view .LVU338
+ 1249 0002 0446     		mov	r4, r0
+ 1250 0004 0D46     		mov	r5, r1
+ 1251              		.loc 1 195 13 view .LVU339
+ 1252 0006 4FF40070 		mov	r0, #512
+ 1253              	.LVL81:
+ 1254              		.loc 1 195 13 view .LVU340
+ 1255 000a FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L8writePinEP12GPIO_TypeDeftb.constprop.0
+ 1256              	.LVL82:
+ 196:Cpp_Core/Src/board_power.cpp ****     lcdEnabled = enabled;
+ 1257              		.loc 1 196 5 is_stmt 1 view .LVU341
+ 1258              		.loc 1 196 16 is_stmt 0 view .LVU342
+ 1259 000e A571     		strb	r5, [r4, #6]
+ 197:Cpp_Core/Src/board_power.cpp **** }
+ 1260              		.loc 1 197 1 view .LVU343
+ 1261 0010 38BD     		pop	{r3, r4, r5, pc}
+ 1262              		.loc 1 197 1 view .LVU344
+ 1263              		.cfi_endproc
+ 1264              	.LFE1302:
+ 1266              		.section	.text.BoardPower_SetLcdEnabled,"ax",%progbits
+ 1267              		.align	1
+ 1268              		.global	BoardPower_SetLcdEnabled
+ 1269              		.syntax unified
+ 1270              		.thumb
+ 1271              		.thumb_func
+ 1273              	BoardPower_SetLcdEnabled:
+ 1274              	.LVL83:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 46
+
+
+ 1275              	.LFB1293:
+  81:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setLcdEnabled(enabled);
+ 1276              		.loc 1 81 1 is_stmt 1 view -0
+ 1277              		.cfi_startproc
+ 1278              		@ args = 0, pretend = 0, frame = 0
+ 1279              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1280              		@ link register save eliminated.
+  82:Cpp_Core/Src/board_power.cpp **** }
+ 1281              		.loc 1 82 5 view .LVU346
+ 1282              	.LBB135:
+ 1283              	.LBI135:
+  35:Cpp_Core/Inc/board_power.hpp ****     {
+ 1284              		.loc 3 35 24 view .LVU347
+  37:Cpp_Core/Inc/board_power.hpp ****         return instance;
+ 1285              		.loc 3 37 9 view .LVU348
+ 1286              		.loc 3 38 9 view .LVU349
+ 1287              	.LBE135:
+  81:Cpp_Core/Src/board_power.cpp ****     BOARD_POWER.setLcdEnabled(enabled);
+ 1288              		.loc 1 81 1 is_stmt 0 view .LVU350
+ 1289 0000 0146     		mov	r1, r0
+  82:Cpp_Core/Src/board_power.cpp **** }
+ 1290              		.loc 1 82 30 discriminator 1 view .LVU351
+ 1291 0002 0148     		ldr	r0, .L54
+ 1292              	.LVL84:
+  82:Cpp_Core/Src/board_power.cpp **** }
+ 1293              		.loc 1 82 30 discriminator 1 view .LVU352
+ 1294 0004 FFF7FEBF 		b	_ZN10BoardPower13setLcdEnabledEb
+ 1295              	.LVL85:
+ 1296              	.L55:
+  82:Cpp_Core/Src/board_power.cpp **** }
+ 1297              		.loc 1 82 30 discriminator 1 view .LVU353
+ 1298              		.align	2
+ 1299              	.L54:
+ 1300 0008 00000000 		.word	_ZZN10BoardPower11getInstanceEvE8instance
+ 1301              		.cfi_endproc
+ 1302              	.LFE1293:
+ 1304              		.section	.text._ZN10BoardPower17setUsbHostEnabledEb,"ax",%progbits
+ 1305              		.align	1
+ 1306              		.global	_ZN10BoardPower17setUsbHostEnabledEb
+ 1307              		.syntax unified
+ 1308              		.thumb
+ 1309              		.thumb_func
+ 1311              	_ZN10BoardPower17setUsbHostEnabledEb:
+ 1312              	.LVL86:
+ 1313              	.LFB1304:
+ 198:Cpp_Core/Src/board_power.cpp **** 
+ 199:Cpp_Core/Src/board_power.cpp **** void BoardPower::setCh585Enabled(bool enabled)
+ 200:Cpp_Core/Src/board_power.cpp **** {
+ 201:Cpp_Core/Src/board_power.cpp ****     if (!enabled) {
+ 202:Cpp_Core/Src/board_power.cpp ****         (void)setUsbHostEnabled(false);
+ 203:Cpp_Core/Src/board_power.cpp ****     }
+ 204:Cpp_Core/Src/board_power.cpp ****     writePin(CH585_EN_PORT, CH585_EN_PIN, enabled);
+ 205:Cpp_Core/Src/board_power.cpp ****     ch585Enabled = enabled;
+ 206:Cpp_Core/Src/board_power.cpp **** }
+ 207:Cpp_Core/Src/board_power.cpp **** 
+ 208:Cpp_Core/Src/board_power.cpp **** bool BoardPower::setUsbHostEnabled(bool enabled)
+ 209:Cpp_Core/Src/board_power.cpp **** {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 47
+
+
+ 1314              		.loc 1 209 1 is_stmt 1 view -0
+ 1315              		.cfi_startproc
+ 1316              		@ args = 0, pretend = 0, frame = 0
+ 1317              		@ frame_needed = 0, uses_anonymous_args = 0
+ 210:Cpp_Core/Src/board_power.cpp ****     if (enabled && !ch585Enabled) {
+ 1318              		.loc 1 210 5 view .LVU355
+ 209:Cpp_Core/Src/board_power.cpp ****     if (enabled && !ch585Enabled) {
+ 1319              		.loc 1 209 1 is_stmt 0 view .LVU356
+ 1320 0000 70B5     		push	{r4, r5, r6, lr}
+ 1321              	.LCFI20:
+ 1322              		.cfi_def_cfa_offset 16
+ 1323              		.cfi_offset 4, -16
+ 1324              		.cfi_offset 5, -12
+ 1325              		.cfi_offset 6, -8
+ 1326              		.cfi_offset 14, -4
+ 209:Cpp_Core/Src/board_power.cpp ****     if (enabled && !ch585Enabled) {
+ 1327              		.loc 1 209 1 view .LVU357
+ 1328 0002 0646     		mov	r6, r0
+ 1329              		.loc 1 210 5 view .LVU358
+ 1330 0004 0C46     		mov	r4, r1
+ 1331 0006 59B1     		cbz	r1, .L57
+ 1332              		.loc 1 210 21 discriminator 1 view .LVU359
+ 1333 0008 C579     		ldrb	r5, [r0, #7]	@ zero_extendqisi2
+ 1334              		.loc 1 210 17 discriminator 1 view .LVU360
+ 1335 000a 4DB9     		cbnz	r5, .L57
+ 1336              	.LVL87:
+ 1337              	.LBB140:
+ 1338              	.LBI140:
+ 208:Cpp_Core/Src/board_power.cpp **** {
+ 1339              		.loc 1 208 6 is_stmt 1 view .LVU361
+ 1340              	.LBB141:
+ 211:Cpp_Core/Src/board_power.cpp ****         writePin(USB_HOST_EN_PORT, USB_HOST_EN_PIN, false);
+ 1341              		.loc 1 211 9 view .LVU362
+ 1342              	.LBB142:
+ 1343              	.LBI142:
+   8:Cpp_Core/Src/board_power.cpp **** {
+ 1344              		.loc 1 8 13 view .LVU363
+ 1345              	.LBB143:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 1346              		.loc 1 10 5 view .LVU364
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 1347              		.loc 1 10 22 is_stmt 0 discriminator 4 view .LVU365
+ 1348 000c 2C46     		mov	r4, r5
+ 1349 000e 2A46     		mov	r2, r5
+ 1350 0010 4FF40051 		mov	r1, #8192
+ 1351              	.LVL88:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 1352              		.loc 1 10 22 discriminator 4 view .LVU366
+ 1353 0014 0648     		ldr	r0, .L62
+ 1354              	.LVL89:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 1355              		.loc 1 10 22 discriminator 4 view .LVU367
+ 1356 0016 FFF7FEFF 		bl	HAL_GPIO_WritePin
+ 1357              	.LVL90:
+  10:Cpp_Core/Src/board_power.cpp **** }
+ 1358              		.loc 1 10 22 discriminator 4 view .LVU368
+ 1359              	.LBE143:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 48
+
+
+ 1360              	.LBE142:
+ 212:Cpp_Core/Src/board_power.cpp ****         usbHostEnabled = false;
+ 1361              		.loc 1 212 9 is_stmt 1 view .LVU369
+ 213:Cpp_Core/Src/board_power.cpp ****         return false;
+ 1362              		.loc 1 213 9 view .LVU370
+ 1363              	.L58:
+ 1364              		.loc 1 213 9 is_stmt 0 view .LVU371
+ 1365              	.LBE141:
+ 1366              	.LBE140:
+ 214:Cpp_Core/Src/board_power.cpp ****     }
+ 215:Cpp_Core/Src/board_power.cpp ****     writePin(USB_HOST_EN_PORT, USB_HOST_EN_PIN, enabled);
+ 216:Cpp_Core/Src/board_power.cpp ****     usbHostEnabled = enabled;
+ 217:Cpp_Core/Src/board_power.cpp ****     return true;
+ 218:Cpp_Core/Src/board_power.cpp **** }
+ 1367              		.loc 1 218 1 view .LVU372
+ 1368 001a 2846     		mov	r0, r5
+ 1369              	.LBB145:
+ 1370              	.LBB144:
+ 212:Cpp_Core/Src/board_power.cpp ****         return false;
+ 1371              		.loc 1 212 24 view .LVU373
+ 1372 001c 3472     		strb	r4, [r6, #8]
+ 1373              	.LBE144:
+ 1374              	.LBE145:
+ 1375              		.loc 1 218 1 view .LVU374
+ 1376 001e 70BD     		pop	{r4, r5, r6, pc}
+ 1377              	.LVL91:
+ 1378              	.L57:
+ 215:Cpp_Core/Src/board_power.cpp ****     usbHostEnabled = enabled;
+ 1379              		.loc 1 215 5 is_stmt 1 view .LVU375
+ 215:Cpp_Core/Src/board_power.cpp ****     usbHostEnabled = enabled;
+ 1380              		.loc 1 215 13 is_stmt 0 view .LVU376
+ 1381 0020 2146     		mov	r1, r4
+ 1382              	.LVL92:
+ 215:Cpp_Core/Src/board_power.cpp ****     usbHostEnabled = enabled;
+ 1383              		.loc 1 215 13 view .LVU377
+ 1384 0022 4FF40050 		mov	r0, #8192
+ 1385              	.LVL93:
+ 217:Cpp_Core/Src/board_power.cpp **** }
+ 1386              		.loc 1 217 12 view .LVU378
+ 1387 0026 0125     		movs	r5, #1
+ 215:Cpp_Core/Src/board_power.cpp ****     usbHostEnabled = enabled;
+ 1388              		.loc 1 215 13 view .LVU379
+ 1389 0028 FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L8writePinEP12GPIO_TypeDeftb.constprop.0
+ 1390              	.LVL94:
+ 216:Cpp_Core/Src/board_power.cpp ****     return true;
+ 1391              		.loc 1 216 5 is_stmt 1 view .LVU380
+ 217:Cpp_Core/Src/board_power.cpp **** }
+ 1392              		.loc 1 217 5 view .LVU381
+ 217:Cpp_Core/Src/board_power.cpp **** }
+ 1393              		.loc 1 217 12 is_stmt 0 view .LVU382
+ 1394 002c F5E7     		b	.L58
+ 1395              	.L63:
+ 1396 002e 00BF     		.align	2
+ 1397              	.L62:
+ 1398 0030 00200258 		.word	1476534272
+ 1399              		.cfi_endproc
+ 1400              	.LFE1304:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 49
+
+
+ 1402              		.section	.text._ZN10BoardPower15setCh585EnabledEb,"ax",%progbits
+ 1403              		.align	1
+ 1404              		.global	_ZN10BoardPower15setCh585EnabledEb
+ 1405              		.syntax unified
+ 1406              		.thumb
+ 1407              		.thumb_func
+ 1409              	_ZN10BoardPower15setCh585EnabledEb:
+ 1410              	.LVL95:
+ 1411              	.LFB1303:
+ 200:Cpp_Core/Src/board_power.cpp ****     if (!enabled) {
+ 1412              		.loc 1 200 1 is_stmt 1 view -0
+ 1413              		.cfi_startproc
+ 1414              		@ args = 0, pretend = 0, frame = 0
+ 1415              		@ frame_needed = 0, uses_anonymous_args = 0
+ 201:Cpp_Core/Src/board_power.cpp ****         (void)setUsbHostEnabled(false);
+ 1416              		.loc 1 201 5 view .LVU384
+ 200:Cpp_Core/Src/board_power.cpp ****     if (!enabled) {
+ 1417              		.loc 1 200 1 is_stmt 0 view .LVU385
+ 1418 0000 38B5     		push	{r3, r4, r5, lr}
+ 1419              	.LCFI21:
+ 1420              		.cfi_def_cfa_offset 16
+ 1421              		.cfi_offset 3, -16
+ 1422              		.cfi_offset 4, -12
+ 1423              		.cfi_offset 5, -8
+ 1424              		.cfi_offset 14, -4
+ 200:Cpp_Core/Src/board_power.cpp ****     if (!enabled) {
+ 1425              		.loc 1 200 1 view .LVU386
+ 1426 0002 0546     		mov	r5, r0
+ 201:Cpp_Core/Src/board_power.cpp ****         (void)setUsbHostEnabled(false);
+ 1427              		.loc 1 201 5 view .LVU387
+ 1428 0004 0C46     		mov	r4, r1
+ 1429 0006 09B9     		cbnz	r1, .L65
+ 202:Cpp_Core/Src/board_power.cpp ****     }
+ 1430              		.loc 1 202 9 is_stmt 1 view .LVU388
+ 202:Cpp_Core/Src/board_power.cpp ****     }
+ 1431              		.loc 1 202 32 is_stmt 0 view .LVU389
+ 1432 0008 FFF7FEFF 		bl	_ZN10BoardPower17setUsbHostEnabledEb
+ 1433              	.LVL96:
+ 1434              	.L65:
+ 204:Cpp_Core/Src/board_power.cpp ****     ch585Enabled = enabled;
+ 1435              		.loc 1 204 5 is_stmt 1 view .LVU390
+ 204:Cpp_Core/Src/board_power.cpp ****     ch585Enabled = enabled;
+ 1436              		.loc 1 204 13 is_stmt 0 view .LVU391
+ 1437 000c 2146     		mov	r1, r4
+ 1438 000e 4FF48060 		mov	r0, #1024
+ 1439 0012 FFF7FEFF 		bl	_ZN12_GLOBAL__N_1L8writePinEP12GPIO_TypeDeftb.constprop.0
+ 1440              	.LVL97:
+ 205:Cpp_Core/Src/board_power.cpp **** }
+ 1441              		.loc 1 205 5 is_stmt 1 view .LVU392
+ 205:Cpp_Core/Src/board_power.cpp **** }
+ 1442              		.loc 1 205 18 is_stmt 0 view .LVU393
+ 1443 0016 EC71     		strb	r4, [r5, #7]
+ 206:Cpp_Core/Src/board_power.cpp **** 
+ 1444              		.loc 1 206 1 view .LVU394
+ 1445 0018 38BD     		pop	{r3, r4, r5, pc}
+ 206:Cpp_Core/Src/board_power.cpp **** 
+ 1446              		.loc 1 206 1 view .LVU395
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 50
+
+
+ 1447              		.cfi_endproc
+ 1448              	.LFE1303:
+ 1450              		.section	.text._ZN10BoardPower14enterSafeStateEv,"ax",%progbits
+ 1451              		.align	1
+ 1452              		.global	_ZN10BoardPower14enterSafeStateEv
+ 1453              		.syntax unified
+ 1454              		.thumb
+ 1455              		.thumb_func
+ 1457              	_ZN10BoardPower14enterSafeStateEv:
+ 1458              	.LVL98:
+ 1459              	.LFB1305:
+ 219:Cpp_Core/Src/board_power.cpp **** 
+ 220:Cpp_Core/Src/board_power.cpp **** void BoardPower::enterSafeState()
+ 221:Cpp_Core/Src/board_power.cpp **** {
+ 1460              		.loc 1 221 1 is_stmt 1 view -0
+ 1461              		.cfi_startproc
+ 1462              		@ args = 0, pretend = 0, frame = 0
+ 1463              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1464              		.loc 1 221 1 is_stmt 0 view .LVU397
+ 1465 0000 38B5     		push	{r3, r4, r5, lr}
+ 1466              	.LCFI22:
+ 1467              		.cfi_def_cfa_offset 16
+ 1468              		.cfi_offset 3, -16
+ 1469              		.cfi_offset 4, -12
+ 1470              		.cfi_offset 5, -8
+ 1471              		.cfi_offset 14, -4
+ 222:Cpp_Core/Src/board_power.cpp ****     safeLatched = true;
+ 1472              		.loc 1 222 17 view .LVU398
+ 1473 0002 0125     		movs	r5, #1
+ 221:Cpp_Core/Src/board_power.cpp ****     safeLatched = true;
+ 1474              		.loc 1 221 1 view .LVU399
+ 1475 0004 0446     		mov	r4, r0
+ 1476              		.loc 1 222 5 is_stmt 1 view .LVU400
+ 223:Cpp_Core/Src/board_power.cpp ****     recoveryUiAllowed = true;
+ 224:Cpp_Core/Src/board_power.cpp ****     (void)setUsbHostEnabled(false);
+ 1477              		.loc 1 224 28 is_stmt 0 view .LVU401
+ 1478 0006 0021     		movs	r1, #0
+ 222:Cpp_Core/Src/board_power.cpp ****     recoveryUiAllowed = true;
+ 1479              		.loc 1 222 17 view .LVU402
+ 1480 0008 4572     		strb	r5, [r0, #9]
+ 223:Cpp_Core/Src/board_power.cpp ****     recoveryUiAllowed = true;
+ 1481              		.loc 1 223 5 is_stmt 1 view .LVU403
+ 223:Cpp_Core/Src/board_power.cpp ****     recoveryUiAllowed = true;
+ 1482              		.loc 1 223 23 is_stmt 0 view .LVU404
+ 1483 000a 8572     		strb	r5, [r0, #10]
+ 1484              		.loc 1 224 5 is_stmt 1 view .LVU405
+ 1485              		.loc 1 224 28 is_stmt 0 view .LVU406
+ 1486 000c FFF7FEFF 		bl	_ZN10BoardPower17setUsbHostEnabledEb
+ 1487              	.LVL99:
+ 225:Cpp_Core/Src/board_power.cpp ****     setCh585Enabled(false);
+ 1488              		.loc 1 225 5 is_stmt 1 view .LVU407
+ 1489              		.loc 1 225 20 is_stmt 0 view .LVU408
+ 1490 0010 2046     		mov	r0, r4
+ 1491 0012 0021     		movs	r1, #0
+ 1492 0014 FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 1493              	.LVL100:
+ 226:Cpp_Core/Src/board_power.cpp ****     setKeyLedEnabled(false);
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 51
+
+
+ 1494              		.loc 1 226 5 is_stmt 1 view .LVU409
+ 1495              		.loc 1 226 21 is_stmt 0 view .LVU410
+ 1496 0018 2046     		mov	r0, r4
+ 1497 001a 0021     		movs	r1, #0
+ 1498 001c FFF7FEFF 		bl	_ZN10BoardPower16setKeyLedEnabledEb
+ 1499              	.LVL101:
+ 227:Cpp_Core/Src/board_power.cpp ****     setAmbientLedEnabled(false);
+ 1500              		.loc 1 227 5 is_stmt 1 view .LVU411
+ 1501              		.loc 1 227 25 is_stmt 0 view .LVU412
+ 1502 0020 2046     		mov	r0, r4
+ 1503 0022 0021     		movs	r1, #0
+ 1504 0024 FFF7FEFF 		bl	_ZN10BoardPower20setAmbientLedEnabledEb
+ 1505              	.LVL102:
+ 228:Cpp_Core/Src/board_power.cpp ****     setLedBoostEnabled(false);
+ 1506              		.loc 1 228 5 is_stmt 1 view .LVU413
+ 1507              		.loc 1 228 23 is_stmt 0 view .LVU414
+ 1508 0028 2046     		mov	r0, r4
+ 1509 002a 0021     		movs	r1, #0
+ 1510 002c FFF7FEFF 		bl	_ZN10BoardPower18setLedBoostEnabledEb
+ 1511              	.LVL103:
+ 229:Cpp_Core/Src/board_power.cpp ****     /* Keep the local UI available even when CH585 or the physical mode gate
+ 230:Cpp_Core/Src/board_power.cpp ****      * fails. Only prepareForStandby() is allowed to remove LCD power. */
+ 231:Cpp_Core/Src/board_power.cpp ****     setLcdEnabled(true);
+ 1512              		.loc 1 231 5 is_stmt 1 view .LVU415
+ 1513              		.loc 1 231 18 is_stmt 0 view .LVU416
+ 1514 0030 2946     		mov	r1, r5
+ 1515 0032 2046     		mov	r0, r4
+ 1516 0034 FFF7FEFF 		bl	_ZN10BoardPower13setLcdEnabledEb
+ 1517              	.LVL104:
+ 232:Cpp_Core/Src/board_power.cpp ****     setHallEnabled(false);
+ 1518              		.loc 1 232 5 is_stmt 1 view .LVU417
+ 1519              		.loc 1 232 19 is_stmt 0 view .LVU418
+ 1520 0038 2046     		mov	r0, r4
+ 1521 003a 0021     		movs	r1, #0
+ 1522 003c FFF7FEFF 		bl	_ZN10BoardPower14setHallEnabledEb
+ 1523              	.LVL105:
+ 233:Cpp_Core/Src/board_power.cpp ****     setChargeEnabled(false);
+ 1524              		.loc 1 233 5 is_stmt 1 view .LVU419
+ 1525              		.loc 1 233 21 is_stmt 0 view .LVU420
+ 1526 0040 2046     		mov	r0, r4
+ 1527 0042 0021     		movs	r1, #0
+ 1528 0044 FFF7FEFF 		bl	_ZN10BoardPower16setChargeEnabledEb
+ 1529              	.LVL106:
+ 234:Cpp_Core/Src/board_power.cpp ****     assertMainPowerHold();
+ 1530              		.loc 1 234 5 is_stmt 1 view .LVU421
+ 1531              	.LBB146:
+ 1532              	.LBI146:
+ 131:Cpp_Core/Src/board_power.cpp **** {
+ 1533              		.loc 1 131 6 view .LVU422
+ 1534              	.LBB147:
+ 133:Cpp_Core/Src/board_power.cpp **** }
+ 1535              		.loc 1 133 5 view .LVU423
+ 1536              	.LBE147:
+ 1537              	.LBE146:
+ 235:Cpp_Core/Src/board_power.cpp **** }
+ 1538              		.loc 1 235 1 is_stmt 0 view .LVU424
+ 1539 0048 BDE83840 		pop	{r3, r4, r5, lr}
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 52
+
+
+ 1540              	.LCFI23:
+ 1541              		.cfi_restore 14
+ 1542              		.cfi_restore 5
+ 1543              		.cfi_restore 4
+ 1544              		.cfi_restore 3
+ 1545              		.cfi_def_cfa_offset 0
+ 1546              	.LVL107:
+ 1547              	.LBB149:
+ 1548              	.LBB148:
+ 133:Cpp_Core/Src/board_power.cpp **** }
+ 1549              		.loc 1 133 29 view .LVU425
+ 1550 004c FFF7FEBF 		b	BoardPower_EarlyMainHold
+ 1551              	.LVL108:
+ 1552              	.LBE148:
+ 1553              	.LBE149:
+ 1554              		.cfi_endproc
+ 1555              	.LFE1305:
+ 1557              		.section	.text._ZN10BoardPower20enterRecoveryUiStateEv,"ax",%progbits
+ 1558              		.align	1
+ 1559              		.global	_ZN10BoardPower20enterRecoveryUiStateEv
+ 1560              		.syntax unified
+ 1561              		.thumb
+ 1562              		.thumb_func
+ 1564              	_ZN10BoardPower20enterRecoveryUiStateEv:
+ 1565              	.LVL109:
+ 1566              	.LFB1306:
+ 236:Cpp_Core/Src/board_power.cpp **** 
+ 237:Cpp_Core/Src/board_power.cpp **** void BoardPower::enterRecoveryUiState()
+ 238:Cpp_Core/Src/board_power.cpp **** {
+ 1567              		.loc 1 238 1 is_stmt 1 view -0
+ 1568              		.cfi_startproc
+ 1569              		@ args = 0, pretend = 0, frame = 0
+ 1570              		@ frame_needed = 0, uses_anonymous_args = 0
+ 239:Cpp_Core/Src/board_power.cpp ****     enterSafeState();
+ 1571              		.loc 1 239 5 view .LVU427
+ 238:Cpp_Core/Src/board_power.cpp ****     enterSafeState();
+ 1572              		.loc 1 238 1 is_stmt 0 view .LVU428
+ 1573 0000 10B5     		push	{r4, lr}
+ 1574              	.LCFI24:
+ 1575              		.cfi_def_cfa_offset 8
+ 1576              		.cfi_offset 4, -8
+ 1577              		.cfi_offset 14, -4
+ 238:Cpp_Core/Src/board_power.cpp ****     enterSafeState();
+ 1578              		.loc 1 238 1 view .LVU429
+ 1579 0002 0446     		mov	r4, r0
+ 1580              		.loc 1 239 19 view .LVU430
+ 1581 0004 FFF7FEFF 		bl	_ZN10BoardPower14enterSafeStateEv
+ 1582              	.LVL110:
+ 240:Cpp_Core/Src/board_power.cpp ****     /* Keep the global safe latch asserted while the local screen remains the
+ 241:Cpp_Core/Src/board_power.cpp ****      * only enabled recovery UI. */
+ 242:Cpp_Core/Src/board_power.cpp ****     recoveryUiAllowed = true;
+ 1583              		.loc 1 242 5 is_stmt 1 view .LVU431
+ 1584              		.loc 1 242 23 is_stmt 0 view .LVU432
+ 1585 0008 0123     		movs	r3, #1
+ 1586 000a A372     		strb	r3, [r4, #10]
+ 243:Cpp_Core/Src/board_power.cpp **** }
+ 1587              		.loc 1 243 1 view .LVU433
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 53
+
+
+ 1588 000c 10BD     		pop	{r4, pc}
+ 1589              		.loc 1 243 1 view .LVU434
+ 1590              		.cfi_endproc
+ 1591              	.LFE1306:
+ 1593              		.section	.text._ZN10BoardPower17prepareForStandbyEv,"ax",%progbits
+ 1594              		.align	1
+ 1595              		.global	_ZN10BoardPower17prepareForStandbyEv
+ 1596              		.syntax unified
+ 1597              		.thumb
+ 1598              		.thumb_func
+ 1600              	_ZN10BoardPower17prepareForStandbyEv:
+ 1601              	.LVL111:
+ 1602              	.LFB1307:
+ 244:Cpp_Core/Src/board_power.cpp **** 
+ 245:Cpp_Core/Src/board_power.cpp **** void BoardPower::prepareForStandby()
+ 246:Cpp_Core/Src/board_power.cpp **** {
+ 1603              		.loc 1 246 1 is_stmt 1 view -0
+ 1604              		.cfi_startproc
+ 1605              		@ args = 0, pretend = 0, frame = 0
+ 1606              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1607              		.loc 1 246 1 is_stmt 0 view .LVU436
+ 1608 0000 38B5     		push	{r3, r4, r5, lr}
+ 1609              	.LCFI25:
+ 1610              		.cfi_def_cfa_offset 16
+ 1611              		.cfi_offset 3, -16
+ 1612              		.cfi_offset 4, -12
+ 1613              		.cfi_offset 5, -8
+ 1614              		.cfi_offset 14, -4
+ 247:Cpp_Core/Src/board_power.cpp ****     safeLatched = true;
+ 1615              		.loc 1 247 17 view .LVU437
+ 1616 0002 0123     		movs	r3, #1
+ 248:Cpp_Core/Src/board_power.cpp ****     recoveryUiAllowed = false;
+ 1617              		.loc 1 248 23 view .LVU438
+ 1618 0004 0025     		movs	r5, #0
+ 246:Cpp_Core/Src/board_power.cpp ****     safeLatched = true;
+ 1619              		.loc 1 246 1 view .LVU439
+ 1620 0006 0446     		mov	r4, r0
+ 247:Cpp_Core/Src/board_power.cpp ****     safeLatched = true;
+ 1621              		.loc 1 247 5 is_stmt 1 view .LVU440
+ 247:Cpp_Core/Src/board_power.cpp ****     safeLatched = true;
+ 1622              		.loc 1 247 17 is_stmt 0 view .LVU441
+ 1623 0008 4372     		strb	r3, [r0, #9]
+ 1624              		.loc 1 248 5 is_stmt 1 view .LVU442
+ 249:Cpp_Core/Src/board_power.cpp ****     (void)setUsbHostEnabled(false);
+ 1625              		.loc 1 249 28 is_stmt 0 view .LVU443
+ 1626 000a 2946     		mov	r1, r5
+ 248:Cpp_Core/Src/board_power.cpp ****     recoveryUiAllowed = false;
+ 1627              		.loc 1 248 23 view .LVU444
+ 1628 000c 8572     		strb	r5, [r0, #10]
+ 1629              		.loc 1 249 5 is_stmt 1 view .LVU445
+ 1630              		.loc 1 249 28 is_stmt 0 view .LVU446
+ 1631 000e FFF7FEFF 		bl	_ZN10BoardPower17setUsbHostEnabledEb
+ 1632              	.LVL112:
+ 250:Cpp_Core/Src/board_power.cpp ****     setCh585Enabled(false);
+ 1633              		.loc 1 250 5 is_stmt 1 view .LVU447
+ 1634              		.loc 1 250 20 is_stmt 0 view .LVU448
+ 1635 0012 2946     		mov	r1, r5
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 54
+
+
+ 1636 0014 2046     		mov	r0, r4
+ 1637 0016 FFF7FEFF 		bl	_ZN10BoardPower15setCh585EnabledEb
+ 1638              	.LVL113:
+ 251:Cpp_Core/Src/board_power.cpp ****     setKeyLedEnabled(false);
+ 1639              		.loc 1 251 5 is_stmt 1 view .LVU449
+ 1640              		.loc 1 251 21 is_stmt 0 view .LVU450
+ 1641 001a 2946     		mov	r1, r5
+ 1642 001c 2046     		mov	r0, r4
+ 1643 001e FFF7FEFF 		bl	_ZN10BoardPower16setKeyLedEnabledEb
+ 1644              	.LVL114:
+ 252:Cpp_Core/Src/board_power.cpp ****     setAmbientLedEnabled(false);
+ 1645              		.loc 1 252 5 is_stmt 1 view .LVU451
+ 1646              		.loc 1 252 25 is_stmt 0 view .LVU452
+ 1647 0022 2946     		mov	r1, r5
+ 1648 0024 2046     		mov	r0, r4
+ 1649 0026 FFF7FEFF 		bl	_ZN10BoardPower20setAmbientLedEnabledEb
+ 1650              	.LVL115:
+ 253:Cpp_Core/Src/board_power.cpp ****     setLedBoostEnabled(false);
+ 1651              		.loc 1 253 5 is_stmt 1 view .LVU453
+ 1652              		.loc 1 253 23 is_stmt 0 view .LVU454
+ 1653 002a 2946     		mov	r1, r5
+ 1654 002c 2046     		mov	r0, r4
+ 1655 002e FFF7FEFF 		bl	_ZN10BoardPower18setLedBoostEnabledEb
+ 1656              	.LVL116:
+ 254:Cpp_Core/Src/board_power.cpp ****     setLcdEnabled(false);
+ 1657              		.loc 1 254 5 is_stmt 1 view .LVU455
+ 1658              		.loc 1 254 18 is_stmt 0 view .LVU456
+ 1659 0032 2946     		mov	r1, r5
+ 1660 0034 2046     		mov	r0, r4
+ 1661 0036 FFF7FEFF 		bl	_ZN10BoardPower13setLcdEnabledEb
+ 1662              	.LVL117:
+ 255:Cpp_Core/Src/board_power.cpp ****     setHallEnabled(false);
+ 1663              		.loc 1 255 5 is_stmt 1 view .LVU457
+ 1664              		.loc 1 255 19 is_stmt 0 view .LVU458
+ 1665 003a 2946     		mov	r1, r5
+ 1666 003c 2046     		mov	r0, r4
+ 1667 003e FFF7FEFF 		bl	_ZN10BoardPower14setHallEnabledEb
+ 1668              	.LVL118:
+ 256:Cpp_Core/Src/board_power.cpp ****     assertMainPowerHold();
+ 1669              		.loc 1 256 5 is_stmt 1 view .LVU459
+ 1670              	.LBB150:
+ 1671              	.LBI150:
+ 131:Cpp_Core/Src/board_power.cpp **** {
+ 1672              		.loc 1 131 6 view .LVU460
+ 1673              	.LBB151:
+ 133:Cpp_Core/Src/board_power.cpp **** }
+ 1674              		.loc 1 133 5 view .LVU461
+ 1675              	.LBE151:
+ 1676              	.LBE150:
+ 257:Cpp_Core/Src/board_power.cpp **** }
+ 1677              		.loc 1 257 1 is_stmt 0 view .LVU462
+ 1678 0042 BDE83840 		pop	{r3, r4, r5, lr}
+ 1679              	.LCFI26:
+ 1680              		.cfi_restore 14
+ 1681              		.cfi_restore 5
+ 1682              		.cfi_restore 4
+ 1683              		.cfi_restore 3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 55
+
+
+ 1684              		.cfi_def_cfa_offset 0
+ 1685              	.LVL119:
+ 1686              	.LBB153:
+ 1687              	.LBB152:
+ 133:Cpp_Core/Src/board_power.cpp **** }
+ 1688              		.loc 1 133 29 view .LVU463
+ 1689 0046 FFF7FEBF 		b	BoardPower_EarlyMainHold
+ 1690              	.LVL120:
+ 1691              	.LBE152:
+ 1692              	.LBE153:
+ 1693              		.cfi_endproc
+ 1694              	.LFE1307:
+ 1696              		.section	.text._ZN10BoardPower16releaseSafeStateEv,"ax",%progbits
+ 1697              		.align	1
+ 1698              		.global	_ZN10BoardPower16releaseSafeStateEv
+ 1699              		.syntax unified
+ 1700              		.thumb
+ 1701              		.thumb_func
+ 1703              	_ZN10BoardPower16releaseSafeStateEv:
+ 1704              	.LVL121:
+ 1705              	.LFB1308:
+ 258:Cpp_Core/Src/board_power.cpp **** 
+ 259:Cpp_Core/Src/board_power.cpp **** void BoardPower::releaseSafeState()
+ 260:Cpp_Core/Src/board_power.cpp **** {
+ 1706              		.loc 1 260 1 is_stmt 1 view -0
+ 1707              		.cfi_startproc
+ 1708              		@ args = 0, pretend = 0, frame = 0
+ 1709              		@ frame_needed = 0, uses_anonymous_args = 0
+ 1710              		@ link register save eliminated.
+ 261:Cpp_Core/Src/board_power.cpp ****     /*
+ 262:Cpp_Core/Src/board_power.cpp ****      * Callers may release the latch only after a physical mode has debounced
+ 263:Cpp_Core/Src/board_power.cpp ****      * and the selected CH585 role (when required) has acknowledged.  Optional
+ 264:Cpp_Core/Src/board_power.cpp ****      * rails remain off until their owning subsystem explicitly enables them.
+ 265:Cpp_Core/Src/board_power.cpp ****      */
+ 266:Cpp_Core/Src/board_power.cpp ****     safeLatched = false;
+ 1711              		.loc 1 266 5 view .LVU465
+ 1712              		.loc 1 266 17 is_stmt 0 view .LVU466
+ 1713 0000 0023     		movs	r3, #0
+ 1714 0002 4372     		strb	r3, [r0, #9]
+ 267:Cpp_Core/Src/board_power.cpp ****     recoveryUiAllowed = false;
+ 1715              		.loc 1 267 5 is_stmt 1 view .LVU467
+ 1716              		.loc 1 267 23 is_stmt 0 view .LVU468
+ 1717 0004 8372     		strb	r3, [r0, #10]
+ 268:Cpp_Core/Src/board_power.cpp ****     assertMainPowerHold();
+ 1718              		.loc 1 268 5 is_stmt 1 view .LVU469
+ 1719              	.LVL122:
+ 1720              	.LBB154:
+ 1721              	.LBI154:
+ 131:Cpp_Core/Src/board_power.cpp **** {
+ 1722              		.loc 1 131 6 view .LVU470
+ 1723              	.LBB155:
+ 133:Cpp_Core/Src/board_power.cpp **** }
+ 1724              		.loc 1 133 5 view .LVU471
+ 133:Cpp_Core/Src/board_power.cpp **** }
+ 1725              		.loc 1 133 29 is_stmt 0 view .LVU472
+ 1726 0006 FFF7FEBF 		b	BoardPower_EarlyMainHold
+ 1727              	.LVL123:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 56
+
+
+ 1728              	.LBE155:
+ 1729              	.LBE154:
+ 1730              		.cfi_endproc
+ 1731              	.LFE1308:
+ 1733              		.weak	_ZZN10BoardPower11getInstanceEvE8instance
+ 1734              		.section	.data._ZZN10BoardPower11getInstanceEvE8instance,"awG",%progbits,_ZZN10BoardPower11getInst
+ 1737              	_ZZN10BoardPower11getInstanceEvE8instance:
+ 1738 0000 00       		.byte	0
+ 1739 0001 00       		.byte	0
+ 1740 0002 00       		.byte	0
+ 1741 0003 00       		.byte	0
+ 1742 0004 00       		.byte	0
+ 1743 0005 00       		.byte	0
+ 1744 0006 00       		.byte	0
+ 1745 0007 00       		.byte	0
+ 1746 0008 00       		.byte	0
+ 1747 0009 01       		.byte	1
+ 1748 000a 00       		.byte	0
+ 1749              		.text
+ 1750              	.Letext0:
+ 1751              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 1752              		.file 5 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 1753              		.file 6 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 1754              		.file 7 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 1755              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 1756              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 1757              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 1758              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 1759              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 1760              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 1761              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 1762              		.file 15 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_gpio.h"
+ 1763              		.file 16 "Core/Inc/board_cfg.h"
+ 1764              		.file 17 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal.h"
+ 1765              		.file 18 "Cpp_Core/Inc/enums.hpp"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 57
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 board_power.cpp
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:20     .text._ZN12_GLOBAL__N_1L14configureInputEP12GPIO_TypeDeftm:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:25     .text._ZN12_GLOBAL__N_1L14configureInputEP12GPIO_TypeDeftm:00000000 _ZN12_GLOBAL__N_1L14configureInputEP12GPIO_TypeDeftm
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:86     .text._ZN12_GLOBAL__N_1L8writePinEP12GPIO_TypeDeftb.constprop.0:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:91     .text._ZN12_GLOBAL__N_1L8writePinEP12GPIO_TypeDeftb.constprop.0:00000000 _ZN12_GLOBAL__N_1L8writePinEP12GPIO_TypeDeftb.constprop.0
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:115    .text._ZN12_GLOBAL__N_1L8writePinEP12GPIO_TypeDeftb.constprop.0:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:120    .text.BoardPower_EarlyMainHold:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:126    .text.BoardPower_EarlyMainHold:00000000 BoardPower_EarlyMainHold
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:222    .text.BoardPower_EarlyMainHold:0000004c $d
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:228    .text._ZN10BoardPower5setupEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:234    .text._ZN10BoardPower5setupEv:00000000 _ZN10BoardPower5setupEv
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:607    .text._ZN10BoardPower5setupEv:00000138 $d
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:615    .text.BoardPower_Initialize:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:621    .text.BoardPower_Initialize:00000000 BoardPower_Initialize
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:643    .text.BoardPower_Initialize:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1737   .data._ZZN10BoardPower11getInstanceEvE8instance:00000000 _ZZN10BoardPower11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:648    .text._ZN10BoardPower19assertMainPowerHoldEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:654    .text._ZN10BoardPower19assertMainPowerHoldEv:00000000 _ZN10BoardPower19assertMainPowerHoldEv
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:670    .text._ZN10BoardPower16setChargeEnabledEb:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:676    .text._ZN10BoardPower16setChargeEnabledEb:00000000 _ZN10BoardPower16setChargeEnabledEb
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:714    .text.BoardPower_SetChargeEnabled:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:720    .text.BoardPower_SetChargeEnabled:00000000 BoardPower_SetChargeEnabled
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:747    .text.BoardPower_SetChargeEnabled:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:752    .text._ZN10BoardPower14setHallEnabledEb:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:758    .text._ZN10BoardPower14setHallEnabledEb:00000000 _ZN10BoardPower14setHallEnabledEb
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:793    .text.BoardPower_SetHallEnabled:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:799    .text.BoardPower_SetHallEnabled:00000000 BoardPower_SetHallEnabled
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:826    .text.BoardPower_SetHallEnabled:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:831    .text.BoardPower_EnableHallForAdc:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:837    .text.BoardPower_EnableHallForAdc:00000000 BoardPower_EnableHallForAdc
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:877    .text.BoardPower_EnableHallForAdc:00000014 $d
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:882    .text._ZN10BoardPower18setLedBoostEnabledEb:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:888    .text._ZN10BoardPower18setLedBoostEnabledEb:00000000 _ZN10BoardPower18setLedBoostEnabledEb
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:969    .text._ZN10BoardPower18setLedBoostEnabledEb:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:976    .text._ZN10BoardPower15refreshLedBoostEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:982    .text._ZN10BoardPower15refreshLedBoostEv:00000000 _ZN10BoardPower15refreshLedBoostEv
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1006   .text._ZN10BoardPower16setKeyLedEnabledEb:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1012   .text._ZN10BoardPower16setKeyLedEnabledEb:00000000 _ZN10BoardPower16setKeyLedEnabledEb
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1078   .text.BoardPower_SetKeyLedEnabled:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1084   .text.BoardPower_SetKeyLedEnabled:00000000 BoardPower_SetKeyLedEnabled
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1111   .text.BoardPower_SetKeyLedEnabled:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1116   .text._ZN10BoardPower20setAmbientLedEnabledEb:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1122   .text._ZN10BoardPower20setAmbientLedEnabledEb:00000000 _ZN10BoardPower20setAmbientLedEnabledEb
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1188   .text.BoardPower_SetAmbientLedEnabled:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1194   .text.BoardPower_SetAmbientLedEnabled:00000000 BoardPower_SetAmbientLedEnabled
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1221   .text.BoardPower_SetAmbientLedEnabled:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1226   .text._ZN10BoardPower13setLcdEnabledEb:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1232   .text._ZN10BoardPower13setLcdEnabledEb:00000000 _ZN10BoardPower13setLcdEnabledEb
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1267   .text.BoardPower_SetLcdEnabled:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1273   .text.BoardPower_SetLcdEnabled:00000000 BoardPower_SetLcdEnabled
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1300   .text.BoardPower_SetLcdEnabled:00000008 $d
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1305   .text._ZN10BoardPower17setUsbHostEnabledEb:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1311   .text._ZN10BoardPower17setUsbHostEnabledEb:00000000 _ZN10BoardPower17setUsbHostEnabledEb
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1398   .text._ZN10BoardPower17setUsbHostEnabledEb:00000030 $d
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1403   .text._ZN10BoardPower15setCh585EnabledEb:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1409   .text._ZN10BoardPower15setCh585EnabledEb:00000000 _ZN10BoardPower15setCh585EnabledEb
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s 			page 58
+
+
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1451   .text._ZN10BoardPower14enterSafeStateEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1457   .text._ZN10BoardPower14enterSafeStateEv:00000000 _ZN10BoardPower14enterSafeStateEv
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1558   .text._ZN10BoardPower20enterRecoveryUiStateEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1564   .text._ZN10BoardPower20enterRecoveryUiStateEv:00000000 _ZN10BoardPower20enterRecoveryUiStateEv
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1594   .text._ZN10BoardPower17prepareForStandbyEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1600   .text._ZN10BoardPower17prepareForStandbyEv:00000000 _ZN10BoardPower17prepareForStandbyEv
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1697   .text._ZN10BoardPower16releaseSafeStateEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\ccXWcWj6.s:1703   .text._ZN10BoardPower16releaseSafeStateEv:00000000 _ZN10BoardPower16releaseSafeStateEv
+
+UNDEFINED SYMBOLS
+memset
+HAL_GPIO_Init
+HAL_GPIO_WritePin
+HAL_Delay

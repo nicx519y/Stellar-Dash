@@ -46,6 +46,17 @@ constexpr uint32_t kPermitInstallTimeoutMs =
     HBOX_SECURITY_CHALLENGE_SECONDS * 1000u;
 constexpr uint32_t kCpuCyclesPerMicrosecond =
     SYSTEM_CLOCK_FREQ / 1000000u;
+constexpr size_t kResponseScratchBytes = 16u * 1024u + 5u;
+
+/*
+ * This CPU-only workspace is explicitly cleared before every use, so it does
+ * not depend on startup .bss clearing. Keep it in the existing SRAM-D2 buffer
+ * area: AXI SRAM also contains executable code and is close to its link limit.
+ * While a physical WebHID report is pending, process() gates final inbound
+ * requests, making the first report-sized prefix safe for exact-byte resume.
+ */
+__attribute__((section(".DMA_Section.WebHidResponseScratch"), aligned(32)))
+std::array<char, kResponseScratchBytes> g_responseScratch;
 
 bool allZero(const uint8_t *value, size_t length);
 
@@ -1082,6 +1093,7 @@ void WebHidService::resetSession(bool keepBootIdentity,
     permitDeadlineMs = 0u;
     lastRxSequence = 0u;
     nextTxSequence = 1u;
+    pendingFrameSource = OutboundFrameSource::None;
     if (clearQueuedReports) {
         clearRxQueue();
     }
@@ -1100,7 +1112,7 @@ void WebHidService::resetSession(bool keepBootIdentity,
     outboundReadOffset = 0u;
     outboundWriteOffset = 0u;
     outboundQueuedBytes = 0u;
-    responseScratch.fill('\0');
+    g_responseScratch.fill('\0');
     for (std::string &event : eventQueue) {
         std::fill(event.begin(), event.end(), '\0');
     }
@@ -1366,7 +1378,8 @@ void WebHidService::process()
          * Non-final fragments still advance so large requests can assemble.
          */
         if ((queuedHeader.flags & WEBHID_REPORT_FLAG_LAST) != 0u &&
-            !outboundQueue.empty()) {
+            (!outboundQueue.empty() ||
+             pendingFrameSource != OutboundFrameSource::None)) {
             __enable_irq();
             break;
         }
@@ -3054,7 +3067,8 @@ bool WebHidService::sendFrame(
     uint8_t flags,
     const uint8_t *payload,
     uint8_t length,
-    bool secure)
+    bool secure,
+    OutboundFrameSource source)
 {
     if (length > WEBHID_REPORT_PAYLOAD_BYTES ||
         (payload == nullptr && length != 0u) ||
@@ -3065,9 +3079,34 @@ bool WebHidService::sendFrame(
         nextTxSequence == 0u ||
         (secure && !sessionEstablished) ||
         (!secure &&
-         type != WEBHID_REPORT_BOOTSTRAP_RESPONSE)) {
+         type != WEBHID_REPORT_BOOTSTRAP_RESPONSE) ||
+        source == OutboundFrameSource::None) {
         return false;
     }
+
+    /*
+     * UsbBoardLink retains a report after a partial STM32->CH585 transfer and
+     * returns true when that retained report is eventually completed. Retrying
+     * with a newly generated report would therefore make the new producer
+     * believe its own bytes were sent. Resume the exact encrypted bytes first
+     * and keep every other producer behind this ownership barrier.
+     */
+    if (pendingFrameSource != OutboundFrameSource::None) {
+        if (pendingFrameSource != source) {
+            return false;
+        }
+        if (!UsbBoardLink_WebConfigSendReport(
+                reinterpret_cast<const uint8_t *>(
+                    g_responseScratch.data()))) {
+            return false;
+        }
+        HBoxCrypto_Zeroize(
+            g_responseScratch.data(), WEBHID_REPORT_BYTES);
+        pendingFrameSource = OutboundFrameSource::None;
+        ++nextTxSequence;
+        return true;
+    }
+
     webhid_secure_report_v1_t report = {};
     report.version = WEBHID_PROTOCOL_VERSION;
     report.type = type;
@@ -3097,6 +3136,8 @@ bool WebHidService::sendFrame(
 
     if (!UsbBoardLink_WebConfigSendReport(
             reinterpret_cast<const uint8_t *>(&report))) {
+        memcpy(g_responseScratch.data(), &report, sizeof(report));
+        pendingFrameSource = source;
         HBoxCrypto_Zeroize(&report, sizeof(report));
         return false;
     }
@@ -3137,15 +3178,15 @@ bool WebHidService::sendResponse(
         cJSON_AddStringToObject(
             root, "errorMessage", message);
     }
-    responseScratch.fill('\0');
+    g_responseScratch.fill('\0');
     const bool encoded = cJSON_PrintPreallocated(
         root,
-        responseScratch.data(),
-        responseScratch.size(),
+        g_responseScratch.data(),
+        g_responseScratch.size(),
         false);
     cJSON_Delete(root);
     const size_t encodedLength = encoded
-        ? strlen(responseScratch.data())
+        ? strlen(g_responseScratch.data())
         : 0u;
     if (!encoded || encodedLength == 0u ||
         encodedLength > kMaximumLogicalBytes) {
@@ -3162,7 +3203,7 @@ bool WebHidService::sendResponse(
     }
     return sendLogical(
         type,
-        reinterpret_cast<const uint8_t *>(responseScratch.data()),
+        reinterpret_cast<const uint8_t *>(g_responseScratch.data()),
         encodedLength,
         secure);
 }
@@ -3250,7 +3291,8 @@ bool WebHidService::pumpLogicalOutput()
                 ? nullptr
                 : fragment.data(),
             fragmentLength,
-            message.secure)) {
+            message.secure,
+            OutboundFrameSource::Logical)) {
         return false;
     }
     message.offset += fragmentLength;
@@ -3335,6 +3377,19 @@ void WebHidService::onAdcButtonTransition(
     if (edgeCount >= kEdgeQueueDepth) {
         /* Preserve the newest edge and report the discontinuity in the next
          * checkpoint instead of invalidating the WebHID session. */
+        if (pendingFrameSource == OutboundFrameSource::Edge) {
+            /* The physical report still owns edgeQueue[edgeHead]. Dropping
+             * that entry would make sendOneEdge() pop a different edge when
+             * the retained report completes, so discard the newest arrival. */
+            telemetryOverflow = true;
+            if (totalDroppedSamples != UINT32_MAX) {
+                ++totalDroppedSamples;
+            }
+            if (droppedSamples != UINT8_MAX) {
+                ++droppedSamples;
+            }
+            return;
+        }
         HBoxCrypto_Zeroize(&edgeQueue[edgeHead], sizeof(PerfEdge));
         edgeHead = (edgeHead + 1u) % kEdgeQueueDepth;
         --edgeCount;
@@ -3383,7 +3438,8 @@ bool WebHidService::sendOneEdge()
             WEBHID_REPORT_FLAG_LAST,
             reinterpret_cast<const uint8_t *>(&edge),
             sizeof(edge),
-            true)) {
+            true,
+            OutboundFrameSource::Edge)) {
         return false;
     }
     HBoxCrypto_Zeroize(&edgeQueue[edgeHead], sizeof(PerfEdge));
@@ -3424,7 +3480,8 @@ bool WebHidService::sendLatestSample(uint32_t timestampUs)
         WEBHID_REPORT_FLAG_LAST,
         reinterpret_cast<const uint8_t *>(&sample),
         sizeof(sample),
-        true);
+        true,
+        OutboundFrameSource::Sample);
     HBoxCrypto_Zeroize(&sample, sizeof(sample));
     if (sent) {
         droppedSamples = 0u;
@@ -3555,7 +3612,8 @@ bool WebHidService::sendCheckpointChunk()
         WEBHID_REPORT_FLAG_LAST,
         reinterpret_cast<const uint8_t *>(&checkpoint),
         sizeof(checkpoint),
-        true);
+        true,
+        OutboundFrameSource::Checkpoint);
     HBoxCrypto_Zeroize(&checkpoint, sizeof(checkpoint));
     if (!sent) {
         return false;
@@ -3588,7 +3646,8 @@ void WebHidService::updateTelemetry()
     if (nextSampleAtMs == 0u) {
         nextSampleAtMs = now;
     }
-    if (static_cast<int32_t>(now - nextSampleAtMs) >= 0) {
+    if (pendingFrameSource != OutboundFrameSource::Sample &&
+        static_cast<int32_t>(now - nextSampleAtMs) >= 0) {
         const uint32_t due =
             ((now - nextSampleAtMs) / sampleInterval) + 1u;
         uint32_t dropped = due - 1u;
@@ -3627,6 +3686,28 @@ void WebHidService::pumpOutput()
     if (!initialized) {
         return;
     }
+    /* A partially transferred physical report owns the sequence space even if
+     * another producer has since become higher priority. Resume its original
+     * producer so that the existing completion bookkeeping stays exact. */
+    switch (pendingFrameSource) {
+    case OutboundFrameSource::Logical:
+        (void)pumpLogicalOutput();
+        return;
+    case OutboundFrameSource::Edge:
+        (void)sendOneEdge();
+        return;
+    case OutboundFrameSource::Sample:
+        if (sendLatestSample(sampleTimestampUs)) {
+            samplePending = false;
+        }
+        return;
+    case OutboundFrameSource::Checkpoint:
+        (void)sendCheckpointChunk();
+        return;
+    case OutboundFrameSource::None:
+        break;
+    }
+
     /* RPC/control output is reliable and owns the sequence space. Optional
      * telemetry may resume only after the complete logical response drains. */
     if (!outboundQueue.empty()) {
@@ -3640,14 +3721,14 @@ void WebHidService::pumpOutput()
         (void)sendOneEdge();
         return;
     }
+    if (checkpointActive) {
+        (void)sendCheckpointChunk();
+        return;
+    }
     if (samplePending) {
         if (sendLatestSample(sampleTimestampUs)) {
             samplePending = false;
         }
-        return;
-    }
-    if (checkpointActive) {
-        (void)sendCheckpointChunk();
         return;
     }
     if (queueOneEvent()) {

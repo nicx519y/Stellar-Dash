@@ -1,0 +1,546 @@
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s 			page 1
+
+
+   1              		.cpu cortex-m7
+   2              		.arch armv7e-m
+   3              		.fpu fpv5-d16
+   4              		.eabi_attribute 28, 1
+   5              		.eabi_attribute 20, 1
+   6              		.eabi_attribute 21, 1
+   7              		.eabi_attribute 23, 3
+   8              		.eabi_attribute 24, 1
+   9              		.eabi_attribute 25, 1
+  10              		.eabi_attribute 26, 1
+  11              		.eabi_attribute 30, 4
+  12              		.eabi_attribute 34, 1
+  13              		.eabi_attribute 18, 4
+  14              		.file	"spi_screen_detail_screen_brightness.cpp"
+  15              		.text
+  16              	.Ltext0:
+  17              		.cfi_sections	.debug_frame
+  18              		.file 1 "Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp"
+  19              		.section	.text._ZN7Storage11getInstanceEv,"axG",%progbits,_ZN7Storage11getInstanceEv,comdat
+  20              		.align	1
+  21              		.weak	_ZN7Storage11getInstanceEv
+  22              		.syntax unified
+  23              		.thumb
+  24              		.thumb_func
+  26              	_ZN7Storage11getInstanceEv:
+  27              	.LFB2152:
+  28              		.file 2 "Cpp_Core/Inc/storagemanager.hpp"
+   1:Cpp_Core/Inc/storagemanager.hpp **** #ifndef _STORAGE_MANAGER_H_
+   2:Cpp_Core/Inc/storagemanager.hpp **** #define _STORAGE_MANAGER_H_
+   3:Cpp_Core/Inc/storagemanager.hpp **** 
+   4:Cpp_Core/Inc/storagemanager.hpp **** #include "config.hpp"
+   5:Cpp_Core/Inc/storagemanager.hpp **** 
+   6:Cpp_Core/Inc/storagemanager.hpp **** // Forward declarations
+   7:Cpp_Core/Inc/storagemanager.hpp **** class ADCValuesCalibrator;
+   8:Cpp_Core/Inc/storagemanager.hpp **** class ADCValuesMarker;
+   9:Cpp_Core/Inc/storagemanager.hpp **** 
+  10:Cpp_Core/Inc/storagemanager.hpp **** class Storage {
+  11:Cpp_Core/Inc/storagemanager.hpp **** public:
+  12:Cpp_Core/Inc/storagemanager.hpp **** 	using DefaultProfileChangedCallback = void (*)(void);
+  13:Cpp_Core/Inc/storagemanager.hpp **** 
+  14:Cpp_Core/Inc/storagemanager.hpp **** 	Storage(Storage const&) = delete;
+  15:Cpp_Core/Inc/storagemanager.hpp **** 	void operator=(Storage const&) = delete;
+  16:Cpp_Core/Inc/storagemanager.hpp **** 	
+  17:Cpp_Core/Inc/storagemanager.hpp **** 	static Storage& getInstance() {
+  29              		.loc 2 17 18 view -0
+  30              		.cfi_startproc
+  31              		@ args = 0, pretend = 0, frame = 0
+  32              		@ frame_needed = 0, uses_anonymous_args = 0
+  18:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+  33              		.loc 2 18 3 view .LVU1
+  17:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+  34              		.loc 2 17 18 is_stmt 0 view .LVU2
+  35 0000 10B5     		push	{r4, lr}
+  36              	.LCFI0:
+  37              		.cfi_def_cfa_offset 8
+  38              		.cfi_offset 4, -8
+  39              		.cfi_offset 14, -4
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s 			page 2
+
+
+  40              		.loc 2 18 18 view .LVU3
+  41 0002 074C     		ldr	r4, .L8
+  42 0004 2368     		ldr	r3, [r4]
+  43 0006 BFF35B8F 		dmb	ish
+  44              		.loc 2 18 18 discriminator 1 view .LVU4
+  45 000a DB07     		lsls	r3, r3, #31
+  46 000c 06D4     		bmi	.L3
+  47              	.LBB13:
+  48              	.LBI13:
+  17:Cpp_Core/Inc/storagemanager.hpp **** 		static Storage instance;
+  49              		.loc 2 17 18 is_stmt 1 view .LVU5
+  50              	.LBB14:
+  51              		.loc 2 18 18 is_stmt 0 discriminator 1 view .LVU6
+  52 000e 2046     		mov	r0, r4
+  53 0010 FFF7FEFF 		bl	__cxa_guard_acquire
+  54              	.LVL0:
+  55 0014 10B1     		cbz	r0, .L3
+  56              	.LVL1:
+  57              	.LBB15:
+  58              	.LBI15:
+  19:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  20:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  21:Cpp_Core/Inc/storagemanager.hpp **** 
+  22:Cpp_Core/Inc/storagemanager.hpp **** 	Config config;
+  23:Cpp_Core/Inc/storagemanager.hpp **** 	
+  24:Cpp_Core/Inc/storagemanager.hpp **** 	void initConfig();
+  25:Cpp_Core/Inc/storagemanager.hpp **** 	bool saveConfig();
+  26:Cpp_Core/Inc/storagemanager.hpp **** 	bool resetConfig();
+  27:Cpp_Core/Inc/storagemanager.hpp **** 	void setInputMode(InputMode inputMode);
+  28:Cpp_Core/Inc/storagemanager.hpp **** 	const InputMode getInputMode() {
+  29:Cpp_Core/Inc/storagemanager.hpp **** 		return config.inputMode;
+  30:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  31:Cpp_Core/Inc/storagemanager.hpp **** 	void setConnectionMode(ConnectionMode mode);
+  32:Cpp_Core/Inc/storagemanager.hpp **** 	ConnectionMode getConnectionMode() const {
+  33:Cpp_Core/Inc/storagemanager.hpp **** 		return config.connectionMode;
+  34:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  35:Cpp_Core/Inc/storagemanager.hpp **** 	void setWirelessReportRate(WirelessReportRate rate);
+  36:Cpp_Core/Inc/storagemanager.hpp **** 	WirelessReportRate getWirelessReportRate() const {
+  37:Cpp_Core/Inc/storagemanager.hpp **** 		return config.wirelessReportRate;
+  38:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  39:Cpp_Core/Inc/storagemanager.hpp **** 	uint32_t getWakeHoldMs() const {
+  40:Cpp_Core/Inc/storagemanager.hpp **** 		return config.power.wakeHoldMs;
+  41:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  42:Cpp_Core/Inc/storagemanager.hpp **** 	uint32_t getAutoStandbyMs() const {
+  43:Cpp_Core/Inc/storagemanager.hpp **** 		return config.power.autoStandbyMs;
+  44:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  45:Cpp_Core/Inc/storagemanager.hpp **** 	void setRfPowerStateHint(uint8_t hint);
+  46:Cpp_Core/Inc/storagemanager.hpp **** 	uint8_t getRfPowerStateHint() const {
+  47:Cpp_Core/Inc/storagemanager.hpp **** 		return config.reservedConnection0;
+  48:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  49:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadProfile* getGamepadProfile(char* id);
+  50:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadProfile* getDefaultGamepadProfile() {
+  51:Cpp_Core/Inc/storagemanager.hpp **** 		return getGamepadProfile(config.defaultProfileId);
+  52:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  53:Cpp_Core/Inc/storagemanager.hpp **** 	bool setDefaultProfileId(const char* id);
+  54:Cpp_Core/Inc/storagemanager.hpp **** 	void registerDefaultProfileChangedCallback(DefaultProfileChangedCallback cb);
+  55:Cpp_Core/Inc/storagemanager.hpp **** 	GamepadHotkeyEntry* getGamepadHotkeyEntry() {
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s 			page 3
+
+
+  56:Cpp_Core/Inc/storagemanager.hpp **** 		return config.hotkeys;
+  57:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  58:Cpp_Core/Inc/storagemanager.hpp **** 
+  59:Cpp_Core/Inc/storagemanager.hpp **** 	void setBootMode(BootMode bootMode);
+  60:Cpp_Core/Inc/storagemanager.hpp **** 	BootMode getBootMode() {
+  61:Cpp_Core/Inc/storagemanager.hpp **** 		return config.bootMode;
+  62:Cpp_Core/Inc/storagemanager.hpp **** 	}
+  63:Cpp_Core/Inc/storagemanager.hpp **** 
+  64:Cpp_Core/Inc/storagemanager.hpp **** private:
+  65:Cpp_Core/Inc/storagemanager.hpp **** 	Storage() {}  // 私有构造函数
+  59              		.loc 2 65 2 is_stmt 1 view .LVU7
+  60              		.loc 2 65 2 is_stmt 0 view .LVU8
+  61              	.LBE15:
+  18:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  62              		.loc 2 18 18 discriminator 1 view .LVU9
+  63 0016 2046     		mov	r0, r4
+  64 0018 FFF7FEFF 		bl	__cxa_guard_release
+  65              	.LVL2:
+  66              	.L3:
+  67              	.LBE14:
+  68              	.LBE13:
+  19:Cpp_Core/Inc/storagemanager.hpp **** 		return instance;
+  69              		.loc 2 19 3 is_stmt 1 view .LVU10
+  20:Cpp_Core/Inc/storagemanager.hpp **** 
+  70              		.loc 2 20 2 is_stmt 0 view .LVU11
+  71 001c 0148     		ldr	r0, .L8+4
+  72 001e 10BD     		pop	{r4, pc}
+  73              	.L9:
+  74              		.align	2
+  75              	.L8:
+  76 0020 00000000 		.word	_ZGVZN7Storage11getInstanceEvE8instance
+  77 0024 00000000 		.word	_ZZN7Storage11getInstanceEvE8instance
+  78              		.cfi_endproc
+  79              	.LFE2152:
+  81              		.section	.text._Z38ScreenDetailScreenBrightness_InitIndexv,"ax",%progbits
+  82              		.align	1
+  83              		.global	_Z38ScreenDetailScreenBrightness_InitIndexv
+  84              		.syntax unified
+  85              		.thumb
+  86              		.thumb_func
+  88              	_Z38ScreenDetailScreenBrightness_InitIndexv:
+  89              	.LFB2166:
+   1:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** #include "screen_control/spi_screen_detail_entries.hpp"
+   2:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** 
+   3:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** #include "storagemanager.hpp"
+   4:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** #include "screen_control/spi_screen_detail_render_helpers.hpp"
+   5:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** 
+   6:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** static uint8_t clamp_u8_i32(int32_t v, uint8_t lo, uint8_t hi) {
+   7:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     if (v < (int32_t)lo) return lo;
+   8:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     if (v > (int32_t)hi) return hi;
+   9:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     return (uint8_t)v;
+  10:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** }
+  11:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** 
+  12:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** uint8_t ScreenDetailScreenBrightness_InitIndex(void) {
+  90              		.loc 1 12 54 is_stmt 1 view -0
+  91              		.cfi_startproc
+  92              		@ args = 0, pretend = 0, frame = 0
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s 			page 4
+
+
+  93              		@ frame_needed = 0, uses_anonymous_args = 0
+  13:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     return STORAGE_MANAGER.config.screenControl.brightness;
+  94              		.loc 1 13 5 view .LVU13
+  12:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     return STORAGE_MANAGER.config.screenControl.brightness;
+  95              		.loc 1 12 54 is_stmt 0 view .LVU14
+  96 0000 08B5     		push	{r3, lr}
+  97              	.LCFI1:
+  98              		.cfi_def_cfa_offset 8
+  99              		.cfi_offset 3, -8
+ 100              		.cfi_offset 14, -4
+ 101              		.loc 1 13 12 view .LVU15
+ 102 0002 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 103              	.LVL3:
+ 104              		.loc 1 13 49 discriminator 1 view .LVU16
+ 105 0006 00F50040 		add	r0, r0, #32768
+  14:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** }
+ 106              		.loc 1 14 1 view .LVU17
+ 107 000a 90F8380E 		ldrb	r0, [r0, #3640]	@ zero_extendqisi2
+ 108 000e 08BD     		pop	{r3, pc}
+ 109              		.cfi_endproc
+ 110              	.LFE2166:
+ 112              		.section	.text._Z35ScreenDetailScreenBrightness_RotatePha,"ax",%progbits
+ 113              		.align	1
+ 114              		.global	_Z35ScreenDetailScreenBrightness_RotatePha
+ 115              		.syntax unified
+ 116              		.thumb
+ 117              		.thumb_func
+ 119              	_Z35ScreenDetailScreenBrightness_RotatePha:
+ 120              	.LVL4:
+ 121              	.LFB2167:
+  15:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** 
+  16:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** void ScreenDetailScreenBrightness_Rotate(uint8_t* ioIndex, int8_t det) {
+ 122              		.loc 1 16 72 is_stmt 1 view -0
+ 123              		.cfi_startproc
+ 124              		@ args = 0, pretend = 0, frame = 0
+ 125              		@ frame_needed = 0, uses_anonymous_args = 0
+  17:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     if (!ioIndex) return;
+ 126              		.loc 1 17 5 view .LVU19
+  16:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     if (!ioIndex) return;
+ 127              		.loc 1 16 72 is_stmt 0 view .LVU20
+ 128 0000 10B5     		push	{r4, lr}
+ 129              	.LCFI2:
+ 130              		.cfi_def_cfa_offset 8
+ 131              		.cfi_offset 4, -8
+ 132              		.cfi_offset 14, -4
+ 133              		.loc 1 17 5 view .LVU21
+ 134 0002 D8B1     		cbz	r0, .L11
+  18:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     uint8_t prev = *ioIndex;
+ 135              		.loc 1 18 5 is_stmt 1 view .LVU22
+ 136              		.loc 1 18 13 is_stmt 0 view .LVU23
+ 137 0004 0378     		ldrb	r3, [r0]	@ zero_extendqisi2
+ 138              	.LVL5:
+  19:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     int32_t next = (int32_t)(*ioIndex) + (int32_t)det * SPI_SCREEN_SLIDER_STEP;
+ 139              		.loc 1 19 5 is_stmt 1 view .LVU24
+ 140              		.loc 1 19 40 is_stmt 0 view .LVU25
+ 141 0006 0A24     		movs	r4, #10
+ 142 0008 14FB0134 		smlabb	r4, r4, r1, r3
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s 			page 5
+
+
+ 143              	.LVL6:
+  20:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     *ioIndex = clamp_u8_i32(next, 0, 100);
+ 144              		.loc 1 20 5 is_stmt 1 view .LVU26
+ 145              	.LBB16:
+ 146              	.LBI16:
+   6:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     if (v < (int32_t)lo) return lo;
+ 147              		.loc 1 6 16 view .LVU27
+ 148              	.LBB17:
+   7:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     if (v > (int32_t)hi) return hi;
+ 149              		.loc 1 7 5 view .LVU28
+ 150 000c 002C     		cmp	r4, #0
+ 151 000e 11DB     		blt	.L16
+   8:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     return (uint8_t)v;
+ 152              		.loc 1 8 5 view .LVU29
+ 153 0010 642C     		cmp	r4, #100
+ 154 0012 11DC     		bgt	.L17
+   9:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** }
+ 155              		.loc 1 9 5 view .LVU30
+   9:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** }
+ 156              		.loc 1 9 21 is_stmt 0 view .LVU31
+ 157 0014 E4B2     		uxtb	r4, r4
+ 158              	.LVL7:
+ 159              	.L14:
+   9:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** }
+ 160              		.loc 1 9 21 view .LVU32
+ 161              	.LBE17:
+ 162              	.LBE16:
+  21:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     if (*ioIndex == prev) return;
+ 163              		.loc 1 21 5 view .LVU33
+ 164 0016 A342     		cmp	r3, r4
+  20:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     if (*ioIndex == prev) return;
+ 165              		.loc 1 20 14 discriminator 1 view .LVU34
+ 166 0018 0470     		strb	r4, [r0]
+ 167              		.loc 1 21 5 is_stmt 1 view .LVU35
+ 168 001a 0FD0     		beq	.L11
+  22:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     STORAGE_MANAGER.config.screenControl.brightness = *ioIndex;
+ 169              		.loc 1 22 5 view .LVU36
+ 170 001c FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 171              	.LVL8:
+ 172              		.loc 1 22 53 is_stmt 0 discriminator 1 view .LVU37
+ 173 0020 00F50040 		add	r0, r0, #32768
+ 174 0024 80F8384E 		strb	r4, [r0, #3640]
+  23:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     ScreenUI_RequestDeferredSave(2000u);
+ 175              		.loc 1 23 5 is_stmt 1 view .LVU38
+ 176              		.loc 1 23 33 is_stmt 0 view .LVU39
+ 177 0028 4FF4FA60 		mov	r0, #2000
+  24:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** }
+ 178              		.loc 1 24 1 view .LVU40
+ 179 002c BDE81040 		pop	{r4, lr}
+ 180              	.LCFI3:
+ 181              		.cfi_remember_state
+ 182              		.cfi_restore 14
+ 183              		.cfi_restore 4
+ 184              		.cfi_def_cfa_offset 0
+  23:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     ScreenUI_RequestDeferredSave(2000u);
+ 185              		.loc 1 23 33 view .LVU41
+ 186 0030 FFF7FEBF 		b	_Z28ScreenUI_RequestDeferredSavem
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s 			page 6
+
+
+ 187              	.LVL9:
+ 188              	.L16:
+ 189              	.LCFI4:
+ 190              		.cfi_restore_state
+ 191              	.LBB19:
+ 192              	.LBB18:
+   7:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     if (v > (int32_t)hi) return hi;
+ 193              		.loc 1 7 33 discriminator 1 view .LVU42
+ 194 0034 0024     		movs	r4, #0
+ 195              	.LVL10:
+   7:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     if (v > (int32_t)hi) return hi;
+ 196              		.loc 1 7 33 discriminator 1 view .LVU43
+ 197 0036 EEE7     		b	.L14
+ 198              	.LVL11:
+ 199              	.L17:
+   8:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     return (uint8_t)v;
+ 200              		.loc 1 8 33 discriminator 1 view .LVU44
+ 201 0038 6424     		movs	r4, #100
+ 202              	.LVL12:
+   8:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     return (uint8_t)v;
+ 203              		.loc 1 8 33 discriminator 1 view .LVU45
+ 204 003a ECE7     		b	.L14
+ 205              	.LVL13:
+ 206              	.L11:
+   8:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     return (uint8_t)v;
+ 207              		.loc 1 8 33 discriminator 1 view .LVU46
+ 208              	.LBE18:
+ 209              	.LBE19:
+ 210              		.loc 1 24 1 view .LVU47
+ 211 003c 10BD     		pop	{r4, pc}
+ 212              		.cfi_endproc
+ 213              	.LFE2167:
+ 215              		.section	.rodata._Z35ScreenDetailScreenBrightness_RenderP13ST7789_HandlehRK13ScreenUiStyle.str1.1,
+ 216              	.LC0:
+ 217 0000 53637265 		.ascii	"Screen Brightness\000"
+ 217      656E2042 
+ 217      72696768 
+ 217      746E6573 
+ 217      7300
+ 218              		.section	.text._Z35ScreenDetailScreenBrightness_RenderP13ST7789_HandlehRK13ScreenUiStyle,"ax",%pro
+ 219              		.align	1
+ 220              		.global	_Z35ScreenDetailScreenBrightness_RenderP13ST7789_HandlehRK13ScreenUiStyle
+ 221              		.syntax unified
+ 222              		.thumb
+ 223              		.thumb_func
+ 225              	_Z35ScreenDetailScreenBrightness_RenderP13ST7789_HandlehRK13ScreenUiStyle:
+ 226              	.LVL14:
+ 227              	.LFB2168:
+  25:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** 
+  26:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** void ScreenDetailScreenBrightness_Render(ST7789_Handle* lcd, uint8_t index, const ScreenUiStyle& st
+ 228              		.loc 1 26 105 is_stmt 1 view -0
+ 229              		.cfi_startproc
+ 230              		@ args = 0, pretend = 0, frame = 0
+ 231              		@ frame_needed = 0, uses_anonymous_args = 0
+ 232              		@ link register save eliminated.
+  27:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     ScreenDetailRender_Slider(lcd, "Screen Brightness", index, style);
+ 233              		.loc 1 27 5 view .LVU49
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s 			page 7
+
+
+  26:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     ScreenDetailRender_Slider(lcd, "Screen Brightness", index, style);
+ 234              		.loc 1 26 105 is_stmt 0 view .LVU50
+ 235 0000 1346     		mov	r3, r2
+ 236              		.loc 1 27 30 view .LVU51
+ 237 0002 0A46     		mov	r2, r1
+ 238              	.LVL15:
+ 239              		.loc 1 27 30 view .LVU52
+ 240 0004 0149     		ldr	r1, .L19
+ 241              	.LVL16:
+ 242              		.loc 1 27 30 view .LVU53
+ 243 0006 FFF7FEBF 		b	_Z25ScreenDetailRender_SliderP13ST7789_HandlePKchRK13ScreenUiStyle
+ 244              	.LVL17:
+ 245              	.L20:
+ 246              		.loc 1 27 30 view .LVU54
+ 247 000a 00BF     		.align	2
+ 248              	.L19:
+ 249 000c 00000000 		.word	.LC0
+ 250              		.cfi_endproc
+ 251              	.LFE2168:
+ 253              		.section	.text._Z38ScreenDetailScreenBrightness_OnConfirmh,"ax",%progbits
+ 254              		.align	1
+ 255              		.global	_Z38ScreenDetailScreenBrightness_OnConfirmh
+ 256              		.syntax unified
+ 257              		.thumb
+ 258              		.thumb_func
+ 260              	_Z38ScreenDetailScreenBrightness_OnConfirmh:
+ 261              	.LVL18:
+ 262              	.LFB2169:
+  28:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** }
+  29:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** 
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** void ScreenDetailScreenBrightness_OnConfirm(uint8_t index) {
+ 263              		.loc 1 30 60 is_stmt 1 view -0
+ 264              		.cfi_startproc
+ 265              		@ args = 0, pretend = 0, frame = 0
+ 266              		@ frame_needed = 0, uses_anonymous_args = 0
+  31:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     uint8_t current = STORAGE_MANAGER.config.screenControl.brightness;
+ 267              		.loc 1 31 5 view .LVU56
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     uint8_t current = STORAGE_MANAGER.config.screenControl.brightness;
+ 268              		.loc 1 30 60 is_stmt 0 view .LVU57
+ 269 0000 10B5     		push	{r4, lr}
+ 270              	.LCFI5:
+ 271              		.cfi_def_cfa_offset 8
+ 272              		.cfi_offset 4, -8
+ 273              		.cfi_offset 14, -4
+  30:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     uint8_t current = STORAGE_MANAGER.config.screenControl.brightness;
+ 274              		.loc 1 30 60 view .LVU58
+ 275 0002 0446     		mov	r4, r0
+ 276              		.loc 1 31 23 view .LVU59
+ 277 0004 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 278              	.LVL19:
+ 279              		.loc 1 31 60 discriminator 1 view .LVU60
+ 280 0008 00F50040 		add	r0, r0, #32768
+  32:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     uint8_t restore = index;
+  33:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     if (restore == 0) restore = 50;
+ 281              		.loc 1 33 31 discriminator 1 view .LVU61
+ 282 000c 002C     		cmp	r4, #0
+  31:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     uint8_t restore = index;
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s 			page 8
+
+
+ 283              		.loc 1 31 60 discriminator 1 view .LVU62
+ 284 000e 90F8383E 		ldrb	r3, [r0, #3640]	@ zero_extendqisi2
+ 285              	.LVL20:
+  32:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     uint8_t restore = index;
+ 286              		.loc 1 32 5 is_stmt 1 view .LVU63
+ 287              		.loc 1 33 5 view .LVU64
+ 288              		.loc 1 33 31 is_stmt 0 discriminator 1 view .LVU65
+ 289 0012 08BF     		it	eq
+ 290 0014 3224     		moveq	r4, #50
+ 291              	.LVL21:
+  34:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     if (current > 0) STORAGE_MANAGER.config.screenControl.brightness = 0;
+ 292              		.loc 1 34 5 is_stmt 1 view .LVU66
+ 293 0016 63B1     		cbz	r3, .L23
+ 294              		.loc 1 34 22 discriminator 1 view .LVU67
+ 295 0018 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 296              	.LVL22:
+ 297              		.loc 1 34 70 is_stmt 0 discriminator 1 view .LVU68
+ 298 001c 0023     		movs	r3, #0
+ 299 001e 00F50040 		add	r0, r0, #32768
+ 300 0022 80F8383E 		strb	r3, [r0, #3640]
+ 301              	.L24:
+  35:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     else STORAGE_MANAGER.config.screenControl.brightness = restore;
+  36:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     ScreenUI_RequestDeferredSave(2000u);
+ 302              		.loc 1 36 5 is_stmt 1 view .LVU69
+ 303              		.loc 1 36 33 is_stmt 0 view .LVU70
+ 304 0026 4FF4FA60 		mov	r0, #2000
+  37:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** }
+ 305              		.loc 1 37 1 view .LVU71
+ 306 002a BDE81040 		pop	{r4, lr}
+ 307              	.LCFI6:
+ 308              		.cfi_remember_state
+ 309              		.cfi_restore 14
+ 310              		.cfi_restore 4
+ 311              		.cfi_def_cfa_offset 0
+ 312              	.LVL23:
+  36:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp **** }
+ 313              		.loc 1 36 33 view .LVU72
+ 314 002e FFF7FEBF 		b	_Z28ScreenUI_RequestDeferredSavem
+ 315              	.LVL24:
+ 316              	.L23:
+ 317              	.LCFI7:
+ 318              		.cfi_restore_state
+  35:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     else STORAGE_MANAGER.config.screenControl.brightness = restore;
+ 319              		.loc 1 35 10 is_stmt 1 view .LVU73
+ 320 0032 FFF7FEFF 		bl	_ZN7Storage11getInstanceEv
+ 321              	.LVL25:
+  35:Cpp_Core/Src/screen_control/spi_screen_detail_screen_brightness.cpp ****     else STORAGE_MANAGER.config.screenControl.brightness = restore;
+ 322              		.loc 1 35 58 is_stmt 0 discriminator 1 view .LVU74
+ 323 0036 00F50040 		add	r0, r0, #32768
+ 324 003a 80F8384E 		strb	r4, [r0, #3640]
+ 325 003e F2E7     		b	.L24
+ 326              		.cfi_endproc
+ 327              	.LFE2169:
+ 329              		.weak	_ZGVZN7Storage11getInstanceEvE8instance
+ 330              		.section	.bss._ZGVZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZGVZN7Storage11getInstanceEvE
+ 331              		.align	2
+ 334              	_ZGVZN7Storage11getInstanceEvE8instance:
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s 			page 9
+
+
+ 335 0000 00000000 		.space	4
+ 336              		.weak	_ZZN7Storage11getInstanceEvE8instance
+ 337              		.section	.bss._ZZN7Storage11getInstanceEvE8instance,"awG",%nobits,_ZZN7Storage11getInstanceEvE8ins
+ 338              		.align	2
+ 341              	_ZZN7Storage11getInstanceEvE8instance:
+ 342 0000 00000000 		.space	36484
+ 342      00000000 
+ 342      00000000 
+ 342      00000000 
+ 342      00000000 
+ 343              		.text
+ 344              	.Letext0:
+ 345              		.file 3 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/machine/_default_types.h"
+ 346              		.file 4 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/sys/_stdint.h"
+ 347              		.file 5 "Cpp_Core/Inc/screen_control/spi_screen_layout.hpp"
+ 348              		.file 6 "Drivers/CMSIS/Device/ST/STM32H7xx/Include/stm32h750xx.h"
+ 349              		.file 7 "D:/Program Files/msys64/mingw64/lib/gcc/arm-none-eabi/13.3.0/include/stddef.h"
+ 350              		.file 8 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cmath"
+ 351              		.file 9 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/type_traits"
+ 352              		.file 10 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/debug/debug.h"
+ 353              		.file 11 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/std_abs.h"
+ 354              		.file 12 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/cstddef"
+ 355              		.file 13 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/arm-none-eabi/thumb/v7e
+ 356              		.file 14 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/predefined_ops.h"
+ 357              		.file 15 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/math.h"
+ 358              		.file 16 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/math.h"
+ 359              		.file 17 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_def.h"
+ 360              		.file 18 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_dma.h"
+ 361              		.file 19 "Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h"
+ 362              		.file 20 "Core/Inc/board_cfg.h"
+ 363              		.file 21 "Cpp_Core/Inc/enums.hpp"
+ 364              		.file 22 "Drivers/SPI-ST7789/st7789.h"
+ 365              		.file 23 "Cpp_Core/Inc/config.hpp"
+ 366              		.file 24 "Cpp_Core/Inc/screen_control/spi_screen_detail_render_helpers.hpp"
+ 367              		.file 25 "Cpp_Core/Inc/screen_control/spi_screen_detail_entries.hpp"
+ 368              		.file 26 "D:/Program Files/msys64/mingw64/arm-none-eabi/include/c++/13.3.0/bits/memory_resource.h"
+ARM GAS  C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s 			page 10
+
+
+DEFINED SYMBOLS
+                            *ABS*:00000000 spi_screen_detail_screen_brightness.cpp
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:20     .text._ZN7Storage11getInstanceEv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:26     .text._ZN7Storage11getInstanceEv:00000000 _ZN7Storage11getInstanceEv
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:76     .text._ZN7Storage11getInstanceEv:00000020 $d
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:334    .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 _ZGVZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:341    .bss._ZZN7Storage11getInstanceEvE8instance:00000000 _ZZN7Storage11getInstanceEvE8instance
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:82     .text._Z38ScreenDetailScreenBrightness_InitIndexv:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:88     .text._Z38ScreenDetailScreenBrightness_InitIndexv:00000000 _Z38ScreenDetailScreenBrightness_InitIndexv
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:113    .text._Z35ScreenDetailScreenBrightness_RotatePha:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:119    .text._Z35ScreenDetailScreenBrightness_RotatePha:00000000 _Z35ScreenDetailScreenBrightness_RotatePha
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:219    .text._Z35ScreenDetailScreenBrightness_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:225    .text._Z35ScreenDetailScreenBrightness_RenderP13ST7789_HandlehRK13ScreenUiStyle:00000000 _Z35ScreenDetailScreenBrightness_RenderP13ST7789_HandlehRK13ScreenUiStyle
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:249    .text._Z35ScreenDetailScreenBrightness_RenderP13ST7789_HandlehRK13ScreenUiStyle:0000000c $d
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:254    .text._Z38ScreenDetailScreenBrightness_OnConfirmh:00000000 $t
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:260    .text._Z38ScreenDetailScreenBrightness_OnConfirmh:00000000 _Z38ScreenDetailScreenBrightness_OnConfirmh
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:331    .bss._ZGVZN7Storage11getInstanceEvE8instance:00000000 $d
+C:\Users\nicx5\AppData\Local\Temp\cc6l2BD9.s:338    .bss._ZZN7Storage11getInstanceEvE8instance:00000000 $d
+
+UNDEFINED SYMBOLS
+__cxa_guard_acquire
+__cxa_guard_release
+_Z28ScreenUI_RequestDeferredSavem
+_Z25ScreenDetailRender_SliderP13ST7789_HandlePKchRK13ScreenUiStyle
