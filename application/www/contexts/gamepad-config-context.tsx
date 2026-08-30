@@ -15,7 +15,14 @@ import {
     ScreenControlConfig,
     DEFAULT_SCREEN_CONTROL_CONFIG
 } from '@/types/gamepad-config';
-import { StepInfo, ADCValuesMapping } from '@/types/adc';
+import {
+    StepInfo,
+    ADCValuesMapping,
+    SwitchMappingCatalogDetail,
+    SwitchMappingCatalogItem,
+    SwitchMappingPayload,
+    switchMappingSha256,
+} from '@/types/adc';
 import {
     ButtonStates,
     CalibrationStatus,
@@ -160,6 +167,8 @@ interface GamepadConfigContextType {
     markingStatus: StepInfo;
     mappingList: { id: string, name: string }[];
     activeMapping: ADCValuesMapping | null;
+    mappingStorageMode: string | null;
+    mappingSource: 'server-installed' | 'factory-fallback' | null;
     fetchMappingList: () => Promise<void>;
     fetchDefaultMapping: () => Promise<void>;
     fetchActiveMapping: (id: string) => Promise<void>;
@@ -169,8 +178,37 @@ interface GamepadConfigContextType {
     startMarking: (id: string) => Promise<void>;
     stopMarking: () => Promise<void>;
     stepMarking: () => Promise<void>;
+    syncMarkingProgress: () => Promise<void>;
     fetchMarkingStatus: () => Promise<void>;
     renameMapping: (id: string, name: string) => Promise<void>;
+    fetchSwitchMappingCatalog: (includeDrafts?: boolean) => Promise<SwitchMappingCatalogItem[]>;
+    fetchSwitchMappingDetail: (catalogId: string, admin?: boolean) => Promise<SwitchMappingCatalogDetail>;
+    fetchSwitchMappingImage: (catalogId: string, admin?: boolean) => Promise<Blob | null>;
+    uploadSwitchMappingImage: (catalogId: string, image: File) => Promise<void>;
+    updateSwitchMappingMetadata: (catalogId: string, displayName: string, description: string) => Promise<void>;
+    updateSwitchMappingCurve: (
+        catalogId: string,
+        mapping: SwitchMappingPayload,
+    ) => Promise<SwitchMappingCatalogDetail>;
+    deleteSwitchMapping: (catalogId: string) => Promise<void>;
+    installSwitchMapping: (
+        catalogId: string,
+        prefetchedDetail?: SwitchMappingCatalogDetail,
+    ) => Promise<SwitchMappingPayload>;
+    clearInstalledSwitchMapping: (mappingId: string) => Promise<ADCValuesMapping>;
+    createSwitchMappingFromCurrent: (input: {
+        displayName: string;
+        description: string;
+        length: number;
+        step: number;
+        image?: File | null;
+    }) => Promise<SwitchMappingCatalogDetail>;
+    beginMappingDraft: (name: string, length: number, step: number) => Promise<void>;
+    publishMappingDraft: (input: {
+        catalogId?: string;
+        displayName: string;
+        description: string;
+    }) => Promise<SwitchMappingCatalogDetail>;
     // 按键监控相关
     buttonMonitoringActive: boolean;
     startButtonMonitoring: () => Promise<SharedButtonMonitorLeaseToken>;
@@ -220,7 +258,7 @@ interface GamepadConfigContextType {
     exportAllConfig: () => Promise<any>;
 
     // 导入所有配置
-    importAllConfig: (configData: any) => Promise<void>;
+    importAllConfig: (configData: any) => Promise<{ warnings: string[] }>;
 
     // 获取Hitbox布局
     getHitboxLayout: () => Promise<HitboxLayoutItem[]>;
@@ -390,6 +428,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
 
     const [defaultMappingId, setDefaultMappingId] = useState<string>("");
     const [mappingList, setMappingList] = useState<{ id: string, name: string }[]>([]);
+    const [mappingStorageMode, setMappingStorageMode] = useState<string | null>(null);
+    const [mappingSource, setMappingSource] = useState<'server-installed' | 'factory-fallback' | null>(null);
     const [markingStatus, setMarkingStatus] = useState<StepInfo>(makeEmptyMarkingStatus);
     const [activeMapping, setActiveMapping] = useState<ADCValuesMapping | null>(null);
     const [calibrationStatus, setCalibrationStatus] = useState<CalibrationStatus>(makeEmptyCalibrationStatus);
@@ -1226,14 +1266,14 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         return deviceClient.exportConfig();
     };
 
-    const importAllConfig = async (configData: any): Promise<void> => {
+    const importAllConfig = async (configData: any): Promise<{ warnings: string[] }> => {
         try {
             setIsLoading(true);
             if (!deviceClient) throw new Error('设备命令客户端未初始化');
-            await deviceClient.importConfig(configData);
+            const result = await deviceClient.importConfig(configData);
             
             setError(null);
-            return Promise.resolve();
+            return result;
         } catch (err) {
             console.error("[Import] Error:", err);
             setError(err instanceof Error ? err.message : 'An error occurred during import');
@@ -1352,6 +1392,14 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (data && 'mappingList' in data && 'defaultMappingId' in data) {
                 setMappingList(data.mappingList as { id: string, name: string }[]);
                 setDefaultMappingId(data.defaultMappingId as string);
+                setMappingStorageMode(
+                    typeof data.storageMode === 'string' ? data.storageMode : null,
+                );
+                setMappingSource(
+                    data.source === 'server-installed' || data.source === 'factory-fallback'
+                        ? data.source
+                        : null,
+                );
             }
             setError(null);
             return Promise.resolve();
@@ -1386,6 +1434,12 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (data && 'mappingList' in data && 'defaultMappingId' in data) {
                 setMappingList(data.mappingList as { id: string, name: string }[]);
                 setDefaultMappingId(data.defaultMappingId as string);
+                setMappingStorageMode(typeof data.storageMode === 'string' ? data.storageMode : null);
+                setMappingSource(
+                    data.source === 'server-installed' || data.source === 'factory-fallback'
+                        ? data.source
+                        : null,
+                );
             }
             const createdMappingId = typeof data?.createdMappingId === 'string'
                 ? data.createdMappingId
@@ -1459,9 +1513,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const stopMarking = async (immediate: boolean = true): Promise<void> => {
         try {
             setIsLoading(true);
+            const stoppedMappingId = markingStatus.id;
             const data = await sendDeviceRequest('ms_mark_mapping_stop', {}, immediate);
             if (data.status) {
                 setMarkingStatus(data.status);
+            }
+            if (stoppedMappingId && stoppedMappingId !== 'draft') {
+                await fetchActiveMapping(stoppedMappingId, immediate);
             }
             setError(null);
             return Promise.resolve();
@@ -1480,7 +1538,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             if (data.status) {
                 const status = data.status as StepInfo;
                 setMarkingStatus(status);
-                if (status.is_completed && status.id) {
+                if (status.is_completed && status.id && status.id !== 'draft') {
                     await fetchActiveMapping(status.id, immediate);
                 }
             }
@@ -1504,6 +1562,13 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');
             throw new Error("Failed to fetch marking status");
+        }
+    };
+
+    const syncMarkingProgress = async (): Promise<void> => {
+        const data = await sendDeviceRequest('ms_mark_mapping_sync', {}, true);
+        if (data?.status) {
+            setMarkingStatus(data.status as StepInfo);
         }
     };
 
@@ -1537,6 +1602,293 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const readSwitchMappingEnvelope = async <T,>(response: Response): Promise<T> => {
+        const envelope = await response.json() as {
+            success?: boolean;
+            data?: T;
+            message?: string;
+            error?: string;
+        };
+        if (!response.ok || envelope.success !== true || envelope.data === undefined) {
+            throw new Error(envelope.message || envelope.error || `HTTP ${response.status}`);
+        }
+        return envelope.data;
+    };
+
+    const fetchSwitchMappingResponse = async (
+        input: RequestInfo | URL,
+        init: RequestInit = {},
+    ): Promise<Response> => {
+        if (!deviceClient) throw new Error('设备命令客户端未初始化');
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10_000);
+        try {
+            return await deviceClient.authorizedFetch(
+                input,
+                { ...init, signal: controller.signal },
+                ['config.read'],
+            );
+        } catch (error) {
+            if (controller.signal.aborted) {
+                throw new Error('服务器映射请求超时');
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeout);
+        }
+    };
+
+    const fetchSwitchMappingCatalog = async (
+        includeDrafts: boolean = false,
+    ): Promise<SwitchMappingCatalogItem[]> => {
+        const response = await fetchSwitchMappingResponse(
+            includeDrafts
+                ? '/api/admin/switch-mappings-compatible'
+                : '/api/switch-mappings',
+            { cache: 'no-store' },
+        );
+        const data = await readSwitchMappingEnvelope<{ items: SwitchMappingCatalogItem[] }>(response);
+        return Array.isArray(data.items) ? data.items : [];
+    };
+
+    const fetchSwitchMappingDetail = async (
+        catalogId: string,
+        admin: boolean = false,
+    ): Promise<SwitchMappingCatalogDetail> => {
+        const response = await fetchSwitchMappingResponse(
+            `${admin ? '/api/admin' : '/api'}/switch-mappings/${encodeURIComponent(catalogId)}`,
+            { cache: 'no-store' },
+        );
+        const detail = await readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(response);
+        if (!detail.revision?.mapping || detail.revision.mapping.id !== detail.revision.revisionId ||
+            await switchMappingSha256(detail.revision.mapping) !== detail.revision.sha256?.toLowerCase()) {
+            throw new Error('服务器返回的映射结构或 SHA-256 无效');
+        }
+        return detail;
+    };
+
+    const fetchSwitchMappingImage = async (
+        catalogId: string,
+        admin: boolean = false,
+    ): Promise<Blob | null> => {
+        const response = await fetchSwitchMappingResponse(
+            `${admin ? '/api/admin' : '/api'}/switch-mappings/` +
+            `${encodeURIComponent(catalogId)}/image`,
+            { cache: 'no-store' },
+        );
+        if (response.status === 404) return null;
+        if (!response.ok) {
+            throw new Error(`轴体图片下载失败: HTTP ${response.status}`);
+        }
+        const image = await response.blob();
+        return image.type.startsWith('image/') ? image : null;
+    };
+
+    const uploadSwitchMappingImage = async (
+        catalogId: string,
+        image: File,
+    ): Promise<void> => {
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(image.type) ||
+            image.size < 12 || image.size > 2 * 1024 * 1024) {
+            throw new Error('轴体图片必须是 2 MiB 以内的 JPEG、PNG 或 WebP');
+        }
+        const response = await fetchSwitchMappingResponse(
+            `/api/admin/switch-mappings/${encodeURIComponent(catalogId)}/image`,
+            {
+                method: 'PUT',
+                headers: { 'Content-Type': image.type },
+                body: image,
+            },
+        );
+        await readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(response);
+    };
+
+    const updateSwitchMappingMetadata = async (
+        catalogId: string,
+        displayName: string,
+        description: string,
+    ): Promise<void> => {
+        const response = await fetchSwitchMappingResponse(
+            `/api/admin/switch-mappings/${encodeURIComponent(catalogId)}`,
+            {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ displayName, description }),
+            },
+        );
+        await readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(response);
+    };
+
+    const updateSwitchMappingCurve = async (
+        catalogId: string,
+        mapping: SwitchMappingPayload,
+    ): Promise<SwitchMappingCatalogDetail> => {
+        const response = await fetchSwitchMappingResponse(
+            `/api/admin/switch-mappings/${encodeURIComponent(catalogId)}/mapping`,
+            {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mapping }),
+            },
+        );
+        return readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(response);
+    };
+
+    const deleteSwitchMapping = async (catalogId: string): Promise<void> => {
+        const response = await fetchSwitchMappingResponse(
+            `/api/admin/switch-mappings/${encodeURIComponent(catalogId)}`,
+            { method: 'DELETE' },
+        );
+        await readSwitchMappingEnvelope<{
+            catalogId: string;
+            deletedRevisionIds: string[];
+            deleted: boolean;
+        }>(response);
+    };
+
+    const installCanonicalMapping = async (
+        mapping: SwitchMappingPayload,
+        sha256: string,
+    ): Promise<SwitchMappingPayload> => {
+        const list = await sendDeviceRequest('ms_get_list', {}, true);
+        if (list?.storageMode !== 'shared-singleton' || list?.installSchemaVersion !== 1) {
+            setMappingStorageMode(typeof list?.storageMode === 'string' ? list.storageMode : null);
+            throw new Error('设备固件不支持共享单映射安装，请先升级设备固件');
+        }
+        setMappingStorageMode('shared-singleton');
+        const computed = await switchMappingSha256(mapping);
+        if (!/^[0-9a-f]{64}$/i.test(sha256) || computed !== sha256.toLowerCase()) {
+            throw new Error('服务器映射 SHA-256 校验失败');
+        }
+        await sendDeviceRequest('ms_install_mapping', { mapping, sha256 }, true);
+        const confirmed = await sendDeviceRequest('ms_get_mapping', { id: mapping.id }, true);
+        const installed = confirmed?.mapping as SwitchMappingPayload | undefined;
+        if (!installed || installed.id !== mapping.id ||
+            await switchMappingSha256(installed) !== computed) {
+            throw new Error('设备映射回读校验失败');
+        }
+        setMappingList([{ id: installed.id, name: installed.name }]);
+        setDefaultMappingId(installed.id);
+        setMappingSource('server-installed');
+        setActiveMapping(installed as ADCValuesMapping);
+        return installed;
+    };
+
+    const installSwitchMapping = async (
+        catalogId: string,
+        prefetchedDetail?: SwitchMappingCatalogDetail,
+    ): Promise<SwitchMappingPayload> => {
+        const detail = prefetchedDetail || await fetchSwitchMappingDetail(catalogId);
+        if (!detail.revision?.mapping || detail.revision.revisionId !== detail.revision.mapping.id) {
+            throw new Error('服务器返回的映射结构无效');
+        }
+        return installCanonicalMapping(detail.revision.mapping, detail.revision.sha256);
+    };
+
+    const clearInstalledSwitchMapping = async (
+        mappingId: string,
+    ): Promise<ADCValuesMapping> => {
+        const data = await sendDeviceRequest(
+            'ms_clear_installed_mapping',
+            { id: mappingId },
+            true,
+        );
+        const fallback = data?.mapping as ADCValuesMapping | undefined;
+        if (!fallback?.id || data?.source !== 'factory-fallback') {
+            throw new Error('设备未能恢复固件兜底映射');
+        }
+        setMappingList(Array.isArray(data.mappingList)
+            ? data.mappingList as { id: string; name: string }[]
+            : [{ id: fallback.id, name: fallback.name }]);
+        setDefaultMappingId(typeof data.defaultMappingId === 'string'
+            ? data.defaultMappingId
+            : fallback.id);
+        setMappingStorageMode('shared-singleton');
+        setMappingSource('factory-fallback');
+        setActiveMapping(fallback);
+        return fallback;
+    };
+
+    const createSwitchMappingFromCurrent = async (input: {
+        displayName: string;
+        description: string;
+        length: number;
+        step: number;
+        image?: File | null;
+    }): Promise<SwitchMappingCatalogDetail> => {
+        if (!deviceClient) throw new Error('设备命令客户端未初始化');
+        const response = await deviceClient.authorizedFetch(
+            '/api/admin/switch-mappings/blank',
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    displayName: input.displayName,
+                    description: input.description,
+                    length: input.length,
+                    step: input.step,
+                }),
+            },
+            ['config.read'],
+        );
+        const created = await readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(response);
+        const revision = created.revision;
+        if (!revision?.mapping || revision.mapping.id !== revision.revisionId ||
+            created.publishedRevisionId !== revision.revisionId) {
+            throw new Error('服务器未返回已发布的空白映射');
+        }
+        if (input.image) {
+            await uploadSwitchMappingImage(created.catalogId, input.image);
+        }
+        return created;
+    };
+
+    const beginMappingDraft = async (name: string, length: number, step: number): Promise<void> => {
+        const data = await sendDeviceRequest(
+            'ms_mapping_draft_begin',
+            { name, length, step },
+            true,
+        );
+        if (!data?.status) throw new Error('设备未返回标定草稿状态');
+        setMarkingStatus(data.status as StepInfo);
+    };
+
+    const publishMappingDraft = async (input: {
+        catalogId?: string;
+        displayName: string;
+        description: string;
+    }): Promise<SwitchMappingCatalogDetail> => {
+        if (!deviceClient) throw new Error('设备命令客户端未初始化');
+        const draft = await sendDeviceRequest('ms_mapping_draft_get', {}, true);
+        const mapping = draft?.mapping as Omit<SwitchMappingPayload, 'id'> | undefined;
+        if (!mapping) throw new Error('标定草稿尚未完成');
+        const response = await deviceClient.authorizedFetch(
+            '/api/admin/switch-mappings/drafts',
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...input, catalogId: input.catalogId || undefined, mapping }),
+            },
+            ['config.read'],
+        );
+        const hiddenDraft = await readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(response);
+        const revision = hiddenDraft.revision;
+        if (!revision?.mapping || revision.mapping.id !== revision.revisionId) {
+            throw new Error('服务器未返回规范化草稿版本');
+        }
+
+        // A draft remains hidden unless the normalized immutable revision can
+        // first be installed back onto the calibration sample and read back.
+        await installCanonicalMapping(revision.mapping, revision.sha256);
+        const publishResponse = await deviceClient.authorizedFetch(
+            `/api/admin/switch-mappings/${encodeURIComponent(hiddenDraft.catalogId)}` +
+            `/revisions/${encodeURIComponent(revision.revisionId)}/publish`,
+            { method: 'POST' },
+            ['config.read'],
+        );
+        return readSwitchMappingEnvelope<SwitchMappingCatalogDetail>(publishResponse);
     };
 
     const fetchGlobalConfig = async (immediate: boolean = true): Promise<void> => {
@@ -2453,6 +2805,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             markingStatus,
             mappingList,
             activeMapping,
+            mappingStorageMode,
+            mappingSource,
             fetchMappingList,
             fetchMarkingStatus,
             updateDefaultMapping,
@@ -2463,7 +2817,20 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             startMarking,
             stopMarking,
             stepMarking,
+            syncMarkingProgress,
             renameMapping,
+            fetchSwitchMappingCatalog,
+            fetchSwitchMappingDetail,
+            fetchSwitchMappingImage,
+            uploadSwitchMappingImage,
+            updateSwitchMappingMetadata,
+            updateSwitchMappingCurve,
+            deleteSwitchMapping,
+            installSwitchMapping,
+            clearInstalledSwitchMapping,
+            createSwitchMappingFromCurrent,
+            beginMappingDraft,
+            publishMappingDraft,
             // 按键监控相关
             buttonMonitoringActive: buttonMonitoringActive,
             startButtonMonitoring,

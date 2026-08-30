@@ -15,7 +15,6 @@ import { FinishConfigButton } from './finish-config-button';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { BuildVariantBadge } from '@hbox/build-variant-badge';
 import { UserAuthControl } from '@/components/user-auth-control';
-import { useUserAuth } from '@/contexts/user-auth-context';
 // import { ColorModeSwitcher } from "@/components/color-mode-switcher";
 
 export function SettingsLayout({ children }: { children: React.ReactNode }) {
@@ -23,17 +22,12 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
     const { currentRoute, setRoute } = useRouterStore();
 
     const { finishConfigDisabled, deviceSession } = useGamepadConfig();
-    const { session } = useUserAuth();
-    const isAdmin = session.authenticated && session.user?.role === 'admin';
-
     const tabs = [
         { id: 'global' as Route, label: t.SETTINGS_TAB_GLOBAL, icon: LuGamepad },
         { id: 'keys' as Route, label: t.SETTINGS_TAB_KEYS, icon: LuKeyboard },
         { id: 'buttons-performance' as Route, label: t.SETTINGS_TAB_BUTTONS_PERFORMANCE, icon: LuRocket },
         { id: 'lighting' as Route, label: t.SETTINGS_TAB_LEDS, icon: LuLightbulb },
-        ...(isAdmin ? [
-            { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
-        ] : []),
+        { id: 'switch-marking' as Route, label: t.SETTINGS_TAB_SWITCH_MARKING, icon: LuChartSpline },
         { id: 'firmware' as Route, label: t.SETTINGS_TAB_FIRMWARE, icon: LuCpu },
         { id: 'view-logs' as Route, label: t.SETTINGS_TAB_VIEW_LOGS, icon: LuFileText },
         // { id: 'button-monitor' as Route, label: '按键监控测试', icon: LuMonitor },
@@ -163,8 +157,12 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
             </HStack>
 
 
-            <Flex direction="column" flex={1} height="100%">
-                <Center flex={1}>
+            <Flex direction="column" flex={1} minHeight={0}>
+                <Center
+                    flex={1}
+                    minHeight={0}
+                    overflow={currentRoute === 'switch-marking' ? 'hidden' : undefined}
+                >
                     {children}
                 </Center>
             </Flex>

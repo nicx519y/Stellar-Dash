@@ -14,7 +14,6 @@ import {
   MacroConfig,
   Platform,
   ScreenControlConfig,
-  SWITCH_MARKING_COUNT_MAX,
   SWITCH_MARKING_LENGTH_MAX,
   SWITCH_MARKING_LENGTH_MIN,
   SWITCH_MARKING_NAME_MAX_LENGTH,
@@ -22,7 +21,8 @@ import {
   SWITCH_MARKING_STEP_MIN,
   WirelessReportRate,
 } from '../../types/gamepad-config';
-import type { ADCValuesMapping, StepInfo } from '../../types/adc';
+import { switchMappingSha256 } from '../../types/adc';
+import type { ADCValuesMapping, StepInfo, SwitchMappingPayload } from '../../types/adc';
 import type { CalibrationStatus, FirmwareMetadata } from '../../types/types';
 import {
   DeviceEvent,
@@ -48,7 +48,7 @@ const ALL_SCOPES = [
   'firmware.update',
 ] as const;
 
-const MOCK_STATE_VERSION = 3;
+const MOCK_STATE_VERSION = 4;
 const DEFAULT_STORAGE_KEY = `hbox.webconfig.mock-state.v${MOCK_STATE_VERSION}`;
 
 export interface MockStorage {
@@ -91,6 +91,7 @@ interface PersistedMockState {
   defaultProfileId: string;
   mappings: ADCValuesMapping[];
   defaultMappingId: string;
+  sharedMappingInstalled: boolean;
   calibrationComplete: boolean;
   images: {
     user: PersistedImage | null;
@@ -181,6 +182,16 @@ const DEFAULT_MAPPING: ADCValuesMapping = {
   calibratedValues: Array.from({ length: 40 }, (_, index) => index * 0.1),
 };
 
+const MOCK_SERVER_MAPPING: SwitchMappingPayload = {
+  id: 'mock-rev-001',
+  name: 'Mock Axis',
+  length: 8,
+  step: Math.fround(0.5),
+  samplingFrequency: 8000,
+  samplingNoise: 2,
+  originalValues: [4050, 3600, 3150, 2700, 2250, 1800, 1350, 900],
+};
+
 /**
  * Stateful, hardware-free HBox V2 device. This transport is only selected
  * when both NEXT_PUBLIC_DEVICE_TRANSPORT=mock and OFFLINE_PREVIEW=true.
@@ -214,6 +225,16 @@ export class MockDeviceTransport implements DeviceTransport {
   ];
   private mappings = [clone(DEFAULT_MAPPING)];
   private defaultMappingId = DEFAULT_MAPPING.id;
+  private sharedMappingInstalled = false;
+  private draftMapping: Omit<SwitchMappingPayload, 'id'> | null = null;
+  private mockCatalogRevision = 1;
+  private serverMapping = clone(MOCK_SERVER_MAPPING);
+  private serverCatalogId = 'mock-axis';
+  private serverDisplayName = 'Mock Linear Axis';
+  private serverDescription = 'Offline compatible switch mapping fixture.';
+  private serverImage: Blob | null = null;
+  private serverArchived = false;
+  private pendingServerDraft: SwitchMappingPayload | null = null;
   private markingStatus: StepInfo = emptyMarkingStatus();
   private calibrationActive = false;
   private calibrationComplete = true;
@@ -343,7 +364,7 @@ export class MockDeviceTransport implements DeviceTransport {
     return { complete: true };
   }
 
-  async authorizedFetch(input: RequestInfo | URL, _init?: RequestInit): Promise<Response> {
+  async authorizedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const rawUrl = typeof input === 'string'
       ? input
       : input instanceof URL
@@ -370,6 +391,185 @@ export class MockDeviceTransport implements DeviceTransport {
           availableUpdates: [],
         },
       });
+    }
+    const switchMappingDetail = async (mapping: SwitchMappingPayload, published = true) => ({
+      catalogId: this.serverCatalogId,
+      displayName: this.serverDisplayName,
+      description: this.serverDescription,
+      productId: 'HBOX',
+      pcbRevision: 'mock-pcb',
+      hardwareVersion: '2.0.0',
+      publishedRevisionId: published ? mapping.id : null,
+      hasImage: this.serverImage !== null,
+      imageUpdatedAt: this.serverImage ? new Date().toISOString() : null,
+      archived: this.serverArchived,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: new Date().toISOString(),
+      revision: {
+        catalogId: this.serverCatalogId,
+        revisionId: mapping.id,
+        revision: this.mockCatalogRevision,
+        sha256: await switchMappingSha256(mapping),
+        createdAt: new Date().toISOString(),
+        createdBy: 'mock-admin@example.com',
+        mapping: clone(mapping),
+      },
+    });
+    if (url.pathname === '/api/switch-mappings' && (!init?.method || init.method === 'GET')) {
+      const sha256 = await switchMappingSha256(this.serverMapping);
+      return jsonResponse({
+        success: true,
+        data: { items: this.serverArchived ? [] : [{
+          catalogId: this.serverCatalogId,
+          displayName: this.serverDisplayName,
+          description: this.serverDescription,
+          revisionId: this.serverMapping.id,
+          revision: this.mockCatalogRevision,
+          sha256,
+          hasImage: this.serverImage !== null,
+          imageUpdatedAt: this.serverImage ? new Date().toISOString() : null,
+          updatedAt: new Date().toISOString(),
+        }] },
+      });
+    }
+    if (url.pathname === '/api/admin/switch-mappings-compatible' &&
+        (!init?.method || init.method === 'GET')) {
+      const mapping = this.pendingServerDraft || this.serverMapping;
+      const sha256 = await switchMappingSha256(mapping);
+      return jsonResponse({
+        success: true,
+        data: { items: this.serverArchived ? [] : [{
+          catalogId: this.serverCatalogId,
+          displayName: this.serverDisplayName,
+          description: this.serverDescription,
+          revisionId: mapping.id,
+          revision: this.mockCatalogRevision,
+          sha256,
+          hasImage: this.serverImage !== null,
+          imageUpdatedAt: this.serverImage ? new Date().toISOString() : null,
+          updatedAt: new Date().toISOString(),
+          isDraft: this.pendingServerDraft !== null,
+        }] },
+      });
+    }
+    if (url.pathname === `/api/switch-mappings/${this.serverCatalogId}`) {
+      return jsonResponse({ success: true, data: await switchMappingDetail(this.serverMapping) });
+    }
+    if (url.pathname === `/api/switch-mappings/${this.serverCatalogId}/image`) {
+      if (!this.serverImage || this.serverArchived) {
+        return jsonResponse({ success: false, message: 'Image not found' }, 404);
+      }
+      return new Response(this.serverImage, {
+        status: 200,
+        headers: { 'Content-Type': this.serverImage.type },
+      });
+    }
+    if (url.pathname === `/api/admin/switch-mappings/${this.serverCatalogId}` &&
+        (!init?.method || init.method === 'GET')) {
+      const mapping = this.pendingServerDraft || this.serverMapping;
+      return jsonResponse({
+        success: true,
+        data: await switchMappingDetail(mapping, this.pendingServerDraft === null),
+      });
+    }
+    if (url.pathname === `/api/admin/switch-mappings/${this.serverCatalogId}/image` &&
+        (!init?.method || init.method === 'GET')) {
+      if (!this.serverImage) return jsonResponse({ success: false, message: 'Image not found' }, 404);
+      return new Response(this.serverImage, {
+        status: 200,
+        headers: { 'Content-Type': this.serverImage.type },
+      });
+    }
+    if (url.pathname === `/api/admin/switch-mappings/${this.serverCatalogId}/image` && init?.method === 'PUT') {
+      this.serverImage = init.body instanceof Blob ? init.body : null;
+      if (!this.serverImage) return jsonResponse({ success: false, message: 'Invalid image' }, 400);
+      return jsonResponse({ success: true, data: await switchMappingDetail(this.serverMapping) });
+    }
+    if (url.pathname === `/api/admin/switch-mappings/${this.serverCatalogId}/mapping` && init?.method === 'PATCH') {
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
+      const source = asObject(body.mapping);
+      if (asString(source.id) !== this.serverMapping.id) {
+        return jsonResponse({ success: false, message: 'Mapping identity mismatch' }, 409);
+      }
+      this.serverMapping = {
+        id: this.serverMapping.id,
+        name: this.serverMapping.name,
+        length: this.serverMapping.length,
+        step: this.serverMapping.step,
+        samplingFrequency: asNumber(source.samplingFrequency),
+        samplingNoise: asNumber(source.samplingNoise),
+        originalValues: clone(source.originalValues as number[]),
+      };
+      return jsonResponse({ success: true, data: await switchMappingDetail(this.serverMapping) });
+    }
+    if (url.pathname === `/api/admin/switch-mappings/${this.serverCatalogId}` && init?.method === 'PATCH') {
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
+      this.serverDisplayName = asString(body.displayName) || this.serverDisplayName;
+      this.serverDescription = asString(body.description);
+      return jsonResponse({ success: true, data: await switchMappingDetail(this.serverMapping) });
+    }
+    if (url.pathname === `/api/admin/switch-mappings/${this.serverCatalogId}` && init?.method === 'DELETE') {
+      this.serverArchived = true;
+      return jsonResponse({
+        success: true,
+        data: {
+          catalogId: this.serverCatalogId,
+          deletedRevisionIds: [this.serverMapping.id],
+          deleted: true,
+        },
+      });
+    }
+    if (url.pathname === '/api/admin/switch-mappings/drafts' && init?.method === 'POST') {
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
+      const source = asObject(body.mapping);
+      this.mockCatalogRevision += 1;
+      const id = `mock-rev-${String(this.mockCatalogRevision).padStart(3, '0')}`;
+      this.serverCatalogId = asString(body.catalogId) || `mock-axis-${this.mockCatalogRevision}`;
+      this.serverDisplayName = asString(body.displayName) || 'Mock Draft Axis';
+      this.serverDescription = asString(body.description);
+      this.pendingServerDraft = {
+        id,
+        name: asString(source.name),
+        length: asNumber(source.length),
+        step: asNumber(source.step),
+        samplingFrequency: asNumber(source.samplingFrequency),
+        samplingNoise: asNumber(source.samplingNoise),
+        originalValues: clone(source.originalValues as number[]),
+      };
+      return jsonResponse({
+        success: true,
+        data: await switchMappingDetail(this.pendingServerDraft, false),
+      }, 201);
+    }
+    if (url.pathname === '/api/admin/switch-mappings/blank' && init?.method === 'POST') {
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
+      const length = asNumber(body.length);
+      this.mockCatalogRevision += 1;
+      this.serverCatalogId = `mock-axis-${this.mockCatalogRevision}`;
+      this.serverDisplayName = asString(body.displayName) || 'Mock Blank Axis';
+      this.serverDescription = asString(body.description);
+      this.serverMapping = {
+        id: `mock-rev-${String(this.mockCatalogRevision).padStart(3, '0')}`,
+        name: this.serverDisplayName.slice(0, 15),
+        length,
+        step: asNumber(body.step),
+        samplingFrequency: 1,
+        samplingNoise: 0,
+        originalValues: Array.from({ length }, () => 0),
+      };
+      this.pendingServerDraft = null;
+      this.serverArchived = false;
+      return jsonResponse({
+        success: true,
+        data: await switchMappingDetail(this.serverMapping),
+      }, 201);
+    }
+    if (url.pathname.includes('/api/admin/switch-mappings/') && url.pathname.endsWith('/publish') && init?.method === 'POST') {
+      if (!this.pendingServerDraft) return jsonResponse({ success: false, message: 'No draft' }, 409);
+      this.serverMapping = clone(this.pendingServerDraft);
+      this.serverArchived = false;
+      this.pendingServerDraft = null;
+      return jsonResponse({ success: true, data: await switchMappingDetail(this.serverMapping) });
     }
     return jsonResponse(
       { errNo: 404, errorMessage: `No offline fixture for ${url.pathname}` },
@@ -566,7 +766,82 @@ export class MockDeviceTransport implements DeviceTransport {
       case 'ms_get_list':
         return this.mappingListPayload();
       case 'get_adc_config_backup':
-        return { adcConfig: this.adcConfigBackup() };
+        throw new DeviceTransportError('protocol', 'ADC backup has moved to the server mapping catalog');
+      case 'ms_install_mapping': {
+        const source = asObject(params.mapping);
+        const mapping: SwitchMappingPayload = {
+          id: asString(source.id),
+          name: asString(source.name),
+          length: asNumber(source.length),
+          step: asNumber(source.step),
+          samplingFrequency: asNumber(source.samplingFrequency),
+          samplingNoise: asNumber(source.samplingNoise),
+          originalValues: clone(source.originalValues as number[]),
+        };
+        const sha256 = asString(params.sha256).toLowerCase();
+        if (await switchMappingSha256(mapping) !== sha256) {
+          throw new DeviceTransportError('protocol', 'Mapping SHA-256 mismatch');
+        }
+        this.mappings = [{
+          ...mapping,
+          calibratedValues: Array.from({ length: mapping.length }, (_, index) => index * mapping.step),
+        }];
+        this.defaultMappingId = mapping.id;
+        this.sharedMappingInstalled = true;
+        this.clearCalibrationData();
+        this.persistState();
+        return {
+          mapping: clone(mapping),
+          calibrationCleared: true,
+          requiresCalibration: true,
+          runtimeReloaded: true,
+        };
+      }
+      case 'ms_clear_installed_mapping': {
+        const id = asString(params.id);
+        if (!this.sharedMappingInstalled || id !== this.defaultMappingId) {
+          throw new DeviceTransportError('protocol', 'Installed mapping was not found');
+        }
+        this.mappings = [clone(DEFAULT_MAPPING)];
+        this.defaultMappingId = DEFAULT_MAPPING.id;
+        this.sharedMappingInstalled = false;
+        this.clearCalibrationData();
+        this.persistState();
+        return {
+          ...this.mappingListPayload(),
+          mapping: clone(DEFAULT_MAPPING),
+          calibrationCleared: true,
+          runtimeReloaded: true,
+        };
+      }
+      case 'ms_mapping_draft_begin': {
+        const name = asString(params.name);
+        const length = asNumber(params.length);
+        const step = asNumber(params.step);
+        if (!name || !Number.isInteger(length) || length < 2 || length > 40 || step < 0.1 || step > 10) {
+          throw new DeviceTransportError('protocol', 'Invalid mapping draft parameters');
+        }
+        this.draftMapping = {
+          name,
+          length,
+          step,
+          samplingNoise: 0,
+          samplingFrequency: 0,
+          originalValues: Array.from({ length }, () => 0),
+        };
+        this.markingStatus = {
+          id: 'draft', mapping_name: name, length, step, index: -1,
+          values: Array.from({ length }, () => 0), is_marking: true,
+          is_sampling: false, is_completed: false,
+          sampling_noise: 0, sampling_frequency: 0,
+        };
+        return { status: clone(this.markingStatus) };
+      }
+      case 'ms_mapping_draft_get':
+        if (!this.draftMapping || !this.markingStatus.is_completed) {
+          throw new DeviceTransportError('protocol', 'Mapping draft is not complete');
+        }
+        return { mapping: clone(this.draftMapping) };
       case 'ms_get_default':
       case 'ms_set_default':
         if (command === 'ms_set_default') {
@@ -597,7 +872,7 @@ export class MockDeviceTransport implements DeviceTransport {
           || !Number.isFinite(step)
           || step < SWITCH_MARKING_STEP_MIN
           || step > SWITCH_MARKING_STEP_MAX
-          || this.mappings.length >= SWITCH_MARKING_COUNT_MAX
+          || this.mappings.length >= 1
         ) {
           throw new DeviceTransportError('protocol', 'Invalid switch mapping parameters');
         }
@@ -663,12 +938,18 @@ export class MockDeviceTransport implements DeviceTransport {
           return { status: this.markingStatus };
         }
         if (this.markingStatus.index >= this.markingStatus.length - 1) {
-          const mapping = this.findMapping(this.markingStatus.id);
-          mapping.originalValues = [...this.markingStatus.values];
-          mapping.calibratedValues = Array.from(
-            { length: mapping.length },
-            (_, index) => index * mapping.step,
-          );
+          if (this.markingStatus.id === 'draft' && this.draftMapping) {
+            this.draftMapping.originalValues = [...this.markingStatus.values];
+            this.draftMapping.samplingNoise = 2;
+            this.draftMapping.samplingFrequency = 8000;
+          } else {
+            const mapping = this.findMapping(this.markingStatus.id);
+            mapping.originalValues = [...this.markingStatus.values];
+            mapping.calibratedValues = Array.from(
+              { length: mapping.length },
+              (_, index) => index * mapping.step,
+            );
+          }
           this.markingStatus.is_completed = true;
           this.markingStatus.is_marking = false;
           this.persistState();
@@ -678,11 +959,25 @@ export class MockDeviceTransport implements DeviceTransport {
           const value = Math.round(4000 - (3200 * sampleIndex) / divisor);
           this.markingStatus.values[sampleIndex] = value;
           this.markingStatus.index = sampleIndex;
+          this.markingStatus.sampling_noise = 2;
+          this.markingStatus.sampling_frequency = 8000;
         }
         queueMicrotask(() => this.emit('marking_status_update', {
           status: clone(this.markingStatus),
         }));
         return { status: this.markingStatus };
+      }
+      case 'ms_mark_mapping_sync': {
+        if (this.markingStatus.id === 'draft' || this.markingStatus.index < 0 ||
+            this.markingStatus.is_sampling) {
+          throw new DeviceTransportError('protocol', 'No completed mapping point to persist');
+        }
+        const mapping = this.findMapping(this.markingStatus.id);
+        mapping.originalValues = [...this.markingStatus.values];
+        mapping.samplingNoise = this.markingStatus.sampling_noise;
+        mapping.samplingFrequency = this.markingStatus.sampling_frequency;
+        this.persistState();
+        return { status: clone(this.markingStatus) };
       }
       case 'ms_mark_mapping_stop':
         this.markingStatus = emptyMarkingStatus();
@@ -929,7 +1224,7 @@ export class MockDeviceTransport implements DeviceTransport {
         const sections = new Set(staged.map((part) => part.section));
         if (
           !sections.has('global') || !sections.has('hotkeys') ||
-          !sections.has('screenControl') || !sections.has('adcConfig')
+          !sections.has('screenControl')
         ) {
           throw new DeviceTransportError(
             'protocol',
@@ -978,24 +1273,8 @@ export class MockDeviceTransport implements DeviceTransport {
           if (index >= 0) candidate.profiles[index] = clone(profile);
           else candidate.profiles.push(clone(profile));
         } else if (part.section === 'adcConfig') {
-          const adc = asObject(part.data);
-          if (!Array.isArray(adc.mappings) || adc.mappings.length === 0) {
-            throw new DeviceTransportError('protocol', 'Imported ADC data has no mappings');
-          }
-          candidate.mappings = clone(adc.mappings as ADCValuesMapping[]).map((mapping) => ({
-            ...mapping,
-            calibratedValues: Array.from(
-              { length: mapping.length },
-              (_, index) => index * mapping.step,
-            ),
-          }));
-          candidate.defaultMappingId = asString(adc.defaultMappingId);
-          const manual = Array.isArray(adc.manualCalibrationValues)
-            ? adc.manualCalibrationValues.map(asObject)
-            : [];
-          candidate.calibrationComplete = manual.length === 18 && manual.every(
-            (pair) => asNumber(pair.topValue) > 0 && asNumber(pair.bottomValue) > 0,
-          );
+          // Schema v1/v2 compatibility: ADC mappings and device-local
+          // calibration are deliberately ignored.
         }
       }
       if (!candidate.profiles.some((profile) => profile.id === candidate.defaultProfileId)) {
@@ -1171,6 +1450,9 @@ export class MockDeviceTransport implements DeviceTransport {
     return {
       mappingList: this.mappings.map(({ id, name }) => ({ id, name })),
       defaultMappingId: this.defaultMappingId,
+      storageMode: 'shared-singleton',
+      installSchemaVersion: 1,
+      source: this.sharedMappingInstalled ? 'server-installed' : 'factory-fallback',
     };
   }
 
@@ -1200,6 +1482,7 @@ export class MockDeviceTransport implements DeviceTransport {
       defaultProfileId: this.defaultProfileId,
       mappings: clone(this.mappings),
       defaultMappingId: this.defaultMappingId,
+      sharedMappingInstalled: this.sharedMappingInstalled,
       calibrationComplete: this.calibrationComplete,
       images: {
         user: serializeImage(this.images.user),
@@ -1227,6 +1510,7 @@ export class MockDeviceTransport implements DeviceTransport {
       : this.profiles[0].id;
     this.globalConfig.defaultProfileId = this.defaultProfileId;
     this.mappings = clone(state.mappings);
+    this.sharedMappingInstalled = state.sharedMappingInstalled === true;
     this.defaultMappingId = this.mappings.some((mapping) => mapping.id === state.defaultMappingId)
       ? state.defaultMappingId
       : this.mappings[0].id;

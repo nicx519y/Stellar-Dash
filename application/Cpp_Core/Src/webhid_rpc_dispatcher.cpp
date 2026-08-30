@@ -166,6 +166,7 @@ uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
         "ms_get_default",
         "ms_get_mapping",
         "get_adc_config_backup",
+        "ms_mapping_draft_get",
         "get_hitbox_layout",
         "get_firmware_metadata",
     };
@@ -191,6 +192,10 @@ uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
         "ms_delete_mapping",
         "ms_rename_mapping",
         "clear_manual_calibration_data",
+        "ms_install_mapping",
+        "ms_clear_installed_mapping",
+        "ms_mapping_draft_begin",
+        "ms_mark_mapping_sync",
     };
     static const char *const monitorRead[] = {
         "start_button_monitoring",

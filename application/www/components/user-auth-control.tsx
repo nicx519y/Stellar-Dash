@@ -30,7 +30,11 @@ import { toaster } from '@/components/ui/toaster';
 import { useLanguage } from '@/contexts/language-context';
 import { useUserAuth } from '@/contexts/user-auth-context';
 import { AuthApiError, CaptchaAction, CaptchaChallenge } from '@/lib/user-auth/types';
-import { ACCOUNT_AVATARS } from '@/lib/user-auth/avatar-catalog';
+import {
+  ACCOUNT_AVATARS,
+  DEFAULT_ACCOUNT_AVATAR_ID,
+  DEFAULT_ACCOUNT_AVATAR_SRC,
+} from '@/lib/user-auth/avatar-catalog';
 
 type AuthView = 'login' | 'register' | 'sent';
 
@@ -253,7 +257,7 @@ export function UserAuthControl() {
           >
             <Avatar
               name={session.user.displayName || session.user.email}
-              src={session.user.avatarUrl || undefined}
+              src={session.user.avatarUrl || DEFAULT_ACCOUNT_AVATAR_SRC}
               size="md"
               colorPalette="green"
             />
@@ -276,7 +280,7 @@ export function UserAuthControl() {
                 borderWidth="0"
                 focusVisibleRing="none"
                 onClick={() => {
-                  setSelectedAvatarId(session.user?.avatarId || null);
+                  setSelectedAvatarId(session.user?.avatarId || DEFAULT_ACCOUNT_AVATAR_ID);
                   setMenuOpen(false);
                   setAvatarOpen(true);
                 }}

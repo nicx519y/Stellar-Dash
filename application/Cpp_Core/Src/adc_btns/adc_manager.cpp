@@ -7,9 +7,29 @@
 #include "qspi-w25q64.h"
 #include <cstring>
 #include "cpp_utils.hpp"
+#include "micro_timer.hpp"
+#include "CRC32.hpp"
+#include "sha256_simple.h"
+#include <cstddef>
+#include <cctype>
 
 namespace {
 constexpr uint32_t LEGACY_ADC_MAPPING_VERSION = 0x000001u;
+constexpr uint32_t SHARED_MAPPING_MAGIC = 0x4D414248u; // "HBAM"
+constexpr uint16_t SHARED_MAPPING_SCHEMA_VERSION = 1u;
+constexpr uint32_t SHARED_MAPPING_BANK_OFFSETS[2] = {0x1000u, 0x2000u};
+
+struct SharedMappingRecord {
+    uint32_t magic;
+    uint16_t schemaVersion;
+    uint16_t payloadLength;
+    uint32_t sequence;
+    ADCValuesMapping mapping;
+    uint32_t crc32;
+};
+
+static_assert(sizeof(SharedMappingRecord) <= 4096u,
+              "shared ADC mapping record must fit one QSPI sector");
 
 static bool isTerminatedString(const char* value, size_t capacity)
 {
@@ -18,6 +38,101 @@ static bool isTerminatedString(const char* value, size_t capacity)
     }
 
     return std::memchr(value, '\0', capacity) != nullptr;
+}
+
+static bool isMappingValid(const ADCValuesMapping& mapping)
+{
+    if (!isTerminatedString(mapping.id, sizeof(mapping.id)) ||
+        !isTerminatedString(mapping.name, sizeof(mapping.name)) ||
+        mapping.length < 2u || mapping.length > MAX_ADC_VALUES_LENGTH ||
+        !std::isfinite(mapping.step) || mapping.step < 0.1f ||
+        mapping.step > 10.0f || mapping.samplingFrequency == 0u) {
+        return false;
+    }
+    for (size_t i = 0u; i < mapping.length; ++i) {
+        if (mapping.originalValues[i] > UINT16_MAX) {
+            return false;
+        }
+    }
+    const uint32_t first = mapping.originalValues[0];
+    const uint32_t last = mapping.originalValues[mapping.length - 1u];
+    if (first != 0u && last != 0u && first == last) {
+        return false;
+    }
+    return true;
+}
+
+static uint32_t sharedRecordCrc(const SharedMappingRecord& record)
+{
+    return CRC32::calculate(
+        reinterpret_cast<const uint8_t*>(&record),
+        static_cast<uint16_t>(offsetof(SharedMappingRecord, crc32)));
+}
+
+static bool isSharedRecordValid(const SharedMappingRecord& record)
+{
+    return record.magic == SHARED_MAPPING_MAGIC &&
+           record.schemaVersion == SHARED_MAPPING_SCHEMA_VERSION &&
+           record.payloadLength == sizeof(ADCValuesMapping) &&
+           record.sequence != 0u &&
+           record.crc32 == sharedRecordCrc(record) &&
+           isMappingValid(record.mapping);
+}
+
+static bool sequenceNewer(uint32_t left, uint32_t right)
+{
+    return static_cast<int32_t>(left - right) > 0;
+}
+
+static void writeLe16(uint8_t* output, uint16_t value)
+{
+    output[0] = static_cast<uint8_t>(value);
+    output[1] = static_cast<uint8_t>(value >> 8u);
+}
+
+static void writeLe32(uint8_t* output, uint32_t value)
+{
+    output[0] = static_cast<uint8_t>(value);
+    output[1] = static_cast<uint8_t>(value >> 8u);
+    output[2] = static_cast<uint8_t>(value >> 16u);
+    output[3] = static_cast<uint8_t>(value >> 24u);
+}
+
+static bool mappingDigestMatches(const ADCValuesMapping& mapping,
+                                 const char* expected)
+{
+    if (expected == nullptr || strlen(expected) != 64u) return false;
+    uint8_t canonical[220] = {};
+    static const uint8_t prefix[16] = {
+        'H','B','O','X','-','A','D','C','-','M','A','P','-','V','1',0
+    };
+    memcpy(canonical, prefix, sizeof(prefix));
+    memcpy(canonical + 16u, mapping.id,
+           std::min(strlen(mapping.id), static_cast<size_t>(15u)));
+    memcpy(canonical + 32u, mapping.name,
+           std::min(strlen(mapping.name), static_cast<size_t>(15u)));
+    writeLe32(canonical + 48u, static_cast<uint32_t>(mapping.length));
+    uint32_t stepBits = 0u;
+    static_assert(sizeof(stepBits) == sizeof(mapping.step), "float size mismatch");
+    memcpy(&stepBits, &mapping.step, sizeof(stepBits));
+    writeLe32(canonical + 52u, stepBits);
+    writeLe16(canonical + 56u, mapping.samplingNoise);
+    writeLe16(canonical + 58u, mapping.samplingFrequency);
+    for (size_t i = 0u; i < mapping.length; ++i) {
+        writeLe32(canonical + 60u + i * 4u, mapping.originalValues[i]);
+    }
+    char actual[65] = {};
+    if (sha256_calculate(canonical, sizeof(canonical), actual) != 1) {
+        return false;
+    }
+    for (size_t i = 0u; i < 64u; ++i) {
+        const char a = static_cast<char>(std::tolower(
+            static_cast<unsigned char>(actual[i])));
+        const char b = static_cast<char>(std::tolower(
+            static_cast<unsigned char>(expected[i])));
+        if (a != b) return false;
+    }
+    return true;
 }
 
 static bool isLegacyMappingStoreCompatible(const ADCValuesMappingStore& store)
@@ -284,6 +399,11 @@ ADCManager::ADCManager()
         this->ADCBufferInfoList[i].virtualPin = ADC1_BUTTONS_MAPPING[i];
     }
 
+    // A shared, server-installed singleton wins over the slot component.
+    // Without one, compact only the RAM view to the current factory default;
+    // the accepted A/B firmware artifact remains untouched.
+    loadSharedSingleton();
+
     for (uint8_t j = NUM_ADC1_BUTTONS; j < NUM_ADC1_BUTTONS + NUM_ADC2_BUTTONS; j++)
     {
         const uint8_t index = j - NUM_ADC1_BUTTONS;
@@ -337,7 +457,253 @@ ADCManager::readADCValues() const
 int8_t ADCManager::saveStore()
 {
     APP_DBG("ADCManager: saveStore - begin save store to flash.");
+    if (sharedMappingInstalled && store.num == 1u) {
+        return persistSharedSingleton(store.mapping[0])
+            ? QSPI_W25Qxx_OK : W25Qxx_ERROR_TRANSMIT;
+    }
     return QSPI_W25Qxx_WriteBuffer_WithXIPOrNot((uint8_t *)&store, ADC_VALUES_MAPPING_ADDR_QSPI, sizeof(ADCValuesMappingStore));
+}
+
+void ADCManager::selectFactoryFallback()
+{
+    if (store.num == 0u) return;
+    int8_t selected = findMappingById(common.defaultMappingId);
+    if (selected < 0 && store.defaultId[0] != '\0') {
+        selected = findMappingById(store.defaultId);
+    }
+    if (selected < 0) selected = 0;
+    ADCValuesMapping fallback = store.mapping[selected];
+    memset(&store, 0, sizeof(store));
+    store.version = ADC_MAPPING_VERSION;
+    store.num = 1u;
+    store.mapping[0] = fallback;
+    strncpy(store.defaultId, fallback.id, sizeof(store.defaultId) - 1u);
+    strncpy(common.defaultMappingId, fallback.id,
+            sizeof(common.defaultMappingId) - 1u);
+    if (strncmp(common.calibratedMappingId, fallback.id,
+                sizeof(common.calibratedMappingId)) != 0) {
+        memset(common.calibratedMappingId, 0, sizeof(common.calibratedMappingId));
+        memset(common.manualCalibrationValues, 0,
+               sizeof(common.manualCalibrationValues));
+        memset(common.autoCalibrationValues, 0,
+               sizeof(common.autoCalibrationValues));
+    }
+    sharedMappingInstalled = false;
+    sharedMappingSequence = 0u;
+    sharedMappingBank = -1;
+}
+
+void ADCManager::loadSharedSingleton()
+{
+    SharedMappingRecord records[2] = {};
+    bool valid[2] = {false, false};
+    const uint32_t base = (ADC_COMMON_CONFIG_ADDR & 0x0FFFFFFFu);
+    for (uint8_t bank = 0u; bank < 2u; ++bank) {
+        if (QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(
+                reinterpret_cast<uint8_t*>(&records[bank]),
+                base + SHARED_MAPPING_BANK_OFFSETS[bank],
+                sizeof(records[bank])) == QSPI_W25Qxx_OK) {
+            valid[bank] = isSharedRecordValid(records[bank]);
+        }
+    }
+    int8_t selected = -1;
+    if (valid[0]) selected = 0;
+    if (valid[1] && (selected < 0 ||
+        sequenceNewer(records[1].sequence, records[0].sequence))) {
+        selected = 1;
+    }
+    if (selected < 0) {
+        selectFactoryFallback();
+        return;
+    }
+
+    const ADCValuesMapping mapping = records[selected].mapping;
+    memset(&store, 0, sizeof(store));
+    store.version = ADC_MAPPING_VERSION;
+    store.num = 1u;
+    store.mapping[0] = mapping;
+    strncpy(store.defaultId, mapping.id, sizeof(store.defaultId) - 1u);
+    strncpy(common.defaultMappingId, mapping.id,
+            sizeof(common.defaultMappingId) - 1u);
+    if (strncmp(common.calibratedMappingId, mapping.id,
+                sizeof(common.calibratedMappingId)) != 0) {
+        memset(common.calibratedMappingId, 0, sizeof(common.calibratedMappingId));
+        memset(common.manualCalibrationValues, 0,
+               sizeof(common.manualCalibrationValues));
+        memset(common.autoCalibrationValues, 0,
+               sizeof(common.autoCalibrationValues));
+    }
+    sharedMappingInstalled = true;
+    sharedMappingSequence = records[selected].sequence;
+    sharedMappingBank = selected;
+}
+
+bool ADCManager::persistSharedSingleton(const ADCValuesMapping& source)
+{
+    ADCValuesMapping mapping = source;
+    memset(mapping.autoCalibrationValues, 0,
+           sizeof(mapping.autoCalibrationValues));
+    memset(mapping.manualCalibrationValues, 0,
+           sizeof(mapping.manualCalibrationValues));
+    SharedMappingRecord record = {};
+    record.magic = SHARED_MAPPING_MAGIC;
+    record.schemaVersion = SHARED_MAPPING_SCHEMA_VERSION;
+    record.payloadLength = sizeof(ADCValuesMapping);
+    record.sequence = sharedMappingSequence + 1u;
+    if (record.sequence == 0u) record.sequence = 1u;
+    record.mapping = mapping;
+    record.crc32 = sharedRecordCrc(record);
+
+    const uint8_t target = sharedMappingBank == 0 ? 1u : 0u;
+    const uint32_t address = (ADC_COMMON_CONFIG_ADDR & 0x0FFFFFFFu) +
+        SHARED_MAPPING_BANK_OFFSETS[target];
+    if (QSPI_W25Qxx_WriteBuffer_WithXIPOrNot(
+            reinterpret_cast<uint8_t*>(&record), address,
+            sizeof(record)) != QSPI_W25Qxx_OK) {
+        return false;
+    }
+    SharedMappingRecord verify = {};
+    if (QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(
+            reinterpret_cast<uint8_t*>(&verify), address,
+            sizeof(verify)) != QSPI_W25Qxx_OK ||
+        !isSharedRecordValid(verify) ||
+        memcmp(&verify, &record, sizeof(record)) != 0) {
+        return false;
+    }
+    sharedMappingBank = static_cast<int8_t>(target);
+    sharedMappingSequence = record.sequence;
+    sharedMappingInstalled = true;
+    return true;
+}
+
+ADCBtnsError ADCManager::installSharedMapping(const ADCValuesMapping& source,
+                                              const char* expectedSha256)
+{
+    if (!isMappingValid(source) ||
+        !mappingDigestMatches(source, expectedSha256)) {
+        return ADCBtnsError::INVALID_PARAMS;
+    }
+    ADCValuesMapping mapping = source;
+    memset(mapping.autoCalibrationValues, 0,
+           sizeof(mapping.autoCalibrationValues));
+    memset(mapping.manualCalibrationValues, 0,
+           sizeof(mapping.manualCalibrationValues));
+
+    // The verified journal record is the commit point.  A power loss before
+    // it completes leaves the previous bank selected; a loss afterwards
+    // reloads the new mapping and rejects any calibration whose mapping ID no
+    // longer matches, even if the common-config mirror was not updated yet.
+    if (!persistSharedSingleton(mapping)) {
+        return ADCBtnsError::MAPPING_UPDATE_FAILED;
+    }
+
+    memset(&store, 0, sizeof(store));
+    store.version = ADC_MAPPING_VERSION;
+    store.num = 1u;
+    store.mapping[0] = mapping;
+    strncpy(store.defaultId, mapping.id, sizeof(store.defaultId) - 1u);
+
+    memset(common.manualCalibrationValues, 0,
+           sizeof(common.manualCalibrationValues));
+    memset(common.autoCalibrationValues, 0,
+           sizeof(common.autoCalibrationValues));
+    memset(common.calibratedMappingId, 0,
+           sizeof(common.calibratedMappingId));
+    memset(common.defaultMappingId, 0, sizeof(common.defaultMappingId));
+    strncpy(common.defaultMappingId, mapping.id,
+            sizeof(common.defaultMappingId) - 1u);
+    if (saveCommon() != QSPI_W25Qxx_OK) {
+        // The shared record is already durable.  Keep the new singleton live;
+        // the ID mismatch on the next boot continues to suppress stale
+        // calibration rather than reporting a failed install that actually
+        // committed.
+        APP_ERR("ADCManager: shared mapping committed; common calibration mirror write failed");
+    }
+    return ADCBtnsError::SUCCESS;
+}
+
+ADCBtnsError ADCManager::clearSharedMapping(const char* expectedMappingId)
+{
+    if (!sharedMappingInstalled || expectedMappingId == nullptr ||
+        expectedMappingId[0] == '\0' || store.num != 1u ||
+        strncmp(store.mapping[0].id, expectedMappingId,
+                sizeof(store.mapping[0].id)) != 0) {
+        return ADCBtnsError::MAPPING_NOT_FOUND;
+    }
+
+    // Read and validate the slot component before touching either shared
+    // bank. Deleting a user mapping must never leave the runtime without a
+    // usable factory fallback.
+    ADCValuesMappingStore factoryStore = {};
+    const int8_t factoryRead = QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(
+        reinterpret_cast<uint8_t*>(&factoryStore),
+        ADC_VALUES_MAPPING_ADDR_QSPI,
+        sizeof(factoryStore));
+    if (factoryRead != QSPI_W25Qxx_OK || factoryStore.num == 0u ||
+        factoryStore.num > NUM_ADC_VALUES_MAPPING ||
+        (factoryStore.version != ADC_MAPPING_VERSION &&
+         !isLegacyMappingStoreCompatible(factoryStore))) {
+        return ADCBtnsError::MAPPING_STORAGE_EMPTY;
+    }
+    if (factoryStore.version == LEGACY_ADC_MAPPING_VERSION) {
+        factoryStore.version = ADC_MAPPING_VERSION;
+        memset(factoryStore.defaultId, 0, sizeof(factoryStore.defaultId));
+        strncpy(factoryStore.defaultId, factoryStore.mapping[0].id,
+                sizeof(factoryStore.defaultId) - 1u);
+    }
+    for (uint8_t index = 0u; index < factoryStore.num; ++index) {
+        if (!isMappingValid(factoryStore.mapping[index])) {
+            return ADCBtnsError::MAPPING_STORAGE_EMPTY;
+        }
+    }
+
+    // Clear the inactive/older bank first and the selected bank last. A power
+    // loss between the two operations therefore continues to boot the current
+    // valid shared mapping; once both are invalid, boot falls back to the slot.
+    const uint8_t first = sharedMappingBank == 0 ? 1u : 0u;
+    const uint8_t second = first == 0u ? 1u : 0u;
+    const uint8_t clearOrder[2] = {first, second};
+    SharedMappingRecord cleared = {};
+    const uint32_t base = (ADC_COMMON_CONFIG_ADDR & 0x0FFFFFFFu);
+    for (const uint8_t bank : clearOrder) {
+        if (QSPI_W25Qxx_WriteBuffer_WithXIPOrNot(
+                reinterpret_cast<uint8_t*>(&cleared),
+                base + SHARED_MAPPING_BANK_OFFSETS[bank],
+                sizeof(cleared)) != QSPI_W25Qxx_OK) {
+            break;
+        }
+    }
+
+    bool anyValid = false;
+    bool verificationComplete = true;
+    for (uint8_t bank = 0u; bank < 2u; ++bank) {
+        SharedMappingRecord verify = {};
+        const int8_t readResult = QSPI_W25Qxx_ReadBuffer_WithXIPOrNot(
+                reinterpret_cast<uint8_t*>(&verify),
+                base + SHARED_MAPPING_BANK_OFFSETS[bank],
+                sizeof(verify));
+        if (readResult != QSPI_W25Qxx_OK) {
+            verificationComplete = false;
+        } else if (isSharedRecordValid(verify)) {
+            anyValid = true;
+        }
+    }
+    if (!verificationComplete || anyValid) {
+        return ADCBtnsError::MAPPING_DELETE_FAILED;
+    }
+
+    store = factoryStore;
+    selectFactoryFallback();
+    memset(common.manualCalibrationValues, 0,
+           sizeof(common.manualCalibrationValues));
+    memset(common.autoCalibrationValues, 0,
+           sizeof(common.autoCalibrationValues));
+    memset(common.calibratedMappingId, 0,
+           sizeof(common.calibratedMappingId));
+    if (saveCommon() != QSPI_W25Qxx_OK) {
+        APP_ERR("ADCManager: shared mapping cleared; common fallback mirror write failed");
+    }
+    return ADCBtnsError::SUCCESS;
 }
 
 int8_t ADCManager::saveCommon()
@@ -447,7 +813,7 @@ ADCBtnsError ADCManager::createADCMapping(const char *name, size_t length, float
     }
 
     // 检查映射数量是否已满
-    if (store.num >= NUM_ADC_VALUES_MAPPING)
+    if (store.num >= 1u)
         return ADCBtnsError::MAPPING_STORAGE_FULL;
 
     // 创建新映射
@@ -539,12 +905,15 @@ ADCBtnsError ADCManager::updateADCMapping(const char *id, const ADCValuesMapping
     // printf("ADCValuesMappingUtils: update - mapping id: %s, name: %s, length: %d, step: %f, samplingNoise: %d, samplingFrequency: %d\n",
     //        map.id, map.name, map.length, map.step, map.samplingNoise, map.samplingFrequency);
 
+    const ADCValuesMapping previousMapping = store.mapping[idx];
+
     // 更新映射数据
     memcpy(&store.mapping[idx], &map, sizeof(ADCValuesMapping));
 
     // 保存更新后的存储结构
     if (saveStore() != QSPI_W25Qxx_OK)
     {
+        store.mapping[idx] = previousMapping;
         return ADCBtnsError::MAPPING_UPDATE_FAILED;
     }
 

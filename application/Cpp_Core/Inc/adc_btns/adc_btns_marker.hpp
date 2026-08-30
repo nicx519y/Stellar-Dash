@@ -37,17 +37,21 @@ class ADCBtnsMarker {
             return instance;
         }
         ADCBtnsError setup(const char* const id);
+        ADCBtnsError setupDraft(const char* name, size_t length, float_t step);
         ADCBtnsError step();
+        ADCBtnsError persistProgress();
         
         void reset();
         
         const StepInfo& getStepInfo() const { return step_info; }
         cJSON* getStepInfoJSON() const;
+        ADCBtnsError getDraftMapping(ADCValuesMapping& mapping) const;
 
     private:
         ADCBtnsMarker();
 
         StepInfo step_info;
+        bool draftMode = false;
 
         void stepFinish(const ADCChannelStats* const stats);
         ADCBtnsError markingFinish();

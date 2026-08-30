@@ -1,4 +1,5 @@
 #include "adc_btns/adc_btns_marker.hpp"
+#include "adc_btns/adc_btns_worker.hpp"
 #include "board_cfg.h"
 #include <numeric>
 
@@ -32,6 +33,7 @@ void ADCBtnsMarker::reset() {
 
     // 使用值初始化替代memset
     step_info = {};
+    draftMode = false;
     
     // 取消订阅ADC转换完成回调
     if (messageHandler) {
@@ -139,21 +141,61 @@ void ADCBtnsMarker::stepFinish(const ADCChannelStats* const stats) {
     handler.sendMarkingStatusNotification();
 }
 
+ADCBtnsError ADCBtnsMarker::persistProgress() {
+    if (draftMode || step_info.index < 0 || step_info.is_sampling) {
+        return ADCBtnsError::NOT_MARKING;
+    }
+    const ADCValuesMapping* current = ADC_MANAGER.getMapping(step_info.id);
+    if (current == nullptr) {
+        return ADCBtnsError::MAPPING_NOT_FOUND;
+    }
+    ADCValuesMapping progress = *current;
+    const size_t completed = static_cast<size_t>(step_info.index) + 1u;
+    memset(progress.originalValues, 0, sizeof(progress.originalValues));
+    memcpy(progress.originalValues, step_info.values.data(),
+           completed * sizeof(uint32_t));
+    progress.samplingNoise = static_cast<uint16_t>(
+        std::accumulate(step_info.noise_values.begin(),
+                        step_info.noise_values.begin() + completed,
+                        static_cast<uint32_t>(0)) / completed);
+    progress.samplingFrequency = static_cast<uint16_t>(
+        std::accumulate(step_info.frequency_values.begin(),
+                        step_info.frequency_values.begin() + completed,
+                        static_cast<uint32_t>(0)) / completed);
+    return ADC_MANAGER.updateADCMapping(step_info.id, progress);
+}
+
 /**
  * @brief 标记完成
  * 将标记值保存到映射中，并重置标记器
  */
 
 ADCBtnsError ADCBtnsMarker::markingFinish() {
-    ADCBtnsError err = ADC_MANAGER.markMapping(step_info.id, 
-        step_info.values.data(), 
-        std::accumulate(step_info.noise_values.begin(), step_info.noise_values.end(), (uint32_t)0) / step_info.length, 
-        std::accumulate(step_info.frequency_values.begin(), step_info.frequency_values.end(), (uint32_t)0) / step_info.length);
+    ADCBtnsError err = ADCBtnsError::SUCCESS;
+    if (!draftMode) {
+        err = ADC_MANAGER.markMapping(
+            step_info.id,
+            step_info.values.data(),
+            std::accumulate(step_info.noise_values.begin(),
+                            step_info.noise_values.end(), (uint32_t)0) /
+                step_info.length,
+            std::accumulate(step_info.frequency_values.begin(),
+                            step_info.frequency_values.end(), (uint32_t)0) /
+                step_info.length);
+    }
 
 
     if(err != ADCBtnsError::SUCCESS) {
         APP_ERR("ADCBtnsMarker: markingFinish - mark save failed. err: %d", static_cast<int>(err));
         return err;
+    }
+
+    if (!draftMode) {
+        const ADCBtnsError reloadResult = ADC_BTNS_WORKER.setup();
+        if (reloadResult != ADCBtnsError::SUCCESS) {
+            APP_ERR("ADCBtnsMarker: recorded mapping saved but worker reload failed: %d",
+                    static_cast<int>(reloadResult));
+        }
     }
 
     step_info.is_completed = true;
@@ -164,6 +206,55 @@ ADCBtnsError ADCBtnsMarker::markingFinish() {
     MSMarkCommandHandler& handler = getMarkingCommandHandler();
     handler.sendMarkingStatusNotification();
 
+    return ADCBtnsError::SUCCESS;
+}
+
+ADCBtnsError ADCBtnsMarker::getDraftMapping(ADCValuesMapping& mapping) const {
+    if (!draftMode || !step_info.is_completed || step_info.length < 2u) {
+        return ADCBtnsError::NOT_MARKING;
+    }
+    memset(&mapping, 0, sizeof(mapping));
+    strncpy(mapping.name, step_info.mapping_name, sizeof(mapping.name) - 1u);
+    mapping.length = step_info.length;
+    mapping.step = step_info.step;
+    mapping.samplingNoise = static_cast<uint16_t>(
+        std::accumulate(step_info.noise_values.begin(),
+                        step_info.noise_values.end(), (uint32_t)0) /
+        step_info.length);
+    mapping.samplingFrequency = static_cast<uint16_t>(
+        std::accumulate(step_info.frequency_values.begin(),
+                        step_info.frequency_values.end(), (uint32_t)0) /
+        step_info.length);
+    memcpy(mapping.originalValues, step_info.values.data(),
+           step_info.length * sizeof(uint32_t));
+    return ADCBtnsError::SUCCESS;
+}
+
+ADCBtnsError ADCBtnsMarker::setupDraft(const char* name,
+                                       size_t length,
+                                       float_t step) {
+    if (!name || name[0] == '\0' || strlen(name) >= 16u ||
+        length < 2u || length > MAX_ADC_VALUES_LENGTH ||
+        !std::isfinite(step) || step < 0.1f || step > 10.0f) {
+        return ADCBtnsError::INVALID_PARAMS;
+    }
+    reset();
+    draftMode = true;
+    snprintf(step_info.id, sizeof(step_info.id), "%s", "draft");
+    snprintf(step_info.mapping_name, sizeof(step_info.mapping_name), "%s", name);
+    step_info.index = -1;
+    step_info.length = static_cast<uint8_t>(length);
+    step_info.step = step;
+    step_info.values.assign(length, 0u);
+    step_info.noise_values.assign(length, 0u);
+    step_info.frequency_values.assign(length, 0u);
+    step_info.is_marking = true;
+    step_info.is_completed = false;
+    step_info.is_sampling = false;
+    messageHandler = [this](const void* data) {
+        if (data) this->stepFinish((ADCChannelStats*)data);
+    };
+    MC.subscribe(MessageId::ADC_SAMPLING_STATS_COMPLETE, messageHandler);
     return ADCBtnsError::SUCCESS;
 }
 

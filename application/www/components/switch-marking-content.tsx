@@ -1,576 +1,1490 @@
-import { useLanguage } from "@/contexts/language-context";
-import { Box, Flex, Center, Stack, IconButton, Button, VStack, Badge, HStack } from "@chakra-ui/react";
-import { SegmentedControl } from "./ui/segmented-control";
-import { Line } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ChartData, ChartOptions } from 'chart.js';
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from "./ui/menu";
-import { LuTrash, LuPlus, LuMenu, LuStar, LuCheck, LuPencil } from "react-icons/lu";
-import { openForm } from "./dialog-form";
 import {
-    SWITCH_MARKING_COUNT_MAX,
+    Badge,
+    Box,
+    Button,
+    Dialog,
+    Flex,
+    HStack,
+    IconButton,
+    Image,
+    Input,
+    Portal,
+    Spinner,
+    Text,
+    VStack,
+} from "@chakra-ui/react";
+import { keyframes } from "@emotion/react";
+import { Line } from "react-chartjs-2";
+import {
+    CategoryScale,
+    Chart as ChartJS,
+    ChartData,
+    ChartOptions,
+    Legend,
+    LinearScale,
+    LineElement,
+    PointElement,
+    Title,
+    Tooltip,
+} from "chart.js";
+import {
+    ChangeEvent,
+    PointerEvent as ReactPointerEvent,
+    WheelEvent as ReactWheelEvent,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
+import {
+    LuDownload,
+    LuImagePlus,
+    LuMinus,
+    LuPencil,
+    LuPlus,
+    LuRotateCcw,
+    LuTrash2,
+} from "react-icons/lu";
+
+import { openConfirm } from "./dialog-confirm";
+import { useColorMode } from "./ui/color-mode";
+import { Tooltip as UiTooltip } from "./ui/tooltip";
+import { showToast } from "./ui/toaster";
+import { useGamepadConfig } from "@/contexts/gamepad-config-context";
+import { useLanguage } from "@/contexts/language-context";
+import { useUserAuth } from "@/contexts/user-auth-context";
+import {
     SWITCH_MARKING_LENGTH_MAX,
     SWITCH_MARKING_LENGTH_MIN,
-    SWITCH_MARKING_NAME_MAX_LENGTH,
     SWITCH_MARKING_STEP_MAX,
     SWITCH_MARKING_STEP_MIN,
 } from "@/types/gamepad-config";
-import { openConfirm } from "./dialog-confirm";
-import { useGamepadConfig } from "@/contexts/gamepad-config-context";
-import { useNavigationBlocker } from "@/hooks/use-navigation-blocker";
-import { useColorMode } from "./ui/color-mode";
+import {
+    SwitchMappingCatalogItem,
+    SwitchMappingPayload,
+} from "@/types/adc";
 
-// 导入事件总线
-import { eventBus, EVENTS } from "@/lib/event-manager";
-import { StepInfo } from "@/types/adc";
+ChartJS.register(
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip,
+    Legend,
+);
 
-// 注册Chart.js组件
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
+interface AxisListItem {
+    mappingId: string;
+    name: string;
+    catalogId: string | null;
+    hasImage: boolean;
+    imageUpdatedAt: string | null;
+    onDevice: boolean;
+    serverItem: SwitchMappingCatalogItem | null;
+}
+
+interface EditorState {
+    mode: "create" | "edit";
+    item: AxisListItem | null;
+}
+
+const CARD_WIDTH = "104px";
+const CARD_HEIGHT = "103px";
+const COVER_HEIGHT = "64px";
+// The card content is 92px wide after its border and padding. Keep the upload
+// preview identical to the final 92x64 cover crop.
+const COVER_ASPECT_RATIO = "23 / 16";
+const COVER_OUTPUT_WIDTH = 736;
+const COVER_OUTPUT_HEIGHT = 512;
+const COVER_ZOOM_MIN = 1;
+const COVER_ZOOM_MAX = 4;
+
+interface Size {
+    width: number;
+    height: number;
+}
+
+interface Point {
+    x: number;
+    y: number;
+}
+
+const clamp = (value: number, minimum: number, maximum: number) =>
+    Math.min(maximum, Math.max(minimum, value));
+
+const blobToDataUrl = (blob: Blob): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+        if (typeof reader.result === "string") {
+            resolve(reader.result);
+            return;
+        }
+        reject(new Error("Unable to read switch cover image"));
+    };
+    reader.onerror = () => reject(reader.error || new Error("Unable to read switch cover image"));
+    reader.readAsDataURL(blob);
+});
+
+const coverMetrics = (image: Size, viewport: Size, zoom: number) => {
+    if (image.width <= 0 || image.height <= 0 ||
+        viewport.width <= 0 || viewport.height <= 0) {
+        return { width: 0, height: 0, scale: 1, maxX: 0, maxY: 0 };
+    }
+    const scale = Math.max(
+        viewport.width / image.width,
+        viewport.height / image.height,
+    ) * zoom;
+    const width = image.width * scale;
+    const height = image.height * scale;
+    return {
+        width,
+        height,
+        scale,
+        maxX: Math.max(0, (width - viewport.width) / 2),
+        maxY: Math.max(0, (height - viewport.height) / 2),
+    };
+};
+
+const clampCoverOffset = (
+    point: Point,
+    image: Size,
+    viewport: Size,
+    zoom: number,
+): Point => {
+    const metrics = coverMetrics(image, viewport, zoom);
+    return {
+        x: clamp(point.x, -metrics.maxX, metrics.maxX),
+        y: clamp(point.y, -metrics.maxY, metrics.maxY),
+    };
+};
+const downloadPulse = keyframes`
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
+`;
 
 export function SwitchMarkingContent() {
-    const { t } = useLanguage();
     const { colorMode } = useColorMode();
-
-    const [samplingNoise, setSamplingNoise] = useState<number>(0);
-    const [samplingFrequency, setSamplingFrequency] = useState<number>(0);
-
-    const gridColor = useMemo(() => {
-        return colorMode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
-    }, [colorMode]); 
-    const options: ChartOptions<"line"> = {
-        responsive: true,
-        plugins: {
-            legend: {
-                position: 'top' as const,
-                display: false,
-            },
-            title: {
-                display: false,
-                text: 'Chart.js Line Chart',
-            },
-        },
-        scales: {
-            x: {
-                grid: {
-                    color: gridColor,
-                },
-            },
-            y: {
-                grid: {
-                    color: gridColor,
-                },
-            }
-        },
-        animation: {
-            duration: 500,
-            easing: 'easeInOutCubic',
-        }
-    };
-
-    const [mappingData, setMappingData] = useState<ChartData<"line">>({
-        labels: [],
-        datasets: []
-    });
-
-    const { 
-        deviceConnected, dataIsReady,
-        mappingList, defaultMappingId, markingStatus, activeMapping,
-        fetchMappingList, fetchMarkingStatus, startMarking, stopMarking, stepMarking,
-        createMapping, deleteMapping, updateDefaultMapping, renameMapping, fetchActiveMapping,
-        updateMarkingStatus
+    const { t } = useLanguage();
+    const { session } = useUserAuth();
+    const isAdmin = session.authenticated && session.user?.role === "admin";
+    const {
+        deviceConnected,
+        dataIsReady,
+        mappingList,
+        defaultMappingId,
+        activeMapping,
+        mappingStorageMode,
+        mappingSource,
+        markingStatus,
+        fetchMappingList,
+        fetchActiveMapping,
+        fetchMarkingStatus,
+        fetchSwitchMappingCatalog,
+        fetchSwitchMappingDetail,
+        fetchSwitchMappingImage,
+        uploadSwitchMappingImage,
+        updateSwitchMappingMetadata,
+        updateSwitchMappingCurve,
+        deleteSwitchMapping,
+        installSwitchMapping,
+        clearInstalledSwitchMapping,
+        createSwitchMappingFromCurrent,
+        startMarking,
+        stopMarking,
+        stepMarking,
+        syncMarkingProgress,
     } = useGamepadConfig();
-    const [ isInit, setIsInit ] = useState<boolean>(false);
-    const [ activeMappingId, setActiveMappingId ] = useState<string>("");
-    const [ markingStatusToastMessage, setMarkingStatusToastMessage ] = useState<string>("");
-    // 使用 useRef 保存最新的状态值，避免闭包问题
-    const activeMappingIdRef = useRef<string>(activeMappingId);
-    const markingStatusRef = useRef<StepInfo | undefined>(markingStatus);
-    const stopMarkingRef = useRef(stopMarking);
-    const deviceConnectedRef = useRef(deviceConnected);
-    const fetchMappingListRef = useRef(fetchMappingList);
-    const fetchMarkingStatusRef = useRef(fetchMarkingStatus);
-    const fetchActiveMappingRef = useRef(fetchActiveMapping);
-    const updateMarkingStatusRef = useRef(updateMarkingStatus);
-    stopMarkingRef.current = stopMarking;
-    deviceConnectedRef.current = deviceConnected;
-    fetchMappingListRef.current = fetchMappingList;
-    fetchMarkingStatusRef.current = fetchMarkingStatus;
-    fetchActiveMappingRef.current = fetchActiveMapping;
-    updateMarkingStatusRef.current = updateMarkingStatus;
-    
-    // 更新 ref 值
-    useEffect(() => {
-        activeMappingIdRef.current = activeMappingId;
-    }, [activeMappingId]);
-    
-    useEffect(() => {
-        markingStatusRef.current = markingStatus;
-    }, [markingStatus, t]);
 
-    const itemsConfig = useMemo(() => {
-        return mappingList.filter(m => m.id !== "" && m.name !== "")
-            .map(({ id, name }) => ({
-                value: id,
-                label: (
-                    <HStack direction={"row"} alignItems={"center"} gap={2} >
-                        { id === defaultMappingId && <LuCheck /> }
-                        <span>{name}</span>
-                    </HStack>
-                )
-            }));
-    }, [mappingList, defaultMappingId]);
+    const [initialized, setInitialized] = useState(false);
+    const [catalog, setCatalog] = useState<SwitchMappingCatalogItem[]>([]);
+    const [catalogImages, setCatalogImages] = useState<Record<string, string>>({});
+    const [busyId, setBusyId] = useState<string | null>(null);
+    const [recordingBusy, setRecordingBusy] = useState(false);
+    const [serverSyncBusy, setServerSyncBusy] = useState(false);
+    const [selectedMappingId, setSelectedMappingId] = useState<string | null>(null);
+    const [selectedMapping, setSelectedMapping] = useState<SwitchMappingPayload | null>(null);
+    const [hoveredMappingId, setHoveredMappingId] = useState<string | null>(null);
+    const [editor, setEditor] = useState<EditorState | null>(null);
+    const [editorName, setEditorName] = useState("");
+    const [editorLength, setEditorLength] = useState(29);
+    const [editorStep, setEditorStep] = useState(0.1);
+    const [editorImage, setEditorImage] = useState<File | null>(null);
+    const [editorImagePreview, setEditorImagePreview] = useState<string | null>(null);
+    const [editorImageSize, setEditorImageSize] = useState<Size>({ width: 0, height: 0 });
+    const [editorCropSize, setEditorCropSize] = useState<Size>({ width: 368, height: 256 });
+    const [editorZoom, setEditorZoom] = useState(1);
+    const [editorOffset, setEditorOffset] = useState<Point>({ x: 0, y: 0 });
+    const [editorDragging, setEditorDragging] = useState(false);
+    const [editorCoverHovered, setEditorCoverHovered] = useState(false);
+    const editorPreviewGenerationRef = useRef(0);
+    const editorCropRef = useRef<HTMLDivElement | null>(null);
+    const editorImageInputRef = useRef<HTMLInputElement | null>(null);
+    const editorDragRef = useRef<{
+        pointerId: number;
+        startClient: Point;
+        startOffset: Point;
+    } | null>(null);
+
+    const initializationRunningRef = useRef(false);
+    const initializationGenerationRef = useRef(0);
+    const fetchMappingListRef = useRef(fetchMappingList);
+    const fetchActiveMappingRef = useRef(fetchActiveMapping);
+    const fetchMarkingStatusRef = useRef(fetchMarkingStatus);
+    const fetchCatalogRef = useRef(fetchSwitchMappingCatalog);
+    const fetchImageRef = useRef(fetchSwitchMappingImage);
+    fetchMappingListRef.current = fetchMappingList;
+    fetchActiveMappingRef.current = fetchActiveMapping;
+    fetchMarkingStatusRef.current = fetchMarkingStatus;
+    fetchCatalogRef.current = fetchSwitchMappingCatalog;
+    fetchImageRef.current = fetchSwitchMappingImage;
+
+    const catalogAdminModeRef = useRef(isAdmin);
+    useEffect(() => {
+        if (catalogAdminModeRef.current === isAdmin) return;
+        catalogAdminModeRef.current = isAdmin;
+        initializationGenerationRef.current += 1;
+        initializationRunningRef.current = false;
+        setInitialized(false);
+    }, [isAdmin]);
+
+    const axisItems = useMemo<AxisListItem[]>(() => {
+        const items = new Map<string, AxisListItem>();
+        catalog.forEach(item => {
+            items.set(item.revisionId, {
+                mappingId: item.revisionId,
+                name: item.displayName,
+                catalogId: item.catalogId,
+                hasImage: item.hasImage,
+                imageUpdatedAt: item.imageUpdatedAt,
+                onDevice: false,
+                serverItem: item,
+            });
+        });
+        mappingList
+            .filter(item => item.id && item.name)
+            .forEach(deviceMapping => {
+                const server = items.get(deviceMapping.id);
+                items.set(deviceMapping.id, {
+                    mappingId: deviceMapping.id,
+                    name: server?.name || deviceMapping.name,
+                    catalogId: server?.catalogId || null,
+                    hasImage: server?.hasImage || false,
+                    imageUpdatedAt: server?.imageUpdatedAt || null,
+                    onDevice: true,
+                    serverItem: server?.serverItem || null,
+                });
+            });
+        return [...items.values()];
+    }, [catalog, mappingList]);
 
     useEffect(() => {
         if (!deviceConnected) {
-            setIsInit(false);
+            initializationGenerationRef.current += 1;
+            initializationRunningRef.current = false;
+            setInitialized(false);
+            setCatalog([]);
+            setSelectedMappingId(null);
+            setSelectedMapping(null);
             return;
         }
-        if (!isInit && deviceConnected && dataIsReady) {
-            void (async () => {
-                await fetchMappingListRef.current();
-                await fetchMarkingStatusRef.current();
-                setIsInit(true);
-            })().catch(() => undefined);
-        }
-    }, [deviceConnected, dataIsReady, isInit]);
+        if (!dataIsReady || initialized || initializationRunningRef.current) return;
 
-    const stopMarkingForNavigation = useCallback(async (): Promise<boolean> => {
-        if (!deviceConnectedRef.current || !markingStatusRef.current?.is_marking) {
-            return true;
-        }
-        try {
-            await stopMarkingRef.current();
-            return true;
-        } catch {
-            return !deviceConnectedRef.current;
-        }
-    }, []);
+        initializationRunningRef.current = true;
+        const generation = ++initializationGenerationRef.current;
+        void Promise.allSettled([
+            fetchMappingListRef.current(),
+            fetchCatalogRef.current(false),
+        ]).then(results => {
+            if (generation !== initializationGenerationRef.current) return;
+            const catalogResult = results[1];
+            if (catalogResult.status === "fulfilled") {
+                setCatalog(catalogResult.value);
+            } else {
+                setCatalog([]);
+                showToast({
+                    title: t.SWITCH_MAPPING_CATALOG_LOAD_FAILED,
+                    description: catalogResult.reason instanceof Error
+                        ? catalogResult.reason.message
+                        : String(catalogResult.reason),
+                    type: "error",
+                });
+            }
+            setInitialized(true);
+        }).finally(() => {
+            if (generation === initializationGenerationRef.current) {
+                initializationRunningRef.current = false;
+            }
+        });
+    }, [deviceConnected, dataIsReady, initialized, isAdmin, t.SWITCH_MAPPING_CATALOG_LOAD_FAILED]);
 
-    useNavigationBlocker(
-        markingStatus?.is_marking === true,
-        t.SETTINGS_SWITCH_MARKING_UNSAVED_CHANGES_WARNING_TITLE,
-        t.SETTINGS_SWITCH_MARKING_UNSAVED_CHANGES_WARNING_MESSAGE,
-        stopMarkingForNavigation,
+    useEffect(() => {
+        if (!defaultMappingId || activeMapping?.id === defaultMappingId) return;
+        if (!mappingList.some(mapping => mapping.id === defaultMappingId)) return;
+        void fetchActiveMappingRef.current(defaultMappingId).catch(error => {
+            showToast({
+                title: t.SWITCH_MAPPING_DEVICE_READ_FAILED,
+                description: error instanceof Error ? error.message : String(error),
+                type: "error",
+            });
+        });
+    }, [defaultMappingId, mappingList, activeMapping?.id, t.SWITCH_MAPPING_DEVICE_READ_FAILED]);
+
+    useEffect(() => {
+        if (!isAdmin || !deviceConnected || !dataIsReady) return;
+        void fetchMarkingStatusRef.current().catch(() => undefined);
+    }, [isAdmin, deviceConnected, dataIsReady]);
+
+    useEffect(() => {
+        if (!activeMapping?.id) return;
+        if (!selectedMappingId || selectedMappingId === defaultMappingId ||
+            selectedMappingId === activeMapping.id) {
+            setSelectedMappingId(activeMapping.id);
+            setSelectedMapping(activeMapping);
+        }
+    }, [activeMapping, defaultMappingId, selectedMappingId]);
+
+    useEffect(() => {
+        let cancelled = false;
+        void Promise.all(catalog.filter(item => item.hasImage).map(async item => {
+            try {
+                const image = await fetchImageRef.current(item.catalogId, false);
+                return image
+                    ? { catalogId: item.catalogId, image: await blobToDataUrl(image) }
+                    : null;
+            } catch {
+                return null;
+            }
+        })).then(images => {
+            if (cancelled) return;
+            const next: Record<string, string> = {};
+            images.forEach(image => {
+                if (!image) return;
+                next[image.catalogId] = image.image;
+            });
+            setCatalogImages(next);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [catalog]);
+
+    useEffect(() => {
+        if (!editor) return;
+        const crop = editorCropRef.current;
+        if (!crop) return;
+        const updateSize = () => {
+            const next = {
+                width: crop.clientWidth,
+                height: crop.clientHeight,
+            };
+            if (next.width <= 0 || next.height <= 0) return;
+            setEditorCropSize(next);
+            setEditorOffset(current => clampCoverOffset(
+                current, editorImageSize, next, editorZoom,
+            ));
+        };
+        updateSize();
+        const observer = new ResizeObserver(updateSize);
+        observer.observe(crop);
+        return () => observer.disconnect();
+    }, [editor, editorImageSize, editorZoom]);
+
+    const editorCoverMetrics = useMemo(
+        () => coverMetrics(editorImageSize, editorCropSize, editorZoom),
+        [editorCropSize, editorImageSize, editorZoom],
     );
 
-    useEffect(() => {
-        return () => {
-            if (deviceConnectedRef.current && markingStatusRef.current?.is_marking) {
-                void stopMarkingRef.current().catch(() => undefined);
+    const refreshCatalog = async () => {
+        const items = await fetchCatalogRef.current(false);
+        setCatalog(items);
+        return items;
+    };
+
+    const selectAxis = async (item: AxisListItem) => {
+        if (busyId || recordingBusy || serverSyncBusy) return;
+        if (markingStatus.is_marking && item.mappingId !== defaultMappingId) return;
+        setSelectedMappingId(item.mappingId);
+        if (item.mappingId === defaultMappingId) {
+            if (activeMapping?.id === item.mappingId) setSelectedMapping(activeMapping);
+            return;
+        }
+        if (!item.catalogId || !item.serverItem) return;
+        setBusyId(item.catalogId);
+        try {
+            const detail = await fetchSwitchMappingDetail(item.catalogId);
+            setSelectedMapping(detail.revision.mapping);
+            if (mappingStorageMode !== "shared-singleton") {
+                showToast({
+                    title: t.SWITCH_MAPPING_FIRMWARE_UPGRADE_TITLE,
+                    description: t.SWITCH_MAPPING_FIRMWARE_UPGRADE_MESSAGE,
+                    type: "error",
+                });
+                return;
             }
+            const installed = await installSwitchMapping(item.catalogId, detail);
+            setSelectedMappingId(installed.id);
+            setSelectedMapping(installed);
+            showToast({
+                title: t.SWITCH_MAPPING_INSTALL_SUCCESS.replace("{name}", item.name),
+                description: t.SWITCH_MAPPING_INSTALL_SUCCESS_DETAIL,
+                type: "success",
+            });
+        } catch (error) {
+            showToast({
+                title: t.SWITCH_MAPPING_INSTALL_FAILED,
+                description: error instanceof Error ? error.message : String(error),
+                type: "error",
+            });
+        } finally {
+            setBusyId(null);
+        }
+    };
+
+    const resetEditorCrop = () => {
+        setEditorImageSize({ width: 0, height: 0 });
+        setEditorZoom(1);
+        setEditorOffset({ x: 0, y: 0 });
+        setEditorDragging(false);
+        setEditorCoverHovered(false);
+        editorDragRef.current = null;
+    };
+
+    const openEditor = (mode: "create" | "edit", item: AxisListItem | null) => {
+        editorPreviewGenerationRef.current += 1;
+        setEditor({ mode, item });
+        setEditorName(mode === "edit" ? item?.name || "" : "");
+        setEditorLength(29);
+        setEditorStep(0.1);
+        setEditorImage(null);
+        setEditorImagePreview(
+            mode === "edit" && item?.catalogId
+                ? catalogImages[item.catalogId] || null
+                : null,
+        );
+        resetEditorCrop();
+    };
+
+    useEffect(() => {
+        if (editor?.mode !== "edit" || editorImage || !editor.item?.catalogId) return;
+        setEditorImagePreview(catalogImages[editor.item.catalogId] || null);
+    }, [catalogImages, editor, editorImage]);
+
+    const closeEditor = () => {
+        if (busyId) return;
+        editorPreviewGenerationRef.current += 1;
+        setEditor(null);
+        setEditorName("");
+        setEditorLength(29);
+        setEditorStep(0.1);
+        setEditorImage(null);
+        setEditorImagePreview(null);
+        resetEditorCrop();
+    };
+
+    const selectEditorImage = (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0] || null;
+        event.target.value = "";
+        if (!file) return;
+        if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
+            file.size < 12 || file.size > 2 * 1024 * 1024) {
+            showToast({
+                title: t.SWITCH_MAPPING_IMAGE_INVALID_TITLE,
+                description: t.SWITCH_MAPPING_IMAGE_INVALID_MESSAGE,
+                type: "error",
+            });
+            return;
+        }
+        const previewGeneration = editorPreviewGenerationRef.current + 1;
+        editorPreviewGenerationRef.current = previewGeneration;
+        setEditorImage(file);
+        setEditorImagePreview(null);
+        resetEditorCrop();
+
+        // A data URL is intentionally used here. Blob URLs were revoked by
+        // React StrictMode's development-only effect cleanup before Chakra's
+        // Image had loaded them, leaving only the alt text in the crop frame.
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (editorPreviewGenerationRef.current !== previewGeneration) return;
+            const result = reader.result;
+            setEditorImagePreview(typeof result === "string" ? result : null);
         };
-    }, []);
+        reader.onerror = () => {
+            if (editorPreviewGenerationRef.current !== previewGeneration) return;
+            setEditorImage(null);
+            setEditorImagePreview(null);
+            showToast({
+                title: t.SWITCH_MAPPING_IMAGE_INVALID_TITLE,
+                description: t.SWITCH_MAPPING_IMAGE_INVALID_MESSAGE,
+                type: "error",
+            });
+        };
+        reader.readAsDataURL(file);
+    };
 
-    useEffect(() => {
-        if (markingStatus?.is_marking &&
-            mappingList.some(m => m.id === markingStatus.id) &&
-            activeMappingId !== markingStatus.id) {
-            setActiveMappingId(markingStatus.id);
+    const changeEditorZoom = (value: number) => {
+        const nextZoom = clamp(value, COVER_ZOOM_MIN, COVER_ZOOM_MAX);
+        setEditorZoom(nextZoom);
+        setEditorOffset(current => clampCoverOffset(
+            current, editorImageSize, editorCropSize, nextZoom,
+        ));
+    };
+
+    const resetEditorCropTransform = () => {
+        setEditorZoom(1);
+        setEditorOffset({ x: 0, y: 0 });
+    };
+
+    const beginEditorCropDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (!editorImage || !editorImagePreview || event.button !== 0) return;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        editorDragRef.current = {
+            pointerId: event.pointerId,
+            startClient: { x: event.clientX, y: event.clientY },
+            startOffset: editorOffset,
+        };
+        setEditorDragging(true);
+    };
+
+    const moveEditorCrop = (event: ReactPointerEvent<HTMLDivElement>) => {
+        const drag = editorDragRef.current;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        setEditorOffset(clampCoverOffset({
+            x: drag.startOffset.x + event.clientX - drag.startClient.x,
+            y: drag.startOffset.y + event.clientY - drag.startClient.y,
+        }, editorImageSize, editorCropSize, editorZoom));
+    };
+
+    const endEditorCropDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+        const drag = editorDragRef.current;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        editorDragRef.current = null;
+        setEditorDragging(false);
+    };
+
+    const zoomEditorCropWithWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+        if (!editorImage || !editorImagePreview) return;
+        event.preventDefault();
+        changeEditorZoom(editorZoom + (event.deltaY < 0 ? 0.12 : -0.12));
+    };
+
+    const createCroppedCoverFile = async (): Promise<File | null> => {
+        if (!editorImage || !editorImagePreview) return null;
+        const image = document.createElement("img");
+        image.src = editorImagePreview;
+        await image.decode();
+
+        const viewport = editorCropRef.current
+            ? {
+                width: editorCropRef.current.clientWidth,
+                height: editorCropRef.current.clientHeight,
+            }
+            : editorCropSize;
+        const natural = { width: image.naturalWidth, height: image.naturalHeight };
+        const metrics = coverMetrics(natural, viewport, editorZoom);
+        const sourceWidth = viewport.width / metrics.scale;
+        const sourceHeight = viewport.height / metrics.scale;
+        const sourceX = clamp(
+            ((metrics.width - viewport.width) / 2 - editorOffset.x) / metrics.scale,
+            0,
+            Math.max(0, natural.width - sourceWidth),
+        );
+        const sourceY = clamp(
+            ((metrics.height - viewport.height) / 2 - editorOffset.y) / metrics.scale,
+            0,
+            Math.max(0, natural.height - sourceHeight),
+        );
+
+        const canvas = document.createElement("canvas");
+        canvas.width = COVER_OUTPUT_WIDTH;
+        canvas.height = COVER_OUTPUT_HEIGHT;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Canvas is not available");
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+        context.drawImage(
+            image,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            0,
+            0,
+            COVER_OUTPUT_WIDTH,
+            COVER_OUTPUT_HEIGHT,
+        );
+        const blob = await new Promise<Blob | null>(resolve =>
+            canvas.toBlob(resolve, "image/webp", 0.9)
+        );
+        if (!blob) throw new Error("Unable to crop cover image");
+        const baseName = editorImage.name.replace(/\.[^.]+$/, "") || "switch-cover";
+        return new File([blob], `${baseName}.webp`, { type: "image/webp" });
+    };
+
+    const openEditorImagePicker = () => {
+        if (busyId || editorImage) return;
+        editorImageInputRef.current?.click();
+    };
+
+    const saveEditor = async () => {
+        if (!editor) return;
+        const name = editorName.trim();
+        if (!name || name.length > 80) {
+            showToast({
+                title: t.SWITCH_MAPPING_NAME_INVALID_TITLE,
+                description: t.SWITCH_MAPPING_NAME_INVALID_MESSAGE,
+                type: "error",
+            });
             return;
         }
-
-        if(activeMappingId && activeMappingId !== "" && mappingList.find(m => m.id === activeMappingId)) {
+        const duplicateName = catalog.some(item =>
+            item.catalogId !== editor.item?.catalogId &&
+            item.displayName.trim().toLocaleLowerCase() === name.toLocaleLowerCase()
+        );
+        if (duplicateName) {
+            showToast({
+                title: t.SWITCH_MAPPING_NAME_DUPLICATE_TITLE,
+                description: t.SWITCH_MAPPING_NAME_DUPLICATE_MESSAGE,
+                type: "error",
+            });
             return;
         }
-
-        if(defaultMappingId && mappingList.some(m => m.id === defaultMappingId)) {
-            setActiveMappingId(defaultMappingId);
-        } else if(mappingList.length > 0) {
-            setActiveMappingId(mappingList[0].id);
-        } else {
-            setActiveMappingId("");
-        }
-    }, [activeMappingId, mappingList, defaultMappingId, markingStatus?.id, markingStatus?.is_marking]);
-
-    useEffect(() => {
-        const activeMappingIsMarking = (markingStatus?.id === activeMappingId);
-        // 如果标记中，但标记的不是当前映射，则停止标记
-        if(markingStatus?.is_marking && activeMappingId && !activeMappingIsMarking) {
-            void stopMarkingRef.current().catch(() => undefined);
-        }
-
-        if(activeMappingIsMarking) {
-            const myData = {
-                labels: Array.from({ length: markingStatus?.length ?? 0 }, (_, i) => (i * (markingStatus?.step ?? 0)).toFixed(2)),
-                datasets: [
-                    {
-                        label: markingStatus.mapping_name,
-                        cubicInterpolationMode: 'monotone' as const,
-                        tension: .4,
-                        fill: true,
-                        backgroundColor: 'rgba(75,192,192,0.2)',
-                        borderColor: 'rgba(75,192,192,1)',
-                        data: markingStatus.values,
-                    },
-                ],
-            };  
-
-            setMappingData(myData);
-            setSamplingNoise(markingStatus.sampling_noise);
-            setSamplingFrequency(markingStatus.sampling_frequency);
-
-        } else {
-
-            const myData = {
-                labels: Array.from({ length: activeMapping?.length ?? 0 }, (_, i) => (i * (activeMapping?.step ?? 0)).toFixed(2)),
-                datasets: [
-                    {
-                        label: activeMapping?.name ?? "",
-                        cubicInterpolationMode: 'monotone' as const,
-                        tension: .4,
-                        fill: true,
-                        backgroundColor: 'rgba(75,192,192,0.2)',
-                        borderColor: 'rgba(75,192,192,1)',
-                        data: activeMapping?.originalValues ?? [],
-                    },
-                ],
-            };
-
-            setMappingData(myData);
-            setSamplingNoise(activeMapping?.samplingNoise ?? 0);
-            setSamplingFrequency(activeMapping?.samplingFrequency ?? 0);
-
-        }
-    }, [activeMapping, activeMappingId, markingStatus]);
-
-    useEffect(() => {
-        if(activeMappingId && activeMappingId !== "" && mappingList.find(m => m.id === activeMappingId)) {
-            void fetchActiveMappingRef.current(activeMappingId).catch(() => undefined);
-        }
-    }, [activeMappingId, mappingList]);
-
-    // 更新标记状态提示信息
-    useEffect(() => {
-        if(!markingStatus) {
-            setMarkingStatusToastMessage("");
+        if (editor.mode === "create" &&
+            (!Number.isInteger(editorLength) ||
+                editorLength < SWITCH_MARKING_LENGTH_MIN ||
+                editorLength > SWITCH_MARKING_LENGTH_MAX ||
+                !Number.isFinite(editorStep) ||
+                editorStep < SWITCH_MARKING_STEP_MIN ||
+                editorStep > SWITCH_MARKING_STEP_MAX)) {
+            showToast({
+                title: t.SWITCH_MAPPING_PARAMETERS_INVALID_TITLE,
+                description: t.SWITCH_MAPPING_PARAMETERS_INVALID_MESSAGE,
+                type: "error",
+            });
             return;
         }
-
-        // 如果标记未开始，则弹出提示
-        if(!markingStatus.is_marking && !markingStatus.is_completed && !markingStatus.is_sampling) {
-            setMarkingStatusToastMessage(t.SETTINGS_SWITCH_MARKING_START_DIALOG_MESSAGE);
-        // 如果标记完成，则弹出提示
-        } else if(!markingStatus.is_marking && markingStatus.is_completed) {
-            setMarkingStatusToastMessage(t.SETTINGS_SWITCH_MARKING_COMPLETED_DIALOG_MESSAGE);
-        // 如果标记开始，则弹出提示
-        } else if(markingStatus.is_marking && !markingStatus.is_completed && !markingStatus.is_sampling) {
-            // 如果步进即将完成，则弹出保存提示
-            if(markingStatus.index >= markingStatus.length - 1) {
-                setMarkingStatusToastMessage(t.SETTINGS_SWITCH_MARKING_SAVE_DIALOG_MESSAGE);
-            // 如果步进未完成，则弹出步进提示
+        const operationId = editor.mode === "create"
+            ? "create"
+            : editor.item?.catalogId || "edit";
+        setBusyId(operationId);
+        try {
+            const croppedImage = await createCroppedCoverFile();
+            if (editor.mode === "create") {
+                await createSwitchMappingFromCurrent({
+                    displayName: name,
+                    description: "",
+                    length: editorLength,
+                    step: editorStep,
+                    image: croppedImage,
+                });
             } else {
-                const step = markingStatus.index + 2;
-                const distance = ((markingStatus.index + 1) * (markingStatus.step ?? 0)).toFixed(2);
-                setMarkingStatusToastMessage(t.SETTINGS_SWITCH_MARKING_SAMPLING_START_DIALOG_MESSAGE.replace("<step>", step.toString()).replace("<distance>", distance));
-            }
-        // 如果采样中，则弹出提示
-        } else if(markingStatus.is_sampling) {
-            setMarkingStatusToastMessage(t.SETTINGS_SWITCH_MARKING_SAMPLING_DIALOG_MESSAGE.replace("<step>", (markingStatus.index + 2).toString()).replace("<distance>", ((markingStatus.index + 1) * (markingStatus.step ?? 0)).toFixed(2)));
-        } else {
-            setMarkingStatusToastMessage("");
-        }
-    }, [markingStatus]);
-
-    // 订阅标记状态更新事件，在组件整个生命周期中保持订阅
-    useEffect(() => {
-        // 订阅标记状态更新事件
-        const unsubscribe = eventBus.on(EVENTS.MARKING_STATUS_UPDATE, (data: unknown) => {
-            if (data && typeof data === 'object' && 'status' in data) {
-                const eventData = data as { status: StepInfo };
-                const newStatus = eventData.status;
-                console.log('通过事件总线收到标记状态更新:', newStatus);
-                
-                // 使用ref获取最新的状态值
-                const currentActiveMappingId = activeMappingIdRef.current;
-                const currentMarkingStatus = markingStatusRef.current;
-                
-                // 只有当前正在标记的映射或者状态发生变化时才更新
-                if (newStatus.id === currentActiveMappingId || 
-                    newStatus.is_marking !== currentMarkingStatus?.is_marking) {
-                    updateMarkingStatusRef.current(newStatus);
+                const item = editor.item;
+                if (!item?.catalogId || !item.serverItem) {
+                    throw new Error(t.SWITCH_MAPPING_NOT_IN_CATALOG);
+                }
+                await updateSwitchMappingMetadata(
+                    item.catalogId,
+                    name,
+                    item.serverItem.description,
+                );
+                if (croppedImage) {
+                    await uploadSwitchMappingImage(item.catalogId, croppedImage);
                 }
             }
-        });
-
-        console.log('订阅标记状态更新事件');
-
-        // 返回清理函数，只在组件卸载时取消订阅
-        return () => {
-            console.log('取消订阅标记状态更新事件');
-            unsubscribe();
-        };
-    // }, [updateMarkingStatus]); // 添加updateMarkingStatus依赖
-    }, []);
-
-    const createMappingClick = async () => {
-        const result = await openForm({
-            fields: [{
-                name: "name",
-                label: t.SETTINGS_SWITCH_MARKING_NAME_LABEL,
-                placeholder: t.SETTINGS_SWITCH_MARKING_NAME_PLACEHOLDER,
-                type: "text",
-                defaultValue: "",
-                validate: (value: string) => {
-                    const [isValid, errorMessage] = validateSwitchMarkingName(value);
-                    if (!isValid) {
-                        return errorMessage;
-                    }
-                    return undefined;
-                }
-            }, {
-                name: "length",
-                label: t.SETTINGS_SWITCH_MARKING_LENGTH_LABEL,
-                placeholder: t.SETTINGS_SWITCH_MARKING_LENGTH_PLACEHOLDER,
-                type: "number",
-                defaultValue: SWITCH_MARKING_LENGTH_MIN.toString(),
-                min: SWITCH_MARKING_LENGTH_MIN,
-                max: SWITCH_MARKING_LENGTH_MAX,
-                step: 1,
-                validate: (value: string) => {
-                    const num = Number(value);
-                    const [isValid, errorMessage] = validateSwitchMarkingLength(num);
-                    if (!isValid) {
-                        return errorMessage;
-                    }
-                    return undefined;
-                }
-            }, {
-                name: "step",
-                label: t.SETTINGS_SWITCH_MARKING_STEP_LABEL,
-                placeholder: t.SETTINGS_SWITCH_MARKING_STEP_PLACEHOLDER,
-                type: "number",
-                defaultValue: "0.1",
-                min: SWITCH_MARKING_STEP_MIN,
-                max: SWITCH_MARKING_STEP_MAX,
-                step: 0.1,
-                validate: (value: string) => {
-                    const num = parseFloat(value);
-                    const [isValid, errorMessage] = validateSwitchMarkingStep(num);
-                    if (!isValid) {
-                        return errorMessage;
-                    }
-                    return undefined;
-                }
-            }]
-        });
-
-        if (result) {
-            const createdMappingId = await createMapping(
-                result.name,
-                parseInt(result.length, 10),
-                parseFloat(result.step),
-            );
-            setActiveMappingId(createdMappingId);
+            await refreshCatalog();
+            setEditor(null);
+            setEditorName("");
+            setEditorLength(29);
+            setEditorStep(0.1);
+            setEditorImage(null);
+            setEditorImagePreview(null);
+            resetEditorCrop();
+            showToast({
+                title: editor.mode === "create"
+                    ? t.SWITCH_MAPPING_CREATE_SUCCESS
+                    : t.SWITCH_MAPPING_EDIT_SUCCESS,
+                type: "success",
+            });
+        } catch (error) {
+            showToast({
+                title: editor.mode === "create"
+                    ? t.SWITCH_MAPPING_CREATE_FAILED
+                    : t.SWITCH_MAPPING_EDIT_FAILED,
+                description: error instanceof Error ? error.message : String(error),
+                type: "error",
+            });
+        } finally {
+            setBusyId(null);
         }
-    }
+    };
 
-    const validateSwitchMarkingName = (name: string, excludedId?: string): [boolean, string] => {
-
-        if (/[!@#$%^&*()_+\[\]{}|;:'",.<>?/\\]/.test(name)) {
-            return [false, t.SETTINGS_SWITCH_MARKING_VALIDATION_SPECIAL_CHARS];
-        }
-
-        const nameBytes = new TextEncoder().encode(name).byteLength;
-        if (nameBytes > SWITCH_MARKING_NAME_MAX_LENGTH || nameBytes < 1) {
-            return [false, t.SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH.replace("{0}", nameBytes.toString())];
-        }
-
-        if (mappingList.find(p => p.id !== excludedId && p.name === name)) {
-            return [false, t.SETTINGS_SWITCH_MARKING_VALIDATION_SAME_NAME];
-        }
-
-        return [true, ""];
-    }
-
-    const validateSwitchMarkingLength = (length: number): [boolean, string] => {
-        if (!Number.isInteger(length) || length < SWITCH_MARKING_LENGTH_MIN || length > SWITCH_MARKING_LENGTH_MAX) {
-            return [false, t.SETTINGS_SWITCH_MARKING_VALIDATION_LENGTH_RANGE.replace("{0}", length.toString())];
-        }
-        return [true, ""];
-    }
-
-    const validateSwitchMarkingStep = (step: number): [boolean, string] => {
-        if (!Number.isFinite(step) || step < SWITCH_MARKING_STEP_MIN || step > SWITCH_MARKING_STEP_MAX) {
-            return [false, t.SETTINGS_SWITCH_MARKING_VALIDATION_STEP_RANGE.replace("{0}", step.toString())];
-        }
-        return [true, ""];
-    }
-
-    const deleteMappingClick = async () => {
-        if (!activeMappingId || activeMapping?.id !== activeMappingId) {
-            return;
-        }
+    const deleteAxis = async (item: AxisListItem) => {
+        if (!item.catalogId || busyId) return;
+        const active = item.mappingId === defaultMappingId;
         const confirmed = await openConfirm({
-            title: t.SETTINGS_SWITCH_MARKING_DELETE_DIALOG_TITLE,
-            message: t.SETTINGS_SWITCH_MARKING_DELETE_CONFIRM_MESSAGE
+            title: t.SWITCH_MAPPING_DELETE_TITLE.replace("{name}", item.name),
+            message: active && mappingSource === "server-installed"
+                ? t.SWITCH_MAPPING_DELETE_ACTIVE_MESSAGE
+                : t.SWITCH_MAPPING_DELETE_MESSAGE,
         });
+        if (!confirmed) return;
 
-
-        if (confirmed) {
-            await deleteMapping(activeMappingId);
+        setBusyId(item.catalogId);
+        let deviceCleared = false;
+        try {
+            if (active && mappingSource === "server-installed") {
+                await clearInstalledSwitchMapping(item.mappingId);
+                deviceCleared = true;
+            }
+            await deleteSwitchMapping(item.catalogId);
+            await refreshCatalog();
+            showToast({
+                title: t.SWITCH_MAPPING_DELETE_SUCCESS.replace("{name}", item.name),
+                description: deviceCleared ? t.SWITCH_MAPPING_DELETE_DEVICE_FALLBACK : undefined,
+                type: "success",
+            });
+        } catch (error) {
+            showToast({
+                title: t.SWITCH_MAPPING_DELETE_FAILED,
+                description: deviceCleared
+                    ? t.SWITCH_MAPPING_DELETE_PARTIAL.replace(
+                        "{error}",
+                        error instanceof Error ? error.message : String(error),
+                    )
+                    : error instanceof Error ? error.message : String(error),
+                type: "error",
+            });
+        } finally {
+            setBusyId(null);
         }
-    }
+    };
 
-    const setDefaultMappingClick = async () => {
-        if(activeMapping?.id === activeMappingId) {
-            await updateDefaultMapping(activeMappingId);
+    const runRecordingAction = async (
+        action: () => Promise<void>,
+        allowDuringSync: boolean = false,
+    ) => {
+        if (recordingBusy || (!allowDuringSync && serverSyncBusy) || busyId) return;
+        setRecordingBusy(true);
+        try {
+            await action();
+        } catch (error) {
+            showToast({
+                title: t.SWITCH_MAPPING_RECORDING_FAILED,
+                description: error instanceof Error ? error.message : String(error),
+                type: "error",
+            });
+        } finally {
+            setRecordingBusy(false);
         }
-    }
+    };
 
-    const renameMappingClick = async () => {
-        if(!activeMapping || activeMapping.id !== activeMappingId) {
+    const selectedIsInstalled = Boolean(
+        selectedMappingId && selectedMappingId === defaultMappingId,
+    );
+
+    const lastServerSyncRef = useRef("");
+    useEffect(() => {
+        if (!isAdmin || !selectedIsInstalled || markingStatus.is_sampling ||
+            markingStatus.index < 0 || markingStatus.id !== selectedMappingId) {
             return;
         }
-        const result = await openForm({
-            fields: [{
-                name: "name",
-                label: t.SETTINGS_SWITCH_MARKING_NAME_LABEL,
-                placeholder: t.SETTINGS_SWITCH_MARKING_NAME_PLACEHOLDER,
-                type: "text",
-                defaultValue: activeMapping?.name ?? "",
-                validate: (value: string) => {
-                    const [isValid, errorMessage] = validateSwitchMarkingName(value, activeMapping.id);
-                    if (!isValid) {
-                        return errorMessage;
+        const selectedItem = axisItems.find(item => item.mappingId === selectedMappingId);
+        if (!selectedItem?.catalogId) return;
+
+        const mapping: SwitchMappingPayload = {
+            id: markingStatus.id,
+            name: markingStatus.mapping_name,
+            length: markingStatus.length,
+            step: markingStatus.step,
+            samplingNoise: markingStatus.sampling_noise,
+            samplingFrequency: markingStatus.sampling_frequency,
+            originalValues: [...markingStatus.values],
+        };
+        const syncKey = `${selectedItem.catalogId}:${mapping.id}:${markingStatus.index}:` +
+            `${mapping.samplingNoise}:${mapping.samplingFrequency}:${mapping.originalValues.join(",")}`;
+        if (lastServerSyncRef.current === syncKey) return;
+        lastServerSyncRef.current = syncKey;
+
+        setServerSyncBusy(true);
+        void (async () => {
+            let lastError: unknown = null;
+            for (let attempt = 0; attempt < 3; attempt += 1) {
+                try {
+                    const [, detail] = await Promise.all([
+                        syncMarkingProgress(),
+                        updateSwitchMappingCurve(
+                            selectedItem.catalogId as string,
+                            mapping,
+                        ),
+                    ]);
+                    setSelectedMapping(detail.revision.mapping);
+                    setCatalog(current => current.map(item =>
+                        item.catalogId === detail.catalogId
+                            ? {
+                                ...item,
+                                sha256: detail.revision.sha256,
+                                updatedAt: detail.updatedAt,
+                            }
+                            : item
+                    ));
+                    return;
+                } catch (error) {
+                    lastError = error;
+                    if (attempt < 2) {
+                        await new Promise(resolve => window.setTimeout(resolve, 150 * (attempt + 1)));
                     }
-                    return undefined;
                 }
-            }]
+            }
+            lastServerSyncRef.current = "";
+            showToast({
+                title: t.SWITCH_MAPPING_RECORDING_FAILED,
+                description: lastError instanceof Error ? lastError.message : String(lastError),
+                type: "error",
+            });
+            await stopMarking().catch(() => undefined);
+        })().finally(() => {
+            setServerSyncBusy(false);
         });
+    }, [
+        axisItems,
+        isAdmin,
+        markingStatus,
+        selectedIsInstalled,
+        selectedMappingId,
+        stopMarking,
+        syncMarkingProgress,
+        t.SWITCH_MAPPING_RECORDING_FAILED,
+        updateSwitchMappingCurve,
+    ]);
 
-        if (result) {
-            await renameMapping(activeMappingId, result.name);
+    const displayedMapping = useMemo<SwitchMappingPayload | null>(() => {
+        const recordingVisible = markingStatus.id === selectedMappingId &&
+            markingStatus.length >= 2 &&
+            (markingStatus.is_marking || markingStatus.is_sampling || markingStatus.is_completed);
+        if (recordingVisible) {
+            return {
+                id: markingStatus.id,
+                name: markingStatus.mapping_name,
+                length: markingStatus.length,
+                step: markingStatus.step,
+                samplingNoise: markingStatus.sampling_noise,
+                samplingFrequency: markingStatus.sampling_frequency,
+                originalValues: [...markingStatus.values],
+            };
         }
-    }
+        return selectedMapping || activeMapping;
+    }, [markingStatus, selectedMapping, selectedMappingId, activeMapping]);
 
-    const activeMappingChange = (id: string) => {
-        if (markingStatus?.is_marking) {
-            return;
-        }
-        setActiveMappingId(id);
-    }
-
-    const activeMappingReady = !!activeMapping && activeMapping.id === activeMappingId;
-    const activeMappingIsMarked = activeMappingReady &&
-        activeMapping.length >= SWITCH_MARKING_LENGTH_MIN &&
-        activeMapping.originalValues.length >= activeMapping.length &&
-        activeMapping.originalValues[0] > 0 &&
-        activeMapping.originalValues[activeMapping.length - 1] > 0 &&
-        activeMapping.originalValues[0] !== activeMapping.originalValues[activeMapping.length - 1];
-
-    // 菜单项
-    const menuItems = [
-        {
-            value: "create",
-            label: "Add New",
-            icon: <LuPlus />,
-            onClick: createMappingClick,
-            disabled: markingStatus?.is_marking === true || mappingList.length >= SWITCH_MARKING_COUNT_MAX,
+    const gridColor = colorMode === "dark"
+        ? "rgba(255,255,255,0.1)"
+        : "rgba(0,0,0,0.1)";
+    const chartOptions = useMemo<ChartOptions<"line">>(() => ({
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            title: { display: false },
         },
-        {
-            value: "delete",
-            label: "Delete",
-            icon: <LuTrash />,
-            onClick: deleteMappingClick,
-            disabled: markingStatus?.is_marking === true || !activeMappingReady || activeMappingId === defaultMappingId,
+        scales: {
+            x: { grid: { color: gridColor } },
+            y: { grid: { color: gridColor } },
         },
-        {
-            value: "rename",
-            label: "Rename",
-            icon: <LuPencil />,
-            onClick: renameMappingClick,
-            disabled: markingStatus?.is_marking === true || !activeMappingReady,
-        },
-        {
-            value: "set_default",
-            label: "Set Default",
-            icon: <LuStar />,
-            onClick: setDefaultMappingClick,
-            disabled: markingStatus?.is_marking === true || !activeMappingReady || activeMappingId === defaultMappingId || !activeMappingIsMarked,
-        }
-    ];
+        animation: { duration: 500, easing: "easeInOutCubic" },
+    }), [gridColor]);
+    const chartData = useMemo<ChartData<"line">>(() => ({
+        labels: Array.from(
+            { length: displayedMapping?.length || 0 },
+            (_, index) => (index * (displayedMapping?.step || 0)).toFixed(2),
+        ),
+        datasets: [{
+            label: displayedMapping?.name || "",
+            cubicInterpolationMode: "monotone" as const,
+            tension: 0.4,
+            fill: true,
+            backgroundColor: "rgba(75,192,192,0.2)",
+            borderColor: "rgba(75,192,192,1)",
+            data: displayedMapping?.originalValues || [],
+        }],
+    }), [displayedMapping]);
 
     return (
-        <>
-            <Flex direction={"column"} height={"100%"} width={"1700px"} padding={"30px"} >
-                <VStack width={"100%"} >
-                    <Center width={"100%"} >
-                        <Stack direction="row" gap={2} alignItems="center">
-                            <SegmentedControl
-                                size="sm"
-                                value={activeMappingId}
-                                items={itemsConfig}
-                                disabled={markingStatus?.is_marking === true}
-                                onValueChange={(detail) => activeMappingChange(detail?.value ?? "")}
-                            />
-                            <MenuRoot size="md">
-                                <MenuTrigger asChild>
-                                    <IconButton
-                                        aria-label="Menu"
-                                        variant="ghost"
-                                        size="sm"
-                                    >
-                                        <LuMenu />
-                                    </IconButton>
-                                </MenuTrigger>
-                                <MenuContent>
-                                    {menuItems.map((item) => (
-                                        <MenuItem key={item.value} value={item.value} onClick={item.disabled? undefined : item.onClick} disabled={item.disabled}>
-                                            {item.icon} {item.label}
-                                        </MenuItem>
-                                    ))}
-                                </MenuContent>
-                            </MenuRoot>
-                            <Button 
-                                display={ activeMappingId === "" ? "none" : "" }
-                                colorPalette={ markingStatus?.is_marking ? "red" : "green" } 
-                                size="xs" variant={ !markingStatus?.is_marking ? "solid" : "outline" } 
-                                disabled={!markingStatus?.is_marking && !activeMappingReady}
-                                onClick={() => {
-                                if(markingStatus?.is_marking) {
-                                    void stopMarking().catch(() => undefined);
-                                } else {
-                                    void startMarking(activeMappingId).catch(() => undefined);
-                                }   
-                            }}>
-                                { markingStatus?.is_marking ? "Stop Marking" : "Start Marking" }
-                            </Button>
-                            <Button 
-                                display={ activeMappingId === "" ? "none" : "" }
-                                colorPalette={"green"} size="xs" 
-                                variant={ markingStatus?.is_marking ? "solid" : "outline" } 
-                                disabled={!markingStatus?.is_marking || markingStatus?.is_sampling} 
-                                onClick={() => {
-                                void stepMarking().catch(() => undefined);
-                            }}>
-                                { "Step" }
-                            </Button>
-                        </Stack>
-                    </Center>
-                    <Center width={"100%"} height={"2em"} paddingTop={"1em"} >
-                        <Badge colorPalette={"green"} variant={"outline"} size="sm" >{ markingStatusToastMessage }</Badge>
-                    </Center>
-                    
-                </VStack>
-                <Box width={"100%"} flexGrow={1} padding={"18px 0"} position="relative" >
-                    <HStack 
-                        position="absolute" 
-                        top="30px" 
-                        right="30px" 
-                        zIndex={1}
-                        padding="2"
-                        gap={2}
+        <Flex
+            direction="column"
+            width="1700px"
+            maxWidth="100%"
+            height="100%"
+            padding="30px"
+            gap={4}
+            overflow="hidden"
+        >
+            <Box width="100%">
+                <HStack justifyContent="space-between" mb={3}>
+                    <HStack gap={2}>
+                        <Text fontWeight="bold">{t.SWITCH_MAPPING_CATALOG_TITLE}</Text>
+                        {mappingSource && (
+                            <Badge colorPalette={mappingSource === "server-installed" ? "green" : "gray"}>
+                                {mappingSource === "server-installed"
+                                    ? t.SWITCH_MAPPING_SOURCE_SERVER
+                                    : t.SWITCH_MAPPING_SOURCE_FACTORY}
+                            </Badge>
+                        )}
+                    </HStack>
+                    {busyId && <Spinner size="sm" />}
+                </HStack>
+
+                {!initialized ? (
+                    <Flex height={CARD_HEIGHT} alignItems="center" justifyContent="center">
+                        <Spinner />
+                    </Flex>
+                ) : (
+                    <Flex
+                        width="100%"
+                        minWidth={0}
+                        gap={3}
+                        overflowX="auto"
+                        overflowY="hidden"
+                        paddingBottom={2}
+                        alignItems="stretch"
                     >
-                        <Badge colorPalette={"blue"} variant={"outline"} size="sm" >
-                            Sampling Frequency: { isNaN(samplingFrequency) ? 'N/A' : samplingFrequency?.toFixed(0) + ' Hz'}
+                        {axisItems.map(item => {
+                            const selected = item.mappingId === selectedMappingId;
+                            const installing = item.catalogId !== null && busyId === item.catalogId;
+                            const imageUrl = item.catalogId ? catalogImages[item.catalogId] : undefined;
+                            const showActions = isAdmin && item.catalogId &&
+                                hoveredMappingId === item.mappingId;
+                            return (
+                                <Box
+                                    key={item.mappingId}
+                                    role="button"
+                                    tabIndex={0}
+                                    flex={`0 0 ${CARD_WIDTH}`}
+                                    width={CARD_WIDTH}
+                                    minWidth={CARD_WIDTH}
+                                    maxWidth={CARD_WIDTH}
+                                    height={CARD_HEIGHT}
+                                    borderWidth="2px"
+                                    borderColor={selected ? "blue.500" : "border"}
+                                    borderRadius="lg"
+                                    padding={1}
+                                    position="relative"
+                                    cursor={!item.serverItem || busyId || recordingBusy || markingStatus.is_marking
+                                        ? "default"
+                                        : "pointer"}
+                                    opacity={busyId !== null && !installing ? 0.65 : 1}
+                                    bg={selected ? "blue.subtle" : "bg"}
+                                    _hover={!selected && item.serverItem && !busyId && !recordingBusy &&
+                                        !markingStatus.is_marking
+                                        ? { borderColor: "blue.300" }
+                                        : undefined}
+                                    onMouseEnter={() => setHoveredMappingId(item.mappingId)}
+                                    onMouseLeave={() => setHoveredMappingId(null)}
+                                    onFocus={() => setHoveredMappingId(item.mappingId)}
+                                    onClick={() => void selectAxis(item)}
+                                    onKeyDown={event => {
+                                        if (event.key === "Enter" || event.key === " ") {
+                                            event.preventDefault();
+                                            void selectAxis(item);
+                                        }
+                                    }}
+                                >
+                                    <Box
+                                        height={COVER_HEIGHT}
+                                        borderWidth="1px"
+                                        borderColor="border"
+                                        borderRadius="md"
+                                        overflow="hidden"
+                                        position="relative"
+                                        bg="transparent"
+                                    >
+                                        {imageUrl && (
+                                            <Image
+                                                src={imageUrl}
+                                                alt={t.SWITCH_MAPPING_COVER_ALT.replace("{name}", item.name)}
+                                                width="100%"
+                                                height="100%"
+                                                objectFit="cover"
+                                            />
+                                        )}
+                                        {showActions && (
+                                            <HStack position="absolute" right="1" top="1" gap={1}>
+                                                <IconButton
+                                                    aria-label={t.SWITCH_MAPPING_EDIT_ARIA.replace("{name}", item.name)}
+                                                    title={t.SWITCH_MAPPING_EDIT_TITLE}
+                                                    size="2xs"
+                                                    variant="solid"
+                                                    disabled={busyId !== null || recordingBusy || markingStatus.is_marking}
+                                                    onClick={event => {
+                                                        event.stopPropagation();
+                                                        openEditor("edit", item);
+                                                    }}
+                                                >
+                                                    <LuPencil />
+                                                </IconButton>
+                                                <IconButton
+                                                    aria-label={t.SWITCH_MAPPING_DELETE_ARIA.replace("{name}", item.name)}
+                                                    title={t.SWITCH_MAPPING_DELETE_ACTION_TITLE}
+                                                    size="2xs"
+                                                    colorPalette="red"
+                                                    variant="solid"
+                                                    disabled={busyId !== null || recordingBusy || markingStatus.is_marking}
+                                                    onClick={event => {
+                                                        event.stopPropagation();
+                                                        void deleteAxis(item);
+                                                    }}
+                                                >
+                                                    <LuTrash2 />
+                                                </IconButton>
+                                            </HStack>
+                                        )}
+                                    </Box>
+                                    <Box
+                                        mt={1}
+                                        width="100%"
+                                        minWidth={0}
+                                        maxWidth="100%"
+                                        paddingX="4px"
+                                        overflow="hidden"
+                                    >
+                                        <UiTooltip content={item.name} openDelay={300} showArrow portalled>
+                                            <Text
+                                                width="100%"
+                                                minWidth={0}
+                                                maxWidth="100%"
+                                                display="block"
+                                                overflow="hidden"
+                                                whiteSpace="nowrap"
+                                                textOverflow="ellipsis"
+                                                fontSize="xs"
+                                                fontWeight="semibold"
+                                            >
+                                                {item.name}
+                                            </Text>
+                                        </UiTooltip>
+                                    </Box>
+                                    {installing && (
+                                        <Flex
+                                            position="absolute"
+                                            inset="0"
+                                            alignItems="center"
+                                            justifyContent="center"
+                                            pointerEvents="none"
+                                            zIndex="2"
+                                            aria-label={t.SWITCH_MAPPING_DOWNLOADING}
+                                            title={t.SWITCH_MAPPING_DOWNLOADING}
+                                        >
+                                            <Flex
+                                                width="44px"
+                                                height="44px"
+                                                alignItems="center"
+                                                justifyContent="center"
+                                                borderRadius="full"
+                                                bg="blue.500"
+                                                color="white"
+                                                boxShadow="md"
+                                                animation={`${downloadPulse} 1.2s ease-in-out infinite`}
+                                            >
+                                                <Box as={LuDownload} boxSize="7" />
+                                            </Flex>
+                                        </Flex>
+                                    )}
+                                </Box>
+                            );
+                        })}
+                        {isAdmin && (
+                            <Box
+                                role="button"
+                                tabIndex={0}
+                                aria-label={t.SWITCH_MAPPING_ADD_ARIA}
+                                flex={`0 0 ${CARD_WIDTH}`}
+                                width={CARD_WIDTH}
+                                minWidth={CARD_WIDTH}
+                                maxWidth={CARD_WIDTH}
+                                height={CARD_HEIGHT}
+                                borderWidth="2px"
+                                borderStyle="dashed"
+                                borderColor="border"
+                                borderRadius="lg"
+                                padding={1}
+                                cursor={busyId || recordingBusy || markingStatus.is_marking
+                                    ? "not-allowed"
+                                    : "pointer"}
+                                opacity={busyId || recordingBusy || markingStatus.is_marking ? 0.65 : 1}
+                                _hover={busyId || recordingBusy || markingStatus.is_marking
+                                    ? undefined
+                                    : { borderColor: "blue.400", bg: "bg.muted" }}
+                                onClick={() => !busyId && !recordingBusy &&
+                                    !markingStatus.is_marking && openEditor("create", null)}
+                                onKeyDown={event => {
+                                    if (!busyId && !recordingBusy && !markingStatus.is_marking &&
+                                        (event.key === "Enter" || event.key === " ")) {
+                                        event.preventDefault();
+                                        openEditor("create", null);
+                                    }
+                                }}
+                            >
+                                <Flex
+                                    height={COVER_HEIGHT}
+                                    borderWidth="1px"
+                                    borderStyle="dashed"
+                                    borderColor="border"
+                                    borderRadius="md"
+                                    alignItems="center"
+                                    justifyContent="center"
+                                >
+                                    <LuPlus size={24} />
+                                </Flex>
+                                <Text mt={1} fontSize="xs" fontWeight="semibold" textAlign="center">
+                                    {t.SWITCH_MAPPING_ADD_LABEL}
+                                </Text>
+                            </Box>
+                        )}
+                    </Flex>
+                )}
+            </Box>
+
+            <Box
+                width="100%"
+                minHeight={0}
+                flex="1 1 0"
+                padding="8px 0"
+                position="relative"
+                overflow="hidden"
+            >
+                <VStack
+                    position="absolute"
+                    top="30px"
+                    right="30px"
+                    zIndex={1}
+                    padding="2"
+                    gap={2}
+                    alignItems="flex-end"
+                >
+                    <HStack gap={2}>
+                        <Badge colorPalette="blue" variant="outline" size="sm">
+                            {t.SWITCH_MAPPING_SAMPLING_FREQUENCY}: {Number.isFinite(displayedMapping?.samplingFrequency)
+                                ? `${displayedMapping?.samplingFrequency.toFixed(0)} Hz`
+                                : "N/A"}
                         </Badge>
-                        <Badge colorPalette={"red"} variant={"outline"} size="sm">
-                            Sampling Noise: { isNaN(samplingNoise) ? 'N/A' : samplingNoise?.toFixed(0) }
+                        <Badge colorPalette="red" variant="outline" size="sm">
+                            {t.SWITCH_MAPPING_SAMPLING_NOISE}: {Number.isFinite(displayedMapping?.samplingNoise)
+                                ? displayedMapping?.samplingNoise.toFixed(0)
+                                : "N/A"}
                         </Badge>
                     </HStack>
-                    <Line data={mappingData} options={options} />
+                    {isAdmin && initialized && (
+                        <HStack gap={2}>
+                            <Button
+                                size="xs"
+                                colorPalette={markingStatus.is_marking ? "red" : "green"}
+                                variant={markingStatus.is_marking ? "outline" : "solid"}
+                                loading={recordingBusy}
+                                disabled={!markingStatus.is_marking &&
+                                    (serverSyncBusy || !selectedIsInstalled ||
+                                        !defaultMappingId || busyId !== null)}
+                                onClick={() => {
+                                    if (markingStatus.is_marking) {
+                                        void runRecordingAction(stopMarking, true);
+                                        return;
+                                    }
+                                    if (activeMapping?.id === defaultMappingId) {
+                                        setSelectedMappingId(activeMapping.id);
+                                        setSelectedMapping(activeMapping);
+                                    }
+                                    void runRecordingAction(() => startMarking(defaultMappingId));
+                                }}
+                            >
+                                {markingStatus.is_marking
+                                    ? t.SWITCH_MAPPING_RECORDING_STOP
+                                    : t.SWITCH_MAPPING_RECORDING_START}
+                            </Button>
+                            <Button
+                                size="xs"
+                                colorPalette="blue"
+                                disabled={!markingStatus.is_marking || markingStatus.is_sampling ||
+                                    recordingBusy || serverSyncBusy || busyId !== null}
+                                onClick={() => void runRecordingAction(stepMarking)}
+                            >
+                                {t.SWITCH_MAPPING_RECORDING_STEP}
+                            </Button>
+                        </HStack>
+                    )}
+                </VStack>
+                <Box height="100%" minHeight={0}>
+                    <Line data={chartData} options={chartOptions} />
                 </Box>
-            </Flex>
-        </>
+            </Box>
+
+            <Portal>
+                <Dialog.Root
+                    open={editor !== null}
+                    onOpenChange={details => {
+                        if (!details.open) closeEditor();
+                    }}
+                    closeOnInteractOutside={!busyId}
+                    closeOnEscape={!busyId}
+                >
+                    <Dialog.Backdrop backdropFilter="blur(4px)" />
+                    <Dialog.Positioner>
+                        <Dialog.Content width="min(92vw, 520px)">
+                            <Dialog.Header>
+                                <Dialog.Title>
+                                    {editor?.mode === "create"
+                                        ? t.SWITCH_MAPPING_CREATE_DIALOG_TITLE
+                                        : t.SWITCH_MAPPING_EDIT_DIALOG_TITLE}
+                                </Dialog.Title>
+                            </Dialog.Header>
+                            <Dialog.Body>
+                                <VStack alignItems="stretch" gap={4}>
+                                    <Box>
+                                        <Text fontSize="sm" mb={1}>{t.SWITCH_MAPPING_NAME_LABEL}</Text>
+                                        <Input
+                                            value={editorName}
+                                            maxLength={80}
+                                            disabled={busyId !== null}
+                                            onChange={event => setEditorName(event.target.value)}
+                                            placeholder={t.SWITCH_MAPPING_NAME_PLACEHOLDER}
+                                        />
+                                    </Box>
+                                    {editor?.mode === "create" && (
+                                        <HStack alignItems="flex-start" gap={3}>
+                                            <Box flex="1 1 0">
+                                                <Text fontSize="sm" mb={1}>
+                                                    {t.SETTINGS_SWITCH_MARKING_LENGTH_LABEL}
+                                                </Text>
+                                                <Input
+                                                    type="number"
+                                                    min={SWITCH_MARKING_LENGTH_MIN}
+                                                    max={SWITCH_MARKING_LENGTH_MAX}
+                                                    step={1}
+                                                    value={editorLength}
+                                                    disabled={busyId !== null}
+                                                    onChange={event => setEditorLength(Number(event.target.value))}
+                                                />
+                                            </Box>
+                                            <Box flex="1 1 0">
+                                                <Text fontSize="sm" mb={1}>
+                                                    {t.SETTINGS_SWITCH_MARKING_STEP_LABEL}
+                                                </Text>
+                                                <Input
+                                                    type="number"
+                                                    min={SWITCH_MARKING_STEP_MIN}
+                                                    max={SWITCH_MARKING_STEP_MAX}
+                                                    step={0.1}
+                                                    value={editorStep}
+                                                    disabled={busyId !== null}
+                                                    onChange={event => setEditorStep(Number(event.target.value))}
+                                                />
+                                            </Box>
+                                        </HStack>
+                                    )}
+                                    <Box>
+                                        <Text fontSize="sm" mb={1}>{t.SWITCH_MAPPING_COVER_LABEL}</Text>
+                                        <Flex
+                                            ref={editorCropRef}
+                                            role={editorImage ? undefined : "button"}
+                                            tabIndex={editorImage ? undefined : 0}
+                                            aria-label={editorImage
+                                                ? undefined
+                                                : t.SWITCH_MAPPING_COVER_PICK_ACTION}
+                                            width="min(100%, 368px)"
+                                            aspectRatio={COVER_ASPECT_RATIO}
+                                            mx="auto"
+                                            borderWidth="1px"
+                                            borderColor="border.emphasized"
+                                            borderRadius="md"
+                                            overflow="hidden"
+                                            alignItems="center"
+                                            justifyContent="center"
+                                            position="relative"
+                                            bg="bg.muted"
+                                            cursor={editorImage
+                                                ? editorDragging ? "grabbing" : "grab"
+                                                : busyId ? "not-allowed" : "pointer"}
+                                            touchAction="none"
+                                            userSelect="none"
+                                            onMouseEnter={() => setEditorCoverHovered(true)}
+                                            onMouseLeave={() => setEditorCoverHovered(false)}
+                                            onFocus={() => setEditorCoverHovered(true)}
+                                            onBlur={() => setEditorCoverHovered(false)}
+                                            onClick={openEditorImagePicker}
+                                            onKeyDown={event => {
+                                                if (!editorImage && (event.key === "Enter" || event.key === " ")) {
+                                                    event.preventDefault();
+                                                    openEditorImagePicker();
+                                                }
+                                            }}
+                                            onPointerDown={beginEditorCropDrag}
+                                            onPointerMove={moveEditorCrop}
+                                            onPointerUp={endEditorCropDrag}
+                                            onPointerCancel={endEditorCropDrag}
+                                            onWheel={zoomEditorCropWithWheel}
+                                            onDoubleClick={resetEditorCropTransform}
+                                        >
+                                            {editorImagePreview ? (
+                                                <Image
+                                                    src={editorImagePreview}
+                                                    alt={t.SWITCH_MAPPING_COVER_PREVIEW_ALT}
+                                                    draggable={false}
+                                                    position="absolute"
+                                                    left="50%"
+                                                    top="50%"
+                                                    maxWidth="none"
+                                                    width={`${editorCoverMetrics.width}px`}
+                                                    height={`${editorCoverMetrics.height}px`}
+                                                    transform={`translate(-50%, -50%) translate(${editorOffset.x}px, ${editorOffset.y}px)`}
+                                                    pointerEvents="none"
+                                                    onLoad={event => {
+                                                        const nextSize = {
+                                                            width: event.currentTarget.naturalWidth,
+                                                            height: event.currentTarget.naturalHeight,
+                                                        };
+                                                        setEditorImageSize(nextSize);
+                                                        setEditorOffset(current => clampCoverOffset(
+                                                            current,
+                                                            nextSize,
+                                                            editorCropSize,
+                                                            editorZoom,
+                                                        ));
+                                                    }}
+                                                />
+                                            ) : (
+                                                <Text color="fg.muted" fontSize="sm">
+                                                    {t.SWITCH_MAPPING_NO_COVER}
+                                                </Text>
+                                            )}
+                                            <Box
+                                                position="absolute"
+                                                inset="3px"
+                                                borderWidth="1px"
+                                                borderColor="whiteAlpha.500"
+                                                borderRadius="sm"
+                                                pointerEvents="none"
+                                                boxShadow="inset 0 0 0 1px rgba(0, 0, 0, 0.22)"
+                                            />
+                                            {!editorImage && (
+                                                <Flex
+                                                    position="absolute"
+                                                    inset="0"
+                                                    alignItems="center"
+                                                    justifyContent="center"
+                                                    bg="blackAlpha.500"
+                                                    opacity={editorCoverHovered && !busyId ? 1 : 0}
+                                                    transition="opacity 0.16s ease"
+                                                    pointerEvents="none"
+                                                    aria-hidden="true"
+                                                >
+                                                    <Flex
+                                                        width="44px"
+                                                        height="44px"
+                                                        alignItems="center"
+                                                        justifyContent="center"
+                                                        borderRadius="full"
+                                                        bg="blackAlpha.700"
+                                                        color="white"
+                                                        boxShadow="md"
+                                                    >
+                                                        <LuImagePlus size={22} />
+                                                    </Flex>
+                                                </Flex>
+                                            )}
+                                        </Flex>
+                                        {editorImage && editorImagePreview && (
+                                            <HStack width="min(100%, 368px)" mx="auto" mt={2} gap={2}>
+                                                <IconButton
+                                                    aria-label={t.SWITCH_MAPPING_COVER_ZOOM_OUT}
+                                                    title={t.SWITCH_MAPPING_COVER_ZOOM_OUT}
+                                                    size="xs"
+                                                    variant="outline"
+                                                    disabled={busyId !== null || editorZoom <= COVER_ZOOM_MIN}
+                                                    onClick={() => changeEditorZoom(editorZoom - 0.1)}
+                                                >
+                                                    <LuMinus />
+                                                </IconButton>
+                                                <Input
+                                                    aria-label={t.SWITCH_MAPPING_COVER_ZOOM}
+                                                    type="range"
+                                                    min={COVER_ZOOM_MIN}
+                                                    max={COVER_ZOOM_MAX}
+                                                    step={0.01}
+                                                    value={editorZoom}
+                                                    disabled={busyId !== null}
+                                                    flex="1 1 0"
+                                                    px={0}
+                                                    onChange={event => changeEditorZoom(Number(event.target.value))}
+                                                />
+                                                <Text width="44px" textAlign="right" fontSize="xs">
+                                                    {Math.round(editorZoom * 100)}%
+                                                </Text>
+                                                <IconButton
+                                                    aria-label={t.SWITCH_MAPPING_COVER_ZOOM_IN}
+                                                    title={t.SWITCH_MAPPING_COVER_ZOOM_IN}
+                                                    size="xs"
+                                                    variant="outline"
+                                                    disabled={busyId !== null || editorZoom >= COVER_ZOOM_MAX}
+                                                    onClick={() => changeEditorZoom(editorZoom + 0.1)}
+                                                >
+                                                    <LuPlus />
+                                                </IconButton>
+                                                <IconButton
+                                                    aria-label={t.SWITCH_MAPPING_COVER_RESET}
+                                                    title={t.SWITCH_MAPPING_COVER_RESET}
+                                                    size="xs"
+                                                    variant="outline"
+                                                    disabled={busyId !== null}
+                                                    onClick={resetEditorCropTransform}
+                                                >
+                                                    <LuRotateCcw />
+                                                </IconButton>
+                                            </HStack>
+                                        )}
+                                        <input
+                                            ref={editorImageInputRef}
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp"
+                                            disabled={busyId !== null}
+                                            onChange={selectEditorImage}
+                                            hidden
+                                        />
+                                        <Text mt={1} fontSize="xs" color="fg.muted">
+                                            {t.SWITCH_MAPPING_COVER_HELPER}
+                                        </Text>
+                                        <Text mt={0.5} fontSize="xs" color="fg.muted">
+                                            {t.SWITCH_MAPPING_COVER_CROP_HELPER}
+                                        </Text>
+                                        {editorImage && editorImagePreview && (
+                                            <Text mt={0.5} fontSize="xs" color="fg.muted">
+                                                {t.SWITCH_MAPPING_COVER_INTERACTION_HELPER}
+                                            </Text>
+                                        )}
+                                    </Box>
+                                    {editor?.mode === "create" && (
+                                        <Text fontSize="xs" color="fg.muted">
+                                            {t.SWITCH_MAPPING_CREATE_HELPER}
+                                        </Text>
+                                    )}
+                                </VStack>
+                            </Dialog.Body>
+                            <Dialog.Footer>
+                                <Button variant="outline" disabled={busyId !== null} onClick={closeEditor}>
+                                    {t.BUTTON_CANCEL}
+                                </Button>
+                                <Button
+                                    colorPalette="green"
+                                    loading={busyId !== null}
+                                    disabled={editorImage !== null && !editorImagePreview}
+                                    onClick={() => void saveEditor()}
+                                >
+                                    {t.BUTTON_SAVE}
+                                </Button>
+                            </Dialog.Footer>
+                        </Dialog.Content>
+                    </Dialog.Positioner>
+                </Dialog.Root>
+            </Portal>
+        </Flex>
     );
 }

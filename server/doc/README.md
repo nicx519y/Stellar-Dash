@@ -9,6 +9,7 @@ STM32 HBox 固件服务器是一个专为STM32 HBox设备设计的固件管理�
 - 🔧 **固件管理**: 支持固件上传、版本控制、批量删除
 - 📱 **设备注册**: 自动设备ID验证和注册
 - 🔄 **OTA更新**: 支持设备在线固件更新
+- 🧲 **轴体映射库**: 按产品、PCB、硬件版本发布不可变 ADC 曲线版本
 - 🎮 **多协议支持**: PS4、PS Classic、Switch、Xbox One、XInput等
 - 🔐 **安全认证**: V2 制造证书、Boot Attestation、短期 scoped permit；
   旧设备 ID 哈希仅作为 legacy weak 兼容
@@ -29,11 +30,13 @@ server/
 │   ├── device-auth-v2.js  # V2 设备证明与会话授权
 │   ├── device-account-store.js # 设备身份映射
 │   ├── email-auth.js      # 邮箱注册、登录、验证码与 Resend
+│   ├── switch-mappings.js # 轴体 ADC 映射目录、版本和发布接口
 │   └── user-account-store.js # 独立邮箱用户数据库
 ├── data/                   # 数据存储
 │   ├── firmware_list.json # 固件列表
 │   ├── device_ids.json    # 设备ID数据库
 │   ├── accounts.sqlite3   # 设备身份映射
+│   ├── switch_mappings.sqlite3 # 轴体映射目录及不可变版本
 │   └── user_accounts.sqlite3 # 邮箱账号、角色与服务令牌
 ├── tools/                  # 部署和管理工具
 │   ├── deploy.ps1         # 主部署脚本
@@ -60,6 +63,8 @@ V2 密钥配置、wire API、部署门禁和吊销策略见
 和
 [WEBCONFIG_V2_PRODUCTION_DEPLOYMENT.md](../../docs/WEBCONFIG_V2_PRODUCTION_DEPLOYMENT.md)。
 `st-dash.com` 邮箱发信与账号部署见 [EMAIL_AUTH.md](./EMAIL_AUTH.md)。
+轴体 ADC 映射库的数据模型、认证和接口见
+[SWITCH_MAPPINGS.md](./SWITCH_MAPPINGS.md)。
 
 ### 本地开发
 

@@ -136,6 +136,7 @@ class AdminAccessService {
     requireAdmin(options = {}) {
         const requiredScope = options.serviceScope || null;
         const humanOnly = Boolean(options.humanOnly);
+        const allowDeviceBearer = Boolean(options.allowDeviceBearer);
         return (req, res, next) => {
             try {
                 const authorization = String(req.get('Authorization') || '');
@@ -147,7 +148,7 @@ class AdminAccessService {
                     );
                 }
                 let actor = null;
-                if (authorization.startsWith('Bearer ')) {
+                if (authorization.startsWith('Bearer ') && !allowDeviceBearer) {
                     if (humanOnly || !requiredScope) {
                         throw new AdminAccessError(
                             'HUMAN_ADMIN_REQUIRED',

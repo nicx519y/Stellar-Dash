@@ -15,7 +15,6 @@
 #include <stdio.h>
 #include <cstring>
 #include <cmath>
-#include <limits>
 
 // ============================================================================
 // GlobalConfigCommandHandler 实现
@@ -36,12 +35,7 @@ struct ConfigImportTransaction {
     bool hotkeysSeen;
     bool screenSeen;
     bool profileSeen[NUM_PROFILES];
-    bool adcSeen;
     Config candidate;
-    ADCValuesMappingStore adcCandidate;
-    ADCCommonConfig adcCommonCandidate;
-    ADCValuesMappingStore adcOriginal;
-    ADCCommonConfig adcCommonOriginal;
 };
 
 // A complete Config plus ADC rollback snapshots is intentionally kept out of
@@ -72,165 +66,11 @@ void begin_config_import(bool strict, bool replaceProfiles) {
     memcpy(&g_configImport.candidate,
            &Storage::getInstance().config,
            sizeof(g_configImport.candidate));
-    ADC_MANAGER.copyBackup(g_configImport.adcOriginal,
-                           g_configImport.adcCommonOriginal);
-}
-
-bool json_uint(cJSON* item, uint32_t maximum, uint32_t& value) {
-    if (!item || !cJSON_IsNumber(item) || !std::isfinite(item->valuedouble) ||
-        item->valuedouble < 0.0 || item->valuedouble > static_cast<double>(maximum) ||
-        std::floor(item->valuedouble) != item->valuedouble) {
-        return false;
-    }
-    value = static_cast<uint32_t>(item->valuedouble);
-    return true;
 }
 
 bool json_short_string(cJSON* item, size_t capacity) {
     return item && cJSON_IsString(item) && item->valuestring &&
            item->valuestring[0] != '\0' && strlen(item->valuestring) < capacity;
-}
-
-bool parse_calibration_pairs(cJSON* array,
-                             ADCCommonCalibrationPair* output,
-                             std::string& error) {
-    if (!array || !cJSON_IsArray(array) ||
-        cJSON_GetArraySize(array) != NUM_ADC_BUTTONS) {
-        error = "Calibration array must contain every ADC button";
-        return false;
-    }
-    for (uint8_t i = 0; i < NUM_ADC_BUTTONS; ++i) {
-        cJSON* pair = cJSON_GetArrayItem(array, i);
-        uint32_t top = 0;
-        uint32_t bottom = 0;
-        if (!pair || !cJSON_IsObject(pair) ||
-            !json_uint(cJSON_GetObjectItem(pair, "topValue"), UINT16_MAX, top) ||
-            !json_uint(cJSON_GetObjectItem(pair, "bottomValue"), UINT16_MAX, bottom)) {
-            error = "Calibration pair is invalid";
-            return false;
-        }
-        output[i].topValue = static_cast<uint16_t>(top);
-        output[i].bottomValue = static_cast<uint16_t>(bottom);
-    }
-    return true;
-}
-
-bool parse_adc_backup(cJSON* data,
-                      ADCValuesMappingStore& store,
-                      ADCCommonConfig& common,
-                      std::string& error) {
-    if (!data || !cJSON_IsObject(data)) {
-        error = "ADC backup must be an object";
-        return false;
-    }
-    uint32_t backupVersion = 0;
-    if (!json_uint(cJSON_GetObjectItem(data, "version"), 1u, backupVersion) ||
-        backupVersion != 1u) {
-        error = "Unsupported ADC backup version";
-        return false;
-    }
-
-    cJSON* mappings = cJSON_GetObjectItem(data, "mappings");
-    const int mappingCount = mappings && cJSON_IsArray(mappings)
-        ? cJSON_GetArraySize(mappings) : 0;
-    if (mappingCount <= 0 || mappingCount > NUM_ADC_VALUES_MAPPING) {
-        error = "ADC backup contains an invalid mapping count";
-        return false;
-    }
-
-    memset(&store, 0, sizeof(store));
-    memset(&common, 0, sizeof(common));
-    store.version = ADC_MAPPING_VERSION;
-    store.num = static_cast<uint8_t>(mappingCount);
-    common.version = ADC_COMMON_VERSION;
-
-    for (int i = 0; i < mappingCount; ++i) {
-        cJSON* source = cJSON_GetArrayItem(mappings, i);
-        cJSON* id = source ? cJSON_GetObjectItem(source, "id") : nullptr;
-        cJSON* name = source ? cJSON_GetObjectItem(source, "name") : nullptr;
-        uint32_t length = 0;
-        uint32_t samplingFrequency = 0;
-        uint32_t samplingNoise = 0;
-        cJSON* step = source ? cJSON_GetObjectItem(source, "step") : nullptr;
-        cJSON* values = source ? cJSON_GetObjectItem(source, "originalValues") : nullptr;
-        if (!source || !cJSON_IsObject(source) ||
-            !json_short_string(id, sizeof(store.mapping[i].id)) ||
-            !json_short_string(name, sizeof(store.mapping[i].name)) ||
-            !json_uint(cJSON_GetObjectItem(source, "length"), MAX_ADC_VALUES_LENGTH, length) ||
-            length == 0u || !step || !cJSON_IsNumber(step) ||
-            !std::isfinite(step->valuedouble) || step->valuedouble <= 0.0 ||
-            step->valuedouble > static_cast<double>(std::numeric_limits<float_t>::max()) ||
-            !json_uint(cJSON_GetObjectItem(source, "samplingFrequency"), UINT16_MAX, samplingFrequency) ||
-            !json_uint(cJSON_GetObjectItem(source, "samplingNoise"), UINT16_MAX, samplingNoise) ||
-            !values || !cJSON_IsArray(values) ||
-            cJSON_GetArraySize(values) != static_cast<int>(length)) {
-            error = "ADC mapping metadata is invalid";
-            return false;
-        }
-
-        ADCValuesMapping& target = store.mapping[i];
-        strncpy(target.id, id->valuestring, sizeof(target.id) - 1u);
-        strncpy(target.name, name->valuestring, sizeof(target.name) - 1u);
-        target.length = length;
-        target.step = static_cast<float_t>(step->valuedouble);
-        target.samplingFrequency = static_cast<uint16_t>(samplingFrequency);
-        target.samplingNoise = static_cast<uint16_t>(samplingNoise);
-        for (uint32_t j = 0; j < length; ++j) {
-            uint32_t value = 0;
-            if (!json_uint(cJSON_GetArrayItem(values, static_cast<int>(j)),
-                           UINT16_MAX, value)) {
-                error = "ADC mapping contains an invalid sample";
-                return false;
-            }
-            target.originalValues[j] = value;
-        }
-        for (int j = 0; j < i; ++j) {
-            if (strncmp(target.id, store.mapping[j].id, sizeof(target.id)) == 0) {
-                error = "ADC backup contains duplicate mapping IDs";
-                return false;
-            }
-        }
-    }
-
-    cJSON* defaultId = cJSON_GetObjectItem(data, "defaultMappingId");
-    cJSON* calibratedId = cJSON_GetObjectItem(data, "calibratedMappingId");
-    if (!json_short_string(defaultId, sizeof(common.defaultMappingId)) ||
-        (calibratedId && (!cJSON_IsString(calibratedId) ||
-         !calibratedId->valuestring ||
-         strlen(calibratedId->valuestring) >= sizeof(common.calibratedMappingId)))) {
-        error = "ADC mapping selection is invalid";
-        return false;
-    }
-    strncpy(common.defaultMappingId, defaultId->valuestring,
-            sizeof(common.defaultMappingId) - 1u);
-    strncpy(store.defaultId, defaultId->valuestring, sizeof(store.defaultId) - 1u);
-    if (calibratedId && calibratedId->valuestring) {
-        strncpy(common.calibratedMappingId, calibratedId->valuestring,
-                sizeof(common.calibratedMappingId) - 1u);
-    }
-
-    bool defaultFound = false;
-    bool calibratedFound = common.calibratedMappingId[0] == '\0';
-    for (uint8_t i = 0; i < store.num; ++i) {
-        defaultFound = defaultFound ||
-            strncmp(store.mapping[i].id, common.defaultMappingId,
-                    sizeof(common.defaultMappingId)) == 0;
-        calibratedFound = calibratedFound ||
-            strncmp(store.mapping[i].id, common.calibratedMappingId,
-                    sizeof(common.calibratedMappingId)) == 0;
-    }
-    if (!defaultFound || !calibratedFound) {
-        error = "ADC backup references an unknown mapping";
-        return false;
-    }
-
-    if (!parse_calibration_pairs(cJSON_GetObjectItem(data, "manualCalibrationValues"),
-                                 common.manualCalibrationValues, error) ||
-        !parse_calibration_pairs(cJSON_GetObjectItem(data, "autoCalibrationValues"),
-                                 common.autoCalibrationValues, error)) {
-        return false;
-    }
-    return true;
 }
 
 bool valid_default_profile(const Config& config) {
@@ -1069,14 +909,10 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigPart(const D
         }
         g_configImport.screenSeen = true;
     } else if (section == "adcConfig") {
-        std::string parseError;
-        if (!parse_adc_backup(dataItem,
-                              g_configImport.adcCandidate,
-                              g_configImport.adcCommonCandidate,
-                              parseError)) {
-            return create_error_response(request.getCid(), request.getCommand(), 1, parseError);
-        }
-        g_configImport.adcSeen = true;
+        // Backup schema v1/v2 carried device-local ADC mappings and per-key
+        // calibration.  They are intentionally ignored: a mapping is now
+        // installed from the server, and calibration must never move between
+        // devices.
     } else {
         return create_error_response(request.getCid(), request.getCommand(), 1, "Unknown section");
     }
@@ -1092,7 +928,7 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigFinish(const
     }
     if (g_configImport.strict &&
         (!g_configImport.globalSeen || !g_configImport.hotkeysSeen ||
-         !g_configImport.screenSeen || !g_configImport.adcSeen)) {
+         !g_configImport.screenSeen)) {
         return create_error_response(request.getCid(), request.getCommand(), 1,
                                      "Configuration backup is missing a required section");
     }
@@ -1116,24 +952,7 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleImportConfigFinish(const
                                      "Default profile is missing or disabled");
     }
 
-    bool adcApplied = false;
-    if (g_configImport.adcSeen) {
-        const ADCBtnsError adcResult = ADC_MANAGER.restoreBackup(
-            g_configImport.adcCandidate,
-            g_configImport.adcCommonCandidate);
-        if (adcResult != ADCBtnsError::SUCCESS) {
-            reset_config_import();
-            return create_error_response(request.getCid(), request.getCommand(), 1,
-                                         "Failed to restore ADC mapping and calibration data");
-        }
-        adcApplied = true;
-    }
-
     if (!ConfigUtils::save(g_configImport.candidate)) {
-        if (adcApplied) {
-            (void)ADC_MANAGER.restoreBackup(g_configImport.adcOriginal,
-                                            g_configImport.adcCommonOriginal);
-        }
         reset_config_import();
         return create_error_response(request.getCid(), request.getCommand(), 1,
                                      "Failed to save configuration");

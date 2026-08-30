@@ -144,6 +144,16 @@ class ADCManager {
         // 获取默认映射
         std::string getDefaultMapping() const;
 
+        // Install one server-managed mapping into the shared A/B-independent
+        // journal. The expected digest uses the HBOX-ADC-MAP-V1 wire format.
+        ADCBtnsError installSharedMapping(const ADCValuesMapping& mapping,
+                                          const char* expectedSha256);
+        // Remove the server-installed shared record and restore the current
+        // firmware slot's read-only factory mapping in RAM. The slot mapping
+        // partition itself is never modified.
+        ADCBtnsError clearSharedMapping(const char* expectedMappingId);
+        bool isSharedMappingInstalled() const { return sharedMappingInstalled; }
+
         // 获取校准值
         ADCBtnsError getCalibrationValues(const char* mappingId, uint8_t buttonIndex, bool isAutoCalibration, uint16_t& topValue, uint16_t& bottomValue) const;
         
@@ -225,6 +235,13 @@ class ADCManager {
         uint32_t statsInterval;
         uint32_t lastStatsTime;
         ADCCommonConfig common;
+        bool sharedMappingInstalled = false;
+        uint32_t sharedMappingSequence = 0u;
+        int8_t sharedMappingBank = -1;
+
+        void loadSharedSingleton();
+        bool persistSharedSingleton(const ADCValuesMapping& mapping);
+        void selectFactoryFallback();
         
 };
 

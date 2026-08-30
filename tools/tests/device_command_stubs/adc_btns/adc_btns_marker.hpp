@@ -24,13 +24,17 @@ class ADCBtnsMarker {
 public:
     static ADCBtnsMarker &getInstance();
     ADCBtnsError setup(const char *id);
+    ADCBtnsError setupDraft(const char *name, size_t length, float_t step);
     ADCBtnsError step();
+    ADCBtnsError persistProgress();
     void reset();
     cJSON *getStepInfoJSON() const;
+    ADCBtnsError getDraftMapping(ADCValuesMapping &mapping) const;
     void resetForContractTest() { step_ = {}; }
 
 private:
     StepInfo step_ = {};
+    bool draft_ = false;
 };
 
 #define ADC_BTNS_MARKER ADCBtnsMarker::getInstance()

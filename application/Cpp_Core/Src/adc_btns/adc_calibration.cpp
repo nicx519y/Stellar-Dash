@@ -7,6 +7,28 @@ extern "C" {
 #include "pwm-ws2812b.h"
 }
 
+namespace {
+
+static_assert(ADC_VALUE_PUBLIC_RIGHT_SHIFT < 16u,
+              "public ADC shift must fit the calibration value type");
+
+static uint16_t mappingEndpointInPublicAdcScale(
+    const ADCValuesMapping& mapping, size_t endpointIndex)
+{
+    const uint32_t publicMaximum =
+        static_cast<uint32_t>(UINT16_MAX) >> ADC_VALUE_PUBLIC_RIGHT_SHIFT;
+    const bool fullResolutionMapping =
+        mapping.originalValues[0] > publicMaximum ||
+        mapping.originalValues[mapping.length - 1u] > publicMaximum;
+    uint32_t value = mapping.originalValues[endpointIndex];
+    if (fullResolutionMapping) {
+        value >>= ADC_VALUE_PUBLIC_RIGHT_SHIFT;
+    }
+    return static_cast<uint16_t>(value);
+}
+
+} // namespace
+
 // 移除全局实例定义，改为单例模式
 
 ADCCalibrationManager::ADCCalibrationManager() {
@@ -663,8 +685,15 @@ void ADCCalibrationManager::initializeButtonStates() {
             const ADCValuesMapping* mapping = ADC_MANAGER.getMapping(mappingId.c_str());
             if (mapping && mapping->length >= 2u &&
                 mapping->length <= MAX_ADC_VALUES_LENGTH) {
-                state.expectedTopValue = mapping->originalValues[mapping->length - 1];      // 释放状态
-                state.expectedBottomValue = mapping->originalValues[0];                     // 按下状态
+                /* Old slot mappings contain native 16-bit endpoints while
+                 * the shared/WebConfig ADC stream is intentionally exposed
+                 * at the public right-shifted scale.  New mappings are
+                 * already stored at that public scale.  Normalize the pair
+                 * together so either format can drive calibration. */
+                state.expectedTopValue = mappingEndpointInPublicAdcScale(
+                    *mapping, mapping->length - 1u); // 释放状态
+                state.expectedBottomValue = mappingEndpointInPublicAdcScale(
+                    *mapping, 0u); // 按下状态
                 // APP_DBG("initializeButtonStates Button %d expected top value: %d, bottom value: %d", i, state.expectedTopValue, state.expectedBottomValue);
             }
         }

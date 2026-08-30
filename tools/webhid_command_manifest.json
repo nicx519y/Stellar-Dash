@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "legacyCommandCount": 63,
+  "legacyCommandCount": 68,
   "migrationStatusCounts": {
-    "direct": 61,
+    "direct": 65,
     "equivalent": 1,
-    "retired": 1
+    "retired": 2
   },
   "testPolicy": {
     "contract": "registered command, WebHID scope and response envelope",
@@ -27,7 +27,8 @@
         {"name": "ms_get_mark_status", "migration": "direct", "consumers": ["device-api"], "test": "contract"},
         {"name": "ms_get_default", "migration": "direct", "consumers": ["device-api"], "test": "contract"},
         {"name": "ms_get_mapping", "migration": "direct", "consumers": ["mapping-calibration"], "test": "contract"},
-        {"name": "get_adc_config_backup", "migration": "direct", "consumers": ["config-export"], "test": "contract"},
+        {"name": "get_adc_config_backup", "migration": "retired", "consumers": ["security-tombstone-410"], "test": "contract"},
+        {"name": "ms_mapping_draft_get", "migration": "direct", "consumers": ["mapping-laboratory"], "test": "contract"},
         {"name": "get_hitbox_layout", "migration": "direct", "consumers": ["startup"], "test": "contract"},
         {"name": "get_firmware_metadata", "migration": "direct", "consumers": ["startup", "firmware"], "test": "contract"},
         {"name": "get_device_auth", "migration": "retired", "consumers": ["security-tombstone-410"], "test": "contract"},
@@ -57,7 +58,11 @@
         {"name": "ms_create_mapping", "migration": "direct", "consumers": ["mapping-calibration"], "test": "contract"},
         {"name": "ms_delete_mapping", "migration": "direct", "consumers": ["mapping-calibration"], "test": "contract"},
         {"name": "ms_rename_mapping", "migration": "direct", "consumers": ["mapping-calibration"], "test": "contract"},
-        {"name": "clear_manual_calibration_data", "migration": "direct", "consumers": ["manual-calibration"], "test": "contract"}
+        {"name": "clear_manual_calibration_data", "migration": "direct", "consumers": ["manual-calibration"], "test": "contract"},
+        {"name": "ms_install_mapping", "migration": "direct", "consumers": ["mapping-catalog"], "test": "stubbed-dangerous"},
+        {"name": "ms_clear_installed_mapping", "migration": "direct", "consumers": ["mapping-catalog"], "test": "stubbed-dangerous"},
+        {"name": "ms_mapping_draft_begin", "migration": "direct", "consumers": ["mapping-laboratory"], "test": "stubbed-dangerous"},
+        {"name": "ms_mark_mapping_sync", "migration": "direct", "consumers": ["mapping-calibration"], "test": "contract"}
       ]
     },
     {

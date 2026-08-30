@@ -268,7 +268,11 @@ export class DeviceAuthClient {
     return this.fetchImpl(pinnedInput, {
       ...init,
       headers,
-      credentials: 'omit',
+      // Requests are pinned to authServerOrigin above.  Same-origin cookies
+      // are required only for administrator switch-mapping publication, where
+      // the server deliberately requires both the device bearer session and
+      // the administrator email session.
+      credentials: 'same-origin',
       redirect: 'error',
     });
   }

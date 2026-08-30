@@ -121,8 +121,13 @@ public:
     DeviceCommandResponse handleMarkMappingStart(const DeviceCommandRequest& request);
     DeviceCommandResponse handleMarkMappingStop(const DeviceCommandRequest& request);
     DeviceCommandResponse handleMarkMappingStep(const DeviceCommandRequest& request);
+    DeviceCommandResponse handleMarkMappingSync(const DeviceCommandRequest& request);
     DeviceCommandResponse handleGetMapping(const DeviceCommandRequest& request);
     DeviceCommandResponse handleGetConfigBackup(const DeviceCommandRequest& request);
+    DeviceCommandResponse handleInstallMapping(const DeviceCommandRequest& request);
+    DeviceCommandResponse handleClearInstalledMapping(const DeviceCommandRequest& request);
+    DeviceCommandResponse handleDraftBegin(const DeviceCommandRequest& request);
+    DeviceCommandResponse handleDraftGet(const DeviceCommandRequest& request);
 
     // DeviceCommandHandler接口实现
     DeviceCommandResponse handle(const DeviceCommandRequest& request) override;

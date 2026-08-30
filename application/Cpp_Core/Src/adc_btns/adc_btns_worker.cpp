@@ -120,8 +120,8 @@ ADCBtnsError ADCBtnsWorker::setup()
     {
         return ADCBtnsError::MAPPING_INVALID_RANGE;
     }
-    if (mapping->originalValues[0] == 0u ||
-        mapping->originalValues[mapping->length - 1u] == 0u ||
+    if (mapping->originalValues[0] != 0u &&
+        mapping->originalValues[mapping->length - 1u] != 0u &&
         mapping->originalValues[0] == mapping->originalValues[mapping->length - 1u])
     {
         return ADCBtnsError::MAPPING_INVALID_RANGE;

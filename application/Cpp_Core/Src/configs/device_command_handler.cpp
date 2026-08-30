@@ -105,8 +105,13 @@ void DeviceCommandDispatcher::initializeHandlers() {
     registerHandler("ms_mark_mapping_start", &msMarkHandler);
     registerHandler("ms_mark_mapping_stop", &msMarkHandler);
     registerHandler("ms_mark_mapping_step", &msMarkHandler);
+    registerHandler("ms_mark_mapping_sync", &msMarkHandler);
     registerHandler("ms_get_mapping", &msMarkHandler);
     registerHandler("get_adc_config_backup", &msMarkHandler);
+    registerHandler("ms_install_mapping", &msMarkHandler);
+    registerHandler("ms_clear_installed_mapping", &msMarkHandler);
+    registerHandler("ms_mapping_draft_begin", &msMarkHandler);
+    registerHandler("ms_mapping_draft_get", &msMarkHandler);
     
     // 注册校准相关命令
     registerHandler("start_manual_calibration", &calibrationHandler);

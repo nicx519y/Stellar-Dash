@@ -49,7 +49,7 @@ type ScopeUpgradeOperation = {
 
 const MAX_BOOTSTRAP_RESYNCHRONIZATIONS = 2;
 const HBOX_CONFIG_BACKUP_FORMAT = 'hbox-webconfig-backup';
-const HBOX_CONFIG_BACKUP_VERSION = 2;
+const HBOX_CONFIG_BACKUP_VERSION = 3;
 
 /** HID-native command/session facade used by React and typed feature clients. */
 export class DeviceCommandClient {
@@ -661,21 +661,15 @@ export class DeviceCommandClient {
       },
     );
 
-    const adcResponse = await this.request('get_adc_config_backup');
-    const adcConfig = asRecord(adcResponse?.adcConfig);
-    if (!adcConfig) {
-      throw new DeviceTransportError(
-        'protocol',
-        'get_adc_config_backup response is malformed',
-      );
-    }
-    result.adcConfig = adcConfig;
     result.userImage = await this.exportUserImageBackup();
     return result;
   }
 
-  async importConfig(input: unknown): Promise<void> {
+  async importConfig(input: unknown): Promise<{ warnings: string[] }> {
     const backup = validateConfigBackup(input);
+    const warnings = backup.backupVersion < HBOX_CONFIG_BACKUP_VERSION
+      ? ['旧备份中的 ADC 映射与校准未导入']
+      : [];
     const hasUserImage = Object.prototype.hasOwnProperty.call(backup, 'userImage');
     const previousImage = hasUserImage ? await this.exportUserImageBackup() : null;
     let transactionActive = false;
@@ -685,6 +679,7 @@ export class DeviceCommandClient {
       await this.request('import_config_begin', {
         strict: backup.backupVersion === HBOX_CONFIG_BACKUP_VERSION,
         replaceProfiles: backup.backupVersion === HBOX_CONFIG_BACKUP_VERSION,
+        backupVersion: backup.backupVersion,
       });
       transactionActive = true;
 
@@ -706,13 +701,6 @@ export class DeviceCommandClient {
           data: profile,
         });
       }
-      if (backup.adcConfig) {
-        await this.request('import_config_part', {
-          section: 'adcConfig',
-          data: backup.adcConfig,
-        });
-      }
-
       if (hasUserImage) {
         imageTouched = true;
         await this.restoreUserImageBackup(backup.userImage);
@@ -720,6 +708,7 @@ export class DeviceCommandClient {
 
       await this.request('import_config_finish');
       transactionActive = false;
+      return { warnings };
     } catch (error) {
       if (transactionActive) {
         await this.request('import_config_abort').catch(() => undefined);
@@ -1351,9 +1340,6 @@ function validateConfigBackup(value: unknown): ValidatedConfigBackup {
         'protocol',
         'Configuration backup default profile is missing or disabled',
       );
-    }
-    if (!adcConfig || typeof adcConfig !== 'object' || Array.isArray(adcConfig)) {
-      throw new DeviceTransportError('protocol', 'Configuration backup is missing ADC data');
     }
     if (!hasUserImage) {
       throw new DeviceTransportError('protocol', 'Configuration backup is missing user image state');

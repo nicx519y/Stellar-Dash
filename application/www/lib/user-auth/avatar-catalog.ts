@@ -4,6 +4,10 @@ export interface AccountAvatarOption {
   src: string;
 }
 
+export const DEFAULT_ACCOUNT_AVATAR_ID = 'sf6-ryu';
+export const DEFAULT_ACCOUNT_AVATAR_SRC =
+  `/images/account-avatars/${DEFAULT_ACCOUNT_AVATAR_ID}.webp`;
+
 const CHARACTERS = [
   ['ryu', 'Ryu'], ['luke', 'Luke'], ['jamie', 'Jamie'],
   ['chun-li', 'Chun-Li'], ['guile', 'Guile'], ['kimberly', 'Kimberly'],

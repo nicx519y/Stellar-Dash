@@ -15,6 +15,7 @@
 #include "adc_btns/adc_calibration.hpp"
 #include "adc_btns/adc_manager.hpp"
 #include "adc_btns/adc_btns_marker.hpp"
+#include "states/input_state.hpp"
 #include "configs/webconfig_btns_manager.hpp"
 #include "configs/webconfig_leds_manager.hpp"
 #include "firmware/firmware_manager.hpp"
@@ -39,6 +40,7 @@ void resetContractState()
     ADC_CALIBRATION_MANAGER.resetForContractTest();
     ADC_MANAGER.resetForContractTest();
     ADC_BTNS_MARKER.resetForContractTest();
+    INPUT_STATE.resetForContractTest();
     WEBCONFIG_BTNS_MANAGER.resetForContractTest();
     WEBCONFIG_LEDS_MANAGER.resetForContractTest();
     FirmwareManager::GetInstance()->resetForContractTest();
@@ -164,6 +166,12 @@ bool runValidCase(const cJSON *entry, const cJSON *cases, std::string &failure)
     if (result.error != expectedError->valueint) {
         failure = "valid errNo expected " + std::to_string(expectedError->valueint) +
                   " got " + std::to_string(result.error);
+        const cJSON *message = cJSON_GetObjectItemCaseSensitive(
+            result.root, "errorMessage");
+        if (cJSON_IsString(message)) {
+            failure += ": ";
+            failure += message->valuestring;
+        }
         cJSON_Delete(result.root); return false;
     }
     const cJSON *command = cJSON_GetObjectItemCaseSensitive(result.root, "command");
@@ -370,9 +378,14 @@ bool verifyHotkeyKeyCompatibilityAndReadback(std::string &failure)
     DispatchResult importPart =
         dispatch("import_config_part", params, kAllScopes);
     cJSON_Delete(params);
-    const bool imported = importPart.error == 0 && hasEnvelope(importPart) &&
-                          STORAGE_MANAGER.config.hotkeys[0].virtualPin == 4;
+    const bool staged = importPart.error == 0 && hasEnvelope(importPart);
     cJSON_Delete(importPart.root);
+    DispatchResult importFinish =
+        dispatch("import_config_finish", nullptr, kAllScopes);
+    const bool imported = staged && importFinish.error == 0 &&
+                          hasEnvelope(importFinish) &&
+                          STORAGE_MANAGER.config.hotkeys[0].virtualPin == 4;
+    cJSON_Delete(importFinish.root);
     if (!imported) {
         failure = "hotkeys import did not prefer canonical key";
         return false;
@@ -454,6 +467,6 @@ int main(int argc, char **argv)
     cJSON_Delete(pingResult.root);
     cJSON_Delete(document);
     std::cout << "real handler contracts passed: " << passed
-              << "/59; binary zero-copy, retired tombstone handler and ping passed separately\n";
-    return passed == 59u ? EXIT_SUCCESS : EXIT_FAILURE;
+              << "/67; binary zero-copy, retired tombstone handler and ping passed separately\n";
+    return passed == 67u ? EXIT_SUCCESS : EXIT_FAILURE;
 }

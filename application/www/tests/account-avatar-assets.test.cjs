@@ -42,3 +42,17 @@ test('frontend and server avatar identifiers stay in sync', () => {
   const serverCatalog = require('../../../server/src/account-avatars');
   assert.deepEqual([...serverCatalog.ACCOUNT_AVATARS].sort(), [...EXPECTED].sort());
 });
+
+test('signed-in users without a chosen avatar fall back to Ryu', () => {
+  const catalogSource = fs.readFileSync(
+    path.resolve('lib/user-auth/avatar-catalog.ts'),
+    'utf8'
+  );
+  const controlSource = fs.readFileSync(
+    path.resolve('components/user-auth-control.tsx'),
+    'utf8'
+  );
+  assert.match(catalogSource, /DEFAULT_ACCOUNT_AVATAR_ID = 'sf6-ryu'/);
+  assert.match(controlSource, /session\.user\.avatarUrl \|\| DEFAULT_ACCOUNT_AVATAR_SRC/);
+  assert.match(controlSource, /session\.user\?\.avatarId \|\| DEFAULT_ACCOUNT_AVATAR_ID/);
+});

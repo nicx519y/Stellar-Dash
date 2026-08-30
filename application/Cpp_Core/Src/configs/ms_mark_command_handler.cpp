@@ -7,6 +7,8 @@
 #include <cstring>
 #include <cmath>
 #include "config_transport_sink.hpp"
+#include "adc_btns/adc_btns_worker.hpp"
+#include "states/input_state.hpp"
 
 // ============================================================================
 // MSMarkCommandHandler 实现
@@ -80,6 +82,11 @@ DeviceCommandResponse MSMarkCommandHandler::handleGetList(const DeviceCommandReq
     // 添加映射列表到响应数据
     cJSON_AddItemToObject(dataJSON, "mappingList", buildMappingListJSON());
     cJSON_AddItemToObject(dataJSON, "defaultMappingId", cJSON_CreateString(ADC_MANAGER.getDefaultMapping().c_str()));
+    cJSON_AddStringToObject(dataJSON, "storageMode", "shared-singleton");
+    cJSON_AddNumberToObject(dataJSON, "installSchemaVersion", 1);
+    cJSON_AddStringToObject(dataJSON, "source",
+        ADC_MANAGER.isSharedMappingInstalled()
+            ? "server-installed" : "factory-fallback");
     
     // LOG_INFO("DeviceCommand", "ms_get_list command completed successfully");
     
@@ -351,7 +358,17 @@ DeviceCommandResponse MSMarkCommandHandler::handleMarkMappingStart(const DeviceC
 
 DeviceCommandResponse MSMarkCommandHandler::handleMarkMappingStop(const DeviceCommandRequest& request) {
     // LOG_INFO("DeviceCommand", "Handling ms_mark_mapping_stop command, cid: %d", request.getCid());
-    
+
+    // Persist the last completed sample before clearing the RAM recording
+    // state. NOT_MARKING also covers stopping before the first completed point
+    // or while the current sampling window is still active.
+    const ADCBtnsError persistResult = ADC_BTNS_MARKER.persistProgress();
+    if (persistResult != ADCBtnsError::SUCCESS &&
+        persistResult != ADCBtnsError::NOT_MARKING) {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Failed to persist mapping before stop");
+    }
+
     // 停止标记
     ADC_BTNS_MARKER.reset();
     
@@ -435,54 +452,202 @@ DeviceCommandResponse MSMarkCommandHandler::handleGetMapping(const DeviceCommand
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
-DeviceCommandResponse MSMarkCommandHandler::handleGetConfigBackup(const DeviceCommandRequest& request) {
-    ADCValuesMappingStore store = {};
-    ADCCommonConfig common = {};
-    ADC_MANAGER.copyBackup(store, common);
-
-    cJSON* backupJSON = cJSON_CreateObject();
-    cJSON_AddNumberToObject(backupJSON, "version", 1);
-    cJSON_AddStringToObject(backupJSON, "defaultMappingId", common.defaultMappingId);
-    cJSON_AddStringToObject(backupJSON, "calibratedMappingId", common.calibratedMappingId);
-
-    cJSON* mappingsJSON = cJSON_CreateArray();
-    for (uint8_t i = 0; i < store.num; ++i) {
-        const ADCValuesMapping& mapping = store.mapping[i];
-        cJSON* mappingJSON = cJSON_CreateObject();
-        cJSON_AddStringToObject(mappingJSON, "id", mapping.id);
-        cJSON_AddStringToObject(mappingJSON, "name", mapping.name);
-        cJSON_AddNumberToObject(mappingJSON, "length", mapping.length);
-        cJSON_AddNumberToObject(mappingJSON, "step", mapping.step);
-        cJSON_AddNumberToObject(mappingJSON, "samplingFrequency", mapping.samplingFrequency);
-        cJSON_AddNumberToObject(mappingJSON, "samplingNoise", mapping.samplingNoise);
-        cJSON* valuesJSON = cJSON_CreateArray();
-        for (size_t j = 0; j < mapping.length; ++j) {
-            cJSON_AddItemToArray(valuesJSON, cJSON_CreateNumber(mapping.originalValues[j]));
-        }
-        cJSON_AddItemToObject(mappingJSON, "originalValues", valuesJSON);
-        cJSON_AddItemToArray(mappingsJSON, mappingJSON);
+DeviceCommandResponse MSMarkCommandHandler::handleMarkMappingSync(
+    const DeviceCommandRequest& request) {
+    const ADCBtnsError result = ADC_BTNS_MARKER.persistProgress();
+    if (result != ADCBtnsError::SUCCESS) {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Failed to persist mapping recording progress");
     }
-    cJSON_AddItemToObject(backupJSON, "mappings", mappingsJSON);
-
-    cJSON* manualJSON = cJSON_CreateArray();
-    cJSON* autoJSON = cJSON_CreateArray();
-    for (uint8_t i = 0; i < NUM_ADC_BUTTONS; ++i) {
-        cJSON* manualPair = cJSON_CreateObject();
-        cJSON_AddNumberToObject(manualPair, "topValue", common.manualCalibrationValues[i].topValue);
-        cJSON_AddNumberToObject(manualPair, "bottomValue", common.manualCalibrationValues[i].bottomValue);
-        cJSON_AddItemToArray(manualJSON, manualPair);
-
-        cJSON* autoPair = cJSON_CreateObject();
-        cJSON_AddNumberToObject(autoPair, "topValue", common.autoCalibrationValues[i].topValue);
-        cJSON_AddNumberToObject(autoPair, "bottomValue", common.autoCalibrationValues[i].bottomValue);
-        cJSON_AddItemToArray(autoJSON, autoPair);
-    }
-    cJSON_AddItemToObject(backupJSON, "manualCalibrationValues", manualJSON);
-    cJSON_AddItemToObject(backupJSON, "autoCalibrationValues", autoJSON);
-
     cJSON* dataJSON = cJSON_CreateObject();
-    cJSON_AddItemToObject(dataJSON, "adcConfig", backupJSON);
+    cJSON_AddItemToObject(dataJSON, "status", ADC_BTNS_MARKER.getStepInfoJSON());
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
+DeviceCommandResponse MSMarkCommandHandler::handleGetConfigBackup(const DeviceCommandRequest& request) {
+    return create_error_response(request.getCid(), request.getCommand(), 410,
+                                 "ADC backup has moved to the server mapping catalog");
+}
+
+namespace {
+cJSON* mappingToJSON(const ADCValuesMapping& mapping, bool includeId) {
+    cJSON* json = cJSON_CreateObject();
+    if (includeId) cJSON_AddStringToObject(json, "id", mapping.id);
+    cJSON_AddStringToObject(json, "name", mapping.name);
+    cJSON_AddNumberToObject(json, "length", mapping.length);
+    cJSON_AddNumberToObject(json, "step", mapping.step);
+    cJSON_AddNumberToObject(json, "samplingNoise", mapping.samplingNoise);
+    cJSON_AddNumberToObject(json, "samplingFrequency", mapping.samplingFrequency);
+    cJSON* values = cJSON_CreateArray();
+    for (size_t index = 0u; index < mapping.length; ++index) {
+        cJSON_AddItemToArray(values,
+                             cJSON_CreateNumber(mapping.originalValues[index]));
+    }
+    cJSON_AddItemToObject(json, "originalValues", values);
+    return json;
+}
+
+bool parseInstallMapping(cJSON* source, ADCValuesMapping& mapping) {
+    if (!source || !cJSON_IsObject(source)) return false;
+    cJSON* id = cJSON_GetObjectItem(source, "id");
+    cJSON* name = cJSON_GetObjectItem(source, "name");
+    cJSON* length = cJSON_GetObjectItem(source, "length");
+    cJSON* step = cJSON_GetObjectItem(source, "step");
+    cJSON* noise = cJSON_GetObjectItem(source, "samplingNoise");
+    cJSON* frequency = cJSON_GetObjectItem(source, "samplingFrequency");
+    cJSON* values = cJSON_GetObjectItem(source, "originalValues");
+    if (!cJSON_IsString(id) || !cJSON_IsString(name) ||
+        !id->valuestring || !name->valuestring || id->valuestring[0] == '\0' ||
+        name->valuestring[0] == '\0' || strlen(id->valuestring) >= sizeof(mapping.id) ||
+        strlen(name->valuestring) >= sizeof(mapping.name) ||
+        !cJSON_IsNumber(length) || !std::isfinite(length->valuedouble) ||
+        std::floor(length->valuedouble) != length->valuedouble ||
+        length->valuedouble < 2.0 || length->valuedouble > MAX_ADC_VALUES_LENGTH ||
+        !cJSON_IsNumber(step) || !std::isfinite(step->valuedouble) ||
+        !cJSON_IsNumber(noise) || !cJSON_IsNumber(frequency) ||
+        !cJSON_IsArray(values) ||
+        cJSON_GetArraySize(values) != static_cast<int>(length->valuedouble)) {
+        return false;
+    }
+    const double noiseValue = noise->valuedouble;
+    const double frequencyValue = frequency->valuedouble;
+    if (noiseValue < 0.0 || noiseValue > UINT16_MAX ||
+        std::floor(noiseValue) != noiseValue || frequencyValue < 1.0 ||
+        frequencyValue > UINT16_MAX || std::floor(frequencyValue) != frequencyValue) {
+        return false;
+    }
+    memset(&mapping, 0, sizeof(mapping));
+    strncpy(mapping.id, id->valuestring, sizeof(mapping.id) - 1u);
+    strncpy(mapping.name, name->valuestring, sizeof(mapping.name) - 1u);
+    mapping.length = static_cast<size_t>(length->valuedouble);
+    mapping.step = static_cast<float_t>(step->valuedouble);
+    mapping.samplingNoise = static_cast<uint16_t>(noiseValue);
+    mapping.samplingFrequency = static_cast<uint16_t>(frequencyValue);
+    for (size_t index = 0u; index < mapping.length; ++index) {
+        cJSON* sample = cJSON_GetArrayItem(values, static_cast<int>(index));
+        if (!cJSON_IsNumber(sample) || !std::isfinite(sample->valuedouble) ||
+            std::floor(sample->valuedouble) != sample->valuedouble ||
+            sample->valuedouble < 0.0 || sample->valuedouble > UINT16_MAX) {
+            return false;
+        }
+        mapping.originalValues[index] =
+            static_cast<uint32_t>(sample->valuedouble);
+    }
+    return true;
+}
+}
+
+DeviceCommandResponse MSMarkCommandHandler::handleInstallMapping(
+    const DeviceCommandRequest& request) {
+    cJSON* params = request.getParams();
+    cJSON* mappingJSON = params ? cJSON_GetObjectItem(params, "mapping") : nullptr;
+    cJSON* shaJSON = params ? cJSON_GetObjectItem(params, "sha256") : nullptr;
+    ADCValuesMapping mapping = {};
+    if (!parseInstallMapping(mappingJSON, mapping) || !cJSON_IsString(shaJSON) ||
+        !shaJSON->valuestring || strlen(shaJSON->valuestring) != 64u) {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Invalid server mapping payload");
+    }
+
+    const bool pipelineWasRunning = INPUT_STATE.suspendInputPipelineForStorage();
+    const ADCBtnsError result = ADC_MANAGER.installSharedMapping(
+        mapping, shaJSON->valuestring);
+    bool runtimeReloaded = false;
+    if (result == ADCBtnsError::SUCCESS) {
+        runtimeReloaded = pipelineWasRunning
+            ? INPUT_STATE.resumeInputPipelineAfterStorage(true)
+            : ADC_BTNS_WORKER.setup() == ADCBtnsError::SUCCESS;
+    } else {
+        (void)INPUT_STATE.resumeInputPipelineAfterStorage(pipelineWasRunning);
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Mapping validation or shared storage write failed");
+    }
+
+    cJSON* data = cJSON_CreateObject();
+    cJSON_AddItemToObject(data, "mapping", mappingToJSON(mapping, true));
+    cJSON_AddBoolToObject(data, "calibrationCleared", true);
+    cJSON_AddBoolToObject(data, "requiresCalibration", true);
+    cJSON_AddBoolToObject(data, "runtimeReloaded", runtimeReloaded);
+    return create_success_response(request.getCid(), request.getCommand(), data);
+}
+
+DeviceCommandResponse MSMarkCommandHandler::handleClearInstalledMapping(
+    const DeviceCommandRequest& request) {
+    cJSON* params = request.getParams();
+    cJSON* idJSON = params ? cJSON_GetObjectItem(params, "id") : nullptr;
+    if (!cJSON_IsString(idJSON) || !idJSON->valuestring ||
+        idJSON->valuestring[0] == '\0') {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Missing or invalid installed mapping id");
+    }
+
+    const bool pipelineWasRunning = INPUT_STATE.suspendInputPipelineForStorage();
+    const ADCBtnsError result = ADC_MANAGER.clearSharedMapping(idJSON->valuestring);
+    bool runtimeReloaded = false;
+    if (result == ADCBtnsError::SUCCESS) {
+        runtimeReloaded = pipelineWasRunning
+            ? INPUT_STATE.resumeInputPipelineAfterStorage(true)
+            : ADC_BTNS_WORKER.setup() == ADCBtnsError::SUCCESS;
+    } else {
+        (void)INPUT_STATE.resumeInputPipelineAfterStorage(pipelineWasRunning);
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Unable to clear installed mapping or load factory fallback");
+    }
+
+    const std::string fallbackId = ADC_MANAGER.getDefaultMapping();
+    const ADCValuesMapping* fallback = ADC_MANAGER.getMapping(fallbackId.c_str());
+    if (fallback == nullptr) {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Factory fallback mapping is unavailable");
+    }
+
+    cJSON* data = cJSON_CreateObject();
+    cJSON_AddItemToObject(data, "mapping", mappingToJSON(*fallback, true));
+    cJSON_AddItemToObject(data, "mappingList", buildMappingListJSON());
+    cJSON_AddStringToObject(data, "defaultMappingId", fallbackId.c_str());
+    cJSON_AddStringToObject(data, "storageMode", "shared-singleton");
+    cJSON_AddNumberToObject(data, "installSchemaVersion", 1);
+    cJSON_AddStringToObject(data, "source", "factory-fallback");
+    cJSON_AddBoolToObject(data, "calibrationCleared", true);
+    cJSON_AddBoolToObject(data, "runtimeReloaded", runtimeReloaded);
+    return create_success_response(request.getCid(), request.getCommand(), data);
+}
+
+DeviceCommandResponse MSMarkCommandHandler::handleDraftBegin(
+    const DeviceCommandRequest& request) {
+    cJSON* params = request.getParams();
+    cJSON* name = params ? cJSON_GetObjectItem(params, "name") : nullptr;
+    cJSON* length = params ? cJSON_GetObjectItem(params, "length") : nullptr;
+    cJSON* step = params ? cJSON_GetObjectItem(params, "step") : nullptr;
+    if (!cJSON_IsString(name) || !name->valuestring ||
+        !cJSON_IsNumber(length) || !cJSON_IsNumber(step) ||
+        !std::isfinite(length->valuedouble) ||
+        std::floor(length->valuedouble) != length->valuedouble) {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Invalid mapping draft parameters");
+    }
+    const ADCBtnsError result = ADC_BTNS_MARKER.setupDraft(
+        name->valuestring, static_cast<size_t>(length->valuedouble),
+        static_cast<float_t>(step->valuedouble));
+    if (result != ADCBtnsError::SUCCESS) {
+        return create_error_response(request.getCid(), request.getCommand(), 1,
+                                     "Unable to start mapping draft");
+    }
+    cJSON* data = cJSON_CreateObject();
+    cJSON_AddItemToObject(data, "status", ADC_BTNS_MARKER.getStepInfoJSON());
+    return create_success_response(request.getCid(), request.getCommand(), data);
+}
+
+DeviceCommandResponse MSMarkCommandHandler::handleDraftGet(
+    const DeviceCommandRequest& request) {
+    ADCValuesMapping mapping = {};
+    if (ADC_BTNS_MARKER.getDraftMapping(mapping) != ADCBtnsError::SUCCESS) {
+        return create_error_response(request.getCid(), request.getCommand(), 409,
+                                     "Mapping draft is not complete");
+    }
+    cJSON* data = cJSON_CreateObject();
+    cJSON_AddItemToObject(data, "mapping", mappingToJSON(mapping, false));
+    return create_success_response(request.getCid(), request.getCommand(), data);
 }
 
 DeviceCommandResponse MSMarkCommandHandler::handle(const DeviceCommandRequest& request) {
@@ -508,10 +673,20 @@ DeviceCommandResponse MSMarkCommandHandler::handle(const DeviceCommandRequest& r
         return handleMarkMappingStop(request);
     } else if (command == "ms_mark_mapping_step") {
         return handleMarkMappingStep(request);
+    } else if (command == "ms_mark_mapping_sync") {
+        return handleMarkMappingSync(request);
     } else if (command == "ms_get_mapping") {
         return handleGetMapping(request);
     } else if (command == "get_adc_config_backup") {
         return handleGetConfigBackup(request);
+    } else if (command == "ms_install_mapping") {
+        return handleInstallMapping(request);
+    } else if (command == "ms_clear_installed_mapping") {
+        return handleClearInstalledMapping(request);
+    } else if (command == "ms_mapping_draft_begin") {
+        return handleDraftBegin(request);
+    } else if (command == "ms_mapping_draft_get") {
+        return handleDraftGet(request);
     }
     
     return create_error_response(request.getCid(), command, -1, "Unknown command");

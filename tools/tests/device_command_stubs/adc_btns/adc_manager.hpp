@@ -26,16 +26,22 @@ public:
     static ADCManager &getInstance();
     std::vector<ADCValuesMapping *> getMappingList();
     const ADCValuesMapping *getMapping(const char *id) const;
-    ADCBtnsError createADCMapping(const char *name, size_t length, float_t step);
+    ADCBtnsError createADCMapping(const char *name, size_t length, float_t step,
+                                  std::string *createdId = nullptr);
     ADCBtnsError removeADCMapping(const char *id);
     ADCBtnsError renameADCMapping(const char *id, const char *name);
     ADCBtnsError setDefaultMapping(const char *id);
     std::string getDefaultMapping() const;
+    ADCBtnsError installSharedMapping(const ADCValuesMapping &mapping,
+                                      const char *expectedSha256);
+    ADCBtnsError clearSharedMapping(const char *expectedMappingId);
+    bool isSharedMappingInstalled() const { return shared_; }
     void resetForContractTest();
 
 private:
     ADCValuesMapping mapping_ = {};
     std::string default_ = "mapping-default";
+    bool shared_ = false;
 };
 
 #define ADC_MANAGER ADCManager::getInstance()

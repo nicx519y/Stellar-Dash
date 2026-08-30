@@ -101,6 +101,11 @@ test('email admins manage roles and scoped service tokens replace Basic auth', a
         service.requireAdmin({ serviceScope: 'firmware.manage' }),
         (req, res) => res.json({ actor: req.authenticatedAdmin.actorType })
     );
+    app.post(
+        '/api/protected/device-plus-human',
+        service.requireAdmin({ humanOnly: true, allowDeviceBearer: true }),
+        (req, res) => res.json({ actor: req.authenticatedAdmin.actorType })
+    );
     const server = app.listen(0, '127.0.0.1');
     await new Promise(resolve => server.once('listening', resolve));
     t.after(() => new Promise(resolve => server.close(resolve)));
@@ -202,6 +207,20 @@ test('email admins manage roles and scoped service tokens replace Basic auth', a
         headers: { Authorization: `Bearer ${createdData.secret}` },
     });
     assert.equal(humanOnly.status, 403);
+    const devicePlusHuman = await request(
+        server,
+        'POST',
+        '/api/protected/device-plus-human',
+        {
+            headers: {
+                Authorization: 'Bearer validated-by-device-middleware',
+                Cookie: adminCookie,
+                Origin: 'http://localhost:3000',
+            },
+        }
+    );
+    assert.equal(devicePlusHuman.status, 200);
+    assert.equal(JSON.parse(devicePlusHuman.body).actor, 'user');
     const listed = await request(server, 'GET', '/api/admin/service-tokens', {
         headers: { Cookie: adminCookie },
     });

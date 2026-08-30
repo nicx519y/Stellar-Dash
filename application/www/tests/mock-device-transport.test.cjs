@@ -1110,7 +1110,7 @@ test('samples ADC mapping without shifting the first point and writes it back', 
   await transport.close();
 });
 
-test('enforces switch mapping storage limits and protects the default mapping', async () => {
+test('exposes one singleton mapping and rejects legacy multi-mapping mutations', async () => {
   const transport = await createTransport();
 
   await assert.rejects(
@@ -1130,23 +1130,43 @@ test('enforces switch mapping storage limits and protects the default mapping', 
     /Select another default mapping/,
   );
 
-  const created = await transport.request('ms_create_mapping', {
-    name: 'Travel 2',
-    length: 2,
-    step: 0.1,
-  });
-  assert.ok(created.data.createdMappingId);
   await assert.rejects(
-    transport.request('ms_set_default', { id: created.data.createdMappingId }),
-    /must be marked/,
+    transport.request('ms_create_mapping', { name: 'Travel 2', length: 2, step: 0.1 }),
+    /Invalid switch mapping parameters/,
   );
-  await transport.request('ms_mark_mapping_start', { id: created.data.createdMappingId });
+  const list = await transport.request('ms_get_list');
+  assert.equal(list.data.storageMode, 'shared-singleton');
+  assert.equal(list.data.installSchemaVersion, 1);
+  assert.equal(list.data.source, 'factory-fallback');
+  assert.equal(list.data.mappingList.length, 1);
+  await transport.close();
+});
+
+test('creates a RAM draft and installs a verified server revision as the singleton', async () => {
+  const transport = await createTransport();
+  await transport.request('ms_mapping_draft_begin', { name: 'Draft Axis', length: 2, step: 0.5 });
   await transport.request('ms_mark_mapping_step');
   await transport.request('ms_mark_mapping_step');
   await transport.request('ms_mark_mapping_step');
-  await transport.request('ms_set_default', { id: created.data.createdMappingId });
-  const deleted = await transport.request('ms_delete_mapping', { id: 'mapping-default' });
-  assert.equal(deleted.data.mappingList.some((mapping) => mapping.id === 'mapping-default'), false);
+  const draft = await transport.request('ms_mapping_draft_get');
+  assert.equal(draft.data.mapping.name, 'Draft Axis');
+  assert.deepEqual(draft.data.mapping.originalValues, [4000, 800]);
+
+  const detailResponse = await transport.authorizedFetch('/api/switch-mappings/mock-axis');
+  const detail = (await detailResponse.json()).data;
+  const installed = await transport.request('ms_install_mapping', {
+    mapping: detail.revision.mapping,
+    sha256: detail.revision.sha256,
+  });
+  assert.equal(installed.data.calibrationCleared, true);
+  const list = await transport.request('ms_get_list');
+  assert.equal(list.data.source, 'server-installed');
+  assert.deepEqual(list.data.mappingList, [{ id: detail.revision.revisionId, name: 'Mock Axis' }]);
+  const cleared = await transport.request('ms_clear_installed_mapping', {
+    id: detail.revision.revisionId,
+  });
+  assert.equal(cleared.data.source, 'factory-fallback');
+  assert.deepEqual(cleared.data.mappingList, [{ id: 'mapping-default', name: 'Factory Hall Curve' }]);
   await transport.close();
 });
 
@@ -1612,7 +1632,7 @@ test('stream image ACK rejects mismatched cid and offset metadata', async () => 
   adapter.dispose();
 });
 
-test('versioned backup restores default profile, exact profile set, ADC data and user image', async () => {
+test('versioned backup v3 restores profiles and user image without ADC data', async () => {
   const transport = new MockDeviceTransport({ storage: null });
   const adapter = new DeviceCommandClient(transport);
   await adapter.connect();
@@ -1629,9 +1649,9 @@ test('versioned backup restores default profile, exact profile set, ADC data and
 
   const backup = await adapter.exportConfig();
   assert.equal(backup.backupFormat, 'hbox-webconfig-backup');
-  assert.equal(backup.backupVersion, 2);
+  assert.equal(backup.backupVersion, 3);
   assert.equal(backup.globalConfig.defaultProfileId, 'profile-tournament');
-  assert.equal(backup.adcConfig.mappings.length, 1);
+  assert.equal(Object.hasOwn(backup, 'adcConfig'), false);
   assert.equal(backup.userImage.size, pixels.length);
 
   await adapter.request('switch_default_profile', { profileId: 'profile-arcade' });
@@ -1647,6 +1667,28 @@ test('versioned backup restores default profile, exact profile set, ADC data and
   );
   const restored = await adapter.readImage('user', pixels.length);
   assert.deepEqual([...restored], [...pixels]);
+  adapter.dispose();
+});
+
+test('legacy backup imports other settings but warns and ignores ADC data', async () => {
+  const transport = new MockDeviceTransport({ storage: null });
+  const adapter = new DeviceCommandClient(transport);
+  await adapter.connect();
+  const backup = await adapter.exportConfig();
+  backup.backupVersion = 2;
+  backup.adcConfig = {
+    version: 1,
+    defaultMappingId: 'legacy-map',
+    calibratedMappingId: 'legacy-map',
+    mappings: [{
+      id: 'legacy-map', name: 'Legacy', length: 2, step: 0.1,
+      samplingFrequency: 1000, samplingNoise: 1, originalValues: [4000, 800],
+    }],
+  };
+  const result = await adapter.importConfig(backup);
+  assert.deepEqual(result.warnings, ['旧备份中的 ADC 映射与校准未导入']);
+  const list = await adapter.request('ms_get_list');
+  assert.equal(list.mappingList[0].id, 'mapping-default');
   adapter.dispose();
 });
 

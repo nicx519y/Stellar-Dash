@@ -54,6 +54,10 @@ const {
     createAdminAccessFromEnvironment,
     initAdminRoutes
 } = require('./admin-access');
+const {
+    SwitchMappingStore,
+    initSwitchMappingRoutes
+} = require('./switch-mappings');
 
 // 引入网络接口入口模块
 const { initAllRoutes } = require('./action');
@@ -184,6 +188,11 @@ app.locals.deviceAuthV2 = deviceAuthV2;
 const legacyDownloadTickets = new LegacyDownloadTicketStore();
 app.locals.legacyDownloadTickets = legacyDownloadTickets;
 
+const switchMappingStore = new SwitchMappingStore({
+    databasePath: storagePaths.switchMappingDatabase
+});
+app.locals.switchMappingStore = switchMappingStore;
+
 /*
  * Shipped V1 clients cannot attach an Authorization header to the package
  * fetch. Their already-weak authentication may mint only a short-lived,
@@ -225,6 +234,11 @@ initDeviceAuthV2Routes(
 );
 initEmailAuthRoutes(app, emailAuth);
 initAdminRoutes(app, adminAccess);
+initSwitchMappingRoutes(app, {
+    store: switchMappingStore,
+    deviceAuth: deviceAuthV2,
+    adminAccess
+});
 initAllRoutes(app, storage_manager, config, validateDeviceAuth, requireAdminAuth);
 
 /*
