@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useGamepadConfig } from '@/contexts/gamepad-config-context';
 import { GlobalSettingContent } from '@/components/global-setting-content';
 import { KeysSettingContent } from '@/components/keys-setting-content';
@@ -51,7 +51,9 @@ export const useRouterStore = create<RouterState>((set, get) => ({
 
 export function Router() {
     const { currentRoute, basePath, setRoute, setBasePath } = useRouterStore();
-    const { deviceSession } = useGamepadConfig();
+    const { deviceSession, flushDeferredConfig } = useGamepadConfig();
+    const flushDeferredConfigRef = useRef(flushDeferredConfig);
+    flushDeferredConfigRef.current = flushDeferredConfig;
 
     useEffect(() => {
         // useEffect 只在客户端运行，所以这里可以安全使用 window
@@ -61,6 +63,11 @@ export function Router() {
                 route,
                 popstateHistoryMode(window.location.pathname, basePath),
             );
+            window.setTimeout(() => {
+                void flushDeferredConfigRef.current(undefined, true).catch((error) => {
+                    console.error('浏览器导航后的后台保存失败:', error);
+                });
+            }, 0);
         };
 
         window.addEventListener('popstate', handlePopState);

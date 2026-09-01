@@ -85,6 +85,8 @@ export function useButtonMonitor(options: UseButtonMonitorOptions = {}) {
                 isActive: candidate.isActive === true,
                 triggerMask: triggerMask >>> 0,
                 totalButtons,
+                eventSequence: Number(candidate.eventSequence ?? 0) >>> 0,
+                droppedSnapshots: Number(candidate.droppedSnapshots ?? 0) & 0xffff,
             });
         } catch (error) {
             console.error('Failed to handle button state update:', error);

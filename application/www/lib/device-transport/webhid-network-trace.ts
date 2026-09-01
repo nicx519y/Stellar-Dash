@@ -31,6 +31,7 @@ const FRAME_TYPE_NAMES: Readonly<Record<number, string>> = {
   [SecureHidFrameType.PERF_SAMPLE]: 'PERF_SAMPLE',
   [SecureHidFrameType.PERF_EDGE]: 'PERF_EDGE',
   [SecureHidFrameType.PERF_CHECKPOINT]: 'PERF_CHECKPOINT',
+  [SecureHidFrameType.BUTTON_STATE]: 'BUTTON_STATE',
   [SecureHidFrameType.STREAM_CHUNK]: 'STREAM_CHUNK',
   [SecureHidFrameType.ERROR]: 'ERROR',
 };
@@ -39,6 +40,7 @@ const PERFORMANCE_FRAME_TYPES = new Set<SecureHidFrameType>([
   SecureHidFrameType.PERF_SAMPLE,
   SecureHidFrameType.PERF_EDGE,
   SecureHidFrameType.PERF_CHECKPOINT,
+  SecureHidFrameType.BUTTON_STATE,
 ]);
 
 interface PendingTraceRequest {

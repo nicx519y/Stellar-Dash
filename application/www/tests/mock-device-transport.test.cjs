@@ -1050,6 +1050,8 @@ test('emits typed button state and performance sample events', async () => {
     isActive: true,
     triggerMask: 0,
     totalButtons: 22,
+    eventSequence: 1,
+    droppedSnapshots: 0,
   });
   const states = await transport.request('get_button_states');
   assert.equal(states.data.triggerMask, 0);
@@ -1060,6 +1062,38 @@ test('emits typed button state and performance sample events', async () => {
   assert.ok(performanceSamples > 0);
   unsubscribeButtons();
   unsubscribePerformance();
+  await transport.close();
+});
+
+test('rejects persistent configuration during ordinary and performance monitoring', async () => {
+  const transport = await createTransport();
+
+  await transport.request('start_button_monitoring');
+  await assert.rejects(
+    transport.request('update_profile', {
+      profileId: 'profile-arcade',
+      profileDetails: { name: 'Must Not Persist' },
+    }),
+    /monitor-active/,
+  );
+  await transport.request('push_leds_config', { ledBrightness: 50 });
+  await transport.request('stop_button_monitoring');
+  await transport.request('update_profile', {
+    profileId: 'profile-arcade',
+    profileDetails: { name: 'Saved After Stop' },
+  });
+
+  await transport.request('start_button_performance_monitoring');
+  await assert.rejects(
+    transport.request('update_global_config', {
+      globalConfig: { wirelessReportRate: '2K' },
+    }),
+    /monitor-active/,
+  );
+  await transport.request('stop_button_performance_monitoring');
+
+  const profile = await transport.request('get_default_profile');
+  assert.equal(profile.data.defaultProfileDetails.name, 'Saved After Stop');
   await transport.close();
 });
 

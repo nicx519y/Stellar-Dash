@@ -54,32 +54,108 @@ export class SharedButtonMonitorLease {
   private readonly tokens = new Set<SharedButtonMonitorLeaseToken>();
   private startInFlight: SharedButtonMonitorTransition | null = null;
   private stopInFlight: SharedButtonMonitorTransition | null = null;
+  private suspended = false;
+  private readonly suspensionWaiters = new Set<() => void>();
 
   get ownerCount(): number {
     return this.tokens.size;
   }
 
   beginSession(): number {
+    this.releaseSuspensionWaiters();
     this.generation += 1;
     this.active = true;
     this.deviceActive = false;
     this.tokens.clear();
     this.startInFlight = null;
     this.stopInFlight = null;
+    this.suspended = false;
     return this.generation;
   }
 
   endSession(): void {
+    this.releaseSuspensionWaiters();
     this.generation += 1;
     this.active = false;
     this.deviceActive = false;
     this.tokens.clear();
     this.startInFlight = null;
     this.stopInFlight = null;
+    this.suspended = false;
   }
 
   acquire(startDevice: () => Promise<void>): Promise<SharedButtonMonitorLeaseToken> {
     return this.acquireForGeneration(this.generation, startDevice);
+  }
+
+  /**
+   * Stops the physical monitor while retaining page ownership. The retained
+   * tokens allow a failed configuration transaction to resume transparently.
+   */
+  async suspend(stopDevice: () => Promise<void>): Promise<boolean> {
+    if (!this.active) return false;
+    const generation = this.generation;
+    this.assertCurrent(generation);
+
+    const starting = this.startInFlight;
+    if (starting?.generation === generation) await starting.promise;
+    const stopping = this.stopInFlight;
+    if (stopping?.generation === generation) await stopping.promise;
+    this.assertCurrent(generation);
+
+    if (this.suspended) return true;
+    this.suspended = true;
+    if (!this.deviceActive) return true;
+
+    this.deviceActive = false;
+    try {
+      await stopDevice();
+    } catch (error) {
+      // A failed stop must never be followed by a QSPI commit. Keep the lease
+      // logically active so the caller can remain on the current page.
+      this.deviceActive = true;
+      this.suspended = false;
+      throw error;
+    }
+    return true;
+  }
+
+  /** Resume retained owners after a failed boundary transaction. */
+  async resume(startDevice: () => Promise<void>): Promise<void> {
+    if (!this.active) return;
+    const generation = this.generation;
+    this.assertCurrent(generation);
+    if (!this.suspended) return;
+    this.suspended = false;
+    if (this.tokens.size === 0 || this.deviceActive) {
+      this.releaseSuspensionWaiters();
+      return;
+    }
+
+    try {
+      await startDevice();
+      this.assertCurrent(generation);
+      this.deviceActive = true;
+      this.releaseSuspensionWaiters();
+    } catch (error) {
+      this.suspended = true;
+      throw error;
+    }
+  }
+
+  /**
+   * Commits a successful boundary. Old React cleanups become harmless and the
+   * destination page starts with a fresh lease generation.
+   */
+  finalizeSuspension(): void {
+    if (!this.active || !this.suspended) return;
+    this.generation += 1;
+    this.deviceActive = false;
+    this.tokens.clear();
+    this.startInFlight = null;
+    this.stopInFlight = null;
+    this.suspended = false;
+    this.releaseSuspensionWaiters();
   }
 
   release(
@@ -126,6 +202,11 @@ export class SharedButtonMonitorLease {
   ): Promise<SharedButtonMonitorLeaseToken> {
     try {
       this.assertCurrent(generation);
+      if (this.suspended) {
+        return this.waitForSuspension().then(() => (
+          this.acquireForGeneration(this.generation, startDevice)
+        ));
+      }
     } catch (error) {
       return Promise.reject(error);
     }
@@ -184,6 +265,20 @@ export class SharedButtonMonitorLease {
 
   private isCurrent(generation: number): boolean {
     return this.active && generation === this.generation;
+  }
+
+  private waitForSuspension(): Promise<void> {
+    if (!this.suspended) return Promise.resolve();
+    return new Promise((resolve) => {
+      this.suspensionWaiters.add(resolve);
+    });
+  }
+
+  private releaseSuspensionWaiters(): void {
+    if (this.suspensionWaiters.size === 0) return;
+    const waiters = Array.from(this.suspensionWaiters);
+    this.suspensionWaiters.clear();
+    for (const resolve of waiters) resolve();
   }
 }
 

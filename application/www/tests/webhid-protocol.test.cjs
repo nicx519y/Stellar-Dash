@@ -80,6 +80,11 @@ const {
 const {
   resolveAuthenticatedWebConfigTarget,
 } = require('../lib/device-transport/webconfig-target.ts');
+const {
+  BUTTON_STATE_ACTIVE_FLAG,
+  BUTTON_STATE_PAYLOAD_SIZE,
+  parseButtonStateBinaryData,
+} = require('../lib/button-binary-parser.ts');
 
 test('explicit WebHID frame pacing spaces native OUT submissions', async () => {
   const writeStartedAt = [];
@@ -963,6 +968,7 @@ test('WebHID report types and flags match common/webhid_protocol.h', () => {
       perfSample: SecureHidFrameType.PERF_SAMPLE,
       perfEdge: SecureHidFrameType.PERF_EDGE,
       perfCheckpoint: SecureHidFrameType.PERF_CHECKPOINT,
+      buttonState: SecureHidFrameType.BUTTON_STATE,
       streamFragment: SecureHidFrameType.STREAM_CHUNK,
     },
     {
@@ -974,6 +980,7 @@ test('WebHID report types and flags match common/webhid_protocol.h', () => {
       perfSample: 0x20,
       perfEdge: 0x21,
       perfCheckpoint: 0x22,
+      buttonState: 0x23,
       streamFragment: 0x30,
     },
   );
@@ -981,6 +988,46 @@ test('WebHID report types and flags match common/webhid_protocol.h', () => {
   assert.equal(SecureHidFrameFlags.FRAGMENTED, 2);
   assert.equal(SecureHidFrameFlags.LAST, 4);
   assert.equal(SecureHidFrameFlags.ACK_REQUIRED, 8);
+});
+
+test('BUTTON_STATE parses one compact full-state report for every ordinary page', () => {
+  const payload = new Uint8Array(BUTTON_STATE_PAYLOAD_SIZE);
+  const view = new DataView(payload.buffer);
+  view.setUint32(0, 0x12345678, true);
+  view.setUint32(4, 0x80402010, true);
+  view.setUint16(8, 7, true);
+  payload[10] = 22;
+  payload[11] = BUTTON_STATE_ACTIVE_FLAG;
+
+  assert.deepEqual(parseButtonStateBinaryData(payload), {
+    command: 1,
+    isActive: true,
+    triggerMask: 0x80402010,
+    totalButtons: 22,
+    eventSequence: 0x12345678,
+    droppedSnapshots: 7,
+  });
+});
+
+test('BUTTON_STATE rejects malformed or forward-unknown payloads', () => {
+  const valid = new Uint8Array(BUTTON_STATE_PAYLOAD_SIZE);
+  const view = new DataView(valid.buffer);
+  view.setUint32(0, 1, true);
+  valid[10] = 22;
+
+  assert.equal(parseButtonStateBinaryData(valid.subarray(0, 11)), null);
+
+  const zeroSequence = valid.slice();
+  new DataView(zeroSequence.buffer).setUint32(0, 0, true);
+  assert.equal(parseButtonStateBinaryData(zeroSequence), null);
+
+  const excessiveButtons = valid.slice();
+  excessiveButtons[10] = 33;
+  assert.equal(parseButtonStateBinaryData(excessiveButtons), null);
+
+  const unknownFlags = valid.slice();
+  unknownFlags[11] = 0x80;
+  assert.equal(parseButtonStateBinaryData(unknownFlags), null);
 });
 
 test('WebHID and mock firmware APIs remain same-origin', () => {
@@ -1494,6 +1541,7 @@ test('stale secure device output before session setup does not consume bootstrap
           SecureHidFrameType.PERF_SAMPLE,
           SecureHidFrameType.PERF_EDGE,
           SecureHidFrameType.PERF_CHECKPOINT,
+          SecureHidFrameType.BUTTON_STATE,
           SecureHidFrameType.ERROR,
         ];
         staleTypes.forEach((type, index) => {
@@ -2602,6 +2650,78 @@ test('authenticated RX gaps fail closed because V1 cannot prove missing reports 
   assert.equal(samples, 1);
   assert.equal(transport.state, DeviceTransportState.DISCONNECTED);
   assert.equal(transport.session, null);
+});
+
+test('authenticated BUTTON_STATE is decoded once and emitted through the shared event', async () => {
+  const key = await crypto.subtle.generateKey(
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  );
+  const prefix = Uint8Array.from([20, 18, 16, 14, 12, 10, 8, 6]);
+  const cipher = new AesGcmHidSessionCipher({
+    txKey: key,
+    rxKey: key,
+    txNoncePrefix: prefix,
+    rxNoncePrefix: prefix,
+  });
+  const incomingCodec = new SecureHidReportCodec(cipher);
+  let inputListener = null;
+  const device = {
+    opened: false,
+    vendorId: 0xcafe,
+    productId: 0x4021,
+    productName: 'HBox WebConfig',
+    collections: [],
+    async open() { this.opened = true; },
+    async close() { this.opened = false; },
+    addEventListener(type, listener) {
+      if (type === 'inputreport') inputListener = listener;
+    },
+    removeEventListener() {},
+    async sendReport() {},
+  };
+  const transport = new WebHidTransport({ navigator: makeHidNavigator(device) });
+  await transport.connect();
+  transport.establishSecureSession(cipher, {
+    transport: 'webhid',
+    authenticated: true,
+    scopes: ['monitor.read'],
+    sessionId: 'button-state-test',
+  });
+
+  const received = [];
+  transport.subscribe('button.state', (snapshot) => received.push(snapshot));
+  const payload = new Uint8Array(BUTTON_STATE_PAYLOAD_SIZE);
+  const view = new DataView(payload.buffer);
+  view.setUint32(0, 41, true);
+  view.setUint32(4, 0xa0000005, true);
+  view.setUint16(8, 2, true);
+  payload[10] = 22;
+  payload[11] = BUTTON_STATE_ACTIVE_FLAG;
+  const report = await incomingCodec.encode({
+    type: SecureHidFrameType.BUTTON_STATE,
+    flags: SecureHidFrameFlags.LAST,
+    sequence: 1,
+    payload,
+    secure: true,
+  });
+
+  inputListener({ device, reportId: 0, data: new DataView(report.buffer) });
+  await waitFor(() => received.length === 1);
+  assert.deepEqual(received, [{
+    name: 'button.state',
+    data: {
+      command: 1,
+      isActive: true,
+      triggerMask: 0xa0000005,
+      totalButtons: 22,
+      eventSequence: 41,
+      droppedSnapshots: 2,
+    },
+  }]);
+  assert.equal(transport.state, DeviceTransportState.CONNECTED);
+  await transport.close();
 });
 
 test('a gap inside a fragmented authenticated RPC rejects pending work and never reassembles across it', async () => {

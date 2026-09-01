@@ -31,7 +31,7 @@ function formatAutoSleep(ms: number) {
 }
 
 export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolean }) {
-    const { globalConfig, updateGlobalConfig } = useGamepadConfig();
+    const { globalConfig, stageDeferredGlobalConfig } = useGamepadConfig();
     const { t } = useLanguage();
     const rate = globalConfig.wirelessReportRate ?? WirelessReportRate.RATE_1K;
     const rateIndex = Math.max(rateOptions.indexOf(rate), 0);
@@ -43,14 +43,14 @@ export function ConnectionAndPowerBasicSettingContent(props: { disabled?: boolea
     );
     const onRateChange = async (value: number) => {
         const nextRate = rateOptions[value] ?? WirelessReportRate.RATE_1K;
-        await updateGlobalConfig({
+        stageDeferredGlobalConfig({
             ...globalConfig,
             wirelessReportRate: nextRate,
         });
     };
 
     const onAutoSleepChange = async (value: number) => {
-        await updateGlobalConfig({
+        stageDeferredGlobalConfig({
             ...globalConfig,
             power: {
                 ...power,

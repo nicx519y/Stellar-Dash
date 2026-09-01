@@ -4,8 +4,10 @@
 #include "base_state.hpp"
 #include "board_mode.hpp"
 #include "enums.hpp"
+#include "fn_layer_policy.hpp"
 
 struct AdcSampleFrame;
+struct GamepadState;
 
 class InputState : public BaseState
 {
@@ -42,6 +44,8 @@ private:
     void startInputPipeline();
     void stopInputPipeline();
     void sendUsbNeutralReport();
+    bool submitInputReport(const GamepadState& state,
+                           const AdcSampleFrame& sample);
     void processReportSample(const AdcSampleFrame& sample);
 
     bool isRunning = false;
@@ -52,6 +56,7 @@ private:
     BoardMode activeBoardMode = BoardMode::CenterOff;
     uint32_t virtualPinMask = 0u;
     uint32_t lastVirtualPinMask = 0u;
+    FnLayerPolicy fnLayerPolicy;
 };
 
 #define INPUT_STATE InputState::getInstance()

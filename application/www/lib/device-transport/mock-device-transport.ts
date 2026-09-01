@@ -250,6 +250,7 @@ export class MockDeviceTransport implements DeviceTransport {
   private errorHandlers = new Set<(error: DeviceTransportError) => void>();
   private disconnectHandlers = new Set<() => void>();
   private performanceTimer: ReturnType<typeof setInterval> | null = null;
+  private buttonMonitorActive = false;
   private calibrationTimers: Array<ReturnType<typeof setTimeout>> = [];
   private sampleCounter = 0;
   private imageTransfers = new Map<number, MockImageTransfer>();
@@ -593,6 +594,7 @@ export class MockDeviceTransport implements DeviceTransport {
   async close(): Promise<void> {
     const wasConnected = this.state !== DeviceTransportState.DISCONNECTED;
     this.stopPerformanceMonitor();
+    this.buttonMonitorActive = false;
     this.clearCalibrationTimers();
     this.session = null;
     this.setState(DeviceTransportState.DISCONNECTED);
@@ -620,6 +622,12 @@ export class MockDeviceTransport implements DeviceTransport {
     command: string,
     params: Record<string, unknown>,
   ): Promise<unknown> {
+    if (this.buttonMonitorActive && isPersistentMockConfigCommand(command)) {
+      throw new DeviceTransportError(
+        'protocol',
+        'monitor-active: stop button monitoring before saving configuration',
+      );
+    }
     switch (command) {
       case 'ping':
         return { pong: true, timestamp: Date.now() };
@@ -1009,27 +1017,35 @@ export class MockDeviceTransport implements DeviceTransport {
       case 'check_is_manual_calibration_completed':
         return { isCompleted: this.calibrationComplete };
       case 'start_button_monitoring':
+        this.buttonMonitorActive = true;
         queueMicrotask(() => this.emit('button.state', {
           isActive: true,
           triggerMask: 0,
           totalButtons: 22,
+          eventSequence: 1,
+          droppedSnapshots: 0,
         }));
         return { isActive: true };
       case 'stop_button_monitoring':
+        this.buttonMonitorActive = false;
         queueMicrotask(() => this.emit('button.state', {
           isActive: false,
           triggerMask: 0,
           totalButtons: 22,
+          eventSequence: 2,
+          droppedSnapshots: 0,
         }));
         return { isActive: false };
       case 'get_button_states':
         return { triggerMask: 0, triggerBinary: '0'.repeat(32), totalButtons: 22, timestamp: Date.now() };
       case 'start_button_performance_monitoring':
+        this.buttonMonitorActive = true;
         this.startPerformanceMonitor();
-        return { isActive: true };
+        return { isActive: true, isTestModeEnabled: true };
       case 'stop_button_performance_monitoring':
+        this.buttonMonitorActive = false;
         this.stopPerformanceMonitor();
-        return { isActive: false };
+        return { isActive: false, isTestModeEnabled: false };
       case 'performance.clock-sync':
         return {
           sampleId: params.sampleId,
@@ -1908,4 +1924,42 @@ function asString(value: unknown): string {
 function asNumber(value: unknown): number {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
+}
+
+function isPersistentMockConfigCommand(command: string): boolean {
+  switch (command) {
+    case 'push_leds_config':
+    case 'clear_leds_preview':
+    case 'import_config_begin':
+    case 'import_config_part':
+    case 'import_config_abort':
+      return false;
+    case 'update_global_config':
+    case 'update_hotkeys_config':
+    case 'update_screen_control_config':
+    case 'import_all_config':
+    case 'import_config_finish':
+    case 'update_profile':
+    case 'update_macro':
+    case 'update_profile_macros':
+    case 'create_profile':
+    case 'delete_profile':
+    case 'switch_default_profile':
+    case 'reboot':
+    case 'complete_firmware_upgrade_session':
+    case 'ch585_update_begin':
+    case 'ch585_update_complete':
+    case 'ms_set_default':
+    case 'ms_create_mapping':
+    case 'ms_delete_mapping':
+    case 'ms_rename_mapping':
+    case 'clear_manual_calibration_data':
+    case 'ms_install_mapping':
+    case 'ms_clear_installed_mapping':
+    case 'ms_mapping_draft_begin':
+    case 'ms_mark_mapping_sync':
+      return true;
+    default:
+      return false;
+  }
 }

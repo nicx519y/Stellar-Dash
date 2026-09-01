@@ -21,7 +21,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     const { disabled = false } = props;
     const {
         screenControl,
-        updateScreenControl,
+        stageDeferredScreenControl,
         getDeviceImageCatalog,
         readDeviceImage,
         uploadDeviceImage,
@@ -165,7 +165,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
 
     const commitUiChange = async (next: ScreenControlConfig) => {
         try {
-            await updateScreenControl(next);
+            stageDeferredScreenControl(next);
         } catch {
             // The context restores the last device-confirmed value and exposes
             // the failure through the shared error toast.
@@ -293,7 +293,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
             }
             setBackgroundImageId(USER_BG_ID);
             setStandbyDisplay('backgroundImage');
-            await updateScreenControl({ ...nextConfig, standbyDisplay: 'backgroundImage', backgroundImageId: USER_BG_ID }, true);
+            stageDeferredScreenControl({ ...nextConfig, standbyDisplay: 'backgroundImage', backgroundImageId: USER_BG_ID });
         } finally {
             setIsUploadingUserImage(false);
             e.target.value = '';
@@ -303,7 +303,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
     const handleSetBackground = async (id: string) => {
         setBackgroundImageId(id);
         setStandbyDisplay('backgroundImage');
-        await updateScreenControl({ ...nextConfig, standbyDisplay: 'backgroundImage', backgroundImageId: id }, true);
+        stageDeferredScreenControl({ ...nextConfig, standbyDisplay: 'backgroundImage', backgroundImageId: id });
     };
 
     const handleDeleteUserAsset = async () => {
@@ -318,7 +318,7 @@ export function ScreenControlSettingContent(props: ScreenControlSettingContentPr
         });
         if (backgroundImageId === USER_BG_ID) {
             setBackgroundImageId(SYSTEM_BG_ID);
-            await updateScreenControl({ ...nextConfig, backgroundImageId: SYSTEM_BG_ID }, true);
+            stageDeferredScreenControl({ ...nextConfig, backgroundImageId: SYSTEM_BG_ID });
         }
     };
 

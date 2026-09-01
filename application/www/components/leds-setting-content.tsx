@@ -56,7 +56,7 @@ import {
 export function LEDsSettingContent() {
     const { t } = useLanguage();
 
-    const { defaultProfile, updateProfileDetails, pushLedsConfig, clearLedsPreview, deviceConnected, dataIsReady, sendPendingCommandImmediately } = useGamepadConfig();
+    const { defaultProfile, stageDeferredProfileDetails, pushLedsConfig, clearLedsPreview, deviceConnected, dataIsReady } = useGamepadConfig();
     const { colorMode } = useColorMode();
     const defaultFrontColor = useMemo(() => {
         if (colorMode === "dark") {
@@ -80,12 +80,10 @@ export function LEDsSettingContent() {
     const lifecycleActionsRef = useRef({
         deviceConnected,
         clearLedsPreview,
-        sendPendingCommandImmediately,
     });
     lifecycleActionsRef.current = {
         deviceConnected,
         clearLedsPreview,
-        sendPendingCommandImmediately,
     };
 
     const [defaultProfileId, setDefaultProfileId] = useState<string>(defaultProfile.id);
@@ -340,11 +338,7 @@ export function LEDsSettingContent() {
                 console.error('预览灯光配置失败:', error);
             }
         });
-        void updateProfileDetails(defaultProfile.id, newProfileDetails).catch((error) => {
-            if (latestCommitRevision.current === revision) {
-                console.error('保存灯光配置失败:', error);
-            }
-        });
+        stageDeferredProfileDetails(defaultProfile.id, newProfileDetails);
     }
 
     // Initialize the state with the default profile details
@@ -403,11 +397,6 @@ export function LEDsSettingContent() {
                 void lifecycle.clearLedsPreview().catch((error) => {
                     console.warn('页面关闭前清除灯光预览失败:', error);
                 });
-            }
-            try {
-                lifecycle.sendPendingCommandImmediately('update_profile');
-            } catch (error) {
-                console.warn('页面关闭前发送 update_profile 命令失败:', error);
             }
         }
     }, []);

@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { Alert } from "@/components/ui/alert"
-import { Dialog, Text, Portal, Box, Button } from '@chakra-ui/react';
+import { Dialog, Text, Portal, Box, Button, HStack, Spinner } from '@chakra-ui/react';
 
 interface DialogConfig {
     id: string;
@@ -10,6 +10,7 @@ interface DialogConfig {
     title?: string;
     status?: "success" | "warning" | "error" | "info";
     message: string;
+    loading?: boolean;
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'cover' | 'full';
     buttons?: {
         text: string | React.ReactNode;
@@ -78,9 +79,12 @@ export function DialogCannotClose() {
                                         </Dialog.Header>
                                         <Dialog.Body>
                                             <Alert colorPalette={dialog.status === "success" ? "green" : dialog.status === "error" ? "red" : dialog.status === "info" ? "blue" : "yellow"}>
-                                                <Text whiteSpace="pre-wrap" lineHeight="1.5" >
-                                                    {dialog.message}
-                                                </Text>
+                                                <HStack gap={3} alignItems="center">
+                                                    {dialog.loading && <Spinner size="sm" flex="0 0 auto" />}
+                                                    <Text whiteSpace="pre-wrap" lineHeight="1.5" >
+                                                        {dialog.message}
+                                                    </Text>
+                                                </HStack>
                                             </Alert>
                                         </Dialog.Body>
                                         {dialog.buttons && (
@@ -117,6 +121,7 @@ export function openDialog(options: {
     title?: string;
     status?: "success" | "warning" | "error" | "info";
     message: string;
+    loading?: boolean;
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'cover' | 'full';
     buttons?: {
         text: string | React.ReactNode;
@@ -140,6 +145,7 @@ export function openDialog(options: {
         status: options?.status ?? "warning",
         size: options?.size ?? 'md',
         message: options.message,
+        loading: options.loading ?? false,
         buttons: options?.buttons,
     });
 

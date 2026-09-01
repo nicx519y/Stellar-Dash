@@ -5,14 +5,8 @@
 
 #include "enums.hpp"
 #include "gamepad/GamepadState.hpp"
+#include "rf_link_state_policy.hpp"
 #include "rf_transport.hpp"
-
-enum class ConnectionLinkState : uint8_t {
-    Disconnected = 0,
-    Connecting = 1,
-    Connected = 2,
-    Error = 3,
-};
 
 enum class RfPairingState : uint8_t {
     Idle = 0,
@@ -54,7 +48,7 @@ public:
                WirelessReportRate wirelessRate,
                InputMode inputMode);
     void loop();
-    void onReportReady(const GamepadState& state, uint32_t seq);
+    bool onReportReady(const GamepadState& state, uint32_t seq);
     bool applyWirelessReportRate(WirelessReportRate wirelessRate, bool persist);
     bool startRfPairing();
     bool stopRfPairing();
@@ -85,8 +79,10 @@ public:
 private:
     ConnectionManager() = default;
     void serviceRfEvents();
+    void serviceRfStatusPoll();
     void updatePairingStateFromStatus();
     void updateRfLinkStateFromStatus();
+    void setLinkState(ConnectionLinkState state);
     void activateRfModeAfterPairSuccess();
     bool tryRfBringup(bool isRetry);
     bool tryRfSleepCommand();
@@ -109,6 +105,7 @@ private:
     RfPowerState rfPowerState = RfPowerState::Unknown;
     bool rfPowerStateFromPersistedHint = false;
     uint32_t lastRfStatusPollMs = 0;
+    uint32_t lastRfLinkEventCounter = 0;
     uint32_t lastRfBeginRetryMs = 0;
     uint32_t lastRfSleepRetryMs = 0;
     uint32_t rfStatLastMs = 0;

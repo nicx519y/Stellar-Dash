@@ -6,6 +6,8 @@
 #include "configs/device_command_handler.hpp"
 #include "configs/device_command_message.hpp"
 #include "device_security_protocol.h"
+#include "configs/webconfig_btns_manager.hpp"
+#include "webhid_config_write_policy.hpp"
 
 namespace {
 
@@ -313,6 +315,15 @@ WebHidRpcResult WebHidRpcDispatcher::dispatch(
     if (scope == 0u ||
         (grantedScopes & scope) != scope) {
         return localError(transactionId, 403, "Command scope denied");
+    }
+    if (webhidShouldBlockConfigWrite(
+            command,
+            scope == HBOX_SCOPE_CONFIG_WRITE,
+            WEBCONFIG_BTNS_MANAGER.isActive())) {
+        return localError(
+            transactionId,
+            409,
+            "monitor-active: stop button monitoring before saving configuration");
     }
     if (command == "get_device_auth") {
         return localError(

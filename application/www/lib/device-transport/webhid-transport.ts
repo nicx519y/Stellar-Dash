@@ -41,6 +41,7 @@ import {
   traceWebHidLogical,
   updateWebHidLogicalTrace,
 } from './webhid-network-trace';
+import { parseButtonStateBinaryData } from '../button-binary-parser';
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -72,6 +73,7 @@ const DISCARDABLE_PRE_SESSION_SECURE_TYPES = new Set<SecureHidFrameType>([
   SecureHidFrameType.PERF_SAMPLE,
   SecureHidFrameType.PERF_EDGE,
   SecureHidFrameType.PERF_CHECKPOINT,
+  SecureHidFrameType.BUTTON_STATE,
   SecureHidFrameType.ERROR,
 ]);
 
@@ -869,6 +871,17 @@ export class WebHidTransport implements DeviceTransport {
       case SecureHidFrameType.PERF_CHECKPOINT:
         this.emit('performance.checkpoint', frame.payload);
         break;
+      case SecureHidFrameType.BUTTON_STATE: {
+        const snapshot = parseButtonStateBinaryData(frame.payload);
+        if (!snapshot) {
+          throw new DeviceTransportError(
+            'protocol',
+            'Invalid BUTTON_STATE payload',
+          );
+        }
+        this.emit('button.state', snapshot);
+        break;
+      }
       case SecureHidFrameType.RPC_RESPONSE:
         this.handleLogicalResponse(frame, this.pendingRpc, traceFrameRecordId);
         break;

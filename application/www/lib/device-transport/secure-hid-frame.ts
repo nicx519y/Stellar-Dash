@@ -15,6 +15,7 @@ export enum SecureHidFrameType {
   PERF_SAMPLE = 0x20,
   PERF_EDGE = 0x21,
   PERF_CHECKPOINT = 0x22,
+  BUTTON_STATE = 0x23,
   STREAM_CHUNK = 0x30,
   ERROR = 0x7f,
 }

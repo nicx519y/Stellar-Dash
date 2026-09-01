@@ -25,6 +25,7 @@
 #include "gpio_btns/gpio_btns_worker.hpp"
 #include "power_manager.hpp"
 #include "connection_manager.hpp"
+#include "input_runtime_policy.hpp"
 #include "system_sleep_manager.hpp"
 #include "ch585_update_mode.hpp"
 #include "ch585_firmware_update.hpp"
@@ -733,7 +734,8 @@ void SPIScreenManager::renderBars() {
     ST7789_FillRect(&g_lcd, 0, 0, leftW, h, barBg);
     ST7789_FillRect(&g_lcd, rightX, 0, rightW, h, barBg);
 
-    const InputMode inputMode = STORAGE_MANAGER.getInputMode();
+    const InputMode inputMode = effectiveInputModeForConnection(
+        CONNECTION_MANAGER.getMode(), STORAGE_MANAGER.getInputMode());
     const char* mode = ScreenMain_InputModeAbbrev(inputMode);
     const uint32_t nowMs = HAL_GetTick();
     update_battery_ui_cache(nowMs);

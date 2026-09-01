@@ -672,7 +672,10 @@ class WebConfigStateContractTests(unittest.TestCase):
         ]
         self.assertNotIn("resetSession", enqueue)
         self.assertIn("droppedEventCount", enqueue)
-        self.assertIn('"button.state"', enqueue)
+        self.assertNotIn('"button.state"', enqueue)
+        self.assertIn("webhid_button_state_v1_t", enqueue)
+        self.assertIn("buttonStateQueue", enqueue)
+        self.assertIn("kButtonStateQueueDepth", enqueue)
         self.assertNotIn('"legacy.binary"', enqueue)
 
         telemetry = source[
@@ -681,6 +684,14 @@ class WebConfigStateContractTests(unittest.TestCase):
         ]
         self.assertNotIn("resetSession", telemetry)
         self.assertIn("requestCheckpoint();", telemetry)
+
+        pump = source[source.index("void WebHidService::pumpOutput"):]
+        self.assertIn("OutboundFrameSource::ButtonState", pump)
+        self.assertIn("sendOneButtonState()", pump)
+        self.assertLess(
+            pump.index("if (buttonStateCount != 0u)"),
+            pump.index("if (checkpointActive)"),
+        )
 
     def test_webhid_session_reset_stops_session_owned_adc_work(self) -> None:
         source = (
@@ -936,6 +947,40 @@ class WebConfigStateContractTests(unittest.TestCase):
         self.assertIn("W25Qxx_READY_POLL_MAX_ATTEMPTS", wait)
         self.assertIn("HAL_GetTick() - tick_start", wait)
         self.assertNotIn("HAL_QSPI_AutoPolling(", wait)
+
+    def test_all_ordinary_button_consumers_share_one_monitor_pipeline(self) -> None:
+        www = ROOT / "application" / "www"
+        shared = (www / "hooks" / "use-button-monitor.ts").read_text(
+            encoding="utf-8"
+        )
+        hitbox = (www / "hooks" / "use-hitbox-button-monitor.ts").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("EVENTS.BUTTON_STATE_CHANGED", shared)
+        self.assertIn("SharedButtonMonitorLeaseToken", shared)
+        self.assertIn("useButtonMonitor", hitbox)
+
+        for relative in (
+            "components/hitbox/hitbox-base.tsx",
+            "components/hitbox/hitbox-keys.tsx",
+            "components/hitbox/hitbox-leds.tsx",
+        ):
+            consumer = (www / relative).read_text(encoding="utf-8")
+            self.assertIn("useHitboxButtonMonitor", consumer, relative)
+
+        for relative in (
+            "components/macro-field.tsx",
+            "components/button-monitor-test.tsx",
+        ):
+            consumer = (www / relative).read_text(encoding="utf-8")
+            self.assertIn("useButtonMonitor", consumer, relative)
+
+        transport = (
+            www / "lib" / "device-transport" / "webhid-transport.ts"
+        ).read_text(encoding="utf-8")
+        self.assertIn("case SecureHidFrameType.BUTTON_STATE", transport)
+        self.assertIn("this.emit('button.state', snapshot)", transport)
 
 
 if __name__ == "__main__":

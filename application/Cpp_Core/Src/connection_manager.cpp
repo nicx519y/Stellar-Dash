@@ -3,6 +3,7 @@
 #include "board_mode.hpp"
 #include "ch585_role_bootstrap.hpp"
 #include "config.hpp"
+#include "input_runtime_policy.hpp"
 #include "monitor_telemetry.hpp"
 #include "rf_boot_ready.hpp"
 #include "rf_bridge_port.hpp"
@@ -42,6 +43,7 @@ static uint16_t getRfReportRateHz(WirelessReportRate wirelessRate) {
 }
 
 static constexpr uint32_t kRfSleepRetryMs = 500u;
+static constexpr uint32_t kRfStatusPollMs = 500u;
 static constexpr uint32_t kRfBootReadyTimeoutMs = 1500u;
 static constexpr uint32_t kRfPostSleepSettleMs = 150u;
 static constexpr uint8_t kRfCmdStartPair = 0x02u;
@@ -50,6 +52,8 @@ static constexpr uint8_t kRfCmdSleep = 0x08u;
 static constexpr uint8_t kRfCmdSetRate = 0x05u;
 static constexpr uint8_t kRfEvtWakeupComplete = 0x88u;
 static constexpr uint8_t kRfEvtError = 0x85u;
+static constexpr uint8_t kRfEvtMonitorConfig = 0x86u;
+static constexpr uint8_t kRfEvtTimeSync = 0x87u;
 static constexpr uint32_t kRfPostSleepWakeDetectMs = 150u;
 static constexpr uint8_t kRfPowerHintUnknown = 0u;
 static constexpr uint8_t kRfPowerHintAwake = 1u;
@@ -150,6 +154,14 @@ bool ConnectionManager::rfPowerStateBlocksSpi() const {
            (rfPowerState == RfPowerState::WakePending);
 }
 
+void ConnectionManager::setLinkState(ConnectionLinkState state)
+{
+    if (linkState != state) {
+        MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(state));
+    }
+    linkState = state;
+}
+
 bool ConnectionManager::confirmRfReportRate(uint16_t targetRateHz) {
     targetRateHz = clampRfReportRateHz(targetRateHz);
     requestedReportRateHz = targetRateHz;
@@ -241,19 +253,12 @@ void ConnectionManager::activateRfModeAfterPairSuccess() {
         ? getRfReportRateHz(STORAGE_MANAGER.getWirelessReportRate())
         : 1000u;
     if (!confirmRfReportRate(requestedReportRateHz)) {
-        linkState = ConnectionLinkState::Error;
-        MonitorTelemetry_OnLinkStateChanged(
-            mode, static_cast<uint8_t>(linkState));
+        setLinkState(ConnectionLinkState::Error);
         return;
     }
 
     MonitorTelemetry_Init(mode, appliedReportRateHz);
-
-    ConnectionLinkState nextState = ConnectionLinkState::Connected;
-    if (linkState != nextState) {
-        MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
-    }
-    linkState = nextState;
+    updateRfLinkStateFromStatus();
 }
 
 bool ConnectionManager::tryRfBringup(bool isRetry) {
@@ -269,11 +274,7 @@ bool ConnectionManager::tryRfBringup(bool isRetry) {
     if (ok) {
         updateRfLinkStateFromStatus();
     } else {
-        ConnectionLinkState nextState = ConnectionLinkState::Error;
-        if (linkState != nextState) {
-            MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
-        }
-        linkState = nextState;
+        setLinkState(ConnectionLinkState::Error);
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1001u, "rf begin/setRate failed");
     }
     return ok;
@@ -281,26 +282,8 @@ bool ConnectionManager::tryRfBringup(bool isRetry) {
 
 void ConnectionManager::updateRfLinkStateFromStatus() {
     const RFModuleStatus& st = rfTransport.getStatus();
-    ConnectionLinkState nextState = ConnectionLinkState::Disconnected;
-    switch (st.state) {
-    case RFLinkState::Pairing:
-    case RFLinkState::PairOk:
-    case RFLinkState::Connecting:
-    case RFLinkState::Reconnecting:
-        nextState = ConnectionLinkState::Connecting;
-        break;
-    case RFLinkState::Connected:
-        nextState = st.connected ? ConnectionLinkState::Connected : ConnectionLinkState::Connecting;
-        break;
-    case RFLinkState::Idle:
-    default:
-        nextState = ConnectionLinkState::Disconnected;
-        break;
-    }
-    if (linkState != nextState) {
-        MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
-    }
-    linkState = nextState;
+    lastRfLinkEventCounter = st.eventCounter;
+    setLinkState(connectionLinkStateFromRfStatus(st.state, st.connected));
 }
 
 void ConnectionManager::updatePairingStateFromStatus() {
@@ -370,17 +353,52 @@ void ConnectionManager::serviceRfEvents() {
 
     (void)rfTransport.serviceEvents();
 
-    updateRfLinkStateFromStatus();
-    if (rfTransport.getStatus().eventCounter != rfPairingLastEventCounter) {
-        rfPairingLastEventCounter = rfTransport.getStatus().eventCounter;
+    const RFModuleStatus& status = rfTransport.getStatus();
+    if (status.eventCounter != lastRfLinkEventCounter) {
+        if (status.lastEvent == kRfEvtError) {
+            lastRfLinkEventCounter = status.eventCounter;
+            setLinkState(ConnectionLinkState::Error);
+        } else if (status.lastEvent != kRfEvtMonitorConfig &&
+                   status.lastEvent != kRfEvtTimeSync) {
+            updateRfLinkStateFromStatus();
+        }
+    }
+    if (status.eventCounter != rfPairingLastEventCounter) {
+        rfPairingLastEventCounter = status.eventCounter;
         updatePairingStateFromStatus();
     }
+}
+
+void ConnectionManager::serviceRfStatusPoll()
+{
+    if (mode != ConnectionMode::CONNECTION_MODE_RF24G ||
+        !rfPhysicalRoleIsActive() ||
+        rfPairingActive ||
+        rfPowerStateBlocksSpi() ||
+        RFBridgePort_HasPendingEvent()) {
+        return;
+    }
+
+    const uint32_t now = HAL_GetTick();
+    if ((now - lastRfStatusPollMs) < kRfStatusPollMs) {
+        return;
+    }
+    lastRfStatusPollMs = now;
+
+    if (!rfTransport.pollStatus()) {
+        setLinkState(ConnectionLinkState::Error);
+        MonitorTelemetry_OnError("CONNECTION_MANAGER", 1017u,
+                                 "rf GET_STATUS failed");
+        return;
+    }
+    updateRfLinkStateFromStatus();
 }
 
 void ConnectionManager::setup(ConnectionMode connMode,
                               WirelessReportRate wirelessRate,
                               InputMode inputMode) {
     mode = connMode;
+    inputMode = effectiveInputModeForConnection(mode, inputMode);
     appliedReportRateHz = mode == ConnectionMode::CONNECTION_MODE_USB
         ? 1000u : 0u;
     requestedReportRateHz = 1000;
@@ -390,6 +408,7 @@ void ConnectionManager::setup(ConnectionMode connMode,
     loadRfPowerStateHint();
     linkState = ConnectionLinkState::Disconnected;
     lastRfStatusPollMs = HAL_GetTick();
+    lastRfLinkEventCounter = rfTransport.getStatus().eventCounter;
     lastRfSleepRetryMs = HAL_GetTick();
     rfStatLastMs = HAL_GetTick();
     rfSendWin = 0u;
@@ -409,11 +428,9 @@ void ConnectionManager::setup(ConnectionMode connMode,
     if (mode == ConnectionMode::CONNECTION_MODE_USB) {
         appliedReportRateHz = 1000;
         MonitorTelemetry_Init(mode, appliedReportRateHz);
-        ConnectionLinkState nextState = get_usb_mounted() ? ConnectionLinkState::Connected : ConnectionLinkState::Disconnected;
-        if (linkState != nextState) {
-            MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
-        }
-        linkState = nextState;
+        setLinkState(get_usb_mounted()
+            ? ConnectionLinkState::Connected
+            : ConnectionLinkState::Disconnected);
         return;
     }
 
@@ -430,8 +447,7 @@ void ConnectionManager::setup(ConnectionMode connMode,
     rateApplyPending = false;
     appliedReportRateHz = requestedReportRateHz;
     reportRateConfirmed = true;
-    linkState = ConnectionLinkState::Connected;
-    MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(linkState));
+    setLinkState(ConnectionLinkState::Connecting);
     lastRfBeginRetryMs = HAL_GetTick();
     return;
 #endif
@@ -451,15 +467,10 @@ void ConnectionManager::setup(ConnectionMode connMode,
             (unsigned int)requestedReportRateHz,
             (unsigned int)appliedReportRateHz);
     if (!rateOk) {
-        ConnectionLinkState nextState = ConnectionLinkState::Error;
-        if (linkState != nextState) {
-            MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
-        }
-        linkState = nextState;
+        setLinkState(ConnectionLinkState::Error);
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1003u, "rf setRate failed");
     } else {
-        linkState = ConnectionLinkState::Connected;
-        MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(linkState));
+        updateRfLinkStateFromStatus();
     }
     /*
      * SPI bring-up path: stream INPUT_DATA as a one-way fast path.
@@ -502,11 +513,7 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
     }
 
     if (!confirmRfReportRate(nextRateHz)) {
-        ConnectionLinkState nextState = ConnectionLinkState::Error;
-        if (linkState != nextState) {
-            MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
-        }
-        linkState = nextState;
+        setLinkState(ConnectionLinkState::Error);
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1004u, "runtime rf setRate failed");
         return false;
     }
@@ -523,11 +530,7 @@ bool ConnectionManager::applyWirelessReportRate(WirelessReportRate wirelessRate,
     }
 
     MonitorTelemetry_Init(mode, appliedReportRateHz);
-    ConnectionLinkState nextState = ConnectionLinkState::Connected;
-    if (linkState != nextState) {
-        MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
-    }
-    linkState = nextState;
+    updateRfLinkStateFromStatus();
     return true;
 }
 
@@ -844,12 +847,12 @@ bool ConnectionManager::restoreRfRuntime(WirelessReportRate wirelessRate) {
         restoreOk = true;
     }
 
-    ConnectionLinkState nextState = restoreOk ? ConnectionLinkState::Connected : ConnectionLinkState::Error;
-    if (mode == ConnectionMode::CONNECTION_MODE_RF24G && linkState != nextState) {
-        MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
-    }
     if (mode == ConnectionMode::CONNECTION_MODE_RF24G) {
-        linkState = nextState;
+        if (restoreOk) {
+            updateRfLinkStateFromStatus();
+        } else {
+            setLinkState(ConnectionLinkState::Error);
+        }
     }
     if (!restoreOk) {
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1008u, "rf wake restore failed");
@@ -937,6 +940,7 @@ void ConnectionManager::loop() {
     }
 
     serviceRfEvents();
+    serviceRfStatusPoll();
 
     if ((rfPowerState == RfPowerState::SleepPending) &&
         ((HAL_GetTick() - lastRfSleepRetryMs) >= kRfSleepRetryMs)) {
@@ -945,26 +949,24 @@ void ConnectionManager::loop() {
     }
 
     if (mode == ConnectionMode::CONNECTION_MODE_USB) {
-        ConnectionLinkState nextState = get_usb_mounted() ? ConnectionLinkState::Connected : ConnectionLinkState::Disconnected;
-        if (linkState != nextState) {
-            MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
-        }
-        linkState = nextState;
+        setLinkState(get_usb_mounted()
+            ? ConnectionLinkState::Connected
+            : ConnectionLinkState::Disconnected);
         return;
     }
 
     // RF24G 8K data streaming is intentionally independent from status readback.
 }
 
-void ConnectionManager::onReportReady(const GamepadState& state, uint32_t seq) {
-    if (mode != ConnectionMode::CONNECTION_MODE_RF24G) return;
-    if (!rfPhysicalRoleIsActive()) return;
-    if (rfPowerStateBlocksSpi()) return;
+bool ConnectionManager::onReportReady(const GamepadState& state, uint32_t seq) {
+    if (mode != ConnectionMode::CONNECTION_MODE_RF24G) return false;
+    if (!rfPhysicalRoleIsActive()) return false;
+    if (rfPowerStateBlocksSpi()) return false;
 
     if (rfPairingActive || RFBridgePort_HasPendingEvent()) {
         serviceRfEvents();
     }
-    if (rfPairingActive) return;
+    if (rfPairingActive) return false;
 
     bool ok = rfTransport.sendInput(state, seq);
     rfSendWin++;
@@ -976,12 +978,9 @@ void ConnectionManager::onReportReady(const GamepadState& state, uint32_t seq) {
         rfSendFailWin++;
     }
 
-    ConnectionLinkState nextState = ok ? ConnectionLinkState::Connected : ConnectionLinkState::Error;
-    if (linkState != nextState) {
-        MonitorTelemetry_OnLinkStateChanged(mode, static_cast<uint8_t>(nextState));
-    }
-    linkState = nextState;
     if (!ok) {
+        setLinkState(ConnectionLinkState::Error);
         MonitorTelemetry_OnError("CONNECTION_MANAGER", 1002u, "rf sendInput failed");
     }
+    return ok;
 }

@@ -78,6 +78,10 @@ import {
     SharedButtonMonitorLease,
     type SharedButtonMonitorLeaseToken,
 } from '@/lib/button-monitor-lifecycle';
+import {
+    DeferredConfigCoordinator,
+    type DeferredConfigCommit,
+} from '@/lib/deferred-config-coordinator';
 
 // 导入固件工具函数
 import { calculateSHA256, extractFirmwarePackage } from '@/lib/firmware-utils';
@@ -151,6 +155,18 @@ interface GamepadConfigContextType {
     deleteProfile: (profileId: string) => Promise<void>;
     switchProfile: (profileId: string) => Promise<void>;
     updateHotkeysConfig: (hotkeysConfig: Hotkey[]) => Promise<void>;
+    stageDeferredConfig: (resourceKey: string, commit: DeferredConfigCommit, priority?: number) => void;
+    stageDeferredProfileDetails: (profileId: string, profileDetails: GameProfile) => void;
+    stageDeferredProfileMacros: (profileId: string, macros: MacroConfig[]) => void;
+    stageDeferredHotkeysConfig: (hotkeysConfig: Hotkey[]) => void;
+    stageDeferredGlobalConfig: (globalConfig: GlobalConfig) => void;
+    stageDeferredScreenControl: (screenControl: ScreenControlConfig) => void;
+    flushDeferredConfig: (
+        afterFlush?: () => void | Promise<void>,
+        resumeMonitoringAfterSuccess?: boolean,
+    ) => Promise<void>;
+    deferredConfigDirty: boolean;
+    deferredConfigSaving: boolean;
     isLoading: boolean;
     error: string | null;
     setError: (error: string | null) => void;
@@ -456,6 +472,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const [firmwareUpdating, setFirmwareUpdating] = useState(false); // 是否正在固件升级
 
     const [finishConfigDisabled, setFinishConfigDisabled] = useState(false);
+    const [deferredConfigDirty, setDeferredConfigDirty] = useState(false);
+    const [deferredConfigSaving, setDeferredConfigSaving] = useState(false);
 
     const [hitboxLayout, setHitboxLayout] = useState<HitboxLayoutItem[]>([]);
     const initializationGenerationRef = useRef(0);
@@ -471,10 +489,23 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     if (!buttonMonitorLeaseRef.current) {
         buttonMonitorLeaseRef.current = new SharedButtonMonitorLease();
     }
+    const deferredConfigRef = useRef<DeferredConfigCoordinator | null>(null);
+    if (!deferredConfigRef.current) {
+        deferredConfigRef.current = new DeferredConfigCoordinator(setDeferredConfigDirty);
+    }
+    const deferredProfileDetailsRef = useRef(new Map<string, GameProfile>());
+    const deferredProfileMacrosRef = useRef(new Map<string, MacroConfig[]>());
+    const deferredHotkeysRef = useRef<Hotkey[] | null>(null);
+    const deferredFlushTailRef = useRef<Promise<void>>(Promise.resolve());
 
     const resetDeviceSessionState = useCallback(() => {
         postReadyRequestSchedulerRef.current?.endSession();
         buttonMonitorLeaseRef.current?.endSession();
+        deferredConfigRef.current?.clear();
+        deferredProfileDetailsRef.current.clear();
+        deferredProfileMacrosRef.current.clear();
+        deferredHotkeysRef.current = null;
+        setDeferredConfigSaving(false);
         calibrationCompletionRequestRef.current = null;
         initializationGenerationRef.current += 1;
         const resetGlobalConfig = { inputMode: Platform.XINPUT };
@@ -528,6 +559,8 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                     isActive: payload.isActive === true,
                     triggerMask: Number(payload.triggerMask ?? 0) >>> 0,
                     totalButtons: Number(payload.totalButtons ?? 0) & 0xff,
+                    eventSequence: Number(payload.eventSequence ?? 0) >>> 0,
+                    droppedSnapshots: Number(payload.droppedSnapshots ?? 0) & 0xffff,
                 };
                 eventBus.emit(EVENTS.BUTTON_STATE_CHANGED, buttonState);
                 break;
@@ -753,6 +786,16 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             resetDeviceSessionState();
         }
     }, [deviceState, resetDeviceSessionState]);
+
+    useEffect(() => {
+        if ((!deferredConfigDirty && !deferredConfigSaving) || typeof window === 'undefined') return;
+        const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = '';
+        };
+        window.addEventListener('beforeunload', warnBeforeUnload);
+        return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+    }, [deferredConfigDirty, deferredConfigSaving]);
 
     // Read the six startup resources sequentially under one 30 second deadline.
     useEffect(() => {
@@ -1151,6 +1194,14 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     };
 
     const getProfileMacros = async (profileId: string): Promise<MacroConfig[]> => {
+        const deferred = deferredProfileMacrosRef.current.get(profileId);
+        if (deferred) {
+            return deferred.map((macro) => ({
+                ...macro,
+                triggerKeys: [...(macro.triggerKeys ?? [])],
+                steps: (macro.steps ?? []).map((step) => ({ ...step })),
+            }));
+        }
         const data = await sendDeviceRequest('get_profile_macros', { pid: profileId }, true);
         const raw = ((data as any)?.m ?? (data as any)?.data?.m ?? (data as any)?.macros ?? null) as unknown;
         const macrosJSON = Array.isArray(raw)
@@ -1563,6 +1614,87 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             setError(err instanceof Error ? err.message : 'An error occurred');
             throw new Error("Failed to fetch marking status");
         }
+    };
+
+    const stageDeferredConfig = useCallback((
+        resourceKey: string,
+        commit: DeferredConfigCommit,
+        priority: number = 0,
+    ): void => {
+        deferredConfigRef.current!.stage(resourceKey, commit, priority);
+    }, []);
+
+    const stageDeferredProfileDetails = (
+        profileId: string,
+        profileDetails: GameProfile,
+    ): void => {
+        if (!profileId) return;
+        const previous = deferredProfileDetailsRef.current.get(profileId);
+        const snapshot: GameProfile = {
+            ...previous,
+            ...profileDetails,
+            id: profileId,
+        };
+        deferredProfileDetailsRef.current.set(profileId, snapshot);
+        setDefaultProfile((current) => (
+            current.id === profileId ? { ...current, ...snapshot } : current
+        ));
+        stageDeferredConfig(`profile:${profileId}`, async () => {
+            await updateProfileDetails(profileId, snapshot, true, true);
+            const pending = deferredProfileDetailsRef.current.get(profileId);
+            if (pending === snapshot) {
+                deferredProfileDetailsRef.current.delete(profileId);
+            } else if (pending) {
+                setDefaultProfile((current) => (
+                    current.id === profileId ? { ...current, ...pending } : current
+                ));
+            }
+        }, 10);
+    };
+
+    const stageDeferredProfileMacros = (
+        profileId: string,
+        macros: MacroConfig[],
+    ): void => {
+        if (!profileId) return;
+        const snapshot = macros.map((macro) => ({
+            ...macro,
+            triggerKeys: [...(macro.triggerKeys ?? [])],
+            steps: (macro.steps ?? []).map((step) => ({ ...step })),
+        }));
+        deferredProfileMacrosRef.current.set(profileId, snapshot);
+        setDefaultProfile((current) => (
+            current.id === profileId
+                ? {
+                    ...current,
+                    keysConfig: {
+                        ...current.keysConfig,
+                        macros: snapshot,
+                    },
+                }
+                : current
+        ));
+        stageDeferredConfig(`macros:${profileId}`, async () => {
+            await updateProfileMacros(profileId, snapshot);
+            if (deferredProfileMacrosRef.current.get(profileId) === snapshot) {
+                deferredProfileMacrosRef.current.delete(profileId);
+            }
+        }, 20);
+    };
+
+    const stageDeferredHotkeysConfig = (hotkeys: Hotkey[]): void => {
+        const snapshot = hotkeys.map((hotkey) => ({ ...hotkey }));
+        deferredHotkeysRef.current = snapshot;
+        setHotkeysConfig(snapshot);
+        stageDeferredConfig('hotkeys', async () => {
+            await updateHotkeysConfig(snapshot, true);
+            const pending = deferredHotkeysRef.current;
+            if (pending === snapshot) {
+                deferredHotkeysRef.current = null;
+            } else if (pending) {
+                setHotkeysConfig(pending);
+            }
+        }, 10);
     };
 
     const syncMarkingProgress = async (): Promise<void> => {
@@ -2023,6 +2155,28 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
+    const stageDeferredGlobalConfig = (patch: GlobalConfig): void => {
+        const snapshot = { ...globalConfigRef.current, ...patch };
+        globalConfigRef.current = snapshot;
+        setGlobalConfig(snapshot);
+        stageDeferredConfig('global', async () => {
+            await updateGlobalConfig(snapshot, true);
+        }, 10);
+    };
+
+    const stageDeferredScreenControl = (next: ScreenControlConfig): void => {
+        const snapshot: ScreenControlConfig = {
+            ...next,
+            features: { ...next.features },
+            featuresOrder: [...next.featuresOrder],
+        };
+        screenControlRef.current = snapshot;
+        setScreenControl(snapshot);
+        stageDeferredConfig('screen-control', async () => {
+            await updateScreenControl(snapshot, true);
+        }, 10);
+    };
+
     const fetchCalibrationStatus = async (immediate: boolean = true): Promise<CalibrationStatus> => {
         try {
             const data = await sendDeviceRequest('get_calibration_status', {}, immediate);
@@ -2159,6 +2313,76 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         } catch (err) {
             return Promise.reject(new Error("Failed to stop button monitoring"));
         }
+    };
+
+    const performDeferredConfigFlush = async (
+        afterFlush?: () => void | Promise<void>,
+        resumeMonitoringAfterSuccess: boolean = false,
+    ): Promise<void> => {
+        const hasDeferredWrites = deferredConfigRef.current!.dirty;
+        if (!hasDeferredWrites && !afterFlush) return;
+
+        const lease = buttonMonitorLeaseRef.current!;
+        let suspended = false;
+        if (hasDeferredWrites) setDeferredConfigSaving(true);
+        const resumeButtonMonitor = async () => {
+            await lease.resume(async () => {
+                const completed = await checkIsManualCalibrationCompleted(true);
+                if (!completed) throw new Error('Manual calibration not completed');
+                const data = await postReadyRequestSchedulerRef.current!.schedule(
+                    () => sendDeviceRequest('start_button_monitoring', {}, true),
+                );
+                setButtonMonitoringActive(data.isActive ?? true);
+            });
+        };
+        try {
+            suspended = await lease.suspend(async () => {
+                const data = await postReadyRequestSchedulerRef.current!.schedule(
+                    () => sendDeviceRequest('stop_button_monitoring', {}, true),
+                );
+                setButtonMonitoringActive(data.isActive ?? false);
+            });
+
+            await deferredConfigRef.current!.flush();
+            await deviceClientRef.current?.flushQueue();
+            await afterFlush?.();
+            if (suspended) {
+                if (resumeMonitoringAfterSuccess) {
+                    await resumeButtonMonitor();
+                } else {
+                    lease.finalizeSuspension();
+                }
+            }
+            setError(null);
+        } catch (error) {
+            if (suspended) {
+                try {
+                    await resumeButtonMonitor();
+                } catch (resumeError) {
+                    console.error('恢复按键监控失败:', resumeError);
+                }
+            }
+            const normalized = error instanceof Error
+                ? error
+                : new Error('Failed to flush deferred configuration');
+            setError(normalized.message);
+            throw normalized;
+        } finally {
+            if (hasDeferredWrites) setDeferredConfigSaving(false);
+        }
+    };
+
+    const flushDeferredConfig = (
+        afterFlush?: () => void | Promise<void>,
+        resumeMonitoringAfterSuccess: boolean = false,
+    ): Promise<void> => {
+        const run = () => performDeferredConfigFlush(
+            afterFlush,
+            resumeMonitoringAfterSuccess,
+        );
+        const operation = deferredFlushTailRef.current.then(run, run);
+        deferredFlushTailRef.current = operation.catch(() => undefined);
+        return operation;
     };
 
     /**
@@ -2801,6 +3025,15 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             updateMacro,
             getProfileMacros,
             updateProfileMacros,
+            stageDeferredConfig,
+            stageDeferredProfileDetails,
+            stageDeferredProfileMacros,
+            stageDeferredHotkeysConfig,
+            stageDeferredGlobalConfig,
+            stageDeferredScreenControl,
+            flushDeferredConfig,
+            deferredConfigDirty,
+            deferredConfigSaving,
             resetProfileDetails,
             createProfile,
             deleteProfile,

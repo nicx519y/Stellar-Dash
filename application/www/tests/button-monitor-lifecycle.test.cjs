@@ -261,3 +261,62 @@ test('a disconnected session clears ownership and its delayed cleanup cannot sto
   assert.equal(stops, 1);
   assert.equal(shared.ownerCount, 0);
 });
+
+test('a suspended shared monitor can resume after a failed configuration commit', async () => {
+  const shared = new SharedButtonMonitorLease();
+  const calls = [];
+  shared.beginSession();
+  const token = await shared.acquire(async () => calls.push('start'));
+
+  await shared.suspend(async () => calls.push('stop'));
+  assert.equal(shared.ownerCount, 1);
+  await shared.resume(async () => calls.push('restart'));
+  await shared.release(token, async () => calls.push('release-stop'));
+
+  assert.deepEqual(calls, ['start', 'stop', 'restart', 'release-stop']);
+});
+
+test('finalizing a suspended monitor invalidates old page cleanup', async () => {
+  const shared = new SharedButtonMonitorLease();
+  let stops = 0;
+  shared.beginSession();
+  const stale = await shared.acquire(async () => undefined);
+  await shared.suspend(async () => { stops += 1; });
+  shared.finalizeSuspension();
+
+  await shared.release(stale, async () => { stops += 1; });
+  const current = await shared.acquire(async () => undefined);
+  await shared.release(current, async () => { stops += 1; });
+
+  assert.equal(stops, 2);
+});
+
+test('a destination page waits for a background save and acquires monitoring after resume', async () => {
+  const shared = new SharedButtonMonitorLease();
+  const calls = [];
+  shared.beginSession();
+  const source = await shared.acquire(async () => calls.push('start-source'));
+  await shared.suspend(async () => calls.push('stop-source'));
+
+  let destinationSettled = false;
+  const destinationPromise = shared.acquire(async () => calls.push('start-destination'))
+    .then((token) => {
+      destinationSettled = true;
+      return token;
+    });
+  await Promise.resolve();
+  assert.equal(destinationSettled, false);
+
+  await shared.release(source, async () => calls.push('stale-stop'));
+  await shared.resume(async () => calls.push('resume-destination'));
+  const destination = await destinationPromise;
+  assert.equal(destinationSettled, true);
+  await shared.release(destination, async () => calls.push('stop-destination'));
+
+  assert.deepEqual(calls, [
+    'start-source',
+    'stop-source',
+    'start-destination',
+    'stop-destination',
+  ]);
+});

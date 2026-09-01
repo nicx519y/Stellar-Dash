@@ -58,12 +58,11 @@ import { openConfirm } from '@/components/dialog-confirm';
 export function KeysSettingContent() {
     const {
         defaultProfile,
-        updateProfileDetails,
         globalConfig,
         getProfileMacros,
-        updateProfileMacros,
+        stageDeferredProfileDetails,
+        stageDeferredProfileMacros,
         dataIsReady,
-        sendPendingCommandImmediately,
         setFinishConfigDisabled,
     } = useGamepadConfig();
     const { t } = useLanguage();
@@ -196,7 +195,7 @@ export function KeysSettingContent() {
             isCompetitionProfile,
             keysConfig: newConfig,
         }
-        void updateProfileDetails(defaultProfile.id, newProfile).catch(() => undefined);
+        stageDeferredProfileDetails(defaultProfile.id, newProfile);
 
     };
 
@@ -300,22 +299,12 @@ export function KeysSettingContent() {
         }
         if ((macros?.length ?? 0) > 0) {
             setMacros([]);
-            void updateProfileMacros(defaultProfile.id, []);
+            stageDeferredProfileMacros(defaultProfile.id, []);
         }
         if (changed) {
             setNeedUpdate(true);
         }
     }, [isCompetitionProfile, defaultProfile.id]);
-
-    useEffect(() => {
-        return () => {
-            try {
-                sendPendingCommandImmediately('update_profile');
-            } catch (error) {
-                console.warn('页面关闭前发送 update_keys_config 命令失败:', error);
-            }
-        }
-    }, [sendPendingCommandImmediately]);
 
     // 当按键启用设置状态改变时，更新完成配置按钮的禁用状态
     useEffect(() => {
@@ -500,8 +489,7 @@ export function KeysSettingContent() {
                                             setMacros(macros);
                                         }}
                                         updateMacrosHandler={async (macros) => {
-                                            const updated = await updateProfileMacros(defaultProfile.id, macros);
-                                            setMacros(updated);
+                                            stageDeferredProfileMacros(defaultProfile.id, macros);
                                         }}
                                         maxBindKeysPerButton={isCompetitionProfile ? NUM_BIND_KEY_PER_BUTTON_COMPETITION_MAX : NUM_BIND_KEY_PER_BUTTON_MAX}
                                         lockAdvancedBindings={isCompetitionProfile}

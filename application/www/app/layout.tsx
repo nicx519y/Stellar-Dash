@@ -4,7 +4,7 @@ import { Provider } from "@/components/ui/provider"
 import StyledComponentsRegistry from '@/lib/registry'
 import { SettingsLayout } from '@/components/settings-layout'
 import { GamepadConfigProvider, useGamepadConfig } from '@/contexts/gamepad-config-context'
-import { Flex } from '@chakra-ui/react'
+import { Box, Flex, HStack, Spinner, Text } from '@chakra-ui/react'
 import { toaster, Toaster } from "@/components/ui/toaster"
 import { LoadingModal } from "@/components/ui/loading-modal"
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -24,7 +24,6 @@ import { initializeWebHidNetworkTrace } from '@/lib/device-transport/webhid-netw
 import { usePathname } from 'next/navigation';
 import { UserAuthControl } from '@/components/user-auth-control';
 import { LanguageSwitcher } from '@/components/language-switcher';
-import { HStack } from '@chakra-ui/react';
 
 const isConnectionInProgress = (phase: DeviceConnectionPhase): boolean => (
     phase === DeviceConnectionPhase.DISCOVERING
@@ -38,7 +37,6 @@ const isConnectionInProgress = (phase: DeviceConnectionPhase): boolean => (
 // 创建一个内部组件来使用 context
 function AppContent({ children }: { children: React.ReactNode }) {
     const {
-        isLoading,
         connectDevice,
         reconnectDevice,
         showReconnect,
@@ -46,8 +44,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
         deviceConnected,
         devicePhase,
         dataIsReady,
+        deferredConfigSaving,
     } = useGamepadConfig();
-    const [showLoading, setShowLoading] = useState(false);
     const [isReconnecting, setIsReconnecting] = useState(false);
     const reconnectInFlightRef = useRef(false);
     const { error, setError } = useGamepadConfig();
@@ -72,31 +70,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
             setError(null);
         }
     }, [error, setError]);
-
-    // 全局loading处理
-    useEffect(() => {
-        let timer: NodeJS.Timeout;
-        // 连接过程由连接遮罩独立承载，避免设备刚就绪时短暂闪现普通 loading。
-        if (connectionPending) {
-            setShowLoading(false);
-            return;
-        }
-        // 延迟300ms显示loading
-        if (!isLoading) {
-            timer = setTimeout(() => {
-                setShowLoading(false);
-            }, 300);
-        } else {
-            setShowLoading(true);
-        }
-
-        return () => {
-            // 清理定时器
-            if (timer) {
-                clearTimeout(timer);
-            }
-        };
-    }, [isLoading, connectionPending]);
 
     const handleReconnect = useCallback(async () => {
         if (reconnectInFlightRef.current) return;
@@ -150,10 +123,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </Flex>
             <Toaster />
             <LoadingModal
-                isOpen={connectionPending || showLoading}
-                variant={connectionPending
-                    ? (connectionInProgress ? 'connection' : 'no-device')
-                    : 'operation'}
+                isOpen={connectionPending}
+                variant={connectionInProgress ? 'connection' : 'no-device'}
                 noDeviceAction={!mockPreview && showReconnect ? {
                     label: t.RECONNECT_MODAL_BUTTON,
                     onClick: handleReconnect,
@@ -175,6 +146,29 @@ function AppContent({ children }: { children: React.ReactNode }) {
                     </HStack>
                 ) : undefined}
             />
+            {deferredConfigSaving && !connectionPending && (
+                <Box
+                    position="fixed"
+                    right={4}
+                    bottom={4}
+                    zIndex={9000}
+                    pointerEvents="none"
+                    role="status"
+                    aria-live="polite"
+                    bg="rgba(13, 18, 24, 0.92)"
+                    border="1px solid"
+                    borderColor="whiteAlpha.200"
+                    borderRadius="md"
+                    boxShadow="lg"
+                    px={4}
+                    py={3}
+                >
+                    <HStack gap={3}>
+                        <Spinner size="sm" color="green.400" />
+                        <Text fontSize="sm">{t.DIALOG_CONFIG_SAVING_MESSAGE}</Text>
+                    </HStack>
+                </Box>
+            )}
             <DialogConfirm />
             <DialogForm />
             <DialogCannotClose />

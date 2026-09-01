@@ -5,7 +5,7 @@ import { LuCpu, LuGamepad2, LuRadioTower, LuUserRound } from "react-icons/lu"
 
 import { useGamepadConfig } from "@/contexts/gamepad-config-context"
 import { configuredTransportMode } from "@/lib/device-transport"
-import { PlatformLabelMap } from "@/types/gamepad-config"
+import { PlatformLabelMap, platformForDisplay } from "@/types/gamepad-config"
 import { HudPanel, StatusChip } from "@/components/ui/hud"
 
 interface StatusCellProps {
@@ -86,7 +86,7 @@ export function StatusDock() {
       ?.name ||
     "—"
   const inputMode = globalConfig.inputMode
-    ? PlatformLabelMap.get(globalConfig.inputMode)?.label ??
+    ? PlatformLabelMap.get(platformForDisplay(globalConfig.inputMode))?.label ??
       String(globalConfig.inputMode)
     : "—"
   const connectionMode =
@@ -140,4 +140,3 @@ export function StatusDock() {
     </Grid>
   )
 }
-

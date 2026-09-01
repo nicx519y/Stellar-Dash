@@ -21,7 +21,7 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
     const { t } = useLanguage();
     const { currentRoute, setRoute } = useRouterStore();
 
-    const { finishConfigDisabled, deviceSession } = useGamepadConfig();
+    const { finishConfigDisabled, deviceSession, flushDeferredConfig } = useGamepadConfig();
     const tabs = [
         { id: 'global' as Route, label: t.SETTINGS_TAB_GLOBAL, icon: LuGamepad },
         { id: 'keys' as Route, label: t.SETTINGS_TAB_KEYS, icon: LuKeyboard },
@@ -34,9 +34,18 @@ export function SettingsLayout({ children }: { children: React.ReactNode }) {
     ];
 
     const handleValueChange = async (details: { value: string }) => {
+        if (details.value === currentRoute) return;
         const canNavigate = await navigationEvents.emit(details.value as Route);
         if (canNavigate) {
-            await setRoute(details.value as Route);
+            // Route first so a slow STM32 QSPI commit can never hold the tab UI
+            // on the previous page. The global draft survives the unmount and
+            // the shared monitor lease pauses/resumes the destination page.
+            setRoute(details.value as Route);
+            window.setTimeout(() => {
+                void flushDeferredConfig(undefined, true).catch((error) => {
+                    console.error('后台保存配置失败:', error);
+                });
+            }, 0);
         }
     };
 

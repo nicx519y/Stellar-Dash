@@ -27,8 +27,7 @@ export function ButtonsPerformanceContent() {
 
     const {
         defaultProfile,
-        sendPendingCommandImmediately,
-        flushQueue,
+        flushDeferredConfig,
         setFinishConfigDisabled,
         globalConfig,
         setError,
@@ -109,11 +108,10 @@ export function ButtonsPerformanceContent() {
         setAllButtonsData([]);
 
         try {
-            // Make the profile write a causal barrier before the device starts
-            // sampling it for the test.
-            sendPendingCommandImmediately('update_profile');
-            await flushQueue();
-            await startMonitoring();
+            // The ordinary monitor stays suspended through the durable commit
+            // and the performance-mode transition. A failed transition resumes
+            // the ordinary monitor and leaves the page usable.
+            await flushDeferredConfig(startMonitoring);
             monitorIsActive.current = true;
             if (mountedRef.current) setIsTestingModeActivity(true);
         } catch (err) {
@@ -178,9 +176,8 @@ export function ButtonsPerformanceContent() {
             mountedRef.current = false;
             transitionRef.current = false;
             monitorIsActive.current = false;
-            sendPendingCommandImmediately('update_profile');
         }
-    }, [sendPendingCommandImmediately]);
+    }, []);
 
     // 渲染hitbox内容
     const renderHitboxContent = (containerWidth: number) => {

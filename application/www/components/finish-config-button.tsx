@@ -4,6 +4,7 @@ import { closeDialog as closeRebootDialog, openDialog as openRebootDialog } from
 import { useLanguage } from "@/contexts/language-context";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { configuredTransportMode } from "@/lib/device-transport";
+import { useState } from "react";
 import { LuGamepad2 } from "react-icons/lu";
 
 
@@ -13,10 +14,19 @@ export function FinishConfigButton(
     }
 ) {
     const { t } = useLanguage();
-    const { rebootSystem, setUserRebooting, flushQueue } = useGamepadConfig();
+    const {
+        rebootSystem,
+        setUserRebooting,
+        flushDeferredConfig,
+        deferredConfigDirty,
+        deferredConfigSaving,
+        setError,
+    } = useGamepadConfig();
+    const [closing, setClosing] = useState(false);
     return (
         <Button
-            disabled={props.disabled}
+            disabled={props.disabled || closing}
+            loading={closing}
             colorPalette="green"
             variant="surface"
             size="xs"
@@ -28,11 +38,22 @@ export function FinishConfigButton(
                 });
 
                 if (confirmed) {
-                    // 清空设备请求队列后重启
+                    setClosing(true);
+                    const savingDialogId = deferredConfigDirty || deferredConfigSaving
+                        ? openRebootDialog({
+                            id: 'config-saving',
+                            title: t.DIALOG_CONFIG_SAVING_TITLE,
+                            status: "info",
+                            message: t.DIALOG_CONFIG_SAVING_MESSAGE,
+                            loading: true,
+                        })
+                        : undefined;
                     try {
-                        await flushQueue();
-                        console.log('设备请求队列已清空，开始重启系统');
-                        await rebootSystem();
+                        await flushDeferredConfig(async () => {
+                            console.log('配置与设备请求队列已保存，开始重启系统');
+                            await rebootSystem();
+                        });
+                        if (savingDialogId) closeRebootDialog(savingDialogId);
 
                         if (configuredTransportMode() === 'mock') {
                             const dialogId = openRebootDialog({
@@ -56,8 +77,11 @@ export function FinishConfigButton(
                             status: "warning",
                             message: t.DIALOG_REBOOT_SUCCESS_MESSAGE,
                         });
-                    } catch {
-                        throw new Error('清空队列或重启失败');
+                    } catch (error) {
+                        if (savingDialogId) closeRebootDialog(savingDialogId);
+                        setError(error instanceof Error ? error.message : '保存配置或重启失败');
+                    } finally {
+                        setClosing(false);
                     }
                 }
 

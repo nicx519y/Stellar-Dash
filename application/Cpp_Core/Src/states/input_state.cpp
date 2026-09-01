@@ -5,6 +5,7 @@
 #include "board_power.hpp"
 #include "ch585_role_bootstrap.hpp"
 #include "connection_manager.hpp"
+#include "input_runtime_policy.hpp"
 #include "gamepad.hpp"
 #include "gpio_btns/gpio_btns_worker.hpp"
 #include "hotkeys_manager.hpp"
@@ -144,6 +145,9 @@ void InputState::stopInputPipeline()
     if (!inputPipelineRunning) {
         REPORT_SCHEDULER.stop();
         ADC_MANAGER.forceStopAllSampling();
+        virtualPinMask = 0u;
+        lastVirtualPinMask = 0u;
+        fnLayerPolicy.reset();
         return;
     }
 
@@ -156,6 +160,7 @@ void InputState::stopInputPipeline()
     GAMEPAD.deinit();
     virtualPinMask = 0u;
     lastVirtualPinMask = 0u;
+    fnLayerPolicy.reset();
     inputPipelineRunning = false;
 }
 
@@ -188,43 +193,59 @@ bool InputState::resumeInputPipelineAfterStorage(bool wasRunning)
     return resumed;
 }
 
+bool InputState::submitInputReport(const GamepadState& state,
+                                   const AdcSampleFrame& sample)
+{
+    const uint32_t reportSequence = MonitorTelemetry_NextSequence();
+    MonitorTelemetry_OnReportReady(reportSequence,
+                                   sample.triggerCycles,
+                                   sample.completeCycles);
+
+    if (activeBoardMode == BoardMode::Usb) {
+        const uint32_t age = MICROS_TIMER.elapsedMicros(sample.triggerCycles);
+        const uint16_t ageUs = static_cast<uint16_t>(
+            age > UINT16_MAX ? UINT16_MAX : age);
+        MonitorTelemetry_SetPendingUsbSeq(reportSequence);
+        if (USB_DRIVER.submit(state, ageUs)) {
+            MonitorTelemetry_OnUsbReportSubmitted(USB_BOARD_INPUT_V1_BYTES);
+            return true;
+        }
+        MonitorTelemetry_OnError("USB_BOARD_LINK", 2001u,
+                                 "CH585 input submission failed");
+        return false;
+    }
+
+    if (activeBoardMode == BoardMode::Rf) {
+        /* RFTransport and the frozen 0xA5 wire path remain unchanged. */
+        return CONNECTION_MANAGER.onReportReady(state, reportSequence);
+    }
+    return false;
+}
+
 void InputState::processReportSample(const AdcSampleFrame& sample)
 {
     virtualPinMask = GPIO_BTNS_WORKER.read() | ADC_BTNS_WORKER.read(sample);
     SystemSleep_NotifyButtonActivity(HAL_GetTick(), virtualPinMask);
 
-    if ((virtualPinMask & FN_BUTTON_VIRTUAL_PIN) == 0u) {
-        GAMEPAD.read(virtualPinMask);
-        const uint32_t reportSequence = MonitorTelemetry_NextSequence();
-        MonitorTelemetry_OnReportReady(reportSequence,
-                                       sample.triggerCycles,
-                                       sample.completeCycles);
+    const bool fnPressed =
+        (virtualPinMask & FN_BUTTON_VIRTUAL_PIN) != 0u;
+    const bool fnWasPressed =
+        (lastVirtualPinMask & FN_BUTTON_VIRTUAL_PIN) != 0u;
+    const FnLayerDecision decision =
+        fnLayerPolicy.update(fnPressed, fnWasPressed);
 
-        if (activeBoardMode == BoardMode::Usb) {
-            const uint32_t age =
-                MICROS_TIMER.elapsedMicros(sample.triggerCycles);
-            const uint16_t ageUs = static_cast<uint16_t>(
-                age > UINT16_MAX ? UINT16_MAX : age);
-            MonitorTelemetry_SetPendingUsbSeq(reportSequence);
-            if (USB_DRIVER.submit(GAMEPAD.state, ageUs)) {
-                MonitorTelemetry_OnUsbReportSubmitted(
-                    USB_BOARD_INPUT_V1_BYTES);
-            } else {
-                MonitorTelemetry_OnError(
-                    "USB_BOARD_LINK",
-                    2001u,
-                    "CH585 input submission failed");
-            }
-        } else if (activeBoardMode == BoardMode::Rf) {
-            /*
-             * Frozen path: ConnectionManager -> RFTransport -> 0xA5 remains
-             * byte-for-byte unchanged.
-             */
-            CONNECTION_MANAGER.onReportReady(GAMEPAD.state, reportSequence);
-        }
-    } else {
+    if (decision.processHotkeys) {
         HOTKEYS_MANAGER.updateHotkeyState(virtualPinMask,
                                           lastVirtualPinMask);
+    }
+
+    if (decision.submitNeutral) {
+        const GamepadState neutral = {};
+        fnLayerPolicy.onNeutralSubmitted(
+            submitInputReport(neutral, sample));
+    } else if (decision.submitNormal) {
+        GAMEPAD.read(virtualPinMask);
+        (void)submitInputReport(GAMEPAD.state, sample);
     }
     lastVirtualPinMask = virtualPinMask;
 }
@@ -233,7 +254,7 @@ bool InputState::applyPhysicalMode(BoardMode mode,
                                    bool initial,
                                    bool compatibilityRecovery)
 {
-    const InputMode inputMode = STORAGE_MANAGER.getInputMode();
+    InputMode inputMode = STORAGE_MANAGER.getInputMode();
     const WirelessReportRate wirelessRate =
         STORAGE_MANAGER.getWirelessReportRate();
 
@@ -254,6 +275,24 @@ bool InputState::applyPhysicalMode(BoardMode mode,
     activeBoardMode = mode;
     usbRuntimeInitialized = false;
     usbRuntimeConnected = false;
+
+    if (mode == BoardMode::Rf) {
+        if (requiresRfXInputPersistence(CONNECTION_MODE_RF24G, inputMode)) {
+            STORAGE_MANAGER.setInputMode(INPUT_MODE_XINPUT);
+            if (!STORAGE_MANAGER.saveConfig()) {
+                APP_STAGE_ERROR(
+                    "I02",
+                    "failed to persist RF XInput constraint; using XInput for this runtime");
+                MonitorTelemetry_OnError(
+                    "INPUT_STATE", 2010u,
+                    "failed to persist RF XInput constraint");
+            } else {
+                APP_STAGE("I02", "RF input mode persisted as XInput");
+            }
+        }
+        inputMode = effectiveInputModeForConnection(
+            CONNECTION_MODE_RF24G, inputMode);
+    }
 
     CH585_ROLE_BOOTSTRAP.setSelector(UsbBoardLink_SelectRoleCallback);
 

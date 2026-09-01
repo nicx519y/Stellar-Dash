@@ -15,7 +15,7 @@
     "verify:hosted-build": "node scripts/verify-build-variant.mjs hosted",
     "verify:mock-build": "node scripts/verify-build-variant.mjs mock",
     "typecheck": "tsc --noEmit --pretty false",
-    "test:webhid": "node -r sucrase/register/ts-legacy-module-interop --test tests/webhid-protocol.test.cjs tests/webhid-security-golden.test.cjs tests/webhid-network-trace.test.cjs tests/device-request-queue.test.cjs tests/firmware-upgrade-reliability.test.cjs tests/button-monitor-lifecycle.test.cjs tests/button-state-snapshot.test.cjs tests/post-ready-request-scheduler.test.cjs",
+    "test:webhid": "node -r sucrase/register/ts-legacy-module-interop --test tests/webhid-protocol.test.cjs tests/webhid-security-golden.test.cjs tests/webhid-network-trace.test.cjs tests/device-request-queue.test.cjs tests/firmware-upgrade-reliability.test.cjs tests/button-monitor-lifecycle.test.cjs tests/button-state-snapshot.test.cjs tests/deferred-config-coordinator.test.cjs tests/post-ready-request-scheduler.test.cjs",
     "test:mock": "node -r sucrase/register/ts-legacy-module-interop --test tests/mock-device-transport.test.cjs",
     "test:router": "node -r sucrase/register/ts-legacy-module-interop --test tests/router-path.test.cjs tests/admin-ui-constraints.test.cjs",
     "test:resources": "node --test tests/makefsdata.test.mjs tests/account-avatar-assets.test.cjs",

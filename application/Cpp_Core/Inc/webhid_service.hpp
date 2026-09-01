@@ -52,6 +52,7 @@ private:
     static constexpr size_t kMaximumOutboundBytes = 16u * 1024u;
     static constexpr size_t kMaximumOutboundMessages = 8u;
     static constexpr size_t kEdgeQueueDepth = 64u;
+    static constexpr size_t kButtonStateQueueDepth = 32u;
     struct LogicalAssembler
     {
         bool active = false;
@@ -99,6 +100,7 @@ private:
         None = 0u,
         Logical,
         Edge,
+        ButtonState,
         Sample,
         Checkpoint,
     };
@@ -194,6 +196,8 @@ private:
     bool hasScope(uint32_t scope) const;
 
     bool queueOneEvent();
+    void clearButtonStateQueue();
+    bool sendOneButtonState();
     void updateTelemetry();
     bool sendLatestSample(uint32_t timestampUs);
     bool sendOneEdge();
@@ -254,6 +258,17 @@ private:
     std::vector<uint8_t> capturedBinary;
     bool captureBinary = false;
     bool captureBinaryInvalid = false;
+
+    /* Ordinary button-state snapshots are native single-report events.  Keep
+     * transitions in a fixed FIFO so a short press/release cannot disappear
+     * merely because the previous physical report is still in flight. */
+    std::array<webhid_button_state_v1_t,
+               kButtonStateQueueDepth> buttonStateQueue = {};
+    size_t buttonStateHead = 0u;
+    size_t buttonStateTail = 0u;
+    size_t buttonStateCount = 0u;
+    uint32_t buttonStateSequence = 0u;
+    uint16_t buttonStateDropped = 0u;
 
     bool performanceEnabled = false;
     bool samplePending = false;

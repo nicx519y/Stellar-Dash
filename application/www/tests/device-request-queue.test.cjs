@@ -20,7 +20,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-test('LED page flushes only on real unmount and gates writes on live readiness', () => {
+test('LED page stages durable writes and unmount only clears ephemeral preview', () => {
   const source = fs.readFileSync(
     path.join(__dirname, '../components/leds-setting-content.tsx'),
     'utf8',
@@ -32,7 +32,8 @@ test('LED page flushes only on real unmount and gates writes on live readiness',
 
   assert.match(source, /deviceConnected && dataIsReady && isInit/);
   assert.match(source, /<Fieldset\.Root disabled={!ledsWriteReady}>/);
-  assert.match(cleanupEffect, /lifecycle\.sendPendingCommandImmediately\('update_profile'\)/);
+  assert.match(source, /stageDeferredProfileDetails\(defaultProfile\.id, newProfileDetails\)/);
+  assert.doesNotMatch(cleanupEffect, /sendPendingCommandImmediately/);
   assert.match(cleanupEffect, /}, \[\]\);/);
   assert.doesNotMatch(source, /}, \[sendPendingCommandImmediately\]\);/);
 });

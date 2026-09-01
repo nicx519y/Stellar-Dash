@@ -32,6 +32,7 @@ typedef enum
     WEBHID_REPORT_PERF_SAMPLE        = 0x20u,
     WEBHID_REPORT_PERF_EDGE          = 0x21u,
     WEBHID_REPORT_PERF_CHECKPOINT    = 0x22u,
+    WEBHID_REPORT_BUTTON_STATE       = 0x23u,
     WEBHID_REPORT_STREAM_FRAGMENT    = 0x30u
 } webhid_report_type_t;
 
@@ -111,6 +112,30 @@ typedef struct WEBHID_PACKED
         keys[WEBHID_PERF_CHECKPOINT_KEYS];
 } webhid_perf_checkpoint_v1_t;
 
+enum
+{
+    WEBHID_BUTTON_STATE_FLAG_ACTIVE = (1u << 0)
+};
+
+/*
+ * Compact full-state notification shared by every ordinary button consumer
+ * (Keys, LED preview, macro recording and reusable Hitbox components).
+ *
+ * Each snapshot fits in one authenticated HID report.  event_sequence_le is
+ * independent from the physical report sequence and advances for every
+ * state transition accepted by the firmware.  total_dropped_snapshots_le is
+ * cumulative within the authenticated session, allowing diagnostics to
+ * distinguish device-side queue pressure from USB report loss.
+ */
+typedef struct WEBHID_PACKED
+{
+    uint32_t event_sequence_le;
+    uint32_t trigger_mask_le;
+    uint16_t total_dropped_snapshots_le;
+    uint8_t total_buttons;
+    uint8_t flags;
+} webhid_button_state_v1_t;
+
 #define WEBHID_STATIC_ASSERT_GLUE_(a, b) a##b
 #define WEBHID_STATIC_ASSERT_GLUE(a, b) WEBHID_STATIC_ASSERT_GLUE_(a, b)
 #define WEBHID_STATIC_ASSERT(expr) \
@@ -123,6 +148,7 @@ WEBHID_STATIC_ASSERT(sizeof(webhid_perf_sample_v1_t) ==
 WEBHID_STATIC_ASSERT(sizeof(webhid_perf_checkpoint_key_v1_t) == 14u);
 WEBHID_STATIC_ASSERT(sizeof(webhid_perf_checkpoint_v1_t) ==
                      WEBHID_PERF_CHECKPOINT_BYTES);
+WEBHID_STATIC_ASSERT(sizeof(webhid_button_state_v1_t) == 12u);
 WEBHID_STATIC_ASSERT(WEBHID_REPORT_HEADER_BYTES +
                      WEBHID_REPORT_PAYLOAD_BYTES +
                      WEBHID_REPORT_TAG_BYTES == WEBHID_REPORT_BYTES);

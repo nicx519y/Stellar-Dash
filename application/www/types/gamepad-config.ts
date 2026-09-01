@@ -61,6 +61,9 @@ export enum Platform {
 
 export const PlatformList = Object.values(Platform);
 
+export const platformForDisplay = (platform: Platform): Platform =>
+    platform === Platform.PS4 ? Platform.PS5 : platform;
+
 export const PlatformLabelMap = new Map<Platform, { label: string, description: string }>([
     [Platform.XINPUT, { 
         label: "Windows PC", 
@@ -630,6 +633,7 @@ export const UI_TEXT = {
     // Dialog Titles
     DIALOG_REBOOT_CONFIRM_TITLE: "Are you sure?",
     DIALOG_REBOOT_SUCCESS_TITLE: "Reboot successful",
+    DIALOG_CONFIG_SAVING_TITLE: "Saving configuration",
     DIALOG_CREATE_PROFILE_TITLE: "Create New Profile",
     DIALOG_RENAME_PROFILE_TITLE: "Rename Profile",
     DIALOG_COMPETITION_PROFILE_ENABLE_TITLE: "Enable Competition Profile",
@@ -637,6 +641,7 @@ export const UI_TEXT = {
     // Dialog Messages
     DIALOG_REBOOT_CONFIRM_MESSAGE: "Rebooting the system with saving will save the current profile and ending the current session. \nAre you sure to continue?",
     DIALOG_REBOOT_SUCCESS_MESSAGE: "Rebooting the system with saving is successful. \nYou can now close this window and start enjoying the gaming experience.",
+    DIALOG_CONFIG_SAVING_MESSAGE: "Saving configuration. Please keep this page open.",
     DIALOG_CREATE_PROFILE_CONFIRM_MESSAGE: "Creating a new profile will create a new profile and ending the current session. Are you sure to continue?",
     DIALOG_RENAME_PROFILE_CONFIRM_MESSAGE: "Renaming the current profile will save the current profile and ending the current session. Are you sure to continue?",
     DIALOG_COMPETITION_PROFILE_ENABLE_MESSAGE: "Enabling Competition Profile will modify current bindings: SOCD will be forced to Neutral, combinations and dynamic macros will be cleared, and each game button will keep only one physical key binding. Continue?",
@@ -1158,12 +1163,14 @@ export const UI_TEXT_ZH = {
     // 对话框标题
     DIALOG_REBOOT_CONFIRM_TITLE: "确认重启?",
     DIALOG_REBOOT_SUCCESS_TITLE: "重启成功",
+    DIALOG_CONFIG_SAVING_TITLE: "正在保存",
     DIALOG_CREATE_PROFILE_TITLE: "创建新配置",
     DIALOG_RENAME_PROFILE_TITLE: "重命名配置",
     
     // 对话框消息
     DIALOG_REBOOT_CONFIRM_MESSAGE: "保存并重启系统将会保存当前配置并结束当前会话。\n是否确认继续？",
     DIALOG_REBOOT_SUCCESS_MESSAGE: "系统重启成功。\n您现在可以关闭此窗口并开始享受游戏体验。",
+    DIALOG_CONFIG_SAVING_MESSAGE: "正在保存配置，请保持页面打开。",
     DIALOG_CREATE_PROFILE_CONFIRM_MESSAGE: "创建新配置将会结束当前会话。是否确认继续？",
     DIALOG_RENAME_PROFILE_CONFIRM_MESSAGE: "重命名当前配置将会保存当前配置并结束当前会话。是否确认继续？",
     

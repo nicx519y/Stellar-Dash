@@ -38,11 +38,11 @@ export function GlobalSettingContent() {
     const { t } = useLanguage();
     const {
         clearManualCalibrationData,
-        updateHotkeysConfig,
+        flushDeferredConfig,
+        stageDeferredHotkeysConfig,
         globalConfig,
         hotkeysConfig,
         dataIsReady,
-        sendPendingCommandImmediately,
         setFinishConfigDisabled,
         deviceConnected,
         checkIsManualCalibrationCompleted,
@@ -53,7 +53,6 @@ export function GlobalSettingContent() {
     } = useGamepadConfig();
 
     const [isInit, setIsInit] = useState<boolean>(false);
-    const [needUpdate, setNeedUpdate] = useState<boolean>(false);
     // 添加本地 hotkeys 状态来存储用户修改
     const [currentHotkeys, setCurrentHotkeys] = useState<Hotkey[]>([]);
     const [calibrationActive, setCalibrationActive] = useState<boolean>(false);
@@ -169,7 +168,7 @@ export function GlobalSettingContent() {
         });
 
         if (confirmed) {
-            await clearManualCalibrationData().catch(() => undefined);
+            await flushDeferredConfig(clearManualCalibrationData, true).catch(() => undefined);
         }
     };
 
@@ -214,27 +213,10 @@ export function GlobalSettingContent() {
     // 处理热键更新回调
     const handleHotkeyUpdate = useCallback((hotkeys: Hotkey[]) => {
         setCurrentHotkeys(hotkeys);
-        setNeedUpdate(true);
-    }, [currentHotkeys]);
-
-    useEffect(() => {
-        if (needUpdate) {
-            void updateHotkeysConfig(currentHotkeys).catch(() => undefined);
-            setNeedUpdate(false);
-        }
-    }, [needUpdate]);
-
-    useEffect(() => {
-        // 在关闭页面的时候 把队列中的 update_hotkeys_config 命令立即发送
-        return () => {
-            try {
-                console.log("GlobalSettingContent unmount");
-                sendPendingCommandImmediately('update_hotkeys_config');
-            } catch (error) {
-                console.warn('页面关闭前发送 update_hotkeys_config 命令失败:', error);
-            }
-        }
-    }, []);
+        // 快捷键录入期间只覆盖浏览器内的 hotkeys 草稿；切页、切换
+        // Profile 或 Finish 时再由统一边界停止监控并提交最终快照。
+        stageDeferredHotkeysConfig(hotkeys);
+    }, [stageDeferredHotkeysConfig]);
 
     // 处理外部点击（从Hitbox组件）
     const handleExternalClick = (keyId: number) => {

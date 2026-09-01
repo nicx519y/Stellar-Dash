@@ -1120,6 +1120,9 @@ void WebHidService::resetSession(bool keepBootIdentity,
     eventQueuedBytes = 0u;
     droppedEventCount = 0u;
     clearBinaryCapture();
+    clearButtonStateQueue();
+    buttonStateSequence = 0u;
+    buttonStateDropped = 0u;
     performanceEnabled = false;
     samplePending = false;
     sampleTimestampUs = 0u;
@@ -1299,27 +1302,53 @@ void WebHidService::enqueueBinaryEvent(const uint8_t *data, size_t length)
     }
     ButtonStateBinaryData snapshot = {};
     memcpy(&snapshot, data, sizeof(snapshot));
-    cJSON *root = cJSON_CreateObject();
-    cJSON *eventData = cJSON_CreateObject();
-    if (root == nullptr || eventData == nullptr) {
-        cJSON_Delete(root);
-        cJSON_Delete(eventData);
-        return;
+
+    ++buttonStateSequence;
+    if (buttonStateSequence == 0u) {
+        ++buttonStateSequence;
     }
-    cJSON_AddStringToObject(root, "command", "button.state");
-    cJSON_AddBoolToObject(
-        eventData, "isActive", snapshot.isActive != 0u);
-    cJSON_AddNumberToObject(
-        eventData, "triggerMask", snapshot.triggerMask);
-    cJSON_AddNumberToObject(
-        eventData, "totalButtons", snapshot.totalButtons);
-    cJSON_AddItemToObject(root, "data", eventData);
-    char *json = cJSON_PrintUnformatted(root);
-    if (json != nullptr) {
-        enqueueJsonEvent(json, strlen(json));
-        cJSON_free(json);
+
+    /* A partially transferred report owns the queue head.  Under the
+     * extremely unlikely condition that all 32 snapshots fill while that
+     * report is pinned, replace only the newest queued snapshot.  This keeps
+     * completion bookkeeping exact while ensuring the final visible mask is
+     * still the most recent one. */
+    bool replaceNewest = false;
+    if (buttonStateCount >= kButtonStateQueueDepth) {
+        if (buttonStateDropped != UINT16_MAX) {
+            ++buttonStateDropped;
+        }
+        if (pendingFrameSource == OutboundFrameSource::ButtonState) {
+            replaceNewest = true;
+        } else {
+            HBoxCrypto_Zeroize(
+                &buttonStateQueue[buttonStateHead],
+                sizeof(buttonStateQueue[buttonStateHead]));
+            buttonStateHead =
+                (buttonStateHead + 1u) % kButtonStateQueueDepth;
+            --buttonStateCount;
+        }
     }
-    cJSON_Delete(root);
+
+    const size_t destination = replaceNewest
+        ? (buttonStateTail + kButtonStateQueueDepth - 1u) %
+              kButtonStateQueueDepth
+        : buttonStateTail;
+    webhid_button_state_v1_t &event =
+        buttonStateQueue[destination];
+    event = {};
+    event.event_sequence_le = buttonStateSequence;
+    event.trigger_mask_le = snapshot.triggerMask;
+    event.total_dropped_snapshots_le = buttonStateDropped;
+    event.total_buttons = snapshot.totalButtons;
+    event.flags = snapshot.isActive != 0u
+        ? WEBHID_BUTTON_STATE_FLAG_ACTIVE
+        : 0u;
+    if (!replaceNewest) {
+        buttonStateTail =
+            (buttonStateTail + 1u) % kButtonStateQueueDepth;
+        ++buttonStateCount;
+    }
 }
 
 void WebHidService::process()
@@ -2407,8 +2436,19 @@ bool WebHidService::processSecureRpc(
         clearFirmwareAuthorization(false);
     }
     if (result && dispatched.error == 0) {
-        if (command ==
+        if (command == "start_button_monitoring" ||
+            command == "stop_button_monitoring") {
+            /* A new ordinary-monitor lease must never inherit snapshots from
+             * the previous owner.  The command response is already queued,
+             * and process() never dispatches a final request while a physical
+             * button-state report is pinned, so clearing here is exact. */
+            clearButtonStateQueue();
+        } else if (command ==
             "start_button_performance_monitoring") {
+            /* Ordinary and performance monitoring share the same workers but
+             * use different report schemas.  Do not leak an ordinary snapshot
+             * across the mode boundary after the performance ACK. */
+            clearButtonStateQueue();
             performanceEnabled = true;
             nextSampleAtMs = HAL_GetTick();
             nextCheckpointAtMs = HAL_GetTick();
@@ -3323,6 +3363,40 @@ bool WebHidService::pumpLogicalOutput()
     return true;
 }
 
+void WebHidService::clearButtonStateQueue()
+{
+    HBoxCrypto_Zeroize(
+        buttonStateQueue.data(), sizeof(buttonStateQueue));
+    buttonStateHead = 0u;
+    buttonStateTail = 0u;
+    buttonStateCount = 0u;
+}
+
+bool WebHidService::sendOneButtonState()
+{
+    if (buttonStateCount == 0u) {
+        return true;
+    }
+    const webhid_button_state_v1_t &snapshot =
+        buttonStateQueue[buttonStateHead];
+    if (!sendFrame(
+            WEBHID_REPORT_BUTTON_STATE,
+            WEBHID_REPORT_FLAG_LAST,
+            reinterpret_cast<const uint8_t *>(&snapshot),
+            sizeof(snapshot),
+            true,
+            OutboundFrameSource::ButtonState)) {
+        return false;
+    }
+    HBoxCrypto_Zeroize(
+        &buttonStateQueue[buttonStateHead],
+        sizeof(buttonStateQueue[buttonStateHead]));
+    buttonStateHead =
+        (buttonStateHead + 1u) % kButtonStateQueueDepth;
+    --buttonStateCount;
+    return true;
+}
+
 bool WebHidService::queueOneEvent()
 {
     if (!sessionEstablished || eventQueue.empty() ||
@@ -3696,6 +3770,9 @@ void WebHidService::pumpOutput()
     case OutboundFrameSource::Edge:
         (void)sendOneEdge();
         return;
+    case OutboundFrameSource::ButtonState:
+        (void)sendOneButtonState();
+        return;
     case OutboundFrameSource::Sample:
         if (sendLatestSample(sampleTimestampUs)) {
             samplePending = false;
@@ -3719,6 +3796,10 @@ void WebHidService::pumpOutput()
     }
     if (edgeCount != 0u) {
         (void)sendOneEdge();
+        return;
+    }
+    if (buttonStateCount != 0u) {
+        (void)sendOneButtonState();
         return;
     }
     if (checkpointActive) {

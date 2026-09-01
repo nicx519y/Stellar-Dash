@@ -7,7 +7,7 @@
 
 static const InputMode kInputModes[] = {
     INPUT_MODE_XINPUT,
-    INPUT_MODE_PS4,
+    INPUT_MODE_PS5,
     INPUT_MODE_XBOX,
     INPUT_MODE_SWITCH,
 };
@@ -25,6 +25,9 @@ uint8_t ScreenDetailInputMode_InitIndex(void) {
         return 0;
     }
     InputMode mode = STORAGE_MANAGER.getInputMode();
+    if (mode == INPUT_MODE_PS4) {
+        mode = INPUT_MODE_PS5;
+    }
     for (uint8_t i = 0; i < (uint8_t)(sizeof(kInputModes) / sizeof(kInputModes[0])); i++) {
         if (kInputModes[i] == mode) return i;
     }
