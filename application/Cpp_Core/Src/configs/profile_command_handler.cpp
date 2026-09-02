@@ -335,7 +335,6 @@ cJSON* ProfileCommandHandler::buildProfileJSON(GamepadProfile* profile) {
     cJSON_AddNumberToObject(ledsConfigJSON, "ledAnimationSpeed", profile->ledsConfigs.ledAnimationSpeed);
 
     // 氛围灯配置
-    cJSON_AddBoolToObject(ledsConfigJSON, "hasAroundLed", true); // 当前PCB固定包含氛围灯
     cJSON_AddBoolToObject(ledsConfigJSON, "aroundLedEnabled", profile->ledsConfigs.aroundLedEnabled);
     cJSON_AddBoolToObject(ledsConfigJSON, "aroundLedSyncToMainLed", profile->ledsConfigs.aroundLedSyncToMainLed);
     cJSON_AddBoolToObject(ledsConfigJSON, "aroundLedTriggerByButton", profile->ledsConfigs.aroundLedTriggerByButton);

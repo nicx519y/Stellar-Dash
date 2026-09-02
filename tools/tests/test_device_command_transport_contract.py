@@ -54,7 +54,7 @@ class DeviceCommandTransportContractTests(unittest.TestCase):
         self.assertIn("class DeviceCommandDispatcher", header)
         self.assertIn("class DeviceCommandRequest", message)
         self.assertIn("class DeviceCommandResponse", message)
-        self.assertEqual(registry.count("registerHandler(\""), 62)
+        self.assertEqual(registry.count("registerHandler(\""), 68)
         self.assertNotIn("Connection", message)
 
     def test_config_transport_has_only_registered_hid_sinks(self) -> None:

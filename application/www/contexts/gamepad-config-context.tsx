@@ -164,13 +164,16 @@ interface GamepadConfigContextType {
     flushDeferredConfig: (
         afterFlush?: () => void | Promise<void>,
         resumeMonitoringAfterSuccess?: boolean,
+        beforeFlush?: () => void | Promise<void>,
     ) => Promise<void>;
+    terminateWebConfigActivities: () => Promise<void>;
     deferredConfigDirty: boolean;
     deferredConfigSaving: boolean;
     isLoading: boolean;
     error: string | null;
     setError: (error: string | null) => void;
     rebootSystem: () => Promise<void>;
+    exitWebConfig: () => Promise<void>;
     // 校准相关
     calibrationStatus: CalibrationStatus;
     fetchCalibrationStatus: () => Promise<CalibrationStatus>;
@@ -372,7 +375,6 @@ const converProfileDetails = (profile: any) => {
             ledBrightness: profile.ledsConfigs?.ledBrightness as number ?? 100,
             ledAnimationSpeed: profile.ledsConfigs?.ledAnimationSpeed as number ?? 1,
             // 环绕灯配置
-            hasAroundLed: profile.ledsConfigs?.hasAroundLed as boolean ?? false,
             aroundLedEnabled: profile.ledsConfigs?.aroundLedEnabled as boolean ?? false,
             aroundLedSyncToMainLed: profile.ledsConfigs?.aroundLedSyncToMainLed as boolean ?? false,
             aroundLedTriggerByButton: profile.ledsConfigs?.aroundLedTriggerByButton as boolean ?? false,
@@ -1616,6 +1618,18 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
         }
     };
 
+    const exitWebConfig = async (): Promise<void> => {
+        try {
+            await sendDeviceRequest('exit_webconfig', {}, true);
+            setError(null);
+        } catch (err) {
+            const error = err instanceof Error
+                ? err
+                : new Error('Failed to exit WebConfig mode');
+            return Promise.reject(error);
+        }
+    };
+
     const stageDeferredConfig = useCallback((
         resourceKey: string,
         commit: DeferredConfigCommit,
@@ -2318,6 +2332,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const performDeferredConfigFlush = async (
         afterFlush?: () => void | Promise<void>,
         resumeMonitoringAfterSuccess: boolean = false,
+        beforeFlush?: () => void | Promise<void>,
     ): Promise<void> => {
         const hasDeferredWrites = deferredConfigRef.current!.dirty;
         if (!hasDeferredWrites && !afterFlush) return;
@@ -2343,6 +2358,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
                 setButtonMonitoringActive(data.isActive ?? false);
             });
 
+            await beforeFlush?.();
             await deferredConfigRef.current!.flush();
             await deviceClientRef.current?.flushQueue();
             await afterFlush?.();
@@ -2375,14 +2391,79 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
     const flushDeferredConfig = (
         afterFlush?: () => void | Promise<void>,
         resumeMonitoringAfterSuccess: boolean = false,
+        beforeFlush?: () => void | Promise<void>,
     ): Promise<void> => {
         const run = () => performDeferredConfigFlush(
             afterFlush,
             resumeMonitoringAfterSuccess,
+            beforeFlush,
         );
         const operation = deferredFlushTailRef.current.then(run, run);
         deferredFlushTailRef.current = operation.catch(() => undefined);
         return operation;
+    };
+
+    /**
+     * Put every volatile WebConfig activity into an idle state before the
+     * final durable commit. The button stop is deliberately unconditional:
+     * it also clears performance-test mode and recovers a device-side worker
+     * left active by an older page or a stale frontend lease.
+     */
+    const terminateWebConfigActivities = async (): Promise<void> => {
+        const buttonData = await sendDeviceRequest(
+            'stop_button_monitoring',
+            {},
+            true,
+        );
+        setButtonMonitoringActive(buttonData?.isActive ?? false);
+        performanceTelemetryRef.current?.resetMonitoringSession();
+
+        const calibrationData = await sendDeviceRequest(
+            'get_calibration_status',
+            {},
+            true,
+        );
+        const currentCalibration = calibrationStatusFrom(
+            calibrationData?.calibrationStatus,
+        );
+        if (!currentCalibration) {
+            throw new Error('Device returned an invalid calibration status while finishing');
+        }
+        setCalibrationStatus(currentCalibration);
+        if (currentCalibration.isActive) {
+            const data = await sendDeviceRequest(
+                'stop_manual_calibration',
+                {},
+                true,
+            );
+            const status = calibrationStatusFrom(data?.calibrationStatus);
+            if (!status) {
+                throw new Error('Device returned an invalid calibration status while finishing');
+            }
+            setCalibrationStatus(status);
+        }
+
+        const markingData = await sendDeviceRequest(
+            'ms_get_mark_status',
+            {},
+            true,
+        );
+        const currentMarking = markingData?.status as StepInfo | undefined;
+        if (currentMarking) setMarkingStatus(currentMarking);
+        if (currentMarking?.is_marking || currentMarking?.is_sampling) {
+            const data = await sendDeviceRequest(
+                'ms_mark_mapping_stop',
+                {},
+                true,
+            );
+            if (data?.status) setMarkingStatus(data.status as StepInfo);
+        }
+
+        // These commands are idempotent and discard only volatile preview or
+        // multipart staging state. Neither command persists configuration.
+        await sendDeviceRequest('clear_leds_preview', {}, true);
+        await sendDeviceRequest('import_config_abort', {}, true);
+        await deviceClientRef.current?.flushQueue();
     };
 
     /**
@@ -3032,6 +3113,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             stageDeferredGlobalConfig,
             stageDeferredScreenControl,
             flushDeferredConfig,
+            terminateWebConfigActivities,
             deferredConfigDirty,
             deferredConfigSaving,
             resetProfileDetails,
@@ -3043,6 +3125,7 @@ export function GamepadConfigProvider({ children }: { children: React.ReactNode 
             error,
             setError,
             rebootSystem,
+            exitWebConfig,
             // 校准相关
             calibrationStatus,
             fetchCalibrationStatus,

@@ -119,13 +119,9 @@ export function LEDsSettingContent() {
     };
 
 
-    const hasAroundLed = useMemo<boolean>(() => {
-        return defaultProfile.ledsConfigs?.hasAroundLed ?? false;
-    }, [defaultProfile.ledsConfigs?.hasAroundLed]);
-
     const buttonAndAmbientLedEnabled = useMemo<boolean>(() => {
-        return hasAroundLed && ledEnabled && aroundLedEnabled;
-    }, [hasAroundLed, ledEnabled, aroundLedEnabled]);
+        return ledEnabled && aroundLedEnabled;
+    }, [ledEnabled, aroundLedEnabled]);
 
     const aroundLedSyncIsActive = useMemo<boolean>(() => {
         return buttonAndAmbientLedEnabled && aroundLedSyncToMainLed;
@@ -133,8 +129,8 @@ export function LEDsSettingContent() {
 
     const aroundLedConfigIsEnabled = useMemo<boolean>(() => {
         // 如果氛围灯正在同步按键灯，则独立配置无效
-        return hasAroundLed && aroundLedEnabled && !aroundLedSyncIsActive;
-    }, [hasAroundLed, aroundLedEnabled, aroundLedSyncIsActive]);
+        return aroundLedEnabled && !aroundLedSyncIsActive;
+    }, [aroundLedEnabled, aroundLedSyncIsActive]);
 
     const disabledKeys = useMemo<number[]>(() => {
         return defaultProfile.keysConfig?.keysEnableTag?.map((_, index) => index).filter((_, index) => !defaultProfile.keysConfig?.keysEnableTag?.[index]) ?? [];
@@ -417,7 +413,6 @@ export function LEDsSettingContent() {
                     brightness: ledBrightness,
                     animationSpeed: ledAnimationSpeed,
 
-                    hasAroundLed: hasAroundLed,
                     aroundLedEnabled: aroundLedEnabled,
                     aroundLedSyncToMainLed: aroundLedSyncToMainLed,
                     aroundLedTriggerByButton: aroundLedTriggerByButton,
@@ -663,11 +658,11 @@ export function LEDsSettingContent() {
                                             </Slider.Root>
                                         </Grid>
                                     </VStack>
-                                    <HStack display={hasAroundLed ? "flex" : "none"}>
+                                    <HStack>
                                         <Text flexShrink="0" fontSize={"sm"} fontWeight={"bold"}>{t.SETTINGS_LEDS_AMBIENT_LIGHT_TITLE}</Text>
                                         <Separator my={8} flex="1" />
                                     </HStack>
-                                    <VStack gap={8} alignItems={"flex-start"} display={hasAroundLed ? "flex" : "none"}>
+                                    <VStack gap={8} alignItems={"flex-start"}>
                                         {/* Ambient Light */}
                                         <Grid templateColumns="repeat(3, 1fr)" gap={10} w="100%">
                                             {/* 是否开启氛围灯 */}

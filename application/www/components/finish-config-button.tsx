@@ -1,6 +1,6 @@
 import { Button } from "@chakra-ui/react";
-import { openConfirm as openRebootConfirmDialog } from "@/components/dialog-confirm";
-import { closeDialog as closeRebootDialog, openDialog as openRebootDialog } from "@/components/dialog-cannot-close";
+import { openConfirm as openFinishConfirmDialog } from "@/components/dialog-confirm";
+import { closeDialog as closeFinishDialog, openDialog as openFinishDialog } from "@/components/dialog-cannot-close";
 import { useLanguage } from "@/contexts/language-context";
 import { useGamepadConfig } from "@/contexts/gamepad-config-context";
 import { configuredTransportMode } from "@/lib/device-transport";
@@ -15,11 +15,10 @@ export function FinishConfigButton(
 ) {
     const { t } = useLanguage();
     const {
-        rebootSystem,
+        exitWebConfig,
         setUserRebooting,
         flushDeferredConfig,
-        deferredConfigDirty,
-        deferredConfigSaving,
+        terminateWebConfigActivities,
         setError,
     } = useGamepadConfig();
     const [closing, setClosing] = useState(false);
@@ -32,54 +31,62 @@ export function FinishConfigButton(
             size="xs"
             // width={"240px"}
             onClick={async () => {
-                const confirmed = await openRebootConfirmDialog({
-                    title: t.DIALOG_REBOOT_CONFIRM_TITLE,
-                    message: t.DIALOG_REBOOT_CONFIRM_MESSAGE,
+                const confirmed = await openFinishConfirmDialog({
+                    title: t.DIALOG_FINISH_CONFIRM_TITLE,
+                    message: t.DIALOG_FINISH_CONFIRM_MESSAGE,
                 });
 
                 if (confirmed) {
                     setClosing(true);
-                    const savingDialogId = deferredConfigDirty || deferredConfigSaving
-                        ? openRebootDialog({
-                            id: 'config-saving',
-                            title: t.DIALOG_CONFIG_SAVING_TITLE,
-                            status: "info",
-                            message: t.DIALOG_CONFIG_SAVING_MESSAGE,
-                            loading: true,
-                        })
-                        : undefined;
+                    const savingDialogId = openFinishDialog({
+                        id: 'config-saving',
+                        title: t.DIALOG_CONFIG_SAVING_TITLE,
+                        status: "info",
+                        message: t.DIALOG_CONFIG_SAVING_MESSAGE,
+                        loading: true,
+                    });
                     try {
-                        await flushDeferredConfig(async () => {
-                            console.log('配置与设备请求队列已保存，开始重启系统');
-                            await rebootSystem();
-                        });
-                        if (savingDialogId) closeRebootDialog(savingDialogId);
+                        await flushDeferredConfig(
+                            async () => {
+                                console.log('配置与设备请求队列已保存，正在退出 WebConfig 模式');
+                                const expectsDeviceDisconnect = configuredTransportMode() !== 'mock';
+                                if (expectsDeviceDisconnect) setUserRebooting(true);
+                                try {
+                                    await exitWebConfig();
+                                } catch (error) {
+                                    if (expectsDeviceDisconnect) setUserRebooting(false);
+                                    throw error;
+                                }
+                            },
+                            false,
+                            terminateWebConfigActivities,
+                        );
+                        closeFinishDialog(savingDialogId);
 
                         if (configuredTransportMode() === 'mock') {
-                            const dialogId = openRebootDialog({
-                                id: 'reboot-success',
-                                title: t.DIALOG_REBOOT_SUCCESS_TITLE,
+                            const dialogId = openFinishDialog({
+                                id: 'finish-config-success',
+                                title: t.DIALOG_FINISH_SUCCESS_TITLE,
                                 status: "success",
-                                message: t.DIALOG_REBOOT_SUCCESS_MESSAGE,
+                                message: t.DIALOG_FINISH_SUCCESS_MESSAGE,
                                 buttons: [{
                                     text: t.BUTTON_CONFIRM,
                                     colorPalette: "green",
-                                    onClick: () => closeRebootDialog(dialogId),
+                                    onClick: () => closeFinishDialog(dialogId),
                                 }],
                             });
                             return;
                         }
 
-                        setUserRebooting(true); // 标示用户主动重启
-                        openRebootDialog({
-                            id: 'reboot-success',
-                            title: t.DIALOG_REBOOT_SUCCESS_TITLE,
+                        openFinishDialog({
+                            id: 'finish-config-success',
+                            title: t.DIALOG_FINISH_SUCCESS_TITLE,
                             status: "warning",
-                            message: t.DIALOG_REBOOT_SUCCESS_MESSAGE,
+                            message: t.DIALOG_FINISH_SUCCESS_MESSAGE,
                         });
                     } catch (error) {
-                        if (savingDialogId) closeRebootDialog(savingDialogId);
-                        setError(error instanceof Error ? error.message : '保存配置或重启失败');
+                        closeFinishDialog(savingDialogId);
+                        setError(error instanceof Error ? error.message : '保存配置或退出 WebConfig 失败');
                     } finally {
                         setClosing(false);
                     }
@@ -88,7 +95,7 @@ export function FinishConfigButton(
             }}
         >
             <LuGamepad2 />
-            {t.BUTTON_REBOOT_WITH_SAVING}
+            {t.BUTTON_FINISH_CONFIGURATION}
         </Button>
     )
 }

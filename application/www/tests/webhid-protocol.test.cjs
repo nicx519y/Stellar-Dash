@@ -3709,6 +3709,7 @@ test('binary and RPC scope policy is explicit and unknown opcodes fail closed', 
     assert.throws(() => binaryOpcodeScope(opcode), /Unsupported/);
   }
   assert.deepEqual(elevatedScopesForCommand('reboot'), ['device.control']);
+  assert.deepEqual(elevatedScopesForCommand('exit_webconfig'), ['device.control']);
   assert.deepEqual(
     elevatedScopesForCommand('create_firmware_upgrade_session'),
     ['firmware.update'],

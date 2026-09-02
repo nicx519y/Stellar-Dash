@@ -28,6 +28,7 @@ public:
     ADCBtnsError step();
     ADCBtnsError persistProgress();
     void reset();
+    const StepInfo &getStepInfo() const { return step_; }
     cJSON *getStepInfoJSON() const;
     ADCBtnsError getDraftMapping(ADCValuesMapping &mapping) const;
     void resetForContractTest() { step_ = {}; }

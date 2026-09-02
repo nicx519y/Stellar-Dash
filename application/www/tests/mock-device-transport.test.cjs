@@ -1082,6 +1082,7 @@ test('rejects persistent configuration during ordinary and performance monitorin
     profileId: 'profile-arcade',
     profileDetails: { name: 'Saved After Stop' },
   });
+  await transport.request('exit_webconfig');
 
   await transport.request('start_button_performance_monitoring');
   await assert.rejects(
@@ -1090,7 +1091,12 @@ test('rejects persistent configuration during ordinary and performance monitorin
     }),
     /monitor-active/,
   );
-  await transport.request('stop_button_performance_monitoring');
+  // Finish is a self-quiescing boundary: it must stop even an active
+  // performance worker before doing its final persistent write.
+  await transport.request('exit_webconfig');
+  await transport.request('update_global_config', {
+    globalConfig: { wirelessReportRate: '2K' },
+  });
 
   const profile = await transport.request('get_default_profile');
   assert.equal(profile.data.defaultProfileDetails.name, 'Saved After Stop');
@@ -1311,6 +1317,8 @@ test('keeps firmware checks offline and returns a simulated reboot success', asy
 
   const reboot = await transport.request('reboot');
   assert.equal(reboot.data.success, true);
+  const exitWebConfig = await transport.request('exit_webconfig');
+  assert.equal(exitWebConfig.data.success, true);
   assert.equal(transport.state, 'connected');
   await transport.close();
 });

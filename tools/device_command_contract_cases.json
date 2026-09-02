@@ -55,6 +55,7 @@
     {"name":"get_device_logs_list","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["items","count"],"invalid":{"kind":"scope","errNo":403}},
 
     {"name":"reboot","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["message"],"invalid":{"kind":"scope","errNo":403},"recordingField":"storageSaves"},
+    {"name":"exit_webconfig","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["message"],"invalid":{"kind":"scope","errNo":403},"recordingField":"storageSaves"},
     {"name":"start_manual_calibration","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["message","calibrationStatus"],"invalid":{"kind":"scope","errNo":403},"recordingField":"calibrationStarts"},
     {"name":"stop_manual_calibration","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["message","calibrationStatus"],"invalid":{"kind":"scope","errNo":403},"recordingField":"calibrationStops"},
     {"name":"get_calibration_status","validParams":{},"validErrNo":0,"dataType":"object","requiredDataFields":["calibrationStatus"],"invalid":{"kind":"scope","errNo":403}},

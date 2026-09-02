@@ -12,6 +12,7 @@ int main()
     assert(webhidShouldBlockConfigWrite("import_all_config", true, true));
     assert(webhidShouldBlockConfigWrite("import_config_finish", true, true));
     assert(webhidShouldBlockConfigWrite("reboot", false, true));
+    assert(!webhidShouldBlockConfigWrite("exit_webconfig", false, true));
     assert(webhidShouldBlockConfigWrite(
         "complete_firmware_upgrade_session", false, true));
     assert(webhidShouldBlockConfigWrite("ch585_update_begin", false, true));

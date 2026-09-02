@@ -27,10 +27,15 @@ inline bool webhidShouldBlockConfigWrite(
         return false;
     }
 
-    /* Preview writes and multipart staging do not call Storage::saveConfig(). */
+    /*
+     * Preview writes and multipart staging do not call Storage::saveConfig().
+     * exit_webconfig is also allowed through because its handler first stops
+     * every runtime owner before it performs its final persistent write.
+     */
     return command != "push_leds_config" &&
            command != "clear_leds_preview" &&
            command != "import_config_begin" &&
            command != "import_config_part" &&
-           command != "import_config_abort";
+           command != "import_config_abort" &&
+           command != "exit_webconfig";
 }

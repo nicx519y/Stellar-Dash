@@ -398,6 +398,36 @@ bool verifyHotkeyKeyCompatibilityAndReadback(std::string &failure)
     return importedReadback;
 }
 
+bool verifyExitQuiescesRuntimeBeforePersisting(std::string &failure)
+{
+    resetContractState();
+    WEBCONFIG_BTNS_MANAGER.startButtonWorkers();
+    WEBCONFIG_BTNS_MANAGER.enableTestMode(true);
+    if (ADC_CALIBRATION_MANAGER.startManualCalibration() != ADCBtnsError::SUCCESS ||
+        ADC_BTNS_MARKER.setup("mapping-default") != ADCBtnsError::SUCCESS) {
+        failure = "could not prepare active WebConfig runtime";
+        return false;
+    }
+    LEDProfile preview = {};
+    WEBCONFIG_LEDS_MANAGER.applyPreviewConfig(preview);
+
+    DispatchResult result = dispatch("exit_webconfig", nullptr, kAllScopes);
+    const bool ok = result.error == 0 && hasEnvelope(result) &&
+                    !WEBCONFIG_BTNS_MANAGER.isActive() &&
+                    !WEBCONFIG_BTNS_MANAGER.isTestModeEnabled() &&
+                    !ADC_CALIBRATION_MANAGER.isCalibrationActive() &&
+                    !ADC_BTNS_MARKER.getStepInfo().is_marking &&
+                    !WEBCONFIG_LEDS_MANAGER.isInPreviewMode() &&
+                    g_deviceCommandContractRecording.storageSaves == 1u &&
+                    DeviceCommandHandler::needReboot;
+    cJSON_Delete(result.root);
+    if (!ok) {
+        failure = "exit_webconfig persisted before all runtime owners stopped";
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -453,6 +483,13 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    std::string exitFailure;
+    if (!verifyExitQuiescesRuntimeBeforePersisting(exitFailure)) {
+        std::cerr << "exit runtime quiesce: " << exitFailure << "\n";
+        cJSON_Delete(document);
+        return EXIT_FAILURE;
+    }
+
     resetContractState();
     const cJSON *ping = cJSON_GetObjectItemCaseSensitive(document, "ping");
     DispatchResult pingResult = dispatch("ping", cJSON_GetObjectItemCaseSensitive(ping, "validParams"), kAllScopes);
@@ -467,6 +504,6 @@ int main(int argc, char **argv)
     cJSON_Delete(pingResult.root);
     cJSON_Delete(document);
     std::cout << "real handler contracts passed: " << passed
-              << "/67; binary zero-copy, retired tombstone handler and ping passed separately\n";
-    return passed == 67u ? EXIT_SUCCESS : EXIT_FAILURE;
+              << "/68; binary zero-copy, retired tombstone handler and ping passed separately\n";
+    return passed == 68u ? EXIT_SUCCESS : EXIT_FAILURE;
 }

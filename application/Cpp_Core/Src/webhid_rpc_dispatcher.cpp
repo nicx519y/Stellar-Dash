@@ -211,6 +211,7 @@ uint32_t WebHidRpcDispatcher::requiredScope(const std::string &command)
     };
     static const char *const deviceControl[] = {
         "reboot",
+        "exit_webconfig",
         "start_manual_calibration",
         "stop_manual_calibration",
         "get_calibration_status",

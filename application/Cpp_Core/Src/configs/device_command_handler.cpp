@@ -76,6 +76,7 @@ void DeviceCommandDispatcher::initializeHandlers() {
     registerHandler("import_config_finish", &globalHandler);
     registerHandler("import_config_abort", &globalHandler);
     registerHandler("reboot", &globalHandler);
+    registerHandler("exit_webconfig", &globalHandler);
     
     // 注册LED配置相关命令
     registerHandler("push_leds_config", &globalHandler);

@@ -2,6 +2,7 @@
 #include "configs/device_command_handler.hpp"
 #include "adc_btns/adc_calibration.hpp"
 #include "adc_btns/adc_manager.hpp"
+#include "adc_btns/adc_btns_marker.hpp"
 #include "webconfig_leds_manager.hpp"
 #include "webconfig_btns_manager.hpp"
 #include "system_logger.h"
@@ -10,6 +11,7 @@
 #include "usb_board_link.hpp"
 #include "usbdriver.hpp"
 #include "config_transport_sink.hpp"
+#include "configs/user_image_command_handler.hpp"
 #include "firmware_metadata.h"
 #include "leds/led_config_safety.hpp"
 #include <map>
@@ -1044,6 +1046,82 @@ DeviceCommandResponse GlobalConfigCommandHandler::handleReboot(const DeviceComma
     return create_success_response(request.getCid(), request.getCommand(), dataJSON);
 }
 
+DeviceCommandResponse GlobalConfigCommandHandler::handleExitWebConfig(
+    const DeviceCommandRequest& request) {
+    // Exit is the final owner boundary for every volatile WebConfig activity.
+    // Stop these first so the subsequent QSPI journal write cannot starve
+    // button/ADC work or be rejected by the monitor-active safety policy.
+    WebConfigBtnsManager& buttons = WEBCONFIG_BTNS_MANAGER;
+    buttons.enableTestMode(false);
+    if (buttons.isActive()) {
+        buttons.stopButtonWorkers();
+    }
+
+    if (ADC_CALIBRATION_MANAGER.isCalibrationActive()) {
+        const ADCBtnsError result = ADC_CALIBRATION_MANAGER.stopCalibration();
+        if (result != ADCBtnsError::SUCCESS) {
+            return create_error_response(
+                request.getCid(), request.getCommand(), 1,
+                "Failed to stop calibration before exiting WebConfig");
+        }
+    }
+
+    const StepInfo& markingStatus = ADC_BTNS_MARKER.getStepInfo();
+    if (markingStatus.is_marking || markingStatus.is_sampling) {
+        const ADCBtnsError result = ADC_BTNS_MARKER.persistProgress();
+        if (result != ADCBtnsError::SUCCESS &&
+            result != ADCBtnsError::NOT_MARKING) {
+            return create_error_response(
+                request.getCid(), request.getCommand(), 1,
+                "Failed to stop switch sampling before exiting WebConfig");
+        }
+        ADC_BTNS_MARKER.reset();
+    }
+
+    if (WEBCONFIG_LEDS_MANAGER.isInPreviewMode()) {
+        WEBCONFIG_LEDS_MANAGER.clearPreviewConfig();
+    }
+    reset_config_import();
+    UserImageCommandHandler::resetUploadSession();
+
+    cJSON* dataJSON = cJSON_CreateObject();
+    if (!dataJSON) {
+        return create_error_response(
+            request.getCid(),
+            request.getCommand(),
+            1,
+            "Failed to create WebConfig exit response");
+    }
+    if (!cJSON_AddStringToObject(
+            dataJSON, "message", "WebConfig mode exit scheduled")) {
+        cJSON_Delete(dataJSON);
+        return create_error_response(
+            request.getCid(),
+            request.getCommand(),
+            1,
+            "Failed to create WebConfig exit response");
+    }
+
+    STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_INPUT);
+    if (!STORAGE_MANAGER.saveConfig()) {
+        // This command is valid only in WebConfig mode. Keep RAM consistent
+        // with the last committed journal when persistence fails.
+        STORAGE_MANAGER.setBootMode(BootMode::BOOT_MODE_WEB_CONFIG);
+        cJSON_Delete(dataJSON);
+        return create_error_response(
+            request.getCid(),
+            request.getCommand(),
+            1,
+            "Failed to persist WebConfig exit mode");
+    }
+
+    // Let the authenticated response reach the browser before the reset
+    // switches the runtime back to normal input mode.
+    DeviceCommandHandler::rebootTick = HAL_GetTick() + 2000;
+    DeviceCommandHandler::needReboot = true;
+    return create_success_response(request.getCid(), request.getCommand(), dataJSON);
+}
+
 DeviceCommandResponse GlobalConfigCommandHandler::handlePushLedsConfig(const DeviceCommandRequest& request) {
     // LOG_INFO("DeviceCommand", "Handling push_leds_config command, cid: %d", request.getCid());
     
@@ -1223,6 +1301,8 @@ DeviceCommandResponse GlobalConfigCommandHandler::handle(const DeviceCommandRequ
         return handleImportConfigAbort(request);
     } else if (command == "reboot") {
         return handleReboot(request);
+    } else if (command == "exit_webconfig") {
+        return handleExitWebConfig(request);
     } else if (command == "push_leds_config") {
         return handlePushLedsConfig(request);
     } else if (command == "clear_leds_preview") {

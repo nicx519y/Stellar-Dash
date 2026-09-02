@@ -33,6 +33,11 @@ test('LED page stages durable writes and unmount only clears ephemeral preview',
   assert.match(source, /deviceConnected && dataIsReady && isInit/);
   assert.match(source, /<Fieldset\.Root disabled={!ledsWriteReady}>/);
   assert.match(source, /stageDeferredProfileDetails\(defaultProfile\.id, newProfileDetails\)/);
+  assert.match(
+    source,
+    /<HStack>\s*<Text[^>]*>\{t\.SETTINGS_LEDS_AMBIENT_LIGHT_TITLE\}<\/Text>/,
+    'ambient-light settings must always be rendered',
+  );
   assert.doesNotMatch(cleanupEffect, /sendPendingCommandImmediately/);
   assert.match(cleanupEffect, /}, \[\]\);/);
   assert.doesNotMatch(source, /}, \[sendPendingCommandImmediately\]\);/);

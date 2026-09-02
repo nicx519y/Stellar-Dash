@@ -1,8 +1,9 @@
 {
   "version": 1,
   "legacyCommandCount": 68,
+  "commandCount": 69,
   "migrationStatusCounts": {
-    "direct": 65,
+    "direct": 66,
     "equivalent": 1,
     "retired": 2
   },
@@ -79,7 +80,8 @@
     {
       "scope": "device.control",
       "commands": [
-        {"name": "reboot", "migration": "direct", "consumers": ["finish-config"], "test": "stubbed-dangerous"},
+        {"name": "reboot", "migration": "direct", "consumers": ["device-api"], "test": "stubbed-dangerous"},
+        {"name": "exit_webconfig", "migration": "direct", "consumers": ["finish-config"], "test": "contract"},
         {"name": "start_manual_calibration", "migration": "direct", "consumers": ["manual-calibration"], "test": "stubbed-dangerous"},
         {"name": "stop_manual_calibration", "migration": "direct", "consumers": ["manual-calibration"], "test": "stubbed-dangerous"},
         {"name": "get_calibration_status", "migration": "direct", "consumers": ["device-api"], "test": "contract"},

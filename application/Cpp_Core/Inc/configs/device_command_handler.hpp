@@ -46,6 +46,7 @@ public:
     DeviceCommandResponse handleImportConfigFinish(const DeviceCommandRequest& request);
     DeviceCommandResponse handleImportConfigAbort(const DeviceCommandRequest& request);
     DeviceCommandResponse handleReboot(const DeviceCommandRequest& request);
+    DeviceCommandResponse handleExitWebConfig(const DeviceCommandRequest& request);
 
     // LED配置相关命令
     DeviceCommandResponse handlePushLedsConfig(const DeviceCommandRequest& request);

@@ -491,7 +491,6 @@ export interface GameProfile {
         ledAnimationSpeed: number;
 
         // 环绕灯配置
-        hasAroundLed?: boolean;
         aroundLedEnabled: boolean;
         aroundLedSyncToMainLed: boolean;
         aroundLedTriggerByButton: boolean;
@@ -550,7 +549,6 @@ export interface LedsEffectStyleConfig {
     animationSpeed?: number; // 1-5
 
     // 环绕灯配置
-    hasAroundLed?: boolean;
     aroundLedEnabled?: boolean;
     aroundLedSyncToMainLed?: boolean;
     aroundLedTriggerByButton?: boolean;
@@ -617,7 +615,7 @@ export const UI_TEXT = {
     // Common Button Labels
     BUTTON_RESET: "Reset",
     BUTTON_SAVE: "Save",
-    BUTTON_REBOOT_WITH_SAVING: "Finish Configuration",
+    BUTTON_FINISH_CONFIGURATION: "Finish Configuration",
     BUTTON_CANCEL: "Cancel",
     BUTTON_SUBMIT: "Submit",
     BUTTON_CONFIRM: "Confirm",
@@ -631,16 +629,16 @@ export const UI_TEXT = {
     IMPORT_CONFIG_SUCCESS_TITLE: "Import Successful",
     IMPORT_CONFIG_SUCCESS_MESSAGE: "Configuration imported successfully. Click Confirm to refresh the page.",
     // Dialog Titles
-    DIALOG_REBOOT_CONFIRM_TITLE: "Are you sure?",
-    DIALOG_REBOOT_SUCCESS_TITLE: "Reboot successful",
+    DIALOG_FINISH_CONFIRM_TITLE: "Finish configuration?",
+    DIALOG_FINISH_SUCCESS_TITLE: "Configuration finished",
     DIALOG_CONFIG_SAVING_TITLE: "Saving configuration",
     DIALOG_CREATE_PROFILE_TITLE: "Create New Profile",
     DIALOG_RENAME_PROFILE_TITLE: "Rename Profile",
     DIALOG_COMPETITION_PROFILE_ENABLE_TITLE: "Enable Competition Profile",
     
     // Dialog Messages
-    DIALOG_REBOOT_CONFIRM_MESSAGE: "Rebooting the system with saving will save the current profile and ending the current session. \nAre you sure to continue?",
-    DIALOG_REBOOT_SUCCESS_MESSAGE: "Rebooting the system with saving is successful. \nYou can now close this window and start enjoying the gaming experience.",
+    DIALOG_FINISH_CONFIRM_MESSAGE: "Save any unsaved changes and finish configuration?",
+    DIALOG_FINISH_SUCCESS_MESSAGE: "The device has exited WebConfig mode. You can now close this window and start playing.",
     DIALOG_CONFIG_SAVING_MESSAGE: "Saving configuration. Please keep this page open.",
     DIALOG_CREATE_PROFILE_CONFIRM_MESSAGE: "Creating a new profile will create a new profile and ending the current session. Are you sure to continue?",
     DIALOG_RENAME_PROFILE_CONFIRM_MESSAGE: "Renaming the current profile will save the current profile and ending the current session. Are you sure to continue?",
@@ -1147,7 +1145,7 @@ export const UI_TEXT_ZH = {
     // 通用按钮文案
     BUTTON_RESET: "重置",
     BUTTON_SAVE: "保存",
-    BUTTON_REBOOT_WITH_SAVING: "结束配置并开始游戏",
+    BUTTON_FINISH_CONFIGURATION: "结束配置并开始游戏",
     BUTTON_CANCEL: "取消",
     BUTTON_SUBMIT: "确定",
     BUTTON_CONFIRM: "确认",
@@ -1161,15 +1159,15 @@ export const UI_TEXT_ZH = {
     IMPORT_CONFIG_SUCCESS_TITLE: "导入成功",
     IMPORT_CONFIG_SUCCESS_MESSAGE: "配置导入成功。点击确认刷新页面。",
     // 对话框标题
-    DIALOG_REBOOT_CONFIRM_TITLE: "确认重启?",
-    DIALOG_REBOOT_SUCCESS_TITLE: "重启成功",
+    DIALOG_FINISH_CONFIRM_TITLE: "结束配置？",
+    DIALOG_FINISH_SUCCESS_TITLE: "配置已结束",
     DIALOG_CONFIG_SAVING_TITLE: "正在保存",
     DIALOG_CREATE_PROFILE_TITLE: "创建新配置",
     DIALOG_RENAME_PROFILE_TITLE: "重命名配置",
     
     // 对话框消息
-    DIALOG_REBOOT_CONFIRM_MESSAGE: "保存并重启系统将会保存当前配置并结束当前会话。\n是否确认继续？",
-    DIALOG_REBOOT_SUCCESS_MESSAGE: "系统重启成功。\n您现在可以关闭此窗口并开始享受游戏体验。",
+    DIALOG_FINISH_CONFIRM_MESSAGE: "是否保存未保存的配置并结束配置？",
+    DIALOG_FINISH_SUCCESS_MESSAGE: "设备已退出 WebConfig 模式。您现在可以关闭此窗口并开始游戏。",
     DIALOG_CONFIG_SAVING_MESSAGE: "正在保存配置，请保持页面打开。",
     DIALOG_CREATE_PROFILE_CONFIRM_MESSAGE: "创建新配置将会结束当前会话。是否确认继续？",
     DIALOG_RENAME_PROFILE_CONFIRM_MESSAGE: "重命名当前配置将会保存当前配置并结束当前会话。是否确认继续？",

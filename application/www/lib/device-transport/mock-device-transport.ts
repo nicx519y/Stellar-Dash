@@ -1028,6 +1028,10 @@ export class MockDeviceTransport implements DeviceTransport {
         return { isActive: true };
       case 'stop_button_monitoring':
         this.buttonMonitorActive = false;
+        // Firmware uses one worker for ordinary and performance monitoring;
+        // the ordinary stop is therefore also the idempotent emergency stop
+        // used by Finish Configuration.
+        this.stopPerformanceMonitor();
         queueMicrotask(() => this.emit('button.state', {
           isActive: false,
           triggerMask: 0,
@@ -1054,6 +1058,19 @@ export class MockDeviceTransport implements DeviceTransport {
       case 'push_leds_config':
       case 'clear_leds_preview':
       case 'reboot':
+        return { success: true };
+      case 'exit_webconfig':
+        this.buttonMonitorActive = false;
+        this.stopPerformanceMonitor();
+        this.calibrationStatus = {
+          ...this.calibrationStatus,
+          isActive: false,
+          activeCalibrationCount: 0,
+        };
+        this.markingStatus = emptyMarkingStatus();
+        this.importStaging = null;
+        this.importReplaceProfiles = false;
+        this.importStrict = false;
         return { success: true };
       case 'get_firmware_metadata':
         return DEFAULT_FIRMWARE;
@@ -1625,7 +1642,6 @@ function makeProfile(id: string, name: string, isCompetitionProfile: boolean): G
       ledColors: ['#A15A9F', '#24C8DB', '#F5A524'],
       ledBrightness: 70,
       ledAnimationSpeed: 3,
-      hasAroundLed: true,
       aroundLedEnabled: true,
       aroundLedSyncToMainLed: false,
       aroundLedTriggerByButton: true,

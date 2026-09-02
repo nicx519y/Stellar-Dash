@@ -90,7 +90,28 @@ test('settings navigation paints the destination before starting a background sa
     'utf8',
   );
   assert.match(finish, /id: 'config-saving'/);
-  assert.match(finish, /closeRebootDialog\(savingDialogId\)/);
+  assert.match(finish, /closeFinishDialog\(savingDialogId\)/);
+  assert.match(finish, /await exitWebConfig\(\)/);
+  assert.match(finish, /terminateWebConfigActivities/);
+  assert.doesNotMatch(finish, /await rebootSystem\(\)/);
+
+  const context = fs.readFileSync(
+    path.join(__dirname, '../contexts/gamepad-config-context.tsx'),
+    'utf8',
+  );
+  const suspend = context.indexOf('suspended = await lease.suspend');
+  const terminate = context.indexOf('await beforeFlush?.()', suspend);
+  const persist = context.indexOf('await deferredConfigRef.current!.flush()', terminate);
+  assert.ok(suspend >= 0 && terminate > suspend && persist > terminate);
+  for (const command of [
+    'stop_button_monitoring',
+    'stop_manual_calibration',
+    'ms_mark_mapping_stop',
+    'clear_leds_preview',
+    'import_config_abort',
+  ]) {
+    assert.match(context, new RegExp(`['"]${command}['"]`));
+  }
 });
 
 test('profile operations preserve profile content under the shared blocking overlay', () => {
